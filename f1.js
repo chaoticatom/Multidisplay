@@ -1,3 +1,5 @@
+const F1_API = ''; // relative URLs — works from any host (ESP32, localhost, etc.)
+
 let f1MeetingData = null;   // next race meeting info
 let f1FaceBufs = {};       // pre-rendered pixel buffers per face
 let f1DataDirty = true;    // true = rebuild face buffers next frame
@@ -1084,7 +1086,7 @@ async function fetchF1Data() {
   f1SetStatus('transfer');
   let anySuccess=false;
   const nowMs = Date.now();
-  const localServer = 'http://localhost:5000';
+  const localServer = F1_API;
 
   try {
     // ── 1. Session info ──────────────────────────────────────────────────
