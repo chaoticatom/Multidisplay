@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multidisplay Loader</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a14; color: #ccd; font-family: 'Segoe UI', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.card { background: rgba(10,10,25,0.98); border: 1px solid rgba(80,120,255,0.25); border-radius: 10px; padding: 32px; width: 100%; max-width: 480px; box-shadow: 0 0 40px rgba(0,40,200,0.15); }
+h1 { font-size: 15px; letter-spacing: 3px; text-transform: uppercase; color: #7aadff; margin-bottom: 4px; }
+.sub { font-size: 11px; color: #556; letter-spacing: 1px; margin-bottom: 28px; }
+.section { margin-bottom: 24px; }
+.section-title { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(120,160,255,0.7); margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid rgba(80,120,255,0.12); }
+.drop-zone { border: 2px dashed rgba(80,120,255,0.25); border-radius: 7px; padding: 24px 16px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; }
+.drop-zone:hover, .drop-zone.drag { border-color: rgba(80,120,255,0.6); background: rgba(80,120,255,0.06); }
+.drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.drop-zone .icon { font-size: 28px; margin-bottom: 8px; }
+.drop-zone .label { font-size: 13px; color: #889; }
+.drop-zone .label span { color: #7aadff; }
+.drop-zone .filename { font-size: 12px; color: #6e8; margin-top: 6px; display: none; }
+.btn { display: block; width: 100%; padding: 12px; border-radius: 6px; border: none; font-size: 13px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: all 0.2s; margin-top: 12px; }
+.btn-fw  { background: rgba(80,120,255,0.15); border: 1px solid rgba(80,120,255,0.35); color: #7aadff; }
+.btn-fs  { background: rgba(60,180,120,0.12); border: 1px solid rgba(60,180,120,0.3); color: #5db; }
+.btn:hover:not(:disabled) { filter: brightness(1.3); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.progress-wrap { display: none; margin-top: 14px; }
+.progress-bar-bg { background: rgba(255,255,255,0.06); border-radius: 4px; height: 6px; overflow: hidden; }
+.progress-bar { height: 100%; width: 0%; border-radius: 4px; transition: width 0.3s; background: linear-gradient(90deg, #3a6fff, #7aadff); }
+.progress-bar.fs { background: linear-gradient(90deg, #2ab87a, #5db); }
+.status { font-size: 12px; color: #889; margin-top: 8px; min-height: 18px; text-align: center; }
+.status.ok  { color: #6e8; }
+.status.err { color: #f77; }
+.divider { border: none; border-top: 1px solid rgba(80,120,255,0.1); margin: 24px 0; }
+.info { font-size: 11px; color: #445; line-height: 1.7; }
+.info a { color: rgba(100,150,255,0.7); text-decoration: none; }
+.info a:hover { color: #7aadff; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Multidisplay</h1>
+  <div class="sub">Device Loader &mdash; Firmware &amp; Filesystem Update</div>
+
+  <!-- FIRMWARE -->
+  <div class="section">
+    <div class="section-title">Firmware Update (.bin)</div>
+    <div class="drop-zone" id="fw-drop">
+      <div class="icon">⚙️</div>
+      <div class="label">Drop <span>.bin</span> here or click to browse</div>
+      <div class="filename" id="fw-name"></div>
+      <input type="file" id="fw-file" accept=".bin">
+    </div>
+    <div class="progress-wrap" id="fw-progress-wrap">
+      <div class="progress-bar-bg"><div class="progress-bar" id="fw-bar"></div></div>
+      <div class="status" id="fw-status"></div>
+    </div>
+    <button class="btn btn-fw" id="fw-btn" disabled>Flash Firmware</button>
+  </div>
+
+  <hr class="divider">
+
+  <!-- FILESYSTEM -->
+  <div class="section">
+    <div class="section-title">Filesystem Update (.bin &mdash; LittleFS image)</div>
+    <div class="drop-zone" id="fs-drop">
+      <div class="icon">🗂️</div>
+      <div class="label">Drop <span>littlefs.bin</span> here or click to browse</div>
+      <div class="filename" id="fs-name"></div>
+      <input type="file" id="fs-file" accept=".bin">
+    </div>
+    <div class="progress-wrap" id="fs-progress-wrap">
+      <div class="progress-bar-bg"><div class="progress-bar fs" id="fs-bar"></div></div>
+      <div class="status" id="fs-status"></div>
+    </div>
+    <button class="btn btn-fs" id="fs-btn" disabled>Flash Filesystem</button>
+  </div>
+
+  <hr class="divider">
+
+  <div class="info">
+    This page is embedded in firmware and will not be affected by updates.<br>
+    <a href="/">&#8592; Back to main app</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  function setupDrop(dropId, inputId, nameId, btnId, endpoint, barId, wrapId, statusId, barClass) {
+    const drop   = document.getElementById(dropId);
+    const input  = document.getElementById(inputId);
+    const nameEl = document.getElementById(nameId);
+    const btn    = document.getElementById(btnId);
+    const bar    = document.getElementById(barId);
+    const wrap   = document.getElementById(wrapId);
+    const status = document.getElementById(statusId);
+    let file = null;
+
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+    drop.addEventListener('drop', e => {
+      e.preventDefault(); drop.classList.remove('drag');
+      const f = e.dataTransfer.files[0];
+      if (f) selectFile(f);
+    });
+    input.addEventListener('change', () => { if (input.files[0]) selectFile(input.files[0]); });
+
+    function selectFile(f) {
+      file = f;
+      nameEl.textContent = f.name + ' (' + (f.size / 1024).toFixed(1) + ' KB)';
+      nameEl.style.display = 'block';
+      btn.disabled = false;
+      status.textContent = '';
+      status.className = 'status';
+    }
+
+    btn.addEventListener('click', () => {
+      if (!file) return;
+      const xhr = new XMLHttpRequest();
+      const form = new FormData();
+      form.append('file', file, file.name);
+
+      btn.disabled = true;
+      wrap.style.display = 'block';
+      bar.style.width = '0%';
+      status.textContent = 'Uploading…';
+      status.className = 'status';
+
+      xhr.upload.addEventListener('progress', e => {
+        if (e.lengthComputable) {
+          const pct = Math.round(e.loaded / e.total * 100);
+          bar.style.width = pct + '%';
+          status.textContent = 'Uploading… ' + pct + '%';
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+          bar.style.width = '100%';
+          status.textContent = endpoint === '/update/firmware'
+            ? 'Firmware flashed. Rebooting…'
+            : 'Filesystem updated. Rebooting…';
+          status.className = 'status ok';
+          setTimeout(() => { window.location.href = '/'; }, 4000);
+        } else {
+          status.textContent = 'Error ' + xhr.status + ': ' + (xhr.responseText || 'Upload failed');
+          status.className = 'status err';
+          btn.disabled = false;
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        status.textContent = 'Network error — check device connection.';
+        status.className = 'status err';
+        btn.disabled = false;
+      });
+
+      xhr.open('POST', endpoint);
+      xhr.send(form);
+    });
+  }
+
+  setupDrop('fw-drop', 'fw-file', 'fw-name', 'fw-btn', '/update/firmware', 'fw-bar', 'fw-progress-wrap', 'fw-status');
+  setupDrop('fs-drop', 'fs-file', 'fs-name', 'fs-btn', '/update/filesystem', 'fs-bar', 'fs-progress-wrap', 'fs-status');
+})();
+</script>
+</body>
+</html>

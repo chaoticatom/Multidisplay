@@ -24,7 +24,7 @@ else
 fi
 
 echo "==> Gzipping assets into $DIST/..."
-for f in index.html style.css cube.js effects.js f1.js ui.js three.min.js; do
+for f in index.html style.css cube.js effects.js f1.js ui.js three.min.js manifest.json service-worker.js icons/icon-192.png icons/icon-512.png; do
   if [ -f "$f" ]; then
     gzip -9 -c "$f" > "$DIST/${f}.gz"
     orig=$(wc -c < "$f")
