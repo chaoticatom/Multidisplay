@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background -->
+  <rect width="512" height="512" fill="#000308" rx="64"/>
+
+  <!-- 3D cube outline (isometric projection) -->
+  <!-- Top face -->
+  <polygon points="256,80 400,160 256,240 112,160" fill="#001428" stroke="#7aadff" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Left face -->
+  <polygon points="112,160 256,240 256,400 112,320" fill="#000a18" stroke="#7aadff" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Right face -->
+  <polygon points="256,240 400,160 400,320 256,400" fill="#000f22" stroke="#7aadff" stroke-width="6" stroke-linejoin="round"/>
+
+  <!-- LED dots on top face (3x3 grid) -->
+  <circle cx="200" cy="148" r="9" fill="#7aadff" opacity="0.9"/>
+  <circle cx="256" cy="120" r="9" fill="#ff5577" opacity="0.9"/>
+  <circle cx="312" cy="148" r="9" fill="#55ff99" opacity="0.9"/>
+  <circle cx="174" cy="163" r="9" fill="#ff9944" opacity="0.9"/>
+  <circle cx="230" cy="135" r="9" fill="#7aadff" opacity="0.9"/>
+  <circle cx="286" cy="163" r="9" fill="#ff5577" opacity="0.9"/>
+  <circle cx="200" cy="178" r="9" fill="#55ff99" opacity="0.9"/>
+  <circle cx="256" cy="150" r="9" fill="#ff9944" opacity="0.8"/>
+  <circle cx="312" cy="178" r="9" fill="#7aadff" opacity="0.9"/>
+
+  <!-- LED dots on left face (3x3 grid) -->
+  <circle cx="148" cy="220" r="8" fill="#7aadff" opacity="0.85"/>
+  <circle cx="184" cy="242" r="8" fill="#ff5577" opacity="0.85"/>
+  <circle cx="148" cy="264" r="8" fill="#55ff99" opacity="0.85"/>
+  <circle cx="184" cy="286" r="8" fill="#ff9944" opacity="0.85"/>
+  <circle cx="148" cy="308" r="8" fill="#7aadff" opacity="0.85"/>
+  <circle cx="184" cy="330" r="8" fill="#ff5577" opacity="0.7"/>
+
+  <!-- LED dots on right face (3x3 grid) -->
+  <circle cx="328" cy="220" r="8" fill="#55ff99" opacity="0.85"/>
+  <circle cx="364" cy="242" r="8" fill="#7aadff" opacity="0.85"/>
+  <circle cx="328" cy="264" r="8" fill="#ff9944" opacity="0.85"/>
+  <circle cx="364" cy="286" r="8" fill="#ff5577" opacity="0.85"/>
+  <circle cx="328" cy="308" r="8" fill="#7aadff" opacity="0.85"/>
+  <circle cx="364" cy="330" r="8" fill="#55ff99" opacity="0.7"/>
+
+  <!-- Subtle glow on cube edges -->
+  <polygon points="256,80 400,160 256,240 112,160" fill="none" stroke="#7aadff" stroke-width="2" opacity="0.3"/>
+</svg>
