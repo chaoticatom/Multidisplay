@@ -1,4 +1,4 @@
-const CACHE_NAME = 'multidisplay-v1';
+const CACHE_NAME = 'multidisplay-v2';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
@@ -7,8 +7,8 @@ const PRECACHE_URLS = [
   '/effects.js',
   '/f1.js',
   '/ui.js',
-  '/three.min.js',
   '/manifest.json'
+  // three.min.js excluded — placeholder file, real lib loads from CDN
 ];
 
 // Install: pre-cache all static assets
@@ -33,6 +33,9 @@ self.addEventListener('activate', event => {
 // Fetch: cache-first for static assets, network-first for /api/* routes
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
+
+  // Never intercept cross-origin requests (CDN scripts like Three.js)
+  if (url.origin !== self.location.origin) return;
 
   // Network-first for F1/API routes (live data must be fresh)
   if (url.pathname.startsWith('/api/')) {
