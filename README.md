@@ -112,9 +112,21 @@ The F1 Live effect (`effectF1` in `effects.js`) reads data from the following AP
 
 Push data to these endpoints from your backend to drive the live display. The F1 globals are declared in `f1.js`.
 
+## GitHub Pages (Browser Preview)
+
+The web app is hosted on GitHub Pages and works as a full simulator without any hardware:
+
+**[https://chaoticatom.github.io/Multidisplay/](https://chaoticatom.github.io/Multidisplay/)**
+
+> Note: WebSocket streaming to the physical cube is **disabled on GitHub Pages** because browsers block insecure `ws://` connections from HTTPS pages. The visualizer runs in simulator-only mode — all effects, controls, alarms, and F1 display work normally; pixel frames are just not sent to hardware. To stream to the cube, access the app directly from the ESP32 at `http://multidisplay.local`.
+
+To update the live GitHub Pages site after making changes:
+1. Merge your branch into `main`
+2. GitHub Pages auto-deploys from the `main` branch root within ~1 minute
+
 ## Wiring
 
-See [docs/WIRING.md](docs/WIRING.md) (to be added) for full HUB75 wiring diagrams.
+See [docs/WIRING.md](docs/WIRING.md) for full HUB75 wiring diagrams.
 
 The HUB75 pin assignments are defined in `firmware/src/config.h`:
 
