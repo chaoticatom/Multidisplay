@@ -802,33 +802,28 @@
 <video id="vid-el" autoplay muted playsinline style="position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;"></video>
 <canvas id="vid-cv" style="display:none;"></canvas>
 
-<!-- ═══ THREE.JS — local bundle first, CDN fallbacks ═══ -->
-<script src="three.min.js"></script>
+<!-- ═══ THREE.JS — CDN primary, local bundle as override if real ═══ -->
 <script>
-// Fallback: if Three.js failed to load from the local bundle, try CDNs (r168).
+// Load Three.js: try CDNs first (reliable on GitHub Pages / internet),
+// local three.min.js only wins if it actually defines window.THREE (real bundle).
 (function ensureThree(){
-  if (window.THREE) return;
   let cdns = [
     'https://cdnjs.cloudflare.com/ajax/libs/three.js/r168/three.min.js',
     'https://unpkg.com/three@0.168.0/build/three.min.js',
-    'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.min.js'
+    'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.min.js',
+    'three.min.js'  // local bundle last (works offline on ESP32 once downloaded)
   ];
   let i = 0;
   function tryNext(){
     if (window.THREE) return;
     if (i >= cdns.length){
-      document.addEventListener('DOMContentLoaded', function(){
-        document.body.innerHTML = '<div style="color:#f88;font-family:sans-serif;padding:40px;line-height:1.6">'
-          + '<h2>3D library failed to load</h2>'
-          + '<p>The Three.js library could not be loaded locally or from any CDN. '
-          + 'This usually means the host is blocking external scripts, or there is no internet access.</p>'
-          + '<p>Check the browser console (F12) for the exact error.</p></div>';
-      });
+      const ov = document.getElementById('loading-overlay');
+      if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">3D library failed to load</h2><p style="font-size:13px;color:#889">Check your internet connection and reload the page.<br>Open browser console (F12) for details.</p></div>';
       return;
     }
     let s = document.createElement('script');
     s.src = cdns[i++];
-    s.onload = function(){ /* THREE now available */ };
+    s.onload = function(){ /* THREE now available, loadApp will detect it */ };
     s.onerror = tryNext;
     document.head.appendChild(s);
   }
@@ -838,25 +833,25 @@
 
 <!-- ═══ APP SCRIPTS (shared global scope, ordered) ═══ -->
 <script>
-// Wait for THREE to be available (local or fallback) before loading the app
-// scripts, then load them in order so their shared globals are defined.
+// Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  let appScripts = ['cube.js','effects.js','f1.js','ui.js'];
+  const appScripts = ['cube.js','effects.js','f1.js','ui.js'];
+  function showError(msg){
+    const ov = document.getElementById('loading-overlay');
+    if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
+  }
   function loadSeq(idx){
     if (idx >= appScripts.length) return;
-    let s = document.createElement('script');
+    const s = document.createElement('script');
     s.src = appScripts[idx];
     s.onload = function(){ loadSeq(idx+1); };
-    s.onerror = function(){ console.error('Failed to load', appScripts[idx]); };
+    s.onerror = function(){ showError('Could not load ' + appScripts[idx]); };
     document.head.appendChild(s);
   }
   let tries = 0;
   function check(){
-    if (window.THREE && document.body && document.getElementById('c')){
-      loadSeq(0);
-      return;
-    }
-    if (tries++ > 200){ console.error('App failed to start: THREE or canvas not available.'); return; }
+    if (window.THREE && document.getElementById('c')){ loadSeq(0); return; }
+    if (tries++ > 300){ showError('3D engine took too long to load.'); return; }
     setTimeout(check, 50);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', check);
