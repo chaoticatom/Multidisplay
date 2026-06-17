@@ -2352,17 +2352,28 @@ function initTron(){
   tronTrail=new Uint8Array(N);
   tronVisited=new Uint8Array(N);
   tronBFSQueue=new Int16Array(N*3*3);
+  // Mark scoreboard zone as wall on face 0 (1px buffer around boxes)
+  const sz=tronScoreZone();
+  for(let v=Math.max(0,sz.v0);v<=Math.min(SIZE-1,sz.v1);v++){
+    for(let u=Math.max(0,sz.u0);u<=Math.min(SIZE-1,sz.u1);u++){
+      const lv=SIZE-1-v;
+      const idx=faceMap[0][lv*SIZE+u];
+      if(idx>=0) tronTrail[idx]=255;
+    }
+  }
   tronBikes=[]; tronExplosions=[]; tronWinner=-1; tronState='run'; tronStateT=0;
-  const DIRS=[[1,0],[-1,0],[0,1],[0,-1]]; // right, left, down, up
-  // Alternate H/V direction per bike so we get both orientations
-  const HDIR=[[1,0],[-1,0]]; // horizontal
-  const VDIR=[[0,1],[0,-1]]; // vertical
+  const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
+  const HDIR=[[1,0],[-1,0]];
+  const VDIR=[[0,1],[0,-1]];
   for(let k=0;k<tronBikeCount;k++){
     const sf=(typeof panel2dMode!=='undefined' && panel2dMode) ? 0 : k%6;
-    // Random position well inside the face
     const margin=Math.max(4, SIZE>>3);
-    const su=margin+Math.floor(Math.random()*(SIZE-margin*2));
-    const sv=margin+Math.floor(Math.random()*(SIZE-margin*2));
+    let su, sv, tries=0;
+    do {
+      su=margin+Math.floor(Math.random()*(SIZE-margin*2));
+      sv=margin+Math.floor(Math.random()*(SIZE-margin*2));
+      tries++;
+    } while(sf===0 && su>=sz.u0 && sv<=sz.v1 && tries<50);
     // Alternate H/V per bike, random sign
     let dir;
     if(k%2===0) dir=HDIR[Math.floor(Math.random()*2)];
@@ -2439,7 +2450,8 @@ function effectTron(dt){
     if(tronWinFlash<=0&&tronStateT>5) initTron();
   }
 
-  // explosions
+  // explosions (skip during win flash so text stays readable)
+  if(tronWinFlash>0){tronExplosions.length=0;}
   for(let k=tronExplosions.length-1;k>=0;k--){
     const p=tronExplosions[k];
     p.x+=p.vx*dt*8; p.y+=p.vy*dt*8; p.z+=p.vz*dt*8; p.life-=dt*1.8;
@@ -2452,6 +2464,16 @@ function effectTron(dt){
   }
   tronUpdateScoreboard();
   tronRenderScoreOnLEDs(dt);
+}
+
+// Scoreboard exclusion zone — bikes treat this area as walls
+function tronScoreZone(){
+  const boxW=Math.max(3,Math.floor(SIZE/8)-2);
+  const boxH=Math.max(3,Math.floor(SIZE/(tronBikeCount*3)));
+  const gap=1;
+  const startU=SIZE-boxW-1;
+  const totalH=tronBikeCount*(boxH+gap);
+  return {u0:startU-1, v0:0, u1:SIZE-1, v1:totalH+1};
 }
 
 function tronRenderScoreOnLEDs(dt){
