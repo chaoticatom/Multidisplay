@@ -5026,7 +5026,7 @@ function effectGhost(dt){
 // ═══════════════════════════════════════════════════
 let coinCanvas=null,coinCtx=null,coinPixels=null;
 let coinHeads=0,coinTails=0,coinFlipping=false,coinResult='',coinFlipT=0,coinFlipDur=0;
-let coinAngle=0,coinShowResult=0;
+let coinAngle=0,coinShowResult=0,coinSpeed=1;
 
 function coinReset(){coinHeads=0;coinTails=0;}
 
@@ -5057,9 +5057,10 @@ function effectCoinFlip(dt){
     }
   }
 
+  const cs=coinSpeed*speedMult;
   if(coinFlipping){
-    coinFlipT+=dt*speedMult;
-    coinAngle+=dt*speedMult*12;
+    coinFlipT+=dt*cs;
+    coinAngle+=dt*cs*12;
     if(coinFlipT>=coinFlipDur){
       coinFlipping=false;
       if(coinResult==='H') coinHeads++; else coinTails++;
@@ -5067,7 +5068,7 @@ function effectCoinFlip(dt){
       coinAngle=0;
     }
   } else {
-    coinShowResult-=dt*speedMult;
+    coinShowResult-=dt*cs;
     if(coinShowResult<=0) coinStartFlip();
   }
 

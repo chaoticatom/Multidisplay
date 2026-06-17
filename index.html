@@ -305,7 +305,14 @@
         <button class="strobe-mode-btn" data-ls-col="gold">Gold</button>
       </div>
     </div>
-    <button class="effect-btn" data-effect="coinflip">◈ Coin Flip</button>
+    <button class="effect-btn has-panel" data-effect="coinflip">◈ Coin Flip <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-coinflip">
+      <div class="ov-row-label">Flip Speed</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="coin-speed" min="0.5" max="5" step="0.5" value="1" style="flex:1;">
+        <span id="coin-speed-val" style="font-size:11px;color:#9cd;width:32px;">1x</span>
+      </div>
+    </div>
     <button class="effect-btn has-panel" data-effect="custom_cube">◈ Custom Cube <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-custom_cube">
       <div class="ov-row-label">Saved Cubes</div>
