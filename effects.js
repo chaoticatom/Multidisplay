@@ -2190,9 +2190,9 @@ function tronDecide(bk){
   const rdu=dv,  rdv=-du;
 
   const candidates=[
-    {du,    dv,    straight:true },
-    {du:ldu,dv:ldv,straight:false},
-    {du:rdu,dv:rdv,straight:false},
+    {du,    dv,    straight:true, turnDir:0},
+    {du:ldu,dv:ldv,straight:false,turnDir:-1},
+    {du:rdu,dv:rdv,straight:false,turnDir:1},
   ];
 
   // Measure open space for each direction
@@ -2202,26 +2202,61 @@ function tronDecide(bk){
     const idx=faceMap[nf][nv*SIZE+nu];
     if(idx<0||tronTrail[idx]>0) continue;
     const space=tronFloodFill(f,u,v,m.du,m.dv);
-    // 2-step lookahead: from the new cell, can we continue?
-    const [nf2,nu2,nv2]=tronMove(nf,nu,nv,m.du,m.dv);
-    const idx2=faceMap[nf2][nv2*SIZE+nu2];
-    const canContinueStraight=(idx2>=0&&tronTrail[idx2]===0);
-    // Check both turns from new position
-    let escapeRoutes=canContinueStraight?1:0;
-    const [tl,tl2]=[-m.dv, m.du];
-    const [tr,tr2]=[m.dv, -m.du];
-    const [lf,lu,lv]=tronMove(nf,nu,nv,tl,tl2);
-    if(faceMap[lf][lv*SIZE+lu]>=0&&tronTrail[faceMap[lf][lv*SIZE+lu]]===0) escapeRoutes++;
-    const [rf,ru,rv]=tronMove(nf,nu,nv,tr,tr2);
-    if(faceMap[rf][rv*SIZE+ru]>=0&&tronTrail[faceMap[rf][rv*SIZE+ru]]===0) escapeRoutes++;
-    scored.push({m,space,nf,nu,nv,escapeRoutes});
+
+    // Multi-step lookahead: walk straight from this direction and count how
+    // far we can go before hitting a wall (runway length)
+    let runway=0, rf=nf, ru=nu, rv=nv;
+    for(let step=0;step<SIZE;step++){
+      const [sf,su,sv]=tronMove(rf,ru,rv,m.du,m.dv);
+      const si=faceMap[sf][sv*SIZE+su];
+      if(si<0||tronTrail[si]>0) break;
+      rf=sf; ru=su; rv=sv; runway++;
+    }
+
+    // Count escape routes from the new cell
+    let escapeRoutes=0;
+    for(const [ed,ev] of [[m.du,m.dv],[-m.dv,m.du],[m.dv,-m.du]]){
+      const [ef,eu,ev2]=tronMove(nf,nu,nv,ed,ev);
+      const ei=faceMap[ef][ev2*SIZE+eu];
+      if(ei>=0&&tronTrail[ei]===0) escapeRoutes++;
+    }
+
+    // 4-step deep lookahead: simulate walking and count how many options
+    // remain at each step (detects corridors and traps early)
+    let futureOptions=0;
+    let wf=nf, wu=nu, wv=nv, wd=m.du, wdv2=m.dv;
+    for(let step=0;step<4;step++){
+      const [sf,su,sv]=tronMove(wf,wu,wv,wd,wdv2);
+      const si=faceMap[sf][sv*SIZE+su];
+      if(si<0||tronTrail[si]>0) break;
+      wf=sf; wu=su; wv=sv;
+      for(const [ed,ev] of [[-wdv2,wd],[wdv2,-wd]]){
+        const [ef,eu,ev3]=tronMove(wf,wu,wv,ed,ev);
+        const ei=faceMap[ef][ev3*SIZE+eu];
+        if(ei>=0&&tronTrail[ei]===0) futureOptions++;
+      }
+    }
+
+    // Center distance: prefer moves toward face center (avoids hugging edges)
+    const centerDist=Math.abs(nu-SIZE/2)+Math.abs(nv-SIZE/2);
+
+    scored.push({m,space,nf,nu,nv,escapeRoutes,runway,futureOptions,centerDist});
   }
   if(!scored.length) return null;
 
   const maxSpace=Math.max(...scored.map(s=>s.space));
   const mySpace=scored.find(s=>s.m.straight)?.space??0;
 
-  // Distance from other bikes — prefer staying away from clusters
+  // Anti-spiral: detect if we've been turning the same direction repeatedly
+  const hist=bk._turnHist||(bk._turnHist=[]);
+  let spiralPenaltyDir=0;
+  if(hist.length>=3){
+    const recent=hist.slice(-3);
+    if(recent.every(d=>d===1)) spiralPenaltyDir=1;
+    else if(recent.every(d=>d===-1)) spiralPenaltyDir=-1;
+  }
+
+  // Distance from other bikes
   let avoidanceMap=new Map();
   let cutBonus=new Map();
   for(const other of tronBikes){
@@ -2229,11 +2264,9 @@ function tronDecide(bk){
     for(const s of scored){
       const dx=s.nu-other.u, dy=s.nv-other.v;
       const dist=Math.sqrt(dx*dx+dy*dy)+(s.nf===other.face?0:SIZE*0.5);
-      // Cut opportunity (close but with space to survive)
       if(dist<SIZE*0.4 && s.space>mySpace*0.7){
         cutBonus.set(s,(cutBonus.get(s)||0)+(SIZE*0.4-dist)*0.6);
       }
-      // Avoid getting too close if low on space
       if(dist<SIZE*0.25 && s.space<mySpace*0.5){
         avoidanceMap.set(s,(avoidanceMap.get(s)||0)+(SIZE*0.25-dist)*1.5);
       }
@@ -2242,18 +2275,31 @@ function tronDecide(bk){
 
   let best=null, bestScore=-Infinity;
   for(const s of scored){
-    // Heavily penalise dead-ends and tight spaces
     const escapePenalty=s.escapeRoutes===0?-SIZE*10:(s.escapeRoutes===1?-SIZE*2:0);
-    // Bonus for being significantly more open than alternatives
     const openBonus=s.space>=maxSpace*0.95?SIZE*0.5:0;
-    // Modest straight bias to make movement look purposeful, not fidgety
-    const straightBonus=s.m.straight?s.space*0.2:0;
+    // Reduced straight bias — only prefer straight when runway is decent
+    const straightBonus=s.m.straight?(Math.min(s.runway,SIZE/4)*0.8):0;
+    // Penalize short runways heavily (avoids committing to dead-end corridors)
+    const runwayPenalty=s.runway<3?-SIZE*3:(s.runway<6?-SIZE:0);
+    // Reward moves that keep future options open
+    const futureBonus=s.futureOptions*SIZE*0.15;
+    // Slight center preference to use more of the screen
+    const centerBonus=(SIZE-s.centerDist)*0.1;
+    // Anti-spiral: heavily penalize continuing to turn the same direction
+    const spiralPenalty=(spiralPenaltyDir!==0&&s.m.turnDir===spiralPenaltyDir)?-SIZE*4:0;
     const cut=cutBonus.get(s)||0;
     const avoid=avoidanceMap.get(s)||0;
-    const score=s.space*1.2 + straightBonus + cut + openBonus + escapePenalty - avoid + (Math.random()-0.5)*1.5;
-    if(score>bestScore){ bestScore=score; best=s.m; }
+    const score=s.space*1.2 + straightBonus + cut + openBonus + escapePenalty
+      + runwayPenalty + futureBonus + centerBonus + spiralPenalty
+      - avoid + (Math.random()-0.5)*1.5;
+    if(score>bestScore){ bestScore=score; best=s; }
   }
-  return best?[best.du,best.dv]:null;
+  if(best){
+    hist.push(best.m.turnDir);
+    if(hist.length>6) hist.shift();
+    return [best.m.du,best.m.dv];
+  }
+  return null;
 }
 
 function tronCrash(bk){
