@@ -2119,6 +2119,10 @@ document.querySelectorAll('[data-dtmode]').forEach(b=>b.addEventListener('click'
   dtMode=b.dataset.dtmode;
   dtLastSec=-1; // force re-render
 }));
+document.getElementById('coin-speed')?.addEventListener('input',e=>{
+  coinSpeed=parseFloat(e.target.value);
+  document.getElementById('coin-speed-val').textContent=coinSpeed+'x';
+});
 document.getElementById('ls-speed')?.addEventListener('input',e=>{
   lsSpeed=parseFloat(e.target.value);
   document.getElementById('ls-speed-val').textContent=lsSpeed;
