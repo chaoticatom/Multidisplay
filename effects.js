@@ -2461,16 +2461,14 @@ function tronRenderScoreOnLEDs(dt){
   const boxH=Math.max(3,Math.floor(SIZE/(tronBikes.length*3)));
   const gap=1;
   const startU=SIZE-boxW-1;
-  const crashesToEmpty=5;
-  const pixPerCrash=Math.ceil(tronMaxFill/crashesToEmpty);
 
-  // Animate fill draining toward target
+  // Each crash removes exactly 1 pixel
   for(let i=0;i<tronBikes.length;i++){
-    const target=Math.max(0, tronMaxFill-tronDeaths[i]*pixPerCrash);
-    if(tronScoreFill[i]>target) tronScoreFill[i]=Math.max(target, tronScoreFill[i]-Math.max(1,Math.floor(tronMaxFill*dt*2)));
+    const target=Math.max(0, tronMaxFill-tronDeaths[i]);
+    if(tronScoreFill[i]>target) tronScoreFill[i]=Math.max(target, tronScoreFill[i]-1);
   }
 
-  // Check if any box is empty → that bike is out, last one with fill wins
+  // Check if any box is empty → game over, most pixels left wins
   for(let i=0;i<tronBikes.length;i++){
     if(tronScoreFill[i]<=0&&tronWinFlash<=0){
       let bestBike=0, bestFill=-1;
@@ -2543,33 +2541,47 @@ function tronRenderScoreOnLEDs(dt){
 }
 
 function tronRenderWinsText(face,hue){
-  const rgb=hsl(hue,1,0.95);
-  // Simple "WIN" in 5x5 pixel font, centered on face
-  const W=[[1,0,1],[1,0,1],[1,1,1],[1,1,1],[0,1,0]];
-  const I=[[1,1,1],[0,1,0],[0,1,0],[0,1,0],[1,1,1]];
-  const Nl=[[1,0,1],[1,1,1],[1,1,1],[1,0,1],[1,0,1]];
+  const fg=hsl(hue,1,0.95);
+  const bg=hsl(hue,1,0.15);
+  // "WIN" in 5x7 pixel font for better readability
+  const W=[[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,1,0,1,1],[1,0,0,0,1]];
+  const I=[[1,1,1],[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,1,0],[1,1,1]];
+  const Nl=[[1,0,0,1],[1,1,0,1],[1,1,0,1],[1,0,1,1],[1,0,1,1],[1,0,0,1],[1,0,0,1]];
   const letters=[W,I,Nl];
-  const charW=3, charH=5, gap2=1, scale2=Math.max(1,Math.floor(SIZE/14));
-  const totalW=(charW*letters.length+(letters.length-1)*gap2)*scale2;
+  const charWidths=[5,3,4];
+  const charH=7;
+  const scale2=Math.max(2,Math.floor(SIZE/10));
+  const totalW=(charWidths.reduce((a,b)=>a+b,0)+2)*scale2;
   const offU=Math.floor((SIZE-totalW)/2);
   const offV=Math.floor((SIZE-charH*scale2)/2);
+  // Draw dark background box
+  for(let v=offV-scale2;v<offV+charH*scale2+scale2;v++){
+    for(let u2=offU-scale2;u2<offU+totalW+scale2;u2++){
+      if(u2<0||u2>=SIZE||v<0||v>=SIZE) continue;
+      const lv=SIZE-1-v;
+      const idx=faceMap[face][lv*SIZE+u2];
+      if(idx>=0){colBuf[idx*3]=bg[0];colBuf[idx*3+1]=bg[1];colBuf[idx*3+2]=bg[2];}
+    }
+  }
+  let curU=offU;
   for(let li=0;li<letters.length;li++){
     const letter=letters[li];
-    const baseU=offU+(charW+gap2)*scale2*li;
+    const cw=charWidths[li];
     for(let row=0;row<charH;row++){
-      for(let col=0;col<charW;col++){
+      for(let col=0;col<cw;col++){
         if(!letter[row][col]) continue;
         for(let sy=0;sy<scale2;sy++){
           for(let sx=0;sx<scale2;sx++){
-            const u=baseU+col*scale2+sx, v=offV+row*scale2+sy;
+            const u=curU+col*scale2+sx, v=offV+row*scale2+sy;
             if(u>=SIZE||v>=SIZE||u<0||v<0) continue;
             const lv=SIZE-1-v;
             const idx=faceMap[face][lv*SIZE+u];
-            if(idx>=0){colBuf[idx*3]=rgb[0];colBuf[idx*3+1]=rgb[1];colBuf[idx*3+2]=rgb[2];}
+            if(idx>=0){colBuf[idx*3]=fg[0];colBuf[idx*3+1]=fg[1];colBuf[idx*3+2]=fg[2];}
           }
         }
       }
     }
+    curU+=(cw+1)*scale2;
   }
 }
 
