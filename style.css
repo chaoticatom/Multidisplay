@@ -171,7 +171,7 @@
   .ov-toggle input:checked + .ov-slider::before { transform:translateX(16px); background:#7aedff; box-shadow:0 0 6px rgba(100,220,255,0.8); }
   .ov-name { flex:1; }
 
-  #sidebar-footer { padding: 10px 16px; border-top: 1px solid rgba(80,120,255,0.1); font-size: 12px; color: #aac; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
+  #sidebar-footer { padding: 10px 16px; border-top: 1px solid rgba(80,120,255,0.1); font-size: 12px; color: #aac; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; margin-top: auto; position: sticky; bottom: 0; background: rgba(10,10,20,0.97); z-index: 2; }
   #fps-counter { color: #3b7; }
 
   #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
