@@ -2386,6 +2386,42 @@ function effectTron(dt){
     }
   }
   tronUpdateScoreboard();
+  tronRenderScoreOnLEDs();
+}
+
+function tronRenderScoreOnLEDs(){
+  if(!tronDeaths||!tronBikes.length) return;
+  const entries=tronBikes.map((_,i)=>({i,deaths:tronDeaths[i]}));
+  entries.sort((a,b)=>a.deaths-b.deaths);
+  const face=0;
+  const barW=Math.max(2,Math.floor(SIZE/16));
+  const barH=Math.max(1,Math.floor(SIZE/(entries.length*3)));
+  const gap=1;
+  const startU=SIZE-barW-1;
+  for(let rank=0;rank<entries.length;rank++){
+    const e=entries[rank];
+    const h=TRON_HUES[e.i%TRON_HUES.length];
+    const rgb=hsl(h,1,0.5);
+    const topV=1+rank*(barH+gap);
+    for(let dv=0;dv<barH;dv++){
+      for(let du=0;du<barW;du++){
+        const v=topV+dv, u=startU+du;
+        if(v>=SIZE||u>=SIZE) continue;
+        const lv=SIZE-1-v;
+        const idx=faceMap[face][lv*SIZE+u];
+        if(idx>=0){colBuf[idx*3]=rgb[0];colBuf[idx*3+1]=rgb[1];colBuf[idx*3+2]=rgb[2];}
+      }
+    }
+    const numW=Math.min(e.deaths,SIZE/2-barW-2);
+    for(let du=0;du<numW;du++){
+      const v=topV+Math.floor(barH/2);
+      const u=startU-2-du;
+      if(u<0||v>=SIZE) continue;
+      const lv=SIZE-1-v;
+      const idx=faceMap[face][lv*SIZE+u];
+      if(idx>=0){colBuf[idx*3]=rgb[0]*0.5;colBuf[idx*3+1]=rgb[1]*0.5;colBuf[idx*3+2]=rgb[2]*0.5;}
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -4923,22 +4959,40 @@ function effectCoinFlip(dt){
     if(coinShowResult<=0) coinStartFlip();
   }
 
-  const cx=DT_RES/2, cy=DT_RES*0.22, R=DT_RES*0.15;
+  const cx=DT_RES/2, cy=DT_RES*0.38, R=DT_RES*0.30;
   ctx.save();
   const scaleX=coinFlipping?Math.cos(coinAngle):1;
   const absSx=Math.max(0.05,Math.abs(scaleX));
-  ctx.beginPath();
-  ctx.ellipse(cx,cy,R*absSx,R,0,0,Math.PI*2);
+
+  // Coin shadow
+  ctx.fillStyle='rgba(40,30,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(cx+8,cy+10,R*absSx,R*0.3,0,0,Math.PI*2); ctx.fill();
+
+  // Coin edge (3D thickness when spinning)
+  if(coinFlipping&&absSx<0.7){
+    ctx.fillStyle='#665511';
+    ctx.fillRect(cx-R*absSx,cy-4,R*absSx*2,8);
+  }
+
+  // Coin face
+  ctx.beginPath(); ctx.ellipse(cx,cy,R*absSx,R,0,0,Math.PI*2);
   if(coinFlipping){
-    ctx.fillStyle='#aa8822'; ctx.fill();
-    ctx.strokeStyle='#ffcc44'; ctx.lineWidth=16; ctx.stroke();
+    const grad=ctx.createRadialGradient(cx-R*0.2,cy-R*0.2,0,cx,cy,R);
+    grad.addColorStop(0,'#ddaa33'); grad.addColorStop(1,'#886611');
+    ctx.fillStyle=grad; ctx.fill();
+    ctx.strokeStyle='#ffdd55'; ctx.lineWidth=12; ctx.stroke();
   } else {
     const isH=(coinResult==='H');
-    ctx.fillStyle=isH?'#bb9922':'#5566aa'; ctx.fill();
-    ctx.strokeStyle=isH?'#ffcc44':'#99aaff'; ctx.lineWidth=16; ctx.stroke();
+    const grad=ctx.createRadialGradient(cx-R*0.2,cy-R*0.2,0,cx,cy,R);
+    if(isH){grad.addColorStop(0,'#eebb33');grad.addColorStop(1,'#886611');}
+    else{grad.addColorStop(0,'#7788cc');grad.addColorStop(1,'#334477');}
+    ctx.fillStyle=grad; ctx.fill();
+    ctx.strokeStyle=isH?'#ffdd55':'#aabbff'; ctx.lineWidth=12; ctx.stroke();
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillStyle='#fff'; ctx.font='bold '+Math.floor(R*1.6)+'px monospace';
-    ctx.fillText(isH?'H':'T', cx, cy+4);
+    ctx.fillStyle='#fff'; ctx.shadowColor=isH?'#ffcc00':'#6688ff'; ctx.shadowBlur=30;
+    ctx.font='bold '+Math.floor(R*1.4)+'px monospace';
+    ctx.fillText(isH?'H':'T', cx, cy+6);
+    ctx.shadowBlur=0;
   }
   ctx.restore();
 
@@ -4946,17 +5000,12 @@ function effectCoinFlip(dt){
   const hPct=total?Math.round(coinHeads/total*100):0;
   const tPct=total?Math.round(coinTails/total*100):0;
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.shadowColor='#000'; ctx.shadowBlur=20;
-  ctx.font='bold 200px monospace';
-  ctx.fillStyle='#ffcc44'; ctx.fillText(String(coinHeads), DT_RES*0.28, DT_RES*0.52);
-  ctx.fillStyle='#99bbff'; ctx.fillText(String(coinTails), DT_RES*0.72, DT_RES*0.52);
   ctx.font='bold 120px monospace';
-  ctx.fillStyle='#ffcc44'; ctx.fillText(hPct+'%', DT_RES*0.28, DT_RES*0.76);
-  ctx.fillStyle='#99bbff'; ctx.fillText(tPct+'%', DT_RES*0.72, DT_RES*0.76);
-  ctx.font='bold 100px monospace';
-  ctx.fillStyle='#ffaa22'; ctx.fillText('H', DT_RES*0.28, DT_RES*0.94);
-  ctx.fillStyle='#7799ff'; ctx.fillText('T', DT_RES*0.72, DT_RES*0.94);
-  ctx.shadowBlur=0;
+  ctx.fillStyle='#ffcc44'; ctx.fillText(coinHeads+' H', DT_RES*0.28, DT_RES*0.78);
+  ctx.fillStyle='#99bbff'; ctx.fillText(coinTails+' T', DT_RES*0.72, DT_RES*0.78);
+  ctx.font='bold 80px monospace';
+  ctx.fillStyle='#cc9922'; ctx.fillText(hPct+'%', DT_RES*0.28, DT_RES*0.94);
+  ctx.fillStyle='#7799dd'; ctx.fillText(tPct+'%', DT_RES*0.72, DT_RES*0.94);
 
   coinPixels=ctx.getImageData(0,0,DT_RES,DT_RES).data;
 
