@@ -1,4 +1,4 @@
-const CACHE_NAME = 'multidisplay-v7';
+const CACHE_NAME = 'multidisplay-v8';
 const PRECACHE_URLS = [
   './',
   'index.html',
@@ -20,7 +20,7 @@ self.addEventListener('install', event => {
   );
 });
 
-// Activate: delete old caches
+// Activate: delete old caches, claim all clients immediately
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -31,14 +31,14 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch: cache-first for static assets, network-first for /api/* routes
+// Fetch: network-first for .js/.css/.html, cache-first for large assets only
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Never intercept cross-origin requests (CDN scripts like Three.js)
+  // Never intercept cross-origin requests
   if (url.origin !== self.location.origin) return;
 
-  // Network-first for API routes (live data must be fresh)
+  // Network-first for API routes
   if (url.pathname.includes('/api/')) {
     event.respondWith(
       fetch(event.request)
@@ -54,7 +54,25 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Cache-first for all other static assets
+  // Network-first for app code so updates are always picked up
+  const path = url.pathname;
+  const isAppCode = path.endsWith('.js') || path.endsWith('.css') || path.endsWith('.html') || path.endsWith('/');
+  if (isAppCode) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Cache-first for everything else (images, fonts, etc.)
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
