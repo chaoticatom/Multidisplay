@@ -80,7 +80,7 @@ const sidebar = document.getElementById('sidebar');
 const menuToggle = document.getElementById('menu-toggle');
 const sidebarOverlay = document.getElementById('sidebar-overlay');
 
-let menuOpen = true;
+let menuOpen = window.innerWidth > 768;
 
 function updateSidebarOverlay() {
   if (!sidebarOverlay) return;
@@ -91,23 +91,28 @@ function updateSidebarOverlay() {
 function updateMenuToggleButton() {
   const isSmall = window.innerWidth <= 768;
   menuToggle.classList.toggle('show', isSmall);
-  if (!isSmall) {
+  if (isSmall) {
+    if (!menuOpen) sidebar.classList.remove('open');
+  } else {
+    sidebar.classList.remove('open');
     sidebar.classList.remove('hidden');
     menuOpen = true;
   }
   updateSidebarOverlay();
+  resize();
 }
 
 function toggleMenu() {
   menuOpen = !menuOpen;
-  if (menuOpen) {
-    sidebar.classList.remove('hidden');
-    menuToggle.textContent = '✕';
+  const isSmall = window.innerWidth <= 768;
+  if (isSmall) {
+    sidebar.classList.toggle('open', menuOpen);
   } else {
-    sidebar.classList.add('hidden');
-    menuToggle.textContent = '☰';
+    sidebar.classList.toggle('hidden', !menuOpen);
   }
+  menuToggle.textContent = menuOpen ? '✕' : '☰';
   updateSidebarOverlay();
+  resize();
 }
 
 menuToggle.addEventListener('click', toggleMenu);
@@ -120,6 +125,14 @@ if (sidebarOverlay) {
 }
 
 window.addEventListener('resize', updateMenuToggleButton);
+// Initialize: on mobile start with sidebar closed, show hamburger
+if (window.innerWidth <= 768) {
+  menuOpen = false;
+  menuToggle.textContent = '☰';
+  menuToggle.classList.add('show');
+} else {
+  menuOpen = true;
+}
 updateMenuToggleButton();
 
 const pivotGroup = new THREE.Group();

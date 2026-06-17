@@ -2,14 +2,14 @@
   "name": "Multidisplay",
   "short_name": "Multidisplay",
   "description": "RGB LED Cube controller and visualizer",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#000308",
   "theme_color": "#000308",
   "orientation": "any",
   "icons": [
-    {"src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
-    {"src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
-    {"src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable any"}
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable any"}
   ]
 }
