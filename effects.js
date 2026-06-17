@@ -2295,7 +2295,7 @@ function tronUpdateScoreboard(){
 }
 
 function initTron(){
-  const boxW=Math.max(3,Math.floor(SIZE/8));
+  const boxW=Math.max(3,Math.floor(SIZE/8)-2);
   const boxH=Math.max(3,Math.floor(SIZE/(tronBikeCount*3)));
   const innerArea=(boxW-2)*(boxH-2);
   tronMaxFill=innerArea;
@@ -2411,7 +2411,7 @@ function effectTron(dt){
 function tronRenderScoreOnLEDs(dt){
   if(!tronDeaths||!tronBikes.length||!tronScoreFill) return;
   const face=0;
-  const boxW=Math.max(3,Math.floor(SIZE/8));
+  const boxW=Math.max(3,Math.floor(SIZE/8)-2);
   const boxH=Math.max(3,Math.floor(SIZE/(tronBikes.length*3)));
   const gap=1;
   const startU=SIZE-boxW-1;
@@ -2503,7 +2503,7 @@ function tronRenderWinsText(face,hue){
   const I=[[1,1,1],[0,1,0],[0,1,0],[0,1,0],[1,1,1]];
   const Nl=[[1,0,1],[1,1,1],[1,1,1],[1,0,1],[1,0,1]];
   const letters=[W,I,Nl];
-  const charW=3, charH=5, gap2=1, scale2=Math.max(1,Math.floor(SIZE/20));
+  const charW=3, charH=5, gap2=1, scale2=Math.max(1,Math.floor(SIZE/14));
   const totalW=(charW*letters.length+(letters.length-1)*gap2)*scale2;
   const offU=Math.floor((SIZE-totalW)/2);
   const offV=Math.floor((SIZE-charH*scale2)/2);
