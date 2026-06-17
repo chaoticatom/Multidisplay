@@ -5051,7 +5051,7 @@ function effectCoinFlip(dt){
   for(let sy=0;sy<DT_RES;sy+=32){
     for(let sx=0;sx<DT_RES;sx+=32){
       const shimmer=Math.sin(t*2+sx*0.02+sy*0.03)*0.5+0.5;
-      const b=Math.floor(shimmer*12);
+      const b=Math.floor(shimmer*25);
       ctx.fillStyle='rgb('+b+','+b+','+Math.floor(b*1.5)+')';
       ctx.fillRect(sx,sy,32,32);
     }
