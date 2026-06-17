@@ -802,28 +802,28 @@
 <video id="vid-el" autoplay muted playsinline style="position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;"></video>
 <canvas id="vid-cv" style="display:none;"></canvas>
 
-<!-- ═══ THREE.JS — CDN primary, local bundle as override if real ═══ -->
+<!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
+<script src="three.min.js"></script>
 <script>
-// Load Three.js: try CDNs first (reliable on GitHub Pages / internet),
-// local three.min.js only wins if it actually defines window.THREE (real bundle).
+// Fallback: if local bundle failed (e.g. missing/blocked), try CDNs.
 (function ensureThree(){
+  if (window.THREE) return;
   let cdns = [
-    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r168/three.min.js',
-    'https://unpkg.com/three@0.168.0/build/three.min.js',
-    'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.min.js',
-    'three.min.js'  // local bundle last (works offline on ESP32 once downloaded)
+    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js',
+    'https://unpkg.com/three@0.134.0/build/three.min.js',
+    'https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js'
   ];
   let i = 0;
   function tryNext(){
     if (window.THREE) return;
     if (i >= cdns.length){
       const ov = document.getElementById('loading-overlay');
-      if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">3D library failed to load</h2><p style="font-size:13px;color:#889">Check your internet connection and reload the page.<br>Open browser console (F12) for details.</p></div>';
+      if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">3D library failed to load</h2><p style="font-size:13px;color:#889">Could not load Three.js locally or from any CDN.<br>Open browser console (F12) for details.</p></div>';
       return;
     }
     let s = document.createElement('script');
     s.src = cdns[i++];
-    s.onload = function(){ /* THREE now available, loadApp will detect it */ };
+    s.onload = function(){};
     s.onerror = tryNext;
     document.head.appendChild(s);
   }

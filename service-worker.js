@@ -1,4 +1,4 @@
-const CACHE_NAME = 'multidisplay-v2';
+const CACHE_NAME = 'multidisplay-v3';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
@@ -7,8 +7,8 @@ const PRECACHE_URLS = [
   '/effects.js',
   '/f1.js',
   '/ui.js',
+  '/three.min.js',
   '/manifest.json'
-  // three.min.js excluded — placeholder file, real lib loads from CDN
 ];
 
 // Install: pre-cache all static assets
