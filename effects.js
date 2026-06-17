@@ -2450,16 +2450,17 @@ function effectTron(dt){
     if(tronWinFlash<=0&&tronStateT>5) initTron();
   }
 
-  // explosions (skip during win flash so text stays readable)
-  if(tronWinFlash>0){tronExplosions.length=0;}
-  for(let k=tronExplosions.length-1;k>=0;k--){
-    const p=tronExplosions[k];
-    p.x+=p.vx*dt*8; p.y+=p.vy*dt*8; p.z+=p.vz*dt*8; p.life-=dt*1.8;
-    if(p.life<=0){tronExplosions.splice(k,1);continue;}
-    for(let i=0;i<N;i++){
-      const dx=gridX[i]*SPACING-HALF-p.x, dy=gridY[i]*SPACING-HALF-p.y, dz=gridZ[i]*SPACING-HALF-p.z;
-      const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
-      if(d<SPACING*4){const b=Math.pow(1-d/(SPACING*4),1.2)*p.life;const [r,gg,bv]=hsl(p.hue,1,b);if(r>colBuf[i*3])colBuf[i*3]=r;if(gg>colBuf[i*3+1])colBuf[i*3+1]=gg;if(bv>colBuf[i*3+2])colBuf[i*3+2]=bv;}
+  // explosions (only during normal play, not during win flash)
+  if(tronWinFlash<=0){
+    for(let k=tronExplosions.length-1;k>=0;k--){
+      const p=tronExplosions[k];
+      p.x+=p.vx*dt*8; p.y+=p.vy*dt*8; p.z+=p.vz*dt*8; p.life-=dt*1.8;
+      if(p.life<=0){tronExplosions.splice(k,1);continue;}
+      for(let i=0;i<N;i++){
+        const dx=gridX[i]*SPACING-HALF-p.x, dy=gridY[i]*SPACING-HALF-p.y, dz=gridZ[i]*SPACING-HALF-p.z;
+        const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
+        if(d<SPACING*4){const b=Math.pow(1-d/(SPACING*4),1.2)*p.life;const [r,gg,bv]=hsl(p.hue,1,b);if(r>colBuf[i*3])colBuf[i*3]=r;if(gg>colBuf[i*3+1])colBuf[i*3+1]=gg;if(bv>colBuf[i*3+2])colBuf[i*3+2]=bv;}
+      }
     }
   }
   tronUpdateScoreboard();
