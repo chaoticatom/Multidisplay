@@ -3238,6 +3238,8 @@ function effectWeather(dt){
 }
 
 function effectLightning(dt){
+  lightningT+=dt*speedMult;
+  lightningStormT+=dt*speedMult;
 
   // Dark electric storm background — deep blue-purple base
   const pulse=0.03+0.02*Math.sin(lightningStormT*0.7);
@@ -3257,8 +3259,9 @@ function effectLightning(dt){
     lightningThunder=Math.max(0,lightningThunder-dt*8);
   }
 
-  // Strikes — burst pattern
-  const rate=0.25+0.2*Math.sin(lightningStormT*0.3);
+  // Strikes — random intervals roughly around the speed setting
+  const baseRate = 0.8 / Math.max(0.1, speedMult);
+  const rate = baseRate * (0.3 + Math.random() * 1.4);
   if(lightningT>rate){
     lightningT=0; spawnStrike();
     if(Math.random()<0.4){ setTimeout(spawnStrike,70); }
