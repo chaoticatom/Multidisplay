@@ -2077,6 +2077,10 @@ const TRON_GRIDS=[[0.01,0.06,0.12],[0.01,0.06,0.01],[0.06,0.01,0.06],[0.04,0.04,
 function tronMove(face,u,v,du,dv){
   const M=SIZE-1, nu=u+du, nv=v+dv;
   if(nu>=0&&nu<=M&&nv>=0&&nv<=M) return [face,nu,nv,du,dv];
+  // In 2D panel mode, keep bikes on the same face (wrap around edges)
+  if(typeof panel2dMode!=='undefined' && panel2dMode){
+    return [face, ((nu%SIZE)+SIZE)%SIZE, ((nv%SIZE)+SIZE)%SIZE, du, dv];
+  }
   switch(face){
     case 0: if(du===1)return[2,M,v,-1,0]; if(du===-1)return[3,M,v,-1,0]; if(dv===1)return[4,u,M,0,-1]; return[5,u,M,0,-1];
     case 1: if(du===1)return[2,0,v,1,0]; if(du===-1)return[3,0,v,1,0]; if(dv===1)return[4,u,0,0,1]; return[5,u,0,0,1];
@@ -2211,7 +2215,7 @@ function initTron(){
   const HDIR=[[1,0],[-1,0]]; // horizontal
   const VDIR=[[0,1],[0,-1]]; // vertical
   for(let k=0;k<tronBikeCount;k++){
-    const sf=k%6; // one bike per face, cycling
+    const sf=(typeof panel2dMode!=='undefined' && panel2dMode) ? 0 : k%6;
     // Random position well inside the face
     const margin=Math.max(4, SIZE>>3);
     const su=margin+Math.floor(Math.random()*(SIZE-margin*2));
