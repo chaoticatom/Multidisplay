@@ -2072,6 +2072,7 @@ let tronTrail=null, tronBikes=[], tronExplosions=[], tronState='run', tronStateT
 let tronBikeCount=4, tronWinner=-1, tronSpeedMult=1, tronGridTheme=0;
 let tronVisited=null; // reusable buffer — allocated once per initTron
 let tronBFSQueue=null;
+let tronDeaths=null; // death count per bike (index matches bike slot)
 const TRON_GRIDS=[[0.01,0.06,0.12],[0.01,0.06,0.01],[0.06,0.01,0.06],[0.04,0.04,0.04]];
 
 function tronMove(face,u,v,du,dv){
@@ -2195,6 +2196,8 @@ function tronDecide(bk){
 
 function tronCrash(bk){
   bk.alive=false;
+  const idx=tronBikes.indexOf(bk);
+  if(idx>=0&&tronDeaths) tronDeaths[idx]++;
   const [wx,wy,wz]=(() => { const M=SIZE-1; switch(bk.face){case 0:return[bk.u,bk.v,M];case 1:return[bk.u,bk.v,0];case 2:return[M,bk.v,bk.u];case 3:return[0,bk.v,bk.u];case 4:return[bk.u,M,bk.v];default:return[bk.u,0,bk.v]; }})();
   for(let i=0;i<55;i++){
     const th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);
@@ -2205,7 +2208,28 @@ function tronCrash(bk){
   }
 }
 
+function tronUpdateScoreboard(){
+  let el=document.getElementById('tron-scoreboard');
+  if(!el){
+    el=document.createElement('div');el.id='tron-scoreboard';
+    Object.assign(el.style,{position:'absolute',top:'10px',right:'10px',
+      background:'rgba(0,0,0,0.7)',padding:'8px 12px',borderRadius:'6px',
+      fontFamily:'monospace',fontSize:'13px',zIndex:'100',pointerEvents:'none'});
+    document.body.appendChild(el);
+  }
+  if(!tronDeaths||!tronBikes.length){el.style.display='none';return;}
+  el.style.display='block';
+  const entries=tronBikes.map((_,i)=>({i,deaths:tronDeaths[i]}));
+  entries.sort((a,b)=>a.deaths-b.deaths);
+  el.innerHTML=entries.map(e=>{
+    const h=TRON_HUES[e.i%TRON_HUES.length];
+    const rgb=hsl(h,1,0.6);
+    return `<div style="color:rgb(${rgb[0]},${rgb[1]},${rgb[2]})">&#9632; ${e.deaths}</div>`;
+  }).join('');
+}
+
 function initTron(){
+  if(!tronDeaths||tronDeaths.length!==tronBikeCount) tronDeaths=new Array(tronBikeCount).fill(0);
   tronTrail=new Uint8Array(N);
   tronVisited=new Uint8Array(N);
   tronBFSQueue=new Int16Array(N*3*3);
@@ -2307,6 +2331,7 @@ function effectTron(dt){
       if(d<SPACING*4){const b=Math.pow(1-d/(SPACING*4),1.2)*p.life;const [r,gg,bv]=hsl(p.hue,1,b);if(r>colBuf[i*3])colBuf[i*3]=r;if(gg>colBuf[i*3+1])colBuf[i*3+1]=gg;if(bv>colBuf[i*3+2])colBuf[i*3+2]=bv;}
     }
   }
+  tronUpdateScoreboard();
 }
 
 // ═══════════════════════════════════════════════════

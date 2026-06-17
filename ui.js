@@ -1191,6 +1191,7 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
     if(currentEffect==='sand') resetSand();
     if(currentEffect==='maze') mazeOpen=null;
     if(currentEffect==='tron') tronTrail=null;
+    else { const sb=document.getElementById('tron-scoreboard');if(sb)sb.style.display='none'; }
     if(currentEffect==='warp') warpStars=[];
     if(currentEffect==='life') lifeGrid=null;
     if(currentEffect==='fluid') fluidH=null;
