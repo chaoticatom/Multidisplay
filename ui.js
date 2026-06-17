@@ -2782,3 +2782,9 @@ requestAnimationFrame(ts=>{lastTime=ts; requestAnimationFrame(animate);});
   const ov=document.getElementById('loading-overlay');
   if(ov){ ov.style.opacity='0'; setTimeout(()=>{ ov.style.display='none'; }, 350); }
 })();
+
+// Display version
+(function showVersion(){
+  const el=document.getElementById('app-version');
+  if(el && typeof APP_VERSION !== 'undefined') el.textContent=APP_VERSION;
+})();
