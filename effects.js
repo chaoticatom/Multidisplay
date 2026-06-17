@@ -2131,6 +2131,10 @@ let tronBikeCount=4, tronWinner=-1, tronSpeedMult=1, tronGridTheme=0;
 let tronVisited=null; // reusable buffer — allocated once per initTron
 let tronBFSQueue=null;
 let tronDeaths=null; // death count per bike (index matches bike slot)
+let tronScoreFill=null; // animated fill level per bike (0 to tronMaxFill)
+let tronMaxFill=0; // pixels in each score box
+let tronWinFlash=0; // countdown for "Wins" message
+let tronWinBike=-1; // which bike won
 const TRON_GRIDS=[[0.01,0.06,0.12],[0.01,0.06,0.01],[0.06,0.01,0.06],[0.04,0.04,0.04]];
 
 function tronMove(face,u,v,du,dv){
@@ -2269,21 +2273,35 @@ function tronCrash(bk){
 function tronUpdateScoreboard(){
   const el=document.getElementById('tron-scoreboard');
   if(!el) return;
-  if(!tronDeaths||!tronBikes.length){el.style.display='none';return;}
+  if(!tronDeaths||!tronBikes.length||!tronScoreFill){el.style.display='none';return;}
+  if(tronWinFlash>0){
+    const rgb=hsl(TRON_HUES[tronWinBike%TRON_HUES.length],1,0.6);
+    const r=Math.round(rgb[0]*255),g=Math.round(rgb[1]*255),b=Math.round(rgb[2]*255);
+    el.style.display='block';
+    el.innerHTML='<div style="color:rgb('+r+','+g+','+b+');font-size:20px;font-weight:bold">\u2605 WINS! \u2605</div>';
+    return;
+  }
   el.style.display='block';
-  const entries=tronBikes.map((_,i)=>({i,deaths:tronDeaths[i]}));
-  entries.sort((a,b)=>a.deaths-b.deaths);
-  el.innerHTML=entries.map((e,rank)=>{
-    const h=TRON_HUES[e.i%TRON_HUES.length];
+  const sorted=tronBikes.map((_,i)=>i);
+  sorted.sort((a,b)=>tronDeaths[a]-tronDeaths[b]);
+  el.innerHTML=sorted.map((bi,rank)=>{
+    const h=TRON_HUES[bi%TRON_HUES.length];
     const rgb=hsl(h,1,0.6);
     const r=Math.round(rgb[0]*255),g=Math.round(rgb[1]*255),b=Math.round(rgb[2]*255);
-    const trophy=rank===0?'★ ':'  ';
-    return '<div style="color:rgb('+r+','+g+','+b+')">'+trophy+'■ '+e.deaths+'</div>';
+    const fillPct=tronMaxFill>0?Math.round(tronScoreFill[bi]/tronMaxFill*100):0;
+    const trophy=rank===0?'\u2605 ':'  ';
+    return '<div style="color:rgb('+r+','+g+','+b+')">'+trophy+'\u25A0 '+fillPct+'%</div>';
   }).join('');
 }
 
 function initTron(){
-  if(!tronDeaths||tronDeaths.length!==tronBikeCount) tronDeaths=new Array(tronBikeCount).fill(0);
+  if(!tronDeaths||tronDeaths.length!==tronBikeCount){
+    tronDeaths=new Array(tronBikeCount).fill(0);
+    tronScoreFill=new Array(tronBikeCount).fill(0);
+  }
+  const boxW=Math.max(3,Math.floor(SIZE/8));
+  const boxH=Math.max(3,Math.floor(SIZE/(tronBikeCount*3)));
+  tronMaxFill=boxW*boxH;
   tronTrail=new Uint8Array(N);
   tronVisited=new Uint8Array(N);
   tronBFSQueue=new Int16Array(N*3*3);
@@ -2371,7 +2389,7 @@ function effectTron(dt){
       const pulse=0.5+0.5*Math.sin(tronStateT*8);
       for(let i=0;i<N;i++){if(tronTrail[i]===tronWinner+1){const [r,gg,b]=hsl(wh,1,0.3+pulse*0.5);setLED(i,r,gg,b);}}
     }
-    if(tronStateT>3.5) initTron();
+    if(tronWinFlash<=0&&tronStateT>5) initTron();
   }
 
   // explosions
@@ -2386,40 +2404,128 @@ function effectTron(dt){
     }
   }
   tronUpdateScoreboard();
-  tronRenderScoreOnLEDs();
+  tronRenderScoreOnLEDs(dt);
 }
 
-function tronRenderScoreOnLEDs(){
-  if(!tronDeaths||!tronBikes.length) return;
-  const entries=tronBikes.map((_,i)=>({i,deaths:tronDeaths[i]}));
-  entries.sort((a,b)=>a.deaths-b.deaths);
+function tronRenderScoreOnLEDs(dt){
+  if(!tronDeaths||!tronBikes.length||!tronScoreFill) return;
   const face=0;
-  const barW=Math.max(2,Math.floor(SIZE/16));
-  const barH=Math.max(1,Math.floor(SIZE/(entries.length*3)));
+  const boxW=Math.max(3,Math.floor(SIZE/8));
+  const boxH=Math.max(3,Math.floor(SIZE/(tronBikes.length*3)));
   const gap=1;
-  const startU=SIZE-barW-1;
-  for(let rank=0;rank<entries.length;rank++){
-    const e=entries[rank];
-    const h=TRON_HUES[e.i%TRON_HUES.length];
+  const startU=SIZE-boxW-1;
+  const crashesToFill=5;
+  const pixPerCrash=Math.ceil(tronMaxFill/crashesToFill);
+
+  // Animate fill toward target
+  for(let i=0;i<tronBikes.length;i++){
+    const target=Math.min(tronDeaths[i]*pixPerCrash, tronMaxFill);
+    if(tronScoreFill[i]<target) tronScoreFill[i]=Math.min(target, tronScoreFill[i]+Math.max(1,Math.floor(tronMaxFill*dt*2)));
+  }
+
+  // Check if any box is full → trigger win
+  let loserFound=false;
+  for(let i=0;i<tronBikes.length;i++){
+    if(tronScoreFill[i]>=tronMaxFill&&tronWinFlash<=0){
+      loserFound=true;
+      let bestBike=0, bestDeaths=Infinity;
+      for(let j=0;j<tronBikes.length;j++){
+        if(tronDeaths[j]<bestDeaths){bestDeaths=tronDeaths[j];bestBike=j;}
+      }
+      tronWinBike=bestBike;
+      tronWinFlash=5.0;
+      break;
+    }
+  }
+
+  // Win flash mode
+  if(tronWinFlash>0){
+    tronWinFlash-=dt;
+    const wh=TRON_HUES[tronWinBike%TRON_HUES.length];
+    const flash=0.3+0.7*Math.abs(Math.sin(tronWinFlash*4));
+    const rgb=hsl(wh,1,flash*0.6);
+    for(let i=0;i<N;i++){
+      colBuf[i*3]=rgb[0]; colBuf[i*3+1]=rgb[1]; colBuf[i*3+2]=rgb[2];
+    }
+    // Render "WINS" text on face 0 using simple pixel font
+    tronRenderWinsText(face,wh);
+    if(tronWinFlash<=0){
+      tronDeaths.fill(0);
+      tronScoreFill.fill(0);
+      tronWinBike=-1;
+      initTron();
+    }
+    return;
+  }
+
+  // Draw outline boxes and fill
+  const sorted=tronBikes.map((_,i)=>i);
+  sorted.sort((a,b)=>tronDeaths[a]-tronDeaths[b]);
+  for(let rank=0;rank<sorted.length;rank++){
+    const bi=sorted[rank];
+    const h=TRON_HUES[bi%TRON_HUES.length];
     const rgb=hsl(h,1,0.5);
-    const topV=1+rank*(barH+gap);
-    for(let dv=0;dv<barH;dv++){
-      for(let du=0;du<barW;du++){
+    const dimRgb=hsl(h,1,0.2);
+    const topV=1+rank*(boxH+gap);
+
+    // Outline
+    for(let dv=0;dv<boxH;dv++){
+      for(let du=0;du<boxW;du++){
+        const isEdge=(dv===0||dv===boxH-1||du===0||du===boxW-1);
+        if(!isEdge) continue;
         const v=topV+dv, u=startU+du;
         if(v>=SIZE||u>=SIZE) continue;
         const lv=SIZE-1-v;
         const idx=faceMap[face][lv*SIZE+u];
-        if(idx>=0){colBuf[idx*3]=rgb[0];colBuf[idx*3+1]=rgb[1];colBuf[idx*3+2]=rgb[2];}
+        if(idx>=0){colBuf[idx*3]=dimRgb[0];colBuf[idx*3+1]=dimRgb[1];colBuf[idx*3+2]=dimRgb[2];}
       }
     }
-    const numW=Math.min(e.deaths,SIZE/2-barW-2);
-    for(let du=0;du<numW;du++){
-      const v=topV+Math.floor(barH/2);
-      const u=startU-2-du;
-      if(u<0||v>=SIZE) continue;
-      const lv=SIZE-1-v;
-      const idx=faceMap[face][lv*SIZE+u];
-      if(idx>=0){colBuf[idx*3]=rgb[0]*0.5;colBuf[idx*3+1]=rgb[1]*0.5;colBuf[idx*3+2]=rgb[2]*0.5;}
+
+    // Fill from bottom up
+    const innerW=boxW-2, innerH=boxH-2;
+    const innerArea=innerW*innerH;
+    const fillPx=Math.min(Math.floor(tronScoreFill[bi]*(innerArea/tronMaxFill)), innerArea);
+    let drawn=0;
+    for(let row=innerH-1;row>=0&&drawn<fillPx;row--){
+      for(let col=0;col<innerW&&drawn<fillPx;col++){
+        const v=topV+1+row, u=startU+1+col;
+        if(v>=SIZE||u>=SIZE) continue;
+        const lv=SIZE-1-v;
+        const idx=faceMap[face][lv*SIZE+u];
+        if(idx>=0){colBuf[idx*3]=rgb[0];colBuf[idx*3+1]=rgb[1];colBuf[idx*3+2]=rgb[2];}
+        drawn++;
+      }
+    }
+  }
+}
+
+function tronRenderWinsText(face,hue){
+  const rgb=hsl(hue,1,0.95);
+  // Simple "WIN" in 5x5 pixel font, centered on face
+  const W=[[1,0,1],[1,0,1],[1,1,1],[1,1,1],[0,1,0]];
+  const I=[[1,1,1],[0,1,0],[0,1,0],[0,1,0],[1,1,1]];
+  const Nl=[[1,0,1],[1,1,1],[1,1,1],[1,0,1],[1,0,1]];
+  const letters=[W,I,Nl];
+  const charW=3, charH=5, gap2=1, scale2=Math.max(1,Math.floor(SIZE/20));
+  const totalW=(charW*letters.length+(letters.length-1)*gap2)*scale2;
+  const offU=Math.floor((SIZE-totalW)/2);
+  const offV=Math.floor((SIZE-charH*scale2)/2);
+  for(let li=0;li<letters.length;li++){
+    const letter=letters[li];
+    const baseU=offU+(charW+gap2)*scale2*li;
+    for(let row=0;row<charH;row++){
+      for(let col=0;col<charW;col++){
+        if(!letter[row][col]) continue;
+        for(let sy=0;sy<scale2;sy++){
+          for(let sx=0;sx<scale2;sx++){
+            const u=baseU+col*scale2+sx, v=offV+row*scale2+sy;
+            if(u>=SIZE||v>=SIZE||u<0||v<0) continue;
+            const lv=SIZE-1-v;
+            const idx=faceMap[face][lv*SIZE+u];
+            if(idx>=0){colBuf[idx*3]=rgb[0];colBuf[idx*3+1]=rgb[1];colBuf[idx*3+2]=rgb[2];}
+          }
+        }
+      }
     }
   }
 }
@@ -5000,12 +5106,12 @@ function effectCoinFlip(dt){
   const hPct=total?Math.round(coinHeads/total*100):0;
   const tPct=total?Math.round(coinTails/total*100):0;
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.font='bold 120px monospace';
-  ctx.fillStyle='#ffcc44'; ctx.fillText(coinHeads+' H', DT_RES*0.28, DT_RES*0.78);
-  ctx.fillStyle='#99bbff'; ctx.fillText(coinTails+' T', DT_RES*0.72, DT_RES*0.78);
+  ctx.font='bold 100px monospace';
+  ctx.fillStyle='#ffcc44'; ctx.fillText(String(coinHeads), DT_RES*0.28, DT_RES*0.76);
+  ctx.fillStyle='#99bbff'; ctx.fillText(String(coinTails), DT_RES*0.72, DT_RES*0.76);
   ctx.font='bold 80px monospace';
-  ctx.fillStyle='#cc9922'; ctx.fillText(hPct+'%', DT_RES*0.28, DT_RES*0.94);
-  ctx.fillStyle='#7799dd'; ctx.fillText(tPct+'%', DT_RES*0.72, DT_RES*0.94);
+  ctx.fillStyle='#cc9922'; ctx.fillText(hPct+'%', DT_RES*0.28, DT_RES*0.92);
+  ctx.fillStyle='#7799dd'; ctx.fillText(tPct+'%', DT_RES*0.72, DT_RES*0.92);
 
   coinPixels=ctx.getImageData(0,0,DT_RES,DT_RES).data;
 
