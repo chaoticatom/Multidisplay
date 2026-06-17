@@ -706,66 +706,62 @@ function dtRender(now){
     ctx.font='bold 80px monospace'; ctx.fillStyle='#99bbdd';
     ctx.fillText(dateStr, DT_RES/2, DT_RES*0.80);
   } else if(mode==='analogue'){
-    const cx=DT_RES/2, cy=DT_RES/2, R=DT_RES*0.44;
-    // Outer ring with gradient
-    const grad=ctx.createRadialGradient(cx,cy,R*0.92,cx,cy,R*1.02);
-    grad.addColorStop(0,'#1a2a44'); grad.addColorStop(0.5,'#3a5a8a'); grad.addColorStop(1,'#1a2a44');
-    ctx.strokeStyle=grad; ctx.lineWidth=12;
-    ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.stroke();
-    // Inner subtle ring
-    ctx.strokeStyle='rgba(100,150,220,0.3)'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.arc(cx,cy,R*0.88,0,Math.PI*2); ctx.stroke();
-    // Hour markers (12 bold, others medium)
+    const cx=DT_RES/2, cy=DT_RES/2, S=DT_RES*0.88;
+    const half=S/2;
+    // Square border
+    ctx.strokeStyle='#3a5a8a'; ctx.lineWidth=6;
+    ctx.strokeRect(cx-half,cy-half,S,S);
+
+    // Map angle to point on square edge
+    function angleToSquare(a){
+      const ta=Math.tan(a);
+      let x,y;
+      if(a>=-Math.PI/4&&a<Math.PI/4){x=half;y=half*ta;}
+      else if(a>=Math.PI/4&&a<3*Math.PI/4){y=half;x=half/Math.tan(a);}
+      else if(a>=3*Math.PI/4||a<-3*Math.PI/4){x=-half;y=-half*ta;}
+      else{y=-half;x=-half/Math.tan(a);}
+      return [cx+x,cy+y];
+    }
+
+    // 5-minute markers on edge
     for(let i=0;i<12;i++){
       const a=i*Math.PI/6 - Math.PI/2;
+      const [px,py]=angleToSquare(a);
       const isCardinal=(i%3===0);
-      const r1=isCardinal?R*0.78:R*0.84, r2=R*0.94;
-      ctx.lineCap='round';
-      ctx.strokeStyle=isCardinal?'#ddeeff':'#8899bb'; ctx.lineWidth=isCardinal?12:6;
-      ctx.beginPath(); ctx.moveTo(cx+Math.cos(a)*r1,cy+Math.sin(a)*r1);
-      ctx.lineTo(cx+Math.cos(a)*r2,cy+Math.sin(a)*r2); ctx.stroke();
-      // Hour numbers at cardinal positions
-      if(isCardinal){
-        ctx.fillStyle='#aaccee'; ctx.font='bold 36px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
-        const numR=R*0.68;
-        const num=i===0?'12':String(i);
-        ctx.fillText(num,cx+Math.cos(a)*numR,cy+Math.sin(a)*numR);
-      }
+      ctx.fillStyle=isCardinal?'#ddeeff':'#8899bb';
+      const sz=isCardinal?12:7;
+      ctx.fillRect(px-sz/2,py-sz/2,sz,sz);
     }
-    // Minute tick marks
+    // Minute tick marks on edge
     for(let i=0;i<60;i++){
       if(i%5===0) continue;
       const a=i*Math.PI/30 - Math.PI/2;
-      ctx.strokeStyle='#445566'; ctx.lineWidth=3; ctx.lineCap='round';
-      ctx.beginPath();
-      ctx.moveTo(cx+Math.cos(a)*R*0.90,cy+Math.sin(a)*R*0.90);
-      ctx.lineTo(cx+Math.cos(a)*R*0.94,cy+Math.sin(a)*R*0.94);
-      ctx.stroke();
+      const [px,py]=angleToSquare(a);
+      ctx.fillStyle='#445566';
+      ctx.fillRect(px-2,py-2,4,4);
     }
+
     const h=now.getHours()%12, m=now.getMinutes(), s=now.getSeconds(), ms=now.getMilliseconds();
     const ha=(h+m/60+s/3600)*Math.PI/6 - Math.PI/2;
     const ma=(m+s/60)*Math.PI/30 - Math.PI/2;
     const sa=(s+ms/1000)*Math.PI/30 - Math.PI/2;
     ctx.lineCap='round';
-    // Hour hand - thick with shadow
+    // Hour hand
     ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=8;
-    ctx.strokeStyle='#ffffff'; ctx.lineWidth=16;
-    ctx.beginPath(); ctx.moveTo(cx-Math.cos(ha)*R*0.08,cy-Math.sin(ha)*R*0.08);
-    ctx.lineTo(cx+Math.cos(ha)*R*0.48,cy+Math.sin(ha)*R*0.48); ctx.stroke();
-    // Minute hand - medium
-    ctx.strokeStyle='#ccddff'; ctx.lineWidth=10;
-    ctx.beginPath(); ctx.moveTo(cx-Math.cos(ma)*R*0.1,cy-Math.sin(ma)*R*0.1);
-    ctx.lineTo(cx+Math.cos(ma)*R*0.7,cy+Math.sin(ma)*R*0.7); ctx.stroke();
-    // Second hand - thin red with counterweight
+    ctx.strokeStyle='#ffffff'; ctx.lineWidth=14;
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    ctx.lineTo(cx+Math.cos(ha)*half*0.5,cy+Math.sin(ha)*half*0.5); ctx.stroke();
+    // Minute hand
+    ctx.strokeStyle='#ccddff'; ctx.lineWidth=8;
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    ctx.lineTo(cx+Math.cos(ma)*half*0.75,cy+Math.sin(ma)*half*0.75); ctx.stroke();
+    // Second hand
     ctx.shadowBlur=4; ctx.strokeStyle='#ff3333'; ctx.lineWidth=4;
-    ctx.beginPath(); ctx.moveTo(cx-Math.cos(sa)*R*0.15,cy-Math.sin(sa)*R*0.15);
-    ctx.lineTo(cx+Math.cos(sa)*R*0.82,cy+Math.sin(sa)*R*0.82); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx-Math.cos(sa)*half*0.12,cy-Math.sin(sa)*half*0.12);
+    ctx.lineTo(cx+Math.cos(sa)*half*0.85,cy+Math.sin(sa)*half*0.85); ctx.stroke();
     ctx.shadowBlur=0;
-    // Center cap
-    const capGrad=ctx.createRadialGradient(cx,cy,0,cx,cy,12);
-    capGrad.addColorStop(0,'#ffffff'); capGrad.addColorStop(1,'#667799');
-    ctx.fillStyle=capGrad; ctx.beginPath(); ctx.arc(cx,cy,10,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#ff3333'; ctx.beginPath(); ctx.arc(cx,cy,5,0,Math.PI*2); ctx.fill();
+    // Center dot
+    ctx.fillStyle='#ff3333'; ctx.beginPath(); ctx.arc(cx,cy,6,0,Math.PI*2); ctx.fill();
   } else { // full
     ctx.shadowBlur=28; ctx.fillStyle='#ffffff';
     ctx.font='bold 160px monospace';
