@@ -707,33 +707,65 @@ function dtRender(now){
     ctx.fillText(dateStr, DT_RES/2, DT_RES*0.80);
   } else if(mode==='analogue'){
     const cx=DT_RES/2, cy=DT_RES/2, R=DT_RES*0.44;
-    ctx.strokeStyle='#334466'; ctx.lineWidth=4;
+    // Outer ring with gradient
+    const grad=ctx.createRadialGradient(cx,cy,R*0.92,cx,cy,R*1.02);
+    grad.addColorStop(0,'#1a2a44'); grad.addColorStop(0.5,'#3a5a8a'); grad.addColorStop(1,'#1a2a44');
+    ctx.strokeStyle=grad; ctx.lineWidth=12;
     ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.stroke();
+    // Inner subtle ring
+    ctx.strokeStyle='rgba(100,150,220,0.3)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(cx,cy,R*0.88,0,Math.PI*2); ctx.stroke();
+    // Hour markers (12 bold, others medium)
     for(let i=0;i<12;i++){
       const a=i*Math.PI/6 - Math.PI/2;
-      const r1=(i%3===0)?R*0.82:R*0.88, r2=R*0.95;
-      ctx.strokeStyle=(i%3===0)?'#aabbdd':'#667788'; ctx.lineWidth=(i%3===0)?8:4;
+      const isCardinal=(i%3===0);
+      const r1=isCardinal?R*0.78:R*0.84, r2=R*0.94;
+      ctx.lineCap='round';
+      ctx.strokeStyle=isCardinal?'#ddeeff':'#8899bb'; ctx.lineWidth=isCardinal?12:6;
       ctx.beginPath(); ctx.moveTo(cx+Math.cos(a)*r1,cy+Math.sin(a)*r1);
       ctx.lineTo(cx+Math.cos(a)*r2,cy+Math.sin(a)*r2); ctx.stroke();
+      // Hour numbers at cardinal positions
+      if(isCardinal){
+        ctx.fillStyle='#aaccee'; ctx.font='bold 36px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        const numR=R*0.68;
+        const num=i===0?'12':String(i);
+        ctx.fillText(num,cx+Math.cos(a)*numR,cy+Math.sin(a)*numR);
+      }
     }
+    // Minute tick marks
     for(let i=0;i<60;i++){
       if(i%5===0) continue;
       const a=i*Math.PI/30 - Math.PI/2;
-      ctx.fillStyle='#445566';
-      ctx.beginPath(); ctx.arc(cx+Math.cos(a)*R*0.92,cy+Math.sin(a)*R*0.92,3,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#445566'; ctx.lineWidth=3; ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(cx+Math.cos(a)*R*0.90,cy+Math.sin(a)*R*0.90);
+      ctx.lineTo(cx+Math.cos(a)*R*0.94,cy+Math.sin(a)*R*0.94);
+      ctx.stroke();
     }
-    const h=now.getHours()%12, m=now.getMinutes(), s=now.getSeconds();
-    const ha=(h+m/60)*Math.PI/6 - Math.PI/2;
+    const h=now.getHours()%12, m=now.getMinutes(), s=now.getSeconds(), ms=now.getMilliseconds();
+    const ha=(h+m/60+s/3600)*Math.PI/6 - Math.PI/2;
     const ma=(m+s/60)*Math.PI/30 - Math.PI/2;
-    const sa=s*Math.PI/30 - Math.PI/2;
+    const sa=(s+ms/1000)*Math.PI/30 - Math.PI/2;
     ctx.lineCap='round';
-    ctx.strokeStyle='#ffffff'; ctx.lineWidth=14;
-    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(ha)*R*0.5,cy+Math.sin(ha)*R*0.5); ctx.stroke();
-    ctx.strokeStyle='#ccddff'; ctx.lineWidth=8;
-    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(ma)*R*0.72,cy+Math.sin(ma)*R*0.72); ctx.stroke();
-    ctx.strokeStyle='#ff4444'; ctx.lineWidth=4;
-    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(sa)*R*0.8,cy+Math.sin(sa)*R*0.8); ctx.stroke();
-    ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.arc(cx,cy,8,0,Math.PI*2); ctx.fill();
+    // Hour hand - thick with shadow
+    ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=8;
+    ctx.strokeStyle='#ffffff'; ctx.lineWidth=16;
+    ctx.beginPath(); ctx.moveTo(cx-Math.cos(ha)*R*0.08,cy-Math.sin(ha)*R*0.08);
+    ctx.lineTo(cx+Math.cos(ha)*R*0.48,cy+Math.sin(ha)*R*0.48); ctx.stroke();
+    // Minute hand - medium
+    ctx.strokeStyle='#ccddff'; ctx.lineWidth=10;
+    ctx.beginPath(); ctx.moveTo(cx-Math.cos(ma)*R*0.1,cy-Math.sin(ma)*R*0.1);
+    ctx.lineTo(cx+Math.cos(ma)*R*0.7,cy+Math.sin(ma)*R*0.7); ctx.stroke();
+    // Second hand - thin red with counterweight
+    ctx.shadowBlur=4; ctx.strokeStyle='#ff3333'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(cx-Math.cos(sa)*R*0.15,cy-Math.sin(sa)*R*0.15);
+    ctx.lineTo(cx+Math.cos(sa)*R*0.82,cy+Math.sin(sa)*R*0.82); ctx.stroke();
+    ctx.shadowBlur=0;
+    // Center cap
+    const capGrad=ctx.createRadialGradient(cx,cy,0,cx,cy,12);
+    capGrad.addColorStop(0,'#ffffff'); capGrad.addColorStop(1,'#667799');
+    ctx.fillStyle=capGrad; ctx.beginPath(); ctx.arc(cx,cy,10,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#ff3333'; ctx.beginPath(); ctx.arc(cx,cy,5,0,Math.PI*2); ctx.fill();
   } else { // full
     ctx.shadowBlur=28; ctx.fillStyle='#ffffff';
     ctx.font='bold 160px monospace';
@@ -763,7 +795,8 @@ function dtRenderMirrored(){
 function effectDateTime(dt) {
   t+=dt*0.8;
   const now=new Date(), sec=now.getSeconds();
-  if(sec!==dtLastSec||!dtPixels||_peTargetOpts){ dtLastSec=_peTargetOpts?-1:sec; dtRender(now); }
+  const mode=(_peTargetOpts&&_peTargetOpts.mode)?_peTargetOpts.mode:dtMode;
+  if(mode==='analogue'||sec!==dtLastSec||!dtPixels||_peTargetOpts){ dtLastSec=_peTargetOpts?-1:sec; dtRender(now); }
 
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
@@ -2242,9 +2275,11 @@ function tronUpdateScoreboard(){
   if(!el){
     el=document.createElement('div');el.id='tron-scoreboard';
     Object.assign(el.style,{position:'absolute',top:'10px',right:'10px',
-      background:'rgba(0,0,0,0.7)',padding:'8px 12px',borderRadius:'6px',
-      fontFamily:'monospace',fontSize:'13px',zIndex:'100',pointerEvents:'none'});
-    document.body.appendChild(el);
+      background:'rgba(0,0,0,0.75)',padding:'8px 12px',borderRadius:'6px',
+      fontFamily:'monospace',fontSize:'14px',zIndex:'300',pointerEvents:'none',
+      lineHeight:'1.6'});
+    const wrap=document.getElementById('canvas-wrap')||document.body;
+    wrap.appendChild(el);
   }
   if(!tronDeaths||!tronBikes.length){el.style.display='none';return;}
   el.style.display='block';
@@ -2253,7 +2288,7 @@ function tronUpdateScoreboard(){
   el.innerHTML=entries.map(e=>{
     const h=TRON_HUES[e.i%TRON_HUES.length];
     const rgb=hsl(h,1,0.6);
-    return `<div style="color:rgb(${rgb[0]},${rgb[1]},${rgb[2]})">&#9632; ${e.deaths}</div>`;
+    return `<div style="color:rgb(${Math.round(rgb[0]*255)},${Math.round(rgb[1]*255)},${Math.round(rgb[2]*255)})">&#9632; ${e.deaths}</div>`;
   }).join('');
 }
 
