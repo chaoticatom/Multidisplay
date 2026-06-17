@@ -2761,8 +2761,16 @@ function effectWeather(dt){
   const isRain=wxCode>=51&&wxCode<=65||wxCode>=80&&wxCode<=82||wxCode>=95;
   const isStorm=wxCode>=95;
 
-  // Lightning
-  if(isStorm&&Math.random()<dt*0.4) wxLightFlash=Math.min(1,wxLightFlash+0.8);
+  // Lightning — random strikes at roughly speedMult-scaled intervals
+  if(!this._wxNextStrike) this._wxNextStrike=1+Math.random()*3;
+  if(isStorm){
+    this._wxNextStrike-=dt*speedMult;
+    if(this._wxNextStrike<=0){
+      wxLightFlash=Math.min(1,wxLightFlash+0.7+Math.random()*0.3);
+      this._wxNextStrike=(0.4+Math.random()*2.5)/Math.max(0.1,speedMult);
+      if(Math.random()<0.35) this._wxNextStrike*=0.15;
+    }
+  }
   if(wxLightFlash>0) wxLightFlash=Math.max(0,wxLightFlash-dt*3);
 
   // Ground colour
