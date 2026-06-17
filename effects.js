@@ -2270,21 +2270,21 @@ function tronUpdateScoreboard(){
   let el=document.getElementById('tron-scoreboard');
   if(!el){
     el=document.createElement('div');el.id='tron-scoreboard';
-    Object.assign(el.style,{position:'absolute',top:'10px',right:'10px',
-      background:'rgba(0,0,0,0.75)',padding:'8px 12px',borderRadius:'6px',
-      fontFamily:'monospace',fontSize:'14px',zIndex:'300',pointerEvents:'none',
-      lineHeight:'1.6'});
-    const wrap=document.getElementById('canvas-wrap')||document.body;
-    wrap.appendChild(el);
+    Object.assign(el.style,{position:'fixed',top:'10px',right:'10px',
+      background:'rgba(0,0,0,0.85)',padding:'10px 14px',borderRadius:'8px',
+      fontFamily:'monospace',fontSize:'16px',zIndex:'9999',pointerEvents:'none',
+      lineHeight:'1.8',border:'1px solid rgba(100,150,255,0.3)'});
+    document.body.appendChild(el);
   }
   if(!tronDeaths||!tronBikes.length){el.style.display='none';return;}
   el.style.display='block';
   const entries=tronBikes.map((_,i)=>({i,deaths:tronDeaths[i]}));
   entries.sort((a,b)=>a.deaths-b.deaths);
-  el.innerHTML=entries.map(e=>{
+  el.innerHTML=entries.map((e,rank)=>{
     const h=TRON_HUES[e.i%TRON_HUES.length];
     const rgb=hsl(h,1,0.6);
-    return `<div style="color:rgb(${Math.round(rgb[0]*255)},${Math.round(rgb[1]*255)},${Math.round(rgb[2]*255)})">&#9632; ${e.deaths}</div>`;
+    const trophy=rank===0?'★ ':'';
+    return `<div style="color:rgb(${Math.round(rgb[0]*255)},${Math.round(rgb[1]*255)},${Math.round(rgb[2]*255)})">${trophy}&#9632; ${e.deaths}</div>`;
   }).join('');
 }
 
@@ -4929,22 +4929,22 @@ function effectCoinFlip(dt){
     if(coinShowResult<=0) coinStartFlip();
   }
 
-  const cx=DT_RES/2, cy=DT_RES*0.4, R=DT_RES*0.25;
+  const cx=DT_RES/2, cy=DT_RES*0.3, R=DT_RES*0.22;
   ctx.save();
   const scaleX=coinFlipping?Math.cos(coinAngle):1;
-  const absSx=Math.abs(scaleX);
+  const absSx=Math.max(0.05,Math.abs(scaleX));
 
   ctx.beginPath();
   ctx.ellipse(cx,cy,R*absSx,R,0,0,Math.PI*2);
   if(coinFlipping){
-    ctx.fillStyle='#886622'; ctx.fill();
-    ctx.strokeStyle='#ccaa44'; ctx.lineWidth=6; ctx.stroke();
+    ctx.fillStyle='#aa8822'; ctx.fill();
+    ctx.strokeStyle='#ffcc44'; ctx.lineWidth=12; ctx.stroke();
   } else {
     const isH=(coinResult==='H');
-    ctx.fillStyle=isH?'#997722':'#666688'; ctx.fill();
-    ctx.strokeStyle=isH?'#ccaa44':'#9999bb'; ctx.lineWidth=6; ctx.stroke();
+    ctx.fillStyle=isH?'#bb9922':'#5566aa'; ctx.fill();
+    ctx.strokeStyle=isH?'#ffcc44':'#99aaff'; ctx.lineWidth=12; ctx.stroke();
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillStyle='#fff'; ctx.font='bold '+Math.floor(R*0.9)+'px monospace';
+    ctx.fillStyle='#fff'; ctx.font='bold '+Math.floor(R*1.4)+'px monospace';
     ctx.fillText(isH?'H':'T', cx, cy);
   }
   ctx.restore();
@@ -4953,9 +4953,12 @@ function effectCoinFlip(dt){
   const hPct=total?Math.round(coinHeads/total*100):0;
   const tPct=total?Math.round(coinTails/total*100):0;
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.font='bold 60px monospace';
-  ctx.fillStyle='#ccaa44'; ctx.fillText('H: '+coinHeads+' ('+hPct+'%)', DT_RES/2, DT_RES*0.72);
-  ctx.fillStyle='#9999bb'; ctx.fillText('T: '+coinTails+' ('+tPct+'%)', DT_RES/2, DT_RES*0.88);
+  ctx.font='bold 140px monospace';
+  ctx.fillStyle='#ffcc44'; ctx.fillText(coinHeads+'H', DT_RES*0.3, DT_RES*0.65);
+  ctx.fillStyle='#99aaff'; ctx.fillText(coinTails+'T', DT_RES*0.7, DT_RES*0.65);
+  ctx.font='bold 90px monospace';
+  ctx.fillStyle='#ffcc44'; ctx.fillText(hPct+'%', DT_RES*0.3, DT_RES*0.88);
+  ctx.fillStyle='#99aaff'; ctx.fillText(tPct+'%', DT_RES*0.7, DT_RES*0.88);
 
   coinPixels=ctx.getImageData(0,0,DT_RES,DT_RES).data;
 
