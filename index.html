@@ -596,6 +596,7 @@
   <div id="sidebar-footer">
     <span>FPS: <span id="fps-counter">--</span></span>
     <span id="cube-label" style="position:static;font-size:12px;color:#7aadff;letter-spacing:1px;">64×64</span>
+    <span id="app-version" style="font-size:10px;color:#445;letter-spacing:0.5px;"></span>
   </div>
   <div id="sidebar-fade"></div>
 </div>
@@ -802,6 +803,8 @@
 <video id="vid-el" autoplay muted playsinline style="position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;"></video>
 <canvas id="vid-cv" style="display:none;"></canvas>
 
+<!-- ═══ VERSION ═══ -->
+<script src="version.js"></script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
 <script>
