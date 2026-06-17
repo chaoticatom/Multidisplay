@@ -2278,7 +2278,7 @@ function tronUpdateScoreboard(){
     const rgb=hsl(TRON_HUES[tronWinBike%TRON_HUES.length],1,0.6);
     const r=Math.round(rgb[0]*255),g=Math.round(rgb[1]*255),b=Math.round(rgb[2]*255);
     el.style.display='block';
-    el.innerHTML='<div style="color:rgb('+r+','+g+','+b+');font-size:20px;font-weight:bold">\u2605 WINS! \u2605</div>';
+    el.innerHTML='<div style="color:rgb('+r+','+g+','+b+');font-size:20px;font-weight:bold">\u2605 WINNER \u2605</div>';
     return;
   }
   el.style.display='block';
@@ -2295,13 +2295,14 @@ function tronUpdateScoreboard(){
 }
 
 function initTron(){
-  if(!tronDeaths||tronDeaths.length!==tronBikeCount){
-    tronDeaths=new Array(tronBikeCount).fill(0);
-    tronScoreFill=new Array(tronBikeCount).fill(0);
-  }
   const boxW=Math.max(3,Math.floor(SIZE/8));
   const boxH=Math.max(3,Math.floor(SIZE/(tronBikeCount*3)));
-  tronMaxFill=boxW*boxH;
+  const innerArea=(boxW-2)*(boxH-2);
+  tronMaxFill=innerArea;
+  if(!tronDeaths||tronDeaths.length!==tronBikeCount){
+    tronDeaths=new Array(tronBikeCount).fill(0);
+    tronScoreFill=new Array(tronBikeCount).fill(tronMaxFill);
+  }
   tronTrail=new Uint8Array(N);
   tronVisited=new Uint8Array(N);
   tronBFSQueue=new Int16Array(N*3*3);
@@ -2414,23 +2415,21 @@ function tronRenderScoreOnLEDs(dt){
   const boxH=Math.max(3,Math.floor(SIZE/(tronBikes.length*3)));
   const gap=1;
   const startU=SIZE-boxW-1;
-  const crashesToFill=5;
-  const pixPerCrash=Math.ceil(tronMaxFill/crashesToFill);
+  const crashesToEmpty=5;
+  const pixPerCrash=Math.ceil(tronMaxFill/crashesToEmpty);
 
-  // Animate fill toward target
+  // Animate fill draining toward target
   for(let i=0;i<tronBikes.length;i++){
-    const target=Math.min(tronDeaths[i]*pixPerCrash, tronMaxFill);
-    if(tronScoreFill[i]<target) tronScoreFill[i]=Math.min(target, tronScoreFill[i]+Math.max(1,Math.floor(tronMaxFill*dt*2)));
+    const target=Math.max(0, tronMaxFill-tronDeaths[i]*pixPerCrash);
+    if(tronScoreFill[i]>target) tronScoreFill[i]=Math.max(target, tronScoreFill[i]-Math.max(1,Math.floor(tronMaxFill*dt*2)));
   }
 
-  // Check if any box is full → trigger win
-  let loserFound=false;
+  // Check if any box is empty → that bike is out, last one with fill wins
   for(let i=0;i<tronBikes.length;i++){
-    if(tronScoreFill[i]>=tronMaxFill&&tronWinFlash<=0){
-      loserFound=true;
-      let bestBike=0, bestDeaths=Infinity;
+    if(tronScoreFill[i]<=0&&tronWinFlash<=0){
+      let bestBike=0, bestFill=-1;
       for(let j=0;j<tronBikes.length;j++){
-        if(tronDeaths[j]<bestDeaths){bestDeaths=tronDeaths[j];bestBike=j;}
+        if(tronScoreFill[j]>bestFill){bestFill=tronScoreFill[j];bestBike=j;}
       }
       tronWinBike=bestBike;
       tronWinFlash=5.0;
@@ -2447,20 +2446,19 @@ function tronRenderScoreOnLEDs(dt){
     for(let i=0;i<N;i++){
       colBuf[i*3]=rgb[0]; colBuf[i*3+1]=rgb[1]; colBuf[i*3+2]=rgb[2];
     }
-    // Render "WINS" text on face 0 using simple pixel font
     tronRenderWinsText(face,wh);
     if(tronWinFlash<=0){
       tronDeaths.fill(0);
-      tronScoreFill.fill(0);
+      tronScoreFill.fill(tronMaxFill);
       tronWinBike=-1;
       initTron();
     }
     return;
   }
 
-  // Draw outline boxes and fill
+  // Draw outline boxes and remaining fill (draining from top)
   const sorted=tronBikes.map((_,i)=>i);
-  sorted.sort((a,b)=>tronDeaths[a]-tronDeaths[b]);
+  sorted.sort((a,b)=>tronScoreFill[b]-tronScoreFill[a]);
   for(let rank=0;rank<sorted.length;rank++){
     const bi=sorted[rank];
     const h=TRON_HUES[bi%TRON_HUES.length];
@@ -2468,7 +2466,7 @@ function tronRenderScoreOnLEDs(dt){
     const dimRgb=hsl(h,1,0.2);
     const topV=1+rank*(boxH+gap);
 
-    // Outline
+    // Outline always drawn
     for(let dv=0;dv<boxH;dv++){
       for(let du=0;du<boxW;du++){
         const isEdge=(dv===0||dv===boxH-1||du===0||du===boxW-1);
@@ -2481,10 +2479,9 @@ function tronRenderScoreOnLEDs(dt){
       }
     }
 
-    // Fill from bottom up
+    // Fill from bottom (remaining pixels)
     const innerW=boxW-2, innerH=boxH-2;
-    const innerArea=innerW*innerH;
-    const fillPx=Math.min(Math.floor(tronScoreFill[bi]*(innerArea/tronMaxFill)), innerArea);
+    const fillPx=Math.min(tronScoreFill[bi], tronMaxFill);
     let drawn=0;
     for(let row=innerH-1;row>=0&&drawn<fillPx;row--){
       for(let col=0;col<innerW&&drawn<fillPx;col++){
@@ -5050,6 +5047,15 @@ function effectCoinFlip(dt){
   const ctx=coinCtx;
   ctx.clearRect(0,0,DT_RES,DT_RES);
   ctx.fillStyle='#000'; ctx.fillRect(0,0,DT_RES,DT_RES);
+  // Shimmer background
+  for(let sy=0;sy<DT_RES;sy+=32){
+    for(let sx=0;sx<DT_RES;sx+=32){
+      const shimmer=Math.sin(t*2+sx*0.02+sy*0.03)*0.5+0.5;
+      const b=Math.floor(shimmer*12);
+      ctx.fillStyle='rgb('+b+','+b+','+Math.floor(b*1.5)+')';
+      ctx.fillRect(sx,sy,32,32);
+    }
+  }
 
   if(coinFlipping){
     coinFlipT+=dt*speedMult;
