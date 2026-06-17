@@ -2398,7 +2398,7 @@ function effectTron(dt){
 
   // trail — solid 1-pixel lines per bike
   for(let i=0;i<N;i++){
-    if(tronTrail[i]>0){
+    if(tronTrail[i]>0&&tronTrail[i]!==255){
       const bk=tronBikes[tronTrail[i]-1], h=bk.hue;
       const [r,gg,b]=hsl(h,1,0.45);
       setLED(i,r,gg,b);
