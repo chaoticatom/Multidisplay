@@ -1000,6 +1000,7 @@ const EFFECTS={
   video:effectVideo, strobe:effectStrobe, random:effectRandom, ghost:effectGhost, lightspeed:effectLightspeed,
   custom_cube:effectCustomCube,
   weather:effectWeather,
+  coinflip:effectCoinFlip,
 };
 const EFFECT_NAMES={
   wave:'Wave Cascade', rain:'Color Rain', plasma:'Plasma Storm', sphere:'Morphing Sphere',
@@ -1012,6 +1013,7 @@ const EFFECT_NAMES={
   video:'Video Display', strobe:'Strobe Flash', random:'Random Chaos', ghost:'Ghost Face', lightspeed:'Light Speed',
   custom_cube:'Custom Cube',
   weather:'Weather',
+  coinflip:'Coin Flip',
 };
 
 // ═══════════════════════════════════════════════════
@@ -1029,7 +1031,7 @@ const EFFECT_SECTION_MAP = {
   balls:'',sand:'',lightning:'',warp:'',life:'',fluid:'',
 };
 
-const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather']);
+const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','coinflip']);
 populateAlarmEffectRiseSelect(); // safe here — EFFECT_NAMES now defined
 
 async function fetchCitiesFromAPI(){
