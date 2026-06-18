@@ -5130,11 +5130,16 @@ function coinInitFaces(){
 function coinRenderFace(ctx,cf,dt,cs,DT_RES,t){
   ctx.clearRect(0,0,DT_RES,DT_RES);
   ctx.fillStyle='#000'; ctx.fillRect(0,0,DT_RES,DT_RES);
+  const headsWinning=cf.heads>=cf.tails;
   for(let sy=0;sy<DT_RES;sy+=32){
     for(let sx=0;sx<DT_RES;sx+=32){
       const shimmer=Math.sin(t*2+sx*0.02+sy*0.03)*0.5+0.5;
-      const b=Math.floor(shimmer*25);
-      ctx.fillStyle='rgb('+b+','+b+','+Math.floor(b*1.5)+')';
+      const b=Math.floor(shimmer*45);
+      if(headsWinning){
+        ctx.fillStyle='rgb('+Math.floor(b*1.1)+','+Math.floor(b*0.85)+','+Math.floor(b*0.3)+')';
+      } else {
+        ctx.fillStyle='rgb('+Math.floor(b*0.6)+','+Math.floor(b*0.7)+','+Math.floor(b*1.1)+')';
+      }
       ctx.fillRect(sx,sy,32,32);
     }
   }
