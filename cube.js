@@ -413,6 +413,75 @@ wrap.addEventListener('touchmove',e=>{
 wrap.addEventListener('touchend',()=>{isDragging=false;requestAnimationFrame(tickInertia);});
 wrap.addEventListener('wheel',e=>{ camera.position.multiplyScalar(1+e.deltaY*0.001); },{passive:true});
 
+// ── Tap-to-snap: click/tap a face to rotate it front-on ──
+const _raycaster = new THREE.Raycaster();
+const _mouse = new THREE.Vector2();
+let _snapAnimating = false;
+let _tapDownX = 0, _tapDownY = 0, _tapDownTime = 0;
+
+const FACE_QUATS = [
+  new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0)),
+  new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)),
+  new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI/2, 0)),
+  new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI/2, 0)),
+  new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI/2, 0, 0)),
+  new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI/2, 0, 0)),
+];
+
+function snapToFace(faceIdx) {
+  if (_snapAnimating) return;
+  const target = FACE_QUATS[faceIdx].clone();
+  const start = _qRot.clone();
+  _snapAnimating = true;
+  _velX = _velY = 0;
+  autoRotate = false;
+  const c = document.getElementById('auto-rotate-chk');
+  if (c) c.checked = false;
+  const duration = 400;
+  const t0 = performance.now();
+  function tick(now) {
+    let p = Math.min(1, (now - t0) / duration);
+    p = p < 0.5 ? 4*p*p*p : 1 - Math.pow(-2*p+2,3)/2;
+    _qRot.copy(start).slerp(target, p);
+    pivotGroup.quaternion.copy(_qRot);
+    if (p < 1) requestAnimationFrame(tick);
+    else _snapAnimating = false;
+  }
+  requestAnimationFrame(tick);
+}
+
+function handleTapSnap(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  _mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  _mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  _raycaster.setFromCamera(_mouse, camera);
+  const hits = _raycaster.intersectObjects(panelMeshes);
+  if (hits.length > 0) {
+    const idx = panelMeshes.indexOf(hits[0].object);
+    if (idx >= 0) snapToFace(idx);
+  }
+}
+
+wrap.addEventListener('mousedown', e => { _tapDownX = e.clientX; _tapDownY = e.clientY; _tapDownTime = performance.now(); });
+wrap.addEventListener('mouseup', e => {
+  const dx = Math.abs(e.clientX - _tapDownX), dy = Math.abs(e.clientY - _tapDownY);
+  if (dx < 5 && dy < 5 && (performance.now() - _tapDownTime) < 300) {
+    handleTapSnap(e.clientX, e.clientY);
+  }
+});
+wrap.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) { _tapDownX = e.touches[0].clientX; _tapDownY = e.touches[0].clientY; _tapDownTime = performance.now(); }
+}, {passive: true});
+wrap.addEventListener('touchend', e => {
+  if (e.changedTouches.length === 1) {
+    const t = e.changedTouches[0];
+    const dx = Math.abs(t.clientX - _tapDownX), dy = Math.abs(t.clientY - _tapDownY);
+    if (dx < 10 && dy < 10 && (performance.now() - _tapDownTime) < 300) {
+      handleTapSnap(t.clientX, t.clientY);
+    }
+  }
+});
+
 // ═══════════════════════════════════════════════════
 //  EFFECTS — all iterate surface LEDs only
 // ═══════════════════════════════════════════════════
