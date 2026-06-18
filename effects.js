@@ -2505,6 +2505,17 @@ function effectTron(dt){
         if(idx>=0){colBuf[idx*3]=0.9;colBuf[idx*3+1]=0.05;colBuf[idx*3+2]=0.05;}
       }
     }
+    // Red outline around scoreboard zone
+    const sz=tronScoreZone();
+    for(let v=Math.max(0,sz.v0);v<=Math.min(SIZE-1,sz.v1);v++){
+      for(let u=Math.max(0,sz.u0);u<=Math.min(SIZE-1,sz.u1);u++){
+        const isEdge=(v===sz.v0||v===sz.v1||u===sz.u0||u===sz.u1);
+        if(!isEdge) continue;
+        const lv=SIZE-1-v;
+        const idx=faceMap[f][lv*SIZE+u];
+        if(idx>=0){colBuf[idx*3]=0.9;colBuf[idx*3+1]=0.05;colBuf[idx*3+2]=0.05;}
+      }
+    }
   }
   tronUpdateScoreboard();
   tronRenderScoreOnLEDs(dt);
@@ -2570,6 +2581,14 @@ function tronRenderScoreOnLEDs(dt){
     const rgb=hsl(wh,1,flash*0.6);
     for(let i=0;i<N;i++){
       colBuf[i*3]=rgb[0]; colBuf[i*3+1]=rgb[1]; colBuf[i*3+2]=rgb[2];
+    }
+    // Pulse winner's trail brighter
+    const pulse=0.5+0.5*Math.sin(tronWinFlash*8);
+    const trailRgb=hsl(wh,1,0.3+pulse*0.6);
+    for(let i=0;i<N;i++){
+      if(tronTrail[i]===tronWinBike+1){
+        colBuf[i*3]=trailRgb[0];colBuf[i*3+1]=trailRgb[1];colBuf[i*3+2]=trailRgb[2];
+      }
     }
     tronRenderWinsText(0,wh);
     if(tronWinFlash<=0){
