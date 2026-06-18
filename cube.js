@@ -360,43 +360,57 @@ function getLocalGravity(magnitude) {
   return _gravLocal;
 }
 
-wrap.addEventListener('mousedown', e=>{isDragging=true;autoRotate=false;const c=document.getElementById('auto-rotate-chk');if(c)c.checked=false;lastX=e.clientX;lastY=e.clientY;});
+const DRAG_SENS = 0.012;
+const TOUCH_SENS = 0.016;
+let _velX = 0, _velY = 0;
+const INERTIA_DECAY = 0.92;
+const INERTIA_MIN = 0.0003;
+
+function applyRotation(dx, dy, sens) {
+  if (rotateYOnly) {
+    _qDelta.setFromAxisAngle(_zAxis, -dx * sens);
+  } else {
+    _qDelta.setFromAxisAngle(_yAxis, dx * sens);
+  }
+  _qRot.multiplyQuaternions(_qDelta, _qRot);
+  if (!rotateYOnly) {
+    _qDelta.setFromAxisAngle(_xAxis, dy * sens);
+    _qRot.multiplyQuaternions(_qDelta, _qRot);
+  }
+  pivotGroup.quaternion.copy(_qRot);
+}
+
+function tickInertia() {
+  if (isDragging || (Math.abs(_velX) < INERTIA_MIN && Math.abs(_velY) < INERTIA_MIN)) {
+    _velX = _velY = 0;
+    return;
+  }
+  applyRotation(_velX * 60, _velY * 60, DRAG_SENS);
+  _velX *= INERTIA_DECAY;
+  _velY *= INERTIA_DECAY;
+  requestAnimationFrame(tickInertia);
+}
+
+wrap.addEventListener('mousedown', e=>{isDragging=true;autoRotate=false;_velX=_velY=0;const c=document.getElementById('auto-rotate-chk');if(c)c.checked=false;lastX=e.clientX;lastY=e.clientY;});
 window.addEventListener('mousemove', e=>{
   if(!isDragging)return;
   const dx=e.clientX-lastX, dy=e.clientY-lastY;
   lastX=e.clientX;lastY=e.clientY;
-  if (rotateYOnly) {
-    // Only allow Z-axis rotation (flat clock-face spin)
-    _qDelta.setFromAxisAngle(_zAxis, -dx*0.005);
-  } else {
-    _qDelta.setFromAxisAngle(_yAxis, dx*0.005);
-  }
-  _qRot.multiplyQuaternions(_qDelta, _qRot);
-  if (!rotateYOnly) {
-    _qDelta.setFromAxisAngle(_xAxis, dy*0.005);
-    _qRot.multiplyQuaternions(_qDelta, _qRot);
-  }
-  pivotGroup.quaternion.copy(_qRot);
+  _velX = dx * 0.015;
+  _velY = dy * 0.015;
+  applyRotation(dx, dy, DRAG_SENS);
 });
-window.addEventListener('mouseup',()=>isDragging=false);
-wrap.addEventListener('touchstart',e=>{isDragging=true;autoRotate=false;const c=document.getElementById('auto-rotate-chk');if(c)c.checked=false;lastX=e.touches[0].clientX;lastY=e.touches[0].clientY;},{passive:true});
+window.addEventListener('mouseup',()=>{isDragging=false;requestAnimationFrame(tickInertia);});
+wrap.addEventListener('touchstart',e=>{isDragging=true;autoRotate=false;_velX=_velY=0;const c=document.getElementById('auto-rotate-chk');if(c)c.checked=false;lastX=e.touches[0].clientX;lastY=e.touches[0].clientY;},{passive:true});
 wrap.addEventListener('touchmove',e=>{
-  if(!isDragging)return;
+  if(!isDragging||!e.touches.length)return;
   const dx=e.touches[0].clientX-lastX, dy=e.touches[0].clientY-lastY;
   lastX=e.touches[0].clientX;lastY=e.touches[0].clientY;
-  if (rotateYOnly) {
-    _qDelta.setFromAxisAngle(_zAxis, -dx*0.005);
-  } else {
-    _qDelta.setFromAxisAngle(_yAxis, dx*0.005);
-  }
-  _qRot.multiplyQuaternions(_qDelta, _qRot);
-  if (!rotateYOnly) {
-    _qDelta.setFromAxisAngle(_xAxis, dy*0.005);
-    _qRot.multiplyQuaternions(_qDelta, _qRot);
-  }
-  pivotGroup.quaternion.copy(_qRot);
+  _velX = dx * 0.015;
+  _velY = dy * 0.015;
+  applyRotation(dx, dy, TOUCH_SENS);
 },{passive:true});
-wrap.addEventListener('touchend',()=>isDragging=false);
+wrap.addEventListener('touchend',()=>{isDragging=false;requestAnimationFrame(tickInertia);});
 wrap.addEventListener('wheel',e=>{ camera.position.multiplyScalar(1+e.deltaY*0.001); },{passive:true});
 
 // ═══════════════════════════════════════════════════
