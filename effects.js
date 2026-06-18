@@ -5410,3 +5410,175 @@ function effectCoinFlip(dt){
   }
 }
 
+
+// ═══════════════════════════════════════════════════
+//  DICE ROLL
+// ═══════════════════════════════════════════════════
+let diceCanvas=null, diceCtx=null;
+let diceValues=[1,2,3,4,5,6];
+let diceRolling=false, diceRollT=0, diceRollDur=0;
+let diceResult=1, diceShowT=0, diceAutoRoll=false, diceAutoTimer=0;
+let diceGlowT=0;
+
+function diceStartRoll(){
+  diceRolling=true; diceRollT=0;
+  diceRollDur=1.5+Math.random()*0.5;
+  diceResult=1+Math.floor(Math.random()*6);
+}
+
+function diceDotPositions(val){
+  const patterns={
+    1:[[0.5,0.5]],
+    2:[[0.25,0.25],[0.75,0.75]],
+    3:[[0.25,0.25],[0.5,0.5],[0.75,0.75]],
+    4:[[0.25,0.25],[0.75,0.25],[0.25,0.75],[0.75,0.75]],
+    5:[[0.25,0.25],[0.75,0.25],[0.5,0.5],[0.25,0.75],[0.75,0.75]],
+    6:[[0.25,0.25],[0.75,0.25],[0.25,0.5],[0.75,0.5],[0.25,0.75],[0.75,0.75]]
+  };
+  return patterns[val]||patterns[1];
+}
+
+function diceDrawFace(ctx,val,cx,cy,faceSize,dotColor,bgColor,borderColor){
+  var r=faceSize*0.12;
+  ctx.fillStyle=bgColor;
+  ctx.beginPath();
+  ctx.roundRect(cx-faceSize/2,cy-faceSize/2,faceSize,faceSize,r);
+  ctx.fill();
+  ctx.strokeStyle=borderColor;
+  ctx.lineWidth=faceSize*0.04;
+  ctx.stroke();
+  var dots=diceDotPositions(val);
+  var dotR=faceSize*0.11;
+  var inner=faceSize*0.7;
+  var ox=cx-inner/2, oy=cy-inner/2;
+  ctx.fillStyle=dotColor;
+  for(var i=0;i<dots.length;i++){
+    ctx.beginPath();
+    ctx.arc(ox+dots[i][0]*inner, oy+dots[i][1]*inner, dotR, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function diceRenderPanel(ctx,val,RES,t,isResult,glowAmount){
+  ctx.clearRect(0,0,RES,RES);
+  var bg=isResult?Math.floor(15+glowAmount*25):8;
+  ctx.fillStyle='rgb('+bg+','+Math.floor(bg*0.9)+','+Math.floor(bg*1.2)+')';
+  ctx.fillRect(0,0,RES,RES);
+  if(isResult&&glowAmount>0.1){
+    var gr=ctx.createRadialGradient(RES/2,RES/2,0,RES/2,RES/2,RES*0.6);
+    gr.addColorStop(0,'rgba(100,180,255,'+glowAmount*0.15+')');
+    gr.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=gr;
+    ctx.fillRect(0,0,RES,RES);
+  }
+  var faceSize=RES*0.75;
+  var dotCol=isResult?'#1a1a2a':'#222233';
+  var bgCol=isResult?'#f0f0f5':'#e8e8ee';
+  var borderCol=isResult?'rgba(100,180,255,'+(0.5+glowAmount*0.5)+')':'rgba(180,180,200,0.6)';
+  diceDrawFace(ctx,val,RES/2,RES/2,faceSize,dotCol,bgCol,borderCol);
+  if(isResult&&glowAmount>0.1){
+    ctx.shadowColor='rgba(100,180,255,'+glowAmount*0.8+')';
+    ctx.shadowBlur=30*glowAmount;
+    ctx.strokeStyle='rgba(100,180,255,'+glowAmount*0.6+')';
+    ctx.lineWidth=faceSize*0.03;
+    ctx.beginPath();
+    ctx.roundRect(RES/2-faceSize/2,RES/2-faceSize/2,faceSize,faceSize,faceSize*0.12);
+    ctx.stroke();
+    ctx.shadowBlur=0;
+  }
+}
+
+function diceRenderRolling(ctx,RES,t,rollProgress){
+  ctx.clearRect(0,0,RES,RES);
+  var flashIntensity=Math.abs(Math.sin(rollProgress*Math.PI*8));
+  var bg=Math.floor(10+flashIntensity*40);
+  ctx.fillStyle='rgb('+Math.floor(bg*0.8)+','+Math.floor(bg*0.9)+','+bg+')';
+  ctx.fillRect(0,0,RES,RES);
+  var faceSize=RES*0.65+Math.sin(rollProgress*20)*RES*0.05;
+  var randomVal=1+Math.floor(Math.random()*6);
+  var angle=rollProgress*Math.PI*6;
+  ctx.save();
+  ctx.translate(RES/2,RES/2);
+  ctx.rotate(Math.sin(angle)*0.15);
+  var scaleX=0.8+0.2*Math.abs(Math.cos(angle*2));
+  ctx.scale(scaleX,1);
+  var hue=(rollProgress*360)%360;
+  var borderCol='hsl('+hue+',80%,60%)';
+  diceDrawFace(ctx,randomVal,0,0,faceSize,'#1a1a2a','#e8e8ee',borderCol);
+  ctx.restore();
+}
+
+function effectDice(dt){
+  t+=dt;
+  if(!diceCanvas){
+    diceCanvas=document.createElement('canvas');
+    diceCanvas.width=DT_RES; diceCanvas.height=DT_RES;
+    diceCtx=diceCanvas.getContext('2d');
+    diceStartRoll();
+  }
+  var ctx=diceCtx;
+  var scale=DT_RES/SIZE;
+  var is3D=!(typeof panel2dMode!=='undefined'&&panel2dMode);
+  if(diceAutoRoll&&!diceRolling){
+    diceAutoTimer+=dt;
+    if(diceAutoTimer>=4){diceAutoTimer=0;diceStartRoll();}
+  }
+  if(diceRolling){
+    diceRollT+=dt;
+    if(diceRollT>=diceRollDur){
+      diceRolling=false;
+      var shuffled=[1,2,3,4,5,6].filter(function(v){return v!==diceResult;});
+      for(var i=shuffled.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=shuffled[i];shuffled[i]=shuffled[j];shuffled[j]=tmp;}
+      diceValues=[shuffled[0],shuffled[1],shuffled[2],shuffled[3],diceResult,shuffled[4]];
+      diceGlowT=3.0;
+      diceShowT=0;
+    }
+  }
+  if(!diceRolling&&diceGlowT>0) diceGlowT-=dt;
+  if(!diceRolling) diceShowT+=dt;
+  for(var i=0;i<N*3;i++) colBuf[i]=0;
+  if(is3D){
+    for(var f=0;f<6;f++){
+      if(diceRolling){
+        var progress=Math.min(1,diceRollT/diceRollDur);
+        diceRenderRolling(ctx,DT_RES,t+f*0.7,progress);
+      } else {
+        var isTop=(f===4);
+        var glow=isTop?Math.max(0,diceGlowT/3.0):0;
+        diceRenderPanel(ctx,diceValues[f],DT_RES,t,isTop,glow);
+      }
+      var pixels=ctx.getImageData(0,0,DT_RES,DT_RES).data;
+      for(var v=0;v<SIZE;v++){
+        for(var u=0;u<SIZE;u++){
+          var px=Math.floor(u*scale), py=Math.floor(v*scale);
+          var pi=(py*DT_RES+px)*4;
+          var r=pixels[pi]/255, g=pixels[pi+1]/255, b=pixels[pi+2]/255;
+          if(r<0.02&&g<0.02&&b<0.02) continue;
+          var lv=SIZE-1-v;
+          var idx=faceMap[f][lv*SIZE+u];
+          if(idx>=0){colBuf[idx*3]=r;colBuf[idx*3+1]=g;colBuf[idx*3+2]=b;}
+        }
+      }
+    }
+  } else {
+    if(diceRolling){
+      var progress2=Math.min(1,diceRollT/diceRollDur);
+      diceRenderRolling(ctx,DT_RES,t,progress2);
+    } else {
+      var glow2=Math.max(0,diceGlowT/3.0);
+      diceRenderPanel(ctx,diceResult,DT_RES,t,true,glow2);
+    }
+    var pixels2=ctx.getImageData(0,0,DT_RES,DT_RES).data;
+    for(var v2=0;v2<SIZE;v2++){
+      for(var u2=0;u2<SIZE;u2++){
+        var px2=Math.floor(u2*scale), py2=Math.floor(v2*scale);
+        var pi2=(py2*DT_RES+px2)*4;
+        var r2=pixels2[pi2]/255, g2=pixels2[pi2+1]/255, b2=pixels2[pi2+2]/255;
+        if(r2<0.02&&g2<0.02&&b2<0.02) continue;
+        var lv2=SIZE-1-v2;
+        var idx2=faceMap[0][lv2*SIZE+u2];
+        if(idx2>=0){colBuf[idx2*3]=r2;colBuf[idx2*3+1]=g2;colBuf[idx2*3+2]=b2;}
+      }
+    }
+  }
+}
