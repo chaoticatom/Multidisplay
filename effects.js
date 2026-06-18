@@ -2557,7 +2557,8 @@ function tronRenderScoreOnLEDs(dt){
 
   for(let bi=0;bi<tronBikes.length;bi++){
     const h=TRON_HUES[bi%TRON_HUES.length];
-    const rgb=hsl(h,1,0.5);
+    const alive=tronBikes[bi]&&tronBikes[bi].alive;
+    const rgb=hsl(h,1,alive?0.5:0.15);
     const topV=2+bi*(boxH+gap);
     const fillPx=Math.min(tronScoreFill[bi], tronMaxFill);
     let drawn=0;
