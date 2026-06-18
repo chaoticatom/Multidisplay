@@ -48,43 +48,51 @@
   #menu-toggle.show { display: flex; }
 
   @media (max-width: 768px) {
-    #sidebar { width: 320px; position: fixed; left: 0; top: 0; height: 100vh; height: 100dvh;
+    #sidebar { width: 360px; position: fixed; left: 0; top: 0; height: 100vh; height: 100dvh;
                transform: translateX(-100%); transition: transform 0.28s ease; z-index: 150; }
     #sidebar.open { transform: translateX(0); }
-    #sidebar-header { padding-top: calc(18px + env(safe-area-inset-top, 0px)); }
+    #sidebar-header { padding-top: calc(18px + env(safe-area-inset-top, 0px)); position: sticky; top: 0; z-index: 3; background: rgba(10,10,20,0.97); }
     #menu-toggle { display: flex !important; }
     #canvas-wrap { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; z-index: 5; }
     body { flex-direction: column; }
-    .effect-btn { font-size: 15px; padding: 12px 12px; margin-bottom: 5px; min-height: 44px; }
-    .size-btn { font-size: 14px; padding: 10px 6px; min-height: 44px; }
-    .sidebar-section { padding: 14px 16px; }
-    .sidebar-section label { font-size: 14px; }
-    .slider-row { gap: 10px; margin-bottom: 10px; }
-    .slider-label { font-size: 14px; }
-    .slider-val { font-size: 14px; }
-    .slider-row input[type="range"] { height: 6px; }
-    .slider-row input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; }
-    .slider-row input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; }
-    .check-row { font-size: 14px; gap: 10px; margin-bottom: 10px; min-height: 44px; }
-    .check-row input[type="checkbox"] { width: 20px; height: 20px; }
-    .section-head { font-size: 14px; padding: 4px 0; min-height: 44px; }
-    .util-btn { font-size: 14px; padding: 12px 10px; min-height: 44px; }
-    .opt-grid button { font-size: 13px; padding: 10px 6px; min-height: 40px; }
-    .ov-hdr { font-size: 13px; padding: 10px 12px; min-height: 44px; }
-    .ov-toggle { width: 42px; height: 22px; }
-    .ov-slider::before { width: 16px; height: 16px; }
-    .ov-toggle input:checked + .ov-slider::before { transform: translateX(20px); }
-    #sidebar-footer { font-size: 13px; padding: 12px 16px; }
-    #sidebar-collapse-btn { font-size: 20px; padding: 8px 12px; }
-    .strobe-mode-btn { font-size: 13px !important; padding: 10px 8px !important; min-height: 40px; }
+    .effect-btn { font-size: 16px; padding: 14px 14px; margin-bottom: 6px; min-height: 48px; }
+    .size-btn { font-size: 15px; padding: 12px 8px; min-height: 48px; }
+    .sidebar-section { padding: 16px 18px; }
+    .sidebar-section label { font-size: 15px; }
+    .slider-row { gap: 12px; margin-bottom: 12px; }
+    .slider-label { font-size: 15px; }
+    .slider-val { font-size: 15px; }
+    .slider-row input[type="range"] { height: 8px; }
+    .slider-row input[type="range"]::-webkit-slider-thumb { width: 26px; height: 26px; }
+    .slider-row input[type="range"]::-moz-range-thumb { width: 26px; height: 26px; }
+    .check-row { font-size: 15px; gap: 12px; margin-bottom: 12px; min-height: 48px; }
+    .check-row input[type="checkbox"] { width: 22px; height: 22px; }
+    .section-head { font-size: 15px; padding: 6px 0; min-height: 48px; }
+    .util-btn { font-size: 15px; padding: 14px 12px; min-height: 48px; }
+    .opt-grid button { font-size: 14px; padding: 12px 8px; min-height: 44px; }
+    .ov-hdr { font-size: 14px; padding: 12px 14px; min-height: 48px; }
+    .ov-toggle { width: 46px; height: 24px; }
+    .ov-slider::before { width: 18px; height: 18px; }
+    .ov-toggle input:checked + .ov-slider::before { transform: translateX(22px); }
+    #sidebar-footer { font-size: 14px; padding: 14px 18px; }
+    #sidebar-collapse-btn { font-size: 22px; padding: 10px 14px; min-width: 44px; min-height: 44px; }
+    #sidebar-header h1 { font-size: 16px; }
+    #sidebar-header p { font-size: 13px; }
+    .strobe-mode-btn { font-size: 14px !important; padding: 12px 10px !important; min-height: 44px; }
+    .effect-panel { padding: 12px 14px; }
   }
 
   @media (max-width: 480px) {
     #sidebar { width: 100vw; }
-    .sidebar-section { padding: 12px 14px; }
-    .effect-btn { font-size: 16px; padding: 14px 14px; }
-    .size-btn { font-size: 15px; }
+    .sidebar-section { padding: 14px 16px; }
+    .effect-btn { font-size: 17px; padding: 16px 16px; min-height: 52px; }
+    .size-btn { font-size: 16px; min-height: 52px; }
     #menu-toggle { width: 56px; height: 56px; font-size: 28px; }
+    .section-head { font-size: 16px; }
+    .check-row { font-size: 16px; }
+    .slider-label { font-size: 16px; }
+    .slider-val { font-size: 16px; }
+    .util-btn { font-size: 16px; }
   }
   #sidebar-header { padding: 18px 16px 12px; border-bottom: 1px solid rgba(80,120,255,0.15); }
   #sidebar-header h1 { font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #7aadff; }

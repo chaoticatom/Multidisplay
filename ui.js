@@ -2794,7 +2794,13 @@ document.getElementById('face-labels-chk')?.addEventListener('change',e=>{
 // ═══════════════════════════════════════════════════
 //  START
 // ═══════════════════════════════════════════════════
-initCube(64);
+const mobileInitSize = window.innerWidth <= 768 ? 16 : 64;
+initCube(mobileInitSize);
+if (mobileInitSize !== 64) {
+  document.querySelectorAll('.size-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.size) === mobileInitSize);
+  });
+}
 requestAnimationFrame(ts=>{lastTime=ts; requestAnimationFrame(animate);});
 
 // Hide the loading overlay now that the 3D engine is up and running.
