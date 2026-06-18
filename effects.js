@@ -2133,8 +2133,9 @@ let tronBFSQueue=null;
 let tronDeaths=null; // death count per bike (index matches bike slot)
 let tronScoreFill=null; // animated fill level per bike (0 to tronMaxFill)
 let tronMaxFill=0; // pixels in each score box
-let tronWinFlash=0; // countdown for "Wins" message
-let tronWinBike=-1; // which bike won
+let tronWinFlash=0;
+let tronWinBike=-1;
+let tronRoundWinner=-1;
 const TRON_GRIDS=[[0.01,0.06,0.12],[0.01,0.06,0.01],[0.06,0.01,0.06],[0.04,0.04,0.04]];
 
 function tronMove(face,u,v,du,dv){
@@ -2470,11 +2471,7 @@ function effectTron(dt){
     // check round end — all alive bikes crashed
     const nowAlive=tronBikes.filter(b=>b.alive);
     if(nowAlive.length<=1){
-      // Round over — respawn non-eliminated bikes for next round
-      if(nowAlive.length===1){
-        // Last bike standing this round doesn't lose a life
-      }
-      // Count non-eliminated bikes
+      tronRoundWinner=nowAlive.length===1?tronBikes.indexOf(nowAlive[0]):-1;
       const nonElim=[];
       for(let i=0;i<tronBikeCount;i++){
         if(tronScoreFill[i]>0) nonElim.push(i);
@@ -2487,6 +2484,16 @@ function effectTron(dt){
       }
     }
   } else if(tronState==='restart'){
+    // Flash round winner's trail with RGB cycling
+    if(tronRoundWinner>=0){
+      const hue=(tronStateT*2)%1;
+      const rgb=hsl(hue,1,0.7);
+      for(let i=0;i<N;i++){
+        if(tronTrail[i]===tronRoundWinner+1){
+          colBuf[i*3]=rgb[0];colBuf[i*3+1]=rgb[1];colBuf[i*3+2]=rgb[2];
+        }
+      }
+    }
     if(tronStateT>1.5) initTron();
   } else {
     // winner celebration — pulse whole cube in winner color, then restart
