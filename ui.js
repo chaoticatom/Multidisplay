@@ -1469,6 +1469,10 @@ document.querySelectorAll('[data-trongrid]').forEach(b => b.addEventListener('cl
   b.classList.add('active');
   tronGridTheme = parseInt(b.dataset.trongrid);
 }));
+document.getElementById('tron-border-check')?.addEventListener('change', e => {
+  tronBorderWalls = e.target.checked;
+  tronTrail = null;
+});
 document.getElementById('new-tron-btn')?.addEventListener('click', () => {
   tronTrail = null;
   if(currentEffect !== 'tron'){ const eb=document.querySelector('[data-effect="tron"]'); if(eb) eb.click(); }

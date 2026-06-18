@@ -2127,7 +2127,7 @@ function effectMaze(dt){
 // ═══════════════════════════════════════════════════
 const TRON_HUES=[0.57,0.08,0.92,0.33,0.70,0.15,0.50,0.02];
 let tronTrail=null, tronBikes=[], tronExplosions=[], tronState='run', tronStateT=0;
-let tronBikeCount=4, tronWinner=-1, tronSpeedMult=1, tronGridTheme=0;
+let tronBikeCount=4, tronWinner=-1, tronSpeedMult=1, tronGridTheme=0, tronBorderWalls=false;
 let tronVisited=null; // reusable buffer — allocated once per initTron
 let tronBFSQueue=null;
 let tronDeaths=null; // death count per bike (index matches bike slot)
@@ -2140,8 +2140,8 @@ const TRON_GRIDS=[[0.01,0.06,0.12],[0.01,0.06,0.01],[0.06,0.01,0.06],[0.04,0.04,
 function tronMove(face,u,v,du,dv){
   const M=SIZE-1, nu=u+du, nv=v+dv;
   if(nu>=0&&nu<=M&&nv>=0&&nv<=M) return [face,nu,nv,du,dv];
-  // In 2D panel mode, keep bikes on the same face (wrap around edges)
   if(typeof panel2dMode!=='undefined' && panel2dMode){
+    if(tronBorderWalls) return null;
     return [face, ((nu%SIZE)+SIZE)%SIZE, ((nv%SIZE)+SIZE)%SIZE, du, dv];
   }
   switch(face){
@@ -2361,6 +2361,17 @@ function initTron(){
       if(idx>=0) tronTrail[idx]=255;
     }
   }
+  // In 2D border mode, mark screen edges as walls
+  if(typeof panel2dMode!=='undefined' && panel2dMode && tronBorderWalls){
+    const f=0;
+    for(let i=0;i<SIZE;i++){
+      for(const [eu,ev] of [[i,0],[i,SIZE-1],[0,i],[SIZE-1,i]]){
+        const lv=SIZE-1-ev;
+        const idx=faceMap[f][lv*SIZE+eu];
+        if(idx>=0) tronTrail[idx]=255;
+      }
+    }
+  }
   tronBikes=[]; tronExplosions=[]; tronWinner=-1; tronState='run'; tronStateT=0;
   const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
   const HDIR=[[1,0],[-1,0]];
@@ -2460,6 +2471,28 @@ function effectTron(dt){
         const dx=gridX[i]*SPACING-HALF-p.x, dy=gridY[i]*SPACING-HALF-p.y, dz=gridZ[i]*SPACING-HALF-p.z;
         const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
         if(d<SPACING*4){const b=Math.pow(1-d/(SPACING*4),1.2)*p.life;const [r,gg,bv]=hsl(p.hue,1,b);if(r>colBuf[i*3])colBuf[i*3]=r;if(gg>colBuf[i*3+1])colBuf[i*3+1]=gg;if(bv>colBuf[i*3+2])colBuf[i*3+2]=bv;}
+      }
+    }
+  }
+  // Red border walls in 2D mode
+  if(typeof panel2dMode!=='undefined' && panel2dMode && tronBorderWalls){
+    const f=0;
+    for(let i=0;i<SIZE;i++){
+      for(const [eu,ev] of [[i,0],[i,SIZE-1],[0,i],[SIZE-1,i]]){
+        const lv=SIZE-1-ev;
+        const idx=faceMap[f][lv*SIZE+eu];
+        if(idx>=0){colBuf[idx*3]=0.9;colBuf[idx*3+1]=0.05;colBuf[idx*3+2]=0.05;}
+      }
+    }
+    // Red outline around scoreboard zone
+    const sz=tronScoreZone();
+    for(let v=Math.max(0,sz.v0);v<=Math.min(SIZE-1,sz.v1);v++){
+      for(let u=Math.max(0,sz.u0);u<=Math.min(SIZE-1,sz.u1);u++){
+        const isEdge=(v===sz.v0||v===sz.v1||u===sz.u0||u===sz.u1);
+        if(!isEdge) continue;
+        const lv=SIZE-1-v;
+        const idx=faceMap[f][lv*SIZE+u];
+        if(idx>=0){colBuf[idx*3]=0.9;colBuf[idx*3+1]=0.05;colBuf[idx*3+2]=0.05;}
       }
     }
   }
