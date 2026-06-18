@@ -2032,7 +2032,25 @@ function respawnRunners(){
   for(let k=0;k<mazeRunnerCount;k++){
     const startFace=is2D?0:k%6;
     const fsIdx=is2D?0:startFace;
-    const startI=is2D?mazeStartI:(faceStarts[fsIdx]>=0?faceStarts[fsIdx]:mazeStartI);
+    let startI;
+    if(is2D){
+      // Spread runners across different corners/edges of the face
+      const corners=[[1,1],[2*C-1,1],[1,2*C-1],[2*C-1,2*C-1],[C,1],[1,C]];
+      const corner=corners[k%corners.length];
+      // Find nearest open cell to this corner
+      let best=-1, bd=1e9;
+      for(let cj=0;cj<C;cj++) for(let ci=0;ci<C;ci++){
+        const u=2*ci+1, v=2*cj+1;
+        const idx=faceMap[0][v*SIZE+u];
+        if(idx>=0&&mazeOpen[idx]){
+          const d=Math.abs(u-corner[0])+Math.abs(v-corner[1]);
+          if(d<bd){bd=d;best=idx;}
+        }
+      }
+      startI=best>=0?best:mazeStartI;
+    } else {
+      startI=faceStarts[fsIdx]>=0?faceStarts[fsIdx]:mazeStartI;
+    }
 
     let gp=null;
     const biases=[0.75,0.82,0.9,0.96];
