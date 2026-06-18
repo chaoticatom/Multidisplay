@@ -2329,22 +2329,20 @@ function tronUpdateScoreboard(){
   }
   el.style.display='block';
   const sorted=tronBikes.map((_,i)=>i);
-  sorted.sort((a,b)=>tronDeaths[a]-tronDeaths[b]);
+  sorted.sort((a,b)=>tronScoreFill[b]-tronScoreFill[a]);
   el.innerHTML=sorted.map((bi,rank)=>{
     const h=TRON_HUES[bi%TRON_HUES.length];
     const rgb=hsl(h,1,0.6);
     const r=Math.round(rgb[0]*255),g=Math.round(rgb[1]*255),b=Math.round(rgb[2]*255);
-    const fillPct=tronMaxFill>0?Math.round(tronScoreFill[bi]/tronMaxFill*100):0;
-    const trophy=rank===0?'\u2605 ':'  ';
-    return '<div style="color:rgb('+r+','+g+','+b+')">'+trophy+'\u25A0 '+fillPct+'%</div>';
+    const lives=tronScoreFill[bi];
+    const out=lives<=0?' OUT':'';
+    const trophy=(rank===0&&lives>0)?'\u2605 ':'  ';
+    return '<div style="color:rgb('+r+','+g+','+b+');'+(lives<=0?'opacity:0.4;text-decoration:line-through;':'')+'">'+trophy+'\u25A0 '+lives+'/'+tronMaxFill+out+'</div>';
   }).join('');
 }
 
 function initTron(){
-  const boxW=Math.max(3,Math.floor(SIZE/8)-2);
-  const boxH=Math.max(3,Math.floor(SIZE/(tronBikeCount*3)));
-  const innerArea=(boxW-2)*(boxH-2);
-  tronMaxFill=innerArea;
+  tronMaxFill=20;
   if(!tronDeaths||tronDeaths.length!==tronBikeCount){
     tronDeaths=new Array(tronBikeCount).fill(0);
     tronScoreFill=new Array(tronBikeCount).fill(tronMaxFill);
@@ -2352,15 +2350,6 @@ function initTron(){
   tronTrail=new Uint8Array(N);
   tronVisited=new Uint8Array(N);
   tronBFSQueue=new Int16Array(N*3*3);
-  // Mark scoreboard zone as wall on face 0 (1px buffer around boxes)
-  const sz=tronScoreZone();
-  for(let v=Math.max(0,sz.v0);v<=Math.min(SIZE-1,sz.v1);v++){
-    for(let u=Math.max(0,sz.u0);u<=Math.min(SIZE-1,sz.u1);u++){
-      const lv=SIZE-1-v;
-      const idx=faceMap[0][lv*SIZE+u];
-      if(idx>=0) tronTrail[idx]=255;
-    }
-  }
   // In 2D border mode, mark screen edges as walls
   if(typeof panel2dMode!=='undefined' && panel2dMode && tronBorderWalls){
     const f=0;
@@ -2373,24 +2362,20 @@ function initTron(){
     }
   }
   tronBikes=[]; tronExplosions=[]; tronWinner=-1; tronState='run'; tronStateT=0;
-  const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
   const HDIR=[[1,0],[-1,0]];
   const VDIR=[[0,1],[0,-1]];
   for(let k=0;k<tronBikeCount;k++){
+    // Skip eliminated bikes (score already 0)
+    const eliminated=(tronScoreFill&&tronScoreFill[k]<=0);
     const sf=(typeof panel2dMode!=='undefined' && panel2dMode) ? 0 : k%6;
     const margin=Math.max(4, SIZE>>3);
-    let su, sv, tries=0;
-    do {
-      su=margin+Math.floor(Math.random()*(SIZE-margin*2));
-      sv=margin+Math.floor(Math.random()*(SIZE-margin*2));
-      tries++;
-    } while(sf===0 && su>=sz.u0 && sv<=sz.v1 && tries<50);
-    // Alternate H/V per bike, random sign
+    let su=margin+Math.floor(Math.random()*(SIZE-margin*2));
+    let sv=margin+Math.floor(Math.random()*(SIZE-margin*2));
     let dir;
     if(k%2===0) dir=HDIR[Math.floor(Math.random()*2)];
     else         dir=VDIR[Math.floor(Math.random()*2)];
     tronBikes.push({face:sf,u:su,v:sv,du:dir[0],dv:dir[1],
-      hue:TRON_HUES[k%TRON_HUES.length],alive:true,acc:0,
+      hue:TRON_HUES[k%TRON_HUES.length],alive:!eliminated,acc:0,
       speed:(SIZE*0.7+SIZE*0.3*(k/tronBikeCount))});
   }
 }
@@ -2447,10 +2432,27 @@ function effectTron(dt){
       if(idx>=0){const [r,gg,b]=hsl(bk.hue,0.3,0.95);setLED(idx,r,gg,b);}
     }
 
-    // check winner
+    // check round end — all alive bikes crashed
     const nowAlive=tronBikes.filter(b=>b.alive);
-    if(nowAlive.length===1){tronWinner=tronBikes.indexOf(nowAlive[0]);tronState='win';tronStateT=0;}
-    else if(nowAlive.length===0){tronState='win';tronStateT=0;}
+    if(nowAlive.length<=1){
+      // Round over — respawn non-eliminated bikes for next round
+      if(nowAlive.length===1){
+        // Last bike standing this round doesn't lose a life
+      }
+      // Count non-eliminated bikes
+      const nonElim=[];
+      for(let i=0;i<tronBikeCount;i++){
+        if(tronScoreFill[i]>0) nonElim.push(i);
+      }
+      if(nonElim.length>1){
+        tronState='restart'; tronStateT=0;
+      } else {
+        tronWinner=nonElim.length===1?nonElim[0]:0;
+        tronState='win'; tronStateT=0;
+      }
+    }
+  } else if(tronState==='restart'){
+    if(tronStateT>1.5) initTron();
   } else {
     // winner celebration — pulse whole cube in winner color, then restart
     if(tronWinner>=0){
@@ -2484,17 +2486,6 @@ function effectTron(dt){
         if(idx>=0){colBuf[idx*3]=0.9;colBuf[idx*3+1]=0.05;colBuf[idx*3+2]=0.05;}
       }
     }
-    // Red outline around scoreboard zone
-    const sz=tronScoreZone();
-    for(let v=Math.max(0,sz.v0);v<=Math.min(SIZE-1,sz.v1);v++){
-      for(let u=Math.max(0,sz.u0);u<=Math.min(SIZE-1,sz.u1);u++){
-        const isEdge=(v===sz.v0||v===sz.v1||u===sz.u0||u===sz.u1);
-        if(!isEdge) continue;
-        const lv=SIZE-1-v;
-        const idx=faceMap[f][lv*SIZE+u];
-        if(idx>=0){colBuf[idx*3]=0.9;colBuf[idx*3+1]=0.05;colBuf[idx*3+2]=0.05;}
-      }
-    }
   }
   tronUpdateScoreboard();
   tronRenderScoreOnLEDs(dt);
@@ -2512,11 +2503,6 @@ function tronScoreZone(){
 
 function tronRenderScoreOnLEDs(dt){
   if(!tronDeaths||!tronBikes.length||!tronScoreFill) return;
-  const face=0;
-  const boxW=Math.max(3,Math.floor(SIZE/8)-2);
-  const boxH=Math.max(3,Math.floor(SIZE/(tronBikes.length*3)));
-  const gap=1;
-  const startU=SIZE-boxW-1;
 
   // Each crash removes exactly 1 pixel
   for(let i=0;i<tronBikes.length;i++){
@@ -2524,17 +2510,16 @@ function tronRenderScoreOnLEDs(dt){
     if(tronScoreFill[i]>target) tronScoreFill[i]=Math.max(target, tronScoreFill[i]-1);
   }
 
-  // Check if any box is empty → game over, most pixels left wins
+  // Check how many bikes are still in the game (have pixels left)
+  const inGame=[];
   for(let i=0;i<tronBikes.length;i++){
-    if(tronScoreFill[i]<=0&&tronWinFlash<=0){
-      let bestBike=0, bestFill=-1;
-      for(let j=0;j<tronBikes.length;j++){
-        if(tronScoreFill[j]>bestFill){bestFill=tronScoreFill[j];bestBike=j;}
-      }
-      tronWinBike=bestBike;
-      tronWinFlash=5.0;
-      break;
-    }
+    if(tronScoreFill[i]>0) inGame.push(i);
+  }
+
+  // If only 1 bike left with pixels, that bike wins
+  if(inGame.length<=1&&tronWinFlash<=0){
+    tronWinBike=inGame.length===1?inGame[0]:0;
+    tronWinFlash=5.0;
   }
 
   // Win flash mode
@@ -2546,7 +2531,7 @@ function tronRenderScoreOnLEDs(dt){
     for(let i=0;i<N;i++){
       colBuf[i*3]=rgb[0]; colBuf[i*3+1]=rgb[1]; colBuf[i*3+2]=rgb[2];
     }
-    tronRenderWinsText(face,wh);
+    tronRenderWinsText(0,wh);
     if(tronWinFlash<=0){
       tronDeaths.fill(0);
       tronScoreFill.fill(tronMaxFill);
@@ -2554,45 +2539,6 @@ function tronRenderScoreOnLEDs(dt){
       initTron();
     }
     return;
-  }
-
-  // Draw outline boxes and remaining fill (draining from top)
-  const sorted=tronBikes.map((_,i)=>i);
-  sorted.sort((a,b)=>tronScoreFill[b]-tronScoreFill[a]);
-  for(let rank=0;rank<sorted.length;rank++){
-    const bi=sorted[rank];
-    const h=TRON_HUES[bi%TRON_HUES.length];
-    const rgb=hsl(h,1,0.5);
-    const dimRgb=hsl(h,1,0.2);
-    const topV=1+rank*(boxH+gap);
-
-    // Outline always drawn
-    for(let dv=0;dv<boxH;dv++){
-      for(let du=0;du<boxW;du++){
-        const isEdge=(dv===0||dv===boxH-1||du===0||du===boxW-1);
-        if(!isEdge) continue;
-        const v=topV+dv, u=startU+du;
-        if(v>=SIZE||u>=SIZE) continue;
-        const lv=SIZE-1-v;
-        const idx=faceMap[face][lv*SIZE+u];
-        if(idx>=0){colBuf[idx*3]=dimRgb[0];colBuf[idx*3+1]=dimRgb[1];colBuf[idx*3+2]=dimRgb[2];}
-      }
-    }
-
-    // Fill from bottom (remaining pixels)
-    const innerW=boxW-2, innerH=boxH-2;
-    const fillPx=Math.min(tronScoreFill[bi], tronMaxFill);
-    let drawn=0;
-    for(let row=innerH-1;row>=0&&drawn<fillPx;row--){
-      for(let col=0;col<innerW&&drawn<fillPx;col++){
-        const v=topV+1+row, u=startU+1+col;
-        if(v>=SIZE||u>=SIZE) continue;
-        const lv=SIZE-1-v;
-        const idx=faceMap[face][lv*SIZE+u];
-        if(idx>=0){colBuf[idx*3]=rgb[0];colBuf[idx*3+1]=rgb[1];colBuf[idx*3+2]=rgb[2];}
-        drawn++;
-      }
-    }
   }
 }
 
