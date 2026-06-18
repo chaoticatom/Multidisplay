@@ -3196,13 +3196,13 @@ function effectWeather(dt){
   function panXOfFaceU(face,u){
     const f=u/S1;
     if(face===2) return 0.25*f;
-    if(face===0) return 0.25+f*0.25;
+    if(face===0) return 0.25+(1-f)*0.25;
     if(face===3) return 0.5+(1-f)*0.25;
     return 0.75+f*0.25; // face 1
   }
   function uOfFacePanX(face,px){
     if(face===2) return Math.round(px/0.25*S1);
-    if(face===0) return Math.round((px-0.25)/0.25*S1);
+    if(face===0) return Math.round((1-(px-0.25)/0.25)*S1);
     if(face===3) return Math.round((1-(px-0.5)/0.25)*S1);
     return Math.round((px-0.75)/0.25*S1);
   }
