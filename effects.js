@@ -3195,15 +3195,15 @@ function effectWeather(dt){
 
   function panXOfFaceU(face,u){
     const f=u/S1;
-    if(face===2) return 0.25*(1-f);
+    if(face===2) return 0.25*f;
     if(face===0) return 0.25+(1-f)*0.25;
-    if(face===3) return 0.75-f*0.25;
+    if(face===3) return 0.5+f*0.25;
     return 1.0-f*0.25; // face 1
   }
   function uOfFacePanX(face,px){
-    if(face===2) return Math.round((1-px/0.25)*S1);
+    if(face===2) return Math.round(px/0.25*S1);
     if(face===0) return Math.round((1-(px-0.25)/0.25)*S1);
-    if(face===3) return Math.round((0.75-px)/0.25*S1);
+    if(face===3) return Math.round((px-0.5)/0.25*S1);
     return Math.round((1.0-px)/0.25*S1);
   }
   function vOfElevFrac(elev){ // elev 0=horizon, 1=top
@@ -3413,12 +3413,13 @@ function effectWeather(dt){
     faceU=uOfFacePanX(face,normPX);
     faceV=vOfElevFrac(elevFrac);
 
-    // Draw on side face — proper circle
+    // Draw on side face — proper circle (clipped to above horizon)
     const drawR=Math.ceil(radius+5);
+    const horizV=Math.round(HORIZ*S1);
     for(let dv=-drawR;dv<=drawR;dv++) for(let du=-drawR;du<=drawR;du++){
       const dist=Math.sqrt(du*du+dv*dv);
       const fu=faceU+du, fv=faceV+dv;
-      if(fu<0||fu>=S||fv<0||fv>=S) continue;
+      if(fu<0||fu>=S||fv<0||fv>=S||fv<horizV) continue;
       const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
       if(isSun){
         if(dist<=radius){ blendLED(idx,1,0.98,0.7); }
