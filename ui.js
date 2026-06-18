@@ -1626,15 +1626,16 @@ document.querySelectorAll('.size-btn').forEach(btn=>{
       const p2=document.createElement('canvas');
       p2.id='panel2d-canvas';
       p2.width=512; p2.height=512;
-      p2.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:60vmin;height:60vmin;image-rendering:pixelated;';
-      panel2dZoom=60; // initial vmin size
+      p2.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);image-rendering:pixelated;';
+      document.getElementById('canvas-wrap').appendChild(p2);
+      fitPanel2d();
       p2.addEventListener('wheel',e=>{
         e.preventDefault();
-        panel2dZoom=Math.max(5,Math.min(200,panel2dZoom*(1-e.deltaY*0.001)));
-        p2.style.width=panel2dZoom+'vmin';
-        p2.style.height=panel2dZoom+'vmin';
+        const cur=parseInt(p2.style.width)||300;
+        const next=Math.max(50,Math.min(2000,cur*(1-e.deltaY*0.001)));
+        p2.style.width=next+'px';
+        p2.style.height=next+'px';
       },{passive:false});
-      document.getElementById('canvas-wrap').appendChild(p2);
     } else {
       panel2dMode=false;
       pivotGroup.visible=true;

@@ -66,6 +66,29 @@ function resize() {
   const w = wrap.clientWidth, h = wrap.clientHeight;
   renderer.setSize(w, h);
   camera.aspect = w / h; camera.updateProjectionMatrix();
+  fitCameraToScene(w, h);
+  fitPanel2d();
+}
+
+function fitCameraToScene(w, h) {
+  const fov = camera.fov * Math.PI / 180;
+  const cubeRadius = TOTAL_SPAN * 0.87;
+  const buffer = 1.15;
+  const distV = (cubeRadius * buffer) / Math.tan(fov / 2);
+  const distH = (cubeRadius * buffer) / (Math.tan(fov / 2) * (w / h));
+  const dist = Math.max(distV, distH);
+  const len = camera.position.length();
+  if (len > 0) camera.position.multiplyScalar(dist / len);
+}
+
+function fitPanel2d() {
+  const c = document.getElementById('panel2d-canvas');
+  if (!c) return;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  const buf = 20;
+  const size = Math.min(w - buf * 2, h - buf * 2);
+  c.style.width = size + 'px';
+  c.style.height = size + 'px';
 }
 resize();
 window.addEventListener('resize', resize);
