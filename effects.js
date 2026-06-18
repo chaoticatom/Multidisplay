@@ -3139,7 +3139,7 @@ function effectWeather(dt){
   const moonPh=wxMoonPhase(new Date());
 
   // Twilight
-  const twilS=2400;
+  const twilS=3600;
   const toSr=wxSunriseS-secsDay, fromSs=secsDay-wxSunsetS;
   let lightLvl=isDay?1:0;
   if(!isDay&&toSr>0&&toSr<twilS) lightLvl=1-toSr/twilS;
