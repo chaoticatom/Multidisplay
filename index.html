@@ -881,8 +881,9 @@
 </script>
 <script>
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js').then(reg => {
+  navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' }).then(reg => {
     reg.update();
+    setInterval(() => reg.update(), 30000);
     reg.addEventListener('updatefound', () => {
       const nw = reg.installing;
       if (nw) nw.addEventListener('statechange', () => {
