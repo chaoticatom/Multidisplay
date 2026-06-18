@@ -5167,7 +5167,7 @@ function coinRenderFace(ctx,cf,dt,cs,DT_RES,t){
   for(let sy=0;sy<DT_RES;sy+=32){
     for(let sx=0;sx<DT_RES;sx+=32){
       const shimmer=Math.sin(t*2+sx*0.02+sy*0.03)*0.5+0.5;
-      const b=Math.floor(shimmer*45);
+      const b=Math.floor(shimmer*65);
       if(headsWinning){
         ctx.fillStyle='rgb('+Math.floor(b*1.1)+','+Math.floor(b*0.85)+','+Math.floor(b*0.3)+')';
       } else {
@@ -5234,26 +5234,32 @@ function coinRenderFace(ctx,cf,dt,cs,DT_RES,t){
 function coinRenderTopFace(ctx,DT_RES,t){
   ctx.clearRect(0,0,DT_RES,DT_RES);
   ctx.fillStyle='#000'; ctx.fillRect(0,0,DT_RES,DT_RES);
+  let totalH=0,totalT=0;
+  for(const cf of coinFaces){totalH+=cf.heads;totalT+=cf.tails;}
+  const headsWinning=totalH>=totalT;
   for(let sy=0;sy<DT_RES;sy+=32){
     for(let sx=0;sx<DT_RES;sx+=32){
       const shimmer=Math.sin(t*3+sx*0.03+sy*0.02)*0.5+0.5;
-      const b=Math.floor(shimmer*20);
-      ctx.fillStyle='rgb('+b+','+Math.floor(b*1.2)+','+Math.floor(b*1.5)+')';
+      const b=Math.floor(shimmer*60);
+      if(headsWinning){
+        ctx.fillStyle='rgb('+Math.floor(b*1.1)+','+Math.floor(b*0.85)+','+Math.floor(b*0.3)+')';
+      } else {
+        ctx.fillStyle='rgb('+Math.floor(b*0.6)+','+Math.floor(b*0.7)+','+Math.floor(b*1.1)+')';
+      }
       ctx.fillRect(sx,sy,32,32);
     }
   }
-  let totalH=0,totalT=0;
-  for(const cf of coinFaces){totalH+=cf.heads;totalT+=cf.tails;}
+  // Flip horizontally so text reads correctly on top face
+  ctx.save();
+  ctx.translate(DT_RES,0);
+  ctx.scale(-1,1);
   const total=totalH+totalT;
   const hPct=total?Math.round(totalH/total*100):0;
   const tPct=total?Math.round(totalT/total*100):0;
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  // Title
   ctx.font='bold 70px monospace';
   ctx.fillStyle='#ffffff'; ctx.fillText('TOTAL', DT_RES*0.5, DT_RES*0.12);
-  // Coin icon representations
   const midY=DT_RES*0.42;
-  // Heads side
   ctx.beginPath(); ctx.arc(DT_RES*0.28,midY,DT_RES*0.15,0,Math.PI*2);
   const g1=ctx.createRadialGradient(DT_RES*0.24,midY-20,0,DT_RES*0.28,midY,DT_RES*0.15);
   g1.addColorStop(0,'#eebb33');g1.addColorStop(1,'#886611');
@@ -5261,7 +5267,6 @@ function coinRenderTopFace(ctx,DT_RES,t){
   ctx.strokeStyle='#ffdd55'; ctx.lineWidth=6; ctx.stroke();
   ctx.fillStyle='#fff'; ctx.font='bold 90px monospace';
   ctx.fillText('H', DT_RES*0.28, midY+8);
-  // Tails side
   ctx.beginPath(); ctx.arc(DT_RES*0.72,midY,DT_RES*0.15,0,Math.PI*2);
   const g2=ctx.createRadialGradient(DT_RES*0.68,midY-20,0,DT_RES*0.72,midY,DT_RES*0.15);
   g2.addColorStop(0,'#7788cc');g2.addColorStop(1,'#334477');
@@ -5269,14 +5274,25 @@ function coinRenderTopFace(ctx,DT_RES,t){
   ctx.strokeStyle='#aabbff'; ctx.lineWidth=6; ctx.stroke();
   ctx.fillStyle='#fff'; ctx.font='bold 90px monospace';
   ctx.fillText('T', DT_RES*0.72, midY+8);
-  // Counts
   ctx.font='bold 110px monospace';
   ctx.fillStyle='#ffcc44'; ctx.fillText(String(totalH), DT_RES*0.28, DT_RES*0.70);
   ctx.fillStyle='#99bbff'; ctx.fillText(String(totalT), DT_RES*0.72, DT_RES*0.70);
-  // Percentages
   ctx.font='bold 80px monospace';
   ctx.fillStyle='#cc9922'; ctx.fillText(hPct+'%', DT_RES*0.28, DT_RES*0.90);
   ctx.fillStyle='#7799dd'; ctx.fillText(tPct+'%', DT_RES*0.72, DT_RES*0.90);
+  ctx.restore();
+  // Pulsating border in winning color
+  const pulse=0.4+0.6*Math.abs(Math.sin(t*3));
+  const bw=Math.floor(DT_RES/SIZE);
+  if(headsWinning){
+    const br=Math.floor(220*pulse), bg=Math.floor(170*pulse), bb=Math.floor(40*pulse);
+    ctx.strokeStyle='rgb('+br+','+bg+','+bb+')';
+  } else {
+    const br=Math.floor(120*pulse), bg2=Math.floor(140*pulse), bb=Math.floor(220*pulse);
+    ctx.strokeStyle='rgb('+br+','+bg2+','+bb+')';
+  }
+  ctx.lineWidth=bw;
+  ctx.strokeRect(bw/2,bw/2,DT_RES-bw,DT_RES-bw);
 }
 
 function effectCoinFlip(dt){
