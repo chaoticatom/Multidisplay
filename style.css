@@ -46,6 +46,14 @@
   }
   #menu-toggle:hover { background: rgba(80,120,255,0.45); transform: scale(1.05); }
   #menu-toggle.show { display: flex; }
+  @media (max-width: 768px) {
+    #menu-toggle { width: 64px; height: 64px; font-size: 32px; border-radius: 14px; border-width: 3px; }
+    #sidebar-open-btn { width: 64px; height: 64px; font-size: 28px; border-radius: 14px; border-width: 3px; }
+  }
+  @media (max-width: 480px) {
+    #menu-toggle { width: 72px; height: 72px; font-size: 36px; border-radius: 16px; }
+    #sidebar-open-btn { width: 72px; height: 72px; font-size: 32px; border-radius: 16px; }
+  }
 
   @media (max-width: 768px) {
     #sidebar { width: 360px; position: fixed; left: 0; top: 0; height: 100vh; height: 100dvh;
@@ -75,24 +83,36 @@
     .ov-slider::before { width: 18px; height: 18px; }
     .ov-toggle input:checked + .ov-slider::before { transform: translateX(22px); }
     #sidebar-footer { font-size: 14px; padding: 14px 18px; }
-    #sidebar-collapse-btn { font-size: 22px; padding: 10px 14px; min-width: 44px; min-height: 44px; }
-    #sidebar-header h1 { font-size: 16px; }
-    #sidebar-header p { font-size: 13px; }
+    #sidebar-collapse-btn { font-size: 28px; padding: 12px 16px; min-width: 56px; min-height: 56px; border-width: 2px; border-radius: 10px; }
+    #sidebar-header h1 { font-size: 18px; }
+    #sidebar-header p { font-size: 14px; }
     .strobe-mode-btn { font-size: 14px !important; padding: 12px 10px !important; min-height: 44px; }
     .effect-panel { padding: 12px 14px; }
   }
 
   @media (max-width: 480px) {
     #sidebar { width: 100vw; }
-    .sidebar-section { padding: 14px 16px; }
-    .effect-btn { font-size: 17px; padding: 16px 16px; min-height: 52px; }
-    .size-btn { font-size: 16px; min-height: 52px; }
-    #menu-toggle { width: 56px; height: 56px; font-size: 28px; }
-    .section-head { font-size: 16px; }
-    .check-row { font-size: 16px; }
-    .slider-label { font-size: 16px; }
-    .slider-val { font-size: 16px; }
-    .util-btn { font-size: 16px; }
+    .sidebar-section { padding: 16px 18px; }
+    .sidebar-section label { font-size: 16px; }
+    .effect-btn { font-size: 18px; padding: 18px 18px; min-height: 56px; }
+    .size-btn { font-size: 17px; min-height: 56px; padding: 14px 10px; }
+    .section-head { font-size: 17px; min-height: 52px; }
+    .check-row { font-size: 17px; min-height: 52px; }
+    .check-row input[type="checkbox"] { width: 24px; height: 24px; }
+    .slider-label { font-size: 17px; }
+    .slider-val { font-size: 17px; }
+    .slider-row input[type="range"] { height: 10px; }
+    .slider-row input[type="range"]::-webkit-slider-thumb { width: 30px; height: 30px; }
+    .slider-row input[type="range"]::-moz-range-thumb { width: 30px; height: 30px; }
+    .util-btn { font-size: 17px; min-height: 52px; padding: 16px 14px; }
+    .opt-grid button { font-size: 15px; min-height: 48px; padding: 14px 10px; }
+    .ov-hdr { font-size: 15px; min-height: 52px; }
+    #sidebar-footer { font-size: 15px; padding: 16px 18px; }
+    #sidebar-header h1 { font-size: 20px; }
+    #sidebar-header p { font-size: 15px; }
+    #sidebar-collapse-btn { font-size: 32px; min-width: 60px; min-height: 60px; }
+    .strobe-mode-btn { font-size: 15px !important; padding: 14px 12px !important; min-height: 48px; }
+    .effect-panel { padding: 14px 16px; }
   }
   #sidebar-header { padding: 18px 16px 12px; border-bottom: 1px solid rgba(80,120,255,0.15); }
   #sidebar-header h1 { font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #7aadff; }
