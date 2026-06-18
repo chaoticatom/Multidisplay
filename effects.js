@@ -5101,8 +5101,9 @@ function effectGhost(dt){
 let coinCanvas=null,coinCtx=null,coinPixels=null;
 let coinHeads=0,coinTails=0,coinFlipping=false,coinResult='',coinFlipT=0,coinFlipDur=0;
 let coinAngle=0,coinShowResult=0,coinSpeed=1;
+let coinFaces=null; // per-face state for 3D mode
 
-function coinReset(){coinHeads=0;coinTails=0;}
+function coinReset(){coinHeads=0;coinTails=0;if(coinFaces)coinFaces.forEach(f=>{f.heads=0;f.tails=0;});}
 
 function coinStartFlip(){
   coinFlipping=true; coinFlipT=0;
@@ -5110,18 +5111,25 @@ function coinStartFlip(){
   coinResult=(Math.random()<0.5)?'H':'T';
 }
 
-function effectCoinFlip(dt){
-  t+=dt;
-  if(!coinCanvas){
-    coinCanvas=document.createElement('canvas');
-    coinCanvas.width=DT_RES; coinCanvas.height=DT_RES;
-    coinCtx=coinCanvas.getContext('2d');
-    coinStartFlip();
+function coinFaceStartFlip(cf){
+  cf.flipping=true; cf.flipT=0;
+  cf.flipDur=1.0+Math.random()*1.0;
+  cf.result=(Math.random()<0.5)?'H':'T';
+}
+
+function coinInitFaces(){
+  coinFaces=[];
+  for(let i=0;i<4;i++){
+    const cf={heads:0,tails:0,flipping:false,result:'',flipT:0,flipDur:0,angle:0,showResult:0};
+    coinFaceStartFlip(cf);
+    cf.flipT=Math.random()*0.5;
+    coinFaces.push(cf);
   }
-  const ctx=coinCtx;
+}
+
+function coinRenderFace(ctx,cf,dt,cs,DT_RES,t){
   ctx.clearRect(0,0,DT_RES,DT_RES);
   ctx.fillStyle='#000'; ctx.fillRect(0,0,DT_RES,DT_RES);
-  // Shimmer background
   for(let sy=0;sy<DT_RES;sy+=32){
     for(let sx=0;sx<DT_RES;sx+=32){
       const shimmer=Math.sin(t*2+sx*0.02+sy*0.03)*0.5+0.5;
@@ -5130,46 +5138,37 @@ function effectCoinFlip(dt){
       ctx.fillRect(sx,sy,32,32);
     }
   }
-
-  const cs=coinSpeed*speedMult;
-  if(coinFlipping){
-    coinFlipT+=dt*cs;
-    coinAngle+=dt*cs*12;
-    if(coinFlipT>=coinFlipDur){
-      coinFlipping=false;
-      if(coinResult==='H') coinHeads++; else coinTails++;
-      coinShowResult=2.0;
-      coinAngle=0;
+  if(cf.flipping){
+    cf.flipT+=dt*cs;
+    cf.angle+=dt*cs*12;
+    if(cf.flipT>=cf.flipDur){
+      cf.flipping=false;
+      if(cf.result==='H') cf.heads++; else cf.tails++;
+      cf.showResult=2.0;
+      cf.angle=0;
     }
   } else {
-    coinShowResult-=dt*cs;
-    if(coinShowResult<=0) coinStartFlip();
+    cf.showResult-=dt*cs;
+    if(cf.showResult<=0) coinFaceStartFlip(cf);
   }
-
   const cx=DT_RES/2, cy=DT_RES*0.38, R=DT_RES*0.30;
   ctx.save();
-  const scaleX=coinFlipping?Math.cos(coinAngle):1;
+  const scaleX=cf.flipping?Math.cos(cf.angle):1;
   const absSx=Math.max(0.05,Math.abs(scaleX));
-
-  // Coin shadow
   ctx.fillStyle='rgba(40,30,0,0.4)';
   ctx.beginPath(); ctx.ellipse(cx+8,cy+10,R*absSx,R*0.3,0,0,Math.PI*2); ctx.fill();
-
-  // Coin edge (3D thickness when spinning)
-  if(coinFlipping&&absSx<0.7){
+  if(cf.flipping&&absSx<0.7){
     ctx.fillStyle='#665511';
     ctx.fillRect(cx-R*absSx,cy-4,R*absSx*2,8);
   }
-
-  // Coin face
   ctx.beginPath(); ctx.ellipse(cx,cy,R*absSx,R,0,0,Math.PI*2);
-  if(coinFlipping){
+  if(cf.flipping){
     const grad=ctx.createRadialGradient(cx-R*0.2,cy-R*0.2,0,cx,cy,R);
     grad.addColorStop(0,'#ddaa33'); grad.addColorStop(1,'#886611');
     ctx.fillStyle=grad; ctx.fill();
     ctx.strokeStyle='#ffdd55'; ctx.lineWidth=12; ctx.stroke();
   } else {
-    const isH=(coinResult==='H');
+    const isH=(cf.result==='H');
     const grad=ctx.createRadialGradient(cx-R*0.2,cy-R*0.2,0,cx,cy,R);
     if(isH){grad.addColorStop(0,'#eebb33');grad.addColorStop(1,'#886611');}
     else{grad.addColorStop(0,'#7788cc');grad.addColorStop(1,'#334477');}
@@ -5182,46 +5181,144 @@ function effectCoinFlip(dt){
     ctx.shadowBlur=0;
   }
   ctx.restore();
-
-  const total=coinHeads+coinTails;
-  const hPct=total?Math.round(coinHeads/total*100):0;
-  const tPct=total?Math.round(coinTails/total*100):0;
+  const total=cf.heads+cf.tails;
+  const hPct=total?Math.round(cf.heads/total*100):0;
+  const tPct=total?Math.round(cf.tails/total*100):0;
   ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.font='bold 100px monospace';
-  ctx.fillStyle='#ffcc44'; ctx.fillText(String(coinHeads), DT_RES*0.28, DT_RES*0.76);
-  ctx.fillStyle='#99bbff'; ctx.fillText(String(coinTails), DT_RES*0.72, DT_RES*0.76);
+  ctx.fillStyle='#ffcc44'; ctx.fillText(String(cf.heads), DT_RES*0.28, DT_RES*0.76);
+  ctx.fillStyle='#99bbff'; ctx.fillText(String(cf.tails), DT_RES*0.72, DT_RES*0.76);
   ctx.font='bold 80px monospace';
   ctx.fillStyle='#cc9922'; ctx.fillText(hPct+'%', DT_RES*0.28, DT_RES*0.92);
   ctx.fillStyle='#7799dd'; ctx.fillText(tPct+'%', DT_RES*0.72, DT_RES*0.92);
+}
 
-  coinPixels=ctx.getImageData(0,0,DT_RES,DT_RES).data;
-
-  for(let i=0;i<N*3;i++) colBuf[i]=0;
-  const scale=DT_RES/SIZE;
-  const face=0;
-  for(let v=0;v<SIZE;v++){
-    for(let u=0;u<SIZE;u++){
-      const px=Math.floor(u*scale), py=Math.floor(v*scale);
-      const pi=(py*DT_RES+px)*4;
-      const r=coinPixels[pi]/255, g=coinPixels[pi+1]/255, b=coinPixels[pi+2]/255;
-      if(r<0.02&&g<0.02&&b<0.02) continue;
-      const lv=SIZE-1-v;
-      const idx=faceMap[face][lv*SIZE+u];
-      if(idx>=0){colBuf[idx*3]=r;colBuf[idx*3+1]=g;colBuf[idx*3+2]=b;}
+function coinRenderTopFace(ctx,DT_RES,t){
+  ctx.clearRect(0,0,DT_RES,DT_RES);
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,DT_RES,DT_RES);
+  for(let sy=0;sy<DT_RES;sy+=32){
+    for(let sx=0;sx<DT_RES;sx+=32){
+      const shimmer=Math.sin(t*3+sx*0.03+sy*0.02)*0.5+0.5;
+      const b=Math.floor(shimmer*20);
+      ctx.fillStyle='rgb('+b+','+Math.floor(b*1.2)+','+Math.floor(b*1.5)+')';
+      ctx.fillRect(sx,sy,32,32);
     }
   }
-  if(!(typeof panel2dMode!=='undefined'&&panel2dMode)){
-    for(let f=1;f<6;f++){
+  let totalH=0,totalT=0;
+  for(const cf of coinFaces){totalH+=cf.heads;totalT+=cf.tails;}
+  const total=totalH+totalT;
+  const hPct=total?Math.round(totalH/total*100):0;
+  const tPct=total?Math.round(totalT/total*100):0;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  // Title
+  ctx.font='bold 70px monospace';
+  ctx.fillStyle='#ffffff'; ctx.fillText('TOTAL', DT_RES*0.5, DT_RES*0.12);
+  // Coin icon representations
+  const midY=DT_RES*0.42;
+  // Heads side
+  ctx.beginPath(); ctx.arc(DT_RES*0.28,midY,DT_RES*0.15,0,Math.PI*2);
+  const g1=ctx.createRadialGradient(DT_RES*0.24,midY-20,0,DT_RES*0.28,midY,DT_RES*0.15);
+  g1.addColorStop(0,'#eebb33');g1.addColorStop(1,'#886611');
+  ctx.fillStyle=g1; ctx.fill();
+  ctx.strokeStyle='#ffdd55'; ctx.lineWidth=6; ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font='bold 90px monospace';
+  ctx.fillText('H', DT_RES*0.28, midY+8);
+  // Tails side
+  ctx.beginPath(); ctx.arc(DT_RES*0.72,midY,DT_RES*0.15,0,Math.PI*2);
+  const g2=ctx.createRadialGradient(DT_RES*0.68,midY-20,0,DT_RES*0.72,midY,DT_RES*0.15);
+  g2.addColorStop(0,'#7788cc');g2.addColorStop(1,'#334477');
+  ctx.fillStyle=g2; ctx.fill();
+  ctx.strokeStyle='#aabbff'; ctx.lineWidth=6; ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font='bold 90px monospace';
+  ctx.fillText('T', DT_RES*0.72, midY+8);
+  // Counts
+  ctx.font='bold 110px monospace';
+  ctx.fillStyle='#ffcc44'; ctx.fillText(String(totalH), DT_RES*0.28, DT_RES*0.70);
+  ctx.fillStyle='#99bbff'; ctx.fillText(String(totalT), DT_RES*0.72, DT_RES*0.70);
+  // Percentages
+  ctx.font='bold 80px monospace';
+  ctx.fillStyle='#cc9922'; ctx.fillText(hPct+'%', DT_RES*0.28, DT_RES*0.90);
+  ctx.fillStyle='#7799dd'; ctx.fillText(tPct+'%', DT_RES*0.72, DT_RES*0.90);
+}
+
+function effectCoinFlip(dt){
+  t+=dt;
+  if(!coinCanvas){
+    coinCanvas=document.createElement('canvas');
+    coinCanvas.width=DT_RES; coinCanvas.height=DT_RES;
+    coinCtx=coinCanvas.getContext('2d');
+    coinStartFlip();
+  }
+  const cs=coinSpeed*speedMult;
+  const scale=DT_RES/SIZE;
+  const is3D=!(typeof panel2dMode!=='undefined'&&panel2dMode);
+
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  if(is3D){
+    if(!coinFaces) coinInitFaces();
+    const ctx=coinCtx;
+    // Render 4 side faces independently (faces 0-3)
+    for(let fi=0;fi<4;fi++){
+      const cf=coinFaces[fi];
+      coinRenderFace(ctx,cf,dt,cs,DT_RES,t+fi*1.7);
+      const pixels=ctx.getImageData(0,0,DT_RES,DT_RES).data;
       for(let v=0;v<SIZE;v++){
         for(let u=0;u<SIZE;u++){
           const px=Math.floor(u*scale), py=Math.floor(v*scale);
           const pi=(py*DT_RES+px)*4;
-          const r=coinPixels[pi]/255, g=coinPixels[pi+1]/255, b=coinPixels[pi+2]/255;
+          const r=pixels[pi]/255, g=pixels[pi+1]/255, b=pixels[pi+2]/255;
           if(r<0.02&&g<0.02&&b<0.02) continue;
           const lv=SIZE-1-v;
-          const idx=faceMap[f][lv*SIZE+u];
+          const idx=faceMap[fi][lv*SIZE+u];
           if(idx>=0){colBuf[idx*3]=r;colBuf[idx*3+1]=g;colBuf[idx*3+2]=b;}
         }
+      }
+    }
+    // Top face (face 4) — aggregate
+    coinRenderTopFace(ctx,DT_RES,t);
+    const pixels=ctx.getImageData(0,0,DT_RES,DT_RES).data;
+    for(let v=0;v<SIZE;v++){
+      for(let u=0;u<SIZE;u++){
+        const px=Math.floor(u*scale), py=Math.floor(v*scale);
+        const pi=(py*DT_RES+px)*4;
+        const r=pixels[pi]/255, g=pixels[pi+1]/255, b=pixels[pi+2]/255;
+        if(r<0.02&&g<0.02&&b<0.02) continue;
+        const lv=SIZE-1-v;
+        const idx=faceMap[4][lv*SIZE+u];
+        if(idx>=0){colBuf[idx*3]=r;colBuf[idx*3+1]=g;colBuf[idx*3+2]=b;}
+      }
+    }
+    // Bottom face (5) — leave dark
+  } else {
+    // 2D mode — single coin flip on face 0
+    const ctx=coinCtx;
+    if(coinFlipping){
+      coinFlipT+=dt*cs;
+      coinAngle+=dt*cs*12;
+      if(coinFlipT>=coinFlipDur){
+        coinFlipping=false;
+        if(coinResult==='H') coinHeads++; else coinTails++;
+        coinShowResult=2.0;
+        coinAngle=0;
+      }
+    } else {
+      coinShowResult-=dt*cs;
+      if(coinShowResult<=0) coinStartFlip();
+    }
+    const cf={heads:coinHeads,tails:coinTails,flipping:coinFlipping,result:coinResult,flipT:coinFlipT,flipDur:coinFlipDur,angle:coinAngle,showResult:coinShowResult};
+    coinRenderFace(ctx,cf,0,cs,DT_RES,t);
+    // Don't update cf — we used the globals directly
+    const pixels=ctx.getImageData(0,0,DT_RES,DT_RES).data;
+    for(let v=0;v<SIZE;v++){
+      for(let u=0;u<SIZE;u++){
+        const px=Math.floor(u*scale), py=Math.floor(v*scale);
+        const pi=(py*DT_RES+px)*4;
+        const r=pixels[pi]/255, g=pixels[pi+1]/255, b=pixels[pi+2]/255;
+        if(r<0.02&&g<0.02&&b<0.02) continue;
+        const lv=SIZE-1-v;
+        const idx=faceMap[0][lv*SIZE+u];
+        if(idx>=0){colBuf[idx*3]=r;colBuf[idx*3+1]=g;colBuf[idx*3+2]=b;}
       }
     }
   }
