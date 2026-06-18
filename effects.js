@@ -2346,8 +2346,8 @@ function tronUpdateScoreboard(){
 }
 
 function initTron(){
-  const boxW=16;
-  const boxH=16;
+  const boxW=4;
+  const boxH=4;
   tronMaxFill=boxW*boxH;
   if(!tronDeaths||tronDeaths.length!==tronBikeCount){
     tronDeaths=new Array(tronBikeCount).fill(0);
@@ -2523,10 +2523,10 @@ function effectTron(dt){
 
 // Scoreboard exclusion zone — bikes treat this area as walls
 function tronScoreZone(){
-  const boxW=16, boxH=16, gap=1;
+  const boxW=4, boxH=4, gap=1;
   const startU=SIZE-boxW-2;
   const totalH=2+tronBikeCount*(boxH+gap);
-  return {u0:startU-1, v0:0, u1:SIZE-1, v1:totalH};
+  return {u0:startU-2, v0:0, u1:SIZE-1, v1:totalH};
 }
 
 function tronRenderScoreOnLEDs(dt){
@@ -2552,7 +2552,7 @@ function tronRenderScoreOnLEDs(dt){
 
   // Draw filled score boxes on face 0 (no outline, just filled pixels)
   const face=0;
-  const boxW=16, boxH=16, gap=1;
+  const boxW=4, boxH=4, gap=1;
   const startU=SIZE-boxW-2;
 
   for(let bi=0;bi<tronBikes.length;bi++){
