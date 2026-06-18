@@ -56,7 +56,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0x000308);
 
 const scene  = new THREE.Scene();
-scene.fog    = new THREE.FogExp2(0x000308, 0.0025);
+scene.fog    = new THREE.FogExp2(0x000308, 0.0012);
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 3000);
 camera.position.set(100, 100, 100); // isometric view, zoomed in
@@ -72,8 +72,8 @@ function resize() {
 
 function fitCameraToScene(w, h) {
   const fov = camera.fov * Math.PI / 180;
-  const cubeRadius = TOTAL_SPAN * 0.87;
-  const buffer = 1.15;
+  const cubeRadius = TOTAL_SPAN * 0.62;
+  const buffer = 1.05;
   const distV = (cubeRadius * buffer) / Math.tan(fov / 2);
   const distH = (cubeRadius * buffer) / (Math.tan(fov / 2) * (w / h));
   const dist = Math.max(distV, distH);
