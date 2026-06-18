@@ -2032,7 +2032,7 @@ function respawnRunners(){
   for(let k=0;k<mazeRunnerCount;k++){
     const startFace=is2D?0:k%6;
     const fsIdx=is2D?0:startFace;
-    const startI=faceStarts[fsIdx]>=0?faceStarts[fsIdx]:mazeStartI;
+    const startI=is2D?mazeStartI:(faceStarts[fsIdx]>=0?faceStarts[fsIdx]:mazeStartI);
 
     let gp=null;
     const biases=[0.75,0.82,0.9,0.96];
