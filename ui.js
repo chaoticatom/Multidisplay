@@ -1001,6 +1001,7 @@ const EFFECTS={
   custom_cube:effectCustomCube,
   weather:effectWeather,
   coinflip:effectCoinFlip,
+  dice:effectDice,
 };
 const EFFECT_NAMES={
   wave:'Wave Cascade', rain:'Color Rain', plasma:'Plasma Storm', sphere:'Morphing Sphere',
@@ -1014,6 +1015,7 @@ const EFFECT_NAMES={
   custom_cube:'Custom Cube',
   weather:'Weather',
   coinflip:'Coin Flip',
+  dice:'Dice Roll',
 };
 
 // ═══════════════════════════════════════════════════
@@ -1031,7 +1033,7 @@ const EFFECT_SECTION_MAP = {
   balls:'',sand:'',lightning:'',warp:'',life:'',fluid:'',
 };
 
-const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','coinflip']);
+const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','coinflip','dice']);
 populateAlarmEffectRiseSelect(); // safe here — EFFECT_NAMES now defined
 
 async function fetchCitiesFromAPI(){
@@ -2126,6 +2128,13 @@ document.querySelectorAll('[data-dtmode]').forEach(b=>b.addEventListener('click'
 document.getElementById('coin-speed')?.addEventListener('input',e=>{
   coinSpeed=parseFloat(e.target.value);
   document.getElementById('coin-speed-val').textContent=coinSpeed+'x';
+});
+document.getElementById('dice-roll-btn')?.addEventListener('click',()=>{
+  if(!diceRolling) diceStartRoll();
+});
+document.getElementById('dice-auto-check')?.addEventListener('change',e=>{
+  diceAutoRoll=e.target.checked;
+  diceAutoTimer=0;
 });
 document.getElementById('ls-speed')?.addEventListener('input',e=>{
   lsSpeed=parseFloat(e.target.value);
