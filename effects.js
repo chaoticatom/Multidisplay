@@ -3196,15 +3196,15 @@ function effectWeather(dt){
   function panXOfFaceU(face,u){
     const f=u/S1;
     if(face===2) return 0.25*f;
-    if(face===0) return 0.25+(1-f)*0.25;
-    if(face===3) return 0.5+f*0.25;
-    return 1.0-f*0.25; // face 1
+    if(face===0) return 0.25+f*0.25;
+    if(face===3) return 0.5+(1-f)*0.25;
+    return 0.75+f*0.25; // face 1
   }
   function uOfFacePanX(face,px){
     if(face===2) return Math.round(px/0.25*S1);
-    if(face===0) return Math.round((1-(px-0.25)/0.25)*S1);
-    if(face===3) return Math.round((px-0.5)/0.25*S1);
-    return Math.round((1.0-px)/0.25*S1);
+    if(face===0) return Math.round((px-0.25)/0.25*S1);
+    if(face===3) return Math.round((1-(px-0.5)/0.25)*S1);
+    return Math.round((px-0.75)/0.25*S1);
   }
   function vOfElevFrac(elev){ // elev 0=horizon, 1=top
     return Math.round((HORIZ+elev*(1-HORIZ))*S1);
@@ -3593,7 +3593,7 @@ function effectWeather(dt){
       const gu=glU+du; if(gu<0||gu>=S) continue;
       const gb=Math.max(0,1-Math.abs(du)/12)*sunElev*4*(1-sunElev)*0.6;
       if(gb<0.01) continue;
-      for(let dv=-3;dv<=3;dv++){
+      for(let dv=0;dv<=3;dv++){
         const gv=glV+dv; if(gv<0||gv>=S) continue;
         const idx=faceMap[glFace][gv*S+gu]; if(idx<0) continue;
         blendLED(idx,gb,gb*0.55,gb*0.05);
@@ -3624,7 +3624,8 @@ function effectWeather(dt){
     const sunG = 0.7;
     const sunB = 0.1;
     
-    for(let v = Math.max(0, Math.floor(sunY - sunRad)); v <= Math.min(S-1, Math.ceil(sunY + sunRad)); v++){
+    const horizClip = Math.round(HORIZ_LINE);
+    for(let v = Math.max(horizClip, Math.floor(sunY - sunRad)); v <= Math.min(S-1, Math.ceil(sunY + sunRad)); v++){
       for(let u = Math.max(0, Math.floor(sunX - sunRad)); u <= Math.min(S-1, Math.ceil(sunX + sunRad)); u++){
         const dist = Math.hypot(u + 0.5 - sunX, v + 0.5 - sunY);
         if(dist <= sunRad){
