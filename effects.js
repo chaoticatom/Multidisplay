@@ -5429,11 +5429,11 @@ function diceStartRoll(){
 function diceDotPositions(val){
   const patterns={
     1:[[0.5,0.5]],
-    2:[[0.25,0.25],[0.75,0.75]],
-    3:[[0.25,0.25],[0.5,0.5],[0.75,0.75]],
-    4:[[0.25,0.25],[0.75,0.25],[0.25,0.75],[0.75,0.75]],
-    5:[[0.25,0.25],[0.75,0.25],[0.5,0.5],[0.25,0.75],[0.75,0.75]],
-    6:[[0.25,0.25],[0.75,0.25],[0.25,0.5],[0.75,0.5],[0.25,0.75],[0.75,0.75]]
+    2:[[0.2,0.2],[0.8,0.8]],
+    3:[[0.2,0.2],[0.5,0.5],[0.8,0.8]],
+    4:[[0.2,0.2],[0.8,0.2],[0.2,0.8],[0.8,0.8]],
+    5:[[0.2,0.2],[0.8,0.2],[0.5,0.5],[0.2,0.8],[0.8,0.8]],
+    6:[[0.2,0.2],[0.8,0.2],[0.2,0.5],[0.8,0.5],[0.2,0.8],[0.8,0.8]]
   };
   return patterns[val]||patterns[1];
 }
@@ -5448,8 +5448,8 @@ function diceDrawFace(ctx,val,cx,cy,faceSize,dotColor,bgColor,borderColor){
   ctx.lineWidth=faceSize*0.04;
   ctx.stroke();
   var dots=diceDotPositions(val);
-  var dotR=faceSize*0.11;
-  var inner=faceSize*0.7;
+  var dotR=faceSize*0.09;
+  var inner=faceSize*0.8;
   var ox=cx-inner/2, oy=cy-inner/2;
   ctx.fillStyle=dotColor;
   for(var i=0;i<dots.length;i++){
@@ -5471,7 +5471,7 @@ function diceRenderPanel(ctx,val,RES,t,isResult,glowAmount){
     ctx.fillStyle=gr;
     ctx.fillRect(0,0,RES,RES);
   }
-  var faceSize=RES*0.75;
+  var faceSize=RES*0.9;
   var dotCol=isResult?'#1a1a2a':'#222233';
   var bgCol=isResult?'#f0f0f5':'#e8e8ee';
   var borderCol=isResult?'rgba(100,180,255,'+(0.5+glowAmount*0.5)+')':'rgba(180,180,200,0.6)';
@@ -5490,22 +5490,35 @@ function diceRenderPanel(ctx,val,RES,t,isResult,glowAmount){
 
 function diceRenderRolling(ctx,RES,t,rollProgress){
   ctx.clearRect(0,0,RES,RES);
-  var flashIntensity=Math.abs(Math.sin(rollProgress*Math.PI*8));
-  var bg=Math.floor(10+flashIntensity*40);
-  ctx.fillStyle='rgb('+Math.floor(bg*0.8)+','+Math.floor(bg*0.9)+','+bg+')';
+  var speed=1-rollProgress*0.6;
+  var flashIntensity=Math.abs(Math.sin(t*12*speed));
+  var bg=Math.floor(10+flashIntensity*50);
+  var hue=(t*200)%360;
+  ctx.fillStyle='hsl('+hue+',30%,'+Math.floor(bg*0.15)+'%)';
   ctx.fillRect(0,0,RES,RES);
-  var faceSize=RES*0.65+Math.sin(rollProgress*20)*RES*0.05;
+  var faceSize=RES*0.7+Math.sin(t*15)*RES*0.08;
   var randomVal=1+Math.floor(Math.random()*6);
-  var angle=rollProgress*Math.PI*6;
+  var spinAngle=t*8*speed;
   ctx.save();
   ctx.translate(RES/2,RES/2);
-  ctx.rotate(Math.sin(angle)*0.15);
-  var scaleX=0.8+0.2*Math.abs(Math.cos(angle*2));
-  ctx.scale(scaleX,1);
-  var hue=(rollProgress*360)%360;
-  var borderCol='hsl('+hue+',80%,60%)';
+  ctx.rotate(spinAngle);
+  var scaleX=0.5+0.5*Math.abs(Math.cos(t*10*speed));
+  var scaleY=0.5+0.5*Math.abs(Math.sin(t*10*speed+1));
+  ctx.scale(scaleX,scaleY);
+  var borderCol='hsl('+((t*300)%360)+',90%,65%)';
   diceDrawFace(ctx,randomVal,0,0,faceSize,'#1a1a2a','#e8e8ee',borderCol);
   ctx.restore();
+  // Motion blur streaks
+  for(var s=0;s<3;s++){
+    ctx.save();
+    ctx.globalAlpha=0.15-s*0.04;
+    ctx.translate(RES/2,RES/2);
+    ctx.rotate(spinAngle-0.3*(s+1));
+    ctx.scale(scaleX*0.9,scaleY*0.9);
+    diceDrawFace(ctx,randomVal,0,0,faceSize*0.8,'#1a1a2a','#e8e8ee',borderCol);
+    ctx.restore();
+  }
+  ctx.globalAlpha=1;
 }
 
 function effectDice(dt){
