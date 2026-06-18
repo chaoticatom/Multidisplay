@@ -2526,6 +2526,30 @@ function tronRenderScoreOnLEDs(dt){
     tronWinFlash=5.0;
   }
 
+  // Draw score bars along top edge of face 0
+  const barH=1;
+  const totalBars=tronBikes.length;
+  const barW=Math.floor(SIZE/totalBars);
+  for(let bi=0;bi<totalBars;bi++){
+    const h=TRON_HUES[bi%TRON_HUES.length];
+    const fillRatio=tronMaxFill>0?tronScoreFill[bi]/tronMaxFill:0;
+    const filledPx=Math.round(fillRatio*barW);
+    const rgb=hsl(h,1,0.5);
+    const dimRgb=hsl(h,1,0.12);
+    for(let du=0;du<barW;du++){
+      const u=bi*barW+du;
+      if(u>=SIZE) break;
+      const filled=du<filledPx;
+      const c=filled?rgb:dimRgb;
+      for(let dv=0;dv<barH;dv++){
+        const v=dv;
+        const lv=SIZE-1-v;
+        const idx=faceMap[0][lv*SIZE+u];
+        if(idx>=0){colBuf[idx*3]=c[0];colBuf[idx*3+1]=c[1];colBuf[idx*3+2]=c[2];}
+      }
+    }
+  }
+
   // Win flash mode
   if(tronWinFlash>0){
     tronWinFlash-=dt;
