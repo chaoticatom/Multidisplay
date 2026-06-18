@@ -360,10 +360,10 @@ function getLocalGravity(magnitude) {
   return _gravLocal;
 }
 
-const DRAG_SENS = 0.012;
-const TOUCH_SENS = 0.016;
+const DRAG_SENS = 0.007;
+const TOUCH_SENS = 0.009;
 let _velX = 0, _velY = 0;
-const INERTIA_DECAY = 0.92;
+const INERTIA_DECAY = 0.88;
 const INERTIA_MIN = 0.0003;
 
 function applyRotation(dx, dy, sens) {
