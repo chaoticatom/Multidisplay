@@ -2346,7 +2346,9 @@ function tronUpdateScoreboard(){
 }
 
 function initTron(){
-  tronMaxFill=20;
+  const boxW=Math.max(3,Math.floor(SIZE/8)-2);
+  const boxH=Math.max(3,Math.floor(SIZE/(tronBikeCount*3)));
+  tronMaxFill=boxW*boxH;
   if(!tronDeaths||tronDeaths.length!==tronBikeCount){
     tronDeaths=new Array(tronBikeCount).fill(0);
     tronScoreFill=new Array(tronBikeCount).fill(tronMaxFill);
@@ -2354,6 +2356,15 @@ function initTron(){
   tronTrail=new Uint8Array(N);
   tronVisited=new Uint8Array(N);
   tronBFSQueue=new Int16Array(N*3*3);
+  // Mark scoreboard zone as wall on face 0
+  const sz=tronScoreZone();
+  for(let v=Math.max(0,sz.v0);v<=Math.min(SIZE-1,sz.v1);v++){
+    for(let u=Math.max(0,sz.u0);u<=Math.min(SIZE-1,sz.u1);u++){
+      const lv=SIZE-1-v;
+      const idx=faceMap[0][lv*SIZE+u];
+      if(idx>=0) tronTrail[idx]=255;
+    }
+  }
   // In 2D border mode, mark screen edges as walls
   if(typeof panel2dMode!=='undefined' && panel2dMode && tronBorderWalls){
     const f=0;
@@ -2373,8 +2384,12 @@ function initTron(){
     const eliminated=(tronScoreFill&&tronScoreFill[k]<=0);
     const sf=(typeof panel2dMode!=='undefined' && panel2dMode) ? 0 : k%6;
     const margin=Math.max(4, SIZE>>3);
-    let su=margin+Math.floor(Math.random()*(SIZE-margin*2));
-    let sv=margin+Math.floor(Math.random()*(SIZE-margin*2));
+    let su, sv, tries=0;
+    do {
+      su=margin+Math.floor(Math.random()*(SIZE-margin*2));
+      sv=margin+Math.floor(Math.random()*(SIZE-margin*2));
+      tries++;
+    } while(sf===0 && su>=sz.u0 && sv<=sz.v1 && tries<50);
     let dir;
     if(k%2===0) dir=HDIR[Math.floor(Math.random()*2)];
     else         dir=VDIR[Math.floor(Math.random()*2)];
@@ -2526,26 +2541,28 @@ function tronRenderScoreOnLEDs(dt){
     tronWinFlash=5.0;
   }
 
-  // Draw score bars along top edge of face 0
-  const barH=1;
-  const totalBars=tronBikes.length;
-  const barW=Math.floor(SIZE/totalBars);
-  for(let bi=0;bi<totalBars;bi++){
+  // Draw filled score boxes on face 0 (no outline, just filled pixels)
+  const face=0;
+  const boxW=Math.max(3,Math.floor(SIZE/8)-2);
+  const boxH=Math.max(3,Math.floor(SIZE/(tronBikes.length*3)));
+  const gap=1;
+  const startU=SIZE-boxW-1;
+  const innerW=boxW, innerH=boxH;
+
+  for(let bi=0;bi<tronBikes.length;bi++){
     const h=TRON_HUES[bi%TRON_HUES.length];
-    const fillRatio=tronMaxFill>0?tronScoreFill[bi]/tronMaxFill:0;
-    const filledPx=Math.round(fillRatio*barW);
     const rgb=hsl(h,1,0.5);
-    const dimRgb=hsl(h,1,0.12);
-    for(let du=0;du<barW;du++){
-      const u=bi*barW+du;
-      if(u>=SIZE) break;
-      const filled=du<filledPx;
-      const c=filled?rgb:dimRgb;
-      for(let dv=0;dv<barH;dv++){
-        const v=dv;
+    const topV=1+bi*(boxH+gap);
+    const fillPx=Math.min(tronScoreFill[bi], tronMaxFill);
+    let drawn=0;
+    for(let row=innerH-1;row>=0&&drawn<fillPx;row--){
+      for(let col=0;col<innerW&&drawn<fillPx;col++){
+        const v=topV+row, u=startU+col;
+        if(v>=SIZE||u>=SIZE) continue;
         const lv=SIZE-1-v;
-        const idx=faceMap[0][lv*SIZE+u];
-        if(idx>=0){colBuf[idx*3]=c[0];colBuf[idx*3+1]=c[1];colBuf[idx*3+2]=c[2];}
+        const idx=faceMap[face][lv*SIZE+u];
+        if(idx>=0){colBuf[idx*3]=rgb[0];colBuf[idx*3+1]=rgb[1];colBuf[idx*3+2]=rgb[2];}
+        drawn++;
       }
     }
   }
