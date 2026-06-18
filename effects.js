@@ -2566,16 +2566,19 @@ function tronRenderScoreOnLEDs(dt){
     tronWinFlash=5.0;
   }
 
-  // Draw filled score boxes on face 0 (no outline, just filled pixels)
+  // Draw filled score boxes on face 0, sorted by most pixels (winner at top)
   const face=0;
   const boxW=4, boxH=4, gap=1;
   const startU=SIZE-boxW-2;
+  const sorted=tronBikes.map((_,i)=>i);
+  sorted.sort((a,b)=>tronScoreFill[b]-tronScoreFill[a]);
 
-  for(let bi=0;bi<tronBikes.length;bi++){
+  for(let rank=0;rank<sorted.length;rank++){
+    const bi=sorted[rank];
     const h=TRON_HUES[bi%TRON_HUES.length];
     const alive=tronBikes[bi]&&tronBikes[bi].alive;
     const rgb=hsl(h,1,alive?0.5:0.15);
-    const topV=2+bi*(boxH+gap);
+    const topV=2+rank*(boxH+gap);
     const fillPx=Math.min(tronScoreFill[bi], tronMaxFill);
     let drawn=0;
     for(let row=boxH-1;row>=0&&drawn<fillPx;row--){
