@@ -2430,17 +2430,33 @@ function effectTron(dt){
       bk.acc+=dt*bk.speed*tronSpeedMult*speedMult;
       while(bk.acc>=1){
         bk.acc-=1;
-        // decide direction
         const newDir=tronDecide(bk);
         if(!newDir){tronCrash(bk);break;}
         const [ndu,ndv]=newDir;
-        const [nf,nu,nv,fdu,fdv]=tronMove(bk.face,bk.u,bk.v,ndu,ndv);
+        const moved=tronMove(bk.face,bk.u,bk.v,ndu,ndv);
+        if(!moved){tronCrash(bk);break;}
+        const [nf,nu,nv,fdu,fdv]=moved;
         const idx=faceMap[nf][nv*SIZE+nu];
         if(idx<0||tronTrail[idx]>0){tronCrash(bk);break;}
         bk.du=fdu; bk.dv=fdv;
+        const bikeIdx=tronBikes.indexOf(bk)+1;
         const oldIdx=faceMap[bk.face][bk.v*SIZE+bk.u];
-        if(oldIdx>=0) tronTrail[oldIdx]=tronBikes.indexOf(bk)+1;
+        if(oldIdx>=0) tronTrail[oldIdx]=bikeIdx;
         bk.face=nf; bk.u=nu; bk.v=nv;
+        // Mark new position immediately to prevent other bikes entering this cell
+        if(idx>=0) tronTrail[idx]=bikeIdx;
+      }
+    }
+
+    // Head-on collision: if two alive bikes share the same cell, both crash
+    for(let i=0;i<tronBikes.length;i++){
+      if(!tronBikes[i].alive) continue;
+      for(let j=i+1;j<tronBikes.length;j++){
+        if(!tronBikes[j].alive) continue;
+        if(tronBikes[i].face===tronBikes[j].face&&tronBikes[i].u===tronBikes[j].u&&tronBikes[i].v===tronBikes[j].v){
+          tronCrash(tronBikes[i]);
+          tronCrash(tronBikes[j]);
+        }
       }
     }
 
