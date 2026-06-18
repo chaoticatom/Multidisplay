@@ -2673,12 +2673,12 @@ let faceLabelEls=null;
 // Face centre positions in world space (TOTAL_SPAN is the cube's world size)
 // HALF = half of total span
 const FACE_LABEL_DATA=[
-  {name:'1 — Front',  key:'front',  nx: 0, ny: 0, nz: 1},
-  {name:'2 — Back',   key:'back',   nx: 0, ny: 0, nz:-1},
-  {name:'3 — Right',  key:'right',  nx: 1, ny: 0, nz: 0},
-  {name:'4 — Left',   key:'left',   nx:-1, ny: 0, nz: 0},
-  {name:'5 — Top',    key:'top',    nx: 0, ny: 1, nz: 0},
-  {name:'6 — Bottom', key:'bottom', nx: 0, ny:-1, nz: 0},
+  {name:'0 — Front',  key:'front',  nx: 0, ny: 0, nz: 1},
+  {name:'1 — Back',   key:'back',   nx: 0, ny: 0, nz:-1},
+  {name:'2 — Right',  key:'right',  nx: 1, ny: 0, nz: 0},
+  {name:'3 — Left',   key:'left',   nx:-1, ny: 0, nz: 0},
+  {name:'4 — Top',    key:'top',    nx: 0, ny: 1, nz: 0},
+  {name:'5 — Bottom', key:'bottom', nx: 0, ny:-1, nz: 0},
 ];
 
 function initFaceLabels(){
