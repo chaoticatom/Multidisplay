@@ -4154,7 +4154,7 @@ function ovMist(dt){
 }
 
 // ── Lightning Strike — top to bottom through all panels ──
-let ovLightningT=0, ovLightningStrikes=[];
+let ovLightningT=0, ovLightningStrikes=[], ovLightningNextAt=0;
 
 // ── Persistent swirling cloud on top panel ──
 let ovCloudBuf=null, ovCloudT=0, ovCloudInited=false;
@@ -4351,12 +4351,16 @@ function ovLightning(dt){
   ovLightningT+=dt;
   ovTickCloud(dt);
 
-  const interval=1/Math.max(0.1,OV.lightning.rate);
-  if(ovLightningT>interval){
+  const baseInterval=1/Math.max(0.1,OV.lightning.rate);
+  if(ovLightningT>ovLightningNextAt){
     ovLightningT=0;
+    ovLightningNextAt=baseInterval*(0.3+Math.random()*1.8);
     const bolt=ovMakeLightBolt();
     ovLightningStrikes.push(bolt);
     ovDrawCloud(bolt.startX, bolt.startY);
+    if(Math.random()<0.35){
+      setTimeout(()=>{const b2=ovMakeLightBolt();ovLightningStrikes.push(b2);ovDrawCloud(b2.startX,b2.startY);},60+Math.random()*150);
+    }
   }
 
   const width=OV.lightning.width|0;
