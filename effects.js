@@ -2283,14 +2283,18 @@ function tronDecide(bk){
     const runwayPenalty=s.runway<3?-SIZE*3:(s.runway<6?-SIZE:0);
     // Reward moves that keep future options open
     const futureBonus=s.futureOptions*SIZE*0.15;
-    // Slight center preference to use more of the screen
-    const centerBonus=(SIZE-s.centerDist)*0.1;
+    // Center preference — reduced in border mode so bikes use edges more
+    const centerWeight=(typeof panel2dMode!=='undefined'&&panel2dMode&&tronBorderWalls)?0.02:0.1;
+    const centerBonus=(SIZE-s.centerDist)*centerWeight;
+    // In border mode, occasionally attract toward edges for more exciting play
+    const edgeAttract=(typeof panel2dMode!=='undefined'&&panel2dMode&&tronBorderWalls)?
+      (Math.min(s.nu,SIZE-1-s.nu,s.nv,SIZE-1-s.nv)<4?SIZE*0.3*Math.random():0):0;
     // Anti-spiral: heavily penalize continuing to turn the same direction
     const spiralPenalty=(spiralPenaltyDir!==0&&s.m.turnDir===spiralPenaltyDir)?-SIZE*4:0;
     const cut=cutBonus.get(s)||0;
     const avoid=avoidanceMap.get(s)||0;
     const score=s.space*1.2 + straightBonus + cut + openBonus + escapePenalty
-      + runwayPenalty + futureBonus + centerBonus + spiralPenalty
+      + runwayPenalty + futureBonus + centerBonus + spiralPenalty + edgeAttract
       - avoid + (Math.random()-0.5)*1.5;
     if(score>bestScore){ bestScore=score; best=s; }
   }
