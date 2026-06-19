@@ -802,7 +802,9 @@ if(window._mobileMode){
   <div id="face-labels" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;"></div>
   <div id="effect-label"><span id="el-effect">Wave Cascade</span> <span id="el-meta" style="font-size:11px;opacity:0.6;margin-left:8px;">64×64 · 60fps</span></div>
   <div id="hint">drag to rotate · scroll to zoom</div>
+  <div id="version-label" style="position:absolute;bottom:8px;left:8px;font-size:11px;color:rgba(120,160,255,0.35);pointer-events:none;z-index:10;"></div>
 </div>
+<script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 
 
 <div id="pl-modal"></div>
