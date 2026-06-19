@@ -38,6 +38,14 @@
 <body>
 <script>
 window._mobileMode = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+if(window._mobileMode){
+  document.addEventListener('DOMContentLoaded', function(){
+    var sb = document.getElementById('sidebar');
+    var ob = document.getElementById('sidebar-open-btn');
+    if(sb) sb.style.transform = 'translateX(-100%)';
+    if(ob) ob.style.display = 'flex';
+  });
+}
 </script>
 
 <!-- ═══ LOADING OVERLAY ═══ -->
