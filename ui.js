@@ -1241,7 +1241,7 @@ document.getElementById('clear-all-btn')?.addEventListener('click',()=>{
 // ═══════════════════════════════════════════════════
 //  DISPLAY & VIEW CONTROLS
 // ═══════════════════════════════════════════════════
-let speedMult = 1, brightness = 1, rotSpeedMult = 1;
+let speedMult = 1, brightness = 1.15, rotSpeedMult = 1;
 const autoRotateChk = document.getElementById('auto-rotate-chk');
 
 document.getElementById('speed-slider')?.addEventListener('input', e => {
@@ -1252,9 +1252,9 @@ document.getElementById('speed-slider')?.addEventListener('input', e => {
 document.getElementById('bright-slider')?.addEventListener('input', e => {
   brightness = parseFloat(e.target.value);
   document.getElementById('bright-val').textContent = Math.round(brightness * 100) + '%';
-  // Material colour multiplies instance colours — non-destructive global brightness
   mesh.material.color.setScalar(brightness);
 });
+if (mesh) mesh.material.color.setScalar(brightness);
 
 document.getElementById('rotspeed-slider')?.addEventListener('input', e => {
   rotSpeedMult = parseFloat(e.target.value);
@@ -1627,6 +1627,8 @@ document.querySelectorAll('.size-btn').forEach(btn=>{
     if(btn.dataset.mode==='panel2d'){
       panel2dMode=true;
       initCube(64);
+      document.getElementById('led-count-label').textContent = '64 × 64 · 2D Panel';
+      document.getElementById('cube-label').textContent = '64×64 2D';
       // Hide 3D cube, show single flat panel view
       pivotGroup.visible=false;
       document.getElementById('panel2d-canvas')?.remove();
