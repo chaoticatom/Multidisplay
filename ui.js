@@ -1438,6 +1438,13 @@ document.querySelectorAll('.section-head').forEach(h => h.addEventListener('clic
 document.querySelectorAll('.sub-head').forEach(h => h.addEventListener('click', () => {
   h.parentElement.classList.toggle('collapsed');
 }));
+(function(){
+  const active = document.querySelector('.effect-btn.active');
+  if(active){
+    const sub = active.closest('.sub-section');
+    if(sub) sub.classList.remove('collapsed');
+  }
+})();
 
 document.getElementById('mz-runners')?.addEventListener('input', e => {
   mazeRunnerCount = parseInt(e.target.value);
