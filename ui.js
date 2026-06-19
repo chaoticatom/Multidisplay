@@ -1713,13 +1713,27 @@ const elMeta=document.getElementById('el-meta');
 //  SIDEBAR COLLAPSE
 // ═══════════════════════════════════════════════════
 document.getElementById('sidebar-collapse-btn')?.addEventListener('click', () => {
-  document.getElementById('sidebar').classList.add('hidden');
-  document.getElementById('sidebar-open-btn').classList.add('show');
+  const sb = document.getElementById('sidebar');
+  const ob = document.getElementById('sidebar-open-btn');
+  if(window._mobileMode){
+    sb.style.transform = 'translateX(-100%)';
+    if(ob) ob.style.display = 'flex';
+  } else {
+    sb.classList.add('hidden');
+    ob.classList.add('show');
+  }
   setTimeout(resize, 300);
 });
 document.getElementById('sidebar-open-btn')?.addEventListener('click', () => {
-  document.getElementById('sidebar').classList.remove('hidden');
-  document.getElementById('sidebar-open-btn').classList.remove('show');
+  const sb = document.getElementById('sidebar');
+  const ob = document.getElementById('sidebar-open-btn');
+  if(window._mobileMode){
+    sb.style.transform = 'translateX(0)';
+    if(ob) ob.style.display = 'none';
+  } else {
+    sb.classList.remove('hidden');
+    ob.classList.remove('show');
+  }
   setTimeout(resize, 300);
 });
 
