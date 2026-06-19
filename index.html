@@ -17,6 +17,7 @@
 .check-row{font-size:20px!important;min-height:64px!important}
 .check-row input[type="checkbox"]{width:32px!important;height:32px!important}
 .section-head{font-size:21px!important;min-height:64px!important}
+.sub-head{font-size:19px!important;padding:14px 8px!important;min-height:56px!important}
 .util-btn{font-size:20px!important;padding:20px 18px!important;min-height:64px!important}
 .opt-grid button{font-size:19px!important;padding:18px 14px!important;min-height:60px!important}
 .ov-hdr{font-size:19px!important;min-height:64px!important}
@@ -80,7 +81,9 @@
     <button class="section-head">Effects <span class="chev">▾</span></button>
     <div class="section-body">
 
-    <div class="effect-group-label">Dynamic</div>
+    <div class="sub-section">
+      <button class="sub-head">Dynamic <span class="chev">▾</span></button>
+      <div class="sub-body">
     <button class="effect-btn active" data-effect="wave">◈ Wave Cascade</button>
     <button class="effect-btn has-panel" data-effect="rain">◈ Color Rain <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-rain">
@@ -117,8 +120,12 @@
         <button class="strobe-mode-btn" data-dtmode="analogue">Analogue</button>
       </div>
     </div>
+      </div>
+    </div>
 
-    <div class="effect-group-label">Physics</div>
+    <div class="sub-section collapsed">
+      <button class="sub-head">Physics <span class="chev">▾</span></button>
+      <div class="sub-body">
     <button class="effect-btn" data-effect="balls">◈ Bouncing Balls</button>
     <button class="effect-btn" data-effect="sand">◈ Gravity Sand</button>
     <button class="effect-btn has-panel" data-effect="strobe">◈ Strobe Flash <span class="panel-arrow">▸</span></button>
@@ -171,15 +178,24 @@
       <div id="f1-board-list" style="font-size:10px;color:#99a;margin-top:4px;"></div>
     </div>
 
-    <div class="effect-group-label">Gradients</div>
+      </div>
+    </div>
+
+    <div class="sub-section collapsed">
+      <button class="sub-head">Gradients <span class="chev">▾</span></button>
+      <div class="sub-body">
     <button class="effect-btn" data-effect="gradient_wash">◈ Rainbow Wash</button>
     <button class="effect-btn" data-effect="aurora">◈ Aurora Borealis</button>
     <button class="effect-btn" data-effect="depth_rings">◈ Depth Rings</button>
     <button class="effect-btn" data-effect="prism">◈ Prism Sweep</button>
     <button class="effect-btn" data-effect="tide">◈ Color Tide</button>
     <button class="effect-btn" data-effect="nebula">◈ Nebula Drift</button>
+      </div>
+    </div>
 
-    <div class="effect-group-label">Audio &amp; Games</div>
+    <div class="sub-section collapsed">
+      <button class="sub-head">Audio &amp; Games <span class="chev">▾</span></button>
+      <div class="sub-body">
     <button class="effect-btn has-panel" data-effect="spectrum">◈ Spectrum Analyser <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-spectrum">
       <div class="ov-row-label">Bands</div>
@@ -254,7 +270,12 @@
       </div>
     </div>
 
-    <div class="effect-group-label">Special</div>
+      </div>
+    </div>
+
+    <div class="sub-section collapsed">
+      <button class="sub-head">Special <span class="chev">▾</span></button>
+      <div class="sub-body">
     <button class="effect-btn" data-effect="lightning">◈ Lightning Storm</button>
     <button class="effect-btn" data-effect="warp">◈ Warp Drive</button>
     <button class="effect-btn" data-effect="life">◈ Crystal Life</button>
@@ -349,6 +370,7 @@
       </select>
       <button id="cc-load-btn" style="width:100%;padding:7px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:1px;">▶ LOAD</button>
       <div id="cc-active" style="font-size:11px;color:#6e8;margin-top:8px;text-align:center;"></div>
+      </div>
     </div>
 
     </div>
