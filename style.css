@@ -62,7 +62,7 @@
     #sidebar { background: #0a0a14; }
     #sidebar-header { padding: calc(20px + env(safe-area-inset-top, 0px)) 24px 16px; position: sticky; top: 0; z-index: 3; background: #0a0a14; }
     #menu-toggle { display: flex !important; }
-    #canvas-wrap { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; z-index: 5; }
+    #canvas-wrap { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; z-index: 5; }
     body { flex-direction: row; }
     .effect-btn { font-size: 22px; padding: 22px 24px; margin-bottom: 10px; min-height: 68px; border-radius: 10px; }
     .size-btn { font-size: 20px; padding: 18px 14px; min-height: 64px; border-radius: 10px; }
