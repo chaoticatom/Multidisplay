@@ -769,7 +769,7 @@
   <div id="hint">drag to rotate · scroll to zoom</div>
   <div id="version-label" style="position:absolute;bottom:8px;left:8px;font-size:11px;color:rgba(180,210,255,0.85);pointer-events:none;z-index:10;"></div>
 </div>
-<script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
+<script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION+' w='+window.innerWidth;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 
 
 <div id="pl-modal"></div>
