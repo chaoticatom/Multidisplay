@@ -414,7 +414,18 @@ function tickInertia() {
   requestAnimationFrame(tickInertia);
 }
 
-wrap.addEventListener('mousedown', e=>{isDragging=true;autoRotate=false;_velX=_velY=0;const c=document.getElementById('auto-rotate-chk');if(c)c.checked=false;lastX=e.clientX;lastY=e.clientY;});
+function isNearCube(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = ((clientX - rect.left) / rect.width) * 2 - 1;
+  const my = -((clientY - rect.top) / rect.height) * 2 + 1;
+  _raycaster.setFromCamera({x: mx, y: my}, camera);
+  return _raycaster.intersectObjects(panelMeshes).length > 0;
+}
+
+wrap.addEventListener('mousedown', e=>{
+  if(!isNearCube(e.clientX, e.clientY)) return;
+  isDragging=true;autoRotate=false;_velX=_velY=0;const c=document.getElementById('auto-rotate-chk');if(c)c.checked=false;lastX=e.clientX;lastY=e.clientY;
+});
 window.addEventListener('mousemove', e=>{
   if(!isDragging)return;
   const dx=e.clientX-lastX, dy=e.clientY-lastY;
@@ -423,8 +434,11 @@ window.addEventListener('mousemove', e=>{
   _velY = dy * 0.015;
   applyRotation(dx, dy, DRAG_SENS);
 });
-window.addEventListener('mouseup',()=>{isDragging=false;requestAnimationFrame(tickInertia);});
-wrap.addEventListener('touchstart',e=>{isDragging=true;autoRotate=false;_velX=_velY=0;const c=document.getElementById('auto-rotate-chk');if(c)c.checked=false;lastX=e.touches[0].clientX;lastY=e.touches[0].clientY;},{passive:true});
+window.addEventListener('mouseup',()=>{if(isDragging){isDragging=false;requestAnimationFrame(tickInertia);}});
+wrap.addEventListener('touchstart',e=>{
+  if(!e.touches.length || !isNearCube(e.touches[0].clientX, e.touches[0].clientY)) return;
+  isDragging=true;autoRotate=false;_velX=_velY=0;const c=document.getElementById('auto-rotate-chk');if(c)c.checked=false;lastX=e.touches[0].clientX;lastY=e.touches[0].clientY;
+},{passive:true});
 wrap.addEventListener('touchmove',e=>{
   if(!isDragging||!e.touches.length)return;
   const dx=e.touches[0].clientX-lastX, dy=e.touches[0].clientY-lastY;
@@ -433,7 +447,7 @@ wrap.addEventListener('touchmove',e=>{
   _velY = dy * 0.015;
   applyRotation(dx, dy, TOUCH_SENS);
 },{passive:true});
-wrap.addEventListener('touchend',()=>{isDragging=false;requestAnimationFrame(tickInertia);});
+wrap.addEventListener('touchend',()=>{if(isDragging){isDragging=false;requestAnimationFrame(tickInertia);}});
 wrap.addEventListener('wheel',e=>{ camera.position.multiplyScalar(1+e.deltaY*0.001); },{passive:true});
 
 // ── Tap-to-snap: click/tap a face to rotate it front-on ──
