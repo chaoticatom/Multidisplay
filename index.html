@@ -5,30 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=65">
-<style>
-@media(max-width:768px){
-#sidebar{width:100vw!important;min-width:0!important;position:fixed!important;left:0;top:0;height:100vh;height:100dvh;transform:translateX(0);transition:transform .28s ease;z-index:150}
-#sidebar.hidden{transform:translateX(-100%)!important;width:100vw!important}
-#canvas-wrap{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;z-index:5!important}
-.effect-btn{font-size:22px!important;padding:22px 24px!important;min-height:68px!important}
-.size-btn{font-size:20px!important;padding:18px 14px!important;min-height:64px!important}
-.sidebar-section label{font-size:20px!important}
-.slider-label,.slider-val{font-size:20px!important}
-.check-row{font-size:20px!important;min-height:64px!important}
-.check-row input[type="checkbox"]{width:32px!important;height:32px!important}
-.section-head{font-size:21px!important;min-height:64px!important}
-.sub-head{font-size:19px!important;padding:14px 8px!important;min-height:56px!important}
-.util-btn{font-size:20px!important;padding:20px 18px!important;min-height:64px!important}
-.opt-grid button{font-size:19px!important;padding:18px 14px!important;min-height:60px!important}
-.ov-hdr{font-size:19px!important;min-height:64px!important}
-#sidebar-collapse-btn{font-size:40px!important;min-width:68px!important;min-height:68px!important}
-#sidebar-header h1{font-size:24px!important}
-#sidebar-header p{font-size:18px!important}
-#sidebar-footer{font-size:18px!important}
-.slider-row input[type="range"]::-webkit-slider-thumb{width:38px;height:38px}
-}
-</style>
+<link rel="stylesheet" href="style.css?v=76">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -36,17 +13,6 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
 <body>
-<script>
-window._mobileMode = window.innerWidth <= 900 || /Mobi|Android|iPhone|iPad|iPod|Mobile|Touch/i.test(navigator.userAgent) || ('ontouchstart' in window);
-document.addEventListener('DOMContentLoaded', function(){
-  var sb = document.getElementById('sidebar');
-  if(window._mobileMode){
-    if(sb){ sb.style.transform = 'translateX(-100%)'; sb.style.width = '100vw'; }
-  } else {
-    if(sb) sb.style.width = '300px';
-  }
-});
-</script>
 
 <!-- ═══ LOADING OVERLAY ═══ -->
 <div id="loading-overlay">
@@ -64,8 +30,8 @@ document.addEventListener('DOMContentLoaded', function(){
 <button id="menu-toggle" title="Toggle Menu">☰</button>
 
 <!-- ═══ SIDEBAR ═══ -->
-<button id="sidebar-open-btn" title="Open Menu" style="display:flex;position:fixed;top:20px;left:20px;z-index:9999;width:70px;height:70px;background:rgba(30,60,180,0.95);border:3px solid #5588ff;border-radius:14px;color:#ffffff;font-size:36px;cursor:pointer;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(50,100,255,0.5);">☰</button>
-<div id="sidebar" style="position:fixed;left:0;top:0;height:100vh;z-index:150;background:rgba(10,10,20,0.97);display:flex;flex-direction:column;overflow:hidden;transition:transform 0.28s ease;box-shadow:4px 0 30px rgba(0,60,255,0.12);border-right:1px solid rgba(80,120,255,0.2);">
+<button id="sidebar-open-btn" title="Open Menu">☰</button>
+<div id="sidebar">
   <div id="sidebar-header" style="display:flex;align-items:center;gap:0;">
     <div style="flex:1;">
       <h1>LED Cube</h1>
@@ -795,7 +761,7 @@ document.addEventListener('DOMContentLoaded', function(){
 </div>
 
 <!-- ═══ CANVAS ═══ -->
-<div id="canvas-wrap" style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:5;overflow:hidden;">
+<div id="canvas-wrap">
   <canvas id="c"></canvas>
   <div id="tron-scoreboard" style="display:none;position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.85);padding:10px 14px;border-radius:8px;font-family:monospace;font-size:16px;z-index:9999;pointer-events:none;line-height:1.8;border:1px solid rgba(100,150,255,0.3);"></div>
   <div id="face-labels" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;"></div>
@@ -879,7 +845,7 @@ document.addEventListener('DOMContentLoaded', function(){
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=65"></script>
+<script src="version.js?v=76"></script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
 <script>
@@ -913,7 +879,7 @@ document.addEventListener('DOMContentLoaded', function(){
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=65','effects.js?v=65','f1.js?v=65','ui.js?v=65'];
+  const appScripts = ['cube.js?v=76','effects.js?v=76','f1.js?v=76','ui.js?v=76'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';

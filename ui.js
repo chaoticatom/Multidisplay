@@ -1713,17 +1713,13 @@ const elMeta=document.getElementById('el-meta');
 //  SIDEBAR COLLAPSE
 // ═══════════════════════════════════════════════════
 document.getElementById('sidebar-collapse-btn')?.addEventListener('click', () => {
-  const sb = document.getElementById('sidebar');
-  const ob = document.getElementById('sidebar-open-btn');
-  sb.style.transform = 'translateX(-100%)';
-  if(ob) ob.style.display = 'flex';
+  document.getElementById('sidebar').classList.add('hidden');
+  document.getElementById('sidebar-open-btn').classList.add('show');
   setTimeout(resize, 300);
 });
 document.getElementById('sidebar-open-btn')?.addEventListener('click', () => {
-  const sb = document.getElementById('sidebar');
-  const ob = document.getElementById('sidebar-open-btn');
-  sb.style.transform = 'translateX(0)';
-  if(ob) ob.style.display = 'none';
+  document.getElementById('sidebar').classList.remove('hidden');
+  document.getElementById('sidebar-open-btn').classList.remove('show');
   setTimeout(resize, 300);
 });
 
