@@ -20,10 +20,9 @@
 
   #sidebar-open-btn {
     display: none; position: fixed; top: 10px; left: 10px; z-index: 200;
-    width: 40px; height: 40px; background: rgba(10,15,30,0.75);
-    border: 1px solid rgba(80,120,255,0.35); border-radius: 10px;
-    color: rgba(120,170,255,0.8); font-size: 20px; cursor: pointer; align-items: center; justify-content: center;
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    width: 48px; height: 48px; background: rgba(20,30,60,0.95);
+    border: 2px solid rgba(80,120,255,0.45); border-radius: 10px;
+    color: #7aadff; font-size: 22px; cursor: pointer; align-items: center; justify-content: center;
     -webkit-tap-highlight-color: transparent;
   }
   #sidebar-open-btn.show { display: flex; }
@@ -53,11 +52,11 @@
   }
 
   @media (max-width: 768px) {
-    #sidebar { width: 100vw; min-width: 0; position: fixed; left: 0; top: 0; height: 100vh; height: 100dvh;
+    #sidebar { width: 100vw; position: fixed; left: 0; top: 0; height: 100vh; height: 100dvh;
                transform: translateX(-100%); transition: transform 0.28s ease; z-index: 150; }
     #sidebar.open { transform: translateX(0); }
-    #sidebar { background: #0a0a14; }
     #sidebar-header { padding: calc(20px + env(safe-area-inset-top, 0px)) 24px 16px; position: sticky; top: 0; z-index: 3; background: #0a0a14; }
+    #sidebar { background: #0a0a14; min-width: 0; }
     #menu-toggle { display: flex !important; }
     #canvas-wrap { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; z-index: 5; }
     body { flex-direction: row; }
@@ -72,8 +71,8 @@
     .slider-row input[type="range"] { height: 8px; border-radius: 4px; }
     .slider-row input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; }
     .slider-row input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; }
-    .check-row { font-size: 13px; gap: 10px; margin-bottom: 8px; min-height: 34px; }
-    .check-row input[type="checkbox"] { width: 36px; height: 20px; min-width: 36px; }
+    .check-row { font-size: 14px; gap: 10px; margin-bottom: 8px; min-height: 38px; }
+    .check-row input[type="checkbox"] { width: 40px; height: 22px; min-width: 40px; }
     .section-head { font-size: 15px; padding: 5px 0; min-height: 40px; }
     .sub-head { font-size: 14px; padding: 8px 6px; min-height: 36px; }
     .util-btn { font-size: 13px; padding: 10px 12px; min-height: 38px; border-radius: 7px; }
