@@ -1715,25 +1715,15 @@ const elMeta=document.getElementById('el-meta');
 document.getElementById('sidebar-collapse-btn')?.addEventListener('click', () => {
   const sb = document.getElementById('sidebar');
   const ob = document.getElementById('sidebar-open-btn');
-  if(window._mobileMode){
-    sb.style.transform = 'translateX(-100%)';
-    if(ob) ob.style.display = 'flex';
-  } else {
-    sb.classList.add('hidden');
-    ob.classList.add('show');
-  }
+  sb.style.transform = 'translateX(-100%)';
+  if(ob) ob.style.display = 'flex';
   setTimeout(resize, 300);
 });
 document.getElementById('sidebar-open-btn')?.addEventListener('click', () => {
   const sb = document.getElementById('sidebar');
   const ob = document.getElementById('sidebar-open-btn');
-  if(window._mobileMode){
-    sb.style.transform = 'translateX(0)';
-    if(ob) ob.style.display = 'none';
-  } else {
-    sb.classList.remove('hidden');
-    ob.classList.remove('show');
-  }
+  sb.style.transform = 'translateX(0)';
+  if(ob) ob.style.display = 'none';
   setTimeout(resize, 300);
 });
 

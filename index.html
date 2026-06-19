@@ -37,36 +37,7 @@
 </head>
 <body>
 <script>
-(function(){
-  var isMobile = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if(!isMobile) return;
-  window._mobileMode = true;
-  document.addEventListener('DOMContentLoaded', function(){
-    var sb = document.getElementById('sidebar');
-    var cw = document.getElementById('canvas-wrap');
-    if(sb){
-      sb.style.cssText = 'position:fixed;left:0;top:0;width:100vw;min-width:0;height:100vh;height:100dvh;z-index:150;transform:translateX(0);transition:transform 0.28s ease;background:rgba(10,10,20,0.97);display:flex;flex-direction:column;overflow:hidden;box-shadow:4px 0 30px rgba(0,60,255,0.12);border-right:1px solid rgba(80,120,255,0.2);';
-    }
-    if(cw){
-      cw.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;height:100dvh;z-index:5;overflow:hidden;';
-    }
-    // Patch collapse/open to use transform instead of width:0
-    var colBtn = document.getElementById('sidebar-collapse-btn');
-    var openBtn = document.getElementById('sidebar-open-btn');
-    if(colBtn && sb){
-      colBtn.addEventListener('click', function(){
-        sb.style.transform = 'translateX(-100%)';
-        if(openBtn) openBtn.style.display = 'flex';
-      }, true);
-    }
-    if(openBtn && sb){
-      openBtn.addEventListener('click', function(){
-        sb.style.transform = 'translateX(0)';
-        openBtn.style.display = 'none';
-      }, true);
-    }
-  });
-})();
+window._mobileMode = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 </script>
 
 <!-- ═══ LOADING OVERLAY ═══ -->
@@ -86,7 +57,8 @@
 
 <!-- ═══ SIDEBAR ═══ -->
 <button id="sidebar-open-btn" title="Open Menu">☰</button>
-<div id="sidebar">
+<div id="sidebar" style="position:fixed;left:0;top:0;height:100vh;z-index:150;background:rgba(10,10,20,0.97);display:flex;flex-direction:column;overflow:hidden;transition:transform 0.28s ease;box-shadow:4px 0 30px rgba(0,60,255,0.12);border-right:1px solid rgba(80,120,255,0.2);">
+<script>document.getElementById('sidebar').style.width=window._mobileMode?'100vw':'300px';</script>
   <div id="sidebar-header" style="display:flex;align-items:center;gap:0;">
     <div style="flex:1;">
       <h1>LED Cube</h1>
@@ -816,7 +788,7 @@
 </div>
 
 <!-- ═══ CANVAS ═══ -->
-<div id="canvas-wrap">
+<div id="canvas-wrap" style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:5;overflow:hidden;">
   <canvas id="c"></canvas>
   <div id="tron-scoreboard" style="display:none;position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.85);padding:10px 14px;border-radius:8px;font-family:monospace;font-size:16px;z-index:9999;pointer-events:none;line-height:1.8;border:1px solid rgba(100,150,255,0.3);"></div>
   <div id="face-labels" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;"></div>
