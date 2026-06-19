@@ -1626,15 +1626,16 @@ document.querySelectorAll('.size-btn').forEach(btn=>{
       const p2=document.createElement('canvas');
       p2.id='panel2d-canvas';
       p2.width=512; p2.height=512;
-      p2.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:60vmin;height:60vmin;image-rendering:pixelated;';
-      panel2dZoom=60; // initial vmin size
+      p2.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);image-rendering:pixelated;';
+      document.getElementById('canvas-wrap').appendChild(p2);
+      fitPanel2d();
       p2.addEventListener('wheel',e=>{
         e.preventDefault();
-        panel2dZoom=Math.max(5,Math.min(200,panel2dZoom*(1-e.deltaY*0.001)));
-        p2.style.width=panel2dZoom+'vmin';
-        p2.style.height=panel2dZoom+'vmin';
+        const cur=parseInt(p2.style.width)||300;
+        const next=Math.max(50,Math.min(2000,cur*(1-e.deltaY*0.001)));
+        p2.style.width=next+'px';
+        p2.style.height=next+'px';
       },{passive:false});
-      document.getElementById('canvas-wrap').appendChild(p2);
     } else {
       panel2dMode=false;
       pivotGroup.visible=true;
@@ -2672,12 +2673,12 @@ let faceLabelEls=null;
 // Face centre positions in world space (TOTAL_SPAN is the cube's world size)
 // HALF = half of total span
 const FACE_LABEL_DATA=[
-  {name:'1 — Front',  key:'front',  nx: 0, ny: 0, nz: 1},
-  {name:'2 — Back',   key:'back',   nx: 0, ny: 0, nz:-1},
-  {name:'3 — Right',  key:'right',  nx: 1, ny: 0, nz: 0},
-  {name:'4 — Left',   key:'left',   nx:-1, ny: 0, nz: 0},
-  {name:'5 — Top',    key:'top',    nx: 0, ny: 1, nz: 0},
-  {name:'6 — Bottom', key:'bottom', nx: 0, ny:-1, nz: 0},
+  {name:'0 — Front',  key:'front',  nx: 0, ny: 0, nz: 1},
+  {name:'1 — Back',   key:'back',   nx: 0, ny: 0, nz:-1},
+  {name:'2 — Right',  key:'right',  nx: 1, ny: 0, nz: 0},
+  {name:'3 — Left',   key:'left',   nx:-1, ny: 0, nz: 0},
+  {name:'4 — Top',    key:'top',    nx: 0, ny: 1, nz: 0},
+  {name:'5 — Bottom', key:'bottom', nx: 0, ny:-1, nz: 0},
 ];
 
 function initFaceLabels(){
@@ -2794,13 +2795,7 @@ document.getElementById('face-labels-chk')?.addEventListener('change',e=>{
 // ═══════════════════════════════════════════════════
 //  START
 // ═══════════════════════════════════════════════════
-const mobileInitSize = window.innerWidth <= 768 ? 16 : 64;
-initCube(mobileInitSize);
-if (mobileInitSize !== 64) {
-  document.querySelectorAll('.size-btn').forEach(b => {
-    b.classList.toggle('active', parseInt(b.dataset.size) === mobileInitSize);
-  });
-}
+initCube(64);
 requestAnimationFrame(ts=>{lastTime=ts; requestAnimationFrame(animate);});
 
 // Hide the loading overlay now that the 3D engine is up and running.

@@ -1856,6 +1856,8 @@ function surfIdx(x,y,z){
 function buildMaze(){
   const S=SIZE, M=S-1, C=(S>>1)-1;   // C×C cells per face, paths at odd local coords 1..2C-1
   mazeOpen=new Uint8Array(N);
+  const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+  const faces2d=is2D?[0]:[0,1,2,3,4,5];
 
   function openFaceLocal(f,u,v){ const i=faceMap[f][v*S+u]; if(i>=0) mazeOpen[i]=1; }
   function openFaceCell(f,ci,cj){ openFaceLocal(f, 2*ci+1, 2*cj+1); }
@@ -1863,7 +1865,7 @@ function buildMaze(){
 
   // 1 — perfect maze on each face (iterative recursive backtracker)
   const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
-  for(let f=0;f<6;f++){
+  for(const f of faces2d){
     const vis=new Uint8Array(C*C);
     const sx=(Math.random()*C)|0, sy=(Math.random()*C)|0;
     const stack=[[sx,sy]];
@@ -1884,37 +1886,52 @@ function buildMaze(){
     }
   }
 
-  // 2 — doorways across all 12 cube edges (stitches faces into one maze)
-  const axes=[0,1,2];
-  const doorN=Math.max(1, Math.round(C/10));
-  for(const a of axes){
-    const rest=axes.filter(q=>q!==a), b1=rest[0], b2=rest[1];
-    for(const v1 of [0,M]) for(const v2 of [0,M]){
-      for(let d=0; d<doorN; d++){
-        const p=1+2*((Math.random()*C)|0);          // odd position, avoids corners
-        const co=[0,0,0]; co[a]=p; co[b1]=v1; co[b2]=v2;
-        openV(co[0],co[1],co[2]);                   // shared edge voxel
-        if(v1===M){ const c2=co.slice(); c2[b1]=M-1; openV(c2[0],c2[1],c2[2]); }
-        if(v2===M){ const c2=co.slice(); c2[b2]=M-1; openV(c2[0],c2[1],c2[2]); }
+  if(!is2D){
+    // 2 — doorways across all 12 cube edges (stitches faces into one maze)
+    const axes=[0,1,2];
+    const doorN=Math.max(1, Math.round(C/10));
+    for(const a of axes){
+      const rest=axes.filter(q=>q!==a), b1=rest[0], b2=rest[1];
+      for(const v1 of [0,M]) for(const v2 of [0,M]){
+        for(let d=0; d<doorN; d++){
+          const p=1+2*((Math.random()*C)|0);          // odd position, avoids corners
+          const co=[0,0,0]; co[a]=p; co[b1]=v1; co[b2]=v2;
+          openV(co[0],co[1],co[2]);                   // shared edge voxel
+          if(v1===M){ const c2=co.slice(); c2[b1]=M-1; openV(c2[0],c2[1],c2[2]); }
+          if(v2===M){ const c2=co.slice(); c2[b2]=M-1; openV(c2[0],c2[1],c2[2]); }
+        }
       }
     }
   }
 
-  // 3 — start (top face) and goal (bottom face, far corner)
-  mazeStartI = faceMap[4][1*S + 1];
-
-  // Random end point: pick a random face (not top=4 where start is) and a random open-corridor cell near its centre
-  const endFaces=[0,1,2,3,5]; // exclude face 4 (start face)
-  const endFace=endFaces[Math.floor(Math.random()*endFaces.length)];
-  // Collect ALL open corridor cells on that face, pick one at random
-  const candidates=[];
-  for(let cj=0;cj<C;cj++) for(let ci=0;ci<C;ci++){
-    const idx=faceMap[endFace][(2*cj+1)*S+(2*ci+1)];
-    if(idx>=0&&mazeOpen[idx]) candidates.push(idx);
+  // 3 — start and goal
+  if(is2D){
+    // 2D: start top-left, end bottom-right of face 0
+    mazeStartI = faceMap[0][1*S + 1];
+    const endU=2*C-1, endV=2*C-1;
+    mazeEndI = faceMap[0][endV*S + endU];
+    if(mazeEndI<0||!mazeOpen[mazeEndI]){
+      // fallback: find nearest open cell to bottom-right
+      let best=-1, bd=1e9;
+      for(let cj=C-1;cj>=0&&best<0;cj--) for(let ci=C-1;ci>=0&&best<0;ci--){
+        const idx=faceMap[0][(2*cj+1)*S+(2*ci+1)];
+        if(idx>=0&&mazeOpen[idx]) best=idx;
+      }
+      mazeEndI=best>=0?best:mazeStartI;
+    }
+  } else {
+    mazeStartI = faceMap[4][1*S + 1];
+    const endFaces=[0,1,2,3,5];
+    const endFace=endFaces[Math.floor(Math.random()*endFaces.length)];
+    const candidates=[];
+    for(let cj=0;cj<C;cj++) for(let ci=0;ci<C;ci++){
+      const idx=faceMap[endFace][(2*cj+1)*S+(2*ci+1)];
+      if(idx>=0&&mazeOpen[idx]) candidates.push(idx);
+    }
+    mazeEndI = candidates.length
+      ? candidates[Math.floor(Math.random()*candidates.length)]
+      : faceMap[5][(2*C-1)*S+(2*C-1)];
   }
-  mazeEndI = candidates.length
-    ? candidates[Math.floor(Math.random()*candidates.length)]
-    : faceMap[5][(2*C-1)*S+(2*C-1)];
 
   // 4 — BFS shortest path (reference for capping runner wandering)
   const prev=new Int32Array(N).fill(-1);
@@ -1985,14 +2002,14 @@ function genRunnerSeq(bias, startI){
 function respawnRunners(){
   mazeVisited=new Uint8Array(N);
   mazeRunners=[];
+  const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
   const base=6+SIZE*0.5;
   const maxLen=Math.max(60, mazeBFS.length*4.5);
 
-  // Find a valid open start cell on each face (near face centre)
   const C=(SIZE>>1)-1;
+  const facesToUse=is2D?[0]:[0,1,2,3,4,5];
   const faceStarts=[];
-  for(let f=0;f<6;f++){
-    // Try centre of face first, then spiral outward
+  for(const f of facesToUse){
     let found=-1;
     for(let r=0;r<C&&found<0;r++){
       for(let ci=Math.max(0,C/2-r)|0,ce=Math.min(C-1,(C/2+r)|0);ci<=ce&&found<0;ci++){
@@ -2003,7 +2020,6 @@ function respawnRunners(){
       }
     }
     if(found<0){
-      // fallback: scan the face
       for(let v=1;v<SIZE-1&&found<0;v+=2)
         for(let u=1;u<SIZE-1&&found<0;u+=2){
           const idx=faceMap[f][v*SIZE+u];
@@ -2014,9 +2030,27 @@ function respawnRunners(){
   }
 
   for(let k=0;k<mazeRunnerCount;k++){
-    // Assign face cycling through 0-5
-    const startFace=k%6;
-    const startI=faceStarts[startFace]>=0?faceStarts[startFace]:mazeStartI;
+    const startFace=is2D?0:k%6;
+    const fsIdx=is2D?0:startFace;
+    let startI;
+    if(is2D){
+      // Spread runners across different corners/edges of the face
+      const corners=[[1,1],[2*C-1,1],[1,2*C-1],[2*C-1,2*C-1],[C,1],[1,C]];
+      const corner=corners[k%corners.length];
+      // Find nearest open cell to this corner
+      let best=-1, bd=1e9;
+      for(let cj=0;cj<C;cj++) for(let ci=0;ci<C;ci++){
+        const u=2*ci+1, v=2*cj+1;
+        const idx=faceMap[0][v*SIZE+u];
+        if(idx>=0&&mazeOpen[idx]){
+          const d=Math.abs(u-corner[0])+Math.abs(v-corner[1]);
+          if(d<bd){bd=d;best=idx;}
+        }
+      }
+      startI=best>=0?best:mazeStartI;
+    } else {
+      startI=faceStarts[fsIdx]>=0?faceStarts[fsIdx]:mazeStartI;
+    }
 
     let gp=null;
     const biases=[0.75,0.82,0.9,0.96];
@@ -3105,7 +3139,7 @@ function effectWeather(dt){
   const moonPh=wxMoonPhase(new Date());
 
   // Twilight
-  const twilS=2400;
+  const twilS=3600;
   const toSr=wxSunriseS-secsDay, fromSs=secsDay-wxSunsetS;
   let lightLvl=isDay?1:0;
   if(!isDay&&toSr>0&&toSr<twilS) lightLvl=1-toSr/twilS;
@@ -3161,16 +3195,16 @@ function effectWeather(dt){
 
   function panXOfFaceU(face,u){
     const f=u/S1;
-    if(face===2) return 0.25*(1-f);
+    if(face===2) return 0.25*f;
     if(face===0) return 0.25+(1-f)*0.25;
-    if(face===3) return 0.75-f*0.25;
-    return 1.0-f*0.25; // face 1
+    if(face===3) return 0.5+(1-f)*0.25;
+    return 0.75+f*0.25; // face 1
   }
   function uOfFacePanX(face,px){
-    if(face===2) return Math.round((1-px/0.25)*S1);
+    if(face===2) return Math.round(px/0.25*S1);
     if(face===0) return Math.round((1-(px-0.25)/0.25)*S1);
-    if(face===3) return Math.round((0.75-px)/0.25*S1);
-    return Math.round((1.0-px)/0.25*S1);
+    if(face===3) return Math.round((1-(px-0.5)/0.25)*S1);
+    return Math.round((px-0.75)/0.25*S1);
   }
   function vOfElevFrac(elev){ // elev 0=horizon, 1=top
     return Math.round((HORIZ+elev*(1-HORIZ))*S1);
@@ -3379,12 +3413,13 @@ function effectWeather(dt){
     faceU=uOfFacePanX(face,normPX);
     faceV=vOfElevFrac(elevFrac);
 
-    // Draw on side face — proper circle
+    // Draw on side face — proper circle (clipped to above horizon)
     const drawR=Math.ceil(radius+5);
+    const horizV=Math.round(HORIZ*S1);
     for(let dv=-drawR;dv<=drawR;dv++) for(let du=-drawR;du<=drawR;du++){
       const dist=Math.sqrt(du*du+dv*dv);
       const fu=faceU+du, fv=faceV+dv;
-      if(fu<0||fu>=S||fv<0||fv>=S) continue;
+      if(fu<0||fu>=S||fv<0||fv>=S||fv<horizV) continue;
       const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
       if(isSun){
         if(dist<=radius){ blendLED(idx,1,0.98,0.7); }
@@ -3558,7 +3593,7 @@ function effectWeather(dt){
       const gu=glU+du; if(gu<0||gu>=S) continue;
       const gb=Math.max(0,1-Math.abs(du)/12)*sunElev*4*(1-sunElev)*0.6;
       if(gb<0.01) continue;
-      for(let dv=-3;dv<=3;dv++){
+      for(let dv=0;dv<=3;dv++){
         const gv=glV+dv; if(gv<0||gv>=S) continue;
         const idx=faceMap[glFace][gv*S+gu]; if(idx<0) continue;
         blendLED(idx,gb,gb*0.55,gb*0.05);
@@ -3589,7 +3624,8 @@ function effectWeather(dt){
     const sunG = 0.7;
     const sunB = 0.1;
     
-    for(let v = Math.max(0, Math.floor(sunY - sunRad)); v <= Math.min(S-1, Math.ceil(sunY + sunRad)); v++){
+    const horizClip = Math.round(HORIZ_LINE);
+    for(let v = Math.max(horizClip, Math.floor(sunY - sunRad)); v <= Math.min(S-1, Math.ceil(sunY + sunRad)); v++){
       for(let u = Math.max(0, Math.floor(sunX - sunRad)); u <= Math.min(S-1, Math.ceil(sunX + sunRad)); u++){
         const dist = Math.hypot(u + 0.5 - sunX, v + 0.5 - sunY);
         if(dist <= sunRad){
@@ -4154,7 +4190,7 @@ function ovMist(dt){
 }
 
 // ── Lightning Strike — top to bottom through all panels ──
-let ovLightningT=0, ovLightningStrikes=[];
+let ovLightningT=0, ovLightningStrikes=[], ovLightningNextAt=0;
 
 // ── Persistent swirling cloud on top panel ──
 let ovCloudBuf=null, ovCloudT=0, ovCloudInited=false;
@@ -4351,12 +4387,16 @@ function ovLightning(dt){
   ovLightningT+=dt;
   ovTickCloud(dt);
 
-  const interval=1/Math.max(0.1,OV.lightning.rate);
-  if(ovLightningT>interval){
+  const baseInterval=1/Math.max(0.1,OV.lightning.rate);
+  if(ovLightningT>ovLightningNextAt){
     ovLightningT=0;
+    ovLightningNextAt=baseInterval*(0.3+Math.random()*1.8);
     const bolt=ovMakeLightBolt();
     ovLightningStrikes.push(bolt);
     ovDrawCloud(bolt.startX, bolt.startY);
+    if(Math.random()<0.35){
+      setTimeout(()=>{const b2=ovMakeLightBolt();ovLightningStrikes.push(b2);ovDrawCloud(b2.startX,b2.startY);},60+Math.random()*150);
+    }
   }
 
   const width=OV.lightning.width|0;

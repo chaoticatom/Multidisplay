@@ -56,7 +56,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0x000308);
 
 const scene  = new THREE.Scene();
-scene.fog    = new THREE.FogExp2(0x000308, 0.0025);
+scene.fog    = new THREE.FogExp2(0x000308, 0.0012);
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 3000);
 camera.position.set(100, 100, 100); // isometric view, zoomed in
@@ -66,6 +66,29 @@ function resize() {
   const w = wrap.clientWidth, h = wrap.clientHeight;
   renderer.setSize(w, h);
   camera.aspect = w / h; camera.updateProjectionMatrix();
+  fitCameraToScene(w, h);
+  fitPanel2d();
+}
+
+function fitCameraToScene(w, h) {
+  const fov = camera.fov * Math.PI / 180;
+  const cubeRadius = TOTAL_SPAN * 0.82;
+  const buffer = 1.15;
+  const distV = (cubeRadius * buffer) / Math.tan(fov / 2);
+  const distH = (cubeRadius * buffer) / (Math.tan(fov / 2) * (w / h));
+  const dist = Math.max(distV, distH);
+  const len = camera.position.length();
+  if (len > 0) camera.position.multiplyScalar(dist / len);
+}
+
+function fitPanel2d() {
+  const c = document.getElementById('panel2d-canvas');
+  if (!c) return;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  const buf = 20;
+  const size = Math.min(w - buf * 2, h - buf * 2);
+  c.style.width = size + 'px';
+  c.style.height = size + 'px';
 }
 resize();
 window.addEventListener('resize', resize);
@@ -360,44 +383,141 @@ function getLocalGravity(magnitude) {
   return _gravLocal;
 }
 
-wrap.addEventListener('mousedown', e=>{isDragging=true;autoRotate=false;const c=document.getElementById('auto-rotate-chk');if(c)c.checked=false;lastX=e.clientX;lastY=e.clientY;});
+const DRAG_SENS = 0.007;
+const TOUCH_SENS = 0.009;
+let _velX = 0, _velY = 0;
+const INERTIA_DECAY = 0.88;
+const INERTIA_MIN = 0.0003;
+
+function applyRotation(dx, dy, sens) {
+  if (rotateYOnly) {
+    _qDelta.setFromAxisAngle(_zAxis, -dx * sens);
+  } else {
+    _qDelta.setFromAxisAngle(_yAxis, dx * sens);
+  }
+  _qRot.multiplyQuaternions(_qDelta, _qRot);
+  if (!rotateYOnly) {
+    _qDelta.setFromAxisAngle(_xAxis, dy * sens);
+    _qRot.multiplyQuaternions(_qDelta, _qRot);
+  }
+  pivotGroup.quaternion.copy(_qRot);
+}
+
+function tickInertia() {
+  if (isDragging || (Math.abs(_velX) < INERTIA_MIN && Math.abs(_velY) < INERTIA_MIN)) {
+    _velX = _velY = 0;
+    return;
+  }
+  applyRotation(_velX * 60, _velY * 60, DRAG_SENS);
+  _velX *= INERTIA_DECAY;
+  _velY *= INERTIA_DECAY;
+  requestAnimationFrame(tickInertia);
+}
+
+function isNearCube(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = ((clientX - rect.left) / rect.width) * 2 - 1;
+  const my = -((clientY - rect.top) / rect.height) * 2 + 1;
+  _raycaster.setFromCamera({x: mx, y: my}, camera);
+  return _raycaster.intersectObjects(panelMeshes).length > 0;
+}
+
+wrap.addEventListener('mousedown', e=>{
+  if(!isNearCube(e.clientX, e.clientY)) return;
+  isDragging=true;autoRotate=false;_velX=_velY=0;const c=document.getElementById('auto-rotate-chk');if(c)c.checked=false;lastX=e.clientX;lastY=e.clientY;
+});
 window.addEventListener('mousemove', e=>{
   if(!isDragging)return;
   const dx=e.clientX-lastX, dy=e.clientY-lastY;
   lastX=e.clientX;lastY=e.clientY;
-  if (rotateYOnly) {
-    // Only allow Z-axis rotation (flat clock-face spin)
-    _qDelta.setFromAxisAngle(_zAxis, -dx*0.005);
-  } else {
-    _qDelta.setFromAxisAngle(_yAxis, dx*0.005);
-  }
-  _qRot.multiplyQuaternions(_qDelta, _qRot);
-  if (!rotateYOnly) {
-    _qDelta.setFromAxisAngle(_xAxis, dy*0.005);
-    _qRot.multiplyQuaternions(_qDelta, _qRot);
-  }
-  pivotGroup.quaternion.copy(_qRot);
+  _velX = dx * 0.015;
+  _velY = dy * 0.015;
+  applyRotation(dx, dy, DRAG_SENS);
 });
-window.addEventListener('mouseup',()=>isDragging=false);
-wrap.addEventListener('touchstart',e=>{isDragging=true;autoRotate=false;const c=document.getElementById('auto-rotate-chk');if(c)c.checked=false;lastX=e.touches[0].clientX;lastY=e.touches[0].clientY;},{passive:true});
+window.addEventListener('mouseup',()=>{if(isDragging){isDragging=false;requestAnimationFrame(tickInertia);}});
+wrap.addEventListener('touchstart',e=>{
+  if(!e.touches.length || !isNearCube(e.touches[0].clientX, e.touches[0].clientY)) return;
+  isDragging=true;autoRotate=false;_velX=_velY=0;const c=document.getElementById('auto-rotate-chk');if(c)c.checked=false;lastX=e.touches[0].clientX;lastY=e.touches[0].clientY;
+},{passive:true});
 wrap.addEventListener('touchmove',e=>{
-  if(!isDragging)return;
+  if(!isDragging||!e.touches.length)return;
   const dx=e.touches[0].clientX-lastX, dy=e.touches[0].clientY-lastY;
   lastX=e.touches[0].clientX;lastY=e.touches[0].clientY;
-  if (rotateYOnly) {
-    _qDelta.setFromAxisAngle(_zAxis, -dx*0.005);
-  } else {
-    _qDelta.setFromAxisAngle(_yAxis, dx*0.005);
-  }
-  _qRot.multiplyQuaternions(_qDelta, _qRot);
-  if (!rotateYOnly) {
-    _qDelta.setFromAxisAngle(_xAxis, dy*0.005);
-    _qRot.multiplyQuaternions(_qDelta, _qRot);
-  }
-  pivotGroup.quaternion.copy(_qRot);
+  _velX = dx * 0.015;
+  _velY = dy * 0.015;
+  applyRotation(dx, dy, TOUCH_SENS);
 },{passive:true});
-wrap.addEventListener('touchend',()=>isDragging=false);
+wrap.addEventListener('touchend',()=>{if(isDragging){isDragging=false;requestAnimationFrame(tickInertia);}});
 wrap.addEventListener('wheel',e=>{ camera.position.multiplyScalar(1+e.deltaY*0.001); },{passive:true});
+
+// ── Tap-to-snap: click/tap a face to rotate it front-on ──
+const _raycaster = new THREE.Raycaster();
+const _mouse = new THREE.Vector2();
+let _snapAnimating = false;
+let _tapDownX = 0, _tapDownY = 0, _tapDownTime = 0;
+
+const FACE_QUATS = [
+  new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0)),
+  new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)),
+  new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI/2, 0)),
+  new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI/2, 0)),
+  new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI/2, 0, 0)),
+  new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI/2, 0, 0)),
+];
+
+function snapToFace(faceIdx) {
+  if (_snapAnimating) return;
+  const target = FACE_QUATS[faceIdx].clone();
+  const start = _qRot.clone();
+  _snapAnimating = true;
+  _velX = _velY = 0;
+  autoRotate = false;
+  const c = document.getElementById('auto-rotate-chk');
+  if (c) c.checked = false;
+  const duration = 400;
+  const t0 = performance.now();
+  function tick(now) {
+    let p = Math.min(1, (now - t0) / duration);
+    p = p < 0.5 ? 4*p*p*p : 1 - Math.pow(-2*p+2,3)/2;
+    _qRot.copy(start).slerp(target, p);
+    pivotGroup.quaternion.copy(_qRot);
+    if (p < 1) requestAnimationFrame(tick);
+    else _snapAnimating = false;
+  }
+  requestAnimationFrame(tick);
+}
+
+function handleTapSnap(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  _mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  _mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  _raycaster.setFromCamera(_mouse, camera);
+  const hits = _raycaster.intersectObjects(panelMeshes);
+  if (hits.length > 0) {
+    const idx = panelMeshes.indexOf(hits[0].object);
+    if (idx >= 0) snapToFace(idx);
+  }
+}
+
+wrap.addEventListener('mousedown', e => { _tapDownX = e.clientX; _tapDownY = e.clientY; _tapDownTime = performance.now(); });
+wrap.addEventListener('mouseup', e => {
+  const dx = Math.abs(e.clientX - _tapDownX), dy = Math.abs(e.clientY - _tapDownY);
+  if (dx < 5 && dy < 5 && (performance.now() - _tapDownTime) < 300) {
+    handleTapSnap(e.clientX, e.clientY);
+  }
+});
+wrap.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) { _tapDownX = e.touches[0].clientX; _tapDownY = e.touches[0].clientY; _tapDownTime = performance.now(); }
+}, {passive: true});
+wrap.addEventListener('touchend', e => {
+  if (e.changedTouches.length === 1) {
+    const t = e.changedTouches[0];
+    const dx = Math.abs(t.clientX - _tapDownX), dy = Math.abs(t.clientY - _tapDownY);
+    if (dx < 10 && dy < 10 && (performance.now() - _tapDownTime) < 300) {
+      handleTapSnap(t.clientX, t.clientY);
+    }
+  }
+});
 
 // ═══════════════════════════════════════════════════
 //  EFFECTS — all iterate surface LEDs only
