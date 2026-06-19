@@ -1628,6 +1628,8 @@ document.querySelectorAll('.size-btn').forEach(btn=>{
     if(btn.dataset.mode==='panel2d'){
       panel2dMode=true;
       initCube(64);
+      document.getElementById('led-count-label').textContent = '64 × 64 · 2D Panel';
+      document.getElementById('cube-label').textContent = '64×64 2D';
       // Hide 3D cube, show single flat panel view
       pivotGroup.visible=false;
       document.getElementById('panel2d-canvas')?.remove();
