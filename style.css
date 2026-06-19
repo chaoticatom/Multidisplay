@@ -17,6 +17,9 @@
   #sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
   #sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(80,120,255,0.4); border-radius: 2px; }
   #sidebar.hidden { width: 0 !important; min-width: 0 !important; overflow: hidden; border-right: none; }
+  @media (max-width: 768px) {
+    #sidebar.hidden { width: 100vw !important; min-width: 0 !important; transform: translateX(-100%); overflow: hidden; }
+  }
 
   #sidebar-open-btn {
     display: none; position: fixed; top: 10px; left: 10px; z-index: 200;
