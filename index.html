@@ -38,14 +38,16 @@
 <body>
 <script>
 window._mobileMode = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-if(window._mobileMode){
-  document.addEventListener('DOMContentLoaded', function(){
-    var sb = document.getElementById('sidebar');
-    var ob = document.getElementById('sidebar-open-btn');
-    if(sb) sb.style.transform = 'translateX(-100%)';
-    if(ob) ob.style.display = 'flex';
-  });
-}
+document.addEventListener('DOMContentLoaded', function(){
+  var sb = document.getElementById('sidebar');
+  var ob = document.getElementById('sidebar-open-btn');
+  if(window._mobileMode){
+    if(sb){ sb.style.transform = 'translateX(-100%)'; sb.style.width = '100vw'; }
+  } else {
+    if(sb) sb.style.width = '300px';
+    if(ob) ob.style.display = 'none';
+  }
+});
 </script>
 
 <!-- ═══ LOADING OVERLAY ═══ -->
@@ -64,9 +66,8 @@ if(window._mobileMode){
 <button id="menu-toggle" title="Toggle Menu">☰</button>
 
 <!-- ═══ SIDEBAR ═══ -->
-<button id="sidebar-open-btn" title="Open Menu">☰</button>
+<button id="sidebar-open-btn" title="Open Menu" style="display:flex;position:fixed;top:10px;left:10px;z-index:200;width:56px;height:56px;background:rgba(20,30,60,0.95);border:2px solid rgba(80,120,255,0.45);border-radius:10px;color:#7aadff;font-size:26px;cursor:pointer;align-items:center;justify-content:center;">☰</button>
 <div id="sidebar" style="position:fixed;left:0;top:0;height:100vh;z-index:150;background:rgba(10,10,20,0.97);display:flex;flex-direction:column;overflow:hidden;transition:transform 0.28s ease;box-shadow:4px 0 30px rgba(0,60,255,0.12);border-right:1px solid rgba(80,120,255,0.2);">
-<script>document.getElementById('sidebar').style.width=window._mobileMode?'100vw':'300px';</script>
   <div id="sidebar-header" style="display:flex;align-items:center;gap:0;">
     <div style="flex:1;">
       <h1>LED Cube</h1>
@@ -802,7 +803,7 @@ if(window._mobileMode){
   <div id="face-labels" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;"></div>
   <div id="effect-label"><span id="el-effect">Wave Cascade</span> <span id="el-meta" style="font-size:11px;opacity:0.6;margin-left:8px;">64×64 · 60fps</span></div>
   <div id="hint">drag to rotate · scroll to zoom</div>
-  <div id="version-label" style="position:absolute;bottom:8px;left:8px;font-size:11px;color:rgba(120,160,255,0.35);pointer-events:none;z-index:10;"></div>
+  <div id="version-label" style="position:absolute;bottom:8px;left:8px;font-size:11px;color:rgba(180,210,255,0.85);pointer-events:none;z-index:10;"></div>
 </div>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 
