@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=87">
+<link rel="stylesheet" href="style.css?v=88">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -523,8 +523,8 @@
           </div>
           <div class="slider-row">
             <span class="slider-label">Bright</span>
-            <input type="range" id="bright-slider" min="0.1" max="1.5" step="0.05" value="1">
-            <span class="slider-val" id="bright-val">100%</span>
+            <input type="range" id="bright-slider" min="0.1" max="1.5" step="0.05" value="1.15">
+            <span class="slider-val" id="bright-val">115%</span>
           </div>
         
     </div>
@@ -760,7 +760,6 @@
 <!-- ═══ CANVAS ═══ (moved below, first child of body via script) -->
 <div id="canvas-wrap" style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:1;">
   <canvas id="c"></canvas>
-  <div id="tron-scoreboard" style="display:none;position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.85);padding:10px 14px;border-radius:8px;font-family:monospace;font-size:16px;z-index:9999;pointer-events:none;line-height:1.8;border:1px solid rgba(100,150,255,0.3);"></div>
   <div id="face-labels" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;"></div>
   <div id="effect-label"><span id="el-effect">Wave Cascade</span> <span id="el-meta" style="font-size:11px;opacity:0.6;margin-left:8px;">64×64 · 60fps</span></div>
   <div id="hint">drag to rotate · scroll to zoom</div>
@@ -841,7 +840,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=87"></script>
+<script src="version.js?v=88"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -876,7 +875,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=87','effects.js?v=87','f1.js?v=87','ui.js?v=87'];
+  const appScripts = ['cube.js?v=88','effects.js?v=88','f1.js?v=88','ui.js?v=88'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
