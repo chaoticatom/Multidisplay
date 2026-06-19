@@ -37,15 +37,13 @@
 </head>
 <body>
 <script>
-window._mobileMode = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+window._mobileMode = window.innerWidth <= 900 || /Mobi|Android|iPhone|iPad|iPod|Mobile|Touch/i.test(navigator.userAgent) || ('ontouchstart' in window);
 document.addEventListener('DOMContentLoaded', function(){
   var sb = document.getElementById('sidebar');
-  var ob = document.getElementById('sidebar-open-btn');
   if(window._mobileMode){
     if(sb){ sb.style.transform = 'translateX(-100%)'; sb.style.width = '100vw'; }
   } else {
     if(sb) sb.style.width = '300px';
-    if(ob) ob.style.display = 'none';
   }
 });
 </script>
