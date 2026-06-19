@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=79">
+<link rel="stylesheet" href="style.css?v=83">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -761,7 +761,7 @@
 </div>
 
 <!-- ═══ CANVAS ═══ -->
-<div id="canvas-wrap">
+<div id="canvas-wrap" style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:1;">
   <canvas id="c"></canvas>
   <div id="tron-scoreboard" style="display:none;position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.85);padding:10px 14px;border-radius:8px;font-family:monospace;font-size:16px;z-index:9999;pointer-events:none;line-height:1.8;border:1px solid rgba(100,150,255,0.3);"></div>
   <div id="face-labels" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;"></div>
@@ -845,7 +845,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=79"></script>
+<script src="version.js?v=83"></script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
 <script>
@@ -879,7 +879,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=79','effects.js?v=79','f1.js?v=79','ui.js?v=79'];
+  const appScripts = ['cube.js?v=83','effects.js?v=83','f1.js?v=83','ui.js?v=83'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
