@@ -72,8 +72,8 @@
     .slider-row input[type="range"] { height: 8px; border-radius: 4px; }
     .slider-row input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; }
     .slider-row input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; }
-    .check-row { font-size: 14px; gap: 10px; margin-bottom: 8px; min-height: 38px; }
-    .check-row input[type="checkbox"] { width: 22px; height: 22px; }
+    .check-row { font-size: 13px; gap: 10px; margin-bottom: 8px; min-height: 34px; }
+    .check-row input[type="checkbox"] { width: 36px; height: 20px; min-width: 36px; }
     .section-head { font-size: 15px; padding: 5px 0; min-height: 40px; }
     .sub-head { font-size: 14px; padding: 8px 6px; min-height: 36px; }
     .util-btn { font-size: 13px; padding: 10px 12px; min-height: 38px; border-radius: 7px; }
@@ -152,8 +152,24 @@
     box-shadow: 0 0 6px rgba(100,160,255,0.6);
   }
 
-  .check-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #bbc; letter-spacing: 1px; margin-bottom: 8px; cursor: pointer; }
-  .check-row input { cursor: pointer; }
+  .check-row { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #bbc; letter-spacing: 1px; margin-bottom: 8px; cursor: pointer; }
+  .check-row input[type="checkbox"] {
+    -webkit-appearance: none; appearance: none; cursor: pointer;
+    width: 36px; height: 20px; min-width: 36px;
+    background: rgba(60,60,100,0.5); border: 1px solid rgba(80,120,255,0.25);
+    border-radius: 20px; position: relative; transition: background 0.2s, border-color 0.2s;
+  }
+  .check-row input[type="checkbox"]::before {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: rgba(140,160,200,0.6); transition: transform 0.2s, background 0.2s;
+  }
+  .check-row input[type="checkbox"]:checked {
+    background: rgba(60,120,255,0.5); border-color: rgba(80,140,255,0.6);
+  }
+  .check-row input[type="checkbox"]:checked::before {
+    transform: translateX(16px); background: #7aadff;
+  }
 
   .util-btn {
     display: block; width: 100%; padding: 7px 10px; margin-bottom: 4px;
