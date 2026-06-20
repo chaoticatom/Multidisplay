@@ -441,7 +441,7 @@ function effectFireworks(dt) {
   for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.80;
 
   fwSpawnT += dt;
-  if (fwSpawnT > 0.55) { fwLaunch(); if (Math.random() > 0.75) fwLaunch(); fwSpawnT = 0; }
+  if (fwSpawnT > 0.4) { fwLaunch(); if (Math.random() > 0.6) fwLaunch(); fwSpawnT = 0; }
 
   const totalCols = panel2dMode ? SIZE : SIZE * 4;
   const G = SIZE * 0.06;
@@ -481,18 +481,34 @@ function effectFireworks(dt) {
     if (b.life <= 0) { fwBursts.splice(k, 1); continue; }
 
     const iv = Math.round(b.v);
-    if (iv < 0 || iv >= SIZE) { fwBursts.splice(k, 1); continue; }
+    if (iv < 0) { fwBursts.splice(k, 1); continue; }
 
     const [rh, gh, bh] = hsl(b.hue, 1, b.life * (b.bright || 0.9));
 
     if (panel2dMode) {
+      if (iv >= SIZE) { fwBursts.splice(k, 1); continue; }
       const ic = Math.round(b.col);
       if (ic < 0 || ic >= SIZE) { fwBursts.splice(k, 1); continue; }
       const idx = faceMap[0][iv * SIZE + ic];
       if (idx >= 0) fwSet(idx, rh, gh, bh);
-    } else {
+    } else if (iv < SIZE) {
       const idx = fwPx(Math.round(b.col), iv);
       if (idx >= 0) fwSet(idx, rh, gh, bh);
+    } else {
+      const ov = iv - SIZE;
+      if (ov >= SIZE) { fwBursts.splice(k, 1); continue; }
+      const S = SIZE, total = S * 4;
+      const c = ((Math.round(b.col) % total) + total) % total;
+      const qi = (c / S) | 0, fu = c % S;
+      let tu, tv;
+      if (qi === 0)      { tu = fu;         tv = (S - 1) - ov; }
+      else if (qi === 1) { tu = (S - 1) - ov; tv = (S - 1) - fu; }
+      else if (qi === 2) { tu = (S - 1) - fu; tv = ov; }
+      else               { tu = ov;         tv = fu; }
+      if (tu >= 0 && tu < S && tv >= 0 && tv < S) {
+        const idx = faceMap[4][tv * S + tu];
+        if (idx >= 0) fwSet(idx, rh, gh, bh);
+      }
     }
   }
 
