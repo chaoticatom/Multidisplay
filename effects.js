@@ -5387,11 +5387,10 @@ function renderImg(){
         for(let u=0;u<S;u++){
           const pu=flipU?(S-1-u):u;
           const srcU=(fIdx*S+pu)/totalW;
-          const srcY=(face===2)?v:(S-1-v);
+          const srcY=S-1-v;
           const sx=Math.min(imgW-1,((srcU*imgW)|0));
           const sy=Math.min(imgH-1,((srcY/(S-1))*imgH)|0);
           const pi=(sy*imgW+sx)*4;
-          if(face===2){ setFaceLED(face,u,v,1,0,0); continue; }
           setFaceLED(face,u,v,imgPx[pi]/255,imgPx[pi+1]/255,imgPx[pi+2]/255);
         }
       }
@@ -5465,19 +5464,16 @@ function effectVideo(dt){
 
   for(let fIdx=0;fIdx<4;fIdx++){
     const face=VID_FACE_ORDER[fIdx];
-    // Front(0), Back(1) and Left(3) need u flipped to flow correctly
-    // Right(2) needs 180° rotation (flip both u and v)
     const flipU=(face===0||face===1||face===2||face===3);
-    const flipV=(face===2);
     for(let v=0;v<S;v++){
       for(let u=0;u<S;u++){
         let srcX,srcY;
         if(vidLayout==='panorama'){
           const pu=flipU?(S-1-u):u;
           srcX=((fIdx*S+pu+(vidScrollX|0))%(4*S)+4*S)%(4*S);
-          srcY=flipV?v:(S-1-v);
+          srcY=S-1-v;
         } else {
-          srcX=u; srcY=flipV?v:(S-1-v);
+          srcX=u; srcY=S-1-v;
         }
         srcX=Math.max(0,Math.min(cw-1,srcX));
         srcY=Math.max(0,Math.min(ch-1,srcY));
