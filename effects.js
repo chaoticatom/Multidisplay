@@ -1188,16 +1188,87 @@ let balls=[], ballFlashes=[];
 let ballCrossFaces=true;
 let ballsPerFace=3;
 
-// Cross-face only between faces 1 and 2 (adjacent in CW strip 0→2→1→3).
-// Face 2 right edge (u>=S) connects to face 1 left edge (u=0).
+const BALL_CW=[0,2,1,3];
+const BALL_CWI={0:0,1:2,2:1,3:3};
+
 function ballCrossCheck(b, S) {
-  if (b.face === 2 && b.u >= S) {
-    b.face = 1;
-    b.u = b.u - S;
-  } else if (b.face === 1 && b.u < 0) {
-    b.face = 2;
-    b.u = S + b.u;
+  const M = S - 1;
+
+  // Side faces: u wraps around CW strip [0,2,1,3]
+  if (b.face <= 3 && (b.u < 0 || b.u >= S)) {
+    const su = BALL_CWI[b.face] * S + b.u;
+    const total = S * 4;
+    const w = ((su % total) + total) % total;
+    const nqi = (w / S) | 0;
+    b.face = BALL_CW[nqi];
+    b.u = w - nqi * S;
   }
+
+  // Side faces: v crosses to top (4) or bottom (5)
+  if (b.face <= 3 && b.v >= S) {
+    const ov = b.v - S, ou = b.u, od = b.du, od2 = b.dv;
+    switch (b.face) {
+      case 0: b.u=ou;   b.v=M-ov; b.du=od;   b.dv=-od2; break;
+      case 1: b.u=M-ou; b.v=ov;   b.du=-od;  b.dv=od2;  break;
+      case 2: b.u=M-ov; b.v=M-ou; b.du=-od2; b.dv=-od;  break;
+      case 3: b.u=ov;   b.v=ou;   b.du=od2;  b.dv=od;   break;
+    }
+    b.face = 4;
+  } else if (b.face <= 3 && b.v < 0) {
+    const ov = -b.v, ou = b.u, od = b.du, od2 = b.dv;
+    switch (b.face) {
+      case 0: b.u=ou;   b.v=M-ov; b.du=od;   b.dv=od2;  break;
+      case 1: b.u=M-ou; b.v=ov;   b.du=-od;  b.dv=-od2; break;
+      case 2: b.u=M-ov; b.v=M-ou; b.du=od2;  b.dv=-od;  break;
+      case 3: b.u=ov;   b.v=ou;   b.du=-od2; b.dv=od;   break;
+    }
+    b.face = 5;
+  }
+
+  // Face 4 (top) edges → side faces
+  if (b.face === 4) {
+    const ou = b.u, ov2 = b.v, od = b.du, od2 = b.dv;
+    if (b.u < 0) {
+      const ov = -ou;
+      b.face=3; b.u=ov2; b.v=M-ov; b.du=od2; b.dv=od;
+    } else if (b.u >= S) {
+      const ov = ou - S;
+      b.face=2; b.u=M-ov2; b.v=M-ov; b.du=-od2; b.dv=-od;
+    } else if (b.v < 0) {
+      const ov = -ov2;
+      b.face=1; b.u=M-ou; b.v=M-ov; b.du=-od; b.dv=od2;
+    } else if (b.v >= S) {
+      const ov = ov2 - S;
+      b.face=0; b.u=ou; b.v=M-ov; b.du=od; b.dv=-od2;
+    }
+  }
+
+  // Face 5 (bottom) edges → side faces
+  if (b.face === 5) {
+    const ou = b.u, ov2 = b.v, od = b.du, od2 = b.dv;
+    if (b.u < 0) {
+      const ov = -ou;
+      b.face=3; b.u=ov2; b.v=ov; b.du=od2; b.dv=-od;
+    } else if (b.u >= S) {
+      const ov = ou - S;
+      b.face=2; b.u=M-ov2; b.v=ov; b.du=-od2; b.dv=od;
+    } else if (b.v < 0) {
+      const ov = -ov2;
+      b.face=1; b.u=M-ou; b.v=ov; b.du=-od; b.dv=-od2;
+    } else if (b.v >= S) {
+      const ov = ov2 - S;
+      b.face=0; b.u=ou; b.v=ov; b.du=od; b.dv=od2;
+    }
+  }
+}
+
+function ballPixel(face, pu, pv, S) {
+  if (pu >= 0 && pu < S && pv >= 0 && pv < S) return faceMap[face][pv * S + pu];
+  const tmp = {face:face, u:pu, v:pv, du:0, dv:0};
+  ballCrossCheck(tmp, S);
+  const ru = Math.round(tmp.u), rv = Math.round(tmp.v);
+  if (ru >= 0 && ru < S && rv >= 0 && rv < S) return faceMap[tmp.face][rv * S + ru];
+  return -1;
 }
 
 function resetBalls(){
@@ -1209,9 +1280,8 @@ function resetBalls(){
     [1,0.4,0],[0.9,0.15,0.9],[0,0.9,0.9],[1,0.6,0.7],
     [0.5,1,0.3],[1,0.5,0.1],[0.3,0.5,1],[0.8,0.2,0.5],
   ];
-  const crossFaces=[1,2];
   let ci=0;
-  const faceList=panel2dMode?[0]:ballCrossFaces?crossFaces:[0,1,2,3,4,5];
+  const faceList=panel2dMode?[0]:[0,1,2,3,4,5];
   for(const f of faceList){
     const count=panel2dMode?ballsPerFace*2:ballsPerFace;
     for(let k=0;k<count;k++){
@@ -1272,36 +1342,23 @@ function effectBouncingBalls(dt){
     }
 
     const R=b.r;
-    const crossU=!panel2dMode&&ballCrossFaces&&(b.face===1||b.face===2);
-    if(crossU){
-      // Face 1: only bounce on right edge (u>=S), left crosses to face 2
-      // Face 2: only bounce on left edge (u<0), right crosses to face 1
-      if(b.face===1 && b.u>S1-R) {b.u=S1-R; b.du=-Math.abs(b.du);}
-      if(b.face===2 && b.u<R)    {b.u=R;    b.du=Math.abs(b.du);}
-    } else {
+    if(panel2dMode||!ballCrossFaces){
       if(b.u<R)    {b.u=R;    b.du=Math.abs(b.du);}
       if(b.u>S1-R) {b.u=S1-R; b.du=-Math.abs(b.du);}
+      if(b.v<R)    {b.v=R;    b.dv=Math.abs(b.dv);}
+      if(b.v>S1-R) {b.v=S1-R; b.dv=-Math.abs(b.dv);}
     }
-    if(b.v<R)    {b.v=R;    b.dv=Math.abs(b.dv);}
-    if(b.v>S1-R) {b.v=S1-R; b.dv=-Math.abs(b.dv);}
 
-    // Render ball — cross-face rendering between faces 1 and 2
     const cu=Math.round(b.u), cv=Math.round(b.v);
     const R2=R*R;
-    const canCross=!panel2dMode&&ballCrossFaces&&(b.face===1||b.face===2);
+    const cross=!panel2dMode&&ballCrossFaces;
     for(let dv=-R;dv<=R;dv++){
       for(let du=-R;du<=R;du++){
         const d2=du*du+dv*dv;
         if(d2>R2) continue;
-        const pv=cv+dv;
-        if(pv<0||pv>=S) continue;
-        let pu=cu+du, drawFace=b.face;
-        if(canCross){
-          if(b.face===2 && pu>=S){ drawFace=1; pu=pu-S; }
-          else if(b.face===1 && pu<0){ drawFace=2; pu=S+pu; }
-        }
-        if(pu<0||pu>=S) continue;
-        const idx=faceMap[drawFace][pv*S+pu];
+        const pu=cu+du, pv=cv+dv;
+        const idx=cross?ballPixel(b.face,pu,pv,S)
+          :(pu<0||pu>=S||pv<0||pv>=S)?-1:faceMap[b.face][pv*S+pu];
         if(idx<0) continue;
         const dist=Math.sqrt(d2)/R;
         const shade=1.0-dist*0.55;
