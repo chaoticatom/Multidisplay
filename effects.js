@@ -407,21 +407,7 @@ function fwBurst(x, y, z, hue, hue2) {
         hue: wHue, life: 1, decay: 0.003 + Math.random() * 0.003, bright: 0.8
       });
     }
-  } else if (type < 0.68) {
-    // Ring — horizontal ring expanding outward
-    const n = 36 + Math.floor(Math.random() * 20);
-    const spd = SIZE * (0.3 + Math.random() * 0.3) * sizeMul;
-    for (let i = 0; i < n; i++) {
-      const th = (i / n) * Math.PI * 2;
-      fwBursts.push({ x, y, z,
-        vx: Math.cos(th) * spd,
-        vy: (Math.random() - 0.5) * spd * 0.15,
-        vz: Math.sin(th) * spd,
-        hue: mono ? hue : (hue + i / n * 0.3) % 1, life: 1,
-        decay: 0.009 + Math.random() * 0.006, bright: 0.95
-      });
-    }
-  } else if (type < 0.80) {
+  } else if (type < 0.73) {
     // Palm — upward spray then droop, like a palm tree
     const n = 35 + Math.floor(Math.random() * 25);
     const spd = SIZE * (0.3 + Math.random() * 0.3) * sizeMul;
@@ -480,7 +466,7 @@ function effectFireworks(dt) {
   for(let i=0;i<N*3;i++) colBuf[i]*=0.80;
 
   fwSpawnT += dt;
-  if(fwSpawnT > 0.3) { fwLaunch(); if(Math.random()>0.6) fwLaunch(); fwSpawnT=0; }
+  if(fwSpawnT > 0.55) { fwLaunch(); if(Math.random()>0.75) fwLaunch(); fwSpawnT=0; }
 
   // ── Rockets ──
   for(let k=fwRockets.length-1;k>=0;k--){
