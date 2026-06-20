@@ -135,7 +135,7 @@ function toggleMenu() {
   }
   menuToggle.textContent = menuOpen ? '✕' : '☰';
   updateSidebarOverlay();
-  resize();
+  setTimeout(resize, 550);
 }
 
 menuToggle.addEventListener('click', toggleMenu);

@@ -7,7 +7,7 @@
     border-right: 1px solid rgba(80,120,255,0.2);
     display: flex; flex-direction: column; z-index: 10;
     box-shadow: 4px 0 30px rgba(0,60,255,0.12); overflow: visible;
-    transition: width 1s ease, min-width 1s ease;
+    transition: width 0.5s ease, min-width 0.5s ease;
   }
   #sidebar-scroll {
     flex: 1; overflow-y: auto; overflow-x: hidden;
@@ -16,7 +16,7 @@
   #sidebar-scroll::-webkit-scrollbar { width: 4px; }
   #sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
   #sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(80,120,255,0.4); border-radius: 2px; }
-  #sidebar.hidden { width: 0 !important; min-width: 0 !important; overflow: hidden; border-right: none; }
+  #sidebar.hidden { width: 0 !important; min-width: 0 !important; overflow: hidden; border-right: none; transition: width 0.5s ease, min-width 0.5s ease; }
 
   #sidebar-open-btn {
     display: none; position: fixed; top: 10px; left: 10px; z-index: 200;
@@ -53,7 +53,7 @@
 
   @media (max-width: 768px) {
     #sidebar { width: 100vw; position: fixed; left: 0; top: 0; height: 100vh; height: 100dvh;
-               transform: translateX(-100%); transition: transform 1s ease; z-index: 150; }
+               transform: translateX(-100%); transition: transform 0.5s ease; z-index: 150; }
     #sidebar.open { transform: translateX(0); }
     #sidebar-header { padding: calc(20px + env(safe-area-inset-top, 0px)) 24px 16px; position: sticky; top: 0; z-index: 3; background: #0a0a14; }
     #sidebar { background: #0a0a14; min-width: 0; }
