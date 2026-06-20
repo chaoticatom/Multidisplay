@@ -2026,7 +2026,7 @@ function drawRingsStyle(dt){
 }
 
 function drawFireStyle(dt){
-  const SIDES=[0,2,1,3];
+  const SIDES=[2,0,3,1];
   const S=SIZE, M=S-1;
   const AB=spectrumBandOverride||AUDIO_BANDS;
   for(let si=0;si<4;si++){
@@ -3487,7 +3487,7 @@ function effectWeather(dt){
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
   const HORIZ=0.32; // horizon at 32% from bottom of side faces
-  const SIDE=[0,2,1,3]; // clockwise physical order: front→right→back→left
+  const SIDE=[2,0,3,1]; // panorama quarter order matching panXOfFaceU: right→front→left→back
 
   // ── Panorama u→panX mapping per face ──
   // face2: panX = 0.25*f               range 0.0-0.25
@@ -3891,7 +3891,7 @@ function effectWeather(dt){
           }
         }
       }
-      for(let d=-2;d<=1;d++){
+      for(let d=-1;d<=2;d++){
         const panU=basePanU+d*dir;
         const panFrac=((panU/(S*4))%1+1)%1;
         const fi=Math.floor(panFrac*4)%4;
@@ -3903,7 +3903,7 @@ function effectWeather(dt){
         else blendLED(idx,0.65,0.68,0.72);
       }
       if(blinkOn && !isHit){
-        const panU=basePanU+2*dir;
+        const panU=basePanU-2*dir;
         const panFrac=((panU/(S*4))%1+1)%1;
         const fi=Math.floor(panFrac*4)%4;
         const face=SIDE[fi];
