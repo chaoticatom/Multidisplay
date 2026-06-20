@@ -3332,11 +3332,11 @@ function wxUpdateCityDropdown(){
         dropdown.style.display='block';
         dropdown.querySelectorAll('div[data-city]').forEach(el=>{
           el.addEventListener('click',()=>{
-            document.getElementById('wx-city').value=el.dataset.city;
+            document.getElementById('wx-city').value=el.textContent;
             wxLat=parseFloat(el.dataset.lat);
             wxLon=parseFloat(el.dataset.lon);
             dropdown.style.display='none';
-            wxFetch();
+            wxFetch(true);
           });
         });
       }).catch(()=>{});
@@ -3351,7 +3351,7 @@ document.addEventListener('click',e=>{
   }
 });
 
-async function wxFetch(){
+async function wxFetch(skipGeocode){
   if(wxFetching) return;
   wxFetching=true;
   const city=(document.getElementById('wx-city')?.value||'London').trim();
@@ -3359,17 +3359,18 @@ async function wxFetch(){
   const infoEl=document.getElementById('wx-info');
   if(statusEl) statusEl.textContent='Searching…';
   try{
-    // Step 1: geocode
-    const geoUrl=`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&format=json`;
-    let gr;
-    try{ gr=await fetch(geoUrl); }
-    catch(fe){ throw new Error('Network error — check internet connection'); }
-    if(!gr.ok) throw new Error('Geocoding failed: '+gr.status);
-    const gd=await gr.json();
-    if(!gd.results?.length) throw new Error(`City "${city}" not found`);
-    const loc=gd.results[0];
-    wxLat=loc.latitude; wxLon=loc.longitude;
-    if(statusEl) statusEl.textContent=`Found: ${loc.name}… fetching weather`;
+    if(!skipGeocode){
+      const geoUrl=`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&format=json`;
+      let gr;
+      try{ gr=await fetch(geoUrl); }
+      catch(fe){ throw new Error('Network error — check internet connection'); }
+      if(!gr.ok) throw new Error('Geocoding failed: '+gr.status);
+      const gd=await gr.json();
+      if(!gd.results?.length) throw new Error(`City "${city}" not found`);
+      const loc=gd.results[0];
+      wxLat=loc.latitude; wxLon=loc.longitude;
+    }
+    if(statusEl) statusEl.textContent=`Fetching weather for ${city}…`;
 
     // Step 2: weather
     const wxUrl=`https://api.open-meteo.com/v1/forecast?latitude=${wxLat.toFixed(4)}&longitude=${wxLon.toFixed(4)}&current=temperature_2m,weather_code,wind_speed_10m&daily=sunrise,sunset&timezone=auto&forecast_days=1`;
@@ -3445,10 +3446,6 @@ function effectWeather(dt){
 
   // Colours
   let skyCol=wxSkyRGB(dayFrac);
-  // In 2D mode, use clear daytime blue sky if it's day (ignore sunset glow)
-  if(panel2dMode && isDay && dayFrac > 0.25 && dayFrac < 0.75){
-    skyCol=[12/255, 115/255, 240/255]; // clear daytime blue
-  }
   const isFog=wxCode>=45&&wxCode<=48;
   const isSnow=wxCode>=71&&wxCode<=77||wxCode>=85&&wxCode<=86;
   const isRain=wxCode>=51&&wxCode<=65||wxCode>=80&&wxCode<=82||wxCode>=95;
@@ -3940,15 +3937,48 @@ function effectWeather(dt){
           if(bidx>=0) setCreature(bidx,0.9,0.9,1);
         }
       }
-      for(let d=-1;d<=2;d++){
+      const wh=isHit?[1,1,1]:null;
+      const body=[0.85,0.85,0.9];
+      // Fuselage: 5 pixels long
+      for(let d=-2;d<=2;d++){
         const idx=creaturePx(baseCol+d*dir,planeV);
-        if(idx<0) continue;
-        if(isHit) setCreature(idx,1,1,1);
-        else setCreature(idx,0.55,0.55,0.6);
+        if(idx>=0) setCreature(idx,wh?1:body[0],wh?1:body[1],wh?1:body[2]);
       }
+      // Nose: slightly brighter
+      const nose=creaturePx(baseCol+3*dir,planeV);
+      if(nose>=0) setCreature(nose,wh?1:0.6,wh?1:0.65,wh?1:0.75);
+      // Cockpit window
+      const cock=creaturePx(baseCol+2*dir,planeV-1);
+      if(cock>=0) setCreature(cock,wh?1:0.2,wh?1:0.5,wh?1:0.9);
+      // Wings: 3 pixels each side at center of fuselage
+      for(let w=1;w<=3;w++){
+        const w1=creaturePx(baseCol,planeV-w);
+        const w2=creaturePx(baseCol,planeV+w);
+        const wb=0.7-w*0.08;
+        if(w1>=0) setCreature(w1,wh?1:wb,wh?1:wb,wh?1:wb+0.05);
+        if(w2>=0) setCreature(w2,wh?1:wb,wh?1:wb,wh?1:wb+0.05);
+      }
+      // Tail fin: 2 pixels up at the back
+      for(let tf=1;tf<=2;tf++){
+        const ti=creaturePx(baseCol-2*dir,planeV-tf);
+        if(ti>=0) setCreature(ti,wh?1:0.6,wh?1:0.6,wh?1:0.65);
+      }
+      // Red tail light
       if(blinkOn && !isHit){
-        const idx=creaturePx(baseCol-2*dir,planeV);
+        const idx=creaturePx(baseCol-3*dir,planeV);
         if(idx>=0) setCreature(idx,1,0.1,0.1);
+      }
+      // Green starboard / red port nav lights on wingtips
+      if(!isHit){
+        const nav1=creaturePx(baseCol,planeV-3);
+        const nav2=creaturePx(baseCol,planeV+3);
+        if(dir>0){
+          if(nav1>=0) setCreature(nav1,0.1,0.9,0.1);
+          if(nav2>=0) setCreature(nav2,0.9,0.1,0.1);
+        } else {
+          if(nav1>=0) setCreature(nav1,0.9,0.1,0.1);
+          if(nav2>=0) setCreature(nav2,0.1,0.9,0.1);
+        }
       }
     }
   }
