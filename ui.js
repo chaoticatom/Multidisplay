@@ -1360,6 +1360,12 @@ document.querySelectorAll('.au-col-btn').forEach(b => b.addEventListener('click'
   auTheme = parseInt(b.dataset.aucol);
 }));
 
+document.querySelectorAll('.au-theme-btn').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.au-theme-btn').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  auTheme = parseInt(b.dataset.autheme);
+}));
+
 document.getElementById('au-gain')?.addEventListener('input', e => {
   auGain = parseFloat(e.target.value);
   document.getElementById('au-gain-val').textContent = auGain.toFixed(1) + 'x';

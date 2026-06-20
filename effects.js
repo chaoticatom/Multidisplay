@@ -1536,6 +1536,7 @@ function auColor(fb, fh, amp){
     case 2:  return hsl(0.62-fh*0.14, 0.95, 0.16+fh*0.40+amp*0.08);                    // Ocean
     case 3:  return hsl(((fb*AUDIO_BANDS)|0)%2 ? 0.86 : 0.5, 1, 0.22+fh*0.35+amp*0.1); // Neon
     case 4:  return hsl(0.34, 1, 0.10+fh*0.50+amp*0.06);                               // Matrix
+    case 5:  return hsl(fb*0.85+t*0.05, 0.55, 0.35+fh*0.35+amp*0.08);                 // Pastel
     default: return hsl(fb*0.85, 1, 0.18+fh*0.38+amp*0.1);                             // Rainbow
   }
 }
@@ -1553,6 +1554,106 @@ function sideCol(c){
 function scrolledBand(c, cols, AB){
   const sc=(c+(auScrollX|0)+cols)%cols;
   return Math.min(AB-1,(sc*AB/cols)|0);
+}
+
+function drawDotsStyle(){
+  const S=SIZE, M=S-1;
+  let AB=spectrumBandOverride||AUDIO_BANDS;
+  let cols=spectrumFitToScreen?(panel2dMode?SIZE:4*SIZE):4*S;
+  for(let c=0;c<cols;c++){
+    const b=scrolledBand(c,cols,AB);
+    const amp=auSpec[b], fb=b/(AB-1);
+    const fu=sideCol(c), face=fu[0], u=fu[1];
+    const h=amp*M, peakY=Math.min(M,Math.round(auPeak[b]*M));
+    // Peak dot — bright white
+    setFaceLED(face,u,peakY,0.95,0.95,1);
+    // Level dot — coloured
+    const ly=Math.min(M,Math.round(h));
+    if(h>0.5){
+      const col=auColor(fb,1,amp);
+      setFaceLED(face,u,ly,col[0]*1.2,col[1]*1.2,col[2]*1.2);
+    }
+    // Trail of fading dots below
+    for(let y=0;y<=ly;y+=3){
+      const col=auColor(fb,h>0?y/h:0,amp);
+      const fade=0.3+0.5*(y/Math.max(1,ly));
+      setFaceLED(face,u,y,col[0]*fade,col[1]*fade,col[2]*fade);
+    }
+  }
+  drawPolarFace(4); drawPolarFace(5);
+}
+
+function drawBlocksStyle(){
+  const S=SIZE, M=S-1, BLOCK=4;
+  let AB=spectrumBandOverride||AUDIO_BANDS;
+  let cols=spectrumFitToScreen?(panel2dMode?SIZE:4*SIZE):4*S;
+  const bandW=Math.max(1,Math.floor(cols/AB));
+  for(let b=0;b<AB;b++){
+    const amp=auSpec[b], fb=b/(AB-1);
+    const blocks=Math.round(amp*(S/BLOCK));
+    for(let blk=0;blk<blocks;blk++){
+      const fh=blocks>0?blk/blocks:0;
+      const col=auColor(fb,fh,amp);
+      const yBase=blk*BLOCK;
+      for(let dy=0;dy<BLOCK-1;dy++){
+        const y=yBase+dy; if(y>=S) break;
+        for(let dc=0;dc<bandW-1;dc++){
+          const c=b*bandW+dc; if(c>=cols) break;
+          const fu=sideCol(c);
+          setFaceLED(fu[0],fu[1],y,col[0],col[1],col[2]);
+        }
+      }
+    }
+    // Peak block
+    const pkBlk=Math.round(auPeak[b]*(S/BLOCK));
+    const pkY=pkBlk*BLOCK;
+    for(let dy=0;dy<BLOCK-1;dy++){
+      const y=pkY+dy; if(y>=S) break;
+      for(let dc=0;dc<bandW-1;dc++){
+        const c=b*bandW+dc; if(c>=cols) break;
+        const fu=sideCol(c);
+        setFaceLED(fu[0],fu[1],y,0.9,0.9,0.95);
+      }
+    }
+  }
+  drawPolarFace(4); drawPolarFace(5);
+}
+
+function drawOutlineStyle(){
+  const S=SIZE, M=S-1;
+  let AB=spectrumBandOverride||AUDIO_BANDS;
+  let cols=spectrumFitToScreen?(panel2dMode?SIZE:4*SIZE):4*S;
+  // Draw the top edge of each bar as a connected line
+  const pts=new Float32Array(cols);
+  for(let c=0;c<cols;c++){
+    const b=scrolledBand(c,cols,AB);
+    pts[c]=auSpec[b]*M;
+  }
+  for(let c=0;c<cols;c++){
+    const b=scrolledBand(c,cols,AB);
+    const fb=b/(AB-1), amp=auSpec[b];
+    const fu=sideCol(c), face=fu[0], u=fu[1];
+    const y0=Math.round(pts[c]);
+    const col=auColor(fb,1,amp);
+    // Main line pixel
+    setFaceLED(face,u,Math.min(M,y0),col[0]*1.3,col[1]*1.3,col[2]*1.3);
+    // Glow below (3px fade)
+    for(let g=1;g<=3;g++){
+      const gy=y0-g; if(gy<0) break;
+      const fade=1-g/4;
+      setFaceLED(face,u,gy,col[0]*fade*0.5,col[1]*fade*0.5,col[2]*fade*0.5);
+    }
+    // Glow above (2px)
+    for(let g=1;g<=2;g++){
+      const gy=y0+g; if(gy>M) break;
+      const fade=1-g/3;
+      setFaceLED(face,u,gy,col[0]*fade*0.3,col[1]*fade*0.3,col[2]*fade*0.3);
+    }
+    // Peak dot
+    const pkY=Math.min(M,Math.round(auPeak[b]*M));
+    if(pkY>y0+2) setFaceLED(face,u,pkY,0.7,0.7,0.75);
+  }
+  drawPolarFace(4); drawPolarFace(5);
 }
 
 function drawBandBars(mirror){
@@ -1912,6 +2013,9 @@ function effectSpectrum(dt){
   for(let i=0;i<N*3;i++) colBuf[i]=0;
   switch(auStyle){
     case 'mirror':    drawBandBars(true);       break;
+    case 'dots':      drawDotsStyle();           break;
+    case 'blocks':    drawBlocksStyle();         break;
+    case 'outline':   drawOutlineStyle();        break;
     case 'radial':    drawRadialStyle(dt);       break;
     case 'vu':        drawVUStyle(dt);           break;
     case 'waterfall': drawWaterfallStyle(dt);    break;
