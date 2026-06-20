@@ -3218,7 +3218,7 @@ function effectCustomCube(dt){
 let wxCode=0,wxTemp=20,wxDesc='Clear',wxFetching=false,wxLastFetch=-9999;
 let wxSunriseS=21600,wxSunsetS=72000,wxTzOffset=0;
 let wxLat=52.04,wxLon=-0.76,wxCityDisplay='';
-let wxClouds=[],wxParticles=[],wxStars=[],wxT2=0,wxLightFlash=0;
+let wxClouds=[],wxParticles=[],wxStars=[],wxT2=0,wxLightFlash=0,wxScrollOff=0;
 let wxSkyline=null,wxCreatures=[];
 const WX_CODES={0:'Clear',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',
   45:'Foggy',48:'Icy fog',51:'Light drizzle',53:'Drizzle',55:'Heavy drizzle',
@@ -3329,7 +3329,7 @@ function wxUpdateCityDropdown(){
         results.forEach(r=>{ nameCounts[r.name]=(nameCounts[r.name]||0)+1; });
         dropdown.innerHTML=results.map(r=>{
           const label=`${r.name}${r.admin1?', '+r.admin1:''}${r.country?', '+r.country:''}`;
-          const short=nameCounts[r.name]>1?`${r.name}, ${r.country||''}`:r.name;
+          const short=r.country?`${r.name}, ${r.country}`:r.name;
           return `<div style="padding:6px 8px;cursor:pointer;font-size:13px;color:#9bd;border-bottom:1px solid rgba(80,120,255,0.1);" data-short="${short}" data-lat="${r.latitude}" data-lon="${r.longitude}">${label}</div>`;
         }).join('');
         dropdown.style.display='block';
@@ -3636,12 +3636,8 @@ function effectWeather(dt){
 
     // Draw temperature higher up on all faces
     wxText(face,tempStr,1,tempV,txtR,txtG,txtB);
-    // Draw location and time on face 0 (front)
+    // Draw time on face 0 (front)
     if(face===0){
-      if(locStr){
-        const lx=Math.max(1,S-1-locStr.length*4);
-        wxText(face,locStr,lx,textV,txtR*0.7,txtG*0.7,txtB*0.85);
-      }
       const localD=new Date(Date.now()+wxTzOffset*1000);
       const hh=String(localD.getUTCHours()).padStart(2,'0');
       const mm=String(localD.getUTCMinutes()).padStart(2,'0');
@@ -3649,6 +3645,53 @@ function effectWeather(dt){
       const timeStr=hh+':'+mm+':'+ss;
       const tx=Math.max(1,S-1-timeStr.length*4);
       wxText(face,timeStr,tx,textV+7,txtR*0.7,txtG*0.7,txtB*0.85);
+    }
+  }
+
+  // Draw scrolling city name across faces
+  if(locStr){
+    const textW=locStr.length*4;
+    const totalW=panel2dMode?S:S*4;
+    if(textW<=totalW){
+      // Fits on screen — draw static on face 0
+      const lx=Math.max(1,S-1-textW);
+      wxText(SIDE[0],locStr,lx,textV,txtR*0.7,txtG*0.7,txtB*0.85);
+    } else {
+      // Scroll across all faces
+      wxScrollOff=(wxScrollOff+dt*20)%(textW+totalW);
+      const startCol=Math.round(totalW-wxScrollOff);
+      const lr=txtR*0.7,lg=txtG*0.7,lb=txtB*0.85;
+      let col=startCol;
+      for(const ch of locStr){
+        const rows=WXF[ch]||WXF[ch.toUpperCase()];
+        if(rows){
+          for(let row=0;row<5;row++){
+            const bits=rows[row];
+            for(let c=0;c<3;c++){
+              if(!((bits>>(2-c))&1)) continue;
+              const u=col+c, v=textV+(4-row);
+              if(panel2dMode){
+                if(u>=0&&u<S&&v>=0&&v<S){
+                  const idx=faceMap[0][v*S+u]; if(idx<0) continue;
+                  if(lr>colBuf[idx*3]) colBuf[idx*3]=lr;
+                  if(lg>colBuf[idx*3+1]) colBuf[idx*3+1]=lg;
+                  if(lb>colBuf[idx*3+2]) colBuf[idx*3+2]=lb;
+                }
+              } else {
+                if(v>=0&&v<S){
+                  const idx=creaturePx(u,v);
+                  if(idx>=0){
+                    if(lr>colBuf[idx*3]) colBuf[idx*3]=lr;
+                    if(lg>colBuf[idx*3+1]) colBuf[idx*3+1]=lg;
+                    if(lb>colBuf[idx*3+2]) colBuf[idx*3+2]=lb;
+                  }
+                }
+              }
+            }
+          }
+        }
+        col+=4;
+      }
     }
   }
 
