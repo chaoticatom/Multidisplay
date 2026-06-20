@@ -542,7 +542,7 @@ function effectFireworks(dt) {
 
     const textRows=fwTextH;
     const panelSeq =[3,0,2,1];
-    const needsFlip=[false,false,true,true];
+    const needsFlip=[false,false,false,false];
 
     for(let pi=0;pi<4;pi++){
       const face=panelSeq[pi];
