@@ -1186,6 +1186,7 @@ function effectStrobe(dt){
 
 let balls=[], ballFlashes=[];
 let ballCrossFaces=true;
+let ballsPerFace=3;
 
 // Face edge adjacency: [face][edge] = {f, map(u,v,S)=>[nu,nv,ndu,ndv]}
 // Edges: 0=left(u<0), 1=right(u>=S), 2=bottom(v<0), 3=top(v>=S)
@@ -1242,7 +1243,7 @@ function resetBalls(){
   ];
   let ci=0;
   for(let f=0;f<faces;f++){
-    const count=panel2dMode?8:3;
+    const count=panel2dMode?ballsPerFace*2:ballsPerFace;
     for(let k=0;k<count;k++){
       const R=3+Math.floor(Math.random()*3);
       const ang=Math.random()*Math.PI*2;

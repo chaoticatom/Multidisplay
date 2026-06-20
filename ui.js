@@ -1202,6 +1202,11 @@ document.querySelectorAll('[data-ballmode]').forEach(btn=>{
     ballCrossFaces=btn.dataset.ballmode==='cross';
   });
 });
+document.getElementById('ball-count')?.addEventListener('input',e=>{
+  ballsPerFace=parseInt(e.target.value);
+  document.getElementById('ball-count-val').textContent=ballsPerFace;
+  balls.length=0;
+});
 
 // Fireworks scrolling text
 document.getElementById('fw-text-on')?.addEventListener('change',e=>{
