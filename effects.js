@@ -358,40 +358,120 @@ function fwLaunch() {
 }
 
 function fwBurst(x, y, z, hue, hue2) {
-  const mono = Math.random() > 0.5; // 50% chance of single-colour burst
-  const N_RAYS = 60;
-  const spd = SIZE*(0.3+Math.random()*0.35);
-  for(let i=0;i<N_RAYS;i++){
-    const th = (i/N_RAYS)*Math.PI*2 + Math.random()*0.3;
-    const ph = Math.random()*Math.PI;
-    const useHue = mono ? hue : (i%3===0)?hue2:hue;
-    fwBursts.push({
-      x, y, z,
-      vx: Math.sin(ph)*Math.cos(th)*spd,
-      vy: Math.sin(ph)*Math.sin(th)*spd*(0.5+Math.random()),
-      vz: Math.cos(ph)*spd,
-      hue: mono ? hue : (useHue + Math.random()*0.15)%1,
-      life: 1,
-      decay: 0.007+Math.random()*0.008,
-      bright: 0.85+Math.random()*0.15
-    });
-  }
-  // Secondary ring burst
-  const N_RING = 32;
-  const ringHue = mono ? hue : hue2;
-  for(let i=0;i<N_RING;i++){
-    const th=(i/N_RING)*Math.PI*2;
-    const spd2=SIZE*(0.2+Math.random()*0.2);
-    fwBursts.push({
-      x, y, z,
-      vx: Math.cos(th)*spd2,
-      vy: (Math.random()-0.3)*spd2*0.4,
-      vz: Math.sin(th)*spd2,
-      hue: mono ? hue : (ringHue+0.05+Math.random()*0.1)%1,
-      life: 1,
-      decay: 0.01+Math.random()*0.008,
-      bright: 0.7
-    });
+  const mono = Math.random() > 0.5;
+  const type = Math.random();
+  const sizeMul = 0.5 + Math.random() * 1.0; // 50%-150% size variation
+
+  if (type < 0.25) {
+    // Peony — classic spherical burst
+    const n = 30 + Math.floor(Math.random() * 50);
+    const spd = SIZE * (0.25 + Math.random() * 0.35) * sizeMul;
+    for (let i = 0; i < n; i++) {
+      const th = (i / n) * Math.PI * 2 + Math.random() * 0.3;
+      const ph = Math.random() * Math.PI;
+      const h = mono ? hue : (i % 3 === 0 ? hue2 : hue + Math.random() * 0.1) % 1;
+      fwBursts.push({ x, y, z,
+        vx: Math.sin(ph) * Math.cos(th) * spd,
+        vy: Math.sin(ph) * Math.sin(th) * spd * (0.5 + Math.random()),
+        vz: Math.cos(ph) * spd,
+        hue: h, life: 1, decay: 0.008 + Math.random() * 0.008, bright: 0.85 + Math.random() * 0.15
+      });
+    }
+  } else if (type < 0.42) {
+    // Chrysanthemum — many dense rays, long life
+    const n = 70 + Math.floor(Math.random() * 40);
+    const spd = SIZE * (0.35 + Math.random() * 0.3) * sizeMul;
+    for (let i = 0; i < n; i++) {
+      const th = (i / n) * Math.PI * 2 + Math.random() * 0.15;
+      const ph = Math.acos(1 - 2 * Math.random());
+      fwBursts.push({ x, y, z,
+        vx: Math.sin(ph) * Math.cos(th) * spd,
+        vy: Math.cos(ph) * spd * 0.8,
+        vz: Math.sin(ph) * Math.sin(th) * spd,
+        hue: mono ? hue : (hue + i * 0.003) % 1, life: 1,
+        decay: 0.004 + Math.random() * 0.004, bright: 0.9
+      });
+    }
+  } else if (type < 0.56) {
+    // Willow — droopy trails, heavy gravity feel via low upward velocity
+    const n = 40 + Math.floor(Math.random() * 30);
+    const spd = SIZE * (0.2 + Math.random() * 0.25) * sizeMul;
+    const wHue = mono ? hue : 0.12 + Math.random() * 0.08; // golden
+    for (let i = 0; i < n; i++) {
+      const th = (i / n) * Math.PI * 2 + Math.random() * 0.2;
+      const ph = Math.random() * Math.PI * 0.8;
+      fwBursts.push({ x, y, z,
+        vx: Math.sin(ph) * Math.cos(th) * spd,
+        vy: Math.sin(ph) * Math.sin(th) * spd * 0.3,
+        vz: Math.cos(ph) * spd,
+        hue: wHue, life: 1, decay: 0.003 + Math.random() * 0.003, bright: 0.8
+      });
+    }
+  } else if (type < 0.68) {
+    // Ring — horizontal ring expanding outward
+    const n = 36 + Math.floor(Math.random() * 20);
+    const spd = SIZE * (0.3 + Math.random() * 0.3) * sizeMul;
+    for (let i = 0; i < n; i++) {
+      const th = (i / n) * Math.PI * 2;
+      fwBursts.push({ x, y, z,
+        vx: Math.cos(th) * spd,
+        vy: (Math.random() - 0.5) * spd * 0.15,
+        vz: Math.sin(th) * spd,
+        hue: mono ? hue : (hue + i / n * 0.3) % 1, life: 1,
+        decay: 0.009 + Math.random() * 0.006, bright: 0.95
+      });
+    }
+  } else if (type < 0.80) {
+    // Palm — upward spray then droop, like a palm tree
+    const n = 35 + Math.floor(Math.random() * 25);
+    const spd = SIZE * (0.3 + Math.random() * 0.3) * sizeMul;
+    for (let i = 0; i < n; i++) {
+      const th = (i / n) * Math.PI * 2 + Math.random() * 0.2;
+      const spread = 0.3 + Math.random() * 0.5;
+      fwBursts.push({ x, y, z,
+        vx: Math.cos(th) * spd * spread,
+        vy: spd * (0.6 + Math.random() * 0.4),
+        vz: Math.sin(th) * spd * spread,
+        hue: mono ? hue : 0.08 + Math.random() * 0.06, life: 1,
+        decay: 0.005 + Math.random() * 0.005, bright: 0.85
+      });
+    }
+  } else if (type < 0.90) {
+    // Crossette — small burst that splits into 4 sub-bursts
+    const dirs = [[1,0],[0,1],[-1,0],[0,-1]];
+    const spd1 = SIZE * 0.3 * sizeMul;
+    for (const [dx, dz] of dirs) {
+      const sx = x + dx * SIZE * 0.08, sz = z + dz * SIZE * 0.08;
+      const n2 = 15 + Math.floor(Math.random() * 10);
+      const spd2 = SIZE * (0.15 + Math.random() * 0.2) * sizeMul;
+      for (let i = 0; i < n2; i++) {
+        const th = (i / n2) * Math.PI * 2 + Math.random() * 0.3;
+        const ph = Math.random() * Math.PI;
+        fwBursts.push({ x: sx, y, z: sz,
+          vx: Math.sin(ph) * Math.cos(th) * spd2 + dx * spd1 * 0.3,
+          vy: Math.sin(ph) * Math.sin(th) * spd2 * 0.5,
+          vz: Math.cos(ph) * spd2 + dz * spd1 * 0.3,
+          hue: mono ? hue : (hue2 + Math.random() * 0.1) % 1, life: 1,
+          decay: 0.01 + Math.random() * 0.008, bright: 0.9
+        });
+      }
+    }
+  } else {
+    // Crackle — sparse bright sparkles with fast decay + secondary pops
+    const n = 20 + Math.floor(Math.random() * 20);
+    const spd = SIZE * (0.25 + Math.random() * 0.3) * sizeMul;
+    for (let i = 0; i < n; i++) {
+      const th = Math.random() * Math.PI * 2;
+      const ph = Math.acos(1 - 2 * Math.random());
+      const s = spd * (0.5 + Math.random() * 0.5);
+      fwBursts.push({ x, y, z,
+        vx: Math.sin(ph) * Math.cos(th) * s,
+        vy: Math.cos(ph) * s * 0.6,
+        vz: Math.sin(ph) * Math.sin(th) * s,
+        hue: 0.13 + Math.random() * 0.04, life: 1,
+        decay: 0.015 + Math.random() * 0.015, bright: 1.0
+      });
+    }
   }
 }
 
