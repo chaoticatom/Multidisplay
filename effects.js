@@ -1802,6 +1802,108 @@ function drawVUStyle(dt){
   }
 }
 
+// ── PLASMA STYLE — audio-reactive plasma colour field ──
+function drawPlasmaStyle(dt){
+  let energy=0;
+  for(let i=0;i<32;i++) energy+=auSpec[i];
+  energy/=32;
+  const bass=(auSpec[0]+auSpec[1]+auSpec[2])/3;
+  const hueShift=t*0.12*(1+bass*3);
+  for(let i=0;i<N;i++){
+    const x=surfX[i],y=surfY[i],z=surfZ[i];
+    const p1=Math.sin(x*4.5+t*1.3)+Math.sin(y*3.8-t*0.9);
+    const p2=Math.sin(z*5.1+t*0.7)+Math.sin((x+y)*2.9+t*1.1);
+    const p3=Math.sin((x-z)*3.3+t*1.5)+Math.cos((y+z)*4.1-t*0.6);
+    const plasma=(p1+p2+p3)/6+0.5;
+    const intensity=plasma*(0.15+energy*0.85);
+    const hue=(plasma*0.5+hueShift+x*0.1+z*0.1)%1;
+    const [r,g,b]=hsl((hue+1)%1,1,Math.min(1,intensity*0.9));
+    setLED(i,r,g,b);
+  }
+}
+
+// ── RINGS STYLE — expanding concentric rings triggered by bass ──
+let ringsArr=[], ringTimer=0;
+function drawRingsStyle(dt){
+  ringTimer+=dt;
+  const bassHit=auSpec[0]+auSpec[1];
+  if(bassHit>1.2 && ringTimer>0.15 && ringsArr.length<12){
+    ringTimer=0;
+    const face=Math.floor(Math.random()*6);
+    const cx=Math.random()*SIZE, cy=Math.random()*SIZE;
+    ringsArr.push({face,cx,cy,radius:0,hue:Math.random(),bright:1});
+  }
+  // update & draw rings
+  for(let ri=ringsArr.length-1;ri>=0;ri--){
+    const ring=ringsArr[ri];
+    ring.radius+=dt*SIZE*1.8;
+    ring.bright-=dt*1.2;
+    if(ring.bright<=0){ringsArr.splice(ri,1);continue;}
+    const f=ring.face, S=SIZE;
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const d=Math.abs(Math.hypot(u-ring.cx,v-ring.cy)-ring.radius);
+      if(d<1.8){
+        const a=(1-d/1.8)*ring.bright;
+        const [r,g,b]=hsl(ring.hue,1,a*0.8);
+        const idx=faceMap[f][v*S+u];
+        if(idx>=0) blendLED(idx,r,g,b);
+      }
+    }
+  }
+}
+
+// ── FIRE STYLE — audio-reactive fire columns on side faces ──
+function drawFireStyle(dt){
+  const SIDES=[2,0,3,1];
+  const S=SIZE;
+  for(let si=0;si<4;si++){
+    const face=SIDES[si];
+    const bandsPerFace=8;
+    const colW=S/bandsPerFace;
+    for(let b=0;b<bandsPerFace;b++){
+      const band=si*bandsPerFace+b;
+      const spec=band<32?auSpec[band]:0;
+      const h=spec*S;
+      const colStart=Math.floor(b*colW), colEnd=Math.floor((b+1)*colW);
+      for(let u=colStart;u<colEnd&&u<S;u++){
+        for(let v=0;v<S;v++){
+          const row=S-1-v; // bottom-up
+          if(row<h){
+            const frac=row/Math.max(h,1);
+            const flicker=0.85+0.15*Math.sin(u*7.3+t*12+v*3.1)*Math.sin(t*8.7+u*2.1);
+            const noise=0.9+0.1*Math.random();
+            let rr,gg,bb;
+            if(frac<0.3){
+              // bottom: bright yellow/white
+              rr=1; gg=0.9+0.1*(1-frac/0.3); bb=0.4*(1-frac/0.3);
+            } else if(frac<0.7){
+              // middle: orange
+              const mf=(frac-0.3)/0.4;
+              rr=1; gg=0.9-mf*0.55; bb=0;
+            } else {
+              // top: red to dark
+              const tf=(frac-0.7)/0.3;
+              rr=1-tf*0.5; gg=0.35-tf*0.3; bb=0;
+            }
+            const bright=flicker*noise*(1-frac*0.3);
+            rr*=bright; gg*=bright; bb*=bright;
+            const idx=faceMap[face][v*S+u];
+            if(idx>=0) blendLED(idx,Math.min(1,rr),Math.min(1,gg),Math.min(1,bb));
+          }
+        }
+      }
+    }
+  }
+  // top face glow from fire
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const glow=(auSpec[0]+auSpec[1])*0.15;
+    if(glow>0.02){
+      const idx=faceMap[4][v*S+u];
+      if(idx>=0) blendLED(idx,glow,glow*0.3,0);
+    }
+  }
+}
+
 function effectSpectrum(dt){
   t+=dt;
   if(micOn && auAnalyser) readMicSpectrum(dt); else genSimSpectrum(dt);
@@ -1816,6 +1918,9 @@ function effectSpectrum(dt){
     case 'waveform':  drawWaveformStyle(dt);     break;
     case 'tunnel':    drawTunnelStyle(dt);       break;
     case 'storm':     drawStormStyle(dt);        break;
+    case 'plasma':    drawPlasmaStyle(dt);      break;
+    case 'rings':     drawRingsStyle(dt);       break;
+    case 'fire':      drawFireStyle(dt);        break;
     default:          drawBandBars(false);
   }
 }
