@@ -5387,8 +5387,8 @@ function effectVideo(dt){
 
   for(let fIdx=0;fIdx<4;fIdx++){
     const face=VID_FACE_ORDER[fIdx];
-    // Front(0) and Left(3) need u flipped to flow correctly
-    const flipU=(face===0||face===3);
+    // Front(0), Back(1) and Left(3) need u flipped to flow correctly
+    const flipU=(face===0||face===1||face===3);
     for(let v=0;v<S;v++){
       for(let u=0;u<S;u++){
         let srcX,srcY;
