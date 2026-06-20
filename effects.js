@@ -3850,11 +3850,14 @@ function effectWeather(dt){
     const crV=Math.round((HORIZ+cr.py*(1-HORIZ))*S1);
     // Base U in panoramic pixel space (0..S*4)
     const basePanU=cr.px*S*4;
+    function setCreature(idx,r,g,b){
+      if(idx<0) return;
+      colBuf[idx*3]=r; colBuf[idx*3+1]=g; colBuf[idx*3+2]=b;
+    }
     if(cr.type==='bird'){
       cr.wingT+=dt;
       const flap=Math.sin(cr.wingT*(5+cr.wingSpeed)+cr.wing);
       const wOff=Math.round(flap*1.5);
-      const br=bldDay?0.35:0.55;
       const dir=cr.dx>0?1:-1;
       const pixels=[{du:-2,dv:-wOff},{du:-1,dv:-wOff/2},{du:0,dv:0},{du:1,dv:-wOff/2},{du:2,dv:-wOff}];
       for(const {du,dv} of pixels){
@@ -3866,7 +3869,7 @@ function effectWeather(dt){
         const fu=Math.round((panFrac-fi*0.25)/0.25*S1);
         if(fu<0||fu>=S||pv<0||pv>=S) continue;
         const idx=faceMap[face][pv*S+fu]; if(idx<0) continue;
-        blendLED(idx,br*0.9,br,br*1.1);
+        setCreature(idx,0.08,0.06,0.05);
       }
     } else {
       cr.blink+=dt*2;
@@ -3875,7 +3878,6 @@ function effectWeather(dt){
       const wobOff=cr.wobble>0?Math.round(Math.sin(cr.wobble*12)*cr.wobble*1.5):0;
       const planeV=crV+wobOff;
       const isHit=cr.lightningHit>0.15;
-      // Draw lightning bolt to plane when hit
       if(cr.lightningHit>0.1){
         const boltU=basePanU;
         for(let bv=Math.min(S-1,planeV+1);bv<S;bv++){
@@ -3887,7 +3889,7 @@ function effectWeather(dt){
           const bfu=Math.round((pf-bfi*0.25)/0.25*S1);
           if(bfu>=0&&bfu<S&&bv>=0&&bv<S){
             const bidx=faceMap[bface][bv*S+bfu];
-            if(bidx>=0) blendLED(bidx,0.9,0.9,1);
+            if(bidx>=0) setCreature(bidx,0.9,0.9,1);
           }
         }
       }
@@ -3899,8 +3901,8 @@ function effectWeather(dt){
         const fu=Math.round((panFrac-fi*0.25)/0.25*S1);
         if(fu<0||fu>=S||planeV<0||planeV>=S) continue;
         const idx=faceMap[face][planeV*S+fu]; if(idx<0) continue;
-        if(isHit) blendLED(idx,1,1,1);
-        else blendLED(idx,0.65,0.68,0.72);
+        if(isHit) setCreature(idx,1,1,1);
+        else setCreature(idx,0.55,0.55,0.6);
       }
       if(blinkOn && !isHit){
         const panU=basePanU-2*dir;
@@ -3909,7 +3911,7 @@ function effectWeather(dt){
         const face=SIDE[fi];
         const fu=Math.round((panFrac-fi*0.25)/0.25*S1);
         if(fu>=0&&fu<S&&planeV>=0&&planeV<S){
-          const idx=faceMap[face][planeV*S+fu]; if(idx>=0) blendLED(idx,1,0.1,0.1);
+          const idx=faceMap[face][planeV*S+fu]; if(idx>=0) setCreature(idx,1,0.1,0.1);
         }
       }
     }
