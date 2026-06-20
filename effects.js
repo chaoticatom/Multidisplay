@@ -3862,23 +3862,20 @@ function effectWeather(dt){
     if(cr.type==='balloon'){
       cr.phaseT+=dt;
       if(cr.phase==='rise'){
-        cr.py=Math.min(0.7,cr.py+dt*0.012);
-        if(cr.py>=0.7) cr.phase='float';
+        cr.py=Math.min(0.65,cr.py+dt*0.015);
+        if(cr.py>=0.65) cr.phase='float';
       } else if(cr.phase==='float'){
         cr.px=(cr.px+cr.dx*dt*60+1)%1;
         cr.py+=Math.sin(cr.phaseT*0.5)*dt*0.003;
-        cr.py=Math.max(0.55,Math.min(0.82,cr.py));
-        const prevLaps=cr.laps;
-        cr.laps=Math.floor(cr.phaseT*cr.dx*60/1*4)/4;
-        if(cr.phaseT>40+cr.maxLaps*80) cr.phase='descend';
+        cr.py=Math.max(0.45,Math.min(0.75,cr.py));
+        if(cr.phaseT>20) cr.phase='descend';
       } else if(cr.phase==='descend'){
         cr.px=(cr.px+cr.dx*dt*60*0.5+1)%1;
-        cr.py=Math.max(0.02,cr.py-dt*0.008);
+        cr.py=Math.max(0.02,cr.py-dt*0.012);
         if(cr.py<=0.02){
           const balloonColors=[[1,0.2,0.1],[0.1,0.5,1],[0.9,0.8,0.1],[0.2,0.8,0.3],[0.8,0.2,0.8],[1,0.5,0]];
           cr.phase='rise'; cr.phaseT=0; cr.py=0.05;
           cr.px=Math.random(); cr.laps=0;
-          cr.maxLaps=2+Math.floor(Math.random()*3);
           cr.color=balloonColors[Math.floor(Math.random()*balloonColors.length)];
           cr.delay=60+Math.random()*120;
           continue;
@@ -3887,22 +3884,24 @@ function effectWeather(dt){
       const crV=Math.round((HORIZ+cr.py*(1-HORIZ))*S1);
       const baseCol=Math.round(cr.px*S*4);
       const c=cr.color;
-      // Envelope: 3 wide × 4 tall dome
-      for(let ev=-3;ev<=0;ev++){
-        const w=ev<-2?1:ev<-1?2:2;
+      // Envelope: dome shape (v goes up = lower v values)
+      for(let ev=-4;ev<=-1;ev++){
+        const w=ev===-4?0:ev===-3?1:2;
         for(let eu=-w;eu<=w;eu++){
           const idx=creaturePx(baseCol+eu,crV+ev);
           if(idx>=0) setCreature(idx,c[0],c[1],c[2]);
         }
       }
-      // Basket: 1 wide × 1 tall below
-      const bi=creaturePx(baseCol,crV+1);
-      if(bi>=0) setCreature(bi,0.35,0.2,0.08);
-      // Ropes
-      const r1=creaturePx(baseCol-1,crV+1);
-      const r2=creaturePx(baseCol+1,crV+1);
-      if(r1>=0) setCreature(r1,0.25,0.15,0.05);
-      if(r2>=0) setCreature(r2,0.25,0.15,0.05);
+      // Ropes connecting envelope to basket
+      const r1=creaturePx(baseCol-1,crV);
+      const r2=creaturePx(baseCol+1,crV);
+      if(r1>=0) setCreature(r1,0.3,0.18,0.06);
+      if(r2>=0) setCreature(r2,0.3,0.18,0.06);
+      // Basket
+      for(let bu=-1;bu<=1;bu++){
+        const bi=creaturePx(baseCol+bu,crV+1);
+        if(bi>=0) setCreature(bi,0.4,0.22,0.08);
+      }
       continue;
     }
     if(cr.type==='plane'&&cr.px>1){
