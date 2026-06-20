@@ -1194,6 +1194,15 @@ document.querySelectorAll('[data-fwmode]').forEach(btn=>{
   });
 });
 
+// Bouncing balls mode
+document.querySelectorAll('[data-ballmode]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('[data-ballmode]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    ballCrossFaces=btn.dataset.ballmode==='cross';
+  });
+});
+
 // Fireworks scrolling text
 document.getElementById('fw-text-on')?.addEventListener('change',e=>{
   fwTextOn=e.target.checked;

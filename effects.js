@@ -1185,6 +1185,7 @@ function effectStrobe(dt){
 // Gravity always pulls to the physically lowest face.
 
 let balls=[], ballFlashes=[];
+let ballCrossFaces=true;
 
 // Face edge adjacency: [face][edge] = {f, map(u,v,S)=>[nu,nv,ndu,ndv]}
 // Edges: 0=left(u<0), 1=right(u>=S), 2=bottom(v<0), 3=top(v>=S)
@@ -1295,7 +1296,7 @@ function effectBouncingBalls(dt){
     b.u+=b.du*dt;
     b.v+=b.dv*dt;
 
-    if(!panel2dMode){
+    if(!panel2dMode&&ballCrossFaces){
       let iters=0;
       while(iters<4){
         let edge=-1;
