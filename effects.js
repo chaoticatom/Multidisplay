@@ -1187,163 +1187,109 @@ function effectStrobe(dt){
 let balls=[], ballFlashes=[];
 
 function resetBalls(){
-  if(!SIZE) return;
+  if(!SIZE||!N||!faceMap) return;
+  if(!sandNeighbours) buildSandNeighbours();
   balls=[]; ballFlashes=[];
-  const S=SIZE, H=S-1;
+  const S=SIZE;
   for(let k=0;k<6;k++){
+    const startIdx=Math.floor(Math.random()*N);
     balls.push({
-      wx: S*0.15+Math.random()*S*0.7,
-      wy: S*0.15+Math.random()*S*0.7,
-      wz: S*0.15+Math.random()*S*0.7,
-      vx:(Math.random()-0.5)*S*0.5,
-      vy:0,
-      vz:(Math.random()-0.5)*S*0.5,
-      hue:k/6,
-      radius: Math.max(2, Math.round(S*0.06+Math.random()*S*0.03)),
+      idx: startIdx,
+      vx:0, vy:0, vz:0,
+      hue: k/6,
+      radius: Math.max(3, Math.round(S*0.06+Math.random()*S*0.03)),
     });
   }
 }
 
 function effectBouncingBalls(dt){
   t+=dt;
+  if(!sandNeighbours) buildSandNeighbours();
   if(!balls.length) resetBalls();
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
-  const S=SIZE, S1=S-1;
+  const S=SIZE;
   const rawG=getLocalGravity(1);
   const gLen=Math.sqrt(rawG.x*rawG.x+rawG.y*rawG.y+rawG.z*rawG.z)||1;
-  const GRAV=S*12;
-  const gx=rawG.x/gLen*GRAV, gy=rawG.y/gLen*GRAV, gz=rawG.z/gLen*GRAV;
+  const gx=-rawG.x/gLen, gy=-rawG.y/gLen, gz=-rawG.z/gLen;
+  function gravH(i){ return gridX[i]*gx+gridY[i]*gy+gridZ[i]*gz; }
+
+  const STEPS=Math.min(8, Math.max(1, Math.round(S*0.12)));
 
   for(const b of balls){
-    b.vx+=gx*dt; b.vy+=gy*dt; b.vz+=gz*dt;
-
-    const fric=Math.pow(0.985,dt*60);
-    b.vx*=fric; b.vy*=fric; b.vz*=fric;
-
-    b.wx+=b.vx*dt; b.wy+=b.vy*dt; b.wz+=b.vz*dt;
-
-    const R=b.radius;
-    const bounce=0.55;
-    if(b.wx<R)   {b.wx=R;   if(b.vx<0) b.vx*=-bounce;}
-    if(b.wx>S1-R){b.wx=S1-R;if(b.vx>0) b.vx*=-bounce;}
-    if(b.wy<R)   {b.wy=R;   if(b.vy<0) b.vy*=-bounce;}
-    if(b.wy>S1-R){b.wy=S1-R;if(b.vy>0) b.vy*=-bounce;}
-    if(b.wz<R)   {b.wz=R;   if(b.vz<0) b.vz*=-bounce;}
-    if(b.wz>S1-R){b.wz=S1-R;if(b.vz>0) b.vz*=-bounce;}
-
-    b.hue=(b.hue+dt*0.03)%1;
-
-    const cx=Math.round(b.wx), cy=Math.round(b.wy), cz=Math.round(b.wz);
-    const [hr,hg,hb]=hsl(b.hue,1,0.95);
-    const [or_,og,ob]=hsl(b.hue,0.7,0.4);
-    const R2=R*R;
-
-    // Project sphere onto each face it's close enough to touch
-    // Face 0 front (z=S-1): visible if cz+R >= S-1
-    if(cz+R>=S1){
-      for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
-        const px=cx+dx, py=cy+dy;
-        if(px<0||px>=S||py<0||py>=S) continue;
-        const dz2=R2-dx*dx-dy*dy;
-        if(dz2<0) continue;
-        const sz=Math.sqrt(dz2);
-        if(cz+sz<S1-0.5) continue;
-        const d2=dx*dx+dy*dy;
-        const outline=d2>=(R-1.2)*(R-1.2);
-        const idx=faceMap[0][py*S+px];
-        if(idx>=0){colBuf[idx*3]=Math.max(colBuf[idx*3],outline?or_:hr);colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],outline?og:hg);colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],outline?ob:hb);}
+    for(let step=0;step<STEPS;step++){
+      const nb=sandNeighbours[b.idx];
+      if(!nb||!nb.length) break;
+      let bestIdx=-1, bestH=gravH(b.idx);
+      for(const n of nb){
+        const hn=gravH(n);
+        if(hn<bestH){ bestH=hn; bestIdx=n; }
+      }
+      if(bestIdx>=0){
+        b.vx=gridX[bestIdx]-gridX[b.idx];
+        b.vy=gridY[bestIdx]-gridY[b.idx];
+        b.vz=gridZ[bestIdx]-gridZ[b.idx];
+        b.idx=bestIdx;
+      } else {
+        // At rest — slide sideways randomly with small probability for liveliness
+        if(Math.random()<0.05*dt*60){
+          const ri=nb[Math.floor(Math.random()*nb.length)];
+          b.idx=ri;
+        }
       }
     }
-    // Face 1 back (z=0)
-    if(cz-R<=0){
-      for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
-        const px=cx+dx, py=cy+dy;
-        if(px<0||px>=S||py<0||py>=S) continue;
-        const dz2=R2-dx*dx-dy*dy;
-        if(dz2<0) continue;
-        if(cz-Math.sqrt(dz2)>0.5) continue;
-        const d2=dx*dx+dy*dy;
-        const outline=d2>=(R-1.2)*(R-1.2);
-        const idx=faceMap[1][py*S+px];
-        if(idx>=0){colBuf[idx*3]=Math.max(colBuf[idx*3],outline?or_:hr);colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],outline?og:hg);colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],outline?ob:hb);}
+
+    b.hue=(b.hue+dt*0.04)%1;
+
+    // Render ball as a filled sphere on the surface
+    const cx=gridX[b.idx], cy=gridY[b.idx], cz=gridZ[b.idx];
+    const R=b.radius, R2=R*R;
+    const [hr,hg,hb]=hsl(b.hue,1,0.9);
+    const [sr,sg,sb]=hsl(b.hue,0.8,0.55);
+    const [dr,dg,db]=hsl(b.hue,0.6,0.3);
+
+    for(let i=0;i<N;i++){
+      const dx=gridX[i]-cx, dy=gridY[i]-cy, dz=gridZ[i]-cz;
+      const d2=dx*dx+dy*dy+dz*dz;
+      if(d2>R2) continue;
+      const d=Math.sqrt(d2);
+      const t2=d/R;
+      // Shading: bright center, medium mid, dark edge
+      let cr,cg,cb;
+      if(t2<0.5){
+        const f=t2*2;
+        cr=hr*(1-f)+sr*f; cg=hg*(1-f)+sg*f; cb=hb*(1-f)+sb*f;
+      } else {
+        const f=(t2-0.5)*2;
+        cr=sr*(1-f)+dr*f; cg=sg*(1-f)+dg*f; cb=sb*(1-f)+db*f;
       }
-    }
-    // Face 2 right (x=S-1)
-    if(cx+R>=S1){
-      for(let dy=-R;dy<=R;dy++) for(let dz=-R;dz<=R;dz++){
-        const pz=cz+dz, py=cy+dy;
-        if(pz<0||pz>=S||py<0||py>=S) continue;
-        const dx2=R2-dy*dy-dz*dz;
-        if(dx2<0) continue;
-        if(cx+Math.sqrt(dx2)<S1-0.5) continue;
-        const d2=dy*dy+dz*dz;
-        const outline=d2>=(R-1.2)*(R-1.2);
-        const idx=faceMap[2][py*S+pz];
-        if(idx>=0){colBuf[idx*3]=Math.max(colBuf[idx*3],outline?or_:hr);colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],outline?og:hg);colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],outline?ob:hb);}
-      }
-    }
-    // Face 3 left (x=0)
-    if(cx-R<=0){
-      for(let dy=-R;dy<=R;dy++) for(let dz=-R;dz<=R;dz++){
-        const pz=cz+dz, py=cy+dy;
-        if(pz<0||pz>=S||py<0||py>=S) continue;
-        const dx2=R2-dy*dy-dz*dz;
-        if(dx2<0) continue;
-        if(cx-Math.sqrt(dx2)>0.5) continue;
-        const d2=dy*dy+dz*dz;
-        const outline=d2>=(R-1.2)*(R-1.2);
-        const idx=faceMap[3][py*S+pz];
-        if(idx>=0){colBuf[idx*3]=Math.max(colBuf[idx*3],outline?or_:hr);colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],outline?og:hg);colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],outline?ob:hb);}
-      }
-    }
-    // Face 4 top (y=S-1)
-    if(cy+R>=S1){
-      for(let dz=-R;dz<=R;dz++) for(let dx=-R;dx<=R;dx++){
-        const px=cx+dx, pz=cz+dz;
-        if(px<0||px>=S||pz<0||pz>=S) continue;
-        const dy2=R2-dx*dx-dz*dz;
-        if(dy2<0) continue;
-        if(cy+Math.sqrt(dy2)<S1-0.5) continue;
-        const d2=dx*dx+dz*dz;
-        const outline=d2>=(R-1.2)*(R-1.2);
-        const idx=faceMap[4][pz*S+px];
-        if(idx>=0){colBuf[idx*3]=Math.max(colBuf[idx*3],outline?or_:hr);colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],outline?og:hg);colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],outline?ob:hb);}
-      }
-    }
-    // Face 5 bottom (y=0)
-    if(cy-R<=0){
-      for(let dz=-R;dz<=R;dz++) for(let dx=-R;dx<=R;dx++){
-        const px=cx+dx, pz=cz+dz;
-        if(px<0||px>=S||pz<0||pz>=S) continue;
-        const dy2=R2-dx*dx-dz*dz;
-        if(dy2<0) continue;
-        if(cy-Math.sqrt(dy2)>0.5) continue;
-        const d2=dx*dx+dz*dz;
-        const outline=d2>=(R-1.2)*(R-1.2);
-        const idx=faceMap[5][pz*S+px];
-        if(idx>=0){colBuf[idx*3]=Math.max(colBuf[idx*3],outline?or_:hr);colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],outline?og:hg);colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],outline?ob:hb);}
-      }
+      colBuf[i*3]=Math.max(colBuf[i*3],cr);
+      colBuf[i*3+1]=Math.max(colBuf[i*3+1],cg);
+      colBuf[i*3+2]=Math.max(colBuf[i*3+2],cb);
     }
   }
 
-  // Ball-ball collisions
+  // Ball-ball repulsion — push apart when overlapping
   for(let i=0;i<balls.length;i++){
     for(let j=i+1;j<balls.length;j++){
       const a=balls[i], b2=balls[j];
-      const dx=b2.wx-a.wx, dy=b2.wy-a.wy, dz=b2.wz-a.wz;
+      const dx=gridX[b2.idx]-gridX[a.idx], dy=gridY[b2.idx]-gridY[a.idx], dz=gridZ[b2.idx]-gridZ[a.idx];
       const dist=Math.sqrt(dx*dx+dy*dy+dz*dz);
       const minD=a.radius+b2.radius;
       if(dist<minD&&dist>0.01){
-        const nx=dx/dist, ny=dy/dist, nz=dz/dist;
-        const overlap=(minD-dist)*0.5;
-        a.wx-=nx*overlap; a.wy-=ny*overlap; a.wz-=nz*overlap;
-        b2.wx+=nx*overlap; b2.wy+=ny*overlap; b2.wz+=nz*overlap;
-        const relV=(b2.vx-a.vx)*nx+(b2.vy-a.vy)*ny+(b2.vz-a.vz)*nz;
-        if(relV<0){
-          const imp=relV*0.8;
-          a.vx+=imp*nx; a.vy+=imp*ny; a.vz+=imp*nz;
-          b2.vx-=imp*nx; b2.vy-=imp*ny; b2.vz-=imp*nz;
+        // Push the lighter one (random) away
+        const push=balls[Math.random()<0.5?i:j];
+        const nb=sandNeighbours[push.idx];
+        if(nb&&nb.length){
+          // Move away from the other ball
+          const other=push===a?b2:a;
+          let bestIdx=-1, bestDist=-1;
+          for(const n of nb){
+            const ex=gridX[n]-gridX[other.idx], ey=gridY[n]-gridY[other.idx], ez=gridZ[n]-gridZ[other.idx];
+            const ed=ex*ex+ey*ey+ez*ez;
+            if(ed>bestDist){bestDist=ed; bestIdx=n;}
+          }
+          if(bestIdx>=0) push.idx=bestIdx;
         }
       }
     }
