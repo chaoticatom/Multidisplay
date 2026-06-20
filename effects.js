@@ -3663,49 +3663,51 @@ function effectWeather(dt){
     }
   }
 
-  // Draw city name — static if fits on one face, scroll if not
+  // Draw city name — static if fits, seamless scroll if not
   if(locStr){
     const textW=locStr.length*4;
-    const faceW=panel2dMode?S:S*4;
+    const totalW=panel2dMode?S:S*4;
     const lr=txtR*0.7,lg=txtG*0.7,lb=txtB*0.85;
-    let startCol;
     if(textW<=S){
-      startCol=Math.max(0,S-textW-1);
       wxScrollOff=0;
+      wxText(SIDE[0],locStr,Math.max(0,S-textW-1),textV,lr,lg,lb);
     } else {
-      const gap=Math.max(S,20);
-      wxScrollOff=(wxScrollOff+dt*20)%(textW+gap);
-      startCol=Math.round(faceW-wxScrollOff);
-    }
-    let col=startCol;
-    for(const ch of locStr){
-      const rows=WXF[ch]||WXF[ch.toUpperCase()];
-      if(rows){
-        for(let row=0;row<5;row++){
-          const bits=rows[row];
-          for(let c=0;c<3;c++){
-            if(!((bits>>(2-c))&1)) continue;
-            const u=col+c, v=textV+(4-row);
-            if(v<0||v>=S) continue;
-            if(panel2dMode){
-              if(u>=0&&u<S){
-                const idx=faceMap[0][v*S+u]; if(idx<0) continue;
-                if(lr>colBuf[idx*3]) colBuf[idx*3]=lr;
-                if(lg>colBuf[idx*3+1]) colBuf[idx*3+1]=lg;
-                if(lb>colBuf[idx*3+2]) colBuf[idx*3+2]=lb;
-              }
-            } else {
-              const idx=creaturePx(u,v);
-              if(idx>=0){
-                if(lr>colBuf[idx*3]) colBuf[idx*3]=lr;
-                if(lg>colBuf[idx*3+1]) colBuf[idx*3+1]=lg;
-                if(lb>colBuf[idx*3+2]) colBuf[idx*3+2]=lb;
+      const sep=Math.max(S/2|0,16);
+      const tileW=textW+sep;
+      wxScrollOff=(wxScrollOff+dt*20)%tileW;
+      const off=Math.round(-wxScrollOff);
+      for(let tile=off;tile<totalW;tile+=tileW){
+        let col=tile;
+        for(const ch of locStr){
+          const rows=WXF[ch]||WXF[ch.toUpperCase()];
+          if(rows){
+            for(let row=0;row<5;row++){
+              const bits=rows[row];
+              for(let c=0;c<3;c++){
+                if(!((bits>>(2-c))&1)) continue;
+                const u=col+c, v=textV+(4-row);
+                if(v<0||v>=S) continue;
+                if(u<0||u>=totalW){ /* skip off-screen */ }
+                else if(panel2dMode){
+                  const idx=faceMap[0][v*S+u]; if(idx>=0){
+                    if(lr>colBuf[idx*3]) colBuf[idx*3]=lr;
+                    if(lg>colBuf[idx*3+1]) colBuf[idx*3+1]=lg;
+                    if(lb>colBuf[idx*3+2]) colBuf[idx*3+2]=lb;
+                  }
+                } else {
+                  const idx=creaturePx(u,v);
+                  if(idx>=0){
+                    if(lr>colBuf[idx*3]) colBuf[idx*3]=lr;
+                    if(lg>colBuf[idx*3+1]) colBuf[idx*3+1]=lg;
+                    if(lb>colBuf[idx*3+2]) colBuf[idx*3+2]=lb;
+                  }
+                }
               }
             }
           }
+          col+=4;
         }
       }
-      col+=4;
     }
   }
 
