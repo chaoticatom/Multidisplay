@@ -3325,14 +3325,17 @@ function wxUpdateCityDropdown(){
       .then(r=>r.json()).then(data=>{
         const results=data.results||[];
         if(!results.length){ dropdown.style.display='none'; return; }
+        const nameCounts={};
+        results.forEach(r=>{ nameCounts[r.name]=(nameCounts[r.name]||0)+1; });
         dropdown.innerHTML=results.map(r=>{
           const label=`${r.name}${r.admin1?', '+r.admin1:''}${r.country?', '+r.country:''}`;
-          return `<div style="padding:6px 8px;cursor:pointer;font-size:13px;color:#9bd;border-bottom:1px solid rgba(80,120,255,0.1);" data-city="${r.name}" data-lat="${r.latitude}" data-lon="${r.longitude}">${label}</div>`;
+          const short=nameCounts[r.name]>1?`${r.name}, ${r.country||''}`:r.name;
+          return `<div style="padding:6px 8px;cursor:pointer;font-size:13px;color:#9bd;border-bottom:1px solid rgba(80,120,255,0.1);" data-short="${short}" data-lat="${r.latitude}" data-lon="${r.longitude}">${label}</div>`;
         }).join('');
         dropdown.style.display='block';
-        dropdown.querySelectorAll('div[data-city]').forEach(el=>{
+        dropdown.querySelectorAll('div[data-short]').forEach(el=>{
           el.addEventListener('click',()=>{
-            document.getElementById('wx-city').value=el.textContent;
+            document.getElementById('wx-city').value=el.dataset.short;
             wxLat=parseFloat(el.dataset.lat);
             wxLon=parseFloat(el.dataset.lon);
             dropdown.style.display='none';
