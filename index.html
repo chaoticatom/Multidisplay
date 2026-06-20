@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=103">
+<link rel="stylesheet" href="style.css?v=104">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -261,17 +261,17 @@
       <div style="display:flex;gap:5px;margin-bottom:8px;">
         <div style="flex:1;position:relative;">
           <input id="wx-city" type="text" placeholder="Search cities…" value="Milton Keynes"
-            style="width:100%;padding:5px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:12px;border-radius:4px;box-sizing:border-box;">
+            style="width:100%;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:14px;border-radius:4px;box-sizing:border-box;">
           <div id="wx-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:150px;overflow-y:auto;z-index:1000;margin-top:2px;">
           </div>
         </div>
-        <button id="wx-fetch-btn" style="padding:5px 10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">GO</button>
+        <button id="wx-fetch-btn" style="padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;">GO</button>
       </div>
-      <div id="wx-status" style="font-size:11px;color:#778;min-height:14px;">Enter city and press GO</div>
+      <div id="wx-status" style="font-size:13px;color:#778;min-height:16px;">Enter city and press GO</div>
       <div id="wx-info" style="margin-top:6px;display:none;">
-        <div id="wx-temp-line" style="font-size:13px;color:#cde;font-weight:700;"></div>
-        <div id="wx-desc-line" style="font-size:11px;color:#99a;margin-top:2px;"></div>
-        <div id="wx-sun-line" style="font-size:10px;color:#667;margin-top:4px;"></div>
+        <div id="wx-temp-line" style="font-size:15px;color:#cde;font-weight:700;"></div>
+        <div id="wx-desc-line" style="font-size:13px;color:#99a;margin-top:2px;"></div>
+        <div id="wx-sun-line" style="font-size:12px;color:#667;margin-top:4px;"></div>
       </div>
     </div>
     <button class="effect-btn has-panel" data-effect="lightspeed">◈ Light Speed <span class="panel-arrow">▸</span></button>
@@ -832,7 +832,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=103"></script>
+<script src="version.js?v=104"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -867,7 +867,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=103','effects.js?v=103','f1.js?v=103','ui.js?v=103'];
+  const appScripts = ['cube.js?v=104','effects.js?v=104','f1.js?v=104','ui.js?v=104'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';

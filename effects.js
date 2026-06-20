@@ -2982,7 +2982,7 @@ function wxInitScene(code){
   const isStormCode=code>=95;
   const isHeavyRain=code===55||code===65||code>=81;
   const isOvercastCode=code===3;
-  const nc=code===0?0:code===1?3:code<=2?8:isOvercastCode?65:isStormCode?30:isHeavyRain?25:isRainCode?20:isSnowCode?18:code>=45&&code<=48?12:10;
+  const nc=code===0?0:code===1?6:code<=2?18:isOvercastCode?65:isStormCode?30:isHeavyRain?25:isRainCode?20:isSnowCode?18:code>=45&&code<=48?12:10;
   const dark=isStormCode;
   for(let i=0;i<nc;i++) wxClouds.push({px:Math.random(),py:isOvercastCode?0.15+Math.random()*0.8:0.3+Math.random()*0.6,
     sz:isStormCode?0.14+Math.random()*0.22:isRainCode?0.1+Math.random()*0.18:isOvercastCode?0.18+Math.random()*0.25:0.07+Math.random()*0.14,
@@ -3029,25 +3029,36 @@ function wxInitScene(code){
   }
 }
 
-// ── Weather city search dropdown ──
-let wxCities=[]; // populated from API
+// ── Weather city search dropdown (live API) ──
+let wxCityTimer=null;
 
 function wxUpdateCityDropdown(){
-  const input=document.getElementById('wx-city')?.value.trim().toLowerCase()||'';
+  const input=document.getElementById('wx-city')?.value.trim()||'';
   const dropdown=document.getElementById('wx-city-dropdown');
   if(!dropdown) return;
-  if(!input){ dropdown.style.display='none'; return; }
-  const matches=wxCities.filter(c=>c.toLowerCase().includes(input)).slice(0,8);
-  if(!matches.length){ dropdown.style.display='none'; return; }
-  dropdown.innerHTML=matches.map(c=>`<div style="padding:6px 8px;cursor:pointer;font-size:12px;color:#9bd;border-bottom:1px solid rgba(80,120,255,0.1);" data-city="${c}">${c}</div>`).join('');
-  dropdown.style.display='block';
-  dropdown.querySelectorAll('div[data-city]').forEach(el=>{
-    el.addEventListener('click',()=>{
-      document.getElementById('wx-city').value=el.dataset.city;
-      dropdown.style.display='none';
-      wxFetch();
-    });
-  });
+  if(input.length<2){ dropdown.style.display='none'; return; }
+  clearTimeout(wxCityTimer);
+  wxCityTimer=setTimeout(()=>{
+    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(input)}&count=8&format=json`)
+      .then(r=>r.json()).then(data=>{
+        const results=data.results||[];
+        if(!results.length){ dropdown.style.display='none'; return; }
+        dropdown.innerHTML=results.map(r=>{
+          const label=`${r.name}${r.admin1?', '+r.admin1:''}${r.country?', '+r.country:''}`;
+          return `<div style="padding:6px 8px;cursor:pointer;font-size:13px;color:#9bd;border-bottom:1px solid rgba(80,120,255,0.1);" data-city="${r.name}" data-lat="${r.latitude}" data-lon="${r.longitude}">${label}</div>`;
+        }).join('');
+        dropdown.style.display='block';
+        dropdown.querySelectorAll('div[data-city]').forEach(el=>{
+          el.addEventListener('click',()=>{
+            document.getElementById('wx-city').value=el.dataset.city;
+            wxLat=parseFloat(el.dataset.lat);
+            wxLon=parseFloat(el.dataset.lon);
+            dropdown.style.display='none';
+            wxFetch();
+          });
+        });
+      }).catch(()=>{});
+  },250);
 }
 
 document.getElementById('wx-city')?.addEventListener('input',wxUpdateCityDropdown);
