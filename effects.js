@@ -5390,7 +5390,8 @@ function renderImg(){
           const sx=Math.min(imgW-1,(srcU*imgW)|0);
           const sy=Math.min(imgH-1,(srcV*imgH)|0);
           const pi=(sy*imgW+sx)*4;
-          setFaceLED(face,u,v,imgPx[pi]/255,imgPx[pi+1]/255,imgPx[pi+2]/255);
+          const fv=(face===2)?(S-1-v):v;
+          setFaceLED(face,u,fv,imgPx[pi]/255,imgPx[pi+1]/255,imgPx[pi+2]/255);
         }
       }
     }
