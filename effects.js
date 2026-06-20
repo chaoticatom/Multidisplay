@@ -506,28 +506,17 @@ let fwTextOn=false, fwScrollX=0, fwTextPixels=null, fwTextWidth=0, fwTextH=0;
 
 function buildFwText(msg){
   if(!msg||!msg.trim()){ fwTextPixels=null; return; }
-  const totalW=4*SIZE;
   const maxH=Math.round(SIZE*0.33);
+  const fh=Math.min(maxH, Math.max(8, maxH-2));
 
   const oc=document.createElement('canvas');
   const cx=oc.getContext('2d');
 
-  const padText=' '+msg.trim()+'   ';
-
-  // Binary search for largest font where text fits within totalW
-  let lo=4, hi=maxH, fh=maxH;
-  while(lo<=hi){
-    const mid=(lo+hi)>>1;
-    cx.font=`bold ${mid}px "Arial Black",Arial,sans-serif`;
-    const tw=cx.measureText(padText).width;
-    if(tw<=totalW){ fh=mid; lo=mid+1; }
-    else hi=mid-1;
-  }
-
+  const padText=msg.trim()+'   ';
   cx.font=`bold ${fh}px "Arial Black",Arial,sans-serif`;
-  const tw=cx.measureText(padText).width;
+  const oneW=Math.ceil(cx.measureText(padText).width);
+  const totalW=Math.max(4*SIZE, oneW);
 
-  // Canvas is exactly totalW — tile text to fill it completely with no gaps
   oc.width=totalW; oc.height=maxH;
   cx.fillStyle='#000'; cx.fillRect(0,0,totalW,maxH);
   cx.fillStyle='#fff';
@@ -535,11 +524,10 @@ function buildFwText(msg){
   cx.textBaseline='middle';
   const yc=maxH/2;
 
-  // Draw enough copies to cover totalW
   let x=0;
   while(x<totalW){
     cx.fillText(padText,x,yc);
-    x+=Math.max(1,tw);
+    x+=Math.max(1,oneW);
   }
 
   fwTextPixels=new Uint8ClampedArray(cx.getImageData(0,0,totalW,maxH).data);
