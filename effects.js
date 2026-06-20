@@ -2945,7 +2945,7 @@ function effectCustomCube(dt){
 // ── WEATHER EFFECT ─────────────────────────────────────────────────────────────
 let wxCode=0,wxTemp=20,wxDesc='Clear',wxFetching=false,wxLastFetch=-9999;
 let wxSunriseS=21600,wxSunsetS=72000,wxTzOffset=0;
-let wxLat=51.5,wxLon=-0.12;
+let wxLat=52.04,wxLon=-0.76;
 let wxClouds=[],wxParticles=[],wxStars=[],wxT2=0,wxLightFlash=0;
 let wxSkyline=null,wxCreatures=[];
 const WX_CODES={0:'Clear',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',
@@ -3198,13 +3198,13 @@ function effectWeather(dt){
     if(face===2) return 0.25*f;
     if(face===0) return 0.25+(1-f)*0.25;
     if(face===3) return 0.5+(1-f)*0.25;
-    return 0.75+(1-f)*0.25; // face 1 — flipped so back face reads correctly
+    return 0.75+f*0.25; // face 1
   }
   function uOfFacePanX(face,px){
     if(face===2) return Math.round(px/0.25*S1);
     if(face===0) return Math.round((1-(px-0.25)/0.25)*S1);
     if(face===3) return Math.round((1-(px-0.5)/0.25)*S1);
-    return Math.round((1-(px-0.75)/0.25)*S1);
+    return Math.round((px-0.75)/0.25*S1);
   }
   function vOfElevFrac(elev){ // elev 0=horizon, 1=top
     return Math.round((HORIZ+elev*(1-HORIZ))*S1);

@@ -256,7 +256,7 @@ function initCube(newSize) {
   for (let i = 0; i < N; i++) {
     const x = gridX[i], y = gridY[i], z = gridZ[i];
     if (z === SIZE-1) faceMap[0][y * SIZE + x] = i; // front
-    if (z === 0)      faceMap[1][y * SIZE + x] = i; // back
+    if (z === 0)      faceMap[1][y * SIZE + (SIZE-1-x)] = i; // back (mirrored so it reads correctly from behind)
     if (x === SIZE-1) faceMap[2][y * SIZE + z] = i; // right
     if (x === 0)      faceMap[3][y * SIZE + z] = i; // left
     if (y === SIZE-1) faceMap[4][z * SIZE + x] = i; // top

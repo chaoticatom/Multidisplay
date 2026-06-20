@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=90">
+<link rel="stylesheet" href="style.css?v=91">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -260,7 +260,7 @@
     <div class="effect-panel" id="panel-weather">
       <div style="display:flex;gap:5px;margin-bottom:8px;">
         <div style="flex:1;position:relative;">
-          <input id="wx-city" type="text" placeholder="Search cities…" value="London"
+          <input id="wx-city" type="text" placeholder="Search cities…" value="Milton Keynes"
             style="width:100%;padding:5px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:12px;border-radius:4px;box-sizing:border-box;">
           <div id="wx-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:150px;overflow-y:auto;z-index:1000;margin-top:2px;">
           </div>
@@ -832,7 +832,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=90"></script>
+<script src="version.js?v=91"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -867,7 +867,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=90','effects.js?v=90','f1.js?v=90','ui.js?v=90'];
+  const appScripts = ['cube.js?v=91','effects.js?v=91','f1.js?v=91','ui.js?v=91'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
