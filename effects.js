@@ -2986,7 +2986,8 @@ function wxInitScene(code){
   const dark=isStormCode;
   for(let i=0;i<nc;i++) wxClouds.push({px:Math.random(),py:isOvercastCode?0.15+Math.random()*0.8:0.3+Math.random()*0.6,
     sz:isStormCode?0.14+Math.random()*0.22:isRainCode?0.1+Math.random()*0.18:isOvercastCode?0.18+Math.random()*0.25:0.07+Math.random()*0.14,
-    spd:0.00008+Math.random()*0.00015,
+    spd:0.0002+Math.random()*0.0004,
+    spdY:(Math.random()-0.35)*0.00012,
     br:dark?0.1+Math.random()*0.12:isRainCode?0.18+Math.random()*0.18:isOvercastCode?0.55+Math.random()*0.45:0.6+Math.random()*0.4,
     puffs:isStormCode?6+Math.floor(Math.random()*6):isRainCode?5+Math.floor(Math.random()*5):isOvercastCode?6+Math.floor(Math.random()*7):3+Math.floor(Math.random()*5),fluff:Math.random()});
   for(let i=0;i<100;i++) wxStars.push({px:Math.random(),py:Math.random(),
@@ -3490,6 +3491,9 @@ function effectWeather(dt){
   const cloudDark=isStorm?0.25:isRain?0.4:isOvercast?0.95:wxCode>=3?0.65:0.85;
   for(const cl of wxClouds){
     cl.px=(cl.px+cl.spd*dt+1)%1;
+    cl.py=cl.py+cl.spdY*dt;
+    if(cl.py<0.1){cl.py=0.1;cl.spdY=Math.abs(cl.spdY);}
+    if(cl.py>0.95){cl.py=0.95;cl.spdY=-Math.abs(cl.spdY);}
     // Draw on side faces and top
     for(let fi=0;fi<4;fi++){
       const face=SIDE[fi];
