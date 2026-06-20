@@ -5343,12 +5343,15 @@ function loadImgFile(file){
   const img=new Image();
   img.onload=()=>{
     if(!imgCv){ imgCv=document.createElement('canvas'); imgCtx=imgCv.getContext('2d',{willReadFrequently:true}); }
+    // Stop video first (which also clears image), then set image data
+    if(vidStream){ vidStream.getTracks().forEach(tr=>tr.stop()); vidStream=null; }
+    if(vidEl){ vidEl.srcObject=null; vidEl.src=''; vidEl.pause(); }
+    vidReady=false;
     imgW=img.width; imgH=img.height;
     imgCv.width=imgW; imgCv.height=imgH;
     imgCtx.drawImage(img,0,0);
     imgPx=imgCtx.getImageData(0,0,imgW,imgH).data;
     imgLoaded=true;
-    stopVid();
     document.getElementById('vid-status').textContent='🖼 '+file.name.substring(0,28);
   };
   img.src=URL.createObjectURL(file);
