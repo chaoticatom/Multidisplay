@@ -1995,70 +1995,66 @@ function drawRingsStyle(dt){
     const cx=Math.random()*SIZE, cy=Math.random()*SIZE;
     ringsArr.push({face,cx,cy,radius:0,hue:Math.random(),bright:1});
   }
-  // update & draw rings
   for(let ri=ringsArr.length-1;ri>=0;ri--){
     const ring=ringsArr[ri];
     ring.radius+=dt*SIZE*1.2;
     ring.bright-=dt*0.7;
     if(ring.bright<=0){ringsArr.splice(ri,1);continue;}
-    const f=ring.face, S=SIZE;
-    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-      const d=Math.abs(Math.hypot(u-ring.cx,v-ring.cy)-ring.radius);
-      if(d<3){
-        const a=(1-d/3)*ring.bright;
-        const [r,g,b]=hsl(ring.hue,1,a*0.9);
+    const f=ring.face, S=SIZE, r=ring.radius, w=3;
+    const [cr,cg,cb]=hsl(ring.hue,1,ring.bright*0.9);
+    const rMin=Math.max(0,Math.floor(r-w)), rMax=Math.ceil(r+w);
+    const uMin=Math.max(0,Math.floor(ring.cx-rMax));
+    const uMax=Math.min(S-1,Math.ceil(ring.cx+rMax));
+    const vMin=Math.max(0,Math.floor(ring.cy-rMax));
+    const vMax=Math.min(S-1,Math.ceil(ring.cy+rMax));
+    for(let v=vMin;v<=vMax;v++) for(let u=uMin;u<=uMax;u++){
+      const dist=Math.hypot(u-ring.cx,v-ring.cy);
+      const d=Math.abs(dist-r);
+      if(d<w){
+        const a=(1-d/w);
         const idx=faceMap[f][v*S+u];
-        if(idx>=0) blendLED(idx,r,g,b);
+        if(idx>=0) blendLED(idx,cr*a,cg*a,cb*a);
       }
     }
   }
 }
 
-// ── FIRE STYLE — audio-reactive fire columns on side faces ──
 function drawFireStyle(dt){
   const SIDES=[2,0,3,1];
-  const S=SIZE;
+  const S=SIZE, M=S-1;
+  const AB=spectrumBandOverride||AUDIO_BANDS;
   for(let si=0;si<4;si++){
     const face=SIDES[si];
-    const bandsPerFace=8;
-    const colW=S/bandsPerFace;
-    for(let b=0;b<bandsPerFace;b++){
-      const band=si*bandsPerFace+b;
-      const spec=band<32?auSpec[band]:0;
-      const h=spec*S;
-      const colStart=Math.floor(b*colW), colEnd=Math.floor((b+1)*colW);
-      for(let u=colStart;u<colEnd&&u<S;u++){
-        for(let v=0;v<S;v++){
-          if(v<h){
-            const frac=v/Math.max(h,1);
-            const flicker=0.85+0.15*Math.sin(u*7.3+t*12+v*3.1)*Math.sin(t*8.7+u*2.1);
-            const noise=0.9+0.1*Math.random();
-            let rr,gg,bb;
-            if(frac<0.3){
-              // bottom: bright yellow/white
-              rr=1; gg=0.9+0.1*(1-frac/0.3); bb=0.4*(1-frac/0.3);
-            } else if(frac<0.7){
-              // middle: orange
-              const mf=(frac-0.3)/0.4;
-              rr=1; gg=0.9-mf*0.55; bb=0;
-            } else {
-              // top: red to dark
-              const tf=(frac-0.7)/0.3;
-              rr=1-tf*0.5; gg=0.35-tf*0.3; bb=0;
-            }
-            const bright=flicker*noise*(1-frac*0.3);
-            rr*=bright; gg*=bright; bb*=bright;
-            const idx=faceMap[face][v*S+u];
-            if(idx>=0) blendLED(idx,Math.min(1,rr),Math.min(1,gg),Math.min(1,bb));
+    const colW=S/AB;
+    for(let b=0;b<AB;b++){
+      const spec=auSpec[b];
+      if(spec<0.02) continue;
+      const h=Math.round(spec*M);
+      const colStart=Math.floor(b*colW), colEnd=Math.min(S,Math.floor((b+1)*colW));
+      for(let u=colStart;u<colEnd;u++){
+        for(let v=0;v<h;v++){
+          const frac=v/h;
+          const flicker=0.85+0.15*Math.sin(u*7.3+t*12+v*3.1);
+          let rr,gg,bb;
+          if(frac<0.3){
+            rr=1; gg=0.95; bb=0.4*(1-frac/0.3);
+          } else if(frac<0.7){
+            const mf=(frac-0.3)/0.4;
+            rr=1; gg=0.95-mf*0.6; bb=0;
+          } else {
+            const tf=(frac-0.7)/0.3;
+            rr=1-tf*0.5; gg=0.35-tf*0.3; bb=0;
           }
+          const bright=flicker*(1-frac*0.3);
+          const idx=faceMap[face][v*S+u];
+          if(idx>=0) blendLED(idx,Math.min(1,rr*bright),Math.min(1,gg*bright),Math.min(1,bb*bright));
         }
       }
     }
   }
-  // top face glow from fire
-  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-    const glow=(auSpec[0]+auSpec[1])*0.15;
-    if(glow>0.02){
+  const glow=(auSpec[0]+auSpec[1])*0.12;
+  if(glow>0.02){
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
       const idx=faceMap[4][v*S+u];
       if(idx>=0) blendLED(idx,glow,glow*0.3,0);
     }
