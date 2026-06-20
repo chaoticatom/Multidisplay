@@ -3881,9 +3881,9 @@ function effectWeather(dt){
       const crV=Math.round((HORIZ+cr.py*(1-HORIZ))*S1);
       const baseCol=Math.round(cr.px*S*4);
       const c=cr.color;
-      // Envelope: dome shape (v goes up = lower v values)
-      for(let ev=-4;ev<=-1;ev++){
-        const w=ev===-4?0:ev===-3?1:2;
+      // Envelope: dome shape (higher v = higher on screen)
+      for(let ev=1;ev<=4;ev++){
+        const w=ev===4?0:ev===3?1:2;
         for(let eu=-w;eu<=w;eu++){
           const idx=creaturePx(baseCol+eu,crV+ev);
           if(idx>=0) setCreature(idx,c[0],c[1],c[2]);
@@ -3894,9 +3894,9 @@ function effectWeather(dt){
       const r2=creaturePx(baseCol+1,crV);
       if(r1>=0) setCreature(r1,0.3,0.18,0.06);
       if(r2>=0) setCreature(r2,0.3,0.18,0.06);
-      // Basket
+      // Basket below
       for(let bu=-1;bu<=1;bu++){
-        const bi=creaturePx(baseCol+bu,crV+1);
+        const bi=creaturePx(baseCol+bu,crV-1);
         if(bi>=0) setCreature(bi,0.4,0.22,0.08);
       }
       continue;
