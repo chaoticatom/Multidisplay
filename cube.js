@@ -73,7 +73,7 @@ function resize() {
 function fitCameraToScene(w, h) {
   const fov = camera.fov * Math.PI / 180;
   const cubeRadius = TOTAL_SPAN * 0.82;
-  const buffer = 1.15;
+  const buffer = window.innerWidth > 768 ? 1.45 : 1.15;
   const distV = (cubeRadius * buffer) / Math.tan(fov / 2);
   const distH = (cubeRadius * buffer) / (Math.tan(fov / 2) * (w / h));
   const dist = Math.max(distV, distH);
