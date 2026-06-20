@@ -2219,7 +2219,6 @@ function initCustomGraphicsEditor(){
   document.getElementById('cg-clear-btn').onclick=()=>{cgCtx.clearRect(0,0,256,256);cgHistory.length=0;saveCanvasState();}
   document.getElementById('cg-undo-btn').onclick=()=>{if(cgHistory.length>0){cgHistory.pop();redrawCanvas()}}
   document.getElementById('cg-save-btn').onclick=()=>{saveGraphicsToEffect();}
-  document.getElementById('cg-load-btn').onclick=()=>{loadGraphicsFromFile();}
   
   document.querySelectorAll('.cg-face-btn').forEach(b=>{
     b.onclick=(e)=>{
@@ -2301,66 +2300,82 @@ function floodFill(pos){
   cgCtx.putImageData(imageData,0,0);
 }
 
+function getCGLibrary(){
+  try{
+    const lib=JSON.parse(localStorage.getItem('cgDesigns')||'[]');
+    if(lib.length===0){
+      const old=localStorage.getItem('cgGraphics');
+      if(old){
+        const entry={name:'Untitled',faces:JSON.parse(old)};
+        lib.push(entry);
+        localStorage.setItem('cgDesigns',JSON.stringify(lib));
+        localStorage.removeItem('cgGraphics');
+      }
+    }
+    return lib;
+  }catch(e){return[];}
+}
+function saveCGLibrary(lib){localStorage.setItem('cgDesigns',JSON.stringify(lib));}
+
+function updateCGLoadDropdown(){
+  const sel=document.getElementById('cg-load-select');
+  if(!sel) return;
+  sel.innerHTML='<option value="">— choose design —</option>';
+  const lib=getCGLibrary();
+  for(const d of lib){
+    const opt=document.createElement('option');
+    opt.value=d.name;
+    opt.textContent=d.name;
+    sel.appendChild(opt);
+  }
+}
+
 function saveGraphicsToEffect(){
-  if(customGraphics.faces.size===0){alert('Nothing to save!');return;}
-  localStorage.setItem('cgGraphics',JSON.stringify(Array.from(customGraphics.faces.entries())));
-  alert('Graphics saved!');
+  saveCanvasState();
+  const nameEl=document.getElementById('cg-name-input');
+  let name=(nameEl?nameEl.value:'').trim();
+  if(!name){name=prompt('Enter a name for this design:');if(!name)return;name=name.trim();}
+  if(!name)return;
+  if(customGraphics.faces.size===0){alert('Nothing to save — draw on at least one face first.');return;}
+  const lib=getCGLibrary();
+  const existing=lib.findIndex(d=>d.name===name);
+  const entry={name,faces:Array.from(customGraphics.faces.entries())};
+  if(existing>=0) lib[existing]=entry; else lib.push(entry);
+  saveCGLibrary(lib);
+  if(nameEl) nameEl.value='';
+  updateCGLoadDropdown();
+  alert('Design "'+name+'" saved!');
   applyCustomGraphicsEffect();
 }
 
-function loadGraphicsFromFile(){
-  const saved=localStorage.getItem('cgGraphics');
-  if(saved){
-    customGraphics.faces=new Map(JSON.parse(saved));
-    loadCanvasForFace(cgCurrentFace);
-    alert('Graphics loaded!');
-  }else{alert('No saved graphics found.');}
-}
-
 function applyCustomGraphicsEffect(){
-  // Switch to custom graphics effect
   currentEffect='customGraphics';
   const btn=document.querySelector('[data-effect="customGraphics"]');
   if(btn)btn.click();
 }
 
-
-
-// Wire custom graphics load dropdown and apply button
-function updateCGLoadDropdown(){
-  const saved=localStorage.getItem('cgGraphics');
-  const sel=document.getElementById('cg-load-select');
-  if(!sel) return;
-  sel.innerHTML='<option value="">— choose drawing —</option>';
-  if(saved){
-    try{
-      const data=JSON.parse(saved);
-      for(const [key,val] of data){
-        const opt=document.createElement('option');
-        opt.value=key;
-        opt.textContent=key.replace('face','Face ');
-        sel.appendChild(opt);
-      }
-    }catch(e){}
-  }
-}
+document.getElementById('cg-save-named-btn')?.addEventListener('click',()=>{saveGraphicsToEffect();});
 
 document.getElementById('cg-apply-btn')?.addEventListener('click',()=>{
   const sel=document.getElementById('cg-load-select');
-  const key=sel?.value;
-  if(!key){alert('Select a face drawing first');return;}
-  const saved=localStorage.getItem('cgGraphics');
-  if(saved){
-    try{
-      const data=new Map(JSON.parse(saved));
-      customGraphics.faces=data;
-      currentEffect='customGraphics';
-      const btn=document.querySelector('[data-effect="customGraphics"]');
-      if(btn) btn.click();
-      document.getElementById('cg-load-select').value='';
-      alert('Custom face loaded!');
-    }catch(e){alert('Error loading drawing');}
-  }
+  const name=sel?.value;
+  if(!name){alert('Select a design first');return;}
+  const lib=getCGLibrary();
+  const design=lib.find(d=>d.name===name);
+  if(!design){alert('Design not found');return;}
+  customGraphics.faces=new Map(design.faces);
+  loadCanvasForFace(cgCurrentFace);
+  applyCustomGraphicsEffect();
+});
+
+document.getElementById('cg-del-btn')?.addEventListener('click',()=>{
+  const sel=document.getElementById('cg-load-select');
+  const name=sel?.value;
+  if(!name){alert('Select a design first');return;}
+  if(!confirm('Delete "'+name+'"?')) return;
+  const lib=getCGLibrary().filter(d=>d.name!==name);
+  saveCGLibrary(lib);
+  updateCGLoadDropdown();
 });
 
 updateCGLoadDropdown();

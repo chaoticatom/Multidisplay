@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=146">
+<link rel="stylesheet" href="style.css?v=147">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -588,14 +588,28 @@
           <button id="pl-new-btn" class="util-btn">+ New Playlist</button>
           <button id="pl-edit-btn" class="util-btn">✏ Edit / Save Playlist</button>
           <button id="pl-reset-btn" class="util-btn">↺ Reset to Demo</button>
-          <div style="border-top:1px solid rgba(80,120,255,0.2);margin:8px 0;padding-top:8px;">
-            <div style="font-size:11px;color:#7aadff;margin-bottom:4px;letter-spacing:1px;font-weight:600;">CUSTOM FACES</div>
-            <button id="cg-open-btn" class="util-btn" style="margin-bottom:5px;">🎨 DRAW FACE</button>
-            <div style="display:flex;gap:4px;">
-              <select id="cg-load-select" style="flex:1;padding:6px 8px;background:rgba(12,18,40,0.9);border:1px solid rgba(80,120,255,0.3);color:#bbd;border-radius:5px;font-size:12px;"><option value="">— choose drawing —</option></select>
-              <button id="cg-apply-btn" class="util-btn" style="margin:0;padding:6px 10px;">Load</button>
-            </div>
-          </div>
+    </div>
+  </div>
+
+  <div class="sidebar-section collapsed" id="custom-faces-section">
+    <button class="section-head">🎨 Custom Faces <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div style="font-size:12px;color:#9ab;margin-bottom:10px;line-height:1.5;">Draw custom graphics for each cube face. Save designs by name and load them onto the cube.</div>
+      <button id="cg-open-btn" class="util-btn" style="width:100%;margin-bottom:10px;">🎨 DRAW / EDIT FACES</button>
+      <div style="font-size:11px;color:#7aadff;letter-spacing:1px;margin-bottom:5px;font-weight:600;">SAVE DESIGN</div>
+      <div style="display:flex;gap:5px;margin-bottom:10px;">
+        <input id="cg-name-input" type="text" placeholder="Design name…" maxlength="40"
+          style="flex:1;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;border-radius:4px;">
+        <button id="cg-save-named-btn" style="padding:6px 10px;font-size:12px;background:rgba(60,220,120,0.1);border:1px solid rgba(60,220,120,0.3);color:#6e8;border-radius:5px;cursor:pointer;font-weight:700;">💾</button>
+      </div>
+      <div style="font-size:11px;color:#7aadff;letter-spacing:1px;margin-bottom:5px;font-weight:600;">LOAD DESIGN</div>
+      <div style="display:flex;gap:5px;margin-bottom:6px;">
+        <select id="cg-load-select" style="flex:1;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;border-radius:4px;">
+          <option value="">— choose design —</option>
+        </select>
+        <button id="cg-apply-btn" style="padding:6px 10px;font-size:12px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:5px;cursor:pointer;font-weight:700;">↓</button>
+        <button id="cg-del-btn" style="padding:6px 10px;font-size:12px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.2);color:#f88;border-radius:5px;cursor:pointer;font-weight:700;">✕</button>
+      </div>
     </div>
   </div>
 
@@ -849,15 +863,13 @@
         <div style="border-top:1px solid rgba(100,150,255,0.3);padding-top:10px;">
           <button id="cg-clear-btn" style="width:100%;background:#2a3a5a;border:1px solid #7aadff;color:#aaf;padding:6px;margin-bottom:5px;cursor:pointer;font-size:11px;">CLEAR FACE</button>
           <button id="cg-undo-btn" style="width:100%;background:#2a3a5a;border:1px solid #7aadff;color:#aaf;padding:6px;margin-bottom:5px;cursor:pointer;font-size:11px;">UNDO</button>
-          <button id="cg-save-btn" style="width:100%;background:#2a5a3a;border:1px solid #7aadff;color:#7f7;padding:6px;margin-bottom:5px;cursor:pointer;font-size:11px;font-weight:bold;">SAVE</button>
-          <button id="cg-load-btn" style="width:100%;background:#3a3a5a;border:1px solid #7aadff;color:#aaf;padding:6px;cursor:pointer;font-size:11px;">LOAD</button>
+          <button id="cg-save-btn" style="width:100%;background:#2a5a3a;border:1px solid #7aadff;color:#7f7;padding:6px;margin-bottom:5px;cursor:pointer;font-size:11px;font-weight:bold;">💾 SAVE DESIGN</button>
         </div>
       </div>
     </div>
     
     <div style="margin-top:15px;padding-top:10px;border-top:1px solid rgba(100,150,255,0.3);font-size:11px;color:#88f;">
-      <p style="margin:0 0 5px 0;">To use: Select a face, draw with your chosen tool, then SAVE to apply to cube.</p>
-      <p style="margin:0;">Your designs are saved locally. Use LOAD to reload saved graphics.</p>
+      <p style="margin:0;">Select a face, draw with your chosen tool, then SAVE to name and store your design.</p>
     </div>
   </div>
 </div>
@@ -867,7 +879,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=146"></script>
+<script src="version.js?v=147"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -902,7 +914,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=146','effects.js?v=146','f1.js?v=146','ui.js?v=146'];
+  const appScripts = ['cube.js?v=147','effects.js?v=147','f1.js?v=147','ui.js?v=147'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
