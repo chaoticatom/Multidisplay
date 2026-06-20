@@ -5386,11 +5386,17 @@ function renderImg(){
         for(let u=0;u<S;u++){
           const pu=flipU?(S-1-u):u;
           const srcU=(fIdx*S+pu)/totalW;
-          const srcV=(face===2)?(v/(S-1)):((S-1-v)/(S-1));
+          const srcV=(S-1-v)/(S-1);
           const sx=Math.min(imgW-1,(srcU*imgW)|0);
           const sy=Math.min(imgH-1,(srcV*imgH)|0);
           const pi=(sy*imgW+sx)*4;
-          setFaceLED(face,u,v,imgPx[pi]/255,imgPx[pi+1]/255,imgPx[pi+2]/255);
+          const outV=(face===2)?(S-1-v):v;
+          const idx=faceMap[face][outV*S+u];
+          if(idx>=0){
+            colBuf[idx*3]=imgPx[pi]/255;
+            colBuf[idx*3+1]=imgPx[pi+1]/255;
+            colBuf[idx*3+2]=imgPx[pi+2]/255;
+          }
         }
       }
     }
