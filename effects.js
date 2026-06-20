@@ -3498,6 +3498,21 @@ function effectWeather(dt){
 
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
+  // Cross-face pixel mapper for creatures and scrolling text
+  const CW_FACES=[0,2,1,3];
+  function creaturePx(stripCol,v){
+    const totalCols=S*4;
+    const col=((stripCol%totalCols)+totalCols)%totalCols;
+    const qi=(col/S)|0;
+    const fu=col%S;
+    if(fu<0||fu>=S||v<0||v>=S) return -1;
+    return faceMap[CW_FACES[qi]][v*S+fu];
+  }
+  function setCreature(idx,r,g,b){
+    if(idx<0) return;
+    colBuf[idx*3]=r; colBuf[idx*3+1]=g; colBuf[idx*3+2]=b;
+  }
+
   const HORIZ=0.32; // horizon at 32% from bottom of side faces
   const SIDE=[2,0,3,1]; // panorama quarter order matching panXOfFaceU: right→front→left→back
 
@@ -3884,21 +3899,6 @@ function effectWeather(dt){
   }
 
   // ── Birds & Planes ──
-  // Physical clockwise face order: front(0)→right(2)→back(1)→left(3)
-  // faceMap mirroring already aligns u=0→63 in clockwise direction for all faces
-  const CW_FACES=[0,2,1,3];
-  function creaturePx(stripCol,v){
-    const totalCols=S*4;
-    const col=((stripCol%totalCols)+totalCols)%totalCols;
-    const qi=(col/S)|0;
-    const fu=col%S;
-    if(fu<0||fu>=S||v<0||v>=S) return -1;
-    return faceMap[CW_FACES[qi]][v*S+fu];
-  }
-  function setCreature(idx,r,g,b){
-    if(idx<0) return;
-    colBuf[idx*3]=r; colBuf[idx*3+1]=g; colBuf[idx*3+2]=b;
-  }
   for(const cr of wxCreatures){
     if(cr.delay>0){ cr.delay-=dt; continue; }
     cr.px=(cr.px+cr.dx*dt*60+1)%1;
