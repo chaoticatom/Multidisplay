@@ -1189,7 +1189,7 @@ document.querySelectorAll('[data-fwmode]').forEach(btn=>{
     document.querySelectorAll('[data-fwmode]').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     fwMode=btn.dataset.fwmode;
-    if(fwMode==='sync'){ fwSyncT=0; fwSyncPhase=0; fwSyncStep=0; }
+    if(fwMode==='sync'){ fwSyncWait=0; fwSyncAct=0; fwSyncQueue.length=0; }
     if(fwMode==='mic') fwMicStart();
   });
 });

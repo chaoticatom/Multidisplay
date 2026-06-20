@@ -441,74 +441,134 @@ function fwBurst(col, v, hue, hue2) {
   }
 }
 
-// Sync show: choreographed sequences
-const FW_SYNC_PHASES = [
-  // volley — rapid burst from one side
-  (step) => {
-    const base = Math.floor(Math.random() * 4) * SIZE;
-    for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) {
-      const sc = base + SIZE * 0.15 + Math.random() * SIZE * 0.7;
-      fwRockets.push({ col: sc, v: 0, vy: SIZE * (0.65 + Math.random() * 0.35), vc: (Math.random() - 0.5) * SIZE * 0.15, hue: (step * 0.15 + i * 0.08) % 1, hue2: Math.random(), trail: [] });
-    }
-    return 0.35;
-  },
-  // cascade — sequential launches across all 4 faces
-  (step) => {
-    const totalCols = SIZE * 4;
-    const count = 6 + Math.floor(Math.random() * 4);
-    const hBase = Math.random();
-    for (let i = 0; i < count; i++) {
-      const sc = (totalCols / count) * i + Math.random() * SIZE * 0.3;
-      setTimeout(() => {
-        fwRockets.push({ col: sc, v: 0, vy: SIZE * (0.6 + Math.random() * 0.3), vc: 0, hue: (hBase + i * 0.05) % 1, hue2: (hBase + 0.5) % 1, trail: [] });
-      }, i * 120);
-    }
-    return 1.2;
-  },
-  // fan — spread from center of one face
-  (step) => {
-    const face = Math.floor(Math.random() * 4);
-    const center = face * SIZE + SIZE / 2;
-    const hue = Math.random();
-    for (let i = -3; i <= 3; i++) {
-      const sc = center + i * SIZE * 0.08;
-      fwRockets.push({ col: sc, v: 0, vy: SIZE * (0.7 + Math.random() * 0.2), vc: i * SIZE * 0.06, hue: hue, hue2: (hue + 0.3) % 1, trail: [] });
-    }
-    return 0.6;
-  },
-  // crossover — two sides launch toward each other
-  (step) => {
-    const hue = Math.random();
-    for (let i = 0; i < 3; i++) {
-      const sc1 = SIZE * 0.3 + Math.random() * SIZE * 0.4;
-      const sc2 = SIZE * 2 + SIZE * 0.3 + Math.random() * SIZE * 0.4;
-      fwRockets.push({ col: sc1, v: 0, vy: SIZE * (0.65 + Math.random() * 0.3), vc: SIZE * 0.15, hue: hue, hue2: (hue + 0.5) % 1, trail: [] });
-      fwRockets.push({ col: sc2, v: 0, vy: SIZE * (0.65 + Math.random() * 0.3), vc: -SIZE * 0.15, hue: (hue + 0.5) % 1, hue2: hue, trail: [] });
-    }
-    return 0.8;
-  },
-  // finale — massive barrage from all sides
-  (step) => {
-    const totalCols = SIZE * 4;
-    const hBase = Math.random();
-    for (let i = 0; i < 12 + Math.floor(Math.random() * 8); i++) {
-      const sc = Math.random() * totalCols;
-      const delay = Math.random() * 600;
-      setTimeout(() => {
-        fwRockets.push({ col: sc, v: 0, vy: SIZE * (0.5 + Math.random() * 0.5), vc: (Math.random() - 0.5) * SIZE * 0.2, hue: (hBase + Math.random() * 0.3) % 1, hue2: Math.random(), trail: [] });
-      }, delay);
-    }
-    return 1.8;
+// Sync show: choreographed sequences with grouped styles and palettes
+const FW_PALETTES = [
+  [0.0, 0.03],   // reds
+  [0.08, 0.14],  // golds/amber
+  [0.55, 0.65],  // blues
+  [0.3, 0.38],   // greens
+  [0.78, 0.88],  // purples/pinks
+  [0.0, 1.0],    // rainbow
+];
+let fwSyncQueue = [];
+let fwSyncWait = 0;
+let fwSyncAct = 0;
+
+function fwSyncRocket(col, vy, vc, hue, hue2, delay) {
+  if (delay > 0) {
+    fwSyncQueue.push({ col, vy, vc, hue, hue2, delay });
+  } else {
+    fwRockets.push({ col, v: 0, vy, vc, hue, hue2, trail: [] });
   }
+}
+
+function fwPal() { return FW_PALETTES[Math.floor(Math.random() * FW_PALETTES.length)]; }
+function fwHue(pal) { return pal[0] + Math.random() * (pal[1] - pal[0]); }
+
+// Quick fan — rapid succession fanning out from a point
+function fwFan(center, pal, count, spread) {
+  const n = count || 7 + Math.floor(Math.random() * 5);
+  const sp = spread || SIZE * 0.07;
+  const hue = fwHue(pal);
+  for (let i = 0; i < n; i++) {
+    const off = (i - (n - 1) / 2);
+    const d = i * 50;
+    fwSyncRocket(center + off * sp * 0.3, SIZE * (0.65 + Math.random() * 0.25), off * sp * 0.8, hue, (hue + 0.15) % 1, d);
+  }
+}
+
+// Staggered volley from one face — same color family
+function fwVolley(faceIdx, pal, count) {
+  const base = faceIdx * SIZE;
+  const n = count || 4 + Math.floor(Math.random() * 3);
+  const hue = fwHue(pal);
+  for (let i = 0; i < n; i++) {
+    const sc = base + SIZE * 0.15 + Math.random() * SIZE * 0.7;
+    fwSyncRocket(sc, SIZE * (0.6 + Math.random() * 0.35), (Math.random() - 0.5) * SIZE * 0.1, hue, (hue + 0.2 + Math.random() * 0.1) % 1, i * 80);
+  }
+}
+
+// Cascade — evenly spaced across all faces, staggered timing
+function fwCascade(pal, dir) {
+  const total = SIZE * 4;
+  const n = 8 + Math.floor(Math.random() * 4);
+  const hue = fwHue(pal);
+  for (let i = 0; i < n; i++) {
+    const idx = dir > 0 ? i : (n - 1 - i);
+    const sc = (total / n) * idx + SIZE * 0.1 + Math.random() * SIZE * 0.15;
+    fwSyncRocket(sc, SIZE * (0.55 + Math.random() * 0.35), 0, (hue + i * 0.02) % 1, (hue + 0.4) % 1, i * 100);
+  }
+}
+
+// Symmetry — matching launches from opposite faces
+function fwSymmetry(pal) {
+  const hue = fwHue(pal);
+  const pairs = [[0, 2], [1, 3]];
+  const pair = pairs[Math.floor(Math.random() * 2)];
+  for (let i = 0; i < 3; i++) {
+    const off = SIZE * 0.2 + Math.random() * SIZE * 0.6;
+    const vy = SIZE * (0.6 + Math.random() * 0.3);
+    const h = (hue + i * 0.06) % 1;
+    fwSyncRocket(pair[0] * SIZE + off, vy, 0, h, (h + 0.3) % 1, i * 120);
+    fwSyncRocket(pair[1] * SIZE + off, vy, 0, h, (h + 0.3) % 1, i * 120);
+  }
+}
+
+// Waterfall — dense short bursts raining down from all 4 faces
+function fwWaterfall(pal) {
+  const total = SIZE * 4;
+  const hue = fwHue(pal);
+  for (let i = 0; i < 16; i++) {
+    const sc = Math.random() * total;
+    fwSyncRocket(sc, SIZE * (0.35 + Math.random() * 0.2), (Math.random() - 0.5) * SIZE * 0.05, (hue + Math.random() * 0.08) % 1, hue, i * 40);
+  }
+}
+
+// Finale — massive rapid-fire barrage
+function fwFinale() {
+  const total = SIZE * 4;
+  const pal1 = fwPal(), pal2 = fwPal();
+  for (let i = 0; i < 20; i++) {
+    const sc = Math.random() * total;
+    const pal = i % 2 === 0 ? pal1 : pal2;
+    const hue = fwHue(pal);
+    fwSyncRocket(sc, SIZE * (0.45 + Math.random() * 0.5), (Math.random() - 0.5) * SIZE * 0.2, hue, (hue + 0.4) % 1, i * 60 + Math.random() * 40);
+  }
+}
+
+const FW_SYNC_ACTS = [
+  // Act 1: fans from each face in sequence
+  () => { const pal = fwPal(); for (let f = 0; f < 4; f++) setTimeout(() => fwFan(f * SIZE + SIZE / 2, pal), f * 700); return 4.0; },
+  // Act 2: volleys alternating faces, two color families
+  () => { const p1 = fwPal(), p2 = fwPal(); fwVolley(0, p1, 5); setTimeout(() => fwVolley(2, p2, 5), 600); setTimeout(() => fwVolley(1, p1, 5), 1200); setTimeout(() => fwVolley(3, p2, 5), 1800); return 4.5; },
+  // Act 3: cascade sweep then reverse
+  () => { const pal = fwPal(); fwCascade(pal, 1); setTimeout(() => fwCascade(pal, -1), 1400); return 4.0; },
+  // Act 4: symmetry pairs
+  () => { const pal = fwPal(); fwSymmetry(pal); setTimeout(() => { const p2 = fwPal(); fwSymmetry(p2); }, 800); setTimeout(() => { const p3 = fwPal(); fwSymmetry(p3); }, 1600); return 4.0; },
+  // Act 5: rapid fans from random spots
+  () => { const pal = fwPal(); for (let i = 0; i < 5; i++) setTimeout(() => fwFan(Math.random() * SIZE * 4, pal, 5 + Math.floor(Math.random() * 4), SIZE * 0.06), i * 400); return 4.0; },
+  // Act 6: waterfall
+  () => { const pal = fwPal(); fwWaterfall(pal); setTimeout(() => fwWaterfall(fwPal()), 1000); return 3.5; },
+  // Act 7: grand finale
+  () => { fwFinale(); setTimeout(fwFinale, 1000); return 5.0; },
 ];
 
 function fwSyncUpdate(dt) {
-  fwSyncT -= dt;
-  if (fwSyncT <= 0) {
-    const phase = FW_SYNC_PHASES[fwSyncPhase % FW_SYNC_PHASES.length];
-    fwSyncT = phase(fwSyncStep);
-    fwSyncStep++;
-    if (fwSyncStep % (2 + Math.floor(Math.random() * 3)) === 0) fwSyncPhase++;
+  // Process delayed rockets
+  for (let k = fwSyncQueue.length - 1; k >= 0; k--) {
+    fwSyncQueue[k].delay -= dt * 1000;
+    if (fwSyncQueue[k].delay <= 0) {
+      const q = fwSyncQueue[k];
+      fwRockets.push({ col: q.col, v: 0, vy: q.vy, vc: q.vc, hue: q.hue, hue2: q.hue2, trail: [] });
+      fwSyncQueue.splice(k, 1);
+    }
+  }
+
+  fwSyncWait -= dt;
+  if (fwSyncWait <= 0) {
+    const act = FW_SYNC_ACTS[fwSyncAct % FW_SYNC_ACTS.length];
+    fwSyncWait = act();
+    fwSyncAct++;
   }
 }
 
