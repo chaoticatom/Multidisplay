@@ -3831,6 +3831,24 @@ function effectWeather(dt){
   }
 
   // ── Birds & Planes ──
+  // Physical clockwise face order: front(0)→right(2)→back(1)→left(3)
+  // Faces 1,2 have mirrored u in faceMap, so u must be flipped for those
+  const CW_FACES=[0,2,1,3];
+  const CW_FLIP =[false,true,true,false]; // faces 2,1 are mirrored
+  function creaturePx(stripCol,v){
+    const totalCols=S*4;
+    const col=((stripCol%totalCols)+totalCols)%totalCols;
+    const qi=(col/S)|0;
+    const localU=col%S;
+    const face=CW_FACES[qi];
+    const fu=CW_FLIP[qi]?S1-localU:localU;
+    if(fu<0||fu>=S||v<0||v>=S) return -1;
+    return faceMap[face][v*S+fu];
+  }
+  function setCreature(idx,r,g,b){
+    if(idx<0) return;
+    colBuf[idx*3]=r; colBuf[idx*3+1]=g; colBuf[idx*3+2]=b;
+  }
   for(const cr of wxCreatures){
     if(cr.delay>0){ cr.delay-=dt; continue; }
     cr.px=(cr.px+cr.dx*dt*60+1)%1;
@@ -3839,21 +3857,13 @@ function effectWeather(dt){
       continue;
     }
     if(cr.dy!==undefined) cr.py=Math.max(0.3,Math.min(0.92,cr.py+cr.dy*dt*60));
-    // Storm lightning strike on plane
     if(cr.lightningHit>0) cr.lightningHit-=dt;
     if(cr.wobble>0) cr.wobble=Math.max(0,cr.wobble-dt*0.4);
     if(isStorm && cr.type==='plane' && cr.lightningHit<=0 && Math.random()<dt*0.08){
       cr.lightningHit=0.3; cr.wobble=2.5;
     }
-    const crFace0=SIDE[Math.floor(cr.px*4)%4];
-    const crU0=uOfFacePanX(crFace0,cr.px);
     const crV=Math.round((HORIZ+cr.py*(1-HORIZ))*S1);
-    // Base U in panoramic pixel space (0..S*4)
-    const basePanU=cr.px*S*4;
-    function setCreature(idx,r,g,b){
-      if(idx<0) return;
-      colBuf[idx*3]=r; colBuf[idx*3+1]=g; colBuf[idx*3+2]=b;
-    }
+    const baseCol=Math.round(cr.px*S*4);
     if(cr.type==='bird'){
       cr.wingT+=dt;
       const flap=Math.sin(cr.wingT*(5+cr.wingSpeed)+cr.wing);
@@ -3861,15 +3871,8 @@ function effectWeather(dt){
       const dir=cr.dx>0?1:-1;
       const pixels=[{du:-2,dv:-wOff},{du:-1,dv:-wOff/2},{du:0,dv:0},{du:1,dv:-wOff/2},{du:2,dv:-wOff}];
       for(const {du,dv} of pixels){
-        const panU=basePanU+du*dir;
-        const pv=crV+Math.round(dv);
-        const panFrac=((panU/(S*4))%1+1)%1;
-        const fi=Math.floor(panFrac*4)%4;
-        const face=SIDE[fi];
-        const fu=Math.round((panFrac-fi*0.25)/0.25*S1);
-        if(fu<0||fu>=S||pv<0||pv>=S) continue;
-        const idx=faceMap[face][pv*S+fu]; if(idx<0) continue;
-        setCreature(idx,0.08,0.06,0.05);
+        const idx=creaturePx(baseCol+du*dir,crV+Math.round(dv));
+        if(idx>=0) setCreature(idx,0.08,0.06,0.05);
       }
     } else {
       cr.blink+=dt*2;
@@ -3879,40 +3882,21 @@ function effectWeather(dt){
       const planeV=crV+wobOff;
       const isHit=cr.lightningHit>0.15;
       if(cr.lightningHit>0.1){
-        const boltU=basePanU;
         for(let bv=Math.min(S-1,planeV+1);bv<S;bv++){
           const jitter=Math.round((Math.random()-0.5)*2);
-          const panU2=boltU+jitter;
-          const pf=((panU2/(S*4))%1+1)%1;
-          const bfi=Math.floor(pf*4)%4;
-          const bface=SIDE[bfi];
-          const bfu=Math.round((pf-bfi*0.25)/0.25*S1);
-          if(bfu>=0&&bfu<S&&bv>=0&&bv<S){
-            const bidx=faceMap[bface][bv*S+bfu];
-            if(bidx>=0) setCreature(bidx,0.9,0.9,1);
-          }
+          const bidx=creaturePx(baseCol+jitter,bv);
+          if(bidx>=0) setCreature(bidx,0.9,0.9,1);
         }
       }
       for(let d=-1;d<=2;d++){
-        const panU=basePanU+d*dir;
-        const panFrac=((panU/(S*4))%1+1)%1;
-        const fi=Math.floor(panFrac*4)%4;
-        const face=SIDE[fi];
-        const fu=Math.round((panFrac-fi*0.25)/0.25*S1);
-        if(fu<0||fu>=S||planeV<0||planeV>=S) continue;
-        const idx=faceMap[face][planeV*S+fu]; if(idx<0) continue;
+        const idx=creaturePx(baseCol+d*dir,planeV);
+        if(idx<0) continue;
         if(isHit) setCreature(idx,1,1,1);
         else setCreature(idx,0.55,0.55,0.6);
       }
       if(blinkOn && !isHit){
-        const panU=basePanU-2*dir;
-        const panFrac=((panU/(S*4))%1+1)%1;
-        const fi=Math.floor(panFrac*4)%4;
-        const face=SIDE[fi];
-        const fu=Math.round((panFrac-fi*0.25)/0.25*S1);
-        if(fu>=0&&fu<S&&planeV>=0&&planeV<S){
-          const idx=faceMap[face][planeV*S+fu]; if(idx>=0) setCreature(idx,1,0.1,0.1);
-        }
+        const idx=creaturePx(baseCol-2*dir,planeV);
+        if(idx>=0) setCreature(idx,1,0.1,0.1);
       }
     }
   }
