@@ -2002,7 +2002,7 @@ function drawRingsStyle(dt){
     if(ring.bright<=0){ringsArr.splice(ri,1);continue;}
     const f=ring.face, S=SIZE, r=ring.radius, w=3;
     const [cr,cg,cb]=hsl(ring.hue,1,ring.bright*0.9);
-    const rMin=Math.max(0,Math.floor(r-w)), rMax=Math.ceil(r+w);
+    const rMax=Math.ceil(r+w);
     const uMin=Math.max(0,Math.floor(ring.cx-rMax));
     const uMax=Math.min(S-1,Math.ceil(ring.cx+rMax));
     const vMin=Math.max(0,Math.floor(ring.cy-rMax));
@@ -2013,7 +2013,13 @@ function drawRingsStyle(dt){
       if(d<w){
         const a=(1-d/w);
         const idx=faceMap[f][v*S+u];
-        if(idx>=0) blendLED(idx,cr*a,cg*a,cb*a);
+        if(idx>=0){
+          const b3=idx*3;
+          const rv=cr*a, gv=cg*a, bv=cb*a;
+          if(rv>colBuf[b3]) colBuf[b3]=rv;
+          if(gv>colBuf[b3+1]) colBuf[b3+1]=gv;
+          if(bv>colBuf[b3+2]) colBuf[b3+2]=bv;
+        }
       }
     }
   }
@@ -2046,8 +2052,9 @@ function drawFireStyle(dt){
             rr=1-tf*0.5; gg=0.35-tf*0.3; bb=0;
           }
           const bright=flicker*(1-frac*0.3);
+          rr=Math.min(1,rr*bright); gg=Math.min(1,gg*bright); bb=Math.min(1,bb*bright);
           const idx=faceMap[face][v*S+u];
-          if(idx>=0) blendLED(idx,Math.min(1,rr*bright),Math.min(1,gg*bright),Math.min(1,bb*bright));
+          if(idx>=0) setLED(idx,rr,gg,bb);
         }
       }
     }
@@ -2056,7 +2063,7 @@ function drawFireStyle(dt){
   if(glow>0.02){
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
       const idx=faceMap[4][v*S+u];
-      if(idx>=0) blendLED(idx,glow,glow*0.3,0);
+      if(idx>=0){ const b3=idx*3; if(glow>colBuf[b3]) colBuf[b3]=glow; if(glow*0.3>colBuf[b3+1]) colBuf[b3+1]=glow*0.3; }
     }
   }
 }
