@@ -1366,6 +1366,12 @@ document.querySelectorAll('.au-theme-btn').forEach(b => b.addEventListener('clic
   auTheme = parseInt(b.dataset.autheme);
 }));
 
+document.querySelectorAll('.au-barmode-btn').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.au-barmode-btn').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  auBarMode = b.dataset.barmode;
+}));
+
 document.getElementById('au-gain')?.addEventListener('input', e => {
   auGain = parseFloat(e.target.value);
   document.getElementById('au-gain-val').textContent = auGain.toFixed(1) + 'x';

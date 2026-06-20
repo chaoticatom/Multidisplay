@@ -1450,7 +1450,7 @@ const AUDIO_BANDS = 32;
 let auSpec  = new Float32Array(AUDIO_BANDS);   // smoothed band levels 0..1
 let auPeak  = new Float32Array(AUDIO_BANDS);   // falling peak-hold dots
 let auPeakV = new Float32Array(AUDIO_BANDS);
-let auStyle = 'bars', auTheme = 0, auGain = 1;
+let auStyle = 'bars', auTheme = 0, auGain = 1, auBarMode = 'solid';
 let auScrollX=0, auScrollSpeed=0, auScrollDir=1;
 let wfBuf=null, wfPos=0, wfTimer=0;
 let stormFlashes=[];
@@ -1657,38 +1657,99 @@ function drawOutlineStyle(){
 }
 
 function drawBandBars(mirror){
-  const S=SIZE, M=S-1;
+  const S=SIZE, M=S-1, mode=auBarMode;
   let AB = spectrumBandOverride || AUDIO_BANDS;
   let cols = spectrumFitToScreen ? (panel2dMode ? SIZE : 4*SIZE) : 4*S;
   for(let c=0;c<cols;c++){
     const b=scrolledBand(c,cols,AB);
-    const bandEnd=Math.round((scrolledBand(c+1,cols,AB)+1)*cols/AB);
     if(S>8 && c%Math.max(1,Math.round(cols/AB))===Math.max(0,Math.round(cols/AB)-1)) continue;
     const amp=auSpec[b], fb=b/(AB-1);
     const fu=sideCol(c), face=fu[0], u=fu[1];
-    if(!mirror){
-      const h=amp*M, hi=Math.min(M,h|0);
-      for(let y=0;y<=hi;y++){
-        const col=auColor(fb, h>0?y/h:0, amp);
-        setFaceLED(face,u,y,col[0],col[1],col[2]);
-      }
-      if(h>0){
-        const tp=auColor(fb,1,amp);
-        setFaceLED(face,u,hi,Math.min(1,tp[0]*1.4+0.15),Math.min(1,tp[1]*1.4+0.15),Math.min(1,tp[2]*1.4+0.15));
-      }
-      setFaceLED(face,u,Math.min(M,Math.round(auPeak[b]*M)),0.9,0.9,0.95);
-    } else {
+
+    if(mirror){
       const mid=(S-1)/2, half=amp*S*0.5;
       for(let y=0;y<S;y++){
         const d=Math.abs(y-mid);
         if(d<=half){
-          const col=auColor(fb, half>0?1-d/half:0, amp);
-          setFaceLED(face,u,y,col[0],col[1],col[2]);
+          const fh=half>0?1-d/half:0;
+          const col=auColor(fb,fh,amp);
+          if(mode==='striped'&&(y&1)) { setFaceLED(face,u,y,col[0]*0.15,col[1]*0.15,col[2]*0.15); }
+          else setFaceLED(face,u,y,col[0],col[1],col[2]);
         }
       }
       const pk=auPeak[b]*S*0.5;
       setFaceLED(face,u,Math.min(M,Math.round(mid+pk)),0.9,0.9,0.95);
       setFaceLED(face,u,Math.max(0,Math.round(mid-pk)),0.9,0.9,0.95);
+      continue;
+    }
+
+    const waveOff=mode==='wave'?Math.sin(c*0.15+t*3)*M*0.15:0;
+    const rawH=amp*M;
+
+    if(mode==='falling'){
+      const hi=Math.min(M,Math.round(rawH));
+      for(let y=0;y<=hi;y++){
+        const fy=M-y;
+        const fh=hi>0?y/hi:0;
+        const col=auColor(fb,fh,amp);
+        setFaceLED(face,u,fy,col[0],col[1],col[2]);
+      }
+      if(rawH>0){
+        const tp=auColor(fb,1,amp);
+        setFaceLED(face,u,Math.max(0,M-hi),Math.min(1,tp[0]*1.4+0.15),Math.min(1,tp[1]*1.4+0.15),Math.min(1,tp[2]*1.4+0.15));
+      }
+      setFaceLED(face,u,Math.max(0,M-Math.round(auPeak[b]*M)),0.9,0.9,0.95);
+
+    } else if(mode==='center'){
+      const mid=(S-1)/2, half=rawH*0.5;
+      for(let y=0;y<S;y++){
+        const d=Math.abs(y-mid);
+        if(d<=half){
+          const fh=half>0?1-d/half:0;
+          const col=auColor(fb,fh,amp);
+          setFaceLED(face,u,y,col[0],col[1],col[2]);
+        }
+      }
+      const pk=auPeak[b]*M*0.5;
+      setFaceLED(face,u,Math.min(M,Math.round(mid+pk)),0.9,0.9,0.95);
+      setFaceLED(face,u,Math.max(0,Math.round(mid-pk)),0.9,0.9,0.95);
+
+    } else if(mode==='stacked'){
+      const SEG=4;
+      const segs=Math.round(rawH/SEG);
+      for(let s=0;s<segs;s++){
+        const yBase=s*SEG;
+        const fh=segs>0?s/segs:0;
+        const col=auColor(fb,fh,amp);
+        for(let dy=0;dy<SEG-1;dy++){
+          const y=yBase+dy; if(y>M) break;
+          setFaceLED(face,u,y,col[0],col[1],col[2]);
+        }
+      }
+      const pkSeg=Math.round(auPeak[b]*M/SEG);
+      for(let dy=0;dy<SEG-1;dy++){
+        const y=pkSeg*SEG+dy; if(y>M) break;
+        setFaceLED(face,u,y,0.9,0.9,0.95);
+      }
+
+    } else {
+      // solid, striped, wave
+      const h=rawH+waveOff, hi=Math.max(0,Math.min(M,Math.round(h)));
+      for(let y=0;y<=hi;y++){
+        const fh=hi>0?y/hi:0;
+        const col=auColor(fb,fh,amp);
+        if(mode==='striped'&&(y&1)){
+          setFaceLED(face,u,y,col[0]*0.15,col[1]*0.15,col[2]*0.15);
+        } else {
+          setFaceLED(face,u,y,col[0],col[1],col[2]);
+        }
+      }
+      if(h>0){
+        const tp=auColor(fb,1,amp);
+        setFaceLED(face,u,hi,Math.min(1,tp[0]*1.4+0.15),Math.min(1,tp[1]*1.4+0.15),Math.min(1,tp[2]*1.4+0.15));
+      }
+      const pkY=Math.max(0,Math.min(M,Math.round(auPeak[b]*M+waveOff)));
+      setFaceLED(face,u,pkY,0.9,0.9,0.95);
     }
   }
   drawPolarFace(4); drawPolarFace(5);

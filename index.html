@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=114">
+<link rel="stylesheet" href="style.css?v=115">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -204,6 +204,15 @@
         <button class="au-theme-btn" data-autheme="3">Neon</button>
         <button class="au-theme-btn" data-autheme="4">Matrix</button>
         <button class="au-theme-btn" data-autheme="5">Pastel</button>
+      </div>
+      <div class="ov-row-label">Bar Mode</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+        <button class="au-barmode-btn active" data-barmode="solid">Solid</button>
+        <button class="au-barmode-btn" data-barmode="striped">Striped</button>
+        <button class="au-barmode-btn" data-barmode="center">Center</button>
+        <button class="au-barmode-btn" data-barmode="falling">Falling</button>
+        <button class="au-barmode-btn" data-barmode="stacked">Stacked</button>
+        <button class="au-barmode-btn" data-barmode="wave">Wave</button>
       </div>
       <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" id="sp-fit-screen">FIT TO SCREEN</label>
       <div class="ov-row-label">Gain</div>
@@ -858,7 +867,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=114"></script>
+<script src="version.js?v=115"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -893,7 +902,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=114','effects.js?v=114','f1.js?v=114','ui.js?v=114'];
+  const appScripts = ['cube.js?v=115','effects.js?v=115','f1.js?v=115','ui.js?v=115'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
