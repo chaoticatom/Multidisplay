@@ -5391,6 +5391,7 @@ function renderImg(){
           const sx=Math.min(imgW-1,((srcU*imgW)|0));
           const sy=Math.min(imgH-1,((srcY/(S-1))*imgH)|0);
           const pi=(sy*imgW+sx)*4;
+          if(face===2){ setFaceLED(face,u,v,1,0,0); continue; }
           setFaceLED(face,u,v,imgPx[pi]/255,imgPx[pi+1]/255,imgPx[pi+2]/255);
         }
       }
