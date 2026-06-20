@@ -273,7 +273,7 @@
     border-color: rgba(100,160,255,0.6);
     color: #9fd;
   }
-  .effect-btn .panel-arrow { float: right; font-size: 14px; transition: transform 0.2s; }
+  .effect-btn .panel-arrow { float: right; font-size: 20px; transition: transform 0.2s; }
   .effect-btn.open .panel-arrow { transform: rotate(90deg); }
 
 
