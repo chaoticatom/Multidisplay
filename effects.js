@@ -1438,10 +1438,19 @@ function buildSandNeighbours(){
 function resetSand(){
   if(!N||!faceMap) return;
   buildSandNeighbours();
-  const target=Math.floor(N/3);
-  const indices=new Int32Array(N);
-  for(let i=0;i<N;i++) indices[i]=i;
-  for(let i=N-1;i>0;i--){
+  // In 2D mode, only use face 0 LEDs
+  const pool=[];
+  if(panel2dMode){
+    const S=SIZE;
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[0][v*S+u]; if(idx>=0) pool.push(idx);
+    }
+  } else {
+    for(let i=0;i<N;i++) pool.push(i);
+  }
+  const target=Math.floor(pool.length/3);
+  const indices=new Int32Array(pool);
+  for(let i=indices.length-1;i>0;i--){
     const j=(Math.random()*(i+1))|0;
     const tmp=indices[i]; indices[i]=indices[j]; indices[j]=tmp;
   }
@@ -1457,9 +1466,15 @@ function effectGravitySand(dt){
   if(!sandNeighbours) buildSandNeighbours();
 
   // Gravity in world space (normalised) — negate so grains fall DOWN (lowest dot product)
-  const rawG=getLocalGravity(1);
-  const gLen=Math.sqrt(rawG.x*rawG.x+rawG.y*rawG.y+rawG.z*rawG.z)||1;
-  const gx=-rawG.x/gLen, gy=-rawG.y/gLen, gz=-rawG.z/gLen;
+  let gx, gy, gz;
+  if(panel2dMode){
+    // 2D mode: fixed gravity straight down (ignore invisible cube rotation)
+    gx=0; gy=1; gz=0;
+  } else {
+    const rawG=getLocalGravity(1);
+    const gLen=Math.sqrt(rawG.x*rawG.x+rawG.y*rawG.y+rawG.z*rawG.z)||1;
+    gx=-rawG.x/gLen; gy=-rawG.y/gLen; gz=-rawG.z/gLen;
+  }
 
   // "Height" of a LED in gravity direction — lower = further down
   // dot(pos, gravity) — most negative = lowest
