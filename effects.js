@@ -3267,7 +3267,7 @@ function effectWeather(dt){
   const tempStr=(wxTemp<0?'-':'')+Math.abs(wxTemp)+'°C';
   // Location: up to ~12 chars
   const locStr=(typeof wxDesc==='string'?'':'')+
-    (document.getElementById('wx-status')?.textContent||'').split(',')[0].substring(0,12).toUpperCase();
+    (document.getElementById('wx-status')?.textContent||'').split(',')[0].substring(0,16).toUpperCase();
 
   // ── Render sky+ground on side faces ──
   for(let fi=0;fi<4;fi++){
