@@ -3958,17 +3958,18 @@ function effectWeather(dt){
       // Cockpit window
       const cock=creaturePx(baseCol+2*dir,planeV-1);
       if(cock>=0) setCreature(cock,wh?1:0.2,wh?1:0.5,wh?1:0.9);
-      // Wings: 3 pixels each side at center of fuselage
+      // Wings: 3 pixels each side, swept back
       for(let w=1;w<=3;w++){
-        const w1=creaturePx(baseCol,planeV-w);
-        const w2=creaturePx(baseCol,planeV+w);
+        const sweep=w>1?-1*dir:0;
+        const w1=creaturePx(baseCol+sweep,planeV-w);
+        const w2=creaturePx(baseCol+sweep,planeV+w);
         const wb=0.7-w*0.08;
         if(w1>=0) setCreature(w1,wh?1:wb,wh?1:wb,wh?1:wb+0.05);
         if(w2>=0) setCreature(w2,wh?1:wb,wh?1:wb,wh?1:wb+0.05);
       }
-      // Tail fin: 2 pixels up at the back
+      // Tail fin: 2 pixels pointing up
       for(let tf=1;tf<=2;tf++){
-        const ti=creaturePx(baseCol-2*dir,planeV-tf);
+        const ti=creaturePx(baseCol-2*dir,planeV+tf);
         if(ti>=0) setCreature(ti,wh?1:0.6,wh?1:0.6,wh?1:0.65);
       }
       // Red tail light
