@@ -3349,7 +3349,8 @@ function effectWeather(dt){
       const localD=new Date(Date.now()+wxTzOffset*1000);
       const hh=String(localD.getUTCHours()).padStart(2,'0');
       const mm=String(localD.getUTCMinutes()).padStart(2,'0');
-      const timeStr=hh+':'+mm;
+      const ss=String(localD.getUTCSeconds()).padStart(2,'0');
+      const timeStr=hh+':'+mm+':'+ss;
       const tx=Math.max(1,S-1-timeStr.length*4);
       wxText(face,timeStr,tx,textV+7,txtR*0.7,txtG*0.7,txtB*0.85);
     }
@@ -3500,8 +3501,8 @@ function effectWeather(dt){
       const wU=Math.round(cl.sz*0.5*S),wV=Math.round(cl.sz*0.28*S);
       // Draw multiple puffs
       for(let p=0;p<cl.puffs;p++){
-        const offU=(p-(cl.puffs-1)/2)*wU*0.6|0;
-        const offV=(p%2===0?0:-wV*0.35)|0;
+        const offU=(p-(cl.puffs-1)/2)*wU*(isOvercast?0.45:0.6)|0;
+        const offV=(p%2===0?0:-wV*(isOvercast?0.5:0.35))|0;
         const pu=relCX+offU, pv=relCY+offV;
         for(let dv=-wV;dv<=wV;dv++) for(let du=-wU;du<=wU;du++){
           const dist=Math.sqrt((du/wU)**2+(dv/wV)**2);
@@ -3509,9 +3510,15 @@ function effectWeather(dt){
           const fu=pu+du, fv=pv+dv;
           if(fu<0||fu>=S||fv<0||fv>=S) continue;
           const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
-          const edge=isOvercast?(dist<0.7?1:dist<0.85?1.15:Math.max(0,(1-dist)*2.5)):1-dist;
+          let edge;
+          if(isOvercast){
+            if(dist<0.55) edge=1;
+            else if(dist<0.75){ const t=(dist-0.55)/0.2; edge=1+0.2*Math.sin(t*Math.PI); }
+            else { edge=Math.max(0,(1-dist)/0.25); edge*=edge; }
+          } else edge=1-dist;
           const cb=cl.br*cloudDark*edge;
-          blendLED(idx,cb,cb*0.98,cb*0.97);
+          const warm=cl.fluff*0.06;
+          blendLED(idx,cb+warm,cb*0.98+warm*0.5,cb*0.95);
         }
       }
     }
@@ -3523,8 +3530,15 @@ function effectWeather(dt){
       const fu=tu+du,fv=tv+dv;
       if(fu<0||fu>=S||fv<0||fv>=S) continue;
       const idx=faceMap[4][fv*S+fu]; if(idx<0) continue;
-      const cb=cl.br*cloudDark*(1-dist)*0.8;
-      blendLED(idx,cb,cb*0.98,cb*0.97);
+      let topEdge;
+      if(isOvercast){
+        if(dist<0.55) topEdge=1;
+        else if(dist<0.75){ const t=(dist-0.55)/0.2; topEdge=1+0.2*Math.sin(t*Math.PI); }
+        else { topEdge=Math.max(0,(1-dist)/0.25); topEdge*=topEdge; }
+      } else topEdge=1-dist;
+      const cb=cl.br*cloudDark*topEdge*0.8;
+      const warm=cl.fluff*0.06;
+      blendLED(idx,cb+warm,cb*0.98+warm*0.5,cb*0.95);
     }
   }
 
