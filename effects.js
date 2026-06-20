@@ -3743,17 +3743,18 @@ function effectWeather(dt){
 
   function drawMoon(idx,du,dv,dist,radius,phase){
     if(dist>radius+3) return;
-    // Moon disc
     if(dist<radius){
-      // Phase: 0=new, 0.25=first quarter, 0.5=full, 0.75=last quarter
-      // Shadow terminator: shift a circle to create crescent/gibbous
-      const shadowOffset=(phase<=0.5?(0.5-phase)*2:(phase-0.5)*2); // 0=full, 1=new
-      const shadowX=du-(shadowOffset*(phase<0.5?-1:1)*radius*1.8);
-      const shadowDist=Math.sqrt(shadowX*shadowX+dv*dv);
-      const lit=shadowDist>radius*0.85?1:0;
-      if(lit||shadowOffset<0.1){
-        const moonB=0.85+0.15*Math.random()*0.3;
-        blendLED(idx,moonB,moonB*0.98,moonB*0.92);
+      // phase: 0=new, 0.25=first quarter, 0.5=full, 0.75=last quarter
+      const illum=phase<=0.5?phase*2:(1-phase)*2; // 0=new, 1=full
+      const dir=phase<=0.5?1:-1; // which side is lit
+      const termX=du/radius; // -1..1 across disc
+      const cosAngle=(1-illum)*2-1; // 1=new(all shadow), -1=full(all lit)
+      const lit=termX*dir>cosAngle?1:
+                termX*dir>cosAngle-0.15?((termX*dir-cosAngle+0.15)/0.15)*0.7:0;
+      if(lit>0.05){
+        const edge=1-Math.pow(dist/radius,2)*0.3;
+        const moonB=(0.8+0.1*Math.sin(du*1.3+dv*0.9))*lit*edge;
+        blendLED(idx,moonB,moonB*0.97,moonB*0.88);
       }
     } else if(dist<radius+2){
       const glow=(1-(dist-radius)/2)*0.18;
@@ -3982,7 +3983,14 @@ function effectWeather(dt){
           const fu=Math.round(moonX+du), fv=Math.round(moonY+dv);
           if(fu<0||fu>=S||fv<horizV||fv>=S) continue;
           const idx=faceMap[0][fv*S+fu]; if(idx<0) continue;
-          if(dist<=moonRad){ colBuf[idx*3]=0.85; colBuf[idx*3+1]=0.83; colBuf[idx*3+2]=0.78; }
+          if(dist<=moonRad){
+            const illum=moonPh<=0.5?moonPh*2:(1-moonPh)*2;
+            const dir2d=moonPh<=0.5?1:-1;
+            const tX=du/moonRad;
+            const cosA=(1-illum)*2-1;
+            const lit2d=tX*dir2d>cosA?1:tX*dir2d>cosA-0.2?((tX*dir2d-cosA+0.2)/0.2)*0.6:0;
+            if(lit2d>0.05){ const mb=0.85*lit2d; colBuf[idx*3]=mb; colBuf[idx*3+1]=mb*0.97; colBuf[idx*3+2]=mb*0.9; }
+          }
           else if(dist<moonRad+2){ const b=(1-(dist-moonRad)/2)*0.18; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.95); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.88); }
         }
       }
