@@ -5332,13 +5332,87 @@ function stopVid(){
   if(vidStream){ vidStream.getTracks().forEach(tr=>tr.stop()); vidStream=null; }
   if(vidEl){ vidEl.srcObject=null; vidEl.src=''; vidEl.pause(); }
   vidReady=false;
+  stopImg();
   document.getElementById('vid-status').textContent='No source loaded';
+}
+
+// ── IMAGE DISPLAY ──
+let imgLoaded=false, imgCv=null, imgCtx=null, imgPx=null, imgW=0, imgH=0;
+
+function loadImgFile(file){
+  const img=new Image();
+  img.onload=()=>{
+    if(!imgCv){ imgCv=document.createElement('canvas'); imgCtx=imgCv.getContext('2d',{willReadFrequently:true}); }
+    imgW=img.width; imgH=img.height;
+    imgCv.width=imgW; imgCv.height=imgH;
+    imgCtx.drawImage(img,0,0);
+    imgPx=imgCtx.getImageData(0,0,imgW,imgH).data;
+    imgLoaded=true;
+    stopVid();
+    document.getElementById('vid-status').textContent='🖼 '+file.name.substring(0,28);
+  };
+  img.src=URL.createObjectURL(file);
+}
+
+function stopImg(){ imgLoaded=false; imgPx=null; }
+
+function renderImg(){
+  if(!imgLoaded||!imgPx) return;
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+  const S=SIZE;
+
+  if(panel2dMode){
+    // 2D: fit image to face 0
+    for(let v=0;v<S;v++){
+      for(let u=0;u<S;u++){
+        const sx=((u/S)*imgW)|0, sy=(((S-1-v)/S)*imgH)|0;
+        const pi=(Math.min(sy,imgH-1)*imgW+Math.min(sx,imgW-1))*4;
+        const idx=faceMap[0][v*S+u]; if(idx<0) continue;
+        colBuf[idx*3]=imgPx[pi]/255;
+        colBuf[idx*3+1]=imgPx[pi+1]/255;
+        colBuf[idx*3+2]=imgPx[pi+2]/255;
+      }
+    }
+  } else {
+    // 3D: map image across 4 side faces as panorama
+    const totalW=4*S;
+    for(let fIdx=0;fIdx<4;fIdx++){
+      const face=VID_FACE_ORDER[fIdx];
+      const flipU=(face===0||face===1||face===2||face===3);
+      const flipV=(face===2);
+      for(let v=0;v<S;v++){
+        for(let u=0;u<S;u++){
+          const pu=flipU?(S-1-u):u;
+          const srcU=(fIdx*S+pu)/totalW;
+          const srcV=flipV?(v/(S-1)):((S-1-v)/(S-1));
+          const sx=Math.min(imgW-1,(srcU*imgW)|0);
+          const sy=Math.min(imgH-1,(srcV*imgH)|0);
+          const pi=(sy*imgW+sx)*4;
+          setFaceLED(face,u,v,imgPx[pi]/255,imgPx[pi+1]/255,imgPx[pi+2]/255);
+        }
+      }
+    }
+    // Top/bottom: average color
+    let ar=0,ag=0,ab=0;
+    const sampleN=64;
+    for(let i=0;i<sampleN;i++){
+      const si=((i/sampleN)*imgPx.length/4)|0;
+      ar+=imgPx[si*4]; ag+=imgPx[si*4+1]; ab+=imgPx[si*4+2];
+    }
+    ar/=sampleN*255; ag/=sampleN*255; ab/=sampleN*255;
+    const dim=0.15;
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const i4=faceMap[4][v*S+u]; if(i4>=0){ colBuf[i4*3]=ar*dim; colBuf[i4*3+1]=ag*dim; colBuf[i4*3+2]=ab*dim; }
+      const i5=faceMap[5][v*S+u]; if(i5>=0){ colBuf[i5*3]=ar*dim; colBuf[i5*3+1]=ag*dim; colBuf[i5*3+2]=ab*dim; }
+    }
+  }
 }
 
 function effectVideo(dt){
   t+=dt;
-  // Idle pattern when no video
+  // Show loaded image if no video playing
   if(!vidReady||!vidEl||vidEl.readyState<2){
+    if(imgLoaded){ renderImg(); return; }
     for(let i=0;i<N*3;i++) colBuf[i]=0;
     const pulse=0.5+0.5*Math.sin(t*1.8);
     for(let f=0;f<4;f++){

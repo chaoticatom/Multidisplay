@@ -1404,6 +1404,16 @@ document.getElementById('vid-file-input')?.addEventListener('change', e => {
   }
 });
 
+document.getElementById('img-file-btn')?.addEventListener('click', () =>
+  document.getElementById('img-file-input').click());
+
+document.getElementById('img-file-input')?.addEventListener('change', e => {
+  if(e.target.files[0]){
+    loadImgFile(e.target.files[0]);
+    if(currentEffect!=='video'){ const eb=document.querySelector('[data-effect="video"]'); if(eb) eb.click(); }
+  }
+});
+
 document.getElementById('vid-screen-btn')?.addEventListener('click', () => {
   startVidSource('screen');
   if(currentEffect!=='video'){ const eb=document.querySelector('[data-effect="video"]'); if(eb) eb.click(); }
