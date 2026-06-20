@@ -3901,9 +3901,17 @@ function effectWeather(dt){
       }
       continue;
     }
-    if(cr.type==='plane'&&cr.px>1){
-      cr.delay=120+Math.random()*120;
-      continue;
+    if(cr.type==='plane'){
+      cr.flightT=(cr.flightT||0)+dt;
+      if(cr.flightT>10) cr.py=Math.min(0.98,cr.py+dt*0.03);
+      if(cr.flightT>15){
+        cr.delay=40+Math.random()*80;
+        cr.flightT=0;
+        cr.py=0.5+Math.random()*0.2;
+        cr.px=Math.random();
+        cr.dx=(Math.random()<0.5?1:-1)*(0.0008+Math.random()*0.0005);
+        continue;
+      }
     }
     if(cr.dy!==undefined) cr.py=Math.max(0.3,Math.min(0.92,cr.py+cr.dy*dt*60));
     if(cr.lightningHit>0) cr.lightningHit-=dt;
