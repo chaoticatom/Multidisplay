@@ -1543,11 +1543,11 @@ function auColor(fb, fh, amp){
 
 // Map a column 0..4*SIZE-1 to (face,u) wrapping around the 4 side faces
 function sideCol(c){
-  const S=SIZE, q=(c/S)|0, u=c%S;
-  if(q===0) return [0,u];        // front, x asc
-  if(q===1) return [2,S-1-u];    // right, z desc
-  if(q===2) return [1,S-1-u];    // back,  x desc
-  return [3,u];                  // left,  z asc
+  const S=SIZE, q=((c/S)|0)%4, u=((c%S)+S)%S;
+  if(q===0) return [0,u];        // front
+  if(q===1) return [2,u];        // right
+  if(q===2) return [1,u];        // back
+  return [3,u];                  // left
 }
 
 // ── Scroll helper: given display column c, return which band to read ──
