@@ -950,7 +950,6 @@ function effectF1(dt){
       }
     }
   }
-  if(plTransActive) plApplyTransition();
   mesh.instanceColor.needsUpdate = true;
   // ── BLUE FLAG: top 4 rows of all 4 side panels — solid blue ──
   if (f1BlueFlagActive) {

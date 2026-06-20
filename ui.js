@@ -2517,6 +2517,7 @@ function animate(now){
     clearPending=false;
   }
   runOverlays(dt);
+  if(plTransActive) plApplyTransition();
 
   // ── Pre-alarm brightness ramp + sunrise rendering ──
   if(activeAlarm&&activeAlarm.phase==='pre'&&!activeAlarm.dismissed){
