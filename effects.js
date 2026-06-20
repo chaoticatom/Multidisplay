@@ -1188,29 +1188,19 @@ let balls=[], ballFlashes=[];
 let ballCrossFaces=true;
 let ballsPerFace=3;
 
-// Side faces form a clockwise strip: 0→2→1→3→0
-// All share v=y, so dv always unchanged for side-to-side.
-// du stays same sign (ball continues in same direction around the cube).
-// Top/bottom: just bounce (simpler and avoids complex axis rotations).
-function ballTransfer(face, edge, u, v, du, dv, S) {
-  const M = S - 1;
-  const ou = u < 0 ? -u : u >= S ? u - M : 0;
-  switch (face * 4 + edge) {
-    // Face 0 front — CW strip order: left=face3, right=face2
-    case 0: return { f:3, u:M-ou, v:v, du:du, dv:dv };
-    case 1: return { f:2, u:ou, v:v, du:du, dv:dv };
-    // Face 1 back — CW strip order: left=face2, right=face3
-    case 4: return { f:2, u:M-ou, v:v, du:du, dv:dv };
-    case 5: return { f:3, u:ou, v:v, du:du, dv:dv };
-    // Face 2 right — CW strip order: left=face0, right=face1
-    case 8: return { f:0, u:M-ou, v:v, du:du, dv:dv };
-    case 9: return { f:1, u:ou, v:v, du:du, dv:dv };
-    // Face 3 left — CW strip order: left=face1, right=face0
-    case 12: return { f:1, u:M-ou, v:v, du:du, dv:dv };
-    case 13: return { f:0, u:ou, v:v, du:du, dv:dv };
-    // Top/bottom edges — bounce instead of crossing
-    default: return null;
-  }
+// Use same CW_FACES strip logic as creaturePx / maze runner.
+// Side faces [0,2,1,3] form a continuous horizontal strip, v=y shared.
+const BALL_CW=[0,2,1,3];
+const BALL_CW_IDX={0:0, 2:1, 1:2, 3:3};
+function ballToStrip(face, u) {
+  const qi = BALL_CW_IDX[face];
+  return qi !== undefined ? qi * SIZE + u : -1;
+}
+function stripToBall(su) {
+  const total = SIZE * 4;
+  const wrapped = ((su % total) + total) % total;
+  const qi = (wrapped / SIZE) | 0;
+  return { f: BALL_CW[qi], u: wrapped - qi * SIZE };
 }
 
 function resetBalls(){
@@ -1279,21 +1269,12 @@ function effectBouncingBalls(dt){
     b.v+=b.dv*dt;
 
     if(!panel2dMode&&ballCrossFaces){
-      let iters=0;
-      while(iters<4){
-        let edge=-1;
-        if(b.u<0) edge=0;
-        else if(b.u>=S) edge=1;
-        else if(b.v<0) edge=2;
-        else if(b.v>=S) edge=3;
-        if(edge<0) break;
-        const t2=ballTransfer(b.face, edge, b.u, b.v, b.du, b.dv, S);
-        if(!t2) break;
-        b.face=t2.f;
-        b.u=Math.max(0.01,Math.min(S-0.01,t2.u));
-        b.v=Math.max(0.01,Math.min(S-0.01,t2.v));
-        b.du=t2.du; b.dv=t2.dv;
-        iters++;
+      const isSide = BALL_CW_IDX[b.face] !== undefined;
+      if(isSide && (b.u<0 || b.u>=S)){
+        const su = ballToStrip(b.face, b.u);
+        const r = stripToBall(su);
+        b.face = r.f;
+        b.u = r.u;
       }
     }
 
@@ -1304,16 +1285,30 @@ function effectBouncingBalls(dt){
     if(b.v<R)    {b.v=R;    b.dv=Math.abs(b.dv);}
     if(b.v>S1-R) {b.v=S1-R; b.dv=-Math.abs(b.dv);}
 
-    // Render ball
+    // Render ball — use strip coordinates for cross-face rendering on side faces
     const cu=Math.round(b.u), cv=Math.round(b.v);
     const R2=R*R;
+    const isSide=!panel2dMode&&ballCrossFaces&&BALL_CW_IDX[b.face]!==undefined;
+    const stripBase=isSide?ballToStrip(b.face,cu):-1;
     for(let dv=-R;dv<=R;dv++){
       for(let du=-R;du<=R;du++){
         const d2=du*du+dv*dv;
         if(d2>R2) continue;
-        const pu=cu+du, pv=cv+dv;
-        if(pu<0||pu>=S||pv<0||pv>=S) continue;
-        const idx=faceMap[b.face][pv*S+pu];
+        const pv=cv+dv;
+        if(pv<0||pv>=S) continue;
+        let idx;
+        if(isSide){
+          const sc=stripBase+du;
+          const total=S*4;
+          const wrapped=((sc%total)+total)%total;
+          const qi=(wrapped/S)|0;
+          const fu=wrapped-qi*S;
+          idx=faceMap[BALL_CW[qi]][pv*S+fu];
+        } else {
+          const pu=cu+du;
+          if(pu<0||pu>=S) continue;
+          idx=faceMap[b.face][pv*S+pu];
+        }
         if(idx<0) continue;
         const dist=Math.sqrt(d2)/R;
         const shade=1.0-dist*0.55;
