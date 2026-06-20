@@ -3284,19 +3284,29 @@ function wxInitScene(code){
     bx+=bw+((bx*31+seed+3)%4);
   }
 
-  // Creatures: birds and occasional plane
+  // Creatures: birds, occasional plane, and hot air balloons on nice days
   wxCreatures=[];
   for(let i=0;i<4;i++){
     const isPlane=i===3;
     wxCreatures.push({
       type:isPlane?'plane':'bird',
-      px:isPlane?-0.5:Math.random(), // plane starts off-screen left
+      px:isPlane?-0.5:Math.random(),
       py:isPlane?0.62+Math.random()*0.25:0.38+Math.random()*0.45,
-      dx:(Math.random()<0.5?1:-1)*(isPlane?0.0008+Math.random()*0.0005:0.0015+Math.random()*0.002), // plane now 10× slower
-      dy:isPlane?0:(Math.random()-0.5)*0.0008, // birds can fly at slight angle
+      dx:(Math.random()<0.5?1:-1)*(isPlane?0.0008+Math.random()*0.0005:0.0015+Math.random()*0.002),
+      dy:isPlane?0:(Math.random()-0.5)*0.0008,
       wing:0, wingT:0, blink:0, cycleCount:0, wingSpeed:2+Math.random()*3,
       delay:isPlane?Math.random()*120:Math.random()*15,
       active:true, lightningHit:0, wobble:0,
+    });
+  }
+  if(code<=2){
+    const balloonColors=[[1,0.2,0.1],[0.1,0.5,1],[0.9,0.8,0.1],[0.2,0.8,0.3],[0.8,0.2,0.8],[1,0.5,0]];
+    wxCreatures.push({
+      type:'balloon', px:Math.random(), py:0.05,
+      dx:0.0003+Math.random()*0.0002, dy:0,
+      phase:'rise', phaseT:0, laps:0, maxLaps:2+Math.floor(Math.random()*3),
+      color:balloonColors[Math.floor(Math.random()*balloonColors.length)],
+      delay:30+Math.random()*60, active:true,
     });
   }
 }
@@ -3849,6 +3859,52 @@ function effectWeather(dt){
   for(const cr of wxCreatures){
     if(cr.delay>0){ cr.delay-=dt; continue; }
     cr.px=(cr.px+cr.dx*dt*60+1)%1;
+    if(cr.type==='balloon'){
+      cr.phaseT+=dt;
+      if(cr.phase==='rise'){
+        cr.py=Math.min(0.7,cr.py+dt*0.012);
+        if(cr.py>=0.7) cr.phase='float';
+      } else if(cr.phase==='float'){
+        cr.px=(cr.px+cr.dx*dt*60+1)%1;
+        cr.py+=Math.sin(cr.phaseT*0.5)*dt*0.003;
+        cr.py=Math.max(0.55,Math.min(0.82,cr.py));
+        const prevLaps=cr.laps;
+        cr.laps=Math.floor(cr.phaseT*cr.dx*60/1*4)/4;
+        if(cr.phaseT>40+cr.maxLaps*80) cr.phase='descend';
+      } else if(cr.phase==='descend'){
+        cr.px=(cr.px+cr.dx*dt*60*0.5+1)%1;
+        cr.py=Math.max(0.02,cr.py-dt*0.008);
+        if(cr.py<=0.02){
+          const balloonColors=[[1,0.2,0.1],[0.1,0.5,1],[0.9,0.8,0.1],[0.2,0.8,0.3],[0.8,0.2,0.8],[1,0.5,0]];
+          cr.phase='rise'; cr.phaseT=0; cr.py=0.05;
+          cr.px=Math.random(); cr.laps=0;
+          cr.maxLaps=2+Math.floor(Math.random()*3);
+          cr.color=balloonColors[Math.floor(Math.random()*balloonColors.length)];
+          cr.delay=60+Math.random()*120;
+          continue;
+        }
+      }
+      const crV=Math.round((HORIZ+cr.py*(1-HORIZ))*S1);
+      const baseCol=Math.round(cr.px*S*4);
+      const c=cr.color;
+      // Envelope: 3 wide × 4 tall dome
+      for(let ev=-3;ev<=0;ev++){
+        const w=ev<-2?1:ev<-1?2:2;
+        for(let eu=-w;eu<=w;eu++){
+          const idx=creaturePx(baseCol+eu,crV+ev);
+          if(idx>=0) setCreature(idx,c[0],c[1],c[2]);
+        }
+      }
+      // Basket: 1 wide × 1 tall below
+      const bi=creaturePx(baseCol,crV+1);
+      if(bi>=0) setCreature(bi,0.35,0.2,0.08);
+      // Ropes
+      const r1=creaturePx(baseCol-1,crV+1);
+      const r2=creaturePx(baseCol+1,crV+1);
+      if(r1>=0) setCreature(r1,0.25,0.15,0.05);
+      if(r2>=0) setCreature(r2,0.25,0.15,0.05);
+      continue;
+    }
     if(cr.type==='plane'&&cr.px>1){
       cr.delay=120+Math.random()*120;
       continue;
