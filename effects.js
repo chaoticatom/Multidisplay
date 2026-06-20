@@ -3388,7 +3388,7 @@ async function wxFetch(skipGeocode){
     wxDesc=WX_CODES[wxCode]||'Unknown';
     wxInitScene(wxCode);
     wxLastFetch=Date.now()/1000;
-    if(statusEl) statusEl.textContent=`${loc.name}, ${loc.country||loc.country_code||''}`;
+    if(statusEl) statusEl.textContent=city;
     if(infoEl){
       infoEl.style.display='block';
       const tl=document.getElementById('wx-temp-line');
