@@ -333,206 +333,166 @@ function effectSphere(dt) {
   }
 }
 
-// ── FIREWORKS — arced rockets, massive explosions, fills cube ──
+// ── FIREWORKS — cross-face rockets & explosions on 4 side panels ──
 const fwParticles = []; // kept for reset compatibility
 const fwRockets = [];
 const fwBursts = [];
 let fwSpawnT = 0;
+const FW_FACES = [0,2,1,3]; // clockwise physical face order
+
+function fwPx(col, v) {
+  const S = SIZE, total = S * 4;
+  const c = ((col % total) + total) % total;
+  const qi = (c / S) | 0;
+  const fu = c % S;
+  if (v < 0 || v >= S) return -1;
+  return faceMap[FW_FACES[qi]][v * S + fu];
+}
+
+function fwSet(idx, r, g, b) {
+  if (idx < 0) return;
+  colBuf[idx*3]   = Math.max(colBuf[idx*3],   r);
+  colBuf[idx*3+1] = Math.max(colBuf[idx*3+1], g);
+  colBuf[idx*3+2] = Math.max(colBuf[idx*3+2], b);
+}
 
 function fwLaunch() {
-  const arcType = Math.random();
-  // Launch from random x/z position across the full face (not just edges)
-  const sx = SIZE*(0.05+Math.random()*0.90);
-  const sz = SIZE*(0.05+Math.random()*0.90);
-
+  const totalCols = panel2dMode ? SIZE : SIZE * 4;
+  const sc = Math.random() * totalCols;
   fwRockets.push({
-    x: sx, z: sz, y: 0,
-    vy: SIZE*(0.6+Math.random()*0.4),
-    vx: arcType>0.5?(Math.random()-0.5)*SIZE*0.3:0,
-    vz: arcType>0.7?(Math.random()-0.5)*SIZE*0.3:0,
+    col: sc, v: 0,
+    vy: SIZE * (0.6 + Math.random() * 0.4),
+    vc: (Math.random() - 0.5) * SIZE * 0.3,
     hue: Math.random(),
     hue2: Math.random(),
-    trail: [],
-    arcType: arcType
+    trail: []
   });
 }
 
-function fwBurst(x, y, z, hue, hue2) {
+function fwBurst(col, v, hue, hue2) {
   const mono = Math.random() > 0.5;
   const type = Math.random();
-  const sizeMul = 0.5 + Math.random() * 1.0; // 50%-150% size variation
+  const sizeMul = 0.5 + Math.random() * 1.0;
+
+  function addParticle(c, y, vc, vy, h, decay, bright) {
+    fwBursts.push({ col: c, v: y, vc, vy, hue: h, life: 1, decay, bright });
+  }
 
   if (type < 0.25) {
-    // Peony — classic spherical burst
     const n = 30 + Math.floor(Math.random() * 50);
     const spd = SIZE * (0.25 + Math.random() * 0.35) * sizeMul;
     for (let i = 0; i < n; i++) {
-      const th = (i / n) * Math.PI * 2 + Math.random() * 0.3;
-      const ph = Math.random() * Math.PI;
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.3;
+      const r = spd * (0.4 + Math.random() * 0.6);
       const h = mono ? hue : (i % 3 === 0 ? hue2 : hue + Math.random() * 0.1) % 1;
-      fwBursts.push({ x, y, z,
-        vx: Math.sin(ph) * Math.cos(th) * spd,
-        vy: Math.sin(ph) * Math.sin(th) * spd * (0.5 + Math.random()),
-        vz: Math.cos(ph) * spd,
-        hue: h, life: 1, decay: 0.008 + Math.random() * 0.008, bright: 0.85 + Math.random() * 0.15
-      });
+      addParticle(col, v, Math.cos(a) * r, Math.sin(a) * r * (0.5 + Math.random()), h, 0.008 + Math.random() * 0.008, 0.85 + Math.random() * 0.15);
     }
   } else if (type < 0.42) {
-    // Chrysanthemum — many dense rays, long life
     const n = 70 + Math.floor(Math.random() * 40);
     const spd = SIZE * (0.35 + Math.random() * 0.3) * sizeMul;
     for (let i = 0; i < n; i++) {
-      const th = (i / n) * Math.PI * 2 + Math.random() * 0.15;
-      const ph = Math.acos(1 - 2 * Math.random());
-      fwBursts.push({ x, y, z,
-        vx: Math.sin(ph) * Math.cos(th) * spd,
-        vy: Math.cos(ph) * spd * 0.8,
-        vz: Math.sin(ph) * Math.sin(th) * spd,
-        hue: mono ? hue : (hue + i * 0.003) % 1, life: 1,
-        decay: 0.004 + Math.random() * 0.004, bright: 0.9
-      });
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.15;
+      const r = spd * (0.5 + Math.random() * 0.5);
+      addParticle(col, v, Math.cos(a) * r, Math.sin(a) * r * 0.8, mono ? hue : (hue + i * 0.003) % 1, 0.004 + Math.random() * 0.004, 0.9);
     }
   } else if (type < 0.56) {
-    // Willow — droopy trails, heavy gravity feel via low upward velocity
     const n = 40 + Math.floor(Math.random() * 30);
     const spd = SIZE * (0.2 + Math.random() * 0.25) * sizeMul;
-    const wHue = mono ? hue : 0.12 + Math.random() * 0.08; // golden
+    const wHue = mono ? hue : 0.12 + Math.random() * 0.08;
     for (let i = 0; i < n; i++) {
-      const th = (i / n) * Math.PI * 2 + Math.random() * 0.2;
-      const ph = Math.random() * Math.PI * 0.8;
-      fwBursts.push({ x, y, z,
-        vx: Math.sin(ph) * Math.cos(th) * spd,
-        vy: Math.sin(ph) * Math.sin(th) * spd * 0.3,
-        vz: Math.cos(ph) * spd,
-        hue: wHue, life: 1, decay: 0.003 + Math.random() * 0.003, bright: 0.8
-      });
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.2;
+      const r = spd * (0.4 + Math.random() * 0.6);
+      addParticle(col, v, Math.cos(a) * r, Math.sin(a) * r * 0.3, wHue, 0.003 + Math.random() * 0.003, 0.8);
     }
   } else if (type < 0.73) {
-    // Palm — upward spray then droop, like a palm tree
     const n = 35 + Math.floor(Math.random() * 25);
     const spd = SIZE * (0.3 + Math.random() * 0.3) * sizeMul;
     for (let i = 0; i < n; i++) {
-      const th = (i / n) * Math.PI * 2 + Math.random() * 0.2;
-      const spread = 0.3 + Math.random() * 0.5;
-      fwBursts.push({ x, y, z,
-        vx: Math.cos(th) * spd * spread,
-        vy: spd * (0.6 + Math.random() * 0.4),
-        vz: Math.sin(th) * spd * spread,
-        hue: mono ? hue : 0.08 + Math.random() * 0.06, life: 1,
-        decay: 0.005 + Math.random() * 0.005, bright: 0.85
-      });
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.2;
+      const spread = (0.3 + Math.random() * 0.5) * spd;
+      addParticle(col, v, Math.cos(a) * spread, spd * (0.6 + Math.random() * 0.4), mono ? hue : 0.08 + Math.random() * 0.06, 0.005 + Math.random() * 0.005, 0.85);
     }
-  } else if (type < 0.90) {
-    // Crossette — small burst that splits into 4 sub-bursts
-    const dirs = [[1,0],[0,1],[-1,0],[0,-1]];
-    const spd1 = SIZE * 0.3 * sizeMul;
-    for (const [dx, dz] of dirs) {
-      const sx = x + dx * SIZE * 0.08, sz = z + dz * SIZE * 0.08;
+  } else if (type < 0.88) {
+    const offsets = [-SIZE * 0.12, SIZE * 0.12, 0, 0];
+    const voffs  = [0, 0, -SIZE * 0.12, SIZE * 0.12];
+    for (let d = 0; d < 4; d++) {
+      const sc = col + offsets[d], sv = v + voffs[d];
       const n2 = 15 + Math.floor(Math.random() * 10);
       const spd2 = SIZE * (0.15 + Math.random() * 0.2) * sizeMul;
       for (let i = 0; i < n2; i++) {
-        const th = (i / n2) * Math.PI * 2 + Math.random() * 0.3;
-        const ph = Math.random() * Math.PI;
-        fwBursts.push({ x: sx, y, z: sz,
-          vx: Math.sin(ph) * Math.cos(th) * spd2 + dx * spd1 * 0.3,
-          vy: Math.sin(ph) * Math.sin(th) * spd2 * 0.5,
-          vz: Math.cos(ph) * spd2 + dz * spd1 * 0.3,
-          hue: mono ? hue : (hue2 + Math.random() * 0.1) % 1, life: 1,
-          decay: 0.01 + Math.random() * 0.008, bright: 0.9
-        });
+        const a = (i / n2) * Math.PI * 2 + Math.random() * 0.3;
+        const r = spd2 * (0.4 + Math.random() * 0.6);
+        addParticle(sc, sv, Math.cos(a) * r + offsets[d] * 2, Math.sin(a) * r * 0.5 + voffs[d] * 2, mono ? hue : (hue2 + Math.random() * 0.1) % 1, 0.01 + Math.random() * 0.008, 0.9);
       }
     }
   } else {
-    // Crackle — sparse bright sparkles with fast decay + secondary pops
     const n = 20 + Math.floor(Math.random() * 20);
     const spd = SIZE * (0.25 + Math.random() * 0.3) * sizeMul;
     for (let i = 0; i < n; i++) {
-      const th = Math.random() * Math.PI * 2;
-      const ph = Math.acos(1 - 2 * Math.random());
-      const s = spd * (0.5 + Math.random() * 0.5);
-      fwBursts.push({ x, y, z,
-        vx: Math.sin(ph) * Math.cos(th) * s,
-        vy: Math.cos(ph) * s * 0.6,
-        vz: Math.sin(ph) * Math.sin(th) * s,
-        hue: 0.13 + Math.random() * 0.04, life: 1,
-        decay: 0.015 + Math.random() * 0.015, bright: 1.0
-      });
+      const a = Math.random() * Math.PI * 2;
+      const r = spd * (0.5 + Math.random() * 0.5);
+      addParticle(col, v, Math.cos(a) * r, Math.sin(a) * r * 0.6, 0.13 + Math.random() * 0.04, 0.015 + Math.random() * 0.015, 1.0);
     }
   }
 }
 
 function effectFireworks(dt) {
   t += dt;
-  for(let i=0;i<N*3;i++) colBuf[i]*=0.80;
+  for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.80;
 
   fwSpawnT += dt;
-  if(fwSpawnT > 0.55) { fwLaunch(); if(Math.random()>0.75) fwLaunch(); fwSpawnT=0; }
+  if (fwSpawnT > 0.55) { fwLaunch(); if (Math.random() > 0.75) fwLaunch(); fwSpawnT = 0; }
+
+  const totalCols = panel2dMode ? SIZE : SIZE * 4;
+  const G = SIZE * 0.06;
 
   // ── Rockets ──
-  for(let k=fwRockets.length-1;k>=0;k--){
-    const r=fwRockets[k];
-    r.vy -= SIZE*0.85*dt;
-    r.y  += r.vy*dt;
-    r.x  += (r.vx||0)*dt;
-    r.z  += (r.vz||0)*dt;
-    r.trail.push({x:r.x, y:r.y, z:r.z});
-    if(r.trail.length>20) r.trail.shift();
+  for (let k = fwRockets.length - 1; k >= 0; k--) {
+    const r = fwRockets[k];
+    r.vy -= SIZE * 0.85 * dt;
+    r.v += r.vy * dt;
+    r.col += r.vc * dt;
+    r.trail.push({ col: r.col, v: r.v });
+    if (r.trail.length > 20) r.trail.shift();
 
-    for(let ti=0;ti<r.trail.length;ti++){
-      const tp=r.trail[ti];
-      const fade=(ti/r.trail.length);
-      const [rh,gh,bh]=hsl(r.hue,1,fade*0.95);
-      const iu=Math.max(0,Math.min(SIZE-1,Math.round(tp.x)));
-      const iv=Math.max(0,Math.min(SIZE-1,Math.round(tp.y)));
-      const iz=Math.max(0,Math.min(SIZE-1,Math.round(tp.z)));
-      // Paint on all 4 side faces — rocket visible from all angles
-      [[0,iv*SIZE+iu],[1,iv*SIZE+iu],[2,iv*SIZE+iz],[3,iv*SIZE+iz]].forEach(([f,j])=>{
-        const idx=faceMap[f][j];
-        if(idx>=0){colBuf[idx*3]=Math.min(1,colBuf[idx*3]+rh);colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+gh);colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+bh);}
-      });
+    for (let ti = 0; ti < r.trail.length; ti++) {
+      const tp = r.trail[ti];
+      const fade = ti / r.trail.length;
+      const [rh, gh, bh] = hsl(r.hue, 1, fade * 0.95);
+      const iv = Math.max(0, Math.min(SIZE - 1, Math.round(tp.v)));
+      if (panel2dMode) {
+        const ic = Math.round(tp.col);
+        if (ic >= 0 && ic < SIZE) { const idx = faceMap[0][iv * SIZE + ic]; if (idx >= 0) fwSet(idx, rh, gh, bh); }
+      } else {
+        const idx = fwPx(Math.round(tp.col), iv);
+        if (idx >= 0) fwSet(idx, rh, gh, bh);
+      }
     }
-    if(r.vy<=0 || r.y>=SIZE-1) { fwBurst(r.x,r.y,r.z,r.hue,r.hue2||Math.random()); fwRockets.splice(k,1); }
+    if (r.vy <= 0 || r.v >= SIZE - 1) { fwBurst(r.col, r.v, r.hue, r.hue2); fwRockets.splice(k, 1); }
   }
 
-  // ── Burst particles — paint on all 6 faces ──
-  const G=SIZE*0.06;
-  for(let k=fwBursts.length-1;k>=0;k--){
-    const b=fwBursts[k];
-    b.x+=b.vx*dt; b.y+=b.vy*dt; b.z+=b.vz*dt;
-    b.vy-=G*dt;
-    b.life-=b.decay;
-    if(b.life<=0){fwBursts.splice(k,1);continue;}
+  // ── Burst particles ──
+  for (let k = fwBursts.length - 1; k >= 0; k--) {
+    const b = fwBursts[k];
+    b.col += b.vc * dt;
+    b.v += b.vy * dt;
+    b.vy -= G * dt;
+    b.life -= b.decay;
+    if (b.life <= 0) { fwBursts.splice(k, 1); continue; }
 
-    if(panel2dMode){
-      // 2D panel: kill particle when it hits any edge
-      if(b.x<0||b.x>=SIZE||b.y<0||b.y>=SIZE){fwBursts.splice(k,1);continue;}
-      const [rh,gh,bh]=hsl(b.hue,1,b.life*(b.bright||0.9));
-      const iu=Math.round(b.x), iv=Math.round(b.y);
-      const idx=faceMap[0][iv*SIZE+iu];
-      if(idx>=0){colBuf[idx*3]=Math.max(colBuf[idx*3],rh);colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],gh);colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],bh);}
-      continue;
-    }
+    const iv = Math.round(b.v);
+    if (iv < 0 || iv >= SIZE) { fwBursts.splice(k, 1); continue; }
 
-    const [rh,gh,bh]=hsl(b.hue,1,b.life*(b.bright||0.9));
-    // 3D cube: wrap x/z around cube faces when out of bounds
-    let bx=b.x, bz=b.z;
-    if(bx<0){bx=SIZE+bx%SIZE;} else if(bx>=SIZE){bx=bx%SIZE;}
-    if(bz<0){bz=SIZE+bz%SIZE;} else if(bz>=SIZE){bz=bz%SIZE;}
-    const iu=Math.max(0,Math.min(SIZE-1,Math.round(bx)));
-    const iv=Math.max(0,Math.min(SIZE-1,Math.round(b.y)));
-    const iz=Math.max(0,Math.min(SIZE-1,Math.round(bz)));
-    // Paint on all 6 faces for full cube coverage
-    const checks=[
-      [faceMap[0][iv*SIZE+iu],1],[faceMap[1][iv*SIZE+iu],0.85],
-      [faceMap[2][iv*SIZE+iz],1],[faceMap[3][iv*SIZE+iz],0.85],
-      [faceMap[4][iz*SIZE+iu],0.9],[faceMap[5][iz*SIZE+iu],0.7],
-    ];
-    for(const [idx,fade] of checks){
-      if(idx>=0){
-        colBuf[idx*3]=Math.max(colBuf[idx*3],rh*fade);
-        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],gh*fade);
-        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],bh*fade);
-      }
+    const [rh, gh, bh] = hsl(b.hue, 1, b.life * (b.bright || 0.9));
+
+    if (panel2dMode) {
+      const ic = Math.round(b.col);
+      if (ic < 0 || ic >= SIZE) { fwBursts.splice(k, 1); continue; }
+      const idx = faceMap[0][iv * SIZE + ic];
+      if (idx >= 0) fwSet(idx, rh, gh, bh);
+    } else {
+      const idx = fwPx(Math.round(b.col), iv);
+      if (idx >= 0) fwSet(idx, rh, gh, bh);
     }
   }
 
