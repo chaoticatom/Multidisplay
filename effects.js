@@ -2977,12 +2977,14 @@ function wxSkyRGB(df){
 
 function wxInitScene(code){
   wxClouds=[];wxParticles=[];wxStars=[];
-  const nc=code===0?0:code===1?2:code<=2?5:code===3?15:code>=45&&code<=48?8:code>=95?12:8;
+  const nc=code===0?0:code===1?3:code<=2?8:code===3?40:code>=45&&code<=48?12:code>=95?18:10;
   const dark=code>=95;
-  for(let i=0;i<nc;i++) wxClouds.push({px:Math.random(),py:0.45+Math.random()*0.45,
-    sz:0.07+Math.random()*0.14,spd:0.00015+Math.random()*0.0003,
-    br:dark?0.15+Math.random()*0.2:0.6+Math.random()*0.4,
-    puffs:3+Math.floor(Math.random()*5),fluff:Math.random()});
+  const overcast=code===3;
+  for(let i=0;i<nc;i++) wxClouds.push({px:Math.random(),py:0.35+Math.random()*0.55,
+    sz:overcast?0.12+Math.random()*0.2:0.07+Math.random()*0.14,
+    spd:0.00015+Math.random()*0.0003,
+    br:dark?0.15+Math.random()*0.2:overcast?0.35+Math.random()*0.25:0.6+Math.random()*0.4,
+    puffs:overcast?5+Math.floor(Math.random()*6):3+Math.floor(Math.random()*5),fluff:Math.random()});
   for(let i=0;i<100;i++) wxStars.push({px:Math.random(),py:Math.random(),
     br:0.3+Math.random()*0.7,tw:Math.random()*Math.PI*2,spd:1.5+Math.random()*3});
   const isRain=code>=51&&code<=55||code>=61&&code<=65||code>=80&&code<=82||code>=95;
