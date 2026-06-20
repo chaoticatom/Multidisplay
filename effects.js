@@ -3217,7 +3217,7 @@ function effectCustomCube(dt){
 // ── WEATHER EFFECT ─────────────────────────────────────────────────────────────
 let wxCode=0,wxTemp=20,wxDesc='Clear',wxFetching=false,wxLastFetch=-9999;
 let wxSunriseS=21600,wxSunsetS=72000,wxTzOffset=0;
-let wxLat=52.04,wxLon=-0.76;
+let wxLat=52.04,wxLon=-0.76,wxCityDisplay='';
 let wxClouds=[],wxParticles=[],wxStars=[],wxT2=0,wxLightFlash=0;
 let wxSkyline=null,wxCreatures=[];
 const WX_CODES={0:'Clear',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',
@@ -3336,6 +3336,7 @@ function wxUpdateCityDropdown(){
         dropdown.querySelectorAll('div[data-short]').forEach(el=>{
           el.addEventListener('click',()=>{
             document.getElementById('wx-city').value=el.dataset.short;
+            wxCityDisplay=el.dataset.short;
             wxLat=parseFloat(el.dataset.lat);
             wxLon=parseFloat(el.dataset.lon);
             dropdown.style.display='none';
@@ -3372,6 +3373,7 @@ async function wxFetch(skipGeocode){
       if(!gd.results?.length) throw new Error(`City "${city}" not found`);
       const loc=gd.results[0];
       wxLat=loc.latitude; wxLon=loc.longitude;
+      wxCityDisplay=loc.country?`${loc.name}, ${loc.country}`:loc.name;
     }
     if(statusEl) statusEl.textContent=`Fetching weather for ${city}…`;
 
@@ -3577,7 +3579,7 @@ function effectWeather(dt){
 
   // Temperature string: e.g. "12°C"  or  "-3°C"
   const tempStr=(wxTemp<0?'-':'')+Math.abs(wxTemp)+'°C';
-  const locStr=(document.getElementById('wx-status')?.textContent||'').split(',')[0].trim().toUpperCase();
+  const locStr=(wxCityDisplay||document.getElementById('wx-city')?.value||'').trim().toUpperCase();
 
   // ── Render sky+ground on side faces ──
   for(let fi=0;fi<4;fi++){
