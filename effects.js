@@ -3543,7 +3543,7 @@ function effectWeather(dt){
     'N':[7,5,5,5,5],'O':[7,5,5,5,7],'P':[6,5,6,4,4],'Q':[7,5,5,7,1],
     'R':[6,5,6,5,5],'S':[3,4,2,1,6],'T':[7,2,2,2,2],'U':[5,5,5,5,7],
     'V':[5,5,5,5,2],'W':[5,5,5,7,5],'X':[5,5,2,5,5],'Y':[5,5,2,2,2],
-    'Z':[7,1,2,4,7],
+    'Z':[7,1,2,4,7],',':[0,0,0,2,4],'.':[0,0,0,0,2],
     'a':[0,6,5,7,5],'b':[4,6,5,5,6],'c':[0,3,4,4,3],'d':[1,3,5,5,3],
     'e':[0,7,5,6,3],'g':[0,3,5,3,7],'h':[4,6,5,5,5],'i':[2,0,2,2,2],
     'k':[4,5,6,6,5],'l':[6,2,2,2,7],'m':[0,7,7,5,5],'n':[0,6,5,5,5],
@@ -3648,50 +3648,48 @@ function effectWeather(dt){
     }
   }
 
-  // Draw scrolling city name across faces
+  // Draw city name — scroll if too wide for available space
   if(locStr){
     const textW=locStr.length*4;
-    const totalW=panel2dMode?S:S*4;
-    if(textW<=totalW){
-      // Fits on screen — draw static on face 0
-      const lx=Math.max(1,S-1-textW);
-      wxText(SIDE[0],locStr,lx,textV,txtR*0.7,txtG*0.7,txtB*0.85);
+    const faceW=panel2dMode?S:S*4;
+    const lr=txtR*0.7,lg=txtG*0.7,lb=txtB*0.85;
+    let startCol;
+    if(textW<=faceW){
+      startCol=Math.max(0,faceW-textW-1);
+      wxScrollOff=0;
     } else {
-      // Scroll across all faces
-      wxScrollOff=(wxScrollOff+dt*20)%(textW+totalW);
-      const startCol=Math.round(totalW-wxScrollOff);
-      const lr=txtR*0.7,lg=txtG*0.7,lb=txtB*0.85;
-      let col=startCol;
-      for(const ch of locStr){
-        const rows=WXF[ch]||WXF[ch.toUpperCase()];
-        if(rows){
-          for(let row=0;row<5;row++){
-            const bits=rows[row];
-            for(let c=0;c<3;c++){
-              if(!((bits>>(2-c))&1)) continue;
-              const u=col+c, v=textV+(4-row);
-              if(panel2dMode){
-                if(u>=0&&u<S&&v>=0&&v<S){
-                  const idx=faceMap[0][v*S+u]; if(idx<0) continue;
-                  if(lr>colBuf[idx*3]) colBuf[idx*3]=lr;
-                  if(lg>colBuf[idx*3+1]) colBuf[idx*3+1]=lg;
-                  if(lb>colBuf[idx*3+2]) colBuf[idx*3+2]=lb;
-                }
-              } else {
-                if(v>=0&&v<S){
-                  const idx=creaturePx(u,v);
-                  if(idx>=0){
-                    if(lr>colBuf[idx*3]) colBuf[idx*3]=lr;
-                    if(lg>colBuf[idx*3+1]) colBuf[idx*3+1]=lg;
-                    if(lb>colBuf[idx*3+2]) colBuf[idx*3+2]=lb;
-                  }
-                }
+      wxScrollOff=(wxScrollOff+dt*20)%(textW+faceW);
+      startCol=Math.round(faceW-wxScrollOff);
+    }
+    let col=startCol;
+    for(const ch of locStr){
+      const rows=WXF[ch]||WXF[ch.toUpperCase()];
+      if(rows){
+        for(let row=0;row<5;row++){
+          const bits=rows[row];
+          for(let c=0;c<3;c++){
+            if(!((bits>>(2-c))&1)) continue;
+            const u=col+c, v=textV+(4-row);
+            if(v<0||v>=S) continue;
+            if(panel2dMode){
+              if(u>=0&&u<S){
+                const idx=faceMap[0][v*S+u]; if(idx<0) continue;
+                if(lr>colBuf[idx*3]) colBuf[idx*3]=lr;
+                if(lg>colBuf[idx*3+1]) colBuf[idx*3+1]=lg;
+                if(lb>colBuf[idx*3+2]) colBuf[idx*3+2]=lb;
+              }
+            } else {
+              const idx=creaturePx(u,v);
+              if(idx>=0){
+                if(lr>colBuf[idx*3]) colBuf[idx*3]=lr;
+                if(lg>colBuf[idx*3+1]) colBuf[idx*3+1]=lg;
+                if(lb>colBuf[idx*3+2]) colBuf[idx*3+2]=lb;
               }
             }
           }
         }
-        col+=4;
       }
+      col+=4;
     }
   }
 
