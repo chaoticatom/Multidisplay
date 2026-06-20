@@ -2982,10 +2982,10 @@ function wxInitScene(code){
   const isStormCode=code>=95;
   const isHeavyRain=code===55||code===65||code>=81;
   const isOvercastCode=code===3;
-  const nc=code===0?0:code===1?6:code<=2?18:isOvercastCode?65:isStormCode?30:isHeavyRain?25:isRainCode?20:isSnowCode?18:code>=45&&code<=48?12:10;
+  const nc=code===0?0:code===1?8:code<=2?25:isOvercastCode?65:isStormCode?30:isHeavyRain?25:isRainCode?20:isSnowCode?18:code>=45&&code<=48?12:10;
   const dark=isStormCode;
   for(let i=0;i<nc;i++) wxClouds.push({px:Math.random(),py:isOvercastCode?0.15+Math.random()*0.8:0.3+Math.random()*0.6,
-    sz:isStormCode?0.14+Math.random()*0.22:isRainCode?0.1+Math.random()*0.18:isOvercastCode?0.18+Math.random()*0.25:0.07+Math.random()*0.14,
+    sz:isStormCode?0.14+Math.random()*0.22:isRainCode?0.1+Math.random()*0.18:isOvercastCode?0.18+Math.random()*0.25:code<=2?0.1+Math.random()*0.18:0.07+Math.random()*0.14,
     spd:0.0002+Math.random()*0.0004,
     spdY:(Math.random()-0.35)*0.00012,
     br:dark?0.1+Math.random()*0.12:isRainCode?0.18+Math.random()*0.18:isOvercastCode?0.55+Math.random()*0.45:0.6+Math.random()*0.4,
@@ -3532,8 +3532,8 @@ function effectWeather(dt){
             else { edge=Math.max(0,(1-dist)/0.25); edge*=edge; }
           } else edge=1-dist;
           const cb=cl.br*cloudDark*edge;
-          const warm=cl.fluff*0.06;
-          blendLED(idx,cb+warm,cb*0.98+warm*0.5,cb*0.95);
+          const warm=(isDawn||isDusk)?cl.fluff*0.06*glowAmt:0;
+          blendLED(idx,cb+warm,cb*(1-warm*0.3),cb*(1-warm*0.8));
         }
       }
     }
@@ -3552,8 +3552,8 @@ function effectWeather(dt){
         else { topEdge=Math.max(0,(1-dist)/0.25); topEdge*=topEdge; }
       } else topEdge=1-dist;
       const cb=cl.br*cloudDark*topEdge*0.8;
-      const warm=cl.fluff*0.06;
-      blendLED(idx,cb+warm,cb*0.98+warm*0.5,cb*0.95);
+      const warm=(isDawn||isDusk)?cl.fluff*0.06*glowAmt:0;
+      blendLED(idx,cb+warm,cb*(1-warm*0.3),cb*(1-warm*0.8));
     }
   }
 
