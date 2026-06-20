@@ -3164,13 +3164,13 @@ function effectWeather(dt){
   // Darken/grey sky based on weather conditions
   if(isDay){
     if(isStorm){
-      skyCol=[skyCol[0]*0.15,skyCol[1]*0.15,skyCol[2]*0.2];
+      skyCol=[skyCol[0]*0.2+0.03,skyCol[1]*0.2+0.03,skyCol[2]*0.25+0.04];
     } else if(isRain){
-      skyCol=[skyCol[0]*0.3+0.05,skyCol[1]*0.3+0.05,skyCol[2]*0.35+0.06];
+      skyCol=[skyCol[0]*0.4+0.08,skyCol[1]*0.4+0.1,skyCol[2]*0.5+0.1];
     } else if(isOvercast){
-      skyCol=[skyCol[0]*0.35+0.12,skyCol[1]*0.35+0.13,skyCol[2]*0.4+0.12];
+      skyCol=[skyCol[0]*0.45+0.15,skyCol[1]*0.45+0.18,skyCol[2]*0.5+0.16];
     } else if(wxCode===2){
-      skyCol=[skyCol[0]*0.7+0.05,skyCol[1]*0.7+0.05,skyCol[2]*0.75+0.04];
+      skyCol=[skyCol[0]*0.75+0.04,skyCol[1]*0.75+0.04,skyCol[2]*0.8+0.03];
     }
   }
 
@@ -3438,7 +3438,7 @@ function effectWeather(dt){
     faceV=vOfElevFrac(elevFrac);
 
     // Draw on side face — proper circle (clipped to above horizon)
-    const drawR=Math.ceil(radius+5);
+    const drawR=Math.ceil(radius+8);
     const horizV=Math.round(HORIZ*S1);
     for(let dv=-drawR;dv<=drawR;dv++) for(let du=-drawR;du<=drawR;du++){
       const dist=Math.sqrt(du*du+dv*dv);
@@ -3447,8 +3447,9 @@ function effectWeather(dt){
       const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
       if(isSun){
         if(dist<=radius){ blendLED(idx,1,0.98,0.7); }
-        else if(dist<radius+2){ const b=(1-(dist-radius)/2)*0.9; blendLED(idx,b,b*0.85,b*0.25); }
-        else if(dist<radius+5){ const b=(1-(dist-radius-2)/3)*0.35; blendLED(idx,b,b*0.65,b*0.08); }
+        else if(dist<radius+2){ const b=(1-(dist-radius)/2)*0.95; blendLED(idx,b,b*0.88,b*0.3); }
+        else if(dist<radius+5){ const b=(1-(dist-radius-2)/3)*0.5; blendLED(idx,b,b*0.7,b*0.12); }
+        else if(dist<radius+8){ const b=(1-(dist-radius-5)/3)*0.2; blendLED(idx,b,b*0.6,b*0.08); }
       } else {
         drawMoon(idx,du,dv,dist,radius,phase);
       }
@@ -3485,7 +3486,7 @@ function effectWeather(dt){
     drawBody(((sunPX+0.5)%1),Math.max(0,sunElev-0.3),false,moonPh);
 
   // ── Clouds ──
-  const cloudDark=isStorm?0.12:isRain?0.22:isOvercast?0.4:wxCode>=3?0.5:0.75;
+  const cloudDark=isStorm?0.25:isRain?0.4:isOvercast?0.6:wxCode>=3?0.65:0.85;
   for(const cl of wxClouds){
     cl.px=(cl.px+cl.spd*dt+1)%1;
     // Draw on side faces and top
