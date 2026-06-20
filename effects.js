@@ -338,6 +338,11 @@ const fwParticles = []; // kept for reset compatibility
 const fwRockets = [];
 const fwBursts = [];
 let fwSpawnT = 0;
+let fwMode = 'random'; // 'random', 'sync', 'mic'
+let fwSyncT = 0, fwSyncPhase = 0, fwSyncStep = 0;
+let fwMicOn = false, fwMicCtx = null, fwMicAnalyser = null, fwMicBuf = null;
+let fwMicBass = 0, fwMicMid = 0, fwMicHigh = 0, fwMicEnergy = 0;
+let fwMicCooldown = 0;
 const FW_FACES = [0,2,1,3]; // clockwise physical face order
 
 function fwPx(col, v) {
@@ -436,12 +441,136 @@ function fwBurst(col, v, hue, hue2) {
   }
 }
 
+// Sync show: choreographed sequences
+const FW_SYNC_PHASES = [
+  // volley — rapid burst from one side
+  (step) => {
+    const base = Math.floor(Math.random() * 4) * SIZE;
+    for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) {
+      const sc = base + SIZE * 0.15 + Math.random() * SIZE * 0.7;
+      fwRockets.push({ col: sc, v: 0, vy: SIZE * (0.65 + Math.random() * 0.35), vc: (Math.random() - 0.5) * SIZE * 0.15, hue: (step * 0.15 + i * 0.08) % 1, hue2: Math.random(), trail: [] });
+    }
+    return 0.35;
+  },
+  // cascade — sequential launches across all 4 faces
+  (step) => {
+    const totalCols = SIZE * 4;
+    const count = 6 + Math.floor(Math.random() * 4);
+    const hBase = Math.random();
+    for (let i = 0; i < count; i++) {
+      const sc = (totalCols / count) * i + Math.random() * SIZE * 0.3;
+      setTimeout(() => {
+        fwRockets.push({ col: sc, v: 0, vy: SIZE * (0.6 + Math.random() * 0.3), vc: 0, hue: (hBase + i * 0.05) % 1, hue2: (hBase + 0.5) % 1, trail: [] });
+      }, i * 120);
+    }
+    return 1.2;
+  },
+  // fan — spread from center of one face
+  (step) => {
+    const face = Math.floor(Math.random() * 4);
+    const center = face * SIZE + SIZE / 2;
+    const hue = Math.random();
+    for (let i = -3; i <= 3; i++) {
+      const sc = center + i * SIZE * 0.08;
+      fwRockets.push({ col: sc, v: 0, vy: SIZE * (0.7 + Math.random() * 0.2), vc: i * SIZE * 0.06, hue: hue, hue2: (hue + 0.3) % 1, trail: [] });
+    }
+    return 0.6;
+  },
+  // crossover — two sides launch toward each other
+  (step) => {
+    const hue = Math.random();
+    for (let i = 0; i < 3; i++) {
+      const sc1 = SIZE * 0.3 + Math.random() * SIZE * 0.4;
+      const sc2 = SIZE * 2 + SIZE * 0.3 + Math.random() * SIZE * 0.4;
+      fwRockets.push({ col: sc1, v: 0, vy: SIZE * (0.65 + Math.random() * 0.3), vc: SIZE * 0.15, hue: hue, hue2: (hue + 0.5) % 1, trail: [] });
+      fwRockets.push({ col: sc2, v: 0, vy: SIZE * (0.65 + Math.random() * 0.3), vc: -SIZE * 0.15, hue: (hue + 0.5) % 1, hue2: hue, trail: [] });
+    }
+    return 0.8;
+  },
+  // finale — massive barrage from all sides
+  (step) => {
+    const totalCols = SIZE * 4;
+    const hBase = Math.random();
+    for (let i = 0; i < 12 + Math.floor(Math.random() * 8); i++) {
+      const sc = Math.random() * totalCols;
+      const delay = Math.random() * 600;
+      setTimeout(() => {
+        fwRockets.push({ col: sc, v: 0, vy: SIZE * (0.5 + Math.random() * 0.5), vc: (Math.random() - 0.5) * SIZE * 0.2, hue: (hBase + Math.random() * 0.3) % 1, hue2: Math.random(), trail: [] });
+      }, delay);
+    }
+    return 1.8;
+  }
+];
+
+function fwSyncUpdate(dt) {
+  fwSyncT -= dt;
+  if (fwSyncT <= 0) {
+    const phase = FW_SYNC_PHASES[fwSyncPhase % FW_SYNC_PHASES.length];
+    fwSyncT = phase(fwSyncStep);
+    fwSyncStep++;
+    if (fwSyncStep % (2 + Math.floor(Math.random() * 3)) === 0) fwSyncPhase++;
+  }
+}
+
+async function fwMicStart() {
+  if (fwMicOn) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    fwMicCtx = fwMicCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (fwMicCtx.state === 'suspended') await fwMicCtx.resume();
+    const src = fwMicCtx.createMediaStreamSource(stream);
+    fwMicAnalyser = fwMicCtx.createAnalyser();
+    fwMicAnalyser.fftSize = 1024;
+    fwMicAnalyser.smoothingTimeConstant = 0.5;
+    src.connect(fwMicAnalyser);
+    fwMicBuf = new Uint8Array(fwMicAnalyser.frequencyBinCount);
+    fwMicOn = true;
+  } catch (e) { fwMicOn = false; }
+}
+
+function fwMicAnalyse(dt) {
+  if (!fwMicOn || !fwMicAnalyser) return;
+  fwMicAnalyser.getByteFrequencyData(fwMicBuf);
+  const n = fwMicBuf.length;
+  let bass = 0, mid = 0, high = 0;
+  const bEnd = Math.floor(n * 0.1), mEnd = Math.floor(n * 0.4);
+  for (let i = 0; i < bEnd; i++) bass += fwMicBuf[i];
+  for (let i = bEnd; i < mEnd; i++) mid += fwMicBuf[i];
+  for (let i = mEnd; i < n; i++) high += fwMicBuf[i];
+  bass /= bEnd * 255; mid /= (mEnd - bEnd) * 255; high /= (n - mEnd) * 255;
+  fwMicBass = fwMicBass * 0.6 + bass * 0.4;
+  fwMicMid = fwMicMid * 0.6 + mid * 0.4;
+  fwMicHigh = fwMicHigh * 0.6 + high * 0.4;
+  fwMicEnergy = fwMicBass * 0.5 + fwMicMid * 0.3 + fwMicHigh * 0.2;
+
+  fwMicCooldown -= dt;
+  if (fwMicCooldown > 0) return;
+
+  const totalCols = panel2dMode ? SIZE : SIZE * 4;
+  if (fwMicBass > 0.35) {
+    const count = fwMicBass > 0.6 ? 3 : fwMicBass > 0.45 ? 2 : 1;
+    for (let i = 0; i < count; i++) {
+      fwRockets.push({ col: Math.random() * totalCols, v: 0, vy: SIZE * (0.55 + fwMicBass * 0.5), vc: (Math.random() - 0.5) * SIZE * 0.25, hue: (fwMicMid * 2) % 1, hue2: (fwMicHigh * 3) % 1, trail: [] });
+    }
+    fwMicCooldown = 0.15;
+  } else if (fwMicMid > 0.3) {
+    fwRockets.push({ col: Math.random() * totalCols, v: 0, vy: SIZE * (0.5 + fwMicMid * 0.4), vc: (Math.random() - 0.5) * SIZE * 0.15, hue: Math.random(), hue2: Math.random(), trail: [] });
+    fwMicCooldown = 0.25;
+  }
+}
+
 function effectFireworks(dt) {
   t += dt;
   for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.80;
 
-  fwSpawnT += dt;
-  if (fwSpawnT > 0.4) { fwLaunch(); if (Math.random() > 0.6) fwLaunch(); fwSpawnT = 0; }
+  if (fwMode === 'random') {
+    fwSpawnT += dt;
+    if (fwSpawnT > 0.4) { fwLaunch(); if (Math.random() > 0.6) fwLaunch(); fwSpawnT = 0; }
+  } else if (fwMode === 'sync') {
+    fwSyncUpdate(dt);
+  } else if (fwMode === 'mic') {
+    fwMicAnalyse(dt);
+  }
 
   const totalCols = panel2dMode ? SIZE : SIZE * 4;
   const G = SIZE * 0.06;

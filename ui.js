@@ -1183,12 +1183,23 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
   });
 });
 
-// Fireworks scrolling text — always builds and scrolls, checkbox controls visibility on cube
+// Fireworks mode buttons
+document.querySelectorAll('[data-fwmode]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('[data-fwmode]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    fwMode=btn.dataset.fwmode;
+    if(fwMode==='sync'){ fwSyncT=0; fwSyncPhase=0; fwSyncStep=0; }
+    if(fwMode==='mic') fwMicStart();
+  });
+});
+
+// Fireworks scrolling text
 document.getElementById('fw-text-on')?.addEventListener('change',e=>{
   fwTextOn=e.target.checked;
 });
 document.getElementById('fw-text-input')?.addEventListener('input',e=>{
-  buildFwText(e.target.value); // always rebuild as user types
+  buildFwText(e.target.value);
 });
 
 toggleBtn.addEventListener('click',()=>{
