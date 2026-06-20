@@ -3561,42 +3561,68 @@ function effectWeather(dt){
   for(const cr of wxCreatures){
     if(cr.delay>0){ cr.delay-=dt; continue; }
     cr.px=(cr.px+cr.dx*dt*60+1)%1;
-    if(cr.type==='plane'&&cr.px>1){ // plane finished 1 cycle, hide it
-      cr.delay=120+Math.random()*120; // wait 2-4 minutes before reappearing
+    if(cr.type==='plane'&&cr.px>1){
+      cr.delay=120+Math.random()*120;
       continue;
     }
     if(cr.dy!==undefined) cr.py=Math.max(0.3,Math.min(0.92,cr.py+cr.dy*dt*60));
-    const panIdx=Math.floor(cr.px*4);
-    const crFace=SIDE[panIdx%4];
-    const crU=uOfFacePanX(crFace,cr.px);
+    const crFace0=SIDE[Math.floor(cr.px*4)%4];
+    const crU0=uOfFacePanX(crFace0,cr.px);
     const crV=Math.round((HORIZ+cr.py*(1-HORIZ))*S1);
-    if(crU<0||crU>=S||crV<0||crV>=S) continue; // allow drawing at edges
+    // Base U in panoramic pixel space (0..S*4)
+    const basePanU=cr.px*S*4;
     if(cr.type==='bird'){
       cr.wingT+=dt;
       const flap=Math.sin(cr.wingT*(5+cr.wingSpeed)+cr.wing);
-      const wOff=Math.round(flap*1.5); // wing vertical offset
+      const wOff=Math.round(flap*1.5);
       const br=bldDay?0.35:0.55;
       const dir=cr.dx>0?1:-1;
-      // Draw 5-pixel V: left wing, body, right wing (3 rows for depth)
-      const pixels=[ {du:-2,dv:-wOff}, {du:-1,dv:-wOff/2}, {du:0,dv:0}, {du:1,dv:-wOff/2}, {du:2,dv:-wOff} ];
+      const pixels=[{du:-2,dv:-wOff},{du:-1,dv:-wOff/2},{du:0,dv:0},{du:1,dv:-wOff/2},{du:2,dv:-wOff}];
       for(const {du,dv} of pixels){
-        const pu=crU+du, pv=crV+Math.round(dv);
-        if(pu<0||pu>=S||pv<0||pv>=S) continue;
-        const idx=faceMap[crFace][pv*S+pu]; if(idx<0) continue;
-        blendLED(idx,br*0.9,br,br*1.1); // slightly blue tint
+        const panU=basePanU+du*dir;
+        const pv=crV+Math.round(dv);
+        const fi=Math.floor(((panU/(S*4))%1+1)%1*4)%4;
+        const face=SIDE[fi];
+        const localFrac=(((panU/(S*4))%1+1)%1-fi*0.25)/0.25;
+        let fu;
+        if(face===2) fu=Math.round(localFrac*S1);
+        else if(face===0) fu=Math.round((1-localFrac)*S1);
+        else if(face===3) fu=Math.round((1-localFrac)*S1);
+        else fu=Math.round(localFrac*S1);
+        if(fu<0||fu>=S||pv<0||pv>=S) continue;
+        const idx=faceMap[face][pv*S+fu]; if(idx<0) continue;
+        blendLED(idx,br*0.9,br,br*1.1);
       }
     } else {
       cr.blink+=dt*2;
       const blinkOn=Math.sin(cr.blink)>0;
       const dir=cr.dx>0?1:-1;
       for(let d=-2;d<=1;d++){
-        const pu=crU+d*dir; if(pu<0||pu>=S) continue;
-        const idx=faceMap[crFace][crV*S+pu]; if(idx<0) continue;
+        const panU=basePanU+d*dir;
+        const fi=Math.floor(((panU/(S*4))%1+1)%1*4)%4;
+        const face=SIDE[fi];
+        const localFrac=(((panU/(S*4))%1+1)%1-fi*0.25)/0.25;
+        let fu;
+        if(face===2) fu=Math.round(localFrac*S1);
+        else if(face===0) fu=Math.round((1-localFrac)*S1);
+        else if(face===3) fu=Math.round((1-localFrac)*S1);
+        else fu=Math.round(localFrac*S1);
+        if(fu<0||fu>=S||crV<0||crV>=S) continue;
+        const idx=faceMap[face][crV*S+fu]; if(idx<0) continue;
         blendLED(idx,0.65,0.68,0.72);
       }
       if(blinkOn){
-        const lu=crU+2*dir; if(lu>=0&&lu<S){
-          const idx=faceMap[crFace][crV*S+lu]; blendLED(idx,1,0.1,0.1);
+        const panU=basePanU+2*dir;
+        const fi=Math.floor(((panU/(S*4))%1+1)%1*4)%4;
+        const face=SIDE[fi];
+        const localFrac=(((panU/(S*4))%1+1)%1-fi*0.25)/0.25;
+        let fu;
+        if(face===2) fu=Math.round(localFrac*S1);
+        else if(face===0) fu=Math.round((1-localFrac)*S1);
+        else if(face===3) fu=Math.round((1-localFrac)*S1);
+        else fu=Math.round(localFrac*S1);
+        if(fu>=0&&fu<S&&crV>=0&&crV<S){
+          const idx=faceMap[face][crV*S+fu]; if(idx>=0) blendLED(idx,1,0.1,0.1);
         }
       }
     }
