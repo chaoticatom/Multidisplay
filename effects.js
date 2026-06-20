@@ -1272,9 +1272,16 @@ function effectBouncingBalls(dt){
     }
 
     const R=b.r;
-    // Bounce off edges (2D mode or after face transfer clamping)
-    if(b.u<R)    {b.u=R;    b.du=Math.abs(b.du);}
-    if(b.u>S1-R) {b.u=S1-R; b.du=-Math.abs(b.du);}
+    const crossU=!panel2dMode&&ballCrossFaces&&(b.face===1||b.face===2);
+    if(crossU){
+      // Face 1: only bounce on right edge (u>=S), left crosses to face 2
+      // Face 2: only bounce on left edge (u<0), right crosses to face 1
+      if(b.face===1 && b.u>S1-R) {b.u=S1-R; b.du=-Math.abs(b.du);}
+      if(b.face===2 && b.u<R)    {b.u=R;    b.du=Math.abs(b.du);}
+    } else {
+      if(b.u<R)    {b.u=R;    b.du=Math.abs(b.du);}
+      if(b.u>S1-R) {b.u=S1-R; b.du=-Math.abs(b.du);}
+    }
     if(b.v<R)    {b.v=R;    b.dv=Math.abs(b.dv);}
     if(b.v>S1-R) {b.v=S1-R; b.dv=-Math.abs(b.dv);}
 
