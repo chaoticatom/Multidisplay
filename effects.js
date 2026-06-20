@@ -5378,6 +5378,7 @@ function renderImg(){
     }
   } else {
     // 3D: map image across 4 side faces as panorama
+    // Match video rendering: face 2 needs srcY=v (flipped source), all others srcY=S-1-v
     const totalW=4*S;
     for(let fIdx=0;fIdx<4;fIdx++){
       const face=VID_FACE_ORDER[fIdx];
@@ -5386,17 +5387,11 @@ function renderImg(){
         for(let u=0;u<S;u++){
           const pu=flipU?(S-1-u):u;
           const srcU=(fIdx*S+pu)/totalW;
-          const srcV=(S-1-v)/(S-1);
-          const sx=Math.min(imgW-1,(srcU*imgW)|0);
-          const sy=Math.min(imgH-1,(srcV*imgH)|0);
+          const srcY=(face===2)?v:(S-1-v);
+          const sx=Math.min(imgW-1,((srcU*imgW)|0));
+          const sy=Math.min(imgH-1,((srcY/(S-1))*imgH)|0);
           const pi=(sy*imgW+sx)*4;
-          const outV=(face===2)?(S-1-v):v;
-          const idx=faceMap[face][outV*S+u];
-          if(idx>=0){
-            colBuf[idx*3]=imgPx[pi]/255;
-            colBuf[idx*3+1]=imgPx[pi+1]/255;
-            colBuf[idx*3+2]=imgPx[pi+2]/255;
-          }
+          setFaceLED(face,u,v,imgPx[pi]/255,imgPx[pi+1]/255,imgPx[pi+2]/255);
         }
       }
     }
