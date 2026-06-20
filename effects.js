@@ -1188,48 +1188,29 @@ let balls=[], ballFlashes=[];
 let ballCrossFaces=true;
 let ballsPerFace=3;
 
-// Face edge adjacency: [face][edge] = {f, map(u,v,S)=>[nu,nv,ndu,ndv]}
-// Edges: 0=left(u<0), 1=right(u>=S), 2=bottom(v<0), 3=top(v>=S)
-// du,dv args are the velocity components to transform
-// faceMap: f0(z=S-1,u=x,v=y) f1(z=0,u=S-1-x,v=y) f2(x=S-1,u=S-1-z,v=y) f3(x=0,u=z,v=y) f4(y=S-1,u=x,v=z) f5(y=0,u=x,v=z)
+// Side faces form a clockwise strip: 0→2→1→3→0
+// All share v=y, so dv always unchanged for side-to-side.
+// du stays same sign (ball continues in same direction around the cube).
+// Top/bottom: just bounce (simpler and avoids complex axis rotations).
 function ballTransfer(face, edge, u, v, du, dv, S) {
   const M = S - 1;
-  // overflow: how far past the edge
   const ou = u < 0 ? -u : u >= S ? u - M : 0;
-  const ov = v < 0 ? -v : v >= S ? v - M : 0;
   switch (face * 4 + edge) {
-    // Face 0 front
-    case 0: return { f:3, u:M-ou, v:v, du:-du, dv:dv };       // left→left(u=S-1)
-    case 1: return { f:2, u:ou, v:v, du:-du, dv:dv };          // right→right(u=0)
-    case 2: return { f:5, u:u, v:M-ov, du:du, dv:-dv };        // bot→bottom(v=S-1)
-    case 3: return { f:4, u:u, v:M-ov, du:du, dv:-dv };        // top→top(v=S-1)
-    // Face 1 back
-    case 4: return { f:2, u:M-ou, v:v, du:-du, dv:dv };        // left→right(u=S-1)
-    case 5: return { f:3, u:ou, v:v, du:-du, dv:dv };          // right→left(u=0)
-    case 6: return { f:5, u:M-u, v:ov, du:-du, dv:-dv };       // bot→bottom(v=0)
-    case 7: return { f:4, u:M-u, v:ov, du:-du, dv:-dv };       // top→top(v=0)
-    // Face 2 right
-    case 8: return { f:0, u:M-ou, v:v, du:-du, dv:dv };        // left→front(u=S-1)
-    case 9: return { f:1, u:ou, v:v, du:-du, dv:dv };          // right→back(u=0)
-    case 10: return { f:5, u:M, v:M-u, du:dv, dv:-du };        // bot→bottom
-    case 11: return { f:4, u:M, v:M-u, du:-dv, dv:du };        // top→top
-    // Face 3 left
-    case 12: return { f:1, u:M-ou, v:v, du:-du, dv:dv };       // left→back(u=S-1)
-    case 13: return { f:0, u:ou, v:v, du:-du, dv:dv };         // right→front(u=0)
-    case 14: return { f:5, u:0, v:u, du:-dv, dv:du };          // bot→bottom
-    case 15: return { f:4, u:0, v:u, du:dv, dv:-du };          // top→top
-    // Face 4 top
-    case 16: return { f:3, u:v, v:M, du:dv, dv:-du };          // left→left(v=S-1)
-    case 17: return { f:2, u:M-v, v:M, du:-dv, dv:du };        // right→right(v=S-1)
-    case 18: return { f:1, u:M-u, v:M, du:-du, dv:-dv };       // bot→back(v=S-1)
-    case 19: return { f:0, u:u, v:M, du:du, dv:-dv };          // top→front(v=S-1)
-    // Face 5 bottom
-    case 20: return { f:3, u:v, v:0, du:dv, dv:du };           // left→left(v=0)
-    case 21: return { f:2, u:M-v, v:0, du:-dv, dv:-du };       // right→right(v=0)
-    case 22: return { f:1, u:M-u, v:0, du:-du, dv:dv };        // bot→back(v=0)
-    case 23: return { f:0, u:u, v:0, du:du, dv:dv };           // top→front(v=0)
+    // Face 0 front — CW strip order: left=face3, right=face2
+    case 0: return { f:3, u:M-ou, v:v, du:du, dv:dv };
+    case 1: return { f:2, u:ou, v:v, du:du, dv:dv };
+    // Face 1 back — CW strip order: left=face2, right=face3
+    case 4: return { f:2, u:M-ou, v:v, du:du, dv:dv };
+    case 5: return { f:3, u:ou, v:v, du:du, dv:dv };
+    // Face 2 right — CW strip order: left=face0, right=face1
+    case 8: return { f:0, u:M-ou, v:v, du:du, dv:dv };
+    case 9: return { f:1, u:ou, v:v, du:du, dv:dv };
+    // Face 3 left — CW strip order: left=face1, right=face0
+    case 12: return { f:1, u:M-ou, v:v, du:du, dv:dv };
+    case 13: return { f:0, u:ou, v:v, du:du, dv:dv };
+    // Top/bottom edges — bounce instead of crossing
+    default: return null;
   }
-  return { f:face, u:Math.max(0,Math.min(M,u)), v:Math.max(0,Math.min(M,v)), du, dv };
 }
 
 function resetBalls(){
@@ -1307,6 +1288,7 @@ function effectBouncingBalls(dt){
         else if(b.v>=S) edge=3;
         if(edge<0) break;
         const t2=ballTransfer(b.face, edge, b.u, b.v, b.du, b.dv, S);
+        if(!t2) break;
         b.face=t2.f;
         b.u=Math.max(0.01,Math.min(S-0.01,t2.u));
         b.v=Math.max(0.01,Math.min(S-0.01,t2.v));
