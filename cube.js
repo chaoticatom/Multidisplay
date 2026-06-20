@@ -132,6 +132,8 @@ function toggleMenu() {
     sidebar.classList.toggle('open', menuOpen);
   } else {
     sidebar.classList.toggle('hidden', !menuOpen);
+    const openBtn = document.getElementById('sidebar-open-btn');
+    if (openBtn) openBtn.classList.toggle('show', !menuOpen);
   }
   menuToggle.textContent = menuOpen ? '✕' : '☰';
   updateSidebarOverlay();
