@@ -1988,8 +1988,8 @@ function drawPlasmaStyle(dt){
 let ringsArr=[], ringTimer=0;
 function drawRingsStyle(dt){
   ringTimer+=dt;
-  const bassHit=auSpec[0]+auSpec[1];
-  if(bassHit>1.2 && ringTimer>0.15 && ringsArr.length<12){
+  const bassHit=(auSpec[0]+auSpec[1]+auSpec[2])/3;
+  if(bassHit>0.35 && ringTimer>0.2 && ringsArr.length<12){
     ringTimer=0;
     const face=Math.floor(Math.random()*6);
     const cx=Math.random()*SIZE, cy=Math.random()*SIZE;
@@ -1998,15 +1998,15 @@ function drawRingsStyle(dt){
   // update & draw rings
   for(let ri=ringsArr.length-1;ri>=0;ri--){
     const ring=ringsArr[ri];
-    ring.radius+=dt*SIZE*1.8;
-    ring.bright-=dt*1.2;
+    ring.radius+=dt*SIZE*1.2;
+    ring.bright-=dt*0.7;
     if(ring.bright<=0){ringsArr.splice(ri,1);continue;}
     const f=ring.face, S=SIZE;
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
       const d=Math.abs(Math.hypot(u-ring.cx,v-ring.cy)-ring.radius);
-      if(d<1.8){
-        const a=(1-d/1.8)*ring.bright;
-        const [r,g,b]=hsl(ring.hue,1,a*0.8);
+      if(d<3){
+        const a=(1-d/3)*ring.bright;
+        const [r,g,b]=hsl(ring.hue,1,a*0.9);
         const idx=faceMap[f][v*S+u];
         if(idx>=0) blendLED(idx,r,g,b);
       }
@@ -2029,9 +2029,8 @@ function drawFireStyle(dt){
       const colStart=Math.floor(b*colW), colEnd=Math.floor((b+1)*colW);
       for(let u=colStart;u<colEnd&&u<S;u++){
         for(let v=0;v<S;v++){
-          const row=S-1-v; // bottom-up
-          if(row<h){
-            const frac=row/Math.max(h,1);
+          if(v<h){
+            const frac=v/Math.max(h,1);
             const flicker=0.85+0.15*Math.sin(u*7.3+t*12+v*3.1)*Math.sin(t*8.7+u*2.1);
             const noise=0.9+0.1*Math.random();
             let rr,gg,bb;
