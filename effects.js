@@ -1845,8 +1845,8 @@ function surfIdx(x,y,z){
   const M=SIZE-1;
   if(x<0||y<0||z<0||x>M||y>M||z>M) return -1;
   if(z===M) return faceMap[0][y*SIZE+x];
-  if(z===0) return faceMap[1][y*SIZE+x];
-  if(x===M) return faceMap[2][y*SIZE+z];
+  if(z===0) return faceMap[1][y*SIZE+(M-x)];
+  if(x===M) return faceMap[2][y*SIZE+(M-z)];
   if(x===0) return faceMap[3][y*SIZE+z];
   if(y===M) return faceMap[4][z*SIZE+x];
   if(y===0) return faceMap[5][z*SIZE+x];
