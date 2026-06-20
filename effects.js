@@ -3832,18 +3832,15 @@ function effectWeather(dt){
 
   // ── Birds & Planes ──
   // Physical clockwise face order: front(0)→right(2)→back(1)→left(3)
-  // Faces 1,2 have mirrored u in faceMap, so u must be flipped for those
+  // faceMap mirroring already aligns u=0→63 in clockwise direction for all faces
   const CW_FACES=[0,2,1,3];
-  const CW_FLIP =[false,true,true,false]; // faces 2,1 are mirrored
   function creaturePx(stripCol,v){
     const totalCols=S*4;
     const col=((stripCol%totalCols)+totalCols)%totalCols;
     const qi=(col/S)|0;
-    const localU=col%S;
-    const face=CW_FACES[qi];
-    const fu=CW_FLIP[qi]?S1-localU:localU;
+    const fu=col%S;
     if(fu<0||fu>=S||v<0||v>=S) return -1;
-    return faceMap[face][v*S+fu];
+    return faceMap[CW_FACES[qi]][v*S+fu];
   }
   function setCreature(idx,r,g,b){
     if(idx<0) return;
