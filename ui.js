@@ -1037,64 +1037,43 @@ const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime',
 populateAlarmEffectRiseSelect(); // safe here — EFFECT_NAMES now defined
 
 async function fetchCitiesFromAPI(){
-  if(wxCities.length > 0) return; // already loaded
-  try{
-    // Fetch from Open-Meteo's city database (public, no auth needed)
-    const resp = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=&count=10000&language=en');
-    if(!resp.ok) throw new Error('Failed to fetch cities');
-    const data = await resp.json();
-    if(data.results && Array.isArray(data.results)){
-      wxCities = data.results
-        .filter(r => r.name && r.country)
-        .map(r => `${r.name}, ${r.country}`)
-        .sort();
-      wxCities = [...new Set(wxCities)]; // deduplicate
-      console.log(`Loaded ${wxCities.length} cities`);
-      populateAlarmEffectRiseSelect();
-    }
-  }catch(e){
-    console.error('City fetch error:', e);
-    wxCities = ['London, UK', 'New York, USA', 'Tokyo, Japan']; // fallback
-  }
+  // City search now handled by live API in effects.js (wxUpdateCityDropdown)
 }
-fetchCitiesFromAPI();
 
-// City autocomplete for both weather and alarm sections
+// City autocomplete for alarm section only (weather uses live API in effects.js)
 function updateCityDropdown(inputId, dropdownId){
   const input = document.getElementById(inputId);
   const dropdown = document.getElementById(dropdownId);
   if(!input || !dropdown) return;
-  
-  const query = input.value.trim().toLowerCase();
-  if(query.length < 1){
+
+  const query = input.value.trim();
+  if(query.length < 2){
     dropdown.style.display = 'none';
     return;
   }
-  
-  const matches = wxCities.filter(c => c.toLowerCase().includes(query)).slice(0, 8);
-  if(matches.length === 0){
-    dropdown.style.display = 'none';
-    return;
-  }
-  
-  dropdown.innerHTML = matches.map(city => 
-    `<div style="padding:6px 8px;cursor:pointer;border-bottom:1px solid rgba(80,120,255,0.1);color:#cde;font-size:12px;" data-city="${city}">${city}</div>`
-  ).join('');
-  
-  dropdown.querySelectorAll('[data-city]').forEach(el => {
-    el.addEventListener('click', () => {
-      input.value = el.dataset.city;
-      dropdown.style.display = 'none';
-      if(inputId === 'al-effect-rise-city') alarmEffectRiseCity = el.dataset.city;
-      else wxSelectedCity = el.dataset.city;
-    });
-  });
-  
-  dropdown.style.display = 'block';
+
+  clearTimeout(dropdown._timer);
+  dropdown._timer = setTimeout(() => {
+    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=8&format=json`)
+      .then(r => r.json()).then(data => {
+        const results = data.results || [];
+        if(!results.length){ dropdown.style.display = 'none'; return; }
+        dropdown.innerHTML = results.map(r => {
+          const label = `${r.name}${r.admin1 ? ', ' + r.admin1 : ''}${r.country ? ', ' + r.country : ''}`;
+          return `<div style="padding:6px 8px;cursor:pointer;border-bottom:1px solid rgba(80,120,255,0.1);color:#9bd;font-size:12px;" data-city="${r.name}" data-lat="${r.latitude}" data-lon="${r.longitude}">${label}</div>`;
+        }).join('');
+        dropdown.style.display = 'block';
+        dropdown.querySelectorAll('[data-city]').forEach(el => {
+          el.addEventListener('click', () => {
+            input.value = el.dataset.city;
+            dropdown.style.display = 'none';
+            if(inputId === 'al-effect-rise-city') alarmEffectRiseCity = el.dataset.city;
+          });
+        });
+      }).catch(() => {});
+  }, 250);
 }
 
-document.getElementById('wx-city')?.addEventListener('input', () => updateCityDropdown('wx-city', 'wx-city-dropdown'));
-document.getElementById('wx-city')?.addEventListener('focus', () => updateCityDropdown('wx-city', 'wx-city-dropdown'));
 document.getElementById('al-effect-rise-city')?.addEventListener('input', () => updateCityDropdown('al-effect-rise-city', 'al-effect-rise-city-dropdown'));
 document.getElementById('al-effect-rise-city')?.addEventListener('focus', () => updateCityDropdown('al-effect-rise-city', 'al-effect-rise-city-dropdown'));
 
