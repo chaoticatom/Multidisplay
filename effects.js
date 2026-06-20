@@ -3601,41 +3601,38 @@ function effectWeather(dt){
     }
   }
   
-  // For 2D panel mode, add sun that arches across screen from dawn to dusk
-  if(panel2dMode && isDay && sunElev > 0.05){
-    console.log('2D Sun: dayProg='+dayProg.toFixed(2)+' sunX='+Math.round(dayProg*SIZE)+' sunElev='+sunElev.toFixed(2));
-    const S=SIZE;
-    const HORIZ_LINE = 0.32 * S; // horizon line where text bar starts
-    
-    // Sun position: follows parabolic arc from left (dawn) to right (dusk)
-    // dayProg: 0=sunrise (left), 1=sunset (right)
-    const sunX = dayProg * S; // moves 0 to S across the day
-    
-    // Vertical: inverted parabola that peaks near top at noon
-    // At edges (dayProg=0 or 1): sunY = HORIZ_LINE (at horizon)
-    // At center (dayProg=0.5): sunY near top (small Y value)
-    // Formula: sunY = HORIZ_LINE - (1 - 4*(dayProg-0.5)^2) * HORIZ_LINE * maxHeight
-    const maxHeight = 0.9; // how high peak is relative to horizon
-    const parabola = 1 - 4 * Math.pow(dayProg - 0.5, 2);
-    const sunY = HORIZ_LINE - parabola * HORIZ_LINE * maxHeight;
-    
-    const sunRad = Math.max(5, S * 0.15);
-    const sunR = 1; // yellow-orange sun
-    const sunG = 0.7;
-    const sunB = 0.1;
-    
-    const horizClip = Math.round(HORIZ_LINE);
-    for(let v = Math.max(horizClip, Math.floor(sunY - sunRad)); v <= Math.min(S-1, Math.ceil(sunY + sunRad)); v++){
-      for(let u = Math.max(0, Math.floor(sunX - sunRad)); u <= Math.min(S-1, Math.ceil(sunX + sunRad)); u++){
-        const dist = Math.hypot(u + 0.5 - sunX, v + 0.5 - sunY);
-        if(dist <= sunRad){
-          const fade = Math.max(0, 1 - dist / sunRad * 0.8);
-          const idx = faceMap[0][v*S+u];
-          if(idx >= 0){
-            colBuf[idx*3] = Math.min(1, colBuf[idx*3] + sunR * fade * 0.9);
-            colBuf[idx*3+1] = Math.min(1, colBuf[idx*3+1] + sunG * fade * 0.9);
-            colBuf[idx*3+2] = Math.min(1, colBuf[idx*3+2] + sunB * fade * 0.9);
-          }
+  // For 2D panel mode, draw sun/moon on face 0
+  if(panel2dMode){
+    const S=SIZE, horizV=Math.round(HORIZ*S1);
+    if(isDay){
+      const sunX=dayProg*S;
+      const arc=Math.sin(dayProg*Math.PI);
+      const sunY=horizV+arc*(S1-horizV)*0.92;
+      const sunRad=Math.max(3,S*0.06);
+      for(let dv=-Math.ceil(sunRad+4);dv<=Math.ceil(sunRad+4);dv++){
+        for(let du=-Math.ceil(sunRad+4);du<=Math.ceil(sunRad+4);du++){
+          const dist=Math.sqrt(du*du+dv*dv);
+          const fu=Math.round(sunX+du), fv=Math.round(sunY+dv);
+          if(fu<0||fu>=S||fv<horizV||fv>=S) continue;
+          const idx=faceMap[0][fv*S+fu]; if(idx<0) continue;
+          if(dist<=sunRad){ colBuf[idx*3]=1; colBuf[idx*3+1]=0.98; colBuf[idx*3+2]=0.7; }
+          else if(dist<sunRad+2){ const b=(1-(dist-sunRad)/2)*0.9; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.85); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.25); }
+          else if(dist<sunRad+4){ const b=(1-(dist-sunRad-2)/2)*0.35; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.65); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.08); }
+        }
+      }
+    } else if(moonPX>=0){
+      const moonX=nightProg*S;
+      const arc=Math.sin(nightProg*Math.PI);
+      const moonY=horizV+arc*(S1-horizV)*0.75;
+      const moonRad=Math.max(2,S*0.04);
+      for(let dv=-Math.ceil(moonRad+2);dv<=Math.ceil(moonRad+2);dv++){
+        for(let du=-Math.ceil(moonRad+2);du<=Math.ceil(moonRad+2);du++){
+          const dist=Math.sqrt(du*du+dv*dv);
+          const fu=Math.round(moonX+du), fv=Math.round(moonY+dv);
+          if(fu<0||fu>=S||fv<horizV||fv>=S) continue;
+          const idx=faceMap[0][fv*S+fu]; if(idx<0) continue;
+          if(dist<=moonRad){ colBuf[idx*3]=0.85; colBuf[idx*3+1]=0.83; colBuf[idx*3+2]=0.78; }
+          else if(dist<moonRad+2){ const b=(1-(dist-moonRad)/2)*0.18; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.95); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.88); }
         }
       }
     }
