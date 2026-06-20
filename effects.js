@@ -2996,8 +2996,8 @@ function wxInitScene(code){
   for(let i=0;i<np;i++) wxParticles.push({
     face:Math.floor(Math.random()*4),
     u:Math.random()*(SIZE-1),v:Math.random()*(SIZE-1),
-    spd:isRain?3+Math.random()*5:0.4+Math.random()*0.8,
-    snow:isSnow,drift:isRain?(Math.random()-0.5)*1.5:0
+    spd:isRainCode?3+Math.random()*5:0.4+Math.random()*0.8,
+    snow:isSnowCode,drift:isRainCode?(Math.random()-0.5)*1.5:0
   });
 
   // Skyline — deterministic per city/weather
