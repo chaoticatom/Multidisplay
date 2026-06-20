@@ -2026,7 +2026,7 @@ function drawRingsStyle(dt){
 }
 
 function drawFireStyle(dt){
-  const SIDES=[2,0,3,1];
+  const SIDES=[0,2,1,3];
   const S=SIZE, M=S-1;
   const AB=spectrumBandOverride||AUDIO_BANDS;
   for(let si=0;si<4;si++){
@@ -3294,9 +3294,9 @@ function wxInitScene(code){
       py:isPlane?0.62+Math.random()*0.25:0.38+Math.random()*0.45,
       dx:(Math.random()<0.5?1:-1)*(isPlane?0.0008+Math.random()*0.0005:0.0015+Math.random()*0.002), // plane now 10× slower
       dy:isPlane?0:(Math.random()-0.5)*0.0008, // birds can fly at slight angle
-      wing:0, wingT:0, blink:0, cycleCount:0,
-      delay:isPlane?Math.random()*120:Math.random()*15, // plane waits longer, birds sooner
-      active:true, // both start active
+      wing:0, wingT:0, blink:0, cycleCount:0, wingSpeed:2+Math.random()*3,
+      delay:isPlane?Math.random()*120:Math.random()*15,
+      active:true, lightningHit:0, wobble:0,
     });
   }
 }
@@ -3487,7 +3487,7 @@ function effectWeather(dt){
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
   const HORIZ=0.32; // horizon at 32% from bottom of side faces
-  const SIDE=[2,0,3,1]; // east, south, west, north in panorama order
+  const SIDE=[0,2,1,3]; // clockwise physical order: front→right→back→left
 
   // ── Panorama u→panX mapping per face ──
   // face2: panX = 0.25*f               range 0.0-0.25
@@ -3839,6 +3839,12 @@ function effectWeather(dt){
       continue;
     }
     if(cr.dy!==undefined) cr.py=Math.max(0.3,Math.min(0.92,cr.py+cr.dy*dt*60));
+    // Storm lightning strike on plane
+    if(cr.lightningHit>0) cr.lightningHit-=dt;
+    if(cr.wobble>0) cr.wobble=Math.max(0,cr.wobble-dt*0.4);
+    if(isStorm && cr.type==='plane' && cr.lightningHit<=0 && Math.random()<dt*0.08){
+      cr.lightningHit=0.3; cr.wobble=2.5;
+    }
     const crFace0=SIDE[Math.floor(cr.px*4)%4];
     const crU0=uOfFacePanX(crFace0,cr.px);
     const crV=Math.round((HORIZ+cr.py*(1-HORIZ))*S1);
@@ -3866,24 +3872,44 @@ function effectWeather(dt){
       cr.blink+=dt*2;
       const blinkOn=Math.sin(cr.blink)>0;
       const dir=cr.dx>0?1:-1;
+      const wobOff=cr.wobble>0?Math.round(Math.sin(cr.wobble*12)*cr.wobble*1.5):0;
+      const planeV=crV+wobOff;
+      const isHit=cr.lightningHit>0.15;
+      // Draw lightning bolt to plane when hit
+      if(cr.lightningHit>0.1){
+        const boltU=basePanU;
+        for(let bv=Math.min(S-1,planeV+1);bv<S;bv++){
+          const jitter=Math.round((Math.random()-0.5)*2);
+          const panU2=boltU+jitter;
+          const pf=((panU2/(S*4))%1+1)%1;
+          const bfi=Math.floor(pf*4)%4;
+          const bface=SIDE[bfi];
+          const bfu=Math.round((pf-bfi*0.25)/0.25*S1);
+          if(bfu>=0&&bfu<S&&bv>=0&&bv<S){
+            const bidx=faceMap[bface][bv*S+bfu];
+            if(bidx>=0) blendLED(bidx,0.9,0.9,1);
+          }
+        }
+      }
       for(let d=-2;d<=1;d++){
         const panU=basePanU+d*dir;
         const panFrac=((panU/(S*4))%1+1)%1;
         const fi=Math.floor(panFrac*4)%4;
         const face=SIDE[fi];
         const fu=Math.round((panFrac-fi*0.25)/0.25*S1);
-        if(fu<0||fu>=S||crV<0||crV>=S) continue;
-        const idx=faceMap[face][crV*S+fu]; if(idx<0) continue;
-        blendLED(idx,0.65,0.68,0.72);
+        if(fu<0||fu>=S||planeV<0||planeV>=S) continue;
+        const idx=faceMap[face][planeV*S+fu]; if(idx<0) continue;
+        if(isHit) blendLED(idx,1,1,1);
+        else blendLED(idx,0.65,0.68,0.72);
       }
-      if(blinkOn){
+      if(blinkOn && !isHit){
         const panU=basePanU+2*dir;
         const panFrac=((panU/(S*4))%1+1)%1;
         const fi=Math.floor(panFrac*4)%4;
         const face=SIDE[fi];
         const fu=Math.round((panFrac-fi*0.25)/0.25*S1);
-        if(fu>=0&&fu<S&&crV>=0&&crV<S){
-          const idx=faceMap[face][crV*S+fu]; if(idx>=0) blendLED(idx,1,0.1,0.1);
+        if(fu>=0&&fu<S&&planeV>=0&&planeV<S){
+          const idx=faceMap[face][planeV*S+fu]; if(idx>=0) blendLED(idx,1,0.1,0.1);
         }
       }
     }
