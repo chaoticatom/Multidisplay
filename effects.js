@@ -4032,9 +4032,9 @@ function effectWeather(dt){
         if(w1>=0) setCreature(w1,wh?1:wb,wh?1:wb,wh?1:wb+0.05);
         if(w2>=0) setCreature(w2,wh?1:wb,wh?1:wb,wh?1:wb+0.05);
       }
-      // Tail fin: 2 pixels pointing up
+      // Tail fin: 2 pixels angled backwards
       for(let tf=1;tf<=2;tf++){
-        const ti=creaturePx(baseCol-2*dir,planeV+tf);
+        const ti=creaturePx(baseCol-(2+tf)*dir,planeV+tf);
         if(ti>=0) setCreature(ti,wh?1:0.6,wh?1:0.6,wh?1:0.65);
       }
       // Red tail light
