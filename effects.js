@@ -5379,7 +5379,7 @@ function renderImg(){
     for(let fIdx=0;fIdx<4;fIdx++){
       const face=VID_FACE_ORDER[fIdx];
       const flipU=(face===0||face===1||face===2||face===3);
-      const flipV=(face===2);
+      const flipV=false;
       for(let v=0;v<S;v++){
         for(let u=0;u<S;u++){
           const pu=flipU?(S-1-u):u;
