@@ -317,9 +317,9 @@ function initCube(newSize) {
   }
   mesh.instanceColor.needsUpdate = true;
 
-  document.getElementById('cube-label').textContent = `${SIZE}³`;
+  document.getElementById('cube-label').innerHTML = `${SIZE}<sup>3</sup>`;
   const total = N.toLocaleString();
-  document.getElementById('led-count-label').textContent = `${SIZE}³ · ${total} surface LEDs`;
+  document.getElementById('led-count-label').innerHTML = `${SIZE}<sup>3</sup> · ${total} surface LEDs`;
 
   fwParticles.length = 0;
   resetRain(); resetBalls(); resetSand();
