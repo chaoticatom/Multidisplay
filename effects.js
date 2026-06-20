@@ -3929,23 +3929,39 @@ function effectWeather(dt){
       const crV=Math.round((HORIZ+cr.py*(1-HORIZ))*S1);
       const baseCol=Math.round(cr.px*S*4);
       const c=cr.color;
-      // Envelope: dome shape (higher v = higher on screen)
-      for(let ev=1;ev<=4;ev++){
-        const w=ev===4?0:ev===3?1:2;
+      // Envelope: round dome with vertical panel stripes
+      const envRows=[
+        {ev:7,w:1},{ev:6,w:2},{ev:5,w:3},{ev:4,w:3},
+        {ev:3,w:3},{ev:2,w:2},{ev:1,w:1}
+      ];
+      for(const {ev,w} of envRows){
         for(let eu=-w;eu<=w;eu++){
           const idx=creaturePx(baseCol+eu,crV+ev);
-          if(idx>=0) setCreature(idx,c[0],c[1],c[2]);
+          if(idx<0) continue;
+          // Vertical panel shading: darken alternate columns
+          const panel=(eu+100)%2===0?0.75:1;
+          // Highlight on top, shadow at bottom
+          const vShade=0.8+0.2*(ev-1)/6;
+          setCreature(idx,c[0]*panel*vShade,c[1]*panel*vShade,c[2]*panel*vShade);
         }
       }
-      // Ropes connecting envelope to basket
-      const r1=creaturePx(baseCol-1,crV);
-      const r2=creaturePx(baseCol+1,crV);
-      if(r1>=0) setCreature(r1,0.3,0.18,0.06);
-      if(r2>=0) setCreature(r2,0.3,0.18,0.06);
-      // Basket below
+      // Skirt / throat narrowing below envelope
+      const sk=creaturePx(baseCol,crV);
+      if(sk>=0) setCreature(sk,c[0]*0.5,c[1]*0.5,c[2]*0.5);
+      // Flame glow (flickers)
+      if(Math.sin(cr.phaseT*8)>0.2){
+        const fi=creaturePx(baseCol,crV);
+        if(fi>=0) setCreature(fi,1,0.6,0.1);
+      }
+      // Ropes from envelope corners to basket
+      const r1=creaturePx(baseCol-1,crV-1);
+      const r2=creaturePx(baseCol+1,crV-1);
+      if(r1>=0) setCreature(r1,0.25,0.15,0.05);
+      if(r2>=0) setCreature(r2,0.25,0.15,0.05);
+      // Basket: wicker brown box
       for(let bu=-1;bu<=1;bu++){
-        const bi=creaturePx(baseCol+bu,crV-1);
-        if(bi>=0) setCreature(bi,0.4,0.22,0.08);
+        const bi=creaturePx(baseCol+bu,crV-2);
+        if(bi>=0) setCreature(bi,0.45,0.25,0.08);
       }
       continue;
     }
