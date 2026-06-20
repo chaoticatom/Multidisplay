@@ -3498,15 +3498,15 @@ function effectWeather(dt){
   function panXOfFaceU(face,u){
     const f=u/S1;
     if(face===2) return 0.25*f;
-    if(face===0) return 0.25+(1-f)*0.25;
-    if(face===3) return 0.5+(1-f)*0.25;
+    if(face===0) return 0.25+f*0.25;
+    if(face===3) return 0.5+f*0.25;
     return 0.75+f*0.25; // face 1
   }
   function uOfFacePanX(face,px){
-    if(face===2) return Math.round(px/0.25*S1);
-    if(face===0) return Math.round((1-(px-0.25)/0.25)*S1);
-    if(face===3) return Math.round((1-(px-0.5)/0.25)*S1);
-    return Math.round((px-0.75)/0.25*S1);
+    if(face===2) return Math.round((px/0.25)*S1);
+    if(face===0) return Math.round(((px-0.25)/0.25)*S1);
+    if(face===3) return Math.round(((px-0.5)/0.25)*S1);
+    return Math.round(((px-0.75)/0.25)*S1);
   }
   function vOfElevFrac(elev){ // elev 0=horizon, 1=top
     return Math.round((HORIZ+elev*(1-HORIZ))*S1);
@@ -3854,14 +3854,10 @@ function effectWeather(dt){
       for(const {du,dv} of pixels){
         const panU=basePanU+du*dir;
         const pv=crV+Math.round(dv);
-        const fi=Math.floor(((panU/(S*4))%1+1)%1*4)%4;
+        const panFrac=((panU/(S*4))%1+1)%1;
+        const fi=Math.floor(panFrac*4)%4;
         const face=SIDE[fi];
-        const localFrac=(((panU/(S*4))%1+1)%1-fi*0.25)/0.25;
-        let fu;
-        if(face===2) fu=Math.round(localFrac*S1);
-        else if(face===0) fu=Math.round((1-localFrac)*S1);
-        else if(face===3) fu=Math.round((1-localFrac)*S1);
-        else fu=Math.round(localFrac*S1);
+        const fu=Math.round((panFrac-fi*0.25)/0.25*S1);
         if(fu<0||fu>=S||pv<0||pv>=S) continue;
         const idx=faceMap[face][pv*S+fu]; if(idx<0) continue;
         blendLED(idx,br*0.9,br,br*1.1);
@@ -3872,28 +3868,20 @@ function effectWeather(dt){
       const dir=cr.dx>0?1:-1;
       for(let d=-2;d<=1;d++){
         const panU=basePanU+d*dir;
-        const fi=Math.floor(((panU/(S*4))%1+1)%1*4)%4;
+        const panFrac=((panU/(S*4))%1+1)%1;
+        const fi=Math.floor(panFrac*4)%4;
         const face=SIDE[fi];
-        const localFrac=(((panU/(S*4))%1+1)%1-fi*0.25)/0.25;
-        let fu;
-        if(face===2) fu=Math.round(localFrac*S1);
-        else if(face===0) fu=Math.round((1-localFrac)*S1);
-        else if(face===3) fu=Math.round((1-localFrac)*S1);
-        else fu=Math.round(localFrac*S1);
+        const fu=Math.round((panFrac-fi*0.25)/0.25*S1);
         if(fu<0||fu>=S||crV<0||crV>=S) continue;
         const idx=faceMap[face][crV*S+fu]; if(idx<0) continue;
         blendLED(idx,0.65,0.68,0.72);
       }
       if(blinkOn){
         const panU=basePanU+2*dir;
-        const fi=Math.floor(((panU/(S*4))%1+1)%1*4)%4;
+        const panFrac=((panU/(S*4))%1+1)%1;
+        const fi=Math.floor(panFrac*4)%4;
         const face=SIDE[fi];
-        const localFrac=(((panU/(S*4))%1+1)%1-fi*0.25)/0.25;
-        let fu;
-        if(face===2) fu=Math.round(localFrac*S1);
-        else if(face===0) fu=Math.round((1-localFrac)*S1);
-        else if(face===3) fu=Math.round((1-localFrac)*S1);
-        else fu=Math.round(localFrac*S1);
+        const fu=Math.round((panFrac-fi*0.25)/0.25*S1);
         if(fu>=0&&fu<S&&crV>=0&&crV<S){
           const idx=faceMap[face][crV*S+fu]; if(idx>=0) blendLED(idx,1,0.1,0.1);
         }
