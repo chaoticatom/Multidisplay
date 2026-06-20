@@ -1186,105 +1186,20 @@ function effectStrobe(dt){
 
 let balls=[], ballFlashes=[];
 
-// World-space u/v axes per face (from faceMap build):
-// face 0 front  z=S-1: u=+x, v=+y
-// face 1 back   z=0:   u=+x, v=+y
-// face 2 right  x=S-1: u=+z, v=+y
-// face 3 left   x=0:   u=+z, v=+y
-// face 4 top    y=S-1: u=+x, v=+z
-// face 5 bottom y=0:   u=+x, v=+z
-const BF_U=[ [1,0,0],[1,0,0],[0,0,1],[0,0,1],[1,0,0],[1,0,0] ]; // u-axis
-const BF_V=[ [0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,0,1],[0,0,1] ]; // v-axis
-const BF_N=[ [0,0,1],[0,0,-1],[1,0,0],[-1,0,0],[0,1,0],[0,-1,0] ]; // outward normal
-
-// Convert face-local (du,dv) to world velocity vector (wx,wy,wz)
-function faceToWorld(face, du, dv){
-  const u=BF_U[face], v=BF_V[face];
-  return [du*u[0]+dv*v[0], du*u[1]+dv*v[1], du*u[2]+dv*v[2]];
-}
-// Project world velocity onto a face's u/v axes
-function worldToFace(face, wx, wy, wz){
-  const u=BF_U[face], v=BF_V[face];
-  return [wx*u[0]+wy*u[1]+wz*u[2], wx*v[0]+wy*v[1]+wz*v[2]];
-}
-
-// Edge transfer: given current face+position+velocity, return new state
-// on the adjacent face when position exits an edge.
-// Entry position on new face is determined by the shared world coordinate.
-function ballEdgeTransfer(face, u, v, du, dv, S){
-  const S1=S-1;
-  // Convert current velocity to world space
-  const [wx,wy,wz]=faceToWorld(face,du,dv);
-
-  let nf,nu,nv;
-  if(v<0){ // exit bottom edge (v=0 side, low-y or low-z)
-    const entries={
-      0:[5,u,S1],   // front→bottom: x=u, z=S-1(front)
-      1:[5,u,S1],   // back→bottom:  x=u, z=S-1... wait back is z=0
-      2:[5,S1,S1-u],// right→bottom: x=S-1, z=S-1-u (maps z from right face)
-      3:[5,0,u],    // left→bottom:  x=0, z=u
-      4:[0,u,S1],   // top→front:    x=u, y=S-1
-      5:[1,u,S1],   // bottom→back
-    };
-    const e=entries[face]||[face,u,1];
-    nf=e[0]; nu=e[1]; nv=e[2];
-  } else if(v>=S){ // exit top edge
-    const entries={
-      0:[4,u,S1],   // front→top:    x=u, z=S-1
-      1:[4,u,S1],   // back→top
-      2:[4,S1,S1-u],// right→top
-      3:[4,0,u],    // left→top
-      4:[1,u,S1],   // top→back
-      5:[0,u,S1],   // bottom→front
-    };
-    const e=entries[face]||[face,u,S1-1];
-    nf=e[0]; nu=e[1]; nv=e[2];
-  } else if(u<0){ // exit left edge
-    const entries={
-      0:[3,S1,v],   // front→left:  z=S-1, y=v
-      1:[2,S1,v],   // back→right:  z=S-1... wait back u=x, left edge = x<0
-      2:[1,S1,v],   // right→back:  x=S-1 on back... hmm
-      3:[0,S1,v],   // left→front
-      4:[3,S1,v],   // top→left:    x<0 from top → left face
-      5:[3,S1,S1-v],// bottom→left
-    };
-    const e=entries[face]||[face,1,v];
-    nf=e[0]; nu=e[1]; nv=e[2];
-  } else { // u>=S, exit right edge
-    const entries={
-      0:[2,S1,v],   // front→right: z=S-1, y=v
-      1:[3,S1,v],   // back→left
-      2:[0,S1,v],   // right→front
-      3:[1,S1,v],   // left→back
-      4:[2,0,v],    // top→right
-      5:[2,0,S1-v], // bottom→right
-    };
-    const e=entries[face]||[face,S1-1,v];
-    nf=e[0]; nu=e[1]; nv=e[2];
-  }
-
-  // Project world velocity onto new face axes
-  const [ndu,ndv]=worldToFace(nf,wx,wy,wz);
-  return [nf, Math.max(0,Math.min(S-0.01,nu)), Math.max(0,Math.min(S-0.01,nv)), ndu, ndv];
-}
-
 function resetBalls(){
   if(!SIZE) return;
   balls=[]; ballFlashes=[];
-  const S=SIZE;
-  for(let k=0;k<8;k++){
-    const face=k%6;
-    const spd=S*(1.0+Math.random()*1.5);
-    const ang=Math.random()*Math.PI*2;
+  const S=SIZE, H=S-1;
+  for(let k=0;k<6;k++){
     balls.push({
-      face,
-      u:S*0.2+Math.random()*S*0.6,
-      v:S*0.2+Math.random()*S*0.6,
-      du:Math.cos(ang)*spd,
-      dv:Math.sin(ang)*spd,
-      hue:k/8,
-      kickT:0.5+Math.random()*2,
-      radius:Math.max(2,Math.round(S*0.06)),
+      wx: S*0.15+Math.random()*S*0.7,
+      wy: S*0.15+Math.random()*S*0.7,
+      wz: S*0.15+Math.random()*S*0.7,
+      vx:(Math.random()-0.5)*S*0.5,
+      vy:0,
+      vz:(Math.random()-0.5)*S*0.5,
+      hue:k/6,
+      radius: Math.max(2, Math.round(S*0.06+Math.random()*S*0.03)),
     });
   }
 }
@@ -1295,72 +1210,141 @@ function effectBouncingBalls(dt){
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
   const S=SIZE, S1=S-1;
-
-  // Gravity — project world gravity onto each face (same as sand direction)
   const rawG=getLocalGravity(1);
   const gLen=Math.sqrt(rawG.x*rawG.x+rawG.y*rawG.y+rawG.z*rawG.z)||1;
-  const gWx=rawG.x/gLen, gWy=rawG.y/gLen, gWz=rawG.z/gLen;
-  const GRAV=S*18;
+  const GRAV=S*12;
+  const gx=rawG.x/gLen*GRAV, gy=rawG.y/gLen*GRAV, gz=rawG.z/gLen*GRAV;
 
   for(const b of balls){
-    // Random kicks
-    b.kickT-=dt;
-    if(b.kickT<=0){
-      b.kickT=2+Math.random()*5;
-      const ks=S*(Math.random()<0.3?3.0:1.0+Math.random()*1.5);
-      const ang=Math.random()*Math.PI*2;
-      b.du+=Math.cos(ang)*ks;
-      b.dv+=Math.sin(ang)*ks;
+    b.vx+=gx*dt; b.vy+=gy*dt; b.vz+=gz*dt;
+
+    const fric=Math.pow(0.985,dt*60);
+    b.vx*=fric; b.vy*=fric; b.vz*=fric;
+
+    b.wx+=b.vx*dt; b.wy+=b.vy*dt; b.wz+=b.vz*dt;
+
+    const R=b.radius;
+    const bounce=0.55;
+    if(b.wx<R)   {b.wx=R;   if(b.vx<0) b.vx*=-bounce;}
+    if(b.wx>S1-R){b.wx=S1-R;if(b.vx>0) b.vx*=-bounce;}
+    if(b.wy<R)   {b.wy=R;   if(b.vy<0) b.vy*=-bounce;}
+    if(b.wy>S1-R){b.wy=S1-R;if(b.vy>0) b.vy*=-bounce;}
+    if(b.wz<R)   {b.wz=R;   if(b.vz<0) b.vz*=-bounce;}
+    if(b.wz>S1-R){b.wz=S1-R;if(b.vz>0) b.vz*=-bounce;}
+
+    b.hue=(b.hue+dt*0.03)%1;
+
+    const cx=Math.round(b.wx), cy=Math.round(b.wy), cz=Math.round(b.wz);
+    const [hr,hg,hb]=hsl(b.hue,1,0.95);
+    const [or_,og,ob]=hsl(b.hue,0.7,0.4);
+    const R2=R*R;
+
+    // Project sphere onto each face it's close enough to touch
+    // Face 0 front (z=S-1): visible if cz+R >= S-1
+    if(cz+R>=S1){
+      for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
+        const px=cx+dx, py=cy+dy;
+        if(px<0||px>=S||py<0||py>=S) continue;
+        const dz2=R2-dx*dx-dy*dy;
+        if(dz2<0) continue;
+        const sz=Math.sqrt(dz2);
+        if(cz+sz<S1-0.5) continue;
+        const d2=dx*dx+dy*dy;
+        const outline=d2>=(R-1.2)*(R-1.2);
+        const idx=faceMap[0][py*S+px];
+        if(idx>=0){colBuf[idx*3]=Math.max(colBuf[idx*3],outline?or_:hr);colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],outline?og:hg);colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],outline?ob:hb);}
+      }
     }
-
-    // Gravity projected onto current face axes
-    const [gu,gv]=worldToFace(b.face,gWx,gWy,gWz);
-    b.du+=gu*GRAV*dt;
-    b.dv+=gv*GRAV*dt;
-
-    // Friction
-    const fric=Math.pow(0.988,dt*60);
-    b.du*=fric; b.dv*=fric;
-
-    // Cap speed
-    const spd=Math.sqrt(b.du*b.du+b.dv*b.dv);
-    const maxSpd=S*7;
-    if(spd>maxSpd){ const sc=maxSpd/spd; b.du*=sc; b.dv*=sc; }
-
-    // Move
-    b.u+=b.du*dt;
-    b.v+=b.dv*dt;
-
-    // Handle edge exits — velocity transforms to new face
-    let iters=0;
-    while((b.u<0||b.u>=S||b.v<0||b.v>=S)&&iters<8){
-      const [nf,nu,nv,ndu,ndv]=ballEdgeTransfer(b.face,b.u,b.v,b.du,b.dv,S);
-      b.face=nf; b.u=nu; b.v=nv;
-      b.du=ndu*0.82; b.dv=ndv*0.82; // slight damping on transfer
-      iters++;
+    // Face 1 back (z=0)
+    if(cz-R<=0){
+      for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
+        const px=cx+dx, py=cy+dy;
+        if(px<0||px>=S||py<0||py>=S) continue;
+        const dz2=R2-dx*dx-dy*dy;
+        if(dz2<0) continue;
+        if(cz-Math.sqrt(dz2)>0.5) continue;
+        const d2=dx*dx+dy*dy;
+        const outline=d2>=(R-1.2)*(R-1.2);
+        const idx=faceMap[1][py*S+px];
+        if(idx>=0){colBuf[idx*3]=Math.max(colBuf[idx*3],outline?or_:hr);colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],outline?og:hg);colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],outline?ob:hb);}
+      }
     }
-    b.u=Math.max(0,Math.min(S1,b.u));
-    b.v=Math.max(0,Math.min(S1,b.v));
+    // Face 2 right (x=S-1)
+    if(cx+R>=S1){
+      for(let dy=-R;dy<=R;dy++) for(let dz=-R;dz<=R;dz++){
+        const pz=cz+dz, py=cy+dy;
+        if(pz<0||pz>=S||py<0||py>=S) continue;
+        const dx2=R2-dy*dy-dz*dz;
+        if(dx2<0) continue;
+        if(cx+Math.sqrt(dx2)<S1-0.5) continue;
+        const d2=dy*dy+dz*dz;
+        const outline=d2>=(R-1.2)*(R-1.2);
+        const idx=faceMap[2][py*S+pz];
+        if(idx>=0){colBuf[idx*3]=Math.max(colBuf[idx*3],outline?or_:hr);colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],outline?og:hg);colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],outline?ob:hb);}
+      }
+    }
+    // Face 3 left (x=0)
+    if(cx-R<=0){
+      for(let dy=-R;dy<=R;dy++) for(let dz=-R;dz<=R;dz++){
+        const pz=cz+dz, py=cy+dy;
+        if(pz<0||pz>=S||py<0||py>=S) continue;
+        const dx2=R2-dy*dy-dz*dz;
+        if(dx2<0) continue;
+        if(cx-Math.sqrt(dx2)>0.5) continue;
+        const d2=dy*dy+dz*dz;
+        const outline=d2>=(R-1.2)*(R-1.2);
+        const idx=faceMap[3][py*S+pz];
+        if(idx>=0){colBuf[idx*3]=Math.max(colBuf[idx*3],outline?or_:hr);colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],outline?og:hg);colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],outline?ob:hb);}
+      }
+    }
+    // Face 4 top (y=S-1)
+    if(cy+R>=S1){
+      for(let dz=-R;dz<=R;dz++) for(let dx=-R;dx<=R;dx++){
+        const px=cx+dx, pz=cz+dz;
+        if(px<0||px>=S||pz<0||pz>=S) continue;
+        const dy2=R2-dx*dx-dz*dz;
+        if(dy2<0) continue;
+        if(cy+Math.sqrt(dy2)<S1-0.5) continue;
+        const d2=dx*dx+dz*dz;
+        const outline=d2>=(R-1.2)*(R-1.2);
+        const idx=faceMap[4][pz*S+px];
+        if(idx>=0){colBuf[idx*3]=Math.max(colBuf[idx*3],outline?or_:hr);colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],outline?og:hg);colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],outline?ob:hb);}
+      }
+    }
+    // Face 5 bottom (y=0)
+    if(cy-R<=0){
+      for(let dz=-R;dz<=R;dz++) for(let dx=-R;dx<=R;dx++){
+        const px=cx+dx, pz=cz+dz;
+        if(px<0||px>=S||pz<0||pz>=S) continue;
+        const dy2=R2-dx*dx-dz*dz;
+        if(dy2<0) continue;
+        if(cy-Math.sqrt(dy2)>0.5) continue;
+        const d2=dx*dx+dz*dz;
+        const outline=d2>=(R-1.2)*(R-1.2);
+        const idx=faceMap[5][pz*S+px];
+        if(idx>=0){colBuf[idx*3]=Math.max(colBuf[idx*3],outline?or_:hr);colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],outline?og:hg);colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],outline?ob:hb);}
+      }
+    }
+  }
 
-    b.hue=(b.hue+dt*0.04)%1;
-
-    // Render — solid filled circle on face, vivid colour
-    const cu=Math.round(b.u), cv=Math.round(b.v);
-    const R=b.radius, R2=R*R;
-    const [br,bg,bb]=hsl(b.hue,1,0.95);
-    const [or_,og,ob]=hsl(b.hue,0.6,0.45);
-    for(let dv=-R;dv<=R;dv++){
-      for(let du=-R;du<=R;du++){
-        const d2=du*du+dv*dv;
-        if(d2>R2) continue;
-        const nu=cu+du, nv=cv+dv;
-        if(nu<0||nu>=S||nv<0||nv>=S) continue;
-        const idx=faceMap[b.face][nv*S+nu];
-        if(idx<0) continue;
-        const outline=d2>=(R-1)*(R-1);
-        colBuf[idx*3]  =Math.max(colBuf[idx*3],  outline?or_:br);
-        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],outline?og:bg);
-        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],outline?ob:bb);
+  // Ball-ball collisions
+  for(let i=0;i<balls.length;i++){
+    for(let j=i+1;j<balls.length;j++){
+      const a=balls[i], b2=balls[j];
+      const dx=b2.wx-a.wx, dy=b2.wy-a.wy, dz=b2.wz-a.wz;
+      const dist=Math.sqrt(dx*dx+dy*dy+dz*dz);
+      const minD=a.radius+b2.radius;
+      if(dist<minD&&dist>0.01){
+        const nx=dx/dist, ny=dy/dist, nz=dz/dist;
+        const overlap=(minD-dist)*0.5;
+        a.wx-=nx*overlap; a.wy-=ny*overlap; a.wz-=nz*overlap;
+        b2.wx+=nx*overlap; b2.wy+=ny*overlap; b2.wz+=nz*overlap;
+        const relV=(b2.vx-a.vx)*nx+(b2.vy-a.vy)*ny+(b2.vz-a.vz)*nz;
+        if(relV<0){
+          const imp=relV*0.8;
+          a.vx+=imp*nx; a.vy+=imp*ny; a.vz+=imp*nz;
+          b2.vx-=imp*nx; b2.vy-=imp*ny; b2.vz-=imp*nz;
+        }
       }
     }
   }
