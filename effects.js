@@ -3188,23 +3188,23 @@ function effectWeather(dt){
   const SIDE=[2,0,3,1]; // east, south, west, north in panorama order
 
   // ── Panorama u→panX mapping per face ──
-  // face2: panX = 0.25*(1-u/S1)        range 0.0-0.25
-  // face0: panX = 0.25+(1-u/S1)*0.25   range 0.25-0.5
-  // face3: panX = 0.75-u/S1*0.25       range 0.5-0.75
-  // face1: panX = 1.0-u/S1*0.25        range 0.75-1.0
+  // face2: panX = 0.25*f               range 0.0-0.25
+  // face0: panX = 0.25+(1-f)*0.25      range 0.25-0.5
+  // face3: panX = 0.5+(1-f)*0.25       range 0.5-0.75
+  // face1: panX = 0.75+(1-f)*0.25      range 0.75-1.0  (flipped for back face)
 
   function panXOfFaceU(face,u){
     const f=u/S1;
     if(face===2) return 0.25*f;
     if(face===0) return 0.25+(1-f)*0.25;
     if(face===3) return 0.5+(1-f)*0.25;
-    return 0.75+f*0.25; // face 1
+    return 0.75+(1-f)*0.25; // face 1 — flipped so back face reads correctly
   }
   function uOfFacePanX(face,px){
     if(face===2) return Math.round(px/0.25*S1);
     if(face===0) return Math.round((1-(px-0.25)/0.25)*S1);
     if(face===3) return Math.round((1-(px-0.5)/0.25)*S1);
-    return Math.round((px-0.75)/0.25*S1);
+    return Math.round((1-(px-0.75)/0.25)*S1);
   }
   function vOfElevFrac(elev){ // elev 0=horizon, 1=top
     return Math.round((HORIZ+elev*(1-HORIZ))*S1);
