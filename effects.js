@@ -2977,19 +2977,21 @@ function wxSkyRGB(df){
 
 function wxInitScene(code){
   wxClouds=[];wxParticles=[];wxStars=[];
-  const nc=code===0?0:code===1?3:code<=2?8:code===3?40:code>=45&&code<=48?12:code>=95?18:10;
-  const dark=code>=95;
-  const overcast=code===3;
-  for(let i=0;i<nc;i++) wxClouds.push({px:Math.random(),py:0.35+Math.random()*0.55,
-    sz:overcast?0.12+Math.random()*0.2:0.07+Math.random()*0.14,
+  const isRainCode=code>=51&&code<=55||code>=61&&code<=65||code>=80&&code<=82||code>=95;
+  const isSnowCode=code>=71&&code<=77||code>=85&&code<=86;
+  const isStormCode=code>=95;
+  const isHeavyRain=code===55||code===65||code>=81;
+  const isOvercastCode=code===3;
+  const nc=code===0?0:code===1?3:code<=2?8:isOvercastCode?40:isStormCode?30:isHeavyRain?25:isRainCode?20:isSnowCode?18:code>=45&&code<=48?12:10;
+  const dark=isStormCode;
+  for(let i=0;i<nc;i++) wxClouds.push({px:Math.random(),py:0.3+Math.random()*0.6,
+    sz:isStormCode?0.14+Math.random()*0.22:isRainCode?0.1+Math.random()*0.18:isOvercastCode?0.12+Math.random()*0.2:0.07+Math.random()*0.14,
     spd:0.00015+Math.random()*0.0003,
-    br:dark?0.15+Math.random()*0.2:overcast?0.35+Math.random()*0.25:0.6+Math.random()*0.4,
-    puffs:overcast?5+Math.floor(Math.random()*6):3+Math.floor(Math.random()*5),fluff:Math.random()});
+    br:dark?0.1+Math.random()*0.12:isRainCode?0.18+Math.random()*0.18:isOvercastCode?0.35+Math.random()*0.25:0.6+Math.random()*0.4,
+    puffs:isStormCode?6+Math.floor(Math.random()*6):isRainCode?5+Math.floor(Math.random()*5):isOvercastCode?5+Math.floor(Math.random()*6):3+Math.floor(Math.random()*5),fluff:Math.random()});
   for(let i=0;i<100;i++) wxStars.push({px:Math.random(),py:Math.random(),
     br:0.3+Math.random()*0.7,tw:Math.random()*Math.PI*2,spd:1.5+Math.random()*3});
-  const isRain=code>=51&&code<=55||code>=61&&code<=65||code>=80&&code<=82||code>=95;
-  const isSnow=code>=71&&code<=77||code>=85&&code<=86;
-  const np=isRain?80:isSnow?50:0;
+  const np=isStormCode?150:isHeavyRain?120:isRainCode?80:isSnowCode?60:0;
   for(let i=0;i<np;i++) wxParticles.push({
     face:Math.floor(Math.random()*4),
     u:Math.random()*(SIZE-1),v:Math.random()*(SIZE-1),
@@ -3157,6 +3159,20 @@ function effectWeather(dt){
   const isSnow=wxCode>=71&&wxCode<=77||wxCode>=85&&wxCode<=86;
   const isRain=wxCode>=51&&wxCode<=65||wxCode>=80&&wxCode<=82||wxCode>=95;
   const isStorm=wxCode>=95;
+  const isOvercast=wxCode===3;
+
+  // Darken/grey sky based on weather conditions
+  if(isDay){
+    if(isStorm){
+      skyCol=[skyCol[0]*0.15,skyCol[1]*0.15,skyCol[2]*0.2];
+    } else if(isRain){
+      skyCol=[skyCol[0]*0.3+0.05,skyCol[1]*0.3+0.05,skyCol[2]*0.35+0.06];
+    } else if(isOvercast){
+      skyCol=[skyCol[0]*0.35+0.12,skyCol[1]*0.35+0.13,skyCol[2]*0.4+0.12];
+    } else if(wxCode===2){
+      skyCol=[skyCol[0]*0.7+0.05,skyCol[1]*0.7+0.05,skyCol[2]*0.75+0.04];
+    }
+  }
 
   // Lightning — random strikes at roughly speedMult-scaled intervals
   if(!this._wxNextStrike) this._wxNextStrike=1+Math.random()*3;
@@ -3224,7 +3240,7 @@ function effectWeather(dt){
   const WXF={'0':[7,5,5,5,7],'1':[6,2,2,2,7],'2':[7,1,7,4,7],'3':[7,1,3,1,7],
     '4':[5,5,7,1,1],'5':[7,4,6,1,7],'6':[7,4,7,5,7],'7':[7,1,2,2,2],
     '8':[7,5,7,5,7],'9':[7,5,7,1,7],'°':[6,6,0,0,0],'C':[3,4,4,4,3],
-    '-':[0,0,7,0,0],' ':[0,0,0,0,0],'+':[0,2,7,2,0],
+    '-':[0,0,7,0,0],' ':[0,0,0,0,0],'+':[0,2,7,2,0],':':[0,2,0,2,0],
     'A':[2,5,7,5,5],'B':[6,5,6,5,6],'D':[6,5,5,5,6],'E':[7,4,6,4,7],
     'F':[7,4,6,4,4],'G':[3,4,7,5,3],'H':[5,5,7,5,5],'I':[7,2,2,2,7],
     'J':[1,1,1,5,2],'K':[5,6,4,6,5],'L':[4,4,4,4,7],'M':[7,7,5,5,5],
@@ -3324,10 +3340,18 @@ function effectWeather(dt){
 
     // Draw temperature higher up on all faces
     wxText(face,tempStr,1,tempV,txtR,txtG,txtB);
-    // Draw location at bottom on face 0 (front) only
-    if(face===0&&locStr){
-      const lx=Math.max(1,S-1-locStr.length*4);
-      wxText(face,locStr,lx,textV,txtR*0.7,txtG*0.7,txtB*0.85);
+    // Draw location and time on face 0 (front)
+    if(face===0){
+      if(locStr){
+        const lx=Math.max(1,S-1-locStr.length*4);
+        wxText(face,locStr,lx,textV,txtR*0.7,txtG*0.7,txtB*0.85);
+      }
+      const localD=new Date(Date.now()+wxTzOffset*1000);
+      const hh=String(localD.getUTCHours()).padStart(2,'0');
+      const mm=String(localD.getUTCMinutes()).padStart(2,'0');
+      const timeStr=hh+':'+mm;
+      const tx=Math.max(1,S-1-timeStr.length*4);
+      wxText(face,timeStr,tx,textV+7,txtR*0.7,txtG*0.7,txtB*0.85);
     }
   }
 
@@ -3461,7 +3485,7 @@ function effectWeather(dt){
     drawBody(((sunPX+0.5)%1),Math.max(0,sunElev-0.3),false,moonPh);
 
   // ── Clouds ──
-  const cloudDark=isStorm?0.12:wxCode>=3?0.45:0.75;
+  const cloudDark=isStorm?0.12:isRain?0.22:isOvercast?0.4:wxCode>=3?0.5:0.75;
   for(const cl of wxClouds){
     cl.px=(cl.px+cl.spd*dt+1)%1;
     // Draw on side faces and top
