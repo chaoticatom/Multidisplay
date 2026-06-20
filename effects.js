@@ -1188,19 +1188,16 @@ let balls=[], ballFlashes=[];
 let ballCrossFaces=true;
 let ballsPerFace=3;
 
-// Use same CW_FACES strip logic as creaturePx / maze runner.
-// Side faces [0,2,1,3] form a continuous horizontal strip, v=y shared.
-const BALL_CW=[0,2,1,3];
-const BALL_CW_IDX={0:0, 2:1, 1:2, 3:3};
-function ballToStrip(face, u) {
-  const qi = BALL_CW_IDX[face];
-  return qi !== undefined ? qi * SIZE + u : -1;
-}
-function stripToBall(su) {
-  const total = SIZE * 4;
-  const wrapped = ((su % total) + total) % total;
-  const qi = (wrapped / SIZE) | 0;
-  return { f: BALL_CW[qi], u: wrapped - qi * SIZE };
+// Cross-face only between faces 1 and 2 (adjacent in CW strip 0→2→1→3).
+// Face 2 right edge (u>=S) connects to face 1 left edge (u=0).
+function ballCrossCheck(b, S) {
+  if (b.face === 2 && b.u >= S) {
+    b.face = 1;
+    b.u = b.u - S;
+  } else if (b.face === 1 && b.u < 0) {
+    b.face = 2;
+    b.u = S + b.u;
+  }
 }
 
 function resetBalls(){
@@ -1212,8 +1209,10 @@ function resetBalls(){
     [1,0.4,0],[0.9,0.15,0.9],[0,0.9,0.9],[1,0.6,0.7],
     [0.5,1,0.3],[1,0.5,0.1],[0.3,0.5,1],[0.8,0.2,0.5],
   ];
+  const crossFaces=[1,2];
   let ci=0;
-  for(let f=0;f<faces;f++){
+  const faceList=panel2dMode?[0]:ballCrossFaces?crossFaces:[0,1,2,3,4,5];
+  for(const f of faceList){
     const count=panel2dMode?ballsPerFace*2:ballsPerFace;
     for(let k=0;k<count;k++){
       const R=3+Math.floor(Math.random()*3);
@@ -1269,13 +1268,7 @@ function effectBouncingBalls(dt){
     b.v+=b.dv*dt;
 
     if(!panel2dMode&&ballCrossFaces){
-      const isSide = BALL_CW_IDX[b.face] !== undefined;
-      if(isSide && (b.u<0 || b.u>=S)){
-        const su = ballToStrip(b.face, b.u);
-        const r = stripToBall(su);
-        b.face = r.f;
-        b.u = r.u;
-      }
+      ballCrossCheck(b, S);
     }
 
     const R=b.r;
@@ -1285,30 +1278,23 @@ function effectBouncingBalls(dt){
     if(b.v<R)    {b.v=R;    b.dv=Math.abs(b.dv);}
     if(b.v>S1-R) {b.v=S1-R; b.dv=-Math.abs(b.dv);}
 
-    // Render ball — use strip coordinates for cross-face rendering on side faces
+    // Render ball — cross-face rendering between faces 1 and 2
     const cu=Math.round(b.u), cv=Math.round(b.v);
     const R2=R*R;
-    const isSide=!panel2dMode&&ballCrossFaces&&BALL_CW_IDX[b.face]!==undefined;
-    const stripBase=isSide?ballToStrip(b.face,cu):-1;
+    const canCross=!panel2dMode&&ballCrossFaces&&(b.face===1||b.face===2);
     for(let dv=-R;dv<=R;dv++){
       for(let du=-R;du<=R;du++){
         const d2=du*du+dv*dv;
         if(d2>R2) continue;
         const pv=cv+dv;
         if(pv<0||pv>=S) continue;
-        let idx;
-        if(isSide){
-          const sc=stripBase+du;
-          const total=S*4;
-          const wrapped=((sc%total)+total)%total;
-          const qi=(wrapped/S)|0;
-          const fu=wrapped-qi*S;
-          idx=faceMap[BALL_CW[qi]][pv*S+fu];
-        } else {
-          const pu=cu+du;
-          if(pu<0||pu>=S) continue;
-          idx=faceMap[b.face][pv*S+pu];
+        let pu=cu+du, drawFace=b.face;
+        if(canCross){
+          if(b.face===2 && pu>=S){ drawFace=1; pu=pu-S; }
+          else if(b.face===1 && pu<0){ drawFace=2; pu=S+pu; }
         }
+        if(pu<0||pu>=S) continue;
+        const idx=faceMap[drawFace][pv*S+pu];
         if(idx<0) continue;
         const dist=Math.sqrt(d2)/R;
         const shade=1.0-dist*0.55;
