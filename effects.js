@@ -3663,17 +3663,18 @@ function effectWeather(dt){
     }
   }
 
-  // Draw city name — scroll if too wide for available space
+  // Draw city name — static if fits on one face, scroll if not
   if(locStr){
     const textW=locStr.length*4;
     const faceW=panel2dMode?S:S*4;
     const lr=txtR*0.7,lg=txtG*0.7,lb=txtB*0.85;
     let startCol;
-    if(textW<=faceW){
-      startCol=Math.max(0,faceW-textW-1);
+    if(textW<=S){
+      startCol=Math.max(0,S-textW-1);
       wxScrollOff=0;
     } else {
-      wxScrollOff=(wxScrollOff+dt*20)%(textW+faceW);
+      const gap=Math.max(S,20);
+      wxScrollOff=(wxScrollOff+dt*20)%(textW+gap);
       startCol=Math.round(faceW-wxScrollOff);
     }
     let col=startCol;
