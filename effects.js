@@ -1186,6 +1186,23 @@ function effectStrobe(dt){
 
 let balls=[], ballFlashes=[];
 
+// Face edge adjacency: [face][edge] = {toFace, mapUV(u,v,S) => [nu,nv]}
+// Edges: 0=left(u<0), 1=right(u>=S), 2=bottom(v<0), 3=top(v>=S)
+const BALL_ADJ = [
+  // Face 0 front (z=S-1, u=x, v=y)
+  [{f:3,m:(u,v,S)=>[S-1,v]},{f:2,m:(u,v,S)=>[0,v]},{f:5,m:(u,v,S)=>[u,S-1]},{f:4,m:(u,v,S)=>[u,S-1]}],
+  // Face 1 back (z=0, u=x, v=y)
+  [{f:2,m:(u,v,S)=>[S-1,v]},{f:3,m:(u,v,S)=>[0,v]},{f:5,m:(u,v,S)=>[u,0]},{f:4,m:(u,v,S)=>[u,0]}],
+  // Face 2 right (x=S-1, u=z, v=y)
+  [{f:0,m:(u,v,S)=>[S-1,v]},{f:1,m:(u,v,S)=>[0,v]},{f:5,m:(u,v,S)=>[S-1,u]},{f:4,m:(u,v,S)=>[S-1,S-1-u]}],
+  // Face 3 left (x=0, u=z, v=y)
+  [{f:1,m:(u,v,S)=>[S-1,v]},{f:0,m:(u,v,S)=>[0,v]},{f:5,m:(u,v,S)=>[0,S-1-u]},{f:4,m:(u,v,S)=>[0,u]}],
+  // Face 4 top (y=S-1, u=x, v=z)
+  [{f:3,m:(u,v,S)=>[v,S-1]},{f:2,m:(u,v,S)=>[S-1-v,S-1]},{f:0,m:(u,v,S)=>[u,S-1]},{f:1,m:(u,v,S)=>[u,S-1]}],
+  // Face 5 bottom (y=0, u=x, v=z)
+  [{f:3,m:(u,v,S)=>[S-1-v,0]},{f:2,m:(u,v,S)=>[v,0]},{f:0,m:(u,v,S)=>[u,0]},{f:1,m:(u,v,S)=>[u,0]}],
+];
+
 function resetBalls(){
   if(!SIZE) return;
   balls=[]; ballFlashes=[];
@@ -1197,7 +1214,7 @@ function resetBalls(){
   ];
   let ci=0;
   for(let f=0;f<faces;f++){
-    const count=panel2dMode?5:2;
+    const count=panel2dMode?8:3;
     for(let k=0;k<count;k++){
       const R=3+Math.floor(Math.random()*3);
       const ang=Math.random()*Math.PI*2;
@@ -1205,8 +1222,8 @@ function resetBalls(){
       const c=COLORS[ci%COLORS.length]; ci++;
       balls.push({
         face:f,
-        u:R+Math.random()*(S-2*R),
-        v:R+Math.random()*(S-2*R),
+        u:R+1+Math.random()*(S-2*R-2),
+        v:R+1+Math.random()*(S-2*R-2),
         du:Math.cos(ang)*spd,
         dv:Math.sin(ang)*spd,
         r:R,
@@ -1216,6 +1233,8 @@ function resetBalls(){
   }
 }
 
+let ballPrevGx=0, ballPrevGy=0, ballPrevGz=0;
+
 function effectBouncingBalls(dt){
   t+=dt;
   if(!balls.length) resetBalls();
@@ -1223,16 +1242,71 @@ function effectBouncingBalls(dt){
 
   const S=SIZE, S1=S-1;
 
+  // Detect cube rotation change and nudge balls
+  const rawG=getLocalGravity(1);
+  const gLen=Math.sqrt(rawG.x*rawG.x+rawG.y*rawG.y+rawG.z*rawG.z)||1;
+  const gx=rawG.x/gLen, gy=rawG.y/gLen, gz=rawG.z/gLen;
+  const dgx=gx-ballPrevGx, dgy=gy-ballPrevGy, dgz=gz-ballPrevGz;
+  ballPrevGx=gx; ballPrevGy=gy; ballPrevGz=gz;
+  const rotChange=Math.sqrt(dgx*dgx+dgy*dgy+dgz*dgz);
+
+  // World-space u/v axes per face for projecting gravity nudge
+  const FU=[[1,0,0],[1,0,0],[0,0,1],[0,0,1],[1,0,0],[1,0,0]];
+  const FV=[[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,0,1],[0,0,1]];
+
   for(const b of balls){
+    // Apply gravity nudge from cube rotation
+    if(rotChange>0.005){
+      const fu=FU[b.face], fv=FV[b.face];
+      const gu=gx*fu[0]+gy*fu[1]+gz*fu[2];
+      const gv=gx*fv[0]+gy*fv[1]+gz*fv[2];
+      const nudge=S*8*rotChange;
+      b.du+=gu*nudge;
+      b.dv+=gv*nudge;
+    }
+
     b.u+=b.du*dt;
     b.v+=b.dv*dt;
 
+    if(!panel2dMode){
+      // Cross face edges
+      let iters=0;
+      while(iters<4){
+        let edge=-1;
+        if(b.u<0) edge=0;
+        else if(b.u>=S) edge=1;
+        else if(b.v<0) edge=2;
+        else if(b.v>=S) edge=3;
+        if(edge<0) break;
+        const adj=BALL_ADJ[b.face][edge];
+        const eu=Math.max(0,Math.min(S-0.01,b.u<0?S+b.u:b.u>=S?b.u-S:b.u));
+        const ev=Math.max(0,Math.min(S-0.01,b.v<0?S+b.v:b.v>=S?b.v-S:b.v));
+        const [nu,nv]=adj.m(eu,ev,S);
+        b.face=adj.f;
+        b.u=Math.max(0.5,Math.min(S-0.5,nu));
+        b.v=Math.max(0.5,Math.min(S-0.5,nv));
+        // Swap/negate velocity components based on edge
+        if(edge<=1){
+          const oldDu=b.du;
+          if(edge===0) b.du=Math.abs(oldDu)*0.9;
+          else b.du=-Math.abs(oldDu)*0.9;
+        } else {
+          const oldDv=b.dv;
+          if(edge===2) b.dv=Math.abs(oldDv)*0.9;
+          else b.dv=-Math.abs(oldDv)*0.9;
+        }
+        iters++;
+      }
+    }
+
     const R=b.r;
+    // Bounce off edges (2D mode or after face transfer clamping)
     if(b.u<R)    {b.u=R;    b.du=Math.abs(b.du);}
     if(b.u>S1-R) {b.u=S1-R; b.du=-Math.abs(b.du);}
     if(b.v<R)    {b.v=R;    b.dv=Math.abs(b.dv);}
     if(b.v>S1-R) {b.v=S1-R; b.dv=-Math.abs(b.dv);}
 
+    // Render ball
     const cu=Math.round(b.u), cv=Math.round(b.v);
     const R2=R*R;
     for(let dv=-R;dv<=R;dv++){
@@ -1245,8 +1319,8 @@ function effectBouncingBalls(dt){
         if(idx<0) continue;
         const dist=Math.sqrt(d2)/R;
         const shade=1.0-dist*0.55;
-        const edge=dist>0.75?0.5:1.0;
-        const br=b.cr*shade*edge, bg=b.cg*shade*edge, bb=b.cb*shade*edge;
+        const edge2=dist>0.75?0.5:1.0;
+        const br=b.cr*shade*edge2, bg=b.cg*shade*edge2, bb=b.cb*shade*edge2;
         colBuf[idx*3]=Math.max(colBuf[idx*3],br);
         colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],bg);
         colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],bb);
