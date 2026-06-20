@@ -5388,16 +5388,18 @@ function effectVideo(dt){
   for(let fIdx=0;fIdx<4;fIdx++){
     const face=VID_FACE_ORDER[fIdx];
     // Front(0), Back(1) and Left(3) need u flipped to flow correctly
-    const flipU=(face===0||face===1||face===3);
+    // Right(2) needs 180° rotation (flip both u and v)
+    const flipU=(face===0||face===1||face===2||face===3);
+    const flipV=(face===2);
     for(let v=0;v<S;v++){
       for(let u=0;u<S;u++){
         let srcX,srcY;
         if(vidLayout==='panorama'){
           const pu=flipU?(S-1-u):u;
           srcX=((fIdx*S+pu+(vidScrollX|0))%(4*S)+4*S)%(4*S);
-          srcY=S-1-v;
+          srcY=flipV?v:(S-1-v);
         } else {
-          srcX=u; srcY=S-1-v;
+          srcX=u; srcY=flipV?v:(S-1-v);
         }
         srcX=Math.max(0,Math.min(cw-1,srcX));
         srcY=Math.max(0,Math.min(ch-1,srcY));
