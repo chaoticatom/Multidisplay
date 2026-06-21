@@ -6458,7 +6458,7 @@ function effectSimHouse(dt){
 // ═══════════════════════════════════════════════════
 let retroT=0, retroGames=[], retroInit=false, retroFaceBuf=null;
 let retroSelectedGame=-1, retroRotateInterval=8; // -1 = auto rotate
-let retroAutoGames=null; // null = all games, or array of enabled indices
+let retroAutoGames=[0,1,2,3,4,5,6,7,8]; // Sam Fox (9) excluded by default
 let retroLastGameIdx=-1, retroSplashT=0;
 let dcSplashData=null;
 let jpSplashData=null;
