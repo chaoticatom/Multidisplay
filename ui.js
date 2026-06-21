@@ -1218,7 +1218,7 @@ document.querySelectorAll('.retro-game-btn').forEach(btn=>{
   });
 });
 const retroSlider=document.getElementById('retro-rotate-slider');
-if(retroSlider) retroSlider.addEventListener('input',()=>{ retroRotateInterval=parseInt(retroSlider.value); });
+if(retroSlider) retroSlider.addEventListener('input',()=>{ retroRotateInterval=parseInt(retroSlider.value); const v=document.getElementById('retro-rotate-val'); if(v)v.textContent=retroSlider.value; });
 
 // Fireworks mode buttons
 document.querySelectorAll('[data-shmode]').forEach(btn=>{

@@ -6517,7 +6517,7 @@ function retroDrawTitle(buf,S,name){
     hLine(0,S-1,S-1-i,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5);
     for(let y=0;y<S;y++){ setP(i,y,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5); setP(S-1-i,y,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5); }
   }
-  // 5x7 bitmap font (each char is array of 7 rows, 5 bits wide)
+  // 5x7 bitmap font
   const font={
     A:[0x1F,0x11,0x11,0x1F,0x11,0x11,0x11],B:[0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E],
     C:[0x0F,0x10,0x10,0x10,0x10,0x10,0x0F],D:[0x1E,0x11,0x11,0x11,0x11,0x11,0x1E],
@@ -6534,18 +6534,72 @@ function retroDrawTitle(buf,S,name){
     Y:[0x11,0x11,0x0A,0x04,0x04,0x04,0x04],Z:[0x1F,0x01,0x02,0x04,0x08,0x10,0x1F],
     '0':[0x0E,0x11,0x13,0x15,0x19,0x11,0x0E],'1':[0x04,0x0C,0x04,0x04,0x04,0x04,0x0E],
     '2':[0x0E,0x11,0x01,0x06,0x08,0x10,0x1F],'3':[0x0E,0x11,0x01,0x06,0x01,0x11,0x0E],
-    '-':[0x00,0x00,0x00,0x1F,0x00,0x00,0x00]
+    '-':[0x00,0x00,0x00,0x1F,0x00,0x00,0x00],' ':[0x00,0x00,0x00,0x00,0x00,0x00,0x00]
   };
-  // Use short labels to fit big on 64px
-  const labels={jetpac:'JET PAC',manic:'MANIC',outrun:'OUTRUN',invaders:'INVADE',
-    jsw:'JSW',deathchase:'DEATH',rtype:'R-TYPE',wolf3d:'WOLF3D',quake2:'QUAKE2'};
+  // Full game names
+  const labels={jetpac:'JET PAC',manic:'MANIC MINER',outrun:'OUTRUN',invaders:'SPACE INVADERS',
+    jsw:'JET SET WILLY',deathchase:'DEATHCHASE',rtype:'R-TYPE',wolf3d:'WOLFENSTEIN 3D',quake2:'QUAKE 2'};
   const label=labels[name]||name.toUpperCase();
-  // Scale: 2x pixels
-  const scale=2;
-  const charW=6*scale, charH=7*scale;
+  // Auto-scale to fit: max usable width is S-8 (4px border each side)
+  const maxW=S-8;
+  const charWidthBase=6; // 5px char + 1px gap
+  const naturalW=label.length*charWidthBase;
+  const scale=Math.min(2,Math.floor(maxW/naturalW)||1);
+  const charW=charWidthBase*scale, charH=7*scale;
   const textW=label.length*charW;
   const startX=Math.floor((S-textW)/2);
-  const textY=Math.floor((S-charH)/2);
+  // Draw game logo/icon above text
+  const logoY=S-10-charH;
+  const textY=Math.floor(S/2)-Math.floor(charH/2)-2;
+  // Game-specific icon/logo
+  const cr=t.col[0],cg=t.col[1],cb=t.col[2];
+  if(name==='jetpac'){
+    // Rocket icon
+    fillRect(29,textY+charH+4,34,textY+charH+14,cr,cg,cb);
+    fillRect(30,textY+charH+14,33,textY+charH+17,1,0.3,0);
+    setP(31,textY+charH+3,cr,cg,cb); setP(32,textY+charH+3,cr,cg,cb);
+  } else if(name==='manic'){
+    // Hard hat icon
+    fillRect(28,textY+charH+5,35,textY+charH+8,cr,cg,cb);
+    fillRect(29,textY+charH+8,34,textY+charH+11,cr*0.7,cg*0.7,cb*0.7);
+    hLine(27,36,textY+charH+5,cr,cg,cb);
+  } else if(name==='outrun'){
+    // Car icon
+    fillRect(27,textY+charH+6,36,textY+charH+9,1,0,0);
+    fillRect(28,textY+charH+9,35,textY+charH+11,0.7,0,0);
+    setP(27,textY+charH+5,0.3,0.3,0.3); setP(36,textY+charH+5,0.3,0.3,0.3);
+  } else if(name==='invaders'){
+    // Alien icon
+    setP(30,textY+charH+9,cr,cg,cb); setP(33,textY+charH+9,cr,cg,cb);
+    fillRect(29,textY+charH+6,34,textY+charH+8,cr,cg,cb);
+    setP(28,textY+charH+7,cr,cg,cb); setP(35,textY+charH+7,cr,cg,cb);
+    setP(29,textY+charH+5,cr,cg,cb); setP(34,textY+charH+5,cr,cg,cb);
+  } else if(name==='jsw'){
+    // Top hat icon
+    fillRect(29,textY+charH+5,34,textY+charH+11,cr,cg,cb);
+    fillRect(27,textY+charH+4,36,textY+charH+5,cr,cg,cb);
+  } else if(name==='deathchase'){
+    // Motorcycle icon
+    fillRect(28,textY+charH+7,35,textY+charH+9,cr,cg,cb);
+    setP(27,textY+charH+8,cr,cg,cb); setP(36,textY+charH+8,cr,cg,cb);
+    setP(35,textY+charH+6,cr*0.7,cg*0.7,cb*0.7);
+  } else if(name==='rtype'){
+    // Spaceship icon
+    fillRect(28,textY+charH+7,35,textY+charH+8,cr,cg,cb);
+    fillRect(35,textY+charH+6,37,textY+charH+9,cr,cg,cb);
+    setP(27,textY+charH+7,cr*0.5,cg*0.5,cb*0.5);
+  } else if(name==='wolf3d'){
+    // Gun/crosshair icon
+    hLine(28,35,textY+charH+7,cr,cg,cb);
+    for(let y=textY+charH+5;y<=textY+charH+10;y++) setP(31,y,cr,cg,cb);
+    setP(31,textY+charH+7,1,1,1);
+  } else if(name==='quake2'){
+    // Q2 logo shape
+    fillRect(28,textY+charH+5,35,textY+charH+10,cr,cg,cb);
+    fillRect(30,textY+charH+6,33,textY+charH+9,t.bg[0],t.bg[1],t.bg[2]);
+    setP(34,textY+charH+10,cr,cg,cb); setP(35,textY+charH+11,cr,cg,cb);
+  }
+  // Draw text
   for(let ci=0;ci<label.length;ci++){
     const ch=label[ci];
     if(ch===' ') continue;
@@ -6556,15 +6610,15 @@ function retroDrawTitle(buf,S,name){
       const bits=glyph[row];
       for(let col=0;col<5;col++){
         if(bits&(0x10>>col)){
-          fillRect(cx+col*scale,textY+row*scale,cx+col*scale+scale-1,textY+row*scale+scale-1,t.col[0],t.col[1],t.col[2]);
+          fillRect(cx+col*scale,textY+row*scale,cx+col*scale+scale-1,textY+row*scale+scale-1,cr,cg,cb);
         }
       }
     }
   }
-  // Flashing bar below text
-  const flashY=textY+charH+4;
+  // Flashing bar below logo
+  const flashY=4;
   const flashOn=Math.sin(retroT*6)>0;
-  if(flashOn) fillRect(Math.floor(S*0.15),flashY,Math.floor(S*0.85),flashY+1,t.col[0]*0.6,t.col[1]*0.6,t.col[2]*0.6);
+  if(flashOn) fillRect(Math.floor(S*0.2),flashY,Math.floor(S*0.8),flashY+1,cr*0.6,cg*0.6,cb*0.6);
 }
 
 function retroDrawFace(faceIdx,dt,buf,S){
