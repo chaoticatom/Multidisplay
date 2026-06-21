@@ -8124,20 +8124,28 @@ function retroDrawFace(faceIdx,dt,buf,S){
     }
     const allBullets=(p.eBullets||[]).concat(p.tBullets||[]);
     for(const b of allBullets){
-      if(Math.abs(b.x-p.shipX)<20&&Math.abs(b.y-p.shipY)<16){
-        const dist=Math.abs(b.x-p.shipX)+Math.abs(b.y-p.shipY)*0.3;
+      if(Math.abs(b.x-p.shipX)<25&&Math.abs(b.y-p.shipY)<18){
+        const dist=Math.abs(b.x-p.shipX)*0.5+Math.abs(b.y-p.shipY);
         if(dist<nearestDist){ nearestDist=dist; nearestThreatY=b.y; }
       }
     }
-    if(p.dodgeTimer<=0||(nearestThreatY!==null&&Math.abs(nearestThreatY-p.dodgeTarget)<10)){
+    // Always dodge immediately when bullet is close
+    if(nearestThreatY!==null&&nearestDist<15){
+      const dodge=18+Math.random()*8;
+      p.dodgeTarget=nearestThreatY>p.shipY?p.shipY-dodge:p.shipY+dodge;
+      p.dodgeTarget=Math.max(14,Math.min(S-10,p.dodgeTarget));
+      p.dodgeTimer=0.2;
+    } else if(p.dodgeTimer<=0){
       if(nearestThreatY!==null){
-        p.dodgeTarget=nearestThreatY>32?12+Math.random()*16:44+Math.random()*14;
+        const dodge=16+Math.random()*10;
+        p.dodgeTarget=nearestThreatY>p.shipY?p.shipY-dodge:p.shipY+dodge;
+        p.dodgeTarget=Math.max(14,Math.min(S-10,p.dodgeTarget));
       } else {
         p.dodgeTarget=14+Math.random()*38;
       }
-      p.dodgeTimer=0.3+Math.random()*0.5;
+      p.dodgeTimer=0.4+Math.random()*0.5;
     }
-    const shipSpeed=38*dt;
+    const shipSpeed=45*dt;
     const shipDy=p.dodgeTarget-p.shipY;
     p.shipY+=Math.sign(shipDy)*Math.min(Math.abs(shipDy),shipSpeed);
     p.shipY=Math.max(14,Math.min(S-10,p.shipY));
