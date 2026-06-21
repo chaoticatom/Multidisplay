@@ -5565,6 +5565,12 @@ function effectSimHouse(dt){
     setP(sx+1,sy,0.2,0.18,0.12);
   }
 
+  // Stair geometry
+  const stairBaseX=Math.floor((shRooms[4].x1+shRooms[4].x2)/2);
+  const stairTopX=stairBaseX;
+  const stairBaseY=ground+2;
+  const stairTopY=floor1+2;
+
   // ── PEOPLE ──
   for(const p of shPeople){
     p.stateT+=dt;
@@ -5573,21 +5579,48 @@ function effectSimHouse(dt){
       p.stateT=0;
       p.nextDecisionT=10+Math.random()*25;
       p.prevRoom=p.targetRoom;
-      p.targetRoom=shPickRoom(p);
+      const newRoom=shPickRoom(p);
+      p.targetRoom=newRoom;
       p.sitting=false; p.sleeping=false;
+      // Determine if floor change needed
+      const curFloor=p.y>floor1?1:0;
+      const destFloor=newRoom>=6?1:0;
+      if(curFloor!==destFloor) p.movePhase='toStairs';
+      else p.movePhase='toRoom';
     }
+    if(!p.movePhase) p.movePhase='toRoom';
 
     const room=shRooms[p.targetRoom];
-    // Target position varies by room type
-    let targetX,targetY;
     const rmName=room.name;
-    if(rmName==='living'){ targetX=room.x1+5; targetY=room.y1+3; } // sit on sofa
-    else if(rmName==='bedroom1'||rmName==='bedroom2'){ targetX=room.x1+4; targetY=room.y1+3; }
-    else if(rmName==='kidsroom'){ targetX=room.x1+3; targetY=room.y1+2; }
-    else if(rmName==='study'){ targetX=room.x1+5; targetY=room.y1+2; }
-    else if(rmName==='kitchen'){ targetX=room.x1+3; targetY=room.y1+1; }
-    else if(rmName==='dining'){ targetX=Math.floor((room.x1+room.x2)/2); targetY=room.y1+2; }
-    else { targetX=Math.floor((room.x1+room.x2)/2); targetY=room.y1+1; }
+    const curFloor=p.y>floor1?1:0;
+    const destFloor=p.targetRoom>=6?1:0;
+
+    // Determine immediate movement target based on phase
+    let targetX,targetY;
+    if(p.movePhase==='toStairs'){
+      // Walk to stair entry on current floor
+      targetX=stairBaseX;
+      targetY=curFloor===0?stairBaseY:stairTopY;
+      if(Math.abs(p.x-targetX)<1.5&&Math.abs(p.y-targetY)<1.5){
+        p.movePhase='onStairs';
+      }
+    } else if(p.movePhase==='onStairs'){
+      // Climb/descend stairs
+      targetX=stairTopX;
+      targetY=destFloor===1?stairTopY:stairBaseY;
+      if(Math.abs(p.y-targetY)<1.5){
+        p.movePhase='toRoom';
+      }
+    } else {
+      // Walk to destination in room
+      if(rmName==='living'){ targetX=room.x1+5; targetY=room.y1+3; }
+      else if(rmName==='bedroom1'||rmName==='bedroom2'){ targetX=room.x1+4; targetY=room.y1+3; }
+      else if(rmName==='kidsroom'){ targetX=room.x1+3; targetY=room.y1+2; }
+      else if(rmName==='study'){ targetX=room.x1+5; targetY=room.y1+2; }
+      else if(rmName==='kitchen'){ targetX=room.x1+3; targetY=room.y1+1; }
+      else if(rmName==='dining'){ targetX=Math.floor((room.x1+room.x2)/2); targetY=room.y1+2; }
+      else { targetX=Math.floor((room.x1+room.x2)/2); targetY=room.y1+1; }
+    }
 
     const dx=targetX-p.x, dy=targetY-p.y;
     const dist=Math.sqrt(dx*dx+dy*dy);
@@ -5595,9 +5628,17 @@ function effectSimHouse(dt){
 
     if(dist>0.8){
       const step=p.speed*dt;
-      if(Math.abs(dx)>0.8) p.x+=Math.sign(dx)*Math.min(Math.abs(dx),step);
-      else p.y+=Math.sign(dy)*Math.min(Math.abs(dy),step);
-    } else {
+      if(p.movePhase==='onStairs'){
+        // Move diagonally on stairs
+        const spd=step*0.7;
+        if(Math.abs(dx)>0.3) p.x+=Math.sign(dx)*Math.min(Math.abs(dx),spd);
+        if(Math.abs(dy)>0.3) p.y+=Math.sign(dy)*Math.min(Math.abs(dy),spd);
+      } else {
+        // Walk horizontally first, then vertically
+        if(Math.abs(dx)>0.8) p.x+=Math.sign(dx)*Math.min(Math.abs(dx),step);
+        else if(Math.abs(dy)>0.8) p.y+=Math.sign(dy)*Math.min(Math.abs(dy),step);
+      }
+    } else if(p.movePhase==='toRoom'){
       // Arrived — set activity state
       if(rmName.includes('bedroom')||rmName==='kidsroom') p.sleeping=isNight;
       if(rmName==='living'||rmName==='dining'||rmName==='study') p.sitting=true;
