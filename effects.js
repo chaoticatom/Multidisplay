@@ -8176,24 +8176,20 @@ function retroDrawFace(faceIdx,dt,buf,S){
       if(((wx)%4)<2) setP(x,h,0.4,0.35,0.25);
     }
 
-    // Turrets on ground (scroll with terrain using same world coord system)
+    // Turrets on ground (spawn right, scroll left at ground speed)
     p.turretSpawnT-=dt;
     if(p.turretSpawnT<=0&&p.turrets.length<2){
-      // World coord matches ground: ground uses wx = screenX - scrollX
-      // Turret spawns just off-screen right: screenX=S+5, so worldX = S+5 - scrollX
-      const twx=S+5-Math.floor(p.scrollX);
-      p.turrets.push({twx:twx, fireT:5+Math.random()*4});
+      p.turrets.push({sx:S+5, fireT:5+Math.random()*4});
       p.turretSpawnT=8+Math.random()*6;
     }
     for(let i=p.turrets.length-1;i>=0;i--){
       const tr=p.turrets[i];
-      // Screen position: screenX = twx + scrollX
-      const tsx=Math.round(tr.twx+Math.floor(p.scrollX));
-      if(tsx<-5){ p.turrets.splice(i,1); continue; }
-      if(tsx>S+5) continue;
-      // Height matches ground exactly (same formula, same world coord)
-      const th=terrainH+Math.round(Math.sin(tr.twx*0.12)*2+Math.sin(tr.twx*0.25)*1.5);
-      // Draw turret (bright yellow/green cannon, larger and visible)
+      tr.sx-=18*dt;
+      if(tr.sx<-5){ p.turrets.splice(i,1); continue; }
+      const tsx=Math.round(tr.sx);
+      const twx=tsx-Math.floor(p.scrollX);
+      const th=terrainH+Math.round(Math.sin(twx*0.12)*2+Math.sin(twx*0.25)*1.5);
+      // Draw turret (yellow/green cannon on ground)
       fillRect(tsx-2,th,tsx+2,th+2,0.3,0.3,0.1);
       fillRect(tsx-1,th+2,tsx+1,th+5,0.2,0.8,0);
       setP(tsx,th+5,0.5,1,0); setP(tsx-1,th+5,0.3,0.7,0); setP(tsx+1,th+5,0.3,0.7,0);
@@ -8275,9 +8271,20 @@ function retroDrawFace(faceIdx,dt,buf,S){
       if(b.x<-2){ p.bullets.splice(i,1); continue; }
       const bx=Math.round(b.x), by=Math.round(b.y);
       setP(bx,by,1,1,0); setP(bx-1,by,1,1,0);
+      let bulletHit=false;
       for(const e of p.enemies){
         if(!e.alive) continue;
-        if(Math.abs(b.x-e.x)<3&&Math.abs(b.y-e.y)<3){ e.alive=false; p.bullets.splice(i,1); break; }
+        if(Math.abs(b.x-e.x)<3&&Math.abs(b.y-e.y)<3){ e.alive=false; p.bullets.splice(i,1); bulletHit=true; break; }
+      }
+      if(!bulletHit){
+        for(let j=p.eBullets.length-1;j>=0;j--){
+          if(Math.abs(b.x-p.eBullets[j].x)<3&&Math.abs(b.y-p.eBullets[j].y)<3){ p.eBullets.splice(j,1); p.bullets.splice(i,1); bulletHit=true; break; }
+        }
+      }
+      if(!bulletHit&&p.tBullets){
+        for(let j=p.tBullets.length-1;j>=0;j--){
+          if(Math.abs(b.x-p.tBullets[j].x)<3&&Math.abs(b.y-p.tBullets[j].y)<3){ p.tBullets.splice(j,1); p.bullets.splice(i,1); break; }
+        }
       }
     }
     if(p.bullets.length>5) p.bullets.length=5;
