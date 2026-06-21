@@ -7186,17 +7186,23 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Player auto-movement across platforms
     p.playerX+=p.dir*16*dt;
     if(p.playerX>playR-3){p.dir=-1;} else if(p.playerX<playL+3){p.dir=1;}
-    if(!p.jumping&&Math.sin(p.t*2.5)>0.7){ p.jumping=true; p.jumpT=0; }
-    if(p.jumping){ p.jumpT+=dt; if(p.jumpT>0.6) p.jumping=false; }
-    const jumpOff=p.jumping?Math.sin(p.jumpT/0.6*Math.PI)*12:0;
-    // Find which platform player is on
-    let baseY=groundY+1;
-    for(const pl of plats){
-      if(p.playerX>=pl[1]&&p.playerX<=pl[2]&&!p.jumping){
-        if(Math.abs(baseY-(pl[0]+1))<15) baseY=pl[0]+2;
+    if(!p.jumping&&Math.sin(p.t*2.5)>0.7){ p.jumping=true; p.jumpT=0; p.jumpFromY=p.baseY||groundY+1; }
+    if(p.jumping){ p.jumpT+=dt; if(p.jumpT>0.6){ p.jumping=false; } }
+    const jumpOff=p.jumping?Math.sin(p.jumpT/0.6*Math.PI)*14:0;
+    // Find target platform (only switch when landing from a jump)
+    if(!p.baseY) p.baseY=groundY+1;
+    if(!p.jumping){
+      let bestY=groundY+1;
+      for(const pl of plats){
+        if(p.playerX>=pl[1]&&p.playerX<=pl[2]){
+          if(pl[0]+2>bestY) bestY=pl[0]+2;
+        }
       }
+      // Smooth transition
+      p.baseY+=(bestY-p.baseY)*Math.min(1,dt*8);
+      if(Math.abs(p.baseY-bestY)<0.5) p.baseY=bestY;
     }
-    const playerY=baseY+Math.round(jumpOff);
+    const playerY=Math.round(p.baseY+jumpOff);
     const px=Math.round(p.playerX);
 
     // Draw Willy (white figure like original)
@@ -7615,14 +7621,19 @@ function retroDrawFace(faceIdx,dt,buf,S){
     if(p.playerX>playR-4){p.dir=-1;} else if(p.playerX<playL+2){p.dir=1;}
     if(!p.jumping&&Math.sin(p.t*2.2)>0.75){ p.jumping=true; p.jumpT=0; }
     if(p.jumping){ p.jumpT+=dt; if(p.jumpT>0.55) p.jumping=false; }
-    const jumpH=p.jumping?Math.sin(p.jumpT/0.55*Math.PI)*12:0;
-    let baseY=groundY+1;
-    for(const pl of plats){
-      if(p.playerX>=pl[1]&&p.playerX<=pl[2]&&!p.jumping){
-        if(pl[0]>baseY-5&&pl[0]<baseY+20) baseY=pl[0]+1;
+    const jumpH=p.jumping?Math.sin(p.jumpT/0.55*Math.PI)*14:0;
+    if(!p.baseY) p.baseY=groundY+1;
+    if(!p.jumping){
+      let bestY=groundY+1;
+      for(const pl of plats){
+        if(p.playerX>=pl[1]&&p.playerX<=pl[2]){
+          if(pl[0]+1>bestY) bestY=pl[0]+1;
+        }
       }
+      p.baseY+=(bestY-p.baseY)*Math.min(1,dt*8);
+      if(Math.abs(p.baseY-bestY)<0.5) p.baseY=bestY;
     }
-    p.playerY=baseY+Math.round(jumpH);
+    p.playerY=Math.round(p.baseY+jumpH);
     const px=Math.round(p.playerX), py=p.playerY;
 
     // Willy sprite (cyan body like original screenshot)
