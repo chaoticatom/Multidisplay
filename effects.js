@@ -8159,7 +8159,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Scrolling stars (different speeds for parallax)
     for(let i=0;i<50;i++){
       const speed=1+((i*7)%3);
-      const sx=(((i*17-Math.floor(p.scrollX*speed*0.3))%S)+S)%S;
+      const sx=(((i*17+Math.floor(p.scrollX*speed*0.3))%S)+S)%S;
       const sy=hudH+((i*41+7)%(S-hudH-terrainH));
       const br=0.15+((i*3)%4)*0.08;
       setP(sx,sy,br,br,br);
@@ -8189,16 +8189,14 @@ function retroDrawFace(faceIdx,dt,buf,S){
       const tsx=Math.round(tr.sx);
       const twx=tsx-Math.floor(p.scrollX);
       const th=terrainH+Math.round(Math.sin(twx*0.12)*2+Math.sin(twx*0.25)*1.5);
-      // Draw turret (yellow/green cannon on ground)
-      fillRect(tsx-2,th,tsx+2,th+2,0.3,0.3,0.1);
-      fillRect(tsx-1,th+2,tsx+1,th+5,0.2,0.8,0);
-      setP(tsx,th+5,0.5,1,0); setP(tsx-1,th+5,0.3,0.7,0); setP(tsx+1,th+5,0.3,0.7,0);
-      setP(tsx,th+6,1,0.5,0);
+      // Draw turret (short green cannon on ground)
+      setP(tsx-1,th,0,0.5,0); setP(tsx,th,0,0.7,0); setP(tsx+1,th,0,0.5,0);
+      setP(tsx,th+1,0,1,0); setP(tsx,th+2,0.5,1,0);
       tr.fireT-=dt;
       if(tr.fireT<=0){
-        const dx=p.shipX-tsx, dy=p.shipY-(th+6);
-        p.tBullets.push({x:tsx,y:th+6,dx:dx,dy:dy});
-        tr.fireT=5+Math.random()*4;
+        const dx=p.shipX-tsx, dy=p.shipY-(th+2);
+        p.tBullets.push({x:tsx,y:th+2,dx:dx,dy:dy});
+        tr.fireT=3+Math.random()*3;
       }
     }
     // Update turret bullets
