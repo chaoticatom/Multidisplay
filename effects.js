@@ -5294,7 +5294,7 @@ function runOverlays(dt){
 //  SIM HOUSE — cross-section house with people following daily routines
 //  Uses all 4 side panels as panoramic strip (4×SIZE wide × SIZE tall)
 // ═══════════════════════════════════════════════════
-let shInit=false, shRooms=[], shPeople=[], shT=0, shBuf=null, shParticles=[];
+let shInit=false, shRooms=[], shPeople=[], shT=0, shBuf=null, shParticles=[], shShadowMode=false;
 
 function initSimHouse(){
   const S=SIZE, W=4*S;
@@ -5323,10 +5323,10 @@ function initSimHouse(){
 
   shPeople=[];
   const pDefs=[
-    {name:'Dad',   skin:[1,0.75,0.55], hair:[0.3,0.2,0.1], shirt:[0.2,0.35,0.65],pants:[0.12,0.12,0.18], h:7},
-    {name:'Mum',   skin:[1,0.78,0.6],  hair:[0.55,0.3,0.12],shirt:[0.65,0.2,0.35],pants:[0.1,0.1,0.15], h:6},
-    {name:'Teen',  skin:[0.92,0.72,0.52],hair:[0.15,0.12,0.08],shirt:[0.1,0.45,0.2],pants:[0.18,0.18,0.22], h:6},
-    {name:'Kid',   skin:[1,0.82,0.62], hair:[0.6,0.4,0.12],shirt:[0.85,0.5,0.12],pants:[0.2,0.15,0.28], h:5},
+    {name:'Dad',   skin:[1,0.75,0.55], hair:[0.3,0.2,0.1], shirt:[0.2,0.35,0.65],pants:[0.12,0.12,0.18], h:9},
+    {name:'Mum',   skin:[1,0.78,0.6],  hair:[0.55,0.3,0.12],shirt:[0.65,0.2,0.35],pants:[0.1,0.1,0.15], h:8},
+    {name:'Teen',  skin:[0.92,0.72,0.52],hair:[0.15,0.12,0.08],shirt:[0.1,0.45,0.2],pants:[0.18,0.18,0.22], h:8},
+    {name:'Kid',   skin:[1,0.82,0.62], hair:[0.6,0.4,0.12],shirt:[0.85,0.5,0.12],pants:[0.2,0.15,0.28], h:6},
   ];
   for(let i=0;i<pDefs.length;i++){
     const rm=shRooms[i<2?3:9];
@@ -5359,10 +5359,247 @@ function shPickRoom(person){
   if(isKid) return r<0.7?9:7; if(r<0.4) return 3; if(r<0.6) return 6; return 7;
 }
 
+function shUpdatePeople(dt,S,W){
+  const ground=2, floor1=Math.floor(S*0.47), roof=S-5;
+  const hall=shRooms[4];
+  const stL=hall.x1+2, stR=hall.x2-2, stBotY=ground+1, stTopY=floor1;
+  const stW=stR-stL, stH=stTopY-stBotY;
+  const hour=shGetHour();
+  const isNight=hour>=21||hour<6;
+
+  for(const p of shPeople){
+    p.stateT+=dt;
+    p.animFrame+=dt*5;
+    if(p.stateT>=p.nextDecisionT){
+      p.stateT=0;
+      p.nextDecisionT=8+Math.random()*20;
+      p.prevRoom=p.targetRoom;
+      p.targetRoom=shPickRoom(p);
+      p.sitting=false; p.sleeping=false;
+      const curFloor=p.y>floor1?1:0;
+      const destFloor=p.targetRoom>=6?1:0;
+      if(curFloor!==destFloor) p.movePhase='toStairs';
+      else p.movePhase='toRoom';
+    }
+
+    const room=shRooms[p.targetRoom];
+    const rmName=room.name;
+    const destFloor=p.targetRoom>=6?1:0;
+
+    let targetX,targetY;
+    if(p.movePhase==='toStairs'){
+      const curFloor=p.y>floor1?1:0;
+      targetX=curFloor===0?stL:stR;
+      targetY=curFloor===0?stBotY+1:stTopY+1;
+      if(Math.abs(p.x-targetX)<2&&Math.abs(p.y-targetY)<2) p.movePhase='onStairs';
+    } else if(p.movePhase==='onStairs'){
+      if(destFloor===1){ p.x+=p.speed*dt*0.7; }
+      else { p.x-=p.speed*dt*0.7; }
+      p.x=Math.max(stL,Math.min(stR,p.x));
+      const progress=Math.max(0,Math.min(1,(p.x-stL)/stW));
+      p.y=stBotY+1+progress*stH;
+      p.walking=true;
+      if((destFloor===1&&p.x>=stR-1)||(destFloor===0&&p.x<=stL+1)) p.movePhase='toRoom';
+    } else {
+      if(rmName==='living'){ targetX=room.x1+7; targetY=room.y1+4; }
+      else if(rmName==='bedroom1'||rmName==='bedroom2'){ targetX=room.x1+6; targetY=room.y1+4; }
+      else if(rmName==='kidsroom'){ targetX=room.x1+5; targetY=room.y1+3; }
+      else if(rmName==='study'){ targetX=room.x1+8; targetY=room.y1+2; }
+      else if(rmName==='kitchen'){ targetX=room.x1+6; targetY=room.y1+1; }
+      else if(rmName==='dining'){ targetX=Math.floor((room.x1+room.x2)/2); targetY=room.y1+3; }
+      else if(rmName==='bathroom'||rmName==='ensuite'){ targetX=room.x1+4; targetY=room.y1+1; }
+      else { targetX=Math.floor((room.x1+room.x2)/2); targetY=room.y1+1; }
+    }
+
+    if(p.movePhase!=='onStairs'){
+      const dx=targetX-p.x, dy=targetY-p.y;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      p.walking=dist>1.5;
+      if(dist>1){
+        const step=p.speed*dt;
+        if(Math.abs(dx)>1) p.x+=Math.sign(dx)*Math.min(Math.abs(dx),step);
+        else if(Math.abs(dy)>1) p.y+=Math.sign(dy)*Math.min(Math.abs(dy),step);
+      } else if(p.movePhase==='toRoom'){
+        if(rmName.includes('bedroom')||rmName==='kidsroom') p.sleeping=isNight;
+        if(rmName==='living'||rmName==='dining'||rmName==='study') p.sitting=true;
+      }
+    }
+  }
+}
+
+function effectSimHouseShadows(dt){
+  const S=SIZE, W=4*S;
+  const ground=2, floor1=Math.floor(S*0.47), roof=S-5;
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+  shBuf.fill(0);
+
+  const setP=(x,y,r,g,b)=>{
+    if(x<0||x>=W||y<0||y>=S) return;
+    const i=(y*W+x)*3;
+    shBuf[i]=Math.min(255,(r*255|0));
+    shBuf[i+1]=Math.min(255,(g*255|0));
+    shBuf[i+2]=Math.min(255,(b*255|0));
+  };
+  const addP=(x,y,r,g,b)=>{
+    if(x<0||x>=W||y<0||y>=S) return;
+    const i=(y*W+x)*3;
+    shBuf[i]=Math.max(0,shBuf[i]-(r*255|0));
+    shBuf[i+1]=Math.max(0,shBuf[i+1]-(g*255|0));
+    shBuf[i+2]=Math.max(0,shBuf[i+2]-(b*255|0));
+  };
+  const fillRect=(x1,y1,x2,y2,r,g,b)=>{
+    for(let y=Math.max(0,y1);y<=Math.min(S-1,y2);y++) for(let x=Math.max(0,x1);x<=Math.min(W-1,x2);x++) setP(x,y,r,g,b);
+  };
+  const hLine=(x1,x2,y,r,g,b)=>{ for(let x=x1;x<=x2;x++) setP(x,y,r,g,b); };
+  const vLine=(x,y1,y2,r,g,b)=>{ for(let y=y1;y<=y2;y++) setP(x,y,r,g,b); };
+
+  // White background
+  for(let y=0;y<S;y++) for(let x=0;x<W;x++) setP(x,y,0.95,0.95,0.92);
+
+  // House outline
+  const outR=0.15,outG=0.15,outB=0.18;
+  hLine(0,W-1,ground,outR,outG,outB);
+  hLine(0,W-1,roof,outR,outG,outB);
+  vLine(0,ground,roof,outR,outG,outB);
+  vLine(W-1,ground,roof,outR,outG,outB);
+  // Floor line (subtle)
+  hLine(0,W-1,floor1,outR*0.7,outG*0.7,outB*0.7);
+  // Roof pitch
+  const roofPeak=S-2, roofMid=Math.floor(W*0.5);
+  for(let x=0;x<W;x++){
+    const ry=roof+Math.round(Math.max(0,(1-Math.abs(x-roofMid)/(W*0.5)))*(roofPeak-roof));
+    setP(x,ry,outR,outG,outB);
+  }
+
+  // Windows — lots of them, evenly spaced
+  const windows=[];
+  // Ground floor windows
+  const gfMid=Math.floor((ground+floor1)/2);
+  const gfWinH=Math.floor((floor1-ground)*0.5);
+  const gfWinW=Math.floor(W*0.04);
+  for(let wx=Math.floor(W*0.05);wx<W-gfWinW;wx+=Math.floor(W*0.08)){
+    // Skip door area
+    if(wx>Math.floor(W*0.46)&&wx<Math.floor(W*0.54)) continue;
+    windows.push({x1:wx,y1:gfMid-Math.floor(gfWinH/2),x2:wx+gfWinW,y2:gfMid+Math.floor(gfWinH/2)});
+  }
+  // First floor windows
+  const ffMid=Math.floor((floor1+roof)/2);
+  const ffWinH=Math.floor((roof-floor1)*0.5);
+  for(let wx=Math.floor(W*0.05);wx<W-gfWinW;wx+=Math.floor(W*0.075)){
+    windows.push({x1:wx,y1:ffMid-Math.floor(ffWinH/2),x2:wx+gfWinW,y2:ffMid+Math.floor(ffWinH/2)});
+  }
+
+  // Front door
+  const doorX=Math.floor(W*0.48), doorW=Math.floor(W*0.04), doorH=Math.floor((floor1-ground)*0.7);
+  fillRect(doorX,ground+1,doorX+doorW,ground+doorH,0.3,0.22,0.15);
+  setP(doorX+doorW-1,ground+Math.floor(doorH/2),0.5,0.45,0.2); // door handle
+
+  // Draw windows (light yellow/warm glow)
+  const hour=shGetHour();
+  const isNight=hour>=21||hour<6;
+  const winGlow=isNight?0.85:0.6;
+  for(const w of windows){
+    // Window frame
+    fillRect(w.x1,w.y1,w.x2,w.y2,winGlow*0.95,winGlow*0.9,winGlow*0.6);
+    // Window frame border
+    hLine(w.x1,w.x2,w.y1,outR,outG,outB); hLine(w.x1,w.x2,w.y2,outR,outG,outB);
+    vLine(w.x1,w.y1,w.y2,outR,outG,outB); vLine(w.x2,w.y1,w.y2,outR,outG,outB);
+    // Cross panes
+    const mx=Math.floor((w.x1+w.x2)/2), my=Math.floor((w.y1+w.y2)/2);
+    hLine(w.x1,w.x2,my,outR*0.8,outG*0.8,outB*0.8);
+    vLine(mx,w.y1,w.y2,outR*0.8,outG*0.8,outB*0.8);
+  }
+
+  // Draw people shadows in windows
+  for(const p of shPeople){
+    const px=Math.round(p.x), py=Math.round(p.y);
+    const ph=p.h||7;
+    // Check each window — if person is near the window's x-range, draw shadow
+    for(const w of windows){
+      // Person must be on same floor as window and within x range (expanded for visibility)
+      const personFloor=py>floor1?1:0;
+      const winFloor=w.y1>floor1?1:0;
+      if(personFloor!==winFloor) continue;
+      const winCX=(w.x1+w.x2)/2;
+      const dist=Math.abs(px-winCX);
+      const winW=w.x2-w.x1;
+      if(dist>winW*1.8) continue;
+      // Shadow intensity based on distance
+      const intensity=Math.max(0,1-dist/(winW*1.5));
+      const shadowR=0.12*intensity, shadowG=0.12*intensity, shadowB=0.15*intensity;
+      // Draw shadow silhouette within window bounds
+      const sxOff=Math.round((px-winCX)*0.6); // parallax
+      if(p.sleeping){
+        // Horizontal blob
+        for(let i=-2;i<=2;i++){
+          const sx=Math.floor((w.x1+w.x2)/2)+sxOff+i;
+          const sy=Math.floor((w.y1+w.y2)/2);
+          if(sx>w.x1&&sx<w.x2&&sy>w.y1&&sy<w.y2) addP(sx,sy,shadowR,shadowG,shadowB);
+        }
+      } else {
+        // Standing/sitting silhouette
+        const baseY=p.sitting?w.y1+2:w.y1+1;
+        const height=p.sitting?Math.min(ph-2,w.y2-w.y1-2):Math.min(ph+1,w.y2-w.y1-1);
+        for(let dy=0;dy<height;dy++){
+          const sy=baseY+dy;
+          if(sy<=w.y1||sy>=w.y2) continue;
+          // Body width varies (head narrow, torso wide, legs narrow)
+          let bw;
+          if(dy>=height-2) bw=2; // head
+          else if(dy>=height-4) bw=3; // torso
+          else bw=2; // legs
+          for(let dx=-Math.floor(bw/2);dx<=Math.floor(bw/2);dx++){
+            const sx=Math.floor((w.x1+w.x2)/2)+sxOff+dx;
+            if(sx>w.x1&&sx<w.x2) addP(sx,sy,shadowR,shadowG,shadowB);
+          }
+        }
+      }
+    }
+  }
+
+  // Subtle ground shadow under house
+  for(let x=0;x<W;x++) setP(x,ground-1,0.7,0.7,0.68);
+
+  // ── OUTPUT ──
+  if(panel2dMode){
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const sx=Math.floor(u*(W/S));
+      const i=(v*W+sx)*3;
+      const idx=faceMap[0][v*S+u]; if(idx<0) continue;
+      colBuf[idx*3]=shBuf[i]/255; colBuf[idx*3+1]=shBuf[i+1]/255; colBuf[idx*3+2]=shBuf[i+2]/255;
+    }
+  } else {
+    for(let fIdx=0;fIdx<4;fIdx++){
+      const face=VID_FACE_ORDER[fIdx];
+      for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+        const pu=S-1-u;
+        const sx=fIdx*S+pu;
+        const i=(v*W+sx)*3;
+        const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+        colBuf[idx*3]=shBuf[i]/255; colBuf[idx*3+1]=shBuf[i+1]/255; colBuf[idx*3+2]=shBuf[i+2]/255;
+      }
+    }
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[4][v*S+u]; if(idx<0) continue;
+      colBuf[idx*3]=0.9; colBuf[idx*3+1]=0.9; colBuf[idx*3+2]=0.88;
+    }
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[5][v*S+u]; if(idx<0) continue;
+      colBuf[idx*3]=0.7; colBuf[idx*3+1]=0.7; colBuf[idx*3+2]=0.68;
+    }
+  }
+}
+
 function effectSimHouse(dt){
   if(!shInit) initSimHouse();
   shT+=dt;
   const S=SIZE, W=4*S;
+
+  // Update people movement (shared between modes)
+  shUpdatePeople(dt,S,W);
+
+  if(shShadowMode){ effectSimHouseShadows(dt); return; }
+
   const ground=2, floor1=Math.floor(S*0.47), roof=S-5;
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
@@ -5612,83 +5849,9 @@ function effectSimHouse(dt){
   fillRect(ens.x2-3,ens.y1,ens.x2-1,ens.y1+3,0.7,0.7,0.75);
   fillRect(ens.x2-5,ens.y1+4,ens.x2-3,ens.y1+6,0.5,0.5,0.55);
 
-  // ── PEOPLE (follow stair path) ──
-  // Stair geometry for path following
-  const stL=hall.x1+2, stR=hall.x2-2, stBotY=ground+1, stTopY=floor1;
-  const stW=stR-stL, stH=stTopY-stBotY;
-
+  // ── DRAW PEOPLE ──
   for(const p of shPeople){
-    p.stateT+=dt;
-    p.animFrame+=dt*5;
-    if(p.stateT>=p.nextDecisionT){
-      p.stateT=0;
-      p.nextDecisionT=12+Math.random()*25;
-      p.prevRoom=p.targetRoom;
-      const newRoom=shPickRoom(p);
-      p.targetRoom=newRoom;
-      p.sitting=false; p.sleeping=false;
-      const curFloor=p.y>floor1?1:0;
-      const destFloor=newRoom>=6?1:0;
-      if(curFloor!==destFloor) p.movePhase='toStairs';
-      else p.movePhase='toRoom';
-    }
-
-    const room=shRooms[p.targetRoom];
-    const rmName=room.name;
-    const curFloor=p.y>floor1?1:0;
-    const destFloor=p.targetRoom>=6?1:0;
-
-    let targetX,targetY;
-    if(p.movePhase==='toStairs'){
-      targetX=curFloor===0?stL:stR;
-      targetY=curFloor===0?stBotY+1:stTopY+1;
-      if(Math.abs(p.x-targetX)<2&&Math.abs(p.y-targetY)<2) p.movePhase='onStairs';
-    } else if(p.movePhase==='onStairs'){
-      // Follow the stair diagonal exactly
-      if(destFloor===1){
-        targetX=stR; targetY=stTopY+1;
-      } else {
-        targetX=stL; targetY=stBotY+1;
-      }
-      // Constrain y to stair path based on x position
-      const progress=Math.max(0,Math.min(1,(p.x-stL)/stW));
-      const stairY=stBotY+1+progress*stH;
-      if(destFloor===1){
-        p.x+=p.speed*dt*0.7;
-        p.y=stairY;
-      } else {
-        p.x-=p.speed*dt*0.7;
-        p.y=stairY;
-      }
-      p.x=Math.max(stL,Math.min(stR,p.x));
-      if((destFloor===1&&p.x>=stR-1)||(destFloor===0&&p.x<=stL+1)) p.movePhase='toRoom';
-      p.walking=true;
-    } else {
-      if(rmName==='living'){ targetX=room.x1+7; targetY=room.y1+4; }
-      else if(rmName==='bedroom1'||rmName==='bedroom2'){ targetX=room.x1+6; targetY=room.y1+4; }
-      else if(rmName==='kidsroom'){ targetX=room.x1+5; targetY=room.y1+3; }
-      else if(rmName==='study'){ targetX=room.x1+8; targetY=room.y1+2; }
-      else if(rmName==='kitchen'){ targetX=room.x1+6; targetY=room.y1+1; }
-      else if(rmName==='dining'){ targetX=Math.floor((room.x1+room.x2)/2); targetY=room.y1+3; }
-      else if(rmName==='bathroom'||rmName==='ensuite'){ targetX=room.x1+4; targetY=room.y1+1; }
-      else { targetX=Math.floor((room.x1+room.x2)/2); targetY=room.y1+1; }
-    }
-
-    if(p.movePhase!=='onStairs'){
-      const dx=targetX-p.x, dy=targetY-p.y;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      p.walking=dist>1.5;
-      if(dist>1){
-        const step=p.speed*dt;
-        if(Math.abs(dx)>1) p.x+=Math.sign(dx)*Math.min(Math.abs(dx),step);
-        else if(Math.abs(dy)>1) p.y+=Math.sign(dy)*Math.min(Math.abs(dy),step);
-      } else if(p.movePhase==='toRoom'){
-        if(rmName.includes('bedroom')||rmName==='kidsroom') p.sleeping=isNight;
-        if(rmName==='living'||rmName==='dining'||rmName==='study') p.sitting=true;
-      }
-    }
-
-    // Draw person (7px tall, 3px wide body)
+    // Draw person (8px tall, 3px wide body)
     const px=Math.round(p.x), py=Math.round(p.y);
     const ph=p.h||7;
     const legAnim=p.walking?Math.sin(p.animFrame*3):0;
@@ -5715,7 +5878,7 @@ function effectSimHouse(dt){
       // Head
       setP(px,py+ph-2,p.skin[0],p.skin[1],p.skin[2]); setP(px+1,py+ph-2,p.skin[0]*0.95,p.skin[1]*0.95,p.skin[2]*0.95);
       // Torso (3 wide)
-      for(let ty=ph-3;ty>=ph-4;ty--){
+      for(let ty=ph-3;ty>=ph-5;ty--){
         setP(px-1,py+ty,p.shirt[0]*0.85,p.shirt[1]*0.85,p.shirt[2]*0.85);
         setP(px,py+ty,p.shirt[0],p.shirt[1],p.shirt[2]);
         setP(px+1,py+ty,p.shirt[0]*0.9,p.shirt[1]*0.9,p.shirt[2]*0.9);
@@ -5736,6 +5899,8 @@ function effectSimHouse(dt){
       setP(px-legOff,py,p.pants[0]*0.85,p.pants[1]*0.85,p.pants[2]*0.85);
       setP(px,py+1,p.pants[0]*0.9,p.pants[1]*0.9,p.pants[2]*0.9);
       setP(px+1,py+1,p.pants[0]*0.85,p.pants[1]*0.85,p.pants[2]*0.85);
+      setP(px,py+2,p.pants[0]*0.8,p.pants[1]*0.8,p.pants[2]*0.8);
+      setP(px+1,py+2,p.pants[0]*0.75,p.pants[1]*0.75,p.pants[2]*0.75);
     }
   }
 

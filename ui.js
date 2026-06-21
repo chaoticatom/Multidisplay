@@ -1031,7 +1031,7 @@ const toggleBtn=document.getElementById('toggle-effects');
 
 // Effect → auto-expand linked options section
 const EFFECT_SECTION_MAP = {
-  spectrum:'spectrum', maze:'maze', tron:'tron', f1:'f1', video:'video',
+  spectrum:'spectrum', maze:'maze', tron:'tron', f1:'f1', video:'video', simhouse:'simhouse',
   balls:'',sand:'',lightning:'',warp:'',life:'',fluid:'',
 };
 
@@ -1186,6 +1186,13 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
 });
 
 // Fireworks mode buttons
+document.querySelectorAll('[data-shmode]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('[data-shmode]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    shShadowMode=btn.dataset.shmode==='shadows';
+  });
+});
 document.querySelectorAll('[data-fwmode]').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('[data-fwmode]').forEach(b=>b.classList.remove('active'));
