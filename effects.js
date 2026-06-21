@@ -7477,7 +7477,9 @@ function retroDrawFace(faceIdx,dt,buf,S){
     const invSpeed=8+p.wave*3;
     p.invX+=p.invDir*invSpeed*dt;
     if(p.invX>S-42||p.invX<2){ p.invDir*=-1; p.invY-=1.5; }
-    if(p.invY<=18){
+    let lowestAliveRow=99;
+    for(const inv of p.invAlive){ if(inv.alive && inv.r<lowestAliveRow) lowestAliveRow=inv.r; }
+    if(lowestAliveRow<99 && p.invY+lowestAliveRow*6<=17){
       p.lives--;
       if(p.lives<=0){
         for(const inv of p.invAlive) inv.alive=true;
