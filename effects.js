@@ -5762,8 +5762,10 @@ function effectSimHouseShadows(dt){
 
   // ── OUTPUT ──
   if(panel2dMode){
+    // Show only the door face (face 1) with its 4 windows
+    const faceStart=doorFace*S;
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-      const sx=Math.floor(u*(W/S));
+      const sx=faceStart+u;
       const i=(v*W+sx)*3;
       const idx=faceMap[0][v*S+u]; if(idx<0) continue;
       colBuf[idx*3]=shBuf[i]/255; colBuf[idx*3+1]=shBuf[i+1]/255; colBuf[idx*3+2]=shBuf[i+2]/255;
