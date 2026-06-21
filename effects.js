@@ -8176,35 +8176,39 @@ function retroDrawFace(faceIdx,dt,buf,S){
       if(((wx)%4)<2) setP(x,h,0.4,0.35,0.25);
     }
 
-    // Turrets on ground (anchored, scroll left with terrain)
+    // Turrets on ground (scroll with terrain using same world coord system)
     p.turretSpawnT-=dt;
-    if(p.turretSpawnT<=0&&p.turrets.length<3){
-      p.turrets.push({spawnX:S+5, spawnScroll:p.scrollX, fireT:3+Math.random()*3});
-      p.turretSpawnT=5+Math.random()*5;
+    if(p.turretSpawnT<=0&&p.turrets.length<2){
+      // World coord matches ground: ground uses wx = screenX - scrollX
+      // Turret spawns just off-screen right: screenX=S+5, so worldX = S+5 - scrollX
+      const twx=S+5-Math.floor(p.scrollX);
+      p.turrets.push({twx:twx, fireT:5+Math.random()*4});
+      p.turretSpawnT=8+Math.random()*6;
     }
     for(let i=p.turrets.length-1;i>=0;i--){
       const tr=p.turrets[i];
-      const tsx=Math.round(tr.spawnX-(p.scrollX-tr.spawnScroll));
+      // Screen position: screenX = twx + scrollX
+      const tsx=Math.round(tr.twx+Math.floor(p.scrollX));
       if(tsx<-5){ p.turrets.splice(i,1); continue; }
       if(tsx>S+5) continue;
-      const twx=tsx-Math.floor(p.scrollX);
-      const th=terrainH+Math.round(Math.sin(twx*0.12)*2+Math.sin(twx*0.25)*1.5);
-      // Draw turret (green cannon on ground)
-      fillRect(tsx-1,th,tsx+1,th+1,0.2,0.5,0.2);
-      setP(tsx,th+2,0,1,0); setP(tsx,th+3,0,1,0);
-      setP(tsx-1,th+3,0,0.7,0); setP(tsx+1,th+3,0,0.7,0);
-      setP(tsx,th+4,0.2,1,0.2);
+      // Height matches ground exactly (same formula, same world coord)
+      const th=terrainH+Math.round(Math.sin(tr.twx*0.12)*2+Math.sin(tr.twx*0.25)*1.5);
+      // Draw turret (bright yellow/green cannon, larger and visible)
+      fillRect(tsx-2,th,tsx+2,th+2,0.3,0.3,0.1);
+      fillRect(tsx-1,th+2,tsx+1,th+5,0.2,0.8,0);
+      setP(tsx,th+5,0.5,1,0); setP(tsx-1,th+5,0.3,0.7,0); setP(tsx+1,th+5,0.3,0.7,0);
+      setP(tsx,th+6,1,0.5,0);
       tr.fireT-=dt;
       if(tr.fireT<=0){
-        const dx=p.shipX-tsx, dy=p.shipY-(th+4);
-        p.tBullets.push({x:tsx,y:th+4,dx:dx,dy:dy});
-        tr.fireT=3+Math.random()*3;
+        const dx=p.shipX-tsx, dy=p.shipY-(th+6);
+        p.tBullets.push({x:tsx,y:th+6,dx:dx,dy:dy});
+        tr.fireT=5+Math.random()*4;
       }
     }
     // Update turret bullets
     for(let i=p.tBullets.length-1;i>=0;i--){
       const tb=p.tBullets[i];
-      const spd=25*dt;
+      const spd=18*dt;
       const dist=Math.sqrt(tb.dx*tb.dx+tb.dy*tb.dy);
       if(dist>0){ tb.x+=tb.dx/dist*spd; tb.y+=tb.dy/dist*spd; }
       if(tb.x<0||tb.x>=S||tb.y<0||tb.y>=S){ p.tBullets.splice(i,1); continue; }
@@ -8220,7 +8224,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
       for(let dy=-eRad;dy<=eRad;dy++) for(let dx=-eRad;dx<=eRad;dx++){
         if(dx*dx+dy*dy<=eRad*eRad){ const px2=ex+dx,py2=ey+dy; if(px2>=0&&px2<S&&py2>=0&&py2<S) setP(px2,py2,1,Math.random()*0.7,0); }
       }
-      if(p.explodeT<=0) p.respawnT=1.0;
+      if(p.explodeT<=0) p.respawnT=2.0;
     } else if(p.respawnT>0){
       p.respawnT-=dt;
     }
@@ -8280,7 +8284,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
 
     // Init enemies if empty
     if(p.enemies.length===0){
-      for(let i=0;i<5;i++) p.enemies.push({x:-4-Math.random()*30,y:terrainH+5+Math.random()*(S-terrainH-hudH-10),alive:true,type:i%3,phase:Math.random()*6,fireT:2+Math.random()*3});
+      for(let i=0;i<3;i++) p.enemies.push({x:-4-Math.random()*30,y:terrainH+5+Math.random()*(S-terrainH-hudH-10),alive:true,type:i%3,phase:Math.random()*6,fireT:5+Math.random()*5});
     }
     if(!p.eBullets) p.eBullets=[];
 
@@ -8329,12 +8333,12 @@ function retroDrawFace(faceIdx,dt,buf,S){
     for(let i=p.eBullets.length-1;i>=0;i--){
       const eb=p.eBullets[i];
       const dist=Math.sqrt(eb.dx*eb.dx+eb.dy*eb.dy);
-      if(dist>0){ eb.x+=eb.dx/dist*28*dt; eb.y+=eb.dy/dist*28*dt; }
+      if(dist>0){ eb.x+=eb.dx/dist*20*dt; eb.y+=eb.dy/dist*20*dt; }
       if(eb.x<0||eb.x>=S||eb.y<0||eb.y>=S){ p.eBullets.splice(i,1); continue; }
       const ebx=Math.round(eb.x),eby=Math.round(eb.y);
       setP(ebx,eby,1,0.3,0.3); setP(ebx,eby-1,0.8,0.1,0.1);
     }
-    if(p.eBullets.length>4) p.eBullets.length=4;
+    if(p.eBullets.length>2) p.eBullets.length=2;
     // Respawn dead enemies
     if(p.enemies.filter(e=>e.alive).length<2){
       for(const e of p.enemies){ e.alive=true; e.x=-Math.random()*20; e.y=terrainH+5+Math.random()*(S-terrainH-hudH-10); e.fireT=2+Math.random()*3; }
