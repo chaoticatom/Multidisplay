@@ -8066,6 +8066,48 @@ function retroDrawFace(faceIdx,dt,buf,S){
 
   } else if(game.name==='rtype'){
     const p=game;
+    if(p.lives===undefined) p.lives=3;
+    if(!p.turrets) p.turrets=[];
+    if(!p.tBullets) p.tBullets=[];
+    if(!p.explodeT) p.explodeT=0;
+    if(!p.respawnT) p.respawnT=0;
+    if(!p.loserT) p.loserT=0;
+    if(!p.turretSpawnT) p.turretSpawnT=2;
+
+    // GAME OVER screen
+    if(p.loserT>0){
+      p.loserT-=dt;
+      for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,0,0,0);
+      const flash=Math.floor(p.loserT*4)%2;
+      if(flash){
+        const G=[[0,1,1,1,0],[1,0,0,0,0],[1,0,1,1,0],[1,0,0,1,0],[0,1,1,1,0]];
+        const A=[[0,1,1,0,0],[1,0,0,1,0],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,1,0]];
+        const M=[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1]];
+        const E=[[1,1,1,1,0],[1,0,0,0,0],[1,1,1,0,0],[1,0,0,0,0],[1,1,1,1,0]];
+        const O=[[0,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,0,0]];
+        const V=[[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,0,0],[0,1,0,0,0]];
+        const R=[[1,1,1,0,0],[1,0,0,1,0],[1,1,1,0,0],[1,0,1,0,0],[1,0,0,1,0]];
+        const row1=[G,A,M,E], row2=[O,V,E,R];
+        for(let li=0;li<4;li++){
+          const glyph=row1[li]; const ox=5+li*14;
+          for(let row=0;row<5;row++) for(let col=0;col<5;col++){
+            if(glyph[row][col]){ const px=ox+col*2,py=34+row*2; setP(px,py,1,0,0);setP(px+1,py,1,0,0);setP(px,py+1,1,0,0);setP(px+1,py+1,1,0,0); }
+          }
+        }
+        for(let li=0;li<4;li++){
+          const glyph=row2[li]; const ox=5+li*14;
+          for(let row=0;row<5;row++) for(let col=0;col<5;col++){
+            if(glyph[row][col]){ const px=ox+col*2,py=22+row*2; setP(px,py,1,0,0);setP(px+1,py,1,0,0);setP(px,py+1,1,0,0);setP(px+1,py+1,1,0,0); }
+          }
+        }
+      }
+      if(p.loserT<=0){
+        p.lives=3; p.turrets=[]; p.tBullets=[];
+        for(const e of p.enemies){ e.alive=true; e.x=-Math.random()*20; e.y=15+Math.random()*35; }
+      }
+      return;
+    }
+
     p.scrollX+=dt*18;
     if(!p.dodgeTarget) p.dodgeTarget=32;
     if(!p.dodgeTimer) p.dodgeTimer=0;
@@ -8127,8 +8169,55 @@ function retroDrawFace(faceIdx,dt,buf,S){
       if(((wx)%4)<2) setP(x,h,0.4,0.35,0.25);
     }
 
+    // Turrets on ground
+    p.turretSpawnT-=dt;
+    if(p.turretSpawnT<=0&&p.turrets.length<3){
+      const worldX=-Math.floor(p.scrollX)+S+Math.random()*20;
+      p.turrets.push({worldX:worldX, fireT:1+Math.random()*2});
+      p.turretSpawnT=3+Math.random()*4;
+    }
+    for(let i=p.turrets.length-1;i>=0;i--){
+      const tr=p.turrets[i];
+      const tsx=Math.round(tr.worldX+Math.floor(p.scrollX));
+      if(tsx<-5||tsx>S+5){ p.turrets.splice(i,1); continue; }
+      const twx=tsx-Math.floor(p.scrollX);
+      const th=terrainH+Math.round(Math.sin(twx*0.12)*2+Math.sin(twx*0.25)*1.5);
+      setP(tsx,th+1,0,0.8,0); setP(tsx,th+2,0,1,0); setP(tsx-1,th+1,0,0.6,0); setP(tsx+1,th+1,0,0.6,0);
+      setP(tsx,th+3,0,0.9,0.2);
+      tr.fireT-=dt;
+      if(tr.fireT<=0){
+        const dx=p.shipX-tsx, dy=p.shipY-(th+3);
+        p.tBullets.push({x:tsx,y:th+3,dx:dx,dy:dy});
+        tr.fireT=1.5+Math.random()*2;
+      }
+    }
+    // Update turret bullets
+    for(let i=p.tBullets.length-1;i>=0;i--){
+      const tb=p.tBullets[i];
+      const spd=35*dt;
+      const dist=Math.sqrt(tb.dx*tb.dx+tb.dy*tb.dy);
+      if(dist>0){ tb.x+=tb.dx/dist*spd; tb.y+=tb.dy/dist*spd; }
+      if(tb.x<0||tb.x>=S||tb.y<0||tb.y>=S){ p.tBullets.splice(i,1); continue; }
+      const tbx=Math.round(tb.x),tby=Math.round(tb.y);
+      setP(tbx,tby,0,1,0); setP(tbx,tby-1,0,0.7,0);
+    }
+
+    // Explosion/respawn state
+    if(p.explodeT>0){
+      p.explodeT-=dt;
+      const ex=Math.round(p.shipX),ey=Math.round(p.shipY);
+      const eRad=Math.round((0.5-p.explodeT)*12);
+      for(let dy=-eRad;dy<=eRad;dy++) for(let dx=-eRad;dx<=eRad;dx++){
+        if(dx*dx+dy*dy<=eRad*eRad){ const px2=ex+dx,py2=ey+dy; if(px2>=0&&px2<S&&py2>=0&&py2<S) setP(px2,py2,1,Math.random()*0.7,0); }
+      }
+      if(p.explodeT<=0) p.respawnT=1.0;
+    } else if(p.respawnT>0){
+      p.respawnT-=dt;
+    }
+
     // Player ship (white/cyan R-9 — facing left so it appears right on display)
     const sx=Math.round(p.shipX), sy=Math.round(p.shipY);
+    if(p.explodeT<=0&&p.respawnT<=0){
     // Main fuselage
     for(let dx=0;dx<6;dx++) setP(sx-dx,sy,1,1,1);
     setP(sx-6,sy,0,1,1); // nose cyan
@@ -8139,6 +8228,9 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Engine exhaust
     const ef=Math.sin(p.t*25)>0?1:0.5;
     setP(sx+1,sy,1*ef,0.5*ef,0); setP(sx+2,sy,1*ef,0.3*ef,0);
+    } else if(p.respawnT>0&&Math.floor(p.respawnT*8)%2){
+    for(let dx=0;dx<6;dx++) setP(sx-dx,sy,0.5,0.5,0.5);
+    }
 
     // Beam weapon (long cyan beam extending from ship nose to the left)
     if(p.chargeT>0){
@@ -8202,20 +8294,40 @@ function retroDrawFace(faceIdx,dt,buf,S){
       for(const e of p.enemies){ e.alive=true; e.x=-Math.random()*20; e.y=terrainH+5+Math.random()*(S-terrainH-hudH-10); }
     }
 
+    // Collision detection — ship hit by enemy or turret bullet
+    if(p.explodeT<=0&&p.respawnT<=0){
+      let hit=false;
+      // Enemy touches ship
+      for(const e of p.enemies){
+        if(!e.alive) continue;
+        if(Math.abs(e.x-p.shipX)<4&&Math.abs(e.y-p.shipY)<4){ hit=true; e.alive=false; break; }
+      }
+      // Turret bullet hits ship
+      if(!hit){
+        for(let i=p.tBullets.length-1;i>=0;i--){
+          if(Math.abs(p.tBullets[i].x-p.shipX)<4&&Math.abs(p.tBullets[i].y-p.shipY)<4){
+            hit=true; p.tBullets.splice(i,1); break;
+          }
+        }
+      }
+      if(hit){
+        p.lives--;
+        if(p.lives<=0){ p.loserT=3; }
+        else { p.explodeT=0.5; }
+      }
+    }
+
     // HUD at top (yellow text area like Spectrum)
     for(let x=0;x<S;x++) for(let y=S-hudH;y<S;y++) setP(x,y,0,0,0);
     hLine(0,S-1,S-hudH,0.3,0.3,0);
-    // BEAM indicator left
-    const beamTxt=[0x7C,0x7E,0x6A,0x7E]; // B E A M simplified
-    for(let ci=0;ci<4;ci++) setP(2+ci*2,S-3,0.8,0,0.8);
+    // Lives display
+    for(let l=0;l<p.lives;l++){
+      setP(2+l*4,S-3,0,0.8,0.8); setP(3+l*4,S-3,0,0.8,0.8); setP(2+l*4,S-4,0,0.6,0.6);
+    }
     // Beam meter bar
     const meterLen=Math.round(20*(p.chargeT>0?p.chargeT/0.8:0));
-    for(let mx=0;mx<20;mx++) setP(12+mx,S-3,mx<meterLen?0:0.8,mx<meterLen?1:0.8,mx<meterLen?1:0);
-    // Score
-    for(let d=0;d<5;d++) setP(2+d,S-5,0,0.8,0);
-    // BEAM indicator right
-    for(let ci=0;ci<4;ci++) setP(S-10+ci*2,S-3,0.8,0,0.8);
-    hLine(40,S-4,S-3,0,0.8,0.8);
+    for(let mx=0;mx<20;mx++) setP(20+mx,S-3,mx<meterLen?0:0.8,mx<meterLen?1:0.8,mx<meterLen?1:0);
+    hLine(44,S-4,S-3,0,0.8,0.8);
 
   } else if(game.name==='wolf3d'){
     const p=game;
