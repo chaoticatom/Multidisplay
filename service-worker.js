@@ -1,4 +1,4 @@
-const CACHE_NAME = 'multidisplay-v184';
+const CACHE_NAME = 'multidisplay-v185';
 const PRECACHE_URLS = [
   './',
   'index.html',

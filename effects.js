@@ -5377,21 +5377,53 @@ function renderImg(){
       }
     }
   } else {
-    // 3D: map image across 4 side faces as panorama
-    // Match video rendering: face 2 needs srcY=v (flipped source), all others srcY=S-1-v
-    const totalW=4*S;
+    // 3D: map image across 4 side faces using vidLayout mode
+    let cw,ch,px;
+    if(vidLayout==='panorama'||vidLayout==='perspective'){
+      cw=4*S; ch=S;
+    } else if(vidLayout==='mirror'){
+      cw=2*S; ch=2*S;
+    } else { cw=S; ch=S; }
+    if(!imgCv){ imgCv=document.createElement('canvas'); imgCtx=imgCv.getContext('2d',{willReadFrequently:true}); }
+    if(imgCv.width!==cw||imgCv.height!==ch){ imgCv.width=cw; imgCv.height=ch; }
+    const srcImg=new ImageData(new Uint8ClampedArray(imgPx.buffer.slice(0,imgW*imgH*4)),imgW,imgH);
+    const tmpCv=document.createElement('canvas'); tmpCv.width=imgW; tmpCv.height=imgH;
+    const tmpCtx=tmpCv.getContext('2d'); tmpCtx.putImageData(srcImg,0,0);
+    if(vidLayout==='mirror'){
+      imgCtx.save();
+      imgCtx.drawImage(tmpCv,0,0,S,S);
+      imgCtx.save(); imgCtx.translate(2*S,0); imgCtx.scale(-1,1); imgCtx.drawImage(tmpCv,0,0,S,S); imgCtx.restore();
+      imgCtx.save(); imgCtx.translate(0,2*S); imgCtx.scale(1,-1); imgCtx.drawImage(tmpCv,0,0,S,S); imgCtx.restore();
+      imgCtx.save(); imgCtx.translate(2*S,2*S); imgCtx.scale(-1,-1); imgCtx.drawImage(tmpCv,0,0,S,S); imgCtx.restore();
+      imgCtx.restore();
+    } else if(vidLayout==='tile'){
+      const hw=S>>1;
+      imgCtx.drawImage(tmpCv,0,0,hw,hw);
+      imgCtx.drawImage(tmpCv,hw,0,hw,hw);
+      imgCtx.drawImage(tmpCv,0,hw,hw,hw);
+      imgCtx.drawImage(tmpCv,hw,hw,hw,hw);
+    } else {
+      imgCtx.drawImage(tmpCv,0,0,cw,ch);
+    }
+    px=imgCtx.getImageData(0,0,cw,ch).data;
+
     for(let fIdx=0;fIdx<4;fIdx++){
       const face=VID_FACE_ORDER[fIdx];
       const flipU=(face===0||face===1||face===2||face===3);
       for(let v=0;v<S;v++){
         for(let u=0;u<S;u++){
-          const pu=flipU?(S-1-u):u;
-          const srcU=(fIdx*S+pu)/totalW;
-          const srcY=S-1-v;
-          const sx=Math.min(imgW-1,((srcU*imgW)|0));
-          const sy=Math.min(imgH-1,((srcY/(S-1))*imgH)|0);
-          const pi=(sy*imgW+sx)*4;
-          setFaceLED(face,u,v,imgPx[pi]/255,imgPx[pi+1]/255,imgPx[pi+2]/255);
+          let srcX,srcY;
+          if(vidLayout==='panorama'||vidLayout==='perspective'){
+            const pu=flipU?(S-1-u):u;
+            srcX=((fIdx*S+pu+(vidScrollX|0))%(4*S)+4*S)%(4*S);
+            srcY=S-1-v;
+          } else {
+            srcX=u; srcY=S-1-v;
+          }
+          srcX=Math.max(0,Math.min(cw-1,srcX));
+          srcY=Math.max(0,Math.min(ch-1,srcY));
+          const pi=(srcY*cw+srcX)*4;
+          setFaceLED(face,u,v,px[pi]/255,px[pi+1]/255,px[pi+2]/255);
         }
       }
     }
