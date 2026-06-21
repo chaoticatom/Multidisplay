@@ -6456,7 +6456,7 @@ function effectSimHouse(dt){
 //  RETRO — ZX Spectrum style game demos
 //  Each face shows a different classic game simulation
 // ═══════════════════════════════════════════════════
-let retroT=0, retroGames=[], retroInit=false;
+let retroT=0, retroGames=[], retroInit=false, retroFaceBuf=null;
 
 function initRetro(){
   retroGames=[
@@ -6475,6 +6475,7 @@ function initRetro(){
   const inv=retroGames[3];
   inv.invAlive=[];
   for(let r=0;r<4;r++) for(let c=0;c<8;c++) inv.invAlive.push({r,c,alive:true});
+  retroFaceBuf=new Float32Array(SIZE*SIZE*3);
   retroInit=true;
 }
 
@@ -6723,8 +6724,7 @@ function effectRetro(dt){
   const S=SIZE;
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
-  // Temporary buffer for each face
-  const faceBuf=new Float32Array(S*S*3);
+  const faceBuf=retroFaceBuf;
 
   if(panel2dMode){
     // 2D: show one game at a time, rotate every 8 seconds
