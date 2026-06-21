@@ -5111,10 +5111,10 @@ function ovMakeLightBolt(){
   //   right(2) → top panel u=S-1 col, v = row
   // For each face, find the branch that exited closest to that edge
   const faceEdgeMap=[
-    {face:0, getEdgeU:(exit)=>exit[0], edgeRow:'v0'},   // front: exits at v≈0
-    {face:1, getEdgeU:(exit)=>exit[0], edgeRow:'vS'},   // back: exits at v≈S-1
-    {face:3, getEdgeU:(exit)=>exit[1], edgeRow:'u0'},   // left: exits at u≈0
-    {face:2, getEdgeU:(exit)=>exit[1], edgeRow:'uS'},   // right: exits at u≈S-1
+    {face:0, getEdgeU:(exit)=>exit[0],        edgeRow:'vS'},   // front: top shares face4 v=S-1
+    {face:1, getEdgeU:(exit)=>SIZE-1-exit[0], edgeRow:'v0'},   // back: top shares face4 v=0, u mirrored
+    {face:3, getEdgeU:(exit)=>exit[1],        edgeRow:'u0'},   // left: top shares face4 u=0
+    {face:2, getEdgeU:(exit)=>SIZE-1-exit[1], edgeRow:'uS'},   // right: top shares face4 u=S-1, u mirrored
   ];
 
   for(const {face, getEdgeU, edgeRow} of faceEdgeMap){
