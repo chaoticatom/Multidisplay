@@ -5849,15 +5849,14 @@ function effectSimHouse(dt){
     if(isNight){ skyR=0.01;skyG=0.01;skyB=0.05; }
     for(let y=roof+1;y<S;y++) for(let x=0;x<BW;x++) setP(x,y,skyR,skyG,skyB);
 
-    // Compact rooms: 3 ground floor, 3 first floor
+    // 4 spacious rooms: 2 ground, 2 first floor
     const gf=ground+1, gfTop=floor1-1, ff=floor1+1, ffTop=roof-1;
+    const mid=Math.floor(BW/2);
     const rooms2d=[
-      {name:'kitchen', x1:1,x2:Math.floor(BW*0.33),y1:gf,y2:gfTop, wc:[0.2,0.17,0.1],fc:[0.14,0.12,0.08],tint:[0.06,0.08,0.04]},
-      {name:'living',  x1:Math.floor(BW*0.35),x2:Math.floor(BW*0.67),y1:gf,y2:gfTop, wc:[0.13,0.1,0.06],fc:[0.1,0.08,0.05],tint:[0.06,0.05,0.07]},
-      {name:'study',   x1:Math.floor(BW*0.69),x2:BW-2,y1:gf,y2:gfTop, wc:[0.11,0.09,0.06],fc:[0.08,0.06,0.04],tint:[0.04,0.05,0.07]},
-      {name:'bedroom1',x1:1,x2:Math.floor(BW*0.35),y1:ff,y2:ffTop, wc:[0.09,0.07,0.14],fc:[0.07,0.05,0.1],tint:[0.06,0.04,0.07]},
-      {name:'bathroom',x1:Math.floor(BW*0.37),x2:Math.floor(BW*0.62),y1:ff,y2:ffTop, wc:[0.12,0.16,0.17],fc:[0.1,0.12,0.12],tint:[0.04,0.07,0.07]},
-      {name:'kidsroom',x1:Math.floor(BW*0.64),x2:BW-2,y1:ff,y2:ffTop, wc:[0.14,0.09,0.13],fc:[0.1,0.06,0.09],tint:[0.07,0.05,0.06]},
+      {name:'kitchen', x1:2,x2:mid-2,y1:gf,y2:gfTop, wc:[0.2,0.17,0.1],fc:[0.14,0.12,0.08],tint:[0.06,0.08,0.04]},
+      {name:'living',  x1:mid+1,x2:BW-3,y1:gf,y2:gfTop, wc:[0.13,0.1,0.06],fc:[0.1,0.08,0.05],tint:[0.06,0.05,0.07]},
+      {name:'bedroom1',x1:2,x2:mid-2,y1:ff,y2:ffTop, wc:[0.09,0.07,0.14],fc:[0.07,0.05,0.1],tint:[0.06,0.04,0.07]},
+      {name:'kidsroom',x1:mid+1,x2:BW-3,y1:ff,y2:ffTop, wc:[0.14,0.09,0.13],fc:[0.1,0.06,0.09],tint:[0.07,0.05,0.06]},
     ];
 
     // Draw room backgrounds
@@ -5883,7 +5882,7 @@ function effectSimHouse(dt){
     hLine(0,BW-1,roof,wc[0],wc[1],wc[2]);
     vLine(0,ground,roof,wc[0]*0.8,wc[1]*0.8,wc[2]*0.8);
     vLine(BW-1,ground,roof,wc[0]*0.8,wc[1]*0.8,wc[2]*0.8);
-    for(const rm of rooms2d) vLine(rm.x1-1,rm.y1-1,rm.y2+1,wc[0]*0.5,wc[1]*0.5,wc[2]*0.5);
+    vLine(mid,ground,roof,wc[0]*0.5,wc[1]*0.5,wc[2]*0.5);
     // Roof
     const roofMid=Math.floor(BW/2);
     for(let x=0;x<BW;x++){
@@ -5891,37 +5890,44 @@ function effectSimHouse(dt){
       setP(x,ry,wc[0],wc[1],wc[2]);
     }
 
-    // Furniture (compact)
-    const kit2=rooms2d[0], liv2=rooms2d[1], stu2=rooms2d[2];
-    const br2=rooms2d[3], bath2=rooms2d[4], kid2=rooms2d[5];
-    // Kitchen: counter, fridge, stove
-    fillRect(kit2.x1+1,kit2.y1,kit2.x1+4,kit2.y1+3,0.4,0.38,0.3);
-    fillRect(kit2.x2-3,kit2.y1,kit2.x2,kit2.y1+5,0.48,0.5,0.52);
-    fillRect(kit2.x1+6,kit2.y1,kit2.x1+8,kit2.y1+2,0.32,0.32,0.35);
-    fillRect(kit2.x1+1,kit2.y2-2,kit2.x1+4,kit2.y2,0.28,0.2,0.1);
-    // Living: sofa, TV
-    fillRect(liv2.x1+1,liv2.y1+1,liv2.x1+7,liv2.y1+4,0.3,0.15,0.1);
-    fillRect(liv2.x1+2,liv2.y1+3,liv2.x1+4,liv2.y1+4,0.6,0.25,0.15);
-    fillRect(liv2.x2-5,liv2.y1+5,liv2.x2-1,liv2.y1+9,0.04,0.04,0.04);
+    // Furniture (spacious)
+    const kit2=rooms2d[0], liv2=rooms2d[1], br2=rooms2d[2], kid2=rooms2d[3];
+    // Kitchen: counter, fridge, stove, cabinets
+    fillRect(kit2.x1+1,kit2.y1,kit2.x1+8,kit2.y1+4,0.42,0.38,0.3);
+    fillRect(kit2.x2-4,kit2.y1,kit2.x2-1,kit2.y1+7,0.48,0.5,0.55);
+    setP(kit2.x2-2,kit2.y1+6,0.3,0.5,0.8);
+    fillRect(kit2.x1+10,kit2.y1,kit2.x1+14,kit2.y1+3,0.33,0.33,0.36);
+    setP(kit2.x1+11,kit2.y1+3,0.7,0.3,0.05); setP(kit2.x1+13,kit2.y1+3,0.7,0.3,0.05);
+    fillRect(kit2.x1+1,kit2.y2-3,kit2.x1+6,kit2.y2-1,0.28,0.2,0.1);
+    fillRect(kit2.x1+8,kit2.y2-3,kit2.x1+13,kit2.y2-1,0.28,0.2,0.1);
+    // Living: big sofa, TV, coffee table, bookshelf
+    fillRect(liv2.x1+2,liv2.y1+2,liv2.x1+14,liv2.y1+5,0.3,0.15,0.1);
+    fillRect(liv2.x1+4,liv2.y1+4,liv2.x1+7,liv2.y1+5,0.6,0.25,0.15);
+    fillRect(liv2.x1+9,liv2.y1+4,liv2.x1+12,liv2.y1+5,0.15,0.4,0.55);
+    fillRect(liv2.x2-8,liv2.y1+7,liv2.x2-2,liv2.y1+13,0.04,0.04,0.04);
     let tvOn2=false; for(const p of shPeople){ const tr=shRooms[p.targetRoom]; if(tr&&tr.name==='living'){tvOn2=true;break;}}
-    if(tvOn2){ const fl=0.4+0.2*Math.sin(shT*5); fillRect(liv2.x2-4,liv2.y1+6,liv2.x2-2,liv2.y1+8,fl*0.2,fl*0.4,fl*0.9); }
-    // Study: desk, monitor
-    fillRect(stu2.x1+1,stu2.y1,stu2.x2-2,stu2.y1+3,0.3,0.2,0.12);
-    fillRect(stu2.x1+3,stu2.y1+4,stu2.x1+6,stu2.y1+6,0.1,0.1,0.14);
-    // Bedroom: bed
-    fillRect(br2.x1+1,br2.y1,br2.x1+8,br2.y1+2,0.22,0.16,0.1);
-    fillRect(br2.x1+1,br2.y1+3,br2.x1+8,br2.y1+5,0.55,0.3,0.5);
-    fillRect(br2.x1+1,br2.y1+6,br2.x1+3,br2.y1+6,0.68,0.68,0.72);
-    fillRect(br2.x2-4,br2.y1,br2.x2-1,br2.y2-1,0.22,0.15,0.08);
-    // Bathroom: bath, toilet
-    fillRect(bath2.x1+1,bath2.y1,bath2.x1+5,bath2.y1+3,0.35,0.4,0.45);
-    fillRect(bath2.x2-3,bath2.y1,bath2.x2,bath2.y1+3,0.75,0.75,0.8);
-    // Kids room: bunk bed, toys
-    fillRect(kid2.x1+1,kid2.y1,kid2.x1+5,kid2.y1+2,0.22,0.16,0.1);
-    fillRect(kid2.x1+1,kid2.y1+3,kid2.x1+5,kid2.y1+4,0.45,0.6,0.35);
-    fillRect(kid2.x1+1,kid2.y1+6,kid2.x1+5,kid2.y1+7,0.22,0.16,0.1);
-    fillRect(kid2.x1+1,kid2.y1+8,kid2.x1+5,kid2.y1+9,0.4,0.45,0.7);
-    setP(kid2.x1+7,kid2.y1,0.9,0.2,0.2); setP(kid2.x1+8,kid2.y1,0.2,0.8,0.2);
+    if(tvOn2){ const fl=0.4+0.2*Math.sin(shT*5); fillRect(liv2.x2-7,liv2.y1+8,liv2.x2-3,liv2.y1+12,fl*0.2,fl*0.4,fl*0.9); }
+    fillRect(liv2.x1+15,liv2.y1,liv2.x1+19,liv2.y1+3,0.28,0.2,0.1);
+    fillRect(liv2.x2-2,liv2.y1,liv2.x2,liv2.y2-2,0.2,0.15,0.08);
+    // Bedroom: big bed, wardrobe, nightstands
+    fillRect(br2.x1+2,br2.y1,br2.x1+14,br2.y1+3,0.24,0.18,0.1);
+    fillRect(br2.x1+2,br2.y1+4,br2.x1+14,br2.y1+6,0.55,0.3,0.5);
+    fillRect(br2.x1+2,br2.y1+7,br2.x1+5,br2.y1+7,0.68,0.68,0.72);
+    fillRect(br2.x1+11,br2.y1+7,br2.x1+14,br2.y1+7,0.68,0.68,0.72);
+    fillRect(br2.x2-5,br2.y1,br2.x2-1,br2.y2-1,0.22,0.15,0.08);
+    vLine(br2.x2-3,br2.y1,br2.y2-2,0.17,0.12,0.06);
+    let br2Occ=false; for(const p of shPeople){ const tr=shRooms[p.targetRoom]; if(tr&&tr.name==='bedroom1'){br2Occ=true;break;}}
+    if(br2Occ&&isNight){ setP(br2.x1+1,br2.y1+5,0.4,0.32,0.12); setP(br2.x1+15,br2.y1+5,0.4,0.32,0.12); }
+    // Kids room: bunk bed, toys, posters
+    fillRect(kid2.x1+2,kid2.y1,kid2.x1+10,kid2.y1+3,0.24,0.18,0.1);
+    fillRect(kid2.x1+2,kid2.y1+4,kid2.x1+10,kid2.y1+5,0.45,0.6,0.35);
+    fillRect(kid2.x1+2,kid2.y1+9,kid2.x1+10,kid2.y1+10,0.24,0.18,0.1);
+    fillRect(kid2.x1+2,kid2.y1+11,kid2.x1+10,kid2.y1+12,0.4,0.45,0.7);
+    vLine(kid2.x1+10,kid2.y1,kid2.y1+13,0.3,0.24,0.14);
+    fillRect(kid2.x1+13,kid2.y1,kid2.x1+16,kid2.y1+3,0.6,0.3,0.35);
+    setP(kid2.x1+18,kid2.y1,0.9,0.2,0.2); setP(kid2.x1+19,kid2.y1,0.2,0.8,0.2);
+    setP(kid2.x1+20,kid2.y1,0.2,0.2,0.9); setP(kid2.x1+17,kid2.y1+1,0.9,0.9,0.15);
+    fillRect(kid2.x2-6,kid2.y2-4,kid2.x2-2,kid2.y2-1,0.55,0.3,0.6);
 
     // Draw people (scaled x to fit single panel)
     for(const p of shPeople){
