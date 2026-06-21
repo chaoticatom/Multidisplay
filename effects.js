@@ -7144,43 +7144,33 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Floor (darker grey, brown tint)
     fillRect(0,0,S-1,S/2-1,0.18,0.15,0.1);
 
-    // Raycast each column
+    // Raycast each column (2px wide for performance)
     const fov=1.0;
-    for(let x=0;x<S;x++){
+    for(let x=0;x<S;x+=2){
       const rayAngle=p.dirA-fov/2+(x/S)*fov;
       const rdx=Math.cos(rayAngle), rdy=Math.sin(rayAngle);
       let dist=0; let hitType=0;
       let rx=p.posX, ry=p.posY;
-      for(let step=0;step<50;step++){
-        dist+=0.08;
+      for(let step=0;step<40;step++){
+        dist+=0.1;
         rx=p.posX+rdx*dist; ry=p.posY+rdy*dist;
         const mx=Math.floor(rx), my=Math.floor(ry);
         if(mx<0||mx>=mapW||my<0||my>=mapW){hitType=1;break;}
-        const cell=map[my*mapW+mx];
-        if(cell>0){hitType=cell;break;}
+        if(map[my*mapW+mx]>0){hitType=map[my*mapW+mx];break;}
       }
-      // Fix fisheye
       const perpDist=dist*Math.cos(rayAngle-p.dirA);
       const wallH=Math.min(S,Math.round(S/(perpDist+0.01)));
       const wallTop=Math.floor(S/2+wallH/2);
       const wallBot=Math.floor(S/2-wallH/2);
-      // Wall colour by type and shading
       const shade=Math.min(1,1.5/(perpDist+0.5));
       let wr,wg,wb;
-      if(hitType===1){ wr=0.35*shade; wg=0.35*shade; wb=0.38*shade; } // stone grey
-      else if(hitType===2){ wr=0.15*shade; wg=0.15*shade; wb=0.5*shade; } // blue door/wall
-      else { wr=0.5*shade; wg=0.2*shade; wb=0.1*shade; } // brown wood
-      // Side shading (horizontal vs vertical hit)
-      const fracX=rx-Math.floor(rx), fracY=ry-Math.floor(ry);
-      const isVert=fracX<0.02||fracX>0.98;
-      if(isVert){ wr*=0.7; wg*=0.7; wb*=0.7; }
+      if(hitType===1){ wr=0.35*shade; wg=0.35*shade; wb=0.38*shade; }
+      else if(hitType===2){ wr=0.15*shade; wg=0.15*shade; wb=0.5*shade; }
+      else { wr=0.5*shade; wg=0.2*shade; wb=0.1*shade; }
+      const fracX=rx-Math.floor(rx);
+      if(fracX<0.02||fracX>0.98){ wr*=0.7; wg*=0.7; wb*=0.7; }
       for(let y=Math.max(0,wallBot);y<=Math.min(S-1,wallTop);y++){
-        setP(x,y,wr,wg,wb);
-      }
-      // Wall stripes (brick texture)
-      if(wallH>8){
-        const stripeY=wallBot+Math.floor(wallH*0.5);
-        if(stripeY>=0&&stripeY<S) setP(x,stripeY,wr*0.6,wg*0.6,wb*0.6);
+        setP(x,y,wr,wg,wb); setP(x+1,y,wr,wg,wb);
       }
     }
 
@@ -7238,48 +7228,35 @@ function retroDrawFace(faceIdx,dt,buf,S){
     const mapW=10;
 
     // Ceiling (dark metal)
-    for(let y=S/2;y<S;y++) for(let x=0;x<S;x++){
-      const flicker=(Math.sin(x*0.3+p.t*2)>0.9)?0.15:0;
-      setP(x,y,0.08+flicker,0.06+flicker,0.04);
-    }
-    // Floor (dark, reflective metal with grid)
-    for(let y=0;y<S/2;y++) for(let x=0;x<S;x++){
-      const grid=((x+Math.floor(p.t*2))%8===0||(y%8===0))?0.12:0.06;
-      setP(x,y,grid*0.8,grid*0.6,grid*0.4);
-    }
+    fillRect(0,S/2,S-1,S-1,0.08,0.06,0.04);
+    // Floor (dark metal)
+    fillRect(0,0,S-1,S/2-1,0.1,0.08,0.05);
 
-    // Raycast
+    // Raycast (2px wide columns for performance)
     const fov=1.1;
-    for(let x=0;x<S;x++){
+    for(let x=0;x<S;x+=2){
       const rayAngle=p.dirA-fov/2+(x/S)*fov;
       const rdx=Math.cos(rayAngle), rdy=Math.sin(rayAngle);
       let dist=0,hitType=0;
-      for(let step=0;step<60;step++){
-        dist+=0.07;
+      for(let step=0;step<40;step++){
+        dist+=0.1;
         const rx=p.posX+rdx*dist, ry=p.posY+rdy*dist;
         const mx=Math.floor(rx), my=Math.floor(ry);
         if(mx<0||mx>=mapW||my<0||my>=mapW){hitType=1;break;}
-        const cell=map[my*mapW+mx];
-        if(cell>0){hitType=cell;break;}
+        if(map[my*mapW+mx]>0){hitType=map[my*mapW+mx];break;}
       }
       const perpDist=dist*Math.cos(rayAngle-p.dirA);
       const wallH=Math.min(S,Math.round(S*1.2/(perpDist+0.01)));
       const wallTop=Math.floor(S/2+wallH/2);
       const wallBot=Math.floor(S/2-wallH/2);
       const shade=Math.min(1,1.2/(perpDist+0.3));
-      // Strobing light effect
       const strobe=(Math.sin(p.t*4+x*0.05)>0.85)?0.2:0;
       let wr,wg,wb;
-      if(hitType===1){ wr=(0.2+strobe)*shade; wg=(0.18+strobe)*shade; wb=(0.15+strobe*0.5)*shade; } // rusty metal
-      else if(hitType===2){ wr=0.12*shade; wg=0.2*shade; wb=(0.3+strobe)*shade; } // blue-grey tech panel
-      else { wr=(0.35+strobe)*shade; wg=0.12*shade; wb=0.05*shade; } // orange/lava trim
-      // Texture: vertical panel lines
-      if(x%4===0){ wr*=0.7; wg*=0.7; wb*=0.7; }
+      if(hitType===1){ wr=(0.2+strobe)*shade; wg=(0.18+strobe)*shade; wb=(0.15+strobe*0.5)*shade; }
+      else if(hitType===2){ wr=0.12*shade; wg=0.2*shade; wb=(0.3+strobe)*shade; }
+      else { wr=(0.35+strobe)*shade; wg=0.12*shade; wb=0.05*shade; }
       for(let y=Math.max(0,wallBot);y<=Math.min(S-1,wallTop);y++){
-        // Horizontal bands on walls
-        const bandY=(y-wallBot)/(wallH||1);
-        const band=(Math.floor(bandY*8)%2===0)?1:0.85;
-        setP(x,y,wr*band,wg*band,wb*band);
+        setP(x,y,wr,wg,wb); setP(x+1,y,wr,wg,wb);
       }
     }
 
@@ -7326,14 +7303,8 @@ function retroDrawFace(faceIdx,dt,buf,S){
     fillRect(wx+3,wy,wx+4,wy+5,0.6,0.45,0.3);
     // Muzzle flash
     if(p.muzzleT>0){
-      const flashR=0.9,flashG=0.6,flashB=0.1;
-      fillRect(wx-4,wy+28,wx+4,wy+32,flashR,flashG,flashB);
-      fillRect(wx-2,wy+32,wx+2,wy+35,flashR*0.7,flashG*0.5,flashB);
-      // Screen flash
-      for(let y=0;y<S;y++) for(let x=0;x<S;x++){
-        const i=(y*S+x)*3;
-        buf[i]=Math.min(1,buf[i]+0.04); buf[i+1]=Math.min(1,buf[i+1]+0.02);
-      }
+      fillRect(wx-4,wy+28,wx+4,wy+32,0.9,0.6,0.1);
+      fillRect(wx-2,wy+32,wx+2,wy+35,0.6,0.3,0.1);
     }
 
     // HUD
