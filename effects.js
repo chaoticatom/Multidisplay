@@ -5128,15 +5128,27 @@ function ovMakeLightBolt(){
       else                score=SIZE-1-ex[0];      // closest to u=S-1
       if(score<bestScore){ bestScore=score; bestExit=ex; }
     }
-    let cx=getEdgeU(bestExit); // start at matched u position
+    let cx=getEdgeU(bestExit);
+    let drift=(Math.random()-0.5)*1.8;
+    let segLen=3+Math.floor(Math.random()*5);
+    let segCount=0;
     for(let v=SIZE-1;v>=0;v--){
-      if(v%2===0) cx+=(Math.random()-0.5)*4;
+      cx+=drift+(Math.random()-0.5)*1.2;
       cx=Math.max(0,Math.min(SIZE-1,cx));
       pts.push([face,Math.round(cx),v]);
-      if(Math.random()<0.04 && v>SIZE*0.2){
+      segCount++;
+      if(segCount>=segLen){
+        segCount=0;
+        segLen=2+Math.floor(Math.random()*5);
+        drift=(Math.random()-0.5)*2.5;
+      }
+      if(Math.random()<0.08 && v>SIZE*0.15){
         let bx=cx; const bdir=Math.random()<0.5?-1:1;
-        for(let bv=v-1;bv>=Math.max(0,v-SIZE*0.3);bv--){
-          bx+=bdir*(1.5+Math.random()*1.5);
+        let bdrift=bdir*(1+Math.random()*1.5);
+        const blen=Math.floor(SIZE*0.15+Math.random()*SIZE*0.25);
+        for(let bv=v-1;bv>=Math.max(0,v-blen);bv--){
+          bx+=bdrift+(Math.random()-0.5)*0.8;
+          bdrift*=0.95;
           bx=Math.max(0,Math.min(SIZE-1,bx));
           pts.push([face,Math.round(bx),bv]);
         }
