@@ -6640,6 +6640,16 @@ function retroDrawFace(faceIdx,dt,buf,S){
   // Show title screen for 2 seconds when game changes
   if(retroSplashT>0){
     retroDrawTitle(buf,S,game.name);
+    // Flip vertically
+    for(let y=0;y<Math.floor(S/2);y++){
+      const y2=S-1-y;
+      for(let x=0;x<S;x++){
+        const i1=(y*S+x)*3, i2=(y2*S+x)*3;
+        const tr=buf[i1],tg=buf[i1+1],tb=buf[i1+2];
+        buf[i1]=buf[i2]; buf[i1+1]=buf[i2+1]; buf[i1+2]=buf[i2+2];
+        buf[i2]=tr; buf[i2+1]=tg; buf[i2+2]=tb;
+      }
+    }
     return;
   }
 
