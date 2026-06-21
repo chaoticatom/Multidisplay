@@ -6498,9 +6498,6 @@ function retroDrawTitle(buf,S,name){
     for(let y=Math.max(0,y1);y<=Math.min(S-1,y2);y++) for(let x=Math.max(0,x1);x<=Math.min(S-1,x2);x++) setP(x,y,r,g,b);
   };
   const hLine=(x1,x2,y,r,g,b)=>{ for(let x=Math.max(0,x1);x<=Math.min(S-1,x2);x++) setP(x,y,r,g,b); };
-  // Black bg
-  for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,0,0,0);
-  // Game-specific title colours and layout
   const titles={
     jetpac:{col:[1,1,0],bg:[0,0,0.3]},
     manic:{col:[1,1,0],bg:[0,0,0]},
@@ -6513,40 +6510,61 @@ function retroDrawTitle(buf,S,name){
     quake2:{col:[1,0.5,0],bg:[0.05,0.02,0]},
   };
   const t=titles[name]||{col:[1,1,1],bg:[0,0,0]};
-  // Fill background
   for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,t.bg[0],t.bg[1],t.bg[2]);
-  // Border
-  hLine(0,S-1,S-1,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5);
-  hLine(0,S-1,0,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5);
-  for(let y=0;y<S;y++){ setP(0,y,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5); setP(S-1,y,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5); }
-  // Large centred title block (5px tall pixel font)
-  const labels={jetpac:'JET PAC',manic:'MANIC MINER',outrun:'OUTRUN',invaders:'INVADERS',
-    jsw:'JET SET WILLY',deathchase:'DEATHCHASE',rtype:'R-TYPE',wolf3d:'WOLFENSTEIN',quake2:'QUAKE II'};
-  const label=labels[name]||name.toUpperCase();
-  // Simple pixel text: each char is 3px wide, draw centred
-  const charW=4, textW=label.length*charW;
-  const startX=Math.floor((S-textW)/2);
-  const textY=Math.floor(S/2);
-  for(let i=0;i<label.length;i++){
-    const ch=label[i];
-    if(ch===' ') continue;
-    const cx=startX+i*charW;
-    // Block letter (3x5)
-    fillRect(cx,textY-2,cx+2,textY+2,t.col[0],t.col[1],t.col[2]);
-    // Cut out middle for readability (crude char shapes)
-    const code=ch.charCodeAt(0);
-    if(ch==='A'||ch==='O'||ch==='Q'||ch==='D'||ch==='P'||ch==='R'||ch==='B') setP(cx+1,textY,t.bg[0],t.bg[1],t.bg[2]);
-    if(ch==='E'||ch==='F'||ch==='C'||ch==='L') setP(cx+2,textY-1,t.bg[0],t.bg[1],t.bg[2]);
-    if(ch==='I'){ setP(cx,textY-1,t.bg[0],t.bg[1],t.bg[2]); setP(cx+2,textY-1,t.bg[0],t.bg[1],t.bg[2]); setP(cx,textY+1,t.bg[0],t.bg[1],t.bg[2]); setP(cx+2,textY+1,t.bg[0],t.bg[1],t.bg[2]); }
-    if(ch==='U'||ch==='V') setP(cx+1,textY+2,t.bg[0],t.bg[1],t.bg[2]);
+  // Border (2px thick)
+  for(let i=0;i<2;i++){
+    hLine(0,S-1,i,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5);
+    hLine(0,S-1,S-1-i,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5);
+    for(let y=0;y<S;y++){ setP(i,y,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5); setP(S-1-i,y,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5); }
   }
-  // Subtitle line
-  const subY=textY-6;
-  hLine(startX,startX+textW-1,subY,t.col[0]*0.4,t.col[1]*0.4,t.col[2]*0.4);
-  // Flashing "PRESS START" bar
-  const flashY=textY+8;
+  // 5x7 bitmap font (each char is array of 7 rows, 5 bits wide)
+  const font={
+    A:[0x1F,0x11,0x11,0x1F,0x11,0x11,0x11],B:[0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E],
+    C:[0x0F,0x10,0x10,0x10,0x10,0x10,0x0F],D:[0x1E,0x11,0x11,0x11,0x11,0x11,0x1E],
+    E:[0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F],F:[0x1F,0x10,0x10,0x1E,0x10,0x10,0x10],
+    G:[0x0F,0x10,0x10,0x17,0x11,0x11,0x0F],H:[0x11,0x11,0x11,0x1F,0x11,0x11,0x11],
+    I:[0x0E,0x04,0x04,0x04,0x04,0x04,0x0E],J:[0x01,0x01,0x01,0x01,0x11,0x11,0x0E],
+    K:[0x11,0x12,0x14,0x18,0x14,0x12,0x11],L:[0x10,0x10,0x10,0x10,0x10,0x10,0x1F],
+    M:[0x11,0x1B,0x15,0x11,0x11,0x11,0x11],N:[0x11,0x19,0x15,0x13,0x11,0x11,0x11],
+    O:[0x0E,0x11,0x11,0x11,0x11,0x11,0x0E],P:[0x1E,0x11,0x11,0x1E,0x10,0x10,0x10],
+    Q:[0x0E,0x11,0x11,0x11,0x15,0x12,0x0D],R:[0x1E,0x11,0x11,0x1E,0x14,0x12,0x11],
+    S:[0x0F,0x10,0x10,0x0E,0x01,0x01,0x1E],T:[0x1F,0x04,0x04,0x04,0x04,0x04,0x04],
+    U:[0x11,0x11,0x11,0x11,0x11,0x11,0x0E],V:[0x11,0x11,0x11,0x11,0x0A,0x0A,0x04],
+    W:[0x11,0x11,0x11,0x11,0x15,0x1B,0x11],X:[0x11,0x11,0x0A,0x04,0x0A,0x11,0x11],
+    Y:[0x11,0x11,0x0A,0x04,0x04,0x04,0x04],Z:[0x1F,0x01,0x02,0x04,0x08,0x10,0x1F],
+    '0':[0x0E,0x11,0x13,0x15,0x19,0x11,0x0E],'1':[0x04,0x0C,0x04,0x04,0x04,0x04,0x0E],
+    '2':[0x0E,0x11,0x01,0x06,0x08,0x10,0x1F],'3':[0x0E,0x11,0x01,0x06,0x01,0x11,0x0E],
+    '-':[0x00,0x00,0x00,0x1F,0x00,0x00,0x00]
+  };
+  // Use short labels to fit big on 64px
+  const labels={jetpac:'JET PAC',manic:'MANIC',outrun:'OUTRUN',invaders:'INVADE',
+    jsw:'JSW',deathchase:'DEATH',rtype:'R-TYPE',wolf3d:'WOLF3D',quake2:'QUAKE2'};
+  const label=labels[name]||name.toUpperCase();
+  // Scale: 2x pixels
+  const scale=2;
+  const charW=6*scale, charH=7*scale;
+  const textW=label.length*charW;
+  const startX=Math.floor((S-textW)/2);
+  const textY=Math.floor((S-charH)/2);
+  for(let ci=0;ci<label.length;ci++){
+    const ch=label[ci];
+    if(ch===' ') continue;
+    const glyph=font[ch];
+    if(!glyph) continue;
+    const cx=startX+ci*charW;
+    for(let row=0;row<7;row++){
+      const bits=glyph[row];
+      for(let col=0;col<5;col++){
+        if(bits&(0x10>>col)){
+          fillRect(cx+col*scale,textY+row*scale,cx+col*scale+scale-1,textY+row*scale+scale-1,t.col[0],t.col[1],t.col[2]);
+        }
+      }
+    }
+  }
+  // Flashing bar below text
+  const flashY=textY+charH+4;
   const flashOn=Math.sin(retroT*6)>0;
-  if(flashOn) hLine(Math.floor(S*0.2),Math.floor(S*0.8),flashY,t.col[0]*0.6,t.col[1]*0.6,t.col[2]*0.6);
+  if(flashOn) fillRect(Math.floor(S*0.15),flashY,Math.floor(S*0.85),flashY+1,t.col[0]*0.6,t.col[1]*0.6,t.col[2]*0.6);
 }
 
 function retroDrawFace(faceIdx,dt,buf,S){
