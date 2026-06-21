@@ -7472,6 +7472,38 @@ function retroDrawFace(faceIdx,dt,buf,S){
     const rowCols=[[1,0,0],[0.9,0,0.9],[0,0.9,0],[0,0.9,0.9],[1,1,0]];
     const hudH=4;
 
+    // LOSER screen
+    if(p.loserT===undefined) p.loserT=0;
+    if(p.loserT>0){
+      p.loserT-=dt;
+      for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,0,0,0);
+      const flash=Math.floor(p.loserT*4)%2;
+      if(flash){
+        const L=[[1,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,0]];
+        const O=[[0,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,0,0]];
+        const Se=[[0,1,1,1,0],[1,0,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[1,1,1,0,0]];
+        const E=[[1,1,1,1,0],[1,0,0,0,0],[1,1,1,0,0],[1,0,0,0,0],[1,1,1,1,0]];
+        const R=[[1,1,1,0,0],[1,0,0,1,0],[1,1,1,0,0],[1,0,1,0,0],[1,0,0,1,0]];
+        const letters=[L,O,Se,E,R];
+        for(let li=0;li<5;li++){
+          const glyph=letters[li];
+          const ox=6+li*11;
+          for(let row=0;row<5;row++) for(let col=0;col<5;col++){
+            if(glyph[row][col]){
+              const px=ox+col*2, py=28+row*2;
+              setP(px,py,1,0,0); setP(px+1,py,1,0,0);
+              setP(px,py+1,1,0,0); setP(px+1,py+1,1,0,0);
+            }
+          }
+        }
+      }
+      if(p.loserT<=0){
+        for(const inv of p.invAlive) inv.alive=true;
+        p.invY=32; p.invX=5; p.shieldDmg=new Set(); p.lives=3; p.wave=0;
+      }
+      return;
+    }
+
     // Move invaders (faster each wave)
     if(p.wave===undefined) p.wave=0;
     const invSpeed=8+p.wave*3;
@@ -7482,8 +7514,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     if(lowestAliveRow<99 && p.invY+lowestAliveRow*6<=17){
       p.lives--;
       if(p.lives<=0){
-        for(const inv of p.invAlive) inv.alive=true;
-        p.invY=32; p.invX=5; p.shieldDmg=new Set(); p.lives=3; p.wave=0;
+        p.loserT=3;
       } else {
         for(const inv of p.invAlive) inv.alive=true;
         p.invY=32; p.invX=5; p.shieldDmg=new Set();
@@ -7654,8 +7685,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
         p.explodeT=0.5;
         p.lives--;
         if(p.lives<=0){
-          for(const inv of p.invAlive) inv.alive=true;
-          p.invY=32; p.invX=5; p.shieldDmg=new Set(); p.lives=3; p.wave=0;
+          p.loserT=3;
         }
         p.bombs.splice(i,1);
       }
