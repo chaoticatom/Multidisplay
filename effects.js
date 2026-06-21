@@ -7477,7 +7477,16 @@ function retroDrawFace(faceIdx,dt,buf,S){
     const invSpeed=8+p.wave*3;
     p.invX+=p.invDir*invSpeed*dt;
     if(p.invX>S-42||p.invX<2){ p.invDir*=-1; p.invY-=1.5; }
-    if(p.invY<hudH+10){ p.invY=32; p.shieldDmg=new Set(); }
+    if(p.invY<=18){
+      p.lives--;
+      if(p.lives<=0){
+        for(const inv of p.invAlive) inv.alive=true;
+        p.invY=32; p.invX=5; p.shieldDmg=new Set(); p.lives=3; p.wave=0;
+      } else {
+        for(const inv of p.invAlive) inv.alive=true;
+        p.invY=32; p.invX=5; p.shieldDmg=new Set();
+      }
+    }
 
     // Draw invaders with distinct shapes per row type
     const frame=Math.floor(p.t*3)%2;
