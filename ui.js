@@ -1186,6 +1186,17 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
   });
 });
 
+// Retro game selection buttons
+document.querySelectorAll('[data-retrogame]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('[data-retrogame]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    retroSelectedGame=parseInt(btn.dataset.retrogame);
+  });
+});
+const retroSlider=document.getElementById('retro-rotate-slider');
+if(retroSlider) retroSlider.addEventListener('input',()=>{ retroRotateInterval=parseInt(retroSlider.value); });
+
 // Fireworks mode buttons
 document.querySelectorAll('[data-shmode]').forEach(btn=>{
   btn.addEventListener('click',()=>{

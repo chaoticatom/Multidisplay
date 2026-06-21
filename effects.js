@@ -6457,6 +6457,7 @@ function effectSimHouse(dt){
 //  Each face shows a different classic game simulation
 // ═══════════════════════════════════════════════════
 let retroT=0, retroGames=[], retroInit=false, retroFaceBuf=null;
+let retroSelectedGame=-1, retroRotateInterval=8; // -1 = auto rotate
 
 function initRetro(){
   retroGames=[
@@ -6464,6 +6465,9 @@ function initRetro(){
     {name:'manic',t:0,playerX:5,playerY:5,dir:1,jumpT:0,jumping:false,platforms:[],items:[],enemyX:[]},
     {name:'outrun',t:0,roadOff:0,carX:32,speed:0,trees:[],curves:0},
     {name:'invaders',t:0,invX:5,invY:50,invDir:1,bullets:[],playerX:30,bombs:[],invAlive:[]},
+    {name:'jsw',t:0,playerX:10,playerY:10,dir:1,jumpT:0,jumping:false,room:0,roomT:0},
+    {name:'deathchase',t:0,speed:0,treeOff:0,bikeX:32,leanDir:0,enemyX:20,enemyZ:40,hit:false,hitT:0},
+    {name:'rtype',t:0,shipX:10,shipY:32,bullets:[],enemies:[],chargeT:0,scrollX:0,bossHP:20,bossX:55},
   ];
   // Manic Miner platforms
   const g=retroGames[1];
@@ -6475,6 +6479,10 @@ function initRetro(){
   const inv=retroGames[3];
   inv.invAlive=[];
   for(let r=0;r<4;r++) for(let c=0;c<8;c++) inv.invAlive.push({r,c,alive:true});
+  // R-Type enemies
+  const rt=retroGames[6];
+  rt.enemies=[];
+  for(let i=0;i<5;i++) rt.enemies.push({x:50+i*12,y:15+i*8,alive:true,type:i%3});
   retroFaceBuf=new Float32Array(SIZE*SIZE*3);
   retroInit=true;
 }
@@ -6715,6 +6723,310 @@ function retroDrawFace(faceIdx,dt,buf,S){
     hLine(0,S-1,3,GRN[0],GRN[1],GRN[2]);
     // Score
     hLine(2,10,S-2,WHT[0],WHT[1],WHT[2]);
+
+  } else if(game.name==='jsw'){
+    // Jet Set Willy — multi-room platformer, bathrooms, rooftops, cellar style
+    const p=game;
+    p.roomT+=dt;
+    if(p.roomT>10){ p.room=(p.room+1)%4; p.roomT=0; p.playerX=8; p.playerY=10; }
+
+    // Room-specific layouts (each room has distinct look)
+    const roomCols=[[MAG[0],MAG[1],MAG[2]],[CYN[0],CYN[1],CYN[2]],[GRN[0],GRN[1],GRN[2]],[YEL[0],YEL[1],YEL[2]]];
+    const rc=roomCols[p.room];
+
+    // Floor
+    for(let x=0;x<S;x++){ setP(x,5,rc[0]*0.6,rc[1]*0.6,rc[2]*0.6); setP(x,4,rc[0]*0.3,rc[1]*0.3,rc[2]*0.3); }
+
+    // Room-specific platforms and hazards
+    const plats=p.room===0?[[12,8,28],[22,20,44],[32,35,58],[42,10,30]]:
+                p.room===1?[[10,5,20],[20,25,50],[35,10,35],[48,40,60]]:
+                p.room===2?[[15,15,40],[28,5,25],[40,30,55],[50,8,22]]:
+                           [[10,30,55],[22,5,30],[35,35,60],[45,10,40]];
+    for(const pl of plats){
+      hLine(pl[1],pl[2],pl[0],rc[0],rc[1],rc[2]);
+      hLine(pl[1],pl[2],pl[0]-1,rc[0]*0.4,rc[1]*0.4,rc[2]*0.4);
+    }
+
+    // Decorative wall patterns (checkerboard on sides, very Spectrum)
+    for(let y=6;y<S;y+=4){
+      const on=(y/4)%2;
+      if(on){ setP(0,y,rc[0]*0.5,rc[1]*0.5,rc[2]*0.5); setP(1,y,rc[0]*0.5,rc[1]*0.5,rc[2]*0.5); }
+      if(!on){ setP(S-1,y,rc[0]*0.5,rc[1]*0.5,rc[2]*0.5); setP(S-2,y,rc[0]*0.5,rc[1]*0.5,rc[2]*0.5); }
+    }
+
+    // Willy walking
+    p.playerX+=p.dir*14*dt;
+    if(p.playerX>S-6){p.dir=-1;} else if(p.playerX<4){p.dir=1;}
+    if(!p.jumping&&Math.sin(p.t*2.2)>0.75){ p.jumping=true; p.jumpT=0; }
+    if(p.jumping){ p.jumpT+=dt; if(p.jumpT>0.55) p.jumping=false; }
+    const jumpH=p.jumping?Math.sin(p.jumpT/0.55*Math.PI)*14:0;
+    const nearPlat=plats.find(pl=>p.playerX>=pl[1]&&p.playerX<=pl[2]&&Math.abs(p.playerY-(pl[0]+1))<3);
+    const baseY=nearPlat?nearPlat[0]+1:6;
+    p.playerY=baseY+Math.round(jumpH);
+    const px=Math.round(p.playerX), py=p.playerY;
+
+    // Willy sprite (iconic hat, striped shirt)
+    setP(px,py+7,RED[0],RED[1],RED[2]); setP(px+1,py+7,RED[0],RED[1],RED[2]); // hat
+    setP(px-1,py+7,RED[0],RED[1],RED[2]);
+    setP(px,py+6,YEL[0],YEL[1],YEL[2]); setP(px+1,py+6,YEL[0],YEL[1],YEL[2]); // face
+    setP(px-1,py+5,WHT[0],WHT[1],WHT[2]); setP(px,py+5,MAG[0],MAG[1],MAG[2]); setP(px+1,py+5,WHT[0],WHT[1],WHT[2]); // shirt stripe
+    setP(px-1,py+4,MAG[0],MAG[1],MAG[2]); setP(px,py+4,WHT[0],WHT[1],WHT[2]); setP(px+1,py+4,MAG[0],MAG[1],MAG[2]);
+    setP(px-1,py+3,WHT[0],WHT[1],WHT[2]); setP(px,py+3,MAG[0],MAG[1],MAG[2]); setP(px+1,py+3,WHT[0],WHT[1],WHT[2]);
+    // Legs (walking animation)
+    const legFrame=Math.floor(p.t*8)%4;
+    if(legFrame<2){ setP(px-1,py+2,GRN[0],GRN[1],GRN[2]); setP(px+1,py+1,GRN[0],GRN[1],GRN[2]); setP(px,py,GRN[0],GRN[1],GRN[2]); }
+    else { setP(px+1,py+2,GRN[0],GRN[1],GRN[2]); setP(px-1,py+1,GRN[0],GRN[1],GRN[2]); setP(px,py,GRN[0],GRN[1],GRN[2]); }
+
+    // Collectible items (flashing objects in each room)
+    for(let i=0;i<5;i++){
+      const ix=plats[i%4][1]+5+i*3, iy=plats[i%4][0]+3;
+      const flash=Math.sin(p.t*8+i*1.5)>0;
+      if(flash){ setP(ix,iy,YEL[0],YEL[1],YEL[2]); setP(ix+1,iy,YEL[0],YEL[1],YEL[2]); setP(ix,iy+1,YEL[0],YEL[1],YEL[2]); }
+      else { setP(ix,iy,WHT[0],WHT[1],WHT[2]); setP(ix+1,iy,WHT[0],WHT[1],WHT[2]); }
+    }
+
+    // Enemies (patrolling sprites — arrows/monks/etc)
+    for(let e=0;e<3;e++){
+      const eSpeed=8+e*4;
+      const ex=Math.round((plats[e][1]+plats[e][2])/2+Math.sin(p.t*1.5+e*2)*(plats[e][2]-plats[e][1])*0.35);
+      const ey=plats[e][0]+1;
+      // Enemy sprite (2x3 block, coloured per type)
+      const ec=e===0?RED:e===1?CYN:YEL;
+      fillRect(ex-1,ey,ex+1,ey+2,ec[0],ec[1],ec[2]);
+      setP(ex,ey+3,ec[0]*0.7,ec[1]*0.7,ec[2]*0.7);
+      // Eyes
+      setP(ex-1,ey+2,WHT[0],WHT[1],WHT[2]); setP(ex+1,ey+2,WHT[0],WHT[1],WHT[2]);
+    }
+
+    // Room name indicator (coloured bar at top)
+    hLine(0,S-1,S-1,rc[0]*0.3,rc[1]*0.3,rc[2]*0.3);
+    hLine(0,S-1,S-2,rc[0]*0.5,rc[1]*0.5,rc[2]*0.5);
+    // Lives
+    for(let l=0;l<3;l++){ setP(3+l*4,S-3,RED[0],RED[1],RED[2]); setP(4+l*4,S-3,RED[0],RED[1],RED[2]); }
+
+  } else if(game.name==='deathchase'){
+    // 3D Deathchase — first-person motorcycle through forest
+    const p=game;
+    p.speed=0.9+0.1*Math.sin(p.t*0.4);
+    p.treeOff+=p.speed*dt*50;
+    p.leanDir=Math.sin(p.t*0.7)*0.8;
+    p.bikeX=32+Math.round(p.leanDir*12);
+
+    // Sky (black, night mode feel)
+    for(let y=S/2;y<S;y++) for(let x=0;x<S;x++) setP(x,y,0,0,0.01);
+
+    // Ground (green, scrolling texture)
+    for(let y=0;y<S/2;y++){
+      const depth=1-(y/(S/2));
+      const scrollLine=Math.floor(p.treeOff+y*3)%8;
+      for(let x=0;x<S;x++){
+        const g=depth>0.1?(scrollLine<4?0.25:0.18):0.1;
+        setP(x,y,0,g,0);
+      }
+    }
+
+    // Horizon line
+    hLine(0,S-1,S/2,0,0.35,0);
+
+    // Trees (3D perspective, black trunks with green tops)
+    for(let t=0;t<12;t++){
+      const treeZ=((t*17+p.treeOff*0.3)%80)-5;
+      if(treeZ<2) continue;
+      const perspective=20/treeZ;
+      const treeBaseX=(t%2===0?-1:1)*(15+((t*7)%20));
+      const screenX=Math.round(S/2+treeBaseX*perspective-p.leanDir*perspective*8);
+      const screenY=Math.round(S/2-perspective*2);
+      const treeH=Math.round(perspective*25);
+      const trunkW=Math.max(1,Math.round(perspective*3));
+
+      if(screenX<-5||screenX>S+5) continue;
+
+      // Trunk (dark)
+      for(let ty=0;ty<treeH;ty++){
+        const sy=screenY-ty;
+        if(sy<0||sy>=S) continue;
+        for(let tw=0;tw<trunkW;tw++){
+          const sx=screenX-Math.floor(trunkW/2)+tw;
+          if(sx>=0&&sx<S) setP(sx,sy,0.15,0.08,0);
+        }
+      }
+      // Canopy (green blob)
+      const canopyR=Math.max(2,Math.round(perspective*6));
+      const canopyY=screenY-treeH;
+      for(let dy=-canopyR;dy<=canopyR;dy++) for(let dx=-canopyR;dx<=canopyR;dx++){
+        if(dx*dx+dy*dy<=canopyR*canopyR){
+          const sx=screenX+dx, sy=canopyY+dy;
+          if(sx>=0&&sx<S&&sy>=0&&sy<S) setP(sx,sy,0,0.5+dy*0.03,0);
+        }
+      }
+    }
+
+    // Enemy bike (ahead, weaving)
+    const enemyZ=15+Math.sin(p.t*0.6)*10;
+    const ePerspective=20/enemyZ;
+    const eScreenX=Math.round(S/2+Math.sin(p.t*1.3)*10*ePerspective);
+    const eScreenY=Math.round(S/2-ePerspective*2);
+    const eH=Math.round(ePerspective*12);
+    const eW=Math.max(2,Math.round(ePerspective*4));
+    // Enemy rider silhouette
+    for(let dy=0;dy<eH;dy++){
+      const sy=eScreenY-dy;
+      if(sy<0||sy>=S) continue;
+      const w=dy>eH*0.6?Math.max(1,eW-1):eW;
+      for(let dx=-Math.floor(w/2);dx<=Math.floor(w/2);dx++){
+        const sx=eScreenX+dx;
+        if(sx>=0&&sx<S) setP(sx,sy,WHT[0]*0.8,WHT[1]*0.8,WHT[2]*0.8);
+      }
+    }
+    // Enemy wheel
+    if(eScreenY>=0&&eScreenY<S) setP(eScreenX,eScreenY,WHT[0],WHT[1],WHT[2]);
+
+    // Player bike (bottom centre, handlebars visible)
+    const bx=p.bikeX;
+    // Handlebars
+    hLine(bx-5,bx+5,6,WHT[0],WHT[1],WHT[2]);
+    hLine(bx-5,bx+5,5,WHT[0]*0.6,WHT[1]*0.6,WHT[2]*0.6);
+    // Forks
+    setP(bx-4,7,WHT[0]*0.7,WHT[1]*0.7,WHT[2]*0.7); setP(bx+4,7,WHT[0]*0.7,WHT[1]*0.7,WHT[2]*0.7);
+    setP(bx-3,8,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5); setP(bx+3,8,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
+    // Front wheel
+    fillRect(bx-2,9,bx+2,11,WHT[0]*0.4,WHT[1]*0.4,WHT[2]*0.4);
+    setP(bx,10,WHT[0],WHT[1],WHT[2]);
+    // Crosshair
+    setP(bx,S/2,WHT[0],WHT[1],WHT[2]);
+    setP(bx-1,S/2,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
+    setP(bx+1,S/2,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
+    setP(bx,S/2-1,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
+    setP(bx,S/2+1,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
+
+    // Score/speed at top
+    const speedBar=Math.round(p.speed*20);
+    hLine(2,2+speedBar,S-2,GRN[0],GRN[1],GRN[2]);
+
+  } else if(game.name==='rtype'){
+    // R-Type — horizontal scrolling shooter
+    const p=game;
+    p.scrollX+=dt*20;
+    p.shipY=32+Math.round(Math.sin(p.t*1.8)*18);
+    p.shipX=10+Math.round(Math.sin(p.t*0.4)*3);
+
+    // Space background with scrolling stars
+    for(let i=0;i<40;i++){
+      const sx=((i*13+Math.floor(p.scrollX))%S);
+      const sy=(i*41+7)%S;
+      const brightness=0.2+((i*3)%5)*0.1;
+      setP(S-1-sx,sy,brightness,brightness,brightness*1.2);
+    }
+
+    // Organic wall/ceiling (Bydo empire style)
+    for(let x=0;x<S;x++){
+      const wallOff=Math.sin((x+p.scrollX)*0.08)*3+Math.sin((x+p.scrollX)*0.15)*2;
+      const topH=3+Math.round(Math.abs(wallOff));
+      const botH=2+Math.round(Math.abs(Math.sin((x+p.scrollX)*0.1)*2));
+      for(let y=S-topH;y<S;y++) setP(x,y,0.2,0.08,0.02);
+      for(let y=0;y<botH;y++) setP(x,y,0.2,0.08,0.02);
+      // Organic texture dots
+      if(((x+Math.floor(p.scrollX))%6)<2){ setP(x,S-topH,0.5,0.15,0.05); setP(x,botH,0.5,0.15,0.05); }
+    }
+
+    // Player ship (R-9 style — detailed)
+    const sx=Math.round(p.shipX), sy=Math.round(p.shipY);
+    // Main body
+    fillRect(sx,sy-1,sx+5,sy+1,BLU[0]*0.8,BLU[1]*0.8,BLU[2]);
+    // Nose cone
+    setP(sx+6,sy,WHT[0],WHT[1],WHT[2]);
+    setP(sx+5,sy,CYN[0],CYN[1],CYN[2]);
+    // Cockpit
+    setP(sx+3,sy,CYN[0],CYN[1],CYN[2]); setP(sx+4,sy,CYN[0]*0.7,CYN[1]*0.7,CYN[2]*0.7);
+    // Wings
+    setP(sx+1,sy-2,BLU[0]*0.5,BLU[1]*0.5,BLU[2]*0.8); setP(sx+2,sy-2,BLU[0]*0.5,BLU[1]*0.5,BLU[2]*0.8);
+    setP(sx+1,sy+2,BLU[0]*0.5,BLU[1]*0.5,BLU[2]*0.8); setP(sx+2,sy+2,BLU[0]*0.5,BLU[1]*0.5,BLU[2]*0.8);
+    // Engine glow
+    const engFlicker=Math.sin(p.t*20)>0?1:0.6;
+    setP(sx-1,sy,RED[0]*engFlicker,RED[1],RED[2]); setP(sx-2,sy,YEL[0]*engFlicker*0.5,YEL[1]*engFlicker*0.3,0);
+
+    // Force pod (orbiting)
+    const podAngle=p.t*3;
+    const podX=sx+4+Math.round(Math.cos(podAngle)*5);
+    const podY=sy+Math.round(Math.sin(podAngle)*5);
+    fillRect(podX-1,podY-1,podX+1,podY+1,RED[0],RED[1]*0.3,RED[2]);
+    setP(podX,podY,YEL[0],YEL[1],YEL[2]);
+
+    // Player bullets
+    if(Math.sin(p.t*7)>0.8&&p.bullets.length<6) p.bullets.push({x:sx+7,y:sy,charge:false});
+    // Charged shot occasionally
+    if(Math.sin(p.t*0.8)>0.95&&p.bullets.length<6) p.bullets.push({x:sx+7,y:sy,charge:true});
+
+    for(let i=p.bullets.length-1;i>=0;i--){
+      p.bullets[i].x+=80*dt;
+      const b=p.bullets[i];
+      if(b.x>S+5){ p.bullets.splice(i,1); continue; }
+      const bx=Math.round(b.x), by=Math.round(b.y);
+      if(b.charge){
+        // Big charged beam
+        fillRect(bx-2,by-1,bx+2,by+1,CYN[0],CYN[1],CYN[2]);
+        setP(bx+3,by,WHT[0],WHT[1],WHT[2]);
+      } else {
+        setP(bx,by,YEL[0],YEL[1],YEL[2]); setP(bx+1,by,YEL[0]*0.7,YEL[1]*0.7,0);
+      }
+      // Hit enemies
+      for(const e of p.enemies){
+        if(!e.alive) continue;
+        if(Math.abs(b.x-e.x)<4&&Math.abs(b.y-e.y)<4){ e.alive=false; p.bullets.splice(i,1); break; }
+      }
+    }
+    if(p.bullets.length>6) p.bullets.length=6;
+
+    // Enemies (various Bydo types)
+    for(const e of p.enemies){
+      if(!e.alive) continue;
+      e.x-=15*dt;
+      e.y+=Math.sin(p.t*3+e.x*0.1)*8*dt;
+      if(e.x<-5){ e.x=S+5+Math.random()*20; e.y=10+Math.random()*44; e.alive=true; }
+      const ex=Math.round(e.x), ey=Math.round(e.y);
+      if(e.type===0){
+        // Small pod enemy
+        fillRect(ex-1,ey-1,ex+1,ey+1,RED[0],RED[1]*0.3,RED[2]*0.3);
+        setP(ex,ey,YEL[0],YEL[1],YEL[2]);
+      } else if(e.type===1){
+        // Snake segment enemy
+        for(let seg=0;seg<3;seg++){
+          const segX=ex+seg*2, segY=ey+Math.round(Math.sin(p.t*5+seg)*2);
+          setP(segX,segY,GRN[0],GRN[1]*0.8,GRN[2]);
+          setP(segX+1,segY,GRN[0]*0.6,GRN[1]*0.5,GRN[2]);
+        }
+      } else {
+        // Large armoured enemy
+        fillRect(ex-2,ey-1,ex+2,ey+1,MAG[0]*0.7,MAG[1],MAG[2]*0.7);
+        setP(ex,ey,WHT[0],WHT[1],WHT[2]);
+        setP(ex-2,ey,RED[0],RED[1],RED[2]);
+      }
+    }
+    // Respawn enemies
+    if(p.enemies.filter(e=>e.alive).length<2){
+      for(const e of p.enemies){ e.alive=true; e.x=S+Math.random()*20; e.y=10+Math.random()*44; }
+    }
+
+    // Boss (appears periodically)
+    if(Math.floor(p.t/15)%2===1){
+      const bossY=32+Math.round(Math.sin(p.t*0.8)*15);
+      const bossX=S-12+Math.round(Math.sin(p.t*0.5)*3);
+      // Large boss body
+      fillRect(bossX-4,bossY-5,bossX+4,bossY+5,0.3,0.1,0.05);
+      fillRect(bossX-3,bossY-4,bossX+3,bossY+4,0.5,0.15,0.08);
+      // Core
+      const corePulse=0.5+0.5*Math.sin(p.t*6);
+      fillRect(bossX-1,bossY-1,bossX+1,bossY+1,RED[0]*corePulse,RED[1],RED[2]);
+      // Tentacles
+      for(let t=0;t<3;t++){
+        const tx=bossX-5-t*2+Math.round(Math.sin(p.t*3+t)*2);
+        const ty=bossY-3+t*3;
+        setP(tx,ty,MAG[0],MAG[1],MAG[2]); setP(tx-1,ty,MAG[0]*0.5,MAG[1],MAG[2]*0.5);
+      }
+    }
+
+    // HUD: power meter
+    hLine(2,12,S-2,BLU[0],BLU[1],BLU[2]);
   }
 }
 
@@ -6726,9 +7038,10 @@ function effectRetro(dt){
 
   const faceBuf=retroFaceBuf;
 
+  const numGames=retroGames.length;
   if(panel2dMode){
-    // 2D: show one game at a time, rotate every 8 seconds
-    const gameIdx=Math.floor(retroT/8)%4;
+    // 2D: show selected game or auto-rotate
+    const gameIdx=retroSelectedGame>=0?retroSelectedGame:Math.floor(retroT/retroRotateInterval)%numGames;
     faceBuf.fill(0);
     retroDrawFace(gameIdx,dt,faceBuf,S);
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
@@ -6737,10 +7050,11 @@ function effectRetro(dt){
       colBuf[idx*3]=faceBuf[i]; colBuf[idx*3+1]=faceBuf[i+1]; colBuf[idx*3+2]=faceBuf[i+2];
     }
   } else {
-    // 3D: each side face shows a different game
+    // 3D: each side face shows a different game, rotating through all
+    const baseIdx=retroSelectedGame>=0?retroSelectedGame:Math.floor(retroT/retroRotateInterval)%numGames;
     for(let fIdx=0;fIdx<4;fIdx++){
       faceBuf.fill(0);
-      retroDrawFace(fIdx,dt,faceBuf,S);
+      retroDrawFace((baseIdx+fIdx)%numGames,dt,faceBuf,S);
       const face=VID_FACE_ORDER[fIdx];
       for(let v=0;v<S;v++) for(let u=0;u<S;u++){
         const pu=S-1-u;
