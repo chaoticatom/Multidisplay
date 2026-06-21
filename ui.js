@@ -1159,6 +1159,8 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
         panel.classList.add('open');
         btn.classList.add('open');
       }
+      // For effects with a "Show" button, don't start immediately
+      if(eff==='retro') return;
     } else {
       // No panel — close all open panels
       document.querySelectorAll('.effect-panel').forEach(p=>p.classList.remove('open'));
@@ -1184,6 +1186,17 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
     if(currentEffect==='fluid') fluidH=null;
     fwParticles.length=0; t=0;
   });
+});
+
+// Retro "Show" button — starts the effect
+document.getElementById('retro-show-btn')?.addEventListener('click',(e)=>{
+  e.stopPropagation();
+  if(!effectsOn){effectsOn=true;clearPending=false;toggleBtn.textContent='● Effects ON';toggleBtn.classList.add('on');}
+  panelEditorOn=false;
+  document.querySelectorAll('.effect-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('[data-effect="retro"]')?.classList.add('active');
+  currentEffect='retro';
+  effectLabel.textContent=EFFECT_NAMES['retro']||'retro';
 });
 
 // Retro game selection buttons
