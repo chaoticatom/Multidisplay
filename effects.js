@@ -7475,65 +7475,124 @@ function retroDrawFace(faceIdx,dt,buf,S){
 function retroDrawTopFace(S,t){
   const topBuf=new Float32Array(S*S*3);
   const cx=S/2, cy=S/2;
-  // Background: dark with scanlines and random sparkles
+  const radius=S*0.38;
+
+  // Background: pulsing radial gradient
   for(let y=0;y<S;y++) for(let x=0;x<S;x++){
     const i=(y*S+x)*3;
-    const scanline=(y%3===0)?0.03:0;
-    topBuf[i]=scanline*0.2; topBuf[i+1]=scanline*0.1; topBuf[i+2]=scanline*0.4;
-    if(Math.random()<0.005){ topBuf[i]=0.15; topBuf[i+1]=0.15; topBuf[i+2]=0.2; }
+    const dx=x-cx, dy=y-cy;
+    const dist=Math.sqrt(dx*dx+dy*dy)/cx;
+    const pulse=0.02+0.015*Math.sin(t*2-dist*4);
+    topBuf[i]=pulse*0.4; topBuf[i+1]=pulse*0.1; topBuf[i+2]=pulse*1.2;
   }
-  // Grid lines (retro arcade feel)
-  for(let g=0;g<S;g+=8){
-    for(let x=0;x<S;x++){ const i=(g*S+x)*3; topBuf[i]+=0.03; topBuf[i+2]+=0.06; }
-    for(let y=0;y<S;y++){ const i=(y*S+g)*3; topBuf[i]+=0.03; topBuf[i+2]+=0.06; }
+
+  // Rotating radial beams
+  for(let b=0;b<8;b++){
+    const beamAngle=t*0.8+b*Math.PI/4;
+    for(let r=5;r<S/2;r++){
+      const bx=Math.round(cx+Math.cos(beamAngle)*r);
+      const by=Math.round(cy+Math.sin(beamAngle)*r);
+      if(bx>=0&&bx<S&&by>=0&&by<S){
+        const i=(by*S+bx)*3;
+        const fade=0.06*(1-r/(S/2));
+        topBuf[i]+=fade*0.5; topBuf[i+1]+=fade*0.2; topBuf[i+2]+=fade;
+      }
+    }
   }
-  // 5x7 bitmap font for RETRO
+
+  // Concentric rings (pulsing outward)
+  for(let ring=0;ring<4;ring++){
+    const rr=((t*12+ring*16)%((S/2)-4))+4;
+    const bright=0.08*(1-rr/(S/2));
+    for(let a=0;a<120;a++){
+      const ang=a*Math.PI*2/120;
+      const rx=Math.round(cx+Math.cos(ang)*rr);
+      const ry=Math.round(cy+Math.sin(ang)*rr);
+      if(rx>=0&&rx<S&&ry>=0&&ry<S){
+        const i=(ry*S+rx)*3;
+        topBuf[i]+=bright; topBuf[i+1]+=bright*0.5; topBuf[i+2]+=bright*1.5;
+      }
+    }
+  }
+
+  // Sparkle particles orbiting
+  for(let sp=0;sp<20;sp++){
+    const spAng=t*1.5+sp*0.314;
+    const spR=8+sp*1.3+Math.sin(t*3+sp)*3;
+    const sx=Math.round(cx+Math.cos(spAng)*spR);
+    const sy=Math.round(cy+Math.sin(spAng)*spR);
+    if(sx>=0&&sx<S&&sy>=0&&sy<S){
+      const i=(sy*S+sx)*3;
+      const flicker=0.4+0.4*Math.sin(t*8+sp*2);
+      topBuf[i]+=flicker; topBuf[i+1]+=flicker*0.8; topBuf[i+2]+=flicker*0.3;
+    }
+  }
+
+  // 5x7 bitmap font
   const F={R:[0x7C,0x44,0x44,0x78,0x48,0x44,0x42],E:[0x7E,0x40,0x40,0x7C,0x40,0x40,0x7E],T:[0x7E,0x18,0x18,0x18,0x18,0x18,0x18],O:[0x3C,0x42,0x42,0x42,0x42,0x42,0x3C]};
   const word=[F.R,F.E,F.T,F.R,F.O];
-  const charW=7, charH=7, spacing=1;
-  const totalW=word.length*(charW+spacing)-spacing;
-  // Circular motion: text center orbits around face center
-  const radius=14;
-  const angle=t*1.2;
-  const ox=Math.round(cx+Math.cos(angle)*radius-totalW/2);
-  const oy=Math.round(cy+Math.sin(angle)*radius-charH/2);
+  const charW=7, charH=7;
+  const numChars=word.length;
+  const arcSpan=0.9;
+  const baseAngle=t*0.7;
+
   // Color cycling
-  const hue=(t*60)%360;
-  const hr=hue/60; const hi=Math.floor(hr)%6;
-  const hf=hr-Math.floor(hr);
+  const hue=(t*80)%360;
+  const hr=hue/60; const hi=Math.floor(hr)%6; const hf=hr-Math.floor(hr);
   let cr,cg,cb;
   switch(hi){
     case 0: cr=1;cg=hf;cb=0;break; case 1: cr=1-hf;cg=1;cb=0;break;
     case 2: cr=0;cg=1;cb=hf;break; case 3: cr=0;cg=1-hf;cb=1;break;
     case 4: cr=hf;cg=0;cb=1;break; default: cr=1;cg=0;cb=1-hf;
   }
-  // Draw each character
-  for(let c=0;c<word.length;c++){
+
+  // Draw each character curved along the circle
+  for(let c=0;c<numChars;c++){
     const glyph=word[c];
-    const bx=ox+c*(charW+spacing);
+    const charAngle=baseAngle+(c-(numChars-1)/2)*arcSpan/numChars;
+    const charCx=cx+Math.cos(charAngle)*radius;
+    const charCy=cy+Math.sin(charAngle)*radius;
+    const rot=charAngle+Math.PI/2;
+    const cosR=Math.cos(rot), sinR=Math.sin(rot);
+
     for(let row=0;row<charH;row++){
       const bits=glyph[row];
       for(let col=0;col<charW;col++){
         if(bits&(1<<(charW-1-col))){
-          const px=bx+col, py=oy+row;
+          const lx=col-charW/2, ly=row-charH/2;
+          const px=Math.round(charCx+lx*cosR-ly*sinR);
+          const py=Math.round(charCy+lx*sinR+ly*cosR);
           if(px>=0&&px<S&&py>=0&&py<S){
             const i=(py*S+px)*3;
-            // Glow effect
-            topBuf[i]=cr*0.9; topBuf[i+1]=cg*0.9; topBuf[i+2]=cb*0.9;
+            topBuf[i]=cr; topBuf[i+1]=cg; topBuf[i+2]=cb;
           }
-          // Bloom around pixel
+          // Bloom
           for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
             if(dx===0&&dy===0) continue;
-            const gx=bx+col+dx, gy=oy+row+dy;
+            const gx=px+dx, gy=py+dy;
             if(gx>=0&&gx<S&&gy>=0&&gy<S){
               const gi=(gy*S+gx)*3;
-              topBuf[gi]+=cr*0.15; topBuf[gi+1]+=cg*0.15; topBuf[gi+2]+=cb*0.15;
+              topBuf[gi]+=cr*0.2; topBuf[gi+1]+=cg*0.2; topBuf[gi+2]+=cb*0.2;
             }
           }
         }
       }
     }
   }
+
+  // Outer ring border (bright, pulsing)
+  const borderR=S/2-2;
+  const borderBright=0.3+0.15*Math.sin(t*3);
+  for(let a=0;a<200;a++){
+    const ang=a*Math.PI*2/200;
+    const bx=Math.round(cx+Math.cos(ang)*borderR);
+    const by=Math.round(cy+Math.sin(ang)*borderR);
+    if(bx>=0&&bx<S&&by>=0&&by<S){
+      const i=(by*S+bx)*3;
+      topBuf[i]+=borderBright*cr; topBuf[i+1]+=borderBright*cg; topBuf[i+2]+=borderBright*cb;
+    }
+  }
+
   // Write to top face
   for(let v=0;v<S;v++) for(let u=0;u<S;u++){
     const idx=faceMap[4][v*S+u]; if(idx<0) continue;
