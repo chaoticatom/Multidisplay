@@ -5779,9 +5779,29 @@ function effectSimHouseShadows(dt){
         colBuf[idx*3]=shBuf[i]/255; colBuf[idx*3+1]=shBuf[i+1]/255; colBuf[idx*3+2]=shBuf[i+2]/255;
       }
     }
+    // Top face: tiled roof look (grey with tile pattern)
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
       const idx=faceMap[4][v*S+u]; if(idx<0) continue;
-      colBuf[idx*3]=0.9; colBuf[idx*3+1]=0.9; colBuf[idx*3+2]=0.88;
+      // Base grey slate colour
+      let r=0.38, g=0.36, b=0.34;
+      // Tile rows (horizontal lines every 6px, offset every other row)
+      const tileH=6, tileW=8;
+      const row=Math.floor(v/tileH);
+      const offset=(row%2)*Math.floor(tileW/2);
+      const localV=v%tileH, localU=(u+offset)%tileW;
+      // Slight colour variation per tile
+      const tileHash=((row*13+Math.floor((u+offset)/tileW)*7)%17)/17;
+      r+=tileHash*0.06-0.03;
+      g+=tileHash*0.05-0.025;
+      b+=tileHash*0.04-0.02;
+      // Horizontal grout lines (darker)
+      if(localV===0){ r-=0.08; g-=0.08; b-=0.07; }
+      // Vertical grout lines (darker)
+      if(localU===0){ r-=0.06; g-=0.06; b-=0.05; }
+      // Subtle gradient (lighter at top/ridge)
+      const ridgeFade=1-Math.abs(v-S/2)/(S*0.6);
+      r+=ridgeFade*0.04; g+=ridgeFade*0.04; b+=ridgeFade*0.03;
+      colBuf[idx*3]=r; colBuf[idx*3+1]=g; colBuf[idx*3+2]=b;
     }
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
       const idx=faceMap[5][v*S+u]; if(idx<0) continue;
