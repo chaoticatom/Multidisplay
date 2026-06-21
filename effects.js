@@ -8834,7 +8834,8 @@ function effectRetro(dt){
     faceBuf.fill(0);
     retroDrawFace(gameIdx,dt,faceBuf,S);
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-      const i=(v*S+u)*3;
+      const pu=S-1-u;
+      const i=(v*S+pu)*3;
       const idx=faceMap[0][v*S+u]; if(idx<0) continue;
       colBuf[idx*3]=faceBuf[i]; colBuf[idx*3+1]=faceBuf[i+1]; colBuf[idx*3+2]=faceBuf[i+2];
     }
