@@ -7479,18 +7479,32 @@ function retroDrawFace(faceIdx,dt,buf,S){
       for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,0,0,0);
       const flash=Math.floor(p.loserT*4)%2;
       if(flash){
-        const L=[[1,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,0]];
-        const O=[[0,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,0,0]];
-        const Se=[[0,1,1,1,0],[1,0,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[1,1,1,0,0]];
+        const G=[[0,1,1,1,0],[1,0,0,0,0],[1,0,1,1,0],[1,0,0,1,0],[0,1,1,1,0]];
+        const A=[[0,1,1,0,0],[1,0,0,1,0],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,1,0]];
+        const M=[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1]];
         const E=[[1,1,1,1,0],[1,0,0,0,0],[1,1,1,0,0],[1,0,0,0,0],[1,1,1,1,0]];
+        const O=[[0,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,0,0]];
+        const V=[[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,0,0],[0,1,0,0,0]];
         const R=[[1,1,1,0,0],[1,0,0,1,0],[1,1,1,0,0],[1,0,1,0,0],[1,0,0,1,0]];
-        const letters=[L,O,Se,E,R];
-        for(let li=0;li<5;li++){
-          const glyph=letters[li];
-          const ox=6+li*11;
+        const row1=[G,A,M,E];
+        const row2=[O,V,E,R];
+        for(let li=0;li<4;li++){
+          const glyph=row1[li];
+          const ox=5+li*14;
           for(let row=0;row<5;row++) for(let col=0;col<5;col++){
             if(glyph[row][col]){
-              const px=ox+col*2, py=28+row*2;
+              const px=ox+col*2, py=34+row*2;
+              setP(px,py,1,0,0); setP(px+1,py,1,0,0);
+              setP(px,py+1,1,0,0); setP(px+1,py+1,1,0,0);
+            }
+          }
+        }
+        for(let li=0;li<4;li++){
+          const glyph=row2[li];
+          const ox=5+li*14;
+          for(let row=0;row<5;row++) for(let col=0;col<5;col++){
+            if(glyph[row][col]){
+              const px=ox+col*2, py=22+row*2;
               setP(px,py,1,0,0); setP(px+1,py,1,0,0);
               setP(px,py+1,1,0,0); setP(px+1,py+1,1,0,0);
             }
