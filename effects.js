@@ -6468,6 +6468,8 @@ function initRetro(){
     {name:'jsw',t:0,playerX:10,playerY:10,dir:1,jumpT:0,jumping:false,room:0,roomT:0},
     {name:'deathchase',t:0,speed:0,treeOff:0,bikeX:32,leanDir:0,enemyX:20,enemyZ:40,hit:false,hitT:0},
     {name:'rtype',t:0,shipX:10,shipY:32,bullets:[],enemies:[],chargeT:0,scrollX:0,bossHP:20,bossX:55},
+    {name:'wolf3d',t:0,posX:2.5,posY:2.5,dirA:0,gunFrame:0,fireT:0},
+    {name:'quake2',t:0,posX:3,posY:3,dirA:0.5,bobT:0,muzzleT:0,enemies:[]},
   ];
   // Manic Miner platforms
   const g=retroGames[1];
@@ -7027,6 +7029,236 @@ function retroDrawFace(faceIdx,dt,buf,S){
 
     // HUD: power meter
     hLine(2,12,S-2,BLU[0],BLU[1],BLU[2]);
+
+  } else if(game.name==='wolf3d'){
+    // Wolfenstein 3D — raycasting first-person corridor
+    const p=game;
+    p.dirA+=dt*0.4;
+    p.posX=4+Math.sin(p.t*0.3)*2;
+    p.posY=4+Math.cos(p.t*0.25)*2;
+    p.fireT-=dt;
+    if(p.fireT<-2){ p.fireT=0.3; p.gunFrame=3; }
+    if(p.gunFrame>0) p.gunFrame-=dt*8;
+
+    // Simple map (8x8)
+    const map=[
+      1,1,1,1,1,1,1,1,
+      1,0,0,0,0,0,0,1,
+      1,0,2,0,0,3,0,1,
+      1,0,0,0,0,0,0,1,
+      1,0,0,0,0,0,0,1,
+      1,0,3,0,0,2,0,1,
+      1,0,0,0,0,0,0,1,
+      1,1,1,1,1,1,1,1,
+    ];
+    const mapW=8;
+
+    // Ceiling (grey)
+    fillRect(0,S/2,S-1,S-1,0.25,0.25,0.28);
+    // Floor (darker grey, brown tint)
+    fillRect(0,0,S-1,S/2-1,0.18,0.15,0.1);
+
+    // Raycast each column
+    const fov=1.0;
+    for(let x=0;x<S;x++){
+      const rayAngle=p.dirA-fov/2+(x/S)*fov;
+      const rdx=Math.cos(rayAngle), rdy=Math.sin(rayAngle);
+      let dist=0; let hitType=0;
+      let rx=p.posX, ry=p.posY;
+      for(let step=0;step<80;step++){
+        dist+=0.05;
+        rx=p.posX+rdx*dist; ry=p.posY+rdy*dist;
+        const mx=Math.floor(rx), my=Math.floor(ry);
+        if(mx<0||mx>=mapW||my<0||my>=mapW){hitType=1;break;}
+        const cell=map[my*mapW+mx];
+        if(cell>0){hitType=cell;break;}
+      }
+      // Fix fisheye
+      const perpDist=dist*Math.cos(rayAngle-p.dirA);
+      const wallH=Math.min(S,Math.round(S/(perpDist+0.01)));
+      const wallTop=Math.floor(S/2+wallH/2);
+      const wallBot=Math.floor(S/2-wallH/2);
+      // Wall colour by type and shading
+      const shade=Math.min(1,1.5/(perpDist+0.5));
+      let wr,wg,wb;
+      if(hitType===1){ wr=0.35*shade; wg=0.35*shade; wb=0.38*shade; } // stone grey
+      else if(hitType===2){ wr=0.15*shade; wg=0.15*shade; wb=0.5*shade; } // blue door/wall
+      else { wr=0.5*shade; wg=0.2*shade; wb=0.1*shade; } // brown wood
+      // Side shading (horizontal vs vertical hit)
+      const fracX=rx-Math.floor(rx), fracY=ry-Math.floor(ry);
+      const isVert=fracX<0.02||fracX>0.98;
+      if(isVert){ wr*=0.7; wg*=0.7; wb*=0.7; }
+      for(let y=Math.max(0,wallBot);y<=Math.min(S-1,wallTop);y++){
+        setP(x,y,wr,wg,wb);
+      }
+      // Wall stripes (brick texture)
+      if(wallH>8){
+        const stripeY=wallBot+Math.floor(wallH*0.5);
+        if(stripeY>=0&&stripeY<S) setP(x,stripeY,wr*0.6,wg*0.6,wb*0.6);
+      }
+    }
+
+    // Gun (centred at bottom, pistol shape)
+    const gunBob=Math.round(Math.sin(p.t*5)*1.5);
+    const gx=Math.floor(S/2), gy=8+gunBob;
+    // Gun barrel
+    fillRect(gx-2,gy+4,gx+2,gy+14,0.3,0.3,0.32);
+    fillRect(gx-1,gy+14,gx+1,gy+18,0.35,0.35,0.38);
+    // Grip
+    fillRect(gx-3,gy,gx+3,gy+4,0.25,0.2,0.12);
+    // Hand
+    fillRect(gx-5,gy,gx-3,gy+3,0.8,0.6,0.4);
+    fillRect(gx+3,gy,gx+5,gy+3,0.8,0.6,0.4);
+    // Muzzle flash
+    if(p.gunFrame>2){
+      fillRect(gx-3,gy+18,gx+3,gy+22,YEL[0],YEL[1],0);
+      fillRect(gx-1,gy+22,gx+1,gy+25,WHT[0],WHT[1],WHT[2]);
+    }
+
+    // HUD bar at bottom
+    hLine(0,S-1,1,0.3,0.3,0.3);
+    hLine(0,S-1,0,0.2,0.2,0.2);
+    // Health (red)
+    hLine(2,20,0,RED[0]*0.8,0,0);
+    // Ammo (yellow)
+    hLine(S-20,S-3,0,YEL[0]*0.6,YEL[1]*0.6,0);
+    // Face (tiny BJ face in centre)
+    fillRect(S/2-2,0,S/2+2,2,0.8,0.6,0.4);
+    setP(S/2-1,2,0.2,0.2,0.6); setP(S/2+1,2,0.2,0.2,0.6); // eyes
+
+  } else if(game.name==='quake2'){
+    // Quake 2 — dark industrial corridor, strobing lights, enemy
+    const p=game;
+    p.dirA+=dt*0.35;
+    p.posX=5+Math.sin(p.t*0.2)*3;
+    p.posY=5+Math.cos(p.t*0.18)*3;
+    p.bobT+=dt*6;
+    p.muzzleT-=dt;
+    if(p.muzzleT<-1.5){ p.muzzleT=0.15; }
+
+    // Map (10x10 industrial)
+    const map=[
+      1,1,1,1,1,1,1,1,1,1,
+      1,0,0,0,0,0,0,0,0,1,
+      1,0,2,2,0,0,3,3,0,1,
+      1,0,2,0,0,0,0,3,0,1,
+      1,0,0,0,0,0,0,0,0,1,
+      1,0,0,0,0,0,0,0,0,1,
+      1,0,3,0,0,0,0,2,0,1,
+      1,0,3,3,0,0,2,2,0,1,
+      1,0,0,0,0,0,0,0,0,1,
+      1,1,1,1,1,1,1,1,1,1,
+    ];
+    const mapW=10;
+
+    // Ceiling (dark metal)
+    for(let y=S/2;y<S;y++) for(let x=0;x<S;x++){
+      const flicker=(Math.sin(x*0.3+p.t*2)>0.9)?0.15:0;
+      setP(x,y,0.08+flicker,0.06+flicker,0.04);
+    }
+    // Floor (dark, reflective metal with grid)
+    for(let y=0;y<S/2;y++) for(let x=0;x<S;x++){
+      const grid=((x+Math.floor(p.t*2))%8===0||(y%8===0))?0.12:0.06;
+      setP(x,y,grid*0.8,grid*0.6,grid*0.4);
+    }
+
+    // Raycast
+    const fov=1.1;
+    for(let x=0;x<S;x++){
+      const rayAngle=p.dirA-fov/2+(x/S)*fov;
+      const rdx=Math.cos(rayAngle), rdy=Math.sin(rayAngle);
+      let dist=0,hitType=0;
+      for(let step=0;step<100;step++){
+        dist+=0.04;
+        const rx=p.posX+rdx*dist, ry=p.posY+rdy*dist;
+        const mx=Math.floor(rx), my=Math.floor(ry);
+        if(mx<0||mx>=mapW||my<0||my>=mapW){hitType=1;break;}
+        const cell=map[my*mapW+mx];
+        if(cell>0){hitType=cell;break;}
+      }
+      const perpDist=dist*Math.cos(rayAngle-p.dirA);
+      const wallH=Math.min(S,Math.round(S*1.2/(perpDist+0.01)));
+      const wallTop=Math.floor(S/2+wallH/2);
+      const wallBot=Math.floor(S/2-wallH/2);
+      const shade=Math.min(1,1.2/(perpDist+0.3));
+      // Strobing light effect
+      const strobe=(Math.sin(p.t*4+x*0.05)>0.85)?0.2:0;
+      let wr,wg,wb;
+      if(hitType===1){ wr=(0.2+strobe)*shade; wg=(0.18+strobe)*shade; wb=(0.15+strobe*0.5)*shade; } // rusty metal
+      else if(hitType===2){ wr=0.12*shade; wg=0.2*shade; wb=(0.3+strobe)*shade; } // blue-grey tech panel
+      else { wr=(0.35+strobe)*shade; wg=0.12*shade; wb=0.05*shade; } // orange/lava trim
+      // Texture: vertical panel lines
+      if(x%4===0){ wr*=0.7; wg*=0.7; wb*=0.7; }
+      for(let y=Math.max(0,wallBot);y<=Math.min(S-1,wallTop);y++){
+        // Horizontal bands on walls
+        const bandY=(y-wallBot)/(wallH||1);
+        const band=(Math.floor(bandY*8)%2===0)?1:0.85;
+        setP(x,y,wr*band,wg*band,wb*band);
+      }
+    }
+
+    // Enemy (Strogg soldier — appears at fixed map position)
+    const enemyAngle=Math.atan2(6-p.posY,6-p.posX)-p.dirA;
+    const enemyDist=Math.sqrt((6-p.posX)*(6-p.posX)+(6-p.posY)*(6-p.posY));
+    if(Math.abs(enemyAngle)<fov/2&&enemyDist>0.5&&enemyDist<8){
+      const eScreenX=Math.round(S/2+(enemyAngle/(fov/2))*(S/2));
+      const eH=Math.round(S*0.7/(enemyDist+0.1));
+      const eW=Math.round(eH*0.4);
+      const eBot=S/2-Math.floor(eH/2);
+      const eTop=S/2+Math.floor(eH/2);
+      // Strogg body
+      for(let ey=Math.max(0,eBot);ey<=Math.min(S-1,eTop);ey++){
+        const rel=(ey-eBot)/(eH||1);
+        const bw=rel>0.8?Math.floor(eW*0.6):rel>0.3?eW:Math.floor(eW*0.8);
+        for(let ex=eScreenX-Math.floor(bw/2);ex<=eScreenX+Math.floor(bw/2);ex++){
+          if(ex<0||ex>=S) continue;
+          if(rel>0.8) setP(ex,ey,0.7,0.5,0.35); // head
+          else if(rel>0.6) setP(ex,ey,0.25,0.3,0.2); // torso armour
+          else if(rel>0.3) setP(ex,ey,0.2,0.25,0.18); // body
+          else setP(ex,ey,0.15,0.18,0.12); // legs
+        }
+      }
+      // Eyes (red glow)
+      const eyeY=eTop-Math.floor(eH*0.12);
+      if(eyeY>0&&eyeY<S){
+        setP(eScreenX-1,eyeY,RED[0],0,0); setP(eScreenX+1,eyeY,RED[0],0,0);
+      }
+    }
+
+    // Weapon (railgun/shotgun style at bottom)
+    const bob=Math.round(Math.sin(p.bobT)*2);
+    const wx=Math.floor(S/2)+2, wy=6+bob;
+    // Gun body (dark metal)
+    fillRect(wx-3,wy,wx+3,wy+16,0.15,0.15,0.18);
+    fillRect(wx-2,wy+16,wx+2,wy+22,0.2,0.2,0.25);
+    // Barrel
+    fillRect(wx-1,wy+22,wx+1,wy+28,0.12,0.12,0.15);
+    // Orange energy glow on weapon
+    setP(wx,wy+20,0.6,0.3,0.05); setP(wx,wy+18,0.4,0.2,0.02);
+    // Grip + hand
+    fillRect(wx-4,wy,wx-3,wy+5,0.6,0.45,0.3);
+    fillRect(wx+3,wy,wx+4,wy+5,0.6,0.45,0.3);
+    // Muzzle flash
+    if(p.muzzleT>0){
+      const flashR=0.9,flashG=0.6,flashB=0.1;
+      fillRect(wx-4,wy+28,wx+4,wy+32,flashR,flashG,flashB);
+      fillRect(wx-2,wy+32,wx+2,wy+35,flashR*0.7,flashG*0.5,flashB);
+      // Screen flash
+      for(let y=0;y<S;y++) for(let x=0;x<S;x++){
+        const i=(y*S+x)*3;
+        buf[i]=Math.min(1,buf[i]+0.04); buf[i+1]=Math.min(1,buf[i+1]+0.02);
+      }
+    }
+
+    // HUD
+    hLine(0,S-1,1,0.15,0.15,0.15);
+    hLine(0,S-1,0,0.1,0.1,0.1);
+    // Health
+    hLine(2,18,0,0.6,0.1,0.05);
+    // Armor (blue)
+    hLine(22,36,0,0.1,0.2,0.5);
+    // Ammo
+    hLine(S-16,S-3,0,0.5,0.4,0.1);
   }
 }
 
