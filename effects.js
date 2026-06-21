@@ -7036,60 +7036,130 @@ function retroDrawFace(faceIdx,dt,buf,S){
     }
 
   } else if(game.name==='outrun'){
-    // OutRun style pseudo-3D road
     const p=game;
     p.speed=0.85+0.15*Math.sin(p.t*0.3);
     p.roadOff+=p.speed*dt*40;
-    p.curves=Math.sin(p.t*0.5)*0.4;
-    // Sky gradient (blue) - direct buffer write
-    for(let y=S/2;y<S;y++){
-      const t=(y-S/2)/(S/2);
-      const sr=0.1*t,sg=0.2*t,sb=0.7-0.3*t;
+    p.curves=Math.sin(p.t*0.5)*0.5;
+    const horizon=S*0.55;
+
+    // Sky gradient (light blue to white at horizon, like arcade)
+    for(let y=Math.floor(horizon);y<S;y++){
+      const t=(y-horizon)/(S-horizon);
+      const sr=0.4+0.5*t, sg=0.6+0.35*t, sb=0.85+0.1*t;
       for(let x=0;x<S;x++){const i=(y*S+x)*3;buf[i]=sr;buf[i+1]=sg;buf[i+2]=sb;}
     }
-    // Ground/road (perspective)
-    for(let y=0;y<S/2;y++){
-      const depth=(S/2-y)/(S/2);
-      const roadW=4+depth*28;
-      const cx=S/2+Math.round(p.curves*depth*depth*30+Math.sin(p.roadOff*0.02+y*0.1)*depth*8);
-      const stripe=((Math.floor(p.roadOff+y*2))%12)<6;
-      const grassG=stripe?0.5:0.35;
-      // Grass row - direct write
-      for(let x=0;x<S;x++){const i=(y*S+x)*3;buf[i]=0;buf[i+1]=grassG;buf[i+2]=0;}
-      // Road
-      const rl=Math.max(0,Math.round(cx-roadW/2)), rr=Math.min(S-1,Math.round(cx+roadW/2));
-      for(let x=rl;x<=rr;x++){const i=(y*S+x)*3;buf[i]=0.25;buf[i+1]=0.25;buf[i+2]=0.25;}
-      // Road markings
+
+    // Clouds
+    for(let c=0;c<3;c++){
+      const cx=((c*22+Math.floor(p.t*2))%S);
+      const cy=S-6-c*3;
+      for(let dx=-4;dx<=4;dx++) for(let dy=0;dy<=1;dy++){
+        const sx=cx+dx, sy=cy+dy;
+        if(sx>=0&&sx<S&&sy<S) setP(sx,sy,0.95,0.95,1);
+      }
+    }
+
+    // Ground with road (perspective)
+    for(let y=0;y<Math.floor(horizon);y++){
+      const depth=(horizon-y)/horizon;
+      const roadW=6+depth*30;
+      const curve=p.curves*depth*depth*35+Math.sin(p.roadOff*0.02+y*0.08)*depth*6;
+      const cx=S/2+Math.round(curve);
+      const stripe=((Math.floor(p.roadOff+y*2))%10)<5;
+
+      // Grass (alternating green shades like arcade)
+      const gBright=stripe?0.45:0.3;
+      for(let x=0;x<S;x++){const i=(y*S+x)*3;buf[i]=0;buf[i+1]=gBright;buf[i+2]=0;}
+
+      // Sandy shoulder/verge
+      const shoulderW=Math.round(roadW*0.15);
+      const rl=Math.round(cx-roadW/2), rr=Math.round(cx+roadW/2);
+      for(let x=Math.max(0,rl-shoulderW);x<Math.max(0,rl);x++){
+        const i=(y*S+x)*3;buf[i]=0.6;buf[i+1]=0.55;buf[i+2]=0.3;
+      }
+      for(let x=Math.min(S-1,rr+1);x<=Math.min(S-1,rr+shoulderW);x++){
+        const i=(y*S+x)*3;buf[i]=0.6;buf[i+1]=0.55;buf[i+2]=0.3;
+      }
+
+      // Road surface (dark grey)
+      for(let x=Math.max(0,rl);x<=Math.min(S-1,rr);x++){
+        const i=(y*S+x)*3;buf[i]=0.3;buf[i+1]=0.3;buf[i+2]=0.3;
+      }
+
+      // White dashed center line
       if(stripe){
-        const ml=Math.round(cx-2), mr=Math.round(cx+2);
+        const ml=Math.round(cx-1), mr=Math.round(cx+1);
         if(ml>=0&&ml<S) setP(ml,y,1,1,1);
         if(mr>=0&&mr<S) setP(mr,y,1,1,1);
       }
-      // Kerbs
-      if(rl>0) setP(rl,y,stripe?0.85:1,stripe?0:1,stripe?0:1);
-      if(rr<S-1) setP(rr,y,stripe?0.85:1,stripe?0:1,stripe?0:1);
-    }
-    // Car (player)
-    const carX=Math.round(S/2+Math.sin(p.t*0.8)*10);
-    fillRect(carX-3,4,carX+3,8,RED[0],RED[1],RED[2]);
-    fillRect(carX-2,8,carX+2,10,RED[0]*0.7,0,0);
-    fillRect(carX-2,5,carX+2,7,CYN[0]*0.4,CYN[1]*0.4,CYN[2]*0.6);
-    // Wheels
-    setP(carX-3,4,0,0,0); setP(carX+3,4,0,0,0);
-    setP(carX-3,8,0,0,0); setP(carX+3,8,0,0,0);
-    // Trees at roadside
-    for(let t=0;t<4;t++){
-      const treeY=5+t*10;
-      const depth=(S/2-treeY)/(S/2);
-      if(depth<0.05) continue;
-      const rw=4+depth*28;
-      const tx=Math.round(S/2+p.curves*depth*depth*30-(rw*0.5/depth+8)*((t%2)?1:-1));
-      const treeH=Math.round(3+depth*5);
-      if(tx>=0&&tx<S){
-        for(let th=0;th<treeH;th++) setP(tx,treeY+th,0,0.4+depth*0.3,0);
+
+      // Red-white kerbs on edges
+      const kerbR=stripe?0.9:1, kerbG=stripe?0.1:1, kerbB=stripe?0.1:1;
+      for(let k=0;k<2;k++){
+        const kx1=rl+k, kx2=rr-k;
+        if(kx1>=0&&kx1<S) setP(kx1,y,kerbR,kerbG,kerbB);
+        if(kx2>=0&&kx2<S) setP(kx2,y,kerbR,kerbG,kerbB);
       }
     }
-    hLine(2,14,S-2,1,1,1);
+
+    // Palm trees at roadside (like arcade OutRun)
+    for(let t=0;t<6;t++){
+      const treeZ=((t*13+p.roadOff*0.4)%70);
+      const tz=treeZ<0?treeZ+70:treeZ;
+      if(tz<3) continue;
+      const tDepth=15/tz;
+      const side=(t%2)?1:-1;
+      const tCurve=p.curves*tDepth*tDepth*35;
+      const tx=Math.round(S/2+tCurve+side*(15+tDepth*20));
+      const tBaseY=Math.round(horizon-tDepth*horizon*0.8);
+      if(tBaseY<2||tBaseY>=horizon) continue;
+      const trunkH=Math.round(tDepth*20);
+      const trunkW=Math.max(1,Math.round(tDepth*2));
+      // Trunk (brown)
+      for(let ty=0;ty<trunkH;ty++){
+        const sy=tBaseY+ty;
+        if(sy>=S) break;
+        for(let tw=0;tw<trunkW;tw++){
+          const sx=tx+tw-Math.floor(trunkW/2);
+          if(sx>=0&&sx<S) setP(sx,sy,0.4,0.25,0.1);
+        }
+      }
+      // Palm fronds (green, fan shape)
+      const leafR=Math.max(2,Math.round(tDepth*8));
+      const leafY=tBaseY+trunkH;
+      for(let dy=-1;dy<=leafR;dy++) for(let dx=-leafR;dx<=leafR;dx++){
+        if(Math.abs(dx)+Math.abs(dy)<=leafR+1&&dy>=0){
+          const sx=tx+dx, sy=leafY+dy;
+          if(sx>=0&&sx<S&&sy>=0&&sy<S) setP(sx,sy,0,0.5+dy*0.03,0.1);
+        }
+      }
+    }
+
+    // Red Ferrari (seen from behind, like arcade)
+    const carX=Math.round(S/2+Math.sin(p.t*0.8)*8);
+    const carY=6;
+    // Rear body (red)
+    fillRect(carX-5,carY,carX+5,carY+4,0.85,0.1,0.05);
+    fillRect(carX-4,carY+4,carX+4,carY+6,0.9,0.15,0.05);
+    // Windshield/cabin (dark)
+    fillRect(carX-3,carY+6,carX+3,carY+8,0.15,0.15,0.2);
+    // Roof
+    fillRect(carX-2,carY+8,carX+2,carY+9,0.8,0.1,0.05);
+    // Rear lights
+    setP(carX-4,carY+1,1,0.3,0); setP(carX+4,carY+1,1,0.3,0);
+    // Wheels (black)
+    fillRect(carX-6,carY,carX-5,carY+2,0.1,0.1,0.1);
+    fillRect(carX+5,carY,carX+6,carY+2,0.1,0.1,0.1);
+    // Exhaust/shadow
+    fillRect(carX-4,carY-1,carX+4,carY-1,0.1,0.1,0.1);
+
+    // HUD at top
+    // "TIME" in red
+    hLine(2,8,S-3,0.9,0.2,0.1);
+    // Score area
+    hLine(20,40,S-3,1,1,1);
+    // "STAGE 1" at bottom right
+    hLine(S-14,S-4,3,0,0.8,0);
 
   } else if(game.name==='invaders'){
     // Space Invaders
