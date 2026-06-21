@@ -7884,7 +7884,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
       const sx=((i*17+Math.floor(p.scrollX*speed*0.3))%S);
       const sy=hudH+((i*41+7)%(S-hudH-terrainH));
       const br=0.15+((i*3)%4)*0.08;
-      setP(S-1-sx,sy,br,br,br);
+      setP(sx,sy,br,br,br);
     }
 
     // Ground terrain (grey/brown rocky, scrolling)
