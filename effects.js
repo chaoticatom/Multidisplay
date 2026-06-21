@@ -7990,24 +7990,42 @@ function retroDrawFace(faceIdx,dt,buf,S){
 
   } else if(game.name==='wolf3d'){
     const p=game;
-    p.dirA+=dt*0.4;
-    p.posX=4+Math.sin(p.t*0.3)*2;
-    p.posY=4+Math.cos(p.t*0.25)*2;
+    // Predefined corridor walk path — player walks through corridors looking ahead
+    const waypoints=[
+      {x:1.5,y:1.5,a:0},{x:5.5,y:1.5,a:0},{x:5.5,y:1.5,a:-Math.PI/2},
+      {x:5.5,y:5.5,a:-Math.PI/2},{x:5.5,y:5.5,a:Math.PI},
+      {x:1.5,y:5.5,a:Math.PI},{x:1.5,y:5.5,a:Math.PI/2},
+      {x:1.5,y:1.5,a:Math.PI/2}
+    ];
+    const segLen=2.5;
+    const totalT=waypoints.length*segLen;
+    const wt=p.t%totalT;
+    const segIdx=Math.floor(wt/segLen)%waypoints.length;
+    const segFrac=(wt%segLen)/segLen;
+    const w0=waypoints[segIdx], w1=waypoints[(segIdx+1)%waypoints.length];
+    p.posX=w0.x+(w1.x-w0.x)*segFrac;
+    p.posY=w0.y+(w1.y-w0.y)*segFrac;
+    // Smooth angle interpolation
+    let da=w1.a-w0.a;
+    while(da>Math.PI)da-=Math.PI*2; while(da<-Math.PI)da+=Math.PI*2;
+    p.dirA=w0.a+da*segFrac;
     p.fireT-=dt;
     if(p.fireT<-2){ p.fireT=0.3; p.gunFrame=3; }
     if(p.gunFrame>0) p.gunFrame-=dt*8;
 
     const map=[
-      1,1,1,1,1,1,1,1,
-      1,0,0,0,0,0,0,1,
-      1,0,2,0,0,3,0,1,
-      1,0,0,0,0,0,0,1,
-      1,0,0,0,0,0,0,1,
-      1,0,3,0,0,2,0,1,
-      1,0,0,0,0,0,0,1,
-      1,1,1,1,1,1,1,1,
+      1,1,1,1,1,1,1,1,1,1,
+      1,0,0,0,0,0,0,0,0,1,
+      1,0,1,2,1,0,1,2,0,1,
+      1,0,0,0,0,0,0,0,0,1,
+      1,0,1,0,3,3,0,1,0,1,
+      1,0,0,0,0,0,0,0,0,1,
+      1,0,2,1,0,0,1,0,0,1,
+      1,0,0,0,0,0,0,2,0,1,
+      1,0,0,0,0,0,0,0,0,1,
+      1,1,1,1,1,1,1,1,1,1,
     ];
-    const mapW=8;
+    const mapW=10;
     const hudH=6;
 
     // Grey ceiling
@@ -8059,39 +8077,40 @@ function retroDrawFace(faceIdx,dt,buf,S){
       }
     }
 
-    // Blue guard enemy sprite (appears at a distance)
-    const guardAngle=Math.atan2(3.5-p.posY,3.5-p.posX);
-    const guardRelAngle=guardAngle-p.dirA;
-    const normAngle=((guardRelAngle+Math.PI*3)%(Math.PI*2))-Math.PI;
-    if(Math.abs(normAngle)<fov/2){
-      const guardDist=Math.sqrt((3.5-p.posX)**2+(3.5-p.posY)**2);
-      const screenX=Math.floor(S/2+normAngle/(fov/2)*(S/2));
-      const sprH=Math.min(S*0.8,Math.round(S/(guardDist+0.01)));
-      const sprW=Math.floor(sprH*0.4);
-      const sprBot=Math.floor(S/2-sprH/2);
-      const sprTop=sprBot+sprH;
-      const gShade=Math.min(1,1.5/(guardDist+0.5));
-      // Body (blue uniform)
-      for(let dy=Math.floor(sprH*0.2);dy<Math.floor(sprH*0.85);dy++){
-        for(let dx=-Math.floor(sprW/2);dx<=Math.floor(sprW/2);dx++){
-          const gx2=screenX+dx, gy2=sprBot+dy;
-          if(gx2>=0&&gx2<S&&gy2>=0&&gy2<S-hudH) setP(gx2,gy2,0.1*gShade,0.1*gShade,0.6*gShade);
+    // Multiple guard enemies at corridor positions
+    const guards=[{x:5.5,y:3.5},{x:3.5,y:5.5},{x:7.5,y:7.5},{x:1.5,y:3.5}];
+    for(let gi=0;gi<guards.length;gi++){
+      const gp=guards[gi];
+      const guardAngle=Math.atan2(gp.y-p.posY,gp.x-p.posX);
+      const guardRelAngle=guardAngle-p.dirA;
+      const normAngle=((guardRelAngle+Math.PI*3)%(Math.PI*2))-Math.PI;
+      if(Math.abs(normAngle)<fov/2){
+        const guardDist=Math.sqrt((gp.x-p.posX)**2+(gp.y-p.posY)**2);
+        if(guardDist<0.8) continue;
+        const screenX=Math.floor(S/2+normAngle/(fov/2)*(S/2));
+        const sprH=Math.min(S*0.8,Math.round(S/(guardDist+0.01)));
+        const sprW=Math.floor(sprH*0.4);
+        const sprBot=Math.floor(S/2-sprH/2);
+        const gShade=Math.min(1,1.5/(guardDist+0.5));
+        for(let dy=Math.floor(sprH*0.2);dy<Math.floor(sprH*0.85);dy++){
+          for(let dx=-Math.floor(sprW/2);dx<=Math.floor(sprW/2);dx++){
+            const gx2=screenX+dx, gy2=sprBot+dy;
+            if(gx2>=0&&gx2<S&&gy2>=0&&gy2<S-hudH) setP(gx2,gy2,0.1*gShade,0.1*gShade,0.6*gShade);
+          }
         }
-      }
-      // Head (skin tone)
-      const headY=sprBot+Math.floor(sprH*0.85);
-      const headR=Math.max(1,Math.floor(sprW*0.3));
-      for(let dy=-headR;dy<=headR;dy++) for(let dx=-headR;dx<=headR;dx++){
-        if(dx*dx+dy*dy<=headR*headR){
-          const hx=screenX+dx, hy=headY+dy;
-          if(hx>=0&&hx<S&&hy>=0&&hy<S-hudH) setP(hx,hy,0.75*gShade,0.55*gShade,0.35*gShade);
+        const headY=sprBot+Math.floor(sprH*0.85);
+        const headR=Math.max(1,Math.floor(sprW*0.3));
+        for(let dy=-headR;dy<=headR;dy++) for(let dx=-headR;dx<=headR;dx++){
+          if(dx*dx+dy*dy<=headR*headR){
+            const hx=screenX+dx, hy=headY+dy;
+            if(hx>=0&&hx<S&&hy>=0&&hy<S-hudH) setP(hx,hy,0.75*gShade,0.55*gShade,0.35*gShade);
+          }
         }
-      }
-      // Cap (blue)
-      for(let dx=-headR;dx<=headR;dx++){
-        const cx=screenX+dx, cy=headY+headR;
-        if(cx>=0&&cx<S&&cy>=0&&cy<S-hudH) setP(cx,cy,0.05*gShade,0.05*gShade,0.5*gShade);
-        if(cx>=0&&cx<S&&cy+1>=0&&cy+1<S-hudH) setP(cx,cy+1,0.05*gShade,0.05*gShade,0.5*gShade);
+        for(let dx=-headR;dx<=headR;dx++){
+          const cx2=screenX+dx, cy=headY+headR;
+          if(cx2>=0&&cx2<S&&cy>=0&&cy<S-hudH) setP(cx2,cy,0.05*gShade,0.05*gShade,0.5*gShade);
+          if(cx2>=0&&cx2<S&&cy+1>=0&&cy+1<S-hudH) setP(cx2,cy+1,0.05*gShade,0.05*gShade,0.5*gShade);
+        }
       }
     }
 
@@ -8130,24 +8149,42 @@ function retroDrawFace(faceIdx,dt,buf,S){
 
   } else if(game.name==='quake2'){
     const p=game;
-    p.dirA+=dt*0.35;
-    p.posX=5+Math.sin(p.t*0.2)*3;
-    p.posY=5+Math.cos(p.t*0.18)*3;
+    // Walk through corridors looking down them
+    const qWaypoints=[
+      {x:1.5,y:1.5,a:0},{x:5.5,y:1.5,a:0},{x:5.5,y:1.5,a:-Math.PI/2},
+      {x:5.5,y:5.5,a:-Math.PI/2},{x:5.5,y:5.5,a:-Math.PI},
+      {x:1.5,y:5.5,a:-Math.PI},{x:1.5,y:5.5,a:Math.PI/2},
+      {x:1.5,y:8.5,a:Math.PI/2},{x:1.5,y:8.5,a:0},
+      {x:8.5,y:8.5,a:0},{x:8.5,y:8.5,a:Math.PI/2},
+      {x:8.5,y:1.5,a:Math.PI/2},{x:8.5,y:1.5,a:Math.PI},
+      {x:5.5,y:1.5,a:Math.PI}
+    ];
+    const qSegLen=2.2;
+    const qTotalT=qWaypoints.length*qSegLen;
+    const qwt=p.t%qTotalT;
+    const qSegIdx=Math.floor(qwt/qSegLen)%qWaypoints.length;
+    const qSegFrac=(qwt%qSegLen)/qSegLen;
+    const qw0=qWaypoints[qSegIdx], qw1=qWaypoints[(qSegIdx+1)%qWaypoints.length];
+    p.posX=qw0.x+(qw1.x-qw0.x)*qSegFrac;
+    p.posY=qw0.y+(qw1.y-qw0.y)*qSegFrac;
+    let qda=qw1.a-qw0.a;
+    while(qda>Math.PI)qda-=Math.PI*2; while(qda<-Math.PI)qda+=Math.PI*2;
+    p.dirA=qw0.a+qda*qSegFrac;
     p.bobT+=dt*6;
     p.muzzleT-=dt;
     if(p.muzzleT<-1.5){ p.muzzleT=0.15; }
-    const lookUp=Math.sin(p.t*0.4)*8;
+    const lookUp=Math.sin(p.t*0.4)*5;
     const hudH=5;
 
     const map=[
       1,1,1,1,1,1,1,1,1,1,
       1,0,0,0,0,0,0,0,0,1,
-      1,0,2,2,0,0,3,3,0,1,
-      1,0,2,0,0,0,0,3,0,1,
+      1,0,1,1,0,1,0,1,0,1,
+      1,0,0,0,0,1,0,0,0,1,
+      1,1,2,1,0,1,0,1,1,1,
       1,0,0,0,0,0,0,0,0,1,
-      1,0,0,0,0,0,0,0,0,1,
-      1,0,3,0,0,0,0,2,0,1,
-      1,0,3,3,0,0,2,2,0,1,
+      1,0,1,0,1,3,1,0,0,1,
+      1,0,1,0,0,0,0,0,0,1,
       1,0,0,0,0,0,0,0,0,1,
       1,1,1,1,1,1,1,1,1,1,
     ];
@@ -8215,6 +8252,42 @@ function retroDrawFace(faceIdx,dt,buf,S){
           const rlY=Math.floor((doorBot+doorTop)/2);
           if(rlY>=hudH&&rlY<S) { setP(x,rlY,0.5,0.05,0.02); setP(x+1,rlY,0.5,0.05,0.02); }
         }
+      }
+    }
+
+    // Strogg enemies at corridor positions
+    const stroggs=[{x:3.5,y:1.5},{x:5.5,y:3.5},{x:1.5,y:5.5},{x:8.5,y:5.5},{x:3.5,y:8.5}];
+    const fov2=1.1;
+    for(let si=0;si<stroggs.length;si++){
+      const sp=stroggs[si];
+      const eAngle=Math.atan2(sp.y-p.posY,sp.x-p.posX);
+      const eRel=eAngle-p.dirA;
+      const eNorm=((eRel+Math.PI*3)%(Math.PI*2))-Math.PI;
+      if(Math.abs(eNorm)<fov2/2){
+        const eDist=Math.sqrt((sp.x-p.posX)**2+(sp.y-p.posY)**2);
+        if(eDist<0.8) continue;
+        const eScreenX=Math.floor(S/2+eNorm/(fov2/2)*(S/2));
+        const eSprH=Math.min(S*0.7,Math.round(S/(eDist+0.01)));
+        const eSprW=Math.floor(eSprH*0.35);
+        const eSprBot=Math.floor(horizon-eSprH/2);
+        const eShade=Math.min(1,1.4/(eDist+0.5));
+        // Body (brown/olive Strogg armor)
+        for(let dy=Math.floor(eSprH*0.15);dy<Math.floor(eSprH*0.8);dy++){
+          for(let dx=-Math.floor(eSprW/2);dx<=Math.floor(eSprW/2);dx++){
+            const ex=eScreenX+dx, ey=eSprBot+dy;
+            if(ex>=0&&ex<S&&ey>=hudH&&ey<S) setP(ex,ey,0.35*eShade,0.3*eShade,0.15*eShade);
+          }
+        }
+        // Red cybernetic eye
+        const eHeadY=eSprBot+Math.floor(eSprH*0.82);
+        const eHeadR=Math.max(1,Math.floor(eSprW*0.35));
+        for(let dy=-eHeadR;dy<=eHeadR;dy++) for(let dx=-eHeadR;dx<=eHeadR;dx++){
+          if(dx*dx+dy*dy<=eHeadR*eHeadR){
+            const hx=eScreenX+dx, hy=eHeadY+dy;
+            if(hx>=0&&hx<S&&hy>=hudH&&hy<S) setP(hx,hy,0.6*eShade,0.4*eShade,0.25*eShade);
+          }
+        }
+        setP(eScreenX+1,eHeadY,0.9,0.1,0.05);
       }
     }
 
