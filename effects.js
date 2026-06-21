@@ -7415,59 +7415,102 @@ function retroDrawFace(faceIdx,dt,buf,S){
     hLine(S-14,S-4,3,0,0.8,0);
 
   } else if(game.name==='invaders'){
-    // Space Invaders
     const p=game;
-    // Move invaders
-    p.invX+=p.invDir*12*dt;
-    if(p.invX>S-20||p.invX<3){ p.invDir*=-1; p.invY-=2; }
-    if(p.invY<15) p.invY=50;
-    // Draw invaders
+    // Row colors: top=yellow, cyan, green, magenta, bottom=red (like screenshot)
+    const rowCols=[[1,0,0],[0.9,0,0.9],[0,0.9,0],[0,0.9,0.9],[1,1,0]];
+    const hudH=4;
+
+    // Move invaders (side to side, drop down)
+    p.invX+=p.invDir*8*dt;
+    if(p.invX>S-42||p.invX<2){ p.invDir*=-1; p.invY-=1.5; }
+    if(p.invY<hudH+10) p.invY=50;
+
+    // Draw invaders (5 rows x 8 cols, colored per row)
+    const frame=Math.floor(p.t*3)%2;
     for(const inv of p.invAlive){
       if(!inv.alive) continue;
-      const ix=Math.round(p.invX+inv.c*7);
-      const iy=Math.round(p.invY+inv.r*7);
-      if(ix<0||ix>=S||iy<0||iy>=S) continue;
-      // Invader shape (3x3)
-      const frame=Math.floor(p.t*3)%2;
-      setP(ix,iy+2,GRN[0],GRN[1],GRN[2]);
-      setP(ix-1,iy+1,GRN[0],GRN[1],GRN[2]); setP(ix+1,iy+1,GRN[0],GRN[1],GRN[2]);
-      setP(ix,iy+1,GRN[0],GRN[1],GRN[2]);
-      if(frame){ setP(ix-1,iy,GRN[0],GRN[1],GRN[2]); setP(ix+1,iy,GRN[0],GRN[1],GRN[2]); }
-      else { setP(ix-1,iy+3,GRN[0],GRN[1],GRN[2]); setP(ix+1,iy+3,GRN[0],GRN[1],GRN[2]); }
-    }
-    // Player cannon
-    const cannonX=Math.round(32+Math.sin(p.t*1.2)*20);
-    fillRect(cannonX-2,5,cannonX+2,7,CYN[0],CYN[1],CYN[2]);
-    setP(cannonX,8,CYN[0],CYN[1],CYN[2]);
-    // Bullets
-    if(Math.sin(p.t*4)>0.9) p.bullets.push({x:cannonX,y:8});
-    for(let i=p.bullets.length-1;i>=0;i--){
-      p.bullets[i].y+=60*dt;
-      const b=p.bullets[i];
-      if(b.y>S){ p.bullets.splice(i,1); continue; }
-      setP(Math.round(b.x),Math.round(b.y),WHT[0],WHT[1],WHT[2]);
-      setP(Math.round(b.x),Math.round(b.y)+1,WHT[0],WHT[1],WHT[2]);
-      // Hit detection
-      for(const inv of p.invAlive){
-        if(!inv.alive) continue;
-        const ix=p.invX+inv.c*7, iy=p.invY+inv.r*7;
-        if(Math.abs(b.x-ix)<3&&Math.abs(b.y-iy)<3){ inv.alive=false; p.bullets.splice(i,1); break; }
+      const ix=Math.round(p.invX+inv.c*5);
+      const iy=Math.round(p.invY+inv.r*6);
+      if(ix<0||ix>=S||iy<hudH||iy>=S-12) continue;
+      const rc=rowCols[inv.r%5];
+      // Invader body (3x3 with animated legs)
+      setP(ix,iy+2,rc[0],rc[1],rc[2]);
+      setP(ix-1,iy+1,rc[0],rc[1],rc[2]); setP(ix+1,iy+1,rc[0],rc[1],rc[2]);
+      setP(ix,iy+1,rc[0],rc[1],rc[2]);
+      setP(ix-1,iy+2,rc[0]*0.7,rc[1]*0.7,rc[2]*0.7); setP(ix+1,iy+2,rc[0]*0.7,rc[1]*0.7,rc[2]*0.7);
+      // Eyes
+      setP(ix,iy+3,rc[0],rc[1],rc[2]);
+      // Animated arms/legs
+      if(frame){
+        setP(ix-2,iy,rc[0],rc[1],rc[2]); setP(ix+2,iy,rc[0],rc[1],rc[2]);
+      } else {
+        setP(ix-2,iy+2,rc[0],rc[1],rc[2]); setP(ix+2,iy+2,rc[0],rc[1],rc[2]);
       }
     }
+
+    // Player cannon (white, like screenshot)
+    const cannonX=Math.round(32+Math.sin(p.t*1.2)*22);
+    fillRect(cannonX-3,6,cannonX+3,8,1,1,1);
+    fillRect(cannonX-1,8,cannonX+1,9,1,1,1);
+    setP(cannonX,10,1,1,1);
+
+    // Player bullets
+    if(Math.sin(p.t*4)>0.9&&p.bullets.length<3) p.bullets.push({x:cannonX,y:11});
+    for(let i=p.bullets.length-1;i>=0;i--){
+      p.bullets[i].y+=55*dt;
+      const b=p.bullets[i];
+      if(b.y>S){ p.bullets.splice(i,1); continue; }
+      setP(Math.round(b.x),Math.round(b.y),1,1,1);
+      setP(Math.round(b.x),Math.round(b.y)+1,1,1,1);
+      for(const inv of p.invAlive){
+        if(!inv.alive) continue;
+        const ix2=p.invX+inv.c*5, iy2=p.invY+inv.r*6;
+        if(Math.abs(b.x-ix2)<3&&Math.abs(b.y-iy2)<3){ inv.alive=false; p.bullets.splice(i,1); break; }
+      }
+    }
+    if(p.bullets.length>3) p.bullets.length=3;
+
+    // Enemy bombs (dropping down)
+    if(Math.sin(p.t*2.5)>0.85&&p.bombs.length<2){
+      const alive=p.invAlive.filter(i=>i.alive);
+      if(alive.length>0){
+        const shooter=alive[Math.floor(Math.random()*alive.length)];
+        p.bombs.push({x:p.invX+shooter.c*5,y:p.invY+shooter.r*6});
+      }
+    }
+    for(let i=p.bombs.length-1;i>=0;i--){
+      p.bombs[i].y-=30*dt;
+      const b=p.bombs[i];
+      if(b.y<0){ p.bombs.splice(i,1); continue; }
+      setP(Math.round(b.x),Math.round(b.y),1,1,0);
+      setP(Math.round(b.x),Math.round(b.y)-1,1,1,0);
+    }
+    if(p.bombs.length>3) p.bombs.length=3;
+
     // Reset invaders when all dead
     if(p.invAlive.every(i=>!i.alive)){
       for(const i of p.invAlive) i.alive=true;
       p.invY=50; p.invX=5;
     }
-    if(p.bullets.length>8) p.bullets.length=8;
-    // Shields
-    for(let s=0;s<3;s++){
-      fillRect(12+s*18,10,18+s*18,13,GRN[0],GRN[1],GRN[2]);
+
+    // 4 cyan shields/bunkers (like screenshot)
+    const shieldW=8, shieldH=5;
+    for(let s=0;s<4;s++){
+      const sx=4+s*15;
+      fillRect(sx,12,sx+shieldW,12+shieldH,0,0.9,0.9);
+      // Notch at bottom centre
+      fillRect(sx+3,12,sx+5,13,0,0,0);
     }
+
     // Ground line
-    hLine(0,S-1,3,GRN[0],GRN[1],GRN[2]);
-    // Score
-    hLine(2,10,S-2,WHT[0],WHT[1],WHT[2]);
+    hLine(0,S-1,4,0,0.8,0);
+
+    // HUD at top
+    hLine(2,20,S-2,0,0.8,0.8);
+    // Lives (green invader icons)
+    for(let l=0;l<3;l++){
+      setP(28+l*4,S-2,0,0.8,0); setP(28+l*4,S-3,0,0.8,0); setP(27+l*4,S-2,0,0.6,0); setP(29+l*4,S-2,0,0.6,0);
+    }
 
   } else if(game.name==='jsw'){
     const p=game;
