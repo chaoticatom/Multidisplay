@@ -5327,15 +5327,20 @@ function initSimHouse(){
     {name:'Mum',   skin:[1,0.78,0.6],  hair:[0.55,0.3,0.12],shirt:[0.7,0.15,0.4],pants:[0.08,0.08,0.12], h:9},
     {name:'Teen',  skin:[0.92,0.72,0.52],hair:[0.15,0.12,0.08],shirt:[0.1,0.55,0.25],pants:[0.2,0.2,0.25], h:9},
     {name:'Kid',   skin:[1,0.82,0.62], hair:[0.6,0.4,0.12],shirt:[0.9,0.55,0.1],pants:[0.22,0.15,0.3], h:7},
+    {name:'Granny',skin:[0.95,0.72,0.55],hair:[0.7,0.7,0.72],shirt:[0.4,0.2,0.3],pants:[0.15,0.12,0.15], h:8},
+    {name:'Toddler',skin:[1,0.84,0.65],hair:[0.65,0.45,0.15],shirt:[0.8,0.3,0.3],pants:[0.15,0.2,0.3], h:5},
+    {name:'Uncle', skin:[0.85,0.65,0.45],hair:[0.1,0.08,0.06],shirt:[0.3,0.3,0.5],pants:[0.12,0.12,0.15], h:11},
+    {name:'Guest', skin:[0.9,0.7,0.5], hair:[0.4,0.25,0.1],shirt:[0.5,0.4,0.15],pants:[0.1,0.1,0.12], h:9},
   ];
   for(let i=0;i<pDefs.length;i++){
-    const rm=shRooms[i<2?3:9];
+    const rm=shRooms[i%12];
     shPeople.push({
-      ...pDefs[i], x:rm.x1+6+i*4, y:rm.y1+1,
-      targetRoom:i<2?3:9, prevRoom:i<2?3:9,
+      ...pDefs[i], x:rm.x1+6+i*3, y:rm.y1+1,
+      targetRoom:i%12, prevRoom:i%12,
       stateT:0, nextDecisionT:3+Math.random()*8,
       speed:8+Math.random()*5, walking:false,
       animFrame:0, sitting:false, sleeping:false, movePhase:'toRoom',
+      waveT:0, waving:false, waveWindow:-1,
     });
   }
   shBuf=new Uint8Array(W*S*3);
@@ -5423,6 +5428,14 @@ function shUpdatePeople(dt,S,W){
         if(rmName.includes('bedroom')||rmName==='kidsroom') p.sleeping=isNight;
         if(rmName==='living'||rmName==='dining'||rmName==='study') p.sitting=true;
       }
+    }
+
+    // Window waving logic
+    if(p.waving){
+      p.waveT+=dt;
+      if(p.waveT>4){ p.waving=false; p.waveT=0; p.waveWindow=-1; }
+    } else if(!p.walking&&!p.sleeping&&Math.random()<0.0008){
+      p.waving=true; p.waveT=0;
     }
   }
 }
@@ -5698,6 +5711,47 @@ function effectSimHouseShadows(dt){
           }
         }
       }
+    }
+  }
+
+  // Draw waving person — head pokes out above window, arm waves
+  for(const p of shPeople){
+    if(!p.waving) continue;
+    const px=Math.round(p.x), py=Math.round(p.y);
+    const personFloor=py>floor1?1:0;
+    // Find nearest window on same floor
+    let bestW=null, bestDist=999;
+    for(const w of windows){
+      const winFloor=w.y1>floor1?1:0;
+      if(winFloor!==personFloor) continue;
+      const d=Math.abs(px-(w.x1+w.x2)/2);
+      if(d<bestDist){ bestDist=d; bestW=w; }
+    }
+    if(!bestW||bestDist>30) continue;
+    const wcx=Math.floor((bestW.x1+bestW.x2)/2);
+    const wTop=bestW.y2;
+    // Phase: 0-0.5 opening, 0.5-3.5 waving, 3.5-4 closing
+    const phase=p.waveT;
+    if(phase>0.5&&phase<3.5){
+      // Head poking out above window
+      setP(wcx,wTop+2,0.2,0.15,0.1); setP(wcx+1,wTop+2,0.2,0.15,0.1); // head (dark silhouette outside)
+      setP(wcx,wTop+3,0.15,0.1,0.08); setP(wcx+1,wTop+3,0.15,0.1,0.08); // hair
+      // Shoulders
+      setP(wcx-1,wTop+1,0.18,0.13,0.09); setP(wcx+2,wTop+1,0.18,0.13,0.09);
+      // Waving arm (oscillates)
+      const armUp=Math.round(Math.sin(p.waveT*6)*1.5);
+      setP(wcx+3,wTop+2+armUp,0.2,0.15,0.1);
+      setP(wcx+3,wTop+3+armUp,0.18,0.13,0.09);
+      // Open window indicator (brighter gap at top of window)
+      hLine(bestW.x1+1,bestW.x2-1,wTop,0.85,0.88,0.92);
+    } else if(phase<=0.5){
+      // Window opening — slight gap
+      const openAmt=phase/0.5;
+      if(openAmt>0.5) hLine(bestW.x1+1,bestW.x2-1,wTop,0.8,0.82,0.85);
+    } else {
+      // Closing
+      const closeAmt=(phase-3.5)/0.5;
+      if(closeAmt<0.5) hLine(bestW.x1+1,bestW.x2-1,wTop,0.8,0.82,0.85);
     }
   }
 
