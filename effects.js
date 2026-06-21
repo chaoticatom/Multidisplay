@@ -8176,17 +8176,17 @@ function retroDrawFace(faceIdx,dt,buf,S){
       if(((wx)%4)<2) setP(x,h,0.4,0.35,0.25);
     }
 
-    // Turrets on ground (screen-space, scroll left with terrain)
+    // Turrets on ground (anchored, scroll left with terrain)
     p.turretSpawnT-=dt;
     if(p.turretSpawnT<=0&&p.turrets.length<3){
-      p.turrets.push({screenX:S+5, fireT:1.5+Math.random()*2});
-      p.turretSpawnT=4+Math.random()*5;
+      p.turrets.push({spawnX:S+5, spawnScroll:p.scrollX, fireT:3+Math.random()*3});
+      p.turretSpawnT=5+Math.random()*5;
     }
     for(let i=p.turrets.length-1;i>=0;i--){
       const tr=p.turrets[i];
-      tr.screenX-=18*dt;
-      if(tr.screenX<-5){ p.turrets.splice(i,1); continue; }
-      const tsx=Math.round(tr.screenX);
+      const tsx=Math.round(tr.spawnX-(p.scrollX-tr.spawnScroll));
+      if(tsx<-5){ p.turrets.splice(i,1); continue; }
+      if(tsx>S+5) continue;
       const twx=tsx-Math.floor(p.scrollX);
       const th=terrainH+Math.round(Math.sin(twx*0.12)*2+Math.sin(twx*0.25)*1.5);
       // Draw turret (green cannon on ground)
@@ -8198,13 +8198,13 @@ function retroDrawFace(faceIdx,dt,buf,S){
       if(tr.fireT<=0){
         const dx=p.shipX-tsx, dy=p.shipY-(th+4);
         p.tBullets.push({x:tsx,y:th+4,dx:dx,dy:dy});
-        tr.fireT=1.5+Math.random()*2;
+        tr.fireT=3+Math.random()*3;
       }
     }
     // Update turret bullets
     for(let i=p.tBullets.length-1;i>=0;i--){
       const tb=p.tBullets[i];
-      const spd=35*dt;
+      const spd=25*dt;
       const dist=Math.sqrt(tb.dx*tb.dx+tb.dy*tb.dy);
       if(dist>0){ tb.x+=tb.dx/dist*spd; tb.y+=tb.dy/dist*spd; }
       if(tb.x<0||tb.x>=S||tb.y<0||tb.y>=S){ p.tBullets.splice(i,1); continue; }
@@ -8317,24 +8317,24 @@ function retroDrawFace(faceIdx,dt,buf,S){
         setP(ex+1,ey,1,1,0); // head eye
       }
       // Enemy fires bullet toward ship
-      if(!e.fireT) e.fireT=2;
+      if(!e.fireT) e.fireT=4;
       e.fireT-=dt;
       if(e.fireT<=0&&ex>0&&ex<S){
         const dx=p.shipX-ex, dy=p.shipY-ey;
         p.eBullets.push({x:ex,y:ey,dx:dx,dy:dy});
-        e.fireT=2+Math.random()*3;
+        e.fireT=4+Math.random()*4;
       }
     }
     // Enemy bullets
     for(let i=p.eBullets.length-1;i>=0;i--){
       const eb=p.eBullets[i];
       const dist=Math.sqrt(eb.dx*eb.dx+eb.dy*eb.dy);
-      if(dist>0){ eb.x+=eb.dx/dist*40*dt; eb.y+=eb.dy/dist*40*dt; }
+      if(dist>0){ eb.x+=eb.dx/dist*28*dt; eb.y+=eb.dy/dist*28*dt; }
       if(eb.x<0||eb.x>=S||eb.y<0||eb.y>=S){ p.eBullets.splice(i,1); continue; }
       const ebx=Math.round(eb.x),eby=Math.round(eb.y);
       setP(ebx,eby,1,0.3,0.3); setP(ebx,eby-1,0.8,0.1,0.1);
     }
-    if(p.eBullets.length>8) p.eBullets.length=8;
+    if(p.eBullets.length>4) p.eBullets.length=4;
     // Respawn dead enemies
     if(p.enemies.filter(e=>e.alive).length<2){
       for(const e of p.enemies){ e.alive=true; e.x=-Math.random()*20; e.y=terrainH+5+Math.random()*(S-terrainH-hudH-10); e.fireT=2+Math.random()*3; }
@@ -8346,19 +8346,19 @@ function retroDrawFace(faceIdx,dt,buf,S){
       // Enemy touches ship
       for(const e of p.enemies){
         if(!e.alive) continue;
-        if(Math.abs(e.x-p.shipX)<4&&Math.abs(e.y-p.shipY)<4){ hit=true; e.alive=false; break; }
+        if(Math.abs(e.x-p.shipX)<3&&Math.abs(e.y-p.shipY)<3){ hit=true; e.alive=false; break; }
       }
       // Turret or enemy bullet hits ship
       if(!hit){
         for(let i=p.tBullets.length-1;i>=0;i--){
-          if(Math.abs(p.tBullets[i].x-p.shipX)<4&&Math.abs(p.tBullets[i].y-p.shipY)<4){
+          if(Math.abs(p.tBullets[i].x-p.shipX)<3&&Math.abs(p.tBullets[i].y-p.shipY)<3){
             hit=true; p.tBullets.splice(i,1); break;
           }
         }
       }
       if(!hit){
         for(let i=p.eBullets.length-1;i>=0;i--){
-          if(Math.abs(p.eBullets[i].x-p.shipX)<4&&Math.abs(p.eBullets[i].y-p.shipY)<4){
+          if(Math.abs(p.eBullets[i].x-p.shipX)<3&&Math.abs(p.eBullets[i].y-p.shipY)<3){
             hit=true; p.eBullets.splice(i,1); break;
           }
         }
