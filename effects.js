@@ -6469,7 +6469,7 @@ function initRetro(){
     {name:'outrun',t:0,roadOff:0,carX:32,speed:0,trees:[],curves:0},
     {name:'invaders',t:0,invX:5,invY:50,invDir:1,bullets:[],playerX:30,bombs:[],invAlive:[]},
     {name:'jsw',t:0,playerX:10,playerY:10,dir:1,jumpT:0,jumping:false,room:0,roomT:0},
-    {name:'deathchase',t:0,speed:0,treeOff:0,bikeX:32,leanDir:0,enemyX:20,enemyZ:40,hit:false,hitT:0},
+    {name:'deathchase',t:0,speed:0,treeOff:0,bikeX:32,leanDir:0,enemyX:20,enemyZ:40,hit:false,hitT:0,bullets:[],fireT:0},
     {name:'rtype',t:0,shipX:10,shipY:32,bullets:[],enemies:[],chargeT:0,scrollX:0,bossHP:20,bossX:55},
     {name:'wolf3d',t:0,posX:2.5,posY:2.5,dirA:0,gunFrame:0,fireT:0},
     {name:'quake2',t:0,posX:3,posY:3,dirA:0.5,bobT:0,muzzleT:0,enemies:[]},
@@ -6959,7 +6959,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // 3D Deathchase — first-person motorcycle through forest
     const p=game;
     p.speed=0.9+0.1*Math.sin(p.t*0.4);
-    p.treeOff-=p.speed*dt*50;
+    p.treeOff+=p.speed*dt*50;
     p.leanDir=Math.sin(p.t*0.7)*0.8;
     p.bikeX=32+Math.round(p.leanDir*12);
     const H=S/2;
@@ -6981,9 +6981,9 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Horizon line
     hLine(0,S-1,H,0,0.45,0);
 
-    // Trees — come towards bike (small at horizon, grow as they approach)
+    // Trees — travel towards bike (appear small at horizon, grow bigger)
     for(let t=0;t<12;t++){
-      const treeZ=((t*17-p.treeOff*0.3)%80);
+      const treeZ=((t*17+p.treeOff*0.3)%80);
       const tz=treeZ<0?treeZ+80:treeZ;
       if(tz<2) continue;
       const perspective=20/tz;
@@ -6995,7 +6995,6 @@ function retroDrawFace(faceIdx,dt,buf,S){
 
       if(screenX<-5||screenX>S+5) continue;
 
-      // Trunk (brown, grows upward from base)
       for(let ty=0;ty<treeH;ty++){
         const sy=baseY-ty;
         if(sy<0||sy>=S) continue;
@@ -7004,7 +7003,6 @@ function retroDrawFace(faceIdx,dt,buf,S){
           if(sx>=0&&sx<S) setP(sx,sy,0.35,0.15,0);
         }
       }
-      // Canopy (green blob at top of trunk)
       const canopyR=Math.max(2,Math.round(perspective*6));
       const canopyY=baseY-treeH;
       for(let dy=-canopyR;dy<=canopyR;dy++) for(let dx=-canopyR;dx<=canopyR;dx++){
@@ -7015,23 +7013,53 @@ function retroDrawFace(faceIdx,dt,buf,S){
       }
     }
 
-    // Enemy bike (ahead, weaving)
+    // Enemy bike (ahead, weaving) — proper bike shape
     const enemyZ=15+Math.sin(p.t*0.6)*10;
     const ePerspective=20/enemyZ;
     const eScreenX=Math.round(S/2+Math.sin(p.t*1.3)*10*ePerspective);
     const eScreenY=Math.round(H+ePerspective*2);
     const eH=Math.round(ePerspective*12);
     const eW=Math.max(2,Math.round(ePerspective*4));
-    for(let dy=0;dy<eH;dy++){
-      const sy=eScreenY-dy;
+    // Wheels
+    const wheelR=Math.max(1,Math.round(ePerspective*2));
+    fillRect(eScreenX-eW,eScreenY,eScreenX-eW+wheelR,eScreenY+wheelR,0.4,0.4,0.4);
+    fillRect(eScreenX+eW-wheelR,eScreenY,eScreenX+eW,eScreenY+wheelR,0.4,0.4,0.4);
+    // Frame
+    hLine(eScreenX-eW,eScreenX+eW,eScreenY-1,0.5,0.5,0.5);
+    // Rider body (green jacket like original)
+    for(let dy=0;dy<Math.max(2,Math.round(eH*0.5));dy++){
+      const sy=eScreenY-2-dy;
       if(sy<0||sy>=S) continue;
-      const w=dy>eH*0.6?Math.max(1,eW-1):eW;
-      for(let dx=-Math.floor(w/2);dx<=Math.floor(w/2);dx++){
+      const rw=Math.max(1,Math.round(eW*0.6));
+      for(let dx=-rw;dx<=rw;dx++){
         const sx=eScreenX+dx;
-        if(sx>=0&&sx<S) setP(sx,sy,WHT[0]*0.8,WHT[1]*0.8,WHT[2]*0.8);
+        if(sx>=0&&sx<S) setP(sx,sy,0,0.6,0);
       }
     }
-    if(eScreenY>=0&&eScreenY<S) setP(eScreenX,eScreenY,WHT[0],WHT[1],WHT[2]);
+    // Rider head (helmet)
+    const headY=eScreenY-2-Math.round(eH*0.5);
+    if(headY>=0&&headY<S){
+      setP(eScreenX,headY,0.85,0,0);
+      setP(eScreenX,headY-1,0.85,0,0);
+      if(eW>2){ setP(eScreenX-1,headY,0.85,0,0); setP(eScreenX+1,headY,0.85,0,0); }
+    }
+
+    // Fire bullet occasionally from player bike
+    p.fireT-=dt;
+    if(p.fireT<=0){
+      p.fireT=1.5+Math.random()*2;
+      p.bullets.push({x:p.bikeX,y:S-10,alive:true});
+    }
+    // Update and draw bullets
+    for(let i=p.bullets.length-1;i>=0;i--){
+      const b=p.bullets[i];
+      b.y-=60*dt;
+      if(b.y<0){ p.bullets.splice(i,1); continue; }
+      const bx=Math.round(b.x), by=Math.round(b.y);
+      setP(bx,by,1,1,0);
+      setP(bx,by+1,1,0.6,0);
+    }
+    if(p.bullets.length>4) p.bullets.length=4;
 
     // Player bike (bottom centre)
     const bx=p.bikeX;
