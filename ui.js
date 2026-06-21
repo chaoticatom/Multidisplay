@@ -1756,6 +1756,101 @@ document.getElementById('sidebar-open-btn')?.addEventListener('click', () => {
 });
 
 // ═══════════════════════════════════════════════════
+//  PLAYLIST — per-effect option definitions
+// ═══════════════════════════════════════════════════
+const PL_EFFECT_OPTS={
+  fireworks:[
+    {key:'fwMode',label:'Mode',type:'select',options:[['random','Random'],['sync','Sync Show'],['mic','Mic']]},
+    {key:'fwTextOn',label:'Show Text',type:'toggle'},
+    {key:'fwText',label:'Text',type:'text',placeholder:'Enter message…'},
+  ],
+  datetime:[
+    {key:'dtMode',label:'Mode',type:'select',options:[['time','Time'],['date','Date'],['both','Both'],['full','Full'],['analogue','Analogue']]},
+    {key:'dtAllPanels',label:'All Panels',type:'toggle'},
+    {key:'dtScroll',label:'Scroll',type:'toggle'},
+    {key:'dtScrollSpeed',label:'Scroll Speed',type:'range',min:-5,max:5,step:0.5,def:1},
+  ],
+  balls:[
+    {key:'ballMode',label:'Mode',type:'select',options:[['cross','Cross Faces'],['own','Own Face']]},
+    {key:'ballsPerFace',label:'Balls per face',type:'range',min:1,max:8,step:1,def:3},
+  ],
+  strobe:[
+    {key:'strobeSpeed',label:'Speed',type:'range',min:0.5,max:20,step:0.5,def:5},
+  ],
+  spectrum:[
+    {key:'auStyle',label:'Style',type:'select',options:[['bars','Bars'],['waterfall','Waterfall'],['tunnel','Tunnel'],['storm','Storm'],['ring','Ring']]},
+    {key:'auTheme',label:'Theme',type:'range',min:0,max:5,step:1,def:0},
+    {key:'auScrollSpeed',label:'Scroll Speed',type:'range',min:0,max:5,step:0.5,def:2.5},
+  ],
+  tron:[
+    {key:'tronBikeCount',label:'Bikes',type:'range',min:2,max:8,step:1,def:4},
+    {key:'tronStraightness',label:'Straightness',type:'range',min:0,max:1,step:0.05,def:0.72},
+  ],
+  maze:[
+    {key:'mazeRunnerCount',label:'Runners',type:'range',min:1,max:6,step:1,def:3},
+    {key:'mazeBrightWalls',label:'Bright Walls',type:'toggle'},
+  ],
+};
+
+function plCaptureEffectOpts(effectKey){
+  const opts={};
+  const defs=PL_EFFECT_OPTS[effectKey];
+  if(!defs) return opts;
+  for(const d of defs){
+    switch(d.key){
+      case 'fwMode': opts.fwMode=fwMode; break;
+      case 'fwTextOn': opts.fwTextOn=fwTextOn; break;
+      case 'fwText': opts.fwText=document.getElementById('fw-text-input')?.value||''; break;
+      case 'dtMode': opts.dtMode=dtMode; break;
+      case 'dtAllPanels': opts.dtAllPanels=document.getElementById('dt-allpanels-check')?.checked||false; break;
+      case 'dtScroll': opts.dtScroll=document.getElementById('dt-scroll-check')?.checked||false; break;
+      case 'dtScrollSpeed': opts.dtScrollSpeed=parseFloat(document.getElementById('dt-scroll-speed')?.value||'1'); break;
+      case 'ballMode': opts.ballMode=ballCrossFaces?'cross':'own'; break;
+      case 'ballsPerFace': opts.ballsPerFace=ballsPerFace; break;
+      case 'strobeSpeed': opts.strobeSpeed=parseFloat(document.getElementById('strobe-speed')?.value||'5'); break;
+      case 'auStyle': opts.auStyle=auStyle; break;
+      case 'auTheme': opts.auTheme=auTheme; break;
+      case 'auScrollSpeed': opts.auScrollSpeed=auScrollSpeed; break;
+      case 'tronBikeCount': opts.tronBikeCount=tronBikeCount; break;
+      case 'tronStraightness': opts.tronStraightness=tronStraightness; break;
+      case 'mazeRunnerCount': opts.mazeRunnerCount=mazeRunnerCount; break;
+      case 'mazeBrightWalls': opts.mazeBrightWalls=mazeBrightWalls; break;
+    }
+  }
+  return opts;
+}
+
+function plBuildEffectOptsHTML(effectKey, itemOpts, idx){
+  const defs=PL_EFFECT_OPTS[effectKey];
+  if(!defs||defs.length===0) return '';
+  let h='<div style="margin-top:6px;padding:8px;background:rgba(60,100,180,0.08);border:1px solid rgba(80,120,255,0.15);border-radius:5px;">';
+  h+='<div style="font-size:10px;color:rgba(140,180,255,0.7);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">Effect Options</div>';
+  for(const d of defs){
+    const val=itemOpts&&itemOpts[d.key]!==undefined?itemOpts[d.key]:(d.def!==undefined?d.def:'');
+    if(d.type==='select'){
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><span style="font-size:11px;color:#bbc;width:90px;">'+d.label+'</span>';
+      h+='<select class="pl-eff-opt" data-idx="'+idx+'" data-key="'+d.key+'" style="flex:1;padding:4px 6px;background:rgba(0,0,0,0.4);border:1px solid rgba(80,120,255,0.25);color:#9cd;border-radius:4px;font-size:11px;">';
+      for(const [ov,ol] of d.options){
+        h+='<option value="'+ov+'"'+(val===ov?' selected':'')+'>'+ol+'</option>';
+      }
+      h+='</select></div>';
+    } else if(d.type==='toggle'){
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><span style="font-size:11px;color:#bbc;flex:1;">'+d.label+'</span>';
+      h+='<label class="ov-toggle" style="margin-left:0;"><input type="checkbox" class="pl-eff-opt" data-idx="'+idx+'" data-key="'+d.key+'"'+(val?' checked':'')+'><span class="ov-slider"></span></label></div>';
+    } else if(d.type==='range'){
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><span style="font-size:11px;color:#bbc;width:90px;">'+d.label+'</span>';
+      h+='<input type="range" class="pl-eff-opt" data-idx="'+idx+'" data-key="'+d.key+'" min="'+d.min+'" max="'+d.max+'" step="'+d.step+'" value="'+val+'" style="flex:1;">';
+      h+='<span class="pl-eff-val" style="font-size:11px;color:#9cd;width:30px;text-align:center;">'+val+'</span></div>';
+    } else if(d.type==='text'){
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><span style="font-size:11px;color:#bbc;width:90px;">'+d.label+'</span>';
+      h+='<input type="text" class="pl-eff-opt" data-idx="'+idx+'" data-key="'+d.key+'" value="'+(val||'').replace(/"/g,'&quot;')+'" placeholder="'+(d.placeholder||'')+'" style="flex:1;padding:4px 6px;background:rgba(0,0,0,0.4);border:1px solid rgba(80,120,255,0.25);color:#9cd;border-radius:4px;font-size:11px;"></div>';
+    }
+  }
+  h+='</div>';
+  return h;
+}
+
+// ═══════════════════════════════════════════════════
 //  PLAYLIST ENGINE
 // ═══════════════════════════════════════════════════
 const DEMO_PLAYLIST = [
@@ -1794,6 +1889,16 @@ function applyPlaylistItem(item){
   if(item.tronBikeCount   !==undefined){tronBikeCount=item.tronBikeCount;tronTrail=null;}
   if(item.mazeBrightWalls !==undefined) mazeBrightWalls=item.mazeBrightWalls;
   if(item.mazeRunnerCount !==undefined) mazeRunnerCount=item.mazeRunnerCount;
+  if(item.fwMode!==undefined) fwMode=item.fwMode;
+  if(item.fwTextOn!==undefined){ fwTextOn=item.fwTextOn; const el=document.getElementById('fw-text-on'); if(el)el.checked=fwTextOn; }
+  if(item.fwText!==undefined){ const el=document.getElementById('fw-text-input'); if(el){el.value=item.fwText; el.dispatchEvent(new Event('change'));} }
+  if(item.dtMode!==undefined){ dtMode=item.dtMode; }
+  if(item.dtAllPanels!==undefined){ const el=document.getElementById('dt-allpanels-check'); if(el)el.checked=item.dtAllPanels; }
+  if(item.dtScroll!==undefined){ const el=document.getElementById('dt-scroll-check'); if(el)el.checked=item.dtScroll; }
+  if(item.dtScrollSpeed!==undefined){ const el=document.getElementById('dt-scroll-speed'); if(el)el.value=item.dtScrollSpeed; }
+  if(item.ballMode!==undefined){ ballCrossFaces=item.ballMode==='cross'; }
+  if(item.ballsPerFace!==undefined){ ballsPerFace=item.ballsPerFace; }
+  if(item.strobeSpeed!==undefined){ const el=document.getElementById('strobe-speed'); if(el)el.value=item.strobeSpeed; }
   Object.keys(OV).forEach(k=>OV[k].on=false);
   if(item.overlays) Object.entries(item.overlays).forEach(([k,v])=>{if(OV[k])OV[k].on=!!v;});
   overlaysBG=!!item.ovBG; ovBGBuf=null;
@@ -1959,7 +2064,8 @@ function renderPlaylistModal(){
       + '<button class="pl-del" data-idx="' + idx + '" style="padding:4px 9px;background:rgba(200,40,40,0.15);border:1px solid rgba(200,40,40,0.3);color:#f88;border-radius:4px;cursor:pointer;font-weight:600;">✕</button>'
       + '</div></div>'
       + '<div class="pl-ov-panel" data-idx="' + idx + '" style="display:none;background:rgba(80,120,255,0.08);border-top:1px solid rgba(80,120,255,0.2);padding:10px;">'
-      + '<div style="margin-bottom:6px;color:#aac;font-weight:600;font-size:12px;">Overlays:</div>'
+      + plBuildEffectOptsHTML(it.effect, it, idx)
+      + '<div style="margin-bottom:6px;margin-top:8px;color:#aac;font-weight:600;font-size:12px;">Overlays:</div>'
       + rowOvChecks
       + '</div></div>';
   });
@@ -2014,6 +2120,13 @@ function renderPlaylistModal(){
         const chk = document.getElementById('pl-add-ov-'+ok);
         if(chk && chk.checked) newItem.overlays[ok] = true;
       });
+      // Capture effect-specific options from the add panel
+      document.querySelectorAll('.pl-add-eff-opt').forEach(function(el){
+        const key=el.dataset.key;
+        if(el.type==='checkbox') newItem[key]=el.checked;
+        else if(el.type==='range'||el.type==='number') newItem[key]=parseFloat(el.value);
+        else newItem[key]=el.value;
+      });
       playlist.push(newItem);
       updatePlaylistUI();
       renderPlaylistModal();
@@ -2027,7 +2140,36 @@ function renderPlaylistModal(){
       const ovDiv = document.getElementById('pl-add-overlays');
       if(!ovDiv) return;
       if(!this.value){ ovDiv.style.display='none'; return; }
-      let h = '<div style="margin-bottom:8px;color:#aac;font-weight:600;font-size:12px;">Include overlays:</div>';
+      const effKey=this.value;
+      let h = '';
+      // Effect-specific options
+      const defs=PL_EFFECT_OPTS[effKey];
+      if(defs&&defs.length>0){
+        const captured=plCaptureEffectOpts(effKey);
+        h+='<div style="margin-bottom:10px;padding:8px;background:rgba(60,100,180,0.08);border:1px solid rgba(80,120,255,0.15);border-radius:5px;">';
+        h+='<div style="font-size:10px;color:rgba(140,180,255,0.7);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">Effect Options</div>';
+        for(const d of defs){
+          const val=captured[d.key]!==undefined?captured[d.key]:(d.def!==undefined?d.def:'');
+          if(d.type==='select'){
+            h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><span style="font-size:11px;color:#bbc;width:90px;">'+d.label+'</span>';
+            h+='<select class="pl-add-eff-opt" data-key="'+d.key+'" style="flex:1;padding:4px 6px;background:rgba(0,0,0,0.4);border:1px solid rgba(80,120,255,0.25);color:#9cd;border-radius:4px;font-size:11px;">';
+            for(const [ov,ol] of d.options) h+='<option value="'+ov+'"'+(val===ov?' selected':'')+'>'+ol+'</option>';
+            h+='</select></div>';
+          } else if(d.type==='toggle'){
+            h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><span style="font-size:11px;color:#bbc;flex:1;">'+d.label+'</span>';
+            h+='<label class="ov-toggle" style="margin-left:0;"><input type="checkbox" class="pl-add-eff-opt" data-key="'+d.key+'"'+(val?' checked':'')+'><span class="ov-slider"></span></label></div>';
+          } else if(d.type==='range'){
+            h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><span style="font-size:11px;color:#bbc;width:90px;">'+d.label+'</span>';
+            h+='<input type="range" class="pl-add-eff-opt" data-key="'+d.key+'" min="'+d.min+'" max="'+d.max+'" step="'+d.step+'" value="'+val+'" style="flex:1;">';
+            h+='<span style="font-size:11px;color:#9cd;width:30px;text-align:center;">'+val+'</span></div>';
+          } else if(d.type==='text'){
+            h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><span style="font-size:11px;color:#bbc;width:90px;">'+d.label+'</span>';
+            h+='<input type="text" class="pl-add-eff-opt" data-key="'+d.key+'" value="'+(val||'').replace(/"/g,'&quot;')+'" placeholder="'+(d.placeholder||'')+'" style="flex:1;padding:4px 6px;background:rgba(0,0,0,0.4);border:1px solid rgba(80,120,255,0.25);color:#9cd;border-radius:4px;font-size:11px;"></div>';
+          }
+        }
+        h+='</div>';
+      }
+      h+='<div style="margin-bottom:8px;color:#aac;font-weight:600;font-size:12px;">Include overlays:</div>';
       Object.keys(OV_LABELS).forEach(function(k){
         h += '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;color:#bbc;cursor:pointer;font-size:11px;">'
           + '<label class="ov-toggle" style="margin-left:0;"><input type="checkbox" id="pl-add-ov-' + k + '"><span class="ov-slider"></span></label>'
@@ -2117,6 +2259,17 @@ function renderPlaylistModal(){
       if(!playlist[idx].overlays) playlist[idx].overlays = {};
       playlist[idx].overlays[chk.dataset.key] = chk.checked;
     };
+  });
+  modal.querySelectorAll('.pl-eff-opt').forEach(el => {
+    const handler = () => {
+      const idx = parseInt(el.dataset.idx);
+      const key = el.dataset.key;
+      if(el.type==='checkbox') playlist[idx][key]=el.checked;
+      else if(el.type==='range'||el.type==='number'){ playlist[idx][key]=parseFloat(el.value); const valSpan=el.nextElementSibling; if(valSpan&&valSpan.classList.contains('pl-eff-val')) valSpan.textContent=el.value; }
+      else playlist[idx][key]=el.value;
+    };
+    el.onchange = handler;
+    if(el.type==='range') el.oninput = handler;
   });
 }
 

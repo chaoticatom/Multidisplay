@@ -2362,7 +2362,7 @@ function effectSpectrum(dt){
 // ═══════════════════════════════════════════════════
 let mazeOpen=null, mazeVisited=null, mazeRunners=[], mazeBFS=[];
 let mazeState='run', mazeStateT=0, mazeWinner=-1;
-let mazeStartI=-1, mazeEndI=-1, mazeWallIdx=0, mazeRunnerCount=3;
+let mazeStartI=-1, mazeEndI=-1, mazeWallIdx=0, mazeRunnerCount=3, mazeBrightWalls=false;
 const NB6=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
 const MAZE_WALLS=[          // dim wall RGB per swatch
   [0.030,0.120,0.180],      // cyan
@@ -2695,7 +2695,7 @@ function effectMaze(dt){
 // ═══════════════════════════════════════════════════
 const TRON_HUES=[0.57,0.08,0.92,0.33,0.70,0.15,0.50,0.02];
 let tronTrail=null, tronBikes=[], tronExplosions=[], tronState='run', tronStateT=0;
-let tronBikeCount=4, tronWinner=-1, tronSpeedMult=1, tronGridTheme=0, tronBorderWalls=false;
+let tronBikeCount=4, tronWinner=-1, tronSpeedMult=1, tronGridTheme=0, tronBorderWalls=false, tronStraightness=0.72;
 let tronVisited=null; // reusable buffer — allocated once per initTron
 let tronBFSQueue=null;
 let tronDeaths=null; // death count per bike (index matches bike slot)
