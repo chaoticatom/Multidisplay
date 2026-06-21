@@ -6489,6 +6489,66 @@ function initRetro(){
   retroInit=true;
 }
 
+function retroDrawTitle(buf,S,name){
+  const setP=(x,y,r,g,b)=>{
+    if(x<0||x>=S||y<0||y>=S) return;
+    const i=(y*S+x)*3; buf[i]=r; buf[i+1]=g; buf[i+2]=b;
+  };
+  const fillRect=(x1,y1,x2,y2,r,g,b)=>{
+    for(let y=Math.max(0,y1);y<=Math.min(S-1,y2);y++) for(let x=Math.max(0,x1);x<=Math.min(S-1,x2);x++) setP(x,y,r,g,b);
+  };
+  const hLine=(x1,x2,y,r,g,b)=>{ for(let x=Math.max(0,x1);x<=Math.min(S-1,x2);x++) setP(x,y,r,g,b); };
+  // Black bg
+  for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,0,0,0);
+  // Game-specific title colours and layout
+  const titles={
+    jetpac:{col:[1,1,0],bg:[0,0,0.3]},
+    manic:{col:[1,1,0],bg:[0,0,0]},
+    outrun:{col:[1,0.4,0],bg:[0,0,0.15]},
+    invaders:{col:[0,1,0],bg:[0,0,0]},
+    jsw:{col:[1,0,1],bg:[0,0,0]},
+    deathchase:{col:[1,1,1],bg:[0,0.1,0]},
+    rtype:{col:[0,0.8,1],bg:[0.1,0,0.1]},
+    wolf3d:{col:[1,0,0],bg:[0.1,0.1,0.1]},
+    quake2:{col:[1,0.5,0],bg:[0.05,0.02,0]},
+  };
+  const t=titles[name]||{col:[1,1,1],bg:[0,0,0]};
+  // Fill background
+  for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,t.bg[0],t.bg[1],t.bg[2]);
+  // Border
+  hLine(0,S-1,S-1,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5);
+  hLine(0,S-1,0,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5);
+  for(let y=0;y<S;y++){ setP(0,y,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5); setP(S-1,y,t.col[0]*0.5,t.col[1]*0.5,t.col[2]*0.5); }
+  // Large centred title block (5px tall pixel font)
+  const labels={jetpac:'JET PAC',manic:'MANIC MINER',outrun:'OUTRUN',invaders:'INVADERS',
+    jsw:'JET SET WILLY',deathchase:'DEATHCHASE',rtype:'R-TYPE',wolf3d:'WOLFENSTEIN',quake2:'QUAKE II'};
+  const label=labels[name]||name.toUpperCase();
+  // Simple pixel text: each char is 3px wide, draw centred
+  const charW=4, textW=label.length*charW;
+  const startX=Math.floor((S-textW)/2);
+  const textY=Math.floor(S/2);
+  for(let i=0;i<label.length;i++){
+    const ch=label[i];
+    if(ch===' ') continue;
+    const cx=startX+i*charW;
+    // Block letter (3x5)
+    fillRect(cx,textY-2,cx+2,textY+2,t.col[0],t.col[1],t.col[2]);
+    // Cut out middle for readability (crude char shapes)
+    const code=ch.charCodeAt(0);
+    if(ch==='A'||ch==='O'||ch==='Q'||ch==='D'||ch==='P'||ch==='R'||ch==='B') setP(cx+1,textY,t.bg[0],t.bg[1],t.bg[2]);
+    if(ch==='E'||ch==='F'||ch==='C'||ch==='L') setP(cx+2,textY-1,t.bg[0],t.bg[1],t.bg[2]);
+    if(ch==='I'){ setP(cx,textY-1,t.bg[0],t.bg[1],t.bg[2]); setP(cx+2,textY-1,t.bg[0],t.bg[1],t.bg[2]); setP(cx,textY+1,t.bg[0],t.bg[1],t.bg[2]); setP(cx+2,textY+1,t.bg[0],t.bg[1],t.bg[2]); }
+    if(ch==='U'||ch==='V') setP(cx+1,textY+2,t.bg[0],t.bg[1],t.bg[2]);
+  }
+  // Subtitle line
+  const subY=textY-6;
+  hLine(startX,startX+textW-1,subY,t.col[0]*0.4,t.col[1]*0.4,t.col[2]*0.4);
+  // Flashing "PRESS START" bar
+  const flashY=textY+8;
+  const flashOn=Math.sin(retroT*6)>0;
+  if(flashOn) hLine(Math.floor(S*0.2),Math.floor(S*0.8),flashY,t.col[0]*0.6,t.col[1]*0.6,t.col[2]*0.6);
+}
+
 function retroDrawFace(faceIdx,dt,buf,S){
   const setP=(x,y,r,g,b)=>{
     if(x<0||x>=S||y<0||y>=S) return;
@@ -6500,8 +6560,16 @@ function retroDrawFace(faceIdx,dt,buf,S){
   };
   const hLine=(x1,x2,y,r,g,b)=>{ for(let x=Math.max(0,x1);x<=Math.min(S-1,x2);x++) setP(x,y,r,g,b); };
 
-  const game=retroGames[faceIdx%4];
+  const numGames=retroGames.length;
+  const game=retroGames[faceIdx%numGames];
   game.t+=dt;
+
+  // Show title screen for first 1.5 seconds of each rotation cycle
+  const cycleT=game.t%retroRotateInterval;
+  if(cycleT<1.5){
+    retroDrawTitle(buf,S,game.name);
+    return;
+  }
 
   // ZX Spectrum colours (bright)
   const BLK=[0,0,0],BLU=[0,0,0.85],RED=[0.85,0,0],MAG=[0.85,0,0.85];
