@@ -7466,36 +7466,88 @@ function retroDrawFace(faceIdx,dt,buf,S){
       }
     }
 
-    // Player cannon — dodges nearest falling bomb
-    let targetX=32+Math.sin(p.t*1.2)*22;
-    let nearestBomb=null, nearestDist=999;
-    for(const bm of p.bombs){
-      if(bm.y<15){
-        const dist=bm.y;
-        if(dist<nearestDist){ nearestDist=dist; nearestBomb=bm; }
+    // Player cannon — targets lowest alive invader to eliminate
+    if(!p.explodeT) p.explodeT=0;
+    if(!p.respawnT) p.respawnT=0;
+    if(p.explodeT>0){
+      // Explosion animation
+      p.explodeT-=dt;
+      const ex=Math.round(p.playerX), ey=8;
+      const eRad=Math.round((0.5-p.explodeT)*12);
+      for(let dy=-eRad;dy<=eRad;dy++) for(let dx=-eRad;dx<=eRad;dx++){
+        if(dx*dx+dy*dy<=eRad*eRad){
+          const px2=ex+dx, py2=ey+dy;
+          if(px2>=0&&px2<S&&py2>=0&&py2<S){
+            const flicker=Math.random();
+            setP(px2,py2,1,flicker*0.7,0);
+          }
+        }
+      }
+      if(p.explodeT<=0) p.respawnT=1.0;
+    } else if(p.respawnT>0){
+      p.respawnT-=dt;
+      // Flashing respawn
+      if(Math.floor(p.respawnT*8)%2){
+        const cannonX=Math.round(p.playerX);
+        fillRect(cannonX-3,6,cannonX+3,8,0.5,0.5,0.5);
+        fillRect(cannonX-1,8,cannonX+1,9,0.5,0.5,0.5);
+        setP(cannonX,10,0.5,0.5,0.5);
+      }
+    } else {
+      // Find lowest alive invader to aim at
+      let targetInv=null, lowestY=999;
+      for(const inv of p.invAlive){
+        if(!inv.alive) continue;
+        const iy=p.invY+inv.r*6;
+        if(iy<lowestY){ lowestY=iy; targetInv=inv; }
+      }
+      let targetX=targetInv?p.invX+targetInv.c*5:32;
+      // Dodge incoming bombs if one is very close
+      for(const bm of p.bombs){
+        if(bm.y<14&&Math.abs(bm.x-p.playerX)<6){
+          targetX=bm.x<p.playerX?p.playerX+10:p.playerX-10;
+          break;
+        }
+      }
+      const cannonSpeed=24*dt;
+      const cannonDx=targetX-p.playerX;
+      p.playerX+=Math.sign(cannonDx)*Math.min(Math.abs(cannonDx),cannonSpeed);
+      p.playerX=Math.max(4,Math.min(S-5,p.playerX));
+      const cannonX=Math.round(p.playerX);
+      fillRect(cannonX-3,6,cannonX+3,8,1,1,1);
+      fillRect(cannonX-1,8,cannonX+1,9,1,1,1);
+      setP(cannonX,10,1,1,1);
+
+      // Fire when lined up with a target
+      if(targetInv&&Math.abs(p.playerX-(p.invX+targetInv.c*5))<2&&p.bullets.length<3){
+        p.bullets.push({x:cannonX,y:11});
+      } else if(Math.sin(p.t*4)>0.95&&p.bullets.length<3){
+        p.bullets.push({x:cannonX,y:11});
       }
     }
-    if(nearestBomb&&nearestDist<12){
-      const dodgeDir=nearestBomb.x<targetX?8:-8;
-      if(Math.abs(nearestBomb.x-targetX)<6) targetX+=dodgeDir;
-    }
-    const cannonSpeed=24*dt;
-    const cannonDx=targetX-p.playerX;
-    p.playerX+=Math.sign(cannonDx)*Math.min(Math.abs(cannonDx),cannonSpeed);
-    p.playerX=Math.max(4,Math.min(S-5,p.playerX));
-    const cannonX=Math.round(p.playerX);
-    fillRect(cannonX-3,6,cannonX+3,8,1,1,1);
-    fillRect(cannonX-1,8,cannonX+1,9,1,1,1);
-    setP(cannonX,10,1,1,1);
 
     // Player bullets
-    if(Math.sin(p.t*4)>0.9&&p.bullets.length<3) p.bullets.push({x:cannonX,y:11});
     for(let i=p.bullets.length-1;i>=0;i--){
       p.bullets[i].y+=55*dt;
       const pb=p.bullets[i];
       if(pb.y>S){ p.bullets.splice(i,1); continue; }
-      setP(Math.round(pb.x),Math.round(pb.y),1,1,1);
-      setP(Math.round(pb.x),Math.round(pb.y)+1,1,1,1);
+      const pbx=Math.round(pb.x), pby=Math.round(pb.y);
+      setP(pbx,pby,1,1,1);
+      setP(pbx,pby+1,1,1,1);
+      // Bullet hits shield — creates small hole and continues or stops
+      let hitShield=false;
+      for(let s=0;s<4;s++){
+        const sx=4+s*15;
+        if(pbx>=sx&&pbx<=sx+8&&pby>=12&&pby<=17){
+          if(!p.shieldDmg.has(pbx+','+pby)){
+            p.shieldDmg.add(pbx+','+pby);
+            p.shieldDmg.add((pbx-1)+','+pby);
+            p.shieldDmg.add((pbx+1)+','+pby);
+            p.bullets.splice(i,1); hitShield=true; break;
+          }
+        }
+      }
+      if(hitShield) continue;
       for(const inv of p.invAlive){
         if(!inv.alive) continue;
         const ix2=p.invX+inv.c*5, iy2=p.invY+inv.r*6;
@@ -7518,13 +7570,17 @@ function retroDrawFace(faceIdx,dt,buf,S){
       if(bm.y<0){ p.bombs.splice(i,1); continue; }
       const bx=Math.round(bm.x), by=Math.round(bm.y);
       setP(bx,by,1,1,0); setP(bx,by-1,1,0.8,0);
-      // Check bomb hits shield
+      // Bomb hits shield
       for(let s=0;s<4;s++){
         const sx=4+s*15;
         if(bx>=sx&&bx<=sx+8&&by>=12&&by<=17){
           p.shieldDmg.add(bx+','+by); p.shieldDmg.add(bx+','+(by+1)); p.shieldDmg.add((bx-1)+','+by); p.shieldDmg.add((bx+1)+','+by);
           p.bombs.splice(i,1); break;
         }
+      }
+      if(bm.y>=6&&bm.y<=10&&Math.abs(bm.x-p.playerX)<4&&p.explodeT<=0&&p.respawnT<=0){
+        p.explodeT=0.5;
+        p.bombs.splice(i,1);
       }
     }
     if(p.bombs.length>4) p.bombs.length=4;
