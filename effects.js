@@ -6458,6 +6458,7 @@ function effectSimHouse(dt){
 // ═══════════════════════════════════════════════════
 let retroT=0, retroGames=[], retroInit=false, retroFaceBuf=null;
 let retroSelectedGame=-1, retroRotateInterval=8; // -1 = auto rotate
+let retroLastGameIdx=-1, retroSplashT=0;
 
 function initRetro(){
   retroGames=[
@@ -6636,9 +6637,8 @@ function retroDrawFace(faceIdx,dt,buf,S){
   const game=retroGames[faceIdx%numGames];
   game.t+=dt;
 
-  // Show title screen for first 1.5 seconds of each rotation cycle
-  const cycleT=game.t%retroRotateInterval;
-  if(cycleT<1.5){
+  // Show title screen for 2 seconds when game changes
+  if(retroSplashT>0){
     retroDrawTitle(buf,S,game.name);
     return;
   }
@@ -7378,15 +7378,23 @@ function effectRetro(dt){
   if(!retroInit) initRetro();
   if(dt>0.1) dt=0.016;
   retroT+=dt;
+  retroSplashT=Math.max(0,retroSplashT-dt);
   const S=SIZE;
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
   const faceBuf=retroFaceBuf;
 
   const numGames=retroGames.length;
+  // Detect game change and trigger splash
+  const currentIdx=retroSelectedGame>=0?retroSelectedGame:Math.floor(retroT/retroRotateInterval)%numGames;
+  if(currentIdx!==retroLastGameIdx){
+    retroLastGameIdx=currentIdx;
+    retroSplashT=2.0;
+  }
+
   if(panel2dMode){
     // 2D: show selected game or auto-rotate
-    const gameIdx=retroSelectedGame>=0?retroSelectedGame:Math.floor(retroT/retroRotateInterval)%numGames;
+    const gameIdx=currentIdx;
     faceBuf.fill(0);
     retroDrawFace(gameIdx,dt,faceBuf,S);
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
@@ -7396,7 +7404,7 @@ function effectRetro(dt){
     }
   } else {
     // 3D: show selected game on all faces, or rotate different games
-    const baseIdx=retroSelectedGame>=0?retroSelectedGame:Math.floor(retroT/retroRotateInterval)%numGames;
+    const baseIdx=currentIdx;
     const singleGame=retroSelectedGame>=0;
     faceBuf.fill(0);
     retroDrawFace(baseIdx,dt,faceBuf,S);
