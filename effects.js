@@ -8267,127 +8267,107 @@ function retroDrawFace(faceIdx,dt,buf,S){
     p.dealT+=dt;
     const handT=p.t%8;
     const seed=Math.floor(p.t/8);
-    const hudH=12;
+    const hudH=14;
+    const redBarY=hudH+14;
+    const cardArea=20;
 
-    // Light green background (like screenshot)
-    for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,0,0.55,0);
-
-    // Large dithered female figure on left (black & white, like ZX Spectrum photo)
-    const figW=15, figH=S-hudH;
-    for(let fy=0;fy<figH;fy++){
-      for(let fx=0;fx<figW;fx++){
-        const ny=fy/figH, nx=fx/figW;
-        // Head area (top ~25%)
-        if(ny>0.72){
-          const headCx=0.5, headCy=0.85;
-          const dr=Math.sqrt((nx-headCx)**2+(ny-headCy)**2);
-          if(dr<0.18){
-            const shade=0.6+0.3*Math.sin(nx*12)*Math.cos(ny*12);
-            const dither=((fx+fy)%2===0)?shade:shade*0.7;
-            setP(fx,hudH+fy,dither,dither,dither);
-          }
+    // Dithered B&W photo background filling whole upper area (ZX Spectrum style)
+    for(let y=redBarY+2;y<S;y++){
+      for(let x=0;x<S;x++){
+        const ny=(y-redBarY)/(S-redBarY), nx=x/S;
+        let shade=0.7;
+        // Dark hair flowing down from top, wavy
+        const hairL=0.15+0.05*Math.sin(ny*20+3);
+        const hairR=0.85-0.05*Math.sin(ny*18+1);
+        const hairTop=0.5;
+        if(ny>hairTop&&(nx<hairL+0.15||nx>hairR-0.15)){
+          shade=0.25+0.1*Math.sin(nx*30+ny*20);
         }
-        // Hair (around head, flowing down)
-        if(ny>0.65&&ny<0.95){
-          const hairEdge=0.12+0.06*Math.sin(ny*15);
-          if((nx<0.3+hairEdge||nx>0.7-hairEdge)&&nx>0.1&&nx<0.9){
-            const dy=Math.abs(ny-0.8);
-            if(dy<0.15){
-              const shade=0.5+0.2*Math.sin(fx*5+fy*3);
-              const dither=((fx+fy)%2===0)?shade:shade*0.6;
-              setP(fx,hudH+fy,dither,dither*0.9,dither*0.6);
-            }
-          }
+        // Head/face (oval in upper centre)
+        const headCx=0.5, headCy=0.78;
+        const hdx=(nx-headCx)/0.18, hdy=(ny-headCy)/0.14;
+        const headD=hdx*hdx+hdy*hdy;
+        if(headD<1){
+          shade=0.65+0.15*Math.sin(nx*25)*Math.cos(ny*30);
+          // Eyes
+          if(ny>0.74&&ny<0.8&&((nx>0.4&&nx<0.46)||(nx>0.54&&nx<0.6))) shade=0.15;
+          // Mouth
+          if(ny>0.68&&ny<0.71&&nx>0.44&&nx<0.56) shade=0.35;
         }
-        // Body (middle ~40%)
-        if(ny>0.25&&ny<0.72){
-          const bodyW=0.3+0.1*Math.sin(ny*6);
+        // Hair over head top
+        if(ny>0.82&&hdx*hdx<1.2&&hdy>0.6) shade=0.2+0.08*Math.sin(nx*25);
+        // Shoulders/body (lower part)
+        if(ny>0.1&&ny<hairTop){
+          const bodyW=0.32+0.05*Math.sin(ny*8);
           if(nx>0.5-bodyW&&nx<0.5+bodyW){
-            const shade=0.55+0.25*Math.sin(nx*10+ny*8);
-            const dither=((fx+fy)%2===0)?shade:shade*0.5;
-            setP(fx,hudH+fy,dither,dither,dither);
+            shade=0.6+0.15*Math.sin(nx*20+ny*15);
           }
         }
-        // Legs (bottom ~25%)
-        if(ny>0.05&&ny<0.25){
-          if((nx>0.25&&nx<0.45)||(nx>0.55&&nx<0.75)){
-            const shade=0.5+0.2*Math.sin(nx*14+ny*10);
-            const dither=((fx+fy)%2===0)?shade:shade*0.5;
-            setP(fx,hudH+fy,dither,dither,dither);
-          }
-        }
+        // Dither pattern (ZX Spectrum stipple)
+        const dither=((x+y)%2===0)?shade:shade*0.65;
+        if(dither>0.05) setP(x,y,dither,dither,dither);
       }
     }
 
-    // 4 playing cards in centre-right area
-    const cardW=8, cardH=20;
-    const cardStartX=18;
-    const cardY=hudH+6;
-    for(let c=0;c<4;c++){
-      const dealDelay=c*0.4;
+    // 3 face-down cards in centre (red backs with ornate pattern)
+    const cardW=12, cardH=cardArea-2;
+    const gap=2;
+    const totalW=cardW*3+gap*2;
+    const cardStartX=Math.floor((S-totalW)/2);
+    const cardY=redBarY+3;
+    for(let c=0;c<3;c++){
+      const dealDelay=c*0.3;
       if(handT<dealDelay) continue;
-      const cx=cardStartX+c*10;
-      // White card
-      fillRect(cx,cardY,cx+cardW,cardY+cardH,1,1,1);
-      // Black border
-      for(let bx=cx;bx<=cx+cardW;bx++){ setP(bx,cardY,0,0,0); setP(bx,cardY+cardH,0,0,0); }
-      for(let by=cardY;by<=cardY+cardH;by++){ setP(cx,by,0,0,0); setP(cx+cardW,by,0,0,0); }
-
-      const vi=(seed*4+c*3+7)%13;
-      const si=(seed+c)%4;
-      const isRed=si<2;
-      const cr2=isRed?0.9:0, cg2=0, cb2=isRed?0:0;
-
-      // Large number in upper portion of card
-      const numX=cx+2, numY=cardY+cardH-4;
-      // Draw digit (simplified 3x5 bitmap)
-      const digit=vi+1;
-      const digitStr=digit>9?(digit===10?'T':digit===11?'J':digit===12?'Q':'K'):digit===1?'A':String(digit);
-      // Simple number: 2 pixels wide, 3 tall
-      fillRect(numX,numY-2,numX+2,numY,cr2,cg2,cb2);
-      if(digit<=9&&digit>1) setP(numX+1,numY-1,1,1,1); // gap for readability
-      if(digit===1){ setP(numX+1,numY,cr2,cg2,cb2); setP(numX+1,numY-1,cr2,cg2,cb2); setP(numX+1,numY-2,cr2,cg2,cb2); } // Ace
-
-      // Large suit symbol in middle of card
-      const scx=cx+4, scy=cardY+9;
-      if(si===0){ // Heart
-        setP(scx-1,scy+1,0.9,0,0); setP(scx+1,scy+1,0.9,0,0);
-        setP(scx-1,scy,0.9,0,0); setP(scx,scy,0.9,0,0); setP(scx+1,scy,0.9,0,0);
-        setP(scx,scy-1,0.9,0,0);
-        setP(scx-2,scy+1,0.8,0,0); setP(scx+2,scy+1,0.8,0,0);
-      } else if(si===1){ // Diamond
-        setP(scx,scy+1,0.9,0,0); setP(scx,scy-1,0.9,0,0);
-        setP(scx-1,scy,0.9,0,0); setP(scx+1,scy,0.9,0,0);
-        setP(scx,scy,0.9,0,0);
-      } else if(si===2){ // Club
-        setP(scx,scy+1,0,0,0); setP(scx-1,scy,0,0,0); setP(scx+1,scy,0,0,0);
-        setP(scx,scy,0,0,0); setP(scx,scy-1,0,0,0);
-        setP(scx-1,scy+1,0,0,0); setP(scx+1,scy+1,0,0,0);
-      } else { // Spade
-        setP(scx,scy+1,0,0,0); setP(scx-1,scy,0,0,0); setP(scx+1,scy,0,0,0);
-        setP(scx,scy,0,0,0); setP(scx,scy-1,0,0,0);
-        setP(scx-2,scy,0,0,0); setP(scx+2,scy,0,0,0);
+      const cx2=cardStartX+c*(cardW+gap);
+      // White border
+      fillRect(cx2-1,cardY-1,cx2+cardW+1,cardY+cardH+1,0.85,0.85,0.85);
+      // Red card back
+      fillRect(cx2,cardY,cx2+cardW,cardY+cardH,0.75,0,0);
+      // Ornate pattern on card back (diamond/oval design)
+      const ccx=cx2+Math.floor(cardW/2), ccy=cardY+Math.floor(cardH/2);
+      for(let dy2=-Math.floor(cardH/2)+2;dy2<=Math.floor(cardH/2)-2;dy2++){
+        for(let dx2=-Math.floor(cardW/2)+2;dx2<=Math.floor(cardW/2)-2;dx2++){
+          const nd=Math.abs(dx2)/(cardW/2-2)+Math.abs(dy2)/(cardH/2-2);
+          if(nd>0.4&&nd<0.55){
+            setP(ccx+dx2,ccy+dy2,0.9,0.2,0.2);
+          }
+          if(nd<0.25){
+            setP(ccx+dx2,ccy+dy2,0.6,0,0.4);
+          }
+        }
       }
+      // Centre dot
+      setP(ccx,ccy,0.9,0,0.6);
     }
 
-    // HUD at bottom (black bars with green/cyan text like screenshot)
-    for(let y=0;y<hudH;y++) for(let x=0;x<S;x++) setP(x,y,0,0,0);
-    // Top HUD row: "£20  YOUR BETS  SAMANTHA'S  PIN-UP POKER"
-    hLine(2,10,hudH-2,0,0.8,0); // £20
-    hLine(14,28,hudH-2,0,0.8,0); // YOUR BETS
-    hLine(32,S-4,hudH-2,0,0.8,0); // SAMANTHA'S
-    // Middle HUD row
-    hLine(2,10,hudH-4,0,0.7,0.7);
-    hLine(32,S-4,hudH-4,0,0.7,0.7);
-    // Bottom: "YOU WIN WITH YOUR PAIR" — flashing
-    if(handT>2){
-      const flash=Math.floor(p.t*3)%2;
-      if(flash){
-        hLine(4,S-5,2,1,1,0);
-        hLine(4,S-5,1,1,0.8,0);
-      }
+    // Red bar with text "LET'S PLAY THE NEXT HAND"
+    for(let x=0;x<S;x++) for(let ry=redBarY;ry<redBarY+2;ry++) setP(x,ry,0.8,0,0);
+    // Pink/magenta text on red bar
+    for(let tx=3;tx<S-3;tx+=2) setP(tx,redBarY+1,0.9,0.3,0.5);
+
+    // Green HUD at bottom
+    for(let y=0;y<hudH;y++) for(let x=0;x<S;x++) setP(x,y,0,0.7,0);
+    // Top row labels: MARIO / YOU / HORTONS
+    hLine(2,10,hudH-2,0,0,0); // MARIO
+    hLine(22,30,hudH-2,0,0,0); // YOU
+    hLine(44,58,hudH-2,0,0,0); // HORTONS
+    // Scores row
+    hLine(3,9,hudH-4,0,0,0); // 100
+    hLine(23,29,hudH-4,0,0,0); // 110
+    // Bottom row: CALL / 0 / FOLD
+    hLine(2,8,hudH-7,0.6,0,0); // CALL (magenta)
+    hLine(12,14,hudH-7,0,0,0); // 0
+    hLine(22,30,hudH-7,0.6,0,0); // FOLD (magenta)
+    // Right side: CHRISTMAS CARDS with stars
+    const flash=Math.floor(p.t*3)%2;
+    if(flash){
+      hLine(42,58,hudH-5,0.6,0,0.6); // CHRISTMAS
+      hLine(44,56,hudH-7,0.6,0,0.6); // CARDS
+      // Stars
+      setP(41,hudH-5,0.9,0,0.9); setP(59,hudH-5,0.9,0,0.9);
+      setP(42,hudH-7,0.9,0,0.9); setP(58,hudH-7,0.9,0,0.9);
     }
-    // Separator line
+    // Separator line at top of HUD
     hLine(0,S-1,hudH-1,0,0.4,0);
   }
 }
