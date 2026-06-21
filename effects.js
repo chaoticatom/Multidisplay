@@ -7479,7 +7479,9 @@ function retroDrawFace(faceIdx,dt,buf,S){
       const dodgeDir=nearestBomb.x<targetX?8:-8;
       if(Math.abs(nearestBomb.x-targetX)<6) targetX+=dodgeDir;
     }
-    p.playerX+=(targetX-p.playerX)*dt*5;
+    const cannonSpeed=24*dt;
+    const cannonDx=targetX-p.playerX;
+    p.playerX+=Math.sign(cannonDx)*Math.min(Math.abs(cannonDx),cannonSpeed);
     p.playerX=Math.max(4,Math.min(S-5,p.playerX));
     const cannonX=Math.round(p.playerX);
     fillRect(cannonX-3,6,cannonX+3,8,1,1,1);
@@ -7909,7 +7911,9 @@ function retroDrawFace(faceIdx,dt,buf,S){
       }
       p.dodgeTimer=0.6+Math.random()*0.8;
     }
-    p.shipY+=(p.dodgeTarget-p.shipY)*dt*4;
+    const shipSpeed=28*dt;
+    const shipDy=p.dodgeTarget-p.shipY;
+    p.shipY+=Math.sign(shipDy)*Math.min(Math.abs(shipDy),shipSpeed);
     p.shipY=Math.max(14,Math.min(S-10,p.shipY));
     if(!p.shipXTarget) p.shipXTarget=S-10;
     if(!p.shipXTimer) p.shipXTimer=0;
@@ -7919,7 +7923,9 @@ function retroDrawFace(faceIdx,dt,buf,S){
       else p.shipXTarget=S-10+Math.random()*4;
       p.shipXTimer=1.5+Math.random()*2.5;
     }
-    p.shipX+=(p.shipXTarget-p.shipX)*dt*3;
+    const shipXSpeed=20*dt;
+    const shipDx=p.shipXTarget-p.shipX;
+    p.shipX+=Math.sign(shipDx)*Math.min(Math.abs(shipDx),shipXSpeed);
     const terrainH=10;
     const hudH=6;
 
