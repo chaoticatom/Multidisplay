@@ -7493,7 +7493,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
           const ox=5+li*14;
           for(let row=0;row<5;row++) for(let col=0;col<5;col++){
             if(glyph[row][col]){
-              const px=S-1-(ox+col*2), py=S-1-(34+row*2);
+              const px=S-1-(ox+col*2), py=S-1-(22+row*2);
               setP(px,py,1,0,0); setP(px-1,py,1,0,0);
               setP(px,py-1,1,0,0); setP(px-1,py-1,1,0,0);
             }
@@ -7504,7 +7504,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
           const ox=5+li*14;
           for(let row=0;row<5;row++) for(let col=0;col<5;col++){
             if(glyph[row][col]){
-              const px=S-1-(ox+col*2), py=S-1-(22+row*2);
+              const px=S-1-(ox+col*2), py=S-1-(34+row*2);
               setP(px,py,1,0,0); setP(px-1,py,1,0,0);
               setP(px,py-1,1,0,0); setP(px-1,py-1,1,0,0);
             }
@@ -8091,13 +8091,13 @@ function retroDrawFace(faceIdx,dt,buf,S){
         for(let li=0;li<4;li++){
           const glyph=row1[li]; const ox=5+li*14;
           for(let row=0;row<5;row++) for(let col=0;col<5;col++){
-            if(glyph[row][col]){ const px=S-1-(ox+col*2),py=S-1-(34+row*2); setP(px,py,1,0,0);setP(px-1,py,1,0,0);setP(px,py-1,1,0,0);setP(px-1,py-1,1,0,0); }
+            if(glyph[row][col]){ const px=S-1-(ox+col*2),py=S-1-(22+row*2); setP(px,py,1,0,0);setP(px-1,py,1,0,0);setP(px,py-1,1,0,0);setP(px-1,py-1,1,0,0); }
           }
         }
         for(let li=0;li<4;li++){
           const glyph=row2[li]; const ox=5+li*14;
           for(let row=0;row<5;row++) for(let col=0;col<5;col++){
-            if(glyph[row][col]){ const px=S-1-(ox+col*2),py=S-1-(22+row*2); setP(px,py,1,0,0);setP(px-1,py,1,0,0);setP(px,py-1,1,0,0);setP(px-1,py-1,1,0,0); }
+            if(glyph[row][col]){ const px=S-1-(ox+col*2),py=S-1-(34+row*2); setP(px,py,1,0,0);setP(px-1,py,1,0,0);setP(px,py-1,1,0,0);setP(px-1,py-1,1,0,0); }
           }
         }
       }
