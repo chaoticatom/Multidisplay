@@ -6488,7 +6488,7 @@ function initRetro(){
     {name:'jetpac',t:0,playerX:10,playerY:20,jetY:0,fuel:[],aliens:[],rocketParts:0,phase:'build',partX:50,partY:55,carryPart:false,laserT:0,laserDir:1,phaseT:0,launchT:0},
     {name:'manic',t:0,playerX:5,playerY:5,dir:1,jumpT:0,jumping:false,platforms:[],items:[],enemyX:[]},
     {name:'outrun',t:0,roadOff:0,carX:32,speed:0,trees:[],curves:0},
-    {name:'invaders',t:0,invX:5,invY:50,invDir:1,bullets:[],playerX:30,bombs:[],invAlive:[],shieldDmg:new Set()},
+    {name:'invaders',t:0,invX:5,invY:32,invDir:1,bullets:[],playerX:30,bombs:[],invAlive:[],shieldDmg:new Set()},
     {name:'jsw',t:0,playerX:10,playerY:10,dir:1,jumpT:0,jumping:false,room:0,roomT:0},
     {name:'deathchase',t:0,speed:0,treeOff:0,bikeX:32,leanDir:0,enemyX:20,enemyZ:40,hit:false,hitT:0,bullets:[],fireT:0},
     {name:'rtype',t:0,shipX:10,shipY:32,bullets:[],enemies:[],chargeT:0,scrollX:0,bossHP:20,bossX:55},
@@ -7431,7 +7431,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Move invaders
     p.invX+=p.invDir*8*dt;
     if(p.invX>S-42||p.invX<2){ p.invDir*=-1; p.invY-=1.5; }
-    if(p.invY<hudH+10){ p.invY=50; p.shieldDmg=new Set(); }
+    if(p.invY<hudH+10){ p.invY=32; p.shieldDmg=new Set(); }
 
     // Draw invaders with distinct shapes per row type
     const frame=Math.floor(p.t*3)%2;
@@ -7530,7 +7530,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Reset invaders when all dead
     if(p.invAlive.every(i=>!i.alive)){
       for(const i of p.invAlive) i.alive=true;
-      p.invY=50; p.invX=5; p.shieldDmg=new Set();
+      p.invY=32; p.invX=5; p.shieldDmg=new Set();
     }
 
     // 4 cyan shields with damage holes
