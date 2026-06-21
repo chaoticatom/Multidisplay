@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=278">
+<link rel="stylesheet" href="style.css?v=279">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -297,19 +297,6 @@
       </div>
     </div>
 
-    </div>
-    </div>
-    <div class="sub-section collapsed">
-    <button class="sub-head">Special <span class="chev">▾</span></button>
-    <div class="sub-body">
-    <button class="effect-btn has-panel" data-effect="simhouse">◈ Sim House <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-simhouse">
-      <div class="ov-row-label">Mode</div>
-      <div class="opt-grid">
-        <button class="strobe-mode-btn active" data-shmode="normal">Normal</button>
-        <button class="strobe-mode-btn" data-shmode="shadows">Shadows</button>
-      </div>
-    </div>
     <button class="effect-btn has-panel" data-effect="retro">◈ Retro <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-retro" style="overflow:visible;">
       <div class="ov-row-label">Game</div>
@@ -342,6 +329,19 @@
       <div class="ov-row-label" style="margin-top:8px;">Rotate: <span id="retro-rotate-val">8</span>s</div>
       <input type="range" id="retro-rotate-slider" min="3" max="120" value="8" style="width:100%;cursor:pointer;">
       <button id="retro-show-btn" style="margin-top:8px;width:100%;padding:8px;background:rgba(80,200,120,0.25);border:1px solid rgba(80,200,120,0.5);border-radius:6px;color:#9fd;font-size:13px;cursor:pointer;">▶ Show</button>
+    </div>
+    </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head">Special <span class="chev">▾</span></button>
+    <div class="sub-body">
+    <button class="effect-btn has-panel" data-effect="simhouse">◈ Sim House <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-simhouse">
+      <div class="ov-row-label">Mode</div>
+      <div class="opt-grid">
+        <button class="strobe-mode-btn active" data-shmode="normal">Normal</button>
+        <button class="strobe-mode-btn" data-shmode="shadows">Shadows</button>
+      </div>
     </div>
     <button class="effect-btn" data-effect="lightning">◈ Lightning Storm</button>
     <button class="effect-btn" data-effect="warp">◈ Warp Drive</button>
@@ -937,7 +937,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=278"></script>
+<script src="version.js?v=279"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -972,7 +972,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=278','effects.js?v=278','f1.js?v=278','ui.js?v=278'];
+  const appScripts = ['cube.js?v=279','effects.js?v=279','f1.js?v=279','ui.js?v=279'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
