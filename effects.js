@@ -7101,38 +7101,82 @@ function retroDrawFace(faceIdx,dt,buf,S){
       setP(px-2,py+2,1,flameFlicker?0.5:0.2,0);
       setP(px-2,py+1,1,flameFlicker?0.8:0.4,0);
     }
-    // Laser beam (horizontal, firing direction)
+    // Init alien state
+    if(!p.aliens){
+      p.aliens=[];
+      for(let a=0;a<4;a++) p.aliens.push({alive:true,explodeT:0,respawnT:0});
+    }
+
+    // Laser beam (horizontal, firing direction) — check alien hits
     p.laserT+=dt;
-    if(Math.sin(p.t*4)>0.3){
+    const firingLaser=Math.sin(p.t*4)>0.3;
+    const alienColors=[[1,0,0],[0,0.9,0],[0,0.9,0.9],[0.9,0,0.9]];
+    // Compute alien positions first
+    const alienPos=[];
+    for(let a=0;a<4;a++){
+      const ax=(Math.round(p.t*12*(a%2?1:-1)+a*17))%S;
+      const aax=ax<0?ax+S:ax;
+      const ay=15+a*10+Math.round(Math.sin(p.t*1.8+a*1.5)*5);
+      alienPos.push({x:aax,y:ay});
+    }
+
+    if(firingLaser){
+      let laserHitX=S;
       for(let lx=1;lx<20;lx++){
         const beamX=px+lx*p.laserDir;
-        if(beamX<0||beamX>=S) break;
+        if(beamX<0||beamX>=S){ laserHitX=lx; break; }
+        // Check if laser hits an alive alien
+        let hitAlien=false;
+        for(let a=0;a<4;a++){
+          if(!p.aliens[a].alive) continue;
+          const ap=alienPos[a];
+          if(Math.abs(beamX-ap.x)<3&&Math.abs(py+4-ap.y)<3){
+            p.aliens[a].alive=false;
+            p.aliens[a].explodeT=0.4;
+            p.aliens[a].respawnT=2+Math.random()*2;
+            hitAlien=true; laserHitX=lx; break;
+          }
+        }
+        if(hitAlien) break;
         setP(beamX,py+4,1,1,1);
       }
     }
 
-    // Aliens (colorful blobs like original — round, fuzzy)
-    const alienColors=[[1,0,0],[0,0.9,0],[0,0.9,0.9],[0.9,0,0.9]];
+    // Draw aliens or explosions
     for(let a=0;a<4;a++){
+      const al=p.aliens[a];
       const ac=alienColors[a%4];
-      const ax=(Math.round(p.t*12*(a%2?1:-1)+a*17))%S;
-      const aax=ax<0?ax+S:ax;
-      const ay=15+a*10+Math.round(Math.sin(p.t*1.8+a*1.5)*5);
-      // Blob body (round, 5x5)
-      for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
-        if(dx*dx+dy*dy<=5){
-          const sx=aax+dx, sy=ay+dy;
-          if(sx>=0&&sx<S&&sy>=0&&sy<S){
-            const bright=0.7+0.3*Math.sin(p.t*5+a+dy*0.5);
-            setP(sx,sy,ac[0]*bright,ac[1]*bright,ac[2]*bright);
+      const ap=alienPos[a];
+      if(al.explodeT>0){
+        // Explosion
+        al.explodeT-=dt;
+        const eRad=Math.round((0.4-al.explodeT)*10);
+        for(let dy=-eRad;dy<=eRad;dy++) for(let dx=-eRad;dx<=eRad;dx++){
+          if(dx*dx+dy*dy<=eRad*eRad){
+            const ex=ap.x+dx, ey=ap.y+dy;
+            if(ex>=0&&ex<S&&ey>=0&&ey<S) setP(ex,ey,1,Math.random()*0.7,0);
           }
         }
-      }
-      // Tentacles/legs at bottom (wobbly)
-      for(let leg=0;leg<3;leg++){
-        const lx=aax-1+leg+Math.round(Math.sin(p.t*8+a+leg)*0.8);
-        const ly=ay-3;
-        if(lx>=0&&lx<S&&ly>=0&&ly<S) setP(lx,ly,ac[0]*0.6,ac[1]*0.6,ac[2]*0.6);
+      } else if(!al.alive){
+        al.respawnT-=dt;
+        if(al.respawnT<=0) al.alive=true;
+      } else {
+        // Blob body (round, 5x5)
+        for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
+          if(dx*dx+dy*dy<=5){
+            const sx=ap.x+dx, sy=ap.y+dy;
+            if(sx>=0&&sx<S&&sy>=0&&sy<S){
+              const bright=0.7+0.3*Math.sin(p.t*5+a+dy*0.5);
+              setP(sx,sy,ac[0]*bright,ac[1]*bright,ac[2]*bright);
+            }
+          }
+        }
+        // Tentacles
+        for(let leg=0;leg<3;leg++){
+          const lx=ap.x-1+leg+Math.round(Math.sin(p.t*8+a+leg)*0.8);
+          const ly=ap.y-3;
+          if(lx>=0&&lx<S&&ly>=0&&ly<S) setP(lx,ly,ac[0]*0.6,ac[1]*0.6,ac[2]*0.6);
+        }
       }
     }
 
