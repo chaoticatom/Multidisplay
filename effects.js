@@ -7513,6 +7513,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Player cannon — targets lowest alive invader to eliminate
     if(!p.explodeT) p.explodeT=0;
     if(!p.respawnT) p.respawnT=0;
+    if(p.lives===undefined) p.lives=3;
     if(p.explodeT>0){
       // Explosion animation
       p.explodeT-=dt;
@@ -7546,12 +7547,20 @@ function retroDrawFace(faceIdx,dt,buf,S){
         if(iy<lowestY){ lowestY=iy; targetInv=inv; }
       }
       let targetX=targetInv?p.invX+targetInv.c*5:32;
-      // Dodge incoming bombs if one is very close
+      // Dodge incoming bombs — scan all, pick most urgent
+      let dodging=false;
+      let urgentBomb=null, urgentScore=999;
       for(const bm of p.bombs){
-        if(bm.y<14&&Math.abs(bm.x-p.playerX)<6){
-          targetX=bm.x<p.playerX?p.playerX+10:p.playerX-10;
-          break;
+        if(bm.y<20&&Math.abs(bm.x-p.playerX)<8){
+          const score=bm.y+Math.abs(bm.x-p.playerX)*0.5;
+          if(score<urgentScore){ urgentScore=score; urgentBomb=bm; }
         }
+      }
+      if(urgentBomb){
+        dodging=true;
+        const dodgeDist=12;
+        if(urgentBomb.x<=p.playerX) targetX=Math.min(S-5,urgentBomb.x+dodgeDist);
+        else targetX=Math.max(4,urgentBomb.x-dodgeDist);
       }
       const cannonSpeed=24*dt;
       const cannonDx=targetX-p.playerX;
@@ -7568,10 +7577,10 @@ function retroDrawFace(faceIdx,dt,buf,S){
       if(p.fireCD<=0&&p.bullets.length<2){
         if(targetInv&&Math.abs(p.playerX-(p.invX+targetInv.c*5))<2){
           p.bullets.push({x:cannonX,y:11});
-          p.fireCD=0.6;
+          p.fireCD=0.4;
         } else if(Math.sin(p.t*3)>0.97){
           p.bullets.push({x:cannonX,y:11});
-          p.fireCD=0.8;
+          p.fireCD=0.5;
         }
       }
     }
@@ -7630,6 +7639,11 @@ function retroDrawFace(faceIdx,dt,buf,S){
       }
       if(bm.y>=6&&bm.y<=10&&Math.abs(bm.x-p.playerX)<4&&p.explodeT<=0&&p.respawnT<=0){
         p.explodeT=0.5;
+        p.lives--;
+        if(p.lives<=0){
+          for(const inv of p.invAlive) inv.alive=true;
+          p.invY=32; p.invX=5; p.shieldDmg=new Set(); p.lives=3;
+        }
         p.bombs.splice(i,1);
       }
     }
@@ -7656,7 +7670,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
 
     // HUD at top
     hLine(2,20,S-2,0,0.8,0.8);
-    for(let l=0;l<3;l++){
+    for(let l=0;l<p.lives;l++){
       setP(28+l*4,S-2,0,0.8,0); setP(28+l*4,S-3,0,0.8,0); setP(27+l*4,S-2,0,0.6,0); setP(29+l*4,S-2,0,0.6,0);
     }
 
