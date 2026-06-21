@@ -7003,10 +7003,10 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // 3D Deathchase — first-person motorcycle through forest
     const p=game;
     p.speed=0.9+0.1*Math.sin(p.t*0.4);
-    p.treeOff+=p.speed*dt*50;
+    p.treeOff-=p.speed*dt*50;
     p.leanDir=Math.sin(p.t*0.7)*0.8;
     p.bikeX=32+Math.round(p.leanDir*12);
-    const H=S/2; // horizon at mid screen
+    const H=S/2;
 
     // Blue sky (top half, y=0..H-1)
     for(let y=0;y<H;y++){
@@ -7025,11 +7025,12 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Horizon line
     hLine(0,S-1,H,0,0.45,0);
 
-    // Trees (3D perspective, trunks grow upward from ground)
+    // Trees — come towards bike (small at horizon, grow as they approach)
     for(let t=0;t<12;t++){
-      const treeZ=((t*17+p.treeOff*0.3)%80)-5;
-      if(treeZ<2) continue;
-      const perspective=20/treeZ;
+      const treeZ=((t*17-p.treeOff*0.3)%80);
+      const tz=treeZ<0?treeZ+80:treeZ;
+      if(tz<2) continue;
+      const perspective=20/tz;
       const treeBaseX=(t%2===0?-1:1)*(15+((t*7)%20));
       const screenX=Math.round(S/2+treeBaseX*perspective-p.leanDir*perspective*8);
       const baseY=Math.round(H+perspective*2);
@@ -7065,7 +7066,6 @@ function retroDrawFace(faceIdx,dt,buf,S){
     const eScreenY=Math.round(H+ePerspective*2);
     const eH=Math.round(ePerspective*12);
     const eW=Math.max(2,Math.round(ePerspective*4));
-    // Enemy rider silhouette (grows upward from base)
     for(let dy=0;dy<eH;dy++){
       const sy=eScreenY-dy;
       if(sy<0||sy>=S) continue;
@@ -7080,13 +7080,10 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Player bike (bottom centre)
     const bx=p.bikeX;
     const by=S-6;
-    // Handlebars
     hLine(bx-5,bx+5,by,WHT[0],WHT[1],WHT[2]);
     hLine(bx-5,bx+5,by+1,WHT[0]*0.6,WHT[1]*0.6,WHT[2]*0.6);
-    // Forks
     setP(bx-4,by-1,WHT[0]*0.7,WHT[1]*0.7,WHT[2]*0.7); setP(bx+4,by-1,WHT[0]*0.7,WHT[1]*0.7,WHT[2]*0.7);
     setP(bx-3,by-2,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5); setP(bx+3,by-2,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
-    // Front wheel
     fillRect(bx-2,by-4,bx+2,by-2,WHT[0]*0.4,WHT[1]*0.4,WHT[2]*0.4);
     setP(bx,by-3,WHT[0],WHT[1],WHT[2]);
     // Crosshair at horizon
@@ -7099,9 +7096,19 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // HUD at very bottom
     hLine(0,S-1,S-1,0,0,0);
     hLine(0,S-1,S-2,0,0,0);
-    // Speed bar (green)
     const speedBar=Math.round(p.speed*20);
     hLine(2,2+speedBar,S-1,GRN[0],GRN[1],GRN[2]);
+
+    // Rotate 180 degrees
+    for(let y=0;y<Math.floor(S/2);y++){
+      const y2=S-1-y;
+      for(let x=0;x<S;x++){
+        const i1=(y*S+x)*3, i2=(y2*S+(S-1-x))*3;
+        const tr=buf[i1],tg=buf[i1+1],tb=buf[i1+2];
+        buf[i1]=buf[i2]; buf[i1+1]=buf[i2+1]; buf[i1+2]=buf[i2+2];
+        buf[i2]=tr; buf[i2+1]=tg; buf[i2+2]=tb;
+      }
+    }
 
   } else if(game.name==='rtype'){
     // R-Type — horizontal scrolling shooter
