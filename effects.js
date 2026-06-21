@@ -8176,16 +8176,16 @@ function retroDrawFace(faceIdx,dt,buf,S){
       if(((wx)%4)<2) setP(x,h,0.4,0.35,0.25);
     }
 
-    // Turrets on ground (spawn right, scroll left at ground speed)
+    // Turrets on ground (scroll right-to-left on display = increase in buffer)
     p.turretSpawnT-=dt;
     if(p.turretSpawnT<=0&&p.turrets.length<2){
-      p.turrets.push({sx:S+5, fireT:5+Math.random()*4});
+      p.turrets.push({sx:-5, fireT:5+Math.random()*4});
       p.turretSpawnT=8+Math.random()*6;
     }
     for(let i=p.turrets.length-1;i>=0;i--){
       const tr=p.turrets[i];
-      tr.sx-=18*dt;
-      if(tr.sx<-5){ p.turrets.splice(i,1); continue; }
+      tr.sx+=18*dt;
+      if(tr.sx>S+5){ p.turrets.splice(i,1); continue; }
       const tsx=Math.round(tr.sx);
       const twx=tsx-Math.floor(p.scrollX);
       const th=terrainH+Math.round(Math.sin(twx*0.12)*2+Math.sin(twx*0.25)*1.5);
@@ -8256,6 +8256,13 @@ function retroDrawFace(faceIdx,dt,buf,S){
       for(const e of p.enemies){
         if(!e.alive) continue;
         if(e.x<sx-7&&e.x>sx-7-beamLen&&Math.abs(e.y-sy)<3) e.alive=false;
+      }
+      // Beam destroys enemy/turret bullets
+      for(let j=p.eBullets.length-1;j>=0;j--){
+        if(p.eBullets[j].x<sx-7&&p.eBullets[j].x>sx-7-beamLen&&Math.abs(p.eBullets[j].y-sy)<2) p.eBullets.splice(j,1);
+      }
+      for(let j=p.tBullets.length-1;j>=0;j--){
+        if(p.tBullets[j].x<sx-7&&p.tBullets[j].x>sx-7-beamLen&&Math.abs(p.tBullets[j].y-sy)<2) p.tBullets.splice(j,1);
       }
     }
     // Fire beam periodically
