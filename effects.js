@@ -7472,8 +7472,10 @@ function retroDrawFace(faceIdx,dt,buf,S){
     const rowCols=[[1,0,0],[0.9,0,0.9],[0,0.9,0],[0,0.9,0.9],[1,1,0]];
     const hudH=4;
 
-    // Move invaders
-    p.invX+=p.invDir*8*dt;
+    // Move invaders (faster each wave)
+    if(p.wave===undefined) p.wave=0;
+    const invSpeed=8+p.wave*3;
+    p.invX+=p.invDir*invSpeed*dt;
     if(p.invX>S-42||p.invX<2){ p.invDir*=-1; p.invY-=1.5; }
     if(p.invY<hudH+10){ p.invY=32; p.shieldDmg=new Set(); }
 
@@ -7642,17 +7644,18 @@ function retroDrawFace(faceIdx,dt,buf,S){
         p.lives--;
         if(p.lives<=0){
           for(const inv of p.invAlive) inv.alive=true;
-          p.invY=32; p.invX=5; p.shieldDmg=new Set(); p.lives=3;
+          p.invY=32; p.invX=5; p.shieldDmg=new Set(); p.lives=3; p.wave=0;
         }
         p.bombs.splice(i,1);
       }
     }
     if(p.bombs.length>4) p.bombs.length=4;
 
-    // Reset invaders when all dead
+    // Reset invaders when all dead — next wave faster
     if(p.invAlive.every(i=>!i.alive)){
       for(const i of p.invAlive) i.alive=true;
       p.invY=32; p.invX=5; p.shieldDmg=new Set();
+      p.wave++;
     }
 
     // 4 cyan shields with damage holes
