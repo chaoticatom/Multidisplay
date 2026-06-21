@@ -6964,52 +6964,54 @@ function retroDrawFace(faceIdx,dt,buf,S){
     p.treeOff+=p.speed*dt*50;
     p.leanDir=Math.sin(p.t*0.7)*0.8;
     p.bikeX=32+Math.round(p.leanDir*12);
+    const H=S/2; // horizon at mid screen
 
-    // Sky (black, night mode feel)
-    for(let y=S/2;y<S;y++) for(let x=0;x<S;x++) setP(x,y,0,0,0.01);
+    // Blue sky (top half, y=0..H-1)
+    for(let y=0;y<H;y++){
+      const t=y/H;
+      for(let x=0;x<S;x++) setP(x,y,0.1*t,0.3*t,0.85-0.3*t);
+    }
 
-    // Ground (green, scrolling texture)
-    for(let y=0;y<S/2;y++){
-      const depth=1-(y/(S/2));
+    // Green ground (bottom half, y=H..S-1)
+    for(let y=H;y<S;y++){
+      const depth=(y-H)/(S-H);
       const scrollLine=Math.floor(p.treeOff+y*3)%8;
-      for(let x=0;x<S;x++){
-        const g=depth>0.1?(scrollLine<4?0.25:0.18):0.1;
-        setP(x,y,0,g,0);
-      }
+      const g=depth>0.1?(scrollLine<4?0.35:0.25):0.15;
+      for(let x=0;x<S;x++) setP(x,y,0,g,0);
     }
 
     // Horizon line
-    hLine(0,S-1,S/2,0,0.35,0);
+    hLine(0,S-1,H,0,0.45,0);
 
-    // Trees (3D perspective, black trunks with green tops)
+    // Trees (3D perspective, trunks grow upward from ground)
     for(let t=0;t<12;t++){
       const treeZ=((t*17+p.treeOff*0.3)%80)-5;
       if(treeZ<2) continue;
       const perspective=20/treeZ;
       const treeBaseX=(t%2===0?-1:1)*(15+((t*7)%20));
       const screenX=Math.round(S/2+treeBaseX*perspective-p.leanDir*perspective*8);
-      const screenY=Math.round(S/2-perspective*2);
+      const baseY=Math.round(H+perspective*2);
       const treeH=Math.round(perspective*25);
       const trunkW=Math.max(1,Math.round(perspective*3));
 
       if(screenX<-5||screenX>S+5) continue;
 
-      // Trunk (dark)
+      // Trunk (brown, grows upward from base)
       for(let ty=0;ty<treeH;ty++){
-        const sy=screenY-ty;
+        const sy=baseY-ty;
         if(sy<0||sy>=S) continue;
         for(let tw=0;tw<trunkW;tw++){
           const sx=screenX-Math.floor(trunkW/2)+tw;
-          if(sx>=0&&sx<S) setP(sx,sy,0.15,0.08,0);
+          if(sx>=0&&sx<S) setP(sx,sy,0.35,0.15,0);
         }
       }
-      // Canopy (green blob)
+      // Canopy (green blob at top of trunk)
       const canopyR=Math.max(2,Math.round(perspective*6));
-      const canopyY=screenY-treeH;
+      const canopyY=baseY-treeH;
       for(let dy=-canopyR;dy<=canopyR;dy++) for(let dx=-canopyR;dx<=canopyR;dx++){
         if(dx*dx+dy*dy<=canopyR*canopyR){
           const sx=screenX+dx, sy=canopyY+dy;
-          if(sx>=0&&sx<S&&sy>=0&&sy<S) setP(sx,sy,0,0.5+dy*0.03,0);
+          if(sx>=0&&sx<S&&sy>=0&&sy<S) setP(sx,sy,0,0.5-dy*0.03,0);
         }
       }
     }
@@ -7018,10 +7020,10 @@ function retroDrawFace(faceIdx,dt,buf,S){
     const enemyZ=15+Math.sin(p.t*0.6)*10;
     const ePerspective=20/enemyZ;
     const eScreenX=Math.round(S/2+Math.sin(p.t*1.3)*10*ePerspective);
-    const eScreenY=Math.round(S/2-ePerspective*2);
+    const eScreenY=Math.round(H+ePerspective*2);
     const eH=Math.round(ePerspective*12);
     const eW=Math.max(2,Math.round(ePerspective*4));
-    // Enemy rider silhouette
+    // Enemy rider silhouette (grows upward from base)
     for(let dy=0;dy<eH;dy++){
       const sy=eScreenY-dy;
       if(sy<0||sy>=S) continue;
@@ -7031,30 +7033,33 @@ function retroDrawFace(faceIdx,dt,buf,S){
         if(sx>=0&&sx<S) setP(sx,sy,WHT[0]*0.8,WHT[1]*0.8,WHT[2]*0.8);
       }
     }
-    // Enemy wheel
     if(eScreenY>=0&&eScreenY<S) setP(eScreenX,eScreenY,WHT[0],WHT[1],WHT[2]);
 
-    // Player bike (bottom centre, handlebars visible)
+    // Player bike (bottom centre)
     const bx=p.bikeX;
+    const by=S-6;
     // Handlebars
-    hLine(bx-5,bx+5,6,WHT[0],WHT[1],WHT[2]);
-    hLine(bx-5,bx+5,5,WHT[0]*0.6,WHT[1]*0.6,WHT[2]*0.6);
+    hLine(bx-5,bx+5,by,WHT[0],WHT[1],WHT[2]);
+    hLine(bx-5,bx+5,by+1,WHT[0]*0.6,WHT[1]*0.6,WHT[2]*0.6);
     // Forks
-    setP(bx-4,7,WHT[0]*0.7,WHT[1]*0.7,WHT[2]*0.7); setP(bx+4,7,WHT[0]*0.7,WHT[1]*0.7,WHT[2]*0.7);
-    setP(bx-3,8,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5); setP(bx+3,8,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
+    setP(bx-4,by-1,WHT[0]*0.7,WHT[1]*0.7,WHT[2]*0.7); setP(bx+4,by-1,WHT[0]*0.7,WHT[1]*0.7,WHT[2]*0.7);
+    setP(bx-3,by-2,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5); setP(bx+3,by-2,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
     // Front wheel
-    fillRect(bx-2,9,bx+2,11,WHT[0]*0.4,WHT[1]*0.4,WHT[2]*0.4);
-    setP(bx,10,WHT[0],WHT[1],WHT[2]);
-    // Crosshair
-    setP(bx,S/2,WHT[0],WHT[1],WHT[2]);
-    setP(bx-1,S/2,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
-    setP(bx+1,S/2,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
-    setP(bx,S/2-1,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
-    setP(bx,S/2+1,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
+    fillRect(bx-2,by-4,bx+2,by-2,WHT[0]*0.4,WHT[1]*0.4,WHT[2]*0.4);
+    setP(bx,by-3,WHT[0],WHT[1],WHT[2]);
+    // Crosshair at horizon
+    setP(bx,H,WHT[0],WHT[1],WHT[2]);
+    setP(bx-1,H,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
+    setP(bx+1,H,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
+    setP(bx,H-1,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
+    setP(bx,H+1,WHT[0]*0.5,WHT[1]*0.5,WHT[2]*0.5);
 
-    // Score/speed at top
+    // HUD at very bottom
+    hLine(0,S-1,S-1,0,0,0);
+    hLine(0,S-1,S-2,0,0,0);
+    // Speed bar (green)
     const speedBar=Math.round(p.speed*20);
-    hLine(2,2+speedBar,S-2,GRN[0],GRN[1],GRN[2]);
+    hLine(2,2+speedBar,S-1,GRN[0],GRN[1],GRN[2]);
 
   } else if(game.name==='rtype'){
     // R-Type — horizontal scrolling shooter
