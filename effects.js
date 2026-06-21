@@ -6453,6 +6453,316 @@ function effectSimHouse(dt){
 }
 
 // ═══════════════════════════════════════════════════
+//  RETRO — ZX Spectrum style game demos
+//  Each face shows a different classic game simulation
+// ═══════════════════════════════════════════════════
+let retroT=0, retroGames=[], retroInit=false;
+
+function initRetro(){
+  retroGames=[
+    {name:'jetpac',t:0,playerX:10,playerY:20,jetY:0,fuel:[],aliens:[],rocketParts:0,phase:'build'},
+    {name:'manic',t:0,playerX:5,playerY:5,dir:1,jumpT:0,jumping:false,platforms:[],items:[],enemyX:[]},
+    {name:'outrun',t:0,roadOff:0,carX:32,speed:0,trees:[],curves:0},
+    {name:'invaders',t:0,invX:5,invY:50,invDir:1,bullets:[],playerX:30,bombs:[],invAlive:[]},
+  ];
+  // Manic Miner platforms
+  const g=retroGames[1];
+  g.platforms=[[0,10,63],[15,20,40],[30,30,55],[5,40,35],[20,50,60]];
+  g.items=[];
+  for(let i=0;i<6;i++) g.items.push({x:8+i*9,y:g.platforms[i%5][0]-5,collected:false});
+  g.enemyX=[20,40];
+  // Space invaders
+  const inv=retroGames[3];
+  inv.invAlive=[];
+  for(let r=0;r<4;r++) for(let c=0;c<8;c++) inv.invAlive.push({r,c,alive:true});
+  retroInit=true;
+}
+
+function retroDrawFace(faceIdx,dt,buf,S){
+  const setP=(x,y,r,g,b)=>{
+    if(x<0||x>=S||y<0||y>=S) return;
+    const i=(y*S+x)*3;
+    buf[i]=r; buf[i+1]=g; buf[i+2]=b;
+  };
+  const fillRect=(x1,y1,x2,y2,r,g,b)=>{
+    for(let y=Math.max(0,y1);y<=Math.min(S-1,y2);y++) for(let x=Math.max(0,x1);x<=Math.min(S-1,x2);x++) setP(x,y,r,g,b);
+  };
+  const hLine=(x1,x2,y,r,g,b)=>{ for(let x=Math.max(0,x1);x<=Math.min(S-1,x2);x++) setP(x,y,r,g,b); };
+
+  const game=retroGames[faceIdx%4];
+  game.t+=dt;
+
+  // ZX Spectrum colours (bright)
+  const BLK=[0,0,0],BLU=[0,0,0.85],RED=[0.85,0,0],MAG=[0.85,0,0.85];
+  const GRN=[0,0.85,0],CYN=[0,0.85,0.85],YEL=[0.85,0.85,0],WHT=[1,1,1];
+
+  // Black background
+  for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,0,0,0.02);
+
+  if(game.name==='jetpac'){
+    // Jet Pac: player with jetpack collecting fuel, avoiding aliens
+    const p=game;
+    p.jetY=Math.sin(p.t*3)*2;
+    p.playerX=(p.playerX+12*dt)%S;
+    const py=20+Math.round(p.jetY+Math.sin(p.t*1.5)*8);
+    // Stars background
+    for(let i=0;i<30;i++){
+      const sx=(i*17+3)%S, sy=(i*31+7)%S;
+      setP(sx,sy,0.3,0.3,0.4);
+    }
+    // Ground platform
+    hLine(0,S-1,5,GRN[0],GRN[1],GRN[2]);
+    hLine(0,S-1,4,GRN[0]*0.6,GRN[1]*0.6,GRN[2]*0.6);
+    // Platforms
+    hLine(10,30,18,CYN[0],CYN[1],CYN[2]);
+    hLine(35,55,30,CYN[0],CYN[1],CYN[2]);
+    hLine(5,25,42,CYN[0],CYN[1],CYN[2]);
+    // Rocket (centre)
+    fillRect(28,6,34,16,WHT[0],WHT[1],WHT[2]);
+    fillRect(29,16,33,17,RED[0],RED[1],RED[2]);
+    setP(31,17,YEL[0],YEL[1],YEL[2]); // nose
+    // Player (jetpac man)
+    const px=Math.round(p.playerX);
+    fillRect(px-1,py,px+1,py+4,YEL[0],YEL[1],YEL[2]);
+    setP(px,py+5,MAG[0],MAG[1],MAG[2]); // head
+    setP(px,py+6,MAG[0],MAG[1],MAG[2]);
+    // Jetpack flame
+    if(Math.sin(p.t*15)>0){
+      setP(px,py-1,RED[0],RED[1],0); setP(px,py-2,YEL[0],YEL[1],0);
+    }
+    // Aliens
+    for(let a=0;a<3;a++){
+      const ax=(Math.round(p.t*15+a*22))%S;
+      const ay=15+a*12+Math.round(Math.sin(p.t*2+a*2)*4);
+      fillRect(ax-2,ay,ax+2,ay+3,MAG[0],MAG[1],MAG[2]);
+      setP(ax-1,ay+2,WHT[0],WHT[1],WHT[2]); setP(ax+1,ay+2,WHT[0],WHT[1],WHT[2]);
+    }
+    // Fuel drops
+    for(let f=0;f<4;f++){
+      const fx=(f*16+Math.round(p.t*3))%S;
+      const fy=10+f*10;
+      setP(fx,fy,CYN[0],CYN[1],CYN[2]); setP(fx,fy+1,CYN[0],CYN[1],CYN[2]);
+    }
+
+  } else if(game.name==='manic'){
+    // Manic Miner style platformer
+    const p=game;
+    // Platforms
+    for(const pl of p.platforms){
+      const py=pl[0]; hLine(pl[1],pl[2],py,GRN[0],GRN[1],GRN[2]);
+      hLine(pl[1],pl[2],py-1,GRN[0]*0.5,GRN[1]*0.5,GRN[2]*0.5);
+    }
+    // Ground
+    hLine(0,S-1,5,GRN[0],GRN[1],GRN[2]);
+    hLine(0,S-1,4,GRN[0]*0.5,GRN[1]*0.5,GRN[2]*0.5);
+    // Player movement (auto play)
+    p.playerX+=p.dir*18*dt;
+    if(p.playerX>55){p.dir=-1;} else if(p.playerX<5){p.dir=1;}
+    // Jumping
+    if(!p.jumping&&Math.sin(p.t*2.5)>0.7){ p.jumping=true; p.jumpT=0; }
+    if(p.jumping){ p.jumpT+=dt; if(p.jumpT>0.6) p.jumping=false; }
+    const jumpOff=p.jumping?Math.sin(p.jumpT/0.6*Math.PI)*15:0;
+    const curPlat=p.platforms.find(pl=>Math.abs(p.playerX-((pl[1]+pl[2])/2))<(pl[2]-pl[1])/2);
+    const baseY=curPlat?curPlat[0]+1:6;
+    const playerY=baseY+Math.round(jumpOff);
+    const px=Math.round(p.playerX);
+    // Draw player (Willy)
+    fillRect(px-1,playerY,px+1,playerY+4,CYN[0],CYN[1],CYN[2]);
+    setP(px,playerY+5,YEL[0],YEL[1],YEL[2]); // head
+    setP(px,playerY+6,RED[0],RED[1],RED[2]); // hat
+    // Legs animation
+    const legOff=Math.round(Math.sin(p.t*8));
+    setP(px+legOff,playerY-1,CYN[0],CYN[1],CYN[2]);
+    setP(px-legOff,playerY-1,CYN[0],CYN[1],CYN[2]);
+    // Collectible items (flashing keys)
+    for(let i=0;i<p.items.length;i++){
+      const it=p.items[i];
+      if(it.collected) continue;
+      const flash=Math.sin(p.t*6+i)>0;
+      if(flash) setP(it.x,it.y,YEL[0],YEL[1],YEL[2]);
+      else setP(it.x,it.y,RED[0],RED[1],RED[2]);
+      setP(it.x,it.y+1,MAG[0],MAG[1],MAG[2]);
+      if(Math.abs(px-it.x)<3&&Math.abs(playerY-it.y)<4) it.collected=true;
+    }
+    // Reset items when all collected
+    if(p.items.every(i=>i.collected)) for(const i of p.items) i.collected=false;
+    // Enemies (patrolling)
+    for(let e=0;e<p.enemyX.length;e++){
+      p.enemyX[e]=(p.enemyX[e]+10*dt*(e%2?1:-1));
+      if(p.enemyX[e]>55||p.enemyX[e]<5) p.enemyX[e]=30;
+      const ex=Math.round(p.enemyX[e]);
+      const ey=p.platforms[e+1]?p.platforms[e+1][0]+1:12;
+      fillRect(ex-1,ey,ex+1,ey+3,RED[0],RED[1],RED[2]);
+      setP(ex,ey+2,WHT[0],WHT[1],WHT[2]);
+    }
+    // Conveyor belt (animated)
+    const convY=p.platforms[0][0];
+    for(let x=p.platforms[0][1];x<=p.platforms[0][2];x++){
+      const on=(x+Math.floor(p.t*10))%4<2;
+      setP(x,convY,on?YEL[0]:RED[0],on?YEL[1]:0,0);
+    }
+    // Air supply bar at top
+    const airLeft=1-((p.t%20)/20);
+    hLine(2,2+Math.round(airLeft*58),S-3,CYN[0],CYN[1],CYN[2]);
+
+  } else if(game.name==='outrun'){
+    // OutRun style pseudo-3D road
+    const p=game;
+    p.speed=0.85+0.15*Math.sin(p.t*0.3);
+    p.roadOff+=p.speed*dt*40;
+    p.curves=Math.sin(p.t*0.5)*0.4;
+    // Sky gradient (blue)
+    for(let y=S/2;y<S;y++){
+      const t=(y-S/2)/(S/2);
+      for(let x=0;x<S;x++) setP(x,y,0.1*t,0.2*t,0.7-0.3*t);
+    }
+    // Ground/road (perspective)
+    for(let y=0;y<S/2;y++){
+      const depth=(S/2-y)/(S/2); // 0=horizon, 1=near
+      const roadW=4+depth*28;
+      const cx=S/2+Math.round(p.curves*depth*depth*30+Math.sin(p.roadOff*0.02+y*0.1)*depth*8);
+      const stripe=((Math.floor(p.roadOff+y*2))%12)<6;
+      // Grass
+      const grassG=stripe?0.5:0.35;
+      for(let x=0;x<S;x++) setP(x,y,0,grassG,0);
+      // Road
+      const rl=Math.round(cx-roadW/2), rr=Math.round(cx+roadW/2);
+      for(let x=Math.max(0,rl);x<=Math.min(S-1,rr);x++) setP(x,y,0.25,0.25,0.25);
+      // Road markings
+      if(stripe){
+        const ml=cx-2, mr=cx+2;
+        if(ml>=0&&mr<S){ setP(Math.round(ml),y,WHT[0],WHT[1],WHT[2]); setP(Math.round(mr),y,WHT[0],WHT[1],WHT[2]); }
+      }
+      // Kerbs (red/white)
+      if(rl>0) setP(rl,y,stripe?RED[0]:WHT[0],stripe?0:WHT[1],stripe?0:WHT[2]);
+      if(rr<S) setP(rr,y,stripe?RED[0]:WHT[0],stripe?0:WHT[1],stripe?0:WHT[2]);
+    }
+    // Car (player)
+    const carX=Math.round(S/2+Math.sin(p.t*0.8)*10);
+    fillRect(carX-3,4,carX+3,8,RED[0],RED[1],RED[2]);
+    fillRect(carX-2,8,carX+2,10,RED[0]*0.7,0,0);
+    fillRect(carX-2,5,carX+2,7,CYN[0]*0.4,CYN[1]*0.4,CYN[2]*0.6);
+    // Wheels
+    setP(carX-3,4,BLK[0],BLK[1],BLK[2]); setP(carX+3,4,BLK[0],BLK[1],BLK[2]);
+    setP(carX-3,8,BLK[0],BLK[1],BLK[2]); setP(carX+3,8,BLK[0],BLK[1],BLK[2]);
+    // Trees/signs at roadside
+    for(let t=0;t<6;t++){
+      const treeY=5+t*8;
+      const depth=(S/2-treeY)/(S/2);
+      if(depth<0.05) continue;
+      const tx=Math.round(S/2+p.curves*depth*depth*30-(roadW*0.5/depth+8)*((t%2)?1:-1));
+      const treeH=Math.round(3+depth*5);
+      if(tx>=0&&tx<S){
+        for(let th=0;th<treeH;th++) setP(tx,treeY+th,0,0.4+depth*0.3,0);
+        setP(tx,treeY+treeH,0.3,0.2,0.05);
+      }
+    }
+    // Score at top
+    hLine(2,14,S-2,WHT[0],WHT[1],WHT[2]);
+
+  } else if(game.name==='invaders'){
+    // Space Invaders
+    const p=game;
+    // Move invaders
+    p.invX+=p.invDir*12*dt;
+    if(p.invX>S-20||p.invX<3){ p.invDir*=-1; p.invY-=2; }
+    if(p.invY<15) p.invY=50;
+    // Draw invaders
+    for(const inv of p.invAlive){
+      if(!inv.alive) continue;
+      const ix=Math.round(p.invX+inv.c*7);
+      const iy=Math.round(p.invY+inv.r*7);
+      if(ix<0||ix>=S||iy<0||iy>=S) continue;
+      // Invader shape (3x3)
+      const frame=Math.floor(p.t*3)%2;
+      setP(ix,iy+2,GRN[0],GRN[1],GRN[2]);
+      setP(ix-1,iy+1,GRN[0],GRN[1],GRN[2]); setP(ix+1,iy+1,GRN[0],GRN[1],GRN[2]);
+      setP(ix,iy+1,GRN[0],GRN[1],GRN[2]);
+      if(frame){ setP(ix-1,iy,GRN[0],GRN[1],GRN[2]); setP(ix+1,iy,GRN[0],GRN[1],GRN[2]); }
+      else { setP(ix-1,iy+3,GRN[0],GRN[1],GRN[2]); setP(ix+1,iy+3,GRN[0],GRN[1],GRN[2]); }
+    }
+    // Player cannon
+    const cannonX=Math.round(32+Math.sin(p.t*1.2)*20);
+    fillRect(cannonX-2,5,cannonX+2,7,CYN[0],CYN[1],CYN[2]);
+    setP(cannonX,8,CYN[0],CYN[1],CYN[2]);
+    // Bullets
+    if(Math.sin(p.t*4)>0.9) p.bullets.push({x:cannonX,y:8});
+    for(let i=p.bullets.length-1;i>=0;i--){
+      p.bullets[i].y+=60*dt;
+      const b=p.bullets[i];
+      if(b.y>S){ p.bullets.splice(i,1); continue; }
+      setP(Math.round(b.x),Math.round(b.y),WHT[0],WHT[1],WHT[2]);
+      setP(Math.round(b.x),Math.round(b.y)+1,WHT[0],WHT[1],WHT[2]);
+      // Hit detection
+      for(const inv of p.invAlive){
+        if(!inv.alive) continue;
+        const ix=p.invX+inv.c*7, iy=p.invY+inv.r*7;
+        if(Math.abs(b.x-ix)<3&&Math.abs(b.y-iy)<3){ inv.alive=false; p.bullets.splice(i,1); break; }
+      }
+    }
+    // Reset invaders when all dead
+    if(p.invAlive.every(i=>!i.alive)){
+      for(const i of p.invAlive) i.alive=true;
+      p.invY=50; p.invX=5;
+    }
+    if(p.bullets.length>8) p.bullets.length=8;
+    // Shields
+    for(let s=0;s<3;s++){
+      fillRect(12+s*18,10,18+s*18,13,GRN[0],GRN[1],GRN[2]);
+    }
+    // Ground line
+    hLine(0,S-1,3,GRN[0],GRN[1],GRN[2]);
+    // Score
+    hLine(2,10,S-2,WHT[0],WHT[1],WHT[2]);
+  }
+}
+
+function effectRetro(dt){
+  if(!retroInit) initRetro();
+  retroT+=dt;
+  const S=SIZE;
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  // Temporary buffer for each face
+  const faceBuf=new Float32Array(S*S*3);
+
+  if(panel2dMode){
+    // 2D: show one game at a time, rotate every 8 seconds
+    const gameIdx=Math.floor(retroT/8)%4;
+    faceBuf.fill(0);
+    retroDrawFace(gameIdx,dt,faceBuf,S);
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const i=(v*S+u)*3;
+      const idx=faceMap[0][v*S+u]; if(idx<0) continue;
+      colBuf[idx*3]=faceBuf[i]; colBuf[idx*3+1]=faceBuf[i+1]; colBuf[idx*3+2]=faceBuf[i+2];
+    }
+  } else {
+    // 3D: each side face shows a different game
+    for(let fIdx=0;fIdx<4;fIdx++){
+      faceBuf.fill(0);
+      retroDrawFace(fIdx,dt,faceBuf,S);
+      const face=VID_FACE_ORDER[fIdx];
+      for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+        const pu=S-1-u;
+        const i=(v*S+pu)*3;
+        const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+        colBuf[idx*3]=faceBuf[i]; colBuf[idx*3+1]=faceBuf[i+1]; colBuf[idx*3+2]=faceBuf[i+2];
+      }
+    }
+    // Top: dark
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[4][v*S+u]; if(idx<0) continue;
+      colBuf[idx*3]=0.02; colBuf[idx*3+1]=0.02; colBuf[idx*3+2]=0.05;
+    }
+    // Bottom: dark
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[5][v*S+u]; if(idx<0) continue;
+      colBuf[idx*3]=0.01; colBuf[idx*3+1]=0.01; colBuf[idx*3+2]=0.03;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════
 //  VIDEO DISPLAY
 //  Maps live video onto the 4 side panels.
 //  Sources: local file, screen capture (incl. YouTube

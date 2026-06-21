@@ -1003,6 +1003,7 @@ const EFFECTS={
   coinflip:effectCoinFlip,
   dice:effectDice,
   simhouse:effectSimHouse,
+  retro:effectRetro,
 };
 const EFFECT_NAMES={
   wave:'Wave Cascade', rain:'Color Rain', plasma:'Plasma Storm', sphere:'Morphing Sphere',
