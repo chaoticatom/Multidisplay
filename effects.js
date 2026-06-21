@@ -8507,13 +8507,14 @@ function retroDrawTopFace(S,t){
     }
   }
 
-  // 5x7 bitmap font
-  const F={R:[0x7C,0x44,0x44,0x78,0x48,0x44,0x42],E:[0x7E,0x40,0x40,0x7C,0x40,0x40,0x7E],T:[0x7E,0x18,0x18,0x18,0x18,0x18,0x18],O:[0x3C,0x42,0x42,0x42,0x42,0x42,0x3C]};
-  const word=[F.R,F.E,F.T,F.R,F.O];
-  const charW=7, charH=7;
-  const numChars=word.length;
-  const arcSpan=0.9;
-  const baseAngle=t*0.7;
+  // 5x7 bitmap font (scaled 2x)
+  const F={R:[0x7C,0x44,0x44,0x78,0x48,0x44,0x42],E:[0x7E,0x40,0x40,0x7C,0x40,0x40,0x7E],T:[0x7E,0x18,0x18,0x18,0x18,0x18,0x18],O:[0x3C,0x42,0x42,0x42,0x42,0x42,0x3C],G:[0x3C,0x42,0x40,0x4E,0x42,0x42,0x3C],A:[0x18,0x24,0x42,0x7E,0x42,0x42,0x42],M:[0x42,0x66,0x5A,0x42,0x42,0x42,0x42],S:[0x3C,0x42,0x40,0x3C,0x02,0x42,0x3C]};
+  const word1=[F.R,F.E,F.T,F.R,F.O];
+  const word2=[F.G,F.A,F.M,F.E,F.S];
+  const scale=2;
+  const charW=7*scale, charH=7*scale;
+  const arcSpan=1.4;
+  const baseAngle=t*0.5;
 
   // Color cycling
   const hue=(t*80)%360;
@@ -8525,39 +8526,36 @@ function retroDrawTopFace(S,t){
     case 4: cr=hf;cg=0;cb=1;break; default: cr=1;cg=0;cb=1-hf;
   }
 
-  // Draw each character curved along the circle
-  for(let c=0;c<numChars;c++){
-    const glyph=word[c];
-    const charAngle=baseAngle+(c-(numChars-1)/2)*arcSpan/numChars;
-    const charCx=cx+Math.cos(charAngle)*radius;
-    const charCy=cy+Math.sin(charAngle)*radius;
-    const rot=charAngle+Math.PI/2;
-    const cosR=Math.cos(rot), sinR=Math.sin(rot);
-
-    for(let row=0;row<charH;row++){
-      const bits=glyph[row];
-      for(let col=0;col<charW;col++){
-        if(bits&(1<<(charW-1-col))){
-          const lx=col-charW/2, ly=row-charH/2;
-          const px=Math.round(charCx+lx*cosR-ly*sinR);
-          const py=Math.round(charCy+lx*sinR+ly*cosR);
-          if(px>=0&&px<S&&py>=0&&py<S){
-            const i=(py*S+px)*3;
-            topBuf[i]=cr; topBuf[i+1]=cg; topBuf[i+2]=cb;
-          }
-          // Bloom
-          for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
-            if(dx===0&&dy===0) continue;
-            const gx=px+dx, gy=py+dy;
-            if(gx>=0&&gx<S&&gy>=0&&gy<S){
-              const gi=(gy*S+gx)*3;
-              topBuf[gi]+=cr*0.2; topBuf[gi+1]+=cg*0.2; topBuf[gi+2]+=cb*0.2;
+  function drawArcText(word,bAngle,flipDir){
+    const numChars=word.length;
+    for(let c=0;c<numChars;c++){
+      const glyph=word[c];
+      const charAngle=bAngle+(c-(numChars-1)/2)*arcSpan/numChars;
+      const charCx=cx+Math.cos(charAngle)*radius;
+      const charCy=cy+Math.sin(charAngle)*radius;
+      const rot=charAngle+Math.PI/2*flipDir;
+      const cosR=Math.cos(rot), sinR=Math.sin(rot);
+      for(let row=0;row<7;row++){
+        const bits=glyph[row];
+        for(let col=0;col<7;col++){
+          if(bits&(1<<(6-col))){
+            for(let sy=0;sy<scale;sy++) for(let sx=0;sx<scale;sx++){
+              const lx=(col*scale+sx)-charW/2, ly=(row*scale+sy)-charH/2;
+              const px=Math.round(charCx+lx*cosR-ly*sinR);
+              const py=Math.round(charCy+lx*sinR+ly*cosR);
+              if(px>=0&&px<S&&py>=0&&py<S){
+                const i2=(py*S+px)*3;
+                topBuf[i2]=cr; topBuf[i2+1]=cg; topBuf[i2+2]=cb;
+              }
             }
           }
         }
       }
     }
   }
+  // "RETRO" on one side, "GAMES" on the opposite
+  drawArcText(word1,baseAngle,1);
+  drawArcText(word2,baseAngle+Math.PI,-1);
 
   // Outer ring border (bright, pulsing)
   const borderR=S/2-2;
