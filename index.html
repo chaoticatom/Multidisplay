@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=212">
+<link rel="stylesheet" href="style.css?v=213">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -314,9 +314,9 @@
       </div>
     </div>
     <button class="effect-btn has-panel" data-effect="retro">◈ Retro <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-retro">
+    <div class="effect-panel" id="panel-retro" style="overflow:visible;">
       <div class="ov-row-label">Game</div>
-      <div class="opt-grid" style="grid-template-columns:repeat(2,1fr);">
+      <div style="display:flex;flex-wrap:wrap;gap:4px;">
         <button class="retro-game-btn active" data-retrogame="-1">Auto</button>
         <button class="retro-game-btn" data-retrogame="0">Jet Pac</button>
         <button class="retro-game-btn" data-retrogame="1">Manic Miner</button>
@@ -328,7 +328,7 @@
         <button class="retro-game-btn" data-retrogame="7">Wolfenstein 3D</button>
         <button class="retro-game-btn" data-retrogame="8">Quake 2</button>
       </div>
-      <div class="ov-row-label">Rotate (sec)</div>
+      <div class="ov-row-label" style="margin-top:8px;">Rotate (sec)</div>
       <input type="range" class="ov-slider" id="retro-rotate-slider" min="3" max="120" value="8">
       <button id="retro-show-btn" style="margin-top:8px;width:100%;padding:8px;background:rgba(80,200,120,0.25);border:1px solid rgba(80,200,120,0.5);border-radius:6px;color:#9fd;font-size:13px;cursor:pointer;">▶ Show</button>
     </div>
@@ -926,7 +926,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=212"></script>
+<script src="version.js?v=213"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -961,7 +961,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=212','effects.js?v=212','f1.js?v=212','ui.js?v=212'];
+  const appScripts = ['cube.js?v=213','effects.js?v=213','f1.js?v=213','ui.js?v=213'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';

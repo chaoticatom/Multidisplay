@@ -1143,10 +1143,21 @@ document.querySelector('[data-effect="custom_cube"]')?.addEventListener('click',
 
 document.querySelectorAll('.effect-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
+    const eff = btn.dataset.effect;
+
+    // For retro: only toggle the panel, don't start the effect
+    if(eff==='retro'){
+      const panel = document.getElementById('panel-retro');
+      const isOpen = panel && panel.classList.contains('open');
+      document.querySelectorAll('.effect-panel').forEach(p=>p.classList.remove('open'));
+      document.querySelectorAll('.effect-btn').forEach(b=>b.classList.remove('open'));
+      if(!isOpen && panel){ panel.classList.add('open'); btn.classList.add('open'); }
+      return;
+    }
+
     if(!effectsOn){effectsOn=true;clearPending=false;toggleBtn.textContent='● Effects ON';toggleBtn.classList.add('on');}
     // Deactivate panel editor so the selected effect shows
     panelEditorOn=false;
-    const eff = btn.dataset.effect;
 
     // Toggle inline panel if this button has one
     if(PANEL_EFFECTS.has(eff)){
@@ -1159,8 +1170,6 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
         panel.classList.add('open');
         btn.classList.add('open');
       }
-      // For effects with a "Show" button, don't start immediately
-      if(eff==='retro') return;
     } else {
       // No panel — close all open panels
       document.querySelectorAll('.effect-panel').forEach(p=>p.classList.remove('open'));
