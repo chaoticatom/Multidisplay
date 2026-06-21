@@ -5470,19 +5470,19 @@ function effectSimHouseShadows(dt){
     setP(x,ry,outR,outG,outB); setP(x,ry-1,outR*0.7,outG*0.7,outB*0.7);
   }
 
-  // Windows — fancy arched/decorative style, many of them
+  // Windows — fewer, larger, well-spaced
   const windows=[];
   const gfMid=Math.floor((ground+floor1)/2);
-  const gfWinH=Math.floor((floor1-ground)*0.55);
-  const gfWinW=Math.floor(W*0.045);
-  for(let wx=Math.floor(W*0.04);wx<W-gfWinW-2;wx+=Math.floor(W*0.07)){
-    if(wx>Math.floor(W*0.44)&&wx<Math.floor(W*0.56)) continue;
+  const gfWinH=Math.floor((floor1-ground)*0.6);
+  const gfWinW=Math.floor(W*0.05);
+  for(let wx=Math.floor(W*0.06);wx<W-gfWinW-4;wx+=Math.floor(W*0.12)){
+    if(wx>Math.floor(W*0.42)&&wx<Math.floor(W*0.58)) continue;
     windows.push({x1:wx,y1:gfMid-Math.floor(gfWinH/2),x2:wx+gfWinW,y2:gfMid+Math.floor(gfWinH/2),arched:true});
   }
   const ffMid=Math.floor((floor1+roof)/2);
-  const ffWinH=Math.floor((roof-floor1)*0.55);
-  const ffWinW=Math.floor(W*0.04);
-  for(let wx=Math.floor(W*0.04);wx<W-ffWinW-2;wx+=Math.floor(W*0.065)){
+  const ffWinH=Math.floor((roof-floor1)*0.6);
+  const ffWinW=Math.floor(W*0.05);
+  for(let wx=Math.floor(W*0.06);wx<W-ffWinW-4;wx+=Math.floor(W*0.11)){
     windows.push({x1:wx,y1:ffMid-Math.floor(ffWinH/2),x2:wx+ffWinW,y2:ffMid+Math.floor(ffWinH/2),arched:true});
   }
 
@@ -5549,10 +5549,14 @@ function effectSimHouseShadows(dt){
     }
   }
 
-  // Draw people shadows in windows — DARK black silhouettes with activity poses
+  // Draw people shadows — realistic silhouettes, people stop at windows to do things
   for(const p of shPeople){
     const px=Math.round(p.x), py=Math.round(p.y);
-    const ph=p.h||9;
+    const ph=p.h||10;
+    // Determine if person is "at" a window (pausing to do something)
+    const pHash=(p.name.charCodeAt(0)*7+Math.floor(shT*0.15))%5;
+    const atWindow=!p.walking&&pHash<2;
+
     for(const w of windows){
       const personFloor=py>floor1?1:0;
       const winFloor=w.y1>floor1?1:0;
@@ -5560,63 +5564,112 @@ function effectSimHouseShadows(dt){
       const winCX=(w.x1+w.x2)/2;
       const dist=Math.abs(px-winCX);
       const winW=w.x2-w.x1;
-      if(dist>winW*2.5) continue;
-      const intensity=Math.max(0.3,1-dist/(winW*2));
-      const sR=0.7*intensity, sG=0.7*intensity, sB=0.75*intensity;
-      const sxOff=Math.round((px-winCX)*0.5);
+      if(dist>winW*3) continue;
+      // Closer = darker (more opaque shadow)
+      const closeness=Math.max(0,1-dist/(winW*2.5));
+      const sR=0.85*closeness, sG=0.85*closeness, sB=0.88*closeness;
+      if(sR<0.1) continue;
+      const sxOff=Math.round((px-winCX)*0.4);
       const sCX=Math.floor(winCX)+sxOff;
+      const wH=w.y2-w.y1;
+
       if(p.sleeping){
+        // Lying horizontal blob
         for(let i=-3;i<=3;i++){
-          const sx=sCX+i, sy=w.y1+2;
-          if(sx>w.x1&&sx<w.x2&&sy>w.y1&&sy<w.y2) addP(sx,sy,sR,sG,sB);
-          if(sx>w.x1&&sx<w.x2) addP(sx,sy+1,sR*0.6,sG*0.6,sB*0.6);
+          const sx=sCX+i; if(sx<=w.x1||sx>=w.x2) continue;
+          addP(sx,w.y1+2,sR,sG,sB);
+          addP(sx,w.y1+3,sR*0.7,sG*0.7,sB*0.7);
+          if(i>=-1&&i<=1) addP(sx,w.y1+4,sR*0.4,sG*0.4,sB*0.4); // blanket
         }
-      } else if(p.sitting){
-        // Sitting silhouette doing activity
+      } else if(atWindow&&dist<winW*1.2){
+        // Person stopped at window doing an activity
         const baseY=w.y1+1;
-        const sH=Math.min(ph-1,w.y2-w.y1-2);
-        for(let dy=0;dy<sH;dy++){
-          const sy=baseY+dy; if(sy<=w.y1||sy>=w.y2) continue;
-          let bw=dy>=sH-2?2:dy>=sH-4?3:2;
-          for(let dx=-Math.floor(bw/2);dx<=Math.floor(bw/2);dx++){
-            const sx=sCX+dx; if(sx>w.x1&&sx<w.x2) addP(sx,sy,sR,sG,sB);
-          }
-        }
-        // Arms out (reading/typing)
-        const armY=baseY+Math.floor(sH*0.5);
-        if(armY>w.y1&&armY<w.y2){
-          const armOff=Math.round(Math.sin(shT*2)*0.8)+2;
-          if(sCX-armOff>w.x1) addP(sCX-armOff,armY,sR*0.8,sG*0.8,sB*0.8);
-          if(sCX+armOff<w.x2) addP(sCX+armOff,armY,sR*0.8,sG*0.8,sB*0.8);
-        }
-      } else {
-        // Standing/walking — full body with arm swing
-        const baseY=w.y1+1;
-        const sH=Math.min(ph+1,w.y2-w.y1-1);
+        const sH=Math.min(ph,wH-2);
+        const activity=pHash; // 0=looking out, 1=on phone
+        // Full body silhouette (realistic proportions)
         for(let dy=0;dy<sH;dy++){
           const sy=baseY+dy; if(sy<=w.y1||sy>=w.y2) continue;
           let bw;
-          if(dy>=sH-2) bw=2;
-          else if(dy>=sH-5) bw=3;
-          else if(dy>=2) bw=2;
-          else bw=2;
+          const rel=dy/sH;
+          if(rel>0.85) bw=2; // head
+          else if(rel>0.75) bw=2; // neck
+          else if(rel>0.45) bw=3; // torso (wider)
+          else if(rel>0.35) bw=3; // hips
+          else bw=2; // legs
           for(let dx=-Math.floor(bw/2);dx<=Math.floor(bw/2);dx++){
-            const sx=sCX+dx; if(sx>w.x1&&sx<w.x2) addP(sx,sy,sR,sG,sB);
+            const sx=sCX+dx; if(sx<=w.x1||sx>=w.x2) continue;
+            addP(sx,sy,sR,sG,sB);
           }
         }
-        // Arm swing while walking
-        if(p.walking){
-          const armSwing=Math.round(Math.sin(p.animFrame*3)*1.5);
-          const armY=baseY+Math.floor(sH*0.55);
-          if(armY>w.y1&&armY<w.y2){
-            if(sCX-2+armSwing>w.x1&&sCX-2+armSwing<w.x2) addP(sCX-2+armSwing,armY,sR*0.7,sG*0.7,sB*0.7);
-            if(sCX+2-armSwing>w.x1&&sCX+2-armSwing<w.x2) addP(sCX+2-armSwing,armY,sR*0.7,sG*0.7,sB*0.7);
+        // Activity-specific details
+        const armY=baseY+Math.floor(sH*0.6);
+        if(activity===0){
+          // Looking out — one arm raised to window
+          for(let ay=armY;ay<armY+3&&ay<w.y2;ay++){
+            if(sCX+2<w.x2) addP(sCX+2,ay,sR*0.7,sG*0.7,sB*0.7);
           }
-          // Leg stride
+          // Hand at face level
+          if(sCX+2<w.x2&&armY+3<w.y2) addP(sCX+2,armY+3,sR*0.6,sG*0.6,sB*0.6);
+        } else {
+          // On phone — arm bent up near head
+          const phoneY=baseY+Math.floor(sH*0.8);
+          if(sCX+2<w.x2&&phoneY<w.y2) addP(sCX+2,phoneY,sR*0.8,sG*0.8,sB*0.8);
+          if(sCX+2<w.x2&&phoneY-1>w.y1) addP(sCX+2,phoneY-1,sR*0.6,sG*0.6,sB*0.6);
+        }
+      } else if(p.sitting){
+        // Sitting doing something — reading, typing, eating
+        const baseY=w.y1+1;
+        const sH=Math.min(ph-2,wH-2);
+        for(let dy=0;dy<sH;dy++){
+          const sy=baseY+dy; if(sy<=w.y1||sy>=w.y2) continue;
+          const rel=dy/sH;
+          let bw=rel>0.8?2:rel>0.4?3:3; // wider seated torso
+          for(let dx=-Math.floor(bw/2);dx<=Math.floor(bw/2);dx++){
+            const sx=sCX+dx; if(sx<=w.x1||sx>=w.x2) continue;
+            addP(sx,sy,sR,sG,sB);
+          }
+        }
+        // Arms forward (at desk/table)
+        const armY=baseY+Math.floor(sH*0.5);
+        const armAnim=Math.round(Math.sin(shT*1.5)*0.5);
+        if(armY>w.y1&&armY<w.y2){
+          for(let ax=1;ax<=3;ax++){
+            if(sCX-ax>w.x1) addP(sCX-ax,armY+armAnim,sR*0.6,sG*0.6,sB*0.6);
+            if(sCX+ax<w.x2) addP(sCX+ax,armY-armAnim,sR*0.6,sG*0.6,sB*0.6);
+          }
+        }
+      } else {
+        // Walking — realistic body with natural stride
+        const baseY=w.y1+1;
+        const sH=Math.min(ph+1,wH-1);
+        for(let dy=0;dy<sH;dy++){
+          const sy=baseY+dy; if(sy<=w.y1||sy>=w.y2) continue;
+          const rel=dy/sH;
+          let bw;
+          if(rel>0.88) bw=2; // head
+          else if(rel>0.82) bw=2; // neck
+          else if(rel>0.5) bw=3; // shoulders+torso
+          else if(rel>0.38) bw=3; // hips
+          else if(rel>0.15) bw=2; // thighs
+          else bw=2; // calves
+          for(let dx=-Math.floor(bw/2);dx<=Math.floor(bw/2);dx++){
+            const sx=sCX+dx; if(sx<=w.x1||sx>=w.x2) continue;
+            addP(sx,sy,sR,sG,sB);
+          }
+        }
+        // Arm swing
+        if(p.walking){
+          const swing=Math.sin(p.animFrame*3);
+          const armY1=baseY+Math.floor(sH*0.55)+Math.round(swing*1.5);
+          const armY2=baseY+Math.floor(sH*0.55)-Math.round(swing*1.5);
+          if(sCX-2>w.x1&&armY1>w.y1&&armY1<w.y2) addP(sCX-2,armY1,sR*0.6,sG*0.6,sB*0.6);
+          if(sCX+2<w.x2&&armY2>w.y1&&armY2<w.y2) addP(sCX+2,armY2,sR*0.6,sG*0.6,sB*0.6);
+          // Leg stride (alternating)
+          const legOff=Math.round(swing*1.3);
           const legY=baseY+1;
           if(legY>w.y1&&legY<w.y2){
-            const legOff=Math.round(Math.sin(p.animFrame*3)*1.2);
             if(sCX+legOff>w.x1&&sCX+legOff<w.x2) addP(sCX+legOff,legY,sR*0.5,sG*0.5,sB*0.5);
+            if(sCX-legOff>w.x1&&sCX-legOff<w.x2) addP(sCX-legOff,legY+1,sR*0.4,sG*0.4,sB*0.4);
           }
         }
       }
@@ -5701,13 +5754,28 @@ function effectSimHouse(dt){
     for(let x=0;x<W;x++) setP(x,y,skyR*(1+grad*0.5),skyG*(1+grad*0.3),skyB*(1+grad*0.8));
   }
 
-  // Room backgrounds with warm ambient
+  // Room backgrounds with warm ambient + subtle wall colour tints
+  const wallTints=[
+    [0.08,0.06,0.04], // garage - grey
+    [0.06,0.08,0.04], // kitchen - warm green tint
+    [0.08,0.06,0.03], // dining - warm amber
+    [0.06,0.05,0.07], // living - subtle plum
+    [0.05,0.05,0.05], // hallway - neutral
+    [0.04,0.05,0.07], // study - cool blue tint
+    [0.06,0.04,0.07], // bedroom1 - lavender
+    [0.04,0.07,0.07], // bathroom - aqua
+    [0.04,0.05,0.07], // bedroom2 - slate blue
+    [0.07,0.05,0.06], // kidsroom - warm pink
+    [0.05,0.05,0.04], // landing - neutral
+    [0.04,0.06,0.06], // ensuite - teal
+  ];
   for(let ri=0;ri<shRooms.length;ri++){
     const rm=shRooms[ri];
     let occupied=false;
     for(const p of shPeople) if(p.targetRoom===ri) occupied=true;
     const litMul=occupied?(isNight?0.5:1.0):0.2;
-    fillRect(rm.x1,rm.y1,rm.x2,rm.y2,rm.wallCol[0]*litMul,rm.wallCol[1]*litMul,rm.wallCol[2]*litMul);
+    const tint=wallTints[ri]||[0,0,0];
+    fillRect(rm.x1,rm.y1,rm.x2,rm.y2,(rm.wallCol[0]+tint[0])*litMul,(rm.wallCol[1]+tint[1])*litMul,(rm.wallCol[2]+tint[2])*litMul);
     // Floor highlight
     hLine(rm.x1,rm.x2,rm.y1,rm.floorCol[0]*1.5,rm.floorCol[1]*1.5,rm.floorCol[2]*1.5);
     // Ceiling light glow when occupied
