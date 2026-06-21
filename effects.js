@@ -5291,6 +5291,223 @@ function runOverlays(dt){
 }
 
 // ═══════════════════════════════════════════════════
+//  SIM HOUSE — cross-section house with people following daily routines
+// ═══════════════════════════════════════════════════
+let simHouseInit=false, simHouseRooms=[], simHousePeople=[], simHouseT=0;
+
+function initSimHouse(){
+  const S=SIZE;
+  const floorY=Math.floor(S*0.48);
+  const groundY=1;
+  const roofY=S-2;
+  const midWallX=Math.floor(S*0.5);
+  const wallL=1, wallR=S-2;
+
+  simHouseRooms=[
+    {name:'kitchen',    floor:0, x1:wallL+1, x2:midWallX-1, y1:groundY+1, y2:floorY-1, color:[0.4,0.35,0.1]},
+    {name:'living',     floor:0, x1:midWallX+1, x2:wallR-1, y1:groundY+1, y2:floorY-1, color:[0.15,0.12,0.05]},
+    {name:'bedroom1',   floor:1, x1:wallL+1, x2:midWallX-1, y1:floorY+1, y2:roofY-1, color:[0.05,0.05,0.12]},
+    {name:'bathroom',   floor:1, x1:midWallX+1, x2:wallR-1, y1:floorY+1, y2:roofY-1, color:[0.08,0.12,0.12]},
+  ];
+
+  simHousePeople=[];
+  const names=['A','B','C','D'];
+  const colors=[[1,0.7,0.3],[0.3,0.7,1],[0.3,1,0.5],[1,0.4,0.8]];
+  for(let i=0;i<4;i++){
+    simHousePeople.push({
+      id:names[i], color:colors[i],
+      x:simHouseRooms[i%4].x1+3, y:simHouseRooms[i%4].y1+1,
+      targetRoom:i%4, state:'idle',
+      moveT:0, stateT:0, nextDecisionT:2+Math.random()*5,
+      speed:4+Math.random()*3,
+    });
+  }
+  simHouseInit=true;
+}
+
+function simHouseGetHour(){
+  const d=new Date();
+  return d.getHours()+d.getMinutes()/60;
+}
+
+function simHousePickRoom(person){
+  const hour=simHouseGetHour();
+  const r=Math.random();
+
+  if(r<0.08) return Math.floor(Math.random()*4);
+
+  if(hour>=23||hour<6){
+    return r<0.85?2:3;
+  } else if(hour>=6&&hour<8){
+    if(r<0.4) return 3;
+    if(r<0.7) return 0;
+    return 2;
+  } else if(hour>=8&&hour<12){
+    if(r<0.4) return 1;
+    if(r<0.7) return 0;
+    return 3;
+  } else if(hour>=12&&hour<14){
+    return r<0.7?0:1;
+  } else if(hour>=14&&hour<18){
+    if(r<0.5) return 1;
+    if(r<0.8) return 0;
+    return 3;
+  } else if(hour>=18&&hour<21){
+    if(r<0.5) return 1;
+    if(r<0.3) return 0;
+    return 3;
+  } else {
+    if(r<0.5) return 2;
+    if(r<0.3) return 1;
+    return 3;
+  }
+}
+
+function effectSimHouse(dt){
+  if(!simHouseInit) initSimHouse();
+  simHouseT+=dt;
+  const S=SIZE;
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  const floorY=Math.floor(S*0.48);
+  const groundY=1;
+  const roofY=S-2;
+  const midWallX=Math.floor(S*0.5);
+  const wallL=1, wallR=S-2;
+  const roofPeakY=S-1;
+  const roofMidX=Math.floor(S*0.5);
+
+  const face=panel2dMode?0:0;
+  const drawPx=(f,x,y,r,g,b)=>{
+    if(x<0||x>=S||y<0||y>=S) return;
+    const idx=faceMap[f][y*S+x]; if(idx<0) return;
+    colBuf[idx*3]=Math.min(1,colBuf[idx*3]+r);
+    colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+g);
+    colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b);
+  };
+
+  const drawOnFaces=(x,y,r,g,b)=>{
+    if(panel2dMode){
+      drawPx(0,x,y,r,g,b);
+    } else {
+      for(let f=0;f<4;f++) drawPx(f,x,y,r,g,b);
+    }
+  };
+
+  // Draw house structure
+  const wallR2=0.25, wallG2=0.2, wallB2=0.12;
+  // Outer walls
+  for(let y=groundY;y<=roofY;y++){ drawOnFaces(wallL,y,wallR2,wallG2,wallB2); drawOnFaces(wallR,y,wallR2,wallG2,wallB2); }
+  // Ground floor
+  for(let x=wallL;x<=wallR;x++){ drawOnFaces(x,groundY,wallR2,wallG2,wallB2); drawOnFaces(x,floorY,wallR2,wallG2,wallB2); }
+  // Roof line
+  for(let x=wallL;x<=wallR;x++) drawOnFaces(x,roofY,wallR2,wallG2,wallB2);
+  // Mid wall
+  for(let y=groundY;y<=roofY;y++) drawOnFaces(midWallX,y,wallR2*0.7,wallG2*0.7,wallB2*0.7);
+  // Pitched roof
+  for(let x=wallL;x<=roofMidX;x++){
+    const ry=roofY+Math.round((x-wallL)/(roofMidX-wallL)*(roofPeakY-roofY));
+    drawOnFaces(x,ry,wallR2,wallG2,wallB2);
+  }
+  for(let x=roofMidX;x<=wallR;x++){
+    const ry=roofPeakY-Math.round((x-roofMidX)/(wallR-roofMidX)*(roofPeakY-roofY));
+    drawOnFaces(x,ry,wallR2,wallG2,wallB2);
+  }
+
+  // Room ambient lighting
+  const hour=simHouseGetHour();
+  const nightDim=(hour>=22||hour<6)?0.3:1.0;
+  for(const room of simHouseRooms){
+    let lit=false;
+    for(const p of simHousePeople){
+      if(p.targetRoom===simHouseRooms.indexOf(room)) lit=true;
+    }
+    if(lit){
+      const dim=room.name==='bedroom1'&&(hour>=22||hour<6)?0.15:0.6;
+      for(let y=room.y1;y<=room.y2;y++)
+        for(let x=room.x1;x<=room.x2;x++)
+          drawOnFaces(x,y,room.color[0]*dim,room.color[1]*dim,room.color[2]*dim);
+    }
+  }
+
+  // Draw furniture hints
+  const drawRect=(x1,y1,x2,y2,r,g,b)=>{
+    for(let y=y1;y<=y2;y++) for(let x=x1;x<=x2;x++) drawOnFaces(x,y,r,g,b);
+  };
+  // Kitchen: counter
+  const k=simHouseRooms[0];
+  drawRect(k.x1,k.y1,k.x1+2,k.y1+1,0.3,0.3,0.3);
+  // Living: TV
+  const lv=simHouseRooms[1];
+  const tvFlicker=0.3+0.15*Math.sin(simHouseT*8)+0.1*Math.sin(simHouseT*13);
+  let tvOn=false;
+  for(const p of simHousePeople) if(p.targetRoom===1) tvOn=true;
+  if(tvOn){
+    drawRect(lv.x2-1,lv.y1+3,lv.x2,lv.y1+6,tvFlicker*0.2,tvFlicker*0.3,tvFlicker*0.8);
+  }
+  // Bedroom: bed
+  const br=simHouseRooms[2];
+  drawRect(br.x1+1,br.y1,br.x1+5,br.y1+1,0.15,0.1,0.2);
+  // Bathroom: tub
+  const ba=simHouseRooms[3];
+  drawRect(ba.x1+1,ba.y1,ba.x1+3,ba.y1+1,0.15,0.2,0.25);
+
+  // Update and draw people
+  for(const p of simHousePeople){
+    p.stateT+=dt;
+    if(p.stateT>=p.nextDecisionT){
+      p.stateT=0;
+      p.nextDecisionT=8+Math.random()*20;
+      p.targetRoom=simHousePickRoom(p);
+    }
+
+    const room=simHouseRooms[p.targetRoom];
+    const targetX=room.x1+Math.floor((room.x2-room.x1)*0.5);
+    const targetY=room.y1+1;
+
+    // Move toward target
+    const dx=targetX-p.x, dy=targetY-p.y;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist>0.5){
+      const step=p.speed*dt;
+      // Move x first, then y (simulates walking then stairs)
+      if(Math.abs(dx)>0.5){
+        p.x+=Math.sign(dx)*Math.min(Math.abs(dx),step);
+      } else {
+        p.y+=Math.sign(dy)*Math.min(Math.abs(dy),step);
+      }
+    }
+
+    // Draw person as 2-pixel tall dot
+    const px=Math.round(p.x), py=Math.round(p.y);
+    drawOnFaces(px,py,p.color[0],p.color[1],p.color[2]);
+    drawOnFaces(px,py+1,p.color[0]*0.7,p.color[1]*0.7,p.color[2]*0.7);
+  }
+
+  // Chimney smoke at night
+  if(hour>=18||hour<8){
+    const smokeX=roofMidX+3;
+    for(let s=0;s<4;s++){
+      const sy=roofPeakY+1+s;
+      const sx=smokeX+Math.round(Math.sin(simHouseT*1.5+s*0.8)*0.8);
+      const fade=0.12*(1-s*0.2);
+      drawOnFaces(sx,sy,fade,fade,fade);
+    }
+  }
+
+  // Windows glow from outside (on other faces in 3D)
+  if(!panel2dMode){
+    // Stars on top face
+    const starSeed=42;
+    for(let i=0;i<20;i++){
+      const sx=(starSeed*i*7+13)%S, sy=(starSeed*i*11+7)%S;
+      const twinkle=0.1+0.08*Math.sin(simHouseT*2+i*1.3);
+      drawPx(4,sx,sy,twinkle,twinkle,twinkle*1.2);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════
 //  VIDEO DISPLAY
 //  Maps live video onto the 4 side panels.
 //  Sources: local file, screen capture (incl. YouTube

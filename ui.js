@@ -1002,6 +1002,7 @@ const EFFECTS={
   weather:effectWeather,
   coinflip:effectCoinFlip,
   dice:effectDice,
+  simhouse:effectSimHouse,
 };
 const EFFECT_NAMES={
   wave:'Wave Cascade', rain:'Color Rain', plasma:'Plasma Storm', sphere:'Morphing Sphere',
@@ -1016,6 +1017,7 @@ const EFFECT_NAMES={
   weather:'Weather',
   coinflip:'Coin Flip',
   dice:'Dice Roll',
+  simhouse:'Sim House',
 };
 
 // ═══════════════════════════════════════════════════
@@ -1033,7 +1035,7 @@ const EFFECT_SECTION_MAP = {
   balls:'',sand:'',lightning:'',warp:'',life:'',fluid:'',
 };
 
-const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','coinflip','dice','balls']);
+const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','coinflip','dice','balls','simhouse']);
 populateAlarmEffectRiseSelect(); // safe here — EFFECT_NAMES now defined
 
 async function fetchCitiesFromAPI(){
