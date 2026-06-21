@@ -8845,7 +8845,11 @@ function effectRetro(dt){
     faceBuf.fill(0);
     retroDrawFace(baseIdx,dt,faceBuf,S);
     for(let fIdx=0;fIdx<4;fIdx++){
-      if(!singleGame&&fIdx>0){ faceBuf.fill(0); retroDrawFace((baseIdx+fIdx)%numGames,dt,faceBuf,S); }
+      if(!singleGame&&fIdx>0){
+        const pool2=retroAutoGames&&retroAutoGames.length>0?retroAutoGames:Array.from({length:numGames},(_,i)=>i);
+        const faceGame=pool2[(pool2.indexOf(baseIdx)+fIdx)%pool2.length];
+        faceBuf.fill(0); retroDrawFace(faceGame,dt,faceBuf,S);
+      }
       const face=VID_FACE_ORDER[fIdx];
       for(let v=0;v<S;v++) for(let u=0;u<S;u++){
         const pu=S-1-u;
