@@ -1219,6 +1219,13 @@ document.querySelectorAll('.retro-game-btn').forEach(btn=>{
 });
 const retroSlider=document.getElementById('retro-rotate-slider');
 if(retroSlider) retroSlider.addEventListener('input',()=>{ retroRotateInterval=parseInt(retroSlider.value); const v=document.getElementById('retro-rotate-val'); if(v)v.textContent=retroSlider.value; });
+function updateRetroAutoGames(){
+  const chks=document.querySelectorAll('.retro-auto-chk');
+  const enabled=[];
+  chks.forEach(c=>{ if(c.checked) enabled.push(parseInt(c.dataset.idx)); });
+  retroAutoGames=enabled.length===chks.length?null:enabled;
+}
+document.querySelectorAll('.retro-auto-chk').forEach(c=>c.addEventListener('change',updateRetroAutoGames));
 
 // Fireworks mode buttons
 document.querySelectorAll('[data-shmode]').forEach(btn=>{

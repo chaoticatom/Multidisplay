@@ -6458,6 +6458,7 @@ function effectSimHouse(dt){
 // ═══════════════════════════════════════════════════
 let retroT=0, retroGames=[], retroInit=false, retroFaceBuf=null;
 let retroSelectedGame=-1, retroRotateInterval=8; // -1 = auto rotate
+let retroAutoGames=null; // null = all games, or array of enabled indices
 let retroLastGameIdx=-1, retroSplashT=0;
 let dcSplashData=null;
 let jpSplashData=null;
@@ -8685,7 +8686,13 @@ function effectRetro(dt){
 
   const numGames=retroGames.length;
   // Detect game change and trigger splash
-  const currentIdx=retroSelectedGame>=0?retroSelectedGame:Math.floor(retroT/retroRotateInterval)%numGames;
+  let currentIdx;
+  if(retroSelectedGame>=0){
+    currentIdx=retroSelectedGame;
+  } else {
+    const pool=retroAutoGames&&retroAutoGames.length>0?retroAutoGames:Array.from({length:numGames},(_,i)=>i);
+    currentIdx=pool[Math.floor(retroT/retroRotateInterval)%pool.length];
+  }
   if(currentIdx!==retroLastGameIdx){
     retroLastGameIdx=currentIdx;
     retroSplashT=2.0;
