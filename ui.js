@@ -1876,13 +1876,9 @@ function updatePlaylistUI(){
   if(bar&&!playlistOn) bar.style.width='0%';
 }
 
-const PLAYLIST_EFFECTS=Object.keys(EFFECTS).filter(k=>k!=='f1'&&k!=='video');
+const PLAYLIST_EFFECTS=Object.keys(EFFECTS);
 const OV_LABELS={stars:'✨ Stars',snow:'❄️ Snow',meteors:'☄️ Meteors',edgeglow:'💡 Edge Glow',fire:'🔥 Fire',sparkle:'✦ Sparkle',colorwave:'🌈 Color Wave',pulse:'💓 Pulse',scanline:'📡 Scanline',vignette:'🌑 Vignette',glitch:'⚡ Glitch',mist:'🌫️ Mist',lightning:'⚡ Lightning'};
 let savedPlaylists = JSON.parse(localStorage.getItem('ledcube_playlists')||'{}');
-// Strip f1 and video from any saved playlists (legacy cleanup)
-Object.keys(savedPlaylists).forEach(name=>{
-  savedPlaylists[name]=(savedPlaylists[name]||[]).filter(item=>item.effect!=='f1'&&item.effect!=='video');
-});
 // Clean up any empty playlists saved by older broken versions
 Object.keys(savedPlaylists).forEach(n=>{ if(!Array.isArray(savedPlaylists[n])||savedPlaylists[n].length===0) delete savedPlaylists[n]; });
 try{ localStorage.setItem('ledcube_playlists',JSON.stringify(savedPlaylists)); }catch(e){}
@@ -1940,8 +1936,8 @@ function renderPlaylistModal(){
     let rowOvChecks = '';
     Object.keys(OV_LABELS).forEach(function(k){
       const checked = it.overlays && it.overlays[k] ? 'checked' : '';
-      rowOvChecks += '<label style="display:flex;gap:6px;margin-bottom:4px;color:#bbc;cursor:pointer;font-size:11px;">'
-        + '<input type="checkbox" class="row-ov-chk" data-idx="' + idx + '" data-key="' + k + '" ' + checked + '> '
+      rowOvChecks += '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;color:#bbc;cursor:pointer;font-size:11px;">'
+        + '<label class="ov-toggle" style="margin-left:0;"><input type="checkbox" class="row-ov-chk" data-idx="' + idx + '" data-key="' + k + '" ' + checked + '><span class="ov-slider"></span></label>'
         + OV_LABELS[k] + '</label>';
     });
     const bor = active ? '0.6' : '0.15';
@@ -2033,7 +2029,9 @@ function renderPlaylistModal(){
       if(!this.value){ ovDiv.style.display='none'; return; }
       let h = '<div style="margin-bottom:8px;color:#aac;font-weight:600;font-size:12px;">Include overlays:</div>';
       Object.keys(OV_LABELS).forEach(function(k){
-        h += '<label style="display:flex;gap:6px;margin-bottom:4px;color:#bbc;cursor:pointer;font-size:11px;"><input type="checkbox" id="pl-add-ov-' + k + '"> ' + OV_LABELS[k] + '</label>';
+        h += '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;color:#bbc;cursor:pointer;font-size:11px;">'
+          + '<label class="ov-toggle" style="margin-left:0;"><input type="checkbox" id="pl-add-ov-' + k + '"><span class="ov-slider"></span></label>'
+          + OV_LABELS[k] + '</label>';
       });
       ovDiv.innerHTML = h;
       ovDiv.style.display = 'block';
