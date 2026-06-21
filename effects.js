@@ -7102,7 +7102,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
       setP(px-2,py+1,1,flameFlicker?0.8:0.4,0);
     }
     // Init alien state
-    if(!p.aliens){
+    if(!p.aliens||p.aliens.length===0){
       p.aliens=[];
       for(let a=0;a<4;a++) p.aliens.push({alive:true,explodeT:0,respawnT:0});
     }
