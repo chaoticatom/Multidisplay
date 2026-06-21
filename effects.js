@@ -6574,6 +6574,175 @@ function retroDrawTitle(buf,S,name){
     return;
   }
 
+  // OutRun splash — programmatic recreation of ZX Spectrum loading screen
+  if(name==='outrun'){
+    // Cyan sky top half
+    for(let y=S/2;y<S;y++) for(let x=0;x<S;x++) setP(x,y,0,0.85,0.85);
+    // Blue banner at very top
+    for(let y=S-8;y<S;y++) for(let x=0;x<S;x++) setP(x,y,0.1,0.1,0.7);
+    // "OUT RUN" title (red-yellow gradient large text)
+    const orTitle='OUT RUN';
+    for(let ci=0;ci<orTitle.length;ci++){
+      const ch=orTitle[ci]; if(ch===' ') continue;
+      const glyph=font[ch]; if(!glyph) continue;
+      const cx=4+ci*8;
+      for(let row=0;row<7;row++){
+        const bits=glyph[row];
+        for(let col=0;col<5;col++){
+          if(bits&(0x10>>col)){
+            const px=cx+col, py=S-7+row-7;
+            if(px<S&&py>=0&&py<S){
+              const grad=row/7;
+              setP(px,py,1,0.2+grad*0.6,0);
+              if(py-1>=0) setP(px,py-1,0.6,0.1+grad*0.3,0);
+            }
+          }
+        }
+      }
+    }
+    // Yellow/dark ground bottom
+    for(let y=0;y<S/2-5;y++) for(let x=0;x<S;x++){
+      const checker=((x+y)%3===0)?0.7:0.6;
+      setP(x,y,checker,checker*0.9,0.2);
+    }
+    // Road (dark, center, perspective)
+    for(let y=0;y<S/2;y++){
+      const w=4+(S/2-y)*0.5;
+      const cx=S/2;
+      for(let x=Math.max(0,Math.round(cx-w));x<=Math.min(S-1,Math.round(cx+w));x++)
+        setP(x,y,0.2,0.2,0.2);
+    }
+    // Red car at bottom center
+    fillRect(S/2-4,3,S/2+4,7,0.85,0.1,0.05);
+    fillRect(S/2-3,7,S/2+3,9,0.15,0.15,0.2);
+    fillRect(S/2-2,9,S/2+2,10,0.8,0.1,0.05);
+    // Palm trees (left and right)
+    for(const side of [-1,1]){
+      const tx=S/2+side*18;
+      for(let ty=0;ty<16;ty++){ if(tx>=0&&tx<S) setP(tx,S/2-8+ty,0.4,0.25,0.1); }
+      for(let dy=-3;dy<=4;dy++) for(let dx=-5;dx<=5;dx++){
+        if(Math.abs(dx)+Math.abs(dy)<=6&&dy>=0){
+          const sx=tx+dx,sy=S/2+8+dy;
+          if(sx>=0&&sx<S&&sy<S) setP(sx,sy,0,0.5,0.1);
+        }
+      }
+    }
+    // "START" banner (white rectangle with text)
+    fillRect(12,S/2+2,S-12,S/2+8,0.95,0.95,0.95);
+    fillRect(12,S/2+1,S-12,S/2+1,0.5,0.5,0.5);
+    fillRect(12,S/2+9,S-12,S/2+9,0.5,0.5,0.5);
+    const stTxt='START';
+    for(let ci=0;ci<stTxt.length;ci++){
+      const glyph=font[stTxt[ci]]; if(!glyph) continue;
+      const cx=18+ci*6;
+      for(let row=0;row<7;row++){
+        const bits=glyph[row];
+        for(let col=0;col<5;col++){
+          if(bits&(0x10>>col)){
+            const px=cx+col, py=S/2+2+row;
+            if(px<S&&py<S) setP(px,py,0.1,0.1,0.1);
+          }
+        }
+      }
+    }
+    // "STAGE 1" at bottom right
+    hLine(S-16,S-4,2,0,0.7,0);
+    return;
+  }
+
+  // JSW splash — programmatic recreation
+  if(name==='jsw'){
+    // Black background
+    for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,0,0,0);
+    // "JET" in red, large
+    const jswFont=font;
+    const jLine1='JET';
+    for(let ci=0;ci<jLine1.length;ci++){
+      const glyph=jswFont[jLine1[ci]]; if(!glyph) continue;
+      const cx=6+ci*10;
+      for(let row=0;row<7;row++){
+        const bits=glyph[row];
+        for(let col=0;col<5;col++){
+          if(bits&(0x10>>col)){
+            fillRect(cx+col*2,S-10+row*2-14,cx+col*2+1,S-10+row*2-13,0.9,0,0);
+          }
+        }
+      }
+    }
+    // "SET" in red, offset right
+    const jLine2='SET';
+    for(let ci=0;ci<jLine2.length;ci++){
+      const glyph=jswFont[jLine2[ci]]; if(!glyph) continue;
+      const cx=22+ci*10;
+      for(let row=0;row<7;row++){
+        const bits=glyph[row];
+        for(let col=0;col<5;col++){
+          if(bits&(0x10>>col)){
+            fillRect(cx+col*2,S-10+row*2-14,cx+col*2+1,S-10+row*2-13,0.9,0,0);
+          }
+        }
+      }
+    }
+    // "WILLY" below, in red
+    const jLine3='WILLY';
+    for(let ci=0;ci<jLine3.length;ci++){
+      const glyph=jswFont[jLine3[ci]]; if(!glyph) continue;
+      const cx=8+ci*10;
+      for(let row=0;row<7;row++){
+        const bits=glyph[row];
+        for(let col=0;col<5;col++){
+          if(bits&(0x10>>col)){
+            fillRect(cx+col*2,S/2+row*2-6,cx+col*2+1,S/2+row*2-5,0.9,0,0);
+          }
+        }
+      }
+    }
+    // Geometric shape in center (the iconic triangle/hexagon overlay)
+    const cxC=S/2, cyC=S/2+4;
+    // Green triangle
+    for(let dy=0;dy<12;dy++){
+      const w=Math.round(dy*0.8);
+      for(let dx=-w;dx<=w;dx++){
+        const sx=cxC+dx, sy=cyC+dy-6;
+        if(sx>=0&&sx<S&&sy>=0&&sy<S) setP(sx,sy,0,0.7,0);
+      }
+    }
+    // Blue triangle overlapping
+    for(let dy=0;dy<10;dy++){
+      const w=Math.round(dy*0.7);
+      for(let dx=-w;dx<=w;dx++){
+        const sx=cxC+4+dx, sy=cyC-dy+4;
+        if(sx>=0&&sx<S&&sy>=0&&sy<S) setP(sx,sy,0,0,0.8);
+      }
+    }
+    // Red triangle
+    for(let dy=0;dy<10;dy++){
+      const w=Math.round(dy*0.7);
+      for(let dx=-w;dx<=w;dx++){
+        const sx=cxC-4+dx, sy=cyC-dy+4;
+        if(sx>=0&&sx<S&&sy>=0&&sy<S) setP(sx,sy,0.8,0,0);
+      }
+    }
+    // Bottom text: "Press ENTER to Start"
+    const bottomTxt='PRESS ENTER';
+    for(let ci=0;ci<bottomTxt.length;ci++){
+      const glyph=jswFont[bottomTxt[ci]]; if(!glyph) continue;
+      const cx=5+ci*5;
+      for(let row=0;row<7;row++){
+        const bits=glyph[row];
+        for(let col=0;col<5;col++){
+          if(bits&(0x10>>col)){
+            const px=cx+col, py=6+row;
+            if(px<S&&py<S) setP(px,py,0,0.8,0);
+          }
+        }
+      }
+    }
+    // Plus signs border
+    for(let x=0;x<S;x+=4) setP(x,4,0,0.6,0);
+    return;
+  }
+
   const titles={
     jetpac:{col:[1,1,0],bg:[0,0,0.3]},
     manic:{col:[1,1,0],bg:[0,0,0]},
