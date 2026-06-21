@@ -7518,11 +7518,17 @@ function retroDrawFace(faceIdx,dt,buf,S){
       fillRect(cannonX-1,8,cannonX+1,9,1,1,1);
       setP(cannonX,10,1,1,1);
 
-      // Fire when lined up with a target
-      if(targetInv&&Math.abs(p.playerX-(p.invX+targetInv.c*5))<2&&p.bullets.length<3){
-        p.bullets.push({x:cannonX,y:11});
-      } else if(Math.sin(p.t*4)>0.95&&p.bullets.length<3){
-        p.bullets.push({x:cannonX,y:11});
+      // Fire when lined up with a target (cooldown between shots)
+      if(!p.fireCD) p.fireCD=0;
+      p.fireCD-=dt;
+      if(p.fireCD<=0&&p.bullets.length<2){
+        if(targetInv&&Math.abs(p.playerX-(p.invX+targetInv.c*5))<2){
+          p.bullets.push({x:cannonX,y:11});
+          p.fireCD=0.6;
+        } else if(Math.sin(p.t*3)>0.97){
+          p.bullets.push({x:cannonX,y:11});
+          p.fireCD=0.8;
+        }
       }
     }
 
