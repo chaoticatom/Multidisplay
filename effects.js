@@ -7493,9 +7493,9 @@ function retroDrawFace(faceIdx,dt,buf,S){
           const ox=5+li*14;
           for(let row=0;row<5;row++) for(let col=0;col<5;col++){
             if(glyph[row][col]){
-              const px=ox+col*2, py=34+row*2;
-              setP(px,py,1,0,0); setP(px+1,py,1,0,0);
-              setP(px,py+1,1,0,0); setP(px+1,py+1,1,0,0);
+              const px=S-1-(ox+col*2), py=S-1-(34+row*2);
+              setP(px,py,1,0,0); setP(px-1,py,1,0,0);
+              setP(px,py-1,1,0,0); setP(px-1,py-1,1,0,0);
             }
           }
         }
@@ -7504,9 +7504,9 @@ function retroDrawFace(faceIdx,dt,buf,S){
           const ox=5+li*14;
           for(let row=0;row<5;row++) for(let col=0;col<5;col++){
             if(glyph[row][col]){
-              const px=ox+col*2, py=22+row*2;
-              setP(px,py,1,0,0); setP(px+1,py,1,0,0);
-              setP(px,py+1,1,0,0); setP(px+1,py+1,1,0,0);
+              const px=S-1-(ox+col*2), py=S-1-(22+row*2);
+              setP(px,py,1,0,0); setP(px-1,py,1,0,0);
+              setP(px,py-1,1,0,0); setP(px-1,py-1,1,0,0);
             }
           }
         }
@@ -8091,19 +8091,19 @@ function retroDrawFace(faceIdx,dt,buf,S){
         for(let li=0;li<4;li++){
           const glyph=row1[li]; const ox=5+li*14;
           for(let row=0;row<5;row++) for(let col=0;col<5;col++){
-            if(glyph[row][col]){ const px=ox+col*2,py=34+row*2; setP(px,py,1,0,0);setP(px+1,py,1,0,0);setP(px,py+1,1,0,0);setP(px+1,py+1,1,0,0); }
+            if(glyph[row][col]){ const px=S-1-(ox+col*2),py=S-1-(34+row*2); setP(px,py,1,0,0);setP(px-1,py,1,0,0);setP(px,py-1,1,0,0);setP(px-1,py-1,1,0,0); }
           }
         }
         for(let li=0;li<4;li++){
           const glyph=row2[li]; const ox=5+li*14;
           for(let row=0;row<5;row++) for(let col=0;col<5;col++){
-            if(glyph[row][col]){ const px=ox+col*2,py=22+row*2; setP(px,py,1,0,0);setP(px+1,py,1,0,0);setP(px,py+1,1,0,0);setP(px+1,py+1,1,0,0); }
+            if(glyph[row][col]){ const px=S-1-(ox+col*2),py=S-1-(22+row*2); setP(px,py,1,0,0);setP(px-1,py,1,0,0);setP(px,py-1,1,0,0);setP(px-1,py-1,1,0,0); }
           }
         }
       }
       if(p.loserT<=0){
-        p.lives=3; p.turrets=[]; p.tBullets=[];
-        for(const e of p.enemies){ e.alive=true; e.x=-Math.random()*20; e.y=15+Math.random()*35; }
+        p.lives=3; p.turrets=[]; p.tBullets=[]; p.eBullets=[];
+        for(const e of p.enemies){ e.alive=true; e.x=-Math.random()*20; e.y=15+Math.random()*35; e.fireT=2+Math.random()*3; }
       }
       return;
     }
@@ -8112,14 +8112,21 @@ function retroDrawFace(faceIdx,dt,buf,S){
     if(!p.dodgeTarget) p.dodgeTarget=32;
     if(!p.dodgeTimer) p.dodgeTimer=0;
     p.dodgeTimer-=dt;
-    // Find nearest threat approaching the ship
+    // Find nearest threat approaching the ship (enemies + bullets)
     let nearestThreatY=null, nearestDist=999;
     for(const e of p.enemies){
       if(!e.alive) continue;
-      const dx=e.x-(S-10);
-      if(dx>-20&&dx<10){
-        const dist=Math.abs(dx)+Math.abs(e.y-p.dodgeTarget)*0.5;
+      const dx=e.x-p.shipX;
+      if(dx>-20&&dx<15){
+        const dist=Math.abs(dx)+Math.abs(e.y-p.shipY)*0.5;
         if(dist<nearestDist){ nearestDist=dist; nearestThreatY=e.y; }
+      }
+    }
+    const allBullets=(p.eBullets||[]).concat(p.tBullets||[]);
+    for(const b of allBullets){
+      if(Math.abs(b.x-p.shipX)<15&&Math.abs(b.y-p.shipY)<12){
+        const dist=Math.abs(b.x-p.shipX)+Math.abs(b.y-p.shipY)*0.3;
+        if(dist<nearestDist){ nearestDist=dist; nearestThreatY=b.y; }
       }
     }
     if(p.dodgeTimer<=0||(nearestThreatY!==null&&Math.abs(nearestThreatY-p.dodgeTarget)<8)){
@@ -8169,25 +8176,28 @@ function retroDrawFace(faceIdx,dt,buf,S){
       if(((wx)%4)<2) setP(x,h,0.4,0.35,0.25);
     }
 
-    // Turrets on ground
+    // Turrets on ground (screen-space, scroll left with terrain)
     p.turretSpawnT-=dt;
     if(p.turretSpawnT<=0&&p.turrets.length<3){
-      const worldX=-Math.floor(p.scrollX)+S+Math.random()*20;
-      p.turrets.push({worldX:worldX, fireT:1+Math.random()*2});
-      p.turretSpawnT=3+Math.random()*4;
+      p.turrets.push({screenX:S+5, fireT:1.5+Math.random()*2});
+      p.turretSpawnT=4+Math.random()*5;
     }
     for(let i=p.turrets.length-1;i>=0;i--){
       const tr=p.turrets[i];
-      const tsx=Math.round(tr.worldX+Math.floor(p.scrollX));
-      if(tsx<-5||tsx>S+5){ p.turrets.splice(i,1); continue; }
+      tr.screenX-=18*dt;
+      if(tr.screenX<-5){ p.turrets.splice(i,1); continue; }
+      const tsx=Math.round(tr.screenX);
       const twx=tsx-Math.floor(p.scrollX);
       const th=terrainH+Math.round(Math.sin(twx*0.12)*2+Math.sin(twx*0.25)*1.5);
-      setP(tsx,th+1,0,0.8,0); setP(tsx,th+2,0,1,0); setP(tsx-1,th+1,0,0.6,0); setP(tsx+1,th+1,0,0.6,0);
-      setP(tsx,th+3,0,0.9,0.2);
+      // Draw turret (green cannon on ground)
+      fillRect(tsx-1,th,tsx+1,th+1,0.2,0.5,0.2);
+      setP(tsx,th+2,0,1,0); setP(tsx,th+3,0,1,0);
+      setP(tsx-1,th+3,0,0.7,0); setP(tsx+1,th+3,0,0.7,0);
+      setP(tsx,th+4,0.2,1,0.2);
       tr.fireT-=dt;
       if(tr.fireT<=0){
-        const dx=p.shipX-tsx, dy=p.shipY-(th+3);
-        p.tBullets.push({x:tsx,y:th+3,dx:dx,dy:dy});
+        const dx=p.shipX-tsx, dy=p.shipY-(th+4);
+        p.tBullets.push({x:tsx,y:th+4,dx:dx,dy:dy});
         tr.fireT=1.5+Math.random()*2;
       }
     }
@@ -8268,30 +8278,66 @@ function retroDrawFace(faceIdx,dt,buf,S){
     }
     if(p.bullets.length>5) p.bullets.length=5;
 
-    // Enemies (red, coming from the left)
+    // Init enemies if empty
+    if(p.enemies.length===0){
+      for(let i=0;i<5;i++) p.enemies.push({x:-4-Math.random()*30,y:terrainH+5+Math.random()*(S-terrainH-hudH-10),alive:true,type:i%3,phase:Math.random()*6,fireT:2+Math.random()*3});
+    }
+    if(!p.eBullets) p.eBullets=[];
+
+    // Enemies (Bydo organisms)
     for(const e of p.enemies){
       if(!e.alive) continue;
       e.x+=12*dt;
       e.y+=Math.sin(p.t*2.5+e.phase)*6*dt;
-      if(e.x>S+4){ e.x=-4-Math.random()*20; e.y=terrainH+5+Math.random()*(S-terrainH-hudH-10); e.alive=true; }
+      if(e.x>S+4){ e.x=-4-Math.random()*20; e.y=terrainH+5+Math.random()*(S-terrainH-hudH-10); e.alive=true; e.fireT=1+Math.random()*3; }
       const ex=Math.round(e.x), ey=Math.round(e.y);
       if(e.type===0){
-        // Small red pod
-        setP(ex,ey,1,0,0); setP(ex+1,ey,1,0,0); setP(ex,ey-1,0.8,0,0); setP(ex,ey+1,0.8,0,0);
+        // Bydo pod — pulsing organic red/orange with tendrils
+        const pulse=0.7+0.3*Math.sin(p.t*6+e.phase);
+        setP(ex,ey,pulse,0.1,0.1); setP(ex+1,ey,pulse*0.8,0,0); setP(ex-1,ey,pulse*0.8,0,0);
+        setP(ex,ey-1,pulse*0.7,0.2,0); setP(ex,ey+1,pulse*0.7,0.2,0);
+        const ta=Math.sin(p.t*8+e.phase);
+        setP(ex-2,ey+Math.round(ta),0.5,0,0);
+        setP(ex+2,ey-Math.round(ta),0.5,0,0);
       } else if(e.type===1){
-        // Larger red enemy (3x3)
-        fillRect(ex-1,ey-1,ex+1,ey+1,1,0,0);
-        setP(ex-1,ey,0.8,0.2,0); setP(ex+1,ey,0.8,0.2,0);
-        setP(ex,ey-1,1,0.3,0); setP(ex,ey+1,1,0.3,0);
+        // Larger bio-mechanical (purple/red armored)
+        fillRect(ex-1,ey-1,ex+1,ey+1,0.8,0,0.6);
+        setP(ex,ey,1,0.2,0.8); // core
+        setP(ex-2,ey,0.6,0,0.4); setP(ex+2,ey,0.6,0,0.4);
+        setP(ex,ey-2,0.5,0,0.3); setP(ex,ey+2,0.5,0,0.3);
+        // Eye
+        setP(ex+1,ey,1,1,0);
       } else {
-        // Yellow/green crescent enemy
-        setP(ex,ey,1,1,0); setP(ex+1,ey-1,1,1,0); setP(ex+1,ey+1,1,1,0);
-        setP(ex-1,ey,0.8,0.8,0);
+        // Serpentine green alien with segments
+        for(let seg=0;seg<3;seg++){
+          const segX=ex-seg*2, segY=ey+Math.round(Math.sin(p.t*5+e.phase+seg)*1.5);
+          const g=0.9-seg*0.2;
+          setP(segX,segY,0,g,0); setP(segX,segY-1,0,g*0.7,0); setP(segX,segY+1,0,g*0.7,0);
+        }
+        setP(ex+1,ey,1,1,0); // head eye
+      }
+      // Enemy fires bullet toward ship
+      if(!e.fireT) e.fireT=2;
+      e.fireT-=dt;
+      if(e.fireT<=0&&ex>0&&ex<S){
+        const dx=p.shipX-ex, dy=p.shipY-ey;
+        p.eBullets.push({x:ex,y:ey,dx:dx,dy:dy});
+        e.fireT=2+Math.random()*3;
       }
     }
+    // Enemy bullets
+    for(let i=p.eBullets.length-1;i>=0;i--){
+      const eb=p.eBullets[i];
+      const dist=Math.sqrt(eb.dx*eb.dx+eb.dy*eb.dy);
+      if(dist>0){ eb.x+=eb.dx/dist*40*dt; eb.y+=eb.dy/dist*40*dt; }
+      if(eb.x<0||eb.x>=S||eb.y<0||eb.y>=S){ p.eBullets.splice(i,1); continue; }
+      const ebx=Math.round(eb.x),eby=Math.round(eb.y);
+      setP(ebx,eby,1,0.3,0.3); setP(ebx,eby-1,0.8,0.1,0.1);
+    }
+    if(p.eBullets.length>8) p.eBullets.length=8;
     // Respawn dead enemies
     if(p.enemies.filter(e=>e.alive).length<2){
-      for(const e of p.enemies){ e.alive=true; e.x=-Math.random()*20; e.y=terrainH+5+Math.random()*(S-terrainH-hudH-10); }
+      for(const e of p.enemies){ e.alive=true; e.x=-Math.random()*20; e.y=terrainH+5+Math.random()*(S-terrainH-hudH-10); e.fireT=2+Math.random()*3; }
     }
 
     // Collision detection — ship hit by enemy or turret bullet
@@ -8302,11 +8348,18 @@ function retroDrawFace(faceIdx,dt,buf,S){
         if(!e.alive) continue;
         if(Math.abs(e.x-p.shipX)<4&&Math.abs(e.y-p.shipY)<4){ hit=true; e.alive=false; break; }
       }
-      // Turret bullet hits ship
+      // Turret or enemy bullet hits ship
       if(!hit){
         for(let i=p.tBullets.length-1;i>=0;i--){
           if(Math.abs(p.tBullets[i].x-p.shipX)<4&&Math.abs(p.tBullets[i].y-p.shipY)<4){
             hit=true; p.tBullets.splice(i,1); break;
+          }
+        }
+      }
+      if(!hit){
+        for(let i=p.eBullets.length-1;i>=0;i--){
+          if(Math.abs(p.eBullets[i].x-p.shipX)<4&&Math.abs(p.eBullets[i].y-p.shipY)<4){
+            hit=true; p.eBullets.splice(i,1); break;
           }
         }
       }
