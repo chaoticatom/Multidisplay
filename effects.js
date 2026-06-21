@@ -7887,7 +7887,30 @@ function retroDrawFace(faceIdx,dt,buf,S){
   } else if(game.name==='rtype'){
     const p=game;
     p.scrollX+=dt*18;
-    p.shipY=32+Math.round(Math.sin(p.t*1.5)*14);
+    if(!p.dodgeTarget) p.dodgeTarget=32;
+    if(!p.dodgeTimer) p.dodgeTimer=0;
+    p.dodgeTimer-=dt;
+    // Find nearest threat approaching the ship
+    let nearestThreatY=null, nearestDist=999;
+    for(const e of p.enemies){
+      if(!e.alive) continue;
+      const dx=e.x-(S-10);
+      if(dx>-20&&dx<10){
+        const dist=Math.abs(dx)+Math.abs(e.y-p.dodgeTarget)*0.5;
+        if(dist<nearestDist){ nearestDist=dist; nearestThreatY=e.y; }
+      }
+    }
+    if(p.dodgeTimer<=0||(nearestThreatY!==null&&Math.abs(nearestThreatY-p.dodgeTarget)<8)){
+      // Dodge: move away from nearest threat, or pick random Y
+      if(nearestThreatY!==null){
+        p.dodgeTarget=nearestThreatY>32?16+Math.random()*14:46+Math.random()*10;
+      } else {
+        p.dodgeTarget=16+Math.random()*38;
+      }
+      p.dodgeTimer=0.6+Math.random()*0.8;
+    }
+    p.shipY+=(p.dodgeTarget-p.shipY)*dt*4;
+    p.shipY=Math.max(14,Math.min(S-10,p.shipY));
     p.shipX=S-10+Math.round(Math.sin(p.t*0.4)*2);
     const terrainH=10;
     const hudH=6;
