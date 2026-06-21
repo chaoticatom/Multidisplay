@@ -7013,85 +7013,83 @@ function retroDrawFace(faceIdx,dt,buf,S){
       }
     }
 
-    // Enemy bike (ahead, weaving) — detailed bike with rider
-    const enemyZ=15+Math.sin(p.t*0.6)*10;
-    const ePerspective=20/enemyZ;
+    // Enemy bike (ahead, weaving) — smaller and darker, further away
+    const enemyZ=25+Math.sin(p.t*0.6)*8;
+    const ePerspective=12/enemyZ;
     const eScreenX=Math.round(S/2+Math.sin(p.t*1.3)*10*ePerspective);
     const eScreenY=Math.round(H+ePerspective*2);
     const eH=Math.max(4,Math.round(ePerspective*14));
-    const eW=Math.max(3,Math.round(ePerspective*5));
-    const wheelR=Math.max(1,Math.round(ePerspective*2.5));
+    const eW=Math.max(2,Math.round(ePerspective*4));
+    const wheelR=Math.max(1,Math.round(ePerspective*2));
     // Rear wheel
     for(let dy=-wheelR;dy<=wheelR;dy++) for(let dx=-wheelR;dx<=wheelR;dx++){
       if(dx*dx+dy*dy<=wheelR*wheelR){
         const sx=eScreenX-eW+dx, sy=eScreenY+dy;
-        if(sx>=0&&sx<S&&sy>=0&&sy<S) setP(sx,sy,0.25,0.25,0.25);
+        if(sx>=0&&sx<S&&sy>=0&&sy<S) setP(sx,sy,0.12,0.12,0.12);
       }
     }
     // Front wheel
     for(let dy=-wheelR;dy<=wheelR;dy++) for(let dx=-wheelR;dx<=wheelR;dx++){
       if(dx*dx+dy*dy<=wheelR*wheelR){
         const sx=eScreenX+eW+dx, sy=eScreenY+dy;
-        if(sx>=0&&sx<S&&sy>=0&&sy<S) setP(sx,sy,0.25,0.25,0.25);
+        if(sx>=0&&sx<S&&sy>=0&&sy<S) setP(sx,sy,0.12,0.12,0.12);
       }
     }
-    // Wheel spokes (bright center)
-    setP(eScreenX-eW,eScreenY,0.6,0.6,0.6);
-    setP(eScreenX+eW,eScreenY,0.6,0.6,0.6);
-    // Frame/chassis (dark red, angled)
+    // Wheel spokes
+    setP(eScreenX-eW,eScreenY,0.3,0.3,0.3);
+    setP(eScreenX+eW,eScreenY,0.3,0.3,0.3);
+    // Frame/chassis (very dark)
     for(let fx=eScreenX-eW;fx<=eScreenX+eW;fx++){
-      if(fx>=0&&fx<S){ setP(fx,eScreenY-1,0.5,0.1,0.1); setP(fx,eScreenY-2,0.4,0.08,0.08); }
+      if(fx>=0&&fx<S){ setP(fx,eScreenY-1,0.2,0.05,0.05); setP(fx,eScreenY-2,0.15,0.04,0.04); }
     }
-    // Engine block (dark grey, under rider)
+    // Engine block
     const engW=Math.max(1,Math.round(eW*0.4));
-    fillRect(eScreenX-engW,eScreenY-2,eScreenX+engW,eScreenY-1,0.3,0.3,0.35);
-    // Exhaust pipe (orange tint)
-    if(eScreenX+eW+1<S) setP(eScreenX+eW+1,eScreenY-1,0.6,0.3,0.05);
-    // Rider legs (dark blue jeans, straddling bike)
-    const legH=Math.max(2,Math.round(eH*0.25));
+    fillRect(eScreenX-engW,eScreenY-2,eScreenX+engW,eScreenY-1,0.15,0.15,0.18);
+    // Exhaust pipe
+    if(eScreenX+eW+1<S) setP(eScreenX+eW+1,eScreenY-1,0.3,0.15,0.02);
+    // Rider legs (dark)
+    const legH=Math.max(1,Math.round(eH*0.2));
     for(let dy=0;dy<legH;dy++){
       const sy=eScreenY-3-dy;
       if(sy>=0&&sy<S){
-        setP(eScreenX-1,sy,0.1,0.1,0.4);
-        setP(eScreenX+1,sy,0.1,0.1,0.4);
+        setP(eScreenX-1,sy,0.05,0.05,0.2);
+        setP(eScreenX+1,sy,0.05,0.05,0.2);
       }
     }
-    // Rider torso (green jacket)
-    const torsoH=Math.max(2,Math.round(eH*0.3));
+    // Rider torso (dark green)
+    const torsoH=Math.max(1,Math.round(eH*0.3));
     const torsoBase=eScreenY-3-legH;
     for(let dy=0;dy<torsoH;dy++){
       const sy=torsoBase-dy;
       if(sy<0||sy>=S) continue;
-      const tw=Math.max(1,Math.round(eW*0.5));
+      const tw=Math.max(1,Math.round(eW*0.4));
       for(let dx=-tw;dx<=tw;dx++){
         const sx=eScreenX+dx;
-        if(sx>=0&&sx<S) setP(sx,sy,0.1,0.55,0.1);
+        if(sx>=0&&sx<S) setP(sx,sy,0.05,0.3,0.05);
       }
     }
-    // Arms (reaching forward to handlebars)
+    // Arms
     const armY=torsoBase-Math.round(torsoH*0.3);
     if(armY>=0&&armY<S){
-      for(let ax=1;ax<=Math.max(1,Math.round(eW*0.7));ax++){
+      for(let ax=1;ax<=Math.max(1,Math.round(eW*0.5));ax++){
         const sx1=eScreenX-ax, sx2=eScreenX+ax;
-        if(sx1>=0) setP(sx1,armY,0.1,0.45,0.1);
-        if(sx2<S) setP(sx2,armY,0.1,0.45,0.1);
+        if(sx1>=0) setP(sx1,armY,0.05,0.25,0.05);
+        if(sx2<S) setP(sx2,armY,0.05,0.25,0.05);
       }
     }
-    // Rider head (red helmet with visor)
+    // Rider head (dark helmet)
     const headY=torsoBase-torsoH;
     if(headY>=1&&headY<S){
-      setP(eScreenX,headY,0.8,0.1,0.1);
-      setP(eScreenX-1,headY,0.7,0.05,0.05);
-      setP(eScreenX+1,headY,0.7,0.05,0.05);
-      setP(eScreenX,headY-1,0.8,0.1,0.1);
-      // Visor (dark strip)
-      setP(eScreenX,headY+1,0.1,0.1,0.1);
+      setP(eScreenX,headY,0.4,0.05,0.05);
+      if(eScreenX-1>=0) setP(eScreenX-1,headY,0.3,0.03,0.03);
+      if(eScreenX+1<S) setP(eScreenX+1,headY,0.3,0.03,0.03);
+      setP(eScreenX,headY-1,0.4,0.05,0.05);
     }
     // Handlebars
     const hbY=eScreenY-3;
     if(hbY>=0&&hbY<S){
-      setP(eScreenX-eW+1,hbY,0.5,0.5,0.5);
-      setP(eScreenX+eW-1,hbY,0.5,0.5,0.5);
+      setP(eScreenX-eW+1,hbY,0.25,0.25,0.25);
+      setP(eScreenX+eW-1,hbY,0.25,0.25,0.25);
     }
 
     // Fire bullet occasionally from player bike
