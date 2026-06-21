@@ -8110,7 +8110,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Scrolling stars (different speeds for parallax)
     for(let i=0;i<50;i++){
       const speed=1+((i*7)%3);
-      const sx=((i*17+Math.floor(p.scrollX*speed*0.3))%S);
+      const sx=(((i*17-Math.floor(p.scrollX*speed*0.3))%S)+S)%S;
       const sy=hudH+((i*41+7)%(S-hudH-terrainH));
       const br=0.15+((i*3)%4)*0.08;
       setP(sx,sy,br,br,br);
@@ -8118,7 +8118,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
 
     // Ground terrain (grey/brown rocky, scrolling)
     for(let x=0;x<S;x++){
-      const wx=x+Math.floor(p.scrollX);
+      const wx=x-Math.floor(p.scrollX);
       const h=terrainH+Math.round(Math.sin(wx*0.12)*2+Math.sin(wx*0.25)*1.5);
       for(let y=0;y<h;y++){
         const shade=0.25+((wx+y*3)%5)*0.04;
