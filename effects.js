@@ -7147,84 +7147,144 @@ function retroDrawFace(faceIdx,dt,buf,S){
     hLine(2,10,S-2,WHT[0],WHT[1],WHT[2]);
 
   } else if(game.name==='jsw'){
-    // Jet Set Willy — multi-room platformer, bathrooms, rooftops, cellar style
     const p=game;
     p.roomT+=dt;
-    if(p.roomT>10){ p.room=(p.room+1)%4; p.roomT=0; p.playerX=8; p.playerY=10; }
+    if(p.roomT>10){ p.room=(p.room+1)%4; p.roomT=0; p.playerX=10; p.playerY=14; }
+    const borderW=3;
+    const playL=borderW, playR=S-1-borderW;
+    const groundY=12;
 
-    // Room-specific layouts (each room has distinct look)
-    const roomCols=[[MAG[0],MAG[1],MAG[2]],[CYN[0],CYN[1],CYN[2]],[GRN[0],GRN[1],GRN[2]],[YEL[0],YEL[1],YEL[2]]];
-    const rc=roomCols[p.room];
+    // Blue border (thick, like original)
+    for(let y=0;y<S;y++){
+      for(let x=0;x<borderW;x++){
+        const pat=((x+y)%2===0)?0.7:0.4;
+        setP(x,y,0,0,pat); setP(S-1-x,y,0,0,pat);
+      }
+    }
+    for(let x=0;x<S;x++){
+      setP(x,S-1,0,0,0.6); setP(x,S-2,0,0,0.5);
+      setP(x,0,0,0,0.6); setP(x,1,0,0,0.5);
+    }
 
-    // Floor
-    for(let x=0;x<S;x++){ setP(x,5,rc[0]*0.6,rc[1]*0.6,rc[2]*0.6); setP(x,4,rc[0]*0.3,rc[1]*0.3,rc[2]*0.3); }
+    // Room colours (magenta/red walls like original)
+    const roomWallCol=p.room===0?[0.8,0,0.5]:p.room===1?[0.7,0,0]:p.room===2?[0,0.6,0]:[0.7,0.7,0];
+    const rw=roomWallCol;
 
-    // Room-specific platforms and hazards
-    const plats=p.room===0?[[12,8,28],[22,20,44],[32,35,58],[42,10,30]]:
-                p.room===1?[[10,5,20],[20,25,50],[35,10,35],[48,40,60]]:
-                p.room===2?[[15,15,40],[28,5,25],[40,30,55],[50,8,22]]:
-                           [[10,30,55],[22,5,30],[35,35,60],[45,10,40]];
+    // Magenta/red walls on right side (like screenshot shows thick wall)
+    if(p.room===0||p.room===1){
+      for(let y=groundY+1;y<S-2;y++){
+        for(let x=playR-4;x<=playR;x++){
+          const checker=((x+y)%2===0)?1:0.6;
+          setP(x,y,rw[0]*checker,rw[1]*checker,rw[2]*checker);
+        }
+      }
+    }
+
+    // Yellow ground/floor with pattern
+    for(let x=playL;x<=playR;x++){
+      setP(x,groundY,0.85,0.85,0); setP(x,groundY-1,0.7,0.7,0);
+    }
+
+    // Platforms (yellow, like original)
+    const plats=p.room===0?[[24,playL,playL+18],[24,playL+22,playR-8],[38,playL+10,playR-10],[50,playL,playL+15],[50,playR-12,playR]]:
+                p.room===1?[[20,playL,playL+20],[32,playL+15,playR-5],[44,playL+5,playR-15],[52,playL,playR]]:
+                p.room===2?[[22,playL+5,playL+25],[34,playL+20,playR-5],[46,playL,playL+18],[46,playR-15,playR]]:
+                           [[20,playL+10,playR-10],[34,playL,playL+16],[34,playR-16,playR],[48,playL+5,playR-5]];
     for(const pl of plats){
-      hLine(pl[1],pl[2],pl[0],rc[0],rc[1],rc[2]);
-      hLine(pl[1],pl[2],pl[0]-1,rc[0]*0.4,rc[1]*0.4,rc[2]*0.4);
+      for(let x=pl[1];x<=pl[2];x++){
+        setP(x,pl[0],0.85,0.85,0); setP(x,pl[0]-1,0.6,0.6,0);
+      }
     }
 
-    // Decorative wall patterns (checkerboard on sides, very Spectrum)
-    for(let y=6;y<S;y+=4){
-      const on=(y/4)%2;
-      if(on){ setP(0,y,rc[0]*0.5,rc[1]*0.5,rc[2]*0.5); setP(1,y,rc[0]*0.5,rc[1]*0.5,rc[2]*0.5); }
-      if(!on){ setP(S-1,y,rc[0]*0.5,rc[1]*0.5,rc[2]*0.5); setP(S-2,y,rc[0]*0.5,rc[1]*0.5,rc[2]*0.5); }
+    // Stairs (diagonal lines of pixels, like original)
+    if(p.room===0){
+      for(let s=0;s<10;s++){
+        const sx=playR-10+s, sy=groundY+1+s;
+        if(sx<S&&sy<S-2) setP(sx,sy,0.7,0.7,0.7);
+      }
+    }
+    if(p.room<3){
+      for(let s=0;s<8;s++){
+        const sx=playL+2+s, sy=plats[0][0]+1+s;
+        if(sx<S&&sy<S-2) setP(sx,sy,0.7,0.7,0.7);
+      }
     }
 
-    // Willy walking
-    p.playerX+=p.dir*14*dt;
-    if(p.playerX>S-6){p.dir=-1;} else if(p.playerX<4){p.dir=1;}
+    // Willy auto-play
+    p.playerX+=p.dir*12*dt;
+    if(p.playerX>playR-4){p.dir=-1;} else if(p.playerX<playL+2){p.dir=1;}
     if(!p.jumping&&Math.sin(p.t*2.2)>0.75){ p.jumping=true; p.jumpT=0; }
     if(p.jumping){ p.jumpT+=dt; if(p.jumpT>0.55) p.jumping=false; }
-    const jumpH=p.jumping?Math.sin(p.jumpT/0.55*Math.PI)*14:0;
-    const nearPlat=plats.find(pl=>p.playerX>=pl[1]&&p.playerX<=pl[2]&&Math.abs(p.playerY-(pl[0]+1))<3);
-    const baseY=nearPlat?nearPlat[0]+1:6;
+    const jumpH=p.jumping?Math.sin(p.jumpT/0.55*Math.PI)*12:0;
+    let baseY=groundY+1;
+    for(const pl of plats){
+      if(p.playerX>=pl[1]&&p.playerX<=pl[2]&&!p.jumping){
+        if(pl[0]>baseY-5&&pl[0]<baseY+20) baseY=pl[0]+1;
+      }
+    }
     p.playerY=baseY+Math.round(jumpH);
     const px=Math.round(p.playerX), py=p.playerY;
 
-    // Willy sprite (iconic hat, striped shirt)
-    setP(px,py+7,RED[0],RED[1],RED[2]); setP(px+1,py+7,RED[0],RED[1],RED[2]); // hat
-    setP(px-1,py+7,RED[0],RED[1],RED[2]);
-    setP(px,py+6,YEL[0],YEL[1],YEL[2]); setP(px+1,py+6,YEL[0],YEL[1],YEL[2]); // face
-    setP(px-1,py+5,WHT[0],WHT[1],WHT[2]); setP(px,py+5,MAG[0],MAG[1],MAG[2]); setP(px+1,py+5,WHT[0],WHT[1],WHT[2]); // shirt stripe
-    setP(px-1,py+4,MAG[0],MAG[1],MAG[2]); setP(px,py+4,WHT[0],WHT[1],WHT[2]); setP(px+1,py+4,MAG[0],MAG[1],MAG[2]);
-    setP(px-1,py+3,WHT[0],WHT[1],WHT[2]); setP(px,py+3,MAG[0],MAG[1],MAG[2]); setP(px+1,py+3,WHT[0],WHT[1],WHT[2]);
-    // Legs (walking animation)
-    const legFrame=Math.floor(p.t*8)%4;
-    if(legFrame<2){ setP(px-1,py+2,GRN[0],GRN[1],GRN[2]); setP(px+1,py+1,GRN[0],GRN[1],GRN[2]); setP(px,py,GRN[0],GRN[1],GRN[2]); }
-    else { setP(px+1,py+2,GRN[0],GRN[1],GRN[2]); setP(px-1,py+1,GRN[0],GRN[1],GRN[2]); setP(px,py,GRN[0],GRN[1],GRN[2]); }
+    // Willy sprite (cyan body like original screenshot)
+    setP(px,py+6,0,0.8,0.8); // head
+    setP(px-1,py+5,0,0.7,0.7); setP(px,py+5,0,0.9,0.9); setP(px+1,py+5,0,0.7,0.7); // body
+    setP(px-1,py+4,0,0.8,0.8); setP(px,py+4,0,0.9,0.9); setP(px+1,py+4,0,0.8,0.8);
+    setP(px,py+3,0,0.7,0.7);
+    // Legs
+    const legF=Math.floor(p.t*8)%4;
+    setP(px-(legF<2?1:-1),py+2,0,0.7,0.7);
+    setP(px+(legF<2?1:-1),py+2,0,0.7,0.7);
+    setP(px-(legF<2?1:-1),py+1,0,0.6,0.6);
 
-    // Collectible items (flashing objects in each room)
+    // Enemies — red blob (like guardian in screenshot), others patrolling
+    const enemyDefs=[
+      {plat:0,col:[0.8,0,0],size:3},
+      {plat:1,col:[0,0.8,0],size:2},
+      {plat:2,col:[0.8,0,0.8],size:2}
+    ];
+    for(let e=0;e<enemyDefs.length;e++){
+      const ed=enemyDefs[e];
+      const ePlat=plats[ed.plat%plats.length];
+      const ex=Math.round((ePlat[1]+ePlat[2])/2+Math.sin(p.t*1.5+e*2)*((ePlat[2]-ePlat[1])*0.3));
+      const ey=ePlat[0]+1;
+      const ec=ed.col;
+      // Guardian body
+      for(let dy=0;dy<ed.size+2;dy++) for(let dx=-ed.size+1;dx<ed.size;dx++){
+        const sx=ex+dx, sy=ey+dy;
+        if(sx>=playL&&sx<=playR&&sy>=2&&sy<S-2){
+          const bright=0.7+0.3*((dx+dy)%2);
+          setP(sx,sy,ec[0]*bright,ec[1]*bright,ec[2]*bright);
+        }
+      }
+    }
+
+    // Flashing collectible items
     for(let i=0;i<5;i++){
-      const ix=plats[i%4][1]+5+i*3, iy=plats[i%4][0]+3;
-      const flash=Math.sin(p.t*8+i*1.5)>0;
-      if(flash){ setP(ix,iy,YEL[0],YEL[1],YEL[2]); setP(ix+1,iy,YEL[0],YEL[1],YEL[2]); setP(ix,iy+1,YEL[0],YEL[1],YEL[2]); }
-      else { setP(ix,iy,WHT[0],WHT[1],WHT[2]); setP(ix+1,iy,WHT[0],WHT[1],WHT[2]); }
+      const iPlat=plats[i%plats.length];
+      const ix=iPlat[1]+3+i*4, iy=iPlat[0]+2;
+      if(ix>playR-2) continue;
+      const flash=Math.floor(p.t*4+i)%2;
+      if(flash){
+        setP(ix,iy,1,1,0); setP(ix+1,iy,1,1,0);
+        setP(ix,iy+1,1,0.8,0); setP(ix+1,iy+1,1,0.8,0);
+      }
     }
 
-    // Enemies (patrolling sprites — arrows/monks/etc)
-    for(let e=0;e<3;e++){
-      const eSpeed=8+e*4;
-      const ex=Math.round((plats[e][1]+plats[e][2])/2+Math.sin(p.t*1.5+e*2)*(plats[e][2]-plats[e][1])*0.35);
-      const ey=plats[e][0]+1;
-      // Enemy sprite (2x3 block, coloured per type)
-      const ec=e===0?RED:e===1?CYN:YEL;
-      fillRect(ex-1,ey,ex+1,ey+2,ec[0],ec[1],ec[2]);
-      setP(ex,ey+3,ec[0]*0.7,ec[1]*0.7,ec[2]*0.7);
-      // Eyes
-      setP(ex-1,ey+2,WHT[0],WHT[1],WHT[2]); setP(ex+1,ey+2,WHT[0],WHT[1],WHT[2]);
+    // Room name bar at bottom (like "Top Landing" in screenshot)
+    for(let x=playL;x<=playR;x++) setP(x,7,0.15,0.15,0.15);
+
+    // HUD: "Items collected" and "Time" text area
+    for(let x=playL;x<=playR;x++){
+      setP(x,4,0,0.6,0); // green text line
     }
 
-    // Room name indicator (coloured bar at top)
-    hLine(0,S-1,S-1,rc[0]*0.3,rc[1]*0.3,rc[2]*0.3);
-    hLine(0,S-1,S-2,rc[0]*0.5,rc[1]*0.5,rc[2]*0.5);
-    // Lives
-    for(let l=0;l<3;l++){ setP(3+l*4,S-3,RED[0],RED[1],RED[2]); setP(4+l*4,S-3,RED[0],RED[1],RED[2]); }
+    // Lives at bottom (small coloured figures)
+    for(let l=0;l<3;l++){
+      const lx=playL+2+l*5, ly=3;
+      setP(lx,ly+2,0,0.8,0); setP(lx,ly+1,0,0.7,0); setP(lx,ly,0,0.6,0);
+      setP(lx-1,ly+1,0,0.5,0); setP(lx+1,ly+1,0,0.5,0);
+      setP(lx,ly+3,0.8,0,0); // hat
+    }
 
   } else if(game.name==='deathchase'){
     // 3D Deathchase — first-person motorcycle through forest
