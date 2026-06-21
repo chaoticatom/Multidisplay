@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=254">
+<link rel="stylesheet" href="style.css?v=255">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -38,20 +38,19 @@
     <button id="sidebar-collapse-btn" title="Collapse menu">◀</button>
   </div>
 
-  <div id="sidebar-scroll">
-  <div class="sidebar-section">
-    <button class="section-head">Cube Size <span class="chev">▾</span></button>
-    <div class="section-body">
-      <div class="size-row">
-        <button class="size-btn" data-size="8">8×8</button>
-        <button class="size-btn " data-size="16">16×16</button>
-        <button class="size-btn" data-size="64">64×64</button>
-      </div>
-      <div class="size-row" style="margin-top:5px;">
-        <button class="size-btn" data-size="64" data-mode="panel2d" id="panel2d-btn" style="width:100%;font-size:11px;">64×64 Panel 2D</button>
-      </div>
+  <div id="sidebar-size-bar" style="padding:8px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;">
+    <div style="font-size:11px;color:#7af;margin-bottom:5px;text-transform:uppercase;letter-spacing:1px;">Cube Size</div>
+    <div class="size-row">
+      <button class="size-btn" data-size="8">8×8</button>
+      <button class="size-btn " data-size="16">16×16</button>
+      <button class="size-btn" data-size="64">64×64</button>
+    </div>
+    <div class="size-row" style="margin-top:5px;">
+      <button class="size-btn" data-size="64" data-mode="panel2d" id="panel2d-btn" style="width:100%;font-size:11px;">64×64 Panel 2D</button>
     </div>
   </div>
+
+  <div id="sidebar-scroll">
 
   <div class="sidebar-section">
     <button class="section-head">Effects <span class="chev">▾</span></button>
@@ -927,7 +926,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=254"></script>
+<script src="version.js?v=255"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -962,7 +961,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=254','effects.js?v=254','f1.js?v=254','ui.js?v=254'];
+  const appScripts = ['cube.js?v=255','effects.js?v=255','f1.js?v=255','ui.js?v=255'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
