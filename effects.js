@@ -6502,7 +6502,7 @@ function initRetro(){
   // Space invaders
   const inv=retroGames[3];
   inv.invAlive=[];
-  for(let r=0;r<4;r++) for(let c=0;c<8;c++) inv.invAlive.push({r,c,alive:true});
+  for(let r=0;r<5;r++) for(let c=0;c<8;c++) inv.invAlive.push({r,c,alive:true});
   // R-Type enemies
   const rt=retroGames[6];
   rt.enemies=[];
