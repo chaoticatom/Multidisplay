@@ -5470,24 +5470,39 @@ function effectSimHouseShadows(dt){
     setP(x,ry,outR,outG,outB); setP(x,ry-1,outR*0.7,outG*0.7,outB*0.7);
   }
 
-  // Windows — fewer, larger, well-spaced
+  // Windows — exactly 4 per face, no overlapping face boundaries
   const windows=[];
   const gfMid=Math.floor((ground+floor1)/2);
   const gfWinH=Math.floor((floor1-ground)*0.6);
-  const gfWinW=Math.floor(W*0.05);
-  for(let wx=Math.floor(W*0.06);wx<W-gfWinW-4;wx+=Math.floor(W*0.12)){
-    if(wx>Math.floor(W*0.42)&&wx<Math.floor(W*0.58)) continue;
-    windows.push({x1:wx,y1:gfMid-Math.floor(gfWinH/2),x2:wx+gfWinW,y2:gfMid+Math.floor(gfWinH/2),arched:true});
-  }
+  const gfWinW=Math.floor(S*0.12);
   const ffMid=Math.floor((floor1+roof)/2);
   const ffWinH=Math.floor((roof-floor1)*0.6);
-  const ffWinW=Math.floor(W*0.05);
-  for(let wx=Math.floor(W*0.06);wx<W-ffWinW-4;wx+=Math.floor(W*0.11)){
-    windows.push({x1:wx,y1:ffMid-Math.floor(ffWinH/2),x2:wx+ffWinW,y2:ffMid+Math.floor(ffWinH/2),arched:true});
+  const ffWinW=Math.floor(S*0.12);
+  const doorFace=1; // door on face 1 (second panel)
+  for(let f=0;f<4;f++){
+    const fStart=f*S, fEnd=(f+1)*S-1;
+    const faceW=S;
+    // 4 windows per face: 2 ground floor, 2 first floor
+    // Skip ground floor windows near door on door face
+    const margin=Math.floor(faceW*0.08);
+    const spacing=Math.floor((faceW-2*margin-2*gfWinW)/3);
+    for(let wi=0;wi<2;wi++){
+      const wx=fStart+margin+wi*(gfWinW+spacing+ Math.floor(spacing*0.5));
+      if(f===doorFace&&wi===1) continue; // skip window where door is
+      if(wx+gfWinW>fEnd-margin) continue;
+      windows.push({x1:wx,y1:gfMid-Math.floor(gfWinH/2),x2:wx+gfWinW,y2:gfMid+Math.floor(gfWinH/2),arched:true});
+    }
+    for(let wi=0;wi<2;wi++){
+      const wx=fStart+margin+wi*(ffWinW+spacing+Math.floor(spacing*0.5));
+      if(wx+ffWinW>fEnd-margin) continue;
+      windows.push({x1:wx,y1:ffMid-Math.floor(ffWinH/2),x2:wx+ffWinW,y2:ffMid+Math.floor(ffWinH/2),arched:true});
+    }
   }
 
-  // Front door — fancy with arch, panels, and step
-  const doorX=Math.floor(W*0.47), doorW=Math.floor(W*0.05), doorH=Math.floor((floor1-ground)*0.8);
+  // Front door — centred on face 1
+  const doorFaceStart=doorFace*S;
+  const doorW=Math.floor(S*0.14), doorH=Math.floor((floor1-ground)*0.8);
+  const doorX=doorFaceStart+Math.floor((S-doorW)/2);
   // Door step
   fillRect(doorX-2,ground+1,doorX+doorW+2,ground+2,0.55,0.55,0.52);
   // Door frame (thick)
