@@ -7402,11 +7402,25 @@ function effectRetro(dt){
     retroSplashT=2.0;
   }
 
+  // Mirror faceBuf (flip both axes)
+  const mirrorBuf=()=>{
+    for(let y=0;y<Math.floor(S/2);y++){
+      const y2=S-1-y;
+      for(let x=0;x<S;x++){
+        const i1=(y*S+x)*3, i2=(y2*S+(S-1-x))*3;
+        const tr=faceBuf[i1],tg=faceBuf[i1+1],tb=faceBuf[i1+2];
+        faceBuf[i1]=faceBuf[i2]; faceBuf[i1+1]=faceBuf[i2+1]; faceBuf[i1+2]=faceBuf[i2+2];
+        faceBuf[i2]=tr; faceBuf[i2+1]=tg; faceBuf[i2+2]=tb;
+      }
+    }
+  };
+
   if(panel2dMode){
     // 2D: show selected game or auto-rotate
     const gameIdx=currentIdx;
     faceBuf.fill(0);
     retroDrawFace(gameIdx,dt,faceBuf,S);
+    mirrorBuf();
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
       const i=(v*S+u)*3;
       const idx=faceMap[0][v*S+u]; if(idx<0) continue;
@@ -7418,8 +7432,9 @@ function effectRetro(dt){
     const singleGame=retroSelectedGame>=0;
     faceBuf.fill(0);
     retroDrawFace(baseIdx,dt,faceBuf,S);
+    mirrorBuf();
     for(let fIdx=0;fIdx<4;fIdx++){
-      if(!singleGame&&fIdx>0){ faceBuf.fill(0); retroDrawFace((baseIdx+fIdx)%numGames,dt,faceBuf,S); }
+      if(!singleGame&&fIdx>0){ faceBuf.fill(0); retroDrawFace((baseIdx+fIdx)%numGames,dt,faceBuf,S); mirrorBuf(); }
       const face=VID_FACE_ORDER[fIdx];
       for(let v=0;v<S;v++) for(let u=0;u<S;u++){
         const pu=S-1-u;
