@@ -7911,7 +7911,15 @@ function retroDrawFace(faceIdx,dt,buf,S){
     }
     p.shipY+=(p.dodgeTarget-p.shipY)*dt*4;
     p.shipY=Math.max(14,Math.min(S-10,p.shipY));
-    p.shipX=S-10+Math.round(Math.sin(p.t*0.4)*2);
+    if(!p.shipXTarget) p.shipXTarget=S-10;
+    if(!p.shipXTimer) p.shipXTimer=0;
+    p.shipXTimer-=dt;
+    if(p.shipXTimer<=0){
+      if(Math.random()<0.3) p.shipXTarget=S-18-Math.random()*10;
+      else p.shipXTarget=S-10+Math.random()*4;
+      p.shipXTimer=1.5+Math.random()*2.5;
+    }
+    p.shipX+=(p.shipXTarget-p.shipX)*dt*3;
     const terrainH=10;
     const hudH=6;
 
