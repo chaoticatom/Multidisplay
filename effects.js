@@ -6708,31 +6708,33 @@ function retroDrawFace(faceIdx,dt,buf,S){
     p.speed=0.85+0.15*Math.sin(p.t*0.3);
     p.roadOff+=p.speed*dt*40;
     p.curves=Math.sin(p.t*0.5)*0.4;
-    // Sky gradient (blue)
+    // Sky gradient (blue) - direct buffer write
     for(let y=S/2;y<S;y++){
       const t=(y-S/2)/(S/2);
-      for(let x=0;x<S;x++) setP(x,y,0.1*t,0.2*t,0.7-0.3*t);
+      const sr=0.1*t,sg=0.2*t,sb=0.7-0.3*t;
+      for(let x=0;x<S;x++){const i=(y*S+x)*3;buf[i]=sr;buf[i+1]=sg;buf[i+2]=sb;}
     }
     // Ground/road (perspective)
     for(let y=0;y<S/2;y++){
-      const depth=(S/2-y)/(S/2); // 0=horizon, 1=near
+      const depth=(S/2-y)/(S/2);
       const roadW=4+depth*28;
       const cx=S/2+Math.round(p.curves*depth*depth*30+Math.sin(p.roadOff*0.02+y*0.1)*depth*8);
       const stripe=((Math.floor(p.roadOff+y*2))%12)<6;
-      // Grass
       const grassG=stripe?0.5:0.35;
-      for(let x=0;x<S;x++) setP(x,y,0,grassG,0);
+      // Grass row - direct write
+      for(let x=0;x<S;x++){const i=(y*S+x)*3;buf[i]=0;buf[i+1]=grassG;buf[i+2]=0;}
       // Road
-      const rl=Math.round(cx-roadW/2), rr=Math.round(cx+roadW/2);
-      for(let x=Math.max(0,rl);x<=Math.min(S-1,rr);x++) setP(x,y,0.25,0.25,0.25);
+      const rl=Math.max(0,Math.round(cx-roadW/2)), rr=Math.min(S-1,Math.round(cx+roadW/2));
+      for(let x=rl;x<=rr;x++){const i=(y*S+x)*3;buf[i]=0.25;buf[i+1]=0.25;buf[i+2]=0.25;}
       // Road markings
       if(stripe){
-        const ml=cx-2, mr=cx+2;
-        if(ml>=0&&mr<S){ setP(Math.round(ml),y,WHT[0],WHT[1],WHT[2]); setP(Math.round(mr),y,WHT[0],WHT[1],WHT[2]); }
+        const ml=Math.round(cx-2), mr=Math.round(cx+2);
+        if(ml>=0&&ml<S) setP(ml,y,1,1,1);
+        if(mr>=0&&mr<S) setP(mr,y,1,1,1);
       }
-      // Kerbs (red/white)
-      if(rl>0) setP(rl,y,stripe?RED[0]:WHT[0],stripe?0:WHT[1],stripe?0:WHT[2]);
-      if(rr<S) setP(rr,y,stripe?RED[0]:WHT[0],stripe?0:WHT[1],stripe?0:WHT[2]);
+      // Kerbs
+      if(rl>0) setP(rl,y,stripe?0.85:1,stripe?0:1,stripe?0:1);
+      if(rr<S-1) setP(rr,y,stripe?0.85:1,stripe?0:1,stripe?0:1);
     }
     // Car (player)
     const carX=Math.round(S/2+Math.sin(p.t*0.8)*10);
@@ -6740,22 +6742,21 @@ function retroDrawFace(faceIdx,dt,buf,S){
     fillRect(carX-2,8,carX+2,10,RED[0]*0.7,0,0);
     fillRect(carX-2,5,carX+2,7,CYN[0]*0.4,CYN[1]*0.4,CYN[2]*0.6);
     // Wheels
-    setP(carX-3,4,BLK[0],BLK[1],BLK[2]); setP(carX+3,4,BLK[0],BLK[1],BLK[2]);
-    setP(carX-3,8,BLK[0],BLK[1],BLK[2]); setP(carX+3,8,BLK[0],BLK[1],BLK[2]);
-    // Trees/signs at roadside
-    for(let t=0;t<6;t++){
-      const treeY=5+t*8;
+    setP(carX-3,4,0,0,0); setP(carX+3,4,0,0,0);
+    setP(carX-3,8,0,0,0); setP(carX+3,8,0,0,0);
+    // Trees at roadside
+    for(let t=0;t<4;t++){
+      const treeY=5+t*10;
       const depth=(S/2-treeY)/(S/2);
       if(depth<0.05) continue;
-      const tx=Math.round(S/2+p.curves*depth*depth*30-(roadW*0.5/depth+8)*((t%2)?1:-1));
+      const rw=4+depth*28;
+      const tx=Math.round(S/2+p.curves*depth*depth*30-(rw*0.5/depth+8)*((t%2)?1:-1));
       const treeH=Math.round(3+depth*5);
       if(tx>=0&&tx<S){
         for(let th=0;th<treeH;th++) setP(tx,treeY+th,0,0.4+depth*0.3,0);
-        setP(tx,treeY+treeH,0.3,0.2,0.05);
       }
     }
-    // Score at top
-    hLine(2,14,S-2,WHT[0],WHT[1],WHT[2]);
+    hLine(2,14,S-2,1,1,1);
 
   } else if(game.name==='invaders'){
     // Space Invaders
@@ -7340,11 +7341,13 @@ function effectRetro(dt){
       colBuf[idx*3]=faceBuf[i]; colBuf[idx*3+1]=faceBuf[i+1]; colBuf[idx*3+2]=faceBuf[i+2];
     }
   } else {
-    // 3D: each side face shows a different game, rotating through all
+    // 3D: show selected game on all faces, or rotate different games
     const baseIdx=retroSelectedGame>=0?retroSelectedGame:Math.floor(retroT/retroRotateInterval)%numGames;
+    const singleGame=retroSelectedGame>=0;
+    faceBuf.fill(0);
+    retroDrawFace(baseIdx,dt,faceBuf,S);
     for(let fIdx=0;fIdx<4;fIdx++){
-      faceBuf.fill(0);
-      retroDrawFace((baseIdx+fIdx)%numGames,dt,faceBuf,S);
+      if(!singleGame&&fIdx>0){ faceBuf.fill(0); retroDrawFace((baseIdx+fIdx)%numGames,dt,faceBuf,S); }
       const face=VID_FACE_ORDER[fIdx];
       for(let v=0;v<S;v++) for(let u=0;u<S;u++){
         const pu=S-1-u;
