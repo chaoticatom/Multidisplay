@@ -7151,8 +7151,8 @@ function retroDrawFace(faceIdx,dt,buf,S){
       const rdx=Math.cos(rayAngle), rdy=Math.sin(rayAngle);
       let dist=0; let hitType=0;
       let rx=p.posX, ry=p.posY;
-      for(let step=0;step<80;step++){
-        dist+=0.05;
+      for(let step=0;step<50;step++){
+        dist+=0.08;
         rx=p.posX+rdx*dist; ry=p.posY+rdy*dist;
         const mx=Math.floor(rx), my=Math.floor(ry);
         if(mx<0||mx>=mapW||my<0||my>=mapW){hitType=1;break;}
@@ -7254,8 +7254,8 @@ function retroDrawFace(faceIdx,dt,buf,S){
       const rayAngle=p.dirA-fov/2+(x/S)*fov;
       const rdx=Math.cos(rayAngle), rdy=Math.sin(rayAngle);
       let dist=0,hitType=0;
-      for(let step=0;step<100;step++){
-        dist+=0.04;
+      for(let step=0;step<60;step++){
+        dist+=0.07;
         const rx=p.posX+rdx*dist, ry=p.posY+rdy*dist;
         const mx=Math.floor(rx), my=Math.floor(ry);
         if(mx<0||mx>=mapW||my<0||my>=mapW){hitType=1;break;}
@@ -7350,6 +7350,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
 
 function effectRetro(dt){
   if(!retroInit) initRetro();
+  if(dt>0.1) dt=0.016;
   retroT+=dt;
   const S=SIZE;
   for(let i=0;i<N*3;i++) colBuf[i]=0;

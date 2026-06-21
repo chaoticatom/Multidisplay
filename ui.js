@@ -1187,9 +1187,10 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
 });
 
 // Retro game selection buttons
-document.querySelectorAll('[data-retrogame]').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    document.querySelectorAll('[data-retrogame]').forEach(b=>b.classList.remove('active'));
+document.querySelectorAll('.retro-game-btn').forEach(btn=>{
+  btn.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    document.querySelectorAll('.retro-game-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     retroSelectedGame=parseInt(btn.dataset.retrogame);
   });
