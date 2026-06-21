@@ -6959,7 +6959,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // 3D Deathchase — first-person motorcycle through forest
     const p=game;
     p.speed=0.9+0.1*Math.sin(p.t*0.4);
-    p.treeOff+=p.speed*dt*50;
+    p.treeOff-=p.speed*dt*50;
     p.leanDir=Math.sin(p.t*0.7)*0.8;
     p.bikeX=32+Math.round(p.leanDir*12);
     const H=S/2;
@@ -7054,7 +7054,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     for(let i=p.bullets.length-1;i>=0;i--){
       const b=p.bullets[i];
       b.y-=60*dt;
-      if(b.y<0){ p.bullets.splice(i,1); continue; }
+      if(b.y<H){ p.bullets.splice(i,1); continue; }
       const bx=Math.round(b.x), by=Math.round(b.y);
       setP(bx,by,1,1,0);
       setP(bx,by+1,1,0.6,0);
