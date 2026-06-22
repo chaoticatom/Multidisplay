@@ -4139,9 +4139,9 @@ function effectWeather(dt){
           const _clrBot=Math.round(HORIZ*S), _clrTop=Math.round(WX_CLEAR_TOP*S);
           if(fv>=_clrBot&&fv<=_clrTop){
             const overlap=4;
-            if(fv>_clrBot+overlap) continue;
+            if(fv<_clrTop-overlap) continue;
             const h=((fu*2654435761)>>>0)%overlap;
-            if(fv-_clrBot>h) continue;
+            if(_clrTop-fv>h) continue;
           }
           const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
           let edge;
