@@ -3516,7 +3516,7 @@ function wxInitScene(code){
   const isStormCode=code>=95;
   const isHeavyRain=code===55||code===65||code>=81;
   const isOvercastCode=code===3;
-  const nc=code===0?0:code===1?8:code<=2?25:isOvercastCode?65:isStormCode?130:isHeavyRain?80:isRainCode?70:isSnowCode?18:code>=45&&code<=48?12:10;
+  const nc=code===0?0:code===1?8:code<=2?25:isOvercastCode?65:isStormCode?180:isHeavyRain?80:isRainCode?70:isSnowCode?18:code>=45&&code<=48?12:10;
   const dark=isStormCode;
   for(let i=0;i<nc;i++) wxClouds.push({px:Math.random(),py:isOvercastCode?0.15+Math.random()*0.8:isStormCode||isRainCode?0.2+Math.random()*0.75:0.3+Math.random()*0.6,
     sz:isStormCode?0.16+Math.random()*0.24:isRainCode?0.14+Math.random()*0.22:isOvercastCode?0.18+Math.random()*0.25:code<=2?0.1+Math.random()*0.18:0.07+Math.random()*0.14,
