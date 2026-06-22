@@ -4175,9 +4175,20 @@ function effectWeather(dt){
             else if(dist<0.75){ const t=(dist-0.55)/0.2; edge=1+0.2*Math.sin(t*Math.PI); }
             else { edge=Math.max(0,(1-dist)/0.25); edge*=edge; }
           } else edge=1-dist;
-          const cb=cl.br*cloudDark*edge;
+          let cb=cl.br*cloudDark*edge;
+          if(isOvercast){
+            const clTint=0.85+((cl.px*9991+cl.py*7727)>>>0)%30*0.01;
+            const pxVar=0.92+((fu*2657+fv*4391)>>>0)%16*0.01;
+            const edgeLift=dist>0.5?1+0.15*(dist-0.5)/0.5:1;
+            cb*=clTint*pxVar*edgeLift;
+          }
           const warm=(isDawn||isDusk)?cl.fluff*0.06*glowAmt:0;
-          blendLED(idx,cb+warm,cb*(1-warm*0.3),cb*(1-warm*0.8));
+          if(isOvercast){
+            const blueShift=0.02*((fu*317+fv*131)>>>0)%3*0.01;
+            blendLED(idx,cb+warm,cb*(1-warm*0.3)+blueShift,cb*(1-warm*0.8)+blueShift*1.5);
+          } else {
+            blendLED(idx,cb+warm,cb*(1-warm*0.3),cb*(1-warm*0.8));
+          }
         }
       }
     }
@@ -4195,9 +4206,19 @@ function effectWeather(dt){
         else if(dist<0.75){ const t=(dist-0.55)/0.2; topEdge=1+0.2*Math.sin(t*Math.PI); }
         else { topEdge=Math.max(0,(1-dist)/0.25); topEdge*=topEdge; }
       } else topEdge=1-dist;
-      const cb=cl.br*cloudDark*topEdge*0.8;
+      let cb=cl.br*cloudDark*topEdge*0.8;
+      if(isOvercast){
+        const clTint=0.85+((cl.px*9991+cl.py*7727)>>>0)%30*0.01;
+        const pxVar=0.92+((fu*2657+fv*4391)>>>0)%16*0.01;
+        cb*=clTint*pxVar;
+      }
       const warm=(isDawn||isDusk)?cl.fluff*0.06*glowAmt:0;
-      blendLED(idx,cb+warm,cb*(1-warm*0.3),cb*(1-warm*0.8));
+      if(isOvercast){
+        const blueShift=0.02*((fu*317+fv*131)>>>0)%3*0.01;
+        blendLED(idx,cb+warm,cb*(1-warm*0.3)+blueShift,cb*(1-warm*0.8)+blueShift*1.5);
+      } else {
+        blendLED(idx,cb+warm,cb*(1-warm*0.3),cb*(1-warm*0.8));
+      }
     }
   }
 
