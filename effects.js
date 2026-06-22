@@ -6850,7 +6850,7 @@ function retroDrawTitle(buf,S,name){
     wolf3d:{col:[1,0,0],bg:[0.1,0.1,0.1]},
     quake2:{col:[1,0.5,0],bg:[0.05,0.02,0]},
     samfox:{col:[1,0,0.8],bg:[0,0.1,0]},
-    tamagotchi:{col:[0.1,0.1,0.1],bg:[0.75,0.8,0.55]},
+    tamagotchi:{col:[1,0.85,0.15],bg:[0.1,0.4,0.7]},
   };
   const t=titles[name]||{col:[1,1,1],bg:[0,0,0]};
   for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,t.bg[0],t.bg[1],t.bg[2]);
@@ -6908,6 +6908,25 @@ function retroDrawTitle(buf,S,name){
     fillRect(29,textY+charH+4,34,textY+charH+11,1,1,1);
     setP(30,textY+charH+9,1,0,0); setP(33,textY+charH+6,1,0,0);
     fillRect(31,textY+charH+7,32,textY+charH+8,0,0,0);
+  } else if(name==='tamagotchi'){
+    // Tamagotchi egg device with character inside
+    const ey=textY+charH+3, ex=31;
+    // Egg shell (yellow like the logo)
+    const er=1,eg=0.85,eb=0.15;
+    for(let dy=-7;dy<=7;dy++) for(let dx=-5;dx<=5;dx++){
+      const d=Math.sqrt((dx/5)**2+(dy/7)**2);
+      if(d<=1){ setP(ex+dx,ey+dy,er,eg,eb); }
+    }
+    // Screen area (cyan/teal)
+    fillRect(ex-3,ey-4,ex+3,ey+1,0,0.7,0.8);
+    // Character body (dark blue like Mametchi)
+    setP(ex-1,ey-2,0.1,0.2,0.6); setP(ex,ey-2,0.1,0.2,0.6); setP(ex+1,ey-2,0.1,0.2,0.6);
+    setP(ex-1,ey-1,0.1,0.2,0.6); setP(ex,ey-1,0.1,0.2,0.6); setP(ex+1,ey-1,0.1,0.2,0.6);
+    setP(ex,ey-3,0.1,0.2,0.6);
+    // Eyes (white dots)
+    setP(ex-1,ey-2,1,1,1); setP(ex+1,ey-2,1,1,1);
+    // Buttons below screen
+    setP(ex-2,ey+3,0.8,0.2,0.1); setP(ex,ey+3,0.8,0.2,0.1); setP(ex+2,ey+3,0.8,0.2,0.1);
   }
   // Draw title text
   drawText(label,startX,textY,scale,cr,cg,cb);
