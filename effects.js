@@ -9304,8 +9304,8 @@ function retroDrawFace(faceIdx,dt,buf,S){
     }
     // Ladders (cyan)
     const ladders=[
-      {x:50,y1:8,y2:18},{x:15,y1:18,y2:28},{x:45,y1:28,y2:38},
-      {x:20,y1:38,y2:48},{x:35,y1:48,y2:56},{x:40,y1:8,y2:18},
+      {x:8,y1:8,y2:18},{x:55,y1:18,y2:28},{x:8,y1:28,y2:38},
+      {x:55,y1:38,y2:48},{x:8,y1:48,y2:56},
     ];
     for(const ld of ladders){
       for(let y=ld.y1;y<=ld.y2;y++){
@@ -9314,7 +9314,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
       }
     }
     // Mario state machine (auto-play)
-    if(p.platIdx===undefined){ p.platIdx=0; p.marioX=platforms[0].x1+6; p.state='walk'; p.jumpT=0; p.climbY=0; p.targetLadder=null; }
+    if(p.platIdx===undefined){ p.platIdx=0; p.marioX=platforms[0].x2-6; p.state='walk'; p.jumpT=0; p.climbY=0; p.targetLadder=null; }
     const mSpeed=22;
     const mpl=platforms[p.platIdx];
     const mDir=p.platIdx%2===1?1:-1; // walk against barrels
@@ -9361,12 +9361,12 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Barrel collision — reset to bottom
     for(const b of p.barrels){
       if(Math.abs(b.x-p.marioX)<3&&Math.abs(b.y-p.marioY)<3&&p.state!=='jump'){
-        p.platIdx=0; p.marioX=platforms[0].x1+6; p.marioY=platforms[0].y; p.state='walk'; p.lives--; break;
+        p.platIdx=0; p.marioX=platforms[0].x2-6; p.marioY=platforms[0].y; p.state='walk'; p.lives--; break;
       }
     }
     // Reached Pauline — win, restart
     if(p.platIdx>=5&&p.marioY>=54){
-      p.score+=1000; p.platIdx=0; p.marioX=platforms[0].x1+6; p.marioY=platforms[0].y; p.state='walk'; p.barrels=[];
+      p.score+=1000; p.platIdx=0; p.marioX=platforms[0].x2-6; p.marioY=platforms[0].y; p.state='walk'; p.barrels=[];
     }
     const mx=Math.round(p.marioX), my=Math.round(p.marioY);
     const walkF=Math.floor(p.t*5)%2;
