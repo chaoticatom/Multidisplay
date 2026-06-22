@@ -9318,7 +9318,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     const platIdx=Math.min(5,Math.floor(cycle/4));
     const pl=platforms[platIdx];
     const frac=(cycle%4)/4;
-    const goRight=platIdx%2===0;
+    const goRight=platIdx%2===1;
     if(goRight) p.marioX=pl.x1+4+frac*(pl.x2-pl.x1-8);
     else p.marioX=pl.x2-4-frac*(pl.x2-pl.x1-8);
     const slantOff=Math.round(pl.slant*(p.marioX-32)/20);
