@@ -3534,23 +3534,54 @@ function wxInitScene(code){
     snow:isSnowCode,drift:isRainCode?(Math.random()-0.5)*1.5:0
   });
 
-  // Skyline — deterministic per city/weather with houses, trees, churches
+  // Skyline — realistic city with downtown clusters, suburbs, trees, landmarks
   const panW=4*SIZE;
   wxSkyline=new Uint8Array(panW);
   const seed=Math.abs(Math.round(wxLat*100+wxLon*10+code*7))%9999;
   wxSkyShapes=[];
+  function sRnd(x){ return ((x*2654435761)>>>0)/4294967296; }
+  // Create 2-3 downtown clusters per panorama
+  const maxH=Math.floor(SIZE*0.35);
+  const clusters=[];
+  const nClust=2+((seed*37)%3);
+  for(let ci=0;ci<nClust;ci++){
+    const cx=Math.floor(panW*(0.15+ci*0.7/nClust+sRnd(seed*101+ci*77)*0.15));
+    const cw=12+Math.floor(sRnd(seed*203+ci)*16);
+    const ch=maxH-Math.floor(sRnd(seed*307+ci)*6);
+    clusters.push({cx,cw,ch});
+  }
+  function clusterInfluence(px){
+    let best=0;
+    for(const c of clusters){
+      const d=Math.abs(px-c.cx);
+      if(d<c.cw){ const f=1-d/c.cw; best=Math.max(best,f*f*c.ch); }
+    }
+    return best;
+  }
   let bx=0;
   while(bx<panW){
-    const rnd=(bx*1327+seed*43+13);
-    const typeR=(bx*4517+seed*89)%100;
-    let typ=0, bw, bh;
-    if(typeR<25){ typ=2; bw=2+rnd%2; bh=4+((bx*7919+seed*17)%4); }
-    else if(typeR<50){ typ=1; bw=4+rnd%3; bh=3+((bx*7919+seed*17)%3); }
-    else if(typeR<58){ typ=3; bw=3; bh=6+((bx*7919+seed*17)%4); }
-    else { typ=0; bw=2+(rnd%6); bh=2+((bx*7919+seed*17+7)%(Math.max(1,Math.floor(SIZE*0.15)))); }
+    const r0=sRnd(bx*1327+seed*43+13);
+    const ci=clusterInfluence(bx);
+    const inDowntown=ci>maxH*0.3;
+    const typeR=Math.floor(sRnd(bx*4517+seed*89)*100);
+    // types: 0=building, 1=house, 2=tree, 3=church/tower, 4=skyscraper, 5=antenna, 6=crane, 7=dome
+    let typ,bw,bh;
+    if(inDowntown){
+      if(typeR<10){ typ=5; bw=1; bh=Math.floor(ci*1.1)+2; } // antenna
+      else if(typeR<20){ typ=4; bw=3+Math.floor(r0*3); bh=Math.floor(ci*0.9)+3; } // skyscraper
+      else if(typeR<35){ typ=7; bw=3+Math.floor(r0*2); bh=Math.floor(ci*0.6)+2; } // dome
+      else { typ=0; bw=2+Math.floor(r0*5); bh=Math.max(2,Math.floor(ci*0.5+r0*4)); } // building
+    } else {
+      if(typeR<30){ typ=2; bw=2+Math.floor(r0*2); bh=3+Math.floor(sRnd(bx*7919+seed)*5); } // tree
+      else if(typeR<55){ typ=1; bw=4+Math.floor(r0*4); bh=2+Math.floor(sRnd(bx*3917+seed)*3); } // house
+      else if(typeR<62){ typ=3; bw=2+Math.floor(r0); bh=5+Math.floor(sRnd(bx*6131+seed)*5); } // church
+      else if(typeR<68){ typ=6; bw=1; bh=4+Math.floor(r0*5); } // crane
+      else { typ=0; bw=2+Math.floor(r0*4); bh=2+Math.floor(sRnd(bx*7919+seed)*4+ci*0.3); } // building
+    }
     wxSkyShapes.push({x:bx,w:bw,h:bh,t:typ});
     for(let i=0;i<bw&&bx+i<panW;i++) wxSkyline[bx+i]=bh;
-    bx+=bw+1+((bx*31+seed+3)%3);
+    const gap=inDowntown?Math.floor(r0*2):1+Math.floor(sRnd(bx*31+seed)*3);
+    bx+=bw+gap;
   }
 
   // Creatures: birds, occasional plane, and hot air balloons on nice days
@@ -4429,6 +4460,7 @@ function effectWeather(dt){
   if(wxSkyShapes.length>0){
     const _panW=4*S;
     const _faces=panel2dMode?[0]:[SIDE[0],SIDE[1],SIDE[2],SIDE[3]];
+    const night=!bldDay;
     for(const face of _faces){
       for(const sh of wxSkyShapes){
         for(let li=0;li<sh.w;li++){
@@ -4440,24 +4472,75 @@ function effectWeather(dt){
             const v=bldBase+row;
             if(v<0||v>=S) continue;
             let inShape=true;
-            if(sh.t===2){
-              const mid=Math.floor(sh.w/2);
+            const mid=Math.floor(sh.w/2);
+            if(sh.t===2){ // tree — trunk + round canopy
               if(row<2) inShape=Math.abs(li-mid)<=0;
-              else { const cr=sh.h-2,cy=2+cr/2,rx=sh.w*0.7; inShape=(li-mid)**2/(rx*rx)+(row-cy)**2/(cr*cr)<=1; }
-            } else if(sh.t===1){
+              else { const cr=sh.h-2,cy=2+cr/2,rx=Math.max(1,sh.w*0.8); inShape=(li-mid)**2/(rx*rx)+(row-cy)**2/(cr*cr)<=1; }
+            } else if(sh.t===1){ // house — walls + peaked roof
               const roofH=Math.max(1,Math.floor(sh.h*0.4));
               const wallH=sh.h-roofH;
-              if(row>=wallH){ const roofRow=row-wallH; const span=sh.w*(1-roofRow/roofH); inShape=li>=Math.floor((sh.w-span)/2)&&li<Math.ceil((sh.w+span)/2); }
-            } else if(sh.t===3){
-              if(row>=sh.h-2) inShape=true;
-              else inShape=li===Math.floor(sh.w/2);
+              if(row>=wallH){ const rr=row-wallH; const span=sh.w*(1-rr/roofH); inShape=li>=Math.floor((sh.w-span)/2)&&li<Math.ceil((sh.w+span)/2); }
+            } else if(sh.t===3){ // church — body + tapering spire
+              const spireH=Math.floor(sh.h*0.5);
+              const bodyH=sh.h-spireH;
+              if(row<bodyH) inShape=true;
+              else { const sr=row-bodyH; const sw=Math.max(1,sh.w*(1-sr/spireH)); inShape=li>=Math.floor((sh.w-sw)/2)&&li<Math.ceil((sh.w+sw)/2); }
+            } else if(sh.t===4){ // skyscraper — stepped top
+              const stepH=Math.max(1,Math.floor(sh.h*0.15));
+              if(row>=sh.h-stepH){ const sw=Math.max(1,sh.w-2); inShape=li>=Math.floor((sh.w-sw)/2)&&li<Math.ceil((sh.w+sw)/2); }
+            } else if(sh.t===5){ // antenna — single pixel wide
+              inShape=li===mid;
+              if(row===sh.h-1){ inShape=li>=mid-1&&li<=mid+1; } // small top
+            } else if(sh.t===6){ // crane — vertical mast + horizontal arm at top
+              if(row<sh.h-1) inShape=li===mid;
+              else inShape=true; // arm across full width at top
+            } else if(sh.t===7){ // dome — semicircle top
+              const domeH=Math.max(1,Math.floor(sh.h*0.4));
+              const wallH=sh.h-domeH;
+              if(row>=wallH){ const dr=row-wallH; const rx=sh.w/2,ry=domeH; inShape=(li-mid)**2/(rx*rx)+(dr)**2/(ry*ry)<=1; }
             }
             if(!inShape) continue;
             const idx=faceMap[face][v*S+u]; if(idx<0) continue;
             let br=bldR,bg=bldG,bb=bldB;
-            if(sh.t===2&&row>=2){ br=0.02;bg=bldDay?0.06:0.03;bb=0.01; }
-            if(sh.t===0&&!bldDay&&sh.h>3&&((pi*11+13)%7)===1&&((row*13+37)%5)===1){ br=0.55;bg=0.45;bb=0.10; }
-            if(sh.t===1&&!bldDay&&row>0&&row<(sh.h-Math.floor(sh.h*0.4))&&((pi*7+row*13)%5)===1&&li>0){ br=0.55;bg=0.45;bb=0.10; }
+            // Depth variation — slightly different shades per building
+            const depthVar=0.6+((pi*317+sh.x*131)>>>0)%40*0.01;
+            br*=depthVar; bg*=depthVar; bb*=depthVar;
+            // Edge highlight — lighter left edge for depth
+            if(li===0){ br+=0.03; bg+=0.03; bb+=0.04; }
+            // Tree coloring
+            if(sh.t===2){
+              if(row<2){ br=bldR*0.7; bg=bldG*0.7; bb=bldB*0.4; }
+              else { br=0.01; bg=bldDay?0.05:0.02; bb=0.005; }
+            }
+            // Windows at night — grid pattern for buildings and skyscrapers
+            if(night&&(sh.t===0||sh.t===4)&&sh.h>3){
+              const winX=(li+sh.x*3)%3, winY=row%3;
+              const lit=((pi*7+row*13+sh.x)%5)<2;
+              if(winX===1&&winY===1&&lit&&row>0&&row<sh.h-1&&li>0&&li<sh.w-1){
+                const warmth=((pi*31+row*7)%3);
+                if(warmth===0){ br=0.55;bg=0.45;bb=0.1; }
+                else if(warmth===1){ br=0.4;bg=0.5;bb=0.55; } // cool white
+                else { br=0.5;bg=0.4;bb=0.15; }
+              }
+            }
+            // House windows at night
+            if(night&&sh.t===1&&row>0){
+              const wallH=sh.h-Math.max(1,Math.floor(sh.h*0.4));
+              if(row<wallH&&li>0&&li<sh.w-1&&((li+row*3)%4)===1){ br=0.55;bg=0.45;bb=0.1; }
+            }
+            // Church windows
+            if(night&&sh.t===3&&row>0&&row<sh.h-Math.floor(sh.h*0.5)&&li===mid){ br=0.6;bg=0.5;bb=0.15; }
+            // Dome highlight
+            if(sh.t===7&&row===sh.h-1&&li===mid){ br+=0.04;bg+=0.04;bb+=0.05; }
+            // Aircraft warning light on tall buildings/antennas at night
+            if(night&&(sh.t===4||sh.t===5)&&row===sh.h-1&&li===mid){
+              const blink=Math.sin(wxT2*3+sh.x)>0.3;
+              if(blink){ br=1;bg=0.1;bb=0.1; }
+            }
+            // Crane light
+            if(night&&sh.t===6&&row===sh.h-1&&(li===0||li===sh.w-1)){
+              br=1;bg=0.8;bb=0;
+            }
             colBuf[idx*3]=br; colBuf[idx*3+1]=bg; colBuf[idx*3+2]=bb;
           }
         }
