@@ -6468,7 +6468,7 @@ function effectSimHouse(dt){
 // ═══════════════════════════════════════════════════
 let retroT=0, retroGames=[], retroInit=false, retroFaceBuf=null;
 let retroSelectedGame=-1, retroRotateInterval=8; // -1 = auto rotate
-let retroAutoGames=[0,1,2,3,4,5,6,7,8]; // Sam Fox (9) excluded by default
+let retroAutoGames=[0,1,2,3,4,5,6,7,8,10]; // Sam Fox (9) excluded by default
 let retroLastGameIdx=-1, retroSplashT=0;
 let dcSplashData=null;
 let jpSplashData=null;
@@ -6505,6 +6505,7 @@ function initRetro(){
     {name:'wolf3d',t:0,posX:2.5,posY:2.5,dirA:0,gunFrame:0,fireT:0},
     {name:'quake2',t:0,posX:3,posY:3,dirA:0.5,bobT:0,muzzleT:0,enemies:[]},
     {name:'samfox',t:0,cards:[],dealT:0,phase:'deal',resultT:0,hand:'PAIR'},
+    {name:'tamagotchi',t:0},
   ];
   // Manic Miner platforms
   const g=retroGames[1];
@@ -6845,6 +6846,7 @@ function retroDrawTitle(buf,S,name){
     wolf3d:{col:[1,0,0],bg:[0.1,0.1,0.1]},
     quake2:{col:[1,0.5,0],bg:[0.05,0.02,0]},
     samfox:{col:[1,0,0.8],bg:[0,0.1,0]},
+    tamagotchi:{col:[0.1,0.1,0.1],bg:[0.75,0.8,0.55]},
   };
   const t=titles[name]||{col:[1,1,1],bg:[0,0,0]};
   for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,t.bg[0],t.bg[1],t.bg[2]);
@@ -6856,7 +6858,7 @@ function retroDrawTitle(buf,S,name){
   }
   // Full game names
   const labels={jetpac:'JET PAC',manic:'MANIC MINER',outrun:'OUTRUN',invaders:'SPACE INVADERS',
-    jsw:'JET SET WILLY',rtype:'R-TYPE',wolf3d:'WOLFENSTEIN 3D',quake2:'QUAKE 2',samfox:'SAM FOX SP'};
+    jsw:'JET SET WILLY',rtype:'R-TYPE',wolf3d:'WOLFENSTEIN 3D',quake2:'QUAKE 2',samfox:'SAM FOX SP',tamagotchi:'TAMAGOTCHI'};
   const label=labels[name]||name.toUpperCase();
   // Auto-scale to fit: max usable width is S-8 (4px border each side)
   const maxW=S-8;
@@ -8872,6 +8874,113 @@ function retroDrawFace(faceIdx,dt,buf,S){
       setP(41,hudH-5,0.9,0,0.9);setP(59,hudH-5,0.9,0,0.9);
     }
     hLine(0,S-1,hudH-1,0,0.4,0);
+
+  } else if(game.name==='tamagotchi'){
+    const p=game;
+    // Init state
+    if(p.hunger===undefined){ p.hunger=0.3; p.happy=0.8; p.age=0; p.actionT=0; p.action='idle'; p.animF=0; p.poopT=0; p.poop=false; p.sleep=false; p.dead=false; }
+    p.age+=dt;
+    p.animF+=dt;
+
+    // LCD-style border (rounded rectangle frame)
+    for(let x=2;x<S-2;x++){ setP(x,2,0.3,0.35,0.3); setP(x,S-3,0.3,0.35,0.3); }
+    for(let y=2;y<S-2;y++){ setP(2,y,0.3,0.35,0.3); setP(S-3,y,0.3,0.35,0.3); }
+    setP(3,3,0.3,0.35,0.3); setP(S-4,3,0.3,0.35,0.3); setP(3,S-4,0.3,0.35,0.3); setP(S-4,S-4,0.3,0.35,0.3);
+
+    // LCD green-yellow background
+    for(let y=3;y<S-3;y++) for(let x=3;x<S-3;x++) setP(x,y,0.75,0.8,0.55);
+
+    // Auto-actions (simulate owner caring for pet)
+    p.actionT-=dt;
+    if(p.actionT<=0){
+      if(p.hunger>0.7){ p.action='eat'; p.actionT=3; }
+      else if(p.happy<0.3){ p.action='play'; p.actionT=2.5; }
+      else if(p.poop){ p.action='clean'; p.actionT=2; }
+      else { p.action='idle'; p.actionT=3+Math.random()*4; }
+    }
+
+    // Update stats
+    p.hunger+=dt*0.04;
+    p.happy-=dt*0.02;
+    if(p.action==='eat'){ p.hunger-=dt*0.3; p.hunger=Math.max(0,p.hunger); }
+    if(p.action==='play'){ p.happy+=dt*0.3; p.happy=Math.min(1,p.happy); }
+    if(p.action==='clean') p.poop=false;
+    if(Math.random()<dt*0.02&&!p.poop) p.poop=true;
+
+    // Death and rebirth
+    if(p.hunger>1){ p.dead=true; }
+    if(p.dead){
+      // Skull icon
+      const cx=32,cy=32;
+      fillRect(cx-4,cy-2,cx+4,cy+4,0.1,0.1,0.1);
+      fillRect(cx-3,cy+4,cx+3,cy+7,0.1,0.1,0.1);
+      setP(cx-2,cy+1,0.75,0.8,0.55); setP(cx+2,cy+1,0.75,0.8,0.55);
+      fillRect(cx-1,cy-1,cx+1,cy,0.75,0.8,0.55);
+      // Reset after 4s
+      if(p.age%20<dt*2){ p.dead=false; p.hunger=0.3; p.happy=0.8; p.poop=false; }
+    } else {
+      // Draw pet (LCD pixel art style, black on green)
+      const cx=32, cy=30;
+      const bob=Math.round(Math.sin(p.animF*3)*1);
+      const blink=Math.sin(p.animF*2)>0.92;
+      // Body (egg shape)
+      fillRect(cx-5,cy-3+bob,cx+5,cy+5+bob,0.1,0.1,0.1);
+      fillRect(cx-6,cy-1+bob,cx+6,cy+3+bob,0.1,0.1,0.1);
+      fillRect(cx-4,cy-4+bob,cx+4,cy-3+bob,0.1,0.1,0.1);
+      // Eyes (LCD holes)
+      if(!blink){
+        setP(cx-2,cy+1+bob,0.75,0.8,0.55); setP(cx-3,cy+1+bob,0.75,0.8,0.55);
+        setP(cx+2,cy+1+bob,0.75,0.8,0.55); setP(cx+3,cy+1+bob,0.75,0.8,0.55);
+        setP(cx-2,cy+2+bob,0.75,0.8,0.55); setP(cx+2,cy+2+bob,0.75,0.8,0.55);
+      }
+      // Mouth (happy or sad)
+      if(p.happy>0.5){
+        setP(cx-1,cy-1+bob,0.75,0.8,0.55); setP(cx,cy-2+bob,0.75,0.8,0.55); setP(cx+1,cy-1+bob,0.75,0.8,0.55);
+      } else {
+        setP(cx-1,cy-2+bob,0.75,0.8,0.55); setP(cx,cy-1+bob,0.75,0.8,0.55); setP(cx+1,cy-2+bob,0.75,0.8,0.55);
+      }
+      // Feet
+      fillRect(cx-4,cy-5+bob,cx-2,cy-4+bob,0.1,0.1,0.1);
+      fillRect(cx+2,cy-5+bob,cx+4,cy-4+bob,0.1,0.1,0.1);
+
+      // Eating animation
+      if(p.action==='eat'){
+        const foodX=cx+10, foodY=cy+bob;
+        const bite=Math.floor(p.animF*4)%2;
+        if(bite){ fillRect(foodX-1,foodY-1,foodX+1,foodY+1,0.1,0.1,0.1); }
+        else { setP(foodX,foodY,0.1,0.1,0.1); }
+      }
+      // Playing animation (ball bouncing)
+      if(p.action==='play'){
+        const ballY=cy+8+Math.round(Math.abs(Math.sin(p.animF*5))*6);
+        const ballX=cx+10;
+        setP(ballX,ballY,0.1,0.1,0.1); setP(ballX+1,ballY,0.1,0.1,0.1);
+        setP(ballX,ballY+1,0.1,0.1,0.1); setP(ballX+1,ballY+1,0.1,0.1,0.1);
+      }
+      // Poop
+      if(p.poop){
+        const px=cx-10, py=cy-3;
+        setP(px,py,0.1,0.1,0.1); setP(px+1,py,0.1,0.1,0.1);
+        setP(px,py+1,0.1,0.1,0.1); setP(px+1,py+1,0.1,0.1,0.1);
+        setP(px+1,py+2,0.1,0.1,0.1);
+        // Stink lines
+        if(Math.floor(p.animF*3)%2){ setP(px,py+3,0.1,0.1,0.1); setP(px+2,py+4,0.1,0.1,0.1); }
+      }
+    }
+
+    // Status icons at top (hearts/food LCD style)
+    const hungerBars=Math.round((1-p.hunger)*4);
+    for(let i=0;i<4;i++){
+      const bx=6+i*5;
+      if(i<hungerBars) fillRect(bx,S-8,bx+3,S-6,0.1,0.1,0.1);
+      else { setP(bx,S-7,0.4,0.45,0.35); setP(bx+2,S-7,0.4,0.45,0.35); }
+    }
+    const happyBars=Math.round(p.happy*4);
+    for(let i=0;i<4;i++){
+      const bx=38+i*5;
+      if(i<happyBars) fillRect(bx,S-8,bx+3,S-6,0.1,0.1,0.1);
+      else { setP(bx,S-7,0.4,0.45,0.35); setP(bx+2,S-7,0.4,0.45,0.35); }
+    }
   }
 }
 
