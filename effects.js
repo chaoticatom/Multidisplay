@@ -9332,7 +9332,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
       // Find ladder to climb when reaching end of platform
       if(p.platIdx<5){
         for(const ld of ladders){
-          if(ld.y1===mpl.y&&Math.abs(p.marioX-ld.x)<3){
+          if(ld.y1===mpl.y&&Math.abs(p.marioX-ld.x)<6){
             p.state='climb'; p.targetLadder=ld; p.climbY=ld.y1; break;
           }
         }
