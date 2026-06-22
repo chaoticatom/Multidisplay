@@ -8066,7 +8066,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
 
   } else if(game.name==='rtype'){
     const p=game;
-    if(p.lives===undefined) p.lives=3;
+    if(p.lives===undefined) p.lives=5;
     if(!p.turrets) p.turrets=[];
     if(!p.tBullets) p.tBullets=[];
     if(!p.explodeT) p.explodeT=0;
@@ -8102,7 +8102,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
         }
       }
       if(p.loserT<=0){
-        p.lives=3; p.turrets=[]; p.tBullets=[]; p.eBullets=[];
+        p.lives=5; p.turrets=[]; p.tBullets=[]; p.eBullets=[];
         for(const e of p.enemies){ e.alive=true; e.x=-Math.random()*20; e.y=15+Math.random()*35; e.fireT=2+Math.random()*3; }
       }
       return;
@@ -8130,22 +8130,22 @@ function retroDrawFace(faceIdx,dt,buf,S){
       }
     }
     // Always dodge immediately when bullet is close
-    if(nearestThreatY!==null&&nearestDist<15){
-      const dodge=18+Math.random()*8;
+    if(nearestThreatY!==null&&nearestDist<20){
+      const dodge=22+Math.random()*10;
       p.dodgeTarget=nearestThreatY>p.shipY?p.shipY-dodge:p.shipY+dodge;
       p.dodgeTarget=Math.max(14,Math.min(S-10,p.dodgeTarget));
-      p.dodgeTimer=0.2;
+      p.dodgeTimer=0.15;
     } else if(p.dodgeTimer<=0){
       if(nearestThreatY!==null){
-        const dodge=16+Math.random()*10;
+        const dodge=20+Math.random()*10;
         p.dodgeTarget=nearestThreatY>p.shipY?p.shipY-dodge:p.shipY+dodge;
         p.dodgeTarget=Math.max(14,Math.min(S-10,p.dodgeTarget));
       } else {
         p.dodgeTarget=14+Math.random()*38;
       }
-      p.dodgeTimer=0.4+Math.random()*0.5;
+      p.dodgeTimer=0.3+Math.random()*0.4;
     }
-    const shipSpeed=45*dt;
+    const shipSpeed=55*dt;
     const shipDy=p.dodgeTarget-p.shipY;
     p.shipY+=Math.sign(shipDy)*Math.min(Math.abs(shipDy),shipSpeed);
     p.shipY=Math.max(14,Math.min(S-10,p.shipY));
