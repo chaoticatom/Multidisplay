@@ -9207,13 +9207,23 @@ function retroDrawFace(faceIdx,dt,buf,S){
     }
     // Restore original drawing functions
     setP=_setP0; fillRect=_fillRect0; hLine=_hLine0;
-    // 180° flip LCD screen area only
+    // 180° flip LCD screen area
     const lw=scX2-scX1+1, lh=scY2-scY1+1;
     for(let ly=0;ly<Math.floor(lh/2);ly++){
       const sy=scY1+ly, sy2=scY2-ly;
       for(let lx=0;lx<lw;lx++){
         const sx=scX1+lx, sx2=scX2-lx;
         const i1=(sy*S+sx)*3, i2=(sy2*S+sx2)*3;
+        const tr=buf[i1],tg=buf[i1+1],tb=buf[i1+2];
+        buf[i1]=buf[i2]; buf[i1+1]=buf[i2+1]; buf[i1+2]=buf[i2+2];
+        buf[i2]=tr; buf[i2+1]=tg; buf[i2+2]=tb;
+      }
+    }
+    // 180° flip entire face
+    for(let y=0;y<Math.floor(S/2);y++){
+      const y2=S-1-y;
+      for(let x=0;x<S;x++){
+        const i1=(y*S+x)*3, i2=(y2*S+(S-1-x))*3;
         const tr=buf[i1],tg=buf[i1+1],tb=buf[i1+2];
         buf[i1]=buf[i2]; buf[i1+1]=buf[i2+1]; buf[i1+2]=buf[i2+2];
         buf[i2]=tr; buf[i2+1]=tg; buf[i2+2]=tb;
