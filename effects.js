@@ -8935,13 +8935,11 @@ function retroDrawFace(faceIdx,dt,buf,S){
       fillRect(bx-3,by-1,bx+3,by+1,bc[0],bc[1],bc[2]);
     }
 
-    // Override drawing: map 64x64 game coords into screen area, rotated 180°, 2x scale
+    // Override drawing to map 64x64 game coords into the small screen area
     const SW=scX2-scX1+1,SH=scY2-scY1+1;
-    const mapX=(x)=>scX2-Math.round((x-16)*SW/32);
-    const mapY=(y)=>scY2-Math.round((y-16)*SH/32);
-    setP=(x,y,r,g,b)=>{ const mx=mapX(x),my=mapY(y),mx2=mapX(x-1),my2=mapY(y-1); for(let py=Math.min(my,my2);py<=Math.max(my,my2);py++) for(let px=Math.min(mx,mx2);px<=Math.max(mx,mx2);px++) if(px>=scX1&&px<=scX2&&py>=scY1&&py<=scY2) _setP0(px,py,r,g,b); };
-    fillRect=(x1,y1,x2,y2,r,g,b)=>{ const a=mapX(x2),b2=mapY(y2),c=mapX(x1),d2=mapY(y1); _fillRect0(Math.max(scX1,Math.min(a,c)),Math.max(scY1,Math.min(b2,d2)),Math.min(scX2,Math.max(a,c)),Math.min(scY2,Math.max(b2,d2)),r,g,b); };
-    hLine=(x1,x2,y,r,g,b)=>{ const a=mapX(x2),c=mapX(x1),my=mapY(y),my2=mapY(y-1); for(let py=Math.min(my,my2);py<=Math.max(my,my2);py++) if(py>=scY1&&py<=scY2) _hLine0(Math.max(scX1,Math.min(a,c)),Math.min(scX2,Math.max(a,c)),py,r,g,b); };
+    setP=(x,y,r,g,b)=>{ const mx=scX1+Math.round(x*SW/S),my=scY1+Math.round(y*SH/S); if(mx>=scX1&&mx<=scX2&&my>=scY1&&my<=scY2) _setP0(mx,my,r,g,b); };
+    fillRect=(x1,y1,x2,y2,r,g,b)=>{ const mx1=scX1+Math.round(x1*SW/S),my1=scY1+Math.round(y1*SH/S),mx2=scX1+Math.round(x2*SW/S),my2=scY1+Math.round(y2*SH/S); _fillRect0(Math.max(scX1,mx1),Math.max(scY1,my1),Math.min(scX2,mx2),Math.min(scY2,my2),r,g,b); };
+    hLine=(x1,x2,y,r,g,b)=>{ const mx1=scX1+Math.round(x1*SW/S),mx2=scX1+Math.round(x2*SW/S),my=scY1+Math.round(y*SH/S); if(my>=scY1&&my<=scY2) _hLine0(Math.max(scX1,mx1),Math.min(scX2,mx2),my,r,g,b); };
 
     // Icon bar at top (8 icons like real Tamagotchi)
     const iconY=S-6;
@@ -9228,8 +9226,18 @@ function retroDrawFace(faceIdx,dt,buf,S){
       const rows=digits[ch]; if(!rows) continue;
       for(let r=0;r<5;r++) for(let c=0;c<3;c++) if((rows[r]>>(2-c))&1) setP(cw+c,8-r,pk[0],pk[1],pk[2]);
     }
-    // Restore original drawing functions (180° rotation handled in mapping)
+    // Restore original drawing functions
     setP=_setP0; fillRect=_fillRect0; hLine=_hLine0;
+    // 180° flip to match display orientation
+    for(let y=0;y<Math.floor(S/2);y++){
+      const y2=S-1-y;
+      for(let x=0;x<S;x++){
+        const i1=(y*S+x)*3, i2=(y2*S+(S-1-x))*3;
+        const tr=buf[i1],tg=buf[i1+1],tb=buf[i1+2];
+        buf[i1]=buf[i2]; buf[i1+1]=buf[i2+1]; buf[i1+2]=buf[i2+2];
+        buf[i2]=tr; buf[i2+1]=tg; buf[i2+2]=tb;
+      }
+    }
   }
 }
 
