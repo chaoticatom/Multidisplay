@@ -6924,15 +6924,16 @@ function retroDrawTitle(buf,S,name){
 }
 
 function retroDrawFace(faceIdx,dt,buf,S){
-  const setP=(x,y,r,g,b)=>{
+  const _setP0=(x,y,r,g,b)=>{
     if(x<0||x>=S||y<0||y>=S) return;
     const i=(y*S+x)*3;
     buf[i]=r; buf[i+1]=g; buf[i+2]=b;
   };
-  const fillRect=(x1,y1,x2,y2,r,g,b)=>{
-    for(let y=Math.max(0,y1);y<=Math.min(S-1,y2);y++) for(let x=Math.max(0,x1);x<=Math.min(S-1,x2);x++) setP(x,y,r,g,b);
+  const _fillRect0=(x1,y1,x2,y2,r,g,b)=>{
+    for(let y=Math.max(0,y1);y<=Math.min(S-1,y2);y++) for(let x=Math.max(0,x1);x<=Math.min(S-1,x2);x++) _setP0(x,y,r,g,b);
   };
-  const hLine=(x1,x2,y,r,g,b)=>{ for(let x=Math.max(0,x1);x<=Math.min(S-1,x2);x++) setP(x,y,r,g,b); };
+  const _hLine0=(x1,x2,y,r,g,b)=>{ for(let x=Math.max(0,x1);x<=Math.min(S-1,x2);x++) _setP0(x,y,r,g,b); };
+  let setP=_setP0, fillRect=_fillRect0, hLine=_hLine0;
 
   const numGames=retroGames.length;
   const game=retroGames[faceIdx%numGames];
@@ -8903,11 +8904,57 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Age stages
     if(p.age>120) p.stage=2; else if(p.age>40) p.stage=1; else p.stage=0;
 
-    // LCD border
-    for(let x=1;x<S-1;x++){ setP(x,1,0.3,0.35,0.3); setP(x,S-2,0.3,0.35,0.3); }
-    for(let y=1;y<S-1;y++){ setP(1,y,0.3,0.35,0.3); setP(S-2,y,0.3,0.35,0.3); }
-    // LCD background
-    for(let y=2;y<S-2;y++) for(let x=2;x<S-2;x++) setP(x,y,lc[0],lc[1],lc[2]);
+    // Egg-shaped device body (dark blue like real Tamagotchi)
+    const cx0=32, cy0=32, rx=22, ry=28;
+    for(let y=0;y<S;y++) for(let x=0;x<S;x++){
+      const dx=(x-cx0)/rx, dy=(y-cy0)/(ry+(y>cy0?2:-2));
+      if(dx*dx+dy*dy<=1){
+        const edge=Math.sqrt(dx*dx+dy*dy);
+        const sh=edge>0.85?0.5:edge>0.7?0.7:1;
+        setP(x,y,0.05*sh,0.02*sh,0.25*sh);
+      }
+    }
+    // Cyan outline glow
+    for(let y=0;y<S;y++) for(let x=0;x<S;x++){
+      const dx=(x-cx0)/rx, dy=(y-cy0)/(ry+(y>cy0?2:-2));
+      const d=Math.sqrt(dx*dx+dy*dy);
+      if(d>0.92&&d<1.05) setP(x,y,0.1,0.3,0.5);
+    }
+    // Screen bezel (dark border around screen)
+    const scX1=21,scY1=25,scX2=43,scY2=43;
+    fillRect(scX1-1,scY1-1,scX2+1,scY2+1,0.02,0.01,0.12);
+    // LCD screen background
+    fillRect(scX1,scY1,scX2,scY2,lc[0],lc[1],lc[2]);
+    // "TAMAGOTCHI" text at top of device
+    const tc=[0.6,0.5,0.1];
+    hLine(24,40,9,tc[0],tc[1],tc[2]); // simple text line
+    // Decorative shapes on shell (triangles, zigzags like real device)
+    setP(17,21,0,0.5,0.4); setP(18,22,0,0.5,0.4); setP(17,23,0,0.5,0.4); // triangle left
+    setP(46,21,0.7,0.6,0); setP(47,22,0.7,0.6,0); setP(48,21,0.7,0.6,0); // zigzag right
+    setP(45,25,0.7,0.6,0); setP(46,26,0.7,0.6,0); setP(47,25,0.7,0.6,0);
+    // Side icons (like real device has small icons around screen)
+    setP(18,31,0.4,0.4,0.5); setP(19,31,0.4,0.4,0.5); // left icon
+    setP(18,35,0.4,0.4,0.5); setP(19,35,0.4,0.4,0.5);
+    setP(45,31,0.5,0.4,0.2); setP(46,31,0.5,0.4,0.2); // right icon
+    setP(45,35,0.5,0.4,0.2); setP(46,35,0.5,0.4,0.2);
+    // Three buttons at bottom
+    for(let b=0;b<3;b++){
+      const bx=26+b*7, by=49;
+      const bc=b===0?[0.7,0.1,0.1]:b===1?[0.8,0.6,0]:[0.1,0.6,0.1];
+      fillRect(bx-2,by-1,bx+2,by+1,bc[0],bc[1],bc[2]);
+    }
+    // Chain ring at top
+    for(let a=0;a<16;a++){
+      const ang=a*Math.PI/8;
+      const rrx=Math.round(32+Math.cos(ang)*3), rry=Math.round(5+Math.sin(ang)*2);
+      if(rry>=0&&rry<S) setP(rrx,rry,0.5,0.5,0.5);
+    }
+
+    // Override drawing to map 64x64 game coords into the small screen area
+    const SW=scX2-scX1+1,SH=scY2-scY1+1;
+    setP=(x,y,r,g,b)=>{ const mx=scX1+Math.round(x*SW/S),my=scY1+Math.round(y*SH/S); if(mx>=scX1&&mx<=scX2&&my>=scY1&&my<=scY2) _setP0(mx,my,r,g,b); };
+    fillRect=(x1,y1,x2,y2,r,g,b)=>{ const mx1=scX1+Math.round(x1*SW/S),my1=scY1+Math.round(y1*SH/S),mx2=scX1+Math.round(x2*SW/S),my2=scY1+Math.round(y2*SH/S); _fillRect0(Math.max(scX1,mx1),Math.max(scY1,my1),Math.min(scX2,mx2),Math.min(scY2,my2),r,g,b); };
+    hLine=(x1,x2,y,r,g,b)=>{ const mx1=scX1+Math.round(x1*SW/S),mx2=scX1+Math.round(x2*SW/S),my=scY1+Math.round(y*SH/S); if(my>=scY1&&my<=scY2) _hLine0(Math.max(scX1,mx1),Math.min(scX2,mx2),my,r,g,b); };
 
     // Icon bar at top (8 icons like real Tamagotchi)
     const iconY=S-6;
@@ -9013,8 +9060,8 @@ function retroDrawFace(faceIdx,dt,buf,S){
         setP(Math.round(zx+zs*0.5),zy+1,d[0],d[1],d[2]);
         setP(zx,zy+2,d[0],d[1],d[2]); setP(Math.round(zx+zs),zy+2,d[0],d[1],d[2]);
       }
-      // Lights dimmed
-      for(let y=2;y<S-8;y++) for(let x=2;x<S-2;x++){
+      // Lights dimmed (darken screen area in buf coords)
+      for(let y=scY1;y<=scY2;y++) for(let x=scX1;x<=scX2;x++){
         const i=(y*S+x)*3;
         buf[i]*=0.6; buf[i+1]*=0.6; buf[i+2]*=0.55;
       }
@@ -9103,15 +9150,10 @@ function retroDrawFace(faceIdx,dt,buf,S){
         const ballX=cx+(p.walkDir>0?12:-12);
         const ballY=cy-2+Math.round(ballBounce);
         fillRect(ballX-1,ballY-1,ballX+1,ballY+1,d[0],d[1],d[2]);
-        // Pet jumps to catch
+        // Pet jumps (simple offset redraw)
         if(Math.sin(ballT+0.5)>0.7){
-          for(let y2=cy-5;y2<=cy+6;y2++) for(let x2=cx-7;x2<=cx+7;x2++){
-            const i=(y2*S+x2)*3;
-            if(x2>=0&&x2<S&&y2>=0&&y2<S&&buf[i]<0.2){
-              buf[((y2+2)*S+x2)*3]=d[0]; buf[((y2+2)*S+x2)*3+1]=d[1]; buf[((y2+2)*S+x2)*3+2]=d[2];
-              buf[i]=lc[0]; buf[i+1]=lc[1]; buf[i+2]=lc[2];
-            }
-          }
+          setP(cx,cy+6+bob,d[0],d[1],d[2]); setP(cx-1,cy+6+bob,d[0],d[1],d[2]);
+          setP(cx+1,cy+6+bob,d[0],d[1],d[2]);
         }
       }
 
@@ -9199,6 +9241,8 @@ function retroDrawFace(faceIdx,dt,buf,S){
       const rows=digits[ch]; if(!rows) continue;
       for(let r=0;r<5;r++) for(let c=0;c<3;c++) if((rows[r]>>(2-c))&1) setP(cw+c,8-r,pk[0],pk[1],pk[2]);
     }
+    // Restore original drawing functions
+    setP=_setP0; fillRect=_fillRect0; hLine=_hLine0;
     // 180° flip to match display orientation
     for(let y=0;y<Math.floor(S/2);y++){
       const y2=S-1-y;
