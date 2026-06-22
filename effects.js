@@ -3914,8 +3914,8 @@ function effectWeather(dt){
 
     // Draw temperature higher up on all faces
     wxText(face,tempStr,1,tempV,txtR,txtG,txtB);
-    // Draw time on face 0 (front)
-    if(face===0){
+    // Draw time on all four side faces
+    {
       const localD=new Date(Date.now()+wxTzOffset*1000);
       const hh=String(localD.getUTCHours()).padStart(2,'0');
       const mm=String(localD.getUTCMinutes()).padStart(2,'0');
