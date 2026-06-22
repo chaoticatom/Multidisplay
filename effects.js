@@ -4108,7 +4108,7 @@ function effectWeather(dt){
     drawBody(((sunPX+0.5)%1),Math.max(0,sunElev-0.3),false,moonPh);
 
   // ── Clouds ──
-  const cloudDark=isStorm?0.5:isRain?0.7:isOvercast?0.95:wxCode>=3?0.65:0.85;
+  const cloudDark=isStorm?0.85:isRain?0.7:isOvercast?0.95:wxCode>=3?0.65:0.85;
   for(const cl of wxClouds){
     cl.px=(cl.px+cl.spd*dt+1)%1;
     cl.py=cl.py+cl.spdY*dt;
