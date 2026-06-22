@@ -3722,7 +3722,7 @@ function effectWeather(dt){
   // Darken/grey sky based on weather conditions
   if(isDay){
     if(isStorm){
-      skyCol=[skyCol[0]*0.2+0.03,skyCol[1]*0.2+0.03,skyCol[2]*0.25+0.04];
+      skyCol=[skyCol[0]*0.3+0.12,skyCol[1]*0.3+0.13,skyCol[2]*0.35+0.15];
     } else if(isRain){
       skyCol=[skyCol[0]*0.4+0.08,skyCol[1]*0.4+0.1,skyCol[2]*0.5+0.1];
     } else if(isOvercast){
@@ -4016,6 +4016,7 @@ function effectWeather(dt){
   }
 
   // ── Draw celestial body (sun or moon) ──
+  const sunDim=isDay&&isStorm?0.35:isDay&&isRain?0.55:1;
   function drawBody(panX,elevFrac,isSun,phase){
     if(panX<0||elevFrac<0) return;
     const radius=isSun?3.8:2.5;
@@ -4038,9 +4039,10 @@ function effectWeather(dt){
         if(fu<0||fu>=S||fv<0||fv>=S) continue;
         const idx=faceMap[4][fv*S+fu]; if(idx<0) continue;
         if(isSun){
-          if(dist<=radius){ blendLED(idx,1,0.98,0.7); }
-          else if(dist<radius+2){ const b=(1-(dist-radius)/2)*0.9; blendLED(idx,b,b*0.85,b*0.25); }
-          else if(dist<radius+5){ const b=(1-(dist-radius-2)/3)*0.3; blendLED(idx,b,b*0.6,b*0.05); }
+          const d=sunDim;
+          if(dist<=radius){ blendLED(idx,d,0.98*d,0.7*d); }
+          else if(dist<radius+2){ const b=(1-(dist-radius)/2)*0.9*d; blendLED(idx,b,b*0.85,b*0.25); }
+          else if(dist<radius+5){ const b=(1-(dist-radius-2)/3)*0.3*d; blendLED(idx,b,b*0.6,b*0.05); }
         } else {
           drawMoon(idx,du,dv,dist,radius,phase);
         }
@@ -4064,10 +4066,11 @@ function effectWeather(dt){
       if(fu<0||fu>=S||fv<0||fv>=S||fv<horizV) continue;
       const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
       if(isSun){
-        if(dist<=radius){ blendLED(idx,1,0.98,0.7); }
-        else if(dist<radius+2){ const b=(1-(dist-radius)/2)*0.95; blendLED(idx,b,b*0.88,b*0.3); }
-        else if(dist<radius+5){ const b=(1-(dist-radius-2)/3)*0.5; blendLED(idx,b,b*0.7,b*0.12); }
-        else if(dist<radius+8){ const b=(1-(dist-radius-5)/3)*0.2; blendLED(idx,b,b*0.6,b*0.08); }
+        const d=sunDim;
+        if(dist<=radius){ blendLED(idx,d,0.98*d,0.7*d); }
+        else if(dist<radius+2){ const b=(1-(dist-radius)/2)*0.95*d; blendLED(idx,b,b*0.88,b*0.3); }
+        else if(dist<radius+5){ const b=(1-(dist-radius-2)/3)*0.5*d; blendLED(idx,b,b*0.7,b*0.12); }
+        else if(dist<radius+8){ const b=(1-(dist-radius-5)/3)*0.2*d; blendLED(idx,b,b*0.6,b*0.08); }
       } else {
         drawMoon(idx,du,dv,dist,radius,phase);
       }
@@ -4177,9 +4180,9 @@ function effectWeather(dt){
           const fu=Math.round(sunX+du), fv=Math.round(sunY+dv);
           if(fu<0||fu>=S||fv<horizV||fv>=S) continue;
           const idx=faceMap[0][fv*S+fu]; if(idx<0) continue;
-          if(dist<=sunRad){ colBuf[idx*3]=1; colBuf[idx*3+1]=0.98; colBuf[idx*3+2]=0.7; }
-          else if(dist<sunRad+2){ const b=(1-(dist-sunRad)/2)*0.9; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.85); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.25); }
-          else if(dist<sunRad+4){ const b=(1-(dist-sunRad-2)/2)*0.35; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.65); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.08); }
+          if(dist<=sunRad){ colBuf[idx*3]=sunDim; colBuf[idx*3+1]=0.98*sunDim; colBuf[idx*3+2]=0.7*sunDim; }
+          else if(dist<sunRad+2){ const b=(1-(dist-sunRad)/2)*0.9*sunDim; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.85); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.25); }
+          else if(dist<sunRad+4){ const b=(1-(dist-sunRad-2)/2)*0.35*sunDim; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.65); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.08); }
         }
       }
     } else if(moonPX>=0){
