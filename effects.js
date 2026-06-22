@@ -4125,7 +4125,7 @@ function effectWeather(dt){
       const cpx=cl.px;
       const relCX=uOfFacePanX(face,cpx);
       let relCY=vOfElevFrac(cl.py);
-      const _clrTop7=Math.round(WX_CLEAR_TOP*S)+7;
+      const _clrTop7=Math.round(WX_CLEAR_TOP*S)+4;
       const wVchk=Math.round(cl.sz*0.28*S);
       if(relCY-wVchk<_clrTop7) relCY=_clrTop7+wVchk;
       const wU=Math.round(cl.sz*0.5*S),wV=Math.round(cl.sz*0.28*S);
