@@ -9030,20 +9030,29 @@ function retroDrawFace(faceIdx,dt,buf,S){
       hLine(28,35,10,d[0],d[1],d[2]); setP(31,9,d[0],d[1],d[2]); setP(31,11,d[0],d[1],d[2]);
       if(p.deathT>15){ p.dead=false; p.deathT=0; p.hunger=0.3; p.happy=0.8; p.poop=false; p.poopCount=0; p.sick=false; p.age=0; p.stage=0; }
     } else if(p.sleeping){
-      // Pet lying down with blanket
-      fillRect(cx-5,cy-2,cx+5,cy,d[0],d[1],d[2]); // blanket
-      fillRect(cx-4,cy,cx+4,cy+2,d[0],d[1],d[2]); // body under blanket
-      // Head poking out
-      fillRect(cx+4,cy-1,cx+7,cy+2,d[0],d[1],d[2]);
-      setP(cx+5,cy+1,lc[0],lc[1],lc[2]); // closed eye
-      // Zzz floating
+      // Large pet lying down with blanket (outline style)
+      const k=d;
+      // Blanket outline
+      hLine(cx-10,cx+8,cy-1,k[0],k[1],k[2]); hLine(cx-10,cx+8,cy+3,k[0],k[1],k[2]);
+      setP(cx-10,cy,k[0],k[1],k[2]); setP(cx-10,cy+1,k[0],k[1],k[2]); setP(cx-10,cy+2,k[0],k[1],k[2]);
+      setP(cx+8,cy,k[0],k[1],k[2]); setP(cx+8,cy+1,k[0],k[1],k[2]); setP(cx+8,cy+2,k[0],k[1],k[2]);
+      // Head poking out (large outline)
+      hLine(cx+9,cx+14,cy+4,k[0],k[1],k[2]);
+      setP(cx+9,cy+3,k[0],k[1],k[2]); setP(cx+14,cy+3,k[0],k[1],k[2]);
+      setP(cx+9,cy+2,k[0],k[1],k[2]); setP(cx+14,cy+2,k[0],k[1],k[2]);
+      setP(cx+9,cy+1,k[0],k[1],k[2]); setP(cx+14,cy+1,k[0],k[1],k[2]);
+      hLine(cx+9,cx+14,cy,k[0],k[1],k[2]);
+      // Closed eye
+      hLine(cx+10,cx+12,cy+2,k[0],k[1],k[2]);
+      // Ear
+      setP(cx+12,cy+5,k[0],k[1],k[2]); setP(cx+13,cy+6,k[0],k[1],k[2]);
+      // Zzz floating (larger)
       const zOff=Math.floor(p.sleepT*2)%3;
-      const zx=cx+9, zy=cy+4+zOff*3;
+      const zx=cx+16, zy=cy+5+zOff*4;
       if(zy<S-8){
-        const zs=1+(zOff*0.5);
-        setP(zx,zy,d[0],d[1],d[2]); setP(Math.round(zx+zs),zy,d[0],d[1],d[2]);
-        setP(Math.round(zx+zs*0.5),zy+1,d[0],d[1],d[2]);
-        setP(zx,zy+2,d[0],d[1],d[2]); setP(Math.round(zx+zs),zy+2,d[0],d[1],d[2]);
+        const zs=2+zOff;
+        hLine(zx,zx+zs,zy,k[0],k[1],k[2]); setP(zx+Math.round(zs/2),zy+1,k[0],k[1],k[2]);
+        hLine(zx,zx+zs,zy+2,k[0],k[1],k[2]);
       }
       // Lights dimmed (darken screen area in buf coords)
       for(let y=scY1;y<=scY2;y++) for(let x=scX1;x<=scX2;x++){
@@ -9051,121 +9060,118 @@ function retroDrawFace(faceIdx,dt,buf,S){
         buf[i]*=0.6; buf[i+1]*=0.6; buf[i+2]*=0.55;
       }
     } else {
-      // Draw Mametchi as large LCD outline filling most of the screen
+      // Draw Mametchi as large LCD outline filling most of the screen (1.5x)
       const bob=Math.round(Math.sin(p.animF*2.5)*1);
       const blink=Math.sin(p.animF*2.3)>0.93;
       const walkFrame=Math.floor(p.animF*3)%2;
-      const k=d; // pixel colour (black on LCD)
-      const by=25+bob; // base Y for character (centred in LCD area between icon rows)
+      const k=d;
+      const by=22+bob;
 
-      // Head outline (large round, ~20px wide, ~14px tall)
-      // Top of head
-      hLine(cx-5,cx+5,by+18,k[0],k[1],k[2]);
-      hLine(cx-7,cx-5,by+17,k[0],k[1],k[2]); hLine(cx+5,cx+7,by+17,k[0],k[1],k[2]);
-      hLine(cx-8,cx-7,by+16,k[0],k[1],k[2]); hLine(cx+7,cx+8,by+16,k[0],k[1],k[2]);
-      // Sides of head
-      for(let hh=10;hh<=15;hh++){ setP(cx-9,by+hh,k[0],k[1],k[2]); setP(cx+9,by+hh,k[0],k[1],k[2]); }
-      setP(cx-8,by+9,k[0],k[1],k[2]); setP(cx+8,by+9,k[0],k[1],k[2]);
-      hLine(cx-7,cx-5,by+8,k[0],k[1],k[2]); hLine(cx+5,cx+7,by+8,k[0],k[1],k[2]);
-      // Bottom of head connects to body
-      hLine(cx-5,cx-3,by+8,k[0],k[1],k[2]); hLine(cx+3,cx+5,by+8,k[0],k[1],k[2]);
+      // Head outline (~30px wide, ~21px tall)
+      hLine(cx-8,cx+8,by+28,k[0],k[1],k[2]);
+      hLine(cx-10,cx-8,by+27,k[0],k[1],k[2]); hLine(cx+8,cx+10,by+27,k[0],k[1],k[2]);
+      hLine(cx-12,cx-10,by+26,k[0],k[1],k[2]); hLine(cx+10,cx+12,by+26,k[0],k[1],k[2]);
+      hLine(cx-13,cx-12,by+25,k[0],k[1],k[2]); hLine(cx+12,cx+13,by+25,k[0],k[1],k[2]);
+      for(let hh=14;hh<=24;hh++){ setP(cx-14,by+hh,k[0],k[1],k[2]); setP(cx+14,by+hh,k[0],k[1],k[2]); }
+      hLine(cx-13,cx-12,by+13,k[0],k[1],k[2]); hLine(cx+12,cx+13,by+13,k[0],k[1],k[2]);
+      hLine(cx-11,cx-8,by+12,k[0],k[1],k[2]); hLine(cx+8,cx+11,by+12,k[0],k[1],k[2]);
+      hLine(cx-7,cx-5,by+12,k[0],k[1],k[2]); hLine(cx+5,cx+7,by+12,k[0],k[1],k[2]);
 
-      // Pointy ears (like Mametchi)
-      setP(cx-10,by+16,k[0],k[1],k[2]); setP(cx-11,by+17,k[0],k[1],k[2]); setP(cx-12,by+18,k[0],k[1],k[2]);
-      setP(cx-11,by+15,k[0],k[1],k[2]); setP(cx-12,by+16,k[0],k[1],k[2]);
-      setP(cx+10,by+16,k[0],k[1],k[2]); setP(cx+11,by+17,k[0],k[1],k[2]); setP(cx+12,by+18,k[0],k[1],k[2]);
-      setP(cx+11,by+15,k[0],k[1],k[2]); setP(cx+12,by+16,k[0],k[1],k[2]);
+      // Pointy ears
+      setP(cx-15,by+25,k[0],k[1],k[2]); setP(cx-16,by+26,k[0],k[1],k[2]); setP(cx-17,by+27,k[0],k[1],k[2]); setP(cx-18,by+28,k[0],k[1],k[2]);
+      setP(cx-16,by+24,k[0],k[1],k[2]); setP(cx-17,by+25,k[0],k[1],k[2]); setP(cx-18,by+26,k[0],k[1],k[2]);
+      setP(cx+15,by+25,k[0],k[1],k[2]); setP(cx+16,by+26,k[0],k[1],k[2]); setP(cx+17,by+27,k[0],k[1],k[2]); setP(cx+18,by+28,k[0],k[1],k[2]);
+      setP(cx+16,by+24,k[0],k[1],k[2]); setP(cx+17,by+25,k[0],k[1],k[2]); setP(cx+18,by+26,k[0],k[1],k[2]);
 
-      // Eyes (large oval outlines, 3x4 each)
+      // Eyes (oval outlines, ~5x5 each)
       if(!blink){
-        // Left eye
-        setP(cx-5,by+14,k[0],k[1],k[2]); setP(cx-4,by+15,k[0],k[1],k[2]); setP(cx-4,by+14,k[0],k[1],k[2]);
-        setP(cx-5,by+13,k[0],k[1],k[2]); setP(cx-4,by+12,k[0],k[1],k[2]); setP(cx-4,by+13,k[0],k[1],k[2]);
-        setP(cx-3,by+14,k[0],k[1],k[2]); setP(cx-3,by+13,k[0],k[1],k[2]);
-        // Right eye
-        setP(cx+5,by+14,k[0],k[1],k[2]); setP(cx+4,by+15,k[0],k[1],k[2]); setP(cx+4,by+14,k[0],k[1],k[2]);
-        setP(cx+5,by+13,k[0],k[1],k[2]); setP(cx+4,by+12,k[0],k[1],k[2]); setP(cx+4,by+13,k[0],k[1],k[2]);
-        setP(cx+3,by+14,k[0],k[1],k[2]); setP(cx+3,by+13,k[0],k[1],k[2]);
+        setP(cx-8,by+22,k[0],k[1],k[2]); setP(cx-7,by+23,k[0],k[1],k[2]); setP(cx-6,by+23,k[0],k[1],k[2]);
+        setP(cx-8,by+20,k[0],k[1],k[2]); setP(cx-7,by+19,k[0],k[1],k[2]); setP(cx-6,by+19,k[0],k[1],k[2]);
+        setP(cx-5,by+21,k[0],k[1],k[2]); setP(cx-5,by+20,k[0],k[1],k[2]);
+        setP(cx-8,by+21,k[0],k[1],k[2]); setP(cx-6,by+21,k[0],k[1],k[2]); setP(cx-6,by+20,k[0],k[1],k[2]);
+        setP(cx+8,by+22,k[0],k[1],k[2]); setP(cx+7,by+23,k[0],k[1],k[2]); setP(cx+6,by+23,k[0],k[1],k[2]);
+        setP(cx+8,by+20,k[0],k[1],k[2]); setP(cx+7,by+19,k[0],k[1],k[2]); setP(cx+6,by+19,k[0],k[1],k[2]);
+        setP(cx+5,by+21,k[0],k[1],k[2]); setP(cx+5,by+20,k[0],k[1],k[2]);
+        setP(cx+8,by+21,k[0],k[1],k[2]); setP(cx+6,by+21,k[0],k[1],k[2]); setP(cx+6,by+20,k[0],k[1],k[2]);
       } else {
-        hLine(cx-5,cx-3,by+13,k[0],k[1],k[2]); hLine(cx+3,cx+5,by+13,k[0],k[1],k[2]);
+        hLine(cx-8,cx-5,by+20,k[0],k[1],k[2]); hLine(cx+5,cx+8,by+20,k[0],k[1],k[2]);
       }
 
       // Mouth
       if(p.happy>0.5){
-        setP(cx-2,by+10,k[0],k[1],k[2]); hLine(cx-1,cx+1,by+9,k[0],k[1],k[2]); setP(cx+2,by+10,k[0],k[1],k[2]);
+        setP(cx-3,by+16,k[0],k[1],k[2]); hLine(cx-2,cx+2,by+15,k[0],k[1],k[2]); setP(cx+3,by+16,k[0],k[1],k[2]);
       } else {
-        setP(cx-2,by+9,k[0],k[1],k[2]); hLine(cx-1,cx+1,by+10,k[0],k[1],k[2]); setP(cx+2,by+9,k[0],k[1],k[2]);
+        setP(cx-3,by+15,k[0],k[1],k[2]); hLine(cx-2,cx+2,by+16,k[0],k[1],k[2]); setP(cx+3,by+15,k[0],k[1],k[2]);
       }
 
-      // Body outline (smaller rectangle below head)
-      hLine(cx-4,cx+4,by+7,k[0],k[1],k[2]);
-      setP(cx-4,by+6,k[0],k[1],k[2]); setP(cx+4,by+6,k[0],k[1],k[2]);
-      setP(cx-4,by+5,k[0],k[1],k[2]); setP(cx+4,by+5,k[0],k[1],k[2]);
-      setP(cx-4,by+4,k[0],k[1],k[2]); setP(cx+4,by+4,k[0],k[1],k[2]);
-      hLine(cx-4,cx+4,by+3,k[0],k[1],k[2]);
+      // Body outline
+      hLine(cx-6,cx+6,by+11,k[0],k[1],k[2]);
+      for(let bh=5;bh<=10;bh++){ setP(cx-6,by+bh,k[0],k[1],k[2]); setP(cx+6,by+bh,k[0],k[1],k[2]); }
+      hLine(cx-6,cx+6,by+4,k[0],k[1],k[2]);
 
-      // Arms (angled outward from body)
-      setP(cx-5,by+6,k[0],k[1],k[2]); setP(cx-6,by+7,k[0],k[1],k[2]); setP(cx-7,by+7,k[0],k[1],k[2]);
-      setP(cx+5,by+6,k[0],k[1],k[2]); setP(cx+6,by+7,k[0],k[1],k[2]); setP(cx+7,by+7,k[0],k[1],k[2]);
+      // Arms
+      setP(cx-7,by+9,k[0],k[1],k[2]); setP(cx-8,by+10,k[0],k[1],k[2]); setP(cx-9,by+11,k[0],k[1],k[2]); setP(cx-10,by+11,k[0],k[1],k[2]);
+      setP(cx+7,by+9,k[0],k[1],k[2]); setP(cx+8,by+10,k[0],k[1],k[2]); setP(cx+9,by+11,k[0],k[1],k[2]); setP(cx+10,by+11,k[0],k[1],k[2]);
 
       // Feet (walk animation)
       const fk=walkFrame&&(p.action==='idle'||p.action==='clean')?1:0;
-      fillRect(cx-4,by+1,cx-2,by+2,k[0],k[1],k[2]);
-      fillRect(cx+2-fk,by+1,cx+4-fk,by+2,k[0],k[1],k[2]);
+      fillRect(cx-6,by+1,cx-3,by+3,k[0],k[1],k[2]);
+      fillRect(cx+3-fk,by+1,cx+6-fk,by+3,k[0],k[1],k[2]);
 
       // Eating: food item appears, chomping
       if(p.action==='eat'){
         const chomp=Math.floor(p.eatFrame*5)%2;
-        const fx=cx+14;
-        // Rice/food outline
-        hLine(fx-2,fx+2,by+6,k[0],k[1],k[2]); hLine(fx-2,fx+2,by+3,k[0],k[1],k[2]);
-        setP(fx-2,by+4,k[0],k[1],k[2]); setP(fx-2,by+5,k[0],k[1],k[2]);
-        setP(fx+2,by+4,k[0],k[1],k[2]); setP(fx+2,by+5,k[0],k[1],k[2]);
-        if(p.actionT<1.5){ setP(fx,by+5,k[0],k[1],k[2]); } // food shrinks
-        if(chomp){ setP(cx+9,by+10,k[0],k[1],k[2]); setP(cx+10,by+9,k[0],k[1],k[2]); }
+        const fx=cx+18;
+        // Food outline (larger)
+        hLine(fx-3,fx+3,by+10,k[0],k[1],k[2]); hLine(fx-3,fx+3,by+5,k[0],k[1],k[2]);
+        setP(fx-3,by+6,k[0],k[1],k[2]); setP(fx-3,by+7,k[0],k[1],k[2]); setP(fx-3,by+8,k[0],k[1],k[2]); setP(fx-3,by+9,k[0],k[1],k[2]);
+        setP(fx+3,by+6,k[0],k[1],k[2]); setP(fx+3,by+7,k[0],k[1],k[2]); setP(fx+3,by+8,k[0],k[1],k[2]); setP(fx+3,by+9,k[0],k[1],k[2]);
+        if(p.actionT>1.5){ setP(fx,by+7,k[0],k[1],k[2]); setP(fx,by+8,k[0],k[1],k[2]); }
+        if(chomp){ setP(cx+12,by+15,k[0],k[1],k[2]); setP(cx+13,by+14,k[0],k[1],k[2]); }
       }
 
       // Playing: ball bouncing
       if(p.action==='play'){
         const ballT=p.animF*4;
-        const ballBounce=Math.round(Math.abs(Math.sin(ballT))*8);
-        const bx2=cx+14, by2=by+3+ballBounce;
-        setP(bx2,by2,k[0],k[1],k[2]); setP(bx2+1,by2,k[0],k[1],k[2]);
-        setP(bx2,by2+1,k[0],k[1],k[2]); setP(bx2+1,by2+1,k[0],k[1],k[2]);
+        const ballBounce=Math.round(Math.abs(Math.sin(ballT))*12);
+        const bx2=cx+18, by2=by+4+ballBounce;
+        fillRect(bx2-1,by2-1,bx2+1,by2+1,k[0],k[1],k[2]);
       }
 
       // Bath: bubbles
       if(p.action==='bath'){
         const bubT=p.bathT*3;
-        for(let bi=0;bi<5;bi++){
-          const ba=bi*1.3+bubT;
-          const bx2=cx+Math.round(Math.sin(ba)*11);
-          const by2=by+5+Math.round(Math.cos(ba*0.7)*7);
+        for(let bi=0;bi<6;bi++){
+          const ba=bi*1.1+bubT;
+          const bx2=cx+Math.round(Math.sin(ba)*16);
+          const by2=by+8+Math.round(Math.cos(ba*0.7)*10);
           setP(bx2,by2,k[0],k[1],k[2]); setP(bx2+1,by2,k[0],k[1],k[2]);
-          setP(bx2,by2+1,k[0],k[1],k[2]);
+          setP(bx2,by2+1,k[0],k[1],k[2]); setP(bx2+1,by2+1,k[0],k[1],k[2]);
         }
       }
 
-      // Sick: sweat drop
+      // Sick: sweat drops
       if(p.sick){
         const sw=Math.floor(p.animF*2)%2;
-        setP(cx-10,by+16-sw,k[0],k[1],k[2]); setP(cx-10,by+15-sw,k[0],k[1],k[2]);
+        setP(cx-15,by+24-sw,k[0],k[1],k[2]); setP(cx-15,by+23-sw,k[0],k[1],k[2]); setP(cx-15,by+22-sw,k[0],k[1],k[2]);
       }
 
-      // Poop (coil outline)
+      // Poop (coil outline, larger)
       if(p.poop){
-        const px=cx-14, py=by+2;
-        setP(px+1,py+5,k[0],k[1],k[2]); setP(px+2,py+5,k[0],k[1],k[2]);
-        setP(px,py+4,k[0],k[1],k[2]); setP(px+3,py+4,k[0],k[1],k[2]);
-        setP(px+1,py+3,k[0],k[1],k[2]); setP(px+3,py+3,k[0],k[1],k[2]);
-        setP(px+2,py+2,k[0],k[1],k[2]);
-        if(Math.floor(p.animF*3)%2){ setP(px+1,py+6,k[0],k[1],k[2]); setP(px+3,py+7,k[0],k[1],k[2]); }
+        const px=cx-20, py=by+2;
+        setP(px+3,py+8,k[0],k[1],k[2]); setP(px+4,py+8,k[0],k[1],k[2]);
+        setP(px+1,py+7,k[0],k[1],k[2]); setP(px+2,py+7,k[0],k[1],k[2]); setP(px+5,py+7,k[0],k[1],k[2]);
+        setP(px,py+5,k[0],k[1],k[2]); setP(px,py+6,k[0],k[1],k[2]); setP(px+3,py+5,k[0],k[1],k[2]); setP(px+5,py+5,k[0],k[1],k[2]); setP(px+5,py+6,k[0],k[1],k[2]);
+        setP(px+1,py+4,k[0],k[1],k[2]); setP(px+2,py+4,k[0],k[1],k[2]); setP(px+4,py+4,k[0],k[1],k[2]);
+        setP(px+3,py+3,k[0],k[1],k[2]);
+        if(Math.floor(p.animF*3)%2){ setP(px+2,py+9,k[0],k[1],k[2]); setP(px+5,py+10,k[0],k[1],k[2]); setP(px,py+10,k[0],k[1],k[2]); }
       }
 
-      // Attention: exclamation
+      // Attention: exclamation (larger)
       if((p.hunger>0.8||p.happy<0.2)&&Math.floor(p.animF*4)%2){
-        setP(cx+12,by+16,k[0],k[1],k[2]); setP(cx+12,by+15,k[0],k[1],k[2]);
-        setP(cx+12,by+14,k[0],k[1],k[2]); setP(cx+12,by+12,k[0],k[1],k[2]);
+        setP(cx+17,by+25,k[0],k[1],k[2]); setP(cx+17,by+24,k[0],k[1],k[2]);
+        setP(cx+17,by+23,k[0],k[1],k[2]); setP(cx+17,by+22,k[0],k[1],k[2]);
+        setP(cx+17,by+20,k[0],k[1],k[2]);
       }
     }
 
