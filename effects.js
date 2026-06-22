@@ -4164,19 +4164,10 @@ function effectWeather(dt){
     }
   }
 
-  // ── Birds & Planes (drift toward sun so they cross in front of it) ──
-  const sunPY=isDay?0.35+sunElev*0.55:0.6;
-  const sunPXn=isDay&&sunPX>=0?sunPX*2:0.5;
+  // ── Birds & Planes ──
   for(const cr of wxCreatures){
     if(cr.delay>0){ cr.delay-=dt; continue; }
     cr.px=(cr.px+cr.dx*dt*60+1)%1;
-    if(isDay&&(cr.type==='bird'||cr.type==='plane')){
-      const dyToSun=(sunPY-cr.py)*0.012*dt*60;
-      cr.py=Math.max(0.3,Math.min(0.92,cr.py+dyToSun));
-      const dxToSun=sunPXn-cr.px;
-      const wrap=Math.abs(dxToSun)>0.5?(dxToSun>0?dxToSun-1:dxToSun+1):dxToSun;
-      cr.dx+=(wrap>0?1:-1)*0.00002*dt*60;
-    }
     if(cr.type==='balloon'){
       cr.phaseT+=dt;
       if(cr.phase==='rise'){
