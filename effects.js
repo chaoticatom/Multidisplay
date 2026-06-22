@@ -9322,21 +9322,27 @@ function retroDrawFace(faceIdx,dt,buf,S){
       p.marioX+=mDir*mSpeed*dt;
       const slOff=Math.round(mpl.slant*(p.marioX-32)/20);
       p.marioY=mpl.y+slOff;
-      // Barrel avoidance — detect incoming barrels and dodge
+      // Barrel avoidance — pause and wait for barrel to pass, then jump
       let nearestDist=999, nearestBarrel=null;
       for(const b of p.barrels){
         const bdx=b.x-p.marioX, bdy=b.y-p.marioY;
         if(Math.abs(bdy)<5){
           const dist=Math.abs(bdx);
-          if(dist<15&&dist<nearestDist){ nearestDist=dist; nearestBarrel=b; }
+          if(dist<18&&dist<nearestDist){ nearestDist=dist; nearestBarrel=b; }
         }
       }
-      if(nearestBarrel&&nearestDist<12){
+      let dodging=false;
+      if(nearestBarrel&&nearestDist<16){
         const bdx=nearestBarrel.x-p.marioX;
         const headOn=bdx*mDir>0;
-        if(headOn&&nearestDist<10&&p.jumpT<=0){ p.state='jump'; p.jumpT=0; }
-        else if(!headOn&&nearestDist<6&&p.jumpT<=0){ p.state='jump'; p.jumpT=0; }
+        if(headOn){
+          dodging=true;
+          if(nearestDist<8&&p.jumpT<=0){ p.state='jump'; p.jumpT=0; dodging=false; }
+        } else if(nearestDist<6&&p.jumpT<=0){
+          p.state='jump'; p.jumpT=0;
+        }
       }
+      if(dodging) p.marioX-=mDir*mSpeed*dt; // undo the walk step — stand still
       // Find ladder to climb when reaching end of platform
       if(p.platIdx<5){
         for(const ld of ladders){
