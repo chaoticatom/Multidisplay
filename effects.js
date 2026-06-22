@@ -3814,7 +3814,7 @@ function effectWeather(dt){
   const horizV=Math.round(HORIZ*S1);
   const textV=3; // v position for text baseline
   const tempV=10; // temperature higher up
-  const bldBase=9; // buildings start above text
+  const bldBase=horizV; // buildings start at horizon line
 
   // Bitmap font 3×5 (each row is 3-bit: bit2=left, bit1=mid, bit0=right)
   const WXF={'0':[7,5,5,5,7],'1':[6,2,2,2,7],'2':[7,1,7,4,7],'3':[7,1,3,1,7],
@@ -3890,38 +3890,47 @@ function effectWeather(dt){
         continue; // skip per-u ground handling for sky rows
       }
 
-      // Ground row: handle per-u for skyline (skip in 2D mode - just show sky)
+      // Ground row: fill with ground colour
       for(let u=0;u<S;u++){
         const idx=faceMap[face][v*S+u]; if(idx<0) continue;
-        if(!panel2dMode){
+        colBuf[idx*3]=gR; colBuf[idx*3+1]=gG; colBuf[idx*3+2]=gB;
+      }
+    }
+
+    // Skyline silhouettes — drawn on top of horizon into sky area
+    if(!panel2dMode&&wxSkyline){
+      const maxBldH=15;
+      for(let v=bldBase;v<Math.min(S,bldBase+maxBldH);v++){
+        for(let u=0;u<S;u++){
           const panXf=panXOfFaceU(face,u);
-          const panIdx=Math.min(wxSkyline?wxSkyline.length-1:0, Math.floor(panXf*4*S));
-          const bldH=wxSkyline?wxSkyline[panIdx]:0;
+          const panIdx=Math.min(wxSkyline.length-1, Math.floor(panXf*4*S));
+          const bldH=wxSkyline[panIdx];
           const styRaw=wxSkyType?wxSkyType[panIdx]:0;
           const sty=styRaw&0xF, localI=styRaw>>4;
           const row=v-bldBase;
           let inShape=false;
-          if(v>=bldBase&&row<bldH){
-            if(sty===2){ // tree — trunk bottom 2 rows center, canopy circle above
-              const tw=wxSkyline?(()=>{let w=0;for(let j=panIdx;j<wxSkyline.length&&wxSkyType[j]===wxSkyType[panIdx];j++)w++;return w;})():2;
+          if(row<bldH){
+            if(sty===2){
+              const tw=wxSkyline?(()=>{let w=0;for(let j=panIdx;j<wxSkyline.length&&(wxSkyType[j]&0xF)===2&&(wxSkyType[j]>>4)>=localI;j++)w++;return w;})():2;
               const mid=Math.floor(tw/2);
-              if(row<2){ inShape=Math.abs(localI-mid)<=0; } // trunk
-              else { const cr=bldH-2,cy=2+cr/2,r=tw*0.7; inShape=(localI-mid)**2/(r*r)+(row-cy)**2/(cr*cr)<=1; }
-            } else if(sty===1){ // house — box with triangle roof
-              const hw=wxSkyline?(()=>{let w=0;for(let j=panIdx;j<wxSkyline.length&&wxSkyType[j]===wxSkyType[panIdx];j++)w++;return w;})():4;
+              if(row<2){ inShape=Math.abs(localI-mid)<=0; }
+              else { const cr=bldH-2,cy=2+cr/2,r2=tw*0.7; inShape=(localI-mid)**2/(r2*r2)+(row-cy)**2/(cr*cr)<=1; }
+            } else if(sty===1){
+              const hw=wxSkyline?(()=>{let w=0;for(let j=panIdx;j<wxSkyline.length&&(wxSkyType[j]&0xF)===1&&(wxSkyType[j]>>4)>=localI;j++)w++;return w;})():4;
               const roofH=Math.max(1,Math.floor(bldH*0.4));
               const wallH=bldH-roofH;
               if(row<wallH) inShape=true;
               else { const roofRow=row-wallH; const span=hw*(1-roofRow/roofH); inShape=localI>=Math.floor((hw-span)/2)&&localI<Math.ceil((hw+span)/2); }
-            } else if(sty===3){ // church — narrow body with spire
-              const cw=3, mid=1;
-              if(row<bldH-2) inShape=localI===mid; // spire
-              else inShape=true; // base
-            } else { inShape=true; } // building
+            } else if(sty===3){
+              const mid=1;
+              if(row<bldH-2) inShape=localI===mid;
+              else inShape=true;
+            } else { inShape=true; }
           }
           if(inShape){
+            const idx=faceMap[face][v*S+u]; if(idx<0) continue;
             let br=bldR,bg=bldG,bb=bldB;
-            if(sty===2){ // tree: dark green silhouette
+            if(sty===2){
               if(row<2){ br=bldR*0.8;bg=bldG*0.8;bb=bldB*0.5; }
               else { br=0.02;bg=bldDay?0.06:0.03;bb=0.01; }
             }
@@ -3935,12 +3944,7 @@ function effectWeather(dt){
               if(wy2===1&&localI>0){ br=0.55;bg=0.45;bb=0.10; }
             }
             colBuf[idx*3]=br; colBuf[idx*3+1]=bg; colBuf[idx*3+2]=bb;
-          } else {
-            colBuf[idx*3]=gR; colBuf[idx*3+1]=gG; colBuf[idx*3+2]=gB;
           }
-        } else {
-          // 2D mode: just show sky gradient, no buildings
-          colBuf[idx*3]=gR; colBuf[idx*3+1]=gG; colBuf[idx*3+2]=gB;
         }
       }
     }
