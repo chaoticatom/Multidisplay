@@ -9051,142 +9051,121 @@ function retroDrawFace(faceIdx,dt,buf,S){
         buf[i]*=0.6; buf[i+1]*=0.6; buf[i+2]*=0.55;
       }
     } else {
-      // Draw pet based on stage
-      const bob=Math.round(Math.sin(p.animF*3)*1);
+      // Draw Mametchi as large LCD outline filling most of the screen
+      const bob=Math.round(Math.sin(p.animF*2.5)*1);
       const blink=Math.sin(p.animF*2.3)>0.93;
-      const walkFrame=Math.floor(p.animF*4)%2;
+      const walkFrame=Math.floor(p.animF*3)%2;
+      const k=d; // pixel colour (black on LCD)
+      const by=25+bob; // base Y for character (centred in LCD area between icon rows)
 
-      if(p.stage===0){
-        // Baby: small round blob
-        fillRect(cx-3,cy-1+bob,cx+3,cy+3+bob,d[0],d[1],d[2]);
-        fillRect(cx-2,cy-2+bob,cx+2,cy-1+bob,d[0],d[1],d[2]);
-        fillRect(cx-2,cy+3+bob,cx+2,cy+4+bob,d[0],d[1],d[2]);
-        if(!blink){ setP(cx-1,cy+1+bob,lc[0],lc[1],lc[2]); setP(cx+1,cy+1+bob,lc[0],lc[1],lc[2]); }
-        setP(cx,cy-1+bob,lc[0],lc[1],lc[2]); // mouth
-        // Tiny feet
-        setP(cx-2,cy-3+bob,d[0],d[1],d[2]); setP(cx+2,cy-3+bob,d[0],d[1],d[2]);
-      } else if(p.stage===1){
-        // Child: Mametchi-style with ears
-        fillRect(cx-4,cy-2+bob,cx+4,cy+4+bob,d[0],d[1],d[2]);
-        fillRect(cx-3,cy-3+bob,cx+3,cy-2+bob,d[0],d[1],d[2]);
-        fillRect(cx-3,cy+4+bob,cx+3,cy+5+bob,d[0],d[1],d[2]);
-        // Ears
-        setP(cx-5,cy+3+bob,d[0],d[1],d[2]); setP(cx-5,cy+4+bob,d[0],d[1],d[2]);
-        setP(cx+5,cy+3+bob,d[0],d[1],d[2]); setP(cx+5,cy+4+bob,d[0],d[1],d[2]);
-        // Eyes
-        if(!blink){
-          setP(cx-2,cy+2+bob,lc[0],lc[1],lc[2]); setP(cx-2,cy+1+bob,lc[0],lc[1],lc[2]);
-          setP(cx+2,cy+2+bob,lc[0],lc[1],lc[2]); setP(cx+2,cy+1+bob,lc[0],lc[1],lc[2]);
-        }
-        // Mouth
-        if(p.happy>0.5){ setP(cx-1,cy-1+bob,lc[0],lc[1],lc[2]); setP(cx,cy-2+bob,lc[0],lc[1],lc[2]); setP(cx+1,cy-1+bob,lc[0],lc[1],lc[2]); }
-        else { setP(cx-1,cy-2+bob,lc[0],lc[1],lc[2]); setP(cx,cy-1+bob,lc[0],lc[1],lc[2]); setP(cx+1,cy-2+bob,lc[0],lc[1],lc[2]); }
-        // Feet (walk animation)
-        const fOff=walkFrame&&(p.action==='idle')?1:0;
-        fillRect(cx-3,cy-4+bob,cx-1,cy-3+bob,d[0],d[1],d[2]);
-        fillRect(cx+1-fOff,cy-4+bob,cx+3-fOff,cy-3+bob,d[0],d[1],d[2]);
+      // Head outline (large round, ~20px wide, ~14px tall)
+      // Top of head
+      hLine(cx-5,cx+5,by+18,k[0],k[1],k[2]);
+      hLine(cx-7,cx-5,by+17,k[0],k[1],k[2]); hLine(cx+5,cx+7,by+17,k[0],k[1],k[2]);
+      hLine(cx-8,cx-7,by+16,k[0],k[1],k[2]); hLine(cx+7,cx+8,by+16,k[0],k[1],k[2]);
+      // Sides of head
+      for(let hh=10;hh<=15;hh++){ setP(cx-9,by+hh,k[0],k[1],k[2]); setP(cx+9,by+hh,k[0],k[1],k[2]); }
+      setP(cx-8,by+9,k[0],k[1],k[2]); setP(cx+8,by+9,k[0],k[1],k[2]);
+      hLine(cx-7,cx-5,by+8,k[0],k[1],k[2]); hLine(cx+5,cx+7,by+8,k[0],k[1],k[2]);
+      // Bottom of head connects to body
+      hLine(cx-5,cx-3,by+8,k[0],k[1],k[2]); hLine(cx+3,cx+5,by+8,k[0],k[1],k[2]);
+
+      // Pointy ears (like Mametchi)
+      setP(cx-10,by+16,k[0],k[1],k[2]); setP(cx-11,by+17,k[0],k[1],k[2]); setP(cx-12,by+18,k[0],k[1],k[2]);
+      setP(cx-11,by+15,k[0],k[1],k[2]); setP(cx-12,by+16,k[0],k[1],k[2]);
+      setP(cx+10,by+16,k[0],k[1],k[2]); setP(cx+11,by+17,k[0],k[1],k[2]); setP(cx+12,by+18,k[0],k[1],k[2]);
+      setP(cx+11,by+15,k[0],k[1],k[2]); setP(cx+12,by+16,k[0],k[1],k[2]);
+
+      // Eyes (large oval outlines, 3x4 each)
+      if(!blink){
+        // Left eye
+        setP(cx-5,by+14,k[0],k[1],k[2]); setP(cx-4,by+15,k[0],k[1],k[2]); setP(cx-4,by+14,k[0],k[1],k[2]);
+        setP(cx-5,by+13,k[0],k[1],k[2]); setP(cx-4,by+12,k[0],k[1],k[2]); setP(cx-4,by+13,k[0],k[1],k[2]);
+        setP(cx-3,by+14,k[0],k[1],k[2]); setP(cx-3,by+13,k[0],k[1],k[2]);
+        // Right eye
+        setP(cx+5,by+14,k[0],k[1],k[2]); setP(cx+4,by+15,k[0],k[1],k[2]); setP(cx+4,by+14,k[0],k[1],k[2]);
+        setP(cx+5,by+13,k[0],k[1],k[2]); setP(cx+4,by+12,k[0],k[1],k[2]); setP(cx+4,by+13,k[0],k[1],k[2]);
+        setP(cx+3,by+14,k[0],k[1],k[2]); setP(cx+3,by+13,k[0],k[1],k[2]);
       } else {
-        // Adult: bigger Mametchi with hat/crown
-        fillRect(cx-5,cy-2+bob,cx+5,cy+4+bob,d[0],d[1],d[2]);
-        fillRect(cx-4,cy-4+bob,cx+4,cy-2+bob,d[0],d[1],d[2]);
-        fillRect(cx-4,cy+4+bob,cx+4,cy+6+bob,d[0],d[1],d[2]);
-        // Crown/hat
-        setP(cx-3,cy+7+bob,d[0],d[1],d[2]); setP(cx,cy+7+bob,d[0],d[1],d[2]); setP(cx+3,cy+7+bob,d[0],d[1],d[2]);
-        hLine(cx-4,cx+4,cy+6+bob,d[0],d[1],d[2]);
-        // Ears
-        setP(cx-6,cy+3+bob,d[0],d[1],d[2]); setP(cx-6,cy+4+bob,d[0],d[1],d[2]); setP(cx-6,cy+2+bob,d[0],d[1],d[2]);
-        setP(cx+6,cy+3+bob,d[0],d[1],d[2]); setP(cx+6,cy+4+bob,d[0],d[1],d[2]); setP(cx+6,cy+2+bob,d[0],d[1],d[2]);
-        // Eyes (bigger)
-        if(!blink){
-          fillRect(cx-3,cy+1+bob,cx-2,cy+2+bob,lc[0],lc[1],lc[2]);
-          fillRect(cx+2,cy+1+bob,cx+3,cy+2+bob,lc[0],lc[1],lc[2]);
-        }
-        // Mouth
-        if(p.happy>0.5){ hLine(cx-2,cx+2,cy-2+bob,lc[0],lc[1],lc[2]); setP(cx-2,cy-1+bob,lc[0],lc[1],lc[2]); setP(cx+2,cy-1+bob,lc[0],lc[1],lc[2]); }
-        else { hLine(cx-2,cx+2,cy-1+bob,lc[0],lc[1],lc[2]); setP(cx-2,cy-2+bob,lc[0],lc[1],lc[2]); setP(cx+2,cy-2+bob,lc[0],lc[1],lc[2]); }
-        // Arms
-        setP(cx-6,cy+bob,d[0],d[1],d[2]); setP(cx-7,cy-1+bob,d[0],d[1],d[2]);
-        setP(cx+6,cy+bob,d[0],d[1],d[2]); setP(cx+7,cy-1+bob,d[0],d[1],d[2]);
-        // Feet (walk)
-        const fOff2=walkFrame&&(p.action==='idle')?1:0;
-        fillRect(cx-4,cy-5+bob,cx-2,cy-4+bob,d[0],d[1],d[2]);
-        fillRect(cx+2-fOff2,cy-5+bob,cx+4-fOff2,cy-4+bob,d[0],d[1],d[2]);
+        hLine(cx-5,cx-3,by+13,k[0],k[1],k[2]); hLine(cx+3,cx+5,by+13,k[0],k[1],k[2]);
       }
 
-      // Eating: food bowl appears, pet faces it, chomping animation
+      // Mouth
+      if(p.happy>0.5){
+        setP(cx-2,by+10,k[0],k[1],k[2]); hLine(cx-1,cx+1,by+9,k[0],k[1],k[2]); setP(cx+2,by+10,k[0],k[1],k[2]);
+      } else {
+        setP(cx-2,by+9,k[0],k[1],k[2]); hLine(cx-1,cx+1,by+10,k[0],k[1],k[2]); setP(cx+2,by+9,k[0],k[1],k[2]);
+      }
+
+      // Body outline (smaller rectangle below head)
+      hLine(cx-4,cx+4,by+7,k[0],k[1],k[2]);
+      setP(cx-4,by+6,k[0],k[1],k[2]); setP(cx+4,by+6,k[0],k[1],k[2]);
+      setP(cx-4,by+5,k[0],k[1],k[2]); setP(cx+4,by+5,k[0],k[1],k[2]);
+      setP(cx-4,by+4,k[0],k[1],k[2]); setP(cx+4,by+4,k[0],k[1],k[2]);
+      hLine(cx-4,cx+4,by+3,k[0],k[1],k[2]);
+
+      // Arms (angled outward from body)
+      setP(cx-5,by+6,k[0],k[1],k[2]); setP(cx-6,by+7,k[0],k[1],k[2]); setP(cx-7,by+7,k[0],k[1],k[2]);
+      setP(cx+5,by+6,k[0],k[1],k[2]); setP(cx+6,by+7,k[0],k[1],k[2]); setP(cx+7,by+7,k[0],k[1],k[2]);
+
+      // Feet (walk animation)
+      const fk=walkFrame&&(p.action==='idle'||p.action==='clean')?1:0;
+      fillRect(cx-4,by+1,cx-2,by+2,k[0],k[1],k[2]);
+      fillRect(cx+2-fk,by+1,cx+4-fk,by+2,k[0],k[1],k[2]);
+
+      // Eating: food item appears, chomping
       if(p.action==='eat'){
-        const fx=cx+(p.walkDir>0?10:-10);
         const chomp=Math.floor(p.eatFrame*5)%2;
-        // Bowl
-        hLine(fx-2,fx+2,cy-2,d[0],d[1],d[2]);
-        setP(fx-2,cy-1,d[0],d[1],d[2]); setP(fx+2,cy-1,d[0],d[1],d[2]);
-        hLine(fx-1,fx+1,cy,d[0],d[1],d[2]);
-        // Food bits shrinking
-        if(p.actionT>1.5){ setP(fx-1,cy-1,d[0],d[1],d[2]); setP(fx,cy-1,d[0],d[1],d[2]); setP(fx+1,cy-1,d[0],d[1],d[2]); }
-        else if(p.actionT>0.7){ setP(fx,cy-1,d[0],d[1],d[2]); }
-        // Chomp marks near mouth
-        if(chomp){ setP(cx+(p.walkDir>0?6:-6),cy+bob,d[0],d[1],d[2]); setP(cx+(p.walkDir>0?7:-7),cy+1+bob,d[0],d[1],d[2]); }
+        const fx=cx+14;
+        // Rice/food outline
+        hLine(fx-2,fx+2,by+6,k[0],k[1],k[2]); hLine(fx-2,fx+2,by+3,k[0],k[1],k[2]);
+        setP(fx-2,by+4,k[0],k[1],k[2]); setP(fx-2,by+5,k[0],k[1],k[2]);
+        setP(fx+2,by+4,k[0],k[1],k[2]); setP(fx+2,by+5,k[0],k[1],k[2]);
+        if(p.actionT<1.5){ setP(fx,by+5,k[0],k[1],k[2]); } // food shrinks
+        if(chomp){ setP(cx+9,by+10,k[0],k[1],k[2]); setP(cx+10,by+9,k[0],k[1],k[2]); }
       }
 
-      // Playing: ball bouncing, pet jumps
+      // Playing: ball bouncing
       if(p.action==='play'){
         const ballT=p.animF*4;
-        const ballBounce=Math.abs(Math.sin(ballT))*10;
-        const ballX=cx+(p.walkDir>0?12:-12);
-        const ballY=cy-2+Math.round(ballBounce);
-        fillRect(ballX-1,ballY-1,ballX+1,ballY+1,d[0],d[1],d[2]);
-        // Pet jumps (simple offset redraw)
-        if(Math.sin(ballT+0.5)>0.7){
-          setP(cx,cy+6+bob,d[0],d[1],d[2]); setP(cx-1,cy+6+bob,d[0],d[1],d[2]);
-          setP(cx+1,cy+6+bob,d[0],d[1],d[2]);
-        }
+        const ballBounce=Math.round(Math.abs(Math.sin(ballT))*8);
+        const bx2=cx+14, by2=by+3+ballBounce;
+        setP(bx2,by2,k[0],k[1],k[2]); setP(bx2+1,by2,k[0],k[1],k[2]);
+        setP(bx2,by2+1,k[0],k[1],k[2]); setP(bx2+1,by2+1,k[0],k[1],k[2]);
       }
 
-      // Bath: bubbles around pet
+      // Bath: bubbles
       if(p.action==='bath'){
         const bubT=p.bathT*3;
-        for(let bi=0;bi<6;bi++){
-          const ba=bi*1.05+bubT;
-          const bx=cx+Math.round(Math.sin(ba)*8);
-          const by=cy+Math.round(Math.cos(ba*0.7)*5)+bob;
-          if(bx>2&&bx<S-3&&by>2&&by<S-8){
-            setP(bx,by,d[0],d[1],d[2]); setP(bx+1,by,d[0],d[1],d[2]);
-            setP(bx,by+1,d[0],d[1],d[2]); setP(bx+1,by+1,d[0],d[1],d[2]);
-            setP(bx+1,by+1,lc[0],lc[1],lc[2]); // highlight
-          }
+        for(let bi=0;bi<5;bi++){
+          const ba=bi*1.3+bubT;
+          const bx2=cx+Math.round(Math.sin(ba)*11);
+          const by2=by+5+Math.round(Math.cos(ba*0.7)*7);
+          setP(bx2,by2,k[0],k[1],k[2]); setP(bx2+1,by2,k[0],k[1],k[2]);
+          setP(bx2,by2+1,k[0],k[1],k[2]);
         }
       }
 
-      // Sick: sweat drops, dizzy spirals
+      // Sick: sweat drop
       if(p.sick){
         const sw=Math.floor(p.animF*2)%2;
-        setP(cx-6,cy+3,d[0],d[1],d[2]); setP(cx-6,cy+2-sw,d[0],d[1],d[2]);
-        // Skull icon nearby
-        setP(cx+8,cy+4,d[0],d[1],d[2]); setP(cx+9,cy+4,d[0],d[1],d[2]);
-        setP(cx+8,cy+3,d[0],d[1],d[2]); setP(cx+9,cy+3,d[0],d[1],d[2]);
-        setP(cx+8,cy+3,lc[0],lc[1],lc[2]);
+        setP(cx-10,by+16-sw,k[0],k[1],k[2]); setP(cx-10,by+15-sw,k[0],k[1],k[2]);
       }
 
-      // Poop (coil shape like real tamagotchi)
+      // Poop (coil outline)
       if(p.poop){
-        const px=cx-14, py=cy-2;
-        // Coil shape
-        setP(px+2,py+4,d[0],d[1],d[2]);
-        setP(px+1,py+3,d[0],d[1],d[2]); setP(px+3,py+3,d[0],d[1],d[2]);
-        setP(px,py+2,d[0],d[1],d[2]); setP(px+2,py+2,d[0],d[1],d[2]);
-        setP(px+1,py+1,d[0],d[1],d[2]); setP(px+3,py+1,d[0],d[1],d[2]);
-        setP(px+2,py,d[0],d[1],d[2]);
-        // Stink lines (animated)
-        if(Math.floor(p.animF*3)%2){
-          setP(px+1,py+5,d[0],d[1],d[2]); setP(px+3,py+6,d[0],d[1],d[2]);
-          setP(px,py+6,d[0],d[1],d[2]);
-        }
+        const px=cx-14, py=by+2;
+        setP(px+1,py+5,k[0],k[1],k[2]); setP(px+2,py+5,k[0],k[1],k[2]);
+        setP(px,py+4,k[0],k[1],k[2]); setP(px+3,py+4,k[0],k[1],k[2]);
+        setP(px+1,py+3,k[0],k[1],k[2]); setP(px+3,py+3,k[0],k[1],k[2]);
+        setP(px+2,py+2,k[0],k[1],k[2]);
+        if(Math.floor(p.animF*3)%2){ setP(px+1,py+6,k[0],k[1],k[2]); setP(px+3,py+7,k[0],k[1],k[2]); }
       }
 
-      // Attention call: exclamation when needs are critical
+      // Attention: exclamation
       if((p.hunger>0.8||p.happy<0.2)&&Math.floor(p.animF*4)%2){
-        setP(cx,cy+8,d[0],d[1],d[2]); setP(cx,cy+9,d[0],d[1],d[2]);
-        setP(cx,cy+10,d[0],d[1],d[2]); setP(cx,cy+12,d[0],d[1],d[2]);
+        setP(cx+12,by+16,k[0],k[1],k[2]); setP(cx+12,by+15,k[0],k[1],k[2]);
+        setP(cx+12,by+14,k[0],k[1],k[2]); setP(cx+12,by+12,k[0],k[1],k[2]);
       }
     }
 
