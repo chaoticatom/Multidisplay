@@ -3776,6 +3776,7 @@ function effectWeather(dt){
   }
 
   const HORIZ=0.32; // horizon at 32% from bottom of side faces
+  const WX_CLEAR_TOP=HORIZ+(1-HORIZ)/3; // clear zone: horizon up 1/3 of sky
   const SIDE=[2,0,3,1]; // panorama quarter order matching panXOfFaceU: right→front→left→back
 
   // ── Panorama u→panX mapping per face ──
@@ -4065,6 +4066,7 @@ function effectWeather(dt){
       const dist=Math.sqrt(du*du+dv*dv);
       const fu=faceU+du, fv=faceV+dv;
       if(fu<0||fu>=S||fv<0||fv>=S||fv<horizV) continue;
+      if(fv>=Math.round(HORIZ*S)&&fv<=Math.round(WX_CLEAR_TOP*S)) continue;
       const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
       if(isSun){
         const d=sunDim;
@@ -4134,6 +4136,7 @@ function effectWeather(dt){
           if(dist>1) continue;
           const fu=pu+du, fv=pv+dv;
           if(fu<0||fu>=S||fv<0||fv>=S) continue;
+          if(fv>=Math.round(HORIZ*S)&&fv<=Math.round(WX_CLEAR_TOP*S)) continue;
           const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
           let edge;
           if(isOvercast){
@@ -4238,6 +4241,7 @@ function effectWeather(dt){
       const _bc=[[1,0.2,0.1],[0.1,0.5,1],[0.9,0.8,0.1],[0.2,0.8,0.3],[0.8,0.2,0.8],[1,0.5,0]];
       let bestD=0;for(const cc of _bc){const d=(cc[0]-skyCol[0])**2+(cc[1]-skyCol[1])**2+(cc[2]-skyCol[2])**2;if(d>bestD){bestD=d;cr.color=cc;}}
       const crV=Math.round((HORIZ+cr.py*(1-HORIZ))*S1);
+      if(!panel2dMode&&crV>=Math.round(HORIZ*S)&&crV<=Math.round(WX_CLEAR_TOP*S)) continue;
       const baseCol=Math.round(cr.px*S*4);
       const c=cr.color;
       // Envelope: round dome with vertical panel stripes
@@ -4295,6 +4299,7 @@ function effectWeather(dt){
       cr.lightningHit=0.3; cr.wobble=2.5;
     }
     const crV=Math.round((HORIZ+cr.py*(1-HORIZ))*S1);
+    if(!panel2dMode&&crV>=Math.round(HORIZ*S)&&crV<=Math.round(WX_CLEAR_TOP*S)) continue;
     const baseCol=Math.round(cr.px*S*4);
     if(cr.type==='bird'){
       cr.wingT+=dt;
@@ -4377,6 +4382,7 @@ function effectWeather(dt){
     const face=SIDE[p.face];
     const iu=Math.round(p.u), iv=Math.round(p.v);
     if(iu<0||iu>=S||iv<0||iv>=S) continue;
+    if(iv>=Math.round(HORIZ*S)&&iv<=Math.round(WX_CLEAR_TOP*S)) continue;
     const idx=faceMap[face][iv*S+iu]; if(idx<0) continue;
     if(p.snow){ blendLED(idx,0.9,0.92,0.98); }
     else {
@@ -4396,7 +4402,7 @@ function effectWeather(dt){
       const nu=bu+(Math.random()-0.5)*8|0, nv=bv-(3+Math.random()*5)|0;
       for(let t2=0;t2<=1;t2+=0.2){
         const lu=Math.round(bu+t2*(nu-bu)), lv=Math.round(bv+t2*(nv-bv));
-        if(lu>=0&&lu<S&&lv>=0&&lv<S){ blendLED(faceMap[bFace][lv*S+lu],1,1,0.9); }
+        if(lu>=0&&lu<S&&lv>=0&&lv<S&&!(lv>=Math.round(HORIZ*S)&&lv<=Math.round(WX_CLEAR_TOP*S))){ blendLED(faceMap[bFace][lv*S+lu],1,1,0.9); }
       }
       bu=nu; bv=nv;
     }
