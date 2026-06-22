@@ -3856,8 +3856,7 @@ function effectWeather(dt){
   const txtB=isDawn||isDusk?0.1:bldDay?0.85:0.9;
 
   // Temperature string: e.g. "12°C"  or  "-3°C"
-  const tempStr=(wxTemp<0?'-':'')+Math.abs(wxTemp)+'°C';
-  const maxStr='H:'+(wxTempMax<0?'-':'')+Math.abs(wxTempMax)+'°';
+  const tempStr=(wxTemp<0?'-':'')+Math.abs(wxTemp)+'('+(wxTempMax<0?'-':'')+Math.abs(wxTempMax)+')°';
   const locStr=(wxCityDisplay||document.getElementById('wx-city')?.value||'').trim().toUpperCase();
 
   // ── Render sky+ground on side faces ──
@@ -3915,7 +3914,6 @@ function effectWeather(dt){
 
     // Draw temperature higher up on all faces
     wxText(face,tempStr,1,tempV,txtR,txtG,txtB);
-    wxText(face,maxStr,1,tempV+8,txtR*0.7,txtG*0.7,txtB*0.7);
     // Draw time on face 0 (front)
     if(face===0){
       const localD=new Date(Date.now()+wxTzOffset*1000);
