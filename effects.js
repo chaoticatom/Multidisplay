@@ -8076,7 +8076,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
 
   } else if(game.name==='rtype'){
     const p=game;
-    if(p.lives===undefined) p.lives=5;
+    if(p.lives===undefined) p.lives=3;
     if(!p.turrets) p.turrets=[];
     if(!p.tBullets) p.tBullets=[];
     if(!p.explodeT) p.explodeT=0;
@@ -8112,7 +8112,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
         }
       }
       if(p.loserT<=0){
-        p.lives=5; p.turrets=[]; p.tBullets=[]; p.eBullets=[];
+        p.lives=3; p.turrets=[]; p.tBullets=[]; p.eBullets=[];
         for(const e of p.enemies){ e.alive=true; e.x=-Math.random()*20; e.y=15+Math.random()*35; e.fireT=2+Math.random()*3; }
       }
       return;
