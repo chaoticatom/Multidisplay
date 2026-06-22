@@ -3806,6 +3806,10 @@ function effectWeather(dt){
     return Math.round(((px-0.75)/0.25)*S1);
   }
   function uOfFacePanIdx(face,pi){
+    if(panel2dMode){
+      if(pi<0||pi>=SIZE) return -1;
+      return pi;
+    }
     const fIdx=SIDE.indexOf(face);
     if(fIdx<0) return -1;
     const fStart=fIdx*SIZE;
@@ -4422,10 +4426,10 @@ function effectWeather(dt){
   }
 
   // Skyline silhouettes — final pass, drawn over all weather
-  if(!panel2dMode&&wxSkyShapes.length>0){
+  if(wxSkyShapes.length>0){
     const _panW=4*S;
-    for(let fi=0;fi<4;fi++){
-      const face=SIDE[fi];
+    const _faces=panel2dMode?[0]:[SIDE[0],SIDE[1],SIDE[2],SIDE[3]];
+    for(const face of _faces){
       for(const sh of wxSkyShapes){
         for(let li=0;li<sh.w;li++){
           const pi=sh.x+li;
