@@ -8900,109 +8900,316 @@ function retroDrawFace(faceIdx,dt,buf,S){
 
   } else if(game.name==='tamagotchi'){
     const p=game;
-    // Init state
-    if(p.hunger===undefined){ p.hunger=0.3; p.happy=0.8; p.age=0; p.actionT=0; p.action='idle'; p.animF=0; p.poopT=0; p.poop=false; p.sleep=false; p.dead=false; }
-    p.age+=dt;
-    p.animF+=dt;
+    const lc=[0.75,0.8,0.55]; // LCD background
+    const pk=[0.1,0.1,0.1];   // LCD pixel (black)
+    const gh=[0.5,0.55,0.4];  // LCD ghost/dim
+    if(p.hunger===undefined){
+      p.hunger=0.3; p.happy=0.8; p.age=0; p.animF=0;
+      p.actionT=0; p.action='idle'; p.poop=false; p.poopCount=0;
+      p.dead=false; p.deathT=0; p.sleepT=0; p.sleeping=false;
+      p.walkX=0; p.walkDir=1; p.stage=0; // 0=baby,1=child,2=adult
+      p.sick=false; p.sickT=0; p.disciplineT=0; p.attentionT=0;
+      p.eatFrame=0; p.playScore=0; p.bathT=0;
+    }
+    p.age+=dt; p.animF+=dt;
+    // Age stages
+    if(p.age>120) p.stage=2; else if(p.age>40) p.stage=1; else p.stage=0;
 
-    // LCD-style border (rounded rectangle frame)
-    for(let x=2;x<S-2;x++){ setP(x,2,0.3,0.35,0.3); setP(x,S-3,0.3,0.35,0.3); }
-    for(let y=2;y<S-2;y++){ setP(2,y,0.3,0.35,0.3); setP(S-3,y,0.3,0.35,0.3); }
-    setP(3,3,0.3,0.35,0.3); setP(S-4,3,0.3,0.35,0.3); setP(3,S-4,0.3,0.35,0.3); setP(S-4,S-4,0.3,0.35,0.3);
+    // LCD border
+    for(let x=1;x<S-1;x++){ setP(x,1,0.3,0.35,0.3); setP(x,S-2,0.3,0.35,0.3); }
+    for(let y=1;y<S-1;y++){ setP(1,y,0.3,0.35,0.3); setP(S-2,y,0.3,0.35,0.3); }
+    // LCD background
+    for(let y=2;y<S-2;y++) for(let x=2;x<S-2;x++) setP(x,y,lc[0],lc[1],lc[2]);
 
-    // LCD green-yellow background
-    for(let y=3;y<S-3;y++) for(let x=3;x<S-3;x++) setP(x,y,0.75,0.8,0.55);
+    // Icon bar at top (8 icons like real Tamagotchi)
+    const iconY=S-6;
+    const icons=['food','light','game','med','bath','stats','disc','attn'];
+    for(let i=0;i<8;i++){
+      const ix=4+i*7;
+      // Highlight active icon
+      const active=(p.action==='eat'&&i===0)||(p.sleeping&&i===1)||(p.action==='play'&&i===2)||
+        (p.sick&&p.action==='medicine'&&i===3)||(p.action==='bath'&&i===4)||(p.action==='idle'&&i===5);
+      const ic=active?pk:gh;
+      // Simple 5x5 icon shapes
+      if(i===0){ // Food: bowl
+        hLine(ix,ix+4,iconY,ic[0],ic[1],ic[2]);
+        setP(ix,iconY+1,ic[0],ic[1],ic[2]); setP(ix+4,iconY+1,ic[0],ic[1],ic[2]);
+        hLine(ix+1,ix+3,iconY+2,ic[0],ic[1],ic[2]);
+      } else if(i===1){ // Light: bulb
+        hLine(ix+1,ix+3,iconY+2,ic[0],ic[1],ic[2]);
+        setP(ix+1,iconY+1,ic[0],ic[1],ic[2]); setP(ix+3,iconY+1,ic[0],ic[1],ic[2]);
+        hLine(ix+1,ix+3,iconY,ic[0],ic[1],ic[2]); setP(ix+2,iconY-1,ic[0],ic[1],ic[2]);
+      } else if(i===2){ // Game: bat&ball
+        setP(ix,iconY+2,ic[0],ic[1],ic[2]); setP(ix+1,iconY+1,ic[0],ic[1],ic[2]);
+        setP(ix+2,iconY,ic[0],ic[1],ic[2]); setP(ix+4,iconY+2,ic[0],ic[1],ic[2]);
+      } else if(i===3){ // Medicine: cross
+        hLine(ix+1,ix+3,iconY+1,ic[0],ic[1],ic[2]);
+        setP(ix+2,iconY,ic[0],ic[1],ic[2]); setP(ix+2,iconY+2,ic[0],ic[1],ic[2]);
+      } else if(i===4){ // Bath: tub
+        hLine(ix,ix+4,iconY+1,ic[0],ic[1],ic[2]);
+        setP(ix,iconY,ic[0],ic[1],ic[2]); setP(ix+4,iconY,ic[0],ic[1],ic[2]);
+        hLine(ix+1,ix+3,iconY-1,ic[0],ic[1],ic[2]);
+      } else if(i===5){ // Stats: bars
+        for(let b=0;b<3;b++){ const h=1+b; for(let bv=0;bv<h;bv++) setP(ix+1+b*2,iconY+bv,ic[0],ic[1],ic[2]); }
+      } else if(i===6){ // Discipline: !
+        setP(ix+2,iconY+2,ic[0],ic[1],ic[2]); setP(ix+2,iconY+1,ic[0],ic[1],ic[2]); setP(ix+2,iconY,ic[0],ic[1],ic[2]);
+        setP(ix+2,iconY-1,ic[0],ic[1],ic[2]);
+      } else { // Attention: heart
+        setP(ix+1,iconY+2,ic[0],ic[1],ic[2]); setP(ix+3,iconY+2,ic[0],ic[1],ic[2]);
+        hLine(ix,ix+4,iconY+1,ic[0],ic[1],ic[2]);
+        hLine(ix+1,ix+3,iconY,ic[0],ic[1],ic[2]); setP(ix+2,iconY-1,ic[0],ic[1],ic[2]);
+      }
+    }
 
-    // Auto-actions (simulate owner caring for pet)
+    // Auto-actions
     p.actionT-=dt;
-    if(p.actionT<=0){
-      if(p.hunger>0.7){ p.action='eat'; p.actionT=3; }
-      else if(p.happy<0.3){ p.action='play'; p.actionT=2.5; }
-      else if(p.poop){ p.action='clean'; p.actionT=2; }
-      else { p.action='idle'; p.actionT=3+Math.random()*4; }
+    if(p.actionT<=0&&!p.dead){
+      if(p.hunger>0.7){ p.action='eat'; p.actionT=3; p.eatFrame=0; }
+      else if(p.happy<0.3){ p.action='play'; p.actionT=4; p.playScore=0; }
+      else if(p.sick){ p.action='medicine'; p.actionT=2.5; }
+      else if(p.poopCount>=2){ p.action='bath'; p.actionT=3; p.bathT=0; }
+      else if(p.poop){ p.action='clean'; p.actionT=1.5; }
+      else if(p.animF>10&&!p.sleeping&&Math.random()<0.15){ p.sleeping=true; p.sleepT=0; p.action='sleep'; p.actionT=8; }
+      else { p.action='idle'; p.actionT=2+Math.random()*3; }
     }
 
-    // Update stats
-    p.hunger+=dt*0.04;
-    p.happy-=dt*0.02;
-    if(p.action==='eat'){ p.hunger-=dt*0.3; p.hunger=Math.max(0,p.hunger); }
-    if(p.action==='play'){ p.happy+=dt*0.3; p.happy=Math.min(1,p.happy); }
-    if(p.action==='clean') p.poop=false;
-    if(Math.random()<dt*0.02&&!p.poop) p.poop=true;
+    // Stats
+    p.hunger+=dt*0.035;
+    p.happy-=dt*0.018;
+    if(p.action==='eat'){ p.hunger-=dt*0.25; p.hunger=Math.max(0,p.hunger); p.eatFrame+=dt; }
+    if(p.action==='play'){ p.happy+=dt*0.2; p.happy=Math.min(1,p.happy); }
+    if(p.action==='medicine'){ p.sickT+=dt; if(p.sickT>2) p.sick=false; }
+    if(p.action==='clean'){ p.poop=false; p.poopCount=0; }
+    if(p.action==='bath'){ p.bathT+=dt; p.poop=false; p.poopCount=0; if(p.bathT>2.5) p.happy=Math.min(1,p.happy+0.1); }
+    if(p.action==='sleep'){ p.sleepT+=dt; if(p.sleepT>7){ p.sleeping=false; p.happy=Math.min(1,p.happy+0.15); } }
+    if(Math.random()<dt*0.025&&!p.poop){ p.poop=true; p.poopCount++; }
+    if(Math.random()<dt*0.005&&!p.sick&&p.hunger>0.5) p.sick=true;
+    if(p.hunger>1) p.dead=true;
 
-    // Death and rebirth
-    if(p.hunger>1){ p.dead=true; }
+    // Walking
+    if(p.action==='idle'||p.action==='clean'){
+      p.walkX+=p.walkDir*dt*8;
+      if(p.walkX>12){ p.walkDir=-1; } else if(p.walkX<-12){ p.walkDir=1; }
+    }
+
+    const cx=Math.round(32+p.walkX), cy=28;
+    const d=pk; // draw colour
+
     if(p.dead){
-      // Skull icon
-      const cx=32,cy=32;
-      fillRect(cx-4,cy-2,cx+4,cy+4,0.1,0.1,0.1);
-      fillRect(cx-3,cy+4,cx+3,cy+7,0.1,0.1,0.1);
-      setP(cx-2,cy+1,0.75,0.8,0.55); setP(cx+2,cy+1,0.75,0.8,0.55);
-      fillRect(cx-1,cy-1,cx+1,cy,0.75,0.8,0.55);
-      // Reset after 4s
-      if(p.age%20<dt*2){ p.dead=false; p.hunger=0.3; p.happy=0.8; p.poop=false; }
+      p.deathT+=dt;
+      // Ghost floating up
+      const gy=cy-Math.round(p.deathT*3);
+      fillRect(30,gy-2,33,gy+3,d[0],d[1],d[2]);
+      setP(29,gy,d[0],d[1],d[2]); setP(34,gy,d[0],d[1],d[2]);
+      setP(31,gy+1,lc[0],lc[1],lc[2]); setP(33,gy+1,lc[0],lc[1],lc[2]);
+      // Skull+cross at bottom
+      fillRect(29,14,34,19,d[0],d[1],d[2]);
+      fillRect(30,12,33,14,d[0],d[1],d[2]);
+      setP(30,17,lc[0],lc[1],lc[2]); setP(33,17,lc[0],lc[1],lc[2]);
+      setP(31,15,lc[0],lc[1],lc[2]); setP(32,15,lc[0],lc[1],lc[2]);
+      hLine(28,35,10,d[0],d[1],d[2]); setP(31,9,d[0],d[1],d[2]); setP(31,11,d[0],d[1],d[2]);
+      if(p.deathT>15){ p.dead=false; p.deathT=0; p.hunger=0.3; p.happy=0.8; p.poop=false; p.poopCount=0; p.sick=false; p.age=0; p.stage=0; }
+    } else if(p.sleeping){
+      // Pet lying down with blanket
+      fillRect(cx-5,cy-2,cx+5,cy,d[0],d[1],d[2]); // blanket
+      fillRect(cx-4,cy,cx+4,cy+2,d[0],d[1],d[2]); // body under blanket
+      // Head poking out
+      fillRect(cx+4,cy-1,cx+7,cy+2,d[0],d[1],d[2]);
+      setP(cx+5,cy+1,lc[0],lc[1],lc[2]); // closed eye
+      // Zzz floating
+      const zOff=Math.floor(p.sleepT*2)%3;
+      const zx=cx+9, zy=cy+4+zOff*3;
+      if(zy<S-8){
+        const zs=1+(zOff*0.5);
+        setP(zx,zy,d[0],d[1],d[2]); setP(Math.round(zx+zs),zy,d[0],d[1],d[2]);
+        setP(Math.round(zx+zs*0.5),zy+1,d[0],d[1],d[2]);
+        setP(zx,zy+2,d[0],d[1],d[2]); setP(Math.round(zx+zs),zy+2,d[0],d[1],d[2]);
+      }
+      // Lights dimmed
+      for(let y=2;y<S-8;y++) for(let x=2;x<S-2;x++){
+        const i=(y*S+x)*3;
+        buf[i]*=0.6; buf[i+1]*=0.6; buf[i+2]*=0.55;
+      }
     } else {
-      // Draw pet (LCD pixel art style, black on green)
-      const cx=32, cy=30;
+      // Draw pet based on stage
       const bob=Math.round(Math.sin(p.animF*3)*1);
-      const blink=Math.sin(p.animF*2)>0.92;
-      // Body (egg shape)
-      fillRect(cx-5,cy-3+bob,cx+5,cy+5+bob,0.1,0.1,0.1);
-      fillRect(cx-6,cy-1+bob,cx+6,cy+3+bob,0.1,0.1,0.1);
-      fillRect(cx-4,cy-4+bob,cx+4,cy-3+bob,0.1,0.1,0.1);
-      // Eyes (LCD holes)
-      if(!blink){
-        setP(cx-2,cy+1+bob,0.75,0.8,0.55); setP(cx-3,cy+1+bob,0.75,0.8,0.55);
-        setP(cx+2,cy+1+bob,0.75,0.8,0.55); setP(cx+3,cy+1+bob,0.75,0.8,0.55);
-        setP(cx-2,cy+2+bob,0.75,0.8,0.55); setP(cx+2,cy+2+bob,0.75,0.8,0.55);
-      }
-      // Mouth (happy or sad)
-      if(p.happy>0.5){
-        setP(cx-1,cy-1+bob,0.75,0.8,0.55); setP(cx,cy-2+bob,0.75,0.8,0.55); setP(cx+1,cy-1+bob,0.75,0.8,0.55);
+      const blink=Math.sin(p.animF*2.3)>0.93;
+      const walkFrame=Math.floor(p.animF*4)%2;
+
+      if(p.stage===0){
+        // Baby: small round blob
+        fillRect(cx-3,cy-1+bob,cx+3,cy+3+bob,d[0],d[1],d[2]);
+        fillRect(cx-2,cy-2+bob,cx+2,cy-1+bob,d[0],d[1],d[2]);
+        fillRect(cx-2,cy+3+bob,cx+2,cy+4+bob,d[0],d[1],d[2]);
+        if(!blink){ setP(cx-1,cy+1+bob,lc[0],lc[1],lc[2]); setP(cx+1,cy+1+bob,lc[0],lc[1],lc[2]); }
+        setP(cx,cy-1+bob,lc[0],lc[1],lc[2]); // mouth
+        // Tiny feet
+        setP(cx-2,cy-3+bob,d[0],d[1],d[2]); setP(cx+2,cy-3+bob,d[0],d[1],d[2]);
+      } else if(p.stage===1){
+        // Child: Mametchi-style with ears
+        fillRect(cx-4,cy-2+bob,cx+4,cy+4+bob,d[0],d[1],d[2]);
+        fillRect(cx-3,cy-3+bob,cx+3,cy-2+bob,d[0],d[1],d[2]);
+        fillRect(cx-3,cy+4+bob,cx+3,cy+5+bob,d[0],d[1],d[2]);
+        // Ears
+        setP(cx-5,cy+3+bob,d[0],d[1],d[2]); setP(cx-5,cy+4+bob,d[0],d[1],d[2]);
+        setP(cx+5,cy+3+bob,d[0],d[1],d[2]); setP(cx+5,cy+4+bob,d[0],d[1],d[2]);
+        // Eyes
+        if(!blink){
+          setP(cx-2,cy+2+bob,lc[0],lc[1],lc[2]); setP(cx-2,cy+1+bob,lc[0],lc[1],lc[2]);
+          setP(cx+2,cy+2+bob,lc[0],lc[1],lc[2]); setP(cx+2,cy+1+bob,lc[0],lc[1],lc[2]);
+        }
+        // Mouth
+        if(p.happy>0.5){ setP(cx-1,cy-1+bob,lc[0],lc[1],lc[2]); setP(cx,cy-2+bob,lc[0],lc[1],lc[2]); setP(cx+1,cy-1+bob,lc[0],lc[1],lc[2]); }
+        else { setP(cx-1,cy-2+bob,lc[0],lc[1],lc[2]); setP(cx,cy-1+bob,lc[0],lc[1],lc[2]); setP(cx+1,cy-2+bob,lc[0],lc[1],lc[2]); }
+        // Feet (walk animation)
+        const fOff=walkFrame&&(p.action==='idle')?1:0;
+        fillRect(cx-3,cy-4+bob,cx-1,cy-3+bob,d[0],d[1],d[2]);
+        fillRect(cx+1-fOff,cy-4+bob,cx+3-fOff,cy-3+bob,d[0],d[1],d[2]);
       } else {
-        setP(cx-1,cy-2+bob,0.75,0.8,0.55); setP(cx,cy-1+bob,0.75,0.8,0.55); setP(cx+1,cy-2+bob,0.75,0.8,0.55);
+        // Adult: bigger Mametchi with hat/crown
+        fillRect(cx-5,cy-2+bob,cx+5,cy+4+bob,d[0],d[1],d[2]);
+        fillRect(cx-4,cy-4+bob,cx+4,cy-2+bob,d[0],d[1],d[2]);
+        fillRect(cx-4,cy+4+bob,cx+4,cy+6+bob,d[0],d[1],d[2]);
+        // Crown/hat
+        setP(cx-3,cy+7+bob,d[0],d[1],d[2]); setP(cx,cy+7+bob,d[0],d[1],d[2]); setP(cx+3,cy+7+bob,d[0],d[1],d[2]);
+        hLine(cx-4,cx+4,cy+6+bob,d[0],d[1],d[2]);
+        // Ears
+        setP(cx-6,cy+3+bob,d[0],d[1],d[2]); setP(cx-6,cy+4+bob,d[0],d[1],d[2]); setP(cx-6,cy+2+bob,d[0],d[1],d[2]);
+        setP(cx+6,cy+3+bob,d[0],d[1],d[2]); setP(cx+6,cy+4+bob,d[0],d[1],d[2]); setP(cx+6,cy+2+bob,d[0],d[1],d[2]);
+        // Eyes (bigger)
+        if(!blink){
+          fillRect(cx-3,cy+1+bob,cx-2,cy+2+bob,lc[0],lc[1],lc[2]);
+          fillRect(cx+2,cy+1+bob,cx+3,cy+2+bob,lc[0],lc[1],lc[2]);
+        }
+        // Mouth
+        if(p.happy>0.5){ hLine(cx-2,cx+2,cy-2+bob,lc[0],lc[1],lc[2]); setP(cx-2,cy-1+bob,lc[0],lc[1],lc[2]); setP(cx+2,cy-1+bob,lc[0],lc[1],lc[2]); }
+        else { hLine(cx-2,cx+2,cy-1+bob,lc[0],lc[1],lc[2]); setP(cx-2,cy-2+bob,lc[0],lc[1],lc[2]); setP(cx+2,cy-2+bob,lc[0],lc[1],lc[2]); }
+        // Arms
+        setP(cx-6,cy+bob,d[0],d[1],d[2]); setP(cx-7,cy-1+bob,d[0],d[1],d[2]);
+        setP(cx+6,cy+bob,d[0],d[1],d[2]); setP(cx+7,cy-1+bob,d[0],d[1],d[2]);
+        // Feet (walk)
+        const fOff2=walkFrame&&(p.action==='idle')?1:0;
+        fillRect(cx-4,cy-5+bob,cx-2,cy-4+bob,d[0],d[1],d[2]);
+        fillRect(cx+2-fOff2,cy-5+bob,cx+4-fOff2,cy-4+bob,d[0],d[1],d[2]);
       }
-      // Feet
-      fillRect(cx-4,cy-5+bob,cx-2,cy-4+bob,0.1,0.1,0.1);
-      fillRect(cx+2,cy-5+bob,cx+4,cy-4+bob,0.1,0.1,0.1);
 
-      // Eating animation
+      // Eating: food bowl appears, pet faces it, chomping animation
       if(p.action==='eat'){
-        const foodX=cx+10, foodY=cy+bob;
-        const bite=Math.floor(p.animF*4)%2;
-        if(bite){ fillRect(foodX-1,foodY-1,foodX+1,foodY+1,0.1,0.1,0.1); }
-        else { setP(foodX,foodY,0.1,0.1,0.1); }
+        const fx=cx+(p.walkDir>0?10:-10);
+        const chomp=Math.floor(p.eatFrame*5)%2;
+        // Bowl
+        hLine(fx-2,fx+2,cy-2,d[0],d[1],d[2]);
+        setP(fx-2,cy-1,d[0],d[1],d[2]); setP(fx+2,cy-1,d[0],d[1],d[2]);
+        hLine(fx-1,fx+1,cy,d[0],d[1],d[2]);
+        // Food bits shrinking
+        if(p.actionT>1.5){ setP(fx-1,cy-1,d[0],d[1],d[2]); setP(fx,cy-1,d[0],d[1],d[2]); setP(fx+1,cy-1,d[0],d[1],d[2]); }
+        else if(p.actionT>0.7){ setP(fx,cy-1,d[0],d[1],d[2]); }
+        // Chomp marks near mouth
+        if(chomp){ setP(cx+(p.walkDir>0?6:-6),cy+bob,d[0],d[1],d[2]); setP(cx+(p.walkDir>0?7:-7),cy+1+bob,d[0],d[1],d[2]); }
       }
-      // Playing animation (ball bouncing)
+
+      // Playing: ball bouncing, pet jumps
       if(p.action==='play'){
-        const ballY=cy+8+Math.round(Math.abs(Math.sin(p.animF*5))*6);
-        const ballX=cx+10;
-        setP(ballX,ballY,0.1,0.1,0.1); setP(ballX+1,ballY,0.1,0.1,0.1);
-        setP(ballX,ballY+1,0.1,0.1,0.1); setP(ballX+1,ballY+1,0.1,0.1,0.1);
+        const ballT=p.animF*4;
+        const ballBounce=Math.abs(Math.sin(ballT))*10;
+        const ballX=cx+(p.walkDir>0?12:-12);
+        const ballY=cy-2+Math.round(ballBounce);
+        fillRect(ballX-1,ballY-1,ballX+1,ballY+1,d[0],d[1],d[2]);
+        // Pet jumps to catch
+        if(Math.sin(ballT+0.5)>0.7){
+          for(let y2=cy-5;y2<=cy+6;y2++) for(let x2=cx-7;x2<=cx+7;x2++){
+            const i=(y2*S+x2)*3;
+            if(x2>=0&&x2<S&&y2>=0&&y2<S&&buf[i]<0.2){
+              buf[((y2+2)*S+x2)*3]=d[0]; buf[((y2+2)*S+x2)*3+1]=d[1]; buf[((y2+2)*S+x2)*3+2]=d[2];
+              buf[i]=lc[0]; buf[i+1]=lc[1]; buf[i+2]=lc[2];
+            }
+          }
+        }
       }
-      // Poop
+
+      // Bath: bubbles around pet
+      if(p.action==='bath'){
+        const bubT=p.bathT*3;
+        for(let bi=0;bi<6;bi++){
+          const ba=bi*1.05+bubT;
+          const bx=cx+Math.round(Math.sin(ba)*8);
+          const by=cy+Math.round(Math.cos(ba*0.7)*5)+bob;
+          if(bx>2&&bx<S-3&&by>2&&by<S-8){
+            setP(bx,by,d[0],d[1],d[2]); setP(bx+1,by,d[0],d[1],d[2]);
+            setP(bx,by+1,d[0],d[1],d[2]); setP(bx+1,by+1,d[0],d[1],d[2]);
+            setP(bx+1,by+1,lc[0],lc[1],lc[2]); // highlight
+          }
+        }
+      }
+
+      // Sick: sweat drops, dizzy spirals
+      if(p.sick){
+        const sw=Math.floor(p.animF*2)%2;
+        setP(cx-6,cy+3,d[0],d[1],d[2]); setP(cx-6,cy+2-sw,d[0],d[1],d[2]);
+        // Skull icon nearby
+        setP(cx+8,cy+4,d[0],d[1],d[2]); setP(cx+9,cy+4,d[0],d[1],d[2]);
+        setP(cx+8,cy+3,d[0],d[1],d[2]); setP(cx+9,cy+3,d[0],d[1],d[2]);
+        setP(cx+8,cy+3,lc[0],lc[1],lc[2]);
+      }
+
+      // Poop (coil shape like real tamagotchi)
       if(p.poop){
-        const px=cx-10, py=cy-3;
-        setP(px,py,0.1,0.1,0.1); setP(px+1,py,0.1,0.1,0.1);
-        setP(px,py+1,0.1,0.1,0.1); setP(px+1,py+1,0.1,0.1,0.1);
-        setP(px+1,py+2,0.1,0.1,0.1);
-        // Stink lines
-        if(Math.floor(p.animF*3)%2){ setP(px,py+3,0.1,0.1,0.1); setP(px+2,py+4,0.1,0.1,0.1); }
+        const px=cx-14, py=cy-2;
+        // Coil shape
+        setP(px+2,py+4,d[0],d[1],d[2]);
+        setP(px+1,py+3,d[0],d[1],d[2]); setP(px+3,py+3,d[0],d[1],d[2]);
+        setP(px,py+2,d[0],d[1],d[2]); setP(px+2,py+2,d[0],d[1],d[2]);
+        setP(px+1,py+1,d[0],d[1],d[2]); setP(px+3,py+1,d[0],d[1],d[2]);
+        setP(px+2,py,d[0],d[1],d[2]);
+        // Stink lines (animated)
+        if(Math.floor(p.animF*3)%2){
+          setP(px+1,py+5,d[0],d[1],d[2]); setP(px+3,py+6,d[0],d[1],d[2]);
+          setP(px,py+6,d[0],d[1],d[2]);
+        }
+      }
+
+      // Attention call: exclamation when needs are critical
+      if((p.hunger>0.8||p.happy<0.2)&&Math.floor(p.animF*4)%2){
+        setP(cx,cy+8,d[0],d[1],d[2]); setP(cx,cy+9,d[0],d[1],d[2]);
+        setP(cx,cy+10,d[0],d[1],d[2]); setP(cx,cy+12,d[0],d[1],d[2]);
       }
     }
 
-    // Status icons at top (hearts/food LCD style)
-    const hungerBars=Math.round((1-p.hunger)*4);
+    // Bottom status: hunger hearts (left) and happy hearts (right)
+    const hungerBars=Math.round((1-Math.min(1,p.hunger))*4);
     for(let i=0;i<4;i++){
-      const bx=6+i*5;
-      if(i<hungerBars) fillRect(bx,S-8,bx+3,S-6,0.1,0.1,0.1);
-      else { setP(bx,S-7,0.4,0.45,0.35); setP(bx+2,S-7,0.4,0.45,0.35); }
+      const bx=5+i*5, by=4;
+      if(i<hungerBars){
+        setP(bx,by+2,pk[0],pk[1],pk[2]); setP(bx+2,by+2,pk[0],pk[1],pk[2]);
+        hLine(bx-1,bx+3,by+1,pk[0],pk[1],pk[2]);
+        hLine(bx,bx+2,by,pk[0],pk[1],pk[2]); setP(bx+1,by-1,pk[0],pk[1],pk[2]);
+      } else {
+        setP(bx,by+2,gh[0],gh[1],gh[2]); setP(bx+2,by+2,gh[0],gh[1],gh[2]);
+        hLine(bx-1,bx+3,by+1,gh[0],gh[1],gh[2]);
+        hLine(bx,bx+2,by,gh[0],gh[1],gh[2]); setP(bx+1,by-1,gh[0],gh[1],gh[2]);
+      }
     }
-    const happyBars=Math.round(p.happy*4);
+    const happyBars=Math.round(Math.max(0,p.happy)*4);
     for(let i=0;i<4;i++){
-      const bx=38+i*5;
-      if(i<happyBars) fillRect(bx,S-8,bx+3,S-6,0.1,0.1,0.1);
-      else { setP(bx,S-7,0.4,0.45,0.35); setP(bx+2,S-7,0.4,0.45,0.35); }
+      const bx=38+i*5, by=4;
+      if(i<happyBars){
+        setP(bx,by+2,pk[0],pk[1],pk[2]); setP(bx+2,by+2,pk[0],pk[1],pk[2]);
+        hLine(bx-1,bx+3,by+1,pk[0],pk[1],pk[2]);
+        hLine(bx,bx+2,by,pk[0],pk[1],pk[2]); setP(bx+1,by-1,pk[0],pk[1],pk[2]);
+      } else {
+        setP(bx,by+2,gh[0],gh[1],gh[2]); setP(bx+2,by+2,gh[0],gh[1],gh[2]);
+        hLine(bx-1,bx+3,by+1,gh[0],gh[1],gh[2]);
+        hLine(bx,bx+2,by,gh[0],gh[1],gh[2]); setP(bx+1,by-1,gh[0],gh[1],gh[2]);
+      }
+    }
+    // Age display (bottom center)
+    const ageStr=''+Math.floor(p.age/10);
+    const ax=Math.round(S/2-ageStr.length*2);
+    for(let ci=0;ci<ageStr.length;ci++){
+      const ch=ageStr[ci]; const cw=ci*4+ax;
+      const digits={'0':[7,5,5,5,7],'1':[2,6,2,2,7],'2':[7,1,7,4,7],'3':[7,1,7,1,7],'4':[5,5,7,1,1],'5':[7,4,7,1,7],'6':[7,4,7,5,7],'7':[7,1,1,1,1],'8':[7,5,7,5,7],'9':[7,5,7,1,7]};
+      const rows=digits[ch]; if(!rows) continue;
+      for(let r=0;r<5;r++) for(let c=0;c<3;c++) if((rows[r]>>(2-c))&1) setP(cw+c,8-r,pk[0],pk[1],pk[2]);
     }
   }
 }
