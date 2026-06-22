@@ -9030,31 +9030,55 @@ function retroDrawFace(faceIdx,dt,buf,S){
       hLine(28,35,10,d[0],d[1],d[2]); setP(31,9,d[0],d[1],d[2]); setP(31,11,d[0],d[1],d[2]);
       if(p.deathT>15){ p.dead=false; p.deathT=0; p.hunger=0.3; p.happy=0.8; p.poop=false; p.poopCount=0; p.sick=false; p.age=0; p.stage=0; }
     } else if(p.sleeping){
-      // Large pet lying down with blanket (outline style)
       const k=d;
-      // Blanket outline
-      hLine(cx-10,cx+8,cy-1,k[0],k[1],k[2]); hLine(cx-10,cx+8,cy+3,k[0],k[1],k[2]);
-      setP(cx-10,cy,k[0],k[1],k[2]); setP(cx-10,cy+1,k[0],k[1],k[2]); setP(cx-10,cy+2,k[0],k[1],k[2]);
-      setP(cx+8,cy,k[0],k[1],k[2]); setP(cx+8,cy+1,k[0],k[1],k[2]); setP(cx+8,cy+2,k[0],k[1],k[2]);
-      // Head poking out (large outline)
-      hLine(cx+9,cx+14,cy+4,k[0],k[1],k[2]);
-      setP(cx+9,cy+3,k[0],k[1],k[2]); setP(cx+14,cy+3,k[0],k[1],k[2]);
-      setP(cx+9,cy+2,k[0],k[1],k[2]); setP(cx+14,cy+2,k[0],k[1],k[2]);
-      setP(cx+9,cy+1,k[0],k[1],k[2]); setP(cx+14,cy+1,k[0],k[1],k[2]);
-      hLine(cx+9,cx+14,cy,k[0],k[1],k[2]);
-      // Closed eye
-      hLine(cx+10,cx+12,cy+2,k[0],k[1],k[2]);
-      // Ear
-      setP(cx+12,cy+5,k[0],k[1],k[2]); setP(cx+13,cy+6,k[0],k[1],k[2]);
-      // Zzz floating (larger)
-      const zOff=Math.floor(p.sleepT*2)%3;
-      const zx=cx+16, zy=cy+5+zOff*4;
-      if(zy<S-8){
-        const zs=2+zOff;
-        hLine(zx,zx+zs,zy,k[0],k[1],k[2]); setP(zx+Math.round(zs/2),zy+1,k[0],k[1],k[2]);
-        hLine(zx,zx+zs,zy+2,k[0],k[1],k[2]);
+      const by=20;
+      // Pillow (rounded outline)
+      hLine(cx+4,cx+16,by+28,k[0],k[1],k[2]); hLine(cx+4,cx+16,by+22,k[0],k[1],k[2]);
+      setP(cx+3,by+23,k[0],k[1],k[2]); setP(cx+3,by+24,k[0],k[1],k[2]); setP(cx+3,by+25,k[0],k[1],k[2]); setP(cx+3,by+26,k[0],k[1],k[2]); setP(cx+3,by+27,k[0],k[1],k[2]);
+      setP(cx+17,by+23,k[0],k[1],k[2]); setP(cx+17,by+24,k[0],k[1],k[2]); setP(cx+17,by+25,k[0],k[1],k[2]); setP(cx+17,by+26,k[0],k[1],k[2]); setP(cx+17,by+27,k[0],k[1],k[2]);
+      // Head outline lying on pillow (~20px wide)
+      hLine(cx-2,cx+12,by+30,k[0],k[1],k[2]);
+      setP(cx-3,by+29,k[0],k[1],k[2]); setP(cx+13,by+29,k[0],k[1],k[2]);
+      setP(cx-4,by+28,k[0],k[1],k[2]); setP(cx+14,by+28,k[0],k[1],k[2]);
+      for(let hh=23;hh<=27;hh++){ setP(cx-5,by+hh,k[0],k[1],k[2]); setP(cx+14,by+hh,k[0],k[1],k[2]); }
+      setP(cx-4,by+22,k[0],k[1],k[2]); setP(cx+13,by+22,k[0],k[1],k[2]);
+      hLine(cx-3,cx+12,by+21,k[0],k[1],k[2]);
+      // Ears pointing up
+      setP(cx-3,by+31,k[0],k[1],k[2]); setP(cx-4,by+32,k[0],k[1],k[2]); setP(cx-5,by+33,k[0],k[1],k[2]);
+      setP(cx-2,by+31,k[0],k[1],k[2]); setP(cx-3,by+33,k[0],k[1],k[2]);
+      setP(cx+11,by+31,k[0],k[1],k[2]); setP(cx+12,by+32,k[0],k[1],k[2]); setP(cx+13,by+33,k[0],k[1],k[2]);
+      setP(cx+10,by+31,k[0],k[1],k[2]); setP(cx+11,by+33,k[0],k[1],k[2]);
+      // Closed eyes (horizontal dashes)
+      hLine(cx-2,cx+1,by+26,k[0],k[1],k[2]);
+      hLine(cx+7,cx+10,by+26,k[0],k[1],k[2]);
+      // Blanket covering body (large rounded rectangle)
+      hLine(cx-18,cx+2,by+19,k[0],k[1],k[2]);
+      hLine(cx-18,cx+2,by+10,k[0],k[1],k[2]);
+      setP(cx-19,by+11,k[0],k[1],k[2]); setP(cx-19,by+12,k[0],k[1],k[2]);
+      for(let bh=13;bh<=18;bh++){ setP(cx-19,by+bh,k[0],k[1],k[2]); }
+      setP(cx+2,by+20,k[0],k[1],k[2]);
+      for(let bh=11;bh<=18;bh++){ setP(cx+2,by+bh,k[0],k[1],k[2]); }
+      // Blanket fold lines
+      hLine(cx-15,cx-5,by+15,k[0],k[1],k[2]);
+      // Feet poking out from blanket
+      fillRect(cx-20,by+12,cx-19,by+14,k[0],k[1],k[2]);
+      fillRect(cx-23,by+11,cx-20,by+13,k[0],k[1],k[2]);
+      fillRect(cx-20,by+16,cx-19,by+18,k[0],k[1],k[2]);
+      fillRect(cx-23,by+15,cx-20,by+17,k[0],k[1],k[2]);
+      // Zzz floating upward (3 sizes)
+      const zt=p.sleepT*1.5;
+      for(let zi=0;zi<3;zi++){
+        const zPhase=(zt+zi*0.8)%2.4;
+        if(zPhase>2.0) continue;
+        const zs=2+zi;
+        const zx=cx+16+zi*3, zy=by+30+Math.round(zPhase*5);
+        if(zy<60){
+          hLine(zx,zx+zs,zy+zs,k[0],k[1],k[2]);
+          for(let zd=1;zd<zs;zd++) setP(zx+zs-zd,zy+zs-zd,k[0],k[1],k[2]);
+          hLine(zx,zx+zs,zy,k[0],k[1],k[2]);
+        }
       }
-      // Lights dimmed (darken screen area in buf coords)
+      // Lights dimmed
       for(let y=scY1;y<=scY2;y++) for(let x=scX1;x<=scX2;x++){
         const i=(y*S+x)*3;
         buf[i]*=0.6; buf[i+1]*=0.6; buf[i+2]*=0.55;
