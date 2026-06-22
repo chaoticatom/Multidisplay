@@ -4140,7 +4140,7 @@ function effectWeather(dt){
           if(fv>=_clrBot&&fv<=_clrTop){
             const overlap=4;
             if(fv<_clrTop-overlap) continue;
-            const h=((fu*2654435761)>>>0)%overlap;
+            const h=Math.round((Math.sin(fu*0.4)*0.5+0.5+Math.sin(fu*0.15+2)*0.3+0.15)*overlap);
             if(_clrTop-fv>h) continue;
           }
           const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
