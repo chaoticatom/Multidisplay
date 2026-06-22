@@ -9313,16 +9313,61 @@ function retroDrawFace(faceIdx,dt,buf,S){
         if(y%3===0) hLine(ld.x,ld.x+2,y,CYN[0],CYN[1],CYN[2]);
       }
     }
-    // Mario movement (auto-play)
-    const cycle=p.t%24;
-    const platIdx=Math.min(5,Math.floor(cycle/4));
-    const pl=platforms[platIdx];
-    const frac=(cycle%4)/4;
-    const goRight=platIdx%2===1;
-    if(goRight) p.marioX=pl.x1+4+frac*(pl.x2-pl.x1-8);
-    else p.marioX=pl.x2-4-frac*(pl.x2-pl.x1-8);
-    const slantOff=Math.round(pl.slant*(p.marioX-32)/20);
-    p.marioY=pl.y+slantOff;
+    // Mario state machine (auto-play)
+    if(p.platIdx===undefined){ p.platIdx=0; p.marioX=platforms[0].x1+6; p.state='walk'; p.jumpT=0; p.climbY=0; p.targetLadder=null; }
+    const mSpeed=22;
+    const mpl=platforms[p.platIdx];
+    const mDir=p.platIdx%2===1?1:-1; // walk against barrels
+    if(p.state==='walk'){
+      p.marioX+=mDir*mSpeed*dt;
+      const slOff=Math.round(mpl.slant*(p.marioX-32)/20);
+      p.marioY=mpl.y+slOff;
+      // Check for nearby barrels to jump over
+      let shouldJump=false;
+      for(const b of p.barrels){
+        const bdx=b.x-p.marioX, bdy=b.y-p.marioY;
+        if(Math.abs(bdx)<8&&Math.abs(bdy)<4&&bdx*mDir>0) shouldJump=true;
+      }
+      if(shouldJump&&p.jumpT<=0){ p.state='jump'; p.jumpT=0; }
+      // Find ladder to climb when reaching end of platform
+      if(p.platIdx<5){
+        for(const ld of ladders){
+          if(ld.y1===mpl.y&&Math.abs(p.marioX-ld.x)<3){
+            p.state='climb'; p.targetLadder=ld; p.climbY=ld.y1; break;
+          }
+        }
+      }
+      // Clamp to platform
+      if(p.marioX<mpl.x1+2||p.marioX>mpl.x2-2){ p.marioX=Math.max(mpl.x1+2,Math.min(mpl.x2-2,p.marioX)); }
+    } else if(p.state==='jump'){
+      p.jumpT+=dt;
+      const jDur=0.5;
+      p.marioX+=mDir*mSpeed*dt;
+      const slOff=Math.round(mpl.slant*(p.marioX-32)/20);
+      const jumpH=Math.sin(Math.min(1,p.jumpT/jDur)*Math.PI)*8;
+      p.marioY=mpl.y+slOff+jumpH;
+      if(p.jumpT>=jDur){ p.state='walk'; p.jumpT=0; p.score+=100; }
+    } else if(p.state==='climb'){
+      p.climbY+=18*dt;
+      p.marioX=p.targetLadder.x+1;
+      p.marioY=p.climbY;
+      if(p.climbY>=p.targetLadder.y2){
+        p.platIdx++;
+        if(p.platIdx>5) p.platIdx=5;
+        p.state='walk';
+        p.marioY=platforms[p.platIdx].y;
+      }
+    }
+    // Barrel collision — reset to bottom
+    for(const b of p.barrels){
+      if(Math.abs(b.x-p.marioX)<3&&Math.abs(b.y-p.marioY)<3&&p.state!=='jump'){
+        p.platIdx=0; p.marioX=platforms[0].x1+6; p.marioY=platforms[0].y; p.state='walk'; p.lives--; break;
+      }
+    }
+    // Reached Pauline — win, restart
+    if(p.platIdx>=5&&p.marioY>=54){
+      p.score+=1000; p.platIdx=0; p.marioX=platforms[0].x1+6; p.marioY=platforms[0].y; p.state='walk'; p.barrels=[];
+    }
     const mx=Math.round(p.marioX), my=Math.round(p.marioY);
     const walkF=Math.floor(p.t*5)%2;
     // Mario (red hat, blue body, skin face)
@@ -9398,7 +9443,6 @@ function retroDrawFace(faceIdx,dt,buf,S){
     }
     // Bonus countdown
     const bonus=Math.max(0,5000-Math.floor(p.t*100)%5000);
-    p.score=Math.floor(p.t*10);
     // "BONUS" label area (small)
     fillRect(48,60,62,63,0.5,0,0.5);
     const bonusStr=(''+bonus).padStart(4,'0');
