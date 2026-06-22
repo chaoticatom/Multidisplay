@@ -3562,12 +3562,11 @@ function wxInitScene(code){
     });
   }
   if(code<=2){
-    const balloonColors=[[1,0.2,0.1],[0.1,0.5,1],[0.9,0.8,0.1],[0.2,0.8,0.3],[0.8,0.2,0.8],[1,0.5,0]];
     wxCreatures.push({
       type:'balloon', px:Math.random(), py:0.05,
       dx:0.0003+Math.random()*0.0002, dy:0,
       phase:'rise', phaseT:0, laps:0, maxLaps:2+Math.floor(Math.random()*3),
-      color:balloonColors[Math.floor(Math.random()*balloonColors.length)],
+      color:[1,0.2,0.1],
       delay:30+Math.random()*60, active:true,
     });
   }
@@ -4226,14 +4225,14 @@ function effectWeather(dt){
         cr.px=(cr.px+cr.dx*dt*60*0.5+1)%1;
         cr.py=Math.max(0.02,cr.py-dt*0.012);
         if(cr.py<=0.02){
-          const balloonColors=[[1,0.2,0.1],[0.1,0.5,1],[0.9,0.8,0.1],[0.2,0.8,0.3],[0.8,0.2,0.8],[1,0.5,0]];
           cr.phase='rise'; cr.phaseT=0; cr.py=0.05;
           cr.px=Math.random(); cr.laps=0;
-          cr.color=balloonColors[Math.floor(Math.random()*balloonColors.length)];
           cr.delay=60+Math.random()*120;
           continue;
         }
       }
+      const _bc=[[1,0.2,0.1],[0.1,0.5,1],[0.9,0.8,0.1],[0.2,0.8,0.3],[0.8,0.2,0.8],[1,0.5,0]];
+      let bestD=0;for(const cc of _bc){const d=(cc[0]-skyCol[0])**2+(cc[1]-skyCol[1])**2+(cc[2]-skyCol[2])**2;if(d>bestD){bestD=d;cr.color=cc;}}
       const crV=Math.round((HORIZ+cr.py*(1-HORIZ))*S1);
       const baseCol=Math.round(cr.px*S*4);
       const c=cr.color;
