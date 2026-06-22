@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=327">
+<link rel="stylesheet" href="style.css?v=328">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -313,6 +313,8 @@
         <button class="retro-game-btn" data-retrogame="8">Quake 2</button>
         <button class="retro-game-btn" data-retrogame="9">Sam Fox SP</button>
         <button class="retro-game-btn" data-retrogame="10">Tamagotchi</button>
+        <button class="retro-game-btn" data-retrogame="11">Atic Atac</button>
+        <button class="retro-game-btn" data-retrogame="12">Donkey Kong</button>
       </div>
       <div class="ov-row-label" style="margin-top:8px;">Auto Rotation Games</div>
       <div id="retro-auto-checks" style="display:flex;flex-wrap:wrap;gap:2px 8px;font-size:11px;">
@@ -327,6 +329,8 @@
         <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="8" checked> Quake 2</label>
         <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="9"> Sam Fox</label>
         <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="10" checked> Tamagotchi</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="11" checked> Atic Atac</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="12" checked> Donkey Kong</label>
       </div>
       <div class="ov-row-label" style="margin-top:8px;">Rotate: <span id="retro-rotate-val">8</span>s</div>
       <input type="range" id="retro-rotate-slider" min="3" max="120" value="8" style="width:100%;cursor:pointer;">
@@ -939,7 +943,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=327"></script>
+<script src="version.js?v=328"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -974,7 +978,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=327','effects.js?v=327','f1.js?v=327','ui.js?v=327'];
+  const appScripts = ['cube.js?v=328','effects.js?v=328','f1.js?v=328','ui.js?v=328'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
