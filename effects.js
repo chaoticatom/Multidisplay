@@ -9406,6 +9406,13 @@ function retroDrawFace(faceIdx,dt,buf,S){
       const rows=digitPat[bonusStr[ci]]; if(!rows) continue;
       for(let r=0;r<5;r++) for(let c=0;c<3;c++) if((rows[r]>>(2-c))&1) setP(49+ci*4+c,61+Math.floor(r*0.6),CYN[0],CYN[1],CYN[2]);
     }
+    // Mirror horizontally
+    for(let y=0;y<S;y++) for(let x=0;x<Math.floor(S/2);x++){
+      const x2=S-1-x, i1=(y*S+x)*3, i2=(y*S+x2)*3;
+      const tr=buf[i1],tg=buf[i1+1],tb=buf[i1+2];
+      buf[i1]=buf[i2]; buf[i1+1]=buf[i2+1]; buf[i1+2]=buf[i2+2];
+      buf[i2]=tr; buf[i2+1]=tg; buf[i2+2]=tb;
+    }
   } else if(game.name==='aticatac'){
     const p=game;
     const CYN=[0,0.85,0.85],WHT=[1,1,1],YEL=[0.85,0.85,0],RED=[0.85,0,0],GRN=[0,0.85,0],MAG=[0.85,0,0.85],BLU=[0,0,0.85];
