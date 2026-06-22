@@ -3481,7 +3481,7 @@ let wxCode=0,wxTemp=20,wxTempMax=20,wxDesc='Clear',wxFetching=false,wxLastFetch=
 let wxSunriseS=21600,wxSunsetS=72000,wxTzOffset=0;
 let wxLat=52.04,wxLon=-0.76,wxCityDisplay='';
 let wxClouds=[],wxParticles=[],wxStars=[],wxT2=0,wxLightFlash=0,wxScrollOff=0;
-let wxSkyline=null,wxCreatures=[];
+let wxSkyline=null,wxSkyShapes=[],wxCreatures=[];
 const WX_CODES={0:'Clear',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',
   45:'Foggy',48:'Icy fog',51:'Light drizzle',53:'Drizzle',55:'Heavy drizzle',
   61:'Light rain',63:'Rain',65:'Heavy rain',71:'Light snow',73:'Snow',75:'Heavy snow',
@@ -3538,18 +3538,19 @@ function wxInitScene(code){
   const panW=4*SIZE;
   wxSkyline=new Uint8Array(panW);
   const seed=Math.abs(Math.round(wxLat*100+wxLon*10+code*7))%9999;
-  const wxSkyType=new Uint8Array(panW); // 0=building,1=house,2=tree,3=church
+  wxSkyShapes=[];
   let bx=0;
   while(bx<panW){
     const rnd=(bx*1327+seed*43+13);
     const typeR=(bx*4517+seed*89)%100;
     let typ=0, bw, bh;
-    if(typeR<25){ typ=2; bw=2+rnd%2; bh=3+((bx*7919+seed*17)%5); } // tree
-    else if(typeR<50){ typ=1; bw=4+rnd%4; bh=2+((bx*7919+seed*17)%3); } // house
-    else if(typeR<58){ typ=3; bw=3; bh=5+((bx*7919+seed*17)%5); } // church
-    else { typ=0; bw=2+(rnd%8); bh=Math.max(1,1+((bx*7919+seed*17+7)%(Math.max(1,Math.floor(SIZE*0.14))))); } // building
-    for(let i=0;i<bw&&bx+i<panW;i++){ wxSkyline[bx+i]=bh; wxSkyType[bx+i]=typ|(i<<4); }
-    bx+=bw+((bx*31+seed+3)%4);
+    if(typeR<25){ typ=2; bw=2+rnd%2; bh=4+((bx*7919+seed*17)%4); }
+    else if(typeR<50){ typ=1; bw=4+rnd%3; bh=3+((bx*7919+seed*17)%3); }
+    else if(typeR<58){ typ=3; bw=3; bh=6+((bx*7919+seed*17)%4); }
+    else { typ=0; bw=2+(rnd%6); bh=2+((bx*7919+seed*17+7)%(Math.max(1,Math.floor(SIZE*0.15)))); }
+    wxSkyShapes.push({x:bx,w:bw,h:bh,t:typ});
+    for(let i=0;i<bw&&bx+i<panW;i++) wxSkyline[bx+i]=bh;
+    bx+=bw+1+((bx*31+seed+3)%3);
   }
 
   // Creatures: birds, occasional plane, and hot air balloons on nice days
@@ -3804,6 +3805,14 @@ function effectWeather(dt){
     if(face===3) return Math.round(((px-0.5)/0.25)*S1);
     return Math.round(((px-0.75)/0.25)*S1);
   }
+  function uOfFacePanIdx(face,pi){
+    const fIdx=SIDE.indexOf(face);
+    if(fIdx<0) return -1;
+    const fStart=fIdx*SIZE;
+    const local=pi-fStart;
+    if(local<0||local>=SIZE) return -1;
+    return local;
+  }
   function vOfElevFrac(elev){ // elev 0=horizon, 1=top
     return Math.round((HORIZ+elev*(1-HORIZ))*S1);
   }
@@ -3894,58 +3903,6 @@ function effectWeather(dt){
       for(let u=0;u<S;u++){
         const idx=faceMap[face][v*S+u]; if(idx<0) continue;
         colBuf[idx*3]=gR; colBuf[idx*3+1]=gG; colBuf[idx*3+2]=gB;
-      }
-    }
-
-    // Skyline silhouettes — drawn on top of horizon into sky area
-    if(!panel2dMode&&wxSkyline){
-      const maxBldH=15;
-      for(let v=bldBase;v<Math.min(S,bldBase+maxBldH);v++){
-        for(let u=0;u<S;u++){
-          const panXf=panXOfFaceU(face,u);
-          const panIdx=Math.min(wxSkyline.length-1, Math.floor(panXf*4*S));
-          const bldH=wxSkyline[panIdx];
-          const styRaw=wxSkyType?wxSkyType[panIdx]:0;
-          const sty=styRaw&0xF, localI=styRaw>>4;
-          const row=v-bldBase;
-          let inShape=false;
-          if(row<bldH){
-            if(sty===2){
-              const tw=wxSkyline?(()=>{let w=0;for(let j=panIdx;j<wxSkyline.length&&(wxSkyType[j]&0xF)===2&&(wxSkyType[j]>>4)>=localI;j++)w++;return w;})():2;
-              const mid=Math.floor(tw/2);
-              if(row<2){ inShape=Math.abs(localI-mid)<=0; }
-              else { const cr=bldH-2,cy=2+cr/2,r2=tw*0.7; inShape=(localI-mid)**2/(r2*r2)+(row-cy)**2/(cr*cr)<=1; }
-            } else if(sty===1){
-              const hw=wxSkyline?(()=>{let w=0;for(let j=panIdx;j<wxSkyline.length&&(wxSkyType[j]&0xF)===1&&(wxSkyType[j]>>4)>=localI;j++)w++;return w;})():4;
-              const roofH=Math.max(1,Math.floor(bldH*0.4));
-              const wallH=bldH-roofH;
-              if(row<wallH) inShape=true;
-              else { const roofRow=row-wallH; const span=hw*(1-roofRow/roofH); inShape=localI>=Math.floor((hw-span)/2)&&localI<Math.ceil((hw+span)/2); }
-            } else if(sty===3){
-              const mid=1;
-              if(row<bldH-2) inShape=localI===mid;
-              else inShape=true;
-            } else { inShape=true; }
-          }
-          if(inShape){
-            const idx=faceMap[face][v*S+u]; if(idx<0) continue;
-            let br=bldR,bg=bldG,bb=bldB;
-            if(sty===2){
-              if(row<2){ br=bldR*0.8;bg=bldG*0.8;bb=bldB*0.5; }
-              else { br=0.02;bg=bldDay?0.06:0.03;bb=0.01; }
-            }
-            if(sty===0&&!bldDay&&bldH>3){
-              const wx2=Math.floor((panXf*4*S+11)%7);
-              const wy=((v-bldBase)*13+37)%5;
-              if(wx2===1&&wy===1){ br=0.55;bg=0.45;bb=0.10; }
-            }
-            if(sty===1&&!bldDay&&row<(bldH-Math.floor(bldH*0.4))&&row>0){
-              const wy2=((panIdx*7+row*13)%5);
-              if(wy2===1&&localI>0){ br=0.55;bg=0.45;bb=0.10; }
-            }
-            colBuf[idx*3]=br; colBuf[idx*3+1]=bg; colBuf[idx*3+2]=bb;
-          }
-        }
       }
     }
 
@@ -4460,6 +4417,46 @@ function effectWeather(dt){
         const gv=glV+dv; if(gv<0||gv>=S) continue;
         const idx=faceMap[glFace][gv*S+gu]; if(idx<0) continue;
         blendLED(idx,gb,gb*0.55,gb*0.05);
+      }
+    }
+  }
+
+  // Skyline silhouettes — final pass, drawn over all weather
+  if(!panel2dMode&&wxSkyShapes.length>0){
+    const _panW=4*S;
+    for(let fi=0;fi<4;fi++){
+      const face=SIDE[fi];
+      for(const sh of wxSkyShapes){
+        for(let li=0;li<sh.w;li++){
+          const pi=sh.x+li;
+          if(pi>=_panW) break;
+          const u=uOfFacePanIdx(face,pi);
+          if(u<0||u>=S) continue;
+          for(let row=0;row<sh.h;row++){
+            const v=bldBase+row;
+            if(v<0||v>=S) continue;
+            let inShape=true;
+            if(sh.t===2){
+              const mid=Math.floor(sh.w/2);
+              if(row<2) inShape=Math.abs(li-mid)<=0;
+              else { const cr=sh.h-2,cy=2+cr/2,rx=sh.w*0.7; inShape=(li-mid)**2/(rx*rx)+(row-cy)**2/(cr*cr)<=1; }
+            } else if(sh.t===1){
+              const roofH=Math.max(1,Math.floor(sh.h*0.4));
+              const wallH=sh.h-roofH;
+              if(row>=wallH){ const roofRow=row-wallH; const span=sh.w*(1-roofRow/roofH); inShape=li>=Math.floor((sh.w-span)/2)&&li<Math.ceil((sh.w+span)/2); }
+            } else if(sh.t===3){
+              if(row>=sh.h-2) inShape=true;
+              else inShape=li===Math.floor(sh.w/2);
+            }
+            if(!inShape) continue;
+            const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+            let br=bldR,bg=bldG,bb=bldB;
+            if(sh.t===2&&row>=2){ br=0.02;bg=bldDay?0.06:0.03;bb=0.01; }
+            if(sh.t===0&&!bldDay&&sh.h>3&&((pi*11+13)%7)===1&&((row*13+37)%5)===1){ br=0.55;bg=0.45;bb=0.10; }
+            if(sh.t===1&&!bldDay&&row>0&&row<(sh.h-Math.floor(sh.h*0.4))&&((pi*7+row*13)%5)===1&&li>0){ br=0.55;bg=0.45;bb=0.10; }
+            colBuf[idx*3]=br; colBuf[idx*3+1]=bg; colBuf[idx*3+2]=bb;
+          }
+        }
       }
     }
   }
