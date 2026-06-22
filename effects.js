@@ -3534,15 +3534,21 @@ function wxInitScene(code){
     snow:isSnowCode,drift:isRainCode?(Math.random()-0.5)*1.5:0
   });
 
-  // Skyline — deterministic per city/weather
+  // Skyline — deterministic per city/weather with houses, trees, churches
   const panW=4*SIZE;
   wxSkyline=new Uint8Array(panW);
   const seed=Math.abs(Math.round(wxLat*100+wxLon*10+code*7))%9999;
+  const wxSkyType=new Uint8Array(panW); // 0=building,1=house,2=tree,3=church
   let bx=0;
   while(bx<panW){
-    const bw=2+((bx*1327+seed*43+13)%8);
-    const bh=Math.max(1,1+((bx*7919+seed*17+7)%(Math.max(1,Math.floor(SIZE*0.14)))));
-    for(let i=0;i<bw&&bx+i<panW;i++) wxSkyline[bx+i]=bh;
+    const rnd=(bx*1327+seed*43+13);
+    const typeR=(bx*4517+seed*89)%100;
+    let typ=0, bw, bh;
+    if(typeR<25){ typ=2; bw=2+rnd%2; bh=3+((bx*7919+seed*17)%5); } // tree
+    else if(typeR<50){ typ=1; bw=4+rnd%4; bh=2+((bx*7919+seed*17)%3); } // house
+    else if(typeR<58){ typ=3; bw=3; bh=5+((bx*7919+seed*17)%5); } // church
+    else { typ=0; bw=2+(rnd%8); bh=Math.max(1,1+((bx*7919+seed*17+7)%(Math.max(1,Math.floor(SIZE*0.14))))); } // building
+    for(let i=0;i<bw&&bx+i<panW;i++){ wxSkyline[bx+i]=bh; wxSkyType[bx+i]=typ|(i<<4); }
     bx+=bw+((bx*31+seed+3)%4);
   }
 
@@ -3891,15 +3897,42 @@ function effectWeather(dt){
           const panXf=panXOfFaceU(face,u);
           const panIdx=Math.min(wxSkyline?wxSkyline.length-1:0, Math.floor(panXf*4*S));
           const bldH=wxSkyline?wxSkyline[panIdx]:0;
-          // Building occupies from v=bldBase to v=bldBase+bldH
-          if(v>=bldBase&&v<bldBase+bldH){
-            // Building silhouette
+          const styRaw=wxSkyType?wxSkyType[panIdx]:0;
+          const sty=styRaw&0xF, localI=styRaw>>4;
+          const row=v-bldBase;
+          let inShape=false;
+          if(v>=bldBase&&row<bldH){
+            if(sty===2){ // tree — trunk bottom 2 rows center, canopy circle above
+              const tw=wxSkyline?(()=>{let w=0;for(let j=panIdx;j<wxSkyline.length&&wxSkyType[j]===wxSkyType[panIdx];j++)w++;return w;})():2;
+              const mid=Math.floor(tw/2);
+              if(row<2){ inShape=Math.abs(localI-mid)<=0; } // trunk
+              else { const cr=bldH-2,cy=2+cr/2,r=tw*0.7; inShape=(localI-mid)**2/(r*r)+(row-cy)**2/(cr*cr)<=1; }
+            } else if(sty===1){ // house — box with triangle roof
+              const hw=wxSkyline?(()=>{let w=0;for(let j=panIdx;j<wxSkyline.length&&wxSkyType[j]===wxSkyType[panIdx];j++)w++;return w;})():4;
+              const roofH=Math.max(1,Math.floor(bldH*0.4));
+              const wallH=bldH-roofH;
+              if(row<wallH) inShape=true;
+              else { const roofRow=row-wallH; const span=hw*(1-roofRow/roofH); inShape=localI>=Math.floor((hw-span)/2)&&localI<Math.ceil((hw+span)/2); }
+            } else if(sty===3){ // church — narrow body with spire
+              const cw=3, mid=1;
+              if(row<bldH-2) inShape=localI===mid; // spire
+              else inShape=true; // base
+            } else { inShape=true; } // building
+          }
+          if(inShape){
             let br=bldR,bg=bldG,bb=bldB;
-            // Windows at night: random lit squares
-            if(!bldDay&&bldH>3){
+            if(sty===2){ // tree: dark green silhouette
+              if(row<2){ br=bldR*0.8;bg=bldG*0.8;bb=bldB*0.5; }
+              else { br=0.02;bg=bldDay?0.06:0.03;bb=0.01; }
+            }
+            if(sty===0&&!bldDay&&bldH>3){
               const wx2=Math.floor((panXf*4*S+11)%7);
               const wy=((v-bldBase)*13+37)%5;
-              if(wx2===1&&wy===1){ br=0.55;bg=0.45;bb=0.10; } // warm window glow
+              if(wx2===1&&wy===1){ br=0.55;bg=0.45;bb=0.10; }
+            }
+            if(sty===1&&!bldDay&&row<(bldH-Math.floor(bldH*0.4))&&row>0){
+              const wy2=((panIdx*7+row*13)%5);
+              if(wy2===1&&localI>0){ br=0.55;bg=0.45;bb=0.10; }
             }
             colBuf[idx*3]=br; colBuf[idx*3+1]=bg; colBuf[idx*3+2]=bb;
           } else {
