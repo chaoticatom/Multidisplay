@@ -4148,7 +4148,7 @@ function effectWeather(dt){
       }
     }
     // Also on top face
-    const tu=Math.round(cl.px*S), tv=Math.round((0.3+cl.py*0.5)*S);
+    const tu=Math.round(cl.px*S), tv=Math.round(cl.py*S);
     const wr=Math.round(cl.sz*0.4*S);
     for(let dv=-wr;dv<=wr;dv++) for(let du=-wr;du<=wr;du++){
       const dist=Math.sqrt((du/wr)**2+(dv/wr)**2); if(dist>1) continue;
