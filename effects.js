@@ -3932,7 +3932,8 @@ function effectWeather(dt){
     const lr=txtR*0.7,lg=txtG*0.7,lb=txtB*0.85;
     if(textW<=S){
       wxScrollOff=0;
-      wxText(panel2dMode?0:SIDE[0],locStr,Math.max(0,S-textW-1),textV,lr,lg,lb);
+      if(panel2dMode) wxText(0,locStr,Math.max(0,S-textW-1),textV,lr,lg,lb);
+      else for(let fi=0;fi<4;fi++) wxText(SIDE[fi],locStr,Math.max(0,S-textW-1),textV,lr,lg,lb);
     } else {
       const sep=Math.max(S/2|0,16);
       const tileW=textW+sep;
