@@ -9362,7 +9362,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     setP(paulX,paulY,MAG[0],MAG[1],MAG[2]); setP(paulX+1,paulY,MAG[0],MAG[1],MAG[2]);
     // Rolling barrels
     p.barrelT+=dt;
-    if(p.barrelT>2.5){ p.barrelT=0; p.barrels.push({x:18,y:56,vy:0,plat:5,dx:15}); }
+    if(p.barrelT>2.5){ p.barrelT=0; p.barrels.push({x:18,y:56,vy:0,plat:5,dx:-15}); }
     if(p.barrels.length>6) p.barrels.shift();
     for(const b of p.barrels){
       b.x+=b.dx*dt;
