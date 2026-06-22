@@ -4164,6 +4164,50 @@ function effectWeather(dt){
     }
   }
 
+  // For 2D panel mode, draw sun/moon on face 0 (before creatures so they appear in front)
+  if(panel2dMode){
+    const S=SIZE, horizV=Math.round(HORIZ*S1);
+    if(isDay){
+      const sunX=dayProg*S;
+      const arc=Math.sin(dayProg*Math.PI);
+      const sunY=horizV+arc*(S1-horizV)*0.92;
+      const sunRad=Math.max(3,S*0.06);
+      for(let dv=-Math.ceil(sunRad+4);dv<=Math.ceil(sunRad+4);dv++){
+        for(let du=-Math.ceil(sunRad+4);du<=Math.ceil(sunRad+4);du++){
+          const dist=Math.sqrt(du*du+dv*dv);
+          const fu=Math.round(sunX+du), fv=Math.round(sunY+dv);
+          if(fu<0||fu>=S||fv<horizV||fv>=S) continue;
+          const idx=faceMap[0][fv*S+fu]; if(idx<0) continue;
+          if(dist<=sunRad){ colBuf[idx*3]=1; colBuf[idx*3+1]=0.98; colBuf[idx*3+2]=0.7; }
+          else if(dist<sunRad+2){ const b=(1-(dist-sunRad)/2)*0.9; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.85); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.25); }
+          else if(dist<sunRad+4){ const b=(1-(dist-sunRad-2)/2)*0.35; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.65); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.08); }
+        }
+      }
+    } else if(moonPX>=0){
+      const moonX=nightProg*S;
+      const arc=Math.sin(nightProg*Math.PI);
+      const moonY=horizV+arc*(S1-horizV)*0.75;
+      const moonRad=Math.max(2,S*0.04);
+      for(let dv=-Math.ceil(moonRad+2);dv<=Math.ceil(moonRad+2);dv++){
+        for(let du=-Math.ceil(moonRad+2);du<=Math.ceil(moonRad+2);du++){
+          const dist=Math.sqrt(du*du+dv*dv);
+          const fu=Math.round(moonX+du), fv=Math.round(moonY+dv);
+          if(fu<0||fu>=S||fv<horizV||fv>=S) continue;
+          const idx=faceMap[0][fv*S+fu]; if(idx<0) continue;
+          if(dist<=moonRad){
+            const illum=moonPh<=0.5?moonPh*2:(1-moonPh)*2;
+            const dir2d=moonPh<=0.5?1:-1;
+            const tX=du/moonRad;
+            const cosA=(1-illum)*2-1;
+            const lit2d=tX*dir2d>cosA?1:tX*dir2d>cosA-0.2?((tX*dir2d-cosA+0.2)/0.2)*0.6:0;
+            if(lit2d>0.05){ const mb=0.85*lit2d; colBuf[idx*3]=mb; colBuf[idx*3+1]=mb*0.97; colBuf[idx*3+2]=mb*0.9; }
+          }
+          else if(dist<moonRad+2){ const b=(1-(dist-moonRad)/2)*0.18; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.95); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.88); }
+        }
+      }
+    }
+  }
+
   // ── Birds & Planes ──
   for(const cr of wxCreatures){
     if(cr.delay>0){ cr.delay-=dt; continue; }
@@ -4368,50 +4412,6 @@ function effectWeather(dt){
         const gv=glV+dv; if(gv<0||gv>=S) continue;
         const idx=faceMap[glFace][gv*S+gu]; if(idx<0) continue;
         blendLED(idx,gb,gb*0.55,gb*0.05);
-      }
-    }
-  }
-  
-  // For 2D panel mode, draw sun/moon on face 0
-  if(panel2dMode){
-    const S=SIZE, horizV=Math.round(HORIZ*S1);
-    if(isDay){
-      const sunX=dayProg*S;
-      const arc=Math.sin(dayProg*Math.PI);
-      const sunY=horizV+arc*(S1-horizV)*0.92;
-      const sunRad=Math.max(3,S*0.06);
-      for(let dv=-Math.ceil(sunRad+4);dv<=Math.ceil(sunRad+4);dv++){
-        for(let du=-Math.ceil(sunRad+4);du<=Math.ceil(sunRad+4);du++){
-          const dist=Math.sqrt(du*du+dv*dv);
-          const fu=Math.round(sunX+du), fv=Math.round(sunY+dv);
-          if(fu<0||fu>=S||fv<horizV||fv>=S) continue;
-          const idx=faceMap[0][fv*S+fu]; if(idx<0) continue;
-          if(dist<=sunRad){ colBuf[idx*3]=1; colBuf[idx*3+1]=0.98; colBuf[idx*3+2]=0.7; }
-          else if(dist<sunRad+2){ const b=(1-(dist-sunRad)/2)*0.9; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.85); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.25); }
-          else if(dist<sunRad+4){ const b=(1-(dist-sunRad-2)/2)*0.35; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.65); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.08); }
-        }
-      }
-    } else if(moonPX>=0){
-      const moonX=nightProg*S;
-      const arc=Math.sin(nightProg*Math.PI);
-      const moonY=horizV+arc*(S1-horizV)*0.75;
-      const moonRad=Math.max(2,S*0.04);
-      for(let dv=-Math.ceil(moonRad+2);dv<=Math.ceil(moonRad+2);dv++){
-        for(let du=-Math.ceil(moonRad+2);du<=Math.ceil(moonRad+2);du++){
-          const dist=Math.sqrt(du*du+dv*dv);
-          const fu=Math.round(moonX+du), fv=Math.round(moonY+dv);
-          if(fu<0||fu>=S||fv<horizV||fv>=S) continue;
-          const idx=faceMap[0][fv*S+fu]; if(idx<0) continue;
-          if(dist<=moonRad){
-            const illum=moonPh<=0.5?moonPh*2:(1-moonPh)*2;
-            const dir2d=moonPh<=0.5?1:-1;
-            const tX=du/moonRad;
-            const cosA=(1-illum)*2-1;
-            const lit2d=tX*dir2d>cosA?1:tX*dir2d>cosA-0.2?((tX*dir2d-cosA+0.2)/0.2)*0.6:0;
-            if(lit2d>0.05){ const mb=0.85*lit2d; colBuf[idx*3]=mb; colBuf[idx*3+1]=mb*0.97; colBuf[idx*3+2]=mb*0.9; }
-          }
-          else if(dist<moonRad+2){ const b=(1-(dist-moonRad)/2)*0.18; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.95); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.88); }
-        }
       }
     }
   }
