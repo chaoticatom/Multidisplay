@@ -3775,7 +3775,7 @@ function effectWeather(dt){
     colBuf[idx*3]=r; colBuf[idx*3+1]=g; colBuf[idx*3+2]=b;
   }
 
-  const HORIZ=0.29; // horizon at 32% from bottom of side faces
+  const HORIZ=0.26; // horizon at 32% from bottom of side faces
   const WX_CLEAR_TOP=HORIZ+(1-HORIZ)/3; // clear zone: horizon up 1/3 of sky
   const SIDE=[2,0,3,1]; // panorama quarter order matching panXOfFaceU: right→front→left→back
 
