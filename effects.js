@@ -3477,7 +3477,7 @@ function effectCustomCube(dt){
 }
 
 // ── WEATHER EFFECT ─────────────────────────────────────────────────────────────
-let wxCode=0,wxTemp=20,wxDesc='Clear',wxFetching=false,wxLastFetch=-9999;
+let wxCode=0,wxTemp=20,wxTempMax=20,wxDesc='Clear',wxFetching=false,wxLastFetch=-9999;
 let wxSunriseS=21600,wxSunsetS=72000,wxTzOffset=0;
 let wxLat=52.04,wxLon=-0.76,wxCityDisplay='';
 let wxClouds=[],wxParticles=[],wxStars=[],wxT2=0,wxLightFlash=0,wxScrollOff=0;
@@ -3640,7 +3640,7 @@ async function wxFetch(skipGeocode){
     if(statusEl) statusEl.textContent=`Fetching weather for ${city}…`;
 
     // Step 2: weather
-    const wxUrl=`https://api.open-meteo.com/v1/forecast?latitude=${wxLat.toFixed(4)}&longitude=${wxLon.toFixed(4)}&current=temperature_2m,weather_code,wind_speed_10m&daily=sunrise,sunset&timezone=auto&forecast_days=1`;
+    const wxUrl=`https://api.open-meteo.com/v1/forecast?latitude=${wxLat.toFixed(4)}&longitude=${wxLon.toFixed(4)}&current=temperature_2m,weather_code,wind_speed_10m&daily=sunrise,sunset,temperature_2m_max&timezone=auto&forecast_days=1`;
     let wr;
     try{ wr=await fetch(wxUrl); }
     catch(fe){ throw new Error('Weather fetch failed — check internet connection'); }
@@ -3648,6 +3648,7 @@ async function wxFetch(skipGeocode){
     const wd=await wr.json();
     wxCode=wd.current?.weather_code||0;
     wxTemp=Math.round(wd.current?.temperature_2m||20);
+    wxTempMax=Math.round(wd.daily?.temperature_2m_max?.[0]||wxTemp);
     wxTzOffset=wd.utc_offset_seconds||0;
     const pt=s=>{ const p=(s||'').split('T')[1]||'00:00'; const[h,m]=(p.split(':')).map(Number); return h*3600+m*60; };
     wxSunriseS=pt(wd.daily?.sunrise?.[0])||21600;
@@ -3660,7 +3661,7 @@ async function wxFetch(skipGeocode){
       infoEl.style.display='block';
       const tl=document.getElementById('wx-temp-line');
       const sl=document.getElementById('wx-sun-line');
-      if(tl) tl.textContent=`${wxTemp}°C  •  ${wxDesc}`;
+      if(tl) tl.textContent=`${wxTemp}°C (Max: ${wxTempMax}°C)  •  ${wxDesc}`;
       if(sl){
         const fmt=s=>{ try{return new Date(s).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}catch(e){return'?';} };
         sl.textContent=`🌅 ${fmt(wd.daily?.sunrise?.[0])}   🌇 ${fmt(wd.daily?.sunset?.[0])}`;
@@ -3856,6 +3857,7 @@ function effectWeather(dt){
 
   // Temperature string: e.g. "12°C"  or  "-3°C"
   const tempStr=(wxTemp<0?'-':'')+Math.abs(wxTemp)+'°C';
+  const maxStr='H:'+(wxTempMax<0?'-':'')+Math.abs(wxTempMax)+'°';
   const locStr=(wxCityDisplay||document.getElementById('wx-city')?.value||'').trim().toUpperCase();
 
   // ── Render sky+ground on side faces ──
@@ -3913,6 +3915,7 @@ function effectWeather(dt){
 
     // Draw temperature higher up on all faces
     wxText(face,tempStr,1,tempV,txtR,txtG,txtB);
+    wxText(face,maxStr,1,tempV+8,txtR*0.7,txtG*0.7,txtB*0.7);
     // Draw time on face 0 (front)
     if(face===0){
       const localD=new Date(Date.now()+wxTzOffset*1000);
