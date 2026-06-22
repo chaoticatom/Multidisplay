@@ -4136,8 +4136,6 @@ function effectWeather(dt){
           if(dist>1) continue;
           const fu=pu+du, fv=pv+dv;
           if(fu<0||fu>=S||fv<0||fv>=S) continue;
-          const _clrBot=Math.round(HORIZ*S), _clrTop=Math.round(WX_CLEAR_TOP*S);
-          if(fv>=_clrBot&&fv<_clrTop-6) continue;
           const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
           let edge;
           if(isOvercast){
