@@ -667,7 +667,7 @@ function alarmCheck(){
     if(!matchesDay) continue;
 
     if(al.repeat==='hourly'){
-      if(m===al.minute&&s===0&&ms<100&&!activeAlarm){ alarmFire(al,now); break; }
+      if(m===al.minute&&s<3&&!activeAlarm&&al._lastFireMin!==((h*60+m))){ al._lastFireMin=(h*60+m); alarmFire(al,now); break; }
       continue;
     }
 
@@ -675,12 +675,12 @@ function alarmCheck(){
     const preStart=alMs-preMs;
 
     if(al.prealarm?.enabled&&dayMs>=preStart&&dayMs<alMs){
-      // Start pre-alarm sunrise
       activeAlarm={al,phase:'pre',startMs:now.getTime(),preMs,dismissed:false};
       break;
     }
-    // Trigger main alarm at exactly the right second (within 100ms tolerance)
-    if(h===al.hour&&m===al.minute&&s===0&&ms<100){
+    // Trigger main alarm within first 3 seconds of the minute (covers 2s check interval)
+    if(h===al.hour&&m===al.minute&&s<3&&al._lastFireMin!==(h*60+m)){
+      al._lastFireMin=(h*60+m);
       alarmFire(al,now); break;
     }
   }
