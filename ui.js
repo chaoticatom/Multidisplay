@@ -593,8 +593,6 @@ function renderWeatherSunrise(progress,startBrightPct){
 
 // ── Countdown timer renderer ──────────────────────────────────────────────
 function renderCountdown(timeStr){
-  // timeStr = "MM:SS" format
-  // v=0=bottom, v=S-1=top. Draw at very bottom of each side face.
   const SIDE=[2,0,3,1];
   const S=SIZE;
   const digitPatterns={
@@ -610,27 +608,33 @@ function renderCountdown(timeStr){
     '9':[[1,1,1],[1,0,1],[1,1,1],[0,0,1],[1,1,1]],
     ':':[[ 0,0,0],[0,1,0],[0,0,0],[0,1,0],[0,0,0]]
   };
+  const scale=2;
   for(let fi=0;fi<4;fi++){
     const face=SIDE[fi];
-    // Total width: each char = 3px + 1 gap, minus trailing gap
+    const mir=(face===2||face===3);
     const chars=timeStr.length;
-    const totalW=chars*4-1;
+    const charW=3*scale+scale;
+    const totalW=chars*charW-scale;
     const startU=Math.round((S-totalW)/2);
     for(let ci=0;ci<chars;ci++){
       const ch=timeStr[ci];
       const pattern=digitPatterns[ch]||[];
-      const u=startU+ci*4;
+      const charIdx=mir?chars-1-ci:ci;
+      const baseU=startU+charIdx*charW;
       for(let row=0;row<5;row++){
         const bits=pattern[row]||[0,0,0];
-        const pv=(4-row); // v=0=bottom → row4=bottom, row0=top; flip so text reads up
         for(let col=0;col<3;col++){
           if(!bits[col]) continue;
-          const pu=u+col;
-          if(pu<0||pu>=S||pv<0||pv>=S) continue;
-          const idx=faceMap[face][pv*S+pu]; if(idx<0) continue;
-          colBuf[idx*3]=Math.max(colBuf[idx*3],0.95);
-          colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],0.6);
-          colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],0.1);
+          const srcCol=mir?2-col:col;
+          for(let dy=0;dy<scale;dy++) for(let dx=0;dx<scale;dx++){
+            const pu=baseU+srcCol*scale+dx;
+            const pv=(4-row)*scale+dy;
+            if(pu<0||pu>=S||pv<0||pv>=S) continue;
+            const idx=faceMap[face][pv*S+pu]; if(idx<0) continue;
+            colBuf[idx*3]=1.0;
+            colBuf[idx*3+1]=1.0;
+            colBuf[idx*3+2]=1.0;
+          }
         }
       }
     }
@@ -716,45 +720,53 @@ function renderGiantSun(progress,startBrightPct){
   const bgBright=progress<0.25
     ? startBr*0.4+(progress/0.25)*(1-startBr*0.4)*0.5
     : Math.min(1, 0.5+(progress-0.25)/0.65*0.5);
+  const tt=Date.now()*0.001;
 
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
-  // Sky gradient: dawn colours at bottom, transitions to sky blue at top
-  // Early: dark indigo→deep orange at horizon. Late: peach→sky blue
+  // Sky: dawn at start → full sky blue at alarm time
+  // p=0: bottom=dark red/orange, top=deep indigo
+  // p=1: uniform sky blue everywhere
+  const p=progress;
   for(const f of [4,...SIDE]){
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
       const idx=faceMap[f][v*S+u]; if(idx<0) continue;
       const vFrac=v/S1;
-      // vFrac 0=bottom, 1=top
 
-      // Bottom colour transitions: deep red/orange → peach → light blue
-      const bR=(12+progress*230)/255, bG=(3+progress*140)/255, bB=(20+progress*60)/255;
-      // Top colour transitions: dark indigo → sky blue
-      const tR=(4+progress*100)/255, tG=(2+progress*180)/255, tB=(14+progress*241)/255;
+      // Dawn bottom: warm orange/red
+      const dBotR=220/255, dBotG=80/255, dBotB=15/255;
+      // Dawn top: dark indigo
+      const dTopR=10/255, dTopG=8/255, dTopB=35/255;
+      // Sky blue (final)
+      const skyR=90/255, skyG=170/255, skyB=255/255;
 
-      const r=bR+(tR-bR)*vFrac;
-      const g=bG+(tG-bG)*vFrac;
-      const b=bB+(tB-bB)*vFrac;
+      // Dawn gradient (bottom→top)
+      const dawnR=dBotR+(dTopR-dBotR)*vFrac;
+      const dawnG=dBotG+(dTopG-dBotG)*vFrac;
+      const dawnB=dBotB+(dTopB-dBotB)*vFrac;
 
-      const br=bgBright;
-      colBuf[idx*3]=r*br;
-      colBuf[idx*3+1]=g*br;
-      colBuf[idx*3+2]=b*br;
+      // Blend dawn→sky blue as progress increases
+      const r=dawnR+(skyR-dawnR)*p;
+      const g=dawnG+(skyG-dawnG)*p;
+      const b=dawnB+(skyB-dawnB)*p;
+
+      colBuf[idx*3]=r*bgBright;
+      colBuf[idx*3+1]=g*bgBright;
+      colBuf[idx*3+2]=b*bgBright;
     }
   }
 
-  // ── Cartoon sun: solid bright yellow circle with orange rim, rising from below ──
+  // ── Sun: cartoon yellow disc with orange-red rim gradient, subtle shimmer ──
   if(progress>0.08){
     const sunP=(progress-0.08)/0.92;
     const sunRad=Math.round(S*0.38);
     const sunCX=Math.round(S/2);
-    // Rises from well below bottom to about 40% up the face
     const sunCY=Math.round(-sunRad*1.2+sunP*(S*0.55+sunRad*1.2));
 
     for(let fi=0;fi<4;fi++){
       const face=SIDE[fi];
 
-      // Warm glow around the sun — large soft halo
+      // Warm glow halo
       const glowRad=sunRad*3;
       for(let dv=-glowRad;dv<=glowRad;dv++){
         const v=sunCY+dv;
@@ -765,14 +777,15 @@ function renderGiantSun(progress,startBrightPct){
           const d=Math.sqrt(du*du+dv*dv);
           if(d>glowRad||d<=sunRad) continue;
           const idx=faceMap[face][v*S+u]; if(idx<0) continue;
-          const glow=Math.pow(1-(d-sunRad)/(glowRad-sunRad),2)*0.45;
+          const gf=(d-sunRad)/(glowRad-sunRad);
+          const glow=Math.pow(1-gf,2.2)*0.5;
           colBuf[idx*3]=Math.min(1,colBuf[idx*3]+glow*1.0);
-          colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+glow*0.7);
-          colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+glow*0.1);
+          colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+glow*0.65);
+          colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+glow*0.08);
         }
       }
 
-      // Solid cartoon sun disc
+      // Sun disc with gradient rim and shimmer
       for(let dv=-sunRad;dv<=sunRad;dv++){
         const v=sunCY+dv;
         if(v<0||v>=S) continue;
@@ -783,17 +796,27 @@ function renderGiantSun(progress,startBrightPct){
           if(d>sunRad) continue;
           const idx=faceMap[face][v*S+u]; if(idx<0) continue;
           const edge=d/sunRad;
-          if(edge>0.85){
-            // Orange rim
-            colBuf[idx*3]=1.0;
-            colBuf[idx*3+1]=0.6;
-            colBuf[idx*3+2]=0.0;
+          let cr,cg,cb;
+          if(edge>0.88){
+            // Deep orange-red outer rim
+            cr=0.95; cg=0.35; cb=0.0;
+          } else if(edge>0.72){
+            // Orange mid rim
+            const t2=(edge-0.72)/0.16;
+            cr=1.0; cg=0.7-t2*0.35; cb=0.05-t2*0.05;
+          } else if(edge>0.5){
+            // Light orange inner rim
+            const t2=(edge-0.5)/0.22;
+            cr=1.0; cg=0.88-t2*0.18; cb=0.15-t2*0.1;
           } else {
-            // Solid bright yellow core
-            colBuf[idx*3]=1.0;
-            colBuf[idx*3+1]=0.92;
-            colBuf[idx*3+2]=0.15;
+            // Bright yellow core
+            cr=1.0; cg=0.92; cb=0.2;
           }
+          // Subtle shimmer — gentle brightness wave across the disc
+          const shimmer=0.96+0.04*Math.sin(tt*2.5+du*0.12+dv*0.12);
+          colBuf[idx*3]=cr*shimmer;
+          colBuf[idx*3+1]=cg*shimmer;
+          colBuf[idx*3+2]=cb*shimmer;
         }
       }
     }
