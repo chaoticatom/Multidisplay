@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=395">
+<link rel="stylesheet" href="style.css?v=396">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -597,6 +597,7 @@
           <label class="check-row"><input type="checkbox" id="auto-rotate-chk" checked>AUTO-ROTATE</label>
           <label class="check-row"><input type="checkbox" id="rotate-y-only">Y-AXIS ONLY</label>
           <label class="check-row"><input type="checkbox" id="gyro-chk">GYROSCOPE GRAVITY</label>
+          <label class="check-row"><input type="checkbox" id="face-labels-chk">FACE LABELS</label>
           <div id="gyro-status" style="font-size:12px;color:#99a;margin-bottom:6px;">Tilt device to steer sand/balls</div>
           <div class="slider-row">
             <span class="slider-label">Spin</span>
@@ -615,7 +616,6 @@
           </div>
           <button id="reset-view-btn" class="util-btn">⟲ Reset View</button>
           <button id="fullscreen-btn" class="util-btn">⛶ Fullscreen</button>
-          <label class="check-row" style="margin-top:6px;"><input type="checkbox" id="face-labels-chk"> FACE LABELS</label>
     </div>
   </div>
 
@@ -943,7 +943,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=395"></script>
+<script src="version.js?v=396"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -978,7 +978,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=395','effects.js?v=395','f1.js?v=395','ui.js?v=395'];
+  const appScripts = ['cube.js?v=396','effects.js?v=396','f1.js?v=396','ui.js?v=396'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
