@@ -10988,11 +10988,11 @@ function effectMoon(dt){
       }
 
       if(!lit){
-        // Dark side — very faint earthshine
-        const earthshine=0.012*nz;
-        colBuf[idx*3]=earthshine*0.6;
-        colBuf[idx*3+1]=earthshine*0.7;
-        colBuf[idx*3+2]=earthshine*0.9;
+        // Dark side — subtle grey so the full circle is visible
+        const es=0.06+0.03*nz;
+        colBuf[idx*3]=es*0.85;
+        colBuf[idx*3+1]=es*0.85;
+        colBuf[idx*3+2]=es*0.9;
         continue;
       }
 
