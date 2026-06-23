@@ -383,7 +383,7 @@ function alarmOpenEditor(idx){
   Object.keys(ovNames).forEach(ov=>{
     const lbl=document.createElement('label');
     lbl.style.cssText='font-size:12px;color:#99b;display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 0;';
-    const tog=document.createElement('span'); tog.className='ov-toggle';
+    const tog=document.createElement('span'); tog.className='ov-toggle'; tog.style.marginLeft='0';
     const chk=document.createElement('input'); chk.type='checkbox'; chk.value=ov;
     chk.checked=(al.overlayKeys||[]).includes(ov);
     const slider=document.createElement('span'); slider.className='ov-slider';
