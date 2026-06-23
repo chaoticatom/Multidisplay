@@ -63,7 +63,6 @@
     .effect-btn { font-size: 14px; padding: 12px 14px; margin-bottom: 5px; min-height: 40px; border-radius: 7px; }
     .size-btn { font-size: 13px; padding: 10px 8px; min-height: 38px; border-radius: 7px; }
     .size-row { gap: 6px; }
-    .sidebar-section { padding: 12px 16px; }
     .sidebar-section label { font-size: 13px; margin-bottom: 6px; letter-spacing: 1px; }
     .slider-row { gap: 8px; margin-bottom: 8px; }
     .slider-label { font-size: 13px; width: 44px; }
@@ -73,7 +72,7 @@
     .slider-row input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; }
     .check-row { font-size: 14px; gap: 10px; margin-bottom: 8px; min-height: 38px; }
     .check-row input[type="checkbox"] { width: 40px; height: 22px; min-width: 40px; }
-    .section-head { font-size: 15px; padding: 5px 0; min-height: 40px; }
+    .section-head { font-size: 15px; padding: 14px 16px; min-height: 40px; }
     .sub-head { font-size: 14px; padding: 8px 6px; min-height: 36px; }
     .util-btn { font-size: 13px; padding: 10px 12px; min-height: 38px; border-radius: 7px; }
     .opt-grid { gap: 5px; }
@@ -98,7 +97,7 @@
   #sidebar-header h1 { font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #7aadff; }
   #sidebar-header p  { font-size: 12px; color: #bbc; margin-top: 3px; letter-spacing: 1px; }
 
-  .sidebar-section { padding: 12px 16px; border-bottom: 1px solid rgba(80,120,255,0.1); }
+  .sidebar-section { padding: 0; border-bottom: 1px solid rgba(80,120,255,0.12); }
   .sidebar-section label { font-size: 12px; letter-spacing: 1.5px; color: rgba(160,200,255,0.8); text-transform: uppercase; display: block; margin-bottom: 8px; }
 
   .size-row { display: flex; gap: 6px; }
@@ -188,15 +187,15 @@
   .opt-grid button.active { background: rgba(80,120,255,0.25); border-color: rgba(100,160,255,0.6); color: #7aadff; }
 
   .section-head {
-    width: 100%; background: none; border: none; padding: 0; margin: 0;
+    width: 100%; background: none; border: none; padding: 12px 16px; margin: 0;
     display: flex; justify-content: space-between; align-items: center;
     cursor: pointer; font-size: 12px; letter-spacing: 1.5px;
     color: rgba(160,200,255,0.85); text-transform: uppercase; font-weight: 700;
-    transition: color 0.2s;
+    transition: color 0.2s, background 0.15s;
   }
-  .section-head:hover { color: #7aadff; }
+  .section-head:hover { color: #7aadff; background: rgba(80,120,255,0.05); }
   .section-head .chev { font-size: 12px; transition: transform 0.25s; }
-  .section-body { padding-top: 10px; }
+  .section-body { padding: 6px 16px 12px; }
   .sidebar-section.collapsed .section-body { display: none; }
   .sidebar-section.collapsed .chev { transform: rotate(-90deg); }
 
@@ -244,17 +243,18 @@
   #cube-label  { display: none; }
 
   /* ── Sub-sections inside Controls ── */
-  .sub-section { border-bottom: 1px solid rgba(80,120,255,0.12); margin-bottom: 2px; }
-  .sub-section:last-child { border-bottom: none; }
+  .sub-section { margin-bottom: 4px; border: 1px solid rgba(80,120,255,0.08); border-radius: 5px; overflow: hidden; }
+  .sub-section:last-child { margin-bottom: 0; }
   .sub-head {
-    width: 100%; background: none; border: none; padding: 8px 4px;
+    width: 100%; background: rgba(80,120,255,0.04); border: none; padding: 7px 10px;
     display: flex; justify-content: space-between; align-items: center;
-    cursor: pointer; font-size: 13px; letter-spacing: 1px;
-    color: rgba(160,200,255,0.9); text-align: left; font-weight: 600;
+    cursor: pointer; font-size: 11px; letter-spacing: 1.2px;
+    color: rgba(160,200,255,0.8); text-align: left; font-weight: 600;
+    text-transform: uppercase; transition: color 0.15s, background 0.15s;
   }
-  .sub-head:hover { color: #9fd; }
-  .sub-head .chev { font-size: 11px; transition: transform 0.2s; }
-  .sub-body { padding: 4px 0 10px 4px; }
+  .sub-head:hover { color: #7aadff; background: rgba(80,120,255,0.08); }
+  .sub-head .chev { font-size: 10px; transition: transform 0.2s; }
+  .sub-body { padding: 6px 8px 8px; }
   .sub-section.collapsed .sub-body { display: none; }
   .sub-section.collapsed .chev { transform: rotate(-90deg); }
 
