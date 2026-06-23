@@ -816,18 +816,8 @@ function renderGiantSun(progress,startBrightPct){
           if(d>sunRad) continue;
           const idx=faceMap[face][v*S+u]; if(idx<0) continue;
           const edge=d/sunRad;
-          let cr,cg,cb;
-          if(edge>0.88){
-            cr=0.95; cg=0.35; cb=0.0;
-          } else if(edge>0.72){
-            const t2=(edge-0.72)/0.16;
-            cr=1.0; cg=0.7-t2*0.35; cb=0.05-t2*0.05;
-          } else if(edge>0.5){
-            const t2=(edge-0.5)/0.22;
-            cr=1.0; cg=0.88-t2*0.18; cb=0.15-t2*0.1;
-          } else {
-            cr=1.0; cg=0.92; cb=0.2;
-          }
+          const e2=edge*edge;
+          let cr=1.0, cg=0.92-e2*0.35, cb=0.2-e2*0.18;
           const shimmer=0.96+0.04*Math.sin(tt*2.5+du*0.12+dv*0.12);
           colBuf[idx*3]=cr*shimmer;
           colBuf[idx*3+1]=cg*shimmer;
