@@ -4287,13 +4287,13 @@ function effectWeather(dt){
             const px=panXOfFaceU(face,u);
             const dx=Math.abs(px-sunPX); const dxw=Math.min(dx,1-dx);
             const sunV=HORIZ+sunElev*(1-HORIZ);
-            const dy=(vFrac-sunV)*2;
-            const dist=Math.sqrt(dxw*dxw*16+dy*dy);
-            if(dist<0.8){
-              const glow=Math.pow(1-dist/0.8,2)*0.35*sunElev;
+            const dy=(vFrac-sunV)*1.5;
+            const dist=Math.sqrt(dxw*dxw*4+dy*dy);
+            if(dist<1.0){
+              const glow=Math.pow(1-dist,1.5)*0.6;
               pr=Math.min(1,pr+glow*1.0);
-              pg=Math.min(1,pg+glow*0.85);
-              pb=Math.min(1,pb+glow*0.4);
+              pg=Math.min(1,pg+glow*0.9);
+              pb=Math.min(1,pb+glow*0.45);
             }
           }
           colBuf[idx*3]=pr; colBuf[idx*3+1]=pg; colBuf[idx*3+2]=pb;
