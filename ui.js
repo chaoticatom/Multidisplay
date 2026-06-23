@@ -576,6 +576,143 @@ function buildAlarmEffectOpts(key){
       cg.appendChild(b);
     });
     c.appendChild(cg);
+  } else if(key==='spectrum'){
+    c.style.display='block';
+    c.appendChild(mkLabel('Style'));
+    const g=mkGrid();g.style.gridTemplateColumns='repeat(3,1fr)';
+    ['bars','mirror','dots','blocks','outline','radial','vu','waterfall','waveform','tunnel','storm','plasma','rings','fire'].forEach(s=>{
+      const b=mkBtn(s.charAt(0).toUpperCase()+s.slice(1),(opts.auStyle||'bars')===s,()=>{activateOne(g,b);alarmEffectRiseOpts.auStyle=s;});
+      g.appendChild(b);
+    });
+    c.appendChild(g);
+    c.appendChild(mkLabel('Colour Theme'));
+    const tg=mkGrid();tg.style.gridTemplateColumns='repeat(3,1fr)';
+    [['0','Rainbow'],['1','Fire'],['2','Ocean'],['3','Neon'],['4','Matrix'],['5','Pastel']].forEach(([v,l])=>{
+      const b=mkBtn(l,String(opts.auTheme||'0')===v,()=>{activateOne(tg,b);alarmEffectRiseOpts.auTheme=parseInt(v);});
+      tg.appendChild(b);
+    });
+    c.appendChild(tg);
+    c.appendChild(mkLabel('Bar Mode'));
+    const bg=mkGrid();bg.style.gridTemplateColumns='repeat(3,1fr)';
+    ['solid','striped','center','falling','stacked','wave'].forEach(s=>{
+      const b=mkBtn(s.charAt(0).toUpperCase()+s.slice(1),(opts.auBarMode||'solid')===s,()=>{activateOne(bg,b);alarmEffectRiseOpts.auBarMode=s;});
+      bg.appendChild(b);
+    });
+    c.appendChild(bg);
+    c.appendChild(mkLabel('Gain'));
+    const sl=document.createElement('input');sl.type='range';sl.min='0.5';sl.max='5';sl.step='0.1';sl.value=opts.auGain||'1.5';
+    sl.style.cssText='width:100%;';
+    const sv=document.createElement('span');sv.className='slider-val';sv.textContent=(opts.auGain||1.5)+'x';
+    sl.addEventListener('input',()=>{sv.textContent=parseFloat(sl.value).toFixed(1)+'x';alarmEffectRiseOpts.auGain=parseFloat(sl.value);});
+    const sr=document.createElement('div');sr.className='slider-row';sr.appendChild(sl);sr.appendChild(sv);
+    c.appendChild(sr);
+  } else if(key==='maze'){
+    c.style.display='block';
+    c.appendChild(mkLabel('Runners'));
+    const sl=document.createElement('input');sl.type='range';sl.min='1';sl.max='6';sl.value=opts.runners||'3';
+    sl.style.cssText='width:100%;';
+    const sv=document.createElement('span');sv.className='slider-val';sv.textContent=sl.value;
+    sl.addEventListener('input',()=>{sv.textContent=sl.value;alarmEffectRiseOpts.runners=parseInt(sl.value);});
+    const sr=document.createElement('div');sr.className='slider-row';sr.appendChild(sl);sr.appendChild(sv);
+    c.appendChild(sr);
+  } else if(key==='tron'){
+    c.style.display='block';
+    c.appendChild(mkLabel('Bikes'));
+    const sl=document.createElement('input');sl.type='range';sl.min='2';sl.max='8';sl.value=opts.bikes||'4';
+    sl.style.cssText='width:100%;';
+    const sv=document.createElement('span');sv.className='slider-val';sv.textContent=sl.value;
+    sl.addEventListener('input',()=>{sv.textContent=sl.value;alarmEffectRiseOpts.bikes=parseInt(sl.value);});
+    const sr=document.createElement('div');sr.className='slider-row';sr.appendChild(sl);sr.appendChild(sv);
+    c.appendChild(sr);
+    c.appendChild(mkLabel('Speed'));
+    const sl2=document.createElement('input');sl2.type='range';sl2.min='0.5';sl2.max='3';sl2.step='0.1';sl2.value=opts.speed||'1';
+    sl2.style.cssText='width:100%;';
+    const sv2=document.createElement('span');sv2.className='slider-val';sv2.textContent=(opts.speed||1)+'x';
+    sl2.addEventListener('input',()=>{sv2.textContent=parseFloat(sl2.value).toFixed(1)+'x';alarmEffectRiseOpts.speed=parseFloat(sl2.value);});
+    const sr2=document.createElement('div');sr2.className='slider-row';sr2.appendChild(sl2);sr2.appendChild(sv2);
+    c.appendChild(sr2);
+    const chk=document.createElement('label');chk.className='check-row';chk.style.fontSize='11px';
+    const inp=document.createElement('input');inp.type='checkbox';inp.checked=!!opts.straight;
+    inp.addEventListener('change',()=>{alarmEffectRiseOpts.straight=inp.checked;});
+    chk.appendChild(inp);chk.append(' Straight lines');c.appendChild(chk);
+  } else if(key==='retro'){
+    c.style.display='block';
+    c.appendChild(mkLabel('Game'));
+    const g=mkGrid();g.style.gridTemplateColumns='repeat(3,1fr)';
+    const games=[[-1,'Auto'],[0,'Jet Pac'],[1,'Manic Miner'],[2,'OutRun'],[3,'Invaders'],[4,'JSW'],[5,'Deathchase'],[6,'R-Type'],[7,'Wolf 3D'],[8,'Quake 2'],[10,'Tamagotchi'],[11,'Atic Atac'],[12,'Donkey Kong']];
+    games.forEach(([v,l])=>{
+      const b=mkBtn(l,(opts.game===undefined?-1:opts.game)===v,()=>{activateOne(g,b);alarmEffectRiseOpts.game=v;});
+      g.appendChild(b);
+    });
+    c.appendChild(g);
+    c.appendChild(mkLabel('Rotate (s)'));
+    const sl=document.createElement('input');sl.type='range';sl.min='3';sl.max='120';sl.value=opts.rotate||'8';
+    sl.style.cssText='width:100%;';
+    const sv=document.createElement('span');sv.className='slider-val';sv.textContent=(opts.rotate||8)+'s';
+    sl.addEventListener('input',()=>{sv.textContent=sl.value+'s';alarmEffectRiseOpts.rotate=parseInt(sl.value);});
+    const sr=document.createElement('div');sr.className='slider-row';sr.appendChild(sl);sr.appendChild(sv);
+    c.appendChild(sr);
+  } else if(key==='simhouse'){
+    c.style.display='block';
+    c.appendChild(mkLabel('Mode'));
+    const g=mkGrid();
+    ['normal','shadows'].forEach(s=>{
+      const b=mkBtn(s.charAt(0).toUpperCase()+s.slice(1),(opts.shMode||'normal')===s,()=>{activateOne(g,b);alarmEffectRiseOpts.shMode=s;});
+      g.appendChild(b);
+    });
+    c.appendChild(g);
+  } else if(key==='lightspeed'){
+    c.style.display='block';
+    c.appendChild(mkLabel('Speed'));
+    const sl=document.createElement('input');sl.type='range';sl.min='1';sl.max='20';sl.step='0.5';sl.value=opts.lsSpeed||'8';
+    sl.style.cssText='width:100%;';
+    const sv=document.createElement('span');sv.className='slider-val';sv.textContent=opts.lsSpeed||'8';
+    sl.addEventListener('input',()=>{sv.textContent=sl.value;alarmEffectRiseOpts.lsSpeed=parseFloat(sl.value);});
+    const sr=document.createElement('div');sr.className='slider-row';sr.appendChild(sl);sr.appendChild(sv);
+    c.appendChild(sr);
+    c.appendChild(mkLabel('Trail'));
+    const sl2=document.createElement('input');sl2.type='range';sl2.min='4';sl2.max='120';sl2.step='2';sl2.value=opts.lsTrail||'32';
+    sl2.style.cssText='width:100%;';
+    const sv2=document.createElement('span');sv2.className='slider-val';sv2.textContent=opts.lsTrail||'32';
+    sl2.addEventListener('input',()=>{sv2.textContent=sl2.value;alarmEffectRiseOpts.lsTrail=parseInt(sl2.value);});
+    const sr2=document.createElement('div');sr2.className='slider-row';sr2.appendChild(sl2);sr2.appendChild(sv2);
+    c.appendChild(sr2);
+    c.appendChild(mkLabel('Size'));
+    const sg=mkGrid();sg.style.gridTemplateColumns='repeat(4,1fr)';
+    [1,2,3,4,6,8,12,16].forEach(v=>{
+      const b=mkBtn(String(v),(opts.lsSize||1)===v,()=>{activateOne(sg,b);alarmEffectRiseOpts.lsSize=v;});
+      sg.appendChild(b);
+    });
+    c.appendChild(sg);
+    c.appendChild(mkLabel('Objects'));
+    const sl3=document.createElement('input');sl3.type='range';sl3.min='1';sl3.max='12';sl3.value=opts.lsCount||'3';
+    sl3.style.cssText='width:100%;';
+    const sv3=document.createElement('span');sv3.className='slider-val';sv3.textContent=opts.lsCount||'3';
+    sl3.addEventListener('input',()=>{sv3.textContent=sl3.value;alarmEffectRiseOpts.lsCount=parseInt(sl3.value);});
+    const sr3=document.createElement('div');sr3.className='slider-row';sr3.appendChild(sl3);sr3.appendChild(sv3);
+    c.appendChild(sr3);
+    c.appendChild(mkLabel('Colour'));
+    const cg=mkGrid();cg.style.gridTemplateColumns='repeat(3,1fr)';
+    ['multi','white','cyan','red','green','gold'].forEach(s=>{
+      const b=mkBtn(s.charAt(0).toUpperCase()+s.slice(1),(opts.lsCol||'multi')===s,()=>{activateOne(cg,b);alarmEffectRiseOpts.lsCol=s;});
+      cg.appendChild(b);
+    });
+    c.appendChild(cg);
+  } else if(key==='coinflip'){
+    c.style.display='block';
+    c.appendChild(mkLabel('Flip Speed'));
+    const sl=document.createElement('input');sl.type='range';sl.min='0.5';sl.max='5';sl.step='0.5';sl.value=opts.coinSpeed||'1';
+    sl.style.cssText='width:100%;';
+    const sv=document.createElement('span');sv.className='slider-val';sv.textContent=(opts.coinSpeed||1)+'x';
+    sl.addEventListener('input',()=>{sv.textContent=parseFloat(sl.value)+'x';alarmEffectRiseOpts.coinSpeed=parseFloat(sl.value);});
+    const sr=document.createElement('div');sr.className='slider-row';sr.appendChild(sl);sr.appendChild(sv);
+    c.appendChild(sr);
+  } else if(key==='dice'){
+    c.style.display='block';
+    const chk=document.createElement('label');chk.className='check-row';chk.style.fontSize='11px';
+    const inp=document.createElement('input');inp.type='checkbox';inp.checked=!!opts.autoRoll;
+    inp.addEventListener('change',()=>{alarmEffectRiseOpts.autoRoll=inp.checked;});
+    chk.appendChild(inp);chk.append(' Auto roll (every 4s)');c.appendChild(chk);
   }
 }
 // populateAlarmEffectRiseSelect called after EFFECT_NAMES is defined below
@@ -2888,6 +3025,11 @@ function animate(now){
           const eopts=activeAlarm.al.prealarm.effectRiseOpts||{};
           const _rs=rainStyle, _fwM=fwMode, _fwTO=fwTextOn, _fwTP=fwTextPixels, _fwTW=fwTextWidth, _fwTH=fwTextH;
           const _bcf=ballCrossFaces, _bpf=ballsPerFace;
+          const _mrc=mazeRunnerCount, _tbc=tronBikeCount, _tsm=tronSpeedMult;
+          const _rsg=retroSelectedGame, _rri=retroRotateInterval;
+          const _shsm=shShadowMode, _lss=lsSpeed, _lst=lsTrail, _lsz=lsSize, _lsc=lsColour, _lscn=lsCount, _lsn=lsNudge;
+          const _cs=coinSpeed, _dar=diceAutoRoll;
+          const _aus=auStyle, _aut=auTheme, _aug=auGain, _aubm=auBarMode;
           if(efKey==='rain'&&eopts.style) rainStyle=eopts.style;
           if(efKey==='fireworks'){
             if(eopts.fwMode) fwMode=eopts.fwMode;
@@ -2896,16 +3038,45 @@ function animate(now){
               if(!activeAlarm._fwTextBuilt){ activeAlarm._fwTextBuilt=true; if(typeof buildFwText==='function') buildFwText(eopts.fwText); }
             }
           }
-          if(efKey==='datetime') _peTargetOpts=eopts;
+          if(efKey==='datetime'||efKey==='strobe') _peTargetOpts=eopts;
           if(efKey==='balls'){
             if(eopts.ballMode) ballCrossFaces=(eopts.ballMode==='cross');
             if(eopts.ballCount) ballsPerFace=eopts.ballCount;
           }
-          if(efKey==='strobe') _peTargetOpts=eopts;
+          if(efKey==='spectrum'){
+            if(eopts.auStyle) auStyle=eopts.auStyle;
+            if(eopts.auTheme!==undefined) auTheme=eopts.auTheme;
+            if(eopts.auGain) auGain=eopts.auGain;
+            if(eopts.auBarMode) auBarMode=eopts.auBarMode;
+          }
+          if(efKey==='maze'&&eopts.runners) mazeRunnerCount=eopts.runners;
+          if(efKey==='tron'){
+            if(eopts.bikes) tronBikeCount=eopts.bikes;
+            if(eopts.speed) tronSpeedMult=eopts.speed;
+          }
+          if(efKey==='retro'){
+            if(eopts.game!==undefined) retroSelectedGame=eopts.game;
+            if(eopts.rotate) retroRotateInterval=eopts.rotate;
+          }
+          if(efKey==='simhouse'&&eopts.shMode) shShadowMode=(eopts.shMode==='shadows');
+          if(efKey==='lightspeed'){
+            if(eopts.lsSpeed) lsSpeed=eopts.lsSpeed;
+            if(eopts.lsTrail) lsTrail=eopts.lsTrail;
+            if(eopts.lsSize) lsSize=eopts.lsSize;
+            if(eopts.lsCol) lsColour=eopts.lsCol;
+            if(eopts.lsCount) lsCount=eopts.lsCount;
+          }
+          if(efKey==='coinflip'&&eopts.coinSpeed) coinSpeed=eopts.coinSpeed;
+          if(efKey==='dice'&&eopts.autoRoll!==undefined) diceAutoRoll=eopts.autoRoll;
           for(let i=0;i<N*3;i++) colBuf[i]=0;
           EFFECTS[efKey](dt*speedMult);
           rainStyle=_rs; fwMode=_fwM; fwTextOn=_fwTO; fwTextPixels=_fwTP; fwTextWidth=_fwTW; fwTextH=_fwTH;
           ballCrossFaces=_bcf; ballsPerFace=_bpf;
+          mazeRunnerCount=_mrc; tronBikeCount=_tbc; tronSpeedMult=_tsm;
+          retroSelectedGame=_rsg; retroRotateInterval=_rri;
+          shShadowMode=_shsm; lsSpeed=_lss; lsTrail=_lst; lsSize=_lsz; lsColour=_lsc; lsCount=_lscn; lsNudge=_lsn;
+          coinSpeed=_cs; diceAutoRoll=_dar;
+          auStyle=_aus; auTheme=_aut; auGain=_aug; auBarMode=_aubm;
           _peTargetOpts=null;
         }
       } else if(activeAlarm.al.prealarm?.wxRise){
