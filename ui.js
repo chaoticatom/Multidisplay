@@ -2782,12 +2782,11 @@ function animate(now){
         if(bSlider) bSlider.value=Math.round(br*100);
         const efKey=activeAlarm.al.prealarm.effectRiseKey;
         if(efKey==='weather' && activeAlarm.al.prealarm.effectRiseCity){
-          wxSelectedCity=activeAlarm.al.prealarm.effectRiseCity;
-          const cityIdx=wxCities.indexOf(wxSelectedCity);
-          if(cityIdx>=0){
+          if(!activeAlarm._wxSetup){
+            activeAlarm._wxSetup=true;
             const sel=document.getElementById('wx-city');
-            if(sel) sel.value=wxSelectedCity;
-            if(typeof wxFetchForCity==='function') wxFetchForCity(wxSelectedCity);
+            if(sel) sel.value=activeAlarm.al.prealarm.effectRiseCity;
+            if(typeof wxFetch==='function') wxFetch();
           }
         }
         if(EFFECTS[efKey]){ for(let i=0;i<N*3;i++) colBuf[i]=0; EFFECTS[efKey](dt*speedMult); }
