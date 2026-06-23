@@ -3520,14 +3520,14 @@ function wxInitScene(code){
   const isStormCode=code>=95;
   const isHeavyRain=code===55||code===65||code>=81;
   const isOvercastCode=code===3;
-  const nc=code===0?0:code===1?8:code<=2?25:isOvercastCode?35:isStormCode?180:isHeavyRain?80:isRainCode?70:isSnowCode?18:code>=45&&code<=48?12:10;
+  const nc=code===0?0:code===1?8:code<=2?25:isOvercastCode?160:isStormCode?180:isHeavyRain?80:isRainCode?70:isSnowCode?18:code>=45&&code<=48?12:10;
   const dark=isStormCode;
-  for(let i=0;i<nc;i++) wxClouds.push({px:Math.random(),py:isOvercastCode?0.15+Math.random()*0.8:isStormCode||isRainCode?0.2+Math.random()*0.75:0.3+Math.random()*0.6,
-    sz:isStormCode?0.16+Math.random()*0.24:isRainCode?0.14+Math.random()*0.22:isOvercastCode?0.18+Math.random()*0.25:code<=2?0.1+Math.random()*0.18:0.07+Math.random()*0.14,
+  for(let i=0;i<nc;i++) wxClouds.push({px:Math.random(),py:isOvercastCode||isStormCode||isRainCode?0.2+Math.random()*0.75:0.3+Math.random()*0.6,
+    sz:isOvercastCode||isStormCode?0.16+Math.random()*0.24:isRainCode?0.14+Math.random()*0.22:code<=2?0.1+Math.random()*0.18:0.07+Math.random()*0.14,
     spd:0.0002+Math.random()*0.0004,
     spdY:(Math.random()-0.35)*0.00012,
-    br:dark?0.3+Math.random()*0.2:isRainCode?0.4+Math.random()*0.3:isOvercastCode?0.55+Math.random()*0.45:0.6+Math.random()*0.4,
-    puffs:isStormCode?6+Math.floor(Math.random()*6):isRainCode?5+Math.floor(Math.random()*5):isOvercastCode?6+Math.floor(Math.random()*7):3+Math.floor(Math.random()*5),fluff:Math.random()});
+    br:dark?0.3+Math.random()*0.2:isOvercastCode?0.4+Math.random()*0.25:isRainCode?0.4+Math.random()*0.3:0.6+Math.random()*0.4,
+    puffs:isOvercastCode||isStormCode?6+Math.floor(Math.random()*6):isRainCode?5+Math.floor(Math.random()*5):3+Math.floor(Math.random()*5),fluff:Math.random()});
   for(let i=0;i<100;i++) wxStars.push({px:Math.random(),py:Math.random(),
     br:0.3+Math.random()*0.7,tw:Math.random()*Math.PI*2,spd:1.5+Math.random()*3});
   const np=isStormCode?150:isHeavyRain?120:isRainCode?80:isSnowCode?60:0;
