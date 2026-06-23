@@ -4259,7 +4259,7 @@ function effectWeather(dt){
 
   // Temperature string: e.g. "12°C"  or  "-3°C"
   const tempStr=(wxTemp<0?'-':'')+Math.abs(wxTemp)+'/'+(wxTempMax<0?'-':'')+Math.abs(wxTempMax)+'°C';
-  const locStr=(wxCityDisplay||document.getElementById('wx-city')?.value||'').trim().toUpperCase();
+  const locStr=(wxCityDisplay||document.getElementById('wx-city')?.value||'').trim().normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
 
   // ── Render sky+ground on side faces ──
   for(let fi=0;fi<4;fi++){

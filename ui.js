@@ -2853,7 +2853,7 @@ function animate(now){
       } else if(activeAlarm.al.prealarm?.giantSun){
         renderGiantSun(1.0,100);
       }
-      const rawMsg=(activeAlarm.al.message||'Good Morning').toUpperCase().replace(/[^\w\s!.,?]/g,'');
+      const rawMsg=(activeAlarm.al.message||'Good Morning').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^\w\s!.,?]/g,'');
       const words=rawMsg.trim().split(/\s+/);
       const line1=[],line2=[];
       let half=Math.ceil(words.length/2);
