@@ -936,6 +936,7 @@ const EFFECTS={
   dice:effectDice,
   simhouse:effectSimHouse,
   retro:effectRetro,
+  moon:effectMoon,
 };
 const EFFECT_NAMES={
   wave:'Wave Cascade', rain:'Colour Rain', plasma:'Plasma Storm', sphere:'Morphing Sphere',
@@ -951,6 +952,7 @@ const EFFECT_NAMES={
   coinflip:'Coin Flip',
   dice:'Dice Roll',
   simhouse:'Sim House',
+  moon:'Moon',
 };
 
 // ═══════════════════════════════════════════════════

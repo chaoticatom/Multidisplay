@@ -10889,6 +10889,162 @@ function ghostPaintFace(face, cx, cy, revealFrac, alpha, hueShift){
   }
 }
 
+// ── MOON — realistic lunar surface with phase, craters, maria ──
+let moonCraters=null, moonMaria=null;
+function moonInit(){
+  if(moonCraters&&moonCraters.size===SIZE) return;
+  const S=SIZE;
+  // Deterministic craters: x,y in -1..1 disc coords, r=radius, depth
+  const rng=(s)=>((s*2654435761)>>>0)/4294967296;
+  moonCraters=[];
+  moonCraters.size=S;
+  for(let i=0;i<45;i++){
+    const cx=rng(i*317+7)*1.6-0.8;
+    const cy=rng(i*523+13)*1.6-0.8;
+    if(cx*cx+cy*cy>0.85) continue;
+    const r=0.03+rng(i*719+31)*0.12;
+    const depth=0.15+rng(i*911+47)*0.2;
+    moonCraters.push({cx,cy,r,depth});
+  }
+  // Maria (dark lunar "seas") — large irregular darker regions
+  moonMaria=[
+    {cx:-0.15,cy:0.25,rx:0.35,ry:0.25,name:'imbrium'},
+    {cx:0.2,cy:0.35,rx:0.2,ry:0.18,name:'serenitatis'},
+    {cx:0.25,cy:0.15,rx:0.22,ry:0.2,name:'tranquillitatis'},
+    {cx:0.15,cy:-0.05,rx:0.18,ry:0.25,name:'fecunditatis'},
+    {cx:-0.3,cy:0.0,rx:0.15,ry:0.2,name:'procellarum'},
+    {cx:-0.1,cy:-0.2,rx:0.2,ry:0.15,name:'nubium'},
+    {cx:0.0,cy:0.45,rx:0.12,ry:0.1,name:'frigoris'},
+    {cx:0.35,cy:0.3,rx:0.1,ry:0.12,name:'crisium'},
+  ];
+}
+
+function getMoonPhase(){
+  const now=new Date();
+  const year=now.getFullYear(), month=now.getMonth()+1, day=now.getDate();
+  const hour=now.getHours()+now.getMinutes()/60;
+  // Simplified lunation calculation — days since known new moon (Jan 6 2000 18:14 UTC)
+  const jd=367*year-Math.floor(7*(year+Math.floor((month+9)/12))/4)+Math.floor(275*month/9)+day+1721013.5+hour/24;
+  const knownNew=2451550.26;
+  const synodicMonth=29.53059;
+  const daysSince=jd-knownNew;
+  const phase=((daysSince%synodicMonth)+synodicMonth)%synodicMonth;
+  return phase/synodicMonth; // 0=new, 0.5=full, 1=new again
+}
+
+function effectMoon(dt){
+  t+=dt;
+  moonInit();
+  const S=SIZE, S1=S-1;
+  const phase=getMoonPhase(); // 0-1
+  const tt=Date.now()*0.001;
+
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  // Background: deep space with stars
+  for(let i=0;i<N;i++){
+    const starSeed=((i*2654435761)>>>0)/4294967296;
+    if(starSeed<0.012){
+      const twinkle=0.3+0.7*Math.abs(Math.sin(tt*1.5+starSeed*50));
+      const br=starSeed*40*twinkle;
+      colBuf[i*3]=br; colBuf[i*3+1]=br; colBuf[i*3+2]=br*1.1;
+    }
+  }
+
+  const faces=panel2dMode?[0]:[0,1,2,3];
+  const moonRad=Math.round(S*0.44);
+  const cx=Math.round(S/2), cy=Math.round(S/2);
+
+  // Phase illumination: convert phase (0-1) to terminator position
+  // 0=new (dark), 0.25=first quarter, 0.5=full, 0.75=last quarter
+  // Illumination angle: cos curve. phase 0→dark, 0.5→full lit
+  const illumAngle=phase*Math.PI*2;
+  // Terminator x-offset: -1 (new/dark) to +1 (full/lit) back to -1
+  const termX=-Math.cos(illumAngle);
+  // Which side is lit: waxing (0-0.5) = right side lit, waning (0.5-1) = left side lit
+  const waxing=phase<0.5;
+
+  for(const face of faces){
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      // Disc coords: -1 to 1
+      const dx=(u-cx)/moonRad, dy=(v-cy)/moonRad;
+      const d2=dx*dx+dy*dy;
+      if(d2>1) continue;
+      const d=Math.sqrt(d2);
+
+      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+
+      // 3D sphere: compute surface normal z
+      const nz=Math.sqrt(1-d2);
+      const nx=dx, ny=dy;
+
+      // Phase shadow: check if this point is in shadow
+      // Project terminator onto sphere surface
+      let lit;
+      if(waxing){
+        lit=nx>termX*nz;
+      } else {
+        lit=nx<-termX*nz;
+      }
+
+      if(!lit){
+        // Dark side — very faint earthshine
+        const earthshine=0.012*nz;
+        colBuf[idx*3]=earthshine*0.6;
+        colBuf[idx*3+1]=earthshine*0.7;
+        colBuf[idx*3+2]=earthshine*0.9;
+        continue;
+      }
+
+      // Base highland colour: warm grey
+      let lr=0.72, lg=0.70, lb=0.65;
+
+      // Maria: darker blueish-grey regions
+      for(const m of moonMaria){
+        const mdx=(dx-m.cx)/m.rx, mdy=(dy-m.cy)/m.ry;
+        const md=mdx*mdx+mdy*mdy;
+        if(md<1){
+          const mf=Math.pow(1-md,0.8)*0.35;
+          lr-=mf*0.15; lg-=mf*0.12; lb-=mf*0.05;
+        }
+      }
+
+      // Craters: darker interior, bright rim
+      for(const c of moonCraters){
+        const cdx=dx-c.cx, cdy=dy-c.cy;
+        const cd=Math.sqrt(cdx*cdx+cdy*cdy);
+        if(cd<c.r*1.3){
+          if(cd<c.r*0.85){
+            // Crater floor — darker
+            const cf=c.depth*(1-cd/(c.r*0.85));
+            lr-=cf; lg-=cf; lb-=cf;
+          } else if(cd<c.r*1.15){
+            // Crater rim — brighter on sunlit side
+            const rimBr=0.12*(1+nx*0.5);
+            lr+=rimBr; lg+=rimBr; lb+=rimBr;
+          }
+        }
+      }
+
+      // Surface texture — fine grain noise
+      const noise=((((u*7919+v*6271)>>>0)%100)/100-0.5)*0.06;
+      lr+=noise; lg+=noise; lb+=noise;
+
+      // Limb darkening — edges of disc are slightly darker
+      const limb=0.75+0.25*nz;
+      lr*=limb; lg*=limb; lb*=limb;
+
+      // Subtle warm/cool variation across surface
+      lr+=ny*0.02;
+      lb-=ny*0.015;
+
+      colBuf[idx*3]=Math.max(0,Math.min(1,lr));
+      colBuf[idx*3+1]=Math.max(0,Math.min(1,lg));
+      colBuf[idx*3+2]=Math.max(0,Math.min(1,lb));
+    }
+  }
+}
+
 let ghostHueShift=0;
 
 function effectGhost(dt){
