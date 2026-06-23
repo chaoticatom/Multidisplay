@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=365">
+<link rel="stylesheet" href="style.css?v=366">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -456,7 +456,7 @@
   </div>
 
   <div class="sidebar-section collapsed" data-section="overlays">
-    <button class="section-head">✦ Overlays <span class="chev">▾</span></button>
+    <button class="section-head">◈ Overlays <span class="chev">▾</span></button>
     <div class="section-body">
       <div style="font-size:9px;color:#556;margin-bottom:10px;line-height:1.5;">Layer effects over any mode. Multiple active at once.</div>
 
@@ -592,7 +592,7 @@
 
 
   <div class="sidebar-section collapsed">
-    <button class="section-head">👁 View &amp; Display <span class="chev">▾</span></button>
+    <button class="section-head">◈ View &amp; Display <span class="chev">▾</span></button>
     <div class="section-body">
           <label class="check-row"><input type="checkbox" id="auto-rotate-chk" checked>AUTO-ROTATE</label>
           <label class="check-row"><input type="checkbox" id="rotate-y-only">Y-AXIS ONLY</label>
@@ -620,7 +620,7 @@
   </div>
 
   <div class="sidebar-section collapsed">
-    <button class="section-head">▶ Playlist <span class="chev">▾</span></button>
+    <button class="section-head">◈ Playlist <span class="chev">▾</span></button>
     <div class="section-body">
           <div style="display:flex;gap:4px;margin-bottom:8px;">
             <button id="pl-play-btn" class="util-btn" style="flex:2;margin:0;">▶ Play</button>
@@ -654,7 +654,7 @@
   </div>
 
   <div class="sidebar-section collapsed" id="custom-faces-section">
-    <button class="section-head">🎨 Custom Faces <span class="chev">▾</span></button>
+    <button class="section-head">◈ Custom Faces <span class="chev">▾</span></button>
     <div class="section-body">
       <div style="font-size:12px;color:#9ab;margin-bottom:10px;line-height:1.5;">Draw custom graphics for each cube face. Save designs by name and load them onto the cube.</div>
       <button id="cg-open-btn" class="util-btn" style="width:100%;margin-bottom:10px;">🎨 DRAW / EDIT FACES</button>
@@ -676,7 +676,7 @@
   </div>
 
   <div class="sidebar-section collapsed" id="panel-editor-section">
-    <button class="section-head">🎨 Panel Editor <span class="chev">▾</span></button>
+    <button class="section-head">◈ Panel Editor <span class="chev">▾</span></button>
     <div class="section-body">
       <div style="font-size:12px;color:#9ab;margin-bottom:10px;line-height:1.5;">Assign an effect to each face. Click CLEAR to blank the cube, then build your layout. Save as a named cube and load it via the <b style="color:#7aadff">Custom Cube</b> effect.</div>
       <div style="display:flex;gap:6px;margin-bottom:10px;">
@@ -701,14 +701,14 @@
   </div>
   <!-- ── Alarm Section ── -->
   <div class="sidebar-section collapsed" id="alarm-section">
-    <button class="section-head">⏰ Alarms <span class="chev">▾</span></button>
+    <button class="section-head">◈ Alarms <span class="chev">▾</span></button>
     <div class="section-body">
       <div id="alarm-list-ui" style="margin-bottom:8px;"></div>
       <button id="alarm-add-btn" style="width:100%;padding:8px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.35);color:#7aadff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.5px;">+ ADD ALARM</button>
     </div>
   </div>
   <div class="sidebar-section collapsed">
-    <button class="section-head">⚡ Firmware Update <span class="chev">▾</span></button>
+    <button class="section-head">◈ Firmware Update <span class="chev">▾</span></button>
     <div class="section-body">
       <div style="font-size:11px;color:#778;margin-bottom:8px;line-height:1.4;">Upload this page to ESP32 via OTA. Enter the ESP32 IP address below.</div>
       <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">
@@ -941,7 +941,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=365"></script>
+<script src="version.js?v=366"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -976,7 +976,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=365','effects.js?v=365','f1.js?v=365','ui.js?v=365'];
+  const appScripts = ['cube.js?v=366','effects.js?v=366','f1.js?v=366','ui.js?v=366'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
