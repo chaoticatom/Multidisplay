@@ -3492,7 +3492,14 @@ function wxMoonPhase(d){
 }
 
 function wxSkyRGB(df){
-  // df 0-1: 0/1=midnight, 0.25≈sunrise, 0.5=noon, 0.75≈sunset
+  // Remap dayFrac so actual sunrise→0.25, noon→0.5, sunset→0.75
+  const srFrac=wxSunriseS/86400, ssFrac=wxSunsetS/86400;
+  const noon=(srFrac+ssFrac)/2;
+  let mapped;
+  if(df<srFrac) mapped=0.25*(df/srFrac);
+  else if(df<noon) mapped=0.25+0.25*((df-srFrac)/(noon-srFrac));
+  else if(df<ssFrac) mapped=0.5+0.25*((df-noon)/(ssFrac-noon));
+  else mapped=0.75+0.25*((df-ssFrac)/(1-ssFrac));
   const s=[
     [0.00, [0,2,20]],   [0.20, [2,4,25]],   [0.22, [25,15,40]],
     [0.25, [180,90,40]], [0.27, [240,160,60]],[0.30, [100,180,240]],
@@ -3501,8 +3508,8 @@ function wxSkyRGB(df){
     [0.80, [30,10,30]],  [1.00, [0,2,20]]
   ];
   let a=s[0],b=s[s.length-1];
-  for(let i=0;i<s.length-1;i++){if(df>=s[i][0]&&df<s[i+1][0]){a=s[i];b=s[i+1];break;}}
-  const m=(df-a[0])/(b[0]-a[0]||1);
+  for(let i=0;i<s.length-1;i++){if(mapped>=s[i][0]&&mapped<s[i+1][0]){a=s[i];b=s[i+1];break;}}
+  const m=(mapped-a[0])/(b[0]-a[0]||1);
   return[(a[1][0]+(b[1][0]-a[1][0])*m)/255,(a[1][1]+(b[1][1]-a[1][1])*m)/255,(a[1][2]+(b[1][2]-a[1][2])*m)/255];
 }
 
