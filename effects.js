@@ -3782,7 +3782,13 @@ function wxInitScene(code){
   if(cityLandmark){
     const bestCluster=clusters.reduce((a,b)=>a.ch>b.ch?a:b,clusters[0]);
     const lx=Math.max(0,Math.min(panW-cityLandmark.w,bestCluster.cx-Math.floor(cityLandmark.w/2)));
-    for(let i=0;i<cityLandmark.w&&lx+i<panW;i++) wxSkyline[lx+i]=Math.max(wxSkyline[lx+i],cityLandmark.h);
+    // Remove overlapping buildings so landmark stands clear
+    const lx2=lx+cityLandmark.w;
+    for(let si=wxSkyShapes.length-1;si>=0;si--){
+      const s=wxSkyShapes[si];
+      if(s.x+s.w>lx && s.x<lx2) wxSkyShapes.splice(si,1);
+    }
+    for(let i=0;i<cityLandmark.w&&lx+i<panW;i++) wxSkyline[lx+i]=cityLandmark.h;
     wxSkyShapes.push({x:lx,w:cityLandmark.w,h:cityLandmark.h,t:8,lm:cityLandmark});
   }
 
