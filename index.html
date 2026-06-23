@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=393">
+<link rel="stylesheet" href="style.css?v=394">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -835,6 +835,8 @@
               <div id="al-effect-rise-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:120px;overflow-y:auto;z-index:1000;margin-top:2px;"></div>
             </div>
           </div>
+          <!-- Effect-specific options -->
+          <div id="al-effect-rise-effect-opts" style="display:none;margin-top:6px;"></div>
         </div>
         <!-- Timing -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
@@ -941,7 +943,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=393"></script>
+<script src="version.js?v=394"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -976,7 +978,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=393','effects.js?v=393','f1.js?v=393','ui.js?v=393'];
+  const appScripts = ['cube.js?v=394','effects.js?v=394','f1.js?v=394','ui.js?v=394'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
