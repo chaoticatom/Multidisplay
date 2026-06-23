@@ -514,7 +514,11 @@ document.getElementById('al-save-btn')?.addEventListener('click',()=>{
       giantSun:alarmGiantSunOn, wxRise:alarmWxRiseOn, effectRise:alarmEffectRiseOn, effectRiseKey:alarmEffectRiseKey, effectRiseCity:alarmEffectRiseCity},
     message:document.getElementById('al-message').value||'',
   };
-  if(alarmEditIdx>=0) alarms[alarmEditIdx]=al; else alarms.push(al);
+  if(alarmEditIdx>=0){
+    if(activeAlarm&&activeAlarm.al.id===alarms[alarmEditIdx].id){ activeAlarm.dismissed=true; activeAlarm=null; clearPending=true; }
+    delete alarms[alarmEditIdx]._lastFireMin;
+    alarms[alarmEditIdx]=al;
+  } else alarms.push(al);
   alarmSave(); alarmBuildList();
   document.getElementById('alarm-modal').style.display='none';
 });
