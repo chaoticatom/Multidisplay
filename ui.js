@@ -2597,7 +2597,10 @@ function animate(now){
       activeAlarm.dismissed=true;
       activeAlarm=null;
     } else {
-      if(activeAlarm.al.prealarm?.giantSun){
+      if(activeAlarm.bgEffect&&EFFECTS[activeAlarm.bgEffect]){
+        for(let i=0;i<N*3;i++) colBuf[i]=0;
+        EFFECTS[activeAlarm.bgEffect](dt*speedMult);
+      } else if(activeAlarm.al.prealarm?.giantSun){
         renderGiantSun(1.0,100);
       }
       const rawMsg=(activeAlarm.al.message||'Good Morning').toUpperCase().replace(/[^\w\s!.,?]/g,'');
@@ -2735,9 +2738,6 @@ function animate(now){
   } else if(clearPending){
     for(let i=0;i<N*3;i++) colBuf[i]=0;
     clearPending=false;
-  } else if(alarmMainActive&&activeAlarm.bgEffect&&EFFECTS[activeAlarm.bgEffect]){
-    for(let i=0;i<N*3;i++) colBuf[i]=0;
-    EFFECTS[activeAlarm.bgEffect](dt*speedMult);
   }
   runOverlays(dt);
   if(plTransActive) plApplyTransition();
