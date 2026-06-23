@@ -713,152 +713,87 @@ function alarmFire(al,now){
 function renderGiantSun(progress,startBrightPct){
   const S=SIZE, S1=S-1, SIDE=[2,0,3,1];
   const startBr=Math.max(startBrightPct/100,0.04);
-  
-  // First 25%: dim. Then ramp to full brightness.
   const bgBright=progress<0.25
-    ? startBr*0.4+(progress/0.25)*(1-startBr*0.4)*0.5  // stays dim for first quarter
+    ? startBr*0.4+(progress/0.25)*(1-startBr*0.4)*0.5
     : Math.min(1, 0.5+(progress-0.25)/0.65*0.5);
 
-  function skyCol(p){
-    const stops=[[0,[4,2,14]],[0.12,[20,8,24]],[0.25,[110,25,12]],
-                 [0.40,[240,110,30]],[0.56,[255,200,60]],[0.68,[150,200,255]],[1.0,[150,200,255]]];
-    let a=stops[0],b=stops[1];
-    for(let i=0;i<stops.length-1;i++){
-      if(p>=stops[i][0]&&p<stops[i+1][0]){a=stops[i];b=stops[i+1];break;}
-    }
-    const t=(p-a[0])/(b[0]-a[0]||1);
-    return [(a[1][0]+(b[1][0]-a[1][0])*t)/255,
-            (a[1][1]+(b[1][1]-a[1][1])*t)/255,
-            (a[1][2]+(b[1][2]-a[1][2])*t)/255];
-  }
-
-  const [skR,skG,skB]=skyCol(progress);
-
   for(let i=0;i<N*3;i++) colBuf[i]=0;
-  
+
+  // Sky gradient: dawn colours at bottom, transitions to sky blue at top
+  // Early: dark indigo→deep orange at horizon. Late: peach→sky blue
   for(const f of [4,...SIDE]){
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
       const idx=faceMap[f][v*S+u]; if(idx<0) continue;
       const vFrac=v/S1;
-      const distFromBottom=1-vFrac;
-      // Gradient: bright bottom, dark top. Fades to solid as progress→1 (blue phase)
-      // Stronger gradient early, fades to solid by 85%
-      const earlyBoost=Math.max(0, 1-progress/0.25)*0.4; // extra dark at top in first 25%
-      const gradStrength=Math.max(0, 1-progress/0.85);
-      const gradBr=1.0-(distFromBottom*(0.70+earlyBoost)*gradStrength);
-      let r=skR, g=skG, b=skB;
-      // At alarm time force pure vibrant blue
-      if(progress>=0.9){
-        r=150/255; g=200/255; b=255/255;
-      }
-      const br=bgBright*gradBr;
+      // vFrac 0=bottom, 1=top
+
+      // Bottom colour transitions: deep red/orange → peach → light blue
+      const bR=(12+progress*230)/255, bG=(3+progress*140)/255, bB=(20+progress*60)/255;
+      // Top colour transitions: dark indigo → sky blue
+      const tR=(4+progress*100)/255, tG=(2+progress*180)/255, tB=(14+progress*241)/255;
+
+      const r=bR+(tR-bR)*vFrac;
+      const g=bG+(tG-bG)*vFrac;
+      const b=bB+(tB-bB)*vFrac;
+
+      const br=bgBright;
       colBuf[idx*3]=r*br;
       colBuf[idx*3+1]=g*br;
       colBuf[idx*3+2]=b*br;
     }
   }
 
-  // ── Clouds ──
-  const cloudAlpha=Math.min(1,Math.max(0,(progress-0.15)/0.35))*0.10;
-  const panOffset={2:0, 0:0.25, 3:0.5, 1:0.75};
-  function uToPanX(face,u){ return panOffset[face]+(1-u/S1)*0.25; }
-
-  if(cloudAlpha>0.005){
-    const tnow=Date.now()*0.001;
-    const clouds=[
-      {panX0:0.05, vy:0.78, hw:0.11, hh:5, speed: 0.004},
-      {panX0:0.40, vy:0.85, hw:0.14, hh:4, speed:-0.003},
-      {panX0:0.62, vy:0.70, hw:0.09, hh:3, speed: 0.005},
-      {panX0:0.78, vy:0.88, hw:0.12, hh:4, speed:-0.006},
-      {panX0:0.22, vy:0.74, hw:0.08, hh:3, speed: 0.003},
-    ];
-    for(const cl of clouds){
-      const panCX=((cl.panX0+tnow*cl.speed)%1+1)%1;
-      const vCY=Math.round(cl.vy*S1);
-      for(let fi=0;fi<4;fi++){
-        const face=SIDE[fi];
-        for(let u=0;u<S;u++){
-          const px=uToPanX(face,u);
-          let dx=px-panCX; if(dx>0.5) dx-=1; if(dx<-0.5) dx+=1;
-          if(Math.abs(dx)>cl.hw) continue;
-          const xEnv=Math.exp(-(dx/cl.hw)*(dx/cl.hw)*2.5);
-          const puffs=[[0,1.0],[cl.hh*0.5,0.65],[-cl.hh*0.5,0.65]];
-          for(const [pvOff,pScale] of puffs){
-            const ph=Math.round(cl.hh*pScale);
-            for(let dv=-ph;dv<=ph;dv++){
-              const yEnv=Math.exp(-(dv/ph)*(dv/ph)*2.5);
-              const alpha=cloudAlpha*xEnv*yEnv;
-              if(alpha<0.002) continue;
-              const fv=vCY+Math.round(pvOff)+dv;
-              if(fv<0||fv>=S) continue;
-              const idx=faceMap[face][fv*S+u]; if(idx<0) continue;
-              colBuf[idx*3]=Math.min(1,colBuf[idx*3]+alpha*0.7);
-              colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+alpha*0.7);
-              colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+alpha*0.7);
-            }
-          }
-        }
-      }
-      const topU=Math.round(panCX*S1);
-      const topV=Math.round((1-cl.vy)*S1);
-      const topW=Math.round(cl.hw*S1*4);
-      const topH=Math.max(1,Math.round(cl.hh*0.5));
-      for(let dv=-topH;dv<=topH;dv++) for(let du=-topW;du<=topW;du++){
-        const ex=Math.exp(-(du/Math.max(1,topW))*(du/Math.max(1,topW))*2.5);
-        const ey=Math.exp(-(dv/Math.max(1,topH))*(dv/Math.max(1,topH))*2.5);
-        const alpha=cloudAlpha*ex*ey*0.6;
-        if(alpha<0.002) continue;
-        const fu=(topU+du+S)%S, fv=(topV+dv+S)%S;
-        const idx=faceMap[4][fv*S+fu]; if(idx<0) continue;
-        colBuf[idx*3]=Math.min(1,colBuf[idx*3]+alpha*0.7);
-        colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+alpha*0.7);
-        colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+alpha*0.7);
-      }
-    }
-  }
-
-  // ── Sun: double-size, bright, with warm glow halo ──
+  // ── Cartoon sun: solid bright yellow circle with orange rim, rising from below ──
   if(progress>0.08){
     const sunP=(progress-0.08)/0.92;
-    const sunRad=Math.round(S*2.0);
+    const sunRad=Math.round(S*0.38);
     const sunCX=Math.round(S/2);
-    const sunCY=Math.round(-sunRad+sunP*(S*0.85+sunRad));
-    const tt=Date.now()*0.001;
-    const glowRad=Math.round(sunRad*1.5);
+    // Rises from well below bottom to about 40% up the face
+    const sunCY=Math.round(-sunRad*1.2+sunP*(S*0.55+sunRad*1.2));
 
     for(let fi=0;fi<4;fi++){
       const face=SIDE[fi];
-      for(let dv=-glowRad;dv<=glowRad;dv++) for(let du=-glowRad;du<=glowRad;du++){
-        const rawDist=Math.sqrt(du*du+dv*dv);
-        const v=sunCY+dv, u=sunCX+du;
-        if(v<0||v>=S||u<0||u>=S) continue;
-        const idx=faceMap[face][v*S+u]; if(idx<0) continue;
-        const dist=rawDist/sunRad;
 
-        if(dist<=1){
-          const edge=1-dist;
-          let cr,cg,cb;
-          if(edge>0.5){
-            cr=1; cg=0.97; cb=0.45;
-          } else if(edge>0.2){
-            const t2=(edge-0.2)/0.30;
-            cr=1; cg=0.65+t2*0.32; cb=t2*0.15;
+      // Warm glow around the sun — large soft halo
+      const glowRad=sunRad*3;
+      for(let dv=-glowRad;dv<=glowRad;dv++){
+        const v=sunCY+dv;
+        if(v<0||v>=S) continue;
+        for(let du=-glowRad;du<=glowRad;du++){
+          const u=sunCX+du;
+          if(u<0||u>=S) continue;
+          const d=Math.sqrt(du*du+dv*dv);
+          if(d>glowRad||d<=sunRad) continue;
+          const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+          const glow=Math.pow(1-(d-sunRad)/(glowRad-sunRad),2)*0.45;
+          colBuf[idx*3]=Math.min(1,colBuf[idx*3]+glow*1.0);
+          colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+glow*0.7);
+          colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+glow*0.1);
+        }
+      }
+
+      // Solid cartoon sun disc
+      for(let dv=-sunRad;dv<=sunRad;dv++){
+        const v=sunCY+dv;
+        if(v<0||v>=S) continue;
+        for(let du=-sunRad;du<=sunRad;du++){
+          const u=sunCX+du;
+          if(u<0||u>=S) continue;
+          const d=Math.sqrt(du*du+dv*dv);
+          if(d>sunRad) continue;
+          const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+          const edge=d/sunRad;
+          if(edge>0.85){
+            // Orange rim
+            colBuf[idx*3]=1.0;
+            colBuf[idx*3+1]=0.6;
+            colBuf[idx*3+2]=0.0;
           } else {
-            const t2=edge/0.2;
-            cr=0.7+t2*0.3; cg=0.25+t2*0.4; cb=0;
+            // Solid bright yellow core
+            colBuf[idx*3]=1.0;
+            colBuf[idx*3+1]=0.92;
+            colBuf[idx*3+2]=0.15;
           }
-          const shimmer=0.5+0.5*Math.sin(tt*3+du*0.06+dv*0.06);
-          const br=Math.min(1,(0.15+edge*0.85)*(0.96+shimmer*0.04));
-          colBuf[idx*3]=Math.max(colBuf[idx*3],cr*br);
-          colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],cg*br);
-          colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],cb*br);
-        } else if(dist<=1.5){
-          const glow=Math.pow(1-(dist-1)/0.5,2)*0.6;
-          const shimmer=0.5+0.5*Math.sin(tt*2+du*0.1+dv*0.1);
-          const g=glow*(0.9+shimmer*0.1);
-          colBuf[idx*3]=Math.min(1,colBuf[idx*3]+g*1.0);
-          colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+g*0.55);
-          colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+g*0.05);
         }
       }
     }
