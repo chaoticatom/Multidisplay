@@ -759,7 +759,7 @@ function renderGiantSun(progress,startBrightPct){
   // ── Sun: cartoon yellow disc with orange-red rim gradient, subtle shimmer ──
   if(progress>0.08){
     const sunP=(progress-0.08)/0.92;
-    const sunRad=Math.round(S*0.38);
+    const sunRad=Math.round(S*0.30);
     const sunCX=Math.round(S/2);
     const sunCY=Math.round(-sunRad*1.2+sunP*(S*0.55+sunRad*1.2));
 
@@ -785,6 +785,26 @@ function renderGiantSun(progress,startBrightPct){
         }
       }
 
+      // Subtle sun rays radiating outward
+      const numRays=12;
+      const rayLen=Math.round(sunRad*2.5);
+      for(let ri=0;ri<numRays;ri++){
+        const baseAng=(ri/numRays)*Math.PI*2;
+        const ang=baseAng+Math.sin(tt*0.8+ri*1.7)*0.12;
+        const flicker=0.6+0.4*Math.sin(tt*1.5+ri*2.1);
+        for(let d=sunRad+1;d<sunRad+rayLen;d++){
+          const fade=(1-(d-sunRad)/rayLen)*0.25*flicker;
+          if(fade<0.01) continue;
+          const rv=Math.round(sunCY+Math.sin(ang)*d);
+          const ru=Math.round(sunCX+Math.cos(ang)*d);
+          if(rv<0||rv>=S||ru<0||ru>=S) continue;
+          const idx=faceMap[face][rv*S+ru]; if(idx<0) continue;
+          colBuf[idx*3]=Math.min(1,colBuf[idx*3]+fade*1.0);
+          colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+fade*0.8);
+          colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+fade*0.1);
+        }
+      }
+
       // Sun disc with gradient rim and shimmer
       for(let dv=-sunRad;dv<=sunRad;dv++){
         const v=sunCY+dv;
@@ -798,21 +818,16 @@ function renderGiantSun(progress,startBrightPct){
           const edge=d/sunRad;
           let cr,cg,cb;
           if(edge>0.88){
-            // Deep orange-red outer rim
             cr=0.95; cg=0.35; cb=0.0;
           } else if(edge>0.72){
-            // Orange mid rim
             const t2=(edge-0.72)/0.16;
             cr=1.0; cg=0.7-t2*0.35; cb=0.05-t2*0.05;
           } else if(edge>0.5){
-            // Light orange inner rim
             const t2=(edge-0.5)/0.22;
             cr=1.0; cg=0.88-t2*0.18; cb=0.15-t2*0.1;
           } else {
-            // Bright yellow core
             cr=1.0; cg=0.92; cb=0.2;
           }
-          // Subtle shimmer — gentle brightness wave across the disc
           const shimmer=0.96+0.04*Math.sin(tt*2.5+du*0.12+dv*0.12);
           colBuf[idx*3]=cr*shimmer;
           colBuf[idx*3+1]=cg*shimmer;
@@ -2625,6 +2640,35 @@ function animate(now){
       for(let fi=0;fi<4;fi++){
         const face=SIDE[fi];
         const mir=(face===2||face===3);
+        // First pass: dark shadow outline (1px offset in all directions)
+        for(let li=0;li<lines.length;li++){
+          const line=lines[li];
+          const lineW=line.length*charW-1;
+          const startU=Math.round((S-lineW)/2);
+          const lineV=vStart-li*lineH;
+          for(let ci=0;ci<line.length;ci++){
+            const glyph=_bigGlyphs[line[ci]]; if(!glyph) continue;
+            const charU=mir?startU+(line.length-1-ci)*charW:startU+ci*charW;
+            for(let row=0;row<7;row++){
+              const bits=glyph[row];
+              const pv=lineV-(row+1);
+              for(let col=0;col<5;col++){
+                if(!((bits>>(4-col))&1)) continue;
+                const pu=mir?charU+(4-col):charU+col;
+                for(let sy=-1;sy<=1;sy++) for(let sx=-1;sx<=1;sx++){
+                  if(sy===0&&sx===0) continue;
+                  const fv=pv+sy,fu=pu+sx;
+                  if(fu<0||fu>=S||fv<0||fv>=S) continue;
+                  const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
+                  colBuf[idx*3]*=0.15;
+                  colBuf[idx*3+1]*=0.15;
+                  colBuf[idx*3+2]*=0.15;
+                }
+              }
+            }
+          }
+        }
+        // Second pass: bright white text
         for(let li=0;li<lines.length;li++){
           const line=lines[li];
           const lineW=line.length*charW-1;
@@ -2642,9 +2686,9 @@ function animate(now){
                 const pu=mir?charU+(4-col):charU+col;
                 if(pu<0||pu>=S) continue;
                 const idx=faceMap[face][pv*S+pu]; if(idx<0) continue;
-                colBuf[idx*3]=Math.max(colBuf[idx*3],pulse);
-                colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],pulse*0.75);
-                colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],0.05);
+                colBuf[idx*3]=pulse;
+                colBuf[idx*3+1]=pulse;
+                colBuf[idx*3+2]=pulse;
               }
             }
           }
