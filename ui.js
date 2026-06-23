@@ -379,12 +379,16 @@ function alarmOpenEditor(idx){
   // Overlays
   const ovDiv=document.getElementById('al-overlays');
   ovDiv.innerHTML='';
-  ['stars','snow','fire','sparkle','glitch','mist','meteors','edgeglow'].forEach(ov=>{
+  const ovNames={stars:'✨ Stars',snow:'❄️ Snow',meteors:'☄️ Meteors',edgeglow:'🔆 Edge Glow',fire:'🔥 Fire',sparkle:'💫 Sparkle',colorwave:'🌊 Color Wave',pulse:'💡 Pulse',scanline:'📡 Scan Line',vignette:'🌑 Vignette',glitch:'Glitch',mist:'Mist',lightning:'⚡ Lightning'};
+  Object.keys(ovNames).forEach(ov=>{
     const lbl=document.createElement('label');
-    lbl.style.cssText='font-size:13px;color:#99b;display:flex;align-items:center;gap:6px;cursor:pointer;padding:3px 0;';
+    lbl.style.cssText='font-size:12px;color:#99b;display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 0;';
+    const tog=document.createElement('span'); tog.className='ov-toggle';
     const chk=document.createElement('input'); chk.type='checkbox'; chk.value=ov;
     chk.checked=(al.overlayKeys||[]).includes(ov);
-    lbl.appendChild(chk); lbl.appendChild(document.createTextNode(ov));
+    const slider=document.createElement('span'); slider.className='ov-slider';
+    tog.appendChild(chk); tog.appendChild(slider);
+    lbl.appendChild(tog); lbl.appendChild(document.createTextNode(ovNames[ov]));
     ovDiv.appendChild(lbl);
   });
 
@@ -703,6 +707,16 @@ function alarmFire(al,now){
     // No effect selected - just show message on black
     currentEffect='';
     stopF1SessionTimer();
+  }
+  // Activate alarm overlays
+  if(al.overlayKeys&&al.overlayKeys.length){
+    for(const k of al.overlayKeys){
+      if(OV[k]) OV[k].on=true;
+      const item=document.getElementById('ovi-'+k);
+      if(item) item.classList.add('ov-on');
+      const chk=item?.querySelector('.ov-chk');
+      if(chk) chk.checked=true;
+    }
   }
   // Set full brightness at alarm time
   brightness=1;
@@ -1116,7 +1130,7 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
     currentEffect = eff;
     if(currentEffect==='f1') startF1SessionTimer(); else stopF1SessionTimer();
     // Stop alarm if it's running and user switched effects
-    if(activeAlarm) activeAlarm.dismissed=true;
+    if(activeAlarm){ activeAlarm.dismissed=true; activeAlarm=null; }
     effectLabel.textContent=EFFECT_NAMES[currentEffect]||currentEffect;
     if(currentEffect==='rain') resetRain();
     if(currentEffect==='balls') resetBalls();
