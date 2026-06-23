@@ -372,6 +372,13 @@ pivotGroup.quaternion.copy(_qRot);
 // Y-axis only rotation toggle
 document.getElementById('rotate-y-only')?.addEventListener('change', e => {
   rotateYOnly = e.target.checked;
+  if (rotateYOnly) {
+    const euler = new THREE.Euler().setFromQuaternion(_qRot, 'YXZ');
+    euler.x = -0.6;
+    euler.z = 0;
+    _qRot.setFromEuler(euler);
+    pivotGroup.quaternion.copy(_qRot);
+  }
 });
 
 let gyroEnabled=false, gyroGX=0, gyroGY=-1, gyroGZ=0;
@@ -393,12 +400,16 @@ const INERTIA_MIN = 0.0003;
 
 function applyRotation(dx, dy, sens) {
   if (rotateYOnly) {
-    _qDelta.setFromAxisAngle(_zAxis, -dx * sens);
+    _qDelta.setFromAxisAngle(_yAxis, dx * sens);
+    _qRot.multiplyQuaternions(_qDelta, _qRot);
+    // Extract and re-apply only the Y rotation, preserving the fixed tilt
+    const euler = new THREE.Euler().setFromQuaternion(_qRot, 'YXZ');
+    euler.x = -0.6; // lock tilt
+    euler.z = 0;
+    _qRot.setFromEuler(euler);
   } else {
     _qDelta.setFromAxisAngle(_yAxis, dx * sens);
-  }
-  _qRot.multiplyQuaternions(_qDelta, _qRot);
-  if (!rotateYOnly) {
+    _qRot.multiplyQuaternions(_qDelta, _qRot);
     _qDelta.setFromAxisAngle(_xAxis, dy * sens);
     _qRot.multiplyQuaternions(_qDelta, _qRot);
   }
