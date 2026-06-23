@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=355">
+<link rel="stylesheet" href="style.css?v=356">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -48,8 +48,9 @@
     </div>
   </div>
 
-  <div id="fx-toggle-bar" style="padding:6px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;">
-    <button id="toggle-effects" class="on">● Effects ON</button>
+  <div id="fx-toggle-bar" style="padding:6px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;display:flex;gap:6px;">
+    <button id="toggle-effects" class="on" style="flex:1;">● Effects ON</button>
+    <button id="clear-all-btn" style="flex:1;padding:9px;background:rgba(255,60,60,0.08);border:1px solid rgba(255,60,60,0.2);color:#c88;border-radius:6px;cursor:pointer;font-size:11px;letter-spacing:1px;transition:background 0.15s;">✕ CLEAR ALL</button>
   </div>
 
   <div id="sidebar-scroll">
@@ -585,11 +586,6 @@
     </div>
   </div>
 
-  <div class="sidebar-section">
-    <div class="section-body">
-      <button id="clear-all-btn" style="width:100%;padding:9px;background:rgba(255,60,60,0.08);border:1px solid rgba(255,60,60,0.2);color:#c88;border-radius:6px;cursor:pointer;font-size:11px;letter-spacing:1px;transition:background 0.15s;">✕ CLEAR ALL</button>
-    </div>
-  </div>
 
 
 
@@ -945,7 +941,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=355"></script>
+<script src="version.js?v=356"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -980,7 +976,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=355','effects.js?v=355','f1.js?v=355','ui.js?v=355'];
+  const appScripts = ['cube.js?v=356','effects.js?v=356','f1.js?v=356','ui.js?v=356'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
