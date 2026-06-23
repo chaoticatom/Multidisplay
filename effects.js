@@ -3868,7 +3868,6 @@ function wxInitScene(code){
       }
       // Cross-pieces between spires
       if(row===8||row===12) return li>=2&&li<=12;
-      }
       return false;
     }},
   };
