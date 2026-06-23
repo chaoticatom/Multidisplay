@@ -18,7 +18,7 @@ function effectWave(dt) {
   }
 }
 
-// ── COLOR RAIN — enhanced: thick drops, bottom splash, lightning columns ──
+// ── COLOUR RAIN — enhanced: thick drops, bottom splash, lightning columns ──
 let rainDrops=[];
 function resetRain() {
   matrixStreams = null;
@@ -167,10 +167,9 @@ function effectRain(dt) {
     if(d.y<-d.len){ d.y=SIZE+d.len; d.col=Math.random()*SIZE|0; d.hue=Math.random(); d.wide=Math.random()<0.15; }
 
     for(let k=0;k<d.len;k++){
-      const vy=Math.round(d.y-k);
+      const vy=Math.round(d.y+k);
       if(vy<0||vy>=SIZE) continue;
       const fade=Math.pow(1-k/d.len,1.2)*d.bright;
-      // Shift hue slightly along the drop for colour richness
       const h=(d.hue+k/d.len*0.15)%1;
       const [r,g,b]=hsl(h,1,fade*0.95);
       setFaceLED(d.face,d.col,vy,r,g,b);
@@ -178,7 +177,6 @@ function effectRain(dt) {
         setFaceLED(d.face,d.col-1,vy,r*0.5,g*0.5,b*0.5);
         setFaceLED(d.face,d.col+1,vy,r*0.5,g*0.5,b*0.5);
       }
-      // Splash puddle at bottom
       if(vy===0 && k<4){
         const sp=fade*0.8;
         for(let s=-4;s<=4;s++){
@@ -187,7 +185,6 @@ function effectRain(dt) {
         }
       }
     }
-    // Bright streak head
     const [rh,gh,bh]=hsl(d.hue,0.3,d.bright*1.0);
     setFaceLED(d.face,d.col,Math.round(d.y),rh,gh,bh);
   }
@@ -366,7 +363,7 @@ function fwLaunch() {
   const sc = Math.random() * totalCols;
   fwRockets.push({
     col: sc, v: 0,
-    vy: SIZE * (0.6 + Math.random() * 0.4),
+    vy: SIZE * (0.72 + Math.random() * 0.45),
     vc: (Math.random() - 0.5) * SIZE * 0.3,
     hue: Math.random(),
     hue2: Math.random(),
@@ -472,8 +469,8 @@ function fwFan(center, pal, count, spread) {
   const hue = fwHue(pal);
   for (let i = 0; i < n; i++) {
     const off = (i - (n - 1) / 2);
-    const d = i * 50;
-    fwSyncRocket(center + off * sp * 0.3, SIZE * (0.65 + Math.random() * 0.25), off * sp * 0.8, hue, (hue + 0.15) % 1, d);
+    const d = i * 20;
+    fwSyncRocket(center + off * sp * 0.3, SIZE * (0.65 + Math.random() * 0.15), off * sp * 0.8, hue, (hue + 0.15) % 1, d);
   }
 }
 
@@ -484,7 +481,7 @@ function fwVolley(faceIdx, pal, count) {
   const hue = fwHue(pal);
   for (let i = 0; i < n; i++) {
     const sc = base + SIZE * 0.15 + Math.random() * SIZE * 0.7;
-    fwSyncRocket(sc, SIZE * (0.6 + Math.random() * 0.35), (Math.random() - 0.5) * SIZE * 0.1, hue, (hue + 0.2 + Math.random() * 0.1) % 1, i * 80);
+    fwSyncRocket(sc, SIZE * (0.6 + Math.random() * 0.2), (Math.random() - 0.5) * SIZE * 0.1, hue, (hue + 0.2 + Math.random() * 0.1) % 1, i * 30);
   }
 }
 
@@ -496,7 +493,7 @@ function fwCascade(pal, dir) {
   for (let i = 0; i < n; i++) {
     const idx = dir > 0 ? i : (n - 1 - i);
     const sc = (total / n) * idx + SIZE * 0.1 + Math.random() * SIZE * 0.15;
-    fwSyncRocket(sc, SIZE * (0.55 + Math.random() * 0.35), 0, (hue + i * 0.02) % 1, (hue + 0.4) % 1, i * 100);
+    fwSyncRocket(sc, SIZE * (0.55 + Math.random() * 0.2), 0, (hue + i * 0.02) % 1, (hue + 0.4) % 1, i * 40);
   }
 }
 
@@ -509,8 +506,8 @@ function fwSymmetry(pal) {
     const off = SIZE * 0.2 + Math.random() * SIZE * 0.6;
     const vy = SIZE * (0.6 + Math.random() * 0.3);
     const h = (hue + i * 0.06) % 1;
-    fwSyncRocket(pair[0] * SIZE + off, vy, 0, h, (h + 0.3) % 1, i * 120);
-    fwSyncRocket(pair[1] * SIZE + off, vy, 0, h, (h + 0.3) % 1, i * 120);
+    fwSyncRocket(pair[0] * SIZE + off, vy, 0, h, (h + 0.3) % 1, i * 50);
+    fwSyncRocket(pair[1] * SIZE + off, vy, 0, h, (h + 0.3) % 1, i * 50);
   }
 }
 
@@ -520,7 +517,7 @@ function fwWaterfall(pal) {
   const hue = fwHue(pal);
   for (let i = 0; i < 16; i++) {
     const sc = Math.random() * total;
-    fwSyncRocket(sc, SIZE * (0.35 + Math.random() * 0.2), (Math.random() - 0.5) * SIZE * 0.05, (hue + Math.random() * 0.08) % 1, hue, i * 40);
+    fwSyncRocket(sc, SIZE * (0.35 + Math.random() * 0.15), (Math.random() - 0.5) * SIZE * 0.05, (hue + Math.random() * 0.08) % 1, hue, i * 15);
   }
 }
 
@@ -532,15 +529,15 @@ function fwFinale() {
     const sc = Math.random() * total;
     const pal = i % 2 === 0 ? pal1 : pal2;
     const hue = fwHue(pal);
-    fwSyncRocket(sc, SIZE * (0.45 + Math.random() * 0.5), (Math.random() - 0.5) * SIZE * 0.2, hue, (hue + 0.4) % 1, i * 60 + Math.random() * 40);
+    fwSyncRocket(sc, SIZE * (0.45 + Math.random() * 0.3), (Math.random() - 0.5) * SIZE * 0.2, hue, (hue + 0.4) % 1, i * 25 + Math.random() * 15);
   }
 }
 
 const FW_SYNC_ACTS = [
   // Act 1: fans from each face in sequence
-  () => { const pal = fwPal(); for (let f = 0; f < 4; f++) setTimeout(() => fwFan(f * SIZE + SIZE / 2, pal), f * 700); return 4.0; },
+  () => { const pal = fwPal(); for (let f = 0; f < 4; f++) setTimeout(() => fwFan(f * SIZE + SIZE / 2, pal), f * 400); return 3.5; },
   // Act 2: volleys alternating faces, two color families
-  () => { const p1 = fwPal(), p2 = fwPal(); fwVolley(0, p1, 5); setTimeout(() => fwVolley(2, p2, 5), 600); setTimeout(() => fwVolley(1, p1, 5), 1200); setTimeout(() => fwVolley(3, p2, 5), 1800); return 4.5; },
+  () => { const p1 = fwPal(), p2 = fwPal(); fwVolley(0, p1, 5); setTimeout(() => fwVolley(2, p2, 5), 300); setTimeout(() => fwVolley(1, p1, 5), 600); setTimeout(() => fwVolley(3, p2, 5), 900); return 3.5; },
   // Act 3: cascade sweep then reverse
   () => { const pal = fwPal(); fwCascade(pal, 1); setTimeout(() => fwCascade(pal, -1), 1400); return 4.0; },
   // Act 4: symmetry pairs

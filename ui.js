@@ -1006,7 +1006,7 @@ const EFFECTS={
   retro:effectRetro,
 };
 const EFFECT_NAMES={
-  wave:'Wave Cascade', rain:'Color Rain', plasma:'Plasma Storm', sphere:'Morphing Sphere',
+  wave:'Wave Cascade', rain:'Colour Rain', plasma:'Plasma Storm', sphere:'Morphing Sphere',
   fireworks:'Fireworks', dna:'DNA Helix', datetime:'Time & Date',
   balls:'Bouncing Balls', sand:'Gravity Sand', f1:'F1 Live',
   gradient_wash:'Rainbow Wash', aurora:'Aurora Borealis', depth_rings:'Depth Rings',
