@@ -125,7 +125,7 @@
   #alarm-banner.active { animation:alarmPulse 1.5s infinite; }
 
   #toggle-effects {
-    display: block; width: 100%; padding: 9px 10px; margin-top: 6px;
+    display: block; padding: 9px 10px;
     background: rgba(255,60,60,0.1); border: 1px solid rgba(255,60,60,0.25);
     border-radius: 5px; color: #f77; font-size: 13px; cursor: pointer;
     text-align: center; transition: all 0.2s; letter-spacing: 1px; text-transform: uppercase;
