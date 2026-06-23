@@ -3540,6 +3540,196 @@ function wxInitScene(code){
   const seed=Math.abs(Math.round(wxLat*100+wxLon*10+code*7))%9999;
   wxSkyShapes=[];
   function sRnd(x){ return ((x*2654435761)>>>0)/4294967296; }
+
+  // Iconic landmark silhouettes for known cities
+  // Each landmark: array of {dx, row, w} relative spans per row (bottom=0)
+  const cityLower=(wxCityDisplay||'').toLowerCase().replace(/[^a-z ]/g,'');
+  const landmarks={
+    'paris':{ name:'eiffel', h:20, w:12, draw(li,row){
+      const mid=6;
+      if(row<3) return Math.abs(li-mid)<=3; // wide base legs
+      if(row<5) return Math.abs(li-mid)<=2;
+      if(row===5) return Math.abs(li-mid)<=3; // first platform
+      if(row<9) return Math.abs(li-mid)<=1;
+      if(row===9) return Math.abs(li-mid)<=2; // second platform
+      if(row<14) return li===mid;
+      if(row===14) return Math.abs(li-mid)<=1; // observation deck
+      if(row<18) return li===mid; // spire
+      if(row<20) return li===mid;
+      return false;
+    }},
+    'cairo':{ name:'pyramid', h:14, w:26, draw(li,row){
+      const s1=14-row; return Math.abs(li-7)<s1||Math.abs(li-19)<(10-Math.floor(row*10/14));
+    }},
+    'london':{ name:'bigben', h:18, w:6, draw(li,row){
+      const mid=3;
+      if(row<4) return Math.abs(li-mid)<=2; // base
+      if(row<8) return Math.abs(li-mid)<=1; // tower body
+      if(row===8) return Math.abs(li-mid)<=2; // clock face
+      if(row===9) return Math.abs(li-mid)<=2;
+      if(row<13) return Math.abs(li-mid)<=1; // upper tower
+      if(row===13) return Math.abs(li-mid)<=2; // belfry
+      if(row<16) return li===mid; // spire
+      if(row<18) return li===mid;
+      return false;
+    }},
+    'new york':{ name:'statue', h:18, w:8, draw(li,row){
+      const mid=4;
+      if(row<3) return Math.abs(li-mid)<=3; // pedestal base
+      if(row<6) return Math.abs(li-mid)<=2; // pedestal
+      if(row<8) return Math.abs(li-mid)<=1; // body/robe base
+      if(row<12) return Math.abs(li-mid)<=1; // body
+      if(row===12) return Math.abs(li-mid)<=2; // shoulders+arm
+      if(row===13) return li===mid||li===mid+2; // head + raised arm
+      if(row<16) return li===mid+2; // torch arm
+      if(row===16) return li===mid+2||li===mid+3; // torch flame
+      if(row===17) return li===mid+2;
+      return false;
+    }},
+    'sydney':{ name:'opera', h:12, w:16, draw(li,row){
+      // Multiple sail shapes
+      const s1=5,s2=10;
+      const inSail=(cx,r)=>{ const h=12-r; return Math.abs(li-cx)<Math.max(0,h*0.6-1); };
+      if(row<2) return li>=1&&li<=14; // base platform
+      return inSail(s1,row)||inSail(s2,row);
+    }},
+    'rome':{ name:'colosseum', h:10, w:16, draw(li,row){
+      if(row<2) return li>=0&&li<16; // base
+      if(row<4) return li>=0&&li<16; // lower arches (solid)
+      if(row<6) return li>=1&&li<15&&!((li-1)%3===1); // arched openings
+      if(row<8) return li>=2&&li<14&&!((li-2)%3===1);
+      if(row<10) return li>=3&&li<13;
+      return false;
+    }},
+    'dubai':{ name:'burjkhalifa', h:22, w:6, draw(li,row){
+      const mid=3;
+      if(row<4) return Math.abs(li-mid)<=2; // wide base
+      if(row<8) return Math.abs(li-mid)<=2;
+      if(row<12) return Math.abs(li-mid)<=1; // taper
+      if(row<16) return Math.abs(li-mid)<=1;
+      if(row<20) return li===mid; // narrow spire
+      if(row<22) return li===mid;
+      return false;
+    }},
+    'tokyo':{ name:'tokyotower', h:18, w:8, draw(li,row){
+      const mid=4;
+      if(row<3) return Math.abs(li-mid)<=3; // wide base legs
+      if(row<6) return Math.abs(li-mid)<=2;
+      if(row===6) return Math.abs(li-mid)<=3; // observation deck
+      if(row<10) return Math.abs(li-mid)<=1;
+      if(row===10) return Math.abs(li-mid)<=2; // upper deck
+      if(row<15) return li===mid;
+      if(row<18) return li===mid; // antenna
+      return false;
+    }},
+    'san francisco':{ name:'goldengate', h:14, w:20, draw(li,row){
+      if(row<2) return li>=0&&li<20; // road deck
+      if(row<12){ // two towers with cables
+        const t1=li===4||li===5, t2=li===14||li===15;
+        if(t1||t2) return true;
+        const cableY1=12-Math.abs(li-10)*1.2;
+        return row<Math.round(cableY1)&&row>=2;
+      }
+      if(row<14) return (li===4||li===5||li===14||li===15);
+      return false;
+    }},
+    'rio de janeiro':{ name:'christredeemer', h:14, w:12, draw(li,row){
+      const mid=6;
+      if(row<4) return Math.abs(li-mid)<=2; // pedestal
+      if(row<7) return Math.abs(li-mid)<=1; // body
+      if(row===7) return Math.abs(li-mid)<=5; // outstretched arms
+      if(row===8) return Math.abs(li-mid)<=4;
+      if(row<11) return Math.abs(li-mid)<=1; // upper body
+      if(row<13) return Math.abs(li-mid)<=1; // head
+      if(row===13) return li===mid;
+      return false;
+    }},
+    'pisa':{ name:'leaningtower', h:16, w:6, draw(li,row){
+      const lean=Math.floor(row*0.25);
+      const cx=2+lean;
+      if(row%3===0) return Math.abs(li-cx)<=2; // gallery floor (wider)
+      return Math.abs(li-cx)<=1;
+    }},
+    'moscow':{ name:'kremlin', h:16, w:10, draw(li,row){
+      const mid=5;
+      if(row<4) return li>=1&&li<=8; // wall base
+      if(row<6) return li>=2&&li<=7; // upper wall
+      if(row<8) return Math.abs(li-mid)<=2; // tower body
+      if(row===8) return Math.abs(li-mid)<=3; // onion dome start
+      if(row<12){ const r=12-row; return Math.abs(li-mid)<=Math.max(0,3-Math.floor((row-8)*0.5)); } // dome
+      if(row<14) return li===mid; // spire
+      if(row<16) return li===mid;
+      return false;
+    }},
+    'washington':{ name:'monument', h:20, w:4, draw(li,row){
+      if(row<2) return li>=0&&li<4; // base
+      if(row<17) return li>=1&&li<3; // shaft
+      if(row<20){ const r=row-17; return Math.abs(li-1.5)<=1.5-r*0.5; } // pyramidion
+      return false;
+    }},
+    'seattle':{ name:'spaceneedle', h:18, w:10, draw(li,row){
+      const mid=5;
+      if(row<2) return Math.abs(li-mid)<=1; // base
+      if(row<10) return li===mid; // narrow stem
+      if(row===10) return Math.abs(li-mid)<=4; // saucer
+      if(row===11) return Math.abs(li-mid)<=3;
+      if(row<15) return Math.abs(li-mid)<=1; // above saucer
+      if(row<18) return li===mid; // antenna
+      return false;
+    }},
+    'athens':{ name:'parthenon', h:10, w:14, draw(li,row){
+      if(row<2) return li>=0&&li<14; // base steps
+      if(row<7) return li%3===0&&li<14; // columns
+      if(row<8) return li>=0&&li<14; // entablature
+      if(row<10){ const peak=7; return Math.abs(li-peak)<=peak-Math.floor(row-7)*4; } // pediment
+      return false;
+    }},
+    'beijing':{ name:'templeof heaven', h:12, w:12, draw(li,row){
+      const mid=6;
+      if(row<3) return Math.abs(li-mid)<=5; // base platform
+      if(row<5) return Math.abs(li-mid)<=4; // lower roof
+      if(row<7) return Math.abs(li-mid)<=3; // middle roof
+      if(row<9) return Math.abs(li-mid)<=2; // upper roof
+      if(row<11) return Math.abs(li-mid)<=1; // top
+      if(row===11) return li===mid; // finial
+      return false;
+    }},
+    'istanbul':{ name:'mosque', h:14, w:14, draw(li,row){
+      const mid=7;
+      if(row<3) return li>=1&&li<=12; // base
+      if(row<6) return li>=2&&li<=11; // walls
+      if(row<9){ const r=row-6; return Math.abs(li-mid)<=Math.max(0,5-r); } // dome
+      if(row<11) return Math.abs(li-mid)<=2;
+      if(row<13) return li===mid;
+      if(row===13) return li===mid; // crescent
+      return false;
+    }},
+    'agra':{ name:'tajmahal', h:16, w:14, draw(li,row){
+      const mid=7;
+      if(row<3) return li>=1&&li<=12; // base platform
+      if(row<6) return li>=2&&li<=11; // main body
+      if(row<10){ const r=row-6; return Math.abs(li-mid)<=Math.max(0,5-r*0.8); } // dome
+      if(row<13) return Math.abs(li-mid)<=1;
+      if(row<15) return li===mid; // spire
+      if(row===15) return li===mid;
+      return false;
+    }},
+    'barcelona':{ name:'sagrada', h:20, w:12, draw(li,row){
+      // 4 spires
+      const spires=[2,5,7,10];
+      if(row<5) return li>=0&&li<12; // base
+      for(const sx of spires){
+        const taper=Math.max(0,1-Math.floor((row-5)*0.05));
+        if(Math.abs(li-sx)<=taper) return true;
+      }
+      return false;
+    }},
+  };
+  // Match city name to landmark
+  let cityLandmark=null;
+  for(const [city,lm] of Object.entries(landmarks)){
+    if(cityLower.includes(city)){ cityLandmark=lm; break; }
+  }
   // Create 2-3 downtown clusters per panorama
   const maxH=Math.floor(SIZE*0.35);
   const clusters=[];
@@ -3582,6 +3772,14 @@ function wxInitScene(code){
     for(let i=0;i<bw&&bx+i<panW;i++) wxSkyline[bx+i]=bh;
     const gap=inDowntown?Math.floor(r0*2):1+Math.floor(sRnd(bx*31+seed)*3);
     bx+=bw+gap;
+  }
+
+  // Place landmark silhouette if city is recognized
+  if(cityLandmark){
+    const bestCluster=clusters.reduce((a,b)=>a.ch>b.ch?a:b,clusters[0]);
+    const lx=Math.max(0,Math.min(panW-cityLandmark.w,bestCluster.cx-Math.floor(cityLandmark.w/2)));
+    for(let i=0;i<cityLandmark.w&&lx+i<panW;i++) wxSkyline[lx+i]=Math.max(wxSkyline[lx+i],cityLandmark.h);
+    wxSkyShapes.push({x:lx,w:cityLandmark.w,h:cityLandmark.h,t:8,lm:cityLandmark});
   }
 
   // Creatures: birds, occasional plane, and hot air balloons on nice days
@@ -4519,6 +4717,8 @@ function effectWeather(dt){
               const domeH=Math.max(1,Math.floor(sh.h*0.4));
               const wallH=sh.h-domeH;
               if(row>=wallH){ const dr=row-wallH; const rx=sh.w/2,ry=domeH; inShape=(li-mid)**2/(rx*rx)+(dr)**2/(ry*ry)<=1; }
+            } else if(sh.t===8){ // landmark
+              inShape=sh.lm.draw(li,row);
             }
             if(!inShape) continue;
             const idx=faceMap[face][v*S+u]; if(idx<0) continue;
