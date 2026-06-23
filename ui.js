@@ -460,9 +460,9 @@ function alarmUpdateSunriseTog(){
 
 // Wire alarm modal buttons
 document.getElementById('al-sunrise-tog')?.addEventListener('click',()=>{ alarmSunriseOn=!alarmSunriseOn; alarmUpdateSunriseTog(); });
-document.getElementById('al-giant-sun-tog')?.addEventListener('click',()=>{ alarmGiantSunOn=!alarmGiantSunOn; alarmUpdateSunriseTog(); });
-document.getElementById('al-wx-rise-tog')?.addEventListener('click',()=>{ alarmWxRiseOn=!alarmWxRiseOn; alarmUpdateSunriseTog(); });
-document.getElementById('al-effect-rise-tog')?.addEventListener('click',()=>{ alarmEffectRiseOn=!alarmEffectRiseOn; alarmUpdateSunriseTog(); });
+document.getElementById('al-giant-sun-tog')?.addEventListener('click',()=>{ alarmGiantSunOn=!alarmGiantSunOn; if(alarmGiantSunOn){alarmWxRiseOn=false;alarmEffectRiseOn=false;} alarmUpdateSunriseTog(); });
+document.getElementById('al-wx-rise-tog')?.addEventListener('click',()=>{ alarmWxRiseOn=!alarmWxRiseOn; if(alarmWxRiseOn){alarmGiantSunOn=false;alarmEffectRiseOn=false;} alarmUpdateSunriseTog(); });
+document.getElementById('al-effect-rise-tog')?.addEventListener('click',()=>{ alarmEffectRiseOn=!alarmEffectRiseOn; if(alarmEffectRiseOn){alarmGiantSunOn=false;alarmWxRiseOn=false;} alarmUpdateSunriseTog(); });
 document.getElementById('al-effect-rise-select')?.addEventListener('change',(e)=>{
   alarmEffectRiseKey=e.target.value;
   const cityRow=document.getElementById('al-effect-rise-city-row');
@@ -962,7 +962,7 @@ let effectsOn=true, clearPending=false;
 // effectLabel writes the effect name into the #el-effect span so the
 // adjacent #el-meta (size · fps) span is preserved.
 const effectLabel=document.getElementById('el-effect')||document.getElementById('effect-label');
-const toggleBtn=document.getElementById('toggle-effects');
+// toggleBtn removed — effects always on
 
 // Effect → auto-expand linked options section
 const EFFECT_SECTION_MAP = {
@@ -1089,7 +1089,7 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
       return;
     }
 
-    if(!effectsOn){effectsOn=true;clearPending=false;toggleBtn.textContent='● Effects ON';toggleBtn.classList.add('on');}
+    if(!effectsOn){effectsOn=true;clearPending=false;effectsOn=true;}
     // Deactivate panel editor so the selected effect shows
     panelEditorOn=false;
 
@@ -1134,7 +1134,7 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
 // Retro "Show" button — starts the effect
 document.getElementById('retro-show-btn')?.addEventListener('click',(e)=>{
   e.stopPropagation();
-  if(!effectsOn){effectsOn=true;clearPending=false;toggleBtn.textContent='● Effects ON';toggleBtn.classList.add('on');}
+  if(!effectsOn){effectsOn=true;clearPending=false;effectsOn=true;}
   panelEditorOn=false;
   document.querySelectorAll('.effect-btn').forEach(b=>b.classList.remove('active'));
   document.querySelector('[data-effect="retro"]')?.classList.add('active');
@@ -1201,13 +1201,7 @@ document.getElementById('fw-text-input')?.addEventListener('input',e=>{
   buildFwText(e.target.value);
 });
 
-toggleBtn.addEventListener('click',()=>{
-  effectsOn=!effectsOn;
-  toggleBtn.textContent=effectsOn?'● Effects ON':'○ Effects OFF';
-  toggleBtn.classList.toggle('on',effectsOn);
-  effectLabel.textContent=effectsOn?EFFECT_NAMES[currentEffect]:'OFF';
-  if(!effectsOn) clearPending=true;
-});
+// Effects toggle button removed — effects always on
 
 document.getElementById('clear-all-btn')?.addEventListener('click',()=>{
   // Turn off all overlays
@@ -1218,13 +1212,8 @@ document.getElementById('clear-all-btn')?.addEventListener('click',()=>{
     const chk=item?.querySelector('.ov-chk');
     if(chk) chk.checked=false;
   });
-  // Turn off effects
-  effectsOn=false;
-  toggleBtn.textContent='○ Effects OFF';
-  toggleBtn.classList.remove('on');
-  effectLabel.textContent='OFF';
+  // Clear display
   clearPending=true;
-  // Clear colBuf immediately
   for(let i=0;i<colBuf.length;i++) colBuf[i]=0;
 });
 
@@ -1526,11 +1515,7 @@ window.addEventListener('deviceorientation', e => {
 
 function activateF1Mode() {
   // Switch to F1 effect
-  if (!effectsOn) {
-    effectsOn = true;
-    toggleBtn.textContent = '● Effects ON';
-    toggleBtn.classList.add('on');
-  }
+  effectsOn = true;
   document.querySelectorAll('.effect-btn').forEach(b => b.classList.remove('active'));
   const f1Btn = document.querySelector('[data-effect="f1"]');
   if (f1Btn) f1Btn.classList.add('active');
@@ -1894,7 +1879,7 @@ function applyPlaylistItem(item){
   document.querySelectorAll('.effect-btn').forEach(b=>b.classList.toggle('active',b.dataset.effect===currentEffect));
   document.querySelectorAll('.effect-panel').forEach(p=>p.classList.remove('open'));
   effectLabel.textContent=EFFECT_NAMES[currentEffect]||currentEffect;
-  toggleBtn.textContent='● Effects ON'; toggleBtn.classList.add('on');
+  effectsOn=true;
 }
 
 let plTransT=0, plTransDur=1.2, plTransType=0, plTransActive=false;
@@ -2256,7 +2241,7 @@ function renderPlaylistModal(){
   });
 }
 
-document.getElementById('pl-play-btn')?.addEventListener('click',()=>{if(!playlist.length) return;playlistOn=!playlistOn;if(playlistOn){effectsOn=true;toggleBtn.textContent='● Effects ON';toggleBtn.classList.add('on');applyPlaylistItem(playlist[playlistIdx]);}updatePlaylistUI();});
+document.getElementById('pl-play-btn')?.addEventListener('click',()=>{if(!playlist.length) return;playlistOn=!playlistOn;if(playlistOn){effectsOn=true;effectsOn=true;applyPlaylistItem(playlist[playlistIdx]);}updatePlaylistUI();});
 document.getElementById('pl-stop-btn')?.addEventListener('click',()=>{playlistOn=false;playlistIdx=0;playlistT=0;updatePlaylistUI();});
 document.getElementById('pl-skip-btn')?.addEventListener('click',()=>{if(!playlist.length) return;playlistT=0; playlistIdx=(playlistIdx+1)%playlist.length;if(playlistOn) applyPlaylistItem(playlist[playlistIdx]);updatePlaylistUI();});
 document.getElementById('pl-loop')?.addEventListener('change',e=>{playlistLoop=e.target.checked;});
@@ -2783,7 +2768,7 @@ function animate(now){
             if(typeof wxFetchForCity==='function') wxFetchForCity(wxSelectedCity);
           }
         }
-        if(EFFECTS[efKey]) EFFECTS[efKey](16);
+        if(EFFECTS[efKey]){ for(let i=0;i<N*3;i++) colBuf[i]=0; EFFECTS[efKey](dt*speedMult); }
       } else if(activeAlarm.al.prealarm?.wxRise){
         renderWeatherSunrise(progress,startBright);
       } else {
