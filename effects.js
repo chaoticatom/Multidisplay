@@ -4290,7 +4290,7 @@ function effectWeather(dt){
             const dy=(vFrac-sunV)*1.5;
             const dist=Math.sqrt(dxw*dxw*4+dy*dy);
             if(dist<1.0){
-              const glow=Math.pow(1-dist,1.5)*0.6;
+              const glow=Math.pow(1-dist,1.5)*0.45;
               pr=Math.min(1,pr+glow*1.0);
               pg=Math.min(1,pg+glow*0.9);
               pb=Math.min(1,pb+glow*0.45);
