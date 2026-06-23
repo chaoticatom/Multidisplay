@@ -818,7 +818,7 @@ function renderGiantSun(progress,startBrightPct){
   }
 
   // ── Sun: solid with shimmer ──
-  if(progress>0.12 && progress<0.90){  // sun hides before alarm
+  if(progress>0.12){  // sun visible through to alarm time
     const sunP=(progress-0.12)/0.88;
     const sunRad=Math.round(S*1.0); // full face width
     const sunCX=Math.round(S/2);
@@ -2646,59 +2646,78 @@ function animate(now){
   if(alarmT>2){ alarmT=0; alarmCheck(); }
 
   // ── Active alarm: 5-minute auto-dismiss + message on cube ──
-  const _msgGlyphs={'0':[7,5,5,5,7],'1':[6,2,2,2,7],'2':[7,1,7,4,7],'3':[7,1,3,1,7],'4':[5,5,7,1,1],
-    '5':[7,4,6,1,7],'6':[7,4,7,5,7],'7':[7,1,2,2,2],'8':[7,5,7,5,7],'9':[7,5,7,1,7],
-    'A':[2,5,7,5,5],'B':[6,5,6,5,6],'C':[3,4,4,4,3],'D':[6,5,5,5,6],'E':[7,4,6,4,7],
-    'F':[7,4,6,4,4],'G':[3,4,7,5,3],'H':[5,5,7,5,5],'I':[7,2,2,2,7],'J':[1,1,1,5,2],
-    'K':[5,6,4,6,5],'L':[4,4,4,4,7],'M':[7,7,5,5,5],'N':[7,5,5,5,5],'O':[7,5,5,5,7],
-    'P':[6,5,6,4,4],'R':[6,5,6,5,5],'S':[3,4,2,1,6],'T':[7,2,2,2,2],'U':[5,5,5,5,7],
-    'W':[5,5,5,7,5],'Y':[5,5,2,2,2],'Z':[7,1,2,4,7],' ':[0,0,0,0,0],'!':[2,2,2,0,2],
-    '.':[0,0,0,0,2],'G':[3,4,7,5,3],'Q':[7,5,5,7,1],'V':[5,5,5,5,2],'X':[5,5,2,5,5],
+  // 5x7 font glyphs — each entry is 7 rows of 5-bit bitmaps (MSB=left)
+  const _bigGlyphs={
+    'A':[0x04,0x0A,0x11,0x1F,0x11,0x11,0x11],'B':[0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E],
+    'C':[0x0E,0x11,0x10,0x10,0x10,0x11,0x0E],'D':[0x1C,0x12,0x11,0x11,0x11,0x12,0x1C],
+    'E':[0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F],'F':[0x1F,0x10,0x10,0x1E,0x10,0x10,0x10],
+    'G':[0x0E,0x11,0x10,0x17,0x11,0x11,0x0F],'H':[0x11,0x11,0x11,0x1F,0x11,0x11,0x11],
+    'I':[0x0E,0x04,0x04,0x04,0x04,0x04,0x0E],'J':[0x07,0x02,0x02,0x02,0x02,0x12,0x0C],
+    'K':[0x11,0x12,0x14,0x18,0x14,0x12,0x11],'L':[0x10,0x10,0x10,0x10,0x10,0x10,0x1F],
+    'M':[0x11,0x1B,0x15,0x15,0x11,0x11,0x11],'N':[0x11,0x19,0x15,0x13,0x11,0x11,0x11],
+    'O':[0x0E,0x11,0x11,0x11,0x11,0x11,0x0E],'P':[0x1E,0x11,0x11,0x1E,0x10,0x10,0x10],
+    'Q':[0x0E,0x11,0x11,0x11,0x15,0x12,0x0D],'R':[0x1E,0x11,0x11,0x1E,0x14,0x12,0x11],
+    'S':[0x0E,0x11,0x10,0x0E,0x01,0x11,0x0E],'T':[0x1F,0x04,0x04,0x04,0x04,0x04,0x04],
+    'U':[0x11,0x11,0x11,0x11,0x11,0x11,0x0E],'V':[0x11,0x11,0x11,0x11,0x0A,0x0A,0x04],
+    'W':[0x11,0x11,0x11,0x15,0x15,0x1B,0x11],'X':[0x11,0x11,0x0A,0x04,0x0A,0x11,0x11],
+    'Y':[0x11,0x11,0x0A,0x04,0x04,0x04,0x04],'Z':[0x1F,0x01,0x02,0x04,0x08,0x10,0x1F],
+    '0':[0x0E,0x11,0x13,0x15,0x19,0x11,0x0E],'1':[0x04,0x0C,0x04,0x04,0x04,0x04,0x0E],
+    '2':[0x0E,0x11,0x01,0x06,0x08,0x10,0x1F],'3':[0x0E,0x11,0x01,0x06,0x01,0x11,0x0E],
+    '4':[0x02,0x06,0x0A,0x12,0x1F,0x02,0x02],'5':[0x1F,0x10,0x1E,0x01,0x01,0x11,0x0E],
+    '6':[0x06,0x08,0x10,0x1E,0x11,0x11,0x0E],'7':[0x1F,0x01,0x02,0x04,0x08,0x08,0x08],
+    '8':[0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E],'9':[0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C],
+    ' ':[0,0,0,0,0,0,0],'!':[0x04,0x04,0x04,0x04,0x04,0x00,0x04],
+    '.':[0,0,0,0,0,0,0x04],',':[0,0,0,0,0,0x04,0x08],
+    '?':[0x0E,0x11,0x01,0x06,0x04,0x00,0x04],
   };
   if(activeAlarm&&activeAlarm.phase==='main'&&!activeAlarm.dismissed){
     const mainElapsed=(Date.now()-activeAlarm.startMs)/1000;
-    const durationS=activeAlarm.endMs?(activeAlarm.endMs-activeAlarm.startMs)/1000:600; // default 10 min
+    const durationS=activeAlarm.endMs?(activeAlarm.endMs-activeAlarm.startMs)/1000:600;
     if(mainElapsed>durationS){
       activeAlarm.dismissed=true;
       activeAlarm=null;
     } else {
-      // If giant sun was active during pre-alarm, continue showing it during main alarm
       if(activeAlarm.al.prealarm?.giantSun){
-        renderGiantSun(1.0,100); // full brightness at alarm time
+        renderGiantSun(1.0,100);
       }
-      const msg=(activeAlarm.al.message||'').toUpperCase();
-      if(msg){
-        const S=SIZE,charW=6;
-        const pulse=0.6+0.4*Math.sin(mainElapsed*5);
-        // v=0=bottom, v=S-1=top. Text mid-height, rows flipped so it reads correctly.
-        const vBase=Math.round(S*0.35);
-        const SIDE=[2,0,3,1];
-                for(let fi=0;fi<4;fi++){
-          const face=SIDE[fi];
-          const mir=(face===2||face===3);
-          const msgW=msg.length*(charW+2);
-          let startU=Math.round((S-msgW)/2);
-          for(let ci=0;ci<msg.length;ci++){
-            const ch=msg[ci];
-            const glyph=_msgGlyphs[ch]; if(!glyph) continue;
-            // For mirrored faces, reverse character order
-            const charU=mir ? startU+(msg.length-1-ci)*(charW+2) : startU+ci*(charW+2);
-            let u=charU;
-            for(let row=0;row<5;row++){
+      const rawMsg=(activeAlarm.al.message||'Good Morning').toUpperCase().replace(/[^\w\s!.,?]/g,'');
+      const words=rawMsg.trim().split(/\s+/);
+      const line1=[],line2=[];
+      let half=Math.ceil(words.length/2);
+      for(let i=0;i<words.length;i++) (i<half?line1:line2).push(words[i]);
+      const lines=[line1.join(' ')];
+      if(line2.length) lines.push(line2.join(' '));
+
+      const S=SIZE, SIDE=[2,0,3,1];
+      const pulse=0.7+0.3*Math.sin(mainElapsed*4);
+      const charW=6;
+      const lineH=9;
+      const totalH=lines.length*lineH;
+      const vStart=Math.round((S+totalH)/2);
+
+      for(let fi=0;fi<4;fi++){
+        const face=SIDE[fi];
+        const mir=(face===2||face===3);
+        for(let li=0;li<lines.length;li++){
+          const line=lines[li];
+          const lineW=line.length*charW-1;
+          const startU=Math.round((S-lineW)/2);
+          const lineV=vStart-li*lineH;
+          for(let ci=0;ci<line.length;ci++){
+            const glyph=_bigGlyphs[line[ci]]; if(!glyph) continue;
+            const charU=mir?startU+(line.length-1-ci)*charW:startU+ci*charW;
+            for(let row=0;row<7;row++){
               const bits=glyph[row];
-              const pv=vBase+(4-row)*2; // flip vertically: row0→top of char (high v)
-              for(let col=0;col<3;col++){
-                if(!((bits>>(2-col))&1)) continue;
-                // For mirrored faces, flip column within character too
-                const pu=mir ? u+(2-col)*2 : u+col*2;
-                for(let dv=0;dv<2;dv++) for(let du=0;du<2;du++){
-                  const fu=pu+du, fv=pv+dv;
-                  if(fu<0||fu>=S||fv<0||fv>=S) continue;
-                  const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
-                  colBuf[idx*3]=Math.max(colBuf[idx*3],pulse);
-                  colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],pulse*0.7);
-                  colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],0.05);
-                }
+              const pv=lineV-(row+1);
+              if(pv<0||pv>=S) continue;
+              for(let col=0;col<5;col++){
+                if(!((bits>>(4-col))&1)) continue;
+                const pu=mir?charU+(4-col):charU+col;
+                if(pu<0||pu>=S) continue;
+                const idx=faceMap[face][pv*S+pu]; if(idx<0) continue;
+                colBuf[idx*3]=Math.max(colBuf[idx*3],pulse);
+                colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],pulse*0.75);
+                colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],0.05);
               }
             }
           }
