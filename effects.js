@@ -4055,8 +4055,8 @@ function effectWeather(dt){
   }
 
   // Skyline building colour
-  const bldDay=dayFrac>0.25&&dayFrac<0.75;
-  const bldR=bldDay?0.07:0.04, bldG=bldDay?0.08:0.04, bldB=bldDay?0.10:0.06;
+  const bldDay=isDay;
+  const bldR=bldDay?0.12:0.05, bldG=bldDay?0.13:0.05, bldB=bldDay?0.16:0.07;
   const horizV=Math.round(HORIZ*S1);
   const textV=3; // v position for text baseline
   const tempV=10; // temperature higher up
@@ -4727,6 +4727,7 @@ function effectWeather(dt){
             if(!inShape) continue;
             const idx=faceMap[face][v*S+u]; if(idx<0) continue;
             let br=bldR,bg=bldG,bb=bldB;
+            if(sh.t===8){ br=bldDay?0.22:0.10; bg=bldDay?0.20:0.08; bb=bldDay?0.18:0.06; }
             // Depth variation — slightly different shades per building
             const depthVar=0.6+((pi*317+sh.x*131)>>>0)%40*0.01;
             br*=depthVar; bg*=depthVar; bb*=depthVar;
