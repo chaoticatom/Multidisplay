@@ -4281,7 +4281,22 @@ function effectWeather(dt){
         if(wxLightFlash>0){ r=Math.min(1,r+wxLightFlash*0.8); g=Math.min(1,g+wxLightFlash*0.8); b=Math.min(1,b+wxLightFlash*0.8); }
         for(let u=0;u<S;u++){
           const idx=faceMap[face][v*S+u]; if(idx<0) continue;
-          colBuf[idx*3]=r; colBuf[idx*3+1]=g; colBuf[idx*3+2]=b;
+          let pr=r,pg=g,pb=b;
+          // Sun glow — brighten sky near sun position
+          if(isDay&&sunElev>0&&!isOvercast&&!isStorm&&!isRain){
+            const px=panXOfFaceU(face,u);
+            const dx=Math.abs(px-sunPX); const dxw=Math.min(dx,1-dx);
+            const sunV=HORIZ+sunElev*(1-HORIZ);
+            const dy=(vFrac-sunV)*2;
+            const dist=Math.sqrt(dxw*dxw*16+dy*dy);
+            if(dist<0.8){
+              const glow=Math.pow(1-dist/0.8,2)*0.35*sunElev;
+              pr=Math.min(1,pr+glow*1.0);
+              pg=Math.min(1,pg+glow*0.85);
+              pb=Math.min(1,pb+glow*0.4);
+            }
+          }
+          colBuf[idx*3]=pr; colBuf[idx*3+1]=pg; colBuf[idx*3+2]=pb;
         }
         continue; // skip per-u ground handling for sky rows
       }
