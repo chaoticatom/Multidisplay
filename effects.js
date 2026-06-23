@@ -470,7 +470,7 @@ function fwFan(center, pal, count, spread) {
   for (let i = 0; i < n; i++) {
     const off = (i - (n - 1) / 2);
     const d = i * 20;
-    fwSyncRocket(center + off * sp * 0.3, SIZE * (0.65 + Math.random() * 0.15), off * sp * 0.8, hue, (hue + 0.15) % 1, d);
+    fwSyncRocket(center + off * sp * 0.3, SIZE * (0.77 + Math.random() * 0.15), off * sp * 0.8, hue, (hue + 0.15) % 1, d);
   }
 }
 
@@ -481,7 +481,7 @@ function fwVolley(faceIdx, pal, count) {
   const hue = fwHue(pal);
   for (let i = 0; i < n; i++) {
     const sc = base + SIZE * 0.15 + Math.random() * SIZE * 0.7;
-    fwSyncRocket(sc, SIZE * (0.6 + Math.random() * 0.2), (Math.random() - 0.5) * SIZE * 0.1, hue, (hue + 0.2 + Math.random() * 0.1) % 1, i * 30);
+    fwSyncRocket(sc, SIZE * (0.72 + Math.random() * 0.2), (Math.random() - 0.5) * SIZE * 0.1, hue, (hue + 0.2 + Math.random() * 0.1) % 1, i * 30);
   }
 }
 
@@ -493,7 +493,7 @@ function fwCascade(pal, dir) {
   for (let i = 0; i < n; i++) {
     const idx = dir > 0 ? i : (n - 1 - i);
     const sc = (total / n) * idx + SIZE * 0.1 + Math.random() * SIZE * 0.15;
-    fwSyncRocket(sc, SIZE * (0.55 + Math.random() * 0.2), 0, (hue + i * 0.02) % 1, (hue + 0.4) % 1, i * 40);
+    fwSyncRocket(sc, SIZE * (0.67 + Math.random() * 0.2), 0, (hue + i * 0.02) % 1, (hue + 0.4) % 1, i * 40);
   }
 }
 
@@ -504,7 +504,7 @@ function fwSymmetry(pal) {
   const pair = pairs[Math.floor(Math.random() * 2)];
   for (let i = 0; i < 3; i++) {
     const off = SIZE * 0.2 + Math.random() * SIZE * 0.6;
-    const vy = SIZE * (0.6 + Math.random() * 0.3);
+    const vy = SIZE * (0.72 + Math.random() * 0.3);
     const h = (hue + i * 0.06) % 1;
     fwSyncRocket(pair[0] * SIZE + off, vy, 0, h, (h + 0.3) % 1, i * 50);
     fwSyncRocket(pair[1] * SIZE + off, vy, 0, h, (h + 0.3) % 1, i * 50);
@@ -517,7 +517,7 @@ function fwWaterfall(pal) {
   const hue = fwHue(pal);
   for (let i = 0; i < 16; i++) {
     const sc = Math.random() * total;
-    fwSyncRocket(sc, SIZE * (0.35 + Math.random() * 0.15), (Math.random() - 0.5) * SIZE * 0.05, (hue + Math.random() * 0.08) % 1, hue, i * 15);
+    fwSyncRocket(sc, SIZE * (0.47 + Math.random() * 0.15), (Math.random() - 0.5) * SIZE * 0.05, (hue + Math.random() * 0.08) % 1, hue, i * 15);
   }
 }
 
@@ -529,7 +529,7 @@ function fwFinale() {
     const sc = Math.random() * total;
     const pal = i % 2 === 0 ? pal1 : pal2;
     const hue = fwHue(pal);
-    fwSyncRocket(sc, SIZE * (0.45 + Math.random() * 0.3), (Math.random() - 0.5) * SIZE * 0.2, hue, (hue + 0.4) % 1, i * 25 + Math.random() * 15);
+    fwSyncRocket(sc, SIZE * (0.57 + Math.random() * 0.3), (Math.random() - 0.5) * SIZE * 0.2, hue, (hue + 0.4) % 1, i * 25 + Math.random() * 15);
   }
 }
 
@@ -1421,8 +1421,8 @@ function buildSandNeighbours(){
       // Find the LED index at this position using faceMap
       let found=-1;
       if(nz===S1 && found<0) found=faceMap[0][ny*S+nx];
-      if(nz===0  && found<0) found=faceMap[1][ny*S+nx];
-      if(nx===S1 && found<0) found=faceMap[2][ny*S+nz];
+      if(nz===0  && found<0) found=faceMap[1][ny*S+(S1-nx)];
+      if(nx===S1 && found<0) found=faceMap[2][ny*S+(S1-nz)];
       if(nx===0  && found<0) found=faceMap[3][ny*S+nz];
       if(ny===S1 && found<0) found=faceMap[4][nz*S+nx];
       if(ny===0  && found<0) found=faceMap[5][nz*S+nx];
