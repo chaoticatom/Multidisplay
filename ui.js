@@ -685,7 +685,8 @@ function alarmCheck(){
 function alarmFire(al,now){
   const fireMs=now?now.getTime():Date.now();
   // Calculate duration: 10 minutes for pre-alarm sun effect, 1 minute for others
-  const durationMs=(al.prealarm?.enabled&&al.prealarm?.giantSun)?10*60*1000:1*60*1000;
+  const hasPreEffect=al.prealarm?.enabled&&(al.prealarm?.giantSun||al.prealarm?.effectRise);
+  const durationMs=hasPreEffect?10*60*1000:1*60*1000;
   activeAlarm={al,phase:'main',startMs:fireMs,endMs:fireMs+durationMs,dismissed:false};
   if(al.triggerType==='playlist'&&al.playlistName){
     try{
@@ -2751,7 +2752,7 @@ function animate(now){
     const bSlider=document.getElementById('bright-slider');
     if(bSlider) bSlider.value=Math.round(brightness*100);
     // Transition to main alarm exactly when progress reaches 1.0
-    if(progress>=1){ const riseKey=activeAlarm.al.prealarm?.effectRise?activeAlarm.al.prealarm.effectRiseKey:''; activeAlarm.phase='main'; activeAlarm.justTriggered=true; alarmFire(activeAlarm.al,new Date()); if(riseKey) activeAlarm.bgEffect=riseKey; }
+    if(progress>=1){ const riseKey=activeAlarm.al.prealarm?.effectRise?activeAlarm.al.prealarm.effectRiseKey:''; activeAlarm.phase='main'; activeAlarm.justTriggered=true; alarmFire(activeAlarm.al,new Date()); if(riseKey){ activeAlarm.bgEffect=riseKey; brightness=1.0; } }
     else { 
       if(activeAlarm.al.prealarm?.giantSun){
         renderGiantSun(progress,startBright);
