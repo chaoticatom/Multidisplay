@@ -817,79 +817,48 @@ function renderGiantSun(progress,startBrightPct){
     }
   }
 
-  // ── Sun: solid with shimmer ──
-  if(progress>0.12){  // sun visible through to alarm time
-    const sunP=(progress-0.12)/0.88;
-    const sunRad=Math.round(S*1.0); // full face width
+  // ── Sun: double-size, bright, with warm glow halo ──
+  if(progress>0.08){
+    const sunP=(progress-0.08)/0.92;
+    const sunRad=Math.round(S*2.0);
     const sunCX=Math.round(S/2);
-    const sunCY=Math.round(-sunRad+sunP*(S*0.75+sunRad)); // rises higher
-    const tt=Date.now()*0.001; // for shimmer
+    const sunCY=Math.round(-sunRad+sunP*(S*0.85+sunRad));
+    const tt=Date.now()*0.001;
+    const glowRad=Math.round(sunRad*1.5);
 
     for(let fi=0;fi<4;fi++){
       const face=SIDE[fi];
-      for(let dv=-sunRad;dv<=sunRad;dv++) for(let du=-sunRad;du<=sunRad;du++){
-        const dist=Math.sqrt(du*du+dv*dv)/sunRad;
-        if(dist>1) continue;
+      for(let dv=-glowRad;dv<=glowRad;dv++) for(let du=-glowRad;du<=glowRad;du++){
+        const rawDist=Math.sqrt(du*du+dv*dv);
         const v=sunCY+dv, u=sunCX+du;
         if(v<0||v>=S||u<0||u>=S) continue;
         const idx=faceMap[face][v*S+u]; if(idx<0) continue;
-        const edge=1-dist;
-        let cr,cg,cb;
-        if(edge>0.55){
-          cr=1; cg=0.95; cb=0.3;
-        } else if(edge>0.25){
-          const t=(edge-0.25)/0.30;
-          cr=1; cg=0.6+t*0.35; cb=t*0.1;
-        } else {
-          const t=edge/0.25;
-          cr=0.6+t*0.4; cg=0.2+t*0.4; cb=0;
-        }
-        // Shimmer: add subtle pulsing brightness
-        const shimmer=0.5+0.5*Math.sin(tt*3+du*0.08+dv*0.08);
-        const br=Math.min(1, 0.99*(0.08+edge*0.92)*(0.95+shimmer*0.05)); // more opaque, less shimmer // 8% shimmer variation
-        colBuf[idx*3]=Math.max(colBuf[idx*3],Math.min(1,cr*br));
-        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],Math.min(1,cg*br));
-        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],Math.min(1,cb*br));
-      }
-    }
+        const dist=rawDist/sunRad;
 
-    // ── Glow rays: start from core edge, more visible ──
-    if(false){ // rays disabled
-      const glowP=(sunP-0.65)/0.35;
-      const tt=Date.now()*0.001;
-      const numRays=28;
-      for(let fi=0;fi<4;fi++){
-        const face=SIDE[fi];
-        for(let ri=0;ri<numRays;ri++){
-          const baseAngle=(ri/numRays)*Math.PI*2;
-          const f1=Math.sin(tt*2.5+ri*2.3)*0.5+0.5;
-          const f2=Math.sin(tt*4.1+ri*1.5)*0.35+0.65;
-          const angle=baseAngle+Math.sin(tt*0.5+ri*0.8)*0.1;
-          const rayLen=Math.round(sunRad*(0.75+0.8*f1*f2)*glowP);
-          if(rayLen<2) continue;
-          
-          // Rays start from sun edge, blend seamlessly with sun body
-          const rayStartRad=Math.round(sunRad*0.55);
-          for(let d=rayStartRad;d<=rayStartRad+rayLen;d++){
-            const outerD=d-rayStartRad;
-            // Very subtle rays — blend smoothly with sun
-            const intensity=(1-outerD/rayLen)*glowP*f1*f2*2.5;
-            if(intensity<0.015) continue;
-            const rv=Math.round(sunCY+Math.sin(angle)*d);
-            const ru=Math.round(sunCX+Math.cos(angle)*d);
-            const rayW=Math.max(1,Math.round(3.5*(1-outerD/rayLen)));
-            for(let w=-rayW;w<=rayW;w++){
-              const wu=Math.round(ru+Math.cos(angle+Math.PI/2)*w);
-              const wv=Math.round(rv+Math.sin(angle+Math.PI/2)*w);
-              if(wu<0||wu>=S||wv<0||wv>=S) continue;
-              const idx=faceMap[face][wv*S+wu]; if(idx<0) continue;
-              const wr=Math.max(0,1-Math.abs(w)/rayW);
-              const g=intensity*wr;
-              colBuf[idx*3]=Math.min(1,colBuf[idx*3]+g*1.0);
-              colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+g*0.50);
-              colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+g*0.02);
-            }
+        if(dist<=1){
+          const edge=1-dist;
+          let cr,cg,cb;
+          if(edge>0.5){
+            cr=1; cg=0.97; cb=0.45;
+          } else if(edge>0.2){
+            const t2=(edge-0.2)/0.30;
+            cr=1; cg=0.65+t2*0.32; cb=t2*0.15;
+          } else {
+            const t2=edge/0.2;
+            cr=0.7+t2*0.3; cg=0.25+t2*0.4; cb=0;
           }
+          const shimmer=0.5+0.5*Math.sin(tt*3+du*0.06+dv*0.06);
+          const br=Math.min(1,(0.15+edge*0.85)*(0.96+shimmer*0.04));
+          colBuf[idx*3]=Math.max(colBuf[idx*3],cr*br);
+          colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],cg*br);
+          colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],cb*br);
+        } else if(dist<=1.5){
+          const glow=Math.pow(1-(dist-1)/0.5,2)*0.6;
+          const shimmer=0.5+0.5*Math.sin(tt*2+du*0.1+dv*0.1);
+          const g=glow*(0.9+shimmer*0.1);
+          colBuf[idx*3]=Math.min(1,colBuf[idx*3]+g*1.0);
+          colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+g*0.55);
+          colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+g*0.05);
         }
       }
     }
