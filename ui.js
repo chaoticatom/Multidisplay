@@ -628,7 +628,7 @@ function renderCountdown(timeStr){
           const srcCol=mir?2-col:col;
           for(let dy=0;dy<scale;dy++) for(let dx=0;dx<scale;dx++){
             const pu=baseU+srcCol*scale+dx;
-            const pv=(4-row)*scale+dy;
+            const pv=(4-row)*scale+dy+1;
             if(pu<0||pu>=S||pv<0||pv>=S) continue;
             const idx=faceMap[face][pv*S+pu]; if(idx<0) continue;
             colBuf[idx*3]=1.0;
@@ -2734,6 +2734,9 @@ function animate(now){
   } else if(clearPending){
     for(let i=0;i<N*3;i++) colBuf[i]=0;
     clearPending=false;
+  } else if(alarmMainActive&&activeAlarm.bgEffect&&EFFECTS[activeAlarm.bgEffect]){
+    for(let i=0;i<N*3;i++) colBuf[i]=0;
+    EFFECTS[activeAlarm.bgEffect](dt*speedMult);
   }
   runOverlays(dt);
   if(plTransActive) plApplyTransition();
@@ -2748,7 +2751,7 @@ function animate(now){
     const bSlider=document.getElementById('bright-slider');
     if(bSlider) bSlider.value=Math.round(brightness*100);
     // Transition to main alarm exactly when progress reaches 1.0
-    if(progress>=1){ activeAlarm.phase='main'; activeAlarm.justTriggered=true; alarmFire(activeAlarm.al,new Date()); }
+    if(progress>=1){ const riseKey=activeAlarm.al.prealarm?.effectRise?activeAlarm.al.prealarm.effectRiseKey:''; activeAlarm.phase='main'; activeAlarm.justTriggered=true; alarmFire(activeAlarm.al,new Date()); if(riseKey) activeAlarm.bgEffect=riseKey; }
     else { 
       if(activeAlarm.al.prealarm?.giantSun){
         renderGiantSun(progress,startBright);
@@ -2778,7 +2781,7 @@ function animate(now){
       const remaining=Math.max(0,Math.ceil((activeAlarm.preMs-elapsed)/1000));
       const mm=String(Math.floor(remaining/60)).padStart(2,'0');
       const ss=String(remaining%60).padStart(2,'0');
-      renderCountdown(mm+':'+ss);
+      if(remaining>0) renderCountdown(mm+':'+ss);
     }
   }
 
