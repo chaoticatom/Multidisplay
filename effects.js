@@ -10046,6 +10046,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
       ];
       p.score=0; p.powerT=0; p.pmouth=0; p.decT=0; p.lives=3;
       p.visited=[]; // anti-loop: recently visited cells
+      p.gameOverT=0; // >0 = showing GAME OVER
     }
     const mz=p.maze, cs=4;
     const mzAt=(r,c)=>{ if(r<0||r>=16) return 1; c=((c%16)+16)%16; return mz[r*16+c]; };
@@ -10077,8 +10078,12 @@ function retroDrawFace(faceIdx,dt,buf,S){
         if(c<15&&mz[r*16+c+1]===0) for(let y=r*cs;y<r*cs+cs;y++) setP(c*cs+cs-1,y,0.1,0.1,0.85);
       }
     }
-    // Draw ghost pen gate (pink line at top of pen)
-    hLine(7*cs,8*cs+cs-1,6*cs+cs-1,0.9,0.5,0.7);
+    // Draw ghost pen border (blue outline around pen area rows 7-8, cols 6-9)
+    const penL=6*cs, penR=10*cs-1, penT=7*cs, penB=9*cs-1;
+    for(let x=penL;x<=penR;x++){ setP(x,penT,0.1,0.2,0.85); setP(x,penB,0.1,0.2,0.85); }
+    for(let y=penT;y<=penB;y++){ setP(penL,y,0.1,0.2,0.85); setP(penR,y,0.1,0.2,0.85); }
+    // Gate (pink) at top center of pen
+    hLine(7*cs,8*cs+cs-1,penT,0.9,0.5,0.7);
     // Draw dots
     for(const d of p.dots){
       if(d.eaten) continue;
@@ -10095,6 +10100,28 @@ function retroDrawFace(faceIdx,dt,buf,S){
       const nr=r+dirs[d][1], nc=((c+dirs[d][0])%16+16)%16;
       return mzAt(nr,nc)===0;
     };
+    // GAME OVER state
+    if(p.gameOverT>0){
+      p.gameOverT-=dt;
+      if(p.gameOverT<=0){
+        // Restart game
+        p.score=0; p.lives=3; p.powerT=0; p.visited=[];
+        p.px=1.5; p.py=1.5; p.pdir=0;
+        for(const d of p.dots) d.eaten=false;
+        for(let i=0;i<4;i++){
+          p.ghosts[i].x=7.5+(i%2); p.ghosts[i].y=7.5+Math.floor(i/2);
+          p.ghosts[i].inPen=true; p.ghosts[i].releaseT=p.t+1+i*3; p.ghosts[i].cd=0;
+        }
+      } else {
+        // Flash GAME OVER text
+        if(Math.floor(p.gameOverT*3)%2){
+          const goText='GAMEOVER';
+          const gtx=Math.floor((S-goText.length*6)/2), gty=Math.floor(S/2)-3;
+          drawText(goText,gtx,gty,1,0.95,0.15,0.15);
+        }
+      }
+    }
+    if(p.gameOverT<=0){
     // Anti-loop: track visited cells
     p.decT+=dt;
     if(p.decT>0.12&&atCenter(p.px,p.py)){
@@ -10131,7 +10158,6 @@ function retroDrawFace(faceIdx,dt,buf,S){
           let score=-nearDot;
           if(ghostCells.has(nr*16+nc)) score-=50;
           if(d===(p.pdir+2)%4) score-=3;
-          // Anti-loop: penalize recently visited cells
           const visitCount=p.visited.filter(v=>v===nr*16+nc).length;
           score-=visitCount*8;
           if(p.powerT<=0&&ghostCells.size>0){
@@ -10169,21 +10195,16 @@ function retroDrawFace(faceIdx,dt,buf,S){
       p.score+=100;
     }
     if(p.powerT>0) p.powerT-=dt;
-    // Ghost AI: pen release + chase
+    // Ghost AI: pen release then ALL chase pac-man (flee when power active)
     for(let gi=0;gi<p.ghosts.length;gi++){
       const g=p.ghosts[gi];
       g.cd+=dt;
-      // Ghost in pen: wait for release time, then move up and out
       if(g.inPen){
         if(p.t>=g.releaseT){
-          // Move toward pen exit (row 6, col 7.5)
           const exitX=7.5, exitY=6.5;
           if(Math.abs(g.y-exitY)<0.3&&Math.abs(g.x-exitX)<0.5){
-            g.inPen=false;
-            g.y=exitY; g.x=exitX;
-            g.dir=3; // start moving up
+            g.inPen=false; g.y=exitY; g.x=exitX; g.dir=3;
           } else {
-            // Move toward exit
             if(Math.abs(g.x-exitX)>0.2) g.x+=(exitX>g.x?1:-1)*gSpeed*dt;
             else g.y+=(exitY>g.y?1:-1)*gSpeed*dt;
           }
@@ -10203,6 +10224,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
         }
         if(opts.length>0){
           if(p.powerT>0){
+            // FLEE from pac-man
             let bestD=opts[0], bestDist=-1;
             for(const d of opts){
               const dist=Math.abs(gc+dirs[d][0]-p.px)+Math.abs(gr+dirs[d][1]-p.py);
@@ -10210,14 +10232,11 @@ function retroDrawFace(faceIdx,dt,buf,S){
             }
             g.dir=bestD;
           } else {
-            let tx=p.px, ty=p.py;
-            if(gi===1){ tx=p.px+dirs[p.pdir][0]*4; ty=p.py+dirs[p.pdir][1]*4; }
-            else if(gi===2){ tx=p.px+(p.px-g.x); ty=p.py+(p.py-g.y); }
-            else if(gi===3&&Math.abs(gc-p.px)+Math.abs(gr-p.py)<8){ tx=1; ty=14; }
-            if(Math.random()<0.85){
+            // ALL ghosts chase pac-man directly
+            if(Math.random()<0.9){
               let bestD=opts[0], bestDist=9999;
               for(const d of opts){
-                const dist=Math.abs(gc+dirs[d][0]-tx)+Math.abs(gr+dirs[d][1]-ty);
+                const dist=Math.abs(gc+dirs[d][0]-p.px)+Math.abs(gr+dirs[d][1]-p.py);
                 if(dist<bestDist){ bestDist=dist; bestD=d; }
               }
               g.dir=bestD;
@@ -10240,16 +10259,22 @@ function retroDrawFace(faceIdx,dt,buf,S){
         if(p.powerT>0){
           g.x=7.5; g.y=7.5; g.cd=0; g.inPen=true; g.releaseT=p.t+3; p.score+=200;
         } else {
-          p.px=1.5; p.py=1.5; p.pdir=0;
+          p.lives--;
+          if(p.lives<=0){
+            p.gameOverT=3; // 3 seconds of GAME OVER
+          }
+          p.px=1.5; p.py=1.5; p.pdir=0; p.visited=[];
           for(let i=0;i<4;i++){
             p.ghosts[i].x=7.5+(i%2); p.ghosts[i].y=7.5+Math.floor(i/2);
-            p.ghosts[i].inPen=true; p.ghosts[i].releaseT=p.t+2+i*3;
+            p.ghosts[i].inPen=true; p.ghosts[i].releaseT=p.t+2+i*3; p.ghosts[i].cd=0;
           }
           break;
         }
       }
     }
+    } // end gameOverT<=0 guard
     // Draw Pac-Man
+    if(p.gameOverT<=0){
     p.pmouth+=dt*12;
     const mouthAng=Math.abs(Math.sin(p.pmouth))*0.8;
     const ppx=Math.round(p.px*cs), ppy=Math.round(p.py*cs);
@@ -10260,6 +10285,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
       let da=Math.abs(ang-faceAng); if(da>Math.PI) da=2*Math.PI-da;
       if(da<mouthAng) continue;
       setP(ppx+dx,ppy+dy,YEL[0],YEL[1],YEL[2]);
+    }
     }
     // Draw ghosts
     for(const g of p.ghosts){
@@ -10276,12 +10302,20 @@ function retroDrawFace(faceIdx,dt,buf,S){
         setP(gx+1+dirs[g.dir][0],gy-1+dirs[g.dir][1],0.1,0.1,0.5);
       }
     }
-    // Score
+    // Score top-left
     const sc2=(''+p.score).padStart(4,'0');
     const digitPat={'0':[7,5,5,5,7],'1':[2,2,2,2,2],'2':[7,1,7,4,7],'3':[7,1,7,1,7],'4':[5,5,7,1,1],'5':[7,4,7,1,7],'6':[7,4,7,5,7],'7':[7,1,1,1,1],'8':[7,5,7,5,7],'9':[7,5,7,1,7]};
     for(let ci=0;ci<4;ci++){
       const rows=digitPat[sc2[ci]]; if(!rows) continue;
       for(let r=0;r<5;r++) for(let c=0;c<3;c++) if((rows[r]>>(2-c))&1) setP(2+ci*4+c,1+r,1,1,1);
+    }
+    // Lives display top-right (small pac-man icons)
+    for(let li=0;li<p.lives;li++){
+      const lx=S-4-li*5, ly=3;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+        if(dx===1&&dy===0) continue;
+        setP(lx+dx,ly+dy,YEL[0],YEL[1],YEL[2]);
+      }
     }
     // Rotate 180 degrees
     for(let i=0;i<Math.floor(S*S/2);i++){
