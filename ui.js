@@ -1463,7 +1463,8 @@ document.getElementById('clear-all-btn')?.addEventListener('click',()=>{
     const chk=item?.querySelector('.ov-chk');
     if(chk) chk.checked=false;
   });
-  // Clear display
+  // Clear display — turn off effects so buffer stays blank
+  effectsOn=false;
   clearPending=true;
   for(let i=0;i<colBuf.length;i++) colBuf[i]=0;
 });
