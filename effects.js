@@ -10009,44 +10009,47 @@ function retroDrawFace(faceIdx,dt,buf,S){
     const GC=[[0.85,0,0],[1,0.6,0.7],[0,0.85,0.85],[1,0.5,0]];
     if(!p.mazeInit){
       p.mazeInit=true;
+      // Ghost pen: rows 7-8, cols 6-9 are open; row 6 col 7-8 is gate (open for ghosts to exit)
       p.maze=[
         1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
         1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-        1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,
+        1,0,1,1,0,1,0,1,1,0,1,0,1,1,0,1,
         1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-        1,0,1,0,1,0,1,1,1,0,1,0,1,0,1,1,
-        1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,
-        1,1,1,0,1,1,0,0,0,1,1,0,1,0,1,1,
-        0,0,0,0,0,1,0,1,1,0,1,0,0,0,0,0,
+        1,0,1,0,1,0,1,0,0,1,0,1,0,1,0,1,
+        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+        1,1,1,0,1,1,0,0,0,0,1,1,0,1,1,1,
+        0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,
         1,1,1,0,0,1,0,0,0,0,1,0,0,1,1,1,
-        1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,
-        1,0,1,1,0,1,0,0,0,0,1,0,1,1,0,1,
-        1,0,0,1,0,0,0,1,1,0,0,0,1,0,0,1,
-        1,1,0,0,0,1,0,0,0,0,1,0,0,0,1,1,
-        1,0,0,1,0,0,0,1,1,0,0,0,1,0,0,1,
         1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+        1,0,1,1,0,1,0,1,1,0,1,0,1,1,0,1,
+        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+        1,1,0,1,0,1,0,1,1,0,1,0,1,0,1,1,
+        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+        1,0,1,0,0,1,0,1,1,0,1,0,0,1,0,1,
         1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
       ];
       p.dots=[];
       for(let r=0;r<16;r++) for(let c=0;c<16;c++){
         if(p.maze[r*16+c]===0){
+          if(r>=7&&r<=8&&c>=6&&c<=9) continue; // no dots in ghost pen
           const isPower=(r===1&&c===1)||(r===1&&c===14)||(r===14&&c===1)||(r===14&&c===14);
           p.dots.push({r,c,eaten:false,power:isPower});
         }
       }
-      p.px=1.5; p.py=1.5; p.pdir=0; p.prevDir=-1;
+      p.px=1.5; p.py=1.5; p.pdir=0;
+      // Ghosts start in pen, released one at a time
       p.ghosts=[
-        {x:7.5,y:7.5,dir:0,col:0,cd:0,prevDir:-1},
-        {x:8.5,y:7.5,dir:2,col:1,cd:0,prevDir:-1},
-        {x:7.5,y:8.5,dir:3,col:2,cd:0,prevDir:-1},
-        {x:8.5,y:8.5,dir:1,col:3,cd:0,prevDir:-1},
+        {x:7.5,y:7.5,dir:3,col:0,cd:0,inPen:true,releaseT:1},
+        {x:8.5,y:7.5,dir:3,col:1,cd:0,inPen:true,releaseT:4},
+        {x:7.5,y:8.5,dir:3,col:2,cd:0,inPen:true,releaseT:7},
+        {x:8.5,y:8.5,dir:3,col:3,cd:0,inPen:true,releaseT:10},
       ];
       p.score=0; p.powerT=0; p.pmouth=0; p.decT=0; p.lives=3;
+      p.visited=[]; // anti-loop: recently visited cells
     }
     const mz=p.maze, cs=4;
     const mzAt=(r,c)=>{ if(r<0||r>=16) return 1; c=((c%16)+16)%16; return mz[r*16+c]; };
     const dirs=[[1,0],[0,1],[-1,0],[0,-1]];
-    // BFS shortest path distance from (sr,sc) to all open cells
     const bfs=(sr,sc)=>{
       const dist=new Int16Array(256).fill(-1);
       dist[sr*16+sc]=0;
@@ -10074,6 +10077,8 @@ function retroDrawFace(faceIdx,dt,buf,S){
         if(c<15&&mz[r*16+c+1]===0) for(let y=r*cs;y<r*cs+cs;y++) setP(c*cs+cs-1,y,0.1,0.1,0.85);
       }
     }
+    // Draw ghost pen gate (pink line at top of pen)
+    hLine(7*cs,8*cs+cs-1,6*cs+cs-1,0.9,0.5,0.7);
     // Draw dots
     for(const d of p.dots){
       if(d.eaten) continue;
@@ -10084,23 +10089,23 @@ function retroDrawFace(faceIdx,dt,buf,S){
         setP(dx,dy,1,0.85,0.6);
       }
     }
-    // Movement helpers
     const pmSpeed=7, gSpeed=5.5;
     const atCenter=(x,y)=>{const fx=x-Math.floor(x)-0.5,fy=y-Math.floor(y)-0.5;return Math.abs(fx)<0.2&&Math.abs(fy)<0.2;};
     const canMove=(r,c,d)=>{
       const nr=r+dirs[d][1], nc=((c+dirs[d][0])%16+16)%16;
       return mzAt(nr,nc)===0;
     };
-    // Pac-Man AI: BFS to nearest dot, avoid ghosts
+    // Anti-loop: track visited cells
     p.decT+=dt;
     if(p.decT>0.12&&atCenter(p.px,p.py)){
       p.decT=0;
       const cr=Math.floor(p.py), cc=Math.floor(p.px);
-      const pDist=bfs(cr,cc);
+      p.visited.push(cr*16+cc);
+      if(p.visited.length>20) p.visited.shift();
       // Ghost danger map
       const ghostCells=new Set();
       for(const g of p.ghosts){
-        if(p.powerT>0) continue;
+        if(p.powerT>0||g.inPen) continue;
         const gr=Math.floor(g.y), gc=Math.floor(g.x);
         for(let dr=-2;dr<=2;dr++) for(let dc=-2;dc<=2;dc++){
           const rr=gr+dr, rc=((gc+dc)%16+16)%16;
@@ -10117,7 +10122,6 @@ function retroDrawFace(faceIdx,dt,buf,S){
         for(const d of options){
           const nr=cr+dirs[d][1], nc=((cc+dirs[d][0])%16+16)%16;
           const stepDist=bfs(nr,nc);
-          // Find nearest uneaten dot from this direction
           let nearDot=999;
           for(const dot of p.dots){
             if(dot.eaten) continue;
@@ -10125,11 +10129,11 @@ function retroDrawFace(faceIdx,dt,buf,S){
             if(dd>=0&&dd<nearDot) nearDot=dd;
           }
           let score=-nearDot;
-          // Penalty for going near ghosts
           if(ghostCells.has(nr*16+nc)) score-=50;
-          // Penalty for reversing
-          if(d===(p.pdir+2)%4) score-=2;
-          // Bonus for power pellet when ghosts nearby
+          if(d===(p.pdir+2)%4) score-=3;
+          // Anti-loop: penalize recently visited cells
+          const visitCount=p.visited.filter(v=>v===nr*16+nc).length;
+          score-=visitCount*8;
           if(p.powerT<=0&&ghostCells.size>0){
             for(const dot of p.dots){
               if(!dot.eaten&&dot.power){
@@ -10165,12 +10169,29 @@ function retroDrawFace(faceIdx,dt,buf,S){
       p.score+=100;
     }
     if(p.powerT>0) p.powerT-=dt;
-    // Ghost AI: each ghost targets differently
+    // Ghost AI: pen release + chase
     for(let gi=0;gi<p.ghosts.length;gi++){
       const g=p.ghosts[gi];
       g.cd+=dt;
+      // Ghost in pen: wait for release time, then move up and out
+      if(g.inPen){
+        if(p.t>=g.releaseT){
+          // Move toward pen exit (row 6, col 7.5)
+          const exitX=7.5, exitY=6.5;
+          if(Math.abs(g.y-exitY)<0.3&&Math.abs(g.x-exitX)<0.5){
+            g.inPen=false;
+            g.y=exitY; g.x=exitX;
+            g.dir=3; // start moving up
+          } else {
+            // Move toward exit
+            if(Math.abs(g.x-exitX)>0.2) g.x+=(exitX>g.x?1:-1)*gSpeed*dt;
+            else g.y+=(exitY>g.y?1:-1)*gSpeed*dt;
+          }
+        }
+        continue;
+      }
       const gr=Math.floor(g.y), gc=Math.floor(g.x);
-      if(g.cd>0.25&&atCenter(g.x,g.y)){
+      if(g.cd>0.2&&atCenter(g.x,g.y)){
         g.cd=0;
         const opts=[];
         for(let d=0;d<4;d++){
@@ -10189,11 +10210,10 @@ function retroDrawFace(faceIdx,dt,buf,S){
             }
             g.dir=bestD;
           } else {
-            // Different ghost strategies
             let tx=p.px, ty=p.py;
-            if(gi===1){ tx=p.px+dirs[p.pdir][0]*4; ty=p.py+dirs[p.pdir][1]*4; } // pink: ahead of pac-man
-            else if(gi===2){ tx=p.px+(p.px-g.x); ty=p.py+(p.py-g.y); } // cyan: opposite side
-            else if(gi===3&&Math.abs(gc-p.px)+Math.abs(gr-p.py)<8){ tx=1; ty=14; } // orange: scatter when close
+            if(gi===1){ tx=p.px+dirs[p.pdir][0]*4; ty=p.py+dirs[p.pdir][1]*4; }
+            else if(gi===2){ tx=p.px+(p.px-g.x); ty=p.py+(p.py-g.y); }
+            else if(gi===3&&Math.abs(gc-p.px)+Math.abs(gr-p.py)<8){ tx=1; ty=14; }
             if(Math.random()<0.85){
               let bestD=opts[0], bestDist=9999;
               for(const d of opts){
@@ -10215,15 +10235,16 @@ function retroDrawFace(faceIdx,dt,buf,S){
     }
     // Ghost-pacman collision
     for(const g of p.ghosts){
+      if(g.inPen) continue;
       if(Math.abs(g.x-p.px)<0.7&&Math.abs(g.y-p.py)<0.7){
         if(p.powerT>0){
-          g.x=7.5; g.y=7.5; g.cd=0; p.score+=200;
+          g.x=7.5; g.y=7.5; g.cd=0; g.inPen=true; g.releaseT=p.t+3; p.score+=200;
         } else {
           p.px=1.5; p.py=1.5; p.pdir=0;
-          p.ghosts[0].x=7.5; p.ghosts[0].y=7.5;
-          p.ghosts[1].x=8.5; p.ghosts[1].y=7.5;
-          p.ghosts[2].x=7.5; p.ghosts[2].y=8.5;
-          p.ghosts[3].x=8.5; p.ghosts[3].y=8.5;
+          for(let i=0;i<4;i++){
+            p.ghosts[i].x=7.5+(i%2); p.ghosts[i].y=7.5+Math.floor(i/2);
+            p.ghosts[i].inPen=true; p.ghosts[i].releaseT=p.t+2+i*3;
+          }
           break;
         }
       }
@@ -10243,13 +10264,13 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Draw ghosts
     for(const g of p.ghosts){
       const gx=Math.round(g.x*cs), gy=Math.round(g.y*cs);
-      const gc2=p.powerT>0?(p.powerT<2&&Math.floor(p.t*6)%2?WHT:BLU):GC[g.col];
+      const gc2=p.powerT>0&&!g.inPen?(p.powerT<2&&Math.floor(p.t*6)%2?WHT:BLU):GC[g.col];
       for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
         if(dy<0&&dx*dx+dy*dy>5) continue;
         if(dy===2&&Math.abs(dx)===1) continue;
         setP(gx+dx,gy+dy,gc2[0],gc2[1],gc2[2]);
       }
-      if(p.powerT<=0||(p.powerT<2&&Math.floor(p.t*6)%2)){
+      if(!g.inPen&&(p.powerT<=0||(p.powerT<2&&Math.floor(p.t*6)%2))){
         setP(gx-1,gy-1,1,1,1); setP(gx+1,gy-1,1,1,1);
         setP(gx-1+dirs[g.dir][0],gy-1+dirs[g.dir][1],0.1,0.1,0.5);
         setP(gx+1+dirs[g.dir][0],gy-1+dirs[g.dir][1],0.1,0.1,0.5);
