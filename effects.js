@@ -1325,11 +1325,13 @@ function effectBouncingBalls(dt){
   const FV=[[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,0,1],[0,0,1]];
 
   for(const b of balls){
-    // Apply gravity nudge from cube rotation
-    if(rotChange>0.005){
-      const fu=FU[b.face], fv=FV[b.face];
-      const gu=gx*fu[0]+gy*fu[1]+gz*fu[2];
-      const gv=gx*fv[0]+gy*fv[1]+gz*fv[2];
+    const fu=FU[b.face], fv=FV[b.face];
+    const gu=gx*fu[0]+gy*fu[1]+gz*fu[2];
+    const gv=gx*fv[0]+gy*fv[1]+gz*fv[2];
+    if(gyroEnabled){
+      b.du+=gu*S*3*dt;
+      b.dv+=gv*S*3*dt;
+    } else if(rotChange>0.005){
       const nudge=S*8*rotChange;
       b.du+=gu*nudge;
       b.dv+=gv*nudge;
