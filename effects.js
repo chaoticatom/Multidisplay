@@ -6997,7 +6997,7 @@ function effectSimHouse(dt){
 // ═══════════════════════════════════════════════════
 let retroT=0, retroGames=[], retroInit=false, retroFaceBuf=null;
 let retroSelectedGame=-1, retroRotateInterval=8; // -1 = auto rotate
-let retroAutoGames=[0,1,2,3,4,5,6,7,8,10,11,12]; // Sam Fox (9) excluded by default
+let retroAutoGames=[0,1,2,3,4,5,6,7,8,10,11,12,13]; // Sam Fox (9) excluded by default
 let retroLastGameIdx=-1, retroSplashT=0;
 let dcSplashData=null;
 let jpSplashData=null;
@@ -7037,6 +7037,7 @@ function initRetro(){
     {name:'tamagotchi',t:0},
     {name:'aticatac',t:0,playerX:32,playerY:32,dir:0,room:0,roomT:0,enemies:[],keys:0,score:0,health:100,doorT:0,attacking:false,attackT:0,items:[]},
     {name:'donkeykong',t:0,marioX:10,marioY:8,marioVY:0,jumping:false,dir:1,barrels:[],barrelT:0,score:0,level:0,hammer:false,hammerT:0,lives:3},
+    {name:'pacman',t:0,px:31,py:15,pdir:0,pmouth:0,dots:[],ghosts:[],score:0,powerT:0,eatT:0,dirQ:0,mazeInit:false},
   ];
   // Manic Miner platforms
   const g=retroGames[1];
@@ -7274,6 +7275,42 @@ function retroDrawTitle(buf,S,name){
     for(let i=0;i<S*S*3;i++) buf[i]=sfSplashData[i];
     return;
   }
+  if(name==='pacman'){
+    for(let y=0;y<S;y++) for(let x=0;x<S;x++){
+      const r=0.9,g=0.55,b=0.1;
+      setP(x,y,r,g,b);
+    }
+    // Red border with rounded corners
+    for(let x=2;x<S-2;x++){ fillRect(x,1,x,2,0.85,0.05,0.05); fillRect(x,S-3,x,S-2,0.85,0.05,0.05); }
+    for(let y=2;y<S-2;y++){ fillRect(1,y,2,y,0.85,0.05,0.05); fillRect(S-3,y,S-2,y,0.85,0.05,0.05); }
+    // PAC-MAN text in yellow with dark blue shadow
+    const pmText='PAC-MAN';
+    const sc=1, tx=Math.floor((S-pmText.length*6*sc)/2), ty=Math.floor(S/2)-3;
+    // Shadow
+    for(let ci=0;ci<pmText.length;ci++){
+      const glyph=font[pmText[ci]]; if(!glyph) continue;
+      for(let row=0;row<7;row++){
+        const bits=glyph[row];
+        for(let col=0;col<5;col++){
+          if(bits&(0x10>>col)) setP(tx+ci*6*sc+col*sc+1,ty+row*sc+1,0.2,0.1,0.4);
+        }
+      }
+    }
+    // Main text
+    drawText(pmText,tx,ty,sc,0.95,0.85,0);
+    // Pac-Man character below text (yellow circle with mouth)
+    const pcx=Math.floor(S/2), pcy=ty+14, pr=5;
+    for(let dy=-pr;dy<=pr;dy++) for(let dx=-pr;dx<=pr;dx++){
+      if(dx*dx+dy*dy<=pr*pr){
+        if(dy>=-1&&dy<=1&&dx>1) continue; // mouth opening
+        setP(pcx+dx,pcy+dy,0.95,0.85,0);
+      }
+    }
+    setP(pcx-1,pcy-2,0,0,0); // eye
+    // Dots leading to pac-man
+    for(let x=pcx+pr+3;x<S-6;x+=3) setP(x,pcy,1,1,1);
+    return;
+  }
   if(false&&name==='jsw__old'){
     // Black background
     for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,0,0,0);
@@ -7380,6 +7417,7 @@ function retroDrawTitle(buf,S,name){
     tamagotchi:{col:[1,0.85,0.15],bg:[0.1,0.4,0.7]},
     aticatac:{col:[0,0.85,0.85],bg:[0,0,0]},
     donkeykong:{col:[0,0.85,1],bg:[0,0,0]},
+    pacman:{col:[0.95,0.85,0],bg:[0,0,0]},
   };
   const t=titles[name]||{col:[1,1,1],bg:[0,0,0]};
   for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,t.bg[0],t.bg[1],t.bg[2]);
@@ -7391,7 +7429,7 @@ function retroDrawTitle(buf,S,name){
   }
   // Full game names
   const labels={jetpac:'JET PAC',manic:'MANIC MINER',outrun:'OUTRUN',invaders:'SPACE INVADERS',
-    jsw:'JET SET WILLY',rtype:'R-TYPE',wolf3d:'WOLFENSTEIN 3D',quake2:'QUAKE 2',samfox:'SAM FOX SP',tamagotchi:'TAMAGOTCHI',aticatac:'ATIC ATAC',donkeykong:'DONKEY KONG'};
+    jsw:'JET SET WILLY',rtype:'R-TYPE',wolf3d:'WOLFENSTEIN 3D',quake2:'QUAKE 2',samfox:'SAM FOX SP',tamagotchi:'TAMAGOTCHI',aticatac:'ATIC ATAC',donkeykong:'DONKEY KONG',pacman:'PAC-MAN'};
   const label=labels[name]||name.toUpperCase();
   // Auto-scale to fit: max usable width is S-8 (4px border each side)
   const maxW=S-8;
@@ -9982,6 +10020,208 @@ function retroDrawFace(faceIdx,dt,buf,S){
     for(let ci=0;ci<4;ci++){
       const rows=digitPat[bonusStr[ci]]; if(!rows) continue;
       for(let r=0;r<5;r++) for(let c=0;c<3;c++) if((rows[r]>>(2-c))&1) setP(49+ci*4+c,61+Math.floor(r*0.6),CYN[0],CYN[1],CYN[2]);
+    }
+    // Mirror horizontally
+    for(let y=0;y<S;y++) for(let x=0;x<Math.floor(S/2);x++){
+      const x2=S-1-x, i1=(y*S+x)*3, i2=(y*S+x2)*3;
+      const tr=buf[i1],tg=buf[i1+1],tb=buf[i1+2];
+      buf[i1]=buf[i2]; buf[i1+1]=buf[i2+1]; buf[i1+2]=buf[i2+2];
+      buf[i2]=tr; buf[i2+1]=tg; buf[i2+2]=tb;
+    }
+  } else if(game.name==='pacman'){
+    const p=game;
+    const YEL=[0.95,0.85,0],BLU=[0,0,0.85],WHT=[1,1,1],RED=[0.85,0,0];
+    const GC=[[0.85,0,0],[1,0.6,0.7],[0,0.85,0.85],[1,0.5,0]]; // ghost colours: red,pink,cyan,orange
+    // Pac-Man maze as a 16x16 grid (each cell = 4px). 1=wall, 0=path
+    if(!p.mazeInit){
+      p.mazeInit=true;
+      p.maze=[
+        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+        1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,
+        1,0,1,1,0,1,0,0,0,0,1,0,1,1,0,1,
+        1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,
+        1,0,1,0,1,1,0,0,0,0,1,1,0,1,0,1,
+        1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,
+        1,1,1,0,1,0,0,0,0,0,0,1,0,1,1,1,
+        0,0,0,0,1,0,1,1,1,1,0,1,0,0,0,0,
+        1,1,1,0,1,0,1,0,0,1,0,1,0,1,1,1,
+        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+        1,0,1,1,0,1,0,1,1,0,1,0,1,1,0,1,
+        1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+        1,1,0,1,0,0,0,1,1,0,0,0,1,0,1,1,
+        1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+        1,0,1,1,0,0,0,1,1,0,0,0,1,1,0,1,
+        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+      ];
+      p.dots=[];
+      for(let r=0;r<16;r++) for(let c=0;c<16;c++){
+        if(p.maze[r*16+c]===0) p.dots.push({r,c,eaten:false,power:(r===1&&c===1)||(r===1&&c===14)||(r===14&&c===1)||(r===14&&c===14)});
+      }
+      p.px=7.5; p.py=9; p.pdir=0;
+      p.ghosts=[
+        {x:7,y:7,dx:1,dy:0,col:0,scatter:0},
+        {x:8,y:7,dx:-1,dy:0,col:1,scatter:0},
+        {x:7,y:8,dx:0,dy:-1,col:2,scatter:0},
+        {x:8,y:8,dx:0,dy:1,col:3,scatter:0},
+      ];
+      p.score=0; p.powerT=0; p.eatT=0;
+    }
+    const mz=p.maze, cs=4; // cell size
+    const mzAt=(r,c)=>{ c=((c%16)+16)%16; if(r<0||r>=16) return 1; return mz[r*16+c]; };
+    // Draw maze walls (blue)
+    for(let r=0;r<16;r++) for(let c=0;c<16;c++){
+      if(mz[r*16+c]===1){
+        fillRect(c*cs,r*cs,c*cs+cs-1,r*cs+cs-1,0,0,0.45);
+        // Brighter border pixels for wall edges
+        if(r>0&&mz[(r-1)*16+c]===0) hLine(c*cs,c*cs+cs-1,r*cs,0.1,0.1,0.85);
+        if(r<15&&mz[(r+1)*16+c]===0) hLine(c*cs,c*cs+cs-1,r*cs+cs-1,0.1,0.1,0.85);
+        if(c>0&&mz[r*16+c-1]===0) for(let y=r*cs;y<r*cs+cs;y++) setP(c*cs,y,0.1,0.1,0.85);
+        if(c<15&&mz[r*16+c+1]===0) for(let y=r*cs;y<r*cs+cs;y++) setP(c*cs+cs-1,y,0.1,0.1,0.85);
+      }
+    }
+    // Draw dots
+    for(const d of p.dots){
+      if(d.eaten) continue;
+      const dx=d.c*cs+Math.floor(cs/2), dy=d.r*cs+Math.floor(cs/2);
+      if(d.power){
+        const blink=Math.floor(p.t*4)%2;
+        if(blink) fillRect(dx-1,dy-1,dx+1,dy+1,1,0.8,0.6);
+      } else {
+        setP(dx,dy,1,0.85,0.6);
+      }
+    }
+    // Auto-play Pac-Man movement
+    const pmSpeed=8;
+    const dirs=[[1,0],[0,1],[-1,0],[0,-1]]; // right,down,left,up
+    const canGo=(px,py,d)=>{
+      const nx=px+dirs[d][0]*0.5, ny=py+dirs[d][1]*0.5;
+      const cr=Math.floor(ny), cc=Math.floor(((nx%16)+16)%16);
+      return mzAt(cr,cc)===0;
+    };
+    // Try to change direction periodically or at intersections
+    p.eatT+=dt;
+    if(p.eatT>0.3){
+      p.eatT=0;
+      const options=[];
+      for(let d=0;d<4;d++){
+        if(d===(p.pdir+2)%4) continue; // don't reverse
+        if(canGo(p.px,p.py,d)) options.push(d);
+      }
+      if(options.length>0){
+        // Prefer direction toward nearest uneaten dot
+        let bestD=options[0], bestDist=9999;
+        for(const d of options){
+          const nx=p.px+dirs[d][0]*2, ny=p.py+dirs[d][1]*2;
+          for(const dot of p.dots){
+            if(dot.eaten) continue;
+            const dist=Math.abs(dot.c-nx)+Math.abs(dot.r-ny);
+            if(dist<bestDist){ bestDist=dist; bestD=d; }
+          }
+        }
+        p.pdir=bestD;
+      }
+    }
+    if(canGo(p.px,p.py,p.pdir)){
+      p.px+=dirs[p.pdir][0]*pmSpeed*dt;
+      p.py+=dirs[p.pdir][1]*pmSpeed*dt;
+    } else {
+      // Try any open direction
+      for(let d=0;d<4;d++){ if(canGo(p.px,p.py,d)){ p.pdir=d; break; } }
+    }
+    // Wrap horizontally
+    p.px=((p.px%16)+16)%16;
+    p.py=Math.max(0,Math.min(15.9,p.py));
+    // Eat dots
+    for(const d of p.dots){
+      if(d.eaten) continue;
+      if(Math.abs(d.c+0.5-p.px)<0.7&&Math.abs(d.r+0.5-p.py)<0.7){
+        d.eaten=true; p.score+=d.power?50:10;
+        if(d.power) p.powerT=5;
+      }
+    }
+    // Reset dots when all eaten
+    if(p.dots.every(d=>d.eaten)) for(const d of p.dots) d.eaten=false;
+    // Power pellet countdown
+    if(p.powerT>0) p.powerT-=dt;
+    // Move ghosts
+    const gSpeed=6;
+    for(const g of p.ghosts){
+      g.scatter+=dt;
+      const gr=Math.floor(g.y), gc=Math.floor(((g.x%16)+16)%16);
+      // Change direction at intersections
+      if(g.scatter>0.4){
+        g.scatter=0;
+        const opts=[];
+        for(let d=0;d<4;d++){
+          const nr=gr+dirs[d][1], nc=((gc+dirs[d][0])%16+16)%16;
+          if(mzAt(nr,nc)===0) opts.push(d);
+        }
+        if(opts.length>0){
+          if(p.powerT>0){
+            // Flee from pac-man
+            let bestD=opts[0], bestDist=-1;
+            for(const d of opts){
+              const dist=Math.abs(gc+dirs[d][0]-p.px)+Math.abs(gr+dirs[d][1]-p.py);
+              if(dist>bestDist){ bestDist=dist; bestD=d; }
+            }
+            g.dx=dirs[bestD][0]; g.dy=dirs[bestD][1];
+          } else {
+            // Chase pac-man with some randomness
+            if(Math.random()<0.6){
+              let bestD=opts[0], bestDist=9999;
+              for(const d of opts){
+                const dist=Math.abs(gc+dirs[d][0]-p.px)+Math.abs(gr+dirs[d][1]-p.py);
+                if(dist<bestDist){ bestDist=dist; bestD=d; }
+              }
+              g.dx=dirs[bestD][0]; g.dy=dirs[bestD][1];
+            } else {
+              const rd=opts[Math.floor(Math.random()*opts.length)];
+              g.dx=dirs[rd][0]; g.dy=dirs[rd][1];
+            }
+          }
+        }
+      }
+      const nx=g.x+g.dx*gSpeed*dt, ny=g.y+g.dy*gSpeed*dt;
+      const nr=Math.floor(ny), nc=Math.floor(((nx%16)+16)%16);
+      if(mzAt(nr,nc)===0){ g.x=((nx%16)+16)%16; g.y=Math.max(0,Math.min(15.9,ny)); }
+      else { g.scatter=10; } // force direction change
+    }
+    // Draw Pac-Man (yellow circle with animated mouth)
+    p.pmouth+=dt*12;
+    const mouthAng=Math.abs(Math.sin(p.pmouth))*0.8;
+    const ppx=Math.round(p.px*cs), ppy=Math.round(p.py*cs);
+    const pR=2;
+    for(let dy=-pR;dy<=pR;dy++) for(let dx=-pR;dx<=pR;dx++){
+      if(dx*dx+dy*dy>pR*pR) continue;
+      const ang=Math.atan2(dy,dx);
+      const faceAng=Math.atan2(dirs[p.pdir][1],dirs[p.pdir][0]);
+      let da=Math.abs(ang-faceAng); if(da>Math.PI) da=2*Math.PI-da;
+      if(da<mouthAng) continue;
+      setP(ppx+dx,ppy+dy,YEL[0],YEL[1],YEL[2]);
+    }
+    // Draw ghosts
+    for(const g of p.ghosts){
+      const gx=Math.round(g.x*cs), gy=Math.round(g.y*cs);
+      const gc=p.powerT>0?(p.powerT<2&&Math.floor(p.t*6)%2?WHT:BLU):GC[g.col];
+      // Ghost body (rounded top, flat bottom with legs)
+      for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
+        if(dy<0&&dx*dx+dy*dy>5) continue;
+        if(dy===2&&Math.abs(dx)===1) continue; // legs gap
+        setP(gx+dx,gy+dy,gc[0],gc[1],gc[2]);
+      }
+      // Eyes (white with blue pupil)
+      if(p.powerT<=0||(p.powerT<2&&Math.floor(p.t*6)%2)){
+        setP(gx-1,gy-1,1,1,1); setP(gx+1,gy-1,1,1,1);
+        setP(gx-1+Math.sign(g.dx),gy-1+Math.sign(g.dy),0.1,0.1,0.5);
+        setP(gx+1+Math.sign(g.dx),gy-1+Math.sign(g.dy),0.1,0.1,0.5);
+      }
+    }
+    // Score at top
+    const sc=(''+p.score).padStart(4,'0');
+    const digitPat={'0':[7,5,5,5,7],'1':[2,2,2,2,2],'2':[7,1,7,4,7],'3':[7,1,7,1,7],'4':[5,5,7,1,1],'5':[7,4,7,1,7],'6':[7,4,7,5,7],'7':[7,1,1,1,1],'8':[7,5,7,5,7],'9':[7,5,7,1,7]};
+    for(let ci=0;ci<4;ci++){
+      const rows=digitPat[sc[ci]]; if(!rows) continue;
+      for(let r=0;r<5;r++) for(let c=0;c<3;c++) if((rows[r]>>(2-c))&1) setP(2+ci*4+c,1+r,1,1,1);
     }
     // Mirror horizontally
     for(let y=0;y<S;y++) for(let x=0;x<Math.floor(S/2);x++){
