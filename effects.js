@@ -3569,10 +3569,9 @@ function wxInitScene(code){
       if(row<24) return li===mid; // antenna spire
       return false;
     }},
-    'cairo':{ name:'pyramid', h:16, w:28, draw(li,row){
-      // Two pyramids: large foreground + smaller background
-      const p1=Math.abs(li-9)<=Math.max(0,9-row); // big pyramid, peaks at row 9
-      const p2=Math.abs(li-21)<=Math.max(0,7-Math.floor(row*7/11)); // smaller pyramid
+    'cairo':{ name:'pyramid', h:10, w:28, draw(li,row){
+      const p1=Math.abs(li-9)<=Math.max(0,9-row);
+      const p2=Math.abs(li-21)<=Math.max(0,6-Math.floor(row*7/10));
       return p1||p2;
     }},
     'london':{ name:'bigben', h:22, w:10, draw(li,row){
