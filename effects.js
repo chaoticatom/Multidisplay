@@ -10246,7 +10246,8 @@ function retroDrawFace(faceIdx,dt,buf,S){
           }
         }
       }
-      const nx=g.x+dirs[g.dir][0]*gSpeed*dt, ny=g.y+dirs[g.dir][1]*gSpeed*dt;
+      const sp=p.powerT>0?gSpeed*0.5:gSpeed;
+      const nx=g.x+dirs[g.dir][0]*sp*dt, ny=g.y+dirs[g.dir][1]*sp*dt;
       const nnr=Math.floor(ny), nnc=Math.floor(((nx)%16+16)%16);
       if(nnr>=0&&nnr<16&&mzAt(nnr,nnc)===0){ g.x=((nx%16)+16)%16; g.y=Math.max(0.5,Math.min(15.4,ny)); }
       else { g.cd=0.19; }
