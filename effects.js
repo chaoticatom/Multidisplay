@@ -10086,23 +10086,22 @@ function retroDrawFace(faceIdx,dt,buf,S){
     }
     // Movement helpers
     const pmSpeed=7, gSpeed=5.5;
-    const atCenter=(x,y)=>Math.abs(x-Math.round(x))<0.15&&Math.abs(y-Math.round(y))<0.15;
+    const atCenter=(x,y)=>{const fx=x-Math.floor(x)-0.5,fy=y-Math.floor(y)-0.5;return Math.abs(fx)<0.2&&Math.abs(fy)<0.2;};
     const canMove=(r,c,d)=>{
       const nr=r+dirs[d][1], nc=((c+dirs[d][0])%16+16)%16;
       return mzAt(nr,nc)===0;
     };
     // Pac-Man AI: BFS to nearest dot, avoid ghosts
     p.decT+=dt;
-    const pr=Math.round(p.py), pc=Math.round(p.px);
-    if(p.decT>0.15&&atCenter(p.px,p.py)){
+    if(p.decT>0.12&&atCenter(p.px,p.py)){
       p.decT=0;
-      const cr=Math.round(p.py-0.5), cc=Math.round(p.px-0.5);
+      const cr=Math.floor(p.py), cc=Math.floor(p.px);
       const pDist=bfs(cr,cc);
       // Ghost danger map
       const ghostCells=new Set();
       for(const g of p.ghosts){
         if(p.powerT>0) continue;
-        const gr=Math.round(g.y-0.5), gc=Math.round(g.x-0.5);
+        const gr=Math.floor(g.y), gc=Math.floor(g.x);
         for(let dr=-2;dr<=2;dr++) for(let dc=-2;dc<=2;dc++){
           const rr=gr+dr, rc=((gc+dc)%16+16)%16;
           if(rr>=0&&rr<16) ghostCells.add(rr*16+rc);
@@ -10145,8 +10144,8 @@ function retroDrawFace(faceIdx,dt,buf,S){
       }
     }
     // Move pac-man
-    const pnr=Math.round(p.py+dirs[p.pdir][1]*0.5);
-    const pnc=Math.round(((p.px+dirs[p.pdir][0]*0.5)%16+16)%16);
+    const pnr=Math.floor(p.py+dirs[p.pdir][1]*0.6);
+    const pnc=Math.floor(((p.px+dirs[p.pdir][0]*0.6)%16+16)%16);
     if(mzAt(pnr,pnc)===0){
       p.px+=dirs[p.pdir][0]*pmSpeed*dt;
       p.py+=dirs[p.pdir][1]*pmSpeed*dt;
@@ -10170,7 +10169,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     for(let gi=0;gi<p.ghosts.length;gi++){
       const g=p.ghosts[gi];
       g.cd+=dt;
-      const gr=Math.round(g.y-0.5), gc=Math.round(g.x-0.5);
+      const gr=Math.floor(g.y), gc=Math.floor(g.x);
       if(g.cd>0.25&&atCenter(g.x,g.y)){
         g.cd=0;
         const opts=[];
@@ -10210,7 +10209,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
       }
       const sp=p.powerT>0?gSpeed*0.5:gSpeed;
       const nx=g.x+dirs[g.dir][0]*sp*dt, ny=g.y+dirs[g.dir][1]*sp*dt;
-      const nnr=Math.round(ny-0.5), nnc=Math.round(((nx-0.5)%16+16)%16);
+      const nnr=Math.floor(ny), nnc=Math.floor(((nx)%16+16)%16);
       if(nnr>=0&&nnr<16&&mzAt(nnr,nnc)===0){ g.x=((nx%16)+16)%16; g.y=Math.max(0.5,Math.min(15.4,ny)); }
       else { g.cd=10; }
     }
