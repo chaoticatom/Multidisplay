@@ -7276,39 +7276,56 @@ function retroDrawTitle(buf,S,name){
     return;
   }
   if(name==='pacman'){
-    for(let y=0;y<S;y++) for(let x=0;x<S;x++){
-      const r=0.9,g=0.55,b=0.1;
-      setP(x,y,r,g,b);
-    }
-    // Red border with rounded corners
-    for(let x=2;x<S-2;x++){ fillRect(x,1,x,2,0.85,0.05,0.05); fillRect(x,S-3,x,S-2,0.85,0.05,0.05); }
-    for(let y=2;y<S-2;y++){ fillRect(1,y,2,y,0.85,0.05,0.05); fillRect(S-3,y,S-2,y,0.85,0.05,0.05); }
-    // PAC-MAN text in yellow with dark blue shadow
+    // Black background
+    for(let y=0;y<S;y++) for(let x=0;x<S;x++) setP(x,y,0,0,0);
+    // Blue maze outline border
+    for(let x=1;x<S-1;x++){ setP(x,3,0.1,0.1,0.85); setP(x,S-4,0.1,0.1,0.85); }
+    for(let y=3;y<S-3;y++){ setP(1,y,0.1,0.1,0.85); setP(S-2,y,0.1,0.1,0.85); }
+    // Inner maze walls (simplified)
+    for(let x=8;x<20;x++){ setP(x,12,0.1,0.1,0.85); setP(x+24,12,0.1,0.1,0.85); }
+    for(let x=8;x<20;x++){ setP(x,20,0.1,0.1,0.85); setP(x+24,20,0.1,0.1,0.85); }
+    for(let y=12;y<21;y++){ setP(28,y,0.1,0.1,0.85); setP(35,y,0.1,0.1,0.85); }
+    // PAC-MAN title (yellow, centered)
     const pmText='PAC-MAN';
-    const sc=1, tx=Math.floor((S-pmText.length*6*sc)/2), ty=Math.floor(S/2)-3;
-    // Shadow
+    const tx=Math.floor((S-pmText.length*6)/2), ty=26;
     for(let ci=0;ci<pmText.length;ci++){
       const glyph=font[pmText[ci]]; if(!glyph) continue;
       for(let row=0;row<7;row++){
         const bits=glyph[row];
         for(let col=0;col<5;col++){
-          if(bits&(0x10>>col)) setP(tx+ci*6*sc+col*sc+1,ty+row*sc+1,0.2,0.1,0.4);
+          if(bits&(0x10>>col)) setP(tx+ci*6+col+1,ty+row+1,0.15,0.1,0.3);
         }
       }
     }
-    // Main text
-    drawText(pmText,tx,ty,sc,0.95,0.85,0);
-    // Pac-Man character below text (yellow circle with mouth)
-    const pcx=Math.floor(S/2), pcy=ty+14, pr=5;
-    for(let dy=-pr;dy<=pr;dy++) for(let dx=-pr;dx<=pr;dx++){
-      if(dx*dx+dy*dy<=pr*pr){
-        if(dy>=-1&&dy<=1&&dx>1) continue; // mouth opening
-        setP(pcx+dx,pcy+dy,0.95,0.85,0);
-      }
+    drawText(pmText,tx,ty,1,0.95,0.85,0);
+    // Chase scene below title: pac-man chasing dots, ghosts behind
+    const cy=42;
+    // Dots
+    for(let x=6;x<26;x+=3) setP(x,cy,1,0.85,0.6);
+    // Pac-Man (mouth open, facing left)
+    const pcx=30;
+    for(let dy=-3;dy<=3;dy++) for(let dx=-3;dx<=3;dx++){
+      if(dx*dx+dy*dy>9) continue;
+      if(dy>=-1&&dy<=1&&dx<-1) continue;
+      setP(pcx+dx,cy+dy,0.95,0.85,0);
     }
-    setP(pcx-1,pcy-2,0,0,0); // eye
-    // Dots leading to pac-man
-    for(let x=pcx+pr+3;x<S-6;x+=3) setP(x,pcy,1,1,1);
+    setP(pcx+1,cy-2,0,0,0);
+    // Ghosts chasing (right of pac-man)
+    const ghostCols=[[0.85,0,0],[1,0.6,0.7],[0,0.85,0.85],[1,0.5,0]];
+    for(let gi=0;gi<4;gi++){
+      const gx=40+gi*7;
+      for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
+        if(dy<0&&dx*dx+dy*dy>5) continue;
+        if(dy===2&&Math.abs(dx)===1) continue;
+        setP(gx+dx,cy+dy,ghostCols[gi][0],ghostCols[gi][1],ghostCols[gi][2]);
+      }
+      setP(gx-1,cy-1,1,1,1); setP(gx+1,cy-1,1,1,1);
+    }
+    // Power pellets in corners
+    fillRect(4,6,6,8,1,0.8,0.6); fillRect(S-7,6,S-5,8,1,0.8,0.6);
+    fillRect(4,S-9,6,S-7,1,0.8,0.6); fillRect(S-7,S-9,S-5,S-7,1,0.8,0.6);
+    // Score text
+    drawText('1UP',4,54,1,1,1,1); drawText('0000',24,54,1,1,1,1);
     return;
   }
   if(false&&name==='jsw__old'){
@@ -10030,49 +10047,69 @@ function retroDrawFace(faceIdx,dt,buf,S){
     }
   } else if(game.name==='pacman'){
     const p=game;
-    const YEL=[0.95,0.85,0],BLU=[0,0,0.85],WHT=[1,1,1],RED=[0.85,0,0];
-    const GC=[[0.85,0,0],[1,0.6,0.7],[0,0.85,0.85],[1,0.5,0]]; // ghost colours: red,pink,cyan,orange
-    // Pac-Man maze as a 16x16 grid (each cell = 4px). 1=wall, 0=path
+    const YEL=[0.95,0.85,0],BLU=[0,0,0.85],WHT=[1,1,1];
+    const GC=[[0.85,0,0],[1,0.6,0.7],[0,0.85,0.85],[1,0.5,0]];
     if(!p.mazeInit){
       p.mazeInit=true;
       p.maze=[
         1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+        1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,
+        1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+        1,0,1,0,1,0,1,1,1,0,1,0,1,0,1,1,
+        1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,
+        1,1,1,0,1,1,0,0,0,1,1,0,1,0,1,1,
+        0,0,0,0,0,1,0,1,1,0,1,0,0,0,0,0,
+        1,1,1,0,0,1,0,0,0,0,1,0,0,1,1,1,
         1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,
         1,0,1,1,0,1,0,0,0,0,1,0,1,1,0,1,
-        1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,
-        1,0,1,0,1,1,0,0,0,0,1,1,0,1,0,1,
-        1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,
-        1,1,1,0,1,0,0,0,0,0,0,1,0,1,1,1,
-        0,0,0,0,1,0,1,1,1,1,0,1,0,0,0,0,
-        1,1,1,0,1,0,1,0,0,1,0,1,0,1,1,1,
+        1,0,0,1,0,0,0,1,1,0,0,0,1,0,0,1,
+        1,1,0,0,0,1,0,0,0,0,1,0,0,0,1,1,
+        1,0,0,1,0,0,0,1,1,0,0,0,1,0,0,1,
         1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-        1,0,1,1,0,1,0,1,1,0,1,0,1,1,0,1,
-        1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-        1,1,0,1,0,0,0,1,1,0,0,0,1,0,1,1,
-        1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-        1,0,1,1,0,0,0,1,1,0,0,0,1,1,0,1,
         1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
       ];
       p.dots=[];
       for(let r=0;r<16;r++) for(let c=0;c<16;c++){
-        if(p.maze[r*16+c]===0) p.dots.push({r,c,eaten:false,power:(r===1&&c===1)||(r===1&&c===14)||(r===14&&c===1)||(r===14&&c===14)});
+        if(p.maze[r*16+c]===0){
+          const isPower=(r===1&&c===1)||(r===1&&c===14)||(r===14&&c===1)||(r===14&&c===14);
+          p.dots.push({r,c,eaten:false,power:isPower});
+        }
       }
-      p.px=7.5; p.py=9; p.pdir=0;
+      p.px=1.5; p.py=1.5; p.pdir=0; p.prevDir=-1;
       p.ghosts=[
-        {x:7,y:7,dx:1,dy:0,col:0,scatter:0},
-        {x:8,y:7,dx:-1,dy:0,col:1,scatter:0},
-        {x:7,y:8,dx:0,dy:-1,col:2,scatter:0},
-        {x:8,y:8,dx:0,dy:1,col:3,scatter:0},
+        {x:7.5,y:7.5,dir:0,col:0,cd:0,prevDir:-1},
+        {x:8.5,y:7.5,dir:2,col:1,cd:0,prevDir:-1},
+        {x:7.5,y:8.5,dir:3,col:2,cd:0,prevDir:-1},
+        {x:8.5,y:8.5,dir:1,col:3,cd:0,prevDir:-1},
       ];
-      p.score=0; p.powerT=0; p.eatT=0;
+      p.score=0; p.powerT=0; p.pmouth=0; p.decT=0; p.lives=3;
     }
-    const mz=p.maze, cs=4; // cell size
-    const mzAt=(r,c)=>{ c=((c%16)+16)%16; if(r<0||r>=16) return 1; return mz[r*16+c]; };
-    // Draw maze walls (blue)
+    const mz=p.maze, cs=4;
+    const mzAt=(r,c)=>{ if(r<0||r>=16) return 1; c=((c%16)+16)%16; return mz[r*16+c]; };
+    const dirs=[[1,0],[0,1],[-1,0],[0,-1]];
+    // BFS shortest path distance from (sr,sc) to all open cells
+    const bfs=(sr,sc)=>{
+      const dist=new Int16Array(256).fill(-1);
+      dist[sr*16+sc]=0;
+      const q=[sr*16+sc];
+      let qi=0;
+      while(qi<q.length){
+        const idx=q[qi++], r=idx>>4, c=idx&15;
+        const d=dist[idx];
+        for(let i=0;i<4;i++){
+          const nr=r+dirs[i][1], nc=((c+dirs[i][0])%16+16)%16;
+          if(nr>=0&&nr<16&&mzAt(nr,nc)===0&&dist[nr*16+nc]<0){
+            dist[nr*16+nc]=d+1; q.push(nr*16+nc);
+          }
+        }
+      }
+      return dist;
+    };
+    // Draw maze walls
     for(let r=0;r<16;r++) for(let c=0;c<16;c++){
       if(mz[r*16+c]===1){
         fillRect(c*cs,r*cs,c*cs+cs-1,r*cs+cs-1,0,0,0.45);
-        // Brighter border pixels for wall edges
         if(r>0&&mz[(r-1)*16+c]===0) hLine(c*cs,c*cs+cs-1,r*cs,0.1,0.1,0.85);
         if(r<15&&mz[(r+1)*16+c]===0) hLine(c*cs,c*cs+cs-1,r*cs+cs-1,0.1,0.1,0.85);
         if(c>0&&mz[r*16+c-1]===0) for(let y=r*cs;y<r*cs+cs;y++) setP(c*cs,y,0.1,0.1,0.85);
@@ -10084,115 +10121,162 @@ function retroDrawFace(faceIdx,dt,buf,S){
       if(d.eaten) continue;
       const dx=d.c*cs+Math.floor(cs/2), dy=d.r*cs+Math.floor(cs/2);
       if(d.power){
-        const blink=Math.floor(p.t*4)%2;
-        if(blink) fillRect(dx-1,dy-1,dx+1,dy+1,1,0.8,0.6);
+        if(Math.floor(p.t*4)%2) fillRect(dx-1,dy-1,dx+1,dy+1,1,0.8,0.6);
       } else {
         setP(dx,dy,1,0.85,0.6);
       }
     }
-    // Auto-play Pac-Man movement
-    const pmSpeed=8;
-    const dirs=[[1,0],[0,1],[-1,0],[0,-1]]; // right,down,left,up
-    const canGo=(px,py,d)=>{
-      const nx=px+dirs[d][0]*0.5, ny=py+dirs[d][1]*0.5;
-      const cr=Math.floor(ny), cc=Math.floor(((nx%16)+16)%16);
-      return mzAt(cr,cc)===0;
+    // Movement helpers
+    const pmSpeed=7, gSpeed=5.5;
+    const atCenter=(x,y)=>Math.abs(x-Math.round(x))<0.15&&Math.abs(y-Math.round(y))<0.15;
+    const canMove=(r,c,d)=>{
+      const nr=r+dirs[d][1], nc=((c+dirs[d][0])%16+16)%16;
+      return mzAt(nr,nc)===0;
     };
-    // Try to change direction periodically or at intersections
-    p.eatT+=dt;
-    if(p.eatT>0.3){
-      p.eatT=0;
+    // Pac-Man AI: BFS to nearest dot, avoid ghosts
+    p.decT+=dt;
+    const pr=Math.round(p.py), pc=Math.round(p.px);
+    if(p.decT>0.15&&atCenter(p.px,p.py)){
+      p.decT=0;
+      const cr=Math.round(p.py-0.5), cc=Math.round(p.px-0.5);
+      const pDist=bfs(cr,cc);
+      // Ghost danger map
+      const ghostCells=new Set();
+      for(const g of p.ghosts){
+        if(p.powerT>0) continue;
+        const gr=Math.round(g.y-0.5), gc=Math.round(g.x-0.5);
+        for(let dr=-2;dr<=2;dr++) for(let dc=-2;dc<=2;dc++){
+          const rr=gr+dr, rc=((gc+dc)%16+16)%16;
+          if(rr>=0&&rr<16) ghostCells.add(rr*16+rc);
+        }
+      }
       const options=[];
       for(let d=0;d<4;d++){
-        if(d===(p.pdir+2)%4) continue; // don't reverse
-        if(canGo(p.px,p.py,d)) options.push(d);
+        if(!canMove(cr,cc,d)) continue;
+        options.push(d);
       }
       if(options.length>0){
-        // Prefer direction toward nearest uneaten dot
-        let bestD=options[0], bestDist=9999;
+        let bestD=options[0], bestScore=-99999;
         for(const d of options){
-          const nx=p.px+dirs[d][0]*2, ny=p.py+dirs[d][1]*2;
+          const nr=cr+dirs[d][1], nc=((cc+dirs[d][0])%16+16)%16;
+          const stepDist=bfs(nr,nc);
+          // Find nearest uneaten dot from this direction
+          let nearDot=999;
           for(const dot of p.dots){
             if(dot.eaten) continue;
-            const dist=Math.abs(dot.c-nx)+Math.abs(dot.r-ny);
-            if(dist<bestDist){ bestDist=dist; bestD=d; }
+            const dd=stepDist[dot.r*16+dot.c];
+            if(dd>=0&&dd<nearDot) nearDot=dd;
           }
+          let score=-nearDot;
+          // Penalty for going near ghosts
+          if(ghostCells.has(nr*16+nc)) score-=50;
+          // Penalty for reversing
+          if(d===(p.pdir+2)%4) score-=2;
+          // Bonus for power pellet when ghosts nearby
+          if(p.powerT<=0&&ghostCells.size>0){
+            for(const dot of p.dots){
+              if(!dot.eaten&&dot.power){
+                const dd=stepDist[dot.r*16+dot.c];
+                if(dd>=0&&dd<4) score+=20;
+              }
+            }
+          }
+          if(score>bestScore){ bestScore=score; bestD=d; }
         }
         p.pdir=bestD;
       }
     }
-    if(canGo(p.px,p.py,p.pdir)){
+    // Move pac-man
+    const pnr=Math.round(p.py+dirs[p.pdir][1]*0.5);
+    const pnc=Math.round(((p.px+dirs[p.pdir][0]*0.5)%16+16)%16);
+    if(mzAt(pnr,pnc)===0){
       p.px+=dirs[p.pdir][0]*pmSpeed*dt;
       p.py+=dirs[p.pdir][1]*pmSpeed*dt;
-    } else {
-      // Try any open direction
-      for(let d=0;d<4;d++){ if(canGo(p.px,p.py,d)){ p.pdir=d; break; } }
     }
-    // Wrap horizontally
     p.px=((p.px%16)+16)%16;
-    p.py=Math.max(0,Math.min(15.9,p.py));
+    p.py=Math.max(0.5,Math.min(15.4,p.py));
     // Eat dots
     for(const d of p.dots){
       if(d.eaten) continue;
-      if(Math.abs(d.c+0.5-p.px)<0.7&&Math.abs(d.r+0.5-p.py)<0.7){
+      if(Math.abs(d.c+0.5-p.px)<0.6&&Math.abs(d.r+0.5-p.py)<0.6){
         d.eaten=true; p.score+=d.power?50:10;
-        if(d.power) p.powerT=5;
+        if(d.power) p.powerT=6;
       }
     }
-    // Reset dots when all eaten
-    if(p.dots.every(d=>d.eaten)) for(const d of p.dots) d.eaten=false;
-    // Power pellet countdown
+    if(p.dots.every(d=>d.eaten)){
+      for(const d of p.dots) d.eaten=false;
+      p.score+=100;
+    }
     if(p.powerT>0) p.powerT-=dt;
-    // Move ghosts
-    const gSpeed=6;
-    for(const g of p.ghosts){
-      g.scatter+=dt;
-      const gr=Math.floor(g.y), gc=Math.floor(((g.x%16)+16)%16);
-      // Change direction at intersections
-      if(g.scatter>0.4){
-        g.scatter=0;
+    // Ghost AI: each ghost targets differently
+    for(let gi=0;gi<p.ghosts.length;gi++){
+      const g=p.ghosts[gi];
+      g.cd+=dt;
+      const gr=Math.round(g.y-0.5), gc=Math.round(g.x-0.5);
+      if(g.cd>0.25&&atCenter(g.x,g.y)){
+        g.cd=0;
         const opts=[];
         for(let d=0;d<4;d++){
-          const nr=gr+dirs[d][1], nc=((gc+dirs[d][0])%16+16)%16;
-          if(mzAt(nr,nc)===0) opts.push(d);
+          if(d===(g.dir+2)%4) continue;
+          if(canMove(gr,gc,d)) opts.push(d);
+        }
+        if(opts.length===0){
+          for(let d=0;d<4;d++) if(canMove(gr,gc,d)) opts.push(d);
         }
         if(opts.length>0){
           if(p.powerT>0){
-            // Flee from pac-man
             let bestD=opts[0], bestDist=-1;
             for(const d of opts){
               const dist=Math.abs(gc+dirs[d][0]-p.px)+Math.abs(gr+dirs[d][1]-p.py);
               if(dist>bestDist){ bestDist=dist; bestD=d; }
             }
-            g.dx=dirs[bestD][0]; g.dy=dirs[bestD][1];
+            g.dir=bestD;
           } else {
-            // Chase pac-man with some randomness
-            if(Math.random()<0.6){
+            // Different ghost strategies
+            let tx=p.px, ty=p.py;
+            if(gi===1){ tx=p.px+dirs[p.pdir][0]*4; ty=p.py+dirs[p.pdir][1]*4; } // pink: ahead of pac-man
+            else if(gi===2){ tx=p.px+(p.px-g.x); ty=p.py+(p.py-g.y); } // cyan: opposite side
+            else if(gi===3&&Math.abs(gc-p.px)+Math.abs(gr-p.py)<8){ tx=1; ty=14; } // orange: scatter when close
+            if(Math.random()<0.85){
               let bestD=opts[0], bestDist=9999;
               for(const d of opts){
-                const dist=Math.abs(gc+dirs[d][0]-p.px)+Math.abs(gr+dirs[d][1]-p.py);
+                const dist=Math.abs(gc+dirs[d][0]-tx)+Math.abs(gr+dirs[d][1]-ty);
                 if(dist<bestDist){ bestDist=dist; bestD=d; }
               }
-              g.dx=dirs[bestD][0]; g.dy=dirs[bestD][1];
+              g.dir=bestD;
             } else {
-              const rd=opts[Math.floor(Math.random()*opts.length)];
-              g.dx=dirs[rd][0]; g.dy=dirs[rd][1];
+              g.dir=opts[Math.floor(Math.random()*opts.length)];
             }
           }
         }
       }
-      const nx=g.x+g.dx*gSpeed*dt, ny=g.y+g.dy*gSpeed*dt;
-      const nr=Math.floor(ny), nc=Math.floor(((nx%16)+16)%16);
-      if(mzAt(nr,nc)===0){ g.x=((nx%16)+16)%16; g.y=Math.max(0,Math.min(15.9,ny)); }
-      else { g.scatter=10; } // force direction change
+      const sp=p.powerT>0?gSpeed*0.5:gSpeed;
+      const nx=g.x+dirs[g.dir][0]*sp*dt, ny=g.y+dirs[g.dir][1]*sp*dt;
+      const nnr=Math.round(ny-0.5), nnc=Math.round(((nx-0.5)%16+16)%16);
+      if(nnr>=0&&nnr<16&&mzAt(nnr,nnc)===0){ g.x=((nx%16)+16)%16; g.y=Math.max(0.5,Math.min(15.4,ny)); }
+      else { g.cd=10; }
     }
-    // Draw Pac-Man (yellow circle with animated mouth)
+    // Ghost-pacman collision
+    for(const g of p.ghosts){
+      if(Math.abs(g.x-p.px)<0.7&&Math.abs(g.y-p.py)<0.7){
+        if(p.powerT>0){
+          g.x=7.5; g.y=7.5; g.cd=0; p.score+=200;
+        } else {
+          p.px=1.5; p.py=1.5; p.pdir=0;
+          p.ghosts[0].x=7.5; p.ghosts[0].y=7.5;
+          p.ghosts[1].x=8.5; p.ghosts[1].y=7.5;
+          p.ghosts[2].x=7.5; p.ghosts[2].y=8.5;
+          p.ghosts[3].x=8.5; p.ghosts[3].y=8.5;
+          break;
+        }
+      }
+    }
+    // Draw Pac-Man
     p.pmouth+=dt*12;
     const mouthAng=Math.abs(Math.sin(p.pmouth))*0.8;
     const ppx=Math.round(p.px*cs), ppy=Math.round(p.py*cs);
-    const pR=2;
-    for(let dy=-pR;dy<=pR;dy++) for(let dx=-pR;dx<=pR;dx++){
-      if(dx*dx+dy*dy>pR*pR) continue;
+    for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
+      if(dx*dx+dy*dy>5) continue;
       const ang=Math.atan2(dy,dx);
       const faceAng=Math.atan2(dirs[p.pdir][1],dirs[p.pdir][0]);
       let da=Math.abs(ang-faceAng); if(da>Math.PI) da=2*Math.PI-da;
@@ -10202,33 +10286,32 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Draw ghosts
     for(const g of p.ghosts){
       const gx=Math.round(g.x*cs), gy=Math.round(g.y*cs);
-      const gc=p.powerT>0?(p.powerT<2&&Math.floor(p.t*6)%2?WHT:BLU):GC[g.col];
-      // Ghost body (rounded top, flat bottom with legs)
+      const gc2=p.powerT>0?(p.powerT<2&&Math.floor(p.t*6)%2?WHT:BLU):GC[g.col];
       for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
         if(dy<0&&dx*dx+dy*dy>5) continue;
-        if(dy===2&&Math.abs(dx)===1) continue; // legs gap
-        setP(gx+dx,gy+dy,gc[0],gc[1],gc[2]);
+        if(dy===2&&Math.abs(dx)===1) continue;
+        setP(gx+dx,gy+dy,gc2[0],gc2[1],gc2[2]);
       }
-      // Eyes (white with blue pupil)
       if(p.powerT<=0||(p.powerT<2&&Math.floor(p.t*6)%2)){
         setP(gx-1,gy-1,1,1,1); setP(gx+1,gy-1,1,1,1);
-        setP(gx-1+Math.sign(g.dx),gy-1+Math.sign(g.dy),0.1,0.1,0.5);
-        setP(gx+1+Math.sign(g.dx),gy-1+Math.sign(g.dy),0.1,0.1,0.5);
+        setP(gx-1+dirs[g.dir][0],gy-1+dirs[g.dir][1],0.1,0.1,0.5);
+        setP(gx+1+dirs[g.dir][0],gy-1+dirs[g.dir][1],0.1,0.1,0.5);
       }
     }
-    // Score at top
-    const sc=(''+p.score).padStart(4,'0');
+    // Score
+    const sc2=(''+p.score).padStart(4,'0');
     const digitPat={'0':[7,5,5,5,7],'1':[2,2,2,2,2],'2':[7,1,7,4,7],'3':[7,1,7,1,7],'4':[5,5,7,1,1],'5':[7,4,7,1,7],'6':[7,4,7,5,7],'7':[7,1,1,1,1],'8':[7,5,7,5,7],'9':[7,5,7,1,7]};
     for(let ci=0;ci<4;ci++){
-      const rows=digitPat[sc[ci]]; if(!rows) continue;
+      const rows=digitPat[sc2[ci]]; if(!rows) continue;
       for(let r=0;r<5;r++) for(let c=0;c<3;c++) if((rows[r]>>(2-c))&1) setP(2+ci*4+c,1+r,1,1,1);
     }
-    // Mirror horizontally
-    for(let y=0;y<S;y++) for(let x=0;x<Math.floor(S/2);x++){
-      const x2=S-1-x, i1=(y*S+x)*3, i2=(y*S+x2)*3;
-      const tr=buf[i1],tg=buf[i1+1],tb=buf[i1+2];
-      buf[i1]=buf[i2]; buf[i1+1]=buf[i2+1]; buf[i1+2]=buf[i2+2];
-      buf[i2]=tr; buf[i2+1]=tg; buf[i2+2]=tb;
+    // Rotate 180 degrees
+    for(let i=0;i<Math.floor(S*S/2);i++){
+      const j=S*S-1-i;
+      const i3=i*3, j3=j*3;
+      const tr=buf[i3],tg=buf[i3+1],tb=buf[i3+2];
+      buf[i3]=buf[j3]; buf[i3+1]=buf[j3+1]; buf[i3+2]=buf[j3+2];
+      buf[j3]=tr; buf[j3+1]=tg; buf[j3+2]=tb;
     }
   } else if(game.name==='aticatac'){
     const p=game;
