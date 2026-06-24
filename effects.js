@@ -372,8 +372,8 @@ function fwLaunch() {
 }
 
 function fwBurst(col, v, hue, hue2) {
-  const mono = Math.random() > 0.5;
-  const type = Math.random();
+  const mono = fwSyncForceMono ? true : Math.random() > 0.5;
+  const type = fwSyncForceType >= 0 ? fwSyncForceType : Math.random();
   const sizeMul = 0.5 + Math.random() * 1.0;
 
   function addParticle(c, y, vc, vy, h, decay, bright) {
@@ -450,6 +450,7 @@ const FW_PALETTES = [
 let fwSyncQueue = [];
 let fwSyncWait = 0;
 let fwSyncAct = 0;
+let fwSyncForceType = -1, fwSyncForceMono = false;
 
 function fwSyncRocket(col, vy, vc, hue, hue2, delay) {
   if (delay > 0) {
@@ -563,6 +564,9 @@ function fwSyncUpdate(dt) {
 
   fwSyncWait -= dt;
   if (fwSyncWait <= 0) {
+    const unified = Math.random() < 0.5;
+    if (unified) { fwSyncForceMono = true; fwSyncForceType = [0.1, 0.3, 0.5, 0.65, 0.8, 0.95][Math.floor(Math.random()*6)]; }
+    else { fwSyncForceMono = false; fwSyncForceType = -1; }
     const act = FW_SYNC_ACTS[fwSyncAct % FW_SYNC_ACTS.length];
     fwSyncWait = act();
     fwSyncAct++;
