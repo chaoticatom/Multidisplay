@@ -351,6 +351,7 @@ function alarmOpenEditor(idx){
 
   // Sunrise toggle
   alarmSunriseOn=!!al.prealarm?.enabled;
+  document.getElementById('al-wind-down').checked=!!al.prealarm?.windDown;
   alarmGiantSunOn=!!al.prealarm?.giantSun;
   alarmWxRiseOn=!!al.prealarm?.wxRise;
   alarmEffectRiseOn=!!al.prealarm?.effectRise;
@@ -743,6 +744,7 @@ document.getElementById('al-save-btn')?.addEventListener('click',()=>{
     prealarm:{enabled:alarmSunriseOn,
       preMinutes:parseInt(document.getElementById('al-pre-mins').value)||15,
       startBright:parseInt(document.getElementById('al-dim-start').value)||5,
+      windDown:document.getElementById('al-wind-down').checked,
       giantSun:alarmGiantSunOn, wxRise:alarmWxRiseOn, effectRise:alarmEffectRiseOn, effectRiseKey:alarmEffectRiseKey, effectRiseCity:alarmEffectRiseCity, effectRiseOpts:alarmEffectRiseOpts},
     message:document.getElementById('al-message').value||'',
   };
@@ -2996,14 +2998,16 @@ function animate(now){
   // ── Pre-alarm brightness ramp + sunrise rendering ──
   if(activeAlarm&&activeAlarm.phase==='pre'&&!activeAlarm.dismissed){
     const elapsed=Date.now()-activeAlarm.startMs;
-    const progress=Math.min(1,elapsed/activeAlarm.preMs);
+    const rawProgress=Math.min(1,elapsed/activeAlarm.preMs);
+    const windDown=!!activeAlarm.al.prealarm?.windDown;
+    const progress=windDown?1-rawProgress:rawProgress;
     const startBright=activeAlarm.al.prealarm?.startBright||5;
-    // Ramp global brightness from startBright% to 100%
-    brightness=Math.max(startBright/100,Math.pow(progress,1.5));
+    // Ramp brightness: wake=dim→bright, wind-down=bright→dim
+    brightness=windDown?Math.max(startBright/100,1-Math.pow(rawProgress,1.5)):Math.max(startBright/100,Math.pow(progress,1.5));
     const bSlider=document.getElementById('bright-slider');
     if(bSlider) bSlider.value=Math.round(brightness*100);
     // Transition to main alarm exactly when progress reaches 1.0
-    if(progress>=1){ const riseKey=activeAlarm.al.prealarm?.effectRise?activeAlarm.al.prealarm.effectRiseKey:''; activeAlarm.phase='main'; activeAlarm.justTriggered=true; alarmFire(activeAlarm.al,new Date()); if(riseKey){ activeAlarm.bgEffect=riseKey; brightness=1.0; } }
+    if(rawProgress>=1){ const riseKey=activeAlarm.al.prealarm?.effectRise?activeAlarm.al.prealarm.effectRiseKey:''; activeAlarm.phase='main'; activeAlarm.justTriggered=true; alarmFire(activeAlarm.al,new Date()); if(riseKey){ activeAlarm.bgEffect=riseKey; } if(!windDown) brightness=1.0; }
     else { 
       if(activeAlarm.al.prealarm?.giantSun){
         renderGiantSun(progress,startBright);
