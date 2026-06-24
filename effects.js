@@ -4643,6 +4643,7 @@ function effectWeather(dt){
     if(cr.delay>0){ cr.delay-=dt; continue; }
     cr.px=(cr.px+cr.dx*dt*60+1)%1;
     if(cr.type==='balloon'){
+      if(!isDay) continue;
       cr.phaseT+=dt;
       if(cr.phase==='rise'){
         cr.py=Math.min(0.65,cr.py+dt*0.015);
