@@ -10005,7 +10005,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     }
   } else if(game.name==='pacman'){
     const p=game;
-    const YEL=[0.95,0.85,0],BLU=[0,0,0.85],WHT=[1,1,1];
+    const YEL=[0.95,0.85,0],SCARED=[0.4,0.6,1],WHT=[1,1,1];
     const GC=[[0.85,0,0],[1,0.6,0.7],[0,0.85,0.85],[1,0.5,0]];
     if(!p.mazeInit){
       p.mazeInit=true;
@@ -10246,11 +10246,10 @@ function retroDrawFace(faceIdx,dt,buf,S){
           }
         }
       }
-      const sp=p.powerT>0?gSpeed*0.5:gSpeed;
-      const nx=g.x+dirs[g.dir][0]*sp*dt, ny=g.y+dirs[g.dir][1]*sp*dt;
+      const nx=g.x+dirs[g.dir][0]*gSpeed*dt, ny=g.y+dirs[g.dir][1]*gSpeed*dt;
       const nnr=Math.floor(ny), nnc=Math.floor(((nx)%16+16)%16);
       if(nnr>=0&&nnr<16&&mzAt(nnr,nnc)===0){ g.x=((nx%16)+16)%16; g.y=Math.max(0.5,Math.min(15.4,ny)); }
-      else { g.cd=10; }
+      else { g.cd=0.19; }
     }
     // Ghost-pacman collision
     for(const g of p.ghosts){
@@ -10290,7 +10289,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Draw ghosts
     for(const g of p.ghosts){
       const gx=Math.round(g.x*cs), gy=Math.round(g.y*cs);
-      const gc2=p.powerT>0&&!g.inPen?(p.powerT<2&&Math.floor(p.t*6)%2?WHT:BLU):GC[g.col];
+      const gc2=p.powerT>0&&!g.inPen?(p.powerT<2&&Math.floor(p.t*6)%2?WHT:SCARED):GC[g.col];
       for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
         if(dy<0&&dx*dx+dy*dy>5) continue;
         if(dy===2&&Math.abs(dx)===1) continue;
