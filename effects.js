@@ -312,7 +312,7 @@ function effectSphere(dt) {
   for(let v=0;v<S;v++) for(let u=0;u<S;u++){
     const idx=faceMap[5][v*S+u];
     if(idx<0) continue;
-    const dx=u-cx, dy=cy+v+1;
+    const dx=u-cx, dy=cy+(S-v);
     const dist=Math.sqrt(dx*dx+dy*dy);
     if(dist<2) continue;
     const pxA=Math.atan2(dy,dx);
