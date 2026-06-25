@@ -11854,9 +11854,9 @@ function effectMoon(dt){
       // Project terminator onto sphere surface
       let lit;
       if(waxing){
-        lit=nx>termX*nz;
+        lit=nx>-termX*nz;
       } else {
-        lit=nx<-termX*nz;
+        lit=nx<termX*nz;
       }
 
       if(!lit){
