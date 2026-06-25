@@ -11163,10 +11163,45 @@ function r2GenParams(){
   const cf=r2rnd(0.5,1.8);
   const palC=[cf,cf,cf];
   const palD=mono?[0,0.03,0.07]:[r2rnd(0,1),r2rnd(0,1),r2rnd(0,1)];
+
+  // 80s visual layers — each has strength 0 (off) to ~1 (full)
+  // Only some activate per segment so they morph in and out
+  const laser={
+    str: Math.random()<0.45?r2rnd(0.3,0.9):0,
+    count: r2rnd(2,7),
+    thick: r2rnd(0.01,0.05),
+    rotSpd: r2rnd(-1.5,1.5),
+    ax: r2rnd(-1,1), ay: r2rnd(-1,1), az: r2rnd(-1,1),
+  };
+  const contour={
+    str: Math.random()<0.4?r2rnd(0.3,0.8):0,
+    width: r2rnd(0.03,0.12),
+    levels: r2rnd(3,8),
+    hueOff: r2rnd(0,1),
+  };
+  const grid={
+    str: Math.random()<0.35?r2rnd(0.2,0.7):0,
+    density: r2rnd(4,12),
+    lineW: r2rnd(0.03,0.08),
+    scrollX: r2rnd(-1,1),
+    scrollY: r2rnd(-0.5,0.5),
+    scrollZ: r2rnd(-0.5,0.5),
+  };
+  const rings={
+    str: Math.random()<0.35?r2rnd(0.2,0.7):0,
+    freq: r2rnd(6,20),
+    speed: r2rnd(-3,3),
+    thick: r2rnd(0.3,0.8),
+  };
+  const burst={
+    str: Math.random()<0.3?r2rnd(0.2,0.6):0,
+    arms: r2rnd(3,10),
+    twistSpd: r2rnd(-2,2),
+    falloff: r2rnd(0.8,2.5),
+  };
+
   return {
-    waves,
-    warp,
-    kaleid,
+    waves, warp, kaleid,
     palA, palB, palC, palD,
     hueScale: r2rnd(0.3,1.5),
     hueDrift: r2rnd(-0.08,0.08),
@@ -11174,6 +11209,7 @@ function r2GenParams(){
     bright: r2rnd(0.7,1.0),
     glow: r2rnd(0,0.15),
     spin: r2rnd(-0.3,0.3),
+    laser, contour, grid, rings, burst,
   };
 }
 
@@ -11213,6 +11249,39 @@ function r2MorphParams(A,B,t){
     bright:r2lerp(A.bright,B.bright,t),
     glow:r2lerp(A.glow,B.glow,t),
     spin:r2lerp(A.spin,B.spin,t),
+    laser:{
+      str:r2lerp(A.laser.str,B.laser.str,t),
+      count:r2lerp(A.laser.count,B.laser.count,t),
+      thick:r2lerp(A.laser.thick,B.laser.thick,t),
+      rotSpd:r2lerp(A.laser.rotSpd,B.laser.rotSpd,t),
+      ax:r2lerp(A.laser.ax,B.laser.ax,t), ay:r2lerp(A.laser.ay,B.laser.ay,t), az:r2lerp(A.laser.az,B.laser.az,t),
+    },
+    contour:{
+      str:r2lerp(A.contour.str,B.contour.str,t),
+      width:r2lerp(A.contour.width,B.contour.width,t),
+      levels:r2lerp(A.contour.levels,B.contour.levels,t),
+      hueOff:r2lerp(A.contour.hueOff,B.contour.hueOff,t),
+    },
+    grid:{
+      str:r2lerp(A.grid.str,B.grid.str,t),
+      density:r2lerp(A.grid.density,B.grid.density,t),
+      lineW:r2lerp(A.grid.lineW,B.grid.lineW,t),
+      scrollX:r2lerp(A.grid.scrollX,B.grid.scrollX,t),
+      scrollY:r2lerp(A.grid.scrollY,B.grid.scrollY,t),
+      scrollZ:r2lerp(A.grid.scrollZ,B.grid.scrollZ,t),
+    },
+    rings:{
+      str:r2lerp(A.rings.str,B.rings.str,t),
+      freq:r2lerp(A.rings.freq,B.rings.freq,t),
+      speed:r2lerp(A.rings.speed,B.rings.speed,t),
+      thick:r2lerp(A.rings.thick,B.rings.thick,t),
+    },
+    burst:{
+      str:r2lerp(A.burst.str,B.burst.str,t),
+      arms:r2lerp(A.burst.arms,B.burst.arms,t),
+      twistSpd:r2lerp(A.burst.twistSpd,B.burst.twistSpd,t),
+      falloff:r2lerp(A.burst.falloff,B.burst.falloff,t),
+    },
   };
 }
 
@@ -11284,10 +11353,64 @@ function effectRandom80s(dt){
     val=val*0.5+0.5;
     const rad=Math.sqrt(x*x+y*y+z*z);
     if(p.glow>0) val+=p.glow*Math.max(0,1-rad*2.5);
+
+    // 80s laser lines — rotating beams through 3D space
+    let laserV=0;
+    if(p.laser.str>0.01){
+      const lc=Math.round(p.laser.count);
+      for(let li=0;li<lc;li++){
+        const la=tOff*p.laser.rotSpd+li*6.2832/lc;
+        const nx=p.laser.ax*Math.cos(la)+p.laser.az*Math.sin(la);
+        const nz=-p.laser.ax*Math.sin(la)+p.laser.az*Math.cos(la);
+        const d=Math.abs(x*nx+y*p.laser.ay+z*nz);
+        laserV+=Math.max(0,1-d/p.laser.thick);
+      }
+      laserV=Math.min(1,laserV)*p.laser.str;
+    }
+
+    // Neon contour lines — edges where base field crosses thresholds
+    let contourV=0;
+    if(p.contour.str>0.01){
+      const lv=Math.round(p.contour.levels);
+      const scaled=val*lv;
+      const frac=scaled-Math.floor(scaled);
+      const edge=frac<p.contour.width||frac>(1-p.contour.width)?1:0;
+      contourV=edge*p.contour.str;
+    }
+
+    // Neon grid — 3D grid lines scrolling through space
+    let gridV=0;
+    if(p.grid.str>0.01){
+      const gd=p.grid.density;
+      const gx=Math.abs(Math.sin((x*gd+tOff*p.grid.scrollX)*3.1416));
+      const gy=Math.abs(Math.sin((y*gd+tOff*p.grid.scrollY)*3.1416));
+      const gz=Math.abs(Math.sin((z*gd+tOff*p.grid.scrollZ)*3.1416));
+      const gline=Math.max(gx>=(1-p.grid.lineW)?1:0, gy>=(1-p.grid.lineW)?1:0, gz>=(1-p.grid.lineW)?1:0);
+      gridV=gline*p.grid.str;
+    }
+
+    // Expanding ring pulses from center
+    let ringV=0;
+    if(p.rings.str>0.01){
+      const rv=Math.sin(rad*p.rings.freq-tOff*p.rings.speed);
+      ringV=Math.pow(Math.max(0,rv),p.rings.thick)*p.rings.str;
+    }
+
+    // Starburst — radial spokes with twist
+    let burstV=0;
+    if(p.burst.str>0.01){
+      const ba=Math.atan2(z,x)+tOff*p.burst.twistSpd;
+      const arms=Math.round(p.burst.arms);
+      const spoke=Math.pow(Math.abs(Math.sin(ba*arms*0.5)),2);
+      burstV=spoke*Math.max(0,1-rad*p.burst.falloff)*p.burst.str;
+    }
+
+    // Combine: base field + 80s overlays
+    val=val+laserV+contourV+gridV+ringV+burstV;
     val=val<0?0:val>1?1:val;
     const L=Math.pow(val,p.contrast)*p.bright;
     if(L<0.015) continue;
-    const hc=val*p.hueScale+tOff*p.hueDrift;
+    const hc=val*p.hueScale+tOff*p.hueDrift+(laserV+contourV)*0.3;
     const col=r2Pal(p,hc);
     colBuf[i*3]=col[0]*L; colBuf[i*3+1]=col[1]*L; colBuf[i*3+2]=col[2]*L;
   }
