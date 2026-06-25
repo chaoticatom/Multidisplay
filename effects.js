@@ -4075,8 +4075,12 @@ async function wxFetch(skipGeocode){
       const mr=await fetch(moonUrl);
       if(mr.ok){
         const md=await mr.json();
+        console.log('Moon API response:',JSON.stringify(md.daily));
         wxMoonriseS=md.daily?.moonrise?.[0]?pt(md.daily.moonrise[0]):-1;
         wxMoonsetS=md.daily?.moonset?.[0]?pt(md.daily.moonset[0]):-1;
+        console.log('Moonrise secs:',wxMoonriseS,'Moonset secs:',wxMoonsetS);
+      } else {
+        console.warn('Moon API returned status:',mr.status);
       }
     }catch(e){ console.warn('Moon data fetch failed:',e); }
     wxInitScene(wxCode);
@@ -4089,7 +4093,13 @@ async function wxFetch(skipGeocode){
       if(tl) tl.textContent=`${wxTemp}°C (Max: ${wxTempMax}°C)  •  ${wxDesc}`;
       if(sl){
         const fmt=s=>{ try{return new Date(s).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}catch(e){return'?';} };
-        sl.textContent=`🌅 ${fmt(wd.daily?.sunrise?.[0])}   🌇 ${fmt(wd.daily?.sunset?.[0])}`;
+        let sunTxt=`🌅 ${fmt(wd.daily?.sunrise?.[0])}   🌇 ${fmt(wd.daily?.sunset?.[0])}`;
+        if(wxMoonriseS>=0||wxMoonsetS>=0){
+          const mrf=wxMoonriseS>=0?`${Math.floor(wxMoonriseS/3600)}:${String(Math.floor((wxMoonriseS%3600)/60)).padStart(2,'0')}`:'—';
+          const msf=wxMoonsetS>=0?`${Math.floor(wxMoonsetS/3600)}:${String(Math.floor((wxMoonsetS%3600)/60)).padStart(2,'0')}`:'—';
+          sunTxt+=`   🌙 ${mrf}–${msf}`;
+        }
+        sl.textContent=sunTxt;
       }
     }
   }catch(e){
