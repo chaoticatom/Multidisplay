@@ -224,6 +224,10 @@ function effectPlasma(dt) {
 // ── MORPHING SPHERE — multi-shell, pulsing auroras, face projections ──
 let sphT=0;
 
+let _lgScanT=0, _lgBaseAngle=0, _lgState='expand', _lgStateT=0;
+let _lgSpinTarget=0, _lgFlatT=-1, _lgFlatAlpha=0;
+const _lgFlatGrid=new Float32Array(0); // placeholder
+
 function effectSphere(dt) {
   t+=dt; sphT+=dt;
   for(let i=0;i<N*3;i++) colBuf[i]*=0.75;
@@ -233,46 +237,75 @@ function effectSphere(dt) {
   const nRays=6;
   const nHLines=8;
 
-  // Phase 1: rays expand from center dot (0-2s)
-  const expandDur=2.0;
-  const expand=Math.min(time/expandDur,1);
-  const expandEase=expand*expand;
+  // Smooth colour cycle with subtle flicker
+  const hp=time*0.15;
+  const flicker=0.92+0.08*Math.sin(time*47.3)*Math.sin(time*31.7);
+  const cR=(0.15+0.85*Math.max(0,Math.sin(hp)))*flicker;
+  const cG=(0.3+0.7*Math.max(0,Math.sin(hp+2.094)))*flicker;
+  const cB=(0.1+0.9*Math.max(0,Math.sin(hp+4.189)))*flicker;
 
-  // Phase 2: scan line smoothly starts moving after expand (ease-in over first sweep)
-  const scanPeriod=3.0;
-  let scanV=cy;
-  if(time>expandDur){
-    const st=time-expandDur;
-    const sp=(st%scanPeriod)/scanPeriod;
+  // State machine
+  _lgStateT+=dt;
+  const expandDur=2.0, scanPeriod=3.0, spinDur=1.5;
+  let expandEase=1, scanV=cy, spinAngle=_lgBaseAngle;
+
+  if(_lgState==='expand'){
+    const p=Math.min(_lgStateT/expandDur,1);
+    expandEase=p*p;
+    scanV=cy;
+    if(p>=1){_lgState='scan'; _lgStateT=0; _lgScanT=0;}
+  }
+
+  if(_lgState==='scan'){
+    _lgScanT+=dt;
+    const sp=(_lgScanT%scanPeriod)/scanPeriod;
     const raw=sp<0.5?sp*2:2-sp*2;
-    const sweepNum=st/scanPeriod;
+    const sweepNum=_lgScanT/scanPeriod;
     const amp=Math.min(sweepNum<1?sweepNum:1,1);
     scanV=cy+(raw-0.5)*2*amp*(S-1)/2;
     scanV=Math.max(0,Math.min(S-1,scanV));
-  }
-
-  // Smooth colour cycle
-  const hp=time*0.15;
-  const cR=0.15+0.85*Math.max(0,Math.sin(hp));
-  const cG=0.3+0.7*Math.max(0,Math.sin(hp+2.094));
-  const cB=0.1+0.9*Math.max(0,Math.sin(hp+4.189));
-
-  // Ray targets: edges at 0 and S-1, 4 evenly between
-  const rayTargets=[];
-  for(let ri=0;ri<nRays;ri++) rayTargets.push(ri/(nRays-1)*(S-1));
-
-  // Spin: occasional 360 rotation (~1.5s spin every ~11s), only after fully expanded
-  const spinPeriod=11.0, spinDur=1.5;
-  let spinAngle=0;
-  if(expandEase>=1){
-    const spinT=((time-expandDur)%spinPeriod);
-    if(spinT<spinDur){
-      const p=spinT/spinDur;
-      const ease=p<0.5?2*p*p:1-2*(1-p)*(1-p);
-      spinAngle=ease*Math.PI*2;
+    // Trigger spin when scan line near center (within 2px)
+    if(_lgStateT>5.0 && Math.abs(scanV-cy)<2){
+      _lgState='spin';
+      _lgStateT=0;
+      // Randomly pick 90° or 360°
+      _lgSpinTarget=((_lgScanT*7|0)%3===0)?Math.PI/2:Math.PI*2;
+      scanV=cy;
+    }
+    // Trigger flat grid overlay occasionally
+    if(_lgFlatT<0 && _lgStateT>8.0){
+      _lgFlatT=0;
+      _lgStateT=0;
     }
   }
+
+  if(_lgState==='spin'){
+    scanV=cy;
+    const p=Math.min(_lgStateT/spinDur,1);
+    const ease=p<0.5?2*p*p:1-2*(1-p)*(1-p);
+    spinAngle=_lgBaseAngle+ease*_lgSpinTarget;
+    if(p>=1){
+      _lgBaseAngle=_lgBaseAngle+_lgSpinTarget;
+      // Normalise angle
+      while(_lgBaseAngle>Math.PI*2) _lgBaseAngle-=Math.PI*2;
+      _lgState='scan';
+      _lgStateT=0;
+    }
+  }
+
+  // Flat grid overlay timer (runs independently)
+  const flatSweepDur=2.0, flatHoldDur=2.5, flatFadeDur=1.5;
+  const flatTotalDur=flatSweepDur+flatHoldDur+flatFadeDur;
+  if(_lgFlatT>=0){
+    _lgFlatT+=dt;
+    if(_lgFlatT>=flatTotalDur) _lgFlatT=-1;
+  }
+
   const cosA=Math.cos(spinAngle), sinA=Math.sin(spinAngle);
+
+  // Ray targets
+  const rayTargets=[];
+  for(let ri=0;ri<nRays;ri++) rayTargets.push(ri/(nRays-1)*(S-1));
 
   function drawFace(setPx){
     function drawLine(x0,y0,x1,y1,bright){
@@ -286,11 +319,9 @@ function effectSphere(dt) {
       }
     }
 
-    // Scan line center: offset from center, rotated by spin angle
+    // Scan line geometry rotated around center
     const scanDist=scanV-cy;
     const scanCU=cx-scanDist*sinA, scanCV=cy+scanDist*cosA;
-    // Scan line direction (perpendicular to ray direction)
-    const slDirU=-sinA, slDirV=cosA;
     const slHalf=(S-1)/2*1.2;
     const slU0=scanCU+cosA*slHalf, slV0=scanCV+sinA*slHalf;
     const slU1=scanCU-cosA*slHalf, slV1=scanCV-sinA*slHalf;
@@ -298,15 +329,15 @@ function effectSphere(dt) {
     // Full scan line
     const slB=0.9*expandEase;
     drawLine(slU0,slV0,slU1,slV1,slB);
-    // Scan line glow (parallel lines offset along scan normal)
-    const normU=cosA, normV=sinA;
+    // Scan line glow
+    const normU=-sinA, normV=cosA;
     for(let dv=-3;dv<=3;dv++){
       if(dv===0) continue;
       const gb=(1-Math.abs(dv)/4)*0.18*expandEase;
       drawLine(slU0+normU*dv,slV0+normV*dv,slU1+normU*dv,slV1+normV*dv,gb);
     }
 
-    // 6 rays from center to points along the scan line
+    // 6 rays from center to points along scan line
     for(let ri=0;ri<nRays;ri++){
       const frac=ri/(nRays-1);
       const tU=slU0+(slU1-slU0)*frac;
@@ -326,7 +357,7 @@ function effectSphere(dt) {
     }
 
     // Grid lines between rays (perspective)
-    function drawGrid(scanCenterU,scanCenterV,lineU0,lineU1,lineV0,lineV1,brightness){
+    function drawGrid(lineU0,lineU1,lineV0,lineV1,brightness){
       for(let hi=1;hi<=nHLines;hi++){
         const frac=hi/(nHLines+1);
         const pFrac=frac*frac;
@@ -343,61 +374,53 @@ function effectSphere(dt) {
       }
     }
     if(expandEase>0.3){
-      drawGrid(scanCU,scanCV,slU0,slU1,slV0,slV1,0.25*(expandEase-0.3)/0.7);
+      drawGrid(slU0,slU1,slV0,slV1,0.25*(expandEase-0.3)/0.7);
     }
 
     // Ghost grid: occasionally appears going opposite direction
     const ghostPeriod=7.0, ghostDur=3.0;
     const gt=(time%ghostPeriod);
-    if(gt<ghostDur && expandEase>0.5){
+    if(gt<ghostDur && expandEase>=1 && _lgState==='scan'){
       const gAlpha=Math.sin((gt/ghostDur)*Math.PI)*0.35;
       const oScanCU=cx+scanDist*sinA, oScanCV=cy-scanDist*cosA;
-      const oSlU0=oScanCU-slDirU*slHalf, oSlV0=oScanCV-slDirV*slHalf;
-      const oSlU1=oScanCU+slDirU*slHalf, oSlV1=oScanCV+slDirV*slHalf;
+      const oSlU0=oScanCU+cosA*slHalf, oSlV0=oScanCV+sinA*slHalf;
+      const oSlU1=oScanCU-cosA*slHalf, oSlV1=oScanCV-sinA*slHalf;
       drawLine(oSlU0,oSlV0,oSlU1,oSlV1,gAlpha*0.6);
-      drawGrid(oScanCU,oScanCV,oSlU0,oSlU1,oSlV0,oSlV1,gAlpha);
+      drawGrid(oSlU0,oSlU1,oSlV0,oSlV1,gAlpha);
     }
 
-    // Flat 2D grid overlay: two lines sweep up/down from center, leave grid, then fade
-    const flatPeriod=15.0, flatSweep=1.5, flatHold=2.5, flatFade=1.0;
-    const flatTotal=flatSweep+flatHold+flatFade;
-    const ft2=time%flatPeriod;
-    if(ft2<flatTotal && expandEase>=1){
+    // Flat 2D grid overlay: scan line sweeps it into view
+    if(_lgFlatT>=0 && _lgFlatT<flatTotalDur){
       const gridSpacing=Math.round(S/8);
       let flatAlpha=0, reach=0;
-      if(ft2<flatSweep){
-        reach=ft2/flatSweep;
+      if(_lgFlatT<flatSweepDur){
+        reach=_lgFlatT/flatSweepDur;
         flatAlpha=0.4;
-      } else if(ft2<flatSweep+flatHold){
+      } else if(_lgFlatT<flatSweepDur+flatHoldDur){
         reach=1;
         flatAlpha=0.4;
       } else {
         reach=1;
-        flatAlpha=0.4*(1-(ft2-flatSweep-flatHold)/flatFade);
+        flatAlpha=0.4*(1-(_lgFlatT-flatSweepDur-flatHoldDur)/flatFadeDur);
       }
       const maxDist=Math.round(reach*(S/2));
-      // Horizontal lines
       for(let gi=1;gi<S/gridSpacing;gi++){
-        const v=gi*gridSpacing; if(v>=S) continue;
-        const distFromC=Math.abs(v-Math.round(cy));
-        if(distFromC>maxDist) continue;
-        for(let u=0;u<S;u++) setPx(u,v,cR*flatAlpha,cG*flatAlpha,cB*flatAlpha);
+        const gv=gi*gridSpacing; if(gv>=S) continue;
+        if(Math.abs(gv-Math.round(cy))>maxDist) continue;
+        for(let u=0;u<S;u++) setPx(u,gv,cR*flatAlpha,cG*flatAlpha,cB*flatAlpha);
       }
-      // Vertical lines
       for(let gi=1;gi<S/gridSpacing;gi++){
-        const u=gi*gridSpacing; if(u>=S) continue;
+        const gu=gi*gridSpacing; if(gu>=S) continue;
         for(let v=0;v<S;v++){
-          const distFromC=Math.abs(v-Math.round(cy));
-          if(distFromC>maxDist) continue;
-          setPx(u,v,cR*flatAlpha,cG*flatAlpha,cB*flatAlpha);
+          if(Math.abs(v-Math.round(cy))>maxDist) continue;
+          setPx(gu,v,cR*flatAlpha,cG*flatAlpha,cB*flatAlpha);
         }
       }
-      // Sweep lines
-      if(ft2<flatSweep){
-        const sweepV1=Math.round(cy-maxDist), sweepV2=Math.round(cy+maxDist);
+      if(_lgFlatT<flatSweepDur){
+        const sw1=Math.round(cy-maxDist), sw2=Math.round(cy+maxDist);
         for(let u=0;u<S;u++){
-          if(sweepV1>=0&&sweepV1<S) setPx(u,sweepV1,cR*0.8,cG*0.8,cB*0.8);
-          if(sweepV2>=0&&sweepV2<S) setPx(u,sweepV2,cR*0.8,cG*0.8,cB*0.8);
+          if(sw1>=0&&sw1<S) setPx(u,sw1,cR*0.8,cG*0.8,cB*0.8);
+          if(sw2>=0&&sw2<S) setPx(u,sw2,cR*0.8,cG*0.8,cB*0.8);
         }
       }
     }
