@@ -11251,84 +11251,45 @@ function effectRandom80s(dt){
   const spinA=p.spin*tOff;
   const cosS=Math.cos(spinA), sinS=Math.sin(spinA);
 
-  // Render using 3D surface coords for cube continuity, or face UV for 2D
+  // Use surfX/Y/Z for all LEDs — continuous 3D field across all 6 faces.
+  // Works in both cube and 2D panel mode since surfX/Y/Z covers every LED
+  // and faceMap mirroring is already baked into the LED indices.
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
-  if(panel2dMode){
-    // 2D panel: render on front face only
-    for(let v=0;v<SIZE;v++) for(let u=0;u<SIZE;u++){
-      const idx=faceMap[0][v*SIZE+u];
-      if(idx<0) continue;
-      let x=u/SIZE-0.5, y=v/SIZE-0.5, z=0;
-      // spin
-      const rx=x*cosS-y*sinS, ry=x*sinS+y*cosS;
-      x=rx; y=ry;
-      // kaleid
-      if(p.kaleid){
-        const ang=Math.atan2(y,x);
-        const seg=6.2832/p.kaleid;
-        const fa=Math.abs(((ang%seg)+seg)%seg-seg*0.5);
-        const rr=Math.sqrt(x*x+y*y);
-        x=Math.cos(fa)*rr; y=Math.sin(fa)*rr;
-      }
-      // warp
-      if(p.warp.amt>0.005){
-        x+=Math.sin(y*p.warp.fy+tOff*p.warp.sy)*p.warp.amt;
-        y+=Math.cos(x*p.warp.fx-tOff*p.warp.sx)*p.warp.amt;
-      }
-      // sum 4 wave layers
-      let val=0;
-      for(let w=0;w<4;w++){
-        const W=p.waves[w];
-        val+=Math.sin(x*W.ax*W.freq+y*W.ay*W.freq+z*W.az*W.freq+tOff*W.speed+W.phase)*W.amp;
-      }
-      val=val*0.5+0.5;
-      const rad=Math.sqrt(x*x+y*y);
-      if(p.glow>0) val+=p.glow*Math.max(0,1-rad*1.8);
-      val=val<0?0:val>1?1:val;
-      const L=Math.pow(val,p.contrast)*p.bright;
-      if(L<0.015) continue;
-      const hc=val*p.hueScale+tOff*p.hueDrift;
-      const col=r2Pal(p,hc);
-      colBuf[idx*3]=col[0]*L; colBuf[idx*3+1]=col[1]*L; colBuf[idx*3+2]=col[2]*L;
+  for(let i=0;i<N;i++){
+    let x=surfX[i]-0.5, y=surfY[i]-0.5, z=surfZ[i]-0.5;
+    // spin around Y axis
+    const rx=x*cosS-z*sinS, rz=x*sinS+z*cosS;
+    x=rx; z=rz;
+    // kaleid on XZ plane
+    if(p.kaleid){
+      const ang=Math.atan2(z,x);
+      const seg=6.2832/p.kaleid;
+      const fa=Math.abs(((ang%seg)+seg)%seg-seg*0.5);
+      const rr=Math.sqrt(x*x+z*z);
+      x=Math.cos(fa)*rr; z=Math.sin(fa)*rr;
     }
-  } else {
-    // 3D cube: use surfX/Y/Z for continuous fields across all faces
-    for(let i=0;i<N;i++){
-      let x=surfX[i]-0.5, y=surfY[i]-0.5, z=surfZ[i]-0.5;
-      // spin around Y axis
-      const rx=x*cosS-z*sinS, rz=x*sinS+z*cosS;
-      x=rx; z=rz;
-      // kaleid on XZ plane
-      if(p.kaleid){
-        const ang=Math.atan2(z,x);
-        const seg=6.2832/p.kaleid;
-        const fa=Math.abs(((ang%seg)+seg)%seg-seg*0.5);
-        const rr=Math.sqrt(x*x+z*z);
-        x=Math.cos(fa)*rr; z=Math.sin(fa)*rr;
-      }
-      // domain warp
-      if(p.warp.amt>0.005){
-        x+=Math.sin(y*p.warp.fy+z*p.warp.fz+tOff*p.warp.sy)*p.warp.amt;
-        y+=Math.cos(x*p.warp.fx+z*p.warp.fz*0.7-tOff*p.warp.sx)*p.warp.amt;
-        z+=Math.sin(x*p.warp.fx*0.8+y*p.warp.fy*0.6+tOff*p.warp.sy*0.5)*p.warp.amt*0.7;
-      }
-      // sum 4 wave layers in 3D
-      let val=0;
-      for(let w=0;w<4;w++){
-        const W=p.waves[w];
-        val+=Math.sin(x*W.ax*W.freq+y*W.ay*W.freq+z*W.az*W.freq+tOff*W.speed+W.phase)*W.amp;
-      }
-      val=val*0.5+0.5;
-      const rad=Math.sqrt(x*x+y*y+z*z);
-      if(p.glow>0) val+=p.glow*Math.max(0,1-rad*2.5);
-      val=val<0?0:val>1?1:val;
-      const L=Math.pow(val,p.contrast)*p.bright;
-      if(L<0.015) continue;
-      const hc=val*p.hueScale+tOff*p.hueDrift;
-      const col=r2Pal(p,hc);
-      colBuf[i*3]=col[0]*L; colBuf[i*3+1]=col[1]*L; colBuf[i*3+2]=col[2]*L;
+    // domain warp
+    if(p.warp.amt>0.005){
+      x+=Math.sin(y*p.warp.fy+z*p.warp.fz+tOff*p.warp.sy)*p.warp.amt;
+      y+=Math.cos(x*p.warp.fx+z*p.warp.fz*0.7-tOff*p.warp.sx)*p.warp.amt;
+      z+=Math.sin(x*p.warp.fx*0.8+y*p.warp.fy*0.6+tOff*p.warp.sy*0.5)*p.warp.amt*0.7;
     }
+    // sum 4 wave layers in 3D
+    let val=0;
+    for(let w=0;w<4;w++){
+      const W=p.waves[w];
+      val+=Math.sin(x*W.ax*W.freq+y*W.ay*W.freq+z*W.az*W.freq+tOff*W.speed+W.phase)*W.amp;
+    }
+    val=val*0.5+0.5;
+    const rad=Math.sqrt(x*x+y*y+z*z);
+    if(p.glow>0) val+=p.glow*Math.max(0,1-rad*2.5);
+    val=val<0?0:val>1?1:val;
+    const L=Math.pow(val,p.contrast)*p.bright;
+    if(L<0.015) continue;
+    const hc=val*p.hueScale+tOff*p.hueDrift;
+    const col=r2Pal(p,hc);
+    colBuf[i*3]=col[0]*L; colBuf[i*3+1]=col[1]*L; colBuf[i*3+2]=col[2]*L;
   }
 }
 
