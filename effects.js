@@ -232,52 +232,61 @@ function effectSphere(dt) {
   const cx=(S-1)/2, cy=(S-1)/2;
   const nRays=6;
 
-  // Scan line bounces up and down (~3s per sweep)
-  const scanPeriod=3.0;
-  const sp=(time%scanPeriod)/scanPeriod;
-  const scanY=sp<0.5?sp*2:2-sp*2;
-  const scanV=scanY*(S-1);
+  // Startup: rays expand from dot over first 2 seconds
+  const startupDur=2.0;
+  const startupT=Math.min(time/startupDur,1);
+  const expand=startupT*startupT; // ease-in
 
-  // Colour cycle
-  const h=(time*0.05)%1;
-  let cR,cG,cB;
-  if(h<0.25){cR=0.15;cG=1;cB=0.3;}
-  else if(h<0.5){cR=0.1;cG=0.7;cB=1;}
-  else if(h<0.75){cR=1;cG=0.5;cB=0.1;}
-  else{cR=0.15;cG=1;cB=0.3;}
+  // After startup, scan line bounces up and down (~3s per sweep)
+  const scanPeriod=3.0;
+  let scanV;
+  if(time<startupDur){
+    scanV=cy;
+  } else {
+    const st=time-startupDur;
+    const sp=(st%scanPeriod)/scanPeriod;
+    scanV=(sp<0.5?sp*2:2-sp*2)*(S-1);
+  }
+
+  // Smooth colour cycle using sine waves
+  const hp=time*0.15;
+  const cR=0.15+0.85*Math.max(0,Math.sin(hp));
+  const cG=0.3+0.7*Math.max(0,Math.sin(hp+2.094));
+  const cB=0.1+0.9*Math.max(0,Math.sin(hp+4.189));
+
+  // Ray targets: edges at 0 and S-1, 4 evenly between
+  const rayTargets=[];
+  for(let ri=0;ri<nRays;ri++){
+    rayTargets.push(Math.round(ri/(nRays-1)*(S-1)));
+  }
 
   function drawFace(setPx){
     const sv=Math.round(scanV);
 
-    // Full-width horizontal scan line
+    // Full-width horizontal scan line (fades in with startup)
+    const slBright=0.9*expand;
     for(let u=0;u<S;u++){
-      setPx(u,sv,cR*0.9,cG*0.9,cB*0.9);
+      setPx(u,sv,cR*slBright,cG*slBright,cB*slBright);
     }
     // Scan line glow
     for(let dv=-3;dv<=3;dv++){
       if(dv===0) continue;
       const v=sv+dv; if(v<0||v>=S) continue;
-      const gb=(1-Math.abs(dv)/4)*0.18;
+      const gb=(1-Math.abs(dv)/4)*0.18*expand;
       for(let u=0;u<S;u++) setPx(u,v,cR*gb,cG*gb,cB*gb);
     }
 
-    // 6 rays from center dot to equally spaced points on scan line
-    const rayTargets=[];
-    for(let ri=0;ri<nRays;ri++){
-      const tu=Math.round((ri+0.5)/nRays*(S-1));
-      rayTargets.push(tu);
-    }
-
+    // 6 rays from center dot to scan line endpoints
     for(let ri=0;ri<nRays;ri++){
       const tu=rayTargets[ri];
-      const dx=tu-cx, dy=sv-cy;
-      const steps=Math.max(Math.abs(dx),Math.abs(dy),1);
+      const dx=(tu-cx)*expand, dy=(sv-cy)*expand;
+      const steps=Math.max(Math.abs(dx),Math.abs(dy),1)|0;
       for(let s=0;s<=steps;s++){
         const t=s/steps;
         const u=Math.round(cx+dx*t);
         const v=Math.round(cy+dy*t);
         if(u<0||u>=S||v<0||v>=S) continue;
-        const b=0.3+0.5*t;
+        const b=0.25+0.55*t;
         setPx(u,v,cR*b,cG*b,cB*b);
       }
     }
@@ -294,11 +303,12 @@ function effectSphere(dt) {
     // Bright dots where rays meet scan line
     for(let ri=0;ri<nRays;ri++){
       const tu=rayTargets[ri];
+      const eu=Math.round(cx+(tu-cx)*expand);
       for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
-        const u=tu+du, v=sv+dv;
+        const u=eu+du, v=sv+dv;
         if(u<0||u>=S||v<0||v>=S) continue;
         const r=Math.sqrt(du*du+dv*dv);
-        const b=Math.max(0,1-r/1.5)*0.8;
+        const b=Math.max(0,1-r/1.5)*0.8*expand;
         setPx(u,v,cR*b,cG*b,cB*b);
       }
     }
