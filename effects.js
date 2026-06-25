@@ -11135,45 +11135,138 @@ let r2From=null, r2To=null, r2Live=null;
 
 function r2rnd(a,b){ return a+Math.random()*(b-a); }
 
+// Visual character presets — weighted random pick biases toward distinct looks
+const R2_CHARS=[
+  'plasma','laser','rings','grid','bars','nebula','kaleid','tunnel','storm'];
+
 function r2GenParams(){
-  // 4 wave layers — each a sin field in 3D space
+  const char=R2_CHARS[Math.floor(Math.random()*R2_CHARS.length)];
+
+  // Base wave shape depends on character
   const waves=[];
   for(let i=0;i<4;i++){
+    let ax=r2rnd(-3,3), ay=r2rnd(-3,3), az=r2rnd(-3,3);
+    let freq=r2rnd(3,18), amp=r2rnd(0.15,0.5);
+    if(char==='laser'){
+      // Align waves to create sharp parallel beams
+      const axis=Math.floor(Math.random()*3);
+      ax=axis===0?r2rnd(0.5,1.5)*(Math.random()<0.5?-1:1):r2rnd(-0.3,0.3);
+      ay=axis===1?r2rnd(0.5,1.5)*(Math.random()<0.5?-1:1):r2rnd(-0.3,0.3);
+      az=axis===2?r2rnd(0.5,1.5)*(Math.random()<0.5?-1:1):r2rnd(-0.3,0.3);
+      freq=r2rnd(8,25); amp=r2rnd(0.3,0.6);
+    } else if(char==='bars'){
+      ay=i<2?r2rnd(0.8,2):r2rnd(-0.2,0.2);
+      ax=i<2?r2rnd(-0.2,0.2):r2rnd(0.8,2);
+      az=r2rnd(-0.3,0.3);
+      freq=r2rnd(5,15);
+    } else if(char==='rings'){
+      ax=r2rnd(-2,2); ay=r2rnd(-0.3,0.3); az=r2rnd(-2,2);
+      freq=r2rnd(10,30); amp=r2rnd(0.2,0.45);
+    } else if(char==='tunnel'){
+      ax=r2rnd(1,3); az=r2rnd(1,3); ay=r2rnd(-0.5,0.5);
+      freq=r2rnd(6,20);
+    } else if(char==='grid'){
+      const pick=i%3;
+      ax=pick===0?r2rnd(1,2):r2rnd(-0.1,0.1);
+      ay=pick===1?r2rnd(1,2):r2rnd(-0.1,0.1);
+      az=pick===2?r2rnd(1,2):r2rnd(-0.1,0.1);
+      freq=r2rnd(6,14);
+    }
     waves.push({
-      ax: r2rnd(-3,3), ay: r2rnd(-3,3), az: r2rnd(-3,3),
-      freq: r2rnd(3,18),
+      ax, ay, az,
+      freq,
       speed: r2rnd(-2.5,2.5),
       phase: r2rnd(0,6.28),
-      amp: r2rnd(0.15,0.5),
+      amp,
     });
   }
-  // domain warp params
+
+  // Shaping — controls how the raw field becomes visuals
+  let sharpness=1, threshold=0, edgeGlow=0;
+  if(char==='laser'){
+    sharpness=r2rnd(4,12);   // very sharp = thin bright lines
+    threshold=r2rnd(0.5,0.8); // only show peaks = dark gaps between beams
+    edgeGlow=r2rnd(0.3,0.7);
+  } else if(char==='grid'){
+    sharpness=r2rnd(3,8);
+    threshold=r2rnd(0.4,0.7);
+    edgeGlow=r2rnd(0.1,0.4);
+  } else if(char==='bars'){
+    sharpness=r2rnd(2,6);
+    threshold=r2rnd(0.2,0.5);
+  } else if(char==='rings'){
+    sharpness=r2rnd(2,5);
+    threshold=r2rnd(0.1,0.4);
+    edgeGlow=r2rnd(0.2,0.5);
+  } else if(char==='storm'){
+    sharpness=r2rnd(0.4,0.8); // inverse = harsh bright contrast
+    threshold=0;
+  } else if(char==='tunnel'){
+    sharpness=r2rnd(1.5,4);
+    threshold=r2rnd(0.1,0.3);
+    edgeGlow=r2rnd(0.1,0.3);
+  } else {
+    // plasma, nebula, kaleid — soft looks
+    sharpness=r2rnd(0.6,1.8);
+    threshold=r2rnd(0,0.15);
+    edgeGlow=r2rnd(0,0.2);
+  }
+
+  // domain warp
   const warp={
-    amt: r2rnd(0,0.25),
+    amt: char==='storm'?r2rnd(0.12,0.3):(char==='nebula'?r2rnd(0.08,0.25):r2rnd(0,0.18)),
     fx: r2rnd(3,10), fy: r2rnd(3,10), fz: r2rnd(3,10),
     sx: r2rnd(-1.5,1.5), sy: r2rnd(-1.5,1.5),
   };
-  // kaleidoscope fold (0=off, 2-8=fold count)
-  const kaleid=Math.random()<0.35?(2+Math.floor(Math.random()*7)):0;
-  // cosine palette (IQ style) — 4×3 floats
-  const palA=[r2rnd(0.35,0.65),r2rnd(0.35,0.65),r2rnd(0.35,0.65)];
-  const mono=Math.random()<0.15;
-  const bv=r2rnd(0.3,0.55);
-  const palB=[bv, bv*r2rnd(0.85,1.15), bv*r2rnd(0.85,1.15)];
-  const cf=r2rnd(0.5,1.8);
-  const palC=[cf,cf,cf];
-  const palD=mono?[0,0.03,0.07]:[r2rnd(0,1),r2rnd(0,1),r2rnd(0,1)];
+
+  const kaleid=char==='kaleid'?(3+Math.floor(Math.random()*6)):(Math.random()<0.2?(2+Math.floor(Math.random()*5)):0);
+
+  // Palette — neon palettes for laser/grid, richer for others
+  let palA, palB, palC, palD;
+  const palType=Math.random();
+  if(char==='laser'||char==='grid'||palType<0.35){
+    // Hot neon: pick 1-2 dominant channels, suppress others
+    const neons=[
+      {a:[0.5,0.1,0.1],b:[0.5,0.1,0.1],d:[0,0.1,0.2]},       // red laser
+      {a:[0.1,0.5,0.1],b:[0.1,0.5,0.1],d:[0.2,0,0.1]},       // green laser
+      {a:[0.1,0.1,0.5],b:[0.1,0.2,0.5],d:[0.1,0.2,0]},       // blue laser
+      {a:[0.5,0.1,0.5],b:[0.5,0.15,0.5],d:[0,0.3,0.1]},      // magenta
+      {a:[0.1,0.5,0.5],b:[0.15,0.5,0.5],d:[0.2,0,0.1]},      // cyan
+      {a:[0.5,0.4,0.1],b:[0.5,0.3,0.1],d:[0,0.15,0.3]},      // amber/gold
+      {a:[0.5,0.2,0.4],b:[0.4,0.15,0.5],d:[0.1,0.25,0]},     // pink-purple
+    ];
+    const n=neons[Math.floor(Math.random()*neons.length)];
+    palA=n.a; palB=n.b; palD=n.d;
+    palC=[r2rnd(0.5,1.5),r2rnd(0.5,1.5),r2rnd(0.5,1.5)];
+  } else if(palType<0.6){
+    // Dual-tone neon
+    palA=[r2rnd(0.3,0.6),r2rnd(0.3,0.6),r2rnd(0.3,0.6)];
+    const bv2=r2rnd(0.35,0.55);
+    palB=[bv2,bv2*r2rnd(0.8,1.2),bv2*r2rnd(0.8,1.2)];
+    palC=[r2rnd(0.8,2),r2rnd(0.8,2),r2rnd(0.8,2)];
+    palD=[r2rnd(0,1),r2rnd(0,1),r2rnd(0,1)];
+  } else {
+    // Rich multi-hue
+    palA=[r2rnd(0.4,0.65),r2rnd(0.4,0.65),r2rnd(0.4,0.65)];
+    const bv3=r2rnd(0.3,0.5);
+    palB=[bv3,bv3*r2rnd(0.85,1.15),bv3*r2rnd(0.85,1.15)];
+    const cf2=r2rnd(0.5,1.8);
+    palC=[cf2,cf2,cf2];
+    palD=[r2rnd(0,1),r2rnd(0,1),r2rnd(0,1)];
+  }
+
   return {
-    waves,
-    warp,
-    kaleid,
+    waves, warp, kaleid,
     palA, palB, palC, palD,
     hueScale: r2rnd(0.3,1.5),
     hueDrift: r2rnd(-0.08,0.08),
-    contrast: r2rnd(0.8,2.2),
+    contrast: char==='laser'?r2rnd(1.5,3):r2rnd(0.8,2.2),
     bright: r2rnd(0.7,1.0),
-    glow: r2rnd(0,0.15),
+    glow: char==='laser'||char==='rings'?r2rnd(0.05,0.25):r2rnd(0,0.15),
     spin: r2rnd(-0.3,0.3),
+    sharpness,
+    threshold,
+    edgeGlow,
   };
 }
 
@@ -11213,6 +11306,9 @@ function r2MorphParams(A,B,t){
     bright:r2lerp(A.bright,B.bright,t),
     glow:r2lerp(A.glow,B.glow,t),
     spin:r2lerp(A.spin,B.spin,t),
+    sharpness:r2lerp(A.sharpness,B.sharpness,t),
+    threshold:r2lerp(A.threshold,B.threshold,t),
+    edgeGlow:r2lerp(A.edgeGlow,B.edgeGlow,t),
   };
 }
 
@@ -11276,12 +11372,28 @@ function effectRandom80s(dt){
       z+=Math.sin(x*p.warp.fx*0.8+y*p.warp.fy*0.6+tOff*p.warp.sy*0.5)*p.warp.amt*0.7;
     }
     // sum 4 wave layers in 3D
-    let val=0;
+    let raw2=0;
     for(let w=0;w<4;w++){
       const W=p.waves[w];
-      val+=Math.sin(x*W.ax*W.freq+y*W.ay*W.freq+z*W.az*W.freq+tOff*W.speed+W.phase)*W.amp;
+      raw2+=Math.sin(x*W.ax*W.freq+y*W.ay*W.freq+z*W.az*W.freq+tOff*W.speed+W.phase)*W.amp;
     }
-    val=val*0.5+0.5;
+    raw2=raw2*0.5+0.5;
+
+    // Sharpness — power curve: >1 = hard thin lines, <1 = blown-out bright
+    let val=Math.pow(raw2<0?0:raw2>1?1:raw2, p.sharpness);
+
+    // Threshold — cut below this value to create dark gaps (laser-line look)
+    if(p.threshold>0.01){
+      val=val>p.threshold?(val-p.threshold)/(1-p.threshold):0;
+      // Edge glow — soft halo just below threshold
+      if(p.edgeGlow>0.01&&val===0){
+        const dist=p.threshold-Math.pow(raw2<0?0:raw2>1?1:raw2, p.sharpness);
+        if(dist<p.edgeGlow*0.3){
+          val=(1-dist/(p.edgeGlow*0.3))*p.edgeGlow*0.4;
+        }
+      }
+    }
+
     const rad=Math.sqrt(x*x+y*y+z*z);
     if(p.glow>0) val+=p.glow*Math.max(0,1-rad*2.5);
     val=val<0?0:val>1?1:val;
