@@ -292,8 +292,7 @@ function effectSphere(dt) {
     }
 
     // Horizontal grid lines between rays (perspective: closer together near center)
-    if(expandEase>0.3){
-      const gridB=0.25*(expandEase-0.3)/0.7;
+    function drawGrid(targetV, brightness){
       for(let hi=1;hi<=nHLines;hi++){
         const frac=hi/(nHLines+1);
         const pFrac=frac*frac;
@@ -301,15 +300,34 @@ function effectSphere(dt) {
           const tuA=rayTargets[ri], tuB=rayTargets[ri+1];
           const eA=cx+(tuA-cx)*expandEase, eB=cx+(tuB-cx)*expandEase;
           const uA=cx+(eA-cx)*pFrac, uB=cx+(eB-cx)*pFrac;
-          const vLine=Math.round(cy+(sv-cy)*expandEase*pFrac);
+          const vLine=Math.round(cy+(targetV-cy)*expandEase*pFrac);
           if(vLine<0||vLine>=S) continue;
           const uStart=Math.round(Math.min(uA,uB));
           const uEnd=Math.round(Math.max(uA,uB));
           for(let u=uStart;u<=uEnd;u++){
             if(u<0||u>=S) continue;
-            setPx(u,vLine,cR*gridB,cG*gridB,cB*gridB);
+            setPx(u,vLine,cR*brightness,cG*brightness,cB*brightness);
           }
         }
+      }
+    }
+    if(expandEase>0.3){
+      drawGrid(sv, 0.25*(expandEase-0.3)/0.7);
+    }
+
+    // Ghost grid: occasionally appears going opposite direction
+    const ghostPeriod=7.0;
+    const ghostDur=3.0;
+    const gt=(time%ghostPeriod);
+    if(gt<ghostDur && expandEase>0.5){
+      const gPhase=gt/ghostDur;
+      const gAlpha=Math.sin(gPhase*Math.PI)*0.35;
+      const oppositeV=S-1-sv;
+      drawGrid(oppositeV, gAlpha);
+      // Ghost scan line
+      const gv=Math.round(oppositeV);
+      if(gv>=0&&gv<S){
+        for(let u=0;u<S;u++) setPx(u,gv,cR*gAlpha*0.6,cG*gAlpha*0.6,cB*gAlpha*0.6);
       }
     }
 
