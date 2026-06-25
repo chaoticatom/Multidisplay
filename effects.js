@@ -4111,13 +4111,24 @@ function effectWeather(dt){
   const sunPX=isDay?dayProg*0.5:-1;      // 0(east) → 0.5(west) through 0.25(south)
   const sunElev=isDay?Math.sin(dayProg*Math.PI):0; // 0-1
 
-  // Moon (mirrors sun but at night, same arc)
+  // Moon — visible day and night; faint midday, stronger near dusk
   const nightLen=86400-dayLen||1;
   const fromSunset=secsDay>wxSunsetS?secsDay-wxSunsetS:secsDay+(86400-wxSunsetS);
   const nightProg=!isDay?fromSunset/nightLen:0;
-  const moonPX=!isDay?nightProg*0.5:-1;
-  const moonElev=!isDay?Math.sin(nightProg*Math.PI)*0.9:0;
   const moonPh=wxMoonPhase(new Date());
+  let moonPX,moonElev,moonAlpha;
+  if(!isDay){
+    moonPX=nightProg*0.5;
+    moonElev=Math.sin(nightProg*Math.PI)*0.9;
+    moonAlpha=1;
+  } else {
+    moonPX=((sunPX+0.5)%1);
+    moonElev=Math.max(0.05,sunElev*0.6);
+    const toSunset=(wxSunsetS-secsDay)/3600;
+    if(toSunset<3) moonAlpha=0.25+0.75*(1-toSunset/3);
+    else if(toSunset<6) moonAlpha=0.08+0.17*(1-toSunset/6);
+    else moonAlpha=0.08;
+  }
 
   // Twilight
   const twilS=3600;
@@ -4513,11 +4524,11 @@ function effectWeather(dt){
                 termX*dir>cosAngle-0.15?((termX*dir-cosAngle+0.15)/0.15)*0.7:0;
       if(lit>0.05){
         const edge=1-Math.pow(dist/radius,2)*0.3;
-        const moonB=(0.8+0.1*Math.sin(du*1.3+dv*0.9))*lit*edge;
+        const moonB=(0.8+0.1*Math.sin(du*1.3+dv*0.9))*lit*edge*moonAlpha;
         blendLED(idx,moonB,moonB*0.97,moonB*0.88);
       }
     } else if(dist<radius+2){
-      const glow=(1-(dist-radius)/2)*0.18;
+      const glow=(1-(dist-radius)/2)*0.18*moonAlpha;
       blendLED(idx,glow,glow*0.95,glow*0.88);
     }
   }
@@ -4525,11 +4536,8 @@ function effectWeather(dt){
   // ── Sun ──
   if(!panel2dMode && isDay && sunPX>=0) drawBody(sunPX,sunElev,true,0);
 
-  // ── Moon ──
-  if(!panel2dMode && !isDay&&moonPX>=0) drawBody(moonPX,moonElev,false,moonPh);
-  // Show moon during very bright day only if full
-  else if(isDay&&moonPh>0.45&&moonPh<0.55&&lightLvl>0.8)
-    drawBody(((sunPX+0.5)%1),Math.max(0,sunElev-0.3),false,moonPh);
+  // ── Moon — always visible, moonAlpha controls brightness ──
+  if(!panel2dMode) drawBody(moonPX,moonElev,false,moonPh);
 
   // ── Clouds ──
   const cloudDark=isStorm?0.85:isRain?0.7:isOvercast?0.95:wxCode>=3?0.65:0.85;
@@ -4633,9 +4641,11 @@ function effectWeather(dt){
           else if(dist<sunRad+4){ const b=(1-(dist-sunRad-2)/2)*0.35*sunDim; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.65); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.08); }
         }
       }
-    } else if(moonPX>=0){
-      const moonX=nightProg*S;
-      const arc=Math.sin(nightProg*Math.PI);
+    }
+    // 2D moon — always drawn, moonAlpha controls brightness
+    {
+      const moonX=isDay?((1-dayProg)*S):(nightProg*S);
+      const arc=isDay?Math.max(0.05,Math.sin(dayProg*Math.PI)*0.6):Math.sin(nightProg*Math.PI);
       const moonY=horizV+arc*(S1-horizV)*0.75;
       const moonRad=Math.max(2,S*0.04);
       for(let dv=-Math.ceil(moonRad+2);dv<=Math.ceil(moonRad+2);dv++){
@@ -4650,9 +4660,9 @@ function effectWeather(dt){
             const tX=du/moonRad;
             const cosA=(1-illum)*2-1;
             const lit2d=tX*dir2d>cosA?1:tX*dir2d>cosA-0.2?((tX*dir2d-cosA+0.2)/0.2)*0.6:0;
-            if(lit2d>0.05){ const mb=0.85*lit2d; colBuf[idx*3]=mb; colBuf[idx*3+1]=mb*0.97; colBuf[idx*3+2]=mb*0.9; }
+            if(lit2d>0.05){ const mb=0.85*lit2d*moonAlpha; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+mb); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+mb*0.97); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+mb*0.9); }
           }
-          else if(dist<moonRad+2){ const b=(1-(dist-moonRad)/2)*0.18; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.95); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.88); }
+          else if(dist<moonRad+2){ const b=(1-(dist-moonRad)/2)*0.18*moonAlpha; colBuf[idx*3]=Math.min(1,colBuf[idx*3]+b); colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+b*0.95); colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b*0.88); }
         }
       }
     }
