@@ -4119,7 +4119,6 @@ function effectWeather(dt){
   const nightProg=!isDay?fromSunset/nightLen:0;
   const moonPh=wxMoonPhase(new Date());
   // Moon position from API moonrise/moonset (same logic as sun)
-  const moonPh=wxMoonPhase(new Date());
   let moonUp=false, moonDayProg=0;
   if(wxMoonriseS>=0 && wxMoonsetS>=0){
     if(wxMoonsetS>wxMoonriseS){
