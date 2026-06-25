@@ -357,17 +357,17 @@ function effectSphere(dt) {
       // ── Scanning laser beams (individual horizontal lines) ──
       if(beamAmt>0){
         for(let i=0;i<beamCount;i++){
-          const spd=1.5+i*0.4;
-          const off=i*S/beamCount;
-          const beamY=((time*spd*8+off)%S)|0;
-          if(v===beamY){
-            const br=beamAmt*0.9;
-            r+=br*cR; g+=br*cG; b+=br*cB;
-          }
-          // Subtle glow 1px above/below
-          if(Math.abs(v-beamY)===1){
-            const br=beamAmt*0.25;
-            r+=br*cR; g+=br*cG; b+=br*cB;
+          // Each beam moves at its own speed, evenly spaced across full panel
+          const speed=3+i*1.7;
+          const baseOff=i*(S/beamCount);
+          // Use sawtooth that bounces top-to-bottom for natural scanning look
+          const raw=(time*speed+baseOff)%(S*2);
+          const beamY=raw<S?Math.floor(raw):Math.floor(S*2-raw-1);
+          const dist=Math.abs(v-beamY);
+          if(dist===0){
+            r+=beamAmt*0.9*cR; g+=beamAmt*0.9*cG; b+=beamAmt*0.9*cB;
+          } else if(dist===1){
+            r+=beamAmt*0.3*cR; g+=beamAmt*0.3*cG; b+=beamAmt*0.3*cB;
           }
         }
       }
@@ -421,11 +421,11 @@ function effectSphere(dt) {
       const gv=((v+scroll*0.3)%(S/8))|0;
       if(gu===0||gv===0) br=gridAmt*0.7;
     }
-    // Beam lines
     if(beamAmt>0){
       for(let i=0;i<4;i++){
-        const by=((time*(2+i*0.3)*8+i*16)%S)|0;
-        if(v===by) br=Math.max(br,beamAmt*0.8);
+        const raw=(time*(3+i*1.5)+i*16)%(S*2);
+        const by=raw<S?Math.floor(raw):Math.floor(S*2-raw-1);
+        if(v===by||u===by) br=Math.max(br,beamAmt*0.8);
       }
     }
     if(br<0.01) continue;
