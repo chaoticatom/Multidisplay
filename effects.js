@@ -11125,8 +11125,69 @@ function effectRandom(dt){
   if(rndB.mode) rndRender(rndB, rndT, rndBlend>0?rndBlend:1);
 }
 
-// ── RANDOM 80s RETRO ──
-let r80T=0, r80SegT=0, r80SegDur=5, r80A={}, r80B={}, r80Blend=0;
+// ── RANDOM 2 — generative visual engine ──
+// No fixed routines: every segment composes random field layers with random
+// blend ops, optional domain-warp + kaleidoscope folding, and an infinitely
+// varied cosine-gradient palette. Never the same twice.
+let r80T=0, r80SegT=0, r80SegDur=5, r80A=null, r80B=null, r80Blend=0;
+
+// Field primitive types — a broad mix (80s neon + organic + geometric + cosmic)
+const R80_FIELDS=['plasma','rings','spokes','spiral','grid','bars','interference',
+                  'blobs','ripple','tunnel','noise','cells','starburst','weave',
+                  'kaleidwave','moire','flowfield','diamonds'];
+
+function r80rnd(a,b){ return a+Math.random()*(b-a); }
+function r80pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+function r80GenLayer(){
+  const type=r80pick(R80_FIELDS);
+  const th=r80rnd(0,Math.PI*2);
+  return {
+    type,
+    freq: r80rnd(0.3,1.6),
+    freq2: r80rnd(0.2,1.4),
+    spd: r80rnd(-2.2,2.2),
+    n: 2+Math.floor(Math.random()*7),
+    phase: r80rnd(0,Math.PI*2),
+    seed: r80rnd(0,1000),
+    ct: Math.cos(th), st: Math.sin(th),
+    sharp: r80rnd(0.4,5),       // contrast/line-thinness
+    cnt: 3+Math.floor(Math.random()*4), // points for blobs/cells (capped small)
+  };
+}
+
+function r80GenParams(){
+  // 1–3 layers, biased to 2
+  const nLayers=Math.random()<0.25?1:(Math.random()<0.75?2:3);
+  const layers=[];
+  for(let i=0;i<nLayers;i++) layers.push(r80GenLayer());
+  // cosine-gradient palette (IQ): vivid full-range colours, any genre
+  const vivid=Math.random()<0.7;
+  const a=[r80rnd(0.4,0.6),r80rnd(0.4,0.6),r80rnd(0.4,0.6)];
+  const bAmp=vivid?0.5:r80rnd(0.25,0.45);
+  const b=[bAmp,bAmp*r80rnd(0.85,1),bAmp*r80rnd(0.85,1)];
+  // channel frequencies — small for smooth, integer-ish for harmony
+  const cc=r80rnd(0.5,1.6);
+  const c=[cc,cc,cc];
+  // phase offsets between channels give the actual colour character
+  const mono=Math.random()<0.18;
+  const d=mono?[0.0,0.05,0.1]:[r80rnd(0,1),r80rnd(0,1),r80rnd(0,1)];
+  return {
+    layers,
+    op: r80pick(['max','add','mul','avg','diff','screen']),
+    warpAmt: Math.random()<0.5?r80rnd(0.04,0.22):0,
+    warpFreq: r80rnd(0.8,3),
+    warpSpd: r80rnd(-1.5,1.5),
+    kaleid: Math.random()<0.4?(2+Math.floor(Math.random()*7)):0,
+    spin: r80rnd(-0.4,0.4),
+    pal:{a,b,c,d},
+    hueScale: r80rnd(0.2,1.4),
+    hueDrift: r80rnd(-0.12,0.12),
+    contrast: r80rnd(0.7,2.6),
+    bright: r80rnd(0.65,1.0),
+    glow: Math.random()<0.5?r80rnd(0.05,0.2):0,
+  };
+}
 
 function r80NewSeg(){
   r80A=r80B;
@@ -11136,170 +11197,180 @@ function r80NewSeg(){
   r80SegT=0;
 }
 
-function r80GenParams(){
-  const modes=['synthgrid','laserbeams','neonplasma','sundisc','starfield',
-               'chromebars','vhsglitch','diamondtile','neonspiral','horizonscan'];
-  const neonPalettes=[
-    [0.83,1.0],  // magenta-cyan
-    [0.75,0.95], // purple-teal
-    [0.0,0.85],  // red-blue
-    [0.08,0.78], // orange-violet
-    [0.55,0.95], // cyan-pink
-    [0.12,0.83], // yellow-magenta
-  ];
-  const pal=neonPalettes[Math.floor(Math.random()*neonPalettes.length)];
-  return {
-    mode: modes[Math.floor(Math.random()*modes.length)],
-    speed: 0.3+Math.random()*2.5,
-    freq1: 0.2+Math.random()*0.5,
-    freq2: 0.15+Math.random()*0.4,
-    phase: Math.random()*Math.PI*2,
-    hue1: pal[0], hue2: pal[1],
-    sat: 0.8+Math.random()*0.2,
-    bright: 0.6+Math.random()*0.4,
-    nLines: 3+Math.floor(Math.random()*6),
-    gridDensity: 6+Math.floor(Math.random()*10),
-    scanWidth: 0.02+Math.random()*0.06,
-    seed: Math.random()*999,
-    twist: (Math.random()-0.5)*3,
-    glitchRate: 0.3+Math.random()*0.7,
-    sunY: 0.3+Math.random()*0.3,
-    starCount: 8+Math.floor(Math.random()*12),
-  };
+// hash + smooth value noise
+function r80hash(x,y,s){ const h=Math.sin(x*127.1+y*311.7+s)*43758.5453; return h-Math.floor(h); }
+function r80noise(x,y,s){
+  const xi=Math.floor(x), yi=Math.floor(y), xf=x-xi, yf=y-yi;
+  const u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf);
+  const a=r80hash(xi,yi,s), b=r80hash(xi+1,yi,s);
+  const c=r80hash(xi,yi+1,s), d=r80hash(xi+1,yi+1,s);
+  return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;
 }
 
-function r80Hue(p, val){
-  return (p.hue1+val*(p.hue2-p.hue1)+1)%1;
-}
-
-function r80Eval(p, f, u, v, t2){
-  const S=SIZE;
-  const cx=u/S-0.5, cy=v/S-0.5;
-  const rad=Math.sqrt(cx*cx+cy*cy);
-  const ang=Math.atan2(cy,cx);
-  const fOff=f*0.13;
-
-  if(p.mode==='synthgrid'){
-    // Perspective grid floor with horizon glow
-    const ny=cy+0.15;
-    if(ny<0){
-      // Sky: gradient with scan lines
-      const skyV=Math.abs(cy)/0.5;
-      const scan=Math.sin(v*0.8+t2*p.speed*3)>0.92?0.4:0;
-      return {val:skyV*0.3+scan, hueT:0.8+fOff};
+// evaluate one field layer → ~0..1
+function r80Field(L, x, y, rad, ang, t2){
+  const f=L.freq, sp=L.spd, ph=L.phase;
+  switch(L.type){
+    case 'plasma':{
+      const s1=Math.sin(x*f*8+t2*sp+ph);
+      const s2=Math.sin(y*L.freq2*8-t2*sp*0.8+L.seed);
+      const s3=Math.sin((x+y)*f*6+t2*sp*1.2);
+      const s4=Math.sin(rad*L.freq2*14-t2*sp);
+      return (s1+s2+s3+s4)*0.125+0.5;
     }
-    const depth=1/(ny*8+0.01);
-    const gx=Math.sin((cx*depth*p.gridDensity+t2*p.speed*0.5+fOff)*Math.PI);
-    const gy=Math.sin((depth*2-t2*p.speed*2)*Math.PI*0.5);
-    const grid=Math.max(Math.abs(gx)>0.92?1:0, Math.abs(gy)>0.92?1:0);
-    const fade=Math.max(0,1-ny*3);
-    return {val:grid*fade*0.9+fade*0.05, hueT:depth*0.1+fOff};
-  }
-  if(p.mode==='laserbeams'){
-    let val=0;
-    for(let i=0;i<p.nLines;i++){
-      const a=t2*p.speed*0.3+i*Math.PI*2/p.nLines+p.phase+fOff;
-      const lx=Math.cos(a), ly=Math.sin(a);
-      const d=Math.abs(cx*ly-cy*lx);
-      const beam=Math.max(0,1-d/p.scanWidth)*Math.max(0,1-d/p.scanWidth);
-      val+=beam;
+    case 'rings':{
+      const r=Math.sin(rad*f*30-t2*sp*2+ph);
+      return Math.pow(Math.abs(r),L.sharp);
     }
-    const glow=Math.max(0,1-rad*1.5)*0.15;
-    return {val:Math.min(1,val)+glow, hueT:ang/(Math.PI*2)+t2*0.1+fOff};
+    case 'spokes':
+      return Math.pow(Math.abs(Math.sin(ang*L.n+t2*sp+ph)),L.sharp*0.5);
+    case 'spiral':{
+      const sv=((ang/(Math.PI*2)+rad*f*5+t2*sp+5)%1);
+      return Math.pow(Math.abs(Math.sin(sv*Math.PI*L.n)),L.sharp*0.4);
+    }
+    case 'grid':{
+      const gx=Math.abs(Math.sin((x*f*12+t2*sp*0.3)*Math.PI*0.5));
+      const gy=Math.abs(Math.sin((y*L.freq2*12-t2*sp*0.3)*Math.PI*0.5));
+      const thr=0.96-L.sharp*0.02;
+      return (gx>thr||gy>thr)?1:Math.max(gx,gy)*0.15;
+    }
+    case 'bars':{
+      const p=x*L.ct+y*L.st;
+      return Math.pow(Math.abs(Math.sin(p*f*10+t2*sp+ph)),L.sharp);
+    }
+    case 'interference':{
+      const w1=Math.sin((x-0.2)*f*16+t2*sp+ph);
+      const w2=Math.sin((y+0.2)*L.freq2*16-t2*sp+L.seed);
+      const w3=Math.sin(rad*f*22-t2*sp*0.7);
+      return (w1*w2+w3)*0.25+0.5;
+    }
+    case 'blobs':{
+      let val=0; const k=Math.min(6,L.cnt+2);
+      for(let b=0;b<k;b++){
+        const bx=Math.sin(t2*sp*(0.3+b*0.15)+b*2.1+ph)*0.42;
+        const by=Math.cos(t2*sp*(0.25+b*0.12)+b*1.7+L.seed)*0.42;
+        const d=(x-bx)*(x-bx)+(y-by)*(y-by);
+        val+=0.05/(d+0.02);
+      }
+      return Math.min(1,val);
+    }
+    case 'ripple':{
+      const rp=Math.sin(rad*f*34-t2*sp*3+ph);
+      return (rp*0.5+0.5)/(1+rad*2.2);
+    }
+    case 'tunnel':{
+      const tv=(( (0.4/(rad+0.08))*f + ang/(Math.PI*2)*L.n + t2*sp )%1);
+      return Math.pow(Math.abs(Math.sin(tv*Math.PI)),L.sharp);
+    }
+    case 'noise':{
+      return r80noise(x*f*6+t2*sp, y*f*6, L.seed);
+    }
+    case 'cells':{
+      let best=9,best2=9; const k=Math.min(6,L.cnt+2);
+      for(let c=0;c<k;c++){
+        const px=Math.sin(c*2.3+L.seed)*0.45+Math.sin(t2*sp*0.3+c)*0.1;
+        const py=Math.cos(c*1.9+L.seed*1.3)*0.45+Math.cos(t2*sp*0.25+c)*0.1;
+        const d=(x-px)*(x-px)+(y-py)*(y-py);
+        if(d<best){ best2=best; best=d; } else if(d<best2){ best2=d; }
+      }
+      const edge=Math.sqrt(best2)-Math.sqrt(best);
+      return Math.max(0,1-edge*L.sharp*4);
+    }
+    case 'starburst':{
+      const sb=Math.pow(Math.abs(Math.sin(ang*L.n+t2*sp+ph)),L.sharp*2);
+      return sb*Math.max(0,1-rad*1.2);
+    }
+    case 'weave':{
+      const a=Math.sin(x*f*14+t2*sp);
+      const b=Math.sin(y*L.freq2*14-t2*sp);
+      return Math.abs(a)>Math.abs(b)?Math.abs(a):Math.abs(b);
+    }
+    case 'kaleidwave':{
+      const kv=Math.sin(ang*L.n+rad*f*16-t2*sp+ph);
+      return kv*0.5+0.5;
+    }
+    case 'moire':{
+      const m1=Math.sin(rad*f*40-t2*sp);
+      const m2=Math.sin(Math.sqrt((x-0.15)*(x-0.15)+(y+0.15)*(y+0.15))*L.freq2*40+t2*sp);
+      return (m1*m2)*0.5+0.5;
+    }
+    case 'flowfield':{
+      const w=r80noise(x*f*3+t2*sp*0.4, y*f*3, L.seed)*6.28;
+      const fx=x+Math.cos(w)*0.12, fy=y+Math.sin(w)*0.12;
+      return Math.sin(fx*8+fy*8+t2*sp+ph)*0.5+0.5;
+    }
+    default:{ // diamonds
+      const du=(x*0.7071-y*0.7071), dv=(x*0.7071+y*0.7071);
+      const tu=Math.abs(Math.sin((du*f*10+t2*sp*0.3)*Math.PI));
+      const tv=Math.abs(Math.sin((dv*L.freq2*10)*Math.PI));
+      return Math.max(tu,tv)>0.9?1:tu*tv*0.4;
+    }
   }
-  if(p.mode==='neonplasma'){
-    const s1=Math.sin(cx*p.freq1*22+t2*p.speed*1.5+p.phase+fOff*5);
-    const s2=Math.sin(cy*p.freq2*22-t2*p.speed*1.1+p.seed);
-    const s3=Math.sin(rad*18-t2*p.speed*2+p.phase);
-    const raw=(s1+s2+s3)/3;
-    const edge=Math.abs(raw)<0.15?1:Math.max(0,1-Math.abs(raw)*2);
-    return {val:edge*0.85+0.05, hueT:raw*0.5+0.5+fOff};
-  }
-  if(p.mode==='sundisc'){
-    const sy=cy-p.sunY+0.5;
-    const sunR=Math.sqrt(cx*cx+sy*sy);
-    const disc=sunR<0.15?1:sunR<0.2?Math.max(0,1-(sunR-0.15)/0.05):0;
-    // Horizontal bands below sun
-    const bands=sy>0?Math.abs(Math.sin((sy*20+t2*p.speed)*Math.PI))>0.7?0.6:0:0;
-    const fade=sy>0?Math.max(0,1-sy*2):0;
-    // Stars above
-    const hash=Math.sin(u*127.1+v*311.7+f*97.3)*43758.5453;
-    const star=(hash-Math.floor(hash))>0.997&&sy<-0.05?0.7:0;
-    return {val:disc+bands*fade+star, hueT:sunR<0.2?0.08:0.85+fOff};
-  }
-  if(p.mode==='starfield'){
-    // Flying through stars
-    const sa=ang+fOff*2;
-    const sr=rad;
-    const depth2=((sr*10+t2*p.speed*3+p.seed)%1);
-    const starBright=Math.pow(depth2,3);
-    const trail=Math.abs(Math.sin(sa*p.starCount+p.phase))>0.95?starBright:0;
-    const warp=sr<0.05?0.5*(1-sr/0.05):0;
-    return {val:trail+warp, hueT:sa/(Math.PI*2)+fOff};
-  }
-  if(p.mode==='chromebars'){
-    const barY=((cy*p.gridDensity+t2*p.speed+fOff+5)%1);
-    const chrome=Math.pow(Math.abs(Math.sin(barY*Math.PI)),0.3);
-    const highlight=Math.abs(Math.sin(barY*Math.PI*2+t2*p.speed*3))>0.9?1:0;
-    const shimmer=Math.sin(cx*30+t2*p.speed*5)*0.1;
-    return {val:chrome*0.6+highlight*0.3+shimmer, hueT:barY+fOff};
-  }
-  if(p.mode==='vhsglitch'){
-    const scanY=(v+Math.floor(t2*p.speed*30))%SIZE;
-    const base=Math.sin(cx*p.freq1*15+t2*p.speed+p.phase)*0.5+0.5;
-    const glitchBand=Math.abs(Math.sin(scanY*0.3+t2*p.glitchRate*10+p.seed))>0.85;
-    const shift=glitchBand?(Math.sin(scanY*17.3+t2*53)*0.15):0;
-    const px2=(cx+shift);
-    const val2=Math.sin(px2*p.freq1*15+t2*p.speed+p.phase)*0.5+0.5;
-    const noise=glitchBand?Math.abs(Math.sin(u*97+v*131+t2*999))*0.4:0;
-    const chromatic=glitchBand?0.3:0;
-    return {val:(glitchBand?val2:base)*0.7+noise+chromatic*0.2, hueT:base+shift*3+fOff};
-  }
-  if(p.mode==='diamondtile'){
-    const du=cx*Math.cos(Math.PI/4)-cy*Math.sin(Math.PI/4);
-    const dv=cx*Math.sin(Math.PI/4)+cy*Math.cos(Math.PI/4);
-    const tileU=((du*p.gridDensity+t2*p.speed*0.3+fOff+5)%1);
-    const tileV=((dv*p.gridDensity+5)%1);
-    const edgeU=Math.abs(tileU-0.5)<0.05?1:0;
-    const edgeV=Math.abs(tileV-0.5)<0.05?1:0;
-    const fill=Math.sin(tileU*Math.PI)*Math.sin(tileV*Math.PI);
-    const pulse=Math.sin(t2*p.speed*2+du*5+dv*5+p.phase)*0.3+0.7;
-    return {val:(edgeU||edgeV?0.9:fill*0.4)*pulse, hueT:tileU+tileV*0.5+fOff};
-  }
-  if(p.mode==='neonspiral'){
-    const arms=3+Math.floor(p.nLines*0.5);
-    const spiralA=ang+rad*p.freq1*25-t2*p.speed*2+fOff*3;
-    const armV=Math.abs(Math.sin(spiralA*arms/2));
-    const neon=armV>0.85?Math.pow((armV-0.85)/0.15,0.5):0;
-    const core=Math.max(0,1-rad*4)*0.3;
-    const pulse=Math.sin(rad*20-t2*p.speed*4)*0.2+0.8;
-    return {val:(neon*0.9+core)*pulse, hueT:ang/(Math.PI*2)+rad+fOff};
-  }
-  // horizonscan
-  const scanPos=((t2*p.speed*0.4+fOff)%1);
-  const scanDist=Math.abs(cy-scanPos+0.5);
-  const beam2=Math.max(0,1-scanDist/p.scanWidth);
-  const grid2X=Math.abs(Math.sin(cx*p.gridDensity*Math.PI))>0.9?0.3:0;
-  const grid2Y=Math.abs(Math.sin(cy*p.gridDensity*Math.PI))>0.9?0.3:0;
-  const afterglow=Math.max(0,1-scanDist/(p.scanWidth*8))*0.2;
-  return {val:beam2*0.8+grid2X+grid2Y+afterglow, hueT:scanDist*2+fOff};
 }
 
-function r80Render(p, tOff, bright){
+function r80Combine(op, a, b){
+  switch(op){
+    case 'max': return Math.max(a,b);
+    case 'add': return Math.min(1,a+b);
+    case 'mul': return a*b;
+    case 'avg': return (a+b)*0.5;
+    case 'diff': return Math.abs(a-b);
+    default: return 1-(1-a)*(1-b); // screen
+  }
+}
+
+function r80Pal(pal, t2){
+  const TAU=6.2831853;
+  let r=pal.a[0]+pal.b[0]*Math.cos(TAU*(pal.c[0]*t2+pal.d[0]));
+  let g=pal.a[1]+pal.b[1]*Math.cos(TAU*(pal.c[1]*t2+pal.d[1]));
+  let b=pal.a[2]+pal.b[2]*Math.cos(TAU*(pal.c[2]*t2+pal.d[2]));
+  return [r<0?0:r>1?1:r, g<0?0:g>1?1:g, b<0?0:b>1?1:b];
+}
+
+function r80RenderSeg(p, tOff, mix){
+  if(!p) return;
+  const spin=p.spin*tOff;
+  const cosS=Math.cos(spin), sinS=Math.sin(spin);
   for(let face=0;face<6;face++){
+    const fHue=face*0.11;       // per-face palette offset → flows across cube
+    const fPh=face*0.7;
     for(let v=0;v<SIZE;v++) for(let u=0;u<SIZE;u++){
-      const ev=r80Eval(p,face,u,v,tOff);
-      const val=typeof ev==='object'?ev.val:ev;
-      const hueT=typeof ev==='object'?ev.hueT:0.5;
-      const l=val*p.bright*bright;
-      if(l<0.02) continue;
-      const h=r80Hue(p,((hueT%1)+1)%1);
-      const [r,g,b]=hsl(h,p.sat,Math.min(1,l));
+      let x=u/SIZE-0.5, y=v/SIZE-0.5;
+      // gentle global spin
+      if(p.spin){ const nx=x*cosS-y*sinS, ny=x*sinS+y*cosS; x=nx; y=ny; }
+      let ang=Math.atan2(y,x);
+      // kaleidoscope angular folding
+      if(p.kaleid){
+        const seg=Math.PI*2/p.kaleid;
+        ang=Math.abs(((ang%seg)+seg)%seg - seg*0.5);
+        const rr=Math.sqrt(x*x+y*y);
+        x=Math.cos(ang)*rr; y=Math.sin(ang)*rr;
+      }
+      // domain warp
+      if(p.warpAmt){
+        const wx=Math.sin((y*p.warpFreq*6)+tOff*p.warpSpd+fPh);
+        const wy=Math.cos((x*p.warpFreq*6)-tOff*p.warpSpd);
+        x+=wx*p.warpAmt; y+=wy*p.warpAmt;
+      }
+      const rad=Math.sqrt(x*x+y*y);
+      ang=Math.atan2(y,x)+fPh*0.3;
+      // compose layers
+      let val=r80Field(p.layers[0],x,y,rad,ang,tOff+fPh);
+      for(let li=1;li<p.layers.length;li++){
+        val=r80Combine(p.op,val,r80Field(p.layers[li],x,y,rad,ang,tOff+fPh));
+      }
+      if(p.glow) val+=p.glow*Math.max(0,1-rad*1.6);
+      val=val<0?0:val>1?1:val;
+      const L=Math.pow(val,p.contrast)*p.bright*mix;
+      if(L<0.02) continue;
+      const hc=val*p.hueScale+tOff*p.hueDrift+fHue;
+      const col=r80Pal(p.pal, hc);
       const idx=faceMap[face][v*SIZE+u];
       if(idx>=0){
-        colBuf[idx*3]  =Math.max(colBuf[idx*3],  r);
-        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],g);
-        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],b);
+        const r=col[0]*L, g=col[1]*L, b=col[2]*L;
+        if(r>colBuf[idx*3])   colBuf[idx*3]=r;
+        if(g>colBuf[idx*3+1]) colBuf[idx*3+1]=g;
+        if(b>colBuf[idx*3+2]) colBuf[idx*3+2]=b;
       }
     }
   }
@@ -11309,13 +11380,13 @@ function effectRandom80s(dt){
   t+=dt;
   r80T+=dt;
   r80SegT+=dt;
-  if(r80SegT>=r80SegDur||!r80B.mode) r80NewSeg();
-  r80Blend=Math.min(1,r80SegT/1.5);
+  if(r80SegT>=r80SegDur||!r80B) r80NewSeg();
+  r80Blend=Math.min(1,r80SegT/1.6);
 
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
-  if(r80A.mode) r80Render(r80A, r80T, 1-r80Blend);
-  if(r80B.mode) r80Render(r80B, r80T, r80Blend>0?r80Blend:1);
+  if(r80A) r80RenderSeg(r80A, r80T, 1-r80Blend);
+  r80RenderSeg(r80B, r80T, r80Blend>0?r80Blend:1);
 }
 
 
