@@ -4093,13 +4093,15 @@ async function wxFetch(skipGeocode){
       if(tl) tl.textContent=`${wxTemp}°C (Max: ${wxTempMax}°C)  •  ${wxDesc}`;
       if(sl){
         const fmt=s=>{ try{return new Date(s).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}catch(e){return'?';} };
-        let sunTxt=`🌅 ${fmt(wd.daily?.sunrise?.[0])}   🌇 ${fmt(wd.daily?.sunset?.[0])}`;
-        if(wxMoonriseS>=0||wxMoonsetS>=0){
-          const mrf=wxMoonriseS>=0?`${Math.floor(wxMoonriseS/3600)}:${String(Math.floor((wxMoonriseS%3600)/60)).padStart(2,'0')}`:'—';
-          const msf=wxMoonsetS>=0?`${Math.floor(wxMoonsetS/3600)}:${String(Math.floor((wxMoonsetS%3600)/60)).padStart(2,'0')}`:'—';
-          sunTxt+=`   🌙 ${mrf}–${msf}`;
-        }
-        sl.textContent=sunTxt;
+        sl.textContent=`🌅 ${fmt(wd.daily?.sunrise?.[0])}   🌇 ${fmt(wd.daily?.sunset?.[0])}`;
+      }
+      const ml=document.getElementById('wx-moon-line');
+      if(ml){
+        const fmtS=s=>{if(s<0)return'—';const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return `${h}:${String(m).padStart(2,'0')}`;};
+        const ph=wxMoonPhase(new Date());
+        const illum=Math.round((ph<=0.5?ph*2:(1-ph)*2)*100);
+        const pName=ph<0.03?'New':ph<0.22?'Waxing Crescent':ph<0.28?'First Quarter':ph<0.47?'Waxing Gibbous':ph<0.53?'Full':ph<0.72?'Waning Gibbous':ph<0.78?'Last Quarter':ph<0.97?'Waning Crescent':'New';
+        ml.textContent=`🌙 ↑${fmtS(wxMoonriseS)}  ↓${fmtS(wxMoonsetS)}  ${pName} ${illum}%`;
       }
     }
   }catch(e){
@@ -11838,17 +11840,21 @@ function effectMoon(dt){
   const cx=Math.round(S/2), cy=Math.round(S/2);
 
   // Phase illumination: convert phase (0-1) to terminator position
-  // 0=new (dark), 0.25=first quarter, 0.5=full, 0.75=last quarter
-  // Illumination angle: cos curve. phase 0→dark, 0.5→full lit
   const illumAngle=phase*Math.PI*2;
-  // Terminator x-offset: -1 (new/dark) to +1 (full/lit) back to -1
   const termX=-Math.cos(illumAngle);
-  // Which side is lit: waxing (0-0.5) = right side lit, waning (0.5-1) = left side lit
   const waxing=phase<0.5;
+
+  // Terminator tilt based on latitude and time of night
+  // At northern latitudes the moon's bright limb tilts clockwise when rising, counter when setting
+  const lat=typeof wxLat==='number'?wxLat:52;
+  const hourNow=(Date.now()%86400000)/3600000;
+  const tiltBase=lat*Math.PI/180*0.4;
+  const tiltShift=Math.sin((hourNow/24)*Math.PI*2)*0.3;
+  const tilt=tiltBase+tiltShift;
+  const cosT=Math.cos(tilt), sinT=Math.sin(tilt);
 
   for(const face of faces){
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-      // Disc coords: -1 to 1
       const dx=(u-cx)/moonRad, dy=(v-cy)/moonRad;
       const d2=dx*dx+dy*dy;
       if(d2>1) continue;
@@ -11856,12 +11862,11 @@ function effectMoon(dt){
 
       const idx=faceMap[face][v*S+u]; if(idx<0) continue;
 
-      // 3D sphere: compute surface normal z
       const nz=Math.sqrt(1-d2);
-      const nx=dx, ny=dy;
+      const ny=dy;
+      // Rotate disc coordinates by tilt angle for terminator check
+      const nx=dx*cosT-dy*sinT;
 
-      // Phase shadow: check if this point is in shadow
-      // Project terminator onto sphere surface
       let lit;
       if(waxing){
         lit=nx>-termX*nz;
