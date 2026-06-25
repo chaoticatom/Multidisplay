@@ -225,28 +225,24 @@ function effectPlasma(dt) {
 let sphT=0;
 const NRAYS=20;
 const sphRayA=[];for(let i=0;i<NRAYS;i++) sphRayA.push(Math.random()*Math.PI*2);
-const sphRayL=[];for(let i=0;i<NRAYS;i++) sphRayL.push(0.4+Math.random()*0.6);
-const sphRayS=[];for(let i=0;i<NRAYS;i++) sphRayS.push((Math.random()-0.5)*2);
+const sphRayS=[];for(let i=0;i<NRAYS;i++) sphRayS.push((Math.random()-0.5)*2.5);
 
 function effectSphere(dt) {
   t+=dt; sphT+=dt;
   for(let i=0;i<N*3;i++) colBuf[i]=0;
-  const S=SIZE,total=S*4,time=sphT;
+  const S=SIZE,time=sphT;
   const cycle=24,phase=time%cycle;
   const ss=x=>x*x*(3-2*x);
   const ramp=(t,a,b)=>Math.max(0,Math.min(1,(t-a)/(b-a)));
 
-  // order: 0=chaos 1=uniform
   let order=0;
   if(phase<8) order=0;
   else if(phase<16) order=ss(ramp(phase,8,16));
   else if(phase<20) order=1;
   else order=1-ss(ramp(phase,20,24));
 
-  // spin: fast in chaos, stops when uniform
   const spinAcc=1.8*(1-order);
 
-  // colour: neon cycle
   const h=(time*0.04)%1;
   let cR,cG,cB;
   if(h<0.15){cR=1;cG=0.1;cB=h/0.15*0.6;}
@@ -255,59 +251,154 @@ function effectSphere(dt) {
   else if(h<0.75){const f=(h-0.55)/0.2;cR=0.2+f*0.8;cG=0.58-f*0.4;cB=1-f*0.4;}
   else{const f=(h-0.75)/0.25;cR=1;cG=0.18-f*0.08;cB=0.6-f*0.6;}
 
-  function burstFace(getCx,getCy,getIdx,w,h2,nrays){
-    const cx2=getCx(),cy2=getCy();
-    for(let y=0;y<h2;y++){
-      for(let x=0;x<w;x++){
-        const idx=getIdx(x,y);
-        if(idx<0) continue;
-        const dx=x-cx2,dy=y-cy2;
-        const dist=Math.sqrt(dx*dx+dy*dy);
-        if(dist<1.5){
-          // bright center dot
-          const oi=(1-dist/1.5);
-          const br=oi*oi*0.9;
-          const i3=idx*3;
-          colBuf[i3]=Math.min(1,colBuf[i3]+br);
-          colBuf[i3+1]=Math.min(1,colBuf[i3+1]+br*0.9);
-          colBuf[i3+2]=Math.min(1,colBuf[i3+2]+br);
-          continue;
+  // Precompute ray angles this frame
+  const rayAngles=[];
+  for(let i=0;i<NRAYS;i++){
+    const uniformA=(i/NRAYS)*Math.PI*2;
+    rayAngles.push(sphRayA[i]*(1-order)+uniformA*order+time*spinAcc+sphRayS[i]*time*0.3*(1-order));
+  }
+
+  // Single center point: middle of face 0 (front face)
+  const cx=S*0.5, cy=S*0.5;
+
+  // In 2D mode: just face 0. In cube mode: face 0 center, rays extend across all faces.
+  if(panel2dMode){
+    // 2D: one 64x64 panel (face 0)
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[0][v*S+u];
+      if(idx<0) continue;
+      const dx=u-cx, dy=v-cy;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<1){
+        colBuf[idx*3]=1; colBuf[idx*3+1]=0.95; colBuf[idx*3+2]=1;
+        continue;
+      }
+      const pxA=Math.atan2(dy,dx);
+      const halfPx=0.5/dist;
+      for(let i=0;i<NRAYS;i++){
+        let da=pxA-rayAngles[i];
+        da-=Math.round(da/(Math.PI*2))*Math.PI*2;
+        if(Math.abs(da)<=halfPx){
+          colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
+          break;
         }
-        if(dist>Math.max(w,h2)*0.7) continue;
-        const pxA=Math.atan2(dy,dx);
-        let hit=0;
-        for(let i=0;i<nrays;i++){
-          const uniformA=(i/nrays)*Math.PI*2;
-          const curA=sphRayA[i%NRAYS]*(1-order)+uniformA*order+time*spinAcc+sphRayS[i%NRAYS]*time*0.3*(1-order);
-          let da=pxA-curA;
-          da-=Math.round(da/(Math.PI*2))*Math.PI*2;
-          // crisp: 1px wide ray = angular width of 1 pixel at this distance
-          const pxWidth=1.0/dist;
-          if(Math.abs(da)<pxWidth){
-            const maxLen=sphRayL[i%NRAYS]*Math.max(w,h2)*0.7;
-            if(dist<maxLen){
-              hit=Math.max(hit,(1-dist/maxLen));
-            }
-          }
+      }
+    }
+  } else {
+    // Cube mode: rays from center of front face (face 0) extend onto all 6 faces
+    // Face 0 (front)
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[0][v*S+u];
+      if(idx<0) continue;
+      const dx=u-cx, dy=v-cy;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<1){
+        colBuf[idx*3]=1; colBuf[idx*3+1]=0.95; colBuf[idx*3+2]=1;
+        continue;
+      }
+      const pxA=Math.atan2(dy,dx);
+      const halfPx=0.5/dist;
+      for(let i=0;i<NRAYS;i++){
+        let da=pxA-rayAngles[i];
+        da-=Math.round(da/(Math.PI*2))*Math.PI*2;
+        if(Math.abs(da)<=halfPx){
+          colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
+          break;
         }
-        if(hit<0.02) continue;
-        hit=Math.min(1,hit);
-        const i3=idx*3;
-        colBuf[i3]=Math.min(1,colBuf[i3]+hit*cR);
-        colBuf[i3+1]=Math.min(1,colBuf[i3+1]+hit*cG);
-        colBuf[i3+2]=Math.min(1,colBuf[i3+2]+hit*cB);
+      }
+    }
+    // Face 2 (right) — connects to right edge of face 0
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[2][v*S+u];
+      if(idx<0) continue;
+      const dx=S+u-cx, dy=v-cy;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<2) continue;
+      const pxA=Math.atan2(dy,dx);
+      const halfPx=0.5/dist;
+      for(let i=0;i<NRAYS;i++){
+        let da=pxA-rayAngles[i];
+        da-=Math.round(da/(Math.PI*2))*Math.PI*2;
+        if(Math.abs(da)<=halfPx){
+          colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
+          break;
+        }
+      }
+    }
+    // Face 3 (left) — connects to left edge of face 0
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[3][v*S+u];
+      if(idx<0) continue;
+      const dx=-(S-u)-cx+S*0.5+(S*0.5), dy=v-cy;
+      const dx2=(-1-u)-cx+S;
+      const dist=Math.sqrt(dx2*dx2+dy*dy);
+      if(dist<2) continue;
+      const pxA=Math.atan2(dy,dx2);
+      const halfPx=0.5/dist;
+      for(let i=0;i<NRAYS;i++){
+        let da=pxA-rayAngles[i];
+        da-=Math.round(da/(Math.PI*2))*Math.PI*2;
+        if(Math.abs(da)<=halfPx){
+          colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
+          break;
+        }
+      }
+    }
+    // Face 4 (top) — connects to top edge of face 0
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[4][v*S+u];
+      if(idx<0) continue;
+      const dx=u-cx, dy=(-1-v)-cy+S;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<2) continue;
+      const pxA=Math.atan2(dy,dx);
+      const halfPx=0.5/dist;
+      for(let i=0;i<NRAYS;i++){
+        let da=pxA-rayAngles[i];
+        da-=Math.round(da/(Math.PI*2))*Math.PI*2;
+        if(Math.abs(da)<=halfPx){
+          colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
+          break;
+        }
+      }
+    }
+    // Face 5 (bottom) — connects to bottom edge of face 0
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[5][v*S+u];
+      if(idx<0) continue;
+      const dx=u-cx, dy=S+v-cy;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<2) continue;
+      const pxA=Math.atan2(dy,dx);
+      const halfPx=0.5/dist;
+      for(let i=0;i<NRAYS;i++){
+        let da=pxA-rayAngles[i];
+        da-=Math.round(da/(Math.PI*2))*Math.PI*2;
+        if(Math.abs(da)<=halfPx){
+          colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
+          break;
+        }
+      }
+    }
+    // Face 1 (back) — opposite side, rays that pass through wrap here
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[1][v*S+u];
+      if(idx<0) continue;
+      const dx=S*2+(S-1-u)-cx, dy=v-cy;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<2) continue;
+      const pxA=Math.atan2(dy,dx);
+      const halfPx=0.5/dist;
+      for(let i=0;i<NRAYS;i++){
+        let da=pxA-rayAngles[i];
+        da-=Math.round(da/(Math.PI*2))*Math.PI*2;
+        if(Math.abs(da)<=halfPx){
+          colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
+          break;
+        }
       }
     }
   }
-
-  // side faces: center of the 4-face wrapping strip
-  burstFace(()=>total*0.5,()=>S*0.5,(x,y)=>fwPx(x,y),total,S,NRAYS);
-
-  // top face
-  burstFace(()=>S*0.5,()=>S*0.5,(x,y)=>{const i=faceMap[4][y*S+x];return i;},S,S,NRAYS);
-
-  // bottom face
-  burstFace(()=>S*0.5,()=>S*0.5,(x,y)=>{const i=faceMap[5][y*S+x];return i;},S,S,Math.floor(NRAYS*0.6));
 }
 
 // ── FIREWORKS — cross-face rockets & explosions on 4 side panels ──
