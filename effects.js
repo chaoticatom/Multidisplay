@@ -356,12 +356,10 @@ function effectSphere(dt) {
 
       // ── Scanning laser beams (individual horizontal lines) ──
       if(beamAmt>0){
+        const beamSpeeds=[2.1,3.7,5.3,7.1,4.2,6.8,8.5,3.1];
+        const beamOffsets=[0,37,14,51,7,44,21,58];
         for(let i=0;i<beamCount;i++){
-          // Each beam moves at its own speed, evenly spaced across full panel
-          const speed=3+i*1.7;
-          const baseOff=i*(S/beamCount);
-          // Use sawtooth that bounces top-to-bottom for natural scanning look
-          const raw=(time*speed+baseOff)%(S*2);
+          const raw=(time*beamSpeeds[i]+beamOffsets[i])%(S*2);
           const beamY=raw<S?Math.floor(raw):Math.floor(S*2-raw-1);
           const dist=Math.abs(v-beamY);
           if(dist===0){
