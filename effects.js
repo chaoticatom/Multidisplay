@@ -224,225 +224,234 @@ function effectPlasma(dt) {
 // ── MORPHING SPHERE — multi-shell, pulsing auroras, face projections ──
 let sphAngle=0;
 const sphStars=[];
-for(let i=0;i<100;i++) sphStars.push({
+for(let i=0;i<80;i++) sphStars.push({
   u:Math.random(), v:Math.random(), b:0.5+Math.random()*0.5, tw:0.4+Math.random()*2.5
 });
-let sphScene=0, sphSceneT=0;
-const SPH_SCENE_DUR=14, SPH_MORPH_DUR=3, SPH_SCENES=3;
 
-function sphGrid(col, dy, vpCol, total, gridSp, scroll) {
-  // Crisp 1px perspective grid lines — world-space approach
-  const z = 30.0 / dy;
-  const wx = (col - vpCol) * z / total * gridSp;
-  const wz = z + scroll;
-  // Vertical line: is this pixel on a grid boundary?
-  const fxL = Math.floor(wx), fxR = Math.floor(wx + z / total * gridSp);
-  const vLine = fxL !== fxR ? 1 : 0;
-  // Horizontal line: does depth span a grid boundary between this row and next?
-  const z2 = 30.0 / (dy + 1);
-  const wz2 = z2 + scroll;
-  const fzA = Math.floor(wz * 0.5), fzB = Math.floor(wz2 * 0.5);
-  const hLine = fzA !== fzB ? 1 : 0;
-  const fade = Math.min(1, 4.0 / dy);
-  return Math.min(1, Math.max(vLine, hLine)) * fade;
-}
+// Continuous synchronized animation — one 32-second cycle with 8 phases
+// Phase timeline (seconds):
+//  0-4   horizontal laser beams sweep in from edges
+//  4-8   beams lock to grid rows, vertical lines fade in → full grid
+//  8-14  perspective grid scrolling, vanishing point drifts
+// 14-18  grid compresses to horizon, orb glows up
+// 18-22  orb pulses, dual grid (ceiling+floor) expands out
+// 22-26  dual grid, vanishing point orbits
+// 26-30  grid lines peel off into individual scanning beams
+// 30-32  beams sweep out → restart
+
+const SPH_CYCLE=32;
 
 function effectSphere(dt) {
-  t += dt;
-  sphAngle += dt;
-  sphSceneT += dt;
-  const cycleDur = SPH_SCENE_DUR + SPH_MORPH_DUR;
-  if (sphSceneT >= cycleDur) { sphSceneT -= cycleDur; sphScene = (sphScene + 1) % SPH_SCENES; }
-  const morph = sphSceneT > SPH_SCENE_DUR ?
-    (() => { const x = (sphSceneT - SPH_SCENE_DUR) / SPH_MORPH_DUR; return x * x * (3 - 2 * x); })() : 0;
-  for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
+  t+=dt;
+  sphAngle+=dt;
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
 
-  const S = SIZE, total = S * 4;
-  const horizV = Math.round(S * 0.47);
-  const vpCol = total * 0.5;
-  const sc = sphScene, nx = (sphScene + 1) % SPH_SCENES;
-  const scroll = sphAngle * 2;
+  const S=SIZE, total=S*4, half=S*0.5;
+  const time=sphAngle;
+  const phase=time%SPH_CYCLE;
+  const horizV=Math.round(S*0.47);
 
-  function pixel(scene, col, v) {
-    let r = 0, g = 0, b = 0;
-    const dy = v - horizV;
+  // Smooth 0→1 ramp within a time window
+  function ramp(t,start,end){ return Math.max(0,Math.min(1,(t-start)/(end-start))); }
+  function ss(x){ return x*x*(3-2*x); } // smoothstep
 
-    if (scene === 0) {
-      // ═══ Image 1: Dual red grids converging to white/blue orb, stars ═══
-      if (dy > 0) {
-        const br = sphGrid(col, dy, vpCol, total, 8, scroll);
-        r = br * 1.0; g = br * 0.3; b = br * 0.05;
-      } else if (dy < 0) {
-        const br = sphGrid(col, -dy, vpCol, total, 8, scroll);
-        r = br * 1.0; g = br * 0.3; b = br * 0.05;
-      }
-      // Horizon glow — thin bright red line
-      if (Math.abs(dy) < 3) {
-        const hg = (3 - Math.abs(dy)) / 3;
-        r += hg * 0.5; g += hg * 0.1; b += hg * 0.02;
-      }
-      // Stars in black areas
-      if (r < 0.08) {
-        for (const st of sphStars) {
-          const su = Math.floor(st.u * total), sv = Math.floor(st.v * S);
-          if (col === su && v === sv) {
-            const tw = 0.5 + 0.5 * Math.sin(sphAngle * st.tw);
-            r += tw * st.b; g += tw * st.b; b += tw * st.b;
-          }
-        }
-      }
-      // Central white/blue orb
-      const od = Math.sqrt((col - vpCol) * (col - vpCol) + dy * dy);
-      if (od < 6) {
-        const oi = 1 - od / 6;
-        const oi3 = oi * oi * oi;
-        r += oi3 * 1; g += oi3 * 0.95; b += oi3 * 1;
-      } else if (od < 10) {
-        const gl = (10 - od) / 4 * 0.25;
-        r += gl * 0.5; g += gl * 0.4; b += gl * 1;
-      }
-      // Horizontal flare through orb
-      if (Math.abs(dy) < 1.5) {
-        const reach = 30;
-        const dx = Math.abs(col - vpCol);
-        if (dx < reach) {
-          const fl = (1 - dx / reach) * (1 - Math.abs(dy) / 1.5) * 0.4;
-          r += fl * 0.8; g += fl * 0.2; b += fl * 0.5;
-        }
-      }
+  // ── Animated parameters ──
+  // Grid visibility (0=no grid, 1=full grid)
+  let gridAmt=0;
+  if(phase<4) gridAmt=0;
+  else if(phase<6) gridAmt=ss(ramp(phase,4,6));
+  else if(phase<26) gridAmt=1;
+  else if(phase<28) gridAmt=1-ss(ramp(phase,26,28));
+  else gridAmt=0;
 
-    } else if (scene === 1) {
-      // ═══ Image 2: Red wireframe pyramid, dark sphere, blue gravity-well grid ═══
-      if (dy > 1) {
-        // Blue perspective grid with gravity well
-        const cx = col - vpCol;
-        const wellDip = Math.exp(-cx * cx * 0.0006) * 10;
-        const effDy = dy + wellDip * Math.max(0, 1 - dy * 0.03);
-        const br = sphGrid(col, Math.max(1, effDy), vpCol, total, 7, scroll * 0.6);
-        const fade = Math.min(1, 5.0 / dy);
-        r = br * fade * 0.05; g = br * fade * 0.3; b = br * fade * 0.9;
-        // Extra glow near gravity well center
-        if (Math.abs(cx) < 15 && dy > 3 && dy < 25) {
-          const wi = Math.exp(-cx * cx * 0.003) * Math.exp(-(dy - 8) * (dy - 8) * 0.01) * 0.15;
-          g += wi * 0.5; b += wi * 1;
-        }
-      } else if (dy < -1) {
-        const absDy = -dy;
-        const mu = col / total;
-        // Red wireframe triangle — two diagonal edges + horizontal fills
-        const mv = absDy / (horizV * 0.8);
-        if (mv < 1) {
-          const halfW = 0.28 * (1 - mv * 0.9);
-          const dL = Math.abs((mu - 0.5) + halfW) * total;
-          const dR = Math.abs((mu - 0.5) - halfW) * total;
-          const inside = Math.abs(mu - 0.5) < halfW;
-          // Crisp triangle edges — 1px
-          if (dL < 1.2) { r += (1 - dL / 1.2) * 0.95; g += (1 - dL / 1.2) * 0.12; }
-          if (dR < 1.2) { r += (1 - dR / 1.2) * 0.95; g += (1 - dR / 1.2) * 0.12; }
-          // Horizontal lines inside triangle — crisp, evenly spaced
-          if (inside) {
-            const lineIdx = mv * 14;
-            const frac = lineIdx - Math.floor(lineIdx);
-            if (frac < 0.08 || frac > 0.92) {
-              const edgeFade = Math.min(1, Math.min((mu - 0.5 + halfW), (0.5 - mu + halfW)) * total * 0.5);
-              r += 0.75 * edgeFade; g += 0.1 * edgeFade;
-            }
-          }
-          // Dark sphere inside triangle
-          if (inside && mv > 0.2 && mv < 0.8) {
-            const sdx = (mu - 0.5) * total * 0.07;
-            const sdy = (mv - 0.5) * 3.5;
-            const sphR = Math.sqrt(sdx * sdx + sdy * sdy);
-            if (sphR < 1) {
-              r *= 0.1; g *= 0.1; b *= 0.1;
-              for (const st of sphStars) {
-                const su = Math.floor(st.u * 30 + vpCol - 15);
-                const sv = Math.floor(st.v * 20 + horizV - 20);
-                if (col === su && v === sv) {
-                  const tw = 0.5 + 0.5 * Math.sin(sphAngle * st.tw);
-                  r += tw * 0.4; g += tw * 0.4; b += tw * 0.6;
-                }
-              }
-            }
-          }
-        }
-        // Background stars
-        if (r < 0.03 && g < 0.03 && b < 0.03) {
-          for (const st of sphStars) {
-            const su = Math.floor(st.u * total), sv = Math.floor(st.v * horizV);
-            if (col === su && v === sv) {
-              const tw = 0.5 + 0.5 * Math.sin(sphAngle * st.tw);
-              r += tw * st.b * 0.35; g += tw * st.b * 0.35; b += tw * st.b * 0.5;
-            }
-          }
-        }
-      }
+  // Vertical lines visibility (can differ from horizontal)
+  let vLineAmt=gridAmt;
+  if(phase<5) vLineAmt=0;
+  else if(phase<7) vLineAmt=ss(ramp(phase,5,7));
+  else if(phase<26) vLineAmt=1;
+  else if(phase<27.5) vLineAmt=1-ss(ramp(phase,26,27.5));
 
-    } else {
-      // ═══ Image 3: Hot pink grid, pink→blue→purple horizon glow, dark sky ═══
-      if (dy > 0) {
-        const br = sphGrid(col, dy, vpCol, total, 7, scroll * 0.7);
-        r = br * 1.0; g = br * 0.08; b = br * 0.5;
-        // Near-horizon pink wash
-        if (dy < 10) {
-          const hg = (10 - dy) / 10;
-          r += hg * hg * 0.5; g += hg * hg * 0.02; b += hg * hg * 0.25;
-        }
-      } else {
-        const skyN = Math.min(1, -dy / (horizV * 0.85));
-        if (skyN < 0.12) {
-          const f = 1 - skyN / 0.12;
-          r = f * 0.55; g = f * 0.01; b = f * 0.3;
-        } else if (skyN < 0.28) {
-          const f = (skyN - 0.12) / 0.16;
-          r = (1 - f) * 0.3; b = 0.15 + f * 0.3;
-        } else if (skyN < 0.5) {
-          const f = (skyN - 0.28) / 0.22;
-          b = (1 - f) * 0.35;
-        }
-      }
-    }
-    return [Math.min(1, Math.max(0, r)), Math.min(1, Math.max(0, g)), Math.min(1, Math.max(0, b))];
-  }
+  // Horizon position (normalized 0-1 within panel height)
+  let horizN=0.47;
+  if(phase>=14&&phase<18) horizN=0.47-(0.47-0.3)*ss(ramp(phase,14,16));
+  else if(phase>=18) horizN=0.3+(0.47-0.3)*ss(ramp(phase,18,20));
+
+  // Ceiling grid (dual mode)
+  let ceilAmt=0;
+  if(phase>=18&&phase<22) ceilAmt=ss(ramp(phase,18,20));
+  else if(phase>=22&&phase<26) ceilAmt=1;
+  else if(phase>=26&&phase<28) ceilAmt=1-ss(ramp(phase,26,28));
+
+  // Vanishing point X offset (wraps around cube)
+  let vpOff=0;
+  if(phase>=8&&phase<14) vpOff=Math.sin((phase-8)*0.5)*20;
+  else if(phase>=22&&phase<26) vpOff=Math.sin((phase-22)*0.8)*30;
+
+  // Orb intensity
+  let orbI=0;
+  if(phase>=14&&phase<18) orbI=ss(ramp(phase,14,16));
+  else if(phase>=18&&phase<22) orbI=1-ss(ramp(phase,20,22))*0.5;
+  else if(phase>=22&&phase<26) orbI=0.5-ss(ramp(phase,24,26))*0.5;
+
+  // Individual beam count and positions
+  const beamCount=8;
+  let beamAmt=0;
+  if(phase<4) beamAmt=ss(ramp(phase,0.5,3));
+  else if(phase<6) beamAmt=1-ss(ramp(phase,4,6));
+  else if(phase>=28) beamAmt=ss(ramp(phase,28,30));
+  else if(phase>=26) beamAmt=ss(ramp(phase,26,28));
+
+  // Colour cycle: red→magenta→blue→cyan over the 32s cycle
+  const colPhase=(phase/SPH_CYCLE+time*0.01)%1;
+  let cR,cG,cB;
+  if(colPhase<0.35){ cR=1; cG=0.2; cB=0.05+colPhase*1.5; }
+  else if(colPhase<0.6){ const f=(colPhase-0.35)/0.25; cR=1-f*0.9; cG=0.1; cB=0.55+f*0.45; }
+  else if(colPhase<0.85){ const f=(colPhase-0.6)/0.25; cR=0.1+f*0.9; cG=0.1; cB=1-f*0.5; }
+  else{ cR=1; cG=0.2; cB=0.5-(colPhase-0.85)/0.15*0.45; }
+
+  const hzRow=Math.round(horizN*S);
+  const scroll=time*3;
+  const vpX=total*0.5+vpOff;
 
   // ── 4 side faces ──
-  for (let v = 0; v < S; v++) {
-    for (let col = 0; col < total; col++) {
-      const idx = fwPx(col, v);
-      if (idx < 0) continue;
-      let [r, g, b] = pixel(sc, col, v);
-      if (morph > 0) {
-        const [r2, g2, b2] = pixel(nx, col, v);
-        r = r * (1 - morph) + r2 * morph;
-        g = g * (1 - morph) + g2 * morph;
-        b = b * (1 - morph) + b2 * morph;
+  for(let v=0;v<S;v++){
+    for(let col=0;col<total;col++){
+      const idx=fwPx(col,v);
+      if(idx<0) continue;
+      let r=0,g=0,b=0;
+      const dy=v-hzRow;
+
+      // ── Floor perspective grid ──
+      if(dy>0&&gridAmt>0){
+        const z=30.0/dy;
+        const wx=(col-vpX)*z/total*8;
+        const wz=z+scroll;
+        // Crisp horizontal lines
+        const z2=30.0/(dy+1);
+        const wz2=z2+scroll;
+        const hOn=Math.floor(wz*0.5)!==Math.floor(wz2*0.5)?1:0;
+        // Crisp vertical lines
+        const pxW=z/total*8;
+        const vOn=Math.floor(wx)!==Math.floor(wx+pxW)?1:0;
+        const fade=Math.min(1,5.0/dy);
+        const br=(hOn*gridAmt+vOn*vLineAmt)*fade;
+        if(br>0){ r+=br*cR; g+=br*cG; b+=br*cB; }
       }
-      if (r < 0.01 && g < 0.01 && b < 0.01) continue;
-      const i3 = idx * 3;
-      colBuf[i3] = Math.max(colBuf[i3], r);
-      colBuf[i3 + 1] = Math.max(colBuf[i3 + 1], g);
-      colBuf[i3 + 2] = Math.max(colBuf[i3 + 2], b);
+
+      // ── Ceiling perspective grid (dual mode) ──
+      if(dy<0&&ceilAmt>0){
+        const ady=-dy;
+        const z=30.0/ady;
+        const wx=(col-vpX)*z/total*8;
+        const wz=z+scroll;
+        const z2=30.0/(ady+1);
+        const wz2=z2+scroll;
+        const hOn=Math.floor(wz*0.5)!==Math.floor(wz2*0.5)?1:0;
+        const pxW=z/total*8;
+        const vOn=Math.floor(wx)!==Math.floor(wx+pxW)?1:0;
+        const fade=Math.min(1,5.0/ady);
+        const br=(hOn+vOn)*fade*ceilAmt;
+        if(br>0){ r+=br*cR; g+=br*cG; b+=br*cB; }
+      }
+
+      // ── Scanning laser beams (individual horizontal lines) ──
+      if(beamAmt>0){
+        for(let i=0;i<beamCount;i++){
+          const spd=1.5+i*0.4;
+          const off=i*S/beamCount;
+          const beamY=((time*spd*8+off)%S)|0;
+          if(v===beamY){
+            const br=beamAmt*0.9;
+            r+=br*cR; g+=br*cG; b+=br*cB;
+          }
+          // Subtle glow 1px above/below
+          if(Math.abs(v-beamY)===1){
+            const br=beamAmt*0.25;
+            r+=br*cR; g+=br*cG; b+=br*cB;
+          }
+        }
+      }
+
+      // ── Horizon glow line ──
+      if(Math.abs(dy)<3){
+        const hg=(3-Math.abs(dy))/3*0.35;
+        r+=hg*cR; g+=hg*cG; b+=hg*cB;
+      }
+
+      // ── Central orb ──
+      if(orbI>0){
+        const od=Math.sqrt((col-vpX)*(col-vpX)+dy*dy);
+        if(od<7){
+          const oi=1-od/7; const oi3=oi*oi*oi*orbI;
+          r+=oi3; g+=oi3*0.9; b+=oi3;
+        } else if(od<12){
+          const gl=(12-od)/5*0.2*orbI;
+          r+=gl*0.4; g+=gl*0.3; b+=gl*0.9;
+        }
+      }
+
+      // ── Stars ──
+      if(r<0.06&&g<0.06&&b<0.06){
+        for(const st of sphStars){
+          if(Math.floor(st.u*total)===col&&Math.floor(st.v*S)===v){
+            const tw=0.5+0.5*Math.sin(time*st.tw);
+            const sb=tw*st.b*0.7;
+            r+=sb; g+=sb; b+=sb;
+          }
+        }
+      }
+
+      if(r<0.01&&g<0.01&&b<0.01) continue;
+      r=Math.min(1,r); g=Math.min(1,g); b=Math.min(1,b);
+      const i3=idx*3;
+      colBuf[i3]=Math.max(colBuf[i3],r);
+      colBuf[i3+1]=Math.max(colBuf[i3+1],g);
+      colBuf[i3+2]=Math.max(colBuf[i3+2],b);
     }
   }
 
-  // ── Top/bottom: crisp overhead grid ──
-  const tR = sc === 0 ? 0.95 : sc === 1 ? 0.05 : 1.0;
-  const tG = sc === 0 ? 0.28 : sc === 1 ? 0.3 : 0.08;
-  const tB = sc === 0 ? 0.05 : sc === 1 ? 0.9 : 0.5;
-  for (let face = 4; face <= 5; face++) {
-    const bright = face === 4 ? 0.7 : 0.5;
-    for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) {
-      const idx = faceMap[face][v * S + u];
-      if (idx < 0) continue;
-      const gu = Math.floor(u / (S / 8)), gu2 = Math.floor((u + 1) / (S / 8));
-      const gv = Math.floor(v / (S / 8)), gv2 = Math.floor((v + 1) / (S / 8));
-      let br = (gu !== gu2 || gv !== gv2) ? bright : 0;
-      if (br < 0.01) continue;
-      const i3 = idx * 3;
-      colBuf[i3] = Math.max(colBuf[i3], br * tR);
-      colBuf[i3 + 1] = Math.max(colBuf[i3 + 1], br * tG);
-      colBuf[i3 + 2] = Math.max(colBuf[i3 + 2], br * tB);
+  // ── Top face: scanning laser lines that sync with side beams ──
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const idx=faceMap[4][v*S+u];
+    if(idx<0) continue;
+    let br=0;
+    // Grid lines
+    if(gridAmt>0){
+      const gu=((u+scroll*0.5)%(S/8))|0;
+      const gv=((v+scroll*0.3)%(S/8))|0;
+      if(gu===0||gv===0) br=gridAmt*0.7;
     }
+    // Beam lines
+    if(beamAmt>0){
+      for(let i=0;i<4;i++){
+        const by=((time*(2+i*0.3)*8+i*16)%S)|0;
+        if(v===by) br=Math.max(br,beamAmt*0.8);
+      }
+    }
+    if(br<0.01) continue;
+    br=Math.min(1,br);
+    const i3=idx*3;
+    colBuf[i3]=Math.max(colBuf[i3],br*cR);
+    colBuf[i3+1]=Math.max(colBuf[i3+1],br*cG);
+    colBuf[i3+2]=Math.max(colBuf[i3+2],br*cB);
+  }
+
+  // ── Bottom face ──
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const idx=faceMap[5][v*S+u];
+    if(idx<0) continue;
+    let br=0;
+    if(gridAmt>0){
+      const gu=((u+scroll*0.4+4)%(S/8))|0;
+      const gv=((v+scroll*0.25+4)%(S/8))|0;
+      if(gu===0||gv===0) br=gridAmt*0.5;
+    }
+    if(br<0.01) continue;
+    br=Math.min(1,br);
+    const i3=idx*3;
+    colBuf[i3]=Math.max(colBuf[i3],br*cR);
+    colBuf[i3+1]=Math.max(colBuf[i3+1],br*cG);
+    colBuf[i3+2]=Math.max(colBuf[i3+2],br*cB);
   }
 }
 
