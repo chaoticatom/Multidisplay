@@ -12094,53 +12094,49 @@ function effectMoon(dt){
   }
 
   // ── Scrolling phase text at bottom of face 0 ──
+  // Uses same 3x5 bitmap font as weather effect, mirrored for correct display
   const mi=getMoonIllumination(new Date());
   const illum=Math.round(mi.fraction*100);
   const ph=mi.phase;
   const pName=ph<0.03?'New Moon':ph<0.22?'Waxing Crescent':ph<0.28?'First Quarter':ph<0.47?'Waxing Gibbous':ph<0.53?'Full Moon':ph<0.72?'Waning Gibbous':ph<0.78?'Last Quarter':ph<0.97?'Waning Crescent':'New Moon';
-  const moonText=`${pName}  ${illum}%`;
-  if(!this._moonFont){
-    this._moonFont={
-      A:[0x4,0xA,0xE,0xA,0xA],B:[0xC,0xA,0xC,0xA,0xC],C:[0x6,0x8,0x8,0x8,0x6],
-      D:[0xC,0xA,0xA,0xA,0xC],E:[0xE,0x8,0xC,0x8,0xE],F:[0xE,0x8,0xC,0x8,0x8],
-      G:[0x6,0x8,0x8,0xA,0x6],H:[0xA,0xA,0xE,0xA,0xA],I:[0xE,0x4,0x4,0x4,0xE],
-      J:[0x2,0x2,0x2,0xA,0x4],K:[0xA,0xA,0xC,0xA,0xA],L:[0x8,0x8,0x8,0x8,0xE],
-      M:[0xA,0xE,0xE,0xA,0xA],N:[0xA,0xE,0xE,0xA,0xA],O:[0x4,0xA,0xA,0xA,0x4],
-      P:[0xC,0xA,0xC,0x8,0x8],Q:[0x4,0xA,0xA,0xC,0x6],R:[0xC,0xA,0xC,0xA,0xA],
-      S:[0x6,0x8,0x4,0x2,0xC],T:[0xE,0x4,0x4,0x4,0x4],U:[0xA,0xA,0xA,0xA,0x4],
-      V:[0xA,0xA,0xA,0xA,0x4],W:[0xA,0xA,0xE,0xE,0xA],X:[0xA,0xA,0x4,0xA,0xA],
-      Y:[0xA,0xA,0x4,0x4,0x4],Z:[0xE,0x2,0x4,0x8,0xE],
-      '0':[0x4,0xA,0xA,0xA,0x4],'1':[0x4,0xC,0x4,0x4,0xE],'2':[0xC,0x2,0x4,0x8,0xE],
-      '3':[0xC,0x2,0x4,0x2,0xC],'4':[0xA,0xA,0xE,0x2,0x2],'5':[0xE,0x8,0xC,0x2,0xC],
-      '6':[0x6,0x8,0xE,0xA,0x4],'7':[0xE,0x2,0x4,0x4,0x4],'8':[0x4,0xA,0x4,0xA,0x4],
-      '9':[0x4,0xA,0xE,0x2,0xC],'%':[0xA,0x2,0x4,0x8,0xA],' ':[0,0,0,0,0]
+  const moonText=`${pName} ${illum}%`;
+  if(!this._mf){
+    this._mf={
+      '0':[7,5,5,5,7],'1':[6,2,2,2,7],'2':[7,1,7,4,7],'3':[7,1,3,1,7],
+      '4':[5,5,7,1,1],'5':[7,4,6,1,7],'6':[7,4,7,5,7],'7':[7,1,2,2,2],
+      '8':[7,5,7,5,7],'9':[7,5,7,1,7],'%':[5,1,2,4,5],' ':[0,0,0,0,0],
+      A:[2,5,7,5,5],B:[6,5,6,5,6],C:[3,4,4,4,3],D:[6,5,5,5,6],
+      E:[7,4,6,4,7],F:[7,4,6,4,4],G:[3,4,7,5,3],H:[5,5,7,5,5],
+      I:[7,2,2,2,7],J:[1,1,1,5,2],K:[5,6,4,6,5],L:[4,4,4,4,7],
+      M:[7,7,5,5,5],N:[7,5,5,5,5],O:[7,5,5,5,7],P:[6,5,6,4,4],
+      Q:[7,5,5,7,1],R:[6,5,6,5,5],S:[3,4,2,1,6],T:[7,2,2,2,2],
+      U:[5,5,5,5,7],V:[5,5,5,5,2],W:[5,5,5,7,5],X:[5,5,2,5,5],
+      Y:[5,5,2,2,2],Z:[7,1,2,4,7]
     };
     this._moonScrollX=0;
   }
-  const mf=this._moonFont;
-  const sc=2; // 2x scale for readability
-  const charW=4*sc, textW=moonText.length*charW;
-  const fontH=5*sc;
+  const mf=this._mf;
+  const charW=4, textW=moonText.length*charW;
   const needScroll=textW>S;
   if(needScroll) this._moonScrollX=(this._moonScrollX+dt*14)%(textW+S);
   else this._moonScrollX=0;
-  const textY=S-fontH; // flush to bottom of face
+  const textBaseV=1; // 1px from bottom edge, text draws upward
   const scrollOff=needScroll?Math.floor(S-this._moonScrollX):Math.floor((S-textW)/2);
   for(let ci=0;ci<moonText.length;ci++){
     const ch=moonText[ci].toUpperCase();
-    const glyph=mf[ch]; if(!glyph) continue;
+    const rows=mf[ch]; if(!rows) continue;
     const cx=scrollOff+ci*charW;
     for(let row=0;row<5;row++){
-      const bits=glyph[row];
-      for(let col=0;col<4;col++){
-        if(bits&(0x8>>col)){
-          for(let sy=0;sy<sc;sy++) for(let sx=0;sx<sc;sx++){
-            const px=cx+col*sc+sx, py=textY+row*sc+sy;
-            if(px<0||px>=S||py<0||py>=S) continue;
-            const idx=faceMap[0][py*S+px]; if(idx<0) continue;
-            colBuf[idx*3]=0.75; colBuf[idx*3+1]=0.8; colBuf[idx*3+2]=0.85;
-          }
-        }
+      const bits=rows[row];
+      for(let col=0;col<3;col++){
+        if(!((bits>>(2-col))&1)) continue;
+        // Mirror horizontally: flip u coordinate
+        const u=(S-1)-(cx+col), v=textBaseV+(4-row);
+        if(u<0||u>=S||v<0||v>=S) continue;
+        const idx=faceMap[0][v*S+u]; if(idx<0) continue;
+        colBuf[idx*3]=Math.max(colBuf[idx*3],0.75);
+        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],0.8);
+        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],0.85);
       }
     }
   }
