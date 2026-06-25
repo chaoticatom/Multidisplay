@@ -4054,7 +4054,7 @@ async function wxFetch(skipGeocode){
     if(statusEl) statusEl.textContent=`Fetching weather for ${city}…`;
 
     // Step 2: weather
-    const wxUrl=`https://api.open-meteo.com/v1/forecast?latitude=${wxLat.toFixed(4)}&longitude=${wxLon.toFixed(4)}&current=temperature_2m,weather_code,wind_speed_10m&daily=sunrise,sunset,moonrise,moonset,temperature_2m_max&timezone=auto&forecast_days=1`;
+    const wxUrl=`https://api.open-meteo.com/v1/forecast?latitude=${wxLat.toFixed(4)}&longitude=${wxLon.toFixed(4)}&current=temperature_2m,weather_code,wind_speed_10m&daily=sunrise,sunset,temperature_2m_max&timezone=auto&forecast_days=1`;
     let wr;
     try{ wr=await fetch(wxUrl); }
     catch(fe){ throw new Error('Weather fetch failed — check internet connection'); }
@@ -4067,9 +4067,18 @@ async function wxFetch(skipGeocode){
     const pt=s=>{ const p=(s||'').split('T')[1]||'00:00'; const[h,m]=(p.split(':')).map(Number); return h*3600+m*60; };
     wxSunriseS=pt(wd.daily?.sunrise?.[0])||21600;
     wxSunsetS=pt(wd.daily?.sunset?.[0])||72000;
-    wxMoonriseS=wd.daily?.moonrise?.[0]?pt(wd.daily.moonrise[0]):-1;
-    wxMoonsetS=wd.daily?.moonset?.[0]?pt(wd.daily.moonset[0]):-1;
     wxDesc=WX_CODES[wxCode]||'Unknown';
+
+    // Fetch moonrise/moonset separately so failure doesn't break weather
+    try{
+      const moonUrl=`https://api.open-meteo.com/v1/forecast?latitude=${wxLat.toFixed(4)}&longitude=${wxLon.toFixed(4)}&daily=moonrise,moonset&timezone=auto&forecast_days=1`;
+      const mr=await fetch(moonUrl);
+      if(mr.ok){
+        const md=await mr.json();
+        wxMoonriseS=md.daily?.moonrise?.[0]?pt(md.daily.moonrise[0]):-1;
+        wxMoonsetS=md.daily?.moonset?.[0]?pt(md.daily.moonset[0]):-1;
+      }
+    }catch(e){ console.warn('Moon data fetch failed:',e); }
     wxInitScene(wxCode);
     wxLastFetch=Date.now()/1000;
     if(statusEl) statusEl.textContent=city;
@@ -4118,26 +4127,39 @@ function effectWeather(dt){
   const fromSunset=secsDay>wxSunsetS?secsDay-wxSunsetS:secsDay+(86400-wxSunsetS);
   const nightProg=!isDay?fromSunset/nightLen:0;
   const moonPh=wxMoonPhase(new Date());
-  // Moon position from API moonrise/moonset (same logic as sun)
+  // Moon position from API moonrise/moonset, fallback to phase-based estimate
   let moonUp=false, moonDayProg=0;
-  if(wxMoonriseS>=0 && wxMoonsetS>=0){
-    if(wxMoonsetS>wxMoonriseS){
-      moonUp=secsDay>=wxMoonriseS&&secsDay<=wxMoonsetS;
-      if(moonUp) moonDayProg=(secsDay-wxMoonriseS)/(wxMoonsetS-wxMoonriseS);
+  if(wxMoonriseS>=0 || wxMoonsetS>=0){
+    if(wxMoonriseS>=0 && wxMoonsetS>=0){
+      if(wxMoonsetS>wxMoonriseS){
+        moonUp=secsDay>=wxMoonriseS&&secsDay<=wxMoonsetS;
+        if(moonUp) moonDayProg=(secsDay-wxMoonriseS)/(wxMoonsetS-wxMoonriseS);
+      } else {
+        moonUp=secsDay>=wxMoonriseS||secsDay<=wxMoonsetS;
+        const span=wxMoonsetS+86400-wxMoonriseS;
+        if(moonUp) moonDayProg=((secsDay-wxMoonriseS+86400)%86400)/span;
+      }
+    } else if(wxMoonriseS>=0){
+      moonUp=secsDay>=wxMoonriseS;
+      if(moonUp) moonDayProg=Math.min(1,(secsDay-wxMoonriseS)/43200);
     } else {
-      // moonset before moonrise = moon crosses midnight
-      moonUp=secsDay>=wxMoonriseS||secsDay<=wxMoonsetS;
-      const span=wxMoonsetS+86400-wxMoonriseS;
-      if(moonUp) moonDayProg=((secsDay-wxMoonriseS+86400)%86400)/span;
+      moonUp=secsDay<=wxMoonsetS;
+      if(moonUp&&wxMoonsetS>0) moonDayProg=0.5+0.5*(1-secsDay/wxMoonsetS);
     }
-  } else if(wxMoonriseS>=0){
-    // no moonset today — moon stays up
-    moonUp=secsDay>=wxMoonriseS;
-    if(moonUp) moonDayProg=Math.min(1,(secsDay-wxMoonriseS)/43200);
-  } else if(wxMoonsetS>=0){
-    // no moonrise today — moon was already up
-    moonUp=secsDay<=wxMoonsetS;
-    if(moonUp) moonDayProg=1-wxMoonsetS>0?(1-secsDay/wxMoonsetS)*0.5+0.5:0.5;
+  } else {
+    // Fallback: estimate from phase
+    const moonLag=moonPh*24;
+    const moonRiseH=(wxSunriseS/3600+moonLag)%24;
+    const moonSetH=(wxSunsetS/3600+moonLag)%24;
+    const hourNow=secsDay/3600;
+    if(moonSetH>moonRiseH){
+      moonUp=hourNow>=moonRiseH&&hourNow<=moonSetH;
+      if(moonUp) moonDayProg=(hourNow-moonRiseH)/(moonSetH-moonRiseH);
+    } else {
+      const span=moonSetH+24-moonRiseH;
+      moonDayProg=((hourNow-moonRiseH+24)%24)/span;
+      moonUp=moonDayProg>=0&&moonDayProg<=1;
+    }
   }
   let moonPX,moonElev,moonAlpha;
   if(moonUp){
