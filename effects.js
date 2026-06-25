@@ -11135,9 +11135,9 @@ let r2From=null, r2To=null, r2Live=null;
 
 function r2rnd(a,b){ return a+Math.random()*(b-a); }
 
-// Visual character presets — weighted random pick biases toward distinct looks
+// Visual character presets — laser/grid weighted higher for visible variety
 const R2_CHARS=[
-  'plasma','laser','rings','grid','bars','nebula','kaleid','tunnel','storm'];
+  'plasma','laser','laser','rings','grid','grid','bars','nebula','kaleid','tunnel','storm'];
 
 function r2GenParams(){
   const char=R2_CHARS[Math.floor(Math.random()*R2_CHARS.length)];
@@ -11148,12 +11148,12 @@ function r2GenParams(){
     let ax=r2rnd(-3,3), ay=r2rnd(-3,3), az=r2rnd(-3,3);
     let freq=r2rnd(3,18), amp=r2rnd(0.15,0.5);
     if(char==='laser'){
-      // Align waves to create sharp parallel beams
+      // Align waves on 1-2 axes to create sharp parallel beams
       const axis=Math.floor(Math.random()*3);
-      ax=axis===0?r2rnd(0.5,1.5)*(Math.random()<0.5?-1:1):r2rnd(-0.3,0.3);
-      ay=axis===1?r2rnd(0.5,1.5)*(Math.random()<0.5?-1:1):r2rnd(-0.3,0.3);
-      az=axis===2?r2rnd(0.5,1.5)*(Math.random()<0.5?-1:1):r2rnd(-0.3,0.3);
-      freq=r2rnd(8,25); amp=r2rnd(0.3,0.6);
+      ax=axis===0?r2rnd(1,2.5)*(Math.random()<0.5?-1:1):r2rnd(-0.15,0.15);
+      ay=axis===1?r2rnd(1,2.5)*(Math.random()<0.5?-1:1):r2rnd(-0.15,0.15);
+      az=axis===2?r2rnd(1,2.5)*(Math.random()<0.5?-1:1):r2rnd(-0.15,0.15);
+      freq=r2rnd(5,14); amp=r2rnd(0.5,0.8);
     } else if(char==='bars'){
       ay=i<2?r2rnd(0.8,2):r2rnd(-0.2,0.2);
       ax=i<2?r2rnd(-0.2,0.2):r2rnd(0.8,2);
@@ -11184,13 +11184,13 @@ function r2GenParams(){
   // Shaping — controls how the raw field becomes visuals
   let sharpness=1, threshold=0, edgeGlow=0;
   if(char==='laser'){
-    sharpness=r2rnd(4,12);   // very sharp = thin bright lines
-    threshold=r2rnd(0.5,0.8); // only show peaks = dark gaps between beams
-    edgeGlow=r2rnd(0.3,0.7);
+    sharpness=r2rnd(2,5);     // sharp but not so extreme lines vanish on 64px
+    threshold=r2rnd(0.25,0.5); // lower = thicker beams, more visible
+    edgeGlow=r2rnd(0.4,0.8);
   } else if(char==='grid'){
-    sharpness=r2rnd(3,8);
-    threshold=r2rnd(0.4,0.7);
-    edgeGlow=r2rnd(0.1,0.4);
+    sharpness=r2rnd(2,4);
+    threshold=r2rnd(0.2,0.45);
+    edgeGlow=r2rnd(0.2,0.5);
   } else if(char==='bars'){
     sharpness=r2rnd(2,6);
     threshold=r2rnd(0.2,0.5);
@@ -11260,9 +11260,9 @@ function r2GenParams(){
     palA, palB, palC, palD,
     hueScale: r2rnd(0.3,1.5),
     hueDrift: r2rnd(-0.08,0.08),
-    contrast: char==='laser'?r2rnd(1.5,3):r2rnd(0.8,2.2),
-    bright: r2rnd(0.7,1.0),
-    glow: char==='laser'||char==='rings'?r2rnd(0.05,0.25):r2rnd(0,0.15),
+    contrast: (char==='laser'||char==='grid')?r2rnd(0.6,1.2):r2rnd(0.8,2.2),
+    bright: (char==='laser'||char==='grid')?r2rnd(0.9,1.0):r2rnd(0.7,1.0),
+    glow: (char==='laser'||char==='rings'||char==='grid')?r2rnd(0.08,0.3):r2rnd(0,0.15),
     spin: r2rnd(-0.3,0.3),
     sharpness,
     threshold,
@@ -11385,11 +11385,12 @@ function effectRandom80s(dt){
     // Threshold — cut below this value to create dark gaps (laser-line look)
     if(p.threshold>0.01){
       val=val>p.threshold?(val-p.threshold)/(1-p.threshold):0;
-      // Edge glow — soft halo just below threshold
-      if(p.edgeGlow>0.01&&val===0){
-        const dist=p.threshold-Math.pow(raw2<0?0:raw2>1?1:raw2, p.sharpness);
-        if(dist<p.edgeGlow*0.3){
-          val=(1-dist/(p.edgeGlow*0.3))*p.edgeGlow*0.4;
+      // Edge glow — soft halo around the beams
+      if(p.edgeGlow>0.01&&val<=0){
+        const shaped=Math.pow(raw2<0?0:raw2>1?1:raw2, p.sharpness);
+        const dist=p.threshold-shaped;
+        if(dist<p.edgeGlow*0.5&&dist>0){
+          val=(1-dist/(p.edgeGlow*0.5))*p.edgeGlow*0.5;
         }
       }
     }
