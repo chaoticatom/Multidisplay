@@ -267,7 +267,10 @@ function effectSphere(dt) {
     for(let col=0;col<total;col++){
       const idx=fwPx(col,v);
       if(idx<0) continue;
-      const dx=col-cx, dy=v-cy;
+      let dx=col-cx;
+      if(dx>total*0.5) dx-=total;
+      else if(dx<-total*0.5) dx+=total;
+      const dy=v-cy;
       const dist=Math.sqrt(dx*dx+dy*dy);
       if(dist<1){
         colBuf[idx*3]=1; colBuf[idx*3+1]=0.95; colBuf[idx*3+2]=1;
@@ -290,7 +293,7 @@ function effectSphere(dt) {
   for(let v=0;v<S;v++) for(let u=0;u<S;u++){
     const idx=faceMap[4][v*S+u];
     if(idx<0) continue;
-    const dx=u-cx, dy=-(v+1)-cy;
+    const dx=u-cx, dy=-(S-v)-cy;
     const dist=Math.sqrt(dx*dx+dy*dy);
     if(dist<2) continue;
     const pxA=Math.atan2(dy,dx);
