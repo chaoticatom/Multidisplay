@@ -226,13 +226,14 @@ let sphT=0;
 
 function effectSphere(dt) {
   t+=dt; sphT+=dt;
-  for(let i=0;i<N*3;i++) colBuf[i]*=0.78;
+  for(let i=0;i<N*3;i++) colBuf[i]*=0.75;
   const S=SIZE, time=sphT;
   const total=S*4;
-  const cx=S/2, cy=S/2;
+  const cx=(S-1)/2, cy=(S-1)/2;
+  const nRays=6;
 
-  // Scan line bounces up and down
-  const scanPeriod=3.5;
+  // Scan line bounces up and down (~3s per sweep)
+  const scanPeriod=3.0;
   const sp=(time%scanPeriod)/scanPeriod;
   const scanY=sp<0.5?sp*2:2-sp*2;
   const scanV=scanY*(S-1);
@@ -243,103 +244,62 @@ function effectSphere(dt) {
   if(h<0.25){cR=0.15;cG=1;cB=0.3;}
   else if(h<0.5){cR=0.1;cG=0.7;cB=1;}
   else if(h<0.75){cR=1;cG=0.5;cB=0.1;}
-  else {cR=0.15;cG=1;cB=0.3;}
+  else{cR=0.15;cG=1;cB=0.3;}
 
-  // Number of vertical grid lines fanning out from center
-  const nVLines=9;
-  // Number of horizontal grid lines fanning out from center
-  const nHLines=7;
-
-  // Helper: draw one face (u,v coords 0..S-1)
   function drawFace(setPx){
-    // Perspective grid: vanishing point at (cx,cy), rays fan out toward edges
-    // Vertical grid lines: fan from center to left/right edges
-    for(let li=0;li<nVLines;li++){
-      const t=(li+1)/(nVLines+1);
-      const edgeU=t*S;
-      for(let v=0;v<S;v++){
-        const depth=Math.abs(v-cy)/cy; // 0 at center, 1 at edge
-        const d3=depth*depth;
-        const u=cx+(edgeU-cx)*d3;
-        const iu=Math.round(u);
-        if(iu<0||iu>=S) continue;
-        const b=0.18*d3;
-        if(b<0.01) continue;
-        setPx(iu,v,cR*b,cG*b,cB*b);
+    const sv=Math.round(scanV);
+
+    // Full-width horizontal scan line
+    for(let u=0;u<S;u++){
+      setPx(u,sv,cR*0.9,cG*0.9,cB*0.9);
+    }
+    // Scan line glow
+    for(let dv=-3;dv<=3;dv++){
+      if(dv===0) continue;
+      const v=sv+dv; if(v<0||v>=S) continue;
+      const gb=(1-Math.abs(dv)/4)*0.18;
+      for(let u=0;u<S;u++) setPx(u,v,cR*gb,cG*gb,cB*gb);
+    }
+
+    // 6 rays from center dot to equally spaced points on scan line
+    const rayTargets=[];
+    for(let ri=0;ri<nRays;ri++){
+      const tu=Math.round((ri+0.5)/nRays*(S-1));
+      rayTargets.push(tu);
+    }
+
+    for(let ri=0;ri<nRays;ri++){
+      const tu=rayTargets[ri];
+      const dx=tu-cx, dy=sv-cy;
+      const steps=Math.max(Math.abs(dx),Math.abs(dy),1);
+      for(let s=0;s<=steps;s++){
+        const t=s/steps;
+        const u=Math.round(cx+dx*t);
+        const v=Math.round(cy+dy*t);
+        if(u<0||u>=S||v<0||v>=S) continue;
+        const b=0.3+0.5*t;
+        setPx(u,v,cR*b,cG*b,cB*b);
       }
     }
 
-    // Horizontal grid lines: fan from center to top/bottom edges
-    for(let li=0;li<nHLines;li++){
-      const t=(li+1)/(nHLines+1);
-      const edgeV=t*S;
-      const depth=Math.abs(edgeV-cy)/cy;
-      const d3=depth*depth;
-      const b=0.15*d3;
-      if(b<0.01) continue;
-      const rv=Math.round(edgeV);
-      if(rv<0||rv>=S) continue;
-      // Width spreads with depth
-      const spread=d3;
-      for(let u=0;u<S;u++){
-        const ut=(u-cx)/cx;
-        const pu=Math.round(cx+ut*spread*cx);
-        if(pu<0||pu>=S) continue;
-        setPx(pu,rv,cR*b,cG*b,cB*b);
-      }
-    }
-
-    // Vanishing point glow
+    // Center dot glow
     for(let dv=-2;dv<=2;dv++) for(let du=-2;du<=2;du++){
       const u=Math.round(cx)+du, v=Math.round(cy)+dv;
       if(u<0||u>=S||v<0||v>=S) continue;
       const r=Math.sqrt(du*du+dv*dv);
-      const b=Math.max(0,1-r/2.5)*0.5;
+      const b=Math.max(0,1-r/2.5)*0.7;
       setPx(u,v,b,b*0.95,b);
     }
 
-    // Scan line: bright horizontal line that sweeps up/down
-    const sv=Math.round(scanV);
-    for(let u=0;u<S;u++){
-      // Width of scan line grows with distance from center (perspective)
-      const depth=Math.abs(sv-cy)/cy;
-      const d3=depth*depth;
-      const spread=d3;
-      const ut=(u-cx)/cx;
-      const pu=Math.round(cx+ut*spread*cx);
-      if(pu<0||pu>=S) continue;
-      const b=0.9;
-      setPx(pu,sv,cR*b,cG*b,cB*b);
-    }
-    // Scan line glow (few rows around)
-    for(let dv=-3;dv<=3;dv++){
-      if(dv===0) continue;
-      const v=sv+dv; if(v<0||v>=S) continue;
-      const gb=Math.max(0,(1-Math.abs(dv)/3.5))*0.15;
-      const depth=Math.abs(v-cy)/cy;
-      const d3=depth*depth;
-      const spread=d3;
-      for(let u=0;u<S;u++){
-        const ut=(u-cx)/cx;
-        const pu=Math.round(cx+ut*spread*cx);
-        if(pu<0||pu>=S) continue;
-        setPx(pu,v,cR*gb,cG*gb,cB*gb);
-      }
-    }
-
-    // Brighten grid intersections near scan line
-    for(let li=0;li<nVLines;li++){
-      const t=(li+1)/(nVLines+1);
-      const edgeU=t*S;
-      for(let dv=-2;dv<=2;dv++){
-        const v=sv+dv; if(v<0||v>=S) continue;
-        const depth=Math.abs(v-cy)/cy;
-        const d3=depth*depth;
-        const u=Math.round(cx+(edgeU-cx)*d3);
-        if(u<0||u>=S) continue;
-        const gb=(1-Math.abs(dv)/3)*0.6*d3;
-        if(gb<0.01) continue;
-        setPx(u,v,cR*gb,cG*gb,cB*gb);
+    // Bright dots where rays meet scan line
+    for(let ri=0;ri<nRays;ri++){
+      const tu=rayTargets[ri];
+      for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
+        const u=tu+du, v=sv+dv;
+        if(u<0||u>=S||v<0||v>=S) continue;
+        const r=Math.sqrt(du*du+dv*dv);
+        const b=Math.max(0,1-r/1.5)*0.8;
+        setPx(u,v,cR*b,cG*b,cB*b);
       }
     }
   }
