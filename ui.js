@@ -1223,7 +1223,7 @@ const EFFECT_SECTION_MAP = {
   balls:'',sand:'',lightning:'',warp:'',life:'',fluid:'',
 };
 
-const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','coinflip','dice','balls','simhouse','retro']);
+const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','coinflip','dice','balls','simhouse','retro','random']);
 populateAlarmEffectRiseSelect(); // safe here — EFFECT_NAMES now defined
 
 async function fetchCitiesFromAPI(){
@@ -1332,9 +1332,10 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
     const eff = btn.dataset.effect;
 
-    // For retro: only toggle the panel, don't start the effect
-    if(eff==='retro'){
-      const panel = document.getElementById('panel-retro');
+    // For retro/random parent: only toggle the panel, don't start the effect
+    if(eff==='retro'||(eff==='random'&&btn.classList.contains('has-panel'))){
+      const panelId=eff==='retro'?'panel-retro':'panel-random';
+      const panel = document.getElementById(panelId);
       const isOpen = panel && panel.classList.contains('open');
       document.querySelectorAll('.effect-panel').forEach(p=>p.classList.remove('open'));
       document.querySelectorAll('.effect-btn').forEach(b=>b.classList.remove('open'));
