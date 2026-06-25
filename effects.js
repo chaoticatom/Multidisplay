@@ -226,129 +226,141 @@ let sphT=0;
 
 function effectSphere(dt) {
   t+=dt; sphT+=dt;
-  // Fade previous frame for phosphor trail effect
-  for(let i=0;i<N*3;i++) colBuf[i]*=0.82;
+  for(let i=0;i<N*3;i++) colBuf[i]*=0.78;
   const S=SIZE, time=sphT;
   const total=S*4;
+  const cx=S/2, cy=S/2;
 
-  // Scan dot bounces up and down (triangle wave, ~3 seconds per sweep)
-  const scanPeriod=3.0;
-  const scanPhase=(time%scanPeriod)/scanPeriod;
-  const scanY=scanPhase<0.5?scanPhase*2:2-scanPhase*2; // 0→1→0
-  const dotV=Math.round(scanY*(S-1));
+  // Scan line bounces up and down
+  const scanPeriod=3.5;
+  const sp=(time%scanPeriod)/scanPeriod;
+  const scanY=sp<0.5?sp*2:2-sp*2;
+  const scanV=scanY*(S-1);
 
-  // Dot horizontal position: center of face 0
-  const dotCol=Math.round(S*0.5);
-
-  // Colour cycle — neon CRT colours
-  const h=(time*0.06)%1;
+  // Colour cycle
+  const h=(time*0.05)%1;
   let cR,cG,cB;
-  if(h<0.2){cR=0.2;cG=1;cB=0.3;}           // green phosphor
-  else if(h<0.4){cR=0.1;cG=0.8;cB=1;}       // cyan
-  else if(h<0.6){cR=1;cG=1;cB=1;}            // white
-  else if(h<0.8){cR=1;cG=0.6;cB=0.1;}        // amber
-  else {cR=0.2;cG=1;cB=0.3;}                  // green again
+  if(h<0.25){cR=0.15;cG=1;cB=0.3;}
+  else if(h<0.5){cR=0.1;cG=0.7;cB=1;}
+  else if(h<0.75){cR=1;cG=0.5;cB=0.1;}
+  else {cR=0.15;cG=1;cB=0.3;}
 
-  // ── Bright dot ──
-  if(panel2dMode){
-    for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
-      const u=dotCol+du, v=dotV+dv;
-      if(u<0||u>=S||v<0||v>=S) continue;
-      const idx=faceMap[0][v*S+u]; if(idx<0) continue;
-      const b=1-Math.sqrt(du*du+dv*dv)*0.3;
-      colBuf[idx*3]=b; colBuf[idx*3+1]=b*0.95; colBuf[idx*3+2]=b;
-    }
-  } else {
-    // 3D: dot on all 4 side faces via fwPx
-    for(let fc=0;fc<4;fc++){
-      const cCol=fc*S+Math.round(S*0.5);
-      for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
-        const idx=fwPx(cCol+du,dotV+dv);
-        if(idx<0) continue;
-        const b=1-Math.sqrt(du*du+dv*dv)*0.3;
-        colBuf[idx*3]=b; colBuf[idx*3+1]=b*0.95; colBuf[idx*3+2]=b;
+  // Number of vertical grid lines fanning out from center
+  const nVLines=9;
+  // Number of horizontal grid lines fanning out from center
+  const nHLines=7;
+
+  // Helper: draw one face (u,v coords 0..S-1)
+  function drawFace(setPx){
+    // Perspective grid: vanishing point at (cx,cy), rays fan out toward edges
+    // Vertical grid lines: fan from center to left/right edges
+    for(let li=0;li<nVLines;li++){
+      const t=(li+1)/(nVLines+1);
+      const edgeU=t*S;
+      for(let v=0;v<S;v++){
+        const depth=Math.abs(v-cy)/cy; // 0 at center, 1 at edge
+        const d3=depth*depth;
+        const u=cx+(edgeU-cx)*d3;
+        const iu=Math.round(u);
+        if(iu<0||iu>=S) continue;
+        const b=0.18*d3;
+        if(b<0.01) continue;
+        setPx(iu,v,cR*b,cG*b,cB*b);
       }
     }
-  }
 
-  // ── Horizontal rays from dot — extend left and right across all faces ──
-  if(panel2dMode){
-    for(let u=0;u<S;u++){
-      const dist=Math.abs(u-dotCol);
-      if(dist<2) continue;
-      const b=Math.max(0,1-dist/(S*0.6))*0.9;
-      if(b<0.02) continue;
-      const idx=faceMap[0][dotV*S+u]; if(idx<0) continue;
-      colBuf[idx*3]=Math.max(colBuf[idx*3],cR*b);
-      colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],cG*b);
-      colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],cB*b);
-    }
-  } else {
-    for(let col=0;col<total;col++){
-      const idx=fwPx(col,dotV);
-      if(idx<0) continue;
-      // Distance from nearest dot (one per face)
-      const inFace=col%S;
-      const dist=Math.abs(inFace-Math.round(S*0.5));
-      if(dist<2) continue;
-      const b=Math.max(0,1-dist/(S*0.6))*0.9;
-      if(b<0.02) continue;
-      colBuf[idx*3]=Math.max(colBuf[idx*3],cR*b);
-      colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],cG*b);
-      colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],cB*b);
-    }
-  }
-
-  // ── Vertical rays below dot — extend downward from dot ──
-  if(panel2dMode){
-    for(let v=dotV+1;v<S;v++){
-      const dist=v-dotV;
-      const b=Math.max(0,1-dist/(S*0.7))*0.7;
-      if(b<0.02) break;
-      const idx=faceMap[0][v*S+dotCol]; if(idx<0) continue;
-      colBuf[idx*3]=Math.max(colBuf[idx*3],cR*b);
-      colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],cG*b);
-      colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],cB*b);
-    }
-  } else {
-    for(let fc=0;fc<4;fc++){
-      const cCol=fc*S+Math.round(S*0.5);
-      for(let v=dotV+1;v<S;v++){
-        const dist=v-dotV;
-        const b=Math.max(0,1-dist/(S*0.7))*0.7;
-        if(b<0.02) break;
-        const idx=fwPx(cCol,v);
-        if(idx<0) continue;
-        colBuf[idx*3]=Math.max(colBuf[idx*3],cR*b);
-        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],cG*b);
-        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],cB*b);
-      }
-    }
-  }
-
-  // ── Scanline glow — faint horizontal band around scan position ──
-  const glowRange=4;
-  if(panel2dMode){
-    for(let dv=-glowRange;dv<=glowRange;dv++){
-      const v=dotV+dv; if(v<0||v>=S) continue;
-      const gb=Math.max(0,(1-Math.abs(dv)/glowRange))*0.12;
+    // Horizontal grid lines: fan from center to top/bottom edges
+    for(let li=0;li<nHLines;li++){
+      const t=(li+1)/(nHLines+1);
+      const edgeV=t*S;
+      const depth=Math.abs(edgeV-cy)/cy;
+      const d3=depth*depth;
+      const b=0.15*d3;
+      if(b<0.01) continue;
+      const rv=Math.round(edgeV);
+      if(rv<0||rv>=S) continue;
+      // Width spreads with depth
+      const spread=d3;
       for(let u=0;u<S;u++){
-        const idx=faceMap[0][v*S+u]; if(idx<0) continue;
-        colBuf[idx*3]=Math.max(colBuf[idx*3],cR*gb);
-        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],cG*gb);
-        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],cB*gb);
+        const ut=(u-cx)/cx;
+        const pu=Math.round(cx+ut*spread*cx);
+        if(pu<0||pu>=S) continue;
+        setPx(pu,rv,cR*b,cG*b,cB*b);
       }
     }
-  } else {
-    for(let dv=-glowRange;dv<=glowRange;dv++){
-      const v=dotV+dv; if(v<0||v>=S) continue;
-      const gb=Math.max(0,(1-Math.abs(dv)/glowRange))*0.12;
-      for(let col=0;col<total;col++){
-        const idx=fwPx(col,v); if(idx<0) continue;
-        colBuf[idx*3]=Math.max(colBuf[idx*3],cR*gb);
-        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],cG*gb);
-        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],cB*gb);
+
+    // Vanishing point glow
+    for(let dv=-2;dv<=2;dv++) for(let du=-2;du<=2;du++){
+      const u=Math.round(cx)+du, v=Math.round(cy)+dv;
+      if(u<0||u>=S||v<0||v>=S) continue;
+      const r=Math.sqrt(du*du+dv*dv);
+      const b=Math.max(0,1-r/2.5)*0.5;
+      setPx(u,v,b,b*0.95,b);
+    }
+
+    // Scan line: bright horizontal line that sweeps up/down
+    const sv=Math.round(scanV);
+    for(let u=0;u<S;u++){
+      // Width of scan line grows with distance from center (perspective)
+      const depth=Math.abs(sv-cy)/cy;
+      const d3=depth*depth;
+      const spread=d3;
+      const ut=(u-cx)/cx;
+      const pu=Math.round(cx+ut*spread*cx);
+      if(pu<0||pu>=S) continue;
+      const b=0.9;
+      setPx(pu,sv,cR*b,cG*b,cB*b);
+    }
+    // Scan line glow (few rows around)
+    for(let dv=-3;dv<=3;dv++){
+      if(dv===0) continue;
+      const v=sv+dv; if(v<0||v>=S) continue;
+      const gb=Math.max(0,(1-Math.abs(dv)/3.5))*0.15;
+      const depth=Math.abs(v-cy)/cy;
+      const d3=depth*depth;
+      const spread=d3;
+      for(let u=0;u<S;u++){
+        const ut=(u-cx)/cx;
+        const pu=Math.round(cx+ut*spread*cx);
+        if(pu<0||pu>=S) continue;
+        setPx(pu,v,cR*gb,cG*gb,cB*gb);
       }
+    }
+
+    // Brighten grid intersections near scan line
+    for(let li=0;li<nVLines;li++){
+      const t=(li+1)/(nVLines+1);
+      const edgeU=t*S;
+      for(let dv=-2;dv<=2;dv++){
+        const v=sv+dv; if(v<0||v>=S) continue;
+        const depth=Math.abs(v-cy)/cy;
+        const d3=depth*depth;
+        const u=Math.round(cx+(edgeU-cx)*d3);
+        if(u<0||u>=S) continue;
+        const gb=(1-Math.abs(dv)/3)*0.6*d3;
+        if(gb<0.01) continue;
+        setPx(u,v,cR*gb,cG*gb,cB*gb);
+      }
+    }
+  }
+
+  if(panel2dMode){
+    drawFace(function(u,v,r,g,b){
+      const idx=faceMap[0][v*S+u]; if(idx<0) return;
+      colBuf[idx*3]=Math.max(colBuf[idx*3],r);
+      colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],g);
+      colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],b);
+    });
+  } else {
+    for(let fc=0;fc<4;fc++){
+      const fci=fc;
+      drawFace(function(u,v,r,g,b){
+        const col=fci*S+u;
+        const idx=fwPx(col,v); if(idx<0) return;
+        colBuf[idx*3]=Math.max(colBuf[idx*3],r);
+        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],g);
+        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],b);
+      });
     }
   }
 }
