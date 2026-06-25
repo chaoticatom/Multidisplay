@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=422">
+<link rel="stylesheet" href="style.css?v=423">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -361,9 +361,9 @@
     <button class="effect-btn" data-effect="fluid">◈ Liquid Crystal</button>
     <button class="effect-btn has-panel" data-effect="random">◈ Random <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-random">
-      <div class="opt-grid">
-        <button class="effect-btn" data-effect="random" style="margin:0">Random 1</button>
-        <button class="effect-btn" data-effect="random80s" style="margin:0">Random 2</button>
+      <div style="display:flex;gap:6px;">
+        <button class="effect-btn" data-effect="random" style="flex:1;margin:0;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;">◈ Random 1</button>
+        <button class="effect-btn" data-effect="random80s" style="flex:1;margin:0;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;">◈ Random 2</button>
       </div>
     </div>
     <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
@@ -953,7 +953,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=422"></script>
+<script src="version.js?v=423"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -988,7 +988,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=422','effects.js?v=422','f1.js?v=422','ui.js?v=422'];
+  const appScripts = ['cube.js?v=423','effects.js?v=423','f1.js?v=423','ui.js?v=423'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
