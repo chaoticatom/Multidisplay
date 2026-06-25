@@ -289,11 +289,22 @@ function effectSphere(dt) {
     }
   }
 
-  // Top face — rays continue upward from face 0 center
-  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-    const idx=faceMap[4][v*S+u];
+  // Top face — use same qi-based mapping as fireworks
+  for(let ov=0;ov<S;ov++) for(let col=0;col<total;col++){
+    const c=((col%total)+total)%total;
+    const qi=(c/S)|0, fu=c%S;
+    let tu,tv;
+    if(qi===0)      {tu=fu;       tv=(S-1)-ov;}
+    else if(qi===1) {tu=(S-1)-ov; tv=(S-1)-fu;}
+    else if(qi===2) {tu=(S-1)-fu; tv=ov;}
+    else            {tu=ov;       tv=fu;}
+    if(tu<0||tu>=S||tv<0||tv>=S) continue;
+    const idx=faceMap[4][tv*S+tu];
     if(idx<0) continue;
-    const dx=u-cx, dy=-(S-v)-cy;
+    let dx=col-cx;
+    if(dx>total*0.5) dx-=total;
+    else if(dx<-total*0.5) dx+=total;
+    const dy=-(ov+1)-cy+S;
     const dist=Math.sqrt(dx*dx+dy*dy);
     if(dist<2) continue;
     const pxA=Math.atan2(dy,dx);
@@ -308,11 +319,22 @@ function effectSphere(dt) {
     }
   }
 
-  // Bottom face — rays continue downward from face 0 center
-  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-    const idx=faceMap[5][v*S+u];
+  // Bottom face — use same qi-based mapping, mirrored vertically
+  for(let ov=0;ov<S;ov++) for(let col=0;col<total;col++){
+    const c=((col%total)+total)%total;
+    const qi=(c/S)|0, fu=c%S;
+    let tu,tv;
+    if(qi===0)      {tu=fu;       tv=ov;}
+    else if(qi===1) {tu=ov;       tv=(S-1)-fu;}
+    else if(qi===2) {tu=(S-1)-fu; tv=(S-1)-ov;}
+    else            {tu=(S-1)-ov; tv=fu;}
+    if(tu<0||tu>=S||tv<0||tv>=S) continue;
+    const idx=faceMap[5][tv*S+tu];
     if(idx<0) continue;
-    const dx=u-cx, dy=cy+(S-v);
+    let dx=col-cx;
+    if(dx>total*0.5) dx-=total;
+    else if(dx<-total*0.5) dx+=total;
+    const dy=(ov+1)+cy-S+S;
     const dist=Math.sqrt(dx*dx+dy*dy);
     if(dist<2) continue;
     const pxA=Math.atan2(dy,dx);
