@@ -3517,6 +3517,75 @@ function wxMoonPhase(d){
   return((days%29.53058867)+29.53058867)%29.53058867/29.53058867; // 0=new 0.5=full
 }
 
+// Astronomical moonrise/moonset calculation
+// Returns {rise: seconds-of-day, set: seconds-of-day} or -1 if none
+function calcMoonRiseSet(lat, lon, tzOffsetSec){
+  const now=new Date();
+  const year=now.getFullYear(), month=now.getMonth()+1, day=now.getDate();
+  const toRad=Math.PI/180, toDeg=180/Math.PI;
+
+  // Julian day number
+  const a=Math.floor((14-month)/12);
+  const y=year+4800-a;
+  const m=month+12*a-3;
+  const jdn=day+Math.floor((153*m+2)/5)+365*y+Math.floor(y/4)-Math.floor(y/100)+Math.floor(y/400)-32045;
+  const jd=jdn-0.5;
+
+  // Days since J2000.0
+  const d0=jd-2451545.0;
+
+  let riseS=-1, setS=-1;
+
+  // Check each hour for moon crossing horizon
+  const latR=lat*toRad;
+  const sinLat=Math.sin(latR), cosLat=Math.cos(latR);
+
+  function moonAlt(hourUTC){
+    const d=d0+hourUTC/24;
+    // Moon's mean elements
+    const L=218.316+13.176396*d; // mean longitude
+    const M=134.963+13.064993*d; // mean anomaly
+    const F=93.272+13.229350*d;  // mean distance
+    const lonM=(L+6.289*Math.sin(M*toRad))%360;
+    const latM=5.128*Math.sin(F*toRad);
+    const dist=385001-20905*Math.cos(M*toRad);
+
+    // Ecliptic to equatorial
+    const obliq=23.439-0.0000004*d;
+    const lonR=lonM*toRad, latR2=latM*toRad, oblR=obliq*toRad;
+    const ra=Math.atan2(Math.sin(lonR)*Math.cos(oblR)-Math.tan(latR2)*Math.sin(oblR),Math.cos(lonR));
+    const dec=Math.asin(Math.sin(latR2)*Math.cos(oblR)+Math.cos(latR2)*Math.sin(oblR)*Math.sin(lonR));
+
+    // Hour angle
+    const gmst=(280.46061837+360.98564736629*d)%360;
+    const lst=((gmst+lon)%360+360)%360;
+    const ha=(lst-ra*toDeg)*toRad;
+
+    // Altitude
+    const alt=Math.asin(sinLat*Math.sin(dec)+cosLat*Math.cos(dec)*Math.cos(ha));
+    return alt*toDeg;
+  }
+
+  // Convert UTC hour to local seconds-of-day
+  const tzH=tzOffsetSec/3600;
+  let prevAlt=moonAlt(-tzH); // midnight local in UTC
+  for(let h=1;h<=24;h++){
+    const utcH=h-tzH;
+    const alt=moonAlt(utcH);
+    // Moon rises when crossing -0.83° (accounting for refraction + moon radius)
+    if(prevAlt<-0.83&&alt>=-0.83&&riseS<0){
+      const frac=((-0.83)-prevAlt)/(alt-prevAlt);
+      riseS=Math.round((h-1+frac)*3600);
+    }
+    if(prevAlt>=-0.83&&alt<-0.83&&setS<0){
+      const frac=((-0.83)-prevAlt)/(alt-prevAlt);
+      setS=Math.round((h-1+frac)*3600);
+    }
+    prevAlt=alt;
+  }
+  return {rise:riseS, set:setS};
+}
+
 function wxSkyRGB(df){
   // Remap dayFrac so actual sunrise→0.25, noon→0.5, sunset→0.75
   const srFrac=wxSunriseS/86400, ssFrac=wxSunsetS/86400;
@@ -4069,20 +4138,10 @@ async function wxFetch(skipGeocode){
     wxSunsetS=pt(wd.daily?.sunset?.[0])||72000;
     wxDesc=WX_CODES[wxCode]||'Unknown';
 
-    // Fetch moonrise/moonset separately so failure doesn't break weather
-    try{
-      const moonUrl=`https://api.open-meteo.com/v1/forecast?latitude=${wxLat.toFixed(4)}&longitude=${wxLon.toFixed(4)}&daily=moonrise,moonset&timezone=auto&forecast_days=1`;
-      const mr=await fetch(moonUrl);
-      if(mr.ok){
-        const md=await mr.json();
-        console.log('Moon API response:',JSON.stringify(md.daily));
-        wxMoonriseS=md.daily?.moonrise?.[0]?pt(md.daily.moonrise[0]):-1;
-        wxMoonsetS=md.daily?.moonset?.[0]?pt(md.daily.moonset[0]):-1;
-        console.log('Moonrise secs:',wxMoonriseS,'Moonset secs:',wxMoonsetS);
-      } else {
-        console.warn('Moon API returned status:',mr.status);
-      }
-    }catch(e){ console.warn('Moon data fetch failed:',e); }
+    // Calculate moonrise/moonset astronomically
+    const moonRS=calcMoonRiseSet(wxLat,wxLon,wxTzOffset);
+    wxMoonriseS=moonRS.rise;
+    wxMoonsetS=moonRS.set;
     wxInitScene(wxCode);
     wxLastFetch=Date.now()/1000;
     if(statusEl) statusEl.textContent=city;
@@ -11836,16 +11895,10 @@ async function moonFetchData(){
       moonLon=gd.results[0].longitude;
       moonCityDisplay=gd.results[0].country?`${gd.results[0].name}, ${gd.results[0].country}`:gd.results[0].name;
     }
-    if(statusEl) statusEl.textContent=`Fetching moon data…`;
-    const pt=s=>{const p=(s||'').split('T')[1]||'00:00';const[h,m]=(p.split(':')).map(Number);return h*3600+m*60;};
-    try{
-      const mr=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${moonLat.toFixed(4)}&longitude=${moonLon.toFixed(4)}&daily=moonrise,moonset&timezone=auto&forecast_days=1`);
-      if(mr.ok){
-        const md=await mr.json();
-        moonRiseS=md.daily?.moonrise?.[0]?pt(md.daily.moonrise[0]):-1;
-        moonSetS=md.daily?.moonset?.[0]?pt(md.daily.moonset[0]):-1;
-      }
-    }catch(e){}
+    // Calculate moonrise/moonset astronomically
+    const moonRS2=calcMoonRiseSet(moonLat,moonLon,0);
+    moonRiseS=moonRS2.rise;
+    moonSetS=moonRS2.set;
     if(statusEl) statusEl.textContent=moonCityDisplay;
     if(infoEl){
       infoEl.style.display='block';
