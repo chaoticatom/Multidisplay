@@ -1381,7 +1381,7 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
     if(currentEffect==='warp') warpStars=[];
     if(currentEffect==='life') lifeGrid=null;
     if(currentEffect==='fluid') fluidH=null;
-    fwParticles.length=0; t=0;
+    fwParticles.length=0; t=0; sphT=0;
   });
 });
 

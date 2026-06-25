@@ -231,24 +231,27 @@ function effectSphere(dt) {
   const total=S*4;
   const cx=(S-1)/2, cy=(S-1)/2;
   const nRays=6;
+  const nHLines=8;
 
-  // Startup: rays expand from dot over first 2 seconds
-  const startupDur=2.0;
-  const startupT=Math.min(time/startupDur,1);
-  const expand=startupT*startupT; // ease-in
+  // Phase 1: rays expand from center dot (0-2s)
+  const expandDur=2.0;
+  const expand=Math.min(time/expandDur,1);
+  const expandEase=expand*expand;
 
-  // After startup, scan line bounces up and down (~3s per sweep)
+  // Phase 2: scan line smoothly starts moving after expand (ease-in over first sweep)
   const scanPeriod=3.0;
-  let scanV;
-  if(time<startupDur){
-    scanV=cy;
-  } else {
-    const st=time-startupDur;
+  let scanV=cy;
+  if(time>expandDur){
+    const st=time-expandDur;
     const sp=(st%scanPeriod)/scanPeriod;
-    scanV=(sp<0.5?sp*2:2-sp*2)*(S-1);
+    const raw=sp<0.5?sp*2:2-sp*2;
+    const sweepNum=st/scanPeriod;
+    const amp=Math.min(sweepNum<1?sweepNum:1,1);
+    scanV=cy+(raw-0.5)*2*amp*(S-1)/2;
+    scanV=Math.max(0,Math.min(S-1,scanV));
   }
 
-  // Smooth colour cycle using sine waves
+  // Smooth colour cycle
   const hp=time*0.15;
   const cR=0.15+0.85*Math.max(0,Math.sin(hp));
   const cG=0.3+0.7*Math.max(0,Math.sin(hp+2.094));
@@ -256,38 +259,57 @@ function effectSphere(dt) {
 
   // Ray targets: edges at 0 and S-1, 4 evenly between
   const rayTargets=[];
-  for(let ri=0;ri<nRays;ri++){
-    rayTargets.push(Math.round(ri/(nRays-1)*(S-1)));
-  }
+  for(let ri=0;ri<nRays;ri++) rayTargets.push(ri/(nRays-1)*(S-1));
 
   function drawFace(setPx){
     const sv=Math.round(scanV);
 
-    // Full-width horizontal scan line (fades in with startup)
-    const slBright=0.9*expand;
-    for(let u=0;u<S;u++){
-      setPx(u,sv,cR*slBright,cG*slBright,cB*slBright);
-    }
-    // Scan line glow
+    // Full-width horizontal scan line
+    const slB=0.9*expandEase;
+    for(let u=0;u<S;u++) setPx(u,sv,cR*slB,cG*slB,cB*slB);
     for(let dv=-3;dv<=3;dv++){
       if(dv===0) continue;
       const v=sv+dv; if(v<0||v>=S) continue;
-      const gb=(1-Math.abs(dv)/4)*0.18*expand;
+      const gb=(1-Math.abs(dv)/4)*0.18*expandEase;
       for(let u=0;u<S;u++) setPx(u,v,cR*gb,cG*gb,cB*gb);
     }
 
-    // 6 rays from center dot to scan line endpoints
+    // 6 rays from center to scan line, with expand animation
     for(let ri=0;ri<nRays;ri++){
       const tu=rayTargets[ri];
-      const dx=(tu-cx)*expand, dy=(sv-cy)*expand;
+      const endU=cx+(tu-cx)*expandEase;
+      const endV=cy+(sv-cy)*expandEase;
+      const dx=endU-cx, dy=endV-cy;
       const steps=Math.max(Math.abs(dx),Math.abs(dy),1)|0;
       for(let s=0;s<=steps;s++){
         const t=s/steps;
         const u=Math.round(cx+dx*t);
         const v=Math.round(cy+dy*t);
         if(u<0||u>=S||v<0||v>=S) continue;
-        const b=0.25+0.55*t;
+        const b=0.2+0.6*t;
         setPx(u,v,cR*b,cG*b,cB*b);
+      }
+    }
+
+    // Horizontal grid lines between rays (perspective: closer together near center)
+    if(expandEase>0.3){
+      const gridB=0.25*(expandEase-0.3)/0.7;
+      for(let hi=1;hi<=nHLines;hi++){
+        const frac=hi/(nHLines+1);
+        const pFrac=frac*frac;
+        for(let ri=0;ri<nRays-1;ri++){
+          const tuA=rayTargets[ri], tuB=rayTargets[ri+1];
+          const eA=cx+(tuA-cx)*expandEase, eB=cx+(tuB-cx)*expandEase;
+          const uA=cx+(eA-cx)*pFrac, uB=cx+(eB-cx)*pFrac;
+          const vLine=Math.round(cy+(sv-cy)*expandEase*pFrac);
+          if(vLine<0||vLine>=S) continue;
+          const uStart=Math.round(Math.min(uA,uB));
+          const uEnd=Math.round(Math.max(uA,uB));
+          for(let u=uStart;u<=uEnd;u++){
+            if(u<0||u>=S) continue;
+            setPx(u,vLine,cR*gridB,cG*gridB,cB*gridB);
+          }
+        }
       }
     }
 
@@ -302,13 +324,12 @@ function effectSphere(dt) {
 
     // Bright dots where rays meet scan line
     for(let ri=0;ri<nRays;ri++){
-      const tu=rayTargets[ri];
-      const eu=Math.round(cx+(tu-cx)*expand);
+      const eu=Math.round(cx+(rayTargets[ri]-cx)*expandEase);
       for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
         const u=eu+du, v=sv+dv;
         if(u<0||u>=S||v<0||v>=S) continue;
         const r=Math.sqrt(du*du+dv*dv);
-        const b=Math.max(0,1-r/1.5)*0.8*expand;
+        const b=Math.max(0,1-r/1.5)*0.8*expandEase;
         setPx(u,v,cR*b,cG*b,cB*b);
       }
     }
