@@ -222,256 +222,92 @@ function effectPlasma(dt) {
 }
 
 // ── MORPHING SPHERE — multi-shell, pulsing auroras, face projections ──
-let sphAngle=0;
-const sphStars=[];
-for(let i=0;i<80;i++) sphStars.push({
-  u:Math.random(), v:Math.random(), b:0.5+Math.random()*0.5, tw:0.4+Math.random()*2.5
-});
-
-// 16 laser rays radiating from center point — each has a random angle
-// that slowly straightens into uniform grid angles
-const SPH_RAYS=16;
-const sphRayRand=[];  // random starting angles for each ray
-for(let i=0;i<SPH_RAYS;i++) sphRayRand.push(Math.random()*Math.PI*2);
-const SPH_CYCLE=28;
+let sphT=0;
+const NRAYS=20;
+const sphRayA=[];for(let i=0;i<NRAYS;i++) sphRayA.push(Math.random()*Math.PI*2);
+const sphRayL=[];for(let i=0;i<NRAYS;i++) sphRayL.push(0.4+Math.random()*0.6);
+const sphRayS=[];for(let i=0;i<NRAYS;i++) sphRayS.push((Math.random()-0.5)*2);
 
 function effectSphere(dt) {
-  t+=dt;
-  sphAngle+=dt;
+  t+=dt; sphT+=dt;
   for(let i=0;i<N*3;i++) colBuf[i]=0;
+  const S=SIZE,total=S*4,time=sphT;
+  const cycle=24,phase=time%cycle;
+  const ss=x=>x*x*(3-2*x);
+  const ramp=(t,a,b)=>Math.max(0,Math.min(1,(t-a)/(b-a)));
 
-  const S=SIZE, total=S*4;
-  const time=sphAngle;
-  const phase=time%SPH_CYCLE;
-
-  function ramp(t,a,b){ return Math.max(0,Math.min(1,(t-a)/(b-a))); }
-  function ss(x){ return x*x*(3-2*x); }
-
-  // Centre point of starburst (middle of the wrapping strip)
-  const cx=total*0.5, cy=S*0.5;
-
-  // ── Phase control ──
-  // 0-6:   chaotic starburst — rays shoot out at random angles, spinning
-  // 6-12:  rays slowly straighten into evenly spaced radial lines
-  // 12-18: radial lines morph into perspective grid (floor)
-  // 18-22: full perspective grid scrolling, vanishing point drifts
-  // 22-26: grid compresses back toward center, orb appears
-  // 26-28: orb fades, back to chaotic starburst → restart
-
-  // How "ordered" the rays are: 0=random chaos, 1=uniform spacing
+  // order: 0=chaos 1=uniform
   let order=0;
-  if(phase<6) order=0;
-  else if(phase<12) order=ss(ramp(phase,6,12));
-  else order=1;
+  if(phase<8) order=0;
+  else if(phase<16) order=ss(ramp(phase,8,16));
+  else if(phase<20) order=1;
+  else order=1-ss(ramp(phase,20,24));
 
-  // Grid formation: 0=radial rays, 1=perspective grid
-  let gridForm=0;
-  if(phase>=12&&phase<18) gridForm=ss(ramp(phase,12,16));
-  else if(phase>=18&&phase<22) gridForm=1;
-  else if(phase>=22&&phase<26) gridForm=1-ss(ramp(phase,22,25));
+  // spin: fast in chaos, stops when uniform
+  const spinAcc=1.8*(1-order);
 
-  // Ray length: starts short, grows to full panel
-  let rayLen=0;
-  if(phase<2) rayLen=ss(ramp(phase,0,2));
-  else if(phase<26) rayLen=1;
-  else rayLen=1-ss(ramp(phase,26,28));
-
-  // Spin speed: fast when chaotic, slows as it orders
-  const spinSpeed=phase<6?1.5:phase<12?1.5*(1-ss(ramp(phase,6,12))):0;
-  const spin=time*spinSpeed;
-
-  // Orb at center
-  let orbI=0;
-  if(phase<1) orbI=ss(ramp(phase,0,1));
-  else if(phase<6) orbI=1;
-  else if(phase<10) orbI=1-ss(ramp(phase,6,10))*0.7;
-  else if(phase>=22&&phase<26) orbI=ss(ramp(phase,22,24));
-  else if(phase>=26) orbI=1-ss(ramp(phase,26,28));
-  else orbI=0.3;
-
-  // Colour cycle
-  const colPhase=(phase/SPH_CYCLE+time*0.012)%1;
+  // colour: neon cycle
+  const h=(time*0.04)%1;
   let cR,cG,cB;
-  if(colPhase<0.3){ cR=1; cG=0.15; cB=0.05+colPhase*1.8; }
-  else if(colPhase<0.55){ const f=(colPhase-0.3)/0.25; cR=1-f*0.85; cG=0.1; cB=0.6+f*0.4; }
-  else if(colPhase<0.8){ const f=(colPhase-0.55)/0.25; cR=0.15+f*0.85; cG=0.08; cB=1-f*0.45; }
-  else{ cR=1; cG=0.15; cB=0.55-(colPhase-0.8)/0.2*0.5; }
+  if(h<0.15){cR=1;cG=0.1;cB=h/0.15*0.6;}
+  else if(h<0.35){const f=(h-0.15)/0.2;cR=1-f*0.8;cG=0.08;cB=0.6+f*0.4;}
+  else if(h<0.55){const f=(h-0.35)/0.2;cR=0.2;cG=0.08+f*0.5;cB=1;}
+  else if(h<0.75){const f=(h-0.55)/0.2;cR=0.2+f*0.8;cG=0.58-f*0.4;cB=1-f*0.4;}
+  else{const f=(h-0.75)/0.25;cR=1;cG=0.18-f*0.08;cB=0.6-f*0.6;}
 
-  // Perspective grid params
-  const scroll=time*3;
-  const vpOff=phase>=18&&phase<22?Math.sin((phase-18)*0.6)*20:0;
-  const vpX=total*0.5+vpOff;
-  const hzRow=Math.round(S*0.47);
-
-  // ── 4 side faces ──
-  for(let v=0;v<S;v++){
-    for(let col=0;col<total;col++){
-      const idx=fwPx(col,v);
-      if(idx<0) continue;
-      let r=0,g=0,b=0;
-
-      // ── Starburst rays radiating from center ──
-      if(rayLen>0&&gridForm<1){
-        const dx=col-cx, dy=v-cy;
+  function burstFace(getCx,getCy,getIdx,w,h2,nrays){
+    const cx2=getCx(),cy2=getCy();
+    for(let y=0;y<h2;y++){
+      for(let x=0;x<w;x++){
+        const idx=getIdx(x,y);
+        if(idx<0) continue;
+        const dx=x-cx2,dy=y-cy2;
         const dist=Math.sqrt(dx*dx+dy*dy);
-        const maxDist=rayLen*S*0.7;
-        if(dist<maxDist&&dist>1){
-          const pxAngle=Math.atan2(dy,dx);
-          for(let i=0;i<SPH_RAYS;i++){
-            // Target angle: evenly spaced
-            const targetA=(i/SPH_RAYS)*Math.PI*2;
-            // Current angle: lerp from random to uniform, plus spin
-            const curA=sphRayRand[i]*(1-order)+targetA*order+spin;
-            // Angular distance (wrapped)
-            let da=pxAngle-curA;
-            da=da-Math.round(da/(Math.PI*2))*Math.PI*2;
-            // Ray width in angular space — thinner when further out
-            const width=1.5/Math.max(4,dist);
-            if(Math.abs(da)<width){
-              const fi=1-Math.abs(da)/width;
-              const distFade=1-dist/maxDist;
-              const br=fi*distFade*(1-gridForm)*0.9;
-              r+=br*cR; g+=br*cG; b+=br*cB;
+        if(dist<1.5){
+          // bright center dot
+          const oi=(1-dist/1.5);
+          const br=oi*oi*0.9;
+          const i3=idx*3;
+          colBuf[i3]=Math.min(1,colBuf[i3]+br);
+          colBuf[i3+1]=Math.min(1,colBuf[i3+1]+br*0.9);
+          colBuf[i3+2]=Math.min(1,colBuf[i3+2]+br);
+          continue;
+        }
+        if(dist>Math.max(w,h2)*0.7) continue;
+        const pxA=Math.atan2(dy,dx);
+        let hit=0;
+        for(let i=0;i<nrays;i++){
+          const uniformA=(i/nrays)*Math.PI*2;
+          const curA=sphRayA[i%NRAYS]*(1-order)+uniformA*order+time*spinAcc+sphRayS[i%NRAYS]*time*0.3*(1-order);
+          let da=pxA-curA;
+          da-=Math.round(da/(Math.PI*2))*Math.PI*2;
+          // crisp: 1px wide ray = angular width of 1 pixel at this distance
+          const pxWidth=1.0/dist;
+          if(Math.abs(da)<pxWidth){
+            const maxLen=sphRayL[i%NRAYS]*Math.max(w,h2)*0.7;
+            if(dist<maxLen){
+              hit=Math.max(hit,(1-dist/maxLen));
             }
           }
         }
+        if(hit<0.02) continue;
+        hit=Math.min(1,hit);
+        const i3=idx*3;
+        colBuf[i3]=Math.min(1,colBuf[i3]+hit*cR);
+        colBuf[i3+1]=Math.min(1,colBuf[i3+1]+hit*cG);
+        colBuf[i3+2]=Math.min(1,colBuf[i3+2]+hit*cB);
       }
-
-      // ── Perspective grid (fades in as rays straighten) ──
-      if(gridForm>0){
-        const dy=v-hzRow;
-        if(dy>0){
-          const z=30.0/dy;
-          const wx=(col-vpX)*z/total*8;
-          const wz=z+scroll;
-          const z2=30.0/(dy+1);
-          const wz2=z2+scroll;
-          const hOn=Math.floor(wz*0.5)!==Math.floor(wz2*0.5)?1:0;
-          const pxW=z/total*8;
-          const vOn=Math.floor(wx)!==Math.floor(wx+pxW)?1:0;
-          const fade=Math.min(1,5.0/dy);
-          const br=Math.max(hOn,vOn)*fade*gridForm;
-          if(br>0){ r+=br*cR; g+=br*cG; b+=br*cB; }
-        }
-        if(dy<0){
-          const ady=-dy;
-          if(ady>0){
-            const z=30.0/ady;
-            const wx=(col-vpX)*z/total*8;
-            const wz=z+scroll;
-            const z2=30.0/(ady+1);
-            const wz2=z2+scroll;
-            const hOn=Math.floor(wz*0.5)!==Math.floor(wz2*0.5)?1:0;
-            const pxW=z/total*8;
-            const vOn=Math.floor(wx)!==Math.floor(wx+pxW)?1:0;
-            const fade=Math.min(1,5.0/ady);
-            const br=Math.max(hOn,vOn)*fade*gridForm;
-            if(br>0){ r+=br*cR; g+=br*cG; b+=br*cB; }
-          }
-        }
-        // Horizon glow
-        if(Math.abs(v-hzRow)<3){
-          const hg=(3-Math.abs(v-hzRow))/3*0.35*gridForm;
-          r+=hg*cR; g+=hg*cG; b+=hg*cB;
-        }
-      }
-
-      // ── Central orb/starburst glow ──
-      if(orbI>0){
-        const dx=col-cx, dy=v-cy;
-        const od=Math.sqrt(dx*dx+dy*dy);
-        if(od<6){
-          const oi=1-od/6; const oi3=oi*oi*oi*orbI;
-          r+=oi3; g+=oi3*0.85; b+=oi3;
-        } else if(od<11){
-          const gl=(11-od)/5*0.2*orbI;
-          r+=gl*cR; g+=gl*cG; b+=gl*cB;
-        }
-      }
-
-      // ── Stars ──
-      if(r<0.05&&g<0.05&&b<0.05){
-        for(const st of sphStars){
-          if(Math.floor(st.u*total)===col&&Math.floor(st.v*S)===v){
-            const tw=0.5+0.5*Math.sin(time*st.tw);
-            r+=tw*st.b*0.6; g+=tw*st.b*0.6; b+=tw*st.b*0.7;
-          }
-        }
-      }
-
-      if(r<0.01&&g<0.01&&b<0.01) continue;
-      r=Math.min(1,r); g=Math.min(1,g); b=Math.min(1,b);
-      const i3=idx*3;
-      colBuf[i3]=Math.max(colBuf[i3],r);
-      colBuf[i3+1]=Math.max(colBuf[i3+1],g);
-      colBuf[i3+2]=Math.max(colBuf[i3+2],b);
     }
   }
 
-  // ── Top face: starburst from center ──
-  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-    const idx=faceMap[4][v*S+u];
-    if(idx<0) continue;
-    let br=0;
-    const dx=u-S*0.5, dy=v-S*0.5;
-    const dist=Math.sqrt(dx*dx+dy*dy);
-    if(dist>1&&rayLen>0&&gridForm<1){
-      const a=Math.atan2(dy,dx);
-      for(let i=0;i<SPH_RAYS;i++){
-        const targetA=(i/SPH_RAYS)*Math.PI*2;
-        const curA=sphRayRand[i]*(1-order)+targetA*order+spin;
-        let da=a-curA; da=da-Math.round(da/(Math.PI*2))*Math.PI*2;
-        const w=1.5/Math.max(3,dist);
-        if(Math.abs(da)<w){
-          br=Math.max(br,(1-Math.abs(da)/w)*(1-dist/(S*0.5))*(1-gridForm)*0.7);
-        }
-      }
-    }
-    if(gridForm>0){
-      const gu=((u+scroll*0.5)%(S/8))|0;
-      const gv=((v+scroll*0.3)%(S/8))|0;
-      if(gu===0||gv===0) br=Math.max(br,gridForm*0.6);
-    }
-    if(orbI>0&&dist<5){
-      const oi=(1-dist/5); br=Math.max(br,oi*oi*orbI);
-    }
-    if(br<0.01) continue;
-    br=Math.min(1,br);
-    const i3=idx*3;
-    colBuf[i3]=Math.max(colBuf[i3],br*cR);
-    colBuf[i3+1]=Math.max(colBuf[i3+1],br*cG);
-    colBuf[i3+2]=Math.max(colBuf[i3+2],br*cB);
-  }
+  // side faces: center of the 4-face wrapping strip
+  burstFace(()=>total*0.5,()=>S*0.5,(x,y)=>fwPx(x,y),total,S,NRAYS);
 
-  // ── Bottom face ──
-  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-    const idx=faceMap[5][v*S+u];
-    if(idx<0) continue;
-    let br=0;
-    const dx=u-S*0.5, dy=v-S*0.5;
-    const dist=Math.sqrt(dx*dx+dy*dy);
-    if(dist>1&&rayLen>0&&gridForm<1){
-      const a=Math.atan2(dy,dx);
-      for(let i=0;i<8;i++){
-        const targetA=(i/8)*Math.PI*2;
-        const curA=sphRayRand[i]*(1-order)+targetA*order+spin;
-        let da=a-curA; da=da-Math.round(da/(Math.PI*2))*Math.PI*2;
-        const w=1.5/Math.max(3,dist);
-        if(Math.abs(da)<w) br=Math.max(br,(1-Math.abs(da)/w)*(1-dist/(S*0.5))*(1-gridForm)*0.5);
-      }
-    }
-    if(gridForm>0){
-      const gu=((u+scroll*0.4+4)%(S/8))|0;
-      const gv=((v+scroll*0.25+4)%(S/8))|0;
-      if(gu===0||gv===0) br=Math.max(br,gridForm*0.45);
-    }
-    if(br<0.01) continue;
-    br=Math.min(1,br);
-    const i3=idx*3;
-    colBuf[i3]=Math.max(colBuf[i3],br*cR);
-    colBuf[i3+1]=Math.max(colBuf[i3+1],br*cG);
-    colBuf[i3+2]=Math.max(colBuf[i3+2],br*cB);
-  }
+  // top face
+  burstFace(()=>S*0.5,()=>S*0.5,(x,y)=>{const i=faceMap[4][y*S+x];return i;},S,S,NRAYS);
+
+  // bottom face
+  burstFace(()=>S*0.5,()=>S*0.5,(x,y)=>{const i=faceMap[5][y*S+x];return i;},S,S,Math.floor(NRAYS*0.6));
 }
 
 // ── FIREWORKS — cross-face rockets & explosions on 4 side panels ──
