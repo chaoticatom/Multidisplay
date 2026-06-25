@@ -4116,18 +4116,35 @@ function effectWeather(dt){
   const fromSunset=secsDay>wxSunsetS?secsDay-wxSunsetS:secsDay+(86400-wxSunsetS);
   const nightProg=!isDay?fromSunset/nightLen:0;
   const moonPh=wxMoonPhase(new Date());
-  let moonPX,moonElev,moonAlpha;
-  if(!isDay){
-    moonPX=nightProg*0.5;
-    moonElev=Math.sin(nightProg*Math.PI)*0.9;
-    moonAlpha=1;
+  // Moon position based on phase — phase gives angular offset from sun
+  // phase 0=new(near sun), 0.25=first quarter(90° east), 0.5=full(opposite), 0.75=last quarter(90° west)
+  const moonLag=moonPh*24;  // hours the moon "lags" behind the sun (0-24)
+  const moonRiseH=(wxSunriseS/3600+moonLag)%24;
+  const moonSetH=(wxSunsetS/3600+moonLag)%24;
+  const hourNow=secsDay/3600;
+  // Moon's progress across the sky (like dayProg but shifted by phase)
+  let moonDayProg;
+  if(moonSetH>moonRiseH){
+    moonDayProg=(hourNow-moonRiseH)/(moonSetH-moonRiseH);
   } else {
-    moonPX=((sunPX+0.5)%1);
-    moonElev=Math.max(0.05,sunElev*0.6);
-    const toSunset=(wxSunsetS-secsDay)/3600;
-    if(toSunset<3) moonAlpha=0.25+0.75*(1-toSunset/3);
-    else if(toSunset<6) moonAlpha=0.08+0.17*(1-toSunset/6);
-    else moonAlpha=0.08;
+    const span=moonSetH+24-moonRiseH;
+    moonDayProg=((hourNow-moonRiseH+24)%24)/span;
+  }
+  const moonUp=moonDayProg>=0&&moonDayProg<=1;
+  let moonPX,moonElev,moonAlpha;
+  if(moonUp){
+    moonPX=moonDayProg*0.5;
+    moonElev=Math.sin(moonDayProg*Math.PI)*0.85;
+    if(isDay){
+      const toSunset=(wxSunsetS-secsDay)/3600;
+      if(toSunset<3) moonAlpha=0.25+0.75*(1-toSunset/3);
+      else if(toSunset<6) moonAlpha=0.08+0.17*(1-toSunset/6);
+      else moonAlpha=0.08;
+    } else {
+      moonAlpha=1;
+    }
+  } else {
+    moonPX=-1; moonElev=0; moonAlpha=0;
   }
 
   // Twilight
@@ -4536,8 +4553,8 @@ function effectWeather(dt){
   // ── Sun ──
   if(!panel2dMode && isDay && sunPX>=0) drawBody(sunPX,sunElev,true,0);
 
-  // ── Moon — always visible, moonAlpha controls brightness ──
-  if(!panel2dMode) drawBody(moonPX,moonElev,false,moonPh);
+  // ── Moon — visible when above horizon, moonAlpha controls brightness ──
+  if(!panel2dMode && moonUp && moonAlpha>0.01) drawBody(moonPX,moonElev,false,moonPh);
 
   // ── Clouds ──
   const cloudDark=isStorm?0.85:isRain?0.7:isOvercast?0.95:wxCode>=3?0.65:0.85;
@@ -4642,10 +4659,10 @@ function effectWeather(dt){
         }
       }
     }
-    // 2D moon — always drawn, moonAlpha controls brightness
-    {
-      const moonX=isDay?((1-dayProg)*S):(nightProg*S);
-      const arc=isDay?Math.max(0.05,Math.sin(dayProg*Math.PI)*0.6):Math.sin(nightProg*Math.PI);
+    // 2D moon — drawn when above horizon, moonAlpha controls brightness
+    if(moonUp && moonAlpha>0.01){
+      const moonX=moonDayProg*S;
+      const arc=Math.sin(moonDayProg*Math.PI);
       const moonY=horizV+arc*(S1-horizV)*0.75;
       const moonRad=Math.max(2,S*0.04);
       for(let dv=-Math.ceil(moonRad+2);dv<=Math.ceil(moonRad+2);dv++){
