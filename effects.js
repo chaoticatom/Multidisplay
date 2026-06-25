@@ -3511,79 +3511,100 @@ const WX_CODES={0:'Clear',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',
   77:'Snow grains',80:'Showers',81:'Heavy showers',82:'Violent showers',
   85:'Snow showers',86:'Heavy snow showers',95:'Thunderstorm',96:'Thunderstorm+hail',99:'Severe thunderstorm'};
 
-function wxMoonPhase(d){
-  const ref=new Date(2024,0,11);
-  const days=(d-ref)/864e5;
-  return((days%29.53058867)+29.53058867)%29.53058867/29.53058867; // 0=new 0.5=full
+// ── Lunar calculations (based on SunCalc / Jean Meeus) ──
+const _MR=Math.PI/180, _MD=180/Math.PI, _DJ=2451545;
+function _toJulian(d){return d.valueOf()/86400000-0.5+2440588;}
+function _fromJulian(j){return new Date((j+0.5-2440588)*86400000);}
+function _toDays(d){return _toJulian(d)-_DJ;}
+
+function _moonCoords(d){
+  const L=_MR*(218.316+13.176396*d),
+        M=_MR*(134.963+13.064993*d),
+        F=_MR*(93.272+13.229350*d),
+        l=L+_MR*6.289*Math.sin(M),
+        b=_MR*5.128*Math.sin(F),
+        dt=385001-20905*Math.cos(M),
+        e=_MR*23.4393;
+  return{
+    ra:Math.atan2(Math.sin(l)*Math.cos(e)-Math.tan(b)*Math.sin(e),Math.cos(l)),
+    dec:Math.asin(Math.sin(b)*Math.cos(e)+Math.cos(b)*Math.sin(e)*Math.sin(l)),
+    dist:dt
+  };
+}
+function _sunCoords(d){
+  const M=_MR*(357.5291+0.98560028*d),
+        C=_MR*(1.9148*Math.sin(M)+0.02*Math.sin(2*M)+0.0003*Math.sin(3*M)),
+        L=M+C+_MR*282.9372,
+        e=_MR*23.4393;
+  return{ra:Math.atan2(Math.sin(L)*Math.cos(e),Math.cos(L)),dec:Math.asin(Math.sin(L)*Math.sin(e))};
+}
+function _siderealTime(d,lw){return _MR*(280.16+360.9856235*d)-lw;}
+
+function getMoonIllumination(date){
+  const d=_toDays(date||new Date()),
+        s=_sunCoords(d), m=_moonCoords(d),
+        sdist=149598000,
+        phi=Math.acos(Math.sin(s.dec)*Math.sin(m.dec)+Math.cos(s.dec)*Math.cos(m.dec)*Math.cos(s.ra-m.ra)),
+        inc=Math.atan2(sdist*Math.sin(phi),m.dist-sdist*Math.cos(phi)),
+        angle=Math.atan2(Math.cos(s.dec)*Math.sin(s.ra-m.ra),Math.sin(s.dec)*Math.cos(m.dec)-Math.cos(s.dec)*Math.sin(m.dec)*Math.cos(s.ra-m.ra));
+  return{
+    fraction:(1+Math.cos(inc))/2,
+    phase:0.5+0.5*inc*(angle<0?-1:1)/Math.PI,
+    angle:angle
+  };
 }
 
-// Astronomical moonrise/moonset calculation
-// Returns {rise: seconds-of-day, set: seconds-of-day} or -1 if none
-function calcMoonRiseSet(lat, lon, tzOffsetSec){
+function getMoonTimes(date,lat,lng){
+  const t=new Date(date);
+  t.setHours(0,0,0,0);
+  const hc=0.133*_MR; // moon apparent radius
+  const lw=-lng*_MR, phi=lat*_MR;
+  let h0=_getMoonAltitude(t,lw,phi)-hc, rise,set;
+  for(let i=1;i<=24;i+=2){
+    const h1=_getMoonAltitude(_hoursLater(t,i),lw,phi)-hc;
+    const h2=_getMoonAltitude(_hoursLater(t,i+1),lw,phi)-hc;
+    const a=(h0+h2)/2-h1, b=(h2-h0)/2, xe=-b/(2*a), ye=a*xe*xe+b*xe+h1;
+    const disc=b*b-4*a*h1;
+    let roots=0, x1, x2;
+    if(disc>=0){
+      const dx=Math.sqrt(disc)/(Math.abs(a)*2);
+      x1=xe-dx; x2=xe+dx;
+      if(Math.abs(x1)<=1) roots++;
+      if(Math.abs(x2)<=1) roots++;
+      if(x1<-1) x1=x2;
+    }
+    if(roots===1){
+      if(h0<0) rise=i+x1;
+      else set=i+x1;
+    } else if(roots===2){
+      rise=i+(ye<0?x2:x1);
+      set=i+(ye<0?x1:x2);
+    }
+    if(rise!==undefined&&set!==undefined) break;
+    h0=h2;
+  }
+  const result={};
+  if(rise!==undefined) result.rise=_hoursLater(t,rise);
+  if(set!==undefined) result.set=_hoursLater(t,set);
+  result.alwaysUp=!rise&&!set&&h0>0;
+  result.alwaysDown=!rise&&!set&&h0<=0;
+  return result;
+}
+function _getMoonAltitude(date,lw,phi){
+  const d=_toDays(date), c=_moonCoords(d),
+        H=_siderealTime(d,lw)-c.ra;
+  return Math.asin(Math.sin(phi)*Math.sin(c.dec)+Math.cos(phi)*Math.cos(c.dec)*Math.cos(H));
+}
+function _hoursLater(d,h){return new Date(d.valueOf()+h*36e5);}
+
+// Convenience wrappers
+function wxMoonPhase(d){return getMoonIllumination(d).phase;}
+function calcMoonRiseSet(lat,lon,tzOffsetSec){
   const now=new Date();
-  const year=now.getFullYear(), month=now.getMonth()+1, day=now.getDate();
-  const toRad=Math.PI/180, toDeg=180/Math.PI;
-
-  // Julian day number
-  const a=Math.floor((14-month)/12);
-  const y=year+4800-a;
-  const m=month+12*a-3;
-  const jdn=day+Math.floor((153*m+2)/5)+365*y+Math.floor(y/4)-Math.floor(y/100)+Math.floor(y/400)-32045;
-  const jd=jdn-0.5;
-
-  // Days since J2000.0
-  const d0=jd-2451545.0;
-
-  let riseS=-1, setS=-1;
-
-  // Check each hour for moon crossing horizon
-  const latR=lat*toRad;
-  const sinLat=Math.sin(latR), cosLat=Math.cos(latR);
-
-  function moonAlt(hourUTC){
-    const d=d0+hourUTC/24;
-    // Moon's mean elements
-    const L=218.316+13.176396*d; // mean longitude
-    const M=134.963+13.064993*d; // mean anomaly
-    const F=93.272+13.229350*d;  // mean distance
-    const lonM=(L+6.289*Math.sin(M*toRad))%360;
-    const latM=5.128*Math.sin(F*toRad);
-    const dist=385001-20905*Math.cos(M*toRad);
-
-    // Ecliptic to equatorial
-    const obliq=23.439-0.0000004*d;
-    const lonR=lonM*toRad, latR2=latM*toRad, oblR=obliq*toRad;
-    const ra=Math.atan2(Math.sin(lonR)*Math.cos(oblR)-Math.tan(latR2)*Math.sin(oblR),Math.cos(lonR));
-    const dec=Math.asin(Math.sin(latR2)*Math.cos(oblR)+Math.cos(latR2)*Math.sin(oblR)*Math.sin(lonR));
-
-    // Hour angle
-    const gmst=(280.46061837+360.98564736629*d)%360;
-    const lst=((gmst+lon)%360+360)%360;
-    const ha=(lst-ra*toDeg)*toRad;
-
-    // Altitude
-    const alt=Math.asin(sinLat*Math.sin(dec)+cosLat*Math.cos(dec)*Math.cos(ha));
-    return alt*toDeg;
-  }
-
-  // Convert UTC hour to local seconds-of-day
-  const tzH=tzOffsetSec/3600;
-  let prevAlt=moonAlt(-tzH); // midnight local in UTC
-  for(let h=1;h<=24;h++){
-    const utcH=h-tzH;
-    const alt=moonAlt(utcH);
-    // Moon rises when crossing -0.83° (accounting for refraction + moon radius)
-    if(prevAlt<-0.83&&alt>=-0.83&&riseS<0){
-      const frac=((-0.83)-prevAlt)/(alt-prevAlt);
-      riseS=Math.round((h-1+frac)*3600);
-    }
-    if(prevAlt>=-0.83&&alt<-0.83&&setS<0){
-      const frac=((-0.83)-prevAlt)/(alt-prevAlt);
-      setS=Math.round((h-1+frac)*3600);
-    }
-    prevAlt=alt;
-  }
-  return {rise:riseS, set:setS};
+  const local=new Date(now.getTime()+tzOffsetSec*1000+now.getTimezoneOffset()*60000);
+  const mt=getMoonTimes(local,lat,lon);
+  const toSecs=d=>{if(!d)return -1; const h=d.getHours(),m=d.getMinutes(),s=d.getSeconds(); return h*3600+m*60+s;};
+  return{rise:mt.rise?toSecs(mt.rise):-1, set:mt.set?toSecs(mt.set):-1};
 }
 
 function wxSkyRGB(df){
@@ -4157,8 +4178,8 @@ async function wxFetch(skipGeocode){
       const ml=document.getElementById('wx-moon-line');
       if(ml){
         const fmtS=s=>{if(s<0)return'—';const hh=Math.floor(s/3600),mm=Math.floor((s%3600)/60);return `${hh}:${String(mm).padStart(2,'0')}`;};
-        const ph=wxMoonPhase(new Date());
-        const illum=Math.round((ph<=0.5?ph*2:(1-ph)*2)*100);
+        const mi=getMoonIllumination(new Date());
+        const ph=mi.phase, illum=Math.round(mi.fraction*100);
         const pName=ph<0.03?'New':ph<0.22?'Waxing Crescent':ph<0.28?'First Quarter':ph<0.47?'Waxing Gibbous':ph<0.53?'Full':ph<0.72?'Waning Gibbous':ph<0.78?'Last Quarter':ph<0.97?'Waning Crescent':'New';
         ml.textContent=`🌙 ↑${fmtS(wxMoonriseS)} ↓${fmtS(wxMoonsetS)}  ${pName} ${illum}%`;
       }
@@ -11904,8 +11925,8 @@ async function moonFetchData(){
       infoEl.style.display='block';
       const pl=document.getElementById('moon-phase-line');
       const rl=document.getElementById('moon-rise-line');
-      const ph=getMoonPhase();
-      const illum=Math.round((ph<=0.5?ph*2:(1-ph)*2)*100);
+      const mi2=getMoonIllumination(new Date());
+      const ph=mi2.phase, illum=Math.round(mi2.fraction*100);
       const pName=ph<0.03?'New':ph<0.22?'Waxing Crescent':ph<0.28?'First Quarter':ph<0.47?'Waxing Gibbous':ph<0.53?'Full':ph<0.72?'Waning Gibbous':ph<0.78?'Last Quarter':ph<0.97?'Waning Crescent':'New';
       if(pl) pl.textContent=`${pName} — ${illum}% illuminated`;
       if(rl){
@@ -11951,16 +11972,7 @@ function moonInit(){
 }
 
 function getMoonPhase(){
-  const now=new Date();
-  const year=now.getFullYear(), month=now.getMonth()+1, day=now.getDate();
-  const hour=now.getHours()+now.getMinutes()/60;
-  // Simplified lunation calculation — days since known new moon (Jan 6 2000 18:14 UTC)
-  const jd=367*year-Math.floor(7*(year+Math.floor((month+9)/12))/4)+Math.floor(275*month/9)+day+1721013.5+hour/24;
-  const knownNew=2451550.26;
-  const synodicMonth=29.53059;
-  const daysSince=jd-knownNew;
-  const phase=((daysSince%synodicMonth)+synodicMonth)%synodicMonth;
-  return phase/synodicMonth; // 0=new, 0.5=full, 1=new again
+  return getMoonIllumination(new Date()).phase;
 }
 
 function effectMoon(dt){
