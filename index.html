@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=453">
+<link rel="stylesheet" href="style.css?v=454">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -367,7 +367,23 @@
       </div>
     </div>
     <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
-    <button class="effect-btn" data-effect="moon">◈ Moon</button>
+    <button class="effect-btn has-panel" data-effect="moon">◈ Moon <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-moon">
+      <div style="display:flex;gap:5px;margin-bottom:8px;">
+        <div style="flex:1;position:relative;">
+          <input id="moon-city" type="text" placeholder="Search cities…" value="Milton Keynes"
+            style="width:100%;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:14px;border-radius:4px;box-sizing:border-box;">
+          <div id="moon-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:150px;overflow-y:auto;z-index:1000;margin-top:2px;">
+          </div>
+        </div>
+        <button id="moon-fetch-btn" style="padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;">GO</button>
+      </div>
+      <div id="moon-status" style="font-size:13px;color:#778;min-height:16px;">Enter city and press GO</div>
+      <div id="moon-info" style="margin-top:6px;display:none;">
+        <div id="moon-phase-line" style="font-size:15px;color:#cde;font-weight:700;"></div>
+        <div id="moon-rise-line" style="font-size:14px;color:#99b;margin-top:3px;font-weight:600;"></div>
+      </div>
+    </div>
     <button class="effect-btn has-panel" data-effect="weather">◈ Weather <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-weather">
       <div style="display:flex;gap:5px;margin-bottom:8px;">
@@ -954,7 +970,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=453"></script>
+<script src="version.js?v=454"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -989,7 +1005,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=453','effects.js?v=453','f1.js?v=453','ui.js?v=453'];
+  const appScripts = ['cube.js?v=454','effects.js?v=454','f1.js?v=454','ui.js?v=454'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';

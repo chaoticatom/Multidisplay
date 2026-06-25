@@ -11774,6 +11774,100 @@ function ghostPaintFace(face, cx, cy, revealFrac, alpha, hueShift){
 }
 
 // ── MOON — realistic lunar surface with phase, craters, maria ──
+let moonLat=52.04, moonLon=-0.76, moonCityDisplay='Milton Keynes';
+let moonRiseS=-1, moonSetS=-1, moonFetching=false;
+
+let moonCityTimer=null;
+function moonUpdateCityDropdown(){
+  const input=document.getElementById('moon-city')?.value.trim()||'';
+  const dropdown=document.getElementById('moon-city-dropdown');
+  if(!dropdown) return;
+  if(input.length<2){dropdown.style.display='none';return;}
+  clearTimeout(moonCityTimer);
+  moonCityTimer=setTimeout(()=>{
+    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(input)}&count=5&language=en`)
+      .then(r=>r.json()).then(d=>{
+        if(!d.results||!d.results.length){dropdown.style.display='none';return;}
+        dropdown.innerHTML='';
+        d.results.forEach(r=>{
+          const el=document.createElement('div');
+          const short=r.country?`${r.name}, ${r.country}`:r.name;
+          el.textContent=`${r.name}${r.admin1?', '+r.admin1:''}${r.country?', '+r.country:''}`;
+          el.style.cssText='padding:6px 8px;cursor:pointer;font-size:13px;color:#aab;border-bottom:1px solid rgba(80,120,255,0.1)';
+          el.dataset.lat=r.latitude; el.dataset.lon=r.longitude; el.dataset.short=short;
+          el.onmouseenter=()=>el.style.background='rgba(80,120,255,0.15)';
+          el.onmouseleave=()=>el.style.background='';
+          el.onclick=()=>{
+            document.getElementById('moon-city').value=short;
+            moonCityDisplay=short;
+            moonLat=parseFloat(el.dataset.lat);
+            moonLon=parseFloat(el.dataset.lon);
+            dropdown.style.display='none';
+            moonFetchData();
+          };
+          dropdown.appendChild(el);
+        });
+        dropdown.style.display='block';
+      }).catch(()=>{});
+  },300);
+}
+document.getElementById('moon-city')?.addEventListener('input',moonUpdateCityDropdown);
+document.getElementById('moon-city')?.addEventListener('focus',moonUpdateCityDropdown);
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#moon-city')&&!e.target.closest('#moon-city-dropdown')){
+    const dd=document.getElementById('moon-city-dropdown');
+    if(dd) dd.style.display='none';
+  }
+});
+
+async function moonFetchData(){
+  if(moonFetching) return;
+  moonFetching=true;
+  const statusEl=document.getElementById('moon-status');
+  const infoEl=document.getElementById('moon-info');
+  const city=(document.getElementById('moon-city')?.value||'Milton Keynes').trim();
+  try{
+    if(statusEl) statusEl.textContent=`Looking up ${city}…`;
+    if(!moonLat||!moonLon||(moonCityDisplay&&moonCityDisplay!==city)){
+      const gr=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en`);
+      const gd=await gr.json();
+      if(!gd.results||!gd.results.length) throw new Error('City not found');
+      moonLat=gd.results[0].latitude;
+      moonLon=gd.results[0].longitude;
+      moonCityDisplay=gd.results[0].country?`${gd.results[0].name}, ${gd.results[0].country}`:gd.results[0].name;
+    }
+    if(statusEl) statusEl.textContent=`Fetching moon data…`;
+    const pt=s=>{const p=(s||'').split('T')[1]||'00:00';const[h,m]=(p.split(':')).map(Number);return h*3600+m*60;};
+    try{
+      const mr=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${moonLat.toFixed(4)}&longitude=${moonLon.toFixed(4)}&daily=moonrise,moonset&timezone=auto&forecast_days=1`);
+      if(mr.ok){
+        const md=await mr.json();
+        moonRiseS=md.daily?.moonrise?.[0]?pt(md.daily.moonrise[0]):-1;
+        moonSetS=md.daily?.moonset?.[0]?pt(md.daily.moonset[0]):-1;
+      }
+    }catch(e){}
+    if(statusEl) statusEl.textContent=moonCityDisplay;
+    if(infoEl){
+      infoEl.style.display='block';
+      const pl=document.getElementById('moon-phase-line');
+      const rl=document.getElementById('moon-rise-line');
+      const ph=getMoonPhase();
+      const illum=Math.round((ph<=0.5?ph*2:(1-ph)*2)*100);
+      const pName=ph<0.03?'New':ph<0.22?'Waxing Crescent':ph<0.28?'First Quarter':ph<0.47?'Waxing Gibbous':ph<0.53?'Full':ph<0.72?'Waning Gibbous':ph<0.78?'Last Quarter':ph<0.97?'Waning Crescent':'New';
+      if(pl) pl.textContent=`${pName} — ${illum}% illuminated`;
+      if(rl){
+        const fmtS=s=>{if(s<0)return'—';const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return `${h}:${String(m).padStart(2,'0')}`;};
+        rl.textContent=`🌙 Rises ${fmtS(moonRiseS)}   Sets ${fmtS(moonSetS)}`;
+      }
+    }
+  }catch(e){
+    if(statusEl) statusEl.textContent='✕ '+e.message;
+  }
+  moonFetching=false;
+}
+document.getElementById('moon-fetch-btn')?.addEventListener('click',moonFetchData);
+document.getElementById('moon-city')?.addEventListener('keydown',e=>{if(e.key==='Enter')moonFetchData();});
+
 let moonCraters=null, moonMaria=null;
 function moonInit(){
   if(moonCraters&&moonCraters.size===SIZE) return;
@@ -11846,7 +11940,7 @@ function effectMoon(dt){
 
   // Terminator tilt based on latitude and time of night
   // At northern latitudes the moon's bright limb tilts clockwise when rising, counter when setting
-  const lat=typeof wxLat==='number'?wxLat:52;
+  const lat=typeof moonLat==='number'?moonLat:52;
   const hourNow=(Date.now()%86400000)/3600000;
   const tiltBase=lat*Math.PI/180*0.4;
   const tiltShift=Math.sin((hourNow/24)*Math.PI*2)*0.3;
