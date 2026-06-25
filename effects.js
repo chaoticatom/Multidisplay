@@ -4101,9 +4101,7 @@ async function wxFetch(skipGeocode){
         const ph=wxMoonPhase(new Date());
         const illum=Math.round((ph<=0.5?ph*2:(1-ph)*2)*100);
         const pName=ph<0.03?'New':ph<0.22?'Waxing Crescent':ph<0.28?'First Quarter':ph<0.47?'Waxing Gibbous':ph<0.53?'Full':ph<0.72?'Waning Gibbous':ph<0.78?'Last Quarter':ph<0.97?'Waning Crescent':'New';
-        let moonTxt=`🌙 ${pName} ${illum}%`;
-        if(wxMoonriseS>=0||wxMoonsetS>=0) moonTxt+=`  ↑${fmtS(wxMoonriseS)} ↓${fmtS(wxMoonsetS)}`;
-        ml.textContent=moonTxt;
+        ml.textContent=`🌙 ↑${fmtS(wxMoonriseS)} ↓${fmtS(wxMoonsetS)}  ${pName} ${illum}%`;
       }
     }
   }catch(e){
