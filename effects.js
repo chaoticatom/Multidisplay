@@ -11193,7 +11193,7 @@ function r80NewSeg(){
   r80A=r80B;
   r80B=r80GenParams();
   r80Blend=0;
-  r80SegDur=4+Math.random()*8;
+  r80SegDur=8+Math.random()*10;
   r80SegT=0;
 }
 
@@ -11381,12 +11381,14 @@ function effectRandom80s(dt){
   r80T+=dt;
   r80SegT+=dt;
   if(r80SegT>=r80SegDur||!r80B) r80NewSeg();
-  r80Blend=Math.min(1,r80SegT/1.6);
+  // smooth ease-in-out crossfade over 5 seconds
+  const rawBlend=Math.min(1,r80SegT/5);
+  r80Blend=rawBlend*rawBlend*(3-2*rawBlend);
 
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
-  if(r80A) r80RenderSeg(r80A, r80T, 1-r80Blend);
-  r80RenderSeg(r80B, r80T, r80Blend>0?r80Blend:1);
+  if(r80A&&r80Blend<0.998) r80RenderSeg(r80A, r80T, 1-r80Blend);
+  r80RenderSeg(r80B, r80T, Math.max(0.05,r80Blend));
 }
 
 
