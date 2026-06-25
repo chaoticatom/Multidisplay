@@ -261,19 +261,20 @@ function effectSphere(dt) {
   const rayTargets=[];
   for(let ri=0;ri<nRays;ri++) rayTargets.push(ri/(nRays-1)*(S-1));
 
-  // Spin: occasional 360 rotation (~1.5s spin every ~11s)
+  // Spin: occasional 360 rotation (~1.5s spin every ~11s), only after fully expanded
   const spinPeriod=11.0, spinDur=1.5;
-  const spinT=(time%spinPeriod);
   let spinAngle=0;
-  if(spinT<spinDur && expandEase>=1){
-    const p=spinT/spinDur;
-    const ease=p<0.5?2*p*p:1-2*(1-p)*(1-p);
-    spinAngle=ease*Math.PI*2;
+  if(expandEase>=1){
+    const spinT=((time-expandDur)%spinPeriod);
+    if(spinT<spinDur){
+      const p=spinT/spinDur;
+      const ease=p<0.5?2*p*p:1-2*(1-p)*(1-p);
+      spinAngle=ease*Math.PI*2;
+    }
   }
   const cosA=Math.cos(spinAngle), sinA=Math.sin(spinAngle);
 
   function drawFace(setPx){
-    // Draw a line between two points (Bresenham-style)
     function drawLine(x0,y0,x1,y1,bright){
       const ldx=x1-x0, ldy=y1-y0;
       const ls=Math.max(Math.abs(ldx),Math.abs(ldy),1)|0;
@@ -285,16 +286,14 @@ function effectSphere(dt) {
       }
     }
 
-    // Scan line endpoints rotated around center
+    // Scan line center: offset from center, rotated by spin angle
     const scanDist=scanV-cy;
-    const slDirU=-sinA, slDirV=cosA;
-    const slCU=cx+scanDist*sinA*0, slCV=cy+scanDist*cosA;
-    // Scan line center (perpendicular offset from center along scan direction)
     const scanCU=cx-scanDist*sinA, scanCV=cy+scanDist*cosA;
-    // Scan line runs perpendicular to the ray direction
+    // Scan line direction (perpendicular to ray direction)
+    const slDirU=-sinA, slDirV=cosA;
     const slHalf=(S-1)/2*1.2;
-    const slU0=scanCU-slDirU*slHalf, slV0=scanCV-slDirV*slHalf;
-    const slU1=scanCU+slDirU*slHalf, slV1=scanCV+slDirV*slHalf;
+    const slU0=scanCU+cosA*slHalf, slV0=scanCV+sinA*slHalf;
+    const slU1=scanCU-cosA*slHalf, slV1=scanCV-sinA*slHalf;
 
     // Full scan line
     const slB=0.9*expandEase;
