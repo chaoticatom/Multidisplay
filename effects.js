@@ -4097,11 +4097,13 @@ async function wxFetch(skipGeocode){
       }
       const ml=document.getElementById('wx-moon-line');
       if(ml){
-        const fmtS=s=>{if(s<0)return'—';const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return `${h}:${String(m).padStart(2,'0')}`;};
+        const fmtS=s=>{if(s<0)return'—';const hh=Math.floor(s/3600),mm=Math.floor((s%3600)/60);return `${hh}:${String(mm).padStart(2,'0')}`;};
         const ph=wxMoonPhase(new Date());
         const illum=Math.round((ph<=0.5?ph*2:(1-ph)*2)*100);
         const pName=ph<0.03?'New':ph<0.22?'Waxing Crescent':ph<0.28?'First Quarter':ph<0.47?'Waxing Gibbous':ph<0.53?'Full':ph<0.72?'Waning Gibbous':ph<0.78?'Last Quarter':ph<0.97?'Waning Crescent':'New';
-        ml.textContent=`🌙 ↑${fmtS(wxMoonriseS)}  ↓${fmtS(wxMoonsetS)}  ${pName} ${illum}%`;
+        let moonTxt=`🌙 ${pName} ${illum}%`;
+        if(wxMoonriseS>=0||wxMoonsetS>=0) moonTxt+=`  ↑${fmtS(wxMoonriseS)} ↓${fmtS(wxMoonsetS)}`;
+        ml.textContent=moonTxt;
       }
     }
   }catch(e){
