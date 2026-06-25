@@ -258,9 +258,9 @@ function effectSphere(dt) {
     rayAngles.push(sphRayA[i]*(1-order)+uniformA*order+time*spinAcc+sphRayS[i]*time*0.3*(1-order));
   }
 
-  // Center point: middle of the 4-side-face strip (same as fireworks)
+  // Center point: center of face 0 (front face) — col 32 on fwPx strip
   const total=S*4;
-  const cx=total*0.5, cy=S*0.5;
+  const cx=S*0.5, cy=S*0.5;
 
   // 4 side faces via fwPx — wraps around all 4 faces as one strip
   for(let v=0;v<S;v++){
@@ -286,11 +286,11 @@ function effectSphere(dt) {
     }
   }
 
-  // Top face — rays continue from center upward
+  // Top face — rays continue upward from face 0 center
   for(let v=0;v<S;v++) for(let u=0;u<S;u++){
     const idx=faceMap[4][v*S+u];
     if(idx<0) continue;
-    const dx=u-S*0.5, dy=-(v+1)-cy+S;
+    const dx=u-cx, dy=-(v+1);
     const dist=Math.sqrt(dx*dx+dy*dy);
     if(dist<2) continue;
     const pxA=Math.atan2(dy,dx);
@@ -305,11 +305,11 @@ function effectSphere(dt) {
     }
   }
 
-  // Bottom face — rays continue from center downward
+  // Bottom face — rays continue downward from face 0 center
   for(let v=0;v<S;v++) for(let u=0;u<S;u++){
     const idx=faceMap[5][v*S+u];
     if(idx<0) continue;
-    const dx=u-S*0.5, dy=S+v-cy;
+    const dx=u-cx, dy=cy+v;
     const dist=Math.sqrt(dx*dx+dy*dy);
     if(dist<2) continue;
     const pxA=Math.atan2(dy,dx);
