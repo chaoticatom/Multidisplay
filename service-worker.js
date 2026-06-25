@@ -1,14 +1,14 @@
-const CACHE_NAME = 'multidisplay-v418';
+const CACHE_NAME = 'multidisplay-v419';
 const PRECACHE_URLS = [
   './',
   'index.html',
-  'style.css?v=418',
-  'cube.js?v=418',
-  'effects.js?v=418',
-  'f1.js?v=418',
-  'ui.js?v=418',
+  'style.css?v=419',
+  'cube.js?v=419',
+  'effects.js?v=419',
+  'f1.js?v=419',
+  'ui.js?v=419',
   'three.min.js',
-  'version.js?v=418',
+  'version.js?v=419',
   'manifest.json'
 ];
 

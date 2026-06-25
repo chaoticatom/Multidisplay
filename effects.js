@@ -11125,6 +11125,199 @@ function effectRandom(dt){
   if(rndB.mode) rndRender(rndB, rndT, rndBlend>0?rndBlend:1);
 }
 
+// ── RANDOM 80s RETRO ──
+let r80T=0, r80SegT=0, r80SegDur=5, r80A={}, r80B={}, r80Blend=0;
+
+function r80NewSeg(){
+  r80A=r80B;
+  r80B=r80GenParams();
+  r80Blend=0;
+  r80SegDur=4+Math.random()*8;
+  r80SegT=0;
+}
+
+function r80GenParams(){
+  const modes=['synthgrid','laserbeams','neonplasma','sundisc','starfield',
+               'chromebars','vhsglitch','diamondtile','neonspiral','horizonscan'];
+  const neonPalettes=[
+    [0.83,1.0],  // magenta-cyan
+    [0.75,0.95], // purple-teal
+    [0.0,0.85],  // red-blue
+    [0.08,0.78], // orange-violet
+    [0.55,0.95], // cyan-pink
+    [0.12,0.83], // yellow-magenta
+  ];
+  const pal=neonPalettes[Math.floor(Math.random()*neonPalettes.length)];
+  return {
+    mode: modes[Math.floor(Math.random()*modes.length)],
+    speed: 0.3+Math.random()*2.5,
+    freq1: 0.2+Math.random()*0.5,
+    freq2: 0.15+Math.random()*0.4,
+    phase: Math.random()*Math.PI*2,
+    hue1: pal[0], hue2: pal[1],
+    sat: 0.8+Math.random()*0.2,
+    bright: 0.6+Math.random()*0.4,
+    nLines: 3+Math.floor(Math.random()*6),
+    gridDensity: 6+Math.floor(Math.random()*10),
+    scanWidth: 0.02+Math.random()*0.06,
+    seed: Math.random()*999,
+    twist: (Math.random()-0.5)*3,
+    glitchRate: 0.3+Math.random()*0.7,
+    sunY: 0.3+Math.random()*0.3,
+    starCount: 8+Math.floor(Math.random()*12),
+  };
+}
+
+function r80Hue(p, val){
+  return (p.hue1+val*(p.hue2-p.hue1)+1)%1;
+}
+
+function r80Eval(p, f, u, v, t2){
+  const S=SIZE;
+  const cx=u/S-0.5, cy=v/S-0.5;
+  const rad=Math.sqrt(cx*cx+cy*cy);
+  const ang=Math.atan2(cy,cx);
+  const fOff=f*0.13;
+
+  if(p.mode==='synthgrid'){
+    // Perspective grid floor with horizon glow
+    const ny=cy+0.15;
+    if(ny<0){
+      // Sky: gradient with scan lines
+      const skyV=Math.abs(cy)/0.5;
+      const scan=Math.sin(v*0.8+t2*p.speed*3)>0.92?0.4:0;
+      return {val:skyV*0.3+scan, hueT:0.8+fOff};
+    }
+    const depth=1/(ny*8+0.01);
+    const gx=Math.sin((cx*depth*p.gridDensity+t2*p.speed*0.5+fOff)*Math.PI);
+    const gy=Math.sin((depth*2-t2*p.speed*2)*Math.PI*0.5);
+    const grid=Math.max(Math.abs(gx)>0.92?1:0, Math.abs(gy)>0.92?1:0);
+    const fade=Math.max(0,1-ny*3);
+    return {val:grid*fade*0.9+fade*0.05, hueT:depth*0.1+fOff};
+  }
+  if(p.mode==='laserbeams'){
+    let val=0;
+    for(let i=0;i<p.nLines;i++){
+      const a=t2*p.speed*0.3+i*Math.PI*2/p.nLines+p.phase+fOff;
+      const lx=Math.cos(a), ly=Math.sin(a);
+      const d=Math.abs(cx*ly-cy*lx);
+      const beam=Math.max(0,1-d/p.scanWidth)*Math.max(0,1-d/p.scanWidth);
+      val+=beam;
+    }
+    const glow=Math.max(0,1-rad*1.5)*0.15;
+    return {val:Math.min(1,val)+glow, hueT:ang/(Math.PI*2)+t2*0.1+fOff};
+  }
+  if(p.mode==='neonplasma'){
+    const s1=Math.sin(cx*p.freq1*22+t2*p.speed*1.5+p.phase+fOff*5);
+    const s2=Math.sin(cy*p.freq2*22-t2*p.speed*1.1+p.seed);
+    const s3=Math.sin(rad*18-t2*p.speed*2+p.phase);
+    const raw=(s1+s2+s3)/3;
+    const edge=Math.abs(raw)<0.15?1:Math.max(0,1-Math.abs(raw)*2);
+    return {val:edge*0.85+0.05, hueT:raw*0.5+0.5+fOff};
+  }
+  if(p.mode==='sundisc'){
+    const sy=cy-p.sunY+0.5;
+    const sunR=Math.sqrt(cx*cx+sy*sy);
+    const disc=sunR<0.15?1:sunR<0.2?Math.max(0,1-(sunR-0.15)/0.05):0;
+    // Horizontal bands below sun
+    const bands=sy>0?Math.abs(Math.sin((sy*20+t2*p.speed)*Math.PI))>0.7?0.6:0:0;
+    const fade=sy>0?Math.max(0,1-sy*2):0;
+    // Stars above
+    const hash=Math.sin(u*127.1+v*311.7+f*97.3)*43758.5453;
+    const star=(hash-Math.floor(hash))>0.997&&sy<-0.05?0.7:0;
+    return {val:disc+bands*fade+star, hueT:sunR<0.2?0.08:0.85+fOff};
+  }
+  if(p.mode==='starfield'){
+    // Flying through stars
+    const sa=ang+fOff*2;
+    const sr=rad;
+    const depth2=((sr*10+t2*p.speed*3+p.seed)%1);
+    const starBright=Math.pow(depth2,3);
+    const trail=Math.abs(Math.sin(sa*p.starCount+p.phase))>0.95?starBright:0;
+    const warp=sr<0.05?0.5*(1-sr/0.05):0;
+    return {val:trail+warp, hueT:sa/(Math.PI*2)+fOff};
+  }
+  if(p.mode==='chromebars'){
+    const barY=((cy*p.gridDensity+t2*p.speed+fOff+5)%1);
+    const chrome=Math.pow(Math.abs(Math.sin(barY*Math.PI)),0.3);
+    const highlight=Math.abs(Math.sin(barY*Math.PI*2+t2*p.speed*3))>0.9?1:0;
+    const shimmer=Math.sin(cx*30+t2*p.speed*5)*0.1;
+    return {val:chrome*0.6+highlight*0.3+shimmer, hueT:barY+fOff};
+  }
+  if(p.mode==='vhsglitch'){
+    const scanY=(v+Math.floor(t2*p.speed*30))%SIZE;
+    const base=Math.sin(cx*p.freq1*15+t2*p.speed+p.phase)*0.5+0.5;
+    const glitchBand=Math.abs(Math.sin(scanY*0.3+t2*p.glitchRate*10+p.seed))>0.85;
+    const shift=glitchBand?(Math.sin(scanY*17.3+t2*53)*0.15):0;
+    const px2=(cx+shift);
+    const val2=Math.sin(px2*p.freq1*15+t2*p.speed+p.phase)*0.5+0.5;
+    const noise=glitchBand?Math.abs(Math.sin(u*97+v*131+t2*999))*0.4:0;
+    const chromatic=glitchBand?0.3:0;
+    return {val:(glitchBand?val2:base)*0.7+noise+chromatic*0.2, hueT:base+shift*3+fOff};
+  }
+  if(p.mode==='diamondtile'){
+    const du=cx*Math.cos(Math.PI/4)-cy*Math.sin(Math.PI/4);
+    const dv=cx*Math.sin(Math.PI/4)+cy*Math.cos(Math.PI/4);
+    const tileU=((du*p.gridDensity+t2*p.speed*0.3+fOff+5)%1);
+    const tileV=((dv*p.gridDensity+5)%1);
+    const edgeU=Math.abs(tileU-0.5)<0.05?1:0;
+    const edgeV=Math.abs(tileV-0.5)<0.05?1:0;
+    const fill=Math.sin(tileU*Math.PI)*Math.sin(tileV*Math.PI);
+    const pulse=Math.sin(t2*p.speed*2+du*5+dv*5+p.phase)*0.3+0.7;
+    return {val:(edgeU||edgeV?0.9:fill*0.4)*pulse, hueT:tileU+tileV*0.5+fOff};
+  }
+  if(p.mode==='neonspiral'){
+    const arms=3+Math.floor(p.nLines*0.5);
+    const spiralA=ang+rad*p.freq1*25-t2*p.speed*2+fOff*3;
+    const armV=Math.abs(Math.sin(spiralA*arms/2));
+    const neon=armV>0.85?Math.pow((armV-0.85)/0.15,0.5):0;
+    const core=Math.max(0,1-rad*4)*0.3;
+    const pulse=Math.sin(rad*20-t2*p.speed*4)*0.2+0.8;
+    return {val:(neon*0.9+core)*pulse, hueT:ang/(Math.PI*2)+rad+fOff};
+  }
+  // horizonscan
+  const scanPos=((t2*p.speed*0.4+fOff)%1);
+  const scanDist=Math.abs(cy-scanPos+0.5);
+  const beam2=Math.max(0,1-scanDist/p.scanWidth);
+  const grid2X=Math.abs(Math.sin(cx*p.gridDensity*Math.PI))>0.9?0.3:0;
+  const grid2Y=Math.abs(Math.sin(cy*p.gridDensity*Math.PI))>0.9?0.3:0;
+  const afterglow=Math.max(0,1-scanDist/(p.scanWidth*8))*0.2;
+  return {val:beam2*0.8+grid2X+grid2Y+afterglow, hueT:scanDist*2+fOff};
+}
+
+function r80Render(p, tOff, bright){
+  for(let face=0;face<6;face++){
+    for(let v=0;v<SIZE;v++) for(let u=0;u<SIZE;u++){
+      const ev=r80Eval(p,face,u,v,tOff);
+      const val=typeof ev==='object'?ev.val:ev;
+      const hueT=typeof ev==='object'?ev.hueT:0.5;
+      const l=val*p.bright*bright;
+      if(l<0.02) continue;
+      const h=r80Hue(p,((hueT%1)+1)%1);
+      const [r,g,b]=hsl(h,p.sat,Math.min(1,l));
+      const idx=faceMap[face][v*SIZE+u];
+      if(idx>=0){
+        colBuf[idx*3]  =Math.max(colBuf[idx*3],  r);
+        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],g);
+        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],b);
+      }
+    }
+  }
+}
+
+function effectRandom80s(dt){
+  t+=dt;
+  r80T+=dt;
+  r80SegT+=dt;
+  if(r80SegT>=r80SegDur||!r80B.mode) r80NewSeg();
+  r80Blend=Math.min(1,r80SegT/1.5);
+
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  if(r80A.mode) r80Render(r80A, r80T, 1-r80Blend);
+  if(r80B.mode) r80Render(r80B, r80T, r80Blend>0?r80Blend:1);
+}
+
 
 // ── GHOST FACE ──
 // Pre-renders a realistic face onto a canvas, samples it per-frame onto face LEDs
