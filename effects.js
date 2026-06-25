@@ -223,128 +223,131 @@ function effectPlasma(dt) {
 
 // ── MORPHING SPHERE — multi-shell, pulsing auroras, face projections ──
 let sphT=0;
-const NRAYS=20;
-const sphRayA=[];for(let i=0;i<NRAYS;i++) sphRayA.push(Math.random()*Math.PI*2);
-const sphRayS=[];for(let i=0;i<NRAYS;i++) sphRayS.push((Math.random()-0.5)*2.5);
 
 function effectSphere(dt) {
   t+=dt; sphT+=dt;
-  for(let i=0;i<N*3;i++) colBuf[i]=0;
-  const S=SIZE,time=sphT;
-  const cycle=24,phase=time%cycle;
-  const ss=x=>x*x*(3-2*x);
-  const ramp=(t,a,b)=>Math.max(0,Math.min(1,(t-a)/(b-a)));
-
-  let order=0;
-  if(phase<8) order=0;
-  else if(phase<16) order=ss(ramp(phase,8,16));
-  else if(phase<20) order=1;
-  else order=1-ss(ramp(phase,20,24));
-
-  const spinAcc=1.8*(1-order);
-
-  const h=(time*0.04)%1;
-  let cR,cG,cB;
-  if(h<0.15){cR=1;cG=0.1;cB=h/0.15*0.6;}
-  else if(h<0.35){const f=(h-0.15)/0.2;cR=1-f*0.8;cG=0.08;cB=0.6+f*0.4;}
-  else if(h<0.55){const f=(h-0.35)/0.2;cR=0.2;cG=0.08+f*0.5;cB=1;}
-  else if(h<0.75){const f=(h-0.55)/0.2;cR=0.2+f*0.8;cG=0.58-f*0.4;cB=1-f*0.4;}
-  else{const f=(h-0.75)/0.25;cR=1;cG=0.18-f*0.08;cB=0.6-f*0.6;}
-
-  // Precompute ray angles this frame
-  const rayAngles=[];
-  for(let i=0;i<NRAYS;i++){
-    const uniformA=(i/NRAYS)*Math.PI*2;
-    rayAngles.push(sphRayA[i]*(1-order)+uniformA*order+time*spinAcc+sphRayS[i]*time*0.3*(1-order));
-  }
-
-  // Center point: center of face 0 (front face) — col 32 on fwPx strip
+  // Fade previous frame for phosphor trail effect
+  for(let i=0;i<N*3;i++) colBuf[i]*=0.82;
+  const S=SIZE, time=sphT;
   const total=S*4;
-  const cx=S*0.5, cy=S*0.5;
 
-  // 4 side faces via fwPx — wraps around all 4 faces as one strip
-  for(let v=0;v<S;v++){
+  // Scan dot bounces up and down (triangle wave, ~3 seconds per sweep)
+  const scanPeriod=3.0;
+  const scanPhase=(time%scanPeriod)/scanPeriod;
+  const scanY=scanPhase<0.5?scanPhase*2:2-scanPhase*2; // 0→1→0
+  const dotV=Math.round(scanY*(S-1));
+
+  // Dot horizontal position: center of face 0
+  const dotCol=Math.round(S*0.5);
+
+  // Colour cycle — neon CRT colours
+  const h=(time*0.06)%1;
+  let cR,cG,cB;
+  if(h<0.2){cR=0.2;cG=1;cB=0.3;}           // green phosphor
+  else if(h<0.4){cR=0.1;cG=0.8;cB=1;}       // cyan
+  else if(h<0.6){cR=1;cG=1;cB=1;}            // white
+  else if(h<0.8){cR=1;cG=0.6;cB=0.1;}        // amber
+  else {cR=0.2;cG=1;cB=0.3;}                  // green again
+
+  // ── Bright dot ──
+  if(panel2dMode){
+    for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
+      const u=dotCol+du, v=dotV+dv;
+      if(u<0||u>=S||v<0||v>=S) continue;
+      const idx=faceMap[0][v*S+u]; if(idx<0) continue;
+      const b=1-Math.sqrt(du*du+dv*dv)*0.3;
+      colBuf[idx*3]=b; colBuf[idx*3+1]=b*0.95; colBuf[idx*3+2]=b;
+    }
+  } else {
+    // 3D: dot on all 4 side faces via fwPx
+    for(let fc=0;fc<4;fc++){
+      const cCol=fc*S+Math.round(S*0.5);
+      for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
+        const idx=fwPx(cCol+du,dotV+dv);
+        if(idx<0) continue;
+        const b=1-Math.sqrt(du*du+dv*dv)*0.3;
+        colBuf[idx*3]=b; colBuf[idx*3+1]=b*0.95; colBuf[idx*3+2]=b;
+      }
+    }
+  }
+
+  // ── Horizontal rays from dot — extend left and right across all faces ──
+  if(panel2dMode){
+    for(let u=0;u<S;u++){
+      const dist=Math.abs(u-dotCol);
+      if(dist<2) continue;
+      const b=Math.max(0,1-dist/(S*0.6))*0.9;
+      if(b<0.02) continue;
+      const idx=faceMap[0][dotV*S+u]; if(idx<0) continue;
+      colBuf[idx*3]=Math.max(colBuf[idx*3],cR*b);
+      colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],cG*b);
+      colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],cB*b);
+    }
+  } else {
     for(let col=0;col<total;col++){
-      const idx=fwPx(col,v);
+      const idx=fwPx(col,dotV);
       if(idx<0) continue;
-      let dx=col-cx;
-      if(dx>total*0.5) dx-=total;
-      else if(dx<-total*0.5) dx+=total;
-      const dy=v-cy;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<1){
-        colBuf[idx*3]=1; colBuf[idx*3+1]=0.95; colBuf[idx*3+2]=1;
-        continue;
-      }
-      const pxA=Math.atan2(dy,dx);
-      const halfPx=0.5/dist;
-      for(let i=0;i<NRAYS;i++){
-        let da=pxA-rayAngles[i];
-        da-=Math.round(da/(Math.PI*2))*Math.PI*2;
-        if(Math.abs(da)<=halfPx){
-          colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
-          break;
-        }
+      // Distance from nearest dot (one per face)
+      const inFace=col%S;
+      const dist=Math.abs(inFace-Math.round(S*0.5));
+      if(dist<2) continue;
+      const b=Math.max(0,1-dist/(S*0.6))*0.9;
+      if(b<0.02) continue;
+      colBuf[idx*3]=Math.max(colBuf[idx*3],cR*b);
+      colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],cG*b);
+      colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],cB*b);
+    }
+  }
+
+  // ── Vertical rays below dot — extend downward from dot ──
+  if(panel2dMode){
+    for(let v=dotV+1;v<S;v++){
+      const dist=v-dotV;
+      const b=Math.max(0,1-dist/(S*0.7))*0.7;
+      if(b<0.02) break;
+      const idx=faceMap[0][v*S+dotCol]; if(idx<0) continue;
+      colBuf[idx*3]=Math.max(colBuf[idx*3],cR*b);
+      colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],cG*b);
+      colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],cB*b);
+    }
+  } else {
+    for(let fc=0;fc<4;fc++){
+      const cCol=fc*S+Math.round(S*0.5);
+      for(let v=dotV+1;v<S;v++){
+        const dist=v-dotV;
+        const b=Math.max(0,1-dist/(S*0.7))*0.7;
+        if(b<0.02) break;
+        const idx=fwPx(cCol,v);
+        if(idx<0) continue;
+        colBuf[idx*3]=Math.max(colBuf[idx*3],cR*b);
+        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],cG*b);
+        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],cB*b);
       }
     }
   }
 
-  // Top face — use same qi-based mapping as fireworks
-  for(let ov=0;ov<S;ov++) for(let col=0;col<total;col++){
-    const c=((col%total)+total)%total;
-    const qi=(c/S)|0, fu=c%S;
-    let tu,tv;
-    if(qi===0)      {tu=fu;       tv=(S-1)-ov;}
-    else if(qi===1) {tu=(S-1)-ov; tv=(S-1)-fu;}
-    else if(qi===2) {tu=(S-1)-fu; tv=ov;}
-    else            {tu=ov;       tv=fu;}
-    if(tu<0||tu>=S||tv<0||tv>=S) continue;
-    const idx=faceMap[4][tv*S+tu];
-    if(idx<0) continue;
-    let dx=col-cx;
-    if(dx>total*0.5) dx-=total;
-    else if(dx<-total*0.5) dx+=total;
-    const dy=-(ov+1)-cy+S;
-    const dist=Math.sqrt(dx*dx+dy*dy);
-    if(dist<2) continue;
-    const pxA=Math.atan2(dy,dx);
-    const halfPx=0.5/dist;
-    for(let i=0;i<NRAYS;i++){
-      let da=pxA-rayAngles[i];
-      da-=Math.round(da/(Math.PI*2))*Math.PI*2;
-      if(Math.abs(da)<=halfPx){
-        colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
-        break;
+  // ── Scanline glow — faint horizontal band around scan position ──
+  const glowRange=4;
+  if(panel2dMode){
+    for(let dv=-glowRange;dv<=glowRange;dv++){
+      const v=dotV+dv; if(v<0||v>=S) continue;
+      const gb=Math.max(0,(1-Math.abs(dv)/glowRange))*0.12;
+      for(let u=0;u<S;u++){
+        const idx=faceMap[0][v*S+u]; if(idx<0) continue;
+        colBuf[idx*3]=Math.max(colBuf[idx*3],cR*gb);
+        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],cG*gb);
+        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],cB*gb);
       }
     }
-  }
-
-  // Bottom face — use same qi-based mapping, mirrored vertically
-  for(let ov=0;ov<S;ov++) for(let col=0;col<total;col++){
-    const c=((col%total)+total)%total;
-    const qi=(c/S)|0, fu=c%S;
-    let tu,tv;
-    if(qi===0)      {tu=fu;       tv=ov;}
-    else if(qi===1) {tu=ov;       tv=(S-1)-fu;}
-    else if(qi===2) {tu=(S-1)-fu; tv=(S-1)-ov;}
-    else            {tu=(S-1)-ov; tv=fu;}
-    if(tu<0||tu>=S||tv<0||tv>=S) continue;
-    const idx=faceMap[5][tv*S+tu];
-    if(idx<0) continue;
-    let dx=col-cx;
-    if(dx>total*0.5) dx-=total;
-    else if(dx<-total*0.5) dx+=total;
-    const dy=(ov+1)+cy-S+S;
-    const dist=Math.sqrt(dx*dx+dy*dy);
-    if(dist<2) continue;
-    const pxA=Math.atan2(dy,dx);
-    const halfPx=0.5/dist;
-    for(let i=0;i<NRAYS;i++){
-      let da=pxA-rayAngles[i];
-      da-=Math.round(da/(Math.PI*2))*Math.PI*2;
-      if(Math.abs(da)<=halfPx){
-        colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
-        break;
+  } else {
+    for(let dv=-glowRange;dv<=glowRange;dv++){
+      const v=dotV+dv; if(v<0||v>=S) continue;
+      const gb=Math.max(0,(1-Math.abs(dv)/glowRange))*0.12;
+      for(let col=0;col<total;col++){
+        const idx=fwPx(col,v); if(idx<0) continue;
+        colBuf[idx*3]=Math.max(colBuf[idx*3],cR*gb);
+        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],cG*gb);
+        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],cB*gb);
       }
     }
   }
@@ -12115,12 +12118,13 @@ function effectMoon(dt){
     this._moonScrollX=0;
   }
   const mf=this._moonFont;
-  // Measure text width in pixels (4px per char: 3px glyph + 1px gap)
-  const charW=4, textW=moonText.length*charW;
+  const sc=2; // 2x scale for readability
+  const charW=4*sc, textW=moonText.length*charW;
+  const fontH=5*sc;
   const needScroll=textW>S;
-  if(needScroll) this._moonScrollX=(this._moonScrollX+dt*12)%(textW+S);
+  if(needScroll) this._moonScrollX=(this._moonScrollX+dt*14)%(textW+S);
   else this._moonScrollX=0;
-  const textY=S-6; // bottom of face, 5px tall font + 1px margin
+  const textY=S-fontH; // flush to bottom of face
   const scrollOff=needScroll?Math.floor(S-this._moonScrollX):Math.floor((S-textW)/2);
   for(let ci=0;ci<moonText.length;ci++){
     const ch=moonText[ci].toUpperCase();
@@ -12130,10 +12134,12 @@ function effectMoon(dt){
       const bits=glyph[row];
       for(let col=0;col<4;col++){
         if(bits&(0x8>>col)){
-          const px=cx+col, py=textY+row;
-          if(px<0||px>=S||py<0||py>=S) continue;
-          const idx=faceMap[0][py*S+px]; if(idx<0) continue;
-          colBuf[idx*3]=0.7; colBuf[idx*3+1]=0.75; colBuf[idx*3+2]=0.8;
+          for(let sy=0;sy<sc;sy++) for(let sx=0;sx<sc;sx++){
+            const px=cx+col*sc+sx, py=textY+row*sc+sy;
+            if(px<0||px>=S||py<0||py>=S) continue;
+            const idx=faceMap[0][py*S+px]; if(idx<0) continue;
+            colBuf[idx*3]=0.75; colBuf[idx*3+1]=0.8; colBuf[idx*3+2]=0.85;
+          }
         }
       }
     }
