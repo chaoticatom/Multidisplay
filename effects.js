@@ -10041,9 +10041,9 @@ function retroDrawFace(faceIdx,dt,buf,S){
       // Ghosts start in pen, released one at a time
       p.ghosts=[
         {x:7.5,y:7.5,dir:3,col:0,cd:0,inPen:true,releaseT:1},
-        {x:8.5,y:7.5,dir:3,col:1,cd:0,inPen:true,releaseT:4},
-        {x:7.5,y:8.5,dir:3,col:2,cd:0,inPen:true,releaseT:7},
-        {x:8.5,y:8.5,dir:3,col:3,cd:0,inPen:true,releaseT:10},
+        {x:8.5,y:7.5,dir:3,col:1,cd:0,inPen:true,releaseT:2},
+        {x:7.5,y:8.5,dir:3,col:2,cd:0,inPen:true,releaseT:3},
+        {x:8.5,y:8.5,dir:3,col:3,cd:0,inPen:true,releaseT:4},
       ];
       p.score=0; p.powerT=0; p.pmouth=0; p.decT=0; p.lives=3;
       p.visited=[]; // anti-loop: recently visited cells
@@ -10111,7 +10111,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
         for(const d of p.dots) d.eaten=false;
         for(let i=0;i<4;i++){
           p.ghosts[i].x=7.5+(i%2); p.ghosts[i].y=7.5+Math.floor(i/2);
-          p.ghosts[i].inPen=true; p.ghosts[i].releaseT=p.t+1+i*3; p.ghosts[i].cd=0;
+          p.ghosts[i].inPen=true; p.ghosts[i].releaseT=p.t+1+i; p.ghosts[i].cd=0;
         }
       } else {
         // Flash GAME OVER text
@@ -10258,7 +10258,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
       if(g.inPen) continue;
       if(Math.abs(g.x-p.px)<0.7&&Math.abs(g.y-p.py)<0.7){
         if(p.powerT>0){
-          g.x=7.5; g.y=7.5; g.cd=0; g.inPen=true; g.releaseT=p.t+3; p.score+=200;
+          g.x=7.5; g.y=7.5; g.cd=0; g.inPen=true; g.releaseT=p.t+1; p.score+=200;
         } else {
           p.lives--;
           if(p.lives<=0){
@@ -10267,7 +10267,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
           p.px=1.5; p.py=1.5; p.pdir=0; p.visited=[];
           for(let i=0;i<4;i++){
             p.ghosts[i].x=7.5+(i%2); p.ghosts[i].y=7.5+Math.floor(i/2);
-            p.ghosts[i].inPen=true; p.ghosts[i].releaseT=p.t+2+i*3; p.ghosts[i].cd=0;
+            p.ghosts[i].inPen=true; p.ghosts[i].releaseT=p.t+1+i; p.ghosts[i].cd=0;
           }
           break;
         }
