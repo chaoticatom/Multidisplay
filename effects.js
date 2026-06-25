@@ -258,16 +258,16 @@ function effectSphere(dt) {
     rayAngles.push(sphRayA[i]*(1-order)+uniformA*order+time*spinAcc+sphRayS[i]*time*0.3*(1-order));
   }
 
-  // Single center point: middle of face 0 (front face)
-  const cx=S*0.5, cy=S*0.5;
+  // Center point: middle of the 4-side-face strip (same as fireworks)
+  const total=S*4;
+  const cx=total*0.5, cy=S*0.5;
 
-  // In 2D mode: just face 0. In cube mode: face 0 center, rays extend across all faces.
-  if(panel2dMode){
-    // 2D: one 64x64 panel (face 0)
-    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-      const idx=faceMap[0][v*S+u];
+  // 4 side faces via fwPx — wraps around all 4 faces as one strip
+  for(let v=0;v<S;v++){
+    for(let col=0;col<total;col++){
+      const idx=fwPx(col,v);
       if(idx<0) continue;
-      const dx=u-cx, dy=v-cy;
+      const dx=col-cx, dy=v-cy;
       const dist=Math.sqrt(dx*dx+dy*dy);
       if(dist<1){
         colBuf[idx*3]=1; colBuf[idx*3+1]=0.95; colBuf[idx*3+2]=1;
@@ -284,118 +284,42 @@ function effectSphere(dt) {
         }
       }
     }
-  } else {
-    // Cube mode: rays from center of front face (face 0) extend onto all 6 faces
-    // Face 0 (front)
-    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-      const idx=faceMap[0][v*S+u];
-      if(idx<0) continue;
-      const dx=u-cx, dy=v-cy;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<1){
-        colBuf[idx*3]=1; colBuf[idx*3+1]=0.95; colBuf[idx*3+2]=1;
-        continue;
-      }
-      const pxA=Math.atan2(dy,dx);
-      const halfPx=0.5/dist;
-      for(let i=0;i<NRAYS;i++){
-        let da=pxA-rayAngles[i];
-        da-=Math.round(da/(Math.PI*2))*Math.PI*2;
-        if(Math.abs(da)<=halfPx){
-          colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
-          break;
-        }
+  }
+
+  // Top face — rays continue from center upward
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const idx=faceMap[4][v*S+u];
+    if(idx<0) continue;
+    const dx=u-S*0.5, dy=-(v+1)-cy+S;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<2) continue;
+    const pxA=Math.atan2(dy,dx);
+    const halfPx=0.5/dist;
+    for(let i=0;i<NRAYS;i++){
+      let da=pxA-rayAngles[i];
+      da-=Math.round(da/(Math.PI*2))*Math.PI*2;
+      if(Math.abs(da)<=halfPx){
+        colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
+        break;
       }
     }
-    // Face 2 (right) — connects to right edge of face 0
-    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-      const idx=faceMap[2][v*S+u];
-      if(idx<0) continue;
-      const dx=S+u-cx, dy=v-cy;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<2) continue;
-      const pxA=Math.atan2(dy,dx);
-      const halfPx=0.5/dist;
-      for(let i=0;i<NRAYS;i++){
-        let da=pxA-rayAngles[i];
-        da-=Math.round(da/(Math.PI*2))*Math.PI*2;
-        if(Math.abs(da)<=halfPx){
-          colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
-          break;
-        }
-      }
-    }
-    // Face 3 (left) — connects to left edge of face 0
-    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-      const idx=faceMap[3][v*S+u];
-      if(idx<0) continue;
-      const dx=-(S-u)-cx+S*0.5+(S*0.5), dy=v-cy;
-      const dx2=(-1-u)-cx+S;
-      const dist=Math.sqrt(dx2*dx2+dy*dy);
-      if(dist<2) continue;
-      const pxA=Math.atan2(dy,dx2);
-      const halfPx=0.5/dist;
-      for(let i=0;i<NRAYS;i++){
-        let da=pxA-rayAngles[i];
-        da-=Math.round(da/(Math.PI*2))*Math.PI*2;
-        if(Math.abs(da)<=halfPx){
-          colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
-          break;
-        }
-      }
-    }
-    // Face 4 (top) — connects to top edge of face 0
-    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-      const idx=faceMap[4][v*S+u];
-      if(idx<0) continue;
-      const dx=u-cx, dy=(-1-v)-cy+S;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<2) continue;
-      const pxA=Math.atan2(dy,dx);
-      const halfPx=0.5/dist;
-      for(let i=0;i<NRAYS;i++){
-        let da=pxA-rayAngles[i];
-        da-=Math.round(da/(Math.PI*2))*Math.PI*2;
-        if(Math.abs(da)<=halfPx){
-          colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
-          break;
-        }
-      }
-    }
-    // Face 5 (bottom) — connects to bottom edge of face 0
-    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-      const idx=faceMap[5][v*S+u];
-      if(idx<0) continue;
-      const dx=u-cx, dy=S+v-cy;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<2) continue;
-      const pxA=Math.atan2(dy,dx);
-      const halfPx=0.5/dist;
-      for(let i=0;i<NRAYS;i++){
-        let da=pxA-rayAngles[i];
-        da-=Math.round(da/(Math.PI*2))*Math.PI*2;
-        if(Math.abs(da)<=halfPx){
-          colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
-          break;
-        }
-      }
-    }
-    // Face 1 (back) — opposite side, rays that pass through wrap here
-    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-      const idx=faceMap[1][v*S+u];
-      if(idx<0) continue;
-      const dx=S*2+(S-1-u)-cx, dy=v-cy;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<2) continue;
-      const pxA=Math.atan2(dy,dx);
-      const halfPx=0.5/dist;
-      for(let i=0;i<NRAYS;i++){
-        let da=pxA-rayAngles[i];
-        da-=Math.round(da/(Math.PI*2))*Math.PI*2;
-        if(Math.abs(da)<=halfPx){
-          colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
-          break;
-        }
+  }
+
+  // Bottom face — rays continue from center downward
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const idx=faceMap[5][v*S+u];
+    if(idx<0) continue;
+    const dx=u-S*0.5, dy=S+v-cy;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<2) continue;
+    const pxA=Math.atan2(dy,dx);
+    const halfPx=0.5/dist;
+    for(let i=0;i<NRAYS;i++){
+      let da=pxA-rayAngles[i];
+      da-=Math.round(da/(Math.PI*2))*Math.PI*2;
+      if(Math.abs(da)<=halfPx){
+        colBuf[idx*3]=cR; colBuf[idx*3+1]=cG; colBuf[idx*3+2]=cB;
+        break;
       }
     }
   }
