@@ -10040,10 +10040,10 @@ function retroDrawFace(faceIdx,dt,buf,S){
       p.px=1.5; p.py=1.5; p.pdir=0;
       // Ghosts start in pen, released one at a time
       p.ghosts=[
-        {x:7.5,y:7.5,dir:3,col:0,cd:0,inPen:true,releaseT:1},
-        {x:8.5,y:7.5,dir:3,col:1,cd:0,inPen:true,releaseT:2},
-        {x:7.5,y:8.5,dir:3,col:2,cd:0,inPen:true,releaseT:3},
-        {x:8.5,y:8.5,dir:3,col:3,cd:0,inPen:true,releaseT:4},
+        {x:7.5,y:7.5,dir:3,col:0,cd:0,inPen:true,releaseT:1,immune:false},
+        {x:8.5,y:7.5,dir:3,col:1,cd:0,inPen:true,releaseT:2,immune:false},
+        {x:7.5,y:8.5,dir:3,col:2,cd:0,inPen:true,releaseT:3,immune:false},
+        {x:8.5,y:8.5,dir:3,col:3,cd:0,inPen:true,releaseT:4,immune:false},
       ];
       p.score=0; p.powerT=0; p.pmouth=0; p.decT=0; p.lives=3;
       p.visited=[]; // anti-loop: recently visited cells
@@ -10188,7 +10188,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
       if(d.eaten) continue;
       if(Math.abs(d.c+0.5-p.px)<0.6&&Math.abs(d.r+0.5-p.py)<0.6){
         d.eaten=true; p.score+=d.power?50:10;
-        if(d.power) p.powerT=6;
+        if(d.power){ p.powerT=6; for(const g of p.ghosts) g.immune=false; }
       }
     }
     if(p.dots.every(d=>d.eaten)){
@@ -10224,7 +10224,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
           for(let d=0;d<4;d++) if(canMove(gr,gc,d)) opts.push(d);
         }
         if(opts.length>0){
-          if(p.powerT>0){
+          if(p.powerT>0&&!g.immune){
             // FLEE from pac-man
             let bestD=opts[0], bestDist=-1;
             for(const d of opts){
@@ -10247,7 +10247,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
           }
         }
       }
-      const sp=p.powerT>0?gSpeed*0.5:gSpeed;
+      const sp=(p.powerT>0&&!g.immune)?gSpeed*0.5:gSpeed;
       const nx=g.x+dirs[g.dir][0]*sp*dt, ny=g.y+dirs[g.dir][1]*sp*dt;
       const nnr=Math.floor(ny), nnc=Math.floor(((nx)%16+16)%16);
       if(nnr>=0&&nnr<16&&mzAt(nnr,nnc)===0){ g.x=((nx%16)+16)%16; g.y=Math.max(0.5,Math.min(15.4,ny)); }
@@ -10257,8 +10257,8 @@ function retroDrawFace(faceIdx,dt,buf,S){
     for(const g of p.ghosts){
       if(g.inPen) continue;
       if(Math.abs(g.x-p.px)<0.7&&Math.abs(g.y-p.py)<0.7){
-        if(p.powerT>0){
-          g.x=7.5; g.y=7.5; g.cd=0; g.inPen=true; g.releaseT=p.t+1; p.score+=200;
+        if(p.powerT>0&&!g.immune){
+          g.x=7.5; g.y=7.5; g.cd=0; g.inPen=true; g.releaseT=p.t+1; g.immune=true; p.score+=200;
         } else {
           p.lives--;
           if(p.lives<=0){
@@ -10291,7 +10291,7 @@ function retroDrawFace(faceIdx,dt,buf,S){
     // Draw ghosts
     for(const g of p.ghosts){
       const gx=Math.round(g.x*cs), gy=Math.round(g.y*cs);
-      const gc2=p.powerT>0&&!g.inPen?(p.powerT<2&&Math.floor(p.t*6)%2?WHT:SCARED):GC[g.col];
+      const gc2=p.powerT>0&&!g.inPen&&!g.immune?(p.powerT<2&&Math.floor(p.t*6)%2?WHT:SCARED):GC[g.col];
       for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){
         if(dy<0&&dx*dx+dy*dy>5) continue;
         if(dy===2&&Math.abs(dx)===1) continue;
