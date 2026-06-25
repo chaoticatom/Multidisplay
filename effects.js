@@ -261,74 +261,102 @@ function effectSphere(dt) {
   const rayTargets=[];
   for(let ri=0;ri<nRays;ri++) rayTargets.push(ri/(nRays-1)*(S-1));
 
-  function drawFace(setPx){
-    const sv=Math.round(scanV);
+  // Spin: occasional 360 rotation (~1.5s spin every ~11s)
+  const spinPeriod=11.0, spinDur=1.5;
+  const spinT=(time%spinPeriod);
+  let spinAngle=0;
+  if(spinT<spinDur && expandEase>=1){
+    const p=spinT/spinDur;
+    const ease=p<0.5?2*p*p:1-2*(1-p)*(1-p);
+    spinAngle=ease*Math.PI*2;
+  }
+  const cosA=Math.cos(spinAngle), sinA=Math.sin(spinAngle);
 
-    // Full-width horizontal scan line
-    const slB=0.9*expandEase;
-    for(let u=0;u<S;u++) setPx(u,sv,cR*slB,cG*slB,cB*slB);
-    for(let dv=-3;dv<=3;dv++){
-      if(dv===0) continue;
-      const v=sv+dv; if(v<0||v>=S) continue;
-      const gb=(1-Math.abs(dv)/4)*0.18*expandEase;
-      for(let u=0;u<S;u++) setPx(u,v,cR*gb,cG*gb,cB*gb);
+  function drawFace(setPx){
+    // Draw a line between two points (Bresenham-style)
+    function drawLine(x0,y0,x1,y1,bright){
+      const ldx=x1-x0, ldy=y1-y0;
+      const ls=Math.max(Math.abs(ldx),Math.abs(ldy),1)|0;
+      for(let i=0;i<=ls;i++){
+        const ft=i/ls;
+        const u=Math.round(x0+ldx*ft), v=Math.round(y0+ldy*ft);
+        if(u<0||u>=S||v<0||v>=S) continue;
+        setPx(u,v,cR*bright,cG*bright,cB*bright);
+      }
     }
 
-    // 6 rays from center to scan line, with expand animation
+    // Scan line endpoints rotated around center
+    const scanDist=scanV-cy;
+    const slDirU=-sinA, slDirV=cosA;
+    const slCU=cx+scanDist*sinA*0, slCV=cy+scanDist*cosA;
+    // Scan line center (perpendicular offset from center along scan direction)
+    const scanCU=cx-scanDist*sinA, scanCV=cy+scanDist*cosA;
+    // Scan line runs perpendicular to the ray direction
+    const slHalf=(S-1)/2*1.2;
+    const slU0=scanCU-slDirU*slHalf, slV0=scanCV-slDirV*slHalf;
+    const slU1=scanCU+slDirU*slHalf, slV1=scanCV+slDirV*slHalf;
+
+    // Full scan line
+    const slB=0.9*expandEase;
+    drawLine(slU0,slV0,slU1,slV1,slB);
+    // Scan line glow (parallel lines offset along scan normal)
+    const normU=cosA, normV=sinA;
+    for(let dv=-3;dv<=3;dv++){
+      if(dv===0) continue;
+      const gb=(1-Math.abs(dv)/4)*0.18*expandEase;
+      drawLine(slU0+normU*dv,slV0+normV*dv,slU1+normU*dv,slV1+normV*dv,gb);
+    }
+
+    // 6 rays from center to points along the scan line
     for(let ri=0;ri<nRays;ri++){
-      const tu=rayTargets[ri];
-      const endU=cx+(tu-cx)*expandEase;
-      const endV=cy+(sv-cy)*expandEase;
+      const frac=ri/(nRays-1);
+      const tU=slU0+(slU1-slU0)*frac;
+      const tV=slV0+(slV1-slV0)*frac;
+      const endU=cx+(tU-cx)*expandEase;
+      const endV=cy+(tV-cy)*expandEase;
       const dx=endU-cx, dy=endV-cy;
       const steps=Math.max(Math.abs(dx),Math.abs(dy),1)|0;
       for(let s=0;s<=steps;s++){
-        const t=s/steps;
-        const u=Math.round(cx+dx*t);
-        const v=Math.round(cy+dy*t);
+        const ft=s/steps;
+        const u=Math.round(cx+dx*ft);
+        const v=Math.round(cy+dy*ft);
         if(u<0||u>=S||v<0||v>=S) continue;
-        const b=0.2+0.6*t;
+        const b=0.2+0.6*ft;
         setPx(u,v,cR*b,cG*b,cB*b);
       }
     }
 
-    // Horizontal grid lines between rays (perspective: closer together near center)
-    function drawGrid(targetV, brightness){
+    // Grid lines between rays (perspective)
+    function drawGrid(scanCenterU,scanCenterV,lineU0,lineU1,lineV0,lineV1,brightness){
       for(let hi=1;hi<=nHLines;hi++){
         const frac=hi/(nHLines+1);
         const pFrac=frac*frac;
         for(let ri=0;ri<nRays-1;ri++){
-          const tuA=rayTargets[ri], tuB=rayTargets[ri+1];
-          const eA=cx+(tuA-cx)*expandEase, eB=cx+(tuB-cx)*expandEase;
-          const uA=cx+(eA-cx)*pFrac, uB=cx+(eB-cx)*pFrac;
-          const vLine=Math.round(cy+(targetV-cy)*expandEase*pFrac);
-          if(vLine<0||vLine>=S) continue;
-          const uStart=Math.round(Math.min(uA,uB));
-          const uEnd=Math.round(Math.max(uA,uB));
-          for(let u=uStart;u<=uEnd;u++){
-            if(u<0||u>=S) continue;
-            setPx(u,vLine,cR*brightness,cG*brightness,cB*brightness);
-          }
+          const fA=ri/(nRays-1), fB=(ri+1)/(nRays-1);
+          const aU=lineU0+(lineU1-lineU0)*fA, aV=lineV0+(lineV1-lineV0)*fA;
+          const bU=lineU0+(lineU1-lineU0)*fB, bV=lineV0+(lineV1-lineV0)*fB;
+          const eaU=cx+(aU-cx)*expandEase, eaV=cy+(aV-cy)*expandEase;
+          const ebU=cx+(bU-cx)*expandEase, ebV=cy+(bV-cy)*expandEase;
+          const guA=cx+(eaU-cx)*pFrac, gvA=cy+(eaV-cy)*pFrac;
+          const guB=cx+(ebU-cx)*pFrac, gvB=cy+(ebV-cy)*pFrac;
+          drawLine(guA,gvA,guB,gvB,brightness);
         }
       }
     }
     if(expandEase>0.3){
-      drawGrid(sv, 0.25*(expandEase-0.3)/0.7);
+      drawGrid(scanCU,scanCV,slU0,slU1,slV0,slV1,0.25*(expandEase-0.3)/0.7);
     }
 
     // Ghost grid: occasionally appears going opposite direction
-    const ghostPeriod=7.0;
-    const ghostDur=3.0;
+    const ghostPeriod=7.0, ghostDur=3.0;
     const gt=(time%ghostPeriod);
     if(gt<ghostDur && expandEase>0.5){
-      const gPhase=gt/ghostDur;
-      const gAlpha=Math.sin(gPhase*Math.PI)*0.35;
-      const oppositeV=S-1-sv;
-      drawGrid(oppositeV, gAlpha);
-      // Ghost scan line
-      const gv=Math.round(oppositeV);
-      if(gv>=0&&gv<S){
-        for(let u=0;u<S;u++) setPx(u,gv,cR*gAlpha*0.6,cG*gAlpha*0.6,cB*gAlpha*0.6);
-      }
+      const gAlpha=Math.sin((gt/ghostDur)*Math.PI)*0.35;
+      const oScanCU=cx+scanDist*sinA, oScanCV=cy-scanDist*cosA;
+      const oSlU0=oScanCU-slDirU*slHalf, oSlV0=oScanCV-slDirV*slHalf;
+      const oSlU1=oScanCU+slDirU*slHalf, oSlV1=oScanCV+slDirV*slHalf;
+      drawLine(oSlU0,oSlV0,oSlU1,oSlV1,gAlpha*0.6);
+      drawGrid(oScanCU,oScanCV,oSlU0,oSlU1,oSlV0,oSlV1,gAlpha);
     }
 
     // Center dot glow
@@ -342,11 +370,15 @@ function effectSphere(dt) {
 
     // Bright dots where rays meet scan line
     for(let ri=0;ri<nRays;ri++){
-      const eu=Math.round(cx+(rayTargets[ri]-cx)*expandEase);
-      for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
-        const u=eu+du, v=sv+dv;
+      const frac=ri/(nRays-1);
+      const tU=slU0+(slU1-slU0)*frac;
+      const tV=slV0+(slV1-slV0)*frac;
+      const eu=Math.round(cx+(tU-cx)*expandEase);
+      const ev=Math.round(cy+(tV-cy)*expandEase);
+      for(let ddv=-1;ddv<=1;ddv++) for(let ddu=-1;ddu<=1;ddu++){
+        const u=eu+ddu, v=ev+ddv;
         if(u<0||u>=S||v<0||v>=S) continue;
-        const r=Math.sqrt(du*du+dv*dv);
+        const r=Math.sqrt(ddu*ddu+ddv*ddv);
         const b=Math.max(0,1-r/1.5)*0.8*expandEase;
         setPx(u,v,cR*b,cG*b,cB*b);
       }
