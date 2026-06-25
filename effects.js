@@ -3501,7 +3501,7 @@ function effectCustomCube(dt){
 
 // ── WEATHER EFFECT ─────────────────────────────────────────────────────────────
 let wxCode=0,wxTemp=20,wxTempMax=20,wxDesc='Clear',wxFetching=false,wxLastFetch=-9999;
-let wxSunriseS=21600,wxSunsetS=72000,wxTzOffset=0;
+let wxSunriseS=21600,wxSunsetS=72000,wxMoonriseS=-1,wxMoonsetS=-1,wxTzOffset=0;
 let wxLat=52.04,wxLon=-0.76,wxCityDisplay='';
 let wxClouds=[],wxParticles=[],wxStars=[],wxT2=0,wxLightFlash=0,wxScrollOff=0;
 let wxSkyline=null,wxSkyShapes=[],wxCreatures=[];
@@ -4054,7 +4054,7 @@ async function wxFetch(skipGeocode){
     if(statusEl) statusEl.textContent=`Fetching weather for ${city}…`;
 
     // Step 2: weather
-    const wxUrl=`https://api.open-meteo.com/v1/forecast?latitude=${wxLat.toFixed(4)}&longitude=${wxLon.toFixed(4)}&current=temperature_2m,weather_code,wind_speed_10m&daily=sunrise,sunset,temperature_2m_max&timezone=auto&forecast_days=1`;
+    const wxUrl=`https://api.open-meteo.com/v1/forecast?latitude=${wxLat.toFixed(4)}&longitude=${wxLon.toFixed(4)}&current=temperature_2m,weather_code,wind_speed_10m&daily=sunrise,sunset,moonrise,moonset,temperature_2m_max&timezone=auto&forecast_days=1`;
     let wr;
     try{ wr=await fetch(wxUrl); }
     catch(fe){ throw new Error('Weather fetch failed — check internet connection'); }
@@ -4067,6 +4067,8 @@ async function wxFetch(skipGeocode){
     const pt=s=>{ const p=(s||'').split('T')[1]||'00:00'; const[h,m]=(p.split(':')).map(Number); return h*3600+m*60; };
     wxSunriseS=pt(wd.daily?.sunrise?.[0])||21600;
     wxSunsetS=pt(wd.daily?.sunset?.[0])||72000;
+    wxMoonriseS=wd.daily?.moonrise?.[0]?pt(wd.daily.moonrise[0]):-1;
+    wxMoonsetS=wd.daily?.moonset?.[0]?pt(wd.daily.moonset[0]):-1;
     wxDesc=WX_CODES[wxCode]||'Unknown';
     wxInitScene(wxCode);
     wxLastFetch=Date.now()/1000;
@@ -4116,21 +4118,28 @@ function effectWeather(dt){
   const fromSunset=secsDay>wxSunsetS?secsDay-wxSunsetS:secsDay+(86400-wxSunsetS);
   const nightProg=!isDay?fromSunset/nightLen:0;
   const moonPh=wxMoonPhase(new Date());
-  // Moon position based on phase — phase gives angular offset from sun
-  // phase 0=new(near sun), 0.25=first quarter(90° east), 0.5=full(opposite), 0.75=last quarter(90° west)
-  const moonLag=moonPh*24;  // hours the moon "lags" behind the sun (0-24)
-  const moonRiseH=(wxSunriseS/3600+moonLag)%24;
-  const moonSetH=(wxSunsetS/3600+moonLag)%24;
-  const hourNow=secsDay/3600;
-  // Moon's progress across the sky (like dayProg but shifted by phase)
-  let moonDayProg;
-  if(moonSetH>moonRiseH){
-    moonDayProg=(hourNow-moonRiseH)/(moonSetH-moonRiseH);
-  } else {
-    const span=moonSetH+24-moonRiseH;
-    moonDayProg=((hourNow-moonRiseH+24)%24)/span;
+  // Moon position from API moonrise/moonset (same logic as sun)
+  const moonPh=wxMoonPhase(new Date());
+  let moonUp=false, moonDayProg=0;
+  if(wxMoonriseS>=0 && wxMoonsetS>=0){
+    if(wxMoonsetS>wxMoonriseS){
+      moonUp=secsDay>=wxMoonriseS&&secsDay<=wxMoonsetS;
+      if(moonUp) moonDayProg=(secsDay-wxMoonriseS)/(wxMoonsetS-wxMoonriseS);
+    } else {
+      // moonset before moonrise = moon crosses midnight
+      moonUp=secsDay>=wxMoonriseS||secsDay<=wxMoonsetS;
+      const span=wxMoonsetS+86400-wxMoonriseS;
+      if(moonUp) moonDayProg=((secsDay-wxMoonriseS+86400)%86400)/span;
+    }
+  } else if(wxMoonriseS>=0){
+    // no moonset today — moon stays up
+    moonUp=secsDay>=wxMoonriseS;
+    if(moonUp) moonDayProg=Math.min(1,(secsDay-wxMoonriseS)/43200);
+  } else if(wxMoonsetS>=0){
+    // no moonrise today — moon was already up
+    moonUp=secsDay<=wxMoonsetS;
+    if(moonUp) moonDayProg=1-wxMoonsetS>0?(1-secsDay/wxMoonsetS)*0.5+0.5:0.5;
   }
-  const moonUp=moonDayProg>=0&&moonDayProg<=1;
   let moonPX,moonElev,moonAlpha;
   if(moonUp){
     moonPX=moonDayProg*0.5;
