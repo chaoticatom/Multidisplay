@@ -224,109 +224,128 @@ function effectPlasma(dt) {
 // ── MORPHING SPHERE — multi-shell, pulsing auroras, face projections ──
 let sphAngle=0;
 function effectSphere(dt) {
-  t+=dt*0.5;
-  sphAngle+=dt*0.28;
+  t+=dt;
+  sphAngle+=dt;
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
-  // 3 morphing sphere shells with different phases
-  const R = [
-    0.40+Math.sin(t*0.7)*0.10,
-    0.28+Math.sin(t*1.1+1.0)*0.07,
-    0.16+Math.sin(t*1.7+2.2)*0.04
-  ];
-  const hueBase=[
-    (t*0.07)%1,
-    (t*0.07+0.33)%1,
-    (t*0.07+0.66)%1
-  ];
+  const S=SIZE, total=S*4, S1=S-1;
+  // Colour cycle — mostly red, occasionally shifts to other neon colours
+  const colCycle=sphAngle*0.04;
+  const baseHue=(Math.floor(colCycle)%5===0)?((colCycle*0.3)%1):0; // 0=red most of the time
+  const sat=baseHue===0?1:0.9;
 
-  for(let i=0;i<N;i++){
-    const x=surfX[i]-0.5, y=surfY[i]-0.5, z=surfZ[i]-0.5;
-    const dist=Math.sqrt(x*x+y*y+z*z)*2;
-    const lat=Math.asin(Math.max(-1,Math.min(1,(surfY[i]-0.5)/Math.max(0.001,dist/2))));
-    const lng=Math.atan2(z,x)+sphAngle;
+  // Perspective grid parameters — vanishing point moves slowly
+  const vpX=0.5+Math.sin(sphAngle*0.15)*0.25; // vanishing point X (0-1 across strip)
+  const vpY=0.35+Math.sin(sphAngle*0.12)*0.15; // vanishing point Y (row)
+  const gridSpacing=6+Math.sin(sphAngle*0.2)*2;
+  const horizonV=Math.round(vpY*S);
 
-    let maxBright=0, bestHue=0;
+  // Scan line positions (multiple moving at different speeds)
+  const scan1=((sphAngle*0.3)%1)*S;
+  const scan2=((sphAngle*0.17+0.5)%1)*S;
 
-    for(let sh=0;sh<3;sh++){
-      const thickness=sh===0?0.14:sh===1?0.10:0.07;
-      const s=Math.max(0,1-Math.abs(dist-R[sh]*1.41)/thickness);
-      if(s>0){
-        const glow=Math.pow(s,1.5);
-        // Latitude bands create aurora-like ripples
-        const aurora=0.5+0.5*Math.sin(lat*8+t*(1+sh*0.4)+lng*2);
-        const bright=glow*aurora*(sh===0?0.9:sh===1?0.75:0.6);
-        if(bright>maxBright){
-          maxBright=bright;
-          bestHue=(hueBase[sh]+lng/(Math.PI*2)*0.4+lat*0.15)%1;
-        }
+  // ── 4 side faces: perspective laser grid wrapping around ──
+  for(let v=0;v<S;v++){
+    for(let col=0;col<total;col++){
+      const idx=fwPx(col,v);
+      if(idx<0) continue;
+
+      let bright=0;
+      const normU=col/total; // 0-1 across all 4 faces
+      const normV=v/S;
+
+      // Distance from horizon (vanishing point Y)
+      const dy=v-horizonV;
+
+      if(dy>0){
+        // Below horizon: perspective floor grid
+        const depth=1/(dy*0.15+0.01);
+        // Vertical grid lines converging to vanishing point
+        const perspX=(normU-vpX*normU)*depth*gridSpacing; // not quite right, need wrap
+        const gx=Math.abs(Math.sin((col*depth*0.08+sphAngle*0.2)*Math.PI));
+        const vLine=gx>0.92?Math.min(1,(gx-0.92)/0.08):0;
+
+        // Horizontal grid lines receding into distance
+        const hLine=Math.abs(Math.sin((depth*2-sphAngle*0.8)*Math.PI));
+        const hBright=hLine>0.9?Math.min(1,(hLine-0.9)/0.1):0;
+
+        const fade=Math.max(0,1-dy/(S*0.7));
+        bright=Math.max(vLine,hBright)*fade*0.9;
+
+        // Glow near horizon
+        if(dy<6) bright+=Math.max(0,(6-dy)/6)*0.3;
+      } else {
+        // Above horizon: sky with subtle scan lines and stars
+        const skyFade=Math.max(0,(-dy)/(S*0.5));
+        // Horizontal scan lines in sky
+        const skyLine=Math.abs(Math.sin(v*0.5+sphAngle*1.5));
+        bright=skyLine>0.95?0.25*skyFade:skyFade*0.03;
       }
+
+      // Scanning beam lines sweeping vertically
+      const d1=Math.abs(v-scan1);
+      if(d1<3) bright+=Math.max(0,(3-d1)/3)*0.7;
+      const d2=Math.abs(v-scan2);
+      if(d2<2) bright+=Math.max(0,(2-d2)/2)*0.4;
+
+      // Vertical laser beams at intervals
+      const vBeamPhase=Math.sin(col*0.3+sphAngle*0.5);
+      if(Math.abs(vBeamPhase)>0.95){
+        const beamStr=(Math.abs(vBeamPhase)-0.95)/0.05;
+        bright+=beamStr*0.5*(0.5+0.5*Math.sin(v*0.2+sphAngle*2));
+      }
+
+      if(bright<0.015) continue;
+      bright=Math.min(1,bright);
+
+      // Colour: mostly red/orange, shifts occasionally
+      const h=(baseHue+bright*0.05+col*0.001)%1;
+      const [r,g,b]=hsl(h,sat,bright);
+      colBuf[idx*3]=Math.max(colBuf[idx*3],r);
+      colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],g);
+      colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],b);
     }
-
-    // Equatorial hot band
-    const eq=Math.exp(-lat*lat*20)*0.4*(0.5+0.5*Math.sin(lng*4+t*2));
-    maxBright=Math.max(maxBright,eq);
-    if(eq>0.05) bestHue=(bestHue+eq*0.1)%1;
-
-    if(maxBright<0.018) continue;
-    const [r,g,b]=hsl((bestHue+1)%1,1,maxBright);
-    setLED(i,r,g,b);
   }
 
-  // ── Side panels: project sphere shadow + scanning rings ──
-  for(let face=0;face<4;face++){
-    for(let v=0;v<SIZE;v++) for(let u=0;u<SIZE;u++){
-      // Ring scan lines sweeping up each face
-      const ringY=(v/SIZE + t*0.3 + face*0.25)%1;
-      const ring=Math.pow(Math.max(0,1-Math.abs((ringY%0.25)*4-1)*3),3)*0.5;
-      if(ring>0.01){
-        // Centre-weighted horizontal glow
-        const cx=Math.abs(u/SIZE-0.5)*2;
-        const glow=ring*(1-cx*0.6);
-        const h=(sphAngle/(Math.PI*2)+face*0.25+v/SIZE*0.3+t*0.05)%1;
-        const [r,g,b]=hsl((h+1)%1,1,glow);
-        const idx=faceMap[face][v*SIZE+u];
-        if(idx>=0){
-          colBuf[idx*3]=Math.max(colBuf[idx*3],r);
-          colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],g);
-          colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],b);
-        }
-      }
-      // Vertical energy columns at sphere's equator
-      const colPulse=Math.pow(Math.max(0,Math.sin(u/SIZE*Math.PI*6+sphAngle*3+t)),4)*0.6;
-      if(colPulse>0.01){
-        const h2=(u/SIZE+t*0.08)%1;
-        const [r,g,b]=hsl(h2,1,colPulse);
-        const idx=faceMap[face][v*SIZE+u];
-        if(idx>=0){
-          colBuf[idx*3]=Math.max(colBuf[idx*3],r);
-          colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],g);
-          colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],b);
-        }
-      }
-    }
+  // ── Top face: overhead grid view ──
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const idx=faceMap[4][v*S+u];
+    if(idx<0) continue;
+    const gx=Math.abs(Math.sin((u/S*gridSpacing+sphAngle*0.3)*Math.PI));
+    const gy=Math.abs(Math.sin((v/S*gridSpacing+sphAngle*0.2)*Math.PI));
+    const vLine=gx>0.88?Math.min(1,(gx-0.88)/0.12):0;
+    const hLine=gy>0.88?Math.min(1,(gy-0.88)/0.12):0;
+    let bright=Math.max(vLine,hLine)*0.7;
+    // Radial pulse from centre
+    const dx=u/S-0.5, dy2=v/S-0.5;
+    const rad=Math.sqrt(dx*dx+dy2*dy2);
+    const pulse=Math.sin(rad*12-sphAngle*2);
+    if(pulse>0.8) bright+=((pulse-0.8)/0.2)*0.4;
+    if(bright<0.015) continue;
+    bright=Math.min(1,bright);
+    const h=(baseHue+rad*0.1)%1;
+    const [r,g,b]=hsl(h,sat,bright);
+    colBuf[idx*3]=Math.max(colBuf[idx*3],r);
+    colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],g);
+    colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],b);
   }
 
-  // ── Top panel: sphere overhead view — concentric aurora rings ──
-  for(let v=0;v<SIZE;v++) for(let u=0;u<SIZE;u++){
-    const dx=u/SIZE-0.5, dy=v/SIZE-0.5;
-    const rad=Math.sqrt(dx*dx+dy*dy)*2;
-    const ang=Math.atan2(dy,dx)+sphAngle;
-    for(let sh=0;sh<3;sh++){
-      const s=Math.max(0,1-Math.abs(rad-R[sh])/0.1);
-      if(s>0.05){
-        const aurora=0.5+0.5*Math.sin(ang*5+t*(1.5+sh*0.5));
-        const bright=Math.pow(s,1.5)*aurora*(0.8-sh*0.15);
-        const h=(hueBase[sh]+ang/(Math.PI*2)*0.4)%1;
-        const [r,g,b]=hsl((h+1)%1,1,bright);
-        const idx=faceMap[4][v*SIZE+u];
-        if(idx>=0){
-          colBuf[idx*3]=Math.max(colBuf[idx*3],r);
-          colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],g);
-          colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],b);
-        }
-      }
-    }
+  // ── Bottom face: mirror of top with offset ──
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const idx=faceMap[5][v*S+u];
+    if(idx<0) continue;
+    const gx=Math.abs(Math.sin((u/S*gridSpacing+sphAngle*0.25+1)*Math.PI));
+    const gy=Math.abs(Math.sin((v/S*gridSpacing+sphAngle*0.15+1)*Math.PI));
+    const vLine=gx>0.88?Math.min(1,(gx-0.88)/0.12):0;
+    const hLine=gy>0.88?Math.min(1,(gy-0.88)/0.12):0;
+    let bright=Math.max(vLine,hLine)*0.5;
+    if(bright<0.015) continue;
+    bright=Math.min(1,bright);
+    const h=(baseHue+0.02)%1;
+    const [r,g,b]=hsl(h,sat,bright);
+    colBuf[idx*3]=Math.max(colBuf[idx*3],r);
+    colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],g);
+    colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],b);
   }
 }
 

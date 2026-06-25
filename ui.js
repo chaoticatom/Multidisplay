@@ -1192,7 +1192,7 @@ const EFFECTS={
   moon:effectMoon,
 };
 const EFFECT_NAMES={
-  wave:'Wave Cascade', rain:'Colour Rain', plasma:'Plasma Storm', sphere:'Morphing Sphere',
+  wave:'Wave Cascade', rain:'Colour Rain', plasma:'Plasma Storm', sphere:'80s Laser Grid',
   fireworks:'Fireworks', dna:'DNA Helix', datetime:'Time & Date',
   balls:'Bouncing Balls', sand:'Gravity Sand', f1:'F1 Live',
   gradient_wash:'Rainbow Wash', aurora:'Aurora Borealis', depth_rings:'Depth Rings',
