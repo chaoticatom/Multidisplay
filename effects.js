@@ -359,6 +359,50 @@ function effectSphere(dt) {
       drawGrid(oScanCU,oScanCV,oSlU0,oSlU1,oSlV0,oSlV1,gAlpha);
     }
 
+    // Flat 2D grid overlay: two lines sweep up/down from center, leave grid, then fade
+    const flatPeriod=15.0, flatSweep=1.5, flatHold=2.5, flatFade=1.0;
+    const flatTotal=flatSweep+flatHold+flatFade;
+    const ft2=time%flatPeriod;
+    if(ft2<flatTotal && expandEase>=1){
+      const gridSpacing=Math.round(S/8);
+      let flatAlpha=0, reach=0;
+      if(ft2<flatSweep){
+        reach=ft2/flatSweep;
+        flatAlpha=0.4;
+      } else if(ft2<flatSweep+flatHold){
+        reach=1;
+        flatAlpha=0.4;
+      } else {
+        reach=1;
+        flatAlpha=0.4*(1-(ft2-flatSweep-flatHold)/flatFade);
+      }
+      const maxDist=Math.round(reach*(S/2));
+      // Horizontal lines
+      for(let gi=1;gi<S/gridSpacing;gi++){
+        const v=gi*gridSpacing; if(v>=S) continue;
+        const distFromC=Math.abs(v-Math.round(cy));
+        if(distFromC>maxDist) continue;
+        for(let u=0;u<S;u++) setPx(u,v,cR*flatAlpha,cG*flatAlpha,cB*flatAlpha);
+      }
+      // Vertical lines
+      for(let gi=1;gi<S/gridSpacing;gi++){
+        const u=gi*gridSpacing; if(u>=S) continue;
+        for(let v=0;v<S;v++){
+          const distFromC=Math.abs(v-Math.round(cy));
+          if(distFromC>maxDist) continue;
+          setPx(u,v,cR*flatAlpha,cG*flatAlpha,cB*flatAlpha);
+        }
+      }
+      // Sweep lines
+      if(ft2<flatSweep){
+        const sweepV1=Math.round(cy-maxDist), sweepV2=Math.round(cy+maxDist);
+        for(let u=0;u<S;u++){
+          if(sweepV1>=0&&sweepV1<S) setPx(u,sweepV1,cR*0.8,cG*0.8,cB*0.8);
+          if(sweepV2>=0&&sweepV2<S) setPx(u,sweepV2,cR*0.8,cG*0.8,cB*0.8);
+        }
+      }
+    }
+
     // Center dot glow
     for(let dv=-2;dv<=2;dv++) for(let du=-2;du<=2;du++){
       const u=Math.round(cx)+du, v=Math.round(cy)+dv;
