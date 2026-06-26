@@ -352,6 +352,8 @@ function alarmOpenEditor(idx){
   // Sunrise toggle
   alarmSunriseOn=!!al.prealarm?.enabled;
   document.getElementById('al-wind-down').checked=!!al.prealarm?.windDown;
+  document.getElementById('al-wd-use-effect').checked=!!al.prealarm?.wdUseEffect;
+  document.getElementById('al-wd-effect-row').style.display=al.prealarm?.windDown?'flex':'none';
   alarmGiantSunOn=!!al.prealarm?.giantSun;
   alarmWxRiseOn=!!al.prealarm?.wxRise;
   alarmEffectRiseOn=!!al.prealarm?.effectRise;
@@ -725,6 +727,7 @@ document.getElementById('al-repeat')?.addEventListener('change',e=>{
   document.getElementById('al-days-row').style.display=e.target.value==='weekly'?'':'none';
 });
 document.getElementById('alarm-add-btn')?.addEventListener('click',()=>alarmOpenEditor(-1));
+document.getElementById('al-wind-down')?.addEventListener('change',function(){ document.getElementById('al-wd-effect-row').style.display=this.checked?'flex':'none'; });
 document.getElementById('al-cancel-btn')?.addEventListener('click',()=>{ document.getElementById('alarm-modal').style.display='none'; });
 document.getElementById('al-save-btn')?.addEventListener('click',()=>{
   const hour=Math.max(0,Math.min(23,parseInt(document.getElementById('al-hour').value)||0));
@@ -745,6 +748,8 @@ document.getElementById('al-save-btn')?.addEventListener('click',()=>{
       preMinutes:parseInt(document.getElementById('al-pre-mins').value)||15,
       startBright:parseInt(document.getElementById('al-dim-start').value)||5,
       windDown:document.getElementById('al-wind-down').checked,
+      wdUseEffect:document.getElementById('al-wd-use-effect').checked,
+      wdEffect:document.getElementById('al-wd-use-effect').checked?currentEffect:'',
       giantSun:alarmGiantSunOn, wxRise:alarmWxRiseOn, effectRise:alarmEffectRiseOn, effectRiseKey:alarmEffectRiseKey, effectRiseCity:alarmEffectRiseCity, effectRiseOpts:alarmEffectRiseOpts},
     message:document.getElementById('al-message').value||'',
   };
@@ -3008,9 +3013,29 @@ function animate(now){
     const bSlider=document.getElementById('bright-slider');
     if(bSlider) bSlider.value=Math.round(brightness*100);
     // Transition to main alarm exactly when progress reaches 1.0
-    if(rawProgress>=1){ const riseKey=activeAlarm.al.prealarm?.effectRise?activeAlarm.al.prealarm.effectRiseKey:''; activeAlarm.phase='main'; activeAlarm.justTriggered=true; alarmFire(activeAlarm.al,new Date()); if(riseKey){ activeAlarm.bgEffect=riseKey; } if(!windDown) brightness=1.0; }
-    else { 
-      if(activeAlarm.al.prealarm?.giantSun){
+    if(rawProgress>=1){
+      if(windDown){
+        // Wind down complete: blank all displays
+        for(let i=0;i<N*3;i++) colBuf[i]=0;
+        brightness=0;
+        const bSlider2=document.getElementById('bright-slider');
+        if(bSlider2) bSlider2.value=0;
+        activeAlarm.phase='done';
+      } else {
+        const riseKey=activeAlarm.al.prealarm?.effectRise?activeAlarm.al.prealarm.effectRiseKey:'';
+        activeAlarm.phase='main'; activeAlarm.justTriggered=true; alarmFire(activeAlarm.al,new Date());
+        if(riseKey){ activeAlarm.bgEffect=riseKey; } brightness=1.0;
+      }
+    }
+    else {
+      // Wind down with current effect: run it with dimming brightness
+      if(windDown&&activeAlarm.al.prealarm?.wdUseEffect){
+        const wdEf=activeAlarm.al.prealarm.wdEffect||currentEffect;
+        if(EFFECTS[wdEf]){
+          for(let i=0;i<N*3;i++) colBuf[i]=0;
+          EFFECTS[wdEf](dt*speedMult);
+        }
+      } else if(activeAlarm.al.prealarm?.giantSun){
         renderGiantSun(progress,startBright);
       } else if(activeAlarm.al.prealarm?.effectRise && activeAlarm.al.prealarm?.effectRiseKey){
         // Effect rise: dim start, brightens over time, runs chosen effect
@@ -3095,6 +3120,50 @@ function animate(now){
       const mm=String(Math.floor(remaining/60)).padStart(2,'0');
       const ss=String(remaining%60).padStart(2,'0');
       if(remaining>0) renderCountdown(mm+':'+ss);
+      // Wind down: show alarm message from start of countdown
+      if(windDown&&activeAlarm.al.message){
+        const rawMsg=(activeAlarm.al.message||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^\w\s!.,?]/g,'');
+        const words=rawMsg.trim().split(/\s+/);
+        if(words.length&&words[0]){
+          const line1=[],line2=[];
+          let half=Math.ceil(words.length/2);
+          for(let i=0;i<words.length;i++) (i<half?line1:line2).push(words[i]);
+          const lines=[line1.join(' ')];
+          if(line2.length) lines.push(line2.join(' '));
+          const S2=SIZE, SIDE2=[2,0,3,1];
+          const charW=6, lineH=9;
+          const totalH=lines.length*lineH;
+          const vStart=Math.round((S2+totalH)/2);
+          for(let fi=0;fi<4;fi++){
+            const face=SIDE2[fi];
+            const mir=(face===2||face===3);
+            for(let li=0;li<lines.length;li++){
+              const line=lines[li];
+              const lineW=line.length*charW-1;
+              const startU=Math.round((S2-lineW)/2);
+              const lineV=vStart-li*lineH;
+              for(let ci=0;ci<line.length;ci++){
+                const glyph=_bigGlyphs[line[ci]]; if(!glyph) continue;
+                const charU=mir?startU+(line.length-1-ci)*charW:startU+ci*charW;
+                for(let row=0;row<7;row++){
+                  const bits=glyph[row];
+                  const pv=lineV-(row+1);
+                  if(pv<0||pv>=S2) continue;
+                  for(let col=0;col<5;col++){
+                    if(!((bits>>(4-col))&1)) continue;
+                    const pu=mir?charU+(4-col):charU+col;
+                    if(pu<0||pu>=S2) continue;
+                    const idx=faceMap[face][pv*S2+pu]; if(idx<0) continue;
+                    colBuf[idx*3]=1.0;
+                    colBuf[idx*3+1]=1.0;
+                    colBuf[idx*3+2]=1.0;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 
