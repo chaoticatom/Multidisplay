@@ -252,17 +252,20 @@ function effectSphere(dt) {
   if(_lgState==='expand'){
     const p=Math.min(_lgStateT/expandDur,1);
     expandEase=p*p;
-    scanV=cy;
-    if(p>=1){_lgState='scan'; _lgStateT=0; _lgScanT=0;}
+    // Start scanning during expand — rays grow while line moves
+    _lgScanT+=dt;
+    const sp=(_lgScanT%scanPeriod)/scanPeriod;
+    const raw=sp<0.5?sp*2:2-sp*2;
+    scanV=cy+(raw-0.5)*2*expandEase*(S-1)/2;
+    scanV=Math.max(0,Math.min(S-1,scanV));
+    if(p>=1){_lgState='scan'; _lgStateT=0;}
   }
 
   if(_lgState==='scan'){
     _lgScanT+=dt;
     const sp=(_lgScanT%scanPeriod)/scanPeriod;
     const raw=sp<0.5?sp*2:2-sp*2;
-    const sweepNum=_lgScanT/scanPeriod;
-    const amp=Math.min(sweepNum<1?sweepNum:1,1);
-    scanV=cy+(raw-0.5)*2*amp*(S-1)/2;
+    scanV=cy+(raw-0.5)*2*(S-1)/2;
     scanV=Math.max(0,Math.min(S-1,scanV));
     // Trigger spin when scan line near center (within 2px)
     if(_lgStateT>5.0 && Math.abs(scanV-cy)<2){
@@ -338,12 +341,16 @@ function effectSphere(dt) {
     }
 
     // 6 rays from center to points along scan line
+    // Use a minimum distance so rays always fan out visibly
+    const absDist=Math.abs(scanV-cy);
+    const rayLen=Math.max(absDist,6)*expandEase;
+    const rayDir=scanV>=cy?1:-1;
     for(let ri=0;ri<nRays;ri++){
       const frac=ri/(nRays-1);
-      const tU=slU0+(slU1-slU0)*frac;
-      const tV=slV0+(slV1-slV0)*frac;
-      const endU=cx+(tU-cx)*expandEase;
-      const endV=cy+(tV-cy)*expandEase;
+      // Ray endpoint: spread along scan line direction
+      const spreadU=(frac-0.5)*(S-1)*expandEase;
+      const endU=cx+spreadU*cosA-rayLen*rayDir*sinA;
+      const endV=cy+spreadU*sinA+rayLen*rayDir*cosA;
       const dx=endU-cx, dy=endV-cy;
       const steps=Math.max(Math.abs(dx),Math.abs(dy),1)|0;
       for(let s=0;s<=steps;s++){
@@ -375,18 +382,6 @@ function effectSphere(dt) {
     }
     if(expandEase>0.3){
       drawGrid(slU0,slU1,slV0,slV1,0.25*(expandEase-0.3)/0.7);
-    }
-
-    // Ghost grid: occasionally appears going opposite direction
-    const ghostPeriod=7.0, ghostDur=3.0;
-    const gt=(time%ghostPeriod);
-    if(gt<ghostDur && expandEase>=1 && _lgState==='scan'){
-      const gAlpha=Math.sin((gt/ghostDur)*Math.PI)*0.35;
-      const oScanCU=cx+scanDist*sinA, oScanCV=cy-scanDist*cosA;
-      const oSlU0=oScanCU+cosA*slHalf, oSlV0=oScanCV+sinA*slHalf;
-      const oSlU1=oScanCU-cosA*slHalf, oSlV1=oScanCV-sinA*slHalf;
-      drawLine(oSlU0,oSlV0,oSlU1,oSlV1,gAlpha*0.6);
-      drawGrid(oSlU0,oSlU1,oSlV0,oSlV1,gAlpha);
     }
 
     // Flat 2D grid overlay: scan line sweeps it into view
