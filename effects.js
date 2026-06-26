@@ -483,13 +483,11 @@ function effectSphere(dt) {
     // Vertical: bar spans top+front+bottom, scan sweeps across front+back only
     const absS=Math.abs(sinA), absC=Math.abs(cosA);
     _lgIsVert=absS>absC;
-    const scanFrac=(scanV-cy)/((S-1)/2); // -1 to +1
-    // Full T/2 sweep always; setPx3d filters out left/right faces when vertical
-    const scanPerpU=scanFrac*(T/2)*(-sinA);
-    const scanPerpV=scanFrac*((S-1)/2)*cosA;
-    const scanCU3d=ccx+scanPerpU;
-    const scanCV3d=cy+scanPerpV;
-    // Bar half-length: horizontal extends ±T/2 in col, vertical extends ±S*1.5 in v
+    // Scan always sweeps vertically (v direction) within the face, regardless of bar angle
+    const scanCV3d=scanV;
+    const scanCU3d=ccx;
+    // Bar extends along its rotated direction from the scan point
+    // Horizontal: extends ±T/2 in col; Vertical: extends ±S*1.5 in v (top+side+bottom)
     const barHalfU=cosA*(T/2);
     const barHalfV=sinA*(S*1.5);
     const sl3U0=scanCU3d+barHalfU, sl3V0=scanCV3d+barHalfV;
