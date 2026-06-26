@@ -471,103 +471,95 @@ function effectSphere(dt) {
       }
     }
 
+    // Single center point on front face always
     // Horizontal: bar spans all 4 side faces, scan sweeps vertically
-    // Vertical: bar spans top+front+bottom (and top+back+bottom), scan sweeps across 1 face
+    // Vertical: bar spans top+front+bottom, scan sweeps across front+back only
     const absS=Math.abs(sinA), absC=Math.abs(cosA);
     const isVert=absS>absC;
-    // Face offsets: horizontal draws once across all 4 faces; vertical draws on front and back
-    const faceOffsets=isVert?[0,T/2]:[0];
     const scanFrac=(scanV-cy)/((S-1)/2); // -1 to +1
+    // Scan perpendicular distance: vertical mode sweeps ±S/2 horizontally (front+back), horizontal sweeps full
+    const scanPerpU=scanFrac*(isVert?(S/2):(T/2))*(-sinA);
+    const scanPerpV=scanFrac*((S-1)/2)*cosA;
+    const scanCU3d=ccx+scanPerpU;
+    const scanCV3d=cy+scanPerpV;
+    // Bar half-length: horizontal extends ±T/2 in col, vertical extends ±S*1.5 in v
+    const barHalfU=cosA*(T/2);
+    const barHalfV=sinA*(S*1.5);
+    const sl3U0=scanCU3d+barHalfU, sl3V0=scanCV3d+barHalfV;
+    const sl3U1=scanCU3d-barHalfU, sl3V1=scanCV3d-barHalfV;
 
-    for(let fi=0;fi<faceOffsets.length;fi++){
-      const fo=faceOffsets[fi];
-      const cx3d=ccx+fo;
-      // Scan perpendicular distance: horizontal sweeps ±S/2 vertically, vertical sweeps ±S/2 horizontally
-      const perpScale=isVert?(S/2):((S-1)/2);
-      const hSweep=isVert?(S/2):(T/2);
-      const scanPerpU=scanFrac*hSweep*(-sinA);
-      const scanPerpV=scanFrac*perpScale*cosA;
-      const scanCU3d=cx3d+scanPerpU;
-      const scanCV3d=cy+scanPerpV;
-      // Bar half-length: horizontal extends ±T/2 in col, vertical extends ±S*1.5 in v
-      const barHalfU=cosA*(isVert?((S-1)/2):(T/2));
-      const barHalfV=sinA*(S*1.5);
-      const sl3U0=scanCU3d+barHalfU, sl3V0=scanCV3d+barHalfV;
-      const sl3U1=scanCU3d-barHalfU, sl3V1=scanCV3d-barHalfV;
+    // Full scan line
+    const slB3=0.9*expandEase;
+    drawLine3d(sl3U0,sl3V0,sl3U1,sl3V1,slB3);
+    // Scan line glow
+    const normU3=-sinA, normV3=cosA;
+    for(let dv=-3;dv<=3;dv++){
+      if(dv===0) continue;
+      const gb=(1-Math.abs(dv)/4)*0.18*expandEase;
+      drawLine3d(sl3U0+normU3*dv,sl3V0+normV3*dv,sl3U1+normU3*dv,sl3V1+normV3*dv,gb);
+    }
 
-      // Full scan line
-      const slB3=0.9*expandEase;
-      drawLine3d(sl3U0,sl3V0,sl3U1,sl3V1,slB3);
-      // Scan line glow
-      const normU3=-sinA, normV3=cosA;
-      for(let dv=-3;dv<=3;dv++){
-        if(dv===0) continue;
-        const gb=(1-Math.abs(dv)/4)*0.18*expandEase;
-        drawLine3d(sl3U0+normU3*dv,sl3V0+normV3*dv,sl3U1+normU3*dv,sl3V1+normV3*dv,gb);
+    // Rays from single center to scan line
+    const nRays3d=6;
+    for(let ri=0;ri<nRays3d;ri++){
+      const frac=ri/(nRays3d-1);
+      const tU=sl3U0+(sl3U1-sl3U0)*frac;
+      const tV=sl3V0+(sl3V1-sl3V0)*frac;
+      const endU=ccx+(tU-ccx)*expandEase;
+      const endV=cy+(tV-cy)*expandEase;
+      const dx=endU-ccx, dy=endV-cy;
+      const steps=Math.max(Math.abs(dx),Math.abs(dy),1)|0;
+      if(steps<2) continue;
+      for(let s=0;s<=steps;s++){
+        const ft=s/steps;
+        const u=Math.round(ccx+dx*ft);
+        const v=Math.round(cy+dy*ft);
+        const b=0.2+0.6*ft;
+        setPx3d(u,v,cR*b,cG*b,cB*b);
       }
+    }
 
-      // Rays from center to scan line
-      const nRays3d=6;
-      for(let ri=0;ri<nRays3d;ri++){
-        const frac=ri/(nRays3d-1);
-        const tU=sl3U0+(sl3U1-sl3U0)*frac;
-        const tV=sl3V0+(sl3V1-sl3V0)*frac;
-        const endU=cx3d+(tU-cx3d)*expandEase;
-        const endV=cy+(tV-cy)*expandEase;
-        const dx=endU-cx3d, dy=endV-cy;
-        const steps=Math.max(Math.abs(dx),Math.abs(dy),1)|0;
-        if(steps<2) continue;
-        for(let s=0;s<=steps;s++){
-          const ft=s/steps;
-          const u=Math.round(cx3d+dx*ft);
-          const v=Math.round(cy+dy*ft);
-          const b=0.2+0.6*ft;
-          setPx3d(u,v,cR*b,cG*b,cB*b);
+    // Grid lines between rays (perspective)
+    if(expandEase>0.3){
+      const gridB3=0.25*(expandEase-0.3)/0.7;
+      for(let hi=1;hi<=nHLines;hi++){
+        const frac=hi/(nHLines+1);
+        const pFrac=frac*frac;
+        for(let ri=0;ri<nRays3d-1;ri++){
+          const fA=ri/(nRays3d-1), fB=(ri+1)/(nRays3d-1);
+          const aU=sl3U0+(sl3U1-sl3U0)*fA, aV=sl3V0+(sl3V1-sl3V0)*fA;
+          const bU=sl3U0+(sl3U1-sl3U0)*fB, bV=sl3V0+(sl3V1-sl3V0)*fB;
+          const eaU=ccx+(aU-ccx)*expandEase, eaV=cy+(aV-cy)*expandEase;
+          const ebU=ccx+(bU-ccx)*expandEase, ebV=cy+(bV-cy)*expandEase;
+          const guA=ccx+(eaU-ccx)*pFrac, gvA=cy+(eaV-cy)*pFrac;
+          const guB=ccx+(ebU-ccx)*pFrac, gvB=cy+(ebV-cy)*pFrac;
+          drawLine3d(guA,gvA,guB,gvB,gridB3);
         }
       }
+    }
 
-      // Grid lines between rays (perspective)
-      if(expandEase>0.3){
-        const gridB3=0.25*(expandEase-0.3)/0.7;
-        for(let hi=1;hi<=nHLines;hi++){
-          const frac=hi/(nHLines+1);
-          const pFrac=frac*frac;
-          for(let ri=0;ri<nRays3d-1;ri++){
-            const fA=ri/(nRays3d-1), fB=(ri+1)/(nRays3d-1);
-            const aU=sl3U0+(sl3U1-sl3U0)*fA, aV=sl3V0+(sl3V1-sl3V0)*fA;
-            const bU=sl3U0+(sl3U1-sl3U0)*fB, bV=sl3V0+(sl3V1-sl3V0)*fB;
-            const eaU=cx3d+(aU-cx3d)*expandEase, eaV=cy+(aV-cy)*expandEase;
-            const ebU=cx3d+(bU-cx3d)*expandEase, ebV=cy+(bV-cy)*expandEase;
-            const guA=cx3d+(eaU-cx3d)*pFrac, gvA=cy+(eaV-cy)*pFrac;
-            const guB=cx3d+(ebU-cx3d)*pFrac, gvB=cy+(ebV-cy)*pFrac;
-            drawLine3d(guA,gvA,guB,gvB,gridB3);
-          }
-        }
-      }
+    // Center dot glow (single point on front face)
+    for(let dv=-2;dv<=2;dv++) for(let du=-2;du<=2;du++){
+      const v=Math.round(cy)+dv;
+      if(v<0||v>=S) continue;
+      const r=Math.sqrt(du*du+dv*dv);
+      const b=Math.max(0,1-r/2.5)*0.7;
+      setPx3d(ccx+du,v,b,b*0.95,b);
+    }
 
-      // Center dot glow
-      for(let dv=-2;dv<=2;dv++) for(let du=-2;du<=2;du++){
-        const v=Math.round(cy)+dv;
-        if(v<0||v>=S) continue;
-        const r=Math.sqrt(du*du+dv*dv);
-        const b=Math.max(0,1-r/2.5)*0.7;
-        setPx3d(cx3d+du,v,b,b*0.95,b);
-      }
-
-      // Bright dots where rays meet scan line
-      for(let ri=0;ri<nRays3d;ri++){
-        const frac=ri/(nRays3d-1);
-        const tU=sl3U0+(sl3U1-sl3U0)*frac;
-        const tV=sl3V0+(sl3V1-sl3V0)*frac;
-        const eu=Math.round(cx3d+(tU-cx3d)*expandEase);
-        const ev=Math.round(cy+(tV-cy)*expandEase);
-        for(let ddv=-1;ddv<=1;ddv++) for(let ddu=-1;ddu<=1;ddu++){
-          const v=ev+ddv;
-          if(v<-S||v>=2*S) continue;
-          const r=Math.sqrt(ddu*ddu+ddv*ddv);
-          const b=Math.max(0,1-r/1.5)*0.8*expandEase;
-          setPx3d(eu+ddu,v,cR*b,cG*b,cB*b);
-        }
+    // Bright dots where rays meet scan line
+    for(let ri=0;ri<nRays3d;ri++){
+      const frac=ri/(nRays3d-1);
+      const tU=sl3U0+(sl3U1-sl3U0)*frac;
+      const tV=sl3V0+(sl3V1-sl3V0)*frac;
+      const eu=Math.round(ccx+(tU-ccx)*expandEase);
+      const ev=Math.round(cy+(tV-cy)*expandEase);
+      for(let ddv=-1;ddv<=1;ddv++) for(let ddu=-1;ddu<=1;ddu++){
+        const v=ev+ddv;
+        if(v<-S||v>=2*S) continue;
+        const r=Math.sqrt(ddu*ddu+ddv*ddv);
+        const b=Math.max(0,1-r/1.5)*0.8*expandEase;
+        setPx3d(eu+ddu,v,cR*b,cG*b,cB*b);
       }
     }
 
