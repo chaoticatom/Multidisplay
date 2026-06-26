@@ -12239,23 +12239,26 @@ function effectMoon(dt){
   const needScroll=textW>S;
   if(needScroll) this._moonScrollX=(this._moonScrollX+dt*14)%(textW+S);
   else this._moonScrollX=0;
-  const textBaseV=1; // 1px from bottom edge, text draws upward
-  const scrollOff=needScroll?Math.floor(S-this._moonScrollX):Math.floor((S-textW)/2);
-  for(let ci=0;ci<moonText.length;ci++){
-    const ch=moonText[ci].toUpperCase();
-    const rows=mf[ch]; if(!rows) continue;
-    const cx=scrollOff+ci*charW;
-    for(let row=0;row<5;row++){
-      const bits=rows[row];
-      for(let col=0;col<3;col++){
-        if(!((bits>>(2-col))&1)) continue;
-        // Mirror horizontally: flip u coordinate
-        const u=(S-1)-(cx+col), v=textBaseV+(4-row);
-        if(u<0||u>=S||v<0||v>=S) continue;
-        const idx=faceMap[0][v*S+u]; if(idx<0) continue;
-        colBuf[idx*3]=Math.max(colBuf[idx*3],0.75);
-        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],0.8);
-        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],0.85);
+  const textBaseV=1;
+  const scrollOff=needScroll?Math.floor(this._moonScrollX-textW):Math.floor((S-textW)/2);
+  const mFaces=panel2dMode?[0]:[0,1,2,3];
+  for(let fi=0;fi<mFaces.length;fi++){
+    const face=mFaces[fi];
+    for(let ci=0;ci<moonText.length;ci++){
+      const ch=moonText[ci].toUpperCase();
+      const rows=mf[ch]; if(!rows) continue;
+      const cxx=scrollOff+ci*charW;
+      for(let row=0;row<5;row++){
+        const bits=rows[row];
+        for(let col=0;col<3;col++){
+          if(!((bits>>(2-col))&1)) continue;
+          const u=(S-1)-(cxx+col), v=textBaseV+(4-row);
+          if(u<0||u>=S||v<0||v>=S) continue;
+          const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+          colBuf[idx*3]=Math.max(colBuf[idx*3],0.75);
+          colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],0.8);
+          colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],0.85);
+        }
       }
     }
   }
