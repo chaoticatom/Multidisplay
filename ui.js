@@ -3005,6 +3005,7 @@ function animate(now){
   if(activeAlarm&&activeAlarm.phase==='done'){
     for(let i=0;i<N*3;i++) colBuf[i]=0;
     brightness=0;
+    if(mesh) mesh.material.color.setScalar(0);
   }
 
   // ── Pre-alarm brightness ramp + sunrise rendering ──
@@ -3016,8 +3017,9 @@ function animate(now){
     const startBright=activeAlarm.al.prealarm?.startBright||5;
     // Ramp brightness: wake=dim→bright, wind-down=bright→dim
     brightness=windDown?Math.max(0,1-Math.pow(rawProgress,1.5)):Math.max(startBright/100,Math.pow(progress,1.5));
+    if(mesh) mesh.material.color.setScalar(brightness);
     const bSlider=document.getElementById('bright-slider');
-    if(bSlider) bSlider.value=Math.round(brightness*100);
+    if(bSlider) bSlider.value=brightness.toFixed(2);
     // Transition to main alarm exactly when progress reaches 1.0
     if(rawProgress>=1){
       if(windDown){
@@ -3047,8 +3049,9 @@ function animate(now){
         // Effect rise: dim start, brightens over time, runs chosen effect
         const br=Math.max(startBright/100, Math.pow(progress,1.5));
         brightness=br;
+        if(mesh) mesh.material.color.setScalar(br);
         const bSlider=document.getElementById('bright-slider');
-        if(bSlider) bSlider.value=Math.round(br*100);
+        if(bSlider) bSlider.value=br.toFixed(2);
         const efKey=activeAlarm.al.prealarm.effectRiseKey;
         if(efKey==='weather' && activeAlarm.al.prealarm.effectRiseCity){
           if(!activeAlarm._wxSetup){
