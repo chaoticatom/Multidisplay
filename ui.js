@@ -1374,7 +1374,10 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
     currentEffect = eff;
     if(currentEffect==='f1') startF1SessionTimer(); else stopF1SessionTimer();
     // Stop alarm if it's running and user switched effects
-    if(activeAlarm){ activeAlarm.dismissed=true; activeAlarm=null; }
+    if(activeAlarm){
+      if(activeAlarm.phase==='done'){ brightness=1; if(mesh) mesh.material.color.setScalar(1); const bs=document.getElementById('bright-slider'); if(bs) bs.value='1'; }
+      activeAlarm.dismissed=true; activeAlarm=null;
+    }
     effectLabel.textContent=EFFECT_NAMES[currentEffect]||currentEffect;
     if(currentEffect==='rain') resetRain();
     if(currentEffect==='balls') resetBalls();
