@@ -483,9 +483,10 @@ function effectSphere(dt) {
     // Vertical: bar spans top+front+bottom, scan sweeps across front+back only
     const absS=Math.abs(sinA), absC=Math.abs(cosA);
     _lgIsVert=absS>absC;
-    // Scan always sweeps vertically (v direction) within the face, regardless of bar angle
-    const scanCV3d=scanV;
-    const scanCU3d=ccx;
+    // Horizontal: scan sweeps vertically (v). Vertical: scan sweeps horizontally (col) across the face.
+    const scanFrac=(scanV-cy)/((S-1)/2); // -1 to +1
+    const scanCU3d=_lgIsVert ? ccx+scanFrac*((S-1)/2) : ccx;
+    const scanCV3d=_lgIsVert ? cy : scanV;
     // Bar extends along its rotated direction from the scan point
     // Horizontal: extends ±T/2 in col; Vertical: extends ±S*1.5 in v (top+side+bottom)
     const barHalfU=cosA*(T/2);
