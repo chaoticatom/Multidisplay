@@ -466,22 +466,27 @@ function effectSphere(dt) {
       for(let i=0;i<=ls;i++){
         const ft=i/ls;
         const u=Math.round(x0+ldx*ft), v=Math.round(y0+ldy*ft);
-        if(v<-M||v>=S+M) continue;
+        if(v<-S||v>=2*S) continue;
         setPx3d(u,v,cR*bright,cG*bright,cB*bright);
       }
     }
 
     // Scan line: wraps across all faces including top/bottom when rotated
-    // Scale scan distance: vertical sweep is S/2, horizontal sweep needs T/2
+    // Scan perpendicular distance scales with angle:
+    //   horizontal (cosA=1): scan ±S/2 vertically
+    //   vertical (sinA=1): scan ±T/2 horizontally
     const scanFrac=(scanV-cy)/((S-1)/2); // -1 to +1
-    const hScale=T/2, vScale=(S-1)/2;
-    const scanCV3d=cy+scanFrac*vScale*cosA;
-    const scanCU3d=ccx-scanFrac*hScale*sinA;
-    // Length covers full horizontal wrap (T/2) and vertical extent to top/bottom (S)
-    const slHalfU=T/2, slHalfV=S*1.5;
-    const slHalf3d=Math.sqrt(slHalfU*slHalfU*cosA*cosA+slHalfV*slHalfV*sinA*sinA)||slHalfU;
-    const sl3U0=scanCU3d+cosA*slHalf3d, sl3V0=scanCV3d+sinA*slHalf3d;
-    const sl3U1=scanCU3d-cosA*slHalf3d, sl3V1=scanCV3d-sinA*slHalf3d;
+    const scanPerpU=scanFrac*(T/2)*(-sinA);
+    const scanPerpV=scanFrac*((S-1)/2)*cosA;
+    const scanCU3d=ccx+scanPerpU;
+    const scanCV3d=cy+scanPerpV;
+    // Bar half-length scales with angle:
+    //   horizontal (cosA=1): extends ±T/2 in col direction
+    //   vertical (sinA=1): extends ±S*1.5 in v direction (top+side+bottom)
+    const barHalfU=cosA*(T/2);
+    const barHalfV=sinA*(S*1.5);
+    const sl3U0=scanCU3d+barHalfU, sl3V0=scanCV3d+barHalfV;
+    const sl3U1=scanCU3d-barHalfU, sl3V1=scanCV3d-barHalfV;
 
     // Full scan line
     const slB3=0.9*expandEase;
@@ -587,7 +592,7 @@ function effectSphere(dt) {
       const ev=Math.round(cy+(tV-cy)*expandEase);
       for(let ddv=-1;ddv<=1;ddv++) for(let ddu=-1;ddu<=1;ddu++){
         const v=ev+ddv;
-        if(v<0||v>=S) continue;
+        if(v<-S||v>=2*S) continue;
         const r=Math.sqrt(ddu*ddu+ddv*ddv);
         const b=Math.max(0,1-r/1.5)*0.8*expandEase;
         setPx3d(eu+ddu,v,cR*b,cG*b,cB*b);
