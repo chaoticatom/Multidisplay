@@ -485,7 +485,7 @@ function effectSphere(dt) {
     _lgIsVert=absS>absC;
     // Horizontal: scan sweeps vertically (v). Vertical: scan sweeps horizontally (col) across the face.
     const scanFrac=(scanV-cy)/((S-1)/2); // -1 to +1
-    const scanCU3d=_lgIsVert ? ccx-scanFrac*((S-1)/2) : ccx;
+    const scanCU3d=_lgIsVert ? ccx+scanFrac*((S-1)/2) : ccx;
     const scanCV3d=_lgIsVert ? cy : scanV;
     // Bar extends along its rotated direction from the scan point
     // Horizontal: extends ±T/2 in col; Vertical: extends ±S*1.5 in v (top+side+bottom)
@@ -546,36 +546,18 @@ function effectSphere(dt) {
     // Grid lines between rays (perspective)
     if(expandEase>0.3){
       const gridB3=0.25*(expandEase-0.3)/0.7;
-      if(_lgIsVert){
-        // Vertical mode: draw horizontal crossbars across the rays at perspective depths
-        const crossHalf=Math.round(S*0.4);
-        for(let hi=1;hi<=nHLines;hi++){
-          const frac=hi/(nHLines+1);
-          const pFrac=frac*frac;
-          for(let ri=0;ri<nRays3d;ri++){
-            const rFrac=ri/(nRays3d-1);
-            const tV=sl3V0+(sl3V1-sl3V0)*rFrac;
-            const eV=cy+(tV-cy)*expandEase;
-            const gv=cy+(eV-cy)*pFrac;
-            const gu=ccx;
-            const hw=Math.round(crossHalf*pFrac);
-            drawLine3d(gu-hw,gv,gu+hw,gv,gridB3);
-          }
-        }
-      } else {
-        for(let hi=1;hi<=nHLines;hi++){
-          const frac=hi/(nHLines+1);
-          const pFrac=frac*frac;
-          for(let ri=0;ri<nRays3d-1;ri++){
-            const fA=ri/(nRays3d-1), fB=(ri+1)/(nRays3d-1);
-            const aU=sl3U0+(sl3U1-sl3U0)*fA, aV=sl3V0+(sl3V1-sl3V0)*fA;
-            const bU=sl3U0+(sl3U1-sl3U0)*fB, bV=sl3V0+(sl3V1-sl3V0)*fB;
-            const eaU=ccx+(aU-ccx)*expandEase, eaV=cy+(aV-cy)*expandEase;
-            const ebU=ccx+(bU-ccx)*expandEase, ebV=cy+(bV-cy)*expandEase;
-            const guA=ccx+(eaU-ccx)*pFrac, gvA=cy+(eaV-cy)*pFrac;
-            const guB=ccx+(ebU-ccx)*pFrac, gvB=cy+(ebV-cy)*pFrac;
-            drawLine3d(guA,gvA,guB,gvB,gridB3);
-          }
+      for(let hi=1;hi<=nHLines;hi++){
+        const frac=hi/(nHLines+1);
+        const pFrac=frac*frac;
+        for(let ri=0;ri<nRays3d-1;ri++){
+          const fA=ri/(nRays3d-1), fB=(ri+1)/(nRays3d-1);
+          const aU=sl3U0+(sl3U1-sl3U0)*fA, aV=sl3V0+(sl3V1-sl3V0)*fA;
+          const bU=sl3U0+(sl3U1-sl3U0)*fB, bV=sl3V0+(sl3V1-sl3V0)*fB;
+          const eaU=ccx+(aU-ccx)*expandEase, eaV=cy+(aV-cy)*expandEase;
+          const ebU=ccx+(bU-ccx)*expandEase, ebV=cy+(bV-cy)*expandEase;
+          const guA=ccx+(eaU-ccx)*pFrac, gvA=cy+(eaV-cy)*pFrac;
+          const guB=ccx+(ebU-ccx)*pFrac, gvB=cy+(ebV-cy)*pFrac;
+          drawLine3d(guA,gvA,guB,gvB,gridB3);
         }
       }
     }
