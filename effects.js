@@ -505,11 +505,21 @@ function effectSphere(dt) {
     }
     if(_lgIsVert){
       const bk=T/2;
-      drawLine3d(sl3U0+bk,sl3V0,sl3U1+bk,sl3V1,slB3);
+      function drawLineSide(x0,y0,x1,y1,bright){
+        const ldx=x1-x0,ldy=y1-y0;
+        const ls=Math.max(Math.abs(ldx),Math.abs(ldy),1)|0;
+        for(let i=0;i<=ls;i++){
+          const ft=i/ls;
+          const u=Math.round(x0+ldx*ft),v=Math.round(y0+ldy*ft);
+          if(v<0||v>=S) continue;
+          setPx3d(u,v,cR*bright,cG*bright,cB*bright);
+        }
+      }
+      drawLineSide(sl3U0+bk,sl3V0,sl3U1+bk,sl3V1,slB3);
       for(let dv=-3;dv<=3;dv++){
         if(dv===0) continue;
         const gb=(1-Math.abs(dv)/4)*0.18*expandEase;
-        drawLine3d(sl3U0+bk+normU3*dv,sl3V0+normV3*dv,sl3U1+bk+normU3*dv,sl3V1+normV3*dv,gb);
+        drawLineSide(sl3U0+bk+normU3*dv,sl3V0+normV3*dv,sl3U1+bk+normU3*dv,sl3V1+normV3*dv,gb);
       }
     }
 
