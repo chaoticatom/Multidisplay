@@ -454,30 +454,8 @@ function effectSphere(dt) {
     // 3D: one vanishing point, rays and scan line wrap across all 4+2 faces via fwPx
     const T=S*4, M=S-1;
     const ccx=Math.round(S/2);
-    // Map (col, v) to LED index, extending onto top/bottom faces when v overflows
-    function lgIdx(col,v){
-      const c=((col%T)+T)%T;
-      if(v>=0&&v<S) return fwPx(c,v);
-      const qi=(c/S)|0, fu=c%S;
-      if(v>=S){
-        const ov=v-M;
-        if(ov>=S) return -1;
-        // Top face (4): mapping depends on which side face
-        if(qi===0) return faceMap[4][(M-ov)*S+fu];
-        if(qi===1) return faceMap[4][(M-fu)*S+(M-ov)];
-        if(qi===2) return faceMap[4][ov*S+(M-fu)];
-        return faceMap[4][fu*S+ov];
-      }
-      // v<0: bottom face (5)
-      const ov=-v;
-      if(ov>=S) return -1;
-      if(qi===0) return faceMap[5][ov*S+fu];
-      if(qi===1) return faceMap[5][fu*S+(M-ov)];
-      if(qi===2) return faceMap[5][(M-ov)*S+(M-fu)];
-      return faceMap[5][(M-fu)*S+ov];
-    }
     function setPx3d(col,v,r,g,b){
-      const idx=lgIdx(col,v); if(idx<0) return;
+      const idx=cubePx(col,v); if(idx<0) return;
       colBuf[idx*3]=Math.max(colBuf[idx*3],r);
       colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],g);
       colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],b);
@@ -617,6 +595,38 @@ function effectSphere(dt) {
   }
 }
 
+// ═══════════════════════════════════════════════════
+//  CUBE PIXEL MAPPING — unified (col, v) → LED index
+//  col wraps horizontally across 4 side faces (0..S*4-1)
+//  v is vertical: 0..S-1 = side faces, v>=S = top face, v<0 = bottom face
+//  FW_FACES = [0,2,1,3] — clockwise physical face order
+// ═══════════════════════════════════════════════════
+const FW_FACES = [0,2,1,3];
+
+function cubePx(col, v) {
+  const S = SIZE, T = S * 4, M = S - 1;
+  const c = ((col % T) + T) % T;
+  const qi = (c / S) | 0;
+  const fu = c % S;
+  if (v >= 0 && v < S) return faceMap[FW_FACES[qi]][v * S + fu];
+  if (v >= S) {
+    const ov = v - M;
+    if (ov < 0 || ov >= S) return -1;
+    if (qi === 0) return faceMap[4][(M - ov) * S + fu];
+    if (qi === 1) return faceMap[4][(M - fu) * S + (M - ov)];
+    if (qi === 2) return faceMap[4][ov * S + (M - fu)];
+    return faceMap[4][fu * S + ov];
+  }
+  const ov = -v;
+  if (ov < 0 || ov >= S) return -1;
+  if (qi === 0) return faceMap[5][ov * S + fu];
+  if (qi === 1) return faceMap[5][fu * S + (M - ov)];
+  if (qi === 2) return faceMap[5][(M - ov) * S + (M - fu)];
+  return faceMap[5][(M - fu) * S + ov];
+}
+
+function fwPx(col, v) { return cubePx(col, v); }
+
 // ── FIREWORKS — cross-face rockets & explosions on 4 side panels ──
 const fwParticles = []; // kept for reset compatibility
 const fwRockets = [];
@@ -627,16 +637,6 @@ let fwSyncT = 0, fwSyncPhase = 0, fwSyncStep = 0;
 let fwMicOn = false, fwMicCtx = null, fwMicAnalyser = null, fwMicBuf = null;
 let fwMicBass = 0, fwMicMid = 0, fwMicHigh = 0, fwMicEnergy = 0;
 let fwMicCooldown = 0;
-const FW_FACES = [0,2,1,3]; // clockwise physical face order
-
-function fwPx(col, v) {
-  const S = SIZE, total = S * 4;
-  const c = ((col % total) + total) % total;
-  const qi = (c / S) | 0;
-  const fu = c % S;
-  if (v < 0 || v >= S) return -1;
-  return faceMap[FW_FACES[qi]][v * S + fu];
-}
 
 function fwSet(idx, r, g, b) {
   if (idx < 0) return;
