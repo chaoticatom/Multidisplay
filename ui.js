@@ -2992,7 +2992,7 @@ function animate(now){
       }
       for(let i=0;i<N*3;i++) colBuf[i]=accumBuf[i];
     } else if(currentEffect && EFFECTS[currentEffect]){
-      EFFECTS[currentEffect](dt*speedMult);
+      if(!(activeAlarm&&activeAlarm.phase==='done')) EFFECTS[currentEffect](dt*speedMult);
     }
   } else if(clearPending){
     for(let i=0;i<N*3;i++) colBuf[i]=0;
@@ -3000,6 +3000,12 @@ function animate(now){
   }
   runOverlays(dt);
   if(plTransActive) plApplyTransition();
+
+  // ── Wind-down done: keep display blanked ──
+  if(activeAlarm&&activeAlarm.phase==='done'){
+    for(let i=0;i<N*3;i++) colBuf[i]=0;
+    brightness=0;
+  }
 
   // ── Pre-alarm brightness ramp + sunrise rendering ──
   if(activeAlarm&&activeAlarm.phase==='pre'&&!activeAlarm.dismissed){
@@ -3009,7 +3015,7 @@ function animate(now){
     const progress=windDown?1-rawProgress:rawProgress;
     const startBright=activeAlarm.al.prealarm?.startBright||5;
     // Ramp brightness: wake=dim→bright, wind-down=bright→dim
-    brightness=windDown?Math.max(startBright/100,1-Math.pow(rawProgress,1.5)):Math.max(startBright/100,Math.pow(progress,1.5));
+    brightness=windDown?Math.max(0,1-Math.pow(rawProgress,1.5)):Math.max(startBright/100,Math.pow(progress,1.5));
     const bSlider=document.getElementById('bright-slider');
     if(bSlider) bSlider.value=Math.round(brightness*100);
     // Transition to main alarm exactly when progress reaches 1.0
