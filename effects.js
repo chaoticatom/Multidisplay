@@ -340,19 +340,16 @@ function effectSphere(dt) {
       drawLine(slU0+normU*dv,slV0+normV*dv,slU1+normU*dv,slV1+normV*dv,gb);
     }
 
-    // 6 rays from center to points along scan line
-    // Use a minimum distance so rays always fan out visibly
-    const absDist=Math.abs(scanV-cy);
-    const rayLen=Math.max(absDist,6)*expandEase;
-    const rayDir=scanV>=cy?1:-1;
+    // 6 rays from center to points along the scan line
     for(let ri=0;ri<nRays;ri++){
       const frac=ri/(nRays-1);
-      // Ray endpoint: spread along scan line direction
-      const spreadU=(frac-0.5)*(S-1)*expandEase;
-      const endU=cx+spreadU*cosA-rayLen*rayDir*sinA;
-      const endV=cy+spreadU*sinA+rayLen*rayDir*cosA;
+      const tU=slU0+(slU1-slU0)*frac;
+      const tV=slV0+(slV1-slV0)*frac;
+      const endU=cx+(tU-cx)*expandEase;
+      const endV=cy+(tV-cy)*expandEase;
       const dx=endU-cx, dy=endV-cy;
       const steps=Math.max(Math.abs(dx),Math.abs(dy),1)|0;
+      if(steps<2) continue;
       for(let s=0;s<=steps;s++){
         const ft=s/steps;
         const u=Math.round(cx+dx*ft);
