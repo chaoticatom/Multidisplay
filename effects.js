@@ -459,8 +459,19 @@ function effectSphere(dt) {
       if(_lgIsVert){
         const c=((col%T)+T)%T;
         const qi=(c/S)|0;
+        const fu=c%S;
         if(v>=0&&v<S&&(qi===1||qi===3)) return;
-        if(v<0) v=-(M-(-v-1))-1;
+        if(v<0&&v>=-S) v=-(M-(-v-1))-1;
+        if(v>=2*S||v<-S){
+          col=2*S+(M-fu);
+          v=v>=2*S ? 3*S-1-v : -v-S-1;
+          if(v<0||v>=S) return;
+          const idx2=cubePx(col,v); if(idx2<0) return;
+          colBuf[idx2*3]=Math.max(colBuf[idx2*3],r);
+          colBuf[idx2*3+1]=Math.max(colBuf[idx2*3+1],g);
+          colBuf[idx2*3+2]=Math.max(colBuf[idx2*3+2],b);
+          return;
+        }
       }
       const idx=cubePx(col,v); if(idx<0) return;
       colBuf[idx*3]=Math.max(colBuf[idx*3],r);
@@ -473,7 +484,7 @@ function effectSphere(dt) {
       for(let i=0;i<=ls;i++){
         const ft=i/ls;
         const u=Math.round(x0+ldx*ft), v=Math.round(y0+ldy*ft);
-        if(v<-S||v>=2*S) continue;
+        if(v<-2*S||v>=3*S) continue;
         setPx3d(u,v,cR*bright,cG*bright,cB*bright);
       }
     }
@@ -488,13 +499,13 @@ function effectSphere(dt) {
     const scanCU3d=_lgIsVert ? ccx+scanFrac*((S-1)/2) : ccx;
     const scanCV3d=_lgIsVert ? cy : scanV;
     // Bar extends along its rotated direction from the scan point
-    // Horizontal: extends ±T/2 in col; Vertical: extends ±S*1.5 in v (top+side+bottom)
+    // Horizontal: extends ±T/2 in col; Vertical: extends ±S*2.5 in v (full ring: front+top+back+bottom)
     const barHalfU=cosA*(T/2);
-    const barHalfV=sinA*(S*1.5);
+    const barHalfV=sinA*(S*2.5);
     const sl3U0=scanCU3d+barHalfU, sl3V0=scanCV3d+barHalfV;
     const sl3U1=scanCU3d-barHalfU, sl3V1=scanCV3d-barHalfV;
 
-    // Full scan line + back face copy when vertical
+    // Full scan line
     const slB3=0.9*expandEase;
     const normU3=-sinA, normV3=cosA;
     drawLine3d(sl3U0,sl3V0,sl3U1,sl3V1,slB3);
@@ -502,18 +513,6 @@ function effectSphere(dt) {
       if(dv===0) continue;
       const gb=(1-Math.abs(dv)/4)*0.18*expandEase;
       drawLine3d(sl3U0+normU3*dv,sl3V0+normV3*dv,sl3U1+normU3*dv,sl3V1+normV3*dv,gb);
-    }
-    if(_lgIsVert){
-      const bk=T/2;
-      for(let v=0;v<S;v++){
-        const u=Math.round(scanCU3d+bk);
-        setPx3d(u,v,cR*slB3,cG*slB3,cB*slB3);
-        for(let dd=-3;dd<=3;dd++){
-          if(dd===0) continue;
-          const gb=(1-Math.abs(dd)/4)*0.18*expandEase;
-          setPx3d(u+dd,v,cR*gb,cG*gb,cB*gb);
-        }
-      }
     }
 
     // Rays from single center to scan line
@@ -573,7 +572,7 @@ function effectSphere(dt) {
       const ev=Math.round(cy+(tV-cy)*expandEase);
       for(let ddv=-1;ddv<=1;ddv++) for(let ddu=-1;ddu<=1;ddu++){
         const v=ev+ddv;
-        if(v<-S||v>=2*S) continue;
+        if(v<-2*S||v>=3*S) continue;
         const r=Math.sqrt(ddu*ddu+ddv*ddv);
         const b=Math.max(0,1-r/1.5)*0.8*expandEase;
         setPx3d(eu+ddu,v,cR*b,cG*b,cB*b);
