@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=506">
+<link rel="stylesheet" href="style.css?v=507">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -825,7 +825,10 @@
       <select id="al-playlist" style="width:100%;margin:5px 0 12px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;"><option value="">— none —</option></select>
     </div>
 
-    <!-- SUNRISE SECTION -->
+    <label style="font-size:13px;color:#99b;letter-spacing:1px;font-weight:600;margin-top:4px;display:block;">MESSAGE</label>
+    <input id="al-message" type="text" placeholder="Good Morning! 🌅" style="width:100%;margin:5px 0 12px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:14px;border-radius:5px;box-sizing:border-box;">
+
+    <!-- PRE-ALARM SECTION -->
     <div style="border-top:1px solid rgba(80,120,255,0.15);padding-top:12px;margin-top:4px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
         <span id="al-sunrise-tog" style="display:inline-block;width:32px;height:17px;border-radius:9px;position:relative;cursor:pointer;background:rgba(60,70,100,0.8);border:1px solid rgba(80,120,255,0.3);transition:all 0.2s;">
@@ -834,34 +837,6 @@
         <span style="font-size:14px;color:#9cd;font-weight:700;">🌅 Pre-Alarm</span>
       </div>
       <div id="al-sunrise-opts" style="display:none;padding:8px;background:rgba(0,0,0,0.25);border-radius:6px;border:1px solid rgba(80,120,255,0.12);">
-        <!-- Giant Sun toggle -->
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-          <span id="al-giant-sun-tog" style="display:inline-block;width:28px;height:15px;border-radius:8px;position:relative;cursor:pointer;flex-shrink:0;background:rgba(60,70,100,0.8);border:1px solid rgba(80,120,255,0.3);transition:all 0.2s;">
-            <span id="al-giant-sun-knob" style="position:absolute;top:2px;left:3px;width:9px;height:9px;border-radius:50%;background:#668;transition:all 0.2s;"></span>
-          </span>
-          <span style="font-size:12px;color:#9cd;font-weight:600;">Giant Sun Rise</span>
-        </div>
-        <!-- Effect toggle -->
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-          <span id="al-effect-rise-tog" style="display:inline-block;width:28px;height:15px;border-radius:8px;position:relative;cursor:pointer;flex-shrink:0;background:rgba(60,70,100,0.8);border:1px solid rgba(80,120,255,0.3);transition:all 0.2s;">
-            <span id="al-effect-rise-knob" style="position:absolute;top:2px;left:3px;width:9px;height:9px;border-radius:50%;background:#668;transition:all 0.2s;"></span>
-          </span>
-          <span style="font-size:12px;color:#9cd;font-weight:600;">Effect</span>
-        </div>
-        <!-- Effect chooser -->
-        <div id="al-effect-rise-opts" style="display:none;margin-bottom:10px;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px;">
-          <select id="al-effect-rise-select" style="width:100%;padding:5px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:12px;border-radius:4px;margin-bottom:6px;"></select>
-          <!-- Weather city sub-option -->
-          <div id="al-effect-rise-city-row" style="display:none;">
-            <label style="font-size:11px;color:#99b;display:block;margin-bottom:3px;">City</label>
-            <div style="position:relative;">
-              <input id="al-effect-rise-city" type="text" placeholder="Search cities…" style="width:100%;padding:5px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:12px;border-radius:4px;">
-              <div id="al-effect-rise-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:120px;overflow-y:auto;z-index:1000;margin-top:2px;"></div>
-            </div>
-          </div>
-          <!-- Effect-specific options -->
-          <div id="al-effect-rise-effect-opts" style="display:none;margin-top:6px;"></div>
-        </div>
         <!-- Timing -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
           <span style="font-size:13px;color:#99b;flex:0 0 130px;">Start (mins before)</span>
@@ -872,18 +847,54 @@
           <input type="range" id="al-dim-start" min="1" max="30" value="5" style="flex:1;">
           <span id="al-dim-val" style="font-size:13px;color:#9cd;width:32px;font-weight:600;">5%</span>
         </div>
-        <div style="font-size:10px;color:#556;line-height:1.5;">Gradually brightens from dim to full exactly at alarm time.</div>
-        <label style="display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer;">
-          <input type="checkbox" id="al-wind-down"> <span style="font-size:12px;color:#99b;">Wind down (bright → dim)</span>
-        </label>
-        <label id="al-wd-effect-row" style="display:none;align-items:center;gap:6px;margin-top:4px;cursor:pointer;">
-          <input type="checkbox" id="al-wd-use-effect"> <span style="font-size:12px;color:#99b;">Use current effect</span>
-        </label>
+
+        <!-- Mode: Wake Up -->
+        <div style="border-top:1px solid rgba(80,120,255,0.1);margin:10px 0 8px;padding-top:8px;">
+          <div style="font-size:11px;color:#7aadff;font-weight:700;letter-spacing:1px;margin-bottom:6px;">WAKE UP (dim → bright)</div>
+          <div style="font-size:10px;color:#556;line-height:1.5;margin-bottom:8px;">Gradually brightens from dim to full exactly at alarm time.</div>
+          <!-- Giant Sun toggle -->
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <span id="al-giant-sun-tog" style="display:inline-block;width:28px;height:15px;border-radius:8px;position:relative;cursor:pointer;flex-shrink:0;background:rgba(60,70,100,0.8);border:1px solid rgba(80,120,255,0.3);transition:all 0.2s;">
+              <span id="al-giant-sun-knob" style="position:absolute;top:2px;left:3px;width:9px;height:9px;border-radius:50%;background:#668;transition:all 0.2s;"></span>
+            </span>
+            <span style="font-size:12px;color:#9cd;font-weight:600;">Giant Sun Rise</span>
+          </div>
+          <!-- Effect toggle -->
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <span id="al-effect-rise-tog" style="display:inline-block;width:28px;height:15px;border-radius:8px;position:relative;cursor:pointer;flex-shrink:0;background:rgba(60,70,100,0.8);border:1px solid rgba(80,120,255,0.3);transition:all 0.2s;">
+              <span id="al-effect-rise-knob" style="position:absolute;top:2px;left:3px;width:9px;height:9px;border-radius:50%;background:#668;transition:all 0.2s;"></span>
+            </span>
+            <span style="font-size:12px;color:#9cd;font-weight:600;">Effect</span>
+          </div>
+          <!-- Effect chooser -->
+          <div id="al-effect-rise-opts" style="display:none;margin-bottom:10px;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px;">
+            <select id="al-effect-rise-select" style="width:100%;padding:5px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:12px;border-radius:4px;margin-bottom:6px;"></select>
+            <!-- Weather city sub-option -->
+            <div id="al-effect-rise-city-row" style="display:none;">
+              <label style="font-size:11px;color:#99b;display:block;margin-bottom:3px;">City</label>
+              <div style="position:relative;">
+                <input id="al-effect-rise-city" type="text" placeholder="Search cities…" style="width:100%;padding:5px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:12px;border-radius:4px;">
+                <div id="al-effect-rise-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:120px;overflow-y:auto;z-index:1000;margin-top:2px;"></div>
+              </div>
+            </div>
+            <!-- Effect-specific options -->
+            <div id="al-effect-rise-effect-opts" style="display:none;margin-top:6px;"></div>
+          </div>
+        </div>
+
+        <!-- Mode: Wind Down -->
+        <div style="border-top:1px solid rgba(80,120,255,0.1);margin:4px 0 0;padding-top:8px;">
+          <div style="font-size:11px;color:#7aadff;font-weight:700;letter-spacing:1px;margin-bottom:6px;">WIND DOWN (bright → dim)</div>
+          <div style="font-size:10px;color:#556;line-height:1.5;margin-bottom:6px;">Dims from full brightness to off. Displays blank at end.</div>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="al-wind-down"> <span style="font-size:12px;color:#99b;">Enable wind down</span>
+          </label>
+          <label id="al-wd-effect-row" style="display:none;align-items:center;gap:6px;margin-top:4px;cursor:pointer;">
+            <input type="checkbox" id="al-wd-use-effect"> <span style="font-size:12px;color:#99b;">Use current effect</span>
+          </label>
+        </div>
       </div>
     </div>
-
-    <label style="font-size:13px;color:#99b;letter-spacing:1px;font-weight:600;margin-top:12px;display:block;">WAKE MESSAGE</label>
-    <input id="al-message" type="text" placeholder="Good Morning! 🌅" style="width:100%;margin:5px 0 16px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:14px;border-radius:5px;box-sizing:border-box;">
 
     <div style="display:flex;gap:8px;">
       <button id="al-save-btn" style="flex:1;padding:11px;background:rgba(60,220,120,0.15);border:1px solid rgba(60,220,120,0.35);color:#6e8;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;">💾 SAVE</button>
@@ -973,7 +984,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=506"></script>
+<script src="version.js?v=507"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -1008,7 +1019,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=506','effects.js?v=506','f1.js?v=506','ui.js?v=506'];
+  const appScripts = ['cube.js?v=507','effects.js?v=507','f1.js?v=507','ui.js?v=507'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
