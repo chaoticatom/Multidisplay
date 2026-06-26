@@ -1381,7 +1381,7 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
     if(currentEffect==='warp') warpStars=[];
     if(currentEffect==='life') lifeGrid=null;
     if(currentEffect==='fluid') fluidH=null;
-    fwParticles.length=0; t=0; sphT=0; _lgState='expand'; _lgStateT=0; _lgScanT=0; _lgBaseAngle=0; _lgFlatT=-1;
+    fwParticles.length=0; t=0; sphT=0; _lgState='expand'; _lgStateT=0; _lgScanT=0; _lgBaseAngle=0; _lgFlatT=-1; _lgPulseT=-1; _lgColSweepT=-1; _lgWaveT=-1; _lgDblScanT=-1; _lgCollapsePhase=0; _lgRoutineIdx=0;
   });
 });
 

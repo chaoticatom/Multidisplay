@@ -226,7 +226,9 @@ let sphT=0;
 
 let _lgScanT=0, _lgBaseAngle=0, _lgState='expand', _lgStateT=0;
 let _lgSpinTarget=0, _lgFlatT=-1, _lgFlatAlpha=0;
-const _lgFlatGrid=new Float32Array(0); // placeholder
+let _lgPulseT=-1, _lgColSweepT=-1, _lgWaveT=-1;
+let _lgDblScanT=-1, _lgCollapsePhase=0;
+let _lgRoutineIdx=0;
 
 function effectSphere(dt) {
   t+=dt; sphT+=dt;
@@ -240,19 +242,46 @@ function effectSphere(dt) {
   // Smooth colour cycle with subtle flicker
   const hp=time*0.15;
   const flicker=0.92+0.08*Math.sin(time*47.3)*Math.sin(time*31.7);
-  const cR=(0.15+0.85*Math.max(0,Math.sin(hp)))*flicker;
-  const cG=(0.3+0.7*Math.max(0,Math.sin(hp+2.094)))*flicker;
-  const cB=(0.1+0.9*Math.max(0,Math.sin(hp+4.189)))*flicker;
+  // Color sweep: shift hue rapidly when active
+  let hpOff=0;
+  if(_lgColSweepT>=0){
+    _lgColSweepT+=dt;
+    const sweepDur=4.0;
+    if(_lgColSweepT>=sweepDur) _lgColSweepT=-1;
+    else hpOff=_lgColSweepT*2.5;
+  }
+  const hpFinal=hp+hpOff;
+  // Pulse: modulate brightness
+  let pulseMul=1;
+  if(_lgPulseT>=0){
+    _lgPulseT+=dt;
+    const pulseDur=5.0;
+    if(_lgPulseT>=pulseDur) _lgPulseT=-1;
+    else pulseMul=0.4+0.6*Math.abs(Math.sin(_lgPulseT*Math.PI*2.5));
+  }
+  const cR=(0.15+0.85*Math.max(0,Math.sin(hpFinal)))*flicker*pulseMul;
+  const cG=(0.3+0.7*Math.max(0,Math.sin(hpFinal+2.094)))*flicker*pulseMul;
+  const cB=(0.1+0.9*Math.max(0,Math.sin(hpFinal+4.189)))*flicker*pulseMul;
+
+  // Wave timer (runs independently)
+  let waveOffset=0;
+  if(_lgWaveT>=0){
+    _lgWaveT+=dt;
+    const waveDur=5.0;
+    if(_lgWaveT>=waveDur) _lgWaveT=-1;
+    else waveOffset=_lgWaveT;
+  }
 
   // State machine
   _lgStateT+=dt;
   const expandDur=2.0, scanPeriod=3.0, spinDur=1.5;
+  const collapseDur=1.2, reExpandDur=1.5;
   let expandEase=1, scanV=cy, spinAngle=_lgBaseAngle;
+  let scanV2=-1; // second scan line for double scan
 
   if(_lgState==='expand'){
     const p=Math.min(_lgStateT/expandDur,1);
     expandEase=p*p;
-    // Start scanning during expand — rays grow while line moves
     _lgScanT+=dt;
     const sp=(_lgScanT%scanPeriod)/scanPeriod;
     const raw=sp<0.5?sp*2:2-sp*2;
@@ -267,18 +296,48 @@ function effectSphere(dt) {
     const raw=sp<0.5?sp*2:2-sp*2;
     scanV=cy+(raw-0.5)*2*(S-1)/2;
     scanV=Math.max(0,Math.min(S-1,scanV));
-    // Trigger spin when scan line near center (within 2px)
-    if(_lgStateT>5.0 && Math.abs(scanV-cy)<2){
-      _lgState='spin';
-      _lgStateT=0;
-      // Randomly pick 90° or 360°
-      _lgSpinTarget=((_lgScanT*7|0)%3===0)?Math.PI/2:Math.PI*2;
-      scanV=cy;
+    // Double scan: second bar going opposite direction
+    if(_lgDblScanT>=0){
+      _lgDblScanT+=dt;
+      const dblDur=6.0;
+      if(_lgDblScanT>=dblDur) _lgDblScanT=-1;
+      else{
+        const sp2=((_lgScanT+scanPeriod/2)%scanPeriod)/scanPeriod;
+        const raw2=sp2<0.5?sp2*2:2-sp2*2;
+        scanV2=cy+(raw2-0.5)*2*(S-1)/2;
+        scanV2=Math.max(0,Math.min(S-1,scanV2));
+      }
     }
-    // Trigger flat grid overlay occasionally
-    if(_lgFlatT<0 && _lgStateT>8.0){
-      _lgFlatT=0;
-      _lgStateT=0;
+    // Trigger routines when scan near center
+    if(_lgStateT>6.0 && Math.abs(scanV-cy)<2){
+      const routines=['spin','collapse','dblscan','pulse','colsweep','wave','flat','spin'];
+      const pick=routines[_lgRoutineIdx%routines.length];
+      _lgRoutineIdx++;
+      if(pick==='spin'){
+        _lgState='spin';
+        _lgStateT=0;
+        _lgSpinTarget=((_lgScanT*7|0)%3===0)?Math.PI/2:Math.PI*2;
+        scanV=cy;
+      } else if(pick==='collapse'){
+        _lgState='collapse';
+        _lgStateT=0;
+        _lgCollapsePhase=0;
+      } else if(pick==='dblscan'){
+        _lgDblScanT=0;
+        _lgStateT=0;
+      } else if(pick==='pulse'){
+        _lgPulseT=0;
+        _lgStateT=0;
+      } else if(pick==='colsweep'){
+        _lgColSweepT=0;
+        _lgStateT=0;
+      } else if(pick==='wave'){
+        _lgWaveT=0;
+        _lgStateT=0;
+      } else if(pick==='flat'){
+        _lgFlatT=0;
+        _lgStateT=0;
+      }
     }
   }
 
@@ -289,10 +348,30 @@ function effectSphere(dt) {
     spinAngle=_lgBaseAngle+ease*_lgSpinTarget;
     if(p>=1){
       _lgBaseAngle=_lgBaseAngle+_lgSpinTarget;
-      // Normalise angle
       while(_lgBaseAngle>Math.PI*2) _lgBaseAngle-=Math.PI*2;
       _lgState='scan';
       _lgStateT=0;
+    }
+  }
+
+  if(_lgState==='collapse'){
+    _lgScanT+=dt;
+    const sp=(_lgScanT%scanPeriod)/scanPeriod;
+    const raw=sp<0.5?sp*2:2-sp*2;
+    if(_lgCollapsePhase===0){
+      // Collapse: rays retract to center
+      const p=Math.min(_lgStateT/collapseDur,1);
+      expandEase=1-p*p;
+      scanV=cy+(raw-0.5)*2*expandEase*(S-1)/2;
+      scanV=Math.max(0,Math.min(S-1,scanV));
+      if(p>=1){_lgCollapsePhase=1; _lgStateT=0;}
+    } else {
+      // Re-expand
+      const p=Math.min(_lgStateT/reExpandDur,1);
+      expandEase=p*p;
+      scanV=cy+(raw-0.5)*2*expandEase*(S-1)/2;
+      scanV=Math.max(0,Math.min(S-1,scanV));
+      if(p>=1){_lgState='scan'; _lgStateT=0;}
     }
   }
 
@@ -360,11 +439,29 @@ function effectSphere(dt) {
       }
     }
 
-    // Grid lines between rays (perspective)
+    // Double scan: second scan line going opposite direction
+    if(scanV2>=0){
+      const scanDist2=scanV2-cy;
+      const sCU2=cx-scanDist2*sinA, sCV2=cy+scanDist2*cosA;
+      const sU20=sCU2+cosA*slHalf, sV20=sCV2+sinA*slHalf;
+      const sU21=sCU2-cosA*slHalf, sV21=sCV2-sinA*slHalf;
+      drawLine(sU20,sV20,sU21,sV21,slB*0.7);
+      for(let dv=-2;dv<=2;dv++){
+        if(dv===0) continue;
+        const gb=(1-Math.abs(dv)/3)*0.12*expandEase;
+        drawLine(sU20+normU*dv,sV20+normV*dv,sU21+normU*dv,sV21+normV*dv,gb);
+      }
+    }
+
+    // Grid lines between rays (perspective) with optional wave
     function drawGrid(lineU0,lineU1,lineV0,lineV1,brightness){
       for(let hi=1;hi<=nHLines;hi++){
         const frac=hi/(nHLines+1);
-        const pFrac=frac*frac;
+        let pFrac=frac*frac;
+        if(waveOffset>0){
+          const wAmp=0.15*Math.sin(waveOffset*3-hi*0.8);
+          pFrac=Math.max(0.01,Math.min(0.99,pFrac+wAmp));
+        }
         for(let ri=0;ri<nRays-1;ri++){
           const fA=ri/(nRays-1), fB=(ri+1)/(nRays-1);
           const aU=lineU0+(lineU1-lineU0)*fA, aV=lineV0+(lineV1-lineV0)*fA;
@@ -515,6 +612,21 @@ function effectSphere(dt) {
       drawLine3d(sl3U0+normU3*dv,sl3V0+normV3*dv,sl3U1+normU3*dv,sl3V1+normV3*dv,gb);
     }
 
+    // Double scan: second scan line in 3D
+    if(scanV2>=0){
+      const sf2=(scanV2-cy)/((S-1)/2);
+      const sCU2=_lgIsVert?ccx+sf2*((S-1)/2):ccx;
+      const sCV2=_lgIsVert?cy:scanV2;
+      const s2U0=sCU2+barHalfU, s2V0=sCV2+barHalfV;
+      const s2U1=sCU2-barHalfU, s2V1=sCV2-barHalfV;
+      drawLine3d(s2U0,s2V0,s2U1,s2V1,slB3*0.7);
+      for(let dv=-2;dv<=2;dv++){
+        if(dv===0) continue;
+        const gb=(1-Math.abs(dv)/3)*0.12*expandEase;
+        drawLine3d(s2U0+normU3*dv,s2V0+normV3*dv,s2U1+normU3*dv,s2V1+normV3*dv,gb);
+      }
+    }
+
     // Rays from single center to scan line
     const nRays3d=6;
     for(let ri=0;ri<nRays3d;ri++){
@@ -535,12 +647,16 @@ function effectSphere(dt) {
       }
     }
 
-    // Grid lines between rays (perspective)
+    // Grid lines between rays (perspective) with optional wave
     if(expandEase>0.3){
       const gridB3=0.25*(expandEase-0.3)/0.7;
       for(let hi=1;hi<=nHLines;hi++){
         const frac=hi/(nHLines+1);
-        const pFrac=frac*frac;
+        let pFrac=frac*frac;
+        if(waveOffset>0){
+          const wAmp=0.15*Math.sin(waveOffset*3-hi*0.8);
+          pFrac=Math.max(0.01,Math.min(0.99,pFrac+wAmp));
+        }
         for(let ri=0;ri<nRays3d-1;ri++){
           const fA=ri/(nRays3d-1), fB=(ri+1)/(nRays3d-1);
           const aU=sl3U0+(sl3U1-sl3U0)*fA, aV=sl3V0+(sl3V1-sl3V0)*fA;
