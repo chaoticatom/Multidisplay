@@ -451,12 +451,33 @@ function effectSphere(dt) {
       colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],b);
     });
   } else {
-    // 3D: one vanishing point, rays and scan line wrap across all 4 side faces via fwPx
-    const T=S*4; // total cols across 4 faces
-    const ccx=Math.round(S/2); // center col on face 0
-    function setPx3d(col,v,r,g,b){
+    // 3D: one vanishing point, rays and scan line wrap across all 4+2 faces via fwPx
+    const T=S*4, M=S-1;
+    const ccx=Math.round(S/2);
+    // Map (col, v) to LED index, extending onto top/bottom faces when v overflows
+    function lgIdx(col,v){
       const c=((col%T)+T)%T;
-      const idx=fwPx(c,v); if(idx<0) return;
+      if(v>=0&&v<S) return fwPx(c,v);
+      const qi=(c/S)|0, fu=c%S;
+      if(v>=S){
+        const ov=v-M;
+        if(ov>=S) return -1;
+        // Top face (4): mapping depends on which side face
+        if(qi===0) return faceMap[4][(M-ov)*S+fu];
+        if(qi===1) return faceMap[4][(M-fu)*S+(M-ov)];
+        if(qi===2) return faceMap[4][ov*S+(M-fu)];
+        return faceMap[4][fu*S+ov];
+      }
+      // v<0: bottom face (5)
+      const ov=-v;
+      if(ov>=S) return -1;
+      if(qi===0) return faceMap[5][ov*S+fu];
+      if(qi===1) return faceMap[5][fu*S+(M-ov)];
+      if(qi===2) return faceMap[5][(M-ov)*S+(M-fu)];
+      return faceMap[5][(M-fu)*S+ov];
+    }
+    function setPx3d(col,v,r,g,b){
+      const idx=lgIdx(col,v); if(idx<0) return;
       colBuf[idx*3]=Math.max(colBuf[idx*3],r);
       colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],g);
       colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],b);
@@ -467,16 +488,18 @@ function effectSphere(dt) {
       for(let i=0;i<=ls;i++){
         const ft=i/ls;
         const u=Math.round(x0+ldx*ft), v=Math.round(y0+ldy*ft);
-        if(v<0||v>=S) continue;
+        if(v<-M||v>=S+M) continue;
         setPx3d(u,v,cR*bright,cG*bright,cB*bright);
       }
     }
 
-    // Scan line: wraps full width across all 4 faces
+    // Scan line: wraps across all faces including top/bottom when rotated
     const scanDist=scanV-cy;
     const scanCV3d=cy+scanDist*cosA;
     const scanCU3d=ccx-scanDist*sinA;
-    const slHalf3d=T/2;
+    // Length covers full horizontal wrap (T/2) and vertical extent to top/bottom (S)
+    const slHalfU=T/2, slHalfV=S;
+    const slHalf3d=Math.sqrt(slHalfU*slHalfU*cosA*cosA+slHalfV*slHalfV*sinA*sinA)||slHalfU;
     const sl3U0=scanCU3d+cosA*slHalf3d, sl3V0=scanCV3d+sinA*slHalf3d;
     const sl3U1=scanCU3d-cosA*slHalf3d, sl3V1=scanCV3d-sinA*slHalf3d;
 
