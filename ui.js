@@ -857,7 +857,7 @@ function renderCountdown(timeStr){
   const scale=2;
   for(let fi=0;fi<4;fi++){
     const face=SIDE[fi];
-    const mir=(face===1||face===3);
+    const mir=(face===2||face===3);
     const chars=timeStr.length;
     const charW=3*scale+scale;
     const totalW=chars*charW-scale;
@@ -2878,7 +2878,7 @@ function animate(now){
 
       for(let fi=0;fi<4;fi++){
         const face=SIDE[fi];
-        const mir=(face===1||face===3);
+        const mir=(face===2||face===3);
         // First pass: dark shadow outline (1px offset in all directions)
         for(let li=0;li<lines.length;li++){
           const line=lines[li];
@@ -3144,7 +3144,7 @@ function animate(now){
           const vStart=Math.round((S2+totalH)/2);
           for(let fi=0;fi<4;fi++){
             const face=SIDE2[fi];
-            const mir=(face===1||face===3);
+            const mir=(face===2||face===3);
             for(let li=0;li<lines.length;li++){
               const line=lines[li];
               const lineW=line.length*charW-1;
