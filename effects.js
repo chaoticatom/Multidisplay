@@ -472,9 +472,11 @@ function effectSphere(dt) {
     }
 
     // Scan line: wraps across all faces including top/bottom when rotated
-    const scanDist=scanV-cy;
-    const scanCV3d=cy+scanDist*cosA;
-    const scanCU3d=ccx-scanDist*sinA;
+    // Scale scan distance: vertical sweep is S/2, horizontal sweep needs T/2
+    const scanFrac=(scanV-cy)/((S-1)/2); // -1 to +1
+    const hScale=T/2, vScale=(S-1)/2;
+    const scanCV3d=cy+scanFrac*vScale*cosA;
+    const scanCU3d=ccx-scanFrac*hScale*sinA;
     // Length covers full horizontal wrap (T/2) and vertical extent to top/bottom (S)
     const slHalfU=T/2, slHalfV=S*1.5;
     const slHalf3d=Math.sqrt(slHalfU*slHalfU*cosA*cosA+slHalfV*slHalfV*sinA*sinA)||slHalfU;
