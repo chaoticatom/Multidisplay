@@ -476,7 +476,7 @@ function effectSphere(dt) {
     const scanCV3d=cy+scanDist*cosA;
     const scanCU3d=ccx-scanDist*sinA;
     // Length covers full horizontal wrap (T/2) and vertical extent to top/bottom (S)
-    const slHalfU=T/2, slHalfV=S;
+    const slHalfU=T/2, slHalfV=S*1.5;
     const slHalf3d=Math.sqrt(slHalfU*slHalfU*cosA*cosA+slHalfV*slHalfV*sinA*sinA)||slHalfU;
     const sl3U0=scanCU3d+cosA*slHalf3d, sl3V0=scanCV3d+sinA*slHalf3d;
     const sl3U1=scanCU3d-cosA*slHalf3d, sl3V1=scanCV3d-sinA*slHalf3d;
@@ -610,15 +610,16 @@ function cubePx(col, v) {
   const fu = c % S;
   if (v >= 0 && v < S) return faceMap[FW_FACES[qi]][v * S + fu];
   if (v >= S) {
-    const ov = v - M;
-    if (ov < 0 || ov >= S) return -1;
+    const ov = v - S; // 0-based: ov=0 is the edge row adjacent to side face top
+    if (ov >= S) return -1;
     if (qi === 0) return faceMap[4][(M - ov) * S + fu];
     if (qi === 1) return faceMap[4][(M - fu) * S + (M - ov)];
     if (qi === 2) return faceMap[4][ov * S + (M - fu)];
     return faceMap[4][fu * S + ov];
   }
-  const ov = -v;
-  if (ov < 0 || ov >= S) return -1;
+  // v < 0: bottom face
+  const ov = -v - 1; // 0-based: ov=0 is the edge row adjacent to side face bottom
+  if (ov >= S) return -1;
   if (qi === 0) return faceMap[5][ov * S + fu];
   if (qi === 1) return faceMap[5][fu * S + (M - ov)];
   if (qi === 2) return faceMap[5][(M - ov) * S + (M - fu)];
