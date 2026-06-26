@@ -12113,7 +12113,7 @@ function effectMoon(dt){
 
   const faces=panel2dMode?[0]:[0,1,2,3];
   const moonRad=Math.round(S*0.42);
-  const cx=Math.round(S/2), cy=Math.round(S/2)-4;
+  const cx=Math.round(S/2), cy=Math.round(S/2)+4;
 
   // Phase illumination: convert phase (0-1) to terminator position
   const illumAngle=phase*Math.PI*2;
@@ -12235,7 +12235,7 @@ function effectMoon(dt){
   if(needScroll) this._moonScrollX=(this._moonScrollX+dt*14)%(textW+S);
   else this._moonScrollX=0;
   const textBaseV=1;
-  const scrollOff=needScroll?Math.floor(this._moonScrollX-textW):Math.floor((S-textW)/2);
+  const scrollOff=needScroll?Math.floor(S-this._moonScrollX):Math.floor((S-textW)/2);
   const mFaces=panel2dMode?[0]:[0,1,2,3];
   for(let fi=0;fi<mFaces.length;fi++){
     const face=mFaces[fi];
