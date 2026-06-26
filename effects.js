@@ -494,15 +494,23 @@ function effectSphere(dt) {
     const sl3U0=scanCU3d+barHalfU, sl3V0=scanCV3d+barHalfV;
     const sl3U1=scanCU3d-barHalfU, sl3V1=scanCV3d-barHalfV;
 
-    // Full scan line
+    // Full scan line + back face copy when vertical
     const slB3=0.9*expandEase;
-    drawLine3d(sl3U0,sl3V0,sl3U1,sl3V1,slB3);
-    // Scan line glow
     const normU3=-sinA, normV3=cosA;
+    drawLine3d(sl3U0,sl3V0,sl3U1,sl3V1,slB3);
     for(let dv=-3;dv<=3;dv++){
       if(dv===0) continue;
       const gb=(1-Math.abs(dv)/4)*0.18*expandEase;
       drawLine3d(sl3U0+normU3*dv,sl3V0+normV3*dv,sl3U1+normU3*dv,sl3V1+normV3*dv,gb);
+    }
+    if(_lgIsVert){
+      const bk=T/2;
+      drawLine3d(sl3U0+bk,sl3V0,sl3U1+bk,sl3V1,slB3);
+      for(let dv=-3;dv<=3;dv++){
+        if(dv===0) continue;
+        const gb=(1-Math.abs(dv)/4)*0.18*expandEase;
+        drawLine3d(sl3U0+bk+normU3*dv,sl3V0+normV3*dv,sl3U1+bk+normU3*dv,sl3V1+normV3*dv,gb);
+      }
     }
 
     // Rays from single center to scan line
