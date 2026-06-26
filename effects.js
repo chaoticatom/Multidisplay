@@ -454,7 +454,14 @@ function effectSphere(dt) {
     // 3D: one vanishing point, rays and scan line wrap across all 4+2 faces via fwPx
     const T=S*4, M=S-1;
     const ccx=Math.round(S/2);
+    let _lgIsVert=false;
     function setPx3d(col,v,r,g,b){
+      if(_lgIsVert){
+        const c=((col%T)+T)%T;
+        const qi=(c/S)|0;
+        if(v>=0&&v<S&&(qi===1||qi===3)) return;
+        if(v>=S) col=qi*S+(M-(c%S));
+      }
       const idx=cubePx(col,v); if(idx<0) return;
       colBuf[idx*3]=Math.max(colBuf[idx*3],r);
       colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],g);
@@ -475,10 +482,10 @@ function effectSphere(dt) {
     // Horizontal: bar spans all 4 side faces, scan sweeps vertically
     // Vertical: bar spans top+front+bottom, scan sweeps across front+back only
     const absS=Math.abs(sinA), absC=Math.abs(cosA);
-    const isVert=absS>absC;
+    _lgIsVert=absS>absC;
     const scanFrac=(scanV-cy)/((S-1)/2); // -1 to +1
-    // Scan perpendicular distance: vertical mode sweeps ±S/2 horizontally (front+back), horizontal sweeps full
-    const scanPerpU=scanFrac*(isVert?(S/2):(T/2))*(-sinA);
+    // Full T/2 sweep always; setPx3d filters out left/right faces when vertical
+    const scanPerpU=scanFrac*(T/2)*(-sinA);
     const scanPerpV=scanFrac*((S-1)/2)*cosA;
     const scanCU3d=ccx+scanPerpU;
     const scanCV3d=cy+scanPerpV;
