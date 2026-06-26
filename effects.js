@@ -503,6 +503,18 @@ function effectSphere(dt) {
       const gb=(1-Math.abs(dv)/4)*0.18*expandEase;
       drawLine3d(sl3U0+normU3*dv,sl3V0+normV3*dv,sl3U1+normU3*dv,sl3V1+normV3*dv,gb);
     }
+    if(_lgIsVert){
+      const bk=T/2;
+      for(let v=0;v<S;v++){
+        const u=Math.round(scanCU3d+bk);
+        setPx3d(u,v,cR*slB3,cG*slB3,cB*slB3);
+        for(let dd=-3;dd<=3;dd++){
+          if(dd===0) continue;
+          const gb=(1-Math.abs(dd)/4)*0.18*expandEase;
+          setPx3d(u+dd,v,cR*gb,cG*gb,cB*gb);
+        }
+      }
+    }
 
     // Rays from single center to scan line
     const nRays3d=6;
