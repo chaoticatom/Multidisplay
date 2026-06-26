@@ -12109,7 +12109,7 @@ function effectMoon(dt){
   }
 
   const faces=panel2dMode?[0]:[0,1,2,3];
-  const moonRad=Math.round(S*0.42);
+  const moonRad=Math.round(S*0.42)+2;
   const cx=Math.round(S/2), cy=Math.round(S/2)+4;
 
   // Phase illumination: convert phase (0-1) to terminator position
