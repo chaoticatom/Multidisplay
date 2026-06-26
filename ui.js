@@ -749,7 +749,6 @@ document.getElementById('al-save-btn')?.addEventListener('click',()=>{
       startBright:parseInt(document.getElementById('al-dim-start').value)||5,
       windDown:document.getElementById('al-wind-down').checked,
       wdUseEffect:document.getElementById('al-wd-use-effect').checked,
-      wdEffect:document.getElementById('al-wd-use-effect').checked?currentEffect:'',
       giantSun:alarmGiantSunOn, wxRise:alarmWxRiseOn, effectRise:alarmEffectRiseOn, effectRiseKey:alarmEffectRiseKey, effectRiseCity:alarmEffectRiseCity, effectRiseOpts:alarmEffectRiseOpts},
     message:document.getElementById('al-message').value||'',
   };
@@ -3038,7 +3037,7 @@ function animate(now){
     else {
       // Wind down with current effect: run it with dimming brightness
       if(windDown&&activeAlarm.al.prealarm?.wdUseEffect){
-        const wdEf=activeAlarm.al.prealarm.wdEffect||currentEffect;
+        const wdEf=currentEffect;
         if(EFFECTS[wdEf]){
           for(let i=0;i<N*3;i++) colBuf[i]=0;
           EFFECTS[wdEf](dt*speedMult);
