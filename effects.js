@@ -460,7 +460,7 @@ function effectSphere(dt) {
         const c=((col%T)+T)%T;
         const qi=(c/S)|0;
         if(v>=0&&v<S&&(qi===1||qi===3)) return;
-        if(v>=S) { col=qi*S+(M-(c%S)); v=S+(S-1-(v-S)); }
+        if(v>=S) col=qi*S+(M-(c%S));
       }
       const idx=cubePx(col,v); if(idx<0) return;
       colBuf[idx*3]=Math.max(colBuf[idx*3],r);
