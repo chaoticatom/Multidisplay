@@ -838,7 +838,7 @@ function renderWeatherSunrise(progress,startBrightPct){
 
 
 // ── Countdown timer renderer ──────────────────────────────────────────────
-function renderCountdown(timeStr){
+function renderCountdown(timeStr,mirFaces){
   const SIDE=[2,0,3,1];
   const S=SIZE;
   const digitPatterns={
@@ -854,10 +854,11 @@ function renderCountdown(timeStr){
     '9':[[1,1,1],[1,0,1],[1,1,1],[0,0,1],[1,1,1]],
     ':':[[ 0,0,0],[0,1,0],[0,0,0],[0,1,0],[0,0,0]]
   };
+  if(!mirFaces) mirFaces=[2,3];
   const scale=2;
   for(let fi=0;fi<4;fi++){
     const face=SIDE[fi];
-    const mir=(face===2||face===3);
+    const mir=mirFaces.includes(face);
     const chars=timeStr.length;
     const charW=3*scale+scale;
     const totalW=chars*charW-scale;
@@ -3127,7 +3128,7 @@ function animate(now){
       const remaining=Math.max(0,Math.ceil((activeAlarm.preMs-elapsed)/1000));
       const mm=String(Math.floor(remaining/60)).padStart(2,'0');
       const ss=String(remaining%60).padStart(2,'0');
-      if(remaining>0) renderCountdown(mm+':'+ss);
+      if(remaining>0) renderCountdown(mm+':'+ss,windDown?[2]:undefined);
       // Wind down: show alarm message from start of countdown
       if(windDown&&activeAlarm.al.message){
         const rawMsg=(activeAlarm.al.message||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^\w\s!.,?]/g,'');
@@ -3144,7 +3145,7 @@ function animate(now){
           const vStart=Math.round((S2+totalH)/2);
           for(let fi=0;fi<4;fi++){
             const face=SIDE2[fi];
-            const mir=(face===2||face===3);
+            const mir=(face===2);
             for(let li=0;li<lines.length;li++){
               const line=lines[li];
               const lineW=line.length*charW-1;
