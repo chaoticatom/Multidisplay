@@ -12117,8 +12117,8 @@ function effectMoon(dt){
   }
 
   const faces=panel2dMode?[0]:[0,1,2,3];
-  const moonRad=Math.round(S*0.44);
-  const cx=Math.round(S/2), cy=Math.round(S/2);
+  const moonRad=Math.round(S*0.42);
+  const cx=Math.round(S/2), cy=Math.round(S/2)-4;
 
   // Phase illumination: convert phase (0-1) to terminator position
   const illumAngle=phase*Math.PI*2;
@@ -12252,7 +12252,7 @@ function effectMoon(dt){
         const bits=rows[row];
         for(let col=0;col<3;col++){
           if(!((bits>>(2-col))&1)) continue;
-          const u=(S-1)-(cxx+col), v=textBaseV+(4-row);
+          const u=cxx+col, v=textBaseV+(4-row);
           if(u<0||u>=S||v<0||v>=S) continue;
           const idx=faceMap[face][v*S+u]; if(idx<0) continue;
           colBuf[idx*3]=Math.max(colBuf[idx*3],0.75);
