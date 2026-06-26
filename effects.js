@@ -509,7 +509,6 @@ function effectSphere(dt) {
         const ft=s/steps;
         const u=Math.round(ccx+dx*ft);
         const v=Math.round(cy+dy*ft);
-        if(v<0||v>=S) continue;
         const b=0.2+0.6*ft;
         setPx3d(u,v,cR*b,cG*b,cB*b);
       }
@@ -612,15 +611,17 @@ function cubePx(col, v) {
   const fu = c % S;
   if (v >= 0 && v < S) return faceMap[FW_FACES[qi]][v * S + fu];
   if (v >= S) {
-    const ov = v - S; // 0-based: ov=0 is the edge row adjacent to side face top
+    const ov = v - S;
     if (ov >= S) return -1;
-    if (qi === 0) return faceMap[4][(M - ov) * S + fu];
-    if (qi === 1) return faceMap[4][(M - fu) * S + (M - ov)];
-    if (qi === 2) return faceMap[4][ov * S + (M - fu)];
-    return faceMap[4][fu * S + ov];
+    // Top face: continue from side face top edge onto face 4
+    // Derived from surfIdx mapping: face4[z*S+x] where (z,x) depend on which side face
+    if (qi === 0) return faceMap[4][(M - ov) * S + fu];        // face0 z=M: z decreases, x=fu
+    if (qi === 1) return faceMap[4][(M - fu) * S + (M - ov)];  // face2 x=M: x side, z=M-fu
+    if (qi === 2) return faceMap[4][ov * S + (M - fu)];         // face1 z=0: z increases, x=M-fu
+    return faceMap[4][fu * S + ov];                             // face3 x=0: z=fu, x increases
   }
-  // v < 0: bottom face
-  const ov = -v - 1; // 0-based: ov=0 is the edge row adjacent to side face bottom
+  // v < 0: bottom face (face 5)
+  const ov = -v - 1;
   if (ov >= S) return -1;
   if (qi === 0) return faceMap[5][ov * S + fu];
   if (qi === 1) return faceMap[5][fu * S + (M - ov)];
