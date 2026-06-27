@@ -691,9 +691,11 @@ function effectF1(dt){
       for(var panel=0; panel<4; panel++) {
         var panelStart = panel * SIZE;
         var logoX = ((SIZE - logo.w) / 2)|0;
+        var mir = (panel === 1 || panel === 2);
         for(var dy=0; dy<logo.h; dy++) {
           for(var dx=0; dx<logo.w; dx++) {
-            var pi = (dy * logo.w + dx) * 4;
+            var srcDx = mir ? (logo.w - 1 - dx) : dx;
+            var pi = (dy * logo.w + srcDx) * 4;
             var pr = logo.data[pi]/255, pg = logo.data[pi+1]/255, pb = logo.data[pi+2]/255;
             if(pr + pg + pb < 0.05) continue;
             var sp = panelStart + logoX + dx;
@@ -752,10 +754,12 @@ function effectF1(dt){
           var dateY_start = SIZE - buf.h - 1;
           for(var panel=0; panel<4; panel++) {
             var panelStart = panel * SIZE;
+            var mir = (panel === 1 || panel === 2);
             for(var sp=panelStart; sp<panelStart+SIZE; sp++) {
               for(var dy=0; dy<buf.h; dy++) {
                 var dx = sp - panelStart;
-                var pi = (dy*buf.w + dx)*4;
+                var srcDx = mir ? (buf.w - 1 - dx) : dx;
+                var pi = (dy*buf.w + srcDx)*4;
                 var pv = buf.data[pi]/255;
                 if(pv<0.05) continue;
                 var v = dateY_start + dy;
