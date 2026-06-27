@@ -1223,10 +1223,41 @@ function renderAlarmSunrise(progress,startBrightPct){
 
 const GHOST_ALL_EFFECTS=null; // placeholder resolved at runtime
 
+var startF1SessionTimer = function(){};
+var stopF1SessionTimer = function(){};
+let _f1Loaded = false, _f1Loading = false;
+function _f1LoadScripts() {
+  if (_f1Loaded || _f1Loading) return;
+  _f1Loading = true;
+  const scripts = ['f1-state.js?v=539','f1.js?v=539','f1-providers.js?v=539'];
+  let idx = 0;
+  function next() {
+    if (idx >= scripts.length) {
+      _f1Loaded = true; _f1Loading = false;
+      EFFECTS.f1 = effectF1;
+      if (currentEffect === 'f1' && typeof effectF1 === 'function') {
+        startF1SessionTimer();
+        f1DataDirty = true;
+      }
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = scripts[idx++];
+    s.onload = next;
+    s.onerror = () => { _f1Loading = false; };
+    document.head.appendChild(s);
+  }
+  next();
+}
+function _f1Stub(dt) {
+  _f1LoadScripts();
+  if (_f1Loaded && typeof effectF1 === 'function') effectF1(dt);
+}
+
 const EFFECTS={
   wave:effectWave, rain:effectRain, plasma:effectPlasma, sphere:effectSphere,
   fireworks:effectFireworks, dna:effectDNA, datetime:effectDateTime,
-  balls:effectBouncingBalls, sand:effectGravitySand, f1:effectF1,
+  balls:effectBouncingBalls, sand:effectGravitySand, f1:_f1Stub,
   gradient_wash:effectGradientWash, aurora:effectAurora, depth_rings:effectDepthRings,
   prism:effectPrism, tide:effectTide, nebula:effectNebula,
   spectrum:effectSpectrum, maze:effectMaze,

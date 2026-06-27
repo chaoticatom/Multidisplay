@@ -1,3 +1,4 @@
+var currentEffect = 'wave';
 
 // ── WAVE CASCADE ── triple-layer interference + caustic sparkles ──
 function effectWave(dt) {
