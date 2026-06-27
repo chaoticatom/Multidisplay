@@ -231,7 +231,7 @@ function buildIdleScroll() {
   const S     = Math.max(SIZE, 16);
   const oc = document.createElement('canvas');
   const ctx = oc.getContext('2d');
-  let fs = Math.max(8, (S * 0.72)|0);
+  let fs = Math.max(10, (S * 0.85)|0);
   ctx.textBaseline = 'middle';
   let tw = 0, tries = 0;
   do {
@@ -247,7 +247,7 @@ function buildIdleScroll() {
   ctx.fillStyle = '#000'; ctx.fillRect(0,0,oc.width,oc.height);
   ctx.fillStyle = '#fff'; ctx.font = `bold ${fs}px Arial, sans-serif`;
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, 0, S/2);
+  ctx.fillText(text, 0, S*0.38);
   f1IdlePixels = ctx.getImageData(0,0,oc.width,oc.height).data;
   f1IdleWidth  = oc.width;
   f1IdleScrollX = 0;
@@ -643,20 +643,20 @@ function effectF1(dt){
           var dd = new Date(src.date_start);
           var line1 = dd.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
           var line2 = dd.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-          var lineH = Math.max(6, (SIZE*0.24)|0);
-          var totalH = lineH * 2 + 2;
+          var lineH = Math.max(5, (SIZE*0.17)|0);
+          var totalH = lineH * 2 + 1;
 
           var dc = document.createElement('canvas');
           dc.width = SIZE; dc.height = totalH;
           var dctx = dc.getContext('2d');
           dctx.fillStyle = '#000'; dctx.fillRect(0,0,dc.width,totalH);
-          var fs = Math.max(7, (lineH*0.92)|0);
+          var fs = Math.max(6, (lineH*0.88)|0);
           dctx.font = 'bold ' + fs + 'px Arial';
           dctx.textAlign = 'center'; dctx.textBaseline = 'middle';
           dctx.fillStyle = '#ddeeff';
           dctx.fillText(line1, dc.width/2, lineH/2);
           dctx.fillStyle = '#ffffff';
-          dctx.fillText(line2, dc.width/2, lineH + 2 + lineH/2);
+          dctx.fillText(line2, dc.width/2, lineH + 1 + lineH/2);
 
           f1FaceBufs._idleDate = { data: dctx.getImageData(0,0,dc.width,totalH).data, w: SIZE, h: totalH };
         }
