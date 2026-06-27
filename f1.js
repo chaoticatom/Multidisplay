@@ -561,7 +561,7 @@ function effectF1(dt){
     const pulse = 0.45 + Math.sin(t*2)*0.35;
     for(let u=0;u<SIZE;u++) for(let v=0;v<SIZE;v++){
       const isW = (((u/sq)|0) + ((v/sq)|0)) % 2 === 0;
-      const bright = isW ? pulse*0.3 : 0.01;
+      const bright = isW ? pulse*0.12 : 0.005;
       const i = faceMap[4][v*SIZE+u];
       if(i>=0) setLED(i, bright, bright, bright);
     }
@@ -582,13 +582,13 @@ function effectF1(dt){
         c.width = c.height = SIZE;
         const ctx = c.getContext('2d');
         ctx.textAlign='center'; ctx.textBaseline='middle';
-        let fs = Math.max(8, (SIZE*0.24)|0);
+        let fs = Math.max(10, (SIZE*0.32)|0);
         ctx.font = `bold ${fs}px Arial`;
-        while(fs > 5 && ctx.measureText(longest).width > SIZE*0.9){
+        while(fs > 6 && ctx.measureText(longest).width > SIZE*0.92){
           fs--; ctx.font = `bold ${fs}px Arial`;
         }
         const lineH = SIZE / 3;
-        const colors = ['#FFD700', '#C0C0C0', '#CD7F32'];
+        const colors = ['#FFEE00', '#FFFFFF', '#FF8800'];
         for(let i=0;i<Math.min(3,lines.length);i++){
           ctx.font = `bold ${fs}px Arial`;
           ctx.fillStyle = colors[i];
