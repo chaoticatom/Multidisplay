@@ -320,7 +320,9 @@ function alarmBuildList(){
     el.appendChild(div);
   });
   el.querySelectorAll('.al-tog').forEach(t=>t.addEventListener('click',()=>{
-    const i=+t.dataset.i; alarms[i].enabled=!alarms[i].enabled; alarmSave(); alarmBuildList();
+    const i=+t.dataset.i; alarms[i].enabled=!alarms[i].enabled;
+    if(!alarms[i].enabled && activeAlarm && activeAlarm.al.id===alarms[i].id){ activeAlarm.dismissed=true; activeAlarm=null; clearPending=true; }
+    alarmSave(); alarmBuildList();
   }));
   el.querySelectorAll('.al-edit-btn').forEach(b=>b.addEventListener('click',()=>alarmOpenEditor(+b.dataset.i)));
   el.querySelectorAll('.al-del-btn').forEach(b=>{
@@ -1229,7 +1231,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=560','f1.js?v=560','f1-providers.js?v=560'];
+  const scripts = ['f1-state.js?v=561','f1.js?v=561','f1-providers.js?v=561'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
