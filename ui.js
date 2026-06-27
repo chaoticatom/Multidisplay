@@ -1229,7 +1229,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=545','f1.js?v=545','f1-providers.js?v=545'];
+  const scripts = ['f1-state.js?v=546','f1.js?v=546','f1-providers.js?v=546'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {

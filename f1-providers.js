@@ -333,7 +333,12 @@ F1Providers.openf1 = {
       if (this._sessionStart) {
         const elapsed = Math.floor((Date.now() - this._sessionStart) / 1000);
         const dur = F1State.session.timer.duration || 7200;
-        f1Update({ session: { timer: { duration: dur, elapsed, remaining: Math.max(0, dur - elapsed) } } });
+        const remaining = Math.max(0, dur - elapsed);
+        f1Update({ session: { timer: { duration: dur, elapsed, remaining } } });
+        if (remaining <= 0 && !this._finishedAt) {
+          this._finishedAt = Date.now();
+          f1Update({ session: { finished: true } });
+        }
       }
 
       // Weather
