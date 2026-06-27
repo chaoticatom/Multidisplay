@@ -169,6 +169,20 @@
     transform: translateX(16px); background: #7aadff;
   }
 
+  .modern-chk {
+    -webkit-appearance: none; appearance: none; cursor: pointer;
+    width: 16px; height: 16px; min-width: 16px; margin: 0;
+    background: rgba(30,40,80,0.6); border: 1.5px solid rgba(80,120,255,0.35);
+    border-radius: 4px; position: relative; transition: background 0.2s, border-color 0.2s;
+  }
+  .modern-chk:checked {
+    background: rgba(60,120,255,0.45); border-color: #7aadff;
+  }
+  .modern-chk:checked::after {
+    content: '✓'; position: absolute; top: -1px; left: 2px;
+    font-size: 13px; color: #fff; font-weight: 700;
+  }
+
   .util-btn {
     display: block; width: 100%; padding: 7px 10px; margin-bottom: 4px;
     background: rgba(255,255,255,0.03); border: 1px solid rgba(80,120,255,0.2);

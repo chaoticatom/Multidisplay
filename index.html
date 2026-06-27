@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=532">
+<link rel="stylesheet" href="style.css?v=533">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -840,7 +840,7 @@
       <!-- Pre-alarm: wake up -->
       <div style="margin-top:4px;padding-top:8px;border-top:1px solid rgba(80,120,255,0.1);">
         <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;">
-          <input type="checkbox" id="al-sunrise-chk" style="width:14px;height:14px;accent-color:#7aadff;">
+          <input type="checkbox" id="al-sunrise-chk" class="modern-chk">
           <span style="font-size:12px;color:#9cd;font-weight:600;">Pre-Alarm (dim → bright)</span>
         </label>
         <div id="al-sunrise-opts" style="display:none;padding:8px;background:rgba(0,0,0,0.25);border-radius:6px;border:1px solid rgba(80,120,255,0.12);">
@@ -856,12 +856,12 @@
           <div style="font-size:10px;color:#556;line-height:1.4;margin-bottom:8px;">Gradually brightens from dim to full at the set time.</div>
           <!-- Giant Sun toggle -->
           <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;">
-            <input type="checkbox" id="al-giant-sun-chk" style="width:14px;height:14px;accent-color:#7aadff;">
+            <input type="checkbox" id="al-giant-sun-chk" class="modern-chk">
             <span style="font-size:12px;color:#9cd;font-weight:600;">Giant Sun Rise</span>
           </label>
           <!-- Effect toggle -->
           <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;">
-            <input type="checkbox" id="al-effect-rise-chk" style="width:14px;height:14px;accent-color:#7aadff;">
+            <input type="checkbox" id="al-effect-rise-chk" class="modern-chk">
             <span style="font-size:12px;color:#9cd;font-weight:600;">Effect Rise</span>
           </label>
           <!-- Effect chooser -->
@@ -895,7 +895,7 @@
           <input id="al-wd-mins" type="number" min="1" max="120" value="15" style="flex:1;padding:4px 6px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:12px;border-radius:3px;text-align:center;">
         </div>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:8px;">
-          <input type="checkbox" id="al-wd-use-effect" style="width:14px;height:14px;accent-color:#7aadff;"> <span style="font-size:12px;color:#99b;">Use current effect while dimming</span>
+          <input type="checkbox" id="al-wd-use-effect" class="modern-chk"> <span style="font-size:12px;color:#99b;">Use current effect while dimming</span>
         </label>
         <div id="al-wd-effect-section">
           <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">EFFECT</label>
@@ -994,7 +994,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=532"></script>
+<script src="version.js?v=533"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -1029,7 +1029,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=532','effects.js?v=532','f1.js?v=532','ui.js?v=532'];
+  const appScripts = ['cube.js?v=533','effects.js?v=533','f1.js?v=533','ui.js?v=533'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
