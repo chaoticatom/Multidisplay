@@ -245,10 +245,24 @@ F1Providers.openf1 = {
   },
   async _fetchNextSession() {
     try {
-      const now = new Date().toISOString();
-      const res = await fetch(`https://api.openf1.org/v1/sessions?date_start>=${now}&order=date_start&order_direction=asc`);
+      // Try same meeting first (other sessions in same race weekend)
+      if (this._currentMeetingKey) {
+        var mRes = await fetch('https://api.openf1.org/v1/sessions?meeting_key=' + this._currentMeetingKey + '&order=date_start&order_direction=asc');
+        if (mRes.ok) {
+          var mSessions = await mRes.json();
+          var curKey = this._sessionKey;
+          var found = false;
+          for (var i = 0; i < mSessions.length; i++) {
+            if (found) return mSessions[i];
+            if (mSessions[i].session_key === curKey) found = true;
+          }
+        }
+      }
+      // Fall back to any future session
+      var now = new Date().toISOString();
+      var res = await fetch('https://api.openf1.org/v1/sessions?date_start>=' + now + '&order=date_start&order_direction=asc');
       if (!res.ok) return null;
-      const sessions = await res.json();
+      var sessions = await res.json();
       if (!sessions.length) return null;
       return sessions[0];
     } catch (e) { return null; }
