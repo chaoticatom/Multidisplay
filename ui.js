@@ -1229,7 +1229,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=557','f1.js?v=557','f1-providers.js?v=557'];
+  const scripts = ['f1-state.js?v=558','f1.js?v=558','f1-providers.js?v=558'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1947,7 +1947,7 @@ function _f1UpdateDiag() {
     s.track.raceControlMessages.length ? `RC: ${s.track.raceControlMessages[0].message}` : '',
     (function(){
       var ns = s.nextSession;
-      if (!ns) return '';
+      if (!ns) return 'Next: <i>not available</i> (active=' + s.session.active + ', finished=' + s.session.finished + ')';
       var parts = ['Next: <b>' + (ns.session_name || ns.session_type || '') + '</b>'];
       if (ns.meeting_name) parts.push(ns.meeting_name);
       if (ns.circuit_short_name) parts.push(ns.circuit_short_name);
