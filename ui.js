@@ -446,36 +446,15 @@ function alarmSetTriggerType(type){
 }
 
 function alarmUpdateSunriseTog(){
-  const tog=document.getElementById('al-sunrise-tog');
-  const knob=document.getElementById('al-sunrise-knob');
   const opts=document.getElementById('al-sunrise-opts');
-  const giantSunTog=document.getElementById('al-giant-sun-tog');
-  const giantSunKnob=document.getElementById('al-giant-sun-knob');
-  if(!tog||!knob||!opts) return;
-  tog.style.background=alarmSunriseOn?'rgba(255,160,40,0.7)':'rgba(60,70,100,0.8)';
-  tog.style.borderColor=alarmSunriseOn?'rgba(255,180,60,0.8)':'rgba(80,120,255,0.3)';
-  knob.style.left=alarmSunriseOn?'17px':'3px';
-  knob.style.background=alarmSunriseOn?'#fc8':'#668';
-  opts.style.display=alarmSunriseOn?'block':'none';
-  // Weather sunrise toggle
-  const wxRiseTog=document.getElementById('al-wx-rise-tog');
-  const wxRiseKnob=document.getElementById('al-wx-rise-knob');
-  if(wxRiseTog && wxRiseKnob){
-    wxRiseTog.style.background=alarmWxRiseOn?'rgba(100,200,255,0.7)':'rgba(60,70,100,0.8)';
-    wxRiseTog.style.borderColor=alarmWxRiseOn?'rgba(100,200,255,0.8)':'rgba(80,120,255,0.3)';
-    wxRiseKnob.style.left=alarmWxRiseOn?'17px':'3px';
-    wxRiseKnob.style.background=alarmWxRiseOn?'#8ef':'#668';
-  }
-  // Effect rise toggle
-  const effRiseTog=document.getElementById('al-effect-rise-tog');
-  const effRiseKnob=document.getElementById('al-effect-rise-knob');
+  const sunChk=document.getElementById('al-sunrise-chk');
+  const giantChk=document.getElementById('al-giant-sun-chk');
+  const effChk=document.getElementById('al-effect-rise-chk');
   const effRiseOpts=document.getElementById('al-effect-rise-opts');
-  if(effRiseTog && effRiseKnob){
-    effRiseTog.style.background=alarmEffectRiseOn?'rgba(255,160,80,0.7)':'rgba(60,70,100,0.8)';
-    effRiseTog.style.borderColor=alarmEffectRiseOn?'rgba(255,180,80,0.8)':'rgba(80,120,255,0.3)';
-    effRiseKnob.style.left=alarmEffectRiseOn?'17px':'3px';
-    effRiseKnob.style.background=alarmEffectRiseOn?'#fa8':'#668';
-  }
+  if(sunChk) sunChk.checked=alarmSunriseOn;
+  if(opts) opts.style.display=alarmSunriseOn?'block':'none';
+  if(giantChk) giantChk.checked=alarmGiantSunOn;
+  if(effChk) effChk.checked=alarmEffectRiseOn;
   if(effRiseOpts) effRiseOpts.style.display=alarmEffectRiseOn?'block':'none';
   if(alarmEffectRiseOn){
     const sel=document.getElementById('al-effect-rise-select');
@@ -485,20 +464,12 @@ function alarmUpdateSunriseTog(){
     const cityEl=document.getElementById('al-effect-rise-city');
     if(cityEl&&alarmEffectRiseCity) cityEl.value=alarmEffectRiseCity;
   }
-  // Giant sun toggle
-  if(giantSunTog && giantSunKnob){
-    giantSunTog.style.background=alarmGiantSunOn?'rgba(255,160,40,0.7)':'rgba(60,70,100,0.8)';
-    giantSunTog.style.borderColor=alarmGiantSunOn?'rgba(255,180,60,0.8)':'rgba(80,120,255,0.3)';
-    giantSunKnob.style.left=alarmGiantSunOn?'17px':'3px';
-    giantSunKnob.style.background=alarmGiantSunOn?'#fc8':'#668';
-  }
 }
 
 // Wire alarm modal buttons
-document.getElementById('al-sunrise-tog')?.addEventListener('click',()=>{ alarmSunriseOn=!alarmSunriseOn; alarmUpdateSunriseTog(); });
-document.getElementById('al-giant-sun-tog')?.addEventListener('click',()=>{ alarmGiantSunOn=!alarmGiantSunOn; if(alarmGiantSunOn){alarmWxRiseOn=false;alarmEffectRiseOn=false;} alarmUpdateSunriseTog(); });
-document.getElementById('al-wx-rise-tog')?.addEventListener('click',()=>{ alarmWxRiseOn=!alarmWxRiseOn; if(alarmWxRiseOn){alarmGiantSunOn=false;alarmEffectRiseOn=false;} alarmUpdateSunriseTog(); });
-document.getElementById('al-effect-rise-tog')?.addEventListener('click',()=>{ alarmEffectRiseOn=!alarmEffectRiseOn; if(alarmEffectRiseOn){alarmGiantSunOn=false;alarmWxRiseOn=false;} alarmUpdateSunriseTog(); });
+document.getElementById('al-sunrise-chk')?.addEventListener('change',function(){ alarmSunriseOn=this.checked; alarmUpdateSunriseTog(); });
+document.getElementById('al-giant-sun-chk')?.addEventListener('change',function(){ alarmGiantSunOn=this.checked; if(alarmGiantSunOn){alarmWxRiseOn=false;alarmEffectRiseOn=false;} alarmUpdateSunriseTog(); });
+document.getElementById('al-effect-rise-chk')?.addEventListener('change',function(){ alarmEffectRiseOn=this.checked; if(alarmEffectRiseOn){alarmGiantSunOn=false;alarmWxRiseOn=false;} alarmUpdateSunriseTog(); });
 document.getElementById('al-effect-rise-select')?.addEventListener('change',(e)=>{
   alarmEffectRiseKey=e.target.value;
   alarmEffectRiseOpts={};
