@@ -14,6 +14,7 @@ let f1CircuitScrollX = 0;
 let f1IdlePixels = null;
 let f1IdleWidth = 0;
 let f1IdleScrollX = 0;
+let f1IdleRebuildT = 0;
 
 const F1_TRACKS = {
   'silverstone': [[.1,.4],[.15,.25],[.3,.1],[.5,.08],[.7,.1],[.85,.25],[.9,.45],[.88,.65],[.75,.78],[.55,.88],[.35,.88],[.15,.75],[.1,.55],[.1,.4]],
@@ -208,7 +209,26 @@ function buildCircuitStrip() {
 function buildIdleScroll() {
   const meeting = F1State.meeting;
   if (!meeting) return;
-  const name = ((meeting.meeting_name||'') + '  •  ' + (meeting.circuit_short_name||'')).toUpperCase();
+  var parts = [(meeting.meeting_name||''), (meeting.circuit_short_name||'')];
+  if (meeting.session_type) parts.push(meeting.session_type.toUpperCase());
+  if (meeting.date_start) {
+    var d = new Date(meeting.date_start);
+    var now = new Date();
+    var diffMs = d.getTime() - now.getTime();
+    if (diffMs > 0) {
+      var diffH = Math.floor(diffMs / 3600000);
+      var diffM = Math.floor((diffMs % 3600000) / 60000);
+      if (diffH >= 24) {
+        var days = Math.floor(diffH / 24);
+        parts.push('IN ' + days + 'D ' + (diffH % 24) + 'H');
+      } else {
+        parts.push('IN ' + diffH + 'H ' + diffM + 'M');
+      }
+    }
+    parts.push(d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }));
+    parts.push(d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+  }
+  const name = parts.filter(Boolean).join('  •  ').toUpperCase();
   const text  = '   ' + name + '   ';
   const S     = Math.max(SIZE, 16);
   const oc = document.createElement('canvas');
@@ -534,6 +554,9 @@ function effectF1(dt){
 
   // ── IDLE: no session — chequered top + large scroll ──
   if (!sessionActive) {
+    if (!f1IdleRebuildT) f1IdleRebuildT = 0;
+    f1IdleRebuildT += dt;
+    if (f1IdleRebuildT > 60) { f1IdleRebuildT = 0; buildIdleScroll(); }
     const top3 = standings.slice(0,3);
     const abbrevs = top3.map(d=>{
       if (d.abbrev) return d.abbrev.toUpperCase().substring(0,3);

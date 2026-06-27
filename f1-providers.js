@@ -217,6 +217,24 @@ F1Providers.openf1 = {
         this._driverMap = {};
         drivers.forEach(d => { this._driverMap[d.driver_number] = d; });
       }
+
+      // If session is not live, fetch next upcoming session
+      if (!isLive) {
+        const next = await this._fetchNextSession();
+        if (next) {
+          f1Update({
+            session: {
+              active: false, type: '', name: next.meeting_name || '',
+              circuit: next.circuit_short_name || '',
+              country: next.country_name || '',
+              dateStart: next.date_start || ''
+            },
+            meeting: next
+          });
+          this._nextSession = next;
+          if (typeof buildIdleScroll === 'function') buildIdleScroll();
+        }
+      }
       this._pollLive();
     } catch (e) {
       f1Update({ connection: 'error' });
