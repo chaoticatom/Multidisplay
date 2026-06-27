@@ -186,13 +186,15 @@ F1Providers.openf1 = {
       const sName = (s.session_name || '');
       const duration = sType.includes('race') ? 7200 : sType.includes('quali') ? 3600 : 5400;
       const lapTotal = sType.includes('race') ? (s.total_laps || 0) : 0;
+      var elapsed = Math.floor((Date.now() - this._sessionStart) / 1000);
+      var isLive = elapsed < duration + 1800;
       var fpNum = 1, qNum = 1;
       var fpMatch = sName.match(/practice\s*(\d)/i);
       if (fpMatch) fpNum = parseInt(fpMatch[1]);
       f1Update({
         connection: 'connected',
         session: {
-          active: true,
+          active: isLive,
           type: sType,
           name: s.meeting_name || sName || '',
           circuit: s.circuit_short_name || '',
