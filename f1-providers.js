@@ -20,7 +20,10 @@ async function _f1FetchSchedule() {
   var year = new Date().getFullYear();
   if (_f1Schedule && _f1ScheduleYear === year) return _f1Schedule;
   try {
-    var res = await fetch('https://api.jolpi.ca/ergast/f1/' + year + '.json');
+    var ctrl = new AbortController();
+    var tid = setTimeout(function() { ctrl.abort(); }, 8000);
+    var res = await fetch('https://api.jolpi.ca/ergast/f1/' + year + '.json', { signal: ctrl.signal });
+    clearTimeout(tid);
     if (!res.ok) return null;
     var data = await res.json();
     var races = data?.MRData?.RaceTable?.Races;
@@ -361,14 +364,15 @@ F1Providers.openf1 = {
         drivers.forEach(d => { this._driverMap[d.driver_number] = d; });
       }
 
-      // If session is not live, fetch next upcoming session
+      // If session is not live, fetch next upcoming session (non-blocking)
       if (!isLive) {
-        var next = await this._fetchNextSession();
-        if (next) {
-          next.session_type = next.session_type || next.session_name || '';
-          this._nextSession = next;
-          _f1SetNextSession(next);
-        }
+        this._fetchNextSession().then(function(next) {
+          if (next) {
+            next.session_type = next.session_type || next.session_name || '';
+            F1Providers.openf1._nextSession = next;
+            _f1SetNextSession(next);
+          }
+        });
       }
       this._pollLive();
     } catch (e) {
