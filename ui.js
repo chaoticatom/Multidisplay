@@ -1231,7 +1231,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=597','f1.js?v=597','f1-providers.js?v=597'];
+  const scripts = ['f1-state.js?v=598','f1.js?v=598','f1-providers.js?v=598'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1906,18 +1906,20 @@ document.querySelectorAll('[data-f1sim]').forEach(btn => {
 document.querySelectorAll('[data-f1flag]').forEach(btn => {
   btn.addEventListener('click', () => {
     const f = btn.dataset.f1flag;
-    if (f !== 'blue') {
+    if (f === 'blue' || f === 'bw') {
+      btn.classList.toggle('active');
+    } else {
       document.querySelectorAll('[data-f1flag]').forEach(b => {
-        if (b.dataset.f1flag !== 'blue') b.classList.remove('active');
+        if (b.dataset.f1flag !== 'blue' && b.dataset.f1flag !== 'bw') b.classList.remove('active');
       });
       btn.classList.add('active');
-    } else {
-      btn.classList.toggle('active');
     }
     if (f === 'blue') { simBlueFlag(); }
+    else if (f === 'bw') { simBWFlag(); }
     else if (f === 'finish') { simFinish(); }
     else if (f === 'sc') { simFlag('SAFETY', 'SAFETY CAR'); }
     else if (f === 'vsc') { simFlag('VIRTUAL', 'VIRTUAL SC'); }
+    else if (f === 'doubleyellow') { simFlag('DOUBLE YELLOW', 'DOUBLE YELLOW'); }
     else { simFlag(f.toUpperCase(), f.toUpperCase()); }
   });
 });

@@ -546,6 +546,7 @@ function effectF1(dt){
   const flagRGB = F1State.track.flagRGB;
   const statusText = F1State.track.statusText;
   const blueFlagActive = !!F1State.track.blueFlag;
+  const bwFlagActive = !!F1State.track.bwFlag;
   const carPositions = F1State.carPositions;
   const standings = F1State.drivers;
 
@@ -814,6 +815,19 @@ function effectF1(dt){
     }
   }
 
+  // ── BLACK & WHITE FLAG: top 4 rows, alternating black/white squares ──
+  if (bwFlagActive) {
+    const bwPulse = 0.5 + Math.sin(t*4)*0.3;
+    const bwSq = 2;
+    for(let sp=0; sp<4*SIZE; sp++) {
+      for(let v=0; v<4; v++) {
+        const isW = (((sp/bwSq)|0) + ((v/bwSq)|0)) % 2 === 0;
+        const br = isW ? bwPulse : 0.02;
+        setStripLED(sp, v, br, br, br);
+      }
+    }
+  }
+
   if(f1CircuitStrip && sessionActive && f1CircuitStripW > 0) {
     f1CircuitScrollX = (f1CircuitScrollX + dt*SIZE*0.35) % f1CircuitStripW;
     const stripH  = Math.max(2, (SIZE*0.16)|0);
@@ -859,9 +873,18 @@ function applyF1Flag(flag, status='') {
       if(textEl) textEl.textContent='BLUE FLAG';
       return;
     }
+    if (F.includes('BLACK AND WHITE') || F.includes('BLACK & WHITE')) {
+      f1Update({ track: { bwFlag: true } });
+      const flagEl=document.getElementById('f1-flag');
+      const textEl=document.getElementById('f1-status-text');
+      if(flagEl) flagEl.style.background='#888';
+      if(textEl) textEl.textContent='BLACK & WHITE';
+      return;
+    }
     if (F.includes('RED'))          { rgb=[1,.02,.02]; label='RED FLAG';  stext='RED';    css='#ff2200'; }
     else if (F.includes('VIRTUAL')||S.includes('VIRTUAL')) { rgb=[1,.9,0]; label='VIRTUAL SC'; stext='VSC'; css='#ffcc00'; }
     else if (F.includes('SAFETY') ||S.includes('SAFETY'))  { rgb=[1,.9,0]; label='SAFETY CAR'; stext='SC';  css='#ffcc00'; }
+    else if (F.includes('DOUBLE YELLOW')) { rgb=[1,.88,0]; label='DBL YELLOW'; stext='DBL YELLOW'; css='#ffcc00'; }
     else if (F.includes('YELLOW'))  { rgb=[1,.88,0];   label='YELLOW';    stext='YELLOW'; css='#ffcc00'; }
     else if (F.includes('GREEN')||F.includes('CLEAR')) { rgb=[.02,1,.1]; label='GO'; stext='GO'; css='#00ff44'; }
     else if (stext !== '--') { rgb=[.3,.6,1]; label=stext; }

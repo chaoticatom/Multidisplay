@@ -718,6 +718,20 @@ function simBlueFlag() {
   }
 }
 
+function simBWFlag() {
+  const cur = !!F1State.track.bwFlag;
+  f1Update({ track: { bwFlag: !cur } });
+  const flagEl = document.getElementById('f1-flag');
+  const textEl = document.getElementById('f1-status-text');
+  if (!cur) {
+    if (flagEl) flagEl.style.background = '#888';
+    if (textEl) textEl.textContent = 'BLACK & WHITE';
+  } else {
+    if (flagEl) flagEl.style.background = '#111';
+    if (textEl) textEl.textContent = F1State.track.flagLabel || F1State.track.statusText || 'Idle';
+  }
+}
+
 function simFinish() {
   f1Update({
     session: { active: true, finished: true },
