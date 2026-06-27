@@ -241,14 +241,13 @@ function buildIdleScroll() {
     else if (tw < 4*S*0.9 && fs < 30) fs++;
     else break;
   } while(true);
-  const fullW = 4*S;
+  const fullW = tw > 0 ? tw : 4*S;
   oc.width = fullW;
   oc.height = S;
   ctx.fillStyle = '#000'; ctx.fillRect(0,0,oc.width,oc.height);
   ctx.fillStyle = '#fff'; ctx.font = `bold ${fs}px Arial, sans-serif`;
-  for(let x=0; x<fullW; x+=tw) {
-    ctx.fillText(text, x, S/2);
-  }
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 0, S/2);
   f1IdlePixels = ctx.getImageData(0,0,oc.width,oc.height).data;
   f1IdleWidth  = oc.width;
   f1IdleScrollX = 0;
