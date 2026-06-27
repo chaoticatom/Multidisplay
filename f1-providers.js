@@ -8,7 +8,7 @@ let f1SessionTimerId = null;
 // ── Provider Manager ─────────────────────────────────────────────────────────
 
 function _f1IsActive() {
-  try { return currentEffect === 'f1' && effectsOn; } catch(e) { return false; }
+  try { return currentEffect === 'f1'; } catch(e) { return false; }
 }
 
 function f1SetMode(mode) {
@@ -386,6 +386,20 @@ F1Providers.openf1 = {
             if (msg.includes('Q3')) { f1Update({ session: { qSession: 3 } }); break; }
             if (msg.includes('Q2')) { f1Update({ session: { qSession: 2 } }); break; }
             if (msg.includes('Q1')) { f1Update({ session: { qSession: 1 } }); break; }
+          }
+          // Detect SC/VSC from most recent race control
+          for (var si = 0; si < rc.length; si++) {
+            var scMsg = (rc[si].message || '').toUpperCase();
+            var scFlag = (rc[si].flag || '').toUpperCase();
+            if (scMsg.includes('VIRTUAL SAFETY CAR') || scFlag === 'VSC') {
+              f1Update({ track: { flag: 'vsc', statusText: 'VSC' } }); break;
+            }
+            if (scMsg.includes('SAFETY CAR') || scFlag === 'SAFETY CAR') {
+              f1Update({ track: { flag: 'sc', statusText: 'SAFETY CAR' } }); break;
+            }
+            if (scFlag === 'GREEN' || scFlag === 'CLEAR') {
+              break; // SC/VSC ended
+            }
           }
           const latest = rc[0];
           if (latest.flag) {
