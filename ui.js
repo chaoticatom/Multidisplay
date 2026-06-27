@@ -1231,7 +1231,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=605','f1.js?v=605','f1-providers.js?v=605'];
+  const scripts = ['f1-state.js?v=606','f1.js?v=606','f1-providers.js?v=606'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1933,6 +1933,16 @@ document.querySelectorAll('[data-f1flag]').forEach(btn => {
 // ── F1 Dev Tools: weather buttons ──
 document.querySelectorAll('[data-f1wx]').forEach(btn => {
   btn.addEventListener('click', () => simWeather(btn.dataset.f1wx));
+});
+
+// ── F1 Race Weekend Simulator ──
+document.getElementById('f1-sim-weekend')?.addEventListener('click', () => {
+  if (typeof simWeekendToggle === 'function') simWeekendToggle();
+});
+document.getElementById('f1-sim-speed')?.addEventListener('input', e => {
+  _simWeekendSpeed = parseInt(e.target.value) || 10;
+  const label = document.getElementById('f1-sim-speed-val');
+  if (label) label.textContent = _simWeekendSpeed + 'x';
 });
 
 // ── F1 Dev Tools: collapsible toggles ──

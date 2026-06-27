@@ -774,3 +774,211 @@ function simLap(delta) {
   f1Update({ session: { lap: { current: Math.max(0, lap.current + delta), total: lap.total } } });
   f1DataDirty = true;
 }
+
+// ── Race Weekend Simulator ──────────────────────────────────────────────────
+
+var _simWeekendTimer = null;
+var _simWeekendRunning = false;
+var _simWeekendSpeed = 10;
+
+var SIM_GRID = [
+  { pos:1, number:1,  name:'Verstappen', abbrev:'VER', team:'Red Bull Racing',   color:'#3671C6', gap:'LEAD' },
+  { pos:2, number:4,  name:'Norris',     abbrev:'NOR', team:'McLaren',           color:'#FF8000', gap:'+0.8s' },
+  { pos:3, number:16, name:'Leclerc',    abbrev:'LEC', team:'Ferrari',           color:'#E8002D', gap:'+1.2s' },
+  { pos:4, number:55, name:'Sainz',      abbrev:'SAI', team:'Ferrari',           color:'#E8002D', gap:'+2.5s' },
+  { pos:5, number:63, name:'Russell',    abbrev:'RUS', team:'Mercedes',          color:'#27F4D2', gap:'+3.1s' },
+  { pos:6, number:44, name:'Hamilton',   abbrev:'HAM', team:'Mercedes',          color:'#27F4D2', gap:'+4.8s' },
+  { pos:7, number:81, name:'Piastri',    abbrev:'PIA', team:'McLaren',           color:'#FF8000', gap:'+6.2s' },
+  { pos:8, number:14, name:'Alonso',     abbrev:'ALO', team:'Aston Martin',      color:'#229971', gap:'+8.0s' },
+  { pos:9, number:11, name:'Perez',      abbrev:'PER', team:'Red Bull Racing',   color:'#3671C6', gap:'+9.5s' },
+  { pos:10,number:10, name:'Gasly',      abbrev:'GAS', team:'Alpine',            color:'#FF87BC', gap:'+11.3s' },
+];
+
+function _simShufflePositions() {
+  var d = SIM_GRID.map(function(x) { return Object.assign({}, x); });
+  var i1 = Math.floor(Math.random() * d.length);
+  var i2 = Math.floor(Math.random() * d.length);
+  if (i1 !== i2) {
+    var tmp = d[i1]; d[i1] = d[i2]; d[i2] = tmp;
+  }
+  for (var i = 0; i < d.length; i++) {
+    d[i].pos = i + 1;
+    d[i].gap = i === 0 ? 'LEAD' : '+' + (Math.random() * 15 + 0.5).toFixed(1) + 's';
+  }
+  return d;
+}
+
+function _simWeekendSetStatus(text) {
+  var el = document.getElementById('f1-sim-status');
+  if (el) el.textContent = text;
+}
+
+function _simWeekendStep(script, idx) {
+  if (!_simWeekendRunning || idx >= script.length) {
+    _simWeekendRunning = false;
+    _simWeekendSetStatus('Weekend complete');
+    var btn = document.getElementById('f1-sim-weekend');
+    if (btn) btn.textContent = 'Simulate Race Weekend';
+    return;
+  }
+  var ev = script[idx];
+  _simWeekendSetStatus(ev.label || '');
+
+  if (ev.action) ev.action();
+
+  var delay = (ev.duration || 2000) / _simWeekendSpeed;
+  _simWeekendTimer = setTimeout(function() {
+    _simWeekendStep(script, idx + 1);
+  }, delay);
+}
+
+function _buildWeekendScript() {
+  var script = [];
+  var weatherPresets = ['sunny', 'cloudy', 'sunny', 'rain', 'sunny', 'cloudy'];
+  var totalLaps = 52;
+
+  function addSession(type, label, fpNum, qNum, durationSecs, lapTotal) {
+    script.push({ label: label + ' — Starting', duration: 3000, action: function() {
+      simSession(type);
+      if (fpNum) f1Update({ session: { fpSession: fpNum } });
+      if (qNum) f1Update({ session: { qSession: qNum } });
+      if (lapTotal) f1Update({ session: { lap: { current: 0, total: lapTotal } } });
+      f1Update({ session: { timer: { duration: durationSecs, elapsed: 0, remaining: durationSecs } } });
+      var wx = weatherPresets[Math.floor(Math.random() * weatherPresets.length)];
+      simWeather(wx);
+      f1DataDirty = true;
+      if (typeof updateSessionUI === 'function') updateSessionUI();
+    }});
+
+    script.push({ label: label + ' — Green Flag', duration: 4000, action: function() {
+      simFlag('GREEN', 'GREEN');
+      f1Update({ drivers: _simShufflePositions() });
+      if (typeof updateLeaderboardUI === 'function') updateLeaderboardUI();
+    }});
+
+    var numUpdates = type === 'Race' ? 0 : 4;
+    for (var u = 0; u < numUpdates; u++) {
+      var elapsed = Math.floor(durationSecs * (u + 1) / (numUpdates + 1));
+      (function(e, lab) {
+        script.push({ label: lab + ' — Running', duration: 3000, action: function() {
+          f1Update({ session: { timer: { duration: durationSecs, elapsed: e, remaining: durationSecs - e } } });
+          f1Update({ drivers: _simShufflePositions() });
+          f1DataDirty = true;
+          if (typeof updateSessionUI === 'function') updateSessionUI();
+          if (typeof updateLeaderboardUI === 'function') updateLeaderboardUI();
+        }});
+      })(elapsed, label);
+    }
+
+    if (type !== 'Race') {
+      script.push({ label: label + ' — Yellow Flag', duration: 3000, action: function() {
+        simFlag('YELLOW', 'YELLOW');
+      }});
+      script.push({ label: label + ' — Green Flag', duration: 3000, action: function() {
+        simFlag('GREEN', 'GREEN');
+        f1Update({ drivers: _simShufflePositions() });
+        if (typeof updateLeaderboardUI === 'function') updateLeaderboardUI();
+      }});
+    }
+
+    script.push({ label: label + ' — Session End', duration: 3000, action: function() {
+      f1Update({ session: { timer: { duration: durationSecs, elapsed: durationSecs, remaining: 0 } } });
+      simFlag('CHEQUERED', 'FINISHED');
+      f1DataDirty = true;
+      if (typeof updateSessionUI === 'function') updateSessionUI();
+    }});
+
+    script.push({ label: 'Break before next session', duration: 4000, action: function() {
+      simNoSession();
+    }});
+  }
+
+  // FP1
+  addSession('Practice', 'FP1', 1, null, 3600, 0);
+  // FP2
+  addSession('Practice', 'FP2', 2, null, 3600, 0);
+  // FP3
+  addSession('Practice', 'FP3', 3, null, 3600, 0);
+  // Qualifying
+  addSession('Qualifying', 'Q1', null, 1, 1080, 0);
+  addSession('Qualifying', 'Q2', null, 2, 900, 0);
+  addSession('Qualifying', 'Q3', null, 3, 720, 0);
+
+  // Race — special handling with laps
+  script.push({ label: 'Race — Formation Lap', duration: 4000, action: function() {
+    simSession('Race');
+    f1Update({
+      session: { lap: { current: 0, total: totalLaps }, timer: { duration: 7200, elapsed: 0, remaining: 7200 } },
+      weather: { temp: 22, humidity: 45, wind: 10, rain: false, condition: 'Sunny', code: 0 }
+    });
+    simFlag('GREEN', 'GREEN');
+    f1DataDirty = true;
+    if (typeof updateSessionUI === 'function') updateSessionUI();
+  }});
+
+  for (var lap = 1; lap <= totalLaps; lap++) {
+    (function(l) {
+      var flagEvent = null;
+      var flagLabel = '';
+      if (l === 5) { flagEvent = function() { simFlag('YELLOW', 'YELLOW'); }; flagLabel = ' — Yellow Flag'; }
+      else if (l === 6) { flagEvent = function() { simFlag('GREEN', 'GREEN'); }; flagLabel = ' — Green Flag'; }
+      else if (l === 15) { flagEvent = function() { simFlag('VIRTUAL', 'VIRTUAL SC'); }; flagLabel = ' — VSC'; }
+      else if (l === 18) { flagEvent = function() { simFlag('GREEN', 'GREEN'); }; flagLabel = ' — Green Flag'; }
+      else if (l === 22) { flagEvent = function() { simBlueFlag(); }; flagLabel = ' — Blue Flag'; }
+      else if (l === 23) { flagEvent = function() { if (F1State.track.blueFlag) simBlueFlag(); }; flagLabel = ''; }
+      else if (l === 30) { flagEvent = function() { simFlag('SAFETY', 'SAFETY CAR'); }; flagLabel = ' — Safety Car'; }
+      else if (l === 33) { flagEvent = function() { simFlag('GREEN', 'GREEN'); }; flagLabel = ' — Restart'; }
+      else if (l === 38) { flagEvent = function() { simFlag('DOUBLE YELLOW', 'DOUBLE YELLOW'); }; flagLabel = ' — Double Yellow'; }
+      else if (l === 39) { flagEvent = function() { simFlag('GREEN', 'GREEN'); }; flagLabel = ' — Green Flag'; }
+      else if (l === 45) { flagEvent = function() {
+        simWeather('rain');
+      }; flagLabel = ' — Rain'; }
+
+      script.push({ label: 'Race — Lap ' + l + '/' + totalLaps + flagLabel, duration: 2000, action: function() {
+        var elapsed = Math.floor(7200 * l / totalLaps);
+        f1Update({
+          session: { lap: { current: l, total: totalLaps }, timer: { duration: 7200, elapsed: elapsed, remaining: 7200 - elapsed } }
+        });
+        if (l % 3 === 0) {
+          f1Update({ drivers: _simShufflePositions() });
+          if (typeof updateLeaderboardUI === 'function') updateLeaderboardUI();
+        }
+        if (flagEvent) flagEvent();
+        f1DataDirty = true;
+        if (typeof updateSessionUI === 'function') updateSessionUI();
+      }});
+    })(lap);
+  }
+
+  script.push({ label: 'Race — Chequered Flag!', duration: 5000, action: function() {
+    simFlag('CHEQUERED', 'FINISHED');
+    f1Update({ session: { finished: true } });
+    f1DataDirty = true;
+    if (typeof updateSessionUI === 'function') updateSessionUI();
+  }});
+
+  script.push({ label: 'Race — Finished', duration: 5000, action: function() {
+    simNoSession();
+  }});
+
+  return script;
+}
+
+function simWeekendToggle() {
+  if (_simWeekendRunning) {
+    _simWeekendRunning = false;
+    if (_simWeekendTimer) { clearTimeout(_simWeekendTimer); _simWeekendTimer = null; }
+    _simWeekendSetStatus('Stopped');
+    var btn = document.getElementById('f1-sim-weekend');
+    if (btn) btn.textContent = 'Simulate Race Weekend';
+    return;
+  }
+  if (typeof activateF1Mode === 'function') activateF1Mode();
+  _simWeekendRunning = true;
+  var btn = document.getElementById('f1-sim-weekend');
+  if (btn) btn.textContent = 'Stop Simulation';
+  document.getElementById('f1-sim-weekend-controls').style.display = 'block';
+  _simWeekendSpeed = parseInt(document.getElementById('f1-sim-speed').value) || 10;
+  var script = _buildWeekendScript();
+  _simWeekendStep(script, 0);
+}

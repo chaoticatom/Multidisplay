@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=605">
+<link rel="stylesheet" href="style.css?v=606">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -174,6 +174,18 @@
       <div class="f1-dev-section">
         <div class="f1-dev-header" id="f1-dev-toggle" style="display:none;">▸ Simulation Options</div>
         <div class="f1-dev-body" id="f1-dev-body" style="display:none;">
+          <div class="ov-row-label">Race Weekend</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <button class="strobe-mode-btn" id="f1-sim-weekend" style="flex:1;">Simulate Race Weekend</button>
+          </div>
+          <div id="f1-sim-weekend-controls" style="display:none;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:10px;color:#889;min-width:36px;">Speed:</span>
+              <input type="range" id="f1-sim-speed" min="1" max="50" value="10" style="flex:1;">
+              <span id="f1-sim-speed-val" style="font-size:10px;color:#aab;min-width:30px;">10x</span>
+            </div>
+            <div id="f1-sim-status" style="font-size:10px;color:#9ab;margin-top:4px;text-align:center;"></div>
+          </div>
           <div class="ov-row-label">Session</div>
           <div class="opt-grid">
             <button class="strobe-mode-btn" data-f1sim="practice">Practice</button>
@@ -1036,7 +1048,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=605"></script>
+<script src="version.js?v=606"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -1071,7 +1083,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=605','effects.js?v=605','ui.js?v=605'];
+  const appScripts = ['cube.js?v=606','effects.js?v=606','ui.js?v=606'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
