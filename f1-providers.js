@@ -159,13 +159,13 @@ F1Providers.openf1 = {
     this._finishedAt = 0;
     this._nextSession = null;
     this._init();
-    f1PollTimerId = setInterval(() => this._pollLive(), 8000);
     startF1SessionTimer();
   },
   stop() {
     this._sessionKey = null;
     this._finishedAt = 0;
     this._nextSession = null;
+    if (this._timer) { clearTimeout(this._timer); this._timer = null; }
     stopF1SessionTimer();
   },
   async _init() {
@@ -337,7 +337,7 @@ F1Providers.openf1 = {
         const dur = F1State.session.timer.duration || 7200;
         const remaining = Math.max(0, dur - elapsed);
         f1Update({ session: { timer: { duration: dur, elapsed, remaining } } });
-        if (remaining <= 0 && !this._finishedAt) {
+        if (remaining <= 0 && !this._finishedAt && F1State.session.active) {
           this._finishedAt = Date.now();
           f1Update({ session: { finished: true } });
         }
