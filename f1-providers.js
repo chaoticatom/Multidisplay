@@ -815,27 +815,34 @@ function _simWeekendSetStatus(text) {
 
 var SIM_WEEKEND_SESSIONS = [
   { type: 'Practice', label: 'FP1', fp: 1, duration: 3600, weather: 'sunny',
-    flags: { 900: 'YELLOW', 960: 'GREEN', 2400: 'YELLOW', 2460: 'GREEN' } },
+    flags: { 600: 'YELLOW', 660: 'GREEN', 1500: 'RED', 1560: 'GREEN', 2400: 'YELLOW', 2460: 'GREEN', 3200: 'YELLOW', 3240: 'GREEN' } },
   { type: 'Practice', label: 'FP2', fp: 2, duration: 3600, weather: 'cloudy',
-    flags: { 1200: 'YELLOW', 1260: 'GREEN' } },
+    flags: { 800: 'YELLOW', 860: 'GREEN', 1200: 'RED', 1280: 'GREEN', 2000: 'YELLOW', 2060: 'GREEN', 2800: 'YELLOW', 2840: 'GREEN', 3300: 'YELLOW', 3340: 'GREEN' } },
   { type: 'Practice', label: 'FP3', fp: 3, duration: 3600, weather: 'sunny',
-    flags: { 1800: 'YELLOW', 1860: 'GREEN' } },
+    flags: { 900: 'YELLOW', 960: 'GREEN', 1800: 'RED', 1860: 'GREEN', 2700: 'YELLOW', 2740: 'GREEN' } },
   { type: 'Qualifying', label: 'Q1', q: 1, duration: 1080, weather: 'sunny',
-    flags: { 400: 'YELLOW', 440: 'GREEN' } },
+    flags: { 300: 'YELLOW', 340: 'GREEN', 700: 'RED', 760: 'GREEN', 900: 'YELLOW', 940: 'GREEN' } },
   { type: 'Qualifying', label: 'Q2', q: 2, duration: 900, weather: 'sunny',
-    flags: {} },
+    flags: { 400: 'YELLOW', 440: 'GREEN', 650: 'YELLOW', 680: 'GREEN' } },
   { type: 'Qualifying', label: 'Q3', q: 3, duration: 720, weather: 'cloudy',
-    flags: {} },
+    flags: { 300: 'YELLOW', 330: 'GREEN', 500: 'RED', 560: 'GREEN' } },
   { type: 'Race', label: 'Race', duration: 7200, totalLaps: 52, weather: 'sunny' }
 ];
 
 var RACE_LAP_FLAGS = {
-  5: 'YELLOW', 6: 'GREEN',
-  15: ['VIRTUAL', 'VIRTUAL SC'], 18: 'GREEN',
-  22: 'BLUE_ON', 23: 'BLUE_OFF',
-  30: ['SAFETY', 'SAFETY CAR'], 33: 'GREEN',
-  38: ['DOUBLE YELLOW', 'DOUBLE YELLOW'], 39: 'GREEN',
-  45: 'RAIN'
+  1: 'GREEN',
+  3: 'YELLOW', 4: 'GREEN',
+  8: ['VIRTUAL', 'VIRTUAL SC'], 11: 'GREEN',
+  14: 'YELLOW', 15: 'GREEN',
+  18: 'BLUE_ON', 19: 'BLUE_OFF',
+  22: ['DOUBLE YELLOW', 'DOUBLE YELLOW'], 23: 'YELLOW', 24: 'GREEN',
+  28: ['SAFETY', 'SAFETY CAR'], 31: 'GREEN',
+  34: 'BLUE_ON', 35: 'BLUE_OFF',
+  37: 'BW_ON', 38: 'BW_OFF',
+  40: 'YELLOW', 41: 'GREEN',
+  43: ['VIRTUAL', 'VIRTUAL SC'], 45: 'GREEN',
+  47: 'RAIN',
+  49: 'YELLOW', 50: 'GREEN'
 };
 
 var _simWkSessions = [];
