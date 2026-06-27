@@ -261,11 +261,53 @@ F1Providers.openf1 = {
       // Fall back to any future session
       var now = new Date().toISOString();
       var res = await fetch('https://api.openf1.org/v1/sessions?date_start>=' + now + '&order=date_start&order_direction=asc');
-      if (!res.ok) return null;
-      var sessions = await res.json();
-      if (!sessions.length) return null;
-      return sessions[0];
-    } catch (e) { return null; }
+      if (res.ok) {
+        var sessions = await res.json();
+        if (sessions.length) return sessions[0];
+      }
+    } catch (e) { /* fall through */ }
+    // Predict next session from typical F1 weekend schedule
+    return this._predictNextSession();
+  },
+  _predictNextSession() {
+    var meeting = F1State.meeting;
+    if (!meeting) return null;
+    var curName = (meeting.session_name || meeting.session_type || '').toLowerCase();
+    var schedule = [
+      { name: 'Practice 1', type: 'Practice', offsetH: 0 },
+      { name: 'Practice 2', type: 'Practice', offsetH: 4 },
+      { name: 'Practice 3', type: 'Practice', offsetH: 20 },
+      { name: 'Qualifying', type: 'Qualifying', offsetH: 23 },
+      { name: 'Race',       type: 'Race',       offsetH: 44 }
+    ];
+    var curIdx = -1;
+    for (var i = 0; i < schedule.length; i++) {
+      if (curName.includes(schedule[i].name.toLowerCase()) ||
+          (curName.includes('practice') && curName.includes('' + (i+1)) && schedule[i].type === 'Practice')) {
+        curIdx = i; break;
+      }
+    }
+    if (curIdx < 0 && curName.includes('sprint')) curIdx = 2;
+    if (curIdx < 0) return null;
+    var nextIdx = curIdx + 1;
+    if (nextIdx >= schedule.length) return null;
+    var next = schedule[nextIdx];
+    var baseTime = meeting.date_start ? new Date(meeting.date_start).getTime() : Date.now();
+    var hoursFromCurrent = next.offsetH - schedule[curIdx].offsetH;
+    var estStart = new Date(baseTime + hoursFromCurrent * 3600000);
+    if (estStart.getTime() < Date.now()) {
+      estStart = new Date(Date.now() + hoursFromCurrent * 3600000);
+    }
+    return {
+      session_name: next.name,
+      session_type: next.type,
+      meeting_name: meeting.meeting_name || '',
+      circuit_short_name: meeting.circuit_short_name || '',
+      country_name: meeting.country_name || '',
+      meeting_key: meeting.meeting_key || this._currentMeetingKey,
+      date_start: estStart.toISOString(),
+      _estimated: true
+    };
   },
   _showNextSession(next) {
     if (!next) return;
