@@ -594,23 +594,17 @@ F1Providers.openf1 = {
             if (msg.includes('Q2')) { f1Update({ session: { qSession: 2 } }); break; }
             if (msg.includes('Q1')) { f1Update({ session: { qSession: 1 } }); break; }
           }
-          // Detect SC/VSC from most recent race control
-          for (var si = 0; si < rc.length; si++) {
-            var scMsg = (rc[si].message || '').toUpperCase();
-            var scFlag = (rc[si].flag || '').toUpperCase();
-            if (scMsg.includes('VIRTUAL SAFETY CAR') || scFlag === 'VSC') {
-              f1Update({ track: { flag: 'vsc', statusText: 'VSC' } }); break;
-            }
-            if (scMsg.includes('SAFETY CAR') || scFlag === 'SAFETY CAR') {
-              f1Update({ track: { flag: 'sc', statusText: 'SAFETY CAR' } }); break;
-            }
-            if (scFlag === 'GREEN' || scFlag === 'CLEAR') {
-              break; // SC/VSC ended
-            }
-          }
           const latest = rc[0];
           if (latest.flag) {
-            if (typeof applyF1Flag === 'function') applyF1Flag(latest.flag, latest.flag);
+            var lf = latest.flag.toUpperCase();
+            var lm = (latest.message || '').toUpperCase();
+            if (lm.includes('VIRTUAL SAFETY CAR') || lf === 'VSC') {
+              if (typeof applyF1Flag === 'function') applyF1Flag('VIRTUAL', 'VIRTUAL SC');
+            } else if (lm.includes('SAFETY CAR') || lf === 'SAFETY CAR') {
+              if (typeof applyF1Flag === 'function') applyF1Flag('SAFETY', 'SAFETY CAR');
+            } else {
+              if (typeof applyF1Flag === 'function') applyF1Flag(latest.flag, latest.flag);
+            }
             if (latest.flag === 'CHEQUERED' && !this._finishedAt) {
               this._finishedAt = Date.now();
               f1Update({ session: { finished: true } });
@@ -683,7 +677,7 @@ function simSession(sessionType) {
       active: true, type: sessionType, finished: false,
       qSession: qS, fpSession: fpS, timer, lap: lapData
     },
-    track: { statusText, flagRGB: [.02, 1, .1] }
+    track: { statusText, flagRGB: [.02, 1, .1], blueFlag: false, bwFlag: false }
   });
 
   if (typeof applyF1Flag === 'function') applyF1Flag(null, 'GREEN');
@@ -735,7 +729,7 @@ function simBWFlag() {
 function simFinish() {
   f1Update({
     session: { active: true, finished: true },
-    track: { statusText: 'FINISHED', flagRGB: [1, 1, 1] }
+    track: { statusText: 'FINISHED', flagRGB: [1, 1, 1], blueFlag: false, bwFlag: false }
   });
   if (typeof activateF1Mode === 'function') activateF1Mode();
   const flagEl = document.getElementById('f1-flag');
@@ -748,7 +742,7 @@ function simNoSession() {
   if (typeof activateF1Mode === 'function') activateF1Mode();
   f1Update({
     session: { active: false, finished: false },
-    track: { flag: 'none', flagRGB: [0, 0, 0], flagLabel: '', statusText: '' },
+    track: { flag: 'none', flagRGB: [0, 0, 0], flagLabel: '', statusText: '', blueFlag: false, bwFlag: false },
     meeting: F1State.meeting || DEMO_MEETING
   });
   if (!F1State.meeting) {

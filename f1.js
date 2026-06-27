@@ -886,7 +886,7 @@ function applyF1Flag(flag, status='') {
     else if (F.includes('SAFETY') ||S.includes('SAFETY'))  { rgb=[1,.9,0]; label='SAFETY CAR'; stext='SC';  css='#ffcc00'; }
     else if (F.includes('DOUBLE YELLOW')) { rgb=[1,.88,0]; label='DBL YELLOW'; stext='DBL YELLOW'; css='#ffcc00'; }
     else if (F.includes('YELLOW'))  { rgb=[1,.88,0];   label='YELLOW';    stext='YELLOW'; css='#ffcc00'; }
-    else if (F.includes('GREEN')||F.includes('CLEAR')) { rgb=[.02,1,.1]; label='GO'; stext='GO'; css='#00ff44'; }
+    else if (F.includes('GREEN')||F.includes('CLEAR')) { rgb=[.02,1,.1]; label='GO'; stext='GO'; css='#00ff44'; f1Update({ track: { blueFlag: false, bwFlag: false } }); }
     else if (stext !== '--') { rgb=[.3,.6,1]; label=stext; }
   }
 
