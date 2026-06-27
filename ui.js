@@ -1229,13 +1229,18 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=541','f1.js?v=541','f1-providers.js?v=541'];
+  const scripts = ['f1-state.js?v=542','f1.js?v=542','f1-providers.js?v=542'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
       _f1Loaded = true; _f1Loading = false;
       EFFECTS.f1 = effectF1;
       if (currentEffect === 'f1' && typeof effectF1 === 'function') {
+        var saved = localStorage.getItem('f1-mode') || 'openf1';
+        f1SetMode(saved);
+        document.querySelectorAll('[data-f1src]').forEach(function(b) {
+          b.classList.toggle('active', b.dataset.f1src === saved);
+        });
         startF1SessionTimer();
         f1DataDirty = true;
       }
