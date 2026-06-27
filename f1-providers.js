@@ -233,6 +233,7 @@ F1Providers.openf1 = {
             meeting: next
           });
           this._nextSession = next;
+          f1Update({ nextSession: next });
           if (typeof buildIdleScroll === 'function') buildIdleScroll();
         }
       }
@@ -263,6 +264,7 @@ F1Providers.openf1 = {
         track: { statusText: `NEXT: ${sType}`, flagRGB: [0.1, 0.4, 1] }
       });
       this._nextSession = next;
+          f1Update({ nextSession: next });
     } else {
       f1Update({
         session: { active: false, finished: false, type: '',
@@ -272,6 +274,7 @@ F1Providers.openf1 = {
         meeting: next
       });
       this._nextSession = next;
+          f1Update({ nextSession: next });
       if (typeof buildScrollText === 'function') buildScrollText({ meeting_name: next.meeting_name, circuit_short_name: next.circuit_short_name });
       if (typeof buildCircuitStrip === 'function') buildCircuitStrip();
       if (typeof buildIdleScroll === 'function') buildIdleScroll();

@@ -1229,7 +1229,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=555','f1.js?v=555','f1-providers.js?v=555'];
+  const scripts = ['f1-state.js?v=556','f1.js?v=556','f1-providers.js?v=556'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1946,7 +1946,7 @@ function _f1UpdateDiag() {
     `Weather: ${s.weather.temp != null ? s.weather.temp + '°C' : '--'} ${s.weather.humidity != null ? s.weather.humidity + '%' : ''} ${s.weather.wind != null ? s.weather.wind + 'km/h' : ''} ${s.weather.rain ? '🌧' : ''}`,
     s.track.raceControlMessages.length ? `RC: ${s.track.raceControlMessages[0].message}` : '',
     (function(){
-      var ns = typeof F1Providers !== 'undefined' && F1Providers.openf1?._nextSession;
+      var ns = s.nextSession;
       if (!ns) return '';
       var parts = ['Next: <b>' + (ns.session_name || ns.session_type || '') + '</b>'];
       if (ns.meeting_name) parts.push(ns.meeting_name);
