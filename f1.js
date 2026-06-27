@@ -608,28 +608,25 @@ function effectF1(dt){
 
     {
       const sq = Math.max(2, (SIZE/8)|0);
-      const basePulse = 0.45 + Math.sin(t*2)*0.35;
+      const basePulse = 0.3 + Math.sin(t*2)*0.15;
       for(let sp=0; sp<4*SIZE; sp++) {
         for(let v=0; v<SIZE; v++) {
           const isW = (((sp/sq)|0) + ((v/sq)|0)) % 2 === 0;
-          const waveX = Math.sin((sp/(4*SIZE))*Math.PI*2 + t*2)*0.3;
-          const waveY = Math.sin((v/SIZE)*Math.PI*2 + t*2.5)*0.3;
-          const wavePulse = basePulse + waveX + waveY;
-          const bright = isW ? Math.max(0.02, wavePulse*0.4) : 0.01;
+          const bright = isW ? Math.max(0.01, basePulse*0.15) : 0.005;
           setStripLED(sp, v, bright, bright, bright);
         }
       }
     }
 
     if (f1IdlePixels && f1IdleWidth > 0) {
-      f1IdleScrollX = (f1IdleScrollX + dt*SIZE*0.4) % f1IdleWidth;
+      f1IdleScrollX = (f1IdleScrollX + dt*SIZE*0.35) % f1IdleWidth;
       for(let sv=0;sv<SIZE;sv++){
         for(let sp=0;sp<4*SIZE;sp++){
           const srcX = ((sp + (f1IdleScrollX|0)) % f1IdleWidth + f1IdleWidth) % f1IdleWidth;
           const pv   = f1IdlePixels[(sv*f1IdleWidth+srcX)*4]/255;
           if(pv<0.04) continue;
           const h=(sp/(4*SIZE)+t*0.03)%1;
-          const [r,g,b]=hsl(h,1,pv*0.85);
+          const [r,g,b]=hsl(h,1,pv);
           setStripLED(sp, sv, r, g, b);
         }
       }
@@ -655,9 +652,9 @@ function effectF1(dt){
           var fs = Math.max(5, (lineH*0.85)|0);
           dctx.font = 'bold ' + fs + 'px Arial';
           dctx.textAlign = 'center'; dctx.textBaseline = 'middle';
-          dctx.fillStyle = '#8899dd';
+          dctx.fillStyle = '#bbccff';
           dctx.fillText(line1, dc.width/2, lineH/2);
-          dctx.fillStyle = '#aaccff';
+          dctx.fillStyle = '#ddeeff';
           dctx.fillText(line2, dc.width/2, lineH + 1 + lineH/2);
 
           f1FaceBufs._idleDate = { data: dctx.getImageData(0,0,dc.width,totalH).data, w: SIZE, h: totalH };
@@ -674,7 +671,7 @@ function effectF1(dt){
                 var pv = buf.data[pi]/255;
                 if(pv<0.05) continue;
                 var v = dateY_start + dy;
-                setStripLED(sp, v, pv*0.5, pv*0.6, pv);
+                setStripLED(sp, v, pv*0.7, pv*0.8, pv);
               }
             }
           }
