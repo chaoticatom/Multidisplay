@@ -1231,7 +1231,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=591','f1.js?v=591','f1-providers.js?v=591'];
+  const scripts = ['f1-state.js?v=592','f1.js?v=592','f1-providers.js?v=592'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1906,6 +1906,14 @@ document.querySelectorAll('[data-f1sim]').forEach(btn => {
 document.querySelectorAll('[data-f1flag]').forEach(btn => {
   btn.addEventListener('click', () => {
     const f = btn.dataset.f1flag;
+    if (f !== 'blue') {
+      document.querySelectorAll('[data-f1flag]').forEach(b => {
+        if (b.dataset.f1flag !== 'blue') b.classList.remove('active');
+      });
+      btn.classList.add('active');
+    } else {
+      btn.classList.toggle('active');
+    }
     if (f === 'blue') { simBlueFlag(); }
     else if (f === 'finish') { simFinish(); }
     else if (f === 'sc') { simFlag('SAFETY', 'SAFETY CAR'); }
