@@ -703,22 +703,18 @@ function simFlag(flag, status) {
 }
 
 function simBlueFlag() {
-  const cur = F1State.track.flag === 'blue';
+  const cur = !!F1State.track.blueFlag;
   f1Update({
-    track: {
-      flag: cur ? 'none' : 'blue',
-      flagRGB: cur ? [0, 0, 0] : [0, 0.33, 1],
-      statusText: cur ? (F1State.track.statusText || '') : 'BLUE FLAG'
-    }
+    track: { blueFlag: !cur }
   });
   const flagEl = document.getElementById('f1-flag');
   const textEl = document.getElementById('f1-status-text');
-  if (cur) {
-    if (flagEl) flagEl.style.background = '#111';
-    if (textEl) textEl.textContent = F1State.track.flagLabel || 'Idle';
-  } else {
+  if (!cur) {
     if (flagEl) flagEl.style.background = '#0055ff';
     if (textEl) textEl.textContent = 'BLUE FLAG';
+  } else {
+    if (flagEl) flagEl.style.background = '#111';
+    if (textEl) textEl.textContent = F1State.track.flagLabel || F1State.track.statusText || 'Idle';
   }
 }
 

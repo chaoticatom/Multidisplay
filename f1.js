@@ -851,20 +851,12 @@ function applyF1Flag(flag, status='') {
     rgb=[1,1,1]; label='FINISHED'; stext='FINISHED'; css='#ffffff';
   }
   else {
-    let blueFlag = false;
     if (F.includes('BLUE')) {
-      blueFlag = true;
-      rgb = [0, 0.33, 1];
-      label = 'BLUE FLAG';
-      stext = 'BLUE';
-      css = '#0055ff';
-      f1Update({
-        track: { flag: 'blue', flagRGB: rgb, flagLabel: label, statusText: stext }
-      });
+      f1Update({ track: { blueFlag: true } });
       const flagEl=document.getElementById('f1-flag');
       const textEl=document.getElementById('f1-status-text');
-      if(flagEl) flagEl.style.background=css;
-      if(textEl) textEl.textContent=label;
+      if(flagEl) flagEl.style.background='#0055ff';
+      if(textEl) textEl.textContent='BLUE FLAG';
       return;
     }
     if (F.includes('RED'))          { rgb=[1,.02,.02]; label='RED FLAG';  stext='RED';    css='#ff2200'; }

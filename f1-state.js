@@ -27,6 +27,7 @@ window.F1State = {
     flagRGB: [0, 0, 0],        // [r,g,b] 0-1
     flagLabel: '',
     statusText: '',            // display string
+    blueFlag: false,           // independent blue flag overlay
     raceControlMessages: []    // [{message, flag, lap, timestamp}] last 10
   },
 
@@ -68,7 +69,7 @@ function f1Reset() {
     timer: { duration: 0, elapsed: 0, remaining: 0 }
   };
   F1State.drivers = [];
-  F1State.track = { flag: 'none', flagRGB: [0, 0, 0], flagLabel: '', statusText: '', raceControlMessages: [] };
+  F1State.track = { flag: 'none', flagRGB: [0, 0, 0], flagLabel: '', statusText: '', blueFlag: false, raceControlMessages: [] };
   F1State.weather = { temp: null, humidity: null, wind: null, rain: false, condition: '', code: 0 };
   F1State.carPositions = [];
   F1State.meeting = null;
