@@ -353,7 +353,9 @@ function alarmOpenEditor(idx){
   alarmSunriseOn=!!al.prealarm?.enabled;
   document.getElementById('al-wind-down').checked=!!al.prealarm?.windDown;
   document.getElementById('al-wd-use-effect').checked=!!al.prealarm?.wdUseEffect;
-  document.getElementById('al-wd-effect-row').style.display=al.prealarm?.windDown?'flex':'none';
+  const wdMinsEl=document.getElementById('al-wd-mins');
+  if(wdMinsEl) wdMinsEl.value=al.prealarm?.wdMinutes||15;
+  document.getElementById('al-wd-opts').style.display=al.prealarm?.windDown?'':'none';
   alarmGiantSunOn=!!al.prealarm?.giantSun;
   alarmWxRiseOn=!!al.prealarm?.wxRise;
   alarmEffectRiseOn=!!al.prealarm?.effectRise;
@@ -727,7 +729,7 @@ document.getElementById('al-repeat')?.addEventListener('change',e=>{
   document.getElementById('al-days-row').style.display=e.target.value==='weekly'?'':'none';
 });
 document.getElementById('alarm-add-btn')?.addEventListener('click',()=>alarmOpenEditor(-1));
-document.getElementById('al-wind-down')?.addEventListener('change',function(){ document.getElementById('al-wd-effect-row').style.display=this.checked?'flex':'none'; });
+document.getElementById('al-wind-down')?.addEventListener('change',function(){ document.getElementById('al-wd-opts').style.display=this.checked?'':'none'; });
 document.getElementById('al-cancel-btn')?.addEventListener('click',()=>{ document.getElementById('alarm-modal').style.display='none'; });
 document.getElementById('al-save-btn')?.addEventListener('click',()=>{
   const hour=Math.max(0,Math.min(23,parseInt(document.getElementById('al-hour').value)||0));
@@ -748,6 +750,7 @@ document.getElementById('al-save-btn')?.addEventListener('click',()=>{
       preMinutes:parseInt(document.getElementById('al-pre-mins').value)||15,
       startBright:parseInt(document.getElementById('al-dim-start').value)||5,
       windDown:document.getElementById('al-wind-down').checked,
+      wdMinutes:parseInt(document.getElementById('al-wd-mins')?.value)||15,
       wdUseEffect:document.getElementById('al-wd-use-effect').checked,
       giantSun:alarmGiantSunOn, wxRise:alarmWxRiseOn, effectRise:alarmEffectRiseOn, effectRiseKey:alarmEffectRiseKey, effectRiseCity:alarmEffectRiseCity, effectRiseOpts:alarmEffectRiseOpts},
     message:document.getElementById('al-message').value||'',
@@ -911,6 +914,16 @@ function alarmCheck(){
 
     if(al.repeat==='hourly'){
       if(m===al.minute&&s<3&&!activeAlarm&&al._lastFireMin!==((h*60+m))){ al._lastFireMin=(h*60+m); alarmFire(al,now); break; }
+      continue;
+    }
+
+    // Wind down: triggers at alarm time and runs forward for wdMinutes
+    if(al.prealarm?.windDown){
+      const wdMs=(al.prealarm.wdMinutes||15)*60000;
+      if(dayMs>=alMs&&dayMs<alMs+wdMs&&!activeAlarm){
+        activeAlarm={al,phase:'pre',startMs:now.getTime()-(dayMs-alMs),preMs:wdMs,dismissed:false};
+        break;
+      }
       continue;
     }
 
