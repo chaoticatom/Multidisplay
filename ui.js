@@ -395,12 +395,10 @@ function alarmOpenEditor(idx){
   Object.keys(ovNames).forEach(ov=>{
     const lbl=document.createElement('label');
     lbl.style.cssText='font-size:12px;color:#99b;display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 0;';
-    const tog=document.createElement('span'); tog.className='ov-toggle'; tog.style.marginLeft='0';
     const chk=document.createElement('input'); chk.type='checkbox'; chk.value=ov;
+    chk.style.cssText='width:14px;height:14px;accent-color:#7aadff;';
     chk.checked=(al.overlayKeys||[]).includes(ov);
-    const slider=document.createElement('span'); slider.className='ov-slider';
-    tog.appendChild(chk); tog.appendChild(slider);
-    lbl.appendChild(tog); lbl.appendChild(document.createTextNode(ovNames[ov]));
+    lbl.appendChild(chk); lbl.appendChild(document.createTextNode(ovNames[ov]));
     ovDiv.appendChild(lbl);
   });
 
@@ -418,12 +416,10 @@ function alarmOpenEditor(idx){
   Object.keys(ovNames).forEach(ov=>{
     const lbl=document.createElement('label');
     lbl.style.cssText='font-size:12px;color:#99b;display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 0;';
-    const tog=document.createElement('span'); tog.className='ov-toggle'; tog.style.marginLeft='0';
     const chk=document.createElement('input'); chk.type='checkbox'; chk.value=ov;
+    chk.style.cssText='width:14px;height:14px;accent-color:#7aadff;';
     chk.checked=(al.prealarm?.wdOverlayKeys||[]).includes(ov);
-    const slider=document.createElement('span'); slider.className='ov-slider';
-    tog.appendChild(chk); tog.appendChild(slider);
-    lbl.appendChild(tog); lbl.appendChild(document.createTextNode(ovNames[ov]));
+    lbl.appendChild(chk); lbl.appendChild(document.createTextNode(ovNames[ov]));
     wdOvDiv.appendChild(lbl);
   });
   document.getElementById('al-wd-effect-section').style.display=(al.prealarm?.wdUseEffect)?'none':'';
