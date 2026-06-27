@@ -207,14 +207,19 @@ function buildCircuitStrip() {
 }
 
 function buildIdleScroll() {
-  const meeting = F1State.meeting;
+  var ns = F1State.nextSession;
+  var meeting = ns || F1State.meeting;
   if (!meeting) return;
-  var parts = [(meeting.meeting_name||''), (meeting.circuit_short_name||'')];
-  if (meeting.session_type) parts.push(meeting.session_type.toUpperCase());
-  if (meeting.date_start) {
-    var d = new Date(meeting.date_start);
-    var now = new Date();
-    var diffMs = d.getTime() - now.getTime();
+  var parts = [];
+  if (ns) parts.push('NEXT:');
+  parts.push(ns ? (ns.session_name || ns.session_type || '') : (meeting.meeting_name || ''));
+  parts.push(meeting.meeting_name || '');
+  parts.push(meeting.circuit_short_name || '');
+  if (meeting.country_name) parts.push(meeting.country_name);
+  var dateStr = ns ? ns.date_start : meeting.date_start;
+  if (dateStr) {
+    var d = new Date(dateStr);
+    var diffMs = d.getTime() - Date.now();
     if (diffMs > 0) {
       var diffH = Math.floor(diffMs / 3600000);
       var diffM = Math.floor((diffMs % 3600000) / 60000);
@@ -228,7 +233,13 @@ function buildIdleScroll() {
     parts.push(d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }));
     parts.push(d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
   }
-  const name = parts.filter(Boolean).join('  •  ').toUpperCase();
+  // Deduplicate adjacent identical parts
+  parts = parts.filter(Boolean);
+  var deduped = [parts[0]];
+  for (var pi = 1; pi < parts.length; pi++) {
+    if (parts[pi].toUpperCase() !== parts[pi-1].toUpperCase()) deduped.push(parts[pi]);
+  }
+  const name = deduped.join('  •  ').toUpperCase();
   const text  = '   ' + name + '   ';
   const S     = Math.max(SIZE, 16);
   const oc = document.createElement('canvas');

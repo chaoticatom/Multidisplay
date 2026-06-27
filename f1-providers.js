@@ -11,6 +11,51 @@ function _f1IsActive() {
   try { return currentEffect === 'f1'; } catch(e) { return false; }
 }
 
+function _f1PredictNextSession() {
+  var meeting = F1State.meeting;
+  if (!meeting) return null;
+  var curName = (meeting.session_name || meeting.session_type || F1State.session.type || '').toLowerCase();
+  var schedule = [
+    { name: 'Practice 1', type: 'Practice', offsetH: 0 },
+    { name: 'Practice 2', type: 'Practice', offsetH: 4 },
+    { name: 'Practice 3', type: 'Practice', offsetH: 20 },
+    { name: 'Qualifying', type: 'Qualifying', offsetH: 23 },
+    { name: 'Race',       type: 'Race',       offsetH: 44 }
+  ];
+  var curIdx = -1;
+  for (var i = 0; i < schedule.length; i++) {
+    if (curName.includes(schedule[i].name.toLowerCase()) ||
+        (curName.includes('practice') && curName.includes('' + (i+1)) && schedule[i].type === 'Practice')) {
+      curIdx = i; break;
+    }
+  }
+  if (curIdx < 0 && curName.includes('sprint')) curIdx = 2;
+  if (curIdx < 0 && curName.includes('qual')) curIdx = 3;
+  if (curIdx < 0 && curName.includes('race')) curIdx = 4;
+  if (curIdx < 0) return null;
+  var nextIdx = curIdx + 1;
+  if (nextIdx >= schedule.length) return null;
+  var next = schedule[nextIdx];
+  var baseTime = meeting.date_start ? new Date(meeting.date_start).getTime() : Date.now();
+  var hoursFromCurrent = next.offsetH - schedule[curIdx].offsetH;
+  var estStart = new Date(baseTime + hoursFromCurrent * 3600000);
+  if (estStart.getTime() < Date.now()) {
+    estStart = new Date(Date.now() + hoursFromCurrent * 3600000);
+  }
+  return {
+    session_name: next.name, session_type: next.type,
+    meeting_name: meeting.meeting_name || '', circuit_short_name: meeting.circuit_short_name || '',
+    country_name: meeting.country_name || '', meeting_key: meeting.meeting_key || null,
+    date_start: estStart.toISOString(), _estimated: true
+  };
+}
+
+function _f1SetNextSession(next) {
+  if (!next) return;
+  f1Update({ nextSession: next });
+  if (typeof buildIdleScroll === 'function') buildIdleScroll();
+}
+
 function f1SetMode(mode) {
   if (f1ActiveProvider) {
     f1ActiveProvider.stop();
@@ -144,6 +189,9 @@ F1Providers.esp32 = {
 
     f1Update({ connection: anySuccess ? 'connected' : 'error' });
     if (typeof f1SetStatus === 'function') f1SetStatus(anySuccess ? 'ok' : 'error');
+    if (!F1State.session.active && !F1State.nextSession) {
+      _f1SetNextSession(_f1PredictNextSession());
+    }
   }
 };
 
@@ -220,21 +268,11 @@ F1Providers.openf1 = {
 
       // If session is not live, fetch next upcoming session
       if (!isLive) {
-        const next = await this._fetchNextSession();
+        var next = await this._fetchNextSession();
         if (next) {
           next.session_type = next.session_type || next.session_name || '';
-          f1Update({
-            session: {
-              active: false, type: '', name: next.meeting_name || '',
-              circuit: next.circuit_short_name || '',
-              country: next.country_name || '',
-              dateStart: next.date_start || ''
-            },
-            meeting: next
-          });
           this._nextSession = next;
-          f1Update({ nextSession: next });
-          if (typeof buildIdleScroll === 'function') buildIdleScroll();
+          _f1SetNextSession(next);
         }
       }
       this._pollLive();
@@ -267,47 +305,7 @@ F1Providers.openf1 = {
       }
     } catch (e) { /* fall through */ }
     // Predict next session from typical F1 weekend schedule
-    return this._predictNextSession();
-  },
-  _predictNextSession() {
-    var meeting = F1State.meeting;
-    if (!meeting) return null;
-    var curName = (meeting.session_name || meeting.session_type || '').toLowerCase();
-    var schedule = [
-      { name: 'Practice 1', type: 'Practice', offsetH: 0 },
-      { name: 'Practice 2', type: 'Practice', offsetH: 4 },
-      { name: 'Practice 3', type: 'Practice', offsetH: 20 },
-      { name: 'Qualifying', type: 'Qualifying', offsetH: 23 },
-      { name: 'Race',       type: 'Race',       offsetH: 44 }
-    ];
-    var curIdx = -1;
-    for (var i = 0; i < schedule.length; i++) {
-      if (curName.includes(schedule[i].name.toLowerCase()) ||
-          (curName.includes('practice') && curName.includes('' + (i+1)) && schedule[i].type === 'Practice')) {
-        curIdx = i; break;
-      }
-    }
-    if (curIdx < 0 && curName.includes('sprint')) curIdx = 2;
-    if (curIdx < 0) return null;
-    var nextIdx = curIdx + 1;
-    if (nextIdx >= schedule.length) return null;
-    var next = schedule[nextIdx];
-    var baseTime = meeting.date_start ? new Date(meeting.date_start).getTime() : Date.now();
-    var hoursFromCurrent = next.offsetH - schedule[curIdx].offsetH;
-    var estStart = new Date(baseTime + hoursFromCurrent * 3600000);
-    if (estStart.getTime() < Date.now()) {
-      estStart = new Date(Date.now() + hoursFromCurrent * 3600000);
-    }
-    return {
-      session_name: next.name,
-      session_type: next.type,
-      meeting_name: meeting.meeting_name || '',
-      circuit_short_name: meeting.circuit_short_name || '',
-      country_name: meeting.country_name || '',
-      meeting_key: meeting.meeting_key || this._currentMeetingKey,
-      date_start: estStart.toISOString(),
-      _estimated: true
-    };
+    return _f1PredictNextSession();
   },
   _showNextSession(next) {
     if (!next) return;
@@ -320,7 +318,7 @@ F1Providers.openf1 = {
         track: { statusText: `NEXT: ${sType}`, flagRGB: [0.1, 0.4, 1] }
       });
       this._nextSession = next;
-          f1Update({ nextSession: next });
+      _f1SetNextSession(next);
     } else {
       f1Update({
         session: { active: false, finished: false, type: '',
@@ -330,10 +328,9 @@ F1Providers.openf1 = {
         meeting: next
       });
       this._nextSession = next;
-          f1Update({ nextSession: next });
+      _f1SetNextSession(next);
       if (typeof buildScrollText === 'function') buildScrollText({ meeting_name: next.meeting_name, circuit_short_name: next.circuit_short_name });
       if (typeof buildCircuitStrip === 'function') buildCircuitStrip();
-      if (typeof buildIdleScroll === 'function') buildIdleScroll();
     }
     f1DataDirty = true;
     const flagEl = document.getElementById('f1-flag');
