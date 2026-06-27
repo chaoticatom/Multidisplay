@@ -744,15 +744,26 @@ function effectF1(dt){
       f1FaceBufs._lastStatus = statusText;
       const oc=document.createElement('canvas'); oc.width=SIZE; oc.height=SIZE;
       const cx=oc.getContext('2d');
+      const lines = statusText.split(' ');
+      const multiLine = lines.length > 1 && cx.measureText(statusText).width > SIZE*0.7;
       let fh = Math.max(8,(SIZE*0.38)|0);
       cx.font=`bold ${fh}px Arial`;
-      while(fh > 4 && cx.measureText(statusText).width > SIZE*0.92){
+      const fitText = multiLine ? lines.reduce((a,b) => cx.measureText(a).width > cx.measureText(b).width ? a : b) : statusText;
+      while(fh > 4 && cx.measureText(fitText).width > SIZE*0.92){
         fh--; cx.font=`bold ${fh}px Arial`;
       }
       cx.fillStyle='rgba(0,0,0,0)'; cx.clearRect(0,0,SIZE,SIZE);
       cx.fillStyle='#fff';
       cx.textAlign='center'; cx.textBaseline='middle';
-      cx.fillText(statusText, SIZE/2, SIZE/2);
+      if (multiLine) {
+        const gap = fh * 1.15;
+        const startY = SIZE/2 - (lines.length - 1) * gap / 2;
+        for (let li = 0; li < lines.length; li++) {
+          cx.fillText(lines[li], SIZE/2, startY + li * gap);
+        }
+      } else {
+        cx.fillText(statusText, SIZE/2, SIZE/2);
+      }
       f1FaceBufs.status={data:cx.getImageData(0,0,SIZE,SIZE).data,S:SIZE};
     }
     if(f1FaceBufs.status){
