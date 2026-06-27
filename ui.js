@@ -1231,7 +1231,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=590','f1.js?v=590','f1-providers.js?v=590'];
+  const scripts = ['f1-state.js?v=591','f1.js?v=591','f1-providers.js?v=591'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1243,6 +1243,8 @@ function _f1LoadScripts() {
         document.querySelectorAll('[data-f1src]').forEach(function(b) {
           b.classList.toggle('active', b.dataset.f1src === saved);
         });
+        var simToggle = document.getElementById('f1-dev-toggle');
+        if (simToggle) simToggle.style.display = saved === 'simulation' ? '' : 'none';
         startF1SessionTimer();
         f1DataDirty = true;
       }
@@ -1875,6 +1877,17 @@ document.querySelectorAll('[data-f1src]').forEach(btn => {
     document.querySelectorAll('[data-f1src]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const mode = btn.dataset.f1src;
+    const simToggle = document.getElementById('f1-dev-toggle');
+    const simBody = document.getElementById('f1-dev-body');
+    if (simToggle) {
+      if (mode === 'simulation') {
+        simToggle.style.display = '';
+      } else {
+        simToggle.style.display = 'none';
+        if (simBody) simBody.style.display = 'none';
+        if (simToggle) simToggle.textContent = '▸ Simulation Options';
+      }
+    }
     f1SetMode(mode);
     activateF1Mode();
   });
@@ -1911,7 +1924,7 @@ document.getElementById('f1-dev-toggle')?.addEventListener('click', function() {
   const body = document.getElementById('f1-dev-body');
   const open = body.style.display !== 'none';
   body.style.display = open ? 'none' : 'block';
-  this.textContent = (open ? '▸' : '▾') + ' Developer Tools';
+  this.textContent = (open ? '▸' : '▾') + ' Simulation Options';
 });
 document.getElementById('f1-diag-toggle')?.addEventListener('click', function() {
   const body = document.getElementById('f1-diag-body');
