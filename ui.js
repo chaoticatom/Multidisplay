@@ -1229,7 +1229,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=546','f1.js?v=546','f1-providers.js?v=546'];
+  const scripts = ['f1-state.js?v=547','f1.js?v=547','f1-providers.js?v=547'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1976,7 +1976,7 @@ document.addEventListener('f1-state-change', () => {
   const dot = document.getElementById('f1-status-dot');
   if (!dot) return;
   const c = F1State.connection;
-  dot.style.background = c === 'connected' ? '#4f4' : c === 'connecting' ? '#ff0' : c === 'error' ? '#f44' : '#444';
+  dot.style.background = c === 'transferring' ? '#3af' : c === 'connected' ? '#4f4' : c === 'connecting' ? '#ff0' : c === 'error' ? '#f44' : '#444';
 });
 
 let panel2dMode=false, panel2dZoom=60;

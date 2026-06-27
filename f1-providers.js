@@ -68,6 +68,7 @@ F1Providers.esp32 = {
   async _poll() {
     if (!_f1IsActive()) return;
     let anySuccess = false;
+    f1Update({ connection: 'transferring' });
     try {
       const res = await fetch('/api/session', { signal: AbortSignal.timeout(5000) });
       if (res.ok) {
@@ -274,6 +275,7 @@ F1Providers.openf1 = {
 
     const sk = this._sessionKey;
     try {
+      f1Update({ connection: 'transferring' });
       // Positions
       const posRes = await fetch(`https://api.openf1.org/v1/position?session_key=${sk}&order=date&order_direction=desc`);
       if (posRes.ok) {
