@@ -233,16 +233,14 @@ function buildIdleScroll() {
   const ctx = oc.getContext('2d');
   let fs = Math.max(6, (S * 0.52)|0);
   ctx.textBaseline = 'middle';
-  let tw = 0, lastFs = -1;
+  let tw = 0, tries = 0;
   do {
-    if (fs === lastFs) break;
-    lastFs = fs;
     ctx.font = `bold ${fs}px Arial, sans-serif`;
     tw = (ctx.measureText(text).width)|0;
     if (tw > 4*S && fs > 4) fs--;
     else if (tw < 4*S*0.9 && fs < 30) fs++;
     else break;
-  } while(true);
+  } while(++tries < 40);
   const fullW = tw > 0 ? tw : 4*S;
   oc.width = fullW;
   oc.height = S;
