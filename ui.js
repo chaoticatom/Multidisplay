@@ -391,7 +391,7 @@ function alarmOpenEditor(idx){
   // Overlays
   const ovDiv=document.getElementById('al-overlays');
   ovDiv.innerHTML='';
-  const ovNames={stars:'✨ Stars',snow:'❄️ Snow',meteors:'☄️ Meteors',edgeglow:'🔆 Edge Glow',fire:'🔥 Fire',sparkle:'💫 Sparkle',colorwave:'🌊 Color Wave',pulse:'💡 Pulse',scanline:'📡 Scan Line',vignette:'🌑 Vignette',glitch:'Glitch',mist:'Mist',lightning:'⚡ Lightning'};
+  const ovNames={stars:'✨ Stars',snow:'❄️ Snow',meteors:'☄️ Meteors',edgeglow:'🔆 Edge Glow',fire:'🔥 Fire',sparkle:'💫 Sparkle',colorwave:'🌊 Color Wave',pulse:'💡 Pulse',scanline:'📡 Scan Line',vignette:'🌑 Vignette',glitch:'📺 Glitch',mist:'🌫️ Mist',lightning:'⚡ Lightning'};
   Object.keys(ovNames).forEach(ov=>{
     const lbl=document.createElement('label');
     lbl.style.cssText='font-size:12px;color:#99b;display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 0;';
