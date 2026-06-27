@@ -639,37 +639,43 @@ function effectF1(dt){
       var ns = F1State.nextSession;
       var src = ns || F1State.meeting;
       if (src && src.date_start) {
-        var dd = new Date(src.date_start);
-        var line1 = dd.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
-        var line2 = dd.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-        var lineH = Math.max(4, (SIZE*0.18)|0);
-        var totalH = lineH * 2 + 1;
-        var dateY_start = SIZE - totalH - 1;
+        var cacheKey = src.date_start;
+        if (!f1FaceBufs._idleDateKey || f1FaceBufs._idleDateKey !== cacheKey) {
+          f1FaceBufs._idleDateKey = cacheKey;
+          var dd = new Date(src.date_start);
+          var line1 = dd.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+          var line2 = dd.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+          var lineH = Math.max(4, (SIZE*0.18)|0);
+          var totalH = lineH * 2 + 1;
 
-        var dc = document.createElement('canvas');
-        dc.width = SIZE; dc.height = totalH;
-        var dctx = dc.getContext('2d');
-        dctx.fillStyle = '#000'; dctx.fillRect(0,0,dc.width,totalH);
-        var fs = Math.max(5, (lineH*0.85)|0);
-        dctx.font = 'bold ' + fs + 'px Arial';
-        dctx.textAlign = 'center'; dctx.textBaseline = 'middle';
-        dctx.fillStyle = '#8899dd';
-        dctx.fillText(line1, dc.width/2, lineH/2);
-        dctx.fillStyle = '#aaccff';
-        dctx.fillText(line2, dc.width/2, lineH + 1 + lineH/2);
+          var dc = document.createElement('canvas');
+          dc.width = SIZE; dc.height = totalH;
+          var dctx = dc.getContext('2d');
+          dctx.fillStyle = '#000'; dctx.fillRect(0,0,dc.width,totalH);
+          var fs = Math.max(5, (lineH*0.85)|0);
+          dctx.font = 'bold ' + fs + 'px Arial';
+          dctx.textAlign = 'center'; dctx.textBaseline = 'middle';
+          dctx.fillStyle = '#8899dd';
+          dctx.fillText(line1, dc.width/2, lineH/2);
+          dctx.fillStyle = '#aaccff';
+          dctx.fillText(line2, dc.width/2, lineH + 1 + lineH/2);
 
-        var datePixels = dctx.getImageData(0,0,dc.width,totalH).data;
-
-        for(var panel=0; panel<4; panel++) {
-          var panelStart = panel * SIZE;
-          for(var sp=panelStart; sp<panelStart+SIZE; sp++) {
-            for(var dy=0; dy<totalH; dy++) {
-              var dx = sp - panelStart;
-              var pi = (dy*SIZE + dx)*4;
-              var pv = datePixels[pi]/255;
-              if(pv<0.05) continue;
-              var v = dateY_start + dy;
-              setStripLED(sp, v, pv*0.5, pv*0.6, pv);
+          f1FaceBufs._idleDate = { data: dctx.getImageData(0,0,dc.width,totalH).data, w: SIZE, h: totalH };
+        }
+        if (f1FaceBufs._idleDate) {
+          var buf = f1FaceBufs._idleDate;
+          var dateY_start = SIZE - buf.h - 1;
+          for(var panel=0; panel<4; panel++) {
+            var panelStart = panel * SIZE;
+            for(var sp=panelStart; sp<panelStart+SIZE; sp++) {
+              for(var dy=0; dy<buf.h; dy++) {
+                var dx = sp - panelStart;
+                var pi = (dy*buf.w + dx)*4;
+                var pv = buf.data[pi]/255;
+                if(pv<0.05) continue;
+                var v = dateY_start + dy;
+                setStripLED(sp, v, pv*0.5, pv*0.6, pv);
+              }
             }
           }
         }
