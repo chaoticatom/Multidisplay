@@ -158,7 +158,7 @@ function setStripLED(stripX, v, r, g, b) {
   let face, fu;
   if (seg===0){ face=0; fu=u;         }
   else if(seg===1){ face=2; fu=u;         }
-  else if(seg===2){ face=1; fu=SIZE-1-u; }
+  else if(seg===2){ face=1; fu=u;         }
   else if(seg===3){ face=3; fu=u;         }
   else return;
   const i=faceMap[face][fv*SIZE+fu];
@@ -777,7 +777,7 @@ function effectF1(dt){
         let face, fu;
         if (seg===0){ face=0; fu=u;         }
         else if(seg===1){ face=2; fu=u;         }
-        else if(seg===2){ face=1; fu=SIZE-1-u; }
+        else if(seg===2){ face=1; fu=u;         }
         else if(seg===3){ face=3; fu=u;         }
         else continue;
         const meshIdx = faceMap[face][fv*SIZE+fu];
