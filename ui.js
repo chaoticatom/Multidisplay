@@ -313,7 +313,7 @@ function alarmBuildList(){
       </span>
       <div style="flex:1;min-width:0;">
         <div style="font-size:16px;color:#dde;font-weight:700;letter-spacing:1px;">${h}:${m} <span style="font-size:11px;color:#8899bb;font-weight:600;">${repeatLabel}</span></div>
-        <div style="font-size:12px;color:#99aabb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${al.name||''} <span style="font-size:10px;color:${isWd?'#a8b4d0':'#7aadff'};">${typeLabel}</span></div>
+        <div style="font-size:12px;color:#99aabb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${al.name||''} <span style="font-size:10px;color:#7aadff;">${typeLabel}</span></div>
       </div>
       <button class="al-edit-btn" data-i="${i}" style="padding:4px 10px;font-size:11px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;">✏</button>
       <button class="al-del-btn" data-i="${i}" style="padding:4px 10px;font-size:11px;background:rgba(255,60,60,0.08);border:1px solid rgba(255,60,60,0.2);color:#f88;border-radius:4px;cursor:pointer;">✕</button>`;
