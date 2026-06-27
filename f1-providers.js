@@ -208,7 +208,7 @@ F1Providers.openf1 = {
       });
       if (typeof buildScrollText === 'function') buildScrollText({ meeting_name: s.meeting_name, circuit_short_name: s.circuit_short_name });
       if (typeof buildCircuitStrip === 'function') buildCircuitStrip();
-      if (typeof buildIdleScroll === 'function') buildIdleScroll();
+      if (isLive && typeof buildIdleScroll === 'function') buildIdleScroll();
 
       // Fetch drivers
       const dRes = await fetch(`https://api.openf1.org/v1/drivers?session_key=${this._sessionKey}`);
@@ -222,6 +222,7 @@ F1Providers.openf1 = {
       if (!isLive) {
         const next = await this._fetchNextSession();
         if (next) {
+          next.session_type = next.session_type || next.session_name || '';
           f1Update({
             session: {
               active: false, type: '', name: next.meeting_name || '',
