@@ -1231,7 +1231,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=604','f1.js?v=604','f1-providers.js?v=604'];
+  const scripts = ['f1-state.js?v=605','f1.js?v=605','f1-providers.js?v=605'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1907,6 +1907,12 @@ document.querySelectorAll('[data-f1flag]').forEach(btn => {
   btn.addEventListener('click', () => {
     const f = btn.dataset.f1flag;
     if (f === 'blue' || f === 'bw') {
+      const other = f === 'blue' ? 'bw' : 'blue';
+      const otherBtn = document.querySelector(`[data-f1flag="${other}"]`);
+      if (otherBtn && otherBtn.classList.contains('active')) {
+        otherBtn.classList.remove('active');
+        if (other === 'blue') { simBlueFlag(); } else { simBWFlag(); }
+      }
       btn.classList.toggle('active');
     } else {
       document.querySelectorAll('[data-f1flag]').forEach(b => {
