@@ -1229,7 +1229,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=544','f1.js?v=544','f1-providers.js?v=544'];
+  const scripts = ['f1-state.js?v=545','f1.js?v=545','f1-providers.js?v=545'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1936,7 +1936,7 @@ function _f1UpdateDiag() {
     `Country: ${s.session.country || s.meeting?.country_name || '--'}`,
     `Race: ${s.session.name || s.meeting?.meeting_name || '--'}`,
     `Date: ${s.session.dateStart || s.meeting?.date_start || '--'}`,
-    `Session: <b>${s.session.type || 'none'}</b> ${s.session.active ? '(active)' : ''}`,
+    `Session: <b>${s.session.type || 'none'}</b>${s.session.type && s.session.type.includes('qual') ? ' Q' + (s.session.qSession||1) : s.session.type && s.session.type.includes('prac') ? ' FP' + (s.session.fpSession||1) : ''} ${s.session.active ? '(active)' : ''}`,
     `Elapsed: ${Math.floor(s.session.timer.elapsed/60)}:${String(s.session.timer.elapsed%60).padStart(2,'0')} / ${Math.floor(s.session.timer.duration/60)}:${String(s.session.timer.duration%60).padStart(2,'0')}`,
     `Remaining: ${Math.floor(s.session.timer.remaining/60)}:${String(s.session.timer.remaining%60).padStart(2,'0')}`,
     `Lap: ${s.session.lap.current}/${s.session.lap.total}`,

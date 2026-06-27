@@ -878,12 +878,18 @@ function updateSessionUI() {
   const sessionType = F1State.session.type || '';
   const timer = F1State.session.timer;
 
-  if (sessionType.toLowerCase().includes('qualifying') || sessionType.toLowerCase().includes('qual')) {
-    typeEl.textContent = '🏁 QUALIFYING';
+  const sLower = sessionType.toLowerCase();
+  if (sLower.includes('qual')) {
+    typeEl.textContent = `🏁 QUALIFYING Q${F1State.session.qSession || 1}`;
     const min = Math.floor(timer.remaining / 60);
     const sec = timer.remaining % 60;
     timerEl.textContent = `${min}:${String(sec).padStart(2, '0')}`;
-  } else if (sessionType.toLowerCase().includes('race')) {
+  } else if (sLower.includes('prac')) {
+    typeEl.textContent = `🔧 PRACTICE FP${F1State.session.fpSession || 1}`;
+    const min = Math.floor(timer.remaining / 60);
+    const sec = timer.remaining % 60;
+    timerEl.textContent = `${min}:${String(sec).padStart(2, '0')}`;
+  } else if (sLower.includes('race')) {
     typeEl.textContent = '🏎️ RACE';
     lapsEl.textContent = `Lap ${F1State.session.lap.current || 1}/${F1State.session.lap.total || '??'}`;
   } else {
