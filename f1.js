@@ -612,7 +612,9 @@ function effectF1(dt){
       for(let sp=0; sp<4*SIZE; sp++) {
         for(let v=0; v<SIZE; v++) {
           const isW = (((sp/sq)|0) + ((v/sq)|0)) % 2 === 0;
-          const bright = isW ? Math.max(0.01, basePulse*0.15) : 0.005;
+          const waveX = Math.sin((sp/(4*SIZE))*Math.PI*2 + t*2)*0.12;
+          const waveY = Math.sin((v/SIZE)*Math.PI*2 + t*2.5)*0.12;
+          const bright = isW ? Math.max(0.01, (basePulse+waveX+waveY)*0.18) : 0.005;
           setStripLED(sp, v, bright, bright, bright);
         }
       }
