@@ -358,11 +358,6 @@ F1Providers.openf1 = {
       if (_f1IsActive()) this._timer = setTimeout(() => this._pollLive(), 8000);
       return;
     }
-    if (this._nextSession) {
-      if (_f1IsActive()) this._timer = setTimeout(() => this._pollLive(), 8000);
-      return;
-    }
-
     const sk = this._sessionKey;
     try {
       f1Update({ connection: 'transferring' });
