@@ -727,10 +727,12 @@ document.getElementById('al-repeat')?.addEventListener('change',e=>{
 });
 document.getElementById('alarm-add-btn')?.addEventListener('click',()=>alarmOpenEditor(-1));
 document.getElementById('al-alarm-on')?.addEventListener('change',function(){
+  if(!this.checked&&!document.getElementById('al-wind-down').checked){this.checked=true;return;}
   document.getElementById('al-alarm-opts').style.display=this.checked?'':'none';
   if(this.checked){ document.getElementById('al-wind-down').checked=false; document.getElementById('al-wd-opts').style.display='none'; }
 });
 document.getElementById('al-wind-down')?.addEventListener('change',function(){
+  if(!this.checked&&!document.getElementById('al-alarm-on').checked){this.checked=true;return;}
   document.getElementById('al-wd-opts').style.display=this.checked?'':'none';
   if(this.checked){ document.getElementById('al-alarm-on').checked=false; document.getElementById('al-alarm-opts').style.display='none'; }
 });
