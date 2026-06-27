@@ -325,7 +325,7 @@ function alarmBuildList(){
     b.onclick=e=>{
       e.preventDefault();
       const idx=parseInt(b.getAttribute('data-i'));
-      if(!isNaN(idx)&&confirm('Delete alarm?')){ 
+      if(!isNaN(idx)&&confirm('Delete timer?')){
         alarms.splice(idx,1); 
         alarmSave(); 
         alarmBuildList(); 
@@ -336,7 +336,7 @@ function alarmBuildList(){
 
 function alarmOpenEditor(idx){
   alarmEditIdx=idx;
-  const al=idx>=0?alarms[idx]:{name:'Morning Alarm',enabled:true,hour:7,minute:30,
+  const al=idx>=0?alarms[idx]:{name:'Morning Timer',enabled:true,hour:7,minute:30,
     repeat:'daily',days:[1,2,3,4,5],triggerType:'effect',effect:'wave',overlayKeys:[],
     playlistName:'',sunrise:{enabled:false,preMinutes:15,startBright:5},message:'Good Morning! 🌅'};
 
@@ -437,7 +437,7 @@ function alarmOpenEditor(idx){
       if(pl.name===al.playlistName) o.selected=true; plSel.appendChild(o); });
   }catch(e){}
 
-  document.getElementById('alarm-modal-title').textContent=idx>=0?'EDIT ALARM':'ADD ALARM';
+  document.getElementById('alarm-modal-title').textContent=idx>=0?'EDIT TIMER':'ADD TIMER';
   document.getElementById('alarm-modal').style.display='block';
 }
 
@@ -778,7 +778,7 @@ document.getElementById('al-save-btn')?.addEventListener('click',()=>{
   const overlayKeys=[...document.querySelectorAll('#al-overlays input:checked')].map(c=>c.value);
   const al={
     id:alarmEditIdx>=0?(alarms[alarmEditIdx].id||('al_'+Date.now())):'al_'+Date.now(),
-    name:document.getElementById('al-name').value||'Alarm',
+    name:document.getElementById('al-name').value||'Timer',
     enabled:alarmEditIdx>=0?alarms[alarmEditIdx].enabled:true,
     hour,minute:min,repeat,days,triggerType,
     effect:document.getElementById('al-effect').value,

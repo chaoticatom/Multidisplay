@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=521">
+<link rel="stylesheet" href="style.css?v=522">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -696,12 +696,12 @@
       <div id="pe-faces"></div>
     </div>
   </div>
-  <!-- ── Alarm Section ── -->
+  <!-- ── Timers Section ── -->
   <div class="sidebar-section collapsed" id="alarm-section">
-    <button class="section-head">◈ Alarms <span class="chev">▾</span></button>
+    <button class="section-head">◈ Timers <span class="chev">▾</span></button>
     <div class="section-body">
       <div id="alarm-list-ui" style="margin-bottom:8px;"></div>
-      <button id="alarm-add-btn" style="width:100%;padding:8px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.35);color:#7aadff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.5px;">+ ADD ALARM</button>
+      <button id="alarm-add-btn" style="width:100%;padding:8px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.35);color:#7aadff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.5px;">+ ADD TIMER</button>
     </div>
   </div>
   <div class="sidebar-section collapsed">
@@ -767,10 +767,10 @@
 <!-- ── ALARM EDITOR MODAL ── -->
 <div id="alarm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:2000;overflow-y:auto;padding:16px;">
   <div style="max-width:380px;margin:0 auto;background:#07101f;border:1px solid rgba(80,120,255,0.4);border-radius:10px;padding:18px;">
-    <div style="font-size:16px;color:#7aadff;font-weight:700;letter-spacing:1px;margin-bottom:16px;" id="alarm-modal-title">ALARM EDITOR</div>
+    <div style="font-size:16px;color:#7aadff;font-weight:700;letter-spacing:1px;margin-bottom:16px;" id="alarm-modal-title">TIMER EDITOR</div>
 
     <label style="font-size:13px;color:#99b;letter-spacing:1px;font-weight:600;">NAME</label>
-    <input id="al-name" type="text" value="Morning Alarm" style="width:100%;margin:5px 0 12px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:14px;border-radius:5px;box-sizing:border-box;">
+    <input id="al-name" type="text" value="Morning Timer" style="width:100%;margin:5px 0 12px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:14px;border-radius:5px;box-sizing:border-box;">
 
     <div style="display:flex;gap:8px;margin-bottom:12px;align-items:flex-end;">
       <div style="flex:1;">
@@ -856,7 +856,7 @@
             <input type="range" id="al-dim-start" min="1" max="30" value="5" style="flex:1;">
             <span id="al-dim-val" style="font-size:12px;color:#9cd;width:28px;font-weight:600;">5%</span>
           </div>
-          <div style="font-size:10px;color:#556;line-height:1.4;margin-bottom:8px;">Gradually brightens from dim to full at alarm time.</div>
+          <div style="font-size:10px;color:#556;line-height:1.4;margin-bottom:8px;">Gradually brightens from dim to full at the set time.</div>
           <!-- Giant Sun toggle -->
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
             <span id="al-giant-sun-tog" style="display:inline-block;width:28px;height:15px;border-radius:8px;position:relative;cursor:pointer;flex-shrink:0;background:rgba(60,70,100,0.8);border:1px solid rgba(80,120,255,0.3);transition:all 0.2s;">
@@ -897,7 +897,7 @@
         </label>
       </div>
       <div id="al-wd-opts" style="display:none;padding:8px;background:rgba(0,0,0,0.25);border-radius:6px;border:1px solid rgba(80,120,255,0.12);">
-        <div style="font-size:10px;color:#556;line-height:1.4;margin-bottom:8px;">Dims from full brightness to off over the set duration. Displays blank when done. Uses the alarm time as the start.</div>
+        <div style="font-size:10px;color:#556;line-height:1.4;margin-bottom:8px;">Dims from full brightness to off over the set duration. Displays blank when done. Starts at the set time.</div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
           <span style="font-size:12px;color:#99b;flex:0 0 120px;">Duration (mins)</span>
           <input id="al-wd-mins" type="number" min="1" max="120" value="15" style="flex:1;padding:4px 6px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:12px;border-radius:3px;text-align:center;">
@@ -1002,7 +1002,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=521"></script>
+<script src="version.js?v=522"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -1037,7 +1037,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=521','effects.js?v=521','f1.js?v=521','ui.js?v=521'];
+  const appScripts = ['cube.js?v=522','effects.js?v=522','f1.js?v=522','ui.js?v=522'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
