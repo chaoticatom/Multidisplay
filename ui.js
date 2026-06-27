@@ -1911,12 +1911,14 @@ document.getElementById('f1-diag-toggle')?.addEventListener('click', function() 
   const open = body.style.display !== 'none';
   body.style.display = open ? 'none' : 'block';
   this.textContent = (open ? '▸' : '▾') + ' Diagnostics';
+  if (!open) _f1UpdateDiag();
 });
 
 // ── F1 Diagnostics updater ──
-document.addEventListener('f1-state-change', () => {
+function _f1UpdateDiag() {
   const el = document.getElementById('f1-diag-content');
-  if (!el || document.getElementById('f1-diag-body')?.style.display === 'none') return;
+  if (!el) return;
+  if (typeof F1State === 'undefined') { el.innerHTML = 'F1 module not loaded'; return; }
   const s = F1State;
   const ago = s.lastUpdate ? ((Date.now() - s.lastUpdate) / 1000).toFixed(1) + 's ago' : '--';
   el.innerHTML = [
@@ -1932,7 +1934,11 @@ document.addEventListener('f1-state-change', () => {
     `Weather: ${s.weather.temp != null ? s.weather.temp + '°C' : '--'}`,
     s.track.raceControlMessages.length ? `RC: ${s.track.raceControlMessages[0].message}` : ''
   ].filter(Boolean).join('<br>');
-});
+}
+document.addEventListener('f1-state-change', _f1UpdateDiag);
+setInterval(() => {
+  if (document.getElementById('f1-diag-body')?.style.display !== 'none') _f1UpdateDiag();
+}, 2000);
 
 // ── F1 Badge updater ──
 document.addEventListener('f1-state-change', () => {
