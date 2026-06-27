@@ -178,17 +178,22 @@ F1Providers.openf1 = {
       this._currentMeetingKey = s.meeting_key || null;
       this._sessionStart = s.date_start ? new Date(s.date_start).getTime() : Date.now();
       const sType = (s.session_type || '').toLowerCase();
+      const sName = (s.session_name || '');
       const duration = sType.includes('race') ? 7200 : sType.includes('quali') ? 3600 : 5400;
       const lapTotal = sType.includes('race') ? (s.total_laps || 0) : 0;
+      var fpNum = 1, qNum = 1;
+      var fpMatch = sName.match(/practice\s*(\d)/i);
+      if (fpMatch) fpNum = parseInt(fpMatch[1]);
       f1Update({
         connection: 'connected',
         session: {
           active: true,
           type: sType,
-          name: s.meeting_name || s.session_name || '',
+          name: s.meeting_name || sName || '',
           circuit: s.circuit_short_name || '',
           country: s.country_name || '',
           dateStart: s.date_start || '',
+          fpSession: fpNum, qSession: qNum,
           lap: { current: 0, total: lapTotal },
           timer: { duration, elapsed: 0, remaining: duration }
         },
@@ -361,6 +366,12 @@ F1Providers.openf1 = {
             message: m.message, flag: m.flag, lap: m.lap_number, timestamp: m.date
           }));
           f1Update({ track: { raceControlMessages: msgs } });
+          for (var ri = 0; ri < rc.length; ri++) {
+            var msg = (rc[ri].message || '').toUpperCase();
+            if (msg.includes('Q3')) { f1Update({ session: { qSession: 3 } }); break; }
+            if (msg.includes('Q2')) { f1Update({ session: { qSession: 2 } }); break; }
+            if (msg.includes('Q1')) { f1Update({ session: { qSession: 1 } }); break; }
+          }
           const latest = rc[0];
           if (latest.flag) {
             if (typeof applyF1Flag === 'function') applyF1Flag(latest.flag, latest.flag);
