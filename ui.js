@@ -1928,6 +1928,7 @@ function _f1UpdateDiag() {
     `Packets: ${s.updateCount}`,
     `Reconnects: ${s.reconnectCount}`,
     `Circuit: <b>${s.session.circuit || s.meeting?.circuit_short_name || '--'}</b>`,
+    `Country: ${s.session.country || s.meeting?.country_name || '--'}`,
     `Race: ${s.session.name || s.meeting?.meeting_name || '--'}`,
     `Date: ${s.session.dateStart || s.meeting?.date_start || '--'}`,
     `Session: <b>${s.session.type || 'none'}</b> ${s.session.active ? '(active)' : ''}`,

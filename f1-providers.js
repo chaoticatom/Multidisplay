@@ -150,6 +150,7 @@ F1Providers.openf1 = {
           type: (s.session_type || '').toLowerCase(),
           name: s.meeting_name || s.session_name || '',
           circuit: s.circuit_short_name || '',
+          country: s.country_name || '',
           dateStart: s.date_start || ''
         },
         meeting: s
@@ -261,7 +262,7 @@ F1Providers.openf1 = {
 
 // ── Simulation Provider ──────────────────────────────────────────────────────
 
-const DEMO_MEETING = { meeting_name: 'British Grand Prix', circuit_short_name: 'Silverstone', date_start: '2025-07-06' };
+const DEMO_MEETING = { meeting_name: 'British Grand Prix', circuit_short_name: 'Silverstone', country_name: 'United Kingdom', date_start: '2025-07-06' };
 const DEMO_STANDINGS = [
   { pos: 1, name: 'Verstappen', gap: 'LEAD' },
   { pos: 2, name: 'Norris', gap: '+4.2s' },
