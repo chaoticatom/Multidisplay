@@ -15,6 +15,72 @@ let f1IdlePixels = null;
 let f1IdleWidth = 0;
 let f1IdleScrollX = 0;
 let f1IdleRebuildT = 0;
+let f1LogoBuf = null;
+
+function buildF1Logo() {
+  if (f1LogoBuf) return;
+  var S = Math.max(SIZE, 16);
+  var logoH = Math.max(12, (S * 0.45)|0);
+  var logoW = Math.max(20, (logoH * 1.8)|0);
+  var c = document.createElement('canvas');
+  c.width = logoW; c.height = logoH;
+  var ctx = c.getContext('2d');
+
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, logoW, logoH);
+
+  var pad = Math.max(1, (logoH * 0.08)|0);
+  var innerH = logoH - pad * 2;
+  var innerW = logoW - pad * 2;
+  var x0 = pad, y0 = pad;
+
+  // Red main block (left portion - the F area)
+  var fBlockW = (innerW * 0.58)|0;
+  ctx.fillStyle = '#e10600';
+  ctx.fillRect(x0, y0, fBlockW, innerH);
+
+  // Red speed stripe (right side, triangular shape)
+  var stripeX = x0 + (innerW * 0.72)|0;
+  var stripeW = innerW - (innerW * 0.72)|0;
+  ctx.fillStyle = '#e10600';
+  ctx.beginPath();
+  ctx.moveTo(x0 + innerW, y0);
+  ctx.lineTo(x0 + innerW, y0 + innerH);
+  ctx.lineTo(stripeX, y0 + innerH);
+  ctx.lineTo(stripeX + (stripeW * 0.35)|0, y0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Cut the "1" negative space — diagonal channel between F block and speed stripe
+  ctx.fillStyle = '#000';
+  var gapL = x0 + fBlockW;
+  var gapR = stripeX + (stripeW * 0.35)|0;
+  ctx.beginPath();
+  ctx.moveTo(gapL, y0);
+  ctx.lineTo(gapR, y0);
+  ctx.lineTo(stripeX, y0 + innerH);
+  ctx.lineTo(gapL - (innerW * 0.06)|0, y0 + innerH);
+  ctx.closePath();
+  ctx.fill();
+
+  // White "F" letter carved into the red block
+  ctx.fillStyle = '#fff';
+  var fX = x0 + (fBlockW * 0.18)|0;
+  var fW = (fBlockW * 0.35)|0;
+  var fStemW = (fW * 0.38)|0;
+  var barH = (innerH * 0.18)|0;
+  var barGap = (innerH * 0.08)|0;
+
+  // F vertical stem
+  ctx.fillRect(fX, y0 + barGap, fStemW, innerH - barGap * 2);
+  // F top bar
+  ctx.fillRect(fX, y0 + barGap, fW, barH);
+  // F middle bar
+  var midY = y0 + (innerH * 0.45)|0;
+  ctx.fillRect(fX, midY, (fW * 0.8)|0, barH);
+
+  f1LogoBuf = { data: ctx.getImageData(0, 0, logoW, logoH).data, w: logoW, h: logoH };
+}
 
 const F1_TRACKS = {
   'silverstone': [[.1,.4],[.15,.25],[.3,.1],[.5,.08],[.7,.1],[.85,.25],[.9,.45],[.88,.65],[.75,.78],[.55,.88],[.35,.88],[.15,.75],[.1,.55],[.1,.4]],
@@ -614,6 +680,28 @@ function effectF1(dt){
           const isW = (((sp/sq)|0) + ((v/sq)|0)) % 2 === 0;
           const bright = isW ? Math.max(0.01, basePulse*0.15) : 0.005;
           setStripLED(sp, v, bright, bright, bright);
+        }
+      }
+    }
+
+    buildF1Logo();
+    if (f1LogoBuf) {
+      var logo = f1LogoBuf;
+      var logoY = Math.max(1, ((SIZE - logo.h) / 3)|0);
+      for(var panel=0; panel<4; panel++) {
+        var panelStart = panel * SIZE;
+        var logoX = ((SIZE - logo.w) / 2)|0;
+        for(var dy=0; dy<logo.h; dy++) {
+          for(var dx=0; dx<logo.w; dx++) {
+            var pi = (dy * logo.w + dx) * 4;
+            var pr = logo.data[pi]/255, pg = logo.data[pi+1]/255, pb = logo.data[pi+2]/255;
+            if(pr + pg + pb < 0.05) continue;
+            var sp = panelStart + logoX + dx;
+            var v = logoY + dy;
+            if(sp >= panelStart && sp < panelStart + SIZE && v >= 0 && v < SIZE) {
+              setStripLED(sp, v, pr, pg, pb);
+            }
+          }
         }
       }
     }
