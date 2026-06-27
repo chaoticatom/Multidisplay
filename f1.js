@@ -545,7 +545,7 @@ function effectF1(dt){
   const isFinished = F1State.session.finished;
   const flagRGB = F1State.track.flagRGB;
   const statusText = F1State.track.statusText;
-  const blueFlagActive = F1State.track.flag === 'blue';
+  const blueFlagActive = !!F1State.track.blueFlag;
   const carPositions = F1State.carPositions;
   const standings = F1State.drivers;
 
