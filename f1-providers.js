@@ -461,7 +461,7 @@ F1Providers.openf1 = {
     try {
       f1Update({ connection: 'transferring' });
       // Positions
-      const posRes = await fetch(`https://api.openf1.org/v1/position?session_key=${sk}&order=date&order_direction=desc`);
+      const posRes = await fetch(`https://api.openf1.org/v1/position?session_key=${sk}&order=date&order_direction=desc&limit=30`);
       if (posRes.ok) {
         const positions = await posRes.json();
         const latest = {};
@@ -487,7 +487,7 @@ F1Providers.openf1 = {
       }
 
       // Intervals
-      const intRes = await fetch(`https://api.openf1.org/v1/intervals?session_key=${sk}&order=date&order_direction=desc`);
+      const intRes = await fetch(`https://api.openf1.org/v1/intervals?session_key=${sk}&order=date&order_direction=desc&limit=30`);
       if (intRes.ok) {
         const intervals = await intRes.json();
         const latestInt = {};
@@ -505,7 +505,7 @@ F1Providers.openf1 = {
 
       // Laps
       try {
-        const lapRes = await fetch(`https://api.openf1.org/v1/laps?session_key=${sk}&order=date&order_direction=desc`);
+        const lapRes = await fetch(`https://api.openf1.org/v1/laps?session_key=${sk}&order=date&order_direction=desc&limit=5`);
         if (lapRes.ok) {
           const laps = await lapRes.json();
           if (laps.length) {
@@ -528,7 +528,7 @@ F1Providers.openf1 = {
       }
 
       // Weather
-      const wRes = await fetch(`https://api.openf1.org/v1/weather?session_key=${sk}&order=date&order_direction=desc`);
+      const wRes = await fetch(`https://api.openf1.org/v1/weather?session_key=${sk}&order=date&order_direction=desc&limit=1`);
       if (wRes.ok) {
         const weather = await wRes.json();
         if (weather.length) {
@@ -549,7 +549,7 @@ F1Providers.openf1 = {
       }
 
       // Race control
-      const rcRes = await fetch(`https://api.openf1.org/v1/race_control?session_key=${sk}&order=date&order_direction=desc`);
+      const rcRes = await fetch(`https://api.openf1.org/v1/race_control?session_key=${sk}&order=date&order_direction=desc&limit=15`);
       if (rcRes.ok) {
         const rc = await rcRes.json();
         if (rc.length) {
