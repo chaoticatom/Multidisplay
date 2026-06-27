@@ -884,7 +884,7 @@ function applyF1Flag(flag, status='') {
     if (F.includes('RED'))          { rgb=[1,.02,.02]; label='RED FLAG';  stext='RED';    css='#ff2200'; }
     else if (F.includes('VIRTUAL')||S.includes('VIRTUAL')) { rgb=[1,.9,0]; label='VIRTUAL SC'; stext='VSC'; css='#ffcc00'; }
     else if (F.includes('SAFETY') ||S.includes('SAFETY'))  { rgb=[1,.9,0]; label='SAFETY CAR'; stext='SC';  css='#ffcc00'; }
-    else if (F.includes('DOUBLE YELLOW')) { rgb=[1,.88,0]; label='DBL YELLOW'; stext='DBL YELLOW'; css='#ffcc00'; }
+    else if (F.includes('DOUBLE YELLOW')) { rgb=[1,.88,0]; label='DOUBLE YELLOW'; stext='DOUBLE YELLOW'; css='#ffcc00'; }
     else if (F.includes('YELLOW'))  { rgb=[1,.88,0];   label='YELLOW';    stext='YELLOW'; css='#ffcc00'; }
     else if (F.includes('GREEN')||F.includes('CLEAR')) { rgb=[.02,1,.1]; label='GO'; stext='GO'; css='#00ff44'; f1Update({ track: { blueFlag: false, bwFlag: false } }); }
     else if (stext !== '--') { rgb=[.3,.6,1]; label=stext; }
