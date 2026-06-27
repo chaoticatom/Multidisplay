@@ -1229,7 +1229,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=554','f1.js?v=554','f1-providers.js?v=554'];
+  const scripts = ['f1-state.js?v=555','f1.js?v=555','f1-providers.js?v=555'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1944,7 +1944,26 @@ function _f1UpdateDiag() {
     `Flag: <b>${s.track.flag || 'none'}</b> RGB(${s.track.flagRGB ? s.track.flagRGB.map(c=>(c*255|0)).join(',') : '--'})`,
     `Track: ${s.track.statusText || '--'}`,
     `Weather: ${s.weather.temp != null ? s.weather.temp + '°C' : '--'} ${s.weather.humidity != null ? s.weather.humidity + '%' : ''} ${s.weather.wind != null ? s.weather.wind + 'km/h' : ''} ${s.weather.rain ? '🌧' : ''}`,
-    s.track.raceControlMessages.length ? `RC: ${s.track.raceControlMessages[0].message}` : ''
+    s.track.raceControlMessages.length ? `RC: ${s.track.raceControlMessages[0].message}` : '',
+    (function(){
+      var ns = typeof F1Providers !== 'undefined' && F1Providers.openf1?._nextSession;
+      if (!ns) return '';
+      var parts = ['Next: <b>' + (ns.session_name || ns.session_type || '') + '</b>'];
+      if (ns.meeting_name) parts.push(ns.meeting_name);
+      if (ns.circuit_short_name) parts.push(ns.circuit_short_name);
+      if (ns.country_name) parts.push(ns.country_name);
+      if (ns.date_start) {
+        var d = new Date(ns.date_start);
+        parts.push(d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'}));
+        parts.push(d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}));
+        var diff = d.getTime() - Date.now();
+        if (diff > 0) {
+          var h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000);
+          parts.push(h >= 24 ? 'in ' + Math.floor(h/24) + 'd ' + (h%24) + 'h' : 'in ' + h + 'h ' + m + 'm');
+        }
+      }
+      return parts.join(' · ');
+    })()
   ].filter(Boolean).join('<br>');
 }
 document.addEventListener('f1-state-change', _f1UpdateDiag);
