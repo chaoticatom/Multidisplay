@@ -395,6 +395,7 @@ F1Providers.openf1 = {
     } catch (e) {
       f1Update({ connection: 'error' });
     }
+    if (_f1IsActive()) this._timer = setTimeout(() => this._pollLive(), 8000);
   }
 };
 
