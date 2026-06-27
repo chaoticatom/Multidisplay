@@ -263,8 +263,8 @@ function applyBufToFace(face, buf) {
     const lu=(cx*SIZE/S)|0, lv=((S-1-cy)*SIZE/S)|0;
     let mi;
     if (face===0) mi=fm[lv*SIZE+lu];
-    else if (face===1) mi=fm[lv*SIZE+(SIZE-1-lu)];
-    else if (face===2) mi=fm[lv*SIZE+(SIZE-1-lu)];
+    else if (face===1) mi=fm[lv*SIZE+lu];
+    else if (face===2) mi=fm[lv*SIZE+lu];
     else if (face===3) mi=fm[lv*SIZE+lu];
     else if (face===4) mi=fm[lv*SIZE+lu];
     else if (face===5) mi=fm[lv*SIZE+lu];
