@@ -404,6 +404,30 @@ function alarmOpenEditor(idx){
     ovDiv.appendChild(lbl);
   });
 
+  // Wind down effect dropdown
+  const wdEffSel=document.getElementById('al-wd-effect');
+  wdEffSel.innerHTML='';
+  Object.entries(EFFECT_NAMES||{}).filter(([k])=>k!=='custom_cube').forEach(([k,v])=>{
+    const o=document.createElement('option'); o.value=k; o.textContent=v;
+    if(k===(al.prealarm?.wdEffectKey||currentEffect)) o.selected=true;
+    wdEffSel.appendChild(o);
+  });
+  // Wind down overlays
+  const wdOvDiv=document.getElementById('al-wd-overlays');
+  wdOvDiv.innerHTML='';
+  Object.keys(ovNames).forEach(ov=>{
+    const lbl=document.createElement('label');
+    lbl.style.cssText='font-size:12px;color:#99b;display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 0;';
+    const tog=document.createElement('span'); tog.className='ov-toggle'; tog.style.marginLeft='0';
+    const chk=document.createElement('input'); chk.type='checkbox'; chk.value=ov;
+    chk.checked=(al.prealarm?.wdOverlayKeys||[]).includes(ov);
+    const slider=document.createElement('span'); slider.className='ov-slider';
+    tog.appendChild(chk); tog.appendChild(slider);
+    lbl.appendChild(tog); lbl.appendChild(document.createTextNode(ovNames[ov]));
+    wdOvDiv.appendChild(lbl);
+  });
+  document.getElementById('al-wd-effect-section').style.display=(al.prealarm?.wdUseEffect)?'':'none';
+
   // Playlist dropdown
   const plSel=document.getElementById('al-playlist');
   plSel.innerHTML='<option value="">— none —</option>';
@@ -741,6 +765,9 @@ document.getElementById('al-wind-down')?.addEventListener('change',function(){
   document.getElementById('al-wd-opts').style.display=this.checked?'':'none';
   if(this.checked){ document.getElementById('al-alarm-on').checked=false; document.getElementById('al-alarm-opts').style.display='none'; }
 });
+document.getElementById('al-wd-use-effect')?.addEventListener('change',function(){
+  document.getElementById('al-wd-effect-section').style.display=this.checked?'':'none';
+});
 document.getElementById('al-cancel-btn')?.addEventListener('click',()=>{ document.getElementById('alarm-modal').style.display='none'; });
 document.getElementById('al-save-btn')?.addEventListener('click',()=>{
   const hour=Math.max(0,Math.min(23,parseInt(document.getElementById('al-hour').value)||0));
@@ -763,6 +790,8 @@ document.getElementById('al-save-btn')?.addEventListener('click',()=>{
       windDown:document.getElementById('al-wind-down').checked,
       wdMinutes:parseInt(document.getElementById('al-wd-mins')?.value)||15,
       wdUseEffect:document.getElementById('al-wd-use-effect').checked,
+      wdEffectKey:document.getElementById('al-wd-effect')?.value||'',
+      wdOverlayKeys:[...document.querySelectorAll('#al-wd-overlays input:checked')].map(c=>c.value),
       giantSun:alarmGiantSunOn, wxRise:alarmWxRiseOn, effectRise:alarmEffectRiseOn, effectRiseKey:alarmEffectRiseKey, effectRiseCity:alarmEffectRiseCity, effectRiseOpts:alarmEffectRiseOpts},
     message:document.getElementById('al-message').value||'',
   };
@@ -3065,10 +3094,17 @@ function animate(now){
     else {
       // Wind down with current effect: run it with dimming brightness
       if(windDown&&activeAlarm.al.prealarm?.wdUseEffect){
-        const wdEf=currentEffect;
+        const wdEf=activeAlarm.al.prealarm.wdEffectKey||currentEffect;
         if(EFFECTS[wdEf]){
           for(let i=0;i<N*3;i++) colBuf[i]=0;
           EFFECTS[wdEf](dt*speedMult);
+        }
+        const wdOvKeys=activeAlarm.al.prealarm.wdOverlayKeys||[];
+        if(wdOvKeys.length){
+          const ovSave={};
+          for(const k of wdOvKeys){ if(OV[k]){ ovSave[k]=OV[k].on; OV[k].on=true; } }
+          runOverlays(dt);
+          for(const k of Object.keys(ovSave)) OV[k].on=ovSave[k];
         }
       } else if(activeAlarm.al.prealarm?.giantSun){
         renderGiantSun(progress,startBright);
