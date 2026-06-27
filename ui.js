@@ -296,25 +296,27 @@ alarmLoad();
 
 function alarmBuildList(){
   const el=document.getElementById('alarm-list-ui'); if(!el) return;
-  if(!alarms.length){ el.innerHTML='<div style="font-size:11px;color:#556;text-align:center;padding:8px 0;">No alarms set</div>'; return; }
+  if(!alarms.length){ el.innerHTML='<div style="font-size:12px;color:#667;text-align:center;padding:10px 0;">No timers set</div>'; return; }
   el.innerHTML='';
   alarms.forEach((al,i)=>{
     const h=String(al.hour).padStart(2,'0'), m=String(al.minute).padStart(2,'0');
     const repeatLabel={once:'Once',daily:'Daily',weekdays:'Weekdays',weekends:'Weekends',
       weekly:(al.days||[]).map(d=>AL_DAYS[d]).join(','),hourly:'Hourly'}[al.repeat]||al.repeat;
+    const isWd=!!al.prealarm?.windDown;
+    const typeLabel=isWd?'Wind Down':'Alarm';
     const div=document.createElement('div');
-    div.style.cssText='display:flex;align-items:center;gap:6px;padding:7px 8px;margin-bottom:5px;background:rgba(20,30,60,0.5);border-radius:5px;border:1px solid rgba(80,120,255,0.18);';
+    div.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:5px;background:rgba(20,30,60,0.5);border-radius:6px;border:1px solid rgba(80,120,255,0.18);';
     const on=al.enabled;
     div.innerHTML=`
       <span class="al-tog" data-i="${i}" style="display:inline-block;width:28px;height:15px;border-radius:8px;position:relative;cursor:pointer;flex-shrink:0;background:${on?'rgba(80,200,120,0.6)':'rgba(60,70,100,0.8)'};border:1px solid ${on?'rgba(80,200,120,0.8)':'rgba(80,120,255,0.3)'};transition:all 0.2s;">
         <span style="position:absolute;top:2px;left:${on?'13px':'2px'};width:9px;height:9px;border-radius:50%;background:${on?'#4d8':'#668'};transition:all 0.2s;"></span>
       </span>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:15px;color:#cde;font-weight:700;letter-spacing:1px;">${h}:${m}<span style="font-size:10px;color:#667;margin-left:6px;">${repeatLabel}</span></div>
-        <div style="font-size:10px;color:#778;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${al.name||''}</div>
+        <div style="font-size:16px;color:#dde;font-weight:700;letter-spacing:1px;">${h}:${m} <span style="font-size:11px;color:#8899bb;font-weight:600;">${repeatLabel}</span></div>
+        <div style="font-size:12px;color:#99aabb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${al.name||''} <span style="font-size:10px;color:${isWd?'#a8b4d0':'#7aadff'};">${typeLabel}</span></div>
       </div>
-      <button class="al-edit-btn" data-i="${i}" style="padding:3px 8px;font-size:10px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:3px;cursor:pointer;">✏</button>
-      <button class="al-del-btn" data-i="${i}" style="padding:3px 8px;font-size:10px;background:rgba(255,60,60,0.08);border:1px solid rgba(255,60,60,0.2);color:#f88;border-radius:3px;cursor:pointer;">✕</button>`;
+      <button class="al-edit-btn" data-i="${i}" style="padding:4px 10px;font-size:11px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;">✏</button>
+      <button class="al-del-btn" data-i="${i}" style="padding:4px 10px;font-size:11px;background:rgba(255,60,60,0.08);border:1px solid rgba(255,60,60,0.2);color:#f88;border-radius:4px;cursor:pointer;">✕</button>`;
     el.appendChild(div);
   });
   el.querySelectorAll('.al-tog').forEach(t=>t.addEventListener('click',()=>{
