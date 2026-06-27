@@ -561,7 +561,7 @@ function effectF1(dt){
     const pulse = 0.45 + Math.sin(t*2)*0.35;
     for(let u=0;u<SIZE;u++) for(let v=0;v<SIZE;v++){
       const isW = (((u/sq)|0) + ((v/sq)|0)) % 2 === 0;
-      const bright = isW ? pulse*0.12 : 0.005;
+      const bright = isW ? pulse*0.3 : 0.01;
       const i = faceMap[4][v*SIZE+u];
       if(i>=0) setLED(i, bright, bright, bright);
     }
