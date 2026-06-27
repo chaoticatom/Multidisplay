@@ -349,13 +349,17 @@ function alarmOpenEditor(idx){
   document.getElementById('al-dim-start').value=al.prealarm?.startBright||5;
   document.getElementById('al-dim-val').textContent=(al.prealarm?.startBright||5)+'%';
 
-  // Sunrise toggle
-  alarmSunriseOn=!!al.prealarm?.enabled;
-  document.getElementById('al-wind-down').checked=!!al.prealarm?.windDown;
+  // Alarm vs Wind Down mode
+  const isWd=!!al.prealarm?.windDown;
+  document.getElementById('al-alarm-on').checked=!isWd;
+  document.getElementById('al-alarm-opts').style.display=isWd?'none':'';
+  document.getElementById('al-wind-down').checked=isWd;
   document.getElementById('al-wd-use-effect').checked=!!al.prealarm?.wdUseEffect;
   const wdMinsEl=document.getElementById('al-wd-mins');
   if(wdMinsEl) wdMinsEl.value=al.prealarm?.wdMinutes||15;
-  document.getElementById('al-wd-opts').style.display=al.prealarm?.windDown?'':'none';
+  document.getElementById('al-wd-opts').style.display=isWd?'':'none';
+  // Sunrise toggle
+  alarmSunriseOn=!!al.prealarm?.enabled;
   alarmGiantSunOn=!!al.prealarm?.giantSun;
   alarmWxRiseOn=!!al.prealarm?.wxRise;
   alarmEffectRiseOn=!!al.prealarm?.effectRise;
@@ -729,7 +733,14 @@ document.getElementById('al-repeat')?.addEventListener('change',e=>{
   document.getElementById('al-days-row').style.display=e.target.value==='weekly'?'':'none';
 });
 document.getElementById('alarm-add-btn')?.addEventListener('click',()=>alarmOpenEditor(-1));
-document.getElementById('al-wind-down')?.addEventListener('change',function(){ document.getElementById('al-wd-opts').style.display=this.checked?'':'none'; });
+document.getElementById('al-alarm-on')?.addEventListener('change',function(){
+  document.getElementById('al-alarm-opts').style.display=this.checked?'':'none';
+  if(this.checked){ document.getElementById('al-wind-down').checked=false; document.getElementById('al-wd-opts').style.display='none'; }
+});
+document.getElementById('al-wind-down')?.addEventListener('change',function(){
+  document.getElementById('al-wd-opts').style.display=this.checked?'':'none';
+  if(this.checked){ document.getElementById('al-alarm-on').checked=false; document.getElementById('al-alarm-opts').style.display='none'; }
+});
 document.getElementById('al-cancel-btn')?.addEventListener('click',()=>{ document.getElementById('alarm-modal').style.display='none'; });
 document.getElementById('al-save-btn')?.addEventListener('click',()=>{
   const hour=Math.max(0,Math.min(23,parseInt(document.getElementById('al-hour').value)||0));
