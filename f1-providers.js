@@ -85,9 +85,22 @@ F1Providers.esp32 = {
           fpS = m ? parseInt(m[1]) : fpS;
           statusText = `FP${fpS}`;
         }
+        const meetingUpdate = {};
+        if (ses.meeting_name) meetingUpdate.meeting_name = ses.meeting_name;
+        if (ses.circuit_short_name) meetingUpdate.circuit_short_name = ses.circuit_short_name;
+        if (ses.country_name) meetingUpdate.country_name = ses.country_name;
+        if (ses.date_start) meetingUpdate.date_start = ses.date_start;
+
         f1Update({
-          session: { active, type, qSession: qS, fpSession: fpS },
-          track: { statusText }
+          session: {
+            active, type, qSession: qS, fpSession: fpS,
+            name: ses.meeting_name || '', circuit: ses.circuit_short_name || '',
+            country: ses.country_name || '', dateStart: ses.date_start || '',
+            lap: { current: ses.lap || 0, total: ses.total_laps || 0 },
+            timer: { duration: ses.duration || 0, elapsed: ses.elapsed || 0, remaining: ses.remaining || 0 }
+          },
+          track: { statusText },
+          meeting: Object.keys(meetingUpdate).length ? meetingUpdate : undefined
         });
         anySuccess = true;
       }
@@ -99,7 +112,10 @@ F1Providers.esp32 = {
         const drivers = await res.json();
         f1Update({
           drivers: drivers.slice(0, 10).map(d => ({
-            pos: d.position, name: `#${d.driver_number} ${d.name}`, gap: d.gap
+            pos: d.position, number: d.driver_number,
+            name: `#${d.driver_number} ${d.name}`,
+            abbrev: d.abbrev || '', team: d.team || '',
+            gap: d.gap
           }))
         });
         if (typeof updateLeaderboardUI === 'function') updateLeaderboardUI();
@@ -112,6 +128,15 @@ F1Providers.esp32 = {
       if (res.ok) {
         const flags = await res.json();
         if (typeof applyF1Flag === 'function') applyF1Flag(flags.flag, null);
+        anySuccess = true;
+      }
+    } catch (e) { /* */ }
+
+    try {
+      const res = await fetch('/api/weather', { signal: AbortSignal.timeout(5000) });
+      if (res.ok) {
+        const w = await res.json();
+        f1Update({ weather: w });
         anySuccess = true;
       }
     } catch (e) { /* */ }
@@ -143,15 +168,21 @@ F1Providers.openf1 = {
       if (!sessions.length) { f1Update({ connection: 'connected', session: { active: false } }); return; }
       const s = sessions[0];
       this._sessionKey = s.session_key;
+      this._sessionStart = s.date_start ? new Date(s.date_start).getTime() : Date.now();
+      const sType = (s.session_type || '').toLowerCase();
+      const duration = sType.includes('race') ? 7200 : sType.includes('quali') ? 3600 : 5400;
+      const lapTotal = sType.includes('race') ? (s.total_laps || 0) : 0;
       f1Update({
         connection: 'connected',
         session: {
           active: true,
-          type: (s.session_type || '').toLowerCase(),
+          type: sType,
           name: s.meeting_name || s.session_name || '',
           circuit: s.circuit_short_name || '',
           country: s.country_name || '',
-          dateStart: s.date_start || ''
+          dateStart: s.date_start || '',
+          lap: { current: 0, total: lapTotal },
+          timer: { duration, elapsed: 0, remaining: duration }
         },
         meeting: s
       });
@@ -218,19 +249,41 @@ F1Providers.openf1 = {
         f1Update({ drivers });
       }
 
+      // Laps
+      try {
+        const lapRes = await fetch(`https://api.openf1.org/v1/laps?session_key=${sk}&order=date&order_direction=desc`);
+        if (lapRes.ok) {
+          const laps = await lapRes.json();
+          if (laps.length) {
+            const maxLap = laps.reduce((m, l) => Math.max(m, l.lap_number || 0), 0);
+            f1Update({ session: { lap: { current: maxLap, total: F1State.session.lap.total || maxLap } } });
+          }
+        }
+      } catch(e) { /* */ }
+
+      // Session timer — compute from session start time
+      if (this._sessionStart) {
+        const elapsed = Math.floor((Date.now() - this._sessionStart) / 1000);
+        const dur = F1State.session.timer.duration || 7200;
+        f1Update({ session: { timer: { duration: dur, elapsed, remaining: Math.max(0, dur - elapsed) } } });
+      }
+
       // Weather
       const wRes = await fetch(`https://api.openf1.org/v1/weather?session_key=${sk}&order=date&order_direction=desc`);
       if (wRes.ok) {
         const weather = await wRes.json();
         if (weather.length) {
           const w = weather[0];
+          const rainLevel = w.rainfall || 0;
+          const code = rainLevel > 5 ? 65 : rainLevel > 0 ? 61 : (w.track_temperature > 35 ? 0 : 2);
           f1Update({
             weather: {
               temp: w.air_temperature != null ? Math.round(w.air_temperature) : null,
               humidity: w.humidity != null ? Math.round(w.humidity) : null,
               wind: w.wind_speed != null ? Math.round(w.wind_speed) : null,
-              rain: w.rainfall > 0,
-              condition: w.rainfall > 0 ? 'Rain' : 'Dry'
+              rain: rainLevel > 0,
+              condition: rainLevel > 5 ? 'Heavy Rain' : rainLevel > 0 ? 'Rain' : 'Dry',
+              code
             }
           });
         }
@@ -264,9 +317,9 @@ F1Providers.openf1 = {
 
 const DEMO_MEETING = { meeting_name: 'British Grand Prix', circuit_short_name: 'Silverstone', country_name: 'United Kingdom', date_start: '2025-07-06' };
 const DEMO_STANDINGS = [
-  { pos: 1, name: 'Verstappen', gap: 'LEAD' },
-  { pos: 2, name: 'Norris', gap: '+4.2s' },
-  { pos: 3, name: 'Leclerc', gap: '+9.1s' },
+  { pos: 1, number: 1, name: 'Verstappen', abbrev: 'VER', team: 'Red Bull Racing', color: '#3671C6', gap: 'LEAD' },
+  { pos: 2, number: 4, name: 'Norris', abbrev: 'NOR', team: 'McLaren', color: '#FF8000', gap: '+4.2s' },
+  { pos: 3, number: 16, name: 'Leclerc', abbrev: 'LEC', team: 'Ferrari', color: '#E8002D', gap: '+9.1s' },
 ];
 const DEMO_WEATHER = { temp: 18, humidity: 65, wind: 12, rain: false, condition: 'Dry', code: 2 };
 
@@ -309,10 +362,11 @@ function simSession(sessionType) {
     statusText = 'LIVE';
   }
 
+  const lapData = sessionType === 'Race' ? { current: 1, total: 52 } : { current: 0, total: 0 };
   f1Update({
     session: {
       active: true, type: sessionType, finished: false,
-      qSession: qS, fpSession: fpS, timer
+      qSession: qS, fpSession: fpS, timer, lap: lapData
     },
     track: { statusText, flagRGB: [.02, 1, .1] }
   });

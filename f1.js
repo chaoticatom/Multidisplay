@@ -134,7 +134,7 @@ function buildTrackBuf(raceName) {
 function buildScrollText(data) {
   const dateStr = data ? new Date(data.date_start||data.date).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : '--';
   const name    = data ? (data.meeting_name||data.raceName||'Grand Prix') : 'F1 2025';
-  const circuit = data ? (data.circuit_short_name||data.Circuit?.circuitName||'') : '';
+  const circuit = data ? (data.circuit_short_name||'') : '';
   const text    = `   ${name}  •  ${circuit}  •  ${dateStr}   `.repeat(2);
   const fh = Math.max(8, (SIZE*0.35)|0);
   const oc = document.createElement('canvas');
@@ -265,10 +265,10 @@ function rebuildF1FaceBufs() {
   const isPrac  = sessionType.toLowerCase().includes('prac');
   const isRace  = !isQuali && !isPrac;
   const timer   = F1State.session.timer;
-  const lap     = Math.max(1, Math.floor(timer.elapsed/60)+1);
+  const lap     = F1State.session.lap.current || 1;
+  const lapTotal = F1State.session.lap.total || '??';
   const minR    = Math.floor(timer.remaining/60);
   const secR    = String(timer.remaining%60).padStart(2,'0');
-  const RES     = 0.16;
 
   const weather = F1State.weather;
   const wcode = (weather.code||0);
@@ -358,7 +358,7 @@ function rebuildF1FaceBufs() {
     } else {
       let fsRace = Math.max(7,(S2*0.22)|0);
       const lapLabel = 'LAP';
-      const lapCount = `${lap} of 50`;
+      const lapCount = `${lap} of ${lapTotal}`;
       cx.font=`bold ${fsRace}px Arial`;
       const maxWidth = Math.max(cx.measureText(lapLabel).width, cx.measureText(lapCount).width);
       while(fsRace > 5 && maxWidth > S2*0.92){
@@ -376,6 +376,7 @@ function rebuildF1FaceBufs() {
   {
     const top3 = standings.slice(0,3);
     const abbrevs = top3.map(d=>{
+      if (d.abbrev) return d.abbrev.toUpperCase().substring(0,3);
       const name = (d.name||'').replace(/^#\d+\s*/,'').toUpperCase();
       const parts = name.split(' ');
       if(parts.length>1) return parts[parts.length-1].substring(0,3);
@@ -494,7 +495,7 @@ function rebuildF1FaceBufs() {
     } else {
       let fsRace = Math.max(7,(S2*0.22)|0);
       const lapLabel = 'LAP';
-      const lapCount = `${lap} of 50`;
+      const lapCount = `${lap} of ${lapTotal}`;
       cx.font=`bold ${fsRace}px Arial`;
       const maxWidth = Math.max(cx.measureText(lapLabel).width, cx.measureText(lapCount).width);
       while(fsRace > 5 && maxWidth > S2*0.92){
@@ -535,6 +536,7 @@ function effectF1(dt){
   if (!sessionActive) {
     const top3 = standings.slice(0,3);
     const abbrevs = top3.map(d=>{
+      if (d.abbrev) return d.abbrev.toUpperCase().substring(0,3);
       const name = (d.name||'').replace(/^#\d+\s*/,'').toUpperCase();
       const parts = name.split(' ');
       if(parts.length>1) return parts[parts.length-1].substring(0,3);
@@ -883,7 +885,7 @@ function updateSessionUI() {
     timerEl.textContent = `${min}:${String(sec).padStart(2, '0')}`;
   } else if (sessionType.toLowerCase().includes('race')) {
     typeEl.textContent = '🏎️ RACE';
-    lapsEl.textContent = `Lap ${Math.floor(timer.elapsed) || 0}/50`;
+    lapsEl.textContent = `Lap ${F1State.session.lap.current || 1}/${F1State.session.lap.total || '??'}`;
   } else {
     typeEl.textContent = sessionType.toUpperCase() || 'Standby';
   }
