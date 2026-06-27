@@ -107,7 +107,7 @@ Browser
 ├── cube.js             Renderer, LED geometry, face maps, camera, orbit
 ├── effects.js          All visual effect functions (wave, fire, F1, etc.)
 ├── f1.js               F1 data globals, polling loop, face buffer builders
-└── ui.js               Sidebar wiring, effect switching, alarm,
+└── ui.js               Sidebar wiring, effect switching, timers,
                         WebSocket client → streams pixel frames to ESP32
 │
 ├── manifest.json       PWA: install as mobile app

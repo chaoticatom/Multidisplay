@@ -4,7 +4,7 @@ A browser-based RGB LED cube visualizer with live streaming to a physical ESP32-
 
 ## What it is
 
-- **Web app**: 3D interactive simulator rendered in Three.js. Supports cube sizes of 8×8, 16×16, and 64×64. Includes 30+ built-in visual effects, overlays, playlists, alarms, and a custom graphics editor.
+- **Web app**: 3D interactive simulator rendered in Three.js. Supports cube sizes of 8×8, 16×16, and 64×64. Includes 30+ built-in visual effects, 13 overlays, playlists, timers (alarms and wind down), weather display, and a custom graphics editor.
 - **Physical cube**: Six HUB75 RGB panels arranged as a cube, driven by an ESP32-S3 via DMA. The ESP32 serves the web app over HTTP and receives pixel frames from connected browsers via WebSocket on port 81.
 - **PWA**: Installable as a Progressive Web App on mobile and desktop.
 
@@ -45,7 +45,7 @@ Multidisplay/
 ├── f1.js             # F1 Live effect globals and data model
 ├── ui.js             # Effect registry (EFFECTS/EFFECT_NAMES), UI wiring,
 │                     #   WebSocket streaming (initCubeWs / streamFrameToCube),
-│                     #   playlist, alarms, panel editor
+│                     #   playlist, timers (alarm/wind down), panel editor
 ├── style.css         # Dark theme CSS
 ├── manifest.json     # PWA manifest
 ├── service-worker.js # PWA offline cache
@@ -74,6 +74,25 @@ On Chrome/Edge: click the install icon in the address bar or open the browser me
 Effects are JavaScript functions in `effects.js`. Each function iterates over surface LEDs using the global arrays `surfX`, `surfY`, `surfZ` and calls `setLED(i, r, g, b)` to set pixel colours.
 
 See [docs/EFFECTS.md](docs/EFFECTS.md) for the complete guide including function signatures, helper functions, registering a new effect in the UI, and optionally porting effects to C++ for standalone mode.
+
+## Timers
+
+The Timers section in the sidebar lets you schedule timed events. Each timer has a name, time, repeat schedule (once, daily, weekdays, weekends, weekly, hourly), and an optional message displayed on the cube faces.
+
+Timers support two modes, selectable via collapsible dropdown headers in the editor:
+
+- **Alarm**: Triggers at the set time. Choose an effect or playlist to play, enable overlays, and optionally configure a pre-alarm that gradually brightens the display from a dim start level. Pre-alarm options include Giant Sun Rise and Effect Rise.
+- **Wind Down**: Triggers at the set time and gradually dims the display to black over a configurable duration. Optionally choose a specific effect and overlays to display while dimming, or use the currently active effect. When the wind down completes the display blanks. Selecting a new effect after wind down dismisses the blank state.
+
+Timers are saved to local storage and persist across sessions. Each timer in the list shows a slide-toggle to enable/disable it, the scheduled time, repeat pattern, name, and whether it is an Alarm or Wind Down type.
+
+## Overlays
+
+13 overlay effects can be layered on top of any base effect: Twinkling Stars, Snowfall, Meteor Shower, Edge Glow, Fire Border, Sparkle Rain, Color Wave, Breathe Pulse, Scan Line, Vignette, Glitch, Rainbow Mist, and Lightning Strike. Each overlay has configurable parameters (density, speed, colour, intensity) accessible via slide-toggle headers in the Overlays section.
+
+## Weather
+
+The weather effect displays real-time conditions on the cube including sky gradients, sun/moon position and phase, clouds, rain, snow, thunderstorms, and fog. Weather data is fetched from the Open-Meteo API based on a configurable city. The display includes a clear zone between the horizon and sky for text readability, with clouds naturally fading into the zone edges.
 
 ## Firmware Build and Flash
 
@@ -118,7 +137,7 @@ The web app is hosted on GitHub Pages and works as a full simulator without any 
 
 **[https://chaoticatom.github.io/Multidisplay/](https://chaoticatom.github.io/Multidisplay/)**
 
-> Note: WebSocket streaming to the physical cube is **disabled on GitHub Pages** because browsers block insecure `ws://` connections from HTTPS pages. The visualizer runs in simulator-only mode — all effects, controls, alarms, and F1 display work normally; pixel frames are just not sent to hardware. To stream to the cube, access the app directly from the ESP32 at `http://multidisplay.local`.
+> Note: WebSocket streaming to the physical cube is **disabled on GitHub Pages** because browsers block insecure `ws://` connections from HTTPS pages. The visualizer runs in simulator-only mode — all effects, controls, timers, and F1 display work normally; pixel frames are just not sent to hardware. To stream to the cube, access the app directly from the ESP32 at `http://multidisplay.local`.
 
 To update the live GitHub Pages site after making changes:
 1. Merge your branch into `main`
