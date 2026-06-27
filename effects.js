@@ -5102,8 +5102,9 @@ function effectWeather(dt){
       const relCX=uOfFacePanX(face,cpx);
       let relCY=vOfElevFrac(cl.py);
       const _clrTop7=Math.round(WX_CLEAR_TOP*S);
+      const _clrBot7=Math.round(HORIZ*S);
       const wVchk=Math.round(cl.sz*0.28*S);
-      if(relCY-wVchk<_clrTop7) relCY=_clrTop7+Math.round(wVchk*0.4);
+      if(relCY-wVchk<_clrTop7-6) relCY=_clrTop7-6+Math.round(wVchk*0.4);
       const wU=Math.round(cl.sz*0.5*S),wV=Math.round(cl.sz*0.28*S);
       // Draw multiple puffs
       for(let p=0;p<cl.puffs;p++){
@@ -5115,6 +5116,7 @@ function effectWeather(dt){
           if(dist>1) continue;
           const fu=pu+du, fv=pv+dv;
           if(fu<0||fu>=S||fv<0||fv>=S) continue;
+          if(fv>=_clrBot7&&fv<_clrTop7-6) continue;
           const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
           let edge;
           if(isOvercast){
