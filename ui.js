@@ -426,7 +426,7 @@ function alarmOpenEditor(idx){
     lbl.appendChild(tog); lbl.appendChild(document.createTextNode(ovNames[ov]));
     wdOvDiv.appendChild(lbl);
   });
-  document.getElementById('al-wd-effect-section').style.display=(al.prealarm?.wdUseEffect)?'':'none';
+  document.getElementById('al-wd-effect-section').style.display=(al.prealarm?.wdUseEffect)?'none':'';
 
   // Playlist dropdown
   const plSel=document.getElementById('al-playlist');
@@ -766,7 +766,7 @@ document.getElementById('al-wind-down')?.addEventListener('change',function(){
   if(this.checked){ document.getElementById('al-alarm-on').checked=false; document.getElementById('al-alarm-opts').style.display='none'; }
 });
 document.getElementById('al-wd-use-effect')?.addEventListener('change',function(){
-  document.getElementById('al-wd-effect-section').style.display=this.checked?'':'none';
+  document.getElementById('al-wd-effect-section').style.display=this.checked?'none':'';
 });
 document.getElementById('al-cancel-btn')?.addEventListener('click',()=>{ document.getElementById('alarm-modal').style.display='none'; });
 document.getElementById('al-save-btn')?.addEventListener('click',()=>{

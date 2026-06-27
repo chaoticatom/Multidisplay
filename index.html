@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=522">
+<link rel="stylesheet" href="style.css?v=523">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -903,9 +903,9 @@
           <input id="al-wd-mins" type="number" min="1" max="120" value="15" style="flex:1;padding:4px 6px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:12px;border-radius:3px;text-align:center;">
         </div>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:8px;">
-          <input type="checkbox" id="al-wd-use-effect"> <span style="font-size:12px;color:#99b;">Use current effect while dimming</span>
+          <input type="checkbox" id="al-wd-use-effect" style="width:14px;height:14px;accent-color:#7aadff;"> <span style="font-size:12px;color:#99b;">Use current effect while dimming</span>
         </label>
-        <div id="al-wd-effect-section" style="display:none;">
+        <div id="al-wd-effect-section">
           <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">EFFECT</label>
           <select id="al-wd-effect" style="width:100%;margin:5px 0 8px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;"></select>
           <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">OVERLAYS</label>
@@ -1002,7 +1002,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=522"></script>
+<script src="version.js?v=523"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -1037,7 +1037,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=522','effects.js?v=522','f1.js?v=522','ui.js?v=522'];
+  const appScripts = ['cube.js?v=523','effects.js?v=523','f1.js?v=523','ui.js?v=523'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
