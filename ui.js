@@ -1229,7 +1229,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=549','f1.js?v=549','f1-providers.js?v=549'];
+  const scripts = ['f1-state.js?v=550','f1.js?v=550','f1-providers.js?v=550'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1941,7 +1941,8 @@ function _f1UpdateDiag() {
     `Remaining: ${Math.floor(s.session.timer.remaining/60)}:${String(s.session.timer.remaining%60).padStart(2,'0')}`,
     `Lap: ${s.session.lap.current}/${s.session.lap.total}`,
     `Leader: <b>${s.drivers[0]?.name || s.drivers[0]?.abbrev || '--'}</b>`,
-    `Track: <b>${s.track.flag || 'none'}</b> ${s.track.statusText || ''}`,
+    `Flag: <b>${s.track.flag || 'none'}</b> RGB(${s.track.flagRGB ? s.track.flagRGB.map(c=>(c*255|0)).join(',') : '--'})`,
+    `Track: ${s.track.statusText || '--'}`,
     `Weather: ${s.weather.temp != null ? s.weather.temp + '°C' : '--'} ${s.weather.humidity != null ? s.weather.humidity + '%' : ''} ${s.weather.wind != null ? s.weather.wind + 'km/h' : ''} ${s.weather.rain ? '🌧' : ''}`,
     s.track.raceControlMessages.length ? `RC: ${s.track.raceControlMessages[0].message}` : ''
   ].filter(Boolean).join('<br>');

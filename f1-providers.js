@@ -171,7 +171,11 @@ F1Providers.openf1 = {
   async _init() {
     try {
       const res = await fetch('https://api.openf1.org/v1/sessions?session_key=latest');
-      if (!res.ok) { f1Update({ connection: 'error' }); return; }
+      if (!res.ok) {
+        f1Update({ connection: 'error' });
+        if (_f1IsActive()) this._timer = setTimeout(() => this._init(), 10000);
+        return;
+      }
       const sessions = await res.json();
       if (!sessions.length) { f1Update({ connection: 'connected', session: { active: false } }); return; }
       const s = sessions[0];
@@ -214,6 +218,7 @@ F1Providers.openf1 = {
       this._pollLive();
     } catch (e) {
       f1Update({ connection: 'error' });
+      if (_f1IsActive()) this._timer = setTimeout(() => this._init(), 10000);
     }
   },
   async _fetchNextSession() {
@@ -260,7 +265,10 @@ F1Providers.openf1 = {
     }
   },
   async _pollLive() {
-    if (!this._sessionKey) return;
+    if (!this._sessionKey) {
+      if (_f1IsActive()) this._timer = setTimeout(() => this._init(), 10000);
+      return;
+    }
 
     // After session finishes, wait 60s then show next session
     if (this._finishedAt && !this._nextSession) {
