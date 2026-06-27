@@ -1231,7 +1231,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=603','f1.js?v=603','f1-providers.js?v=603'];
+  const scripts = ['f1-state.js?v=604','f1.js?v=604','f1-providers.js?v=604'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -2667,6 +2667,7 @@ document.querySelectorAll('.rain-style-btn').forEach(b=>b.addEventListener('clic
   rainStyle=b.dataset.rainstyle;
 }));
 document.querySelectorAll('.strobe-mode-btn').forEach(b=>b.addEventListener('click',()=>{
+  if (b.dataset.f1flag === 'blue' || b.dataset.f1flag === 'bw') return;
   const parent=b.parentElement;
   parent.querySelectorAll('.strobe-mode-btn').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
