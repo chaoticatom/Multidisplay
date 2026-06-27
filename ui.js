@@ -308,9 +308,7 @@ function alarmBuildList(){
     div.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:5px;background:rgba(20,30,60,0.5);border-radius:6px;border:1px solid rgba(80,120,255,0.18);';
     const on=al.enabled;
     div.innerHTML=`
-      <span class="al-tog" data-i="${i}" style="display:inline-block;width:28px;height:15px;border-radius:8px;position:relative;cursor:pointer;flex-shrink:0;background:${on?'rgba(80,200,120,0.6)':'rgba(60,70,100,0.8)'};border:1px solid ${on?'rgba(80,200,120,0.8)':'rgba(80,120,255,0.3)'};transition:all 0.2s;">
-        <span style="position:absolute;top:2px;left:${on?'13px':'2px'};width:9px;height:9px;border-radius:50%;background:${on?'#4d8':'#668'};transition:all 0.2s;"></span>
-      </span>
+      <input type="checkbox" class="al-tog" data-i="${i}" ${on?'checked':''} style="width:15px;height:15px;accent-color:#7aadff;cursor:pointer;flex-shrink:0;">
       <div style="flex:1;min-width:0;">
         <div style="font-size:16px;color:#dde;font-weight:700;letter-spacing:1px;">${h}:${m} <span style="font-size:11px;color:#8899bb;font-weight:600;">${repeatLabel}</span></div>
         <div style="font-size:12px;color:#99aabb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${al.name||''} <span style="font-size:10px;color:${isWd?'#a8b4d0':'#7aadff'};">${typeLabel}</span></div>
@@ -319,8 +317,8 @@ function alarmBuildList(){
       <button class="al-del-btn" data-i="${i}" style="padding:4px 10px;font-size:11px;background:rgba(255,60,60,0.08);border:1px solid rgba(255,60,60,0.2);color:#f88;border-radius:4px;cursor:pointer;">✕</button>`;
     el.appendChild(div);
   });
-  el.querySelectorAll('.al-tog').forEach(t=>t.addEventListener('click',()=>{
-    const i=+t.dataset.i; alarms[i].enabled=!alarms[i].enabled; alarmSave(); alarmBuildList();
+  el.querySelectorAll('.al-tog').forEach(t=>t.addEventListener('change',function(){
+    const i=+this.dataset.i; alarms[i].enabled=this.checked; alarmSave(); alarmBuildList();
   }));
   el.querySelectorAll('.al-edit-btn').forEach(b=>b.addEventListener('click',()=>alarmOpenEditor(+b.dataset.i)));
   el.querySelectorAll('.al-del-btn').forEach(b=>{
