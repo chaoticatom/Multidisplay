@@ -41,7 +41,8 @@ window.F1State = {
 
   carPositions: [],            // [{driverNumber, frac, colour}]
   meeting: null,               // raw meeting data
-  nextSession: null            // next upcoming session from API
+  nextSession: null,           // next upcoming session from API
+  championshipStandings: []    // [{pos, abbrev, points, wins}] from Jolpica
 };
 
 let f1DataDirty = true;
@@ -72,6 +73,7 @@ function f1Reset() {
   F1State.carPositions = [];
   F1State.meeting = null;
   F1State.nextSession = null;
+  F1State.championshipStandings = [];
   f1DataDirty = true;
   document.dispatchEvent(new CustomEvent('f1-state-change'));
 }

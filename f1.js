@@ -554,15 +554,8 @@ function effectF1(dt){
     if (!f1IdleRebuildT) f1IdleRebuildT = 0;
     f1IdleRebuildT += dt;
     if (f1IdleRebuildT > 60) { f1IdleRebuildT = 0; buildIdleScroll(); }
-    const top3 = standings.slice(0,3);
-    const abbrevs = top3.map(d=>{
-      if (d.abbrev) return d.abbrev.toUpperCase().substring(0,3);
-      const name = (d.name||'').replace(/^#\d+\s*/,'').toUpperCase();
-      const parts = name.split(' ');
-      if(parts.length>1) return parts[parts.length-1].substring(0,3);
-      return name.substring(0,3);
-    });
-    const longest = abbrevs.reduce((a,b)=>a.length>b.length?a:b, '');
+    const champ = F1State.championshipStandings;
+    const top3champ = champ && champ.length >= 3 ? champ.slice(0,3) : null;
 
     const sq = Math.max(2, (SIZE/8)|0);
     const pulse = 0.45 + Math.sin(t*2)*0.35;
@@ -574,26 +567,32 @@ function effectF1(dt){
     }
 
     {
-      const cacheKey = abbrevs.join('|');
+      const lines = top3champ
+        ? top3champ.map(d => d.pos + '. ' + d.abbrev + ' ' + d.points)
+        : standings.slice(0,3).map((d,i) => {
+            let a = d.abbrev ? d.abbrev.toUpperCase().substring(0,3) : '';
+            if (!a) { const p = (d.name||'').replace(/^#\d+\s*/,'').toUpperCase().split(' '); a = p.length>1 ? p[p.length-1].substring(0,3) : (p[0]||'').substring(0,3); }
+            return (i+1) + '. ' + a;
+          });
+      const longest = lines.reduce((a,b)=>a.length>b.length?a:b, '');
+      const cacheKey = lines.join('|');
       if(!f1FaceBufs._lastIdleTop3 || f1FaceBufs._lastIdleTop3!==cacheKey){
         f1FaceBufs._lastIdleTop3 = cacheKey;
         const c = document.createElement('canvas');
         c.width = c.height = SIZE;
         const ctx = c.getContext('2d');
         ctx.textAlign='center'; ctx.textBaseline='middle';
-        let fs = Math.max(8, (SIZE*0.28)|0);
+        let fs = Math.max(8, (SIZE*0.24)|0);
         ctx.font = `bold ${fs}px Arial`;
-        while(fs > 5 && ctx.measureText(longest).width > SIZE*0.85){
+        while(fs > 5 && ctx.measureText(longest).width > SIZE*0.9){
           fs--; ctx.font = `bold ${fs}px Arial`;
         }
         const lineH = SIZE / 3;
-        const colors = ['#FFFF00', '#FFFFFF', '#FF9900'];
-        const positions = ['1.', '2.', '3.'];
-        for(let i=0;i<Math.min(3,abbrevs.length);i++){
+        const colors = ['#FFD700', '#C0C0C0', '#CD7F32'];
+        for(let i=0;i<Math.min(3,lines.length);i++){
           ctx.font = `bold ${fs}px Arial`;
           ctx.fillStyle = colors[i];
-          const text = positions[i] + ' ' + abbrevs[i];
-          ctx.fillText(text, SIZE/2, (i+0.5)*lineH);
+          ctx.fillText(lines[i], SIZE/2, (i+0.5)*lineH);
         }
         f1FaceBufs.idleTop3 = {data:ctx.getImageData(0,0,SIZE,SIZE).data, S:SIZE};
       }

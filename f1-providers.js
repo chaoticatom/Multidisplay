@@ -51,6 +51,31 @@ async function _f1FetchSchedule() {
   } catch (e) { return null; }
 }
 
+var _f1StandingsCache = null;
+var _f1StandingsTs = 0;
+
+async function _f1FetchChampionship() {
+  if (_f1StandingsCache && Date.now() - _f1StandingsTs < 3600000) return;
+  try {
+    var ctrl = new AbortController();
+    var tid = setTimeout(function() { ctrl.abort(); }, 8000);
+    var res = await fetch('https://api.jolpi.ca/ergast/f1/current/driverStandings.json', { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (!res.ok) return;
+    var data = await res.json();
+    var list = data?.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings;
+    if (!list || !list.length) return;
+    var standings = list.map(function(s) {
+      var d = s.Driver || {};
+      var abbrev = (d.code || d.familyName || '').substring(0, 3).toUpperCase();
+      return { pos: parseInt(s.position), abbrev: abbrev, points: parseFloat(s.points), wins: parseInt(s.wins) };
+    });
+    _f1StandingsCache = standings;
+    _f1StandingsTs = Date.now();
+    f1Update({ championshipStandings: standings });
+  } catch (e) {}
+}
+
 async function _f1FindNextFromSchedule() {
   var schedule = await _f1FetchSchedule();
   if (!schedule) return null;
@@ -353,6 +378,9 @@ F1Providers.openf1 = {
       if (typeof buildScrollText === 'function') buildScrollText({ meeting_name: s.meeting_name, circuit_short_name: s.circuit_short_name });
       if (typeof buildCircuitStrip === 'function') buildCircuitStrip();
       if (isLive && typeof buildIdleScroll === 'function') buildIdleScroll();
+
+      // Fetch championship standings (non-blocking)
+      _f1FetchChampionship();
 
       // Fetch drivers
       const dRes = await fetch(`https://api.openf1.org/v1/drivers?session_key=${this._sessionKey}`);
