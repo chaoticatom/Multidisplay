@@ -1821,7 +1821,6 @@ window.addEventListener('deviceorientation', e => {
 });
 
 function activateF1Mode() {
-  // Switch to F1 effect
   effectsOn = true;
   document.querySelectorAll('.effect-btn').forEach(b => b.classList.remove('active'));
   const f1Btn = document.querySelector('[data-effect="f1"]');
@@ -1829,99 +1828,108 @@ function activateF1Mode() {
   currentEffect = 'f1';
   startF1SessionTimer();
   effectLabel.textContent = 'F1 Live';
-  const modeBtn = document.getElementById('f1-mode-btn');
-  modeBtn.style.background = 'rgba(220,30,30,0.35)';
-  modeBtn.style.borderColor = 'rgba(220,30,30,0.8)';
-  modeBtn.style.color = '#ff8888';
   t = 0;
 }
 
-// ── Simulate a status button click ──
-function f1SimStatus(flag, status) {
-  activateF1Mode();
-  f1SessionActive = true;
-  // Set up demo session data if not already set
-  if (!f1MeetingData) {
-    f1MeetingData = { meeting_name:'British Grand Prix', circuit_short_name:'Silverstone', date_start:'2025-07-06' };
-    document.getElementById('f1-race-name').textContent = f1MeetingData.meeting_name;
-    document.getElementById('f1-race-date').textContent = 'Sun Jul 6';
-    buildScrollText(f1MeetingData);
-    buildCircuitStrip();
-    buildIdleScroll();
+// ── F1 Source selector ──
+document.querySelectorAll('[data-f1src]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-f1src]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const mode = btn.dataset.f1src;
+    f1SetMode(mode);
+    activateF1Mode();
+  });
+});
+
+// ── F1 Dev Tools: session buttons ──
+document.querySelectorAll('[data-f1sim]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const type = btn.dataset.f1sim;
+    if (type === 'idle') { simNoSession(); }
+    else { simSession(type.charAt(0).toUpperCase() + type.slice(1)); }
+  });
+});
+
+// ── F1 Dev Tools: flag buttons ──
+document.querySelectorAll('[data-f1flag]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const f = btn.dataset.f1flag;
+    if (f === 'blue') { simBlueFlag(); }
+    else if (f === 'finish') { simFinish(); }
+    else if (f === 'sc') { simFlag('SAFETY', 'SAFETY CAR'); }
+    else if (f === 'vsc') { simFlag('VIRTUAL', 'VIRTUAL SC'); }
+    else { simFlag(f.toUpperCase(), f.toUpperCase()); }
+  });
+});
+
+// ── F1 Dev Tools: weather buttons ──
+document.querySelectorAll('[data-f1wx]').forEach(btn => {
+  btn.addEventListener('click', () => simWeather(btn.dataset.f1wx));
+});
+
+// ── F1 Dev Tools: collapsible toggles ──
+document.getElementById('f1-dev-toggle')?.addEventListener('click', function() {
+  const body = document.getElementById('f1-dev-body');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  this.textContent = (open ? '▸' : '▾') + ' Developer Tools';
+});
+document.getElementById('f1-diag-toggle')?.addEventListener('click', function() {
+  const body = document.getElementById('f1-diag-body');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  this.textContent = (open ? '▸' : '▾') + ' Diagnostics';
+});
+
+// ── F1 Diagnostics updater ──
+document.addEventListener('f1-state-change', () => {
+  const el = document.getElementById('f1-diag-content');
+  if (!el || document.getElementById('f1-diag-body')?.style.display === 'none') return;
+  const s = F1State;
+  const ago = s.lastUpdate ? ((Date.now() - s.lastUpdate) / 1000).toFixed(1) + 's ago' : '--';
+  el.innerHTML = [
+    `Source: <b>${s.source}</b>`,
+    `Connection: <b>${s.connection}</b>`,
+    `Last Update: ${ago}`,
+    `Packets: ${s.updateCount}`,
+    `Reconnects: ${s.reconnectCount}`,
+    `Session: ${s.session.type || 'none'} ${s.session.active ? '(active)' : ''}`,
+    `Lap: ${s.session.lap.current}/${s.session.lap.total}`,
+    `Leader: ${s.drivers[0]?.name || '--'}`,
+    `Track: ${s.track.statusText || '--'}`,
+    `Weather: ${s.weather.temp != null ? s.weather.temp + '°C' : '--'}`,
+    s.track.raceControlMessages.length ? `RC: ${s.track.raceControlMessages[0].message}` : ''
+  ].filter(Boolean).join('<br>');
+});
+
+// ── F1 Badge updater ──
+document.addEventListener('f1-state-change', () => {
+  const badge = document.getElementById('f1-badge');
+  if (!badge) return;
+  const s = F1State;
+  badge.className = 'f1-badge';
+  if (s.source === 'simulation') {
+    badge.textContent = 'SIM';
+    badge.classList.add('sim');
+  } else if (s.connection === 'connected') {
+    badge.textContent = 'LIVE';
+    badge.classList.add('live');
+  } else if (s.connection === 'connecting') {
+    badge.textContent = '...';
+    badge.classList.add('connecting');
+  } else {
+    badge.textContent = '';
   }
-  if (!f1SessionType) { f1SessionType = 'Race'; }
-  if (!f1SessionTime.duration) { f1SessionTime = { duration:5400, elapsed:1800, remaining:3600 }; }
-  if (!f1Weather.temp) { f1Weather = { temp:18, code:2, humidity:65, wind:12 }; }
-  if (!f1Standings.length) {
-    f1Standings = [
-      { pos:1, name:'Verstappen', gap:'LEAD' },
-      { pos:2, name:'Norris',     gap:'+4.2s' },
-      { pos:3, name:'Leclerc',    gap:'+9.1s' },
-    ];
-  }
-  applyF1Flag(flag, status);
-  f1DataDirty = true;
-  updateLeaderboardUI();
-  updateSessionUI();
-}
+});
 
-// ── No session — idle chequered/scroll mode ──
-function buildIdleScroll() {
-  if (!f1MeetingData) return;
-  const name = ((f1MeetingData.meeting_name||'') + '  •  ' + (f1MeetingData.circuit_short_name||'')).toUpperCase();
-  const text  = '   ' + name + '   ';
-  const S     = Math.max(SIZE, 16);
-  const oc = document.createElement('canvas');
-  const ctx = oc.getContext('2d');
-
-  // Auto-fit font size so text fits exactly 4 panels (4*S width)
-  let fs = Math.max(6, (S * 0.52)|0);
-  ctx.textBaseline = 'middle';
-  let tw = 0;
-  do {
-    ctx.font = `bold ${fs}px Arial, sans-serif`;
-    tw = (ctx.measureText(text).width)|0;
-    if (tw > 4*S && fs > 4) fs--;
-    else if (tw < 4*S*0.9 && fs < 30) fs++;
-    else break;
-  } while(true);
-
-  // Create buffer with text repeating to fill exactly 4 panels
-  const fullW = 4*S;
-  oc.width = fullW;
-  oc.height = S;
-  ctx.fillStyle = '#000'; ctx.fillRect(0,0,oc.width,oc.height);
-  ctx.fillStyle = '#fff'; ctx.font = `bold ${fs}px Arial, sans-serif`;
-
-  // Draw text repeated to fill the width
-  for(let x=0; x<fullW; x+=tw) {
-    ctx.fillText(text, x, S/2);
-  }
-
-  f1IdlePixels = ctx.getImageData(0,0,oc.width,oc.height).data;
-  f1IdleWidth  = oc.width;
-  f1IdleScrollX = 0;
-}
-
-function f1SimNoSession() {
-  activateF1Mode();
-  f1SessionActive = false;
-  f1FlagRGB   = [0,0,0];
-  f1FlagLabel = '';
-  f1StatusText = '';
-  f1BlueFlagActive = false;
-  if (!f1MeetingData) {
-    f1MeetingData = { meeting_name:'British Grand Prix', circuit_short_name:'Silverstone', date_start:'2025-07-06' };
-    document.getElementById('f1-race-name').textContent = f1MeetingData.meeting_name;
-    document.getElementById('f1-race-date').textContent = 'Sun Jul 6';
-  }
-  buildIdleScroll();
-  const flagEl = document.getElementById('f1-flag');
-  const textEl = document.getElementById('f1-status-text');
-  if (flagEl) flagEl.style.background = '#111';
-  if (textEl) textEl.textContent = 'No session';
-  f1DataDirty = true;
-}
+// ── F1 Status dot updater ──
+document.addEventListener('f1-state-change', () => {
+  const dot = document.getElementById('f1-status-dot');
+  if (!dot) return;
+  const c = F1State.connection;
+  dot.style.background = c === 'connected' ? '#4f4' : c === 'connecting' ? '#ff0' : c === 'error' ? '#f44' : '#444';
+});
 
 let panel2dMode=false, panel2dZoom=60;
 document.querySelectorAll('.size-btn').forEach(btn=>{

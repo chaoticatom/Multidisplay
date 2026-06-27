@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=538">
+<link rel="stylesheet" href="style.css?v=539">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -149,28 +149,66 @@
         <button class="strobe-mode-btn" data-scol="multi">Multi</button>
       </div>
     </div>
-    <button class="effect-btn has-panel" data-effect="f1">◈ F1 Live <span class="panel-arrow">▸</span></button>
+    <button class="effect-btn has-panel" data-effect="f1">◈ F1 Live <span id="f1-badge" class="f1-badge"></span><span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-f1">
-      <div id="f1-status-bar" style="display:flex;align-items:center;gap:6px;margin-bottom:8px;padding:5px 8px;background:rgba(0,0,0,0.3);border-radius:4px;border:1px solid rgba(80,120,255,0.15);">
+      <div class="ov-row-label">Source</div>
+      <div class="opt-grid" id="f1-source-grid">
+        <button class="strobe-mode-btn" data-f1src="esp32">ESP32</button>
+        <button class="strobe-mode-btn" data-f1src="openf1">Standalone</button>
+        <button class="strobe-mode-btn active" data-f1src="simulation">Simulation</button>
+      </div>
+      <div id="f1-status-bar" style="display:flex;align-items:center;gap:6px;margin:8px 0;padding:5px 8px;background:rgba(0,0,0,0.3);border-radius:4px;border:1px solid rgba(80,120,255,0.15);">
         <span id="f1-status-dot" style="width:8px;height:8px;border-radius:50%;background:#444;flex-shrink:0;"></span>
         <span id="f1-status-text" style="font-size:10px;color:#778;letter-spacing:0.5px;">Idle</span>
         <span id="f1-status-indicator" style="display:none;"></span>
         <span id="f1-status-label" style="display:none;"></span>
       </div>
-      <div class="ov-row-label">Mode</div>
-      <div id="f1-mode-btn" class="opt-grid">
-        <button class="strobe-mode-btn active" data-f1mode="race">Race</button>
-        <button class="strobe-mode-btn" data-f1mode="qual">Qual</button>
-        <button class="strobe-mode-btn" data-f1mode="practice">Practice</button>
-        <button class="strobe-mode-btn" data-f1mode="idle">Idle</button>
-      </div>
-      <div id="f1-race-name" style="font-size:11px;color:#7aadff;margin-top:8px;text-align:center;font-weight:600;"></div>
+      <div id="f1-race-name" style="font-size:11px;color:#7aadff;text-align:center;font-weight:600;"></div>
       <div id="f1-race-date" style="font-size:10px;color:#778;text-align:center;"></div>
       <div id="f1-session-type" style="font-size:10px;color:#99a;text-align:center;"></div>
       <div id="f1-session-timer" style="font-size:10px;color:#99a;text-align:center;"></div>
       <div id="f1-laps-info" style="font-size:10px;color:#99a;text-align:center;"></div>
       <div id="f1-flag" style="font-size:10px;color:#99a;text-align:center;"></div>
       <div id="f1-board-list" style="font-size:10px;color:#99a;margin-top:4px;"></div>
+
+      <div class="f1-dev-section">
+        <div class="f1-dev-header" id="f1-dev-toggle">▸ Developer Tools</div>
+        <div class="f1-dev-body" id="f1-dev-body" style="display:none;">
+          <div class="ov-row-label">Session</div>
+          <div class="opt-grid">
+            <button class="strobe-mode-btn" data-f1sim="practice">Practice</button>
+            <button class="strobe-mode-btn" data-f1sim="qualifying">Qualifying</button>
+            <button class="strobe-mode-btn" data-f1sim="race">Race</button>
+            <button class="strobe-mode-btn" data-f1sim="idle">Idle</button>
+          </div>
+          <div class="ov-row-label">Track Status</div>
+          <div class="opt-grid">
+            <button class="strobe-mode-btn" data-f1flag="green">Green</button>
+            <button class="strobe-mode-btn" data-f1flag="yellow">Yellow</button>
+            <button class="strobe-mode-btn" data-f1flag="red">Red</button>
+            <button class="strobe-mode-btn" data-f1flag="sc">SC</button>
+          </div>
+          <div class="opt-grid" style="margin-top:4px;">
+            <button class="strobe-mode-btn" data-f1flag="vsc">VSC</button>
+            <button class="strobe-mode-btn" data-f1flag="blue">Blue</button>
+            <button class="strobe-mode-btn" data-f1flag="finish">Finish</button>
+          </div>
+          <div class="ov-row-label">Weather</div>
+          <div class="opt-grid">
+            <button class="strobe-mode-btn" data-f1wx="sunny">Sunny</button>
+            <button class="strobe-mode-btn" data-f1wx="cloudy">Cloudy</button>
+            <button class="strobe-mode-btn" data-f1wx="rain">Rain</button>
+            <button class="strobe-mode-btn" data-f1wx="storm">Storm</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="f1-dev-section">
+        <div class="f1-dev-header" id="f1-diag-toggle">▸ Diagnostics</div>
+        <div class="f1-dev-body" id="f1-diag-body" style="display:none;">
+          <div id="f1-diag-content" style="font-size:10px;color:#889;line-height:1.6;font-family:monospace;"></div>
+        </div>
+      </div>
     </div>
 
     </div>
@@ -994,7 +1032,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=538"></script>
+<script src="version.js?v=539"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -1029,7 +1067,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=538','effects.js?v=538','f1.js?v=538','ui.js?v=538'];
+  const appScripts = ['cube.js?v=539','effects.js?v=539','f1-state.js?v=539','f1.js?v=539','f1-providers.js?v=539','ui.js?v=539'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
