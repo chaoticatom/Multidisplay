@@ -7,6 +7,10 @@ let f1SessionTimerId = null;
 
 // ── Provider Manager ─────────────────────────────────────────────────────────
 
+function _f1IsActive() {
+  try { return currentEffect === 'f1' && effectsOn; } catch(e) { return false; }
+}
+
 function f1SetMode(mode) {
   if (f1ActiveProvider) {
     f1ActiveProvider.stop();
@@ -35,7 +39,7 @@ function f1GetMode() {
 function startF1SessionTimer() {
   if (f1SessionTimerId) return;
   f1SessionTimerId = setInterval(() => {
-    if (typeof currentEffect !== 'undefined' && currentEffect === 'f1' && typeof effectsOn !== 'undefined' && effectsOn) {
+    if (_f1IsActive()) {
       const t = F1State.session.timer;
       t.elapsed += 1;
       t.remaining = Math.max(0, t.duration - t.elapsed);
@@ -62,7 +66,7 @@ F1Providers.esp32 = {
     stopF1SessionTimer();
   },
   async _poll() {
-    if (typeof currentEffect !== 'undefined' && currentEffect !== 'f1') return;
+    if (!_f1IsActive()) return;
     let anySuccess = false;
     try {
       const res = await fetch('/api/session', { signal: AbortSignal.timeout(5000) });

@@ -1,5 +1,7 @@
 /* f1-state.js — Single canonical F1 race state object */
 
+var currentEffect = 'wave';
+
 window.F1State = {
   source: 'none',              // 'esp32'|'openf1'|'simulation'|'none'
   connection: 'idle',          // 'idle'|'connecting'|'connected'|'error'
