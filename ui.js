@@ -353,13 +353,15 @@ function alarmOpenEditor(idx){
 
   // Alarm vs Wind Down mode
   const isWd=!!al.prealarm?.windDown;
-  document.getElementById('al-alarm-on').checked=!isWd;
+  document.getElementById('al-alarm-on').value=isWd?'0':'1';
   document.getElementById('al-alarm-opts').style.display=isWd?'none':'';
-  document.getElementById('al-wind-down').checked=isWd;
+  document.getElementById('al-alarm-arrow').style.transform=isWd?'':'rotate(90deg)';
+  document.getElementById('al-wind-down').value=isWd?'1':'0';
   document.getElementById('al-wd-use-effect').checked=!!al.prealarm?.wdUseEffect;
   const wdMinsEl=document.getElementById('al-wd-mins');
   if(wdMinsEl) wdMinsEl.value=al.prealarm?.wdMinutes||15;
   document.getElementById('al-wd-opts').style.display=isWd?'':'none';
+  document.getElementById('al-wd-arrow').style.transform=isWd?'rotate(90deg)':'';
   // Sunrise toggle
   alarmSunriseOn=!!al.prealarm?.enabled;
   alarmGiantSunOn=!!al.prealarm?.giantSun;
@@ -726,15 +728,29 @@ document.getElementById('al-repeat')?.addEventListener('change',e=>{
   document.getElementById('al-days-row').style.display=e.target.value==='weekly'?'':'none';
 });
 document.getElementById('alarm-add-btn')?.addEventListener('click',()=>alarmOpenEditor(-1));
-document.getElementById('al-alarm-on')?.addEventListener('change',function(){
-  if(!this.checked&&!document.getElementById('al-wind-down').checked){this.checked=true;return;}
-  document.getElementById('al-alarm-opts').style.display=this.checked?'':'none';
-  if(this.checked){ document.getElementById('al-wind-down').checked=false; document.getElementById('al-wd-opts').style.display='none'; }
+document.getElementById('al-alarm-hdr')?.addEventListener('click',function(){
+  const alOn=document.getElementById('al-alarm-on');
+  const opts=document.getElementById('al-alarm-opts');
+  const arrow=document.getElementById('al-alarm-arrow');
+  const isOpen=alOn.value==='1';
+  if(isOpen){
+    alOn.value='0'; opts.style.display='none'; arrow.style.transform='';
+  } else {
+    alOn.value='1'; opts.style.display=''; arrow.style.transform='rotate(90deg)';
+    document.getElementById('al-wind-down').value='0'; document.getElementById('al-wd-opts').style.display='none'; document.getElementById('al-wd-arrow').style.transform='';
+  }
 });
-document.getElementById('al-wind-down')?.addEventListener('change',function(){
-  if(!this.checked&&!document.getElementById('al-alarm-on').checked){this.checked=true;return;}
-  document.getElementById('al-wd-opts').style.display=this.checked?'':'none';
-  if(this.checked){ document.getElementById('al-alarm-on').checked=false; document.getElementById('al-alarm-opts').style.display='none'; }
+document.getElementById('al-wd-hdr')?.addEventListener('click',function(){
+  const wdOn=document.getElementById('al-wind-down');
+  const opts=document.getElementById('al-wd-opts');
+  const arrow=document.getElementById('al-wd-arrow');
+  const isOpen=wdOn.value==='1';
+  if(isOpen){
+    wdOn.value='0'; opts.style.display='none'; arrow.style.transform='';
+  } else {
+    wdOn.value='1'; opts.style.display=''; arrow.style.transform='rotate(90deg)';
+    document.getElementById('al-alarm-on').value='0'; document.getElementById('al-alarm-opts').style.display='none'; document.getElementById('al-alarm-arrow').style.transform='';
+  }
 });
 document.getElementById('al-wd-use-effect')?.addEventListener('change',function(){
   document.getElementById('al-wd-effect-section').style.display=this.checked?'none':'';
@@ -758,7 +774,7 @@ document.getElementById('al-save-btn')?.addEventListener('click',()=>{
     prealarm:{enabled:alarmSunriseOn,
       preMinutes:parseInt(document.getElementById('al-pre-mins').value)||15,
       startBright:parseInt(document.getElementById('al-dim-start').value)||5,
-      windDown:document.getElementById('al-wind-down').checked,
+      windDown:document.getElementById('al-wind-down').value==='1',
       wdMinutes:parseInt(document.getElementById('al-wd-mins')?.value)||15,
       wdUseEffect:document.getElementById('al-wd-use-effect').checked,
       wdEffectKey:document.getElementById('al-wd-effect')?.value||'',

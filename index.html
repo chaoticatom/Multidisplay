@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=531">
+<link rel="stylesheet" href="style.css?v=532">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -812,13 +812,12 @@
 
     <!-- ═══ ALARM SECTION ═══ -->
     <div style="border-top:1px solid rgba(80,120,255,0.25);padding-top:10px;margin-top:4px;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-        <label style="cursor:pointer;display:flex;align-items:center;gap:8px;">
-          <input type="checkbox" id="al-alarm-on" checked style="width:15px;height:15px;accent-color:#7aadff;">
-          <span style="font-size:13px;color:#7aadff;font-weight:700;letter-spacing:1px;">ALARM</span>
-        </label>
+      <div id="al-alarm-hdr" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer;user-select:none;">
+        <span id="al-alarm-arrow" style="font-size:12px;color:#7aadff;transition:transform 0.2s;display:inline-block;">▶</span>
+        <span style="font-size:13px;color:#7aadff;font-weight:700;letter-spacing:1px;">ALARM</span>
       </div>
-      <div id="al-alarm-opts">
+      <input type="hidden" id="al-alarm-on" value="1">
+      <div id="al-alarm-opts" style="display:none;">
 
       <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">TRIGGER</label>
       <div style="display:flex;gap:6px;margin:4px 0 10px;">
@@ -884,12 +883,11 @@
 
     <!-- ═══ WIND DOWN SECTION ═══ -->
     <div style="border-top:1px solid rgba(80,120,255,0.25);padding-top:10px;margin-top:12px;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-        <label style="cursor:pointer;display:flex;align-items:center;gap:8px;">
-          <input type="checkbox" id="al-wind-down" style="width:15px;height:15px;accent-color:#7aadff;">
-          <span style="font-size:13px;color:#7aadff;font-weight:700;letter-spacing:1px;">WIND DOWN</span>
-        </label>
+      <div id="al-wd-hdr" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;user-select:none;">
+        <span id="al-wd-arrow" style="font-size:12px;color:#7aadff;transition:transform 0.2s;display:inline-block;">▶</span>
+        <span style="font-size:13px;color:#7aadff;font-weight:700;letter-spacing:1px;">WIND DOWN</span>
       </div>
+      <input type="hidden" id="al-wind-down" value="0">
       <div id="al-wd-opts" style="display:none;padding:8px;background:rgba(0,0,0,0.25);border-radius:6px;border:1px solid rgba(80,120,255,0.12);">
         <div style="font-size:10px;color:#556;line-height:1.4;margin-bottom:8px;">Dims from full brightness to off over the set duration. Displays blank when done. Starts at the set time.</div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
@@ -996,7 +994,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=531"></script>
+<script src="version.js?v=532"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -1031,7 +1029,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=531','effects.js?v=531','f1.js?v=531','ui.js?v=531'];
+  const appScripts = ['cube.js?v=532','effects.js?v=532','f1.js?v=532','ui.js?v=532'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
