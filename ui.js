@@ -1231,7 +1231,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=569','f1.js?v=569','f1-providers.js?v=569'];
+  const scripts = ['f1-state.js?v=570','f1.js?v=570','f1-providers.js?v=570'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1956,14 +1956,15 @@ function _f1UpdateDiag() {
       if (ns.country_name) parts.push(ns.country_name);
       if (ns.date_start) {
         var d = new Date(ns.date_start);
-        parts.push(d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'}));
-        parts.push(d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}));
+        parts.push(d.toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short'}));
+        parts.push(d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}));
         var diff = d.getTime() - Date.now();
         if (diff > 0) {
           var h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000);
           parts.push(h >= 24 ? 'in ' + Math.floor(h/24) + 'd ' + (h%24) + 'h' : 'in ' + h + 'h ' + m + 'm');
         }
       }
+      if (ns._estimated) parts.push('(estimated)');
       return parts.join(' · ');
     })()
   ].filter(Boolean).join('<br>');
