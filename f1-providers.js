@@ -217,6 +217,8 @@ F1Providers.openf1 = {
     stopF1SessionTimer();
   },
   async _init() {
+    this._nextSession = null;
+    this._finishedAt = 0;
     try {
       const res = await fetch('https://api.openf1.org/v1/sessions?session_key=latest');
       if (!res.ok) {
@@ -356,7 +358,10 @@ F1Providers.openf1 = {
       if (_f1IsActive()) this._timer = setTimeout(() => this._pollLive(), 8000);
       return;
     }
-    if (this._nextSession) return;
+    if (this._nextSession) {
+      if (_f1IsActive()) this._timer = setTimeout(() => this._init(), 60000);
+      return;
+    }
 
     const sk = this._sessionKey;
     try {
