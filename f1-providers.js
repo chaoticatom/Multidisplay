@@ -150,14 +150,21 @@ F1Providers.esp32 = {
 
 F1Providers.openf1 = {
   _sessionKey: null,
+  _finishedAt: 0,
+  _nextSession: null,
+  _currentMeetingKey: null,
   start() {
     f1Update({ connection: 'connecting' });
+    this._finishedAt = 0;
+    this._nextSession = null;
     this._init();
     f1PollTimerId = setInterval(() => this._pollLive(), 8000);
     startF1SessionTimer();
   },
   stop() {
     this._sessionKey = null;
+    this._finishedAt = 0;
+    this._nextSession = null;
     stopF1SessionTimer();
   },
   async _init() {
@@ -168,6 +175,7 @@ F1Providers.openf1 = {
       if (!sessions.length) { f1Update({ connection: 'connected', session: { active: false } }); return; }
       const s = sessions[0];
       this._sessionKey = s.session_key;
+      this._currentMeetingKey = s.meeting_key || null;
       this._sessionStart = s.date_start ? new Date(s.date_start).getTime() : Date.now();
       const sType = (s.session_type || '').toLowerCase();
       const duration = sType.includes('race') ? 7200 : sType.includes('quali') ? 3600 : 5400;
@@ -202,8 +210,63 @@ F1Providers.openf1 = {
       f1Update({ connection: 'error' });
     }
   },
+  async _fetchNextSession() {
+    try {
+      const now = new Date().toISOString();
+      const res = await fetch(`https://api.openf1.org/v1/sessions?date_start>=${now}&order=date_start&order_direction=asc`);
+      if (!res.ok) return null;
+      const sessions = await res.json();
+      if (!sessions.length) return null;
+      return sessions[0];
+    } catch (e) { return null; }
+  },
+  _showNextSession(next) {
+    if (!next) return;
+    const sameCircuit = next.meeting_key === this._currentMeetingKey;
+    if (sameCircuit) {
+      const sType = (next.session_type || '').toUpperCase();
+      const dateStr = next.date_start ? new Date(next.date_start).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
+      f1Update({
+        session: { active: false, finished: false, type: '' },
+        track: { statusText: `NEXT: ${sType}`, flagRGB: [0.1, 0.4, 1] }
+      });
+      this._nextSession = next;
+    } else {
+      f1Update({
+        session: { active: false, finished: false, type: '',
+          name: next.meeting_name || '', circuit: next.circuit_short_name || '',
+          country: next.country_name || '', dateStart: next.date_start || '' },
+        track: { statusText: 'NEXT RACE', flagRGB: [0.1, 0.4, 1] },
+        meeting: next
+      });
+      this._nextSession = next;
+      if (typeof buildScrollText === 'function') buildScrollText({ meeting_name: next.meeting_name, circuit_short_name: next.circuit_short_name });
+      if (typeof buildCircuitStrip === 'function') buildCircuitStrip();
+      if (typeof buildIdleScroll === 'function') buildIdleScroll();
+    }
+    f1DataDirty = true;
+    const flagEl = document.getElementById('f1-flag');
+    const textEl = document.getElementById('f1-status-text');
+    if (flagEl) flagEl.style.background = '#2266ff';
+    if (textEl) {
+      const sc = next.meeting_key === this._currentMeetingKey;
+      textEl.textContent = sc ? `Next: ${(next.session_type||'').toUpperCase()}` : `Next: ${next.circuit_short_name || next.meeting_name || ''}`;
+    }
+  },
   async _pollLive() {
     if (!this._sessionKey) return;
+
+    // After session finishes, wait 60s then show next session
+    if (this._finishedAt && !this._nextSession) {
+      if (Date.now() - this._finishedAt >= 60000) {
+        const next = await this._fetchNextSession();
+        if (next) this._showNextSession(next);
+      }
+      if (_f1IsActive()) this._timer = setTimeout(() => this._pollLive(), 8000);
+      return;
+    }
+    if (this._nextSession) return;
+
     const sk = this._sessionKey;
     try {
       // Positions
@@ -301,6 +364,10 @@ F1Providers.openf1 = {
           const latest = rc[0];
           if (latest.flag) {
             if (typeof applyF1Flag === 'function') applyF1Flag(latest.flag, latest.flag);
+            if (latest.flag === 'CHEQUERED' && !this._finishedAt) {
+              this._finishedAt = Date.now();
+              f1Update({ session: { finished: true } });
+            }
           }
         }
       }
