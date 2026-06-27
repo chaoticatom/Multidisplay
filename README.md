@@ -4,7 +4,7 @@ A browser-based RGB LED cube visualizer with live streaming to a physical ESP32-
 
 ## What it is
 
-- **Web app**: 3D interactive simulator rendered in Three.js. Supports cube sizes of 8×8, 16×16, and 64×64. Includes 30+ built-in visual effects, 13 overlays, playlists, timers (alarms and wind down), weather display, and a custom graphics editor.
+- **Web app**: 3D interactive simulator rendered in Three.js. Supports cube sizes of 8×8, 16×16, and 64×64. Includes 36 built-in visual effects, 13 overlays, playlists, timers (alarms and wind down), weather display, and a custom graphics editor.
 - **Physical cube**: Six HUB75 RGB panels arranged as a cube, driven by an ESP32-S3 via DMA. The ESP32 serves the web app over HTTP and receives pixel frames from connected browsers via WebSocket on port 81.
 - **PWA**: Installable as a Progressive Web App on mobile and desktop.
 
@@ -72,6 +72,10 @@ On Chrome/Edge: click the install icon in the address bar or open the browser me
 ## Effect Development
 
 Effects are JavaScript functions in `effects.js`. Each function iterates over surface LEDs using the global arrays `surfX`, `surfY`, `surfZ` and calls `setLED(i, r, g, b)` to set pixel colours.
+
+The full list of built-in effects:
+
+Wave Cascade, Colour Rain, Plasma Storm, Laser Grid, Fireworks, DNA Helix, Time & Date, Bouncing Balls, Gravity Sand, F1 Live, Rainbow Wash, Aurora Borealis, Depth Rings, Prism Sweep, Color Tide, Nebula Drift, Spectrum Analyser, Maze Runner, Tron Bikes, Lightning Storm, Warp Drive, Crystal Life, Liquid Crystal, Video Display, Strobe Flash, Random 1, Random 2, Ghost Face, Light Speed, Custom Cube, Weather, Coin Flip, Dice Roll, Sim House, Moon, and Retro Arcade.
 
 See [docs/EFFECTS.md](docs/EFFECTS.md) for the complete guide including function signatures, helper functions, registering a new effect in the UI, and optionally porting effects to C++ for standalone mode.
 
