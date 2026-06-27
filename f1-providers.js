@@ -11,6 +11,96 @@ function _f1IsActive() {
   try { return currentEffect === 'f1'; } catch(e) { return false; }
 }
 
+// ── Jolpica F1 Schedule Cache ────────────────────────────────────────────────
+
+var _f1Schedule = null;
+var _f1ScheduleYear = null;
+
+async function _f1FetchSchedule() {
+  var year = new Date().getFullYear();
+  if (_f1Schedule && _f1ScheduleYear === year) return _f1Schedule;
+  try {
+    var res = await fetch('https://api.jolpi.ca/ergast/f1/' + year + '.json');
+    if (!res.ok) return null;
+    var data = await res.json();
+    var races = data?.MRData?.RaceTable?.Races;
+    if (!races || !races.length) return null;
+    _f1Schedule = [];
+    for (var i = 0; i < races.length; i++) {
+      var r = races[i];
+      var entry = {
+        raceName: r.raceName, circuitName: r.Circuit?.circuitName || '',
+        locality: r.Circuit?.Location?.locality || '', country: r.Circuit?.Location?.country || '',
+        sessions: []
+      };
+      if (r.FirstPractice) entry.sessions.push({ name: 'Practice 1', type: 'Practice', date_start: r.FirstPractice.date + 'T' + (r.FirstPractice.time || '00:00:00Z') });
+      if (r.SecondPractice) entry.sessions.push({ name: 'Practice 2', type: 'Practice', date_start: r.SecondPractice.date + 'T' + (r.SecondPractice.time || '00:00:00Z') });
+      if (r.ThirdPractice) entry.sessions.push({ name: 'Practice 3', type: 'Practice', date_start: r.ThirdPractice.date + 'T' + (r.ThirdPractice.time || '00:00:00Z') });
+      if (r.Sprint) entry.sessions.push({ name: 'Sprint', type: 'Sprint', date_start: r.Sprint.date + 'T' + (r.Sprint.time || '00:00:00Z') });
+      if (r.SprintQualifying) entry.sessions.push({ name: 'Sprint Qualifying', type: 'Sprint Qualifying', date_start: r.SprintQualifying.date + 'T' + (r.SprintQualifying.time || '00:00:00Z') });
+      if (r.Qualifying) entry.sessions.push({ name: 'Qualifying', type: 'Qualifying', date_start: r.Qualifying.date + 'T' + (r.Qualifying.time || '00:00:00Z') });
+      entry.sessions.push({ name: 'Race', type: 'Race', date_start: r.date + 'T' + (r.time || '00:00:00Z') });
+      entry.sessions.sort(function(a, b) { return new Date(a.date_start).getTime() - new Date(b.date_start).getTime(); });
+      _f1Schedule.push(entry);
+    }
+    _f1ScheduleYear = year;
+    return _f1Schedule;
+  } catch (e) { return null; }
+}
+
+async function _f1FindNextFromSchedule() {
+  var schedule = await _f1FetchSchedule();
+  if (!schedule) return null;
+  var meeting = F1State.meeting;
+  var now = Date.now();
+
+  // Try to match current meeting by circuit name
+  var curCircuit = (meeting?.circuit_short_name || '').toLowerCase();
+  var curMeeting = (meeting?.meeting_name || '').toLowerCase();
+  var matchedRace = null;
+  for (var i = 0; i < schedule.length; i++) {
+    var r = schedule[i];
+    if (curCircuit && (r.locality.toLowerCase().includes(curCircuit) || r.circuitName.toLowerCase().includes(curCircuit) || r.raceName.toLowerCase().includes(curCircuit))) {
+      matchedRace = r; break;
+    }
+    if (curMeeting && r.raceName.toLowerCase().includes(curMeeting.replace(/grand prix/i, '').trim())) {
+      matchedRace = r; break;
+    }
+  }
+
+  // Find next session within matched race weekend
+  if (matchedRace) {
+    for (var j = 0; j < matchedRace.sessions.length; j++) {
+      var s = matchedRace.sessions[j];
+      if (new Date(s.date_start).getTime() > now) {
+        return {
+          session_name: s.name, session_type: s.type,
+          meeting_name: matchedRace.raceName, circuit_short_name: matchedRace.locality,
+          country_name: matchedRace.country, meeting_key: meeting?.meeting_key || null,
+          date_start: s.date_start
+        };
+      }
+    }
+  }
+
+  // No match or all sessions passed — find next future session across all races
+  for (var k = 0; k < schedule.length; k++) {
+    var race = schedule[k];
+    for (var m = 0; m < race.sessions.length; m++) {
+      var sess = race.sessions[m];
+      if (new Date(sess.date_start).getTime() > now) {
+        return {
+          session_name: sess.name, session_type: sess.type,
+          meeting_name: race.raceName, circuit_short_name: race.locality,
+          country_name: race.country, meeting_key: null,
+          date_start: sess.date_start
+        };
+      }
+    }
+  }
+  return null;
+}
+
 function _f1PredictNextSession() {
   var meeting = F1State.meeting;
   if (!meeting) return null;
@@ -41,7 +131,7 @@ function _f1PredictNextSession() {
   var gapH = schedule[curIdx].gapToNext;
   var estStart = new Date(baseTime + gapH * 3600000);
   if (estStart.getTime() < Date.now()) {
-    estStart = new Date(Date.now() + hoursFromCurrent * 3600000);
+    estStart = new Date(Date.now() + gapH * 3600000);
   }
   return {
     session_name: next.name, session_type: next.type,
@@ -191,7 +281,9 @@ F1Providers.esp32 = {
     f1Update({ connection: anySuccess ? 'connected' : 'error' });
     if (typeof f1SetStatus === 'function') f1SetStatus(anySuccess ? 'ok' : 'error');
     if (!F1State.session.active && !F1State.nextSession) {
-      _f1SetNextSession(_f1PredictNextSession());
+      _f1FindNextFromSchedule().then(function(next) {
+        _f1SetNextSession(next || _f1PredictNextSession());
+      });
     }
   }
 };
@@ -285,8 +377,11 @@ F1Providers.openf1 = {
     }
   },
   async _fetchNextSession() {
+    // Try Jolpica schedule first (has official times for all sessions)
+    var jolpica = await _f1FindNextFromSchedule();
+    if (jolpica) return jolpica;
     try {
-      // Try same meeting first (other sessions in same race weekend)
+      // Try OpenF1 same meeting
       if (this._currentMeetingKey) {
         var mRes = await fetch('https://api.openf1.org/v1/sessions?meeting_key=' + this._currentMeetingKey + '&order=date_start&order_direction=asc');
         if (mRes.ok) {
@@ -299,7 +394,7 @@ F1Providers.openf1 = {
           }
         }
       }
-      // Fall back to any future session
+      // Try OpenF1 future sessions
       var now = new Date().toISOString();
       var res = await fetch('https://api.openf1.org/v1/sessions?date_start>=' + now + '&order=date_start&order_direction=asc');
       if (res.ok) {
@@ -307,7 +402,6 @@ F1Providers.openf1 = {
         if (sessions.length) return sessions[0];
       }
     } catch (e) { /* fall through */ }
-    // Predict next session from typical F1 weekend schedule
     return _f1PredictNextSession();
   },
   _showNextSession(next) {
