@@ -312,7 +312,7 @@ F1Providers.openf1 = {
     const sameCircuit = next.meeting_key === this._currentMeetingKey;
     if (sameCircuit) {
       const sType = (next.session_type || '').toUpperCase();
-      const dateStr = next.date_start ? new Date(next.date_start).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
+      const dateStr = next.date_start ? new Date(next.date_start).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
       f1Update({
         session: { active: false, finished: false, type: '' },
         track: { statusText: `NEXT: ${sType}`, flagRGB: [0.1, 0.4, 1] }

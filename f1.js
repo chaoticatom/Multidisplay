@@ -133,7 +133,7 @@ function buildTrackBuf(raceName) {
 }
 
 function buildScrollText(data) {
-  const dateStr = data ? new Date(data.date_start||data.date).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : '--';
+  const dateStr = data ? new Date(data.date_start||data.date).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}) : '--';
   const name    = data ? (data.meeting_name||data.raceName||'Grand Prix') : 'F1 2025';
   const circuit = data ? (data.circuit_short_name||'') : '';
   const text    = `   ${name}  •  ${circuit}  •  ${dateStr}   `.repeat(2);
@@ -641,8 +641,8 @@ function effectF1(dt){
       var src = ns || F1State.meeting;
       if (src && src.date_start) {
         var dd = new Date(src.date_start);
-        var line1 = dd.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-        var line2 = dd.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+        var line1 = dd.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+        var line2 = dd.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
         var lineH = Math.max(4, (SIZE*0.18)|0);
         var totalH = lineH * 2 + 1;
         var dateY_start = SIZE - totalH - 1;
