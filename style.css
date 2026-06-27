@@ -213,10 +213,6 @@
   }
   .opt-grid button:hover { background: rgba(80,120,255,0.12); color: #bbc; }
   .opt-grid button.active { background: rgba(80,120,255,0.25); border-color: rgba(100,160,255,0.6); color: #7aadff; }
-  .opt-grid button[data-f1flag="blue"],
-  .opt-grid button[data-f1flag="bw"] { border: 2px solid rgba(100,100,120,0.3); transition: all 0.15s; }
-  .opt-grid button[data-f1flag="blue"].active { background: rgba(0,80,255,0.6); border-color: #4af; color: #fff; box-shadow: 0 0 8px rgba(0,100,255,0.5); }
-  .opt-grid button[data-f1flag="bw"].active { background: rgba(200,200,200,0.4); border-color: #ccc; color: #fff; box-shadow: 0 0 8px rgba(200,200,200,0.4); }
 
   .section-head {
     width: 100%; background: none; border: none; padding: 12px 16px; margin: 0;
