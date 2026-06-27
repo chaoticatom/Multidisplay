@@ -838,6 +838,7 @@ var RACE_LAP_FLAGS = {
   45: 'RAIN'
 };
 
+var _simWkSessions = [];
 var _simWkIdx = 0;
 var _simWkElapsed = 0;
 var _simWkBreak = 0;
@@ -855,7 +856,7 @@ function _simWeekendTick() {
     return;
   }
 
-  if (_simWkIdx >= SIM_WEEKEND_SESSIONS.length) {
+  if (_simWkIdx >= _simWkSessions.length) {
     _simWeekendRunning = false;
     _simWeekendSetStatus('Weekend complete');
     var btn = document.getElementById('f1-sim-weekend');
@@ -864,7 +865,7 @@ function _simWeekendTick() {
     return;
   }
 
-  var ses = SIM_WEEKEND_SESSIONS[_simWkIdx];
+  var ses = _simWkSessions[_simWkIdx];
   var isRace = ses.type === 'Race';
 
   // First tick of session — init
@@ -961,6 +962,12 @@ function simWeekendToggle() {
   }
   if (typeof activateF1Mode === 'function') activateF1Mode();
   _simWeekendRunning = true;
+  _simWkSessions = [];
+  var chks = document.querySelectorAll('[data-sim-ses]');
+  for (var i = 0; i < chks.length; i++) {
+    if (chks[i].checked) _simWkSessions.push(SIM_WEEKEND_SESSIONS[parseInt(chks[i].getAttribute('data-sim-ses'))]);
+  }
+  if (!_simWkSessions.length) _simWkSessions = SIM_WEEKEND_SESSIONS.slice();
   _simWkIdx = 0;
   _simWkElapsed = 0;
   _simWkBreak = 0;
