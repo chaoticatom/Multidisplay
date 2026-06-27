@@ -218,20 +218,7 @@ function buildIdleScroll() {
   if (meeting.country_name) parts.push(meeting.country_name);
   var dateStr = ns ? ns.date_start : meeting.date_start;
   if (dateStr) {
-    var d = new Date(dateStr);
-    var diffMs = d.getTime() - Date.now();
-    if (diffMs > 0) {
-      var diffH = Math.floor(diffMs / 3600000);
-      var diffM = Math.floor((diffMs % 3600000) / 60000);
-      if (diffH >= 24) {
-        var days = Math.floor(diffH / 24);
-        parts.push('IN ' + days + 'D ' + (diffH % 24) + 'H');
-      } else {
-        parts.push('IN ' + diffH + 'H ' + diffM + 'M');
-      }
-    }
-    parts.push(d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }));
-    parts.push(d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+    // date and time shown as static text at bottom of faces, not in scroll
   }
   // Deduplicate adjacent identical parts
   parts = parts.filter(Boolean);
@@ -649,33 +636,42 @@ function effectF1(dt){
       }
     }
 
-    const meeting = F1State.meeting;
-    if (meeting && meeting.date_start) {
-      const dateStr = new Date(meeting.date_start).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      const dateH = Math.max(4, (SIZE*0.20)|0);
-      const dateY_start = SIZE - dateH - 2;
+    {
+      var ns = F1State.nextSession;
+      var src = ns || F1State.meeting;
+      if (src && src.date_start) {
+        var dd = new Date(src.date_start);
+        var line1 = dd.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+        var line2 = dd.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+        var lineH = Math.max(4, (SIZE*0.18)|0);
+        var totalH = lineH * 2 + 1;
+        var dateY_start = SIZE - totalH - 1;
 
-      const dc = document.createElement('canvas');
-      dc.width = SIZE; dc.height = dateH;
-      const dctx = dc.getContext('2d');
-      dctx.fillStyle = '#000'; dctx.fillRect(0,0,dc.width,dc.height);
-      dctx.fillStyle = '#aabbff';
-      dctx.font = `bold ${Math.max(6, (dateH*0.80)|0)}px Arial`;
-      dctx.textAlign = 'center'; dctx.textBaseline = 'middle';
-      dctx.fillText(dateStr, dc.width/2, dateH/2);
+        var dc = document.createElement('canvas');
+        dc.width = SIZE; dc.height = totalH;
+        var dctx = dc.getContext('2d');
+        dctx.fillStyle = '#000'; dctx.fillRect(0,0,dc.width,totalH);
+        var fs = Math.max(5, (lineH*0.85)|0);
+        dctx.font = 'bold ' + fs + 'px Arial';
+        dctx.textAlign = 'center'; dctx.textBaseline = 'middle';
+        dctx.fillStyle = '#8899dd';
+        dctx.fillText(line1, dc.width/2, lineH/2);
+        dctx.fillStyle = '#aaccff';
+        dctx.fillText(line2, dc.width/2, lineH + 1 + lineH/2);
 
-      const datePixels = dctx.getImageData(0,0,dc.width,dc.height).data;
+        var datePixels = dctx.getImageData(0,0,dc.width,totalH).data;
 
-      for(let panel=0; panel<4; panel++) {
-        const panelStart = panel * SIZE;
-        for(let sp=panelStart; sp<panelStart+SIZE; sp++) {
-          for(let dy=0; dy<dateH; dy++) {
-            const dx = sp - panelStart;
-            const pi = (dy*SIZE + dx)*4;
-            const pv = datePixels[pi]/255;
-            if(pv<0.05) continue;
-            const v = dateY_start + dy;
-            setStripLED(sp, v, pv*0.6, pv*0.8, pv);
+        for(var panel=0; panel<4; panel++) {
+          var panelStart = panel * SIZE;
+          for(var sp=panelStart; sp<panelStart+SIZE; sp++) {
+            for(var dy=0; dy<totalH; dy++) {
+              var dx = sp - panelStart;
+              var pi = (dy*SIZE + dx)*4;
+              var pv = datePixels[pi]/255;
+              if(pv<0.05) continue;
+              var v = dateY_start + dy;
+              setStripLED(sp, v, pv*0.5, pv*0.6, pv);
+            }
           }
         }
       }
