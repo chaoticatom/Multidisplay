@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=534">
+<link rel="stylesheet" href="style.css?v=535">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -906,7 +906,7 @@
       </div>
     </div>
 
-    <div style="display:flex;gap:8px;margin-top:16px;">
+    <div style="display:flex;gap:8px;margin-top:24px;">
       <button id="al-save-btn" style="flex:1;padding:11px;background:rgba(60,220,120,0.15);border:1px solid rgba(60,220,120,0.35);color:#6e8;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;">💾 SAVE</button>
       <button id="al-cancel-btn" style="flex:1;padding:11px;background:rgba(80,80,100,0.2);border:1px solid rgba(80,80,100,0.3);color:#778;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;">CANCEL</button>
     </div>
@@ -994,7 +994,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=534"></script>
+<script src="version.js?v=535"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -1029,7 +1029,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=534','effects.js?v=534','f1.js?v=534','ui.js?v=534'];
+  const appScripts = ['cube.js?v=535','effects.js?v=535','f1.js?v=535','ui.js?v=535'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
