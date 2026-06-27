@@ -16,11 +16,11 @@ function _f1PredictNextSession() {
   if (!meeting) return null;
   var curName = (meeting.session_name || meeting.session_type || F1State.session.type || '').toLowerCase();
   var schedule = [
-    { name: 'Practice 1', type: 'Practice', offsetH: 0 },
-    { name: 'Practice 2', type: 'Practice', offsetH: 4 },
-    { name: 'Practice 3', type: 'Practice', offsetH: 20 },
-    { name: 'Qualifying', type: 'Qualifying', offsetH: 23 },
-    { name: 'Race',       type: 'Race',       offsetH: 44 }
+    { name: 'Practice 1', type: 'Practice', gapToNext: 4 },
+    { name: 'Practice 2', type: 'Practice', gapToNext: 19 },
+    { name: 'Practice 3', type: 'Practice', gapToNext: 3 },
+    { name: 'Qualifying', type: 'Qualifying', gapToNext: 24 },
+    { name: 'Race',       type: 'Race',       gapToNext: 0 }
   ];
   var curIdx = -1;
   for (var i = 0; i < schedule.length; i++) {
@@ -36,9 +36,10 @@ function _f1PredictNextSession() {
   var nextIdx = curIdx + 1;
   if (nextIdx >= schedule.length) return null;
   var next = schedule[nextIdx];
-  var baseTime = meeting.date_start ? new Date(meeting.date_start).getTime() : Date.now();
-  var hoursFromCurrent = next.offsetH - schedule[curIdx].offsetH;
-  var estStart = new Date(baseTime + hoursFromCurrent * 3600000);
+  var sessionStart = F1State.session.dateStart || meeting.date_start;
+  var baseTime = sessionStart ? new Date(sessionStart).getTime() : Date.now();
+  var gapH = schedule[curIdx].gapToNext;
+  var estStart = new Date(baseTime + gapH * 3600000);
   if (estStart.getTime() < Date.now()) {
     estStart = new Date(Date.now() + hoursFromCurrent * 3600000);
   }
