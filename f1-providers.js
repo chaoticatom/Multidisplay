@@ -359,7 +359,7 @@ F1Providers.openf1 = {
       return;
     }
     if (this._nextSession) {
-      if (_f1IsActive()) this._timer = setTimeout(() => this._init(), 60000);
+      if (_f1IsActive()) this._timer = setTimeout(() => this._pollLive(), 8000);
       return;
     }
 
