@@ -626,6 +626,64 @@ function effectF1(dt){
       }
     }
 
+    {
+      var ns = F1State.nextSession;
+      var cdSrc = ns || F1State.meeting;
+      if (cdSrc && cdSrc.date_start) {
+        var cdMs = new Date(cdSrc.date_start).getTime() - Date.now();
+        if (cdMs < 0) cdMs = 0;
+        var cdSec = Math.floor(cdMs / 1000);
+        var cdH = Math.floor(cdSec / 3600);
+        var cdM = Math.floor((cdSec % 3600) / 60);
+        var cdS = cdSec % 60;
+        var cdText = (cdH > 0 ? cdH + ':' : '') +
+          (cdH > 0 ? String(cdM).padStart(2,'0') : cdM) + ':' +
+          String(cdS).padStart(2,'0');
+        var cdKey = cdText;
+        var cdUrgent = cdSec <= 60;
+        if (!f1FaceBufs._cdKey || f1FaceBufs._cdKey !== cdKey) {
+          f1FaceBufs._cdKey = cdKey;
+          var cc = document.createElement('canvas');
+          cc.width = SIZE; cc.height = SIZE;
+          var cctx = cc.getContext('2d');
+          var cfs = Math.max(8, (SIZE * 0.22)|0);
+          cctx.font = 'bold ' + cfs + 'px Arial';
+          cctx.textAlign = 'center'; cctx.textBaseline = 'middle';
+          var csw = Math.max(1, (SIZE/20)|0);
+          cctx.strokeStyle = '#000';
+          cctx.lineWidth = csw;
+          cctx.lineJoin = 'round';
+          var cy = SIZE * 0.14;
+          cctx.strokeText(cdText, SIZE/2, cy);
+          cctx.fillStyle = cdUrgent ? '#ff4444' : '#88bbff';
+          cctx.fillText(cdText, SIZE/2, cy);
+          f1FaceBufs._cdBuf = { data: cctx.getImageData(0,0,SIZE,SIZE).data, S: SIZE };
+        }
+        if (f1FaceBufs._cdBuf) {
+          var cbd = f1FaceBufs._cdBuf;
+          var cdBr = cdUrgent ? (0.8 + Math.sin(t * 8) * 0.2) : 1.0;
+          for (var panel = 0; panel < 4; panel++) {
+            var ps = panel * SIZE;
+            for (var sp = ps; sp < ps + SIZE; sp++) {
+              for (var cv = 0; cv < SIZE; cv++) {
+                var dx = sp - ps;
+                var cpi = (cv * cbd.S + dx) * 4;
+                var ca = cbd.data[cpi + 3] / 255;
+                if (ca < 0.05) continue;
+                var vOff = cdUrgent ? Math.sin((sp / (4*SIZE)) * Math.PI * 6 + t * 10) * 1.5 : 0;
+                var dv = cv + Math.round(vOff);
+                if (dv < 0 || dv >= SIZE) continue;
+                var cr = cbd.data[cpi] / 255 * ca * cdBr;
+                var cg = cbd.data[cpi+1] / 255 * ca * cdBr;
+                var cb2 = cbd.data[cpi+2] / 255 * ca * cdBr;
+                setStripLED(sp, dv, cr, cg, cb2);
+              }
+            }
+          }
+        }
+      }
+    }
+
     if (f1IdlePixels && f1IdleWidth > 0) {
       f1IdleScrollX = (f1IdleScrollX + dt*SIZE*0.35) % f1IdleWidth;
       for(let sv=0;sv<SIZE;sv++){
