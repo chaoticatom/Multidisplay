@@ -206,21 +206,20 @@ function buildCircuitStrip() {
   f1CircuitScrollX = 0;
 }
 
+var f1IdlePhase = 0;
+var f1IdlePhaseT = 0;
+var f1IdleNextPixels = null;
+var f1IdleNextW = 0;
+
 function buildIdleScroll() {
   var ns = F1State.nextSession;
   var meeting = ns || F1State.meeting;
   if (!meeting) return;
   var parts = [];
-  if (ns) parts.push('NEXT:');
   parts.push(ns ? (ns.session_name || ns.session_type || '') : (meeting.meeting_name || ''));
   parts.push(meeting.meeting_name || '');
   parts.push(meeting.circuit_short_name || '');
   if (meeting.country_name) parts.push(meeting.country_name);
-  var dateStr = ns ? ns.date_start : meeting.date_start;
-  if (dateStr) {
-    // date and time shown as static text at bottom of faces, not in scroll
-  }
-  // Deduplicate adjacent identical parts
   parts = parts.filter(Boolean);
   var deduped = [parts[0]];
   for (var pi = 1; pi < parts.length; pi++) {
@@ -229,6 +228,8 @@ function buildIdleScroll() {
   const name = deduped.join('  •  ').toUpperCase();
   const text  = '   ' + name + '   ';
   const S     = Math.max(SIZE, 16);
+
+  // Build scrolling text canvas
   const oc = document.createElement('canvas');
   const ctx = oc.getContext('2d');
   let fs = Math.max(10, (S * 0.85)|0);
@@ -251,6 +252,18 @@ function buildIdleScroll() {
   f1IdlePixels = ctx.getImageData(0,0,oc.width,oc.height).data;
   f1IdleWidth  = oc.width;
   f1IdleScrollX = 0;
+
+  // Build centered "NEXT" flash canvas (same height, 4*SIZE wide)
+  var nc = document.createElement('canvas');
+  nc.width = 4*S; nc.height = S;
+  var nctx = nc.getContext('2d');
+  nctx.fillStyle = '#000'; nctx.fillRect(0,0,nc.width,nc.height);
+  nctx.font = `bold ${Math.max(10,(S*0.85)|0)}px Arial, sans-serif`;
+  nctx.textAlign = 'center'; nctx.textBaseline = 'middle';
+  nctx.fillStyle = '#fff';
+  nctx.fillText('NEXT', nc.width/2, S*0.42);
+  f1IdleNextPixels = nctx.getImageData(0,0,nc.width,nc.height).data;
+  f1IdleNextW = nc.width;
 }
 
 function applyBufToFace(face, buf) {
@@ -770,16 +783,42 @@ function effectF1(dt){
       }
     } else {
       f1FaceBufs._goTriggered = false;
-      if (f1IdlePixels && f1IdleWidth > 0) {
-        f1IdleScrollX = (f1IdleScrollX + dt*SIZE*0.35) % f1IdleWidth;
-        for(let sv=0;sv<SIZE;sv++){
-          for(let sp=0;sp<4*SIZE;sp++){
-            const srcX = ((sp + (f1IdleScrollX|0)) % f1IdleWidth + f1IdleWidth) % f1IdleWidth;
-            const pv   = f1IdlePixels[(sv*f1IdleWidth+srcX)*4]/255;
-            if(pv<0.04) continue;
-            const h=(sp/(4*SIZE)+t*0.03)%1;
-            const [r,g,b]=hsl(h,1,pv);
-            setStripLED(sp, sv, r, g, b);
+      f1IdlePhaseT += dt;
+      // Phase 0: flash NEXT (2s), Phase 1: blank (0.3s), Phase 2: scroll
+      if (f1IdlePhase === 0) {
+        if (f1IdlePhaseT > 2.0) { f1IdlePhase = 1; f1IdlePhaseT = 0; }
+        else if (f1IdleNextPixels && f1IdleNextW > 0) {
+          var flashOn = Math.floor(f1IdlePhaseT / 0.5) % 2 === 0;
+          if (flashOn) {
+            for(let sv=0;sv<SIZE;sv++){
+              for(let sp=0;sp<4*SIZE;sp++){
+                const srcX = sp % f1IdleNextW;
+                const pv = f1IdleNextPixels[(sv*f1IdleNextW+srcX)*4]/255;
+                if(pv<0.04) continue;
+                const h=(sp/(4*SIZE)+t*0.03)%1;
+                const [r,g,b]=hsl(h,1,pv);
+                setStripLED(sp, sv, r, g, b);
+              }
+            }
+          }
+        }
+      } else if (f1IdlePhase === 1) {
+        if (f1IdlePhaseT > 0.3) { f1IdlePhase = 2; f1IdlePhaseT = 0; f1IdleScrollX = -4*SIZE; }
+      } else if (f1IdlePhase === 2) {
+        if (f1IdlePixels && f1IdleWidth > 0) {
+          f1IdleScrollX = f1IdleScrollX + dt*SIZE*0.35;
+          if (f1IdleScrollX >= f1IdleWidth) { f1IdlePhase = 0; f1IdlePhaseT = 0; }
+          else {
+            for(let sv=0;sv<SIZE;sv++){
+              for(let sp=0;sp<4*SIZE;sp++){
+                const srcX = ((sp + (f1IdleScrollX|0)) % f1IdleWidth + f1IdleWidth) % f1IdleWidth;
+                const pv   = f1IdlePixels[(sv*f1IdleWidth+srcX)*4]/255;
+                if(pv<0.04) continue;
+                const h=(sp/(4*SIZE)+t*0.03)%1;
+                const [r,g,b]=hsl(h,1,pv);
+                setStripLED(sp, sv, r, g, b);
+              }
+            }
           }
         }
       }
