@@ -636,11 +636,13 @@ function effectF1(dt){
         var cdMs = new Date(cdSrc.date_start).getTime() - Date.now();
         if (cdMs < 0) cdMs = 0;
         var cdSec = Math.floor(cdMs / 1000);
-        var cdH = Math.floor(cdSec / 3600);
+        var cdD = Math.floor(cdSec / 86400);
+        var cdH = Math.floor((cdSec % 86400) / 3600);
         var cdM = Math.floor((cdSec % 3600) / 60);
         var cdS = cdSec % 60;
-        var cdText = (cdH > 0 ? cdH + ':' : '') +
-          (cdH > 0 ? String(cdM).padStart(2,'0') : cdM) + ':' +
+        var cdText = (cdD > 0 ? cdD + 'd ' : '') +
+          (cdD > 0 || cdH > 0 ? cdH + ':' : '') +
+          ((cdD > 0 || cdH > 0) ? String(cdM).padStart(2,'0') : cdM) + ':' +
           String(cdS).padStart(2,'0');
         var cdKey = cdText;
         var cdUrgent = cdSec <= 60;
