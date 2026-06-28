@@ -247,7 +247,7 @@ function buildIdleScroll() {
   ctx.fillStyle = '#000'; ctx.fillRect(0,0,oc.width,oc.height);
   ctx.fillStyle = '#fff'; ctx.font = `bold ${fs}px Arial, sans-serif`;
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, 0, S*0.38);
+  ctx.fillText(text, 0, S*0.42);
   f1IdlePixels = ctx.getImageData(0,0,oc.width,oc.height).data;
   f1IdleWidth  = oc.width;
   f1IdleScrollX = 0;
@@ -649,7 +649,7 @@ function effectF1(dt){
           var cc = document.createElement('canvas');
           cc.width = SIZE; cc.height = SIZE;
           var cctx = cc.getContext('2d');
-          var cfs = Math.max(8, (SIZE * 0.22)|0);
+          var cfs = Math.max(8, (SIZE * 0.18)|0);
           cctx.font = 'bold ' + cfs + 'px Arial';
           cctx.textAlign = 'center'; cctx.textBaseline = 'middle';
           var csw = Math.max(1, (SIZE/20)|0);
