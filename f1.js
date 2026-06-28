@@ -704,7 +704,7 @@ function effectF1(dt){
         flashText = String(_cdSecForScroll); flashColor = '#ff2200';
       } else {
         var halfSec = Math.floor(Date.now() / 700) % 4;
-        if (halfSec === 0) { flashText = 'WARMUP LAP'; flashColor = '#ff4444'; }
+        if (halfSec === 0) { flashText = 'WARMUP\nLAP'; flashColor = '#ff4444'; }
         else if (halfSec === 1) { flashText = null; }
         else if (halfSec === 2) { flashText = 'READY'; flashColor = '#ffaa00'; }
         else { flashText = null; }
@@ -716,17 +716,25 @@ function effectF1(dt){
           var fc = document.createElement('canvas');
           fc.width = SIZE; fc.height = SIZE;
           var fctx = fc.getContext('2d');
+          var flashLines = flashText.split('\n');
+          var longestLine = flashLines.reduce(function(a,b){return a.length>b.length?a:b;}, '');
           var ffs = Math.max(10, (SIZE * 0.45)|0);
           fctx.font = 'bold ' + ffs + 'px Arial';
           fctx.textAlign = 'center'; fctx.textBaseline = 'middle';
-          while (ffs > 8 && fctx.measureText(flashText).width > SIZE * 0.9) {
+          while (ffs > 8 && fctx.measureText(longestLine).width > SIZE * 0.9) {
             ffs--; fctx.font = 'bold ' + ffs + 'px Arial';
           }
           var fsw = Math.max(2, (SIZE/14)|0);
           fctx.strokeStyle = '#000'; fctx.lineWidth = fsw; fctx.lineJoin = 'round';
-          fctx.strokeText(flashText, SIZE/2, SIZE*0.42);
-          fctx.fillStyle = flashColor;
-          fctx.fillText(flashText, SIZE/2, SIZE*0.42);
+          var totalH = flashLines.length * ffs * 1.15;
+          var startY = SIZE * 0.42 - totalH / 2 + ffs * 0.575;
+          for (var li = 0; li < flashLines.length; li++) {
+            var ly = startY + li * ffs * 1.15;
+            fctx.font = 'bold ' + ffs + 'px Arial';
+            fctx.strokeText(flashLines[li], SIZE/2, ly);
+            fctx.fillStyle = flashColor;
+            fctx.fillText(flashLines[li], SIZE/2, ly);
+          }
           f1FaceBufs._flashBuf = { data: fctx.getImageData(0,0,SIZE,SIZE).data, S: SIZE };
         }
         if (f1FaceBufs._flashBuf) {
