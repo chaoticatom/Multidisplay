@@ -402,9 +402,8 @@ F1Providers.openf1 = {
       }
       this._pollLive();
     } catch (e) {
-      console.warn('[F1 OpenF1] connection error:', e.message || e);
       f1Update({ connection: 'error' });
-      if (_f1IsActive()) this._timer = setTimeout(() => this._init(), 15000);
+      if (_f1IsActive()) this._timer = setTimeout(() => this._init(), 10000);
     }
   },
   async _fetchNextSession() {
