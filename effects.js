@@ -12386,6 +12386,102 @@ function getMoonPhase(){
   return getMoonIllumination(new Date()).phase;
 }
 
+let _saturnShow=false;
+
+function drawSaturn(faces, S, tt){
+  const cx=S/2, cy=S/2+1;
+  const pRad=Math.round(S*0.28);
+  const ringInner=pRad*1.25, ringOuter=pRad*1.95;
+  const tiltY=0.38;
+  const cosT2=Math.cos(0), sinT2=Math.sin(0);
+  const rng=(s)=>((s*2654435761)>>>0)/4294967296;
+
+  for(const face of faces){
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+      const px=u-cx, py=v-cy;
+      const dx=px/pRad, dy=py/pRad;
+      const d2=dx*dx+dy*dy;
+
+      // Ring check (ellipse)
+      const ringDx=px, ringDy=py/tiltY;
+      const ringDist=Math.sqrt(ringDx*ringDx+ringDy*ringDy);
+      const onRing=ringDist>=ringInner && ringDist<=ringOuter;
+      const ringBehind=py>0;
+
+      // Draw back ring (behind planet)
+      if(onRing && ringBehind && d2>1){
+        const ringFrac=(ringDist-ringInner)/(ringOuter-ringInner);
+        const gap1=Math.abs(ringFrac-0.22)<0.03;
+        const gap2=Math.abs(ringFrac-0.60)<0.02;
+        const gap3=Math.abs(ringFrac-0.85)<0.015;
+        if(gap1||gap2||gap3){
+          colBuf[idx*3]=0.01; colBuf[idx*3+1]=0.01; colBuf[idx*3+2]=0.015;
+          continue;
+        }
+        const bri=0.45+0.3*(1-ringFrac);
+        const noise=((rng(u*7919+v*6271)*2-1)*0.04);
+        let rr=0.76+noise, rg=0.68+noise, rb=0.55+noise;
+        if(ringFrac<0.3){ rr*=0.85; rg*=0.75; rb*=0.65; }
+        else if(ringFrac>0.7){ rr*=0.7; rg*=0.65; rb*=0.55; }
+        const shadowFade=Math.min(1, Math.abs(ringDist-pRad*1.05)/(pRad*0.2));
+        colBuf[idx*3]=rr*bri*shadowFade; colBuf[idx*3+1]=rg*bri*shadowFade; colBuf[idx*3+2]=rb*bri*shadowFade;
+        continue;
+      }
+
+      // Planet body
+      if(d2<=1){
+        const nz=Math.sqrt(1-d2);
+        const limb=0.7+0.3*nz;
+        const band=dy;
+        let pr=0.82, pg=0.72, pb=0.52;
+        // Horizontal banding
+        const b1=Math.sin(band*12)*0.08;
+        const b2=Math.sin(band*25+1.5)*0.04;
+        const b3=Math.sin(band*50+3)*0.02;
+        pr+=b1+b2+b3;
+        pg+=b1*0.8+b2*0.7+b3;
+        pb+=b1*0.3+b2*0.2+b3*0.5;
+        // Storm bands
+        const storm1=Math.exp(-Math.pow((band-0.15)*8,2))*0.12;
+        const storm2=Math.exp(-Math.pow((band+0.3)*10,2))*0.08;
+        pr+=storm1+storm2; pg+=storm1*0.6+storm2*0.5; pb-=storm1*0.1;
+        // Polar darkening
+        const polar=Math.exp(-Math.pow(band*1.8,4))*0.15;
+        pr-=polar*0.3; pg-=polar*0.2; pb+=polar*0.1;
+        // Subtle noise
+        const noise=((rng(u*3571+v*2411)*2-1)*0.025);
+        pr+=noise; pg+=noise; pb+=noise;
+        // Illumination — light from upper-right
+        const illum=0.6+0.4*(dx*0.5+nz*0.7);
+        pr*=limb*illum; pg*=limb*illum; pb*=limb*illum;
+        // Ring shadow on planet (a dark band across the equator area)
+        const shadowBand=Math.exp(-Math.pow((dy+tiltY*0.4)*6,2))*0.25;
+        if(dx<0.3){ pr-=shadowBand; pg-=shadowBand; pb-=shadowBand; }
+        colBuf[idx*3]=Math.max(0,Math.min(1,pr));
+        colBuf[idx*3+1]=Math.max(0,Math.min(1,pg));
+        colBuf[idx*3+2]=Math.max(0,Math.min(1,pb));
+        continue;
+      }
+
+      // Front ring (in front of planet)
+      if(onRing && !ringBehind){
+        const ringFrac=(ringDist-ringInner)/(ringOuter-ringInner);
+        const gap1=Math.abs(ringFrac-0.22)<0.03;
+        const gap2=Math.abs(ringFrac-0.60)<0.02;
+        const gap3=Math.abs(ringFrac-0.85)<0.015;
+        if(gap1||gap2||gap3) continue;
+        const bri=0.5+0.3*(1-ringFrac);
+        const noise=((rng(u*7919+v*6271)*2-1)*0.04);
+        let rr=0.78+noise, rg=0.70+noise, rb=0.56+noise;
+        if(ringFrac<0.3){ rr*=0.85; rg*=0.75; rb*=0.65; }
+        else if(ringFrac>0.7){ rr*=0.7; rg*=0.65; rb*=0.55; }
+        colBuf[idx*3]=rr*bri; colBuf[idx*3+1]=rg*bri; colBuf[idx*3+2]=rb*bri;
+      }
+    }
+  }
+}
+
 function effectMoon(dt){
   t+=dt;
   moonInit();
@@ -12406,6 +12502,13 @@ function effectMoon(dt){
   }
 
   const faces=panel2dMode?[0]:[0,1,2,3];
+
+  _saturnShow=!!document.getElementById('moon-saturn-check')?.checked;
+  if(_saturnShow){
+    drawSaturn(faces, S, tt);
+    return;
+  }
+
   const moonRad=Math.round(S*0.42)-1;
   const cx=Math.round(S/2), cy=Math.round(S/2)+4;
 
