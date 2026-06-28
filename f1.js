@@ -810,6 +810,8 @@ function effectF1(dt){
           if (f1IdleScrollX >= f1IdleWidth) { f1IdlePhase = 0; f1IdlePhaseT = 0; }
           else {
             var ox = f1IdleScrollX|0;
+            var SFACES = [0,2,1,3];
+            var SFLIP  = [false,true,true,false];
             for(let sv=0;sv<SIZE;sv++){
               for(let sp=0;sp<4*SIZE;sp++){
                 const srcX = sp + ox;
@@ -818,7 +820,12 @@ function effectF1(dt){
                 if(pv<0.04) continue;
                 const h=(sp/(4*SIZE)+t*0.03)%1;
                 const [r,g,b]=hsl(h,1,pv);
-                setStripLED(sp, sv, r, g, b);
+                var seg=(sp/SIZE)|0, u=sp%SIZE;
+                var face=SFACES[seg];
+                var fu=SFLIP[seg]?SIZE-1-u:u;
+                var fv=SIZE-1-sv;
+                var mi=faceMap[face][fv*SIZE+fu];
+                if(mi>=0) setLED(mi,r,g,b);
               }
             }
           }
