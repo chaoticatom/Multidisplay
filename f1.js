@@ -241,7 +241,8 @@ function buildIdleScroll() {
     if (tw > 4*S && fs > 4) fs--;
     else break;
   } while(++tries < 40);
-  const fullW = tw > 0 ? tw : 4*S;
+  const textW = tw > 0 ? tw : 4*S;
+  const fullW = textW + 4*S;
   oc.width = fullW;
   oc.height = S;
   ctx.fillStyle = '#000'; ctx.fillRect(0,0,oc.width,oc.height);
@@ -802,23 +803,19 @@ function effectF1(dt){
           }
         }
       } else if (f1IdlePhase === 1) {
-        if (f1IdlePhaseT > 0.3) { f1IdlePhase = 2; f1IdlePhaseT = 0; f1IdleScrollX = -4*SIZE; }
+        if (f1IdlePhaseT > 0.3) { f1IdlePhase = 2; f1IdlePhaseT = 0; f1IdleScrollX = 0; }
       } else if (f1IdlePhase === 2) {
         if (f1IdlePixels && f1IdleWidth > 0) {
-          f1IdleScrollX = f1IdleScrollX + dt*SIZE*0.35;
-          if (f1IdleScrollX >= f1IdleWidth) { f1IdlePhase = 0; f1IdlePhaseT = 0; }
-          else {
-            var ox = f1IdleScrollX|0;
-            for(let sv=0;sv<SIZE;sv++){
-              for(let sp=0;sp<4*SIZE;sp++){
-                const srcX = sp + ox;
-                if (srcX < 0 || srcX >= f1IdleWidth) continue;
-                const pv   = f1IdlePixels[(sv*f1IdleWidth+srcX)*4]/255;
-                if(pv<0.04) continue;
-                const h=(sp/(4*SIZE)+t*0.03)%1;
-                const [r,g,b]=hsl(h,1,pv);
-                setStripLED(sp, sv, r, g, b);
-              }
+          f1IdleScrollX = (f1IdleScrollX + dt*SIZE*0.35) % f1IdleWidth;
+          var ox = f1IdleScrollX|0;
+          for(let sv=0;sv<SIZE;sv++){
+            for(let sp=0;sp<4*SIZE;sp++){
+              const srcX = (sp + ox) % f1IdleWidth;
+              const pv   = f1IdlePixels[(sv*f1IdleWidth+srcX)*4]/255;
+              if(pv<0.04) continue;
+              const h=(sp/(4*SIZE)+t*0.03)%1;
+              const [r,g,b]=hsl(h,1,pv);
+              setStripLED(sp, sv, r, g, b);
             }
           }
         }
