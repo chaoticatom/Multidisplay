@@ -13,6 +13,7 @@ let f1CircuitStripW = 0;
 let f1CircuitScrollX = 0;
 let f1IdlePixels = null;
 let f1IdleWidth = 0;
+let f1IdleCanvasW = 0;
 let f1IdleScrollX = 0;
 let f1IdleRebuildT = 0;
 
@@ -227,20 +228,18 @@ function buildIdleScroll() {
     if (parts[pi].toUpperCase() !== parts[pi-1].toUpperCase()) deduped.push(parts[pi]);
   }
   const name = deduped.join('  •  ').toUpperCase();
-  const text  = '   ' + name + '   ';
+  const gap = '          ';
   const S     = Math.max(SIZE, 16);
   const oc = document.createElement('canvas');
   const ctx = oc.getContext('2d');
   let fs = Math.max(10, (S * 0.85)|0);
   ctx.textBaseline = 'middle';
-  let tw = 0, tries = 0;
-  do {
-    ctx.font = `bold ${fs}px Arial, sans-serif`;
-    tw = (ctx.measureText(text).width)|0;
-    if (tw > 4*S && fs > 4) fs--;
-    else if (tw < 4*S*0.9 && fs < 30) fs++;
-    else break;
-  } while(++tries < 40);
+  ctx.font = `bold ${fs}px Arial, sans-serif`;
+  var singleW = (ctx.measureText(name + gap).width)|0;
+  var repeats = Math.max(2, Math.ceil((4*S) / singleW) + 1);
+  var text = '';
+  for (var ri = 0; ri < repeats; ri++) text += name + gap;
+  var tw = (ctx.measureText(text).width)|0;
   const fullW = tw > 0 ? tw : 4*S;
   oc.width = fullW;
   oc.height = S;
@@ -248,8 +247,9 @@ function buildIdleScroll() {
   ctx.fillStyle = '#fff'; ctx.font = `bold ${fs}px Arial, sans-serif`;
   ctx.textBaseline = 'middle';
   ctx.fillText(text, 0, S*0.42);
+  f1IdleWidth = (ctx.measureText(name + gap).width)|0;
   f1IdlePixels = ctx.getImageData(0,0,oc.width,oc.height).data;
-  f1IdleWidth  = oc.width;
+  f1IdleCanvasW = oc.width;
   f1IdleScrollX = 0;
 }
 
@@ -773,7 +773,8 @@ function effectF1(dt){
         for(let sv=0;sv<SIZE;sv++){
           for(let sp=0;sp<4*SIZE;sp++){
             const srcX = ((sp + (f1IdleScrollX|0)) % f1IdleWidth + f1IdleWidth) % f1IdleWidth;
-            const pv   = f1IdlePixels[(sv*f1IdleWidth+srcX)*4]/255;
+            if (srcX >= f1IdleCanvasW) continue;
+            const pv   = f1IdlePixels[(sv*f1IdleCanvasW+srcX)*4]/255;
             if(pv<0.04) continue;
             const h=(sp/(4*SIZE)+t*0.03)%1;
             const [r,g,b]=hsl(h,1,pv);
