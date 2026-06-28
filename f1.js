@@ -568,16 +568,19 @@ function effectF1(dt){
     }
 
     {
-      const lines = top3champ
-        ? top3champ.map(d => d.pos + '. ' + d.abbrev + ' ' + d.points)
-        : standings.slice(0,3).map((d,i) => {
+      var lines = [];
+      if (top3champ && top3champ.length) {
+        lines = top3champ.map(d => d.pos + '. ' + d.abbrev + ' ' + d.points);
+      } else if (standings.length) {
+        lines = standings.slice(0,3).map((d,i) => {
             let a = d.abbrev ? d.abbrev.toUpperCase().substring(0,3) : '';
             if (!a) { const p = (d.name||'').replace(/^#\d+\s*/,'').toUpperCase().split(' '); a = p.length>1 ? p[p.length-1].substring(0,3) : (p[0]||'').substring(0,3); }
             return (i+1) + '. ' + a;
           });
+      }
       const longest = lines.reduce((a,b)=>a.length>b.length?a:b, '');
-      const cacheKey = lines.join('|');
-      if(!f1FaceBufs._lastIdleTop3 || f1FaceBufs._lastIdleTop3!==cacheKey){
+      const cacheKey = lines.join('|') || '__empty__';
+      if(f1FaceBufs._lastIdleTop3!==cacheKey){
         f1FaceBufs._lastIdleTop3 = cacheKey;
         const c = document.createElement('canvas');
         c.width = c.height = SIZE;

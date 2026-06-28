@@ -624,7 +624,7 @@ F1Providers.openf1 = {
 
 // ── Simulation Provider ──────────────────────────────────────────────────────
 
-const DEMO_MEETING = { meeting_name: 'British Grand Prix', circuit_short_name: 'Silverstone', country_name: 'United Kingdom', date_start: '2025-07-06' };
+const DEMO_MEETING = { meeting_name: 'British Grand Prix', circuit_short_name: 'Silverstone', country_name: 'United Kingdom', date_start: '2026-07-05T14:00:00' };
 const DEMO_STANDINGS = [
   { pos: 1, number: 1, name: 'Verstappen', abbrev: 'VER', team: 'Red Bull Racing', color: '#3671C6', gap: 'LEAD' },
   { pos: 2, number: 4, name: 'Norris', abbrev: 'NOR', team: 'McLaren', color: '#FF8000', gap: '+4.2s' },
@@ -740,11 +740,20 @@ function simFinish() {
 
 function simNoSession() {
   if (typeof activateF1Mode === 'function') activateF1Mode();
+  var m = F1State.meeting || DEMO_MEETING;
   f1Update({
     session: { active: false, finished: false },
     track: { flag: 'none', flagRGB: [0, 0, 0], flagLabel: '', statusText: '', blueFlag: false, bwFlag: false },
-    meeting: F1State.meeting || DEMO_MEETING
+    meeting: m,
+    nextSession: F1State.nextSession || m
   });
+  if (!F1State.championshipStandings.length) {
+    f1Update({ championshipStandings: [
+      { pos: 1, abbrev: 'VER', points: 255, wins: 7 },
+      { pos: 2, abbrev: 'NOR', points: 203, wins: 3 },
+      { pos: 3, abbrev: 'LEC', points: 180, wins: 2 }
+    ]});
+  }
   if (!F1State.meeting) {
     document.getElementById('f1-race-name').textContent = DEMO_MEETING.meeting_name;
     document.getElementById('f1-race-date').textContent = 'Sun Jul 6';
