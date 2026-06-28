@@ -1231,7 +1231,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=614','f1.js?v=614','f1-providers.js?v=614'];
+  const scripts = ['f1-state.js?v=615','f1.js?v=615','f1-providers.js?v=615'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1938,6 +1938,9 @@ document.querySelectorAll('[data-f1wx]').forEach(btn => {
 // ── F1 Race Weekend Simulator ──
 document.getElementById('f1-sim-weekend')?.addEventListener('click', () => {
   if (typeof simWeekendToggle === 'function') simWeekendToggle();
+});
+document.getElementById('f1-sim-racestart')?.addEventListener('click', () => {
+  if (typeof simRaceStart === 'function') simRaceStart();
 });
 document.getElementById('f1-sim-speed')?.addEventListener('input', e => {
   _simWeekendSpeed = parseInt(e.target.value) || 10;

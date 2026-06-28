@@ -766,6 +766,18 @@ function simNoSession() {
   f1DataDirty = true;
 }
 
+function simRaceStart() {
+  if (typeof activateF1Mode === 'function') activateF1Mode();
+  simNoSession();
+  var startTime = new Date(Date.now() + 15000).toISOString();
+  f1Update({
+    nextSession: { date_start: startTime, session_name: 'Race', session_type: 'Race' },
+    meeting: F1State.meeting || DEMO_MEETING
+  });
+  if (typeof buildIdleScroll === 'function') buildIdleScroll();
+  f1DataDirty = true;
+}
+
 function simWeather(preset) {
   const presets = {
     sunny: { temp: 28, humidity: 35, wind: 8, rain: false, condition: 'Sunny', code: 0 },
