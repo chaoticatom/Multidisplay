@@ -337,11 +337,26 @@ F1Providers.openf1 = {
     if (this._timer) { clearTimeout(this._timer); this._timer = null; }
     stopF1SessionTimer();
   },
+  _setFallbackData() {
+    if (!F1State.meeting) f1Update({ meeting: DEMO_MEETING });
+    if (!F1State.nextSession) {
+      _f1FindNextFromSchedule().then(function(next) {
+        if (next) { _f1SetNextSession(next); }
+        else { f1Update({ nextSession: DEMO_MEETING }); }
+        if (typeof buildIdleScroll === 'function') buildIdleScroll();
+      }).catch(function() {
+        f1Update({ nextSession: DEMO_MEETING });
+        if (typeof buildIdleScroll === 'function') buildIdleScroll();
+      });
+    }
+    if (!F1State.championshipStandings.length) _f1FetchChampionship();
+  },
   async _init() {
     try {
       const res = await fetch('https://api.openf1.org/v1/sessions?session_key=latest');
       if (!res.ok) {
         f1Update({ connection: 'error' });
+        this._setFallbackData();
         if (_f1IsActive()) this._timer = setTimeout(() => this._init(), 10000);
         return;
       }
@@ -402,8 +417,10 @@ F1Providers.openf1 = {
       }
       this._pollLive();
     } catch (e) {
+      console.warn('[F1 OpenF1] connection error:', e.message || e);
       f1Update({ connection: 'error' });
-      if (_f1IsActive()) this._timer = setTimeout(() => this._init(), 10000);
+      this._setFallbackData();
+      if (_f1IsActive()) this._timer = setTimeout(() => this._init(), 15000);
     }
   },
   async _fetchNextSession() {
