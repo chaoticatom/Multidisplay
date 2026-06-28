@@ -809,9 +809,11 @@ function effectF1(dt){
           f1IdleScrollX = f1IdleScrollX + dt*SIZE*0.35;
           if (f1IdleScrollX >= f1IdleWidth) { f1IdlePhase = 0; f1IdlePhaseT = 0; }
           else {
+            var ox = f1IdleScrollX|0;
             for(let sv=0;sv<SIZE;sv++){
               for(let sp=0;sp<4*SIZE;sp++){
-                const srcX = ((sp + (f1IdleScrollX|0)) % f1IdleWidth + f1IdleWidth) % f1IdleWidth;
+                const srcX = sp + ox;
+                if (srcX < 0 || srcX >= f1IdleWidth) continue;
                 const pv   = f1IdlePixels[(sv*f1IdleWidth+srcX)*4]/255;
                 if(pv<0.04) continue;
                 const h=(sp/(4*SIZE)+t*0.03)%1;
