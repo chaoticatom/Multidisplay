@@ -704,7 +704,7 @@ function effectF1(dt){
         flashText = String(_cdSecForScroll); flashColor = '#ff2200';
       } else {
         var halfSec = Math.floor(Date.now() / 700) % 4;
-        if (halfSec === 0) { flashText = 'RACE'; flashColor = '#ff4444'; }
+        if (halfSec === 0) { flashText = 'WARMUP LAP'; flashColor = '#ff4444'; }
         else if (halfSec === 1) { flashText = null; }
         else if (halfSec === 2) { flashText = 'READY'; flashColor = '#ffaa00'; }
         else { flashText = null; }
