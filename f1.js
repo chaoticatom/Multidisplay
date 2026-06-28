@@ -232,16 +232,11 @@ function buildIdleScroll() {
   // Build scrolling text canvas
   const oc = document.createElement('canvas');
   const ctx = oc.getContext('2d');
-  let fs = Math.max(10, (S * 0.85)|0);
+  let fs = Math.max(8, (S * 0.55)|0);
   ctx.textBaseline = 'middle';
-  let tw = 0, tries = 0;
-  do {
-    ctx.font = `bold ${fs}px Arial, sans-serif`;
-    tw = (ctx.measureText(text).width)|0;
-    if (tw > 4*S && fs > 4) fs--;
-    else if (tw < 4*S*0.9 && fs < 30) fs++;
-    else break;
-  } while(++tries < 40);
+  let tw = 0;
+  ctx.font = `bold ${fs}px Arial, sans-serif`;
+  tw = (ctx.measureText(text).width)|0;
   const fullW = tw > 0 ? tw : 4*S;
   oc.width = fullW;
   oc.height = S;
@@ -810,8 +805,6 @@ function effectF1(dt){
           if (f1IdleScrollX >= f1IdleWidth) { f1IdlePhase = 0; f1IdlePhaseT = 0; }
           else {
             var ox = f1IdleScrollX|0;
-            var SFACES = [0,2,1,3];
-            var SFLIP  = [false,true,true,false];
             for(let sv=0;sv<SIZE;sv++){
               for(let sp=0;sp<4*SIZE;sp++){
                 const srcX = sp + ox;
@@ -820,12 +813,7 @@ function effectF1(dt){
                 if(pv<0.04) continue;
                 const h=(sp/(4*SIZE)+t*0.03)%1;
                 const [r,g,b]=hsl(h,1,pv);
-                var seg=(sp/SIZE)|0, u=sp%SIZE;
-                var face=SFACES[seg];
-                var fu=SFLIP[seg]?SIZE-1-u:u;
-                var fv=SIZE-1-sv;
-                var mi=faceMap[face][fv*SIZE+fu];
-                if(mi>=0) setLED(mi,r,g,b);
+                setStripLED(sp, sv, r, g, b);
               }
             }
           }
