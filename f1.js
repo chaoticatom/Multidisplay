@@ -165,19 +165,6 @@ function setStripLED(stripX, v, r, g, b) {
   if(i>=0) setLED(i,r,g,b);
 }
 
-var STRIP_FACES = [0,2,1,3];
-var STRIP_FLIP  = [false,true,true,false];
-function setStripLEDFlow(stripX, v, r, g, b) {
-  if (v<0||v>=SIZE) return;
-  var seg = (stripX/SIZE)|0, u = stripX%SIZE;
-  if (seg<0||seg>3) return;
-  var face = STRIP_FACES[seg];
-  var fu = STRIP_FLIP[seg] ? SIZE-1-u : u;
-  var fv = SIZE-1-v;
-  var i = faceMap[face][fv*SIZE+fu];
-  if (i>=0) setLED(i,r,g,b);
-}
-
 function buildTextBuf(lines, bg=[0,0,0], reserveBottom=0) {
   const S = Math.max(SIZE, 16);
   const usableH = Math.round(S * (1 - reserveBottom));
@@ -810,7 +797,7 @@ function effectF1(dt){
                 if(pv<0.04) continue;
                 const h=(sp/(4*SIZE)+t*0.03)%1;
                 const [r,g,b]=hsl(h,1,pv);
-                setStripLEDFlow(sp, sv, r, g, b);
+                setStripLED(sp, sv, r, g, b);
               }
             }
           }
@@ -831,7 +818,7 @@ function effectF1(dt){
                 if(pv<0.04) continue;
                 const h=(sp/(4*SIZE)+t*0.03)%1;
                 const [r,g,b]=hsl(h,1,pv);
-                setStripLEDFlow(sp, sv, r, g, b);
+                setStripLED(sp, sv, r, g, b);
               }
             }
           }
