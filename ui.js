@@ -1294,7 +1294,7 @@ const EFFECT_NAMES={
   coinflip:'Coin Flip',
   dice:'Dice Roll',
   simhouse:'Sim House',
-  moon:'Moon',
+  moon:'Celestial',
 };
 
 // ═══════════════════════════════════════════════════

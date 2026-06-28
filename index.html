@@ -431,7 +431,7 @@
       </div>
     </div>
     <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
-    <button class="effect-btn has-panel" data-effect="moon">◈ Moon <span class="panel-arrow">▸</span></button>
+    <button class="effect-btn has-panel" data-effect="moon">◈ Celestial <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-moon">
       <div style="display:flex;gap:5px;margin-bottom:8px;">
         <div style="flex:1;position:relative;">
@@ -447,7 +447,20 @@
         <div id="moon-phase-line" style="font-size:15px;color:#cde;font-weight:700;"></div>
         <div id="moon-rise-line" style="font-size:14px;color:#99b;margin-top:3px;font-weight:600;"></div>
       </div>
-      <label class="check-row" style="margin-top:8px;"><input type="checkbox" id="moon-saturn-check"> Show Saturn</label>
+      <div style="margin-top:8px;">
+        <div style="font-size:13px;color:#778;margin-bottom:4px;">Celestial Body</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px 8px;">
+          <label class="check-row"><input type="radio" name="celestial-body" value="moon" checked> Moon</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="mercury"> Mercury</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="venus"> Venus</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="earth"> Earth</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="mars"> Mars</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="jupiter"> Jupiter</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="saturn"> Saturn</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="uranus"> Uranus</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="neptune"> Neptune</label>
+        </div>
+      </div>
     </div>
     <button class="effect-btn has-panel" data-effect="weather">◈ Weather <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-weather">

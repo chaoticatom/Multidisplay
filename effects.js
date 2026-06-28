@@ -12386,7 +12386,6 @@ function getMoonPhase(){
   return getMoonIllumination(new Date()).phase;
 }
 
-let _saturnShow=false;
 
 function drawSaturn(faces, S, tt){
   const cx=S/2, cy=S/2+1;
@@ -12409,75 +12408,224 @@ function drawSaturn(faces, S, tt){
       const onRing=ringDist>=ringInner && ringDist<=ringOuter;
       const ringBehind=py>0;
 
-      // Draw back ring (behind planet)
+      let pr=-1,pg=-1,pb=-1;
+
+      // 1. Back ring (behind planet, only outside planet body)
       if(onRing && ringBehind && d2>1){
         const ringFrac=(ringDist-ringInner)/(ringOuter-ringInner);
         const gap1=Math.abs(ringFrac-0.22)<0.03;
         const gap2=Math.abs(ringFrac-0.60)<0.02;
         const gap3=Math.abs(ringFrac-0.85)<0.015;
-        if(gap1||gap2||gap3){
-          colBuf[idx*3]=0.01; colBuf[idx*3+1]=0.01; colBuf[idx*3+2]=0.015;
-          continue;
+        if(!(gap1||gap2||gap3)){
+          const bri=0.45+0.3*(1-ringFrac);
+          const noise=((rng(u*7919+v*6271)*2-1)*0.04);
+          let rr=0.76+noise, rg=0.68+noise, rb=0.55+noise;
+          if(ringFrac<0.3){ rr*=0.85; rg*=0.75; rb*=0.65; }
+          else if(ringFrac>0.7){ rr*=0.7; rg*=0.65; rb*=0.55; }
+          const shadowFade=Math.min(1, Math.abs(ringDist-pRad*1.05)/(pRad*0.2));
+          pr=rr*bri*shadowFade; pg=rg*bri*shadowFade; pb=rb*bri*shadowFade;
+        } else {
+          pr=0.01; pg=0.01; pb=0.015;
         }
-        const bri=0.45+0.3*(1-ringFrac);
-        const noise=((rng(u*7919+v*6271)*2-1)*0.04);
-        let rr=0.76+noise, rg=0.68+noise, rb=0.55+noise;
-        if(ringFrac<0.3){ rr*=0.85; rg*=0.75; rb*=0.65; }
-        else if(ringFrac>0.7){ rr*=0.7; rg*=0.65; rb*=0.55; }
-        const shadowFade=Math.min(1, Math.abs(ringDist-pRad*1.05)/(pRad*0.2));
-        colBuf[idx*3]=rr*bri*shadowFade; colBuf[idx*3+1]=rg*bri*shadowFade; colBuf[idx*3+2]=rb*bri*shadowFade;
-        continue;
       }
 
-      // Planet body
+      // 2. Planet body
       if(d2<=1){
         const nz=Math.sqrt(1-d2);
         const limb=0.7+0.3*nz;
         const band=dy;
-        let pr=0.82, pg=0.72, pb=0.52;
-        // Horizontal banding
+        pr=0.82; pg=0.72; pb=0.52;
         const b1=Math.sin(band*12)*0.08;
         const b2=Math.sin(band*25+1.5)*0.04;
         const b3=Math.sin(band*50+3)*0.02;
         pr+=b1+b2+b3;
         pg+=b1*0.8+b2*0.7+b3;
         pb+=b1*0.3+b2*0.2+b3*0.5;
-        // Storm bands
         const storm1=Math.exp(-Math.pow((band-0.15)*8,2))*0.12;
         const storm2=Math.exp(-Math.pow((band+0.3)*10,2))*0.08;
         pr+=storm1+storm2; pg+=storm1*0.6+storm2*0.5; pb-=storm1*0.1;
-        // Polar darkening
         const polar=Math.exp(-Math.pow(band*1.8,4))*0.15;
         pr-=polar*0.3; pg-=polar*0.2; pb+=polar*0.1;
-        // Subtle noise
         const noise=((rng(u*3571+v*2411)*2-1)*0.025);
         pr+=noise; pg+=noise; pb+=noise;
-        // Illumination — light from upper-right
         const illum=0.6+0.4*(dx*0.5+nz*0.7);
         pr*=limb*illum; pg*=limb*illum; pb*=limb*illum;
-        // Ring shadow on planet (a dark band across the equator area)
         const shadowBand=Math.exp(-Math.pow((dy+tiltY*0.4)*6,2))*0.25;
         if(dx<0.3){ pr-=shadowBand; pg-=shadowBand; pb-=shadowBand; }
-        colBuf[idx*3]=Math.max(0,Math.min(1,pr));
-        colBuf[idx*3+1]=Math.max(0,Math.min(1,pg));
-        colBuf[idx*3+2]=Math.max(0,Math.min(1,pb));
-        continue;
       }
 
-      // Front ring (in front of planet)
+      // 3. Front ring (draws OVER planet body)
       if(onRing && !ringBehind){
         const ringFrac=(ringDist-ringInner)/(ringOuter-ringInner);
         const gap1=Math.abs(ringFrac-0.22)<0.03;
         const gap2=Math.abs(ringFrac-0.60)<0.02;
         const gap3=Math.abs(ringFrac-0.85)<0.015;
-        if(gap1||gap2||gap3) continue;
-        const bri=0.5+0.3*(1-ringFrac);
-        const noise=((rng(u*7919+v*6271)*2-1)*0.04);
-        let rr=0.78+noise, rg=0.70+noise, rb=0.56+noise;
-        if(ringFrac<0.3){ rr*=0.85; rg*=0.75; rb*=0.65; }
-        else if(ringFrac>0.7){ rr*=0.7; rg*=0.65; rb*=0.55; }
-        colBuf[idx*3]=rr*bri; colBuf[idx*3+1]=rg*bri; colBuf[idx*3+2]=rb*bri;
+        if(!(gap1||gap2||gap3)){
+          const bri=0.5+0.3*(1-ringFrac);
+          const noise=((rng(u*7919+v*6271)*2-1)*0.04);
+          let rr=0.78+noise, rg=0.70+noise, rb=0.56+noise;
+          if(ringFrac<0.3){ rr*=0.85; rg*=0.75; rb*=0.65; }
+          else if(ringFrac>0.7){ rr*=0.7; rg*=0.65; rb*=0.55; }
+          pr=rr*bri; pg=rg*bri; pb=rb*bri;
+        }
       }
+
+      if(pr>=0){
+        colBuf[idx*3]=Math.max(0,Math.min(1,pr));
+        colBuf[idx*3+1]=Math.max(0,Math.min(1,pg));
+        colBuf[idx*3+2]=Math.max(0,Math.min(1,pb));
+      }
+    }
+  }
+}
+
+function drawPlanet(body, faces, S, tt){
+  const cx=S/2, cy=S/2+4;
+  const pRad=Math.round(S*0.38);
+  const rng=(s)=>((s*2654435761)>>>0)/4294967296;
+
+  for(const face of faces){
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+      const px=u-cx, py=v-cy;
+      const dx=px/pRad, dy=py/pRad;
+      const d2=dx*dx+dy*dy;
+      if(d2>1) continue;
+      const nz=Math.sqrt(1-d2);
+      const limb=0.7+0.3*nz;
+      const illum=0.6+0.4*(dx*0.5+nz*0.7);
+      const noise=(rng(u*7919+v*6271)*2-1)*0.03;
+      let pr,pg,pb;
+
+      if(body==='mercury'){
+        pr=0.55+noise; pg=0.53+noise; pb=0.50+noise;
+        // Heavy cratering
+        for(let ci=0;ci<20;ci++){
+          const ccx=(rng(ci*1237)*2-1)*0.7, ccy=(rng(ci*3571)*2-1)*0.7;
+          const cr=0.04+rng(ci*4919)*0.08;
+          const cdx=dx-ccx, cdy=dy-ccy;
+          const cd=Math.sqrt(cdx*cdx+cdy*cdy);
+          if(cd<cr) { const f=0.12*(1-cd/cr); pr-=f; pg-=f; pb-=f; }
+          else if(cd<cr*1.3) { const f=0.06; pr+=f; pg+=f; pb+=f; }
+        }
+        // Surface variation
+        pr+=Math.sin(dx*8+dy*6)*0.03;
+        pg+=Math.sin(dx*6-dy*8)*0.02;
+      } else if(body==='venus'){
+        pr=0.90+noise*0.5; pg=0.85+noise*0.5; pb=0.70+noise*0.5;
+        // Swirling cloud bands
+        const cloud1=Math.sin(dy*10+tt*0.2+Math.sin(dx*4+tt*0.15)*2)*0.06;
+        const cloud2=Math.sin(dy*18-tt*0.15+dx*3)*0.03;
+        const cloud3=Math.sin((dx+dy)*7+tt*0.1)*0.04;
+        pr+=cloud1+cloud2; pg+=cloud1+cloud2+cloud3; pb+=cloud1*0.5+cloud3;
+        // Limb brightening (atmosphere glow)
+        const limbGlow=(1-nz)*0.15;
+        pr+=limbGlow*0.8; pg+=limbGlow*0.7; pb+=limbGlow*0.5;
+      } else if(body==='earth'){
+        // Ocean base
+        pr=0.15; pg=0.30; pb=0.65;
+        // Procedural continents using noise
+        const rot=tt*0.05;
+        const nx2=dx*Math.cos(rot)-nz*Math.sin(rot);
+        const nz2=dx*Math.sin(rot)+nz*Math.cos(rot);
+        const cont=Math.sin(nx2*6+dy*4)*0.5+Math.sin(dy*8-nx2*3)*0.3+Math.sin((nx2+dy)*5)*0.2;
+        if(cont>0.15){
+          const lf=Math.min(1,(cont-0.15)*2.5);
+          // Land: green/brown
+          pr=pr*(1-lf)+(0.35+noise)*lf;
+          pg=pg*(1-lf)+(0.50+noise)*lf;
+          pb=pb*(1-lf)+(0.20+noise)*lf;
+          // Desert regions
+          if(Math.abs(dy)<0.3 && cont>0.35){
+            pr+=0.15; pg+=0.05; pb-=0.1;
+          }
+        }
+        // Polar ice caps
+        if(Math.abs(dy)>0.75){
+          const iceFrac=Math.min(1,(Math.abs(dy)-0.75)*5);
+          pr=pr*(1-iceFrac)+0.9*iceFrac;
+          pg=pg*(1-iceFrac)+0.92*iceFrac;
+          pb=pb*(1-iceFrac)+0.95*iceFrac;
+        }
+        // Cloud wisps
+        const cw=Math.sin(dx*12+dy*8+tt*0.3)*0.5+0.5;
+        if(cw>0.7){ const cf=(cw-0.7)*0.4; pr+=cf; pg+=cf; pb+=cf; }
+        // Atmosphere glow at limb
+        const atm=(1-nz)*0.12;
+        pr+=atm*0.3; pg+=atm*0.5; pb+=atm*1.0;
+      } else if(body==='mars'){
+        pr=0.75+noise; pg=0.35+noise*0.7; pb=0.15+noise*0.4;
+        // Dark patches (maria)
+        const m1=Math.exp(-((dx-0.1)*(dx-0.1)+(dy+0.1)*(dy+0.1))*8)*0.15;
+        const m2=Math.exp(-((dx+0.3)*(dx+0.3)+(dy-0.2)*(dy-0.2))*6)*0.12;
+        const m3=Math.exp(-((dx-0.4)*(dx-0.4)+(dy+0.3)*(dy+0.3))*10)*0.10;
+        pr-=m1+m2+m3; pg-=m1*0.5+m2*0.4+m3*0.3;
+        // Polar ice caps
+        if(dy<-0.7){ const f=Math.min(1,(-0.7-dy)*4); pr+=f*0.25; pg+=f*0.25; pb+=f*0.30; }
+        if(dy>0.75){ const f=Math.min(1,(dy-0.75)*5); pr+=f*0.20; pg+=f*0.20; pb+=f*0.25; }
+        // Dust storm patterns
+        const dust=Math.sin(dx*6+dy*4+tt*0.08)*0.04;
+        pr+=dust; pg+=dust*0.5;
+      } else if(body==='jupiter'){
+        pr=0.80+noise; pg=0.70+noise; pb=0.55+noise;
+        // Strong horizontal banding
+        const b1=Math.sin(dy*14)*0.10;
+        const b2=Math.sin(dy*28+1.5)*0.06;
+        const b3=Math.sin(dy*55+3)*0.03;
+        const b4=Math.sin(dy*7)*0.08;
+        pr+=b1+b2+b3+b4;
+        pg+=b1*0.7+b2*0.6+b3+b4*0.8;
+        pb+=b1*0.2+b2*0.1+b3*0.5+b4*0.3;
+        // Turbulent band edges
+        const turb=Math.sin(dx*15+Math.sin(dy*20)*3)*0.03;
+        pr+=turb; pg+=turb*0.8;
+        // Great Red Spot
+        const spotX=Math.sin(tt*0.1)*0.3;
+        const spotDx=(dx-spotX)/0.18, spotDy=(dy-0.2)/0.12;
+        const spotD=spotDx*spotDx+spotDy*spotDy;
+        if(spotD<1){
+          const sf=(1-spotD)*0.3;
+          pr+=sf*0.4; pg-=sf*0.15; pb-=sf*0.2;
+          // Swirl inside spot
+          const swirl=Math.sin(Math.atan2(spotDy,spotDx)*3+tt*0.2)*0.05;
+          pr+=swirl; pg+=swirl*0.3;
+        }
+        // Polar darkening
+        const polar=Math.exp(-Math.pow(dy*1.8,4))*0.12;
+        pr-=polar*0.2; pg-=polar*0.15; pb+=polar*0.05;
+      } else if(body==='uranus'){
+        pr=0.60+noise*0.5; pg=0.82+noise*0.5; pb=0.85+noise*0.5;
+        // Very subtle banding (tilted 98 degrees - so bands are nearly vertical)
+        const tiltAng=98*Math.PI/180;
+        const bandCoord=dx*Math.sin(tiltAng)+dy*Math.cos(tiltAng);
+        const ub=Math.sin(bandCoord*12)*0.03;
+        pr+=ub*0.5; pg+=ub; pb+=ub;
+        // Subtle atmospheric variation
+        const atm=Math.sin(dx*5+dy*3+tt*0.05)*0.02;
+        pg+=atm; pb+=atm;
+      } else if(body==='neptune'){
+        pr=0.20+noise*0.5; pg=0.35+noise*0.5; pb=0.80+noise*0.5;
+        // Cloud bands
+        const nb1=Math.sin(dy*12)*0.05;
+        const nb2=Math.sin(dy*24+2)*0.03;
+        pr+=nb1*0.3; pg+=nb1*0.5+nb2*0.4; pb+=nb1+nb2;
+        // Dark spot
+        const dSpotX=Math.sin(tt*0.08)*0.25;
+        const dsDx=(dx-dSpotX)/0.15, dsDy=(dy+0.15)/0.10;
+        const dsD=dsDx*dsDx+dsDy*dsDy;
+        if(dsD<1){
+          const sf=(1-dsD)*0.15;
+          pr-=sf*0.5; pg-=sf*0.3; pb-=sf*0.1;
+        }
+        // Atmospheric variation
+        const atm=Math.sin(dx*8+tt*0.12)*0.03;
+        pg+=atm*0.5; pb+=atm;
+      }
+
+      pr*=limb*illum; pg*=limb*illum; pb*=limb*illum;
+      colBuf[idx*3]=Math.max(0,Math.min(1,pr));
+      colBuf[idx*3+1]=Math.max(0,Math.min(1,pg));
+      colBuf[idx*3+2]=Math.max(0,Math.min(1,pb));
     }
   }
 }
@@ -12503,17 +12651,22 @@ function effectMoon(dt){
 
   const faces=panel2dMode?[0]:[0,1,2,3];
 
-  _saturnShow=!!document.getElementById('moon-saturn-check')?.checked;
-  if(_saturnShow){
+  const bodyEl = document.querySelector('input[name="celestial-body"]:checked');
+  const body = bodyEl ? bodyEl.value : 'moon';
+  if(body==='saturn'){
     drawSaturn(faces, S, tt);
-    return;
+  } else if(body!=='moon'){
+    drawPlanet(body, faces, S, tt);
   }
+
+  const mi0=getMoonIllumination(new Date());
+
+  if(body==='moon'){
 
   const moonRad=Math.round(S*0.42)-1;
   const cx=Math.round(S/2), cy=Math.round(S/2)+4;
 
   // Single illumination call used for both rendering and text
-  const mi0=getMoonIllumination(new Date());
   const frac=mi0.fraction; // 0=new, 1=full
   const waxing=phase<0.5;
   const termPos=frac*2-1; // -1=new, 0=quarter, +1=full
@@ -12608,13 +12761,15 @@ function effectMoon(dt){
     }
   }
 
+  } // end if(body==='moon')
+
   // ── Scrolling phase text at bottom of face 0 ──
   // Uses same 3x5 bitmap font as weather effect, mirrored for correct display
   const mi=mi0;
   const illum=Math.round(mi.fraction*100);
   const ph=mi.phase;
   const pName=ph<0.03?'New Moon':ph<0.22?'Waxing Crescent':ph<0.28?'First Quarter':ph<0.47?'Waxing Gibbous':ph<0.53?'Full Moon':ph<0.72?'Waning Gibbous':ph<0.78?'Last Quarter':ph<0.97?'Waning Crescent':'New Moon';
-  const moonText=`${pName} ${illum}%`;
+  const moonText=body==='moon'?`${pName} ${illum}%`:body.charAt(0).toUpperCase()+body.slice(1);
   if(!this._mf){
     this._mf={
       '0':[7,5,5,5,7],'1':[6,2,2,2,7],'2':[7,1,7,4,7],'3':[7,1,3,1,7],
