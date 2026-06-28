@@ -338,14 +338,26 @@ F1Providers.openf1 = {
     stopF1SessionTimer();
   },
   _setFallbackData() {
-    if (!F1State.meeting) f1Update({ meeting: DEMO_MEETING });
     if (!F1State.nextSession) {
       _f1FindNextFromSchedule().then(function(next) {
-        if (next) { _f1SetNextSession(next); }
-        else { f1Update({ nextSession: DEMO_MEETING }); }
+        if (next) {
+          _f1SetNextSession(next);
+          var m = { meeting_name: next.meeting_name, circuit_short_name: next.circuit_short_name, country_name: next.country_name, date_start: next.date_start };
+          f1Update({ meeting: m });
+          if (typeof buildScrollText === 'function') buildScrollText(m);
+          var nameEl = document.getElementById('f1-race-name');
+          if (nameEl) nameEl.textContent = next.meeting_name || '';
+          var dateEl = document.getElementById('f1-race-date');
+          if (dateEl && next.date_start) {
+            var d = new Date(next.date_start);
+            dateEl.textContent = d.toLocaleDateString('en-GB', {weekday:'short',day:'numeric',month:'short'});
+          }
+        } else {
+          f1Update({ meeting: DEMO_MEETING, nextSession: DEMO_MEETING });
+        }
         if (typeof buildIdleScroll === 'function') buildIdleScroll();
       }).catch(function() {
-        f1Update({ nextSession: DEMO_MEETING });
+        f1Update({ meeting: DEMO_MEETING, nextSession: DEMO_MEETING });
         if (typeof buildIdleScroll === 'function') buildIdleScroll();
       });
     }
