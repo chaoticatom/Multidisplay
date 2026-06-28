@@ -242,7 +242,7 @@ function buildIdleScroll() {
     else break;
   } while(++tries < 40);
   const textW = tw > 0 ? tw : 4*S;
-  const fullW = textW + 4*S;
+  const fullW = textW + S;
   oc.width = fullW;
   oc.height = S;
   ctx.fillStyle = '#000'; ctx.fillRect(0,0,oc.width,oc.height);
