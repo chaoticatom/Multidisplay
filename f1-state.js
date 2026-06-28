@@ -3,6 +3,7 @@
 window.F1State = {
   source: 'none',              // 'esp32'|'openf1'|'simulation'|'none'
   connection: 'idle',          // 'idle'|'connecting'|'connected'|'error'
+  connectionError: '',
   lastUpdate: 0,
   updateCount: 0,
   reconnectCount: 0,

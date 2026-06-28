@@ -367,13 +367,13 @@ F1Providers.openf1 = {
     try {
       const res = await fetch('https://api.openf1.org/v1/sessions?session_key=latest');
       if (!res.ok) {
-        f1Update({ connection: 'error' });
+        f1Update({ connection: 'error', connectionError: 'HTTP ' + res.status + ' ' + res.statusText });
         this._setFallbackData();
         if (_f1IsActive()) this._timer = setTimeout(() => this._init(), 10000);
         return;
       }
       const sessions = await res.json();
-      if (!sessions.length) { f1Update({ connection: 'connected', session: { active: false } }); return; }
+      if (!sessions.length) { f1Update({ connection: 'connected', connectionError: '', session: { active: false } }); return; }
       const s = sessions[0];
       this._sessionKey = s.session_key;
       this._currentMeetingKey = s.meeting_key || null;
@@ -388,7 +388,7 @@ F1Providers.openf1 = {
       var fpMatch = sName.match(/practice\s*(\d)/i);
       if (fpMatch) fpNum = parseInt(fpMatch[1]);
       f1Update({
-        connection: 'connected',
+        connection: 'connected', connectionError: '',
         session: {
           active: isLive,
           type: sType,
@@ -430,7 +430,7 @@ F1Providers.openf1 = {
       this._pollLive();
     } catch (e) {
       console.warn('[F1 OpenF1] connection error:', e.message || e);
-      f1Update({ connection: 'error' });
+      f1Update({ connection: 'error', connectionError: e.message || String(e) });
       this._setFallbackData();
       if (_f1IsActive()) this._timer = setTimeout(() => this._init(), 15000);
     }

@@ -1231,7 +1231,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=622','f1.js?v=622','f1-providers.js?v=622'];
+  const scripts = ['f1-state.js?v=623','f1.js?v=623','f1-providers.js?v=623'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1972,7 +1972,7 @@ function _f1UpdateDiag() {
   const ago = s.lastUpdate ? ((Date.now() - s.lastUpdate) / 1000).toFixed(1) + 's ago' : '--';
   el.innerHTML = [
     `Source: <b>${s.source}</b>`,
-    `Connection: <b>${s.connection}</b>`,
+    `Connection: <b>${s.connection}</b>${s.connectionError ? ' — <span style="color:#f66">' + s.connectionError + '</span>' : ''}`,
     `Last Update: ${ago}`,
     `Packets: ${s.updateCount}`,
     `Reconnects: ${s.reconnectCount}`,
