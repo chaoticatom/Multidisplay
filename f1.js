@@ -232,15 +232,10 @@ function buildIdleScroll() {
   // Build scrolling text canvas
   const oc = document.createElement('canvas');
   const ctx = oc.getContext('2d');
-  let fs = Math.max(10, (S * 0.85)|0);
+  let fs = Math.max(8, (S * 0.45)|0);
   ctx.textBaseline = 'middle';
-  let tw = 0, tries = 0;
-  do {
-    ctx.font = `bold ${fs}px Arial, sans-serif`;
-    tw = (ctx.measureText(text).width)|0;
-    if (tw > 4*S && fs > 4) fs--;
-    else break;
-  } while(++tries < 40);
+  ctx.font = `bold ${fs}px Arial, sans-serif`;
+  let tw = (ctx.measureText(text).width)|0;
   const textW = tw > 0 ? tw : 4*S;
   const fullW = textW + S;
   oc.width = fullW;
