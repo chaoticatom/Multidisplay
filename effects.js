@@ -12497,6 +12497,8 @@ function drawPlanet(body, faces, S, tt){
       const noise=(rng(u*7919+v*6271)*2-1)*0.03;
       let pr,pg,pb;
 
+      if(body==='sun'||body==='comet'||body==='blackhole') continue;
+
       if(body==='mercury'){
         pr=0.55+noise; pg=0.53+noise; pb=0.50+noise;
         // Heavy cratering
@@ -12620,12 +12622,161 @@ function drawPlanet(body, faces, S, tt){
         // Atmospheric variation
         const atm=Math.sin(dx*8+tt*0.12)*0.03;
         pg+=atm*0.5; pb+=atm;
+      } else if(body==='pluto'){
+        pr=0.72+noise; pg=0.65+noise; pb=0.55+noise;
+        // Heart-shaped nitrogen ice plain (Tombaugh Regio)
+        const hx=dx+0.05, hy=dy+0.1;
+        const heart=Math.pow(hx*hx+hy*hy-0.09,3)-hx*hx*hy*hy*hy;
+        if(heart<0){ pr+=0.15; pg+=0.15; pb+=0.12; }
+        // Dark equatorial band
+        const eq=Math.exp(-dy*dy*20)*0.1;
+        pr-=eq; pg-=eq*0.8; pb-=eq*0.5;
+        // Reddish tholins
+        const tholin=Math.sin(dx*8+dy*6)*0.04;
+        pr+=tholin*1.5; pg+=tholin*0.5;
+        // Craters
+        for(let ci=0;ci<6;ci++){
+          const ccx2=(rng(ci*8731)*2-1)*0.5, ccy2=(rng(ci*4217)*2-1)*0.5;
+          const cr2=0.04+rng(ci*2917)*0.06;
+          const cd2=Math.sqrt((dx-ccx2)*(dx-ccx2)+(dy-ccy2)*(dy-ccy2));
+          if(cd2<cr2){ pr-=0.06*(1-cd2/cr2); pg-=0.05*(1-cd2/cr2); }
+        }
       }
 
       pr*=limb*illum; pg*=limb*illum; pb*=limb*illum;
       colBuf[idx*3]=Math.max(0,Math.min(1,pr));
       colBuf[idx*3+1]=Math.max(0,Math.min(1,pg));
       colBuf[idx*3+2]=Math.max(0,Math.min(1,pb));
+    }
+  }
+
+  // Sun: rendered separately with glow (no limb darkening/illum)
+  if(body==='sun'){
+    for(const face of faces){
+      for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+        const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+        const dx2=(u-cx)/pRad, dy2=(v-cy)/pRad;
+        const d2=dx2*dx2+dy2*dy2;
+        const d=Math.sqrt(d2);
+        if(d>1.8) continue;
+        if(d<=1){
+          const nz=Math.sqrt(1-d2);
+          const limbDark=0.85+0.15*nz;
+          let sr=1.0, sg=0.85, sb=0.25;
+          // Granulation
+          const g1=Math.sin(dx2*25+dy2*18+tt*0.3)*0.04;
+          const g2=Math.sin(dx2*40-dy2*30+tt*0.5)*0.02;
+          sr+=g1+g2; sg+=g1*0.8+g2; sb+=g1*0.3;
+          // Sunspots
+          for(let si=0;si<4;si++){
+            const sx=Math.sin(tt*0.02+si*1.7)*0.4, sy=(rng(si*6131)*2-1)*0.4;
+            const sd=((dx2-sx)*(dx2-sx)+(dy2-sy)*(dy2-sy));
+            const srad=0.01+rng(si*3917)*0.02;
+            if(sd<srad){ const sf=1-sd/srad; sr-=sf*0.5; sg-=sf*0.4; sb-=sf*0.15; }
+          }
+          // Prominences/active regions
+          const prom=Math.sin(Math.atan2(dy2,dx2)*5+tt*0.15)*0.5+0.5;
+          if(d>0.85 && prom>0.7){ sr+=0.1; sg+=0.02; }
+          sr*=limbDark; sg*=limbDark; sb*=limbDark;
+          colBuf[idx*3]=Math.max(0,Math.min(1,sr));
+          colBuf[idx*3+1]=Math.max(0,Math.min(1,sg));
+          colBuf[idx*3+2]=Math.max(0,Math.min(1,sb));
+        } else {
+          // Corona glow
+          const glow=Math.pow(1-(d-1)/0.8,2)*0.4;
+          const flicker=1+Math.sin(Math.atan2(dy2,dx2)*8+tt)*0.15;
+          colBuf[idx*3]+=glow*1.0*flicker;
+          colBuf[idx*3+1]+=glow*0.7*flicker;
+          colBuf[idx*3+2]+=glow*0.15*flicker;
+        }
+      }
+    }
+  }
+
+  // Comet: icy body with tail
+  if(body==='comet'){
+    const cRad=Math.round(S*0.12);
+    const headX=cx-S*0.15, headY=cy;
+    for(const face of faces){
+      for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+        const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+        const px=u-headX, py=v-headY;
+        // Dust tail (curved, wide)
+        const tailAng=Math.atan2(py,px);
+        const tailDist=Math.sqrt(px*px+py*py);
+        if(px>0 && tailDist<S*0.8){
+          const spread=Math.abs(tailAng)<(0.3+tailDist/(S*2));
+          if(spread){
+            const tf=Math.pow(1-tailDist/(S*0.8),1.5)*0.25;
+            const wave=Math.sin(tailDist*0.15+tt*2)*0.05;
+            colBuf[idx*3]+=tf*0.8+wave; colBuf[idx*3+1]+=tf*0.6+wave*0.5; colBuf[idx*3+2]+=tf*0.3;
+          }
+        }
+        // Ion tail (narrow, blue, straighter)
+        if(px>0 && Math.abs(py-px*0.1)<S*0.03){
+          const tf2=Math.pow(Math.max(0,1-tailDist/(S*0.9)),2)*0.2;
+          colBuf[idx*3]+=tf2*0.2; colBuf[idx*3+1]+=tf2*0.4; colBuf[idx*3+2]+=tf2*0.9;
+        }
+        // Coma (fuzzy glow around nucleus)
+        const comaR=cRad*3;
+        if(tailDist<comaR){
+          const cf=Math.pow(1-tailDist/comaR,2)*0.3;
+          colBuf[idx*3]+=cf*0.7; colBuf[idx*3+1]+=cf*0.8; colBuf[idx*3+2]+=cf*0.9;
+        }
+        // Nucleus
+        const dx2=px/cRad, dy2=py/cRad;
+        const d2=dx2*dx2+dy2*dy2;
+        if(d2<=1){
+          const nz=Math.sqrt(1-d2);
+          const l=0.7+0.3*nz;
+          const n2=(rng(u*4919+v*3571)*2-1)*0.05;
+          colBuf[idx*3]=Math.max(colBuf[idx*3],(0.75+n2)*l);
+          colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],(0.78+n2)*l);
+          colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],(0.82+n2)*l);
+        }
+      }
+    }
+  }
+
+  // Black Hole: dark center, accretion disc, gravitational lensing
+  if(body==='blackhole'){
+    const bhRad=Math.round(S*0.15);
+    const discInner=bhRad*1.8, discOuter=bhRad*4;
+    for(const face of faces){
+      for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+        const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+        const px=u-cx, py=v-cy;
+        const dist=Math.sqrt(px*px+py*py);
+        // Accretion disc (tilted ellipse)
+        const discDy=py/0.3;
+        const discDist=Math.sqrt(px*px+discDy*discDy);
+        if(discDist>=discInner && discDist<=discOuter && dist>bhRad*1.3){
+          const df=(discDist-discInner)/(discOuter-discInner);
+          const bri=(1-df)*0.7;
+          const ang=Math.atan2(py,px)+tt*0.5;
+          const spiral=Math.sin(ang*3+df*10)*0.3+0.7;
+          const hot=1-df;
+          colBuf[idx*3]+=bri*spiral*(0.9+hot*0.1);
+          colBuf[idx*3+1]+=bri*spiral*(0.4+hot*0.2);
+          colBuf[idx*3+2]+=bri*spiral*(0.1+hot*0.5);
+        }
+        // Photon ring (bright thin ring at event horizon edge)
+        if(Math.abs(dist-bhRad*1.4)<bhRad*0.15){
+          const rf=1-Math.abs(dist-bhRad*1.4)/(bhRad*0.15);
+          const pulse=0.8+Math.sin(tt*3)*0.2;
+          colBuf[idx*3]+=rf*0.6*pulse; colBuf[idx*3+1]+=rf*0.45*pulse; colBuf[idx*3+2]+=rf*0.2*pulse;
+        }
+        // Event horizon (pure black)
+        if(dist<bhRad*1.2){
+          colBuf[idx*3]=0; colBuf[idx*3+1]=0; colBuf[idx*3+2]=0;
+        }
+        // Gravitational lensing — distorted star ring
+        if(dist>bhRad*1.2 && dist<bhRad*1.6){
+          const lf=Math.pow(1-Math.abs(dist-bhRad*1.4)/(bhRad*0.2),3)*0.15;
+          const la=Math.sin(Math.atan2(py,px)*12+tt)*0.5+0.5;
+          colBuf[idx*3]+=lf*la; colBuf[idx*3+1]+=lf*la; colBuf[idx*3+2]+=lf*la*1.2;
+        }
+      }
     }
   }
 }
@@ -12769,7 +12920,8 @@ function effectMoon(dt){
   const illum=Math.round(mi.fraction*100);
   const ph=mi.phase;
   const pName=ph<0.03?'New Moon':ph<0.22?'Waxing Crescent':ph<0.28?'First Quarter':ph<0.47?'Waxing Gibbous':ph<0.53?'Full Moon':ph<0.72?'Waning Gibbous':ph<0.78?'Last Quarter':ph<0.97?'Waning Crescent':'New Moon';
-  const moonText=body==='moon'?`${pName} ${illum}%`:body.charAt(0).toUpperCase()+body.slice(1);
+  const bodyNames={blackhole:'Black Hole'};
+  const moonText=body==='moon'?`${pName} ${illum}%`:(bodyNames[body]||body.charAt(0).toUpperCase()+body.slice(1));
   if(!this._mf){
     this._mf={
       '0':[7,5,5,5,7],'1':[6,2,2,2,7],'2':[7,1,7,4,7],'3':[7,1,3,1,7],
