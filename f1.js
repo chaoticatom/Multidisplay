@@ -258,7 +258,7 @@ function buildIdleScroll() {
   nc.width = 4*S; nc.height = S;
   var nctx = nc.getContext('2d');
   nctx.fillStyle = '#000'; nctx.fillRect(0,0,nc.width,nc.height);
-  nctx.font = `bold ${Math.max(10,(S*0.85)|0)}px Arial, sans-serif`;
+  nctx.font = `bold ${fs}px Arial, sans-serif`;
   nctx.textAlign = 'center'; nctx.textBaseline = 'middle';
   nctx.fillStyle = '#fff';
   nctx.fillText('NEXT', nc.width/2, S*0.42);
