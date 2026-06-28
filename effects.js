@@ -12512,13 +12512,14 @@ function effectMoon(dt){
   const moonRad=Math.round(S*0.42)-1;
   const cx=Math.round(S/2), cy=Math.round(S/2)+4;
 
-  // Phase illumination: convert phase (0-1) to terminator position
-  const illumAngle=phase*Math.PI*2;
-  const termX=-Math.cos(illumAngle);
+  // Phase illumination using fraction for accurate terminator
+  const mi0=getMoonIllumination(new Date());
+  const frac=mi0.fraction; // 0=new, 1=full
   const waxing=phase<0.5;
+  // Terminator x on flat disc: ranges from -1 (new) through 0 (quarter) to +1 (full)
+  const termPos=frac*2-1; // maps 0->-1, 0.5->0, 1->+1
 
   // Terminator tilt based on latitude and time of night
-  // At northern latitudes the moon's bright limb tilts clockwise when rising, counter when setting
   const lat=typeof moonLat==='number'?moonLat:52;
   const hourNow=(Date.now()%86400000)/3600000;
   const tiltBase=lat*Math.PI/180*0.4;
@@ -12537,14 +12538,17 @@ function effectMoon(dt){
 
       const nz=Math.sqrt(1-d2);
       const ny=dy;
-      // Rotate disc coordinates by tilt angle for terminator check
       const nx=dx*cosT-dy*sinT;
 
+      // Terminator as ellipse on disc
+      // At each row, the terminator x = termPos * sqrt(1 - ny²)
+      const rowR=Math.sqrt(Math.max(0,1-ny*ny));
+      const termAt=termPos*rowR;
       let lit;
       if(waxing){
-        lit=nx>-termX*nz;
+        lit=nx>-termAt;
       } else {
-        lit=nx<termX*nz;
+        lit=nx<termAt;
       }
 
       if(!lit){
