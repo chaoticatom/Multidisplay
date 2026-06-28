@@ -687,16 +687,90 @@ function effectF1(dt){
       }
     }
 
-    if (f1IdlePixels && f1IdleWidth > 0) {
-      f1IdleScrollX = (f1IdleScrollX + dt*SIZE*0.35) % f1IdleWidth;
-      for(let sv=0;sv<SIZE;sv++){
-        for(let sp=0;sp<4*SIZE;sp++){
-          const srcX = ((sp + (f1IdleScrollX|0)) % f1IdleWidth + f1IdleWidth) % f1IdleWidth;
-          const pv   = f1IdlePixels[(sv*f1IdleWidth+srcX)*4]/255;
-          if(pv<0.04) continue;
-          const h=(sp/(4*SIZE)+t*0.03)%1;
-          const [r,g,b]=hsl(h,1,pv);
-          setStripLED(sp, sv, r, g, b);
+    var _cdSecForScroll = -1;
+    {
+      var _cdSrc2 = (F1State.nextSession || F1State.meeting);
+      if (_cdSrc2 && _cdSrc2.date_start) {
+        var _cdMs2 = new Date(_cdSrc2.date_start).getTime() - Date.now();
+        _cdSecForScroll = Math.floor(_cdMs2 / 1000);
+      }
+    }
+
+    if (_cdSecForScroll >= 0 && _cdSecForScroll <= 60) {
+      var flashText, flashColor;
+      if (_cdSecForScroll <= 0) {
+        flashText = 'GO!'; flashColor = '#00ff00';
+      } else if (_cdSecForScroll <= 5) {
+        flashText = String(_cdSecForScroll); flashColor = '#ff2200';
+      } else {
+        var halfSec = Math.floor(Date.now() / 700) % 4;
+        if (halfSec === 0) { flashText = 'RACE'; flashColor = '#ff4444'; }
+        else if (halfSec === 1) { flashText = null; }
+        else if (halfSec === 2) { flashText = 'READY'; flashColor = '#ffaa00'; }
+        else { flashText = null; }
+      }
+      if (flashText) {
+        var fKey = '_flash_' + flashText;
+        if (f1FaceBufs._flashKey !== fKey) {
+          f1FaceBufs._flashKey = fKey;
+          var fc = document.createElement('canvas');
+          fc.width = SIZE; fc.height = SIZE;
+          var fctx = fc.getContext('2d');
+          var ffs = Math.max(10, (SIZE * 0.45)|0);
+          fctx.font = 'bold ' + ffs + 'px Arial';
+          fctx.textAlign = 'center'; fctx.textBaseline = 'middle';
+          while (ffs > 8 && fctx.measureText(flashText).width > SIZE * 0.9) {
+            ffs--; fctx.font = 'bold ' + ffs + 'px Arial';
+          }
+          var fsw = Math.max(2, (SIZE/14)|0);
+          fctx.strokeStyle = '#000'; fctx.lineWidth = fsw; fctx.lineJoin = 'round';
+          fctx.strokeText(flashText, SIZE/2, SIZE*0.42);
+          fctx.fillStyle = flashColor;
+          fctx.fillText(flashText, SIZE/2, SIZE*0.42);
+          f1FaceBufs._flashBuf = { data: fctx.getImageData(0,0,SIZE,SIZE).data, S: SIZE };
+        }
+        if (f1FaceBufs._flashBuf) {
+          var fbd = f1FaceBufs._flashBuf;
+          for (var fp = 0; fp < 4; fp++) {
+            var fps2 = fp * SIZE;
+            for (var fsp = fps2; fsp < fps2 + SIZE; fsp++) {
+              for (var fv = 0; fv < SIZE; fv++) {
+                var fdx = fsp - fps2;
+                var fpi = (fv * fbd.S + fdx) * 4;
+                var fa = fbd.data[fpi + 3] / 255;
+                if (fa < 0.05) continue;
+                var fr2 = fbd.data[fpi] / 255 * fa;
+                var fg2 = fbd.data[fpi+1] / 255 * fa;
+                var fb2 = fbd.data[fpi+2] / 255 * fa;
+                setStripLED(fsp, fv, fr2, fg2, fb2);
+              }
+            }
+          }
+        }
+      }
+      if (_cdSecForScroll <= 0 && !f1FaceBufs._goTriggered) {
+        f1FaceBufs._goTriggered = true;
+        setTimeout(function() {
+          if (typeof simSession === 'function') {
+            simSession('Race');
+            if (typeof applyF1Flag === 'function') applyF1Flag('GREEN');
+          }
+          f1FaceBufs._goTriggered = false;
+        }, 1500);
+      }
+    } else {
+      f1FaceBufs._goTriggered = false;
+      if (f1IdlePixels && f1IdleWidth > 0) {
+        f1IdleScrollX = (f1IdleScrollX + dt*SIZE*0.35) % f1IdleWidth;
+        for(let sv=0;sv<SIZE;sv++){
+          for(let sp=0;sp<4*SIZE;sp++){
+            const srcX = ((sp + (f1IdleScrollX|0)) % f1IdleWidth + f1IdleWidth) % f1IdleWidth;
+            const pv   = f1IdlePixels[(sv*f1IdleWidth+srcX)*4]/255;
+            if(pv<0.04) continue;
+            const h=(sp/(4*SIZE)+t*0.03)%1;
+            const [r,g,b]=hsl(h,1,pv);
+            setStripLED(sp, sv, r, g, b);
+          }
         }
       }
     }
