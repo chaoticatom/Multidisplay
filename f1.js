@@ -156,9 +156,9 @@ function setStripLED(stripX, v, r, g, b) {
   const seg = (stripX/SIZE)|0, u = stripX%SIZE;
   const fv  = SIZE-1-v;
   let face, fu;
-  if (seg===0){ face=0; fu=u;         }
-  else if(seg===1){ face=2; fu=u;         }
-  else if(seg===2){ face=1; fu=u;         }
+  if (seg===0){ face=0; fu=u;              }
+  else if(seg===1){ face=2; fu=SIZE-1-u;  }
+  else if(seg===2){ face=1; fu=SIZE-1-u;  }
   else if(seg===3){ face=3; fu=u;         }
   else return;
   const i=faceMap[face][fv*SIZE+fu];
