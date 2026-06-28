@@ -354,15 +354,15 @@ function rebuildF1FaceBufs() {
       cx.fillStyle=sColor; cx.fillText('QUALIFYING', S2/2, S2*0.20);
       cx.fillText(`Q${qSession}`, S2/2, S2*0.38);
     } else {
-      let fsRaceLabel = Math.max(8,(S2*0.22)|0);
+      let fsRaceLabel = Math.max(8,(S2*0.18)|0);
       cx.font=`bold ${fsRaceLabel}px Arial`;
       while(fsRaceLabel > 6 && cx.measureText('RACE').width > S2*0.92){
         fsRaceLabel--; cx.font = `bold ${fsRaceLabel}px Arial`;
       }
-      cx.fillStyle=sColor; cx.fillText('RACE', S2/2, S2*0.20);
+      cx.fillStyle=sColor; cx.fillText('RACE', S2/2, S2*0.15);
     }
 
-    let fsMid = Math.max(10,(S2*0.38)|0);
+    let fsMid = Math.max(10,(S2*0.32)|0);
     cx.fillStyle='#ffffff';
 
     if (isQuali || isPrac) {
@@ -371,9 +371,9 @@ function rebuildF1FaceBufs() {
       while(fsMid > 6 && cx.measureText(timeText).width > S2*0.92){
         fsMid--; cx.font=`bold ${fsMid}px Arial`;
       }
-      cx.fillText(timeText, S2/2, S2*0.70);
+      cx.fillText(timeText, S2/2, S2*0.58);
     } else {
-      let fsRace = Math.max(7,(S2*0.22)|0);
+      let fsRace = Math.max(7,(S2*0.18)|0);
       const lapLabel = 'LAP';
       const lapCount = `${lap} of ${lapTotal}`;
       cx.font=`bold ${fsRace}px Arial`;
@@ -381,11 +381,44 @@ function rebuildF1FaceBufs() {
       while(fsRace > 5 && maxWidth > S2*0.92){
         fsRace--; cx.font = `bold ${fsRace}px Arial`;
       }
-      cx.fillText(lapLabel, S2/2, S2*0.47);
-      cx.fillText(lapCount, S2/2, S2*0.70);
+      cx.fillText(lapLabel, S2/2, S2*0.37);
+      cx.fillText(lapCount, S2/2, S2*0.56);
     }
 
-    applyWaveBg(cx, S2);
+    const flagLabel = F1State.track.statusText;
+    if (flagLabel && flagLabel !== '--' && flagLabel !== 'LIVE' && flagLabel !== 'GREEN') {
+      let fsFlag = Math.max(6,(S2*0.14)|0);
+      cx.font=`bold ${fsFlag}px Arial`;
+      while(fsFlag > 4 && cx.measureText(flagLabel).width > S2*0.92){
+        fsFlag--; cx.font = `bold ${fsFlag}px Arial`;
+      }
+      const fc = flagRGB[0]>0.5 ? '#ffee00' : flagRGB[2]>0.5 ? '#4488ff' : '#ffffff';
+      cx.fillStyle = fc;
+      cx.fillText(flagLabel, S2/2, S2*0.78);
+    }
+
+    if (typeof panel2dMode !== 'undefined' && panel2dMode && (flagRGB[0]>0||flagRGB[1]>0||flagRGB[2]>0)) {
+      const imgData = cx.getImageData(0,0,S2,S2);
+      const data = imgData.data;
+      const fp = 0.7+Math.sin(t*3)*0.3;
+      for(let y=0;y<S2;y++) for(let x=0;x<S2;x++){
+        const i=(y*S2+x)*4;
+        if(data[i+3]>200) continue;
+        const stripeW = Math.max(3,(S2/8)|0);
+        const diag = (x+y+(t*S2*1.5)|0)%(stripeW*2);
+        const yW = Math.sin((y/S2)*Math.PI*4+t*3)*0.3;
+        const xW = Math.cos((x/S2)*Math.PI*3+t*2.5)*0.25;
+        const rip = 0.5+yW+xW;
+        const br = diag<stripeW ? 0.7+rip*0.2 : 0.25+rip*0.15;
+        data[i]  =flagRGB[0]*255*fp*br;
+        data[i+1]=flagRGB[1]*255*fp*br;
+        data[i+2]=flagRGB[2]*255*fp*br;
+        data[i+3]=255;
+      }
+      cx.putImageData(imgData,0,0);
+    } else {
+      applyWaveBg(cx, S2);
+    }
     f1FaceBufs.front = { data: cx.getImageData(0,0,S2,S2).data, S: S2 };
   }
 
