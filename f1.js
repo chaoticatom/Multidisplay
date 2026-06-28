@@ -585,13 +585,18 @@ function effectF1(dt){
         ctx.textAlign='center'; ctx.textBaseline='middle';
         let fs = Math.max(10, (SIZE*0.32)|0);
         ctx.font = `bold ${fs}px Arial`;
-        while(fs > 6 && ctx.measureText(longest).width > SIZE*0.92){
+        while(fs > 6 && ctx.measureText(longest).width > SIZE*0.88){
           fs--; ctx.font = `bold ${fs}px Arial`;
         }
         const lineH = SIZE / 3;
         const colors = ['#FFEE00', '#FFFFFF', '#FF8800'];
+        const sw = Math.max(2, (SIZE/16)|0);
         for(let i=0;i<Math.min(3,lines.length);i++){
           ctx.font = `bold ${fs}px Arial`;
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = sw;
+          ctx.lineJoin = 'round';
+          ctx.strokeText(lines[i], SIZE/2, (i+0.5)*lineH);
           ctx.fillStyle = colors[i];
           ctx.fillText(lines[i], SIZE/2, (i+0.5)*lineH);
         }
@@ -600,8 +605,9 @@ function effectF1(dt){
       if(f1FaceBufs.idleTop3){
         const {data,S}=f1FaceBufs.idleTop3;
         for(let u=0;u<SIZE;u++) for(let v=0;v<SIZE;v++){
-          const pv=data[(v*S+u)*4]/255;
-          if(pv>0.10){const i=faceMap[4][v*SIZE+u]; if(i>=0) setLED(i,pv,pv,0);}
+          const pi=(v*S+u)*4;
+          const r=data[pi]/255, g=data[pi+1]/255, b=data[pi+2]/255, a=data[pi+3]/255;
+          if(a>0.10){const i=faceMap[4][v*SIZE+u]; if(i>=0) setLED(i,r*a,g*a,b*a);}
         }
       }
     }
