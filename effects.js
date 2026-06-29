@@ -12508,8 +12508,8 @@ function drawPlanet(body, faces, S, tt){
   const cx=S/2;
   const halfH=Math.min(cy-textTop, topLimit-cy);
   const halfW=cx-2;
-  // Sun corona extends 1.8x, blackhole 1.5x; axis lines can extend to edge
-  const extent=body==='sun'?1.8:body==='blackhole'?1.5:1.0;
+  // Blackhole disc extends 1.5x; sun/planets fill the space, extras extend to edge
+  const extent=body==='blackhole'?1.5:1.0;
   const pRad=Math.max(4,Math.round(Math.min(halfH,halfW)/extent));
   const rng=(s)=>((s*2654435761)>>>0)/4294967296;
   // Axial tilt (degrees) per planet
