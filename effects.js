@@ -12527,52 +12527,22 @@ function drawSaturn(faces, S, tt){
   }
 }
 
-// ─── Earth real-time data ───
-const _earthLand = [
-  // [lonCenter°, latCenter°, lonRadius°, latRadius°, type: 1=land, -1=water cutout]
-  // North America
-  [-100,55,30,16,1],[-95,42,18,8,1],[-82,35,8,6,1],[-112,38,12,6,1],
-  [-100,63,16,8,1],[-88,68,22,5,1],[-75,48,8,5,1],[-103,24,10,7,1],
-  [-87,14,6,4,1],[-85,28,5,3,1],
-  [-42,72,10,6,1],[-48,66,5,4,1], // Greenland
-  // South America
-  [-62,-8,16,22,1],[-73,3,8,8,1],[-50,-20,10,8,1],[-67,-38,6,12,1],
-  // Europe
-  [5,48,15,8,1],[22,52,10,6,1],[10,63,6,5,1],[25,59,8,5,1],
-  [-5,55,5,3,1],[15,42,8,4,1],[25,40,5,3,1],
-  // Africa
-  [8,22,22,14,1],[30,10,12,12,1],[18,-5,12,12,1],[28,-20,8,10,1],[45,8,5,8,1],
-  // Asia
-  [55,55,18,12,1],[80,55,22,12,1],[110,55,20,12,1],[140,58,18,10,1],
-  [160,63,12,6,1],[90,38,18,10,1],[112,30,14,8,1],[78,20,10,10,1],
-  [100,18,10,8,1],[48,25,8,6,1],[52,18,4,6,1],[135,37,5,4,1],[128,37,4,2,1],
-  // Australia, Indonesia, NZ, Madagascar
-  [134,-25,16,10,1],[145,-38,4,3,1],[110,-5,10,4,1],[135,-5,6,3,1],
-  [173,-42,2,4,1],[47,-19,3,5,1],
-  // Antarctica
-  [0,-85,180,7,1],
-  // Water cutouts
-  [-90,58,8,5,-1],[17,37,13,3,-1],[35,43,4,2,-1],[51,42,3,4,-1],
-  [-88,24,5,3,-1],[40,20,3,5,-1],[52,27,2,2,-1],
-];
-const _earthCities = [
-  [-74,41],[-87,42],[-118,34],[-122,38],[-96,33],[-80,26],[-71,43],
-  [-3,51],[2,49],[13,52],[-4,40],[12,42],[24,38],[14,48],
-  [37,56],[30,50],[116,40],[121,31],[139,36],[127,37],[107,11],
-  [77,29],[73,19],[89,23],[31,30],[3,7],[28,-26],[37,-1],
-  [-43,-23],[-58,-35],[-99,19],[-79,-2],[151,-34],[55,25],
-];
-function _earthSubsolar(){
-  const JD=Date.now()/86400000+2440587.5, n=JD-2451545.0;
-  const L=(280.460+0.9856474*n)%360;
-  const g=((357.528+0.9856003*n)%360)*Math.PI/180;
-  const lam=(L+1.915*Math.sin(g)+0.020*Math.sin(2*g))*Math.PI/180;
-  const eps=(23.439-0.0000004*n)*Math.PI/180;
-  const dec=Math.asin(Math.sin(eps)*Math.sin(lam));
-  const ra=Math.atan2(Math.cos(eps)*Math.sin(lam),Math.cos(lam));
-  const gmst=(280.46061837+360.98564736629*n)*Math.PI/180;
-  let sl=ra-gmst; sl=((sl%(2*Math.PI))+(3*Math.PI))%(2*Math.PI)-Math.PI;
-  return {lat:dec,lon:sl};
+// ─── Earth bitmap + real-time data ───
+const _EARTH_MAP_B64='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH///4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////8A//n/////4AAAAAAAAAAAAH////////////////////AB///+f/////////8A//7/////gAAAAAAAAAAAAf////////////////////AD///+//////////8A//9////+AAAAB////wAAAf////////////////////AD//////////////8A//8////8AAAAA/////////////////////////////AB//////////////8A//8////4AAAAAH////////////////////////////AA//////////////8A//4////AAAAAAH//+/////////////////////////AA//////////////8A//g///wAAAAAAP//w/////////////////////////AA//////////////8A//A//+AA/8AAAf//g/////////////////////////AA//////////////8A/+Af/4AA/8AAA///g/////////////////////////AA/////////////gEA/8AP/gAAf8AAB/+Bw/////////////////////////AA////////////8AAA/4AH/AAAAAAAB/8A+/////////////////////////AAf///////////4AAA/wAD+AAAAAAAB/4Af/////////////////////////AAP///////////wAAA/wAB+AAAAAAAB/4Af/////////////////////////AAH///////////gAAA/4AAAAAAAAAAB/4Af////////////////////////wAAH//+D///////gAAA/+AAAAAAAAB8B/4Af///////////////////////gAAAH//wAP//////gAAA//gAAAAAAAD+B/8A7//////////////////////wAAAAH/gAAB//////gAAA//4AAAAAAAD+B/+Bj//////////////////////4AAAAf8AAAA//////wAAA//8AAAAAAAB/B///D//////////////////////wAAAAAAAAAAf/////4AAA//8AAAAAAAA/j//+D//////////////////////gAAAAAAAAAAP/////8AAA//8AAAAAAAD/j//8D/////////////////////8AAAAAAAAAAAH//////gEA//+AAAAAAAD/n//4D/////////////////////gAAAAAAAAAAAD///////8A///AAAAAAAA////gD///////////////////PwAAAAAAAAAAAAB///////8A///gAAAAAAA///+AD//////////////////7wAAAAAAAAAAAAAA///////8A///AAAAAAAAf//8AD//////////////////gAAAAAAAAAAAAAAAf//////8A//+AAAAAAAAf//4AD/////////////////8AAAAAAAAAAAAAAAAf/////A8A//4AAAAAAAAP//8AAAAA/////wD/////gAAAAAAAAAAAAAAAAAAP//////8A//AAAAAAAAAH//+AAAAAz////gB/////8AAAAAAAAAAAAAAAAAAP/////zMA/wAAAAAAAAAD///AAAAAh///+AH//////AAPgAAAAAAAAAAAAAAP/////zMA/AAAAAAAAAAD//+AAAAAA///8D///////4APgAAAAAAAAAAAAAAP/////z8A8AAAAAAAAAAP//8AAAAAA///wP///////8APAAAAAAAAAAAAAAAP/////z8A4AAAAAAAAABAAAGAAAAAA///gP///////+AeAAAAAAAAAAAAAAAP//////8AgAAAAAAAAAHAAAAP/gHwA//+Af///////+AcAAAAAAAAAAAAAAAH//////8AAAAAAAAAAAPAAAAAA//wA//4D////////8AYAAAAAAAAAAAAAAAD//////8AAAAAAAAAAAPAAAAAA///A//gH////////8A4AAAAAAAAAAAAAAAD//////8AAAAAAAAAAAPAAAAAA///h/8AH///////58BwAAAAAAAAAAAAAAAD//////8AAAAAAAAAAAPAAAAAAA+/z/AAD///////w8HgAAAAAAAAAAAAAAAB//////8AAAAAAAAAAAPAB/4AAAw///gAB///////g8PAAAAAAAAAAAAAAAAA//////8AAAAAAAAAAAA//8AAAAA///wAA///////g8eAAAAAAAAAAAAAAAAAf/////8AAAAAAAAAAAB///gAAAAf//wAAf//////w48AAAAAAAAAAAAAAAAAP/////8AAAAAAAAAAAD////AAAAP//wD/n//////wBwAAAAAAAAAAAAAAAAAH/////8AAAAAAAAAAAH////+AAAP//wH/w//////wDgAAAAAAAAAAAAAAAAAH/////8AAAAAAAAAAA//////4A////wH/4P/////wDAAAAAAAAAAAAAAAAAAD/////8AAAAAAAAAAH///////B////gP/8H/////wAAAAAAAAAAAAAAAAAAAA/////8AAAAAAAAAAf///////x////AP//D/////wAAAAAAAAAAAAAAAAAAAAf//4H8AAAAAAAAAAf///////7//h+AP//5/////gAAAAAAAAAAAAAAAAAAAAP//AA8AAAAAAAAAAf////////n/A8AP//+f////AAAAAAAAAAAAAAAAAAAAAH/+AAcAAAAAAAAAAf///////9n/A4AH///H///+AAAAAAAAAAAAAAAAAAAAAD/8AAMAAAAAAAAAAf///////+D/hwAD///P///4wAAAAAAAAAAAAAAAAAAAAB/8AAIAAAAAAAAAAf////////D//wAB///P///wwAAAAAAAAAAAAAAAAAAAAA/8AAAAAAAAAAAAAf////////D//wAA///P///AwAAAAAAAAAAAAAAAAAAAAAf8AAMAAAAAAAAAAf////////D//gAA//+P//+AgAAAAAAAAAAAAAAAAAAAAAH+AAcAAAAAAAAAAf///////+B//gAA//4P//8AAAAAAAAAAAAAAAAAAAAAAAA/AAEAAAAAAAAAAf///////+B//AAAf/wP//4AAAAAAAAAAAAAAAAAAAAAAAAH4AAAAAAAAAAAAf////////B/8AAAf/gP//wAAAAAAAAAAAAAAAAAAAAAAAAD/4AAAAAAAAAAAf////////C/4AAAf/AH//gAAAAAAAAAAAAAAAAAAAAAAAAA/4AAAAAAAAAAAf////////D/wAAAf+AH//ABwAAAAAAAAAAAAAAAAAAAAAAAH4AAAAAAAAAAAf////////DfgAAAP8AD//ADwAAAAAAAAAAAAAAAAAAAAAAAB4AAAAAAAAAAAf////////n+AAAAP8AB//AD4AAAAAAAAAAAAAAAAAAAAAAAAYAAAAAAAAAAAf////////n8AAAAH4AAf/AB8AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAf/////////4AAAAHwAAP/AB+AAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAf/////////wAAAADwAAP/AA/AAAAAAAAAAAAAAAAAAAAAAAABgA//AAAAAAAf///////+A4AAAADwAAP/AA/AAAAAAAAAAAAAAAAAAAAAAAAAwA//AAAAAAAP/////AAAA/gAAADwAAP+AAfAAAAAAAAAAAAAAAAAAAAAAAAAwA//AAAAAAAH///8AAAAAf4AAAD8AAP+AAPAAAAAAAAAAAAAAAAAAAAAAAAAAA//gAAAAAAD///8AAAAAPwAAAB8AAP8AAHAAAAAAAAAAAAAAAAAAAAAAAAAAA//wAAAAAAB///8AAAAAHwAAABcAAP4AADAAAAAAAAAAAAAAAAAAAAAAAAAAA//+AAAAAAAf//8AAAAAHgAAAAIAAHw/8DAAAAAAAAAAAAAAAAAAAAAAAAAAA///gAAAAAAH//8AAAAAHAAAAAAAAHw/8AAAAAAAAAAAAAAAAAAAAAAAAAAAA///wAAAAAAB//8AAAAAPAAAAAAABzg/8AAAAAAAAAAAAAAAAAAAAAAAAAAAA///4AAAAAAAH///AAAAeAAAAAAAB7w/8AAAAAAAAAAAAAAAAAAAAAAAAAAAA///8AAAAAAAAP////8A8AAAAAAAA/4f8AAAAAAAAAAAAAAAAAAAAAAAAAAAA///8AAAAAAAAA//////wAAAAAAAA/4f8+AAAAAAAAAAAAAAAAAAAAAAAAAAA///+AAAAAAAAAf/////gAAAAAAAAfAf5+AAAAAAAAAAAAAAAAAAAAAAAAAAA////AAAAAAAAAH/////AAAAAAAAAPwf5+D+AAAAAAAAAAAAAAAAAAAAAAAEA////4AAAAAAAAD/////AAAAAAAAAH4f48B/wAAAAAAAAAAAAAAAAAAAAAAEA////+AAAAAAAAD/////AAAAAAAAAD4f48B/8AAAAAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAB////+AAAAAAAAAB8PwYA//AAAAAAAAAAAAAAAAAAAAAAAA/////+AAAAAAAA////+AAAAAAAAAA8AAYA//wAAAAAAAAAAAAAAAAAAAAAAA//////gAAAAAAA////+AAAAAAAAAAcAAwAf/4AAAAAAAAAAAAAAAAAAAAAAA//////gAAAAAAA////+AAAAAAAAAAH/gAAH/8AAAAAAAAAAAAAAAAAAAAAAA//////gAAAAAAA////+AAAAAAAAAAA/AAAB/8AAAAAAAAAAAAAAAAAAAAAAA//////gAAAAAAA////8AAAAAAAAAAAHgAAAf+AAAAAAAAAAAAAAAAAAAAAAA//////AAAAAAAA////8AAAAAAAAAAAAAAAAH/AAAAAAAAAAAAAAAAAAAAAAA//////AAAAAAAA////8AAAAAAAAAAAAAAB/4AAAAAAAAAAAAAAAAAAAAAAAA/////+AAAAAAAAf///4AAAAAAAAAAAAAAD/AAAAAAAAAAAAAAAAAAAAAAAAA/////+AAAAAAAAf///4AwAAAAAAAAAAAAH/AAAAAAAAAAAAAAAAAAAAAAAAA/////8AAAAAAAAP///4BwAAAAAAAAAAAAf/8AAAAAAAAAAAAAAAAAAAAAAAA/////4AAAAAAAAH///wDwAAAAAAAAAAAB///gAAAAAAAAAAAAAAAAAAAAAAA/////4AAAAAAAAH///wHwAAAAAAAAAAAD///wAAAAAAAAAAAAAAAAAAAAAAA/////4AAAAAAAAD///gPwAAAAAAAAAAAH///4AAAAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAAB///gPwAAAAAAAAAAAP///8AAAAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAAA///gPwAAAAAAAAAAA////8AAAAAAAAAAAAAAAAAAAAAAAf////wAAAAAAAAAf//AfgAAAAAAAAAAP////+AAAAAAAAAAAAAAAAAAAAAAAP////wAAAAAAAAAP//AfgAAAAAAAAAA/////+AAAAAAAAAAAAAAAAAAAAAAAP////gAAAAAAAAAH//AfAAAAAAAAAAA//////AAAAAAAAAAAAAAAAAAAAAAAP////gAAAAAAAAAH//AfAAAAAAAAAAA//////gAAAAAAAAAAAAAAAAAAAAAAP////AAAAAAAAAAH/+AOAAAAAAAAAAB//////wAAAAAAAAAAAAAAAAAAAAAAP///+AAAAAAAAAAD/+AOAAAAAAAAAAB//////wAAAAAAAAAAAAAAAAAAAAAAP///4AAAAAAAAAAD/+AEAAAAAAAAAAB//////4AAAAAAAAAAAAAAAAAAAAAAP///wAAAAAAAAAAB/8AAAAAAAAAAAAB//////4AAAAAAAAAAAAAAAAAAAAAAf///gAAAAAAAAAAB/8AAAAAAAAAAAAA//////4AAAAAAAAAAAAAAAAAAAAAAf///AAAAAAAAAAAA/8AAAAAAAAAAAAA//////4AAAAAAAAAAAAAAAAAAAAAAf//+AAAAAAAAAAAAf4AAAAAAAAAAAAAf/////4AAAAAAAAAAAAAAAAAAAAAAf//8AAAAAAAAAAAAf4AAAAAAAAAAAAAf/////4AAAAAAAAAAAAAAAAAAAAAAf//4AAAAAAAAAAAAfwAAAAAAAAAAAAAf/////wAAAAAAAAAAAAAAAAAAAAAAf//wAAAAAAAAAAAAPgAAAAAAAAAAAAAf/////wAAAAAAAAAAAAAAAAAAAAAAf//AAAAAAAAAAAAA/AAAAAAAAAAAAAAP/////gAAAAAAAAAAAAAAAAAAAAAAf/+AAAAAAAAAAAAP+AAAAAAAAAAAAAAAf////gAAD4AAAAAAAAAAAAAAAAAAf/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///AAAB8AAAAAAAAAAAAAAAAAA//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/AAAA8AAAAAAAAAAAAAAAAAA//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD+AAAA8AAAAAAAAAAAAAAAAAA//gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AAAA8AAAAAAAAAAAAAAAAAA/+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAAAAAAf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+AAAA4AAAAAAAAAAAAAAAAAAB4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+AAAAQAAAAAAAAAAAAAAAAAAB4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+AAA/AAAAAAAAAAAAAAAAAAAPwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcAAB+AAAAAAAAAAAAAAAAAAA/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB8AAAAAAAAAAAAAAAAAAA/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD4AAAAAAAAAAAAAAAAAAA/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADgAAAAAAAAAAAAAAAAAAA+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////////////////////8A//////////////////////////////////////////';
+const _EARTH_W=360,_EARTH_H=180;
+let _earthMapBuf=null;
+function _earthInitMap(){
+  if(_earthMapBuf) return;
+  const b=atob(_EARTH_MAP_B64);
+  _earthMapBuf=new Uint8Array(b.length);
+  for(let i=0;i<b.length;i++) _earthMapBuf[i]=b.charCodeAt(i);
+}
+function _earthIsLand(lonDeg,latDeg){
+  _earthInitMap();
+  const x=Math.floor(((lonDeg+180)%360+360)%360)%_EARTH_W;
+  const y=Math.max(0,Math.min(_EARTH_H-1,Math.floor(89.5-latDeg+0.5)));
+  const i=y*_EARTH_W+x;
+  return (_earthMapBuf[i>>3]>>(7-(i&7)))&1;
 }
 const _cloudLats=[-75,-45,-15,15,45,75], _cloudLons=[-165,-135,-105,-75,-45,-15,15,45,75,105,135,165];
 const _cloudCache={grid:null,ts:0};
@@ -12603,35 +12573,6 @@ function _earthCloudAt(lonD,latD){
   return g[yi*12+xi]*(1-fx)*(1-fy)+g[yi*12+xi2]*fx*(1-fy)+g[yi2*12+xi]*(1-fx)*fy+g[yi2*12+xi2]*fx*fy;
 }
 
-let _earthUserRot=0, _earthDragInit=false;
-function _earthInitDrag(){
-  if(_earthDragInit) return;
-  _earthDragInit=true;
-  const c=document.querySelector('canvas');
-  if(!c) return;
-  let active=false, lastX=0, vel=0, lastT=0;
-  const start=x=>{active=true;lastX=x;vel=0;lastT=Date.now();};
-  const move=x=>{
-    if(!active) return;
-    const bEl=document.querySelector('input[name="celestial-body"]:checked');
-    if(!bEl||bEl.value!=='earth'){active=false;return;}
-    const dx=x-lastX;
-    const now=Date.now(), dt=Math.max(1,now-lastT);
-    vel=dx/dt*16;
-    _earthUserRot-=dx*0.012;
-    lastX=x; lastT=now;
-  };
-  const end=()=>{active=false;};
-  c.addEventListener('mousedown',e=>start(e.clientX));
-  c.addEventListener('mousemove',e=>{if(active){e.preventDefault();move(e.clientX);}});
-  c.addEventListener('mouseup',end);c.addEventListener('mouseleave',end);
-  c.addEventListener('touchstart',e=>{e.preventDefault();start(e.touches[0].clientX);},{passive:false});
-  c.addEventListener('touchmove',e=>{if(active){e.preventDefault();move(e.touches[0].clientX);}},{passive:false});
-  c.addEventListener('touchend',end);
-  const tick=()=>{if(!active&&Math.abs(vel)>0.001){_earthUserRot-=vel;vel*=0.95;}requestAnimationFrame(tick);};
-  tick();
-}
-
 function drawPlanet(body, faces, S, tt){
   // Use max available space: 2px margins on all sides, text occupies v=1-5 + 2px buffer
   const textTop=7;
@@ -12654,14 +12595,11 @@ function drawPlanet(body, faces, S, tt){
   const now=new Date();
   const daysSinceJ2000=(now.getTime()-946728000000)/86400000;
   const period=rotPeriods[body]||1;
-  let rot=(daysSinceJ2000/period)*Math.PI*2;
-  let cosR=Math.cos(rot), sinR=Math.sin(rot);
+  const rot=(daysSinceJ2000/period)*Math.PI*2;
+  const cosR=Math.cos(rot), sinR=Math.sin(rot);
 
   if(body==='earth'){
     _earthFetchClouds();
-    _earthInitDrag();
-    rot=_earthUserRot;
-    cosR=Math.cos(rot); sinR=Math.sin(rot);
   }
 
   for(const face of faces){
@@ -12707,20 +12645,14 @@ function drawPlanet(body, faces, S, tt){
         const eLat=Math.asin(tdy), eLon=Math.atan2(rdx,rnz);
         const eLatD=eLat*180/Math.PI, eLonD=eLon*180/Math.PI;
         const eAbsLat=Math.abs(eLatD);
-        // Land test
-        let eLand=false;
-        for(const [clo,cla,rlo,rla,typ] of _earthLand){
-          let dl=eLonD-clo; if(dl>180)dl-=360; if(dl<-180)dl+=360;
-          if(dl*dl/(rlo*rlo)+(eLatD-cla)*(eLatD-cla)/(rla*rla)<1) eLand=typ>0;
-        }
-        // Terrain color
+        const eLand=_earthIsLand(eLonD,eLatD);
         if(eLand){
           if(eAbsLat>72){ pr=0.82; pg=0.86; pb=0.90; }
           else if(eAbsLat>58){ pr=0.28; pg=0.38; pb=0.22; }
           else if(eAbsLat<28&&((eLonD>-18&&eLonD<42&&eLatD>15)||(eLonD>42&&eLonD<62&&eLatD>14&&eLatD<32)||(eLonD>118&&eLonD<152&&eLatD<-14&&eLatD>-32))){
-            pr=0.72; pg=0.58; pb=0.32; // Desert
-          } else if(eAbsLat<18){ pr=0.10; pg=0.36; pb=0.08; } // Tropical
-          else { pr=0.20; pg=0.42; pb=0.14; } // Temperate
+            pr=0.72; pg=0.58; pb=0.32;
+          } else if(eAbsLat<18){ pr=0.10; pg=0.36; pb=0.08; }
+          else { pr=0.20; pg=0.42; pb=0.14; }
           pr+=noise*0.8; pg+=noise*0.8; pb+=noise*0.5;
           const elev=Math.sin(eLon*5+eLat*7)*0.5+Math.sin(eLon*11-eLat*9)*0.3;
           if(elev>0.3){const ef=(elev-0.3)*0.08; pr+=ef; pg+=ef*0.7; pb+=ef*0.5;}
@@ -12729,7 +12661,6 @@ function drawPlanet(body, faces, S, tt){
           const wd=(Math.sin(eLon*7+eLat*5)*0.5+0.5)*0.06;
           pr+=wd*0.1; pg+=wd*0.3; pb+=wd;
         }
-        // Clouds — real-time from API with procedural detail
         let cc=_earthCloudAt(eLonD,eLatD);
         const cn1=Math.sin(rdx*9+tdy*7+tt*0.3)*0.5+0.5;
         const cn2=Math.sin(rdx*16-tdy*11+tt*0.15)*0.5+0.5;
@@ -12740,7 +12671,6 @@ function drawPlanet(body, faces, S, tt){
           const cf=Math.min(0.85,(cc-0.25)*1.2);
           pr=pr*(1-cf)+0.92*cf; pg=pg*(1-cf)+0.94*cf; pb=pb*(1-cf)+0.97*cf;
         }
-        // Atmospheric limb glow
         const atm=(1-nz)*(1-nz)*0.3;
         pr+=atm*0.25; pg+=atm*0.45; pb+=atm*0.9;
       } else if(body==='mars'){
