@@ -12446,13 +12446,13 @@ function drawSaturn(faces, S, tt){
       if(d2<=1){
         const nz=Math.sqrt(1-d2);
         const limb=0.7+0.3*nz;
-        // Saturn axial tilt 26.7° and slow rotation
+        // Saturn axial tilt 26.7° — rotate in screen plane to match ring tilt
         const stilt=26.7*Math.PI/180;
         const sct=Math.cos(stilt), sst=Math.sin(stilt);
-        const sdx=dx, sdy=dy*sct-nz*sst, snz=dy*sst+nz*sct;
+        const stdx=dx*sct+dy*sst, stdy=-dx*sst+dy*sct;
         const srot=tt*0.04;
-        const srdx=sdx*Math.cos(srot)-snz*Math.sin(srot);
-        const band=sdy;
+        const srdx=stdx*Math.cos(srot)-nz*Math.sin(srot);
+        const band=stdy;
         pr=0.82; pg=0.72; pb=0.52;
         const b1=Math.sin(band*12)*0.08;
         const b2=Math.sin(band*25+1.5)*0.04;
@@ -12507,8 +12507,8 @@ function drawPlanet(body, faces, S, tt){
   const cx=S/2;
   const halfH=Math.min(cy-textTop, topLimit-cy);
   const halfW=cx-2;
-  // Sun corona extends 1.8x, axis lines 1.22x, normal planets 1x
-  const extent=body==='sun'?1.8:body==='blackhole'?1.5:1.22;
+  // Sun corona extends 1.8x, blackhole 1.5x; axis lines can extend to edge
+  const extent=body==='sun'?1.8:body==='blackhole'?1.5:1.0;
   const pRad=Math.max(4,Math.round(Math.min(halfH,halfW)/extent));
   const rng=(s)=>((s*2654435761)>>>0)/4294967296;
   // Axial tilt (degrees) per planet
@@ -12528,10 +12528,10 @@ function drawPlanet(body, faces, S, tt){
       const nz=Math.sqrt(1-d2);
       const limb=0.7+0.3*nz;
       const illum=0.6+0.4*(dx*0.5+nz*0.7);
-      // Tilt sphere coords to match planet's axial tilt, then rotate
-      const tdy=dy*ct-nz*st, tnz=dy*st+nz*ct;
-      const rdx=dx*cosR-tnz*sinR;
-      const rnz=dx*sinR+tnz*cosR;
+      // Tilt in screen plane so bands visually match axis angle, then rotate
+      const tdx=dx*ct+dy*st, tdy=-dx*st+dy*ct;
+      const rdx=tdx*cosR-nz*sinR;
+      const rnz=tdx*sinR+nz*cosR;
       const noise=(rng(u*7919+v*6271)*2-1)*0.03;
       let pr,pg,pb;
 
