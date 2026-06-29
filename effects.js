@@ -12393,12 +12393,10 @@ function drawSaturn(faces, S, tt){
   const cx=S/2;
   const halfW=cx-2;
   const halfH=Math.min(cy-textTop, topLimit-cy);
-  // Rings extend to 1.95*pRad horizontally; fit within margins
+  // Rings extend to 1.95*pRad; fit within margins
   const pRad=Math.max(4,Math.round(Math.min(halfW/1.95, halfH)));
   const ringInner=pRad*1.25, ringOuter=pRad*1.95;
   // Saturn ring tilt as seen from Earth for current date
-  // Ring plane: inclination 26.73° to ecliptic, ascending node Ω=169.5°
-  // Saturn mean helio longitude: L0=50.077° at J2000, moves 0.03346°/day
   const now=new Date();
   const daysSinceJ2000=(now.getTime()-946728000000)/86400000;
   const satLonDeg=(50.077+0.03346*daysSinceJ2000)%360;
@@ -12406,6 +12404,9 @@ function drawSaturn(faces, S, tt){
   const B=Math.asin(Math.sin(ringIncl)*Math.sin((satLonDeg-ringNode)*Math.PI/180));
   const tiltY=Math.max(0.06,Math.abs(Math.sin(B)));
   const ringFromNorth=B>0;
+  // Screen-plane axial tilt 26.7° — rings and bands both use this
+  const stilt=26.7*Math.PI/180;
+  const sct=Math.cos(stilt), sst=Math.sin(stilt);
   const rng=(s)=>((s*2654435761)>>>0)/4294967296;
 
   for(const face of faces){
@@ -12415,11 +12416,12 @@ function drawSaturn(faces, S, tt){
       const dx=px/pRad, dy=py/pRad;
       const d2=dx*dx+dy*dy;
 
-      // Ring check (ellipse)
-      const ringDx=px, ringDy=py/tiltY;
+      // Rotate pixel coords by axial tilt for ring ellipse test
+      const rpx=px*sct-py*sst, rpy=px*sst+py*sct;
+      const ringDx=rpx, ringDy=rpy/tiltY;
       const ringDist=Math.sqrt(ringDx*ringDx+ringDy*ringDy);
       const onRing=ringDist>=ringInner && ringDist<=ringOuter;
-      const ringBehind=ringFromNorth?(py>0):(py<0);
+      const ringBehind=ringFromNorth?(rpy>0):(rpy<0);
 
       let pr=-1,pg=-1,pb=-1;
 
@@ -12446,10 +12448,8 @@ function drawSaturn(faces, S, tt){
       if(d2<=1){
         const nz=Math.sqrt(1-d2);
         const limb=0.7+0.3*nz;
-        // Saturn axial tilt 26.7° — rotate in screen plane to match ring tilt
-        const stilt=26.7*Math.PI/180;
-        const sct=Math.cos(stilt), sst=Math.sin(stilt);
-        const stdx=dx*sct+dy*sst, stdy=-dx*sst+dy*sct;
+        // Bands tilted by same screen rotation as rings
+        const stdx=dx*sct-dy*sst, stdy=dx*sst+dy*sct;
         const srot=tt*0.04;
         const srdx=stdx*Math.cos(srot)-nz*Math.sin(srot);
         const band=stdy;
@@ -12470,8 +12470,8 @@ function drawSaturn(faces, S, tt){
         const illum=0.6+0.4*(dx*0.5+nz*0.7);
         pr*=limb*illum; pg*=limb*illum; pb*=limb*illum;
         const shadowOff=ringFromNorth?-tiltY*0.4:tiltY*0.4;
-        const shadowBand=Math.exp(-Math.pow((dy+shadowOff)*6,2))*0.25;
-        if(dx<0.3){ pr-=shadowBand; pg-=shadowBand; pb-=shadowBand; }
+        const shadowBand=Math.exp(-Math.pow((stdy+shadowOff)*6,2))*0.25;
+        if(stdx<0.3){ pr-=shadowBand; pg-=shadowBand; pb-=shadowBand; }
       }
 
       // 3. Front ring (draws OVER planet body)
@@ -12528,8 +12528,8 @@ function drawPlanet(body, faces, S, tt){
       const nz=Math.sqrt(1-d2);
       const limb=0.7+0.3*nz;
       const illum=0.6+0.4*(dx*0.5+nz*0.7);
-      // Tilt in screen plane so bands visually match axis angle, then rotate
-      const tdx=dx*ct+dy*st, tdy=-dx*st+dy*ct;
+      // Tilt in screen plane so bands visually match axis line angle, then rotate
+      const tdx=dx*ct-dy*st, tdy=dx*st+dy*ct;
       const rdx=tdx*cosR-nz*sinR;
       const rnz=tdx*sinR+nz*cosR;
       const noise=(rng(u*7919+v*6271)*2-1)*0.03;
@@ -12704,7 +12704,7 @@ function drawPlanet(body, faces, S, tt){
 
   // Axis line through north and south poles (skip sun, blackhole, solarsystem)
   if(body!=='sun'&&body!=='blackhole'&&body!=='solarsystem'){
-    const axDx=Math.sin(tiltRad), axDy=-Math.cos(tiltRad);
+    const axDx=Math.sin(tiltRad), axDy=Math.cos(tiltRad);
     const axLen=pRad*0.22;
     for(const face of faces){
       for(let pole=-1;pole<=1;pole+=2){
@@ -13032,7 +13032,10 @@ function effectMoon(dt){
   const ph=mi.phase;
   const pName=ph<0.03?'New Moon':ph<0.22?'Waxing Crescent':ph<0.28?'First Quarter':ph<0.47?'Waxing Gibbous':ph<0.53?'Full Moon':ph<0.72?'Waning Gibbous':ph<0.78?'Last Quarter':ph<0.97?'Waning Crescent':'New Moon';
   const bodyNames={blackhole:'Black Hole',solarsystem:'Solar System'};
-  const moonText=body==='moon'?`${pName} ${illum}%`:(bodyNames[body]||body.charAt(0).toUpperCase()+body.slice(1));
+  const axisTilts={mercury:0.03,venus:177.4,earth:23.4,mars:25.2,jupiter:3.1,saturn:26.7,uranus:97.8,neptune:28.3,pluto:122.5,sun:7.25};
+  const tiltDeg=axisTilts[body];
+  const tiltStr=tiltDeg!==undefined?` ${Math.round(tiltDeg)}°`:'';
+  const moonText=body==='moon'?`${pName} ${illum}%`:(bodyNames[body]||body.charAt(0).toUpperCase()+body.slice(1))+tiltStr;
   if(!this._mf){
     this._mf={
       '0':[7,5,5,5,7],'1':[6,2,2,2,7],'2':[7,1,7,4,7],'3':[7,1,3,1,7],
@@ -13044,7 +13047,7 @@ function effectMoon(dt){
       M:[7,7,5,5,5],N:[7,5,5,5,5],O:[7,5,5,5,7],P:[6,5,6,4,4],
       Q:[7,5,5,7,1],R:[6,5,6,5,5],S:[3,4,2,1,6],T:[7,2,2,2,2],
       U:[5,5,5,5,7],V:[5,5,5,5,2],W:[5,5,5,7,5],X:[5,5,2,5,5],
-      Y:[5,5,2,2,2],Z:[7,1,2,4,7]
+      Y:[5,5,2,2,2],Z:[7,1,2,4,7],'°':[2,5,2,0,0]
     };
     this._moonScrollX=0;
   }
