@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=635">
+<link rel="stylesheet" href="style.css?v=636">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -449,7 +449,7 @@
       </div>
       <div style="margin-top:8px;">
         <div style="font-size:13px;color:#778;margin-bottom:4px;">Celestial Body</div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px 8px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;">
           <label class="check-row"><input type="radio" name="celestial-body" value="moon" checked> Moon</label>
           <label class="check-row"><input type="radio" name="celestial-body" value="mercury"> Mercury</label>
           <label class="check-row"><input type="radio" name="celestial-body" value="venus"> Venus</label>
@@ -462,7 +462,7 @@
           <label class="check-row"><input type="radio" name="celestial-body" value="pluto"> Pluto</label>
           <label class="check-row"><input type="radio" name="celestial-body" value="sun"> Sun</label>
           <label class="check-row"><input type="radio" name="celestial-body" value="comet"> Comet</label>
-          <label class="check-row"><input type="radio" name="celestial-body" value="blackhole"> Black Hole</label>
+          <label class="check-row" style="grid-column:span 2;"><input type="radio" name="celestial-body" value="blackhole"> Black Hole</label>
         </div>
       </div>
     </div>
@@ -1076,7 +1076,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=635"></script>
+<script src="version.js?v=636"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -1111,7 +1111,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=635','effects.js?v=635','ui.js?v=635'];
+  const appScripts = ['cube.js?v=636','effects.js?v=636','ui.js?v=636'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
