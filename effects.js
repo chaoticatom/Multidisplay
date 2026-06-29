@@ -12615,19 +12615,70 @@ function drawPlanet(body, faces, S, tt){
         const atm=Math.sin(rdx*8)*0.03;
         pg+=atm*0.5; pb+=atm;
       } else if(body==='pluto'){
-        pr=0.72+noise; pg=0.65+noise; pb=0.55+noise;
-        const hx=rdx+0.05, hy=tdy+0.1;
-        const heart=Math.pow(hx*hx+hy*hy-0.09,3)-hx*hx*hy*hy*hy;
-        if(heart<0){ pr+=0.15; pg+=0.15; pb+=0.12; }
-        const eq=Math.exp(-tdy*tdy*20)*0.1;
-        pr-=eq; pg-=eq*0.8; pb-=eq*0.5;
-        const tholin=Math.sin(rdx*8+tdy*6)*0.04;
-        pr+=tholin*1.5; pg+=tholin*0.5;
-        for(let ci=0;ci<6;ci++){
-          const ccx2=(rng(ci*8731)*2-1)*0.5, ccy2=(rng(ci*4217)*2-1)*0.5;
-          const cr2=0.04+rng(ci*2917)*0.06;
+        // Base: warm tan-pink like New Horizons imagery
+        pr=0.68+noise; pg=0.58+noise; pb=0.48+noise;
+
+        // Tombaugh Regio (the heart) — two lobes
+        // Left lobe: Sputnik Planitia — smooth bright nitrogen ice
+        const spX=rdx+0.18, spY=tdy+0.05;
+        const spD=Math.sqrt(spX*spX*1.3+spY*spY*1.6);
+        const spR=0.28;
+        if(spD<spR){
+          const f=Math.pow(1-spD/spR,0.6);
+          // Bright cream-white ice with subtle polygon texture
+          const poly=Math.sin(spX*40)*Math.sin(spY*35)*0.015;
+          pr=pr*(1-f)+(0.88+poly)*f;
+          pg=pg*(1-f)+(0.85+poly)*f;
+          pb=pb*(1-f)+(0.78+poly)*f;
+        }
+        // Right lobe — rougher, slightly less bright
+        const rlX=rdx-0.12, rlY=tdy+0.02;
+        const rlD=Math.sqrt(rlX*rlX*1.8+rlY*rlY*1.4);
+        const rlR=0.22;
+        if(rlD<rlR){
+          const f=Math.pow(1-rlD/rlR,0.5)*0.75;
+          const rough=(rng(Math.floor(rdx*30)*997+Math.floor(tdy*30)*631)*2-1)*0.04;
+          pr=pr*(1-f)+(0.82+rough)*f;
+          pg=pg*(1-f)+(0.78+rough)*f;
+          pb=pb*(1-f)+(0.70+rough)*f;
+        }
+
+        // Cthulhu Macula — large dark reddish-brown region (west/left of heart)
+        const cmX=rdx+0.55, cmY=tdy+0.05;
+        const cmD=Math.sqrt(cmX*cmX*0.6+cmY*cmY*2.5);
+        if(cmD<0.4){
+          const f=Math.pow(1-cmD/0.4,0.8)*0.55;
+          pr=pr*(1-f)+0.30*f;
+          pg=pg*(1-f)+0.18*f;
+          pb=pb*(1-f)+0.12*f;
+        }
+
+        // Dark equatorial band (tholins) — wraps around except through the heart
+        const eqBand=Math.exp(-tdy*tdy*12)*0.18;
+        const heartMask=Math.max(0,1-Math.max(0,1-spD/spR)*2-Math.max(0,1-rlD/rlR)*2);
+        const eqF=eqBand*heartMask;
+        pr-=eqF*0.6; pg-=eqF*0.8; pb-=eqF*0.9;
+
+        // Lighter polar regions — nitrogen frost
+        if(Math.abs(tdy)>0.55){
+          const pf=Math.min(1,(Math.abs(tdy)-0.55)*3)*0.2;
+          pr+=pf*0.9; pg+=pf*0.85; pb+=pf*0.75;
+        }
+
+        // Subtle mottled surface texture
+        const t1=Math.sin(rdx*14+tdy*11)*0.025;
+        const t2=Math.sin(rdx*23-tdy*17)*0.015;
+        pr+=t1+t2; pg+=(t1+t2)*0.7; pb+=(t1+t2)*0.4;
+
+        // Small dark patches (craters/terrain variation)
+        for(let ci=0;ci<10;ci++){
+          const ccx2=(rng(ci*8731)*2-1)*0.7, ccy2=(rng(ci*4217)*2-1)*0.7;
+          const cr2=0.03+rng(ci*2917)*0.05;
           const cd2=Math.sqrt((rdx-ccx2)*(rdx-ccx2)+(tdy-ccy2)*(tdy-ccy2));
-          if(cd2<cr2){ pr-=0.06*(1-cd2/cr2); pg-=0.05*(1-cd2/cr2); }
+          if(cd2<cr2){
+            const cf=0.06*(1-cd2/cr2);
+            pr-=cf; pg-=cf*0.8; pb-=cf*0.6;
+          }
         }
       }
 
