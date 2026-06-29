@@ -12689,6 +12689,32 @@ function drawPlanet(body, faces, S, tt){
     }
   }
 
+  // Axis line through north and south poles (skip sun, blackhole, solarsystem)
+  if(body!=='sun'&&body!=='blackhole'&&body!=='solarsystem'){
+    const axDx=Math.sin(tiltRad), axDy=-Math.cos(tiltRad);
+    const axLen=pRad*0.22;
+    for(const face of faces){
+      for(let pole=-1;pole<=1;pole+=2){
+        const startX=cx+pole*axDx*(pRad+1);
+        const startY=cy+pole*axDy*(pRad+1);
+        const endX=cx+pole*axDx*(pRad+axLen);
+        const endY=cy+pole*axDy*(pRad+axLen);
+        const steps=Math.ceil(axLen*1.5);
+        for(let s=0;s<=steps;s++){
+          const frac=s/steps;
+          const u=Math.round(startX+(endX-startX)*frac);
+          const v=Math.round(startY+(endY-startY)*frac);
+          if(u<0||u>=S||v<0||v>=S) continue;
+          const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+          const fade=0.35*(1-frac*0.5);
+          colBuf[idx*3]=Math.max(colBuf[idx*3],fade);
+          colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],fade);
+          colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],fade*1.2);
+        }
+      }
+    }
+  }
+
   // Sun: rendered separately with glow (no limb darkening/illum)
   if(body==='sun'){
     for(const face of faces){
