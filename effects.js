@@ -12433,7 +12433,13 @@ function drawSaturn(faces, S, tt){
       if(d2<=1){
         const nz=Math.sqrt(1-d2);
         const limb=0.7+0.3*nz;
-        const band=dy;
+        // Saturn axial tilt 26.7° and slow rotation
+        const stilt=26.7*Math.PI/180;
+        const sct=Math.cos(stilt), sst=Math.sin(stilt);
+        const sdx=dx, sdy=dy*sct-nz*sst, snz=dy*sst+nz*sct;
+        const srot=tt*0.04;
+        const srdx=sdx*Math.cos(srot)-snz*Math.sin(srot);
+        const band=sdy;
         pr=0.82; pg=0.72; pb=0.52;
         const b1=Math.sin(band*12)*0.08;
         const b2=Math.sin(band*25+1.5)*0.04;
@@ -12483,6 +12489,12 @@ function drawPlanet(body, faces, S, tt){
   const cx=S/2, cy=S/2+4;
   const pRad=Math.round(S*0.38);
   const rng=(s)=>((s*2654435761)>>>0)/4294967296;
+  // Axial tilt (degrees) per planet
+  const tilts={mercury:0.03,venus:177.4,earth:23.4,mars:25.2,jupiter:3.1,uranus:97.8,neptune:28.3,pluto:122.5,sun:7.25};
+  const tiltRad=(tilts[body]||0)*Math.PI/180;
+  const ct=Math.cos(tiltRad), st=Math.sin(tiltRad);
+  const rot=tt*0.04*(body==='venus'?-1:1);
+  const cosR=Math.cos(rot), sinR=Math.sin(rot);
 
   for(const face of faces){
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
@@ -12494,10 +12506,10 @@ function drawPlanet(body, faces, S, tt){
       const nz=Math.sqrt(1-d2);
       const limb=0.7+0.3*nz;
       const illum=0.6+0.4*(dx*0.5+nz*0.7);
-      // Rotate surface coordinates for slow spin
-      const rot=tt*0.04;
-      const rdx=dx*Math.cos(rot)-nz*Math.sin(rot);
-      const rnz=dx*Math.sin(rot)+nz*Math.cos(rot);
+      // Tilt sphere coords to match planet's axial tilt, then rotate
+      const tdy=dy*ct-nz*st, tnz=dy*st+nz*ct;
+      const rdx=dx*cosR-tnz*sinR;
+      const rnz=dx*sinR+tnz*cosR;
       const noise=(rng(u*7919+v*6271)*2-1)*0.03;
       let pr,pg,pb;
 
@@ -12508,63 +12520,63 @@ function drawPlanet(body, faces, S, tt){
         for(let ci=0;ci<20;ci++){
           const ccx=(rng(ci*1237)*2-1)*0.7, ccy=(rng(ci*3571)*2-1)*0.7;
           const cr=0.04+rng(ci*4919)*0.08;
-          const cdx=rdx-ccx, cdy=dy-ccy;
+          const cdx=rdx-ccx, cdy=tdy-ccy;
           const cd=Math.sqrt(cdx*cdx+cdy*cdy);
           if(cd<cr) { const f=0.12*(1-cd/cr); pr-=f; pg-=f; pb-=f; }
           else if(cd<cr*1.3) { const f=0.06; pr+=f; pg+=f; pb+=f; }
         }
-        pr+=Math.sin(rdx*8+dy*6)*0.03;
-        pg+=Math.sin(rdx*6-dy*8)*0.02;
+        pr+=Math.sin(rdx*8+tdy*6)*0.03;
+        pg+=Math.sin(rdx*6-tdy*8)*0.02;
       } else if(body==='venus'){
         pr=0.90+noise*0.5; pg=0.85+noise*0.5; pb=0.70+noise*0.5;
-        const cloud1=Math.sin(dy*10+Math.sin(rdx*4)*2)*0.06;
-        const cloud2=Math.sin(dy*18+rdx*3)*0.03;
-        const cloud3=Math.sin((rdx+dy)*7)*0.04;
+        const cloud1=Math.sin(tdy*10+Math.sin(rdx*4)*2)*0.06;
+        const cloud2=Math.sin(tdy*18+rdx*3)*0.03;
+        const cloud3=Math.sin((rdx+tdy)*7)*0.04;
         pr+=cloud1+cloud2; pg+=cloud1+cloud2+cloud3; pb+=cloud1*0.5+cloud3;
         const limbGlow=(1-nz)*0.15;
         pr+=limbGlow*0.8; pg+=limbGlow*0.7; pb+=limbGlow*0.5;
       } else if(body==='earth'){
         pr=0.15; pg=0.30; pb=0.65;
-        const cont=Math.sin(rdx*6+dy*4)*0.5+Math.sin(dy*8-rdx*3)*0.3+Math.sin((rdx+dy)*5)*0.2;
+        const cont=Math.sin(rdx*6+tdy*4)*0.5+Math.sin(tdy*8-rdx*3)*0.3+Math.sin((rdx+tdy)*5)*0.2;
         if(cont>0.15){
           const lf=Math.min(1,(cont-0.15)*2.5);
           pr=pr*(1-lf)+(0.35+noise)*lf;
           pg=pg*(1-lf)+(0.50+noise)*lf;
           pb=pb*(1-lf)+(0.20+noise)*lf;
-          if(Math.abs(dy)<0.3 && cont>0.35){ pr+=0.15; pg+=0.05; pb-=0.1; }
+          if(Math.abs(tdy)<0.3 && cont>0.35){ pr+=0.15; pg+=0.05; pb-=0.1; }
         }
-        if(Math.abs(dy)>0.75){
-          const iceFrac=Math.min(1,(Math.abs(dy)-0.75)*5);
+        if(Math.abs(tdy)>0.75){
+          const iceFrac=Math.min(1,(Math.abs(tdy)-0.75)*5);
           pr=pr*(1-iceFrac)+0.9*iceFrac;
           pg=pg*(1-iceFrac)+0.92*iceFrac;
           pb=pb*(1-iceFrac)+0.95*iceFrac;
         }
-        const cw=Math.sin(rdx*12+dy*8)*0.5+0.5;
+        const cw=Math.sin(rdx*12+tdy*8)*0.5+0.5;
         if(cw>0.7){ const cf=(cw-0.7)*0.4; pr+=cf; pg+=cf; pb+=cf; }
         const atm=(1-nz)*0.12;
         pr+=atm*0.3; pg+=atm*0.5; pb+=atm*1.0;
       } else if(body==='mars'){
         pr=0.75+noise; pg=0.35+noise*0.7; pb=0.15+noise*0.4;
-        const m1=Math.exp(-((rdx-0.1)*(rdx-0.1)+(dy+0.1)*(dy+0.1))*8)*0.15;
-        const m2=Math.exp(-((rdx+0.3)*(rdx+0.3)+(dy-0.2)*(dy-0.2))*6)*0.12;
-        const m3=Math.exp(-((rdx-0.4)*(rdx-0.4)+(dy+0.3)*(dy+0.3))*10)*0.10;
+        const m1=Math.exp(-((rdx-0.1)*(rdx-0.1)+(tdy+0.1)*(tdy+0.1))*8)*0.15;
+        const m2=Math.exp(-((rdx+0.3)*(rdx+0.3)+(tdy-0.2)*(tdy-0.2))*6)*0.12;
+        const m3=Math.exp(-((rdx-0.4)*(rdx-0.4)+(tdy+0.3)*(tdy+0.3))*10)*0.10;
         pr-=m1+m2+m3; pg-=m1*0.5+m2*0.4+m3*0.3;
-        if(dy<-0.7){ const f=Math.min(1,(-0.7-dy)*4); pr+=f*0.25; pg+=f*0.25; pb+=f*0.30; }
-        if(dy>0.75){ const f=Math.min(1,(dy-0.75)*5); pr+=f*0.20; pg+=f*0.20; pb+=f*0.25; }
-        const dust=Math.sin(rdx*6+dy*4)*0.04;
+        if(tdy<-0.7){ const f=Math.min(1,(-0.7-tdy)*4); pr+=f*0.25; pg+=f*0.25; pb+=f*0.30; }
+        if(tdy>0.75){ const f=Math.min(1,(tdy-0.75)*5); pr+=f*0.20; pg+=f*0.20; pb+=f*0.25; }
+        const dust=Math.sin(rdx*6+tdy*4)*0.04;
         pr+=dust; pg+=dust*0.5;
       } else if(body==='jupiter'){
         pr=0.80+noise; pg=0.70+noise; pb=0.55+noise;
-        const b1=Math.sin(dy*14)*0.10;
-        const b2=Math.sin(dy*28+1.5)*0.06;
-        const b3=Math.sin(dy*55+3)*0.03;
-        const b4=Math.sin(dy*7)*0.08;
+        const b1=Math.sin(tdy*14)*0.10;
+        const b2=Math.sin(tdy*28+1.5)*0.06;
+        const b3=Math.sin(tdy*55+3)*0.03;
+        const b4=Math.sin(tdy*7)*0.08;
         pr+=b1+b2+b3+b4;
         pg+=b1*0.7+b2*0.6+b3+b4*0.8;
         pb+=b1*0.2+b2*0.1+b3*0.5+b4*0.3;
-        const turb=Math.sin(rdx*15+Math.sin(dy*20)*3)*0.03;
+        const turb=Math.sin(rdx*15+Math.sin(tdy*20)*3)*0.03;
         pr+=turb; pg+=turb*0.8;
-        const spotDx2=(rdx-0.3)/0.18, spotDy=(dy-0.2)/0.12;
+        const spotDx2=(rdx-0.3)/0.18, spotDy=(tdy-0.2)/0.12;
         const spotD=spotDx2*spotDx2+spotDy*spotDy;
         if(spotD<1){
           const sf=(1-spotD)*0.3;
@@ -12572,22 +12584,20 @@ function drawPlanet(body, faces, S, tt){
           const swirl=Math.sin(Math.atan2(spotDy,spotDx2)*3)*0.05;
           pr+=swirl; pg+=swirl*0.3;
         }
-        const polar=Math.exp(-Math.pow(dy*1.8,4))*0.12;
+        const polar=Math.exp(-Math.pow(tdy*1.8,4))*0.12;
         pr-=polar*0.2; pg-=polar*0.15; pb+=polar*0.05;
       } else if(body==='uranus'){
         pr=0.60+noise*0.5; pg=0.82+noise*0.5; pb=0.85+noise*0.5;
-        const tiltAng=98*Math.PI/180;
-        const bandCoord=rdx*Math.sin(tiltAng)+dy*Math.cos(tiltAng);
-        const ub=Math.sin(bandCoord*12)*0.03;
+        const ub=Math.sin(tdy*12)*0.03;
         pr+=ub*0.5; pg+=ub; pb+=ub;
-        const atm=Math.sin(rdx*5+dy*3)*0.02;
+        const atm=Math.sin(rdx*5+tdy*3)*0.02;
         pg+=atm; pb+=atm;
       } else if(body==='neptune'){
         pr=0.20+noise*0.5; pg=0.35+noise*0.5; pb=0.80+noise*0.5;
-        const nb1=Math.sin(dy*12)*0.05;
-        const nb2=Math.sin(dy*24+2)*0.03;
+        const nb1=Math.sin(tdy*12)*0.05;
+        const nb2=Math.sin(tdy*24+2)*0.03;
         pr+=nb1*0.3; pg+=nb1*0.5+nb2*0.4; pb+=nb1+nb2;
-        const dsDx=(rdx-0.2)/0.15, dsDy=(dy+0.15)/0.10;
+        const dsDx=(rdx-0.2)/0.15, dsDy=(tdy+0.15)/0.10;
         const dsD=dsDx*dsDx+dsDy*dsDy;
         if(dsD<1){
           const sf=(1-dsD)*0.15;
@@ -12597,17 +12607,17 @@ function drawPlanet(body, faces, S, tt){
         pg+=atm*0.5; pb+=atm;
       } else if(body==='pluto'){
         pr=0.72+noise; pg=0.65+noise; pb=0.55+noise;
-        const hx=rdx+0.05, hy=dy+0.1;
+        const hx=rdx+0.05, hy=tdy+0.1;
         const heart=Math.pow(hx*hx+hy*hy-0.09,3)-hx*hx*hy*hy*hy;
         if(heart<0){ pr+=0.15; pg+=0.15; pb+=0.12; }
-        const eq=Math.exp(-dy*dy*20)*0.1;
+        const eq=Math.exp(-tdy*tdy*20)*0.1;
         pr-=eq; pg-=eq*0.8; pb-=eq*0.5;
-        const tholin=Math.sin(rdx*8+dy*6)*0.04;
+        const tholin=Math.sin(rdx*8+tdy*6)*0.04;
         pr+=tholin*1.5; pg+=tholin*0.5;
         for(let ci=0;ci<6;ci++){
           const ccx2=(rng(ci*8731)*2-1)*0.5, ccy2=(rng(ci*4217)*2-1)*0.5;
           const cr2=0.04+rng(ci*2917)*0.06;
-          const cd2=Math.sqrt((rdx-ccx2)*(rdx-ccx2)+(dy-ccy2)*(dy-ccy2));
+          const cd2=Math.sqrt((rdx-ccx2)*(rdx-ccx2)+(tdy-ccy2)*(tdy-ccy2));
           if(cd2<cr2){ pr-=0.06*(1-cd2/cr2); pg-=0.05*(1-cd2/cr2); }
         }
       }
