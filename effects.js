@@ -12419,7 +12419,7 @@ function drawSaturn(faces, S, tt){
       const d2=dx*dx+dy*dy;
 
       // Rotate pixel coords by axial tilt for ring ellipse test
-      const rpx=px*sct-py*sst, rpy=px*sst+py*sct;
+      const rpx=px*sct+py*sst, rpy=-px*sst+py*sct;
       const ringDx=rpx, ringDy=rpy/tiltY;
       const ringDist=Math.sqrt(ringDx*ringDx+ringDy*ringDy);
       const onRing=ringDist>=ringInner && ringDist<=ringOuter;
@@ -12450,8 +12450,8 @@ function drawSaturn(faces, S, tt){
       if(d2<=1){
         const nz=Math.sqrt(1-d2);
         const limb=0.7+0.3*nz;
-        // Bands tilted by same screen rotation as rings
-        const stdx=dx*sct-dy*sst, stdy=dx*sst+dy*sct;
+        // Bands tilted same direction as rings and axis
+        const stdx=dx*sct+dy*sst, stdy=-dx*sst+dy*sct;
         const srdx=stdx*satCosR-nz*satSinR;
         const band=stdy;
         pr=0.82; pg=0.72; pb=0.52;
