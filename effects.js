@@ -12724,6 +12724,83 @@ function drawPlanet(body, faces, S, tt){
   }
 }
 
+function drawSolarSystem(faces, S, tt){
+  const cx=S/2, cy=S/2;
+  const rng=(s)=>((s*2654435761)>>>0)/4294967296;
+  // Orbital elements: semi-major axis (AU), period (days), longitude at J2000 (deg)
+  const planets=[
+    {name:'Mercury', a:0.387, T:87.97,  L0:252.25, color:[0.55,0.53,0.50], rad:1},
+    {name:'Venus',   a:0.723, T:224.70, L0:181.98, color:[0.90,0.85,0.70], rad:1.5},
+    {name:'Earth',   a:1.000, T:365.25, L0:100.46, color:[0.2,0.5,0.9],    rad:1.5},
+    {name:'Mars',    a:1.524, T:686.97, L0:355.45, color:[0.80,0.40,0.15], rad:1.2},
+    {name:'Jupiter', a:5.203, T:4332.6, L0:34.40,  color:[0.80,0.70,0.55], rad:2.5},
+    {name:'Saturn',  a:9.537, T:10759,  L0:49.95,  color:[0.82,0.72,0.52], rad:2.2},
+    {name:'Uranus',  a:19.19, T:30687,  L0:313.23, color:[0.60,0.82,0.85], rad:1.8},
+    {name:'Neptune', a:30.07, T:60190,  L0:304.88, color:[0.25,0.40,0.80], rad:1.8},
+  ];
+  // Scale orbits to fit face: outermost orbit at ~45% of face width
+  const maxA=planets[planets.length-1].a;
+  const scale=(S*0.44)/maxA;
+  const now=new Date();
+  const daysSinceJ2000=(now.getTime()-946728000000)/86400000;
+
+  for(const face of faces){
+    // Draw Sun at center
+    const sunRad=Math.round(S*0.04);
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+      const dx=u-cx, dy=v-cy;
+      const d=Math.sqrt(dx*dx+dy*dy);
+      // Sun glow
+      if(d<sunRad*3){
+        const glow=Math.pow(Math.max(0,1-d/(sunRad*3)),2)*0.15;
+        colBuf[idx*3]+=glow*1.0; colBuf[idx*3+1]+=glow*0.7; colBuf[idx*3+2]+=glow*0.2;
+      }
+      // Sun body
+      if(d<=sunRad){
+        const nz=Math.sqrt(1-(d/sunRad)*(d/sunRad));
+        const l=0.85+0.15*nz;
+        const n=(rng(u*4919+v*3571)*2-1)*0.05;
+        colBuf[idx*3]=Math.min(1,(1.0+n)*l);
+        colBuf[idx*3+1]=Math.min(1,(0.85+n)*l);
+        colBuf[idx*3+2]=Math.min(1,(0.25+n)*l);
+      }
+    }
+
+    // Draw orbit rings and planets
+    for(const p of planets){
+      const orbitR=p.a*scale;
+      // Current angle from J2000 mean longitude
+      const angle=(p.L0+360*daysSinceJ2000/p.T)*Math.PI/180;
+      const px=cx+Math.cos(angle)*orbitR;
+      const py=cy-Math.sin(angle)*orbitR;
+
+      for(let v=Math.max(0,Math.floor(cy-orbitR-3));v<Math.min(S,Math.ceil(cy+orbitR+3));v++){
+        for(let u=Math.max(0,Math.floor(cx-orbitR-3));u<Math.min(S,Math.ceil(cx+orbitR+3));u++){
+          const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+          const dx=u-cx, dy=v-cy;
+          const d=Math.sqrt(dx*dx+dy*dy);
+          // Orbit ring (thin dotted circle)
+          const ringDiff=Math.abs(d-orbitR);
+          if(ringDiff<0.7){
+            const f=0.12*(1-ringDiff/0.7);
+            colBuf[idx*3]+=f*0.3; colBuf[idx*3+1]+=f*0.35; colBuf[idx*3+2]+=f*0.5;
+          }
+          // Planet dot
+          const pdx=u-px, pdy=v-py;
+          const pd=Math.sqrt(pdx*pdx+pdy*pdy);
+          if(pd<=p.rad){
+            const pf=pd<=p.rad*0.6?1.0:1.0-(pd-p.rad*0.6)/(p.rad*0.4);
+            colBuf[idx*3]=Math.min(1,p.color[0]*pf);
+            colBuf[idx*3+1]=Math.min(1,p.color[1]*pf);
+            colBuf[idx*3+2]=Math.min(1,p.color[2]*pf);
+          }
+        }
+      }
+    }
+  }
+}
+
 function effectMoon(dt){
   t+=dt;
   moonInit();
@@ -12749,6 +12826,8 @@ function effectMoon(dt){
   const body = bodyEl ? bodyEl.value : 'moon';
   if(body==='saturn'){
     drawSaturn(faces, S, tt);
+  } else if(body==='solarsystem'){
+    drawSolarSystem(faces, S, tt);
   } else if(body!=='moon'){
     drawPlanet(body, faces, S, tt);
   }
@@ -12863,7 +12942,7 @@ function effectMoon(dt){
   const illum=Math.round(mi.fraction*100);
   const ph=mi.phase;
   const pName=ph<0.03?'New Moon':ph<0.22?'Waxing Crescent':ph<0.28?'First Quarter':ph<0.47?'Waxing Gibbous':ph<0.53?'Full Moon':ph<0.72?'Waning Gibbous':ph<0.78?'Last Quarter':ph<0.97?'Waning Crescent':'New Moon';
-  const bodyNames={blackhole:'Black Hole'};
+  const bodyNames={blackhole:'Black Hole',solarsystem:'Solar System'};
   const moonText=body==='moon'?`${pName} ${illum}%`:(bodyNames[body]||body.charAt(0).toUpperCase()+body.slice(1));
   if(!this._mf){
     this._mf={
