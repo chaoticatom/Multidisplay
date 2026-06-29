@@ -12830,11 +12830,10 @@ function drawPlanet(body, faces, S, tt){
   }
 }
 
+let _solarLastT=0, _solarExtraDays=0;
 function drawSolarSystem(faces, S, tt){
   const cx=S/2, cy=S/2;
   const rng=(s)=>((s*2654435761)>>>0)/4294967296;
-  // Evenly spaced orbits so all planets are clearly visible
-  // Real orbital periods and longitudes kept for accurate positions
   const planets=[
     {name:'Mercury', T:87.97,  L0:252.25, color:[0.55,0.53,0.50], rad:1.2},
     {name:'Venus',   T:224.70, L0:181.98, color:[0.90,0.85,0.70], rad:1.5},
@@ -12851,12 +12850,18 @@ function drawSolarSystem(faces, S, tt){
   const spacing=(outerEdge-innerGap)/(planets.length);
   const now=new Date();
   const daysSinceJ2000=(now.getTime()-946728000000)/86400000;
+  // Speed multiplier from slider (logarithmic: 0=1x, 5=100000x)
+  const speedEl=document.getElementById('solar-speed');
+  const speedMult=speedEl?Math.pow(10,parseFloat(speedEl.value)):1;
+  const realDt=_solarLastT?tt-_solarLastT:0;
+  _solarLastT=tt;
+  _solarExtraDays+=realDt*(speedMult-1)/86400;
+  const simDays=daysSinceJ2000+_solarExtraDays;
 
-  // Pre-compute orbit radii and planet positions
   for(let pi=0;pi<planets.length;pi++){
     const p=planets[pi];
     p.orbitR=innerGap+spacing*(pi+0.5);
-    const angle=(p.L0+360*daysSinceJ2000/p.T)*Math.PI/180;
+    const angle=(p.L0+360*simDays/p.T)*Math.PI/180;
     p.px=cx+Math.cos(angle)*p.orbitR;
     p.py=cy-Math.sin(angle)*p.orbitR;
   }
