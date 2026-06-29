@@ -12625,8 +12625,8 @@ function drawPlanet(body, faces, S, tt){
   const now=new Date();
   const daysSinceJ2000=(now.getTime()-946728000000)/86400000;
   const period=rotPeriods[body]||1;
-  const rot=(daysSinceJ2000/period)*Math.PI*2;
-  const cosR=Math.cos(rot), sinR=Math.sin(rot);
+  let rot=(daysSinceJ2000/period)*Math.PI*2;
+  let cosR=Math.cos(rot), sinR=Math.sin(rot);
 
   let _sunX=0,_sunY=0,_sunZ=0;
   if(body==='earth'){
@@ -12635,6 +12635,9 @@ function drawPlanet(body, faces, S, tt){
     _sunX=Math.cos(sp.lat)*Math.cos(sp.lon);
     _sunY=Math.sin(sp.lat);
     _sunZ=Math.cos(sp.lat)*Math.sin(sp.lon);
+    // Orient Earth so the terminator is centered in view
+    rot=-sp.lon+Math.PI/2;
+    cosR=Math.cos(rot); sinR=Math.sin(rot);
   }
 
   for(const face of faces){
