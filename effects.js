@@ -12391,8 +12391,16 @@ function drawSaturn(faces, S, tt){
   const cx=S/2, cy=S/2+1;
   const pRad=Math.round(S*0.28);
   const ringInner=pRad*1.25, ringOuter=pRad*1.95;
-  const tiltY=0.38;
-  const cosT2=Math.cos(0), sinT2=Math.sin(0);
+  // Saturn ring tilt as seen from Earth for current date
+  // Ring plane: inclination 26.73° to ecliptic, ascending node Ω=169.5°
+  // Saturn mean helio longitude: L0=50.077° at J2000, moves 0.03346°/day
+  const now=new Date();
+  const daysSinceJ2000=(now.getTime()-946728000000)/86400000;
+  const satLonDeg=(50.077+0.03346*daysSinceJ2000)%360;
+  const ringIncl=26.73*Math.PI/180, ringNode=169.5;
+  const B=Math.asin(Math.sin(ringIncl)*Math.sin((satLonDeg-ringNode)*Math.PI/180));
+  const tiltY=Math.max(0.06,Math.abs(Math.sin(B)));
+  const ringFromNorth=B>0;
   const rng=(s)=>((s*2654435761)>>>0)/4294967296;
 
   for(const face of faces){
@@ -12406,7 +12414,7 @@ function drawSaturn(faces, S, tt){
       const ringDx=px, ringDy=py/tiltY;
       const ringDist=Math.sqrt(ringDx*ringDx+ringDy*ringDy);
       const onRing=ringDist>=ringInner && ringDist<=ringOuter;
-      const ringBehind=py>0;
+      const ringBehind=ringFromNorth?(py>0):(py<0);
 
       let pr=-1,pg=-1,pb=-1;
 
@@ -12456,7 +12464,8 @@ function drawSaturn(faces, S, tt){
         pr+=noise; pg+=noise; pb+=noise;
         const illum=0.6+0.4*(dx*0.5+nz*0.7);
         pr*=limb*illum; pg*=limb*illum; pb*=limb*illum;
-        const shadowBand=Math.exp(-Math.pow((dy+tiltY*0.4)*6,2))*0.25;
+        const shadowOff=ringFromNorth?-tiltY*0.4:tiltY*0.4;
+        const shadowBand=Math.exp(-Math.pow((dy+shadowOff)*6,2))*0.25;
         if(dx<0.3){ pr-=shadowBand; pg-=shadowBand; pb-=shadowBand; }
       }
 
