@@ -12388,8 +12388,13 @@ function getMoonPhase(){
 
 
 function drawSaturn(faces, S, tt){
-  const cx=S/2, cy=S/2+1;
-  const pRad=Math.round(S*0.28);
+  const textTop=7, topLimit=S-3;
+  const cy=Math.round((textTop+topLimit)/2);
+  const cx=S/2;
+  const halfW=cx-2;
+  const halfH=Math.min(cy-textTop, topLimit-cy);
+  // Rings extend to 1.95*pRad horizontally; fit within margins
+  const pRad=Math.max(4,Math.round(Math.min(halfW/1.95, halfH)));
   const ringInner=pRad*1.25, ringOuter=pRad*1.95;
   // Saturn ring tilt as seen from Earth for current date
   // Ring plane: inclination 26.73° to ecliptic, ascending node Ω=169.5°
@@ -12495,8 +12500,16 @@ function drawSaturn(faces, S, tt){
 }
 
 function drawPlanet(body, faces, S, tt){
-  const cx=S/2, cy=S/2+4;
-  const pRad=Math.round(S*0.38);
+  // Use max available space: 2px margins on all sides, text occupies v=1-5 + 2px buffer
+  const textTop=7;
+  const topLimit=S-3;
+  const cy=Math.round((textTop+topLimit)/2);
+  const cx=S/2;
+  const halfH=Math.min(cy-textTop, topLimit-cy);
+  const halfW=cx-2;
+  // Sun corona extends 1.8x, axis lines 1.22x, normal planets 1x
+  const extent=body==='sun'?1.8:body==='blackhole'?1.5:1.22;
+  const pRad=Math.max(4,Math.round(Math.min(halfH,halfW)/extent));
   const rng=(s)=>((s*2654435761)>>>0)/4294967296;
   // Axial tilt (degrees) per planet
   const tilts={mercury:0.03,venus:177.4,earth:23.4,mars:25.2,jupiter:3.1,uranus:97.8,neptune:28.3,pluto:122.5,sun:7.25};
