@@ -4210,25 +4210,17 @@ function wxInitScene(code){
       return false;
     }},
     'san francisco':{ name:'goldengate', h:16, w:22, draw(li,row){
-      // Road deck
-      if(row===0||row===1) return li>=0&&li<22;
-      // Two towers
       const t1=li===5||li===6, t2=li===15||li===16;
-      if(row<14&&(t1||t2)) return true;
-      // Suspension cables — catenary curves between towers
-      if(row>=2&&row<14){
-        const cableH1=Math.round(2+Math.pow(Math.abs(li-5.5)/10,2)*10); // left cable
-        const cableH2=Math.round(2+Math.pow(Math.abs(li-15.5)/10,2)*10); // right cable
-        if(row===cableH1&&li>=0&&li<=11) return true;
-        if(row===cableH2&&li>=11&&li<22) return true;
-        // Vertical suspender cables
-        if(li>1&&li<5&&li%2===0&&row<=cableH1&&row>=2) return true;
-        if(li>6&&li<10&&li%2===0&&row<=cableH1&&row>=2) return true;
-        if(li>11&&li<15&&li%2===0&&row<=cableH2&&row>=2) return true;
-        if(li>16&&li<20&&li%2===0&&row<=cableH2&&row>=2) return true;
-      }
-      // Tower tops
-      if(row>=14&&(t1||t2)) return true;
+      if(t1||t2) return true;
+      if((row===4||row===5)&&li>=0&&li<22) return true;
+      let cr;
+      if(li>=5&&li<=16){
+        const mid=10.5,span=5.5;
+        cr=Math.round(7+7*Math.pow((li-mid)/span,2));
+      } else if(li<5) cr=Math.round(14-(5-li)*1.4);
+      else cr=Math.round(14-(li-16)*1.4);
+      if(cr>=0&&cr<16&&row===cr&&li>=0&&li<22) return true;
+      if(li%3===1&&!t1&&!t2&&li>=1&&li<21&&row>5&&row<cr) return true;
       return false;
     }},
     'rio de janeiro':{ name:'christredeemer', h:18, w:16, draw(li,row){
