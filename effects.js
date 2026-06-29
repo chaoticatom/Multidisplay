@@ -12726,7 +12726,8 @@ function drawPlanet(body, faces, S, tt){
           const v=Math.round(startY+(endY-startY)*frac);
           if(u<0||u>=S||v<0||v>=S) continue;
           const idx=faceMap[face][v*S+u]; if(idx<0) continue;
-          const fade=0.7*(1-frac*0.3);
+          const textDim=v<=6?0.2:1.0;
+          const fade=0.7*(1-frac*0.3)*textDim;
           colBuf[idx*3]=Math.max(colBuf[idx*3],fade);
           colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],fade);
           colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],fade*1.2);
