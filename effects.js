@@ -12603,6 +12603,35 @@ function _earthCloudAt(lonD,latD){
   return g[yi*12+xi]*(1-fx)*(1-fy)+g[yi*12+xi2]*fx*(1-fy)+g[yi2*12+xi]*(1-fx)*fy+g[yi2*12+xi2]*fx*fy;
 }
 
+let _earthUserRot=0, _earthDragInit=false;
+function _earthInitDrag(){
+  if(_earthDragInit) return;
+  _earthDragInit=true;
+  const c=document.querySelector('canvas');
+  if(!c) return;
+  let active=false, lastX=0, vel=0, lastT=0;
+  const start=x=>{active=true;lastX=x;vel=0;lastT=Date.now();};
+  const move=x=>{
+    if(!active) return;
+    const bEl=document.querySelector('input[name="celestial-body"]:checked');
+    if(!bEl||bEl.value!=='earth'){active=false;return;}
+    const dx=x-lastX;
+    const now=Date.now(), dt=Math.max(1,now-lastT);
+    vel=dx/dt*16;
+    _earthUserRot-=dx*0.012;
+    lastX=x; lastT=now;
+  };
+  const end=()=>{active=false;};
+  c.addEventListener('mousedown',e=>start(e.clientX));
+  c.addEventListener('mousemove',e=>{if(active){e.preventDefault();move(e.clientX);}});
+  c.addEventListener('mouseup',end);c.addEventListener('mouseleave',end);
+  c.addEventListener('touchstart',e=>{e.preventDefault();start(e.touches[0].clientX);},{passive:false});
+  c.addEventListener('touchmove',e=>{if(active){e.preventDefault();move(e.touches[0].clientX);}},{passive:false});
+  c.addEventListener('touchend',end);
+  const tick=()=>{if(!active&&Math.abs(vel)>0.001){_earthUserRot-=vel;vel*=0.95;}requestAnimationFrame(tick);};
+  tick();
+}
+
 function drawPlanet(body, faces, S, tt){
   // Use max available space: 2px margins on all sides, text occupies v=1-5 + 2px buffer
   const textTop=7;
@@ -12628,15 +12657,10 @@ function drawPlanet(body, faces, S, tt){
   let rot=(daysSinceJ2000/period)*Math.PI*2;
   let cosR=Math.cos(rot), sinR=Math.sin(rot);
 
-  let _sunX=0,_sunY=0,_sunZ=0;
   if(body==='earth'){
     _earthFetchClouds();
-    const sp=_earthSubsolar();
-    _sunX=Math.cos(sp.lat)*Math.cos(sp.lon);
-    _sunY=Math.sin(sp.lat);
-    _sunZ=Math.cos(sp.lat)*Math.sin(sp.lon);
-    // Orient Earth so the terminator is centered in view
-    rot=-sp.lon+Math.PI/2;
+    _earthInitDrag();
+    rot=_earthUserRot;
     cosR=Math.cos(rot); sinR=Math.sin(rot);
   }
 
@@ -12705,41 +12729,20 @@ function drawPlanet(body, faces, S, tt){
           const wd=(Math.sin(eLon*7+eLat*5)*0.5+0.5)*0.06;
           pr+=wd*0.1; pg+=wd*0.3; pb+=wd;
         }
-        // Day/night terminator
-        const eNx=Math.cos(eLat)*Math.cos(eLon), eNy=Math.sin(eLat), eNzz=Math.cos(eLat)*Math.sin(eLon);
-        const sunDot=eNx*_sunX+eNy*_sunY+eNzz*_sunZ;
-        const dayFrac=Math.max(0,Math.min(1,sunDot*4+0.5));
-        const twilight=Math.max(0,Math.min(1,sunDot*8+1));
-        // Darken night side
-        const nightFac=0.02+0.98*dayFrac;
-        pr*=nightFac; pg*=nightFac; pb*=nightFac;
-        // City lights on night side
-        if(dayFrac<0.3){
-          const nightStr=1-dayFrac/0.3;
-          for(const [cln,clt] of _earthCities){
-            let cdl=eLonD-cln; if(cdl>180)cdl-=360; if(cdl<-180)cdl+=360;
-            const cd=cdl*cdl+(eLatD-clt)*(eLatD-clt);
-            if(cd<20){
-              const gw=Math.exp(-cd*0.4)*nightStr*0.55;
-              pr+=gw*0.95; pg+=gw*0.70; pb+=gw*0.25;
-            }
-          }
-        }
         // Clouds — real-time from API with procedural detail
         let cc=_earthCloudAt(eLonD,eLatD);
         const cn1=Math.sin(rdx*9+tdy*7+tt*0.3)*0.5+0.5;
         const cn2=Math.sin(rdx*16-tdy*11+tt*0.15)*0.5+0.5;
         const cn3=Math.sin((rdx+tdy)*6-tt*0.2)*0.5+0.5;
-        if(cc<0) cc=cn1*0.4+cn2*0.25+cn3*0.15; // procedural fallback
-        else cc=cc*0.6+(cn1*0.3+cn2*0.2)*0.4; // blend real + detail
+        if(cc<0) cc=cn1*0.4+cn2*0.25+cn3*0.15;
+        else cc=cc*0.6+(cn1*0.3+cn2*0.2)*0.4;
         if(cc>0.25){
-          const cf=Math.min(0.85,(cc-0.25)*1.2)*twilight;
+          const cf=Math.min(0.85,(cc-0.25)*1.2);
           pr=pr*(1-cf)+0.92*cf; pg=pg*(1-cf)+0.94*cf; pb=pb*(1-cf)+0.97*cf;
         }
         // Atmospheric limb glow
         const atm=(1-nz)*(1-nz)*0.3;
-        const atmDay=atm*dayFrac, atmNight=atm*(1-dayFrac)*0.3;
-        pr+=atmDay*0.25+atmNight*0.02; pg+=atmDay*0.45+atmNight*0.03; pb+=atm*0.9;
+        pr+=atm*0.25; pg+=atm*0.45; pb+=atm*0.9;
       } else if(body==='mars'){
         pr=0.75+noise; pg=0.35+noise*0.7; pb=0.15+noise*0.4;
         const m1=Math.exp(-((rdx-0.1)*(rdx-0.1)+(tdy+0.1)*(tdy+0.1))*8)*0.15;
