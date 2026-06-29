@@ -4210,17 +4210,14 @@ function wxInitScene(code){
       return false;
     }},
     'san francisco':{ name:'goldengate', h:16, w:22, draw(li,row){
-      const t1=li===5||li===6, t2=li===15||li===16;
-      if(t1||t2) return true;
-      if((row===4||row===5)&&li>=0&&li<22) return true;
+      if(li===6||li===15) return true;
+      if(row===4) return true;
       let cr;
-      if(li>=5&&li<=16){
-        const mid=10.5,span=5.5;
-        cr=Math.round(7+7*Math.pow((li-mid)/span,2));
-      } else if(li<5) cr=Math.round(14-(5-li)*1.4);
-      else cr=Math.round(14-(li-16)*1.4);
-      if(cr>=0&&cr<16&&row===cr&&li>=0&&li<22) return true;
-      if(li%3===1&&!t1&&!t2&&li>=1&&li<21&&row>5&&row<cr) return true;
+      if(li>=6&&li<=15) cr=Math.round(7+7*Math.pow((li-10.5)/4.5,2));
+      else if(li<6) cr=Math.round(14-(6-li)*1.7);
+      else cr=Math.round(14-(li-15)*1.7);
+      if(row===cr&&cr>4) return true;
+      if(li!==6&&li!==15&&li>=2&&li<=19&&li%2===0&&row>4&&row<cr) return true;
       return false;
     }},
     'rio de janeiro':{ name:'christredeemer', h:18, w:16, draw(li,row){
