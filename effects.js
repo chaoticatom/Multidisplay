@@ -12407,6 +12407,8 @@ function drawSaturn(faces, S, tt){
   // Screen-plane axial tilt 26.7° — rings and bands both use this
   const stilt=26.7*Math.PI/180;
   const sct=Math.cos(stilt), sst=Math.sin(stilt);
+  const satRot=(daysSinceJ2000/0.44401)*Math.PI*2;
+  const satCosR=Math.cos(satRot), satSinR=Math.sin(satRot);
   const rng=(s)=>((s*2654435761)>>>0)/4294967296;
 
   for(const face of faces){
@@ -12448,10 +12450,9 @@ function drawSaturn(faces, S, tt){
       if(d2<=1){
         const nz=Math.sqrt(1-d2);
         const limb=0.7+0.3*nz;
-        // Bands tilted by same screen rotation as rings
+        // Bands tilted by same screen rotation as rings, real rotation rate
         const stdx=dx*sct-dy*sst, stdy=dx*sst+dy*sct;
-        const srot=tt*0.04;
-        const srdx=stdx*Math.cos(srot)-nz*Math.sin(srot);
+        const srdx=stdx*satCosR-nz*satSinR;
         const band=stdy;
         pr=0.82; pg=0.72; pb=0.52;
         const b1=Math.sin(band*12)*0.08;
@@ -12515,7 +12516,13 @@ function drawPlanet(body, faces, S, tt){
   const tilts={mercury:0.03,venus:177.4,earth:23.4,mars:25.2,jupiter:3.1,uranus:97.8,neptune:28.3,pluto:122.5,sun:7.25};
   const tiltRad=(tilts[body]||0)*Math.PI/180;
   const ct=Math.cos(tiltRad), st=Math.sin(tiltRad);
-  const rot=tt*0.04*(body==='venus'?-1:1);
+  // Real sidereal rotation periods (Earth days); negative = retrograde
+  const rotPeriods={mercury:58.646,venus:-243.025,earth:0.99727,mars:1.02596,
+    jupiter:0.41354,saturn:0.44401,uranus:-0.71833,neptune:0.67125,pluto:-6.38718,sun:25.38};
+  const now=new Date();
+  const daysSinceJ2000=(now.getTime()-946728000000)/86400000;
+  const period=rotPeriods[body]||1;
+  const rot=(daysSinceJ2000/period)*Math.PI*2;
   const cosR=Math.cos(rot), sinR=Math.sin(rot);
 
   for(const face of faces){
@@ -12704,7 +12711,7 @@ function drawPlanet(body, faces, S, tt){
 
   // Axis line through north and south poles (skip sun, blackhole, solarsystem)
   if(body!=='sun'&&body!=='blackhole'&&body!=='solarsystem'){
-    const axDx=Math.sin(tiltRad), axDy=Math.cos(tiltRad);
+    const axDx=-Math.sin(tiltRad), axDy=Math.cos(tiltRad);
     const axLen=pRad*0.22;
     for(const face of faces){
       for(let pole=-1;pole<=1;pole+=2){
@@ -12729,7 +12736,10 @@ function drawPlanet(body, faces, S, tt){
   }
 
   // Sun: rendered separately with glow (no limb darkening/illum)
+  // Rotates at real sidereal rate (~25.38 days)
   if(body==='sun'){
+    const sunTilt=7.25*Math.PI/180;
+    const sunCt=Math.cos(sunTilt), sunSt=Math.sin(sunTilt);
     for(const face of faces){
       for(let v=0;v<S;v++) for(let u=0;u<S;u++){
         const idx=faceMap[face][v*S+u]; if(idx<0) continue;
@@ -12740,20 +12750,25 @@ function drawPlanet(body, faces, S, tt){
         if(d<=1){
           const nz=Math.sqrt(1-d2);
           const limbDark=0.85+0.15*nz;
+          // Tilted and rotated surface coords
+          const stx=dx2*sunCt-dy2*sunSt;
+          const sty=dx2*sunSt+dy2*sunCt;
+          const srx=stx*cosR-nz*sinR;
           let sr=1.0, sg=0.85, sb=0.25;
-          // Granulation
-          const g1=Math.sin(dx2*25+dy2*18+tt*0.3)*0.04;
-          const g2=Math.sin(dx2*40-dy2*30+tt*0.5)*0.02;
+          // Granulation using rotated coords
+          const g1=Math.sin(srx*25+sty*18)*0.04;
+          const g2=Math.sin(srx*40-sty*30)*0.02;
           sr+=g1+g2; sg+=g1*0.8+g2; sb+=g1*0.3;
-          // Sunspots
-          for(let si=0;si<4;si++){
-            const sx=Math.sin(tt*0.02+si*1.7)*0.4, sy=(rng(si*6131)*2-1)*0.4;
-            const sd=((dx2-sx)*(dx2-sx)+(dy2-sy)*(dy2-sy));
-            const srad=0.01+rng(si*3917)*0.02;
+          // Sunspots — fixed surface positions, rotate with Sun
+          for(let si=0;si<5;si++){
+            const sx=(rng(si*7129)*2-1)*0.5, sy=(rng(si*6131)*2-1)*0.35;
+            const sd=((srx-sx)*(srx-sx)+(sty-sy)*(sty-sy));
+            const srad=0.015+rng(si*3917)*0.025;
             if(sd<srad){ const sf=1-sd/srad; sr-=sf*0.5; sg-=sf*0.4; sb-=sf*0.15; }
+            if(sd<srad*2.5){ const pf=Math.pow(1-sd/(srad*2.5),2)*0.08; sr-=pf*0.3; sg-=pf*0.2; }
           }
           // Prominences/active regions
-          const prom=Math.sin(Math.atan2(dy2,dx2)*5+tt*0.15)*0.5+0.5;
+          const prom=Math.sin(Math.atan2(sty,srx)*5)*0.5+0.5;
           if(d>0.85 && prom>0.7){ sr+=0.1; sg+=0.02; }
           sr*=limbDark; sg*=limbDark; sb*=limbDark;
           colBuf[idx*3]=Math.max(0,Math.min(1,sr));
