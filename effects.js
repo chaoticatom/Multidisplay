@@ -12527,6 +12527,82 @@ function drawSaturn(faces, S, tt){
   }
 }
 
+// ─── Earth real-time data ───
+const _earthLand = [
+  // [lonCenter°, latCenter°, lonRadius°, latRadius°, type: 1=land, -1=water cutout]
+  // North America
+  [-100,55,30,16,1],[-95,42,18,8,1],[-82,35,8,6,1],[-112,38,12,6,1],
+  [-100,63,16,8,1],[-88,68,22,5,1],[-75,48,8,5,1],[-103,24,10,7,1],
+  [-87,14,6,4,1],[-85,28,5,3,1],
+  [-42,72,10,6,1],[-48,66,5,4,1], // Greenland
+  // South America
+  [-62,-8,16,22,1],[-73,3,8,8,1],[-50,-20,10,8,1],[-67,-38,6,12,1],
+  // Europe
+  [5,48,15,8,1],[22,52,10,6,1],[10,63,6,5,1],[25,59,8,5,1],
+  [-5,55,5,3,1],[15,42,8,4,1],[25,40,5,3,1],
+  // Africa
+  [8,22,22,14,1],[30,10,12,12,1],[18,-5,12,12,1],[28,-20,8,10,1],[45,8,5,8,1],
+  // Asia
+  [55,55,18,12,1],[80,55,22,12,1],[110,55,20,12,1],[140,58,18,10,1],
+  [160,63,12,6,1],[90,38,18,10,1],[112,30,14,8,1],[78,20,10,10,1],
+  [100,18,10,8,1],[48,25,8,6,1],[52,18,4,6,1],[135,37,5,4,1],[128,37,4,2,1],
+  // Australia, Indonesia, NZ, Madagascar
+  [134,-25,16,10,1],[145,-38,4,3,1],[110,-5,10,4,1],[135,-5,6,3,1],
+  [173,-42,2,4,1],[47,-19,3,5,1],
+  // Antarctica
+  [0,-85,180,7,1],
+  // Water cutouts
+  [-90,58,8,5,-1],[17,37,13,3,-1],[35,43,4,2,-1],[51,42,3,4,-1],
+  [-88,24,5,3,-1],[40,20,3,5,-1],[52,27,2,2,-1],
+];
+const _earthCities = [
+  [-74,41],[-87,42],[-118,34],[-122,38],[-96,33],[-80,26],[-71,43],
+  [-3,51],[2,49],[13,52],[-4,40],[12,42],[24,38],[14,48],
+  [37,56],[30,50],[116,40],[121,31],[139,36],[127,37],[107,11],
+  [77,29],[73,19],[89,23],[31,30],[3,7],[28,-26],[37,-1],
+  [-43,-23],[-58,-35],[-99,19],[-79,-2],[151,-34],[55,25],
+];
+function _earthSubsolar(){
+  const JD=Date.now()/86400000+2440587.5, n=JD-2451545.0;
+  const L=(280.460+0.9856474*n)%360;
+  const g=((357.528+0.9856003*n)%360)*Math.PI/180;
+  const lam=(L+1.915*Math.sin(g)+0.020*Math.sin(2*g))*Math.PI/180;
+  const eps=(23.439-0.0000004*n)*Math.PI/180;
+  const dec=Math.asin(Math.sin(eps)*Math.sin(lam));
+  const ra=Math.atan2(Math.cos(eps)*Math.sin(lam),Math.cos(lam));
+  const gmst=(280.46061837+360.98564736629*n)*Math.PI/180;
+  let sl=ra-gmst; sl=((sl%(2*Math.PI))+(3*Math.PI))%(2*Math.PI)-Math.PI;
+  return {lat:dec,lon:sl};
+}
+const _cloudLats=[-75,-45,-15,15,45,75], _cloudLons=[-165,-135,-105,-75,-45,-15,15,45,75,105,135,165];
+const _cloudCache={grid:null,ts:0};
+function _earthFetchClouds(){
+  if(Date.now()-_cloudCache.ts<1800000&&_cloudCache.grid) return;
+  _cloudCache.ts=Date.now();
+  const la=[],lo=[];
+  for(const lat of _cloudLats) for(const lon of _cloudLons){la.push(lat);lo.push(lon);}
+  fetch(`https://api.open-meteo.com/v1/forecast?latitude=${la.join(',')}&longitude=${lo.join(',')}&current=cloud_cover&forecast_days=1`)
+    .then(r=>r.json()).then(d=>{
+      if(!Array.isArray(d)) return;
+      const g=new Float32Array(72);
+      for(let i=0;i<72;i++) g[i]=(d[i]?.current?.cloud_cover??50)/100;
+      _cloudCache.grid=g;
+    }).catch(()=>{});
+}
+function _earthCloudAt(lonD,latD){
+  const g=_cloudCache.grid;
+  if(!g) return -1;
+  const la=_cloudLats,lo=_cloudLons;
+  let yi=0; for(;yi<la.length-1;yi++) if(latD<la[yi+1]) break;
+  let nl=((lonD+180)%360+360)%360-180;
+  let xi=0; for(;xi<lo.length-1;xi++) if(nl<lo[xi+1]) break;
+  const yi2=Math.min(yi+1,la.length-1), xi2=(xi+1)%lo.length;
+  let lw=lo[xi2<xi?xi2+12:xi2]-lo[xi]; if(lw<=0)lw+=360;
+  const fx=Math.max(0,Math.min(1,lw?((nl-lo[xi]+360)%360)/lw:0));
+  const fy=Math.max(0,Math.min(1,la[yi2]!==la[yi]?(latD-la[yi])/(la[yi2]-la[yi]):0));
+  return g[yi*12+xi]*(1-fx)*(1-fy)+g[yi*12+xi2]*fx*(1-fy)+g[yi2*12+xi]*(1-fx)*fy+g[yi2*12+xi2]*fx*fy;
+}
+
 function drawPlanet(body, faces, S, tt){
   // Use max available space: 2px margins on all sides, text occupies v=1-5 + 2px buffer
   const textTop=7;
@@ -12551,6 +12627,15 @@ function drawPlanet(body, faces, S, tt){
   const period=rotPeriods[body]||1;
   const rot=(daysSinceJ2000/period)*Math.PI*2;
   const cosR=Math.cos(rot), sinR=Math.sin(rot);
+
+  let _sunX=0,_sunY=0,_sunZ=0;
+  if(body==='earth'){
+    _earthFetchClouds();
+    const sp=_earthSubsolar();
+    _sunX=Math.cos(sp.lat)*Math.cos(sp.lon);
+    _sunY=Math.sin(sp.lat);
+    _sunZ=Math.cos(sp.lat)*Math.sin(sp.lon);
+  }
 
   for(const face of faces){
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
@@ -12592,25 +12677,66 @@ function drawPlanet(body, faces, S, tt){
         const limbGlow=(1-nz)*0.15;
         pr+=limbGlow*0.8; pg+=limbGlow*0.7; pb+=limbGlow*0.5;
       } else if(body==='earth'){
-        pr=0.15; pg=0.30; pb=0.65;
-        const cont=Math.sin(rdx*6+tdy*4)*0.5+Math.sin(tdy*8-rdx*3)*0.3+Math.sin((rdx+tdy)*5)*0.2;
-        if(cont>0.15){
-          const lf=Math.min(1,(cont-0.15)*2.5);
-          pr=pr*(1-lf)+(0.35+noise)*lf;
-          pg=pg*(1-lf)+(0.50+noise)*lf;
-          pb=pb*(1-lf)+(0.20+noise)*lf;
-          if(Math.abs(tdy)<0.3 && cont>0.35){ pr+=0.15; pg+=0.05; pb-=0.1; }
+        const eLat=Math.asin(tdy), eLon=Math.atan2(rdx,rnz);
+        const eLatD=eLat*180/Math.PI, eLonD=eLon*180/Math.PI;
+        const eAbsLat=Math.abs(eLatD);
+        // Land test
+        let eLand=false;
+        for(const [clo,cla,rlo,rla,typ] of _earthLand){
+          let dl=eLonD-clo; if(dl>180)dl-=360; if(dl<-180)dl+=360;
+          if(dl*dl/(rlo*rlo)+(eLatD-cla)*(eLatD-cla)/(rla*rla)<1) eLand=typ>0;
         }
-        if(Math.abs(tdy)>0.75){
-          const iceFrac=Math.min(1,(Math.abs(tdy)-0.75)*5);
-          pr=pr*(1-iceFrac)+0.9*iceFrac;
-          pg=pg*(1-iceFrac)+0.92*iceFrac;
-          pb=pb*(1-iceFrac)+0.95*iceFrac;
+        // Terrain color
+        if(eLand){
+          if(eAbsLat>72){ pr=0.82; pg=0.86; pb=0.90; }
+          else if(eAbsLat>58){ pr=0.28; pg=0.38; pb=0.22; }
+          else if(eAbsLat<28&&((eLonD>-18&&eLonD<42&&eLatD>15)||(eLonD>42&&eLonD<62&&eLatD>14&&eLatD<32)||(eLonD>118&&eLonD<152&&eLatD<-14&&eLatD>-32))){
+            pr=0.72; pg=0.58; pb=0.32; // Desert
+          } else if(eAbsLat<18){ pr=0.10; pg=0.36; pb=0.08; } // Tropical
+          else { pr=0.20; pg=0.42; pb=0.14; } // Temperate
+          pr+=noise*0.8; pg+=noise*0.8; pb+=noise*0.5;
+          const elev=Math.sin(eLon*5+eLat*7)*0.5+Math.sin(eLon*11-eLat*9)*0.3;
+          if(elev>0.3){const ef=(elev-0.3)*0.08; pr+=ef; pg+=ef*0.7; pb+=ef*0.5;}
+        } else {
+          pr=0.04; pg=0.08; pb=0.32;
+          const wd=(Math.sin(eLon*7+eLat*5)*0.5+0.5)*0.06;
+          pr+=wd*0.1; pg+=wd*0.3; pb+=wd;
         }
-        const cw=Math.sin(rdx*12+tdy*8)*0.5+0.5;
-        if(cw>0.7){ const cf=(cw-0.7)*0.4; pr+=cf; pg+=cf; pb+=cf; }
-        const atm=(1-nz)*0.12;
-        pr+=atm*0.3; pg+=atm*0.5; pb+=atm*1.0;
+        // Day/night terminator
+        const eNx=Math.cos(eLat)*Math.cos(eLon), eNy=Math.sin(eLat), eNzz=Math.cos(eLat)*Math.sin(eLon);
+        const sunDot=eNx*_sunX+eNy*_sunY+eNzz*_sunZ;
+        const dayFrac=Math.max(0,Math.min(1,sunDot*4+0.5));
+        const twilight=Math.max(0,Math.min(1,sunDot*8+1));
+        // Darken night side
+        const nightFac=0.02+0.98*dayFrac;
+        pr*=nightFac; pg*=nightFac; pb*=nightFac;
+        // City lights on night side
+        if(dayFrac<0.3){
+          const nightStr=1-dayFrac/0.3;
+          for(const [cln,clt] of _earthCities){
+            let cdl=eLonD-cln; if(cdl>180)cdl-=360; if(cdl<-180)cdl+=360;
+            const cd=cdl*cdl+(eLatD-clt)*(eLatD-clt);
+            if(cd<20){
+              const gw=Math.exp(-cd*0.4)*nightStr*0.55;
+              pr+=gw*0.95; pg+=gw*0.70; pb+=gw*0.25;
+            }
+          }
+        }
+        // Clouds — real-time from API with procedural detail
+        let cc=_earthCloudAt(eLonD,eLatD);
+        const cn1=Math.sin(rdx*9+tdy*7+tt*0.3)*0.5+0.5;
+        const cn2=Math.sin(rdx*16-tdy*11+tt*0.15)*0.5+0.5;
+        const cn3=Math.sin((rdx+tdy)*6-tt*0.2)*0.5+0.5;
+        if(cc<0) cc=cn1*0.4+cn2*0.25+cn3*0.15; // procedural fallback
+        else cc=cc*0.6+(cn1*0.3+cn2*0.2)*0.4; // blend real + detail
+        if(cc>0.25){
+          const cf=Math.min(0.85,(cc-0.25)*1.2)*twilight;
+          pr=pr*(1-cf)+0.92*cf; pg=pg*(1-cf)+0.94*cf; pb=pb*(1-cf)+0.97*cf;
+        }
+        // Atmospheric limb glow
+        const atm=(1-nz)*(1-nz)*0.3;
+        const atmDay=atm*dayFrac, atmNight=atm*(1-dayFrac)*0.3;
+        pr+=atmDay*0.25+atmNight*0.02; pg+=atmDay*0.45+atmNight*0.03; pb+=atm*0.9;
       } else if(body==='mars'){
         pr=0.75+noise; pg=0.35+noise*0.7; pb=0.15+noise*0.4;
         const m1=Math.exp(-((rdx-0.1)*(rdx-0.1)+(tdy+0.1)*(tdy+0.1))*8)*0.15;
