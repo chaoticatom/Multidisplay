@@ -12451,7 +12451,7 @@ function drawSaturn(faces, S, tt){
         const nz=Math.sqrt(1-d2);
         const limb=0.7+0.3*nz;
         // Bands tilted by same screen rotation as rings, real rotation rate
-        const stdx=dx*sct-dy*sst, stdy=dx*sst+dy*sct;
+        const stdx=dx*sct+dy*sst, stdy=-dx*sst+dy*sct;
         const srdx=stdx*satCosR-nz*satSinR;
         const band=stdy;
         pr=0.82; pg=0.72; pb=0.52;
@@ -12536,7 +12536,7 @@ function drawPlanet(body, faces, S, tt){
       const limb=0.7+0.3*nz;
       const illum=0.6+0.4*(dx*0.5+nz*0.7);
       // Tilt in screen plane so bands visually match axis line angle, then rotate
-      const tdx=dx*ct-dy*st, tdy=dx*st+dy*ct;
+      const tdx=dx*ct+dy*st, tdy=-dx*st+dy*ct;
       const rdx=tdx*cosR-nz*sinR;
       const rnz=tdx*sinR+nz*cosR;
       const noise=(rng(u*7919+v*6271)*2-1)*0.03;
