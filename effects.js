@@ -12393,9 +12393,6 @@ function drawSaturn(faces, S, tt){
   const cx=S/2;
   const halfW=cx-2;
   const halfH=Math.min(cy-textTop, topLimit-cy);
-  // Rings extend to 1.95*pRad; fit within margins
-  const pRad=Math.max(4,Math.round(Math.min(halfW/1.95, halfH)));
-  const ringInner=pRad*1.25, ringOuter=pRad*1.95;
   // Saturn ring tilt as seen from Earth for current date
   const now=new Date();
   const daysSinceJ2000=(now.getTime()-946728000000)/86400000;
@@ -12410,6 +12407,11 @@ function drawSaturn(faces, S, tt){
   const satRot=(daysSinceJ2000/0.44401)*Math.PI*2;
   const satCosR=Math.cos(satRot), satSinR=Math.sin(satRot);
   const rng=(s)=>((s*2654435761)>>>0)/4294967296;
+  const ringMult=1.95;
+  const horizExtent=ringMult*Math.abs(sct)+ringMult*tiltY*Math.abs(sst);
+  const vertExtent=ringMult*Math.abs(sst)+ringMult*tiltY*Math.abs(sct);
+  const pRad=Math.max(4,Math.round(Math.min(halfW/horizExtent, halfH/Math.max(1,vertExtent))));
+  const ringInner=pRad*1.25, ringOuter=pRad*ringMult;
 
   for(const face of faces){
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
