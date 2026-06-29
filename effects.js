@@ -12450,8 +12450,8 @@ function drawSaturn(faces, S, tt){
       if(d2<=1){
         const nz=Math.sqrt(1-d2);
         const limb=0.7+0.3*nz;
-        // Bands tilted by same screen rotation as rings, real rotation rate
-        const stdx=dx*sct+dy*sst, stdy=-dx*sst+dy*sct;
+        // Bands tilted by same screen rotation as rings
+        const stdx=dx*sct-dy*sst, stdy=dx*sst+dy*sct;
         const srdx=stdx*satCosR-nz*satSinR;
         const band=stdy;
         pr=0.82; pg=0.72; pb=0.52;
@@ -12495,6 +12495,31 @@ function drawSaturn(faces, S, tt){
         colBuf[idx*3]=Math.max(0,Math.min(1,pr));
         colBuf[idx*3+1]=Math.max(0,Math.min(1,pg));
         colBuf[idx*3+2]=Math.max(0,Math.min(1,pb));
+      }
+    }
+  }
+
+  // Axis lines for Saturn
+  const axDx=-Math.sin(stilt), axDy=Math.cos(stilt);
+  const axLen=pRad*0.35;
+  for(const face of faces){
+    for(let pole=-1;pole<=1;pole+=2){
+      const startX=cx+pole*axDx*(pRad+1);
+      const startY=cy+pole*axDy*(pRad+1);
+      const endX=cx+pole*axDx*(pRad+axLen);
+      const endY=cy+pole*axDy*(pRad+axLen);
+      const steps=Math.ceil(axLen*1.5);
+      for(let s=0;s<=steps;s++){
+        const frac=s/steps;
+        const u=Math.round(startX+(endX-startX)*frac);
+        const v=Math.round(startY+(endY-startY)*frac);
+        if(u<0||u>=S||v<0||v>=S) continue;
+        const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+        const textDim=v<=6?0.2:1.0;
+        const fade=0.7*(1-frac*0.3)*textDim;
+        colBuf[idx*3]=Math.max(colBuf[idx*3],fade);
+        colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],fade);
+        colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],fade*1.2);
       }
     }
   }
