@@ -13811,6 +13811,7 @@ async function neoFetch(){
     }
   }catch(e){
     neoError=e.message;
+    neoLastFetch=Date.now()/1000-3540;
     if(statusEl) statusEl.textContent='✕ '+e.message;
     console.error('NEO fetch error:',e);
   }
@@ -14051,6 +14052,7 @@ async function apodFetch(){
     }
   }catch(e){
     apodError=e.message;
+    apodLastFetch=Date.now()/1000-3540;
     if(statusEl) statusEl.textContent='✕ '+e.message;
     console.error('APOD fetch error:',e);
   }
@@ -14205,6 +14207,7 @@ async function swxFetch(){
     }
   }catch(e){
     swxError=e.message;
+    swxLastFetch=Date.now()/1000-3540;
     if(statusEl) statusEl.textContent='✕ '+e.message;
     console.error('Space weather fetch error:',e);
   }
@@ -14427,6 +14430,7 @@ async function epicFetch(){
     });
   }catch(e){
     epicError=e.message;
+    epicLastFetch=Date.now()/1000-3540;
     if(statusEl) statusEl.textContent='✕ '+e.message;
     console.error('EPIC fetch error:',e);
   }
@@ -14563,6 +14567,7 @@ async function issFetch(){
     }
   }catch(e){
     issError=e.message;
+    issLastFetch=Date.now()/1000;
     if(statusEl) statusEl.textContent='✕ '+e.message;
     console.error('ISS fetch error:',e);
   }
