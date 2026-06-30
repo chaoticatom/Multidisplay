@@ -4780,7 +4780,7 @@ function effectWeather(dt){
 
   // Skyline building colour
   const bldDay=isDay;
-  const bldR=bldDay?0.12:0.05, bldG=bldDay?0.13:0.05, bldB=bldDay?0.16:0.07;
+  const bldR=bldDay?0.12:0.07, bldG=bldDay?0.13:0.07, bldB=bldDay?0.16:0.1;
   const horizV=Math.round(HORIZ*S1);
   const textV=3; // v position for text baseline
   const tempV=10; // temperature higher up
@@ -5483,7 +5483,7 @@ function effectWeather(dt){
             // Windows at night — grid pattern for buildings and skyscrapers
             if(night&&(sh.t===0||sh.t===4)&&sh.h>3){
               const winX=(li+sh.x*3)%3, winY=row%3;
-              const lit=((pi*7+row*13+sh.x)%5)<2;
+              const lit=((pi*7+row*13+sh.x)%5)<3;
               if(winX===1&&winY===1&&lit&&row>0&&row<sh.h-1&&li>0&&li<sh.w-1){
                 const warmth=((pi*31+row*7)%3);
                 if(warmth===0){ br=0.55;bg=0.45;bb=0.1; }
@@ -5494,7 +5494,7 @@ function effectWeather(dt){
             // House windows at night
             if(night&&sh.t===1&&row>0){
               const wallH=sh.h-Math.max(1,Math.floor(sh.h*0.4));
-              if(row<wallH&&li>0&&li<sh.w-1&&((li+row*3)%4)===1){ br=0.55;bg=0.45;bb=0.1; }
+              if(row<wallH&&li>0&&li<sh.w-1&&((li+row*3)%4)<2){ br=0.55;bg=0.45;bb=0.1; }
             }
             // Church windows
             if(night&&sh.t===3&&row>0&&row<sh.h-Math.floor(sh.h*0.5)&&li===mid){ br=0.6;bg=0.5;bb=0.15; }
