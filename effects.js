@@ -13866,6 +13866,27 @@ function neoApplyBufToFace(face, buf){
   }
 }
 
+// Draws a pre-built SIZE-tall scrolling ticker texture squashed into a
+// bottom strip of `stripH` rows on a single face — used by the NASA live
+// data effects (NEO/APOD/SpaceWeather/EPIC/ISS) when in single-panel 2D mode.
+function applyTickerStripToFace(face, pixels, width, scrollX, stripH){
+  if(!pixels) return;
+  const S=SIZE, rowStart=S-stripH;
+  for(let v=rowStart; v<S; v++){
+    for(let u=0;u<S;u++){
+      const sx=(((scrollX|0)+u)%width+width)%width;
+      const vLocal=v-rowStart;
+      const sv=S-1-Math.min(S-1,Math.floor(vLocal/stripH*S));
+      const pi=(sv*width+sx)*4;
+      const idx=faceMap[face][v*S+u];
+      if(idx<0) continue;
+      colBuf[idx*3]=pixels[pi]/255;
+      colBuf[idx*3+1]=pixels[pi+1]/255;
+      colBuf[idx*3+2]=pixels[pi+2]/255;
+    }
+  }
+}
+
 function effectNEO(dt){
   neoT+=dt;
   if(!neoObjects.length && !neoFetching && (Date.now()/1000-neoLastFetch)>3600) neoFetch();
@@ -13886,12 +13907,17 @@ function effectNEO(dt){
   const level=neoOverallRisk();
   const riskRGB=neoRiskRGB(level);
   const pulse=0.55+0.45*Math.sin(neoT*(level==='red'?6:level==='yellow'?3:1.4));
+  const S=SIZE;
+  const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+  const stripH=Math.max(6,Math.round(S*0.22));
 
-  // Face 0 (front): Earth with pulsing threat ring
-  const S=SIZE, cx0=S/2, cy0=S/2;
-  const earthRad=S*0.3, ringRad=S*0.42;
+  // Face 0 (front): Earth with pulsing threat ring — shrunk & shifted up in 2D mode to leave room for the ticker strip
+  const cx0=S/2, cy0=is2D?(S-stripH)/2:S/2;
+  const scaleF=is2D?(S-stripH)/S:1;
+  const earthRad=S*0.3*scaleF, ringRad=S*0.42*scaleF;
   for(let v=0;v<S;v++){
     for(let u=0;u<S;u++){
+      if(is2D && v>=S-stripH) continue;
       const idx=faceMap[0][v*S+u]; if(idx<0) continue;
       const dx=u-cx0, dy=v-cy0, d=Math.sqrt(dx*dx+dy*dy);
       if(d<earthRad){
@@ -13907,38 +13933,39 @@ function effectNEO(dt){
     }
   }
 
-  // Faces 2 & 3 (sides): incoming object blips, distance-scaled
-  const sideFaces=[2,3];
-  for(let f=0; f<sideFaces.length; f++){
-    const face=sideFaces[f];
-    const objs=neoObjects.slice(0,6);
-    objs.forEach((o,oi)=>{
-      const r=neoRisk(o);
-      const rgb=neoRiskRGB(r);
-      const closeness=Math.max(0,1-Math.min(1,o.missLD/40));
-      const bx=2+((oi*7+f*3)%(S-4));
-      const by=Math.round(S*0.15+ (S*0.7) * (oi/Math.max(1,objs.length-1)));
-      const rad=1+Math.round(closeness*2.5);
-      const blink=0.6+0.4*Math.sin(neoT*(2+oi)+oi);
-      for(let dv=-rad; dv<=rad; dv++){
-        for(let du=-rad; du<=rad; du++){
-          if(du*du+dv*dv>rad*rad) continue;
-          const u=bx+du, v=by+dv;
-          if(u<0||u>=S||v<0||v>=S) continue;
-          const idx=faceMap[face][v*S+u]; if(idx<0) continue;
-          colBuf[idx*3]=rgb[0]*blink; colBuf[idx*3+1]=rgb[1]*blink; colBuf[idx*3+2]=rgb[2]*blink;
+  if(!is2D){
+    // Faces 2 & 3 (sides): incoming object blips, distance-scaled
+    const sideFaces=[2,3];
+    for(let f=0; f<sideFaces.length; f++){
+      const face=sideFaces[f];
+      const objs=neoObjects.slice(0,6);
+      objs.forEach((o,oi)=>{
+        const r=neoRisk(o);
+        const rgb=neoRiskRGB(r);
+        const closeness=Math.max(0,1-Math.min(1,o.missLD/40));
+        const bx=2+((oi*7+f*3)%(S-4));
+        const by=Math.round(S*0.15+ (S*0.7) * (oi/Math.max(1,objs.length-1)));
+        const rad=1+Math.round(closeness*2.5);
+        const blink=0.6+0.4*Math.sin(neoT*(2+oi)+oi);
+        for(let dv=-rad; dv<=rad; dv++){
+          for(let du=-rad; du<=rad; du++){
+            if(du*du+dv*dv>rad*rad) continue;
+            const u=bx+du, v=by+dv;
+            if(u<0||u>=S||v<0||v>=S) continue;
+            const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+            colBuf[idx*3]=rgb[0]*blink; colBuf[idx*3+1]=rgb[1]*blink; colBuf[idx*3+2]=rgb[2]*blink;
+          }
         }
-      }
-    });
+      });
+    }
+    // Face 4 (top): title / risk summary card
+    neoApplyBufToFace(4, neoBuildTitleBuf(level));
   }
 
-  // Face 4 (top): title / risk summary card
-  neoApplyBufToFace(4, neoBuildTitleBuf(level));
-
-  // Face 1 (back): scrolling ticker of all tracked objects
   if(!neoTickerPixels) neoBuildTicker();
   neoTickerScrollX += dt*22*(speedMult||1);
-  neoApplyTickerToFace(1);
+  if(is2D) applyTickerStripToFace(0, neoTickerPixels, neoTickerWidth, neoTickerScrollX, stripH);
+  else neoApplyTickerToFace(1);
 }
 
 // ═══════════════════════════════════════════════════
@@ -14061,9 +14088,12 @@ function effectAPOD(dt){
 
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
+  const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+  const stripH=Math.max(6,Math.round(SIZE*0.22));
+
   if(apodImgReady){
     apodApplyImageToFace(0);
-    apodApplyImageToFace(4);
+    if(!is2D) apodApplyImageToFace(4);
   } else {
     // Starfield placeholder while loading / for video days
     const tt=Date.now()*0.001;
@@ -14079,7 +14109,8 @@ function effectAPOD(dt){
 
   if(!apodTickerPixels) apodBuildTicker();
   apodTickerScrollX += dt*20*(speedMult||1);
-  apodApplyTickerToFace(1);
+  if(is2D) applyTickerStripToFace(0, apodTickerPixels, apodTickerWidth, apodTickerScrollX, stripH);
+  else apodApplyTickerToFace(1);
 }
 
 // ═══════════════════════════════════════════════════
@@ -14249,12 +14280,16 @@ function effectSpaceWeather(dt){
   const level=swxOverallRisk();
   const riskRGB=swxRiskRGB(level);
   const pulse=0.55+0.45*Math.sin(swxT*(level==='red'?6:level==='yellow'?3:1.4));
+  const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+  const stripH=Math.max(6,Math.round(SIZE*0.22));
 
-  // Face 0: pulsing sun with flare-like rays
-  const S=SIZE, cx0=S/2, cy0=S/2;
-  const sunRad=S*0.26;
+  // Face 0: pulsing sun with flare-like rays — shrunk & shifted up in 2D mode for the ticker strip
+  const S=SIZE, cx0=S/2, cy0=is2D?(S-stripH)/2:S/2;
+  const scaleF=is2D?(S-stripH)/S:1;
+  const sunRad=S*0.26*scaleF;
   for(let v=0;v<S;v++){
     for(let u=0;u<S;u++){
+      if(is2D && v>=S-stripH) continue;
       const idx=faceMap[0][v*S+u]; if(idx<0) continue;
       const dx=u-cx0, dy=v-cy0, d=Math.sqrt(dx*dx+dy*dy);
       const ang=Math.atan2(dy,dx);
@@ -14275,42 +14310,45 @@ function effectSpaceWeather(dt){
     }
   }
 
-  // Face 4: title card
-  swxApplyBufToFace(4, swxBuildTitleBuf(level));
+  if(!is2D){
+    // Face 4: title card
+    swxApplyBufToFace(4, swxBuildTitleBuf(level));
 
-  // Faces 2 & 3: deep space starfield with event-colored particle bursts
-  const tt=Date.now()*0.001;
-  const sideFaces=[2,3];
-  for(const face of sideFaces){
-    for(let v=0;v<S;v++){
-      for(let u=0;u<S;u++){
-        const idx=faceMap[face][v*S+u]; if(idx<0) continue;
-        const seed=((idx*2654435761)>>>0)/4294967296;
-        if(seed<0.012){
-          const twinkle=0.3+0.7*Math.abs(Math.sin(tt*1.4+seed*60));
-          const br=seed*30*twinkle;
-          colBuf[idx*3]=br; colBuf[idx*3+1]=br; colBuf[idx*3+2]=br*1.1;
+    // Faces 2 & 3: deep space starfield with event-colored particle bursts
+    const tt=Date.now()*0.001;
+    const sideFaces=[2,3];
+    for(const face of sideFaces){
+      for(let v=0;v<S;v++){
+        for(let u=0;u<S;u++){
+          const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+          const seed=((idx*2654435761)>>>0)/4294967296;
+          if(seed<0.012){
+            const twinkle=0.3+0.7*Math.abs(Math.sin(tt*1.4+seed*60));
+            const br=seed*30*twinkle;
+            colBuf[idx*3]=br; colBuf[idx*3+1]=br; colBuf[idx*3+2]=br*1.1;
+          }
         }
       }
+      swxEvents.slice(0,5).forEach((e,ei)=>{
+        const r=swxRisk(e);
+        const rgb=swxRiskRGB(r);
+        const bx=2+((ei*9+face*4)%(S-4));
+        const by=Math.round(S*0.15+(S*0.7)*(ei/4));
+        const blink=0.6+0.4*Math.sin(swxT*(2+ei)+ei);
+        for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
+          const u=bx+du, v=by+dv;
+          if(u<0||u>=S||v<0||v>=S) continue;
+          const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+          colBuf[idx*3]=rgb[0]*blink; colBuf[idx*3+1]=rgb[1]*blink; colBuf[idx*3+2]=rgb[2]*blink;
+        }
+      });
     }
-    swxEvents.slice(0,5).forEach((e,ei)=>{
-      const r=swxRisk(e);
-      const rgb=swxRiskRGB(r);
-      const bx=2+((ei*9+face*4)%(S-4));
-      const by=Math.round(S*0.15+(S*0.7)*(ei/4));
-      const blink=0.6+0.4*Math.sin(swxT*(2+ei)+ei);
-      for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
-        const u=bx+du, v=by+dv;
-        if(u<0||u>=S||v<0||v>=S) continue;
-        const idx=faceMap[face][v*S+u]; if(idx<0) continue;
-        colBuf[idx*3]=rgb[0]*blink; colBuf[idx*3+1]=rgb[1]*blink; colBuf[idx*3+2]=rgb[2]*blink;
-      }
-    });
   }
 
   if(!swxTickerPixels) swxBuildTicker();
   swxTickerScrollX += dt*22*(speedMult||1);
-  swxApplyTickerToFace(1);
+  if(is2D) applyTickerStripToFace(0, swxTickerPixels, swxTickerWidth, swxTickerScrollX, stripH);
+  else swxApplyTickerToFace(1);
 }
 
 // ═══════════════════════════════════════════════════
@@ -14378,10 +14416,13 @@ async function epicFetch(){
 }
 document.getElementById('epic-fetch-btn')?.addEventListener('click',epicFetch);
 
-function epicApplyImageToFace(face){
-  const S=SIZE, cx0=S/2, cy0=S/2, rad=S*0.48;
+function epicApplyImageToFace(face, rowLimit){
+  const S=SIZE, cx0=S/2;
+  const cy0=rowLimit?rowLimit/2:S/2;
+  const rad=(rowLimit||S)*0.48;
   if(!epicImgReady||!epicImgPixels){
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      if(rowLimit && v>=rowLimit) continue;
       const idx=faceMap[face][v*S+u]; if(idx<0) continue;
       const dx=u-cx0, dy=v-cy0;
       if(dx*dx+dy*dy<rad*rad){ colBuf[idx*3]=0.04; colBuf[idx*3+1]=0.12; colBuf[idx*3+2]=0.3; }
@@ -14391,11 +14432,13 @@ function epicApplyImageToFace(face){
   const IS=epicImgSize;
   for(let v=0;v<S;v++){
     for(let u=0;u<S;u++){
+      if(rowLimit && v>=rowLimit) continue;
       const idx=faceMap[face][v*S+u]; if(idx<0) continue;
       const dx=u-cx0, dy=v-cy0;
       if(dx*dx+dy*dy>rad*rad) continue;
-      const su=Math.min(IS-1,Math.max(0,Math.floor(u/S*IS)));
-      const sv=Math.min(IS-1,Math.max(0,Math.floor((S-1-v)/S*IS)));
+      const fx=dx/rad, fy=dy/rad;
+      const su=Math.min(IS-1,Math.max(0,Math.floor((fx*0.5+0.5)*IS)));
+      const sv=Math.min(IS-1,Math.max(0,Math.floor((-fy*0.5+0.5)*IS)));
       const pi=(sv*IS+su)*4;
       colBuf[idx*3]=epicImgPixels[pi]/255;
       colBuf[idx*3+1]=epicImgPixels[pi+1]/255;
@@ -14444,6 +14487,9 @@ function effectEPIC(dt){
 
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
+  const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+  const stripH=Math.max(6,Math.round(SIZE*0.22));
+
   const tt=Date.now()*0.001;
   for(let i=0;i<N;i++){
     const seed=((i*2654435761)>>>0)/4294967296;
@@ -14454,12 +14500,13 @@ function effectEPIC(dt){
     }
   }
 
-  epicApplyImageToFace(0);
-  epicApplyImageToFace(4);
+  epicApplyImageToFace(0, is2D?SIZE-stripH:null);
+  if(!is2D) epicApplyImageToFace(4);
 
   if(!epicTickerPixels) epicBuildTicker();
   epicTickerScrollX += dt*20*(speedMult||1);
-  epicApplyTickerToFace(1);
+  if(is2D) applyTickerStripToFace(0, epicTickerPixels, epicTickerWidth, epicTickerScrollX, stripH);
+  else epicApplyTickerToFace(1);
 }
 
 // ═══════════════════════════════════════════════════
@@ -14530,14 +14577,15 @@ function issBuildMapBuf(){
 }
 let issMapBuf=null;
 
-function issApplyMapToFace(face){
+function issApplyMapToFace(face, rowLimit){
   if(!issMapBuf) issMapBuf=issBuildMapBuf();
   const {data,S}=issMapBuf;
-  for(let v=0;v<SIZE;v++){
+  const rows=rowLimit||SIZE;
+  for(let v=0;v<rows;v++){
     for(let u=0;u<SIZE;u++){
       const idx=faceMap[face][v*SIZE+u]; if(idx<0) continue;
       const su=Math.min(S-1,Math.floor(u/SIZE*S));
-      const sv=Math.min(S-1,Math.floor(v/SIZE*S));
+      const sv=Math.min(S-1,Math.floor(v/rows*S));
       const pi=(sv*S+su)*4;
       colBuf[idx*3]=data[pi]/255;
       colBuf[idx*3+1]=data[pi+1]/255;
@@ -14546,9 +14594,10 @@ function issApplyMapToFace(face){
   }
   // Trail + marker
   const lonToU=lon=>Math.round(((lon+180)/360)*SIZE)%SIZE;
-  const latToV=lat=>Math.round(((90-lat)/180)*SIZE);
+  const latToV=lat=>Math.round(((90-lat)/180)*rows);
   issTrail.forEach((p,pi)=>{
     const u=lonToU(p.lon), v=latToV(p.lat);
+    if(v<0||v>=rows) return;
     const age=pi/Math.max(1,issTrail.length-1);
     const idx=faceMap[face][v*SIZE+u]; if(idx<0) return;
     colBuf[idx*3]=Math.max(colBuf[idx*3],0.5*age);
@@ -14560,7 +14609,7 @@ function issApplyMapToFace(face){
     const blink=0.6+0.4*Math.sin(issT*5);
     for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
       const uu=((u+du)%SIZE+SIZE)%SIZE, vv=v+dv;
-      if(vv<0||vv>=SIZE) continue;
+      if(vv<0||vv>=rows) continue;
       const idx=faceMap[face][vv*SIZE+uu]; if(idx<0) continue;
       colBuf[idx*3]=1*blink; colBuf[idx*3+1]=1*blink; colBuf[idx*3+2]=0.95*blink;
     }
@@ -14667,6 +14716,18 @@ function effectISS(dt){
   if(!issFetching && (Date.now()/1000-issLastFetch)>5) issFetch();
 
   for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+  const stripH=Math.max(6,Math.round(SIZE*0.22));
+
+  if(is2D){
+    // Single face: world map + ground track on top, info ticker on the bottom strip
+    issApplyMapToFace(0, SIZE-stripH);
+    if(!issTickerPixels) issBuildTicker();
+    issTickerScrollX += dt*20*(speedMult||1);
+    applyTickerStripToFace(0, issTickerPixels, issTickerWidth, issTickerScrollX, stripH);
+    return;
+  }
 
   // Face 0: starfield + orbiting station icon
   const tt=Date.now()*0.001;
