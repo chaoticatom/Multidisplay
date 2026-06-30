@@ -13714,35 +13714,52 @@ const NEO_API_KEY='DEMO_KEY';
 // resizing proxy (images.weserv.nl) when the direct load can't be read.
 function loadImageForPixels(url, onSize, onPixels, onError){
   const sz=Math.max(SIZE,32);
-  const proxyUrl=u=>`https://images.weserv.nl/?url=${encodeURIComponent(u.replace(/^https?:\/\//,''))}&w=${sz}&h=${sz}&fit=cover`;
-  function tryLoad(src, isFallback){
-    const img=new Image();
-    img.crossOrigin='anonymous';
-    img.onload=()=>{
+  const proxyUrl=`https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//,''))}&w=${sz}&h=${sz}&fit=cover`;
+
+  function drawAndExtract(img){
+    const oc=document.createElement('canvas');
+    oc.width=sz; oc.height=sz;
+    const octx=oc.getContext('2d');
+    const scale=Math.max(sz/img.width, sz/img.height);
+    const dw=img.width*scale, dh=img.height*scale;
+    octx.drawImage(img,(sz-dw)/2,(sz-dh)/2,dw,dh);
+    return octx.getImageData(0,0,sz,sz).data; // throws SecurityError if canvas tainted
+  }
+
+  // Step 1: try direct load without crossOrigin (works even from browser cache,
+  // and succeeds if the server sends ACAO headers).
+  const img1=new Image();
+  img1.onload=()=>{
+    try{
+      const pixels=drawAndExtract(img1);
+      console.log('[loadImageForPixels] direct OK');
+      onSize(sz); onPixels(pixels);
+    }catch(e){
+      // Canvas tainted — server sent no CORS headers on this response.
+      // Step 2: re-fetch via CORS proxy which always sends ACAO:*.
+      console.warn('[loadImageForPixels] direct tainted, trying proxy:',e.message);
+      tryProxy();
+    }
+  };
+  img1.onerror=()=>{ console.warn('[loadImageForPixels] direct load error, trying proxy'); tryProxy(); };
+  img1.src=url;
+
+  function tryProxy(){
+    const img2=new Image();
+    img2.crossOrigin='anonymous';
+    img2.onload=()=>{
       try{
-        const oc=document.createElement('canvas');
-        oc.width=sz; oc.height=sz;
-        const octx=oc.getContext('2d');
-        const scale=Math.max(sz/img.width, sz/img.height);
-        const dw=img.width*scale, dh=img.height*scale;
-        octx.drawImage(img,(sz-dw)/2,(sz-dh)/2,dw,dh);
-        const pixels=octx.getImageData(0,0,sz,sz).data;
-        onSize(sz);   // sets *Size
-        onPixels(pixels);  // sets *Pixels and *Ready=true (caller sets ready after pixels)
-        console.log('[loadImageForPixels] OK'+(isFallback?' (proxy)':''));
+        const pixels=drawAndExtract(img2);
+        console.log('[loadImageForPixels] proxy OK');
+        onSize(sz); onPixels(pixels);
       }catch(e){
-        console.warn('[loadImageForPixels] pixel read failed'+(isFallback?' (proxy)':'')+':',e.message,'→',isFallback?'giving up':'trying proxy');
-        if(!isFallback) tryLoad(proxyUrl(url), true);
-        else onError(e);
+        console.error('[loadImageForPixels] proxy tainted:',e.message);
+        onError(e);
       }
     };
-    img.onerror=()=>{
-      if(!isFallback) tryLoad(proxyUrl(url), true);
-      else onError(new Error('Image failed to load'));
-    };
-    img.src=src;
+    img2.onerror=()=>{ console.error('[loadImageForPixels] proxy load error'); onError(new Error('Image failed to load')); };
+    img2.src=proxyUrl;
   }
-  tryLoad(url, false);
 }
 
 function neoRisk(o){
