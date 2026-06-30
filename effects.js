@@ -4052,7 +4052,8 @@ function wxInitScene(code){
     spd:0.0002+Math.random()*0.0004,
     spdY:(Math.random()-0.35)*0.00012,
     br:dark?0.3+Math.random()*0.2:isOvercastCode?0.4+Math.random()*0.25:isRainCode?0.4+Math.random()*0.3:0.6+Math.random()*0.4,
-    puffs:isOvercastCode||isStormCode?6+Math.floor(Math.random()*6):isRainCode?5+Math.floor(Math.random()*5):3+Math.floor(Math.random()*5),fluff:Math.random()});
+    puffs:isOvercastCode||isStormCode?6+Math.floor(Math.random()*6):isRainCode?5+Math.floor(Math.random()*5):3+Math.floor(Math.random()*5),fluff:Math.random(),
+    tint:0.85+Math.random()*0.3,bubSeed:Math.random()*1000});
   for(let i=0;i<100;i++) wxStars.push({px:Math.random(),py:Math.random(),
     br:0.3+Math.random()*0.7,tw:Math.random()*Math.PI*2,spd:1.5+Math.random()*3});
   const np=isStormCode?150:isHeavyRain?120:isRainCode?80:isSnowCode?60:0;
@@ -5106,7 +5107,8 @@ function effectWeather(dt){
           if(dist>1) continue;
           const fu=pu+du, fv=pv+dv;
           if(fu<0||fu>=S||fv<0||fv>=S) continue;
-          if(fv>=_clrBot7&&fv<_clrTop7-6) continue;
+          const _bubRow=_clrTop7-6+Math.round(1.6*Math.sin(fu*0.55+p*2.1+cl.bubSeed));
+          if(fv>=_clrBot7&&fv<_bubRow) continue;
           const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
           let edge;
           if(isOvercast){
@@ -5116,7 +5118,7 @@ function effectWeather(dt){
           } else edge=1-dist;
           let cb=cl.br*cloudDark*edge;
           if(isOvercast){
-            const clTint=0.85+((cl.px*9991+cl.py*7727)>>>0)%30*0.01;
+            const clTint=cl.tint;
             const pxVar=0.92+((fu*2657+fv*4391)>>>0)%16*0.01;
             const edgeLift=dist>0.5?1+0.15*(dist-0.5)/0.5:1;
             cb*=clTint*pxVar*edgeLift;
@@ -5147,7 +5149,7 @@ function effectWeather(dt){
       } else topEdge=1-dist;
       let cb=cl.br*cloudDark*topEdge*0.8;
       if(isOvercast){
-        const clTint=0.85+((cl.px*9991+cl.py*7727)>>>0)%30*0.01;
+        const clTint=cl.tint;
         const pxVar=0.92+((fu*2657+fv*4391)>>>0)%16*0.01;
         cb*=clTint*pxVar;
       }
