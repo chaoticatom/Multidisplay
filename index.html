@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=664">
+<link rel="stylesheet" href="style.css?v=665">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -59,7 +59,7 @@
     <div class="section-body">
 
     <div class="sub-section collapsed">
-    <button class="sub-head">Dynamic <span class="chev">▾</span></button>
+    <button class="sub-head">Motion &amp; Particles <span class="chev">▾</span></button>
     <div class="sub-body">
     <button class="effect-btn active" data-effect="wave">◈ Wave Cascade</button>
     <button class="effect-btn has-panel" data-effect="rain">◈ Colour Rain <span class="panel-arrow">▸</span></button>
@@ -72,42 +72,65 @@
     </div>
     <button class="effect-btn" data-effect="plasma">◈ Plasma Storm</button>
     <button class="effect-btn" data-effect="sphere">◈ Laser Grid</button>
-    <button class="effect-btn has-panel" data-effect="fireworks">◈ Fireworks <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-fireworks">
-      <div class="ov-row-label">Mode</div>
-      <div class="opt-grid" style="margin-bottom:8px;">
-        <button class="strobe-mode-btn active" data-fwmode="random">Random</button>
-        <button class="strobe-mode-btn" data-fwmode="sync">Sync Show</button>
-        <button class="strobe-mode-btn" data-fwmode="mic">🎤 Mic</button>
-      </div>
-      <label class="check-row"><input type="checkbox" id="fw-text-on"> Show text on cube</label>
-      <input type="text" id="fw-text-input" placeholder="Enter message…" maxlength="80"
-        style="width:100%;margin-top:6px;padding:5px 8px;background:#111;border:1px solid #444;color:#eee;border-radius:4px;font-size:12px;">
-    </div>
     <button class="effect-btn" data-effect="dna">◈ DNA Helix</button>
-    <button class="effect-btn has-panel" data-effect="datetime">◈ Time &amp; Date <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-datetime">
-      <label class="check-row" style="margin-bottom:6px;"><input type="checkbox" id="dt-allpanels-check">ALL PANELS</label>
-      <label class="check-row"><input type="checkbox" id="dt-scroll-check">SCROLL</label>
-      <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
-      <div class="slider-row">
-        <input type="range" id="dt-scroll-speed" min="-5" max="5" step="0.5" value="1" style="flex:1;">
-        <span class="slider-val" id="dt-scroll-speed-val">1</span>
+    <button class="effect-btn" data-effect="nebula">◈ Nebula Drift</button>
+    <button class="effect-btn" data-effect="aurora">◈ Aurora Borealis</button>
+    <button class="effect-btn" data-effect="warp">◈ Warp Drive</button>
+    <button class="effect-btn" data-effect="lightning">◈ Lightning Storm</button>
+    <button class="effect-btn has-panel" data-effect="lightspeed">◈ Light Speed <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-lightspeed">
+      <div class="ov-row-label">Speed</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="ls-speed" min="1" max="20" step="0.5" value="8" style="flex:1;">
+        <span id="ls-speed-val" style="font-size:11px;color:#9cd;width:32px;">8</span>
       </div>
-      <div class="ov-row-label" style="margin-top:8px;">Mode</div>
-      <div class="opt-grid">
-        <button class="strobe-mode-btn active" data-dtmode="time">Time</button>
-        <button class="strobe-mode-btn" data-dtmode="date">Date</button>
-        <button class="strobe-mode-btn" data-dtmode="both">Both</button>
-        <button class="strobe-mode-btn" data-dtmode="full">Full</button>
-        <button class="strobe-mode-btn" data-dtmode="analogue">Analogue</button>
+      <div class="ov-row-label" style="margin-top:8px;">Trail Length</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="ls-trail" min="4" max="120" step="2" value="32" style="flex:1;">
+        <span id="ls-trail-val" style="font-size:11px;color:#9cd;width:32px;">32</span>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Size (pixels)</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(4,1fr);">
+        <button class="strobe-mode-btn active" data-ls-size="1">1</button>
+        <button class="strobe-mode-btn" data-ls-size="2">2</button>
+        <button class="strobe-mode-btn" data-ls-size="3">3</button>
+        <button class="strobe-mode-btn" data-ls-size="4">4</button>
+        <button class="strobe-mode-btn" data-ls-size="6">6</button>
+        <button class="strobe-mode-btn" data-ls-size="8">8</button>
+        <button class="strobe-mode-btn" data-ls-size="12">12</button>
+        <button class="strobe-mode-btn" data-ls-size="16">16</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Nudge (degrees)</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(4,1fr);">
+        <button class="strobe-mode-btn active" data-ls-nudge="0">0°</button>
+        <button class="strobe-mode-btn" data-ls-nudge="1">1°</button>
+        <button class="strobe-mode-btn" data-ls-nudge="2">2°</button>
+        <button class="strobe-mode-btn" data-ls-nudge="5">5°</button>
+        <button class="strobe-mode-btn" data-ls-nudge="10">10°</button>
+        <button class="strobe-mode-btn" data-ls-nudge="20">20°</button>
+        <button class="strobe-mode-btn" data-ls-nudge="45">45°</button>
+        <button class="strobe-mode-btn" data-ls-nudge="90">90°</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Objects</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="ls-count" min="1" max="12" step="1" value="3" style="flex:1;">
+        <span id="ls-count-val" style="font-size:11px;color:#9cd;width:28px;">3</span>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Colour</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);">
+        <button class="strobe-mode-btn active" data-ls-col="multi">Multi</button>
+        <button class="strobe-mode-btn" data-ls-col="white">White</button>
+        <button class="strobe-mode-btn" data-ls-col="cyan">Cyan</button>
+        <button class="strobe-mode-btn" data-ls-col="red">Red</button>
+        <button class="strobe-mode-btn" data-ls-col="green">Green</button>
+        <button class="strobe-mode-btn" data-ls-col="gold">Gold</button>
       </div>
     </div>
 
     </div>
     </div>
     <div class="sub-section collapsed">
-    <button class="sub-head">Physics <span class="chev">▾</span></button>
+    <button class="sub-head">Physics &amp; Simulation <span class="chev">▾</span></button>
     <div class="sub-body">
     <button class="effect-btn has-panel" data-effect="balls">◈ Bouncing Balls <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-balls">
@@ -123,6 +146,20 @@
       </div>
     </div>
     <button class="effect-btn" data-effect="sand">◈ Gravity Sand</button>
+    <button class="effect-btn" data-effect="life">◈ Crystal Life</button>
+    <button class="effect-btn" data-effect="fluid">◈ Liquid Crystal</button>
+    <button class="effect-btn has-panel" data-effect="fireworks">◈ Fireworks <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-fireworks">
+      <div class="ov-row-label">Mode</div>
+      <div class="opt-grid" style="margin-bottom:8px;">
+        <button class="strobe-mode-btn active" data-fwmode="random">Random</button>
+        <button class="strobe-mode-btn" data-fwmode="sync">Sync Show</button>
+        <button class="strobe-mode-btn" data-fwmode="mic">🎤 Mic</button>
+      </div>
+      <label class="check-row"><input type="checkbox" id="fw-text-on"> Show text on cube</label>
+      <input type="text" id="fw-text-input" placeholder="Enter message…" maxlength="80"
+        style="width:100%;margin-top:6px;padding:5px 8px;background:#111;border:1px solid #444;color:#eee;border-radius:4px;font-size:12px;">
+    </div>
     <button class="effect-btn has-panel" data-effect="strobe">◈ Strobe Flash <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-strobe">
       <div class="ov-row-label">Pattern</div>
@@ -149,6 +186,22 @@
         <button class="strobe-mode-btn" data-scol="multi">Multi</button>
       </div>
     </div>
+
+    </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head">Colour &amp; Gradients <span class="chev">▾</span></button>
+    <div class="sub-body">
+    <button class="effect-btn" data-effect="gradient_wash">◈ Rainbow Wash</button>
+    <button class="effect-btn" data-effect="depth_rings">◈ Depth Rings</button>
+    <button class="effect-btn" data-effect="prism">◈ Prism Sweep</button>
+    <button class="effect-btn" data-effect="tide">◈ Color Tide</button>
+
+    </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head">Live Data <span class="chev">▾</span></button>
+    <div class="sub-body">
     <button class="effect-btn has-panel" data-effect="f1">◈ F1 Live <span id="f1-badge" class="f1-badge"></span><span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-f1">
       <div class="ov-row-label">Source</div>
@@ -236,23 +289,97 @@
         </div>
       </div>
     </div>
+    <button class="effect-btn has-panel" data-effect="weather">◈ Weather <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-weather">
+      <div style="display:flex;gap:5px;margin-bottom:8px;">
+        <div style="flex:1;position:relative;">
+          <input id="wx-city" type="text" placeholder="Search cities…" value="Milton Keynes"
+            style="width:100%;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:14px;border-radius:4px;box-sizing:border-box;">
+          <div id="wx-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:150px;overflow-y:auto;z-index:1000;margin-top:2px;">
+          </div>
+        </div>
+        <button id="wx-fetch-btn" style="padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;">GO</button>
+      </div>
+      <div id="wx-status" style="font-size:13px;color:#778;min-height:16px;">Enter city and press GO</div>
+      <div id="wx-info" style="margin-top:6px;display:none;">
+        <div id="wx-temp-line" style="font-size:15px;color:#cde;font-weight:700;"></div>
+        <div id="wx-desc-line" style="font-size:13px;color:#99a;margin-top:2px;"></div>
+        <div id="wx-sun-line" style="font-size:15px;color:#99b;margin-top:6px;font-weight:600;letter-spacing:0.3px;"></div>
+        <div id="wx-moon-line" style="font-size:14px;color:#889;margin-top:3px;font-weight:600;letter-spacing:0.3px;"></div>
+      </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="moon">◈ Celestial <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-moon">
+      <div style="display:flex;gap:5px;margin-bottom:8px;">
+        <div style="flex:1;position:relative;">
+          <input id="moon-city" type="text" placeholder="Search cities…" value="Milton Keynes"
+            style="width:100%;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:14px;border-radius:4px;box-sizing:border-box;">
+          <div id="moon-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:150px;overflow-y:auto;z-index:1000;margin-top:2px;">
+          </div>
+        </div>
+        <button id="moon-fetch-btn" style="padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;">GO</button>
+      </div>
+      <div id="moon-status" style="font-size:13px;color:#778;min-height:16px;">Enter city and press GO</div>
+      <div id="moon-info" style="margin-top:6px;display:none;">
+        <div id="moon-phase-line" style="font-size:15px;color:#cde;font-weight:700;"></div>
+        <div id="moon-rise-line" style="font-size:14px;color:#99b;margin-top:3px;font-weight:600;"></div>
+      </div>
+      <div style="margin-top:8px;">
+        <div style="font-size:13px;color:#778;margin-bottom:4px;">Celestial Body</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;">
+          <label class="check-row"><input type="radio" name="celestial-body" value="moon" checked> Moon</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="mercury"> Mercury</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="venus"> Venus</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="earth"> Earth</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="mars"> Mars</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="jupiter"> Jupiter</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="saturn"> Saturn</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="uranus"> Uranus</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="neptune"> Neptune</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="pluto"> Pluto</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="sun"> Sun</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="blackhole"> Black Hole</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="solarsystem"> Solar System</label>
+        </div>
+        <div id="solar-speed-row" style="display:none;margin-top:8px;">
+          <label style="font-size:11px;color:#aaa;">Orbit Speed: <span id="solar-speed-label">1x</span></label>
+          <input type="range" id="solar-speed" min="0" max="7" step="0.01" value="0" style="width:100%;margin-top:2px;">
+        </div>
+        <script>
+        document.querySelectorAll('input[name="celestial-body"]').forEach(r=>r.addEventListener('change',()=>{
+          document.getElementById('solar-speed-row').style.display=r.value==='solarsystem'?'':'none';
+        }));
+        document.getElementById('solar-speed').addEventListener('input',function(){
+          const v=parseFloat(this.value);
+          const mult=Math.pow(10,v);
+          document.getElementById('solar-speed-label').textContent=mult<10?mult.toFixed(1)+'x':Math.round(mult)+'x';
+        });
+        </script>
+      </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="datetime">◈ Time &amp; Date <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-datetime">
+      <label class="check-row" style="margin-bottom:6px;"><input type="checkbox" id="dt-allpanels-check">ALL PANELS</label>
+      <label class="check-row"><input type="checkbox" id="dt-scroll-check">SCROLL</label>
+      <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
+      <div class="slider-row">
+        <input type="range" id="dt-scroll-speed" min="-5" max="5" step="0.5" value="1" style="flex:1;">
+        <span class="slider-val" id="dt-scroll-speed-val">1</span>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Mode</div>
+      <div class="opt-grid">
+        <button class="strobe-mode-btn active" data-dtmode="time">Time</button>
+        <button class="strobe-mode-btn" data-dtmode="date">Date</button>
+        <button class="strobe-mode-btn" data-dtmode="both">Both</button>
+        <button class="strobe-mode-btn" data-dtmode="full">Full</button>
+        <button class="strobe-mode-btn" data-dtmode="analogue">Analogue</button>
+      </div>
+    </div>
 
     </div>
     </div>
     <div class="sub-section collapsed">
-    <button class="sub-head">Gradients <span class="chev">▾</span></button>
-    <div class="sub-body">
-    <button class="effect-btn" data-effect="gradient_wash">◈ Rainbow Wash</button>
-    <button class="effect-btn" data-effect="aurora">◈ Aurora Borealis</button>
-    <button class="effect-btn" data-effect="depth_rings">◈ Depth Rings</button>
-    <button class="effect-btn" data-effect="prism">◈ Prism Sweep</button>
-    <button class="effect-btn" data-effect="tide">◈ Color Tide</button>
-    <button class="effect-btn" data-effect="nebula">◈ Nebula Drift</button>
-
-    </div>
-    </div>
-    <div class="sub-section collapsed">
-    <button class="sub-head">Audio &amp; Games <span class="chev">▾</span></button>
+    <button class="sub-head">Audio &amp; Media <span class="chev">▾</span></button>
     <div class="sub-body">
     <button class="effect-btn has-panel" data-effect="spectrum">◈ Spectrum Analyser <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-spectrum">
@@ -312,31 +439,6 @@
       <button id="mic-btn" style="margin-top:8px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">🎤 START MIC</button>
       <div id="mic-status" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
     </div>
-    <button class="effect-btn has-panel" data-effect="maze">◈ Maze Runner <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-maze">
-      <div class="slider-row">
-        <span class="slider-label">Runners</span>
-        <input type="range" id="mz-runners" min="1" max="6" step="1" value="3">
-        <span class="slider-val" id="mz-runners-val">3</span>
-      </div>
-      <button id="new-maze-btn" style="margin-top:6px;width:100%;padding:5px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">⟳ NEW MAZE</button>
-    </div>
-    <button class="effect-btn has-panel" data-effect="tron">◈ Tron Bikes <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-tron">
-      <div class="slider-row">
-        <span class="slider-label">Bikes</span>
-        <input type="range" id="tron-count" min="2" max="8" step="1" value="4">
-        <span class="slider-val" id="tron-count-val">4</span>
-      </div>
-      <div class="slider-row" style="margin-top:4px;">
-        <span class="slider-label">Speed</span>
-        <input type="range" id="tron-speed" min="0.5" max="3" step="0.1" value="1">
-        <span class="slider-val" id="tron-speed-val">1×</span>
-      </div>
-      <label class="check-row" style="margin-top:6px;"><input type="checkbox" id="tron-straight-check">STRAIGHT LINES</label>
-      <label class="check-row" style="margin-top:4px;"><input type="checkbox" id="tron-border-check">BORDER WALLS (2D)</label>
-      <button id="new-tron-btn" style="margin-top:6px;width:100%;padding:5px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">⟳ NEW GAME</button>
-    </div>
     <button class="effect-btn has-panel" data-effect="video">◈ Video Display <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-video">
       <div style="font-size:11px;color:#99a;line-height:1.5;margin-bottom:8px;">Maps video/image to the 4 side panels. YouTube: open in another tab then use Screen Capture.</div>
@@ -365,6 +467,36 @@
       </div>
     </div>
 
+    </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head">Games &amp; Chance <span class="chev">▾</span></button>
+    <div class="sub-body">
+    <button class="effect-btn has-panel" data-effect="maze">◈ Maze Runner <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-maze">
+      <div class="slider-row">
+        <span class="slider-label">Runners</span>
+        <input type="range" id="mz-runners" min="1" max="6" step="1" value="3">
+        <span class="slider-val" id="mz-runners-val">3</span>
+      </div>
+      <button id="new-maze-btn" style="margin-top:6px;width:100%;padding:5px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">⟳ NEW MAZE</button>
+    </div>
+    <button class="effect-btn has-panel" data-effect="tron">◈ Tron Bikes <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-tron">
+      <div class="slider-row">
+        <span class="slider-label">Bikes</span>
+        <input type="range" id="tron-count" min="2" max="8" step="1" value="4">
+        <span class="slider-val" id="tron-count-val">4</span>
+      </div>
+      <div class="slider-row" style="margin-top:4px;">
+        <span class="slider-label">Speed</span>
+        <input type="range" id="tron-speed" min="0.5" max="3" step="0.1" value="1">
+        <span class="slider-val" id="tron-speed-val">1×</span>
+      </div>
+      <label class="check-row" style="margin-top:6px;"><input type="checkbox" id="tron-straight-check">STRAIGHT LINES</label>
+      <label class="check-row" style="margin-top:4px;"><input type="checkbox" id="tron-border-check">BORDER WALLS (2D)</label>
+      <button id="new-tron-btn" style="margin-top:6px;width:100%;padding:5px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">⟳ NEW GAME</button>
+    </div>
     <button class="effect-btn has-panel" data-effect="retro">◈ Retro <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-retro" style="overflow:visible;">
       <div class="ov-row-label">Game</div>
@@ -406,148 +538,6 @@
       <input type="range" id="retro-rotate-slider" min="3" max="120" value="8" style="width:100%;cursor:pointer;">
       <button id="retro-show-btn" style="margin-top:8px;width:100%;padding:8px;background:rgba(80,200,120,0.25);border:1px solid rgba(80,200,120,0.5);border-radius:6px;color:#9fd;font-size:13px;cursor:pointer;">▶ Show</button>
     </div>
-    </div>
-    </div>
-    <div class="sub-section collapsed">
-    <button class="sub-head">Special <span class="chev">▾</span></button>
-    <div class="sub-body">
-    <button class="effect-btn has-panel" data-effect="simhouse">◈ Sim House <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-simhouse">
-      <div class="ov-row-label">Mode</div>
-      <div class="opt-grid">
-        <button class="strobe-mode-btn active" data-shmode="normal">Normal</button>
-        <button class="strobe-mode-btn" data-shmode="shadows">Shadows</button>
-      </div>
-    </div>
-    <button class="effect-btn" data-effect="lightning">◈ Lightning Storm</button>
-    <button class="effect-btn" data-effect="warp">◈ Warp Drive</button>
-    <button class="effect-btn" data-effect="life">◈ Crystal Life</button>
-    <button class="effect-btn" data-effect="fluid">◈ Liquid Crystal</button>
-    <button class="effect-btn has-panel" data-effect="random">◈ Random <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-random">
-      <div style="display:flex;gap:6px;">
-        <button class="effect-btn" data-effect="random" style="flex:1;margin:0;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;">◈ Random 1</button>
-        <button class="effect-btn" data-effect="random80s" style="flex:1;margin:0;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;">◈ Random 2</button>
-      </div>
-    </div>
-    <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
-    <button class="effect-btn has-panel" data-effect="moon">◈ Celestial <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-moon">
-      <div style="display:flex;gap:5px;margin-bottom:8px;">
-        <div style="flex:1;position:relative;">
-          <input id="moon-city" type="text" placeholder="Search cities…" value="Milton Keynes"
-            style="width:100%;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:14px;border-radius:4px;box-sizing:border-box;">
-          <div id="moon-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:150px;overflow-y:auto;z-index:1000;margin-top:2px;">
-          </div>
-        </div>
-        <button id="moon-fetch-btn" style="padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;">GO</button>
-      </div>
-      <div id="moon-status" style="font-size:13px;color:#778;min-height:16px;">Enter city and press GO</div>
-      <div id="moon-info" style="margin-top:6px;display:none;">
-        <div id="moon-phase-line" style="font-size:15px;color:#cde;font-weight:700;"></div>
-        <div id="moon-rise-line" style="font-size:14px;color:#99b;margin-top:3px;font-weight:600;"></div>
-      </div>
-      <div style="margin-top:8px;">
-        <div style="font-size:13px;color:#778;margin-bottom:4px;">Celestial Body</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;">
-          <label class="check-row"><input type="radio" name="celestial-body" value="moon" checked> Moon</label>
-          <label class="check-row"><input type="radio" name="celestial-body" value="mercury"> Mercury</label>
-          <label class="check-row"><input type="radio" name="celestial-body" value="venus"> Venus</label>
-          <label class="check-row"><input type="radio" name="celestial-body" value="earth"> Earth</label>
-          <label class="check-row"><input type="radio" name="celestial-body" value="mars"> Mars</label>
-          <label class="check-row"><input type="radio" name="celestial-body" value="jupiter"> Jupiter</label>
-          <label class="check-row"><input type="radio" name="celestial-body" value="saturn"> Saturn</label>
-          <label class="check-row"><input type="radio" name="celestial-body" value="uranus"> Uranus</label>
-          <label class="check-row"><input type="radio" name="celestial-body" value="neptune"> Neptune</label>
-          <label class="check-row"><input type="radio" name="celestial-body" value="pluto"> Pluto</label>
-          <label class="check-row"><input type="radio" name="celestial-body" value="sun"> Sun</label>
-          <label class="check-row"><input type="radio" name="celestial-body" value="blackhole"> Black Hole</label>
-          <label class="check-row"><input type="radio" name="celestial-body" value="solarsystem"> Solar System</label>
-        </div>
-        <div id="solar-speed-row" style="display:none;margin-top:8px;">
-          <label style="font-size:11px;color:#aaa;">Orbit Speed: <span id="solar-speed-label">1x</span></label>
-          <input type="range" id="solar-speed" min="0" max="7" step="0.01" value="0" style="width:100%;margin-top:2px;">
-        </div>
-        <script>
-        document.querySelectorAll('input[name="celestial-body"]').forEach(r=>r.addEventListener('change',()=>{
-          document.getElementById('solar-speed-row').style.display=r.value==='solarsystem'?'':'none';
-        }));
-        document.getElementById('solar-speed').addEventListener('input',function(){
-          const v=parseFloat(this.value);
-          const mult=Math.pow(10,v);
-          document.getElementById('solar-speed-label').textContent=mult<10?mult.toFixed(1)+'x':Math.round(mult)+'x';
-        });
-        </script>
-      </div>
-    </div>
-    <button class="effect-btn has-panel" data-effect="weather">◈ Weather <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-weather">
-      <div style="display:flex;gap:5px;margin-bottom:8px;">
-        <div style="flex:1;position:relative;">
-          <input id="wx-city" type="text" placeholder="Search cities…" value="Milton Keynes"
-            style="width:100%;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:14px;border-radius:4px;box-sizing:border-box;">
-          <div id="wx-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:150px;overflow-y:auto;z-index:1000;margin-top:2px;">
-          </div>
-        </div>
-        <button id="wx-fetch-btn" style="padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;">GO</button>
-      </div>
-      <div id="wx-status" style="font-size:13px;color:#778;min-height:16px;">Enter city and press GO</div>
-      <div id="wx-info" style="margin-top:6px;display:none;">
-        <div id="wx-temp-line" style="font-size:15px;color:#cde;font-weight:700;"></div>
-        <div id="wx-desc-line" style="font-size:13px;color:#99a;margin-top:2px;"></div>
-        <div id="wx-sun-line" style="font-size:15px;color:#99b;margin-top:6px;font-weight:600;letter-spacing:0.3px;"></div>
-        <div id="wx-moon-line" style="font-size:14px;color:#889;margin-top:3px;font-weight:600;letter-spacing:0.3px;"></div>
-      </div>
-    </div>
-    <button class="effect-btn has-panel" data-effect="lightspeed">◈ Light Speed <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-lightspeed">
-      <div class="ov-row-label">Speed</div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <input type="range" id="ls-speed" min="1" max="20" step="0.5" value="8" style="flex:1;">
-        <span id="ls-speed-val" style="font-size:11px;color:#9cd;width:32px;">8</span>
-      </div>
-      <div class="ov-row-label" style="margin-top:8px;">Trail Length</div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <input type="range" id="ls-trail" min="4" max="120" step="2" value="32" style="flex:1;">
-        <span id="ls-trail-val" style="font-size:11px;color:#9cd;width:32px;">32</span>
-      </div>
-      <div class="ov-row-label" style="margin-top:8px;">Size (pixels)</div>
-      <div class="opt-grid" style="grid-template-columns:repeat(4,1fr);">
-        <button class="strobe-mode-btn active" data-ls-size="1">1</button>
-        <button class="strobe-mode-btn" data-ls-size="2">2</button>
-        <button class="strobe-mode-btn" data-ls-size="3">3</button>
-        <button class="strobe-mode-btn" data-ls-size="4">4</button>
-        <button class="strobe-mode-btn" data-ls-size="6">6</button>
-        <button class="strobe-mode-btn" data-ls-size="8">8</button>
-        <button class="strobe-mode-btn" data-ls-size="12">12</button>
-        <button class="strobe-mode-btn" data-ls-size="16">16</button>
-      </div>
-      <div class="ov-row-label" style="margin-top:8px;">Nudge (degrees)</div>
-      <div class="opt-grid" style="grid-template-columns:repeat(4,1fr);">
-        <button class="strobe-mode-btn active" data-ls-nudge="0">0°</button>
-        <button class="strobe-mode-btn" data-ls-nudge="1">1°</button>
-        <button class="strobe-mode-btn" data-ls-nudge="2">2°</button>
-        <button class="strobe-mode-btn" data-ls-nudge="5">5°</button>
-        <button class="strobe-mode-btn" data-ls-nudge="10">10°</button>
-        <button class="strobe-mode-btn" data-ls-nudge="20">20°</button>
-        <button class="strobe-mode-btn" data-ls-nudge="45">45°</button>
-        <button class="strobe-mode-btn" data-ls-nudge="90">90°</button>
-      </div>
-      <div class="ov-row-label" style="margin-top:8px;">Objects</div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <input type="range" id="ls-count" min="1" max="12" step="1" value="3" style="flex:1;">
-        <span id="ls-count-val" style="font-size:11px;color:#9cd;width:28px;">3</span>
-      </div>
-      <div class="ov-row-label" style="margin-top:8px;">Colour</div>
-      <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);">
-        <button class="strobe-mode-btn active" data-ls-col="multi">Multi</button>
-        <button class="strobe-mode-btn" data-ls-col="white">White</button>
-        <button class="strobe-mode-btn" data-ls-col="cyan">Cyan</button>
-        <button class="strobe-mode-btn" data-ls-col="red">Red</button>
-        <button class="strobe-mode-btn" data-ls-col="green">Green</button>
-        <button class="strobe-mode-btn" data-ls-col="gold">Gold</button>
-      </div>
-    </div>
     <button class="effect-btn has-panel" data-effect="coinflip">◈ Coin Flip <span class="panel-arrow">▸</span></button>
     <button class="effect-btn has-panel" data-effect="dice">◈ Dice Roll <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-dice">
@@ -561,6 +551,28 @@
         <span id="coin-speed-val" style="font-size:11px;color:#9cd;width:32px;">1x</span>
       </div>
     </div>
+    <button class="effect-btn has-panel" data-effect="random">◈ Random <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-random">
+      <div style="display:flex;gap:6px;">
+        <button class="effect-btn" data-effect="random" style="flex:1;margin:0;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;">◈ Random 1</button>
+        <button class="effect-btn" data-effect="random80s" style="flex:1;margin:0;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;">◈ Random 2</button>
+      </div>
+    </div>
+
+    </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head">Scenes &amp; Lighting <span class="chev">▾</span></button>
+    <div class="sub-body">
+    <button class="effect-btn has-panel" data-effect="simhouse">◈ Sim House <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-simhouse">
+      <div class="ov-row-label">Mode</div>
+      <div class="opt-grid">
+        <button class="strobe-mode-btn active" data-shmode="normal">Normal</button>
+        <button class="strobe-mode-btn" data-shmode="shadows">Shadows</button>
+      </div>
+    </div>
+    <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
     <button class="effect-btn has-panel" data-effect="custom_cube">◈ Custom Cube <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-custom_cube">
       <div class="ov-row-label">Saved Cubes</div>
@@ -1090,7 +1102,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=664"></script>
+<script src="version.js?v=665"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -1125,7 +1137,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=664','effects.js?v=664','ui.js?v=664'];
+  const appScripts = ['cube.js?v=665','effects.js?v=665','ui.js?v=665'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
