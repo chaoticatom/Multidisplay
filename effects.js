@@ -13727,10 +13727,11 @@ function loadImageForPixels(url, onSize, onPixels, onError){
         const dw=img.width*scale, dh=img.height*scale;
         octx.drawImage(img,(sz-dw)/2,(sz-dh)/2,dw,dh);
         const pixels=octx.getImageData(0,0,sz,sz).data;
-        onSize(sz);
-        onPixels(pixels);
+        onSize(sz);   // sets *Size
+        onPixels(pixels);  // sets *Pixels and *Ready=true (caller sets ready after pixels)
+        console.log('[loadImageForPixels] OK'+(isFallback?' (proxy)':''));
       }catch(e){
-        console.error('Image pixel read failed'+(isFallback?' (proxy)':'')+':',e);
+        console.warn('[loadImageForPixels] pixel read failed'+(isFallback?' (proxy)':'')+':',e.message,'→',isFallback?'giving up':'trying proxy');
         if(!isFallback) tryLoad(proxyUrl(url), true);
         else onError(e);
       }
@@ -14024,31 +14025,42 @@ async function apodFetch(){
     catch(fe){ throw new Error('APOD fetch failed — check internet connection'); }
     if(!r.ok) throw new Error('NASA API error: '+r.status);
     const d=await r.json();
+    const isVideo=d.media_type==='video';
     apodData={
       title:d.title||'Astronomy Picture of the Day',
       explanation:d.explanation||'',
       date:d.date||'',
       mediaType:d.media_type||'image',
-      url:d.media_type==='image'?(d.url||d.hdurl):null,
+      url:d.url||d.hdurl||d.thumbnail_url||null,
     };
     apodImgReady=false; apodImg=null; apodTickerPixels=null;
     apodLastFetch=Date.now()/1000;
-    if(statusEl) statusEl.textContent=apodData.title;
+    console.log('[APOD] fetched:',apodData.date,'type:',d.media_type,'url:',apodData.url);
+    if(statusEl) statusEl.textContent=(isVideo?'📹 (video) ':'')+apodData.title;
     const infoEl=document.getElementById('apod-info');
     if(infoEl){
       infoEl.style.display='block';
       const tl=document.getElementById('apod-title-line');
       if(tl) tl.textContent=apodData.title;
       const dl=document.getElementById('apod-date-line');
-      if(dl) dl.textContent=apodData.date+(apodData.mediaType!=='image'?' (video — showing text only)':'');
+      if(dl) dl.textContent=apodData.date+(isVideo?' (video — using thumbnail)':'');
     }
     if(apodData.url){
+      if(statusEl) statusEl.textContent=(isVideo?'📹 ':'')+apodData.title+' — loading image…';
       loadImageForPixels(apodData.url, sz=>{
-        apodImgSize=sz; apodImgReady=true;
-      }, pixels=>{ apodImgPixels=pixels; }, ()=>{
+        apodImgSize=sz;
+      }, pixels=>{
+        apodImgPixels=pixels;
+        apodImgReady=true;
+        console.log('[APOD] image ready, size:',apodImgSize,'px');
+        if(statusEl) statusEl.textContent=(isVideo?'📹 ':'')+apodData.title;
+      }, (err)=>{
         apodImgReady=false;
+        console.warn('[APOD] image load failed:',err);
         if(statusEl) statusEl.textContent='✕ Could not load image (showing text only)';
       });
+    } else {
+      console.warn('[APOD] no image URL in response');
     }
   }catch(e){
     apodError=e.message;
@@ -14423,8 +14435,8 @@ async function epicFetch(){
       if(cl) cl.textContent=epicData.lat!=null?`Centroid: ${epicData.lat.toFixed(1)}°, ${epicData.lon.toFixed(1)}°`:'';
     }
     loadImageForPixels(epicData.url, sz=>{
-      epicImgSize=sz; epicImgReady=true;
-    }, pixels=>{ epicImgPixels=pixels; }, ()=>{
+      epicImgSize=sz;
+    }, pixels=>{ epicImgPixels=pixels; epicImgReady=true; }, ()=>{
       epicImgReady=false;
       if(statusEl) statusEl.textContent='✕ Could not load Earth image';
     });
