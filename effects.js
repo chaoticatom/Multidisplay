@@ -13712,54 +13712,43 @@ const NEO_API_KEY='DEMO_KEY';
 // Many NASA image hosts (e.g. apod.nasa.gov) don't send CORS headers, which
 // taints the canvas and makes getImageData throw — fall back to a CORS-safe
 // resizing proxy (images.weserv.nl) when the direct load can't be read.
+// Loads an image and extracts pixel data for LED rendering.
+// Uses fetch→blob→ObjectURL so the canvas is always same-origin and
+// getImageData never throws a SecurityError, regardless of CORS headers
+// on the source server. Falls back to images.weserv.nl proxy if the
+// direct fetch fails (no CORS headers, network block, etc.).
 function loadImageForPixels(url, onSize, onPixels, onError){
   const sz=Math.max(SIZE,32);
   const proxyUrl=`https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//,''))}&w=${sz}&h=${sz}&fit=cover`;
 
-  function drawAndExtract(img){
-    const oc=document.createElement('canvas');
-    oc.width=sz; oc.height=sz;
-    const octx=oc.getContext('2d');
-    const scale=Math.max(sz/img.width, sz/img.height);
-    const dw=img.width*scale, dh=img.height*scale;
-    octx.drawImage(img,(sz-dw)/2,(sz-dh)/2,dw,dh);
-    return octx.getImageData(0,0,sz,sz).data; // throws SecurityError if canvas tainted
-  }
-
-  // Step 1: try direct load without crossOrigin (works even from browser cache,
-  // and succeeds if the server sends ACAO headers).
-  const img1=new Image();
-  img1.onload=()=>{
-    try{
-      const pixels=drawAndExtract(img1);
-      console.log('[loadImageForPixels] direct OK');
-      onSize(sz); onPixels(pixels);
-    }catch(e){
-      // Canvas tainted — server sent no CORS headers on this response.
-      // Step 2: re-fetch via CORS proxy which always sends ACAO:*.
-      console.warn('[loadImageForPixels] direct tainted, trying proxy:',e.message);
-      tryProxy();
-    }
-  };
-  img1.onerror=()=>{ console.warn('[loadImageForPixels] direct load error, trying proxy'); tryProxy(); };
-  img1.src=url;
-
-  function tryProxy(){
-    const img2=new Image();
-    img2.crossOrigin='anonymous';
-    img2.onload=()=>{
-      try{
-        const pixels=drawAndExtract(img2);
-        console.log('[loadImageForPixels] proxy OK');
-        onSize(sz); onPixels(pixels);
-      }catch(e){
-        console.error('[loadImageForPixels] proxy tainted:',e.message);
-        onError(e);
-      }
+  function drawBlobUrl(objectUrl){
+    const img=new Image();
+    img.onload=()=>{
+      URL.revokeObjectURL(objectUrl);
+      const oc=document.createElement('canvas');
+      oc.width=sz; oc.height=sz;
+      const ctx2=oc.getContext('2d');
+      const scale=Math.max(sz/img.width, sz/img.height);
+      ctx2.drawImage(img,(sz-img.width*scale)/2,(sz-img.height*scale)/2,img.width*scale,img.height*scale);
+      const pixels=ctx2.getImageData(0,0,sz,sz).data; // never tainted — blob is same-origin
+      onSize(sz);
+      onPixels(pixels);
     };
-    img2.onerror=()=>{ console.error('[loadImageForPixels] proxy load error'); onError(new Error('Image failed to load')); };
-    img2.src=proxyUrl;
+    img.onerror=()=>{ URL.revokeObjectURL(objectUrl); onError(new Error('blob draw failed')); };
+    img.src=objectUrl;
   }
+
+  // Try direct fetch first (works if server sends Access-Control-Allow-Origin)
+  fetch(url,{mode:'cors'})
+    .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.blob(); })
+    .then(blob=>{ console.log('[loadImageForPixels] direct OK'); drawBlobUrl(URL.createObjectURL(blob)); })
+    .catch(err=>{
+      console.warn('[loadImageForPixels] direct failed ('+err.message+'), trying proxy');
+      fetch(proxyUrl,{mode:'cors'})
+        .then(r=>{ if(!r.ok) throw new Error('proxy HTTP '+r.status); return r.blob(); })
+        .then(blob=>{ console.log('[loadImageForPixels] proxy OK'); drawBlobUrl(URL.createObjectURL(blob)); })
+        .catch(err2=>{ console.error('[loadImageForPixels] proxy failed:',err2.message); onError(err2); });
+    });
 }
 
 function neoRisk(o){
@@ -14058,41 +14047,46 @@ let apodData=null, apodFetching=false, apodLastFetch=0, apodError='', apodImgErr
 let apodImg=null, apodImgReady=false, apodImgPixels=null, apodImgSize=0;
 let apodTickerPixels=null, apodTickerWidth=0, apodTickerScrollX=0, apodT=0;
 
+function apodApiKey(){
+  return localStorage.getItem('nasaApiKey')||NEO_API_KEY;
+}
+
 async function apodFetch(){
   if(apodFetching) return;
   apodFetching=true; apodError='';
   const statusEl=document.getElementById('apod-status');
   if(statusEl) statusEl.textContent='Fetching astronomy picture of the day…';
   try{
-    const url=`https://api.nasa.gov/planetary/apod?api_key=${NEO_API_KEY}`;
+    const apiUrl=`https://api.nasa.gov/planetary/apod?api_key=${apodApiKey()}`;
     let r;
-    try{ r=await fetch(url); }
-    catch(fe){ throw new Error('APOD fetch failed — check internet connection'); }
+    try{ r=await fetch(apiUrl); }
+    catch(fe){ throw new Error('Network error — check connection'); }
+    if(r.status===429) throw new Error('Rate limited (DEMO_KEY). Get a free key at api.nasa.gov and enter it below.');
     if(!r.ok) throw new Error('NASA API error: '+r.status);
     const d=await r.json();
     const isVideo=d.media_type==='video';
+    const imgUrl=isVideo?(d.thumbnail_url||null):(d.url||d.hdurl||null);
     apodData={
       title:d.title||'Astronomy Picture of the Day',
       explanation:d.explanation||'',
       date:d.date||'',
       mediaType:d.media_type||'image',
-      url:d.url||d.hdurl||d.thumbnail_url||null,
+      url:imgUrl,
     };
     apodImgReady=false; apodImgError=''; apodImg=null; apodTickerPixels=null;
     apodLastFetch=Date.now()/1000;
     console.log('[APOD] fetched:',apodData.date,'type:',d.media_type,'url:',apodData.url);
-    if(statusEl) statusEl.textContent=(isVideo?'📹 (video) ':'')+apodData.title;
+    if(statusEl) statusEl.textContent=(isVideo?'📹 ':'')+apodData.title+(imgUrl?' — loading image…':' (no image)');
     const infoEl=document.getElementById('apod-info');
     if(infoEl){
       infoEl.style.display='block';
       const tl=document.getElementById('apod-title-line');
       if(tl) tl.textContent=apodData.title;
       const dl=document.getElementById('apod-date-line');
-      if(dl) dl.textContent=apodData.date+(isVideo?' (video — using thumbnail)':'');
+      if(dl) dl.textContent=apodData.date+(isVideo?' (video — thumbnail)':'');
     }
-    if(apodData.url){
-      if(statusEl) statusEl.textContent=(isVideo?'📹 ':'')+apodData.title+' — loading image…';
-      loadImageForPixels(apodData.url, sz=>{
+    if(imgUrl){
+      loadImageForPixels(imgUrl, sz=>{
         apodImgSize=sz;
       }, pixels=>{
         apodImgPixels=pixels;
@@ -14104,18 +14098,28 @@ async function apodFetch(){
         console.warn('[APOD] image load failed:',err);
         if(statusEl) statusEl.textContent='✕ Could not load image';
       });
-    } else {
-      console.warn('[APOD] no image URL in response');
     }
   }catch(e){
     apodError=e.message;
-    apodLastFetch=Date.now()/1000-3540;
+    apodLastFetch=Date.now()/1000-3540; // retry in ~60s
     if(statusEl) statusEl.textContent='✕ '+e.message;
     console.error('APOD fetch error:',e);
   }
   apodFetching=false;
 }
 document.getElementById('apod-fetch-btn')?.addEventListener('click',apodFetch);
+(()=>{
+  const inp=document.getElementById('nasa-api-key-input');
+  const btn=document.getElementById('nasa-api-key-save');
+  if(inp){ const saved=localStorage.getItem('nasaApiKey'); if(saved) inp.value=saved; }
+  btn?.addEventListener('click',()=>{
+    const key=(inp?.value||'').trim();
+    if(key){ localStorage.setItem('nasaApiKey',key); }
+    else { localStorage.removeItem('nasaApiKey'); }
+    apodData=null; apodImgReady=false; apodLastFetch=0; // force re-fetch with new key
+    apodFetch();
+  });
+})();
 
 function apodApplyImageToFace(face){
   if(!apodImgReady||!apodImgPixels) return;
@@ -14169,7 +14173,7 @@ function apodApplyTickerToFace(face){
 
 function effectAPOD(dt){
   apodT+=dt;
-  if(!apodData && !apodFetching && (Date.now()/1000-apodLastFetch)>3600) apodFetch();
+  if(!apodData && !apodFetching && (Date.now()/1000-apodLastFetch)>86400) apodFetch();
 
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
