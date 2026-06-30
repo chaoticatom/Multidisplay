@@ -13942,6 +13942,36 @@ function applyTickerStripToFace(face, pixels, width, scrollX, stripH){
   }
 }
 
+// Renders centred text lines directly onto a cube face for loading/error states.
+// fgRGB and bgRGB are [r,g,b] floats 0-1. Called per-frame — canvas is tiny (SIZExSIZE).
+function renderTextToFace(face, lines, fgRGB, bgRGB){
+  const S=SIZE;
+  const oc=document.createElement('canvas');
+  oc.width=S; oc.height=S;
+  const ctx=oc.getContext('2d');
+  ctx.fillStyle=`rgb(${(bgRGB[0]*255)|0},${(bgRGB[1]*255)|0},${(bgRGB[2]*255)|0})`;
+  ctx.fillRect(0,0,S,S);
+  ctx.fillStyle=`rgb(${(fgRGB[0]*255)|0},${(fgRGB[1]*255)|0},${(fgRGB[2]*255)|0})`;
+  const fh=Math.max(5,Math.floor(S/Math.max(lines.length*1.6,3)));
+  ctx.font=`bold ${fh}px "Courier New",monospace`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const lineH=fh*1.4;
+  const totalH=lines.length*lineH;
+  lines.forEach((line,i)=>{
+    ctx.fillText(line, S/2, S/2-totalH/2+(i+0.5)*lineH);
+  });
+  const px=ctx.getImageData(0,0,S,S).data;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+      const pi=((S-1-v)*S+u)*4;
+      colBuf[idx*3]=px[pi]/255;
+      colBuf[idx*3+1]=px[pi+1]/255;
+      colBuf[idx*3+2]=px[pi+2]/255;
+    }
+  }
+}
+
 function effectNEO(dt){
   neoT+=dt;
   if(!neoObjects.length && !neoFetching && (Date.now()/1000-neoLastFetch)>3600) neoFetch();
@@ -14024,7 +14054,7 @@ function effectNEO(dt){
 // ═══════════════════════════════════════════════════
 //  Astronomy Picture of the Day (NASA APOD)
 // ═══════════════════════════════════════════════════
-let apodData=null, apodFetching=false, apodLastFetch=0, apodError='';
+let apodData=null, apodFetching=false, apodLastFetch=0, apodError='', apodImgError='';
 let apodImg=null, apodImgReady=false, apodImgPixels=null, apodImgSize=0;
 let apodTickerPixels=null, apodTickerWidth=0, apodTickerScrollX=0, apodT=0;
 
@@ -14048,7 +14078,7 @@ async function apodFetch(){
       mediaType:d.media_type||'image',
       url:d.url||d.hdurl||d.thumbnail_url||null,
     };
-    apodImgReady=false; apodImg=null; apodTickerPixels=null;
+    apodImgReady=false; apodImgError=''; apodImg=null; apodTickerPixels=null;
     apodLastFetch=Date.now()/1000;
     console.log('[APOD] fetched:',apodData.date,'type:',d.media_type,'url:',apodData.url);
     if(statusEl) statusEl.textContent=(isVideo?'📹 (video) ':'')+apodData.title;
@@ -14070,9 +14100,9 @@ async function apodFetch(){
         console.log('[APOD] image ready, size:',apodImgSize,'px');
         if(statusEl) statusEl.textContent=(isVideo?'📹 ':'')+apodData.title;
       }, (err)=>{
-        apodImgReady=false;
+        apodImgReady=false; apodImgError='Could not load image';
         console.warn('[APOD] image load failed:',err);
-        if(statusEl) statusEl.textContent='✕ Could not load image (showing text only)';
+        if(statusEl) statusEl.textContent='✕ Could not load image';
       });
     } else {
       console.warn('[APOD] no image URL in response');
@@ -14149,17 +14179,14 @@ function effectAPOD(dt){
   if(apodImgReady){
     apodApplyImageToFace(0);
     if(!is2D) apodApplyImageToFace(4);
+  } else if(apodError){
+    const short=apodError.length>18?apodError.slice(0,18)+'…':apodError;
+    renderTextToFace(0, ['APOD', 'ERROR', short], [1,0.25,0.25], [0.06,0,0]);
+  } else if(apodImgError){
+    renderTextToFace(0, ['IMAGE', 'ERROR'], [1,0.4,0.1], [0.06,0.02,0]);
   } else {
-    // Starfield placeholder while loading / for video days
-    const tt=Date.now()*0.001;
-    for(let i=0;i<N;i++){
-      const seed=((i*2654435761)>>>0)/4294967296;
-      if(seed<0.014){
-        const twinkle=0.3+0.7*Math.abs(Math.sin(tt*1.4+seed*60));
-        const br=seed*36*twinkle;
-        colBuf[i*3]=br*1.1; colBuf[i*3+1]=br*0.9; colBuf[i*3+2]=br*0.6;
-      }
-    }
+    const dots='.'.repeat(1+(Math.floor(apodT*2)%3));
+    renderTextToFace(0, ['APOD', 'LOADING'+dots], [0.35,0.65,1], [0,0,0.06]);
   }
 
   if(!is2D){
@@ -14409,13 +14436,13 @@ function effectSpaceWeather(dt){
 // ═══════════════════════════════════════════════════
 //  Earth Full-Disk Imagery (NASA EPIC)
 // ═══════════════════════════════════════════════════
-let epicData=null, epicFetching=false, epicLastFetch=0, epicError='';
+let epicData=null, epicFetching=false, epicLastFetch=0, epicError='', epicImgError='';
 let epicImgReady=false, epicImgPixels=null, epicImgSize=0;
 let epicTickerPixels=null, epicTickerWidth=0, epicTickerScrollX=0, epicT=0;
 
 async function epicFetch(){
   if(epicFetching) return;
-  epicFetching=true; epicError='';
+  epicFetching=true; epicError=''; epicImgError='';
   const statusEl=document.getElementById('epic-status');
   if(statusEl) statusEl.textContent='Fetching latest Earth image…';
   try{
@@ -14451,7 +14478,7 @@ async function epicFetch(){
     loadImageForPixels(epicData.url, sz=>{
       epicImgSize=sz;
     }, pixels=>{ epicImgPixels=pixels; epicImgReady=true; }, ()=>{
-      epicImgReady=false;
+      epicImgReady=false; epicImgError='Could not load image';
       if(statusEl) statusEl.textContent='✕ Could not load Earth image';
     });
   }catch(e){
@@ -14537,18 +14564,18 @@ function effectEPIC(dt){
 
   const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
 
-  const tt=Date.now()*0.001;
-  for(let i=0;i<N;i++){
-    const seed=((i*2654435761)>>>0)/4294967296;
-    if(seed<0.012){
-      const twinkle=0.3+0.7*Math.abs(Math.sin(tt*1.4+seed*60));
-      const br=seed*30*twinkle;
-      colBuf[i*3]=br; colBuf[i*3+1]=br; colBuf[i*3+2]=br*1.1;
-    }
+  if(epicImgReady){
+    epicApplyImageToFace(0);
+    if(!is2D) epicApplyImageToFace(4);
+  } else if(epicError){
+    const short=epicError.length>18?epicError.slice(0,18)+'…':epicError;
+    renderTextToFace(0, ['EPIC', 'ERROR', short], [1,0.25,0.25], [0.06,0,0]);
+  } else if(epicImgError){
+    renderTextToFace(0, ['IMAGE', 'ERROR'], [1,0.4,0.1], [0.06,0.02,0]);
+  } else {
+    const dots='.'.repeat(1+(Math.floor(epicT*2)%3));
+    renderTextToFace(0, ['EARTH', 'LOADING'+dots], [0.2,0.7,0.35], [0,0.04,0.06]);
   }
-
-  epicApplyImageToFace(0);
-  if(!is2D) epicApplyImageToFace(4);
 
   if(!is2D){
     if(!epicTickerPixels) epicBuildTicker();
