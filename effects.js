@@ -13947,15 +13947,12 @@ function effectNEO(dt){
   const pulse=0.55+0.45*Math.sin(neoT*(level==='red'?6:level==='yellow'?3:1.4));
   const S=SIZE;
   const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
-  const stripH=Math.max(6,Math.round(S*0.22));
 
-  // Face 0 (front): Earth with pulsing threat ring — shrunk & shifted up in 2D mode to leave room for the ticker strip
-  const cx0=S/2, cy0=is2D?(S-stripH)/2:S/2;
-  const scaleF=is2D?(S-stripH)/S:1;
-  const earthRad=S*0.3*scaleF, ringRad=S*0.42*scaleF;
+  // Face 0 (front): Earth with pulsing threat ring
+  const cx0=S/2, cy0=S/2;
+  const earthRad=S*0.3, ringRad=S*0.42;
   for(let v=0;v<S;v++){
     for(let u=0;u<S;u++){
-      if(is2D && v>=S-stripH) continue;
       const idx=faceMap[0][v*S+u]; if(idx<0) continue;
       const dx=u-cx0, dy=v-cy0, d=Math.sqrt(dx*dx+dy*dy);
       if(d<earthRad){
@@ -14000,10 +13997,11 @@ function effectNEO(dt){
     neoApplyBufToFace(4, neoBuildTitleBuf(level));
   }
 
-  if(!neoTickerPixels) neoBuildTicker();
-  neoTickerScrollX += dt*22*(speedMult||1);
-  if(is2D) applyTickerStripToFace(0, neoTickerPixels, neoTickerWidth, neoTickerScrollX, stripH);
-  else neoApplyTickerToFace(1);
+  if(!is2D){
+    if(!neoTickerPixels) neoBuildTicker();
+    neoTickerScrollX += dt*22*(speedMult||1);
+    neoApplyTickerToFace(1);
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -14147,10 +14145,11 @@ function effectAPOD(dt){
     }
   }
 
-  if(!apodTickerPixels) apodBuildTicker();
-  apodTickerScrollX += dt*20*(speedMult||1);
-  if(is2D) applyTickerStripToFace(0, apodTickerPixels, apodTickerWidth, apodTickerScrollX, stripH);
-  else apodApplyTickerToFace(1);
+  if(!is2D){
+    if(!apodTickerPixels) apodBuildTicker();
+    apodTickerScrollX += dt*20*(speedMult||1);
+    apodApplyTickerToFace(1);
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -14322,15 +14321,12 @@ function effectSpaceWeather(dt){
   const riskRGB=swxRiskRGB(level);
   const pulse=0.55+0.45*Math.sin(swxT*(level==='red'?6:level==='yellow'?3:1.4));
   const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
-  const stripH=Math.max(6,Math.round(SIZE*0.22));
 
-  // Face 0: pulsing sun with flare-like rays — shrunk & shifted up in 2D mode for the ticker strip
-  const S=SIZE, cx0=S/2, cy0=is2D?(S-stripH)/2:S/2;
-  const scaleF=is2D?(S-stripH)/S:1;
-  const sunRad=S*0.26*scaleF;
+  // Face 0: pulsing sun with flare-like rays
+  const S=SIZE, cx0=S/2, cy0=S/2;
+  const sunRad=S*0.26;
   for(let v=0;v<S;v++){
     for(let u=0;u<S;u++){
-      if(is2D && v>=S-stripH) continue;
       const idx=faceMap[0][v*S+u]; if(idx<0) continue;
       const dx=u-cx0, dy=v-cy0, d=Math.sqrt(dx*dx+dy*dy);
       const ang=Math.atan2(dy,dx);
@@ -14386,10 +14382,11 @@ function effectSpaceWeather(dt){
     }
   }
 
-  if(!swxTickerPixels) swxBuildTicker();
-  swxTickerScrollX += dt*22*(speedMult||1);
-  if(is2D) applyTickerStripToFace(0, swxTickerPixels, swxTickerWidth, swxTickerScrollX, stripH);
-  else swxApplyTickerToFace(1);
+  if(!is2D){
+    if(!swxTickerPixels) swxBuildTicker();
+    swxTickerScrollX += dt*22*(speedMult||1);
+    swxApplyTickerToFace(1);
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -14522,7 +14519,6 @@ function effectEPIC(dt){
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
   const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
-  const stripH=Math.max(6,Math.round(SIZE*0.22));
 
   const tt=Date.now()*0.001;
   for(let i=0;i<N;i++){
@@ -14534,13 +14530,14 @@ function effectEPIC(dt){
     }
   }
 
-  epicApplyImageToFace(0, is2D?SIZE-stripH:null);
+  epicApplyImageToFace(0);
   if(!is2D) epicApplyImageToFace(4);
 
-  if(!epicTickerPixels) epicBuildTicker();
-  epicTickerScrollX += dt*20*(speedMult||1);
-  if(is2D) applyTickerStripToFace(0, epicTickerPixels, epicTickerWidth, epicTickerScrollX, stripH);
-  else epicApplyTickerToFace(1);
+  if(!is2D){
+    if(!epicTickerPixels) epicBuildTicker();
+    epicTickerScrollX += dt*20*(speedMult||1);
+    epicApplyTickerToFace(1);
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -14753,14 +14750,9 @@ function effectISS(dt){
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
   const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
-  const stripH=Math.max(6,Math.round(SIZE*0.22));
 
   if(is2D){
-    // Single face: world map + ground track on top, info ticker on the bottom strip
-    issApplyMapToFace(0, SIZE-stripH);
-    if(!issTickerPixels) issBuildTicker();
-    issTickerScrollX += dt*20*(speedMult||1);
-    applyTickerStripToFace(0, issTickerPixels, issTickerWidth, issTickerScrollX, stripH);
+    issApplyMapToFace(0);
     return;
   }
 
