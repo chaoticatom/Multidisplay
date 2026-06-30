@@ -13700,3 +13700,243 @@ function effectDice(dt){
     }
   }
 }
+
+// ═══════════════════════════════════════════════════
+//  Near-Earth Object Tracker (NASA NeoWs)
+// ═══════════════════════════════════════════════════
+let neoObjects=[], neoFetching=false, neoLastFetch=0, neoError='', neoStarsInit=false;
+let neoTickerPixels=null, neoTickerWidth=0, neoTickerScrollX=0, neoT=0;
+const NEO_API_KEY='DEMO_KEY';
+
+function neoRisk(o){
+  if(o.hazardous && o.missLD<5) return 'red';
+  if(o.hazardous || o.missLD<10) return 'yellow';
+  return 'green';
+}
+function neoRiskRGB(level){
+  if(level==='red') return [1,0.08,0.08];
+  if(level==='yellow') return [1,0.78,0.05];
+  return [0.1,0.95,0.25];
+}
+function neoOverallRisk(){
+  if(!neoObjects.length) return 'green';
+  if(neoObjects.some(o=>neoRisk(o)==='red')) return 'red';
+  if(neoObjects.some(o=>neoRisk(o)==='yellow')) return 'yellow';
+  return 'green';
+}
+
+async function neoFetch(){
+  if(neoFetching) return;
+  neoFetching=true; neoError='';
+  const statusEl=document.getElementById('neo-status');
+  if(statusEl) statusEl.textContent='Fetching near-Earth object data…';
+  try{
+    const start=new Date();
+    const end=new Date(start.getTime()+6*86400000);
+    const fmt=d=>d.toISOString().slice(0,10);
+    const url=`https://api.nasa.gov/neo/rest/v1/feed?start_date=${fmt(start)}&end_date=${fmt(end)}&api_key=${NEO_API_KEY}`;
+    let r;
+    try{ r=await fetch(url); }
+    catch(fe){ throw new Error('NEO fetch failed — check internet connection'); }
+    if(!r.ok) throw new Error('NASA API error: '+r.status);
+    const d=await r.json();
+    const byDate=d.near_earth_objects||{};
+    let list=[];
+    for(const dateKey in byDate){
+      for(const o of byDate[dateKey]){
+        const cad=(o.close_approach_data&&o.close_approach_data[0])||null;
+        if(!cad) continue;
+        const dEst=o.estimated_diameter&&o.estimated_diameter.meters;
+        const diaM=dEst?(dEst.estimated_diameter_min+dEst.estimated_diameter_max)/2:0;
+        list.push({
+          name:(o.name||'').replace(/[()]/g,''),
+          hazardous:!!o.is_potentially_hazardous_asteroid,
+          missLD:parseFloat(cad.miss_distance.lunar),
+          missKm:parseFloat(cad.miss_distance.kilometers),
+          velKmS:parseFloat(cad.relative_velocity.kilometers_per_second),
+          diaM:Math.round(diaM),
+          date:cad.close_approach_date,
+        });
+      }
+    }
+    list.sort((a,b)=>a.missLD-b.missLD);
+    neoObjects=list.slice(0,12);
+    neoLastFetch=Date.now()/1000;
+    neoTickerPixels=null; // force ticker rebuild
+    if(statusEl) statusEl.textContent=`${neoObjects.length} objects tracked`;
+    const infoEl=document.getElementById('neo-info');
+    if(infoEl){
+      infoEl.style.display='block';
+      const closest=neoObjects[0];
+      const cl=document.getElementById('neo-closest-line');
+      if(cl&&closest) cl.textContent=`Closest: ${closest.name} — ${closest.missLD.toFixed(1)} LD`;
+      const rl=document.getElementById('neo-risk-line');
+      if(rl) rl.textContent=`Risk level: ${neoOverallRisk().toUpperCase()}`;
+    }
+  }catch(e){
+    neoError=e.message;
+    if(statusEl) statusEl.textContent='✕ '+e.message;
+    console.error('NEO fetch error:',e);
+  }
+  neoFetching=false;
+}
+document.getElementById('neo-fetch-btn')?.addEventListener('click',neoFetch);
+
+function neoBuildTicker(){
+  const level=neoOverallRisk();
+  const rgb=neoRiskRGB(level);
+  const hex='#'+rgb.map(c=>Math.round(c*255).toString(16).padStart(2,'0')).join('');
+  let text;
+  if(!neoObjects.length){
+    text='   NEO WATCH  •  NO DATA  •  ';
+  } else {
+    text=neoObjects.map(o=>{
+      const r=neoRisk(o);
+      const flag=r==='red'?'⚠⚠':r==='yellow'?'⚠':'•';
+      return `${flag} ${o.name}  ${o.missLD.toFixed(1)} LD  ${o.diaM}m  ${o.velKmS.toFixed(1)}km/s`;
+    }).join('   ///   ')+'   ///   ';
+  }
+  text=('   '+text).repeat(2);
+  const fh=Math.max(8,(SIZE*0.34)|0);
+  const oc=document.createElement('canvas');
+  const cx=oc.getContext('2d');
+  cx.font=`bold ${fh}px "Courier New",monospace`;
+  const tw=cx.measureText(text).width|0;
+  oc.width=tw+4*SIZE; oc.height=SIZE;
+  cx.fillStyle='#000'; cx.fillRect(0,0,oc.width,oc.height);
+  cx.fillStyle=hex; cx.font=`bold ${fh}px "Courier New",monospace`;
+  cx.textBaseline='middle'; cx.fillText(text,0,SIZE/2);
+  neoTickerPixels=cx.getImageData(0,0,oc.width,oc.height).data;
+  neoTickerWidth=oc.width;
+  neoTickerScrollX=0;
+}
+
+function neoApplyTickerToFace(face){
+  if(!neoTickerPixels) return;
+  const S=SIZE;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const sx=(((neoTickerScrollX|0)+u)%neoTickerWidth+neoTickerWidth)%neoTickerWidth;
+      const sv=S-1-v;
+      const pi=(sv*neoTickerWidth+sx)*4;
+      const idx=faceMap[face][v*S+u];
+      if(idx<0) continue;
+      colBuf[idx*3]=neoTickerPixels[pi]/255;
+      colBuf[idx*3+1]=neoTickerPixels[pi+1]/255;
+      colBuf[idx*3+2]=neoTickerPixels[pi+2]/255;
+    }
+  }
+}
+
+function neoBuildTitleBuf(level){
+  const S=Math.max(SIZE,16);
+  const c=document.createElement('canvas');
+  c.width=S; c.height=S;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,S,S);
+  const rgb=neoRiskRGB(level);
+  const hex='#'+rgb.map(v=>Math.round(v*255).toString(16).padStart(2,'0')).join('');
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='#fff';
+  ctx.font=`bold ${Math.max(6,(S*0.16)|0)}px Arial,sans-serif`;
+  ctx.fillText('NEO WATCH', S/2, S*0.22);
+  ctx.fillStyle=hex;
+  ctx.font=`bold ${Math.max(8,(S*0.22)|0)}px Arial,sans-serif`;
+  ctx.fillText(level.toUpperCase(), S/2, S*0.5);
+  ctx.fillStyle='#bbb';
+  ctx.font=`${Math.max(5,(S*0.11)|0)}px Arial,sans-serif`;
+  const closest=neoObjects[0];
+  ctx.fillText(closest?`${closest.missLD.toFixed(1)} LD`:'NO DATA', S/2, S*0.74);
+  ctx.fillText(closest?`${closest.diaM}m dia`:'', S/2, S*0.88);
+  return {data:ctx.getImageData(0,0,S,S).data, S};
+}
+
+function neoApplyBufToFace(face, buf){
+  const {data, S}=buf;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const sv=S-1-v;
+      const pi=(sv*S+u)*4;
+      const idx=faceMap[face][v*S+u];
+      if(idx<0) continue;
+      colBuf[idx*3]=data[pi]/255;
+      colBuf[idx*3+1]=data[pi+1]/255;
+      colBuf[idx*3+2]=data[pi+2]/255;
+    }
+  }
+}
+
+function effectNEO(dt){
+  neoT+=dt;
+  if(!neoObjects.length && !neoFetching && (Date.now()/1000-neoLastFetch)>3600) neoFetch();
+
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  // Starfield background everywhere
+  const tt=Date.now()*0.001;
+  for(let i=0;i<N;i++){
+    const seed=((i*2654435761)>>>0)/4294967296;
+    if(seed<0.014){
+      const twinkle=0.3+0.7*Math.abs(Math.sin(tt*1.4+seed*60));
+      const br=seed*36*twinkle;
+      colBuf[i*3]=br; colBuf[i*3+1]=br; colBuf[i*3+2]=br*1.1;
+    }
+  }
+
+  const level=neoOverallRisk();
+  const riskRGB=neoRiskRGB(level);
+  const pulse=0.55+0.45*Math.sin(neoT*(level==='red'?6:level==='yellow'?3:1.4));
+
+  // Face 0 (front): Earth with pulsing threat ring
+  const S=SIZE, cx0=S/2, cy0=S/2;
+  const earthRad=S*0.3, ringRad=S*0.42;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const idx=faceMap[0][v*S+u]; if(idx<0) continue;
+      const dx=u-cx0, dy=v-cy0, d=Math.sqrt(dx*dx+dy*dy);
+      if(d<earthRad){
+        const nx=dx/earthRad, ny=dy/earthRad;
+        const land=Math.sin(nx*5+tt*0.15)*Math.cos(ny*4)>0.25;
+        if(land){ colBuf[idx*3]=0.07; colBuf[idx*3+1]=0.45; colBuf[idx*3+2]=0.12; }
+        else { colBuf[idx*3]=0.05; colBuf[idx*3+1]=0.18; colBuf[idx*3+2]=0.55; }
+        const shade=1-Math.max(0,d/earthRad)*0.3;
+        colBuf[idx*3]*=shade; colBuf[idx*3+1]*=shade; colBuf[idx*3+2]*=shade;
+      } else if(d>ringRad-1.2 && d<ringRad+1.2){
+        colBuf[idx*3]=riskRGB[0]*pulse; colBuf[idx*3+1]=riskRGB[1]*pulse; colBuf[idx*3+2]=riskRGB[2]*pulse;
+      }
+    }
+  }
+
+  // Faces 2 & 3 (sides): incoming object blips, distance-scaled
+  const sideFaces=[2,3];
+  for(let f=0; f<sideFaces.length; f++){
+    const face=sideFaces[f];
+    const objs=neoObjects.slice(0,6);
+    objs.forEach((o,oi)=>{
+      const r=neoRisk(o);
+      const rgb=neoRiskRGB(r);
+      const closeness=Math.max(0,1-Math.min(1,o.missLD/40));
+      const bx=2+((oi*7+f*3)%(S-4));
+      const by=Math.round(S*0.15+ (S*0.7) * (oi/Math.max(1,objs.length-1)));
+      const rad=1+Math.round(closeness*2.5);
+      const blink=0.6+0.4*Math.sin(neoT*(2+oi)+oi);
+      for(let dv=-rad; dv<=rad; dv++){
+        for(let du=-rad; du<=rad; du++){
+          if(du*du+dv*dv>rad*rad) continue;
+          const u=bx+du, v=by+dv;
+          if(u<0||u>=S||v<0||v>=S) continue;
+          const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+          colBuf[idx*3]=rgb[0]*blink; colBuf[idx*3+1]=rgb[1]*blink; colBuf[idx*3+2]=rgb[2]*blink;
+        }
+      }
+    });
+  }
+
+  // Face 4 (top): title / risk summary card
+  neoApplyBufToFace(4, neoBuildTitleBuf(level));
+
+  // Face 1 (back): scrolling ticker of all tracked objects
+  if(!neoTickerPixels) neoBuildTicker();
+  neoTickerScrollX += dt*22*(speedMult||1);
+  neoApplyTickerToFace(1);
+}
