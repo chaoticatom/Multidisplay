@@ -13708,6 +13708,42 @@ let neoObjects=[], neoFetching=false, neoLastFetch=0, neoError='', neoStarsInit=
 let neoTickerPixels=null, neoTickerWidth=0, neoTickerScrollX=0, neoT=0;
 const NEO_API_KEY='DEMO_KEY';
 
+// Loads an external image and extracts its pixel data for LED rendering.
+// Many NASA image hosts (e.g. apod.nasa.gov) don't send CORS headers, which
+// taints the canvas and makes getImageData throw — fall back to a CORS-safe
+// resizing proxy (images.weserv.nl) when the direct load can't be read.
+function loadImageForPixels(url, onSize, onPixels, onError){
+  const sz=Math.max(SIZE,32);
+  const proxyUrl=u=>`https://images.weserv.nl/?url=${encodeURIComponent(u.replace(/^https?:\/\//,''))}&w=${sz}&h=${sz}&fit=cover`;
+  function tryLoad(src, isFallback){
+    const img=new Image();
+    img.crossOrigin='anonymous';
+    img.onload=()=>{
+      try{
+        const oc=document.createElement('canvas');
+        oc.width=sz; oc.height=sz;
+        const octx=oc.getContext('2d');
+        const scale=Math.max(sz/img.width, sz/img.height);
+        const dw=img.width*scale, dh=img.height*scale;
+        octx.drawImage(img,(sz-dw)/2,(sz-dh)/2,dw,dh);
+        const pixels=octx.getImageData(0,0,sz,sz).data;
+        onSize(sz);
+        onPixels(pixels);
+      }catch(e){
+        console.error('Image pixel read failed'+(isFallback?' (proxy)':'')+':',e);
+        if(!isFallback) tryLoad(proxyUrl(url), true);
+        else onError(e);
+      }
+    };
+    img.onerror=()=>{
+      if(!isFallback) tryLoad(proxyUrl(url), true);
+      else onError(new Error('Image failed to load'));
+    };
+    img.src=src;
+  }
+  tryLoad(url, false);
+}
+
 function neoRisk(o){
   if(o.hazardous && o.missLD<5) return 'red';
   if(o.hazardous || o.missLD<10) return 'yellow';
@@ -14006,22 +14042,12 @@ async function apodFetch(){
       if(dl) dl.textContent=apodData.date+(apodData.mediaType!=='image'?' (video — showing text only)':'');
     }
     if(apodData.url){
-      const img=new Image();
-      img.crossOrigin='anonymous';
-      img.onload=()=>{
-        const sz=Math.max(SIZE,32);
-        const oc=document.createElement('canvas');
-        oc.width=sz; oc.height=sz;
-        const octx=oc.getContext('2d');
-        const scale=Math.max(sz/img.width, sz/img.height);
-        const dw=img.width*scale, dh=img.height*scale;
-        octx.drawImage(img,(sz-dw)/2,(sz-dh)/2,dw,dh);
-        apodImgPixels=octx.getImageData(0,0,sz,sz).data;
-        apodImgSize=sz;
-        apodImgReady=true;
-      };
-      img.onerror=()=>{ apodImgReady=false; };
-      img.src=apodData.url;
+      loadImageForPixels(apodData.url, sz=>{
+        apodImgSize=sz; apodImgReady=true;
+      }, pixels=>{ apodImgPixels=pixels; }, ()=>{
+        apodImgReady=false;
+        if(statusEl) statusEl.textContent='✕ Could not load image (showing text only)';
+      });
     }
   }catch(e){
     apodError=e.message;
@@ -14393,20 +14419,12 @@ async function epicFetch(){
       const cl=document.getElementById('epic-coord-line');
       if(cl) cl.textContent=epicData.lat!=null?`Centroid: ${epicData.lat.toFixed(1)}°, ${epicData.lon.toFixed(1)}°`:'';
     }
-    const img=new Image();
-    img.crossOrigin='anonymous';
-    img.onload=()=>{
-      const sz=Math.max(SIZE,32);
-      const oc=document.createElement('canvas');
-      oc.width=sz; oc.height=sz;
-      const octx=oc.getContext('2d');
-      octx.drawImage(img,0,0,sz,sz);
-      epicImgPixels=octx.getImageData(0,0,sz,sz).data;
-      epicImgSize=sz;
-      epicImgReady=true;
-    };
-    img.onerror=()=>{ epicImgReady=false; };
-    img.src=epicData.url;
+    loadImageForPixels(epicData.url, sz=>{
+      epicImgSize=sz; epicImgReady=true;
+    }, pixels=>{ epicImgPixels=pixels; }, ()=>{
+      epicImgReady=false;
+      if(statusEl) statusEl.textContent='✕ Could not load Earth image';
+    });
   }catch(e){
     epicError=e.message;
     if(statusEl) statusEl.textContent='✕ '+e.message;
