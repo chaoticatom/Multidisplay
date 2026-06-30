@@ -13940,3 +13940,754 @@ function effectNEO(dt){
   neoTickerScrollX += dt*22*(speedMult||1);
   neoApplyTickerToFace(1);
 }
+
+// ═══════════════════════════════════════════════════
+//  Astronomy Picture of the Day (NASA APOD)
+// ═══════════════════════════════════════════════════
+let apodData=null, apodFetching=false, apodLastFetch=0, apodError='';
+let apodImg=null, apodImgReady=false, apodImgPixels=null, apodImgSize=0;
+let apodTickerPixels=null, apodTickerWidth=0, apodTickerScrollX=0, apodT=0;
+
+async function apodFetch(){
+  if(apodFetching) return;
+  apodFetching=true; apodError='';
+  const statusEl=document.getElementById('apod-status');
+  if(statusEl) statusEl.textContent='Fetching astronomy picture of the day…';
+  try{
+    const url=`https://api.nasa.gov/planetary/apod?api_key=${NEO_API_KEY}`;
+    let r;
+    try{ r=await fetch(url); }
+    catch(fe){ throw new Error('APOD fetch failed — check internet connection'); }
+    if(!r.ok) throw new Error('NASA API error: '+r.status);
+    const d=await r.json();
+    apodData={
+      title:d.title||'Astronomy Picture of the Day',
+      explanation:d.explanation||'',
+      date:d.date||'',
+      mediaType:d.media_type||'image',
+      url:d.media_type==='image'?(d.url||d.hdurl):null,
+    };
+    apodImgReady=false; apodImg=null; apodTickerPixels=null;
+    apodLastFetch=Date.now()/1000;
+    if(statusEl) statusEl.textContent=apodData.title;
+    const infoEl=document.getElementById('apod-info');
+    if(infoEl){
+      infoEl.style.display='block';
+      const tl=document.getElementById('apod-title-line');
+      if(tl) tl.textContent=apodData.title;
+      const dl=document.getElementById('apod-date-line');
+      if(dl) dl.textContent=apodData.date+(apodData.mediaType!=='image'?' (video — showing text only)':'');
+    }
+    if(apodData.url){
+      const img=new Image();
+      img.crossOrigin='anonymous';
+      img.onload=()=>{
+        const sz=Math.max(SIZE,32);
+        const oc=document.createElement('canvas');
+        oc.width=sz; oc.height=sz;
+        const octx=oc.getContext('2d');
+        const scale=Math.max(sz/img.width, sz/img.height);
+        const dw=img.width*scale, dh=img.height*scale;
+        octx.drawImage(img,(sz-dw)/2,(sz-dh)/2,dw,dh);
+        apodImgPixels=octx.getImageData(0,0,sz,sz).data;
+        apodImgSize=sz;
+        apodImgReady=true;
+      };
+      img.onerror=()=>{ apodImgReady=false; };
+      img.src=apodData.url;
+    }
+  }catch(e){
+    apodError=e.message;
+    if(statusEl) statusEl.textContent='✕ '+e.message;
+    console.error('APOD fetch error:',e);
+  }
+  apodFetching=false;
+}
+document.getElementById('apod-fetch-btn')?.addEventListener('click',apodFetch);
+
+function apodApplyImageToFace(face){
+  if(!apodImgReady||!apodImgPixels) return;
+  const S=SIZE, IS=apodImgSize;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+      const su=Math.min(IS-1,Math.floor(u/S*IS));
+      const sv=Math.min(IS-1,Math.floor((S-1-v)/S*IS));
+      const pi=(sv*IS+su)*4;
+      colBuf[idx*3]=apodImgPixels[pi]/255;
+      colBuf[idx*3+1]=apodImgPixels[pi+1]/255;
+      colBuf[idx*3+2]=apodImgPixels[pi+2]/255;
+    }
+  }
+}
+
+function apodBuildTicker(){
+  const text=apodData?`   ${apodData.title}   •   ${apodData.explanation}   `:'   ASTRONOMY PICTURE OF THE DAY   •   LOADING…   ';
+  const full=('   '+text).repeat(2);
+  const fh=Math.max(8,(SIZE*0.32)|0);
+  const oc=document.createElement('canvas');
+  const cx=oc.getContext('2d');
+  cx.font=`bold ${fh}px "Courier New",monospace`;
+  const tw=cx.measureText(full).width|0;
+  oc.width=tw+4*SIZE; oc.height=SIZE;
+  cx.fillStyle='#000'; cx.fillRect(0,0,oc.width,oc.height);
+  cx.fillStyle='#ffd97a'; cx.font=`bold ${fh}px "Courier New",monospace`;
+  cx.textBaseline='middle'; cx.fillText(full,0,SIZE/2);
+  apodTickerPixels=cx.getImageData(0,0,oc.width,oc.height).data;
+  apodTickerWidth=oc.width;
+  apodTickerScrollX=0;
+}
+
+function apodApplyTickerToFace(face){
+  if(!apodTickerPixels) return;
+  const S=SIZE;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const sx=(((apodTickerScrollX|0)+u)%apodTickerWidth+apodTickerWidth)%apodTickerWidth;
+      const sv=S-1-v;
+      const pi=(sv*apodTickerWidth+sx)*4;
+      const idx=faceMap[face][v*S+u];
+      if(idx<0) continue;
+      colBuf[idx*3]=apodTickerPixels[pi]/255;
+      colBuf[idx*3+1]=apodTickerPixels[pi+1]/255;
+      colBuf[idx*3+2]=apodTickerPixels[pi+2]/255;
+    }
+  }
+}
+
+function effectAPOD(dt){
+  apodT+=dt;
+  if(!apodData && !apodFetching && (Date.now()/1000-apodLastFetch)>3600) apodFetch();
+
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  if(apodImgReady){
+    apodApplyImageToFace(0);
+    apodApplyImageToFace(4);
+  } else {
+    // Starfield placeholder while loading / for video days
+    const tt=Date.now()*0.001;
+    for(let i=0;i<N;i++){
+      const seed=((i*2654435761)>>>0)/4294967296;
+      if(seed<0.014){
+        const twinkle=0.3+0.7*Math.abs(Math.sin(tt*1.4+seed*60));
+        const br=seed*36*twinkle;
+        colBuf[i*3]=br*1.1; colBuf[i*3+1]=br*0.9; colBuf[i*3+2]=br*0.6;
+      }
+    }
+  }
+
+  if(!apodTickerPixels) apodBuildTicker();
+  apodTickerScrollX += dt*20*(speedMult||1);
+  apodApplyTickerToFace(1);
+}
+
+// ═══════════════════════════════════════════════════
+//  Space Weather (NASA DONKI)
+// ═══════════════════════════════════════════════════
+let swxEvents=[], swxFetching=false, swxLastFetch=0, swxError='';
+let swxTickerPixels=null, swxTickerWidth=0, swxTickerScrollX=0, swxT=0;
+
+function swxRisk(ev){
+  const t=(ev.messageType||'').toUpperCase();
+  const body=(ev.messageBody||'').toUpperCase();
+  if(t==='GST' || /X\d/.test(body) || body.includes('SEVERE')) return 'red';
+  if(t==='FLR' || t==='CME' || /M\d/.test(body)) return 'yellow';
+  return 'green';
+}
+function swxRiskRGB(level){
+  if(level==='red') return [1,0.08,0.08];
+  if(level==='yellow') return [1,0.78,0.05];
+  return [0.1,0.95,0.25];
+}
+function swxOverallRisk(){
+  if(!swxEvents.length) return 'green';
+  if(swxEvents.some(e=>swxRisk(e)==='red')) return 'red';
+  if(swxEvents.some(e=>swxRisk(e)==='yellow')) return 'yellow';
+  return 'green';
+}
+function swxShortType(t){
+  const m={FLR:'Solar Flare',CME:'Coronal Mass Ejection',GST:'Geomagnetic Storm',SEP:'Solar Particle Event',IPS:'Interplanetary Shock',RBE:'Radiation Belt Event',report:'Report'};
+  return m[t]||t||'Event';
+}
+
+async function swxFetch(){
+  if(swxFetching) return;
+  swxFetching=true; swxError='';
+  const statusEl=document.getElementById('swx-status');
+  if(statusEl) statusEl.textContent='Fetching space weather data…';
+  try{
+    const end=new Date();
+    const start=new Date(end.getTime()-7*86400000);
+    const fmt=d=>d.toISOString().slice(0,10);
+    const url=`https://api.nasa.gov/DONKI/notifications?startDate=${fmt(start)}&endDate=${fmt(end)}&type=all&api_key=${NEO_API_KEY}`;
+    let r;
+    try{ r=await fetch(url); }
+    catch(fe){ throw new Error('Space weather fetch failed — check internet connection'); }
+    if(!r.ok) throw new Error('NASA API error: '+r.status);
+    const d=await r.json();
+    let list=(d||[]).map(ev=>({
+      type:ev.messageType||'',
+      title:swxShortType(ev.messageType)+(ev.messageBody?': '+ev.messageBody.split('\n').find(l=>l.trim())?.slice(0,80):''),
+      messageBody:ev.messageBody||'',
+      messageType:ev.messageType||'',
+      issueTime:ev.messageIssueTime||'',
+    }));
+    list.sort((a,b)=>new Date(b.issueTime)-new Date(a.issueTime));
+    swxEvents=list.slice(0,10);
+    swxLastFetch=Date.now()/1000;
+    swxTickerPixels=null;
+    if(statusEl) statusEl.textContent=`${swxEvents.length} events in last 7 days`;
+    const infoEl=document.getElementById('swx-info');
+    if(infoEl){
+      infoEl.style.display='block';
+      const ll=document.getElementById('swx-latest-line');
+      if(ll) ll.textContent=swxEvents[0]?('Latest: '+swxShortType(swxEvents[0].messageType)):'Latest: none';
+      const rl=document.getElementById('swx-risk-line');
+      if(rl) rl.textContent=`Risk level: ${swxOverallRisk().toUpperCase()}`;
+    }
+  }catch(e){
+    swxError=e.message;
+    if(statusEl) statusEl.textContent='✕ '+e.message;
+    console.error('Space weather fetch error:',e);
+  }
+  swxFetching=false;
+}
+document.getElementById('swx-fetch-btn')?.addEventListener('click',swxFetch);
+
+function swxBuildTitleBuf(level){
+  const S=Math.max(SIZE,16);
+  const c=document.createElement('canvas');
+  c.width=S; c.height=S;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,S,S);
+  const rgb=swxRiskRGB(level);
+  const hex='#'+rgb.map(v=>Math.round(v*255).toString(16).padStart(2,'0')).join('');
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='#fff';
+  ctx.font=`bold ${Math.max(6,(S*0.14)|0)}px Arial,sans-serif`;
+  ctx.fillText('SPACE WEATHER', S/2, S*0.2);
+  ctx.fillStyle=hex;
+  ctx.font=`bold ${Math.max(8,(S*0.22)|0)}px Arial,sans-serif`;
+  ctx.fillText(level.toUpperCase(), S/2, S*0.48);
+  ctx.fillStyle='#bbb';
+  ctx.font=`${Math.max(5,(S*0.1)|0)}px Arial,sans-serif`;
+  const latest=swxEvents[0];
+  ctx.fillText(latest?swxShortType(latest.messageType):'NO EVENTS', S/2, S*0.74);
+  ctx.fillText(`${swxEvents.length} events / 7d`, S/2, S*0.87);
+  return {data:ctx.getImageData(0,0,S,S).data, S};
+}
+
+function swxApplyBufToFace(face, buf){
+  const {data, S}=buf;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const sv=S-1-v;
+      const pi=(sv*S+u)*4;
+      const idx=faceMap[face][v*S+u];
+      if(idx<0) continue;
+      colBuf[idx*3]=data[pi]/255;
+      colBuf[idx*3+1]=data[pi+1]/255;
+      colBuf[idx*3+2]=data[pi+2]/255;
+    }
+  }
+}
+
+function swxBuildTicker(){
+  const level=swxOverallRisk();
+  const rgb=swxRiskRGB(level);
+  const hex='#'+rgb.map(c=>Math.round(c*255).toString(16).padStart(2,'0')).join('');
+  let text;
+  if(!swxEvents.length){
+    text='   SPACE WEATHER  •  NO RECENT EVENTS  •  ';
+  } else {
+    text=swxEvents.map(e=>{
+      const r=swxRisk(e);
+      const flag=r==='red'?'⚠⚠':r==='yellow'?'⚠':'•';
+      const dt2=e.issueTime?new Date(e.issueTime).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'';
+      return `${flag} ${swxShortType(e.messageType)}  ${dt2}`;
+    }).join('   ///   ')+'   ///   ';
+  }
+  text=('   '+text).repeat(2);
+  const fh=Math.max(8,(SIZE*0.34)|0);
+  const oc=document.createElement('canvas');
+  const cx=oc.getContext('2d');
+  cx.font=`bold ${fh}px "Courier New",monospace`;
+  const tw=cx.measureText(text).width|0;
+  oc.width=tw+4*SIZE; oc.height=SIZE;
+  cx.fillStyle='#000'; cx.fillRect(0,0,oc.width,oc.height);
+  cx.fillStyle=hex; cx.font=`bold ${fh}px "Courier New",monospace`;
+  cx.textBaseline='middle'; cx.fillText(text,0,SIZE/2);
+  swxTickerPixels=cx.getImageData(0,0,oc.width,oc.height).data;
+  swxTickerWidth=oc.width;
+  swxTickerScrollX=0;
+}
+
+function swxApplyTickerToFace(face){
+  if(!swxTickerPixels) return;
+  const S=SIZE;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const sx=(((swxTickerScrollX|0)+u)%swxTickerWidth+swxTickerWidth)%swxTickerWidth;
+      const sv=S-1-v;
+      const pi=(sv*swxTickerWidth+sx)*4;
+      const idx=faceMap[face][v*S+u];
+      if(idx<0) continue;
+      colBuf[idx*3]=swxTickerPixels[pi]/255;
+      colBuf[idx*3+1]=swxTickerPixels[pi+1]/255;
+      colBuf[idx*3+2]=swxTickerPixels[pi+2]/255;
+    }
+  }
+}
+
+function effectSpaceWeather(dt){
+  swxT+=dt;
+  if(!swxEvents.length && !swxFetching && (Date.now()/1000-swxLastFetch)>3600) swxFetch();
+
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  const level=swxOverallRisk();
+  const riskRGB=swxRiskRGB(level);
+  const pulse=0.55+0.45*Math.sin(swxT*(level==='red'?6:level==='yellow'?3:1.4));
+
+  // Face 0: pulsing sun with flare-like rays
+  const S=SIZE, cx0=S/2, cy0=S/2;
+  const sunRad=S*0.26;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const idx=faceMap[0][v*S+u]; if(idx<0) continue;
+      const dx=u-cx0, dy=v-cy0, d=Math.sqrt(dx*dx+dy*dy);
+      const ang=Math.atan2(dy,dx);
+      if(d<sunRad){
+        const flick=0.85+0.15*Math.sin(swxT*8+ang*6);
+        colBuf[idx*3]=1*flick; colBuf[idx*3+1]=0.7*flick; colBuf[idx*3+2]=0.15*flick;
+      } else if(d<sunRad*2.6){
+        const rayN=8;
+        const rayPhase=(ang+swxT*0.6)*rayN/(2*Math.PI);
+        const rayOn=Math.abs(((rayPhase%1)+1)%1-0.5)<0.18*(level==='red'?2.2:level==='yellow'?1.5:1);
+        if(rayOn){
+          const fall=1-(d-sunRad)/(sunRad*1.6);
+          colBuf[idx*3]=riskRGB[0]*fall*pulse; colBuf[idx*3+1]=riskRGB[1]*fall*pulse*0.8; colBuf[idx*3+2]=riskRGB[2]*fall*pulse*0.3;
+        }
+      } else if(d>sunRad*2.7-1.2 && d<sunRad*2.7+1.2){
+        colBuf[idx*3]=riskRGB[0]*pulse; colBuf[idx*3+1]=riskRGB[1]*pulse; colBuf[idx*3+2]=riskRGB[2]*pulse;
+      }
+    }
+  }
+
+  // Face 4: title card
+  swxApplyBufToFace(4, swxBuildTitleBuf(level));
+
+  // Faces 2 & 3: deep space starfield with event-colored particle bursts
+  const tt=Date.now()*0.001;
+  const sideFaces=[2,3];
+  for(const face of sideFaces){
+    for(let v=0;v<S;v++){
+      for(let u=0;u<S;u++){
+        const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+        const seed=((idx*2654435761)>>>0)/4294967296;
+        if(seed<0.012){
+          const twinkle=0.3+0.7*Math.abs(Math.sin(tt*1.4+seed*60));
+          const br=seed*30*twinkle;
+          colBuf[idx*3]=br; colBuf[idx*3+1]=br; colBuf[idx*3+2]=br*1.1;
+        }
+      }
+    }
+    swxEvents.slice(0,5).forEach((e,ei)=>{
+      const r=swxRisk(e);
+      const rgb=swxRiskRGB(r);
+      const bx=2+((ei*9+face*4)%(S-4));
+      const by=Math.round(S*0.15+(S*0.7)*(ei/4));
+      const blink=0.6+0.4*Math.sin(swxT*(2+ei)+ei);
+      for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
+        const u=bx+du, v=by+dv;
+        if(u<0||u>=S||v<0||v>=S) continue;
+        const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+        colBuf[idx*3]=rgb[0]*blink; colBuf[idx*3+1]=rgb[1]*blink; colBuf[idx*3+2]=rgb[2]*blink;
+      }
+    });
+  }
+
+  if(!swxTickerPixels) swxBuildTicker();
+  swxTickerScrollX += dt*22*(speedMult||1);
+  swxApplyTickerToFace(1);
+}
+
+// ═══════════════════════════════════════════════════
+//  Earth Full-Disk Imagery (NASA EPIC)
+// ═══════════════════════════════════════════════════
+let epicData=null, epicFetching=false, epicLastFetch=0, epicError='';
+let epicImgReady=false, epicImgPixels=null, epicImgSize=0;
+let epicTickerPixels=null, epicTickerWidth=0, epicTickerScrollX=0, epicT=0;
+
+async function epicFetch(){
+  if(epicFetching) return;
+  epicFetching=true; epicError='';
+  const statusEl=document.getElementById('epic-status');
+  if(statusEl) statusEl.textContent='Fetching latest Earth image…';
+  try{
+    const url=`https://api.nasa.gov/EPIC/api/natural/images?api_key=${NEO_API_KEY}`;
+    let r;
+    try{ r=await fetch(url); }
+    catch(fe){ throw new Error('EPIC fetch failed — check internet connection'); }
+    if(!r.ok) throw new Error('NASA API error: '+r.status);
+    const arr=await r.json();
+    if(!arr || !arr.length) throw new Error('No EPIC imagery available right now');
+    const item=arr[arr.length-1];
+    const d=new Date(item.date.replace(' ','T')+'Z');
+    const yyyy=d.getUTCFullYear(), mm=String(d.getUTCMonth()+1).padStart(2,'0'), dd=String(d.getUTCDate()).padStart(2,'0');
+    const imgUrl=`https://api.nasa.gov/EPIC/archive/natural/${yyyy}/${mm}/${dd}/png/${item.image}.png?api_key=${NEO_API_KEY}`;
+    epicData={
+      caption:item.caption||'Earth from DSCOVR',
+      date:item.date,
+      lat:item.centroid_coordinates?item.centroid_coordinates.lat:null,
+      lon:item.centroid_coordinates?item.centroid_coordinates.lon:null,
+      url:imgUrl,
+    };
+    epicImgReady=false; epicTickerPixels=null;
+    epicLastFetch=Date.now()/1000;
+    if(statusEl) statusEl.textContent=epicData.caption;
+    const infoEl=document.getElementById('epic-info');
+    if(infoEl){
+      infoEl.style.display='block';
+      const dl=document.getElementById('epic-date-line');
+      if(dl) dl.textContent='Captured: '+epicData.date+' UTC';
+      const cl=document.getElementById('epic-coord-line');
+      if(cl) cl.textContent=epicData.lat!=null?`Centroid: ${epicData.lat.toFixed(1)}°, ${epicData.lon.toFixed(1)}°`:'';
+    }
+    const img=new Image();
+    img.crossOrigin='anonymous';
+    img.onload=()=>{
+      const sz=Math.max(SIZE,32);
+      const oc=document.createElement('canvas');
+      oc.width=sz; oc.height=sz;
+      const octx=oc.getContext('2d');
+      octx.drawImage(img,0,0,sz,sz);
+      epicImgPixels=octx.getImageData(0,0,sz,sz).data;
+      epicImgSize=sz;
+      epicImgReady=true;
+    };
+    img.onerror=()=>{ epicImgReady=false; };
+    img.src=epicData.url;
+  }catch(e){
+    epicError=e.message;
+    if(statusEl) statusEl.textContent='✕ '+e.message;
+    console.error('EPIC fetch error:',e);
+  }
+  epicFetching=false;
+}
+document.getElementById('epic-fetch-btn')?.addEventListener('click',epicFetch);
+
+function epicApplyImageToFace(face){
+  const S=SIZE, cx0=S/2, cy0=S/2, rad=S*0.48;
+  if(!epicImgReady||!epicImgPixels){
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+      const dx=u-cx0, dy=v-cy0;
+      if(dx*dx+dy*dy<rad*rad){ colBuf[idx*3]=0.04; colBuf[idx*3+1]=0.12; colBuf[idx*3+2]=0.3; }
+    }
+    return;
+  }
+  const IS=epicImgSize;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+      const dx=u-cx0, dy=v-cy0;
+      if(dx*dx+dy*dy>rad*rad) continue;
+      const su=Math.min(IS-1,Math.max(0,Math.floor(u/S*IS)));
+      const sv=Math.min(IS-1,Math.max(0,Math.floor((S-1-v)/S*IS)));
+      const pi=(sv*IS+su)*4;
+      colBuf[idx*3]=epicImgPixels[pi]/255;
+      colBuf[idx*3+1]=epicImgPixels[pi+1]/255;
+      colBuf[idx*3+2]=epicImgPixels[pi+2]/255;
+    }
+  }
+}
+
+function epicBuildTicker(){
+  const text=epicData?`   EARTH NOW   •   ${epicData.date} UTC   •   ${epicData.caption}   `:'   EARTH FULL-DISK IMAGERY   •   LOADING…   ';
+  const full=('   '+text).repeat(2);
+  const fh=Math.max(8,(SIZE*0.32)|0);
+  const oc=document.createElement('canvas');
+  const cx=oc.getContext('2d');
+  cx.font=`bold ${fh}px "Courier New",monospace`;
+  const tw=cx.measureText(full).width|0;
+  oc.width=tw+4*SIZE; oc.height=SIZE;
+  cx.fillStyle='#000'; cx.fillRect(0,0,oc.width,oc.height);
+  cx.fillStyle='#7ab8ff'; cx.font=`bold ${fh}px "Courier New",monospace`;
+  cx.textBaseline='middle'; cx.fillText(full,0,SIZE/2);
+  epicTickerPixels=cx.getImageData(0,0,oc.width,oc.height).data;
+  epicTickerWidth=oc.width;
+  epicTickerScrollX=0;
+}
+
+function epicApplyTickerToFace(face){
+  if(!epicTickerPixels) return;
+  const S=SIZE;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const sx=(((epicTickerScrollX|0)+u)%epicTickerWidth+epicTickerWidth)%epicTickerWidth;
+      const sv=S-1-v;
+      const pi=(sv*epicTickerWidth+sx)*4;
+      const idx=faceMap[face][v*S+u];
+      if(idx<0) continue;
+      colBuf[idx*3]=epicTickerPixels[pi]/255;
+      colBuf[idx*3+1]=epicTickerPixels[pi+1]/255;
+      colBuf[idx*3+2]=epicTickerPixels[pi+2]/255;
+    }
+  }
+}
+
+function effectEPIC(dt){
+  epicT+=dt;
+  if(!epicData && !epicFetching && (Date.now()/1000-epicLastFetch)>3600) epicFetch();
+
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  const tt=Date.now()*0.001;
+  for(let i=0;i<N;i++){
+    const seed=((i*2654435761)>>>0)/4294967296;
+    if(seed<0.012){
+      const twinkle=0.3+0.7*Math.abs(Math.sin(tt*1.4+seed*60));
+      const br=seed*30*twinkle;
+      colBuf[i*3]=br; colBuf[i*3+1]=br; colBuf[i*3+2]=br*1.1;
+    }
+  }
+
+  epicApplyImageToFace(0);
+  epicApplyImageToFace(4);
+
+  if(!epicTickerPixels) epicBuildTicker();
+  epicTickerScrollX += dt*20*(speedMult||1);
+  epicApplyTickerToFace(1);
+}
+
+// ═══════════════════════════════════════════════════
+//  ISS Live Location Tracker
+// ═══════════════════════════════════════════════════
+let issLat=0, issLon=0, issTimestamp=0, issFetching=false, issLastFetch=0, issError='';
+let issHasFix=false, issT=0, issTrail=[];
+let issTickerPixels=null, issTickerWidth=0, issTickerScrollX=0;
+
+async function issFetch(){
+  if(issFetching) return;
+  issFetching=true; issError='';
+  const statusEl=document.getElementById('iss-status');
+  try{
+    let r;
+    try{ r=await fetch('https://api.open-notify.org/iss-now.json'); }
+    catch(fe){ throw new Error('ISS fetch failed — check internet connection'); }
+    if(!r.ok) throw new Error('ISS API error: '+r.status);
+    const d=await r.json();
+    issLat=parseFloat(d.iss_position.latitude);
+    issLon=parseFloat(d.iss_position.longitude);
+    issTimestamp=d.timestamp||Math.floor(Date.now()/1000);
+    issHasFix=true;
+    issLastFetch=Date.now()/1000;
+    issTrail.push({lat:issLat,lon:issLon});
+    if(issTrail.length>30) issTrail.shift();
+    issTickerPixels=null;
+    if(statusEl) statusEl.textContent=`Tracking — fix at ${new Date(issTimestamp*1000).toLocaleTimeString()}`;
+    const infoEl=document.getElementById('iss-info');
+    if(infoEl){
+      infoEl.style.display='block';
+      const ll=document.getElementById('iss-coord-line');
+      if(ll) ll.textContent=`Lat ${issLat.toFixed(2)}°  Lon ${issLon.toFixed(2)}°`;
+      const tl=document.getElementById('iss-time-line');
+      if(tl) tl.textContent='Last fix: '+new Date(issTimestamp*1000).toLocaleTimeString();
+    }
+  }catch(e){
+    issError=e.message;
+    if(statusEl) statusEl.textContent='✕ '+e.message;
+    console.error('ISS fetch error:',e);
+  }
+  issFetching=false;
+}
+document.getElementById('iss-fetch-btn')?.addEventListener('click',issFetch);
+
+// Crude landmass mask for a 64x32-ish equirectangular blob map (procedural, not geographically precise)
+function issIsLand(lonFrac, latFrac){
+  // lonFrac 0..1 (=-180..180), latFrac 0..1 (=90..-90)
+  const x=lonFrac*2*Math.PI, y=(latFrac-0.5)*Math.PI;
+  const v=Math.sin(x*2.3+1.1)*Math.cos(y*2.7) + Math.sin(x*4.1-0.7)*0.5*Math.cos(y*1.9+0.4) + Math.cos(y*3.3)*0.4;
+  return v>0.35;
+}
+
+function issBuildMapBuf(){
+  const S=Math.max(SIZE,16);
+  const data=new Uint8ClampedArray(S*S*4);
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const lonFrac=u/S, latFrac=v/S;
+      const land=issIsLand(lonFrac,latFrac);
+      const i=(v*S+u)*4;
+      if(land){ data[i]=14; data[i+1]=92; data[i+2]=30; }
+      else { data[i]=10; data[i+1]=38; data[i+2]=110; }
+      data[i+3]=255;
+    }
+  }
+  return {data, S};
+}
+let issMapBuf=null;
+
+function issApplyMapToFace(face){
+  if(!issMapBuf) issMapBuf=issBuildMapBuf();
+  const {data,S}=issMapBuf;
+  for(let v=0;v<SIZE;v++){
+    for(let u=0;u<SIZE;u++){
+      const idx=faceMap[face][v*SIZE+u]; if(idx<0) continue;
+      const su=Math.min(S-1,Math.floor(u/SIZE*S));
+      const sv=Math.min(S-1,Math.floor(v/SIZE*S));
+      const pi=(sv*S+su)*4;
+      colBuf[idx*3]=data[pi]/255;
+      colBuf[idx*3+1]=data[pi+1]/255;
+      colBuf[idx*3+2]=data[pi+2]/255;
+    }
+  }
+  // Trail + marker
+  const lonToU=lon=>Math.round(((lon+180)/360)*SIZE)%SIZE;
+  const latToV=lat=>Math.round(((90-lat)/180)*SIZE);
+  issTrail.forEach((p,pi)=>{
+    const u=lonToU(p.lon), v=latToV(p.lat);
+    const age=pi/Math.max(1,issTrail.length-1);
+    const idx=faceMap[face][v*SIZE+u]; if(idx<0) return;
+    colBuf[idx*3]=Math.max(colBuf[idx*3],0.5*age);
+    colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],0.7*age);
+    colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],1*age);
+  });
+  if(issHasFix){
+    const u=lonToU(issLon), v=latToV(issLat);
+    const blink=0.6+0.4*Math.sin(issT*5);
+    for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
+      const uu=((u+du)%SIZE+SIZE)%SIZE, vv=v+dv;
+      if(vv<0||vv>=SIZE) continue;
+      const idx=faceMap[face][vv*SIZE+uu]; if(idx<0) continue;
+      colBuf[idx*3]=1*blink; colBuf[idx*3+1]=1*blink; colBuf[idx*3+2]=0.95*blink;
+    }
+  }
+}
+
+function issBuildTitleBuf(){
+  const S=Math.max(SIZE,16);
+  const c=document.createElement('canvas');
+  c.width=S; c.height=S;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,S,S);
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='#fff';
+  ctx.font=`bold ${Math.max(6,(S*0.16)|0)}px Arial,sans-serif`;
+  ctx.fillText('ISS TRACKER', S/2, S*0.2);
+  ctx.fillStyle='#7adfff';
+  ctx.font=`bold ${Math.max(8,(S*0.16)|0)}px Arial,sans-serif`;
+  ctx.fillText(issHasFix?`${issLat.toFixed(1)}°`:'--.-°', S/2, S*0.48);
+  ctx.fillText(issHasFix?`${issLon.toFixed(1)}°`:'--.-°', S/2, S*0.66);
+  ctx.fillStyle='#bbb';
+  ctx.font=`${Math.max(5,(S*0.1)|0)}px Arial,sans-serif`;
+  ctx.fillText(issHasFix?'LIVE FIX':'ACQUIRING…', S/2, S*0.86);
+  return {data:ctx.getImageData(0,0,S,S).data, S};
+}
+function issApplyBufToFace(face, buf){
+  const {data, S}=buf;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const sv=S-1-v;
+      const pi=(sv*S+u)*4;
+      const idx=faceMap[face][v*S+u];
+      if(idx<0) continue;
+      colBuf[idx*3]=data[pi]/255;
+      colBuf[idx*3+1]=data[pi+1]/255;
+      colBuf[idx*3+2]=data[pi+2]/255;
+    }
+  }
+}
+
+function issDrawStation(face){
+  const S=SIZE, cx0=S/2, cy0=S/2;
+  const ang=issT*0.4;
+  const cosA=Math.cos(ang), sinA=Math.sin(ang);
+  const drawSeg=(x0,y0,x1,y1,r,g,b)=>{
+    const steps=Math.ceil(Math.max(Math.abs(x1-x0),Math.abs(y1-y0)))+1;
+    for(let s=0;s<=steps;s++){
+      const t=s/steps;
+      const x=x0+(x1-x0)*t, y=y0+(y1-y0)*t;
+      const rx=cx0+(x-cx0)*cosA-(y-cy0)*sinA;
+      const ry=cy0+(x-cx0)*sinA+(y-cy0)*cosA;
+      const u=Math.round(rx), v=Math.round(ry);
+      if(u<0||u>=S||v<0||v>=S) continue;
+      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+      colBuf[idx*3]=r; colBuf[idx*3+1]=g; colBuf[idx*3+2]=b;
+    }
+  };
+  const panelW=S*0.34;
+  drawSeg(cx0-panelW,cy0,cx0-S*0.06,cy0, 0.15,0.35,0.95);
+  drawSeg(cx0+S*0.06,cy0,cx0+panelW,cy0, 0.15,0.35,0.95);
+  drawSeg(cx0-S*0.06,cy0-S*0.08,cx0+S*0.06,cy0-S*0.08, 0.9,0.9,0.9);
+  drawSeg(cx0-S*0.06,cy0+S*0.08,cx0+S*0.06,cy0+S*0.08, 0.9,0.9,0.9);
+  drawSeg(cx0-S*0.06,cy0-S*0.08,cx0-S*0.06,cy0+S*0.08, 0.9,0.9,0.9);
+  drawSeg(cx0+S*0.06,cy0-S*0.08,cx0+S*0.06,cy0+S*0.08, 0.9,0.9,0.9);
+}
+
+function issBuildTicker(){
+  const text=issHasFix
+    ? `   ISS LIVE  •  LAT ${issLat.toFixed(2)}°  LON ${issLon.toFixed(2)}°  •  ALTITUDE ~408km  •  SPEED ~27600km/h  •  LAST FIX ${new Date(issTimestamp*1000).toLocaleTimeString()}   `
+    : '   ISS TRACKER  •  ACQUIRING SIGNAL…   ';
+  const full=('   '+text).repeat(2);
+  const fh=Math.max(8,(SIZE*0.32)|0);
+  const oc=document.createElement('canvas');
+  const cx=oc.getContext('2d');
+  cx.font=`bold ${fh}px "Courier New",monospace`;
+  const tw=cx.measureText(full).width|0;
+  oc.width=tw+4*SIZE; oc.height=SIZE;
+  cx.fillStyle='#000'; cx.fillRect(0,0,oc.width,oc.height);
+  cx.fillStyle='#7adfff'; cx.font=`bold ${fh}px "Courier New",monospace`;
+  cx.textBaseline='middle'; cx.fillText(full,0,SIZE/2);
+  issTickerPixels=cx.getImageData(0,0,oc.width,oc.height).data;
+  issTickerWidth=oc.width;
+  issTickerScrollX=0;
+}
+function issApplyTickerToFace(face){
+  if(!issTickerPixels) return;
+  const S=SIZE;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const sx=(((issTickerScrollX|0)+u)%issTickerWidth+issTickerWidth)%issTickerWidth;
+      const sv=S-1-v;
+      const pi=(sv*issTickerWidth+sx)*4;
+      const idx=faceMap[face][v*S+u];
+      if(idx<0) continue;
+      colBuf[idx*3]=issTickerPixels[pi]/255;
+      colBuf[idx*3+1]=issTickerPixels[pi+1]/255;
+      colBuf[idx*3+2]=issTickerPixels[pi+2]/255;
+    }
+  }
+}
+
+function effectISS(dt){
+  issT+=dt;
+  if(!issFetching && (Date.now()/1000-issLastFetch)>5) issFetch();
+
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  // Face 0: starfield + orbiting station icon
+  const tt=Date.now()*0.001;
+  for(let i=0;i<N;i++){
+    const seed=((i*2654435761)>>>0)/4294967296;
+    if(seed<0.012){
+      const twinkle=0.3+0.7*Math.abs(Math.sin(tt*1.4+seed*60));
+      const br=seed*30*twinkle;
+      colBuf[i*3]=br; colBuf[i*3+1]=br; colBuf[i*3+2]=br*1.1;
+    }
+  }
+  issDrawStation(0);
+
+  // Face 1: world map with ground track + live marker
+  issApplyMapToFace(1);
+
+  // Face 4: info card
+  issApplyBufToFace(4, issBuildTitleBuf());
+
+  // Face 2: scrolling info ticker
+  if(!issTickerPixels) issBuildTicker();
+  issTickerScrollX += dt*20*(speedMult||1);
+  issApplyTickerToFace(2);
+}

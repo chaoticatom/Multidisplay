@@ -1231,7 +1231,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=666','f1.js?v=666','f1-providers.js?v=666'];
+  const scripts = ['f1-state.js?v=667','f1.js?v=667','f1-providers.js?v=667'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1280,6 +1280,10 @@ const EFFECTS={
   retro:effectRetro,
   moon:effectMoon,
   neo:effectNEO,
+  apod:effectAPOD,
+  spaceweather:effectSpaceWeather,
+  epic:effectEPIC,
+  iss:effectISS,
 };
 const EFFECT_NAMES={
   wave:'Wave Cascade', rain:'Colour Rain', plasma:'Plasma Storm', sphere:'Laser Grid',
@@ -1297,6 +1301,10 @@ const EFFECT_NAMES={
   simhouse:'Sim House',
   moon:'Celestial',
   neo:'Near-Earth Objects',
+  apod:'Astronomy Pic of the Day',
+  spaceweather:'Space Weather',
+  epic:'Earth Live View',
+  iss:'ISS Tracker',
 };
 
 // ═══════════════════════════════════════════════════
