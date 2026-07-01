@@ -14139,17 +14139,18 @@ async function apodFetchHistory(){
 }
 
 function apodHistoryLoad(idx){
+  // null=unloaded, false=in-flight, 'error'=failed, Uint8ClampedArray=ready
   if(!apodHistory[idx]||apodHistoryPixels[idx]!=null) return;
-  apodHistoryPixels[idx]=false; // mark as loading to prevent double-fetch
+  apodHistoryPixels[idx]=false;
   loadImageForPixels(apodHistory[idx].url, sz=>{apodHistorySize[idx]=sz;},
     pixels=>{ apodHistoryPixels[idx]=pixels; },
-    ()=>{ apodHistoryPixels[idx]=false; },
+    ()=>{ apodHistoryPixels[idx]='error'; },
     {letterbox:apodLetterbox});
 }
 
 function apodHistoryApplyToFace(face, idx){
   const pixels=apodHistoryPixels[idx];
-  if(!pixels) return false;
+  if(!pixels||pixels==='error') return false;
   const S=SIZE, IS=apodHistorySize[idx];
   for(let v=0;v<S;v++) for(let u=0;u<S;u++){
     const idx2=faceMap[face][v*S+u]; if(idx2<0) continue;
@@ -14348,6 +14349,9 @@ function effectAPOD(dt){
     const shown=apodHistoryApplyToFace(0,apodHistoryIdx);
     if(shown){
       for(let f=1;f<6;f++) if(f!==1) apodHistoryApplyToFace(f,apodHistoryIdx);
+    } else if(apodHistoryPixels[apodHistoryIdx]==='error'){
+      const entry=apodHistory[apodHistoryIdx]||{};
+      for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f,['NO IMAGE',entry.date||''],[0.6,0.4,0.1],[0.06,0.03,0]);
     } else {
       const dots='.'.repeat(1+(Math.floor(apodT)%3));
       for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f,['APOD',dots],[0.35,0.65,1],[0,0,0.06]);
