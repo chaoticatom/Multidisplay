@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=685">
+<link rel="stylesheet" href="style.css?v=686">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -392,6 +392,20 @@
         <input type="checkbox" id="apod-letterbox-chk" checked style="cursor:pointer;">
         Full image (letterbox — preserve ratio)
       </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;cursor:pointer;margin-bottom:4px;">
+        <input type="checkbox" id="apod-slideshow-chk" style="cursor:pointer;">
+        Slideshow (last 30 days)
+      </label>
+      <div id="apod-slideshow-controls" style="margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;margin-bottom:4px;">
+          Speed: <input type="range" id="apod-slideshow-speed" min="3" max="30" value="8" style="flex:1;"> <span id="apod-slideshow-speed-label">8s</span>
+        </div>
+        <div style="display:flex;gap:4px;">
+          <button id="apod-prev-btn" style="flex:1;padding:4px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:3px;cursor:pointer;font-size:11px;">&#9664; Prev</button>
+          <button id="apod-next-btn" style="flex:1;padding:4px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:3px;cursor:pointer;font-size:11px;">Next &#9654;</button>
+        </div>
+        <div id="apod-slideshow-info" style="font-size:10px;color:#666;margin-top:3px;"></div>
+      </div>
       <div id="apod-info" style="display:none;font-size:11px;color:#ccc;line-height:1.5;">
         <div id="apod-title-line">Title: —</div>
         <div id="apod-date-line">Date: —</div>
@@ -1158,7 +1172,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=685"></script>
+<script src="version.js?v=686"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -1193,7 +1207,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=685','effects.js?v=685','ui.js?v=685'];
+  const appScripts = ['cube.js?v=686','effects.js?v=686','ui.js?v=686'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';

@@ -14094,8 +14094,74 @@ function effectNEO(dt){
 // ═══════════════════════════════════════════════════
 let apodData=null, apodFetching=false, apodLastFetch=0, apodError='', apodImgError='';
 let apodLetterbox=localStorage.getItem('apodLetterbox')!=='false'; // default: full image
+let apodSlideshow=false, apodSlideshowSecs=8, apodSlideshowTimer=0;
+let apodHistory=[], apodHistoryIdx=0;
+let apodHistoryPixels=[], apodHistorySize=[];
+let apodHistoryFetching=false;
 let apodImg=null, apodImgReady=false, apodImgPixels=null, apodImgSize=0;
 let apodTickerPixels=null, apodTickerWidth=0, apodTickerScrollX=0, apodT=0;
+
+function apodDateStr(daysAgo){
+  const d=new Date(); d.setDate(d.getDate()-daysAgo);
+  return d.toISOString().slice(0,10);
+}
+
+async function apodFetchHistory(){
+  if(apodHistoryFetching) return;
+  apodHistoryFetching=true;
+  const statusEl=document.getElementById('apod-status');
+  if(statusEl) statusEl.textContent='Fetching last 30 days…';
+  try{
+    const end=apodDateStr(0), start=apodDateStr(29);
+    const url=`https://api.nasa.gov/planetary/apod?api_key=${apodApiKey()}&start_date=${start}&end_date=${end}`;
+    let r;
+    try{ r=await fetch(url,{mode:'cors'}); }catch(fe){ throw new Error('Network error'); }
+    if(r.status===429) throw new Error('Rate limited — enter a free API key below');
+    if(!r.ok) throw new Error('NASA error '+r.status);
+    const arr=await r.json();
+    apodHistory=arr.reverse().map(d=>({
+      title:d.title||'',
+      date:d.date||'',
+      mediaType:d.media_type||'image',
+      url:d.media_type==='image'?(d.url||d.hdurl||null):(d.thumbnail_url||null),
+    })).filter(d=>d.url);
+    apodHistoryPixels=new Array(apodHistory.length).fill(null);
+    apodHistorySize=new Array(apodHistory.length).fill(0);
+    apodHistoryIdx=0;
+    apodHistoryLoad(0);
+    const infoEl=document.getElementById('apod-slideshow-info');
+    if(infoEl) infoEl.textContent=apodHistory.length+' images loaded';
+    if(statusEl) statusEl.textContent=apodHistory[0]?apodHistory[0].title:'';
+  }catch(e){
+    if(statusEl) statusEl.textContent='✕ '+e.message;
+  }
+  apodHistoryFetching=false;
+}
+
+function apodHistoryLoad(idx){
+  if(!apodHistory[idx]||apodHistoryPixels[idx]!=null) return;
+  apodHistoryPixels[idx]=false; // mark as loading to prevent double-fetch
+  loadImageForPixels(apodHistory[idx].url, sz=>{apodHistorySize[idx]=sz;},
+    pixels=>{ apodHistoryPixels[idx]=pixels; },
+    ()=>{ apodHistoryPixels[idx]=false; },
+    {letterbox:apodLetterbox});
+}
+
+function apodHistoryApplyToFace(face, idx){
+  const pixels=apodHistoryPixels[idx];
+  if(!pixels) return false;
+  const S=SIZE, IS=apodHistorySize[idx];
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const idx2=faceMap[face][v*S+u]; if(idx2<0) continue;
+    const su=Math.min(IS-1,Math.floor(u/S*IS));
+    const sv=Math.min(IS-1,Math.floor(v/S*IS));
+    const pi=(sv*IS+su)*4;
+    colBuf[idx2*3]=pixels[pi]/255;
+    colBuf[idx2*3+1]=pixels[pi+1]/255;
+    colBuf[idx2*3+2]=pixels[pi+2]/255;
+  }
+  return true;
+}
 
 function apodApiKey(){
   return localStorage.getItem('nasaApiKey')||NEO_API_KEY;
@@ -14183,6 +14249,31 @@ document.getElementById('apod-fetch-btn')?.addEventListener('click',apodFetch);
     apodFetch();
   });
 })();
+document.getElementById('apod-slideshow-chk')?.addEventListener('change',e=>{
+  apodSlideshow=e.target.checked;
+  if(apodSlideshow && !apodHistory.length && !apodHistoryFetching) apodFetchHistory();
+  apodSlideshowTimer=0;
+});
+document.getElementById('apod-slideshow-speed')?.addEventListener('input',e=>{
+  apodSlideshowSecs=Number(e.target.value)||8;
+  document.getElementById('apod-slideshow-speed-label').textContent=apodSlideshowSecs+'s';
+});
+document.getElementById('apod-prev-btn')?.addEventListener('click',()=>{
+  if(!apodHistory.length) return;
+  apodHistoryIdx=(apodHistoryIdx-1+apodHistory.length)%apodHistory.length;
+  apodHistoryLoad(apodHistoryIdx);
+  apodSlideshowTimer=0;
+  const infoEl=document.getElementById('apod-slideshow-info');
+  if(infoEl) infoEl.textContent=(apodHistoryIdx+1)+'/'+apodHistory.length+' — '+apodHistory[apodHistoryIdx].date;
+});
+document.getElementById('apod-next-btn')?.addEventListener('click',()=>{
+  if(!apodHistory.length) return;
+  apodHistoryIdx=(apodHistoryIdx+1)%apodHistory.length;
+  apodHistoryLoad(apodHistoryIdx);
+  apodSlideshowTimer=0;
+  const infoEl=document.getElementById('apod-slideshow-info');
+  if(infoEl) infoEl.textContent=(apodHistoryIdx+1)+'/'+apodHistory.length+' — '+apodHistory[apodHistoryIdx].date;
+});
 
 function apodApplyImageToFace(face){
   if(!apodImgReady||!apodImgPixels) return;
@@ -14236,23 +14327,44 @@ function apodApplyTickerToFace(face){
 
 function effectAPOD(dt){
   apodT+=dt;
-  if(!apodData && !apodFetching && (Date.now()/1000-apodLastFetch)>86400) apodFetch();
 
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
   const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
-  const stripH=Math.max(6,Math.round(SIZE*0.22));
 
-  if(apodImgReady){
-    // Image on all faces except face 1 (ticker)
-    for(let f=0;f<6;f++) if(f!==1) apodApplyImageToFace(f);
-  } else if(apodError){
-    for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f, ['APOD ERROR', apodError], [1,0.25,0.25], [0.06,0,0]);
-  } else if(apodImgError){
-    for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f, ['IMAGE', 'ERROR'], [1,0.4,0.1], [0.06,0.02,0]);
+  if(apodSlideshow && apodHistory.length){
+    // Slideshow mode
+    apodSlideshowTimer+=dt;
+    if(apodSlideshowTimer>=apodSlideshowSecs){
+      apodSlideshowTimer=0;
+      apodHistoryIdx=(apodHistoryIdx+1)%apodHistory.length;
+      const infoEl=document.getElementById('apod-slideshow-info');
+      if(infoEl) infoEl.textContent=(apodHistoryIdx+1)+'/'+apodHistory.length+' — '+apodHistory[apodHistoryIdx].date;
+      const statusEl=document.getElementById('apod-status');
+      if(statusEl) statusEl.textContent=apodHistory[apodHistoryIdx].title||'';
+    }
+    // Preload next
+    apodHistoryLoad((apodHistoryIdx+1)%apodHistory.length);
+    const shown=apodHistoryApplyToFace(0,apodHistoryIdx);
+    if(shown){
+      for(let f=1;f<6;f++) if(f!==1) apodHistoryApplyToFace(f,apodHistoryIdx);
+    } else {
+      const dots='.'.repeat(1+(Math.floor(apodT)%3));
+      for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f,['APOD',dots],[0.35,0.65,1],[0,0,0.06]);
+    }
   } else {
-    const dots='.'.repeat(1+(Math.floor(apodT)%3));
-    for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f, ['APOD', dots], [0.35,0.65,1], [0,0,0.06]);
+    // Single image mode
+    if(!apodData && !apodFetching && (Date.now()/1000-apodLastFetch)>86400) apodFetch();
+    if(apodImgReady){
+      for(let f=0;f<6;f++) if(f!==1) apodApplyImageToFace(f);
+    } else if(apodError){
+      for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f,['APOD ERROR',apodError],[1,0.25,0.25],[0.06,0,0]);
+    } else if(apodImgError){
+      for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f,['IMAGE','ERROR'],[1,0.4,0.1],[0.06,0.02,0]);
+    } else {
+      const dots='.'.repeat(1+(Math.floor(apodT)%3));
+      for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f,['APOD',dots],[0.35,0.65,1],[0,0,0.06]);
+    }
   }
 
   if(!is2D){
