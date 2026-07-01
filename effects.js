@@ -13958,7 +13958,7 @@ function renderTextToFace(face, lines, fgRGB, bgRGB){
     ctx.fillRect(0,0,S,S);
     ctx.fillStyle=`rgb(${(fgRGB[0]*255)|0},${(fgRGB[1]*255)|0},${(fgRGB[2]*255)|0})`;
     const rowH=S/lines.length;
-    const fh=Math.max(4,Math.floor(rowH*0.5));
+    const fh=Math.max(4,Math.floor(rowH*0.4));
     ctx.font=`bold ${fh}px "Courier New",monospace`;
     ctx.textBaseline='middle';
     const scrollLines=[];
@@ -14092,7 +14092,7 @@ function effectNEO(dt){
 // ═══════════════════════════════════════════════════
 //  Astronomy Picture of the Day (NASA APOD)
 // ═══════════════════════════════════════════════════
-let apodData=null, apodFetching=false, apodLastFetch=0, apodError='', apodImgError='';
+let apodData=null, apodFetching=false, apodLastFetch=0, apodError='', apodImgError='', apodRetryAfter=60;
 let apodLetterbox=localStorage.getItem('apodLetterbox')!=='false'; // default: full image
 let apodSlideshow=false, apodSlideshowSecs=8, apodSlideshowTimer=0;
 let apodHistory=[], apodHistoryIdx=0;
@@ -14176,9 +14176,9 @@ async function apodFetch(){
     const apiUrl=`https://api.nasa.gov/planetary/apod?api_key=${apodApiKey()}`;
     let r;
     try{ r=await fetch(apiUrl); }
-    catch(fe){ throw new Error('Network error — check connection'); }
-    if(r.status===429) throw new Error('Rate limited — get a free key at api.nasa.gov');
-    if(r.status===503||r.status===502||r.status===504) throw new Error('NASA servers down ('+r.status+') — try again in a few minutes');
+    catch(fe){ apodRetryAfter=5; throw new Error('Network error — check connection'); }
+    if(r.status===429){ apodRetryAfter=60; throw new Error('Rate limited — get a free key at api.nasa.gov'); }
+    if(r.status===503||r.status===502||r.status===504){ apodRetryAfter=5; throw new Error('NASA servers down ('+r.status+') — retrying…'); }
     if(!r.ok) throw new Error('NASA API error '+r.status+' — try again later');
     const d=await r.json();
     const isVideo=d.media_type==='video';
@@ -14219,7 +14219,7 @@ async function apodFetch(){
     }
   }catch(e){
     apodError=e.message;
-    apodLastFetch=Date.now()/1000-3540; // retry in ~60s
+    apodLastFetch=Date.now()/1000; // retry after apodRetryAfter seconds
     if(statusEl) statusEl.textContent='✕ '+e.message;
     console.error('APOD fetch error:',e);
   }
@@ -14355,10 +14355,16 @@ function effectAPOD(dt){
   } else {
     // Single image mode
     if(!apodData && !apodFetching && (Date.now()/1000-apodLastFetch)>86400) apodFetch();
+    if(apodError && !apodFetching && (Date.now()/1000-apodLastFetch)>=apodRetryAfter){
+      apodError=''; apodLastFetch=0; apodFetch();
+    }
     if(apodImgReady){
       for(let f=0;f<6;f++) if(f!==1) apodApplyImageToFace(f);
     } else if(apodError){
-      for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f,['APOD ERROR',apodError],[1,0.25,0.25],[0.06,0,0]);
+      // Show static "API" / "ERROR" lines then scrolling message; dots show we're waiting to retry
+      const waitLeft=Math.max(0,Math.ceil(apodRetryAfter-(Date.now()/1000-apodLastFetch)));
+      const retryDots=waitLeft>0?'.'.repeat(1+(Math.floor(apodT)%3)):'';
+      for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f,['API','ERROR',apodError+(retryDots?' '+retryDots:'')],[1,0.25,0.25],[0.06,0,0]);
     } else if(apodImgError){
       for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f,['IMAGE','ERROR'],[1,0.4,0.1],[0.06,0.02,0]);
     } else {
