@@ -13939,41 +13939,66 @@ function applyTickerStripToFace(face, pixels, width, scrollX, stripH){
   }
 }
 
-// Renders centred text lines directly onto a cube face for loading/error states.
-// fgRGB and bgRGB are [r,g,b] floats 0-1. Called per-frame — canvas is tiny (SIZExSIZE).
-// Renders lines of text onto a face. Font fills the row height; lines wider
-// than the face scroll horizontally so nothing is clipped or shrunk.
+// Cache for static text renders — key is text+colour, avoids per-frame canvas redraws
+// which cause sub-pixel flicker on static content.
+const _rtfCache=new Map();
+
+// Renders text lines onto a face. Static lines are cached; lines wider than the face
+// scroll smoothly without flicker.
 function renderTextToFace(face, lines, fgRGB, bgRGB){
   const S=SIZE;
-  const oc=document.createElement('canvas');
-  oc.width=S; oc.height=S;
-  const ctx=oc.getContext('2d');
-  ctx.fillStyle=`rgb(${(bgRGB[0]*255)|0},${(bgRGB[1]*255)|0},${(bgRGB[2]*255)|0})`;
-  ctx.fillRect(0,0,S,S);
-  ctx.fillStyle=`rgb(${(fgRGB[0]*255)|0},${(fgRGB[1]*255)|0},${(fgRGB[2]*255)|0})`;
-  const rowH=S/lines.length;
-  const fh=Math.max(4,Math.floor(rowH*0.5));
-  ctx.font=`bold ${fh}px "Courier New",monospace`;
-  ctx.textBaseline='middle';
-  const t=Date.now()/1000;
-  const scrollPx=40; // px/sec scroll speed
-  lines.forEach((line,i)=>{
-    const cy=rowH*(i+0.5);
-    const w=ctx.measureText(line).width;
-    if(w<=S){
-      ctx.textAlign='center';
-      ctx.fillText(line,S/2,cy);
-    } else {
-      // scroll the line; wrap so it reads continuously
-      const gap=S*0.5;
-      const cycle=w+gap;
-      const off=(t*scrollPx)%cycle;
-      ctx.textAlign='left';
-      ctx.fillText(line, S-off, cy);
-      ctx.fillText(line, S-off+cycle, cy);
-    }
-  });
-  const px=ctx.getImageData(0,0,S,S).data;
+  const cacheKey=lines.join('\n')+'|'+fgRGB.join(',')+'|'+bgRGB.join(',');
+
+  let cached=_rtfCache.get(cacheKey);
+  if(!cached){
+    const oc=document.createElement('canvas');
+    oc.width=S; oc.height=S;
+    const ctx=oc.getContext('2d');
+    ctx.fillStyle=`rgb(${(bgRGB[0]*255)|0},${(bgRGB[1]*255)|0},${(bgRGB[2]*255)|0})`;
+    ctx.fillRect(0,0,S,S);
+    ctx.fillStyle=`rgb(${(fgRGB[0]*255)|0},${(fgRGB[1]*255)|0},${(fgRGB[2]*255)|0})`;
+    const rowH=S/lines.length;
+    const fh=Math.max(4,Math.floor(rowH*0.5));
+    ctx.font=`bold ${fh}px "Courier New",monospace`;
+    ctx.textBaseline='middle';
+    const scrollLines=[];
+    lines.forEach((line,i)=>{
+      const cy=rowH*(i+0.5);
+      const w=ctx.measureText(line).width;
+      if(w<=S){
+        ctx.textAlign='center';
+        ctx.fillText(line,S/2,cy);
+      } else {
+        scrollLines.push({line,cy,w}); // deferred — needs per-frame offset
+      }
+    });
+    const staticPx=ctx.getImageData(0,0,S,S).data;
+    cached={staticPx, scrollLines, rowH, fh};
+    _rtfCache.set(cacheKey,cached);
+    if(_rtfCache.size>40) _rtfCache.delete(_rtfCache.keys().next().value); // cap size
+  }
+
+  // Build final frame: static pixels + scrolling lines blended in
+  const {staticPx, scrollLines, rowH, fh}=cached;
+  let px=staticPx;
+  if(scrollLines.length){
+    const oc2=document.createElement('canvas');
+    oc2.width=S; oc2.height=S;
+    const ctx2=oc2.getContext('2d');
+    ctx2.putImageData(new ImageData(new Uint8ClampedArray(staticPx),S,S),0,0);
+    ctx2.fillStyle=`rgb(${(fgRGB[0]*255)|0},${(fgRGB[1]*255)|0},${(fgRGB[2]*255)|0})`;
+    ctx2.font=`bold ${fh}px "Courier New",monospace`;
+    ctx2.textBaseline='middle';
+    const t=Date.now()/1000;
+    const scrollPx=40;
+    scrollLines.forEach(({line,cy,w})=>{
+      const gap=S*0.5, cycle=w+gap, off=(t*scrollPx)%cycle;
+      ctx2.textAlign='left';
+      ctx2.fillText(line,S-off,cy);
+      ctx2.fillText(line,S-off+cycle,cy);
+    });
+    px=ctx2.getImageData(0,0,S,S).data;
+  }
   for(let v=0;v<S;v++){
     for(let u=0;u<S;u++){
       const idx=faceMap[face][v*S+u]; if(idx<0) continue;
@@ -14226,7 +14251,7 @@ function effectAPOD(dt){
   } else if(apodImgError){
     for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f, ['IMAGE', 'ERROR'], [1,0.4,0.1], [0.06,0.02,0]);
   } else {
-    const dots='.'.repeat(1+(Math.floor(apodT*2)%3));
+    const dots='.'.repeat(1+(Math.floor(apodT)%3));
     for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f, ['APOD', 'LOADING'+dots], [0.35,0.65,1], [0,0,0.06]);
   }
 
@@ -14613,7 +14638,7 @@ function effectEPIC(dt){
   } else if(epicImgError){
     renderTextToFace(0, ['IMAGE', 'ERROR'], [1,0.4,0.1], [0.06,0.02,0]);
   } else {
-    const dots='.'.repeat(1+(Math.floor(epicT*2)%3));
+    const dots='.'.repeat(1+(Math.floor(epicT)%3));
     renderTextToFace(0, ['EARTH', 'LOADING'+dots], [0.2,0.7,0.35], [0,0.04,0.06]);
   }
 

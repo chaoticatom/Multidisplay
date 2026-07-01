@@ -1231,7 +1231,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=683','f1.js?v=683','f1-providers.js?v=683'];
+  const scripts = ['f1-state.js?v=684','f1.js?v=684','f1-providers.js?v=684'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
