@@ -13713,13 +13713,14 @@ const NEO_API_KEY='DEMO_KEY';
 // taints the canvas and makes getImageData throw — fall back to a CORS-safe
 // resizing proxy (images.weserv.nl) when the direct load can't be read.
 // Loads an image and extracts pixel data for LED rendering.
-// Uses fetch→blob→ObjectURL so the canvas is always same-origin and
-// getImageData never throws a SecurityError, regardless of CORS headers
-// on the source server. Falls back to images.weserv.nl proxy if the
-// direct fetch fails (no CORS headers, network block, etc.).
-function loadImageForPixels(url, onSize, onPixels, onError){
+// opts.letterbox=true  → fit entire image inside sz×sz (black bars, ratio preserved)
+// opts.letterbox=false → fill sz×sz by cropping (no bars, ratio preserved, default)
+// Uses fetch→blob→ObjectURL so canvas reads are always same-origin.
+// Falls back to images.weserv.nl proxy if direct fetch fails (CORS block etc.).
+function loadImageForPixels(url, onSize, onPixels, onError, opts){
+  const letterbox = opts && opts.letterbox;
   const sz=Math.max(SIZE,32);
-  const proxyUrl=`https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//,''))}&w=${sz}&h=${sz}&fit=cover`;
+  const proxyUrl=`https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//,''))}&w=${sz*4}&h=${sz*4}&fit=inside`;
 
   function drawBlobUrl(objectUrl){
     const img=new Image();
@@ -13728,9 +13729,16 @@ function loadImageForPixels(url, onSize, onPixels, onError){
       const oc=document.createElement('canvas');
       oc.width=sz; oc.height=sz;
       const ctx2=oc.getContext('2d');
-      const scale=Math.max(sz/img.width, sz/img.height);
-      ctx2.drawImage(img,(sz-img.width*scale)/2,(sz-img.height*scale)/2,img.width*scale,img.height*scale);
-      const pixels=ctx2.getImageData(0,0,sz,sz).data; // never tainted — blob is same-origin
+      ctx2.fillStyle='#000';
+      ctx2.fillRect(0,0,sz,sz);
+      // letterbox=true: fit whole image, preserve ratio (may have black bars)
+      // letterbox=false: scale to fill, crop edges (no black bars)
+      const scale = letterbox
+        ? Math.min(sz/img.width, sz/img.height)
+        : Math.max(sz/img.width, sz/img.height);
+      const dw=img.width*scale, dh=img.height*scale;
+      ctx2.drawImage(img,(sz-dw)/2,(sz-dh)/2,dw,dh);
+      const pixels=ctx2.getImageData(0,0,sz,sz).data;
       onSize(sz);
       onPixels(pixels);
     };
@@ -14060,6 +14068,7 @@ function effectNEO(dt){
 //  Astronomy Picture of the Day (NASA APOD)
 // ═══════════════════════════════════════════════════
 let apodData=null, apodFetching=false, apodLastFetch=0, apodError='', apodImgError='';
+let apodLetterbox=localStorage.getItem('apodLetterbox')!=='false'; // default: full image
 let apodImg=null, apodImgReady=false, apodImgPixels=null, apodImgSize=0;
 let apodTickerPixels=null, apodTickerWidth=0, apodTickerScrollX=0, apodT=0;
 
@@ -14107,13 +14116,14 @@ async function apodFetch(){
       }, pixels=>{
         apodImgPixels=pixels;
         apodImgReady=true;
+        apodTickerPixels=null;
         console.log('[APOD] image ready, size:',apodImgSize,'px');
         if(statusEl) statusEl.textContent=(isVideo?'📹 ':'')+apodData.title;
       }, (err)=>{
         apodImgReady=false; apodImgError='Could not load image';
         console.warn('[APOD] image load failed:',err);
         if(statusEl) statusEl.textContent='✕ Could not load image';
-      });
+      }, {letterbox: apodLetterbox});
     }
   }catch(e){
     apodError=e.message;
@@ -14124,6 +14134,17 @@ async function apodFetch(){
   apodFetching=false;
 }
 document.getElementById('apod-fetch-btn')?.addEventListener('click',apodFetch);
+(()=>{
+  const chk=document.getElementById('apod-letterbox-chk');
+  if(chk){ chk.checked=apodLetterbox; }
+  chk?.addEventListener('change',()=>{
+    apodLetterbox=chk.checked;
+    localStorage.setItem('apodLetterbox',apodLetterbox);
+    // Re-load image with new mode if we have a URL
+    if(apodData?.url){ apodImgReady=false; apodImgError='';
+      loadImageForPixels(apodData.url, sz=>{apodImgSize=sz;}, pixels=>{apodImgPixels=pixels;apodImgReady=true;}, ()=>{apodImgReady=false;apodImgError='Could not load image';}, {letterbox:apodLetterbox}); }
+  });
+})();
 (()=>{
   const inp=document.getElementById('nasa-api-key-input');
   const btn=document.getElementById('nasa-api-key-save');
