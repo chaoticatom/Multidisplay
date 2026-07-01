@@ -13933,6 +13933,8 @@ function applyTickerStripToFace(face, pixels, width, scrollX, stripH){
 
 // Renders centred text lines directly onto a cube face for loading/error states.
 // fgRGB and bgRGB are [r,g,b] floats 0-1. Called per-frame — canvas is tiny (SIZExSIZE).
+// Renders lines of text onto a face. Font fills the row height; lines wider
+// than the face scroll horizontally so nothing is clipped or shrunk.
 function renderTextToFace(face, lines, fgRGB, bgRGB){
   const S=SIZE;
   const oc=document.createElement('canvas');
@@ -13941,18 +13943,27 @@ function renderTextToFace(face, lines, fgRGB, bgRGB){
   ctx.fillStyle=`rgb(${(bgRGB[0]*255)|0},${(bgRGB[1]*255)|0},${(bgRGB[2]*255)|0})`;
   ctx.fillRect(0,0,S,S);
   ctx.fillStyle=`rgb(${(fgRGB[0]*255)|0},${(fgRGB[1]*255)|0},${(fgRGB[2]*255)|0})`;
-  // Start at max font size that fits the height, then shrink to fit the widest line
-  let fh=Math.max(4,Math.floor(S/(lines.length*1.5)));
+  const rowH=S/lines.length;
+  const fh=Math.max(4,Math.floor(rowH*0.78));
   ctx.font=`bold ${fh}px "Courier New",monospace`;
-  const maxW=S-2;
-  const widest=lines.reduce((m,l)=>Math.max(m,ctx.measureText(l).width),0);
-  if(widest>maxW) fh=Math.max(4,Math.floor(fh*maxW/widest));
-  ctx.font=`bold ${fh}px "Courier New",monospace`;
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  const lineH=fh*1.4;
-  const totalH=lines.length*lineH;
+  ctx.textBaseline='middle';
+  const t=Date.now()/1000;
+  const scrollPx=40; // px/sec scroll speed
   lines.forEach((line,i)=>{
-    ctx.fillText(line, S/2, S/2-totalH/2+(i+0.5)*lineH);
+    const cy=rowH*(i+0.5);
+    const w=ctx.measureText(line).width;
+    if(w<=S){
+      ctx.textAlign='center';
+      ctx.fillText(line,S/2,cy);
+    } else {
+      // scroll the line; wrap so it reads continuously
+      const gap=S*0.5;
+      const cycle=w+gap;
+      const off=(t*scrollPx)%cycle;
+      ctx.textAlign='left';
+      ctx.fillText(line, S-off, cy);
+      ctx.fillText(line, S-off+cycle, cy);
+    }
   });
   const px=ctx.getImageData(0,0,S,S).data;
   for(let v=0;v<S;v++){
