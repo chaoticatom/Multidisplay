@@ -13941,7 +13941,12 @@ function renderTextToFace(face, lines, fgRGB, bgRGB){
   ctx.fillStyle=`rgb(${(bgRGB[0]*255)|0},${(bgRGB[1]*255)|0},${(bgRGB[2]*255)|0})`;
   ctx.fillRect(0,0,S,S);
   ctx.fillStyle=`rgb(${(fgRGB[0]*255)|0},${(fgRGB[1]*255)|0},${(fgRGB[2]*255)|0})`;
-  const fh=Math.max(5,Math.floor(S/Math.max(lines.length*1.6,3)));
+  // Start at max font size that fits the height, then shrink to fit the widest line
+  let fh=Math.max(4,Math.floor(S/(lines.length*1.5)));
+  ctx.font=`bold ${fh}px "Courier New",monospace`;
+  const maxW=S-2;
+  const widest=lines.reduce((m,l)=>Math.max(m,ctx.measureText(l).width),0);
+  if(widest>maxW) fh=Math.max(4,Math.floor(fh*maxW/widest));
   ctx.font=`bold ${fh}px "Courier New",monospace`;
   ctx.textAlign='center'; ctx.textBaseline='middle';
   const lineH=fh*1.4;
@@ -14184,8 +14189,7 @@ function effectAPOD(dt){
     apodApplyImageToFace(0);
     if(!is2D) apodApplyImageToFace(4);
   } else if(apodError){
-    const short=apodError.length>18?apodError.slice(0,18)+'…':apodError;
-    renderTextToFace(0, ['APOD', 'ERROR', short], [1,0.25,0.25], [0.06,0,0]);
+    renderTextToFace(0, ['APOD ERROR', apodError], [1,0.25,0.25], [0.06,0,0]);
   } else if(apodImgError){
     renderTextToFace(0, ['IMAGE', 'ERROR'], [1,0.4,0.1], [0.06,0.02,0]);
   } else {
@@ -14572,8 +14576,7 @@ function effectEPIC(dt){
     epicApplyImageToFace(0);
     if(!is2D) epicApplyImageToFace(4);
   } else if(epicError){
-    const short=epicError.length>18?epicError.slice(0,18)+'…':epicError;
-    renderTextToFace(0, ['EPIC', 'ERROR', short], [1,0.25,0.25], [0.06,0,0]);
+    renderTextToFace(0, ['EPIC ERROR', epicError], [1,0.25,0.25], [0.06,0,0]);
   } else if(epicImgError){
     renderTextToFace(0, ['IMAGE', 'ERROR'], [1,0.4,0.1], [0.06,0.02,0]);
   } else {
