@@ -13944,7 +13944,7 @@ function renderTextToFace(face, lines, fgRGB, bgRGB){
   ctx.fillRect(0,0,S,S);
   ctx.fillStyle=`rgb(${(fgRGB[0]*255)|0},${(fgRGB[1]*255)|0},${(fgRGB[2]*255)|0})`;
   const rowH=S/lines.length;
-  const fh=Math.max(4,Math.floor(rowH*0.78));
+  const fh=Math.max(4,Math.floor(rowH*0.5));
   ctx.font=`bold ${fh}px "Courier New",monospace`;
   ctx.textBaseline='middle';
   const t=Date.now()/1000;
