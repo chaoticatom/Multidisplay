@@ -14218,15 +14218,15 @@ function effectAPOD(dt){
   const stripH=Math.max(6,Math.round(SIZE*0.22));
 
   if(apodImgReady){
-    apodApplyImageToFace(0);
-    if(!is2D) apodApplyImageToFace(4);
+    // Image on all faces except face 1 (ticker)
+    for(let f=0;f<6;f++) if(f!==1) apodApplyImageToFace(f);
   } else if(apodError){
-    renderTextToFace(0, ['APOD ERROR', apodError], [1,0.25,0.25], [0.06,0,0]);
+    for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f, ['APOD ERROR', apodError], [1,0.25,0.25], [0.06,0,0]);
   } else if(apodImgError){
-    renderTextToFace(0, ['IMAGE', 'ERROR'], [1,0.4,0.1], [0.06,0.02,0]);
+    for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f, ['IMAGE', 'ERROR'], [1,0.4,0.1], [0.06,0.02,0]);
   } else {
     const dots='.'.repeat(1+(Math.floor(apodT*2)%3));
-    renderTextToFace(0, ['APOD', 'LOADING'+dots], [0.35,0.65,1], [0,0,0.06]);
+    for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f, ['APOD', 'LOADING'+dots], [0.35,0.65,1], [0,0,0.06]);
   }
 
   if(!is2D){
