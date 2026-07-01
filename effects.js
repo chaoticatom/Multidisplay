@@ -14155,7 +14155,7 @@ function apodHistoryApplyToFace(face, idx){
   for(let v=0;v<S;v++) for(let u=0;u<S;u++){
     const idx2=faceMap[face][v*S+u]; if(idx2<0) continue;
     const su=Math.min(IS-1,Math.floor(u/S*IS));
-    const sv=Math.min(IS-1,Math.floor(v/S*IS));
+    const sv=Math.min(IS-1,Math.floor((S-1-v)/S*IS));
     const pi=(sv*IS+su)*4;
     colBuf[idx2*3]=pixels[pi]/255;
     colBuf[idx2*3+1]=pixels[pi+1]/255;
@@ -14283,7 +14283,7 @@ function apodApplyImageToFace(face){
     for(let u=0;u<S;u++){
       const idx=faceMap[face][v*S+u]; if(idx<0) continue;
       const su=Math.min(IS-1,Math.floor(u/S*IS));
-      const sv=Math.min(IS-1,Math.floor(v/S*IS));
+      const sv=Math.min(IS-1,Math.floor((S-1-v)/S*IS));
       const pi=(sv*IS+su)*4;
       colBuf[idx*3]=apodImgPixels[pi]/255;
       colBuf[idx*3+1]=apodImgPixels[pi+1]/255;
