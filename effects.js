@@ -14086,8 +14086,9 @@ async function apodFetch(){
     let r;
     try{ r=await fetch(apiUrl); }
     catch(fe){ throw new Error('Network error — check connection'); }
-    if(r.status===429) throw new Error('Rate limited (DEMO_KEY). Get a free key at api.nasa.gov and enter it below.');
-    if(!r.ok) throw new Error('NASA API error: '+r.status);
+    if(r.status===429) throw new Error('Rate limited — get a free key at api.nasa.gov');
+    if(r.status===503||r.status===502||r.status===504) throw new Error('NASA servers down ('+r.status+') — try again in a few minutes');
+    if(!r.ok) throw new Error('NASA API error '+r.status+' — try again later');
     const d=await r.json();
     const isVideo=d.media_type==='video';
     const imgUrl=isVideo?(d.thumbnail_url||null):(d.url||d.hdurl||null);
