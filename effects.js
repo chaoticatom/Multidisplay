@@ -14252,7 +14252,7 @@ function effectAPOD(dt){
     for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f, ['IMAGE', 'ERROR'], [1,0.4,0.1], [0.06,0.02,0]);
   } else {
     const dots='.'.repeat(1+(Math.floor(apodT)%3));
-    for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f, ['APOD', 'LOADING'+dots], [0.35,0.65,1], [0,0,0.06]);
+    for(let f=0;f<6;f++) if(f!==1) renderTextToFace(f, ['APOD', dots], [0.35,0.65,1], [0,0,0.06]);
   }
 
   if(!is2D){
@@ -14639,7 +14639,7 @@ function effectEPIC(dt){
     renderTextToFace(0, ['IMAGE', 'ERROR'], [1,0.4,0.1], [0.06,0.02,0]);
   } else {
     const dots='.'.repeat(1+(Math.floor(epicT)%3));
-    renderTextToFace(0, ['EARTH', 'LOADING'+dots], [0.2,0.7,0.35], [0,0.04,0.06]);
+    renderTextToFace(0, ['EARTH', dots], [0.2,0.7,0.35], [0,0.04,0.06]);
   }
 
   if(!is2D){
