@@ -13838,7 +13838,7 @@ async function neoFetch(){
     const start=new Date();
     const end=new Date(start.getTime()+6*86400000);
     const fmt=d=>d.toISOString().slice(0,10);
-    const url=`https://api.nasa.gov/neo/rest/v1/feed?start_date=${fmt(start)}&end_date=${fmt(end)}&api_key=${NEO_API_KEY}`;
+    const url=`https://api.nasa.gov/neo/rest/v1/feed?start_date=${fmt(start)}&end_date=${fmt(end)}&api_key=${apodApiKey()}`;
     let r;
     try{ r=await fetch(url); }
     catch(fe){ throw new Error('NEO fetch failed — check internet connection'); }
@@ -14816,7 +14816,7 @@ async function swxFetch(){
     const end=new Date();
     const start=new Date(end.getTime()-7*86400000);
     const fmt=d=>d.toISOString().slice(0,10);
-    const url=`https://api.nasa.gov/DONKI/notifications?startDate=${fmt(start)}&endDate=${fmt(end)}&type=all&api_key=${NEO_API_KEY}`;
+    const url=`https://api.nasa.gov/DONKI/notifications?startDate=${fmt(start)}&endDate=${fmt(end)}&type=all&api_key=${apodApiKey()}`;
     let r;
     try{ r=await fetch(url); }
     catch(fe){ throw new Error('Space weather fetch failed — check internet connection'); }
