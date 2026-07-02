@@ -1231,7 +1231,7 @@ let _f1Loaded = false, _f1Loading = false;
 function _f1LoadScripts() {
   if (_f1Loaded || _f1Loading) return;
   _f1Loading = true;
-  const scripts = ['f1-state.js?v=689','f1.js?v=689','f1-providers.js?v=689'];
+  const scripts = ['f1-state.js?v=690','f1.js?v=690','f1-providers.js?v=690'];
   let idx = 0;
   function next() {
     if (idx >= scripts.length) {
@@ -1281,6 +1281,7 @@ const EFFECTS={
   moon:effectMoon,
   neo:effectNEO,
   apod:effectAPOD,
+  unsplash:effectUnsplash,
   spaceweather:effectSpaceWeather,
   epic:effectEPIC,
   iss:effectISS,
@@ -1302,6 +1303,7 @@ const EFFECT_NAMES={
   moon:'Celestial',
   neo:'Near-Earth Objects',
   apod:'Astronomy Pic of the Day',
+  unsplash:'Unsplash Photos',
   spaceweather:'Space Weather',
   epic:'Earth Live View',
   iss:'ISS Tracker',
@@ -1322,7 +1324,7 @@ const EFFECT_SECTION_MAP = {
   balls:'',sand:'',lightning:'',warp:'',life:'',fluid:'',
 };
 
-const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','spaceweather','epic','iss']);
+const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','spaceweather','epic','iss']);
 populateAlarmEffectRiseSelect(); // safe here — EFFECT_NAMES now defined
 
 async function fetchCitiesFromAPI(){
