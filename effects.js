@@ -13706,6 +13706,7 @@ function effectDice(dt){
 // ═══════════════════════════════════════════════════
 let neoObjects=[], neoFetching=false, neoLastFetch=0, neoError='', neoStarsInit=false;
 let neoTickerPixels=null, neoTickerWidth=0, neoTickerScrollX=0, neoT=0;
+let neo2dTickerPx=null, neo2dTickerW=0, neo2dTickerX=0;
 const NEO_API_KEY='DEMO_KEY';
 
 // Loads an external image and extracts its pixel data for LED rendering.
@@ -14148,6 +14149,82 @@ function effectNEO(dt){
         }
       }
     });
+
+    // ── Bottom ticker ──
+    // Build/rebuild ticker text whenever objects change
+    {
+      const TICKER_H=7; // px height of ticker strip (matches weather city font ~5px + 1px pad each side)
+      const tickerV=S-TICKER_H; // top row of ticker strip
+
+      // Build ticker canvas if needed
+      if(!neo2dTickerPx || neo2dTickerPx._built!==neoObjects.length+neoLastFetch){
+        const objs=neoObjects.slice(0,20);
+        const parts=objs.map(o=>{
+          const flag=neoRisk(o)==='red'?'[!!] ':neoRisk(o)==='yellow'?'[!] ':'';
+          return `${flag}${o.name}  ${o.missLD.toFixed(1)}LD  ${o.diaM}m`;
+        });
+        const tickerStr=objs.length?parts.join('  /  '):'NO DATA';
+        const fh=5, gap=S*2;
+        const tc=document.createElement('canvas');
+        const mctx=tc.getContext('2d');
+        mctx.font=`bold ${fh}px "Courier New",monospace`;
+        const tw=Math.ceil(mctx.measureText(tickerStr).width);
+        const totalW=tw+gap;
+        tc.width=totalW; tc.height=TICKER_H;
+        mctx.fillStyle='#000';
+        mctx.fillRect(0,0,totalW,TICKER_H);
+        mctx.font=`bold ${fh}px "Courier New",monospace`;
+        mctx.textBaseline='middle';
+        mctx.fillStyle='#ffffaa';
+        mctx.fillText(tickerStr,0,TICKER_H/2);
+        // Colour the [!!] markers red and [!] yellow
+        const tickerPxRaw=mctx.getImageData(0,0,totalW,TICKER_H).data;
+        // Recolour: find pixel islands left of each separator and tint them
+        // Simple approach: re-render coloured segments
+        mctx.clearRect(0,0,totalW,TICKER_H);
+        mctx.fillStyle='#000'; mctx.fillRect(0,0,totalW,TICKER_H);
+        mctx.font=`bold ${fh}px "Courier New",monospace`;
+        mctx.textBaseline='middle';
+        let cx2=0;
+        const sep='  /  ', sepW=Math.ceil(mctx.measureText(sep).width);
+        objs.forEach((o,oi)=>{
+          const risk=neoRisk(o);
+          const col=risk==='red'?'#ff4444':risk==='yellow'?'#ffcc00':'#88ff88';
+          mctx.fillStyle=col;
+          mctx.fillText(parts[oi],cx2,TICKER_H/2);
+          cx2+=Math.ceil(mctx.measureText(parts[oi]).width);
+          if(oi<objs.length-1){ mctx.fillStyle='#555'; mctx.fillText(sep,cx2,TICKER_H/2); cx2+=sepW; }
+        });
+        if(!objs.length){ mctx.fillStyle='#aaa'; mctx.fillText('NO DATA',0,TICKER_H/2); }
+        neo2dTickerPx=mctx.getImageData(0,0,totalW,TICKER_H).data;
+        neo2dTickerPx._built=neoObjects.length+neoLastFetch;
+        neo2dTickerW=totalW;
+        neo2dTickerX=0;
+      }
+
+      // Scroll
+      neo2dTickerX=(neo2dTickerX+dt*20)%neo2dTickerW;
+
+      // Dark background strip
+      for(let v=tickerV;v<S;v++) for(let u=0;u<S;u++){
+        const idx=faceMap[face][(S-1-v)*S+u]; if(idx<0) continue;
+        colBuf[idx*3]*=0.25; colBuf[idx*3+1]*=0.25; colBuf[idx*3+2]*=0.25;
+      }
+      // Blit ticker pixels
+      const sx0=Math.floor(neo2dTickerX);
+      for(let v=0;v<TICKER_H;v++){
+        for(let u=0;u<S;u++){
+          const sx=(sx0+u)%neo2dTickerW;
+          const pi=(v*neo2dTickerW+sx)*4;
+          if(!neo2dTickerPx[pi+3]) continue;
+          const pv=tickerV+v;
+          const idx=faceMap[face][(S-1-pv)*S+u]; if(idx<0) continue;
+          colBuf[idx*3]=neo2dTickerPx[pi]/255;
+          colBuf[idx*3+1]=neo2dTickerPx[pi+1]/255;
+          colBuf[idx*3+2]=neo2dTickerPx[pi+2]/255;
+        }
+      }
+    }
 
     // ── Risk label top-right ──
     const labelX=S-Math.round(S*0.32), labelY=Math.round(S*0.06);
