@@ -15018,7 +15018,7 @@ function effectSpaceWeather(dt){
 // ═══════════════════════════════════════════════════
 //  Earth Full-Disk Imagery (NASA EPIC)
 // ═══════════════════════════════════════════════════
-let epicData=null, epicFetching=false, epicLastFetch=0, epicError='', epicImgError='';
+let epicData=null, epicFetching=false, epicLastFetch=0, epicError='', epicImgError='', epicRetryAfter=60;
 let epicImgReady=false, epicImgPixels=null, epicImgSize=0;
 let epicTickerPixels=null, epicTickerWidth=0, epicTickerScrollX=0, epicT=0;
 
@@ -15039,7 +15039,8 @@ async function epicFetch(){
         :`https://api.nasa.gov/EPIC/api/natural/date/${dateStr}?api_key=${apiKey}`;
       let r;
       try{ r=await fetch(url); }catch(fe){ throw new Error('Network error — check connection'); }
-      if(r.status===429){ throw new Error('Rate limited — enter a free NASA API key'); }
+      if(r.status===429){ epicRetryAfter=60; throw new Error('Rate limited — enter a free NASA API key'); }
+      if(r.status===503||r.status===502||r.status===504){ epicRetryAfter=5; throw new Error('NASA servers down ('+r.status+') — retrying…'); }
       if(r.ok){
         const data=await r.json();
         if(Array.isArray(data)&&data.length){ arr=data; break; }
@@ -15153,6 +15154,9 @@ function epicApplyTickerToFace(face){
 function effectEPIC(dt){
   epicT+=dt;
   if(!epicData && !epicFetching && (Date.now()/1000-epicLastFetch)>3600) epicFetch();
+  if(epicError && !epicFetching && (Date.now()/1000-epicLastFetch)>=epicRetryAfter){
+    epicError=''; epicLastFetch=0; epicFetch();
+  }
 
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
@@ -15162,7 +15166,9 @@ function effectEPIC(dt){
     epicApplyImageToFace(0);
     if(!is2D) epicApplyImageToFace(4);
   } else if(epicError){
-    renderTextToFace(0, ['EPIC ERROR', epicError], [1,0.25,0.25], [0.06,0,0]);
+    const waitLeft=Math.max(0,Math.ceil(epicRetryAfter-(Date.now()/1000-epicLastFetch)));
+    const retryDots=waitLeft>0?'.'.repeat(1+(Math.floor(epicT)%3)):'';
+    renderTextToFace(0, ['API','ERROR',epicError+(retryDots?' '+retryDots:'')], [1,0.25,0.25], [0.06,0,0]);
   } else if(epicImgError){
     renderTextToFace(0, ['IMAGE', 'ERROR'], [1,0.4,0.1], [0.06,0.02,0]);
   } else {
