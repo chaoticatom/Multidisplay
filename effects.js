@@ -4786,25 +4786,8 @@ function effectWeather(dt){
   const tempV=10; // temperature higher up
   const bldBase=horizV; // buildings start at horizon line
 
-  // Bitmap font 3×5 (each row is 3-bit: bit2=left, bit1=mid, bit0=right)
-  const WXF={'0':[7,5,5,5,7],'1':[6,2,2,2,7],'2':[7,1,7,4,7],'3':[7,1,3,1,7],
-    '4':[5,5,7,1,1],'5':[7,4,6,1,7],'6':[7,4,7,5,7],'7':[7,1,2,2,2],
-    '8':[7,5,7,5,7],'9':[7,5,7,1,7],'°':[6,6,0,0,0],'C':[3,4,4,4,3],
-    '-':[0,0,7,0,0],' ':[0,0,0,0,0],'+':[0,2,7,2,0],':':[0,2,0,2,0],
-    'A':[2,5,7,5,5],'B':[6,5,6,5,6],'D':[6,5,5,5,6],'E':[7,4,6,4,7],
-    'F':[7,4,6,4,4],'G':[3,4,7,5,3],'H':[5,5,7,5,5],'I':[7,2,2,2,7],
-    'J':[1,1,1,5,2],'K':[5,6,4,6,5],'L':[4,4,4,4,7],'M':[7,7,5,5,5],
-    'N':[7,5,5,5,5],'O':[7,5,5,5,7],'P':[6,5,6,4,4],'Q':[7,5,5,7,1],
-    'R':[6,5,6,5,5],'S':[3,4,2,1,6],'T':[7,2,2,2,2],'U':[5,5,5,5,7],
-    'V':[5,5,5,5,2],'W':[5,5,5,7,5],'X':[5,5,2,5,5],'Y':[5,5,2,2,2],
-    'Z':[7,1,2,4,7],',':[0,0,0,2,4],'.':[0,0,0,0,2],'/':[1,1,2,4,4],
-    'a':[0,6,5,7,5],'b':[4,6,5,5,6],'c':[0,3,4,4,3],'d':[1,3,5,5,3],
-    'e':[0,7,5,6,3],'g':[0,3,5,3,7],'h':[4,6,5,5,5],'i':[2,0,2,2,2],
-    'k':[4,5,6,6,5],'l':[6,2,2,2,7],'m':[0,7,7,5,5],'n':[0,6,5,5,5],
-    'o':[0,7,5,5,7],'p':[0,6,5,6,4],'r':[0,3,5,4,4],'s':[0,3,6,1,6],
-    't':[4,7,4,4,3],'u':[0,5,5,5,3],'v':[0,5,5,5,2],'w':[0,5,5,7,5],
-    'x':[0,5,2,5,5],'y':[0,5,3,1,6],'z':[0,7,2,4,7],
-  };
+  // Bitmap font 3×5 — defined at module scope as PIXEL_FONT, reused here
+  const WXF=PIXEL_FONT;
 
   function wxGlyph(face,ch,su,sv,tr,tg,tb){
     const rows=WXF[ch]||WXF[ch.toUpperCase()]; if(!rows) return 4;
@@ -13704,6 +13687,69 @@ function effectDice(dt){
 // ═══════════════════════════════════════════════════
 //  Near-Earth Object Tracker (NASA NeoWs)
 // ═══════════════════════════════════════════════════
+// ── Shared 3×5 bitmap pixel font (bit2=left, bit1=mid, bit0=right per row) ──
+const PIXEL_FONT={
+  '0':[7,5,5,5,7],'1':[6,2,2,2,7],'2':[7,1,7,4,7],'3':[7,1,3,1,7],
+  '4':[5,5,7,1,1],'5':[7,4,6,1,7],'6':[7,4,7,5,7],'7':[7,1,2,2,2],
+  '8':[7,5,7,5,7],'9':[7,5,7,1,7],'°':[6,6,0,0,0],'C':[3,4,4,4,3],
+  '-':[0,0,7,0,0],' ':[0,0,0,0,0],'+':[0,2,7,2,0],':':[0,2,0,2,0],
+  'A':[2,5,7,5,5],'B':[6,5,6,5,6],'D':[6,5,5,5,6],'E':[7,4,6,4,7],
+  'F':[7,4,6,4,4],'G':[3,4,7,5,3],'H':[5,5,7,5,5],'I':[7,2,2,2,7],
+  'J':[1,1,1,5,2],'K':[5,6,4,6,5],'L':[4,4,4,4,7],'M':[7,7,5,5,5],
+  'N':[7,5,5,5,5],'O':[7,5,5,5,7],'P':[6,5,6,4,4],'Q':[7,5,5,7,1],
+  'R':[6,5,6,5,5],'S':[3,4,2,1,6],'T':[7,2,2,2,2],'U':[5,5,5,5,7],
+  'V':[5,5,5,5,2],'W':[5,5,5,7,5],'X':[5,5,2,5,5],'Y':[5,5,2,2,2],
+  'Z':[7,1,2,4,7],',':[0,0,0,2,4],'.':[0,0,0,0,2],'/':[1,1,2,4,4],
+  'a':[0,6,5,7,5],'b':[4,6,5,5,6],'c':[0,3,4,4,3],'d':[1,3,5,5,3],
+  'e':[0,7,5,6,3],'g':[0,3,5,3,7],'h':[4,6,5,5,5],'i':[2,0,2,2,2],
+  'k':[4,5,6,6,5],'l':[6,2,2,2,7],'m':[0,7,7,5,5],'n':[0,6,5,5,5],
+  'o':[0,7,5,5,7],'p':[0,6,5,6,4],'r':[0,3,5,4,4],'s':[0,3,6,1,6],
+  't':[4,7,4,4,3],'u':[0,5,5,5,3],'v':[0,5,5,5,2],'w':[0,5,5,7,5],
+  'x':[0,5,2,5,5],'y':[0,5,3,1,6],'z':[0,7,2,4,7],
+};
+// Render one glyph at LED pixel (su,sv) on face. sv = top row of glyph (row 4=top, 0=bottom).
+// Matches weather wxGlyph convention exactly. Returns advance width (4).
+function pixelGlyph(face,ch,su,sv,tr,tg,tb){
+  const rows=PIXEL_FONT[ch]||PIXEL_FONT[ch.toUpperCase()]; if(!rows) return 4;
+  for(let row=0;row<5;row++){
+    const bits=rows[row];
+    for(let col=0;col<3;col++){
+      if(!((bits>>(2-col))&1)) continue;
+      const u=su+col, v=sv+(4-row);
+      if(u<0||u>=SIZE||v<0||v>=SIZE) continue;
+      const idx=faceMap[face][v*SIZE+u]; if(idx<0) continue;
+      if(tr>colBuf[idx*3]) colBuf[idx*3]=tr;
+      if(tg>colBuf[idx*3+1]) colBuf[idx*3+1]=tg;
+      if(tb>colBuf[idx*3+2]) colBuf[idx*3+2]=tb;
+    }
+  }
+  return 4;
+}
+// Render string; su/sv = start col, bottom row. Wraps modulo totalW for seamless scroll.
+function pixelText(face,str,su,sv,tr,tg,tb,totalW){
+  let u=su;
+  for(const ch of str){
+    if(totalW!=null){ /* handled by caller for scroll */ }
+    u+=pixelGlyph(face,ch,u,sv,tr,tg,tb);
+    if(totalW==null && u>=SIZE) break;
+  }
+}
+// Scrolling pixel-font ticker on a face. Call every frame. Returns nothing.
+function pixelTicker(face,str,scrollX,sv,tr,tg,tb){
+  const charW=4, gap=SIZE;
+  const totalW=str.length*charW+gap;
+  const off=Math.floor(scrollX)%totalW;
+  // Draw two copies so seamless wrap is always visible
+  for(let tile=0;tile<2;tile++){
+    let u=-off+tile*totalW;
+    for(const ch of str){
+      if(u+3>=0 && u<SIZE) pixelGlyph(face,ch,u,sv,tr,tg,tb);
+      u+=charW;
+    }
+  }
+  return totalW;
+}
+
 let neoObjects=[], neoFetching=false, neoLastFetch=0, neoError='', neoStarsInit=false;
 let neoTickerPixels=null, neoTickerWidth=0, neoTickerScrollX=0, neoT=0;
 let neo2dTickerPx=null, neo2dTickerW=0, neo2dTickerX=0;
@@ -14150,78 +14196,46 @@ function effectNEO(dt){
       }
     });
 
-    // ── Bottom ticker ──
-    // Build/rebuild ticker text whenever objects change
+    // ── Bottom ticker — same 3×5 bitmap font as weather city name ──
     {
-      const TICKER_H=7; // px height of ticker strip (matches weather city font ~5px + 1px pad each side)
-      const tickerV=S-TICKER_H; // top row of ticker strip
+      // Build ticker string segments with per-object colour
+      const objs=neoObjects.slice(0,20);
+      // Each segment: {str, r, g, b}
+      const segments=[];
+      objs.forEach((o,oi)=>{
+        const risk=neoRisk(o);
+        const rgb=neoRiskRGB(risk);
+        const flag=risk==='red'?'!! ':risk==='yellow'?'! ':'';
+        segments.push({str:flag+o.name+' '+o.missLD.toFixed(1)+'LD '+o.diaM+'m', r:rgb[0],g:rgb[1],b:rgb[2]});
+        if(oi<objs.length-1) segments.push({str:'   /   ',r:0.3,g:0.3,b:0.3});
+      });
+      if(!segments.length) segments.push({str:'NO DATA',r:0.5,g:0.5,b:0.5});
 
-      // Build ticker canvas if needed
-      if(!neo2dTickerPx || neo2dTickerPx._built!==neoObjects.length+neoLastFetch){
-        const objs=neoObjects.slice(0,20);
-        const parts=objs.map(o=>{
-          const flag=neoRisk(o)==='red'?'[!!] ':neoRisk(o)==='yellow'?'[!] ':'';
-          return `${flag}${o.name}  ${o.missLD.toFixed(1)}LD  ${o.diaM}m`;
-        });
-        const tickerStr=objs.length?parts.join('  /  '):'NO DATA';
-        const fh=5, gap=S*2;
-        const tc=document.createElement('canvas');
-        const mctx=tc.getContext('2d');
-        mctx.font=`bold ${fh}px "Courier New",monospace`;
-        const tw=Math.ceil(mctx.measureText(tickerStr).width);
-        const totalW=tw+gap;
-        tc.width=totalW; tc.height=TICKER_H;
-        mctx.fillStyle='#000';
-        mctx.fillRect(0,0,totalW,TICKER_H);
-        mctx.font=`bold ${fh}px "Courier New",monospace`;
-        mctx.textBaseline='middle';
-        mctx.fillStyle='#ffffaa';
-        mctx.fillText(tickerStr,0,TICKER_H/2);
-        // Colour the [!!] markers red and [!] yellow
-        const tickerPxRaw=mctx.getImageData(0,0,totalW,TICKER_H).data;
-        // Recolour: find pixel islands left of each separator and tint them
-        // Simple approach: re-render coloured segments
-        mctx.clearRect(0,0,totalW,TICKER_H);
-        mctx.fillStyle='#000'; mctx.fillRect(0,0,totalW,TICKER_H);
-        mctx.font=`bold ${fh}px "Courier New",monospace`;
-        mctx.textBaseline='middle';
-        let cx2=0;
-        const sep='  /  ', sepW=Math.ceil(mctx.measureText(sep).width);
-        objs.forEach((o,oi)=>{
-          const risk=neoRisk(o);
-          const col=risk==='red'?'#ff4444':risk==='yellow'?'#ffcc00':'#88ff88';
-          mctx.fillStyle=col;
-          mctx.fillText(parts[oi],cx2,TICKER_H/2);
-          cx2+=Math.ceil(mctx.measureText(parts[oi]).width);
-          if(oi<objs.length-1){ mctx.fillStyle='#555'; mctx.fillText(sep,cx2,TICKER_H/2); cx2+=sepW; }
-        });
-        if(!objs.length){ mctx.fillStyle='#aaa'; mctx.fillText('NO DATA',0,TICKER_H/2); }
-        neo2dTickerPx=mctx.getImageData(0,0,totalW,TICKER_H).data;
-        neo2dTickerPx._built=neoObjects.length+neoLastFetch;
-        neo2dTickerW=totalW;
-        neo2dTickerX=0;
-      }
+      // Total ticker width in LED pixels
+      const charW=4;
+      const totalChars=segments.reduce((s,seg)=>s+seg.str.length,0);
+      const totalW=totalChars*charW+S; // add one panel gap for seamless loop
 
-      // Scroll
-      neo2dTickerX=(neo2dTickerX+dt*20)%neo2dTickerW;
+      neo2dTickerX=(neo2dTickerX+dt*22)%totalW;
 
-      // Dark background strip
-      for(let v=tickerV;v<S;v++) for(let u=0;u<S;u++){
+      // Dark background for bottom 7 rows (1px pad + 5px glyph + 1px pad)
+      const tickerTop=S-7;
+      for(let v=tickerTop;v<S;v++) for(let u=0;u<S;u++){
         const idx=faceMap[face][(S-1-v)*S+u]; if(idx<0) continue;
-        colBuf[idx*3]*=0.25; colBuf[idx*3+1]*=0.25; colBuf[idx*3+2]*=0.25;
+        colBuf[idx*3]*=0.15; colBuf[idx*3+1]*=0.15; colBuf[idx*3+2]*=0.15;
       }
-      // Blit ticker pixels
-      const sx0=Math.floor(neo2dTickerX);
-      for(let v=0;v<TICKER_H;v++){
-        for(let u=0;u<S;u++){
-          const sx=(sx0+u)%neo2dTickerW;
-          const pi=(v*neo2dTickerW+sx)*4;
-          if(!neo2dTickerPx[pi+3]) continue;
-          const pv=tickerV+v;
-          const idx=faceMap[face][(S-1-pv)*S+u]; if(idx<0) continue;
-          colBuf[idx*3]=neo2dTickerPx[pi]/255;
-          colBuf[idx*3+1]=neo2dTickerPx[pi+1]/255;
-          colBuf[idx*3+2]=neo2dTickerPx[pi+2]/255;
+
+      // sv = top of glyph; with 1px bottom pad, top is at S-1-1-4 = S-6
+      const sv=S-6;
+      let charPos=0; // position in total string (in chars)
+      for(const seg of segments){
+        for(const ch of seg.str){
+          // pixel x = charPos*charW - scrollX (with two-copy wrap)
+          for(let tile=0;tile<2;tile++){
+            const u=charPos*charW - Math.floor(neo2dTickerX) + tile*totalW;
+            if(u+3>=0 && u<S) pixelGlyph(face,ch,u,sv,seg.r,seg.g,seg.b);
+          }
+          charPos++;
         }
       }
     }
