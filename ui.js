@@ -1285,6 +1285,7 @@ const EFFECTS={
   spaceweather:effectSpaceWeather,
   epic:effectEPIC,
   iss:effectISS,
+  cam:effectCam,
 };
 const EFFECT_NAMES={
   wave:'Wave Cascade', rain:'Colour Rain', plasma:'Plasma Storm', sphere:'Laser Grid',
@@ -1307,6 +1308,7 @@ const EFFECT_NAMES={
   spaceweather:'Space Weather',
   epic:'Earth Live View',
   iss:'ISS Tracker',
+  cam:'Camera',
 };
 
 // ═══════════════════════════════════════════════════
@@ -1511,6 +1513,9 @@ document.querySelectorAll('.retro-game-btn').forEach(btn=>{
 });
 const retroSlider=document.getElementById('retro-rotate-slider');
 if(retroSlider) retroSlider.addEventListener('input',()=>{ retroRotateInterval=parseInt(retroSlider.value); const v=document.getElementById('retro-rotate-val'); if(v)v.textContent=retroSlider.value; });
+document.getElementById('cam-rate')?.addEventListener('input',e=>{
+  document.getElementById('cam-rate-val').textContent=e.target.value;
+});
 function updateRetroAutoGames(){
   const chks=document.querySelectorAll('.retro-auto-chk');
   const enabled=[];

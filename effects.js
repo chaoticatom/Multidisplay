@@ -15422,3 +15422,47 @@ function effectISS(dt){
   issTickerScrollX += dt*20*(speedMult||1);
   issApplyTickerToFace(2);
 }
+
+// ── Camera feed ──────────────────────────────────────────────
+let _camCanvas=null,_camCtx=null,_camPx=null,_camLastFetch=0,_camFetching=false,_camErr='';
+function effectCam(dt){
+  if(!_camCanvas){
+    _camCanvas=document.createElement('canvas');
+    _camCanvas.width=64;_camCanvas.height=64;
+    _camCtx=_camCanvas.getContext('2d',{willReadFrequently:true});
+  }
+  const url=(document.getElementById('cam-url')?.value||'').trim();
+  const rate=parseFloat(document.getElementById('cam-rate')?.value)||5;
+  const interval=1/rate;
+  const nowS=performance.now()/1000;
+  if(url && !_camFetching && nowS-_camLastFetch>=interval){
+    _camLastFetch=nowS; _camFetching=true;
+    const img=new Image(); img.crossOrigin='anonymous';
+    img.onload=()=>{
+      _camCtx.drawImage(img,0,0,64,64);
+      _camPx=_camCtx.getImageData(0,0,64,64).data;
+      _camErr='';
+      const s=document.getElementById('cam-status');
+      if(s) s.textContent='Live • '+(rate|0)+' fps';
+      _camFetching=false;
+    };
+    img.onerror=()=>{
+      _camErr='Fetch failed';
+      const s=document.getElementById('cam-status');
+      if(s) s.textContent='Error — check URL / CORS';
+      _camFetching=false;
+    };
+    img.src=url+(url.includes('?')?'&':'?')+'_t='+Date.now();
+  }
+  if(!_camPx){ for(let i=0;i<N*3;i++) colBuf[i]=0; return; }
+  for(let v=0;v<SIZE;v++) for(let u=0;u<SIZE;u++){
+    const iu=Math.min(63,Math.floor(u/SIZE*64));
+    const iv=Math.min(63,Math.floor(v/SIZE*64));
+    const pi=(iv*64+iu)*4;
+    const r=_camPx[pi]/255,g=_camPx[pi+1]/255,b=_camPx[pi+2]/255;
+    for(let f=0;f<6;f++){
+      const idx=faceMap[f][(SIZE-1-v)*SIZE+u]; if(idx<0) continue;
+      colBuf[idx*3]=r;colBuf[idx*3+1]=g;colBuf[idx*3+2]=b;
+    }
+  }
+}

@@ -18,6 +18,7 @@
 #include "led_matrix.h"
 #include "web_server.h"
 #include "wifi_setup.h"
+#include "cam/cam_client.h"
 
 // ---------------------------------------------------------------------------
 // Shared globals (declared extern in web_server.h)
@@ -188,6 +189,15 @@ void setup() {
     // OTA status-LED hooks via WebSocket clients are handled elsewhere; here we
     // just register the OTA-aware servers.
     Update.onProgress([](size_t, size_t) { g_appState = AppState::OTA; });
+
+    // Camera client (disabled by default; URL configured via web UI).
+    {
+        CamConfig camCfg;
+        strncpy(camCfg.snapUrl, "", sizeof(camCfg.snapUrl));
+        camCfg.intervalMs = 100; // 10fps default
+        camCfg.enabled = false;
+        camInit(camCfg);
+    }
 
     // Web + WebSocket servers.
     initWebServer(httpServer, ws, f1State);

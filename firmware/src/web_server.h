@@ -8,6 +8,7 @@
 #include <ArduinoJson.h>
 #include "config.h"
 #include "loader_html.h"
+#include "cam/cam_api.h"
 
 // ---------------------------------------------------------------------------
 // web_server.h - HTTP routes + WebSocket handler for the cube.
@@ -197,6 +198,9 @@ inline void handleOtaUpload(AsyncWebServerRequest* request, String filename,
 // Route registration
 // ---------------------------------------------------------------------------
 inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws, F1State& f1) {
+    // ---- Camera API ----
+    camApiInit(server);
+
     // ---- WebSocket ----
     ws.onEvent(onWsEvent);
     server.addHandler(&ws);
