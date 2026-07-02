@@ -1432,6 +1432,7 @@ const _origCCOpen=()=>ccRefreshSelect();
 document.querySelector('[data-effect="custom_cube"]')?.addEventListener('click',()=>{ setTimeout(ccRefreshSelect,50); });
 
 document.querySelectorAll('.effect-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{ window._eeActive=0; document.title='Multidisplay'; });
   btn.addEventListener('click',()=>{
     const eff = btn.dataset.effect;
 
@@ -2064,6 +2065,7 @@ document.addEventListener('f1-state-change', () => {
 let panel2dMode=false, panel2dZoom=60;
 document.querySelectorAll('.size-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
+    window._eeActive=0; document.title='Multidisplay';
     document.querySelectorAll('.size-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     if(btn.dataset.mode==='panel2d'){
@@ -2119,7 +2121,6 @@ window._eeActive=0;
 
   window._eeTick=()=>{
     if(window._eeActive<=0) return false;
-    window._eeActive-=1/60;
     if(!eePx){ console.warn('[EE] eePx null — decode failed'); return false; }
     const S=SIZE;
     // 2D panel: alternate images every 5s (0-5s=img1, 5-10s=img2)
@@ -2164,7 +2165,6 @@ window._eeActive=0;
         eePending=false;
         window._eeActive=10;
         document.title='✨ Easter Egg!';
-        setTimeout(()=>{ document.title='Multidisplay'; },10500);
         console.log('[EE] activated — images should appear for 10s');
         return;
       }
