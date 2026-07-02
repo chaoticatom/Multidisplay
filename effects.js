@@ -14385,6 +14385,163 @@ function effectAPOD(dt){
 }
 
 // ═══════════════════════════════════════════════════
+//  Unsplash Photo Slideshow
+// ═══════════════════════════════════════════════════
+let unsplashPhotos=[], unsplashIdx=0, unsplashFetching=false, unsplashLastFetch=0, unsplashError='';
+let unsplashPixels=[], unsplashSizes=[], unsplashT=0, unsplashTimer=0, unsplashSecs=8;
+let unsplashQuery='nature', unsplashLetterbox=true;
+
+function unsplashApiKey(){ return localStorage.getItem('unsplashApiKey')||''; }
+
+async function unsplashFetch(){
+  if(unsplashFetching) return;
+  const key=unsplashApiKey();
+  if(!key){ unsplashError='Enter your Unsplash Access Key below'; return; }
+  unsplashFetching=true; unsplashError='';
+  const statusEl=document.getElementById('unsplash-status');
+  if(statusEl) statusEl.textContent='Searching Unsplash…';
+  try{
+    const q=encodeURIComponent(unsplashQuery||'nature');
+    const url=`https://api.unsplash.com/photos/random?query=${q}&count=30&client_id=${key}`;
+    let r;
+    try{ r=await fetch(url); }
+    catch(fe){ unsplashError='Network error — check connection'; throw fe; }
+    if(r.status===401){ unsplashError='Invalid API key'; throw new Error('401'); }
+    if(r.status===403){ unsplashError='Rate limited — 50 req/hr on free tier'; throw new Error('403'); }
+    if(!r.ok){ unsplashError='Unsplash error '+r.status; throw new Error(r.status); }
+    const data=await r.json();
+    const photos=(Array.isArray(data)?data:[]).filter(p=>p.urls&&p.urls.regular);
+    if(!photos.length){ unsplashError='No photos found for "'+unsplashQuery+'"'; throw new Error('empty'); }
+    unsplashPhotos=photos;
+    unsplashIdx=0;
+    unsplashPixels=new Array(photos.length).fill(null);
+    unsplashSizes=new Array(photos.length).fill(0);
+    unsplashLastFetch=Date.now()/1000;
+    unsplashTimer=0;
+    if(statusEl) statusEl.textContent=photos.length+' photos — '+unsplashQuery;
+    const infoEl=document.getElementById('unsplash-info');
+    if(infoEl){ infoEl.style.display='block'; unsplashUpdateInfo(); }
+    unsplashLoad(0);
+  }catch(e){
+    unsplashLastFetch=Date.now()/1000;
+    if(statusEl) statusEl.textContent='✕ '+unsplashError;
+    console.error('Unsplash fetch error:',e);
+  }
+  unsplashFetching=false;
+}
+
+function unsplashLoad(idx){
+  if(!unsplashPhotos[idx]||unsplashPixels[idx]!=null) return;
+  unsplashPixels[idx]=false;
+  const sz=Math.max(SIZE,32);
+  const imgUrl=unsplashPhotos[idx].urls.regular+'&w='+(sz*4)+'&h='+(sz*4);
+  loadImageForPixels(imgUrl, s=>{ unsplashSizes[idx]=s; },
+    px=>{ unsplashPixels[idx]=px; },
+    ()=>{ unsplashPixels[idx]='error'; },
+    {letterbox:unsplashLetterbox});
+}
+
+function unsplashApplyToFace(face, idx){
+  const pixels=unsplashPixels[idx];
+  if(!pixels||pixels==='error') return false;
+  const S=SIZE, IS=unsplashSizes[idx];
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const li=faceMap[face][v*S+u]; if(li<0) continue;
+    const su=Math.min(IS-1,Math.floor(u/S*IS));
+    const sv=Math.min(IS-1,Math.floor((S-1-v)/S*IS));
+    const pi=(sv*IS+su)*4;
+    colBuf[li*3]=pixels[pi]/255;
+    colBuf[li*3+1]=pixels[pi+1]/255;
+    colBuf[li*3+2]=pixels[pi+2]/255;
+  }
+  return true;
+}
+
+function unsplashUpdateInfo(){
+  const p=unsplashPhotos[unsplashIdx]; if(!p) return;
+  const infoEl=document.getElementById('unsplash-photo-info');
+  if(infoEl) infoEl.textContent=(unsplashIdx+1)+'/'+unsplashPhotos.length+' — '+(p.user&&p.user.name?p.user.name:'Unknown')+' — '+(p.description||p.alt_description||'');
+}
+
+document.getElementById('unsplash-fetch-btn')?.addEventListener('click',unsplashFetch);
+document.getElementById('unsplash-prev-btn')?.addEventListener('click',()=>{
+  if(!unsplashPhotos.length) return;
+  unsplashIdx=(unsplashIdx-1+unsplashPhotos.length)%unsplashPhotos.length;
+  unsplashLoad(unsplashIdx); unsplashTimer=0; unsplashUpdateInfo();
+});
+document.getElementById('unsplash-next-btn')?.addEventListener('click',()=>{
+  if(!unsplashPhotos.length) return;
+  unsplashIdx=(unsplashIdx+1)%unsplashPhotos.length;
+  unsplashLoad(unsplashIdx); unsplashTimer=0; unsplashUpdateInfo();
+});
+document.getElementById('unsplash-speed')?.addEventListener('input',function(){
+  unsplashSecs=+this.value;
+  const lbl=document.getElementById('unsplash-speed-label');
+  if(lbl) lbl.textContent=unsplashSecs+'s';
+});
+document.getElementById('unsplash-letterbox-chk')?.addEventListener('change',function(){
+  unsplashLetterbox=this.checked;
+  unsplashPixels=new Array(unsplashPhotos.length).fill(null);
+  unsplashSizes=new Array(unsplashPhotos.length).fill(0);
+  unsplashLoad(unsplashIdx);
+});
+document.getElementById('unsplash-api-key-save')?.addEventListener('click',()=>{
+  const v=document.getElementById('unsplash-api-key-input')?.value.trim();
+  if(v){ localStorage.setItem('unsplashApiKey',v); unsplashFetch(); }
+});
+(()=>{
+  const saved=localStorage.getItem('unsplashApiKey');
+  if(saved){ const el=document.getElementById('unsplash-api-key-input'); if(el) el.value=saved; }
+  const q=localStorage.getItem('unsplashQuery');
+  if(q){ unsplashQuery=q; const el=document.getElementById('unsplash-query'); if(el) el.value=q; }
+  document.getElementById('unsplash-query')?.addEventListener('change',function(){
+    unsplashQuery=this.value.trim()||'nature';
+    localStorage.setItem('unsplashQuery',unsplashQuery);
+  });
+})();
+
+function effectUnsplash(dt){
+  unsplashT+=dt;
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  if(!unsplashPhotos.length){
+    if(!unsplashFetching) unsplashFetch();
+    const dots='.'.repeat(1+(Math.floor(unsplashT)%3));
+    for(let f=0;f<6;f++) renderTextToFace(f,['UNSPLASH',dots],[0.1,0.7,0.4],[0,0.06,0.03]);
+    return;
+  }
+
+  if(unsplashError){
+    for(let f=0;f<6;f++) renderTextToFace(f,['API','ERROR',unsplashError],[1,0.25,0.25],[0.06,0,0]);
+    return;
+  }
+
+  unsplashTimer+=dt;
+  if(unsplashTimer>=unsplashSecs){
+    unsplashTimer=0;
+    unsplashIdx=(unsplashIdx+1)%unsplashPhotos.length;
+    unsplashUpdateInfo();
+    const statusEl=document.getElementById('unsplash-status');
+    const p=unsplashPhotos[unsplashIdx];
+    if(statusEl&&p) statusEl.textContent=(p.description||p.alt_description||'Photo '+(unsplashIdx+1));
+  }
+  // Preload next
+  unsplashLoad(unsplashIdx);
+  unsplashLoad((unsplashIdx+1)%unsplashPhotos.length);
+
+  const shown=unsplashApplyToFace(0,unsplashIdx);
+  if(shown){
+    for(let f=1;f<6;f++) unsplashApplyToFace(f,unsplashIdx);
+  } else if(unsplashPixels[unsplashIdx]==='error'){
+    const p=unsplashPhotos[unsplashIdx]||{};
+    for(let f=0;f<6;f++) renderTextToFace(f,['NO IMAGE','photo '+(unsplashIdx+1)],[0.6,0.4,0.1],[0.06,0.03,0]);
+  } else {
+    const dots='.'.repeat(1+(Math.floor(unsplashT)%3));
+    for(let f=0;f<6;f++) renderTextToFace(f,['PHOTO',dots],[0.1,0.7,0.4],[0,0.06,0.03]);
+  }
+}
+
+// ═══════════════════════════════════════════════════
 //  Space Weather (NASA DONKI)
 // ═══════════════════════════════════════════════════
 let swxEvents=[], swxFetching=false, swxLastFetch=0, swxError='';
