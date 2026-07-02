@@ -13816,6 +13816,12 @@ function neoRiskRGB(level){
   if(level==='yellow') return [1,0.78,0.05];
   return [0.1,0.95,0.25];
 }
+// 2D panel colours: softer amber for watch, dimmer green for safe
+function neo2dRiskRGB(level){
+  if(level==='red') return [1,0.1,0.05];
+  if(level==='yellow') return [0.9,0.45,0.05]; // amber/orange — readable, not garish
+  return [0.1,0.75,0.2];
+}
 function neoOverallRisk(){
   if(!neoObjects.length) return 'green';
   if(neoObjects.some(o=>neoRisk(o)==='red')) return 'red';
@@ -14151,92 +14157,97 @@ function effectNEO(dt){
       }
     }
 
-    // ── Draw NEOs ──
+    // ── Build ticker segments & find which NEO is active ──
     const objs=neoObjects.slice(0,12);
+    const charW=4;
+    // Segments: each NEO + separator, tagged with neoIdx
+    const segments=[];
     objs.forEach((o,oi)=>{
-      const r=neoRisk(o);
-      const rgb=neoRiskRGB(r);
-      // x position based on distance (capped at maxLD)
+      const risk=neoRisk(o);
+      const rgb=neo2dRiskRGB(risk);
+      segments.push({str:o.name+' '+o.missLD.toFixed(1)+'LD '+o.diaM+'m', r:rgb[0],g:rgb[1],b:rgb[2], neoIdx:oi});
+      if(oi<objs.length-1) segments.push({str:'   /   ',r:0.25,g:0.25,b:0.25,neoIdx:-1});
+    });
+    if(!segments.length) segments.push({str:'NO DATA',r:0.5,g:0.5,b:0.5,neoIdx:-1});
+    const totalTickerChars=segments.reduce((s,seg)=>s+seg.str.length,0);
+    const totalW=totalTickerChars*charW+S;
+    neo2dTickerX=(neo2dTickerX+dt*22)%totalW;
+
+    // Which NEO index is currently centred in the ticker?
+    const targetPx=(Math.floor(neo2dTickerX)+Math.floor(S*0.5))%totalW;
+    let activeNeoIdx=-1, cp2=0;
+    for(const seg of segments){
+      const segPx=cp2*charW;
+      if(targetPx>=segPx && targetPx<segPx+seg.str.length*charW){
+        if(seg.neoIdx>=0) activeNeoIdx=seg.neoIdx;
+        break;
+      }
+      cp2+=seg.str.length;
+    }
+
+    // ── Draw NEOs ──
+    objs.forEach((o,oi)=>{
+      const risk=neoRisk(o);
+      const rgb=neo2dRiskRGB(risk);
       const ld=Math.min(o.missLD, maxLD);
       const px=Math.round(xOrigin+(ld/maxLD)*(xMax-xOrigin));
-      // y position: spread evenly, offset by object index
-      const rows=Math.min(objs.length, 10);
-      const ySpacing=Math.round((S*0.86)/rows);
-      const py=Math.round(S*0.07+oi*ySpacing+ySpacing*0.5);
-      // Size scales with diameter and hazard
+      const rows=Math.min(objs.length,10);
+      const ySpacing=Math.round((S*0.82)/rows);
+      const py=Math.round(S*0.09+oi*ySpacing+ySpacing*0.5);
       const diaFrac=Math.min(1,Math.max(0,(o.diaM||50)/500));
-      const rad=o.hazardous? 2+Math.round(diaFrac*2) : 1+Math.round(diaFrac*1.5);
-      const blink=r==='red'?(0.5+0.5*Math.sin(neoT*8+oi)):
-                  r==='yellow'?(0.65+0.35*Math.sin(neoT*3+oi)):1;
-      // Draw dot
+      const baseRad=o.hazardous?2+Math.round(diaFrac*2):1+Math.round(diaFrac*1.5);
+      const isActive=oi===activeNeoIdx;
+      // Flash active NEO bright white ring; others use risk colour
+      const flashPulse=0.5+0.5*Math.sin(neoT*10);
+      const blink=risk==='red'?(0.5+0.5*Math.sin(neoT*8+oi)):
+                  risk==='yellow'?(0.7+0.3*Math.sin(neoT*3+oi)):1;
+      const rad=isActive?baseRad+1:baseRad;
       for(let dv=-rad;dv<=rad;dv++){
         for(let du=-rad;du<=rad;du++){
-          if(du*du+dv*dv>rad*rad+0.5) continue;
+          const dist2=du*du+dv*dv;
+          if(dist2>rad*rad+0.5) continue;
           const pu=px+du, pv=py+dv;
           if(pu<0||pu>=S||pv<0||pv>=S) continue;
           const idx=faceMap[face][(S-1-pv)*S+pu]; if(idx<0) continue;
-          colBuf[idx*3]=rgb[0]*blink;
-          colBuf[idx*3+1]=rgb[1]*blink;
-          colBuf[idx*3+2]=rgb[2]*blink;
+          // Active: bright white flash on outer ring, colour in core
+          if(isActive && dist2>(baseRad-0.5)*(baseRad-0.5)){
+            colBuf[idx*3]=flashPulse; colBuf[idx*3+1]=flashPulse; colBuf[idx*3+2]=flashPulse;
+          } else {
+            colBuf[idx*3]=rgb[0]*blink; colBuf[idx*3+1]=rgb[1]*blink; colBuf[idx*3+2]=rgb[2]*blink;
+          }
         }
       }
-      // Thin line from Earth edge to dot
+      // Faint line from Earth edge
       if(px>xOrigin){
-        const steps=Math.abs(px-xOrigin);
+        const steps=px-Math.round(xOrigin);
         for(let s=2;s<steps;s++){
-          const lu=Math.round(xOrigin+s);
-          const lv=py;
+          const lu=Math.round(xOrigin)+s, lv=py;
           if(lu<0||lu>=S||lv<0||lv>=S) continue;
           const idx=faceMap[face][(S-1-lv)*S+lu]; if(idx<0) continue;
-          const frac=s/steps, dimLine=0.07+frac*0.06;
-          colBuf[idx*3]=Math.max(colBuf[idx*3],rgb[0]*dimLine);
-          colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],rgb[1]*dimLine);
-          colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],rgb[2]*dimLine);
+          const dim=isActive?0.12:0.05;
+          colBuf[idx*3]=Math.max(colBuf[idx*3],rgb[0]*dim);
+          colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],rgb[1]*dim);
+          colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],rgb[2]*dim);
         }
       }
     });
 
     // ── Bottom ticker — same 3×5 bitmap font as weather city name ──
-    {
-      // Build ticker string segments with per-object colour
-      const objs=neoObjects.slice(0,20);
-      // Each segment: {str, r, g, b}
-      const segments=[];
-      objs.forEach((o,oi)=>{
-        const risk=neoRisk(o);
-        const rgb=neoRiskRGB(risk);
-        const flag=risk==='red'?'!! ':risk==='yellow'?'! ':'';
-        segments.push({str:flag+o.name+' '+o.missLD.toFixed(1)+'LD '+o.diaM+'m', r:rgb[0],g:rgb[1],b:rgb[2]});
-        if(oi<objs.length-1) segments.push({str:'   /   ',r:0.3,g:0.3,b:0.3});
-      });
-      if(!segments.length) segments.push({str:'NO DATA',r:0.5,g:0.5,b:0.5});
-
-      // Total ticker width in LED pixels
-      const charW=4;
-      const totalChars=segments.reduce((s,seg)=>s+seg.str.length,0);
-      const totalW=totalChars*charW+S; // add one panel gap for seamless loop
-
-      neo2dTickerX=(neo2dTickerX+dt*22)%totalW;
-
-      // Dark background for bottom 7 rows (1px pad + 5px glyph + 1px pad)
-      const tickerTop=S-7;
-      for(let v=tickerTop;v<S;v++) for(let u=0;u<S;u++){
-        const idx=faceMap[face][(S-1-v)*S+u]; if(idx<0) continue;
-        colBuf[idx*3]*=0.15; colBuf[idx*3+1]*=0.15; colBuf[idx*3+2]*=0.15;
-      }
-
-      // sv = top of glyph; with 1px bottom pad, top is at S-1-1-4 = S-6
-      const sv=S-6;
-      let charPos=0; // position in total string (in chars)
-      for(const seg of segments){
-        for(const ch of seg.str){
-          // pixel x = charPos*charW - scrollX (with two-copy wrap)
-          for(let tile=0;tile<2;tile++){
-            const u=charPos*charW - Math.floor(neo2dTickerX) + tile*totalW;
-            if(u+3>=0 && u<S) pixelGlyph(face,ch,u,sv,seg.r,seg.g,seg.b);
-          }
-          charPos++;
+    // Dark background strip: faceMap rows 0-7 = visual bottom
+    for(let fv=0;fv<8;fv++) for(let fu=0;fu<S;fu++){
+      const idx=faceMap[face][fv*S+fu]; if(idx<0) continue;
+      colBuf[idx*3]*=0.12; colBuf[idx*3+1]*=0.12; colBuf[idx*3+2]*=0.12;
+    }
+    // sv=3: glyph top row at faceMap row 3, bottom at row 7 — matches weather textV=3
+    const sv=3;
+    let charPos=0;
+    for(const seg of segments){
+      for(const ch of seg.str){
+        for(let tile=0;tile<2;tile++){
+          const u=charPos*charW - Math.floor(neo2dTickerX) + tile*totalW;
+          if(u+3>=0 && u<S) pixelGlyph(face,ch,u,sv,seg.r,seg.g,seg.b);
         }
+        charPos++;
       }
     }
 
