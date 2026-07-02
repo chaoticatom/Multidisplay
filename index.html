@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=700">
+<link rel="stylesheet" href="style.css?v=703">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -473,6 +473,23 @@
         <div id="iss-coord-line">Lat — Lon —</div>
         <div id="iss-time-line">Last fix: —</div>
       </div>
+    </div>
+
+    <button class="effect-btn has-panel" data-effect="cam">◈ Camera <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-cam">
+      <label class="ov-label" style="display:block;margin-bottom:8px">Snapshot URL
+        <input id="cam-url" type="text" style="width:100%;margin-top:4px;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:5px 7px;font-size:11px;box-sizing:border-box" placeholder="http://multidisplay.local/api/cam/snap">
+      </label>
+      <div style="font-size:10px;color:#666;margin-bottom:8px">
+        Direct: http://CAM-IP/cgi-bin/api.cgi?cmd=Snap&amp;channel=0&amp;user=USER&amp;password=PASS<br>
+        Via ESP32: http://multidisplay.local/api/cam/snap
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span class="ov-label" style="flex:0 0 auto">FPS</span>
+        <input id="cam-rate" type="range" min="1" max="15" value="5" style="flex:1">
+        <span id="cam-rate-val" style="font-size:11px;color:#aaa;min-width:20px;text-align:right">5</span>
+      </div>
+      <div id="cam-status" style="font-size:10px;color:#777;margin-top:4px">Idle</div>
     </div>
 
     </div>
@@ -1201,7 +1218,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=700"></script>
+<script src="version.js?v=703"></script>
 <script>function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}setTimeout(showVersion,1000);</script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
 <script src="three.min.js"></script>
@@ -1236,7 +1253,7 @@
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=700','effects.js?v=700','ui.js?v=700'];
+  const appScripts = ['cube.js?v=703','effects.js?v=703','ui.js?v=703'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
