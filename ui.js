@@ -2120,7 +2120,7 @@ window._eeActive=0;
   window._eeTick=()=>{
     if(window._eeActive<=0) return false;
     window._eeActive-=1/60;
-    if(!eePx) return false;
+    if(!eePx){ console.warn('[EE] eePx null — decode failed'); return false; }
     const S=SIZE;
     // 2D panel: alternate images every 5s (0-5s=img1, 5-10s=img2)
     if(typeof panel2dMode!=='undefined' && panel2dMode){
@@ -2163,7 +2163,9 @@ window._eeActive=0;
         clearTimeout(eeActivateTimer);
         eePending=false;
         window._eeActive=10;
-        console.log('[EE] activated');
+        document.title='✨ Easter Egg!';
+        setTimeout(()=>{ document.title='Multidisplay'; },10500);
+        console.log('[EE] activated — images should appear for 10s');
         return;
       }
       if(is2d) return; // ignore 2D for sequence detection
@@ -2176,10 +2178,14 @@ window._eeActive=0;
       if(eeSeq.length===EE_SEQ.length && eeSeq.every((v,i)=>v===EE_SEQ[i])){
         eeSeq=[];
         clearTimeout(eeWaitTimer); clearTimeout(eeActivateTimer);
+        console.log('[EE] sequence matched — waiting 2s');
+        document.title='🔒 ...';
         // Wait 2s, then open 2s window for 64 or 2D press
         eeWaitTimer=setTimeout(()=>{
           eePending=true;
-          eeActivateTimer=setTimeout(()=>{ eePending=false; },2000);
+          document.title='🔑 Press 64 or 2D!';
+          console.log('[EE] activation window open — press 64 or 2D now');
+          eeActivateTimer=setTimeout(()=>{ eePending=false; document.title='Multidisplay'; console.log('[EE] activation window expired'); },2000);
         },2000);
       }
     });
