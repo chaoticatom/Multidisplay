@@ -15028,17 +15028,29 @@ async function epicFetch(){
   const statusEl=document.getElementById('epic-status');
   if(statusEl) statusEl.textContent='Fetching latest Earth image…';
   try{
-    const url=`https://api.nasa.gov/EPIC/api/natural/images?api_key=${NEO_API_KEY}`;
-    let r;
-    try{ r=await fetch(url); }
-    catch(fe){ throw new Error('EPIC fetch failed — check internet connection'); }
-    if(!r.ok) throw new Error('NASA API error: '+r.status);
-    const arr=await r.json();
+    const apiKey=apodApiKey(); // use same NASA key as APOD
+    // EPIC imagery often lags 1-3 days — walk back up to 10 days to find latest
+    let arr=null;
+    for(let daysAgo=0; daysAgo<=10; daysAgo++){
+      const d=new Date(); d.setDate(d.getDate()-daysAgo);
+      const dateStr=d.toISOString().slice(0,10);
+      const url=daysAgo===0
+        ?`https://api.nasa.gov/EPIC/api/natural/images?api_key=${apiKey}`
+        :`https://api.nasa.gov/EPIC/api/natural/date/${dateStr}?api_key=${apiKey}`;
+      let r;
+      try{ r=await fetch(url); }catch(fe){ throw new Error('Network error — check connection'); }
+      if(r.status===429){ throw new Error('Rate limited — enter a free NASA API key'); }
+      if(r.ok){
+        const data=await r.json();
+        if(Array.isArray(data)&&data.length){ arr=data; break; }
+      }
+    }
+    if(!arr||!arr.length) throw new Error('No EPIC imagery found in last 10 days');
     if(!arr || !arr.length) throw new Error('No EPIC imagery available right now');
     const item=arr[arr.length-1];
     const d=new Date(item.date.replace(' ','T')+'Z');
     const yyyy=d.getUTCFullYear(), mm=String(d.getUTCMonth()+1).padStart(2,'0'), dd=String(d.getUTCDate()).padStart(2,'0');
-    const imgUrl=`https://api.nasa.gov/EPIC/archive/natural/${yyyy}/${mm}/${dd}/png/${item.image}.png?api_key=${NEO_API_KEY}`;
+    const imgUrl=`https://api.nasa.gov/EPIC/archive/natural/${yyyy}/${mm}/${dd}/png/${item.image}.png?api_key=${apiKey}`;
     epicData={
       caption:item.caption||'Earth from DSCOVR',
       date:item.date,
@@ -15065,7 +15077,7 @@ async function epicFetch(){
     });
   }catch(e){
     epicError=e.message;
-    epicLastFetch=Date.now()/1000-3540;
+    epicLastFetch=Date.now()/1000; // retry in 60s by default
     if(statusEl) statusEl.textContent='✕ '+e.message;
     console.error('EPIC fetch error:',e);
   }
