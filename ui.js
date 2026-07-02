@@ -2090,6 +2090,58 @@ document.querySelectorAll('.size-btn').forEach(btn=>{
     }
   });
 
+// ── Easter egg: size button sequence 8,8,16,64,8 within 2s ──
+(()=>{
+  const EE_SEQ=[8,8,16,64,8];
+  const EE_B64='0tnftMngvc3gvM3gssritcviv9DfwdHgt83j4ubk9u/f5ODS3NvQ1tfL1dXKz9LIy83Dx8i9w8W5w8S3wsS3w8S4zc3D1NTK2NfJ3tvK6OPQ7+nU8erX8OnY6+XX5uPX5eLX4uDV4d7V4d7V4d7V4N3W4N3W4N3W393W393W39zV3dvU3drT29rS2trS2dnR2tfQ2NXN2NXM2NXM2NXM1dLJ1NHI09DH09DH0s/G0s/G0c7F0M3Ez8zDz8zDzsvCsMXcu83d8e7k7uzjsMbdrsXe2t3busrboLvavcbM1NHBxsi8xci9xsi+x8rAxcm/xce8w8a7w8W4w8W4wsS3xMe709XM1tjQ19jQztDFy8u/yci6ysa31tC+39fE4NrM4d3S4d7T4d7V4d7V4d7V4N3U4N3W4N3W4N3W4N3W39zV3tvU3tvU3drT3NnS29nS2tfQ2dbP2dbP2dbO2NXN1tPK1dLJ1NHI09DH09DH0s/G0c7F0c7Fz8zDz8zDzsvCy9XbpLzVsMTXr8TYorvXpLzXsMTYorfMjqnFt8LFzM7Eys3Eys3EyczDyMvCxsnAxci8xMa7w8W6wsS5wcO3xce81NXN19jQ2drS3N3V7O3m6uzj1NbMy8zAy8a1zsWy1s/A3NjN3tzR4N3T4N3U4N3U4N3U4N3V4N3W4d7X4N3W3tvU3tvU3dvT3NrT3NnS2tfQ2dbP2dbP2dbP2NXN1tPK1dLJ1NHI1NHI09DH0s/G0c7F0M3Ez8zDzsvCzMnA7e3l7e3l7e3l7+zk6eXdlpGIWFRJsrWq0tXNztLKztHIzM/Gy87FyszDyMvCxsnAxMe9w8a6wsS5wsS5wcO3nJ6Vjo+Hpqib4uPX1NXK7e7n9PXu8fTw3uPg4ubg3+HYl4+Bf25eg3BfaFhMTUA6c2hhsKie3tvS4+HZ4N3W39zV39zV3tvU2djS1tTO0dDKzs7IyMfAwL631tPM2NTL1tPK1dLJ1NHI1NHI09DH0s/G0M3Ez8zDzsvCzMnAy8i/7e3l7e3l7Ozk7uzkx8O8SUY8f4B12NvU09fQ0NPMz9LK0NPK0dTLzM/GyMvCxsnAxMe9w8W6wcO4wMK3wcK3srOnnp+RrK2c3+DT0dLH7u/p9PXu9fn23uPevLWodmZXLx8VNiMZMB4VHQ4JFwkEGQkEKRgQbl9Utq2i2dbO4N3V3drT09LM0dDL0tLN09TO19jSvbyzgoJ5q6yq09LK1tPK1dLJ1NHI09DH0s/G0c7Fz8zDzsvCzMnAy8i/yca97e3l7e3l6+ri7OnimpyWXl9XsbOshoR+bGdgYVxVVlFLWlVNfnxzt7mxzM/GxsnAxMe8w8W6wcO4wMK3wMK2y83E4+XZ5+nc5ObY1NbK8PHq9/jxysa+f3BhVD8vNSQcMB4WQCwiNCEYKxoRMR8WNCIYNSUbPiwfRzYpopmO39zT1dPL0tHL1NPO1tXQ19bR2trUwsG5np+WvL652NnSz83F1tPK1NHI0s/G0c7F0M3EzsvCzMnAysi/yca9x8O67e3l6+vj6uni2dnUhIuKhoZ+PDczIxwXJR8aJB8aHRcTGBIMGhMMOTMqo6Scys3ExMa7w8W5wcO2wMK3tbestrewztDG1tjL4uPW2drO9/ny0MzAY1BCSzYrPy0jRjQuLhwVRDEoWEU7QS8nJhQPJxYPMSIZPC0iNCQbPCshtK+l19jP1dTO19bR2NfS2djT2tnU3NzX3t/Z3d7Y3t/Z1dTMzcrC1NHI0s/G0M3EzsvCzcrBy8i/ysa9yMS7xMC3wcC37Ozl6uri7uznk4+NZWdkTkpGHxgTIxwWHBgUGRYRIRwXHhgRHRYNGhMJMSwjra6myMvAwsS5wcO3wsS4qKqee35zdHZqdnhp0NLE4OLX2NXNXlBIOiwodVxPm3xoh2pWTjUlRzMpU0M8V0U8MB0WMRwTMR4ULBsSLx0TIxAIa11V09LK19fQ2djS2tnU29rV3NzW3d3X3t7Y3t/Z4ODb2tnTn5uT08/H0s/G0M3EzsvCzMnAyse+yMS7xMC3wb207Ozl7ezl7Ozk7uri7+7n5+jl3tzT2djP';
+  let eeSeq=[], eeTimer=0, eePx=null;
+  let eeActive=0;
+
+  function eeDecodeImage(){
+    try{
+      const bin=atob(EE_B64);
+      const arr=new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+      eePx=arr;
+    }catch(e){ console.warn('[EE] decode failed',e); }
+  }
+
+  window._eeTick=()=>{
+    if(eeActive<=0) return false;
+    eeActive-=1/60;
+    if(!eePx) return false;
+    const S=SIZE;
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const iu=Math.min(63,Math.floor(u/S*64));
+      const iv=Math.min(63,Math.floor(v/S*64));
+      const pi=(iv*64+iu)*3;
+      const r=eePx[pi]/255, g=eePx[pi+1]/255, b=eePx[pi+2]/255;
+      for(let f=0;f<6;f++){
+        const idx=faceMap[f][(S-1-v)*S+u]; if(idx<0) continue;
+        colBuf[idx*3]=r; colBuf[idx*3+1]=g; colBuf[idx*3+2]=b;
+      }
+    }
+    return true;
+  };
+
+  document.querySelectorAll('.size-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      if(btn.dataset.mode==='panel2d') return;
+      const sz=parseInt(btn.dataset.size)||0;
+      const now=Date.now();
+      if(now-eeTimer>2000) eeSeq=[];
+      eeTimer=now;
+      eeSeq.push(sz);
+      if(eeSeq.length>EE_SEQ.length) eeSeq.shift();
+      if(eeSeq.length===EE_SEQ.length && eeSeq.every((v,i)=>v===EE_SEQ[i])){
+        eeSeq=[];
+        if(!eePx) eeDecodeImage();
+        eeActive=10;
+      }
+    });
+  });
+})();
+
 // Spectrum analyser controls
 document.querySelectorAll('.spectrum-bands-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
@@ -3179,6 +3231,7 @@ function animate(now){
     for(let i=0;i<N*3;i++) colBuf[i]=0;
     clearPending=false;
   }
+  if(window._eeTick && window._eeTick()) { /* easter egg overrides colBuf */ }
   runOverlays(dt);
   if(plTransActive) plApplyTransition();
 
