@@ -14033,27 +14033,162 @@ function effectNEO(dt){
   const S=SIZE;
   const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
 
-  // Face 0 (front): Earth with pulsing threat ring
-  const cx0=S/2, cy0=S/2;
-  const earthRad=S*0.3, ringRad=S*0.42;
-  for(let v=0;v<S;v++){
-    for(let u=0;u<S;u++){
-      const idx=faceMap[0][v*S+u]; if(idx<0) continue;
-      const dx=u-cx0, dy=v-cy0, d=Math.sqrt(dx*dx+dy*dy);
-      if(d<earthRad){
-        const nx=dx/earthRad, ny=dy/earthRad;
-        const land=Math.sin(nx*5+tt*0.15)*Math.cos(ny*4)>0.25;
-        if(land){ colBuf[idx*3]=0.07; colBuf[idx*3+1]=0.45; colBuf[idx*3+2]=0.12; }
-        else { colBuf[idx*3]=0.05; colBuf[idx*3+1]=0.18; colBuf[idx*3+2]=0.55; }
-        const shade=1-Math.max(0,d/earthRad)*0.3;
-        colBuf[idx*3]*=shade; colBuf[idx*3+1]*=shade; colBuf[idx*3+2]*=shade;
-      } else if(d>ringRad-1.2 && d<ringRad+1.2){
-        colBuf[idx*3]=riskRGB[0]*pulse; colBuf[idx*3+1]=riskRGB[1]*pulse; colBuf[idx*3+2]=riskRGB[2]*pulse;
+  if(is2D){
+    // ── 2D panel: Earth peeking from left edge, NEOs scatter to the right ──
+    const face=0;
+    // Earth centre is off the left edge so only right ~1/3 globe is visible
+    const ecx=Math.round(S*-0.28), ecy=Math.round(S*0.5);
+    const earthRad=Math.round(S*0.55);
+    const atmRad=earthRad+Math.round(S*0.07);
+
+    // Max distance shown on screen (LD). Objects beyond this still drawn at edge.
+    const maxLD=60;
+    // x pixel where 0 LD sits (right edge of Earth) and where maxLD sits (right edge)
+    const xOrigin=ecx+earthRad+Math.round(S*0.02);
+    const xMax=S-2;
+
+    // ── Draw space background (already cleared to black by colBuf zero above) ──
+
+    // Faint distance rings (concentric dashed arcs around Earth) — every 10 LD
+    for(let ring=10; ring<=maxLD; ring+=10){
+      const rx=(ring/maxLD)*(xMax-xOrigin)+xOrigin;
+      const ringBr=0.04;
+      for(let v=0;v<S;v++){
+        // vertical line at this LD distance, only right-half visible
+        const idx=faceMap[face][v*S+Math.round(rx)];
+        if(idx>=0 && Math.round(rx)>=0 && Math.round(rx)<S){
+          // dashed: skip every other 3px block
+          if(Math.floor(v/3)%2===0){
+            colBuf[idx*3]=ringBr; colBuf[idx*3+1]=ringBr; colBuf[idx*3+2]=ringBr*0.5;
+          }
+        }
       }
     }
-  }
 
-  if(!is2D){
+    // ── Draw Earth ──
+    for(let v=0;v<S;v++){
+      for(let u=0;u<S;u++){
+        const idx=faceMap[face][(S-1-v)*S+u]; if(idx<0) continue;
+        const dx=u-ecx, dy=v-ecy, d=Math.sqrt(dx*dx+dy*dy);
+        // Atmosphere glow ring
+        if(d<atmRad && d>=earthRad){
+          const t2=1-(d-earthRad)/(atmRad-earthRad);
+          const atm=t2*t2*0.35;
+          colBuf[idx*3]=Math.max(colBuf[idx*3],atm*0.3);
+          colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],atm*0.6);
+          colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],atm);
+          continue;
+        }
+        if(d>=earthRad) continue;
+        const nx=dx/earthRad, ny=dy/earthRad;
+        const nz=Math.sqrt(Math.max(0,1-nx*nx-ny*ny));
+        // Terminator: light from slightly upper-right
+        const lit=nx*0.35+ny*(-0.25)+nz*0.9;
+        const lightFactor=Math.max(0.02, Math.min(1, lit*1.1));
+        // Land/ocean using layered noise
+        const lon=Math.atan2(ny,nx)+tt*0.04; // slow rotation
+        const lat=Math.asin(Math.max(-1,Math.min(1,nz)));
+        const land=(Math.sin(lon*3.1+1.2)*Math.cos(lat*2.8+0.5)>0.18)
+                 ||(Math.sin(lon*5.3-0.7)*Math.cos(lat*4.1+1.1)>0.35)
+                 ||(Math.sin(lon*1.9+2.5)*Math.cos(lat*6.2-0.8)>0.45);
+        // Ice caps
+        const ice=Math.abs(nz)>0.82;
+        let r,g,b;
+        if(ice){ r=0.82; g=0.88; b=0.92; }
+        else if(land){ r=0.12; g=0.38+Math.sin(lon*7)*0.06; b=0.08; }
+        else { r=0.04; g=0.15; b=0.55+Math.sin(lat*4)*0.1; }
+        // Terminator shadow
+        colBuf[idx*3]=r*lightFactor;
+        colBuf[idx*3+1]=g*lightFactor;
+        colBuf[idx*3+2]=b*lightFactor;
+      }
+    }
+
+    // ── Draw NEOs ──
+    const objs=neoObjects.slice(0,12);
+    objs.forEach((o,oi)=>{
+      const r=neoRisk(o);
+      const rgb=neoRiskRGB(r);
+      // x position based on distance (capped at maxLD)
+      const ld=Math.min(o.missLD, maxLD);
+      const px=Math.round(xOrigin+(ld/maxLD)*(xMax-xOrigin));
+      // y position: spread evenly, offset by object index
+      const rows=Math.min(objs.length, 10);
+      const ySpacing=Math.round((S*0.86)/rows);
+      const py=Math.round(S*0.07+oi*ySpacing+ySpacing*0.5);
+      // Size scales with diameter and hazard
+      const diaFrac=Math.min(1,Math.max(0,(o.diaM||50)/500));
+      const rad=o.hazardous? 2+Math.round(diaFrac*2) : 1+Math.round(diaFrac*1.5);
+      const blink=r==='red'?(0.5+0.5*Math.sin(neoT*8+oi)):
+                  r==='yellow'?(0.65+0.35*Math.sin(neoT*3+oi)):1;
+      // Draw dot
+      for(let dv=-rad;dv<=rad;dv++){
+        for(let du=-rad;du<=rad;du++){
+          if(du*du+dv*dv>rad*rad+0.5) continue;
+          const pu=px+du, pv=py+dv;
+          if(pu<0||pu>=S||pv<0||pv>=S) continue;
+          const idx=faceMap[face][(S-1-pv)*S+pu]; if(idx<0) continue;
+          colBuf[idx*3]=rgb[0]*blink;
+          colBuf[idx*3+1]=rgb[1]*blink;
+          colBuf[idx*3+2]=rgb[2]*blink;
+        }
+      }
+      // Thin line from Earth edge to dot
+      if(px>xOrigin){
+        const steps=Math.abs(px-xOrigin);
+        for(let s=2;s<steps;s++){
+          const lu=Math.round(xOrigin+s);
+          const lv=py;
+          if(lu<0||lu>=S||lv<0||lv>=S) continue;
+          const idx=faceMap[face][(S-1-lv)*S+lu]; if(idx<0) continue;
+          const frac=s/steps, dimLine=0.07+frac*0.06;
+          colBuf[idx*3]=Math.max(colBuf[idx*3],rgb[0]*dimLine);
+          colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],rgb[1]*dimLine);
+          colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],rgb[2]*dimLine);
+        }
+      }
+    });
+
+    // ── Risk label top-right ──
+    const labelX=S-Math.round(S*0.32), labelY=Math.round(S*0.06);
+    const labelStr=level==='red'?'DANGER':level==='yellow'?'WATCH':'CLEAR';
+    // Simple pixel text via canvas blit
+    const lc=document.createElement('canvas'); lc.width=S; lc.height=S;
+    const lctx=lc.getContext('2d');
+    lctx.fillStyle=`rgba(${(riskRGB[0]*255)|0},${(riskRGB[1]*255)|0},${(riskRGB[2]*255)|0},${pulse})`;
+    const lfh=Math.max(3,Math.floor(S*0.11));
+    lctx.font=`bold ${lfh}px "Courier New",monospace`;
+    lctx.textAlign='right'; lctx.textBaseline='top';
+    lctx.fillText(labelStr,S-1,labelY);
+    const lpx=lctx.getImageData(0,0,S,S).data;
+    for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+      const pi=(v*S+u)*4; if(!lpx[pi+3]) continue;
+      const idx=faceMap[face][(S-1-v)*S+u]; if(idx<0) continue;
+      colBuf[idx*3]=Math.max(colBuf[idx*3],lpx[pi]/255*pulse);
+      colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],lpx[pi+1]/255*pulse);
+      colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],lpx[pi+2]/255*pulse);
+    }
+
+  } else {
+    // ── 3D cube: Face 0 (front): Earth with pulsing threat ring ──
+    const cx0=S/2, cy0=S/2;
+    const earthRad=S*0.3, ringRad=S*0.42;
+    for(let v=0;v<S;v++){
+      for(let u=0;u<S;u++){
+        const idx=faceMap[0][v*S+u]; if(idx<0) continue;
+        const dx=u-cx0, dy=v-cy0, d=Math.sqrt(dx*dx+dy*dy);
+        if(d<earthRad){
+          const nx=dx/earthRad, ny=dy/earthRad;
+          const land=Math.sin(nx*5+tt*0.15)*Math.cos(ny*4)>0.25;
+          if(land){ colBuf[idx*3]=0.07; colBuf[idx*3+1]=0.45; colBuf[idx*3+2]=0.12; }
+          else { colBuf[idx*3]=0.05; colBuf[idx*3+1]=0.18; colBuf[idx*3+2]=0.55; }
+          const shade=1-Math.max(0,d/earthRad)*0.3;
+          colBuf[idx*3]*=shade; colBuf[idx*3+1]*=shade; colBuf[idx*3+2]*=shade;
+        } else if(d>ringRad-1.2 && d<ringRad+1.2){
+          colBuf[idx*3]=riskRGB[0]*pulse; colBuf[idx*3+1]=riskRGB[1]*pulse; colBuf[idx*3+2]=riskRGB[2]*pulse;
+        }
+      }
+    }
     // Faces 2 & 3 (sides): incoming object blips, distance-scaled
     const sideFaces=[2,3];
     for(let f=0; f<sideFaces.length; f++){
@@ -14064,11 +14199,11 @@ function effectNEO(dt){
         const rgb=neoRiskRGB(r);
         const closeness=Math.max(0,1-Math.min(1,o.missLD/40));
         const bx=2+((oi*7+f*3)%(S-4));
-        const by=Math.round(S*0.15+ (S*0.7) * (oi/Math.max(1,objs.length-1)));
+        const by=Math.round(S*0.15+(S*0.7)*(oi/Math.max(1,objs.length-1)));
         const rad=1+Math.round(closeness*2.5);
         const blink=0.6+0.4*Math.sin(neoT*(2+oi)+oi);
-        for(let dv=-rad; dv<=rad; dv++){
-          for(let du=-rad; du<=rad; du++){
+        for(let dv=-rad;dv<=rad;dv++){
+          for(let du=-rad;du<=rad;du++){
             if(du*du+dv*dv>rad*rad) continue;
             const u=bx+du, v=by+dv;
             if(u<0||u>=S||v<0||v>=S) continue;
