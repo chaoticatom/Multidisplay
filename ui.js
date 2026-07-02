@@ -2123,14 +2123,19 @@ window._eeActive=0;
     if(window._eeActive<=0) return false;
     if(!eePx){ console.warn('[EE] eePx null — decode failed'); return false; }
     const S=SIZE;
-    // 2D panel: alternate images every 5s (0-5s=img1, 5-10s=img2)
+    // 2D panel: morph between images — 15s hold, 3s crossfade, repeat
     if(typeof panel2dMode!=='undefined' && panel2dMode){
-      const px=(Math.floor((10-window._eeActive)/5)%2===0)?eePx:(eePx2||eePx);
+      const elapsed=(performance.now()-(window._eeStartTime||0))/1000;
+      const phase=elapsed%36; // 15+3+15+3 = 36s cycle
+      const alpha=phase<15?0:phase<18?(phase-15)/3:phase<33?1:1-(phase-33)/3;
+      const px2=eePx2||eePx;
       for(let v=0;v<S;v++) for(let u=0;u<S;u++){
         const iu=Math.min(63,Math.floor(u/S*64));
         const iv=Math.min(63,Math.floor(v/S*64));
         const pi=(iv*64+iu)*3;
-        const r=px[pi]/255, g=px[pi+1]/255, b=px[pi+2]/255;
+        const r=eePx[pi]/255*(1-alpha)+px2[pi]/255*alpha;
+        const g=eePx[pi+1]/255*(1-alpha)+px2[pi+1]/255*alpha;
+        const b=eePx[pi+2]/255*(1-alpha)+px2[pi+2]/255*alpha;
         const idx=faceMap[0][(S-1-v)*S+u]; if(idx<0) continue;
         colBuf[idx*3]=r; colBuf[idx*3+1]=g; colBuf[idx*3+2]=b;
       }
@@ -2164,6 +2169,7 @@ window._eeActive=0;
         clearTimeout(eeActivateTimer);
         eePending=false;
         window._eeActive=10;
+        window._eeStartTime=performance.now();
         document.title='✨ Easter Egg!';
         console.log('[EE] activated — images should appear for 10s');
         return;
