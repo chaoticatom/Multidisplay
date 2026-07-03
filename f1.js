@@ -643,7 +643,7 @@ function effectF1(dt){
             const dotCounts = [d.wins||0, d.p2||0, d.p3||0];
             const dotColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
             let dotX = SIZE * 0.06;
-            const dotY = rowY + nameH * 0.90 + dotsH * 0.25;
+            const dotY = rowY + nameH * 0.90 + dotsH * 0.25 + 2;
             for(let p=0;p<3;p++){
               for(let k=0;k<Math.min(dotCounts[p],8);k++){
                 ctx.beginPath();
