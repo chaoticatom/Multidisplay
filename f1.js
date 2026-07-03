@@ -363,6 +363,16 @@ function rebuildF1FaceBufs() {
       }
       cx.fillStyle=sColor; cx.fillText('QUALIFYING', S2/2, S2*0.20);
       cx.fillText(`Q${qSession}`, S2/2, S2*0.38);
+    } else if (isSQ) {
+      while(fsTop > 5 && cx.measureText('SPRINT QUAL').width > S2*0.92){
+        fsTop--; cx.font = `bold ${fsTop}px Arial`;
+      }
+      cx.fillStyle=sColor; cx.fillText('SPRINT QUAL', S2/2, S2*0.20);
+    } else if (isSprint) {
+      while(fsTop > 5 && cx.measureText('SPRINT RACE').width > S2*0.92){
+        fsTop--; cx.font = `bold ${fsTop}px Arial`;
+      }
+      cx.fillStyle=sColor; cx.fillText('SPRINT RACE', S2/2, S2*0.20);
     } else {
       let fsRaceLabel = Math.max(8,(S2*0.22)|0);
       cx.font=`bold ${fsRaceLabel}px Arial`;
@@ -375,7 +385,7 @@ function rebuildF1FaceBufs() {
     let fsMid = Math.max(10,(S2*0.38)|0);
     cx.fillStyle='#ffffff';
 
-    if (isQuali || isPrac) {
+    if (isQuali || isPrac || isSQ) {
       const timeText = `${minR}:${secR}`;
       cx.font=`bold ${fsMid}px Arial`;
       while(fsMid > 6 && cx.measureText(timeText).width > S2*0.92){
@@ -500,6 +510,16 @@ function rebuildF1FaceBufs() {
       }
       cx.fillStyle=sColor; cx.fillText('QUALIFYING', S2/2, S2*0.20);
       cx.fillText(`Q${qSession}`, S2/2, S2*0.38);
+    } else if (isSQ) {
+      while(fsTop > 5 && cx.measureText('SPRINT QUAL').width > S2*0.92){
+        fsTop--; cx.font = `bold ${fsTop}px Arial`;
+      }
+      cx.fillStyle=sColor; cx.fillText('SPRINT QUAL', S2/2, S2*0.20);
+    } else if (isSprint) {
+      while(fsTop > 5 && cx.measureText('SPRINT RACE').width > S2*0.92){
+        fsTop--; cx.font = `bold ${fsTop}px Arial`;
+      }
+      cx.fillStyle=sColor; cx.fillText('SPRINT RACE', S2/2, S2*0.20);
     } else {
       let fsRaceLabel = Math.max(8,(S2*0.22)|0);
       cx.font=`bold ${fsRaceLabel}px Arial`;
@@ -512,7 +532,7 @@ function rebuildF1FaceBufs() {
     let fsMid = Math.max(10,(S2*0.38)|0);
     cx.fillStyle='#ffffff';
 
-    if (isQuali || isPrac) {
+    if (isQuali || isPrac || isSQ) {
       const timeText = `${minR}:${secR}`;
       cx.font=`bold ${fsMid}px Arial`;
       while(fsMid > 6 && cx.measureText(timeText).width > S2*0.92){
@@ -1180,7 +1200,7 @@ function updateSessionUI() {
     const sec = timer.remaining % 60;
     timerEl.textContent = `${min}:${String(sec).padStart(2, '0')}`;
   } else if (isSprint) {
-    typeEl.textContent = '⚡ SPRINT';
+    typeEl.textContent = '⚡ SPRINT RACE';
     lapsEl.textContent = `Lap ${F1State.session.lap.current || 1}/${F1State.session.lap.total || '??'}`;
   } else if (sLower.includes('race')) {
     typeEl.textContent = '🏎️ RACE';
