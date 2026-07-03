@@ -1,87 +1,15 @@
-const CACHE_NAME = 'multidisplay-v720';
-const PRECACHE_URLS = [
-  './',
-  'index.html',
-  'style.css?v=720',
-  'cube.js?v=720',
-  'effects.js?v=720',
-  'ui.js?v=720',
-  'three.min.js',
-  'version.js?v=720',
-  'manifest.json'
-];
+// Self-destructing SW — clears all caches, unregisters itself, reloads clients.
+self.addEventListener('install', () => self.skipWaiting());
 
-// Install: pre-cache all static assets
-self.addEventListener('install', event => {
-  self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE_URLS))
-  );
+self.addEventListener('activate', async () => {
+  await self.clients.claim();
+  const keys = await caches.keys();
+  await Promise.all(keys.map(k => caches.delete(k)));
+  await self.registration.unregister();
+  const clients = await self.clients.matchAll({ type: 'window' });
+  clients.forEach(c => c.postMessage({ type: 'SW_DESTROYED' }));
 });
 
-// Activate: delete old caches, claim all clients immediately
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-      )
-    ).then(() => self.clients.claim())
-  );
-});
-
-// Fetch: network-first for .js/.css/.html, cache-first for large assets only
 self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
-
-  // Never intercept cross-origin requests
-  if (url.origin !== self.location.origin) return;
-
-  // Network-first for API routes
-  if (url.pathname.includes('/api/')) {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request))
-    );
-    return;
-  }
-
-  // Network-first for app code so updates are always picked up
-  const path = url.pathname;
-  const isAppCode = path.endsWith('.js') || path.endsWith('.css') || path.endsWith('.html') || path.endsWith('/');
-  if (isAppCode) {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request))
-    );
-    return;
-  }
-
-  // Cache-first for everything else (images, fonts, etc.)
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(response => {
-        if (response && response.status === 200 && response.type !== 'opaque') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        }
-        return response;
-      });
-    })
-  );
+  event.respondWith(fetch(event.request));
 });
