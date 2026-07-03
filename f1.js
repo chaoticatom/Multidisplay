@@ -215,10 +215,9 @@ function buildIdleScroll() {
   var ns = F1State.nextSession;
   var meeting = ns || F1State.meeting;
   if (!meeting) return;
+  // Scroll: circuit name + country only (session name shown in countdown area)
   var parts = [];
-  parts.push(ns ? (ns.session_name || ns.session_type || '') : (meeting.meeting_name || ''));
-  parts.push(meeting.meeting_name || '');
-  parts.push(meeting.circuit_short_name || '');
+  parts.push(meeting.circuit_short_name || meeting.meeting_name || '');
   if (meeting.country_name) parts.push(meeting.country_name);
   parts = parts.filter(Boolean);
   var deduped = [parts[0]];
@@ -232,7 +231,7 @@ function buildIdleScroll() {
   // Build scrolling text canvas
   const oc = document.createElement('canvas');
   const ctx = oc.getContext('2d');
-  let fs = Math.max(6, (S * 0.28)|0);
+  let fs = Math.max(6, (S * 0.22)|0);
   ctx.textBaseline = 'middle';
   ctx.font = `bold ${fs}px Arial, sans-serif`;
   let tw = (ctx.measureText(text).width)|0;
@@ -822,14 +821,17 @@ function effectF1(dt){
         if (f1IdlePixels && f1IdleWidth > 0) {
           f1IdleScrollX = (f1IdleScrollX + dt*SIZE*0.35) % f1IdleWidth;
           var ox = f1IdleScrollX|0;
+          var scrollVShift = (SIZE * 0.42)|0;
           for(let sv=0;sv<SIZE;sv++){
+            const destV = sv + scrollVShift;
+            if(destV >= SIZE) continue;
             for(let sp=0;sp<4*SIZE;sp++){
               const srcX = (sp + ox) % f1IdleWidth;
               const pv   = f1IdlePixels[(sv*f1IdleWidth+srcX)*4]/255;
               if(pv<0.04) continue;
               const h=(sp/(4*SIZE)+t*0.03)%1;
               const [r,g,b]=hsl(h,1,pv);
-              setStripLED(sp, sv, r, g, b);
+              setStripLED(sp, destV, r, g, b);
             }
           }
         }
