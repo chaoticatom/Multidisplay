@@ -286,9 +286,12 @@ function rebuildF1FaceBufs() {
   f1DataDirty = false;
 
   const sessionType = F1State.session.type || '';
-  const isQuali = sessionType.toLowerCase().includes('qual');
-  const isPrac  = sessionType.toLowerCase().includes('prac');
-  const isRace  = !isQuali && !isPrac;
+  const sTypeLow = sessionType.toLowerCase();
+  const isSQ    = sTypeLow.includes('sprint') && sTypeLow.includes('qual');
+  const isQuali = !isSQ && sTypeLow.includes('qual');
+  const isPrac  = sTypeLow.includes('prac');
+  const isSprint= sTypeLow.includes('sprint') && !isSQ;
+  const isRace  = !isQuali && !isPrac && !isSQ;
   const timer   = F1State.session.timer;
   const lap     = F1State.session.lap.current || 1;
   const lapTotal = F1State.session.lap.total || '??';
@@ -337,7 +340,7 @@ function rebuildF1FaceBufs() {
 
   // ── FRONT: session type + enlarged lap info ──
   {
-    const sColor = isQuali?'#ffaa44':isPrac?'#88ff88':'#ff5555';
+    const sColor = isSQ?'#ff88ff':isQuali?'#ffaa44':isPrac?'#88ff88':isSprint?'#ff8800':'#ff5555';
     const S2 = Math.max(SIZE,16);
     const oc = document.createElement('canvas');
     oc.width = S2; oc.height = S2;
@@ -474,7 +477,7 @@ function rebuildF1FaceBufs() {
 
   // ── BACK: mirror of front ──
   {
-    const sColor = isQuali?'#ffaa44':isPrac?'#88ff88':'#ff5555';
+    const sColor = isSQ?'#ff88ff':isQuali?'#ffaa44':isPrac?'#88ff88':isSprint?'#ff8800':'#ff5555';
     const S2 = Math.max(SIZE,16);
     const oc = document.createElement('canvas');
     oc.width = S2; oc.height = S2;
@@ -1121,7 +1124,14 @@ function updateSessionUI() {
   const timer = F1State.session.timer;
 
   const sLower = sessionType.toLowerCase();
-  if (sLower.includes('qual')) {
+  const isSQ = sLower.includes('sprint') && sLower.includes('qual');
+  const isSprint = sLower.includes('sprint') && !sLower.includes('qual');
+  if (isSQ) {
+    typeEl.textContent = '🏁 SPRINT QUALIFYING';
+    const min = Math.floor(timer.remaining / 60);
+    const sec = timer.remaining % 60;
+    timerEl.textContent = `${min}:${String(sec).padStart(2, '0')}`;
+  } else if (sLower.includes('qual')) {
     typeEl.textContent = `🏁 QUALIFYING Q${F1State.session.qSession || 1}`;
     const min = Math.floor(timer.remaining / 60);
     const sec = timer.remaining % 60;
@@ -1131,6 +1141,9 @@ function updateSessionUI() {
     const min = Math.floor(timer.remaining / 60);
     const sec = timer.remaining % 60;
     timerEl.textContent = `${min}:${String(sec).padStart(2, '0')}`;
+  } else if (isSprint) {
+    typeEl.textContent = '⚡ SPRINT';
+    lapsEl.textContent = `Lap ${F1State.session.lap.current || 1}/${F1State.session.lap.total || '??'}`;
   } else if (sLower.includes('race')) {
     typeEl.textContent = '🏎️ RACE';
     lapsEl.textContent = `Lap ${F1State.session.lap.current || 1}/${F1State.session.lap.total || '??'}`;

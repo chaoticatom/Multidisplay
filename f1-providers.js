@@ -133,23 +133,45 @@ function _f1PredictNextSession() {
   var meeting = F1State.meeting;
   if (!meeting) return null;
   var curName = (meeting.session_name || meeting.session_type || F1State.session.type || '').toLowerCase();
-  var schedule = [
-    { name: 'Practice 1', type: 'Practice', gapToNext: 4 },
-    { name: 'Practice 2', type: 'Practice', gapToNext: 19 },
-    { name: 'Practice 3', type: 'Practice', gapToNext: 3 },
-    { name: 'Qualifying', type: 'Qualifying', gapToNext: 24 },
-    { name: 'Race',       type: 'Race',       gapToNext: 0 }
-  ];
-  var curIdx = -1;
-  for (var i = 0; i < schedule.length; i++) {
-    if (curName.includes(schedule[i].name.toLowerCase()) ||
-        (curName.includes('practice') && curName.includes('' + (i+1)) && schedule[i].type === 'Practice')) {
-      curIdx = i; break;
+
+  // Sprint weekend: FP1 → Sprint Qualifying → Sprint → FP2 → Qualifying → Race
+  // Standard weekend: FP1 → FP2 → FP3 → Qualifying → Race
+  var isSprint = curName.includes('sprint');
+  var meetingSessions = (meeting.sessions || []).map(function(s) { return s.type.toLowerCase(); });
+  var isSprintWeekend = isSprint ||
+    meetingSessions.some(function(t) { return t.includes('sprint'); });
+
+  var schedule, curIdx = -1;
+  if (isSprintWeekend) {
+    schedule = [
+      { name: 'Practice 1',         type: 'Practice',           gapToNext: 4 },
+      { name: 'Sprint Qualifying',   type: 'Sprint Qualifying',  gapToNext: 20 },
+      { name: 'Sprint',              type: 'Sprint',             gapToNext: 20 },
+      { name: 'Qualifying',          type: 'Qualifying',         gapToNext: 20 },
+      { name: 'Race',                type: 'Race',               gapToNext: 0 }
+    ];
+    if (curName.includes('sprint') && curName.includes('qual'))  curIdx = 1;
+    else if (curName.includes('sprint'))                         curIdx = 2;
+    else if (curName.includes('qual'))                           curIdx = 3;
+    else if (curName.includes('race'))                           curIdx = 4;
+    else if (curName.includes('practice') || curName.includes('fp1') || curName.includes('practice 1')) curIdx = 0;
+  } else {
+    schedule = [
+      { name: 'Practice 1', type: 'Practice', gapToNext: 4 },
+      { name: 'Practice 2', type: 'Practice', gapToNext: 19 },
+      { name: 'Practice 3', type: 'Practice', gapToNext: 3 },
+      { name: 'Qualifying', type: 'Qualifying', gapToNext: 24 },
+      { name: 'Race',       type: 'Race',       gapToNext: 0 }
+    ];
+    for (var i = 0; i < schedule.length; i++) {
+      if (curName.includes(schedule[i].name.toLowerCase()) ||
+          (curName.includes('practice') && curName.includes('' + (i+1)) && schedule[i].type === 'Practice')) {
+        curIdx = i; break;
+      }
     }
+    if (curIdx < 0 && curName.includes('qual')) curIdx = 3;
+    if (curIdx < 0 && curName.includes('race')) curIdx = 4;
   }
-  if (curIdx < 0 && curName.includes('sprint')) curIdx = 2;
-  if (curIdx < 0 && curName.includes('qual')) curIdx = 3;
-  if (curIdx < 0 && curName.includes('race')) curIdx = 4;
   if (curIdx < 0) return null;
   var nextIdx = curIdx + 1;
   if (nextIdx >= schedule.length) return null;
