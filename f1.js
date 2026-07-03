@@ -242,7 +242,7 @@ function buildIdleScroll() {
   ctx.fillStyle = '#000'; ctx.fillRect(0,0,oc.width,oc.height);
   ctx.fillStyle = '#fff'; ctx.font = `bold ${fs}px Arial, sans-serif`;
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, 0, S*0.42);
+  ctx.fillText(text, 0, S*0.72);
   f1IdlePixels = ctx.getImageData(0,0,oc.width,oc.height).data;
   f1IdleWidth  = oc.width;
   f1IdleScrollX = 0;
@@ -821,17 +821,14 @@ function effectF1(dt){
         if (f1IdlePixels && f1IdleWidth > 0) {
           f1IdleScrollX = (f1IdleScrollX + dt*SIZE*0.35) % f1IdleWidth;
           var ox = f1IdleScrollX|0;
-          var scrollVShift = (SIZE * 0.42)|0;
           for(let sv=0;sv<SIZE;sv++){
-            const destV = sv + scrollVShift;
-            if(destV >= SIZE) continue;
             for(let sp=0;sp<4*SIZE;sp++){
               const srcX = (sp + ox) % f1IdleWidth;
               const pv   = f1IdlePixels[(sv*f1IdleWidth+srcX)*4]/255;
               if(pv<0.04) continue;
               const h=(sp/(4*SIZE)+t*0.03)%1;
               const [r,g,b]=hsl(h,1,pv);
-              setStripLED(sp, destV, r, g, b);
+              setStripLED(sp, sv, r, g, b);
             }
           }
         }
