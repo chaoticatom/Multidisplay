@@ -231,7 +231,7 @@ function buildIdleScroll() {
   // Build scrolling text canvas
   const oc = document.createElement('canvas');
   const ctx = oc.getContext('2d');
-  let fs = Math.max(6, (S * 0.22)|0);
+  let fs = Math.max(6, (S * 0.24)|0);
   ctx.textBaseline = 'middle';
   ctx.font = `bold ${fs}px Arial, sans-serif`;
   let tw = (ctx.measureText(text).width)|0;
@@ -242,7 +242,7 @@ function buildIdleScroll() {
   ctx.fillStyle = '#000'; ctx.fillRect(0,0,oc.width,oc.height);
   ctx.fillStyle = '#fff'; ctx.font = `bold ${fs}px Arial, sans-serif`;
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, 0, S*0.72);
+  ctx.fillText(text, 0, S*0.52);
   f1IdlePixels = ctx.getImageData(0,0,oc.width,oc.height).data;
   f1IdleWidth  = oc.width;
   f1IdleScrollX = 0;
