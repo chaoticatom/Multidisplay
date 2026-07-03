@@ -589,29 +589,52 @@ function effectF1(dt){
           });
       }
       const longest = lines.reduce((a,b)=>a.length>b.length?a:b, '');
-      const cacheKey = lines.join('|') || '__empty__';
+      const podiumKey = top3champ ? top3champ.map(d=>d.wins+'|'+d.p2+'|'+d.p3).join(',') : '';
+      const cacheKey = lines.join('|') + podiumKey || '__empty__';
       if(f1FaceBufs._lastIdleTop3!==cacheKey){
         f1FaceBufs._lastIdleTop3 = cacheKey;
         const c = document.createElement('canvas');
         c.width = c.height = SIZE;
         const ctx = c.getContext('2d');
         ctx.textAlign='center'; ctx.textBaseline='middle';
-        let fs = Math.max(10, (SIZE*0.32)|0);
+        const lineH = SIZE / 3;
+        const nameH = lineH * 0.60;
+        const dotsH = lineH * 0.38;
+        let fs = Math.max(8, (nameH*0.88)|0);
         ctx.font = `bold ${fs}px Arial`;
-        while(fs > 6 && ctx.measureText(longest).width > SIZE*0.88){
+        while(fs > 5 && ctx.measureText(longest).width > SIZE*0.88){
           fs--; ctx.font = `bold ${fs}px Arial`;
         }
-        const lineH = SIZE / 3;
         const colors = ['#FFEE00', '#FFFFFF', '#FF8800'];
         const sw = Math.max(2, (SIZE/16)|0);
         for(let i=0;i<Math.min(3,lines.length);i++){
+          const rowY = i * lineH;
+          // Driver name/position text
           ctx.font = `bold ${fs}px Arial`;
-          ctx.strokeStyle = '#000';
-          ctx.lineWidth = sw;
-          ctx.lineJoin = 'round';
-          ctx.strokeText(lines[i], SIZE/2, (i+0.5)*lineH);
+          ctx.strokeStyle = '#000'; ctx.lineWidth = sw; ctx.lineJoin = 'round';
+          ctx.strokeText(lines[i], SIZE/2, rowY + nameH*0.5);
           ctx.fillStyle = colors[i];
-          ctx.fillText(lines[i], SIZE/2, (i+0.5)*lineH);
+          ctx.fillText(lines[i], SIZE/2, rowY + nameH*0.5);
+          // Podium finish dots: gold=P1, silver=P2, bronze=P3
+          if(top3champ && top3champ[i]){
+            const d = top3champ[i];
+            const dotR = Math.max(1, (SIZE*0.04)|0);
+            const dotSpacing = dotR * 2.8;
+            const dotCounts = [d.wins||0, d.p2||0, d.p3||0];
+            const dotColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
+            let dotX = SIZE * 0.06;
+            const dotY = rowY + nameH + dotsH * 0.5;
+            for(let p=0;p<3;p++){
+              for(let k=0;k<Math.min(dotCounts[p],8);k++){
+                ctx.beginPath();
+                ctx.arc(dotX + dotR, dotY, dotR, 0, Math.PI*2);
+                ctx.fillStyle = dotColors[p];
+                ctx.fill();
+                dotX += dotSpacing;
+              }
+              if(dotCounts[p]>0 && p<2) dotX += dotR;
+            }
+          }
         }
         f1FaceBufs.idleTop3 = {data:ctx.getImageData(0,0,SIZE,SIZE).data, S:SIZE};
       }

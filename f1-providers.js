@@ -68,8 +68,32 @@ async function _f1FetchChampionship() {
     var standings = list.map(function(s) {
       var d = s.Driver || {};
       var abbrev = (d.code || d.familyName || '').substring(0, 3).toUpperCase();
-      return { pos: parseInt(s.position), abbrev: abbrev, points: parseFloat(s.points), wins: parseInt(s.wins) };
+      return { pos: parseInt(s.position), abbrev: abbrev, points: parseFloat(s.points), wins: parseInt(s.wins), p2: 0, p3: 0 };
     });
+    // Fetch P2 and P3 counts in parallel
+    try {
+      var [r2, r3] = await Promise.all([
+        fetch('https://api.jolpi.ca/ergast/f1/current/results/2.json?limit=100'),
+        fetch('https://api.jolpi.ca/ergast/f1/current/results/3.json?limit=100')
+      ]);
+      var countFinishes = function(raceData, field) {
+        var races = raceData?.MRData?.RaceTable?.Races || [];
+        var counts = {};
+        races.forEach(function(race) {
+          var result = (race.Results || [])[0];
+          if (result) {
+            var code = (result.Driver?.code || result.Driver?.familyName || '').substring(0,3).toUpperCase();
+            counts[code] = (counts[code] || 0) + 1;
+          }
+        });
+        return counts;
+      };
+      if (r2.ok && r3.ok) {
+        var d2 = await r2.json(), d3 = await r3.json();
+        var p2counts = countFinishes(d2), p3counts = countFinishes(d3);
+        standings.forEach(function(s) { s.p2 = p2counts[s.abbrev] || 0; s.p3 = p3counts[s.abbrev] || 0; });
+      }
+    } catch(e2) {}
     _f1StandingsCache = standings;
     _f1StandingsTs = Date.now();
     f1Update({ championshipStandings: standings });
@@ -800,9 +824,9 @@ function simNoSession() {
   });
   if (!F1State.championshipStandings.length) {
     f1Update({ championshipStandings: [
-      { pos: 1, abbrev: 'VER', points: 255, wins: 7 },
-      { pos: 2, abbrev: 'NOR', points: 203, wins: 3 },
-      { pos: 3, abbrev: 'LEC', points: 180, wins: 2 }
+      { pos: 1, abbrev: 'VER', points: 255, wins: 7, p2: 3, p3: 2 },
+      { pos: 2, abbrev: 'NOR', points: 203, wins: 3, p2: 5, p3: 2 },
+      { pos: 3, abbrev: 'LEC', points: 180, wins: 2, p2: 2, p3: 4 }
     ]});
   }
   if (!F1State.meeting) {
