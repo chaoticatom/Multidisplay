@@ -720,6 +720,8 @@ function effectF1(dt){
           // Session name below the time (static, not scrolling)
           if (_cdSessName) {
             var snLabel = _cdSessName.toUpperCase();
+            if (snLabel === 'SPRINT') snLabel = 'SPRINT RACE';
+            if (snLabel === 'SPRINT QUALIFYING' || snLabel === 'SPRINT SHOOTOUT') snLabel = 'SPRINT QUAL';
             var sfs = Math.max(5, (SIZE * 0.13)|0);
             cctx.font = 'bold ' + sfs + 'px Arial';
             while (sfs > 5 && cctx.measureText(snLabel).width > SIZE * 0.92) {
