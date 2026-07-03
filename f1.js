@@ -236,7 +236,7 @@ function buildIdleScroll() {
   ctx.font = `bold ${fs}px Arial, sans-serif`;
   let tw = (ctx.measureText(text).width)|0;
   const textW = tw > 0 ? tw : 4*S;
-  const fullW = textW + S;
+  const fullW = textW + 4*S; // gap = full strip width so text never repeats mid-scroll
   oc.width = fullW;
   oc.height = S;
   ctx.fillStyle = '#000'; ctx.fillRect(0,0,oc.width,oc.height);
