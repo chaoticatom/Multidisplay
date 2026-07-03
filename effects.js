@@ -15036,8 +15036,8 @@ function epicGetSubSolar(){
   const sinL=Math.sin(lonRad),cosL=Math.cos(lonRad);
   const sinD=Math.sin(decl),cosD=Math.cos(decl);
   return{
-    rx:sinL, ry:0, rz:-cosL,               // camera right vector
-    ux:-sinD*cosL, uy:cosD, uz:-sinD*sinL,  // camera up vector
+    rx:-sinL, ry:0, rz:cosL,               // camera right vector (east)
+    ux:-sinD*cosL, uy:cosD, uz:-sinD*sinL,  // camera up vector (north)
     fx_:cosD*cosL, fy_:sinD, fz_:cosD*sinL  // camera forward = sub-solar direction
   };
 }
@@ -15053,7 +15053,7 @@ async function epicFetchEq(){
     const mm=String(dt.getUTCMonth()+1).padStart(2,'0');
     const dd=String(dt.getUTCDate()).padStart(2,'0');
     const dateStr=`${yyyy}-${mm}-${dd}`;
-    const W=256,H=128;
+    const W=512,H=256;
     const url=`https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=MODIS_Terra_CorrectedReflectance_TrueColor&FORMAT=image/jpeg&WIDTH=${W}&HEIGHT=${H}&CRS=CRS:84&BBOX=-180,-90,180,90&TIME=${dateStr}`;
     try{
       await new Promise((res,rej)=>{
@@ -15102,10 +15102,21 @@ function epicProjectGlobe(face,rowLimit){
       if(useEq){
         const lat=Math.asin(Math.max(-1,Math.min(1,qy)));
         const lon=Math.atan2(qz,qx);
-        const mu=Math.max(0,Math.min(epicEqWidth-1,((lon+Math.PI)/(2*Math.PI)*epicEqWidth)|0));
-        const mv=Math.max(0,Math.min(epicEqHeight-1,((Math.PI/2-lat)/Math.PI*epicEqHeight)|0));
-        const pi=(mv*epicEqWidth+mu)*4;
-        r=epicEqPixels[pi]/255; g=epicEqPixels[pi+1]/255; b=epicEqPixels[pi+2]/255;
+        const uf=(lon+Math.PI)/(2*Math.PI)*epicEqWidth;
+        const vf=(Math.PI/2-lat)/Math.PI*epicEqHeight;
+        // bilinear interpolation
+        const u0=Math.max(0,Math.min(epicEqWidth-1,uf|0));
+        const u1=Math.min(epicEqWidth-1,u0+1);
+        const v0=Math.max(0,Math.min(epicEqHeight-1,vf|0));
+        const v1=Math.min(epicEqHeight-1,v0+1);
+        const fu=uf-u0, fv=vf-v0;
+        const s=(a,b,t)=>a+(b-a)*t;
+        const px=(rv,ru)=>epicEqPixels[(rv*epicEqWidth+ru)*4];
+        const py=(rv,ru)=>epicEqPixels[(rv*epicEqWidth+ru)*4+1];
+        const pz=(rv,ru)=>epicEqPixels[(rv*epicEqWidth+ru)*4+2];
+        r=s(s(px(v0,u0),px(v0,u1),fu),s(px(v1,u0),px(v1,u1),fu),fv)/255;
+        g=s(s(py(v0,u0),py(v0,u1),fu),s(py(v1,u0),py(v1,u1),fu),fv)/255;
+        b=s(s(pz(v0,u0),pz(v0,u1),fu),s(pz(v1,u0),pz(v1,u1),fu),fv)/255;
       }else if(useFallback){
         const IS=epicImgSize;
         const su=Math.min(IS-1,Math.max(0,Math.floor((fx*0.5+0.5)*IS)));
