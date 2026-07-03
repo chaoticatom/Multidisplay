@@ -232,7 +232,7 @@ function buildIdleScroll() {
   // Build scrolling text canvas
   const oc = document.createElement('canvas');
   const ctx = oc.getContext('2d');
-  let fs = Math.max(8, (S * 0.45)|0);
+  let fs = Math.max(6, (S * 0.28)|0);
   ctx.textBaseline = 'middle';
   ctx.font = `bold ${fs}px Arial, sans-serif`;
   let tw = (ctx.measureText(text).width)|0;
@@ -655,7 +655,9 @@ function effectF1(dt){
           (cdD > 0 || cdH > 0 ? cdH + ':' : '') +
           ((cdD > 0 || cdH > 0) ? String(cdM).padStart(2,'0') : cdM) + ':' +
           String(cdS).padStart(2,'0');
-        var cdKey = cdText;
+        var _cdNs = F1State.nextSession;
+        var _cdSessName = _cdNs ? (_cdNs.session_name || _cdNs.session_type || '') : '';
+        var cdKey = cdText + '|' + _cdSessName;
         var cdUrgent = cdSec <= 60;
         if (!f1FaceBufs._cdKey || f1FaceBufs._cdKey !== cdKey) {
           f1FaceBufs._cdKey = cdKey;
@@ -673,6 +675,20 @@ function effectF1(dt){
           cctx.strokeText(cdText, SIZE/2, cy);
           cctx.fillStyle = cdUrgent ? '#ff4444' : '#88bbff';
           cctx.fillText(cdText, SIZE/2, cy);
+          // Session name below the time (static, not scrolling)
+          if (_cdSessName) {
+            var snLabel = _cdSessName.toUpperCase();
+            var sfs = Math.max(5, (SIZE * 0.13)|0);
+            cctx.font = 'bold ' + sfs + 'px Arial';
+            while (sfs > 5 && cctx.measureText(snLabel).width > SIZE * 0.92) {
+              sfs--; cctx.font = 'bold ' + sfs + 'px Arial';
+            }
+            var sy = SIZE * 0.30;
+            cctx.strokeStyle = '#000'; cctx.lineWidth = csw;
+            cctx.strokeText(snLabel, SIZE/2, sy);
+            cctx.fillStyle = '#ffcc44';
+            cctx.fillText(snLabel, SIZE/2, sy);
+          }
           f1FaceBufs._cdBuf = { data: cctx.getImageData(0,0,SIZE,SIZE).data, S: SIZE };
         }
         if (f1FaceBufs._cdBuf) {
