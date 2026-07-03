@@ -618,8 +618,8 @@ function effectF1(dt){
         const ctx = c.getContext('2d');
         ctx.textAlign='center'; ctx.textBaseline='middle';
         const lineH = SIZE / 3;
-        const nameH = lineH * 0.60;
-        const dotsH = lineH * 0.38;
+        const nameH = lineH * 0.58;
+        const dotsH = lineH * 0.40;
         let fs = Math.max(8, (nameH*0.88)|0);
         ctx.font = `bold ${fs}px Arial`;
         while(fs > 5 && ctx.measureText(longest).width > SIZE*0.88){
@@ -643,7 +643,7 @@ function effectF1(dt){
             const dotCounts = [d.wins||0, d.p2||0, d.p3||0];
             const dotColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
             let dotX = SIZE * 0.06;
-            const dotY = rowY + nameH + dotsH * 0.5;
+            const dotY = rowY + nameH * 0.90 + dotsH * 0.25;
             for(let p=0;p<3;p++){
               for(let k=0;k<Math.min(dotCounts[p],8);k++){
                 ctx.beginPath();
