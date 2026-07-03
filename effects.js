@@ -15021,6 +15021,106 @@ function effectSpaceWeather(dt){
 let epicData=null, epicFetching=false, epicLastFetch=0, epicError='', epicImgError='', epicRetryAfter=60;
 let epicImgReady=false, epicImgPixels=null, epicImgSize=0;
 let epicTickerPixels=null, epicTickerWidth=0, epicTickerScrollX=0, epicT=0;
+// Equirectangular globe map (NASA GIBS MODIS — real clouds, ~24hr delay)
+let epicEqPixels=null, epicEqWidth=256, epicEqHeight=128;
+let epicEqFetching=false, epicEqLastFetch=0, epicEqDate='';
+
+// Current sub-solar position + orthographic camera frame vectors
+function epicGetSubSolar(){
+  const now=new Date();
+  const utcH=now.getUTCHours()+now.getUTCMinutes()/60+now.getUTCSeconds()/3600;
+  const start=new Date(Date.UTC(now.getUTCFullYear(),0,0));
+  const doy=(now-start)/86400000;
+  const decl=-23.45*Math.PI/180*Math.cos(2*Math.PI*(doy+10)/365.25);
+  const lonRad=(12-utcH)*15*Math.PI/180; // sub-solar lon: 0° at UTC noon
+  const sinL=Math.sin(lonRad),cosL=Math.cos(lonRad);
+  const sinD=Math.sin(decl),cosD=Math.cos(decl);
+  return{
+    rx:sinL, ry:0, rz:-cosL,               // camera right vector
+    ux:-sinD*cosL, uy:cosD, uz:-sinD*sinL,  // camera up vector
+    fx_:cosD*cosL, fy_:sinD, fz_:cosD*sinL  // camera forward = sub-solar direction
+  };
+}
+
+// Fetch equirectangular Earth image from NASA GIBS (MODIS true-colour, real clouds)
+async function epicFetchEq(){
+  if(epicEqFetching) return;
+  epicEqFetching=true;
+  const now=new Date();
+  for(let d=1;d<=4;d++){
+    const dt=new Date(now.getTime()-d*86400000);
+    const yyyy=dt.getUTCFullYear();
+    const mm=String(dt.getUTCMonth()+1).padStart(2,'0');
+    const dd=String(dt.getUTCDate()).padStart(2,'0');
+    const dateStr=`${yyyy}-${mm}-${dd}`;
+    const W=256,H=128;
+    const url=`https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=MODIS_Terra_CorrectedReflectance_TrueColor&FORMAT=image/jpeg&WIDTH=${W}&HEIGHT=${H}&CRS=CRS:84&BBOX=-180,-90,180,90&TIME=${dateStr}`;
+    try{
+      await new Promise((res,rej)=>{
+        const img=new Image(); img.crossOrigin='anonymous';
+        img.onload=()=>{
+          const canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H;
+          const ctx=canvas.getContext('2d',{willReadFrequently:true});
+          ctx.drawImage(img,0,0,W,H);
+          try{
+            const id=ctx.getImageData(0,0,W,H);
+            epicEqPixels=id.data; epicEqWidth=W; epicEqHeight=H;
+            epicEqDate=dateStr; epicEqLastFetch=Date.now()/1000;
+            const s=document.getElementById('epic-status');
+            if(s) s.textContent=`Clouds: MODIS ${dateStr} — rotating to current daylight`;
+            res();
+          }catch(e){rej(e);}
+        };
+        img.onerror=rej;
+        img.src=url;
+      });
+      break;
+    }catch(e){ /* try previous day */ }
+  }
+  epicEqFetching=false;
+}
+
+// Orthographic globe projection: samples equirectangular map with sub-solar rotation + limb darkening
+function epicProjectGlobe(face,rowLimit){
+  const S=SIZE, cx0=S/2, cy0=rowLimit?rowLimit/2:S/2;
+  const rad=(rowLimit||S)*0.48;
+  const sol=epicGetSubSolar();
+  const useEq=!!epicEqPixels, useFallback=!!(epicImgReady&&epicImgPixels);
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      if(rowLimit&&v>=rowLimit) continue;
+      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+      const dx=u-cx0, dy=v-cy0;
+      if(dx*dx+dy*dy>rad*rad) continue;
+      const fx=dx/rad, fy=-dy/rad;
+      const fz=Math.sqrt(Math.max(0,1-fx*fx-fy*fy));
+      // Globe surface point in Earth frame (x=0°lon, y=north, z=90°E)
+      const qx=fx*sol.rx+fy*sol.ux+fz*sol.fx_;
+      const qy=fx*sol.ry+fy*sol.uy+fz*sol.fy_;
+      const qz=fx*sol.rz+fy*sol.uz+fz*sol.fz_;
+      let r,g,b;
+      if(useEq){
+        const lat=Math.asin(Math.max(-1,Math.min(1,qy)));
+        const lon=Math.atan2(qz,qx);
+        const mu=Math.max(0,Math.min(epicEqWidth-1,((lon+Math.PI)/(2*Math.PI)*epicEqWidth)|0));
+        const mv=Math.max(0,Math.min(epicEqHeight-1,((Math.PI/2-lat)/Math.PI*epicEqHeight)|0));
+        const pi=(mv*epicEqWidth+mu)*4;
+        r=epicEqPixels[pi]/255; g=epicEqPixels[pi+1]/255; b=epicEqPixels[pi+2]/255;
+      }else if(useFallback){
+        const IS=epicImgSize;
+        const su=Math.min(IS-1,Math.max(0,Math.floor((fx*0.5+0.5)*IS)));
+        const sv=Math.min(IS-1,Math.max(0,Math.floor((-fy*0.5+0.5)*IS)));
+        const pi=(sv*IS+su)*4;
+        r=epicImgPixels[pi]/255; g=epicImgPixels[pi+1]/255; b=epicImgPixels[pi+2]/255;
+      }else{
+        r=0.04; g=0.12; b=0.3;
+      }
+      // Limb darkening: subtle darkening near the terminator edge
+      const limb=0.55+0.45*fz;
+      colBuf[idx*3]=r*limb; colBuf[idx*3+1]=g*limb; colBuf[idx*3+2]=b*limb;
+    }
+  }
+}
 
 async function epicFetch(){
   if(epicFetching) return;
@@ -15158,13 +15258,17 @@ function effectEPIC(dt){
     epicError=''; epicLastFetch=0; epicFetch();
   }
 
+  // Fetch equirectangular globe image (MODIS real clouds, ~24hr) — refresh every 6h
+  if(!epicEqPixels&&!epicEqFetching) epicFetchEq();
+  if(epicEqLastFetch>0&&(Date.now()/1000-epicEqLastFetch)>6*3600&&!epicEqFetching) epicFetchEq();
+
   for(let i=0;i<N*3;i++) colBuf[i]=0;
 
   const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
 
-  if(epicImgReady){
-    epicApplyImageToFace(0);
-    if(!is2D) epicApplyImageToFace(4);
+  if(epicEqPixels||epicImgReady){
+    epicProjectGlobe(0);
+    if(!is2D) epicProjectGlobe(4);
   } else if(epicError){
     const waitLeft=Math.max(0,Math.ceil(epicRetryAfter-(Date.now()/1000-epicLastFetch)));
     const retryDots=waitLeft>0?'.'.repeat(1+(Math.floor(epicT)%3)):'';
