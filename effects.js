@@ -14920,25 +14920,22 @@ function effectArtic(dt){
 //  rows shift up as new lines arrive at the bottom. The delay before each
 //  word depends on the length/complexity of the word just shown — longer
 //  words and ones with more punctuation/symbols give the reader more time.
+//  Uses the same crisp bitmap PIXEL_FONT as the weather effect's ticker
+//  (pixelGlyph) instead of a canvas font, so it's not anti-aliased/blurry —
+//  unmapped characters (e.g. some punctuation) are simply skipped, same as
+//  weather's ticker already does.
 // ═══════════════════════════════════════════════════
-let wcSharedCtx=null;
-function wcMeasureCtx(fs){
-  if(!wcSharedCtx) wcSharedCtx=document.createElement('canvas').getContext('2d');
-  wcSharedCtx.font=`bold ${fs}px Arial,sans-serif`;
-  return wcSharedCtx;
-}
+const WC_CHAR_W=4, WC_LINE_H=6;
 function wcWordDelay(word){
   const base=0.16;
   const perChar=0.05;
   const symbols=(word.match(/[^a-zA-Z0-9]/g)||[]).length;
   return base + word.length*perChar + symbols*0.08;
 }
-function wcInit(taggedWords, fs){
-  const S=Math.max(SIZE,16);
-  const lineH=fs*1.3;
-  const maxLines=Math.max(1, Math.floor((S-4)/lineH));
+function wcInit(taggedWords){
+  const maxLines=Math.max(1, Math.floor(SIZE/WC_LINE_H));
   return {words:taggedWords, idx:0, cur:[], lines:[], timer:0, pendingDelay:0.3,
-          done:false, holdTimer:0, S, fs, lineH, maxLines};
+          done:false, holdTimer:0, maxLines};
 }
 // No auto-loop/auto-advance here — the caller (effectJoke/effectOnThisDay)
 // watches state.done + state.holdTimer to decide what comes next (repeat,
@@ -14946,14 +14943,13 @@ function wcInit(taggedWords, fs){
 function wcStep(state, dt){
   if(state.done){ state.holdTimer+=dt; return; }
   state.timer+=dt;
-  const ctx=wcMeasureCtx(state.fs);
-  const maxW=state.S-4;
+  const maxW=SIZE;
   while(state.timer>=state.pendingDelay && state.idx<state.words.length){
     state.timer-=state.pendingDelay;
     const tw=state.words[state.idx++];
-    const curText=state.cur.map(t=>t.w).join(' ');
-    const testText=curText?curText+' '+tw.w:tw.w;
-    if(ctx.measureText(testText).width>maxW && state.cur.length){
+    const curW=state.cur.reduce((a,t)=>a+t.w.length*WC_CHAR_W,0)+Math.max(0,state.cur.length-1)*WC_CHAR_W;
+    const addW=(state.cur.length?WC_CHAR_W:0)+tw.w.length*WC_CHAR_W;
+    if(curW+addW>maxW && state.cur.length){
       state.lines.push(state.cur);
       state.cur=[tw];
     } else {
@@ -14963,45 +14959,20 @@ function wcStep(state, dt){
     if(state.idx>=state.words.length) state.done=true;
   }
 }
-function wcRenderBuf(state){
-  const S=state.S;
-  const oc=document.createElement('canvas');
-  oc.width=S; oc.height=S;
-  const ctx=oc.getContext('2d');
-  ctx.fillStyle='#000'; ctx.fillRect(0,0,S,S);
-  ctx.font=`bold ${state.fs}px Arial,sans-serif`;
-  ctx.textAlign='left'; ctx.textBaseline='middle';
-  ctx.lineWidth=Math.max(1,Math.round(state.fs*0.1));
-  ctx.strokeStyle='#000';
-  const spaceW=ctx.measureText(' ').width;
+function wcDrawToFace(state, face){
   const allLines=state.cur.length ? [...state.lines, state.cur] : [...state.lines];
   const visible=allLines.slice(-state.maxLines);
+  const topMargin=1;
   visible.forEach((line,i)=>{
-    const y=2+state.lineH/2+i*state.lineH;
-    const wordWidths=line.map(tw=>ctx.measureText(tw.w).width);
-    const lineW=wordWidths.reduce((a,b)=>a+b,0)+spaceW*(line.length-1);
-    let x=(S-lineW)/2;
-    line.forEach((tw,j)=>{
-      ctx.strokeText(tw.w, x, y);
-      ctx.fillStyle=tw.color;
-      ctx.fillText(tw.w, x, y);
-      x+=wordWidths[j]+spaceW;
+    const sv=(SIZE-1)-topMargin-4-i*WC_LINE_H;
+    if(sv+4<0) return;
+    const lineW=line.reduce((a,t)=>a+t.w.length*WC_CHAR_W,0)+Math.max(0,line.length-1)*WC_CHAR_W;
+    let su=Math.round((SIZE-lineW)/2);
+    line.forEach(tw=>{
+      pixelText(face, tw.w, su, sv, tw.color[0], tw.color[1], tw.color[2]);
+      su+=tw.w.length*WC_CHAR_W+WC_CHAR_W;
     });
   });
-  return {data: ctx.getImageData(0,0,S,S).data, S};
-}
-function wcApplyToFace(face, buf){
-  const {data,S}=buf;
-  for(let v=0;v<S;v++){
-    for(let u=0;u<S;u++){
-      const sv=S-1-v;
-      const pi=(sv*S+u)*4;
-      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
-      colBuf[idx*3]=data[pi]/255;
-      colBuf[idx*3+1]=data[pi+1]/255;
-      colBuf[idx*3+2]=data[pi+2]/255;
-    }
-  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -15078,14 +15049,13 @@ function effectJoke(dt){
   }
 
   if(jokeCascadeForText!==jokeText){
-    const fs=Math.round(Math.max(SIZE,16)*0.09);
-    const tagged=jokeTagWords(jokeText).map(t=>({w:t.w, color:t.isAnswer?'#ffcc44':'#fff'}));
-    jokeCascade=wcInit(tagged, fs);
+    const tagged=jokeTagWords(jokeText).map(t=>({w:t.w, color:t.isAnswer?[1,0.8,0.27]:[1,1,1]}));
+    jokeCascade=wcInit(tagged);
     jokeCascadeForText=jokeText;
   }
   wcStep(jokeCascade, dt);
   const targetFace=is2D?0:1;
-  wcApplyToFace(targetFace, wcRenderBuf(jokeCascade));
+  wcDrawToFace(jokeCascade, targetFace);
 
   // Once the whole joke has been revealed and held on screen a moment,
   // fetch a new one.
@@ -15180,14 +15150,13 @@ function effectOnThisDay(dt){
   const curEvent=otdEvents[otdIdx];
   const wrapKey=otdIdx+'|'+otdEvents.length;
   if(otdCascadeForKey!==wrapKey){
-    const fs=Math.round(Math.max(SIZE,16)*0.09);
-    const tagged=[{w:`${curEvent.year}:`,color:'#ffcc44'}, ...curEvent.text.split(/\s+/).filter(Boolean).map(w=>({w,color:'#7ad0ff'}))];
-    otdCascade=wcInit(tagged, fs);
+    const tagged=[{w:`${curEvent.year}:`,color:[1,0.8,0.27]}, ...curEvent.text.split(/\s+/).filter(Boolean).map(w=>({w,color:[0.48,0.82,1]}))];
+    otdCascade=wcInit(tagged);
     otdCascadeForKey=wrapKey;
   }
   wcStep(otdCascade, dt);
   const targetFace=is2D?0:1;
-  wcApplyToFace(targetFace, wcRenderBuf(otdCascade));
+  wcDrawToFace(otdCascade, targetFace);
 
   // Once the current event has been fully revealed and held a moment,
   // advance to the next one.
