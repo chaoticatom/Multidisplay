@@ -1283,7 +1283,6 @@ const EFFECTS={
   neo:effectNEO,
   apod:effectAPOD,
   unsplash:effectUnsplash,
-  spaceweather:effectSpaceWeather,
   epic:effectEPIC,
   iss:effectISS,
   cam:effectCam,
@@ -1306,7 +1305,6 @@ const EFFECT_NAMES={
   neo:'Near-Earth Objects',
   apod:'Astronomy Pic of the Day',
   unsplash:'Unsplash Photos',
-  spaceweather:'Space Weather',
   epic:'Earth Live View',
   iss:'ISS Tracker',
   cam:'Camera',
@@ -1327,7 +1325,7 @@ const EFFECT_SECTION_MAP = {
   balls:'',sand:'',lightning:'',warp:'',life:'',fluid:'',
 };
 
-const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','spaceweather','epic','iss']);
+const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','epic','iss']);
 populateAlarmEffectRiseSelect(); // safe here — EFFECT_NAMES now defined
 
 async function fetchCitiesFromAPI(){

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=744">
+<link rel="stylesheet" href="style.css?v=745">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -445,15 +445,6 @@
           <input id="unsplash-api-key-input" type="text" placeholder="paste Access Key…" style="flex:1;padding:3px 6px;background:#1a1a2e;border:1px solid #444;color:#ccc;border-radius:3px;font-size:10px;font-family:monospace;">
           <button id="unsplash-api-key-save" style="padding:3px 8px;background:rgba(20,180,100,0.2);border:1px solid rgba(20,180,100,0.4);color:#3ddc84;border-radius:3px;cursor:pointer;font-size:10px;">Save</button>
         </div>
-      </div>
-    </div>
-    <button class="effect-btn has-panel" data-effect="spaceweather">◈ Space Weather <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-spaceweather">
-      <div id="swx-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Not fetched yet</div>
-      <button id="swx-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh Space Weather</button>
-      <div id="swx-info" style="display:none;font-size:11px;color:#ccc;line-height:1.5;">
-        <div id="swx-latest-line">Latest: —</div>
-        <div id="swx-risk-line">Risk level: —</div>
       </div>
     </div>
     <button class="effect-btn has-panel" data-effect="epic">◈ Earth Live View <span class="panel-arrow">▸</span></button>
@@ -1218,7 +1209,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=744"></script>
+<script src="version.js?v=745"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1282,7 +1273,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=744','effects.js?v=744','ui.js?v=744'];
+  const appScripts = ['cube.js?v=745','effects.js?v=745','ui.js?v=745'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
