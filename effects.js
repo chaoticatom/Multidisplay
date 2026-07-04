@@ -15172,12 +15172,17 @@ function issGetMapBuf(centerLon){
 }
 
 function issApplyMapToFace(face, rowLimit){
+  // Face 1 (back) renders mirrored on the physical cube unless we flip the
+  // horizontal placement here — flip the OUTPUT column only, not the source
+  // sampling, so the underlying west-to-east data stays correct.
+  const mirror=(face===1);
+  const flipU=u=>mirror?(SIZE-1-u):u;
   const centerLon=issHasFix?issLon:0;
   const {data,S}=issGetMapBuf(centerLon);
   const rows=rowLimit||SIZE;
   for(let v=0;v<rows;v++){
     for(let u=0;u<SIZE;u++){
-      const idx=faceMap[face][v*SIZE+u]; if(idx<0) continue;
+      const idx=faceMap[face][v*SIZE+flipU(u)]; if(idx<0) continue;
       const su=Math.min(S-1,Math.floor(u/SIZE*S));
       const sv=Math.min(S-1,Math.floor(v/rows*S));
       const pi=(sv*S+su)*4;
@@ -15193,7 +15198,7 @@ function issApplyMapToFace(face, rowLimit){
     const v=Math.round(issLatToV(p.lat,SIZE)*(rows/SIZE));
     if(v<0||v>=rows) return;
     const age=pi/Math.max(1,issTrail.length-1);
-    const idx=faceMap[face][v*SIZE+u]; if(idx<0) return;
+    const idx=faceMap[face][v*SIZE+flipU(u)]; if(idx<0) return;
     colBuf[idx*3]=Math.max(colBuf[idx*3],0.5*age);
     colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],0.7*age);
     colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],1*age);
@@ -15205,7 +15210,7 @@ function issApplyMapToFace(face, rowLimit){
     if(u>=0) for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
       const uu=((u+du)%SIZE+SIZE)%SIZE, vv=v+dv;
       if(vv<0||vv>=rows) continue;
-      const idx=faceMap[face][vv*SIZE+uu]; if(idx<0) continue;
+      const idx=faceMap[face][vv*SIZE+flipU(uu)]; if(idx<0) continue;
       colBuf[idx*3]=1*blink; colBuf[idx*3+1]=1*blink; colBuf[idx*3+2]=0.95*blink;
     }
   }
