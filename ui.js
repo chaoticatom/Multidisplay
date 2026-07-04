@@ -3724,3 +3724,34 @@ requestAnimationFrame(ts=>{lastTime=ts; requestAnimationFrame(animate);});
   const el=document.getElementById('app-version');
   if(el && typeof APP_VERSION !== 'undefined') el.textContent=APP_VERSION;
 })();
+
+// Tap version number in sidebar footer to force-clear cache and reload
+(function wireForceUpdate(){
+  const el=document.getElementById('app-version');
+  if(!el) return;
+  el.style.cursor='pointer';
+  el.title='Tap to force update';
+  let busy=false;
+  function forceUpdate(e){
+    if(e){ e.preventDefault(); e.stopPropagation(); }
+    if(busy) return;
+    busy=true;
+    const orig=el.textContent;
+    el.textContent='Clearing…';
+    Promise.resolve().then(async()=>{
+      try{
+        if(window.caches){
+          const ks=await caches.keys();
+          await Promise.all(ks.map(k=>caches.delete(k)));
+        }
+        if(navigator.serviceWorker){
+          const regs=await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r=>r.unregister()));
+        }
+      }catch(err){ /* ignore, still reload */ }
+      location.href=location.pathname+'?nocache='+Date.now();
+    });
+  }
+  el.addEventListener('touchend', forceUpdate, {passive:false});
+  el.addEventListener('click', forceUpdate);
+})();
