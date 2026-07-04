@@ -14795,19 +14795,39 @@ function effectUnsplash(dt){
     const p=unsplashPhotos[unsplashIdx];
     if(statusEl&&p) statusEl.textContent=(p.description||p.alt_description||'Photo '+(unsplashIdx+1));
   }
-  // Preload next
-  unsplashLoad(unsplashIdx);
-  unsplashLoad((unsplashIdx+1)%unsplashPhotos.length);
 
-  const shown=unsplashApplyToFace(0,unsplashIdx);
-  if(shown){
-    for(let f=1;f<6;f++) unsplashApplyToFace(f,unsplashIdx);
-  } else if(unsplashPixels[unsplashIdx]==='error'){
-    const p=unsplashPhotos[unsplashIdx]||{};
-    for(let f=0;f<6;f++) renderTextToFace(f,['NO IMAGE','photo '+(unsplashIdx+1)],[0.6,0.4,0.1],[0.06,0.03,0]);
-  } else {
-    const dots='.'.repeat(1+(Math.floor(unsplashT)%3));
-    for(let f=0;f<6;f++) renderTextToFace(f,['PHOTO',dots],[0.1,0.7,0.4],[0,0.06,0.03]);
+  const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+  if(is2D){
+    // Preload next
+    unsplashLoad(unsplashIdx);
+    unsplashLoad((unsplashIdx+1)%unsplashPhotos.length);
+    const shown=unsplashApplyToFace(0,unsplashIdx);
+    if(!shown){
+      if(unsplashPixels[unsplashIdx]==='error'){
+        renderTextToFace(0,['NO IMAGE','photo '+(unsplashIdx+1)],[0.6,0.4,0.1],[0.06,0.03,0]);
+      } else {
+        const dots='.'.repeat(1+(Math.floor(unsplashT)%3));
+        renderTextToFace(0,['PHOTO',dots],[0.1,0.7,0.4],[0,0.06,0.03]);
+      }
+    }
+    return;
+  }
+
+  // Full cube: a different photo on each of the 6 faces, rotating through
+  // the fetched set together as unsplashIdx advances.
+  const n=unsplashPhotos.length;
+  for(let f=0;f<6;f++) unsplashLoad((unsplashIdx+f)%n);
+  for(let f=0;f<6;f++){
+    const idx=(unsplashIdx+f)%n;
+    const shown=unsplashApplyToFace(f,idx);
+    if(!shown){
+      if(unsplashPixels[idx]==='error'){
+        renderTextToFace(f,['NO IMAGE','photo '+(idx+1)],[0.6,0.4,0.1],[0.06,0.03,0]);
+      } else {
+        const dots='.'.repeat(1+(Math.floor(unsplashT)%3));
+        renderTextToFace(f,['PHOTO',dots],[0.1,0.7,0.4],[0,0.06,0.03]);
+      }
+    }
   }
 }
 
