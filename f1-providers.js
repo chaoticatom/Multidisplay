@@ -564,11 +564,17 @@ F1Providers.openf1 = {
       return;
     }
     const sk = this._sessionKey;
+    f1Update({ connection: 'transferring' });
+    // Each endpoint is independently fault-tolerant: a rate-limit or network
+    // blip on one (e.g. positions) must not wipe out the others (weather,
+    // race control, etc.) for this cycle — that's what made live-race
+    // polling look like it "fell over" whenever a single request failed.
+    let anyOk = false, anyFail = false;
+
     try {
-      f1Update({ connection: 'transferring' });
-      // Positions
       const posRes = await fetch(`https://api.openf1.org/v1/position?session_key=${sk}&order=date&order_direction=desc&limit=30`);
       if (posRes.ok) {
+        anyOk = true;
         const positions = await posRes.json();
         const latest = {};
         for (const p of positions) {
@@ -590,11 +596,13 @@ F1Providers.openf1 = {
           })
         });
         if (typeof updateLeaderboardUI === 'function') updateLeaderboardUI();
-      }
+      } else { anyFail = true; }
+    } catch (e) { anyFail = true; }
 
-      // Intervals
+    try {
       const intRes = await fetch(`https://api.openf1.org/v1/intervals?session_key=${sk}&order=date&order_direction=desc&limit=30`);
       if (intRes.ok) {
+        anyOk = true;
         const intervals = await intRes.json();
         const latestInt = {};
         for (const iv of intervals) {
@@ -607,35 +615,37 @@ F1Providers.openf1 = {
         }
         if (drivers.length && drivers[0]) drivers[0].gap = 'LEAD';
         f1Update({ drivers });
-      }
+      } else { anyFail = true; }
+    } catch (e) { anyFail = true; }
 
-      // Laps
-      try {
-        const lapRes = await fetch(`https://api.openf1.org/v1/laps?session_key=${sk}&order=date&order_direction=desc&limit=5`);
-        if (lapRes.ok) {
-          const laps = await lapRes.json();
-          if (laps.length) {
-            const maxLap = laps.reduce((m, l) => Math.max(m, l.lap_number || 0), 0);
-            f1Update({ session: { lap: { current: maxLap, total: F1State.session.lap.total || maxLap } } });
-          }
+    try {
+      const lapRes = await fetch(`https://api.openf1.org/v1/laps?session_key=${sk}&order=date&order_direction=desc&limit=5`);
+      if (lapRes.ok) {
+        anyOk = true;
+        const laps = await lapRes.json();
+        if (laps.length) {
+          const maxLap = laps.reduce((m, l) => Math.max(m, l.lap_number || 0), 0);
+          f1Update({ session: { lap: { current: maxLap, total: F1State.session.lap.total || maxLap } } });
         }
-      } catch(e) { /* */ }
+      } else { anyFail = true; }
+    } catch (e) { anyFail = true; }
 
-      // Session timer — compute from session start time
-      if (this._sessionStart) {
-        const elapsed = Math.floor((Date.now() - this._sessionStart) / 1000);
-        const dur = F1State.session.timer.duration || 7200;
-        const remaining = Math.max(0, dur - elapsed);
-        f1Update({ session: { timer: { duration: dur, elapsed, remaining } } });
-        if (remaining <= 0 && !this._finishedAt && F1State.session.active) {
-          this._finishedAt = Date.now();
-          f1Update({ session: { finished: true } });
-        }
+    // Session timer — compute from session start time (no network needed)
+    if (this._sessionStart) {
+      const elapsed = Math.floor((Date.now() - this._sessionStart) / 1000);
+      const dur = F1State.session.timer.duration || 7200;
+      const remaining = Math.max(0, dur - elapsed);
+      f1Update({ session: { timer: { duration: dur, elapsed, remaining } } });
+      if (remaining <= 0 && !this._finishedAt && F1State.session.active) {
+        this._finishedAt = Date.now();
+        f1Update({ session: { finished: true } });
       }
+    }
 
-      // Weather
+    try {
       const wRes = await fetch(`https://api.openf1.org/v1/weather?session_key=${sk}&order=date&order_direction=desc&limit=1`);
       if (wRes.ok) {
+        anyOk = true;
         const weather = await wRes.json();
         if (weather.length) {
           const w = weather[0];
@@ -652,11 +662,13 @@ F1Providers.openf1 = {
             }
           });
         }
-      }
+      } else { anyFail = true; }
+    } catch (e) { anyFail = true; }
 
-      // Race control
+    try {
       const rcRes = await fetch(`https://api.openf1.org/v1/race_control?session_key=${sk}&order=date&order_direction=desc&limit=15`);
       if (rcRes.ok) {
+        anyOk = true;
         const rc = await rcRes.json();
         if (rc.length) {
           const msgs = rc.slice(0, 10).map(m => ({
@@ -686,14 +698,24 @@ F1Providers.openf1 = {
             }
           }
         }
-      }
+      } else { anyFail = true; }
+    } catch (e) { anyFail = true; }
 
+    if (anyOk) {
       f1Update({ connection: 'connected' });
       if (typeof f1SetStatus === 'function') f1SetStatus('ok');
-    } catch (e) {
+      this._consecutiveFails = 0;
+    } else if (anyFail) {
       f1Update({ connection: 'error' });
+      this._consecutiveFails = (this._consecutiveFails || 0) + 1;
     }
-    if (_f1IsActive()) this._timer = setTimeout(() => this._pollLive(), 8000);
+
+    // Back off on repeated total failures (e.g. rate-limiting) instead of
+    // hammering the API every 8s — cap at 30s between retries.
+    const backoff = this._consecutiveFails > 0
+      ? Math.min(30000, 8000 * Math.pow(1.5, Math.min(this._consecutiveFails, 6)))
+      : 8000;
+    if (_f1IsActive()) this._timer = setTimeout(() => this._pollLive(), backoff);
   }
 };
 
