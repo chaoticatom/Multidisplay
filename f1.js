@@ -225,7 +225,7 @@ function buildIdleScroll() {
     if (parts[pi].toUpperCase() !== parts[pi-1].toUpperCase()) deduped.push(parts[pi]);
   }
   const name = deduped.join('  •  ').toUpperCase();
-  const text  = '   ' + name + '   ';
+  const text  = '   ' + 'TEST' + '   '; // TEMP DEBUG: fixed word to diagnose scroll flow
   const S     = Math.max(SIZE, 16);
 
   // Build scrolling text canvas
