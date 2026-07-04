@@ -1,10 +1,10 @@
-// One-shot SW: clears all caches and unregisters itself silently.
-// After this runs once, no SW exists and updates flow via ?v= URLs normally.
+// Minimal SW: no caching, just ensures update detection works reliably.
+// Network-only so every fetch goes straight to GitHub Pages.
+const VERSION = 'v726';
+
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', async () => {
-  await self.clients.claim();
-  const keys = await caches.keys();
-  await Promise.all(keys.map(k => caches.delete(k)));
-  await self.registration.unregister();
+self.addEventListener('activate', () => self.clients.claim());
+self.addEventListener('fetch', event => {
+  // Pass everything straight through — no caching at all
+  event.respondWith(fetch(event.request));
 });
-self.addEventListener('fetch', event => event.respondWith(fetch(event.request)));

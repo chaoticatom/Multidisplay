@@ -1,4 +1,4 @@
-// One-shot SW: clears all caches and unregisters itself silently.
+// Legacy filename — self-destructs so old stuck registrations get cleared.
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', async () => {
   await self.clients.claim();

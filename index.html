@@ -1278,10 +1278,19 @@
 </script>
 <script>
 if ('serviceWorker' in navigator) {
-  // Register both filenames so whichever is cached self-destructs and clears caches
-  ['sw.js', 'service-worker.js'].forEach(name => {
-    navigator.serviceWorker.register(name, { updateViaCache: 'none' })
-      .then(reg => reg.update()).catch(() => {});
+  // Also unregister old service-worker.js if still lingering
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    regs.forEach(r => { if (r.active?.scriptURL?.includes('service-worker.js')) r.unregister(); });
+  });
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+    reg.update();
+    setInterval(() => reg.update(), 20000);
+    reg.addEventListener('updatefound', () => {
+      const nw = reg.installing;
+      if (nw) nw.addEventListener('statechange', () => {
+        if (nw.state === 'activated') location.reload();
+      });
+    });
   });
 }
 </script>
