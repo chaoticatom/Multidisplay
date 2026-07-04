@@ -14978,6 +14978,59 @@ function jokeApplyTickerToFace(face){
   }
 }
 
+// Try to fit the whole joke, word-wrapped, statically on one face — shrinking
+// the font until it fits (down to a minimum readable size). Returns null if
+// it still doesn't fit even at the minimum, so the caller can fall back to
+// the scrolling ticker instead.
+let jokeWrapBuf=null, jokeWrapForText='';
+function jokeBuildWrapped(){
+  const S=Math.max(SIZE,16);
+  const oc=document.createElement('canvas');
+  oc.width=S; oc.height=S;
+  const ctx=oc.getContext('2d');
+  const maxW=S-4;
+  const maxFs=Math.round(S*0.14), minFs=Math.max(4,Math.round(S*0.06));
+  let lines=null, fs=maxFs;
+  for(; fs>=minFs; fs--){
+    ctx.font=`bold ${fs}px Arial,sans-serif`;
+    const words=jokeText.split(/\s+/).filter(Boolean);
+    const testLines=[];
+    let cur='';
+    for(const w of words){
+      const test=cur?cur+' '+w:w;
+      if(ctx.measureText(test).width>maxW && cur){ testLines.push(cur); cur=w; }
+      else cur=test;
+    }
+    if(cur) testLines.push(cur);
+    const lineH=fs*1.25;
+    if(testLines.length*lineH<=S-4){ lines=testLines; break; }
+  }
+  if(!lines) return null;
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,S,S);
+  ctx.font=`bold ${fs}px Arial,sans-serif`;
+  ctx.fillStyle='#ffcc44';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const lineH=fs*1.25;
+  const totalH=lines.length*lineH;
+  const startY=(S-totalH)/2+lineH/2;
+  lines.forEach((line,i)=>ctx.fillText(line, S/2, startY+i*lineH));
+  return {data: ctx.getImageData(0,0,S,S).data, S};
+}
+
+function jokeApplyWrappedToFace(face, buf){
+  const {data,S}=buf;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const sv=S-1-v;
+      const pi=(sv*S+u)*4;
+      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+      colBuf[idx*3]=data[pi]/255;
+      colBuf[idx*3+1]=data[pi+1]/255;
+      colBuf[idx*3+2]=data[pi+2]/255;
+    }
+  }
+}
+
 function effectJoke(dt){
   jokeT+=dt;
   if(!jokeText && !jokeFetching) jokeFetch();
@@ -15013,10 +15066,21 @@ function effectJoke(dt){
   jokeTimer+=dt;
   if(jokeTimer>=jokeSecs){ jokeTimer=0; jokeFetch(); }
 
-  if(!jokeTickerPixels) jokeBuildTicker();
-  jokeTickerScrollX += dt*20*(speedMult||1);
-  if(is2D){ jokeApplyTickerToFace(0); }
-  else { jokeApplyTickerToFace(1); }
+  if(jokeWrapForText!==jokeText){
+    jokeWrapBuf=jokeBuildWrapped();
+    jokeWrapForText=jokeText;
+  }
+
+  const targetFace=is2D?0:1;
+  if(jokeWrapBuf){
+    // Whole joke fits word-wrapped on the face — show it statically, no scroll
+    jokeApplyWrappedToFace(targetFace, jokeWrapBuf);
+  } else {
+    // Too long even at the smallest readable font — fall back to scrolling
+    if(!jokeTickerPixels) jokeBuildTicker();
+    jokeTickerScrollX += dt*20*(speedMult||1);
+    jokeApplyTickerToFace(targetFace);
+  }
 }
 
 // ═══════════════════════════════════════════════════
