@@ -14913,8 +14913,18 @@ function effectUnsplash(dt){
 // contexts with no such restriction.
 let articWorks=[], articIdx=0, articFetching=false, articError='';
 let articPixels=[], articSizes=[], articT=0, articTimer=0, articSecs=10;
-let articQuery='';
+let articQuery='', articLetterbox=true;
 const MET_API='https://collectionapi.metmuseum.org/public/collection/v1';
+// Same per-face staggered-timing + crossfade-morph approach as Unsplash.
+let articFaceState=null;
+const ARTIC_FADE_DUR=1.0;
+function articInitFaceState(){
+  const n=articWorks.length;
+  const stagger=articSecs/6;
+  articFaceState=Array.from({length:6},(_,f)=>({
+    curIdx:n?f%n:0, nextIdx:null, fadeT:0, timer:f*stagger
+  }));
+}
 
 async function articFetch(){
   if(articFetching) return;
@@ -14945,6 +14955,7 @@ async function articFetch(){
     articPixels=new Array(works.length).fill(null);
     articSizes=new Array(works.length).fill(0);
     articTimer=0;
+    articFaceState=null;
     if(statusEl) statusEl.textContent=works.length+' artworks — '+q;
     const infoEl=document.getElementById('artic-info');
     if(infoEl){ infoEl.style.display='block'; articUpdateInfo(); }
@@ -14968,7 +14979,7 @@ function articLoad(idx){
       if(statusEl && idx===articIdx) statusEl.textContent='✕ Image load failed: '+(err&&err.message||'unknown error');
       console.error('[artic] image load failed for', articWorks[idx].title, imgUrl, err);
     },
-    {letterbox:true});
+    {letterbox:articLetterbox});
 }
 
 function articApplyToFace(face, idx){
@@ -14983,6 +14994,28 @@ function articApplyToFace(face, idx){
     colBuf[li*3]=pixels[pi]/255;
     colBuf[li*3+1]=pixels[pi+1]/255;
     colBuf[li*3+2]=pixels[pi+2]/255;
+  }
+  return true;
+}
+
+// Crossfades between two loaded artworks on one face — same approach as
+// Unsplash's unsplashApplyBlendToFace.
+function articApplyBlendToFace(face, idxA, idxB, alpha){
+  const pixelsA=articPixels[idxA], pixelsB=articPixels[idxB];
+  const okA=pixelsA&&pixelsA!=='error', okB=pixelsB&&pixelsB!=='error';
+  if(!okA && !okB) return false;
+  if(!okA) return articApplyToFace(face, idxB);
+  if(!okB) return articApplyToFace(face, idxA);
+  const S=SIZE, ISA=articSizes[idxA], ISB=articSizes[idxB];
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const li=faceMap[face][v*S+u]; if(li<0) continue;
+    const suA=Math.min(ISA-1,Math.floor(u/S*ISA)), svA=Math.min(ISA-1,Math.floor((S-1-v)/S*ISA));
+    const piA=(svA*ISA+suA)*4;
+    const suB=Math.min(ISB-1,Math.floor(u/S*ISB)), svB=Math.min(ISB-1,Math.floor((S-1-v)/S*ISB));
+    const piB=(svB*ISB+suB)*4;
+    colBuf[li*3]  =(pixelsA[piA]  /255)+((pixelsB[piB]  /255)-(pixelsA[piA]  /255))*alpha;
+    colBuf[li*3+1]=(pixelsA[piA+1]/255)+((pixelsB[piB+1]/255)-(pixelsA[piA+1]/255))*alpha;
+    colBuf[li*3+2]=(pixelsA[piA+2]/255)+((pixelsB[piB+2]/255)-(pixelsA[piA+2]/255))*alpha;
   }
   return true;
 }
@@ -15008,6 +15041,12 @@ document.getElementById('artic-speed')?.addEventListener('input',function(){
   articSecs=+this.value;
   const lbl=document.getElementById('artic-speed-label');
   if(lbl) lbl.textContent=articSecs+'s';
+});
+document.getElementById('artic-letterbox-chk')?.addEventListener('change',function(){
+  articLetterbox=this.checked;
+  articPixels=new Array(articWorks.length).fill(null);
+  articSizes=new Array(articWorks.length).fill(0);
+  articLoad(articIdx);
 });
 (()=>{
   document.getElementById('artic-query')?.addEventListener('change',function(){
@@ -15037,17 +15076,66 @@ function effectArtic(dt){
     articIdx=(articIdx+1)%articWorks.length;
     articUpdateInfo();
   }
-  articLoad(articIdx);
-  articLoad((articIdx+1)%articWorks.length);
 
-  const shown=articApplyToFace(0,articIdx);
-  if(shown){
-    for(let f=1;f<6;f++) articApplyToFace(f,articIdx);
-  } else if(articPixels[articIdx]==='error'){
-    for(let f=0;f<6;f++) renderTextToFace(f,['NO IMAGE','artwork '+(articIdx+1)],[0.6,0.4,0.1],[0.06,0.03,0]);
-  } else {
-    const dots='.'.repeat(1+(Math.floor(articT)%3));
-    for(let f=0;f<6;f++) renderTextToFace(f,['LOADING',dots],[0.7,0.55,0.15],[0.06,0.04,0]);
+  const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+  if(is2D){
+    articLoad(articIdx);
+    articLoad((articIdx+1)%articWorks.length);
+    const shown=articApplyToFace(0,articIdx);
+    if(!shown){
+      if(articPixels[articIdx]==='error'){
+        renderTextToFace(0,['NO IMAGE','artwork '+(articIdx+1)],[0.6,0.4,0.1],[0.06,0.03,0]);
+      } else {
+        const dots='.'.repeat(1+(Math.floor(articT)%3));
+        renderTextToFace(0,['LOADING',dots],[0.7,0.55,0.15],[0.06,0.04,0]);
+      }
+    }
+    return;
+  }
+
+  // Full cube: each face shows a different artwork and cycles on its own
+  // staggered schedule, crossfading into its next artwork — same approach
+  // as the Unsplash effect.
+  const n=articWorks.length;
+  if(!articFaceState || articFaceState.length!==6) articInitFaceState();
+  for(let f=0;f<6;f++){
+    const st=articFaceState[f];
+    articLoad(st.curIdx);
+    if(st.nextIdx!=null) articLoad(st.nextIdx);
+
+    if(st.fadeT>0){
+      const nextPixels=articPixels[st.nextIdx];
+      if(nextPixels==='error'){
+        st.nextIdx=(st.nextIdx+1)%n;
+        articLoad(st.nextIdx);
+      } else if(nextPixels){
+        st.fadeT+=dt;
+        if(st.fadeT>=ARTIC_FADE_DUR){ st.curIdx=st.nextIdx; st.nextIdx=null; st.fadeT=0; }
+      }
+    } else {
+      st.timer+=dt;
+      if(st.timer>=articSecs){
+        st.timer-=articSecs;
+        st.nextIdx = n>6 ? (st.curIdx+6)%n : (st.curIdx+1)%n;
+        articLoad(st.nextIdx);
+        st.fadeT=0.0001;
+      }
+    }
+
+    let shown;
+    if(st.fadeT>0 && st.nextIdx!=null){
+      shown=articApplyBlendToFace(f, st.curIdx, st.nextIdx, Math.min(1,st.fadeT/ARTIC_FADE_DUR));
+    } else {
+      shown=articApplyToFace(f, st.curIdx);
+    }
+    if(!shown){
+      if(articPixels[st.curIdx]==='error'){
+        renderTextToFace(f,['NO IMAGE','artwork '+(st.curIdx+1)],[0.6,0.4,0.1],[0.06,0.03,0]);
+      } else {
+        const dots='.'.repeat(1+(Math.floor(articT)%3));
+        renderTextToFace(f,['LOADING',dots],[0.7,0.55,0.15],[0.06,0.04,0]);
+      }
+    }
   }
 }
 
