@@ -14368,7 +14368,7 @@ function effectNEO(dt){
 // ═══════════════════════════════════════════════════
 let apodData=null, apodFetching=false, apodLastFetch=0, apodError='', apodImgError='', apodRetryAfter=60;
 let apodLetterbox=localStorage.getItem('apodLetterbox')!=='false'; // default: full image
-let apodSlideshow=false, apodSlideshowSecs=8, apodSlideshowTimer=0;
+let apodSlideshowSecs=8, apodSlideshowTimer=0, apodBrowsingHistory=false;
 let apodHistory=[], apodHistoryIdx=0;
 let apodHistoryPixels=[], apodHistorySize=[];
 let apodHistoryFetching=false;
@@ -14513,11 +14513,6 @@ document.getElementById('apod-fetch-btn')?.addEventListener('click',apodFetch);
     apodFetch();
   });
 })();
-document.getElementById('apod-slideshow-chk')?.addEventListener('change',e=>{
-  apodSlideshow=e.target.checked;
-  if(apodSlideshow && !apodHistory.length && !apodHistoryFetching) apodFetchHistory();
-  apodSlideshowTimer=0;
-});
 function apodSetLetterbox(v){
   apodLetterbox=v;
   localStorage.setItem('apodLetterbox',apodLetterbox);
@@ -14525,8 +14520,12 @@ function apodSetLetterbox(v){
     loadImageForPixels(apodData.url, sz=>{apodImgSize=sz;}, pixels=>{apodImgPixels=pixels;apodImgReady=true;}, ()=>{apodImgReady=false;apodImgError='Could not load image';}, {letterbox:apodLetterbox}); }
 }
 function apodSetSpeed(v){ apodSlideshowSecs=v; }
+// Prev/Next always work, even with auto-advance (slideshow) off: pressing
+// either lazily fetches the 30-day history on first use and switches into
+// history-browsing mode, then pages through it statically from then on.
 function apodGoPrev(){
-  if(!apodHistory.length) return;
+  apodBrowsingHistory=true;
+  if(!apodHistory.length){ if(!apodHistoryFetching) apodFetchHistory(); return; }
   apodHistoryIdx=(apodHistoryIdx-1+apodHistory.length)%apodHistory.length;
   apodHistoryLoad(apodHistoryIdx);
   apodSlideshowTimer=0;
@@ -14534,7 +14533,8 @@ function apodGoPrev(){
   if(infoEl) infoEl.textContent=(apodHistoryIdx+1)+'/'+apodHistory.length+' — '+apodHistory[apodHistoryIdx].date;
 }
 function apodGoNext(){
-  if(!apodHistory.length) return;
+  apodBrowsingHistory=true;
+  if(!apodHistory.length){ if(!apodHistoryFetching) apodFetchHistory(); return; }
   apodHistoryIdx=(apodHistoryIdx+1)%apodHistory.length;
   apodHistoryLoad(apodHistoryIdx);
   apodSlideshowTimer=0;
@@ -14599,16 +14599,27 @@ function effectAPOD(dt){
 
   const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
 
-  if(apodSlideshow && apodHistory.length){
-    // Slideshow mode
-    apodSlideshowTimer+=dt;
-    if(apodSlideshowTimer>=apodSlideshowSecs){
-      apodSlideshowTimer=0;
-      apodHistoryIdx=(apodHistoryIdx+1)%apodHistory.length;
-      const infoEl=document.getElementById('apod-slideshow-info');
-      if(infoEl) infoEl.textContent=(apodHistoryIdx+1)+'/'+apodHistory.length+' — '+apodHistory[apodHistoryIdx].date;
-      const statusEl=document.getElementById('apod-status');
-      if(statusEl) statusEl.textContent=apodHistory[apodHistoryIdx].title||'';
+  // With the shared Slideshow (auto-advance) checkbox on by default, APOD
+  // starts in history-browsing mode automatically, same as Unsplash/Art
+  // Gallery always cycling through their fetched set.
+  if(typeof artSlideshowOn!=='undefined' && artSlideshowOn && !apodBrowsingHistory && !apodHistory.length && !apodHistoryFetching){
+    apodBrowsingHistory=true;
+    apodFetchHistory();
+  }
+
+  if(apodBrowsingHistory && apodHistory.length){
+    // History-browsing mode: auto-advance only while the shared slideshow
+    // toggle is on; otherwise stays put until Prev/Next is pressed manually.
+    if(typeof artSlideshowOn==='undefined' || artSlideshowOn){
+      apodSlideshowTimer+=dt;
+      if(apodSlideshowTimer>=apodSlideshowSecs){
+        apodSlideshowTimer=0;
+        apodHistoryIdx=(apodHistoryIdx+1)%apodHistory.length;
+        const infoEl=document.getElementById('apod-slideshow-info');
+        if(infoEl) infoEl.textContent=(apodHistoryIdx+1)+'/'+apodHistory.length+' — '+apodHistory[apodHistoryIdx].date;
+        const statusEl=document.getElementById('apod-status');
+        if(statusEl) statusEl.textContent=apodHistory[apodHistoryIdx].title||'';
+      }
     }
     // Preload next
     apodHistoryLoad((apodHistoryIdx+1)%apodHistory.length);
@@ -14815,14 +14826,16 @@ function effectUnsplash(dt){
     return;
   }
 
-  unsplashTimer+=dt;
-  if(unsplashTimer>=unsplashSecs){
-    unsplashTimer=0;
-    unsplashIdx=(unsplashIdx+1)%unsplashPhotos.length;
-    unsplashUpdateInfo();
-    const statusEl=document.getElementById('unsplash-status');
-    const p=unsplashPhotos[unsplashIdx];
-    if(statusEl&&p) statusEl.textContent=(p.description||p.alt_description||'Photo '+(unsplashIdx+1));
+  if(artSlideshowOn){
+    unsplashTimer+=dt;
+    if(unsplashTimer>=unsplashSecs){
+      unsplashTimer=0;
+      unsplashIdx=(unsplashIdx+1)%unsplashPhotos.length;
+      unsplashUpdateInfo();
+      const statusEl=document.getElementById('unsplash-status');
+      const p=unsplashPhotos[unsplashIdx];
+      if(statusEl&&p) statusEl.textContent=(p.description||p.alt_description||'Photo '+(unsplashIdx+1));
+    }
   }
 
   const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
@@ -14863,7 +14876,7 @@ function effectUnsplash(dt){
         if(st.fadeT>=UNSPLASH_FADE_DUR){ st.curIdx=st.nextIdx; st.nextIdx=null; st.fadeT=0; }
       }
       // else still loading — hold the fade at its current progress until ready
-    } else {
+    } else if(artSlideshowOn){
       st.timer+=dt;
       if(st.timer>=unsplashSecs){
         st.timer-=unsplashSecs;
@@ -15044,8 +15057,21 @@ function articSetLetterbox(v){
 //  currently the active effect, instead of each having its own duplicate.
 // ═══════════════════════════════════════════════════
 const ART_EFFECTS=['apod','unsplash','artic'];
+// Single global toggle (not per-effect) — whichever of the three is active,
+// checking it off freezes on the current image until Prev/Next is pressed
+// manually; checking it on resumes auto-advancing.
+let artSlideshowOn=true;
+document.getElementById('art-slideshow-chk')?.addEventListener('change',function(){
+  artSlideshowOn=this.checked;
+  if(artSlideshowOn && currentEffect==='apod' && !apodHistory.length && !apodHistoryFetching){
+    apodBrowsingHistory=true;
+    apodFetchHistory();
+  }
+});
 function artSyncSharedControls(){
   if(!ART_EFFECTS.includes(currentEffect)) return;
+  const slideshowChk=document.getElementById('art-slideshow-chk');
+  if(slideshowChk) slideshowChk.checked=artSlideshowOn;
   const chk=document.getElementById('art-letterbox-chk');
   const speed=document.getElementById('art-speed');
   const speedLbl=document.getElementById('art-speed-label');
@@ -15097,11 +15123,13 @@ function effectArtic(dt){
     return;
   }
 
-  articTimer+=dt;
-  if(articTimer>=articSecs){
-    articTimer=0;
-    articIdx=(articIdx+1)%articWorks.length;
-    articUpdateInfo();
+  if(artSlideshowOn){
+    articTimer+=dt;
+    if(articTimer>=articSecs){
+      articTimer=0;
+      articIdx=(articIdx+1)%articWorks.length;
+      articUpdateInfo();
+    }
   }
 
   const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
@@ -15139,7 +15167,7 @@ function effectArtic(dt){
         st.fadeT+=dt;
         if(st.fadeT>=ARTIC_FADE_DUR){ st.curIdx=st.nextIdx; st.nextIdx=null; st.fadeT=0; }
       }
-    } else {
+    } else if(artSlideshowOn){
       st.timer+=dt;
       if(st.timer>=articSecs){
         st.timer-=articSecs;

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=777">
+<link rel="stylesheet" href="style.css?v=778">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -387,28 +387,28 @@
     <div class="sub-section collapsed">
     <button class="sub-head">Art <span class="chev">▾</span></button>
     <div class="sub-body">
-    <div style="padding:8px;margin-bottom:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(120,120,120,0.15);border-radius:4px;">
-      <div style="font-size:10px;color:#888;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Shared — applies to whichever is active</div>
+    <div class="effect-panel open" style="margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Shared Controls</div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;cursor:pointer;margin-bottom:6px;">
+        <input type="checkbox" id="art-slideshow-chk" checked style="cursor:pointer;">
+        Slideshow (auto-advance)
+      </label>
       <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;cursor:pointer;margin-bottom:6px;">
         <input type="checkbox" id="art-letterbox-chk" checked style="cursor:pointer;">
         Full image (letterbox — preserve ratio)
       </label>
-      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;margin-bottom:6px;">
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;margin-bottom:8px;">
         Speed: <input type="range" id="art-speed" min="3" max="30" value="8" style="flex:1;"> <span id="art-speed-label">8s</span>
       </div>
       <div style="display:flex;gap:4px;">
-        <button id="art-prev-btn" style="flex:1;padding:4px;background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.4);color:#ccc;border-radius:3px;cursor:pointer;font-size:11px;">&#9664; Prev</button>
-        <button id="art-next-btn" style="flex:1;padding:4px;background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.4);color:#ccc;border-radius:3px;cursor:pointer;font-size:11px;">Next &#9654;</button>
+        <button id="art-prev-btn" style="flex:1;padding:5px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:3px;cursor:pointer;font-size:11px;font-weight:700;">&#9664; Prev</button>
+        <button id="art-next-btn" style="flex:1;padding:5px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:3px;cursor:pointer;font-size:11px;font-weight:700;">Next &#9654;</button>
       </div>
     </div>
     <button class="effect-btn has-panel" data-effect="apod">◈ Astronomy Pic of the Day <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-apod">
       <div id="apod-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Not fetched yet</div>
-      <button id="apod-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh Today's Picture</button>
-      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;cursor:pointer;margin-bottom:4px;">
-        <input type="checkbox" id="apod-slideshow-chk" style="cursor:pointer;">
-        Slideshow (last 30 days)
-      </label>
+      <button id="apod-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh</button>
       <div id="apod-slideshow-info" style="font-size:10px;color:#666;margin-bottom:6px;"></div>
       <div id="apod-info" style="display:none;font-size:11px;color:#ccc;line-height:1.5;">
         <div id="apod-title-line">Title: —</div>
@@ -1229,7 +1229,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=777"></script>
+<script src="version.js?v=778"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1293,7 +1293,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=777','effects.js?v=777','ui.js?v=777'];
+  const appScripts = ['cube.js?v=778','effects.js?v=778','ui.js?v=778'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
