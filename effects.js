@@ -13793,6 +13793,36 @@ function loadImageForPixels(url, onSize, onPixels, onError, opts){
     img.src=objectUrl;
   }
 
+  // Last resort: load via a plain <img crossOrigin> tag pointed straight at
+  // the proxy URL. This skips fetch()'s CORS preflight entirely — some CDNs
+  // block/rate-limit fetch() from non-browser-like requests (bot protection)
+  // while still serving plain image GETs fine.
+  function tryImgTag(){
+    const img=new Image();
+    img.crossOrigin='anonymous';
+    img.onload=()=>{
+      try{
+        const oc=document.createElement('canvas');
+        oc.width=sz; oc.height=sz;
+        const ctx2=oc.getContext('2d');
+        ctx2.fillStyle='#000'; ctx2.fillRect(0,0,sz,sz);
+        const scale = letterbox
+          ? Math.min(sz/img.width, sz/img.height)
+          : Math.max(sz/img.width, sz/img.height);
+        const dw=img.width*scale, dh=img.height*scale;
+        ctx2.drawImage(img,(sz-dw)/2,(sz-dh)/2,dw,dh);
+        const pixels=ctx2.getImageData(0,0,sz,sz).data;
+        console.log('[loadImageForPixels] img-tag OK');
+        onSize(sz); onPixels(pixels);
+      }catch(e){
+        console.error('[loadImageForPixels] img-tag canvas read failed (tainted?):',e.message);
+        onError(e);
+      }
+    };
+    img.onerror=()=>{ console.error('[loadImageForPixels] img-tag load failed'); onError(new Error('img tag failed')); };
+    img.src=proxyUrl;
+  }
+
   // Try direct fetch first (works if server sends Access-Control-Allow-Origin)
   fetch(url,{mode:'cors'})
     .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.blob(); })
@@ -13802,7 +13832,10 @@ function loadImageForPixels(url, onSize, onPixels, onError, opts){
       fetch(proxyUrl,{mode:'cors'})
         .then(r=>{ if(!r.ok) throw new Error('proxy HTTP '+r.status); return r.blob(); })
         .then(blob=>{ console.log('[loadImageForPixels] proxy OK'); drawBlobUrl(URL.createObjectURL(blob)); })
-        .catch(err2=>{ console.error('[loadImageForPixels] proxy failed:',err2.message); onError(err2); });
+        .catch(err2=>{
+          console.warn('[loadImageForPixels] proxy fetch failed ('+err2.message+'), trying img tag');
+          tryImgTag();
+        });
     });
 }
 
@@ -14794,7 +14827,7 @@ async function articFetch(){
   try{
     const q=(articQuery||'').trim();
     const page=1+Math.floor(Math.random()*200);
-    const fields='id,title,artist_display,date_display,image_id';
+    const fields='id,title,artist_display,date_display,image_id,is_public_domain';
     let url;
     if(q){
       url=`https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(q)}&fields=${fields}&limit=40`;
@@ -14806,8 +14839,11 @@ async function articFetch(){
     catch(fe){ articError='Network error — check internet connection'; throw fe; }
     if(!r.ok){ articError='Art Institute API error '+r.status; throw new Error(String(r.status)); }
     const json=await r.json();
-    const works=(json.data||[]).filter(w=>w.image_id);
-    if(!works.length){ articError=q?'No artworks found for "'+q+'"':'No artworks with images on this page'; throw new Error('empty'); }
+    // Restrict to public-domain works: rights-managed pieces often have an
+    // image_id in the metadata but their actual IIIF image tile 403s, which
+    // looked like "sidebar shows the title but the face stays blank".
+    const works=(json.data||[]).filter(w=>w.image_id && w.is_public_domain);
+    if(!works.length){ articError=q?'No public-domain artworks found for "'+q+'"':'No public-domain artworks with images on this page'; throw new Error('empty'); }
     articWorks=works;
     articIdx=0;
     articPixels=new Array(works.length).fill(null);
