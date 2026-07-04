@@ -14664,6 +14664,20 @@ function effectAPOD(dt){
 let unsplashPhotos=[], unsplashIdx=0, unsplashFetching=false, unsplashLastFetch=0, unsplashError='';
 let unsplashPixels=[], unsplashSizes=[], unsplashT=0, unsplashTimer=0, unsplashSecs=8;
 let unsplashQuery='nature', unsplashLetterbox=true;
+// Per-face staggered slideshow state for full-cube mode: each face cycles
+// on the same unsplashSecs period but offset so they don't all change at
+// once (offset = unsplashSecs/6, e.g. 1s apart on a 6s scroller), and
+// crossfades ("morphs") into its next photo over UNSPLASH_FADE_DUR seconds
+// instead of cutting instantly.
+let unsplashFaceState=null;
+const UNSPLASH_FADE_DUR=1.0;
+function unsplashInitFaceState(){
+  const n=unsplashPhotos.length;
+  const stagger=unsplashSecs/6;
+  unsplashFaceState=Array.from({length:6},(_,f)=>({
+    curIdx: n?f%n:0, nextIdx:null, fadeT:0, timer:f*stagger
+  }));
+}
 
 function unsplashApiKey(){ return localStorage.getItem('unsplashApiKey')||''; }
 
@@ -14692,6 +14706,7 @@ async function unsplashFetch(){
     unsplashSizes=new Array(photos.length).fill(0);
     unsplashLastFetch=Date.now()/1000;
     unsplashTimer=0;
+    unsplashFaceState=null;
     if(statusEl) statusEl.textContent=photos.length+' photos — '+unsplashQuery;
     const infoEl=document.getElementById('unsplash-info');
     if(infoEl){ infoEl.style.display='block'; unsplashUpdateInfo(); }
@@ -14727,6 +14742,28 @@ function unsplashApplyToFace(face, idx){
     colBuf[li*3]=pixels[pi]/255;
     colBuf[li*3+1]=pixels[pi+1]/255;
     colBuf[li*3+2]=pixels[pi+2]/255;
+  }
+  return true;
+}
+
+// Crossfades between two loaded photos on one face. Falls back to showing
+// whichever side is actually ready if the other isn't (still loading/error).
+function unsplashApplyBlendToFace(face, idxA, idxB, alpha){
+  const pixelsA=unsplashPixels[idxA], pixelsB=unsplashPixels[idxB];
+  const okA=pixelsA&&pixelsA!=='error', okB=pixelsB&&pixelsB!=='error';
+  if(!okA && !okB) return false;
+  if(!okA) return unsplashApplyToFace(face, idxB);
+  if(!okB) return unsplashApplyToFace(face, idxA);
+  const S=SIZE, ISA=unsplashSizes[idxA], ISB=unsplashSizes[idxB];
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const li=faceMap[face][v*S+u]; if(li<0) continue;
+    const suA=Math.min(ISA-1,Math.floor(u/S*ISA)), svA=Math.min(ISA-1,Math.floor((S-1-v)/S*ISA));
+    const piA=(svA*ISA+suA)*4;
+    const suB=Math.min(ISB-1,Math.floor(u/S*ISB)), svB=Math.min(ISB-1,Math.floor((S-1-v)/S*ISB));
+    const piB=(svB*ISB+suB)*4;
+    colBuf[li*3]  =(pixelsA[piA]  /255)+((pixelsB[piB]  /255)-(pixelsA[piA]  /255))*alpha;
+    colBuf[li*3+1]=(pixelsA[piA+1]/255)+((pixelsB[piB+1]/255)-(pixelsA[piA+1]/255))*alpha;
+    colBuf[li*3+2]=(pixelsA[piA+2]/255)+((pixelsB[piB+2]/255)-(pixelsA[piA+2]/255))*alpha;
   }
   return true;
 }
@@ -14817,16 +14854,46 @@ function effectUnsplash(dt){
     return;
   }
 
-  // Full cube: a different photo on each of the 6 faces, rotating through
-  // the fetched set together as unsplashIdx advances.
+  // Full cube: each face shows a different photo and cycles on its own
+  // staggered schedule (offset unsplashSecs/6 apart), crossfading into its
+  // next photo over UNSPLASH_FADE_DUR seconds instead of cutting instantly.
   const n=unsplashPhotos.length;
-  for(let f=0;f<6;f++) unsplashLoad((unsplashIdx+f)%n);
+  if(!unsplashFaceState || unsplashFaceState.length!==6) unsplashInitFaceState();
   for(let f=0;f<6;f++){
-    const idx=(unsplashIdx+f)%n;
-    const shown=unsplashApplyToFace(f,idx);
+    const st=unsplashFaceState[f];
+    unsplashLoad(st.curIdx);
+    if(st.nextIdx!=null) unsplashLoad(st.nextIdx);
+
+    if(st.fadeT>0){
+      const nextPixels=unsplashPixels[st.nextIdx];
+      if(nextPixels==='error'){
+        // Broken photo — skip to a different one, keep the fade running.
+        st.nextIdx=(st.nextIdx+1)%n;
+        unsplashLoad(st.nextIdx);
+      } else if(nextPixels){
+        st.fadeT+=dt;
+        if(st.fadeT>=UNSPLASH_FADE_DUR){ st.curIdx=st.nextIdx; st.nextIdx=null; st.fadeT=0; }
+      }
+      // else still loading — hold the fade at its current progress until ready
+    } else {
+      st.timer+=dt;
+      if(st.timer>=unsplashSecs){
+        st.timer-=unsplashSecs;
+        st.nextIdx = n>6 ? (st.curIdx+6)%n : (st.curIdx+1)%n;
+        unsplashLoad(st.nextIdx);
+        st.fadeT=0.0001;
+      }
+    }
+
+    let shown;
+    if(st.fadeT>0 && st.nextIdx!=null){
+      shown=unsplashApplyBlendToFace(f, st.curIdx, st.nextIdx, Math.min(1,st.fadeT/UNSPLASH_FADE_DUR));
+    } else {
+      shown=unsplashApplyToFace(f, st.curIdx);
+    }
     if(!shown){
-      if(unsplashPixels[idx]==='error'){
-        renderTextToFace(f,['NO IMAGE','photo '+(idx+1)],[0.6,0.4,0.1],[0.06,0.03,0]);
+      if(unsplashPixels[st.curIdx]==='error'){
+        renderTextToFace(f,['NO IMAGE','photo '+(st.curIdx+1)],[0.6,0.4,0.1],[0.06,0.03,0]);
       } else {
         const dots='.'.repeat(1+(Math.floor(unsplashT)%3));
         renderTextToFace(f,['PHOTO',dots],[0.1,0.7,0.4],[0,0.06,0.03]);
