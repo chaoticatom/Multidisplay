@@ -1,6 +1,6 @@
 // Minimal SW: no caching, just ensures update detection works reliably.
 // Network-only so every fetch goes straight to GitHub Pages.
-const VERSION = 'v726';
+const VERSION = 'v727';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', () => self.clients.claim());

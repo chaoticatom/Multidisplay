@@ -236,7 +236,9 @@ function buildIdleScroll() {
   ctx.font = `bold ${fs}px Arial, sans-serif`;
   let tw = (ctx.measureText(text).width)|0;
   const textW = tw > 0 ? tw : 4*S;
-  const fullW = textW + 4*S; // gap = full strip width so text never repeats mid-scroll
+  // Loop back-to-back (padding spaces already in `text` give the separation)
+  // so the marquee is always fully populated across all 4 faces with no blank gap.
+  const fullW = textW;
   oc.width = fullW;
   oc.height = S;
   ctx.fillStyle = '#000'; ctx.fillRect(0,0,oc.width,oc.height);
