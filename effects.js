@@ -14903,12 +14903,18 @@ function effectUnsplash(dt){
 }
 
 // ═══════════════════════════════════════════════════
-//  Art Institute of Chicago — public domain art gallery
+//  Metropolitan Museum of Art — public domain art gallery
 // ═══════════════════════════════════════════════════
+// Switched from the Art Institute of Chicago's IIIF image server, whose
+// images 403'd through every fetch strategy tried (direct fetch, direct
+// <img>, proxied fetch, proxied <img>) — that pattern points at hotlink/
+// referrer protection on their CDN we can't work around client-side. The
+// Met's collection API image URLs are widely used in browser/canvas
+// contexts with no such restriction.
 let articWorks=[], articIdx=0, articFetching=false, articError='';
 let articPixels=[], articSizes=[], articT=0, articTimer=0, articSecs=10;
 let articQuery='';
-const ARTIC_IIIF='https://www.artic.edu/iiif/2';
+const MET_API='https://collectionapi.metmuseum.org/public/collection/v1';
 
 async function articFetch(){
   if(articFetching) return;
@@ -14916,37 +14922,36 @@ async function articFetch(){
   const statusEl=document.getElementById('artic-status');
   if(statusEl) statusEl.textContent='Searching the collection…';
   try{
-    const q=(articQuery||'').trim();
-    const page=1+Math.floor(Math.random()*200);
-    const fields='id,title,artist_display,date_display,image_id,is_public_domain';
-    let url;
-    if(q){
-      url=`https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(q)}&fields=${fields}&limit=40`;
-    } else {
-      url=`https://api.artic.edu/api/v1/artworks?page=${page}&limit=100&fields=${fields}`;
-    }
+    const q=(articQuery||'').trim() || 'painting';
+    const searchUrl=`${MET_API}/search?hasImages=true&q=${encodeURIComponent(q)}`;
     let r;
-    try{ r=await fetch(url); }
+    try{ r=await fetch(searchUrl); }
     catch(fe){ articError='Network error — check internet connection'; throw fe; }
-    if(!r.ok){ articError='Art Institute API error '+r.status; throw new Error(String(r.status)); }
-    const json=await r.json();
-    // Restrict to public-domain works: rights-managed pieces often have an
-    // image_id in the metadata but their actual IIIF image tile 403s, which
-    // looked like "sidebar shows the title but the face stays blank".
-    const works=(json.data||[]).filter(w=>w.image_id && w.is_public_domain);
-    if(!works.length){ articError=q?'No public-domain artworks found for "'+q+'"':'No public-domain artworks with images on this page'; throw new Error('empty'); }
+    if(!r.ok){ articError='Met API error '+r.status; throw new Error(String(r.status)); }
+    const searchJson=await r.json();
+    let ids=searchJson.objectIDs||[];
+    if(!ids.length){ articError='No results found for "'+q+'"'; throw new Error('empty'); }
+    for(let i=ids.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [ids[i],ids[j]]=[ids[j],ids[i]]; }
+    const sample=ids.slice(0,40);
+    const details=await Promise.all(sample.map(id=>
+      fetch(`${MET_API}/objects/${id}`).then(rr=>rr.ok?rr.json():null).catch(()=>null)
+    ));
+    const works=details.filter(d=>d && d.isPublicDomain && d.primaryImageSmall).map(d=>({
+      id:d.objectID, title:d.title||'Untitled', artist_display:d.artistDisplayName||'Unknown artist', imageUrl:d.primaryImageSmall
+    }));
+    if(!works.length){ articError='No public-domain images found for "'+q+'"'; throw new Error('empty'); }
     articWorks=works;
     articIdx=0;
     articPixels=new Array(works.length).fill(null);
     articSizes=new Array(works.length).fill(0);
     articTimer=0;
-    if(statusEl) statusEl.textContent=works.length+' artworks'+(q?' — '+q:'');
+    if(statusEl) statusEl.textContent=works.length+' artworks — '+q;
     const infoEl=document.getElementById('artic-info');
     if(infoEl){ infoEl.style.display='block'; articUpdateInfo(); }
     articLoad(0);
   }catch(e){
     if(statusEl) statusEl.textContent='✕ '+articError;
-    console.error('Art Institute fetch error:',e);
+    console.error('Met API fetch error:',e);
   }
   articFetching=false;
 }
@@ -14954,7 +14959,7 @@ async function articFetch(){
 function articLoad(idx){
   if(!articWorks[idx]||articPixels[idx]!=null) return;
   articPixels[idx]=false;
-  const imgUrl=`${ARTIC_IIIF}/${articWorks[idx].image_id}/full/843,/0/default.jpg`;
+  const imgUrl=articWorks[idx].imageUrl;
   loadImageForPixels(imgUrl, s=>{ articSizes[idx]=s; },
     px=>{ articPixels[idx]=px; },
     (err)=>{
