@@ -14925,18 +14925,19 @@ function effectArtic(dt){
 //  unmapped characters (e.g. some punctuation) are simply skipped, same as
 //  weather's ticker already does.
 // ═══════════════════════════════════════════════════
-// Scale each PIXEL_FONT bit up to a 2x2 LED block — one size bigger than the
-// weather ticker's native 1x scale, while staying crisp (block replication,
-// not image scaling, so no blur).
-const WC_SCALE=2;
-const WC_CHAR_W=4*WC_SCALE, WC_LINE_H=6*WC_SCALE;
+// Native 1x PIXEL_FONT scale — identical glyph size to the weather ticker.
+// Doubling the pixels (2x2 blocks) looked bad, so keep glyphs at their
+// native crisp size and only add a touch of extra spacing (char/line gap)
+// for a very slightly larger overall footprint without blockiness.
+const WC_CHAR_W=5, WC_LINE_H=7;
 function wcWordDelay(word){
   const base=0.16;
   const perChar=0.05;
   const symbols=(word.match(/[^a-zA-Z0-9]/g)||[]).length;
   return base + word.length*perChar + symbols*0.08;
 }
-// Same bit pattern as pixelGlyph, scaled up by WC_SCALE. Returns advance width.
+// Same bit pattern as pixelGlyph, native 1x scale. Returns advance width
+// (wider than the glyph itself so WC_CHAR_W's extra gap applies).
 function wcDrawGlyph(face, ch, su, sv, rgb){
   const rows=PIXEL_FONT[ch]||PIXEL_FONT[ch.toUpperCase()];
   if(!rows) return WC_CHAR_W;
@@ -14944,15 +14945,10 @@ function wcDrawGlyph(face, ch, su, sv, rgb){
     const bits=rows[row];
     for(let col=0;col<3;col++){
       if(!((bits>>(2-col))&1)) continue;
-      const bu=su+col*WC_SCALE, bv=sv+(4-row)*WC_SCALE;
-      for(let dv=0;dv<WC_SCALE;dv++){
-        for(let du=0;du<WC_SCALE;du++){
-          const u=bu+du, v=bv+dv;
-          if(u<0||u>=SIZE||v<0||v>=SIZE) continue;
-          const idx=faceMap[face][v*SIZE+u]; if(idx<0) continue;
-          colBuf[idx*3]=rgb[0]; colBuf[idx*3+1]=rgb[1]; colBuf[idx*3+2]=rgb[2];
-        }
-      }
+      const u=su+col, v=sv+(4-row);
+      if(u<0||u>=SIZE||v<0||v>=SIZE) continue;
+      const idx=faceMap[face][v*SIZE+u]; if(idx<0) continue;
+      colBuf[idx*3]=rgb[0]; colBuf[idx*3+1]=rgb[1]; colBuf[idx*3+2]=rgb[2];
     }
   }
   return WC_CHAR_W;
@@ -14989,8 +14985,8 @@ function wcDrawToFace(state, face){
   const visible=allLines.slice(-state.maxLines);
   const topMargin=1;
   visible.forEach((line,i)=>{
-    const sv=(SIZE-1)-topMargin-4*WC_SCALE-i*WC_LINE_H;
-    if(sv+4*WC_SCALE<0) return;
+    const sv=(SIZE-1)-topMargin-4-i*WC_LINE_H;
+    if(sv+4<0) return;
     const lineW=line.reduce((a,t)=>a+t.w.length*WC_CHAR_W,0)+Math.max(0,line.length-1)*WC_CHAR_W;
     let su=Math.round((SIZE-lineW)/2);
     line.forEach(tw=>{
