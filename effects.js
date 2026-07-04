@@ -13793,11 +13793,10 @@ function loadImageForPixels(url, onSize, onPixels, onError, opts){
     img.src=objectUrl;
   }
 
-  // Last resort: load via a plain <img crossOrigin> tag pointed straight at
-  // the proxy URL. This skips fetch()'s CORS preflight entirely — some CDNs
-  // block/rate-limit fetch() from non-browser-like requests (bot protection)
-  // while still serving plain image GETs fine.
-  function tryImgTag(){
+  // <img crossOrigin> tag load — skips fetch()'s CORS preflight entirely.
+  // Some CDNs' bot protection blocks fetch()-style requests (or datacenter-
+  // sourced proxy fetches) while still serving plain browser image GETs fine.
+  function tryImgTag(srcUrl, label, onFail){
     const img=new Image();
     img.crossOrigin='anonymous';
     img.onload=()=>{
@@ -13812,30 +13811,35 @@ function loadImageForPixels(url, onSize, onPixels, onError, opts){
         const dw=img.width*scale, dh=img.height*scale;
         ctx2.drawImage(img,(sz-dw)/2,(sz-dh)/2,dw,dh);
         const pixels=ctx2.getImageData(0,0,sz,sz).data;
-        console.log('[loadImageForPixels] img-tag OK');
+        console.log(`[loadImageForPixels] ${label} img-tag OK`);
         onSize(sz); onPixels(pixels);
       }catch(e){
-        console.error('[loadImageForPixels] img-tag canvas read failed (tainted?):',e.message);
-        onError(e);
+        console.error(`[loadImageForPixels] ${label} img-tag canvas read failed (tainted?):`,e.message);
+        onFail();
       }
     };
-    img.onerror=()=>{ console.error('[loadImageForPixels] img-tag load failed'); onError(new Error('img tag failed')); };
-    img.src=proxyUrl;
+    img.onerror=()=>{ console.warn(`[loadImageForPixels] ${label} img-tag load failed`); onFail(); };
+    img.src=srcUrl;
   }
 
   // Try direct fetch first (works if server sends Access-Control-Allow-Origin)
   fetch(url,{mode:'cors'})
     .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.blob(); })
-    .then(blob=>{ console.log('[loadImageForPixels] direct OK'); drawBlobUrl(URL.createObjectURL(blob)); })
+    .then(blob=>{ console.log('[loadImageForPixels] direct fetch OK'); drawBlobUrl(URL.createObjectURL(blob)); })
     .catch(err=>{
-      console.warn('[loadImageForPixels] direct failed ('+err.message+'), trying proxy');
-      fetch(proxyUrl,{mode:'cors'})
-        .then(r=>{ if(!r.ok) throw new Error('proxy HTTP '+r.status); return r.blob(); })
-        .then(blob=>{ console.log('[loadImageForPixels] proxy OK'); drawBlobUrl(URL.createObjectURL(blob)); })
-        .catch(err2=>{
-          console.warn('[loadImageForPixels] proxy fetch failed ('+err2.message+'), trying img tag');
-          tryImgTag();
-        });
+      console.warn('[loadImageForPixels] direct fetch failed ('+err.message+'), trying direct <img> tag');
+      // Try the ORIGINAL url via a plain <img> tag next — a genuinely
+      // different code path from fetch(), before falling back to the proxy.
+      tryImgTag(url, 'direct', () => {
+        console.warn('[loadImageForPixels] direct img-tag failed, trying proxy fetch');
+        fetch(proxyUrl,{mode:'cors'})
+          .then(r=>{ if(!r.ok) throw new Error('proxy HTTP '+r.status); return r.blob(); })
+          .then(blob=>{ console.log('[loadImageForPixels] proxy fetch OK'); drawBlobUrl(URL.createObjectURL(blob)); })
+          .catch(err2=>{
+            console.warn('[loadImageForPixels] proxy fetch failed ('+err2.message+'), trying proxy <img> tag');
+            tryImgTag(proxyUrl, 'proxy', () => onError(new Error('all image load strategies failed')));
+          });
+      });
     });
 }
 
@@ -14886,7 +14890,12 @@ function articLoad(idx){
   const imgUrl=`${ARTIC_IIIF}/${articWorks[idx].image_id}/full/843,/0/default.jpg`;
   loadImageForPixels(imgUrl, s=>{ articSizes[idx]=s; },
     px=>{ articPixels[idx]=px; },
-    ()=>{ articPixels[idx]='error'; },
+    (err)=>{
+      articPixels[idx]='error';
+      const statusEl=document.getElementById('artic-status');
+      if(statusEl && idx===articIdx) statusEl.textContent='✕ Image load failed: '+(err&&err.message||'unknown error');
+      console.error('[artic] image load failed for', articWorks[idx].title, imgUrl, err);
+    },
     {letterbox:true});
 }
 
