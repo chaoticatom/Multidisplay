@@ -14925,26 +14925,26 @@ function effectArtic(dt){
 //  unmapped characters (e.g. some punctuation) are simply skipped, same as
 //  weather's ticker already does.
 // ═══════════════════════════════════════════════════
-// Dedicated 5-wide x 6-tall bitmap font — each row is a 5-bit value,
-// bit4=leftmost column. Uppercase only; lowercase input falls back to
-// uppercase, same as PIXEL_FONT does. Character advance is glyph width +
-// 1px gap (normal spacing, no extra padding beyond that).
+// Classic 5-wide x 7-tall dot-matrix bitmap font — each row is a 5-bit
+// value, bit4=leftmost column. Uppercase only; lowercase input falls back
+// to uppercase, same as PIXEL_FONT does. Character advance is glyph width
+// + 1px gap (normal spacing, no extra padding beyond that).
 const WC_FONT={
-  '0':[14,17,17,17,17,14],'1':[4,12,4,4,4,14],'2':[14,17,2,4,8,31],'3':[30,1,14,1,17,14],
-  '4':[2,6,10,18,31,2],'5':[31,16,30,1,17,14],'6':[14,16,30,17,17,14],'7':[31,1,2,4,8,8],
-  '8':[14,17,14,17,17,14],'9':[14,17,17,15,1,14],
-  'A':[14,17,17,31,17,17],'B':[30,17,30,17,17,30],'C':[15,16,16,16,16,15],'D':[30,17,17,17,17,30],
-  'E':[31,16,30,16,16,31],'F':[31,16,30,16,16,16],'G':[15,16,16,19,17,15],'H':[17,17,31,17,17,17],
-  'I':[31,4,4,4,4,31],'J':[7,2,2,2,18,12],'K':[17,18,28,18,17,17],'L':[16,16,16,16,16,31],
-  'M':[17,27,21,17,17,17],'N':[17,25,21,19,17,17],'O':[14,17,17,17,17,14],'P':[30,17,30,16,16,16],
-  'Q':[14,17,17,21,18,13],'R':[30,17,30,20,18,17],'S':[15,16,14,1,1,30],'T':[31,4,4,4,4,4],
-  'U':[17,17,17,17,17,14],'V':[17,17,17,17,10,4],'W':[17,17,17,21,21,10],'X':[17,17,10,10,17,17],
-  'Y':[17,17,10,4,4,4],'Z':[31,2,4,8,16,31],
-  ' ':[0,0,0,0,0,0],'.':[0,0,0,0,0,12],',':[0,0,0,0,12,8],"'":[12,12,0,0,0,0],
-  '"':[10,10,0,0,0,0],'?':[14,17,2,4,0,4],'!':[4,4,4,4,0,4],':':[0,4,0,4,0,0],
-  ';':[0,4,0,4,8,0],'-':[0,0,14,0,0,0],'(':[2,4,8,8,4,2],')':[8,4,2,2,4,8],
+  '0':[14,17,19,21,25,17,14],'1':[4,12,4,4,4,4,14],'2':[14,17,1,2,4,8,31],'3':[31,2,4,2,1,17,14],
+  '4':[2,6,10,18,31,2,2],'5':[31,16,30,1,1,17,14],'6':[6,8,16,30,17,17,14],'7':[31,1,2,4,8,8,8],
+  '8':[14,17,17,14,17,17,14],'9':[14,17,17,15,1,2,12],
+  'A':[14,17,17,31,17,17,17],'B':[30,17,17,30,17,17,30],'C':[15,16,16,16,16,16,15],'D':[30,17,17,17,17,17,30],
+  'E':[31,16,16,30,16,16,31],'F':[31,16,16,30,16,16,16],'G':[15,16,16,19,17,17,15],'H':[17,17,17,31,17,17,17],
+  'I':[14,4,4,4,4,4,14],'J':[7,2,2,2,2,18,12],'K':[17,18,20,24,20,18,17],'L':[16,16,16,16,16,16,31],
+  'M':[17,27,21,21,17,17,17],'N':[17,25,21,19,17,17,17],'O':[14,17,17,17,17,17,14],'P':[30,17,17,30,16,16,16],
+  'Q':[14,17,17,17,21,18,13],'R':[30,17,17,30,20,18,17],'S':[15,16,16,14,1,1,30],'T':[31,4,4,4,4,4,4],
+  'U':[17,17,17,17,17,17,14],'V':[17,17,17,17,17,10,4],'W':[17,17,17,21,21,21,10],'X':[17,17,10,4,10,17,17],
+  'Y':[17,17,10,4,4,4,4],'Z':[31,1,2,4,8,16,31],
+  ' ':[0,0,0,0,0,0,0],'.':[0,0,0,0,0,0,12],',':[0,0,0,0,0,12,8],"'":[12,12,0,0,0,0,0],
+  '"':[10,10,0,0,0,0,0],'?':[14,17,1,2,4,0,4],'!':[4,4,4,4,4,0,4],':':[0,0,4,0,4,0,0],
+  ';':[0,0,4,0,4,8,0],'-':[0,0,0,14,0,0,0],'(':[2,4,8,8,8,4,2],')':[8,4,2,2,2,4,8],
 };
-const WC_CHAR_W=6, WC_LINE_H=7;
+const WC_CHAR_W=6, WC_LINE_H=8;
 function wcWordDelay(word){
   const base=0.16;
   const perChar=0.05;
@@ -14957,11 +14957,11 @@ function wcWordDelay(word){
 function wcDrawGlyph(face, ch, su, sv, rgb){
   const rows=WC_FONT[ch]||WC_FONT[ch.toUpperCase()];
   if(!rows) return WC_CHAR_W;
-  for(let row=0;row<6;row++){
+  for(let row=0;row<7;row++){
     const bits=rows[row];
     for(let col=0;col<5;col++){
       if(!((bits>>(4-col))&1)) continue;
-      const u=su+col, v=sv+(5-row);
+      const u=su+col, v=sv+(6-row);
       if(u<0||u>=SIZE||v<0||v>=SIZE) continue;
       const idx=faceMap[face][v*SIZE+u]; if(idx<0) continue;
       colBuf[idx*3]=rgb[0]; colBuf[idx*3+1]=rgb[1]; colBuf[idx*3+2]=rgb[2];
@@ -15001,8 +15001,8 @@ function wcDrawToFace(state, face){
   const visible=allLines.slice(-state.maxLines);
   const topMargin=1;
   visible.forEach((line,i)=>{
-    const sv=(SIZE-1)-topMargin-5-i*WC_LINE_H;
-    if(sv+5<0) return;
+    const sv=(SIZE-1)-topMargin-6-i*WC_LINE_H;
+    if(sv+6<0) return;
     const lineW=line.reduce((a,t)=>a+t.w.length*WC_CHAR_W,0)+Math.max(0,line.length-1)*WC_CHAR_W;
     let su=Math.round((SIZE-lineW)/2);
     line.forEach(tw=>{
