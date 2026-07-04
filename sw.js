@@ -1,10 +1,11 @@
-// Minimal SW: no caching, just ensures update detection works reliably.
-// Network-only so every fetch goes straight to GitHub Pages.
-const VERSION = 'v728';
-
+// Retired — service workers caused more stuck-version problems than they
+// solved. This file now only exists to self-destruct any lingering
+// registration from earlier versions of the app.
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', () => self.clients.claim());
-self.addEventListener('fetch', event => {
-  // Pass everything straight through — no caching at all
-  event.respondWith(fetch(event.request));
+self.addEventListener('activate', async () => {
+  await self.clients.claim();
+  const keys = await caches.keys();
+  await Promise.all(keys.map(k => caches.delete(k)));
+  await self.registration.unregister();
 });
+self.addEventListener('fetch', event => event.respondWith(fetch(event.request)));

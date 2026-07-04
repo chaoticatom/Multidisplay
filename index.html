@@ -1306,22 +1306,28 @@ setTimeout(showVersion,1000);
 })();
 </script>
 <script>
+// Service workers caused nothing but stuck-version headaches (SW lifecycle,
+// CDN-cached SW script, waiting workers). Unregister any and rely purely on
+// direct polling below — no SW involved, so no stuck registrations possible.
 if ('serviceWorker' in navigator) {
-  // Also unregister old service-worker.js if still lingering
   navigator.serviceWorker.getRegistrations().then(regs => {
-    regs.forEach(r => { if (r.active?.scriptURL?.includes('service-worker.js')) r.unregister(); });
-  });
-  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
-    reg.update();
-    setInterval(() => reg.update(), 20000);
-    reg.addEventListener('updatefound', () => {
-      const nw = reg.installing;
-      if (nw) nw.addEventListener('statechange', () => {
-        if (nw.state === 'activated') location.reload();
-      });
-    });
+    regs.forEach(r => r.unregister());
   });
 }
+
+(function pollForNewVersion(){
+  setInterval(() => {
+    fetch('version.js?nocache=' + Date.now(), { cache: 'no-store' })
+      .then(r => r.text())
+      .then(txt => {
+        const m = txt.match(/APP_VERSION\s*=\s*'([^']+)'/);
+        if (m && typeof APP_VERSION !== 'undefined' && m[1] !== APP_VERSION) {
+          location.href = location.pathname + '?nocache=' + Date.now();
+        }
+      })
+      .catch(() => {});
+  }, 15000);
+})();
 </script>
 </body>
 </html>
