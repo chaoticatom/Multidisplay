@@ -14989,7 +14989,9 @@ function jokeBuildWrapped(){
   oc.width=S; oc.height=S;
   const ctx=oc.getContext('2d');
   const maxW=S-4;
-  const maxFs=Math.round(S*0.14), minFs=Math.max(4,Math.round(S*0.06));
+  // Keep a higher floor than before so text never shrinks to unreadable —
+  // jokes that don't fit at this size fall back to the scrolling ticker.
+  const maxFs=Math.round(S*0.16), minFs=Math.max(7,Math.round(S*0.11));
   let lines=null, fs=maxFs;
   for(; fs>=minFs; fs--){
     ctx.font=`bold ${fs}px Arial,sans-serif`;
@@ -15002,18 +15004,24 @@ function jokeBuildWrapped(){
       else cur=test;
     }
     if(cur) testLines.push(cur);
-    const lineH=fs*1.25;
+    const lineH=fs*1.35;
     if(testLines.length*lineH<=S-4){ lines=testLines; break; }
   }
   if(!lines) return null;
   ctx.fillStyle='#000'; ctx.fillRect(0,0,S,S);
   ctx.font=`bold ${fs}px Arial,sans-serif`;
-  ctx.fillStyle='#ffcc44';
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  const lineH=fs*1.25;
+  ctx.lineWidth=Math.max(1,Math.round(fs*0.16));
+  ctx.strokeStyle='#000';
+  const lineH=fs*1.35;
   const totalH=lines.length*lineH;
   const startY=(S-totalH)/2+lineH/2;
-  lines.forEach((line,i)=>ctx.fillText(line, S/2, startY+i*lineH));
+  lines.forEach((line,i)=>{
+    const y=startY+i*lineH;
+    ctx.strokeText(line, S/2, y);
+    ctx.fillStyle='#fff';
+    ctx.fillText(line, S/2, y);
+  });
   return {data: ctx.getImageData(0,0,S,S).data, S};
 }
 
