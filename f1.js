@@ -236,13 +236,10 @@ function buildIdleScroll() {
   ctx.font = `bold ${fs}px Arial, sans-serif`;
   let tw = (ctx.measureText(text).width)|0;
   const textW = tw > 0 ? tw : 4*S;
-  // The loop must be wider than the 4-face viewport (4*S) or the tail and
-  // head of the phrase are both visible at once — reading as the sentence
-  // "restarting" mid-view. Pad with a small blank gap (not bigger text) so
-  // exactly one instance is ever visible, flowing continuously across all
-  // 4 faces before a brief gap and the next pass.
-  const gap = S * 0.5;
-  const fullW = Math.max(textW, 4*S) + gap;
+  // Loop back-to-back with zero extra gap (the spaces already in `text`
+  // are the only separation) so the next repeat is already filling in
+  // as the previous one exits — no blank pause, ever.
+  const fullW = textW;
   oc.width = fullW;
   oc.height = S;
   ctx.fillStyle = '#000'; ctx.fillRect(0,0,oc.width,oc.height);
