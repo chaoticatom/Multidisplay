@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=752">
+<link rel="stylesheet" href="style.css?v=753">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -446,6 +446,30 @@
           <button id="unsplash-api-key-save" style="padding:3px 8px;background:rgba(20,180,100,0.2);border:1px solid rgba(20,180,100,0.4);color:#3ddc84;border-radius:3px;cursor:pointer;font-size:10px;">Save</button>
         </div>
       </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="artic">◈ Art Gallery <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-artic">
+      <div id="artic-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Loading random artworks…</div>
+      <div style="display:flex;gap:4px;margin-bottom:8px;">
+        <input id="artic-query" type="text" placeholder="search artist/title (optional)…" style="flex:1;padding:5px 7px;background:#1a1a2e;border:1px solid #444;color:#ccc;border-radius:3px;font-size:12px;">
+        <button id="artic-fetch-btn" style="padding:5px 10px;background:rgba(220,180,60,0.15);border:1px solid rgba(220,180,60,0.4);color:#e8c250;border-radius:3px;cursor:pointer;font-size:12px;font-weight:700;">Search</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;margin-bottom:4px;">
+        Speed: <input type="range" id="artic-speed" min="3" max="30" value="10" style="flex:1;"> <span id="artic-speed-label">10s</span>
+      </div>
+      <div style="display:flex;gap:4px;margin-bottom:6px;">
+        <button id="artic-prev-btn" style="flex:1;padding:4px;background:rgba(220,180,60,0.12);border:1px solid rgba(220,180,60,0.35);color:#e8c250;border-radius:3px;cursor:pointer;font-size:11px;">&#9664; Prev</button>
+        <button id="artic-next-btn" style="flex:1;padding:4px;background:rgba(220,180,60,0.12);border:1px solid rgba(220,180,60,0.35);color:#e8c250;border-radius:3px;cursor:pointer;font-size:11px;">Next &#9654;</button>
+      </div>
+      <div id="artic-info" style="display:none;">
+        <div id="artic-work-info" style="font-size:10px;color:#666;margin-bottom:6px;"></div>
+      </div>
+      <div style="font-size:10px;color:#666;">Free public-domain collection — no API key needed.</div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="joke">◈ Dad Jokes <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-joke">
+      <div id="joke-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Fetching a joke…</div>
+      <button id="joke-fetch-btn" style="width:100%;padding:6px 12px;background:rgba(220,180,60,0.15);border:1px solid rgba(220,180,60,0.4);color:#e8c250;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">New Joke</button>
     </div>
     <button class="effect-btn has-panel" data-effect="epic">◈ Earth Live View <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-epic">
@@ -1209,7 +1233,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=752"></script>
+<script src="version.js?v=753"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1273,7 +1297,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=752','effects.js?v=752','ui.js?v=752'];
+  const appScripts = ['cube.js?v=753','effects.js?v=753','ui.js?v=753'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';

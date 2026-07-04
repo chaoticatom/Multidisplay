@@ -14778,6 +14778,246 @@ function effectUnsplash(dt){
   }
 }
 
+// ═══════════════════════════════════════════════════
+//  Art Institute of Chicago — public domain art gallery
+// ═══════════════════════════════════════════════════
+let articWorks=[], articIdx=0, articFetching=false, articError='';
+let articPixels=[], articSizes=[], articT=0, articTimer=0, articSecs=10;
+let articQuery='';
+const ARTIC_IIIF='https://www.artic.edu/iiif/2';
+
+async function articFetch(){
+  if(articFetching) return;
+  articFetching=true; articError='';
+  const statusEl=document.getElementById('artic-status');
+  if(statusEl) statusEl.textContent='Searching the collection…';
+  try{
+    const q=(articQuery||'').trim();
+    const page=1+Math.floor(Math.random()*200);
+    const fields='id,title,artist_display,date_display,image_id';
+    let url;
+    if(q){
+      url=`https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(q)}&fields=${fields}&limit=40`;
+    } else {
+      url=`https://api.artic.edu/api/v1/artworks?page=${page}&limit=100&fields=${fields}`;
+    }
+    let r;
+    try{ r=await fetch(url); }
+    catch(fe){ articError='Network error — check internet connection'; throw fe; }
+    if(!r.ok){ articError='Art Institute API error '+r.status; throw new Error(String(r.status)); }
+    const json=await r.json();
+    const works=(json.data||[]).filter(w=>w.image_id);
+    if(!works.length){ articError=q?'No artworks found for "'+q+'"':'No artworks with images on this page'; throw new Error('empty'); }
+    articWorks=works;
+    articIdx=0;
+    articPixels=new Array(works.length).fill(null);
+    articSizes=new Array(works.length).fill(0);
+    articTimer=0;
+    if(statusEl) statusEl.textContent=works.length+' artworks'+(q?' — '+q:'');
+    const infoEl=document.getElementById('artic-info');
+    if(infoEl){ infoEl.style.display='block'; articUpdateInfo(); }
+    articLoad(0);
+  }catch(e){
+    if(statusEl) statusEl.textContent='✕ '+articError;
+    console.error('Art Institute fetch error:',e);
+  }
+  articFetching=false;
+}
+
+function articLoad(idx){
+  if(!articWorks[idx]||articPixels[idx]!=null) return;
+  articPixels[idx]=false;
+  const imgUrl=`${ARTIC_IIIF}/${articWorks[idx].image_id}/full/843,/0/default.jpg`;
+  loadImageForPixels(imgUrl, s=>{ articSizes[idx]=s; },
+    px=>{ articPixels[idx]=px; },
+    ()=>{ articPixels[idx]='error'; },
+    {letterbox:true});
+}
+
+function articApplyToFace(face, idx){
+  const pixels=articPixels[idx];
+  if(!pixels||pixels==='error') return false;
+  const S=SIZE, IS=articSizes[idx];
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const li=faceMap[face][v*S+u]; if(li<0) continue;
+    const su=Math.min(IS-1,Math.floor(u/S*IS));
+    const sv=Math.min(IS-1,Math.floor((S-1-v)/S*IS));
+    const pi=(sv*IS+su)*4;
+    colBuf[li*3]=pixels[pi]/255;
+    colBuf[li*3+1]=pixels[pi+1]/255;
+    colBuf[li*3+2]=pixels[pi+2]/255;
+  }
+  return true;
+}
+
+function articUpdateInfo(){
+  const w=articWorks[articIdx]; if(!w) return;
+  const infoEl=document.getElementById('artic-work-info');
+  if(infoEl) infoEl.textContent=(articIdx+1)+'/'+articWorks.length+' — '+(w.title||'Untitled')+' — '+(w.artist_display||'Unknown artist').split('\n')[0];
+}
+
+document.getElementById('artic-fetch-btn')?.addEventListener('click',articFetch);
+document.getElementById('artic-prev-btn')?.addEventListener('click',()=>{
+  if(!articWorks.length) return;
+  articIdx=(articIdx-1+articWorks.length)%articWorks.length;
+  articLoad(articIdx); articTimer=0; articUpdateInfo();
+});
+document.getElementById('artic-next-btn')?.addEventListener('click',()=>{
+  if(!articWorks.length) return;
+  articIdx=(articIdx+1)%articWorks.length;
+  articLoad(articIdx); articTimer=0; articUpdateInfo();
+});
+document.getElementById('artic-speed')?.addEventListener('input',function(){
+  articSecs=+this.value;
+  const lbl=document.getElementById('artic-speed-label');
+  if(lbl) lbl.textContent=articSecs+'s';
+});
+(()=>{
+  document.getElementById('artic-query')?.addEventListener('change',function(){
+    articQuery=this.value.trim();
+  });
+})();
+
+function effectArtic(dt){
+  articT+=dt;
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  if(!articWorks.length){
+    if(!articFetching) articFetch();
+    const dots='.'.repeat(1+(Math.floor(articT)%3));
+    for(let f=0;f<6;f++) renderTextToFace(f,['ART','GALLERY',dots],[0.7,0.55,0.15],[0.06,0.04,0]);
+    return;
+  }
+
+  if(articError){
+    for(let f=0;f<6;f++) renderTextToFace(f,['API','ERROR',articError],[1,0.25,0.25],[0.06,0,0]);
+    return;
+  }
+
+  articTimer+=dt;
+  if(articTimer>=articSecs){
+    articTimer=0;
+    articIdx=(articIdx+1)%articWorks.length;
+    articUpdateInfo();
+  }
+  articLoad(articIdx);
+  articLoad((articIdx+1)%articWorks.length);
+
+  const shown=articApplyToFace(0,articIdx);
+  if(shown){
+    for(let f=1;f<6;f++) articApplyToFace(f,articIdx);
+  } else if(articPixels[articIdx]==='error'){
+    for(let f=0;f<6;f++) renderTextToFace(f,['NO IMAGE','artwork '+(articIdx+1)],[0.6,0.4,0.1],[0.06,0.03,0]);
+  } else {
+    const dots='.'.repeat(1+(Math.floor(articT)%3));
+    for(let f=0;f<6;f++) renderTextToFace(f,['LOADING',dots],[0.7,0.55,0.15],[0.06,0.04,0]);
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  Dad Jokes — scrolling ticker (icanhazdadjoke.com)
+// ═══════════════════════════════════════════════════
+let jokeText='', jokeFetching=false, jokeError='', jokeT=0;
+let jokeTickerPixels=null, jokeTickerWidth=0, jokeTickerScrollX=0;
+let jokeTimer=0, jokeSecs=25;
+
+async function jokeFetch(){
+  if(jokeFetching) return;
+  jokeFetching=true; jokeError='';
+  const statusEl=document.getElementById('joke-status');
+  if(statusEl) statusEl.textContent='Fetching a joke…';
+  try{
+    let r;
+    try{ r=await fetch('https://icanhazdadjoke.com/', {headers:{'Accept':'application/json'}}); }
+    catch(fe){ jokeError='Network error — check internet connection'; throw fe; }
+    if(!r.ok){ jokeError='Joke API error '+r.status; throw new Error(String(r.status)); }
+    const d=await r.json();
+    jokeText=(d.joke||'').trim();
+    if(!jokeText){ jokeError='Empty response'; throw new Error('empty'); }
+    jokeTickerPixels=null;
+    jokeTimer=0;
+    if(statusEl) statusEl.textContent='Got one!';
+  }catch(e){
+    if(statusEl) statusEl.textContent='✕ '+jokeError;
+    console.error('Joke fetch error:',e);
+  }
+  jokeFetching=false;
+}
+document.getElementById('joke-fetch-btn')?.addEventListener('click',jokeFetch);
+
+function jokeBuildTicker(){
+  const text=('   '+jokeText+'   ').repeat(2);
+  const fh=Math.max(8,(SIZE*0.34)|0);
+  const oc=document.createElement('canvas');
+  const cx=oc.getContext('2d');
+  cx.font=`bold ${fh}px "Courier New",monospace`;
+  const tw=cx.measureText(text).width|0;
+  oc.width=tw+4*SIZE; oc.height=SIZE;
+  cx.fillStyle='#000'; cx.fillRect(0,0,oc.width,oc.height);
+  cx.fillStyle='#ffcc44'; cx.font=`bold ${fh}px "Courier New",monospace`;
+  cx.textBaseline='middle'; cx.fillText(text,0,SIZE/2);
+  jokeTickerPixels=cx.getImageData(0,0,oc.width,oc.height).data;
+  jokeTickerWidth=oc.width;
+  jokeTickerScrollX=0;
+}
+
+function jokeApplyTickerToFace(face){
+  if(!jokeTickerPixels) return;
+  const S=SIZE;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const sx=(((jokeTickerScrollX|0)+u)%jokeTickerWidth+jokeTickerWidth)%jokeTickerWidth;
+      const sv=S-1-v;
+      const pi=(sv*jokeTickerWidth+sx)*4;
+      const idx=faceMap[face][v*S+u];
+      if(idx<0) continue;
+      colBuf[idx*3]=jokeTickerPixels[pi]/255;
+      colBuf[idx*3+1]=jokeTickerPixels[pi+1]/255;
+      colBuf[idx*3+2]=jokeTickerPixels[pi+2]/255;
+    }
+  }
+}
+
+function effectJoke(dt){
+  jokeT+=dt;
+  if(!jokeText && !jokeFetching) jokeFetch();
+
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+  const pulse=0.5+0.5*Math.sin(jokeT*1.2);
+
+  // Face 0 / all faces: a grinning face icon as the backdrop
+  const S=SIZE, cx0=S/2, cy0=S*0.42;
+  const faces=is2D?[0]:[0,1,2,3,4,5];
+  for(const face of faces){
+    for(let v=0;v<S;v++){
+      for(let u=0;u<S;u++){
+        const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+        const dx=u-cx0, dy=v-cy0, d=Math.sqrt(dx*dx+dy*dy);
+        if(d<S*0.3){ colBuf[idx*3]=0.75*pulse; colBuf[idx*3+1]=0.6*pulse; colBuf[idx*3+2]=0.1*pulse; }
+      }
+    }
+  }
+
+  if(!jokeText){
+    const dots='.'.repeat(1+(Math.floor(jokeT)%3));
+    for(const f of faces) renderTextToFace(f,['LOADING','JOKE'+dots],[0.9,0.75,0.2],[0.06,0.05,0]);
+    return;
+  }
+  if(jokeError){
+    for(const f of faces) renderTextToFace(f,['API','ERROR',jokeError],[1,0.25,0.25],[0.06,0,0]);
+    return;
+  }
+
+  jokeTimer+=dt;
+  if(jokeTimer>=jokeSecs){ jokeTimer=0; jokeFetch(); }
+
+  if(!jokeTickerPixels) jokeBuildTicker();
+  jokeTickerScrollX += dt*20*(speedMult||1);
+  if(is2D){ jokeApplyTickerToFace(0); }
+  else { jokeApplyTickerToFace(1); }
+}
 
 // ═══════════════════════════════════════════════════
 //  Earth Full-Disk Imagery (NASA EPIC)
