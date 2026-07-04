@@ -14935,7 +14935,7 @@ function wcWordDelay(word){
 }
 function wcInit(taggedWords, fs){
   const S=Math.max(SIZE,16);
-  const lineH=fs*1.3;
+  const lineH=fs*1.45;
   const maxLines=Math.max(1, Math.floor((S-4)/lineH));
   return {words:taggedWords, idx:0, cur:[], lines:[], timer:0, pendingDelay:0.3,
           done:false, holdTimer:0, S, fs, lineH, maxLines};
@@ -15078,7 +15078,7 @@ function effectJoke(dt){
   }
 
   if(jokeCascadeForText!==jokeText){
-    const fs=Math.round(Math.max(SIZE,16)*0.2);
+    const fs=Math.round(Math.max(SIZE,16)*0.17);
     const tagged=jokeTagWords(jokeText).map(t=>({w:t.w, color:t.isAnswer?'#ffcc44':'#fff'}));
     jokeCascade=wcInit(tagged, fs);
     jokeCascadeForText=jokeText;
@@ -15180,7 +15180,7 @@ function effectOnThisDay(dt){
   const curEvent=otdEvents[otdIdx];
   const wrapKey=otdIdx+'|'+otdEvents.length;
   if(otdCascadeForKey!==wrapKey){
-    const fs=Math.round(Math.max(SIZE,16)*0.2);
+    const fs=Math.round(Math.max(SIZE,16)*0.17);
     const tagged=[{w:`${curEvent.year}:`,color:'#ffcc44'}, ...curEvent.text.split(/\s+/).filter(Boolean).map(w=>({w,color:'#7ad0ff'}))];
     otdCascade=wcInit(tagged, fs);
     otdCascadeForKey=wrapKey;
