@@ -14915,10 +14915,11 @@ function effectArtic(dt){
 }
 
 // ═══════════════════════════════════════════════════
-//  Word cascade — shared fallback renderer for text too long to fit
-//  word-wrapped even at minimum font. Reveals one word at a time filling
-//  rows top-down; once the face is full, rows shift up as new words/lines
-//  arrive at the bottom, until the whole text has been shown.
+//  Word cascade — always-on reveal for jokes & historical events. Words
+//  appear one at a time filling rows top-down; once the face is full,
+//  rows shift up as new lines arrive at the bottom. The delay before each
+//  word depends on the length/complexity of the word just shown — longer
+//  words and ones with more punctuation/symbols give the reader more time.
 // ═══════════════════════════════════════════════════
 let wcSharedCtx=null;
 function wcMeasureCtx(fs){
@@ -14926,26 +14927,29 @@ function wcMeasureCtx(fs){
   wcSharedCtx.font=`bold ${fs}px Arial,sans-serif`;
   return wcSharedCtx;
 }
+function wcWordDelay(word){
+  const base=0.16;
+  const perChar=0.05;
+  const symbols=(word.match(/[^a-zA-Z0-9]/g)||[]).length;
+  return base + word.length*perChar + symbols*0.08;
+}
 function wcInit(taggedWords, fs){
   const S=Math.max(SIZE,16);
-  const lineH=fs*1.35;
+  const lineH=fs*1.3;
   const maxLines=Math.max(1, Math.floor((S-4)/lineH));
-  return {words:taggedWords, idx:0, cur:[], lines:[], timer:0, interval:0.28,
+  return {words:taggedWords, idx:0, cur:[], lines:[], timer:0, pendingDelay:0.3,
           done:false, holdTimer:0, S, fs, lineH, maxLines};
 }
+// No auto-loop/auto-advance here — the caller (effectJoke/effectOnThisDay)
+// watches state.done + state.holdTimer to decide what comes next (repeat,
+// fetch a new joke, advance to the next event, etc).
 function wcStep(state, dt){
-  if(state.done){
-    state.holdTimer+=dt;
-    if(state.holdTimer>3){ // loop: restart the cascade
-      state.idx=0; state.cur=[]; state.lines=[]; state.timer=0; state.done=false; state.holdTimer=0;
-    }
-    return;
-  }
+  if(state.done){ state.holdTimer+=dt; return; }
   state.timer+=dt;
   const ctx=wcMeasureCtx(state.fs);
   const maxW=state.S-4;
-  while(state.timer>=state.interval && state.idx<state.words.length){
-    state.timer-=state.interval;
+  while(state.timer>=state.pendingDelay && state.idx<state.words.length){
+    state.timer-=state.pendingDelay;
     const tw=state.words[state.idx++];
     const curText=state.cur.map(t=>t.w).join(' ');
     const testText=curText?curText+' '+tw.w:tw.w;
@@ -14955,6 +14959,7 @@ function wcStep(state, dt){
     } else {
       state.cur.push(tw);
     }
+    state.pendingDelay=wcWordDelay(tw.w);
     if(state.idx>=state.words.length) state.done=true;
   }
 }
@@ -15003,7 +15008,6 @@ function wcApplyToFace(face, buf){
 //  Dad Jokes (icanhazdadjoke.com)
 // ═══════════════════════════════════════════════════
 let jokeText='', jokeFetching=false, jokeError='', jokeT=0;
-let jokeTimer=0, jokeSecs=25;
 let jokeCascade=null, jokeCascadeForText='';
 
 async function jokeFetch(){
@@ -15019,7 +15023,6 @@ async function jokeFetch(){
     const d=await r.json();
     jokeText=(d.joke||'').trim();
     if(!jokeText){ jokeError='Empty response'; throw new Error('empty'); }
-    jokeTimer=0;
     if(statusEl) statusEl.textContent='Got one!';
   }catch(e){
     if(statusEl) statusEl.textContent='✕ '+jokeError;
@@ -15029,11 +15032,6 @@ async function jokeFetch(){
 }
 document.getElementById('joke-fetch-btn')?.addEventListener('click',jokeFetch);
 
-// Try to fit the whole joke, word-wrapped, statically on one face — shrinking
-// the font until it fits (down to a minimum readable size). Returns null if
-// it still doesn't fit even at the minimum, so the caller falls back to the
-// word-cascade renderer instead.
-let jokeWrapBuf=null, jokeWrapForText='';
 // Tag each word as setup (before/including the "?") or answer (after it), so
 // the punchline can be rendered in a distinct color. Jokes without a "?"
 // have no answer split — everything renders as setup color.
@@ -15045,70 +15043,6 @@ function jokeTagWords(text){
     words.push({w:m[0], isAnswer: splitIdx>=0 && m.index>splitIdx});
   }
   return words;
-}
-function jokeBuildWrapped(){
-  const S=Math.max(SIZE,16);
-  const oc=document.createElement('canvas');
-  oc.width=S; oc.height=S;
-  const ctx=oc.getContext('2d');
-  const maxW=S-4;
-  // Keep a higher floor than before so text never shrinks to unreadable —
-  // jokes that don't fit at this size fall back to the word cascade.
-  const maxFs=Math.round(S*0.16), minFs=Math.max(7,Math.round(S*0.11));
-  const taggedWords=jokeTagWords(jokeText);
-  let lines=null, fs=maxFs;
-  for(; fs>=minFs; fs--){
-    ctx.font=`bold ${fs}px Arial,sans-serif`;
-    const spaceW=ctx.measureText(' ').width;
-    const testLines=[];
-    let cur=[], curW=0;
-    for(const tw of taggedWords){
-      const ww=ctx.measureText(tw.w).width;
-      const addW=cur.length?spaceW+ww:ww;
-      if(curW+addW>maxW && cur.length){ testLines.push(cur); cur=[tw]; curW=ww; }
-      else { cur.push(tw); curW+=addW; }
-    }
-    if(cur.length) testLines.push(cur);
-    const lineH=fs*1.35;
-    if(testLines.length*lineH<=S-4){ lines=testLines; break; }
-  }
-  if(!lines) return null;
-  ctx.fillStyle='#000'; ctx.fillRect(0,0,S,S);
-  ctx.font=`bold ${fs}px Arial,sans-serif`;
-  ctx.textAlign='left'; ctx.textBaseline='middle';
-  ctx.lineWidth=Math.max(1,Math.round(fs*0.16));
-  ctx.strokeStyle='#000';
-  const spaceW=ctx.measureText(' ').width;
-  const lineH=fs*1.35;
-  const totalH=lines.length*lineH;
-  const startY=(S-totalH)/2+lineH/2;
-  lines.forEach((line,i)=>{
-    const y=startY+i*lineH;
-    const wordWidths=line.map(tw=>ctx.measureText(tw.w).width);
-    const lineW=wordWidths.reduce((a,b)=>a+b,0)+spaceW*(line.length-1);
-    let x=(S-lineW)/2;
-    line.forEach((tw,j)=>{
-      ctx.strokeText(tw.w, x, y);
-      ctx.fillStyle=tw.isAnswer?'#ffcc44':'#fff';
-      ctx.fillText(tw.w, x, y);
-      x+=wordWidths[j]+spaceW;
-    });
-  });
-  return {data: ctx.getImageData(0,0,S,S).data, S};
-}
-
-function jokeApplyWrappedToFace(face, buf){
-  const {data,S}=buf;
-  for(let v=0;v<S;v++){
-    for(let u=0;u<S;u++){
-      const sv=S-1-v;
-      const pi=(sv*S+u)*4;
-      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
-      colBuf[idx*3]=data[pi]/255;
-      colBuf[idx*3+1]=data[pi+1]/255;
-      colBuf[idx*3+2]=data[pi+2]/255;
-    }
-  }
 }
 
 function effectJoke(dt){
@@ -15143,38 +15077,26 @@ function effectJoke(dt){
     return;
   }
 
-  jokeTimer+=dt;
-  if(jokeTimer>=jokeSecs){ jokeTimer=0; jokeFetch(); }
-
-  if(jokeWrapForText!==jokeText){
-    jokeWrapBuf=jokeBuildWrapped();
-    jokeWrapForText=jokeText;
+  if(jokeCascadeForText!==jokeText){
+    const fs=Math.round(Math.max(SIZE,16)*0.2);
+    const tagged=jokeTagWords(jokeText).map(t=>({w:t.w, color:t.isAnswer?'#ffcc44':'#fff'}));
+    jokeCascade=wcInit(tagged, fs);
+    jokeCascadeForText=jokeText;
   }
-
+  wcStep(jokeCascade, dt);
   const targetFace=is2D?0:1;
-  if(jokeWrapBuf){
-    // Whole joke fits word-wrapped on the face — show it statically, no scroll
-    jokeApplyWrappedToFace(targetFace, jokeWrapBuf);
-  } else {
-    // Too long even at the smallest readable font — reveal word by word,
-    // filling rows top-down and shifting up once the face is full, instead
-    // of a horizontal scroll.
-    if(jokeCascadeForText!==jokeText){
-      const minFs=Math.max(7,Math.round(Math.max(SIZE,16)*0.11));
-      const tagged=jokeTagWords(jokeText).map(t=>({w:t.w, color:t.isAnswer?'#ffcc44':'#fff'}));
-      jokeCascade=wcInit(tagged, minFs);
-      jokeCascadeForText=jokeText;
-    }
-    wcStep(jokeCascade, dt);
-    wcApplyToFace(targetFace, wcRenderBuf(jokeCascade));
-  }
+  wcApplyToFace(targetFace, wcRenderBuf(jokeCascade));
+
+  // Once the whole joke has been revealed and held on screen a moment,
+  // fetch a new one.
+  if(jokeCascade.done && jokeCascade.holdTimer>3 && !jokeFetching) jokeFetch();
 }
 
 // ═══════════════════════════════════════════════════
 //  On This Day — Wikipedia historical events (free, no key)
 // ═══════════════════════════════════════════════════
 let otdEvents=[], otdFetching=false, otdError='', otdT=0, otdFetchedFor='';
-let otdIdx=0, otdTimer=0, otdSecs=8, otdWrapBuf=null, otdWrapForKey='';
+let otdIdx=0;
 let otdCascade=null, otdCascadeForKey='';
 
 async function otdFetch(){
@@ -15209,74 +15131,6 @@ async function otdFetch(){
   otdFetching=false;
 }
 document.getElementById('otd-fetch-btn')?.addEventListener('click',otdFetch);
-
-// Try to fit a single event, word-wrapped, statically on one face — same
-// shrink-to-fit approach as the Dad Jokes effect, with the year tagged a
-// different color from the description. Returns null if it doesn't fit
-// even at the minimum font, so the caller falls back to the full ticker.
-function otdBuildEventWrapped(ev){
-  const S=Math.max(SIZE,16);
-  const oc=document.createElement('canvas');
-  oc.width=S; oc.height=S;
-  const ctx=oc.getContext('2d');
-  const maxW=S-4;
-  const maxFs=Math.round(S*0.16), minFs=Math.max(7,Math.round(S*0.11));
-  const yearTok=`${ev.year}:`;
-  const words=[{w:yearTok,isYear:true}, ...ev.text.split(/\s+/).filter(Boolean).map(w=>({w,isYear:false}))];
-  let lines=null, fs=maxFs;
-  for(; fs>=minFs; fs--){
-    ctx.font=`bold ${fs}px Arial,sans-serif`;
-    const spaceW=ctx.measureText(' ').width;
-    const testLines=[];
-    let cur=[], curW=0;
-    for(const tw of words){
-      const ww=ctx.measureText(tw.w).width;
-      const addW=cur.length?spaceW+ww:ww;
-      if(curW+addW>maxW && cur.length){ testLines.push(cur); cur=[tw]; curW=ww; }
-      else { cur.push(tw); curW+=addW; }
-    }
-    if(cur.length) testLines.push(cur);
-    const lineH=fs*1.35;
-    if(testLines.length*lineH<=S-4){ lines=testLines; break; }
-  }
-  if(!lines) return null;
-  ctx.fillStyle='#000'; ctx.fillRect(0,0,S,S);
-  ctx.font=`bold ${fs}px Arial,sans-serif`;
-  ctx.textAlign='left'; ctx.textBaseline='middle';
-  ctx.lineWidth=Math.max(1,Math.round(fs*0.16));
-  ctx.strokeStyle='#000';
-  const spaceW=ctx.measureText(' ').width;
-  const lineH=fs*1.35;
-  const totalH=lines.length*lineH;
-  const startY=(S-totalH)/2+lineH/2;
-  lines.forEach((line,i)=>{
-    const y=startY+i*lineH;
-    const wordWidths=line.map(tw=>ctx.measureText(tw.w).width);
-    const lineW=wordWidths.reduce((a,b)=>a+b,0)+spaceW*(line.length-1);
-    let x=(S-lineW)/2;
-    line.forEach((tw,j)=>{
-      ctx.strokeText(tw.w, x, y);
-      ctx.fillStyle=tw.isYear?'#ffcc44':'#7ad0ff';
-      ctx.fillText(tw.w, x, y);
-      x+=wordWidths[j]+spaceW;
-    });
-  });
-  return {data: ctx.getImageData(0,0,S,S).data, S};
-}
-
-function otdApplyWrappedToFace(face, buf){
-  const {data,S}=buf;
-  for(let v=0;v<S;v++){
-    for(let u=0;u<S;u++){
-      const sv=S-1-v;
-      const pi=(sv*S+u)*4;
-      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
-      colBuf[idx*3]=data[pi]/255;
-      colBuf[idx*3+1]=data[pi+1]/255;
-      colBuf[idx*3+2]=data[pi+2]/255;
-    }
-  }
-}
 
 function otdBuildTitleBuf(){
   const S=Math.max(SIZE,16);
@@ -15321,35 +15175,23 @@ function effectOnThisDay(dt){
     return;
   }
 
-  // Cycle through events one at a time, trying to fit each word-wrapped on
-  // the face (same shrink-to-fit approach as Dad Jokes). Falls back to the
-  // scrolling multi-event ticker only if the current event doesn't fit even
-  // at the minimum font.
+  // Cycle through events one at a time, each revealed word by word.
   if(otdIdx>=otdEvents.length) otdIdx=0;
-  otdTimer+=dt;
-  if(otdTimer>=otdSecs){ otdTimer=0; otdIdx=(otdIdx+1)%otdEvents.length; }
   const curEvent=otdEvents[otdIdx];
   const wrapKey=otdIdx+'|'+otdEvents.length;
-  if(otdWrapForKey!==wrapKey){
-    otdWrapBuf=otdBuildEventWrapped(curEvent);
-    otdWrapForKey=wrapKey;
+  if(otdCascadeForKey!==wrapKey){
+    const fs=Math.round(Math.max(SIZE,16)*0.2);
+    const tagged=[{w:`${curEvent.year}:`,color:'#ffcc44'}, ...curEvent.text.split(/\s+/).filter(Boolean).map(w=>({w,color:'#7ad0ff'}))];
+    otdCascade=wcInit(tagged, fs);
+    otdCascadeForKey=wrapKey;
   }
-
+  wcStep(otdCascade, dt);
   const targetFace=is2D?0:1;
-  if(otdWrapBuf){
-    otdApplyWrappedToFace(targetFace, otdWrapBuf);
-  } else {
-    // Too long even at the smallest readable font — reveal word by word,
-    // filling rows top-down and shifting up once the face is full.
-    if(otdCascadeForKey!==wrapKey){
-      const minFs=Math.max(7,Math.round(Math.max(SIZE,16)*0.11));
-      const tagged=[{w:`${curEvent.year}:`,color:'#ffcc44'}, ...curEvent.text.split(/\s+/).filter(Boolean).map(w=>({w,color:'#7ad0ff'}))];
-      otdCascade=wcInit(tagged, minFs);
-      otdCascadeForKey=wrapKey;
-    }
-    wcStep(otdCascade, dt);
-    wcApplyToFace(targetFace, wcRenderBuf(otdCascade));
-  }
+  wcApplyToFace(targetFace, wcRenderBuf(otdCascade));
+
+  // Once the current event has been fully revealed and held a moment,
+  // advance to the next one.
+  if(otdCascade.done && otdCascade.holdTimer>2.5) otdIdx=(otdIdx+1)%otdEvents.length;
 
   if(is2D) return;
   // Face 4: title card with today's date + event count
