@@ -151,13 +151,16 @@ function buildScrollText(data) {
   f1ScrollX    = 0;
 }
 
-const F1_STRIP_SIDE = [2,0,3,1]; // right→front→left→back — matches panoramic order used everywhere else (SIDE in ui.js/effects.js)
 function setStripLED(stripX, v, r, g, b) {
   if (v<0||v>=SIZE) return;
   const seg = (stripX/SIZE)|0, u = stripX%SIZE;
   const fv  = SIZE-1-v;
-  if (seg<0||seg>3) return;
-  const face = F1_STRIP_SIDE[seg], fu = u;
+  let face, fu;
+  if (seg===0){ face=0; fu=u;         }
+  else if(seg===1){ face=2; fu=u;         }
+  else if(seg===2){ face=1; fu=u;         }
+  else if(seg===3){ face=3; fu=u;         }
+  else return;
   const i=faceMap[face][fv*SIZE+fu];
   if(i>=0) setLED(i,r,g,b);
 }
