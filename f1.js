@@ -151,17 +151,16 @@ function buildScrollText(data) {
   f1ScrollX    = 0;
 }
 
+// Verified panorama order (matches panXOfFaceU in effects.js weather code):
+// right → front → left → back, u increasing the same direction on every face.
+const F1_STRIP_SIDE = [2,0,3,1];
 function setStripLED(stripX, v, r, g, b) {
   if (v<0||v>=SIZE) return;
   const seg = (stripX/SIZE)|0, u = stripX%SIZE;
   const fv  = SIZE-1-v;
-  let face, fu;
-  if (seg===0){ face=0; fu=u;         }
-  else if(seg===1){ face=2; fu=u;         }
-  else if(seg===2){ face=1; fu=u;         }
-  else if(seg===3){ face=3; fu=u;         }
-  else return;
-  const i=faceMap[face][fv*SIZE+fu];
+  if (seg<0||seg>3) return;
+  const face = F1_STRIP_SIDE[seg];
+  const i=faceMap[face][fv*SIZE+u];
   if(i>=0) setLED(i,r,g,b);
 }
 
