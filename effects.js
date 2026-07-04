@@ -15134,11 +15134,11 @@ function issIsLand(lonFrac, latFrac){
 // longitude across the full width + 180° of latitude across the full
 // height is a true 1:1 degree-per-pixel aspect ratio, using every row and
 // column at full resolution. The visible slice follows the ISS as it moves.
-// u: 0=west edge of the 180°-window .. S-1=east edge (ascending west->east,
-// standard map convention). v: 0=north pole .. S-1=south pole (ascending
-// top->bottom, standard image convention — row 0 is "up" in the data).
+// u: 0=east edge of the 180°-window .. S-1=west edge (descending east->west
+// — flipped left-to-right per request). v: 0=north pole .. S-1=south pole
+// (ascending top->bottom, standard image convention — row 0 is "up").
 function issLonToWindowU(lon, centerLon, S){
-  let rel=lon-(centerLon-90);
+  let rel=(centerLon+90)-lon;
   rel=((rel%360)+360)%360;
   if(rel<0||rel>=180) return -1;
   return Math.min(S-1,Math.floor((rel/180)*S));
@@ -15152,7 +15152,7 @@ function issBuildMapBuf(centerLon){
   for(let v=0;v<S;v++){
     const latFrac=v/S;
     for(let u=0;u<S;u++){
-      let lonDeg=centerLon-90+(u/S)*180;
+      let lonDeg=centerLon+90-(u/S)*180;
       lonDeg=((lonDeg+180)%360+360)%360-180;
       const lonFrac=(lonDeg+180)/360;
       const land=issIsLand(lonFrac,latFrac);
