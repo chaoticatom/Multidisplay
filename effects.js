@@ -14925,10 +14925,26 @@ function effectArtic(dt){
 //  unmapped characters (e.g. some punctuation) are simply skipped, same as
 //  weather's ticker already does.
 // ═══════════════════════════════════════════════════
-// Native 1x PIXEL_FONT scale — identical glyph size to the weather ticker.
-// Doubling the pixels (2x2 blocks) looked bad, so keep glyphs at their
-// native crisp size and only add a touch of extra spacing (char/line gap)
-// for a very slightly larger overall footprint without blockiness.
+// Dedicated 4-wide x 6-tall bitmap font (one size up from the weather
+// ticker's 3x5 PIXEL_FONT) — each row is a 4-bit nibble, bit3=leftmost
+// column. Uppercase only; lowercase input falls back to uppercase, same
+// as PIXEL_FONT does. Character advance is glyph width + 1px gap (normal
+// spacing, no extra padding beyond that).
+const WC_FONT={
+  '0':[6,9,9,9,9,6],'1':[2,6,2,2,2,7],'2':[6,9,1,2,4,15],'3':[14,1,6,1,9,6],
+  '4':[2,6,10,15,2,2],'5':[15,8,14,1,9,6],'6':[6,8,14,9,9,6],'7':[15,1,2,4,4,4],
+  '8':[6,9,6,9,9,6],'9':[6,9,9,7,1,6],
+  'A':[6,9,9,15,9,9],'B':[14,9,14,9,9,14],'C':[7,8,8,8,8,7],'D':[14,9,9,9,9,14],
+  'E':[15,8,14,8,8,15],'F':[15,8,14,8,8,8],'G':[7,8,8,11,9,7],'H':[9,9,15,9,9,9],
+  'I':[15,6,6,6,6,15],'J':[3,1,1,1,9,6],'K':[9,10,12,10,10,9],'L':[8,8,8,8,8,15],
+  'M':[9,15,15,9,9,9],'N':[9,13,15,11,9,9],'O':[6,9,9,9,9,6],'P':[14,9,14,8,8,8],
+  'Q':[6,9,9,9,11,7],'R':[14,9,14,10,9,9],'S':[7,8,6,1,1,14],'T':[15,6,6,6,6,6],
+  'U':[9,9,9,9,9,6],'V':[9,9,9,9,6,6],'W':[9,9,9,15,15,9],'X':[9,9,6,6,9,9],
+  'Y':[9,9,6,6,6,6],'Z':[15,1,2,4,8,15],
+  ' ':[0,0,0,0,0,0],'.':[0,0,0,0,0,6],',':[0,0,0,0,6,4],"'":[6,6,0,0,0,0],
+  '"':[9,9,0,0,0,0],'?':[6,9,2,4,0,4],'!':[6,6,6,6,0,6],':':[0,6,0,6,0,0],
+  ';':[0,6,0,6,4,0],'-':[0,0,15,0,0,0],'(':[2,4,8,8,4,2],')':[8,4,2,2,4,8],
+};
 const WC_CHAR_W=5, WC_LINE_H=7;
 function wcWordDelay(word){
   const base=0.16;
@@ -14936,16 +14952,17 @@ function wcWordDelay(word){
   const symbols=(word.match(/[^a-zA-Z0-9]/g)||[]).length;
   return base + word.length*perChar + symbols*0.08;
 }
-// Same bit pattern as pixelGlyph, native 1x scale. Returns advance width
-// (wider than the glyph itself so WC_CHAR_W's extra gap applies).
+// Draws one glyph from WC_FONT. Unmapped characters are skipped (blank),
+// same fallback behavior as the weather ticker's PIXEL_FONT. Returns
+// advance width.
 function wcDrawGlyph(face, ch, su, sv, rgb){
-  const rows=PIXEL_FONT[ch]||PIXEL_FONT[ch.toUpperCase()];
+  const rows=WC_FONT[ch]||WC_FONT[ch.toUpperCase()];
   if(!rows) return WC_CHAR_W;
-  for(let row=0;row<5;row++){
+  for(let row=0;row<6;row++){
     const bits=rows[row];
-    for(let col=0;col<3;col++){
-      if(!((bits>>(2-col))&1)) continue;
-      const u=su+col, v=sv+(4-row);
+    for(let col=0;col<4;col++){
+      if(!((bits>>(3-col))&1)) continue;
+      const u=su+col, v=sv+(5-row);
       if(u<0||u>=SIZE||v<0||v>=SIZE) continue;
       const idx=faceMap[face][v*SIZE+u]; if(idx<0) continue;
       colBuf[idx*3]=rgb[0]; colBuf[idx*3+1]=rgb[1]; colBuf[idx*3+2]=rgb[2];
@@ -14985,8 +15002,8 @@ function wcDrawToFace(state, face){
   const visible=allLines.slice(-state.maxLines);
   const topMargin=1;
   visible.forEach((line,i)=>{
-    const sv=(SIZE-1)-topMargin-4-i*WC_LINE_H;
-    if(sv+4<0) return;
+    const sv=(SIZE-1)-topMargin-5-i*WC_LINE_H;
+    if(sv+5<0) return;
     const lineW=line.reduce((a,t)=>a+t.w.length*WC_CHAR_W,0)+Math.max(0,line.length-1)*WC_CHAR_W;
     let su=Math.round((SIZE-lineW)/2);
     line.forEach(tw=>{
