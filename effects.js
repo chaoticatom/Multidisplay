@@ -15117,6 +15117,7 @@ function effectJoke(dt){
 // ═══════════════════════════════════════════════════
 let otdEvents=[], otdFetching=false, otdError='', otdT=0, otdFetchedFor='';
 let otdTickerPixels=null, otdTickerWidth=0, otdTickerScrollX=0;
+let otdIdx=0, otdTimer=0, otdSecs=8, otdWrapBuf=null, otdWrapForKey='';
 
 async function otdFetch(){
   if(otdFetching) return;
@@ -15200,6 +15201,74 @@ function otdApplyTickerToFace(face){
   }
 }
 
+// Try to fit a single event, word-wrapped, statically on one face — same
+// shrink-to-fit approach as the Dad Jokes effect, with the year tagged a
+// different color from the description. Returns null if it doesn't fit
+// even at the minimum font, so the caller falls back to the full ticker.
+function otdBuildEventWrapped(ev){
+  const S=Math.max(SIZE,16);
+  const oc=document.createElement('canvas');
+  oc.width=S; oc.height=S;
+  const ctx=oc.getContext('2d');
+  const maxW=S-4;
+  const maxFs=Math.round(S*0.16), minFs=Math.max(7,Math.round(S*0.11));
+  const yearTok=`${ev.year}:`;
+  const words=[{w:yearTok,isYear:true}, ...ev.text.split(/\s+/).filter(Boolean).map(w=>({w,isYear:false}))];
+  let lines=null, fs=maxFs;
+  for(; fs>=minFs; fs--){
+    ctx.font=`bold ${fs}px Arial,sans-serif`;
+    const spaceW=ctx.measureText(' ').width;
+    const testLines=[];
+    let cur=[], curW=0;
+    for(const tw of words){
+      const ww=ctx.measureText(tw.w).width;
+      const addW=cur.length?spaceW+ww:ww;
+      if(curW+addW>maxW && cur.length){ testLines.push(cur); cur=[tw]; curW=ww; }
+      else { cur.push(tw); curW+=addW; }
+    }
+    if(cur.length) testLines.push(cur);
+    const lineH=fs*1.35;
+    if(testLines.length*lineH<=S-4){ lines=testLines; break; }
+  }
+  if(!lines) return null;
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,S,S);
+  ctx.font=`bold ${fs}px Arial,sans-serif`;
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.lineWidth=Math.max(1,Math.round(fs*0.16));
+  ctx.strokeStyle='#000';
+  const spaceW=ctx.measureText(' ').width;
+  const lineH=fs*1.35;
+  const totalH=lines.length*lineH;
+  const startY=(S-totalH)/2+lineH/2;
+  lines.forEach((line,i)=>{
+    const y=startY+i*lineH;
+    const wordWidths=line.map(tw=>ctx.measureText(tw.w).width);
+    const lineW=wordWidths.reduce((a,b)=>a+b,0)+spaceW*(line.length-1);
+    let x=(S-lineW)/2;
+    line.forEach((tw,j)=>{
+      ctx.strokeText(tw.w, x, y);
+      ctx.fillStyle=tw.isYear?'#ffcc44':'#7ad0ff';
+      ctx.fillText(tw.w, x, y);
+      x+=wordWidths[j]+spaceW;
+    });
+  });
+  return {data: ctx.getImageData(0,0,S,S).data, S};
+}
+
+function otdApplyWrappedToFace(face, buf){
+  const {data,S}=buf;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const sv=S-1-v;
+      const pi=(sv*S+u)*4;
+      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+      colBuf[idx*3]=data[pi]/255;
+      colBuf[idx*3+1]=data[pi+1]/255;
+      colBuf[idx*3+2]=data[pi+2]/255;
+    }
+  }
+}
+
 function otdBuildTitleBuf(){
   const S=Math.max(SIZE,16);
   const c=document.createElement('canvas');
@@ -15243,13 +15312,30 @@ function effectOnThisDay(dt){
     return;
   }
 
-  if(!otdTickerPixels) otdBuildTicker();
-  otdTickerScrollX += dt*20*(speedMult||1);
-
-  if(is2D){
-    otdApplyTickerToFace(0);
-    return;
+  // Cycle through events one at a time, trying to fit each word-wrapped on
+  // the face (same shrink-to-fit approach as Dad Jokes). Falls back to the
+  // scrolling multi-event ticker only if the current event doesn't fit even
+  // at the minimum font.
+  if(otdIdx>=otdEvents.length) otdIdx=0;
+  otdTimer+=dt;
+  if(otdTimer>=otdSecs){ otdTimer=0; otdIdx=(otdIdx+1)%otdEvents.length; }
+  const curEvent=otdEvents[otdIdx];
+  const wrapKey=otdIdx+'|'+otdEvents.length;
+  if(otdWrapForKey!==wrapKey){
+    otdWrapBuf=otdBuildEventWrapped(curEvent);
+    otdWrapForKey=wrapKey;
   }
+
+  const targetFace=is2D?0:1;
+  if(otdWrapBuf){
+    otdApplyWrappedToFace(targetFace, otdWrapBuf);
+  } else {
+    if(!otdTickerPixels) otdBuildTicker();
+    otdTickerScrollX += dt*20*(speedMult||1);
+    otdApplyTickerToFace(targetFace);
+  }
+
+  if(is2D) return;
   // Face 4: title card with today's date + event count
   const {data,S}=otdBuildTitleBuf();
   for(let v=0;v<S;v++){
@@ -15262,8 +15348,6 @@ function effectOnThisDay(dt){
       colBuf[idx*3+2]=data[pi+2]/255;
     }
   }
-  // Face 1: scrolling ticker of events
-  otdApplyTickerToFace(1);
   // Twinkling starfield backdrop on remaining side faces
   const tt=Date.now()*0.001;
   for(const face of [0,2,3]){
