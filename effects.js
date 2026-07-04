@@ -15126,26 +15126,36 @@ function issIsLand(lonFrac, latFrac){
   return ((byte>>(7-(bitIdx&7)))&1)===1;
 }
 
+// Map is real-world 2:1 (360°x180°) equirectangular. A square LED face would
+// stretch it vertically 2x if lat were spread across the full height, so the
+// map is letterboxed: full width = 360° of longitude, but only the middle
+// half of the face's rows are used for the 180° of latitude — top/bottom
+// quarters are space-black bars, keeping the true aspect ratio undistorted.
 function issBuildMapBuf(){
   const S=Math.max(SIZE,16);
+  const bandTop=Math.round(S*0.25), bandH=Math.round(S*0.5);
   const data=new Uint8ClampedArray(S*S*4);
   for(let v=0;v<S;v++){
     for(let u=0;u<S;u++){
-      const lonFrac=u/S, latFrac=v/S;
-      const land=issIsLand(lonFrac,latFrac);
       const i=(v*S+u)*4;
+      if(v<bandTop||v>=bandTop+bandH){
+        data[i]=2; data[i+1]=4; data[i+2]=12; data[i+3]=255;
+        continue;
+      }
+      const lonFrac=u/S, latFrac=(v-bandTop)/bandH;
+      const land=issIsLand(lonFrac,latFrac);
       if(land){ data[i]=14; data[i+1]=92; data[i+2]=30; }
       else { data[i]=10; data[i+1]=38; data[i+2]=110; }
       data[i+3]=255;
     }
   }
-  return {data, S};
+  return {data, S, bandTop, bandH};
 }
 let issMapBuf=null;
 
 function issApplyMapToFace(face, rowLimit){
   if(!issMapBuf) issMapBuf=issBuildMapBuf();
-  const {data,S}=issMapBuf;
+  const {data,S,bandTop,bandH}=issMapBuf;
   const rows=rowLimit||SIZE;
   for(let v=0;v<rows;v++){
     for(let u=0;u<SIZE;u++){
@@ -15158,12 +15168,13 @@ function issApplyMapToFace(face, rowLimit){
       colBuf[idx*3+2]=data[pi+2]/255;
     }
   }
-  // Trail + marker
+  // Trail + marker — positioned within the same letterboxed band as the map
+  const bandTopRows=Math.round(rows*(bandTop/S)), bandHRows=Math.round(rows*(bandH/S));
   const lonToU=lon=>Math.round(((lon+180)/360)*SIZE)%SIZE;
-  const latToV=lat=>Math.round(((90-lat)/180)*rows);
+  const latToV=lat=>bandTopRows+Math.round(((90-lat)/180)*bandHRows);
   issTrail.forEach((p,pi)=>{
     const u=lonToU(p.lon), v=latToV(p.lat);
-    if(v<0||v>=rows) return;
+    if(v<bandTopRows||v>=bandTopRows+bandHRows) return;
     const age=pi/Math.max(1,issTrail.length-1);
     const idx=faceMap[face][v*SIZE+u]; if(idx<0) return;
     colBuf[idx*3]=Math.max(colBuf[idx*3],0.5*age);
@@ -15175,7 +15186,7 @@ function issApplyMapToFace(face, rowLimit){
     const blink=0.6+0.4*Math.sin(issT*5);
     for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
       const uu=((u+du)%SIZE+SIZE)%SIZE, vv=v+dv;
-      if(vv<0||vv>=rows) continue;
+      if(vv<bandTopRows||vv>=bandTopRows+bandHRows) continue;
       const idx=faceMap[face][vv*SIZE+uu]; if(idx<0) continue;
       colBuf[idx*3]=1*blink; colBuf[idx*3+1]=1*blink; colBuf[idx*3+2]=0.95*blink;
     }
