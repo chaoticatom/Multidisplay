@@ -15020,6 +15020,161 @@ function effectJoke(dt){
 }
 
 // ═══════════════════════════════════════════════════
+//  On This Day — Wikipedia historical events (free, no key)
+// ═══════════════════════════════════════════════════
+let otdEvents=[], otdFetching=false, otdError='', otdT=0, otdFetchedFor='';
+let otdTickerPixels=null, otdTickerWidth=0, otdTickerScrollX=0;
+
+async function otdFetch(){
+  if(otdFetching) return;
+  otdFetching=true; otdError='';
+  const statusEl=document.getElementById('otd-status');
+  if(statusEl) statusEl.textContent='Fetching today in history…';
+  try{
+    const now=new Date();
+    const mm=String(now.getMonth()+1).padStart(2,'0'), dd=String(now.getDate()).padStart(2,'0');
+    otdFetchedFor=mm+'-'+dd;
+    const url=`https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`;
+    let r;
+    try{ r=await fetch(url, {headers:{'Accept':'application/json'}}); }
+    catch(fe){ otdError='Network error — check internet connection'; throw fe; }
+    if(!r.ok){ otdError='Wikipedia API error '+r.status; throw new Error(String(r.status)); }
+    const d=await r.json();
+    const events=(d.events||[]).filter(e=>e.text).sort((a,b)=>(b.year||0)-(a.year||0));
+    if(!events.length){ otdError='No events found'; throw new Error('empty'); }
+    otdEvents=events.slice(0,20);
+    otdTickerPixels=null;
+    if(statusEl) statusEl.textContent=otdEvents.length+' events for today';
+    const infoEl=document.getElementById('otd-info');
+    if(infoEl){
+      infoEl.style.display='block';
+      const cl=document.getElementById('otd-count-line');
+      if(cl) cl.textContent=otdEvents.length+' historical events';
+    }
+  }catch(e){
+    if(statusEl) statusEl.textContent='✕ '+otdError;
+    console.error('On This Day fetch error:',e);
+  }
+  otdFetching=false;
+}
+document.getElementById('otd-fetch-btn')?.addEventListener('click',otdFetch);
+
+function otdBuildTicker(){
+  const parts=otdEvents.map(e=>`${e.year}: ${e.text}`);
+  const text=('   '+parts.join('   ///   ')+'   ///   ').repeat(2);
+  const fh=Math.max(8,(SIZE*0.3)|0);
+  const oc=document.createElement('canvas');
+  const cx=oc.getContext('2d');
+  cx.font=`bold ${fh}px "Courier New",monospace`;
+  const tw=cx.measureText(text).width|0;
+  oc.width=tw+4*SIZE; oc.height=SIZE;
+  cx.fillStyle='#000'; cx.fillRect(0,0,oc.width,oc.height);
+  cx.fillStyle='#7ad0ff'; cx.font=`bold ${fh}px "Courier New",monospace`;
+  cx.textBaseline='middle'; cx.fillText(text,0,SIZE/2);
+  otdTickerPixels=cx.getImageData(0,0,oc.width,oc.height).data;
+  otdTickerWidth=oc.width;
+  otdTickerScrollX=0;
+}
+
+function otdApplyTickerToFace(face){
+  if(!otdTickerPixels) return;
+  const S=SIZE;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const sx=(((otdTickerScrollX|0)+u)%otdTickerWidth+otdTickerWidth)%otdTickerWidth;
+      const sv=S-1-v;
+      const pi=(sv*otdTickerWidth+sx)*4;
+      const idx=faceMap[face][v*S+u];
+      if(idx<0) continue;
+      colBuf[idx*3]=otdTickerPixels[pi]/255;
+      colBuf[idx*3+1]=otdTickerPixels[pi+1]/255;
+      colBuf[idx*3+2]=otdTickerPixels[pi+2]/255;
+    }
+  }
+}
+
+function otdBuildTitleBuf(){
+  const S=Math.max(SIZE,16);
+  const c=document.createElement('canvas');
+  c.width=S; c.height=S;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,S,S);
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const now=new Date();
+  const monthNames=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  ctx.fillStyle='#fff';
+  ctx.font=`bold ${Math.max(6,(S*0.14)|0)}px Arial,sans-serif`;
+  ctx.fillText('ON THIS DAY', S/2, S*0.2);
+  ctx.fillStyle='#7ad0ff';
+  ctx.font=`bold ${Math.max(10,(S*0.26)|0)}px Arial,sans-serif`;
+  ctx.fillText(monthNames[now.getMonth()]+' '+now.getDate(), S/2, S*0.48);
+  ctx.fillStyle='#bbb';
+  ctx.font=`${Math.max(5,(S*0.1)|0)}px Arial,sans-serif`;
+  ctx.fillText(otdEvents.length+' events in history', S/2, S*0.74);
+  return {data: ctx.getImageData(0,0,S,S).data, S};
+}
+
+function effectOnThisDay(dt){
+  otdT+=dt;
+  const now=new Date();
+  const mm=String(now.getMonth()+1).padStart(2,'0'), dd=String(now.getDate()).padStart(2,'0');
+  if((!otdEvents.length||otdFetchedFor!==mm+'-'+dd) && !otdFetching) otdFetch();
+
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+
+  if(!otdEvents.length){
+    const dots='.'.repeat(1+(Math.floor(otdT)%3));
+    const faces=is2D?[0]:[0,1,2,3,4,5];
+    for(const f of faces) renderTextToFace(f,['ON THIS','DAY'+dots],[0.3,0.65,0.95],[0,0.03,0.06]);
+    return;
+  }
+  if(otdError){
+    const faces=is2D?[0]:[0,1,2,3,4,5];
+    for(const f of faces) renderTextToFace(f,['API','ERROR',otdError],[1,0.25,0.25],[0.06,0,0]);
+    return;
+  }
+
+  if(!otdTickerPixels) otdBuildTicker();
+  otdTickerScrollX += dt*20*(speedMult||1);
+
+  if(is2D){
+    otdApplyTickerToFace(0);
+    return;
+  }
+  // Face 4: title card with today's date + event count
+  const {data,S}=otdBuildTitleBuf();
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const sv=S-1-v;
+      const pi=(sv*S+u)*4;
+      const idx=faceMap[4][v*S+u]; if(idx<0) continue;
+      colBuf[idx*3]=data[pi]/255;
+      colBuf[idx*3+1]=data[pi+1]/255;
+      colBuf[idx*3+2]=data[pi+2]/255;
+    }
+  }
+  // Face 1: scrolling ticker of events
+  otdApplyTickerToFace(1);
+  // Twinkling starfield backdrop on remaining side faces
+  const tt=Date.now()*0.001;
+  for(const face of [0,2,3]){
+    for(let v=0;v<SIZE;v++){
+      for(let u=0;u<SIZE;u++){
+        const idx=faceMap[face][v*SIZE+u]; if(idx<0) continue;
+        const seed=((idx*2654435761)>>>0)/4294967296;
+        if(seed<0.012){
+          const twinkle=0.3+0.7*Math.abs(Math.sin(tt*1.4+seed*60));
+          const br=seed*30*twinkle;
+          colBuf[idx*3]=br; colBuf[idx*3+1]=br; colBuf[idx*3+2]=br*1.1;
+        }
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════
 //  Earth Full-Disk Imagery (NASA EPIC)
 // ═══════════════════════════════════════════════════
 let epicData=null, epicFetching=false, epicLastFetch=0, epicError='', epicImgError='', epicRetryAfter=60;
