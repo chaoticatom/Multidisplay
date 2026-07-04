@@ -15134,6 +15134,9 @@ function issIsLand(lonFrac, latFrac){
 // longitude across the full width + 180° of latitude across the full
 // height is a true 1:1 degree-per-pixel aspect ratio, using every row and
 // column at full resolution. The visible slice follows the ISS as it moves.
+// u: 0=west edge of the 180°-window .. S-1=east edge (ascending west->east,
+// standard map convention). v: 0=north pole .. S-1=south pole (ascending
+// top->bottom, standard image convention — row 0 is "up" in the data).
 function issLonToWindowU(lon, centerLon, S){
   let rel=lon-(centerLon-90);
   rel=((rel%360)+360)%360;
@@ -15171,46 +15174,54 @@ function issGetMapBuf(centerLon){
   return issMapBuf;
 }
 
+// faceMap addresses each face as row*SIZE+col where row increases toward the
+// PHYSICAL TOP of the cube (see cube.js: y===SIZE-1 is the top face), the
+// opposite of standard image/canvas row order (row 0 = top). Every other
+// place in this codebase that blits a canvas/data-buffer onto a face (e.g.
+// issApplyBufToFace below) flips the source row for exactly this reason —
+// this map buffer needs the same correction, which v749 was missing
+// (that's what caused "upside down"). Face 1 (back) is also physically
+// mirrored left-right on the cube (see faceMap[1] in cube.js), so its
+// column also needs flipping — that part shipped in v750.
 function issApplyMapToFace(face, rowLimit){
-  // Face 1 (back) renders mirrored on the physical cube unless we flip the
-  // horizontal placement here — flip the OUTPUT column only, not the source
-  // sampling, so the underlying west-to-east data stays correct.
-  const mirror=(face===1);
-  const flipU=u=>mirror?(SIZE-1-u):u;
+  const mirrorU=(face===1);
+  const outCol=u=>mirrorU?(SIZE-1-u):u;
   const centerLon=issHasFix?issLon:0;
   const {data,S}=issGetMapBuf(centerLon);
   const rows=rowLimit||SIZE;
   for(let v=0;v<rows;v++){
+    const sv=Math.min(S-1,Math.floor((rows-1-v)/rows*S));
     for(let u=0;u<SIZE;u++){
-      const idx=faceMap[face][v*SIZE+flipU(u)]; if(idx<0) continue;
+      const idx=faceMap[face][v*SIZE+outCol(u)]; if(idx<0) continue;
       const su=Math.min(S-1,Math.floor(u/SIZE*S));
-      const sv=Math.min(S-1,Math.floor(v/rows*S));
       const pi=(sv*S+su)*4;
       colBuf[idx*3]=data[pi]/255;
       colBuf[idx*3+1]=data[pi+1]/255;
       colBuf[idx*3+2]=data[pi+2]/255;
     }
   }
-  // Trail + marker — same 180°-window projection as the map buffer above
+  // Trail + marker — same window projection and row-flip as the map above
   issTrail.forEach((p,pi)=>{
     const u=issLonToWindowU(p.lon,issMapBuiltCenter,SIZE);
     if(u<0) return;
-    const v=Math.round(issLatToV(p.lat,SIZE)*(rows/SIZE));
+    const dataV=Math.round(issLatToV(p.lat,SIZE)*(rows/SIZE));
+    const v=rows-1-dataV;
     if(v<0||v>=rows) return;
     const age=pi/Math.max(1,issTrail.length-1);
-    const idx=faceMap[face][v*SIZE+flipU(u)]; if(idx<0) return;
+    const idx=faceMap[face][v*SIZE+outCol(u)]; if(idx<0) return;
     colBuf[idx*3]=Math.max(colBuf[idx*3],0.5*age);
     colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],0.7*age);
     colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],1*age);
   });
   if(issHasFix){
     const u=issLonToWindowU(issLon,issMapBuiltCenter,SIZE);
-    const v=Math.round(issLatToV(issLat,SIZE)*(rows/SIZE));
+    const dataV=Math.round(issLatToV(issLat,SIZE)*(rows/SIZE));
+    const v=rows-1-dataV;
     const blink=0.6+0.4*Math.sin(issT*5);
     if(u>=0) for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
       const uu=((u+du)%SIZE+SIZE)%SIZE, vv=v+dv;
       if(vv<0||vv>=rows) continue;
-      const idx=faceMap[face][vv*SIZE+flipU(uu)]; if(idx<0) continue;
+      const idx=faceMap[face][vv*SIZE+outCol(uu)]; if(idx<0) continue;
       colBuf[idx*3]=1*blink; colBuf[idx*3+1]=1*blink; colBuf[idx*3+2]=0.95*blink;
     }
   }
