@@ -15153,17 +15153,31 @@ async function otdFetch(){
 document.getElementById('otd-fetch-btn')?.addEventListener('click',otdFetch);
 
 function otdBuildTicker(){
-  const parts=otdEvents.map(e=>`${e.year}: ${e.text}`);
-  const text=('   '+parts.join('   ///   ')+'   ///   ').repeat(2);
+  // Each event becomes two colored segments: the year (amber) and the
+  // event text (blue), so the date stands out from the description —
+  // same idea as the setup/answer split in the Dad Jokes effect.
+  const segsPerEvent=otdEvents.map(e=>[
+    {text:`${e.year}:`, color:'#ffcc44'},
+    {text:` ${e.text}   ///   `, color:'#7ad0ff'}
+  ]);
+  let segs=[{text:'   ',color:'#7ad0ff'}, ...segsPerEvent.flat()];
+  segs=segs.concat(segs); // repeat once for a seamless loop
   const fh=Math.max(8,(SIZE*0.3)|0);
   const oc=document.createElement('canvas');
   const cx=oc.getContext('2d');
   cx.font=`bold ${fh}px "Courier New",monospace`;
-  const tw=cx.measureText(text).width|0;
+  const widths=segs.map(s=>cx.measureText(s.text).width);
+  const tw=Math.ceil(widths.reduce((a,b)=>a+b,0));
   oc.width=tw+4*SIZE; oc.height=SIZE;
   cx.fillStyle='#000'; cx.fillRect(0,0,oc.width,oc.height);
-  cx.fillStyle='#7ad0ff'; cx.font=`bold ${fh}px "Courier New",monospace`;
-  cx.textBaseline='middle'; cx.fillText(text,0,SIZE/2);
+  cx.font=`bold ${fh}px "Courier New",monospace`;
+  cx.textBaseline='middle'; cx.textAlign='left';
+  let x=0;
+  segs.forEach((s,i)=>{
+    cx.fillStyle=s.color;
+    cx.fillText(s.text, x, SIZE/2);
+    x+=widths[i];
+  });
   otdTickerPixels=cx.getImageData(0,0,oc.width,oc.height).data;
   otdTickerWidth=oc.width;
   otdTickerScrollX=0;
