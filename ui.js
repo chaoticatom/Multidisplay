@@ -1483,6 +1483,7 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
       activeAlarm.dismissed=true; activeAlarm=null;
     }
     effectLabel.textContent=EFFECT_NAMES[currentEffect]||currentEffect;
+    if(typeof artSyncSharedControls==='function') artSyncSharedControls();
     if(currentEffect==='rain') resetRain();
     if(currentEffect==='balls') resetBalls();
     if(currentEffect==='sand') resetSand();
