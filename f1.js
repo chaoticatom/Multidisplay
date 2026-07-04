@@ -236,9 +236,13 @@ function buildIdleScroll() {
   ctx.font = `bold ${fs}px Arial, sans-serif`;
   let tw = (ctx.measureText(text).width)|0;
   const textW = tw > 0 ? tw : 4*S;
-  // Loop back-to-back (padding spaces already in `text` give the separation)
-  // so the marquee is always fully populated across all 4 faces with no blank gap.
-  const fullW = textW;
+  // The loop must be wider than the 4-face viewport (4*S) or the tail and
+  // head of the phrase are both visible at once — reading as the sentence
+  // "restarting" mid-view. Pad with a small blank gap (not bigger text) so
+  // exactly one instance is ever visible, flowing continuously across all
+  // 4 faces before a brief gap and the next pass.
+  const gap = S * 0.5;
+  const fullW = Math.max(textW, 4*S) + gap;
   oc.width = fullW;
   oc.height = S;
   ctx.fillStyle = '#000'; ctx.fillRect(0,0,oc.width,oc.height);
