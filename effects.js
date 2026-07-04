@@ -14983,6 +14983,18 @@ function jokeApplyTickerToFace(face){
 // it still doesn't fit even at the minimum, so the caller can fall back to
 // the scrolling ticker instead.
 let jokeWrapBuf=null, jokeWrapForText='';
+// Tag each word as setup (before/including the "?") or answer (after it), so
+// the punchline can be rendered in a distinct color. Jokes without a "?"
+// have no answer split — everything renders as setup color.
+function jokeTagWords(text){
+  const splitIdx=text.indexOf('?');
+  const re=/\S+/g;
+  const words=[]; let m;
+  while((m=re.exec(text))){
+    words.push({w:m[0], isAnswer: splitIdx>=0 && m.index>splitIdx});
+  }
+  return words;
+}
 function jokeBuildWrapped(){
   const S=Math.max(SIZE,16);
   const oc=document.createElement('canvas');
@@ -14992,35 +15004,44 @@ function jokeBuildWrapped(){
   // Keep a higher floor than before so text never shrinks to unreadable —
   // jokes that don't fit at this size fall back to the scrolling ticker.
   const maxFs=Math.round(S*0.16), minFs=Math.max(7,Math.round(S*0.11));
+  const taggedWords=jokeTagWords(jokeText);
   let lines=null, fs=maxFs;
   for(; fs>=minFs; fs--){
     ctx.font=`bold ${fs}px Arial,sans-serif`;
-    const words=jokeText.split(/\s+/).filter(Boolean);
+    const spaceW=ctx.measureText(' ').width;
     const testLines=[];
-    let cur='';
-    for(const w of words){
-      const test=cur?cur+' '+w:w;
-      if(ctx.measureText(test).width>maxW && cur){ testLines.push(cur); cur=w; }
-      else cur=test;
+    let cur=[], curW=0;
+    for(const tw of taggedWords){
+      const ww=ctx.measureText(tw.w).width;
+      const addW=cur.length?spaceW+ww:ww;
+      if(curW+addW>maxW && cur.length){ testLines.push(cur); cur=[tw]; curW=ww; }
+      else { cur.push(tw); curW+=addW; }
     }
-    if(cur) testLines.push(cur);
+    if(cur.length) testLines.push(cur);
     const lineH=fs*1.35;
     if(testLines.length*lineH<=S-4){ lines=testLines; break; }
   }
   if(!lines) return null;
   ctx.fillStyle='#000'; ctx.fillRect(0,0,S,S);
   ctx.font=`bold ${fs}px Arial,sans-serif`;
-  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.textAlign='left'; ctx.textBaseline='middle';
   ctx.lineWidth=Math.max(1,Math.round(fs*0.16));
   ctx.strokeStyle='#000';
+  const spaceW=ctx.measureText(' ').width;
   const lineH=fs*1.35;
   const totalH=lines.length*lineH;
   const startY=(S-totalH)/2+lineH/2;
   lines.forEach((line,i)=>{
     const y=startY+i*lineH;
-    ctx.strokeText(line, S/2, y);
-    ctx.fillStyle='#fff';
-    ctx.fillText(line, S/2, y);
+    const wordWidths=line.map(tw=>ctx.measureText(tw.w).width);
+    const lineW=wordWidths.reduce((a,b)=>a+b,0)+spaceW*(line.length-1);
+    let x=(S-lineW)/2;
+    line.forEach((tw,j)=>{
+      ctx.strokeText(tw.w, x, y);
+      ctx.fillStyle=tw.isAnswer?'#ffcc44':'#fff';
+      ctx.fillText(tw.w, x, y);
+      x+=wordWidths[j]+spaceW;
+    });
   });
   return {data: ctx.getImageData(0,0,S,S).data, S};
 }
