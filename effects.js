@@ -15126,36 +15126,54 @@ function issIsLand(lonFrac, latFrac){
   return ((byte>>(7-(bitIdx&7)))&1)===1;
 }
 
-// Map is real-world 2:1 (360°x180°) equirectangular. A square LED face would
-// stretch it vertically 2x if lat were spread across the full height, so the
-// map is letterboxed: full width = 360° of longitude, but only the middle
-// half of the face's rows are used for the 180° of latitude — top/bottom
-// quarters are space-black bars, keeping the true aspect ratio undistorted.
-function issBuildMapBuf(){
+// Map is real-world 2:1 (360°x180°) equirectangular. Squeezing full 360°
+// width into a square face at 1:1 either stretches it (v747, distorted) or
+// letterboxes it (v748, correct proportions but only half the vertical
+// resolution — unrecognizable at LED size). Instead, crop to a 180°-wide
+// longitude window centered on the ISS's current position: 180° of
+// longitude across the full width + 180° of latitude across the full
+// height is a true 1:1 degree-per-pixel aspect ratio, using every row and
+// column at full resolution. The visible slice follows the ISS as it moves.
+function issLonToWindowU(lon, centerLon, S){
+  let rel=lon-(centerLon-90);
+  rel=((rel%360)+360)%360;
+  if(rel<0||rel>=180) return -1;
+  return Math.min(S-1,Math.floor((rel/180)*S));
+}
+function issLatToV(lat, S){
+  return Math.min(S-1,Math.max(0,Math.round(((90-lat)/180)*S)));
+}
+function issBuildMapBuf(centerLon){
   const S=Math.max(SIZE,16);
-  const bandTop=Math.round(S*0.25), bandH=Math.round(S*0.5);
   const data=new Uint8ClampedArray(S*S*4);
   for(let v=0;v<S;v++){
+    const latFrac=v/S;
     for(let u=0;u<S;u++){
-      const i=(v*S+u)*4;
-      if(v<bandTop||v>=bandTop+bandH){
-        data[i]=2; data[i+1]=4; data[i+2]=12; data[i+3]=255;
-        continue;
-      }
-      const lonFrac=u/S, latFrac=(v-bandTop)/bandH;
+      let lonDeg=centerLon-90+(u/S)*180;
+      lonDeg=((lonDeg+180)%360+360)%360-180;
+      const lonFrac=(lonDeg+180)/360;
       const land=issIsLand(lonFrac,latFrac);
+      const i=(v*S+u)*4;
       if(land){ data[i]=14; data[i+1]=92; data[i+2]=30; }
       else { data[i]=10; data[i+1]=38; data[i+2]=110; }
       data[i+3]=255;
     }
   }
-  return {data, S, bandTop, bandH};
+  return {data, S, centerLon};
 }
-let issMapBuf=null;
+let issMapBuf=null, issMapBuiltCenter=null;
+function issGetMapBuf(centerLon){
+  const rounded=Math.round(centerLon/5)*5;
+  if(!issMapBuf||issMapBuiltCenter!==rounded){
+    issMapBuf=issBuildMapBuf(rounded);
+    issMapBuiltCenter=rounded;
+  }
+  return issMapBuf;
+}
 
 function issApplyMapToFace(face, rowLimit){
-  if(!issMapBuf) issMapBuf=issBuildMapBuf();
-  const {data,S,bandTop,bandH}=issMapBuf;
+  const centerLon=issHasFix?issLon:0;
+  const {data,S}=issGetMapBuf(centerLon);
   const rows=rowLimit||SIZE;
   for(let v=0;v<rows;v++){
     for(let u=0;u<SIZE;u++){
@@ -15168,13 +15186,12 @@ function issApplyMapToFace(face, rowLimit){
       colBuf[idx*3+2]=data[pi+2]/255;
     }
   }
-  // Trail + marker — positioned within the same letterboxed band as the map
-  const bandTopRows=Math.round(rows*(bandTop/S)), bandHRows=Math.round(rows*(bandH/S));
-  const lonToU=lon=>Math.round(((lon+180)/360)*SIZE)%SIZE;
-  const latToV=lat=>bandTopRows+Math.round(((90-lat)/180)*bandHRows);
+  // Trail + marker — same 180°-window projection as the map buffer above
   issTrail.forEach((p,pi)=>{
-    const u=lonToU(p.lon), v=latToV(p.lat);
-    if(v<bandTopRows||v>=bandTopRows+bandHRows) return;
+    const u=issLonToWindowU(p.lon,issMapBuiltCenter,SIZE);
+    if(u<0) return;
+    const v=Math.round(issLatToV(p.lat,SIZE)*(rows/SIZE));
+    if(v<0||v>=rows) return;
     const age=pi/Math.max(1,issTrail.length-1);
     const idx=faceMap[face][v*SIZE+u]; if(idx<0) return;
     colBuf[idx*3]=Math.max(colBuf[idx*3],0.5*age);
@@ -15182,11 +15199,12 @@ function issApplyMapToFace(face, rowLimit){
     colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],1*age);
   });
   if(issHasFix){
-    const u=lonToU(issLon), v=latToV(issLat);
+    const u=issLonToWindowU(issLon,issMapBuiltCenter,SIZE);
+    const v=Math.round(issLatToV(issLat,SIZE)*(rows/SIZE));
     const blink=0.6+0.4*Math.sin(issT*5);
-    for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
+    if(u>=0) for(let dv=-1;dv<=1;dv++) for(let du=-1;du<=1;du++){
       const uu=((u+du)%SIZE+SIZE)%SIZE, vv=v+dv;
-      if(vv<bandTopRows||vv>=bandTopRows+bandHRows) continue;
+      if(vv<0||vv>=rows) continue;
       const idx=faceMap[face][vv*SIZE+uu]; if(idx<0) continue;
       colBuf[idx*3]=1*blink; colBuf[idx*3+1]=1*blink; colBuf[idx*3+2]=0.95*blink;
     }
