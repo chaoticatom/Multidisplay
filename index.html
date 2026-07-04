@@ -1315,8 +1315,10 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-(function pollForNewVersion(){
-  setInterval(() => {
+// Check once on load only — no recurring timer, so an open tab is never
+// yanked out from under you mid-use. New versions apply next time you visit.
+(function checkForNewVersionOnce(){
+  setTimeout(() => {
     fetch('version.js?nocache=' + Date.now(), { cache: 'no-store' })
       .then(r => r.text())
       .then(txt => {
@@ -1326,7 +1328,7 @@ if ('serviceWorker' in navigator) {
         }
       })
       .catch(() => {});
-  }, 15000);
+  }, 3000);
 })();
 </script>
 </body>
