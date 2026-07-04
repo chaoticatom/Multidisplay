@@ -14915,11 +14915,96 @@ function effectArtic(dt){
 }
 
 // ═══════════════════════════════════════════════════
-//  Dad Jokes — scrolling ticker (icanhazdadjoke.com)
+//  Word cascade — shared fallback renderer for text too long to fit
+//  word-wrapped even at minimum font. Reveals one word at a time filling
+//  rows top-down; once the face is full, rows shift up as new words/lines
+//  arrive at the bottom, until the whole text has been shown.
+// ═══════════════════════════════════════════════════
+let wcSharedCtx=null;
+function wcMeasureCtx(fs){
+  if(!wcSharedCtx) wcSharedCtx=document.createElement('canvas').getContext('2d');
+  wcSharedCtx.font=`bold ${fs}px Arial,sans-serif`;
+  return wcSharedCtx;
+}
+function wcInit(taggedWords, fs){
+  const S=Math.max(SIZE,16);
+  const lineH=fs*1.35;
+  const maxLines=Math.max(1, Math.floor((S-4)/lineH));
+  return {words:taggedWords, idx:0, cur:[], lines:[], timer:0, interval:0.28,
+          done:false, holdTimer:0, S, fs, lineH, maxLines};
+}
+function wcStep(state, dt){
+  if(state.done){
+    state.holdTimer+=dt;
+    if(state.holdTimer>3){ // loop: restart the cascade
+      state.idx=0; state.cur=[]; state.lines=[]; state.timer=0; state.done=false; state.holdTimer=0;
+    }
+    return;
+  }
+  state.timer+=dt;
+  const ctx=wcMeasureCtx(state.fs);
+  const maxW=state.S-4;
+  while(state.timer>=state.interval && state.idx<state.words.length){
+    state.timer-=state.interval;
+    const tw=state.words[state.idx++];
+    const curText=state.cur.map(t=>t.w).join(' ');
+    const testText=curText?curText+' '+tw.w:tw.w;
+    if(ctx.measureText(testText).width>maxW && state.cur.length){
+      state.lines.push(state.cur);
+      state.cur=[tw];
+    } else {
+      state.cur.push(tw);
+    }
+    if(state.idx>=state.words.length) state.done=true;
+  }
+}
+function wcRenderBuf(state){
+  const S=state.S;
+  const oc=document.createElement('canvas');
+  oc.width=S; oc.height=S;
+  const ctx=oc.getContext('2d');
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,S,S);
+  ctx.font=`bold ${state.fs}px Arial,sans-serif`;
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.lineWidth=Math.max(1,Math.round(state.fs*0.16));
+  ctx.strokeStyle='#000';
+  const spaceW=ctx.measureText(' ').width;
+  const allLines=state.cur.length ? [...state.lines, state.cur] : [...state.lines];
+  const visible=allLines.slice(-state.maxLines);
+  visible.forEach((line,i)=>{
+    const y=2+state.lineH/2+i*state.lineH;
+    const wordWidths=line.map(tw=>ctx.measureText(tw.w).width);
+    const lineW=wordWidths.reduce((a,b)=>a+b,0)+spaceW*(line.length-1);
+    let x=(S-lineW)/2;
+    line.forEach((tw,j)=>{
+      ctx.strokeText(tw.w, x, y);
+      ctx.fillStyle=tw.color;
+      ctx.fillText(tw.w, x, y);
+      x+=wordWidths[j]+spaceW;
+    });
+  });
+  return {data: ctx.getImageData(0,0,S,S).data, S};
+}
+function wcApplyToFace(face, buf){
+  const {data,S}=buf;
+  for(let v=0;v<S;v++){
+    for(let u=0;u<S;u++){
+      const sv=S-1-v;
+      const pi=(sv*S+u)*4;
+      const idx=faceMap[face][v*S+u]; if(idx<0) continue;
+      colBuf[idx*3]=data[pi]/255;
+      colBuf[idx*3+1]=data[pi+1]/255;
+      colBuf[idx*3+2]=data[pi+2]/255;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  Dad Jokes (icanhazdadjoke.com)
 // ═══════════════════════════════════════════════════
 let jokeText='', jokeFetching=false, jokeError='', jokeT=0;
-let jokeTickerPixels=null, jokeTickerWidth=0, jokeTickerScrollX=0;
 let jokeTimer=0, jokeSecs=25;
+let jokeCascade=null, jokeCascadeForText='';
 
 async function jokeFetch(){
   if(jokeFetching) return;
@@ -14934,7 +15019,6 @@ async function jokeFetch(){
     const d=await r.json();
     jokeText=(d.joke||'').trim();
     if(!jokeText){ jokeError='Empty response'; throw new Error('empty'); }
-    jokeTickerPixels=null;
     jokeTimer=0;
     if(statusEl) statusEl.textContent='Got one!';
   }catch(e){
@@ -14945,43 +15029,10 @@ async function jokeFetch(){
 }
 document.getElementById('joke-fetch-btn')?.addEventListener('click',jokeFetch);
 
-function jokeBuildTicker(){
-  const text=('   '+jokeText+'   ').repeat(2);
-  const fh=Math.max(8,(SIZE*0.34)|0);
-  const oc=document.createElement('canvas');
-  const cx=oc.getContext('2d');
-  cx.font=`bold ${fh}px "Courier New",monospace`;
-  const tw=cx.measureText(text).width|0;
-  oc.width=tw+4*SIZE; oc.height=SIZE;
-  cx.fillStyle='#000'; cx.fillRect(0,0,oc.width,oc.height);
-  cx.fillStyle='#ffcc44'; cx.font=`bold ${fh}px "Courier New",monospace`;
-  cx.textBaseline='middle'; cx.fillText(text,0,SIZE/2);
-  jokeTickerPixels=cx.getImageData(0,0,oc.width,oc.height).data;
-  jokeTickerWidth=oc.width;
-  jokeTickerScrollX=0;
-}
-
-function jokeApplyTickerToFace(face){
-  if(!jokeTickerPixels) return;
-  const S=SIZE;
-  for(let v=0;v<S;v++){
-    for(let u=0;u<S;u++){
-      const sx=(((jokeTickerScrollX|0)+u)%jokeTickerWidth+jokeTickerWidth)%jokeTickerWidth;
-      const sv=S-1-v;
-      const pi=(sv*jokeTickerWidth+sx)*4;
-      const idx=faceMap[face][v*S+u];
-      if(idx<0) continue;
-      colBuf[idx*3]=jokeTickerPixels[pi]/255;
-      colBuf[idx*3+1]=jokeTickerPixels[pi+1]/255;
-      colBuf[idx*3+2]=jokeTickerPixels[pi+2]/255;
-    }
-  }
-}
-
 // Try to fit the whole joke, word-wrapped, statically on one face — shrinking
 // the font until it fits (down to a minimum readable size). Returns null if
-// it still doesn't fit even at the minimum, so the caller can fall back to
-// the scrolling ticker instead.
+// it still doesn't fit even at the minimum, so the caller falls back to the
+// word-cascade renderer instead.
 let jokeWrapBuf=null, jokeWrapForText='';
 // Tag each word as setup (before/including the "?") or answer (after it), so
 // the punchline can be rendered in a distinct color. Jokes without a "?"
@@ -15002,7 +15053,7 @@ function jokeBuildWrapped(){
   const ctx=oc.getContext('2d');
   const maxW=S-4;
   // Keep a higher floor than before so text never shrinks to unreadable —
-  // jokes that don't fit at this size fall back to the scrolling ticker.
+  // jokes that don't fit at this size fall back to the word cascade.
   const maxFs=Math.round(S*0.16), minFs=Math.max(7,Math.round(S*0.11));
   const taggedWords=jokeTagWords(jokeText);
   let lines=null, fs=maxFs;
@@ -15105,10 +15156,17 @@ function effectJoke(dt){
     // Whole joke fits word-wrapped on the face — show it statically, no scroll
     jokeApplyWrappedToFace(targetFace, jokeWrapBuf);
   } else {
-    // Too long even at the smallest readable font — fall back to scrolling
-    if(!jokeTickerPixels) jokeBuildTicker();
-    jokeTickerScrollX += dt*20*(speedMult||1);
-    jokeApplyTickerToFace(targetFace);
+    // Too long even at the smallest readable font — reveal word by word,
+    // filling rows top-down and shifting up once the face is full, instead
+    // of a horizontal scroll.
+    if(jokeCascadeForText!==jokeText){
+      const minFs=Math.max(7,Math.round(Math.max(SIZE,16)*0.11));
+      const tagged=jokeTagWords(jokeText).map(t=>({w:t.w, color:t.isAnswer?'#ffcc44':'#fff'}));
+      jokeCascade=wcInit(tagged, minFs);
+      jokeCascadeForText=jokeText;
+    }
+    wcStep(jokeCascade, dt);
+    wcApplyToFace(targetFace, wcRenderBuf(jokeCascade));
   }
 }
 
@@ -15116,8 +15174,8 @@ function effectJoke(dt){
 //  On This Day — Wikipedia historical events (free, no key)
 // ═══════════════════════════════════════════════════
 let otdEvents=[], otdFetching=false, otdError='', otdT=0, otdFetchedFor='';
-let otdTickerPixels=null, otdTickerWidth=0, otdTickerScrollX=0;
 let otdIdx=0, otdTimer=0, otdSecs=8, otdWrapBuf=null, otdWrapForKey='';
+let otdCascade=null, otdCascadeForKey='';
 
 async function otdFetch(){
   if(otdFetching) return;
@@ -15137,7 +15195,6 @@ async function otdFetch(){
     const events=(d.events||[]).filter(e=>e.text).sort((a,b)=>(b.year||0)-(a.year||0));
     if(!events.length){ otdError='No events found'; throw new Error('empty'); }
     otdEvents=events.slice(0,20);
-    otdTickerPixels=null;
     if(statusEl) statusEl.textContent=otdEvents.length+' events for today';
     const infoEl=document.getElementById('otd-info');
     if(infoEl){
@@ -15152,54 +15209,6 @@ async function otdFetch(){
   otdFetching=false;
 }
 document.getElementById('otd-fetch-btn')?.addEventListener('click',otdFetch);
-
-function otdBuildTicker(){
-  // Each event becomes two colored segments: the year (amber) and the
-  // event text (blue), so the date stands out from the description —
-  // same idea as the setup/answer split in the Dad Jokes effect.
-  const segsPerEvent=otdEvents.map(e=>[
-    {text:`${e.year}:`, color:'#ffcc44'},
-    {text:` ${e.text}   ///   `, color:'#7ad0ff'}
-  ]);
-  let segs=[{text:'   ',color:'#7ad0ff'}, ...segsPerEvent.flat()];
-  segs=segs.concat(segs); // repeat once for a seamless loop
-  const fh=Math.max(8,(SIZE*0.3)|0);
-  const oc=document.createElement('canvas');
-  const cx=oc.getContext('2d');
-  cx.font=`bold ${fh}px "Courier New",monospace`;
-  const widths=segs.map(s=>cx.measureText(s.text).width);
-  const tw=Math.ceil(widths.reduce((a,b)=>a+b,0));
-  oc.width=tw+4*SIZE; oc.height=SIZE;
-  cx.fillStyle='#000'; cx.fillRect(0,0,oc.width,oc.height);
-  cx.font=`bold ${fh}px "Courier New",monospace`;
-  cx.textBaseline='middle'; cx.textAlign='left';
-  let x=0;
-  segs.forEach((s,i)=>{
-    cx.fillStyle=s.color;
-    cx.fillText(s.text, x, SIZE/2);
-    x+=widths[i];
-  });
-  otdTickerPixels=cx.getImageData(0,0,oc.width,oc.height).data;
-  otdTickerWidth=oc.width;
-  otdTickerScrollX=0;
-}
-
-function otdApplyTickerToFace(face){
-  if(!otdTickerPixels) return;
-  const S=SIZE;
-  for(let v=0;v<S;v++){
-    for(let u=0;u<S;u++){
-      const sx=(((otdTickerScrollX|0)+u)%otdTickerWidth+otdTickerWidth)%otdTickerWidth;
-      const sv=S-1-v;
-      const pi=(sv*otdTickerWidth+sx)*4;
-      const idx=faceMap[face][v*S+u];
-      if(idx<0) continue;
-      colBuf[idx*3]=otdTickerPixels[pi]/255;
-      colBuf[idx*3+1]=otdTickerPixels[pi+1]/255;
-      colBuf[idx*3+2]=otdTickerPixels[pi+2]/255;
-    }
-  }
-}
 
 // Try to fit a single event, word-wrapped, statically on one face — same
 // shrink-to-fit approach as the Dad Jokes effect, with the year tagged a
@@ -15330,9 +15339,16 @@ function effectOnThisDay(dt){
   if(otdWrapBuf){
     otdApplyWrappedToFace(targetFace, otdWrapBuf);
   } else {
-    if(!otdTickerPixels) otdBuildTicker();
-    otdTickerScrollX += dt*20*(speedMult||1);
-    otdApplyTickerToFace(targetFace);
+    // Too long even at the smallest readable font — reveal word by word,
+    // filling rows top-down and shifting up once the face is full.
+    if(otdCascadeForKey!==wrapKey){
+      const minFs=Math.max(7,Math.round(Math.max(SIZE,16)*0.11));
+      const tagged=[{w:`${curEvent.year}:`,color:'#ffcc44'}, ...curEvent.text.split(/\s+/).filter(Boolean).map(w=>({w,color:'#7ad0ff'}))];
+      otdCascade=wcInit(tagged, minFs);
+      otdCascadeForKey=wrapKey;
+    }
+    wcStep(otdCascade, dt);
+    wcApplyToFace(targetFace, wcRenderBuf(otdCascade));
   }
 
   if(is2D) return;
