@@ -1306,30 +1306,15 @@ setTimeout(showVersion,1000);
 })();
 </script>
 <script>
-// Service workers caused nothing but stuck-version headaches (SW lifecycle,
-// CDN-cached SW script, waiting workers). Unregister any and rely purely on
-// direct polling below — no SW involved, so no stuck registrations possible.
+// Service workers caused nothing but stuck-version headaches. Unregister any
+// and don't auto-reload at all — no timers, no background checks, nothing
+// that can loop. Use the version-label tap button (above) to force-update
+// manually when you know a new version is out.
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then(regs => {
     regs.forEach(r => r.unregister());
   });
 }
-
-// Check once on load only — no recurring timer, so an open tab is never
-// yanked out from under you mid-use. New versions apply next time you visit.
-(function checkForNewVersionOnce(){
-  setTimeout(() => {
-    fetch('version.js?nocache=' + Date.now(), { cache: 'no-store' })
-      .then(r => r.text())
-      .then(txt => {
-        const m = txt.match(/APP_VERSION\s*=\s*'([^']+)'/);
-        if (m && typeof APP_VERSION !== 'undefined' && m[1] !== APP_VERSION) {
-          location.href = location.pathname + '?nocache=' + Date.now();
-        }
-      })
-      .catch(() => {});
-  }, 3000);
-})();
 </script>
 </body>
 </html>
