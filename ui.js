@@ -2254,8 +2254,7 @@ function renderPanel2d(){
 // ═══════════════════════════════════════════════════
 //  RENDER LOOP
 // ═══════════════════════════════════════════════════
-let lastTime=0, frames=0, fpsTime=0;
-const fpsEl=document.getElementById('fps-counter');
+let lastTime=0;
 const fpsSamples=new Float32Array(60);
 let fpsSampleIdx=0, fpsSampleCount=0;
 const elMeta=document.getElementById('el-meta');
@@ -3097,8 +3096,6 @@ function animate(now){
   requestAnimationFrame(animate);
   const dt=Math.min((now-lastTime)/1000,0.05);
   lastTime=now;
-  frames++;fpsTime+=dt;
-  if(fpsTime>=0.5){fpsEl.textContent=Math.round(frames/fpsTime);frames=0;fpsTime=0;}
 
   // ── Rolling-average FPS (last 60 frames) for the effect label meta ──
   if(dt>0){
