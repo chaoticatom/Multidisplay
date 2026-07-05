@@ -1286,6 +1286,7 @@ const EFFECTS={
   artic:effectArtic,
   joke:effectJoke,
   otd:effectOnThisDay,
+  trivia:effectTrivia,
   epic:effectEPIC,
   iss:effectISS,
   cam:effectCam,
@@ -1309,8 +1310,9 @@ const EFFECT_NAMES={
   apod:'Astronomy Pic of the Day',
   unsplash:'Unsplash Photos',
   artic:'Art Gallery',
-  joke:'Dad Jokes',
+  joke:'Jokes',
   otd:'On This Day',
+  trivia:'Trivia',
   epic:'Earth Live View',
   iss:'ISS Tracker',
   cam:'Camera',
@@ -1331,7 +1333,7 @@ const EFFECT_SECTION_MAP = {
   balls:'',sand:'',lightning:'',warp:'',life:'',fluid:'',
 };
 
-const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','artic','joke','otd','epic','iss','cam']);
+const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','artic','joke','otd','trivia','epic','iss','cam']);
 populateAlarmEffectRiseSelect(); // safe here — EFFECT_NAMES now defined
 
 async function fetchCitiesFromAPI(){

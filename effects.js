@@ -15321,15 +15321,17 @@ async function jokeFetch(){
 }
 document.getElementById('joke-fetch-btn')?.addEventListener('click',jokeFetch);
 
-// Tag each word as setup (before/including the "?") or answer (after it), so
-// the punchline can be rendered in a distinct color. Jokes without a "?"
-// have no answer split — everything renders as setup color.
-function jokeTagWords(text){
+// Tag each word as setup/question (before/including the "?") or answer
+// (after it), so the answer can be rendered in a distinct color — white for
+// setup, amber for answer. Shared by Jokes and Trivia (same text style).
+// Text without a "?" has no answer split — everything renders as setup color.
+function wcTagQA(text){
   const splitIdx=text.indexOf('?');
   const re=/\S+/g;
   const words=[]; let m;
   while((m=re.exec(text))){
-    words.push({w:m[0], isAnswer: splitIdx>=0 && m.index>splitIdx});
+    const isAnswer=splitIdx>=0 && m.index>splitIdx;
+    words.push({w:m[0], color: isAnswer?[1,0.8,0.27]:[1,1,1]});
   }
   return words;
 }
@@ -15354,8 +15356,7 @@ function effectJoke(dt){
   }
 
   if(jokeCascadeForText!==jokeText){
-    const tagged=jokeTagWords(jokeText).map(t=>({w:t.w, color:t.isAnswer?[1,0.8,0.27]:[1,1,1]}));
-    jokeCascade=wcInit(tagged);
+    jokeCascade=wcInit(wcTagQA(jokeText));
     jokeCascadeForText=jokeText;
   }
   wcStep(jokeCascade, dt);
@@ -15365,6 +15366,76 @@ function effectJoke(dt){
   // Once the whole joke has been revealed and held on screen a moment,
   // fetch a new one.
   if(jokeCascade.done && jokeCascade.holdTimer>3 && !jokeFetching) jokeFetch();
+}
+
+// ═══════════════════════════════════════════════════
+//  Trivia (Open Trivia DB, free, no key) — same word-cascade text style
+//  as Jokes: question in white, answer in amber, split on the "?".
+// ═══════════════════════════════════════════════════
+let triviaText='', triviaFetching=false, triviaError='', triviaT=0;
+let triviaCascade=null, triviaCascadeForText='';
+
+function wcDecodeEntities(str){
+  const ta=document.createElement('textarea');
+  ta.innerHTML=str;
+  return ta.value;
+}
+
+async function triviaFetch(){
+  if(triviaFetching) return;
+  triviaFetching=true; triviaError='';
+  const statusEl=document.getElementById('trivia-status');
+  if(statusEl) statusEl.textContent='Fetching a question…';
+  try{
+    let r;
+    try{ r=await fetch('https://opentdb.com/api.php?amount=1&type=multiple'); }
+    catch(fe){ triviaError='Network error — check internet connection'; throw fe; }
+    if(!r.ok){ triviaError='Trivia API error '+r.status; throw new Error(String(r.status)); }
+    const d=await r.json();
+    const q=(d.results||[])[0];
+    if(!q){ triviaError='No question returned'; throw new Error('empty'); }
+    const question=wcDecodeEntities(q.question||'').trim();
+    const answer=wcDecodeEntities(q.correct_answer||'').trim();
+    triviaText=(question.endsWith('?')?question:question+'?')+' '+answer;
+    if(statusEl) statusEl.textContent='Got one!';
+  }catch(e){
+    if(statusEl) statusEl.textContent='✕ '+triviaError;
+    console.error('Trivia fetch error:',e);
+  }
+  triviaFetching=false;
+}
+document.getElementById('trivia-fetch-btn')?.addEventListener('click',triviaFetch);
+
+function effectTrivia(dt){
+  triviaT+=dt;
+  if(!triviaText && !triviaFetching) triviaFetch();
+
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+
+  const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+  const faces=is2D?[0]:[0,1,2,3,4,5];
+
+  if(!triviaText){
+    const dots='.'.repeat(1+(Math.floor(triviaT)%3));
+    for(const f of faces) renderTextToFace(f,['LOADING','TRIVIA'+dots],[0.9,0.75,0.2],[0.06,0.05,0]);
+    return;
+  }
+  if(triviaError){
+    for(const f of faces) renderTextToFace(f,['API','ERROR',triviaError],[1,0.25,0.25],[0.06,0,0]);
+    return;
+  }
+
+  if(triviaCascadeForText!==triviaText){
+    triviaCascade=wcInit(wcTagQA(triviaText));
+    triviaCascadeForText=triviaText;
+  }
+  wcStep(triviaCascade, dt);
+  const targetFace=is2D?0:1;
+  wcDrawToFace(triviaCascade, targetFace);
+
+  // Once the question+answer has been fully revealed and held a moment,
+  // fetch a new one.
+  if(triviaCascade.done && triviaCascade.holdTimer>3 && !triviaFetching) triviaFetch();
 }
 
 // ═══════════════════════════════════════════════════

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=784">
+<link rel="stylesheet" href="style.css?v=785">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -454,7 +454,10 @@
     </div>
     </div>
     </div>
-    <button class="effect-btn has-panel" data-effect="joke">◈ Dad Jokes <span class="panel-arrow">▸</span></button>
+    <div class="sub-section collapsed">
+    <button class="sub-head sub-head-boxed">◈ Trivia &amp; Facts <span class="panel-arrow">▸</span></button>
+    <div class="sub-body">
+    <button class="effect-btn has-panel" data-effect="joke">◈ Jokes <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-joke">
       <div id="joke-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Fetching a joke…</div>
       <button id="joke-fetch-btn" style="width:100%;padding:6px 12px;background:rgba(220,180,60,0.15);border:1px solid rgba(220,180,60,0.4);color:#e8c250;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">New Joke</button>
@@ -467,6 +470,14 @@
         <div id="otd-count-line">— events</div>
       </div>
       <div style="font-size:10px;color:#666;margin-top:6px;">Wikipedia "On this day" feed — free, no API key needed.</div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="trivia">◈ Trivia <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-trivia">
+      <div id="trivia-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Fetching a question…</div>
+      <button id="trivia-fetch-btn" style="width:100%;padding:6px 12px;background:rgba(220,180,60,0.15);border:1px solid rgba(220,180,60,0.4);color:#e8c250;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">New Question</button>
+      <div style="font-size:10px;color:#666;margin-top:6px;">Open Trivia DB — free, no API key needed.</div>
+    </div>
+    </div>
     </div>
     <button class="effect-btn has-panel" data-effect="epic">◈ Earth Live View <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-epic">
@@ -1230,7 +1241,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=784"></script>
+<script src="version.js?v=785"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1294,7 +1305,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=784','effects.js?v=784','ui.js?v=784'];
+  const appScripts = ['cube.js?v=785','effects.js?v=785','ui.js?v=785'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
