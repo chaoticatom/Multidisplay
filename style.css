@@ -74,6 +74,7 @@
     .check-row input[type="checkbox"] { width: 40px; height: 22px; min-width: 40px; }
     .section-head { font-size: 15px; padding: 14px 16px; min-height: 40px; }
     .sub-head { font-size: 14px; padding: 8px 6px; min-height: 36px; }
+    .sub-head.sub-head-boxed { font-size: 14px; padding: 12px 14px; min-height: 40px; border-radius: 7px; }
     .util-btn { font-size: 13px; padding: 10px 12px; min-height: 38px; border-radius: 7px; }
     .opt-grid { gap: 5px; }
     .opt-grid button { font-size: 12px; padding: 8px 6px; min-height: 34px; border-radius: 7px; }
@@ -282,6 +283,14 @@
   }
   .sub-head:hover { color: #7aadff; background: rgba(80,120,255,0.08); }
   .sub-head .chev { font-size: 10px; transition: transform 0.2s; }
+  /* Styled like a regular .effect-btn (e.g. Near-Earth Objects) instead of
+     the small uppercase category-label look other sub-heads use. */
+  .sub-head.sub-head-boxed {
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(80,120,255,0.15);
+    border-radius: 5px; padding: 7px 10px; font-size: 13px; letter-spacing: normal;
+    text-transform: none; font-weight: 400; color: #bbc;
+  }
+  .sub-head.sub-head-boxed:hover { background: rgba(80,120,255,0.12); color: #bbc; }
   .sub-body { padding: 6px 8px 8px; }
   .sub-section.collapsed .sub-body { display: none; }
   .sub-section.collapsed .chev { transform: rotate(-90deg); }
