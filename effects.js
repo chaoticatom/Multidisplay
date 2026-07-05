@@ -1451,29 +1451,42 @@ const DT_WORDS_ORDINAL=['FIRST','SECOND','THIRD','FOURTH','FIFTH','SIXTH','SEVEN
 const DT_WORDS_DAY=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
 const DT_WORDS_MONTH=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
 
+const DT_WORDS_ONES=['','ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN','EIGHT','NINE'];
+const DT_WORDS_TEENS=['TEN','ELEVEN','TWELVE','THIRTEEN','FOURTEEN','FIFTEEN','SIXTEEN','SEVENTEEN','EIGHTEEN','NINETEEN'];
+const DT_WORDS_TENS=['','TEN','TWENTY','THIRTY','FORTY','FIFTY'];
+function dtNumberWord(n){
+  if(n<10) return DT_WORDS_ONES[n];
+  if(n<20) return DT_WORDS_TEENS[n-10];
+  const tens=Math.floor(n/10), ones=n%10;
+  return DT_WORDS_TENS[tens]+(ones?' '+DT_WORDS_ONES[ones]:'');
+}
+// Exact to the minute (no rounding) — "SEVENTEEN MINUTES PAST NINE" rather
+// than snapping to the nearest 5-minute word-clock phrase. Quarter/half/
+// o'clock are still used for exact 0/15/30/45 since those read naturally.
 function dtWordsForTime(h24,m){
-  const rounded=Math.round(m/5)*5;
-  const hourOffset=rounded>30?1:0;
-  const mmDisp=rounded%60;
+  const hourOffset=m>30?1:0;
   const h=(h24+hourOffset)%24;
   let h12=h%12; if(h12===0) h12=12;
   const hourWord=DT_WORDS_NUM[h12%12];
   const AMBER=[1,0.8,0.27], WHITE=[1,1,1];
-  const qty=n=>(n===5?'FIVE':n===10?'TEN':n===15?'QUARTER':n===20?'TWENTY':n===25?'TWENTY FIVE':n===30?'HALF':'');
   const tokens=[];
-  if(mmDisp===0){
+  const pushMinutes=(n)=>{
+    dtNumberWord(n).split(' ').forEach(w=>tokens.push({t:w,c:AMBER}));
+    tokens.push({t:n===1?'MINUTE':'MINUTES',c:AMBER});
+  };
+  if(m===0){
     tokens.push({t:hourWord,c:WHITE},{t:"O'CLOCK",c:WHITE});
-  } else if(mmDisp===15||mmDisp===30){
-    qty(mmDisp).split(' ').forEach(w=>tokens.push({t:w,c:AMBER}));
-    tokens.push({t:'PAST',c:WHITE},{t:hourWord,c:WHITE});
-  } else if(mmDisp===45){
-    qty(15).split(' ').forEach(w=>tokens.push({t:w,c:AMBER}));
-    tokens.push({t:'TO',c:WHITE},{t:hourWord,c:WHITE});
-  } else if(mmDisp<30){
-    qty(mmDisp).split(' ').forEach(w=>tokens.push({t:w,c:AMBER}));
+  } else if(m===15){
+    tokens.push({t:'QUARTER',c:AMBER},{t:'PAST',c:WHITE},{t:hourWord,c:WHITE});
+  } else if(m===30){
+    tokens.push({t:'HALF',c:AMBER},{t:'PAST',c:WHITE},{t:hourWord,c:WHITE});
+  } else if(m===45){
+    tokens.push({t:'QUARTER',c:AMBER},{t:'TO',c:WHITE},{t:hourWord,c:WHITE});
+  } else if(m<30){
+    pushMinutes(m);
     tokens.push({t:'PAST',c:WHITE},{t:hourWord,c:WHITE});
   } else {
-    qty(60-mmDisp).split(' ').forEach(w=>tokens.push({t:w,c:AMBER}));
+    pushMinutes(60-m);
     tokens.push({t:'TO',c:WHITE},{t:hourWord,c:WHITE});
   }
   return tokens;
@@ -1520,6 +1533,7 @@ function dtDrawWordLines(face,lines,startRow){
 function dtBuildWordClockToFace(face,now){
   let row=0;
   row=dtDrawWordLines(face,dtWrapTokens(dtWordsForTime(now.getHours(),now.getMinutes()),SIZE),row);
+  row+=1; // blank row separating time from date
   row=dtDrawWordLines(face,dtWrapTokens(dtWordsForDate(now),SIZE),row);
 }
 
