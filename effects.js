@@ -15814,6 +15814,7 @@ async function issFetch(){
       const tl=document.getElementById('iss-time-line');
       if(tl) tl.textContent='Last fix: '+new Date(issTimestamp*1000).toLocaleTimeString();
     }
+    issUpdateCountryFlag();
   }catch(e){
     issError=e.message;
     issLastFetch=Date.now()/1000;
@@ -15821,6 +15822,56 @@ async function issFetch(){
     console.error('ISS fetch error:',e);
   }
   issFetching=false;
+}
+
+// ── Country flag currently being overflown ──────────────────────────────────
+// Reverse-geocodes the ISS's current lat/lon (BigDataCloud, free/no-key/CORS-
+// friendly client-side endpoint) to a country code, then loads that
+// country's flag (flagcdn.com, also free/no-key). ~70% of the ISS's ground
+// track is over ocean, so "no country" is the common case, not an error.
+let issCountryCode='', issCountryName='', issFlagPixels=null, issFlagSize=0;
+let issFlagFetching=false, issGeoLastFetch=0;
+async function issUpdateCountryFlag(){
+  if(issFlagFetching) return;
+  const now=Date.now()/1000;
+  if(now-issGeoLastFetch<8) return; // throttle — don't hammer the geocoder every 5s tick
+  issGeoLastFetch=now;
+  issFlagFetching=true;
+  try{
+    const url=`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${issLat}&longitude=${issLon}&localityLanguage=en`;
+    const r=await fetch(url);
+    if(!r.ok) throw new Error('geocode HTTP '+r.status);
+    const d=await r.json();
+    const cc=(d.countryCode||'').toUpperCase();
+    if(cc!==issCountryCode){
+      issCountryCode=cc;
+      issCountryName=d.countryName||'';
+      issFlagPixels=null; issFlagSize=0;
+      const countryLine=document.getElementById('iss-country-line');
+      if(countryLine) countryLine.textContent='Currently over: '+(cc?issCountryName:'International waters');
+      if(cc){
+        const flagUrl=`https://flagcdn.com/w320/${cc.toLowerCase()}.png`;
+        loadImageForPixels(flagUrl, s=>{issFlagSize=s;}, px=>{issFlagPixels=px;}, ()=>{issFlagPixels='error';}, {letterbox:true});
+      }
+    }
+  }catch(e){
+    console.warn('[ISS] reverse geocode failed:',e.message);
+  }
+  issFlagFetching=false;
+}
+function issApplyFlagToFace(face){
+  if(!issFlagPixels||issFlagPixels==='error') return false;
+  const S=SIZE, IS=issFlagSize;
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const li=faceMap[face][v*S+u]; if(li<0) continue;
+    const su=Math.min(IS-1,Math.floor(u/S*IS));
+    const sv=Math.min(IS-1,Math.floor((S-1-v)/S*IS));
+    const pi=(sv*IS+su)*4;
+    colBuf[li*3]=issFlagPixels[pi]/255;
+    colBuf[li*3+1]=issFlagPixels[pi+1]/255;
+    colBuf[li*3+2]=issFlagPixels[pi+2]/255;
+  }
+  return true;
 }
 document.getElementById('iss-fetch-btn')?.addEventListener('click',issFetch);
 
@@ -16075,6 +16126,24 @@ function effectISS(dt){
   if(!issTickerPixels) issBuildTicker();
   issTickerScrollX += dt*20*(speedMult||1);
   issApplyTickerToFace(2);
+
+  // Face 3: flag of the country currently being overflown (reverse-geocoded
+  // from the live lat/lon) — mostly ocean, so that's the common case, not an error.
+  if(issHasFix){
+    const shown=issApplyFlagToFace(3);
+    if(!shown){
+      if(issFlagPixels==='error'){
+        renderTextToFace(3,['FLAG','LOAD','ERROR'],[0.6,0.4,0.1],[0.06,0.03,0]);
+      } else if(!issCountryCode){
+        renderTextToFace(3,['OVER','OCEAN'],[0.25,0.55,0.95],[0,0.03,0.08]);
+      } else {
+        const dots='.'.repeat(1+(Math.floor(issT)%3));
+        renderTextToFace(3,['LOADING',dots],[0.7,0.7,0.7],[0.03,0.03,0.03]);
+      }
+    }
+  } else {
+    renderTextToFace(3,['NO FIX'],[0.5,0.5,0.5],[0.02,0.02,0.02]);
+  }
 }
 
 // ── Camera feed ──────────────────────────────────────────────
