@@ -1486,6 +1486,7 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
     }
     effectLabel.textContent=EFFECT_NAMES[currentEffect]||currentEffect;
     if(typeof artSyncSharedControls==='function') artSyncSharedControls();
+    if(typeof tfSyncSharedControls==='function') tfSyncSharedControls();
     if(currentEffect==='rain') resetRain();
     if(currentEffect==='balls') resetBalls();
     if(currentEffect==='sand') resetSand();

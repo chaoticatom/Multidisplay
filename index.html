@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=785">
+<link rel="stylesheet" href="style.css?v=786">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -457,6 +457,16 @@
     <div class="sub-section collapsed">
     <button class="sub-head sub-head-boxed">◈ Trivia &amp; Facts <span class="panel-arrow">▸</span></button>
     <div class="sub-body">
+    <div class="art-shared-panel" style="margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:700;color:#e8c250;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Shared Controls (Jokes &amp; Trivia)</div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;cursor:pointer;margin-bottom:6px;">
+        <input type="checkbox" id="tf-auto-chk" checked style="cursor:pointer;">
+        Auto-advance
+      </label>
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;">
+        Next after: <input type="range" id="tf-speed" min="3" max="30" value="5" style="flex:1;"> <span id="tf-speed-label">5s</span>
+      </div>
+    </div>
     <button class="effect-btn has-panel" data-effect="joke">◈ Jokes <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-joke">
       <div id="joke-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Fetching a joke…</div>
@@ -1241,7 +1251,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=785"></script>
+<script src="version.js?v=786"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1305,7 +1315,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=785','effects.js?v=785','ui.js?v=785'];
+  const appScripts = ['cube.js?v=786','effects.js?v=786','ui.js?v=786'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';

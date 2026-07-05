@@ -15365,7 +15365,7 @@ function effectJoke(dt){
 
   // Once the whole joke has been revealed and held on screen a moment,
   // fetch a new one.
-  if(jokeCascade.done && jokeCascade.holdTimer>3 && !jokeFetching) jokeFetch();
+  if(jokeCascade.done && tfAutoOn && jokeCascade.holdTimer>tfHoldSecs && !jokeFetching) jokeFetch();
 }
 
 // ═══════════════════════════════════════════════════
@@ -15435,7 +15435,33 @@ function effectTrivia(dt){
 
   // Once the question+answer has been fully revealed and held a moment,
   // fetch a new one.
-  if(triviaCascade.done && triviaCascade.holdTimer>3 && !triviaFetching) triviaFetch();
+  if(triviaCascade.done && tfAutoOn && triviaCascade.holdTimer>tfHoldSecs && !triviaFetching) triviaFetch();
+}
+
+// ═══════════════════════════════════════════════════
+//  Shared "Trivia & Facts" controls — Jokes and Trivia share one
+//  Auto/Static toggle and hold-time slider instead of each having its own.
+//  Static just means the fully-revealed cascade never triggers a refetch —
+//  it stays put until the user presses the New Joke/Question button.
+// ═══════════════════════════════════════════════════
+const TF_EFFECTS=['joke','trivia'];
+let tfAutoOn=true, tfHoldSecs=5;
+document.getElementById('tf-auto-chk')?.addEventListener('change',function(){
+  tfAutoOn=this.checked;
+});
+document.getElementById('tf-speed')?.addEventListener('input',function(){
+  tfHoldSecs=+this.value;
+  const lbl=document.getElementById('tf-speed-label');
+  if(lbl) lbl.textContent=tfHoldSecs+'s';
+});
+function tfSyncSharedControls(){
+  if(!TF_EFFECTS.includes(currentEffect)) return;
+  const chk=document.getElementById('tf-auto-chk');
+  const speed=document.getElementById('tf-speed');
+  const speedLbl=document.getElementById('tf-speed-label');
+  if(chk) chk.checked=tfAutoOn;
+  if(speed) speed.value=tfHoldSecs;
+  if(speedLbl) speedLbl.textContent=tfHoldSecs+'s';
 }
 
 // ═══════════════════════════════════════════════════
