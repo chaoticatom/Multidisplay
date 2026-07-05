@@ -11,6 +11,22 @@ function _f1IsActive() {
   try { return currentEffect === 'f1'; } catch(e) { return false; }
 }
 
+// Some browsers/networks (ad-blockers, restrictive DNS/CORS setups) fail
+// "Failed to fetch" on api.openf1.org even though the API itself is up.
+// Retry once through a public CORS proxy before giving up, same fallback
+// strategy already used for image loading elsewhere in this app.
+async function f1Fetch(url) {
+  try {
+    return await fetch(url);
+  } catch (e) {
+    try {
+      return await fetch('https://corsproxy.io/?url=' + encodeURIComponent(url));
+    } catch (e2) {
+      throw e;
+    }
+  }
+}
+
 // ── Jolpica F1 Schedule Cache ────────────────────────────────────────────────
 
 var _f1Schedule = null;
@@ -427,7 +443,7 @@ F1Providers.openf1 = {
   },
   async _init() {
     try {
-      const res = await fetch('https://api.openf1.org/v1/sessions?session_key=latest');
+      const res = await f1Fetch('https://api.openf1.org/v1/sessions?session_key=latest');
       if (!res.ok) {
         f1Update({ connection: 'error', connectionError: 'HTTP ' + res.status + ' ' + res.statusText });
         this._setFallbackData();
@@ -472,7 +488,7 @@ F1Providers.openf1 = {
       _f1FetchChampionship();
 
       // Fetch drivers
-      const dRes = await fetch(`https://api.openf1.org/v1/drivers?session_key=${this._sessionKey}`);
+      const dRes = await f1Fetch(`https://api.openf1.org/v1/drivers?session_key=${this._sessionKey}`);
       if (dRes.ok) {
         const drivers = await dRes.json();
         this._driverMap = {};
@@ -504,7 +520,7 @@ F1Providers.openf1 = {
     try {
       // Try OpenF1 same meeting
       if (this._currentMeetingKey) {
-        var mRes = await fetch('https://api.openf1.org/v1/sessions?meeting_key=' + this._currentMeetingKey + '&order=date_start&order_direction=asc');
+        var mRes = await f1Fetch('https://api.openf1.org/v1/sessions?meeting_key=' + this._currentMeetingKey + '&order=date_start&order_direction=asc');
         if (mRes.ok) {
           var mSessions = await mRes.json();
           var curKey = this._sessionKey;
@@ -517,7 +533,7 @@ F1Providers.openf1 = {
       }
       // Try OpenF1 future sessions
       var now = new Date().toISOString();
-      var res = await fetch('https://api.openf1.org/v1/sessions?date_start>=' + now + '&order=date_start&order_direction=asc');
+      var res = await f1Fetch('https://api.openf1.org/v1/sessions?date_start>=' + now + '&order=date_start&order_direction=asc');
       if (res.ok) {
         var sessions = await res.json();
         if (sessions.length) return sessions[0];
@@ -588,7 +604,7 @@ F1Providers.openf1 = {
     let anyOk = false, anyFail = false, lastFailReason = '';
 
     try {
-      const posRes = await fetch(`https://api.openf1.org/v1/position?session_key=${sk}&order=date&order_direction=desc&limit=30`);
+      const posRes = await f1Fetch(`https://api.openf1.org/v1/position?session_key=${sk}&order=date&order_direction=desc&limit=30`);
       if (posRes.ok) {
         anyOk = true;
         const positions = await posRes.json();
@@ -616,7 +632,7 @@ F1Providers.openf1 = {
     } catch (e) { anyFail = true; lastFailReason = 'positions ' + (e.message || e); }
 
     try {
-      const intRes = await fetch(`https://api.openf1.org/v1/intervals?session_key=${sk}&order=date&order_direction=desc&limit=30`);
+      const intRes = await f1Fetch(`https://api.openf1.org/v1/intervals?session_key=${sk}&order=date&order_direction=desc&limit=30`);
       if (intRes.ok) {
         anyOk = true;
         const intervals = await intRes.json();
@@ -635,7 +651,7 @@ F1Providers.openf1 = {
     } catch (e) { anyFail = true; lastFailReason = 'intervals ' + (e.message || e); }
 
     try {
-      const lapRes = await fetch(`https://api.openf1.org/v1/laps?session_key=${sk}&order=date&order_direction=desc&limit=5`);
+      const lapRes = await f1Fetch(`https://api.openf1.org/v1/laps?session_key=${sk}&order=date&order_direction=desc&limit=5`);
       if (lapRes.ok) {
         anyOk = true;
         const laps = await lapRes.json();
@@ -659,7 +675,7 @@ F1Providers.openf1 = {
     }
 
     try {
-      const wRes = await fetch(`https://api.openf1.org/v1/weather?session_key=${sk}&order=date&order_direction=desc&limit=1`);
+      const wRes = await f1Fetch(`https://api.openf1.org/v1/weather?session_key=${sk}&order=date&order_direction=desc&limit=1`);
       if (wRes.ok) {
         anyOk = true;
         const weather = await wRes.json();
@@ -682,7 +698,7 @@ F1Providers.openf1 = {
     } catch (e) { anyFail = true; lastFailReason = 'weather ' + (e.message || e); }
 
     try {
-      const rcRes = await fetch(`https://api.openf1.org/v1/race_control?session_key=${sk}&order=date&order_direction=desc&limit=15`);
+      const rcRes = await f1Fetch(`https://api.openf1.org/v1/race_control?session_key=${sk}&order=date&order_direction=desc&limit=15`);
       if (rcRes.ok) {
         anyOk = true;
         const rc = await rcRes.json();
