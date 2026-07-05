@@ -68,13 +68,14 @@ async function _f1FetchChampionship() {
     var standings = list.map(function(s) {
       var d = s.Driver || {};
       var abbrev = (d.code || d.familyName || '').substring(0, 3).toUpperCase();
-      return { pos: parseInt(s.position), abbrev: abbrev, points: parseFloat(s.points), wins: parseInt(s.wins), p2: 0, p3: 0 };
+      return { pos: parseInt(s.position), abbrev: abbrev, points: parseFloat(s.points), wins: parseInt(s.wins), p2: 0, p3: 0, sprintP1: 0, sprintP2: 0, sprintP3: 0 };
     });
     // Fetch P2 and P3 counts in parallel
     try {
-      var [r2, r3] = await Promise.all([
+      var [r2, r3, rSprint] = await Promise.all([
         fetch('https://api.jolpi.ca/ergast/f1/current/results/2.json?limit=100'),
-        fetch('https://api.jolpi.ca/ergast/f1/current/results/3.json?limit=100')
+        fetch('https://api.jolpi.ca/ergast/f1/current/results/3.json?limit=100'),
+        fetch('https://api.jolpi.ca/ergast/f1/current/sprint.json?limit=100')
       ]);
       var countFinishes = function(raceData, field) {
         var races = raceData?.MRData?.RaceTable?.Races || [];
@@ -92,6 +93,21 @@ async function _f1FetchChampionship() {
         var d2 = await r2.json(), d3 = await r3.json();
         var p2counts = countFinishes(d2), p3counts = countFinishes(d3);
         standings.forEach(function(s) { s.p2 = p2counts[s.abbrev] || 0; s.p3 = p3counts[s.abbrev] || 0; });
+      }
+      if (rSprint.ok) {
+        var dSprint = await rSprint.json();
+        var sprintRaces = dSprint?.MRData?.RaceTable?.Races || [];
+        var sp1 = {}, sp2 = {}, sp3 = {};
+        sprintRaces.forEach(function(race) {
+          (race.SprintResults || []).forEach(function(result) {
+            var code = (result.Driver?.code || result.Driver?.familyName || '').substring(0,3).toUpperCase();
+            var pos = parseInt(result.position);
+            if (pos === 1) sp1[code] = (sp1[code] || 0) + 1;
+            else if (pos === 2) sp2[code] = (sp2[code] || 0) + 1;
+            else if (pos === 3) sp3[code] = (sp3[code] || 0) + 1;
+          });
+        });
+        standings.forEach(function(s) { s.sprintP1 = sp1[s.abbrev] || 0; s.sprintP2 = sp2[s.abbrev] || 0; s.sprintP3 = sp3[s.abbrev] || 0; });
       }
     } catch(e2) {}
     _f1StandingsCache = standings;
@@ -846,9 +862,9 @@ function simNoSession() {
   });
   if (!F1State.championshipStandings.length) {
     f1Update({ championshipStandings: [
-      { pos: 1, abbrev: 'VER', points: 255, wins: 7, p2: 3, p3: 2 },
-      { pos: 2, abbrev: 'NOR', points: 203, wins: 3, p2: 5, p3: 2 },
-      { pos: 3, abbrev: 'LEC', points: 180, wins: 2, p2: 2, p3: 4 }
+      { pos: 1, abbrev: 'VER', points: 255, wins: 7, p2: 3, p3: 2, sprintP1: 2, sprintP2: 1, sprintP3: 0 },
+      { pos: 2, abbrev: 'NOR', points: 203, wins: 3, p2: 5, p3: 2, sprintP1: 1, sprintP2: 1, sprintP3: 1 },
+      { pos: 3, abbrev: 'LEC', points: 180, wins: 2, p2: 2, p3: 4, sprintP1: 0, sprintP2: 0, sprintP3: 1 }
     ]});
   }
   if (!F1State.meeting) {

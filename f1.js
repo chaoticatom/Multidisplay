@@ -612,7 +612,7 @@ function effectF1(dt){
           });
       }
       const longest = lines.reduce((a,b)=>a.length>b.length?a:b, '');
-      const podiumKey = top3champ ? top3champ.map(d=>d.wins+'|'+d.p2+'|'+d.p3).join(',') : '';
+      const podiumKey = top3champ ? top3champ.map(d=>d.wins+'|'+d.p2+'|'+d.p3+'|'+(d.sprintP1||0)+'|'+(d.sprintP2||0)+'|'+(d.sprintP3||0)).join(',') : '';
       const cacheKey = lines.join('|') + podiumKey || '__empty__';
       if(f1FaceBufs._lastIdleTop3!==cacheKey){
         f1FaceBufs._lastIdleTop3 = cacheKey;
@@ -621,8 +621,9 @@ function effectF1(dt){
         const ctx = c.getContext('2d');
         ctx.textAlign='center'; ctx.textBaseline='middle';
         const lineH = SIZE / 3;
-        const nameH = lineH * 0.58;
-        const dotsH = lineH * 0.40;
+        const nameH = lineH * 0.50;
+        const dotsH = lineH * 0.28;
+        const sprintH = lineH * 0.20;
         let fs = Math.max(8, (nameH*0.88)|0);
         ctx.font = `bold ${fs}px Arial`;
         while(fs > 5 && ctx.measureText(longest).width > SIZE*0.88){
@@ -646,7 +647,7 @@ function effectF1(dt){
             const dotCounts = [d.wins||0, d.p2||0, d.p3||0];
             const dotColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
             let dotX = SIZE * 0.06;
-            const dotY = rowY + nameH * 0.90 + dotsH * 0.25 + 2;
+            const dotY = rowY + nameH * 0.90 + dotsH * 0.35 + 2;
             for(let p=0;p<3;p++){
               for(let k=0;k<Math.min(dotCounts[p],8);k++){
                 ctx.beginPath();
@@ -656,6 +657,23 @@ function effectF1(dt){
                 dotX += dotSpacing;
               }
               if(dotCounts[p]>0 && p<2) dotX += dotR;
+            }
+            // Sprint podium finishes: small line of square markers underneath
+            // the main dots, only shown if the driver has any sprint podiums.
+            const sprintCounts = [d.sprintP1||0, d.sprintP2||0, d.sprintP3||0];
+            if(sprintCounts[0]+sprintCounts[1]+sprintCounts[2] > 0){
+              const sqSize = Math.max(1, (SIZE*0.03)|0);
+              const sqSpacing = sqSize * 2.6;
+              let sqX = SIZE * 0.06;
+              const sqY = rowY + nameH + dotsH + sprintH*0.45;
+              for(let p=0;p<3;p++){
+                for(let k=0;k<Math.min(sprintCounts[p],8);k++){
+                  ctx.fillStyle = dotColors[p];
+                  ctx.fillRect(sqX, sqY-sqSize/2, sqSize, sqSize);
+                  sqX += sqSpacing;
+                }
+                if(sprintCounts[p]>0 && p<2) sqX += sqSize;
+              }
             }
           }
         }
