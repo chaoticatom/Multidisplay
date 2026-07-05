@@ -1240,5 +1240,5 @@ function f1SetStatus(state){
   if(!ind) return;
   if(state==='transfer'){ ind.style.background='#3af'; if(lbl&&!lbl.dataset.sessioninfo) lbl.textContent='Transferring…'; }
   else if(state==='ok'){ ind.style.background='#4f4'; if(lbl&&!lbl.dataset.sessioninfo) lbl.textContent='Connected'; }
-  else if(state==='error'){ ind.style.background='#f44'; if(lbl) lbl.textContent='API error'; }
+  else if(state==='error'){ ind.style.background='#f44'; if(lbl) lbl.textContent = (typeof F1State!=='undefined' && F1State.connectionError) ? 'API error: '+F1State.connectionError : 'API error'; }
 }
