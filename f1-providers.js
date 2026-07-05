@@ -602,6 +602,13 @@ F1Providers.openf1 = {
     // race control, etc.) for this cycle — that's what made live-race
     // polling look like it "fell over" whenever a single request failed.
     let anyOk = false, anyFail = false, lastFailReason = '';
+    // OpenF1 gets hit hard by real-world traffic during actual live sessions
+    // (everyone polling it at once) and can start dropping connections under
+    // load. Laps/weather/race-control change slowly — only fetch them every
+    // other cycle to roughly halve our request footprint on the API during
+    // exactly the moments it's most likely to be overloaded.
+    this._pollCount = (this._pollCount || 0) + 1;
+    const fetchSlowLane = (this._pollCount % 2) === 0;
 
     try {
       const posRes = await f1Fetch(`https://api.openf1.org/v1/position?session_key=${sk}&order=date&order_direction=desc&limit=30`);
@@ -650,7 +657,7 @@ F1Providers.openf1 = {
       } else { anyFail = true; lastFailReason = 'intervals HTTP ' + intRes.status; }
     } catch (e) { anyFail = true; lastFailReason = 'intervals ' + (e.message || e); }
 
-    try {
+    if (fetchSlowLane) try {
       const lapRes = await f1Fetch(`https://api.openf1.org/v1/laps?session_key=${sk}&order=date&order_direction=desc&limit=5`);
       if (lapRes.ok) {
         anyOk = true;
@@ -674,7 +681,7 @@ F1Providers.openf1 = {
       }
     }
 
-    try {
+    if (fetchSlowLane) try {
       const wRes = await f1Fetch(`https://api.openf1.org/v1/weather?session_key=${sk}&order=date&order_direction=desc&limit=1`);
       if (wRes.ok) {
         anyOk = true;
@@ -697,7 +704,7 @@ F1Providers.openf1 = {
       } else { anyFail = true; lastFailReason = 'weather HTTP ' + wRes.status; }
     } catch (e) { anyFail = true; lastFailReason = 'weather ' + (e.message || e); }
 
-    try {
+    if (fetchSlowLane) try {
       const rcRes = await f1Fetch(`https://api.openf1.org/v1/race_control?session_key=${sk}&order=date&order_direction=desc&limit=15`);
       if (rcRes.ok) {
         anyOk = true;
