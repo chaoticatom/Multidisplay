@@ -1437,10 +1437,108 @@ function dtRenderMirrored(){
   return ctx2.getImageData(0,0,DT_RES,DT_RES).data;
 }
 
+// ── "Words" mode: word-clock style display, using the same crisp bitmap
+// font as the Trivia/Jokes word cascade (WC_FONT), staggered rows instead
+// of every line centered, with hour/connector words in white and the
+// minute-quantity/date-number in amber. Rounds to the nearest 5 minutes,
+// like a real word clock — seconds change every tick and don't have a
+// natural word-clock phrasing, so they're deliberately left out; the date
+// (if included) gets its own set of staggered rows underneath.
+const DT_WORDS_NUM=['TWELVE','ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN','EIGHT','NINE','TEN','ELEVEN'];
+const DT_WORDS_ORDINAL=['FIRST','SECOND','THIRD','FOURTH','FIFTH','SIXTH','SEVENTH','EIGHTH','NINTH','TENTH',
+  'ELEVENTH','TWELFTH','THIRTEENTH','FOURTEENTH','FIFTEENTH','SIXTEENTH','SEVENTEENTH','EIGHTEENTH','NINETEENTH','TWENTIETH',
+  'TWENTY FIRST','TWENTY SECOND','TWENTY THIRD','TWENTY FOURTH','TWENTY FIFTH','TWENTY SIXTH','TWENTY SEVENTH','TWENTY EIGHTH','TWENTY NINTH','THIRTIETH','THIRTY FIRST'];
+const DT_WORDS_DAY=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+const DT_WORDS_MONTH=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+
+function dtWordsForTime(h24,m){
+  const rounded=Math.round(m/5)*5;
+  const hourOffset=rounded>30?1:0;
+  const mmDisp=rounded%60;
+  const h=(h24+hourOffset)%24;
+  let h12=h%12; if(h12===0) h12=12;
+  const hourWord=DT_WORDS_NUM[h12%12];
+  const AMBER=[1,0.8,0.27], WHITE=[1,1,1];
+  const qty=n=>(n===5?'FIVE':n===10?'TEN':n===15?'QUARTER':n===20?'TWENTY':n===25?'TWENTY FIVE':n===30?'HALF':'');
+  const tokens=[];
+  if(mmDisp===0){
+    tokens.push({t:hourWord,c:WHITE},{t:"O'CLOCK",c:WHITE});
+  } else if(mmDisp===15||mmDisp===30){
+    qty(mmDisp).split(' ').forEach(w=>tokens.push({t:w,c:AMBER}));
+    tokens.push({t:'PAST',c:WHITE},{t:hourWord,c:WHITE});
+  } else if(mmDisp===45){
+    qty(15).split(' ').forEach(w=>tokens.push({t:w,c:AMBER}));
+    tokens.push({t:'TO',c:WHITE},{t:hourWord,c:WHITE});
+  } else if(mmDisp<30){
+    qty(mmDisp).split(' ').forEach(w=>tokens.push({t:w,c:AMBER}));
+    tokens.push({t:'PAST',c:WHITE},{t:hourWord,c:WHITE});
+  } else {
+    qty(60-mmDisp).split(' ').forEach(w=>tokens.push({t:w,c:AMBER}));
+    tokens.push({t:'TO',c:WHITE},{t:hourWord,c:WHITE});
+  }
+  return tokens;
+}
+function dtWordsForDate(now){
+  const BLUE=[0.48,0.82,1], AMBER=[1,0.8,0.27];
+  const tokens=[{t:DT_WORDS_DAY[now.getDay()],c:BLUE},{t:'THE',c:BLUE}];
+  DT_WORDS_ORDINAL[now.getDate()-1].split(' ').forEach(w=>tokens.push({t:w,c:AMBER}));
+  tokens.push({t:'OF',c:BLUE},{t:DT_WORDS_MONTH[now.getMonth()],c:BLUE});
+  return tokens;
+}
+function dtWrapTokens(tokens,maxW){
+  const lines=[]; let cur=[], curW=0;
+  tokens.forEach(tok=>{
+    const w=tok.t.length*WC_CHAR_W;
+    const addW=(cur.length?WC_CHAR_W:0)+w;
+    if(curW+addW>maxW && cur.length){ lines.push(cur); cur=[tok]; curW=w; }
+    else { cur.push(tok); curW+=addW; }
+  });
+  if(cur.length) lines.push(cur);
+  return lines;
+}
+const DT_STAGGER_FRACS=[0.04,0.5,0.8,0.15,0.6,0.3,0.75];
+function dtDrawWordLines(face,lines,startRow){
+  let row=startRow;
+  lines.forEach(line=>{
+    const lineW=line.reduce((a,t)=>a+t.t.length*WC_CHAR_W,0)+Math.max(0,line.length-1)*WC_CHAR_W;
+    const margin=Math.max(0,SIZE-lineW);
+    const sv=(SIZE-1)-1-6-row*WC_LINE_H;
+    if(sv+6<0) { row++; return; }
+    let su=Math.round(margin*DT_STAGGER_FRACS[row%DT_STAGGER_FRACS.length]);
+    line.forEach(tok=>{
+      let u=su;
+      for(const ch of tok.t) u+=wcDrawGlyph(face,ch,u,sv,tok.c);
+      su+=tok.t.length*WC_CHAR_W+WC_CHAR_W;
+    });
+    row++;
+  });
+  return row;
+}
+// "Words" mode always shows both time and date, word-clock style — the
+// two together are the point of it, so there's no separate time-only/
+// date-only variant (unlike the numeric Time/Date/Both modes).
+function dtBuildWordClockToFace(face,now){
+  let row=0;
+  row=dtDrawWordLines(face,dtWrapTokens(dtWordsForTime(now.getHours(),now.getMinutes()),SIZE),row);
+  row=dtDrawWordLines(face,dtWrapTokens(dtWordsForDate(now),SIZE),row);
+}
+
 function effectDateTime(dt) {
   t+=dt*0.8;
   const now=new Date(), sec=now.getSeconds();
   const mode=(_peTargetOpts&&_peTargetOpts.mode)?_peTargetOpts.mode:dtMode;
+
+  if(mode==='words'){
+    // Bypasses the hue-remapped canvas pipeline entirely — drawn directly
+    // with real fixed colors (white/amber/blue) via the bitmap font, since
+    // the other modes' per-face hue-shift would wash out the distinct
+    // hour/minute/date colors this mode relies on.
+    for(let i=0;i<N*3;i++) colBuf[i]=0;
+    const face=_peTargetFace>=0?_peTargetFace:0;
+    dtBuildWordClockToFace(face,now);
+    return;
+  }
+
   if(mode==='analogue'||sec!==dtLastSec||!dtPixels||_peTargetOpts){ dtLastSec=_peTargetOpts?-1:sec; dtRender(now); }
 
   for(let i=0;i<N*3;i++) colBuf[i]=0;
