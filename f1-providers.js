@@ -447,7 +447,11 @@ F1Providers.openf1 = {
       if (!res.ok) {
         f1Update({ connection: 'error', connectionError: 'HTTP ' + res.status + ' ' + res.statusText });
         this._setFallbackData();
-        if (_f1IsActive()) this._timer = setTimeout(() => this._init(), 10000);
+        // 403/429 means the API is actively rejecting us (bot-protection or
+        // rate-limit) — hammering it again in 10s just prolongs the block.
+        // Back off hard and let it cool down before retrying.
+        const blocked = res.status === 403 || res.status === 429;
+        if (_f1IsActive()) this._timer = setTimeout(() => this._init(), blocked ? 60000 : 10000);
         return;
       }
       const sessions = await res.json();
@@ -751,9 +755,13 @@ F1Providers.openf1 = {
     }
 
     // Back off on repeated total failures (e.g. rate-limiting) instead of
-    // hammering the API every 8s — cap at 30s between retries.
+    // hammering the API every 8s. A 403/429 means it's actively rejecting us
+    // (bot-protection/rate-limit) — cap much higher so we cool down instead
+    // of prolonging the block; other failures cap at a shorter 30s.
+    const blocked = /\b(403|429)\b/.test(lastFailReason);
+    const cap = blocked ? 60000 : 30000;
     const backoff = this._consecutiveFails > 0
-      ? Math.min(30000, 8000 * Math.pow(1.5, Math.min(this._consecutiveFails, 6)))
+      ? Math.min(cap, 8000 * Math.pow(1.5, Math.min(this._consecutiveFails, 6)))
       : 8000;
     if (_f1IsActive()) this._timer = setTimeout(() => this._pollLive(), backoff);
   }
