@@ -658,21 +658,22 @@ function effectF1(dt){
               }
               if(dotCounts[p]>0 && p<2) dotX += dotR;
             }
-            // Sprint podium finishes: small line of square markers underneath
-            // the main dots, only shown if the driver has any sprint podiums.
+            // Sprint podium finishes: small line of markers underneath the
+            // main dots, same width/spacing as the race dots but 2px deep,
+            // only shown if the driver has any sprint podiums.
             const sprintCounts = [d.sprintP1||0, d.sprintP2||0, d.sprintP3||0];
             if(sprintCounts[0]+sprintCounts[1]+sprintCounts[2] > 0){
-              const sqSize = Math.max(1, (SIZE*0.03)|0);
-              const sqSpacing = sqSize * 2.6;
+              const sqW = dotR * 2;
+              const sqH = 2;
               let sqX = SIZE * 0.06;
               const sqY = rowY + nameH + dotsH + sprintH*0.45;
               for(let p=0;p<3;p++){
                 for(let k=0;k<Math.min(sprintCounts[p],8);k++){
                   ctx.fillStyle = dotColors[p];
-                  ctx.fillRect(sqX, sqY-sqSize/2, sqSize, sqSize);
-                  sqX += sqSpacing;
+                  ctx.fillRect(sqX, sqY-sqH/2, sqW, sqH);
+                  sqX += dotSpacing;
                 }
-                if(sprintCounts[p]>0 && p<2) sqX += sqSize;
+                if(sprintCounts[p]>0 && p<2) sqX += dotR;
               }
             }
           }
