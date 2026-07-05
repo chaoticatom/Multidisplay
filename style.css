@@ -291,6 +291,10 @@
     text-transform: none; font-weight: 400; color: #bbc;
   }
   .sub-head.sub-head-boxed:hover { background: rgba(80,120,255,0.12); color: #bbc; }
+  /* Same arrow as a regular effect button: points right when collapsed,
+     rotates to point down when expanded — same 20px size too. */
+  .sub-head.sub-head-boxed .panel-arrow { font-size: 20px; transition: transform 0.2s; }
+  .sub-section:not(.collapsed) > .sub-head.sub-head-boxed .panel-arrow { transform: rotate(90deg); }
   .sub-body { padding: 6px 8px 8px; }
   .sub-section.collapsed .sub-body { display: none; }
   .sub-section.collapsed .chev { transform: rotate(-90deg); }
