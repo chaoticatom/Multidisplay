@@ -11,11 +11,33 @@ function _f1IsActive() {
   try { return currentEffect === 'f1'; } catch(e) { return false; }
 }
 
+// OpenF1's free tier is documented at 30 req/min. Rather than firing
+// requests and reacting to a 403 after the fact, keep a token bucket a
+// notch below that ceiling (24/min, refilled continuously) and make every
+// call wait for budget before it goes out — this keeps us under the limit
+// proactively instead of getting rate-limited and having to cool down.
+const F1_RATE_CAP = 24;
+const F1_RATE_REFILL_PER_MS = F1_RATE_CAP / 60000;
+let _f1RateTokens = F1_RATE_CAP;
+let _f1RateLastRefill = null;
+async function _f1RateWait() {
+  for (;;) {
+    const now = Date.now();
+    if (_f1RateLastRefill == null) _f1RateLastRefill = now;
+    _f1RateTokens = Math.min(F1_RATE_CAP, _f1RateTokens + (now - _f1RateLastRefill) * F1_RATE_REFILL_PER_MS);
+    _f1RateLastRefill = now;
+    if (_f1RateTokens >= 1) { _f1RateTokens -= 1; return; }
+    const msNeeded = (1 - _f1RateTokens) / F1_RATE_REFILL_PER_MS;
+    await new Promise(r => setTimeout(r, Math.min(5000, Math.max(50, msNeeded))));
+  }
+}
+
 // Some browsers/networks (ad-blockers, restrictive DNS/CORS setups) fail
 // "Failed to fetch" on api.openf1.org even though the API itself is up.
 // Retry once through a public CORS proxy before giving up, same fallback
 // strategy already used for image loading elsewhere in this app.
 async function f1Fetch(url) {
+  await _f1RateWait();
   try {
     return await fetch(url);
   } catch (e) {
