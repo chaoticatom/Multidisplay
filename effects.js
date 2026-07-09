@@ -14774,24 +14774,97 @@ function effectAPOD(dt){
 }
 
 // ═══════════════════════════════════════════════════
+//  Shared photo-gallery slideshow engine
+// ═══════════════════════════════════════════════════
+// Any "cycle through a set of loaded photos, one per face, staggered and
+// crossfading" effect (Unsplash, Art Gallery, and future ones) shares this
+// exact engine — only the pixel/size arrays and load function differ.
+// galleryInitFaceState: per-face staggered timing state for full-cube mode.
+// Each face cycles on the same `periodSecs` but offset so they don't all
+// change at once (offset = periodSecs/6), and crossfades into its next
+// photo over `fadeDur` seconds instead of cutting instantly.
+function galleryInitFaceState(n, periodSecs){
+  const stagger=periodSecs/6;
+  return Array.from({length:6},(_,f)=>({
+    curIdx: n?f%n:0, nextIdx:null, fadeT:0, timer:f*stagger
+  }));
+}
+// Advances one face's slideshow/crossfade state by dt. Call once per face
+// per frame before rendering. loadFn(idx) should kick off loading that
+// photo if not already loaded/loading (a no-op if already cached).
+function gallerySlideshowStep(state, n, dt, periodSecs, fadeDur, slideshowOn, loadFn, pixelsArr){
+  loadFn(state.curIdx);
+  if(state.nextIdx!=null) loadFn(state.nextIdx);
+  if(state.fadeT>0){
+    const nextPixels=pixelsArr[state.nextIdx];
+    if(nextPixels==='error'){
+      // Broken photo — skip to a different one, keep the fade running.
+      state.nextIdx=(state.nextIdx+1)%n;
+      loadFn(state.nextIdx);
+    } else if(nextPixels){
+      state.fadeT+=dt;
+      if(state.fadeT>=fadeDur){ state.curIdx=state.nextIdx; state.nextIdx=null; state.fadeT=0; }
+    }
+    // else still loading — hold the fade at its current progress until ready
+  } else if(slideshowOn){
+    state.timer+=dt;
+    if(state.timer>=periodSecs){
+      state.timer-=periodSecs;
+      state.nextIdx = n>6 ? (state.curIdx+6)%n : (state.curIdx+1)%n;
+      loadFn(state.nextIdx);
+      state.fadeT=0.0001;
+    }
+  }
+}
+function galleryApplyToFace(pixelsArr, sizesArr, face, idx){
+  const pixels=pixelsArr[idx];
+  if(!pixels||pixels==='error') return false;
+  const S=SIZE, IS=sizesArr[idx];
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const li=faceMap[face][v*S+u]; if(li<0) continue;
+    const su=Math.min(IS-1,Math.floor(u/S*IS));
+    const sv=Math.min(IS-1,Math.floor((S-1-v)/S*IS));
+    const pi=(sv*IS+su)*4;
+    colBuf[li*3]=pixels[pi]/255;
+    colBuf[li*3+1]=pixels[pi+1]/255;
+    colBuf[li*3+2]=pixels[pi+2]/255;
+  }
+  return true;
+}
+// Crossfades between two loaded photos on one face. Falls back to showing
+// whichever side is actually ready if the other isn't (still loading/error).
+function galleryApplyBlendToFace(pixelsArr, sizesArr, face, idxA, idxB, alpha){
+  const pixelsA=pixelsArr[idxA], pixelsB=pixelsArr[idxB];
+  const okA=pixelsA&&pixelsA!=='error', okB=pixelsB&&pixelsB!=='error';
+  if(!okA && !okB) return false;
+  if(!okA) return galleryApplyToFace(pixelsArr, sizesArr, face, idxB);
+  if(!okB) return galleryApplyToFace(pixelsArr, sizesArr, face, idxA);
+  const S=SIZE, ISA=sizesArr[idxA], ISB=sizesArr[idxB];
+  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
+    const li=faceMap[face][v*S+u]; if(li<0) continue;
+    const suA=Math.min(ISA-1,Math.floor(u/S*ISA)), svA=Math.min(ISA-1,Math.floor((S-1-v)/S*ISA));
+    const piA=(svA*ISA+suA)*4;
+    const suB=Math.min(ISB-1,Math.floor(u/S*ISB)), svB=Math.min(ISB-1,Math.floor((S-1-v)/S*ISB));
+    const piB=(svB*ISB+suB)*4;
+    colBuf[li*3]  =(pixelsA[piA]  /255)+((pixelsB[piB]  /255)-(pixelsA[piA]  /255))*alpha;
+    colBuf[li*3+1]=(pixelsA[piA+1]/255)+((pixelsB[piB+1]/255)-(pixelsA[piA+1]/255))*alpha;
+    colBuf[li*3+2]=(pixelsA[piA+2]/255)+((pixelsB[piB+2]/255)-(pixelsA[piA+2]/255))*alpha;
+  }
+  return true;
+}
+
+// ═══════════════════════════════════════════════════
 //  Unsplash Photo Slideshow
 // ═══════════════════════════════════════════════════
 let unsplashPhotos=[], unsplashIdx=0, unsplashFetching=false, unsplashLastFetch=0, unsplashError='';
 let unsplashPixels=[], unsplashSizes=[], unsplashT=0, unsplashTimer=0, unsplashSecs=8;
 let unsplashQuery='nature', unsplashLetterbox=true;
-// Per-face staggered slideshow state for full-cube mode: each face cycles
-// on the same unsplashSecs period but offset so they don't all change at
-// once (offset = unsplashSecs/6, e.g. 1s apart on a 6s scroller), and
-// crossfades ("morphs") into its next photo over UNSPLASH_FADE_DUR seconds
-// instead of cutting instantly.
+// Per-face staggered slideshow state for full-cube mode — see
+// galleryInitFaceState/gallerySlideshowStep above for the shared engine.
 let unsplashFaceState=null;
 const UNSPLASH_FADE_DUR=1.0;
 function unsplashInitFaceState(){
-  const n=unsplashPhotos.length;
-  const stagger=unsplashSecs/6;
-  unsplashFaceState=Array.from({length:6},(_,f)=>({
-    curIdx: n?f%n:0, nextIdx:null, fadeT:0, timer:f*stagger
-  }));
+  unsplashFaceState=galleryInitFaceState(unsplashPhotos.length, unsplashSecs);
 }
 
 function unsplashApiKey(){ return localStorage.getItem('unsplashApiKey')||''; }
@@ -14846,41 +14919,10 @@ function unsplashLoad(idx){
 }
 
 function unsplashApplyToFace(face, idx){
-  const pixels=unsplashPixels[idx];
-  if(!pixels||pixels==='error') return false;
-  const S=SIZE, IS=unsplashSizes[idx];
-  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-    const li=faceMap[face][v*S+u]; if(li<0) continue;
-    const su=Math.min(IS-1,Math.floor(u/S*IS));
-    const sv=Math.min(IS-1,Math.floor((S-1-v)/S*IS));
-    const pi=(sv*IS+su)*4;
-    colBuf[li*3]=pixels[pi]/255;
-    colBuf[li*3+1]=pixels[pi+1]/255;
-    colBuf[li*3+2]=pixels[pi+2]/255;
-  }
-  return true;
+  return galleryApplyToFace(unsplashPixels, unsplashSizes, face, idx);
 }
-
-// Crossfades between two loaded photos on one face. Falls back to showing
-// whichever side is actually ready if the other isn't (still loading/error).
 function unsplashApplyBlendToFace(face, idxA, idxB, alpha){
-  const pixelsA=unsplashPixels[idxA], pixelsB=unsplashPixels[idxB];
-  const okA=pixelsA&&pixelsA!=='error', okB=pixelsB&&pixelsB!=='error';
-  if(!okA && !okB) return false;
-  if(!okA) return unsplashApplyToFace(face, idxB);
-  if(!okB) return unsplashApplyToFace(face, idxA);
-  const S=SIZE, ISA=unsplashSizes[idxA], ISB=unsplashSizes[idxB];
-  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-    const li=faceMap[face][v*S+u]; if(li<0) continue;
-    const suA=Math.min(ISA-1,Math.floor(u/S*ISA)), svA=Math.min(ISA-1,Math.floor((S-1-v)/S*ISA));
-    const piA=(svA*ISA+suA)*4;
-    const suB=Math.min(ISB-1,Math.floor(u/S*ISB)), svB=Math.min(ISB-1,Math.floor((S-1-v)/S*ISB));
-    const piB=(svB*ISB+suB)*4;
-    colBuf[li*3]  =(pixelsA[piA]  /255)+((pixelsB[piB]  /255)-(pixelsA[piA]  /255))*alpha;
-    colBuf[li*3+1]=(pixelsA[piA+1]/255)+((pixelsB[piB+1]/255)-(pixelsA[piA+1]/255))*alpha;
-    colBuf[li*3+2]=(pixelsA[piA+2]/255)+((pixelsB[piB+2]/255)-(pixelsA[piA+2]/255))*alpha;
-  }
-  return true;
+  return galleryApplyBlendToFace(unsplashPixels, unsplashSizes, face, idxA, idxB, alpha);
 }
 
 function unsplashUpdateInfo(){
@@ -14974,29 +15016,7 @@ function effectUnsplash(dt){
   if(!unsplashFaceState || unsplashFaceState.length!==6) unsplashInitFaceState();
   for(let f=0;f<6;f++){
     const st=unsplashFaceState[f];
-    unsplashLoad(st.curIdx);
-    if(st.nextIdx!=null) unsplashLoad(st.nextIdx);
-
-    if(st.fadeT>0){
-      const nextPixels=unsplashPixels[st.nextIdx];
-      if(nextPixels==='error'){
-        // Broken photo — skip to a different one, keep the fade running.
-        st.nextIdx=(st.nextIdx+1)%n;
-        unsplashLoad(st.nextIdx);
-      } else if(nextPixels){
-        st.fadeT+=dt;
-        if(st.fadeT>=UNSPLASH_FADE_DUR){ st.curIdx=st.nextIdx; st.nextIdx=null; st.fadeT=0; }
-      }
-      // else still loading — hold the fade at its current progress until ready
-    } else if(artSlideshowOn){
-      st.timer+=dt;
-      if(st.timer>=unsplashSecs){
-        st.timer-=unsplashSecs;
-        st.nextIdx = n>6 ? (st.curIdx+6)%n : (st.curIdx+1)%n;
-        unsplashLoad(st.nextIdx);
-        st.fadeT=0.0001;
-      }
-    }
+    gallerySlideshowStep(st, n, dt, unsplashSecs, UNSPLASH_FADE_DUR, artSlideshowOn, unsplashLoad, unsplashPixels);
 
     let shown;
     if(st.fadeT>0 && st.nextIdx!=null){
@@ -15028,15 +15048,12 @@ let articWorks=[], articIdx=0, articFetching=false, articError='';
 let articPixels=[], articSizes=[], articT=0, articTimer=0, articSecs=10;
 let articQuery='', articLetterbox=true;
 const MET_API='https://collectionapi.metmuseum.org/public/collection/v1';
-// Same per-face staggered-timing + crossfade-morph approach as Unsplash.
+// Per-face staggered slideshow state — see galleryInitFaceState/
+// gallerySlideshowStep (shared engine, defined above the Unsplash section).
 let articFaceState=null;
 const ARTIC_FADE_DUR=1.0;
 function articInitFaceState(){
-  const n=articWorks.length;
-  const stagger=articSecs/6;
-  articFaceState=Array.from({length:6},(_,f)=>({
-    curIdx:n?f%n:0, nextIdx:null, fadeT:0, timer:f*stagger
-  }));
+  articFaceState=galleryInitFaceState(articWorks.length, articSecs);
 }
 
 async function articFetch(){
@@ -15096,41 +15113,10 @@ function articLoad(idx){
 }
 
 function articApplyToFace(face, idx){
-  const pixels=articPixels[idx];
-  if(!pixels||pixels==='error') return false;
-  const S=SIZE, IS=articSizes[idx];
-  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-    const li=faceMap[face][v*S+u]; if(li<0) continue;
-    const su=Math.min(IS-1,Math.floor(u/S*IS));
-    const sv=Math.min(IS-1,Math.floor((S-1-v)/S*IS));
-    const pi=(sv*IS+su)*4;
-    colBuf[li*3]=pixels[pi]/255;
-    colBuf[li*3+1]=pixels[pi+1]/255;
-    colBuf[li*3+2]=pixels[pi+2]/255;
-  }
-  return true;
+  return galleryApplyToFace(articPixels, articSizes, face, idx);
 }
-
-// Crossfades between two loaded artworks on one face — same approach as
-// Unsplash's unsplashApplyBlendToFace.
 function articApplyBlendToFace(face, idxA, idxB, alpha){
-  const pixelsA=articPixels[idxA], pixelsB=articPixels[idxB];
-  const okA=pixelsA&&pixelsA!=='error', okB=pixelsB&&pixelsB!=='error';
-  if(!okA && !okB) return false;
-  if(!okA) return articApplyToFace(face, idxB);
-  if(!okB) return articApplyToFace(face, idxA);
-  const S=SIZE, ISA=articSizes[idxA], ISB=articSizes[idxB];
-  for(let v=0;v<S;v++) for(let u=0;u<S;u++){
-    const li=faceMap[face][v*S+u]; if(li<0) continue;
-    const suA=Math.min(ISA-1,Math.floor(u/S*ISA)), svA=Math.min(ISA-1,Math.floor((S-1-v)/S*ISA));
-    const piA=(svA*ISA+suA)*4;
-    const suB=Math.min(ISB-1,Math.floor(u/S*ISB)), svB=Math.min(ISB-1,Math.floor((S-1-v)/S*ISB));
-    const piB=(svB*ISB+suB)*4;
-    colBuf[li*3]  =(pixelsA[piA]  /255)+((pixelsB[piB]  /255)-(pixelsA[piA]  /255))*alpha;
-    colBuf[li*3+1]=(pixelsA[piA+1]/255)+((pixelsB[piB+1]/255)-(pixelsA[piA+1]/255))*alpha;
-    colBuf[li*3+2]=(pixelsA[piA+2]/255)+((pixelsB[piB+2]/255)-(pixelsA[piA+2]/255))*alpha;
-  }
-  return true;
+  return galleryApplyBlendToFace(articPixels, articSizes, face, idxA, idxB, alpha);
 }
 
 function articUpdateInfo(){
@@ -15267,27 +15253,7 @@ function effectArtic(dt){
   if(!articFaceState || articFaceState.length!==6) articInitFaceState();
   for(let f=0;f<6;f++){
     const st=articFaceState[f];
-    articLoad(st.curIdx);
-    if(st.nextIdx!=null) articLoad(st.nextIdx);
-
-    if(st.fadeT>0){
-      const nextPixels=articPixels[st.nextIdx];
-      if(nextPixels==='error'){
-        st.nextIdx=(st.nextIdx+1)%n;
-        articLoad(st.nextIdx);
-      } else if(nextPixels){
-        st.fadeT+=dt;
-        if(st.fadeT>=ARTIC_FADE_DUR){ st.curIdx=st.nextIdx; st.nextIdx=null; st.fadeT=0; }
-      }
-    } else if(artSlideshowOn){
-      st.timer+=dt;
-      if(st.timer>=articSecs){
-        st.timer-=articSecs;
-        st.nextIdx = n>6 ? (st.curIdx+6)%n : (st.curIdx+1)%n;
-        articLoad(st.nextIdx);
-        st.fadeT=0.0001;
-      }
-    }
+    gallerySlideshowStep(st, n, dt, articSecs, ARTIC_FADE_DUR, artSlideshowOn, articLoad, articPixels);
 
     let shown;
     if(st.fadeT>0 && st.nextIdx!=null){
