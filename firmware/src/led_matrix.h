@@ -32,6 +32,16 @@ inline MatrixPanel_I2S_DMA* initDisplay() {
     cfg.driver   = HUB75_I2S_CFG::SHIFTREG;
     cfg.double_buff = true;   // use the library's hardware double buffer
 
+    // Latch blanking controls how many clock pulses the output is disabled
+    // (via OE) around the LAT toggle, to hide row-address bits transitioning
+    // mid-shift. The library's own docs call this out as the fix for
+    // "ghosting"/duplicate-with-offset symptoms - exactly what we're
+    // chasing. Default is 1; try bumping it (2-4) if the split persists.
+    // If this value turns out not to matter, that's a real data point too -
+    // it'd point back toward a wiring issue (E line or CLK/LAT) rather than
+    // a timing config problem.
+    cfg.latch_blanking = 4;
+
     MatrixPanel_I2S_DMA* display = new MatrixPanel_I2S_DMA(cfg);
     if (!display->begin()) {
         // begin() returning false means DMA allocation failed.
