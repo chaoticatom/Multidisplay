@@ -47,14 +47,19 @@
 // This panel's IDC connector only exposes A/B/C/E for row addressing (no D
 // pin exists anywhere on the board — confirmed against the physical
 // connector legend and a close inspection of the rest of the PCB for any
-// secondary breakout). Per the HUB75 DMA library's own guidance, a panel
-// without a real D line should have D_PIN set to -1, not wired to a real
-// but disconnected GPIO — leaving it wired to GPIO 48 made the library
-// include a signal in its row-address math that the panel's driver chips
-// don't actually implement, which was producing a consistent split/offset
-// image (two halves with a gap) rather than a clean single frame.
-#define HUB75_D   -1
-#define HUB75_E   47   // needed for 64-row panels (1/32 scan)
+// secondary breakout).
+//
+// The persistent "8 rows on, 8 rows off" banding (unaffected by wiring
+// checks, wiggle tests, latch_blanking, clkphase, or driver-chip type)
+// matches exactly what you'd see if the row decoder's weight-8 address bit
+// is permanently stuck low - which is what the library's 5-bit (A,B,C,D,E)
+// row math calls "D". Our one physical extra address wire has been assigned
+// to the library's "E" (weight-16) slot; if this panel's decoder actually
+// treats that wire as its weight-8 line instead, the real weight-8 bit
+// never toggles under the old assignment. Swapping the roles (this wire is
+// now "D", and "E" is disabled) tests that theory directly.
+#define HUB75_D   47
+#define HUB75_E   -1
 #define HUB75_LAT 21
 #define HUB75_OE  14
 #define HUB75_CLK 13
