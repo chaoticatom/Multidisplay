@@ -44,7 +44,16 @@
 #define HUB75_A   36
 #define HUB75_B   35
 #define HUB75_C   45
-#define HUB75_D   48
+// This panel's IDC connector only exposes A/B/C/E for row addressing (no D
+// pin exists anywhere on the board — confirmed against the physical
+// connector legend and a close inspection of the rest of the PCB for any
+// secondary breakout). Per the HUB75 DMA library's own guidance, a panel
+// without a real D line should have D_PIN set to -1, not wired to a real
+// but disconnected GPIO — leaving it wired to GPIO 48 made the library
+// include a signal in its row-address math that the panel's driver chips
+// don't actually implement, which was producing a consistent split/offset
+// image (two halves with a gap) rather than a clean single frame.
+#define HUB75_D   -1
 #define HUB75_E   47   // needed for 64-row panels (1/32 scan)
 #define HUB75_LAT 21
 #define HUB75_OE  14
