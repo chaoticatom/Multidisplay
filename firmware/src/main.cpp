@@ -242,17 +242,32 @@ static void hsvToRgb565(MatrixPanel_I2S_DMA* display, float h, uint8_t& r, uint8
     b = (uint8_t)((bf + m) * 255);
 }
 
-static void runColorMorphTest(MatrixPanel_I2S_DMA* display) {
-    Serial.println("[TEST] Running continuous RGB color-morph diagnostic on Face 0 (does not return).");
-    float hue = 0.0f;
+// Per-pixel swirling "cloud" plasma, full RGB hue range, covering every pixel
+// on the panel (as opposed to the flat single-hue fill this replaces) — a
+// row/column dropout will show up as a torn/blank band cutting through the
+// swirl instead of a clean gap between two solid colors.
+static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
+    Serial.println("[TEST] Running RGB cloud-swirl diagnostic on Face 0 (does not return).");
+    float t = 0.0f;
     for (;;) {
-        uint8_t r, g, b;
-        hsvToRgb565(display, hue, r, g, b);
-        display->fillRect(0, 0, PANEL_SIZE, PANEL_SIZE, display->color565(r, g, b));
+        for (uint8_t y = 0; y < PANEL_SIZE; y++) {
+            for (uint8_t x = 0; x < PANEL_SIZE; x++) {
+                float fx = x / (float)PANEL_SIZE;
+                float fy = y / (float)PANEL_SIZE;
+                float v = sinf(fx * 6.0f + t)
+                        + sinf(fy * 6.0f - t * 1.3f)
+                        + sinf((fx + fy) * 6.0f + t * 0.7f)
+                        + sinf(sqrtf((fx - 0.5f) * (fx - 0.5f) + (fy - 0.5f) * (fy - 0.5f)) * 12.0f - t * 1.6f);
+                // v spans roughly [-4, 4] -> map to a full 0-360 hue sweep.
+                float hue = fmodf((v * 45.0f) + t * 30.0f + 360.0f, 360.0f);
+                uint8_t r, g, b;
+                hsvToRgb565(display, hue, r, g, b);
+                display->drawPixel(x, y, display->color565(r, g, b));
+            }
+        }
         display->flipDMABuffer();
-        hue += 2.0f;
-        if (hue >= 360.0f) hue -= 360.0f;
-        delay(30);
+        t += 0.08f;
+        delay(20);
     }
 }
 
@@ -307,10 +322,10 @@ void setup() {
         Serial.println("[LED] display init FAILED");
     } else {
         Serial.println("[LED] display initialized");
-        // Continuous RGB morph diagnostic — never returns. Swap back to
+        // Cloud-swirl RGB diagnostic — never returns. Swap back to
         // drawWorkingText(dma_display) or drawBringupTestPattern(dma_display)
         // once the split/duplicate-image wiring issue is resolved.
-        runColorMorphTest(dma_display);
+        runCloudSwirlTest(dma_display);
     }
 
     // WiFi provisioning.
