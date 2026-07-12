@@ -118,6 +118,36 @@ static void displayTask(void* arg) {
 }
 
 // ---------------------------------------------------------------------------
+// One-time bring-up test pattern: fills each face with a distinct solid
+// color, drawn directly to the DMA buffer before WiFi/the web app are even
+// involved. Lets you verify panel power, chain order, and RGB/row-address
+// wiring with just a USB cable and no network setup. The first real frame
+// from the browser overwrites it automatically.
+// ---------------------------------------------------------------------------
+static void drawBringupTestPattern(MatrixPanel_I2S_DMA* display) {
+    struct { uint8_t r, g, b; const char* name; } faceColors[NUM_FACES] = {
+        {255, 0,   0,   "RED"},     // Face 0 - Front
+        {0,   255, 0,   "GREEN"},   // Face 1 - Back
+        {0,   0,   255, "BLUE"},    // Face 2 - Right
+        {255, 255, 255, "WHITE"},   // Face 3 - Left
+        {255, 255, 0,   "YELLOW"},  // Face 4 - Top
+        {0,   255, 255, "CYAN"},    // Face 5 - Bottom
+    };
+    for (uint8_t face = 0; face < NUM_FACES; face++) {
+        const int xOff = face * PANEL_SIZE;
+        for (int y = 0; y < PANEL_SIZE; y++) {
+            for (int x = 0; x < PANEL_SIZE; x++) {
+                display->drawPixelRGB888(xOff + x, y,
+                    faceColors[face].r, faceColors[face].g, faceColors[face].b);
+            }
+        }
+        Serial.printf("[TEST] Face %u -> %s\n", face, faceColors[face].name);
+    }
+    display->flipDMABuffer();
+    Serial.println("[TEST] Bring-up pattern drawn - each face should show one solid, distinct color.");
+}
+
+// ---------------------------------------------------------------------------
 // Allocate per-face frame buffers in PSRAM.
 // ---------------------------------------------------------------------------
 static bool allocBuffers() {
@@ -168,6 +198,7 @@ void setup() {
         Serial.println("[LED] display init FAILED");
     } else {
         Serial.println("[LED] display initialized");
+        drawBringupTestPattern(dma_display);
     }
 
     // WiFi provisioning.
