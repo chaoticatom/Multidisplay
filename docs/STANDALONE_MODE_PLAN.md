@@ -64,11 +64,60 @@ effects, Art Gallery/Unsplash, Jokes/Trivia/On This Day, video display)
 remain browser-only — this is a hard constraint from what those effects
 fundamentally need, not something to code around.
 
-## Status
+## Status: implemented
 
-Plan agreed in conversation; **not yet implemented**. Next step when
-resumed: pin down which native standalone effects to build first (rough
-default suggestion: rainbow wash, breathing pulse, simple plasma, on-device
-clock/date), then implement in `firmware/src/` (likely a new
-`standalone_effects.h`/`.cpp`, changes to `main.cpp` for the
-playlist/fallback/priority logic, NVS persistence, and NTP sync).
+`firmware/src/standalone.h` (new) + changes to `main.cpp`, `web_server.h`,
+`config.h`.
+
+- **Native effects**: rainbow wash, breathing pulse, plasma, on-device
+  clock/date, and **weather** (fetches Open-Meteo directly from the ESP32
+  via `HTTPClient`/`WiFiClientSecure` — same technique as the F1 data fetch
+  — renders a sky gradient + sun/moon disc + temperature/condition text, no
+  images, no Canvas, all native GFX drawing calls).
+- **Priority/fallback**: `main.cpp`'s `displayTask` checks
+  `g_lastFrameMs`/`g_everStreamed` (set by `web_server.h`'s WS handler on
+  every real `PKT_VIDEO` frame). No frame in `STANDALONE_FALLBACK_MS` (or
+  none ever) → renders `standaloneRender()` instead of the browser buffer.
+  A browser reconnecting and streaming again takes over immediately, no
+  restart needed.
+- **Persistence**: last effect + schedule saved to NVS via `Preferences`
+  (namespace `"standalone"`), reloaded on boot.
+- **Schedule/alarms**: up to `STANDALONE_MAX_SCHEDULE` (8) entries, each
+  `{hour, minute, effectId, enabled}`, checked every ~20s in `loop()`
+  against NTP time (`STANDALONE_TZ_OFFSET_MIN` applied on top of UTC) and
+  fires at most once per calendar minute.
+- **Config knobs** (`config.h`): `STANDALONE_WX_LAT`/`_LON` (defaults to
+  London — change to your actual coordinates), `STANDALONE_TZ_OFFSET_MIN`
+  (defaults to 0/UTC, no DST handling), `STANDALONE_WX_INTERVAL_MIN` (15),
+  `STANDALONE_FALLBACK_MS` (5000).
+
+### Known gap — no browser UI yet
+
+Schedule/effect selection is only configurable via raw HTTP API calls
+(`GET /api/standalone/status`, `POST /api/standalone/effect`,
+`POST /api/standalone/schedule` — see comments above those routes in
+`web_server.h` for curl examples), not through the web app's sidebar. That's
+a separate, real follow-up task (new `ui.js`/`index.html` section) — not
+done here.
+
+### Not attempted (per the earlier discussion, genuinely not viable)
+
+- Full alarm feature set from the browser (pre-alarm brightening curve,
+  wind-down dimming) — only "switch to effect X at time Y" is implemented.
+  Use `SA_OFF` as a schedule target for a basic "blank at night" behavior.
+- Any image-based effect (NASA imagery, Art Gallery, Unsplash) or the full
+  effects.js library — still browser-only, unchanged.
+
+### Compile-test caveat
+
+This was written and reviewed carefully (brace/paren balance checked,
+patterns cross-checked against already-working code in this same
+codebase — e.g. the F1 POST handlers' body-callback signature, the
+bring-up test pattern's GFX calls) but **not actually compiled** — this
+session's sandbox has no PlatformIO toolchain. First real build on real
+hardware is the actual test. `g_standaloneEffect` and friends are declared
+as file-scope `inline` variables (C++17) in `standalone.h` so they're safe
+to include from both `main.cpp` and `web_server.h` without a linker
+"multiple definition" error — if that error shows up anyway, it means the
+project's toolchain defaults to an older C++ standard than expected, and
+the fix is moving those definitions into a `.cpp` file instead.

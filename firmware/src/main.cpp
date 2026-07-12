@@ -19,6 +19,7 @@
 #include "web_server.h"
 #include "wifi_setup.h"
 #include "cam/cam_client.h"
+#include "standalone.h"
 
 // ---------------------------------------------------------------------------
 // Shared globals (declared extern in web_server.h)
@@ -29,6 +30,11 @@ portMUX_TYPE    g_frameMux              = portMUX_INITIALIZER_UNLOCKED;
 String          g_currentEffect        = "video";
 volatile uint8_t g_currentEffectId     = 0;
 uint32_t        g_bootMillis           = 0;
+// Set by the WS handler whenever a real PKT_VIDEO frame arrives — the
+// displayTask uses this to decide whether a browser is actively driving the
+// cube, or whether it should fall back to standalone.h's native effects.
+volatile uint32_t g_lastFrameMs        = 0;
+volatile bool     g_everStreamed       = false;
 
 // ---------------------------------------------------------------------------
 // Module-local objects
@@ -83,35 +89,46 @@ static void statusLedTask(void* arg) {
 static void displayTask(void* arg) {
     const TickType_t period = pdMS_TO_TICKS(1000 / CUBE_FPS);
     TickType_t lastWake = xTaskGetTickCount();
+    const float dt = 1.0f / CUBE_FPS;
 
     for (;;) {
         if (dma_display) {
-            for (uint8_t face = 0; face < NUM_FACES; face++) {
-                bool dirty = false;
-                // Briefly hold the lock only to snapshot the face buffer.
-                portENTER_CRITICAL(&g_frameMux);
-                if (g_faceDirty[face]) {
-                    memcpy(g_dmaBuf[face], g_frameBuf[face], FACE_BYTES);
-                    g_faceDirty[face] = false;
-                    dirty = true;
-                }
-                portEXIT_CRITICAL(&g_frameMux);
+            // No browser has ever streamed a frame, or none has arrived
+            // recently — render the native standalone content instead of
+            // sitting on a stale/blank buffer. See standalone.h.
+            bool standalone = !g_everStreamed
+                || (millis() - g_lastFrameMs) > STANDALONE_FALLBACK_MS;
 
-                if (dirty) {
-                    // The 6 panels form one wide bitmap; face N starts at
-                    // x = N * PANEL_SIZE. Push RGB888 pixels directly.
-                    const int xOff = face * PANEL_SIZE;
-                    const uint8_t* src = g_dmaBuf[face];
-                    for (int y = 0; y < PANEL_SIZE; y++) {
-                        for (int x = 0; x < PANEL_SIZE; x++) {
-                            const uint8_t* p = src + (y * PANEL_SIZE + x) * 3;
-                            dma_display->drawPixelRGB888(
-                                xOff + x, y, p[0], p[1], p[2]);
+            if (standalone) {
+                standaloneRender(dma_display, dt);
+            } else {
+                for (uint8_t face = 0; face < NUM_FACES; face++) {
+                    bool dirty = false;
+                    // Briefly hold the lock only to snapshot the face buffer.
+                    portENTER_CRITICAL(&g_frameMux);
+                    if (g_faceDirty[face]) {
+                        memcpy(g_dmaBuf[face], g_frameBuf[face], FACE_BYTES);
+                        g_faceDirty[face] = false;
+                        dirty = true;
+                    }
+                    portEXIT_CRITICAL(&g_frameMux);
+
+                    if (dirty) {
+                        // The 6 panels form one wide bitmap; face N starts at
+                        // x = N * PANEL_SIZE. Push RGB888 pixels directly.
+                        const int xOff = face * PANEL_SIZE;
+                        const uint8_t* src = g_dmaBuf[face];
+                        for (int y = 0; y < PANEL_SIZE; y++) {
+                            for (int x = 0; x < PANEL_SIZE; x++) {
+                                const uint8_t* p = src + (y * PANEL_SIZE + x) * 3;
+                                dma_display->drawPixelRGB888(
+                                    xOff + x, y, p[0], p[1], p[2]);
+                            }
                         }
                     }
                 }
+                dma_display->flipDMABuffer();
             }
-            dma_display->flipDMABuffer();
         }
         vTaskDelayUntil(&lastWake, period);
     }
@@ -248,6 +265,15 @@ void setup() {
         Serial.printf("[mDNS] http://%s.local\n", MDNS_NAME);
     }
 
+    // Standalone mode: load persisted last-effect + schedule, sync NTP time,
+    // and fetch weather once now so it's not blank for the first 15 minutes
+    // after boot. All three need WiFi, so this runs after connectWifi()
+    // succeeds. The fetch is a blocking HTTPS call, same trade-off as the
+    // WiFi connect above it — acceptable one-time cost during boot.
+    standaloneLoad();
+    standaloneNtpInit();
+    standaloneWxFetch();
+
     // OTA status-LED hooks via WebSocket clients are handled elsewhere; here we
     // just register the OTA-aware servers.
     Update.onProgress([](size_t, size_t) { g_appState = AppState::OTA; });
@@ -295,6 +321,21 @@ void loop() {
 
     // Clean up dead WebSocket clients periodically.
     ws.cleanupClients();
+
+    // Standalone mode: schedule/alarm check (cheap, every ~20s) and weather
+    // refresh (network fetch, every STANDALONE_WX_INTERVAL_MIN minutes).
+    // Both run here on core 1, never on the DMA task, so a slow/failed
+    // HTTPS request can't stall the display.
+    static uint32_t lastSchedCheck = 0;
+    static uint32_t lastWxFetch    = 0;
+    if (millis() - lastSchedCheck > 20000) {
+        lastSchedCheck = millis();
+        standaloneCheckSchedule();
+    }
+    if (millis() - lastWxFetch > (uint32_t)STANDALONE_WX_INTERVAL_MIN * 60000UL) {
+        lastWxFetch = millis();
+        standaloneWxFetch();
+    }
 
     delay(20);
 }

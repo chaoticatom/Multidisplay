@@ -9,6 +9,7 @@
 #include "config.h"
 #include "loader_html.h"
 #include "cam/cam_api.h"
+#include "standalone.h"
 
 // ---------------------------------------------------------------------------
 // web_server.h - HTTP routes + WebSocket handler for the cube.
@@ -34,6 +35,10 @@ extern String         g_currentEffect;
 extern volatile uint8_t g_currentEffectId;
 // Millis() at boot, for uptime reporting.
 extern uint32_t       g_bootMillis;
+// Millis() of the last real PKT_VIDEO frame received; drives the
+// standalone-mode fallback in main.cpp's displayTask (see standalone.h).
+extern volatile uint32_t g_lastFrameMs;
+extern volatile bool     g_everStreamed;
 
 // ---------------------------------------------------------------------------
 // MIME helpers
@@ -133,6 +138,8 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                     memcpy(g_frameBuf[face], data + 2, FACE_BYTES);
                     g_faceDirty[face] = true;
                     portEXIT_CRITICAL(&g_frameMux);
+                    g_lastFrameMs = millis();
+                    g_everStreamed = true;
                 }
             } else if (pkt == PKT_CMD) {
                 uint8_t cmd = data[1];
@@ -244,6 +251,83 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws, F1State& f
               [](AsyncWebServerRequest* r) {}, nullptr, makePostHandler(&f1.drivers));
     server.on("/api/flags", HTTP_POST,
               [](AsyncWebServerRequest* r) {}, nullptr, makePostHandler(&f1.flag));
+
+    // ---- Standalone mode: status, manual effect select, schedule config ----
+    // No browser UI wired up for these yet (see docs/STANDALONE_MODE_PLAN.md)
+    // — configure via curl/Postman for now, e.g.:
+    //   curl http://multidisplay.local/api/standalone/status
+    //   curl -X POST http://multidisplay.local/api/standalone/effect -d '{"id":4}'
+    //   curl -X POST http://multidisplay.local/api/standalone/schedule \
+    //        -d '[{"h":7,"m":0,"fx":0,"on":true},{"h":23,"m":0,"fx":5,"on":true}]'
+    server.on("/api/standalone/status", HTTP_GET, [](AsyncWebServerRequest* request) {
+        JsonDocument doc;
+        doc["active"]        = !g_everStreamed || (millis() - g_lastFrameMs) > STANDALONE_FALLBACK_MS;
+        doc["effect"]        = standaloneEffectName(g_standaloneEffect);
+        doc["effect_id"]     = g_standaloneEffect;
+        doc["wx_valid"]      = g_wxValid;
+        doc["wx_temp_c"]     = g_wxTemp;
+        doc["wx_code"]       = g_wxCode;
+        JsonArray sched = doc["schedule"].to<JsonArray>();
+        for (uint8_t i = 0; i < g_scheduleCount; i++) {
+            JsonObject o = sched.add<JsonObject>();
+            o["h"] = g_schedule[i].hour;
+            o["m"] = g_schedule[i].minute;
+            o["fx"] = g_schedule[i].effectId;
+            o["on"] = g_schedule[i].enabled;
+        }
+        String out; serializeJson(doc, out);
+        request->send(200, "application/json", out);
+    });
+
+    server.on("/api/standalone/effect", HTTP_POST,
+        [](AsyncWebServerRequest* request) {},
+        nullptr,
+        [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
+            static String body;
+            if (index == 0) body.clear();
+            body.concat((const char*)data, len);
+            if (index + len != total) return;
+            JsonDocument doc;
+            if (deserializeJson(doc, body)) {
+                request->send(400, "application/json", "{\"error\":\"bad json\"}");
+                return;
+            }
+            uint8_t id = doc["id"] | 0;
+            if (id >= SA_COUNT) {
+                request->send(400, "application/json", "{\"error\":\"invalid effect id\"}");
+                return;
+            }
+            standaloneSaveLastEffect(id);
+            request->send(200, "application/json", "{\"ok\":true}");
+        });
+
+    server.on("/api/standalone/schedule", HTTP_POST,
+        [](AsyncWebServerRequest* request) {},
+        nullptr,
+        [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
+            static String body;
+            if (index == 0) body.clear();
+            body.concat((const char*)data, len);
+            if (index + len != total) return;
+            JsonDocument doc;
+            if (deserializeJson(doc, body)) {
+                request->send(400, "application/json", "{\"error\":\"bad json\"}");
+                return;
+            }
+            JsonArray arr = doc.as<JsonArray>();
+            uint8_t count = 0;
+            for (JsonObject o : arr) {
+                if (count >= STANDALONE_MAX_SCHEDULE) break;
+                g_schedule[count].hour     = o["h"]  | 0;
+                g_schedule[count].minute   = o["m"]  | 0;
+                g_schedule[count].effectId = o["fx"] | 0;
+                g_schedule[count].enabled  = o["on"] | false;
+                count++;
+            }
+            g_scheduleCount = count;
+            standaloneSaveSchedule();
+            request->send(200, "application/json", "{\"ok\":true}");
+        });
 
     // ---- Status ----
     server.on("/api/status", HTTP_GET, [&ws](AsyncWebServerRequest* request) {

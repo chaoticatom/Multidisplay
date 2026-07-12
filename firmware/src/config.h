@@ -52,3 +52,30 @@
 
 // Status LED (built-in on most ESP32-S3 devkits)
 #define STATUS_LED_PIN 2
+
+// ---------------------------------------------------------------------------
+// Standalone mode — runs natively on the ESP32 with no browser connected.
+// See docs/STANDALONE_MODE_PLAN.md for the full design.
+// ---------------------------------------------------------------------------
+
+// If no browser has streamed a video frame for this long (ms), the ESP32
+// takes over and renders its own effects/weather/schedule instead of
+// sitting on the last received (now stale) frame.
+#define STANDALONE_FALLBACK_MS      5000
+
+// Weather location — set this to your actual coordinates. Defaults to
+// London. Open-Meteo doesn't need an API key, just lat/lon.
+#define STANDALONE_WX_LAT           51.5074
+#define STANDALONE_WX_LON           -0.1278
+
+// Your UTC offset in minutes (e.g. UTC+1 = 60, UTC-5 = -300). Used for the
+// on-device clock display and for matching schedule/alarm times against
+// NTP time, which arrives in UTC. Does not handle DST automatically —
+// update it yourself if your region observes daylight saving.
+#define STANDALONE_TZ_OFFSET_MIN    0
+
+// How often to re-fetch weather from Open-Meteo, in minutes.
+#define STANDALONE_WX_INTERVAL_MIN  15
+
+// Max schedule/alarm entries persisted in flash.
+#define STANDALONE_MAX_SCHEDULE     8
