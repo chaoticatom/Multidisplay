@@ -28,12 +28,14 @@ inline MatrixPanel_I2S_DMA* initDisplay() {
     );
 
     // 1/32 scan for 64-row panels (requires E pin).
-    // Neither D=-1 nor latch_blanking changed the split symptom at all, so
-    // this is very likely a wiring issue rather than a config one - but
-    // clkphase is a cheap one-line toggle worth testing before chasing
-    // wiring, since some panel/driver-chip pairings need the inverted value.
+    // E-line continuity to GPIO 47 was confirmed good on the actual hardware,
+    // which rules out the wiring-fault theory for the alternating blank-row-
+    // band symptom. That symptom (half the row blocks never lighting) is a
+    // classic sign of a driver IC needing a specific init sequence beyond
+    // generic HUB75 timing - FM6126A is the most common chip on 64x64 panels
+    // that behaves exactly this way under the plain SHIFTREG driver.
     cfg.clkphase = true;
-    cfg.driver   = HUB75_I2S_CFG::SHIFTREG;
+    cfg.driver   = HUB75_I2S_CFG::FM6126A;
     cfg.double_buff = true;   // use the library's hardware double buffer
 
     // Latch blanking controls how many clock pulses the output is disabled
