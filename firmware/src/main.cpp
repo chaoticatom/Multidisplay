@@ -196,6 +196,24 @@ static void drawBringupTestPattern(MatrixPanel_I2S_DMA* display) {
 }
 
 // ---------------------------------------------------------------------------
+// Bare-minimum sanity check: just the word WORKING, big and centered, on
+// Face 0. Draws before WiFi is touched, so it's a valid test even if the
+// captive-portal AP isn't showing up. Swap the call in setup() back to
+// drawBringupTestPattern() once you're past basic bring-up.
+// ---------------------------------------------------------------------------
+static void drawWorkingText(MatrixPanel_I2S_DMA* display) {
+    display->fillRect(0, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+    display->setTextColor(display->color565(0, 255, 0));
+    // Size 1 (6px/char incl. spacing): "WORKING" is 7 chars = 42px, fits
+    // comfortably on a 64px-wide panel. Size 2 would be 84px and overflow.
+    display->setTextSize(1);
+    display->setCursor(10, 28);
+    display->print("WORKING");
+    display->flipDMABuffer();
+    Serial.println("[TEST] \"WORKING\" drawn on Face 0.");
+}
+
+// ---------------------------------------------------------------------------
 // Allocate per-face frame buffers in PSRAM.
 // ---------------------------------------------------------------------------
 static bool allocBuffers() {
@@ -246,7 +264,9 @@ void setup() {
         Serial.println("[LED] display init FAILED");
     } else {
         Serial.println("[LED] display initialized");
-        drawBringupTestPattern(dma_display);
+        // Simple "WORKING" sanity check for now — swap back to
+        // drawBringupTestPattern(dma_display) once basic bring-up is done.
+        drawWorkingText(dma_display);
     }
 
     // WiFi provisioning.
