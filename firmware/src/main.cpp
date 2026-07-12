@@ -118,33 +118,64 @@ static void displayTask(void* arg) {
 }
 
 // ---------------------------------------------------------------------------
-// One-time bring-up test pattern: fills each face with a distinct solid
-// color, drawn directly to the DMA buffer before WiFi/the web app are even
-// involved. Lets you verify panel power, chain order, and RGB/row-address
-// wiring with just a USB cable and no network setup. The first real frame
-// from the browser overwrites it automatically.
+// One-time bring-up test pattern, drawn directly to the DMA buffer before
+// WiFi/the web app are even involved. Per face: a double-line ID-colored
+// border (edge pixels are the first place off-by-one addressing errors
+// show up), three RGB color bars (verifies each data line drives the right
+// channel), a filled circle (curvature exposes row/column misaddressing
+// immediately — a torn or doubled panel turns this into a broken shape), a
+// diagonal accent line, and the face name in text (exercises the font
+// renderer and doubles as an identification label). Overwritten
+// automatically by the first real frame once the web app starts streaming.
 // ---------------------------------------------------------------------------
 static void drawBringupTestPattern(MatrixPanel_I2S_DMA* display) {
-    struct { uint8_t r, g, b; const char* name; } faceColors[NUM_FACES] = {
-        {255, 0,   0,   "RED"},     // Face 0 - Front
-        {0,   255, 0,   "GREEN"},   // Face 1 - Back
-        {0,   0,   255, "BLUE"},    // Face 2 - Right
-        {255, 255, 255, "WHITE"},   // Face 3 - Left
-        {255, 255, 0,   "YELLOW"},  // Face 4 - Top
-        {0,   255, 255, "CYAN"},    // Face 5 - Bottom
+    struct { uint8_t r, g, b; const char* label; } faceInfo[NUM_FACES] = {
+        {255, 0,   0,   "FRONT"},   // Face 0
+        {0,   255, 0,   "BACK"},    // Face 1
+        {0,   0,   255, "RIGHT"},   // Face 2
+        {255, 255, 255, "LEFT"},    // Face 3
+        {255, 255, 0,   "TOP"},     // Face 4
+        {0,   255, 255, "BOTTOM"},  // Face 5
     };
+
+    const uint16_t black = display->color565(0, 0, 0);
+    const uint16_t white = display->color565(255, 255, 255);
+    const uint16_t red   = display->color565(255, 0, 0);
+    const uint16_t green = display->color565(0, 255, 0);
+    const uint16_t blue  = display->color565(0, 0, 255);
+
     for (uint8_t face = 0; face < NUM_FACES; face++) {
         const int xOff = face * PANEL_SIZE;
-        for (int y = 0; y < PANEL_SIZE; y++) {
-            for (int x = 0; x < PANEL_SIZE; x++) {
-                display->drawPixelRGB888(xOff + x, y,
-                    faceColors[face].r, faceColors[face].g, faceColors[face].b);
-            }
-        }
-        Serial.printf("[TEST] Face %u -> %s\n", face, faceColors[face].name);
+        const uint16_t faceColor = display->color565(
+            faceInfo[face].r, faceInfo[face].g, faceInfo[face].b);
+
+        display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, black);
+
+        // Double-line border in this face's ID color.
+        display->drawRect(xOff,     0, PANEL_SIZE,     PANEL_SIZE,     faceColor);
+        display->drawRect(xOff + 2, 2, PANEL_SIZE - 4, PANEL_SIZE - 4, faceColor);
+
+        // RGB color bars.
+        display->fillRect(xOff + 6, 6,  PANEL_SIZE - 12, 5, red);
+        display->fillRect(xOff + 6, 13, PANEL_SIZE - 12, 5, green);
+        display->fillRect(xOff + 6, 20, PANEL_SIZE - 12, 5, blue);
+
+        // Filled circle.
+        display->fillCircle(xOff + PANEL_SIZE / 2, 37, 9, faceColor);
+
+        // Diagonal accent, bottom-right corner.
+        display->drawLine(xOff + 42, 60, xOff + 60, 42, white);
+
+        // Face name, bottom-left.
+        display->setTextColor(white);
+        display->setTextSize(1);
+        display->setCursor(xOff + 3, 52);
+        display->print(faceInfo[face].label);
+
+        Serial.printf("[TEST] Face %u -> %s\n", face, faceInfo[face].label);
     }
     display->flipDMABuffer();
-    Serial.println("[TEST] Bring-up pattern drawn - each face should show one solid, distinct color.");
+    Serial.println("[TEST] Bring-up pattern drawn: border + RGB bars + circle + diagonal + face-name text per panel.");
 }
 
 // ---------------------------------------------------------------------------
