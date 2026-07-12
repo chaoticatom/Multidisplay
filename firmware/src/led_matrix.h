@@ -28,7 +28,11 @@ inline MatrixPanel_I2S_DMA* initDisplay() {
     );
 
     // 1/32 scan for 64-row panels (requires E pin).
-    cfg.clkphase = false;
+    // Neither D=-1 nor latch_blanking changed the split symptom at all, so
+    // this is very likely a wiring issue rather than a config one - but
+    // clkphase is a cheap one-line toggle worth testing before chasing
+    // wiring, since some panel/driver-chip pairings need the inverted value.
+    cfg.clkphase = true;
     cfg.driver   = HUB75_I2S_CFG::SHIFTREG;
     cfg.double_buff = true;   // use the library's hardware double buffer
 
