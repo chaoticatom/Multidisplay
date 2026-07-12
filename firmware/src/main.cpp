@@ -146,7 +146,11 @@ static void displayTask(void* arg) {
 // automatically by the first real frame once the web app starts streaming.
 // ---------------------------------------------------------------------------
 static void drawBringupTestPattern(MatrixPanel_I2S_DMA* display) {
-    struct { uint8_t r, g, b; const char* label; } faceInfo[NUM_FACES] = {
+    // Always exactly 6 - these are the cube's fixed face identities
+    // (Front/Back/Right/Left/Top/Bottom), independent of NUM_FACES (the
+    // chain length) or TEST_PATTERN_FACES (how many are physically wired
+    // right now).
+    struct { uint8_t r, g, b; const char* label; } faceInfo[6] = {
         {255, 0,   0,   "FRONT"},   // Face 0
         {0,   255, 0,   "BACK"},    // Face 1
         {0,   0,   255, "RIGHT"},   // Face 2
@@ -161,7 +165,8 @@ static void drawBringupTestPattern(MatrixPanel_I2S_DMA* display) {
     const uint16_t green = display->color565(0, 255, 0);
     const uint16_t blue  = display->color565(0, 0, 255);
 
-    for (uint8_t face = 0; face < TEST_PATTERN_FACES; face++) {
+    const uint8_t drawCount = TEST_PATTERN_FACES < 6 ? TEST_PATTERN_FACES : 6;
+    for (uint8_t face = 0; face < drawCount; face++) {
         const int xOff = face * PANEL_SIZE;
         const uint16_t faceColor = display->color565(
             faceInfo[face].r, faceInfo[face].g, faceInfo[face].b);
