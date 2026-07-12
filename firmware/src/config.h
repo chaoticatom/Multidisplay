@@ -6,6 +6,15 @@
 
 #define PANEL_SIZE     64    // pixels per side (8, 16, or 64)
 #define NUM_FACES      6
+
+// How many faces the boot-time bring-up test pattern (main.cpp,
+// drawBringupTestPattern) actually draws to. Keep this at the number of
+// panels you currently have physically wired — set to 1 while bringing up
+// just Face 0, bump it up as you add panels, no need to touch anything
+// else. Face 0 always displays correctly regardless of this value (the
+// chain doesn't need to be "complete" for the first panel to work), this
+// just controls how much test content is generated/logged.
+#define TEST_PATTERN_FACES 1
 #define WS_PORT        81
 #define HTTP_PORT      80
 #define AP_SSID        "Multidisplay-Setup"

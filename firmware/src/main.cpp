@@ -144,7 +144,7 @@ static void drawBringupTestPattern(MatrixPanel_I2S_DMA* display) {
     const uint16_t green = display->color565(0, 255, 0);
     const uint16_t blue  = display->color565(0, 0, 255);
 
-    for (uint8_t face = 0; face < NUM_FACES; face++) {
+    for (uint8_t face = 0; face < TEST_PATTERN_FACES; face++) {
         const int xOff = face * PANEL_SIZE;
         const uint16_t faceColor = display->color565(
             faceInfo[face].r, faceInfo[face].g, faceInfo[face].b);
