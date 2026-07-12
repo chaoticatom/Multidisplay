@@ -219,6 +219,44 @@ static void drawWorkingText(MatrixPanel_I2S_DMA* display) {
 }
 
 // ---------------------------------------------------------------------------
+// Continuous full-screen RGB morph, for diagnosing the split/duplicate-image
+// artifact independent of any static content or addressing edge case. Fills
+// the whole Face-0 panel with a smoothly cycling hue every frame, forever.
+// Never returns — runs directly from setup() before WiFi is touched, so it
+// keeps animating even if connectWifi() would otherwise restart the board.
+// ---------------------------------------------------------------------------
+static void hsvToRgb565(MatrixPanel_I2S_DMA* display, float h, uint8_t& r, uint8_t& g, uint8_t& b) {
+    float s = 1.0f, v = 1.0f;
+    float c = v * s;
+    float x = c * (1 - fabsf(fmodf(h / 60.0f, 2) - 1));
+    float m = v - c;
+    float rf, gf, bf;
+    if      (h < 60)  { rf = c; gf = x; bf = 0; }
+    else if (h < 120) { rf = x; gf = c; bf = 0; }
+    else if (h < 180) { rf = 0; gf = c; bf = x; }
+    else if (h < 240) { rf = 0; gf = x; bf = c; }
+    else if (h < 300) { rf = x; gf = 0; bf = c; }
+    else              { rf = c; gf = 0; bf = x; }
+    r = (uint8_t)((rf + m) * 255);
+    g = (uint8_t)((gf + m) * 255);
+    b = (uint8_t)((bf + m) * 255);
+}
+
+static void runColorMorphTest(MatrixPanel_I2S_DMA* display) {
+    Serial.println("[TEST] Running continuous RGB color-morph diagnostic on Face 0 (does not return).");
+    float hue = 0.0f;
+    for (;;) {
+        uint8_t r, g, b;
+        hsvToRgb565(display, hue, r, g, b);
+        display->fillRect(0, 0, PANEL_SIZE, PANEL_SIZE, display->color565(r, g, b));
+        display->flipDMABuffer();
+        hue += 2.0f;
+        if (hue >= 360.0f) hue -= 360.0f;
+        delay(30);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Allocate per-face frame buffers in PSRAM.
 // ---------------------------------------------------------------------------
 static bool allocBuffers() {
@@ -269,9 +307,10 @@ void setup() {
         Serial.println("[LED] display init FAILED");
     } else {
         Serial.println("[LED] display initialized");
-        // Simple "WORKING" sanity check for now — swap back to
-        // drawBringupTestPattern(dma_display) once basic bring-up is done.
-        drawWorkingText(dma_display);
+        // Continuous RGB morph diagnostic — never returns. Swap back to
+        // drawWorkingText(dma_display) or drawBringupTestPattern(dma_display)
+        // once the split/duplicate-image wiring issue is resolved.
+        runColorMorphTest(dma_display);
     }
 
     // WiFi provisioning.
