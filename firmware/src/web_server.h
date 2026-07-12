@@ -92,9 +92,10 @@ inline void broadcastEffect(AsyncWebSocket& ws, AsyncWebSocketClient* skip) {
     doc["id"]     = g_currentEffectId;
     String out;
     serializeJson(doc, out);
-    for (AsyncWebSocketClient& c : ws.getClients()) {
-        if (skip && c.id() == skip->id()) continue;
-        if (c.status() == WS_CONNECTED) c.text(out);
+    for (AsyncWebSocketClient* c : ws.getClients()) {
+        if (!c) continue;
+        if (skip && c->id() == skip->id()) continue;
+        if (c->status() == WS_CONNECTED) c->text(out);
     }
 }
 
@@ -146,9 +147,9 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                 if (cmd == CMD_SET_EFFECT && len >= 3) {
                     g_currentEffectId = data[2];
                     // Relay the raw command to every other client.
-                    for (AsyncWebSocketClient& c : server->getClients()) {
-                        if (c.id() == client->id()) continue;
-                        if (c.status() == WS_CONNECTED) c.binary(data, len);
+                    for (AsyncWebSocketClient* c : server->getClients()) {
+                        if (!c || c->id() == client->id()) continue;
+                        if (c->status() == WS_CONNECTED) c->binary(data, len);
                     }
                     broadcastEffect(*server, client);
                 }

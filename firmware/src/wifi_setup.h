@@ -1,11 +1,20 @@
 #pragma once
 
-#include <WiFi.h>
-#include <WiFiManager.h>
-#include "config.h"
-
 // ---------------------------------------------------------------------------
 // wifi_setup.h - WiFi provisioning via WiFiManager.
+//
+// Just the declaration here, deliberately. The implementation (and the
+// <WiFiManager.h> include, which pulls in the synchronous <WebServer.h>)
+// lives in wifi_setup.cpp instead of being inline in this header. That
+// keeps WiFiManager.h out of any translation unit that also includes
+// ESPAsyncWebServer.h (i.e. main.cpp, via web_server.h) — both define their
+// own same-named HTTP method enum (HTTP_GET, HTTP_DELETE, etc.), which is a
+// well-documented compile-time conflict between these two libraries when
+// their headers land in the same .cpp file. WiFiManager's portal and our
+// own async web server never actually run at the same time (the portal
+// finishes and tears down during connectWifi(), before initWebServer() is
+// ever called), so this is a header-organization fix, not a behavior
+// change.
 //
 // First boot (no saved credentials): starts a captive-portal AP
 //   SSID:     "Multidisplay-Setup"
@@ -18,25 +27,4 @@
 //
 // Returns true once connected to a station network.
 // ---------------------------------------------------------------------------
-
-inline bool connectWifi() {
-    WiFi.mode(WIFI_STA);
-
-    WiFiManager wm;
-    wm.setConfigPortalTimeout(180);   // close portal after 3 min idle
-    wm.setConnectTimeout(30);         // 30 s to join saved network
-    wm.setAPCallback([](WiFiManager* mgr) {
-        Serial.printf("[WiFi] Config portal started: SSID=%s pass=%s\n",
-                      AP_SSID, AP_PASSWORD);
-    });
-
-    // autoConnect() tries saved creds first, then opens the portal AP if
-    // they are missing or the join fails.
-    bool ok = wm.autoConnect(AP_SSID, AP_PASSWORD);
-    if (ok) {
-        Serial.printf("[WiFi] Connected, IP=%s\n", WiFi.localIP().toString().c_str());
-    } else {
-        Serial.println("[WiFi] Failed to connect / portal timed out");
-    }
-    return ok;
-}
+bool connectWifi();
