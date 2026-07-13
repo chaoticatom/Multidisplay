@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=796">
+<link rel="stylesheet" href="style.css?v=797">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1175,7 +1175,7 @@
 <div id="canvas-wrap" style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:1;">
   <canvas id="c"></canvas>
   <div id="face-labels" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;"></div>
-  <div id="effect-label"><span id="el-effect">Wave Cascade</span> <span id="el-meta" style="font-size:11px;opacity:0.6;margin-left:8px;">64×64 · 60fps</span> <span id="cube-conn" style="font-size:11px;margin-left:10px;white-space:nowrap;"><span id="cube-conn-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#666;margin-right:4px;vertical-align:middle;"></span><span id="cube-conn-label" style="vertical-align:middle;opacity:0.75;">cube: —</span></span></div>
+  <div id="effect-label"><span id="el-effect">Wave Cascade</span> <span id="el-meta" style="font-size:11px;opacity:0.6;margin-left:8px;">64×64 · 60fps</span></div>
   <div id="hint">drag to rotate · scroll to zoom</div>
   <div id="version-label" style="position:absolute;bottom:8px;left:8px;font-size:11px;color:rgba(180,210,255,0.85);z-index:10;cursor:pointer;user-select:none;padding:6px 10px;" title="Tap to force update"></div>
 </div>
@@ -1252,7 +1252,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=796"></script>
+<script src="version.js?v=797"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1316,7 +1316,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=796','effects.js?v=796','ui.js?v=796'];
+  const appScripts = ['cube.js?v=797','effects.js?v=797','ui.js?v=797'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';

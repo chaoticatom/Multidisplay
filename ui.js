@@ -3528,49 +3528,27 @@ const PKT_VIDEO = 2;
 let cubeWs = null, cubeConnected = false, cubeStreamT = 0;
 const CUBE_FPS = 20;  // 20fps → ~1.5 MB/s, well within ESP32-S3 WiFi headroom
 
-// Visible connection indicator (dot + label, next to the effect name) so
-// it's not just a console.log — 'disabled' covers localhost/HTTPS (where
-// streaming is intentionally never attempted), 'connecting'/'connected'/
-// 'disconnected' track the actual WebSocket lifecycle.
-function cubeConnUpdate(state, detail) {
-  const dot = document.getElementById('cube-conn-dot');
-  const label = document.getElementById('cube-conn-label');
-  if(!dot || !label) return;
-  const styles = {
-    disabled:     { color: '#666', text: 'cube: n/a (simulator only)' },
-    connecting:   { color: '#e0a030', text: 'cube: connecting…' },
-    connected:    { color: '#3ecf5a', text: 'cube: connected' },
-    disconnected: { color: '#e04030', text: 'cube: disconnected' },
-  };
-  const s = styles[state] || styles.disconnected;
-  dot.style.background = s.color;
-  label.textContent = detail || s.text;
-}
-
 function initCubeWs() {
   // Skip if opened locally (simulator mode on dev machine)
   const h = location.hostname;
-  if(!h || h === 'localhost' || h === '127.0.0.1') { cubeConnUpdate('disabled'); return; }
+  if(!h || h === 'localhost' || h === '127.0.0.1') return;
 
   // Skip on HTTPS pages: browsers block insecure ws:// from https:// (mixed content).
   // The physical cube (ESP32) only serves ws://, so streaming only works when the
   // page itself is served over http:// on the same local network as the cube.
   if(location.protocol === 'https:') {
     console.log('[cube] physical-cube streaming disabled on HTTPS (visualizer runs normally)');
-    cubeConnUpdate('disabled');
     return;
   }
 
-  cubeConnUpdate('connecting');
   try {
     cubeWs = new WebSocket(`ws://${h}:81`);
     cubeWs.binaryType = 'arraybuffer';
-    cubeWs.onopen  = () => { cubeConnected = true;  console.log('[cube] streaming started'); cubeConnUpdate('connected'); };
-    cubeWs.onclose = () => { cubeConnected = false; cubeConnUpdate('disconnected'); setTimeout(initCubeWs, 5000); };
-    cubeWs.onerror = () => { cubeConnected = false; cubeConnUpdate('disconnected'); };
+    cubeWs.onopen  = () => { cubeConnected = true;  console.log('[cube] streaming started'); };
+    cubeWs.onclose = () => { cubeConnected = false; setTimeout(initCubeWs, 5000); };
+    cubeWs.onerror = () => { cubeConnected = false; };
   } catch(e) {
     cubeConnected = false;
-    cubeConnUpdate('disconnected', 'cube: unavailable');
     console.warn('[cube] WebSocket unavailable:', e && e.message);
   }
 }
