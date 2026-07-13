@@ -3586,6 +3586,59 @@ function streamFrameToCube(dt) {
 initCubeWs();
 
 // ═══════════════════════════════════════════════════
+//  STANDALONE MODE PREVIEW
+//
+// The ESP32 can only run a handful of natively-implemented effects
+// (standalone.h: rainbow, pulse, plasma, clock, weather) when the browser
+// isn't connected — everything else in EFFECTS is computed here in JS and
+// simply won't run on the cube once you disconnect. This preview mode greys
+// out every button/overlay that won't survive disconnection, so you can
+// safely preconfigure the cube before walking away from the browser.
+// ═══════════════════════════════════════════════════
+const STANDALONE_EFFECT_MAP = { plasma: 2, datetime: 3, weather: 4 };
+let standaloneModeOn = false;
+
+function standaloneModeApply(){
+  document.querySelectorAll('.effect-btn').forEach(btn=>{
+    const ok = !standaloneModeOn || STANDALONE_EFFECT_MAP.hasOwnProperty(btn.dataset.effect);
+    btn.disabled = !ok;
+    btn.style.opacity = ok ? '' : '0.35';
+    btn.style.pointerEvents = ok ? '' : 'none';
+  });
+  document.querySelectorAll('.ov-toggle input, .ov-sl, .ov-col').forEach(el=>{
+    el.disabled = standaloneModeOn;
+    const wrap = el.closest('.ov-toggle') || el;
+    wrap.style.opacity = standaloneModeOn ? '0.35' : '';
+    wrap.style.pointerEvents = standaloneModeOn ? 'none' : '';
+  });
+  const note = document.getElementById('standalone-mode-note');
+  if(note) note.style.display = standaloneModeOn ? 'block' : 'none';
+}
+
+function standalonePushEffect(eff){
+  const id = STANDALONE_EFFECT_MAP[eff];
+  if(id === undefined) return;
+  const h = location.hostname;
+  if(!h || h === 'localhost' || h === '127.0.0.1' || location.protocol === 'https:') return;
+  fetch(`http://${h}/api/standalone/effect`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({effect:id})
+  }).catch(e=>console.warn('[standalone] could not push effect to cube:', e && e.message));
+}
+
+document.getElementById('standalone-mode-chk')?.addEventListener('change', e=>{
+  standaloneModeOn = e.target.checked;
+  standaloneModeApply();
+});
+
+document.querySelectorAll('.effect-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    if(standaloneModeOn) standalonePushEffect(btn.dataset.effect);
+  });
+});
+
+// ═══════════════════════════════════════════════════
 //  FACE LABELS
 // ═══════════════════════════════════════════════════
 let faceLabelsOn=false;
