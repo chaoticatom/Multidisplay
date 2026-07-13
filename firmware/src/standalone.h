@@ -27,24 +27,42 @@
 // ---------------------------------------------------------------------------
 
 enum StandaloneEffect : uint8_t {
-    SA_RAINBOW = 0,
-    SA_PULSE   = 1,
-    SA_PLASMA  = 2,
-    SA_CLOCK   = 3,
-    SA_WEATHER = 4,
-    SA_OFF     = 5,
-    SA_COUNT   = 6
+    SA_RAINBOW       = 0,
+    SA_PULSE         = 1,
+    SA_PLASMA        = 2,
+    SA_CLOCK         = 3,
+    SA_WEATHER       = 4,
+    SA_FIREWORKS     = 5,
+    SA_GRADIENT_WASH = 6,
+    SA_AURORA        = 7,
+    SA_SPECTRUM      = 8,
+    SA_BALLS         = 9,
+    SA_STROBE        = 10,
+    SA_LIGHTNING     = 11,
+    SA_TIDE          = 12,
+    SA_RAIN          = 13,
+    SA_OFF           = 14,
+    SA_COUNT         = 15
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
     switch (id) {
-        case SA_RAINBOW: return "rainbow";
-        case SA_PULSE:   return "pulse";
-        case SA_PLASMA:  return "plasma";
-        case SA_CLOCK:   return "clock";
-        case SA_WEATHER: return "weather";
-        case SA_OFF:     return "off";
-        default:         return "unknown";
+        case SA_RAINBOW:       return "rainbow";
+        case SA_PULSE:         return "pulse";
+        case SA_PLASMA:        return "plasma";
+        case SA_CLOCK:         return "clock";
+        case SA_WEATHER:       return "weather";
+        case SA_FIREWORKS:     return "fireworks";
+        case SA_GRADIENT_WASH: return "gradient_wash";
+        case SA_AURORA:        return "aurora";
+        case SA_SPECTRUM:      return "spectrum";
+        case SA_BALLS:         return "balls";
+        case SA_STROBE:        return "strobe";
+        case SA_LIGHTNING:     return "lightning";
+        case SA_TIDE:          return "tide";
+        case SA_RAIN:          return "rain";
+        case SA_OFF:           return "off";
+        default:               return "unknown";
     }
 }
 
@@ -85,6 +103,14 @@ inline void standaloneHsvToRgb(float h, float s, float v, uint8_t& r, uint8_t& g
     r = (uint8_t)((rf + m) * 255);
     g = (uint8_t)((gf + m) * 255);
     b = (uint8_t)((bf + m) * 255);
+}
+
+// Deterministic pseudo-random 0..1 from an integer seed (no state, no
+// stdlib rand() dependency) - used by the particle-ish native effects below
+// to fake "random" positions/timing without needing to persist arrays.
+inline float standaloneHash01(int n) {
+    float x = sinf((float)n * 12.9898f) * 43758.5453f;
+    return x - floorf(x);
 }
 
 // Parses the "HH:MM" following a 'T' in an ISO-ish timestamp
@@ -362,6 +388,152 @@ inline void standaloneRenderWeather(MatrixPanel_I2S_DMA* display, int face) {
     display->print(g_wxValid ? standaloneWxCodeShort(g_wxCode) : "NO DATA");
 }
 
+inline void standaloneRenderFireworks(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+    const int BURSTS = 3;
+    for (int b = 0; b < BURSTS; b++) {
+        float phase = fmodf(t * 0.6f + face * 0.53f + b * 0.77f, 1.0f);
+        float cx = xOff + 10 + standaloneHash01(face * 31 + b * 7) * (PANEL_SIZE - 20);
+        float cy = 10 + standaloneHash01(face * 17 + b * 13 + 3) * (PANEL_SIZE - 20);
+        float radius = phase * 26.0f;
+        float fade = 1.0f - phase;
+        float hue = fmodf((face * 60.0f + b * 120.0f + t * 20.0f), 360.0f);
+        uint8_t r, g, cb;
+        standaloneHsvToRgb(hue, 1.0f, fade, r, g, cb);
+        uint16_t col = display->color565(r, g, cb);
+        const int SPARKS = 10;
+        for (int s = 0; s < SPARKS; s++) {
+            float ang = (2.0f * PI * s) / SPARKS + b;
+            int px = (int)(cx + cosf(ang) * radius);
+            int py = (int)(cy + sinf(ang) * radius);
+            if (px >= xOff && px < xOff + PANEL_SIZE && py >= 0 && py < PANEL_SIZE) {
+                display->drawPixel(px, py, col);
+            }
+        }
+    }
+}
+
+inline void standaloneRenderGradientWash(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    for (int y = 0; y < PANEL_SIZE; y++) {
+        for (int x = 0; x < PANEL_SIZE; x++) {
+            float hue = fmodf((x - y) * 3.0f + t * 40.0f + 720.0f, 360.0f);
+            uint8_t r, g, b;
+            standaloneHsvToRgb(hue, 1.0f, 1.0f, r, g, b);
+            display->drawPixel(xOff + x, y, display->color565(r, g, b));
+        }
+    }
+}
+
+inline void standaloneRenderAurora(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 8));
+    for (int x = 0; x < PANEL_SIZE; x++) {
+        float baseY1 = PANEL_SIZE * 0.5f + sinf(x * 0.18f + t * 1.1f) * 12.0f;
+        float baseY2 = PANEL_SIZE * 0.55f + sinf(x * 0.12f - t * 0.8f + 2.0f) * 16.0f;
+        for (int band = 0; band < 2; band++) {
+            float baseY = band == 0 ? baseY1 : baseY2;
+            float hue = band == 0 ? 140.0f : 260.0f;
+            for (int dy = -6; dy <= 6; dy++) {
+                int y = (int)baseY + dy;
+                if (y < 0 || y >= PANEL_SIZE) continue;
+                float fade = 1.0f - fabsf((float)dy) / 6.0f;
+                if (fade <= 0) continue;
+                uint8_t r, g, b;
+                standaloneHsvToRgb(hue, 0.8f, fade * 0.8f, r, g, b);
+                display->drawPixel(xOff + x, y, display->color565(r, g, b));
+            }
+        }
+    }
+}
+
+inline void standaloneRenderSpectrum(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+    const int BARS = 8;
+    const int barW = PANEL_SIZE / BARS;
+    for (int i = 0; i < BARS; i++) {
+        float speed = 1.5f + i * 0.37f;
+        float h = (0.15f + 0.85f * fabsf(sinf(t * speed + i * 1.3f))) * PANEL_SIZE;
+        for (int x = i * barW; x < i * barW + barW - 1; x++) {
+            for (int y = PANEL_SIZE - 1; y > PANEL_SIZE - 1 - (int)h; y--) {
+                float f = (float)(PANEL_SIZE - y) / PANEL_SIZE;
+                uint8_t r, g, b;
+                standaloneHsvToRgb(120.0f - f * 120.0f, 1.0f, 1.0f, r, g, b);
+                display->drawPixel(xOff + x, y, display->color565(r, g, b));
+            }
+        }
+    }
+}
+
+inline void standaloneRenderBalls(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+    const int BALLS = 4;
+    for (int i = 0; i < BALLS; i++) {
+        float freq = 0.9f + i * 0.23f;
+        int x = xOff + (PANEL_SIZE / (BALLS + 1)) * (i + 1);
+        int y = (int)((PANEL_SIZE - 4) * fabsf(sinf(t * freq + i)));
+        float hue = fmodf(i * 90.0f + t * 30.0f, 360.0f);
+        uint8_t r, g, b;
+        standaloneHsvToRgb(hue, 1.0f, 1.0f, r, g, b);
+        display->fillCircle(x, y + 3, 3, display->color565(r, g, b));
+    }
+}
+
+inline void standaloneRenderStrobe(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    bool on = fmodf(t, 0.3f) < 0.12f;
+    uint16_t col = on ? display->color565(255, 255, 255) : display->color565(0, 0, 0);
+    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, col);
+}
+
+inline void standaloneRenderLightning(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(2, 2, 10));
+    int bucket = (int)(t * 3.0f) + face * 97;
+    bool flash = standaloneHash01(bucket) > 0.8f;
+    if (!flash) return;
+    int x = PANEL_SIZE / 2;
+    for (int y = 0; y < PANEL_SIZE; y++) {
+        x += (int)(standaloneHash01(bucket * 131 + y) * 5.0f) - 2;
+        x = constrain(x, 2, PANEL_SIZE - 3);
+        display->drawPixel(xOff + x, y, display->color565(255, 255, 255));
+        display->drawPixel(xOff + x + 1, y, display->color565(200, 200, 255));
+    }
+}
+
+inline void standaloneRenderTide(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    for (int y = 0; y < PANEL_SIZE; y++) {
+        float hue = fmodf(y * 4.0f + t * 20.0f, 360.0f);
+        for (int x = 0; x < PANEL_SIZE; x++) {
+            float shimmer = 0.7f + 0.3f * sinf(x * 0.2f + t * 1.5f);
+            uint8_t r, g, b;
+            standaloneHsvToRgb(hue, 0.9f, shimmer, r, g, b);
+            display->drawPixel(xOff + x, y, display->color565(r, g, b));
+        }
+    }
+}
+
+inline void standaloneRenderRain(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+    for (int x = 0; x < PANEL_SIZE; x += 2) {
+        float speed = 20.0f + standaloneHash01(face * 53 + x) * 30.0f;
+        float phase = standaloneHash01(face * 91 + x * 3) * PANEL_SIZE;
+        int y = (int)(fmodf(t * speed + phase, (float)(PANEL_SIZE + 8))) - 8;
+        for (int d = 0; d < 3; d++) {
+            int yy = y - d;
+            if (yy >= 0 && yy < PANEL_SIZE) {
+                uint8_t fade = 255 - d * 70;
+                display->drawPixel(xOff + x, yy, display->color565(fade / 3, fade / 2, fade));
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Dispatcher — called once per display-task tick when in standalone mode.
 // ---------------------------------------------------------------------------
@@ -370,11 +542,20 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
     t += dt;
     for (uint8_t face = 0; face < NUM_FACES; face++) {
         switch (g_standaloneEffect) {
-            case SA_RAINBOW: standaloneRenderRainbow(display, face, t); break;
-            case SA_PULSE:   standaloneRenderPulse(display, face, t);  break;
-            case SA_PLASMA:  standaloneRenderPlasma(display, face, t); break;
-            case SA_CLOCK:   standaloneRenderClock(display, face);     break;
-            case SA_WEATHER: standaloneRenderWeather(display, face);   break;
+            case SA_RAINBOW:       standaloneRenderRainbow(display, face, t);       break;
+            case SA_PULSE:         standaloneRenderPulse(display, face, t);         break;
+            case SA_PLASMA:        standaloneRenderPlasma(display, face, t);        break;
+            case SA_CLOCK:         standaloneRenderClock(display, face);            break;
+            case SA_WEATHER:       standaloneRenderWeather(display, face);          break;
+            case SA_FIREWORKS:     standaloneRenderFireworks(display, face, t);     break;
+            case SA_GRADIENT_WASH: standaloneRenderGradientWash(display, face, t);  break;
+            case SA_AURORA:        standaloneRenderAurora(display, face, t);        break;
+            case SA_SPECTRUM:      standaloneRenderSpectrum(display, face, t);      break;
+            case SA_BALLS:         standaloneRenderBalls(display, face, t);         break;
+            case SA_STROBE:        standaloneRenderStrobe(display, face, t);        break;
+            case SA_LIGHTNING:     standaloneRenderLightning(display, face, t);     break;
+            case SA_TIDE:          standaloneRenderTide(display, face, t);          break;
+            case SA_RAIN:          standaloneRenderRain(display, face, t);          break;
             default:
                 display->fillRect(face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;

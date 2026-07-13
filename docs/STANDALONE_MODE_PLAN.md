@@ -69,11 +69,20 @@ fundamentally need, not something to code around.
 `firmware/src/standalone.h` (new) + changes to `main.cpp`, `web_server.h`,
 `config.h`.
 
-- **Native effects**: rainbow wash, breathing pulse, plasma, on-device
-  clock/date, and **weather** (fetches Open-Meteo directly from the ESP32
-  via `HTTPClient`/`WiFiClientSecure` — same technique as the F1 data fetch
-  — renders a sky gradient + sun/moon disc + temperature/condition text, no
-  images, no Canvas, all native GFX drawing calls).
+- **Native effects**: rainbow wash, breathing pulse, plasma, fireworks,
+  gradient wash, aurora, spectrum analyser, bouncing balls, strobe,
+  lightning, color tide, colour rain, on-device clock/date, and **weather**
+  (fetches Open-Meteo directly from the ESP32 via `HTTPClient`/
+  `WiFiClientSecure` — same technique as the F1 data fetch — renders a sky
+  gradient + sun/moon disc + temperature/condition text, no images, no
+  Canvas, all native GFX drawing calls). 14 effects total (`SA_COUNT` in
+  `standalone.h`), all per-pixel/procedural math — no particle-state arrays,
+  no image decode, no external deps beyond weather's HTTP fetch.
+- **Browser UI**: sidebar "🔌 Standalone" toggle (`index.html`/`ui.js`)
+  greys out every effect button/overlay without a native ESP32 equivalent,
+  and POSTs the chosen effect to `/api/standalone/effect` so it's saved as
+  the cube's own default before disconnecting. See `STANDALONE_EFFECT_MAP`
+  in `ui.js` for the browser-key → `SA_*` id mapping.
 - **Priority/fallback**: `main.cpp`'s `displayTask` checks
   `g_lastFrameMs`/`g_everStreamed` (set by `web_server.h`'s WS handler on
   every real `PKT_VIDEO` frame). No frame in `STANDALONE_FALLBACK_MS` (or
@@ -91,14 +100,14 @@ fundamentally need, not something to code around.
   (defaults to 0/UTC, no DST handling), `STANDALONE_WX_INTERVAL_MIN` (15),
   `STANDALONE_FALLBACK_MS` (5000).
 
-### Known gap — no browser UI yet
+### Known gap — schedule editor still has no browser UI
 
-Schedule/effect selection is only configurable via raw HTTP API calls
-(`GET /api/standalone/status`, `POST /api/standalone/effect`,
-`POST /api/standalone/schedule` — see comments above those routes in
-`web_server.h` for curl examples), not through the web app's sidebar. That's
-a separate, real follow-up task (new `ui.js`/`index.html` section) — not
-done here.
+Effect selection now has a browser UI (the "🔌 Standalone" sidebar toggle).
+Schedule entries are still only configurable via the raw HTTP API
+(`POST /api/standalone/schedule` — see comments above that route in
+`web_server.h` for curl examples). Wiring the existing Timer sidebar section
+to also push entries there is a separate, real follow-up task — not done
+here.
 
 ### Not attempted (per the earlier discussion, genuinely not viable)
 

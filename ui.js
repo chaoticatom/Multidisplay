@@ -3595,7 +3595,11 @@ initCubeWs();
 // out every button/overlay that won't survive disconnection, so you can
 // safely preconfigure the cube before walking away from the browser.
 // ═══════════════════════════════════════════════════
-const STANDALONE_EFFECT_MAP = { plasma: 2, datetime: 3, weather: 4 };
+const STANDALONE_EFFECT_MAP = {
+  plasma: 2, datetime: 3, weather: 4,
+  fireworks: 5, gradient_wash: 6, aurora: 7, spectrum: 8,
+  balls: 9, strobe: 10, lightning: 11, tide: 12, rain: 13,
+};
 let standaloneModeOn = false;
 
 function standaloneModeApply(){
