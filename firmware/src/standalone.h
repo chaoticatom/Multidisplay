@@ -535,6 +535,37 @@ inline void standaloneRenderRain(MatrixPanel_I2S_DMA* display, int face, float t
 }
 
 // ---------------------------------------------------------------------------
+// Boot splash — shown only from power-on until the first browser frame ever
+// arrives (see g_everStreamed in main.cpp). Distinct from the regular
+// standalone fallback: if a browser was streaming and then disconnects, the
+// cube should keep showing its configured standalone effect, not revert to
+// a "loading" screen that would be misleading at that point. This is purely
+// for the boot window while something like a Raspberry Pi kiosk browser is
+// still starting up.
+// ---------------------------------------------------------------------------
+inline void standaloneRenderBootSplash(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+
+    // Spinning ring of dots around the panel centre.
+    const int DOTS = 8;
+    for (int i = 0; i < DOTS; i++) {
+        float ang = (2.0f * PI * i) / DOTS + t * 3.0f;
+        int x = xOff + PANEL_SIZE / 2 + (int)(cosf(ang) * 14.0f);
+        int y = PANEL_SIZE / 2 - 6 + (int)(sinf(ang) * 14.0f);
+        float fade = 0.25f + 0.75f * (i / (float)DOTS);
+        uint8_t r, g, b;
+        standaloneHsvToRgb(200.0f, 0.6f, fade, r, g, b);
+        display->fillCircle(x, y, 2, display->color565(r, g, b));
+    }
+
+    display->setTextColor(display->color565(150, 200, 255));
+    display->setTextSize(1);
+    display->setCursor(xOff + 6, PANEL_SIZE - 12);
+    display->print("STARTING");
+}
+
+// ---------------------------------------------------------------------------
 // Dispatcher — called once per display-task tick when in standalone mode.
 // ---------------------------------------------------------------------------
 inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {

@@ -96,10 +96,21 @@ static void displayTask(void* arg) {
             // No browser has ever streamed a frame, or none has arrived
             // recently — render the native standalone content instead of
             // sitting on a stale/blank buffer. See standalone.h.
-            bool standalone = !g_everStreamed
+            bool neverStreamed = !g_everStreamed;
+            bool standalone = neverStreamed
                 || (millis() - g_lastFrameMs) > STANDALONE_FALLBACK_MS;
 
-            if (standalone) {
+            if (neverStreamed) {
+                // Still waiting for the very first frame since power-on (e.g.
+                // a Pi kiosk browser still booting) - show a boot splash
+                // rather than jumping straight into a configured effect.
+                static float bootT = 0;
+                bootT += dt;
+                for (uint8_t face = 0; face < NUM_FACES; face++) {
+                    standaloneRenderBootSplash(dma_display, face, bootT);
+                }
+                dma_display->flipDMABuffer();
+            } else if (standalone) {
                 standaloneRender(dma_display, dt);
             } else {
                 for (uint8_t face = 0; face < NUM_FACES; face++) {
