@@ -3141,6 +3141,15 @@ function radioSetVolume(v){
   if(radioAudioEl) radioAudioEl.volume=v;
 }
 
+// Internet Radio is its own effect/menu entry, but the visualizer IS the
+// Spectrum Analyser — effectSpectrum(dt) already knows how to read from a
+// playing radio stream (see its radioPlaying checks), draw the now-playing
+// ticker, and detect a CORS-silent station. Calling it directly here (not a
+// parallel copy) guarantees both effects always look identical.
+function effectRadio(dt){
+  effectSpectrum(dt);
+}
+
 // ═══════════════════════════════════════════════════
 //  MAZE RUNNER
 //  One continuous maze stitched across all 6 faces.

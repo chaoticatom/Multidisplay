@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=815">
+<link rel="stylesheet" href="style.css?v=816">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -600,40 +600,31 @@
         <span class="slider-val" id="au-scroll-speed-val">0</span>
       </div>
       <span id="au-scroll-val" style="display:none;"></span>
-
-      <div class="ov-row-label" style="margin-top:8px;">Sound Source</div>
-      <div class="opt-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:8px;">
-        <button class="au-source-btn active" data-source="mic">🎤 Microphone</button>
-        <button class="au-source-btn" data-source="radio">📻 Internet Radio</button>
+      <button id="mic-btn" style="margin-top:8px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">🎤 START MIC</button>
+      <div id="mic-status" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="radio">◈ Internet Radio <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-radio">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+        <button id="radio-stop-btn" style="flex:0 0 auto;padding:6px 12px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.25);color:#f88;border-radius:4px;cursor:pointer;font-size:11px;">■ Stop</button>
+        <span class="ov-label" style="flex:0 0 auto;">Vol</span>
+        <input id="radio-vol" type="range" min="0" max="1" step="0.05" value="0.8" style="flex:1;">
       </div>
+      <div id="radio-status" style="font-size:10px;color:#778;text-align:center;margin-bottom:10px;">Pick a station</div>
 
-      <div id="au-source-mic">
-        <button id="mic-btn" style="width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">🎤 START MIC</button>
-        <div id="mic-status" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
+      <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Directory search (thousands of stations)</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <input id="radio-search-input" type="text" placeholder="Search by name, genre, city…" style="flex:1;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:6px 8px;font-size:11px;box-sizing:border-box;">
+        <button id="radio-search-btn" style="flex:0 0 auto;padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Search</button>
       </div>
+      <button id="radio-browse-top-btn" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.1);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Browse Top 60 Worldwide</button>
+      <div id="radio-search-status" style="font-size:10px;color:#778;margin-bottom:6px;"></div>
+      <div id="radio-search-results" style="max-height:260px;overflow-y:auto;margin-bottom:10px;"></div>
 
-      <div id="au-source-radio" style="display:none;">
-        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
-          <button id="radio-stop-btn" style="flex:0 0 auto;padding:6px 12px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.25);color:#f88;border-radius:4px;cursor:pointer;font-size:11px;">■ Stop</button>
-          <span class="ov-label" style="flex:0 0 auto;">Vol</span>
-          <input id="radio-vol" type="range" min="0" max="1" step="0.05" value="0.8" style="flex:1;">
-        </div>
-        <div id="radio-status" style="font-size:10px;color:#778;text-align:center;margin-bottom:10px;">Pick a station</div>
+      <div style="font-size:11px;font-weight:700;color:#e8c250;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Featured</div>
+      <div id="radio-station-list" style="margin-bottom:8px;"></div>
 
-        <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Directory search (thousands of stations)</div>
-        <div style="display:flex;gap:6px;margin-bottom:6px;">
-          <input id="radio-search-input" type="text" placeholder="Search by name, genre, city…" style="flex:1;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:6px 8px;font-size:11px;box-sizing:border-box;">
-          <button id="radio-search-btn" style="flex:0 0 auto;padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Search</button>
-        </div>
-        <button id="radio-browse-top-btn" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.1);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Browse Top 60 Worldwide</button>
-        <div id="radio-search-status" style="font-size:10px;color:#778;margin-bottom:6px;"></div>
-        <div id="radio-search-results" style="max-height:260px;overflow-y:auto;margin-bottom:10px;"></div>
-
-        <div style="font-size:11px;font-weight:700;color:#e8c250;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Featured</div>
-        <div id="radio-station-list" style="margin-bottom:8px;"></div>
-
-        <div style="font-size:10px;color:#666;margin-top:4px;">Directory: <a href="https://www.radio-browser.info" target="_blank" rel="noopener" style="color:#7ad">radio-browser.info</a> — free, community-run, no API key needed. Bluetooth speaker output is configured under the "Setup" section near the bottom of the sidebar.</div>
-      </div>
+      <div style="font-size:10px;color:#666;margin-top:4px;">Directory: <a href="https://www.radio-browser.info" target="_blank" rel="noopener" style="color:#7ad">radio-browser.info</a> — free, community-run, no API key needed. Visual style/colour theme reuse the Spectrum Analyser controls above. Bluetooth speaker output is configured under the "Setup" section near the bottom of the sidebar.</div>
     </div>
     <button class="effect-btn has-panel" data-effect="video">◈ Video Display <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-video">
@@ -1310,7 +1301,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=815"></script>
+<script src="version.js?v=816"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1374,7 +1365,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=815','effects.js?v=815','ui.js?v=815'];
+  const appScripts = ['cube.js?v=816','effects.js?v=816','ui.js?v=816'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
