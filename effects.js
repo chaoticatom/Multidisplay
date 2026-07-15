@@ -3130,7 +3130,14 @@ function radioDrawTicker(face, dt){
   }
 }
 
+// The volume slider sets the "target" level — what a pre-alarm ramps up to,
+// or a wind-down starts from. During an active pre-alarm/wind-down phase,
+// ui.js's animate() overrides radioAudioEl.volume every frame to follow
+// that ramp; this just updates the target and applies it immediately for
+// normal (non-alarm) manual adjustment.
+let radioTargetVolume = 0.8;
 function radioSetVolume(v){
+  radioTargetVolume = v;
   if(radioAudioEl) radioAudioEl.volume=v;
 }
 

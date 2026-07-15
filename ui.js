@@ -3316,6 +3316,7 @@ function animate(now){
     for(let i=0;i<N*3;i++) colBuf[i]=0;
     brightness=0;
     if(mesh) mesh.material.color.setScalar(0);
+    if(radioPlaying && radioAudioEl) radioAudioEl.volume=0;
   }
 
   // ── Pre-alarm brightness ramp + sunrise rendering ──
@@ -3325,6 +3326,11 @@ function animate(now){
     const windDown=!!activeAlarm.al.prealarm?.windDown;
     const progress=windDown?1-rawProgress:rawProgress;
     const startBright=activeAlarm.al.prealarm?.startBright||5;
+    // Radio volume rides the same ramp as brightness: wake alarms start at
+    // 0 and rise to the set volume by the time the main alarm fires;
+    // wind-down starts at the set volume and fades to 0, same curve as the
+    // dimming — just applied to audio instead of light.
+    if(radioPlaying && radioAudioEl) radioAudioEl.volume=Math.max(0,Math.min(1,progress*radioTargetVolume));
     // Ramp brightness: wake=dim→bright, wind-down=bright→dim
     brightness=windDown?Math.max(0,1-Math.pow(rawProgress,1.5)):Math.max(startBright/100,Math.pow(progress,1.5));
     if(mesh) mesh.material.color.setScalar(brightness);
