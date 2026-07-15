@@ -2937,8 +2937,8 @@ function drawFireStyle(dt){
   }
 }
 
-// Shared by effectSpectrum and effectRadio — same band-reactive drawing
-// styles regardless of where the audio data (auSpec/auAnalyser) comes from.
+// Band-reactive drawing styles for effectSpectrum, regardless of whether
+// the audio data (auSpec/auAnalyser) came from the mic or a radio stream.
 function renderSpectrumStyle(dt){
   switch(auStyle){
     case 'mirror':    drawBandBars(true);       break;
@@ -2960,15 +2960,28 @@ function renderSpectrumStyle(dt){
 
 function effectSpectrum(dt){
   t+=dt;
-  // radioPlaying is true whenever the Internet Radio effect has a stream
-  // going — Radio calls this exact same function rather than keeping its
-  // own parallel copy, so both effects are guaranteed identical visuals.
+  // Sound source is either the microphone or a playing Internet Radio
+  // stream (selected via the panel's Sound Source toggle) — same function,
+  // same visuals, either way.
+  if(radioPlaying && auAnalyser && !radioAnalyserSilent){
+    if(auAutoPeak<=0.13) radioSilentTimer+=dt; else radioSilentTimer=0;
+    if(radioSilentTimer>4){
+      radioAnalyserSilent=true;
+      const el=radioStatusEl();
+      if(el && radioNowPlaying) el.textContent='▶ '+radioNowPlaying.name+' (visualizer simulated — station blocks audio analysis)';
+    }
+  }
   const haveRealAudio = (micOn || (radioPlaying && !radioAnalyserSilent)) && auAnalyser;
   if(haveRealAudio) readMicSpectrum(dt); else genSimSpectrum(dt);
   // Advance scroll
   if(auScrollSpeed>0) auScrollX=(auScrollX+dt*auScrollSpeed*SIZE*1.5*auScrollDir+4*SIZE)%(4*SIZE);
   for(let i=0;i<N*3;i++) colBuf[i]=0;
   renderSpectrumStyle(dt);
+  if(radioPlaying){
+    const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+    radioDrawTicker(0, dt);
+    if(!is2D) radioDrawTicker(2, dt);
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -3119,25 +3132,6 @@ function radioDrawTicker(face, dt){
 
 function radioSetVolume(v){
   if(radioAudioEl) radioAudioEl.volume=v;
-}
-
-// Internet Radio's visualizer IS the Spectrum Analyser — effectSpectrum(dt)
-// does the actual rendering (see its haveRealAudio check, which already
-// knows about radioPlaying/radioAnalyserSilent). This just tracks the
-// CORS-silent-stream detection and adds the now-playing ticker on top.
-function effectRadio(dt){
-  if(radioPlaying && auAnalyser && !radioAnalyserSilent){
-    if(auAutoPeak<=0.13) radioSilentTimer+=dt; else radioSilentTimer=0;
-    if(radioSilentTimer>4){
-      radioAnalyserSilent=true;
-      const el=radioStatusEl();
-      if(el && radioNowPlaying) el.textContent='▶ '+radioNowPlaying.name+' (visualizer simulated — station blocks audio analysis)';
-    }
-  }
-  effectSpectrum(dt);
-  const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
-  radioDrawTicker(0, dt);
-  if(!is2D) radioDrawTicker(2, dt);
 }
 
 // ═══════════════════════════════════════════════════

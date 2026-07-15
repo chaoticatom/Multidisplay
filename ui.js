@@ -1290,7 +1290,6 @@ const EFFECTS={
   epic:effectEPIC,
   iss:effectISS,
   cam:effectCam,
-  radio:effectRadio,
 };
 const EFFECT_NAMES={
   wave:'Wave Cascade', rain:'Colour Rain', plasma:'Plasma Storm', sphere:'Laser Grid',
@@ -1317,7 +1316,6 @@ const EFFECT_NAMES={
   epic:'Earth Live View',
   iss:'ISS Tracker',
   cam:'Camera',
-  radio:'Internet Radio',
 };
 
 // ═══════════════════════════════════════════════════
@@ -1335,7 +1333,7 @@ const EFFECT_SECTION_MAP = {
   balls:'',sand:'',lightning:'',warp:'',life:'',fluid:'',
 };
 
-const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','artic','joke','otd','trivia','epic','iss','cam','radio']);
+const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','artic','joke','otd','trivia','epic','iss','cam']);
 populateAlarmEffectRiseSelect(); // safe here — EFFECT_NAMES now defined
 
 async function fetchCitiesFromAPI(){
@@ -2215,6 +2213,21 @@ document.querySelectorAll('.spectrum-bands-btn').forEach(btn=>{
     document.querySelectorAll('.spectrum-bands-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     spectrumBandOverride = parseInt(btn.dataset.bands);
+  });
+});
+
+document.querySelectorAll('.au-source-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.au-source-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const src = btn.dataset.source;
+    document.getElementById('au-source-mic').style.display = src==='mic' ? '' : 'none';
+    document.getElementById('au-source-radio').style.display = src==='radio' ? '' : 'none';
+    // Only one live source at a time — switching away from mic stops it,
+    // switching away from radio stops playback rather than leaving it
+    // running silently in the background.
+    if(src==='radio' && micOn) toggleMic();
+    if(src==='mic' && radioPlaying) radioStop();
   });
 });
 
