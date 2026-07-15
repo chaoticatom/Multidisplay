@@ -2390,7 +2390,7 @@ function scrolledBand(c, cols, AB){
 function drawDotsStyle(){
   const S=SIZE, M=S-1;
   let AB=spectrumBandOverride||AUDIO_BANDS;
-  let cols=spectrumFitToScreen?(panel2dMode?SIZE:4*SIZE):4*S;
+  let cols=panel2dMode?SIZE:4*S; // single visible face in 2D mode gets all the bands, not a quarter of them
   for(let c=0;c<cols;c++){
     const b=scrolledBand(c,cols,AB);
     const amp=auSpec[b], fb=b/(AB-1);
@@ -2417,7 +2417,7 @@ function drawDotsStyle(){
 function drawBlocksStyle(){
   const S=SIZE, M=S-1, BLOCK=4;
   let AB=spectrumBandOverride||AUDIO_BANDS;
-  let cols=spectrumFitToScreen?(panel2dMode?SIZE:4*SIZE):4*S;
+  let cols=panel2dMode?SIZE:4*S; // single visible face in 2D mode gets all the bands, not a quarter of them
   const bandW=Math.max(1,Math.floor(cols/AB));
   for(let b=0;b<AB;b++){
     const amp=auSpec[b], fb=b/(AB-1);
@@ -2453,7 +2453,7 @@ function drawBlocksStyle(){
 function drawOutlineStyle(){
   const S=SIZE, M=S-1;
   let AB=spectrumBandOverride||AUDIO_BANDS;
-  let cols=spectrumFitToScreen?(panel2dMode?SIZE:4*SIZE):4*S;
+  let cols=panel2dMode?SIZE:4*S; // single visible face in 2D mode gets all the bands, not a quarter of them
   // Draw the top edge of each bar as a connected line
   const pts=new Float32Array(cols);
   for(let c=0;c<cols;c++){
@@ -2490,7 +2490,7 @@ function drawOutlineStyle(){
 function drawBandBars(mirror){
   const S=SIZE, M=S-1, mode=auBarMode;
   let AB = spectrumBandOverride || AUDIO_BANDS;
-  let cols = spectrumFitToScreen ? (panel2dMode ? SIZE : 4*SIZE) : 4*S;
+  let cols = panel2dMode ? SIZE : 4*S; // single visible face in 2D mode gets all the bands, not a quarter of them
   for(let c=0;c<cols;c++){
     const b=scrolledBand(c,cols,AB);
     if(S>8 && c%Math.max(1,Math.round(cols/AB))===Math.max(0,Math.round(cols/AB)-1)) continue;
@@ -2947,6 +2947,13 @@ const RADIO_STATIONS=[
   {name:'SomaFM Boot Liquor',    genre:'Americana',          url:'https://ice1.somafm.com/bootliquor-128-mp3'},
 ];
 let radioAudioEl=null, radioSource=null, radioPlaying=false, radioError='';
+// Many stream hosts don't send CORS headers - playback still works fine
+// (media elements are exempt from CORS), but the analyser silently reads
+// all-zero data in that case. If the tracked auto-gain peak stays pinned
+// near its floor for several seconds despite radioPlaying being true, that's
+// the signature of a CORS-blocked analyser rather than an actually silent
+// stream — fall back to the simulated pattern instead of flat dead bars.
+let radioAnalyserSilent=false, radioSilentTimer=0;
 let radioNowPlaying=null;   // {name, genre} of the currently loaded station
 let radioScrollX=0;
 
@@ -3029,6 +3036,8 @@ async function radioPlay(station){
   radioEnsureGraph();
   radioNowPlaying=station;
   radioScrollX=0;
+  radioAnalyserSilent=false;
+  radioSilentTimer=0;
   radioAudioEl.src=station.url;
   try{
     await radioAudioEl.play();
@@ -3072,7 +3081,17 @@ function radioSetVolume(v){
 
 function effectRadio(dt){
   t+=dt;
-  if(radioPlaying && auAnalyser) readMicSpectrum(dt); else genSimSpectrum(dt);
+  if(radioPlaying && auAnalyser && !radioAnalyserSilent){
+    readMicSpectrum(dt);
+    if(auAutoPeak<=0.13) radioSilentTimer+=dt; else radioSilentTimer=0;
+    if(radioSilentTimer>4){
+      radioAnalyserSilent=true;
+      const el=radioStatusEl();
+      if(el && radioNowPlaying) el.textContent='▶ '+radioNowPlaying.name+' (visualizer simulated — station blocks audio analysis)';
+    }
+  } else {
+    genSimSpectrum(dt);
+  }
   if(auScrollSpeed>0) auScrollX=(auScrollX+dt*auScrollSpeed*SIZE*1.5*auScrollDir+4*SIZE)%(4*SIZE);
   for(let i=0;i<N*3;i++) colBuf[i]=0;
   renderSpectrumStyle(dt);
