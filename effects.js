@@ -2291,17 +2291,24 @@ function genSimSpectrum(dt){
   const melE   = Math.exp(-((beat*4)%1)*5)*(sec===3?0.45:0.8);
   const rise   = (sec===1) ? (barPh*0.5+0.5)*sm(0,1,((barNum%8)+barPh)/8) : 0;
   const boost  = (sec===2)?1.18:1;
+  // This whole shape (kick/bass/snare/melody/hat/riser placement and
+  // widths) was designed against a canonical 32-band spectrum. b32 remaps
+  // whatever band count is actually selected (8/16/.../200) back onto that
+  // same canonical range, so the voices stay spread proportionally across
+  // the full width instead of only ever occupying the first ~20 bands and
+  // leaving everything past that sitting flat at the noise floor.
   for(let b=0;b<AB;b++){
     const fb=b/(AB-1);
+    const b32=fb*31;
     let v=0;
-    v += kick *Math.exp(-b*0.75)*1.25;                          // sub / kick
-    v += bass *Math.exp(-Math.pow((b-2.6)/2.0,2));              // bassline
-    v += snare*Math.exp(-Math.pow((b-12)/4.5,2))*0.75;          // snare body
-    v += melE *Math.exp(-Math.pow((b-melB)/1.7,2))*0.8;         // arp melody
-    v += hat  *sm(0.55,1,fb)*0.8;                               // hats / air
-    v += rise *Math.exp(-Math.pow((b-(7+rise*18))/3.2,2))*0.9;  // riser sweep
-    if(sec===3) v += (0.5+0.5*Math.sin(songT*1.2+b*0.7))*Math.exp(-Math.pow((b-8)/6,2))*0.5; // break pad
-    v += 0.025+Math.random()*0.05;                              // noise floor
+    v += kick *Math.exp(-b32*0.75)*1.25;                          // sub / kick
+    v += bass *Math.exp(-Math.pow((b32-2.6)/2.0,2));              // bassline
+    v += snare*Math.exp(-Math.pow((b32-12)/4.5,2))*0.75;          // snare body
+    v += melE *Math.exp(-Math.pow((b32-melB)/1.7,2))*0.8;         // arp melody
+    v += hat  *sm(0.55,1,fb)*0.8;                                 // hats / air
+    v += rise *Math.exp(-Math.pow((b32-(7+rise*18))/3.2,2))*0.9;  // riser sweep
+    if(sec===3) v += (0.5+0.5*Math.sin(songT*1.2+b32*0.7))*Math.exp(-Math.pow((b32-8)/6,2))*0.5; // break pad
+    v += 0.025+Math.random()*0.05;                                // noise floor — genuinely independent per band
     auSmooth(b, Math.min(1, v*boost*auGain), dt);
   }
 }
