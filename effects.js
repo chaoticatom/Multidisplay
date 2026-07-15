@@ -2250,9 +2250,9 @@ function effectNebula(dt){
 //  SPECTRUM ANALYSER / VU METER
 //  Simulated music engine + optional live microphone
 // ═══════════════════════════════════════════════════
-let spectrumBandOverride = 32; // can be set by UI to 8, 16, 32
+let spectrumBandOverride = 32; // can be set by UI to 8, 16, 32, 128, 200
 let spectrumFitToScreen = false;
-const AUDIO_BANDS = 32;
+const AUDIO_BANDS = 256; // headroom for the finer 128/200-band presets
 let auSpec  = new Float32Array(AUDIO_BANDS);   // smoothed band levels 0..1
 let auPeak  = new Float32Array(AUDIO_BANDS);   // falling peak-hold dots
 let auPeakV = new Float32Array(AUDIO_BANDS);
@@ -2306,16 +2306,35 @@ function genSimSpectrum(dt){
   }
 }
 
-// ── Live microphone via Web Audio FFT (log-mapped into bands) ──
+// ── Live microphone / radio stream via Web Audio FFT (log-mapped into bands) ──
+// Auto-gain: tracks a slowly-decaying peak of the loudest band each frame,
+// then normalizes every band against it. Without this, a quiet station
+// looks dead and a loud one pins every bar at max regardless of the manual
+// gain slider — normalizing against the stream's own recent loudness keeps
+// the visual range consistent no matter what's playing. auGain remains a
+// manual multiplier on top for taste.
+let auAutoPeak = 0.3;
+let auRawScratch = new Float32Array(AUDIO_BANDS);
 function readMicSpectrum(dt){
   auAnalyser.getByteFrequencyData(micBuf);
   songT += dt;
   const AB=AUDIO_BANDS, nb=micBuf.length, lo0=2, hi0=Math.floor(nb*0.75);
+  let frameMax=0.001;
   for(let b=0;b<AB;b++){
     const lo=Math.floor(lo0*Math.pow(hi0/lo0, b/AB));
     const hi=Math.max(lo+1, Math.floor(lo0*Math.pow(hi0/lo0,(b+1)/AB)));
     let s=0; for(let k=lo;k<hi;k++) s+=micBuf[k];
-    auSmooth(b, Math.min(1,(s/(hi-lo))/255*1.35*auGain), dt);
+    const v=(s/(hi-lo))/255;
+    if(v>frameMax) frameMax=v;
+    auRawScratch[b]=v;
+  }
+  // Fast attack (catch a loud passage quickly), slow release (don't dim
+  // out during a brief quiet moment) — classic limiter ballistics.
+  if(frameMax>auAutoPeak) auAutoPeak += (frameMax-auAutoPeak)*Math.min(1,dt*2);
+  else                    auAutoPeak += (frameMax-auAutoPeak)*Math.min(1,dt*0.3);
+  auAutoPeak = Math.max(0.12, auAutoPeak);
+  for(let b=0;b<AB;b++){
+    auSmooth(b, Math.min(1, (auRawScratch[b]/auAutoPeak)*0.85*auGain), dt);
   }
 }
 
