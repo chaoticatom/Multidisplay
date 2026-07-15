@@ -2264,6 +2264,22 @@ let songT = 0, auRings = [], auPrevBass = 0;
 let vuL=0, vuR=0, vuPkL=0, vuPkR=0, vuPkVL=0, vuPkVR=0;
 let micOn=false, auCtx=null, auAnalyser=null, micBuf=null;
 
+// Fixed per-band jitter, computed once and reused every frame (not
+// re-randomized per frame, which would just flicker). Both the simulated
+// pattern (smooth Gaussian curves) and real FFT data (averaged over wide
+// log-spaced bins) are naturally smooth from one column to the next —
+// without this, adjacent bars land close enough together to look like the
+// same handful of "groups" instead of 64 independently-reading columns.
+// Real spectrum analyzers show this kind of jagged column-to-column
+// variation because raw FFT bins genuinely differ that much; our smoothed/
+// averaged data doesn't, so this fakes that same jaggedness deliberately.
+function auHash01(n){
+  const x = Math.sin(n*12.9898)*43758.5453;
+  return x - Math.floor(x);
+}
+const auBandJitter = new Float32Array(AUDIO_BANDS);
+for(let i=0;i<AUDIO_BANDS;i++) auBandJitter[i] = 0.45 + 0.85*auHash01(i*7.31+1);
+
 function auSmooth(b, target, dt){
   // fast attack, slow release — classic analyser ballistics
   if(target > auSpec[b]) auSpec[b] += (target-auSpec[b])*Math.min(1, dt*28);
@@ -2308,6 +2324,7 @@ function genSimSpectrum(dt){
     v += hat  *sm(0.55,1,fb)*0.8;                                 // hats / air
     v += rise *Math.exp(-Math.pow((b32-(7+rise*18))/3.2,2))*0.9;  // riser sweep
     if(sec===3) v += (0.5+0.5*Math.sin(songT*1.2+b32*0.7))*Math.exp(-Math.pow((b32-8)/6,2))*0.5; // break pad
+    v *= auBandJitter[b];                                         // per-column texture — see auBandJitter comment
     v += 0.025+Math.random()*0.05;                                // noise floor — genuinely independent per band
     auSmooth(b, Math.min(1, v*boost*auGain), dt);
   }
@@ -2347,7 +2364,7 @@ function readMicSpectrum(dt){
     // the gap between quiet and loud bands instead of just rescaling them
     // together — same idea as a level meter's gamma/contrast curve.
     const ratio = Math.min(1, auRawScratch[b]/auAutoPeak);
-    auSmooth(b, Math.min(1, Math.pow(ratio, 1.8)*auGain), dt);
+    auSmooth(b, Math.min(1, Math.pow(ratio, 1.8)*auBandJitter[b]*auGain), dt);
   }
 }
 
