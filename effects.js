@@ -6104,6 +6104,7 @@ const OV = {
   glitch:   {on:false,intensity:0.3,rate:3},
   mist:     {on:false,intensity:0.22,speed:0.4},
   lightning:{on:false,rate:1.2,width:3,brightness:1},
+  radio:    {on:false,height:0.28,intensity:1},
 };
 
 let ovGlobalBright=1.0;
@@ -6353,6 +6354,38 @@ function ovScanLine(dt){
         colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+g);
         colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+b);
       }
+    }
+  }
+}
+
+// ── Internet Radio spectrum strip ──
+// Reuses the same auSpec/genSimSpectrum/readMicSpectrum data the Spectrum
+// Analyser/Radio effects use, but only draws a thin additive bar-strip
+// along the bottom of the 4 side faces — an accent on top of whatever main
+// effect is running, not a replacement for it. Only draws while a radio
+// stream is actually playing; enabling the overlay with nothing playing
+// just does nothing; rather than fake a "phantom radio" look.
+function ovRadio(dt){
+  if(!radioPlaying) return;
+  if(auAnalyser && !radioAnalyserSilent) readMicSpectrum(dt); else genSimSpectrum(dt);
+  const S=SIZE;
+  const stripH=Math.max(4,Math.round(OV.radio.height*S));
+  const AB=Math.min(spectrumBandOverride||32, 4*S);
+  const cols=4*S;
+  for(let c=0;c<cols;c++){
+    const b=Math.min(AB-1,Math.floor(c*AB/cols));
+    const fb=b/(AB-1);
+    const amp=Math.min(1,auSpec[b]*OV.radio.intensity);
+    const h=Math.round(amp*stripH);
+    if(h<=0) continue;
+    const fu=sideCol(c), face=fu[0], u=fu[1];
+    const [r,g,bl]=hsl(fb*0.75,1,0.55);
+    for(let y=0;y<h;y++){
+      const idx=faceMap[face][y*S+u]; if(idx<0) continue;
+      const fade=0.4+0.6*(y/Math.max(1,h));
+      colBuf[idx*3]=Math.min(1,colBuf[idx*3]+r*fade);
+      colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+g*fade);
+      colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+bl*fade);
     }
   }
 }
@@ -6716,6 +6749,7 @@ function runOverlays(dt){
     if(OV.glitch.on)    ovGlitch(dt);
     if(OV.mist.on)      ovMist(dt);
     if(OV.lightning.on) ovLightning(dt);
+    if(OV.radio.on)     ovRadio(dt);
     // Scale only the delta added by overlays
     for(let i=0;i<colBuf.length;i++){
       const delta=colBuf[i]-snap[i];
@@ -6735,6 +6769,7 @@ function runOverlays(dt){
     if(OV.glitch.on)    ovGlitch(dt);
     if(OV.mist.on)      ovMist(dt);
     if(OV.lightning.on) ovLightning(dt);
+    if(OV.radio.on)     ovRadio(dt);
   }
 }
 

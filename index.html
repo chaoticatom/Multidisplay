@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=816">
+<link rel="stylesheet" href="style.css?v=817">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -903,6 +903,15 @@
       </div>
     </div>
 
+    <div class="ov-item" id="ovi-radio">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="radio"><span class="ov-slider"></span></span><span class="ov-name">📻 Internet Radio</span></label>
+      <div class="ov-body">
+        <div class="slider-row"><span class="slider-label">Height</span><input type="range" class="ov-sl" data-ov="radio" data-prop="height" min="0.1" max="0.6" step="0.02" value="0.28"><span class="slider-val ov-vl">28%</span></div>
+        <div class="slider-row"><span class="slider-label">Intense</span><input type="range" class="ov-sl" data-ov="radio" data-prop="intensity" min="0.3" max="2" step="0.1" value="1"><span class="slider-val ov-vl">100%</span></div>
+        <div style="font-size:10px;color:#666;margin-top:4px;">Draws a bottom-edge spectrum strip on top of whatever effect is running, driven by the Internet Radio effect's currently playing station. Only visible while a station is actually playing — start one from the Internet Radio effect panel.</div>
+      </div>
+    </div>
+
     </div>
   </div>
 
@@ -1301,7 +1310,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=816"></script>
+<script src="version.js?v=817"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1365,7 +1374,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=816','effects.js?v=816','ui.js?v=816'];
+  const appScripts = ['cube.js?v=817','effects.js?v=817','ui.js?v=817'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
