@@ -2419,6 +2419,10 @@ function drawBlocksStyle(){
   let AB=spectrumBandOverride||AUDIO_BANDS;
   let cols=panel2dMode?SIZE:4*S; // single visible face in 2D mode gets all the bands, not a quarter of them
   const bandW=Math.max(1,Math.floor(cols/AB));
+  // Leave a 1-column gap between blocks when there's room for one, but not
+  // when bandW is already 1 (bands === cols) — dc<bandW-1 would then loop
+  // zero times and draw nothing at all.
+  const dcMax = bandW>1 ? bandW-1 : 1;
   for(let b=0;b<AB;b++){
     const amp=auSpec[b], fb=b/(AB-1);
     const blocks=Math.round(amp*(S/BLOCK));
@@ -2428,7 +2432,7 @@ function drawBlocksStyle(){
       const yBase=blk*BLOCK;
       for(let dy=0;dy<BLOCK-1;dy++){
         const y=yBase+dy; if(y>=S) break;
-        for(let dc=0;dc<bandW-1;dc++){
+        for(let dc=0;dc<dcMax;dc++){
           const c=b*bandW+dc; if(c>=cols) break;
           const fu=sideCol(c);
           setFaceLED(fu[0],fu[1],y,col[0],col[1],col[2]);
@@ -2440,7 +2444,7 @@ function drawBlocksStyle(){
     const pkY=pkBlk*BLOCK;
     for(let dy=0;dy<BLOCK-1;dy++){
       const y=pkY+dy; if(y>=S) break;
-      for(let dc=0;dc<bandW-1;dc++){
+      for(let dc=0;dc<dcMax;dc++){
         const c=b*bandW+dc; if(c>=cols) break;
         const fu=sideCol(c);
         setFaceLED(fu[0],fu[1],y,0.9,0.9,0.95);
@@ -2491,9 +2495,14 @@ function drawBandBars(mirror){
   const S=SIZE, M=S-1, mode=auBarMode;
   let AB = spectrumBandOverride || AUDIO_BANDS;
   let cols = panel2dMode ? SIZE : 4*S; // single visible face in 2D mode gets all the bands, not a quarter of them
+  const barW = Math.round(cols/AB);
   for(let c=0;c<cols;c++){
     const b=scrolledBand(c,cols,AB);
-    if(S>8 && c%Math.max(1,Math.round(cols/AB))===Math.max(0,Math.round(cols/AB)-1)) continue;
+    // Only insert a gap column between bars when there's room for one —
+    // at barW===1 (bands === cols, e.g. 64 bands on a 64-wide face) every
+    // column IS a bar, so skipping "the last column of each bar" would
+    // skip every single column and draw nothing at all.
+    if(S>8 && barW>1 && c%barW===barW-1) continue;
     const amp=auSpec[b], fb=b/(AB-1);
     const fu=sideCol(c), face=fu[0], u=fu[1];
 
