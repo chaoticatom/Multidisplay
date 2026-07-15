@@ -2967,8 +2967,7 @@ function effectSpectrum(dt){
     if(auAutoPeak<=0.13) radioSilentTimer+=dt; else radioSilentTimer=0;
     if(radioSilentTimer>4){
       radioAnalyserSilent=true;
-      const el=radioStatusEl();
-      if(el && radioNowPlaying) el.textContent='▶ '+radioNowPlaying.name+' (visualizer simulated — station blocks audio analysis)';
+      if(radioNowPlaying) radioSetStatus('▶ '+radioNowPlaying.name+' (visualizer simulated — station blocks audio analysis)');
     }
   }
   const haveRealAudio = (micOn || (radioPlaying && !radioAnalyserSilent)) && auAnalyser;
@@ -3032,10 +3031,13 @@ async function radioBrowserFetch(path){
   throw lastErr || new Error('all mirrors failed');
 }
 
+function radioSetSearchStatus(text){
+  document.querySelectorAll('.radio-search-status-el').forEach(el=>el.textContent=text);
+}
+
 async function radioSearchStations(query){
   radioSearching=true; radioSearchError='';
-  const st=document.getElementById('radio-search-status');
-  if(st) st.textContent='Searching…';
+  radioSetSearchStatus('Searching…');
   try{
     const path = query
       ? '/json/stations/search?name='+encodeURIComponent(query)+'&limit=60&hidebroken=true&order=clickcount&reverse=true'
@@ -3046,17 +3048,21 @@ async function radioSearchStations(query){
       genre: (s.tags||'').split(',').slice(0,2).join(', ') || s.country || '',
       url: s.url_resolved || s.url,
     }));
-    if(st) st.textContent = radioSearchResults.length + ' stations found';
+    radioSetSearchStatus(radioSearchResults.length + ' stations found');
   }catch(e){
     radioSearchError='Directory unreachable — try again, or use the featured list below';
-    if(st) st.textContent='✕ '+radioSearchError;
+    radioSetSearchStatus('✕ '+radioSearchError);
     console.warn('[radio] search failed:', e && e.message);
   }
   radioSearching=false;
   if(typeof radioRenderSearchResults==='function') radioRenderSearchResults();
 }
 
-function radioStatusEl(){ return document.getElementById('radio-status'); }
+// Status text shows in both the Internet Radio effect panel and the
+// audio-only overlay panel — update every matching element, not just one.
+function radioSetStatus(text){
+  document.querySelectorAll('.radio-status-el').forEach(el=>el.textContent=text);
+}
 
 function radioEnsureGraph(){
   if(!radioAudioEl){
@@ -3065,7 +3071,7 @@ function radioEnsureGraph(){
     radioAudioEl.addEventListener('error', ()=>{
       radioError='Stream failed to load — try another station';
       radioPlaying=false;
-      const st=radioStatusEl(); if(st) st.textContent='✕ '+radioError;
+      radioSetStatus('✕ '+radioError);
     });
   }
   auCtx = auCtx || new (window.AudioContext||window.webkitAudioContext)();
@@ -3097,18 +3103,18 @@ async function radioPlay(station){
   try{
     await radioAudioEl.play();
     radioPlaying=true;
-    const el=radioStatusEl(); if(el) el.textContent='▶ '+station.name+(station.genre?' — '+station.genre:'');
+    radioSetStatus('▶ '+station.name+(station.genre?' — '+station.genre:''));
   }catch(e){
     radioPlaying=false;
     radioError='Could not start playback (tap play again — browsers require a user click to start audio)';
-    const el=radioStatusEl(); if(el) el.textContent='✕ '+radioError;
+    radioSetStatus('✕ '+radioError);
   }
 }
 
 function radioStop(){
   if(radioAudioEl) radioAudioEl.pause();
   radioPlaying=false;
-  const el=radioStatusEl(); if(el) el.textContent='Stopped';
+  radioSetStatus('Stopped');
 }
 
 // Scrolling now-playing name, drawn as a thin ticker over the bottom rows
@@ -6104,7 +6110,7 @@ const OV = {
   glitch:   {on:false,intensity:0.3,rate:3},
   mist:     {on:false,intensity:0.22,speed:0.4},
   lightning:{on:false,rate:1.2,width:3,brightness:1},
-  radio:    {on:false,height:0.28,intensity:1},
+  radio:    {on:false},
 };
 
 let ovGlobalBright=1.0;
@@ -6359,36 +6365,13 @@ function ovScanLine(dt){
 }
 
 // ── Internet Radio spectrum strip ──
-// Reuses the same auSpec/genSimSpectrum/readMicSpectrum data the Spectrum
-// Analyser/Radio effects use, but only draws a thin additive bar-strip
-// along the bottom of the 4 side faces — an accent on top of whatever main
-// effect is running, not a replacement for it. Only draws while a radio
-// stream is actually playing; enabling the overlay with nothing playing
-// just does nothing; rather than fake a "phantom radio" look.
-function ovRadio(dt){
-  if(!radioPlaying) return;
-  if(auAnalyser && !radioAnalyserSilent) readMicSpectrum(dt); else genSimSpectrum(dt);
-  const S=SIZE;
-  const stripH=Math.max(4,Math.round(OV.radio.height*S));
-  const AB=Math.min(spectrumBandOverride||32, 4*S);
-  const cols=4*S;
-  for(let c=0;c<cols;c++){
-    const b=Math.min(AB-1,Math.floor(c*AB/cols));
-    const fb=b/(AB-1);
-    const amp=Math.min(1,auSpec[b]*OV.radio.intensity);
-    const h=Math.round(amp*stripH);
-    if(h<=0) continue;
-    const fu=sideCol(c), face=fu[0], u=fu[1];
-    const [r,g,bl]=hsl(fb*0.75,1,0.55);
-    for(let y=0;y<h;y++){
-      const idx=faceMap[face][y*S+u]; if(idx<0) continue;
-      const fade=0.4+0.6*(y/Math.max(1,h));
-      colBuf[idx*3]=Math.min(1,colBuf[idx*3]+r*fade);
-      colBuf[idx*3+1]=Math.min(1,colBuf[idx*3+1]+g*fade);
-      colBuf[idx*3+2]=Math.min(1,colBuf[idx*3+2]+bl*fade);
-    }
-  }
-}
+// Audio-only overlay — deliberately draws nothing. Its job is to let a
+// radio station keep playing as background audio while any other effect
+// runs on the cube, without adding any visual bars/strip on top of it.
+// Turning the overlay off stops playback; turning it on doesn't start
+// anything by itself — pick a station from the controls in the overlay
+// panel (mirrors the Internet Radio effect's own controls).
+function ovRadio(dt){}
 
 // ── Vignette ──
 function ovVignette(){

@@ -1686,6 +1686,10 @@ document.querySelectorAll('.ov-chk').forEach(chk => {
       if(ov==='sparkle') ovSparkleList=[];
       if(ov==='fire') ovFireBufs=null;
       if(ov==='edgeglow') ovEdgeIdx=null;
+    } else {
+      // Turning the audio-only radio overlay off stops playback outright —
+      // there's no visual to just "leave running", so off means off.
+      if(ov==='radio' && radioPlaying) radioStop();
     }
   });
 });
@@ -3638,35 +3642,44 @@ function radioMakeStationBtn(st, container){
   container.appendChild(b);
 }
 
+// Every control below exists twice in the DOM (Internet Radio effect panel
+// + the audio-only overlay panel), sharing classes instead of IDs — both
+// copies stay in sync since they all drive the same underlying radio state.
 function radioBuildStationList(){
-  const wrap = document.getElementById('radio-station-list');
-  if(!wrap || typeof RADIO_STATIONS === 'undefined') return;
-  wrap.innerHTML = '';
-  RADIO_STATIONS.forEach(st=>radioMakeStationBtn(st, wrap));
+  document.querySelectorAll('.radio-station-list-el').forEach(wrap=>{
+    if(typeof RADIO_STATIONS === 'undefined') return;
+    wrap.innerHTML = '';
+    RADIO_STATIONS.forEach(st=>radioMakeStationBtn(st, wrap));
+  });
 }
 radioBuildStationList();
 
 // Called by effects.js's radioSearchStations() once results (or an error)
 // come back — kept in ui.js since it's DOM rendering, not station logic.
 function radioRenderSearchResults(){
-  const wrap = document.getElementById('radio-search-results');
-  if(!wrap || typeof radioSearchResults === 'undefined') return;
-  wrap.innerHTML = '';
-  radioSearchResults.forEach(st=>radioMakeStationBtn(st, wrap));
+  document.querySelectorAll('.radio-search-results-el').forEach(wrap=>{
+    if(typeof radioSearchResults === 'undefined') return;
+    wrap.innerHTML = '';
+    radioSearchResults.forEach(st=>radioMakeStationBtn(st, wrap));
+  });
 }
 
-document.getElementById('radio-stop-btn')?.addEventListener('click', radioStop);
-document.getElementById('radio-vol')?.addEventListener('input', e=>{
+document.querySelectorAll('.radio-stop-btn-el').forEach(btn=>btn.addEventListener('click', radioStop));
+document.querySelectorAll('.radio-vol-el').forEach(sl=>sl.addEventListener('input', e=>{
   radioSetVolume(parseFloat(e.target.value));
-});
-document.getElementById('radio-search-btn')?.addEventListener('click', ()=>{
-  const q = document.getElementById('radio-search-input')?.value.trim() || '';
+  document.querySelectorAll('.radio-vol-el').forEach(other=>{ if(other!==e.target) other.value=e.target.value; });
+}));
+function radioDoSearch(){
+  const input = document.querySelector('.radio-search-input-el');
+  const q = input ? input.value.trim() : '';
+  document.querySelectorAll('.radio-search-input-el').forEach(el=>el.value=q);
   radioSearchStations(q);
-});
-document.getElementById('radio-search-input')?.addEventListener('keydown', e=>{
-  if(e.key==='Enter'){ e.preventDefault(); document.getElementById('radio-search-btn')?.click(); }
-});
-document.getElementById('radio-browse-top-btn')?.addEventListener('click', ()=>radioSearchStations(''));
+}
+document.querySelectorAll('.radio-search-btn-el').forEach(btn=>btn.addEventListener('click', radioDoSearch));
+document.querySelectorAll('.radio-search-input-el').forEach(inp=>inp.addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ e.preventDefault(); radioDoSearch(); }
+}));
+document.querySelectorAll('.radio-browse-top-btn-el').forEach(btn=>btn.addEventListener('click', ()=>radioSearchStations('')));
 
 // ═══════════════════════════════════════════════════
 //  BLUETOOTH SPEAKER — talks to pi/bluetooth_server.py running on the same
