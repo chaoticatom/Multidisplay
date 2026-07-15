@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=802">
+<link rel="stylesheet" href="style.css?v=803">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -548,7 +548,8 @@
       <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
         <button class="spectrum-bands-btn" data-bands="8">8</button>
         <button class="spectrum-bands-btn" data-bands="16">16</button>
-        <button class="spectrum-bands-btn active" data-bands="32">32</button>
+        <button class="spectrum-bands-btn" data-bands="32">32</button>
+        <button class="spectrum-bands-btn active" data-bands="64">64</button>
         <button class="spectrum-bands-btn" data-bands="128">128</button>
         <button class="spectrum-bands-btn" data-bands="200">200</button>
       </div>
@@ -1287,7 +1288,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=802"></script>
+<script src="version.js?v=803"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1351,7 +1352,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=802','effects.js?v=802','ui.js?v=802'];
+  const appScripts = ['cube.js?v=803','effects.js?v=803','ui.js?v=803'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';

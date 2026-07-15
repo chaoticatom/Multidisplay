@@ -2250,7 +2250,7 @@ function effectNebula(dt){
 //  SPECTRUM ANALYSER / VU METER
 //  Simulated music engine + optional live microphone
 // ═══════════════════════════════════════════════════
-let spectrumBandOverride = 32; // can be set by UI to 8, 16, 32, 128, 200
+let spectrumBandOverride = 64; // can be set by UI to 8, 16, 32, 64, 128, 200
 let spectrumFitToScreen = false;
 const AUDIO_BANDS = 256; // headroom for the finer 128/200-band presets
 let auSpec  = new Float32Array(AUDIO_BANDS);   // smoothed band levels 0..1
@@ -2334,7 +2334,13 @@ function readMicSpectrum(dt){
   else                    auAutoPeak += (frameMax-auAutoPeak)*Math.min(1,dt*0.3);
   auAutoPeak = Math.max(0.12, auAutoPeak);
   for(let b=0;b<AB;b++){
-    auSmooth(b, Math.min(1, (auRawScratch[b]/auAutoPeak)*0.85*auGain), dt);
+    // A plain ratio against the peak left every band bunched near the top
+    // (typical broadband music energy is fairly close in magnitude across
+    // adjacent log-spaced bands). Raising it to a power >1 stretches out
+    // the gap between quiet and loud bands instead of just rescaling them
+    // together — same idea as a level meter's gamma/contrast curve.
+    const ratio = Math.min(1, auRawScratch[b]/auAutoPeak);
+    auSmooth(b, Math.min(1, Math.pow(ratio, 1.8)*auGain), dt);
   }
 }
 
