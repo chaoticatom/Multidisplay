@@ -3630,6 +3630,106 @@ document.getElementById('radio-search-input')?.addEventListener('keydown', e=>{
 });
 document.getElementById('radio-browse-top-btn')?.addEventListener('click', ()=>radioSearchStations(''));
 
+// ═══════════════════════════════════════════════════
+//  BLUETOOTH SPEAKER — talks to pi/bluetooth_server.py running on the same
+//  Pi (port 5005). Not reachable at all when running on a laptop/GitHub
+//  Pages — every call below just fails quietly into the status line.
+// ═══════════════════════════════════════════════════
+function btApiUrl(path){
+  const h = location.hostname;
+  return `http://${h}:5005${path}`;
+}
+
+function btSetStatus(text){
+  const el = document.getElementById('bt-status');
+  if(el) el.textContent = text;
+}
+
+function btRenderDevices(devices, mode){
+  const wrap = document.getElementById('bt-device-list');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  if(!devices || !devices.length){
+    wrap.innerHTML = '<div style="font-size:10px;color:#666;">No devices found.</div>';
+    return;
+  }
+  devices.forEach(dev=>{
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;';
+    const label = document.createElement('span');
+    label.style.cssText = 'flex:1;font-size:11px;color:#cdd8ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    label.textContent = dev.name + ' (' + dev.mac + ')';
+    row.appendChild(label);
+    if(mode==='scan'){
+      const btn = document.createElement('button');
+      btn.textContent = 'Pair';
+      btn.style.cssText = 'flex:0 0 auto;padding:4px 10px;background:rgba(80,200,120,0.15);border:1px solid rgba(80,200,120,0.4);color:#8adf9e;border-radius:4px;cursor:pointer;font-size:10px;';
+      btn.addEventListener('click', ()=>btPair(dev.mac, dev.name));
+      row.appendChild(btn);
+    } else {
+      const tag = document.createElement('span');
+      tag.style.cssText = 'font-size:10px;color:#8adf9e;';
+      tag.textContent = 'paired';
+      row.appendChild(tag);
+    }
+    wrap.appendChild(row);
+  });
+}
+
+async function btScan(){
+  btSetStatus('Scanning… (~6s)');
+  document.getElementById('bt-device-list').innerHTML = '';
+  try{
+    const r = await fetch(btApiUrl('/bt/scan'));
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data = await r.json();
+    btSetStatus(data.devices.length + ' device(s) found');
+    btRenderDevices(data.devices, 'scan');
+  }catch(e){
+    btSetStatus('✕ Bluetooth helper unreachable — is pi/bluetooth_server.py running on this Pi? (see pi/README.md)');
+    console.warn('[bt] scan failed:', e && e.message);
+  }
+}
+
+async function btRefreshStatus(){
+  btSetStatus('Checking paired devices…');
+  try{
+    const r = await fetch(btApiUrl('/bt/status'));
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data = await r.json();
+    btSetStatus(data.devices.length + ' paired device(s)');
+    btRenderDevices(data.devices, 'status');
+  }catch(e){
+    btSetStatus('✕ Bluetooth helper unreachable — is pi/bluetooth_server.py running on this Pi? (see pi/README.md)');
+    console.warn('[bt] status failed:', e && e.message);
+  }
+}
+
+async function btPair(mac, name){
+  btSetStatus('Pairing with ' + name + '…');
+  try{
+    const r = await fetch(btApiUrl('/bt/pair'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({mac}),
+    });
+    const data = await r.json();
+    if(data.ok){
+      btSetStatus('✓ Connected to ' + name);
+      btRefreshStatus();
+    } else {
+      btSetStatus('✕ Pairing failed — see browser console for the bluetoothctl log');
+      console.warn('[bt] pair log:', data.log || data.error);
+    }
+  }catch(e){
+    btSetStatus('✕ Bluetooth helper unreachable — is pi/bluetooth_server.py running on this Pi?');
+    console.warn('[bt] pair failed:', e && e.message);
+  }
+}
+
+document.getElementById('bt-scan-btn')?.addEventListener('click', btScan);
+document.getElementById('bt-refresh-btn')?.addEventListener('click', btRefreshStatus);
+
 // Auto-connect on load
 initCubeWs();
 

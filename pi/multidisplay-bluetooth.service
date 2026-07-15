@@ -1,0 +1,16 @@
+[Unit]
+Description=Multidisplay Bluetooth pairing helper (browser -> bluetoothctl bridge)
+After=bluetooth.target network.target
+
+[Service]
+# Adjust the path below to wherever this repo lives on the Pi, and the User
+# to whichever account is logged into the desktop session — this needs a
+# real PulseAudio/PipeWire user session to route audio, so it must NOT run
+# as root or a headless system user.
+ExecStart=/usr/bin/python3 /home/pi/multidisplay/pi/bluetooth_server.py
+Restart=on-failure
+RestartSec=3
+User=pi
+
+[Install]
+WantedBy=multi-user.target
