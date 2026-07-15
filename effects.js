@@ -2960,7 +2960,11 @@ function renderSpectrumStyle(dt){
 
 function effectSpectrum(dt){
   t+=dt;
-  if(micOn && auAnalyser) readMicSpectrum(dt); else genSimSpectrum(dt);
+  // radioPlaying is true whenever the Internet Radio effect has a stream
+  // going — Radio calls this exact same function rather than keeping its
+  // own parallel copy, so both effects are guaranteed identical visuals.
+  const haveRealAudio = (micOn || (radioPlaying && !radioAnalyserSilent)) && auAnalyser;
+  if(haveRealAudio) readMicSpectrum(dt); else genSimSpectrum(dt);
   // Advance scroll
   if(auScrollSpeed>0) auScrollX=(auScrollX+dt*auScrollSpeed*SIZE*1.5*auScrollDir+4*SIZE)%(4*SIZE);
   for(let i=0;i<N*3;i++) colBuf[i]=0;
@@ -3117,22 +3121,20 @@ function radioSetVolume(v){
   if(radioAudioEl) radioAudioEl.volume=v;
 }
 
+// Internet Radio's visualizer IS the Spectrum Analyser — effectSpectrum(dt)
+// does the actual rendering (see its haveRealAudio check, which already
+// knows about radioPlaying/radioAnalyserSilent). This just tracks the
+// CORS-silent-stream detection and adds the now-playing ticker on top.
 function effectRadio(dt){
-  t+=dt;
   if(radioPlaying && auAnalyser && !radioAnalyserSilent){
-    readMicSpectrum(dt);
     if(auAutoPeak<=0.13) radioSilentTimer+=dt; else radioSilentTimer=0;
     if(radioSilentTimer>4){
       radioAnalyserSilent=true;
       const el=radioStatusEl();
       if(el && radioNowPlaying) el.textContent='▶ '+radioNowPlaying.name+' (visualizer simulated — station blocks audio analysis)';
     }
-  } else {
-    genSimSpectrum(dt);
   }
-  if(auScrollSpeed>0) auScrollX=(auScrollX+dt*auScrollSpeed*SIZE*1.5*auScrollDir+4*SIZE)%(4*SIZE);
-  for(let i=0;i<N*3;i++) colBuf[i]=0;
-  renderSpectrumStyle(dt);
+  effectSpectrum(dt);
   const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
   radioDrawTicker(0, dt);
   if(!is2D) radioDrawTicker(2, dt);
