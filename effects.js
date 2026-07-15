@@ -2921,7 +2921,53 @@ const RADIO_STATIONS=[
   {name:'SomaFM Secret Agent',   genre:'Spy Lounge',         url:'https://ice1.somafm.com/secretagent-128-mp3'},
   {name:'SomaFM Boot Liquor',    genre:'Americana',          url:'https://ice1.somafm.com/bootliquor-128-mp3'},
 ];
-let radioAudioEl=null, radioSource=null, radioPlaying=false, radioStationIdx=-1, radioError='';
+let radioAudioEl=null, radioSource=null, radioPlaying=false, radioError='';
+let radioNowPlaying=null;   // {name, genre} of the currently loaded station
+let radioScrollX=0;
+
+// Radio Browser (radio-browser.info) — a free, community-run directory of
+// tens of thousands of internet radio streams, no API key needed. It's
+// served from several equivalent mirror hosts; if the first one is down or
+// unreachable we retry once against a second mirror, same "don't collapse
+// a failure into a bare error" spirit as f1-providers.js's f1Fetch().
+const RADIO_BROWSER_MIRRORS=['https://de1.api.radio-browser.info','https://nl1.api.radio-browser.info'];
+let radioSearchResults=[], radioSearching=false, radioSearchError='';
+
+async function radioBrowserFetch(path){
+  let lastErr=null;
+  for(const base of RADIO_BROWSER_MIRRORS){
+    try{
+      const r=await fetch(base+path);
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      return await r.json();
+    }catch(e){ lastErr=e; }
+  }
+  throw lastErr || new Error('all mirrors failed');
+}
+
+async function radioSearchStations(query){
+  radioSearching=true; radioSearchError='';
+  const st=document.getElementById('radio-search-status');
+  if(st) st.textContent='Searching…';
+  try{
+    const path = query
+      ? '/json/stations/search?name='+encodeURIComponent(query)+'&limit=60&hidebroken=true&order=clickcount&reverse=true'
+      : '/json/stations/topclick/60?hidebroken=true';
+    const data = await radioBrowserFetch(path);
+    radioSearchResults = (data||[]).filter(s=>s.url_resolved||s.url).map(s=>({
+      name: s.name || 'Unnamed station',
+      genre: (s.tags||'').split(',').slice(0,2).join(', ') || s.country || '',
+      url: s.url_resolved || s.url,
+    }));
+    if(st) st.textContent = radioSearchResults.length + ' stations found';
+  }catch(e){
+    radioSearchError='Directory unreachable — try again, or use the featured list below';
+    if(st) st.textContent='✕ '+radioSearchError;
+    console.warn('[radio] search failed:', e && e.message);
+  }
+  radioSearching=false;
+  if(typeof radioRenderSearchResults==='function') radioRenderSearchResults();
+}
 
 function radioStatusEl(){ return document.getElementById('radio-status'); }
 
@@ -2950,16 +2996,19 @@ function radioEnsureGraph(){
   }
 }
 
-async function radioPlay(idx){
-  const st=RADIO_STATIONS[idx]; if(!st) return;
+// station: {name, genre, url} — from RADIO_STATIONS (featured) or a
+// radioSearchResults entry (directory search), same shape either way.
+async function radioPlay(station){
+  if(!station || !station.url) return;
   radioError='';
   radioEnsureGraph();
-  radioStationIdx=idx;
-  radioAudioEl.src=st.url;
+  radioNowPlaying=station;
+  radioScrollX=0;
+  radioAudioEl.src=station.url;
   try{
     await radioAudioEl.play();
     radioPlaying=true;
-    const el=radioStatusEl(); if(el) el.textContent='▶ '+st.name+' — '+st.genre;
+    const el=radioStatusEl(); if(el) el.textContent='▶ '+station.name+(station.genre?' — '+station.genre:'');
   }catch(e){
     radioPlaying=false;
     radioError='Could not start playback (tap play again — browsers require a user click to start audio)';
@@ -2973,6 +3022,25 @@ function radioStop(){
   const el=radioStatusEl(); if(el) el.textContent='Stopped';
 }
 
+// Scrolling now-playing name, drawn as a thin ticker over the bottom rows
+// of face 0 — on top of whatever the visualizer already drew there, not a
+// full-face redraw, so the bars keep showing above it.
+function radioDrawTicker(face, dt){
+  if(!radioNowPlaying) return;
+  const label = radioNowPlaying.name + (radioNowPlaying.genre ? '  •  ' + radioNowPlaying.genre : '') + '    ';
+  const textW = label.length * WC_CHAR_W;
+  radioScrollX += dt * 14;
+  if(radioScrollX > textW) radioScrollX -= textW;
+  const sv = 1;   // near the bottom edge
+  let u = -Math.floor(radioScrollX);
+  while(u < SIZE){
+    for(const ch of label){
+      u += wcDrawGlyph(face, ch, u, sv, [0.6,0.85,1]);
+      if(u > SIZE) break;
+    }
+  }
+}
+
 function radioSetVolume(v){
   if(radioAudioEl) radioAudioEl.volume=v;
 }
@@ -2983,6 +3051,9 @@ function effectRadio(dt){
   if(auScrollSpeed>0) auScrollX=(auScrollX+dt*auScrollSpeed*SIZE*1.5*auScrollDir+4*SIZE)%(4*SIZE);
   for(let i=0;i<N*3;i++) colBuf[i]=0;
   renderSpectrumStyle(dt);
+  const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+  radioDrawTicker(0, dt);
+  if(!is2D) radioDrawTicker(2, dt);
 }
 
 // ═══════════════════════════════════════════════════

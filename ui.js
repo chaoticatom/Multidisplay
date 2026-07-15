@@ -3587,29 +3587,48 @@ function streamFrameToCube(dt) {
 // ═══════════════════════════════════════════════════
 //  INTERNET RADIO — station list + transport controls
 // ═══════════════════════════════════════════════════
+function radioMakeStationBtn(st, container){
+  const b = document.createElement('button');
+  b.className = 'radio-station-btn';
+  b.style.cssText = 'width:100%;text-align:left;padding:6px 10px;margin-bottom:4px;background:rgba(120,160,255,0.08);border:1px solid rgba(120,160,255,0.25);color:#cdd8ff;border-radius:4px;cursor:pointer;font-size:11px;';
+  b.textContent = st.name + (st.genre ? ' — ' + st.genre : '');
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.radio-station-btn').forEach(x=>x.style.background='rgba(120,160,255,0.08)');
+    b.style.background = 'rgba(120,160,255,0.3)';
+    radioPlay(st);
+  });
+  container.appendChild(b);
+}
+
 function radioBuildStationList(){
   const wrap = document.getElementById('radio-station-list');
   if(!wrap || typeof RADIO_STATIONS === 'undefined') return;
   wrap.innerHTML = '';
-  RADIO_STATIONS.forEach((st, i)=>{
-    const b = document.createElement('button');
-    b.className = 'radio-station-btn';
-    b.style.cssText = 'width:100%;text-align:left;padding:6px 10px;margin-bottom:4px;background:rgba(120,160,255,0.08);border:1px solid rgba(120,160,255,0.25);color:#cdd8ff;border-radius:4px;cursor:pointer;font-size:11px;';
-    b.textContent = st.name + ' — ' + st.genre;
-    b.addEventListener('click', ()=>{
-      document.querySelectorAll('.radio-station-btn').forEach(x=>x.style.background='rgba(120,160,255,0.08)');
-      b.style.background = 'rgba(120,160,255,0.3)';
-      radioPlay(i);
-    });
-    wrap.appendChild(b);
-  });
+  RADIO_STATIONS.forEach(st=>radioMakeStationBtn(st, wrap));
 }
 radioBuildStationList();
+
+// Called by effects.js's radioSearchStations() once results (or an error)
+// come back — kept in ui.js since it's DOM rendering, not station logic.
+function radioRenderSearchResults(){
+  const wrap = document.getElementById('radio-search-results');
+  if(!wrap || typeof radioSearchResults === 'undefined') return;
+  wrap.innerHTML = '';
+  radioSearchResults.forEach(st=>radioMakeStationBtn(st, wrap));
+}
 
 document.getElementById('radio-stop-btn')?.addEventListener('click', radioStop);
 document.getElementById('radio-vol')?.addEventListener('input', e=>{
   radioSetVolume(parseFloat(e.target.value));
 });
+document.getElementById('radio-search-btn')?.addEventListener('click', ()=>{
+  const q = document.getElementById('radio-search-input')?.value.trim() || '';
+  radioSearchStations(q);
+});
+document.getElementById('radio-search-input')?.addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ e.preventDefault(); document.getElementById('radio-search-btn')?.click(); }
+});
+document.getElementById('radio-browse-top-btn')?.addEventListener('click', ()=>radioSearchStations(''));
 
 // Auto-connect on load
 initCubeWs();
