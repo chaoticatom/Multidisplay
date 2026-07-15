@@ -2277,8 +2277,11 @@ function auHash01(n){
   const x = Math.sin(n*12.9898)*43758.5453;
   return x - Math.floor(x);
 }
+// Kept fairly subtle on purpose: strong enough that neighboring columns
+// read as distinct, not so strong that it drowns out the actual bass (left)
+// -> treble (right) envelope the column order is built on.
 const auBandJitter = new Float32Array(AUDIO_BANDS);
-for(let i=0;i<AUDIO_BANDS;i++) auBandJitter[i] = 0.45 + 0.85*auHash01(i*7.31+1);
+for(let i=0;i<AUDIO_BANDS;i++) auBandJitter[i] = 0.8 + 0.35*auHash01(i*7.31+1);
 
 function auSmooth(b, target, dt){
   // fast attack, slow release — classic analyser ballistics
