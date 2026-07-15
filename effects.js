@@ -2250,7 +2250,7 @@ function effectNebula(dt){
 //  SPECTRUM ANALYSER / VU METER
 //  Simulated music engine + optional live microphone
 // ═══════════════════════════════════════════════════
-let spectrumBandOverride = 64; // can be set by UI to 8, 16, 32, 64, 128, 200
+let spectrumBandOverride = 64; // can be set by UI to 8, 16, 32, 64, 128, 256
 let spectrumFitToScreen = false;
 const AUDIO_BANDS = 256; // headroom for the finer 128/200-band presets
 let auSpec  = new Float32Array(AUDIO_BANDS);   // smoothed band levels 0..1
