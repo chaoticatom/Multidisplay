@@ -2874,12 +2874,9 @@ function drawFireStyle(dt){
   }
 }
 
-function effectSpectrum(dt){
-  t+=dt;
-  if(micOn && auAnalyser) readMicSpectrum(dt); else genSimSpectrum(dt);
-  // Advance scroll
-  if(auScrollSpeed>0) auScrollX=(auScrollX+dt*auScrollSpeed*SIZE*1.5*auScrollDir+4*SIZE)%(4*SIZE);
-  for(let i=0;i<N*3;i++) colBuf[i]=0;
+// Shared by effectSpectrum and effectRadio — same band-reactive drawing
+// styles regardless of where the audio data (auSpec/auAnalyser) comes from.
+function renderSpectrumStyle(dt){
   switch(auStyle){
     case 'mirror':    drawBandBars(true);       break;
     case 'dots':      drawDotsStyle();           break;
@@ -2896,6 +2893,96 @@ function effectSpectrum(dt){
     case 'fire':      drawFireStyle(dt);        break;
     default:          drawBandBars(false);
   }
+}
+
+function effectSpectrum(dt){
+  t+=dt;
+  if(micOn && auAnalyser) readMicSpectrum(dt); else genSimSpectrum(dt);
+  // Advance scroll
+  if(auScrollSpeed>0) auScrollX=(auScrollX+dt*auScrollSpeed*SIZE*1.5*auScrollDir+4*SIZE)%(4*SIZE);
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+  renderSpectrumStyle(dt);
+}
+
+// ═══════════════════════════════════════════════════
+//  INTERNET RADIO
+//  Plays a curated list of public streams through an <audio> element and
+//  reuses the Spectrum Analyser's band engine/drawing styles to visualize
+//  it — same auAnalyser/auStyle/auTheme pipeline, just fed from a radio
+//  stream instead of the microphone.
+// ═══════════════════════════════════════════════════
+const RADIO_STATIONS=[
+  {name:'SomaFM Groove Salad',   genre:'Ambient/Downtempo', url:'https://ice1.somafm.com/groovesalad-128-mp3'},
+  {name:'SomaFM Drone Zone',     genre:'Ambient',            url:'https://ice1.somafm.com/dronezone-128-mp3'},
+  {name:'SomaFM Space Station',  genre:'Space Music',        url:'https://ice1.somafm.com/spacestation-128-mp3'},
+  {name:'SomaFM Beat Blender',   genre:'Electronica',        url:'https://ice1.somafm.com/beatblender-128-mp3'},
+  {name:'SomaFM Indie Pop Rocks',genre:'Indie Pop',          url:'https://ice1.somafm.com/indiepop-128-mp3'},
+  {name:'SomaFM Lush',           genre:'Mellow Vocals',      url:'https://ice1.somafm.com/lush-128-mp3'},
+  {name:'SomaFM Secret Agent',   genre:'Spy Lounge',         url:'https://ice1.somafm.com/secretagent-128-mp3'},
+  {name:'SomaFM Boot Liquor',    genre:'Americana',          url:'https://ice1.somafm.com/bootliquor-128-mp3'},
+];
+let radioAudioEl=null, radioSource=null, radioPlaying=false, radioStationIdx=-1, radioError='';
+
+function radioStatusEl(){ return document.getElementById('radio-status'); }
+
+function radioEnsureGraph(){
+  if(!radioAudioEl){
+    radioAudioEl=new Audio();
+    radioAudioEl.crossOrigin='anonymous';
+    radioAudioEl.addEventListener('error', ()=>{
+      radioError='Stream failed to load — try another station';
+      radioPlaying=false;
+      const st=radioStatusEl(); if(st) st.textContent='✕ '+radioError;
+    });
+  }
+  auCtx = auCtx || new (window.AudioContext||window.webkitAudioContext)();
+  if(auCtx.state==='suspended') auCtx.resume();
+  if(!radioSource){
+    radioSource=auCtx.createMediaElementSource(radioAudioEl);
+    auAnalyser=auAnalyser || auCtx.createAnalyser();
+    auAnalyser.fftSize=2048; auAnalyser.smoothingTimeConstant=0.45;
+    micBuf=micBuf || new Uint8Array(auAnalyser.frequencyBinCount);
+    // Route through the analyser AND back out to speakers — creating a
+    // MediaElementSource replaces the <audio> tag's default output path,
+    // so without this explicit connect() the stream would play silently.
+    radioSource.connect(auAnalyser);
+    auAnalyser.connect(auCtx.destination);
+  }
+}
+
+async function radioPlay(idx){
+  const st=RADIO_STATIONS[idx]; if(!st) return;
+  radioError='';
+  radioEnsureGraph();
+  radioStationIdx=idx;
+  radioAudioEl.src=st.url;
+  try{
+    await radioAudioEl.play();
+    radioPlaying=true;
+    const el=radioStatusEl(); if(el) el.textContent='▶ '+st.name+' — '+st.genre;
+  }catch(e){
+    radioPlaying=false;
+    radioError='Could not start playback (tap play again — browsers require a user click to start audio)';
+    const el=radioStatusEl(); if(el) el.textContent='✕ '+radioError;
+  }
+}
+
+function radioStop(){
+  if(radioAudioEl) radioAudioEl.pause();
+  radioPlaying=false;
+  const el=radioStatusEl(); if(el) el.textContent='Stopped';
+}
+
+function radioSetVolume(v){
+  if(radioAudioEl) radioAudioEl.volume=v;
+}
+
+function effectRadio(dt){
+  t+=dt;
+  if(radioPlaying && auAnalyser) readMicSpectrum(dt); else genSimSpectrum(dt);
+  if(auScrollSpeed>0) auScrollX=(auScrollX+dt*auScrollSpeed*SIZE*1.5*auScrollDir+4*SIZE)%(4*SIZE);
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+  renderSpectrumStyle(dt);
 }
 
 // ═══════════════════════════════════════════════════

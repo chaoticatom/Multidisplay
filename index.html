@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=799">
+<link rel="stylesheet" href="style.css?v=800">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -599,6 +599,17 @@
       <span id="au-scroll-val" style="display:none;"></span>
       <button id="mic-btn" style="margin-top:8px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">🎤 START MIC</button>
       <div id="mic-status" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="radio">◈ Internet Radio <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-radio">
+      <div id="radio-station-list" style="margin-bottom:8px;"></div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+        <button id="radio-stop-btn" style="flex:0 0 auto;padding:6px 12px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.25);color:#f88;border-radius:4px;cursor:pointer;font-size:11px;">■ Stop</button>
+        <span class="ov-label" style="flex:0 0 auto;">Vol</span>
+        <input id="radio-vol" type="range" min="0" max="1" step="0.05" value="0.8" style="flex:1;">
+      </div>
+      <div id="radio-status" style="font-size:10px;color:#778;text-align:center;">Pick a station</div>
+      <div style="font-size:10px;color:#666;margin-top:8px;">Visual style/colour theme reuse the Spectrum Analyser controls above. Bars react to actual stream audio when the station allows it — some streams may only show the simulated pattern.</div>
     </div>
     <button class="effect-btn has-panel" data-effect="video">◈ Video Display <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-video">
@@ -1262,7 +1273,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=799"></script>
+<script src="version.js?v=800"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1326,7 +1337,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=799','effects.js?v=799','ui.js?v=799'];
+  const appScripts = ['cube.js?v=800','effects.js?v=800','ui.js?v=800'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';

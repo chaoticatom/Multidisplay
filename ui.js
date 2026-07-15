@@ -1290,6 +1290,7 @@ const EFFECTS={
   epic:effectEPIC,
   iss:effectISS,
   cam:effectCam,
+  radio:effectRadio,
 };
 const EFFECT_NAMES={
   wave:'Wave Cascade', rain:'Colour Rain', plasma:'Plasma Storm', sphere:'Laser Grid',
@@ -1316,6 +1317,7 @@ const EFFECT_NAMES={
   epic:'Earth Live View',
   iss:'ISS Tracker',
   cam:'Camera',
+  radio:'Internet Radio',
 };
 
 // ═══════════════════════════════════════════════════
@@ -1333,7 +1335,7 @@ const EFFECT_SECTION_MAP = {
   balls:'',sand:'',lightning:'',warp:'',life:'',fluid:'',
 };
 
-const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','artic','joke','otd','trivia','epic','iss','cam']);
+const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','artic','joke','otd','trivia','epic','iss','cam','radio']);
 populateAlarmEffectRiseSelect(); // safe here — EFFECT_NAMES now defined
 
 async function fetchCitiesFromAPI(){
@@ -3581,6 +3583,33 @@ function streamFrameToCube(dt) {
     cubeWs.send(buf.buffer);
   }
 }
+
+// ═══════════════════════════════════════════════════
+//  INTERNET RADIO — station list + transport controls
+// ═══════════════════════════════════════════════════
+function radioBuildStationList(){
+  const wrap = document.getElementById('radio-station-list');
+  if(!wrap || typeof RADIO_STATIONS === 'undefined') return;
+  wrap.innerHTML = '';
+  RADIO_STATIONS.forEach((st, i)=>{
+    const b = document.createElement('button');
+    b.className = 'radio-station-btn';
+    b.style.cssText = 'width:100%;text-align:left;padding:6px 10px;margin-bottom:4px;background:rgba(120,160,255,0.08);border:1px solid rgba(120,160,255,0.25);color:#cdd8ff;border-radius:4px;cursor:pointer;font-size:11px;';
+    b.textContent = st.name + ' — ' + st.genre;
+    b.addEventListener('click', ()=>{
+      document.querySelectorAll('.radio-station-btn').forEach(x=>x.style.background='rgba(120,160,255,0.08)');
+      b.style.background = 'rgba(120,160,255,0.3)';
+      radioPlay(i);
+    });
+    wrap.appendChild(b);
+  });
+}
+radioBuildStationList();
+
+document.getElementById('radio-stop-btn')?.addEventListener('click', radioStop);
+document.getElementById('radio-vol')?.addEventListener('input', e=>{
+  radioSetVolume(parseFloat(e.target.value));
+});
 
 // Auto-connect on load
 initCubeWs();
