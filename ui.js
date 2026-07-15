@@ -616,6 +616,31 @@ function buildAlarmEffectOpts(key){
     sl.addEventListener('input',()=>{sv.textContent=parseFloat(sl.value).toFixed(1)+'x';alarmEffectRiseOpts.auGain=parseFloat(sl.value);});
     const sr=document.createElement('div');sr.className='slider-row';sr.appendChild(sl);sr.appendChild(sv);
     c.appendChild(sr);
+  } else if(key==='radio'){
+    c.style.display='block';
+    c.appendChild(mkLabel('Station'));
+    const sel=document.createElement('select');
+    sel.style.cssText='width:100%;padding:5px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:12px;border-radius:4px;';
+    sel.innerHTML='<option value="">-- choose station --</option>';
+    if(typeof RADIO_STATIONS!=='undefined'){
+      RADIO_STATIONS.forEach((st,i)=>{
+        const o=document.createElement('option');
+        o.value=i; o.textContent=st.name+(st.genre?' — '+st.genre:'');
+        if(opts.radioUrl===st.url) o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+    sel.addEventListener('change',()=>{
+      const st=typeof RADIO_STATIONS!=='undefined'?RADIO_STATIONS[parseInt(sel.value)]:null;
+      if(st){ alarmEffectRiseOpts.radioName=st.name; alarmEffectRiseOpts.radioGenre=st.genre; alarmEffectRiseOpts.radioUrl=st.url; }
+      else { delete alarmEffectRiseOpts.radioName; delete alarmEffectRiseOpts.radioGenre; delete alarmEffectRiseOpts.radioUrl; }
+    });
+    c.appendChild(sel);
+    c.appendChild(mkLabel(''));
+    const note=document.createElement('div');
+    note.style.cssText='font-size:10px;color:#666;';
+    note.textContent='Starts this station when the alarm fires. Volume follows the pre-alarm/wind-down ramp, same as brightness.';
+    c.appendChild(note);
   } else if(key==='maze'){
     c.style.display='block';
     c.appendChild(mkLabel('Runners'));
@@ -3369,6 +3394,13 @@ function animate(now){
             const sel=document.getElementById('wx-city');
             if(sel) sel.value=activeAlarm.al.prealarm.effectRiseCity;
             if(typeof wxFetch==='function') wxFetch();
+          }
+        }
+        if(efKey==='radio' && activeAlarm.al.prealarm.effectRiseOpts?.radioUrl){
+          if(!activeAlarm._radioSetup){
+            activeAlarm._radioSetup=true;
+            const ro=activeAlarm.al.prealarm.effectRiseOpts;
+            if(typeof radioPlay==='function') radioPlay({name:ro.radioName||'Alarm Station', genre:ro.radioGenre||'', url:ro.radioUrl});
           }
         }
         if(EFFECTS[efKey]){
