@@ -2284,9 +2284,11 @@ const auBandJitter = new Float32Array(AUDIO_BANDS);
 for(let i=0;i<AUDIO_BANDS;i++) auBandJitter[i] = 0.8 + 0.35*auHash01(i*7.31+1);
 
 function auSmooth(b, target, dt){
-  // fast attack, slow release — classic analyser ballistics
-  if(target > auSpec[b]) auSpec[b] += (target-auSpec[b])*Math.min(1, dt*28);
-  else                   auSpec[b] += (target-auSpec[b])*Math.min(1, dt*6.5);
+  // Slower attack/release than a "real" level meter, on purpose — this is
+  // a visual effect, not a measurement tool, and a snappy instant jump
+  // reads as jagged/twitchy rather than a smooth flowing wave motion.
+  if(target > auSpec[b]) auSpec[b] += (target-auSpec[b])*Math.min(1, dt*9);
+  else                   auSpec[b] += (target-auSpec[b])*Math.min(1, dt*4);
   if(auSpec[b] > auPeak[b]){ auPeak[b]=auSpec[b]; auPeakV[b]=0; }
   else { auPeakV[b]+=dt*1.6; auPeak[b]=Math.max(0, auPeak[b]-auPeakV[b]*dt); }
 }
