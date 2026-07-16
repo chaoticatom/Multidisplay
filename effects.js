@@ -2252,6 +2252,21 @@ function effectNebula(dt){
 // ═══════════════════════════════════════════════════
 let spectrumBandOverride = 64; // can be set by UI to 8, 16, 32, 64, 128, 256
 let spectrumFitToScreen = false;
+let auFitScale = 1;
+// Fit to Screen: rescales the bar-style displays (bars/mirror/dots/blocks/
+// outline) each frame so the loudest current band reaches near the top of
+// the face, instead of however tall the raw level + Gain happen to land.
+// Smoothed so it doesn't visibly pump on every transient.
+function auUpdateFitScale(){
+  if(!spectrumFitToScreen){ auFitScale=1; return; }
+  const AB=spectrumBandOverride||AUDIO_BANDS;
+  let mx=0;
+  for(let b=0;b<AB;b++){ if(auSpec[b]>mx) mx=auSpec[b]; }
+  const target = mx>0.015 ? Math.min(3.5, 0.94/mx) : auFitScale;
+  auFitScale += (target-auFitScale)*0.12;
+}
+function auAmp(b){ return Math.min(1, auSpec[b]*auFitScale); }
+function auPk(b){ return Math.min(1, auPeak[b]*auFitScale); }
 const AUDIO_BANDS = 256; // headroom for the finer 128/200-band presets
 let auSpec  = new Float32Array(AUDIO_BANDS);   // smoothed band levels 0..1
 let auPeak  = new Float32Array(AUDIO_BANDS);   // falling peak-hold dots
@@ -2475,7 +2490,7 @@ function drawDotsStyle(){
   let cols=panel2dMode?SIZE:4*S; // single visible face in 2D mode gets all the bands, not a quarter of them
   for(let c=0;c<cols;c++){
     const b=scrolledBand(c,cols,AB);
-    const amp=auSpec[b], fb=b/(AB-1);
+    const amp=auAmp(b), fb=b/(AB-1);
     const fu=sideCol(c), face=fu[0], u=fu[1];
     const h=amp*M;
     const ly=Math.min(M,Math.round(h));
@@ -2489,7 +2504,7 @@ function drawDotsStyle(){
       if(isLead){ auBloom(face,u,y,col,1.3); auGlowAround(face,u,y,col,2,0.4); }
     }
     // Peak dot — bright glowing cap, tinted by the bar's own colour
-    const peakY=Math.min(M,Math.round(auPeak[b]*M));
+    const peakY=Math.min(M,Math.round(auPk(b)*M));
     auDrawPeakCap(face,u,peakY,auColor(fb,1,amp));
   }
   drawPolarFace(4); drawPolarFace(5);
@@ -2505,7 +2520,7 @@ function drawBlocksStyle(){
   // zero times and draw nothing at all.
   const dcMax = bandW>1 ? bandW-1 : 1;
   for(let b=0;b<AB;b++){
-    const amp=auSpec[b], fb=b/(AB-1);
+    const amp=auAmp(b), fb=b/(AB-1);
     const blocks=Math.round(amp*(S/BLOCK));
     for(let blk=0;blk<blocks;blk++){
       const fh=blocks>0?blk/blocks:0;
@@ -2535,7 +2550,7 @@ function drawBlocksStyle(){
       }
     }
     // Peak block — bright glowing cap tinted by the bar's own colour
-    const pkBlk=Math.round(auPeak[b]*(S/BLOCK));
+    const pkBlk=Math.round(auPk(b)*(S/BLOCK));
     const pkY=pkBlk*BLOCK;
     const tint=auColor(fb,1,amp);
     for(let dy=0;dy<BLOCK-1;dy++){
@@ -2561,11 +2576,11 @@ function drawOutlineStyle(){
   const pts=new Float32Array(cols);
   for(let c=0;c<cols;c++){
     const b=scrolledBand(c,cols,AB);
-    pts[c]=auSpec[b]*M;
+    pts[c]=auAmp(b)*M;
   }
   for(let c=0;c<cols;c++){
     const b=scrolledBand(c,cols,AB);
-    const fb=b/(AB-1), amp=auSpec[b];
+    const fb=b/(AB-1), amp=auAmp(b);
     const fu=sideCol(c), face=fu[0], u=fu[1];
     const yHere=pts[c], yNext=pts[(c+1)%cols];
     const y0=Math.round(yHere);
@@ -2589,7 +2604,7 @@ function drawOutlineStyle(){
     }
     auGlowAround(face,u,y0,col,3,0.45);
 
-    auDrawPeakCap(face,u,Math.min(M,Math.round(auPeak[b]*M)),col);
+    auDrawPeakCap(face,u,Math.min(M,Math.round(auPk(b)*M)),col);
   }
   drawPolarFace(4); drawPolarFace(5);
 }
@@ -2640,7 +2655,7 @@ function drawBandBars(mirror){
     // column IS a bar, so skipping "the last column of each bar" would
     // skip every single column and draw nothing at all.
     if(S>8 && barW>1 && c%barW===barW-1) continue;
-    const amp=auSpec[b], fb=b/(AB-1);
+    const amp=auAmp(b), fb=b/(AB-1);
     const fu=sideCol(c), face=fu[0], u=fu[1];
 
     if(mirror){
@@ -2655,7 +2670,7 @@ function drawBandBars(mirror){
           else setFaceLED(face,u,y,col[0]*edgeSoft,col[1]*edgeSoft,col[2]*edgeSoft);
         }
       }
-      const pk=auPeak[b]*S*0.5;
+      const pk=auPk(b)*S*0.5;
       const tint=auColor(fb,1,amp);
       auDrawPeakCap(face,u,Math.min(M,Math.round(mid+pk)),tint);
       auDrawPeakCap(face,u,Math.max(0,Math.round(mid-pk)),tint);
@@ -2679,7 +2694,7 @@ function drawBandBars(mirror){
         auBloom(face,u,tipY,tp,1.5);
         auGlowAround(face,u,tipY,tp,2,0.3);
       }
-      auDrawPeakCap(face,u,Math.max(0,M-Math.round(auPeak[b]*M)),auColor(fb,1,amp));
+      auDrawPeakCap(face,u,Math.max(0,M-Math.round(auPk(b)*M)),auColor(fb,1,amp));
 
     } else if(mode==='center'){
       const mid=(S-1)/2, half=rawH*0.5;
@@ -2692,7 +2707,7 @@ function drawBandBars(mirror){
           setFaceLED(face,u,y,col[0]*edgeSoft,col[1]*edgeSoft,col[2]*edgeSoft);
         }
       }
-      const pk=auPeak[b]*M*0.5;
+      const pk=auPk(b)*M*0.5;
       const tint=auColor(fb,1,amp);
       auDrawPeakCap(face,u,Math.min(M,Math.round(mid+pk)),tint);
       auDrawPeakCap(face,u,Math.max(0,Math.round(mid-pk)),tint);
@@ -2714,7 +2729,7 @@ function drawBandBars(mirror){
           setFaceLED(face,u,y,col[0]*bevel,col[1]*bevel,col[2]*bevel);
         }
       }
-      const pkSeg=Math.round(auPeak[b]*M/SEG);
+      const pkSeg=Math.round(auPk(b)*M/SEG);
       const tint=auColor(fb,1,amp);
       for(let dy=0;dy<SEG-1;dy++){
         const y=pkSeg*SEG+dy; if(y>M) break;
@@ -2741,7 +2756,7 @@ function drawBandBars(mirror){
         auBloom(face,u,hi,tp,1.5);
         auGlowAround(face,u,hi,tp,3,0.4);
       }
-      auDrawPeakCap(face,u,Math.max(0,Math.min(M,Math.round(auPeak[b]*M+waveOff))),auColor(fb,1,amp));
+      auDrawPeakCap(face,u,Math.max(0,Math.min(M,Math.round(auPk(b)*M+waveOff))),auColor(fb,1,amp));
     }
   }
   drawPolarFace(4); drawPolarFace(5);
@@ -3066,6 +3081,7 @@ function drawFireStyle(dt){
 // Band-reactive drawing styles for effectSpectrum, regardless of whether
 // the audio data (auSpec/auAnalyser) came from the mic or a radio stream.
 function renderSpectrumStyle(dt){
+  auUpdateFitScale();
   switch(auStyle){
     case 'mirror':    drawBandBars(true);       break;
     case 'dots':      drawDotsStyle();           break;
