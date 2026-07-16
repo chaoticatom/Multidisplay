@@ -1812,18 +1812,6 @@ document.querySelectorAll('.vid-layout-btn').forEach(b => b.addEventListener('cl
   b.classList.add('active'); vidLayout = b.dataset.layout;
 }));
 
-// Generic "Spectrum Analyser overlay" toggle — any effect panel with audio
-// can offer this checkbox (data-host="<effect key>"); fxSpectrumOverlay
-// (declared in effects.js) is a plain {key: bool} map the host effect
-// checks each frame to decide whether to blend the spectrum bars on top.
-document.querySelectorAll('.fx-spectrum-overlay-chk').forEach(chk => chk.addEventListener('change', () => {
-  const host = chk.dataset.host;
-  fxSpectrumOverlay[host] = chk.checked;
-  document.querySelectorAll(`.fx-spectrum-overlay-body[data-host="${host}"]`).forEach(body=>{
-    body.style.display = chk.checked ? 'block' : 'none';
-  });
-}));
-
 document.querySelectorAll('.vid-tb-btn').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('.vid-tb-btn').forEach(x => x.classList.remove('active'));
   b.classList.add('active'); vidTB = b.dataset.tb;

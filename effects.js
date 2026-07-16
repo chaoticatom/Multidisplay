@@ -3046,13 +3046,10 @@ function effectSpectrum(dt){
   }
 }
 
-// ── Generic Spectrum Analyser overlay ──────────────────────────────────
-// Lets any other effect's panel offer a "Show Spectrum Analyser Overlay"
-// checkbox (see index.html's .fx-spectrum-overlay-chk / data-host pattern).
-// Draws the bars WITHOUT clearing colBuf first, so they blend on top of
-// whatever the host effect already rendered this frame, instead of
-// replacing it — a true overlay, not a takeover.
-let fxSpectrumOverlay = {};
+// ── Spectrum Analyser as a global overlay (see OV.spectrum / ovSpectrumAnalyser
+// below, wired into runOverlays) — draws the bars WITHOUT clearing colBuf
+// first, so they blend on top of whatever main effect is currently running,
+// same as every other overlay, rather than replacing the whole face.
 function drawSpectrumOverlay(dt){
   t+=dt;
   auRefreshCurrentSource(dt);
@@ -6187,6 +6184,7 @@ const OV = {
   mist:     {on:false,intensity:0.22,speed:0.4},
   lightning:{on:false,rate:1.2,width:3,brightness:1},
   radio:    {on:false},
+  spectrum: {on:false},
 };
 
 let ovGlobalBright=1.0;
@@ -6809,6 +6807,7 @@ function runOverlays(dt){
     if(OV.mist.on)      ovMist(dt);
     if(OV.lightning.on) ovLightning(dt);
     if(OV.radio.on)     ovRadio(dt);
+    if(OV.spectrum.on)  drawSpectrumOverlay(dt);
     // Scale only the delta added by overlays
     for(let i=0;i<colBuf.length;i++){
       const delta=colBuf[i]-snap[i];
@@ -6829,6 +6828,7 @@ function runOverlays(dt){
     if(OV.mist.on)      ovMist(dt);
     if(OV.lightning.on) ovLightning(dt);
     if(OV.radio.on)     ovRadio(dt);
+    if(OV.spectrum.on)  drawSpectrumOverlay(dt);
   }
 }
 
@@ -11863,7 +11863,7 @@ function effectVideo(dt){
   t+=dt;
   // Show loaded image if no video playing
   if(!vidReady||!vidEl||vidEl.readyState<2){
-    if(imgLoaded){ renderImg(); if(fxSpectrumOverlay.video) drawSpectrumOverlay(dt); return; }
+    if(imgLoaded){ renderImg(); return; }
     for(let i=0;i<N*3;i++) colBuf[i]=0;
     const pulse=0.5+0.5*Math.sin(t*1.8);
     for(let f=0;f<4;f++){
@@ -11871,7 +11871,6 @@ function effectVideo(dt){
       setFaceLED(f,SIZE>>1,(SIZE>>1)-1,0,pulse*0.3,pulse*0.35);
       setFaceLED(f,SIZE>>1,(SIZE>>1)+1,0,pulse*0.3,pulse*0.35);
     }
-    if(fxSpectrumOverlay.video) drawSpectrumOverlay(dt);
     return;
   }
 
@@ -12006,7 +12005,6 @@ function effectVideo(dt){
         Math.min(1,topBuf[ti*3+2]/topW[ti]*fade));
     }
   } // 'dark' → leave zeroed
-  if(fxSpectrumOverlay.video) drawSpectrumOverlay(dt);
 }
 
 // ── RANDOM CHAOS ──
