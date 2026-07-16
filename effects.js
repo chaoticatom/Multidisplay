@@ -2437,10 +2437,15 @@ function auColor(fb, fh, amp){
     case 4:  return hsl(0.34, 1, 0.10+fh*0.50+amp*0.06);                               // Matrix
     case 5:  return hsl(fb*0.85+t*0.05, 0.55, 0.35+fh*0.35+amp*0.08);                 // Pastel
     case 6: {                                                                          // VU Meter
-      // Smooth hue sweep bottom-to-top: green -> yellow -> orange -> red,
-      // no hard bands — a continuous HSL interpolation, not discrete zones.
-      const hue = 0.34*(1-fh)*(1-fh);   // squared falloff keeps more of the
-      const light = Math.min(0.72, 0.20+fh*0.34+amp*0.18);   // bar green/yellow before red arrives right at the tip
+      // Smooth hue sweep bottom-to-top: green -> yellow over most of the
+      // bar's height, red reserved for just the top ~25% — two linear
+      // segments meeting at the yellow point, so it's still one continuous
+      // gradient (no visible seam), just weighted toward yellow overall.
+      const yellowAt=0.75;
+      const hue = fh<yellowAt
+        ? 0.34-(0.34-0.15)*(fh/yellowAt)
+        : 0.15-0.15*((fh-yellowAt)/(1-yellowAt));
+      const light = Math.min(0.72, 0.20+fh*0.34+amp*0.18);
       return hsl(hue, 1, light);
     }
     default: return hsl(fb*0.85, 1, 0.18+fh*0.38+amp*0.1);                             // Rainbow
