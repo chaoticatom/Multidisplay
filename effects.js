@@ -2264,24 +2264,31 @@ let songT = 0, auRings = [], auPrevBass = 0;
 let vuL=0, vuR=0, vuPkL=0, vuPkR=0, vuPkVL=0, vuPkVR=0;
 let micOn=false, auCtx=null, auAnalyser=null, micBuf=null;
 
-// Fixed per-band jitter, computed once and reused every frame (not
-// re-randomized per frame, which would just flicker). Both the simulated
-// pattern (smooth Gaussian curves) and real FFT data (averaged over wide
-// log-spaced bins) are naturally smooth from one column to the next —
-// without this, adjacent bars land close enough together to look like the
-// same handful of "groups" instead of 64 independently-reading columns.
-// Real spectrum analyzers show this kind of jagged column-to-column
-// variation because raw FFT bins genuinely differ that much; our smoothed/
-// averaged data doesn't, so this fakes that same jaggedness deliberately.
 function auHash01(n){
   const x = Math.sin(n*12.9898)*43758.5453;
   return x - Math.floor(x);
 }
-// Kept fairly subtle on purpose: strong enough that neighboring columns
-// read as distinct, not so strong that it drowns out the actual bass (left)
-// -> treble (right) envelope the column order is built on.
-const auBandJitter = new Float32Array(AUDIO_BANDS);
-for(let i=0;i<AUDIO_BANDS;i++) auBandJitter[i] = 0.8 + 0.35*auHash01(i*7.31+1);
+
+// Spatial smoothing across neighboring bands — a 7-tap weighted average
+// applied to the per-frame target values (not the persistent auSpec state
+// itself, which would just blur into flatness over many frames). This is
+// what gives the bars a continuous rising/falling wave shape from column to
+// column instead of jagged independent spikes, while leaving the actual
+// bass (low band index) -> treble (high band index) ordering untouched,
+// since it only ever blends a band with its immediate neighbors.
+const AU_SMOOTH_KERNEL = [0.06,0.12,0.2,0.24,0.2,0.12,0.06];
+function auSpatialSmooth(src, dst, AB){
+  const half = (AU_SMOOTH_KERNEL.length-1)/2;
+  for(let b=0;b<AB;b++){
+    let sum=0, wsum=0;
+    for(let k=-half;k<=half;k++){
+      const bb=b+k; if(bb<0||bb>=AB) continue;
+      const w=AU_SMOOTH_KERNEL[k+half];
+      sum+=src[bb]*w; wsum+=w;
+    }
+    dst[b]=wsum>0?sum/wsum:src[b];
+  }
+}
 
 function auSmooth(b, target, dt){
   // Slower attack/release than a "real" level meter, on purpose — this is
@@ -2329,10 +2336,11 @@ function genSimSpectrum(dt){
     v += hat  *sm(0.55,1,fb)*0.8;                                 // hats / air
     v += rise *Math.exp(-Math.pow((b32-(7+rise*18))/3.2,2))*0.9;  // riser sweep
     if(sec===3) v += (0.5+0.5*Math.sin(songT*1.2+b32*0.7))*Math.exp(-Math.pow((b32-8)/6,2))*0.5; // break pad
-    v *= auBandJitter[b];                                         // per-column texture — see auBandJitter comment
-    v += 0.025+Math.random()*0.05;                                // noise floor — genuinely independent per band
-    auSmooth(b, Math.min(1, v*boost*auGain), dt);
+    v += 0.01+Math.random()*0.02;                                 // faint noise floor
+    genSimTargetScratch[b]=Math.min(1, v*boost*auGain);
   }
+  auSpatialSmooth(genSimTargetScratch, genSimSmoothScratch, AB);
+  for(let b=0;b<AB;b++) auSmooth(b, genSimSmoothScratch[b], dt);
 }
 
 // ── Live microphone / radio stream via Web Audio FFT (log-mapped into bands) ──
@@ -2344,6 +2352,10 @@ function genSimSpectrum(dt){
 // manual multiplier on top for taste.
 let auAutoPeak = 0.3;
 let auRawScratch = new Float32Array(AUDIO_BANDS);
+let auTargetScratch = new Float32Array(AUDIO_BANDS);
+let auSmoothScratch = new Float32Array(AUDIO_BANDS);
+let genSimTargetScratch = new Float32Array(AUDIO_BANDS);
+let genSimSmoothScratch = new Float32Array(AUDIO_BANDS);
 function readMicSpectrum(dt){
   auAnalyser.getByteFrequencyData(micBuf);
   songT += dt;
@@ -2369,8 +2381,10 @@ function readMicSpectrum(dt){
     // the gap between quiet and loud bands instead of just rescaling them
     // together — same idea as a level meter's gamma/contrast curve.
     const ratio = Math.min(1, auRawScratch[b]/auAutoPeak);
-    auSmooth(b, Math.min(1, Math.pow(ratio, 1.8)*auBandJitter[b]*auGain), dt);
+    auTargetScratch[b] = Math.min(1, Math.pow(ratio, 1.8)*auGain);
   }
+  auSpatialSmooth(auTargetScratch, auSmoothScratch, AB);
+  for(let b=0;b<AB;b++) auSmooth(b, auSmoothScratch[b], dt);
 }
 
 async function toggleMic(){
