@@ -3813,6 +3813,7 @@ document.getElementById('bt-route-phone-btn')?.addEventListener('click', async (
 });
 
 document.getElementById('phone-audio-btn')?.addEventListener('click', togglePhoneAudio);
+document.getElementById('other-audio-btn')?.addEventListener('click', toggleOtherEffectAudio);
 
 // Auto-connect on load
 initCubeWs();
