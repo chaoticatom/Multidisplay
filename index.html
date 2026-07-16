@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=834">
+<link rel="stylesheet" href="style.css?v=835">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -600,6 +600,17 @@
         <div style="font-size:10px;color:#666;margin-bottom:8px;">Accept an incoming Bluetooth audio connection from a phone so it can play through the cube. Requires <code>pi/bluetooth_server.py</code> running on the Raspberry Pi — see <code>pi/README.md</code>. Not available on your laptop or GitHub Pages.</div>
         <button class="bt-discoverable-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Accept Bluetooth Audio Connection</button>
         <div class="bt-phone-status-el" style="font-size:10px;color:#778;">Not set up yet</div>
+      </div>
+    </div>
+
+    <div class="sub-section collapsed">
+      <button class="sub-head">🎤 Microphone <span class="chev">▾</span></button>
+      <div class="sub-body">
+        <div style="font-size:10px;color:#666;margin-bottom:8px;">Pick which microphone feeds the Spectrum Analyser overlay — the cube's own mic, or a phone's mic over Bluetooth (same connection as the Bluetooth section above). Only one can be active at a time.</div>
+        <button class="mic-btn-el" style="width:100%;padding:6px;margin-bottom:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">🎤 START MIC</button>
+        <div class="mic-status-el" style="font-size:10px;color:#778;margin-bottom:6px;text-align:center;"></div>
+        <button class="phone-audio-btn-el" style="width:100%;padding:6px;margin-bottom:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">📱 Use Phone (Bluetooth)</button>
+        <div class="phone-audio-status-el" style="font-size:10px;color:#778;text-align:center;"></div>
       </div>
     </div>
 
@@ -1349,7 +1360,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=834"></script>
+<script src="version.js?v=835"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1413,7 +1424,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=834','effects.js?v=834','ui.js?v=834'];
+  const appScripts = ['cube.js?v=835','effects.js?v=835','ui.js?v=835'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
