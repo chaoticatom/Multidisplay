@@ -2353,6 +2353,7 @@ function readMicSpectrum(dt){
 async function toggleMic(){
   const st=document.getElementById('mic-status'), btn=document.getElementById('mic-btn');
   if(micOn){ micOn=false; btn.textContent='🎤 Use Microphone'; st.textContent='Mic off — bars idle'; return; }
+  if(phoneAudioOn) stopPhoneAudio();
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
     auCtx = auCtx || new (window.AudioContext||window.webkitAudioContext)();
@@ -2364,6 +2365,47 @@ async function toggleMic(){
     micBuf=new Uint8Array(auAnalyser.frequencyBinCount);
     micOn=true; btn.textContent='🎤 Mic LIVE — tap to stop'; st.textContent='Source: microphone';
   }catch(e){ st.textContent='Mic unavailable — bars idle'; }
+}
+
+// Phone-as-sound-source: a Bluetooth phone connected directly to the Pi
+// (see pi/README.md's "phone → Pi → speaker + visualizer" section), routed
+// by pi/bluetooth_server.py into a stable-named "phone_capture" input
+// device the browser can select like any other microphone. Same analyser
+// pipeline as toggleMic() — just a different getUserMedia deviceId.
+let phoneAudioOn=false, phoneAudioStream=null;
+function stopPhoneAudio(){
+  phoneAudioOn=false;
+  if(phoneAudioStream){ phoneAudioStream.getTracks().forEach(t=>t.stop()); phoneAudioStream=null; }
+  const st=document.getElementById('phone-audio-status'), btn=document.getElementById('phone-audio-btn');
+  if(btn) btn.textContent='📱 Use Phone (Bluetooth)';
+  if(st) st.textContent='Phone audio off — bars idle';
+}
+async function togglePhoneAudio(){
+  const st=document.getElementById('phone-audio-status'), btn=document.getElementById('phone-audio-btn');
+  if(phoneAudioOn){ stopPhoneAudio(); return; }
+  if(micOn) toggleMic();
+  try{
+    const devices=await navigator.mediaDevices.enumerateDevices();
+    const dev=devices.find(d=>d.kind==='audioinput' && /phone_capture/i.test(d.label));
+    if(!dev){
+      if(st) st.textContent='Phone capture device not found — pair the phone and click "Route Phone Audio to Speaker" in Setup first';
+      return;
+    }
+    const stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:{exact:dev.deviceId}}});
+    phoneAudioStream=stream;
+    auCtx = auCtx || new (window.AudioContext||window.webkitAudioContext)();
+    if(auCtx.state==='suspended') await auCtx.resume();
+    const src=auCtx.createMediaStreamSource(stream);
+    auAnalyser=auCtx.createAnalyser();
+    auAnalyser.fftSize=2048; auAnalyser.smoothingTimeConstant=0.45;
+    src.connect(auAnalyser);
+    micBuf=new Uint8Array(auAnalyser.frequencyBinCount);
+    micOn=true; phoneAudioOn=true;
+    if(btn) btn.textContent='📱 Phone LIVE — tap to stop';
+    if(st) st.textContent='Source: phone (Bluetooth)';
+  }catch(e){
+    if(st) st.textContent='Phone audio unavailable: '+(e&&e.message||'error');
+  }
 }
 
 // ── Colour themes: fb=band fraction, fh=height fraction, amp=level ──

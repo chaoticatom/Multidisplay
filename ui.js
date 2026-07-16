@@ -3781,6 +3781,39 @@ async function btPair(mac, name){
 document.getElementById('bt-scan-btn')?.addEventListener('click', btScan);
 document.getElementById('bt-refresh-btn')?.addEventListener('click', btRefreshStatus);
 
+function btSetPhoneStatus(text){
+  const el = document.getElementById('bt-phone-status');
+  if(el) el.textContent = text;
+}
+
+document.getElementById('bt-discoverable-btn')?.addEventListener('click', async ()=>{
+  btSetPhoneStatus('Opening pairing window (~120s) — connect from your phone\'s Bluetooth settings now…');
+  try{
+    const r = await fetch(btApiUrl('/bt/discoverable'), {method:'POST'});
+    const data = await r.json();
+    if(data.ok) btSetPhoneStatus('Discoverable — connect from your phone now, then start playing music.');
+    else { btSetPhoneStatus('✕ Could not enable discoverable mode'); console.warn('[bt] discoverable:', data.error); }
+  }catch(e){
+    btSetPhoneStatus('✕ Bluetooth helper unreachable — is pi/bluetooth_server.py running on this Pi?');
+    console.warn('[bt] discoverable failed:', e && e.message);
+  }
+});
+
+document.getElementById('bt-route-phone-btn')?.addEventListener('click', async ()=>{
+  btSetPhoneStatus('Routing phone audio…');
+  try{
+    const r = await fetch(btApiUrl('/bt/route-phone-audio'), {method:'POST'});
+    const data = await r.json();
+    if(data.ok) btSetPhoneStatus('✓ Phone audio routed — use "📱 Use Phone (Bluetooth)" in the Spectrum Analyser panel.');
+    else { btSetPhoneStatus('✕ ' + (Array.isArray(data.log)?data.log[data.log.length-1]:'No phone audio found — is the phone connected and playing music?')); console.warn('[bt] route-phone-audio:', data.log||data.error); }
+  }catch(e){
+    btSetPhoneStatus('✕ Bluetooth helper unreachable — is pi/bluetooth_server.py running on this Pi?');
+    console.warn('[bt] route-phone-audio failed:', e && e.message);
+  }
+});
+
+document.getElementById('phone-audio-btn')?.addEventListener('click', togglePhoneAudio);
+
 // Auto-connect on load
 initCubeWs();
 

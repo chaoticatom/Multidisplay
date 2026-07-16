@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=821">
+<link rel="stylesheet" href="style.css?v=822">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -602,6 +602,9 @@
       <span id="au-scroll-val" style="display:none;"></span>
       <button id="mic-btn" style="margin-top:8px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">🎤 START MIC</button>
       <div id="mic-status" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
+      <button id="phone-audio-btn" style="margin-top:6px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">📱 Use Phone (Bluetooth)</button>
+      <div id="phone-audio-status" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
+      <div style="font-size:10px;color:#666;margin-top:4px;">Pair + route your phone's Bluetooth audio first, under Setup near the bottom of the sidebar. First use may need a one-time microphone permission prompt.</div>
     </div>
     <button class="effect-btn has-panel" data-effect="radio">◈ Internet Radio <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-radio">
@@ -1077,7 +1080,13 @@
         <button id="bt-refresh-btn" style="flex:0 0 auto;padding:6px 10px;background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.4);color:#ccc;border-radius:4px;cursor:pointer;font-size:11px;">↻</button>
       </div>
       <div id="bt-status" style="font-size:10px;color:#778;margin-bottom:6px;">Not checked yet</div>
-      <div id="bt-device-list" style="max-height:180px;overflow-y:auto;"></div>
+      <div id="bt-device-list" style="max-height:180px;overflow-y:auto;margin-bottom:14px;"></div>
+
+      <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">📱 Phone Audio Input (Pi only)</div>
+      <div style="font-size:10px;color:#666;margin-bottom:8px;">Play a phone's music through the cube's Spectrum Analyser <i>and</i> the Bluetooth speaker above, at the same time. Pair the speaker first, then: make the Pi discoverable → connect from the phone's Bluetooth settings → start playing music → route the audio. See <code>pi/README.md</code> for the full walkthrough.</div>
+      <button id="bt-discoverable-btn" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Make Cube Discoverable (pair phone)</button>
+      <button id="bt-route-phone-btn" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Route Phone Audio to Speaker</button>
+      <div id="bt-phone-status" style="font-size:10px;color:#778;">Not set up yet</div>
     </div>
   </div>
 
@@ -1326,7 +1335,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=821"></script>
+<script src="version.js?v=822"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1390,7 +1399,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=821','effects.js?v=821','ui.js?v=821'];
+  const appScripts = ['cube.js?v=822','effects.js?v=822','ui.js?v=822'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
