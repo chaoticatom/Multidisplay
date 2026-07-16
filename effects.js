@@ -2328,6 +2328,33 @@ function phoneSetUI(btnText, statusText){
   document.querySelectorAll('.phone-audio-status-el').forEach(s=>s.textContent=statusText);
 }
 
+// Real stereo for the VU meter style: splits whatever source node is
+// playing into left/right channels and runs a small time-domain analyser
+// on each, so the VU meter reflects the actual left/right levels instead
+// of faking a left/right difference from a single mono level. A genuinely
+// mono source (most phone mics, some stations) will just show matching L/R
+// levels, which is the correct, honest result rather than an artificial one.
+let auAnalyserL=null, auAnalyserR=null, auVuBufL=null, auVuBufR=null;
+function auSetupStereoAnalysers(sourceNode){
+  const splitter=auCtx.createChannelSplitter(2);
+  sourceNode.connect(splitter);
+  auAnalyserL=auCtx.createAnalyser(); auAnalyserL.fftSize=256; auAnalyserL.smoothingTimeConstant=0.2;
+  auAnalyserR=auCtx.createAnalyser(); auAnalyserR.fftSize=256; auAnalyserR.smoothingTimeConstant=0.2;
+  splitter.connect(auAnalyserL,0);
+  splitter.connect(auAnalyserR,1);
+  auVuBufL=new Uint8Array(auAnalyserL.fftSize);
+  auVuBufR=new Uint8Array(auAnalyserR.fftSize);
+}
+function auReadStereoLevels(){
+  if(!auAnalyserL||!auAnalyserR) return {l:0,r:0};
+  auAnalyserL.getByteTimeDomainData(auVuBufL);
+  auAnalyserR.getByteTimeDomainData(auVuBufR);
+  let sl=0, sr=0;
+  for(let i=0;i<auVuBufL.length;i++){ const v=(auVuBufL[i]-128)/128; sl+=v*v; }
+  for(let i=0;i<auVuBufR.length;i++){ const v=(auVuBufR[i]-128)/128; sr+=v*v; }
+  return {l:Math.sqrt(sl/auVuBufL.length), r:Math.sqrt(sr/auVuBufR.length)};
+}
+
 async function toggleMic(){
   if(micOn){ micOn=false; micSetUI('🎤 Use Microphone', 'Mic off — bars idle'); return; }
   if(phoneAudioOn) stopPhoneAudio();
@@ -2340,6 +2367,7 @@ async function toggleMic(){
     auAnalyser.fftSize=2048; auAnalyser.smoothingTimeConstant=0.45;
     src.connect(auAnalyser);
     micBuf=new Uint8Array(auAnalyser.frequencyBinCount);
+    auSetupStereoAnalysers(src);
     micOn=true; micSetUI('🎤 Mic LIVE — tap to stop', 'Source: microphone');
   }catch(e){ micSetUI('🎤 Use Microphone', 'Mic unavailable — bars idle'); }
 }
@@ -2374,6 +2402,7 @@ async function togglePhoneAudio(){
     auAnalyser.fftSize=2048; auAnalyser.smoothingTimeConstant=0.45;
     src.connect(auAnalyser);
     micBuf=new Uint8Array(auAnalyser.frequencyBinCount);
+    auSetupStereoAnalysers(src);
     micOn=true; phoneAudioOn=true;
     phoneSetUI('📱 Phone LIVE — tap to stop', 'Source: phone (Bluetooth)');
   }catch(e){
@@ -2796,13 +2825,16 @@ function drawRadialStyle(dt){
   drawPolarFace(4); drawPolarFace(5);
 }
 
-// Classic VU: segmented green/amber/red meters with needle ballistics
+// Classic VU: segmented green/amber/red meters with needle ballistics.
+// Genuinely stereo — reads the real left/right channel levels (see
+// auSetupStereoAnalysers/auReadStereoLevels) rather than faking a
+// difference between channels from one mono level. A true mono source
+// (many phone mics, some stations) will show matching L/R, correctly.
 function drawVUStyle(dt){
-  const S=SIZE, M=S-1, AB=AUDIO_BANDS;
-  let sum=0; for(let b=0;b<AB;b++) sum+=auSpec[b]*auSpec[b];
-  const rms=Math.min(1,Math.sqrt(sum/AB)*1.9);
-  const tL=Math.min(1,rms*(0.92+0.16*Math.sin(songT*0.9)));
-  const tR=Math.min(1,rms*(0.92+0.16*Math.sin(songT*0.9+2.1)));
+  const S=SIZE, M=S-1;
+  const {l:rawL, r:rawR} = auReadStereoLevels();
+  const tL=Math.min(1, rawL*auGain*2.2);
+  const tR=Math.min(1, rawR*auGain*2.2);
   vuL += (tL-vuL)*Math.min(1,dt*(tL>vuL?14:4.5));
   vuR += (tR-vuR)*Math.min(1,dt*(tR>vuR?14:4.5));
   if(vuL>vuPkL){vuPkL=vuL;vuPkVL=0;} else {vuPkVL+=dt*1.2;vuPkL=Math.max(0,vuPkL-vuPkVL*dt);}
@@ -3103,6 +3135,7 @@ function radioEnsureGraph(){
     // so without this explicit connect() the stream would play silently.
     radioSource.connect(auAnalyser);
     auAnalyser.connect(auCtx.destination);
+    auSetupStereoAnalysers(radioSource);
   }
 }
 
