@@ -6818,7 +6818,7 @@ function runOverlays(dt){
     if(OV.mist.on)      ovMist(dt);
     if(OV.lightning.on) ovLightning(dt);
     if(OV.radio.on)     ovRadio(dt);
-    if(OV.spectrum.on)  drawSpectrumOverlay(dt);
+    if(OV.spectrum.on && currentEffect!=='radio')  drawSpectrumOverlay(dt);
     // Scale only the delta added by overlays
     for(let i=0;i<colBuf.length;i++){
       const delta=colBuf[i]-snap[i];
@@ -6839,7 +6839,7 @@ function runOverlays(dt){
     if(OV.mist.on)      ovMist(dt);
     if(OV.lightning.on) ovLightning(dt);
     if(OV.radio.on)     ovRadio(dt);
-    if(OV.spectrum.on)  drawSpectrumOverlay(dt);
+    if(OV.spectrum.on && currentEffect!=='radio')  drawSpectrumOverlay(dt);
   }
 }
 
