@@ -2327,13 +2327,20 @@ function readMicSpectrum(dt){
   songT += dt;
   const AB=AUDIO_BANDS, nb=micBuf.length, lo0=2, hi0=Math.floor(nb*0.75);
   let frameMax=0.001;
+  // Bin boundaries must be sequential/non-overlapping (each band's range
+  // picks up where the previous one left off) rather than each recomputed
+  // independently from the log curve — at the bass end that curve grows so
+  // slowly that many consecutive bands would otherwise round down to the
+  // exact same FFT bin, reading identical values and appearing frozen
+  // together instead of each responding to their own slice of the mix.
+  let lo=lo0;
   for(let b=0;b<AB;b++){
-    const lo=Math.floor(lo0*Math.pow(hi0/lo0, b/AB));
     const hi=Math.max(lo+1, Math.floor(lo0*Math.pow(hi0/lo0,(b+1)/AB)));
     let s=0; for(let k=lo;k<hi;k++) s+=micBuf[k];
     const v=(s/(hi-lo))/255;
     if(v>frameMax) frameMax=v;
     auRawScratch[b]=v;
+    lo=hi;
   }
   if(frameMax>auOverallPeak) auOverallPeak += (frameMax-auOverallPeak)*Math.min(1,dt*2);
   else                       auOverallPeak += (frameMax-auOverallPeak)*Math.min(1,dt*0.3);
@@ -2352,7 +2359,12 @@ function readMicSpectrum(dt){
     // loud moments instead of just rescaling them together — same idea as
     // a level meter's gamma/contrast curve.
     const ratio = Math.min(1, raw/auBandPeak[b]);
-    auTargetScratch[b] = Math.min(1, Math.pow(ratio, 1.8)*auGain);
+    // 0.7 headroom: a per-band peak-tracking AGC hits ratio===1 (full
+    // height) practically every time a band revisits its own recent peak,
+    // which reads as "always slammed against the top." This holds normal
+    // moments below the ceiling so there's visible room left for genuine
+    // peaks to stand out.
+    auTargetScratch[b] = Math.min(1, Math.pow(ratio, 1.8)*0.7*auGain);
   }
   auSpatialSmooth(auTargetScratch, auSmoothScratch, AB);
   for(let b=0;b<AB;b++) auSmooth(b, auSmoothScratch[b], dt);
