@@ -95,8 +95,6 @@ function buildPanelEditor(){
       row('Speed:', slider('speed',1,20,0.5,8,v=>v));
       row('Trail:', slider('trail',4,120,2,32,v=>v));
       row('Nudge:', select('nudge',[['0','0°'],['1','1°'],['2','2°'],['5','5°'],['10','10°'],['20','20°'],['45','45°'],['90','90°']],String(opts.nudge||'0')));
-    } else if(effectKey==='spectrum'){
-      row('Gain:', slider('gain',0.5,5,0.1,1.5,v=>parseFloat(v).toFixed(1)+'×'));
     } else if(effectKey==='maze'){
       row('Runners:', slider('runners',1,6,1,3,v=>v));
     } else if(effectKey==='tron'){
@@ -586,36 +584,6 @@ function buildAlarmEffectOpts(key){
       cg.appendChild(b);
     });
     c.appendChild(cg);
-  } else if(key==='spectrum'){
-    c.style.display='block';
-    c.appendChild(mkLabel('Style'));
-    const g=mkGrid();g.style.gridTemplateColumns='repeat(3,1fr)';
-    ['bars','mirror','dots','blocks','outline','radial','vu','waterfall','waveform','tunnel','storm','plasma','rings','fire'].forEach(s=>{
-      const b=mkBtn(s.charAt(0).toUpperCase()+s.slice(1),(opts.auStyle||'bars')===s,()=>{activateOne(g,b);alarmEffectRiseOpts.auStyle=s;});
-      g.appendChild(b);
-    });
-    c.appendChild(g);
-    c.appendChild(mkLabel('Colour Theme'));
-    const tg=mkGrid();tg.style.gridTemplateColumns='repeat(3,1fr)';
-    [['0','Rainbow'],['1','Fire'],['2','Ocean'],['3','Neon'],['4','Matrix'],['5','Pastel']].forEach(([v,l])=>{
-      const b=mkBtn(l,String(opts.auTheme||'0')===v,()=>{activateOne(tg,b);alarmEffectRiseOpts.auTheme=parseInt(v);});
-      tg.appendChild(b);
-    });
-    c.appendChild(tg);
-    c.appendChild(mkLabel('Bar Mode'));
-    const bg=mkGrid();bg.style.gridTemplateColumns='repeat(3,1fr)';
-    ['solid','striped','center','falling','stacked','wave'].forEach(s=>{
-      const b=mkBtn(s.charAt(0).toUpperCase()+s.slice(1),(opts.auBarMode||'solid')===s,()=>{activateOne(bg,b);alarmEffectRiseOpts.auBarMode=s;});
-      bg.appendChild(b);
-    });
-    c.appendChild(bg);
-    c.appendChild(mkLabel('Gain'));
-    const sl=document.createElement('input');sl.type='range';sl.min='0.5';sl.max='5';sl.step='0.1';sl.value=opts.auGain||'1.5';
-    sl.style.cssText='width:100%;';
-    const sv=document.createElement('span');sv.className='slider-val';sv.textContent=(opts.auGain||1.5)+'x';
-    sl.addEventListener('input',()=>{sv.textContent=parseFloat(sl.value).toFixed(1)+'x';alarmEffectRiseOpts.auGain=parseFloat(sl.value);});
-    const sr=document.createElement('div');sr.className='slider-row';sr.appendChild(sl);sr.appendChild(sv);
-    c.appendChild(sr);
   } else if(key==='radio'){
     c.style.display='block';
     c.appendChild(mkLabel('Station'));
@@ -1295,7 +1263,7 @@ const EFFECTS={
   balls:effectBouncingBalls, sand:effectGravitySand, f1:_f1Stub,
   gradient_wash:effectGradientWash, aurora:effectAurora, depth_rings:effectDepthRings,
   prism:effectPrism, tide:effectTide, nebula:effectNebula,
-  spectrum:effectSpectrum, maze:effectMaze,
+  maze:effectMaze,
   tron:effectTron, lightning:effectLightning, warp:effectWarp, life:effectLife, fluid:effectFluid,
   video:effectVideo, strobe:effectStrobe, random:effectRandom, random80s:effectRandom80s, ghost:effectGhost, lightspeed:effectLightspeed,
   custom_cube:effectCustomCube,
@@ -1323,7 +1291,7 @@ const EFFECT_NAMES={
   balls:'Bouncing Balls', sand:'Gravity Sand', f1:'F1 Live',
   gradient_wash:'Rainbow Wash', aurora:'Aurora Borealis', depth_rings:'Depth Rings',
   prism:'Prism Sweep', tide:'Color Tide', nebula:'Nebula Drift',
-  spectrum:'Spectrum Analyser', maze:'Maze Runner',
+  maze:'Maze Runner',
   tron:'Tron Bikes', lightning:'Lightning Storm', warp:'Warp Drive', life:'Crystal Life', fluid:'Liquid Crystal',
   video:'Video Display', strobe:'Strobe Flash', random:'Random 1', random80s:'Random 2', ghost:'Ghost Face', lightspeed:'Light Speed',
   custom_cube:'Custom Cube',
@@ -1356,11 +1324,11 @@ const effectLabel=document.getElementById('el-effect')||document.getElementById(
 
 // Effect → auto-expand linked options section
 const EFFECT_SECTION_MAP = {
-  spectrum:'spectrum', maze:'maze', tron:'tron', f1:'f1', video:'video', simhouse:'simhouse',
+  maze:'maze', tron:'tron', f1:'f1', video:'video', simhouse:'simhouse',
   balls:'',sand:'',lightning:'',warp:'',life:'',fluid:'',
 };
 
-const PANEL_EFFECTS = new Set(['spectrum','tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','artic','joke','otd','trivia','epic','iss','cam','radio']);
+const PANEL_EFFECTS = new Set(['tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','artic','joke','otd','trivia','epic','iss','cam','radio']);
 populateAlarmEffectRiseSelect(); // safe here — EFFECT_NAMES now defined
 
 async function fetchCitiesFromAPI(){
@@ -1731,10 +1699,6 @@ document.querySelectorAll('.au-style-btn').forEach(b => b.addEventListener('clic
   document.querySelectorAll('.au-style-btn').forEach(x => x.classList.remove('active'));
   b.classList.add('active');
   auStyle = b.dataset.austyle;
-  if(currentEffect !== 'spectrum'){
-    const eb = document.querySelector('[data-effect="spectrum"]');
-    if(eb) eb.click();
-  }
 }));
 
 document.querySelectorAll('.au-col-btn').forEach(b => b.addEventListener('click', () => {
@@ -2335,11 +2299,6 @@ const PL_EFFECT_OPTS={
   strobe:[
     {key:'strobeSpeed',label:'Speed',type:'range',min:0.5,max:20,step:0.5,def:5},
   ],
-  spectrum:[
-    {key:'auStyle',label:'Style',type:'select',options:[['bars','Bars'],['waterfall','Waterfall'],['tunnel','Tunnel'],['storm','Storm'],['ring','Ring']]},
-    {key:'auTheme',label:'Theme',type:'range',min:0,max:5,step:1,def:0},
-    {key:'auScrollSpeed',label:'Scroll Speed',type:'range',min:0,max:5,step:0.5,def:2.5},
-  ],
   tron:[
     {key:'tronBikeCount',label:'Bikes',type:'range',min:2,max:8,step:1,def:4},
     {key:'tronStraightness',label:'Straightness',type:'range',min:0,max:1,step:0.05,def:0.72},
@@ -2414,19 +2373,15 @@ function plBuildEffectOptsHTML(effectKey, itemOpts, idx){
 const DEMO_PLAYLIST = [
   { effect:'plasma',       label:'Plasma Storm',          duration:8,  speedMult:1.3, overlays:{} },
   { effect:'wave',         label:'Wave Cascade + Stars',  duration:8,  speedMult:1.1, overlays:{stars:true} },
-  { effect:'spectrum',     label:'Spectrum — Bars',       duration:10, speedMult:1,   auStyle:'bars',      auTheme:0, auScrollSpeed:2.5, overlays:{} },
   { effect:'fireworks',    label:'Fireworks',             duration:9,  speedMult:1,   overlays:{sparkle:true} },
   { effect:'aurora',       label:'Aurora + Edge Glow',    duration:9,  speedMult:0.85,overlays:{edgeglow:true} },
-  { effect:'spectrum',     label:'Spectrum — Waterfall',  duration:10, speedMult:1,   auStyle:'waterfall', auTheme:2, auScrollSpeed:1.5, overlays:{} },
   { effect:'tron',         label:'Tron Bikes',            duration:18, speedMult:1,   tronBikeCount:4, tronStraightness:0.72, overlays:{} },
   { effect:'nebula',       label:'Nebula + Mist',         duration:9,  speedMult:0.9, overlays:{mist:true} },
   { effect:'maze',         label:'Maze Runner',           duration:18, speedMult:1,   mazeRunnerCount:3, mazeBrightWalls:true, overlays:{} },
-  { effect:'spectrum',     label:'Spectrum — Tunnel',     duration:10, speedMult:1,   auStyle:'tunnel',    auTheme:3, auScrollSpeed:2.0, overlays:{} },
   { effect:'balls',        label:'Bouncing Balls + Fire', duration:9,  speedMult:1,   overlays:{fire:true},  ovBG:true },
   { effect:'warp',         label:'Warp Drive + Stars',    duration:9,  speedMult:1,   overlays:{stars:true}, ovBG:true },
   { effect:'depth_rings',  label:'Depth Rings + Wave',    duration:8,  speedMult:1.2, overlays:{colorwave:true} },
   { effect:'life',         label:'Crystal Life + Glow',   duration:10, speedMult:1,   overlays:{edgeglow:true} },
-  { effect:'spectrum',     label:'Spectrum — Storm',      duration:10, speedMult:1,   auStyle:'storm', auTheme:1, overlays:{sparkle:true} },
 ];
 
 let playlist = DEMO_PLAYLIST.map(it=>({...it,overlays:{...it.overlays}}));
@@ -3432,12 +3387,6 @@ function animate(now){
             if(eopts.ballMode) ballCrossFaces=(eopts.ballMode==='cross');
             if(eopts.ballCount) ballsPerFace=eopts.ballCount;
           }
-          if(efKey==='spectrum'){
-            if(eopts.auStyle) auStyle=eopts.auStyle;
-            if(eopts.auTheme!==undefined) auTheme=eopts.auTheme;
-            if(eopts.auGain) auGain=eopts.auGain;
-            if(eopts.auBarMode) auBarMode=eopts.auBarMode;
-          }
           if(efKey==='maze'&&eopts.runners) mazeRunnerCount=eopts.runners;
           if(efKey==='tron'){
             if(eopts.bikes) tronBikeCount=eopts.bikes;
@@ -3832,7 +3781,7 @@ initCubeWs();
 // ═══════════════════════════════════════════════════
 const STANDALONE_EFFECT_MAP = {
   plasma: 2, datetime: 3, weather: 4,
-  fireworks: 5, gradient_wash: 6, aurora: 7, spectrum: 8,
+  fireworks: 5, gradient_wash: 6, aurora: 7,
   balls: 9, strobe: 10, lightning: 11, tide: 12, rain: 13,
 };
 let standaloneModeOn = false;
