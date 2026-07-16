@@ -1647,6 +1647,12 @@ document.querySelectorAll('.ov-chk').forEach(chk => {
     // Some overlays (e.g. spectrum) now have their toggle duplicated into
     // other panels for convenience — keep every copy's checked state synced.
     document.querySelectorAll(`.ov-chk[data-ov="${ov}"]`).forEach(other=>{ if(other!==chk) other.checked=chk.checked; });
+    // Duplicated option blocks (e.g. spectrum's controls repeated into the
+    // Radio/Video/Bluetooth/Microphone panels) expand/collapse with the
+    // toggle, same as the master overlay item's own .ov-body already does.
+    document.querySelectorAll(`.ov-options-el[data-ov="${ov}"]`).forEach(body=>{
+      body.style.display = chk.checked ? 'block' : 'none';
+    });
     const item=document.getElementById(`ovi-${ov}`);
     if(item) item.classList.toggle('ov-on', chk.checked);
     // reset state on enable
