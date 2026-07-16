@@ -2310,15 +2310,18 @@ function auFlatten(dt){
 
 // ── Live microphone / radio stream via Web Audio FFT (log-mapped into bands) ──
 // Auto-gain: tracks a slowly-decaying peak of the loudest band each frame,
-// then normalizes every band against it. Without this, a quiet station
-// looks dead and a loud one pins every bar at max regardless of the manual
-// gain slider — normalizing against the stream's own recent loudness keeps
-// the visual range consistent no matter what's playing. auGain remains a
-// manual multiplier on top for taste.
-let auAutoPeak = 0.3;
+// then normalizes EACH band against its OWN recent peak (not one shared
+// peak for the whole spectrum — an earlier version did that, and since
+// bass content is usually the loudest thing in any track, it pinned the
+// low/bass/left bands at a near-constant near-max height while only the
+// quieter upper bands had room to visibly move). Without any of this, a
+// quiet station looks dead and a loud one pins every bar at max regardless
+// of the manual gain slider. auGain remains a manual multiplier on top.
 let auRawScratch = new Float32Array(AUDIO_BANDS);
+let auBandPeak = new Float32Array(AUDIO_BANDS).fill(0.3);
 let auTargetScratch = new Float32Array(AUDIO_BANDS);
 let auSmoothScratch = new Float32Array(AUDIO_BANDS);
+let auOverallPeak = 0.3;   // coarse "is anything actually playing" signal only — see radioAnalyserSilent
 function readMicSpectrum(dt){
   auAnalyser.getByteFrequencyData(micBuf);
   songT += dt;
@@ -2332,18 +2335,23 @@ function readMicSpectrum(dt){
     if(v>frameMax) frameMax=v;
     auRawScratch[b]=v;
   }
-  // Fast attack (catch a loud passage quickly), slow release (don't dim
-  // out during a brief quiet moment) — classic limiter ballistics.
-  if(frameMax>auAutoPeak) auAutoPeak += (frameMax-auAutoPeak)*Math.min(1,dt*2);
-  else                    auAutoPeak += (frameMax-auAutoPeak)*Math.min(1,dt*0.3);
-  auAutoPeak = Math.max(0.12, auAutoPeak);
+  if(frameMax>auOverallPeak) auOverallPeak += (frameMax-auOverallPeak)*Math.min(1,dt*2);
+  else                       auOverallPeak += (frameMax-auOverallPeak)*Math.min(1,dt*0.3);
+  auOverallPeak = Math.max(0.12, auOverallPeak);
   for(let b=0;b<AB;b++){
-    // A plain ratio against the peak left every band bunched near the top
-    // (typical broadband music energy is fairly close in magnitude across
-    // adjacent log-spaced bands). Raising it to a power >1 stretches out
-    // the gap between quiet and loud bands instead of just rescaling them
-    // together — same idea as a level meter's gamma/contrast curve.
-    const ratio = Math.min(1, auRawScratch[b]/auAutoPeak);
+    // Fast attack (catch a loud passage quickly), slow release (don't dim
+    // out during a brief quiet moment) — classic limiter ballistics, but
+    // per band, so a persistently loud bass band doesn't cap how other
+    // bands get normalized.
+    const raw=auRawScratch[b];
+    if(raw>auBandPeak[b]) auBandPeak[b] += (raw-auBandPeak[b])*Math.min(1,dt*2);
+    else                  auBandPeak[b] += (raw-auBandPeak[b])*Math.min(1,dt*0.3);
+    auBandPeak[b] = Math.max(0.12, auBandPeak[b]);
+    // A plain ratio against the peak left loud bands bunched near the top;
+    // raising it to a power >1 stretches out the gap between quiet and
+    // loud moments instead of just rescaling them together — same idea as
+    // a level meter's gamma/contrast curve.
+    const ratio = Math.min(1, raw/auBandPeak[b]);
     auTargetScratch[b] = Math.min(1, Math.pow(ratio, 1.8)*auGain);
   }
   auSpatialSmooth(auTargetScratch, auSmoothScratch, AB);
@@ -2983,7 +2991,7 @@ function effectSpectrum(dt){
   // stream (selected via the panel's Sound Source toggle) — same function,
   // same visuals, either way.
   if(radioPlaying && auAnalyser && !radioAnalyserSilent){
-    if(auAutoPeak<=0.13) radioSilentTimer+=dt; else radioSilentTimer=0;
+    if(auOverallPeak<=0.13) radioSilentTimer+=dt; else radioSilentTimer=0;
     if(radioSilentTimer>4){
       radioAnalyserSilent=true;
       if(radioNowPlaying) radioSetStatus('▶ '+radioNowPlaying.name+' (visualizer unavailable — station blocks audio analysis)');
