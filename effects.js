@@ -3027,6 +3027,11 @@ function effectSpectrum(dt){
   if(auScrollSpeed>0) auScrollX=(auScrollX+dt*auScrollSpeed*SIZE*1.5*auScrollDir+4*SIZE)%(4*SIZE);
   for(let i=0;i<N*3;i++) colBuf[i]=0;
   renderSpectrumStyle(dt);
+  if(radioPlaying){
+    const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+    radioDrawTicker(0, dt);
+    if(!is2D) radioDrawTicker(2, dt);
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -3055,6 +3060,7 @@ let radioAudioEl=null, radioSource=null, radioPlaying=false, radioError='';
 // stream — the visualizer just goes flat in that case (see auFlatten).
 let radioAnalyserSilent=false, radioSilentTimer=0;
 let radioNowPlaying=null;   // {name, genre} of the currently loaded station
+let radioScrollX=0;
 
 // Radio Browser (radio-browser.info) — a free, community-run directory of
 // tens of thousands of internet radio streams, no API key needed. It's
@@ -3141,6 +3147,7 @@ async function radioPlay(station){
   radioError='';
   radioEnsureGraph();
   radioNowPlaying=station;
+  radioScrollX=0;
   radioAnalyserSilent=false;
   radioSilentTimer=0;
   radioAudioEl.src=station.url;
@@ -3159,6 +3166,25 @@ function radioStop(){
   if(radioAudioEl) radioAudioEl.pause();
   radioPlaying=false;
   radioSetStatus('Stopped');
+}
+
+// Scrolling now-playing name, drawn as a thin ticker over the bottom rows
+// of face 0 — on top of whatever the visualizer already drew there, not a
+// full-face redraw, so the bars keep showing above it.
+function radioDrawTicker(face, dt){
+  if(!radioNowPlaying) return;
+  const label = radioNowPlaying.name + (radioNowPlaying.genre ? '  •  ' + radioNowPlaying.genre : '') + '    ';
+  const textW = label.length * WC_CHAR_W;
+  radioScrollX += dt * 14;
+  if(radioScrollX > textW) radioScrollX -= textW;
+  const sv = 1;   // near the bottom edge
+  let u = -Math.floor(radioScrollX);
+  while(u < SIZE){
+    for(const ch of label){
+      u += wcDrawGlyph(face, ch, u, sv, [0.6,0.85,1]);
+      if(u > SIZE) break;
+    }
+  }
 }
 
 // The volume slider sets the "target" level — what a pre-alarm ramps up to,
