@@ -2227,6 +2227,11 @@ document.querySelectorAll('.sp-fit-screen-el').forEach(chk=>chk.addEventListener
   document.querySelectorAll('.sp-fit-screen-el').forEach(other=>{ if(other!==e.target) other.checked=e.target.checked; });
 }));
 
+document.querySelectorAll('.au-autogain-el').forEach(chk=>chk.addEventListener('change',(e)=>{
+  auAutoGainOn = e.target.checked;
+  document.querySelectorAll('.au-autogain-el').forEach(other=>{ if(other!==e.target) other.checked=e.target.checked; });
+}));
+
 });
 
 // Render panel2d after each frame

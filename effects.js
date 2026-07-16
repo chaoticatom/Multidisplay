@@ -2257,6 +2257,7 @@ let auSpec  = new Float32Array(AUDIO_BANDS);   // smoothed band levels 0..1
 let auPeak  = new Float32Array(AUDIO_BANDS);   // falling peak-hold dots
 let auPeakV = new Float32Array(AUDIO_BANDS);
 let auStyle = 'bars', auTheme = 6, auGain = 1, auBarMode = 'solid';
+let auAutoGainOn = false, auAutoGainMult = 1;
 let auScrollX=0, auScrollSpeed=0, auScrollDir=1;
 let wfBuf=null, wfPos=0, wfTimer=0;
 let stormFlashes=[];
@@ -2294,6 +2295,22 @@ function readMicSpectrum(dt){
   const AB=AUDIO_BANDS, nb=micBuf.length, minBin=1, maxBin=nb-1;
   let level=0;
   let lo=minBin;
+  // Auto Gain: a slow-adapting overall multiplier (separate from the
+  // manual Gain slider) that nudges toward a target overall loudness —
+  // rises when the source is quiet, eases back when it's already hot.
+  // Deliberately slow (per-second, not per-band) so it can't "pin to the
+  // top" the way the old per-band peak-tracking auto-gain used to.
+  if(auAutoGainOn){
+    const target=0.55;
+    if(auLastLevel>0.01){
+      const desired=target/Math.max(0.05, auLastLevel*auAutoGainMult);
+      auAutoGainMult += (desired-auAutoGainMult)*Math.min(1, dt*0.5);
+      auAutoGainMult = Math.max(0.3, Math.min(4, auAutoGainMult));
+    }
+  } else {
+    auAutoGainMult = 1;
+  }
+  const gain=auGain*auAutoGainMult;
   for(let b=0;b<AB;b++){
     const frac=(b+1)/AB;
     let hi=Math.round(minBin*Math.pow(maxBin/minBin, frac));
@@ -2307,7 +2324,7 @@ function readMicSpectrum(dt){
     // progressively less energy at higher frequencies, same idea as the
     // "loudness" curve on a real analyzer, not per-band auto-gain.
     const trebleBoost=1+frac*1.8;
-    auSmooth(b, Math.min(1, raw*trebleBoost*auGain), dt);
+    auSmooth(b, Math.min(1, raw*trebleBoost*gain), dt);
     lo=hi+1;
     if(lo>maxBin) lo=maxBin;
   }

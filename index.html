@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=844">
+<link rel="stylesheet" href="style.css?v=845">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -614,6 +614,7 @@
           <button class="au-barmode-btn" data-barmode="wave">Wave</button>
         </div>
         <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
+        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="au-autogain-el">AUTO GAIN</label>
         <div class="ov-row-label">Gain</div>
         <div class="slider-row">
           <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
@@ -703,6 +704,7 @@
           <button class="au-barmode-btn" data-barmode="wave">Wave</button>
         </div>
         <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
+        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="au-autogain-el">AUTO GAIN</label>
         <div class="ov-row-label">Gain</div>
         <div class="slider-row">
           <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
@@ -774,6 +776,7 @@
             <button class="au-barmode-btn" data-barmode="wave">Wave</button>
           </div>
           <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
+          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="au-autogain-el">AUTO GAIN</label>
           <div class="ov-row-label">Gain</div>
           <div class="slider-row">
             <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
@@ -847,6 +850,7 @@
             <button class="au-barmode-btn" data-barmode="wave">Wave</button>
           </div>
           <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
+          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="au-autogain-el">AUTO GAIN</label>
           <div class="ov-row-label">Gain</div>
           <div class="slider-row">
             <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
@@ -1186,6 +1190,7 @@
           <button class="au-barmode-btn" data-barmode="wave">Wave</button>
         </div>
         <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
+        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="au-autogain-el">AUTO GAIN</label>
         <div class="ov-row-label">Gain</div>
         <div class="slider-row">
           <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
@@ -1608,7 +1613,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=844"></script>
+<script src="version.js?v=845"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1672,7 +1677,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=844','effects.js?v=844','ui.js?v=844'];
+  const appScripts = ['cube.js?v=845','effects.js?v=845','ui.js?v=845'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
