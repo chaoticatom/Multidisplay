@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=833">
+<link rel="stylesheet" href="style.css?v=834">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -594,18 +594,13 @@
 
     </div>
 
-    <div style="padding:10px;margin-top:4px;background:rgba(0,0,0,0.15);border-radius:6px;">
-      <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">🔊 Bluetooth (Pi only)</div>
-      <div style="font-size:10px;color:#666;margin-bottom:8px;">Requires <code>pi/bluetooth_server.py</code> running on the Raspberry Pi — see <code>pi/README.md</code>. Not available when running on your laptop or GitHub Pages. Same controls as the Setup section; both stay in sync.</div>
-      <div style="display:flex;gap:6px;margin-bottom:6px;">
-        <button class="bt-scan-btn-el" style="flex:1;padding:6px 10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Scan for Speakers</button>
-        <button class="bt-refresh-btn-el" style="flex:0 0 auto;padding:6px 10px;background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.4);color:#ccc;border-radius:4px;cursor:pointer;font-size:11px;">↻</button>
+    <div class="sub-section collapsed">
+      <button class="sub-head">🔊 Bluetooth <span class="chev">▾</span></button>
+      <div class="sub-body">
+        <div style="font-size:10px;color:#666;margin-bottom:8px;">Accept an incoming Bluetooth audio connection from a phone so it can play through the cube. Requires <code>pi/bluetooth_server.py</code> running on the Raspberry Pi — see <code>pi/README.md</code>. Not available on your laptop or GitHub Pages.</div>
+        <button class="bt-discoverable-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Accept Bluetooth Audio Connection</button>
+        <div class="bt-phone-status-el" style="font-size:10px;color:#778;">Not set up yet</div>
       </div>
-      <div class="bt-status-el" style="font-size:10px;color:#778;margin-bottom:6px;">Not checked yet</div>
-      <div class="bt-device-list-el" style="max-height:180px;overflow-y:auto;margin-bottom:10px;"></div>
-      <button class="bt-discoverable-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Make Cube Discoverable (pair phone)</button>
-      <button class="bt-route-phone-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Route Phone Audio to Speaker</button>
-      <div class="bt-phone-status-el" style="font-size:10px;color:#778;">Not set up yet</div>
     </div>
 
     </div>
@@ -1354,7 +1349,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=833"></script>
+<script src="version.js?v=834"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1418,7 +1413,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=833','effects.js?v=833','ui.js?v=833'];
+  const appScripts = ['cube.js?v=834','effects.js?v=834','ui.js?v=834'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
