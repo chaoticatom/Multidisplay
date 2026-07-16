@@ -2264,110 +2264,54 @@ let songT = 0, auRings = [], auPrevBass = 0;
 let vuL=0, vuR=0, vuPkL=0, vuPkR=0, vuPkVL=0, vuPkVR=0;
 let micOn=false, auCtx=null, auAnalyser=null, micBuf=null;
 
-function auHash01(n){
-  const x = Math.sin(n*12.9898)*43758.5453;
-  return x - Math.floor(x);
-}
-
-// Spatial smoothing across neighboring bands — a 7-tap weighted average
-// applied to the per-frame target values (not the persistent auSpec state
-// itself, which would just blur into flatness over many frames). This is
-// what gives the bars a continuous rising/falling wave shape from column to
-// column instead of jagged independent spikes, while leaving the actual
-// bass (low band index) -> treble (high band index) ordering untouched,
-// since it only ever blends a band with its immediate neighbors.
-const AU_SMOOTH_KERNEL = [0.06,0.12,0.2,0.24,0.2,0.12,0.06];
-function auSpatialSmooth(src, dst, AB){
-  const half = (AU_SMOOTH_KERNEL.length-1)/2;
-  for(let b=0;b<AB;b++){
-    let sum=0, wsum=0;
-    for(let k=-half;k<=half;k++){
-      const bb=b+k; if(bb<0||bb>=AB) continue;
-      const w=AU_SMOOTH_KERNEL[k+half];
-      sum+=src[bb]*w; wsum+=w;
-    }
-    dst[b]=wsum>0?sum/wsum:src[b];
-  }
-}
-
+// ═══════════════════════════════════════════════════
+//  Spectrum data pipeline — rewritten clean, standard analyzer behavior:
+//  log-spaced non-overlapping bins (bass gets finer resolution, same as
+//  real hardware analyzers), a fixed per-band treble-compensation curve
+//  (music naturally has less energy at high frequencies — real analyzers
+//  apply exactly this kind of fixed EQ curve rather than auto-gain
+//  trickery), a plain manual Gain slider, and simple attack/release
+//  smoothing with peak-hold dots. No auto-gain, no spatial blur — turn the
+//  Gain slider to taste, same as a real device's gain knob.
+// ═══════════════════════════════════════════════════
 function auSmooth(b, target, dt){
-  // The flowing "wave" look comes from auSpatialSmooth blending neighboring
-  // bands together, not from slow motion over time — so this can react
-  // quickly to the actual music without losing that shape.
-  if(target > auSpec[b]) auSpec[b] += (target-auSpec[b])*Math.min(1, dt*22);
-  else                   auSpec[b] += (target-auSpec[b])*Math.min(1, dt*10);
+  if(target > auSpec[b]) auSpec[b] += (target-auSpec[b])*Math.min(1, dt*20);   // fast attack
+  else                   auSpec[b] += (target-auSpec[b])*Math.min(1, dt*7);    // moderate release
   if(auSpec[b] > auPeak[b]){ auPeak[b]=auSpec[b]; auPeakV[b]=0; }
-  else { auPeakV[b]+=dt*1.6; auPeak[b]=Math.max(0, auPeak[b]-auPeakV[b]*dt); }
+  else { auPeakV[b]+=dt*1.2; auPeak[b]=Math.max(0, auPeak[b]-auPeakV[b]*dt); }  // slow peak-hold fall
 }
 
 // No real audio source active (mic off, radio not playing) — ease every
-// band down to zero instead of running a fake simulated track. Uses the
-// same auSmooth ballistics as real data so it settles rather than cutting
-// out abruptly.
+// band down to zero instead of running a fake simulated track.
 function auFlatten(dt){
   for(let b=0;b<AUDIO_BANDS;b++) auSmooth(b, 0, dt);
 }
 
-// ── Live microphone / radio stream via Web Audio FFT (log-mapped into bands) ──
-// Auto-gain: tracks a slowly-decaying peak of the loudest band each frame,
-// then normalizes EACH band against its OWN recent peak (not one shared
-// peak for the whole spectrum — an earlier version did that, and since
-// bass content is usually the loudest thing in any track, it pinned the
-// low/bass/left bands at a near-constant near-max height while only the
-// quieter upper bands had room to visibly move). Without any of this, a
-// quiet station looks dead and a loud one pins every bar at max regardless
-// of the manual gain slider. auGain remains a manual multiplier on top.
-let auRawScratch = new Float32Array(AUDIO_BANDS);
-let auBandPeak = new Float32Array(AUDIO_BANDS).fill(0.3);
-let auTargetScratch = new Float32Array(AUDIO_BANDS);
-let auSmoothScratch = new Float32Array(AUDIO_BANDS);
-let auOverallPeak = 0.3;   // coarse "is anything actually playing" signal only — see radioAnalyserSilent
+let auLastLevel = 0;   // coarse "is anything actually playing" signal — see radioAnalyserSilent
 function readMicSpectrum(dt){
   auAnalyser.getByteFrequencyData(micBuf);
   songT += dt;
-  const AB=AUDIO_BANDS, nb=micBuf.length, lo0=2, hi0=Math.floor(nb*0.75);
-  let frameMax=0.001;
-  // Bin boundaries must be sequential/non-overlapping (each band's range
-  // picks up where the previous one left off) rather than each recomputed
-  // independently from the log curve — at the bass end that curve grows so
-  // slowly that many consecutive bands would otherwise round down to the
-  // exact same FFT bin, reading identical values and appearing frozen
-  // together instead of each responding to their own slice of the mix.
-  let lo=lo0;
+  const AB=AUDIO_BANDS, nb=micBuf.length, minBin=1, maxBin=nb-1;
+  let level=0;
+  let lo=minBin;
   for(let b=0;b<AB;b++){
-    const hi=Math.max(lo+1, Math.floor(lo0*Math.pow(hi0/lo0,(b+1)/AB)));
-    let s=0; for(let k=lo;k<hi;k++) s+=micBuf[k];
-    const v=(s/(hi-lo))/255;
-    if(v>frameMax) frameMax=v;
-    auRawScratch[b]=v;
-    lo=hi;
+    const frac=(b+1)/AB;
+    let hi=Math.round(minBin*Math.pow(maxBin/minBin, frac));
+    if(hi<=lo) hi=lo+1;
+    hi=Math.min(hi, maxBin);
+    let sum=0, count=0;
+    for(let k=lo;k<=hi;k++){ sum+=micBuf[k]; count++; }
+    const raw=count>0?(sum/count)/255:0;
+    if(raw>level) level=raw;
+    // Fixed treble boost curve — compensates for real music having
+    // progressively less energy at higher frequencies, same idea as the
+    // "loudness" curve on a real analyzer, not per-band auto-gain.
+    const trebleBoost=1+frac*1.8;
+    auSmooth(b, Math.min(1, raw*trebleBoost*auGain), dt);
+    lo=hi+1;
+    if(lo>maxBin) lo=maxBin;
   }
-  if(frameMax>auOverallPeak) auOverallPeak += (frameMax-auOverallPeak)*Math.min(1,dt*2);
-  else                       auOverallPeak += (frameMax-auOverallPeak)*Math.min(1,dt*0.3);
-  auOverallPeak = Math.max(0.12, auOverallPeak);
-  for(let b=0;b<AB;b++){
-    // Fast attack (catch a loud passage quickly), slow release (don't dim
-    // out during a brief quiet moment) — classic limiter ballistics, but
-    // per band, so a persistently loud bass band doesn't cap how other
-    // bands get normalized.
-    const raw=auRawScratch[b];
-    if(raw>auBandPeak[b]) auBandPeak[b] += (raw-auBandPeak[b])*Math.min(1,dt*5);
-    else                  auBandPeak[b] += (raw-auBandPeak[b])*Math.min(1,dt*0.3);
-    auBandPeak[b] = Math.max(0.12, auBandPeak[b]);
-    // A plain ratio against the peak left loud bands bunched near the top;
-    // raising it to a power >1 stretches out the gap between quiet and
-    // loud moments instead of just rescaling them together — same idea as
-    // a level meter's gamma/contrast curve.
-    const ratio = Math.min(1, raw/auBandPeak[b]);
-    // 0.7 headroom: a per-band peak-tracking AGC hits ratio===1 (full
-    // height) practically every time a band revisits its own recent peak,
-    // which reads as "always slammed against the top." This holds normal
-    // moments below the ceiling so there's visible room left for genuine
-    // peaks to stand out.
-    auTargetScratch[b] = Math.min(1, Math.pow(ratio, 1.8)*0.7*auGain);
-  }
-  auSpatialSmooth(auTargetScratch, auSmoothScratch, AB);
-  for(let b=0;b<AB;b++) auSmooth(b, auSmoothScratch[b], dt);
+  auLastLevel += (level-auLastLevel)*Math.min(1,dt*3);
 }
 
 // Sound-source controls (mic/phone buttons + status) can appear in more
@@ -3023,7 +2967,7 @@ function renderSpectrumStyle(dt){
 // generic "Spectrum Analyser overlay" any other effect can opt into.
 function auRefreshCurrentSource(dt){
   if(radioPlaying && auAnalyser && !radioAnalyserSilent){
-    if(auOverallPeak<=0.13) radioSilentTimer+=dt; else radioSilentTimer=0;
+    if(auLastLevel<=0.04) radioSilentTimer+=dt; else radioSilentTimer=0;
     if(radioSilentTimer>4){
       radioAnalyserSilent=true;
       if(radioNowPlaying) radioSetStatus('▶ '+radioNowPlaying.name+' (visualizer unavailable — station blocks audio analysis)');
