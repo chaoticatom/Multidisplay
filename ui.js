@@ -1644,6 +1644,9 @@ document.querySelectorAll('.ov-chk').forEach(chk => {
   chk.addEventListener('change', () => {
     const ov=chk.dataset.ov;
     OV[ov].on=chk.checked;
+    // Some overlays (e.g. spectrum) now have their toggle duplicated into
+    // other panels for convenience — keep every copy's checked state synced.
+    document.querySelectorAll(`.ov-chk[data-ov="${ov}"]`).forEach(other=>{ if(other!==chk) other.checked=chk.checked; });
     const item=document.getElementById(`ovi-${ov}`);
     if(item) item.classList.toggle('ov-on', chk.checked);
     // reset state on enable
