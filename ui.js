@@ -3643,45 +3643,47 @@ function btApiUrl(path){
   return `http://${h}:5005${path}`;
 }
 
+// Bluetooth controls appear in both the Setup section and the Audio &
+// Media section now — same shared-class pattern as the radio/mic/phone
+// controls, so both copies always show the same state.
 function btSetStatus(text){
-  const el = document.getElementById('bt-status');
-  if(el) el.textContent = text;
+  document.querySelectorAll('.bt-status-el').forEach(el=>el.textContent=text);
 }
 
 function btRenderDevices(devices, mode){
-  const wrap = document.getElementById('bt-device-list');
-  if(!wrap) return;
-  wrap.innerHTML = '';
-  if(!devices || !devices.length){
-    wrap.innerHTML = '<div style="font-size:10px;color:#666;">No devices found.</div>';
-    return;
-  }
-  devices.forEach(dev=>{
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;';
-    const label = document.createElement('span');
-    label.style.cssText = 'flex:1;font-size:11px;color:#cdd8ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-    label.textContent = dev.name + ' (' + dev.mac + ')';
-    row.appendChild(label);
-    if(mode==='scan'){
-      const btn = document.createElement('button');
-      btn.textContent = 'Pair';
-      btn.style.cssText = 'flex:0 0 auto;padding:4px 10px;background:rgba(80,200,120,0.15);border:1px solid rgba(80,200,120,0.4);color:#8adf9e;border-radius:4px;cursor:pointer;font-size:10px;';
-      btn.addEventListener('click', ()=>btPair(dev.mac, dev.name));
-      row.appendChild(btn);
-    } else {
-      const tag = document.createElement('span');
-      tag.style.cssText = 'font-size:10px;color:#8adf9e;';
-      tag.textContent = 'paired';
-      row.appendChild(tag);
+  document.querySelectorAll('.bt-device-list-el').forEach(wrap=>{
+    wrap.innerHTML = '';
+    if(!devices || !devices.length){
+      wrap.innerHTML = '<div style="font-size:10px;color:#666;">No devices found.</div>';
+      return;
     }
-    wrap.appendChild(row);
+    devices.forEach(dev=>{
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;';
+      const label = document.createElement('span');
+      label.style.cssText = 'flex:1;font-size:11px;color:#cdd8ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      label.textContent = dev.name + ' (' + dev.mac + ')';
+      row.appendChild(label);
+      if(mode==='scan'){
+        const btn = document.createElement('button');
+        btn.textContent = 'Pair';
+        btn.style.cssText = 'flex:0 0 auto;padding:4px 10px;background:rgba(80,200,120,0.15);border:1px solid rgba(80,200,120,0.4);color:#8adf9e;border-radius:4px;cursor:pointer;font-size:10px;';
+        btn.addEventListener('click', ()=>btPair(dev.mac, dev.name));
+        row.appendChild(btn);
+      } else {
+        const tag = document.createElement('span');
+        tag.style.cssText = 'font-size:10px;color:#8adf9e;';
+        tag.textContent = 'paired';
+        row.appendChild(tag);
+      }
+      wrap.appendChild(row);
+    });
   });
 }
 
 async function btScan(){
   btSetStatus('Scanning… (~6s)');
-  document.getElementById('bt-device-list').innerHTML = '';
+  document.querySelectorAll('.bt-device-list-el').forEach(wrap=>wrap.innerHTML='');
   try{
     const r = await fetch(btApiUrl('/bt/scan'));
     if(!r.ok) throw new Error('HTTP '+r.status);
@@ -3730,15 +3732,14 @@ async function btPair(mac, name){
   }
 }
 
-document.getElementById('bt-scan-btn')?.addEventListener('click', btScan);
-document.getElementById('bt-refresh-btn')?.addEventListener('click', btRefreshStatus);
+document.querySelectorAll('.bt-scan-btn-el').forEach(b=>b.addEventListener('click', btScan));
+document.querySelectorAll('.bt-refresh-btn-el').forEach(b=>b.addEventListener('click', btRefreshStatus));
 
 function btSetPhoneStatus(text){
-  const el = document.getElementById('bt-phone-status');
-  if(el) el.textContent = text;
+  document.querySelectorAll('.bt-phone-status-el').forEach(el=>el.textContent=text);
 }
 
-document.getElementById('bt-discoverable-btn')?.addEventListener('click', async ()=>{
+document.querySelectorAll('.bt-discoverable-btn-el').forEach(b=>b.addEventListener('click', async ()=>{
   btSetPhoneStatus('Opening pairing window (~120s) — connect from your phone\'s Bluetooth settings now…');
   try{
     const r = await fetch(btApiUrl('/bt/discoverable'), {method:'POST'});
@@ -3749,20 +3750,20 @@ document.getElementById('bt-discoverable-btn')?.addEventListener('click', async 
     btSetPhoneStatus('✕ Bluetooth helper unreachable — is pi/bluetooth_server.py running on this Pi?');
     console.warn('[bt] discoverable failed:', e && e.message);
   }
-});
+}));
 
-document.getElementById('bt-route-phone-btn')?.addEventListener('click', async ()=>{
+document.querySelectorAll('.bt-route-phone-btn-el').forEach(b=>b.addEventListener('click', async ()=>{
   btSetPhoneStatus('Routing phone audio…');
   try{
     const r = await fetch(btApiUrl('/bt/route-phone-audio'), {method:'POST'});
     const data = await r.json();
-    if(data.ok) btSetPhoneStatus('✓ Phone audio routed — use "📱 Use Phone (Bluetooth)" in the Spectrum Analyser panel.');
+    if(data.ok) btSetPhoneStatus('✓ Phone audio routed — use "📱 Use Phone (Bluetooth)" in the Spectrum Analyser overlay.');
     else { btSetPhoneStatus('✕ ' + (Array.isArray(data.log)?data.log[data.log.length-1]:'No phone audio found — is the phone connected and playing music?')); console.warn('[bt] route-phone-audio:', data.log||data.error); }
   }catch(e){
     btSetPhoneStatus('✕ Bluetooth helper unreachable — is pi/bluetooth_server.py running on this Pi?');
     console.warn('[bt] route-phone-audio failed:', e && e.message);
   }
-});
+}));
 
 document.querySelectorAll('.phone-audio-btn-el').forEach(b=>b.addEventListener('click', togglePhoneAudio));
 
