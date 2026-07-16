@@ -2291,11 +2291,11 @@ function auSpatialSmooth(src, dst, AB){
 }
 
 function auSmooth(b, target, dt){
-  // Slower attack/release than a "real" level meter, on purpose — this is
-  // a visual effect, not a measurement tool, and a snappy instant jump
-  // reads as jagged/twitchy rather than a smooth flowing wave motion.
-  if(target > auSpec[b]) auSpec[b] += (target-auSpec[b])*Math.min(1, dt*9);
-  else                   auSpec[b] += (target-auSpec[b])*Math.min(1, dt*4);
+  // The flowing "wave" look comes from auSpatialSmooth blending neighboring
+  // bands together, not from slow motion over time — so this can react
+  // quickly to the actual music without losing that shape.
+  if(target > auSpec[b]) auSpec[b] += (target-auSpec[b])*Math.min(1, dt*22);
+  else                   auSpec[b] += (target-auSpec[b])*Math.min(1, dt*10);
   if(auSpec[b] > auPeak[b]){ auPeak[b]=auSpec[b]; auPeakV[b]=0; }
   else { auPeakV[b]+=dt*1.6; auPeak[b]=Math.max(0, auPeak[b]-auPeakV[b]*dt); }
 }
@@ -2344,7 +2344,7 @@ function readMicSpectrum(dt){
     // per band, so a persistently loud bass band doesn't cap how other
     // bands get normalized.
     const raw=auRawScratch[b];
-    if(raw>auBandPeak[b]) auBandPeak[b] += (raw-auBandPeak[b])*Math.min(1,dt*2);
+    if(raw>auBandPeak[b]) auBandPeak[b] += (raw-auBandPeak[b])*Math.min(1,dt*5);
     else                  auBandPeak[b] += (raw-auBandPeak[b])*Math.min(1,dt*0.3);
     auBandPeak[b] = Math.max(0.12, auBandPeak[b]);
     // A plain ratio against the peak left loud bands bunched near the top;
