@@ -2374,7 +2374,6 @@ async function toggleMic(){
   const st=document.getElementById('mic-status'), btn=document.getElementById('mic-btn');
   if(micOn){ micOn=false; btn.textContent='🎤 Use Microphone'; st.textContent='Mic off — bars idle'; return; }
   if(phoneAudioOn) stopPhoneAudio();
-  if(otherEffectAudioOn) stopOtherEffectAudio();
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
     auCtx = auCtx || new (window.AudioContext||window.webkitAudioContext)();
@@ -2405,7 +2404,6 @@ async function togglePhoneAudio(){
   const st=document.getElementById('phone-audio-status'), btn=document.getElementById('phone-audio-btn');
   if(phoneAudioOn){ stopPhoneAudio(); return; }
   if(micOn) toggleMic();
-  if(otherEffectAudioOn) stopOtherEffectAudio();
   try{
     const devices=await navigator.mediaDevices.enumerateDevices();
     const dev=devices.find(d=>d.kind==='audioinput' && /phone_capture/i.test(d.label));
@@ -2427,48 +2425,6 @@ async function togglePhoneAudio(){
     if(st) st.textContent='Source: phone (Bluetooth)';
   }catch(e){
     if(st) st.textContent='Phone audio unavailable: '+(e&&e.message||'error');
-  }
-}
-
-// "Other Effect"-as-sound-source: taps whatever audio is playing through
-// the Video Display effect's <video> element (vidEl in effects.js's video
-// section) — a loaded video file with sound, or a screen/tab capture with
-// audio. createMediaElementSource can only ever be called once per element,
-// so the source node is created lazily and reused across toggles.
-let otherEffectAudioOn=false, otherEffectSource=null;
-function stopOtherEffectAudio(){
-  otherEffectAudioOn=false;
-  if(otherEffectSource){ try{ otherEffectSource.disconnect(); }catch(e){} }
-  const st=document.getElementById('other-audio-status'), btn=document.getElementById('other-audio-btn');
-  if(btn) btn.textContent='🎬 Use Other Effect';
-  if(st) st.textContent='Other effect audio off — bars idle';
-}
-async function toggleOtherEffectAudio(){
-  const st=document.getElementById('other-audio-status'), btn=document.getElementById('other-audio-btn');
-  if(otherEffectAudioOn){ stopOtherEffectAudio(); return; }
-  if(micOn) toggleMic();
-  if(phoneAudioOn) stopPhoneAudio();
-  try{
-    if(typeof vidEl==='undefined' || !vidEl){
-      if(st) st.textContent='No other effect loaded yet — load a video/screen capture with sound in Video Display first';
-      return;
-    }
-    auCtx = auCtx || new (window.AudioContext||window.webkitAudioContext)();
-    if(auCtx.state==='suspended') await auCtx.resume();
-    if(!otherEffectSource) otherEffectSource=auCtx.createMediaElementSource(vidEl);
-    auAnalyser=auCtx.createAnalyser();
-    auAnalyser.fftSize=2048; auAnalyser.smoothingTimeConstant=0.45;
-    // Route through the analyser AND back out to speakers — creating a
-    // MediaElementSource replaces the <video> tag's default output path,
-    // so without this explicit connect() it would play silently.
-    otherEffectSource.connect(auAnalyser);
-    auAnalyser.connect(auCtx.destination);
-    micBuf=new Uint8Array(auAnalyser.frequencyBinCount);
-    micOn=true; otherEffectAudioOn=true;
-    if(btn) btn.textContent='🎬 Other Effect LIVE — tap to stop';
-    if(st) st.textContent='Source: other effect (Video Display)';
-  }catch(e){
-    if(st) st.textContent='Other effect audio unavailable: '+(e&&e.message||'error');
   }
 }
 
