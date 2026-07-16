@@ -2227,10 +2227,15 @@ document.querySelectorAll('.sp-fit-screen-el').forEach(chk=>chk.addEventListener
   document.querySelectorAll('.sp-fit-screen-el').forEach(other=>{ if(other!==e.target) other.checked=e.target.checked; });
 }));
 
+function auApplyAutoGainState(){
+  document.querySelectorAll('.au-gain-el').forEach(sl=>sl.disabled=auAutoGainOn);
+}
 document.querySelectorAll('.au-autogain-el').forEach(chk=>chk.addEventListener('change',(e)=>{
   auAutoGainOn = e.target.checked;
   document.querySelectorAll('.au-autogain-el').forEach(other=>{ if(other!==e.target) other.checked=e.target.checked; });
+  auApplyAutoGainState();
 }));
+auApplyAutoGainState();
 
 });
 
