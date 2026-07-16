@@ -2769,13 +2769,13 @@ function drawWaterfallStyle(dt){
   wfTimer+=dt;
   if(wfTimer>1/30){ // 30 rows/sec
     wfTimer=0;
-    for(let b=0;b<AB;b++) wfBuf[wfPos*AB+b]=auSpec[b];
+    for(let b=0;b<AB;b++) wfBuf[wfPos*AB+b]=auAmp(b);
     wfPos=(wfPos+1)%S;
   }
   for(let row=0;row<S;row++){
     const hist=(wfPos-1-row+S)%S;
     const age=row/S;
-    const fade=1-age*0.7;
+    const fade=(1-age*0.72)**1.3;   // steeper falloff reads as depth, not a flat gradient
     for(let c=0;c<cols;c++){
       const b=scrolledBand(c,cols,AB);
       const amp=wfBuf[hist*AB+b];
@@ -2784,6 +2784,8 @@ function drawWaterfallStyle(dt){
       const bright=amp*fade;
       const [r,g,bv]=auColor(b/(AB-1),amp,amp);
       setFaceLED(fu[0],fu[1],S-1-row,r*bright*1.4,g*bright*1.4,bv*bright*1.4);
+      // Freshest row gets a soft bloom so new hits punch through the trail
+      if(row===0 && amp>0.3) auBloom(fu[0],fu[1],S-1-row,[r,g,bv],1.2);
     }
   }
   drawPolarFace(4); drawPolarFace(5);
@@ -2823,7 +2825,7 @@ function drawWaveformStyle(dt){
 // ── Tunnel (concentric square rings pulsing inward) ──
 function drawTunnelStyle(dt){
   const S=SIZE, M=S-1, AB=AUDIO_BANDS;
-  const bass=(auSpec[0]+auSpec[1]+auSpec[2])/3;
+  const bass=(auAmp(0)+auAmp(1)+auAmp(2))/3;
   for(let f=0;f<6;f++){
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
       // Chebyshev distance = square rings
@@ -2834,11 +2836,29 @@ function drawTunnelStyle(dt){
       const scrollFrac=auScrollSpeed>0?auScrollX/(4*S)*2:0;
       const animated=((ring + t*0.45*(1+bass*0.5) + scrollFrac)%1);
       const b=Math.min(AB-1,(animated*AB)|0);
-      const amp=auSpec[b];
-      if(amp<0.04) continue;
+      const amp=auAmp(b);
+      if(amp<0.04){
+        // Even a quiet ring still shows a faint colour trace so the tunnel
+        // reads as a continuous structure, not sparse flickering dots.
+        const [r,g,bv]=auColor(b/(AB-1),1-ring,0.06);
+        setFaceLED(f,u,v,r*0.05,g*0.05,bv*0.05);
+        continue;
+      }
       const bright=amp*(1-ring*0.35)*0.92;
       const [r,g,bv]=auColor(b/(AB-1),1-ring,amp);
       setFaceLED(f,u,v,r*bright,g*bright,bv*bright);
+    }
+  }
+  // Bass hit flashes a white-hot core at dead centre of every face
+  if(bass>0.55){
+    const cc=(S-1)/2, coreR=1+bass*1.5;
+    for(let f=0;f<6;f++){
+      for(let dv=-coreR;dv<=coreR;dv++) for(let du=-coreR;du<=coreR;du++){
+        const d=Math.hypot(du,dv); if(d>coreR) continue;
+        const u=Math.round(cc+du), v=Math.round(cc+dv);
+        if(u<0||u>=S||v<0||v>=S) continue;
+        auBloom(f,u,v,[1,1,1],(1-d/coreR)*(bass-0.55)*2.2);
+      }
     }
   }
 }
@@ -2847,7 +2867,7 @@ function drawTunnelStyle(dt){
 function drawStormStyle(dt){
   const S=SIZE, AB=AUDIO_BANDS, cols=4*S;
   for(let i=0;i<N*3;i++) colBuf[i]*=0.72;
-  const bass=(auSpec[0]+auSpec[1]+auSpec[2])/3;
+  const bass=(auAmp(0)+auAmp(1)+auAmp(2))/3;
   // Spawn flashes on transients
   if(bass>0.52 && Math.random()<bass*dt*18){
     const face=Math.random()*4|0;
@@ -2857,13 +2877,14 @@ function drawStormStyle(dt){
   // Background: spectrum bars at low opacity scrolling
   for(let c=0;c<cols;c++){
     const b=scrolledBand(c,cols,AB);
-    const amp=auSpec[b]*0.4;
+    const raw=auAmp(b), amp=raw*0.4;
     if(amp<0.03) continue;
     const fu=sideCol(c);
-    const [r,g,bv]=auColor(b/(AB-1),1,auSpec[b]);
+    const [r,g,bv]=auColor(b/(AB-1),1,raw);
     for(let y=0;y<Math.round(amp*(S-1));y++) setFaceLED(fu[0],fu[1],y,r*amp,g*amp,bv*amp);
   }
-  // Animate flashes
+  // Animate flashes — bright core plus a jagged bolt-like flicker instead
+  // of a flat radial disc, and a hot white centre on the freshest strikes.
   for(let k=stormFlashes.length-1;k>=0;k--){
     const fl=stormFlashes[k]; fl.life-=dt*3.5;
     if(fl.life<=0){stormFlashes.splice(k,1);continue;}
@@ -2871,10 +2892,12 @@ function drawStormStyle(dt){
     for(let dv=-R;dv<=R;dv++) for(let du=-R;du<=R;du++){
       const d2=du*du+dv*dv;
       if(d2>R*R) continue;
-      const bright=fl.life*(1-Math.sqrt(d2)/R)*0.95;
+      const jag=0.75+0.25*Math.sin(du*2.7+dv*3.1+fl.life*20);
+      const bright=fl.life*(1-Math.sqrt(d2)/R)*0.95*jag;
       const [r,g,bv]=hsl(fl.hue,0.5+fl.life*0.5,bright);
       setFaceLED(fl.face,fl.u+du,fl.v+dv,r,g,bv);
     }
+    if(fl.life>0.7) auBloom(fl.face,fl.u,fl.v,[1,1,1],(fl.life-0.7)/0.3);
   }
   drawPolarFace(4); drawPolarFace(5);
 }
@@ -2882,16 +2905,16 @@ function drawStormStyle(dt){
 // Polar spectrum: angle = band, radius = level (top/bottom faces)
 function drawPolarFace(face){
   const S=SIZE, AB=AUDIO_BANDS, cc=(S-1)/2, maxR=cc*1.08;
-  const bass=(auSpec[0]+auSpec[1]+auSpec[2])/3;
+  const bass=(auAmp(0)+auAmp(1)+auAmp(2))/3;
   for(let v=0;v<S;v++) for(let u=0;u<S;u++){
     const dx=u-cc, dz=v-cc, r=Math.hypot(dx,dz)/maxR;
     const ang=(Math.atan2(dz,dx)/(Math.PI*2)+0.5+t*0.03)%1;
     const b=Math.min(AB-1,(ang*AB)|0);
-    const amp=auSpec[b];
+    const amp=auAmp(b);
     if(r<=amp){
       const col=auColor(b/(AB-1), 1-r/Math.max(0.01,amp), amp);
       setFaceLED(face,u,v,col[0],col[1],col[2]);
-    } else if(Math.abs(r-auPeak[b])<0.045){
+    } else if(Math.abs(r-auPk(b))<0.045){
       setFaceLED(face,u,v,0.8,0.8,0.85);
     }
     if(r<bass*0.22) setFaceLED(face,u,v,1,1,1); // bass core flash
@@ -2901,7 +2924,7 @@ function drawPolarFace(face){
 // Radial style: beat-triggered shockwave rings + spectral wash on sides
 function drawRadialStyle(dt){
   const S=SIZE, AB=AUDIO_BANDS, cc=(S-1)/2;
-  const bass=(auSpec[0]+auSpec[1]+auSpec[2])/3;
+  const bass=(auAmp(0)+auAmp(1)+auAmp(2))/3;
   if(bass>0.5 && auPrevBass<=0.5 && auRings.length<12) auRings.push({r:0, hue:Math.random()});
   auPrevBass=bass;
   for(const ring of auRings) ring.r+=dt*S*0.85;
@@ -2911,13 +2934,17 @@ function drawRadialStyle(dt){
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
       const r=Math.hypot(u-cc,v-cc);
       const b=Math.min(AB-1,((((u/(S-1))*0.25+f*0.25))*AB)|0); // bands wrap the cube
-      const amp=auSpec[b]*0.28;
-      const bg=auColor(b/(AB-1), v/(S-1), auSpec[b]);
+      const bandAmp=auAmp(b);
+      const amp=bandAmp*0.28;
+      const bg=auColor(b/(AB-1), v/(S-1), bandAmp);
       let rr=bg[0]*amp, gg=bg[1]*amp, bb=bg[2]*amp;
+      // Ring width breathes a little wider on the leading edge, softer
+      // trailing edge — reads as an expanding shockwave, not a static band.
       for(const ring of auRings){
-        const dd=Math.abs(r-ring.r);
-        if(dd<1.6){
-          const inten=(1-dd/1.6)*(1-ring.r/(S*0.95));
+        const dd=r-ring.r;
+        const w=dd>=0?1.2:2.4;
+        if(Math.abs(dd)<w){
+          const inten=(1-Math.abs(dd)/w)*(1-ring.r/(S*0.95));
           const c=hsl(ring.hue,1,0.55);
           if(c[0]*inten>rr) rr=c[0]*inten;
           if(c[1]*inten>gg) gg=c[1]*inten;
@@ -2977,9 +3004,9 @@ function drawVUStyle(dt){
 // ── PLASMA STYLE — audio-reactive plasma colour field ──
 function drawPlasmaStyle(dt){
   let energy=0;
-  for(let i=0;i<32;i++) energy+=auSpec[i];
+  for(let i=0;i<32;i++) energy+=auAmp(i);
   energy/=32;
-  const bass=(auSpec[0]+auSpec[1]+auSpec[2])/3;
+  const bass=(auAmp(0)+auAmp(1)+auAmp(2))/3;
   const hueShift=t*0.12*(1+bass*3);
   for(let i=0;i<N;i++){
     const x=surfX[i],y=surfY[i],z=surfZ[i];
@@ -2998,7 +3025,7 @@ function drawPlasmaStyle(dt){
 let ringsArr=[], ringTimer=0;
 function drawRingsStyle(dt){
   ringTimer+=dt;
-  const bassHit=(auSpec[0]+auSpec[1]+auSpec[2])/3;
+  const bassHit=(auAmp(0)+auAmp(1)+auAmp(2))/3;
   if(bassHit>0.35 && ringTimer>0.2 && ringsArr.length<12){
     ringTimer=0;
     const face=Math.floor(Math.random()*6);
@@ -3021,7 +3048,11 @@ function drawRingsStyle(dt){
       const dist=Math.hypot(u-ring.cx,v-ring.cy);
       const d=Math.abs(dist-r);
       if(d<w){
-        const a=(1-d/w);
+        // Bright thin core line, soft wider glow either side — a proper
+        // ripple silhouette instead of one flat-brightness band.
+        const core=Math.max(0,1-d/(w*0.4));
+        const halo=(1-d/w)*0.5;
+        const a=Math.max(core,halo);
         const idx=faceMap[f][v*S+u];
         if(idx>=0){
           const b3=idx*3;
@@ -3043,7 +3074,7 @@ function drawFireStyle(dt){
     const face=SIDES[si];
     const colW=S/AB;
     for(let b=0;b<AB;b++){
-      const spec=auSpec[b];
+      const spec=auAmp(b);
       if(spec<0.02) continue;
       const h=Math.round(spec*M);
       const colStart=Math.floor(b*colW), colEnd=Math.min(S,Math.floor((b+1)*colW));
@@ -3067,9 +3098,15 @@ function drawFireStyle(dt){
           if(idx>=0) setLED(idx,rr,gg,bb);
         }
       }
+      // White-hot tip on tall flames — the base of a real flame is where
+      // combustion is hottest/brightest, so the topmost pixel gets a bloom.
+      if(h>M*0.5){
+        const tipU=Math.floor((colStart+colEnd-1)/2);
+        auBloom(face,tipU,Math.min(M,h),[1,0.98,0.85],0.9);
+      }
     }
   }
-  const glow=(auSpec[0]+auSpec[1])*0.12;
+  const glow=(auAmp(0)+auAmp(1))*0.12;
   if(glow>0.02){
     for(let v=0;v<S;v++) for(let u=0;u<S;u++){
       const idx=faceMap[4][v*S+u];
