@@ -2449,6 +2449,9 @@ function scrolledBand(c, cols, AB){
   return Math.min(AB-1,(sc*AB/cols)|0);
 }
 
+// Dotted trail: every dot glows (not just the tip), spacing pulses subtly
+// with the level so a loud passage feels denser, and the lead dot gets a
+// bright core + soft halo instead of a flat colour swatch.
 function drawDotsStyle(){
   const S=SIZE, M=S-1;
   let AB=spectrumBandOverride||AUDIO_BANDS;
@@ -2457,21 +2460,20 @@ function drawDotsStyle(){
     const b=scrolledBand(c,cols,AB);
     const amp=auSpec[b], fb=b/(AB-1);
     const fu=sideCol(c), face=fu[0], u=fu[1];
-    const h=amp*M, peakY=Math.min(M,Math.round(auPeak[b]*M));
-    // Peak dot — bright white
-    setFaceLED(face,u,peakY,0.95,0.95,1);
-    // Level dot — coloured
+    const h=amp*M;
     const ly=Math.min(M,Math.round(h));
-    if(h>0.5){
-      const col=auColor(fb,1,amp);
-      setFaceLED(face,u,ly,col[0]*1.2,col[1]*1.2,col[2]*1.2);
-    }
-    // Trail of fading dots below
-    for(let y=0;y<=ly;y+=3){
-      const col=auColor(fb,h>0?y/h:0,amp);
-      const fade=0.3+0.5*(y/Math.max(1,ly));
+    const spacing=Math.max(2,3-Math.round(amp*1.4));   // tighter dots when loud
+    for(let y=0;y<=ly;y+=spacing){
+      const fh=ly>0?y/ly:0;
+      const col=auColor(fb,fh,amp);
+      const isLead=(y+spacing>ly);
+      const fade=isLead?1:0.35+0.45*fh;
       setFaceLED(face,u,y,col[0]*fade,col[1]*fade,col[2]*fade);
+      if(isLead){ auBloom(face,u,y,col,1.3); auGlowAround(face,u,y,col,2,0.4); }
     }
+    // Peak dot — bright glowing cap, tinted by the bar's own colour
+    const peakY=Math.min(M,Math.round(auPeak[b]*M));
+    auDrawPeakCap(face,u,peakY,auColor(fb,1,amp));
   }
   drawPolarFace(4); drawPolarFace(5);
 }
@@ -2491,36 +2493,54 @@ function drawBlocksStyle(){
     for(let blk=0;blk<blocks;blk++){
       const fh=blocks>0?blk/blocks:0;
       const col=auColor(fb,fh,amp);
+      const isTopBlock=(blk===blocks-1);
       const yBase=blk*BLOCK;
       for(let dy=0;dy<BLOCK-1;dy++){
         const y=yBase+dy; if(y>=S) break;
+        // Cheap per-block bevel: brighter centre, dimmer top/bottom edge —
+        // reads as a lit cell with real depth instead of a flat rectangle.
+        const cellFrac=dy/(BLOCK-2||1);
+        const bevel=0.6+0.4*Math.sin(cellFrac*Math.PI);
         for(let dc=0;dc<dcMax;dc++){
           const c=b*bandW+dc; if(c>=cols) break;
           const fu=sideCol(c);
-          setFaceLED(fu[0],fu[1],y,col[0],col[1],col[2]);
+          setFaceLED(fu[0],fu[1],y,col[0]*bevel,col[1]*bevel,col[2]*bevel);
+        }
+      }
+      // The topmost lit block on each bar gets a soft glow, so the bar
+      // reads as actively lit rather than a static stack of tiles.
+      if(isTopBlock){
+        for(let dc=0;dc<dcMax;dc++){
+          const c=b*bandW+dc; if(c>=cols) break;
+          const fu=sideCol(c);
+          auGlowAround(fu[0],fu[1],yBase+1,col,2,0.3);
         }
       }
     }
-    // Peak block
+    // Peak block — bright glowing cap tinted by the bar's own colour
     const pkBlk=Math.round(auPeak[b]*(S/BLOCK));
     const pkY=pkBlk*BLOCK;
+    const tint=auColor(fb,1,amp);
     for(let dy=0;dy<BLOCK-1;dy++){
       const y=pkY+dy; if(y>=S) break;
       for(let dc=0;dc<dcMax;dc++){
         const c=b*bandW+dc; if(c>=cols) break;
         const fu=sideCol(c);
-        setFaceLED(fu[0],fu[1],y,0.9,0.9,0.95);
+        auBloom(fu[0],fu[1],y,tint,1.3);
       }
     }
   }
   drawPolarFace(4); drawPolarFace(5);
 }
 
+// Glowing silhouette: a continuous line across the spectrum's top edge
+// (interpolated between columns, not one isolated blob per column), a
+// faint colour-graded fill underneath so it reads as a filled area chart,
+// and a proper glowing peak cap.
 function drawOutlineStyle(){
   const S=SIZE, M=S-1;
   let AB=spectrumBandOverride||AUDIO_BANDS;
   let cols=panel2dMode?SIZE:4*S; // single visible face in 2D mode gets all the bands, not a quarter of them
-  // Draw the top edge of each bar as a connected line
   const pts=new Float32Array(cols);
   for(let c=0;c<cols;c++){
     const b=scrolledBand(c,cols,AB);
@@ -2530,27 +2550,65 @@ function drawOutlineStyle(){
     const b=scrolledBand(c,cols,AB);
     const fb=b/(AB-1), amp=auSpec[b];
     const fu=sideCol(c), face=fu[0], u=fu[1];
-    const y0=Math.round(pts[c]);
+    const yHere=pts[c], yNext=pts[(c+1)%cols];
+    const y0=Math.round(yHere);
     const col=auColor(fb,1,amp);
-    // Main line pixel
-    setFaceLED(face,u,Math.min(M,y0),col[0]*1.3,col[1]*1.3,col[2]*1.3);
-    // Glow below (3px fade)
-    for(let g=1;g<=3;g++){
-      const gy=y0-g; if(gy<0) break;
-      const fade=1-g/4;
-      setFaceLED(face,u,gy,col[0]*fade*0.5,col[1]*fade*0.5,col[2]*fade*0.5);
+
+    // Faint gradient fill from baseline up to the line — subtle, so the
+    // glowing edge stays the focal point.
+    for(let y=0;y<y0;y++){
+      const fh=y0>0?y/y0:0;
+      const fillCol=auColor(fb,fh,amp);
+      setFaceLED(face,u,y,fillCol[0]*0.12,fillCol[1]*0.12,fillCol[2]*0.12);
     }
-    // Glow above (2px)
-    for(let g=1;g<=2;g++){
-      const gy=y0+g; if(gy>M) break;
-      const fade=1-g/3;
-      setFaceLED(face,u,gy,col[0]*fade*0.3,col[1]*fade*0.3,col[2]*fade*0.3);
+
+    // Interpolated edge segment toward the next column, so the silhouette
+    // reads as one continuous line rather than disconnected column tips.
+    const steps=Math.max(1,Math.abs(Math.round(yNext-yHere)));
+    for(let s=0;s<=steps;s++){
+      const yy=Math.round(yHere+(yNext-yHere)*(s/steps));
+      if(yy<0||yy>M) continue;
+      setFaceLED(face,u,yy,Math.min(1,col[0]*1.3),Math.min(1,col[1]*1.3),Math.min(1,col[2]*1.3));
     }
-    // Peak dot
-    const pkY=Math.min(M,Math.round(auPeak[b]*M));
-    if(pkY>y0+2) setFaceLED(face,u,pkY,0.7,0.7,0.75);
+    auGlowAround(face,u,y0,col,3,0.45);
+
+    auDrawPeakCap(face,u,Math.min(M,Math.round(auPeak[b]*M)),col);
   }
   drawPolarFace(4); drawPolarFace(5);
+}
+
+// Blends a bright core pixel plus a soft 2px bloom above/around it — the
+// glow that makes LED bar tips and peak caps read as genuinely lit rather
+// than a flat colour swatch. Additive (never darkens what's already there).
+function auBloom(face,u,y,col,coreAmt){
+  if(y<0||y>=SIZE||u<0||u>=SIZE) return;
+  const c0=Math.min(1,col[0]*coreAmt), c1=Math.min(1,col[1]*coreAmt), c2=Math.min(1,col[2]*coreAmt);
+  const idx=faceMap[face][y*SIZE+u]; if(idx<0) return;
+  colBuf[idx*3]=Math.max(colBuf[idx*3],c0);
+  colBuf[idx*3+1]=Math.max(colBuf[idx*3+1],c1);
+  colBuf[idx*3+2]=Math.max(colBuf[idx*3+2],c2);
+}
+function auGlowAround(face,u,y,col,spread,strength){
+  for(let g=1;g<=spread;g++){
+    const fade=strength*(1-g/(spread+1));
+    for(const dy of [g,-g]){
+      const yy=y+dy; if(yy<0||yy>=SIZE) continue;
+      const idx=faceMap[face][yy*SIZE+u]; if(idx<0) continue;
+      const r=col[0]*fade, g2=col[1]*fade, b=col[2]*fade;
+      if(r>colBuf[idx*3])   colBuf[idx*3]=r;
+      if(g2>colBuf[idx*3+1])colBuf[idx*3+1]=g2;
+      if(b>colBuf[idx*3+2]) colBuf[idx*3+2]=b;
+    }
+  }
+}
+
+// Peak cap: a small glowing diamond instead of one flat white pixel —
+// bright core, soft halo, tinted faintly by the bar's own colour so it
+// doesn't look like a disconnected sticker on top.
+function auDrawPeakCap(face,u,y,tint){
+  const glow=[0.55+tint[0]*0.45,0.55+tint[1]*0.45,0.55+tint[2]*0.45];
+  auBloom(face,u,y,glow,1);
+  auGlowAround(face,u,y,glow,2,0.35);
 }
 
 function drawBandBars(mirror){
@@ -2574,14 +2632,16 @@ function drawBandBars(mirror){
         const d=Math.abs(y-mid);
         if(d<=half){
           const fh=half>0?1-d/half:0;
+          const edgeSoft=Math.min(1,(half-d+1)*0.6);   // soft fade at the tips
           const col=auColor(fb,fh,amp);
-          if(mode==='striped'&&(y&1)) { setFaceLED(face,u,y,col[0]*0.15,col[1]*0.15,col[2]*0.15); }
-          else setFaceLED(face,u,y,col[0],col[1],col[2]);
+          if(mode==='striped'&&(y&1)) setFaceLED(face,u,y,col[0]*0.15,col[1]*0.15,col[2]*0.15);
+          else setFaceLED(face,u,y,col[0]*edgeSoft,col[1]*edgeSoft,col[2]*edgeSoft);
         }
       }
       const pk=auPeak[b]*S*0.5;
-      setFaceLED(face,u,Math.min(M,Math.round(mid+pk)),0.9,0.9,0.95);
-      setFaceLED(face,u,Math.max(0,Math.round(mid-pk)),0.9,0.9,0.95);
+      const tint=auColor(fb,1,amp);
+      auDrawPeakCap(face,u,Math.min(M,Math.round(mid+pk)),tint);
+      auDrawPeakCap(face,u,Math.max(0,Math.round(mid-pk)),tint);
       continue;
     }
 
@@ -2598,9 +2658,11 @@ function drawBandBars(mirror){
       }
       if(rawH>0){
         const tp=auColor(fb,1,amp);
-        setFaceLED(face,u,Math.max(0,M-hi),Math.min(1,tp[0]*1.4+0.15),Math.min(1,tp[1]*1.4+0.15),Math.min(1,tp[2]*1.4+0.15));
+        const tipY=Math.max(0,M-hi);
+        auBloom(face,u,tipY,tp,1.5);
+        auGlowAround(face,u,tipY,tp,2,0.3);
       }
-      setFaceLED(face,u,Math.max(0,M-Math.round(auPeak[b]*M)),0.9,0.9,0.95);
+      auDrawPeakCap(face,u,Math.max(0,M-Math.round(auPeak[b]*M)),auColor(fb,1,amp));
 
     } else if(mode==='center'){
       const mid=(S-1)/2, half=rawH*0.5;
@@ -2608,15 +2670,20 @@ function drawBandBars(mirror){
         const d=Math.abs(y-mid);
         if(d<=half){
           const fh=half>0?1-d/half:0;
+          const edgeSoft=Math.min(1,(half-d+1)*0.6);
           const col=auColor(fb,fh,amp);
-          setFaceLED(face,u,y,col[0],col[1],col[2]);
+          setFaceLED(face,u,y,col[0]*edgeSoft,col[1]*edgeSoft,col[2]*edgeSoft);
         }
       }
       const pk=auPeak[b]*M*0.5;
-      setFaceLED(face,u,Math.min(M,Math.round(mid+pk)),0.9,0.9,0.95);
-      setFaceLED(face,u,Math.max(0,Math.round(mid-pk)),0.9,0.9,0.95);
+      const tint=auColor(fb,1,amp);
+      auDrawPeakCap(face,u,Math.min(M,Math.round(mid+pk)),tint);
+      auDrawPeakCap(face,u,Math.max(0,Math.round(mid-pk)),tint);
 
     } else if(mode==='stacked'){
+      // LED-cell look: each segment brighter in its centre, dimmer at its
+      // own top/bottom edge (a cheap per-cell bevel), with a real gap
+      // between cells so they read as individual lit blocks, not one bar.
       const SEG=4;
       const segs=Math.round(rawH/SEG);
       for(let s=0;s<segs;s++){
@@ -2625,33 +2692,39 @@ function drawBandBars(mirror){
         const col=auColor(fb,fh,amp);
         for(let dy=0;dy<SEG-1;dy++){
           const y=yBase+dy; if(y>M) break;
-          setFaceLED(face,u,y,col[0],col[1],col[2]);
+          const cellFrac=dy/(SEG-2||1);
+          const bevel=0.55+0.45*Math.sin(cellFrac*Math.PI);
+          setFaceLED(face,u,y,col[0]*bevel,col[1]*bevel,col[2]*bevel);
         }
       }
       const pkSeg=Math.round(auPeak[b]*M/SEG);
+      const tint=auColor(fb,1,amp);
       for(let dy=0;dy<SEG-1;dy++){
         const y=pkSeg*SEG+dy; if(y>M) break;
-        setFaceLED(face,u,y,0.9,0.9,0.95);
+        auBloom(face,u,y,tint,1.3);
       }
 
     } else {
       // solid, striped, wave
       const h=rawH+waveOff, hi=Math.max(0,Math.min(M,Math.round(h)));
+      const frac=h-Math.floor(h);   // sub-pixel remainder for a softer tip
       for(let y=0;y<=hi;y++){
         const fh=hi>0?y/hi:0;
         const col=auColor(fb,fh,amp);
         if(mode==='striped'&&(y&1)){
           setFaceLED(face,u,y,col[0]*0.15,col[1]*0.15,col[2]*0.15);
         } else {
-          setFaceLED(face,u,y,col[0],col[1],col[2]);
+          const isTip=(y===hi);
+          const bright=isTip?Math.max(0.35,frac):1;
+          setFaceLED(face,u,y,col[0]*bright,col[1]*bright,col[2]*bright);
         }
       }
       if(h>0){
         const tp=auColor(fb,1,amp);
-        setFaceLED(face,u,hi,Math.min(1,tp[0]*1.4+0.15),Math.min(1,tp[1]*1.4+0.15),Math.min(1,tp[2]*1.4+0.15));
+        auBloom(face,u,hi,tp,1.5);
+        auGlowAround(face,u,hi,tp,3,0.4);
       }
-      const pkY=Math.max(0,Math.min(M,Math.round(auPeak[b]*M+waveOff)));
-      setFaceLED(face,u,pkY,0.9,0.9,0.95);
+      auDrawPeakCap(face,u,Math.max(0,Math.min(M,Math.round(auPeak[b]*M+waveOff))),auColor(fb,1,amp));
     }
   }
   drawPolarFace(4); drawPolarFace(5);
