@@ -2370,9 +2370,22 @@ function readMicSpectrum(dt){
   for(let b=0;b<AB;b++) auSmooth(b, auSmoothScratch[b], dt);
 }
 
+// Sound-source controls (mic/phone buttons + status) can appear in more
+// than one panel now (the Spectrum Analyser panel, and any other effect's
+// panel that's shown the "Spectrum Analyser overlay" controls) — these set
+// every matching element rather than one fixed ID, same pattern as the
+// radio-*-el classes.
+function micSetUI(btnText, statusText){
+  document.querySelectorAll('.mic-btn-el').forEach(b=>b.textContent=btnText);
+  document.querySelectorAll('.mic-status-el').forEach(s=>s.textContent=statusText);
+}
+function phoneSetUI(btnText, statusText){
+  document.querySelectorAll('.phone-audio-btn-el').forEach(b=>b.textContent=btnText);
+  document.querySelectorAll('.phone-audio-status-el').forEach(s=>s.textContent=statusText);
+}
+
 async function toggleMic(){
-  const st=document.getElementById('mic-status'), btn=document.getElementById('mic-btn');
-  if(micOn){ micOn=false; btn.textContent='🎤 Use Microphone'; st.textContent='Mic off — bars idle'; return; }
+  if(micOn){ micOn=false; micSetUI('🎤 Use Microphone', 'Mic off — bars idle'); return; }
   if(phoneAudioOn) stopPhoneAudio();
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
@@ -2383,8 +2396,8 @@ async function toggleMic(){
     auAnalyser.fftSize=2048; auAnalyser.smoothingTimeConstant=0.45;
     src.connect(auAnalyser);
     micBuf=new Uint8Array(auAnalyser.frequencyBinCount);
-    micOn=true; btn.textContent='🎤 Mic LIVE — tap to stop'; st.textContent='Source: microphone';
-  }catch(e){ st.textContent='Mic unavailable — bars idle'; }
+    micOn=true; micSetUI('🎤 Mic LIVE — tap to stop', 'Source: microphone');
+  }catch(e){ micSetUI('🎤 Use Microphone', 'Mic unavailable — bars idle'); }
 }
 
 // Phone-as-sound-source: a Bluetooth phone connected directly to the Pi
@@ -2396,19 +2409,16 @@ let phoneAudioOn=false, phoneAudioStream=null;
 function stopPhoneAudio(){
   phoneAudioOn=false;
   if(phoneAudioStream){ phoneAudioStream.getTracks().forEach(t=>t.stop()); phoneAudioStream=null; }
-  const st=document.getElementById('phone-audio-status'), btn=document.getElementById('phone-audio-btn');
-  if(btn) btn.textContent='📱 Use Phone (Bluetooth)';
-  if(st) st.textContent='Phone audio off — bars idle';
+  phoneSetUI('📱 Use Phone (Bluetooth)', 'Phone audio off — bars idle');
 }
 async function togglePhoneAudio(){
-  const st=document.getElementById('phone-audio-status'), btn=document.getElementById('phone-audio-btn');
   if(phoneAudioOn){ stopPhoneAudio(); return; }
   if(micOn) toggleMic();
   try{
     const devices=await navigator.mediaDevices.enumerateDevices();
     const dev=devices.find(d=>d.kind==='audioinput' && /phone_capture/i.test(d.label));
     if(!dev){
-      if(st) st.textContent='Phone capture device not found — pair the phone and click "Route Phone Audio to Speaker" in Setup first';
+      phoneSetUI('📱 Use Phone (Bluetooth)', 'Phone capture device not found — pair the phone and click "Route Phone Audio to Speaker" in Setup first');
       return;
     }
     const stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:{exact:dev.deviceId}}});
@@ -2421,10 +2431,9 @@ async function togglePhoneAudio(){
     src.connect(auAnalyser);
     micBuf=new Uint8Array(auAnalyser.frequencyBinCount);
     micOn=true; phoneAudioOn=true;
-    if(btn) btn.textContent='📱 Phone LIVE — tap to stop';
-    if(st) st.textContent='Source: phone (Bluetooth)';
+    phoneSetUI('📱 Phone LIVE — tap to stop', 'Source: phone (Bluetooth)');
   }catch(e){
-    if(st) st.textContent='Phone audio unavailable: '+(e&&e.message||'error');
+    phoneSetUI('📱 Use Phone (Bluetooth)', 'Phone audio unavailable: '+(e&&e.message||'error'));
   }
 }
 
@@ -3009,11 +3018,10 @@ function renderSpectrumStyle(dt){
   }
 }
 
-function effectSpectrum(dt){
-  t+=dt;
-  // Sound source is either the microphone or a playing Internet Radio
-  // stream (selected via the panel's Sound Source toggle) — same function,
-  // same visuals, either way.
+// Reads whichever sound source is currently selected (mic/phone/radio) into
+// auSpec, and advances the scroll offset. Shared by effectSpectrum and the
+// generic "Spectrum Analyser overlay" any other effect can opt into.
+function auRefreshCurrentSource(dt){
   if(radioPlaying && auAnalyser && !radioAnalyserSilent){
     if(auOverallPeak<=0.13) radioSilentTimer+=dt; else radioSilentTimer=0;
     if(radioSilentTimer>4){
@@ -3023,8 +3031,12 @@ function effectSpectrum(dt){
   }
   const haveRealAudio = (micOn || (radioPlaying && !radioAnalyserSilent)) && auAnalyser;
   if(haveRealAudio) readMicSpectrum(dt); else auFlatten(dt);
-  // Advance scroll
   if(auScrollSpeed>0) auScrollX=(auScrollX+dt*auScrollSpeed*SIZE*1.5*auScrollDir+4*SIZE)%(4*SIZE);
+}
+
+function effectSpectrum(dt){
+  t+=dt;
+  auRefreshCurrentSource(dt);
   for(let i=0;i<N*3;i++) colBuf[i]=0;
   renderSpectrumStyle(dt);
   if(radioPlaying){
@@ -3032,6 +3044,19 @@ function effectSpectrum(dt){
     radioDrawTicker(0, dt);
     if(!is2D) radioDrawTicker(2, dt);
   }
+}
+
+// ── Generic Spectrum Analyser overlay ──────────────────────────────────
+// Lets any other effect's panel offer a "Show Spectrum Analyser Overlay"
+// checkbox (see index.html's .fx-spectrum-overlay-chk / data-host pattern).
+// Draws the bars WITHOUT clearing colBuf first, so they blend on top of
+// whatever the host effect already rendered this frame, instead of
+// replacing it — a true overlay, not a takeover.
+let fxSpectrumOverlay = {};
+function drawSpectrumOverlay(dt){
+  t+=dt;
+  auRefreshCurrentSource(dt);
+  renderSpectrumStyle(dt);
 }
 
 // ═══════════════════════════════════════════════════
@@ -11838,7 +11863,7 @@ function effectVideo(dt){
   t+=dt;
   // Show loaded image if no video playing
   if(!vidReady||!vidEl||vidEl.readyState<2){
-    if(imgLoaded){ renderImg(); return; }
+    if(imgLoaded){ renderImg(); if(fxSpectrumOverlay.video) drawSpectrumOverlay(dt); return; }
     for(let i=0;i<N*3;i++) colBuf[i]=0;
     const pulse=0.5+0.5*Math.sin(t*1.8);
     for(let f=0;f<4;f++){
@@ -11846,6 +11871,7 @@ function effectVideo(dt){
       setFaceLED(f,SIZE>>1,(SIZE>>1)-1,0,pulse*0.3,pulse*0.35);
       setFaceLED(f,SIZE>>1,(SIZE>>1)+1,0,pulse*0.3,pulse*0.35);
     }
+    if(fxSpectrumOverlay.video) drawSpectrumOverlay(dt);
     return;
   }
 
@@ -11980,6 +12006,7 @@ function effectVideo(dt){
         Math.min(1,topBuf[ti*3+2]/topW[ti]*fade));
     }
   } // 'dark' → leave zeroed
+  if(fxSpectrumOverlay.video) drawSpectrumOverlay(dt);
 }
 
 // ── RANDOM CHAOS ──

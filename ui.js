@@ -1755,17 +1755,19 @@ document.querySelectorAll('.au-barmode-btn').forEach(b => b.addEventListener('cl
   auBarMode = b.dataset.barmode;
 }));
 
-document.getElementById('au-gain')?.addEventListener('input', e => {
+document.querySelectorAll('.au-gain-el').forEach(sl => sl.addEventListener('input', e => {
   auGain = parseFloat(e.target.value);
-  document.getElementById('au-gain-val').textContent = auGain.toFixed(1) + 'x';
-});
+  document.querySelectorAll('.au-gain-el').forEach(other=>{ if(other!==e.target) other.value=e.target.value; });
+  document.querySelectorAll('.au-gain-val-el').forEach(v=>v.textContent = auGain.toFixed(1) + 'x');
+}));
 
 // Spectrum scroll
-document.getElementById('au-scroll-speed')?.addEventListener('input', e => {
+document.querySelectorAll('.au-scroll-speed-el').forEach(sl => sl.addEventListener('input', e => {
   auScrollSpeed = parseFloat(e.target.value);
-  document.getElementById('au-scroll-val').textContent =
-    auScrollSpeed === 0 ? 'Off' : auScrollSpeed.toFixed(1) + 'x';
-});
+  document.querySelectorAll('.au-scroll-speed-el').forEach(other=>{ if(other!==e.target) other.value=e.target.value; });
+  document.querySelectorAll('.au-scroll-speed-val-el').forEach(v=>v.textContent =
+    auScrollSpeed === 0 ? 'Off' : auScrollSpeed.toFixed(1) + 'x');
+}));
 document.querySelectorAll('.au-dir-btn').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('.au-dir-btn').forEach(x => x.classList.remove('active'));
   b.classList.add('active');
@@ -1810,6 +1812,18 @@ document.querySelectorAll('.vid-layout-btn').forEach(b => b.addEventListener('cl
   b.classList.add('active'); vidLayout = b.dataset.layout;
 }));
 
+// Generic "Spectrum Analyser overlay" toggle — any effect panel with audio
+// can offer this checkbox (data-host="<effect key>"); fxSpectrumOverlay
+// (declared in effects.js) is a plain {key: bool} map the host effect
+// checks each frame to decide whether to blend the spectrum bars on top.
+document.querySelectorAll('.fx-spectrum-overlay-chk').forEach(chk => chk.addEventListener('change', () => {
+  const host = chk.dataset.host;
+  fxSpectrumOverlay[host] = chk.checked;
+  document.querySelectorAll(`.fx-spectrum-overlay-body[data-host="${host}"]`).forEach(body=>{
+    body.style.display = chk.checked ? 'block' : 'none';
+  });
+}));
+
 document.querySelectorAll('.vid-tb-btn').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('.vid-tb-btn').forEach(x => x.classList.remove('active'));
   b.classList.add('active'); vidTB = b.dataset.tb;
@@ -1829,7 +1843,7 @@ document.getElementById('vid-scroll')?.addEventListener('input', e => {
     vidScrollSpeed === 0 ? 'Off' : (vidScrollSpeed > 0 ? '→ ' : '← ') + Math.abs(vidScrollSpeed).toFixed(1) + 'x';
 });
 
-document.getElementById('mic-btn')?.addEventListener('click', toggleMic);
+document.querySelectorAll('.mic-btn-el').forEach(b=>b.addEventListener('click', toggleMic));
 
 // Collapsible sidebar sections
 document.querySelectorAll('.section-head').forEach(h => h.addEventListener('click', () => {
@@ -2247,9 +2261,10 @@ document.querySelectorAll('.spectrum-bands-btn').forEach(btn=>{
   });
 });
 
-document.getElementById('sp-fit-screen')?.addEventListener('change',(e)=>{
+document.querySelectorAll('.sp-fit-screen-el').forEach(chk=>chk.addEventListener('change',(e)=>{
   spectrumFitToScreen = e.target.checked;
-});
+  document.querySelectorAll('.sp-fit-screen-el').forEach(other=>{ if(other!==e.target) other.checked=e.target.checked; });
+}));
 
 });
 
@@ -3812,7 +3827,7 @@ document.getElementById('bt-route-phone-btn')?.addEventListener('click', async (
   }
 });
 
-document.getElementById('phone-audio-btn')?.addEventListener('click', togglePhoneAudio);
+document.querySelectorAll('.phone-audio-btn-el').forEach(b=>b.addEventListener('click', togglePhoneAudio));
 
 // Auto-connect on load
 initCubeWs();

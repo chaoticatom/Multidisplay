@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=829">
+<link rel="stylesheet" href="style.css?v=830">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -589,22 +589,21 @@
         <button class="au-barmode-btn" data-barmode="stacked">Stacked</button>
         <button class="au-barmode-btn" data-barmode="wave">Wave</button>
       </div>
-      <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" id="sp-fit-screen">FIT TO SCREEN</label>
+      <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
       <div class="ov-row-label">Gain</div>
       <div class="slider-row">
-        <input type="range" id="au-gain" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
-        <span class="slider-val" id="au-gain-val">1.0×</span>
+        <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
+        <span class="slider-val au-gain-val-el">1.0×</span>
       </div>
       <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
       <div class="slider-row">
-        <input type="range" id="au-scroll-speed" min="0" max="3" step="0.1" value="0" style="flex:1;">
-        <span class="slider-val" id="au-scroll-speed-val">0</span>
+        <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
+        <span class="slider-val au-scroll-speed-val-el">0</span>
       </div>
-      <span id="au-scroll-val" style="display:none;"></span>
-      <button id="mic-btn" style="margin-top:8px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">🎤 START MIC</button>
-      <div id="mic-status" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
-      <button id="phone-audio-btn" style="margin-top:6px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">📱 Use Phone (Bluetooth)</button>
-      <div id="phone-audio-status" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
+      <button class="mic-btn-el" style="margin-top:8px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">🎤 START MIC</button>
+      <div class="mic-status-el" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
+      <button class="phone-audio-btn-el" style="margin-top:6px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">📱 Use Phone (Bluetooth)</button>
+      <div class="phone-audio-status-el" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
       <div style="font-size:10px;color:#666;margin-top:4px;">Pair + route your phone's Bluetooth audio first, under Setup near the bottom of the sidebar. First use may need a one-time microphone permission prompt.</div>
     </div>
     <button class="effect-btn has-panel" data-effect="radio">◈ Internet Radio <span class="panel-arrow">▸</span></button>
@@ -655,6 +654,72 @@
         <button class="vid-layout-btn" data-layout="mirror">Mirror</button>
         <button class="vid-layout-btn" data-layout="tile">Tile</button>
         <button class="vid-layout-btn" data-layout="perspective">Perspective</button>
+      </div>
+
+      <label class="check-row" style="margin-top:10px;"><input type="checkbox" class="fx-spectrum-overlay-chk" data-host="video">Show Spectrum Analyser Overlay</label>
+      <div class="fx-spectrum-overlay-body" data-host="video" style="display:none;margin-top:6px;padding:8px;background:rgba(0,0,0,0.2);border-radius:4px;">
+        <div style="font-size:10px;color:#666;margin-bottom:8px;">Blends the Spectrum Analyser's bars on top of the video, reacting to whatever sound source is selected below. Same controls as the Spectrum Analyser effect — changing them here changes them there too.</div>
+        <div class="ov-row-label">Bands</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="spectrum-bands-btn" data-bands="8">8</button>
+          <button class="spectrum-bands-btn" data-bands="16">16</button>
+          <button class="spectrum-bands-btn" data-bands="32">32</button>
+          <button class="spectrum-bands-btn active" data-bands="64">64</button>
+          <button class="spectrum-bands-btn" data-bands="128">128</button>
+          <button class="spectrum-bands-btn" data-bands="256">256</button>
+        </div>
+        <div class="ov-row-label">Style</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="au-style-btn active" data-austyle="bars">Bars</button>
+          <button class="au-style-btn" data-austyle="mirror">Mirror</button>
+          <button class="au-style-btn" data-austyle="dots">Dots</button>
+          <button class="au-style-btn" data-austyle="blocks">Blocks</button>
+          <button class="au-style-btn" data-austyle="outline">Outline</button>
+          <button class="au-style-btn" data-austyle="radial">Radial</button>
+          <button class="au-style-btn" data-austyle="vu">VU</button>
+          <button class="au-style-btn" data-austyle="waterfall">Waterfall</button>
+          <button class="au-style-btn" data-austyle="waveform">Waveform</button>
+          <button class="au-style-btn" data-austyle="tunnel">Tunnel</button>
+          <button class="au-style-btn" data-austyle="storm">Storm</button>
+          <button class="au-style-btn" data-austyle="plasma">Plasma</button>
+          <button class="au-style-btn" data-austyle="rings">Rings</button>
+          <button class="au-style-btn" data-austyle="fire">Fire</button>
+        </div>
+        <div class="ov-row-label">Colour Theme</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="au-theme-btn" data-autheme="0">Rainbow</button>
+          <button class="au-theme-btn" data-autheme="1">Fire</button>
+          <button class="au-theme-btn" data-autheme="2">Ocean</button>
+          <button class="au-theme-btn" data-autheme="3">Neon</button>
+          <button class="au-theme-btn" data-autheme="4">Matrix</button>
+          <button class="au-theme-btn" data-autheme="5">Pastel</button>
+          <button class="au-theme-btn active" data-autheme="6">VU Meter</button>
+        </div>
+        <div class="ov-row-label">Bar Mode</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="au-barmode-btn active" data-barmode="solid">Solid</button>
+          <button class="au-barmode-btn" data-barmode="striped">Striped</button>
+          <button class="au-barmode-btn" data-barmode="center">Center</button>
+          <button class="au-barmode-btn" data-barmode="falling">Falling</button>
+          <button class="au-barmode-btn" data-barmode="stacked">Stacked</button>
+          <button class="au-barmode-btn" data-barmode="wave">Wave</button>
+        </div>
+        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
+        <div class="ov-row-label">Gain</div>
+        <div class="slider-row">
+          <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
+          <span class="slider-val au-gain-val-el">1.0×</span>
+        </div>
+        <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
+        <div class="slider-row">
+          <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
+          <span class="slider-val au-scroll-speed-val-el">0</span>
+        </div>
+        <div class="ov-row-label" style="margin-top:8px;">Sound Source</div>
+        <button class="mic-btn-el" style="margin-top:4px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">🎤 START MIC</button>
+        <div class="mic-status-el" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
+        <button class="phone-audio-btn-el" style="margin-top:6px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">📱 Use Phone (Bluetooth)</button>
+        <div class="phone-audio-status-el" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
       </div>
     </div>
 
@@ -1336,7 +1401,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=829"></script>
+<script src="version.js?v=830"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1400,7 +1465,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=829','effects.js?v=829','ui.js?v=829'];
+  const appScripts = ['cube.js?v=830','effects.js?v=830','ui.js?v=830'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
