@@ -3226,7 +3226,18 @@ function radioSetVolume(v){
 // ticker, and detect a CORS-silent station. Calling it directly here (not a
 // parallel copy) guarantees both effects always look identical.
 function effectRadio(dt){
-  effectSpectrum(dt);
+  t+=dt;
+  auRefreshCurrentSource(dt);
+  for(let i=0;i<N*3;i++) colBuf[i]=0;
+  // Bars are opt-in via the "Switch on Spectrum Analyser Overlay" checkbox
+  // (OV.spectrum.on) — by default Internet Radio shows just the scrolling
+  // now-playing ticker on a blank background, nothing else.
+  if(OV.spectrum.on) renderSpectrumStyle(dt);
+  if(radioPlaying){
+    const is2D=typeof panel2dMode!=='undefined'&&panel2dMode;
+    radioDrawTicker(0, dt);
+    if(!is2D) radioDrawTicker(2, dt);
+  }
 }
 
 // ═══════════════════════════════════════════════════
