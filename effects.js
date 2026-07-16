@@ -2256,7 +2256,7 @@ const AUDIO_BANDS = 256; // headroom for the finer 128/200-band presets
 let auSpec  = new Float32Array(AUDIO_BANDS);   // smoothed band levels 0..1
 let auPeak  = new Float32Array(AUDIO_BANDS);   // falling peak-hold dots
 let auPeakV = new Float32Array(AUDIO_BANDS);
-let auStyle = 'bars', auTheme = 0, auGain = 1, auBarMode = 'solid';
+let auStyle = 'bars', auTheme = 6, auGain = 1, auBarMode = 'solid';
 let auScrollX=0, auScrollSpeed=0, auScrollDir=1;
 let wfBuf=null, wfPos=0, wfTimer=0;
 let stormFlashes=[];
@@ -2436,6 +2436,13 @@ function auColor(fb, fh, amp){
     case 3:  return hsl(((fb*AUDIO_BANDS)|0)%2 ? 0.86 : 0.5, 1, 0.22+fh*0.35+amp*0.1); // Neon
     case 4:  return hsl(0.34, 1, 0.10+fh*0.50+amp*0.06);                               // Matrix
     case 5:  return hsl(fb*0.85+t*0.05, 0.55, 0.35+fh*0.35+amp*0.08);                 // Pastel
+    case 6: {                                                                          // VU Meter
+      // Smooth hue sweep bottom-to-top: green -> yellow -> orange -> red,
+      // no hard bands — a continuous HSL interpolation, not discrete zones.
+      const hue = 0.34*(1-fh)*(1-fh);   // squared falloff keeps more of the
+      const light = Math.min(0.72, 0.20+fh*0.34+amp*0.18);   // bar green/yellow before red arrives right at the tip
+      return hsl(hue, 1, light);
+    }
     default: return hsl(fb*0.85, 1, 0.18+fh*0.38+amp*0.1);                             // Rainbow
   }
 }
