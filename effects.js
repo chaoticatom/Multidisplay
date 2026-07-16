@@ -2300,47 +2300,12 @@ function auSmooth(b, target, dt){
   else { auPeakV[b]+=dt*1.6; auPeak[b]=Math.max(0, auPeak[b]-auPeakV[b]*dt); }
 }
 
-// ── Simulated track: 126bpm, 4 sections (groove/build/drop/break) ──
-function genSimSpectrum(dt){
-  songT += dt;
-  const AB=AUDIO_BANDS;
-  const beat   = songT*(126/60);
-  const beatPh = beat%1;
-  const barNum = Math.floor(beat/4), barPh=(beat/4)%1;
-  const sec    = Math.floor(barNum/8)%4;        // 0 groove · 1 build · 2 drop · 3 break
-  const kick   = (sec===3?0.25:1)*Math.exp(-beatPh*8);
-  const snare  = (Math.floor(beat)%2===1) ? Math.exp(-beatPh*6.5)*0.9 : 0;
-  const e8     = (beat*2)%1;
-  const hat    = Math.exp(-e8*15)*((Math.floor(beat*2)%2)?0.85:0.4)*(sec===3?0.4:1);
-  const bn     = [0,0,7,5,3,3,10,8][Math.floor(beat)%8];
-  const bass   = Math.exp(-beatPh*2.2)*(sec===3?0.3:0.95)*(0.75+0.25*Math.sin(songT*7+bn));
-  const arp    = [0,2,4,7,9,7,4,2][Math.floor(beat*4)%8];
-  const melB   = 11+arp+(sec===2?3:0);
-  const melE   = Math.exp(-((beat*4)%1)*5)*(sec===3?0.45:0.8);
-  const rise   = (sec===1) ? (barPh*0.5+0.5)*sm(0,1,((barNum%8)+barPh)/8) : 0;
-  const boost  = (sec===2)?1.18:1;
-  // This whole shape (kick/bass/snare/melody/hat/riser placement and
-  // widths) was designed against a canonical 32-band spectrum. b32 remaps
-  // whatever band count is actually selected (8/16/.../200) back onto that
-  // same canonical range, so the voices stay spread proportionally across
-  // the full width instead of only ever occupying the first ~20 bands and
-  // leaving everything past that sitting flat at the noise floor.
-  for(let b=0;b<AB;b++){
-    const fb=b/(AB-1);
-    const b32=fb*31;
-    let v=0;
-    v += kick *Math.exp(-b32*0.75)*1.25;                          // sub / kick
-    v += bass *Math.exp(-Math.pow((b32-2.6)/2.0,2));              // bassline
-    v += snare*Math.exp(-Math.pow((b32-12)/4.5,2))*0.75;          // snare body
-    v += melE *Math.exp(-Math.pow((b32-melB)/1.7,2))*0.8;         // arp melody
-    v += hat  *sm(0.55,1,fb)*0.8;                                 // hats / air
-    v += rise *Math.exp(-Math.pow((b32-(7+rise*18))/3.2,2))*0.9;  // riser sweep
-    if(sec===3) v += (0.5+0.5*Math.sin(songT*1.2+b32*0.7))*Math.exp(-Math.pow((b32-8)/6,2))*0.5; // break pad
-    v += 0.01+Math.random()*0.02;                                 // faint noise floor
-    genSimTargetScratch[b]=Math.min(1, v*boost*auGain);
-  }
-  auSpatialSmooth(genSimTargetScratch, genSimSmoothScratch, AB);
-  for(let b=0;b<AB;b++) auSmooth(b, genSimSmoothScratch[b], dt);
+// No real audio source active (mic off, radio not playing) — ease every
+// band down to zero instead of running a fake simulated track. Uses the
+// same auSmooth ballistics as real data so it settles rather than cutting
+// out abruptly.
+function auFlatten(dt){
+  for(let b=0;b<AUDIO_BANDS;b++) auSmooth(b, 0, dt);
 }
 
 // ── Live microphone / radio stream via Web Audio FFT (log-mapped into bands) ──
@@ -2354,8 +2319,6 @@ let auAutoPeak = 0.3;
 let auRawScratch = new Float32Array(AUDIO_BANDS);
 let auTargetScratch = new Float32Array(AUDIO_BANDS);
 let auSmoothScratch = new Float32Array(AUDIO_BANDS);
-let genSimTargetScratch = new Float32Array(AUDIO_BANDS);
-let genSimSmoothScratch = new Float32Array(AUDIO_BANDS);
 function readMicSpectrum(dt){
   auAnalyser.getByteFrequencyData(micBuf);
   songT += dt;
@@ -2389,7 +2352,7 @@ function readMicSpectrum(dt){
 
 async function toggleMic(){
   const st=document.getElementById('mic-status'), btn=document.getElementById('mic-btn');
-  if(micOn){ micOn=false; btn.textContent='🎤 Use Microphone'; st.textContent='Source: simulated track'; return; }
+  if(micOn){ micOn=false; btn.textContent='🎤 Use Microphone'; st.textContent='Mic off — bars idle'; return; }
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
     auCtx = auCtx || new (window.AudioContext||window.webkitAudioContext)();
@@ -2400,7 +2363,7 @@ async function toggleMic(){
     src.connect(auAnalyser);
     micBuf=new Uint8Array(auAnalyser.frequencyBinCount);
     micOn=true; btn.textContent='🎤 Mic LIVE — tap to stop'; st.textContent='Source: microphone';
-  }catch(e){ st.textContent='Mic unavailable — using simulated track'; }
+  }catch(e){ st.textContent='Mic unavailable — bars idle'; }
 }
 
 // ── Colour themes: fb=band fraction, fh=height fraction, amp=level ──
@@ -2981,11 +2944,11 @@ function effectSpectrum(dt){
     if(auAutoPeak<=0.13) radioSilentTimer+=dt; else radioSilentTimer=0;
     if(radioSilentTimer>4){
       radioAnalyserSilent=true;
-      if(radioNowPlaying) radioSetStatus('▶ '+radioNowPlaying.name+' (visualizer simulated — station blocks audio analysis)');
+      if(radioNowPlaying) radioSetStatus('▶ '+radioNowPlaying.name+' (visualizer unavailable — station blocks audio analysis)');
     }
   }
   const haveRealAudio = (micOn || (radioPlaying && !radioAnalyserSilent)) && auAnalyser;
-  if(haveRealAudio) readMicSpectrum(dt); else genSimSpectrum(dt);
+  if(haveRealAudio) readMicSpectrum(dt); else auFlatten(dt);
   // Advance scroll
   if(auScrollSpeed>0) auScrollX=(auScrollX+dt*auScrollSpeed*SIZE*1.5*auScrollDir+4*SIZE)%(4*SIZE);
   for(let i=0;i<N*3;i++) colBuf[i]=0;
@@ -3020,7 +2983,7 @@ let radioAudioEl=null, radioSource=null, radioPlaying=false, radioError='';
 // all-zero data in that case. If the tracked auto-gain peak stays pinned
 // near its floor for several seconds despite radioPlaying being true, that's
 // the signature of a CORS-blocked analyser rather than an actually silent
-// stream — fall back to the simulated pattern instead of flat dead bars.
+// stream — the visualizer just goes flat in that case (see auFlatten).
 let radioAnalyserSilent=false, radioSilentTimer=0;
 let radioNowPlaying=null;   // {name, genre} of the currently loaded station
 let radioScrollX=0;
@@ -11882,7 +11845,7 @@ function effectVideo(dt){
       setFaceLED(5,u,v,ar/255*0.35,ag/255*0.35,ab/255*0.35);
     }
   } else if(vidTB==='spectrum'){
-    if(micOn&&auAnalyser) readMicSpectrum(dt); else genSimSpectrum(dt);
+    if(micOn&&auAnalyser) readMicSpectrum(dt); else auFlatten(dt);
     drawPolarFace(4); drawPolarFace(5);
   } else if(vidTB==='perspective'){
     // Sample the top row of each side panel and spread colour inward from each edge
