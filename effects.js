@@ -2792,9 +2792,9 @@ function drawWaterfallStyle(dt){
 }
 
 // ── Waveform (single trace wrapping the perimeter) ──
-// Static flat line down the middle at rest; each column jumps up or down
-// off that centre line by its own frequency band's real amplitude (auAmp
-// — the same per-band data the working bar styles read). No time-based
+// Static flat line down the middle at rest; each column jumps upward off
+// that centre line by its own frequency band's real amplitude (auAmp —
+// the same per-band data the working bar styles read). No time-based
 // motion of its own — it only moves because the sound does. auScrollX
 // still applies (so the existing Scroll Speed control keeps working) but
 // that's 0/off by default, so the line sits still until you enable it.
@@ -2804,9 +2804,8 @@ function drawWaveformStyle(dt){
   for(let c=0;c<cols;c++){
     const sc=(c+(auScrollX|0)+cols)%cols;
     const b=scrolledBand(sc,cols,AB);
-    const dir=(sc&1)?-1:1;   // alternating up/down gives a jagged waveform silhouette
-    const amp=auAmp(b)*dir;
-    const y=Math.round(mid+amp*mid*0.9);
+    const amp=auAmp(b);
+    const y=Math.round(mid-amp*mid*0.9);
     const fy=Math.max(0,Math.min(M,y));
     const fu=sideCol(c);
     const hue=(sc/cols+t*0.04)%1;
