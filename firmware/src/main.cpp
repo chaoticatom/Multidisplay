@@ -227,56 +227,18 @@ static void drawWorkingText(MatrixPanel_I2S_DMA* display) {
     Serial.println("[TEST] \"WORKING\" drawn on Face 0.");
 }
 
-// Tiny hand-plotted 3x5 bitmap font (just the letters needed for "HELLO"),
-// drawn entirely via drawPixel() - deliberately NOT Adafruit_GFX text/
-// print(), since that didn't show up on real hardware even though drawPixel
-// calls (the cloud-swirl test this replaces) rendered fine. Each row is the
-// 3 columns packed into the low 3 bits, MSB = leftmost column.
-static const uint8_t FONT_H[5] = {0b101, 0b101, 0b111, 0b101, 0b101};
-static const uint8_t FONT_E[5] = {0b111, 0b100, 0b110, 0b100, 0b111};
-static const uint8_t FONT_L[5] = {0b100, 0b100, 0b100, 0b100, 0b111};
-static const uint8_t FONT_O[5] = {0b111, 0b101, 0b101, 0b101, 0b111};
-
-static void drawGlyph(MatrixPanel_I2S_DMA* display, const uint8_t* glyph,
-                       int x0, int y0, int scale, uint16_t color) {
-    for (int row = 0; row < 5; row++) {
-        for (int col = 0; col < 3; col++) {
-            if (!(glyph[row] & (0b100 >> col))) continue;
-            for (int sy = 0; sy < scale; sy++) {
-                for (int sx = 0; sx < scale; sx++) {
-                    display->drawPixel(x0 + col * scale + sx, y0 + row * scale + sy, color);
-                }
-            }
-        }
-    }
-}
-
-// Boot-time diagnostic: plain black background with "HELLO" plotted via the
-// hand-rolled font above, so it's obvious at a glance the board is running
-// and drawPixel() is reaching the panel - no swirl, no Adafruit_GFX text.
+// Boot-time diagnostic: solid deep-blue fill, via the same drawPixel() call
+// the earlier swirl/HELLO tests used. Simplest possible content - if even a
+// flat full-screen colour doesn't show, the problem is below the drawing
+// code entirely (display init / half-scan geometry), not font or content.
 static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
-    Serial.println("[TEST] Showing HELLO marker on Face 0 (does not return).");
-    const uint16_t white = display->color565(255, 255, 255);
-    const uint16_t black = display->color565(0, 0, 0);
-    const uint8_t* letters[5] = {FONT_H, FONT_E, FONT_L, FONT_L, FONT_O};
-    // Biggest integer scale that still fits "HELLO" (5 letters x 3 cols +
-    // 4 one-column gaps = 19 font-columns wide) across PANEL_SIZE, so the
-    // word fills as much of the panel as the font proportions allow.
-    const int scale = (PANEL_SIZE - 4) / 19;
-    const int textW = 19 * scale;
-    const int textH = 5 * scale;
-    const int x0 = (PANEL_SIZE - textW) / 2;
-    const int y0 = (PANEL_SIZE - textH) / 2;
+    Serial.println("[TEST] Filling Face 0 with deep blue (does not return).");
+    const uint16_t deepBlue = display->color565(0, 0, 139);
     for (;;) {
         for (uint8_t y = 0; y < PANEL_SIZE; y++) {
             for (uint8_t x = 0; x < PANEL_SIZE; x++) {
-                display->drawPixel(x, y, black);
+                display->drawPixel(x, y, deepBlue);
             }
-        }
-        int x = x0;
-        for (int i = 0; i < 5; i++) {
-            drawGlyph(display, letters[i], x, y0, scale, white);
-            x += (3 * scale) + scale;   // glyph width + 1-column gap
         }
         display->flipDMABuffer();
         delay(200);
