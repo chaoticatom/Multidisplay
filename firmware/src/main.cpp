@@ -274,10 +274,12 @@ static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
                 display->drawPixel(x, y, display->color565(r, g, b));
             }
         }
-        // Version overlay so it's obvious at a glance which build is
-        // actually running on the board, without needing a serial monitor.
+        // Version + marker overlay so it's obvious at a glance which build
+        // is actually running on the board, without needing a serial monitor.
         display->setTextColor(display->color565(255, 255, 255));
         display->setTextSize(1);
+        display->setCursor(2, 2);
+        display->print("HELLO");
         display->setCursor(2, PANEL_SIZE - 8);
         display->print(FW_VERSION);
         display->flipDMABuffer();
