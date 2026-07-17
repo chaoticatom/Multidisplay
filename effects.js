@@ -2791,20 +2791,21 @@ function drawWaterfallStyle(dt){
   drawPolarFace(4); drawPolarFace(5);
 }
 
-// ── Waveform (single oscilloscope trace wrapping the perimeter) ──
-// Originally synthesized the trace by additively summing sin() across all
-// 256 frequency bands with essentially random per-band phase — that sum
-// cancels toward ~0 regardless of loudness, so it read as flat. Fixed by
-// giving each column its own band's real amplitude (auAmp — the same
-// per-band data the working bar styles read) as a single sine's envelope,
-// instead of summing 256 mutually-cancelling sines together.
+// ── Waveform (single trace wrapping the perimeter) ──
+// Static flat line down the middle at rest; each column jumps up or down
+// off that centre line by its own frequency band's real amplitude (auAmp
+// — the same per-band data the working bar styles read). No time-based
+// motion of its own — it only moves because the sound does. auScrollX
+// still applies (so the existing Scroll Speed control keeps working) but
+// that's 0/off by default, so the line sits still until you enable it.
 function drawWaveformStyle(dt){
   const S=SIZE, M=S-1, AB=AUDIO_BANDS, cols=4*S, mid=M/2;
   for(let i=0;i<N*3;i++) colBuf[i]*=0.80;
   for(let c=0;c<cols;c++){
     const sc=(c+(auScrollX|0)+cols)%cols;
     const b=scrolledBand(sc,cols,AB);
-    const amp=auAmp(b)*Math.sin(sc*0.2+t*4+b*0.05);
+    const dir=(sc&1)?-1:1;   // alternating up/down gives a jagged waveform silhouette
+    const amp=auAmp(b)*dir;
     const y=Math.round(mid+amp*mid*0.9);
     const fy=Math.max(0,Math.min(M,y));
     const fu=sideCol(c);
