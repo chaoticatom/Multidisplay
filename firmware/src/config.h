@@ -49,20 +49,39 @@
 // connector legend and a close inspection of the rest of the PCB for any
 // secondary breakout).
 //
-// The persistent "8 rows on, 8 rows off" banding (unaffected by wiring
-// checks, wiggle tests, latch_blanking, clkphase, or driver-chip type)
-// matches exactly what you'd see if the row decoder's weight-8 address bit
-// is permanently stuck low - which is what the library's 5-bit (A,B,C,D,E)
-// row math calls "D". Our one physical extra address wire has been assigned
-// to the library's "E" (weight-16) slot; if this panel's decoder actually
-// treats that wire as its weight-8 line instead, the real weight-8 bit
-// never toggles under the old assignment. Swapping the roles (this wire is
-// now "D", and "E" is disabled) tests that theory directly.
+// CONFIRMED: this panel is a half-scan design (physically two 64x32 halves
+// driven as if chained side-by-side), not a true 64-row/1/32-scan panel.
+// That fully explains both the missing-D-pin connector layout AND the
+// persistent "8 rows on, 8 rows off" banding — a half-scan panel only ever
+// needs 4 address lines (A-D, 16 row-pairs per 32-tall half), never a 5th
+// (E/weight-16) line at all. The wire earlier found in the connector's "E"
+// slot is this panel's real 4th (D) address line; it was reassigned here
+// instead of a genuine 5-bit "D" bug fix. E is correctly left disabled.
+// See HALF_SCAN_PANEL in led_matrix.h for the DMA-geometry side of this —
+// the address lines alone were never the whole story; the library also
+// needs to be told the true module height/chain length so its virtual
+// pixel layout matches how this panel's shift registers actually cascade.
 #define HUB75_D   47
 #define HUB75_E   -1
 #define HUB75_LAT 21
 #define HUB75_OE  14
 #define HUB75_CLK 13
+
+// Half-scan panel geometry (see led_matrix.h HalfScanPanel/halfScanRemap).
+// Each physical PANEL_SIZE x PANEL_SIZE face is really two PANEL_SIZE x
+// (PANEL_SIZE/2) halves the panel's own shift registers cascade like two
+// chained modules — so the DMA library needs double the chain length and
+// half the module height to address it correctly, and every pixel write
+// needs remapping from "face f, full 0..PANEL_SIZE-1 y" logical space into
+// that doubled-chain physical space.
+#define HALF_SCAN_PANEL      1
+#define HUB75_MOD_HEIGHT     (PANEL_SIZE / 2)
+#define HUB75_CHAIN_LEN      (NUM_FACES * 2)
+// If the image comes out with top/bottom swapped or mirrored within each
+// face once this is wired up, flip this to try the other half ordering —
+// which physical half a panel's internal cascade calls "first" isn't
+// something we can know without seeing actual output.
+#define HALF_SCAN_SWAP_HALVES 0
 
 // Status LED (built-in on most ESP32-S3 devkits)
 #define STATUS_LED_PIN 2
