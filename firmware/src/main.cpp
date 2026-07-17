@@ -258,18 +258,25 @@ static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
     Serial.println("[TEST] Showing HELLO marker on Face 0 (does not return).");
     const uint16_t white = display->color565(255, 255, 255);
     const uint16_t black = display->color565(0, 0, 0);
-    const int scale = 2;
     const uint8_t* letters[5] = {FONT_H, FONT_E, FONT_L, FONT_L, FONT_O};
+    // Biggest integer scale that still fits "HELLO" (5 letters x 3 cols +
+    // 4 one-column gaps = 19 font-columns wide) across PANEL_SIZE, so the
+    // word fills as much of the panel as the font proportions allow.
+    const int scale = (PANEL_SIZE - 4) / 19;
+    const int textW = 19 * scale;
+    const int textH = 5 * scale;
+    const int x0 = (PANEL_SIZE - textW) / 2;
+    const int y0 = (PANEL_SIZE - textH) / 2;
     for (;;) {
         for (uint8_t y = 0; y < PANEL_SIZE; y++) {
             for (uint8_t x = 0; x < PANEL_SIZE; x++) {
                 display->drawPixel(x, y, black);
             }
         }
-        int x0 = 2;
+        int x = x0;
         for (int i = 0; i < 5; i++) {
-            drawGlyph(display, letters[i], x0, 2, scale, white);
-            x0 += (3 * scale) + scale;   // glyph width + 1-column gap
+            drawGlyph(display, letters[i], x, y0, scale, white);
+            x += (3 * scale) + scale;   // glyph width + 1-column gap
         }
         display->flipDMABuffer();
         delay(200);
