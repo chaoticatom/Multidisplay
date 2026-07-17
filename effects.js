@@ -2794,27 +2794,30 @@ function drawWaterfallStyle(dt){
 // ── Waveform (scrolling amplitude-envelope bars, like an audio track's
 //    waveform view — thin vertical bars, symmetric about a centre line,
 //    tall on loud moments, short on quiet ones) ──
-// Previously this synthesized a fake trace by additively summing sin()
-// across all 256 frequency bands — with essentially random phase per band
-// that sum cancels toward ~0 (central-limit averaging), so it rendered as
-// a near-flat line regardless of how loud the source was. Replaced with
-// the actual time-domain signal (RMS per frame) pushed into a scrolling
-// history buffer, same real-signal approach the stereo VU meter uses.
-let wfAmpBuf=null, wfAmpPos=0, wfTimeBuf=null;
+// Originally synthesized a fake trace by additively summing sin() across
+// all 256 frequency bands with essentially random per-band phase — that
+// sum cancels toward ~0 regardless of loudness, so it read as flat.
+// The first fix pulled a raw time-domain RMS straight off the analyser
+// node, but that stayed near-flat too (only ever twitched ~1px) — some
+// audio paths (radio in particular) apparently don't keep that node's
+// time-domain buffer live the way they keep the frequency-domain side
+// live. So: derive the envelope from auSpec instead — the exact same
+// per-band data the (correctly animating) bar styles already read —
+// aggregated to one loudness number per frame, then run through a fast
+// attack / slower release follower before landing in the scroll history.
+let wfAmpBuf=null, wfAmpPos=0, wfEnv=0;
 function drawWaveformStyle(dt){
-  const S=SIZE, M=S-1, cols=4*S, mid=M/2;
-  if(!wfAmpBuf || wfAmpBuf.length!==cols){ wfAmpBuf=new Float32Array(cols); wfAmpPos=0; }
+  const S=SIZE, M=S-1, AB=AUDIO_BANDS, cols=4*S, mid=M/2;
+  if(!wfAmpBuf || wfAmpBuf.length!==cols){ wfAmpBuf=new Float32Array(cols); wfAmpPos=0; wfEnv=0; }
 
-  let level=0;
-  if(auAnalyser && (micOn || (radioPlaying && !radioAnalyserSilent))){
-    const tdLen=auAnalyser.fftSize;
-    if(!wfTimeBuf || wfTimeBuf.length!==tdLen) wfTimeBuf=new Uint8Array(tdLen);
-    auAnalyser.getByteTimeDomainData(wfTimeBuf);
-    let sum=0;
-    for(let i=0;i<tdLen;i++){ const v=(wfTimeBuf[i]-128)/128; sum+=v*v; }
-    level=Math.min(1, Math.sqrt(sum/tdLen)*auGain*auAutoGainMult*2.6);
-  }
-  wfAmpBuf[wfAmpPos]=level;
+  let raw=0;
+  for(let b=0;b<AB;b++) raw+=auSpec[b];
+  raw/=AB;
+  // The band mean runs low (log-spaced bins skew quiet at the high end),
+  // so boost it into a usable 0..1 envelope range.
+  raw=Math.min(1, raw*3.5);
+  wfEnv += (raw-wfEnv)*Math.min(1, dt*(raw>wfEnv?18:6));
+  wfAmpBuf[wfAmpPos]=wfEnv;
   wfAmpPos=(wfAmpPos+1)%cols;
 
   for(let i=0;i<N*3;i++) colBuf[i]*=0.80;
@@ -2822,9 +2825,13 @@ function drawWaveformStyle(dt){
     const hist=(wfAmpPos-1-c+cols)%cols;   // newest sample at c=0, scrolling back in time
     const amp=wfAmpBuf[hist];
     const half=amp*mid*0.95;
-    if(half<0.4) continue;
     const fu=sideCol(c), face=fu[0], u=fu[1];
     const hue=(c/cols+t*0.03)%1;
+    if(half<0.5){
+      const [r,g,bv]=hsl(hue,1,0.22);
+      setFaceLED(face,u,Math.round(mid),r,g,bv);   // faint centre pixel so quiet stretches aren't blank
+      continue;
+    }
     for(let y=0;y<S;y++){
       const d=Math.abs(y-mid);
       if(d>half) continue;
