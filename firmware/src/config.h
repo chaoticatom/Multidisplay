@@ -56,39 +56,48 @@
 // connector legend and a close inspection of the rest of the PCB for any
 // secondary breakout).
 //
-// CONFIRMED: this panel is a half-scan design (physically two 64x32 halves
-// driven as if chained side-by-side), not a true 64-row/1/32-scan panel.
-// That fully explains both the missing-D-pin connector layout AND the
-// persistent "8 rows on, 8 rows off" banding — a half-scan panel only ever
-// needs 4 address lines (A-D, 16 row-pairs per 32-tall half), never a 5th
-// (E/weight-16) line at all. The wire earlier found in the connector's "E"
-// slot is this panel's real 4th (D) address line; it was reassigned here
-// instead of a genuine 5-bit "D" bug fix. E is correctly left disabled.
-// See HALF_SCAN_PANEL in led_matrix.h for the DMA-geometry side of this —
-// the address lines alone were never the whole story; the library also
-// needs to be told the true module height/chain length so its virtual
-// pixel layout matches how this panel's shift registers actually cascade.
+// The half-scan theory (module height 32, 2-way chain split, A-D addressing)
+// was tried and made NO difference to the persistent "8 rows on, 8 rows off"
+// banding - a solid single-colour fill sent through that geometry still
+// banded identically. That's a real data point: half-scan still needs D
+// (weight-8, 16 row-groups per 32-tall half), so if D itself is the broken
+// line (bad wire/pin/solder joint, or this GPIO on the ESP32), reassigning
+// which physical wire the library CALLS "D" changes nothing - the same
+// electrical signal is still load-bearing either way.
+//
+// Next theory, and a genuinely different one: go one step further to
+// quarter-scan (module height 16, 4-way chain split, A-C addressing only -
+// see SCAN_SPLIT below). If this panel is actually an even-more-multiplexed
+// design than half-scan, this avoids touching D at all rather than just
+// relabelling it, so a bad D line stops mattering entirely instead of still
+// being required. HUB75_D is left wired but SCAN_SPLIT's geometry math no
+// longer asks the library to use it.
 #define HUB75_D   47
 #define HUB75_E   -1
 #define HUB75_LAT 21
 #define HUB75_OE  14
 #define HUB75_CLK 13
 
-// Half-scan panel geometry (see led_matrix.h HalfScanPanel/halfScanRemap).
-// Each physical PANEL_SIZE x PANEL_SIZE face is really two PANEL_SIZE x
-// (PANEL_SIZE/2) halves the panel's own shift registers cascade like two
-// chained modules — so the DMA library needs double the chain length and
-// half the module height to address it correctly, and every pixel write
-// needs remapping from "face f, full 0..PANEL_SIZE-1 y" logical space into
-// that doubled-chain physical space.
-#define HALF_SCAN_PANEL      1
-#define HUB75_MOD_HEIGHT     (PANEL_SIZE / 2)
-#define HUB75_CHAIN_LEN      (NUM_FACES * 2)
-// If the image comes out with top/bottom swapped or mirrored within each
-// face once this is wired up, flip this to try the other half ordering —
-// which physical half a panel's internal cascade calls "first" isn't
-// something we can know without seeing actual output.
-#define HALF_SCAN_SWAP_HALVES 0
+// Scan-split panel geometry (see led_matrix.h ScanSplitPanel/scanSplitRemap).
+// Each physical PANEL_SIZE x PANEL_SIZE face is really SCAN_SPLIT separate
+// PANEL_SIZE x (PANEL_SIZE/SCAN_SPLIT) strips the panel's own shift
+// registers cascade like SCAN_SPLIT chained modules — so the DMA library
+// needs SCAN_SPLIT x the chain length and 1/SCAN_SPLIT the module height to
+// address it correctly, and every pixel write needs remapping from "face f,
+// full 0..PANEL_SIZE-1 y" logical space into that expanded-chain physical
+// space.
+//   SCAN_SPLIT 2 = half-scan  (32-tall strips, needs A-D) - already tried,
+//                  banding unchanged, ruled out as the actual fix.
+//   SCAN_SPLIT 4 = quarter-scan (16-tall strips, needs only A-C) - current.
+#define SCAN_SPLIT_PANEL      1
+#define SCAN_SPLIT            4
+#define HUB75_MOD_HEIGHT      (PANEL_SIZE / SCAN_SPLIT)
+#define HUB75_CHAIN_LEN       (NUM_FACES * SCAN_SPLIT)
+// If the image comes out with strips in the wrong order/mirrored within
+// each face once this is wired up, flip this to try reversing the strip
+// order - which physical strip a panel's internal cascade calls "first"
+// isn't something we can know without seeing actual output.
+#define SCAN_SPLIT_REVERSE 0
 
 // Status LED (built-in on most ESP32-S3 devkits)
 #define STATUS_LED_PIN 2

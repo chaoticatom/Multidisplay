@@ -118,15 +118,15 @@ static void displayTask(void* arg) {
                         // starts at x = N * PANEL_SIZE. drawPixelRGB888 isn't
                         // guaranteed virtual, so (unlike the Adafruit_GFX
                         // shape helpers used elsewhere) this fast path can't
-                        // rely on HalfScanPanel's override - remap explicitly.
+                        // rely on ScanSplitPanel's override - remap explicitly.
                         const int xOff = face * PANEL_SIZE;
                         const uint8_t* src = g_dmaBuf[face];
                         for (int y = 0; y < PANEL_SIZE; y++) {
                             for (int x = 0; x < PANEL_SIZE; x++) {
                                 const uint8_t* p = src + (y * PANEL_SIZE + x) * 3;
-#if HALF_SCAN_PANEL
+#if SCAN_SPLIT_PANEL
                                 int16_t rx, ry;
-                                halfScanRemap(xOff + x, y, rx, ry);
+                                scanSplitRemap(xOff + x, y, rx, ry);
                                 dma_display->drawPixelRGB888(rx, ry, p[0], p[1], p[2]);
 #else
                                 dma_display->drawPixelRGB888(
