@@ -16,10 +16,18 @@
 
 #include "config.h"
 #include "led_matrix.h"
+#include "custom_hub75.h"
 #include "web_server.h"
 #include "wifi_setup.h"
 #include "cam/cam_client.h"
 #include "standalone.h"
+
+// Set to 1 to bypass the ESP32-HUB75-MatrixPanel-I2S-DMA library entirely
+// and drive Face 0 with the raw bit-banged driver in custom_hub75.h instead.
+// Diagnostic-only: two structurally different scan-geometry configs fed to
+// the library produced byte-identical banding, so this rules the library's
+// internal assumptions in/out entirely by controlling every GPIO ourselves.
+#define USE_CUSTOM_HUB75_DRIVER 1
 
 // ---------------------------------------------------------------------------
 // Shared globals (declared extern in web_server.h)
@@ -290,6 +298,12 @@ void setup() {
                       LittleFS.usedBytes(), LittleFS.totalBytes());
     }
 
+#if USE_CUSTOM_HUB75_DRIVER
+    // Bypass the library entirely - see USE_CUSTOM_HUB75_DRIVER above.
+    // Deep blue, matching the last library-driven test for a fair comparison.
+    customHub75Init();
+    customHub75FillTest(false, false, true);   // never returns
+#else
     // HUB75 display.
     dma_display = initDisplay();
     if (!dma_display) {
@@ -301,6 +315,7 @@ void setup() {
         // once the split/duplicate-image wiring issue is resolved.
         runCloudSwirlTest(dma_display);
     }
+#endif
 
     // WiFi provisioning.
     g_appState = AppState::AP_MODE;   // portal may open during connectWifi()
