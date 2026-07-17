@@ -227,66 +227,52 @@ static void drawWorkingText(MatrixPanel_I2S_DMA* display) {
     Serial.println("[TEST] \"WORKING\" drawn on Face 0.");
 }
 
-// ---------------------------------------------------------------------------
-// Continuous full-screen RGB morph, for diagnosing the split/duplicate-image
-// artifact independent of any static content or addressing edge case. Fills
-// the whole Face-0 panel with a smoothly cycling hue every frame, forever.
-// Never returns — runs directly from setup() before WiFi is touched, so it
-// keeps animating even if connectWifi() would otherwise restart the board.
-// ---------------------------------------------------------------------------
-static void hsvToRgb565(MatrixPanel_I2S_DMA* display, float h, uint8_t& r, uint8_t& g, uint8_t& b) {
-    float s = 1.0f, v = 1.0f;
-    float c = v * s;
-    float x = c * (1 - fabsf(fmodf(h / 60.0f, 2) - 1));
-    float m = v - c;
-    float rf, gf, bf;
-    if      (h < 60)  { rf = c; gf = x; bf = 0; }
-    else if (h < 120) { rf = x; gf = c; bf = 0; }
-    else if (h < 180) { rf = 0; gf = c; bf = x; }
-    else if (h < 240) { rf = 0; gf = x; bf = c; }
-    else if (h < 300) { rf = x; gf = 0; bf = c; }
-    else              { rf = c; gf = 0; bf = x; }
-    r = (uint8_t)((rf + m) * 255);
-    g = (uint8_t)((gf + m) * 255);
-    b = (uint8_t)((bf + m) * 255);
+// Tiny hand-plotted 3x5 bitmap font (just the letters needed for "HELLO"),
+// drawn entirely via drawPixel() - deliberately NOT Adafruit_GFX text/
+// print(), since that didn't show up on real hardware even though drawPixel
+// calls (the cloud-swirl test this replaces) rendered fine. Each row is the
+// 3 columns packed into the low 3 bits, MSB = leftmost column.
+static const uint8_t FONT_H[5] = {0b101, 0b101, 0b111, 0b101, 0b101};
+static const uint8_t FONT_E[5] = {0b111, 0b100, 0b110, 0b100, 0b111};
+static const uint8_t FONT_L[5] = {0b100, 0b100, 0b100, 0b100, 0b111};
+static const uint8_t FONT_O[5] = {0b111, 0b101, 0b101, 0b101, 0b111};
+
+static void drawGlyph(MatrixPanel_I2S_DMA* display, const uint8_t* glyph,
+                       int x0, int y0, int scale, uint16_t color) {
+    for (int row = 0; row < 5; row++) {
+        for (int col = 0; col < 3; col++) {
+            if (!(glyph[row] & (0b100 >> col))) continue;
+            for (int sy = 0; sy < scale; sy++) {
+                for (int sx = 0; sx < scale; sx++) {
+                    display->drawPixel(x0 + col * scale + sx, y0 + row * scale + sy, color);
+                }
+            }
+        }
+    }
 }
 
-// Per-pixel swirling "cloud" plasma, full RGB hue range, covering every pixel
-// on the panel (as opposed to the flat single-hue fill this replaces) — a
-// row/column dropout will show up as a torn/blank band cutting through the
-// swirl instead of a clean gap between two solid colors.
+// Boot-time diagnostic: plain black background with "HELLO" plotted via the
+// hand-rolled font above, so it's obvious at a glance the board is running
+// and drawPixel() is reaching the panel - no swirl, no Adafruit_GFX text.
 static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
-    Serial.println("[TEST] Running RGB cloud-swirl diagnostic on Face 0 (does not return).");
-    float t = 0.0f;
+    Serial.println("[TEST] Showing HELLO marker on Face 0 (does not return).");
+    const uint16_t white = display->color565(255, 255, 255);
+    const uint16_t black = display->color565(0, 0, 0);
+    const int scale = 2;
+    const uint8_t* letters[5] = {FONT_H, FONT_E, FONT_L, FONT_L, FONT_O};
     for (;;) {
         for (uint8_t y = 0; y < PANEL_SIZE; y++) {
             for (uint8_t x = 0; x < PANEL_SIZE; x++) {
-                float fx = x / (float)PANEL_SIZE;
-                float fy = y / (float)PANEL_SIZE;
-                float v = sinf(fx * 6.0f + t)
-                        + sinf(fy * 6.0f - t * 1.3f)
-                        + sinf((fx + fy) * 6.0f + t * 0.7f)
-                        + sinf(sqrtf((fx - 0.5f) * (fx - 0.5f) + (fy - 0.5f) * (fy - 0.5f)) * 12.0f - t * 1.6f);
-                // v spans roughly [-4, 4] -> map to a full 0-360 hue sweep.
-                float hue = fmodf((v * 45.0f) + t * 30.0f + 360.0f, 360.0f);
-                uint8_t r, g, b;
-                hsvToRgb565(display, hue, r, g, b);
-                display->drawPixel(x, y, display->color565(r, g, b));
+                display->drawPixel(x, y, black);
             }
         }
-        // Solid marker block, drawn with the exact same drawPixel() call the
-        // swirl above already proves works - deliberately NOT using
-        // Adafruit_GFX text/print(), which may route through a different
-        // internal fast-path method that could land pixels somewhere else
-        // (or on a buffer that isn't the one flipDMABuffer() shows).
-        for (uint8_t my = 0; my < 12; my++) {
-            for (uint8_t mx = 0; mx < 12; mx++) {
-                display->drawPixel(mx, my, display->color565(255, 255, 255));
-            }
+        int x0 = 2;
+        for (int i = 0; i < 5; i++) {
+            drawGlyph(display, letters[i], x0, 2, scale, white);
+            x0 += (3 * scale) + scale;   // glyph width + 1-column gap
         }
         display->flipDMABuffer();
-        t += 0.08f;
-        delay(20);
+        delay(200);
     }
 }
 
