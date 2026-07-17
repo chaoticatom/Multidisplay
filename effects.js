@@ -2792,19 +2792,22 @@ function drawWaterfallStyle(dt){
 }
 
 // ── Waveform (single trace wrapping the perimeter) ──
-// Static flat line down the middle at rest; each column jumps upward off
-// that centre line by its own frequency band's real amplitude (auAmp —
-// the same per-band data the working bar styles read). No time-based
-// motion of its own — it only moves because the sound does. auScrollX
-// still applies (so the existing Scroll Speed control keeps working) but
-// that's 0/off by default, so the line sits still until you enable it.
+// Static flat line centred vertically at rest. Each column's real
+// frequency-band amplitude (auAmp — the same per-band data the working
+// bar styles read) modulates a smooth spatial sine, so the line bows
+// above AND below centre in a continuous synthwave-style curve rather
+// than one-directional spikes. The sine's phase is purely spatial (a
+// function of column, not of time), so there's no self-driven motion —
+// the curve only moves because the sound does. auScrollX still applies
+// (so the existing Scroll Speed control keeps working) but that's 0/off
+// by default, so it sits still until you enable it.
 function drawWaveformStyle(dt){
   const S=SIZE, M=S-1, AB=AUDIO_BANDS, cols=4*S, mid=M/2;
   for(let i=0;i<N*3;i++) colBuf[i]*=0.80;
   for(let c=0;c<cols;c++){
     const sc=(c+(auScrollX|0)+cols)%cols;
     const b=scrolledBand(sc,cols,AB);
-    const amp=auAmp(b);
+    const amp=auAmp(b)*Math.sin(sc*0.35);
     const y=Math.round(mid-amp*mid*0.9);
     const fy=Math.max(0,Math.min(M,y));
     const fu=sideCol(c);
