@@ -96,7 +96,7 @@ inline MatrixPanel_I2S_DMA* initDisplay() {
         // begin() returning false means DMA allocation failed.
         return nullptr;
     }
-    display->setBrightness8(180);
+    display->setBrightness8(90);   // 50% of the previous 180, per request
     display->clearScreen();
     return display;
 }
