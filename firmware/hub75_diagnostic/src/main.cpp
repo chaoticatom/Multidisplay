@@ -235,7 +235,11 @@ static void runDiagnosticCycle() {
 
 void setup() {
     Serial.begin(115200);
-    delay(500);
+    // Long, generous delay so there's a wide window to attach a serial
+    // monitor and still catch this - a monitor connecting even a moment
+    // late otherwise misses everything printed before it, which is exactly
+    // how a single-shot FATAL message can go completely unseen.
+    delay(3000);
     Serial.println("\n[Boot] HUB75 wiring diagnostic starting...");
 
     HUB75_I2S_CFG::i2s_pins pins = {
@@ -252,8 +256,12 @@ void setup() {
 
     display = new MatrixPanel_I2S_DMA(cfg);
     if (!display->begin()) {
-        Serial.println("[FATAL] display->begin() failed - DMA allocation error. Halting.");
-        while (true) { delay(1000); }
+        // Repeat forever, not just once - so this can't be missed no matter
+        // when a serial monitor happens to attach.
+        while (true) {
+            Serial.println("[FATAL] display->begin() failed - DMA allocation error. Halting.");
+            delay(1000);
+        }
     }
     display->setBrightness8(90);
     display->clearScreen();
@@ -261,5 +269,13 @@ void setup() {
 }
 
 void loop() {
+    static unsigned long lastHeartbeat = 0;
+    // Runs alongside the test cycle so "is this thing even alive" is
+    // answerable within 2 seconds of attaching a monitor, regardless of
+    // which test happens to be showing at that moment.
+    if (millis() - lastHeartbeat > 2000) {
+        lastHeartbeat = millis();
+        Serial.printf("[HEARTBEAT] alive, uptime %lus\n", millis() / 1000);
+    }
     runDiagnosticCycle();
 }
