@@ -81,6 +81,28 @@
 
 MatrixPanel_I2S_DMA* display = nullptr;
 
+// Fires at least every 2s regardless of which test is running - use
+// diagDelay() instead of delay() everywhere in test code so a long test
+// (e.g. the ~2.5-minute moving-pixel sweep) can never go silent for more
+// than a couple seconds at a stretch. That silence was the real cause of
+// "nothing happening" reports: the old code only printed once at the start
+// of a test, so glancing at the monitor mid-test could show truly nothing
+// for over a minute even with everything working correctly.
+static unsigned long lastHeartbeat = 0;
+static void heartbeatTick() {
+    if (millis() - lastHeartbeat > 2000) {
+        lastHeartbeat = millis();
+        Serial.printf("[HEARTBEAT] alive, uptime %lus\n", millis() / 1000);
+    }
+}
+static void diagDelay(unsigned long ms) {
+    unsigned long start = millis();
+    do {
+        heartbeatTick();
+        delay(10);
+    } while (millis() - start < ms);
+}
+
 static const char* driverName(HUB75_I2S_CFG::shift_driver d) {
     switch (d) {
         case HUB75_I2S_CFG::SHIFTREG: return "SHIFTREG (generic constant-current sink)";
@@ -122,7 +144,7 @@ static void testRowSweep() {
         display->fillScreen(display->color565(0, 0, 0));
         display->drawFastHLine(0, y, PANEL_WIDTH, display->color565(255, 255, 255));
         Serial.printf("  row %d lit\n", y);
-        delay(STEP_TEST_MS);
+        diagDelay(STEP_TEST_MS);
     }
 }
 
@@ -133,7 +155,7 @@ static void testColumnSweep() {
         display->fillScreen(display->color565(0, 0, 0));
         display->drawFastVLine(x, 0, PANEL_HEIGHT, display->color565(255, 255, 255));
         Serial.printf("  column %d lit\n", x);
-        delay(STEP_TEST_MS);
+        diagDelay(STEP_TEST_MS);
     }
 }
 
@@ -146,7 +168,7 @@ static void testCheckerboard(int blockSize) {
             display->drawPixel(x, y, on ? display->color565(255, 255, 255) : display->color565(0, 0, 0));
         }
     }
-    delay(STATIC_TEST_MS);
+    diagDelay(STATIC_TEST_MS);
 }
 
 // Test 9: moving vertical white line, left to right.
@@ -155,7 +177,7 @@ static void testMovingVLine() {
     for (int x = 0; x < PANEL_WIDTH; x++) {
         display->fillScreen(display->color565(0, 0, 0));
         display->drawFastVLine(x, 0, PANEL_HEIGHT, display->color565(255, 255, 255));
-        delay(ANIMATION_STEP_MS);
+        diagDelay(ANIMATION_STEP_MS);
     }
 }
 
@@ -165,7 +187,7 @@ static void testMovingHLine() {
     for (int y = 0; y < PANEL_HEIGHT; y++) {
         display->fillScreen(display->color565(0, 0, 0));
         display->drawFastHLine(0, y, PANEL_WIDTH, display->color565(255, 255, 255));
-        delay(ANIMATION_STEP_MS);
+        diagDelay(ANIMATION_STEP_MS);
     }
 }
 
@@ -181,7 +203,7 @@ static void testRowNumbers() {
         display->setCursor(0, y);
         display->print(y);
         Serial.printf("  showing row number %d\n", y);
-        delay(STEP_TEST_MS);
+        diagDelay(STEP_TEST_MS);
     }
 }
 
@@ -192,7 +214,7 @@ static void testMovingPixel() {
         for (int x = 0; x < PANEL_WIDTH; x++) {
             display->fillScreen(display->color565(0, 0, 0));
             display->drawPixel(x, y, display->color565(255, 255, 255));
-            delay(ANIMATION_STEP_MS);
+            diagDelay(ANIMATION_STEP_MS);
         }
     }
 }
@@ -202,19 +224,19 @@ static void runDiagnosticCycle() {
 
     Serial.println("[TEST 1] Solid RED");
     fillSolid(255, 0, 0);
-    delay(STATIC_TEST_MS);
+    diagDelay(STATIC_TEST_MS);
 
     Serial.println("[TEST 2] Solid GREEN");
     fillSolid(0, 255, 0);
-    delay(STATIC_TEST_MS);
+    diagDelay(STATIC_TEST_MS);
 
     Serial.println("[TEST 3] Solid BLUE");
     fillSolid(0, 0, 255);
-    delay(STATIC_TEST_MS);
+    diagDelay(STATIC_TEST_MS);
 
     Serial.println("[TEST 4] Solid WHITE");
     fillSolid(255, 255, 255);
-    delay(STATIC_TEST_MS);
+    diagDelay(STATIC_TEST_MS);
 
     testRowSweep();       // Test 5
     testColumnSweep();    // Test 6
@@ -235,17 +257,7 @@ static void runDiagnosticCycle() {
 
 void setup() {
     Serial.begin(115200);
-    // This board's native USB-Serial/JTAG means a fixed delay is a guess,
-    // not a guarantee the monitor's actually attached - the port itself
-    // disappears/reappears across a reset, and a monitor reconnecting to
-    // the new enumeration can still race past a flat delay(). Wait for
-    // Serial to actually indicate a host is attached (DTR asserted)
-    // instead, capped so it still boots standalone with nothing attached.
-    unsigned long waitStart = millis();
-    while (!Serial && millis() - waitStart < 15000) {
-        delay(50);
-    }
-    delay(300);   // brief settle time after the host actually attaches
+    delay(1000);
     Serial.println("\n[Boot] HUB75 wiring diagnostic starting...");
 
     HUB75_I2S_CFG::i2s_pins pins = {
@@ -275,13 +287,5 @@ void setup() {
 }
 
 void loop() {
-    static unsigned long lastHeartbeat = 0;
-    // Runs alongside the test cycle so "is this thing even alive" is
-    // answerable within 2 seconds of attaching a monitor, regardless of
-    // which test happens to be showing at that moment.
-    if (millis() - lastHeartbeat > 2000) {
-        lastHeartbeat = millis();
-        Serial.printf("[HEARTBEAT] alive, uptime %lus\n", millis() / 1000);
-    }
-    runDiagnosticCycle();
+    runDiagnosticCycle();   // diagDelay() inside it keeps the heartbeat alive throughout
 }
