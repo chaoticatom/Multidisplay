@@ -27,9 +27,13 @@
 // cascaded sub-modules (half-scan / quarter-scan) that need a SMALLER module
 // height and a LONGER chain length to address correctly - the pixel data
 // then needs remapping so logical rows land on the right physical strip.
-// Set SCAN_SPLIT to 1 (true full-height scan - default), 2 (half-scan) or 4
+// Set SCAN_SPLIT to 1 (true full-height scan), 2 (half-scan) or 4
 // (quarter-scan) to test each theory without touching anything else below.
-#define SCAN_SPLIT      1
+// Defaulted to 4 here to match the main Multidisplay firmware's current
+// config.h - that's the geometry actually confirmed to produce visible
+// output (a banded deep-blue fill) on this real panel; SCAN_SPLIT=1 was
+// producing nothing at all on screen, a real, meaningful difference.
+#define SCAN_SPLIT      4
 #define MODULE_HEIGHT   (PANEL_HEIGHT / SCAN_SPLIT)
 #define PANEL_CHAIN_LEN    (PANEL_CHAIN * SCAN_SPLIT)
 
@@ -80,6 +84,36 @@
 // ============================================================================
 
 MatrixPanel_I2S_DMA* display = nullptr;
+
+// Translates logical (x, y) - the full 0..PANEL_WIDTH-1 / 0..PANEL_HEIGHT-1
+// space every test function below draws in - into the SCAN_SPLIT-times-
+// longer-chain, 1/SCAN_SPLIT-height physical space the library actually
+// needs when SCAN_SPLIT > 1. Reduces to a plain identity mapping when
+// SCAN_SPLIT is 1, so it's always safe to use regardless of the setting.
+inline void scanSplitRemap(int x, int y, int16_t& outX, int16_t& outY) {
+    const int stripH = PANEL_HEIGHT / SCAN_SPLIT;
+    const int panel = x / PANEL_WIDTH;
+    const int lx = x % PANEL_WIDTH;
+    const int stripIdx = y / stripH;
+    const int moduleIndex = panel * SCAN_SPLIT + stripIdx;
+    outY = (int16_t)(y % stripH);
+    outX = (int16_t)(moduleIndex * PANEL_WIDTH + lx);
+}
+
+// Drop-in MatrixPanel_I2S_DMA replacement that remaps every pixel through
+// scanSplitRemap() first. Overriding drawPixel (not drawPixelRGB888) means
+// every Adafruit_GFX helper used below (fillScreen, drawFastHLine/VLine,
+// print, drawPixel itself) gets the remap for free, since they all funnel
+// through this one virtual method.
+class ScanSplitPanel : public MatrixPanel_I2S_DMA {
+public:
+    using MatrixPanel_I2S_DMA::MatrixPanel_I2S_DMA;
+    void drawPixel(int16_t x, int16_t y, uint16_t color) override {
+        int16_t rx, ry;
+        scanSplitRemap(x, y, rx, ry);
+        MatrixPanel_I2S_DMA::drawPixel(rx, ry, color);
+    }
+};
 
 // Fires at least every 2s regardless of which test is running - use
 // diagDelay() instead of delay() everywhere in test code so a long test
@@ -285,7 +319,7 @@ void setup() {
     cfg.double_buff = true;
     logStep("[Boot] Step 3: HUB75_I2S_CFG constructed.");
 
-    display = new MatrixPanel_I2S_DMA(cfg);
+    display = new ScanSplitPanel(cfg);   // safe at SCAN_SPLIT=1 too - identity remap
     logStep("[Boot] Step 4: MatrixPanel_I2S_DMA allocated - about to call begin()...");
 
     if (!display->begin()) {
