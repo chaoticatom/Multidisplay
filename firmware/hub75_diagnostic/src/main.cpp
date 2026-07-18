@@ -255,10 +255,21 @@ static void runDiagnosticCycle() {
     Serial.println("[CYCLE COMPLETE] Restarting from Test 1...\n");
 }
 
+// Prints then immediately flushes - USB-CDC serial is buffered/async, so
+// queued-but-unsent bytes can be lost entirely if the chip crashes/resets a
+// moment later, unlike a hardware UART. Flushing after every boot-sequence
+// line means whatever we see is a true record of how far execution actually
+// got before anything went wrong, not an artifact of buffering.
+static void logStep(const char* msg) {
+    Serial.println(msg);
+    Serial.flush();
+}
+
 void setup() {
     Serial.begin(115200);
     delay(1000);
-    Serial.println("\n[Boot] HUB75 wiring diagnostic starting...");
+    logStep("\n[Boot] HUB75 wiring diagnostic starting...");
+    logStep("[Boot] Step 1: Serial up.");
 
     HUB75_I2S_CFG::i2s_pins pins = {
         PIN_R1, PIN_G1, PIN_B1,
@@ -266,24 +277,29 @@ void setup() {
         PIN_A,  PIN_B,  PIN_C,  PIN_D, PIN_E,
         PIN_LAT, PIN_OE, PIN_CLK
     };
+    logStep("[Boot] Step 2: pin struct built.");
 
     HUB75_I2S_CFG cfg(PANEL_WIDTH, MODULE_HEIGHT, PANEL_CHAIN_LEN, pins);
     cfg.driver = DRIVER_CHIP;
     cfg.clkphase = true;
     cfg.double_buff = true;
+    logStep("[Boot] Step 3: HUB75_I2S_CFG constructed.");
 
     display = new MatrixPanel_I2S_DMA(cfg);
+    logStep("[Boot] Step 4: MatrixPanel_I2S_DMA allocated - about to call begin()...");
+
     if (!display->begin()) {
         // Repeat forever, not just once - so this can't be missed no matter
         // when a serial monitor happens to attach.
         while (true) {
-            Serial.println("[FATAL] display->begin() failed - DMA allocation error. Halting.");
+            logStep("[FATAL] display->begin() failed - DMA allocation error. Halting.");
             delay(1000);
         }
     }
+    logStep("[Boot] Step 5: begin() returned true.");
     display->setBrightness8(90);
     display->clearScreen();
-    Serial.println("[Boot] Display initialized OK.");
+    logStep("[Boot] Display initialized OK.");
 }
 
 void loop() {
