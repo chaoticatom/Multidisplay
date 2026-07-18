@@ -79,6 +79,9 @@
 #define STEP_TEST_MS         500   // per-row/column/number hold (tests 5, 6, 11)
 #define ANIMATION_STEP_MS     40   // per-frame delay for moving line/pixel tests
 
+// Onboard status LED - most ESP32-S3 devkits use GPIO2. See blinkLed() below.
+#define STATUS_LED_PIN 2
+
 // ============================================================================
 // Nothing below this line should need editing to test a different panel.
 // ============================================================================
@@ -123,10 +126,16 @@ public:
 // of a test, so glancing at the monitor mid-test could show truly nothing
 // for over a minute even with everything working correctly.
 static unsigned long lastHeartbeat = 0;
+static bool heartbeatLedState = false;
 static void heartbeatTick() {
     if (millis() - lastHeartbeat > 2000) {
         lastHeartbeat = millis();
         Serial.printf("[HEARTBEAT] alive, uptime %lus\n", millis() / 1000);
+        // Same 2s cadence as the print, but readable with zero serial - a
+        // steady toggle proves the board is alive and looping regardless of
+        // which test (or how long a silent one) is currently running.
+        heartbeatLedState = !heartbeatLedState;
+        digitalWrite(STATUS_LED_PIN, heartbeatLedState ? HIGH : LOW);
     }
 }
 static void diagDelay(unsigned long ms) {
@@ -299,11 +308,27 @@ static void logStep(const char* msg) {
     Serial.flush();
 }
 
+// Onboard LED status signal, independent of both the panel and serial (both
+// have been unreliable diagnostics on this setup) - blink pattern reports
+// whether display->begin() actually succeeded:
+//   - fast, continuous blinking      = begin() failed, halted in that loop
+//   - slow, steady blinking forever  = begin() succeeded, running test cycle
+static void blinkLed(int times, int onMs, int offMs) {
+    for (int i = 0; i < times; i++) {
+        digitalWrite(STATUS_LED_PIN, HIGH);
+        delay(onMs);
+        digitalWrite(STATUS_LED_PIN, LOW);
+        delay(offMs);
+    }
+}
+
 void setup() {
+    pinMode(STATUS_LED_PIN, OUTPUT);
     Serial.begin(115200);
     delay(1000);
     logStep("\n[Boot] HUB75 wiring diagnostic starting...");
     logStep("[Boot] Step 1: Serial up.");
+    blinkLed(2, 80, 80);   // quick double-blink = "reached setup(), Serial is up"
 
     HUB75_I2S_CFG::i2s_pins pins = {
         PIN_R1, PIN_G1, PIN_B1,
@@ -324,18 +349,20 @@ void setup() {
 
     if (!display->begin()) {
         // Repeat forever, not just once - so this can't be missed no matter
-        // when a serial monitor happens to attach.
+        // when a serial monitor happens to attach. Fast continuous blinking
+        // is the "begin() failed" signal, readable with zero serial/panel.
         while (true) {
             logStep("[FATAL] display->begin() failed - DMA allocation error. Halting.");
-            delay(1000);
+            blinkLed(1, 100, 100);
         }
     }
     logStep("[Boot] Step 5: begin() returned true.");
     display->setBrightness8(90);
     display->clearScreen();
     logStep("[Boot] Display initialized OK.");
+    blinkLed(5, 50, 50);   // rapid 5-blink burst = "begin() succeeded, entering test loop"
 }
 
 void loop() {
-    runDiagnosticCycle();   // diagDelay() inside it keeps the heartbeat alive throughout
+    runDiagnosticCycle();   // diagDelay() inside it keeps the heartbeat (print + LED) alive throughout
 }
