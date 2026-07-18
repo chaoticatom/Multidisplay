@@ -342,6 +342,7 @@ void setup() {
     cfg.driver = DRIVER_CHIP;
     cfg.clkphase = true;
     cfg.double_buff = true;
+    cfg.latch_blanking = 4;   // match the main firmware's known-working config exactly
     logStep("[Boot] Step 3: HUB75_I2S_CFG constructed.");
 
     display = new ScanSplitPanel(cfg);   // safe at SCAN_SPLIT=1 too - identity remap
