@@ -31,7 +31,7 @@
 // (quarter-scan) to test each theory without touching anything else below.
 #define SCAN_SPLIT      1
 #define MODULE_HEIGHT   (PANEL_HEIGHT / SCAN_SPLIT)
-#define CHAIN_LENGTH    (PANEL_CHAIN * SCAN_SPLIT)
+#define PANEL_CHAIN_LEN    (PANEL_CHAIN * SCAN_SPLIT)
 
 // --- Row address type (documentation only) ----------------------------------
 // The library always drives standard binary-coded row addresses (A=weight 1,
@@ -100,7 +100,7 @@ static void printConfig() {
     Serial.printf("  Current scan rate:  1/%d (module height %d, %d chain entries per panel)\n",
                   MODULE_HEIGHT / 2, MODULE_HEIGHT, SCAN_SPLIT);
     Serial.printf("  Current row mapping: SCAN_SPLIT=%d -> module height %d px, virtual chain length %d\n",
-                  SCAN_SPLIT, MODULE_HEIGHT, CHAIN_LENGTH);
+                  SCAN_SPLIT, MODULE_HEIGHT, PANEL_CHAIN_LEN);
     Serial.printf("  Current driver type: %s\n", driverName(DRIVER_CHIP));
     Serial.printf("  Current address type: %s\n", ROW_ADDRESS_TYPE);
     Serial.printf("  Pins: R1=%d G1=%d B1=%d R2=%d G2=%d B2=%d\n",
@@ -235,11 +235,17 @@ static void runDiagnosticCycle() {
 
 void setup() {
     Serial.begin(115200);
-    // Long, generous delay so there's a wide window to attach a serial
-    // monitor and still catch this - a monitor connecting even a moment
-    // late otherwise misses everything printed before it, which is exactly
-    // how a single-shot FATAL message can go completely unseen.
-    delay(3000);
+    // This board's native USB-Serial/JTAG means a fixed delay is a guess,
+    // not a guarantee the monitor's actually attached - the port itself
+    // disappears/reappears across a reset, and a monitor reconnecting to
+    // the new enumeration can still race past a flat delay(). Wait for
+    // Serial to actually indicate a host is attached (DTR asserted)
+    // instead, capped so it still boots standalone with nothing attached.
+    unsigned long waitStart = millis();
+    while (!Serial && millis() - waitStart < 15000) {
+        delay(50);
+    }
+    delay(300);   // brief settle time after the host actually attaches
     Serial.println("\n[Boot] HUB75 wiring diagnostic starting...");
 
     HUB75_I2S_CFG::i2s_pins pins = {
@@ -249,7 +255,7 @@ void setup() {
         PIN_LAT, PIN_OE, PIN_CLK
     };
 
-    HUB75_I2S_CFG cfg(PANEL_WIDTH, MODULE_HEIGHT, CHAIN_LENGTH, pins);
+    HUB75_I2S_CFG cfg(PANEL_WIDTH, MODULE_HEIGHT, PANEL_CHAIN_LEN, pins);
     cfg.driver = DRIVER_CHIP;
     cfg.clkphase = true;
     cfg.double_buff = true;
