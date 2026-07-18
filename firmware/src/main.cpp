@@ -27,7 +27,7 @@
 // Diagnostic-only: two structurally different scan-geometry configs fed to
 // the library produced byte-identical banding, so this rules the library's
 // internal assumptions in/out entirely by controlling every GPIO ourselves.
-#define USE_CUSTOM_HUB75_DRIVER 1
+#define USE_CUSTOM_HUB75_DRIVER 0
 
 // ---------------------------------------------------------------------------
 // Shared globals (declared extern in web_server.h)
