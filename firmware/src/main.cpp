@@ -235,49 +235,21 @@ static void drawWorkingText(MatrixPanel_I2S_DMA* display) {
     Serial.println("[TEST] \"WORKING\" drawn on Face 0.");
 }
 
-static void hsvToRgb565(MatrixPanel_I2S_DMA* display, float h, uint8_t& r, uint8_t& g, uint8_t& b) {
-    float s = 1.0f, v = 1.0f;
-    float c = v * s;
-    float x = c * (1 - fabsf(fmodf(h / 60.0f, 2) - 1));
-    float m = v - c;
-    float rf, gf, bf;
-    if      (h < 60)  { rf = c; gf = x; bf = 0; }
-    else if (h < 120) { rf = x; gf = c; bf = 0; }
-    else if (h < 180) { rf = 0; gf = c; bf = x; }
-    else if (h < 240) { rf = 0; gf = x; bf = c; }
-    else if (h < 300) { rf = x; gf = 0; bf = c; }
-    else              { rf = c; gf = 0; bf = x; }
-    r = (uint8_t)((rf + m) * 255);
-    g = (uint8_t)((gf + m) * 255);
-    b = (uint8_t)((bf + m) * 255);
-}
-
-// Per-pixel swirling "cloud" plasma, full RGB hue range, covering every pixel
-// on the panel (as opposed to the flat single-hue fill this replaces) — a
-// row/column dropout will show up as a torn/blank band cutting through the
-// swirl instead of a clean gap between two solid colors.
+// Boot-time diagnostic: solid deep-blue fill, via the same drawPixel() call
+// the earlier swirl/HELLO tests used. Simplest possible content - if even a
+// flat full-screen colour doesn't show, the problem is below the drawing
+// code entirely (display init / half-scan geometry), not font or content.
 static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
-    Serial.println("[TEST] Running RGB cloud-swirl diagnostic on Face 0 (does not return).");
-    float t = 0.0f;
+    Serial.println("[TEST] Filling Face 0 with deep blue (does not return).");
+    const uint16_t deepBlue = display->color565(0, 0, 139);
     for (;;) {
         for (uint8_t y = 0; y < PANEL_SIZE; y++) {
             for (uint8_t x = 0; x < PANEL_SIZE; x++) {
-                float fx = x / (float)PANEL_SIZE;
-                float fy = y / (float)PANEL_SIZE;
-                float v = sinf(fx * 6.0f + t)
-                        + sinf(fy * 6.0f - t * 1.3f)
-                        + sinf((fx + fy) * 6.0f + t * 0.7f)
-                        + sinf(sqrtf((fx - 0.5f) * (fx - 0.5f) + (fy - 0.5f) * (fy - 0.5f)) * 12.0f - t * 1.6f);
-                // v spans roughly [-4, 4] -> map to a full 0-360 hue sweep.
-                float hue = fmodf((v * 45.0f) + t * 30.0f + 360.0f, 360.0f);
-                uint8_t r, g, b;
-                hsvToRgb565(display, hue, r, g, b);
-                display->drawPixel(x, y, display->color565(r, g, b));
+                display->drawPixel(x, y, deepBlue);
             }
         }
         display->flipDMABuffer();
-        t += 0.08f;
-        delay(20);
+        delay(200);
     }
 }
 
