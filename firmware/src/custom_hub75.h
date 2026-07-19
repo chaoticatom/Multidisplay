@@ -46,6 +46,17 @@ inline void customHub75Init() {
     Serial.println("[CUSTOM_HUB75] Pins initialized (bit-bang, no library).");
 }
 
+// Some "smart" HUB75 driver chips (FM6126A/ICN2038S-style, and per a
+// community report a RUL6024/MBI6024-family chip closely related to this
+// panel's SM5166PS) don't treat LAT as a simple end-of-row pulse - they
+// read it as a command-length counter: LAT must be HIGH during the LAST N
+// clock edges of the shift sequence itself (not asserted separately
+// afterward) to actually latch the data. The report that found this said
+// N=3 for their chip. Every config tried tonight (library-based and the
+// first version of this custom driver) used a plain separate end pulse -
+// this has never actually been tested.
+static const int LATCH_DURING_LAST_N_CLOCKS = 3;
+
 // Fills the whole PANEL_SIZE x PANEL_SIZE Face 0 with one solid colour,
 // forever, scanning all 16 row-address states (A/B/C/D -> 4 bits) each pass.
 // R1/G1/B1 drive the top half (rows 0-31), R2/G2/B2 the bottom half
@@ -57,9 +68,16 @@ inline void customHub75Init() {
 // software abstraction - the physical address line(s) or panel itself.
 inline void customHub75FillTest(bool r, bool g, bool b) {
     Serial.println("[CUSTOM_HUB75] Filling Face 0 with a solid colour (does not return).");
+    Serial.printf("[CUSTOM_HUB75] LAT held high during the last %d clock edges of each row shift.\n",
+                   LATCH_DURING_LAST_N_CLOCKS);
     for (;;) {
         for (int addr = 0; addr < 16; addr++) {
             // Shift out one full row's worth of colour data for both halves.
+            // LAT goes HIGH before the last LATCH_DURING_LAST_N_CLOCKS
+            // columns' clock pulses (not as a separate pulse afterward) -
+            // the specific technique this panel's driver family reportedly
+            // needs to actually transfer shift-register data to output.
+            digitalWrite(HUB75_LAT, LOW);
             for (int col = 0; col < PANEL_SIZE; col++) {
                 digitalWrite(HUB75_R1, r ? HIGH : LOW);
                 digitalWrite(HUB75_G1, g ? HIGH : LOW);
@@ -67,9 +85,13 @@ inline void customHub75FillTest(bool r, bool g, bool b) {
                 digitalWrite(HUB75_R2, r ? HIGH : LOW);
                 digitalWrite(HUB75_G2, g ? HIGH : LOW);
                 digitalWrite(HUB75_B2, b ? HIGH : LOW);
+                if (col == PANEL_SIZE - LATCH_DURING_LAST_N_CLOCKS) {
+                    digitalWrite(HUB75_LAT, HIGH);
+                }
                 digitalWrite(HUB75_CLK, HIGH);
                 digitalWrite(HUB75_CLK, LOW);
             }
+            digitalWrite(HUB75_LAT, LOW);
 
             // Blank output before changing the row address, to avoid a
             // visible ghost row while the address lines are mid-transition.
@@ -79,10 +101,6 @@ inline void customHub75FillTest(bool r, bool g, bool b) {
             digitalWrite(HUB75_B, (addr & 0x2) ? HIGH : LOW);
             digitalWrite(HUB75_C, (addr & 0x4) ? HIGH : LOW);
             digitalWrite(HUB75_D, (addr & 0x8) ? HIGH : LOW);
-
-            // Latch the shifted row data into the output drivers.
-            digitalWrite(HUB75_LAT, HIGH);
-            digitalWrite(HUB75_LAT, LOW);
 
             // Enable output (active-low) to actually light this row-pair.
             digitalWrite(HUB75_OE, LOW);
