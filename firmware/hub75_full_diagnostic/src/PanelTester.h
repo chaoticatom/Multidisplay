@@ -37,10 +37,10 @@ public:
             : Pins::NOT_CONNECTED;
 
         HUB75_I2S_CFG::i2s_pins pins = {
-            Pins::R1, Pins::G1, Pins::B1,
-            Pins::R2, Pins::G2, Pins::B2,
-            Pins::A,  Pins::B,  Pins::C, dPin, ePin,
-            Pins::LAT, Pins::OE, Pins::CLK
+            Pins::R1_PIN, Pins::G1_PIN, Pins::B1_PIN,
+            Pins::R2_PIN, Pins::G2_PIN, Pins::B2_PIN,
+            Pins::A_PIN,  Pins::B_PIN,  Pins::C_PIN, dPin, ePin,
+            Pins::LAT_PIN, Pins::OE_PIN, Pins::CLK_PIN
         };
 
         HUB75_I2S_CFG mxconfig(
