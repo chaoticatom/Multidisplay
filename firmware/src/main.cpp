@@ -27,7 +27,7 @@
 // Diagnostic-only: two structurally different scan-geometry configs fed to
 // the library produced byte-identical banding, so this rules the library's
 // internal assumptions in/out entirely by controlling every GPIO ourselves.
-#define USE_CUSTOM_HUB75_DRIVER 1
+#define USE_CUSTOM_HUB75_DRIVER 0
 
 // ---------------------------------------------------------------------------
 // Shared globals (declared extern in web_server.h)
@@ -252,31 +252,18 @@ static void hsvToRgb565(MatrixPanel_I2S_DMA* display, float h, uint8_t& r, uint8
     b = (uint8_t)((bf + m) * 255);
 }
 
-// Rows physically confirmed working (measured by hand, precisely: 24 dark,
-// 8 lit, 24 dark, 8 lit = 64 total). Only these 16 rows ever actually light
-// up regardless of firmware/config - see the row-count investigation this
-// was measured from. Compressing the rendered image into just these rows
-// (instead of drawing across the full logical 0-63 range and letting 48 of
-// those rows silently go nowhere) gives a gap-free image on the LEDs that
-// do work, at the cost of vertical resolution.
-static const uint8_t WORKING_ROW_START[2] = {24, 56};
-static uint8_t compressRowToWorkingBand(uint8_t logicalY, uint8_t logicalHeight) {
-    const uint8_t compressed = (logicalY * 16) / logicalHeight;   // 0..15
-    return (compressed < 8)
-        ? WORKING_ROW_START[0] + compressed
-        : WORKING_ROW_START[1] + (compressed - 8);
-}
-
-// Per-pixel swirling "cloud" plasma, full RGB hue range - computed across
-// the full logical 0-63 row range for visual detail, then each row's output
-// is relocated into the 16 physically-working rows via
-// compressRowToWorkingBand() instead of drawn at its native row.
+// Per-pixel swirling "cloud" plasma, full RGB hue range, covering every pixel
+// on the panel - drawn straight to native logical coordinates. The earlier
+// row-compression workaround (squeezing content into the 16 rows found
+// working under a different, since-superseded config) is removed - this is
+// now testing whether the SCAN_SPLIT=2 + SCAN_SPLIT_REVERSE=1 combination
+// (see config.h) actually lights every row correctly, not compensating for
+// a permanent limitation.
 static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
     Serial.println("[TEST] Running RGB cloud-swirl diagnostic on Face 0 (does not return).");
     float t = 0.0f;
     for (;;) {
         for (uint8_t y = 0; y < PANEL_SIZE; y++) {
-            const uint8_t physicalY = compressRowToWorkingBand(y, PANEL_SIZE);
             for (uint8_t x = 0; x < PANEL_SIZE; x++) {
                 float fx = x / (float)PANEL_SIZE;
                 float fy = y / (float)PANEL_SIZE;
@@ -288,7 +275,7 @@ static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
                 float hue = fmodf((v * 45.0f) + t * 30.0f + 360.0f, 360.0f);
                 uint8_t r, g, b;
                 hsvToRgb565(display, hue, r, g, b);
-                display->drawPixel(x, physicalY, display->color565(r, g, b));
+                display->drawPixel(x, y, display->color565(r, g, b));
             }
         }
         display->flipDMABuffer();

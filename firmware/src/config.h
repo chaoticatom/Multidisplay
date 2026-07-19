@@ -86,28 +86,29 @@
 // address it correctly, and every pixel write needs remapping from "face f,
 // full 0..PANEL_SIZE-1 y" logical space into that expanded-chain physical
 // space.
-//   SCAN_SPLIT 2 = half-scan  (32-tall strips, needs A-D) - already tried,
-//                  banding unchanged, ruled out as the actual fix.
-//   SCAN_SPLIT 4 = quarter-scan (16-tall strips, needs only A-C) - also
-//                  tried, also ruled out (same banding). Disabled below -
-//                  that whole theory is now being tested properly in the
-//                  separate firmware/hub75_full_diagnostic project instead,
-//                  which sweeps scan rate/addressing/driver independently.
-// Leaving this active here caused a real bug: main.cpp's row-compression
-// workaround (compressRowToWorkingBand) assumed drawPixel(x,y) addresses a
-// true single 64-tall module directly, but ScanSplitPanel was silently
-// remapping those coordinates AGAIN through its own quarter-scan chunking
-// first - two remap layers stacked, neither aware of the other, scrambling
-// the output unpredictably between runs.
-#define SCAN_SPLIT_PANEL      0
-#define SCAN_SPLIT            1
+//   SCAN_SPLIT 2 = half-scan  (32-tall strips, needs A-D). Tried with
+//                  sequential strip order before - banding unchanged. BUT:
+//                  this is exactly the geometry a real, documented SM5166PS-
+//                  family fix (GitHub mrfaptastic/ESP32-HUB75-MatrixPanel-
+//                  I2S-DMA issue #154, "lines doubled in an array of 8")
+//                  needed - and that fix specifically required a NON-
+//                  sequential chaining order ("the 2nd 1/4th being chained
+//                  to the first (top) 1/4th"), not the simple sequential
+//                  order tried before. That's what SCAN_SPLIT_REVERSE tests.
+//   SCAN_SPLIT 4 = quarter-scan (16-tall strips, needs only A-C) - tried,
+//                  ruled out (same banding). Also being swept independently
+//                  in firmware/hub75_full_diagnostic.
+#define SCAN_SPLIT_PANEL      1
+#define SCAN_SPLIT            2
 #define HUB75_MOD_HEIGHT      (PANEL_SIZE / SCAN_SPLIT)
 #define HUB75_CHAIN_LEN       (NUM_FACES * SCAN_SPLIT)
-// If the image comes out with strips in the wrong order/mirrored within
-// each face once this is wired up, flip this to try reversing the strip
-// order - which physical strip a panel's internal cascade calls "first"
-// isn't something we can know without seeing actual output.
-#define SCAN_SPLIT_REVERSE 0
+// Reversed strip chaining order - see the SCAN_SPLIT=2 comment above. This
+// is the specific untested combination: half-scan geometry + non-sequential
+// chain order, matching the real documented community fix as closely as
+// possible from a published description (not the exact source, which
+// wasn't fetchable - GitHub raw-content access is blocked in this
+// environment).
+#define SCAN_SPLIT_REVERSE 1
 
 // Status LED (built-in on most ESP32-S3 devkits)
 #define STATUS_LED_PIN 2
