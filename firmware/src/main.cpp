@@ -252,21 +252,20 @@ static void hsvToRgb565(MatrixPanel_I2S_DMA* display, float h, uint8_t& r, uint8
     b = (uint8_t)((bf + m) * 255);
 }
 
-// Per-pixel swirling "cloud" plasma, full RGB hue range, covering every pixel
-// on the panel - drawn straight to native logical coordinates. The earlier
-// row-compression workaround (squeezing content into the 16 rows found
-// working under a different, since-superseded config) is removed - this is
-// now testing whether the SCAN_SPLIT=2 + SCAN_SPLIT_REVERSE=1 combination
-// (see config.h) actually lights every row correctly, not compensating for
-// a permanent limitation.
+// Per-pixel swirling "cloud" plasma, full RGB hue range. Testing the theory
+// that this panel is simply, genuinely a 64x32 display (see
+// TEST_PLAIN_64X32 in config.h) - rendering only within that real 64x32
+// canvas (HUB75_MOD_HEIGHT), not the full 64x64 logical space, so every
+// pixel drawn actually lands within what the panel can address at all.
 static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
-    Serial.println("[TEST] Running RGB cloud-swirl diagnostic on Face 0 (does not return).");
+    Serial.println("[TEST] Running RGB cloud-swirl diagnostic (64x32 canvas, does not return).");
+    const uint8_t renderHeight = HUB75_MOD_HEIGHT;   // true addressable height
     float t = 0.0f;
     for (;;) {
-        for (uint8_t y = 0; y < PANEL_SIZE; y++) {
+        for (uint8_t y = 0; y < renderHeight; y++) {
             for (uint8_t x = 0; x < PANEL_SIZE; x++) {
                 float fx = x / (float)PANEL_SIZE;
-                float fy = y / (float)PANEL_SIZE;
+                float fy = y / (float)renderHeight;
                 float v = sinf(fx * 6.0f + t)
                         + sinf(fy * 6.0f - t * 1.3f)
                         + sinf((fx + fy) * 6.0f + t * 0.7f)
