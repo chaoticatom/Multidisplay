@@ -145,21 +145,25 @@ inline const char* columnOrderName(ColumnOrder c) { return c == ColumnOrder::NOR
 // more lines here to test additional theories; nothing else needs to change.
 // ---------------------------------------------------------------------------
 static const PanelConfiguration PANEL_CONFIGS[] = {
-    // --- Scan rate sweep, standard addressing/timing held constant ---
+    // --- Highest-priority candidates first: the panel's own wire harness
+    // documentation (confirmed directly, not inferred) labels the 4th
+    // address wire "E" on GPIO47, and the PCB is marked "32S" implying
+    // genuine 1/32 scan - so ABCE addressing at 1/32 is now the
+    // best-evidenced starting guess, tested first rather than buried in
+    // the sweep. ---
+    { "1/32 scan, ABCE addressing",   ScanRate::SCAN_1_32, AddressMapping::ABCE,     DriverType::SHIFTREG, RowOrder::NORMAL, ColumnOrder::NORMAL, 4, false, true },
+    { "1/16 scan, ABCE addressing",   ScanRate::SCAN_1_16, AddressMapping::ABCE,     DriverType::SHIFTREG, RowOrder::NORMAL, ColumnOrder::NORMAL, 4, false, true },
+
+    // --- Scan rate sweep, standard (D-slot) addressing/timing held
+    // constant - kept for completeness/control, now deprioritized since the
+    // harness documentation points at E, not D. ---
     { "1/8 scan, standard",           ScanRate::SCAN_1_8,  AddressMapping::STANDARD, DriverType::SHIFTREG, RowOrder::NORMAL, ColumnOrder::NORMAL, 4, false, true },
     { "1/16 scan, standard",          ScanRate::SCAN_1_16, AddressMapping::STANDARD, DriverType::SHIFTREG, RowOrder::NORMAL, ColumnOrder::NORMAL, 4, false, true },
     { "1/32 scan, standard",          ScanRate::SCAN_1_32, AddressMapping::STANDARD, DriverType::SHIFTREG, RowOrder::NORMAL, ColumnOrder::NORMAL, 4, false, true },
-
-    // --- Address mapping sweep at 1/32 (the panel's marked scan rate) ---
     { "1/32 scan, ABCDE addressing",  ScanRate::SCAN_1_32, AddressMapping::ABCDE,    DriverType::SHIFTREG, RowOrder::NORMAL, ColumnOrder::NORMAL, 4, false, true },
-    { "1/32 scan, ABCE addressing",   ScanRate::SCAN_1_32, AddressMapping::ABCE,     DriverType::SHIFTREG, RowOrder::NORMAL, ColumnOrder::NORMAL, 4, false, true },
-
-    // --- Address mapping sweep at 1/16 too, in case scan rate AND
-    // addressing are both wrong simultaneously ---
-    { "1/16 scan, ABCE addressing",   ScanRate::SCAN_1_16, AddressMapping::ABCE,     DriverType::SHIFTREG, RowOrder::NORMAL, ColumnOrder::NORMAL, 4, false, true },
 
     // --- Row/column order sweep, at the panel's marked 1/32 + ABCE (its
-    // own silkscreen's addressing) ---
+    // own harness's addressing) ---
     { "1/32 ABCE, row reversed",      ScanRate::SCAN_1_32, AddressMapping::ABCE,     DriverType::SHIFTREG, RowOrder::REVERSED, ColumnOrder::NORMAL,   4, false, true },
     { "1/32 ABCE, col reversed",      ScanRate::SCAN_1_32, AddressMapping::ABCE,     DriverType::SHIFTREG, RowOrder::NORMAL,   ColumnOrder::REVERSED, 4, false, true },
     { "1/32 ABCE, row+col reversed",  ScanRate::SCAN_1_32, AddressMapping::ABCE,     DriverType::SHIFTREG, RowOrder::REVERSED, ColumnOrder::REVERSED, 4, false, true },
