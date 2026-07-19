@@ -88,9 +88,19 @@
 // space.
 //   SCAN_SPLIT 2 = half-scan  (32-tall strips, needs A-D) - already tried,
 //                  banding unchanged, ruled out as the actual fix.
-//   SCAN_SPLIT 4 = quarter-scan (16-tall strips, needs only A-C) - current.
-#define SCAN_SPLIT_PANEL      1
-#define SCAN_SPLIT            4
+//   SCAN_SPLIT 4 = quarter-scan (16-tall strips, needs only A-C) - also
+//                  tried, also ruled out (same banding). Disabled below -
+//                  that whole theory is now being tested properly in the
+//                  separate firmware/hub75_full_diagnostic project instead,
+//                  which sweeps scan rate/addressing/driver independently.
+// Leaving this active here caused a real bug: main.cpp's row-compression
+// workaround (compressRowToWorkingBand) assumed drawPixel(x,y) addresses a
+// true single 64-tall module directly, but ScanSplitPanel was silently
+// remapping those coordinates AGAIN through its own quarter-scan chunking
+// first - two remap layers stacked, neither aware of the other, scrambling
+// the output unpredictably between runs.
+#define SCAN_SPLIT_PANEL      0
+#define SCAN_SPLIT            1
 #define HUB75_MOD_HEIGHT      (PANEL_SIZE / SCAN_SPLIT)
 #define HUB75_CHAIN_LEN       (NUM_FACES * SCAN_SPLIT)
 // If the image comes out with strips in the wrong order/mirrored within
