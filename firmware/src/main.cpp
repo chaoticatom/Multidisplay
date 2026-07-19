@@ -344,9 +344,11 @@ void setup() {
 
 #if USE_CUSTOM_HUB75_DRIVER
     // Bypass the library entirely - see USE_CUSTOM_HUB75_DRIVER above.
-    // Deep blue, matching the last library-driven test for a fair comparison.
+    // R1=red/R2=green row-identity test - drops the "R1=row N, R2=row N+32"
+    // pairing assumption and shows which physical rows each channel really
+    // feeds, directly, with no offset baked in.
     customHub75Init();
-    customHub75FillTest(false, false, true);   // never returns
+    customHub75RowIdentityTest();   // never returns
 #else
     // HUB75 display.
     dma_display = initDisplay();

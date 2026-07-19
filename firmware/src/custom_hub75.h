@@ -107,3 +107,47 @@ inline void customHub75FillTest(bool r, bool g, bool b) {
         }
     }
 }
+
+// Drops the "R1=row N, R2=row N+32" pairing assumption entirely and instead
+// reveals which physical rows each half actually feeds, directly: R1 is
+// driven RED-only, R2 is driven GREEN-only, for the exact same address
+// value each cycle. Whatever rows come up red are R1's true rows; whatever
+// comes up green are R2's - no offset assumption baked in anywhere. If this
+// really is a fixed R1=N/R2=N+32 pair, expect to see red rows and green rows
+// exactly 32 apart; if this panel is wired differently, this will show
+// whatever the real relationship actually is.
+inline void customHub75RowIdentityTest() {
+    Serial.println("[CUSTOM_HUB75] R1=RED / R2=GREEN row-identity test (does not return).");
+    Serial.printf("[CUSTOM_HUB75] LAT held high during the last %d clock edges of each row shift.\n",
+                   LATCH_DURING_LAST_N_CLOCKS);
+    for (;;) {
+        for (int addr = 0; addr < 16; addr++) {
+            digitalWrite(HUB75_LAT, LOW);
+            for (int col = 0; col < PANEL_SIZE; col++) {
+                // R1 channel: red only.
+                digitalWrite(HUB75_R1, HIGH);
+                digitalWrite(HUB75_G1, LOW);
+                digitalWrite(HUB75_B1, LOW);
+                // R2 channel: green only.
+                digitalWrite(HUB75_R2, LOW);
+                digitalWrite(HUB75_G2, HIGH);
+                digitalWrite(HUB75_B2, LOW);
+                if (col == PANEL_SIZE - LATCH_DURING_LAST_N_CLOCKS) {
+                    digitalWrite(HUB75_LAT, HIGH);
+                }
+                digitalWrite(HUB75_CLK, HIGH);
+                digitalWrite(HUB75_CLK, LOW);
+            }
+            digitalWrite(HUB75_LAT, LOW);
+
+            digitalWrite(HUB75_OE, HIGH);
+
+            digitalWrite(HUB75_A, (addr & 0x1) ? HIGH : LOW);
+            digitalWrite(HUB75_B, (addr & 0x2) ? HIGH : LOW);
+            digitalWrite(HUB75_C, (addr & 0x4) ? HIGH : LOW);
+            digitalWrite(HUB75_D, (addr & 0x8) ? HIGH : LOW);
+
+            digitalWrite(HUB75_OE, LOW);
+        }
+    }
+}
