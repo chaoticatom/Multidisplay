@@ -108,14 +108,28 @@
 // are removed - consistent with 32 rows being the real, total addressable
 // height, not a fault hiding within a genuine 64-tall panel.
 // TEST_PLAIN_64X32: module height 32, chain length 1 - a true standalone
-// module, no SCAN_SPLIT chaining math applied at all.
-#define TEST_PLAIN_64X32      1
+// module, no SCAN_SPLIT chaining math applied at all. Currently disabled -
+// see USE_VIRTUAL_MATRIX_PANEL below, which needs a plain full 64-tall base
+// module underneath its own remap layer instead.
+#define TEST_PLAIN_64X32      0
+
+// Use the library's own built-in VirtualMatrixPanel class with
+// setPhysicalPanelScanRate(ONE_EIGHT_32) - a real, documented feature (found
+// via a working example on GitHub tidbyt/ESP32-HUB75-MatrixPanel-I2S-DMA)
+// specifically built for panels that "don't have a D and E pin", matching
+// this panel's actual physical connector. See led_matrix.h.
+#define USE_VIRTUAL_MATRIX_PANEL 1
 
 #if TEST_PLAIN_64X32
 #define SCAN_SPLIT_PANEL      0
 #define SCAN_SPLIT            1   // unused (SCAN_SPLIT_PANEL=0 means scanSplitRemap is never called), but the function still needs it defined to compile
 #define HUB75_MOD_HEIGHT      32
 #define HUB75_CHAIN_LEN       1
+#elif USE_VIRTUAL_MATRIX_PANEL
+#define SCAN_SPLIT_PANEL      0
+#define SCAN_SPLIT            1   // unused, see comment above
+#define HUB75_MOD_HEIGHT      PANEL_SIZE
+#define HUB75_CHAIN_LEN       NUM_FACES
 #else
 #define SCAN_SPLIT_PANEL      1
 #define SCAN_SPLIT            2

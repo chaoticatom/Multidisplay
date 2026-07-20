@@ -252,20 +252,21 @@ static void hsvToRgb565(MatrixPanel_I2S_DMA* display, float h, uint8_t& r, uint8
     b = (uint8_t)((bf + m) * 255);
 }
 
-// Per-pixel swirling "cloud" plasma, full RGB hue range. Testing the theory
-// that this panel is simply, genuinely a 64x32 display (see
-// TEST_PLAIN_64X32 in config.h) - rendering only within that real 64x32
-// canvas (HUB75_MOD_HEIGHT), not the full 64x64 logical space, so every
-// pixel drawn actually lands within what the panel can address at all.
+// Per-pixel swirling "cloud" plasma, full RGB hue range, rendered across the
+// full logical 64x64 space. Pixel writes go through virtualMatrixDisplay
+// (the library's own VirtualMatrixPanel wrapper, set to ONE_EIGHT_32 scan
+// rate - see USE_VIRTUAL_MATRIX_PANEL in config.h/led_matrix.h), which
+// handles the actual physical remap; flipDMABuffer() still goes to the
+// underlying base display object directly, since that's a raw hardware
+// buffer-swap operation the wrapper doesn't cover.
 static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
-    Serial.println("[TEST] Running RGB cloud-swirl diagnostic (64x32 canvas, does not return).");
-    const uint8_t renderHeight = HUB75_MOD_HEIGHT;   // true addressable height
+    Serial.println("[TEST] Running RGB cloud-swirl diagnostic via VirtualMatrixPanel (does not return).");
     float t = 0.0f;
     for (;;) {
-        for (uint8_t y = 0; y < renderHeight; y++) {
+        for (uint8_t y = 0; y < PANEL_SIZE; y++) {
             for (uint8_t x = 0; x < PANEL_SIZE; x++) {
                 float fx = x / (float)PANEL_SIZE;
-                float fy = y / (float)renderHeight;
+                float fy = y / (float)PANEL_SIZE;
                 float v = sinf(fx * 6.0f + t)
                         + sinf(fy * 6.0f - t * 1.3f)
                         + sinf((fx + fy) * 6.0f + t * 0.7f)
@@ -274,7 +275,7 @@ static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
                 float hue = fmodf((v * 45.0f) + t * 30.0f + 360.0f, 360.0f);
                 uint8_t r, g, b;
                 hsvToRgb565(display, hue, r, g, b);
-                display->drawPixel(x, y, display->color565(r, g, b));
+                virtualMatrixDisplay->drawPixel(x, y, display->color565(r, g, b));
             }
         }
         display->flipDMABuffer();
@@ -342,6 +343,10 @@ void setup() {
         Serial.println("[LED] display init FAILED");
     } else {
         Serial.println("[LED] display initialized");
+#if USE_VIRTUAL_MATRIX_PANEL
+        initVirtualMatrixPanel(dma_display);
+        Serial.println("[LED] VirtualMatrixPanel wrapper ready (ONE_EIGHT_32 scan rate).");
+#endif
         // Cloud-swirl RGB diagnostic — never returns. Swap back to
         // drawWorkingText(dma_display) or drawBringupTestPattern(dma_display)
         // once the split/duplicate-image wiring issue is resolved.

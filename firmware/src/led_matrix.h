@@ -3,6 +3,16 @@
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 #include "config.h"
 
+#if USE_VIRTUAL_MATRIX_PANEL
+#include <ESP32-VirtualMatrixPanel-I2S-DMA.h>
+// Global instance created in initVirtualMatrixPanel() below, after the base
+// display is up - main.cpp's swirl test draws through this, not the base
+// MatrixPanel_I2S_DMA object directly. inline: this header may end up
+// included from more than one translation unit, and a plain global
+// definition here would violate the one-definition-rule if so.
+inline VirtualMatrixPanel* virtualMatrixDisplay = nullptr;
+#endif
+
 // ---------------------------------------------------------------------------
 // led_matrix.h - HUB75 DMA display initialization helper
 //
@@ -102,3 +112,18 @@ inline MatrixPanel_I2S_DMA* initDisplay() {
     display->clearScreen();
     return display;
 }
+
+#if USE_VIRTUAL_MATRIX_PANEL
+// Wraps the base display with the library's own VirtualMatrixPanel, using
+// its built-in ONE_EIGHT_32 scan-rate remap - a real, documented feature
+// for panels with no D/E pin, found via a working example
+// (tidbyt/ESP32-HUB75-MatrixPanel-I2S-DMA's One_Eight_1_8_ScanPanel.ino).
+// Call once, after initDisplay() has succeeded. 1 virtual row/col (single
+// physical panel, not chained), serpentine off, top_down on - the last two
+// are guesses where the example didn't make the right choice obvious for a
+// single-panel case; flip them if the image comes out mirrored/rotated.
+inline void initVirtualMatrixPanel(MatrixPanel_I2S_DMA* base) {
+    virtualMatrixDisplay = new VirtualMatrixPanel(*base, 1, 1, PANEL_SIZE, PANEL_SIZE, false, true);
+    virtualMatrixDisplay->setPhysicalPanelScanRate(ONE_EIGHT_32);
+}
+#endif
