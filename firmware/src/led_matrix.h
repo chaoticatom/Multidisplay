@@ -4,13 +4,50 @@
 #include "config.h"
 
 #if USE_VIRTUAL_MATRIX_PANEL
-#include <ESP32-VirtualMatrixPanel-I2S-DMA.h>
-// Global instance created in initVirtualMatrixPanel() below, after the base
-// display is up - main.cpp's swirl test draws through this, not the base
-// MatrixPanel_I2S_DMA object directly. inline: this header may end up
-// included from more than one translation unit, and a plain global
-// definition here would violate the one-definition-rule if so.
-inline VirtualMatrixPanel* virtualMatrixDisplay = nullptr;
+// NOT using the library's own VirtualMatrixPanel here - its
+// FOUR_SCAN_64PX_HIGH case has a real bug, confirmed by reading the actual
+// installed source: it reassigns the local parameter `virt_y` to apply the
+// 64px-tall-specific adjustment, but `coords.y` (which the very next,
+// fallthrough case actually reads) was already copied from the ORIGINAL
+// virt_y earlier in the same function, before this reassignment happens.
+// The 64px-specific adjustment has no effect at all - it silently behaves
+// identically to FOUR_SCAN_32PX_HIGH. That's consistent with "compiles
+// fine, display is exactly the same" after switching to it.
+//
+// This reimplements the INTENDED algorithm (same formulas, same operator
+// precedence, copied faithfully from that source) with the bug fixed: the
+// adjusted y value is what actually feeds the rest of the remap.
+inline void fourScan64Remap(int x, int y, int16_t& outX, int16_t& outY) {
+    const int panelPixelBase = PANEL_SIZE;   // 64
+    int adjY = y;
+    if ((adjY & 8) != ((adjY & 16) >> 1)) {
+        // Copied verbatim from the library source, including its exact
+        // operator precedence (+ binds tighter than ^ in C++, so this is
+        // (adjY & 0b11000) ^ (0b11000 + (adjY & 0b11100111)) - preserving
+        // that exactly rather than guessing whether it was intentional.
+        adjY = (adjY & 0b11000) ^ 0b11000 + (adjY & 0b11100111);
+    }
+    int outXi = x;
+    if ((adjY & 8) == 0) {
+        outXi += ((outXi / panelPixelBase) + 1) * panelPixelBase;
+    } else {
+        outXi += (outXi / panelPixelBase) * panelPixelBase;
+    }
+    const int outYi = (adjY >> 4) * 8 + (adjY & 0b00000111);
+    outX = (int16_t)outXi;
+    outY = (int16_t)outYi;
+}
+
+// Drop-in MatrixPanel_I2S_DMA replacement using the bug-fixed remap above.
+class FourScan64Panel : public MatrixPanel_I2S_DMA {
+public:
+    using MatrixPanel_I2S_DMA::MatrixPanel_I2S_DMA;
+    void drawPixel(int16_t x, int16_t y, uint16_t color) override {
+        int16_t rx, ry;
+        fourScan64Remap(x, y, rx, ry);
+        MatrixPanel_I2S_DMA::drawPixel(rx, ry, color);
+    }
+};
 #endif
 
 // ---------------------------------------------------------------------------
@@ -99,7 +136,9 @@ inline MatrixPanel_I2S_DMA* initDisplay() {
     // a timing config problem.
     cfg.latch_blanking = 4;
 
-#if SCAN_SPLIT_PANEL
+#if USE_VIRTUAL_MATRIX_PANEL
+    MatrixPanel_I2S_DMA* display = new FourScan64Panel(cfg);
+#elif SCAN_SPLIT_PANEL
     MatrixPanel_I2S_DMA* display = new ScanSplitPanel(cfg);
 #else
     MatrixPanel_I2S_DMA* display = new MatrixPanel_I2S_DMA(cfg);
@@ -112,17 +151,3 @@ inline MatrixPanel_I2S_DMA* initDisplay() {
     display->clearScreen();
     return display;
 }
-
-#if USE_VIRTUAL_MATRIX_PANEL
-// Wraps the base display with the library's own VirtualMatrixPanel, using
-// its real, built-in FOUR_SCAN_64PX_HIGH remap (confirmed by reading the
-// actual installed library source directly - not a summary/guess). One
-// virtual row/col (single physical panel, not chained - CHAIN_NONE), full
-// 64x64 logical resolution; the base display underneath is configured with
-// module height 32 / chain length 2 (see config.h) to match what this scan
-// rate's remap logic expects the underlying DMA buffer to look like.
-inline void initVirtualMatrixPanel(MatrixPanel_I2S_DMA* base) {
-    virtualMatrixDisplay = new VirtualMatrixPanel(*base, 1, 1, PANEL_SIZE, PANEL_SIZE, CHAIN_NONE);
-    virtualMatrixDisplay->setPhysicalPanelScanRate(FOUR_SCAN_64PX_HIGH);
-}
-#endif

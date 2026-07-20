@@ -253,14 +253,12 @@ static void hsvToRgb565(MatrixPanel_I2S_DMA* display, float h, uint8_t& r, uint8
 }
 
 // Per-pixel swirling "cloud" plasma, full RGB hue range, rendered across the
-// full logical 64x64 space. Pixel writes go through virtualMatrixDisplay
-// (the library's own VirtualMatrixPanel wrapper, set to FOUR_SCAN_64PX_HIGH scan
-// rate - see USE_VIRTUAL_MATRIX_PANEL in config.h/led_matrix.h), which
-// handles the actual physical remap; flipDMABuffer() still goes to the
-// underlying base display object directly, since that's a raw hardware
-// buffer-swap operation the wrapper doesn't cover.
+// full logical 64x64 space. Pixel writes go straight to the display object,
+// which is a FourScan64Panel (see USE_VIRTUAL_MATRIX_PANEL in
+// config.h/led_matrix.h) applying the bug-fixed four-scan remap itself via
+// its drawPixel override - no separate wrapper object needed.
 static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
-    Serial.println("[TEST] Running RGB cloud-swirl diagnostic via VirtualMatrixPanel (does not return).");
+    Serial.println("[TEST] Running RGB cloud-swirl diagnostic (four-scan remap, does not return).");
     float t = 0.0f;
     for (;;) {
         for (uint8_t y = 0; y < PANEL_SIZE; y++) {
@@ -275,7 +273,7 @@ static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
                 float hue = fmodf((v * 45.0f) + t * 30.0f + 360.0f, 360.0f);
                 uint8_t r, g, b;
                 hsvToRgb565(display, hue, r, g, b);
-                virtualMatrixDisplay->drawPixel(x, y, display->color565(r, g, b));
+                display->drawPixel(x, y, display->color565(r, g, b));
             }
         }
         display->flipDMABuffer();
@@ -343,10 +341,6 @@ void setup() {
         Serial.println("[LED] display init FAILED");
     } else {
         Serial.println("[LED] display initialized");
-#if USE_VIRTUAL_MATRIX_PANEL
-        initVirtualMatrixPanel(dma_display);
-        Serial.println("[LED] VirtualMatrixPanel wrapper ready (FOUR_SCAN_64PX_HIGH scan rate).");
-#endif
         // Cloud-swirl RGB diagnostic — never returns. Swap back to
         // drawWorkingText(dma_display) or drawBringupTestPattern(dma_display)
         // once the split/duplicate-image wiring issue is resolved.
