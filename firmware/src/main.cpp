@@ -254,7 +254,7 @@ static void hsvToRgb565(MatrixPanel_I2S_DMA* display, float h, uint8_t& r, uint8
 
 // Per-pixel swirling "cloud" plasma, full RGB hue range, rendered across the
 // full logical 64x64 space. Pixel writes go through virtualMatrixDisplay
-// (the library's own VirtualMatrixPanel wrapper, set to ONE_EIGHT_32 scan
+// (the library's own VirtualMatrixPanel wrapper, set to FOUR_SCAN_64PX_HIGH scan
 // rate - see USE_VIRTUAL_MATRIX_PANEL in config.h/led_matrix.h), which
 // handles the actual physical remap; flipDMABuffer() still goes to the
 // underlying base display object directly, since that's a raw hardware
@@ -345,7 +345,7 @@ void setup() {
         Serial.println("[LED] display initialized");
 #if USE_VIRTUAL_MATRIX_PANEL
         initVirtualMatrixPanel(dma_display);
-        Serial.println("[LED] VirtualMatrixPanel wrapper ready (ONE_EIGHT_32 scan rate).");
+        Serial.println("[LED] VirtualMatrixPanel wrapper ready (FOUR_SCAN_64PX_HIGH scan rate).");
 #endif
         // Cloud-swirl RGB diagnostic — never returns. Swap back to
         // drawWorkingText(dma_display) or drawBringupTestPattern(dma_display)

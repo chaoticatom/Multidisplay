@@ -115,15 +115,14 @@ inline MatrixPanel_I2S_DMA* initDisplay() {
 
 #if USE_VIRTUAL_MATRIX_PANEL
 // Wraps the base display with the library's own VirtualMatrixPanel, using
-// its built-in ONE_EIGHT_32 scan-rate remap - a real, documented feature
-// for panels with no D/E pin, found via a working example
-// (tidbyt/ESP32-HUB75-MatrixPanel-I2S-DMA's One_Eight_1_8_ScanPanel.ino).
-// Call once, after initDisplay() has succeeded. 1 virtual row/col (single
-// physical panel, not chained), serpentine off, top_down on - the last two
-// are guesses where the example didn't make the right choice obvious for a
-// single-panel case; flip them if the image comes out mirrored/rotated.
+// its real, built-in FOUR_SCAN_64PX_HIGH remap (confirmed by reading the
+// actual installed library source directly - not a summary/guess). One
+// virtual row/col (single physical panel, not chained - CHAIN_NONE), full
+// 64x64 logical resolution; the base display underneath is configured with
+// module height 32 / chain length 2 (see config.h) to match what this scan
+// rate's remap logic expects the underlying DMA buffer to look like.
 inline void initVirtualMatrixPanel(MatrixPanel_I2S_DMA* base) {
-    virtualMatrixDisplay = new VirtualMatrixPanel(*base, 1, 1, PANEL_SIZE, PANEL_SIZE, false, true);
-    virtualMatrixDisplay->setPhysicalPanelScanRate(ONE_EIGHT_32);
+    virtualMatrixDisplay = new VirtualMatrixPanel(*base, 1, 1, PANEL_SIZE, PANEL_SIZE, CHAIN_NONE);
+    virtualMatrixDisplay->setPhysicalPanelScanRate(FOUR_SCAN_64PX_HIGH);
 }
 #endif

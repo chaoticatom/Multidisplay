@@ -114,10 +114,15 @@
 #define TEST_PLAIN_64X32      0
 
 // Use the library's own built-in VirtualMatrixPanel class with
-// setPhysicalPanelScanRate(ONE_EIGHT_32) - a real, documented feature (found
-// via a working example on GitHub tidbyt/ESP32-HUB75-MatrixPanel-I2S-DMA)
-// specifically built for panels that "don't have a D and E pin", matching
-// this panel's actual physical connector. See led_matrix.h.
+// setPhysicalPanelScanRate(FOUR_SCAN_64PX_HIGH) - a REAL feature, read
+// directly from the actual installed library source (not a summary/guess):
+// specifically built for 64px-tall panels that need four rows updated in
+// parallel instead of the standard two - exactly the "four-scan" theory
+// suspected all night. Its own source comment says the underlying DMA
+// buffer must be set up "as if the panel is 2 * W and 0.5 * H" - i.e. the
+// base display below needs module height 32 / chain length 2 (matching our
+// earlier "half-scan"/SCAN_SPLIT=2 geometry), NOT a plain full 64-tall
+// module. See led_matrix.h.
 #define USE_VIRTUAL_MATRIX_PANEL 1
 
 #if TEST_PLAIN_64X32
@@ -128,8 +133,8 @@
 #elif USE_VIRTUAL_MATRIX_PANEL
 #define SCAN_SPLIT_PANEL      0
 #define SCAN_SPLIT            1   // unused, see comment above
-#define HUB75_MOD_HEIGHT      PANEL_SIZE
-#define HUB75_CHAIN_LEN       NUM_FACES
+#define HUB75_MOD_HEIGHT      (PANEL_SIZE / 2)
+#define HUB75_CHAIN_LEN       (NUM_FACES * 2)
 #else
 #define SCAN_SPLIT_PANEL      1
 #define SCAN_SPLIT            2
