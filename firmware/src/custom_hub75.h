@@ -151,3 +151,59 @@ inline void customHub75RowIdentityTest() {
         }
     }
 }
+
+// "ABC shift + DE direct" theory, adapted: a documented alternate row-
+// addressing scheme (rpi-rgb-led-matrix's --led-row-addr-type=4) for this
+// same class of panel treats A/B/C as one group and D/E as independent
+// direct-select lines, rather than all five bits combining into one
+// sequential binary counter (0-31) - fundamentally different from every
+// theory tried tonight, which only ever varied WHICH bit got which weight,
+// never the underlying structure.
+//
+// This panel's confirmed harness has only ONE extra address wire (not two),
+// so the literal "DE" scheme doesn't map over directly - this adapts the
+// concept: A/B/C sweep 0-7 as normal, but the extra wire changes far less
+// often (once per full A/B/C sweep, not every row) and is set BEFORE the
+// A/B/C sweep starts rather than interleaved with it row-by-row, simulating
+// a genuinely independent "direct select" line rather than another bit in
+// the same counter. Best-effort adaptation of a scheme documented for
+// different hardware (Raspberry Pi GPIO, not ESP32 bit-bang) - not a
+// guaranteed-faithful reproduction.
+inline void customHub75ABCShiftDEDirectTest(bool r, bool g, bool b) {
+    Serial.println("[CUSTOM_HUB75] ABC-shift + direct-select test (does not return).");
+    for (;;) {
+        for (int direct = 0; direct < 2; direct++) {
+            // The extra wire is set ONCE here, before the whole A/B/C sweep -
+            // not re-set every row - to behave like an independent select
+            // line rather than a bit toggling in lockstep with A/B/C.
+            digitalWrite(HUB75_D, direct ? HIGH : LOW);
+
+            for (int abc = 0; abc < 8; abc++) {
+                digitalWrite(HUB75_LAT, LOW);
+                for (int col = 0; col < PANEL_SIZE; col++) {
+                    digitalWrite(HUB75_R1, r ? HIGH : LOW);
+                    digitalWrite(HUB75_G1, g ? HIGH : LOW);
+                    digitalWrite(HUB75_B1, b ? HIGH : LOW);
+                    digitalWrite(HUB75_R2, r ? HIGH : LOW);
+                    digitalWrite(HUB75_G2, g ? HIGH : LOW);
+                    digitalWrite(HUB75_B2, b ? HIGH : LOW);
+                    if (col == PANEL_SIZE - LATCH_DURING_LAST_N_CLOCKS) {
+                        digitalWrite(HUB75_LAT, HIGH);
+                    }
+                    digitalWrite(HUB75_CLK, HIGH);
+                    digitalWrite(HUB75_CLK, LOW);
+                }
+                digitalWrite(HUB75_LAT, LOW);
+
+                digitalWrite(HUB75_OE, HIGH);
+
+                digitalWrite(HUB75_A, (abc & 0x1) ? HIGH : LOW);
+                digitalWrite(HUB75_B, (abc & 0x2) ? HIGH : LOW);
+                digitalWrite(HUB75_C, (abc & 0x4) ? HIGH : LOW);
+                // HUB75_D deliberately not touched here - see above.
+
+                digitalWrite(HUB75_OE, LOW);
+            }
+        }
+    }
+}

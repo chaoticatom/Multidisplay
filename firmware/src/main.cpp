@@ -27,7 +27,7 @@
 // Diagnostic-only: two structurally different scan-geometry configs fed to
 // the library produced byte-identical banding, so this rules the library's
 // internal assumptions in/out entirely by controlling every GPIO ourselves.
-#define USE_CUSTOM_HUB75_DRIVER 0
+#define USE_CUSTOM_HUB75_DRIVER 1
 
 // ---------------------------------------------------------------------------
 // Shared globals (declared extern in web_server.h)
@@ -330,11 +330,11 @@ void setup() {
 
 #if USE_CUSTOM_HUB75_DRIVER
     // Bypass the library entirely - see USE_CUSTOM_HUB75_DRIVER above.
-    // R1=red/R2=green row-identity test - drops the "R1=row N, R2=row N+32"
-    // pairing assumption and shows which physical rows each channel really
-    // feeds, directly, with no offset baked in.
+    // "ABC shift + DE direct" addressing theory - deep blue fill, testing
+    // whether the extra address wire behaves as an independent direct-select
+    // line rather than another bit in one sequential binary counter.
     customHub75Init();
-    customHub75RowIdentityTest();   // never returns
+    customHub75ABCShiftDEDirectTest(false, false, true);   // never returns
 #else
     // HUB75 display.
     dma_display = initDisplay();
