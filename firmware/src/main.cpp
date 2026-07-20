@@ -243,8 +243,45 @@ static void drawWorkingText(MatrixPanel_I2S_DMA* display) {
 // object's own (possibly overridden) drawPixel - safe here since the
 // display object is a plain FourScan64Panel/ScanSplitPanel subclass, not
 // the raw bit-bang driver where that was a real concern earlier tonight.
+// UK civil time: GMT (UTC+0) in winter, BST (UTC+1) from the last Sunday in
+// March 01:00 UTC to the last Sunday in October 01:00 UTC. Computed from the
+// UTC epoch directly rather than a fixed offset, since STANDALONE_TZ_OFFSET_MIN
+// alone can't express a rule that changes twice a year.
+static bool ukIsBst(time_t utcNow) {
+    struct tm t;
+    gmtime_r(&utcNow, &t);
+    int year = t.tm_year + 1900;
+
+    // Last Sunday of `month` (0-11) at 01:00 UTC, as a time_t.
+    auto lastSundayAt1am = [&](int month) -> time_t {
+        struct tm probe = {};
+        probe.tm_year = year - 1900;
+        probe.tm_mon = month;
+        probe.tm_mday = 31;   // clamps below via mktime-style day walk-back
+        // Walk back from day 31 (or the last real day) to find the last Sunday.
+        // Use days-in-month via a second probe rather than assuming 31 exists.
+        int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+        if (month == 1 && (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0))) {
+            daysInMonth[1] = 29;
+        }
+        probe.tm_mday = daysInMonth[month];
+        probe.tm_hour = 1;
+        time_t candidate = timegm(&probe);
+        struct tm resolved;
+        gmtime_r(&candidate, &resolved);
+        int backOff = resolved.tm_wday;   // 0=Sunday already, else days past last Sunday
+        return candidate - (time_t)backOff * 86400;
+    };
+
+    time_t bstStart = lastSundayAt1am(2);   // March
+    time_t bstEnd   = lastSundayAt1am(9);   // October
+    return utcNow >= bstStart && utcNow < bstEnd;
+}
+
 static void drawClockOverlay(MatrixPanel_I2S_DMA* display) {
-    time_t now = time(nullptr) + STANDALONE_TZ_OFFSET_MIN * 60;
+    time_t utcNow = time(nullptr);
+    int offsetMin = ukIsBst(utcNow) ? 60 : 0;
+    time_t now = utcNow + (time_t)offsetMin * 60;
     struct tm timeinfo;
     gmtime_r(&now, &timeinfo);
     char buf[9];
