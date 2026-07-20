@@ -246,29 +246,30 @@ static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
     const uint16_t red = display->color565(255, 0, 0);
     const uint16_t black = display->color565(0, 0, 0);
     for (;;) {
-        // Vertical line sweeping left to right, one column at a time.
+        // Vertical line sweeping left to right, one column at a time. Full
+        // clear every frame (not just the previous column) - safer given
+        // how unpredictably the remap has behaved, guarantees no stray
+        // leftover lit pixels regardless.
         for (uint8_t x = 0; x < PANEL_SIZE; x++) {
-            for (uint8_t y = 0; y < PANEL_SIZE; y++) {
-                display->drawPixel(x, y, red);
-                if (x > 0) display->drawPixel(x - 1, y, black);
+            for (uint8_t cy = 0; cy < PANEL_SIZE; cy++) {
+                for (uint8_t cx = 0; cx < PANEL_SIZE; cx++) {
+                    display->drawPixel(cx, cy, cx == x ? red : black);
+                }
             }
             display->flipDMABuffer();
             delay(80);
         }
-        for (uint8_t y = 0; y < PANEL_SIZE; y++) display->drawPixel(PANEL_SIZE - 1, y, black);
-        display->flipDMABuffer();
 
         // Horizontal line sweeping top to bottom, one row at a time.
         for (uint8_t y = 0; y < PANEL_SIZE; y++) {
-            for (uint8_t x = 0; x < PANEL_SIZE; x++) {
-                display->drawPixel(x, y, red);
-                if (y > 0) display->drawPixel(x, y - 1, black);
+            for (uint8_t cy = 0; cy < PANEL_SIZE; cy++) {
+                for (uint8_t cx = 0; cx < PANEL_SIZE; cx++) {
+                    display->drawPixel(cx, cy, cy == y ? red : black);
+                }
             }
             display->flipDMABuffer();
             delay(80);
         }
-        for (uint8_t x = 0; x < PANEL_SIZE; x++) display->drawPixel(x, PANEL_SIZE - 1, black);
-        display->flipDMABuffer();
     }
 }
 
