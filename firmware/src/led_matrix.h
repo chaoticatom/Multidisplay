@@ -17,9 +17,18 @@
 // This reimplements the INTENDED algorithm (same formulas, same operator
 // precedence, copied faithfully from that source) with the bug fixed: the
 // adjusted y value is what actually feeds the rest of the remap.
+//
+// FOUR_SCAN_SKIP_64_ADJUSTMENT: set to 1 to skip the 64px-specific
+// adjustment entirely and use the plain FOUR_SCAN_32PX_HIGH formula
+// directly on the raw y - a cheap, easy A/B test against the bug-fixed
+// 64px version above, in case the adjustment itself doesn't match this
+// panel's real structure even when actually applied.
+#define FOUR_SCAN_SKIP_64_ADJUSTMENT 1
+
 inline void fourScan64Remap(int x, int y, int16_t& outX, int16_t& outY) {
     const int panelPixelBase = PANEL_SIZE;   // 64
     int adjY = y;
+#if !FOUR_SCAN_SKIP_64_ADJUSTMENT
     if ((adjY & 8) != ((adjY & 16) >> 1)) {
         // Copied verbatim from the library source, including its exact
         // operator precedence (+ binds tighter than ^ in C++, so this is
@@ -27,6 +36,7 @@ inline void fourScan64Remap(int x, int y, int16_t& outX, int16_t& outY) {
         // that exactly rather than guessing whether it was intentional.
         adjY = (adjY & 0b11000) ^ 0b11000 + (adjY & 0b11100111);
     }
+#endif
     int outXi = x;
     if ((adjY & 8) == 0) {
         outXi += ((outXi / panelPixelBase) + 1) * panelPixelBase;
