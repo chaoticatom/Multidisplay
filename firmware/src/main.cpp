@@ -235,15 +235,15 @@ static void drawWorkingText(MatrixPanel_I2S_DMA* display) {
     Serial.println("[TEST] \"WORKING\" drawn on Face 0.");
 }
 
-// Diagnostic sweep: a single red vertical line moving across the display
-// one column at a time (left to right), then a single red horizontal line
+// Diagnostic sweep: a single green vertical line moving across the display
+// one column at a time (left to right), then a single green horizontal line
 // moving down one row at a time, looping forever. Pixel writes go straight
 // to the display object, which is a FourScan64Panel (see
 // USE_VIRTUAL_MATRIX_PANEL in config.h/led_matrix.h) applying the four-scan
 // remap itself via its drawPixel override - no separate wrapper needed.
 static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
     Serial.println("[TEST] Running vertical/horizontal line sweep (does not return).");
-    const uint16_t red = display->color565(255, 0, 0);
+    const uint16_t lineColor = display->color565(0, 255, 0);
     const uint16_t black = display->color565(0, 0, 0);
     for (;;) {
         // Vertical line sweeping left to right, one column at a time. Full
@@ -253,7 +253,7 @@ static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
         for (uint8_t x = 0; x < PANEL_SIZE; x++) {
             for (uint8_t cy = 0; cy < PANEL_SIZE; cy++) {
                 for (uint8_t cx = 0; cx < PANEL_SIZE; cx++) {
-                    display->drawPixel(cx, cy, cx == x ? red : black);
+                    display->drawPixel(cx, cy, cx == x ? lineColor : black);
                 }
             }
             display->flipDMABuffer();
@@ -264,7 +264,7 @@ static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
         for (uint8_t y = 0; y < PANEL_SIZE; y++) {
             for (uint8_t cy = 0; cy < PANEL_SIZE; cy++) {
                 for (uint8_t cx = 0; cx < PANEL_SIZE; cx++) {
-                    display->drawPixel(cx, cy, cy == y ? red : black);
+                    display->drawPixel(cx, cy, cy == y ? lineColor : black);
                 }
             }
             display->flipDMABuffer();
