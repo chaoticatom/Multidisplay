@@ -146,6 +146,16 @@ inline MatrixPanel_I2S_DMA* initDisplay() {
     // a timing config problem.
     cfg.latch_blanking = 4;
 
+    // i2sspeed: the I2S clock rate driving CLK/data shifting. Never tried
+    // tonight - every previous attempt left this at the library default.
+    // Referenced in a real GitHub thread (mrcodetastic/ESP32-HUB75-
+    // MatrixPanel-DMA issue #545, a near-identical SM16208SJ+SM5166PS panel)
+    // as part of that user's fix attempt alongside latch_blanking=4. Slower
+    // clock = more settling time for the row-address lines, which is
+    // directly relevant if the real fault is signal-integrity/timing rather
+    // than a permanently dead line.
+    cfg.i2sspeed = HUB75_I2S_CFG::HZ_8M;
+
 #if USE_VIRTUAL_MATRIX_PANEL
     MatrixPanel_I2S_DMA* display = new FourScan64Panel(cfg);
 #elif SCAN_SPLIT_PANEL
