@@ -252,25 +252,29 @@ static bool ukIsBst(time_t utcNow) {
     gmtime_r(&utcNow, &t);
     int year = t.tm_year + 1900;
 
+    // Days-since-epoch for a UTC calendar date, since the Arduino/ESP32
+    // toolchain doesn't provide timegm(). Civil-from-days algorithm
+    // (Howard Hinnant's public-domain date algorithms).
+    auto daysFromCivil = [](int y, int m, int d) -> long {
+        y -= (m <= 2) ? 1 : 0;
+        long era = (y >= 0 ? y : y - 399) / 400;
+        unsigned yoe = (unsigned)(y - era * 400);
+        unsigned doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+        unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+        return era * 146097 + (long)doe - 719468;
+    };
+
     // Last Sunday of `month` (0-11) at 01:00 UTC, as a time_t.
     auto lastSundayAt1am = [&](int month) -> time_t {
-        struct tm probe = {};
-        probe.tm_year = year - 1900;
-        probe.tm_mon = month;
-        probe.tm_mday = 31;   // clamps below via mktime-style day walk-back
-        // Walk back from day 31 (or the last real day) to find the last Sunday.
-        // Use days-in-month via a second probe rather than assuming 31 exists.
         int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
         if (month == 1 && (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0))) {
             daysInMonth[1] = 29;
         }
-        probe.tm_mday = daysInMonth[month];
-        probe.tm_hour = 1;
-        time_t candidate = timegm(&probe);
-        struct tm resolved;
-        gmtime_r(&candidate, &resolved);
-        int backOff = resolved.tm_wday;   // 0=Sunday already, else days past last Sunday
-        return candidate - (time_t)backOff * 86400;
+        long lastDayEpochDay = daysFromCivil(year, month + 1, daysInMonth[month]);
+        // civil epoch day 0 (1970-01-01) was a Thursday (wday 4).
+        int wday = (int)(((lastDayEpochDay % 7) + 7 + 4) % 7);
+        long sundayEpochDay = lastDayEpochDay - wday;
+        return (time_t)sundayEpochDay * 86400 + 3600;   // 01:00 UTC
     };
 
     time_t bstStart = lastSundayAt1am(2);   // March
