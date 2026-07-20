@@ -235,50 +235,40 @@ static void drawWorkingText(MatrixPanel_I2S_DMA* display) {
     Serial.println("[TEST] \"WORKING\" drawn on Face 0.");
 }
 
-static void hsvToRgb565(MatrixPanel_I2S_DMA* display, float h, uint8_t& r, uint8_t& g, uint8_t& b) {
-    float s = 1.0f, v = 1.0f;
-    float c = v * s;
-    float x = c * (1 - fabsf(fmodf(h / 60.0f, 2) - 1));
-    float m = v - c;
-    float rf, gf, bf;
-    if      (h < 60)  { rf = c; gf = x; bf = 0; }
-    else if (h < 120) { rf = x; gf = c; bf = 0; }
-    else if (h < 180) { rf = 0; gf = c; bf = x; }
-    else if (h < 240) { rf = 0; gf = x; bf = c; }
-    else if (h < 300) { rf = x; gf = 0; bf = c; }
-    else              { rf = c; gf = 0; bf = x; }
-    r = (uint8_t)((rf + m) * 255);
-    g = (uint8_t)((gf + m) * 255);
-    b = (uint8_t)((bf + m) * 255);
-}
-
-// Per-pixel swirling "cloud" plasma, full RGB hue range, rendered across the
-// full logical 64x64 space. Pixel writes go straight to the display object,
-// which is a FourScan64Panel (see USE_VIRTUAL_MATRIX_PANEL in
-// config.h/led_matrix.h) applying the bug-fixed four-scan remap itself via
-// its drawPixel override - no separate wrapper object needed.
+// Diagnostic sweep: a single red vertical line moving across the display
+// one column at a time (left to right), then a single red horizontal line
+// moving down one row at a time, looping forever. Pixel writes go straight
+// to the display object, which is a FourScan64Panel (see
+// USE_VIRTUAL_MATRIX_PANEL in config.h/led_matrix.h) applying the four-scan
+// remap itself via its drawPixel override - no separate wrapper needed.
 static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
-    Serial.println("[TEST] Running RGB cloud-swirl diagnostic (four-scan remap, does not return).");
-    float t = 0.0f;
+    Serial.println("[TEST] Running vertical/horizontal line sweep (does not return).");
+    const uint16_t red = display->color565(255, 0, 0);
+    const uint16_t black = display->color565(0, 0, 0);
     for (;;) {
+        // Vertical line sweeping left to right, one column at a time.
+        for (uint8_t x = 0; x < PANEL_SIZE; x++) {
+            for (uint8_t y = 0; y < PANEL_SIZE; y++) {
+                display->drawPixel(x, y, red);
+                if (x > 0) display->drawPixel(x - 1, y, black);
+            }
+            display->flipDMABuffer();
+            delay(80);
+        }
+        for (uint8_t y = 0; y < PANEL_SIZE; y++) display->drawPixel(PANEL_SIZE - 1, y, black);
+        display->flipDMABuffer();
+
+        // Horizontal line sweeping top to bottom, one row at a time.
         for (uint8_t y = 0; y < PANEL_SIZE; y++) {
             for (uint8_t x = 0; x < PANEL_SIZE; x++) {
-                float fx = x / (float)PANEL_SIZE;
-                float fy = y / (float)PANEL_SIZE;
-                float v = sinf(fx * 6.0f + t)
-                        + sinf(fy * 6.0f - t * 1.3f)
-                        + sinf((fx + fy) * 6.0f + t * 0.7f)
-                        + sinf(sqrtf((fx - 0.5f) * (fx - 0.5f) + (fy - 0.5f) * (fy - 0.5f)) * 12.0f - t * 1.6f);
-                // v spans roughly [-4, 4] -> map to a full 0-360 hue sweep.
-                float hue = fmodf((v * 45.0f) + t * 30.0f + 360.0f, 360.0f);
-                uint8_t r, g, b;
-                hsvToRgb565(display, hue, r, g, b);
-                display->drawPixel(x, y, display->color565(r, g, b));
+                display->drawPixel(x, y, red);
+                if (y > 0) display->drawPixel(x, y - 1, black);
             }
+            display->flipDMABuffer();
+            delay(80);
         }
+        for (uint8_t x = 0; x < PANEL_SIZE; x++) display->drawPixel(x, PANEL_SIZE - 1, black);
         display->flipDMABuffer();
-        t += 0.08f;
-        delay(20);
     }
 }
 
