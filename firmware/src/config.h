@@ -162,6 +162,12 @@
 // sitting on the last received (now stale) frame.
 #define STANDALONE_FALLBACK_MS      5000
 
+// WiFi credentials used by the boot-time diagnostic test's bounded-time
+// connect attempt (see main.cpp setup()) so it doesn't depend on
+// WiFiManager's saved creds being present on this board.
+#define STANDALONE_WIFI_SSID       "NoChance"
+#define STANDALONE_WIFI_PASS       "vampire22"
+
 // Weather location — set this to your actual coordinates. Defaults to
 // London. Open-Meteo doesn't need an API key, just lat/lon.
 #define STANDALONE_WX_LAT           51.5074

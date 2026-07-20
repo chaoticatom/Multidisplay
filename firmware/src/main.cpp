@@ -361,14 +361,15 @@ void setup() {
         // connectWifi()/WiFiManager, which can block indefinitely waiting
         // for someone to configure WiFi through its captive portal if none
         // is saved. That would mean the diagnostic display never even
-        // starts. WiFi.begin() with no args reconnects using credentials
-        // already saved from an earlier WiFiManager run, if any; either
-        // way this gives up after 10s and moves on regardless.
-        Serial.println("[LED] Trying WiFi for the clock overlay (10s max, non-blocking to the display test)...");
+        // starts. Explicit credentials passed directly (STANDALONE_WIFI_SSID
+        // /_PASS in config.h) rather than relying on WiFiManager's saved
+        // creds, which may not exist on this board yet; either way this
+        // gives up after 15s and moves on regardless.
+        Serial.println("[LED] Trying WiFi for the clock overlay (15s max, non-blocking to the display test)...");
         WiFi.mode(WIFI_STA);
-        WiFi.begin();
+        WiFi.begin(STANDALONE_WIFI_SSID, STANDALONE_WIFI_PASS);
         unsigned long wifiWaitStart = millis();
-        while (WiFi.status() != WL_CONNECTED && millis() - wifiWaitStart < 10000) {
+        while (WiFi.status() != WL_CONNECTED && millis() - wifiWaitStart < 15000) {
             delay(200);
         }
         if (WiFi.status() == WL_CONNECTED) {
