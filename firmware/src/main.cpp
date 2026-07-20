@@ -357,15 +357,25 @@ void setup() {
     } else {
         Serial.println("[LED] display initialized");
 
-        // WiFi + NTP up front, specifically so the clock overlay in the
-        // test loop below has a real time to show - the test loop never
-        // returns, so this can't happen afterward like it normally would.
-        g_appState = AppState::AP_MODE;
-        if (connectWifi()) {
+        // Quick, bounded-time WiFi attempt for the clock overlay - NOT
+        // connectWifi()/WiFiManager, which can block indefinitely waiting
+        // for someone to configure WiFi through its captive portal if none
+        // is saved. That would mean the diagnostic display never even
+        // starts. WiFi.begin() with no args reconnects using credentials
+        // already saved from an earlier WiFiManager run, if any; either
+        // way this gives up after 10s and moves on regardless.
+        Serial.println("[LED] Trying WiFi for the clock overlay (10s max, non-blocking to the display test)...");
+        WiFi.mode(WIFI_STA);
+        WiFi.begin();
+        unsigned long wifiWaitStart = millis();
+        while (WiFi.status() != WL_CONNECTED && millis() - wifiWaitStart < 10000) {
+            delay(200);
+        }
+        if (WiFi.status() == WL_CONNECTED) {
             standaloneNtpInit();
             Serial.println("[LED] WiFi connected, NTP sync requested for clock overlay.");
         } else {
-            Serial.println("[LED] WiFi connect failed - clock overlay will show 00:00:00/garbage until it syncs.");
+            Serial.println("[LED] No WiFi within 10s - starting display test anyway, clock will show 00:00:00 until/unless it syncs.");
         }
 
         // Cloud-swirl RGB diagnostic — never returns. Swap back to
