@@ -68,14 +68,15 @@ inline MatrixPanel_I2S_DMA* initDisplay() {
     );
 
     // Row-driver IC on this panel is confirmed (via chip-marking photo) to be
-    // an SM5166PS. SHIFTREG (generic constant-current sink) and FM6126A were
-    // both tried with no difference. Trying DP3246_SM5368 next - a driver
-    // mode specific to the SM5xxx row-decoder family (confirmed working by
-    // another user on an SM5-series panel per GitHub
-    // mrcodetastic/ESP32-HUB75-MatrixPanel-DMA issue #702), much closer to
-    // this chip's actual family than any generic driver tried before.
+    // an SM5166PS - a plain constant-current shift-register sink. SHIFTREG
+    // and FM6126A were both tried with no difference. DP3246_SM5368 (a
+    // driver mode specific to the SM5xxx family, per a user report on
+    // GitHub mrcodetastic/ESP32-HUB75-MatrixPanel-DMA issue #702) was tried
+    // next but doesn't exist as an enum value in this installed library
+    // version (3.0.15) - confirmed by compile error, not just theory.
+    // Reverted to SHIFTREG, the correct match for this chip type.
     cfg.clkphase = true;
-    cfg.driver   = HUB75_I2S_CFG::DP3246_SM5368;
+    cfg.driver   = HUB75_I2S_CFG::SHIFTREG;
     cfg.double_buff = true;   // use the library's hardware double buffer
 
     // Latch blanking controls how many clock pulses the output is disabled
