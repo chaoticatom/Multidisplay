@@ -13,6 +13,7 @@
 #include <LittleFS.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
+#include <time.h>
 
 #include "config.h"
 #include "led_matrix.h"
@@ -235,10 +236,31 @@ static void drawWorkingText(MatrixPanel_I2S_DMA* display) {
     Serial.println("[TEST] \"WORKING\" drawn on Face 0.");
 }
 
+// Draws HH:MM:SS centered within rows 0-7 - the one row-band confirmed to
+// actually light on this panel regardless of every scan-geometry/remap
+// theory tried. Text size 1 (5x7 glyphs) fits inside 8 rows with a 1px
+// margin. Uses Adafruit_GFX's text drawing, which funnels through this
+// object's own (possibly overridden) drawPixel - safe here since the
+// display object is a plain FourScan64Panel/ScanSplitPanel subclass, not
+// the raw bit-bang driver where that was a real concern earlier tonight.
+static void drawClockOverlay(MatrixPanel_I2S_DMA* display) {
+    time_t now = time(nullptr) + STANDALONE_TZ_OFFSET_MIN * 60;
+    struct tm timeinfo;
+    gmtime_r(&now, &timeinfo);
+    char buf[9];
+    snprintf(buf, sizeof(buf), "%02d:%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+
+    display->setTextColor(display->color565(255, 255, 0));
+    display->setTextSize(1);
+    display->setCursor(8, 0);   // "HH:MM:SS" is 8 chars * 6px = 48px, centered in 64 with x=8
+    display->print(buf);
+}
+
 // Diagnostic sweep: a single green vertical line moving across the display
 // one column at a time (left to right), then a single green horizontal line
-// moving down one row at a time, looping forever. Pixel writes go straight
-// to the display object, which is a FourScan64Panel (see
+// moving down one row at a time, looping forever - with the current time
+// overlaid in the confirmed-working top band every frame. Pixel writes go
+// straight to the display object, which is a FourScan64Panel (see
 // USE_VIRTUAL_MATRIX_PANEL in config.h/led_matrix.h) applying the four-scan
 // remap itself via its drawPixel override - no separate wrapper needed.
 static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
@@ -256,6 +278,7 @@ static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
                     display->drawPixel(cx, cy, cx == x ? lineColor : black);
                 }
             }
+            drawClockOverlay(display);
             display->flipDMABuffer();
             delay(80);
         }
@@ -267,6 +290,7 @@ static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
                     display->drawPixel(cx, cy, cy == y ? lineColor : black);
                 }
             }
+            drawClockOverlay(display);
             display->flipDMABuffer();
             delay(80);
         }
@@ -332,6 +356,18 @@ void setup() {
         Serial.println("[LED] display init FAILED");
     } else {
         Serial.println("[LED] display initialized");
+
+        // WiFi + NTP up front, specifically so the clock overlay in the
+        // test loop below has a real time to show - the test loop never
+        // returns, so this can't happen afterward like it normally would.
+        g_appState = AppState::AP_MODE;
+        if (connectWifi()) {
+            standaloneNtpInit();
+            Serial.println("[LED] WiFi connected, NTP sync requested for clock overlay.");
+        } else {
+            Serial.println("[LED] WiFi connect failed - clock overlay will show 00:00:00/garbage until it syncs.");
+        }
+
         // Cloud-swirl RGB diagnostic — never returns. Swap back to
         // drawWorkingText(dma_display) or drawBringupTestPattern(dma_display)
         // once the split/duplicate-image wiring issue is resolved.

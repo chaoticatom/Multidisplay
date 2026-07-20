@@ -25,8 +25,16 @@
 // panel's real structure even when actually applied.
 #define FOUR_SCAN_SKIP_64_ADJUSTMENT 1
 
+// panelPixelBase: block size the x-remap groups by. Was PANEL_SIZE (64) -
+// changed to 8 per a real, working reference implementation found for a
+// similar four-scan panel (GitHub mrcodetastic/ESP32-HUB75-MatrixPanel-DMA
+// discussion #622, "Add Quarter scan panel in 3 steps"), which explicitly
+// uses pxbase=8 - matching the actual 8-row block size observed on this
+// panel all night (8 lit, 8 dark), not this panel's overall 64px width.
+#define FOUR_SCAN_PIXEL_BASE 8
+
 inline void fourScan64Remap(int x, int y, int16_t& outX, int16_t& outY) {
-    const int panelPixelBase = PANEL_SIZE;   // 64
+    const int panelPixelBase = FOUR_SCAN_PIXEL_BASE;
     int adjY = y;
 #if !FOUR_SCAN_SKIP_64_ADJUSTMENT
     if ((adjY & 8) != ((adjY & 16) >> 1)) {
