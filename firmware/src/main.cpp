@@ -30,6 +30,13 @@
 // internal assumptions in/out entirely by controlling every GPIO ourselves.
 #define USE_CUSTOM_HUB75_DRIVER 0
 
+// Set to 1 to run the boot-time line-sweep diagnostic (runCloudSwirlTest,
+// never returns) instead of the real app. Set to 0 for normal operation:
+// display initializes with the current FourScan64Panel/pin config from
+// led_matrix.h/config.h, then setup() continues into WiFi provisioning,
+// the HTTP/WebSocket servers, and the real displayTask/effects pipeline.
+#define RUN_DIAGNOSTIC_TEST 0
+
 // ---------------------------------------------------------------------------
 // Shared globals (declared extern in web_server.h)
 // ---------------------------------------------------------------------------
@@ -398,6 +405,7 @@ void setup() {
     } else {
         Serial.println("[LED] display initialized");
 
+#if RUN_DIAGNOSTIC_TEST
         // Quick, bounded-time WiFi attempt for the clock overlay - NOT
         // connectWifi()/WiFiManager, which can block indefinitely waiting
         // for someone to configure WiFi through its captive portal if none
@@ -424,6 +432,7 @@ void setup() {
         // drawWorkingText(dma_display) or drawBringupTestPattern(dma_display)
         // once the split/duplicate-image wiring issue is resolved.
         runCloudSwirlTest(dma_display);
+#endif
     }
 #endif
 
