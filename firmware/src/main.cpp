@@ -458,15 +458,6 @@ void setup() {
         Serial.printf("[mDNS] http://%s.local\n", MDNS_NAME);
     }
 
-    // Standalone mode: load persisted last-effect + schedule, sync NTP time,
-    // and fetch weather once now so it's not blank for the first 15 minutes
-    // after boot. All three need WiFi, so this runs after connectWifi()
-    // succeeds. The fetch is a blocking HTTPS call, same trade-off as the
-    // WiFi connect above it — acceptable one-time cost during boot.
-    standaloneLoad();
-    standaloneNtpInit();
-    standaloneWxFetch();
-
     // OTA status-LED hooks via WebSocket clients are handled elsewhere; here we
     // just register the OTA-aware servers.
     Update.onProgress([](size_t, size_t) { g_appState = AppState::OTA; });
@@ -480,7 +471,12 @@ void setup() {
         camInit(camCfg);
     }
 
-    // Web + WebSocket servers.
+    // Web + WebSocket servers - started right after WiFi/mDNS, BEFORE the
+    // blocking standalone-mode network calls below. standaloneWxFetch() is a
+    // blocking HTTPS request that can take many seconds (or hang/retry on a
+    // slow or failing weather API); with the servers starting only after it,
+    // the browser/app got "connection refused" for that entire window even
+    // though ping/mDNS already worked (neither depends on these servers).
     initWebServer(httpServer, ws, f1State);
     httpServer.begin();
 
@@ -489,6 +485,14 @@ void setup() {
     wsServer.begin();
 
     Serial.printf("[HTTP] serving on :%d   [WS] on :%d\n", HTTP_PORT, WS_PORT);
+
+    // Standalone mode: load persisted last-effect + schedule, sync NTP time,
+    // and fetch weather once now so it's not blank for the first 15 minutes
+    // after boot. All three need WiFi, so this runs after connectWifi()
+    // succeeds - now after the web/WS servers are already listening.
+    standaloneLoad();
+    standaloneNtpInit();
+    standaloneWxFetch();
 
     // Display task pinned to core 0 (WiFi/async stack runs on core 1/0 too,
     // but DMA pushing is isolated here for steady framerate).
