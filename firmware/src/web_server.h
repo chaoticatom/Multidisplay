@@ -331,6 +331,28 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws, F1State& f
         });
 
     // ---- Status ----
+    // Diagnostic: LittleFS mount state + root directory listing, over HTTP
+    // instead of serial - this board's native USB-CDC drops early boot log
+    // lines whenever the monitor's own port-open triggers another reset, so
+    // there's no reliable way to catch "did LittleFS actually mount and are
+    // the uploaded files there" from the serial log alone.
+    server.on("/api/fsinfo", HTTP_GET, [](AsyncWebServerRequest* request) {
+        JsonDocument doc;
+        doc["used_bytes"]  = LittleFS.usedBytes();
+        doc["total_bytes"] = LittleFS.totalBytes();
+        JsonArray files = doc["files"].to<JsonArray>();
+        File root = LittleFS.open("/");
+        File f = root.openNextFile();
+        while (f) {
+            JsonObject entry = files.add<JsonObject>();
+            entry["name"] = String(f.name());
+            entry["size"] = f.size();
+            f = root.openNextFile();
+        }
+        String out; serializeJson(doc, out);
+        request->send(200, "application/json", out);
+    });
+
     server.on("/api/status", HTTP_GET, [&ws](AsyncWebServerRequest* request) {
         JsonDocument doc;
         doc["effect"]            = g_currentEffect;
