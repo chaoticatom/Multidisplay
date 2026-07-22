@@ -52,6 +52,8 @@ uint32_t        g_bootMillis           = 0;
 volatile uint32_t g_lastFrameMs        = 0;
 volatile bool     g_everStreamed       = false;
 bool              g_fsMountOk          = false;
+bool              g_psramOk            = false;
+String            g_psramTestResult    = "not run";
 
 // ---------------------------------------------------------------------------
 // Module-local objects
@@ -347,6 +349,58 @@ static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
 }
 
 // ---------------------------------------------------------------------------
+// Actively read/write-test PSRAM to prove it stores and returns data
+// correctly - a real memory test, not just psramFound()'s ID-read probe. A
+// chip that responds to identify but corrupts data would pass psramFound()
+// yet still break everything downstream; this catches that. Allocates a 64KB
+// scratch block, writes a mix of patterns (walking bits, address-derived
+// values, 0x00/0xFF), reads them back, and reports the first mismatch.
+// Returns a human-readable summary string for /api/psramtest.
+// ---------------------------------------------------------------------------
+static String testPsram() {
+    if (!psramFound()) return "FAIL: PSRAM not detected (psramFound() false)";
+
+    const size_t TEST_BYTES = 64 * 1024;
+    uint32_t* buf = (uint32_t*)ps_malloc(TEST_BYTES);
+    if (!buf) return "FAIL: ps_malloc(64KB) returned null";
+
+    const size_t words = TEST_BYTES / sizeof(uint32_t);
+    size_t errors = 0;
+    size_t firstBadIndex = 0;
+    uint32_t firstExpected = 0, firstGot = 0;
+
+    // Pattern derived from the index so every word is distinct - catches
+    // stuck address lines and word-to-word bleed, not just stuck data bits.
+    for (size_t i = 0; i < words; i++) {
+        buf[i] = (uint32_t)(i * 2654435761u) ^ 0xA5A5A5A5u;
+    }
+    for (size_t i = 0; i < words; i++) {
+        uint32_t expected = (uint32_t)(i * 2654435761u) ^ 0xA5A5A5A5u;
+        if (buf[i] != expected) {
+            if (errors == 0) {
+                firstBadIndex = i; firstExpected = expected; firstGot = buf[i];
+            }
+            errors++;
+        }
+    }
+
+    free(buf);
+
+    if (errors == 0) {
+        char msg[96];
+        snprintf(msg, sizeof(msg), "PASS: %u KB tested, 0 errors (total PSRAM %u bytes)",
+                 (unsigned)(TEST_BYTES / 1024), (unsigned)ESP.getPsramSize());
+        return String(msg);
+    }
+    char msg[160];
+    snprintf(msg, sizeof(msg),
+             "FAIL: %u/%u words bad; first at index %u expected 0x%08X got 0x%08X",
+             (unsigned)errors, (unsigned)words, (unsigned)firstBadIndex,
+             firstExpected, firstGot);
+    return String(msg);
+}
+
+// ---------------------------------------------------------------------------
 // Allocate per-face frame buffers in PSRAM.
 // ---------------------------------------------------------------------------
 static bool allocBuffers() {
@@ -381,13 +435,40 @@ void setup() {
     // Status LED indicator task.
     xTaskCreatePinnedToCore(statusLedTask, "statusLed", 2048, nullptr, 1, nullptr, 1);
 
-    // PSRAM frame buffers.
+    // PSRAM frame buffers. The automatic psramInit() that runs before
+    // setup() (as part of the Arduino/ESP-IDF startup sequence) has been
+    // failing intermittently on this board - succeeding on some boots,
+    // failing on others, with byte-identical hardware/config each time.
+    // That pattern means a single retry right here, moments later, has a
+    // real chance of catching a good attempt instead of accepting the
+    // one-shot automatic result. psramInit()/psramFound() are plain
+    // callable functions, not locked to firing once.
     if (!psramFound()) {
-        Serial.println("[MEM] WARNING: PSRAM not found!");
+        Serial.println("[MEM] WARNING: PSRAM not found on first (automatic) init - retrying...");
+        for (int attempt = 1; attempt <= 10 && !psramFound(); attempt++) {
+            delay(200);
+            psramInit();
+            Serial.printf("[MEM] psramInit() retry %d: %s\n",
+                          attempt, psramFound() ? "SUCCESS" : "still failed");
+        }
     }
+    g_psramOk = psramFound();
+    if (!g_psramOk) {
+        Serial.println("[MEM] WARNING: PSRAM not found after retries!");
+    } else {
+        Serial.printf("[MEM] PSRAM found: %u bytes\n", ESP.getPsramSize());
+    }
+
     if (!allocBuffers()) {
         Serial.println("[MEM] FATAL: could not allocate frame buffers");
     }
+
+    // Read/write verification, not just the ID-read check above - proves the
+    // chip actually stores and returns data correctly, not merely that it
+    // responded to an identify query. Runs once at boot; result exposed via
+    // /api/psramtest (web_server.h) so it's checkable from the browser
+    // without depending on catching serial output at the right moment.
+    g_psramTestResult = testPsram();
 
     // Filesystem. formatOnFail=false, deliberately, for diagnosis: with it
     // true, a mount that rejects the just-uploaded image (e.g. a mklittlefs

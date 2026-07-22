@@ -37,6 +37,9 @@ extern volatile uint8_t g_currentEffectId;
 extern uint32_t       g_bootMillis;
 // Raw LittleFS.begin(false) mount result (no auto-format) - see /api/fsinfo.
 extern bool           g_fsMountOk;
+// PSRAM detection + read/write test results - see /api/psramtest.
+extern bool           g_psramOk;
+extern String         g_psramTestResult;
 // Millis() of the last real PKT_VIDEO frame received; drives the
 // standalone-mode fallback in main.cpp's displayTask (see standalone.h).
 extern volatile uint32_t g_lastFrameMs;
@@ -360,6 +363,21 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws, F1State& f
             entry["size"] = f.size();
             f = root.openNextFile();
         }
+        String out; serializeJson(doc, out);
+        request->send(200, "application/json", out);
+    });
+
+    // Diagnostic: PSRAM detection + boot-time read/write test result. Lets
+    // us verify the PSRAM chip is actually storing/returning data correctly
+    // from the browser, independent of the intermittent early-boot serial
+    // "PSRAM ID read error" - and reports live free/total PSRAM so a chip
+    // that enumerated but under-reports its size is visible too.
+    server.on("/api/psramtest", HTTP_GET, [](AsyncWebServerRequest* request) {
+        JsonDocument doc;
+        doc["psram_found"]    = g_psramOk;
+        doc["test_result"]    = g_psramTestResult;
+        doc["psram_size"]     = ESP.getPsramSize();
+        doc["psram_free"]     = ESP.getFreePsram();
         String out; serializeJson(doc, out);
         request->send(200, "application/json", out);
     });
