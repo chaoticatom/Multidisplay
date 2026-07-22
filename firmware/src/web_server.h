@@ -40,6 +40,12 @@ extern bool           g_fsMountOk;
 // PSRAM detection + read/write test results - see /api/psramtest.
 extern bool           g_psramOk;
 extern String         g_psramTestResult;
+// Video-stream diagnostics (see /api/status) - counts + last packet shape,
+// for diagnosing "browser connected but display stuck in standalone".
+extern volatile uint32_t g_videoFramesRcvd;
+extern volatile uint32_t g_videoPktRejects;
+extern volatile uint32_t g_lastVideoPktLen;
+extern volatile uint8_t  g_lastVideoPktFace;
 // Millis() of the last real PKT_VIDEO frame received; drives the
 // standalone-mode fallback in main.cpp's displayTask (see standalone.h).
 extern volatile uint32_t g_lastFrameMs;
@@ -139,13 +145,16 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
 
             if (pkt == PKT_VIDEO) {
                 uint8_t face = data[1];
+                // Diagnostics (see /api/status): record every PKT_VIDEO
+                // packet's length and face, and count accepts vs rejects, so
+                // "browser shows connected but display stays in standalone"
+                // is diagnosable from the browser - the usual cause is a
+                // size mismatch (browser cube SIZE != firmware PANEL_SIZE),
+                // which the accept condition below silently drops.
+                g_lastVideoPktLen  = (uint32_t)len;
+                g_lastVideoPktFace = face;
                 // g_frameBuf[face] is null if allocBuffers() (PSRAM
-                // ps_malloc) failed at boot - this board's PSRAM is
-                // currently failing to enumerate every boot ("PSRAM ID read
-                // error: 0x00ffffff"), a hardware-level fault, not something
-                // introduced by firmware changes. Without this guard, the
-                // very next real video frame writes into that null pointer
-                // and crashes (Guru Meditation / StoreProhibited) on repeat.
+                // ps_malloc) failed at boot - guard against writing into it.
                 if (face < NUM_FACES && g_frameBuf[face] != nullptr
                         && len >= (size_t)(2 + FACE_BYTES)) {
                     portENTER_CRITICAL(&g_frameMux);
@@ -154,6 +163,9 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                     portEXIT_CRITICAL(&g_frameMux);
                     g_lastFrameMs = millis();
                     g_everStreamed = true;
+                    g_videoFramesRcvd++;
+                } else {
+                    g_videoPktRejects++;
                 }
             } else if (pkt == PKT_CMD) {
                 uint8_t cmd = data[1];
@@ -389,6 +401,18 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws, F1State& f
         doc["connected_clients"] = ws.count();
         doc["free_heap"]         = ESP.getFreeHeap();
         doc["uptime"]            = (millis() - g_bootMillis) / 1000;
+        // Video-stream diagnostics: expected_pkt_len is what a correctly-sized
+        // frame must be (2 header bytes + PANEL_SIZE^2 * 3). If last_pkt_len
+        // is non-zero but != expected, the browser cube size doesn't match
+        // PANEL_SIZE and every frame is being rejected (rejects climbing,
+        // frames_rcvd stuck at 0). If frames_rcvd climbs, streaming works.
+        doc["ever_streamed"]     = g_everStreamed;
+        doc["frames_rcvd"]       = g_videoFramesRcvd;
+        doc["pkt_rejects"]       = g_videoPktRejects;
+        doc["last_pkt_len"]      = g_lastVideoPktLen;
+        doc["last_pkt_face"]     = g_lastVideoPktFace;
+        doc["expected_pkt_len"]  = (uint32_t)(2 + FACE_BYTES);
+        doc["num_faces"]         = NUM_FACES;
         String out; serializeJson(doc, out);
         request->send(200, "application/json", out);
     });

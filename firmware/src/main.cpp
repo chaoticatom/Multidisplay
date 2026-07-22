@@ -55,6 +55,10 @@ volatile bool     g_everStreamed       = false;
 bool              g_fsMountOk          = false;
 bool              g_psramOk            = false;
 String            g_psramTestResult    = "not run";
+volatile uint32_t g_videoFramesRcvd    = 0;
+volatile uint32_t g_videoPktRejects    = 0;
+volatile uint32_t g_lastVideoPktLen    = 0;
+volatile uint8_t  g_lastVideoPktFace   = 0;
 
 // ---------------------------------------------------------------------------
 // Module-local objects
