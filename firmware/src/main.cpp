@@ -134,28 +134,14 @@ static void displayTask(void* arg) {
                         // The 6 panels form one wide logical bitmap; face N
                         // starts at x = N * PANEL_SIZE. drawPixelRGB888 isn't
                         // guaranteed virtual, so (unlike the Adafruit_GFX
-                        // shape helpers used elsewhere, which pick up
-                        // FourScan64Panel/ScanSplitPanel's drawPixel override
-                        // automatically) this fast path was never actually
-                        // remapping under USE_VIRTUAL_MATRIX_PANEL - every
-                        // real streamed video frame went out with raw logical
-                        // coordinates against the four-scan physical DMA
-                        // layout, landing outside the addressed area entirely
-                        // for anything past the true underlying module
-                        // height. That's why switching effects in the
-                        // browser (which only ever streams PKT_VIDEO frames,
-                        // regardless of effect) never visibly changed the
-                        // physical panel.
+                        // shape helpers used elsewhere) this fast path can't
+                        // rely on ScanSplitPanel's override - remap explicitly.
                         const int xOff = face * PANEL_SIZE;
                         const uint8_t* src = g_dmaBuf[face];
                         for (int y = 0; y < PANEL_SIZE; y++) {
                             for (int x = 0; x < PANEL_SIZE; x++) {
                                 const uint8_t* p = src + (y * PANEL_SIZE + x) * 3;
-#if USE_VIRTUAL_MATRIX_PANEL
-                                int16_t rx, ry;
-                                fourScan64Remap(xOff + x, y, rx, ry);
-                                dma_display->drawPixelRGB888(rx, ry, p[0], p[1], p[2]);
-#elif SCAN_SPLIT_PANEL
+#if SCAN_SPLIT_PANEL
                                 int16_t rx, ry;
                                 scanSplitRemap(xOff + x, y, rx, ry);
                                 dma_display->drawPixelRGB888(rx, ry, p[0], p[1], p[2]);
