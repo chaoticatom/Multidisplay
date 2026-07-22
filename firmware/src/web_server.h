@@ -136,7 +136,15 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
 
             if (pkt == PKT_VIDEO) {
                 uint8_t face = data[1];
-                if (face < NUM_FACES && len >= (size_t)(2 + FACE_BYTES)) {
+                // g_frameBuf[face] is null if allocBuffers() (PSRAM
+                // ps_malloc) failed at boot - this board's PSRAM is
+                // currently failing to enumerate every boot ("PSRAM ID read
+                // error: 0x00ffffff"), a hardware-level fault, not something
+                // introduced by firmware changes. Without this guard, the
+                // very next real video frame writes into that null pointer
+                // and crashes (Guru Meditation / StoreProhibited) on repeat.
+                if (face < NUM_FACES && g_frameBuf[face] != nullptr
+                        && len >= (size_t)(2 + FACE_BYTES)) {
                     portENTER_CRITICAL(&g_frameMux);
                     memcpy(g_frameBuf[face], data + 2, FACE_BYTES);
                     g_faceDirty[face] = true;
