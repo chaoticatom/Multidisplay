@@ -137,14 +137,27 @@ static void displayTask(void* arg) {
                         // The 6 panels form one wide logical bitmap; face N
                         // starts at x = N * PANEL_SIZE. drawPixelRGB888 isn't
                         // guaranteed virtual, so (unlike the Adafruit_GFX
-                        // shape helpers used elsewhere) this fast path can't
-                        // rely on ScanSplitPanel's override - remap explicitly.
+                        // shape helpers, which pick up FourScan64Panel/
+                        // ScanSplitPanel's drawPixel override automatically)
+                        // this fast path must remap explicitly. The
+                        // USE_VIRTUAL_MATRIX_PANEL case is critical: without
+                        // it, every streamed video frame goes out with raw
+                        // logical coordinates against the four-scan physical
+                        // DMA layout and lands outside the addressed area -
+                        // which is exactly why clicking effects in the
+                        // browser changed nothing on the panel even though
+                        // the (drawPixel-based, correctly remapped) diagnostic
+                        // sweep DID show content.
                         const int xOff = face * PANEL_SIZE;
                         const uint8_t* src = g_dmaBuf[face];
                         for (int y = 0; y < PANEL_SIZE; y++) {
                             for (int x = 0; x < PANEL_SIZE; x++) {
                                 const uint8_t* p = src + (y * PANEL_SIZE + x) * 3;
-#if SCAN_SPLIT_PANEL
+#if USE_VIRTUAL_MATRIX_PANEL
+                                int16_t rx, ry;
+                                fourScan64Remap(xOff + x, y, rx, ry);
+                                dma_display->drawPixelRGB888(rx, ry, p[0], p[1], p[2]);
+#elif SCAN_SPLIT_PANEL
                                 int16_t rx, ry;
                                 scanSplitRemap(xOff + x, y, rx, ry);
                                 dma_display->drawPixelRGB888(rx, ry, p[0], p[1], p[2]);
