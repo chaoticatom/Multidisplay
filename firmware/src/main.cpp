@@ -14,6 +14,7 @@
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
 #include <time.h>
+#include <esp_heap_caps.h>   // heap_caps_malloc / MALLOC_CAP_8BIT (internal-RAM buffer fallback)
 
 #include "config.h"
 #include "led_matrix.h"
@@ -403,17 +404,44 @@ static String testPsram() {
 // ---------------------------------------------------------------------------
 // Allocate per-face frame buffers in PSRAM.
 // ---------------------------------------------------------------------------
+// Allocate one buffer, preferring PSRAM but falling back to internal SRAM
+// when PSRAM is unavailable (this board's PSRAM has been failing to
+// enumerate). At FACE_BYTES = 64*64*3 = 12KB each, a single wired panel
+// needs just 2 buffers = 24KB, which fits comfortably in the ESP32-S3's
+// 320KB internal RAM - so a dead PSRAM chip should NOT block a 1-panel
+// bring-up. For the full 6-face cube (144KB of buffers) this fallback still
+// works but leaves less headroom for the WiFi/TLS stacks, which is exactly
+// why PSRAM was preferred originally.
+static uint8_t* allocBuffer() {
+    uint8_t* p = nullptr;
+    if (psramFound()) {
+        p = (uint8_t*)ps_malloc(FACE_BYTES);
+    }
+    if (!p) {
+        // Internal RAM fallback (heap_caps 8-bit-accessible, i.e. normal
+        // DRAM). Also covers the ps_malloc-returned-null case even when
+        // psramFound() lied.
+        p = (uint8_t*)heap_caps_malloc(FACE_BYTES, MALLOC_CAP_8BIT);
+    }
+    return p;
+}
+
 static bool allocBuffers() {
+    bool usedInternalFallback = false;
     for (uint8_t i = 0; i < NUM_FACES; i++) {
-        g_frameBuf[i] = (uint8_t*)ps_malloc(FACE_BYTES);
-        g_dmaBuf[i]   = (uint8_t*)ps_malloc(FACE_BYTES);
+        g_frameBuf[i] = allocBuffer();
+        g_dmaBuf[i]   = allocBuffer();
         if (!g_frameBuf[i] || !g_dmaBuf[i]) {
-            Serial.printf("[MEM] ps_malloc failed for face %u\n", i);
+            Serial.printf("[MEM] buffer alloc failed for face %u (PSRAM + internal both exhausted)\n", i);
             return false;
         }
+        if (!psramFound()) usedInternalFallback = true;
         memset(g_frameBuf[i], 0, FACE_BYTES);
         memset(g_dmaBuf[i],   0, FACE_BYTES);
     }
+    Serial.printf("[MEM] frame buffers allocated in %s (%u faces x 2 x %u bytes). Free internal heap: %u\n",
+                  usedInternalFallback ? "INTERNAL SRAM (PSRAM unavailable)" : "PSRAM",
+                  NUM_FACES, (unsigned)FACE_BYTES, ESP.getFreeHeap());
     return true;
 }
 
