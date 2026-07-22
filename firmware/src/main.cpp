@@ -367,7 +367,13 @@ static bool allocBuffers() {
 // ---------------------------------------------------------------------------
 void setup() {
     Serial.begin(115200);
-    delay(200);
+    // Native USB-CDC (this board's "USB-Serial/JTAG" mode) drops any output
+    // written before the host's monitor reconnects after reset - typically
+    // 1-2s. Without this, every setup()-time Serial.println up through FS
+    // mount/display init gets silently lost even with upload+monitor
+    // combined, which is why boot logs kept starting mid-way through HUB75
+    // init instead of at "[Boot] ...".
+    delay(2000);
     g_bootMillis = millis();
     Serial.println("\n[Boot] Multidisplay cube starting...");
 
