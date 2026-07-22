@@ -35,6 +35,8 @@ extern String         g_currentEffect;
 extern volatile uint8_t g_currentEffectId;
 // Millis() at boot, for uptime reporting.
 extern uint32_t       g_bootMillis;
+// Raw LittleFS.begin(false) mount result (no auto-format) - see /api/fsinfo.
+extern bool           g_fsMountOk;
 // Millis() of the last real PKT_VIDEO frame received; drives the
 // standalone-mode fallback in main.cpp's displayTask (see standalone.h).
 extern volatile uint32_t g_lastFrameMs;
@@ -338,6 +340,7 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws, F1State& f
     // the uploaded files there" from the serial log alone.
     server.on("/api/fsinfo", HTTP_GET, [](AsyncWebServerRequest* request) {
         JsonDocument doc;
+        doc["mount_ok"]    = g_fsMountOk;
         doc["used_bytes"]  = LittleFS.usedBytes();
         doc["total_bytes"] = LittleFS.totalBytes();
         JsonArray files = doc["files"].to<JsonArray>();

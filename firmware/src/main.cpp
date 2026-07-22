@@ -51,6 +51,7 @@ uint32_t        g_bootMillis           = 0;
 // cube, or whether it should fall back to standalone.h's native effects.
 volatile uint32_t g_lastFrameMs        = 0;
 volatile bool     g_everStreamed       = false;
+bool              g_fsMountOk          = false;
 
 // ---------------------------------------------------------------------------
 // Module-local objects
@@ -388,9 +389,15 @@ void setup() {
         Serial.println("[MEM] FATAL: could not allocate frame buffers");
     }
 
-    // Filesystem.
-    if (!LittleFS.begin(true)) {
-        Serial.println("[FS] LittleFS mount failed (even after format)");
+    // Filesystem. formatOnFail=false, deliberately, for diagnosis: with it
+    // true, a mount that rejects the just-uploaded image (e.g. a mklittlefs
+    // image-format/version mismatch) silently reformats to a valid-but-empty
+    // filesystem - which is indistinguishable from "uploadfs worked but wrote
+    // nothing" purely from /api/fsinfo (both show used_bytes:8192,
+    // files:[]). g_fsMountOk below (exposed via /api/fsinfo) tells them apart.
+    g_fsMountOk = LittleFS.begin(false);
+    if (!g_fsMountOk) {
+        Serial.println("[FS] LittleFS mount failed (formatOnFail disabled for diagnosis)");
     } else {
         Serial.printf("[FS] LittleFS mounted, %u / %u bytes used\n",
                       LittleFS.usedBytes(), LittleFS.totalBytes());
