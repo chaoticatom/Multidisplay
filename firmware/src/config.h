@@ -159,8 +159,15 @@
 
 // If no browser has streamed a video frame for this long (ms), the ESP32
 // takes over and renders its own effects/weather/schedule instead of
-// sitting on the last received (now stale) frame.
-#define STANDALONE_FALLBACK_MS      5000
+// sitting on the last received (now stale) frame. Raised from 5000: when
+// streaming is bandwidth-limited (6 faces x 20fps ~= 1.5MB/s over WiFi to a
+// heap-constrained board), frames arrive in bursts with multi-second gaps,
+// and a 5s window snapped the display back to the ESP32's own default
+// animation mid-stream ("flickers then reverts to default"). A longer
+// window keeps the last streamed frame showing across those gaps so the
+// browser stays visibly in control; it only falls back if the browser
+// genuinely stops or disconnects.
+#define STANDALONE_FALLBACK_MS      20000
 
 // WiFi credentials used by the boot-time diagnostic test's bounded-time
 // connect attempt (see main.cpp setup()) so it doesn't depend on

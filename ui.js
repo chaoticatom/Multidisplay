@@ -3576,6 +3576,16 @@ function streamFrameToCube(dt) {
 
   const S = SIZE, pktBytes = 2 + S*S*3;
 
+  // Backpressure: one animation frame = 6 faces = 6*pktBytes queued. If the
+  // socket still has more than ~2 frames' worth un-sent, WiFi isn't draining
+  // fast enough - skip this frame instead of piling on. Without this the
+  // send buffer balloons unboundedly when the ESP32/WiFi can't keep up with
+  // 20fps*6 faces, so frames arrive at the ESP32 badly delayed and in bursts
+  // (symptom: display flickers then reverts to the ESP32's default because
+  // fresh frames stop arriving). Dropping frames here keeps what does get
+  // through low-latency and continuous.
+  if(cubeWs.bufferedAmount > 12 * pktBytes) return;
+
   for(let vid = 0; vid < 6; vid++){
     const jsFace = CUBE_FACE_ORDER[vid];
     const buf = new Uint8Array(pktBytes);
