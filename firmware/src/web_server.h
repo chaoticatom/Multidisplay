@@ -136,15 +136,7 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
 
             if (pkt == PKT_VIDEO) {
                 uint8_t face = data[1];
-                // g_frameBuf[face] is null if allocBuffers() (PSRAM
-                // ps_malloc) failed at boot - e.g. PSRAM not detected. Was an
-                // unconditional memcpy into that null pointer, crashing
-                // (Guru Meditation / StoreProhibited) the instant a browser
-                // sent its first real frame - silently, since the boot-time
-                // allocation failure log is easy to miss (this board's
-                // native USB-CDC drops early boot output on reset anyway).
-                if (face < NUM_FACES && g_frameBuf[face] != nullptr
-                        && len >= (size_t)(2 + FACE_BYTES)) {
+                if (face < NUM_FACES && len >= (size_t)(2 + FACE_BYTES)) {
                     portENTER_CRITICAL(&g_frameMux);
                     memcpy(g_frameBuf[face], data + 2, FACE_BYTES);
                     g_faceDirty[face] = true;

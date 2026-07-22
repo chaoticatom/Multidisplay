@@ -67,7 +67,7 @@ static MatrixPanel_I2S_DMA* dma_display = nullptr;
 static uint8_t* g_dmaBuf[NUM_FACES] = {nullptr};
 
 // Connection / display state for the status LED.
-enum class AppState : uint8_t { AP_MODE, CONNECTING, RUNNING, OTA, MEM_ERROR };
+enum class AppState : uint8_t { AP_MODE, CONNECTING, RUNNING, OTA };
 static volatile AppState g_appState = AppState::CONNECTING;
 
 // ---------------------------------------------------------------------------
@@ -94,18 +94,6 @@ static void statusLedTask(void* arg) {
                 digitalWrite(STATUS_LED_PIN, LOW);  vTaskDelay(pdMS_TO_TICKS(80));
             }
             vTaskDelay(pdMS_TO_TICKS(500));
-            break;
-        case AppState::MEM_ERROR:    // rapid SOS-style blink - PSRAM/frame
-                                      // buffer allocation failed at boot;
-                                      // distinguishable at a glance from
-                                      // AP_MODE's steady 200ms blink so this
-                                      // doesn't need a serial connection to
-                                      // diagnose.
-            for (int i = 0; i < 5; i++) {
-                digitalWrite(STATUS_LED_PIN, HIGH); vTaskDelay(pdMS_TO_TICKS(60));
-                digitalWrite(STATUS_LED_PIN, LOW);  vTaskDelay(pdMS_TO_TICKS(60));
-            }
-            vTaskDelay(pdMS_TO_TICKS(700));
             break;
         }
     }
@@ -407,20 +395,12 @@ void setup() {
     // Status LED indicator task.
     xTaskCreatePinnedToCore(statusLedTask, "statusLed", 2048, nullptr, 1, nullptr, 1);
 
-    // PSRAM frame buffers. A failed allocation used to be logged and then
-    // silently ignored - g_frameBuf[face] stayed null, and the WS handler's
-    // memcpy on the first real video frame crashed the board (Guru
-    // Meditation / StoreProhibited) with no visible indication why, since
-    // the log line above is easy to miss (this board's native USB-CDC drops
-    // early boot output on reset, and the LED gave no distinct signal
-    // either). Now this halts boot entirely with a distinct LED pattern.
+    // PSRAM frame buffers.
     if (!psramFound()) {
         Serial.println("[MEM] WARNING: PSRAM not found!");
     }
     if (!allocBuffers()) {
-        Serial.println("[MEM] FATAL: could not allocate frame buffers - halting");
-        g_appState = AppState::MEM_ERROR;
-        for (;;) { delay(1000); }
+        Serial.println("[MEM] FATAL: could not allocate frame buffers");
     }
 
     // Filesystem. formatOnFail=false, deliberately, for diagnosis: with it
