@@ -136,29 +136,49 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
 
     case WS_EVT_DATA: {
         AwsFrameInfo* info = (AwsFrameInfo*)arg;
-        // Only act on complete, single-fragment frames.
-        if (!(info->final && info->index == 0 && info->len == len)) break;
 
         if (info->opcode == WS_BINARY) {
-            if (len < 2) break;
-            uint8_t pkt = data[0];
+            // Reassemble a (possibly multi-chunk) binary frame. A 12290-byte
+            // PKT_VIDEO frame far exceeds one TCP segment (~1460 bytes), so
+            // ESPAsyncWebServer delivers it across several WS_EVT_DATA
+            // callbacks with advancing info->index. The previous handler only
+            // accepted a frame that arrived whole in a single callback
+            // (info->index==0 && info->len==len), so every large video frame
+            // was dropped before it could be processed - which is why a fully
+            // open socket (readyState 1, connected_clients 1) still produced
+            // frames_rcvd:0 / last_pkt_len:0. Small frames (effect-sync
+            // commands) fit in one callback, so those always worked. Here we
+            // accumulate chunks into a static buffer until the frame is
+            // complete, then process the whole thing. Single-client streaming
+            // only (one reassembly buffer); fine for this app's one browser.
+            static uint8_t asmBuf[2 + FACE_BYTES];
+            static bool    asmActive = false;
+
+            if (info->len > sizeof(asmBuf)) break;   // too big for our buffer
+            if (info->index == 0) asmActive = true;  // start of a new frame
+            if (!asmActive) break;                    // joined mid-frame; wait
+
+            memcpy(asmBuf + info->index, data, len);
+
+            // Not the final chunk of this frame yet - keep accumulating.
+            if (info->index + len < info->len) break;
+            asmActive = false;
+
+            uint8_t* fdata = asmBuf;
+            size_t   flen  = info->len;
+            if (flen < 2) break;
+            uint8_t pkt = fdata[0];
 
             if (pkt == PKT_VIDEO) {
-                uint8_t face = data[1];
-                // Diagnostics (see /api/status): record every PKT_VIDEO
-                // packet's length and face, and count accepts vs rejects, so
-                // "browser shows connected but display stays in standalone"
-                // is diagnosable from the browser - the usual cause is a
-                // size mismatch (browser cube SIZE != firmware PANEL_SIZE),
-                // which the accept condition below silently drops.
-                g_lastVideoPktLen  = (uint32_t)len;
+                uint8_t face = fdata[1];
+                g_lastVideoPktLen  = (uint32_t)flen;
                 g_lastVideoPktFace = face;
                 // g_frameBuf[face] is null if allocBuffers() (PSRAM
                 // ps_malloc) failed at boot - guard against writing into it.
                 if (face < NUM_FACES && g_frameBuf[face] != nullptr
-                        && len >= (size_t)(2 + FACE_BYTES)) {
+                        && flen >= (size_t)(2 + FACE_BYTES)) {
                     portENTER_CRITICAL(&g_frameMux);
-                    memcpy(g_frameBuf[face], data + 2, FACE_BYTES);
+                    memcpy(g_frameBuf[face], fdata + 2, FACE_BYTES);
                     g_faceDirty[face] = true;
                     portEXIT_CRITICAL(&g_frameMux);
                     g_lastFrameMs = millis();
@@ -168,18 +188,20 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                     g_videoPktRejects++;
                 }
             } else if (pkt == PKT_CMD) {
-                uint8_t cmd = data[1];
-                if (cmd == CMD_SET_EFFECT && len >= 3) {
-                    g_currentEffectId = data[2];
+                uint8_t cmd = fdata[1];
+                if (cmd == CMD_SET_EFFECT && flen >= 3) {
+                    g_currentEffectId = fdata[2];
                     // Relay the raw command to every other client.
                     for (AsyncWebSocketClient* c : server->getClients()) {
                         if (!c || c->id() == client->id()) continue;
-                        if (c->status() == WS_CONNECTED) c->binary(data, len);
+                        if (c->status() == WS_CONNECTED) c->binary(fdata, flen);
                     }
                     broadcastEffect(*server, client);
                 }
             }
         } else if (info->opcode == WS_TEXT) {
+            // Text frames (effect-sync JSON) are small - single-callback only.
+            if (!(info->final && info->index == 0 && info->len == len)) break;
             JsonDocument doc;
             if (deserializeJson(doc, data, len) == DeserializationError::Ok) {
                 const char* cmd = doc["cmd"] | "";
