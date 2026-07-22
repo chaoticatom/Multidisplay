@@ -235,8 +235,17 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws, F1State& f
     camApiInit(server);
 
     // ---- WebSocket ----
+    // Register the event handler here, but do NOT addHandler(&ws) to THIS
+    // server: `server` is the HTTP server on port 80, while the cube's
+    // WebSocket lives on port 81 (see main.cpp: wsServer.addHandler(&ws)).
+    // Adding the same AsyncWebSocket object to two different AsyncWebServer
+    // instances corrupts its handshake/client bookkeeping - the client gets
+    // counted on the ESP32 (ws.count()==1) but the upgrade never completes
+    // cleanly back to the browser, so the browser's onopen never fires and
+    // it never streams a single frame (symptom: connected_clients:1 but
+    // frames_rcvd:0, last_pkt_len:0). ws must be attached to exactly one
+    // server - the port-81 one.
     ws.onEvent(onWsEvent);
-    server.addHandler(&ws);
 
     // ---- Loader page (PROGMEM gzip) ----
     server.on("/loader", HTTP_GET, [](AsyncWebServerRequest* request) {
