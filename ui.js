@@ -3541,14 +3541,10 @@ const CUBE_FACE_ORDER = [4, 0, 2, 1, 3, 5];
 const PKT_VIDEO = 2;
 
 let cubeWs = null, cubeConnected = false, cubeStreamT = 0;
-const CUBE_FPS = 2;   // TEST: throttled to 2fps to match observed sustainable
-                      // WiFi throughput to this board (~2 frames/sec). At this
-                      // rate every frame is fresh with no backpressure drops,
-                      // so the display should track the browser cleanly (just
-                      // at 2fps) - isolating "pipeline works, bandwidth-limited"
-                      // from any other fault. Raise back toward 20 once the
-                      // throughput bottleneck (WiFi signal / heap / CPU) is
-                      // understood.
+const CUBE_FPS = 4;   // Throttled to match sustainable WiFi throughput to this
+                      // board. Raised 2 -> 4 now that the flip-only-on-redraw
+                      // fix removed the low-frame-rate flicker. Nudge higher if
+                      // it stays stable; back off if flicker/crashes return.
 // How many faces the connected hardware actually has. Streaming all 6 faces
 // to a board that only drives fewer (e.g. a single-panel bring-up, NUM_FACES=1)
 // wastes most of the WiFi bandwidth on frames the ESP32 immediately rejects,
