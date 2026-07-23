@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <WiFi.h>          // WiFi.RSSI() for the /api/status signal-strength field
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
 #include <LittleFS.h>
@@ -444,6 +445,12 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws, F1State& f
         doc["last_pkt_face"]     = g_lastVideoPktFace;
         doc["expected_pkt_len"]  = (uint32_t)(2 + FACE_BYTES);
         doc["num_faces"]         = NUM_FACES;
+        // WiFi signal strength (dBm). Rough guide: > -50 excellent,
+        // -50..-67 good, -67..-75 marginal, < -75 poor (throughput craters,
+        // packet loss). A weak signal is the most common cause of abnormally
+        // low WebSocket throughput to an ESP32.
+        doc["wifi_rssi"]         = WiFi.RSSI();
+        doc["min_free_heap"]     = ESP.getMinFreeHeap();
         String out; serializeJson(doc, out);
         request->send(200, "application/json", out);
     });
