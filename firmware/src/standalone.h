@@ -42,7 +42,11 @@ enum StandaloneEffect : uint8_t {
     SA_TIDE          = 12,
     SA_RAIN          = 13,
     SA_OFF           = 14,
-    SA_COUNT         = 15
+    SA_WAVE          = 15,
+    SA_DEPTH_RINGS   = 16,
+    SA_PRISM         = 17,
+    SA_NEBULA        = 18,
+    SA_COUNT         = 19
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -62,8 +66,37 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_TIDE:          return "tide";
         case SA_RAIN:          return "rain";
         case SA_OFF:           return "off";
+        case SA_WAVE:          return "wave";
+        case SA_DEPTH_RINGS:   return "depth_rings";
+        case SA_PRISM:         return "prism";
+        case SA_NEBULA:        return "nebula";
         default:               return "unknown";
     }
+}
+
+// Maps a browser effect key (effects.js EFFECTS map) to the nearest native
+// standalone effect, so selecting an effect in the browser also sets what the
+// ESP32 runs on its own once the browser stops streaming. Data/internet-backed
+// browser effects (weather, apod, iss, radio, cam, f1, jokes, ...) have no
+// pure-visual native equivalent yet; those fall back to a pleasant default
+// rather than a black screen. Extend as more effects are ported.
+inline uint8_t standaloneEffectForBrowserKey(const char* key) {
+    if (!key) return SA_RAINBOW;
+    struct { const char* k; uint8_t fx; } M[] = {
+        {"wave", SA_WAVE}, {"rain", SA_RAIN}, {"plasma", SA_PLASMA},
+        {"fireworks", SA_FIREWORKS}, {"balls", SA_BALLS},
+        {"gradient_wash", SA_GRADIENT_WASH}, {"aurora", SA_AURORA},
+        {"depth_rings", SA_DEPTH_RINGS}, {"prism", SA_PRISM},
+        {"tide", SA_TIDE}, {"nebula", SA_NEBULA}, {"lightning", SA_LIGHTNING},
+        {"strobe", SA_STROBE}, {"weather", SA_WEATHER}, {"datetime", SA_CLOCK},
+        // reasonable stand-ins for not-yet-ported visual effects
+        {"sphere", SA_PLASMA}, {"dna", SA_AURORA}, {"sand", SA_BALLS},
+        {"maze", SA_PLASMA}, {"tron", SA_SPECTRUM}, {"warp", SA_NEBULA},
+        {"life", SA_PLASMA}, {"fluid", SA_TIDE}, {"ghost", SA_STROBE},
+        {"lightspeed", SA_NEBULA}, {"custom_cube", SA_RAINBOW},
+    };
+    for (auto& m : M) if (strcmp(key, m.k) == 0) return m.fx;
+    return SA_RAINBOW;   // default for data effects with no visual native
 }
 
 struct ScheduleEntry {
@@ -111,6 +144,50 @@ inline void standaloneHsvToRgb(float h, float s, float v, uint8_t& r, uint8_t& g
 inline float standaloneHash01(int n) {
     float x = sinf((float)n * 12.9898f) * 43758.5453f;
     return x - floorf(x);
+}
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+// ---- Helpers for the browser-effect ports below ------------------------
+// The browser effects (effects.js) are written against hsl() with h,s,l in
+// 0..1, plus lerp / smoothstep / fract. Provide native equivalents so the
+// ports read almost identically to the JS and stay visually faithful.
+inline void standaloneHslToRgb(float h, float s, float l,
+                               uint8_t& r, uint8_t& g, uint8_t& b) {
+    h -= floorf(h);                       // wrap hue into 0..1
+    if (s <= 0.0f) { r = g = b = (uint8_t)(l * 255.0f); return; }
+    auto hue2 = [](float p, float q, float t) {
+        if (t < 0) t += 1; if (t > 1) t -= 1;
+        if (t < 1.0f/6) return p + (q - p) * 6 * t;
+        if (t < 1.0f/2) return q;
+        if (t < 2.0f/3) return p + (q - p) * (2.0f/3 - t) * 6;
+        return p;
+    };
+    float q = l < 0.5f ? l * (1 + s) : l + s - l * s;
+    float p = 2 * l - q;
+    float rf = hue2(p, q, h + 1.0f/3);
+    float gf = hue2(p, q, h);
+    float bf = hue2(p, q, h - 1.0f/3);
+    r = (uint8_t)(fminf(1.0f, fmaxf(0.0f, rf)) * 255.0f);
+    g = (uint8_t)(fminf(1.0f, fmaxf(0.0f, gf)) * 255.0f);
+    b = (uint8_t)(fminf(1.0f, fmaxf(0.0f, bf)) * 255.0f);
+}
+inline float saLerp(float a, float b, float t) { return a + (b - a) * t; }
+inline float saClamp01(float x) { return x < 0 ? 0 : (x > 1 ? 1 : x); }
+inline float saSmooth(float e0, float e1, float x) {   // GLSL smoothstep
+    float t = saClamp01((x - e0) / (e1 - e0));
+    return t * t * (3 - 2 * t);
+}
+inline float saFract(float x) { return x - floorf(x); }
+// Push an already-computed 0..1 RGB triple to one face pixel, clamped.
+inline void saPixel(MatrixPanel_I2S_DMA* display, int xOff, int x, int y,
+                    float r, float g, float b) {
+    display->drawPixel(xOff + x, y, display->color565(
+        (uint8_t)(saClamp01(r) * 255.0f),
+        (uint8_t)(saClamp01(g) * 255.0f),
+        (uint8_t)(saClamp01(b) * 255.0f)));
 }
 
 // Parses the "HH:MM" following a 'T' in an ISO-ish timestamp
@@ -534,6 +611,117 @@ inline void standaloneRenderRain(MatrixPanel_I2S_DMA* display, int face, float t
     }
 }
 
+// ===========================================================================
+// Ports of browser effects (effects.js) to native C++, so they run on the
+// ESP32 with no browser attached. Rendered as a flat 64x64 field: the front
+// panel's normalized coords are x=u/(S-1), y=v/(S-1); the cube's third axis
+// (z) is held constant since a single panel is a flat plane. Each keeps the
+// same math/structure as its JS original so the look matches closely. The
+// shared `t` accumulator is passed in from the dispatcher.
+// ===========================================================================
+inline void standaloneRenderWave(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    const float z = 0.5f;
+    const float tt = t * 1.1f;
+    for (int py = 0; py < PANEL_SIZE; py++) {
+        float y = (float)py / (PANEL_SIZE - 1);
+        for (int px = 0; px < PANEL_SIZE; px++) {
+            float x = (float)px / (PANEL_SIZE - 1);
+            float w1 = sinf((x + z) * 6.2f + tt) * cosf(y * 4.5f - tt * 0.8f);
+            float w2 = sinf((x - z) * 4.8f + tt * 1.4f) * sinf(y * 5.2f + tt * 0.6f);
+            float w3 = sinf((x * 0.7f + y * 0.9f + z * 0.5f) * 7 + tt * 0.9f);
+            float w = (w1 + w2 + w3) / 3;
+            float bright = w * 0.5f + 0.5f;
+            float hue = saFract(x * 0.35f + y * 0.25f + z * 0.35f + tt * 0.045f);
+            uint8_t r8, g8, b8;
+            standaloneHslToRgb(hue, 1.0f, bright * 0.72f, r8, g8, b8);
+            float r = r8 / 255.0f, g = g8 / 255.0f, b = b8 / 255.0f;
+            float spark = fmaxf(0.0f, (w1 + w2 + w3 - 2.2f) / 0.8f);
+            saPixel(display, xOff, px, py, r + spark * 0.9f, g + spark * 0.9f, b + spark * 0.9f);
+        }
+    }
+}
+
+inline void standaloneRenderDepthRings(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    const float tt = t * 0.75f;
+    for (int py = 0; py < PANEL_SIZE; py++) {
+        float y = (float)py / (PANEL_SIZE - 1);
+        for (int px = 0; px < PANEL_SIZE; px++) {
+            float x = (float)px / (PANEL_SIZE - 1);
+            float dx = x - 0.5f, dy = y - 0.5f;
+            float dist = sqrtf(dx * dx + dy * dy) * 2;
+            float ang = atan2f(dy, dx);
+            float twist = ang * 1.6f + dist * 2.5f;
+            float ring = sinf(dist * (float)M_PI * 9 - tt * 2.4f + twist);
+            float ring2 = sinf(dist * (float)M_PI * 4.5f + tt * 1.1f + ang);
+            float bright = ((ring * 0.6f + ring2 * 0.4f) * 0.5f + 0.5f) * (1 - dist * 0.42f) * 0.88f;
+            float hue = saFract(dist * 0.65f + ang / ((float)M_PI * 2) * 0.3f + tt * 0.055f);
+            uint8_t r8, g8, b8;
+            standaloneHslToRgb(hue, 1.0f, fmaxf(0.0f, bright), r8, g8, b8);
+            saPixel(display, xOff, px, py, r8 / 255.0f, g8 / 255.0f, b8 / 255.0f);
+        }
+    }
+}
+
+inline void standaloneRenderPrism(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    const float z = 0.5f;
+    const float tt = t * 0.55f;
+    const float beamAng = tt * 0.6f, beamW = 0.18f;
+    for (int py = 0; py < PANEL_SIZE; py++) {
+        float y = (float)py / (PANEL_SIZE - 1);
+        for (int px = 0; px < PANEL_SIZE; px++) {
+            float x = (float)px / (PANEL_SIZE - 1);
+            float diag = (x + y + z) / 3;
+            float cross = fabsf(x - z);
+            float base = 0.28f + sinf(diag * (float)M_PI * 5.5f + tt) * 0.28f;
+            float hue = saFract(diag * 0.92f + tt * 0.065f);
+            uint8_t r8, g8, b8;
+            standaloneHslToRgb(hue, 0.78f + saSmooth(0, 1, cross) * 0.22f, fmaxf(0.0f, base), r8, g8, b8);
+            float r = r8 / 255.0f, g = g8 / 255.0f, b = b8 / 255.0f;
+            float bDist = fabsf((x - 0.5f) * cosf(beamAng) + (z - 0.5f) * sinf(beamAng));
+            float beam = fmaxf(0.0f, 1 - bDist / beamW) * 0.8f;
+            if (beam > 0) {
+                float dispHue = saFract(hue + bDist * 1.5f);
+                uint8_t dr, dg, db;
+                standaloneHslToRgb(dispHue, 1.0f, beam * 0.9f, dr, dg, db);
+                r += dr / 255.0f * beam + beam * 0.3f;
+                g += dg / 255.0f * beam + beam * 0.3f;
+                b += db / 255.0f * beam + beam * 0.3f;
+            }
+            saPixel(display, xOff, px, py, r, g, b);
+        }
+    }
+}
+
+inline void standaloneRenderNebula(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    const float z = 0.5f;
+    const float tt = t * 0.28f;
+    for (int py = 0; py < PANEL_SIZE; py++) {
+        float y = (float)py / (PANEL_SIZE - 1);
+        for (int px = 0; px < PANEL_SIZE; px++) {
+            float x = (float)px / (PANEL_SIZE - 1);
+            float d = 0;
+            d += sinf(x * 5.3f + tt * 0.52f) * cosf(y * 4.9f + tt * 0.31f) * 0.5f;
+            d += sinf(z * 6.5f - tt * 0.42f) * sinf(x * 3.4f + tt * 0.21f) * 0.38f;
+            d += cosf((x + y + z) * 4.2f + tt * 0.58f) * 0.28f;
+            d += sinf(x * 8.8f + y * 6.1f - tt * 0.35f) * 0.15f;
+            d = d * 0.48f + 0.52f;
+            float bright = powf(fmaxf(0.0f, d - 0.08f), 1.4f) * 0.92f;
+            float hue = saLerp(0.60f, 0.04f, saSmooth(0.18f, 0.88f, d)) + sinf(tt * 0.08f) * 0.05f;
+            uint8_t r8, g8, b8;
+            standaloneHslToRgb(hue, 0.85f + d * 0.15f, bright, r8, g8, b8);
+            // star sparks
+            float spark = standaloneHash01(px * 131 + py * 17);
+            float add = 0;
+            if (spark > 0.985f) add = 0.5f + 0.5f * sinf(t * 3.0f + spark * 40.0f);
+            saPixel(display, xOff, px, py, r8 / 255.0f + add, g8 / 255.0f + add, b8 / 255.0f + add);
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Dispatcher — called once per display-task tick when in standalone mode.
 // ---------------------------------------------------------------------------
@@ -556,6 +744,10 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_LIGHTNING:     standaloneRenderLightning(display, face, t);     break;
             case SA_TIDE:          standaloneRenderTide(display, face, t);          break;
             case SA_RAIN:          standaloneRenderRain(display, face, t);          break;
+            case SA_WAVE:          standaloneRenderWave(display, face, t);          break;
+            case SA_DEPTH_RINGS:   standaloneRenderDepthRings(display, face, t);    break;
+            case SA_PRISM:         standaloneRenderPrism(display, face, t);         break;
+            case SA_NEBULA:        standaloneRenderNebula(display, face, t);        break;
             default:
                 display->fillRect(face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;

@@ -119,18 +119,16 @@ static void displayTask(void* arg) {
         if (dma_display) {
             bool streamStale = (millis() - g_lastFrameMs) > STANDALONE_FALLBACK_MS;
 
-            if (!g_everStreamed) {
-                // No browser has ever driven this board - run the native
-                // standalone effects (weather/clock/etc). See standalone.h.
+            if (!g_everStreamed || streamStale) {
+                // No browser has ever driven this board, OR a browser streamed
+                // and then stopped (lost focus, tab closed, shut down). Either
+                // way, run the native standalone effect. Because the setEffect
+                // sync maps the browser's selected effect to its nearest native
+                // port (standaloneEffectForBrowserKey), this keeps running a
+                // native version of the effect you picked in the browser rather
+                // than reverting to a fixed default - the browser doesn't need
+                // to stay open. See standalone.h.
                 standaloneRender(dma_display, dt);
-            } else if (streamStale) {
-                // A browser streamed and then stopped (lost focus, tab
-                // closed, or shut down). Instead of reverting to the ESP32's
-                // own default animation, HOLD the last streamed frame: do
-                // nothing here so the DMA keeps showing the last flipped
-                // buffer. The panel stays on exactly what the browser last
-                // sent until it comes back or a new frame arrives.
-                // (HOLD_LAST_FRAME behavior - see the browser-focus request.)
             } else {
                 bool anyDrawn = false;
                 for (uint8_t face = 0; face < NUM_FACES; face++) {

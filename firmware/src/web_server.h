@@ -211,6 +211,14 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                     if (doc["id"].is<uint8_t>()) {
                         g_currentEffectId = doc["id"].as<uint8_t>();
                     }
+                    // Also set the native standalone effect to the nearest
+                    // match, so when the browser stops streaming the ESP32
+                    // keeps running (a native version of) the effect you
+                    // picked, instead of a fixed default. In-memory only -
+                    // NVS/flash writes from this async WS callback would risk
+                    // blocking/crashing the network task; persistence isn't
+                    // needed since the browser re-sends on reconnect.
+                    g_standaloneEffect = standaloneEffectForBrowserKey(g_currentEffect.c_str());
                     broadcastEffect(*server, client);
                 }
             }
