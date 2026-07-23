@@ -126,6 +126,7 @@ static void displayTask(void* arg) {
             if (standalone) {
                 standaloneRender(dma_display, dt);
             } else {
+                bool anyDrawn = false;
                 for (uint8_t face = 0; face < NUM_FACES; face++) {
                     bool dirty = false;
                     // Briefly hold the lock only to snapshot the face buffer.
@@ -136,6 +137,7 @@ static void displayTask(void* arg) {
                         dirty = true;
                     }
                     portEXIT_CRITICAL(&g_frameMux);
+                    if (dirty) anyDrawn = true;
 
                     if (dirty) {
                         // The 6 panels form one wide logical bitmap; face N
@@ -173,7 +175,16 @@ static void displayTask(void* arg) {
                         }
                     }
                 }
-                dma_display->flipDMABuffer();
+                // Only flip when we actually drew a new frame this iteration.
+                // With double_buff=true, flipDMABuffer() swaps the front/back
+                // DMA buffers - flipping WITHOUT redrawing shows the other
+                // (older, or blank) buffer, so when streamed frames arrive
+                // slower than this loop runs (e.g. 2fps frames vs a 20fps
+                // loop) the panel alternated between the current frame and a
+                // stale buffer every iteration = heavy flicker, worst when the
+                // frame rate is low or irregular. Flipping only on a real
+                // redraw keeps the last frame steady between updates.
+                if (anyDrawn) dma_display->flipDMABuffer();
             }
         }
         vTaskDelayUntil(&lastWake, period);
