@@ -149,12 +149,11 @@ inline MatrixPanel_I2S_DMA* initDisplay() {
     // Latch blanking controls how many clock pulses the output is disabled
     // (via OE) around the LAT toggle, to hide row-address bits transitioning
     // mid-shift. The library's own docs call this out as the fix for
-    // "ghosting"/duplicate-with-offset symptoms - exactly what we're
-    // chasing. Default is 1; try bumping it (2-4) if the split persists.
-    // If this value turns out not to matter, that's a real data point too -
-    // it'd point back toward a wiring issue (E line or CLK/LAT) rather than
-    // a timing config problem.
-    cfg.latch_blanking = 4;
+    // "ghosting"/duplicate-with-offset symptoms - and for the "off pixels
+    // glow dimly" ghosting on this cheap SM5166PS panel. Bumped 4 -> 8 to
+    // suppress the residual dim-on-black glow; higher blanking = less
+    // ghosting at the cost of a little brightness/colour depth.
+    cfg.latch_blanking = 8;
 
     // i2sspeed: the I2S clock rate driving CLK/data shifting. Never tried
     // tonight - every previous attempt left this at the library default.
@@ -177,7 +176,9 @@ inline MatrixPanel_I2S_DMA* initDisplay() {
         // begin() returning false means DMA allocation failed.
         return nullptr;
     }
-    display->setBrightness8(90);   // 50% of the previous 180, per request
+    display->setBrightness8(60);   // lowered from 90: less drive current also
+                                    // reduces the dim-on-black ghosting glow on
+                                    // this panel. Raise if the image is too dim.
     display->clearScreen();
     return display;
 }
