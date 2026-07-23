@@ -117,14 +117,20 @@ static void displayTask(void* arg) {
 
     for (;;) {
         if (dma_display) {
-            // No browser has ever streamed a frame, or none has arrived
-            // recently — render the native standalone content instead of
-            // sitting on a stale/blank buffer. See standalone.h.
-            bool standalone = !g_everStreamed
-                || (millis() - g_lastFrameMs) > STANDALONE_FALLBACK_MS;
+            bool streamStale = (millis() - g_lastFrameMs) > STANDALONE_FALLBACK_MS;
 
-            if (standalone) {
+            if (!g_everStreamed) {
+                // No browser has ever driven this board - run the native
+                // standalone effects (weather/clock/etc). See standalone.h.
                 standaloneRender(dma_display, dt);
+            } else if (streamStale) {
+                // A browser streamed and then stopped (lost focus, tab
+                // closed, or shut down). Instead of reverting to the ESP32's
+                // own default animation, HOLD the last streamed frame: do
+                // nothing here so the DMA keeps showing the last flipped
+                // buffer. The panel stays on exactly what the browser last
+                // sent until it comes back or a new frame arrives.
+                // (HOLD_LAST_FRAME behavior - see the browser-focus request.)
             } else {
                 bool anyDrawn = false;
                 for (uint8_t face = 0; face < NUM_FACES; face++) {
