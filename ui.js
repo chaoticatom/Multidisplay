@@ -3542,6 +3542,13 @@ const PKT_VIDEO = 2;
 
 let cubeWs = null, cubeConnected = false, cubeStreamT = 0;
 const CUBE_FPS = 20;  // 20fps → ~1.5 MB/s, well within ESP32-S3 WiFi headroom
+// How many faces the connected hardware actually has. Streaming all 6 faces
+// to a board that only drives fewer (e.g. a single-panel bring-up, NUM_FACES=1)
+// wastes most of the WiFi bandwidth on frames the ESP32 immediately rejects,
+// starving the faces it does use. Queried from /api/status on connect so we
+// only send the faces that will actually be displayed. Defaults to 6 (full
+// cube) until the query answers.
+let cubeNumFaces = 6;
 
 function initCubeWs() {
   // Skip if opened locally (simulator mode on dev machine)
@@ -3555,6 +3562,14 @@ function initCubeWs() {
     console.log('[cube] physical-cube streaming disabled on HTTPS (visualizer runs normally)');
     return;
   }
+
+  // Ask the hardware how many panels it drives, so we stream only those.
+  fetch('/api/status').then(r => r.json()).then(s => {
+    if(s && s.num_faces >= 1 && s.num_faces <= 6){
+      cubeNumFaces = s.num_faces;
+      console.log('[cube] hardware has', cubeNumFaces, 'face(s); streaming only those');
+    }
+  }).catch(()=>{});
 
   try {
     cubeWs = new WebSocket(`ws://${h}:81`);
@@ -3576,17 +3591,17 @@ function streamFrameToCube(dt) {
 
   const S = SIZE, pktBytes = 2 + S*S*3;
 
-  // Backpressure: one animation frame = 6 faces = 6*pktBytes queued. If the
-  // socket still has more than ~2 frames' worth un-sent, WiFi isn't draining
-  // fast enough - skip this frame instead of piling on. Without this the
-  // send buffer balloons unboundedly when the ESP32/WiFi can't keep up with
-  // 20fps*6 faces, so frames arrive at the ESP32 badly delayed and in bursts
-  // (symptom: display flickers then reverts to the ESP32's default because
-  // fresh frames stop arriving). Dropping frames here keeps what does get
-  // through low-latency and continuous.
-  if(cubeWs.bufferedAmount > 12 * pktBytes) return;
+  // Backpressure: one animation frame = cubeNumFaces * pktBytes queued. If
+  // the socket still has more than ~2 frames' worth un-sent, WiFi isn't
+  // draining fast enough - skip this frame instead of piling on. Without this
+  // the send buffer balloons unboundedly when the ESP32/WiFi can't keep up,
+  // so frames arrive at the ESP32 badly delayed and in bursts (symptom:
+  // display flickers then reverts to the ESP32's default because fresh frames
+  // stop arriving). Dropping frames here keeps what does get through
+  // low-latency and continuous.
+  if(cubeWs.bufferedAmount > 2 * cubeNumFaces * pktBytes) return;
 
-  for(let vid = 0; vid < 6; vid++){
+  for(let vid = 0; vid < cubeNumFaces; vid++){
     const jsFace = CUBE_FACE_ORDER[vid];
     const buf = new Uint8Array(pktBytes);
     buf[0] = PKT_VIDEO;
