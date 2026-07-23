@@ -3541,9 +3541,10 @@ const CUBE_FACE_ORDER = [4, 0, 2, 1, 3, 5];
 const PKT_VIDEO = 2;
 
 let cubeWs = null, cubeConnected = false, cubeStreamT = 0;
-const CUBE_FPS = 10;  // Throttled to match sustainable WiFi throughput to this
-                      // board. Raised to 10 after 4fps stayed stable. Nudge
-                      // higher if it holds; back off if flicker/crashes return.
+const CUBE_FPS = 25;  // Streaming rate for the physical panel. Note: native
+                      // standalone effects render on-device at the display
+                      // loop rate independent of this - this only caps the
+                      // browser->ESP32 stream, which is WiFi-bandwidth limited.
 // How many faces the connected hardware actually has. Streaming all 6 faces
 // to a board that only drives fewer (e.g. a single-panel bring-up, NUM_FACES=1)
 // wastes most of the WiFi bandwidth on frames the ESP32 immediately rejects,
