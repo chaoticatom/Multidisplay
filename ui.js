@@ -3608,6 +3608,30 @@ function streamFrameToCube(dt) {
   // low-latency and continuous.
   if(cubeWs.bufferedAmount > 2 * cubeNumFaces * pktBytes) return;
 
+  // 2D panel mode: send exactly what the flat panel2d canvas shows (face 0 =
+  // front) to the physical front panel, using the SAME vertical orientation
+  // as renderPanel2d() (fv = S-1-v). One face only, so this also keeps the
+  // bandwidth minimal - "what's on screen is what's on the panel".
+  if(panel2dMode){
+    const buf = new Uint8Array(pktBytes);
+    buf[0] = PKT_VIDEO;
+    buf[1] = 0;              // face 0 (front)
+    let off = 2;
+    for(let v = 0; v < S; v++){
+      for(let u = 0; u < S; u++){
+        const i = faceMap[0][(S-1-v)*S + u];   // match panel2d's vertical flip
+        if(i >= 0){
+          buf[off]   = (colBuf[i*3]   * 255 + 0.5) | 0;
+          buf[off+1] = (colBuf[i*3+1] * 255 + 0.5) | 0;
+          buf[off+2] = (colBuf[i*3+2] * 255 + 0.5) | 0;
+        }
+        off += 3;
+      }
+    }
+    cubeWs.send(buf.buffer);
+    return;
+  }
+
   for(let vid = 0; vid < cubeNumFaces; vid++){
     const jsFace = CUBE_FACE_ORDER[vid];
     const buf = new Uint8Array(pktBytes);
