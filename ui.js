@@ -3617,9 +3617,13 @@ function streamFrameToCube(dt) {
       for(let u = 0; u < S; u++){
         const i = faceMap[0][(S-1-v)*S + u];   // match panel2d's vertical flip
         if(i >= 0){
-          buf[off]   = (colBuf[i*3]   * 255 + 0.5) | 0;
-          buf[off+1] = (colBuf[i*3+1] * 255 + 0.5) | 0;
-          buf[off+2] = (colBuf[i*3+2] * 255 + 0.5) | 0;
+          // Apply the master brightness (slider + wind-down dimming) to the
+          // streamed pixels, so the physical panel dims/blacks-out with the
+          // UI - not just the on-screen cube. clamp01 keeps the >1 overbright
+          // range from wrapping.
+          buf[off]   = (Math.min(1, colBuf[i*3]   * brightness) * 255 + 0.5) | 0;
+          buf[off+1] = (Math.min(1, colBuf[i*3+1] * brightness) * 255 + 0.5) | 0;
+          buf[off+2] = (Math.min(1, colBuf[i*3+2] * brightness) * 255 + 0.5) | 0;
         }
         off += 3;
       }
@@ -3638,9 +3642,11 @@ function streamFrameToCube(dt) {
       for(let u = 0; u < S; u++){
         const i = faceMap[jsFace][v*S + u];
         if(i >= 0){
-          buf[off]   = (colBuf[i*3]   * 255 + 0.5) | 0;
-          buf[off+1] = (colBuf[i*3+1] * 255 + 0.5) | 0;
-          buf[off+2] = (colBuf[i*3+2] * 255 + 0.5) | 0;
+          // Apply master brightness (slider + wind-down) to the stream, so
+          // the physical panel dims/blacks-out with the UI.
+          buf[off]   = (Math.min(1, colBuf[i*3]   * brightness) * 255 + 0.5) | 0;
+          buf[off+1] = (Math.min(1, colBuf[i*3+1] * brightness) * 255 + 0.5) | 0;
+          buf[off+2] = (Math.min(1, colBuf[i*3+2] * brightness) * 255 + 0.5) | 0;
         }
         off += 3;
       }
