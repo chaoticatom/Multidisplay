@@ -3613,7 +3613,18 @@ function initCubeWs() {
   }
 }
 
+// Frame streaming to the physical panel is OFF by default: the ESP32 runs the
+// effects natively on-device (driven by the setEffect/brightness/speed
+// commands), so the browser is just a remote control - no browser needed for
+// the display to run, and no slow WiFi catch-up. Streaming, when off, means
+// the ESP32 never sees a video frame (g_everStreamed stays false) so its
+// native renderer is always in charge. Set window.streamToCube=true in the
+// console to re-enable pixel streaming (e.g. for an effect not yet ported to
+// native), at the cost of the WiFi-bandwidth limits.
+let streamToCube = false;
+
 function streamFrameToCube(dt) {
+  if(!streamToCube) return;
   if(!cubeConnected || !cubeWs || cubeWs.readyState !== WebSocket.OPEN) return;
   cubeStreamT += dt;
   if(cubeStreamT < 1/CUBE_FPS) return;
