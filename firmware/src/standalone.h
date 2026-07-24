@@ -114,7 +114,7 @@ struct ScheduleEntry {
 };
 
 // ---- Module state -----------------------------------------------------
-inline uint8_t       g_standaloneEffect               = SA_RAINBOW;
+inline uint8_t       g_standaloneEffect               = SA_PULSE;   // default boot effect: pulsing RGB solid
 inline ScheduleEntry  g_schedule[STANDALONE_MAX_SCHEDULE];
 inline uint8_t        g_scheduleCount                 = 0;
 inline Preferences    g_saPrefs;
@@ -272,7 +272,7 @@ inline void standaloneSaveLastEffect(uint8_t id) {
 
 inline void standaloneLoad() {
     g_saPrefs.begin("standalone", true);
-    g_standaloneEffect = g_saPrefs.getUChar("lastFx", SA_RAINBOW);
+    g_standaloneEffect = g_saPrefs.getUChar("lastFx", SA_PULSE);   // first boot: pulsing RGB solid
     String sched = g_saPrefs.getString("sched", "");
     g_saPrefs.end();
 
@@ -395,11 +395,17 @@ inline void standaloneRenderRainbow(MatrixPanel_I2S_DMA* display, int face, floa
     }
 }
 
+// Default boot effect: a solid full-screen colour that cycles through the RGB
+// spectrum while its brightness pulses smoothly from 10% up to 100% and back.
 inline void standaloneRenderPulse(MatrixPanel_I2S_DMA* display, int face, float t) {
     const int xOff = face * PANEL_SIZE;
-    float b = 0.4f + 0.6f * (0.5f + 0.5f * sinf(t * 1.6f));
-    uint16_t c = display->color565((uint8_t)(255 * b), (uint8_t)(50 * b), (uint8_t)(150 * b));
-    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, c);
+    // brightness 10% -> 100% -> 10%
+    float pulse = 0.1f + 0.9f * (0.5f + 0.5f * sinf(t * 1.6f));
+    // hue sweeps the full colour wheel over time
+    float hue = fmodf(t * 30.0f, 360.0f);
+    uint8_t r, g, b;
+    standaloneHsvToRgb(hue, 1.0f, pulse, r, g, b);
+    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(r, g, b));
 }
 
 inline void standaloneRenderPlasma(MatrixPanel_I2S_DMA* display, int face, float t) {
