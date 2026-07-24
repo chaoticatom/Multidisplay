@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <esp_heap_caps.h>   // heap_caps_malloc / MALLOC_CAP_8BIT (snAllocPreferPsram fallback)
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -254,10 +255,32 @@ inline float saFract(float x) { return x - floorf(x); }
 // responses - "Received HTTP/0.9 when not allowed" / random bytes where the
 // status line should be). uint8_t is 4x smaller and loses no real precision:
 // the final color565 blit already quantizes to 5/6/5 bits regardless.
-inline uint8_t g_snBuf[NUM_FACES][PANEL_SIZE * PANEL_SIZE * 3];
+// Allocate `bytes` preferring PSRAM (ps_malloc) when it's actually working on
+// this boot, falling back to internal RAM (heap_caps_malloc) otherwise - same
+// pattern as main.cpp's allocBuffer() for the video frame buffers. This board's
+// PSRAM has been unreliable (fails to enumerate on some boots), so every
+// caller of this must still work correctly with the internal-RAM fallback;
+// PSRAM is a bonus that frees internal RAM when it happens to be present, not
+// something anything depends on.
+inline void* snAllocPreferPsram(size_t bytes) {
+    void* p = nullptr;
+    if (psramFound()) p = ps_malloc(bytes);
+    if (!p) p = heap_caps_malloc(bytes, MALLOC_CAP_8BIT);
+    return p;
+}
+
+#define SN_BUF_BYTES_PER_FACE (PANEL_SIZE * PANEL_SIZE * 3)
+inline uint8_t* g_snBuf[NUM_FACES] = { nullptr };
+inline void snEnsureBuf(int face) {
+    if (!g_snBuf[face]) {
+        g_snBuf[face] = (uint8_t*)snAllocPreferPsram(SN_BUF_BYTES_PER_FACE);
+        memset(g_snBuf[face], 0, SN_BUF_BYTES_PER_FACE);
+    }
+}
 
 inline void snSet(int face, int x, int y, float r, float g, float b) {
     if (face < 0 || face >= NUM_FACES || x < 0 || x >= PANEL_SIZE || y < 0 || y >= PANEL_SIZE) return;
+    snEnsureBuf(face);
     uint8_t* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
     p[0] = (uint8_t)(saClamp01(r) * 255.0f);
     p[1] = (uint8_t)(saClamp01(g) * 255.0f);
@@ -267,6 +290,7 @@ inline void snSet(int face, int x, int y, float r, float g, float b) {
 // Math.min(1, colBuf[i]+r) pattern).
 inline void snAdd(int face, int x, int y, float r, float g, float b) {
     if (face < 0 || face >= NUM_FACES || x < 0 || x >= PANEL_SIZE || y < 0 || y >= PANEL_SIZE) return;
+    snEnsureBuf(face);
     uint8_t* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
     p[0] = (uint8_t)(saClamp01(p[0] / 255.0f + r) * 255.0f);
     p[1] = (uint8_t)(saClamp01(p[1] / 255.0f + g) * 255.0f);
@@ -274,15 +298,17 @@ inline void snAdd(int face, int x, int y, float r, float g, float b) {
 }
 // Decay the whole buffer (fade-trail effects: colBuf[i]*=mul each frame).
 inline void snDecay(int face, float mul) {
+    snEnsureBuf(face);
     uint8_t* p = g_snBuf[face];
     for (int i = 0; i < PANEL_SIZE * PANEL_SIZE * 3; i++) p[i] = (uint8_t)(p[i] * mul);
 }
-inline void snClear(int face) { memset(g_snBuf[face], 0, sizeof(g_snBuf[face])); }
-inline void snClearAll() { memset(g_snBuf, 0, sizeof(g_snBuf)); }
+inline void snClear(int face) { snEnsureBuf(face); memset(g_snBuf[face], 0, SN_BUF_BYTES_PER_FACE); }
+inline void snClearAll() { for (int f = 0; f < NUM_FACES; f++) snClear(f); }
 // Read back a pixel's current 0..1 value - needed by overlays that sample
 // the buffer (e.g. glitch, which shifts/re-blends existing pixels).
 inline void snGet(int face, int x, int y, float& r, float& g, float& b) {
     if (face < 0 || face >= NUM_FACES || x < 0 || x >= PANEL_SIZE || y < 0 || y >= PANEL_SIZE) { r = g = b = 0; return; }
+    snEnsureBuf(face);
     uint8_t* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
     r = p[0] / 255.0f; g = p[1] / 255.0f; b = p[2] / 255.0f;
 }
@@ -633,13 +659,17 @@ struct FwRocket   { float col, v, vy, vc, hue, hue2; bool active; };
 inline void standaloneRenderFireworks(MatrixPanel_I2S_DMA* display, int face, float t) {
     const int xOff = face * PANEL_SIZE;
     const int S = PANEL_SIZE;
-    static uint8_t buf[PANEL_SIZE * PANEL_SIZE * 3];   // fade buffer, RGB888
+    static uint8_t* buf = nullptr;   // fade buffer, RGB888
     static FwRocket   rockets[10];
     static FwParticle parts[420];
     static bool   init = false;
     static float  lastT = 0, spawnT = 0;
     static uint32_t rng = 0x1234567;
-    if (!init) { memset(buf, 0, sizeof(buf)); init = true; lastT = t; }
+    if (!init) {
+        buf = (uint8_t*)snAllocPreferPsram(PANEL_SIZE * PANEL_SIZE * 3);
+        memset(buf, 0, PANEL_SIZE * PANEL_SIZE * 3);
+        init = true; lastT = t;
+    }
     // xorshift PRNG for per-frame variety (Math.random equivalent)
     auto rnd = [&]() { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return (rng & 0xFFFFFF) / (float)0xFFFFFF; };
 
@@ -1131,16 +1161,21 @@ inline void standaloneRenderLife(MatrixPanel_I2S_DMA* display, int face, float t
     // corruption incident tonight from oversized static buffers; "chunkier"
     // Life cells is a worthwhile trade for real headroom.
     const int W = PANEL_SIZE / 2, H = PANEL_SIZE / 2;
-    static uint8_t grid[(PANEL_SIZE / 2) * (PANEL_SIZE / 2)];
-    static uint8_t nextg[(PANEL_SIZE / 2) * (PANEL_SIZE / 2)];
-    static uint8_t age[(PANEL_SIZE / 2) * (PANEL_SIZE / 2)];
+    static uint8_t* grid = nullptr;
+    static uint8_t* nextg = nullptr;
+    static uint8_t* age = nullptr;
     static bool init = false;
     static float genT = 0;
     static float lastT = 0;
     auto seed = [&]() {
         for (int i = 0; i < W * H; i++) { grid[i] = standaloneHash01(i * 3 + (int)(t * 100)) < 0.32f ? 1 : 0; age[i] = 0; }
     };
-    if (!init) { seed(); init = true; }
+    if (!init) {
+        grid  = (uint8_t*)snAllocPreferPsram(W * H);
+        nextg = (uint8_t*)snAllocPreferPsram(W * H);
+        age   = (uint8_t*)snAllocPreferPsram(W * H);
+        seed(); init = true;
+    }
     float dt = t - lastT; lastT = t;
     genT += dt;
     if (genT > 0.09f) {
@@ -1193,10 +1228,11 @@ inline void standaloneRenderLife(MatrixPanel_I2S_DMA* display, int face, float t
 inline void standaloneRenderSand(MatrixPanel_I2S_DMA* display, int face, float t) {
     (void)display; (void)t;
     const int S = PANEL_SIZE;
-    static uint8_t occ[PANEL_SIZE * PANEL_SIZE];
+    static uint8_t* occ = nullptr;
     static bool init = false;
     if (!init) {
-        memset(occ, 0, sizeof(occ));
+        occ = (uint8_t*)snAllocPreferPsram(PANEL_SIZE * PANEL_SIZE);
+        memset(occ, 0, PANEL_SIZE * PANEL_SIZE);
         // Seed roughly a third of the top rows with grains, like the browser's
         // initial fill (a scattered pile that then settles).
         for (int y = 0; y < S / 2; y++)
@@ -1248,9 +1284,15 @@ inline void standaloneRenderFluid(MatrixPanel_I2S_DMA* display, int face, float 
     // incident tonight from an oversized static buffer, so trading a bit of
     // wave detail for real headroom is the right call for a cosmetic effect.
     const int SIM = PANEL_SIZE / 2;
-    static float h[(PANEL_SIZE / 2) * (PANEL_SIZE / 2)], v[(PANEL_SIZE / 2) * (PANEL_SIZE / 2)];
+    static float* h = nullptr; static float* v = nullptr;
     static bool init = false;
-    if (!init) { memset(h, 0, sizeof(h)); memset(v, 0, sizeof(v)); init = true; }
+    if (!init) {
+        h = (float*)snAllocPreferPsram(SIM * SIM * sizeof(float));
+        v = (float*)snAllocPreferPsram(SIM * SIM * sizeof(float));
+        memset(h, 0, SIM * SIM * sizeof(float));
+        memset(v, 0, SIM * SIM * sizeof(float));
+        init = true;
+    }
     const float dt = 1.0f / CUBE_FPS;
     const float SPEED = 28, DAMP = 0.96f, GRAV_STR = 14;
     for (int y = 0; y < SIM; y++) {
@@ -1419,9 +1461,13 @@ inline void standaloneOverlayFire(int face, float t) {
     // meaningful on this PSRAM-less, memory-corruption-prone board.
     const int MAXROWS = 24;   // PANEL_SIZE*0.22 with headroom
     const int rows = (int)(PANEL_SIZE * 0.22f);
-    static float buf[MAXROWS * PANEL_SIZE];
+    static float* buf = nullptr;
     static bool init = false;
-    if (!init) { memset(buf, 0, sizeof(buf)); init = true; }
+    if (!init) {
+        buf = (float*)snAllocPreferPsram(MAXROWS * PANEL_SIZE * sizeof(float));
+        memset(buf, 0, MAXROWS * PANEL_SIZE * sizeof(float));
+        init = true;
+    }
     const float dt = 1.0f / CUBE_FPS;
     for (int u = 0; u < PANEL_SIZE; u++)
         buf[u] = fminf(2.0f, buf[u] + (standaloneHash01((int)(t * 997) + u) - 0.05f) * dt * 22.0f);
@@ -1587,6 +1633,7 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
     // avoid fillRect/fillCircle.
     for (uint8_t face = 0; face < NUM_FACES; face++) {
         const int xOff = face * PANEL_SIZE;
+        snEnsureBuf(face);
         const uint8_t* buf = g_snBuf[face];
         for (int y = 0; y < PANEL_SIZE; y++) {
             for (int x = 0; x < PANEL_SIZE; x++) {
