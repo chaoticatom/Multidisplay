@@ -235,24 +235,35 @@ inline float saFract(float x) { return x - floorf(x); }
 // preserved below at snFillRect). Indexed per logical face (0..NUM_FACES-1),
 // matching how the browser's faceMap addresses one flat 64x64 grid per face.
 // ===========================================================================
-inline float g_snBuf[NUM_FACES][PANEL_SIZE * PANEL_SIZE * 3];
+// uint8_t (0..255) per channel, NOT float - a float buffer here (4 bytes/
+// channel) was enough extra static RAM on this PSRAM-less, internal-RAM-only
+// board to starve the network stack's own buffers, corrupting its output
+// (symptom: the HTTP server sending garbled binary instead of valid
+// responses - "Received HTTP/0.9 when not allowed" / random bytes where the
+// status line should be). uint8_t is 4x smaller and loses no real precision:
+// the final color565 blit already quantizes to 5/6/5 bits regardless.
+inline uint8_t g_snBuf[NUM_FACES][PANEL_SIZE * PANEL_SIZE * 3];
 
 inline void snSet(int face, int x, int y, float r, float g, float b) {
     if (face < 0 || face >= NUM_FACES || x < 0 || x >= PANEL_SIZE || y < 0 || y >= PANEL_SIZE) return;
-    float* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
-    p[0] = saClamp01(r); p[1] = saClamp01(g); p[2] = saClamp01(b);
+    uint8_t* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
+    p[0] = (uint8_t)(saClamp01(r) * 255.0f);
+    p[1] = (uint8_t)(saClamp01(g) * 255.0f);
+    p[2] = (uint8_t)(saClamp01(b) * 255.0f);
 }
 // Additive blend, clamped - what overlays use (matches colBuf's
 // Math.min(1, colBuf[i]+r) pattern).
 inline void snAdd(int face, int x, int y, float r, float g, float b) {
     if (face < 0 || face >= NUM_FACES || x < 0 || x >= PANEL_SIZE || y < 0 || y >= PANEL_SIZE) return;
-    float* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
-    p[0] = saClamp01(p[0] + r); p[1] = saClamp01(p[1] + g); p[2] = saClamp01(p[2] + b);
+    uint8_t* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
+    p[0] = (uint8_t)(saClamp01(p[0] / 255.0f + r) * 255.0f);
+    p[1] = (uint8_t)(saClamp01(p[1] / 255.0f + g) * 255.0f);
+    p[2] = (uint8_t)(saClamp01(p[2] / 255.0f + b) * 255.0f);
 }
 // Decay the whole buffer (fade-trail effects: colBuf[i]*=mul each frame).
 inline void snDecay(int face, float mul) {
-    float* p = g_snBuf[face];
-    for (int i = 0; i < PANEL_SIZE * PANEL_SIZE * 3; i++) p[i] *= mul;
+    uint8_t* p = g_snBuf[face];
+    for (int i = 0; i < PANEL_SIZE * PANEL_SIZE * 3; i++) p[i] = (uint8_t)(p[i] * mul);
 }
 inline void snClear(int face) { memset(g_snBuf[face], 0, sizeof(g_snBuf[face])); }
 inline void snClearAll() { memset(g_snBuf, 0, sizeof(g_snBuf)); }
@@ -1222,12 +1233,11 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
     // avoid fillRect/fillCircle.
     for (uint8_t face = 0; face < NUM_FACES; face++) {
         const int xOff = face * PANEL_SIZE;
-        const float* buf = g_snBuf[face];
+        const uint8_t* buf = g_snBuf[face];
         for (int y = 0; y < PANEL_SIZE; y++) {
             for (int x = 0; x < PANEL_SIZE; x++) {
-                const float* p = &buf[(y * PANEL_SIZE + x) * 3];
-                display->drawPixel(xOff + x, y, display->color565(
-                    (uint8_t)(p[0] * 255.0f), (uint8_t)(p[1] * 255.0f), (uint8_t)(p[2] * 255.0f)));
+                const uint8_t* p = &buf[(y * PANEL_SIZE + x) * 3];
+                display->drawPixel(xOff + x, y, display->color565(p[0], p[1], p[2]));
             }
         }
     }
