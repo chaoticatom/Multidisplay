@@ -601,6 +601,18 @@ void setup() {
     }
 #endif
 
+    // Start the display task RIGHT AWAY, before any networking - so the
+    // default pulse effect is visible on the panel immediately, independent
+    // of how long WiFi takes to connect (or whether it opens the captive
+    // portal). displayTask only touches dma_display/g_standaloneEffect, no
+    // WiFi/web-server dependency, so it's safe to start this early.
+    // g_standaloneEffect already defaults to SA_PULSE at declaration; the
+    // later standaloneLoad() call (after WiFi) intentionally keeps it there
+    // (see standaloneLoad's comment) rather than restoring a saved effect.
+    if (dma_display) {
+        xTaskCreatePinnedToCore(displayTask, "display", 4096, nullptr, 2, nullptr, 0);
+    }
+
     // WiFi provisioning.
     g_appState = AppState::AP_MODE;   // portal may open during connectWifi()
     if (!connectWifi()) {
@@ -652,10 +664,6 @@ void setup() {
     standaloneLoad();
     standaloneNtpInit();
     standaloneWxFetch();
-
-    // Display task pinned to core 0 (WiFi/async stack runs on core 1/0 too,
-    // but DMA pushing is isolated here for steady framerate).
-    xTaskCreatePinnedToCore(displayTask, "display", 4096, nullptr, 2, nullptr, 0);
 }
 
 // ---------------------------------------------------------------------------
