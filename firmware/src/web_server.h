@@ -231,6 +231,10 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                     float v = doc["value"] | 1.0f;
                     if (v < 0) v = 0; if (v > 8.0f) v = 8.0f;
                     g_nativeSpeed = v;
+                } else if (strcmp(cmd, "setStreamMode") == 0) {
+                    // Browser Panel 2D on/off. true = show streamed pixels;
+                    // false = ignore the stream and run native effects.
+                    g_streamMode = (bool)(doc["value"] | false);
                 }
             }
         }

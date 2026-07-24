@@ -119,15 +119,16 @@ static void displayTask(void* arg) {
         if (dma_display) {
             bool streamStale = (millis() - g_lastFrameMs) > STANDALONE_FALLBACK_MS;
 
-            if (!g_everStreamed || streamStale) {
-                // No browser has ever driven this board, OR a browser streamed
-                // and then stopped (lost focus, tab closed, shut down). Either
-                // way, run the native standalone effect. Because the setEffect
-                // sync maps the browser's selected effect to its nearest native
-                // port (standaloneEffectForBrowserKey), this keeps running a
-                // native version of the effect you picked in the browser rather
-                // than reverting to a fixed default - the browser doesn't need
-                // to stay open. See standalone.h.
+            // Native effects are the default and the ESP32 owns that choice.
+            // Streamed frames are shown ONLY when the browser has explicitly
+            // put us in stream mode (Panel 2D) AND frames are currently
+            // arriving. Otherwise - including a stale/old browser that's still
+            // sending frames - we ignore the stream and run native effects.
+            if (!g_streamMode || !g_everStreamed || streamStale) {
+                // Run the native standalone effect. setEffect sync maps the
+                // browser's selected effect to its nearest native port, so
+                // this keeps running a native version of what you picked -
+                // no browser needed. See standalone.h.
                 standaloneRender(dma_display, dt);
             } else {
                 bool anyDrawn = false;

@@ -127,6 +127,14 @@ inline volatile uint8_t g_nativeBrightness = 60;    // 0..255, panel drive level
 inline volatile float   g_nativeSpeed      = 1.0f;  // time multiplier for effects
 inline volatile uint8_t g_nativeBrightnessApplied = 255; // last value pushed to HW
 
+// Display source of truth, owned by the ESP32 (not the browser). Default
+// false = run native on-device effects and IGNORE any streamed video frames.
+// The browser sets this true only for Panel 2D mode (pixel-perfect streaming).
+// Making native the default here means a stale/old browser that's still
+// streaming can't override the native effects - the ESP32 just drops its
+// frames. This is the robust fix for "it's still coming from the browser".
+inline volatile bool    g_streamMode = false;
+
 // Weather cache, refreshed periodically by standaloneWxFetch().
 inline bool           g_wxValid       = false;
 inline int            g_wxTemp        = 0;
