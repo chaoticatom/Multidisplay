@@ -482,6 +482,16 @@ static bool allocBuffers() {
 // setup()
 // ---------------------------------------------------------------------------
 void setup() {
+    // Disables the idle-task watchdog on Core 0. The ESP32's internal
+    // WiFi/radio driver task always runs on Core 0 regardless of which of our
+    // own tasks are pinned there - under a weak WiFi signal (this board is at
+    // -80dBm, "poor") that task's retry/retransmission work can occasionally
+    // monopolize Core 0 long enough that the idle task can't run, tripping
+    // the watchdog ("IDLE0 ... Tasks currently running: CPU 0: display ...
+    // Aborting") and rebooting the board every minute or so - even though our
+    // own displayTask code isn't the one misbehaving. This is the standard,
+    // documented fix for HUB75 display-refresh-on-Core-0 projects.
+    disableCore0WDT();
     Serial.begin(115200);
     // Native USB-CDC (this board's "USB-Serial/JTAG" mode) drops any output
     // written before the host's monitor reconnects after reset - typically
