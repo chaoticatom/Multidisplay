@@ -46,7 +46,10 @@ enum StandaloneEffect : uint8_t {
     SA_DEPTH_RINGS   = 16,
     SA_PRISM         = 17,
     SA_NEBULA        = 18,
-    SA_COUNT         = 19
+    SA_DNA           = 19,
+    SA_WARP          = 20,
+    SA_LIFE          = 21,
+    SA_COUNT         = 22
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -70,6 +73,9 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_DEPTH_RINGS:   return "depth_rings";
         case SA_PRISM:         return "prism";
         case SA_NEBULA:        return "nebula";
+        case SA_DNA:           return "dna";
+        case SA_WARP:          return "warp";
+        case SA_LIFE:          return "life";
         default:               return "unknown";
     }
 }
@@ -89,11 +95,12 @@ inline uint8_t standaloneEffectForBrowserKey(const char* key) {
         {"depth_rings", SA_DEPTH_RINGS}, {"prism", SA_PRISM},
         {"tide", SA_TIDE}, {"nebula", SA_NEBULA}, {"lightning", SA_LIGHTNING},
         {"strobe", SA_STROBE}, {"weather", SA_WEATHER}, {"datetime", SA_CLOCK},
+        {"dna", SA_DNA}, {"warp", SA_WARP}, {"life", SA_LIFE},
         // reasonable stand-ins for not-yet-ported visual effects
-        {"sphere", SA_PLASMA}, {"dna", SA_AURORA}, {"sand", SA_BALLS},
-        {"maze", SA_PLASMA}, {"tron", SA_SPECTRUM}, {"warp", SA_NEBULA},
-        {"life", SA_PLASMA}, {"fluid", SA_TIDE}, {"ghost", SA_STROBE},
-        {"lightspeed", SA_NEBULA}, {"custom_cube", SA_RAINBOW},
+        {"sphere", SA_PLASMA}, {"sand", SA_BALLS},
+        {"maze", SA_PLASMA}, {"tron", SA_SPECTRUM},
+        {"fluid", SA_TIDE}, {"ghost", SA_STROBE},
+        {"lightspeed", SA_WARP}, {"custom_cube", SA_RAINBOW},
     };
     for (auto& m : M) if (strcmp(key, m.k) == 0) return m.fx;
     return SA_RAINBOW;   // default for data effects with no visual native
@@ -730,6 +737,147 @@ inline void standaloneRenderNebula(MatrixPanel_I2S_DMA* display, int face, float
     }
 }
 
+// DNA double helix - port of effectDNA, one face. Two strands winding down
+// the panel with connecting rungs.
+inline void standaloneRenderDna(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+    const float RADIUS = PANEL_SIZE * 0.36f;
+    const int TURNS = 4;
+    const float tt = t * 0.55f;
+    for (int y = 0; y < PANEL_SIZE; y++) {
+        float progress = (float)y / PANEL_SIZE;
+        float ang0 = progress * (float)M_PI * 2 * TURNS + tt * 1.4f;
+        for (int s = 0; s < 2; s++) {
+            float ang = ang0 + s * (float)M_PI;
+            int ui = (int)lroundf(PANEL_SIZE / 2 + cosf(ang) * RADIUS);
+            float hue = saFract(progress * 0.5f + tt * 0.06f + s * 0.5f);
+            uint8_t r, g, b;
+            standaloneHslToRgb(hue, 1.0f, 0.95f, r, g, b);
+            if (ui >= 0 && ui < PANEL_SIZE)
+                display->drawPixel(xOff + ui, y, display->color565(r, g, b));
+            for (int d = 1; d <= 3; d++) {
+                float fade = powf(1 - d / 4.0f, 2) * 0.7f;
+                uint8_t rg, gg, bg;
+                standaloneHslToRgb(hue, 0.9f, fade, rg, gg, bg);
+                if (ui - d >= 0)          display->drawPixel(xOff + ui - d, y, display->color565(rg, gg, bg));
+                if (ui + d < PANEL_SIZE)  display->drawPixel(xOff + ui + d, y, display->color565(rg, gg, bg));
+            }
+        }
+        if (y % 3 == 0) {
+            int u0 = (int)lroundf(PANEL_SIZE / 2 + cosf(ang0) * RADIUS);
+            int u1 = (int)lroundf(PANEL_SIZE / 2 + cosf(ang0 + (float)M_PI) * RADIUS);
+            int lo = u0 < u1 ? u0 : u1, hi = u0 < u1 ? u1 : u0;
+            uint8_t r, g, b;
+            standaloneHslToRgb(saFract(progress * 0.5f + tt * 0.06f + 0.5f), 0.6f, 0.5f, r, g, b);
+            for (int u = lo; u <= hi; u++)
+                if (u >= 0 && u < PANEL_SIZE)
+                    display->drawPixel(xOff + u, y, display->color565(r, g, b));
+        }
+    }
+}
+
+// Warp starfield - 2D radial version of effectWarp. Stars fly outward from
+// centre with a short motion tail; brighter/faster near the edges.
+inline void standaloneRenderWarp(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    const int NSTARS = 80;
+    static float sx[NSTARS], sy[NSTARS], ssp[NSTARS], shue[NSTARS];
+    static bool init = false;
+    if (!init) {
+        for (int i = 0; i < NSTARS; i++) {
+            float a = standaloneHash01(i * 7) * 6.2832f;
+            float r = standaloneHash01(i * 13) * 0.5f;
+            sx[i] = 0.5f + cosf(a) * r; sy[i] = 0.5f + sinf(a) * r;
+            ssp[i] = 0.15f + standaloneHash01(i * 3) * 0.5f;
+            shue[i] = 0.55f + standaloneHash01(i * 5) * 0.2f;
+        }
+        init = true;
+    }
+    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+    for (int i = 0; i < NSTARS; i++) {
+        float dx = sx[i] - 0.5f, dy = sy[i] - 0.5f;
+        float dist = sqrtf(dx * dx + dy * dy) * 2;
+        // step outward from centre
+        float ang = atan2f(dy, dx);
+        float step = ssp[i] * (0.02f + dist * 0.06f);
+        sx[i] += cosf(ang) * step; sy[i] += sinf(ang) * step;
+        if (sx[i] < 0 || sx[i] > 1 || sy[i] < 0 || sy[i] > 1) {
+            sx[i] = 0.5f + (standaloneHash01((int)(t * 1000) + i) - 0.5f) * 0.05f;
+            sy[i] = 0.5f + (standaloneHash01((int)(t * 777) + i * 3) - 0.5f) * 0.05f;
+            continue;
+        }
+        float bright = fminf(1.0f, dist * 1.1f);
+        uint8_t r, g, b;
+        standaloneHslToRgb(shue[i] + dist * 0.15f, 0.8f, bright, r, g, b);
+        int px = (int)(sx[i] * (PANEL_SIZE - 1));
+        int py = (int)(sy[i] * (PANEL_SIZE - 1));
+        display->drawPixel(xOff + px, py, display->color565(r, g, b));
+        // short tail toward centre
+        int tx = (int)((sx[i] - cosf(ang) * 0.03f) * (PANEL_SIZE - 1));
+        int ty = (int)((sy[i] - sinf(ang) * 0.03f) * (PANEL_SIZE - 1));
+        if (tx >= 0 && tx < PANEL_SIZE && ty >= 0 && ty < PANEL_SIZE)
+            display->drawPixel(xOff + tx, ty, display->color565(r / 3, g / 3, b / 3));
+    }
+}
+
+// Conway's Game of Life (classic 2D B3/S23) with age-based crystal colouring,
+// port of effectLife adapted to a flat panel.
+inline void standaloneRenderLife(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    const int W = PANEL_SIZE, H = PANEL_SIZE;
+    static uint8_t grid[PANEL_SIZE * PANEL_SIZE];
+    static uint8_t nextg[PANEL_SIZE * PANEL_SIZE];
+    static uint8_t age[PANEL_SIZE * PANEL_SIZE];
+    static bool init = false;
+    static float genT = 0;
+    static float lastT = 0;
+    auto seed = [&]() {
+        for (int i = 0; i < W * H; i++) { grid[i] = standaloneHash01(i * 3 + (int)(t * 100)) < 0.32f ? 1 : 0; age[i] = 0; }
+    };
+    if (!init) { seed(); init = true; }
+    float dt = t - lastT; lastT = t;
+    genT += dt;
+    if (genT > 0.09f) {
+        genT = 0;
+        int pop = 0;
+        for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
+            int nb = 0;
+            for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++) {
+                if (!dx && !dy) continue;
+                int nx = x + dx, ny = y + dy;
+                if (nx >= 0 && nx < W && ny >= 0 && ny < H && grid[ny * W + nx]) nb++;
+            }
+            int i = y * W + x;
+            uint8_t alive = grid[i];
+            nextg[i] = alive ? (nb == 2 || nb == 3 ? 1 : 0) : (nb == 3 ? 1 : 0);
+            if (nextg[i] && !alive) age[i] = 0;
+            else if (nextg[i]) age[i] = age[i] < 250 ? age[i] + 1 : 250;
+            else age[i] = age[i] > 3 ? age[i] - 3 : 0;
+            pop += nextg[i];
+        }
+        memcpy(grid, nextg, W * H);
+        if (pop < W * H * 0.01f || pop > W * H * 0.85f) seed();
+    }
+    display->fillRect(xOff, 0, W, H, display->color565(0, 0, 1));
+    for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
+        int i = y * W + x;
+        if (grid[i]) {
+            float a = age[i] / 250.0f;
+            float hue = a < 0.33f ? saLerp(0.50f, 0.62f, a * 3)
+                      : a < 0.66f ? saLerp(0.62f, 0.75f, (a - 0.33f) * 3)
+                                  : saLerp(0.75f, 0.13f, (a - 0.66f) * 3);
+            uint8_t r, g, b;
+            standaloneHslToRgb(hue, 1 - a * 0.15f, 0.5f + a * 0.45f, r, g, b);
+            display->drawPixel(xOff + x, y, display->color565(r, g, b));
+        } else if (age[i] > 0) {
+            uint8_t r, g, b;
+            standaloneHslToRgb(0.06f, 1.0f, age[i] / 250.0f * 0.5f, r, g, b);
+            display->drawPixel(xOff + x, y, display->color565(r, g, b));
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Dispatcher — called once per display-task tick when in standalone mode.
 // ---------------------------------------------------------------------------
@@ -765,6 +913,9 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_DEPTH_RINGS:   standaloneRenderDepthRings(display, face, t);    break;
             case SA_PRISM:         standaloneRenderPrism(display, face, t);         break;
             case SA_NEBULA:        standaloneRenderNebula(display, face, t);        break;
+            case SA_DNA:           standaloneRenderDna(display, face, t);           break;
+            case SA_WARP:          standaloneRenderWarp(display, face, t);          break;
+            case SA_LIFE:          standaloneRenderLife(display, face, t);          break;
             default:
                 display->fillRect(face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;
