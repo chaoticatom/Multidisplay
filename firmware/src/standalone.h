@@ -272,7 +272,13 @@ inline void standaloneSaveLastEffect(uint8_t id) {
 
 inline void standaloneLoad() {
     g_saPrefs.begin("standalone", true);
-    g_standaloneEffect = g_saPrefs.getUChar("lastFx", SA_PULSE);   // first boot: pulsing RGB solid
+    // Always boot into the pulsing RGB solid, ignoring whatever effect was
+    // last saved from earlier testing/use - "startup default" means every
+    // boot, not just a blank/never-used flash. The saved lastFx value is
+    // read to preserve compatibility with older code paths but intentionally
+    // discarded here.
+    (void)g_saPrefs.getUChar("lastFx", SA_PULSE);
+    g_standaloneEffect = SA_PULSE;
     String sched = g_saPrefs.getString("sched", "");
     g_saPrefs.end();
 
