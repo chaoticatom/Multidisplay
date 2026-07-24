@@ -112,6 +112,14 @@ inline ScheduleEntry  g_schedule[STANDALONE_MAX_SCHEDULE];
 inline uint8_t        g_scheduleCount                 = 0;
 inline Preferences    g_saPrefs;
 
+// Live controls for the native effects, driven from the web UI (brightness
+// slider, speed slider) so the browser stays a working remote even though the
+// effects run on-device. Defaults chosen so a fresh boot with no browser looks
+// good on its own.
+inline volatile uint8_t g_nativeBrightness = 60;    // 0..255, panel drive level
+inline volatile float   g_nativeSpeed      = 1.0f;  // time multiplier for effects
+inline volatile uint8_t g_nativeBrightnessApplied = 255; // last value pushed to HW
+
 // Weather cache, refreshed periodically by standaloneWxFetch().
 inline bool           g_wxValid       = false;
 inline int            g_wxTemp        = 0;
@@ -727,7 +735,16 @@ inline void standaloneRenderNebula(MatrixPanel_I2S_DMA* display, int face, float
 // ---------------------------------------------------------------------------
 inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
     static float t = 0;
-    t += dt;
+    // Live speed control from the web UI (g_nativeSpeed), so the browser's
+    // speed slider affects the on-device effects.
+    t += dt * g_nativeSpeed;
+    // Live brightness control from the web UI (g_nativeBrightness). Only push
+    // to hardware when it actually changed - setBrightness8 reconfigures the
+    // panel, so avoid calling it every frame.
+    if (g_nativeBrightness != g_nativeBrightnessApplied) {
+        display->setBrightness8(g_nativeBrightness);
+        g_nativeBrightnessApplied = g_nativeBrightness;
+    }
     for (uint8_t face = 0; face < NUM_FACES; face++) {
         switch (g_standaloneEffect) {
             case SA_RAINBOW:       standaloneRenderRainbow(display, face, t);       break;

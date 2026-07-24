@@ -1493,6 +1493,8 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
     if(currentEffect==='life') lifeGrid=null;
     if(currentEffect==='fluid') fluidH=null;
     fwParticles.length=0; t=0; sphT=0; _lgState='expand'; _lgStateT=0; _lgScanT=0; _lgBaseAngle=0; _lgFlatT=-1; _lgPulseT=-1; _lgColSweepT=-1; _lgWaveT=-1; _lgDblScanT=-1; _lgCollapsePhase=0; _lgRoutineIdx=0;
+    // Tell the ESP32 which effect to run natively (works with no streaming).
+    if(typeof cubeSendCmd==='function') cubeSendCmd({cmd:'setEffect', effect: currentEffect});
   });
 });
 
@@ -1595,12 +1597,16 @@ const autoRotateChk = document.getElementById('auto-rotate-chk');
 document.getElementById('speed-slider')?.addEventListener('input', e => {
   speedMult = parseFloat(e.target.value);
   document.getElementById('speed-val').textContent = speedMult.toFixed(1) + 'x';
+  // Drive the ESP32's native effects too, so this works with no streaming.
+  cubeSendCmd({cmd:'setSpeed', value: speedMult});
 });
 
 document.getElementById('bright-slider')?.addEventListener('input', e => {
   brightness = parseFloat(e.target.value);
   document.getElementById('bright-val').textContent = Math.round(brightness * 100) + '%';
   mesh.material.color.setScalar(brightness);
+  // Drive the ESP32's native panel brightness too (works standalone).
+  cubeSendCmd({cmd:'setBrightness', value: brightness});
 });
 if (mesh) mesh.material.color.setScalar(brightness);
 
@@ -3554,6 +3560,16 @@ const CUBE_FPS = 17;  // Streaming rate for the physical panel. Dropped to 17:
 // cube) until the query answers.
 let cubeNumFaces = 6;
 
+// Send a small JSON control command to the ESP32 over the cube WebSocket
+// (effect/brightness/speed). Used so the sliders control the on-device native
+// effects, not just the streamed frames - the browser stays a working remote
+// even when the ESP32 is running effects itself with nothing being streamed.
+function cubeSendCmd(obj){
+  if(cubeConnected && cubeWs && cubeWs.readyState === WebSocket.OPEN){
+    try { cubeWs.send(JSON.stringify(obj)); } catch(e){}
+  }
+}
+
 function initCubeWs() {
   // Skip if opened locally (simulator mode on dev machine)
   const h = location.hostname;
@@ -3578,7 +3594,17 @@ function initCubeWs() {
   try {
     cubeWs = new WebSocket(`ws://${h}:81`);
     cubeWs.binaryType = 'arraybuffer';
-    cubeWs.onopen  = () => { cubeConnected = true;  console.log('[cube] streaming started'); };
+    cubeWs.onopen  = () => {
+      cubeConnected = true;
+      console.log('[cube] connected');
+      // Push current control state so the on-device effects match the UI
+      // immediately on (re)connect.
+      cubeSendCmd({cmd:'setBrightness', value: brightness});
+      cubeSendCmd({cmd:'setSpeed', value: speedMult});
+      if(typeof currentEffect === 'string' && currentEffect){
+        cubeSendCmd({cmd:'setEffect', effect: currentEffect});
+      }
+    };
     cubeWs.onclose = () => { cubeConnected = false; setTimeout(initCubeWs, 5000); };
     cubeWs.onerror = () => { cubeConnected = false; };
   } catch(e) {

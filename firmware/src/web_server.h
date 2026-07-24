@@ -220,6 +220,17 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                     // needed since the browser re-sends on reconnect.
                     g_standaloneEffect = standaloneEffectForBrowserKey(g_currentEffect.c_str());
                     broadcastEffect(*server, client);
+                } else if (strcmp(cmd, "setBrightness") == 0) {
+                    // Browser brightness slider (0..1.5) -> native panel drive
+                    // (0..255). Controls the on-device effects live.
+                    float v = doc["value"] | 1.0f;
+                    if (v < 0) v = 0; if (v > 1.5f) v = 1.5f;
+                    g_nativeBrightness = (uint8_t)(v / 1.5f * 255.0f + 0.5f);
+                } else if (strcmp(cmd, "setSpeed") == 0) {
+                    // Browser speed slider -> native effect time multiplier.
+                    float v = doc["value"] | 1.0f;
+                    if (v < 0) v = 0; if (v > 8.0f) v = 8.0f;
+                    g_nativeSpeed = v;
                 }
             }
         }
