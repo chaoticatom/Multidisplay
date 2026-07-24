@@ -54,7 +54,8 @@ enum StandaloneEffect : uint8_t {
     SA_DNA           = 19,
     SA_WARP          = 20,
     SA_LIFE          = 21,
-    SA_COUNT         = 22
+    SA_LIGHTSPEED    = 22,
+    SA_COUNT         = 23
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -81,6 +82,7 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_DNA:           return "dna";
         case SA_WARP:          return "warp";
         case SA_LIFE:          return "life";
+        case SA_LIGHTSPEED:    return "lightspeed";
         default:               return "unknown";
     }
 }
@@ -101,11 +103,12 @@ inline uint8_t standaloneEffectForBrowserKey(const char* key) {
         {"tide", SA_TIDE}, {"nebula", SA_NEBULA}, {"lightning", SA_LIGHTNING},
         {"strobe", SA_STROBE}, {"weather", SA_WEATHER}, {"datetime", SA_CLOCK},
         {"dna", SA_DNA}, {"warp", SA_WARP}, {"life", SA_LIFE},
+        {"lightspeed", SA_LIGHTSPEED},
         // reasonable stand-ins for not-yet-ported visual effects
         {"sphere", SA_PLASMA}, {"sand", SA_BALLS},
         {"maze", SA_PLASMA}, {"tron", SA_SPECTRUM},
         {"fluid", SA_TIDE}, {"ghost", SA_STROBE},
-        {"lightspeed", SA_WARP}, {"custom_cube", SA_RAINBOW},
+        {"custom_cube", SA_RAINBOW},
     };
     for (auto& m : M) if (strcmp(key, m.k) == 0) return m.fx;
     return SA_RAINBOW;   // default for data effects with no visual native
@@ -799,19 +802,74 @@ inline void standaloneRenderTide(MatrixPanel_I2S_DMA* display, int face, float t
     }
 }
 
+// Faithful port of effects.js's default "colour rain" mode (effectRain, the
+// rainStyle==='colour' branch - the actual default, not the 'matrix'
+// alternate style): per-drop random hue/length/brightness/width, splash at
+// the bottom, occasional full-column chromatic flash. Previous native
+// version was a much simpler placeholder (basic blue drops, no splash, no
+// per-drop colour) that didn't match the browser at all.
 inline void standaloneRenderRain(MatrixPanel_I2S_DMA* display, int face, float t) {
-    const int xOff = face * PANEL_SIZE;
-    saFillRect(display, xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
-    for (int x = 0; x < PANEL_SIZE; x += 2) {
-        float speed = 20.0f + standaloneHash01(face * 53 + x) * 30.0f;
-        float phase = standaloneHash01(face * 91 + x * 3) * PANEL_SIZE;
-        int y = (int)(fmodf(t * speed + phase, (float)(PANEL_SIZE + 8))) - 8;
-        for (int d = 0; d < 3; d++) {
-            int yy = y - d;
-            if (yy >= 0 && yy < PANEL_SIZE) {
-                uint8_t fade = 255 - d * 70;
-                snRawSet(xOff + x, yy, display->color565(fade / 3, fade / 2, fade));
+    (void)display;
+    const int S = PANEL_SIZE;
+    struct Drop { float col, y, speed, hue, len, bright; bool wide; };
+    const int NDROPS = 40;   // matches JS's max(16, SIZE*2.5) for SIZE=64 -> 160 across 4 faces == 40/face
+    static Drop drops[NDROPS];
+    static bool init = false;
+    if (!init) {
+        for (int i = 0; i < NDROPS; i++) {
+            drops[i] = { (float)(int)(standaloneHash01(i * 7) * S), standaloneHash01(i * 11) * S,
+                         0.35f + standaloneHash01(i * 13) * 0.9f, standaloneHash01(i * 17),
+                         5 + standaloneHash01(i * 19) * S * 0.22f, 0.7f + standaloneHash01(i * 23) * 0.3f,
+                         standaloneHash01(i * 29) < 0.15f };
+        }
+        init = true;
+    }
+    snDecay(face, 0.78f);   // colBuf[i]*=0.78 each frame in the JS
+    const float dt = 1.0f / CUBE_FPS;   // standaloneRender's tick rate
+    for (int i = 0; i < NDROPS; i++) {
+        Drop& d = drops[i];
+        d.y -= d.speed * dt * (S * 0.48f);
+        if (d.y < -d.len) {
+            d.y = S + d.len;
+            d.col = (float)(int)(standaloneHash01((int)(t * 977) + i) * S);
+            d.hue = standaloneHash01((int)(t * 613) + i * 3);
+            d.wide = standaloneHash01((int)(t * 431) + i * 5) < 0.15f;
+        }
+        for (int k = 0; k < (int)d.len; k++) {
+            int vy = (int)lroundf(d.y + k);
+            if (vy < 0 || vy >= S) continue;
+            float fade = powf(1 - k / d.len, 1.2f) * d.bright;
+            float h = saFract(d.hue + k / d.len * 0.15f);
+            uint8_t r, g, b;
+            standaloneHslToRgb(h, 1.0f, fade * 0.95f, r, g, b);
+            snSet(face, (int)d.col, vy, r / 255.0f, g / 255.0f, b / 255.0f);
+            if (d.wide) {
+                snSet(face, (int)d.col - 1, vy, r / 510.0f, g / 510.0f, b / 510.0f);
+                snSet(face, (int)d.col + 1, vy, r / 510.0f, g / 510.0f, b / 510.0f);
             }
+            if (vy == 0 && k < 4) {
+                float sp = fade * 0.8f;
+                for (int s = -4; s <= 4; s++) {
+                    float sf = fmaxf(0.0f, 1 - fabsf((float)s) / 4.0f) * sp * 0.5f;
+                    uint8_t sr, sg, sb;
+                    standaloneHslToRgb(h, 1.0f, sf, sr, sg, sb);
+                    snSet(face, (int)d.col + s, 0, sr / 255.0f, sg / 255.0f, sb / 255.0f);
+                }
+            }
+        }
+        uint8_t rh, gh, bh;
+        standaloneHslToRgb(d.hue, 0.3f, d.bright, rh, gh, bh);
+        snSet(face, (int)d.col, (int)lroundf(d.y), rh / 255.0f, gh / 255.0f, bh / 255.0f);
+    }
+    // Occasional full-column chromatic flash (JS: Math.random() < dt*0.8).
+    if (standaloneHash01((int)(t * 1000.0f)) < dt * 0.8f) {
+        int col = (int)(standaloneHash01((int)(t * 2000.0f)) * S);
+        float hue = standaloneHash01((int)(t * 3000.0f));
+        for (int y = 0; y < S; y++) {
+            float b2 = powf(standaloneHash01((int)(t * 4000.0f) + y), 1.5f) * 0.85f;
+            uint8_t r, g, b;
+            standaloneHslToRgb(saFract(hue + (float)y / S * 0.3f), 0.9f, b2, r, g, b);
+            snSet(face, col, y, r / 255.0f, g / 255.0f, b / 255.0f);
         }
     }
 }
@@ -1011,6 +1069,42 @@ inline void standaloneRenderWarp(MatrixPanel_I2S_DMA* display, int face, float t
     }
 }
 
+// Lightspeed - single-panel adaptation of effectLightspeed: racers travel in
+// straight lines leaving a fading trail. The browser version transfers
+// racers across the 6 cube faces at panel edges (lsTransfer); with only one
+// physical panel here, racers instead bounce (reflect) off the edges, which
+// preserves the "streaking light trails crossing the panel" look without the
+// cube topology this panel doesn't have.
+inline void standaloneRenderLightspeed(MatrixPanel_I2S_DMA* display, int face, float t) {
+    const int xOff = face * PANEL_SIZE;
+    const int NRACERS = 3;
+    static float rx[NRACERS], ry[NRACERS], rdu[NRACERS], rdv[NRACERS], rhue[NRACERS];
+    static bool init = false;
+    if (!init) {
+        for (int i = 0; i < NRACERS; i++) {
+            rx[i] = PANEL_SIZE * 0.25f + standaloneHash01(i * 17) * PANEL_SIZE * 0.5f;
+            ry[i] = PANEL_SIZE * 0.25f + standaloneHash01(i * 23) * PANEL_SIZE * 0.5f;
+            float a = standaloneHash01(i * 31) * 6.2832f;
+            rdu[i] = cosf(a); rdv[i] = sinf(a);
+            rhue[i] = (float)i / NRACERS;
+        }
+        init = true;
+    }
+    snDecay(face, 0.80f);   // fading trail, matches colBuf[i]*=decay each frame
+    const float speed = 8.0f * PANEL_SIZE * 0.03f;   // lsSpeed=8 default, scaled for panel size
+    for (int i = 0; i < NRACERS; i++) {
+        rx[i] += rdu[i] * speed * 0.15f;
+        ry[i] += rdv[i] * speed * 0.15f;
+        if (rx[i] < 1)              { rx[i] = 1;              rdu[i] = fabsf(rdu[i]); }
+        if (rx[i] > PANEL_SIZE - 2) { rx[i] = PANEL_SIZE - 2;  rdu[i] = -fabsf(rdu[i]); }
+        if (ry[i] < 1)              { ry[i] = 1;               rdv[i] = fabsf(rdv[i]); }
+        if (ry[i] > PANEL_SIZE - 2) { ry[i] = PANEL_SIZE - 2;  rdv[i] = -fabsf(rdv[i]); }
+        uint8_t r, g, b;
+        standaloneHslToRgb(rhue[i] + t * 0.06f, 1.0f, 1.0f, r, g, b);
+        snSet(face, (int)rx[i], (int)ry[i], r / 255.0f, g / 255.0f, b / 255.0f);
+    }
+}
+
 // Conway's Game of Life (classic 2D B3/S23) with age-based crystal colouring,
 // port of effectLife adapted to a flat panel.
 inline void standaloneRenderLife(MatrixPanel_I2S_DMA* display, int face, float t) {
@@ -1199,6 +1293,7 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_DNA:           standaloneRenderDna(display, face, t);           break;
             case SA_WARP:          standaloneRenderWarp(display, face, t);          break;
             case SA_LIFE:          standaloneRenderLife(display, face, t);          break;
+            case SA_LIGHTSPEED:    standaloneRenderLightspeed(display, face, t);    break;
             default:
                 saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;
