@@ -1125,10 +1125,15 @@ inline void standaloneRenderLightspeed(MatrixPanel_I2S_DMA* display, int face, f
 // port of effectLife adapted to a flat panel.
 inline void standaloneRenderLife(MatrixPanel_I2S_DMA* display, int face, float t) {
     const int xOff = face * PANEL_SIZE;
-    const int W = PANEL_SIZE, H = PANEL_SIZE;
-    static uint8_t grid[PANEL_SIZE * PANEL_SIZE];
-    static uint8_t nextg[PANEL_SIZE * PANEL_SIZE];
-    static uint8_t age[PANEL_SIZE * PANEL_SIZE];
+    // Simulated at half resolution (32x32, nearest-upsampled to 64x64 when
+    // rendering) - cuts the 3 grid/nextg/age arrays from 12KB total to 3KB.
+    // This board has no working PSRAM and has already had one memory-
+    // corruption incident tonight from oversized static buffers; "chunkier"
+    // Life cells is a worthwhile trade for real headroom.
+    const int W = PANEL_SIZE / 2, H = PANEL_SIZE / 2;
+    static uint8_t grid[(PANEL_SIZE / 2) * (PANEL_SIZE / 2)];
+    static uint8_t nextg[(PANEL_SIZE / 2) * (PANEL_SIZE / 2)];
+    static uint8_t age[(PANEL_SIZE / 2) * (PANEL_SIZE / 2)];
     static bool init = false;
     static float genT = 0;
     static float lastT = 0;
@@ -1159,9 +1164,10 @@ inline void standaloneRenderLife(MatrixPanel_I2S_DMA* display, int face, float t
         memcpy(grid, nextg, W * H);
         if (pop < W * H * 0.01f || pop > W * H * 0.85f) seed();
     }
-    saFillRect(display, xOff, 0, W, H, display->color565(0, 0, 1));
-    for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
-        int i = y * W + x;
+    saFillRect(display, xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 1));
+    for (int py = 0; py < PANEL_SIZE; py++) for (int px = 0; px < PANEL_SIZE; px++) {
+        int i = (py / 2) * W + (px / 2);
+        int x = px, y = py;
         if (grid[i]) {
             float a = age[i] / 250.0f;
             float hue = a < 0.33f ? saLerp(0.50f, 0.62f, a * 3)
