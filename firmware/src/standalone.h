@@ -55,7 +55,9 @@ enum StandaloneEffect : uint8_t {
     SA_WARP          = 20,
     SA_LIFE          = 21,
     SA_LIGHTSPEED    = 22,
-    SA_COUNT         = 23
+    SA_SAND          = 23,
+    SA_FLUID         = 24,
+    SA_COUNT         = 25
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -83,6 +85,8 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_WARP:          return "warp";
         case SA_LIFE:          return "life";
         case SA_LIGHTSPEED:    return "lightspeed";
+        case SA_SAND:          return "sand";
+        case SA_FLUID:         return "fluid";
         default:               return "unknown";
     }
 }
@@ -103,11 +107,11 @@ inline uint8_t standaloneEffectForBrowserKey(const char* key) {
         {"tide", SA_TIDE}, {"nebula", SA_NEBULA}, {"lightning", SA_LIGHTNING},
         {"strobe", SA_STROBE}, {"weather", SA_WEATHER}, {"datetime", SA_CLOCK},
         {"dna", SA_DNA}, {"warp", SA_WARP}, {"life", SA_LIFE},
-        {"lightspeed", SA_LIGHTSPEED},
+        {"lightspeed", SA_LIGHTSPEED}, {"sand", SA_SAND}, {"fluid", SA_FLUID},
         // reasonable stand-ins for not-yet-ported visual effects
-        {"sphere", SA_PLASMA}, {"sand", SA_BALLS},
+        {"sphere", SA_PLASMA},
         {"maze", SA_PLASMA}, {"tron", SA_SPECTRUM},
-        {"fluid", SA_TIDE}, {"ghost", SA_STROBE},
+        {"ghost", SA_STROBE},
         {"custom_cube", SA_RAINBOW},
     };
     for (auto& m : M) if (strcmp(key, m.k) == 0) return m.fx;
@@ -148,6 +152,11 @@ inline volatile bool g_ovPulse     = false;
 inline volatile bool g_ovVignette  = false;
 inline volatile bool g_ovScanline  = false;
 inline volatile bool g_ovMist      = false;
+inline volatile bool g_ovMeteors   = false;
+inline volatile bool g_ovEdgeglow  = false;
+inline volatile bool g_ovFire      = false;
+inline volatile bool g_ovGlitch    = false;
+inline volatile bool g_ovLightning = false;
 
 // Display source of truth, owned by the ESP32 (not the browser). Default
 // false = run native on-device effects and IGNORE any streamed video frames.
@@ -270,6 +279,13 @@ inline void snDecay(int face, float mul) {
 }
 inline void snClear(int face) { memset(g_snBuf[face], 0, sizeof(g_snBuf[face])); }
 inline void snClearAll() { memset(g_snBuf, 0, sizeof(g_snBuf)); }
+// Read back a pixel's current 0..1 value - needed by overlays that sample
+// the buffer (e.g. glitch, which shifts/re-blends existing pixels).
+inline void snGet(int face, int x, int y, float& r, float& g, float& b) {
+    if (face < 0 || face >= NUM_FACES || x < 0 || x >= PANEL_SIZE || y < 0 || y >= PANEL_SIZE) { r = g = b = 0; return; }
+    uint8_t* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
+    r = p[0] / 255.0f; g = p[1] / 255.0f; b = p[2] / 255.0f;
+}
 // Decode a color565 back to 0..1 floats - used by call sites that already
 // built a color565 (most of the existing effect code) so they don't need
 // rewriting to carry raw r,g,b floats through.
@@ -1162,6 +1178,111 @@ inline void standaloneRenderLife(MatrixPanel_I2S_DMA* display, int face, float t
     }
 }
 
+// Gravity sand - single-panel adaptation of effectGravitySand: the browser
+// simulates grains falling toward whichever direction gyro/gravity currently
+// points across the whole cube surface. Without a gyro or other cube faces,
+// gravity here is simply fixed straight down (matches the browser's own
+// panel2dMode branch, which does exactly that: "2D mode: fixed gravity
+// straight down"). Grains occupy a grid and fall to the lowest free neighbour.
+inline void standaloneRenderSand(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display; (void)t;
+    const int S = PANEL_SIZE;
+    static uint8_t occ[PANEL_SIZE * PANEL_SIZE];
+    static bool init = false;
+    if (!init) {
+        memset(occ, 0, sizeof(occ));
+        // Seed roughly a third of the top rows with grains, like the browser's
+        // initial fill (a scattered pile that then settles).
+        for (int y = 0; y < S / 2; y++)
+            for (int x = 0; x < S; x++)
+                if (standaloneHash01(y * 131 + x * 7) < 0.35f) occ[y * S + x] = 1;
+        init = true;
+    }
+    // A few passes per frame so sand settles at a reasonable visible rate.
+    for (int pass = 0; pass < 3; pass++) {
+        for (int y = 1; y < S; y++) {   // y=0 is the "floor" row (nothing below it)
+            for (int x = 0; x < S; x++) {
+                if (!occ[y * S + x]) continue;
+                // Prefer straight down; fall diagonally if blocked straight down
+                // but a diagonal neighbour is free (classic sand-pile rule).
+                if (!occ[(y - 1) * S + x]) {
+                    occ[(y - 1) * S + x] = 1; occ[y * S + x] = 0;
+                } else if (x > 0 && !occ[(y - 1) * S + x - 1] && !occ[y * S + x - 1]) {
+                    occ[(y - 1) * S + x - 1] = 1; occ[y * S + x] = 0;
+                } else if (x < S - 1 && !occ[(y - 1) * S + x + 1] && !occ[y * S + x + 1]) {
+                    occ[(y - 1) * S + x + 1] = 1; occ[y * S + x] = 0;
+                }
+            }
+        }
+    }
+    for (int y = 0; y < S; y++) {
+        for (int x = 0; x < S; x++) {
+            if (!occ[y * S + x]) { snSet(face, x, y, 0, 0, 0); continue; }
+            float hue = saFract(0.10f + (float)x / S * 0.06f);   // sandy gold band
+            uint8_t r, g, b;
+            standaloneHslToRgb(hue, 0.85f, 0.55f, r, g, b);
+            snSet(face, x, y, r / 255.0f, g / 255.0f, b / 255.0f);
+        }
+    }
+}
+
+// Liquid crystal - flat-panel adaptation of effectFluid: the browser
+// simulates a height field on the cube's 6-neighbour surface graph, driven by
+// gyro-read gravity. On a single flat panel there's no gyro and no other
+// faces, so this uses the browser's own panel2dMode-equivalent flat-plane
+// case: a standard 2D wave equation (4-neighbour Laplacian) with a constant
+// downward gravity bias and periodic random splashes, then the same
+// iridescent crest/trough colour mapping.
+inline void standaloneRenderFluid(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    const int S = PANEL_SIZE;
+    // Only h/v (no separate newH buffer) - updates in-place (Gauss-Seidel
+    // style) rather than the browser's strict old-values-only Jacobi update.
+    // Visually indistinguishable for this cosmetic wave effect; keeping a
+    // third full-panel float buffer wasn't worth the extra ~16KB of static
+    // RAM on this PSRAM-less board, especially after the earlier memory-
+    // pressure incident that corrupted the HTTP server.
+    static float h[PANEL_SIZE * PANEL_SIZE], v[PANEL_SIZE * PANEL_SIZE];
+    static bool init = false;
+    if (!init) { memset(h, 0, sizeof(h)); memset(v, 0, sizeof(v)); init = true; }
+    const float dt = 1.0f / CUBE_FPS;
+    const float SPEED = 28, DAMP = 0.96f, GRAV_STR = 14;
+    for (int y = 0; y < S; y++) {
+        for (int x = 0; x < S; x++) {
+            int i = y * S + x;
+            float lap = 0; int cnt = 0;
+            if (x > 0)     { lap += h[i - 1]; cnt++; }
+            if (x < S - 1) { lap += h[i + 1]; cnt++; }
+            if (y > 0)     { lap += h[i - S]; cnt++; }
+            if (y < S - 1) { lap += h[i + S]; cnt++; }
+            if (cnt) {
+                float avg = lap / cnt;
+                float slope = (float)y / S - 0.5f;   // gravity pulls "down" = toward y=0
+                v[i] = (v[i] + dt * (SPEED * (avg - h[i]) - GRAV_STR * slope)) * DAMP;
+            }
+            h[i] = fmaxf(-1.0f, fminf(1.0f, h[i] + v[i] * dt));
+        }
+    }
+    if (standaloneHash01((int)(t * 1000.0f)) < dt * 1.5f) {
+        int i = (int)(standaloneHash01((int)(t * 2000.0f)) * S * S);
+        h[i] += 0.8f + standaloneHash01((int)(t * 3000.0f)) * 0.6f;
+    }
+    for (int y = 0; y < S; y++) {
+        for (int x = 0; x < S; x++) {
+            int i = y * S + x;
+            float hv = h[i], absv = fabsf(hv);
+            if (absv < 0.03f) { snSet(face, x, y, 0, 0, 0.02f); continue; }
+            float posPhase = ((float)x / S + (float)y / S) * 2.1f + t * 0.15f;
+            float hue = hv > 0
+                ? saFract(0.55f + absv * 0.15f + sinf(posPhase) * 0.08f)
+                : saFract(0.02f + absv * 0.12f + sinf(posPhase) * 0.06f);
+            uint8_t r, g, b;
+            standaloneHslToRgb(hue, 0.85f, fminf(0.95f, 0.3f + absv * 0.6f), r, g, b);
+            snSet(face, x, y, r / 255.0f, g / 255.0f, b / 255.0f);
+        }
+    }
+}
+
 // ===========================================================================
 // Overlays — ports of effects.js's OV_FUNCS, blended additively onto the
 // buffer (snAdd) after the main effect draws, exactly matching how the
@@ -1236,6 +1357,127 @@ inline void standaloneOverlayMist(int face, float t) {
         snAdd(face, x, y, m * 0.7f, m * 0.7f, m * 0.9f);
     }
 }
+// Meteors - streaks flying across the panel at random angles, faithful to
+// ovMeteors' random-angle-spawn + fading-trail structure (single-panel: one
+// face instead of 6).
+inline void standaloneOverlayMeteors(int face, float t) {
+    const int NMETEORS = 3;
+    static float mu[NMETEORS], mv[NMETEORS], mdu[NMETEORS], mdv[NMETEORS], mhue[NMETEORS], mpos[NMETEORS];
+    static bool init = false;
+    if (!init) {
+        for (int i = 0; i < NMETEORS; i++) mpos[i] = 9999;   // start "expired" so they spawn immediately below
+        init = true;
+    }
+    for (int i = 0; i < NMETEORS; i++) {
+        const int trail = 8;
+        if (mpos[i] > trail + PANEL_SIZE * 1.4f) {
+            // respawn
+            float ang = standaloneHash01((int)(t * 500) + i * 7) * 6.2832f;
+            mu[i] = standaloneHash01((int)(t * 300) + i * 3) * PANEL_SIZE;
+            mv[i] = standaloneHash01((int)(t * 200) + i * 5) * PANEL_SIZE;
+            mdu[i] = cosf(ang); mdv[i] = sinf(ang);
+            mhue[i] = standaloneHash01(i * 11 + (int)(t * 50));
+            mpos[i] = 0;
+        }
+        mpos[i] += 0.02f * PANEL_SIZE;   // speed budget per frame at CUBE_FPS
+        int head = (int)mpos[i];
+        for (int j = 0; j <= trail && j <= head; j++) {
+            int fu = (int)(mu[i] + mdu[i] * (head - j));
+            int fv = (int)(mv[i] + mdv[i] * (head - j));
+            float fade = powf(1 - (float)j / trail, 1.8f);
+            uint8_t r, g, b;
+            standaloneHslToRgb(mhue[i], 1.0f, fade * 0.9f, r, g, b);
+            snAdd(face, fu, fv, r / 255.0f, g / 255.0f, b / 255.0f);
+        }
+    }
+}
+// Edge glow - the browser glows LEDs shared between two cube faces (physical
+// edges). A single flat panel has no such shared edge, so this adapts the
+// concept to the one edge a flat panel DOES have: its own border.
+inline void standaloneOverlayEdgeglow(int face, float t) {
+    float pulse = 0.5f + 0.5f * sinf(t * 2.5f);
+    float bright = pulse * 0.6f;
+    for (int i = 0; i < PANEL_SIZE; i++) {
+        snAdd(face, i, 0, 0, bright * 0.8f, bright);
+        snAdd(face, i, PANEL_SIZE - 1, 0, bright * 0.8f, bright);
+        snAdd(face, 0, i, 0, bright * 0.8f, bright);
+        snAdd(face, PANEL_SIZE - 1, i, 0, bright * 0.8f, bright);
+    }
+}
+// Fire border - faithful port of ovFire's bottom-up flame propagation
+// automaton (seed bottom row, propagate up with cooling + drift).
+inline void standaloneOverlayFire(int face, float t) {
+    (void)t;
+    const int rows = (int)(PANEL_SIZE * 0.22f);
+    static float buf[PANEL_SIZE * PANEL_SIZE];
+    static bool init = false;
+    if (!init) { memset(buf, 0, sizeof(buf)); init = true; }
+    const float dt = 1.0f / CUBE_FPS;
+    for (int u = 0; u < PANEL_SIZE; u++)
+        buf[u] = fminf(2.0f, buf[u] + (standaloneHash01((int)(t * 997) + u) - 0.05f) * dt * 22.0f);
+    for (int v = 1; v < rows; v++) {
+        for (int u = 0; u < PANEL_SIZE; u++) {
+            float below = buf[(v - 1) * PANEL_SIZE + u];
+            float left  = buf[(v - 1) * PANEL_SIZE + (u > 0 ? u - 1 : 0)];
+            float right = buf[(v - 1) * PANEL_SIZE + (u < PANEL_SIZE - 1 ? u + 1 : PANEL_SIZE - 1)];
+            float drift = (standaloneHash01((int)(t * 1300) + v * 61 + u) - 0.5f) * 0.15f;
+            float raw = below * 0.5f + left * 0.25f + right * 0.25f + drift;
+            float cool = dt * (5 + v * 0.4f) + standaloneHash01((int)(t * 700) + v) * dt * 3.0f;
+            buf[v * PANEL_SIZE + u] = fmaxf(0.0f, raw - cool);
+        }
+    }
+    for (int v = 0; v < rows; v++) {
+        for (int u = 0; u < PANEL_SIZE; u++) {
+            float h = fminf(1.0f, buf[v * PANEL_SIZE + u]);
+            if (h < 0.03f) continue;
+            uint8_t r, g, b;
+            if (h < 0.4f)      standaloneHslToRgb(0.02f, 1.0f, h * 1.2f, r, g, b);
+            else if (h < 0.75f) standaloneHslToRgb(0.06f + h * 0.04f, 1.0f, h * 0.9f, r, g, b);
+            else                standaloneHslToRgb(0.12f, 0.6f, h * 0.95f, r, g, b);
+            snAdd(face, u, v, r / 255.0f, g / 255.0f, b / 255.0f);
+        }
+    }
+}
+// Glitch - faithful port of ovGlitch: periodically scrambles a small block
+// by horizontally shifting and re-blending pixels sampled from the buffer.
+inline void standaloneOverlayGlitch(int face, float t) {
+    static int gu0 = 0, gv0 = 0, gbw = 4, gbh = 2, gshift = 0;
+    static float lastTrigger = -999;
+    if (t - lastTrigger > 1.0f / 3.0f) {
+        lastTrigger = t;
+        gu0 = (int)(standaloneHash01((int)(t * 400)) * PANEL_SIZE * 0.8f);
+        gv0 = (int)(standaloneHash01((int)(t * 500)) * PANEL_SIZE * 0.8f);
+        gbw = fmaxf(2, PANEL_SIZE * 0.08f + standaloneHash01((int)(t * 600)) * PANEL_SIZE * 0.15f);
+        gbh = fmaxf(1, (int)(PANEL_SIZE * 0.04f));
+        gshift = (int)((standaloneHash01((int)(t * 700)) - 0.5f) * PANEL_SIZE * 0.2f);
+    } else return;   // only active the instant it triggers, like the JS's one-shot ovGlitchActive
+    for (int v = gv0; v < fminf(PANEL_SIZE, gv0 + gbh); v++) {
+        for (int u = gu0; u < fminf(PANEL_SIZE, gu0 + gbw); u++) {
+            int su = constrain(u + gshift, 0, PANEL_SIZE - 1);
+            float sr, sg, sb, dr, dg, db;
+            snGet(face, su, v, sr, sg, sb);
+            snGet(face, u, v, dr, dg, db);
+            float noise = standaloneHash01((int)(t * 900) + u * 7 + v * 13) * 0.3f;
+            snSet(face, u, v, saLerp(dr, sr, 0.6f), saLerp(dg, sg, 0.6f), saLerp(db, sb * 0.5f + noise, 0.6f));
+        }
+    }
+}
+// Lightning overlay - reuses the same white-bolt-down-the-panel structure as
+// the native SA_LIGHTNING effect, but as an occasional flash on TOP of
+// whatever else is drawing (additive), matching the browser's overlay
+// (independent of the main effect) rather than replacing the whole panel.
+inline void standaloneOverlayLightning(int face, float t) {
+    int bucket = (int)(t * 3.0f) + face * 97;
+    bool flash = standaloneHash01(bucket) > 0.85f;
+    if (!flash) return;
+    int x = PANEL_SIZE / 2;
+    for (int y = 0; y < PANEL_SIZE; y++) {
+        x += (int)(standaloneHash01(bucket * 131 + y) * 5.0f) - 2;
+        x = constrain(x, 2, PANEL_SIZE - 3);
+        snAdd(face, x, y, 1.0f, 1.0f, 1.0f);
+        snAdd(face, x + 1, y, 0.78f, 0.78f, 1.0f);
+    }
+}
 inline void standaloneRunOverlays(int face, float t) {
     if (g_ovStars)     standaloneOverlayStars(face, t);
     if (g_ovSnow)      standaloneOverlaySnow(face, t);
@@ -1245,6 +1487,11 @@ inline void standaloneRunOverlays(int face, float t) {
     if (g_ovVignette)  standaloneOverlayVignette(face, t);
     if (g_ovScanline)  standaloneOverlayScanline(face, t);
     if (g_ovMist)      standaloneOverlayMist(face, t);
+    if (g_ovMeteors)   standaloneOverlayMeteors(face, t);
+    if (g_ovEdgeglow)  standaloneOverlayEdgeglow(face, t);
+    if (g_ovFire)      standaloneOverlayFire(face, t);
+    if (g_ovGlitch)    standaloneOverlayGlitch(face, t);
+    if (g_ovLightning) standaloneOverlayLightning(face, t);
 }
 
 // ---------------------------------------------------------------------------
@@ -1294,6 +1541,8 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_WARP:          standaloneRenderWarp(display, face, t);          break;
             case SA_LIFE:          standaloneRenderLife(display, face, t);          break;
             case SA_LIGHTSPEED:    standaloneRenderLightspeed(display, face, t);    break;
+            case SA_SAND:          standaloneRenderSand(display, face, t);          break;
+            case SA_FLUID:         standaloneRenderFluid(display, face, t);         break;
             default:
                 saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;

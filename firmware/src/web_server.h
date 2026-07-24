@@ -253,6 +253,11 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                     else if (!strcmp(ov, "vignette"))  g_ovVignette = on;
                     else if (!strcmp(ov, "scanline"))  g_ovScanline = on;
                     else if (!strcmp(ov, "mist"))      g_ovMist = on;
+                    else if (!strcmp(ov, "meteors"))   g_ovMeteors = on;
+                    else if (!strcmp(ov, "edgeglow"))  g_ovEdgeglow = on;
+                    else if (!strcmp(ov, "fire"))      g_ovFire = on;
+                    else if (!strcmp(ov, "glitch"))    g_ovGlitch = on;
+                    else if (!strcmp(ov, "lightning")) g_ovLightning = on;
                 }
             }
         }
