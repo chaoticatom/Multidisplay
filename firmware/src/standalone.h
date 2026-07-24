@@ -1235,44 +1235,43 @@ inline void standaloneRenderSand(MatrixPanel_I2S_DMA* display, int face, float t
 // iridescent crest/trough colour mapping.
 inline void standaloneRenderFluid(MatrixPanel_I2S_DMA* display, int face, float t) {
     (void)display;
-    const int S = PANEL_SIZE;
-    // Only h/v (no separate newH buffer) - updates in-place (Gauss-Seidel
-    // style) rather than the browser's strict old-values-only Jacobi update.
-    // Visually indistinguishable for this cosmetic wave effect; keeping a
-    // third full-panel float buffer wasn't worth the extra ~16KB of static
-    // RAM on this PSRAM-less board, especially after the earlier memory-
-    // pressure incident that corrupted the HTTP server.
-    static float h[PANEL_SIZE * PANEL_SIZE], v[PANEL_SIZE * PANEL_SIZE];
+    // Simulated at half resolution (32x32) and upsampled (nearest) to the
+    // 64x64 panel when rendering - cuts h/v to 1/4 the memory of a full-
+    // resolution simulation (8KB total instead of 32KB). This board has no
+    // working PSRAM and already had one HTTP-server-corrupting memory
+    // incident tonight from an oversized static buffer, so trading a bit of
+    // wave detail for real headroom is the right call for a cosmetic effect.
+    const int SIM = PANEL_SIZE / 2;
+    static float h[(PANEL_SIZE / 2) * (PANEL_SIZE / 2)], v[(PANEL_SIZE / 2) * (PANEL_SIZE / 2)];
     static bool init = false;
     if (!init) { memset(h, 0, sizeof(h)); memset(v, 0, sizeof(v)); init = true; }
     const float dt = 1.0f / CUBE_FPS;
     const float SPEED = 28, DAMP = 0.96f, GRAV_STR = 14;
-    for (int y = 0; y < S; y++) {
-        for (int x = 0; x < S; x++) {
-            int i = y * S + x;
+    for (int y = 0; y < SIM; y++) {
+        for (int x = 0; x < SIM; x++) {
+            int i = y * SIM + x;
             float lap = 0; int cnt = 0;
-            if (x > 0)     { lap += h[i - 1]; cnt++; }
-            if (x < S - 1) { lap += h[i + 1]; cnt++; }
-            if (y > 0)     { lap += h[i - S]; cnt++; }
-            if (y < S - 1) { lap += h[i + S]; cnt++; }
+            if (x > 0)       { lap += h[i - 1]; cnt++; }
+            if (x < SIM - 1) { lap += h[i + 1]; cnt++; }
+            if (y > 0)       { lap += h[i - SIM]; cnt++; }
+            if (y < SIM - 1) { lap += h[i + SIM]; cnt++; }
             if (cnt) {
                 float avg = lap / cnt;
-                float slope = (float)y / S - 0.5f;   // gravity pulls "down" = toward y=0
+                float slope = (float)y / SIM - 0.5f;   // gravity pulls "down" = toward y=0
                 v[i] = (v[i] + dt * (SPEED * (avg - h[i]) - GRAV_STR * slope)) * DAMP;
             }
             h[i] = fmaxf(-1.0f, fminf(1.0f, h[i] + v[i] * dt));
         }
     }
     if (standaloneHash01((int)(t * 1000.0f)) < dt * 1.5f) {
-        int i = (int)(standaloneHash01((int)(t * 2000.0f)) * S * S);
+        int i = (int)(standaloneHash01((int)(t * 2000.0f)) * SIM * SIM);
         h[i] += 0.8f + standaloneHash01((int)(t * 3000.0f)) * 0.6f;
     }
-    for (int y = 0; y < S; y++) {
-        for (int x = 0; x < S; x++) {
-            int i = y * S + x;
-            float hv = h[i], absv = fabsf(hv);
+    for (int y = 0; y < PANEL_SIZE; y++) {
+        for (int x = 0; x < PANEL_SIZE; x++) {
+            float hv = h[(y / 2) * SIM + (x / 2)], absv = fabsf(hv);
             if (absv < 0.03f) { snSet(face, x, y, 0, 0, 0.02f); continue; }
-            float posPhase = ((float)x / S + (float)y / S) * 2.1f + t * 0.15f;
+            float posPhase = ((float)x / PANEL_SIZE + (float)y / PANEL_SIZE) * 2.1f + t * 0.15f;
             float hue = hv > 0
                 ? saFract(0.55f + absv * 0.15f + sinf(posPhase) * 0.08f)
                 : saFract(0.02f + absv * 0.12f + sinf(posPhase) * 0.06f);
@@ -1408,8 +1407,13 @@ inline void standaloneOverlayEdgeglow(int face, float t) {
 // automaton (seed bottom row, propagate up with cooling + drift).
 inline void standaloneOverlayFire(int face, float t) {
     (void)t;
+    // Only the bottom ~22% of rows are ever read/written (flame height), so
+    // size the buffer for that instead of the full panel - the full-panel
+    // allocation here was 16KB of static RAM for only ~3.5KB of actual use,
+    // meaningful on this PSRAM-less, memory-corruption-prone board.
+    const int MAXROWS = 24;   // PANEL_SIZE*0.22 with headroom
     const int rows = (int)(PANEL_SIZE * 0.22f);
-    static float buf[PANEL_SIZE * PANEL_SIZE];
+    static float buf[MAXROWS * PANEL_SIZE];
     static bool init = false;
     if (!init) { memset(buf, 0, sizeof(buf)); init = true; }
     const float dt = 1.0f / CUBE_FPS;
