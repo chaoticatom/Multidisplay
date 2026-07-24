@@ -58,7 +58,9 @@ enum StandaloneEffect : uint8_t {
     SA_LIGHTSPEED    = 22,
     SA_SAND          = 23,
     SA_FLUID         = 24,
-    SA_COUNT         = 25
+    SA_MAZE          = 25,
+    SA_MOON          = 26,
+    SA_COUNT         = 27
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -88,6 +90,8 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_LIGHTSPEED:    return "lightspeed";
         case SA_SAND:          return "sand";
         case SA_FLUID:         return "fluid";
+        case SA_MAZE:          return "maze";
+        case SA_MOON:          return "moon";
         default:               return "unknown";
     }
 }
@@ -109,9 +113,10 @@ inline uint8_t standaloneEffectForBrowserKey(const char* key) {
         {"strobe", SA_STROBE}, {"weather", SA_WEATHER}, {"datetime", SA_CLOCK},
         {"dna", SA_DNA}, {"warp", SA_WARP}, {"life", SA_LIFE},
         {"lightspeed", SA_LIGHTSPEED}, {"sand", SA_SAND}, {"fluid", SA_FLUID},
+        {"maze", SA_MAZE}, {"moon", SA_MOON},
         // reasonable stand-ins for not-yet-ported visual effects
         {"sphere", SA_PLASMA},
-        {"maze", SA_PLASMA}, {"tron", SA_SPECTRUM},
+        {"tron", SA_SPECTRUM},
         {"ghost", SA_STROBE},
         {"custom_cube", SA_RAINBOW},
     };
@@ -1115,6 +1120,164 @@ inline void standaloneRenderWarp(MatrixPanel_I2S_DMA* display, int face, float t
     }
 }
 
+// Maze - single-panel adaptation of effectMaze: the browser generates and
+// races through a maze spanning all 6 cube faces with multiple simultaneous
+// runners. On one flat panel this becomes a proper 2D maze (recursive
+// backtracker generation, real walls/corridors) solved by a single runner via
+// depth-first search, leaving a comet trail, then a rainbow victory wave
+// along the solved route before regenerating - same visual beats (glowing
+// walls, pulsing start/goal, trail, celebration) as the original, just one
+// runner instead of a multi-racer competition (no second/third runner to race
+// against without the other 5 faces' worth of maze to share).
+inline void standaloneRenderMaze(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    const int CELLS = 12;                 // 12x12 cells
+    const int CW = PANEL_SIZE / CELLS;     // pixels per cell (5 for 64px panel)
+    // Wall bits per cell: 1=N 2=E 4=S 8=W (wall present)
+    static uint8_t* walls = nullptr;
+    static uint8_t* visitedCell = nullptr;      // generation visited
+    static int8_t* stackX = nullptr; static int8_t* stackY = nullptr;
+    static uint8_t* solvedX = nullptr; static uint8_t* solvedY = nullptr; // DFS solve path
+    static uint8_t* trailX = nullptr; static uint8_t* trailY = nullptr;   // final route for celebration
+    static int solvedLen = 0, trailLen = 0;
+    static int runX = 0, runY = 0, runProgress = 0;
+    static bool init = false, solved = false, celebrating = false;
+    static float stateT = 0, lastT = 0;
+    static float hue = 0;
+
+    auto idxOf = [&](int x, int y) { return y * CELLS + x; };
+
+    auto generate = [&]() {
+        memset(walls, 0x0F, CELLS * CELLS);       // all walls up
+        memset(visitedCell, 0, CELLS * CELLS);
+        int sp = 0;
+        int cx = 0, cy = 0;
+        visitedCell[idxOf(cx, cy)] = 1;
+        stackX[sp] = cx; stackY[sp] = cy; sp++;
+        int seedBase = (int)(t * 977.0f);
+        int iter = 0;
+        while (sp > 0) {
+            cx = stackX[sp - 1]; cy = stackY[sp - 1];
+            // Candidate neighbours: N,E,S,W not yet visited
+            int cand[4], ncand = 0;
+            if (cy > 0         && !visitedCell[idxOf(cx, cy - 1)]) cand[ncand++] = 0;
+            if (cx < CELLS - 1 && !visitedCell[idxOf(cx + 1, cy)]) cand[ncand++] = 1;
+            if (cy < CELLS - 1 && !visitedCell[idxOf(cx, cy + 1)]) cand[ncand++] = 2;
+            if (cx > 0         && !visitedCell[idxOf(cx - 1, cy)]) cand[ncand++] = 3;
+            if (ncand == 0) { sp--; continue; }
+            int pick = cand[(int)(standaloneHash01(seedBase + iter * 17) * ncand)];
+            iter++;
+            int nx = cx, ny = cy;
+            if (pick == 0) { ny--; walls[idxOf(cx, cy)] &= ~1; walls[idxOf(nx, ny)] &= ~4; }
+            if (pick == 1) { nx++; walls[idxOf(cx, cy)] &= ~2; walls[idxOf(nx, ny)] &= ~8; }
+            if (pick == 2) { ny++; walls[idxOf(cx, cy)] &= ~4; walls[idxOf(nx, ny)] &= ~1; }
+            if (pick == 3) { nx--; walls[idxOf(cx, cy)] &= ~8; walls[idxOf(nx, ny)] &= ~2; }
+            visitedCell[idxOf(nx, ny)] = 1;
+            stackX[sp] = nx; stackY[sp] = ny; sp++;
+        }
+    };
+    auto solve = [&]() {
+        // DFS from (0,0) to (CELLS-1,CELLS-1), recording the path taken.
+        memset(visitedCell, 0, CELLS * CELLS);
+        int sp = 0;
+        stackX[0] = 0; stackY[0] = 0; sp = 1;
+        visitedCell[0] = 1;
+        solvedLen = 0;
+        solvedX[solvedLen] = 0; solvedY[solvedLen] = 0; solvedLen++;
+        while (sp > 0 && !(stackX[sp - 1] == CELLS - 1 && stackY[sp - 1] == CELLS - 1)) {
+            int cx = stackX[sp - 1], cy = stackY[sp - 1];
+            uint8_t w = walls[idxOf(cx, cy)];
+            int nx = -1, ny = -1;
+            if (!(w & 1) && cy > 0         && !visitedCell[idxOf(cx, cy - 1)]) { nx = cx; ny = cy - 1; }
+            else if (!(w & 2) && cx < CELLS - 1 && !visitedCell[idxOf(cx + 1, cy)]) { nx = cx + 1; ny = cy; }
+            else if (!(w & 4) && cy < CELLS - 1 && !visitedCell[idxOf(cx, cy + 1)]) { nx = cx; ny = cy + 1; }
+            else if (!(w & 8) && cx > 0         && !visitedCell[idxOf(cx - 1, cy)]) { nx = cx - 1; ny = cy; }
+            if (nx >= 0) {
+                visitedCell[idxOf(nx, ny)] = 1;
+                stackX[sp] = nx; stackY[sp] = ny; sp++;
+                solvedX[solvedLen] = nx; solvedY[solvedLen] = ny; solvedLen++;
+            } else {
+                sp--;
+                if (sp > 0 && solvedLen > 0) solvedLen--;   // backtrack the recorded path too
+            }
+        }
+        trailLen = solvedLen; memcpy(trailX, solvedX, solvedLen); memcpy(trailY, solvedY, solvedLen);
+    };
+
+    if (!init) {
+        walls = (uint8_t*)snAllocPreferPsram(CELLS * CELLS);
+        visitedCell = (uint8_t*)snAllocPreferPsram(CELLS * CELLS);
+        stackX = (int8_t*)snAllocPreferPsram(CELLS * CELLS);
+        stackY = (int8_t*)snAllocPreferPsram(CELLS * CELLS);
+        solvedX = (uint8_t*)snAllocPreferPsram(CELLS * CELLS);
+        solvedY = (uint8_t*)snAllocPreferPsram(CELLS * CELLS);
+        trailX = (uint8_t*)snAllocPreferPsram(CELLS * CELLS);
+        trailY = (uint8_t*)snAllocPreferPsram(CELLS * CELLS);
+        generate(); solve();
+        runX = 0; runY = 0; runProgress = 0; solved = false; celebrating = false;
+        init = true;
+    }
+    float dt = t - lastT; lastT = t;
+    stateT += dt;
+
+    if (!celebrating) {
+        runProgress++;
+        if (runProgress >= solvedLen) { celebrating = true; stateT = 0; }
+        else { runX = solvedX[runProgress]; runY = solvedY[runProgress]; }
+    } else if (stateT > 3.0f) {
+        generate(); solve();
+        runX = 0; runY = 0; runProgress = 0; celebrating = false; stateT = 0;
+    }
+
+    // Draw walls + corridors.
+    snClear(face);
+    for (int cy = 0; cy < CELLS; cy++) {
+        for (int cx = 0; cx < CELLS; cx++) {
+            uint8_t w = walls[idxOf(cx, cy)];
+            int px0 = cx * CW, py0 = cy * CW;
+            float sh = 0.7f + 0.3f * sinf(px0 * 0.3f + py0 * 0.25f + t * 0.8f);
+            uint8_t wr, wg, wb;
+            standaloneHslToRgb(0.55f, 0.8f, fminf(1.0f, 0.5f * sh), wr, wg, wb);
+            if (w & 1) for (int i = 0; i < CW; i++) snSet(face, px0 + i, py0, wr / 255.0f, wg / 255.0f, wb / 255.0f);
+            if (w & 8) for (int i = 0; i < CW; i++) snSet(face, px0, py0 + i, wr / 255.0f, wg / 255.0f, wb / 255.0f);
+            if (cy == CELLS - 1 && (w & 4)) for (int i = 0; i < CW; i++) snSet(face, px0 + i, py0 + CW - 1, wr / 255.0f, wg / 255.0f, wb / 255.0f);
+            if (cx == CELLS - 1 && (w & 2)) for (int i = 0; i < CW; i++) snSet(face, px0 + CW - 1, py0 + i, wr / 255.0f, wg / 255.0f, wb / 255.0f);
+        }
+    }
+
+    if (!celebrating) {
+        // Comet trail behind the runner.
+        for (int k = (runProgress > 8 ? runProgress - 8 : 0); k <= runProgress; k++) {
+            float f = 1.0f - (float)(runProgress - k) / 9.0f;
+            uint8_t r, g, b;
+            standaloneHslToRgb(0.55f, 1.0f, 0.14f + f * 0.5f, r, g, b);
+            int cx2 = solvedX[k] * CW + CW / 2, cy2 = solvedY[k] * CW + CW / 2;
+            snSet(face, cx2, cy2, r / 255.0f, g / 255.0f, b / 255.0f);
+        }
+        int hx = runX * CW + CW / 2, hy = runY * CW + CW / 2;
+        snSet(face, hx, hy, 1.0f, 1.0f, 1.0f);
+    } else {
+        // Rainbow victory wave along the solved route.
+        for (int k = 0; k < trailLen; k++) {
+            float h = fmodf((float)k / trailLen * 2.0f - stateT * 1.5f + 10.0f, 1.0f);
+            uint8_t r, g, b;
+            standaloneHslToRgb(h, 1.0f, 0.5f + 0.18f * sinf(t * 6.0f), r, g, b);
+            int cx2 = trailX[k] * CW + CW / 2, cy2 = trailY[k] * CW + CW / 2;
+            snSet(face, cx2, cy2, r / 255.0f, g / 255.0f, b / 255.0f);
+        }
+    }
+    // Start (green pulse) and goal (white/red pulse) markers.
+    float pg = 0.5f + 0.5f * sinf(t * 5.0f);
+    snSet(face, CW / 2, CW / 2, 0, 0.35f + 0.6f * pg, 0.05f);
+    float flash = 0.5f + 0.5f * sinf(t * 8.0f);
+    int gx = (CELLS - 1) * CW + CW / 2, gy = (CELLS - 1) * CW + CW / 2;
+    snSet(face, gx, gy, 1.0f, 1.0f, 1.0f);
+    snSet(face, gx - 1, gy, 0.7f + 0.3f * flash, flash * 0.2f, flash * 0.1f);
+    snSet(face, gx + 1, gy, 0.7f + 0.3f * flash, flash * 0.2f, flash * 0.1f);
+    snSet(face, gx, gy - 1, 0.7f + 0.3f * flash, flash * 0.2f, flash * 0.1f);
+    snSet(face, gx, gy + 1, 0.7f + 0.3f * flash, flash * 0.2f, flash * 0.1f);
+}
+
 // Lightspeed - single-panel adaptation of effectLightspeed: racers travel in
 // straight lines leaving a fading trail. The browser version transfers
 // racers across the 6 cube faces at panel edges (lsTransfer); with only one
@@ -1325,6 +1488,58 @@ inline void standaloneRenderFluid(MatrixPanel_I2S_DMA* display, int face, float 
                 : saFract(0.02f + absv * 0.12f + sinf(posPhase) * 0.06f);
             uint8_t r, g, b;
             standaloneHslToRgb(hue, 0.85f, fminf(0.95f, 0.3f + absv * 0.6f), r, g, b);
+            snSet(face, x, y, r / 255.0f, g / 255.0f, b / 255.0f);
+        }
+    }
+}
+
+// Moon phase - simplified port of effectMoon's 'moon' body: a starfield
+// background with a circular moon disc, illuminated on one side by a
+// terminator line whose position tracks the real current lunar phase (a
+// standard synodic-cycle approximation from the current UTC time, rather
+// than the browser's full precise illumination-fraction library - close
+// enough to look right, not pixel-identical). Saturn/planets/solar-system
+// alternate bodies aren't ported (needs per-planet ring/band rendering).
+inline void standaloneRenderMoon(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    snClear(face);
+    // Sparse starfield.
+    for (int i = 0; i < 40; i++) {
+        int px = (int)(standaloneHash01(i * 13) * PANEL_SIZE);
+        int py = (int)(standaloneHash01(i * 29) * PANEL_SIZE);
+        float tw = 0.3f + 0.7f * fabsf(sinf(t * 1.5f + i * 3.7f));
+        float br = standaloneHash01(i * 41) * 0.7f * tw;
+        snSet(face, px, py, br, br, br * 1.1f);
+    }
+    // Synodic-cycle phase approximation: days since a known new moon
+    // (2000-01-06 18:14 UTC, epoch 947182440) divided by the ~29.53-day
+    // lunar cycle, fractional part = phase 0(new)..0.5(full)..1(new).
+    time_t now = time(nullptr);
+    double days = (now - 947182440.0) / 86400.0;
+    float phase = (float)fmod(days / 29.530588f, 1.0);
+    if (phase < 0) phase += 1.0f;
+    float frac = (1.0f - cosf(phase * 2.0f * (float)M_PI)) / 2.0f;   // 0=new,1=full
+    // Terminator: an ellipse whose horizontal squash tracks illuminated
+    // fraction, and whose side (left/right lit) tracks waxing/waning.
+    bool waxing = phase < 0.5f;
+    float termPos = frac * 2.0f - 1.0f;   // -1=new, 0=quarter, +1=full
+    const int R = (int)(PANEL_SIZE * 0.42f) - 1;
+    const int cx = PANEL_SIZE / 2, cy = PANEL_SIZE / 2 + 2;
+    for (int y = 0; y < PANEL_SIZE; y++) {
+        for (int x = 0; x < PANEL_SIZE; x++) {
+            float dx = (float)(x - cx) / R, dy = (float)(y - cy) / R;
+            float d2 = dx * dx + dy * dy;
+            if (d2 > 1.0f) continue;
+            // Terminator curve: x-position of the day/night boundary at this dy.
+            float termX = termPos * sqrtf(fmaxf(0.0f, 1.0f - dy * dy));
+            bool lit = waxing ? (dx > termX) : (dx < -termX);
+            uint8_t r, g, b;
+            if (lit) {
+                float edge = 1.0f - fabsf(dx - termX) * 0.3f;
+                standaloneHslToRgb(0.14f, 0.12f, fminf(0.95f, 0.55f + 0.35f * edge), r, g, b);
+            } else {
+                standaloneHslToRgb(0.62f, 0.3f, 0.06f, r, g, b);   // dim earthshine on the dark limb
+            }
             snSet(face, x, y, r / 255.0f, g / 255.0f, b / 255.0f);
         }
     }
@@ -1599,6 +1814,8 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_LIGHTSPEED:    standaloneRenderLightspeed(display, face, t);    break;
             case SA_SAND:          standaloneRenderSand(display, face, t);          break;
             case SA_FLUID:         standaloneRenderFluid(display, face, t);         break;
+            case SA_MAZE:          standaloneRenderMaze(display, face, t);          break;
+            case SA_MOON:          standaloneRenderMoon(display, face, t);          break;
             default:
                 saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;
