@@ -1334,7 +1334,7 @@ const PANEL_EFFECTS = new Set(['tron','maze','video','f1','datetime','strobe','r
 // browser). Any effect NOT in this set is greyed out in the sidebar, since it
 // either falls back to a stand-in or isn't supported standalone yet. Keep in
 // sync with standaloneEffectForBrowserKey() / the SA_* renderers in firmware.
-const NATIVE_EFFECTS = new Set(['wave','rain','plasma','fireworks','balls','gradient_wash','aurora','depth_rings','prism','tide','nebula','lightning','strobe','weather','datetime','dna','warp','life']);
+const NATIVE_EFFECTS = new Set(['wave','rain','plasma','fireworks','balls','gradient_wash','aurora','depth_rings','prism','tide','nebula','lightning','strobe','weather','datetime','dna','warp','life','lightspeed','sand','fluid']);
 function applyNativeGreyout(){
   document.querySelectorAll('.effect-btn').forEach(btn=>{
     const eff = btn.dataset.effect;
