@@ -119,6 +119,11 @@
   }
   .effect-btn:hover { background: rgba(80,120,255,0.12); color: #bbc; }
   .effect-btn.active { background: rgba(80,120,255,0.22); border-color: rgba(100,160,255,0.5); color: #7aadff; }
+  /* Effects without a native ESP32 implementation yet - greyed out. Still
+     clickable (they show a stand-in), just visually marked as not-on-cube. */
+  .effect-btn.not-native { opacity: 0.38; }
+  .effect-btn.not-native:hover { opacity: 0.55; }
+  .effect-btn.not-native.active { opacity: 0.7; }
   .al-day-btn.active { background:rgba(80,120,255,0.25)!important;border-color:rgba(80,120,255,0.6)!important;color:#9bd!important; }
   #alarm-banner { display:none; }
   @keyframes alarmPulse { 0%,100%{opacity:1} 50%{opacity:0.7} }

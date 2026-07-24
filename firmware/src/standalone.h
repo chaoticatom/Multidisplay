@@ -901,6 +901,21 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
         display->setBrightness8(g_nativeBrightness);
         g_nativeBrightnessApplied = g_nativeBrightness;
     }
+    // Blank the panel when the effect changes. Sparse effects (fireworks,
+    // balls, warp, life...) don't repaint every pixel each frame, so without
+    // this the previous effect's pixels linger under the new one. Clear for a
+    // few frames because of the double buffer (each clearScreen only wipes the
+    // current back buffer; 2+ covers both).
+    static uint8_t lastFx = 0xFF;
+    static uint8_t clearFrames = 0;
+    if (g_standaloneEffect != lastFx) {
+        lastFx = g_standaloneEffect;
+        clearFrames = 3;
+    }
+    if (clearFrames > 0) {
+        display->clearScreen();
+        clearFrames--;
+    }
     for (uint8_t face = 0; face < NUM_FACES; face++) {
         switch (g_standaloneEffect) {
             case SA_RAINBOW:       standaloneRenderRainbow(display, face, t);       break;

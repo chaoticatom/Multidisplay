@@ -1329,6 +1329,27 @@ const EFFECT_SECTION_MAP = {
 };
 
 const PANEL_EFFECTS = new Set(['tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','artic','joke','otd','trivia','epic','iss','cam','radio']);
+
+// Effects that have a real native ESP32 implementation (run on-device with no
+// browser). Any effect NOT in this set is greyed out in the sidebar, since it
+// either falls back to a stand-in or isn't supported standalone yet. Keep in
+// sync with standaloneEffectForBrowserKey() / the SA_* renderers in firmware.
+const NATIVE_EFFECTS = new Set(['wave','rain','plasma','fireworks','balls','gradient_wash','aurora','depth_rings','prism','tide','nebula','lightning','strobe','weather','datetime','dna','warp','life']);
+function applyNativeGreyout(){
+  document.querySelectorAll('.effect-btn').forEach(btn=>{
+    const eff = btn.dataset.effect;
+    if(!eff) return;
+    if(NATIVE_EFFECTS.has(eff)){
+      btn.classList.remove('not-native');
+      btn.removeAttribute('title');
+    } else {
+      btn.classList.add('not-native');
+      btn.title = 'Not yet running natively on the cube';
+    }
+  });
+}
+applyNativeGreyout();
+
 populateAlarmEffectRiseSelect(); // safe here — EFFECT_NAMES now defined
 
 async function fetchCitiesFromAPI(){
