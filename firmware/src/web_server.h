@@ -239,6 +239,20 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                     // Browser Panel 2D on/off. true = show streamed pixels;
                     // false = ignore the stream and run native effects.
                     g_streamMode = (bool)(doc["value"] | false);
+                } else if (strcmp(cmd, "setOverlay") == 0) {
+                    // Browser overlay toggle -> native overlay enable flag.
+                    // Overlays without a native port yet are silently ignored
+                    // (unrecognized key falls through, nothing set).
+                    const char* ov = doc["overlay"] | "";
+                    bool on = doc["on"] | false;
+                    if      (!strcmp(ov, "stars"))     g_ovStars = on;
+                    else if (!strcmp(ov, "snow"))      g_ovSnow = on;
+                    else if (!strcmp(ov, "sparkle"))   g_ovSparkle = on;
+                    else if (!strcmp(ov, "colorwave")) g_ovColorwave = on;
+                    else if (!strcmp(ov, "pulse"))     g_ovPulse = on;
+                    else if (!strcmp(ov, "vignette"))  g_ovVignette = on;
+                    else if (!strcmp(ov, "scanline"))  g_ovScanline = on;
+                    else if (!strcmp(ov, "mist"))      g_ovMist = on;
                 }
             }
         }

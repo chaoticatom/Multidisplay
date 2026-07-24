@@ -1671,6 +1671,10 @@ document.querySelectorAll('.ov-chk').forEach(chk => {
   chk.addEventListener('change', () => {
     const ov=chk.dataset.ov;
     OV[ov].on=chk.checked;
+    // Drive the ESP32's native overlay too (only overlays with a native port
+    // respond; others are ignored server-side), so overlays keep running
+    // on-device the same way effects/brightness/speed do.
+    if(typeof cubeSendCmd==='function') cubeSendCmd({cmd:'setOverlay', overlay: ov, on: chk.checked});
     // Some overlays (e.g. spectrum) now have their toggle duplicated into
     // other panels for convenience — keep every copy's checked state synced.
     document.querySelectorAll(`.ov-chk[data-ov="${ov}"]`).forEach(other=>{ if(other!==chk) other.checked=chk.checked; });

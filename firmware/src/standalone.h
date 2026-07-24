@@ -132,6 +132,20 @@ inline volatile uint8_t g_nativeBrightness = 60;    // 0..255, panel drive level
 inline volatile float   g_nativeSpeed      = 1.0f;  // time multiplier for effects
 inline volatile uint8_t g_nativeBrightnessApplied = 255; // last value pushed to HW
 
+// Native overlay enable flags, mirroring effects.js's OV.<key>.on. Synced from
+// the browser's overlay toggles via the setOverlay command (web_server.h), so
+// overlays keep running on-device the same way effects do. Only the on/off
+// state is mirrored (not each overlay's density/speed/color sub-params) -
+// native overlays use the same defaults as effects.js's OV object.
+inline volatile bool g_ovStars     = false;
+inline volatile bool g_ovSnow      = false;
+inline volatile bool g_ovSparkle   = false;
+inline volatile bool g_ovColorwave = false;
+inline volatile bool g_ovPulse     = false;
+inline volatile bool g_ovVignette  = false;
+inline volatile bool g_ovScanline  = false;
+inline volatile bool g_ovMist      = false;
+
 // Display source of truth, owned by the ESP32 (not the browser). Default
 // false = run native on-device effects and IGNORE any streamed video frames.
 // The browser sets this true only for Panel 2D mode (pixel-perfect streaming).
@@ -209,35 +223,80 @@ inline float saSmooth(float e0, float e1, float x) {   // GLSL smoothstep
     return t * t * (3 - 2 * t);
 }
 inline float saFract(float x) { return x - floorf(x); }
-// Push an already-computed 0..1 RGB triple to one face pixel, clamped.
-inline void saPixel(MatrixPanel_I2S_DMA* display, int xOff, int x, int y,
-                    float r, float g, float b) {
-    display->drawPixel(xOff + x, y, display->color565(
-        (uint8_t)(saClamp01(r) * 255.0f),
-        (uint8_t)(saClamp01(g) * 255.0f),
-        (uint8_t)(saClamp01(b) * 255.0f)));
+
+// ===========================================================================
+// Native pixel buffer — mirrors the browser's colBuf model. Effects write
+// into THIS (persistent across frames, so fade-trail effects that decay by
+// multiplying, like effects.js's `colBuf[i]*=0.8`, work exactly the same
+// way), overlays blend additively on top of it afterward, and exactly ONE
+// blit step at the end pushes it to the real hardware via display->drawPixel
+// (proven remap-safe, unlike fillRect/fillCircle's internal fast path which
+// bypasses the four-scan remap entirely - see saFillRect's old comment,
+// preserved below at snFillRect). Indexed per logical face (0..NUM_FACES-1),
+// matching how the browser's faceMap addresses one flat 64x64 grid per face.
+// ===========================================================================
+inline float g_snBuf[NUM_FACES][PANEL_SIZE * PANEL_SIZE * 3];
+
+inline void snSet(int face, int x, int y, float r, float g, float b) {
+    if (face < 0 || face >= NUM_FACES || x < 0 || x >= PANEL_SIZE || y < 0 || y >= PANEL_SIZE) return;
+    float* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
+    p[0] = saClamp01(r); p[1] = saClamp01(g); p[2] = saClamp01(b);
+}
+// Additive blend, clamped - what overlays use (matches colBuf's
+// Math.min(1, colBuf[i]+r) pattern).
+inline void snAdd(int face, int x, int y, float r, float g, float b) {
+    if (face < 0 || face >= NUM_FACES || x < 0 || x >= PANEL_SIZE || y < 0 || y >= PANEL_SIZE) return;
+    float* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
+    p[0] = saClamp01(p[0] + r); p[1] = saClamp01(p[1] + g); p[2] = saClamp01(p[2] + b);
+}
+// Decay the whole buffer (fade-trail effects: colBuf[i]*=mul each frame).
+inline void snDecay(int face, float mul) {
+    float* p = g_snBuf[face];
+    for (int i = 0; i < PANEL_SIZE * PANEL_SIZE * 3; i++) p[i] *= mul;
+}
+inline void snClear(int face) { memset(g_snBuf[face], 0, sizeof(g_snBuf[face])); }
+inline void snClearAll() { memset(g_snBuf, 0, sizeof(g_snBuf)); }
+// Decode a color565 back to 0..1 floats - used by call sites that already
+// built a color565 (most of the existing effect code) so they don't need
+// rewriting to carry raw r,g,b floats through.
+inline void snColor565ToRgb(uint16_t c, float& r, float& g, float& b) {
+    r = ((c >> 11) & 0x1F) / 31.0f;
+    g = ((c >> 5)  & 0x3F) / 63.0f;
+    b = (c         & 0x1F) / 31.0f;
 }
 
-// Fill a WxH rect via per-pixel drawPixel() calls. REQUIRED instead of the
-// library's own fillRect()/fillCircle(): those have an internal fast path
-// that writes directly to the raw framebuffer, bypassing the virtual
-// drawPixel() override that FourScan64Panel uses to apply the four-scan
-// remap - so fillRect-based content lands outside the physically-addressed
-// area and never appears (confirmed: the pulse default effect, which is
-// 100% fillRect, showed pure black; other effects that use fillRect only to
-// clear before per-pixel drawing partially masked the same bug). This is
-// the exact same class of bug fixed earlier for drawPixelRGB888 in the
-// video streaming path - fillRect/fillCircle need the same treatment.
+// ---- Back-compat shims: same call signatures as before (display, xOff, ...)
+// so every existing effect function keeps working unchanged, but now writing
+// into the buffer above instead of the hardware directly. `display` is kept
+// as a parameter (unused) purely to avoid touching ~30 call sites; xOff
+// determines which face's buffer slot to target (xOff / PANEL_SIZE).
+inline void saPixel(MatrixPanel_I2S_DMA* display, int xOff, int x, int y,
+                    float r, float g, float b) {
+    (void)display;
+    snSet(xOff / PANEL_SIZE, x, y, r, g, b);
+}
 inline void saFillRect(MatrixPanel_I2S_DMA* display, int x0, int y0, int w, int h, uint16_t color) {
+    (void)display;
+    float r, g, b; snColor565ToRgb(color, r, g, b);
+    int face = x0 / PANEL_SIZE, lx0 = x0 % PANEL_SIZE;
     for (int y = y0; y < y0 + h; y++)
-        for (int x = x0; x < x0 + w; x++)
-            display->drawPixel(x, y, color);
+        for (int x = lx0; x < lx0 + w; x++)
+            snSet(face, x, y, r, g, b);
 }
 inline void saFillCircle(MatrixPanel_I2S_DMA* display, int cx, int cy, int radius, uint16_t color) {
+    (void)display;
+    float r, g, b; snColor565ToRgb(color, r, g, b);
+    int face = cx / PANEL_SIZE, lcx = cx % PANEL_SIZE;
     for (int y = -radius; y <= radius; y++)
         for (int x = -radius; x <= radius; x++)
             if (x * x + y * y <= radius * radius)
-                display->drawPixel(cx + x, cy + y, color);
+                snSet(face, lcx + x, cy + y, r, g, b);
+}
+// Shim for the 12 effects that call display->drawPixel(xOff+x, y, color565)
+// directly (all absolute coordinates already baked in by the caller).
+inline void snRawSet(int absX, int absY, uint16_t color) {
+    float r, g, b; snColor565ToRgb(color, r, g, b);
+    snSet(absX / PANEL_SIZE, absX % PANEL_SIZE, absY, r, g, b);
 }
 
 // Parses the "HH:MM" following a 'T' in an ISO-ish timestamp
@@ -423,7 +482,7 @@ inline void standaloneRenderRainbow(MatrixPanel_I2S_DMA* display, int face, floa
             float hue = fmodf((x + y) * 4.0f + t * 60.0f, 360.0f);
             uint8_t r, g, b;
             standaloneHsvToRgb(hue, 1.0f, 1.0f, r, g, b);
-            display->drawPixel(xOff + x, y, display->color565(r, g, b));
+            snRawSet(xOff + x, y, display->color565(r, g, b));
         }
     }
 }
@@ -449,7 +508,7 @@ inline void standaloneRenderPlasma(MatrixPanel_I2S_DMA* display, int face, float
             float hue = fmodf((v + 3.0f) * 60.0f, 360.0f);
             uint8_t r, g, b;
             standaloneHsvToRgb(hue, 1.0f, 1.0f, r, g, b);
-            display->drawPixel(xOff + x, y, display->color565(r, g, b));
+            snRawSet(xOff + x, y, display->color565(r, g, b));
         }
     }
 }
@@ -622,7 +681,7 @@ inline void standaloneRenderFireworks(MatrixPanel_I2S_DMA* display, int face, fl
     for (int y = 0; y < S; y++)
         for (int x = 0; x < S; x++) {
             int i = (y * S + x) * 3;
-            display->drawPixel(xOff + x, y, display->color565(buf[i], buf[i+1], buf[i+2]));
+            snRawSet(xOff + x, y, display->color565(buf[i], buf[i+1], buf[i+2]));
         }
 }
 
@@ -633,7 +692,7 @@ inline void standaloneRenderGradientWash(MatrixPanel_I2S_DMA* display, int face,
             float hue = fmodf((x - y) * 3.0f + t * 40.0f + 720.0f, 360.0f);
             uint8_t r, g, b;
             standaloneHsvToRgb(hue, 1.0f, 1.0f, r, g, b);
-            display->drawPixel(xOff + x, y, display->color565(r, g, b));
+            snRawSet(xOff + x, y, display->color565(r, g, b));
         }
     }
 }
@@ -654,7 +713,7 @@ inline void standaloneRenderAurora(MatrixPanel_I2S_DMA* display, int face, float
                 if (fade <= 0) continue;
                 uint8_t r, g, b;
                 standaloneHsvToRgb(hue, 0.8f, fade * 0.8f, r, g, b);
-                display->drawPixel(xOff + x, y, display->color565(r, g, b));
+                snRawSet(xOff + x, y, display->color565(r, g, b));
             }
         }
     }
@@ -673,7 +732,7 @@ inline void standaloneRenderSpectrum(MatrixPanel_I2S_DMA* display, int face, flo
                 float f = (float)(PANEL_SIZE - y) / PANEL_SIZE;
                 uint8_t r, g, b;
                 standaloneHsvToRgb(120.0f - f * 120.0f, 1.0f, 1.0f, r, g, b);
-                display->drawPixel(xOff + x, y, display->color565(r, g, b));
+                snRawSet(xOff + x, y, display->color565(r, g, b));
             }
         }
     }
@@ -711,8 +770,8 @@ inline void standaloneRenderLightning(MatrixPanel_I2S_DMA* display, int face, fl
     for (int y = 0; y < PANEL_SIZE; y++) {
         x += (int)(standaloneHash01(bucket * 131 + y) * 5.0f) - 2;
         x = constrain(x, 2, PANEL_SIZE - 3);
-        display->drawPixel(xOff + x, y, display->color565(255, 255, 255));
-        display->drawPixel(xOff + x + 1, y, display->color565(200, 200, 255));
+        snRawSet(xOff + x, y, display->color565(255, 255, 255));
+        snRawSet(xOff + x + 1, y, display->color565(200, 200, 255));
     }
 }
 
@@ -724,7 +783,7 @@ inline void standaloneRenderTide(MatrixPanel_I2S_DMA* display, int face, float t
             float shimmer = 0.7f + 0.3f * sinf(x * 0.2f + t * 1.5f);
             uint8_t r, g, b;
             standaloneHsvToRgb(hue, 0.9f, shimmer, r, g, b);
-            display->drawPixel(xOff + x, y, display->color565(r, g, b));
+            snRawSet(xOff + x, y, display->color565(r, g, b));
         }
     }
 }
@@ -740,7 +799,7 @@ inline void standaloneRenderRain(MatrixPanel_I2S_DMA* display, int face, float t
             int yy = y - d;
             if (yy >= 0 && yy < PANEL_SIZE) {
                 uint8_t fade = 255 - d * 70;
-                display->drawPixel(xOff + x, yy, display->color565(fade / 3, fade / 2, fade));
+                snRawSet(xOff + x, yy, display->color565(fade / 3, fade / 2, fade));
             }
         }
     }
@@ -875,13 +934,13 @@ inline void standaloneRenderDna(MatrixPanel_I2S_DMA* display, int face, float t)
             uint8_t r, g, b;
             standaloneHslToRgb(hue, 1.0f, 0.95f, r, g, b);
             if (ui >= 0 && ui < PANEL_SIZE)
-                display->drawPixel(xOff + ui, y, display->color565(r, g, b));
+                snRawSet(xOff + ui, y, display->color565(r, g, b));
             for (int d = 1; d <= 3; d++) {
                 float fade = powf(1 - d / 4.0f, 2) * 0.7f;
                 uint8_t rg, gg, bg;
                 standaloneHslToRgb(hue, 0.9f, fade, rg, gg, bg);
-                if (ui - d >= 0)          display->drawPixel(xOff + ui - d, y, display->color565(rg, gg, bg));
-                if (ui + d < PANEL_SIZE)  display->drawPixel(xOff + ui + d, y, display->color565(rg, gg, bg));
+                if (ui - d >= 0)          snRawSet(xOff + ui - d, y, display->color565(rg, gg, bg));
+                if (ui + d < PANEL_SIZE)  snRawSet(xOff + ui + d, y, display->color565(rg, gg, bg));
             }
         }
         if (y % 3 == 0) {
@@ -892,7 +951,7 @@ inline void standaloneRenderDna(MatrixPanel_I2S_DMA* display, int face, float t)
             standaloneHslToRgb(saFract(progress * 0.5f + tt * 0.06f + 0.5f), 0.6f, 0.5f, r, g, b);
             for (int u = lo; u <= hi; u++)
                 if (u >= 0 && u < PANEL_SIZE)
-                    display->drawPixel(xOff + u, y, display->color565(r, g, b));
+                    snRawSet(xOff + u, y, display->color565(r, g, b));
         }
     }
 }
@@ -932,12 +991,12 @@ inline void standaloneRenderWarp(MatrixPanel_I2S_DMA* display, int face, float t
         standaloneHslToRgb(shue[i] + dist * 0.15f, 0.8f, bright, r, g, b);
         int px = (int)(sx[i] * (PANEL_SIZE - 1));
         int py = (int)(sy[i] * (PANEL_SIZE - 1));
-        display->drawPixel(xOff + px, py, display->color565(r, g, b));
+        snRawSet(xOff + px, py, display->color565(r, g, b));
         // short tail toward centre
         int tx = (int)((sx[i] - cosf(ang) * 0.03f) * (PANEL_SIZE - 1));
         int ty = (int)((sy[i] - sinf(ang) * 0.03f) * (PANEL_SIZE - 1));
         if (tx >= 0 && tx < PANEL_SIZE && ty >= 0 && ty < PANEL_SIZE)
-            display->drawPixel(xOff + tx, ty, display->color565(r / 3, g / 3, b / 3));
+            snRawSet(xOff + tx, ty, display->color565(r / 3, g / 3, b / 3));
     }
 }
 
@@ -989,13 +1048,98 @@ inline void standaloneRenderLife(MatrixPanel_I2S_DMA* display, int face, float t
                                   : saLerp(0.75f, 0.13f, (a - 0.66f) * 3);
             uint8_t r, g, b;
             standaloneHslToRgb(hue, 1 - a * 0.15f, 0.5f + a * 0.45f, r, g, b);
-            display->drawPixel(xOff + x, y, display->color565(r, g, b));
+            snRawSet(xOff + x, y, display->color565(r, g, b));
         } else if (age[i] > 0) {
             uint8_t r, g, b;
             standaloneHslToRgb(0.06f, 1.0f, age[i] / 250.0f * 0.5f, r, g, b);
-            display->drawPixel(xOff + x, y, display->color565(r, g, b));
+            snRawSet(xOff + x, y, display->color565(r, g, b));
         }
     }
+}
+
+// ===========================================================================
+// Overlays — ports of effects.js's OV_FUNCS, blended additively onto the
+// buffer (snAdd) after the main effect draws, exactly matching how the
+// browser composites overlays on top of colBuf. Applied per-face.
+// ===========================================================================
+inline void standaloneOverlayStars(int face, float t) {
+    static float phase[40]; static float hue[40]; static bool init = false;
+    if (!init) { for (int i = 0; i < 40; i++) { phase[i] = standaloneHash01(i * 9) * 6.2832f; hue[i] = standaloneHash01(i * 5); } init = true; }
+    for (int i = 0; i < 40; i++) {
+        float ph = phase[i] + t * 1.5f * (1.2f + sinf(phase[i] * 0.7f + t) * 0.5f);
+        float bright = powf(fmaxf(0.0f, sinf(ph) * 0.5f + 0.5f), 2.8f);
+        if (bright < 0.04f) continue;
+        int idx = (int)(standaloneHash01(i * 31) * PANEL_SIZE * PANEL_SIZE);
+        int px = idx % PANEL_SIZE, py = idx / PANEL_SIZE;
+        uint8_t r, g, b;
+        standaloneHslToRgb(hue[i], 1.0f, bright * 0.92f, r, g, b);
+        snAdd(face, px, py, r / 255.0f, g / 255.0f, b / 255.0f);
+    }
+}
+inline void standaloneOverlaySnow(int face, float t) {
+    static float sx[30], sy[30], sspd[30];
+    static bool init = false;
+    if (!init) {
+        for (int i = 0; i < 30; i++) { sx[i] = standaloneHash01(i * 3) * PANEL_SIZE; sy[i] = standaloneHash01(i * 7) * PANEL_SIZE; sspd[i] = 4 + standaloneHash01(i * 11) * 10; }
+        init = true;
+    }
+    for (int i = 0; i < 30; i++) {
+        sy[i] += sspd[i] * 0.02f;
+        if (sy[i] >= PANEL_SIZE) { sy[i] = 0; sx[i] = standaloneHash01((int)(t * 100) + i) * PANEL_SIZE; }
+        snAdd(face, (int)sx[i], (int)sy[i], 0.9f, 0.9f, 1.0f);
+    }
+}
+inline void standaloneOverlaySparkle(int face, float t) {
+    for (int i = 0; i < 24; i++) {
+        float ph = fmodf(t * 2.0f + i * 3.7f, 3.0f);
+        if (ph > 0.15f) continue;
+        int px = (int)(standaloneHash01(i * 13 + (int)(t * 0.3f)) * PANEL_SIZE);
+        int py = (int)(standaloneHash01(i * 17 + (int)(t * 0.3f)) * PANEL_SIZE);
+        float bright = 1.0f - (ph / 0.15f);
+        snAdd(face, px, py, bright, bright, bright);
+    }
+}
+inline void standaloneOverlayColorwave(int face, float t) {
+    for (int y = 0; y < PANEL_SIZE; y++) for (int x = 0; x < PANEL_SIZE; x++) {
+        float hue = saFract((x + y) * 0.01f + t * 0.15f);
+        uint8_t r, g, b;
+        standaloneHslToRgb(hue, 1.0f, 0.15f, r, g, b);
+        snAdd(face, x, y, r / 255.0f, g / 255.0f, b / 255.0f);
+    }
+}
+inline void standaloneOverlayPulse(int face, float t) {
+    float bright = 0.45f * (0.5f + 0.5f * sinf(t * 0.8f * 2 * (float)M_PI));
+    for (int y = 0; y < PANEL_SIZE; y++) for (int x = 0; x < PANEL_SIZE; x++)
+        snAdd(face, x, y, bright, bright, bright);
+}
+inline void standaloneOverlayVignette(int face, float t) {
+    (void)t;
+    const float cx = PANEL_SIZE / 2.0f, cy = PANEL_SIZE / 2.0f, maxD = sqrtf(cx * cx + cy * cy);
+    for (int y = 0; y < PANEL_SIZE; y++) for (int x = 0; x < PANEL_SIZE; x++) {
+        float d = sqrtf((x - cx) * (x - cx) + (y - cy) * (y - cy)) / maxD;
+        float darken = -0.65f * saSmooth(0.5f, 1.0f, d);
+        snAdd(face, x, y, darken, darken, darken);   // negative -> darkens (clamped at 0 by saClamp01)
+    }
+}
+inline void standaloneOverlayScanline(int face, float t) {
+    int y = ((int)(t * 1.5f * PANEL_SIZE)) % PANEL_SIZE;
+    for (int x = 0; x < PANEL_SIZE; x++) snAdd(face, x, y, 0.5f, 0.5f, 0.5f);
+}
+inline void standaloneOverlayMist(int face, float t) {
+    for (int y = 0; y < PANEL_SIZE; y++) for (int x = 0; x < PANEL_SIZE; x++) {
+        float m = sinf(x * 0.2f + t * 0.4f) * cosf(y * 0.2f - t * 0.3f) * 0.11f + 0.11f;
+        snAdd(face, x, y, m * 0.7f, m * 0.7f, m * 0.9f);
+    }
+}
+inline void standaloneRunOverlays(int face, float t) {
+    if (g_ovStars)     standaloneOverlayStars(face, t);
+    if (g_ovSnow)      standaloneOverlaySnow(face, t);
+    if (g_ovSparkle)   standaloneOverlaySparkle(face, t);
+    if (g_ovColorwave) standaloneOverlayColorwave(face, t);
+    if (g_ovPulse)     standaloneOverlayPulse(face, t);
+    if (g_ovVignette)  standaloneOverlayVignette(face, t);
+    if (g_ovScanline)  standaloneOverlayScanline(face, t);
+    if (g_ovMist)      standaloneOverlayMist(face, t);
 }
 
 // ---------------------------------------------------------------------------
@@ -1013,20 +1157,13 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
         display->setBrightness8(g_nativeBrightness);
         g_nativeBrightnessApplied = g_nativeBrightness;
     }
-    // Blank the panel when the effect changes. Sparse effects (fireworks,
-    // balls, warp, life...) don't repaint every pixel each frame, so without
-    // this the previous effect's pixels linger under the new one. Clear for a
-    // few frames because of the double buffer (each clearScreen only wipes the
-    // current back buffer; 2+ covers both).
+    // Blank the native buffer when the effect changes. Sparse effects
+    // (fireworks, balls, warp, life...) don't repaint every pixel each frame,
+    // so without this the previous effect's pixels linger under the new one.
     static uint8_t lastFx = 0xFF;
-    static uint8_t clearFrames = 0;
     if (g_standaloneEffect != lastFx) {
         lastFx = g_standaloneEffect;
-        clearFrames = 3;
-    }
-    if (clearFrames > 0) {
-        display->clearScreen();
-        clearFrames--;
+        snClearAll();
     }
     for (uint8_t face = 0; face < NUM_FACES; face++) {
         switch (g_standaloneEffect) {
@@ -1055,6 +1192,10 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
                 saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;
         }
+        // Overlays blend additively onto this face's buffer, on top of
+        // whatever the effect just drew - exactly matching how effects.js
+        // composites OV_FUNCS onto colBuf after the main effect runs.
+        standaloneRunOverlays(face, t);
     }
 
     // Boot-time WiFi status icon: a small dot in face 0's top-left corner.
@@ -1062,14 +1203,33 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
     // entirely once a browser connects and starts controlling the cube - at
     // that point the effect selection itself is the feedback that things are
     // working, and the icon would just permanently clutter the corner of
-    // whatever effect is running.
+    // whatever effect is running. Drawn into the buffer (not hardware
+    // directly) so it survives the blit below like everything else.
     if (!g_browserConnected) {
         bool wifiOk = (WiFi.status() == WL_CONNECTED);
-        uint16_t dotColor = wifiOk ? display->color565(0, 200, 0) : display->color565(200, 0, 0);
+        float r = wifiOk ? 0.0f : 0.78f, g = wifiOk ? 0.78f : 0.0f;
         for (int y = 1; y <= 3; y++)
             for (int x = 1; x <= 3; x++)
-                display->drawPixel(x, y, dotColor);
+                snSet(0, x, y, r, g, 0.0f);
     }
 
+    // Single blit: push the composited buffer to the real panel. This is the
+    // ONE place doing display->drawPixel with the real hardware - proven
+    // remap-safe (unlike fillRect/fillCircle's bypassed fast path), so
+    // routing every effect+overlay through this buffer instead of writing to
+    // the display directly guarantees the four-scan remap always applies,
+    // everywhere, rather than needing every future effect to remember to
+    // avoid fillRect/fillCircle.
+    for (uint8_t face = 0; face < NUM_FACES; face++) {
+        const int xOff = face * PANEL_SIZE;
+        const float* buf = g_snBuf[face];
+        for (int y = 0; y < PANEL_SIZE; y++) {
+            for (int x = 0; x < PANEL_SIZE; x++) {
+                const float* p = &buf[(y * PANEL_SIZE + x) * 3];
+                display->drawPixel(xOff + x, y, display->color565(
+                    (uint8_t)(p[0] * 255.0f), (uint8_t)(p[1] * 255.0f), (uint8_t)(p[2] * 255.0f)));
+            }
+        }
+    }
     display->flipDMABuffer();
 }
