@@ -494,30 +494,103 @@ inline void standaloneRenderWeather(MatrixPanel_I2S_DMA* display, int face) {
     display->print(g_wxValid ? standaloneWxCodeShort(g_wxCode) : "NO DATA");
 }
 
+// Faithful port of the browser's effectFireworks: rockets launch from the
+// bottom, rise under gravity leaving a fading trail, then burst into a shower
+// of particles that spread radially, fall under gravity, and fade out. The
+// signature look is the persistent fade trails - reproduced here with a
+// per-pixel buffer that's dimmed ~20% every frame (matching colBuf*=0.80),
+// with heads drawn additively (max) into it, then blitted to the panel.
+struct FwParticle { float col, v, vc, vy, hue, life, decay, bright; bool active; };
+struct FwRocket   { float col, v, vy, vc, hue, hue2; bool active; };
+
+// NOTE: rocket/particle state below is `static`, so it's shared across all
+// faces - fine for the current 1-panel setup (identical single instance),
+// but if NUM_FACES > 1 every face would show the exact same fireworks
+// animation in lockstep rather than independent ones. Would need per-face
+// arrays (indexed by `face`) to fix for a full multi-panel cube.
 inline void standaloneRenderFireworks(MatrixPanel_I2S_DMA* display, int face, float t) {
     const int xOff = face * PANEL_SIZE;
-    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
-    const int BURSTS = 3;
-    for (int b = 0; b < BURSTS; b++) {
-        float phase = fmodf(t * 0.6f + face * 0.53f + b * 0.77f, 1.0f);
-        float cx = xOff + 10 + standaloneHash01(face * 31 + b * 7) * (PANEL_SIZE - 20);
-        float cy = 10 + standaloneHash01(face * 17 + b * 13 + 3) * (PANEL_SIZE - 20);
-        float radius = phase * 26.0f;
-        float fade = 1.0f - phase;
-        float hue = fmodf((face * 60.0f + b * 120.0f + t * 20.0f), 360.0f);
-        uint8_t r, g, cb;
-        standaloneHsvToRgb(hue, 1.0f, fade, r, g, cb);
-        uint16_t col = display->color565(r, g, cb);
-        const int SPARKS = 10;
-        for (int s = 0; s < SPARKS; s++) {
-            float ang = (2.0f * PI * s) / SPARKS + b;
-            int px = (int)(cx + cosf(ang) * radius);
-            int py = (int)(cy + sinf(ang) * radius);
-            if (px >= xOff && px < xOff + PANEL_SIZE && py >= 0 && py < PANEL_SIZE) {
-                display->drawPixel(px, py, col);
+    const int S = PANEL_SIZE;
+    static uint8_t buf[PANEL_SIZE * PANEL_SIZE * 3];   // fade buffer, RGB888
+    static FwRocket   rockets[10];
+    static FwParticle parts[420];
+    static bool   init = false;
+    static float  lastT = 0, spawnT = 0;
+    static uint32_t rng = 0x1234567;
+    if (!init) { memset(buf, 0, sizeof(buf)); init = true; lastT = t; }
+    // xorshift PRNG for per-frame variety (Math.random equivalent)
+    auto rnd = [&]() { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return (rng & 0xFFFFFF) / (float)0xFFFFFF; };
+
+    float dt = t - lastT; lastT = t;
+    if (dt < 0) dt = 0; if (dt > 0.1f) dt = 0.1f;
+
+    // Fade the whole buffer ~20% (colBuf *= 0.80).
+    for (int i = 0; i < S * S * 3; i++) buf[i] = (uint8_t)((buf[i] * 205) >> 8);
+
+    auto addPix = [&](int x, int y, float r, float g, float b) {
+        if (x < 0 || x >= S || y < 0 || y >= S) return;
+        int i = (y * S + x) * 3;
+        uint8_t rr = (uint8_t)(saClamp01(r) * 255), gg = (uint8_t)(saClamp01(g) * 255), bb = (uint8_t)(saClamp01(b) * 255);
+        if (rr > buf[i])   buf[i]   = rr;   // additive max, like fwSet
+        if (gg > buf[i+1]) buf[i+1] = gg;
+        if (bb > buf[i+2]) buf[i+2] = bb;
+    };
+
+    // Launch new rockets (~every 0.4s, sometimes two).
+    spawnT += dt;
+    if (spawnT > 0.4f) {
+        spawnT = 0;
+        for (int shots = 0; shots < (rnd() > 0.6f ? 2 : 1); shots++)
+            for (int k = 0; k < 10; k++) if (!rockets[k].active) {
+                rockets[k] = { rnd() * S, 0, S * (0.88f + rnd() * 0.45f), (rnd() - 0.5f) * S * 0.3f, rnd(), rnd(), true };
+                break;
             }
+    }
+
+    // Rockets rise, gravity, burst at apex.
+    const float G = S * 0.06f;
+    for (int k = 0; k < 10; k++) {
+        if (!rockets[k].active) continue;
+        FwRocket& r = rockets[k];
+        r.vy -= S * 0.85f * dt; r.v += r.vy * dt; r.col += r.vc * dt;
+        uint8_t rr, gg, bb;
+        standaloneHslToRgb(r.hue, 1.0f, 0.9f, rr, gg, bb);
+        addPix((int)lroundf(r.col), (S - 1) - (int)lroundf(r.v), rr/255.0f, gg/255.0f, bb/255.0f);
+        if (r.vy <= 0 || r.v >= S - 1) {
+            // Burst: spawn a ring of particles.
+            bool mono = rnd() > 0.5f;
+            int n = 30 + (int)(rnd() * 55);
+            float spd = S * (0.25f + rnd() * 0.35f) * (0.6f + rnd());
+            for (int i = 0; i < n; i++) {
+                for (int p = 0; p < 420; p++) if (!parts[p].active) {
+                    float a = (i / (float)n) * 6.2832f + rnd() * 0.3f;
+                    float rad = spd * (0.4f + rnd() * 0.6f);
+                    float h = mono ? r.hue : ((i % 3 == 0) ? r.hue2 : r.hue + rnd() * 0.1f);
+                    parts[p] = { r.col, r.v, cosf(a) * rad, sinf(a) * rad * (0.5f + rnd()), h, 1.0f, 0.006f + rnd() * 0.008f, 0.85f + rnd() * 0.15f, true };
+                    break;
+                }
+            }
+            r.active = false;
         }
     }
+
+    // Burst particles: gravity, life decay.
+    for (int p = 0; p < 420; p++) {
+        if (!parts[p].active) continue;
+        FwParticle& b = parts[p];
+        b.col += b.vc * dt; b.v += b.vy * dt; b.vy -= G * dt; b.life -= b.decay;
+        if (b.life <= 0 || b.v < 0) { b.active = false; continue; }
+        uint8_t rr, gg, bb;
+        standaloneHslToRgb(b.hue, 1.0f, b.life * b.bright, rr, gg, bb);
+        addPix((int)lroundf(b.col), (S - 1) - (int)lroundf(b.v), rr/255.0f, gg/255.0f, bb/255.0f);
+    }
+
+    // Blit the fade buffer to the panel.
+    for (int y = 0; y < S; y++)
+        for (int x = 0; x < S; x++) {
+            int i = (y * S + x) * 3;
+            display->drawPixel(xOff + x, y, display->color565(buf[i], buf[i+1], buf[i+2]));
+        }
 }
 
 inline void standaloneRenderGradientWash(MatrixPanel_I2S_DMA* display, int face, float t) {
