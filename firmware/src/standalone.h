@@ -10,6 +10,11 @@
 #include "config.h"
 #include "led_matrix.h"
 
+// Defined in main.cpp, set from web_server.h's WS_EVT_CONNECT/DISCONNECT.
+// True while >=1 browser/app is connected over the cube WebSocket - used to
+// hide the boot-time WiFi status icon once a browser is controlling.
+extern volatile bool g_browserConnected;
+
 // ---------------------------------------------------------------------------
 // standalone.h — native (no-browser) effects, weather, schedule/alarms.
 //
@@ -1029,5 +1034,20 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
                 break;
         }
     }
+
+    // Boot-time WiFi status icon: a small dot in face 0's top-left corner.
+    // Red while WiFi is connecting/AP mode, green once connected. Hidden
+    // entirely once a browser connects and starts controlling the cube - at
+    // that point the effect selection itself is the feedback that things are
+    // working, and the icon would just permanently clutter the corner of
+    // whatever effect is running.
+    if (!g_browserConnected) {
+        bool wifiOk = (WiFi.status() == WL_CONNECTED);
+        uint16_t dotColor = wifiOk ? display->color565(0, 200, 0) : display->color565(200, 0, 0);
+        for (int y = 1; y <= 3; y++)
+            for (int x = 1; x <= 3; x++)
+                display->drawPixel(x, y, dotColor);
+    }
+
     display->flipDMABuffer();
 }

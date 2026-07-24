@@ -36,6 +36,8 @@ extern String         g_currentEffect;
 extern volatile uint8_t g_currentEffectId;
 // Millis() at boot, for uptime reporting.
 extern uint32_t       g_bootMillis;
+// True while >=1 browser/app is connected over the cube WebSocket.
+extern volatile bool  g_browserConnected;
 // Raw LittleFS.begin(false) mount result (no auto-format) - see /api/fsinfo.
 extern bool           g_fsMountOk;
 // PSRAM detection + read/write test results - see /api/psramtest.
@@ -120,6 +122,7 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
     case WS_EVT_CONNECT:
         Serial.printf("[WS] client #%u connected from %s\n",
                       client->id(), client->remoteIP().toString().c_str());
+        g_browserConnected = true;   // hides the boot-time WiFi status icon
         // Bring the new client up to date with the current effect.
         {
             JsonDocument doc;
@@ -133,6 +136,7 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
 
     case WS_EVT_DISCONNECT:
         Serial.printf("[WS] client #%u disconnected\n", client->id());
+        g_browserConnected = (server->count() > 0);
         break;
 
     case WS_EVT_DATA: {

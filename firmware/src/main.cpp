@@ -47,6 +47,10 @@ portMUX_TYPE    g_frameMux              = portMUX_INITIALIZER_UNLOCKED;
 String          g_currentEffect        = "video";
 volatile uint8_t g_currentEffectId     = 0;
 uint32_t        g_bootMillis           = 0;
+// True while at least one browser/app is connected over the cube WebSocket -
+// used to hide the boot-time WiFi status icon once a browser is "controlling"
+// (set/cleared in web_server.h's WS_EVT_CONNECT/DISCONNECT).
+volatile bool   g_browserConnected     = false;
 // Set by the WS handler whenever a real PKT_VIDEO frame arrives — the
 // displayTask uses this to decide whether a browser is actively driving the
 // cube, or whether it should fall back to standalone.h's native effects.
