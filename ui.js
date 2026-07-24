@@ -3624,7 +3624,12 @@ function initCubeWs() {
 let streamToCube = false;
 
 function streamFrameToCube(dt) {
-  if(!streamToCube) return;
+  // Stream to the physical panel when either: streaming is explicitly enabled,
+  // OR the user is in Panel 2D mode. Panel 2D means "show exactly this flat
+  // image", so we mirror those pixels to the panel 1:1 (overriding the native
+  // on-device effect) - that's the mode where an exact match is wanted. In
+  // normal 3D mode streaming stays off and the ESP32 runs native effects.
+  if(!streamToCube && !panel2dMode) return;
   if(!cubeConnected || !cubeWs || cubeWs.readyState !== WebSocket.OPEN) return;
   cubeStreamT += dt;
   if(cubeStreamT < 1/CUBE_FPS) return;
