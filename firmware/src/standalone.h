@@ -218,6 +218,28 @@ inline void saPixel(MatrixPanel_I2S_DMA* display, int xOff, int x, int y,
         (uint8_t)(saClamp01(b) * 255.0f)));
 }
 
+// Fill a WxH rect via per-pixel drawPixel() calls. REQUIRED instead of the
+// library's own fillRect()/fillCircle(): those have an internal fast path
+// that writes directly to the raw framebuffer, bypassing the virtual
+// drawPixel() override that FourScan64Panel uses to apply the four-scan
+// remap - so fillRect-based content lands outside the physically-addressed
+// area and never appears (confirmed: the pulse default effect, which is
+// 100% fillRect, showed pure black; other effects that use fillRect only to
+// clear before per-pixel drawing partially masked the same bug). This is
+// the exact same class of bug fixed earlier for drawPixelRGB888 in the
+// video streaming path - fillRect/fillCircle need the same treatment.
+inline void saFillRect(MatrixPanel_I2S_DMA* display, int x0, int y0, int w, int h, uint16_t color) {
+    for (int y = y0; y < y0 + h; y++)
+        for (int x = x0; x < x0 + w; x++)
+            display->drawPixel(x, y, color);
+}
+inline void saFillCircle(MatrixPanel_I2S_DMA* display, int cx, int cy, int radius, uint16_t color) {
+    for (int y = -radius; y <= radius; y++)
+        for (int x = -radius; x <= radius; x++)
+            if (x * x + y * y <= radius * radius)
+                display->drawPixel(cx + x, cy + y, color);
+}
+
 // Parses the "HH:MM" following a 'T' in an ISO-ish timestamp
 // (Open-Meteo's daily sunrise/sunset format, e.g. "2026-07-12T06:12").
 // Returns seconds-of-day, or 0 if not found.
@@ -416,7 +438,7 @@ inline void standaloneRenderPulse(MatrixPanel_I2S_DMA* display, int face, float 
     float hue = fmodf(t * 30.0f, 360.0f);
     uint8_t r, g, b;
     standaloneHsvToRgb(hue, 1.0f, pulse, r, g, b);
-    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(r, g, b));
+    saFillRect(display, xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(r, g, b));
 }
 
 inline void standaloneRenderPlasma(MatrixPanel_I2S_DMA* display, int face, float t) {
@@ -434,7 +456,7 @@ inline void standaloneRenderPlasma(MatrixPanel_I2S_DMA* display, int face, float
 
 inline void standaloneRenderClock(MatrixPanel_I2S_DMA* display, int face) {
     const int xOff = face * PANEL_SIZE;
-    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+    saFillRect(display, xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
 
     struct tm tmv;
     standaloneLocalTm(tmv);
@@ -487,7 +509,7 @@ inline void standaloneRenderWeather(MatrixPanel_I2S_DMA* display, int face) {
     int cx = xOff + 8 + (int)(frac * (PANEL_SIZE - 16));
     int cy = 12;
     uint16_t discColor = isDay ? display->color565(255, 220, 80) : display->color565(215, 215, 225);
-    display->fillCircle(cx, cy, 5, discColor);
+    saFillCircle(display, cx, cy, 5, discColor);
 
     // Temperature + condition text.
     display->setTextColor(display->color565(255, 255, 255));
@@ -618,7 +640,7 @@ inline void standaloneRenderGradientWash(MatrixPanel_I2S_DMA* display, int face,
 
 inline void standaloneRenderAurora(MatrixPanel_I2S_DMA* display, int face, float t) {
     const int xOff = face * PANEL_SIZE;
-    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 8));
+    saFillRect(display, xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 8));
     for (int x = 0; x < PANEL_SIZE; x++) {
         float baseY1 = PANEL_SIZE * 0.5f + sinf(x * 0.18f + t * 1.1f) * 12.0f;
         float baseY2 = PANEL_SIZE * 0.55f + sinf(x * 0.12f - t * 0.8f + 2.0f) * 16.0f;
@@ -640,7 +662,7 @@ inline void standaloneRenderAurora(MatrixPanel_I2S_DMA* display, int face, float
 
 inline void standaloneRenderSpectrum(MatrixPanel_I2S_DMA* display, int face, float t) {
     const int xOff = face * PANEL_SIZE;
-    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+    saFillRect(display, xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
     const int BARS = 8;
     const int barW = PANEL_SIZE / BARS;
     for (int i = 0; i < BARS; i++) {
@@ -659,7 +681,7 @@ inline void standaloneRenderSpectrum(MatrixPanel_I2S_DMA* display, int face, flo
 
 inline void standaloneRenderBalls(MatrixPanel_I2S_DMA* display, int face, float t) {
     const int xOff = face * PANEL_SIZE;
-    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+    saFillRect(display, xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
     const int BALLS = 4;
     for (int i = 0; i < BALLS; i++) {
         float freq = 0.9f + i * 0.23f;
@@ -668,7 +690,7 @@ inline void standaloneRenderBalls(MatrixPanel_I2S_DMA* display, int face, float 
         float hue = fmodf(i * 90.0f + t * 30.0f, 360.0f);
         uint8_t r, g, b;
         standaloneHsvToRgb(hue, 1.0f, 1.0f, r, g, b);
-        display->fillCircle(x, y + 3, 3, display->color565(r, g, b));
+        saFillCircle(display, x, y + 3, 3, display->color565(r, g, b));
     }
 }
 
@@ -676,12 +698,12 @@ inline void standaloneRenderStrobe(MatrixPanel_I2S_DMA* display, int face, float
     const int xOff = face * PANEL_SIZE;
     bool on = fmodf(t, 0.3f) < 0.12f;
     uint16_t col = on ? display->color565(255, 255, 255) : display->color565(0, 0, 0);
-    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, col);
+    saFillRect(display, xOff, 0, PANEL_SIZE, PANEL_SIZE, col);
 }
 
 inline void standaloneRenderLightning(MatrixPanel_I2S_DMA* display, int face, float t) {
     const int xOff = face * PANEL_SIZE;
-    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(2, 2, 10));
+    saFillRect(display, xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(2, 2, 10));
     int bucket = (int)(t * 3.0f) + face * 97;
     bool flash = standaloneHash01(bucket) > 0.8f;
     if (!flash) return;
@@ -709,7 +731,7 @@ inline void standaloneRenderTide(MatrixPanel_I2S_DMA* display, int face, float t
 
 inline void standaloneRenderRain(MatrixPanel_I2S_DMA* display, int face, float t) {
     const int xOff = face * PANEL_SIZE;
-    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+    saFillRect(display, xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
     for (int x = 0; x < PANEL_SIZE; x += 2) {
         float speed = 20.0f + standaloneHash01(face * 53 + x) * 30.0f;
         float phase = standaloneHash01(face * 91 + x * 3) * PANEL_SIZE;
@@ -839,7 +861,7 @@ inline void standaloneRenderNebula(MatrixPanel_I2S_DMA* display, int face, float
 // the panel with connecting rungs.
 inline void standaloneRenderDna(MatrixPanel_I2S_DMA* display, int face, float t) {
     const int xOff = face * PANEL_SIZE;
-    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+    saFillRect(display, xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
     const float RADIUS = PANEL_SIZE * 0.36f;
     const int TURNS = 4;
     const float tt = t * 0.55f;
@@ -892,7 +914,7 @@ inline void standaloneRenderWarp(MatrixPanel_I2S_DMA* display, int face, float t
         }
         init = true;
     }
-    display->fillRect(xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+    saFillRect(display, xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
     for (int i = 0; i < NSTARS; i++) {
         float dx = sx[i] - 0.5f, dy = sy[i] - 0.5f;
         float dist = sqrtf(dx * dx + dy * dy) * 2;
@@ -957,7 +979,7 @@ inline void standaloneRenderLife(MatrixPanel_I2S_DMA* display, int face, float t
         memcpy(grid, nextg, W * H);
         if (pop < W * H * 0.01f || pop > W * H * 0.85f) seed();
     }
-    display->fillRect(xOff, 0, W, H, display->color565(0, 0, 1));
+    saFillRect(display, xOff, 0, W, H, display->color565(0, 0, 1));
     for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
         int i = y * W + x;
         if (grid[i]) {
@@ -1030,7 +1052,7 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_WARP:          standaloneRenderWarp(display, face, t);          break;
             case SA_LIFE:          standaloneRenderLife(display, face, t);          break;
             default:
-                display->fillRect(face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+                saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;
         }
     }
