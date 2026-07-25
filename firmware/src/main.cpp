@@ -711,6 +711,18 @@ void setup() {
 // loop()
 // ---------------------------------------------------------------------------
 void loop() {
+    // Temporary diagnostic heartbeat: prints even if WiFi/network has died,
+    // to distinguish "whole chip locked up" (heartbeat also stops) from
+    // "only networking died" (heartbeat keeps going). Remove once the
+    // ~30s-after-boot unreachability bug is found.
+    static uint32_t lastHeartbeat = 0;
+    if (millis() - lastHeartbeat > 2000) {
+        lastHeartbeat = millis();
+        Serial.printf("[HB] t=%lu heap=%u wifi=%d rssi=%d state=%d\n",
+                      (unsigned long)millis(), (unsigned)ESP.getFreeHeap(),
+                      (int)WiFi.status(), (int)WiFi.RSSI(), (int)g_appState);
+    }
+
     // Reconnect handling: if WiFi drops, fall back to connecting state and try
     // to recover; AsyncWebServer + tasks keep running.
     static uint32_t lastCheck = 0;
