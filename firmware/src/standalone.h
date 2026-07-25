@@ -65,7 +65,8 @@ enum StandaloneEffect : uint8_t {
     SA_DICE          = 28,
     SA_COINFLIP      = 29,
     SA_TRON          = 30,
-    SA_COUNT         = 31
+    SA_SPHERE        = 31,
+    SA_COUNT         = 32
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -101,6 +102,7 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_DICE:          return "dice";
         case SA_COINFLIP:      return "coinflip";
         case SA_TRON:          return "tron";
+        case SA_SPHERE:        return "sphere";
         default:               return "unknown";
     }
 }
@@ -123,9 +125,8 @@ inline uint8_t standaloneEffectForBrowserKey(const char* key) {
         {"dna", SA_DNA}, {"warp", SA_WARP}, {"life", SA_LIFE},
         {"lightspeed", SA_LIGHTSPEED}, {"sand", SA_SAND}, {"fluid", SA_FLUID},
         {"maze", SA_MAZE}, {"moon", SA_MOON}, {"easter_egg", SA_EASTER_EGG},
-        {"dice", SA_DICE}, {"coinflip", SA_COINFLIP}, {"tron", SA_TRON},
+        {"dice", SA_DICE}, {"coinflip", SA_COINFLIP}, {"tron", SA_TRON}, {"sphere", SA_SPHERE},
         // reasonable stand-ins for not-yet-ported visual effects
-        {"sphere", SA_PLASMA},
         {"ghost", SA_STROBE},
         {"custom_cube", SA_RAINBOW},
     };
@@ -1146,6 +1147,52 @@ inline void standaloneRenderWarp(MatrixPanel_I2S_DMA* display, int face, float t
 // straight/left/right leaves the most open area) - the browser's extra
 // runway/escape-route/4-step-lookahead scoring layers are dropped for size,
 // but the core "avoid trapping yourself" behavour is the same technique.
+// Laser Grid (sphere) - simplified port of effectSphere: the browser is a
+// ~6-state routine machine (scan/spin/collapse/dblscan/pulse/colsweep/wave/
+// flat, cycling through them over time). This keeps the core visual identity
+// - rotating radial laser rays from centre, a bright horizontal scan bar
+// sweeping up/down, and the same colour-cycle-with-flicker math (cR/cG/cB) -
+// continuously, rather than the full discrete state machine switching between
+// 8 distinct routines. A close relative, not a byte-identical recreation.
+inline void standaloneRenderSphere(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    const int S = PANEL_SIZE;
+    const float cx = (S - 1) / 2.0f, cy = (S - 1) / 2.0f;
+    const int nRays = 6;
+    snClear(face);
+    // Colour cycle with subtle flicker, same shape as the browser's cR/cG/cB.
+    float hp = t * 0.15f;
+    float flicker = 0.92f + 0.08f * sinf(t * 47.3f) * sinf(t * 31.7f);
+    float cR = (0.15f + 0.85f * fmaxf(0.0f, sinf(hp))) * flicker;
+    float cG = (0.3f + 0.7f * fmaxf(0.0f, sinf(hp + 2.094f))) * flicker;
+    float cB = (0.1f + 0.9f * fmaxf(0.0f, sinf(hp + 4.189f))) * flicker;
+    // Slow continuous rotation instead of the browser's discrete spin bursts.
+    float spinAngle = t * 0.35f;
+    float cosA = cosf(spinAngle), sinA = sinf(spinAngle);
+    // Radial rays from centre, rotating.
+    for (int ri = 0; ri < nRays; ri++) {
+        float ang = (2.0f * (float)M_PI * ri) / nRays;
+        float rdx = cosf(ang) * cosA - sinf(ang) * sinA;
+        float rdy = cosf(ang) * sinA + sinf(ang) * cosA;
+        float len = S * 0.7f;
+        int steps = (int)len;
+        for (int i = 0; i <= steps; i++) {
+            float ft = (float)i / steps;
+            int u = (int)lroundf(cx + rdx * len * ft);
+            int v = (int)lroundf(cy + rdy * len * ft);
+            float bright = 1.0f - ft * 0.6f;
+            snSet(face, u, v, cR * bright, cG * bright, cB * bright);
+        }
+    }
+    // Scanning horizontal bar, sweeping up and down.
+    const float scanPeriod = 3.0f;
+    float sp = fmodf(t, scanPeriod) / scanPeriod;
+    float raw = sp < 0.5f ? sp * 2 : 2 - sp * 2;
+    int scanV = (int)lroundf(cy + (raw - 0.5f) * (S - 1));
+    scanV = constrain(scanV, 0, S - 1);
+    for (int u = 0; u < S; u++) snAdd(face, u, scanV, cR * 0.6f, cG * 0.6f, cB * 0.6f);
+}
+
 inline void standaloneRenderTron(MatrixPanel_I2S_DMA* display, int face, float t) {
     (void)display;
     const int S = PANEL_SIZE;
@@ -2118,6 +2165,7 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_DICE:          standaloneRenderDice(display, face, t);          break;
             case SA_COINFLIP:      standaloneRenderCoinflip(display, face, t);      break;
             case SA_TRON:          standaloneRenderTron(display, face, t);          break;
+            case SA_SPHERE:        standaloneRenderSphere(display, face, t);        break;
             default:
                 saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;
