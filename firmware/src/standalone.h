@@ -76,7 +76,8 @@ enum StandaloneEffect : uint8_t {
     SA_TRIVIA        = 36,
     SA_OTD           = 37,
     SA_SIMHOUSE      = 38,
-    SA_COUNT         = 39
+    SA_NEO           = 39,
+    SA_COUNT         = 40
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -120,6 +121,7 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_TRIVIA:        return "trivia";
         case SA_OTD:           return "otd";
         case SA_SIMHOUSE:      return "simhouse";
+        case SA_NEO:           return "neo";
         default:               return "unknown";
     }
 }
@@ -145,6 +147,7 @@ inline uint8_t standaloneEffectForBrowserKey(const char* key) {
         {"dice", SA_DICE}, {"coinflip", SA_COINFLIP}, {"tron", SA_TRON}, {"sphere", SA_SPHERE},
         {"apod", SA_APOD}, {"ghost", SA_GHOST}, {"retro", SA_RETRO},
         {"joke", SA_JOKE}, {"trivia", SA_TRIVIA}, {"otd", SA_OTD}, {"simhouse", SA_SIMHOUSE},
+        {"neo", SA_NEO},
         // reasonable stand-ins for not-yet-ported visual effects
         {"custom_cube", SA_RAINBOW},
     };
@@ -4431,6 +4434,259 @@ inline void standaloneRenderSimHouse(MatrixPanel_I2S_DMA* display, int face, flo
     }
 }
 
+// ===========================================================================
+// Near-Earth Objects (NASA NeoWs API) - real fetch, same fields/sort/risk
+// classification as effects.js's effectNEO. Faithful port of the 3D-cube
+// branch: Face 0 (Earth + pulsing risk ring), Faces 2/3 (distance-scaled
+// object blips), Face 4 (title card), Face 1 (scrolling ticker).
+//
+// TEXT LIMITATION: the browser renders the ticker/title card via HTML
+// canvas fillText with a real system font - there's no equivalent font
+// rasterizer available on the ESP32. Both use the already-ported WC bitmap
+// font (5x7, see the word-cascade engine above) instead - the actual
+// content (object names/distances/risk data, real NASA fetch, Earth/ring/
+// blip geometry, colours, motion) is a faithful, real-data port; only the
+// glyph shapes differ from the browser's system font.
+// ===========================================================================
+#define NEO_MAX_OBJECTS 12
+struct NeoObject {
+    char  name[32];
+    bool  hazardous;
+    float missLD;
+    float velKmS;
+    int   diaM;
+};
+inline NeoObject g_neoObjects[NEO_MAX_OBJECTS];
+inline int       g_neoObjectCount = 0;
+inline String    g_neoError;
+inline volatile bool g_neoFetching = false;
+inline uint32_t  g_neoLastFetchMs = 0;
+inline float     g_neoT = 0;
+inline float     g_neoTickerScrollX = 0;
+
+inline int neoRisk(const NeoObject& o) {   // 0=green, 1=yellow, 2=red
+    if (o.hazardous && o.missLD < 5) return 2;
+    if (o.hazardous || o.missLD < 10) return 1;
+    return 0;
+}
+inline void neoRiskRGB(int level, float* out) {
+    if (level == 2) { out[0] = 1.0f; out[1] = 0.08f; out[2] = 0.08f; }
+    else if (level == 1) { out[0] = 1.0f; out[1] = 0.78f; out[2] = 0.05f; }
+    else { out[0] = 0.1f; out[1] = 0.95f; out[2] = 0.25f; }
+}
+inline int neoOverallRisk() {
+    if (g_neoObjectCount == 0) return 0;
+    for (int i = 0; i < g_neoObjectCount; i++) if (neoRisk(g_neoObjects[i]) == 2) return 2;
+    for (int i = 0; i < g_neoObjectCount; i++) if (neoRisk(g_neoObjects[i]) == 1) return 1;
+    return 0;
+}
+
+inline bool standaloneNeoFetch() {
+    if (WiFi.status() != WL_CONNECTED) return false;
+    if (g_neoFetching) return false;
+    g_neoFetching = true;
+    g_neoError = "";
+
+    time_t nowT = time(nullptr);
+    time_t endT = nowT + 6L * 86400L;
+    struct tm tmStart, tmEnd;
+    gmtime_r(&nowT, &tmStart);
+    gmtime_r(&endT, &tmEnd);
+    char startStr[11], endStr[11];
+    snprintf(startStr, sizeof(startStr), "%04d-%02d-%02d", tmStart.tm_year + 1900, tmStart.tm_mon + 1, tmStart.tm_mday);
+    snprintf(endStr, sizeof(endStr), "%04d-%02d-%02d", tmEnd.tm_year + 1900, tmEnd.tm_mon + 1, tmEnd.tm_mday);
+    char url[192];
+    snprintf(url, sizeof(url), "https://api.nasa.gov/neo/rest/v1/feed?start_date=%s&end_date=%s&api_key=DEMO_KEY", startStr, endStr);
+
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    bool ok = false;
+    if (http.begin(client, url)) {
+        int code = http.GET();
+        if (code == 200) {
+            String payload = http.getString();
+            JsonDocument doc;
+            DeserializationError err = deserializeJson(doc, payload);
+            if (!err) {
+                JsonObject byDate = doc["near_earth_objects"].as<JsonObject>();
+                struct RawNeo { char name[32]; bool hazardous; float missLD, velKmS; int diaM; };
+                static RawNeo raw[64];
+                int rawCount = 0;
+                for (JsonPair kv : byDate) {
+                    JsonArray arr = kv.value().as<JsonArray>();
+                    for (JsonObject o : arr) {
+                        if (rawCount >= 64) break;
+                        JsonArray cad = o["close_approach_data"].as<JsonArray>();
+                        if (cad.size() == 0) continue;
+                        JsonObject c0 = cad[0];
+                        const char* name = o["name"] | "";
+                        float dMin = o["estimated_diameter"]["meters"]["estimated_diameter_min"] | 0.0f;
+                        float dMax = o["estimated_diameter"]["meters"]["estimated_diameter_max"] | 0.0f;
+                        RawNeo& r = raw[rawCount++];
+                        int wi = 0;   // strip parens, matching JS's replace(/[()]/g,'')
+                        for (const char* p = name; *p && wi < 31; p++) if (*p != '(' && *p != ')') r.name[wi++] = *p;
+                        r.name[wi] = 0;
+                        r.hazardous = o["is_potentially_hazardous_asteroid"] | false;
+                        r.missLD = atof((const char*)(c0["miss_distance"]["lunar"] | "0"));
+                        r.velKmS = atof((const char*)(c0["relative_velocity"]["kilometers_per_second"] | "0"));
+                        r.diaM = (int)roundf((dMin + dMax) / 2);
+                    }
+                }
+                // Sort ascending by missLD, same as the browser's list.sort() -
+                // rawCount is small (a handful of days x a few objects), plain
+                // insertion sort is plenty.
+                for (int i = 1; i < rawCount; i++) {
+                    RawNeo key = raw[i];
+                    int j = i - 1;
+                    while (j >= 0 && raw[j].missLD > key.missLD) { raw[j + 1] = raw[j]; j--; }
+                    raw[j + 1] = key;
+                }
+                g_neoObjectCount = rawCount < NEO_MAX_OBJECTS ? rawCount : NEO_MAX_OBJECTS;
+                for (int i = 0; i < g_neoObjectCount; i++) {
+                    strncpy(g_neoObjects[i].name, raw[i].name, sizeof(g_neoObjects[i].name) - 1);
+                    g_neoObjects[i].name[sizeof(g_neoObjects[i].name) - 1] = 0;
+                    g_neoObjects[i].hazardous = raw[i].hazardous;
+                    g_neoObjects[i].missLD = raw[i].missLD;
+                    g_neoObjects[i].velKmS = raw[i].velKmS;
+                    g_neoObjects[i].diaM = raw[i].diaM;
+                }
+                ok = true;
+            } else {
+                g_neoError = "Parse error";
+            }
+        } else {
+            g_neoError = "NASA API error " + String(code);
+        }
+        http.end();
+    } else {
+        g_neoError = "Network error";
+    }
+    g_neoFetching = false;
+    return ok;
+}
+
+inline void standaloneRenderNeo(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    static float lastT = -1;
+    float dt = lastT < 0 ? 0 : (t - lastT);
+    lastT = t;
+    if (face == 0) g_neoT += dt;
+
+    snClear(face);
+    const int S = PANEL_SIZE;
+    int level = neoOverallRisk();
+    float riskRGB[3]; neoRiskRGB(level, riskRGB);
+    float pulse = 0.55f + 0.45f * sinf(g_neoT * (level == 2 ? 6.0f : level == 1 ? 3.0f : 1.4f));
+
+    // Starfield background on every face - same deterministic hash formula
+    // as the browser (applied per-face here since our buffer is per-face,
+    // not one global colBuf array).
+    float tt = millis() * 0.001f;
+    for (int y = 0; y < S; y++) {
+        for (int x = 0; x < S; x++) {
+            uint32_t gi = (uint32_t)(face * S * S + y * S + x);
+            float seed = (float)((gi * 2654435761u)) / 4294967296.0f;
+            if (seed < 0.014f) {
+                float twinkle = 0.3f + 0.7f * fabsf(sinf(tt * 1.4f + seed * 60));
+                float br = seed * 36 * twinkle;
+                snSet(face, x, y, br, br, br * 1.1f);
+            }
+        }
+    }
+
+    if (face == 0) {
+        // Earth with pulsing threat ring
+        float cx0 = S / 2.0f, cy0 = S / 2.0f;
+        float earthRad = S * 0.3f, ringRad = S * 0.42f;
+        for (int y = 0; y < S; y++) {
+            for (int x = 0; x < S; x++) {
+                float dx = x - cx0, dy = y - cy0, d = sqrtf(dx * dx + dy * dy);
+                if (d < earthRad) {
+                    float nx = dx / earthRad, ny = dy / earthRad;
+                    bool land = sinf(nx * 5 + tt * 0.15f) * cosf(ny * 4) > 0.25f;
+                    float r, g, b;
+                    if (land) { r = 0.07f; g = 0.45f; b = 0.12f; }
+                    else { r = 0.05f; g = 0.18f; b = 0.55f; }
+                    float shade = 1.0f - fmaxf(0.0f, d / earthRad) * 0.3f;
+                    snSet(face, x, y, r * shade, g * shade, b * shade);
+                } else if (d > ringRad - 1.2f && d < ringRad + 1.2f) {
+                    snSet(face, x, y, riskRGB[0] * pulse, riskRGB[1] * pulse, riskRGB[2] * pulse);
+                }
+            }
+        }
+    } else if (face == 2 || face == 3) {
+        // Incoming object blips, distance-scaled
+        int f = (face == 2) ? 0 : 1;
+        int n = g_neoObjectCount < 6 ? g_neoObjectCount : 6;
+        for (int oi = 0; oi < n; oi++) {
+            const NeoObject& o = g_neoObjects[oi];
+            int r = neoRisk(o);
+            float rgb[3]; neoRiskRGB(r, rgb);
+            float closeness = fmaxf(0.0f, 1.0f - fminf(1.0f, o.missLD / 40.0f));
+            int bx = 2 + ((oi * 7 + f * 3) % (S - 4));
+            int by = (int)roundf(S * 0.15f + (S * 0.7f) * (oi / fmaxf(1.0f, n - 1.0f)));
+            int rad = 1 + (int)roundf(closeness * 2.5f);
+            float blink = 0.6f + 0.4f * sinf(g_neoT * (2 + oi) + oi);
+            for (int dv = -rad; dv <= rad; dv++) {
+                for (int du = -rad; du <= rad; du++) {
+                    if (du * du + dv * dv > rad * rad) continue;
+                    snSet(face, bx + du, by + dv, rgb[0] * blink, rgb[1] * blink, rgb[2] * blink);
+                }
+            }
+        }
+    } else if (face == 4) {
+        // Title / risk summary card, WC font (see TEXT LIMITATION note above)
+        const float white[3] = {1, 1, 1};
+        float rgb[3]; neoRiskRGB(level, rgb);
+        wcDrawCenteredLine(face, "NEO", white, S - 10);
+        const char* lvl = level == 2 ? "DANGER" : level == 1 ? "WATCH" : "CLEAR";
+        wcDrawCenteredLine(face, lvl, rgb, S / 2 + 2);
+        if (g_neoObjectCount > 0) {
+            char line[24];
+            snprintf(line, sizeof(line), "%.1fLD", g_neoObjects[0].missLD);
+            const float grey[3] = {0.7f, 0.7f, 0.7f};
+            wcDrawCenteredLine(face, line, grey, 12);
+        } else {
+            const float grey[3] = {0.7f, 0.7f, 0.7f};
+            wcDrawCenteredLine(face, "NO DATA", grey, 12);
+        }
+    } else if (face == 1) {
+        // Scrolling ticker, WC font
+        g_neoTickerScrollX += dt * 22.0f * (g_nativeSpeed > 0 ? g_nativeSpeed : 1.0f);
+        char ticker[400];
+        if (g_neoObjectCount == 0) {
+            strcpy(ticker, "   NEO WATCH  -  NO DATA   ");
+        } else {
+            int pos = 0;
+            for (int i = 0; i < g_neoObjectCount && pos < 350; i++) {
+                const NeoObject& o = g_neoObjects[i];
+                int r = neoRisk(o);
+                const char* flag = r == 2 ? "!!" : r == 1 ? "!" : ".";
+                pos += snprintf(ticker + pos, sizeof(ticker) - pos, "%s %s %.1fLD %dm %.1fkm/s   ///   ",
+                                 flag, o.name, o.missLD, o.diaM, o.velKmS);
+            }
+        }
+        int len = (int)strlen(ticker);
+        int totalW = len * WC_CHAR_W + S;
+        int scrollPx = ((int)g_neoTickerScrollX) % totalW;
+        const float white[3] = {1, 1, 1};
+        int u = -scrollPx;
+        for (int i = 0; i < len; i++) {
+            if (u + WC_CHAR_W >= 0 && u < S) wcDrawGlyph(face, ticker[i], u, S / 2 - 3, white);
+            u += WC_CHAR_W;
+        }
+        // second copy so the scroll wraps seamlessly
+        u = -scrollPx + totalW;
+        for (int i = 0; i < len && u < S; i++) {
+            if (u + WC_CHAR_W >= 0) wcDrawGlyph(face, ticker[i], u, S / 2 - 3, white);
+            u += WC_CHAR_W;
+        }
+    }
+    // Faces 5 stays starfield-only, matching the browser (no extra content
+    // drawn on that face in the 3D-cube branch).
+}
+
 // ---------------------------------------------------------------------------
 // Dispatcher — called once per display-task tick when in standalone mode.
 // ---------------------------------------------------------------------------
@@ -4494,6 +4750,7 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_TRIVIA:        standaloneRenderTrivia(display, face, t);        break;
             case SA_OTD:           standaloneRenderOnThisDay(display, face, t);     break;
             case SA_SIMHOUSE:      standaloneRenderSimHouse(display, face, t);      break;
+            case SA_NEO:           standaloneRenderNeo(display, face, t);           break;
             default:
                 saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;

@@ -786,5 +786,16 @@ void loop() {
         }
     }
 
+    // NEO: fetch once when the effect is active and nothing's cached, then
+    // refresh hourly (real close-approach data, no need to poll more often
+    // than that) - same interval effects.js's effectNEO uses.
+    static uint32_t lastNeoFetch = 0;
+    if (g_standaloneEffect == SA_NEO &&
+        (!g_neoObjectCount ? (millis() - lastNeoFetch > 15000)
+                           : (millis() - lastNeoFetch > 3600000UL))) {
+        lastNeoFetch = millis();
+        standaloneNeoFetch();
+    }
+
     delay(20);
 }
