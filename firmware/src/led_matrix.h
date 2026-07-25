@@ -23,7 +23,7 @@
 // directly on the raw y - a cheap, easy A/B test against the bug-fixed
 // 64px version above, in case the adjustment itself doesn't match this
 // panel's real structure even when actually applied.
-#define FOUR_SCAN_SKIP_64_ADJUSTMENT 1
+#define FOUR_SCAN_SKIP_64_ADJUSTMENT 0
 
 // panelPixelBase: block size the x-remap groups by. Tried 8 (per a
 // reference implementation for a similar four-scan panel, GitHub
