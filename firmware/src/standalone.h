@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <string.h>          // strlen (FW_VERSION overlay sizing)
 #include <esp_heap_caps.h>   // heap_caps_malloc / MALLOC_CAP_8BIT (snAllocPreferPsram fallback)
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -2882,6 +2883,19 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             display->print(g_wxLine1Buf);
             display->setCursor(xOff + 4, PANEL_SIZE - 10);
             display->print(g_wxLine2Buf);
+        }
+
+        // FW_VERSION tag, Face 0 only, bottom-right corner. Must run here
+        // (post-blit, pre-flip) for the same reason as the clock/weather
+        // text above - drawing it after standaloneRender() returns (as
+        // main.cpp originally did) lands on the buffer that just became the
+        // new back-buffer, which the next frame's full blit wipes before it
+        // is ever flipped to front - that's what caused the flicker.
+        if (face == 0) {
+            display->setTextColor(display->color565(255, 255, 255));
+            display->setTextSize(1);
+            display->setCursor(PANEL_SIZE - (int)(strlen(FW_VERSION) * 6) - 1, PANEL_SIZE - 7);
+            display->print(FW_VERSION);
         }
     }
     display->flipDMABuffer();

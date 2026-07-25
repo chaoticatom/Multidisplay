@@ -15,7 +15,6 @@
 #include <AsyncTCP.h>
 #include <time.h>
 #include <esp_heap_caps.h>   // heap_caps_malloc / MALLOC_CAP_8BIT (internal-RAM buffer fallback)
-#include <string.h>          // strlen (FW_VERSION overlay sizing)
 
 #include "config.h"
 #include "led_matrix.h"
@@ -134,17 +133,14 @@ static void displayTask(void* arg) {
                 // browser's selected effect to its nearest native port, so
                 // this keeps running a native version of what you picked -
                 // no browser needed. See standalone.h.
+                // FW_VERSION overlay is drawn inside standaloneRender()
+                // itself now (post-blit, pre-flip) - see standalone.h. It
+                // used to be drawn here instead, but that ran after
+                // standaloneRender()'s own flipDMABuffer(), landing on the
+                // buffer that had just become the new back-buffer - the next
+                // frame's blit wiped it before it was ever flipped to front,
+                // which is what caused the flicker.
                 standaloneRender(dma_display, dt);
-
-                // Small, dim FW_VERSION tag in Face 0's bottom-right corner -
-                // always visible on the native/default effect (not overlaid
-                // on live streamed video), so it's obvious at a glance
-                // whether a reflash actually landed instead of having to dig
-                // through serial logs or diagnostic test screens.
-                dma_display->setTextColor(dma_display->color565(255, 255, 255));
-                dma_display->setTextSize(1);
-                dma_display->setCursor(PANEL_SIZE - (int)(strlen(FW_VERSION) * 6) - 1, PANEL_SIZE - 7);
-                dma_display->print(FW_VERSION);
             } else {
                 bool anyDrawn = false;
                 for (uint8_t face = 0; face < NUM_FACES; face++) {
