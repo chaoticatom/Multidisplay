@@ -258,6 +258,16 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                     else if (!strcmp(ov, "fire"))      g_ovFire = on;
                     else if (!strcmp(ov, "glitch"))    g_ovGlitch = on;
                     else if (!strcmp(ov, "lightning")) g_ovLightning = on;
+                } else if (strcmp(cmd, "setOption") == 0) {
+                    // Generic per-effect option sync (the "options within
+                    // effects aren't replicated on the ESP32" gap). Extend
+                    // with more effect/key pairs as they get wired up.
+                    const char* eff = doc["effect"] | "";
+                    const char* key = doc["key"] | "";
+                    if (!strcmp(eff, "fireworks") && !strcmp(key, "mode")) {
+                        const char* v = doc["value"] | "random";
+                        g_fwMode = !strcmp(v, "sync") ? 1 : 0;
+                    }
                 }
             }
         }

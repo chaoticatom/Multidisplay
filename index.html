@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RGB LED Cube</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
-<link rel="stylesheet" href="style.css?v=876">
+<link rel="stylesheet" href="style.css?v=877">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -58,7 +58,7 @@
       <span class="ov-toggle"><input type="checkbox" id="standalone-mode-chk"><span class="ov-slider"></span></span>
     </label>
     <div id="standalone-mode-note" style="display:none;font-size:11px;line-height:1.4;color:#9ab;margin-top:6px;">
-      Only effects the ESP32 can run on its own are enabled below (Plasma Storm, Fireworks, Rainbow Wash, Aurora, Spectrum Analyser, Bouncing Balls, Strobe Flash, Lightning Storm, Color Tide, Colour Rain, Time &amp; Date, Weather). Everything else — including all overlays — needs the browser connected, so it's disabled while previewing. Picking one of the enabled effects also saves it on the cube as its standalone default.
+      Fully disconnects this browser from the physical cube — nothing you do here (effects, brightness, speed, overlays) reaches the ESP32 while this is on, so it keeps running whatever it's already showing, completely on its own. Every effect and overlay still works normally here for local preview. Untick to reconnect and resume control immediately.
     </div>
   </div>
 
@@ -1613,7 +1613,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script src="version.js?v=876"></script>
+<script src="version.js?v=877"></script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1677,7 +1677,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=876','effects.js?v=876','ui.js?v=876'];
+  const appScripts = ['cube.js?v=877','effects.js?v=877','ui.js?v=877'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';

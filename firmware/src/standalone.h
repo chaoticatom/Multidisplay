@@ -195,6 +195,12 @@ inline volatile bool g_ovLightning = false;
 // frames. This is the robust fix for "it's still coming from the browser".
 inline volatile bool    g_streamMode = false;
 
+// Per-effect option state, synced from the browser's effect option panels via
+// the setOption command (web_server.h) - the "options within effects aren't
+// replicated on the ESP32" gap. Extend this as more options get wired up;
+// starting with fireworks' show mode (random vs. synchronized volleys).
+inline volatile uint8_t g_fwMode = 0;   // 0=random (default), 1=sync
+
 // Weather cache, refreshed periodically by standaloneWxFetch().
 inline bool           g_wxValid       = false;
 inline int            g_wxTemp        = 0;
@@ -323,6 +329,18 @@ inline void snAdd(int face, int x, int y, float r, float g, float b) {
     p[0] = (uint8_t)(saClamp01(p[0] / 255.0f + r) * 255.0f);
     p[1] = (uint8_t)(saClamp01(p[1] / 255.0f + g) * 255.0f);
     p[2] = (uint8_t)(saClamp01(p[2] / 255.0f + b) * 255.0f);
+}
+// Per-channel max blend (matches colBuf's Math.max(colBuf[i], newVal)
+// pattern - used where overlapping shapes should show whichever is
+// brighter, not accumulate/wash out like snAdd).
+inline void snMax(int face, int x, int y, float r, float g, float b) {
+    if (face < 0 || face >= NUM_FACES || x < 0 || x >= PANEL_SIZE || y < 0 || y >= PANEL_SIZE) return;
+    snEnsureBuf(face);
+    uint8_t* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
+    uint8_t rr = (uint8_t)(saClamp01(r) * 255.0f), gg = (uint8_t)(saClamp01(g) * 255.0f), bb = (uint8_t)(saClamp01(b) * 255.0f);
+    if (rr > p[0]) p[0] = rr;
+    if (gg > p[1]) p[1] = gg;
+    if (bb > p[2]) p[2] = bb;
 }
 // Decay the whole buffer (fade-trail effects: colBuf[i]*=mul each frame).
 inline void snDecay(int face, float mul) {
@@ -885,15 +903,41 @@ inline void standaloneRenderFireworks(MatrixPanel_I2S_DMA* display, int face, fl
         if (bb > buf[i+2]) buf[i+2] = bb;
     };
 
-    // Launch new rockets (~every 0.4s, sometimes two).
-    spawnT += dt;
-    if (spawnT > 0.4f) {
-        spawnT = 0;
-        for (int shots = 0; shots < (rnd() > 0.6f ? 2 : 1); shots++)
-            for (int k = 0; k < 10; k++) if (!rockets[k].active) {
-                rockets[k] = { rnd() * S, 0, S * (0.88f + rnd() * 0.45f), (rnd() - 0.5f) * S * 0.3f, rnd(), rnd(), true };
-                break;
+    // Launch new rockets. Two modes, synced from the browser's Sync Show
+    // option (setOption cmd, mirrors fwMode):
+    // - random (default): independent single/double launches every ~0.4s,
+    //   each with its own random hue - matches the browser's random branch.
+    // - sync: periodic unified volleys (3-5 rockets at once, sharing one
+    //   hue/hue2 "theme") every ~2.5-4s - a simplified stand-in for the
+    //   browser's full scripted FW_SYNC_ACTS routine table (which schedules
+    //   specific shapes/timings via a large routine list), capturing the
+    //   core "one coordinated themed show" feel rather than the exact script.
+    if (g_fwMode == 1) {
+        spawnT += dt;
+        if (spawnT > 0) spawnT = spawnT;   // (kept for symmetry, unused in sync branch)
+        static float syncWait = 0;
+        syncWait -= dt;
+        if (syncWait <= 0) {
+            syncWait = 2.5f + rnd() * 1.5f;
+            float sharedHue = rnd(), sharedHue2 = rnd();
+            int volley = 3 + (int)(rnd() * 3);
+            for (int v = 0; v < volley; v++) {
+                for (int k = 0; k < 10; k++) if (!rockets[k].active) {
+                    rockets[k] = { rnd() * S, 0, S * (0.88f + rnd() * 0.45f), (rnd() - 0.5f) * S * 0.3f, sharedHue, sharedHue2, true };
+                    break;
+                }
             }
+        }
+    } else {
+        spawnT += dt;
+        if (spawnT > 0.4f) {
+            spawnT = 0;
+            for (int shots = 0; shots < (rnd() > 0.6f ? 2 : 1); shots++)
+                for (int k = 0; k < 10; k++) if (!rockets[k].active) {
+                    rockets[k] = { rnd() * S, 0, S * (0.88f + rnd() * 0.45f), (rnd() - 0.5f) * S * 0.3f, rnd(), rnd(), true };
+                    break;
+                }
+        }
     }
 
     // Rockets rise, gravity, burst at apex.
@@ -995,18 +1039,89 @@ inline void standaloneRenderSpectrum(MatrixPanel_I2S_DMA* display, int face, flo
     }
 }
 
+// Faithful port of effectBouncingBalls' panel2dMode path (no gyro on this
+// board, so the gyroEnabled/rotChange gravity-nudge branches never fire -
+// matching the browser's own behaviour with gyro unavailable/disabled):
+// each ball moves at constant velocity, bounces elastically off the panel
+// walls and off each other, exactly the real physics, not an approximation.
 inline void standaloneRenderBalls(MatrixPanel_I2S_DMA* display, int face, float t) {
-    const int xOff = face * PANEL_SIZE;
-    saFillRect(display, xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
-    const int BALLS = 4;
-    for (int i = 0; i < BALLS; i++) {
-        float freq = 0.9f + i * 0.23f;
-        int x = xOff + (PANEL_SIZE / (BALLS + 1)) * (i + 1);
-        int y = (int)((PANEL_SIZE - 4) * fabsf(sinf(t * freq + i)));
-        float hue = fmodf(i * 90.0f + t * 30.0f, 360.0f);
-        uint8_t r, g, b;
-        standaloneHsvToRgb(hue, 1.0f, 1.0f, r, g, b);
-        saFillCircle(display, x, y + 3, 3, display->color565(r, g, b));
+    (void)display;
+    const int S = PANEL_SIZE;
+    const int NBALLS = 6;   // ballsPerFace(3) * 2, matching panel2dMode's doubled count
+    struct Ball { float u, v, du, dv, r, cr, cg, cb; };
+    static Ball balls[NBALLS];
+    static bool init = false;
+    static float lastT = 0;
+    // Same 12-colour palette as resetBalls' COLORS array.
+    static const float PAL[12][3] = {
+        {1,0.15f,0.15f},{0.15f,1,0.15f},{0.2f,0.4f,1},{1,1,0.1f},
+        {1,0.4f,0},{0.9f,0.15f,0.9f},{0,0.9f,0.9f},{1,0.6f,0.7f},
+        {0.5f,1,0.3f},{1,0.5f,0.1f},{0.3f,0.5f,1},{0.8f,0.2f,0.5f},
+    };
+    if (!init) {
+        for (int i = 0; i < NBALLS; i++) {
+            float R = 3 + (int)(standaloneHash01(i * 7) * 3);
+            float ang = standaloneHash01(i * 11) * 6.2832f;
+            float spd = S * (0.3f + standaloneHash01(i * 13) * 0.4f);
+            balls[i] = { R + 1 + standaloneHash01(i * 17) * (S - 2 * R - 2),
+                         R + 1 + standaloneHash01(i * 19) * (S - 2 * R - 2),
+                         cosf(ang) * spd, sinf(ang) * spd, R,
+                         PAL[i % 12][0], PAL[i % 12][1], PAL[i % 12][2] };
+        }
+        init = true; lastT = t;
+    }
+    float dt = t - lastT; lastT = t;
+    if (dt < 0) dt = 0; if (dt > 0.1f) dt = 0.1f;
+    snClear(face);
+
+    const float S1 = S - 1;
+    for (int i = 0; i < NBALLS; i++) {
+        Ball& b = balls[i];
+        b.u += b.du * dt; b.v += b.dv * dt;
+        float R = b.r;
+        if (b.u < R)      { b.u = R;      b.du = fabsf(b.du); }
+        if (b.u > S1 - R) { b.u = S1 - R; b.du = -fabsf(b.du); }
+        if (b.v < R)      { b.v = R;      b.dv = fabsf(b.dv); }
+        if (b.v > S1 - R) { b.v = S1 - R; b.dv = -fabsf(b.dv); }
+    }
+    // Ball-ball elastic collisions (same overlap-separation + relative-
+    // velocity-along-normal impulse as the browser).
+    for (int i = 0; i < NBALLS; i++) {
+        for (int j = i + 1; j < NBALLS; j++) {
+            Ball& a = balls[i]; Ball& b2 = balls[j];
+            float dx = b2.u - a.u, dy = b2.v - a.v;
+            float dist = sqrtf(dx * dx + dy * dy);
+            float minD = a.r + b2.r;
+            if (dist < minD && dist > 0.1f) {
+                float nx = dx / dist, ny = dy / dist;
+                float overlap = (minD - dist) * 0.5f;
+                a.u -= nx * overlap; a.v -= ny * overlap;
+                b2.u += nx * overlap; b2.v += ny * overlap;
+                float relV = (b2.du - a.du) * nx + (b2.dv - a.dv) * ny;
+                if (relV < 0) {
+                    a.du += relV * nx * 0.5f; a.dv += relV * ny * 0.5f;
+                    b2.du -= relV * nx * 0.5f; b2.dv -= relV * ny * 0.5f;
+                }
+            }
+        }
+    }
+    // Render: shaded circle (dist-based shading + edge darkening), max-blend
+    // so overlapping balls show whichever colour is brighter, matching the
+    // browser's colBuf Math.max compositing.
+    for (int i = 0; i < NBALLS; i++) {
+        Ball& b = balls[i];
+        int cu = (int)lroundf(b.u), cv = (int)lroundf(b.v);
+        int R = (int)b.r, R2 = R * R;
+        for (int dv = -R; dv <= R; dv++) {
+            for (int du = -R; du <= R; du++) {
+                int d2 = du * du + dv * dv;
+                if (d2 > R2) continue;
+                float dist = sqrtf((float)d2) / R;
+                float shade = 1.0f - dist * 0.55f;
+                float edge = dist > 0.75f ? 0.5f : 1.0f;
+                snMax(face, cu + du, cv + dv, b.cr * shade * edge, b.cg * shade * edge, b.cb * shade * edge);
+            }
+        }
     }
 }
 

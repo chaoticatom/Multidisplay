@@ -1567,6 +1567,9 @@ document.querySelectorAll('[data-fwmode]').forEach(btn=>{
     fwMode=btn.dataset.fwmode;
     if(fwMode==='sync'){ fwSyncWait=0; fwSyncAct=0; fwSyncQueue.length=0; }
     if(fwMode==='mic') fwMicStart();
+    // Drive the ESP32's native fireworks mode too (mic isn't supported
+    // on-device - no microphone - so it falls back to random there).
+    if(typeof cubeSendCmd==='function') cubeSendCmd({cmd:'setOption', effect:'fireworks', key:'mode', value: fwMode});
   });
 });
 
@@ -3593,12 +3596,14 @@ let cubeNumFaces = 6;
 // effects, not just the streamed frames - the browser stays a working remote
 // even when the ESP32 is running effects itself with nothing being streamed.
 function cubeSendCmd(obj){
+  if(standaloneModeOn) return;   // fully disconnected - see the checkbox handler
   if(cubeConnected && cubeWs && cubeWs.readyState === WebSocket.OPEN){
     try { cubeWs.send(JSON.stringify(obj)); } catch(e){}
   }
 }
 
 function initCubeWs() {
+  if(standaloneModeOn) return;   // don't reconnect while deliberately disconnected
   // Skip if opened locally (simulator mode on dev machine)
   const h = location.hostname;
   if(!h || h === 'localhost' || h === '127.0.0.1') return;
@@ -3629,6 +3634,7 @@ function initCubeWs() {
       // immediately on (re)connect.
       cubeSendCmd({cmd:'setBrightness', value: brightness});
       cubeSendCmd({cmd:'setSpeed', value: speedMult});
+      if(typeof fwMode === 'string') cubeSendCmd({cmd:'setOption', effect:'fireworks', key:'mode', value: fwMode});
       if(typeof currentEffect === 'string' && currentEffect){
         cubeSendCmd({cmd:'setEffect', effect: currentEffect});
       }
@@ -3658,6 +3664,7 @@ function streamFrameToCube(dt) {
   // showing the native effect. Set window.streamToCube=true only if you
   // deliberately want to push browser pixels for a not-yet-ported effect.
   if(!streamToCube) return;
+  if(standaloneModeOn) return;   // fully disconnected - see the checkbox handler
   if(!cubeConnected || !cubeWs || cubeWs.readyState !== WebSocket.OPEN) return;
   cubeStreamT += dt;
   if(cubeStreamT < 1/CUBE_FPS) return;
@@ -3921,58 +3928,33 @@ initCubeWs();
 // ═══════════════════════════════════════════════════
 //  STANDALONE MODE PREVIEW
 //
-// The ESP32 can only run a handful of natively-implemented effects
-// (standalone.h: rainbow, pulse, plasma, clock, weather) when the browser
-// isn't connected — everything else in EFFECTS is computed here in JS and
-// simply won't run on the cube once you disconnect. This preview mode greys
-// out every button/overlay that won't survive disconnection, so you can
-// safely preconfigure the cube before walking away from the browser.
-// ═══════════════════════════════════════════════════
-const STANDALONE_EFFECT_MAP = {
-  plasma: 2, datetime: 3, weather: 4,
-  fireworks: 5, gradient_wash: 6, aurora: 7,
-  balls: 9, strobe: 10, lightning: 11, tide: 12, rain: 13,
-};
+// Disconnects the browser from the physical cube entirely: no effect/
+// brightness/speed/overlay commands and no video streaming are sent while
+// this is on, so the ESP32 keeps running whatever it's already doing on its
+// own, completely unaffected by anything you do in the browser. Every
+// effect/overlay/menu stays fully usable here for local preview - nothing is
+// greyed out, since none of it reaches the cube while disconnected anyway.
+// Unticking reconnects and resumes normal control immediately.
 let standaloneModeOn = false;
 
 function standaloneModeApply(){
-  document.querySelectorAll('.effect-btn').forEach(btn=>{
-    const ok = !standaloneModeOn || STANDALONE_EFFECT_MAP.hasOwnProperty(btn.dataset.effect);
-    btn.disabled = !ok;
-    btn.style.opacity = ok ? '' : '0.35';
-    btn.style.pointerEvents = ok ? '' : 'none';
-  });
-  document.querySelectorAll('.ov-toggle input, .ov-sl, .ov-col').forEach(el=>{
-    el.disabled = standaloneModeOn;
-    const wrap = el.closest('.ov-toggle') || el;
-    wrap.style.opacity = standaloneModeOn ? '0.35' : '';
-    wrap.style.pointerEvents = standaloneModeOn ? 'none' : '';
-  });
   const note = document.getElementById('standalone-mode-note');
   if(note) note.style.display = standaloneModeOn ? 'block' : 'none';
-}
-
-function standalonePushEffect(eff){
-  const id = STANDALONE_EFFECT_MAP[eff];
-  if(id === undefined) return;
-  const h = location.hostname;
-  if(!h || h === 'localhost' || h === '127.0.0.1' || location.protocol === 'https:') return;
-  fetch(`http://${h}/api/standalone/effect`, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({effect:id})
-  }).catch(e=>console.warn('[standalone] could not push effect to cube:', e && e.message));
+  if(standaloneModeOn){
+    // Fully detach - close the socket so the ESP32 sees a clean disconnect
+    // (its g_browserConnected flag clears, native effects/overlay etc. stay
+    // exactly as they were) rather than just going quiet on our end.
+    if(cubeWs){ try{ cubeWs.close(); }catch(e){} }
+    cubeConnected = false;
+  } else {
+    // Reconnect immediately rather than waiting for the normal 5s retry.
+    if(typeof initCubeWs === 'function') initCubeWs();
+  }
 }
 
 document.getElementById('standalone-mode-chk')?.addEventListener('change', e=>{
   standaloneModeOn = e.target.checked;
   standaloneModeApply();
-});
-
-document.querySelectorAll('.effect-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    if(standaloneModeOn) standalonePushEffect(btn.dataset.effect);
-  });
 });
 
 // ═══════════════════════════════════════════════════
