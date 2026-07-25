@@ -166,6 +166,15 @@
 #define HUB75_D               47
 #define HUB75_E               -1
 #endif
+
+// The one extra address wire physically confirmed present on this panel's
+// connector (GPIO 47) - always this GPIO regardless of which of HUB75_D/
+// HUB75_E it's currently assigned to above (that assignment only matters
+// for the library's own address-bit-weight assumptions; custom_hub75.h's
+// raw bit-bang driver bypasses the library and its assumptions entirely,
+// so it uses this fixed alias instead of caring about D-vs-E naming).
+#define HUB75_EXTRA_ADDR      47
+
 // Reversed strip chaining order - see the SCAN_SPLIT=2 comment above. This
 // is the specific untested combination: half-scan geometry + non-sequential
 // chain order, matching the real documented community fix as closely as

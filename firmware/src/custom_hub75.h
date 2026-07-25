@@ -18,7 +18,7 @@
 // This driver makes zero assumptions borrowed from any theory about how many
 // "virtual modules" this panel chains as. It drives only the FOUR row-address
 // wires that are physically confirmed to exist on this panel's connector (A,
-// B, C, and the one extra wire currently assigned to HUB75_D) as a plain
+// B, C, and the one extra wire currently assigned to HUB75_EXTRA_ADDR) as a plain
 // 4-bit counter (0-15), with R1/R2 feeding the standard top/bottom halves.
 // No PWM/BCM colour depth - solid on/off per channel (8 possible colours) is
 // enough to see whether every row lights evenly. Slow (digitalWrite, no
@@ -35,7 +35,7 @@ inline void customHub75Init() {
     pinMode(HUB75_A,  OUTPUT);
     pinMode(HUB75_B,  OUTPUT);
     pinMode(HUB75_C,  OUTPUT);
-    pinMode(HUB75_D,  OUTPUT);   // the one extra confirmed-present address wire
+    pinMode(HUB75_EXTRA_ADDR,  OUTPUT);   // the one extra confirmed-present address wire
     pinMode(HUB75_LAT, OUTPUT);
     pinMode(HUB75_OE,  OUTPUT);
     pinMode(HUB75_CLK, OUTPUT);
@@ -100,7 +100,7 @@ inline void customHub75FillTest(bool r, bool g, bool b) {
             digitalWrite(HUB75_A, (addr & 0x1) ? HIGH : LOW);
             digitalWrite(HUB75_B, (addr & 0x2) ? HIGH : LOW);
             digitalWrite(HUB75_C, (addr & 0x4) ? HIGH : LOW);
-            digitalWrite(HUB75_D, (addr & 0x8) ? HIGH : LOW);
+            digitalWrite(HUB75_EXTRA_ADDR, (addr & 0x8) ? HIGH : LOW);
 
             // Enable output (active-low) to actually light this row-pair.
             digitalWrite(HUB75_OE, LOW);
@@ -145,7 +145,7 @@ inline void customHub75RowIdentityTest() {
             digitalWrite(HUB75_A, (addr & 0x1) ? HIGH : LOW);
             digitalWrite(HUB75_B, (addr & 0x2) ? HIGH : LOW);
             digitalWrite(HUB75_C, (addr & 0x4) ? HIGH : LOW);
-            digitalWrite(HUB75_D, (addr & 0x8) ? HIGH : LOW);
+            digitalWrite(HUB75_EXTRA_ADDR, (addr & 0x8) ? HIGH : LOW);
 
             digitalWrite(HUB75_OE, LOW);
         }
@@ -176,7 +176,7 @@ inline void customHub75ABCShiftDEDirectTest(bool r, bool g, bool b) {
             // The extra wire is set ONCE here, before the whole A/B/C sweep -
             // not re-set every row - to behave like an independent select
             // line rather than a bit toggling in lockstep with A/B/C.
-            digitalWrite(HUB75_D, direct ? HIGH : LOW);
+            digitalWrite(HUB75_EXTRA_ADDR, direct ? HIGH : LOW);
 
             for (int abc = 0; abc < 8; abc++) {
                 digitalWrite(HUB75_LAT, LOW);
@@ -200,9 +200,77 @@ inline void customHub75ABCShiftDEDirectTest(bool r, bool g, bool b) {
                 digitalWrite(HUB75_A, (abc & 0x1) ? HIGH : LOW);
                 digitalWrite(HUB75_B, (abc & 0x2) ? HIGH : LOW);
                 digitalWrite(HUB75_C, (abc & 0x4) ? HIGH : LOW);
-                // HUB75_D deliberately not touched here - see above.
+                // HUB75_EXTRA_ADDR deliberately not touched here - see above.
 
                 digitalWrite(HUB75_OE, LOW);
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Address sweep: lights ONE row-address value at a time, held solid for
+// several seconds with the value logged to Serial, instead of continuously
+// cycling through all 16 states many times a second (too fast to correlate
+// by eye with which physical rows respond). Every combination of A/B/C (0-7)
+// crossed with the extra wire (0/1) = all 16 states this panel's connector
+// can physically produce, one at a time, in order, forever.
+//
+// Point of this: stop guessing which theory the library/library-config
+// might match, and instead get direct ground truth - for each of the 16
+// possible address values, which physical rows on the panel actually light
+// up? If addressing is a plain 4-bit binary counter (extra wire = weight 8)
+// like every theory tried tonight assumed, each step should light exactly
+// one new row-pair, advancing by one row each time, all 16 states covering
+// all 32 unique row-pairs evenly. If it's some other scheme entirely (one-
+// hot, non-binary, the extra wire behaving as an independent enable rather
+// than a bit, etc.) the actual lit rows will jump around in a way that
+// reveals what the real mapping is instead.
+inline void customHub75AddressSweepTest(bool r, bool g, bool b) {
+    Serial.println("[CUSTOM_HUB75] Address sweep test starting (does not return).");
+    Serial.println("[CUSTOM_HUB75] Each of 16 address values held for 4s. Note which physical");
+    Serial.println("[CUSTOM_HUB75] row(s) light for each value logged below.");
+    for (;;) {
+        for (int addr = 0; addr < 16; addr++) {
+            bool a = addr & 0x1, bb = addr & 0x2, c = addr & 0x4, extra = addr & 0x8;
+            Serial.printf("[CUSTOM_HUB75] addr=%2d  A=%d B=%d C=%d EXTRA=%d\n",
+                          addr, a ? 1 : 0, bb ? 1 : 0, c ? 1 : 0, extra ? 1 : 0);
+
+            // Shift one row's worth of solid colour into every column, for
+            // both halves (R1/G1/B1 top, R2/G2/B2 bottom) - same latch
+            // technique as the other tests in this file.
+            digitalWrite(HUB75_LAT, LOW);
+            for (int col = 0; col < PANEL_SIZE; col++) {
+                digitalWrite(HUB75_R1, r ? HIGH : LOW);
+                digitalWrite(HUB75_G1, g ? HIGH : LOW);
+                digitalWrite(HUB75_B1, b ? HIGH : LOW);
+                digitalWrite(HUB75_R2, r ? HIGH : LOW);
+                digitalWrite(HUB75_G2, g ? HIGH : LOW);
+                digitalWrite(HUB75_B2, b ? HIGH : LOW);
+                if (col == PANEL_SIZE - LATCH_DURING_LAST_N_CLOCKS) {
+                    digitalWrite(HUB75_LAT, HIGH);
+                }
+                digitalWrite(HUB75_CLK, HIGH);
+                digitalWrite(HUB75_CLK, LOW);
+            }
+            digitalWrite(HUB75_LAT, LOW);
+
+            digitalWrite(HUB75_OE, HIGH);
+            digitalWrite(HUB75_A, a ? HIGH : LOW);
+            digitalWrite(HUB75_B, bb ? HIGH : LOW);
+            digitalWrite(HUB75_C, c ? HIGH : LOW);
+            digitalWrite(HUB75_EXTRA_ADDR, extra ? HIGH : LOW);
+            digitalWrite(HUB75_OE, LOW);
+
+            // Hold this single address solid for 4 seconds - long enough to
+            // look at the panel and note which row(s) are lit before moving
+            // on, but the row-select decay is fast on passive-matrix HUB75
+            // (no per-row memory), so re-pulse the same row continuously
+            // during the hold instead of just sleeping once.
+            unsigned long holdStart = millis();
+            while (millis() - holdStart < 4000) {
+                digitalWrite(HUB75_OE, LOW);
+                delay(2);
             }
         }
     }

@@ -29,7 +29,7 @@
 // Diagnostic-only: two structurally different scan-geometry configs fed to
 // the library produced byte-identical banding, so this rules the library's
 // internal assumptions in/out entirely by controlling every GPIO ourselves.
-#define USE_CUSTOM_HUB75_DRIVER 0
+#define USE_CUSTOM_HUB75_DRIVER 1
 
 // Set to 1 to run the boot-time line-sweep diagnostic (runCloudSwirlTest,
 // never returns) instead of the real app. Set to 0 for normal operation:
@@ -590,11 +590,13 @@ void setup() {
 
 #if USE_CUSTOM_HUB75_DRIVER
     // Bypass the library entirely - see USE_CUSTOM_HUB75_DRIVER above.
-    // "ABC shift + DE direct" addressing theory - deep blue fill, testing
-    // whether the extra address wire behaves as an independent direct-select
-    // line rather than another bit in one sequential binary counter.
+    // Address sweep: ground truth on this panel's real row-addressing
+    // scheme, one address value at a time (white fill), instead of guessing
+    // against the library's binary-address assumption any further. Watch
+    // the panel and the serial log together - note which physical row(s)
+    // light for each addr= value printed.
     customHub75Init();
-    customHub75ABCShiftDEDirectTest(false, false, true);   // never returns
+    customHub75AddressSweepTest(true, true, true);   // never returns
 #else
     // HUB75 display.
     dma_display = initDisplay();
