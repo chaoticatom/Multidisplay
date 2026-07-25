@@ -68,7 +68,8 @@ enum StandaloneEffect : uint8_t {
     SA_TRON          = 30,
     SA_SPHERE        = 31,
     SA_APOD          = 32,
-    SA_COUNT         = 33
+    SA_GHOST         = 33,
+    SA_COUNT         = 34
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -106,6 +107,7 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_TRON:          return "tron";
         case SA_SPHERE:        return "sphere";
         case SA_APOD:          return "apod";
+        case SA_GHOST:         return "ghost";
         default:               return "unknown";
     }
 }
@@ -129,9 +131,8 @@ inline uint8_t standaloneEffectForBrowserKey(const char* key) {
         {"lightspeed", SA_LIGHTSPEED}, {"sand", SA_SAND}, {"fluid", SA_FLUID},
         {"maze", SA_MAZE}, {"moon", SA_MOON}, {"easter_egg", SA_EASTER_EGG},
         {"dice", SA_DICE}, {"coinflip", SA_COINFLIP}, {"tron", SA_TRON}, {"sphere", SA_SPHERE},
-        {"apod", SA_APOD},
+        {"apod", SA_APOD}, {"ghost", SA_GHOST},
         // reasonable stand-ins for not-yet-ported visual effects
-        {"ghost", SA_STROBE},
         {"custom_cube", SA_RAINBOW},
     };
     for (auto& m : M) if (strcmp(key, m.k) == 0) return m.fx;
@@ -2202,6 +2203,185 @@ inline void standaloneRenderMoon(MatrixPanel_I2S_DMA* display, int face, float t
     }
 }
 
+// Ghost face - faithful port of ghostRenderCanvas/ghostPaintFace, computed
+// directly at native 64x64 resolution via distance-based gradient math
+// instead of the browser's 256x256 canvas-then-downsample approach (which
+// ends up LESS accurate than this at our actual panel resolution, since
+// nearest-neighbour downsampling from 256 to 64 discards detail this direct
+// math preserves). Same personality variables (eye size/spacing, cheek
+// depth, brow angle, hue shift), same state machine (hidden -> emerging ->
+// present -> retreating), same blink/mouth timers. Skips only the 256-canvas
+// skin-pore noise texture (imperceptible at 64px) and the multi-face aura
+// hint (this board has one panel).
+inline void standaloneRenderGhost(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    static float lastT = 0;
+    static float stateT = 0, reveal = 0, alpha = 0;
+    static int state = 0;   // 0=hidden 1=emerging 2=present 3=retreating
+    static float mouthOpen = 0.7f, mouthT = 0, blinkT = 0;
+    static int eyeOpen = 1;
+    static float eyeRX = 0.20f, eyeRY = 0.15f, eyeSpread = 0.44f, cheekDepth = 0.48f, browAngle = 0, hueShift = 0;
+    static bool init = false;
+    if (!init) { stateT = 0; init = true; }
+    float dt = t - lastT; lastT = t;
+    if (dt < 0) dt = 0; if (dt > 0.2f) dt = 0.2f;
+    stateT += dt;
+
+    if (state == 0) {   // hidden
+        if (stateT > 1.0f + standaloneHash01((int)(t * 300)) * 2.0f) {
+            state = 1; stateT = 0; reveal = 0;
+            mouthOpen = 0.3f + standaloneHash01((int)(t * 400)) * 0.7f;
+            eyeRX = 0.16f + standaloneHash01((int)(t * 500)) * 0.08f;
+            eyeRY = 0.10f + standaloneHash01((int)(t * 600)) * 0.07f;
+            eyeSpread = 0.38f + standaloneHash01((int)(t * 700)) * 0.14f;
+            cheekDepth = 0.3f + standaloneHash01((int)(t * 800)) * 0.5f;
+            browAngle = (standaloneHash01((int)(t * 900)) - 0.5f) * 0.4f;
+            hueShift = (standaloneHash01((int)(t * 1000)) - 0.5f) * 1.0f;
+            eyeOpen = 1;
+        }
+    } else if (state == 1) {   // emerging
+        float p = fminf(1.0f, stateT / 2.2f);
+        reveal = p * p * (3 - 2 * p);
+        alpha = 0.6f + reveal * 0.3f;
+        if (stateT > 2.2f) { state = 2; stateT = 0; reveal = 1; }
+    } else if (state == 2) {   // present
+        reveal = 1;
+        alpha = 0.82f + 0.12f * sinf(t * 1.8f);
+        blinkT += dt;
+        if (blinkT > 2.5f + standaloneHash01((int)(t * 200)) * 4.0f && eyeOpen == 1) { eyeOpen = 0; blinkT = 0; }
+        else if (blinkT > 0.12f && eyeOpen == 0) { eyeOpen = 1; blinkT = 0; }
+        mouthT += dt;
+        if (mouthT > 1.5f + standaloneHash01((int)(t * 250)) * 2.5f) { mouthOpen = 0.4f + standaloneHash01((int)(t * 350)) * 0.6f; mouthT = 0; }
+        if (stateT > 3.0f + standaloneHash01((int)(t * 150)) * 3.0f) { state = 3; stateT = 0; }
+    } else {   // retreating
+        float p = fminf(1.0f, stateT / 1.5f);
+        reveal = 1.0f - p * p;
+        alpha = 0.6f;
+        if (stateT > 1.5f) { state = 0; stateT = 0; reveal = 0; }
+    }
+
+    snClear(face);
+    if (reveal < 0.01f) return;
+
+    const int S = PANEL_SIZE;
+    const float cx = S * 0.5f, cy = S * 0.54f;
+    const float fw = S * 0.34f, fh = S * 0.44f;
+    const float eRX = fw * eyeRX, eRY = fh * eyeRY, eSpread = fw * eyeSpread;
+    float baseH = fmodf(0.33f + hueShift * 0.15f + 1.0f, 1.0f);
+
+    for (int y = 0; y < S; y++) {
+        for (int x = 0; x < S; x++) {
+            float dx = (x - cx) / (fw * 1.3f), dy = (y - cy) / (fh * 1.2f);
+            float d2 = dx * dx + dy * dy;
+            if (d2 > 1.0f) continue;   // outside the face oval
+
+            // Skin: radial gradient, bright near top-center, darker toward edge.
+            float rd = sqrtf(d2);
+            float skinL = rd < 0.4f ? saLerp(0.72f, 0.50f, rd / 0.4f)
+                        : rd < 0.75f ? saLerp(0.50f, 0.28f, (rd - 0.4f) / 0.35f)
+                                     : saLerp(0.28f, 0.10f, (rd - 0.75f) / 0.25f);
+            float skinA = rd < 0.75f ? saLerp(0.97f, 0.75f, rd / 0.75f) : saLerp(0.75f, 0.0f, (rd - 0.75f) / 0.25f);
+            uint8_t sr, sg, sb;
+            standaloneHslToRgb(baseH, 0.85f, skinL, sr, sg, sb);
+            float r = sr / 255.0f * skinA, g = sg / 255.0f * skinA, b = sb / 255.0f * skinA;
+
+            // Brow shadow band.
+            float relY = (y - cy) / fh;
+            if (relY > -0.7f && relY < -0.1f) {
+                float bshade = (1.0f - (relY + 0.7f) / 0.6f) * 0.38f;
+                r *= (1 - bshade); g *= (1 - bshade); b *= (1 - bshade);
+            }
+
+            // Cheek hollows (two dark radial blobs).
+            for (int side = -1; side <= 1; side += 2) {
+                float hx = cx + side * fw * 0.70f, hy = cy + fh * 0.10f;
+                float hd = sqrtf((x - hx) * (x - hx) + (y - hy) * (y - hy)) / (fw * 0.30f);
+                if (hd < 1.0f) {
+                    float sh = (1.0f - hd) * fminf(0.75f, cheekDepth);
+                    r *= (1 - sh); g *= (1 - sh); b *= (1 - sh);
+                }
+            }
+
+            snSet(face, x, y, r * alpha * reveal, g * alpha * reveal, b * alpha * reveal);
+        }
+    }
+
+    // Brows (angled short lines).
+    uint8_t br8, bg8, bb8;
+    standaloneHslToRgb(baseH, 0.85f, 0.08f, br8, bg8, bb8);
+    for (int side = -1; side <= 1; side += 2) {
+        float bx = cx + side * eSpread, by = cy - fh * 0.38f + browAngle * fh * side;
+        for (int i = -3; i <= 3; i++) {
+            int lx = (int)(bx + i * fw * 0.06f);
+            int ly = (int)(by - browAngle * fh * side * 0.3f * (i / 3.0f));
+            snSet(face, lx, ly, br8 / 255.0f * alpha * reveal, bg8 / 255.0f * alpha * reveal, bb8 / 255.0f * alpha * reveal);
+        }
+    }
+
+    // Eyes: socket + iris/pupil/glint (open) or a closed-lid crease line.
+    for (int side = -1; side <= 1; side += 2) {
+        float ex = cx + side * eSpread, ey = cy - fh * 0.14f;
+        if (eyeOpen) {
+            for (int dyp = -(int)eRY; dyp <= (int)eRY; dyp++) {
+                for (int dxp = -(int)eRX; dxp <= (int)eRX; dxp++) {
+                    float nx = eRX > 0 ? dxp / eRX : 0, ny = eRY > 0 ? dyp / eRY : 0;
+                    float d = sqrtf(nx * nx + ny * ny);
+                    if (d > 1.0f) continue;
+                    float ix = ex + dxp, iy = ey + dyp;
+                    if (d < 0.24f) { snSet(face, (int)ix, (int)iy, 0, 0, 0); continue; }   // pupil
+                    if (d < 0.56f) {
+                        uint8_t ir, ig, ib;
+                        standaloneHslToRgb(baseH, 1.0f, saLerp(0.65f, 0.35f, (d - 0.24f) / 0.32f), ir, ig, ib);
+                        snSet(face, (int)ix, (int)iy, ir / 255.0f * alpha, ig / 255.0f * alpha, ib / 255.0f * alpha);
+                    } else {
+                        float shade = 1.0f - (d - 0.56f) / 0.44f;
+                        snSet(face, (int)ix, (int)iy, 0, shade * 0.03f * alpha, shade * 0.012f * alpha);
+                    }
+                }
+            }
+            snSet(face, (int)(ex - eRX * 0.20f), (int)(ey - eRY * 0.25f), alpha, alpha, alpha);   // glint
+        } else {
+            for (int i = -(int)(eRX * 1.2f); i <= (int)(eRX * 1.2f); i++) {
+                float frac = eRX > 0 ? i / (eRX * 1.2f) : 0;
+                int ly = (int)(ey + eRY * 0.7f * (1 - frac * frac));
+                snSet(face, (int)(ex + i), ly, br8 / 255.0f * alpha, bg8 / 255.0f * alpha, bb8 / 255.0f * alpha);
+            }
+        }
+    }
+
+    // Nose: bridge shadow + nostrils.
+    float noseY = cy + fh * 0.12f;
+    for (int side = -1; side <= 1; side += 2) {
+        float nx = cx + side * fw * 0.11f, ny = noseY + fh * 0.05f;
+        for (int dyp = -2; dyp <= 2; dyp++) for (int dxp = -2; dxp <= 2; dxp++)
+            if (dxp * dxp + dyp * dyp <= 4) snSet(face, (int)nx + dxp, (int)ny + dyp, 0, 0, 0);
+    }
+
+    // Mouth: lip ellipse, dark opening, teeth rows if open enough.
+    float mouthW = fw * 0.56f, mouthH = fh * 0.23f * fmaxf(0.1f, mouthOpen);
+    uint8_t lr, lg, lb;
+    standaloneHslToRgb(baseH, 0.85f, 0.18f, lr, lg, lb);
+    for (int dyp = -(int)(mouthH * 1.15f) - 1; dyp <= (int)(mouthH * 1.15f) + 1; dyp++) {
+        for (int dxp = -(int)(mouthW * 1.08f); dxp <= (int)(mouthW * 1.08f); dxp++) {
+            float nx = mouthW > 0 ? dxp / (mouthW * 1.08f) : 0, ny = mouthH > 0 ? dyp / (mouthH * 1.15f) : 0;
+            if (nx * nx + ny * ny > 1.0f) continue;
+            float nx2 = mouthW > 0 ? dxp / mouthW : 0, ny2 = mouthH > 0 ? dyp / mouthH : 0;
+            bool inner = (nx2 * nx2 + ny2 * ny2) <= 1.0f;
+            int mx = (int)(cx + dxp), my = (int)(noseY + fh * 0.28f + dyp);
+            if (inner) snSet(face, mx, my, 0, 0, 0);
+            else snSet(face, mx, my, lr / 255.0f * alpha, lg / 255.0f * alpha, lb / 255.0f * alpha);
+        }
+    }
+    if (mouthOpen > 0.2f) {
+        uint8_t tr, tg, tb;
+        standaloneHslToRgb(baseH, 0.85f, 0.88f, tr, tg, tb);
+        for (int i = 0; i < 5; i++) {
+            float tx = cx - mouthW * 0.72f + mouthW * 0.36f * i + mouthW * 0.18f;
+            snSet(face, (int)tx, (int)(noseY + fh * 0.28f - mouthH * 0.7f), tr / 255.0f * alpha, tg / 255.0f * alpha, tb / 255.0f * alpha);
+        }
+    }
+}
+
 // APOD render - shows the real fetched+decoded photo once standaloneApodFetch
 // (called from main.cpp's loop(), core 1) has one ready. Before that, or if
 // PSRAM isn't available this boot, shows a pulsing placeholder instead of a
@@ -2541,6 +2721,7 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_TRON:          standaloneRenderTron(display, face, t);          break;
             case SA_SPHERE:        standaloneRenderSphere(display, face, t);        break;
             case SA_APOD:          standaloneRenderApod(display, face, t);          break;
+            case SA_GHOST:         standaloneRenderGhost(display, face, t);         break;
             default:
                 saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;
