@@ -519,7 +519,7 @@ static bool allocBuffers() {
 // dependency on any other subsystem at all. If this doesn't show up either,
 // it's not this firmware's logic causing silence - it'd be the serial
 // connection itself (port/cable/driver) or something board-level.
-#define MINIMAL_SERIAL_TEST 1
+#define MINIMAL_SERIAL_TEST 0
 
 void setup() {
 #if MINIMAL_SERIAL_TEST
