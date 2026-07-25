@@ -10,6 +10,7 @@
 #include <time.h>
 #include "config.h"
 #include "led_matrix.h"
+#include "easter_egg_images.h"
 
 // Defined in main.cpp, set from web_server.h's WS_EVT_CONNECT/DISCONNECT.
 // True while >=1 browser/app is connected over the cube WebSocket - used to
@@ -60,7 +61,8 @@ enum StandaloneEffect : uint8_t {
     SA_FLUID         = 24,
     SA_MAZE          = 25,
     SA_MOON          = 26,
-    SA_COUNT         = 27
+    SA_EASTER_EGG    = 27,
+    SA_COUNT         = 28
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -92,6 +94,7 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_FLUID:         return "fluid";
         case SA_MAZE:          return "maze";
         case SA_MOON:          return "moon";
+        case SA_EASTER_EGG:    return "easter_egg";
         default:               return "unknown";
     }
 }
@@ -113,7 +116,7 @@ inline uint8_t standaloneEffectForBrowserKey(const char* key) {
         {"strobe", SA_STROBE}, {"weather", SA_WEATHER}, {"datetime", SA_CLOCK},
         {"dna", SA_DNA}, {"warp", SA_WARP}, {"life", SA_LIFE},
         {"lightspeed", SA_LIGHTSPEED}, {"sand", SA_SAND}, {"fluid", SA_FLUID},
-        {"maze", SA_MAZE}, {"moon", SA_MOON},
+        {"maze", SA_MAZE}, {"moon", SA_MOON}, {"easter_egg", SA_EASTER_EGG},
         // reasonable stand-ins for not-yet-ported visual effects
         {"sphere", SA_PLASMA},
         {"tron", SA_SPECTRUM},
@@ -1545,6 +1548,43 @@ inline void standaloneRenderMoon(MatrixPanel_I2S_DMA* display, int face, float t
     }
 }
 
+// Hidden Easter egg - port of ui.js's secret image reveal (size button
+// sequence 8,8,16,64 within 2s). Same two embedded 64x64 images
+// (easter_egg_images.h), same crossfade timing as the browser's single-panel
+// mode: 15s holding image 1, 3s crossfade, 15s holding image 2, 3s crossfade
+// back, repeat. The browser sends setEffect("easter_egg") the moment the
+// sequence is detected, so the physical panel reveals it too.
+inline void standaloneRenderEasterEgg(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    // Track our own start time (set once, first time this is ever rendered)
+    // so the crossfade cycle begins on image 1 rather than inheriting
+    // whatever phase the shared `t` accumulator (which never resets) happens
+    // to be at. If you find the egg again later it just continues the same
+    // background cycle rather than restarting - fine for a hidden extra.
+    static float startT = -1;
+    if (startT < 0) startT = t;
+    float phase = fmodf(t - startT, 36.0f);   // 15+3+15+3 = 36s cycle
+    float alpha = phase < 15 ? 0.0f
+                : phase < 18 ? (phase - 15) / 3.0f
+                : phase < 33 ? 1.0f
+                             : 1.0f - (phase - 33) / 3.0f;
+    for (int y = 0; y < PANEL_SIZE; y++) {
+        for (int x = 0; x < PANEL_SIZE; x++) {
+            int pi = (y * PANEL_SIZE + x) * 3;
+            uint8_t r1 = pgm_read_byte(&EASTER_EGG_IMG1[pi]);
+            uint8_t g1 = pgm_read_byte(&EASTER_EGG_IMG1[pi + 1]);
+            uint8_t b1 = pgm_read_byte(&EASTER_EGG_IMG1[pi + 2]);
+            uint8_t r2 = pgm_read_byte(&EASTER_EGG_IMG2[pi]);
+            uint8_t g2 = pgm_read_byte(&EASTER_EGG_IMG2[pi + 1]);
+            uint8_t b2 = pgm_read_byte(&EASTER_EGG_IMG2[pi + 2]);
+            float r = (r1 * (1 - alpha) + r2 * alpha) / 255.0f;
+            float g = (g1 * (1 - alpha) + g2 * alpha) / 255.0f;
+            float b = (b1 * (1 - alpha) + b2 * alpha) / 255.0f;
+            snSet(face, x, y, r, g, b);
+        }
+    }
+}
+
 // ===========================================================================
 // Overlays — ports of effects.js's OV_FUNCS, blended additively onto the
 // buffer (snAdd) after the main effect draws, exactly matching how the
@@ -1816,6 +1856,7 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_FLUID:         standaloneRenderFluid(display, face, t);         break;
             case SA_MAZE:          standaloneRenderMaze(display, face, t);          break;
             case SA_MOON:          standaloneRenderMoon(display, face, t);          break;
+            case SA_EASTER_EGG:    standaloneRenderEasterEgg(display, face, t);     break;
             default:
                 saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;

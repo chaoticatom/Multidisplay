@@ -2218,6 +2218,9 @@ window._eeActive=0;
         window._eeStartTime=performance.now();
         document.title='✨ Easter Egg!';
         console.log('[EE] activated — images should appear for 10s');
+        // Mirror the reveal onto the physical panel too, so it works even
+        // with no browser watching afterward.
+        if(typeof cubeSendCmd==='function') cubeSendCmd({cmd:'setEffect', effect:'easter_egg'});
         return;
       }
       if(is2d) return; // ignore 2D for sequence detection
