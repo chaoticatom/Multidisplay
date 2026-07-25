@@ -141,7 +141,7 @@ static void displayTask(void* arg) {
                 // on live streamed video), so it's obvious at a glance
                 // whether a reflash actually landed instead of having to dig
                 // through serial logs or diagnostic test screens.
-                dma_display->setTextColor(dma_display->color565(60, 60, 60));
+                dma_display->setTextColor(dma_display->color565(255, 255, 255));
                 dma_display->setTextSize(1);
                 dma_display->setCursor(PANEL_SIZE - (int)(strlen(FW_VERSION) * 6) - 1, PANEL_SIZE - 7);
                 dma_display->print(FW_VERSION);
