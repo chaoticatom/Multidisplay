@@ -8,6 +8,7 @@
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include <time.h>
+#include <TJpg_Decoder.h>   // real JPEG decode for APOD (PSRAM-only, see standaloneApodFetch)
 #include "config.h"
 #include "led_matrix.h"
 #include "easter_egg_images.h"
@@ -66,7 +67,8 @@ enum StandaloneEffect : uint8_t {
     SA_COINFLIP      = 29,
     SA_TRON          = 30,
     SA_SPHERE        = 31,
-    SA_COUNT         = 32
+    SA_APOD          = 32,
+    SA_COUNT         = 33
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -103,6 +105,7 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_COINFLIP:      return "coinflip";
         case SA_TRON:          return "tron";
         case SA_SPHERE:        return "sphere";
+        case SA_APOD:          return "apod";
         default:               return "unknown";
     }
 }
@@ -126,6 +129,7 @@ inline uint8_t standaloneEffectForBrowserKey(const char* key) {
         {"lightspeed", SA_LIGHTSPEED}, {"sand", SA_SAND}, {"fluid", SA_FLUID},
         {"maze", SA_MAZE}, {"moon", SA_MOON}, {"easter_egg", SA_EASTER_EGG},
         {"dice", SA_DICE}, {"coinflip", SA_COINFLIP}, {"tron", SA_TRON}, {"sphere", SA_SPHERE},
+        {"apod", SA_APOD},
         // reasonable stand-ins for not-yet-ported visual effects
         {"ghost", SA_STROBE},
         {"custom_cube", SA_RAINBOW},
@@ -140,6 +144,15 @@ struct ScheduleEntry {
     uint8_t effectId;
     bool    enabled;
 };
+
+// APOD (Astronomy Picture of the Day) cache: real fetched+decoded photo, PSRAM
+// only (a decoded 64x64 RGB frame is 12KB, and the JPEG download buffer can be
+// several hundred KB - internal RAM on this board can't safely hold that; if
+// PSRAM isn't actually enumerating this boot, APOD just shows a placeholder
+// instead of risking the same memory corruption fixed earlier tonight).
+inline uint8_t*      g_apodPixels    = nullptr;   // 64x64 RGB888, PSRAM
+inline volatile bool g_apodValid     = false;
+inline volatile bool g_apodFetching  = false;
 
 // ---- Module state -----------------------------------------------------
 inline uint8_t       g_standaloneEffect               = SA_PULSE;   // default boot effect: pulsing RGB solid
@@ -512,6 +525,137 @@ inline bool standaloneWxFetch() {
     Serial.printf("[WX] temp=%dC code=%d sunrise=%lus sunset=%lus\n",
                   g_wxTemp, g_wxCode, (unsigned long)g_wxSunriseSec, (unsigned long)g_wxSunsetSec);
     return true;
+}
+
+// ---------------------------------------------------------------------------
+// APOD fetch + real JPEG decode - blocking, call from loop() (core 1), same
+// rule as weather. Ported from effectAPOD/apodFetch: query NASA's APOD API
+// for today's image URL, download the JPEG, decode it with TJpg_Decoder, and
+// nearest-neighbour scale into a 64x64 RGB buffer in PSRAM.
+//
+// PSRAM is REQUIRED here, checked explicitly (not just attempted-and-hope):
+// a decoded frame is 12KB but the JPEG download itself can be several
+// hundred KB, and this board's internal RAM already corrupted the HTTP
+// server once tonight from far smaller static buffers. If PSRAM isn't
+// enumerating this boot, this bails out cleanly and the render function
+// falls back to a placeholder instead of risking that again.
+// ---------------------------------------------------------------------------
+inline uint16_t g_apodSrcW = 0, g_apodSrcH = 0;
+
+inline bool apodTJpgCallback(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap) {
+    if (!g_apodPixels || !g_apodSrcW || !g_apodSrcH) return false;
+    for (int by = 0; by < h; by++) {
+        int sy = y + by;
+        if (sy >= g_apodSrcH) continue;
+        int ty = (int)((long)sy * PANEL_SIZE / g_apodSrcH);
+        if (ty >= PANEL_SIZE) continue;
+        for (int bx = 0; bx < w; bx++) {
+            int sx = x + bx;
+            if (sx >= g_apodSrcW) continue;
+            int tx = (int)((long)sx * PANEL_SIZE / g_apodSrcW);
+            if (tx >= PANEL_SIZE) continue;
+            uint16_t c565 = bitmap[by * w + bx];
+            uint8_t r = ((c565 >> 11) & 0x1F) * 255 / 31;
+            uint8_t g = ((c565 >> 5) & 0x3F) * 255 / 63;
+            uint8_t b = (c565 & 0x1F) * 255 / 31;
+            int pi = (ty * PANEL_SIZE + tx) * 3;
+            g_apodPixels[pi] = r; g_apodPixels[pi + 1] = g; g_apodPixels[pi + 2] = b;
+        }
+    }
+    return true;
+}
+
+inline bool standaloneApodFetch() {
+    if (WiFi.status() != WL_CONNECTED) return false;
+    if (!psramFound()) {
+        Serial.println("[APOD] PSRAM not available this boot - skipping (placeholder shown instead)");
+        return false;
+    }
+    if (g_apodFetching) return false;
+    g_apodFetching = true;
+
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    bool ok = false;
+
+    if (http.begin(client, "https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY")) {
+        int code = http.GET();
+        if (code == 200) {
+            String payload = http.getString();
+            http.end();
+            JsonDocument doc;
+            if (!deserializeJson(doc, payload)) {
+                const char* mediaType = doc["media_type"] | "";
+                const char* imgUrl = doc["url"] | "";
+                if (strcmp(mediaType, "image") == 0 && imgUrl[0]) {
+                    HTTPClient http2;
+                    WiFiClientSecure client2;
+                    client2.setInsecure();
+                    if (http2.begin(client2, imgUrl)) {
+                        int code2 = http2.GET();
+                        int len = http2.getSize();
+                        // Cap at 1.5MB - a sane ceiling for a PSRAM (8MB) board;
+                        // real APOD images are typically 100-500KB.
+                        if (code2 == 200 && len > 0 && len < 1500000) {
+                            uint8_t* jpgBuf = (uint8_t*)ps_malloc(len);
+                            if (jpgBuf) {
+                                WiFiClient* stream = http2.getStreamPtr();
+                                size_t got = 0;
+                                unsigned long startMs = millis();
+                                while (got < (size_t)len && millis() - startMs < 20000) {
+                                    if (stream->available()) {
+                                        int n = stream->read(jpgBuf + got, len - got);
+                                        if (n > 0) got += n;
+                                    } else {
+                                        delay(5);
+                                    }
+                                }
+                                if (got == (size_t)len) {
+                                    if (!g_apodPixels) g_apodPixels = (uint8_t*)ps_malloc(PANEL_SIZE * PANEL_SIZE * 3);
+                                    if (g_apodPixels && TJpgDec.getJpgSize(&g_apodSrcW, &g_apodSrcH, jpgBuf, len)) {
+                                        // Pick the largest decode-scale (1/2/4/8) that
+                                        // still leaves the source >= panel size, so we
+                                        // downscale during decode instead of after -
+                                        // much less peak memory for the decoder's own
+                                        // internal MCU buffers.
+                                        uint8_t scale = 1;
+                                        while (scale < 8 && (g_apodSrcW / (scale * 2)) >= PANEL_SIZE) scale *= 2;
+                                        TJpgDec.setJpgScale(scale);
+                                        g_apodSrcW /= scale; g_apodSrcH /= scale;
+                                        TJpgDec.setCallback(apodTJpgCallback);
+                                        memset(g_apodPixels, 0, PANEL_SIZE * PANEL_SIZE * 3);
+                                        if (TJpgDec.drawJpg(0, 0, jpgBuf, len) == JDR_OK) {
+                                            g_apodValid = true;
+                                            ok = true;
+                                            Serial.printf("[APOD] decoded %ux%u -> 64x64\n", g_apodSrcW, g_apodSrcH);
+                                        } else {
+                                            Serial.println("[APOD] JPEG decode failed");
+                                        }
+                                    }
+                                } else {
+                                    Serial.printf("[APOD] download incomplete (%u/%d bytes)\n", (unsigned)got, len);
+                                }
+                                free(jpgBuf);
+                            } else {
+                                Serial.println("[APOD] ps_malloc failed for JPEG buffer");
+                            }
+                        } else {
+                            Serial.printf("[APOD] image fetch HTTP %d, len=%d\n", code2, len);
+                        }
+                        http2.end();
+                    }
+                } else {
+                    Serial.println("[APOD] today's entry isn't an image (video/other) - skipping");
+                }
+            }
+        } else {
+            http.end();
+            Serial.printf("[APOD] HTTP %d\n", code);
+        }
+    }
+    g_apodFetching = false;
+    return ok;
 }
 
 // ---------------------------------------------------------------------------
@@ -1853,6 +1997,31 @@ inline void standaloneRenderMoon(MatrixPanel_I2S_DMA* display, int face, float t
     }
 }
 
+// APOD render - shows the real fetched+decoded photo once standaloneApodFetch
+// (called from main.cpp's loop(), core 1) has one ready. Before that, or if
+// PSRAM isn't available this boot, shows a pulsing placeholder instead of a
+// blank/black panel.
+inline void standaloneRenderApod(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    if (g_apodValid && g_apodPixels) {
+        for (int y = 0; y < PANEL_SIZE; y++) {
+            for (int x = 0; x < PANEL_SIZE; x++) {
+                int pi = (y * PANEL_SIZE + x) * 3;
+                snSet(face, x, y, g_apodPixels[pi] / 255.0f, g_apodPixels[pi + 1] / 255.0f, g_apodPixels[pi + 2] / 255.0f);
+            }
+        }
+        return;
+    }
+    // Placeholder: slowly pulsing deep-space blue with a centred dot, while
+    // fetching (or if PSRAM isn't up this boot, so it's showing something
+    // deliberate rather than the black default: case).
+    snClear(face);
+    float pulse = 0.3f + 0.2f * sinf(t * 1.2f);
+    for (int y = PANEL_SIZE / 2 - 1; y <= PANEL_SIZE / 2 + 1; y++)
+        for (int x = PANEL_SIZE / 2 - 1; x <= PANEL_SIZE / 2 + 1; x++)
+            snSet(face, x, y, 0.1f * pulse, 0.25f * pulse, 0.5f * pulse);
+}
+
 // Hidden Easter egg - port of ui.js's secret image reveal (size button
 // sequence 8,8,16,64 within 2s). Same two embedded 64x64 images
 // (easter_egg_images.h), same crossfade timing as the browser's single-panel
@@ -2166,6 +2335,7 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_COINFLIP:      standaloneRenderCoinflip(display, face, t);      break;
             case SA_TRON:          standaloneRenderTron(display, face, t);          break;
             case SA_SPHERE:        standaloneRenderSphere(display, face, t);        break;
+            case SA_APOD:          standaloneRenderApod(display, face, t);          break;
             default:
                 saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;

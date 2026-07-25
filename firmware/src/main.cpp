@@ -705,5 +705,16 @@ void loop() {
         standaloneWxFetch();
     }
 
+    // APOD: fetch once when the effect is selected and nothing's cached yet,
+    // then refresh once every 6h (it's a daily image, no need to poll often).
+    // Runs here on core 1 like weather - never on the DMA task.
+    static uint32_t lastApodFetch = 0;
+    if (g_standaloneEffect == SA_APOD &&
+        (!g_apodValid ? (millis() - lastApodFetch > 15000)
+                      : (millis() - lastApodFetch > 6UL * 3600000UL))) {
+        lastApodFetch = millis();
+        standaloneApodFetch();
+    }
+
     delay(20);
 }
