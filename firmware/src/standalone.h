@@ -2792,25 +2792,62 @@ inline void standaloneRunOverlays(int face, float t) {
 // listed defaults to all-zero rows, which draws nothing but still advances
 // by WC_CHAR_W, exactly matching wcDrawGlyph's "unmapped char = blank glyph"
 // fallback in JS.
-static const uint8_t WC_FONT_TABLE[128][7] = {
-    ['0']={6,9,9,9,9,9,6},     ['1']={4,12,4,4,4,4,14},   ['2']={14,1,2,4,8,8,15},
-    ['3']={14,1,6,1,1,9,6},   ['4']={2,6,10,10,15,2,2},  ['5']={15,8,14,1,1,9,6},
-    ['6']={6,8,8,14,9,9,6},   ['7']={15,1,2,2,4,4,4},    ['8']={6,9,9,6,9,9,6},
-    ['9']={6,9,9,7,1,1,6},
-    ['A']={6,9,9,15,9,9,9},   ['B']={14,9,9,14,9,9,14},  ['C']={7,8,8,8,8,8,7},
-    ['D']={12,10,9,9,9,10,12},['E']={15,8,8,14,8,8,15},  ['F']={15,8,8,14,8,8,8},
-    ['G']={7,8,8,11,9,9,7},   ['H']={9,9,9,15,9,9,9},    ['I']={14,4,4,4,4,4,14},
-    ['J']={3,1,1,1,1,9,6},    ['K']={9,10,12,8,12,10,9}, ['L']={8,8,8,8,8,8,15},
-    ['M']={9,13,11,9,9,9,9},  ['N']={9,13,11,11,9,9,9},  ['O']={6,9,9,9,9,9,6},
-    ['P']={14,9,9,14,8,8,8},  ['Q']={6,9,9,9,11,9,7},    ['R']={14,9,9,14,12,10,9},
-    ['S']={7,8,8,6,1,1,14},   ['T']={15,4,4,4,4,4,4},    ['U']={9,9,9,9,9,9,6},
-    ['V']={9,9,9,9,9,6,2},    ['W']={9,9,9,9,11,13,9},   ['X']={9,9,6,6,6,9,9},
-    ['Y']={9,9,6,2,2,2,2},    ['Z']={15,1,2,4,8,8,15},
-    [' ']={0,0,0,0,0,0,0},    ['.']={0,0,0,0,0,0,4},     [',']={0,0,0,0,0,4,8},
-    ['\'']={4,4,0,0,0,0,0},   ['"']={10,10,0,0,0,0,0},   ['?']={6,9,2,2,4,0,4},
-    ['!']={4,4,4,4,4,0,4},    [':']={0,4,0,0,4,0,0},     [';']={0,4,0,0,4,8,0},
-    ['-']={0,0,0,15,0,0,0},   ['(']={2,4,8,8,8,4,2},     [')']={8,4,2,2,2,4,8},
-};
+// Not a designated-initializer table - this toolchain's GCC rejects
+// "non-trivial" (array-valued) designated initializers ("sorry,
+// unimplemented"). A switch is fully portable and equally fast.
+inline const uint8_t* wcFontRows(uint8_t c) {
+    switch (c) {
+        case '0': { static const uint8_t r[7] = {6,9,9,9,9,9,6};     return r; }
+        case '1': { static const uint8_t r[7] = {4,12,4,4,4,4,14};   return r; }
+        case '2': { static const uint8_t r[7] = {14,1,2,4,8,8,15};   return r; }
+        case '3': { static const uint8_t r[7] = {14,1,6,1,1,9,6};    return r; }
+        case '4': { static const uint8_t r[7] = {2,6,10,10,15,2,2};  return r; }
+        case '5': { static const uint8_t r[7] = {15,8,14,1,1,9,6};   return r; }
+        case '6': { static const uint8_t r[7] = {6,8,8,14,9,9,6};    return r; }
+        case '7': { static const uint8_t r[7] = {15,1,2,2,4,4,4};    return r; }
+        case '8': { static const uint8_t r[7] = {6,9,9,6,9,9,6};     return r; }
+        case '9': { static const uint8_t r[7] = {6,9,9,7,1,1,6};     return r; }
+        case 'A': { static const uint8_t r[7] = {6,9,9,15,9,9,9};    return r; }
+        case 'B': { static const uint8_t r[7] = {14,9,9,14,9,9,14};  return r; }
+        case 'C': { static const uint8_t r[7] = {7,8,8,8,8,8,7};     return r; }
+        case 'D': { static const uint8_t r[7] = {12,10,9,9,9,10,12}; return r; }
+        case 'E': { static const uint8_t r[7] = {15,8,8,14,8,8,15};  return r; }
+        case 'F': { static const uint8_t r[7] = {15,8,8,14,8,8,8};   return r; }
+        case 'G': { static const uint8_t r[7] = {7,8,8,11,9,9,7};    return r; }
+        case 'H': { static const uint8_t r[7] = {9,9,9,15,9,9,9};    return r; }
+        case 'I': { static const uint8_t r[7] = {14,4,4,4,4,4,14};   return r; }
+        case 'J': { static const uint8_t r[7] = {3,1,1,1,1,9,6};     return r; }
+        case 'K': { static const uint8_t r[7] = {9,10,12,8,12,10,9}; return r; }
+        case 'L': { static const uint8_t r[7] = {8,8,8,8,8,8,15};    return r; }
+        case 'M': { static const uint8_t r[7] = {9,13,11,9,9,9,9};   return r; }
+        case 'N': { static const uint8_t r[7] = {9,13,11,11,9,9,9};  return r; }
+        case 'O': { static const uint8_t r[7] = {6,9,9,9,9,9,6};     return r; }
+        case 'P': { static const uint8_t r[7] = {14,9,9,14,8,8,8};   return r; }
+        case 'Q': { static const uint8_t r[7] = {6,9,9,9,11,9,7};    return r; }
+        case 'R': { static const uint8_t r[7] = {14,9,9,14,12,10,9}; return r; }
+        case 'S': { static const uint8_t r[7] = {7,8,8,6,1,1,14};    return r; }
+        case 'T': { static const uint8_t r[7] = {15,4,4,4,4,4,4};    return r; }
+        case 'U': { static const uint8_t r[7] = {9,9,9,9,9,9,6};     return r; }
+        case 'V': { static const uint8_t r[7] = {9,9,9,9,9,6,2};     return r; }
+        case 'W': { static const uint8_t r[7] = {9,9,9,9,11,13,9};   return r; }
+        case 'X': { static const uint8_t r[7] = {9,9,6,6,6,9,9};     return r; }
+        case 'Y': { static const uint8_t r[7] = {9,9,6,2,2,2,2};     return r; }
+        case 'Z': { static const uint8_t r[7] = {15,1,2,4,8,8,15};   return r; }
+        case ' ': { static const uint8_t r[7] = {0,0,0,0,0,0,0};     return r; }
+        case '.': { static const uint8_t r[7] = {0,0,0,0,0,0,4};     return r; }
+        case ',': { static const uint8_t r[7] = {0,0,0,0,0,4,8};     return r; }
+        case '\'':{ static const uint8_t r[7] = {4,4,0,0,0,0,0};     return r; }
+        case '"': { static const uint8_t r[7] = {10,10,0,0,0,0,0};   return r; }
+        case '?': { static const uint8_t r[7] = {6,9,2,2,4,0,4};     return r; }
+        case '!': { static const uint8_t r[7] = {4,4,4,4,4,0,4};     return r; }
+        case ':': { static const uint8_t r[7] = {0,4,0,0,4,0,0};     return r; }
+        case ';': { static const uint8_t r[7] = {0,4,0,0,4,8,0};     return r; }
+        case '-': { static const uint8_t r[7] = {0,0,0,15,0,0,0};    return r; }
+        case '(': { static const uint8_t r[7] = {2,4,8,8,8,4,2};     return r; }
+        case ')': { static const uint8_t r[7] = {8,4,2,2,2,4,8};     return r; }
+        default:  { static const uint8_t r[7] = {0,0,0,0,0,0,0};     return r; }
+    }
+}
 #define WC_CHAR_W 5
 #define WC_LINE_H 8
 #define WC_MAX_TOTAL_WORDS 120
@@ -2847,15 +2884,16 @@ inline float wcWordDelay(const char* word) {
     return base + len * perChar + symbols * 0.08f;
 }
 
-// Draws one glyph. Always uppercases first (WC_FONT_TABLE only has entries
-// at uppercase/digit/punctuation ASCII codes, matching wcDrawGlyph's
-// WC_FONT[ch]||WC_FONT[ch.toUpperCase()] fallback - since the table has no
-// lowercase entries at all, that fallback always resolves to the uppercase
-// lookup). Returns the advance width, same as the JS version.
+// Draws one glyph. Always uppercases first (wcFontRows only has cases for
+// uppercase/digit/punctuation, matching wcDrawGlyph's
+// WC_FONT[ch]||WC_FONT[ch.toUpperCase()] fallback in JS - since there are no
+// lowercase cases at all, that fallback always resolves to the uppercase
+// lookup; unmapped characters fall through to the all-zero default, which
+// draws nothing but still advances by WC_CHAR_W). Returns the advance
+// width, same as the JS version.
 inline int wcDrawGlyph(int face, char ch, int su, int sv, const float* rgb) {
     uint8_t c = (uint8_t)toupper((unsigned char)ch);
-    if (c >= 128) return WC_CHAR_W;
-    const uint8_t* rows = WC_FONT_TABLE[c];
+    const uint8_t* rows = wcFontRows(c);
     for (int row = 0; row < 7; row++) {
         uint8_t bits = rows[row];
         for (int col = 0; col < 4; col++) {
