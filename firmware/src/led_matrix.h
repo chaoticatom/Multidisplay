@@ -155,15 +155,19 @@ inline MatrixPanel_I2S_DMA* initDisplay() {
     // ghosting at the cost of a little brightness/colour depth.
     cfg.latch_blanking = 8;
 
-    // i2sspeed: the I2S clock rate driving CLK/data shifting. Never tried
-    // tonight - every previous attempt left this at the library default.
+    // i2sspeed: the I2S clock rate driving CLK/data shifting. Dropped to the
+    // slowest option the library offers - worth trying now that continuity
+    // checks confirm there's no level shifter between the ESP32's 3.3V
+    // GPIOs and the panel (three physical panels banding identically, plus
+    // no level shifter in the signal path, points at marginal signal
+    // integrity rather than a per-panel hardware fault or a firmware
+    // addressing bug - both already ruled out tonight). Slower clock = more
+    // settling time on every line, CLK especially - a real, commonly-cited
+    // ESP32-HUB75 fix for exactly this symptom on unbuffered 3.3V wiring.
     // Referenced in a real GitHub thread (mrcodetastic/ESP32-HUB75-
     // MatrixPanel-DMA issue #545, a near-identical SM16208SJ+SM5166PS panel)
-    // as part of that user's fix attempt alongside latch_blanking=4. Slower
-    // clock = more settling time for the row-address lines, which is
-    // directly relevant if the real fault is signal-integrity/timing rather
-    // than a permanently dead line.
-    cfg.i2sspeed = HUB75_I2S_CFG::HZ_8M;
+    // as part of that user's fix attempt alongside latch_blanking=4.
+    cfg.i2sspeed = HUB75_I2S_CFG::HZ_5M;
 
 #if USE_VIRTUAL_MATRIX_PANEL
     MatrixPanel_I2S_DMA* display = new FourScan64Panel(cfg);
