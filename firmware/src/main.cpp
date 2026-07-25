@@ -752,5 +752,39 @@ void loop() {
         standaloneApodFetch();
     }
 
+    // Jokes/Trivia/On This Day: same "fetch when the effect is active and
+    // nothing's cached, retry every 15s on failure" pattern as APOD/weather.
+    // standaloneRenderJoke/Trivia clear their own cached text once a fully-
+    // revealed cascade has held long enough, which re-triggers the fetch
+    // here on the next loop() tick - matching the browser's "cascade done +
+    // held -> fetch a new one" behavior, just with the actual network call
+    // kept off the DMA task.
+    static uint32_t lastJokeFetch = 0;
+    if (g_standaloneEffect == SA_JOKE && g_jokeText.length() == 0 && !g_jokeFetching &&
+        millis() - lastJokeFetch > 15000) {
+        lastJokeFetch = millis();
+        standaloneJokeFetch();
+    }
+    static uint32_t lastTriviaFetch = 0;
+    if (g_standaloneEffect == SA_TRIVIA && g_triviaText.length() == 0 && !g_triviaFetching &&
+        millis() - lastTriviaFetch > 15000) {
+        lastTriviaFetch = millis();
+        standaloneTriviaFetch();
+    }
+    // On This Day refetches once per calendar day (compares cached "MM-DD"
+    // against today's), same condition as effects.js's effectOnThisDay.
+    static uint32_t lastOtdFetch = 0;
+    if (g_standaloneEffect == SA_OTD && !g_otdFetching && millis() - lastOtdFetch > 15000) {
+        time_t now = time(nullptr);
+        struct tm tmNow;
+        gmtime_r(&now, &tmNow);
+        char mmdd[6];
+        snprintf(mmdd, sizeof(mmdd), "%02d-%02d", tmNow.tm_mon + 1, tmNow.tm_mday);
+        if (g_otdEventCount == 0 || g_otdFetchedFor != mmdd) {
+            lastOtdFetch = millis();
+            standaloneOtdFetch();
+        }
+    }
+
     delay(20);
 }

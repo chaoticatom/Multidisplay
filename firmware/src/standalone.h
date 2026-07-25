@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Arduino.h>
+#include <ctype.h>            // isspace/isalnum/toupper (word-cascade text engine)
+#include <stdlib.h>           // strtol (HTML entity decoder)
 #include <esp_heap_caps.h>   // heap_caps_malloc / MALLOC_CAP_8BIT (snAllocPreferPsram fallback)
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -70,7 +72,10 @@ enum StandaloneEffect : uint8_t {
     SA_APOD          = 32,
     SA_GHOST         = 33,
     SA_RETRO         = 34,
-    SA_COUNT         = 35
+    SA_JOKE          = 35,
+    SA_TRIVIA        = 36,
+    SA_OTD           = 37,
+    SA_COUNT         = 38
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -110,6 +115,9 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_APOD:          return "apod";
         case SA_GHOST:         return "ghost";
         case SA_RETRO:         return "retro";
+        case SA_JOKE:          return "joke";
+        case SA_TRIVIA:        return "trivia";
+        case SA_OTD:           return "otd";
         default:               return "unknown";
     }
 }
@@ -134,6 +142,7 @@ inline uint8_t standaloneEffectForBrowserKey(const char* key) {
         {"maze", SA_MAZE}, {"moon", SA_MOON}, {"easter_egg", SA_EASTER_EGG},
         {"dice", SA_DICE}, {"coinflip", SA_COINFLIP}, {"tron", SA_TRON}, {"sphere", SA_SPHERE},
         {"apod", SA_APOD}, {"ghost", SA_GHOST}, {"retro", SA_RETRO},
+        {"joke", SA_JOKE}, {"trivia", SA_TRIVIA}, {"otd", SA_OTD},
         // reasonable stand-ins for not-yet-ported visual effects
         {"custom_cube", SA_RAINBOW},
     };
@@ -2760,6 +2769,632 @@ inline void standaloneRunOverlays(int face, float t) {
     if (g_ovLightning) standaloneOverlayLightning(face, t);
 }
 
+// ===========================================================================
+// Word-cascade text engine — faithful port of effects.js's WC_FONT/wcInit/
+// wcStep/wcDrawGlyph/wcDrawToFace/wcTagQA, shared by Jokes/Trivia/On This Day
+// (see CLAUDE.md's "shared engines" note - the browser explicitly calls out
+// reusing this rather than reimplementing per effect, so this firmware port
+// does the same: one engine, three effects below).
+// ===========================================================================
+
+// 4x7 bitmap font, one row per byte (top 4 bits used, MSB-first per column) -
+// same table as WC_FONT in effects.js. GNU designated-initializer extension
+// (works under the ESP32 Arduino gcc toolchain) - everything not explicitly
+// listed defaults to all-zero rows, which draws nothing but still advances
+// by WC_CHAR_W, exactly matching wcDrawGlyph's "unmapped char = blank glyph"
+// fallback in JS.
+static const uint8_t WC_FONT_TABLE[128][7] = {
+    ['0']={6,9,9,9,9,9,6},     ['1']={4,12,4,4,4,4,14},   ['2']={14,1,2,4,8,8,15},
+    ['3']={14,1,6,1,1,9,6},   ['4']={2,6,10,10,15,2,2},  ['5']={15,8,14,1,1,9,6},
+    ['6']={6,8,8,14,9,9,6},   ['7']={15,1,2,2,4,4,4},    ['8']={6,9,9,6,9,9,6},
+    ['9']={6,9,9,7,1,1,6},
+    ['A']={6,9,9,15,9,9,9},   ['B']={14,9,9,14,9,9,14},  ['C']={7,8,8,8,8,8,7},
+    ['D']={12,10,9,9,9,10,12},['E']={15,8,8,14,8,8,15},  ['F']={15,8,8,14,8,8,8},
+    ['G']={7,8,8,11,9,9,7},   ['H']={9,9,9,15,9,9,9},    ['I']={14,4,4,4,4,4,14},
+    ['J']={3,1,1,1,1,9,6},    ['K']={9,10,12,8,12,10,9}, ['L']={8,8,8,8,8,8,15},
+    ['M']={9,13,11,9,9,9,9},  ['N']={9,13,11,11,9,9,9},  ['O']={6,9,9,9,9,9,6},
+    ['P']={14,9,9,14,8,8,8},  ['Q']={6,9,9,9,11,9,7},    ['R']={14,9,9,14,12,10,9},
+    ['S']={7,8,8,6,1,1,14},   ['T']={15,4,4,4,4,4,4},    ['U']={9,9,9,9,9,9,6},
+    ['V']={9,9,9,9,9,6,2},    ['W']={9,9,9,9,11,13,9},   ['X']={9,9,6,6,6,9,9},
+    ['Y']={9,9,6,2,2,2,2},    ['Z']={15,1,2,4,8,8,15},
+    [' ']={0,0,0,0,0,0,0},    ['.']={0,0,0,0,0,0,4},     [',']={0,0,0,0,0,4,8},
+    ['\'']={4,4,0,0,0,0,0},   ['"']={10,10,0,0,0,0,0},   ['?']={6,9,2,2,4,0,4},
+    ['!']={4,4,4,4,4,0,4},    [':']={0,4,0,0,4,0,0},     [';']={0,4,0,0,4,8,0},
+    ['-']={0,0,0,15,0,0,0},   ['(']={2,4,8,8,8,4,2},     [')']={8,4,2,2,2,4,8},
+};
+#define WC_CHAR_W 5
+#define WC_LINE_H 8
+#define WC_MAX_TOTAL_WORDS 120
+#define WC_MAX_LINE_WORDS  16
+#define WC_MAX_LINES       8   // matches floor(PANEL_SIZE/WC_LINE_H) at 64/8
+#define WC_WORD_LEN        28
+
+struct WcWord {
+    char  w[WC_WORD_LEN];
+    float color[3];
+};
+
+struct WcState {
+    WcWord words[WC_MAX_TOTAL_WORDS];
+    int    wordCount;
+    int    idx;
+    WcWord cur[WC_MAX_LINE_WORDS];
+    int    curCount;
+    WcWord lines[WC_MAX_LINES][WC_MAX_LINE_WORDS];
+    int    lineWordCount[WC_MAX_LINES];
+    int    lineCount;
+    float  timer;
+    float  pendingDelay;
+    bool   done;
+    float  holdTimer;
+    int    maxLines;
+};
+
+inline float wcWordDelay(const char* word) {
+    const float base = 0.16f, perChar = 0.05f;
+    int len = (int)strlen(word);
+    int symbols = 0;
+    for (int i = 0; i < len; i++) if (!isalnum((unsigned char)word[i])) symbols++;
+    return base + len * perChar + symbols * 0.08f;
+}
+
+// Draws one glyph. Always uppercases first (WC_FONT_TABLE only has entries
+// at uppercase/digit/punctuation ASCII codes, matching wcDrawGlyph's
+// WC_FONT[ch]||WC_FONT[ch.toUpperCase()] fallback - since the table has no
+// lowercase entries at all, that fallback always resolves to the uppercase
+// lookup). Returns the advance width, same as the JS version.
+inline int wcDrawGlyph(int face, char ch, int su, int sv, const float* rgb) {
+    uint8_t c = (uint8_t)toupper((unsigned char)ch);
+    if (c >= 128) return WC_CHAR_W;
+    const uint8_t* rows = WC_FONT_TABLE[c];
+    for (int row = 0; row < 7; row++) {
+        uint8_t bits = rows[row];
+        for (int col = 0; col < 4; col++) {
+            if (!((bits >> (3 - col)) & 1)) continue;
+            int u = su + col, v = sv + (6 - row);
+            snSet(face, u, v, rgb[0], rgb[1], rgb[2]);
+        }
+    }
+    return WC_CHAR_W;
+}
+
+inline int wcLineWidth(const WcWord* line, int count) {
+    int w = 0;
+    for (int i = 0; i < count; i++) w += (int)strlen(line[i].w) * WC_CHAR_W;
+    if (count > 1) w += (count - 1) * WC_CHAR_W;
+    return w;
+}
+
+inline void wcInit(WcState& st, const WcWord* taggedWords, int count) {
+    st.wordCount = count > WC_MAX_TOTAL_WORDS ? WC_MAX_TOTAL_WORDS : count;
+    for (int i = 0; i < st.wordCount; i++) st.words[i] = taggedWords[i];
+    st.idx = 0;
+    st.curCount = 0;
+    st.lineCount = 0;
+    st.timer = 0;
+    st.pendingDelay = 0.3f;
+    st.done = false;
+    st.holdTimer = 0;
+    st.maxLines = PANEL_SIZE / WC_LINE_H;
+}
+
+// No auto-loop/auto-advance here, same as the JS version - the caller
+// (standaloneRenderJoke/Trivia/OnThisDay) watches state.done + holdTimer to
+// decide what comes next.
+inline void wcStep(WcState& st, float dt) {
+    if (st.done) { st.holdTimer += dt; return; }
+    st.timer += dt;
+    const int maxW = PANEL_SIZE;
+    while (st.timer >= st.pendingDelay && st.idx < st.wordCount) {
+        st.timer -= st.pendingDelay;
+        WcWord& tw = st.words[st.idx++];
+        int curW = wcLineWidth(st.cur, st.curCount);
+        int addW = (st.curCount ? WC_CHAR_W : 0) + (int)strlen(tw.w) * WC_CHAR_W;
+        if (curW + addW > maxW && st.curCount) {
+            // Completed line goes into the lines ring buffer - bounded at
+            // WC_MAX_LINES since wcDrawToFace only ever shows the last
+            // maxLines anyway (unlike the JS version, which keeps every
+            // completed line forever and slices at draw time - equivalent
+            // visible result, bounded memory here instead).
+            if (st.lineCount < WC_MAX_LINES) {
+                memcpy(st.lines[st.lineCount], st.cur, sizeof(WcWord) * st.curCount);
+                st.lineWordCount[st.lineCount] = st.curCount;
+                st.lineCount++;
+            } else {
+                for (int i = 1; i < WC_MAX_LINES; i++) {
+                    memcpy(st.lines[i - 1], st.lines[i], sizeof(WcWord) * st.lineWordCount[i]);
+                    st.lineWordCount[i - 1] = st.lineWordCount[i];
+                }
+                memcpy(st.lines[WC_MAX_LINES - 1], st.cur, sizeof(WcWord) * st.curCount);
+                st.lineWordCount[WC_MAX_LINES - 1] = st.curCount;
+            }
+            st.curCount = 0;
+            st.cur[st.curCount++] = tw;
+        } else if (st.curCount < WC_MAX_LINE_WORDS) {
+            st.cur[st.curCount++] = tw;
+        }
+        st.pendingDelay = wcWordDelay(tw.w);
+        if (st.idx >= st.wordCount) st.done = true;
+    }
+}
+
+inline void wcDrawToFace(WcState& st, int face) {
+    struct LineRef { const WcWord* words; int count; };
+    LineRef allLines[WC_MAX_LINES + 1];
+    int totalLines = 0;
+    for (int i = 0; i < st.lineCount; i++) {
+        allLines[totalLines].words = st.lines[i];
+        allLines[totalLines].count = st.lineWordCount[i];
+        totalLines++;
+    }
+    if (st.curCount > 0) {
+        allLines[totalLines].words = st.cur;
+        allLines[totalLines].count = st.curCount;
+        totalLines++;
+    }
+    int visibleStart = totalLines > st.maxLines ? totalLines - st.maxLines : 0;
+    int visibleCount = totalLines - visibleStart;
+    const int topMargin = 1;
+    for (int i = 0; i < visibleCount; i++) {
+        const LineRef& line = allLines[visibleStart + i];
+        int sv = (PANEL_SIZE - 1) - topMargin - 6 - i * WC_LINE_H;
+        if (sv + 6 < 0) continue;
+        int lineW = wcLineWidth(line.words, line.count);
+        int su = (PANEL_SIZE - lineW) / 2;
+        for (int j = 0; j < line.count; j++) {
+            int u = su;
+            for (int k = 0; line.words[j].w[k]; k++) {
+                u += wcDrawGlyph(face, line.words[j].w[k], u, sv, line.words[j].color);
+            }
+            su += (int)strlen(line.words[j].w) * WC_CHAR_W + WC_CHAR_W;
+        }
+    }
+}
+
+// Tags each word as setup/question (before/including the "?") white, or
+// answer (after it) amber - same split as wcTagQA in JS. Shared by
+// Jokes/Trivia. Returns word count written into outWords.
+inline int wcTagQA(const char* text, WcWord* outWords, int maxWords) {
+    const char* qmark = strchr(text, '?');
+    int qIdx = qmark ? (int)(qmark - text) : -1;
+    int count = 0;
+    const char* p = text;
+    while (*p && count < maxWords) {
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (!*p) break;
+        const char* start = p;
+        while (*p && !isspace((unsigned char)*p)) p++;
+        int len = (int)(p - start);
+        if (len > WC_WORD_LEN - 1) len = WC_WORD_LEN - 1;
+        memcpy(outWords[count].w, start, len);
+        outWords[count].w[len] = 0;
+        bool isAnswer = (qIdx >= 0) && ((int)(start - text) > qIdx);
+        if (isAnswer) { outWords[count].color[0] = 1.0f; outWords[count].color[1] = 0.8f; outWords[count].color[2] = 0.27f; }
+        else          { outWords[count].color[0] = 1.0f; outWords[count].color[1] = 1.0f; outWords[count].color[2] = 1.0f; }
+        count++;
+    }
+    return count;
+}
+
+// Minimal common-subset HTML entity decoder, in place (output never longer
+// than input). Covers what Open Trivia DB's default encoding actually
+// produces (quotes, apostrophes, basic punctuation, ampersand, a handful of
+// accented letters) - not a general HTML decoder like the browser's
+// textarea-based wcDecodeEntities, but this firmware only ever feeds it
+// trivia API text, so this covers what's actually seen in practice.
+inline void wcDecodeEntitiesInPlace(char* s) {
+    char* src = s;
+    char* dst = s;
+    while (*src) {
+        if (*src == '&') {
+            struct { const char* ent; char ch; } table[] = {
+                {"&quot;", '"'}, {"&#039;", '\''}, {"&apos;", '\''},
+                {"&amp;", '&'}, {"&lt;", '<'}, {"&gt;", '>'},
+                {"&rsquo;", '\''}, {"&lsquo;", '\''},
+                {"&ldquo;", '"'}, {"&rdquo;", '"'},
+                {"&eacute;", 'e'}, {"&egrave;", 'e'}, {"&ndash;", '-'}, {"&mdash;", '-'},
+                {"&hellip;", '.'},
+            };
+            bool matched = false;
+            for (auto& e : table) {
+                size_t elen = strlen(e.ent);
+                if (strncmp(src, e.ent, elen) == 0) {
+                    *dst++ = e.ch;
+                    src += elen;
+                    matched = true;
+                    break;
+                }
+            }
+            if (matched) continue;
+            // Numeric entity &#NNN;
+            if (src[1] == '#') {
+                char* end;
+                long code = strtol(src + 2, &end, 10);
+                if (*end == ';' && code > 0 && code < 128) {
+                    *dst++ = (char)code;
+                    src = end + 1;
+                    continue;
+                }
+            }
+        }
+        *dst++ = *src++;
+    }
+    *dst = 0;
+}
+
+// ---------------------------------------------------------------------------
+// Jokes (icanhazdadjoke.com) - real fetch, same API/behavior as effects.js's
+// jokeFetch(). Fetching happens from main.cpp's loop() (core 1), never on
+// the DMA task, same pattern as standaloneApodFetch/standaloneWxFetch.
+// ---------------------------------------------------------------------------
+inline String  g_jokeText;
+inline String  g_jokeError;
+inline volatile bool g_jokeFetching = false;
+inline WcState g_jokeCascade;
+inline String  g_jokeCascadeForText;
+
+inline bool standaloneJokeFetch() {
+    if (WiFi.status() != WL_CONNECTED) return false;
+    if (g_jokeFetching) return false;
+    g_jokeFetching = true;
+    g_jokeError = "";
+
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    bool ok = false;
+    if (http.begin(client, "https://icanhazdadjoke.com/")) {
+        http.addHeader("Accept", "application/json");
+        int code = http.GET();
+        if (code == 200) {
+            String payload = http.getString();
+            JsonDocument doc;
+            if (!deserializeJson(doc, payload)) {
+                const char* joke = doc["joke"] | "";
+                if (joke[0]) {
+                    g_jokeText = joke;
+                    g_jokeText.trim();
+                    ok = true;
+                } else {
+                    g_jokeError = "Empty response";
+                }
+            } else {
+                g_jokeError = "Parse error";
+            }
+        } else {
+            g_jokeError = "Joke API error " + String(code);
+        }
+        http.end();
+    } else {
+        g_jokeError = "Network error";
+    }
+    g_jokeFetching = false;
+    return ok;
+}
+
+// Loading/error placeholder - a simplified stand-in for effects.js's
+// renderTextToFace (a separate, more elaborate auto-fit multi-line text
+// engine used only for these transient states), reusing the WC font so it
+// at least looks visually consistent with the cascade that follows.
+inline void wcDrawCenteredLine(int face, const char* text, const float* rgb, int sv) {
+    int len = (int)strlen(text);
+    int u = (PANEL_SIZE - len * WC_CHAR_W) / 2;
+    for (int i = 0; i < len; i++) u += wcDrawGlyph(face, text[i], u, sv, rgb);
+}
+
+inline void standaloneRenderJoke(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    snClear(face);
+    if (face != 1) return;   // browser draws the cascade on face 1 only, other faces stay black
+
+    if (g_jokeText.length() == 0 && g_jokeError.length() == 0) {
+        char dots[4] = "";
+        int n = 1 + ((int)t % 3);
+        for (int i = 0; i < n; i++) dots[i] = '.';
+        dots[n] = 0;
+        char line2[16];
+        snprintf(line2, sizeof(line2), "JOKE%s", dots);
+        const float amber[3] = {0.9f, 0.75f, 0.2f};
+        wcDrawCenteredLine(face, "LOADING", amber, PANEL_SIZE / 2 + 2);
+        wcDrawCenteredLine(face, line2, amber, PANEL_SIZE / 2 - 8);
+        return;
+    }
+    if (g_jokeError.length() > 0) {
+        const float red[3] = {1.0f, 0.25f, 0.25f};
+        wcDrawCenteredLine(face, "API", red, PANEL_SIZE / 2 + 8);
+        wcDrawCenteredLine(face, "ERROR", red, PANEL_SIZE / 2);
+        return;
+    }
+
+    if (g_jokeCascadeForText != g_jokeText) {
+        WcWord tagged[WC_MAX_TOTAL_WORDS];
+        int n = wcTagQA(g_jokeText.c_str(), tagged, WC_MAX_TOTAL_WORDS);
+        wcInit(g_jokeCascade, tagged, n);
+        g_jokeCascadeForText = g_jokeText;
+    }
+    static float lastT = -1;
+    float dt = lastT < 0 ? 0 : (t - lastT);
+    lastT = t;
+    wcStep(g_jokeCascade, dt);
+    wcDrawToFace(g_jokeCascade, face);
+
+    // Once fully revealed and held a moment, fetch a new one - main.cpp's
+    // loop() actually performs the fetch, this just clears the cached text
+    // so the loop's "no text and not fetching" condition triggers it.
+    if (g_jokeCascade.done && g_jokeCascade.holdTimer > 5.0f && !g_jokeFetching) {
+        g_jokeText = "";
+        g_jokeCascadeForText = "";
+        g_jokeCascade.done = false;
+        g_jokeCascade.holdTimer = 0;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Trivia (Open Trivia DB) - same word-cascade style as Jokes.
+// ---------------------------------------------------------------------------
+inline String  g_triviaText;
+inline String  g_triviaError;
+inline volatile bool g_triviaFetching = false;
+inline WcState g_triviaCascade;
+inline String  g_triviaCascadeForText;
+
+inline bool standaloneTriviaFetch() {
+    if (WiFi.status() != WL_CONNECTED) return false;
+    if (g_triviaFetching) return false;
+    g_triviaFetching = true;
+    g_triviaError = "";
+
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    bool ok = false;
+    if (http.begin(client, "https://opentdb.com/api.php?amount=1&type=multiple")) {
+        int code = http.GET();
+        if (code == 200) {
+            String payload = http.getString();
+            JsonDocument doc;
+            if (!deserializeJson(doc, payload)) {
+                JsonArray results = doc["results"].as<JsonArray>();
+                if (results.size() > 0) {
+                    String question = results[0]["question"] | "";
+                    String answer = results[0]["correct_answer"] | "";
+                    question.trim();
+                    answer.trim();
+                    char qbuf[256], abuf[128];
+                    question.toCharArray(qbuf, sizeof(qbuf));
+                    answer.toCharArray(abuf, sizeof(abuf));
+                    wcDecodeEntitiesInPlace(qbuf);
+                    wcDecodeEntitiesInPlace(abuf);
+                    String q = String(qbuf);
+                    if (!q.endsWith("?")) q += "?";
+                    g_triviaText = q + " " + String(abuf);
+                    ok = true;
+                } else {
+                    g_triviaError = "No question returned";
+                }
+            } else {
+                g_triviaError = "Parse error";
+            }
+        } else {
+            g_triviaError = "Trivia API error " + String(code);
+        }
+        http.end();
+    } else {
+        g_triviaError = "Network error";
+    }
+    g_triviaFetching = false;
+    return ok;
+}
+
+inline void standaloneRenderTrivia(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    snClear(face);
+    if (face != 1) return;
+
+    if (g_triviaText.length() == 0 && g_triviaError.length() == 0) {
+        char dots[4] = "";
+        int n = 1 + ((int)t % 3);
+        for (int i = 0; i < n; i++) dots[i] = '.';
+        dots[n] = 0;
+        char line2[16];
+        snprintf(line2, sizeof(line2), "TRIVIA%s", dots);
+        const float amber[3] = {0.9f, 0.75f, 0.2f};
+        wcDrawCenteredLine(face, "LOADING", amber, PANEL_SIZE / 2 + 2);
+        wcDrawCenteredLine(face, line2, amber, PANEL_SIZE / 2 - 8);
+        return;
+    }
+    if (g_triviaError.length() > 0) {
+        const float red[3] = {1.0f, 0.25f, 0.25f};
+        wcDrawCenteredLine(face, "API", red, PANEL_SIZE / 2 + 8);
+        wcDrawCenteredLine(face, "ERROR", red, PANEL_SIZE / 2);
+        return;
+    }
+
+    if (g_triviaCascadeForText != g_triviaText) {
+        WcWord tagged[WC_MAX_TOTAL_WORDS];
+        int n = wcTagQA(g_triviaText.c_str(), tagged, WC_MAX_TOTAL_WORDS);
+        wcInit(g_triviaCascade, tagged, n);
+        g_triviaCascadeForText = g_triviaText;
+    }
+    static float lastT = -1;
+    float dt = lastT < 0 ? 0 : (t - lastT);
+    lastT = t;
+    wcStep(g_triviaCascade, dt);
+    wcDrawToFace(g_triviaCascade, face);
+
+    if (g_triviaCascade.done && g_triviaCascade.holdTimer > 5.0f && !g_triviaFetching) {
+        g_triviaText = "";
+        g_triviaCascadeForText = "";
+        g_triviaCascade.done = false;
+        g_triviaCascade.holdTimer = 0;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// On This Day (Wikipedia REST API) - cycles through today's historical
+// events one at a time, each revealed word-by-word (year in amber, text in
+// light blue), same as effects.js's effectOnThisDay.
+// ---------------------------------------------------------------------------
+#define OTD_MAX_EVENTS 20
+struct OtdEvent {
+    int  year;
+    char text[160];
+};
+inline OtdEvent g_otdEvents[OTD_MAX_EVENTS];
+inline int      g_otdEventCount = 0;
+inline String   g_otdError;
+inline volatile bool g_otdFetching = false;
+inline String   g_otdFetchedFor;   // "MM-DD" the cache is for
+inline int      g_otdIdx = 0;
+inline WcState  g_otdCascade;
+inline String   g_otdCascadeForKey;
+
+inline bool standaloneOtdFetch() {
+    if (WiFi.status() != WL_CONNECTED) return false;
+    if (g_otdFetching) return false;
+    g_otdFetching = true;
+    g_otdError = "";
+
+    time_t now = time(nullptr);
+    struct tm tmNow;
+    gmtime_r(&now, &tmNow);
+    char mmdd[6];
+    snprintf(mmdd, sizeof(mmdd), "%02d-%02d", tmNow.tm_mon + 1, tmNow.tm_mday);
+    g_otdFetchedFor = mmdd;
+
+    char url[128];
+    snprintf(url, sizeof(url), "https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/%02d/%02d",
+             tmNow.tm_mon + 1, tmNow.tm_mday);
+
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    bool ok = false;
+    if (http.begin(client, url)) {
+        http.addHeader("Accept", "application/json");
+        int code = http.GET();
+        if (code == 200) {
+            String payload = http.getString();
+            // Wikipedia's onthisday payload can run large (default events
+            // list often 100+ entries); ArduinoJson v7's JsonDocument grows
+            // dynamically, but cap what we keep to OTD_MAX_EVENTS below.
+            JsonDocument doc;
+            DeserializationError err = deserializeJson(doc, payload);
+            if (!err) {
+                JsonArray events = doc["events"].as<JsonArray>();
+                // Collect (year, text) pairs, then sort descending by year -
+                // same as events.filter(e=>e.text).sort((a,b)=>(b.year||0)-(a.year||0))
+                int n = 0;
+                for (JsonObject e : events) {
+                    const char* text = e["text"] | "";
+                    if (!text[0]) continue;
+                    if (n >= OTD_MAX_EVENTS) break;
+                    g_otdEvents[n].year = e["year"] | 0;
+                    strncpy(g_otdEvents[n].text, text, sizeof(g_otdEvents[n].text) - 1);
+                    g_otdEvents[n].text[sizeof(g_otdEvents[n].text) - 1] = 0;
+                    n++;
+                }
+                // Simple insertion sort, descending by year - n is capped at
+                // OTD_MAX_EVENTS (20) so O(n^2) is fine.
+                for (int i = 1; i < n; i++) {
+                    OtdEvent key = g_otdEvents[i];
+                    int j = i - 1;
+                    while (j >= 0 && g_otdEvents[j].year < key.year) {
+                        g_otdEvents[j + 1] = g_otdEvents[j];
+                        j--;
+                    }
+                    g_otdEvents[j + 1] = key;
+                }
+                if (n > 0) {
+                    g_otdEventCount = n;
+                    g_otdIdx = 0;
+                    ok = true;
+                } else {
+                    g_otdError = "No events found";
+                }
+            } else {
+                g_otdError = "Parse error";
+            }
+        } else {
+            g_otdError = "Wikipedia API error " + String(code);
+        }
+        http.end();
+    } else {
+        g_otdError = "Network error";
+    }
+    g_otdFetching = false;
+    return ok;
+}
+
+inline void standaloneRenderOnThisDay(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    snClear(face);
+    if (face != 1) return;
+
+    if (g_otdEventCount == 0 && g_otdError.length() == 0) {
+        char dots[4] = "";
+        int n = 1 + ((int)t % 3);
+        for (int i = 0; i < n; i++) dots[i] = '.';
+        dots[n] = 0;
+        char line2[16];
+        snprintf(line2, sizeof(line2), "DAY%s", dots);
+        const float blue[3] = {0.3f, 0.65f, 0.95f};
+        wcDrawCenteredLine(face, "ON THIS", blue, PANEL_SIZE / 2 + 2);
+        wcDrawCenteredLine(face, line2, blue, PANEL_SIZE / 2 - 8);
+        return;
+    }
+    if (g_otdError.length() > 0) {
+        const float red[3] = {1.0f, 0.25f, 0.25f};
+        wcDrawCenteredLine(face, "API", red, PANEL_SIZE / 2 + 8);
+        wcDrawCenteredLine(face, "ERROR", red, PANEL_SIZE / 2);
+        return;
+    }
+
+    if (g_otdIdx >= g_otdEventCount) g_otdIdx = 0;
+    char wrapKey[16];
+    snprintf(wrapKey, sizeof(wrapKey), "%d|%d", g_otdIdx, g_otdEventCount);
+    if (g_otdCascadeForKey != wrapKey) {
+        const OtdEvent& ev = g_otdEvents[g_otdIdx];
+        WcWord tagged[WC_MAX_TOTAL_WORDS];
+        int n = 0;
+        char yearWord[16];
+        snprintf(yearWord, sizeof(yearWord), "%d:", ev.year);
+        strncpy(tagged[n].w, yearWord, WC_WORD_LEN - 1);
+        tagged[n].w[WC_WORD_LEN - 1] = 0;
+        tagged[n].color[0] = 1.0f; tagged[n].color[1] = 0.8f; tagged[n].color[2] = 0.27f;
+        n++;
+        const char* p = ev.text;
+        while (*p && n < WC_MAX_TOTAL_WORDS) {
+            while (*p && isspace((unsigned char)*p)) p++;
+            if (!*p) break;
+            const char* start = p;
+            while (*p && !isspace((unsigned char)*p)) p++;
+            int len = (int)(p - start);
+            if (len > WC_WORD_LEN - 1) len = WC_WORD_LEN - 1;
+            memcpy(tagged[n].w, start, len);
+            tagged[n].w[len] = 0;
+            tagged[n].color[0] = 0.48f; tagged[n].color[1] = 0.82f; tagged[n].color[2] = 1.0f;
+            n++;
+        }
+        wcInit(g_otdCascade, tagged, n);
+        g_otdCascadeForKey = wrapKey;
+    }
+    static float lastT = -1;
+    float dt = lastT < 0 ? 0 : (t - lastT);
+    lastT = t;
+    wcStep(g_otdCascade, dt);
+    wcDrawToFace(g_otdCascade, face);
+
+    // Once revealed and held, advance to the next event (wraps at the end -
+    // main.cpp's loop() re-fetches once per day when the date changes).
+    if (g_otdCascade.done && g_otdCascade.holdTimer > 5.0f) {
+        g_otdIdx++;
+        g_otdCascadeForKey = "";   // force cascade rebuild for the next event
+        g_otdCascade.done = false;
+        g_otdCascade.holdTimer = 0;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Dispatcher — called once per display-task tick when in standalone mode.
 // ---------------------------------------------------------------------------
@@ -2819,6 +3454,9 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_APOD:          standaloneRenderApod(display, face, t);          break;
             case SA_GHOST:         standaloneRenderGhost(display, face, t);         break;
             case SA_RETRO:         standaloneRenderRetro(display, face, t);         break;
+            case SA_JOKE:          standaloneRenderJoke(display, face, t);          break;
+            case SA_TRIVIA:        standaloneRenderTrivia(display, face, t);        break;
+            case SA_OTD:           standaloneRenderOnThisDay(display, face, t);     break;
             default:
                 saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;
