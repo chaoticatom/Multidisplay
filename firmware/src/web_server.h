@@ -40,6 +40,9 @@ extern uint32_t       g_bootMillis;
 extern volatile bool  g_browserConnected;
 // Raw LittleFS.begin(false) mount result (no auto-format) - see /api/fsinfo.
 extern bool           g_fsMountOk;
+// True once the HTTP/WebSocket servers are actually listening - see the
+// boot-time status dot in standaloneRender() (standalone.h).
+extern bool           g_httpServerOk;
 // PSRAM detection + read/write test results - see /api/psramtest.
 extern bool           g_psramOk;
 extern String         g_psramTestResult;

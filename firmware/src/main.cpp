@@ -57,6 +57,14 @@ volatile bool   g_browserConnected     = false;
 volatile uint32_t g_lastFrameMs        = 0;
 volatile bool     g_everStreamed       = false;
 bool              g_fsMountOk          = false;
+// True once httpServer.begin()/wsServer.begin() have both run in setup() -
+// i.e. the HTTP/WebSocket servers are actually up and a browser could
+// connect. Drawn as a second boot-time status dot next to the WiFi one
+// (standaloneRender() in standalone.h) specifically so a hang earlier in
+// setup() (WiFi connects fine, but something after it blocks before the
+// servers start) is visible on the panel itself, not just inferred from a
+// green WiFi dot that doesn't actually mean the site is reachable.
+bool              g_httpServerOk       = false;
 bool              g_psramOk            = false;
 String            g_psramTestResult    = "not run";
 volatile uint32_t g_videoFramesRcvd    = 0;
@@ -700,6 +708,7 @@ void setup() {
     // The WebSocket lives on its own port (81). Reuse the same handler.
     wsServer.addHandler(&ws);
     wsServer.begin();
+    g_httpServerOk = true;
     Serial.println("[CKPT] after wsServer.begin()"); Serial.flush();
 
     Serial.printf("[HTTP] serving on :%d   [WS] on :%d\n", HTTP_PORT, WS_PORT);
