@@ -1334,13 +1334,7 @@ const PANEL_EFFECTS = new Set(['tron','maze','video','f1','datetime','strobe','r
 // browser). Any effect NOT in this set is greyed out in the sidebar, since it
 // either falls back to a stand-in or isn't supported standalone yet. Keep in
 // sync with standaloneEffectForBrowserKey() / the SA_* renderers in firmware.
-const NATIVE_EFFECTS = new Set(['wave','rain','plasma','fireworks','balls','gradient_wash','aurora','depth_rings','prism','tide','nebula','lightning','strobe','weather','datetime','dna','warp','life','lightspeed','sand','fluid','maze','moon','dice','coinflip','tron','sphere','apod','ghost','retro','joke','trivia','otd']);
-// NOTE: 'simhouse' is intentionally NOT in this set yet. The firmware port
-// (SA_SIMHOUSE) only covers shShadowMode's shadow-puppet view so far; the
-// browser's DEFAULT mode for this effect is the non-shadow full room view
-// (shShadowMode starts false), which isn't ported yet - adding this to
-// NATIVE_EFFECTS now would make the sidebar claim a match that doesn't
-// actually hold for most users. Add it once the room view is also ported.
+const NATIVE_EFFECTS = new Set(['wave','rain','plasma','fireworks','balls','gradient_wash','aurora','depth_rings','prism','tide','nebula','lightning','strobe','weather','datetime','dna','warp','life','lightspeed','sand','fluid','maze','moon','dice','coinflip','tron','sphere','apod','ghost','retro','joke','trivia','otd','simhouse']);
 function applyNativeGreyout(){
   document.querySelectorAll('.effect-btn').forEach(btn=>{
     const eff = btn.dataset.effect;
@@ -1564,6 +1558,7 @@ document.querySelectorAll('[data-shmode]').forEach(btn=>{
     document.querySelectorAll('[data-shmode]').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     shShadowMode=btn.dataset.shmode==='shadows';
+    if(typeof cubeSendCmd==='function') cubeSendCmd({cmd:'setOption', effect:'simhouse', key:'shMode', value: btn.dataset.shmode});
   });
 });
 document.querySelectorAll('[data-fwmode]').forEach(btn=>{

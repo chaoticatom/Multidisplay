@@ -267,6 +267,9 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                     if (!strcmp(eff, "fireworks") && !strcmp(key, "mode")) {
                         const char* v = doc["value"] | "random";
                         g_fwMode = !strcmp(v, "sync") ? 1 : 0;
+                    } else if (!strcmp(eff, "simhouse") && !strcmp(key, "shMode")) {
+                        const char* v = doc["value"] | "rooms";
+                        g_shShadowMode = !strcmp(v, "shadows");
                     }
                 }
             }

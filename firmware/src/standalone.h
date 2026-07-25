@@ -3897,10 +3897,478 @@ inline void standaloneSimHouseShadowsBuild(float shT) {
     for (int x = doorX - 1; x <= doorX + doorW + 1; x++) setP(x, ground - 1, 0.6f, 0.58f, 0.52f);
 }
 
+// Browser-side default mode (shShadowMode starts false) - a full room-by-
+// room interior view: furnished rooms, occupancy-driven lighting, stairs,
+// particles (kitchen steam, dust motes), chimney smoke, night sky
+// (stars/moon/shooting star), window light spilling onto the ground.
+// Faithful port of effectSimHouse's non-shadow, non-panel2D branch
+// (panel2dMode is a browser-viewport-only single-panel view, not applicable
+// to the physical 6-face cube, so - like every other ported effect - it's
+// skipped here).
+#define SH_MAX_PARTICLES 60
+struct ShParticle { float x, y, vx, vy, life, r, g, b; };
+inline ShParticle g_shParticles[SH_MAX_PARTICLES];
+inline int        g_shParticleCount = 0;
+
+inline void shSpawnParticle(float x, float y, float vx, float vy, float life, float r, float g, float b) {
+    if (g_shParticleCount >= SH_MAX_PARTICLES) return;
+    ShParticle& p = g_shParticles[g_shParticleCount++];
+    p.x = x; p.y = y; p.vx = vx; p.vy = vy; p.life = life; p.r = r; p.g = g; p.b = b;
+}
+
+inline void standaloneSimHouseRoomsBuild(float dt, float shT) {
+    const int S = PANEL_SIZE, W = 4 * S;
+    const int ground = 2, floor1 = (int)(S * 0.47f), roof = S - 5;
+    memset(g_shBuf, 0, W * S * 3);
+
+    // Additive fill (unlike shadow mode's overwrite setP) - matches this
+    // branch's own setP in effects.js exactly.
+    auto setP = [&](int x, int y, float r, float g, float b) {
+        if (x < 0 || x >= W || y < 0 || y >= S) return;
+        int i = (y * W + x) * 3;
+        g_shBuf[i]     = (uint8_t)fminf(255.0f, g_shBuf[i]     + r * 255.0f);
+        g_shBuf[i + 1] = (uint8_t)fminf(255.0f, g_shBuf[i + 1] + g * 255.0f);
+        g_shBuf[i + 2] = (uint8_t)fminf(255.0f, g_shBuf[i + 2] + b * 255.0f);
+    };
+    auto fillRect = [&](int x1, int y1, int x2, int y2, float r, float g, float b) {
+        for (int y = (y1 < 0 ? 0 : y1); y <= (y2 > S - 1 ? S - 1 : y2); y++)
+            for (int x = (x1 < 0 ? 0 : x1); x <= (x2 > W - 1 ? W - 1 : x2); x++) setP(x, y, r, g, b);
+    };
+    auto hLine = [&](int x1, int x2, int y, float r, float g, float b) {
+        for (int x = x1; x <= x2; x++) setP(x, y, r, g, b);
+    };
+    auto vLine = [&](int x, int y1, int y2, float r, float g, float b) {
+        for (int y = y1; y <= y2; y++) setP(x, y, r, g, b);
+    };
+
+    float hour = shGetHour();
+    bool isNight = (hour >= 21 || hour < 6);
+    bool isDusk = (hour >= 18 && hour < 21) || (hour >= 6 && hour < 7);
+    bool isDawn = (hour >= 6 && hour < 8);
+
+    // Sky with gradient
+    float skyR, skyG, skyB;
+    if (isNight) { skyR = 0.01f; skyG = 0.01f; skyB = 0.05f; }
+    else if (isDusk) { skyR = 0.12f; skyG = 0.05f; skyB = 0.08f; }
+    else if (isDawn) { skyR = 0.1f; skyG = 0.08f; skyB = 0.12f; }
+    else { skyR = 0.05f; skyG = 0.08f; skyB = 0.15f; }
+    for (int y = roof + 1; y < S; y++) {
+        float grad = 1.0f - (float)(y - roof) / (S - roof);
+        for (int x = 0; x < W; x++) setP(x, y, skyR * (1 + grad * 0.5f), skyG * (1 + grad * 0.3f), skyB * (1 + grad * 0.8f));
+    }
+
+    // Room backgrounds with warm ambient + subtle wall colour tints
+    static const float wallTints[SH_ROOM_COUNT][3] = {
+        {0.08f, 0.06f, 0.04f}, {0.06f, 0.08f, 0.04f}, {0.08f, 0.06f, 0.03f}, {0.06f, 0.05f, 0.07f},
+        {0.05f, 0.05f, 0.05f}, {0.04f, 0.05f, 0.07f}, {0.06f, 0.04f, 0.07f}, {0.04f, 0.07f, 0.07f},
+        {0.04f, 0.05f, 0.07f}, {0.07f, 0.05f, 0.06f}, {0.05f, 0.05f, 0.04f}, {0.04f, 0.06f, 0.06f},
+    };
+    // g_shRooms doesn't carry wallCol/floorCol (added only bedroom/sitLike
+    // flags for the shadow-mode port) - reconstruct the same per-room base
+    // colours from effects.js's shRooms literal here, indexed the same way.
+    static const float roomWallCol[SH_ROOM_COUNT][3] = {
+        {0.12f,0.11f,0.09f},{0.2f,0.17f,0.1f},{0.16f,0.12f,0.07f},{0.13f,0.1f,0.06f},
+        {0.11f,0.1f,0.08f},{0.11f,0.09f,0.06f},{0.09f,0.07f,0.14f},{0.12f,0.16f,0.17f},
+        {0.08f,0.07f,0.12f},{0.14f,0.09f,0.13f},{0.1f,0.09f,0.08f},{0.09f,0.13f,0.13f},
+    };
+    static const float roomFloorCol[SH_ROOM_COUNT][3] = {
+        {0.1f,0.1f,0.08f},{0.14f,0.12f,0.08f},{0.12f,0.09f,0.06f},{0.1f,0.08f,0.05f},
+        {0.08f,0.07f,0.06f},{0.08f,0.06f,0.04f},{0.07f,0.05f,0.1f},{0.1f,0.12f,0.12f},
+        {0.06f,0.05f,0.08f},{0.1f,0.06f,0.09f},{0.07f,0.06f,0.05f},{0.07f,0.09f,0.09f},
+    };
+    bool roomOccupied[SH_ROOM_COUNT];
+    for (int ri = 0; ri < SH_ROOM_COUNT; ri++) {
+        const ShRoom& rm = g_shRooms[ri];
+        bool occ = false;
+        for (int pi = 0; pi < SH_PEOPLE_COUNT; pi++) if (g_shPeople[pi].targetRoom == ri) { occ = true; break; }
+        roomOccupied[ri] = occ;
+        float litMul = occ ? (isNight ? 0.5f : 1.0f) : 0.2f;
+        fillRect(rm.x1, rm.y1, rm.x2, rm.y2,
+                  (roomWallCol[ri][0] + wallTints[ri][0]) * litMul,
+                  (roomWallCol[ri][1] + wallTints[ri][1]) * litMul,
+                  (roomWallCol[ri][2] + wallTints[ri][2]) * litMul);
+        hLine(rm.x1, rm.x2, rm.y1, roomFloorCol[ri][0] * 1.5f, roomFloorCol[ri][1] * 1.5f, roomFloorCol[ri][2] * 1.5f);
+        if (occ) {
+            int cx = (rm.x1 + rm.x2) / 2, cy = rm.y2;
+            for (int dy = -2; dy <= 2; dy++) for (int dx = -3; dx <= 3; dx++) {
+                float d = sqrtf((float)(dx * dx + dy * dy));
+                if (d < 3.5f) setP(cx + dx, cy + dy, 0.08f * (1 - d / 4), 0.07f * (1 - d / 4), 0.03f * (1 - d / 4));
+            }
+            setP(cx, cy, 0.3f, 0.28f, 0.15f); setP(cx - 1, cy, 0.15f, 0.14f, 0.08f); setP(cx + 1, cy, 0.15f, 0.14f, 0.08f);
+        }
+    }
+
+    // Structure
+    const float wc[3] = {0.35f, 0.28f, 0.18f};
+    hLine(0, W - 1, ground, wc[0], wc[1], wc[2]);
+    hLine(0, W - 1, floor1, wc[0], wc[1], wc[2]);
+    hLine(0, W - 1, roof, wc[0], wc[1], wc[2]);
+    vLine(0, ground, roof, wc[0] * 0.8f, wc[1] * 0.8f, wc[2] * 0.8f);
+    vLine(W - 1, ground, roof, wc[0] * 0.8f, wc[1] * 0.8f, wc[2] * 0.8f);
+    for (int ri = 0; ri < SH_ROOM_COUNT; ri++) {
+        const ShRoom& rm = g_shRooms[ri];
+        vLine(rm.x1 - 1, rm.y1 - 1, rm.y2 + 1, wc[0] * 0.5f, wc[1] * 0.5f, wc[2] * 0.5f);
+    }
+    const int roofPeak = S - 2, roofMid = (int)(W * 0.5f);
+    for (int x = 0; x < W; x++) {
+        int ry = roof + (int)roundf(fmaxf(0.0f, 1.0f - fabsf(x - roofMid) / (W * 0.5f)) * (roofPeak - roof));
+        setP(x, ry, wc[0], wc[1], wc[2]);
+        setP(x, ry - 1, wc[0] * 0.6f, wc[1] * 0.6f, wc[2] * 0.6f);
+    }
+
+    // Stairs (diagonal steps + banister)
+    const ShRoom& hall = g_shRooms[4];
+    int stairL = hall.x1 + 2, stairR = hall.x2 - 2;
+    int stairW = stairR - stairL;
+    int stairH = floor1 - ground - 1;
+    int numSteps = stairH < stairW ? stairH : stairW;
+    for (int s = 0; s <= numSteps; s++) {
+        int sx = stairL + (int)roundf(s * ((float)stairW / numSteps));
+        int sy = ground + 1 + (int)roundf(s * ((float)stairH / numSteps));
+        hLine(sx, sx + 2, sy, 0.25f, 0.2f, 0.14f);
+        setP(sx, sy + 1, 0.15f, 0.12f, 0.08f);
+    }
+    for (int s = 0; s <= numSteps; s += 2) {
+        int sx = stairL + (int)roundf(s * ((float)stairW / numSteps)) + 3;
+        int sy = ground + 1 + (int)roundf(s * ((float)stairH / numSteps));
+        vLine(sx, sy, sy + 3, 0.2f, 0.15f, 0.08f);
+    }
+
+    // Furniture, big and colourful, fills every room - direct port of
+    // effects.js's per-room hand-placed decoration, room indices matching
+    // initSimHouse's addRoom() order (0=garage,1=kitchen,2=dining,3=living,
+    // 4=hallway,5=study,6=bedroom1,7=bathroom,8=bedroom2,9=kidsroom,
+    // 10=landing,11=ensuite).
+    const ShRoom& kit = g_shRooms[1];
+    fillRect(kit.x1 + 1, kit.y1, kit.x1 + 8, kit.y1 + 4, 0.45f, 0.4f, 0.32f);
+    fillRect(kit.x2 - 8, kit.y1, kit.x2 - 1, kit.y1 + 4, 0.4f, 0.38f, 0.3f);
+    fillRect(kit.x2 - 4, kit.y1, kit.x2 - 1, kit.y1 + 7, 0.5f, 0.52f, 0.55f);
+    setP(kit.x2 - 2, kit.y1 + 6, 0.3f, 0.55f, 0.85f); setP(kit.x2 - 2, kit.y1 + 4, 0.25f, 0.45f, 0.7f);
+    setP(kit.x2 - 3, kit.y1 + 5, 0.35f, 0.35f, 0.4f);
+    fillRect(kit.x1 + 9, kit.y1, kit.x1 + 13, kit.y1 + 3, 0.35f, 0.35f, 0.38f);
+    setP(kit.x1 + 10, kit.y1 + 3, 0.2f, 0.2f, 0.22f); setP(kit.x1 + 12, kit.y1 + 3, 0.2f, 0.2f, 0.22f);
+    fillRect(kit.x1 + 1, kit.y2 - 4, kit.x1 + 6, kit.y2 - 1, 0.3f, 0.22f, 0.12f);
+    fillRect(kit.x1 + 8, kit.y2 - 4, kit.x1 + 13, kit.y2 - 1, 0.3f, 0.22f, 0.12f);
+    fillRect(kit.x2 - 8, kit.y2 - 3, kit.x2 - 5, kit.y2 - 1, 0.28f, 0.2f, 0.1f);
+    fillRect(kit.x1 + 4, kit.y1 + 4, kit.x1 + 6, kit.y1 + 5, 0.5f, 0.55f, 0.6f);
+    setP(kit.x1 + 5, kit.y1 + 6, 0.4f, 0.42f, 0.45f);
+    setP(kit.x1 + 2, kit.y1 + 5, 0.8f, 0.2f, 0.15f); setP(kit.x1 + 3, kit.y1 + 5, 0.9f, 0.7f, 0.1f); setP(kit.x1 + 4, kit.y1 + 5, 0.2f, 0.7f, 0.15f);
+    for (int pi = 0; pi < SH_PEOPLE_COUNT; pi++) {
+        const ShPerson& p = g_shPeople[pi];
+        if (p.targetRoom == 1 && fabsf(p.x - (kit.x1 + 11)) < 5) {
+            float fl = 0.7f + 0.3f * sinf(shT * 12);
+            setP(kit.x1 + 10, kit.y1 + 4, fl, fl * 0.4f, 0.05f);
+            setP(kit.x1 + 11, kit.y1 + 4, fl * 0.8f, fl * 0.3f, 0.05f);
+            setP(kit.x1 + 12, kit.y1 + 4, fl * 0.6f, fl * 0.2f, 0.02f);
+            if (shRandom01() < 0.3f) shSpawnParticle(kit.x1 + 10 + shRandom01() * 3, kit.y1 + 5, (shRandom01() - 0.5f) * 0.5f, 1.5f + shRandom01(), 1.5f, 0.3f, 0.3f, 0.3f);
+            break;
+        }
+    }
+
+    const ShRoom& din = g_shRooms[2];
+    int dtX = (din.x1 + din.x2) / 2;
+    fillRect(dtX - 7, din.y1, dtX + 7, din.y1 + 1, 0.2f, 0.1f, 0.08f);
+    fillRect(dtX - 6, din.y1 + 3, dtX + 6, din.y1 + 6, 0.45f, 0.28f, 0.12f);
+    vLine(dtX - 5, din.y1, din.y1 + 2, 0.38f, 0.22f, 0.1f); vLine(dtX + 5, din.y1, din.y1 + 2, 0.38f, 0.22f, 0.1f);
+    fillRect(dtX - 9, din.y1, dtX - 8, din.y1 + 6, 0.35f, 0.2f, 0.1f); fillRect(dtX + 8, din.y1, dtX + 9, din.y1 + 6, 0.35f, 0.2f, 0.1f);
+    fillRect(dtX - 3, din.y1, dtX - 2, din.y1 + 2, 0.35f, 0.2f, 0.1f); fillRect(dtX + 2, din.y1, dtX + 3, din.y1 + 2, 0.35f, 0.2f, 0.1f);
+    setP(dtX, din.y2, 0.6f, 0.55f, 0.25f); setP(dtX - 1, din.y2, 0.4f, 0.35f, 0.15f); setP(dtX + 1, din.y2, 0.4f, 0.35f, 0.15f);
+    setP(dtX - 2, din.y2 - 1, 0.55f, 0.5f, 0.2f); setP(dtX + 2, din.y2 - 1, 0.55f, 0.5f, 0.2f);
+    vLine(dtX, din.y2 - 2, din.y2, 0.15f, 0.12f, 0.08f);
+    for (int i = -4; i <= 4; i += 2) { setP(dtX + i, din.y1 + 5, 0.6f, 0.6f, 0.65f); setP(dtX + i, din.y1 + 4, 0.5f, 0.15f, 0.1f); }
+    fillRect(din.x2 - 4, din.y1, din.x2 - 1, din.y1 + 4, 0.25f, 0.18f, 0.1f);
+    setP(din.x2 - 2, din.y1 + 4, 0.6f, 0.3f, 0.15f);
+    setP(din.x2 - 2, din.y1 + 5, 0.2f, 0.6f, 0.15f); setP(din.x2 - 3, din.y1 + 5, 0.15f, 0.5f, 0.1f);
+    setP(din.x1 + 1, din.y1 + 1, 0.25f, 0.55f, 0.15f); setP(din.x1 + 2, din.y1 + 2, 0.2f, 0.5f, 0.12f); setP(din.x1 + 1, din.y1 + 2, 0.18f, 0.45f, 0.1f);
+    setP(din.x1 + 1, din.y1, 0.3f, 0.2f, 0.1f);
+
+    const ShRoom& liv = g_shRooms[3];
+    fillRect(liv.x1 + 2, liv.y1, liv.x2 - 4, liv.y1 + 1, 0.25f, 0.08f, 0.06f);
+    fillRect(liv.x1 + 3, liv.y1 + 1, liv.x2 - 5, liv.y1 + 1, 0.2f, 0.1f, 0.12f);
+    fillRect(liv.x1 + 2, liv.y1 + 2, liv.x1 + 14, liv.y1 + 5, 0.3f, 0.15f, 0.1f);
+    fillRect(liv.x1 + 2, liv.y1 + 6, liv.x1 + 4, liv.y1 + 7, 0.28f, 0.13f, 0.08f);
+    fillRect(liv.x1 + 12, liv.y1 + 6, liv.x1 + 14, liv.y1 + 7, 0.28f, 0.13f, 0.08f);
+    fillRect(liv.x1 + 4, liv.y1 + 5, liv.x1 + 6, liv.y1 + 6, 0.6f, 0.25f, 0.15f);
+    fillRect(liv.x1 + 7, liv.y1 + 5, liv.x1 + 9, liv.y1 + 6, 0.15f, 0.4f, 0.55f);
+    fillRect(liv.x1 + 10, liv.y1 + 5, liv.x1 + 12, liv.y1 + 6, 0.5f, 0.45f, 0.15f);
+    bool tvOn = false;
+    for (int pi = 0; pi < SH_PEOPLE_COUNT; pi++) if (g_shPeople[pi].targetRoom == 3) { tvOn = true; break; }
+    int tvX = liv.x2 - 10;
+    fillRect(tvX, liv.y1 + 7, tvX + 10, liv.y1 + 13, 0.04f, 0.04f, 0.04f);
+    if (tvOn) {
+        float fl = 0.5f + 0.2f * sinf(shT * 5) + 0.15f * sinf(shT * 9.3f);
+        fillRect(tvX + 1, liv.y1 + 8, tvX + 9, liv.y1 + 12, fl * 0.25f, fl * 0.45f, fl * 0.95f);
+        for (int d = 1; d < 6; d++) {
+            float fade = 0.04f * (1 - (float)d / 6);
+            fillRect(tvX - d, liv.y1 + 7, tvX + 10 + d, liv.y1 + 13, fade * fl, fade * fl * 1.2f, fade * fl * 2);
+        }
+    }
+    fillRect(liv.x1 + 15, liv.y1 + 1, liv.x1 + 20, liv.y1 + 3, 0.3f, 0.22f, 0.1f);
+    setP(liv.x1 + 17, liv.y1 + 3, 0.5f, 0.1f, 0.1f);
+    vLine(liv.x1 + 1, liv.y1 + 4, liv.y1 + 9, 0.15f, 0.12f, 0.08f);
+    setP(liv.x1 + 1, liv.y1 + 9, 0.5f, 0.45f, 0.2f); setP(liv.x1, liv.y1 + 9, 0.4f, 0.35f, 0.15f);
+    fillRect(liv.x2 - 4, liv.y1, liv.x2 - 1, liv.y2 - 1, 0.22f, 0.15f, 0.08f);
+    for (int by = liv.y1; by < liv.y2 - 1; by++) {
+        float hue = by * 0.7f;
+        setP(liv.x2 - 3, by, 0.3f + 0.3f * sinf(hue), 0.2f + 0.2f * sinf(hue + 2), 0.2f + 0.2f * sinf(hue + 4));
+        setP(liv.x2 - 2, by, 0.25f + 0.25f * sinf(hue + 1), 0.3f + 0.2f * sinf(hue + 3), 0.15f + 0.15f * sinf(hue + 5));
+    }
+    fillRect(liv.x1 + 5, liv.y2 - 4, liv.x1 + 9, liv.y2 - 2, 0.15f, 0.3f, 0.45f);
+    fillRect(liv.x1 + 11, liv.y2 - 3, liv.x1 + 14, liv.y2 - 1, 0.4f, 0.25f, 0.15f);
+
+    const ShRoom& stu = g_shRooms[5];
+    fillRect(stu.x1 + 2, stu.y1, stu.x2 - 3, stu.y1 + 4, 0.32f, 0.22f, 0.12f);
+    fillRect(stu.x1 + 4, stu.y1 + 5, stu.x1 + 8, stu.y1 + 8, 0.1f, 0.1f, 0.14f);
+    fillRect(stu.x1 + 10, stu.y1 + 5, stu.x1 + 14, stu.y1 + 8, 0.1f, 0.1f, 0.14f);
+    fillRect(stu.x1 + 7, stu.y1, stu.x1 + 10, stu.y1 + 5, 0.18f, 0.18f, 0.22f);
+    bool studyOcc = false;
+    for (int pi = 0; pi < SH_PEOPLE_COUNT; pi++) if (g_shPeople[pi].targetRoom == 5) { studyOcc = true; break; }
+    if (studyOcc) {
+        fillRect(stu.x1 + 5, stu.y1 + 6, stu.x1 + 7, stu.y1 + 7, 0.2f, 0.6f, 0.8f);
+        fillRect(stu.x1 + 11, stu.y1 + 6, stu.x1 + 13, stu.y1 + 7, 0.2f, 0.6f, 0.8f);
+    }
+    setP(stu.x2 - 4, stu.y1 + 5, 0.75f, 0.65f, 0.25f); setP(stu.x2 - 4, stu.y1 + 6, 0.45f, 0.38f, 0.15f);
+    vLine(stu.x2 - 4, stu.y1 + 3, stu.y1 + 5, 0.2f, 0.18f, 0.1f);
+    fillRect(stu.x2 - 2, stu.y1, stu.x2, stu.y2 - 1, 0.2f, 0.14f, 0.08f);
+    for (int by = stu.y1; by < stu.y2 - 1; by++) setP(stu.x2 - 1, by, 0.4f + 0.3f * sinf(by * 1.2f), 0.15f + 0.2f * sinf(by * 0.9f), 0.2f + 0.2f * sinf(by * 1.5f));
+    setP(stu.x1 + 1, stu.y1 + 1, 0.2f, 0.5f, 0.15f); setP(stu.x1 + 1, stu.y1 + 2, 0.15f, 0.45f, 0.1f); setP(stu.x1 + 1, stu.y1, 0.3f, 0.2f, 0.12f);
+
+    const ShRoom& gar = g_shRooms[0];
+    fillRect(gar.x1 + 2, gar.y1, gar.x2 - 2, gar.y1 + 4, 0.1f, 0.1f, 0.2f);
+    fillRect(gar.x1 + 3, gar.y1 + 5, gar.x2 - 3, gar.y1 + 7, 0.08f, 0.08f, 0.18f);
+    fillRect(gar.x1 + 4, gar.y1 + 5, gar.x2 - 4, gar.y1 + 6, 0.2f, 0.28f, 0.4f);
+    setP(gar.x1 + 2, gar.y1 + 2, 0.7f, 0.7f, 0.2f); setP(gar.x2 - 2, gar.y1 + 2, 0.7f, 0.1f, 0.1f);
+    setP(gar.x1 + 3, gar.y1, 0.06f, 0.06f, 0.06f); setP(gar.x2 - 3, gar.y1, 0.06f, 0.06f, 0.06f);
+    setP(gar.x1 + 4, gar.y1, 0.06f, 0.06f, 0.06f); setP(gar.x2 - 4, gar.y1, 0.06f, 0.06f, 0.06f);
+    fillRect(gar.x1 + 1, gar.y2 - 4, gar.x1 + 4, gar.y2 - 1, 0.22f, 0.22f, 0.2f);
+    setP(gar.x1 + 2, gar.y2 - 2, 0.5f, 0.4f, 0.1f); setP(gar.x1 + 3, gar.y2 - 3, 0.4f, 0.4f, 0.45f);
+    fillRect(gar.x2 - 4, gar.y1, gar.x2 - 1, gar.y1 + 3, 0.28f, 0.22f, 0.12f);
+
+    const ShRoom& br1 = g_shRooms[6];
+    fillRect(br1.x1 + 1, br1.y1, br1.x1 + 1, br1.y1 + 1, 0.18f, 0.1f, 0.06f);
+    fillRect(br1.x1 + 2, br1.y1, br1.x1 + 12, br1.y1 + 3, 0.24f, 0.18f, 0.1f);
+    fillRect(br1.x1 + 2, br1.y1 + 4, br1.x1 + 12, br1.y1 + 6, 0.55f, 0.3f, 0.5f);
+    fillRect(br1.x1 + 2, br1.y1 + 7, br1.x1 + 5, br1.y1 + 7, 0.7f, 0.7f, 0.75f);
+    fillRect(br1.x1 + 9, br1.y1 + 7, br1.x1 + 12, br1.y1 + 7, 0.7f, 0.7f, 0.75f);
+    fillRect(br1.x1 + 1, br1.y1, br1.x1 + 1, br1.y1 + 3, 0.2f, 0.15f, 0.08f);
+    fillRect(br1.x1 + 13, br1.y1, br1.x1 + 13, br1.y1 + 3, 0.2f, 0.15f, 0.08f);
+    fillRect(br1.x2 - 5, br1.y1, br1.x2 - 1, br1.y2 - 1, 0.22f, 0.15f, 0.08f);
+    vLine(br1.x2 - 3, br1.y1, br1.y2 - 2, 0.17f, 0.12f, 0.06f);
+    setP(br1.x2 - 2, br1.y1 + (br1.y2 - br1.y1) / 2, 0.4f, 0.35f, 0.2f);
+    fillRect(br1.x2 - 8, br1.y1, br1.x2 - 6, br1.y1 + 3, 0.25f, 0.18f, 0.1f);
+    fillRect(br1.x2 - 8, br1.y1 + 4, br1.x2 - 6, br1.y1 + 6, 0.35f, 0.4f, 0.45f);
+    fillRect(br1.x1 + 5, br1.y2 - 4, br1.x1 + 9, br1.y2 - 2, 0.15f, 0.35f, 0.5f);
+    bool br1Occ = false;
+    for (int pi = 0; pi < SH_PEOPLE_COUNT; pi++) if (g_shPeople[pi].targetRoom == 6) { br1Occ = true; break; }
+    if (br1Occ && isNight) { setP(br1.x1 + 1, br1.y1 + 4, 0.4f, 0.32f, 0.12f); setP(br1.x1 + 13, br1.y1 + 4, 0.4f, 0.32f, 0.12f); }
+
+    const ShRoom& bath = g_shRooms[7];
+    fillRect(bath.x1 + 1, bath.y1, bath.x1 + 8, bath.y1 + 4, 0.38f, 0.42f, 0.48f);
+    fillRect(bath.x1 + 2, bath.y1 + 1, bath.x1 + 7, bath.y1 + 3, 0.4f, 0.55f, 0.65f);
+    fillRect(bath.x2 - 4, bath.y1, bath.x2 - 1, bath.y1 + 4, 0.8f, 0.8f, 0.85f);
+    setP(bath.x2 - 2, bath.y1 + 4, 0.6f, 0.6f, 0.65f);
+    fillRect(bath.x2 - 7, bath.y1 + 5, bath.x2 - 4, bath.y1 + 8, 0.6f, 0.6f, 0.65f);
+    setP(bath.x2 - 5, bath.y1 + 8, 0.4f, 0.45f, 0.5f);
+    fillRect(bath.x2 - 8, bath.y2 - 5, bath.x2 - 4, bath.y2 - 1, 0.35f, 0.4f, 0.48f);
+    hLine(bath.x1 + 1, bath.x1 + 3, bath.y2 - 2, 0.15f, 0.12f, 0.1f);
+    setP(bath.x1 + 2, bath.y2 - 3, 0.6f, 0.2f, 0.2f); setP(bath.x1 + 2, bath.y2 - 4, 0.55f, 0.18f, 0.18f);
+    for (int y = bath.y1; y <= bath.y2; y += 3) hLine(bath.x1, bath.x2, y, 0.18f, 0.22f, 0.25f);
+    for (int x = bath.x1; x <= bath.x2; x += 4) vLine(x, bath.y1, bath.y2, 0.16f, 0.2f, 0.22f);
+
+    const ShRoom& br2 = g_shRooms[8];
+    fillRect(br2.x1 + 2, br2.y1, br2.x1 + 9, br2.y1 + 3, 0.22f, 0.16f, 0.1f);
+    fillRect(br2.x1 + 2, br2.y1 + 4, br2.x1 + 9, br2.y1 + 5, 0.3f, 0.45f, 0.6f);
+    fillRect(br2.x1 + 2, br2.y1 + 6, br2.x1 + 4, br2.y1 + 6, 0.65f, 0.65f, 0.7f);
+    fillRect(br2.x2 - 7, br2.y1, br2.x2 - 2, br2.y1 + 4, 0.25f, 0.18f, 0.1f);
+    fillRect(br2.x2 - 6, br2.y1 + 5, br2.x2 - 3, br2.y1 + 8, 0.08f, 0.08f, 0.12f);
+    bool br2Occ = false;
+    for (int pi = 0; pi < SH_PEOPLE_COUNT; pi++) if (g_shPeople[pi].targetRoom == 8) { br2Occ = true; break; }
+    if (br2Occ) fillRect(br2.x2 - 5, br2.y1 + 6, br2.x2 - 4, br2.y1 + 7, 0.1f, 0.6f, 0.3f);
+    fillRect(br2.x1 + 4, br2.y2 - 4, br2.x1 + 7, br2.y2 - 2, 0.6f, 0.3f, 0.1f);
+    fillRect(br2.x1 + 9, br2.y2 - 3, br2.x1 + 11, br2.y2 - 1, 0.1f, 0.4f, 0.6f);
+    fillRect(br2.x2 - 2, br2.y1, br2.x2, br2.y2 - 2, 0.24f, 0.16f, 0.08f);
+    for (int by = br2.y1; by < br2.y2 - 2; by++) setP(br2.x2 - 1, by, 0.5f, 0.2f + by * 0.008f, 0.25f);
+
+    const ShRoom& kids = g_shRooms[9];
+    fillRect(kids.x1 + 1, kids.y1, kids.x1 + 8, kids.y1 + 3, 0.24f, 0.18f, 0.1f);
+    fillRect(kids.x1 + 1, kids.y1 + 4, kids.x1 + 8, kids.y1 + 5, 0.45f, 0.6f, 0.35f);
+    fillRect(kids.x1 + 1, kids.y1 + 8, kids.x1 + 8, kids.y1 + 9, 0.24f, 0.18f, 0.1f);
+    fillRect(kids.x1 + 1, kids.y1 + 10, kids.x1 + 8, kids.y1 + 11, 0.4f, 0.45f, 0.7f);
+    vLine(kids.x1 + 8, kids.y1, kids.y1 + 12, 0.3f, 0.24f, 0.14f);
+    vLine(kids.x1 + 1, kids.y1, kids.y1 + 12, 0.3f, 0.24f, 0.14f);
+    fillRect(kids.x1 + 10, kids.y1, kids.x1 + 14, kids.y1 + 3, 0.6f, 0.3f, 0.35f);
+    setP(kids.x1 + 15, kids.y1, 0.9f, 0.2f, 0.2f); setP(kids.x1 + 16, kids.y1, 0.2f, 0.8f, 0.2f);
+    setP(kids.x1 + 14, kids.y1 + 1, 0.2f, 0.2f, 0.9f); setP(kids.x1 + 17, kids.y1, 0.9f, 0.9f, 0.15f);
+    setP(kids.x1 + 13, kids.y1, 0.8f, 0.4f, 0.8f); setP(kids.x1 + 18, kids.y1 + 1, 0.1f, 0.7f, 0.7f);
+    fillRect(kids.x2 - 6, kids.y1, kids.x2 - 4, kids.y1 + 3, 0.55f, 0.25f, 0.5f);
+    fillRect(kids.x2 - 7, kids.y2 - 5, kids.x2 - 3, kids.y2 - 1, 0.55f, 0.3f, 0.6f);
+    fillRect(kids.x2 - 12, kids.y2 - 4, kids.x2 - 9, kids.y2 - 1, 0.3f, 0.55f, 0.3f);
+    fillRect(kids.x1 + 4, kids.y2 - 3, kids.x1 + 7, kids.y2 - 1, 0.6f, 0.5f, 0.15f);
+    fillRect(kids.x2 - 3, kids.y1, kids.x2 - 1, kids.y1 + 3, 0.28f, 0.2f, 0.1f);
+
+    const ShRoom& ens = g_shRooms[11];
+    fillRect(ens.x1 + 1, ens.y1, ens.x1 + 5, ens.y1 + 7, 0.24f, 0.3f, 0.35f);
+    vLine(ens.x1 + 6, ens.y1, ens.y1 + 8, 0.35f, 0.4f, 0.5f);
+    setP(ens.x1 + 3, ens.y1 + 8, 0.5f, 0.5f, 0.6f);
+    hLine(ens.x1 + 2, ens.x1 + 4, ens.y1 + 8, 0.4f, 0.42f, 0.5f);
+    fillRect(ens.x2 - 4, ens.y1, ens.x2 - 1, ens.y1 + 4, 0.75f, 0.75f, 0.8f);
+    fillRect(ens.x2 - 6, ens.y1 + 5, ens.x2 - 4, ens.y1 + 7, 0.55f, 0.55f, 0.6f);
+    fillRect(ens.x2 - 7, ens.y2 - 4, ens.x2 - 4, ens.y2 - 1, 0.3f, 0.38f, 0.42f);
+
+    // People (8px tall, 3px wide standing figure; distinct sleeping/sitting poses)
+    for (int pi = 0; pi < SH_PEOPLE_COUNT; pi++) {
+        const ShPerson& p = g_shPeople[pi];
+        int px = (int)roundf(p.x), py = (int)roundf(p.y);
+        int ph = p.h ? p.h : 7;
+        float legAnim = p.walking ? sinf(p.animFrame * 3) : 0;
+        // Person colours weren't carried over into ShPerson (only used for
+        // the shadow-mode port, which only needs silhouettes) - reconstruct
+        // the same per-person palette from effects.js's pDefs literal here.
+        static const float skinC[SH_PEOPLE_COUNT][3] = {
+            {1,0.75f,0.55f},{1,0.78f,0.6f},{0.92f,0.72f,0.52f},{1,0.82f,0.62f},
+            {0.95f,0.72f,0.55f},{1,0.84f,0.65f},{0.85f,0.65f,0.45f},{0.9f,0.7f,0.5f},
+        };
+        static const float hairC[SH_PEOPLE_COUNT][3] = {
+            {0.3f,0.2f,0.1f},{0.55f,0.3f,0.12f},{0.15f,0.12f,0.08f},{0.6f,0.4f,0.12f},
+            {0.7f,0.7f,0.72f},{0.65f,0.45f,0.15f},{0.1f,0.08f,0.06f},{0.4f,0.25f,0.1f},
+        };
+        static const float shirtC[SH_PEOPLE_COUNT][3] = {
+            {0.15f,0.3f,0.7f},{0.7f,0.15f,0.4f},{0.1f,0.55f,0.25f},{0.9f,0.55f,0.1f},
+            {0.4f,0.2f,0.3f},{0.8f,0.3f,0.3f},{0.3f,0.3f,0.5f},{0.5f,0.4f,0.15f},
+        };
+        static const float pantsC[SH_PEOPLE_COUNT][3] = {
+            {0.1f,0.1f,0.2f},{0.08f,0.08f,0.12f},{0.2f,0.2f,0.25f},{0.22f,0.15f,0.3f},
+            {0.15f,0.12f,0.15f},{0.15f,0.2f,0.3f},{0.12f,0.12f,0.15f},{0.1f,0.1f,0.12f},
+        };
+        const float* skin = skinC[pi]; const float* hair = hairC[pi];
+        const float* shirt = shirtC[pi]; const float* pants = pantsC[pi];
+
+        if (p.sleeping) {
+            for (int i = 0; i < 4; i++) setP(px + i, py + 3, shirt[0] * (1 - i * 0.1f), shirt[1] * (1 - i * 0.1f), shirt[2] * (1 - i * 0.1f));
+            setP(px - 1, py + 3, skin[0], skin[1], skin[2]);
+            setP(px - 1, py + 4, hair[0], hair[1], hair[2]);
+            if (sinf(shT * 2) > 0.3f) { setP(px + 1, py + 5, 0.25f, 0.25f, 0.45f); setP(px + 2, py + 6, 0.2f, 0.2f, 0.35f); }
+        } else if (p.sitting) {
+            setP(px, py + 4, hair[0], hair[1], hair[2]); setP(px + 1, py + 4, hair[0], hair[1], hair[2]);
+            setP(px, py + 3, skin[0], skin[1], skin[2]); setP(px + 1, py + 3, skin[0] * 0.9f, skin[1] * 0.9f, skin[2] * 0.9f);
+            fillRect(px - 1, py + 1, px + 2, py + 2, shirt[0], shirt[1], shirt[2]);
+            setP(px, py, pants[0], pants[1], pants[2]); setP(px + 1, py, pants[0], pants[1], pants[2]);
+            setP(px - 1, py + 1, skin[0] * 0.8f, skin[1] * 0.8f, skin[2] * 0.8f);
+            setP(px + 2, py + 1, skin[0] * 0.8f, skin[1] * 0.8f, skin[2] * 0.8f);
+        } else {
+            setP(px, py + ph - 1, hair[0], hair[1], hair[2]); setP(px + 1, py + ph - 1, hair[0], hair[1], hair[2]);
+            setP(px, py + ph - 2, skin[0], skin[1], skin[2]); setP(px + 1, py + ph - 2, skin[0] * 0.95f, skin[1] * 0.95f, skin[2] * 0.95f);
+            for (int ty = ph - 3; ty >= ph - 5; ty--) {
+                setP(px - 1, py + ty, shirt[0] * 0.85f, shirt[1] * 0.85f, shirt[2] * 0.85f);
+                setP(px, py + ty, shirt[0], shirt[1], shirt[2]);
+                setP(px + 1, py + ty, shirt[0] * 0.9f, shirt[1] * 0.9f, shirt[2] * 0.9f);
+            }
+            int armY = py + ph - 3;
+            if (p.walking) {
+                int armSwing = (int)roundf(legAnim * 1.2f);
+                setP(px - 2, armY + armSwing, skin[0] * 0.85f, skin[1] * 0.85f, skin[2] * 0.85f);
+                setP(px + 2, armY - armSwing, skin[0] * 0.85f, skin[1] * 0.85f, skin[2] * 0.85f);
+            } else {
+                setP(px - 2, armY - 1, skin[0] * 0.8f, skin[1] * 0.8f, skin[2] * 0.8f);
+                setP(px + 2, armY - 1, skin[0] * 0.8f, skin[1] * 0.8f, skin[2] * 0.8f);
+            }
+            int legOff = (int)roundf(legAnim * 1.2f);
+            setP(px + legOff, py, pants[0], pants[1], pants[2]);
+            setP(px - legOff, py, pants[0] * 0.85f, pants[1] * 0.85f, pants[2] * 0.85f);
+            setP(px, py + 1, pants[0] * 0.9f, pants[1] * 0.9f, pants[2] * 0.9f);
+            setP(px + 1, py + 1, pants[0] * 0.85f, pants[1] * 0.85f, pants[2] * 0.85f);
+            setP(px, py + 2, pants[0] * 0.8f, pants[1] * 0.8f, pants[2] * 0.8f);
+            setP(px + 1, py + 2, pants[0] * 0.75f, pants[1] * 0.75f, pants[2] * 0.75f);
+        }
+    }
+
+    // Particles (kitchen steam / dust motes)
+    for (int i = g_shParticleCount - 1; i >= 0; i--) {
+        ShParticle& pt = g_shParticles[i];
+        pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.life -= dt;
+        if (pt.life <= 0) {
+            g_shParticles[i] = g_shParticles[g_shParticleCount - 1];
+            g_shParticleCount--;
+            continue;
+        }
+        float a = pt.life;
+        setP((int)roundf(pt.x), (int)roundf(pt.y), pt.r * a, pt.g * a, pt.b * a);
+    }
+    if (shRandom01() < 0.15f) {
+        int ri = (int)(shRandom01() * 12);
+        bool occ = roomOccupied[ri];
+        if (occ) {
+            const ShRoom& rm = g_shRooms[ri];
+            shSpawnParticle(rm.x1 + shRandom01() * (rm.x2 - rm.x1), rm.y1 + shRandom01() * (rm.y2 - rm.y1),
+                             (shRandom01() - 0.5f) * 0.3f, 0.2f + shRandom01() * 0.3f, 3 + shRandom01() * 3,
+                             0.15f, 0.14f, 0.08f);
+        }
+    }
+
+    // Chimney smoke
+    if (isNight || isDusk) {
+        int chimneyX = (int)(W * 0.35f);
+        for (int s = 0; s < 8; s++) {
+            int sy = roof + 3 + s;
+            int sx = chimneyX + (int)roundf(sinf(shT * 0.8f + s * 0.7f) * 2);
+            float fade = 0.18f * (1 - (float)s / 8);
+            setP(sx, sy, fade, fade, fade * 0.85f);
+            setP(sx + 1, sy, fade * 0.7f, fade * 0.7f, fade * 0.6f);
+            setP(sx - 1, sy, fade * 0.4f, fade * 0.4f, fade * 0.35f);
+        }
+        fillRect(chimneyX - 1, roof, chimneyX + 2, roof + 2, 0.3f, 0.2f, 0.12f);
+    }
+
+    // Stars + occasional shooting star
+    if (isNight) {
+        for (int i = 0; i < 50; i++) {
+            int sx = (i * 97 + 23) % W, sy = roof + 3 + (i * 53 + 17) % (S - roof - 4);
+            float tw = 0.12f + 0.1f * sinf(shT * 1.2f + i * 2.7f);
+            setP(sx, sy, tw, tw, tw * 1.3f);
+        }
+        if (sinf(shT * 0.3f) > 0.98f) {
+            int ssX = ((int)(W * 0.3f + shT * 20)) % W;
+            int ssY = S - 3;
+            for (int tt = 0; tt < 5; tt++) setP(ssX - tt * 2, ssY - tt, 0.4f * (1 - tt / 5.0f), 0.4f * (1 - tt / 5.0f), 0.5f * (1 - tt / 5.0f));
+        }
+    }
+
+    // Moon
+    if (isNight) {
+        int mx = (int)(W * 0.8f), my = S - 8;
+        for (int dy = -2; dy <= 2; dy++) for (int dx = -2; dx <= 2; dx++)
+            if (dx * dx + dy * dy <= 5) setP(mx + dx, my + dy, 0.25f, 0.25f, 0.2f);
+        setP(mx, my, 0.4f, 0.4f, 0.32f); setP(mx - 1, my, 0.35f, 0.35f, 0.28f);
+        for (int dy = -4; dy <= 4; dy++) for (int dx = -4; dx <= 4; dx++) {
+            float d = sqrtf((float)(dx * dx + dy * dy));
+            if (d > 2 && d < 5) setP(mx + dx, my + dy, 0.03f, 0.03f, 0.05f);
+        }
+    }
+
+    // Window light spilling onto the ground at night, for occupied rooms
+    if (isNight) {
+        for (int ri = 0; ri < SH_ROOM_COUNT; ri++) {
+            if (!roomOccupied[ri]) continue;
+            const ShRoom& rm = g_shRooms[ri];
+            int wx = (rm.x1 + rm.x2) / 2;
+            for (int d = 1; d < 4; d++) {
+                float fade = 0.06f * (1 - (float)d / 4);
+                setP(wx - d, ground - 1, fade * 0.8f, fade * 0.7f, fade * 0.3f);
+                setP(wx + d, ground - 1, fade * 0.8f, fade * 0.7f, fade * 0.3f);
+                setP(wx, ground - 1, fade, fade * 0.9f, fade * 0.4f);
+            }
+        }
+    }
+}
+
 // Dispatcher entry point - builds the shared wide canvas once per frame
 // (on face 0's call) and blits the appropriate segment for every face,
-// same panorama-order/mirroring/roof-tile/floor-tile treatment as
-// effectSimHouseShadows's non-panel2D OUTPUT branch.
+// same panorama-order/mirroring/roof-tile/floor-tile treatment both modes
+// share. g_shShadowMode picks which of the two builders runs; synced from
+// the browser's shadows/rooms toggle via setOption (web_server.h), default
+// false (rooms) matching the browser's own default.
+inline volatile bool g_shShadowMode = false;
+
 inline void standaloneRenderSimHouse(MatrixPanel_I2S_DMA* display, int face, float t) {
     (void)display;
     const int S = PANEL_SIZE, W = 4 * S;
@@ -3913,11 +4381,12 @@ inline void standaloneRenderSimHouse(MatrixPanel_I2S_DMA* display, int face, flo
         lastT = t;
         g_shT += dt;
         shUpdatePeople(dt, S, W);
-        standaloneSimHouseShadowsBuild(g_shT);
+        if (g_shShadowMode) standaloneSimHouseShadowsBuild(g_shT);
+        else standaloneSimHouseRoomsBuild(dt, g_shT);
     }
 
     if (face == 4) {
-        // Top face: tiled roof pattern
+        // Top face: tiled roof pattern (both modes share this)
         for (int y = 0; y < S; y++) {
             for (int x = 0; x < S; x++) {
                 float r = 0.38f, g = 0.36f, b = 0.34f;
@@ -3937,7 +4406,14 @@ inline void standaloneRenderSimHouse(MatrixPanel_I2S_DMA* display, int face, flo
         return;
     }
     if (face == 5) {
-        for (int y = 0; y < S; y++) for (int x = 0; x < S; x++) snSet(face, x, y, 0.7f, 0.7f, 0.68f);
+        // Bottom face colour differs per mode - shadow mode is plain
+        // daylight-grey ground, rooms mode is a dark night-sky-ish colour
+        // (matches each JS branch's own OUTPUT block exactly).
+        if (g_shShadowMode) {
+            for (int y = 0; y < S; y++) for (int x = 0; x < S; x++) snSet(face, x, y, 0.7f, 0.7f, 0.68f);
+        } else {
+            for (int y = 0; y < S; y++) for (int x = 0; x < S; x++) snSet(face, x, y, 0.04f, 0.05f, 0.02f);
+        }
         return;
     }
 
