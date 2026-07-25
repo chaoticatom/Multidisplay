@@ -141,9 +141,14 @@ inline MatrixPanel_I2S_DMA* initDisplay() {
     // for the SM5xxx family) doesn't actually exist in either mrfaptastic's
     // registry package OR a fresh clone of mrcodetastic's current GitHub
     // master - the summary was likely wrong/hallucinated, or referenced a
-    // PR that was never merged. Back to SHIFTREG and the registry package.
+    // PR that was never merged.
+    // Trying FM6124 next (untried until now, distinct from FM6126A) - a
+    // real working ESP32-S3+HUB75 reference project (PatternFlow,
+    // github.com/engmung/PatternFlow) explicitly notes "swap to FM6124 if
+    // dark/distorted" for their high-refresh panel profile, which is a
+    // reasonable description of our own persistent banding.
     cfg.clkphase = true;
-    cfg.driver   = HUB75_I2S_CFG::SHIFTREG;
+    cfg.driver   = HUB75_I2S_CFG::FM6124;
     cfg.double_buff = true;   // use the library's hardware double buffer
 
     // Latch blanking controls how many clock pulses the output is disabled
