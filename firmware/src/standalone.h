@@ -64,7 +64,8 @@ enum StandaloneEffect : uint8_t {
     SA_EASTER_EGG    = 27,
     SA_DICE          = 28,
     SA_COINFLIP      = 29,
-    SA_COUNT         = 30
+    SA_TRON          = 30,
+    SA_COUNT         = 31
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -99,6 +100,7 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_EASTER_EGG:    return "easter_egg";
         case SA_DICE:          return "dice";
         case SA_COINFLIP:      return "coinflip";
+        case SA_TRON:          return "tron";
         default:               return "unknown";
     }
 }
@@ -121,10 +123,9 @@ inline uint8_t standaloneEffectForBrowserKey(const char* key) {
         {"dna", SA_DNA}, {"warp", SA_WARP}, {"life", SA_LIFE},
         {"lightspeed", SA_LIGHTSPEED}, {"sand", SA_SAND}, {"fluid", SA_FLUID},
         {"maze", SA_MAZE}, {"moon", SA_MOON}, {"easter_egg", SA_EASTER_EGG},
-        {"dice", SA_DICE}, {"coinflip", SA_COINFLIP},
+        {"dice", SA_DICE}, {"coinflip", SA_COINFLIP}, {"tron", SA_TRON},
         // reasonable stand-ins for not-yet-ported visual effects
         {"sphere", SA_PLASMA},
-        {"tron", SA_SPECTRUM},
         {"ghost", SA_STROBE},
         {"custom_cube", SA_RAINBOW},
     };
@@ -1137,6 +1138,145 @@ inline void standaloneRenderWarp(MatrixPanel_I2S_DMA* display, int face, float t
 // walls, pulsing start/goal, trail, celebration) as the original, just one
 // runner instead of a multi-racer competition (no second/third runner to race
 // against without the other 5 faces' worth of maze to share).
+// Tron light bikes - single-panel adaptation of effectTron: the browser runs
+// bikes across all 6 cube faces with face-transfer topology; the browser's
+// OWN panel2dMode already simplifies this to wraparound edges on one flat
+// grid (tronMove's panel2dMode branch), so that's exactly what this uses.
+// AI is simplified to flood-fill space evaluation only (pick whichever of
+// straight/left/right leaves the most open area) - the browser's extra
+// runway/escape-route/4-step-lookahead scoring layers are dropped for size,
+// but the core "avoid trapping yourself" behavour is the same technique.
+inline void standaloneRenderTron(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    const int S = PANEL_SIZE;
+    const int NBIKES = 3;
+    static uint8_t* trail = nullptr;     // 0=empty, 1..NBIKES=owner
+    static uint8_t* visited = nullptr;   // flood-fill scratch
+    static int16_t* queue = nullptr;     // BFS queue (x<<8|y per cell... just store index)
+    struct Bike { int x, y, dx, dy; float hue, acc; bool alive; };
+    static Bike bikes[NBIKES];
+    static bool init = false;
+    static float lastT = 0;
+    static float stateT = 0;
+    static bool running = true;
+
+    auto idxOf = [&](int x, int y) { return y * S + x; };
+    auto wrap = [&](int v) { return ((v % S) + S) % S; };
+
+    auto floodArea = [&](int x, int y, int dx, int dy) -> int {
+        int nx = wrap(x + dx), ny = wrap(y + dy);
+        if (trail[idxOf(nx, ny)]) return 0;
+        memset(visited, 0, S * S);
+        int qh = 0, qt = 0, count = 0;
+        const int CAP = S * S;
+        queue[qt++] = (int16_t)idxOf(nx, ny);
+        visited[idxOf(nx, ny)] = 1;
+        int dxs[4] = {1, -1, 0, 0}, dys[4] = {0, 0, 1, -1};
+        while (qh < qt && count < CAP) {
+            int ci = queue[qh++];
+            int cx = ci % S, cy = ci / S;
+            for (int d = 0; d < 4; d++) {
+                int fx = wrap(cx + dxs[d]), fy = wrap(cy + dys[d]);
+                int fi = idxOf(fx, fy);
+                if (trail[fi] || visited[fi]) continue;
+                visited[fi] = 1;
+                queue[qt++] = (int16_t)fi;
+                count++;
+                if (qt >= CAP) break;
+            }
+        }
+        return count;
+    };
+    auto resetGame = [&]() {
+        memset(trail, 0, S * S);
+        for (int i = 0; i < NBIKES; i++) {
+            bikes[i].x = (int)(standaloneHash01(i * 37 + (int)(t * 100)) * S);
+            bikes[i].y = (int)(standaloneHash01(i * 53 + (int)(t * 100)) * S);
+            int dirs[4][2] = {{1,0},{-1,0},{0,1},{0,-1}};
+            int d = (int)(standaloneHash01(i * 71 + (int)(t * 100)) * 4);
+            bikes[i].dx = dirs[d][0]; bikes[i].dy = dirs[d][1];
+            bikes[i].hue = (float)i / NBIKES;
+            bikes[i].acc = 0; bikes[i].alive = true;
+            trail[idxOf(bikes[i].x, bikes[i].y)] = i + 1;
+        }
+        running = true; stateT = 0;
+    };
+
+    if (!init) {
+        trail = (uint8_t*)snAllocPreferPsram(S * S);
+        visited = (uint8_t*)snAllocPreferPsram(S * S);
+        queue = (int16_t*)snAllocPreferPsram(S * S * sizeof(int16_t));
+        resetGame();
+        init = true;
+    }
+    float dt = t - lastT; lastT = t;
+    stateT += dt;
+
+    // Grid background.
+    snClear(face);
+    for (int y = 0; y < S; y++)
+        for (int x = 0; x < S; x++)
+            if (x % 4 == 0 || y % 4 == 0)
+                snSet(face, x, y, 0.015f, 0.09f, 0.18f);
+    for (int y = 0; y < S; y++) {
+        for (int x = 0; x < S; x++) {
+            uint8_t owner = trail[idxOf(x, y)];
+            if (owner) {
+                uint8_t r, g, b;
+                standaloneHslToRgb(bikes[owner - 1].hue, 1.0f, 0.45f, r, g, b);
+                snSet(face, x, y, r / 255.0f, g / 255.0f, b / 255.0f);
+            }
+        }
+    }
+
+    if (running) {
+        int aliveCount = 0;
+        for (int i = 0; i < NBIKES; i++) if (bikes[i].alive) aliveCount++;
+        for (int i = 0; i < NBIKES; i++) {
+            Bike& bk = bikes[i];
+            if (!bk.alive) continue;
+            bk.acc += dt * 6.0f;   // bike speed (cells/sec)
+            while (bk.acc >= 1.0f) {
+                bk.acc -= 1.0f;
+                int cand[3][2] = {{bk.dx, bk.dy}, {-bk.dy, bk.dx}, {bk.dy, -bk.dx}};
+                int best = -1, bestArea = -1;
+                for (int c = 0; c < 3; c++) {
+                    int area = floodArea(bk.x, bk.y, cand[c][0], cand[c][1]);
+                    if (area > bestArea) { bestArea = area; best = c; }
+                }
+                if (best < 0 || bestArea == 0) { bk.alive = false; break; }
+                bk.dx = cand[best][0]; bk.dy = cand[best][1];
+                bk.x = wrap(bk.x + bk.dx); bk.y = wrap(bk.y + bk.dy);
+                int ni = idxOf(bk.x, bk.y);
+                if (trail[ni]) { bk.alive = false; break; }
+                trail[ni] = i + 1;
+            }
+        }
+        // Head-on collisions.
+        for (int i = 0; i < NBIKES; i++) {
+            if (!bikes[i].alive) continue;
+            for (int j = i + 1; j < NBIKES; j++) {
+                if (!bikes[j].alive) continue;
+                if (bikes[i].x == bikes[j].x && bikes[i].y == bikes[j].y) {
+                    bikes[i].alive = false; bikes[j].alive = false;
+                }
+            }
+        }
+        aliveCount = 0;
+        for (int i = 0; i < NBIKES; i++) if (bikes[i].alive) aliveCount++;
+        if (aliveCount <= 1) { running = false; stateT = 0; }
+    } else if (stateT > 2.5f) {
+        resetGame();
+    }
+    // Bright head marker for surviving bikes.
+    for (int i = 0; i < NBIKES; i++) {
+        if (!bikes[i].alive) continue;
+        uint8_t r, g, b;
+        standaloneHslToRgb(bikes[i].hue, 0.5f, 0.9f, r, g, b);
+        snSet(face, bikes[i].x, bikes[i].y, r / 255.0f, g / 255.0f, b / 255.0f);
+    }
+}
+
 inline void standaloneRenderMaze(MatrixPanel_I2S_DMA* display, int face, float t) {
     (void)display;
     const int CELLS = 12;                 // 12x12 cells
@@ -1977,6 +2117,7 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_EASTER_EGG:    standaloneRenderEasterEgg(display, face, t);     break;
             case SA_DICE:          standaloneRenderDice(display, face, t);          break;
             case SA_COINFLIP:      standaloneRenderCoinflip(display, face, t);      break;
+            case SA_TRON:          standaloneRenderTron(display, face, t);          break;
             default:
                 saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;
