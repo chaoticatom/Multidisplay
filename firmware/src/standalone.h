@@ -728,29 +728,34 @@ inline void standaloneRenderPlasma(MatrixPanel_I2S_DMA* display, int face, float
     }
 }
 
-inline void standaloneRenderClock(MatrixPanel_I2S_DMA* display, int face) {
-    const int xOff = face * PANEL_SIZE;
-    saFillRect(display, xOff, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
+// Text for SA_CLOCK/SA_WEATHER is drawn to the real hardware AFTER the main
+// blit (see the "// Post-blit text overlay" step at the end of
+// standaloneRender), not here. display->print()/setCursor() write straight
+// to the panel, bypassing our snBuf entirely - drawing them here, before the
+// blit that copies snBuf to the panel, meant the blit immediately painted
+// over them with blank buffer content every frame (symptom: clock showed
+// nothing at all). This function only prepares the background/graphics
+// (which DO go through the buffer correctly) and the text string to draw.
+inline char g_clockTimeBuf[9] = "";
+inline char g_clockDateBuf[12] = "";
 
+inline void standaloneRenderClock(MatrixPanel_I2S_DMA* display, int face) {
+    (void)display;
+    snClear(face);
     struct tm tmv;
     standaloneLocalTm(tmv);
-
-    char tbuf[9];
-    snprintf(tbuf, sizeof(tbuf), "%02d:%02d", tmv.tm_hour, tmv.tm_min);
-    display->setTextColor(display->color565(255, 255, 255));
-    display->setTextSize(2);
-    display->setCursor(xOff + 6, 20);
-    display->print(tbuf);
-
-    char dbuf[12];
-    snprintf(dbuf, sizeof(dbuf), "%02d/%02d/%04d", tmv.tm_mday, tmv.tm_mon + 1, tmv.tm_year + 1900);
-    display->setTextSize(1);
-    display->setCursor(xOff + 4, 44);
-    display->print(dbuf);
+    snprintf(g_clockTimeBuf, sizeof(g_clockTimeBuf), "%02d:%02d", tmv.tm_hour, tmv.tm_min);
+    snprintf(g_clockDateBuf, sizeof(g_clockDateBuf), "%02d/%02d/%04d", tmv.tm_mday, tmv.tm_mon + 1, tmv.tm_year + 1900);
 }
 
+// Text for SA_WEATHER is drawn after the blit too, same reason as clock -
+// see the note above standaloneRenderClock.
+inline char g_wxLine1Buf[8] = "";
+inline const char* g_wxLine2Buf = "";
+
 inline void standaloneRenderWeather(MatrixPanel_I2S_DMA* display, int face) {
-    const int xOff = face * PANEL_SIZE;
+    (void)display;
+    const int S = PANEL_SIZE;
 
     struct tm tmv;
     long secOfDay;
@@ -760,15 +765,18 @@ inline void standaloneRenderWeather(MatrixPanel_I2S_DMA* display, int face) {
         ? (secOfDay >= (long)g_wxSunriseSec && secOfDay < (long)g_wxSunsetSec)
         : (tmv.tm_hour >= 6 && tmv.tm_hour < 18);
 
-    // Sky: simple vertical gradient, day (blue) or night (dark navy).
+    // Sky: simple vertical gradient, day (blue) or night (dark navy). Drawn
+    // via snSet (not drawFastHLine, which - like fillRect/fillCircle - has an
+    // internal fast path that bypasses the virtual drawPixel the four-scan
+    // remap depends on).
     uint8_t topR = isDay ? 70  : 5,  topG = isDay ? 140 : 8,  topB = isDay ? 235 : 30;
     uint8_t botR = isDay ? 160 : 20, botG = isDay ? 210 : 20, botB = isDay ? 250 : 55;
-    for (int y = 0; y < PANEL_SIZE; y++) {
-        float f = (float)y / (PANEL_SIZE - 1);
-        uint8_t r = (uint8_t)(topR + (botR - topR) * f);
-        uint8_t g = (uint8_t)(topG + (botG - topG) * f);
-        uint8_t b = (uint8_t)(topB + (botB - topB) * f);
-        display->drawFastHLine(xOff, y, PANEL_SIZE, display->color565(r, g, b));
+    for (int y = 0; y < S; y++) {
+        float f = (float)y / (S - 1);
+        float r = (topR + (botR - topR) * f) / 255.0f;
+        float g = (topG + (botG - topG) * f) / 255.0f;
+        float b = (topB + (botB - topB) * f) / 255.0f;
+        for (int x = 0; x < S; x++) snSet(face, x, y, r, g, b);
     }
 
     // Sun/moon disc position: left-to-right across the sky based on
@@ -780,25 +788,17 @@ inline void standaloneRenderWeather(MatrixPanel_I2S_DMA* display, int face) {
         frac = (float)tmv.tm_hour / 24.0f;
     }
     frac = constrain(frac, 0.0f, 1.0f);
-    int cx = xOff + 8 + (int)(frac * (PANEL_SIZE - 16));
+    int cx = 8 + (int)(frac * (S - 16));
     int cy = 12;
-    uint16_t discColor = isDay ? display->color565(255, 220, 80) : display->color565(215, 215, 225);
-    saFillCircle(display, cx, cy, 5, discColor);
+    float dr = isDay ? 1.0f : 0.84f, dg = isDay ? 0.86f : 0.84f, db = isDay ? 0.31f : 0.88f;
+    const int R = 5;
+    for (int y = -R; y <= R; y++)
+        for (int x = -R; x <= R; x++)
+            if (x * x + y * y <= R * R) snSet(face, cx + x, cy + y, dr, dg, db);
 
-    // Temperature + condition text.
-    display->setTextColor(display->color565(255, 255, 255));
-    display->setTextSize(1);
-    display->setCursor(xOff + 4, PANEL_SIZE - 18);
-    if (g_wxValid) {
-        char wbuf[8];
-        snprintf(wbuf, sizeof(wbuf), "%dC", g_wxTemp);
-        display->print(wbuf);
-    } else {
-        display->print("WX --");
-    }
-
-    display->setCursor(xOff + 4, PANEL_SIZE - 10);
-    display->print(g_wxValid ? standaloneWxCodeShort(g_wxCode) : "NO DATA");
+    if (g_wxValid) snprintf(g_wxLine1Buf, sizeof(g_wxLine1Buf), "%dC", g_wxTemp);
+    else           snprintf(g_wxLine1Buf, sizeof(g_wxLine1Buf), "WX --");
+    g_wxLine2Buf = g_wxValid ? standaloneWxCodeShort(g_wxCode) : "NO DATA";
 }
 
 // Faithful port of the browser's effectFireworks: rockets launch from the
@@ -1972,23 +1972,69 @@ inline void standaloneRenderMoon(MatrixPanel_I2S_DMA* display, int face, float t
     if (phase < 0) phase += 1.0f;
     float frac = (1.0f - cosf(phase * 2.0f * (float)M_PI)) / 2.0f;   // 0=new,1=full
     // Terminator: an ellipse whose horizontal squash tracks illuminated
-    // fraction, and whose side (left/right lit) tracks waxing/waning.
+    // fraction, and whose side (left/right lit) tracks waxing/waning. Tilted
+    // by observer latitude (STANDALONE_WX_LAT, config.h - the same location
+    // config already used for weather; the browser lets you pick a separate
+    // city just for the moon view, which this board has no UI to configure
+    // per-effect, so it reuses the one location setting it has) plus a
+    // time-of-day shift, matching the browser's tiltBase/tiltShift formula.
     bool waxing = phase < 0.5f;
     float termPos = frac * 2.0f - 1.0f;   // -1=new, 0=quarter, +1=full
     const int R = (int)(PANEL_SIZE * 0.42f) - 1;
     const int cx = PANEL_SIZE / 2, cy = PANEL_SIZE / 2 + 2;
+    struct tm nowTm; standaloneLocalTm(nowTm);
+    float hourNow = nowTm.tm_hour + nowTm.tm_min / 60.0f;
+    float tiltBase = (float)STANDALONE_WX_LAT * (float)M_PI / 180.0f * 0.4f;
+    float tiltShift = sinf((hourNow / 24.0f) * 2.0f * (float)M_PI) * 0.3f;
+    float tilt = tiltBase + tiltShift;
+    float cosT = cosf(tilt), sinT = sinf(tilt);
+
+    // A handful of real named craters/maria, approximate selenographic
+    // lat/lon in degrees, projected orthographically onto the disc (ignores
+    // libration - a reasonable simplification). Not exhaustive, but real
+    // recognisable features rather than a plain flat/textureless disc.
+    struct Crater { float lat, lon, radius, dark; };
+    static const Crater CRATERS[] = {
+        {-43.3f, -11.4f, 0.09f, 0.35f},   // Tycho (bright rays, but shows as a crater here)
+        { 9.7f, -20.1f, 0.07f, 0.30f},    // Copernicus
+        {  8.1f, -38.0f, 0.045f, 0.28f},  // Kepler
+        { 32.8f, -15.0f, 0.20f, 0.15f},   // Mare Imbrium (large dark plain)
+        {  8.5f,  31.4f, 0.16f, 0.15f},   // Mare Tranquillitatis
+        { 28.0f,  17.5f, 0.13f, 0.14f},   // Mare Serenitatis
+        { 51.6f,  -9.3f, 0.045f, 0.30f},  // Plato
+        { 23.7f, -47.4f, 0.03f, 0.32f},   // Aristarchus
+        { -5.5f, -68.3f, 0.09f, 0.20f},   // Grimaldi
+        {-58.6f, -14.4f, 0.07f, 0.25f},   // Clavius
+    };
+
     for (int y = 0; y < PANEL_SIZE; y++) {
         for (int x = 0; x < PANEL_SIZE; x++) {
             float dx = (float)(x - cx) / R, dy = (float)(y - cy) / R;
             float d2 = dx * dx + dy * dy;
             if (d2 > 1.0f) continue;
-            // Terminator curve: x-position of the day/night boundary at this dy.
-            float termX = termPos * sqrtf(fmaxf(0.0f, 1.0f - dy * dy));
-            bool lit = waxing ? (dx > termX) : (dx < -termX);
+            // Rotate by tilt for the terminator test only (visual tilt of the
+            // day/night line), not the crater projection below.
+            float rdx = dx * cosT - dy * sinT;
+            float rdy = dx * sinT + dy * cosT;
+            float termX = termPos * sqrtf(fmaxf(0.0f, 1.0f - rdy * rdy));
+            bool lit = waxing ? (rdx > termX) : (rdx < -termX);
+            float shade = 1.0f;   // 1=undarkened, lower = crater shadow
+            if (lit) {
+                for (auto& c : CRATERS) {
+                    float clat = c.lat * (float)M_PI / 180.0f, clon = c.lon * (float)M_PI / 180.0f;
+                    float ccx = cosf(clat) * sinf(clon), ccy = -sinf(clat);
+                    float ddx = dx - ccx, ddy = dy - ccy;
+                    float dist2 = ddx * ddx + ddy * ddy;
+                    if (dist2 < c.radius * c.radius) {
+                        float f = 1.0f - sqrtf(dist2) / c.radius;
+                        shade = fminf(shade, 1.0f - c.dark * f);
+                    }
+                }
+            }
             uint8_t r, g, b;
             if (lit) {
-                float edge = 1.0f - fabsf(dx - termX) * 0.3f;
-                standaloneHslToRgb(0.14f, 0.12f, fminf(0.95f, 0.55f + 0.35f * edge), r, g, b);
+                float edge = 1.0f - fabsf(rdx - termX) * 0.3f;
+                standaloneHslToRgb(0.14f, 0.12f, fminf(0.95f, (0.55f + 0.35f * edge) * shade), r, g, b);
             } else {
                 standaloneHslToRgb(0.62f, 0.3f, 0.06f, r, g, b);   // dim earthshine on the dark limb
             }
@@ -2377,6 +2423,28 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
                 const uint8_t* p = &buf[(y * PANEL_SIZE + x) * 3];
                 display->drawPixel(xOff + x, y, display->color565(p[0], p[1], p[2]));
             }
+        }
+
+        // Post-blit text overlay: display->print()/setCursor() write straight
+        // to the panel (not into snBuf), so this MUST run after the blit
+        // above, or the blit paints over the text every frame. Only
+        // SA_CLOCK/SA_WEATHER need this - everything else is fully
+        // buffer-based already.
+        if (g_standaloneEffect == SA_CLOCK) {
+            display->setTextColor(display->color565(255, 255, 255));
+            display->setTextSize(2);
+            display->setCursor(xOff + 6, 20);
+            display->print(g_clockTimeBuf);
+            display->setTextSize(1);
+            display->setCursor(xOff + 4, 44);
+            display->print(g_clockDateBuf);
+        } else if (g_standaloneEffect == SA_WEATHER) {
+            display->setTextColor(display->color565(255, 255, 255));
+            display->setTextSize(1);
+            display->setCursor(xOff + 4, PANEL_SIZE - 18);
+            display->print(g_wxLine1Buf);
+            display->setCursor(xOff + 4, PANEL_SIZE - 10);
+            display->print(g_wxLine2Buf);
         }
     }
     display->flipDMABuffer();
