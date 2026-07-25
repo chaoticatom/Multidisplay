@@ -704,6 +704,7 @@ void setup() {
     standaloneLoad();
     standaloneNtpInit();
     standaloneWxFetch();
+    standaloneLoadUnsplashSettings();
 }
 
 // ---------------------------------------------------------------------------
@@ -795,6 +796,53 @@ void loop() {
                            : (millis() - lastNeoFetch > 3600000UL))) {
         lastNeoFetch = millis();
         standaloneNeoFetch();
+    }
+
+    // Art Gallery (Met Museum, keyless): fetch the work list once, then
+    // service one pending JPEG decode per tick (see the GALLERY_WANTED
+    // state-machine note in standalone.h) - never more than one per tick,
+    // same never-block-the-DMA-task principle as every other fetch here.
+    static uint32_t lastArticFetch = 0;
+    if (g_standaloneEffect == SA_ARTIC) {
+        if (g_articWorkCount == 0 && !g_articFetching && millis() - lastArticFetch > 15000) {
+            lastArticFetch = millis();
+            standaloneArticFetch();
+        }
+        for (int i = 0; i < g_articWorkCount; i++) {
+            if (g_articPixels[i] == GALLERY_WANTED) {
+                uint8_t* buf = (uint8_t*)ps_malloc(PANEL_SIZE * PANEL_SIZE * 3);
+                if (buf && standaloneGalleryDownloadJpeg(g_articUrls[i], buf)) {
+                    g_articPixels[i] = buf;
+                } else {
+                    if (buf) free(buf);
+                    g_articPixels[i] = GALLERY_ERROR;
+                }
+                break;   // one decode per loop() tick
+            }
+        }
+    }
+
+    // Unsplash: same pattern, but only runs once an API key has been synced
+    // from the browser (no keyless tier on Unsplash's API).
+    static uint32_t lastUnsplashFetch = 0;
+    if (g_standaloneEffect == SA_UNSPLASH) {
+        if (g_unsplashPhotoCount == 0 && !g_unsplashFetching && g_unsplashApiKey.length() > 0 &&
+            millis() - lastUnsplashFetch > 15000) {
+            lastUnsplashFetch = millis();
+            standaloneUnsplashFetch();
+        }
+        for (int i = 0; i < g_unsplashPhotoCount; i++) {
+            if (g_unsplashPixels[i] == GALLERY_WANTED) {
+                uint8_t* buf = (uint8_t*)ps_malloc(PANEL_SIZE * PANEL_SIZE * 3);
+                if (buf && standaloneGalleryDownloadJpeg(g_unsplashUrls[i], buf)) {
+                    g_unsplashPixels[i] = buf;
+                } else {
+                    if (buf) free(buf);
+                    g_unsplashPixels[i] = GALLERY_ERROR;
+                }
+                break;
+            }
+        }
     }
 
     delay(20);

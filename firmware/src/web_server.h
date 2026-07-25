@@ -270,6 +270,15 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                     } else if (!strcmp(eff, "simhouse") && !strcmp(key, "shMode")) {
                         const char* v = doc["value"] | "rooms";
                         g_shShadowMode = !strcmp(v, "shadows");
+                    } else if (!strcmp(eff, "unsplash") && !strcmp(key, "apiKey")) {
+                        g_unsplashApiKey = String((const char*)(doc["value"] | ""));
+                        standaloneSaveUnsplashSettings();
+                    } else if (!strcmp(eff, "unsplash") && !strcmp(key, "query")) {
+                        const char* v = doc["value"] | "nature";
+                        g_unsplashQuery = String(v[0] ? v : "nature");
+                        standaloneSaveUnsplashSettings();
+                        // New query invalidates the cached photo list.
+                        g_unsplashPhotoCount = 0;
                     }
                 }
             }
