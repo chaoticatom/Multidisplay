@@ -62,7 +62,9 @@ enum StandaloneEffect : uint8_t {
     SA_MAZE          = 25,
     SA_MOON          = 26,
     SA_EASTER_EGG    = 27,
-    SA_COUNT         = 28
+    SA_DICE          = 28,
+    SA_COINFLIP      = 29,
+    SA_COUNT         = 30
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -95,6 +97,8 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_MAZE:          return "maze";
         case SA_MOON:          return "moon";
         case SA_EASTER_EGG:    return "easter_egg";
+        case SA_DICE:          return "dice";
+        case SA_COINFLIP:      return "coinflip";
         default:               return "unknown";
     }
 }
@@ -117,6 +121,7 @@ inline uint8_t standaloneEffectForBrowserKey(const char* key) {
         {"dna", SA_DNA}, {"warp", SA_WARP}, {"life", SA_LIFE},
         {"lightspeed", SA_LIGHTSPEED}, {"sand", SA_SAND}, {"fluid", SA_FLUID},
         {"maze", SA_MAZE}, {"moon", SA_MOON}, {"easter_egg", SA_EASTER_EGG},
+        {"dice", SA_DICE}, {"coinflip", SA_COINFLIP},
         // reasonable stand-ins for not-yet-ported visual effects
         {"sphere", SA_PLASMA},
         {"tron", SA_SPECTRUM},
@@ -1287,6 +1292,119 @@ inline void standaloneRenderMaze(MatrixPanel_I2S_DMA* display, int face, float t
 // physical panel here, racers instead bounce (reflect) off the edges, which
 // preserves the "streaking light trails crossing the panel" look without the
 // cube topology this panel doesn't have.
+// Dice roll - port of effectDice's single-panel path: a rounded square die
+// face with the standard 6-pip layouts (diceDotPositions), a shuffle/roll
+// animation, auto-rolls every ~4s, brief glow after landing.
+inline void standaloneRenderDice(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    static bool rolling = false, init = false;
+    static float rollStartT = 0, rollDur = 1.5f, autoTimer = 0, lastT = 0;
+    static int result = 1;
+    if (!init) { result = 1 + (int)(standaloneHash01(1) * 6); init = true; }
+    float dt = t - lastT; lastT = t;
+    autoTimer += dt;
+    if (!rolling && autoTimer >= 4.0f) {
+        autoTimer = 0; rolling = true; rollStartT = t;
+        rollDur = 1.5f + standaloneHash01((int)(t * 500)) * 0.5f;
+        result = 1 + (int)(standaloneHash01((int)(t * 700)) * 6);
+    }
+    int showVal = result;
+    float glow = 0;
+    if (rolling) {
+        if (t - rollStartT >= rollDur) { rolling = false; }
+        else showVal = 1 + (int)(standaloneHash01((int)(t * 30)) * 6);
+    } else {
+        glow = fmaxf(0.0f, 1.0f - (t - (rollStartT + rollDur)) / 3.0f);
+    }
+    snClear(face);
+    const int8_t dots[6][6][2] = {
+        {{50,50},{-1,-1},{-1,-1},{-1,-1},{-1,-1},{-1,-1}},
+        {{20,20},{80,80},{-1,-1},{-1,-1},{-1,-1},{-1,-1}},
+        {{20,20},{50,50},{80,80},{-1,-1},{-1,-1},{-1,-1}},
+        {{20,20},{80,20},{20,80},{80,80},{-1,-1},{-1,-1}},
+        {{20,20},{80,20},{50,50},{20,80},{80,80},{-1,-1}},
+        {{20,20},{80,20},{20,50},{80,50},{20,80},{80,80}},
+    };
+    // Rounded-square face (approximated as a plain square - corner rounding
+    // isn't worth the extra complexity at 64px).
+    uint8_t bgv = rolling ? 8 : (uint8_t)(15 + glow * 25);
+    for (int y = 2; y < PANEL_SIZE - 2; y++)
+        for (int x = 2; x < PANEL_SIZE - 2; x++)
+            snSet(face, x, y, bgv / 255.0f * 1.1f, bgv / 255.0f, bgv / 255.0f * 0.85f);
+    int dotR = (int)(PANEL_SIZE * 0.07f);
+    for (int i = 0; i < 6; i++) {
+        if (dots[showVal - 1][i][0] < 0) continue;
+        int cx = 2 + (int)(dots[showVal - 1][i][0] / 100.0f * (PANEL_SIZE - 4));
+        int cy = 2 + (int)(dots[showVal - 1][i][1] / 100.0f * (PANEL_SIZE - 4));
+        for (int dy = -dotR; dy <= dotR; dy++)
+            for (int dx = -dotR; dx <= dotR; dx++)
+                if (dx * dx + dy * dy <= dotR * dotR)
+                    snSet(face, cx + dx, cy + dy, 0.08f, 0.08f, 0.12f);
+    }
+    if (!rolling && glow > 0.1f) {
+        uint8_t r, g, b;
+        standaloneHslToRgb(0.58f, 0.8f, glow * 0.6f, r, g, b);
+        for (int i = 0; i < PANEL_SIZE; i++) {
+            snAdd(face, i, 1, r / 255.0f, g / 255.0f, b / 255.0f);
+            snAdd(face, i, PANEL_SIZE - 2, r / 255.0f, g / 255.0f, b / 255.0f);
+            snAdd(face, 1, i, r / 255.0f, g / 255.0f, b / 255.0f);
+            snAdd(face, PANEL_SIZE - 2, i, r / 255.0f, g / 255.0f, b / 255.0f);
+        }
+    }
+}
+
+// Tiny 5x7 bitmaps for H/T, used by the coin-flip result (avoids needing a
+// full font just for two letters).
+inline const uint8_t COIN_LETTER_H[7] = {0b10001,0b10001,0b10001,0b11111,0b10001,0b10001,0b10001};
+inline const uint8_t COIN_LETTER_T[7] = {0b11111,0b00100,0b00100,0b00100,0b00100,0b00100,0b00100};
+
+// Coin flip - port of effectCoinFlip's single-panel path: a gold coin that
+// squashes horizontally while spinning, settling on a result (H/T) drawn with
+// a small bitmap letter, matching the browser's flip-duration/timing.
+inline void standaloneRenderCoinflip(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    static bool flipping = true, init = false;
+    static float flipStartT = 0, flipDur = 1.5f, showResultStart = 0;
+    static bool resultHeads = true;
+    static float lastT = 0;
+    if (!init) { flipStartT = t; flipDur = 1.2f + standaloneHash01(3) * 0.8f; init = true; }
+    lastT = t;
+    if (flipping) {
+        if (t - flipStartT >= flipDur) {
+            flipping = false;
+            resultHeads = standaloneHash01((int)(t * 900.0f)) < 0.5f;
+            showResultStart = t;
+        }
+    } else if (t - showResultStart > 2.0f) {
+        flipping = true; flipStartT = t; flipDur = 1.2f + standaloneHash01((int)(t * 400)) * 0.8f;
+    }
+    snClear(face);
+    const int cx = PANEL_SIZE / 2, cy = PANEL_SIZE / 2 - 3;
+    const int R = (int)(PANEL_SIZE * 0.3f);
+    float angle = flipping ? (t - flipStartT) * 12.0f : 0;
+    float scaleX = flipping ? fabsf(cosf(angle)) : 1.0f;
+    if (scaleX < 0.05f) scaleX = 0.05f;
+    int rx = (int)(R * scaleX);
+    for (int y = -R; y <= R; y++) {
+        for (int x = -rx; x <= rx; x++) {
+            float nx = rx ? (float)x / rx : 0, ny = (float)y / R;
+            if (nx * nx + ny * ny > 1.0f) continue;
+            uint8_t r, g, b;
+            if (flipping) { r = 0xdd; g = 0xaa; b = 0x33; }
+            else          { r = 0xff; g = 0xdd; b = 0x55; }
+            snSet(face, cx + x, cy + y, r / 255.0f, g / 255.0f, b / 255.0f);
+        }
+    }
+    if (!flipping) {
+        const uint8_t* glyph = resultHeads ? COIN_LETTER_H : COIN_LETTER_T;
+        int gx0 = cx - 2, gy0 = cy - 3;
+        for (int row = 0; row < 7; row++)
+            for (int col = 0; col < 5; col++)
+                if (glyph[row] & (1 << (4 - col)))
+                    snSet(face, gx0 + col, gy0 + row, 0.25f, 0.18f, 0.02f);
+    }
+}
+
 inline void standaloneRenderLightspeed(MatrixPanel_I2S_DMA* display, int face, float t) {
     const int xOff = face * PANEL_SIZE;
     const int NRACERS = 3;
@@ -1857,6 +1975,8 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_MAZE:          standaloneRenderMaze(display, face, t);          break;
             case SA_MOON:          standaloneRenderMoon(display, face, t);          break;
             case SA_EASTER_EGG:    standaloneRenderEasterEgg(display, face, t);     break;
+            case SA_DICE:          standaloneRenderDice(display, face, t);          break;
+            case SA_COINFLIP:      standaloneRenderCoinflip(display, face, t);      break;
             default:
                 saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;
