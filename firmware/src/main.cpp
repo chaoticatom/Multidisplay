@@ -655,12 +655,14 @@ void setup() {
 
     // WiFi provisioning.
     g_appState = AppState::AP_MODE;   // portal may open during connectWifi()
+    Serial.println("[CKPT] before connectWifi()"); Serial.flush();
     if (!connectWifi()) {
         Serial.println("[WiFi] no connection - restarting");
         delay(2000);
         ESP.restart();
     }
     g_appState = AppState::RUNNING;
+    Serial.println("[CKPT] after connectWifi()"); Serial.flush();
 
     // mDNS.
     if (MDNS.begin(MDNS_NAME)) {
@@ -668,6 +670,7 @@ void setup() {
         MDNS.addService("ws",   "tcp", WS_PORT);
         Serial.printf("[mDNS] http://%s.local\n", MDNS_NAME);
     }
+    Serial.println("[CKPT] after mDNS"); Serial.flush();
 
     // OTA status-LED hooks via WebSocket clients are handled elsewhere; here we
     // just register the OTA-aware servers.
@@ -681,6 +684,7 @@ void setup() {
         camCfg.enabled = false;
         camInit(camCfg);
     }
+    Serial.println("[CKPT] after camInit()"); Serial.flush();
 
     // Web + WebSocket servers - started right after WiFi/mDNS, BEFORE the
     // blocking standalone-mode network calls below. standaloneWxFetch() is a
@@ -689,13 +693,17 @@ void setup() {
     // the browser/app got "connection refused" for that entire window even
     // though ping/mDNS already worked (neither depends on these servers).
     initWebServer(httpServer, ws, f1State);
+    Serial.println("[CKPT] after initWebServer()"); Serial.flush();
     httpServer.begin();
+    Serial.println("[CKPT] after httpServer.begin()"); Serial.flush();
 
     // The WebSocket lives on its own port (81). Reuse the same handler.
     wsServer.addHandler(&ws);
     wsServer.begin();
+    Serial.println("[CKPT] after wsServer.begin()"); Serial.flush();
 
     Serial.printf("[HTTP] serving on :%d   [WS] on :%d\n", HTTP_PORT, WS_PORT);
+    Serial.flush();
 
     // Standalone mode: load persisted last-effect + schedule, sync NTP time.
     // Weather is NOT fetched here anymore - standaloneWxFetch() has no
@@ -707,8 +715,11 @@ void setup() {
     // existing periodic fetch in loop() (every STANDALONE_WX_INTERVAL_MIN)
     // already covers the first-fetch case within a few seconds of boot.
     standaloneLoad();
+    Serial.println("[CKPT] after standaloneLoad()"); Serial.flush();
     standaloneNtpInit();
+    Serial.println("[CKPT] after standaloneNtpInit()"); Serial.flush();
     standaloneLoadUnsplashSettings();
+    Serial.println("[CKPT] setup() complete, entering loop()"); Serial.flush();
 }
 
 // ---------------------------------------------------------------------------
