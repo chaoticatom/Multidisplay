@@ -507,7 +507,10 @@ inline bool standaloneWxFetch() {
 
     WiFiClientSecure client;
     client.setInsecure();   // no cert pinning — same trust model as browser JS fetch() has via the OS cert store, simplified for embedded use
+    client.setTimeout(5);   // seconds - without PSRAM, a heap-starved TLS handshake can otherwise block far longer than any HTTPClient-level timeout catches
     HTTPClient http;
+    http.setConnectTimeout(5000);
+    http.setTimeout(5000);
 
     char url[256];
     snprintf(url, sizeof(url),

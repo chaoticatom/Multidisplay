@@ -548,8 +548,24 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws, F1State& f
     server.onNotFound([](AsyncWebServerRequest* request) {
         String path = request->url();
         if (serveStaticFile(request, path)) return;
-        // SPA fallback: serve index.html for unknown GET routes.
-        if (request->method() == HTTP_GET && serveStaticFile(request, "/index.html")) return;
+        // SPA fallback: only for real navigation-style paths (no file
+        // extension in the last segment), never for arbitrary junk paths.
+        // Random devices on the LAN (smart TVs, media players) probe all
+        // sorts of nonexistent asset paths - e.g. UPnP/DIAL discovery
+        // requests to /dials/desc.xml.gz - and since they never actually
+        // read the response, falling back to a full index.html for those
+        // held that whole response buffer allocated (several KB, on a
+        // board with only ~16KB heap without PSRAM) until AsyncTCP's ack/rx
+        // timeout force-closed the abandoned connection ~20s later. A
+        // couple of these landing close together was enough to exhaust the
+        // heap - this is what was actually causing WiFi/the site to become
+        // unreachable, confirmed via heap-tracking heartbeat logs; it
+        // predates and is unrelated to the native-effect-port work.
+        int lastSlash = path.lastIndexOf('/');
+        String lastSeg = (lastSlash >= 0) ? path.substring(lastSlash + 1) : path;
+        bool looksLikeAsset = lastSeg.indexOf('.') >= 0;
+        if (!looksLikeAsset && request->method() == HTTP_GET &&
+            serveStaticFile(request, "/index.html")) return;
         request->send(404, "text/plain", "Not Found");
     });
 
