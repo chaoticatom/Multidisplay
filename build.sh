@@ -24,8 +24,14 @@ else
 fi
 
 echo "==> Gzipping assets into $DIST/..."
-for f in index.html style.css cube.js effects.js f1.js ui.js three.min.js manifest.json service-worker.js icons/icon-192.png icons/icon-512.png; do
+# Keep this file list in sync with build.ps1 (the Windows/no-WSL
+# equivalent). version.js, f1-state.js, f1-providers.js, sw.js, and
+# icons/icon.svg were missing here before - the server falls back to
+# serving an uncompressed file if no .gz sibling exists, so gzipping
+# everything actually needed is always safe.
+for f in index.html style.css version.js cube.js effects.js ui.js f1-state.js f1.js f1-providers.js three.min.js manifest.json service-worker.js sw.js icons/icon-192.png icons/icon-512.png icons/icon.svg; do
   if [ -f "$f" ]; then
+    mkdir -p "$DIST/$(dirname "$f")"
     gzip -9 -c "$f" > "$DIST/${f}.gz"
     orig=$(wc -c < "$f")
     comp=$(wc -c < "$DIST/${f}.gz")
