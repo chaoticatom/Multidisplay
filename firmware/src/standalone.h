@@ -1081,28 +1081,34 @@ inline void standaloneRenderRain(MatrixPanel_I2S_DMA* display, int face, float t
         for (int k = 0; k < (int)d.len; k++) {
             int vy = (int)lroundf(d.y + k);
             if (vy < 0 || vy >= S) continue;
+            // The browser's faceMap treats v=0 as the BOTTOM of the panel
+            // (falling = decreasing v). Our snBuf is top-origin (y=0 = top),
+            // so flip here at the point of drawing rather than rewriting the
+            // physics/timing above - this was drawing rain rising instead of
+            // falling before this fix.
+            int screenY = S - 1 - vy;
             float fade = powf(1 - k / d.len, 1.2f) * d.bright;
             float h = saFract(d.hue + k / d.len * 0.15f);
             uint8_t r, g, b;
             standaloneHslToRgb(h, 1.0f, fade * 0.95f, r, g, b);
-            snSet(face, (int)d.col, vy, r / 255.0f, g / 255.0f, b / 255.0f);
+            snSet(face, (int)d.col, screenY, r / 255.0f, g / 255.0f, b / 255.0f);
             if (d.wide) {
-                snSet(face, (int)d.col - 1, vy, r / 510.0f, g / 510.0f, b / 510.0f);
-                snSet(face, (int)d.col + 1, vy, r / 510.0f, g / 510.0f, b / 510.0f);
+                snSet(face, (int)d.col - 1, screenY, r / 510.0f, g / 510.0f, b / 510.0f);
+                snSet(face, (int)d.col + 1, screenY, r / 510.0f, g / 510.0f, b / 510.0f);
             }
-            if (vy == 0 && k < 4) {
+            if (vy == 0 && k < 4) {   // vy==0 is the bottom in JS's convention
                 float sp = fade * 0.8f;
                 for (int s = -4; s <= 4; s++) {
                     float sf = fmaxf(0.0f, 1 - fabsf((float)s) / 4.0f) * sp * 0.5f;
                     uint8_t sr, sg, sb;
                     standaloneHslToRgb(h, 1.0f, sf, sr, sg, sb);
-                    snSet(face, (int)d.col + s, 0, sr / 255.0f, sg / 255.0f, sb / 255.0f);
+                    snSet(face, (int)d.col + s, S - 1, sr / 255.0f, sg / 255.0f, sb / 255.0f);
                 }
             }
         }
         uint8_t rh, gh, bh;
         standaloneHslToRgb(d.hue, 0.3f, d.bright, rh, gh, bh);
-        snSet(face, (int)d.col, (int)lroundf(d.y), rh / 255.0f, gh / 255.0f, bh / 255.0f);
+        snSet(face, (int)d.col, S - 1 - (int)lroundf(d.y), rh / 255.0f, gh / 255.0f, bh / 255.0f);
     }
     // Occasional full-column chromatic flash (JS: Math.random() < dt*0.8).
     if (standaloneHash01((int)(t * 1000.0f)) < dt * 0.8f) {
