@@ -75,7 +75,8 @@ enum StandaloneEffect : uint8_t {
     SA_JOKE          = 35,
     SA_TRIVIA        = 36,
     SA_OTD           = 37,
-    SA_COUNT         = 38
+    SA_SIMHOUSE      = 38,
+    SA_COUNT         = 39
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -118,6 +119,7 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_JOKE:          return "joke";
         case SA_TRIVIA:        return "trivia";
         case SA_OTD:           return "otd";
+        case SA_SIMHOUSE:      return "simhouse";
         default:               return "unknown";
     }
 }
@@ -142,7 +144,7 @@ inline uint8_t standaloneEffectForBrowserKey(const char* key) {
         {"maze", SA_MAZE}, {"moon", SA_MOON}, {"easter_egg", SA_EASTER_EGG},
         {"dice", SA_DICE}, {"coinflip", SA_COINFLIP}, {"tron", SA_TRON}, {"sphere", SA_SPHERE},
         {"apod", SA_APOD}, {"ghost", SA_GHOST}, {"retro", SA_RETRO},
-        {"joke", SA_JOKE}, {"trivia", SA_TRIVIA}, {"otd", SA_OTD},
+        {"joke", SA_JOKE}, {"trivia", SA_TRIVIA}, {"otd", SA_OTD}, {"simhouse", SA_SIMHOUSE},
         // reasonable stand-ins for not-yet-ported visual effects
         {"custom_cube", SA_RAINBOW},
     };
@@ -3395,6 +3397,564 @@ inline void standaloneRenderOnThisDay(MatrixPanel_I2S_DMA* display, int face, fl
     }
 }
 
+// ===========================================================================
+// Sim House — shadow-puppet house simulation. Faithful port of
+// effectSimHouseShadows + its supporting state (shRooms/shPeople/shGetHour/
+// shPickRoom/shUpdatePeople/initSimHouse) from effects.js: silhouettes of
+// 8 named people wandering between 12 rooms across two floors, visible as
+// shadows moving past lit windows on the house's exterior, day/night cycle,
+// people occasionally waving from a window.
+//
+// SCOPE NOTE: this ports SHADOW MODE only, which is a complete, real display
+// mode the browser itself renders - not a simplified stand-in. The browser's
+// OTHER mode (shShadowMode=false - a full room-by-room interior view with
+// two embedded mini-games, a platformer and a card game, spanning ~3800
+// more lines of effects.js) is a separate, much larger follow-up not yet
+// ported. SA_SIMHOUSE currently always renders the shadow view.
+// ===========================================================================
+#define SH_ROOM_COUNT   12
+#define SH_PEOPLE_COUNT 8
+
+struct ShRoom {
+    int  x1, x2, y1, y2;
+    bool isBedroomLike;   // bedroom1/bedroom2/kidsroom - triggers sleep at night
+    bool isSitLike;        // living/dining/study - triggers sitting
+};
+
+enum ShMovePhase : uint8_t { SH_TO_ROOM, SH_TO_STAIRS, SH_ON_STAIRS };
+
+struct ShPerson {
+    const char* name;
+    int   h;
+    float x, y;
+    int   targetRoom, prevRoom;
+    float stateT, nextDecisionT;
+    float speed;
+    bool  walking;
+    float animFrame;
+    bool  sitting, sleeping;
+    ShMovePhase movePhase;
+    float waveT;
+    bool  waving;
+};
+
+inline bool     g_shInit = false;
+inline float    g_shT = 0;
+inline uint8_t* g_shBuf = nullptr;   // W*S*3 bytes, W=4*PANEL_SIZE
+inline ShRoom   g_shRooms[SH_ROOM_COUNT];
+inline ShPerson g_shPeople[SH_PEOPLE_COUNT];
+
+inline float shRandom01() { return (float)random(10000) / 10000.0f; }
+
+// Local wall-clock hour, matching effects.js's shGetHour() (real time, not
+// the effect's own animation clock) - reuses the same TZ-aware helper the
+// clock/weather effects already use.
+inline float shGetHour() {
+    struct tm tmNow;
+    standaloneLocalTm(tmNow);
+    return tmNow.tm_hour + tmNow.tm_min / 60.0f;
+}
+
+inline void initSimHouse() {
+    const int S = PANEL_SIZE, W = 4 * S;
+    const int ground = 2, floor1 = (int)(S * 0.47f), roof = S - 5;
+    const int gf = ground + 1, gfTop = floor1 - 1;
+    const int ff = floor1 + 1, ffTop = roof - 1;
+
+    int idx = 0;
+    auto addRoom = [&](int x1, int x2, int y1, int y2, bool bedroom, bool sitLike) {
+        g_shRooms[idx] = {x1, x2, y1, y2, bedroom, sitLike};
+        idx++;
+    };
+    addRoom(2, (int)(W * 0.11f), gf, gfTop, false, false);                    // 0 garage
+    addRoom((int)(W * 0.11f) + 2, (int)(W * 0.28f), gf, gfTop, false, false); // 1 kitchen
+    addRoom((int)(W * 0.28f) + 2, (int)(W * 0.44f), gf, gfTop, false, true);  // 2 dining
+    addRoom((int)(W * 0.44f) + 2, (int)(W * 0.68f), gf, gfTop, false, true);  // 3 living
+    addRoom((int)(W * 0.68f) + 2, (int)(W * 0.79f), gf, gfTop, false, false); // 4 hallway
+    addRoom((int)(W * 0.79f) + 2, W - 3, gf, gfTop, false, true);             // 5 study
+    addRoom(2, (int)(W * 0.20f), ff, ffTop, true, false);                    // 6 bedroom1
+    addRoom((int)(W * 0.20f) + 2, (int)(W * 0.34f), ff, ffTop, false, false); // 7 bathroom
+    addRoom((int)(W * 0.34f) + 2, (int)(W * 0.52f), ff, ffTop, true, false);  // 8 bedroom2
+    addRoom((int)(W * 0.52f) + 2, (int)(W * 0.72f), ff, ffTop, true, false);  // 9 kidsroom
+    addRoom((int)(W * 0.72f) + 2, (int)(W * 0.82f), ff, ffTop, false, false); // 10 landing
+    addRoom((int)(W * 0.82f) + 2, W - 3, ff, ffTop, false, false);            // 11 ensuite
+
+    static const char* names[SH_PEOPLE_COUNT]   = {"Dad", "Mum", "Teen", "Kid", "Granny", "Toddler", "Uncle", "Guest"};
+    static const int   heights[SH_PEOPLE_COUNT] = {10, 9, 9, 7, 8, 5, 11, 9};
+    for (int i = 0; i < SH_PEOPLE_COUNT; i++) {
+        int rm = i % SH_ROOM_COUNT;
+        ShPerson& p = g_shPeople[i];
+        p.name = names[i];
+        p.h = heights[i];
+        p.x = g_shRooms[rm].x1 + 6 + i * 3;
+        p.y = g_shRooms[rm].y1 + 1;
+        p.targetRoom = rm;
+        p.prevRoom = rm;
+        p.stateT = 0;
+        p.nextDecisionT = 3 + shRandom01() * 8;
+        p.speed = 8 + shRandom01() * 5;
+        p.walking = false;
+        p.animFrame = 0;
+        p.sitting = false;
+        p.sleeping = false;
+        p.movePhase = SH_TO_ROOM;
+        p.waveT = 0;
+        p.waving = false;
+    }
+
+    if (!g_shBuf) g_shBuf = (uint8_t*)(psramFound() ? ps_malloc(W * S * 3) : malloc(W * S * 3));
+    g_shInit = true;
+}
+
+inline int shPickRoom(const ShPerson& person) {
+    float hour = shGetHour();
+    float r = shRandom01();
+    if (r < 0.06f) return (int)(shRandom01() * 12);
+    bool isKid = (strcmp(person.name, "Kid") == 0) || (strcmp(person.name, "Teen") == 0);
+    if (hour >= 23 || hour < 6) return isKid ? (r < 0.9f ? 9 : 7) : (r < 0.9f ? 6 : 7);
+    if (hour >= 6 && hour < 8) { if (r < 0.35f) return 7; if (r < 0.65f) return 1; return 10; }
+    if (hour >= 8 && hour < 12) { if (isKid) return r < 0.6f ? 9 : 3; if (r < 0.3f) return 5; if (r < 0.6f) return 1; return 3; }
+    if (hour >= 12 && hour < 14) { if (r < 0.5f) return 1; if (r < 0.8f) return 2; return 3; }
+    if (hour >= 14 && hour < 18) { if (isKid) return r < 0.5f ? 9 : 3; if (r < 0.3f) return 3; if (r < 0.5f) return 5; if (r < 0.7f) return 0; return 1; }
+    if (hour >= 18 && hour < 21) { if (r < 0.4f) return 3; if (r < 0.6f) return 2; if (r < 0.8f) return 1; return isKid ? 9 : 5; }
+    if (isKid) return r < 0.7f ? 9 : 7;
+    if (r < 0.4f) return 3;
+    if (r < 0.6f) return 6;
+    return 7;
+}
+
+inline void shUpdatePeople(float dt, int S, int W) {
+    const int ground = 2, floor1 = (int)(S * 0.47f), roof = S - 5;
+    (void)roof;
+    const ShRoom& hall = g_shRooms[4];
+    int stL = hall.x1 + 2, stR = hall.x2 - 2;
+    int stBotY = ground + 1, stTopY = floor1;
+    int stW = stR - stL, stH = stTopY - stBotY;
+    float hour = shGetHour();
+    bool isNight = (hour >= 21 || hour < 6);
+
+    for (int pi = 0; pi < SH_PEOPLE_COUNT; pi++) {
+        ShPerson& p = g_shPeople[pi];
+        p.stateT += dt;
+        p.animFrame += dt * 5;
+        if (p.stateT >= p.nextDecisionT) {
+            p.stateT = 0;
+            p.nextDecisionT = 8 + shRandom01() * 20;
+            p.prevRoom = p.targetRoom;
+            p.targetRoom = shPickRoom(p);
+            p.sitting = false;
+            p.sleeping = false;
+            int curFloor = p.y > floor1 ? 1 : 0;
+            int destFloor = p.targetRoom >= 6 ? 1 : 0;
+            p.movePhase = (curFloor != destFloor) ? SH_TO_STAIRS : SH_TO_ROOM;
+        }
+
+        const ShRoom& room = g_shRooms[p.targetRoom];
+        int destFloor = p.targetRoom >= 6 ? 1 : 0;
+        int ri = p.targetRoom;
+
+        float targetX = p.x, targetY = p.y;
+        if (p.movePhase == SH_TO_STAIRS) {
+            int curFloor = p.y > floor1 ? 1 : 0;
+            targetX = curFloor == 0 ? stL : stR;
+            targetY = curFloor == 0 ? stBotY + 1 : stTopY + 1;
+            if (fabsf(p.x - targetX) < 2 && fabsf(p.y - targetY) < 2) p.movePhase = SH_ON_STAIRS;
+        } else if (p.movePhase == SH_ON_STAIRS) {
+            if (destFloor == 1) p.x += p.speed * dt * 0.7f;
+            else p.x -= p.speed * dt * 0.7f;
+            p.x = constrain(p.x, (float)stL, (float)stR);
+            float progress = constrain((p.x - stL) / (float)stW, 0.0f, 1.0f);
+            p.y = stBotY + 1 + progress * stH;
+            p.walking = true;
+            if ((destFloor == 1 && p.x >= stR - 1) || (destFloor == 0 && p.x <= stL + 1)) p.movePhase = SH_TO_ROOM;
+        } else {
+            if (ri == 3) { targetX = room.x1 + 7; targetY = room.y1 + 4; }                          // living
+            else if (ri == 6 || ri == 8) { targetX = room.x1 + 6; targetY = room.y1 + 4; }           // bedroom1/2
+            else if (ri == 9) { targetX = room.x1 + 5; targetY = room.y1 + 3; }                      // kidsroom
+            else if (ri == 5) { targetX = room.x1 + 8; targetY = room.y1 + 2; }                      // study
+            else if (ri == 1) { targetX = room.x1 + 6; targetY = room.y1 + 1; }                      // kitchen
+            else if (ri == 2) { targetX = (room.x1 + room.x2) / 2.0f; targetY = room.y1 + 3; }       // dining
+            else if (ri == 7 || ri == 11) { targetX = room.x1 + 4; targetY = room.y1 + 1; }          // bathroom/ensuite
+            else { targetX = (room.x1 + room.x2) / 2.0f; targetY = room.y1 + 1; }
+        }
+
+        if (p.movePhase != SH_ON_STAIRS) {
+            float dx = targetX - p.x, dy = targetY - p.y;
+            float dist = sqrtf(dx * dx + dy * dy);
+            p.walking = dist > 1.5f;
+            if (dist > 1) {
+                float step = p.speed * dt;
+                if (fabsf(dx) > 1) p.x += (dx > 0 ? 1.0f : -1.0f) * fminf(fabsf(dx), step);
+                else if (fabsf(dy) > 1) p.y += (dy > 0 ? 1.0f : -1.0f) * fminf(fabsf(dy), step);
+            } else if (p.movePhase == SH_TO_ROOM) {
+                if (g_shRooms[ri].isBedroomLike) p.sleeping = isNight;
+                if (g_shRooms[ri].isSitLike) p.sitting = true;
+            }
+        }
+
+        if (p.waving) {
+            p.waveT += dt;
+            if (p.waveT > 4) { p.waving = false; p.waveT = 0; }
+        } else if (!p.walking && !p.sleeping && shRandom01() < 0.0008f) {
+            p.waving = true;
+            p.waveT = 0;
+        }
+    }
+}
+
+// Builds the full wide (4*PANEL_SIZE x PANEL_SIZE) shadow-house canvas into
+// g_shBuf. Faithful port of effectSimHouseShadows's drawing code (house
+// outline, windows, front door, people-shadow silhouettes, waving person,
+// ground/path) - everything except the final per-face OUTPUT blit, which
+// standaloneRenderSimHouse handles separately per dispatcher call.
+inline void standaloneSimHouseShadowsBuild(float shT) {
+    const int S = PANEL_SIZE, W = 4 * S;
+    const int ground = 2, floor1 = (int)(S * 0.47f), roof = S - 5;
+    memset(g_shBuf, 0, W * S * 3);
+
+    auto setP = [&](int x, int y, float r, float g, float b) {
+        if (x < 0 || x >= W || y < 0 || y >= S) return;
+        int i = (y * W + x) * 3;
+        g_shBuf[i]     = (uint8_t)fminf(255.0f, r * 255.0f);
+        g_shBuf[i + 1] = (uint8_t)fminf(255.0f, g * 255.0f);
+        g_shBuf[i + 2] = (uint8_t)fminf(255.0f, b * 255.0f);
+    };
+    auto addP = [&](int x, int y, float r, float g, float b) {
+        if (x < 0 || x >= W || y < 0 || y >= S) return;
+        int i = (y * W + x) * 3;
+        g_shBuf[i]     = (uint8_t)fmaxf(0.0f, g_shBuf[i]     - r * 255.0f);
+        g_shBuf[i + 1] = (uint8_t)fmaxf(0.0f, g_shBuf[i + 1] - g * 255.0f);
+        g_shBuf[i + 2] = (uint8_t)fmaxf(0.0f, g_shBuf[i + 2] - b * 255.0f);
+    };
+    auto fillRect = [&](int x1, int y1, int x2, int y2, float r, float g, float b) {
+        for (int y = (y1 < 0 ? 0 : y1); y <= (y2 > S - 1 ? S - 1 : y2); y++)
+            for (int x = (x1 < 0 ? 0 : x1); x <= (x2 > W - 1 ? W - 1 : x2); x++) setP(x, y, r, g, b);
+    };
+    auto hLine = [&](int x1, int x2, int y, float r, float g, float b) {
+        for (int x = x1; x <= x2; x++) setP(x, y, r, g, b);
+    };
+    auto vLine = [&](int x, int y1, int y2, float r, float g, float b) {
+        for (int y = y1; y <= y2; y++) setP(x, y, r, g, b);
+    };
+
+    // White background
+    for (int y = 0; y < S; y++) for (int x = 0; x < W; x++) setP(x, y, 0.97f, 0.96f, 0.93f);
+
+    // House outline (thick)
+    const float outR = 0.12f, outG = 0.12f, outB = 0.15f;
+    hLine(0, W - 1, ground, outR, outG, outB);     hLine(0, W - 1, ground + 1, outR * 0.7f, outG * 0.7f, outB * 0.7f);
+    hLine(0, W - 1, roof, outR, outG, outB);        hLine(0, W - 1, roof - 1, outR * 0.6f, outG * 0.6f, outB * 0.6f);
+    vLine(0, ground, roof, outR, outG, outB);       vLine(1, ground, roof, outR * 0.6f, outG * 0.6f, outB * 0.6f);
+    vLine(W - 1, ground, roof, outR, outG, outB);   vLine(W - 2, ground, roof, outR * 0.6f, outG * 0.6f, outB * 0.6f);
+    hLine(0, W - 1, floor1, outR * 0.5f, outG * 0.5f, outB * 0.5f);
+    const int roofPeak = S - 2, roofMid = (int)(W * 0.5f);
+    for (int x = 0; x < W; x++) {
+        int ry = roof + (int)roundf(fmaxf(0.0f, 1.0f - fabsf(x - roofMid) / (W * 0.5f)) * (roofPeak - roof));
+        setP(x, ry, outR, outG, outB); setP(x, ry - 1, outR * 0.7f, outG * 0.7f, outB * 0.7f);
+    }
+
+    // Windows - 4 per face, wide, evenly spaced within each face
+    struct ShWindow { int x1, y1, x2, y2; bool arched; };
+    ShWindow windows[40];
+    int winCount = 0;
+    int gfMid = (ground + floor1) / 2;
+    int gfWinH = (int)((floor1 - ground) * 0.6f);
+    int winW = (int)(S * 0.18f);
+    int ffMid = (floor1 + roof) / 2;
+    int ffWinH = (int)((roof - floor1) * 0.6f);
+    const int doorFace = 1;
+    for (int f = 0; f < 4; f++) {
+        int fStart = f * S;
+        if (f == doorFace) {
+            int doorCX = fStart + S / 2;
+            int dW = (int)(S * 0.14f);
+            int dLeft = doorCX - dW / 2, dRight = doorCX + dW / 2;
+            int lWx = fStart + (dLeft - fStart - winW) / 2;
+            if (lWx >= fStart + 2) windows[winCount++] = {lWx, gfMid - gfWinH / 2, lWx + winW, gfMid + gfWinH / 2, true};
+            int rWx = dRight + (fStart + S - dRight - winW) / 2;
+            if (rWx + winW <= fStart + S - 2) windows[winCount++] = {rWx, gfMid - gfWinH / 2, rWx + winW, gfMid + gfWinH / 2, true};
+            int ffSpacing = (S - 2 * winW) / 3;
+            for (int wi = 0; wi < 2; wi++) {
+                int wx = fStart + ffSpacing + wi * (winW + ffSpacing);
+                windows[winCount++] = {wx, ffMid - ffWinH / 2, wx + winW, ffMid + ffWinH / 2, true};
+            }
+        } else {
+            int spacing = (S - 2 * winW) / 3;
+            for (int wi = 0; wi < 2; wi++) {
+                int wx = fStart + spacing + wi * (winW + spacing);
+                windows[winCount++] = {wx, gfMid - gfWinH / 2, wx + winW, gfMid + gfWinH / 2, true};
+                windows[winCount++] = {wx, ffMid - ffWinH / 2, wx + winW, ffMid + ffWinH / 2, true};
+            }
+        }
+    }
+
+    // Front door - centred on face 1
+    const int doorFaceStart = doorFace * S;
+    const int doorW = (int)(S * 0.14f), doorH = (int)((floor1 - ground) * 0.8f);
+    const int doorX = doorFaceStart + (S - doorW) / 2;
+    fillRect(doorX - 2, ground + 1, doorX + doorW + 2, ground + 2, 0.55f, 0.55f, 0.52f);
+    fillRect(doorX - 1, ground + 1, doorX - 1, ground + doorH + 1, 0.25f, 0.2f, 0.12f);
+    fillRect(doorX + doorW + 1, ground + 1, doorX + doorW + 1, ground + doorH + 1, 0.25f, 0.2f, 0.12f);
+    hLine(doorX - 1, doorX + doorW + 1, ground + doorH + 1, 0.25f, 0.2f, 0.12f);
+    fillRect(doorX, ground + 2, doorX + doorW, ground + doorH, 0.35f, 0.18f, 0.08f);
+    fillRect(doorX + 1, ground + doorH - 4, doorX + doorW / 2 - 1, ground + doorH - 1, 0.28f, 0.14f, 0.06f);
+    fillRect(doorX + doorW / 2 + 1, ground + doorH - 4, doorX + doorW - 1, ground + doorH - 1, 0.28f, 0.14f, 0.06f);
+    fillRect(doorX + 1, ground + 3, doorX + doorW / 2 - 1, ground + doorH - 6, 0.28f, 0.14f, 0.06f);
+    fillRect(doorX + doorW / 2 + 1, ground + 3, doorX + doorW - 1, ground + doorH - 6, 0.28f, 0.14f, 0.06f);
+    const int archCX = doorX + doorW / 2;
+    for (int dx = -(doorW / 2) - 1; dx <= doorW / 2 + 1; dx++) {
+        int archY = ground + doorH + 1 + (int)roundf(sqrtf(fmaxf(0.0f, (doorW * 0.6f) * (doorW * 0.6f) - dx * dx)) * 0.4f);
+        setP(archCX + dx, archY, 0.25f, 0.2f, 0.12f);
+    }
+    fillRect(doorX + 1, ground + doorH + 1, doorX + doorW - 1, ground + doorH + 3, 0.7f, 0.75f, 0.85f);
+    setP(doorX + doorW - 2, ground + doorH / 2 + 1, 0.7f, 0.6f, 0.2f);
+    setP(doorX + doorW - 2, ground + doorH / 2, 0.6f, 0.5f, 0.15f);
+    setP(doorX + doorW / 2, ground + doorH - 1, 0.65f, 0.55f, 0.2f);
+
+    // Draw windows (fancy with arch, curtains, warm glow)
+    float hour = shGetHour();
+    bool isNight = (hour >= 21 || hour < 6);
+    float winGlow = isNight ? 0.9f : 0.65f;
+    for (int wi = 0; wi < winCount; wi++) {
+        const ShWindow& w = windows[wi];
+        int ww = w.x2 - w.x1, wh = w.y2 - w.y1;
+        (void)wh;
+        fillRect(w.x1, w.y1, w.x2, w.y2, winGlow * 0.95f, winGlow * 0.88f, winGlow * 0.55f);
+        hLine(w.x1 - 1, w.x2 + 1, w.y1 - 1, outR, outG, outB); hLine(w.x1 - 1, w.x2 + 1, w.y2 + 1, outR, outG, outB);
+        vLine(w.x1 - 1, w.y1 - 1, w.y2 + 1, outR, outG, outB); vLine(w.x2 + 1, w.y1 - 1, w.y2 + 1, outR, outG, outB);
+        hLine(w.x1, w.x2, w.y1, outR * 0.9f, outG * 0.9f, outB * 0.9f); hLine(w.x1, w.x2, w.y2, outR * 0.9f, outG * 0.9f, outB * 0.9f);
+        vLine(w.x1, w.y1, w.y2, outR * 0.9f, outG * 0.9f, outB * 0.9f); vLine(w.x2, w.y1, w.y2, outR * 0.9f, outG * 0.9f, outB * 0.9f);
+        int mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
+        hLine(w.x1, w.x2, my, outR * 0.7f, outG * 0.7f, outB * 0.7f);
+        vLine(mx, w.y1, w.y2, outR * 0.7f, outG * 0.7f, outB * 0.7f);
+        if (w.arched) {
+            int acx = mx, radius = ww / 2 + 1;
+            for (int dx = -radius; dx <= radius; dx++) {
+                int ay = w.y2 + 1 + (int)roundf(sqrtf(fmaxf(0.0f, (float)(radius * radius - dx * dx))) * 0.35f);
+                if (ay > w.y2 + 1) setP(acx + dx, ay, outR * 0.8f, outG * 0.8f, outB * 0.8f);
+            }
+        }
+        hLine(w.x1 - 1, w.x2 + 1, w.y1 - 1, 0.3f, 0.28f, 0.22f);
+        for (int y = w.y1 + 1; y < w.y2; y++) {
+            setP(w.x1 + 1, y, winGlow * 0.6f, winGlow * 0.5f, winGlow * 0.3f);
+            setP(w.x2 - 1, y, winGlow * 0.6f, winGlow * 0.5f, winGlow * 0.3f);
+        }
+    }
+
+    // People shadows - realistic silhouettes, stop at windows to do things
+    for (int pi = 0; pi < SH_PEOPLE_COUNT; pi++) {
+        const ShPerson& p = g_shPeople[pi];
+        int px = (int)roundf(p.x), py = (int)roundf(p.y);
+        int ph = p.h ? p.h : 10;
+        int pHash = ((int)p.name[0] * 7 + (int)(shT * 0.15f)) % 5;
+        bool atWindow = !p.walking && pHash < 2;
+
+        for (int wi = 0; wi < winCount; wi++) {
+            const ShWindow& w = windows[wi];
+            int personFloor = py > floor1 ? 1 : 0;
+            int winFloor = w.y1 > floor1 ? 1 : 0;
+            if (personFloor != winFloor) continue;
+            float winCX = (w.x1 + w.x2) / 2.0f;
+            float dist = fabsf(px - winCX);
+            int winW2 = w.x2 - w.x1;
+            if (dist > winW2 * 3) continue;
+            float closeness = fmaxf(0.0f, 1.0f - dist / (winW2 * 2.5f));
+            float sR = 0.85f * closeness, sG = 0.85f * closeness, sB = 0.88f * closeness;
+            if (sR < 0.1f) continue;
+            int sxOff = (int)roundf((px - winCX) * 0.4f);
+            int sCX = (int)winCX + sxOff;
+            int wH = w.y2 - w.y1;
+
+            if (p.sleeping) {
+                for (int i = -3; i <= 3; i++) {
+                    int sx = sCX + i; if (sx <= w.x1 || sx >= w.x2) continue;
+                    addP(sx, w.y1 + 2, sR, sG, sB);
+                    addP(sx, w.y1 + 3, sR * 0.7f, sG * 0.7f, sB * 0.7f);
+                    if (i >= -1 && i <= 1) addP(sx, w.y1 + 4, sR * 0.4f, sG * 0.4f, sB * 0.4f);
+                }
+            } else if (atWindow && dist < winW2 * 1.2f) {
+                int baseY = w.y1 + 1;
+                int sH = wH - 2 < ph ? wH - 2 : ph;
+                int activity = pHash;
+                for (int dy = 0; dy < sH; dy++) {
+                    int sy = baseY + dy; if (sy <= w.y1 || sy >= w.y2) continue;
+                    float rel = (float)dy / sH;
+                    int bw;
+                    if (rel > 0.85f) bw = 2;
+                    else if (rel > 0.75f) bw = 2;
+                    else if (rel > 0.45f) bw = 3;
+                    else if (rel > 0.35f) bw = 3;
+                    else bw = 2;
+                    for (int dx = -(bw / 2); dx <= bw / 2; dx++) {
+                        int sx = sCX + dx; if (sx <= w.x1 || sx >= w.x2) continue;
+                        addP(sx, sy, sR, sG, sB);
+                    }
+                }
+                int armY = baseY + (int)(sH * 0.6f);
+                if (activity == 0) {
+                    for (int ay = armY; ay < armY + 3 && ay < w.y2; ay++)
+                        if (sCX + 2 < w.x2) addP(sCX + 2, ay, sR * 0.7f, sG * 0.7f, sB * 0.7f);
+                    if (sCX + 2 < w.x2 && armY + 3 < w.y2) addP(sCX + 2, armY + 3, sR * 0.6f, sG * 0.6f, sB * 0.6f);
+                } else {
+                    int phoneY = baseY + (int)(sH * 0.8f);
+                    if (sCX + 2 < w.x2 && phoneY < w.y2) addP(sCX + 2, phoneY, sR * 0.8f, sG * 0.8f, sB * 0.8f);
+                    if (sCX + 2 < w.x2 && phoneY - 1 > w.y1) addP(sCX + 2, phoneY - 1, sR * 0.6f, sG * 0.6f, sB * 0.6f);
+                }
+            } else if (p.sitting) {
+                int baseY = w.y1 + 1;
+                int sH = (ph - 2 < wH - 2) ? ph - 2 : wH - 2;
+                for (int dy = 0; dy < sH; dy++) {
+                    int sy = baseY + dy; if (sy <= w.y1 || sy >= w.y2) continue;
+                    float rel = (float)dy / sH;
+                    int bw = rel > 0.8f ? 2 : 3;
+                    for (int dx = -(bw / 2); dx <= bw / 2; dx++) {
+                        int sx = sCX + dx; if (sx <= w.x1 || sx >= w.x2) continue;
+                        addP(sx, sy, sR, sG, sB);
+                    }
+                }
+                int armY = baseY + (int)(sH * 0.5f);
+                int armAnim = (int)roundf(sinf(shT * 1.5f) * 0.5f);
+                if (armY > w.y1 && armY < w.y2) {
+                    for (int ax = 1; ax <= 3; ax++) {
+                        if (sCX - ax > w.x1) addP(sCX - ax, armY + armAnim, sR * 0.6f, sG * 0.6f, sB * 0.6f);
+                        if (sCX + ax < w.x2) addP(sCX + ax, armY - armAnim, sR * 0.6f, sG * 0.6f, sB * 0.6f);
+                    }
+                }
+            } else {
+                // Walking - realistic body with natural stride
+                int baseY = w.y1 + 1;
+                int sH = (ph + 1 < wH - 1) ? ph + 1 : wH - 1;
+                for (int dy = 0; dy < sH; dy++) {
+                    int sy = baseY + dy; if (sy <= w.y1 || sy >= w.y2) continue;
+                    float rel = (float)dy / sH;
+                    int bw;
+                    if (rel > 0.88f) bw = 2;
+                    else if (rel > 0.82f) bw = 2;
+                    else if (rel > 0.5f) bw = 3;
+                    else if (rel > 0.38f) bw = 3;
+                    else if (rel > 0.15f) bw = 2;
+                    else bw = 2;
+                    for (int dx = -(bw / 2); dx <= bw / 2; dx++) {
+                        int sx = sCX + dx; if (sx <= w.x1 || sx >= w.x2) continue;
+                        addP(sx, sy, sR, sG, sB);
+                    }
+                }
+                if (p.walking) {
+                    float swing = sinf(p.animFrame * 3);
+                    int armY1 = baseY + (int)(sH * 0.55f) + (int)roundf(swing * 1.5f);
+                    int armY2 = baseY + (int)(sH * 0.55f) - (int)roundf(swing * 1.5f);
+                    if (sCX - 2 > w.x1 && armY1 > w.y1 && armY1 < w.y2) addP(sCX - 2, armY1, sR * 0.6f, sG * 0.6f, sB * 0.6f);
+                    if (sCX + 2 < w.x2 && armY2 > w.y1 && armY2 < w.y2) addP(sCX + 2, armY2, sR * 0.6f, sG * 0.6f, sB * 0.6f);
+                    int legOff = (int)roundf(swing * 1.3f);
+                    int legY = baseY + 1;
+                    if (legY > w.y1 && legY < w.y2) {
+                        if (sCX + legOff > w.x1 && sCX + legOff < w.x2) addP(sCX + legOff, legY, sR * 0.5f, sG * 0.5f, sB * 0.5f);
+                        if (sCX - legOff > w.x1 && sCX - legOff < w.x2) addP(sCX - legOff, legY + 1, sR * 0.4f, sG * 0.4f, sB * 0.4f);
+                    }
+                }
+            }
+        }
+    }
+
+    // Waving person - head pokes out above window, arm waves
+    for (int pi = 0; pi < SH_PEOPLE_COUNT; pi++) {
+        const ShPerson& p = g_shPeople[pi];
+        if (!p.waving) continue;
+        int px = (int)roundf(p.x), py = (int)roundf(p.y);
+        int personFloor = py > floor1 ? 1 : 0;
+        const ShWindow* bestW = nullptr;
+        float bestDist = 999;
+        for (int wi = 0; wi < winCount; wi++) {
+            const ShWindow& w = windows[wi];
+            int winFloor = w.y1 > floor1 ? 1 : 0;
+            if (winFloor != personFloor) continue;
+            float d = fabsf(px - (w.x1 + w.x2) / 2.0f);
+            if (d < bestDist) { bestDist = d; bestW = &w; }
+        }
+        if (!bestW || bestDist > 30) continue;
+        int wcx = (bestW->x1 + bestW->x2) / 2;
+        int wTop = bestW->y2;
+        float phase = p.waveT;
+        if (phase > 0.5f && phase < 3.5f) {
+            setP(wcx, wTop + 2, 0.2f, 0.15f, 0.1f); setP(wcx + 1, wTop + 2, 0.2f, 0.15f, 0.1f);
+            setP(wcx, wTop + 3, 0.15f, 0.1f, 0.08f); setP(wcx + 1, wTop + 3, 0.15f, 0.1f, 0.08f);
+            setP(wcx - 1, wTop + 1, 0.18f, 0.13f, 0.09f); setP(wcx + 2, wTop + 1, 0.18f, 0.13f, 0.09f);
+            int armUp = (int)roundf(sinf(p.waveT * 6) * 1.5f);
+            setP(wcx + 3, wTop + 2 + armUp, 0.2f, 0.15f, 0.1f);
+            setP(wcx + 3, wTop + 3 + armUp, 0.18f, 0.13f, 0.09f);
+            hLine(bestW->x1 + 1, bestW->x2 - 1, wTop, 0.85f, 0.88f, 0.92f);
+        } else if (phase <= 0.5f) {
+            float openAmt = phase / 0.5f;
+            if (openAmt > 0.5f) hLine(bestW->x1 + 1, bestW->x2 - 1, wTop, 0.8f, 0.82f, 0.85f);
+        } else {
+            float closeAmt = (phase - 3.5f) / 0.5f;
+            if (closeAmt < 0.5f) hLine(bestW->x1 + 1, bestW->x2 - 1, wTop, 0.8f, 0.82f, 0.85f);
+        }
+    }
+
+    // Ground shadow + path
+    for (int x = 0; x < W; x++) setP(x, ground - 1, 0.7f, 0.7f, 0.68f);
+    for (int x = doorX - 1; x <= doorX + doorW + 1; x++) setP(x, ground - 1, 0.6f, 0.58f, 0.52f);
+}
+
+// Dispatcher entry point - builds the shared wide canvas once per frame
+// (on face 0's call) and blits the appropriate segment for every face,
+// same panorama-order/mirroring/roof-tile/floor-tile treatment as
+// effectSimHouseShadows's non-panel2D OUTPUT branch.
+inline void standaloneRenderSimHouse(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    const int S = PANEL_SIZE, W = 4 * S;
+    if (!g_shInit) initSimHouse();
+    if (!g_shBuf) { snClear(face); return; }
+
+    static float lastT = -1;
+    if (face == 0) {
+        float dt = lastT < 0 ? 0 : (t - lastT);
+        lastT = t;
+        g_shT += dt;
+        shUpdatePeople(dt, S, W);
+        standaloneSimHouseShadowsBuild(g_shT);
+    }
+
+    if (face == 4) {
+        // Top face: tiled roof pattern
+        for (int y = 0; y < S; y++) {
+            for (int x = 0; x < S; x++) {
+                float r = 0.38f, g = 0.36f, b = 0.34f;
+                const int tileH = 6, tileW = 8;
+                int row = y / tileH;
+                int offset = (row % 2) * (tileW / 2);
+                int localV = y % tileH, localU = (x + offset) % tileW;
+                float tileHash = (float)((row * 13 + ((x + offset) / tileW) * 7) % 17) / 17.0f;
+                r += tileHash * 0.06f - 0.03f; g += tileHash * 0.05f - 0.025f; b += tileHash * 0.04f - 0.02f;
+                if (localV == 0) { r -= 0.08f; g -= 0.08f; b -= 0.07f; }
+                if (localU == 0) { r -= 0.06f; g -= 0.06f; b -= 0.05f; }
+                float ridgeFade = 1.0f - fabsf(y - S / 2.0f) / (S * 0.6f);
+                r += ridgeFade * 0.04f; g += ridgeFade * 0.04f; b += ridgeFade * 0.03f;
+                snSet(face, x, y, r, g, b);
+            }
+        }
+        return;
+    }
+    if (face == 5) {
+        for (int y = 0; y < S; y++) for (int x = 0; x < S; x++) snSet(face, x, y, 0.7f, 0.7f, 0.68f);
+        return;
+    }
+
+    static const int VID_FACE_ORDER[4] = {0, 3, 1, 2};
+    int fIdx = -1;
+    for (int i = 0; i < 4; i++) if (VID_FACE_ORDER[i] == face) { fIdx = i; break; }
+    if (fIdx < 0) { snClear(face); return; }
+    for (int v = 0; v < S; v++) {
+        for (int u = 0; u < S; u++) {
+            int pu = S - 1 - u;
+            int sx = fIdx * S + pu;
+            int i = (v * W + sx) * 3;
+            snSet(face, u, v, g_shBuf[i] / 255.0f, g_shBuf[i + 1] / 255.0f, g_shBuf[i + 2] / 255.0f);
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Dispatcher — called once per display-task tick when in standalone mode.
 // ---------------------------------------------------------------------------
@@ -3457,6 +4017,7 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_JOKE:          standaloneRenderJoke(display, face, t);          break;
             case SA_TRIVIA:        standaloneRenderTrivia(display, face, t);        break;
             case SA_OTD:           standaloneRenderOnThisDay(display, face, t);     break;
+            case SA_SIMHOUSE:      standaloneRenderSimHouse(display, face, t);      break;
             default:
                 saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;
