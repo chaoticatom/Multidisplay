@@ -514,7 +514,23 @@ static bool allocBuffers() {
 // ---------------------------------------------------------------------------
 // setup()
 // ---------------------------------------------------------------------------
+// Set to 1 to skip EVERYTHING else (WiFi, display, FS, all of it) and just
+// prove Serial itself works on this exact board/build - repeats forever, no
+// dependency on any other subsystem at all. If this doesn't show up either,
+// it's not this firmware's logic causing silence - it'd be the serial
+// connection itself (port/cable/driver) or something board-level.
+#define MINIMAL_SERIAL_TEST 1
+
 void setup() {
+#if MINIMAL_SERIAL_TEST
+    Serial.begin(115200);
+    delay(2000);   // give native USB-CDC time to reconnect after reset
+    int i = 0;
+    for (;;) {
+        Serial.printf("[MINIMAL_TEST] alive, count=%d, millis=%lu\n", i++, millis());
+        delay(1000);
+    }
+#endif
     // Disables the idle-task watchdog on Core 0. The ESP32's internal
     // WiFi/radio driver task always runs on Core 0 regardless of which of our
     // own tasks are pinned there - under a weak WiFi signal (this board is at
