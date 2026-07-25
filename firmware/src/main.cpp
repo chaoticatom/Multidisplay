@@ -36,7 +36,7 @@
 // display initializes with the current FourScan64Panel/pin config from
 // led_matrix.h/config.h, then setup() continues into WiFi provisioning,
 // the HTTP/WebSocket servers, and the real displayTask/effects pipeline.
-#define RUN_DIAGNOSTIC_TEST 0
+#define RUN_DIAGNOSTIC_TEST 1
 
 // ---------------------------------------------------------------------------
 // Shared globals (declared extern in web_server.h)
@@ -352,6 +352,35 @@ static void drawClockOverlay(MatrixPanel_I2S_DMA* display) {
 // straight to the display object, which is a FourScan64Panel (see
 // USE_VIRTUAL_MATRIX_PANEL in config.h/led_matrix.h) applying the four-scan
 // remap itself via its drawPixel override - no separate wrapper needed.
+// Simplest possible test: the library's own fillScreen() (no per-pixel
+// loops, no drawPixel, no wrapper/remap classes involved at all - whatever
+// TEST_NATIVE_64/led_matrix.h constructed handles the whole thing
+// internally) cycling a few solid colors across the full physical panel.
+// If banding still shows up here, it survives even this - the absolute
+// minimum possible exercise of the display object - which rules out
+// anything in our own drawing code and confirms it's the
+// library+config+wiring combination itself.
+static void runFullScreenFillTest(MatrixPanel_I2S_DMA* display) {
+    Serial.printf("[TEST] Full-screen fill test. display->width()=%d height()=%d\n",
+                  display->width(), display->height());
+    const uint16_t colors[] = {
+        display->color565(255, 255, 255),   // white
+        display->color565(255, 0, 0),       // red
+        display->color565(0, 255, 0),       // green
+        display->color565(0, 0, 255),       // blue
+        display->color565(0, 0, 0),         // black
+    };
+    const int numColors = sizeof(colors) / sizeof(colors[0]);
+    for (;;) {
+        for (int i = 0; i < numColors; i++) {
+            display->fillScreen(colors[i]);
+            display->flipDMABuffer();
+            Serial.printf("[TEST] Filled with color index %d\n", i);
+            delay(3000);
+        }
+    }
+}
+
 static void runCloudSwirlTest(MatrixPanel_I2S_DMA* display) {
     Serial.println("[TEST] Running vertical/horizontal line sweep (does not return).");
     const uint16_t lineColor = display->color565(0, 255, 0);
@@ -575,32 +604,12 @@ void setup() {
         Serial.println("[LED] display initialized");
 
 #if RUN_DIAGNOSTIC_TEST
-        // Quick, bounded-time WiFi attempt for the clock overlay - NOT
-        // connectWifi()/WiFiManager, which can block indefinitely waiting
-        // for someone to configure WiFi through its captive portal if none
-        // is saved. That would mean the diagnostic display never even
-        // starts. Explicit credentials passed directly (STANDALONE_WIFI_SSID
-        // /_PASS in config.h) rather than relying on WiFiManager's saved
-        // creds, which may not exist on this board yet; either way this
-        // gives up after 15s and moves on regardless.
-        Serial.println("[LED] Trying WiFi for the clock overlay (15s max, non-blocking to the display test)...");
-        WiFi.mode(WIFI_STA);
-        WiFi.begin(STANDALONE_WIFI_SSID, STANDALONE_WIFI_PASS);
-        unsigned long wifiWaitStart = millis();
-        while (WiFi.status() != WL_CONNECTED && millis() - wifiWaitStart < 15000) {
-            delay(200);
-        }
-        if (WiFi.status() == WL_CONNECTED) {
-            standaloneNtpInit();
-            Serial.println("[LED] WiFi connected, NTP sync requested for clock overlay.");
-        } else {
-            Serial.println("[LED] No WiFi within 10s - starting display test anyway, clock will show 00:00:00 until/unless it syncs.");
-        }
-
-        // Cloud-swirl RGB diagnostic — never returns. Swap back to
-        // drawWorkingText(dma_display) or drawBringupTestPattern(dma_display)
-        // once the split/duplicate-image wiring issue is resolved.
-        runCloudSwirlTest(dma_display);
+        // Simplest possible test - no WiFi, no per-pixel loops, just the
+        // library's own fillScreen() cycling solid colors. Never returns.
+        // Swap back to drawWorkingText(dma_display),
+        // drawBringupTestPattern(dma_display), or runCloudSwirlTest
+        // (line-sweep) once this is resolved.
+        runFullScreenFillTest(dma_display);
 #endif
     }
 #endif
