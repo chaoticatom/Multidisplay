@@ -525,7 +525,10 @@ inline bool standaloneWxFetch() {
 
     WiFiClientSecure client;
     client.setInsecure();   // no cert pinning — same trust model as browser JS fetch() has via the OS cert store, simplified for embedded use
+    client.setTimeout(5);   // seconds - without PSRAM, a heap-starved TLS handshake can otherwise block far longer than any HTTPClient-level timeout catches
     HTTPClient http;
+    http.setConnectTimeout(5000);
+    http.setTimeout(5000);
 
     char url[256];
     snprintf(url, sizeof(url),
@@ -616,6 +619,8 @@ inline bool standaloneApodFetch() {
     WiFiClientSecure client;
     client.setInsecure();
     HTTPClient http;
+    http.setConnectTimeout(5000);
+    http.setTimeout(5000);
     bool ok = false;
 
     if (http.begin(client, "https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY")) {
@@ -629,8 +634,11 @@ inline bool standaloneApodFetch() {
                 const char* imgUrl = doc["url"] | "";
                 if (strcmp(mediaType, "image") == 0 && imgUrl[0]) {
                     HTTPClient http2;
+                    http2.setConnectTimeout(5000);
+                    http2.setTimeout(5000);
                     WiFiClientSecure client2;
                     client2.setInsecure();
+                    client2.setTimeout(5);
                     if (http2.begin(client2, imgUrl)) {
                         int code2 = http2.GET();
                         int len = http2.getSize();
@@ -3089,6 +3097,8 @@ inline bool standaloneJokeFetch() {
     WiFiClientSecure client;
     client.setInsecure();
     HTTPClient http;
+    http.setConnectTimeout(5000);
+    http.setTimeout(5000);
     bool ok = false;
     if (http.begin(client, "https://icanhazdadjoke.com/")) {
         http.addHeader("Accept", "application/json");
@@ -3194,6 +3204,8 @@ inline bool standaloneTriviaFetch() {
     WiFiClientSecure client;
     client.setInsecure();
     HTTPClient http;
+    http.setConnectTimeout(5000);
+    http.setTimeout(5000);
     bool ok = false;
     if (http.begin(client, "https://opentdb.com/api.php?amount=1&type=multiple")) {
         int code = http.GET();
@@ -3316,6 +3328,8 @@ inline bool standaloneOtdFetch() {
     WiFiClientSecure client;
     client.setInsecure();
     HTTPClient http;
+    http.setConnectTimeout(5000);
+    http.setTimeout(5000);
     bool ok = false;
     if (http.begin(client, url)) {
         http.addHeader("Accept", "application/json");
@@ -4543,6 +4557,8 @@ inline bool standaloneNeoFetch() {
     WiFiClientSecure client;
     client.setInsecure();
     HTTPClient http;
+    http.setConnectTimeout(5000);
+    http.setTimeout(5000);
     bool ok = false;
     if (http.begin(client, url)) {
         int code = http.GET();
@@ -4852,8 +4868,11 @@ inline bool galleryTJpgCallback(int16_t x, int16_t y, uint16_t w, uint16_t h, ui
 inline bool standaloneGalleryDownloadJpeg(const char* url, uint8_t* destPixels) {
     if (!destPixels || !psramFound()) return false;
     HTTPClient http2;
+    http2.setConnectTimeout(5000);
+    http2.setTimeout(5000);
     WiFiClientSecure client2;
     client2.setInsecure();
+    client2.setTimeout(5);
     bool ok = false;
     if (http2.begin(client2, url)) {
         int code2 = http2.GET();
@@ -4918,6 +4937,8 @@ inline bool standaloneArticFetch() {
     WiFiClientSecure client;
     client.setInsecure();
     HTTPClient http;
+    http.setConnectTimeout(5000);
+    http.setTimeout(5000);
     bool ok = false;
     // Fixed query ("painting") - no browser-side query sync wired up yet
     // (the browser lets you type a search term; this firmware always
@@ -4943,8 +4964,11 @@ inline bool standaloneArticFetch() {
                         char objUrl[128];
                         snprintf(objUrl, sizeof(objUrl), "https://collectionapi.metmuseum.org/public/collection/v1/objects/%d", idxPool[i]);
                         HTTPClient http2;
+                        http2.setConnectTimeout(5000);
+                        http2.setTimeout(5000);
                         WiFiClientSecure client2;
                         client2.setInsecure();
+                        client2.setTimeout(5);
                         if (http2.begin(client2, objUrl)) {
                             int code2 = http2.GET();
                             if (code2 == 200) {
@@ -5088,6 +5112,8 @@ inline bool standaloneUnsplashFetch() {
     WiFiClientSecure client;
     client.setInsecure();
     HTTPClient http;
+    http.setConnectTimeout(5000);
+    http.setTimeout(5000);
     bool ok = false;
     if (http.begin(client, url)) {
         int code = http.GET();

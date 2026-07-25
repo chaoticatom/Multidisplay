@@ -697,13 +697,17 @@ void setup() {
 
     Serial.printf("[HTTP] serving on :%d   [WS] on :%d\n", HTTP_PORT, WS_PORT);
 
-    // Standalone mode: load persisted last-effect + schedule, sync NTP time,
-    // and fetch weather once now so it's not blank for the first 15 minutes
-    // after boot. All three need WiFi, so this runs after connectWifi()
-    // succeeds - now after the web/WS servers are already listening.
+    // Standalone mode: load persisted last-effect + schedule, sync NTP time.
+    // Weather is NOT fetched here anymore - standaloneWxFetch() has no
+    // psramFound() guard and no connect/read timeout, and without PSRAM the
+    // TLS handshake can hang inside mbedTLS for a long time instead of
+    // failing fast. That hung setup() forever (loop() - and therefore WiFi
+    // reconnect handling - never ran even once), which is why WiFi looked
+    // "connected" briefly then died for good the moment it hiccuped. The
+    // existing periodic fetch in loop() (every STANDALONE_WX_INTERVAL_MIN)
+    // already covers the first-fetch case within a few seconds of boot.
     standaloneLoad();
     standaloneNtpInit();
-    standaloneWxFetch();
     standaloneLoadUnsplashSettings();
 }
 
