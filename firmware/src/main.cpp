@@ -60,10 +60,7 @@ bool              g_fsMountOk          = false;
 // True once httpServer.begin()/wsServer.begin() have both run in setup() -
 // i.e. the HTTP/WebSocket servers are actually up and a browser could
 // connect. Drawn as a second boot-time status dot next to the WiFi one
-// (standaloneRender() in standalone.h) specifically so a hang earlier in
-// setup() (WiFi connects fine, but something after it blocks before the
-// servers start) is visible on the panel itself, not just inferred from a
-// green WiFi dot that doesn't actually mean the site is reachable.
+// (standaloneRender() in standalone.h).
 bool              g_httpServerOk       = false;
 bool              g_psramOk            = false;
 String            g_psramTestResult    = "not run";
@@ -663,14 +660,12 @@ void setup() {
 
     // WiFi provisioning.
     g_appState = AppState::AP_MODE;   // portal may open during connectWifi()
-    Serial.println("[CKPT] before connectWifi()"); Serial.flush();
     if (!connectWifi()) {
         Serial.println("[WiFi] no connection - restarting");
         delay(2000);
         ESP.restart();
     }
     g_appState = AppState::RUNNING;
-    Serial.println("[CKPT] after connectWifi()"); Serial.flush();
 
     // mDNS.
     if (MDNS.begin(MDNS_NAME)) {
@@ -678,7 +673,6 @@ void setup() {
         MDNS.addService("ws",   "tcp", WS_PORT);
         Serial.printf("[mDNS] http://%s.local\n", MDNS_NAME);
     }
-    Serial.println("[CKPT] after mDNS"); Serial.flush();
 
     // OTA status-LED hooks via WebSocket clients are handled elsewhere; here we
     // just register the OTA-aware servers.
@@ -692,7 +686,6 @@ void setup() {
         camCfg.enabled = false;
         camInit(camCfg);
     }
-    Serial.println("[CKPT] after camInit()"); Serial.flush();
 
     // Web + WebSocket servers - started right after WiFi/mDNS, BEFORE the
     // blocking standalone-mode network calls below. standaloneWxFetch() is a
@@ -701,51 +694,33 @@ void setup() {
     // the browser/app got "connection refused" for that entire window even
     // though ping/mDNS already worked (neither depends on these servers).
     initWebServer(httpServer, ws, f1State);
-    Serial.println("[CKPT] after initWebServer()"); Serial.flush();
     httpServer.begin();
-    Serial.println("[CKPT] after httpServer.begin()"); Serial.flush();
 
     // The WebSocket lives on its own port (81). Reuse the same handler.
     wsServer.addHandler(&ws);
     wsServer.begin();
     g_httpServerOk = true;
-    Serial.println("[CKPT] after wsServer.begin()"); Serial.flush();
 
     Serial.printf("[HTTP] serving on :%d   [WS] on :%d\n", HTTP_PORT, WS_PORT);
-    Serial.flush();
 
     // Standalone mode: load persisted last-effect + schedule, sync NTP time.
-    // Weather is NOT fetched here anymore - standaloneWxFetch() has no
-    // psramFound() guard and no connect/read timeout, and without PSRAM the
-    // TLS handshake can hang inside mbedTLS for a long time instead of
-    // failing fast. That hung setup() forever (loop() - and therefore WiFi
-    // reconnect handling - never ran even once), which is why WiFi looked
-    // "connected" briefly then died for good the moment it hiccuped. The
-    // existing periodic fetch in loop() (every STANDALONE_WX_INTERVAL_MIN)
-    // already covers the first-fetch case within a few seconds of boot.
+    // Weather is NOT fetched here - standaloneWxFetch() has no connect/read
+    // timeout, and without PSRAM the TLS handshake can hang inside mbedTLS
+    // for a long time instead of failing fast. Calling it here blocked
+    // setup() from ever returning (loop() - and therefore WiFi-reconnect
+    // handling - never ran even once), which is why WiFi looked "connected"
+    // briefly after boot then died for good the moment it hiccuped. The
+    // periodic fetch in loop() (every STANDALONE_WX_INTERVAL_MIN) already
+    // covers the first-fetch case within a few seconds of boot, and now has
+    // its own timeout too.
     standaloneLoad();
-    Serial.println("[CKPT] after standaloneLoad()"); Serial.flush();
     standaloneNtpInit();
-    Serial.println("[CKPT] after standaloneNtpInit()"); Serial.flush();
-    Serial.println("[CKPT] setup() complete, entering loop()"); Serial.flush();
 }
 
 // ---------------------------------------------------------------------------
 // loop()
 // ---------------------------------------------------------------------------
 void loop() {
-    // Temporary diagnostic heartbeat: prints even if WiFi/network has died,
-    // to distinguish "whole chip locked up" (heartbeat also stops) from
-    // "only networking died" (heartbeat keeps going). Remove once the
-    // ~30s-after-boot unreachability bug is found.
-    static uint32_t lastHeartbeat = 0;
-    if (millis() - lastHeartbeat > 2000) {
-        lastHeartbeat = millis();
-        Serial.printf("[HB] t=%lu heap=%u wifi=%d rssi=%d state=%d\n",
-                      (unsigned long)millis(), (unsigned)ESP.getFreeHeap(),
-                      (int)WiFi.status(), (int)WiFi.RSSI(), (int)g_appState);
-    }
-
     // Reconnect handling: if WiFi drops, fall back to connecting state and try
     // to recover; AsyncWebServer + tasks keep running.
     static uint32_t lastCheck = 0;
@@ -786,51 +761,6 @@ void loop() {
                       : (millis() - lastApodFetch > 6UL * 3600000UL))) {
         lastApodFetch = millis();
         standaloneApodFetch();
-    }
-
-    // Jokes/Trivia/On This Day: same "fetch when the effect is active and
-    // nothing's cached, retry every 15s on failure" pattern as APOD/weather.
-    // standaloneRenderJoke/Trivia clear their own cached text once a fully-
-    // revealed cascade has held long enough, which re-triggers the fetch
-    // here on the next loop() tick - matching the browser's "cascade done +
-    // held -> fetch a new one" behavior, just with the actual network call
-    // kept off the DMA task.
-    static uint32_t lastJokeFetch = 0;
-    if (g_standaloneEffect == SA_JOKE && g_jokeText.length() == 0 && !g_jokeFetching &&
-        millis() - lastJokeFetch > 15000) {
-        lastJokeFetch = millis();
-        standaloneJokeFetch();
-    }
-    static uint32_t lastTriviaFetch = 0;
-    if (g_standaloneEffect == SA_TRIVIA && g_triviaText.length() == 0 && !g_triviaFetching &&
-        millis() - lastTriviaFetch > 15000) {
-        lastTriviaFetch = millis();
-        standaloneTriviaFetch();
-    }
-    // On This Day refetches once per calendar day (compares cached "MM-DD"
-    // against today's), same condition as effects.js's effectOnThisDay.
-    static uint32_t lastOtdFetch = 0;
-    if (g_standaloneEffect == SA_OTD && !g_otdFetching && millis() - lastOtdFetch > 15000) {
-        time_t now = time(nullptr);
-        struct tm tmNow;
-        gmtime_r(&now, &tmNow);
-        char mmdd[6];
-        snprintf(mmdd, sizeof(mmdd), "%02d-%02d", tmNow.tm_mon + 1, tmNow.tm_mday);
-        if (g_otdEventCount == 0 || g_otdFetchedFor != mmdd) {
-            lastOtdFetch = millis();
-            standaloneOtdFetch();
-        }
-    }
-
-    // NEO: fetch once when the effect is active and nothing's cached, then
-    // refresh hourly (real close-approach data, no need to poll more often
-    // than that) - same interval effects.js's effectNEO uses.
-    static uint32_t lastNeoFetch = 0;
-    if (g_standaloneEffect == SA_NEO &&
-        (!g_neoObjectCount ? (millis() - lastNeoFetch > 15000)
-                           : (millis() - lastNeoFetch > 3600000UL))) {
-        lastNeoFetch = millis();
-        standaloneNeoFetch();
     }
 
     delay(20);
