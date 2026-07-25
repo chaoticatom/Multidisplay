@@ -753,48 +753,86 @@ inline void standaloneRenderClock(MatrixPanel_I2S_DMA* display, int face) {
 inline char g_wxLine1Buf[8] = "";
 inline const char* g_wxLine2Buf = "";
 
-inline void standaloneRenderWeather(MatrixPanel_I2S_DMA* display, int face) {
+// Weather condition flags, matching effectWeather's wxCode ranges.
+inline bool standaloneWxIsRain(int code)  { return (code >= 51 && code <= 65) || (code >= 80 && code <= 82) || code >= 95; }
+inline bool standaloneWxIsSnow(int code)  { return (code >= 71 && code <= 77) || code == 85 || code == 86; }
+inline bool standaloneWxIsFog(int code)   { return code >= 45 && code <= 48; }
+inline bool standaloneWxIsStorm(int code) { return code >= 95; }
+
+inline void standaloneRenderWeather(MatrixPanel_I2S_DMA* display, int face, float t) {
     (void)display;
     const int S = PANEL_SIZE;
 
     struct tm tmv;
     long secOfDay;
     standaloneLocalTm(tmv, &secOfDay);
+    float dayFrac = secOfDay / 86400.0f;
 
     bool isDay = g_wxValid
         ? (secOfDay >= (long)g_wxSunriseSec && secOfDay < (long)g_wxSunsetSec)
         : (tmv.tm_hour >= 6 && tmv.tm_hour < 18);
 
-    // Sky: simple vertical gradient, day (blue) or night (dark navy). Drawn
-    // via snSet (not drawFastHLine, which - like fillRect/fillCircle - has an
-    // internal fast path that bypasses the virtual drawPixel the four-scan
-    // remap depends on).
-    uint8_t topR = isDay ? 70  : 5,  topG = isDay ? 140 : 8,  topB = isDay ? 235 : 30;
-    uint8_t botR = isDay ? 160 : 20, botG = isDay ? 210 : 20, botB = isDay ? 250 : 55;
+    // Twilight blend (matches effectWeather's lightLvl): fades over 1h either
+    // side of sunrise/sunset instead of a hard day/night cut.
+    float lightLvl = isDay ? 1.0f : 0.0f;
+    if (g_wxValid) {
+        const float twilS = 3600.0f;
+        float toSr = (float)g_wxSunriseSec - secOfDay, fromSs = secOfDay - (float)g_wxSunsetSec;
+        if (!isDay && toSr > 0 && toSr < twilS) lightLvl = 1.0f - toSr / twilS;
+        if (!isDay && fromSs > 0 && fromSs < twilS) lightLvl = 1.0f - fromSs / twilS;
+    }
+
+    // Sky: vertical gradient, blended smoothly across the twilight fade
+    // rather than a hard day/night cut. Drawn via snSet (not drawFastHLine,
+    // which - like fillRect/fillCircle - bypasses the virtual drawPixel the
+    // four-scan remap depends on).
+    float topR = saLerp(5, 70, lightLvl) / 255.0f, topG = saLerp(8, 140, lightLvl) / 255.0f, topB = saLerp(30, 235, lightLvl) / 255.0f;
+    float botR = saLerp(20, 160, lightLvl) / 255.0f, botG = saLerp(20, 210, lightLvl) / 255.0f, botB = saLerp(55, 250, lightLvl) / 255.0f;
     for (int y = 0; y < S; y++) {
         float f = (float)y / (S - 1);
-        float r = (topR + (botR - topR) * f) / 255.0f;
-        float g = (topG + (botG - topG) * f) / 255.0f;
-        float b = (topB + (botB - topB) * f) / 255.0f;
+        float r = saLerp(topR, botR, f), g = saLerp(topG, botG, f), b = saLerp(topB, botB, f);
         for (int x = 0; x < S; x++) snSet(face, x, y, r, g, b);
     }
 
-    // Sun/moon disc position: left-to-right across the sky based on
-    // fraction of daylight (or night) elapsed.
-    float frac;
-    if (isDay && g_wxSunsetSec > g_wxSunriseSec) {
-        frac = (float)(secOfDay - (long)g_wxSunriseSec) / (float)((long)g_wxSunsetSec - (long)g_wxSunriseSec);
-    } else {
-        frac = (float)tmv.tm_hour / 24.0f;
-    }
-    frac = constrain(frac, 0.0f, 1.0f);
-    int cx = 8 + (int)(frac * (S - 16));
-    int cy = 12;
+    // Sun/moon arc: elevation follows sin(progress*PI) like the browser
+    // (rises from the horizon, peaks at midday/midnight, sets), not a flat
+    // left-to-right line.
+    float dayLen = g_wxValid ? (float)(g_wxSunsetSec - g_wxSunriseSec) : 43200.0f;
+    if (dayLen <= 0) dayLen = 43200.0f;
+    float dayProg = isDay ? (secOfDay - (float)g_wxSunriseSec) / dayLen : 0;
+    float nightLen = 86400.0f - dayLen; if (nightLen <= 0) nightLen = 43200.0f;
+    float fromSunset = secOfDay > (float)g_wxSunsetSec ? secOfDay - (float)g_wxSunsetSec : secOfDay + (86400.0f - (float)g_wxSunsetSec);
+    float nightProg = !isDay ? fromSunset / nightLen : 0;
+    float prog = isDay ? dayProg : nightProg;
+    float elev = sinf(constrain(prog, 0.0f, 1.0f) * (float)M_PI);
+    int cx = 6 + (int)(constrain(prog, 0.0f, 1.0f) * (S - 12));
+    int cy = (int)(S * 0.42f - elev * S * 0.32f);
     float dr = isDay ? 1.0f : 0.84f, dg = isDay ? 0.86f : 0.84f, db = isDay ? 0.31f : 0.88f;
     const int R = 5;
     for (int y = -R; y <= R; y++)
         for (int x = -R; x <= R; x++)
             if (x * x + y * y <= R * R) snSet(face, cx + x, cy + y, dr, dg, db);
+
+    // Precipitation.
+    int code = g_wxCode;
+    if (standaloneWxIsRain(code)) {
+        for (int i = 0; i < 24; i++) {
+            float px = standaloneHash01(i * 13) * S;
+            float py = fmodf(standaloneHash01(i * 19) * S + t * (S * 1.6f), (float)S);
+            snAdd(face, (int)px, (int)py, 0.15f, 0.15f, 0.35f);
+        }
+    } else if (standaloneWxIsSnow(code)) {
+        for (int i = 0; i < 20; i++) {
+            float px = fmodf(standaloneHash01(i * 13) * S + sinf(t + i) * 3, (float)S);
+            float py = fmodf(standaloneHash01(i * 19) * S + t * (S * 0.4f), (float)S);
+            snAdd(face, (int)px, (int)py, 0.7f, 0.7f, 0.75f);
+        }
+    } else if (standaloneWxIsFog(code)) {
+        for (int y = S / 2; y < S; y++) for (int x = 0; x < S; x++) snAdd(face, x, y, 0.15f, 0.15f, 0.15f);
+    }
+    if (standaloneWxIsStorm(code) && standaloneHash01((int)(t * 3.0f)) > 0.92f) {
+        for (int y = 0; y < S; y++) snAdd(face, S / 2, y, 0.6f, 0.6f, 0.7f);
+    }
 
     if (g_wxValid) snprintf(g_wxLine1Buf, sizeof(g_wxLine1Buf), "%dC", g_wxTemp);
     else           snprintf(g_wxLine1Buf, sizeof(g_wxLine1Buf), "WX --");
@@ -2354,7 +2392,7 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_PULSE:         standaloneRenderPulse(display, face, t);         break;
             case SA_PLASMA:        standaloneRenderPlasma(display, face, t);        break;
             case SA_CLOCK:         standaloneRenderClock(display, face);            break;
-            case SA_WEATHER:       standaloneRenderWeather(display, face);          break;
+            case SA_WEATHER:       standaloneRenderWeather(display, face, t);       break;
             case SA_FIREWORKS:     standaloneRenderFireworks(display, face, t);     break;
             case SA_GRADIENT_WASH: standaloneRenderGradientWash(display, face, t);  break;
             case SA_AURORA:        standaloneRenderAurora(display, face, t);        break;
