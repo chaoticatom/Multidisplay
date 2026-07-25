@@ -612,7 +612,7 @@ void setup() {
     // the panel and the serial log together - note which physical row(s)
     // light for each addr= value printed.
     customHub75Init();
-    customHub75AddressSweepTest(true, true, true);   // never returns
+    customHub75AddressSweepTest(true, true, true, /*brightnessPct=*/15, /*holdSeconds=*/8);   // never returns
 #else
     // HUB75 display.
     dma_display = initDisplay();

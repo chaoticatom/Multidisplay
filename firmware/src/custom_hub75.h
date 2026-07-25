@@ -226,10 +226,17 @@ inline void customHub75ABCShiftDEDirectTest(bool r, bool g, bool b) {
 // hot, non-binary, the extra wire behaving as an independent enable rather
 // than a bit, etc.) the actual lit rows will jump around in a way that
 // reveals what the real mapping is instead.
-inline void customHub75AddressSweepTest(bool r, bool g, bool b) {
+// brightnessPct: 1-100, dims via simple OE (output-enable) duty cycling -
+// blank most of each short cycle instead of holding OE low the whole time.
+// holdSeconds: how long to hold each of the 16 address values before moving
+// to the next one.
+inline void customHub75AddressSweepTest(bool r, bool g, bool b, int brightnessPct = 15, int holdSeconds = 8) {
     Serial.println("[CUSTOM_HUB75] Address sweep test starting (does not return).");
-    Serial.println("[CUSTOM_HUB75] Each of 16 address values held for 4s. Note which physical");
-    Serial.println("[CUSTOM_HUB75] row(s) light for each value logged below.");
+    Serial.printf("[CUSTOM_HUB75] Each of 16 address values held for %ds at %d%% brightness. Note which\n",
+                   holdSeconds, brightnessPct);
+    Serial.println("[CUSTOM_HUB75] physical row(s) light for each value logged below.");
+    const int cycleMs = 20;   // one OE PWM period
+    const int onMs = (cycleMs * brightnessPct) / 100;
     for (;;) {
         for (int addr = 0; addr < 16; addr++) {
             bool a = addr & 0x1, bb = addr & 0x2, c = addr & 0x4, extra = addr & 0x8;
@@ -260,17 +267,17 @@ inline void customHub75AddressSweepTest(bool r, bool g, bool b) {
             digitalWrite(HUB75_B, bb ? HIGH : LOW);
             digitalWrite(HUB75_C, c ? HIGH : LOW);
             digitalWrite(HUB75_EXTRA_ADDR, extra ? HIGH : LOW);
-            digitalWrite(HUB75_OE, LOW);
 
-            // Hold this single address solid for 4 seconds - long enough to
-            // look at the panel and note which row(s) are lit before moving
-            // on, but the row-select decay is fast on passive-matrix HUB75
-            // (no per-row memory), so re-pulse the same row continuously
-            // during the hold instead of just sleeping once.
+            // Hold this single address for holdSeconds, re-pulsing OE the
+            // whole time (row-select decays fast on passive-matrix HUB75,
+            // no per-row memory) - but PWM the OE line at brightnessPct
+            // duty instead of just holding it solid LOW, to dim the output.
             unsigned long holdStart = millis();
-            while (millis() - holdStart < 4000) {
+            while (millis() - holdStart < (unsigned long)holdSeconds * 1000) {
                 digitalWrite(HUB75_OE, LOW);
-                delay(2);
+                if (onMs > 0) delay(onMs);
+                digitalWrite(HUB75_OE, HIGH);
+                if (cycleMs - onMs > 0) delay(cycleMs - onMs);
             }
         }
     }
