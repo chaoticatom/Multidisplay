@@ -3578,6 +3578,10 @@ const CUBE_FACE_ORDER = [4, 0, 2, 1, 3, 5];
 const PKT_VIDEO = 2;
 
 let cubeWs = null, cubeConnected = false, cubeStreamT = 0;
+// Disconnects the browser from the physical cube entirely (see the
+// STANDALONE MODE PREVIEW section below) - declared here since cubeSendCmd/
+// initCubeWs/streamFrameToCube above that section already read it.
+let standaloneModeOn = false;
 const CUBE_FPS = 17;  // Streaming rate for the physical panel. Dropped to 17:
                       // 25 sometimes overran the board (crash/reboot under the
                       // combined WS + display load on the weak-signal link).
@@ -3935,7 +3939,8 @@ initCubeWs();
 // effect/overlay/menu stays fully usable here for local preview - nothing is
 // greyed out, since none of it reaches the cube while disconnected anyway.
 // Unticking reconnects and resumes normal control immediately.
-let standaloneModeOn = false;
+// (standaloneModeOn itself is declared up near cubeWs, since code above this
+// section already reads it.)
 
 function standaloneModeApply(){
   const note = document.getElementById('standalone-mode-note');
