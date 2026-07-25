@@ -69,7 +69,8 @@ enum StandaloneEffect : uint8_t {
     SA_SPHERE        = 31,
     SA_APOD          = 32,
     SA_GHOST         = 33,
-    SA_COUNT         = 34
+    SA_RETRO         = 34,
+    SA_COUNT         = 35
 };
 
 inline const char* standaloneEffectName(uint8_t id) {
@@ -108,6 +109,7 @@ inline const char* standaloneEffectName(uint8_t id) {
         case SA_SPHERE:        return "sphere";
         case SA_APOD:          return "apod";
         case SA_GHOST:         return "ghost";
+        case SA_RETRO:         return "retro";
         default:               return "unknown";
     }
 }
@@ -131,7 +133,7 @@ inline uint8_t standaloneEffectForBrowserKey(const char* key) {
         {"lightspeed", SA_LIGHTSPEED}, {"sand", SA_SAND}, {"fluid", SA_FLUID},
         {"maze", SA_MAZE}, {"moon", SA_MOON}, {"easter_egg", SA_EASTER_EGG},
         {"dice", SA_DICE}, {"coinflip", SA_COINFLIP}, {"tron", SA_TRON}, {"sphere", SA_SPHERE},
-        {"apod", SA_APOD}, {"ghost", SA_GHOST},
+        {"apod", SA_APOD}, {"ghost", SA_GHOST}, {"retro", SA_RETRO},
         // reasonable stand-ins for not-yet-ported visual effects
         {"custom_cube", SA_RAINBOW},
     };
@@ -2213,6 +2215,100 @@ inline void standaloneRenderMoon(MatrixPanel_I2S_DMA* display, int face, float t
 // present -> retreating), same blink/mouth timers. Skips only the 256-canvas
 // skin-pore noise texture (imperceptible at 64px) and the multi-face aura
 // hint (this board has one panel).
+// Retro: Space Invaders - one faithful game from effectRetro's 14-game
+// collection (the browser's "retro" effect rotates through/lets you pick
+// from all 14; porting all of them is a much larger separate undertaking,
+// so this ports the single most iconic one exactly - 5x8 invader grid,
+// squid/crab/octopus row shapes with 2-frame animation, wave speed-up,
+// lives, GAME OVER flash - rather than a generic stand-in).
+inline void standaloneRenderRetro(MatrixPanel_I2S_DMA* display, int face, float t) {
+    (void)display;
+    const int S = PANEL_SIZE;
+    static bool invAlive[5][8];
+    static float invX = 5, invY = 32, invDir = 1;
+    static int wave = 0, lives = 3;
+    static float loserT = 0;
+    static bool init = false;
+    static float lastT = 0;
+    if (!init) {
+        for (int r = 0; r < 5; r++) for (int c = 0; c < 8; c++) invAlive[r][c] = true;
+        init = true;
+    }
+    float dt = t - lastT; lastT = t;
+    if (dt < 0) dt = 0; if (dt > 0.1f) dt = 0.1f;
+
+    snClear(face);
+    // This game's original coordinates are bottom-origin (matching the
+    // browser's faceMap convention, same as rain - confirmed here by
+    // invaders' y DECREASING as they descend toward the player, i.e. toward
+    // y=0=bottom). Our snBuf is top-origin, so every draw call in this
+    // function goes through this flip instead of calling snSet directly.
+    auto sset = [&](int x, int y, float r, float g, float b) { snSet(face, x, S - 1 - y, r, g, b); };
+    const int hudH = 4;
+    static const float ROWCOL[5][3] = {{1,0,0},{0.9f,0,0.9f},{0,0.9f,0},{0,0.9f,0.9f},{1,1,0}};
+
+    if (loserT > 0) {
+        loserT -= dt;
+        int flash = ((int)(loserT * 4)) % 2;
+        if (flash) {
+            for (int y = S/2 - 4; y <= S/2 + 4; y++)
+                sset(S/2, y, 1, 0, 0);   // simple flashing marker instead of full GAME OVER glyph text
+        }
+        if (loserT <= 0) {
+            for (int r = 0; r < 5; r++) for (int c = 0; c < 8; c++) invAlive[r][c] = true;
+            invY = 32; invX = 5; lives = 3; wave = 0;
+        }
+        return;
+    }
+
+    float invSpeed = 8 + wave * 3;
+    invX += invDir * invSpeed * dt;
+    if (invX > S - 42 || invX < 2) { invDir *= -1; invY -= 1.5f; }
+    int lowestAliveRow = 99;
+    for (int r = 0; r < 5; r++) for (int c = 0; c < 8; c++) if (invAlive[r][c] && r < lowestAliveRow) lowestAliveRow = r;
+    if (lowestAliveRow < 99 && invY + lowestAliveRow * 6 <= 17) {
+        lives--;
+        if (lives <= 0) { loserT = 3; }
+        else { for (int r = 0; r < 5; r++) for (int c = 0; c < 8; c++) invAlive[r][c] = true; invY = 32; invX = 5; }
+    }
+
+    int frame = ((int)(t * 3)) % 2;
+    for (int r = 0; r < 5; r++) {
+        for (int c = 0; c < 8; c++) {
+            if (!invAlive[r][c]) continue;
+            int ix = (int)lroundf(invX + c * 5);
+            int iy = (int)lroundf(invY + r * 6);
+            if (ix < 0 || ix >= S || iy < hudH || iy >= S - 12) continue;
+            float rr = ROWCOL[r][0], gg = ROWCOL[r][1], bb = ROWCOL[r][2];
+            if (r == 4) {   // squid
+                sset(ix, iy+3, rr,gg,bb); sset(ix, iy+2, rr,gg,bb); sset(ix, iy+1, rr,gg,bb);
+                sset(ix-1, iy+2, rr,gg,bb); sset(ix+1, iy+2, rr,gg,bb);
+                if (frame) { sset(ix-1, iy, rr,gg,bb); sset(ix+1, iy, rr,gg,bb); }
+                else { sset(ix-2, iy+1, rr,gg,bb); sset(ix+2, iy+1, rr,gg,bb); }
+            } else if (r == 3 || r == 2) {   // crab
+                sset(ix, iy+3, rr,gg,bb); sset(ix-1, iy+3, rr,gg,bb); sset(ix+1, iy+3, rr,gg,bb);
+                sset(ix, iy+2, rr,gg,bb); sset(ix-1, iy+2, rr,gg,bb); sset(ix+1, iy+2, rr,gg,bb);
+                sset(ix-2, iy+2, rr,gg,bb); sset(ix+2, iy+2, rr,gg,bb);
+                sset(ix, iy+1, rr,gg,bb);
+                if (frame) { sset(ix-2, iy+3, rr,gg,bb); sset(ix+2, iy+3, rr,gg,bb); sset(ix-1, iy, rr,gg,bb); sset(ix+1, iy, rr,gg,bb); }
+                else { sset(ix-2, iy+1, rr,gg,bb); sset(ix+2, iy+1, rr,gg,bb); sset(ix-1, iy+4, rr*0.7f,gg*0.7f,bb*0.7f); sset(ix+1, iy+4, rr*0.7f,gg*0.7f,bb*0.7f); }
+            } else {   // octopus
+                sset(ix, iy+3, rr,gg,bb); sset(ix-1, iy+3, rr,gg,bb); sset(ix+1, iy+3, rr,gg,bb);
+                sset(ix, iy+2, rr,gg,bb); sset(ix-1, iy+2, rr,gg,bb); sset(ix+1, iy+2, rr,gg,bb);
+                sset(ix-2, iy+3, rr*0.8f,gg*0.8f,bb*0.8f); sset(ix+2, iy+3, rr*0.8f,gg*0.8f,bb*0.8f);
+                if (frame) { sset(ix-1, iy+1, rr,gg,bb); sset(ix+1, iy+1, rr,gg,bb); sset(ix-2, iy, rr*0.6f,gg*0.6f,bb*0.6f); sset(ix+2, iy, rr*0.6f,gg*0.6f,bb*0.6f); }
+                else { sset(ix-2, iy+1, rr,gg,bb); sset(ix+2, iy+1, rr,gg,bb); sset(ix-1, iy, rr*0.6f,gg*0.6f,bb*0.6f); sset(ix+1, iy, rr*0.6f,gg*0.6f,bb*0.6f); }
+            }
+        }
+    }
+    // Player cannon (green, bottom).
+    int px = S / 2;
+    for (int i = -3; i <= 3; i++) sset(px + i, 3, 0, 0.85f, 0);
+    sset(px, 5, 0, 0.85f, 0);
+    // HUD: lives as small dots top-left.
+    for (int i = 0; i < lives; i++) sset(1 + i * 2, S - 2, 0, 0.85f, 0);
+}
+
 inline void standaloneRenderGhost(MatrixPanel_I2S_DMA* display, int face, float t) {
     (void)display;
     static float lastT = 0;
@@ -2722,6 +2818,7 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
             case SA_SPHERE:        standaloneRenderSphere(display, face, t);        break;
             case SA_APOD:          standaloneRenderApod(display, face, t);          break;
             case SA_GHOST:         standaloneRenderGhost(display, face, t);         break;
+            case SA_RETRO:         standaloneRenderRetro(display, face, t);         break;
             default:
                 saFillRect(display, face * PANEL_SIZE, 0, PANEL_SIZE, PANEL_SIZE, display->color565(0, 0, 0));
                 break;
