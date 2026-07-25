@@ -138,11 +138,20 @@
 #define USE_VIRTUAL_MATRIX_PANEL 0
 
 #if TEST_NATIVE_64
+// CONFIRMED WORKING: the connector's "GND" pin between B and LAT (paired
+// with C, same column - exactly where a 4th address line belongs) was
+// never actually ground. A continuity check found no connection to the
+// panel's true ground plane, so that ribbon conductor was rewired from
+// ground onto GPIO 11 instead - and a full 5-bit address sweep (A,B,C,D,E
+// all real) confirmed every row 0-31 is now reachable with no more 8-row
+// gaps. Both address lines are real on this panel; the "D is NC" belief
+// earlier tonight was wrong - it's mislabeled, not absent. This is the
+// resolution to the whole banding investigation.
 #define SCAN_SPLIT_PANEL      0
 #define SCAN_SPLIT            1   // unused, see comment above
 #define HUB75_MOD_HEIGHT      PANEL_SIZE   // genuine 64, no splitting
-#define HUB75_CHAIN_LEN       1
-#define HUB75_D               -1   // genuinely NC on this panel family
+#define HUB75_CHAIN_LEN       NUM_FACES
+#define HUB75_D               11   // real - rewired off the mislabeled GND pin (see above)
 #define HUB75_E               47   // real address bit at MOD_HEIGHT=64 - see issue #9 above
 #elif TEST_PLAIN_64X32
 #define SCAN_SPLIT_PANEL      0
