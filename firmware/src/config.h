@@ -51,31 +51,23 @@
 #define HUB75_A   36
 #define HUB75_B   35
 #define HUB75_C   45
-// CORRECTED after physical continuity check: GPIO 47 was already landing on
-// the panel's real 4th address wire (silkscreened "E" on the connector,
-// since this is the HUB75E standard - R1,G1,B1,GND,R2,G2,B2,E,A,B,C,NC,CLK,
-// LAT,OE,GND - where pin 8 carries a real signal and pin 12/D is NC on every
-// panel tested). That part of the diagnosis was right.
+// GPIO 47 is confirmed by continuity check to reach the panel's real 4th
+// address wire - silkscreened "E" on the connector, since this is the
+// HUB75E standard (R1,G1,B1,GND,R2,G2,B2,E,A,B,C,NC,CLK,LAT,OE,GND - pin 8
+// carries a real signal, pin 12/D is NC on every one of 3 panels tested).
 //
-// The mistake: reassigning that same GPIO from the library's "D" parameter
-// to its "E" parameter, on the assumption the active code path used a full
-// 5-line/32-combination address (needing both D and E). It doesn't. The
-// currently active branch (USE_VIRTUAL_MATRIX_PANEL, see led_matrix.h) sets
-// HUB75_MOD_HEIGHT to PANEL_SIZE/2 = 32 - a 32-tall base module only needs a
-// 4-bit/16-combination address, i.e. only A,B,C,D are ever read; the E
-// parameter is never toggled at this module height regardless of what pin
-// it's set to. So moving GPIO 47 onto "E" didn't fix the missing signal, it
-// just moved the one working address wire onto a parameter the active
-// config ignores, leaving the real "D" input in the address the library
-// actually reads/undriven again - same failure, still banded.
-//
-// Back to the physically-correct assignment: GPIO 47 stays library-side
-// "D" (whatever the panel's own silkscreen calls it doesn't matter here -
-// only the library's positional A/B/C/D/E naming does, and this module
-// height only reads D). HUB75_E is genuinely unused at MOD_HEIGHT=32, -1 is
-// correct regardless of physical wiring.
-#define HUB75_D   47
-#define HUB75_E   -1
+// Which library PARAMETER (D vs E) that GPIO should be assigned to depends
+// on HUB75_MOD_HEIGHT, not on what the panel's silkscreen calls it: at
+// MOD_HEIGHT<=32 the library only ever reads A/B/C/D (a 32-tall module
+// needs just a 4-bit/16-combination address) and never touches E no matter
+// what it's wired to; at MOD_HEIGHT=64 it's a genuine 5-bit/32-combination
+// address and E is real. Github mrcodetastic/ESP32-HUB75-MatrixPanel-DMA
+// issue #9 confirms this exact scenario: a P2.5 64x64 panel (same family as
+// ours) working via "Line E" with MATRIX_HEIGHT set to a genuine 64 - a
+// native config we hadn't actually tried (every attempt tonight used
+// MOD_HEIGHT 32 via either the virtual-panel/four-scan hack or
+// TEST_PLAIN_64X32). So the pin assignment now follows HUB75_MOD_HEIGHT
+// below instead of being hardcoded here.
 #define HUB75_LAT 21
 #define HUB75_OE  14
 #define HUB75_CLK 13
@@ -113,12 +105,22 @@
 // module, no SCAN_SPLIT chaining math applied at all. Currently disabled -
 // see USE_VIRTUAL_MATRIX_PANEL below, which needs a plain full 64-tall base
 // module underneath its own remap layer instead.
-// Now actually being tested: bad unit (ruled out - 3 panels band
-// identically), dead/miswired address line (ruled out - GPIO 47 confirmed
-// by continuity to reach the panel's real address pin), and the library's
-// own FOUR_SCAN_64PX_HIGH remap bug (ruled out - enabling the bug-fixed
-// version made no difference either). This is the next untried one.
-#define TEST_PLAIN_64X32      1
+// Ruled out tonight: bad unit (3 panels band identically), dead/miswired
+// address line (GPIO 47 confirmed by continuity to reach the panel's real
+// address pin), the library's own FOUR_SCAN_64PX_HIGH remap bug (bug-fixed
+// version made no difference), and TEST_PLAIN_64X32 itself (identical
+// banding - see TEST_NATIVE_64 below, tried next).
+#define TEST_PLAIN_64X32      0
+
+// NEXT theory (see GitHub mrcodetastic/ESP32-HUB75-MatrixPanel-DMA issue #9
+// - a P2.5 64x64 panel, same family as ours, working via a genuine native
+// MOD_HEIGHT=64 config using "Line E" as a real address bit): every
+// scan-geometry attempt so far used MOD_HEIGHT<=32 (virtual-panel/
+// four-scan split, or TEST_PLAIN_64X32's plain 32-tall module), where the
+// library never reads E regardless of wiring. This is the one combination
+// not yet tried - a true 64-tall single module, no splitting/chaining
+// trickery, with E genuinely driven.
+#define TEST_NATIVE_64         1
 
 // Use the library's own built-in VirtualMatrixPanel class with
 // setPhysicalPanelScanRate(FOUR_SCAN_64PX_HIGH) - a REAL feature, read
@@ -129,27 +131,40 @@
 // buffer must be set up "as if the panel is 2 * W and 0.5 * H" - i.e. the
 // base display below needs module height 32 / chain length 2 (matching our
 // earlier "half-scan"/SCAN_SPLIT=2 geometry), NOT a plain full 64-tall
-// module. See led_matrix.h. Disabled while TEST_PLAIN_64X32 is active -
-// #if TEST_PLAIN_64X32 takes priority below regardless of this flag, but
-// led_matrix.h's initDisplay() also branches on this directly, so it has
-// to be 0 to actually get the plain, unremapped MatrixPanel_I2S_DMA path.
+// module. See led_matrix.h. Disabled while TEST_NATIVE_64/TEST_PLAIN_64X32
+// take priority below regardless of this flag, but led_matrix.h's
+// initDisplay() also branches on this directly, so it has to be 0 to avoid
+// constructing the wrong display class.
 #define USE_VIRTUAL_MATRIX_PANEL 0
 
-#if TEST_PLAIN_64X32
+#if TEST_NATIVE_64
+#define SCAN_SPLIT_PANEL      0
+#define SCAN_SPLIT            1   // unused, see comment above
+#define HUB75_MOD_HEIGHT      PANEL_SIZE   // genuine 64, no splitting
+#define HUB75_CHAIN_LEN       1
+#define HUB75_D               -1   // genuinely NC on this panel family
+#define HUB75_E               47   // real address bit at MOD_HEIGHT=64 - see issue #9 above
+#elif TEST_PLAIN_64X32
 #define SCAN_SPLIT_PANEL      0
 #define SCAN_SPLIT            1   // unused (SCAN_SPLIT_PANEL=0 means scanSplitRemap is never called), but the function still needs it defined to compile
 #define HUB75_MOD_HEIGHT      32
 #define HUB75_CHAIN_LEN       1
+#define HUB75_D               47   // only A-D read at this height, see comment above
+#define HUB75_E               -1
 #elif USE_VIRTUAL_MATRIX_PANEL
 #define SCAN_SPLIT_PANEL      0
 #define SCAN_SPLIT            1   // unused, see comment above
 #define HUB75_MOD_HEIGHT      (PANEL_SIZE / 2)
 #define HUB75_CHAIN_LEN       (NUM_FACES * 2)
+#define HUB75_D               47
+#define HUB75_E               -1
 #else
 #define SCAN_SPLIT_PANEL      1
 #define SCAN_SPLIT            2
 #define HUB75_MOD_HEIGHT      (PANEL_SIZE / SCAN_SPLIT)
 #define HUB75_CHAIN_LEN       (NUM_FACES * SCAN_SPLIT)
+#define HUB75_D               47
+#define HUB75_E               -1
 #endif
 // Reversed strip chaining order - see the SCAN_SPLIT=2 comment above. This
 // is the specific untested combination: half-scan geometry + non-sequential
