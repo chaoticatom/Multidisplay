@@ -51,29 +51,38 @@
 #define HUB75_A   36
 #define HUB75_B   35
 #define HUB75_C   45
-// This panel's IDC connector only exposes A/B/C/E for row addressing (no D
-// pin exists anywhere on the board — confirmed against the physical
-// connector legend and a close inspection of the rest of the PCB for any
-// secondary breakout).
+// LEADING THEORY, not yet physically verified (three separate physical
+// panels - two silkscreened "-32S-", one explicitly labelled "HUB75E" - all
+// showed the identical connector legend and the identical banding, which is
+// what surfaced this): the real
+// pinout here is the actual HUB75E standard, confirmed by reading the
+// panel's own printed legend pin-by-pin: R1,G1,B1,GND,R2,G2,B2,E,A,B,C,NC,
+// CLK,LAT,OE,GND. Pin 8 - where a plain HUB75 cable normally carries a
+// redundant GND - is a real, load-bearing address line, E. Pin 12 - where D
+// normally lives - is printed NC on every one of these panels. There never
+// was a D signal to find; every SCAN_SPLIT/four-scan geometry theory tried
+// before this changed how the library organised A-D in software, but never
+// touched which physical wire carried which signal, so none of them could
+// have fixed a wiring-level problem.
 //
-// The half-scan theory (module height 32, 2-way chain split, A-D addressing)
-// was tried and made NO difference to the persistent "8 rows on, 8 rows off"
-// banding - a solid single-colour fill sent through that geometry still
-// banded identically. That's a real data point: half-scan still needs D
-// (weight-8, 16 row-groups per 32-tall half), so if D itself is the broken
-// line (bad wire/pin/solder joint, or this GPIO on the ESP32), reassigning
-// which physical wire the library CALLS "D" changes nothing - the same
-// electrical signal is still load-bearing either way.
-//
-// Next theory, and a genuinely different one: go one step further to
-// quarter-scan (module height 16, 4-way chain split, A-C addressing only -
-// see SCAN_SPLIT below). If this panel is actually an even-more-multiplexed
-// design than half-scan, this avoids touching D at all rather than just
-// relabelling it, so a bad D line stops mattering entirely instead of still
-// being required. HUB75_D is left wired but SCAN_SPLIT's geometry math no
-// longer asks the library to use it.
-#define HUB75_D   47
-#define HUB75_E   -1
+// The bug: GPIO 47 was wired to connector pin 12 (D - NC, does nothing),
+// while pin 8 (E - the pin this panel actually needs driven) was left at
+// HUB75_E=-1, i.e. never driven by any GPIO at all. On a standard cable
+// that conductor just ties straight to GND, so E sat at a permanently fixed
+// logic level on every panel tested - exactly the repeating,
+// geometry-independent "half the rows always dark" pattern observed.
+// Proposed fix, needs the physical rewire + a solid-fill test to confirm:
+// move that jumper from ribbon pin 12 to ribbon pin 8 (E), reusing the same
+// GPIO, then leave D undriven (it's genuinely NC on this panel family -
+// nothing to connect it to). The defines below already assume the rewire is
+// done - flip them back (D=47, E=-1) if you haven't moved the wire yet.
+// Also worth confirming once E is driven: the library may weight A/B/C/D/E
+// as a strict 5-bit binary count (E = bit 16), and if this panel's silkscreen
+// "E" is actually its 4th bit (weight 8, i.e. what the library calls D) the
+// banding pattern will change shape rather than disappear - that would mean
+// the physical pin is right but the bit-order assumption needs adjusting.
+#define HUB75_D   -1
+#define HUB75_E   47
 #define HUB75_LAT 21
 #define HUB75_OE  14
 #define HUB75_CLK 13
