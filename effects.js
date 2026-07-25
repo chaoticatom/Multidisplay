@@ -15430,14 +15430,7 @@ function unsplashSetLetterbox(v){
 }
 document.getElementById('unsplash-api-key-save')?.addEventListener('click',()=>{
   const v=document.getElementById('unsplash-api-key-input')?.value.trim();
-  if(v){
-    localStorage.setItem('unsplashApiKey',v);
-    unsplashFetch();
-    // Sync to the ESP32 too - it has no browser localStorage of its own and
-    // Unsplash (unlike NASA's DEMO_KEY) has no keyless tier, so without this
-    // the native Unsplash effect can never fetch anything.
-    if(typeof cubeSendCmd==='function') cubeSendCmd({cmd:'setOption', effect:'unsplash', key:'apiKey', value:v});
-  }
+  if(v){ localStorage.setItem('unsplashApiKey',v); unsplashFetch(); }
 });
 (()=>{
   const saved=localStorage.getItem('unsplashApiKey');
@@ -15447,7 +15440,6 @@ document.getElementById('unsplash-api-key-save')?.addEventListener('click',()=>{
   document.getElementById('unsplash-query')?.addEventListener('change',function(){
     unsplashQuery=this.value.trim()||'nature';
     localStorage.setItem('unsplashQuery',unsplashQuery);
-    if(typeof cubeSendCmd==='function') cubeSendCmd({cmd:'setOption', effect:'unsplash', key:'query', value:unsplashQuery});
   });
 })();
 
