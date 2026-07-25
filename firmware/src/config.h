@@ -12,7 +12,7 @@
 // which build is actually running on the board. Kept short deliberately:
 // at Adafruit GFX text size 1 (~6px/char), anything past ~10 characters
 // starting at x=2 overflows the 64px face width onto the next face.
-#define FW_VERSION     "0717-1"
+#define FW_VERSION     "0725-1"
 
 // How many faces the boot-time bring-up test pattern (main.cpp,
 // drawBringupTestPattern) actually draws to. Keep this at the number of
