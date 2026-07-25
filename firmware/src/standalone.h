@@ -17,9 +17,6 @@
 // True while >=1 browser/app is connected over the cube WebSocket - used to
 // hide the boot-time WiFi status icon once a browser is controlling.
 extern volatile bool g_browserConnected;
-// Defined in main.cpp, true once httpServer.begin()/wsServer.begin() have
-// both run - drives the second boot-time status dot below.
-extern bool g_httpServerOk;
 
 // ---------------------------------------------------------------------------
 // standalone.h — native (no-browser) effects, weather, schedule/alarms.
@@ -510,10 +507,7 @@ inline bool standaloneWxFetch() {
 
     WiFiClientSecure client;
     client.setInsecure();   // no cert pinning — same trust model as browser JS fetch() has via the OS cert store, simplified for embedded use
-    client.setTimeout(5);   // seconds - without PSRAM, a heap-starved TLS handshake can otherwise block far longer than any HTTPClient-level timeout catches
     HTTPClient http;
-    http.setConnectTimeout(5000);
-    http.setTimeout(5000);
 
     char url[256];
     snprintf(url, sizeof(url),
@@ -2842,24 +2836,12 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
     // working, and the icon would just permanently clutter the corner of
     // whatever effect is running. Drawn into the buffer (not hardware
     // directly) so it survives the blit below like everything else.
-    // A second dot right next to it shows g_httpServerOk - true once
-    // setup() has actually reached httpServer.begin()/wsServer.begin(), so
-    // a browser could connect. This is deliberately NOT just "WiFi
-    // connected": WiFi can associate fine while something later in setup()
-    // hangs before the servers ever start - green WiFi + red HTTP on the
-    // panel is exactly that "connected but nothing's listening" state,
-    // visible without needing the serial monitor.
     if (!g_browserConnected) {
         bool wifiOk = (WiFi.status() == WL_CONNECTED);
-        float wr = wifiOk ? 0.0f : 0.78f, wg = wifiOk ? 0.78f : 0.0f;
+        float r = wifiOk ? 0.0f : 0.78f, g = wifiOk ? 0.78f : 0.0f;
         for (int y = 1; y <= 3; y++)
             for (int x = 1; x <= 3; x++)
-                snSet(0, x, y, wr, wg, 0.0f);
-
-        float hr = g_httpServerOk ? 0.0f : 0.78f, hg = g_httpServerOk ? 0.78f : 0.0f;
-        for (int y = 1; y <= 3; y++)
-            for (int x = 5; x <= 7; x++)
-                snSet(0, x, y, hr, hg, 0.0f);
+                snSet(0, x, y, r, g, 0.0f);
     }
 
     // Single blit: push the composited buffer to the real panel. This is the

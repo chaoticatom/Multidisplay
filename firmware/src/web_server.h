@@ -40,9 +40,6 @@ extern uint32_t       g_bootMillis;
 extern volatile bool  g_browserConnected;
 // Raw LittleFS.begin(false) mount result (no auto-format) - see /api/fsinfo.
 extern bool           g_fsMountOk;
-// True once the HTTP/WebSocket servers are actually listening - see the
-// boot-time status dot in standaloneRender() (standalone.h).
-extern bool           g_httpServerOk;
 // PSRAM detection + read/write test results - see /api/psramtest.
 extern bool           g_psramOk;
 extern String         g_psramTestResult;
@@ -270,9 +267,6 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                     if (!strcmp(eff, "fireworks") && !strcmp(key, "mode")) {
                         const char* v = doc["value"] | "random";
                         g_fwMode = !strcmp(v, "sync") ? 1 : 0;
-                    } else if (!strcmp(eff, "simhouse") && !strcmp(key, "shMode")) {
-                        const char* v = doc["value"] | "rooms";
-                        g_shShadowMode = !strcmp(v, "shadows");
                     }
                 }
             }
@@ -554,23 +548,8 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws, F1State& f
     server.onNotFound([](AsyncWebServerRequest* request) {
         String path = request->url();
         if (serveStaticFile(request, path)) return;
-        // SPA fallback: only for real navigation-style paths (no file
-        // extension in the last segment), never for arbitrary junk paths.
-        // Random devices on the LAN (smart TVs, media players) probe all
-        // sorts of nonexistent asset paths - e.g. UPnP/DIAL discovery
-        // requests to /dials/desc.xml.gz - and since they never actually
-        // read the response, falling back to a full index.html for those
-        // held that whole response buffer allocated (several KB, on a
-        // board with only ~16KB heap without PSRAM) until AsyncTCP's ack/rx
-        // timeout force-closed the abandoned connection ~20s later. A
-        // couple of these landing close together was enough to exhaust the
-        // heap for good. Real app routes are all extension-less paths, so
-        // this costs nothing for legitimate navigation.
-        int lastSlash = path.lastIndexOf('/');
-        String lastSeg = (lastSlash >= 0) ? path.substring(lastSlash + 1) : path;
-        bool looksLikeAsset = lastSeg.indexOf('.') >= 0;
-        if (!looksLikeAsset && request->method() == HTTP_GET &&
-            serveStaticFile(request, "/index.html")) return;
+        // SPA fallback: serve index.html for unknown GET routes.
+        if (request->method() == HTTP_GET && serveStaticFile(request, "/index.html")) return;
         request->send(404, "text/plain", "Not Found");
     });
 

@@ -13,7 +13,7 @@
 // on the board, without needing the serial monitor. Kept short deliberately:
 // at Adafruit GFX text size 1 (~6px/char), anything past ~10 characters
 // overflows the 64px face width.
-#define FW_VERSION     "0725-12"
+#define FW_VERSION     "0725-2"
 
 // How many faces the boot-time bring-up test pattern (main.cpp,
 // drawBringupTestPattern) actually draws to. Keep this at the number of

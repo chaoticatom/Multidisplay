@@ -57,11 +57,6 @@ volatile bool   g_browserConnected     = false;
 volatile uint32_t g_lastFrameMs        = 0;
 volatile bool     g_everStreamed       = false;
 bool              g_fsMountOk          = false;
-// True once httpServer.begin()/wsServer.begin() have both run in setup() -
-// i.e. the HTTP/WebSocket servers are actually up and a browser could
-// connect. Drawn as a second boot-time status dot next to the WiFi one
-// (standaloneRender() in standalone.h).
-bool              g_httpServerOk       = false;
 bool              g_psramOk            = false;
 String            g_psramTestResult    = "not run";
 volatile uint32_t g_videoFramesRcvd    = 0;
@@ -699,22 +694,16 @@ void setup() {
     // The WebSocket lives on its own port (81). Reuse the same handler.
     wsServer.addHandler(&ws);
     wsServer.begin();
-    g_httpServerOk = true;
 
     Serial.printf("[HTTP] serving on :%d   [WS] on :%d\n", HTTP_PORT, WS_PORT);
 
-    // Standalone mode: load persisted last-effect + schedule, sync NTP time.
-    // Weather is NOT fetched here - standaloneWxFetch() has no connect/read
-    // timeout, and without PSRAM the TLS handshake can hang inside mbedTLS
-    // for a long time instead of failing fast. Calling it here blocked
-    // setup() from ever returning (loop() - and therefore WiFi-reconnect
-    // handling - never ran even once), which is why WiFi looked "connected"
-    // briefly after boot then died for good the moment it hiccuped. The
-    // periodic fetch in loop() (every STANDALONE_WX_INTERVAL_MIN) already
-    // covers the first-fetch case within a few seconds of boot, and now has
-    // its own timeout too.
+    // Standalone mode: load persisted last-effect + schedule, sync NTP time,
+    // and fetch weather once now so it's not blank for the first 15 minutes
+    // after boot. All three need WiFi, so this runs after connectWifi()
+    // succeeds - now after the web/WS servers are already listening.
     standaloneLoad();
     standaloneNtpInit();
+    standaloneWxFetch();
 }
 
 // ---------------------------------------------------------------------------
