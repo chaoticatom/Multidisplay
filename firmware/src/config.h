@@ -113,7 +113,12 @@
 // module, no SCAN_SPLIT chaining math applied at all. Currently disabled -
 // see USE_VIRTUAL_MATRIX_PANEL below, which needs a plain full 64-tall base
 // module underneath its own remap layer instead.
-#define TEST_PLAIN_64X32      0
+// Now actually being tested: bad unit (ruled out - 3 panels band
+// identically), dead/miswired address line (ruled out - GPIO 47 confirmed
+// by continuity to reach the panel's real address pin), and the library's
+// own FOUR_SCAN_64PX_HIGH remap bug (ruled out - enabling the bug-fixed
+// version made no difference either). This is the next untried one.
+#define TEST_PLAIN_64X32      1
 
 // Use the library's own built-in VirtualMatrixPanel class with
 // setPhysicalPanelScanRate(FOUR_SCAN_64PX_HIGH) - a REAL feature, read
@@ -124,8 +129,11 @@
 // buffer must be set up "as if the panel is 2 * W and 0.5 * H" - i.e. the
 // base display below needs module height 32 / chain length 2 (matching our
 // earlier "half-scan"/SCAN_SPLIT=2 geometry), NOT a plain full 64-tall
-// module. See led_matrix.h.
-#define USE_VIRTUAL_MATRIX_PANEL 1
+// module. See led_matrix.h. Disabled while TEST_PLAIN_64X32 is active -
+// #if TEST_PLAIN_64X32 takes priority below regardless of this flag, but
+// led_matrix.h's initDisplay() also branches on this directly, so it has
+// to be 0 to actually get the plain, unremapped MatrixPanel_I2S_DMA path.
+#define USE_VIRTUAL_MATRIX_PANEL 0
 
 #if TEST_PLAIN_64X32
 #define SCAN_SPLIT_PANEL      0
