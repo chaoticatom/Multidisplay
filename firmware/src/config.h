@@ -175,6 +175,18 @@
 // so it uses this fixed alias instead of caring about D-vs-E naming).
 #define HUB75_EXTRA_ADDR      47
 
+// The real 4th address wire (D), physically confirmed present on this
+// panel's connector at "wire 12" - paired in the same column as C, right
+// where a real address line belongs. It's silkscreened NC/GND on every
+// panel tested, but a continuity check confirmed it does NOT actually tie
+// to the panel's true ground plane - meaning the "GND" label was wrong, and
+// the panel's driver chip likely still has a real trace to this pin
+// internally. Rewired: this ribbon conductor now goes to GPIO 11 instead
+// of ground. Fixed alias, same reasoning as HUB75_EXTRA_ADDR above - the
+// raw bit-bang driver bypasses the library entirely, so it names this pin
+// directly rather than through the library-facing HUB75_D define.
+#define HUB75_REAL_D          11
+
 // Reversed strip chaining order - see the SCAN_SPLIT=2 comment above. This
 // is the specific untested combination: half-scan geometry + non-sequential
 // chain order, matching the real documented community fix as closely as

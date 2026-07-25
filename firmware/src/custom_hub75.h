@@ -36,6 +36,7 @@ inline void customHub75Init() {
     pinMode(HUB75_B,  OUTPUT);
     pinMode(HUB75_C,  OUTPUT);
     pinMode(HUB75_EXTRA_ADDR,  OUTPUT);   // the one extra confirmed-present address wire
+    pinMode(HUB75_REAL_D,  OUTPUT);   // real D - rewired off the mislabeled GND pin
     pinMode(HUB75_LAT, OUTPUT);
     pinMode(HUB75_OE,  OUTPUT);
     pinMode(HUB75_CLK, OUTPUT);
@@ -272,6 +273,61 @@ inline void customHub75AddressSweepTest(bool r, bool g, bool b, int brightnessPc
             // whole time (row-select decays fast on passive-matrix HUB75,
             // no per-row memory) - but PWM the OE line at brightnessPct
             // duty instead of just holding it solid LOW, to dim the output.
+            unsigned long holdStart = millis();
+            while (millis() - holdStart < (unsigned long)holdSeconds * 1000) {
+                digitalWrite(HUB75_OE, LOW);
+                if (onMs > 0) delay(onMs);
+                digitalWrite(HUB75_OE, HIGH);
+                if (cycleMs - onMs > 0) delay(cycleMs - onMs);
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Full 5-bit address sweep (32 values): A, B, C, D, E all real now that D
+// has been rewired off the mislabeled GND pin onto GPIO 11. If the panel's
+// true row address is a plain 5-bit binary count like the library always
+// assumed, this should now reach every row 0-31 in each half continuously,
+// with no more 8-row gaps - addr=8 should light row 8 (not jump to row 16
+// like the 4-bit sweep showed), addr=16 -> row 16, etc, all the way to
+// addr=31 -> row 31.
+inline void customHub75FullAddressSweepTest(bool r, bool g, bool b, int brightnessPct = 15, int holdSeconds = 6) {
+    Serial.println("[CUSTOM_HUB75] FULL 5-bit address sweep starting (does not return).");
+    Serial.printf("[CUSTOM_HUB75] Each of 32 address values held for %ds at %d%% brightness. Note which\n",
+                   holdSeconds, brightnessPct);
+    Serial.println("[CUSTOM_HUB75] physical row(s) light for each value logged below.");
+    const int cycleMs = 20;
+    const int onMs = (cycleMs * brightnessPct) / 100;
+    for (;;) {
+        for (int addr = 0; addr < 32; addr++) {
+            bool a = addr & 0x1, bb = addr & 0x2, c = addr & 0x4, d = addr & 0x8, e = addr & 0x10;
+            Serial.printf("[CUSTOM_HUB75] addr=%2d  A=%d B=%d C=%d D=%d E=%d\n",
+                          addr, a ? 1 : 0, bb ? 1 : 0, c ? 1 : 0, d ? 1 : 0, e ? 1 : 0);
+
+            digitalWrite(HUB75_LAT, LOW);
+            for (int col = 0; col < PANEL_SIZE; col++) {
+                digitalWrite(HUB75_R1, r ? HIGH : LOW);
+                digitalWrite(HUB75_G1, g ? HIGH : LOW);
+                digitalWrite(HUB75_B1, b ? HIGH : LOW);
+                digitalWrite(HUB75_R2, r ? HIGH : LOW);
+                digitalWrite(HUB75_G2, g ? HIGH : LOW);
+                digitalWrite(HUB75_B2, b ? HIGH : LOW);
+                if (col == PANEL_SIZE - LATCH_DURING_LAST_N_CLOCKS) {
+                    digitalWrite(HUB75_LAT, HIGH);
+                }
+                digitalWrite(HUB75_CLK, HIGH);
+                digitalWrite(HUB75_CLK, LOW);
+            }
+            digitalWrite(HUB75_LAT, LOW);
+
+            digitalWrite(HUB75_OE, HIGH);
+            digitalWrite(HUB75_A, a ? HIGH : LOW);
+            digitalWrite(HUB75_B, bb ? HIGH : LOW);
+            digitalWrite(HUB75_C, c ? HIGH : LOW);
+            digitalWrite(HUB75_REAL_D, d ? HIGH : LOW);
+            digitalWrite(HUB75_EXTRA_ADDR, e ? HIGH : LOW);
+
             unsigned long holdStart = millis();
             while (millis() - holdStart < (unsigned long)holdSeconds * 1000) {
                 digitalWrite(HUB75_OE, LOW);

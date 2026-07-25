@@ -612,7 +612,9 @@ void setup() {
     // the panel and the serial log together - note which physical row(s)
     // light for each addr= value printed.
     customHub75Init();
-    customHub75AddressSweepTest(true, true, true, /*brightnessPct=*/15, /*holdSeconds=*/8);   // never returns
+    // D is now wired to a real GPIO (11, off the mislabeled GND pin) - full
+    // 5-bit sweep to see if rows 8-15/24-31 are finally reachable.
+    customHub75FullAddressSweepTest(true, true, true, /*brightnessPct=*/15, /*holdSeconds=*/6);   // never returns
 #else
     // HUB75 display.
     dma_display = initDisplay();
