@@ -51,38 +51,31 @@
 #define HUB75_A   36
 #define HUB75_B   35
 #define HUB75_C   45
-// LEADING THEORY, not yet physically verified (three separate physical
-// panels - two silkscreened "-32S-", one explicitly labelled "HUB75E" - all
-// showed the identical connector legend and the identical banding, which is
-// what surfaced this): the real
-// pinout here is the actual HUB75E standard, confirmed by reading the
-// panel's own printed legend pin-by-pin: R1,G1,B1,GND,R2,G2,B2,E,A,B,C,NC,
-// CLK,LAT,OE,GND. Pin 8 - where a plain HUB75 cable normally carries a
-// redundant GND - is a real, load-bearing address line, E. Pin 12 - where D
-// normally lives - is printed NC on every one of these panels. There never
-// was a D signal to find; every SCAN_SPLIT/four-scan geometry theory tried
-// before this changed how the library organised A-D in software, but never
-// touched which physical wire carried which signal, so none of them could
-// have fixed a wiring-level problem.
+// CORRECTED after physical continuity check: GPIO 47 was already landing on
+// the panel's real 4th address wire (silkscreened "E" on the connector,
+// since this is the HUB75E standard - R1,G1,B1,GND,R2,G2,B2,E,A,B,C,NC,CLK,
+// LAT,OE,GND - where pin 8 carries a real signal and pin 12/D is NC on every
+// panel tested). That part of the diagnosis was right.
 //
-// The bug: GPIO 47 was wired to connector pin 12 (D - NC, does nothing),
-// while pin 8 (E - the pin this panel actually needs driven) was left at
-// HUB75_E=-1, i.e. never driven by any GPIO at all. On a standard cable
-// that conductor just ties straight to GND, so E sat at a permanently fixed
-// logic level on every panel tested - exactly the repeating,
-// geometry-independent "half the rows always dark" pattern observed.
-// Proposed fix, needs the physical rewire + a solid-fill test to confirm:
-// move that jumper from ribbon pin 12 to ribbon pin 8 (E), reusing the same
-// GPIO, then leave D undriven (it's genuinely NC on this panel family -
-// nothing to connect it to). The defines below already assume the rewire is
-// done - flip them back (D=47, E=-1) if you haven't moved the wire yet.
-// Also worth confirming once E is driven: the library may weight A/B/C/D/E
-// as a strict 5-bit binary count (E = bit 16), and if this panel's silkscreen
-// "E" is actually its 4th bit (weight 8, i.e. what the library calls D) the
-// banding pattern will change shape rather than disappear - that would mean
-// the physical pin is right but the bit-order assumption needs adjusting.
-#define HUB75_D   -1
-#define HUB75_E   47
+// The mistake: reassigning that same GPIO from the library's "D" parameter
+// to its "E" parameter, on the assumption the active code path used a full
+// 5-line/32-combination address (needing both D and E). It doesn't. The
+// currently active branch (USE_VIRTUAL_MATRIX_PANEL, see led_matrix.h) sets
+// HUB75_MOD_HEIGHT to PANEL_SIZE/2 = 32 - a 32-tall base module only needs a
+// 4-bit/16-combination address, i.e. only A,B,C,D are ever read; the E
+// parameter is never toggled at this module height regardless of what pin
+// it's set to. So moving GPIO 47 onto "E" didn't fix the missing signal, it
+// just moved the one working address wire onto a parameter the active
+// config ignores, leaving the real "D" input in the address the library
+// actually reads/undriven again - same failure, still banded.
+//
+// Back to the physically-correct assignment: GPIO 47 stays library-side
+// "D" (whatever the panel's own silkscreen calls it doesn't matter here -
+// only the library's positional A/B/C/D/E naming does, and this module
+// height only reads D). HUB75_E is genuinely unused at MOD_HEIGHT=32, -1 is
+// correct regardless of physical wiring.
+#define HUB75_D   47
+#define HUB75_E   -1
 #define HUB75_LAT 21
 #define HUB75_OE  14
 #define HUB75_CLK 13
