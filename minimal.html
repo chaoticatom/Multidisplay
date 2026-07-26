@@ -1885,4 +1885,8 @@
 <!-- Hidden video pipeline for Video Display effect -->
 <video id="vid-el" autoplay muted playsinline style="position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;"></video>
 <canvas id="vid-cv" style="display:none;"></canvas>
+<!-- Bisection step 2: load three.min.js (the largest single asset, ~600KB
+     source) to test whether loading that specific file is what triggers
+     the reset, independent of the rest of the app. -->
+<script src="three.min.js"></script>
 </body></html>
