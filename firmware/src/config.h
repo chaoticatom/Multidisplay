@@ -13,7 +13,7 @@
 // on the board, without needing the serial monitor. Kept short deliberately:
 // at Adafruit GFX text size 1 (~6px/char), anything past ~10 characters
 // overflows the 64px face width.
-#define FW_VERSION     "0725-14"
+#define FW_VERSION     "0725-15"
 
 // How many faces the boot-time bring-up test pattern (main.cpp,
 // drawBringupTestPattern) actually draws to. Keep this at the number of
@@ -23,6 +23,19 @@
 // chain doesn't need to be "complete" for the first panel to work), this
 // just controls how much test content is generated/logged.
 #define TEST_PATTERN_FACES 1
+
+// How many physical HUB75 panels are actually chained/wired right now.
+// HUB75_CHAIN_LEN below is driven by THIS, not by NUM_FACES - the DMA
+// library allocates buffers sized for the full chain length x
+// HUB75_MOD_HEIGHT x color depth, and asking it for a 6-panel chain (one
+// per cube face) while only 1 panel is physically wired wastes a huge
+// amount of scarce internal SRAM for nothing on a board with no working
+// PSRAM. Confirmed on this exact hardware: with this at 6 and no PSRAM,
+// display init fails outright ("Not enough memory for requested colour
+// depth"), which cascades into the WiFi driver also failing to allocate
+// its task ("create wifi task: failed to create task") and a boot loop
+// that never even reaches WiFi. Bump this up as more panels get wired.
+#define HUB75_WIRED_PANELS 1
 #define WS_PORT        81
 #define HTTP_PORT      80
 #define AP_SSID        "Multidisplay-Setup"
@@ -151,7 +164,7 @@
 #define SCAN_SPLIT_PANEL      0
 #define SCAN_SPLIT            1   // unused, see comment above
 #define HUB75_MOD_HEIGHT      PANEL_SIZE   // genuine 64, no splitting
-#define HUB75_CHAIN_LEN       NUM_FACES
+#define HUB75_CHAIN_LEN       HUB75_WIRED_PANELS
 #define HUB75_D               11   // real - rewired off the mislabeled GND pin (see above)
 #define HUB75_E               47   // real address bit at MOD_HEIGHT=64 - see issue #9 above
 #elif TEST_PLAIN_64X32
@@ -165,14 +178,14 @@
 #define SCAN_SPLIT_PANEL      0
 #define SCAN_SPLIT            1   // unused, see comment above
 #define HUB75_MOD_HEIGHT      (PANEL_SIZE / 2)
-#define HUB75_CHAIN_LEN       (NUM_FACES * 2)
+#define HUB75_CHAIN_LEN       (HUB75_WIRED_PANELS * 2)
 #define HUB75_D               47
 #define HUB75_E               -1
 #else
 #define SCAN_SPLIT_PANEL      1
 #define SCAN_SPLIT            2
 #define HUB75_MOD_HEIGHT      (PANEL_SIZE / SCAN_SPLIT)
-#define HUB75_CHAIN_LEN       (NUM_FACES * SCAN_SPLIT)
+#define HUB75_CHAIN_LEN       (HUB75_WIRED_PANELS * SCAN_SPLIT)
 #define HUB75_D               47
 #define HUB75_E               -1
 #endif
