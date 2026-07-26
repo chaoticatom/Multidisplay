@@ -69,20 +69,26 @@ inline String wsMimeType(const String& path) {
 
 // Serve a static file from LittleFS, preferring a .gz sibling if present.
 // ---------------------------------------------------------------------------
-// Static-file concurrency throttle. This board has no working PSRAM, so
-// total heap is only ~16-20KB. Loading "/" makes the browser request
-// index.html, style.css, version.js, three.min.js, cube.js/effects.js/
-// ui.js all at once - each buffered LittleFS response needs its own chunk
-// of that tiny heap, and letting them all proceed simultaneously was
-// enough to exhaust it on a single page load (confirmed: /api/status - a
-// single small JSON response - loads fine every time; loading "/" crashes
-// it instantly). Cap how many are actually "in flight" at once; anything
-// past the cap is queued in a fixed-slot table (addresses never move, so
-// the onDisconnect lambda below can safely capture a pointer into it) and
-// served the moment a slot frees, rather than rejected - no asset is ever
-// dropped, just delayed a beat.
+// Static-file concurrency throttle. This board's PSRAM fails to enumerate
+// (psramFound() false), so the six per-face video buffers fall back to
+// internal RAM (see allocBuffer() in main.cpp), leaving well under 10KB of
+// heap free even before any HTTP request comes in (confirmed via
+// /api/status: free_heap ~8.8KB, min_free_heap ~1.2KB shortly after boot).
+// Loading "/" makes the browser request index.html, style.css, version.js,
+// three.min.js, cube.js/effects.js/ui.js all at once - each buffered
+// LittleFS response needs its own chunk of that tiny heap, and letting
+// more than one proceed at a time was enough to exhaust it (confirmed:
+// /api/status - a single small JSON response - loads fine every time;
+// loading "/" hung the board solid with 2 concurrent responses allowed).
+// Cap how many are actually "in flight" at once; anything past the cap is
+// queued in a fixed-slot table (addresses never move, so the onDisconnect
+// lambda below can safely capture a pointer into it) and served the moment
+// a slot frees, rather than rejected - no asset is ever dropped, just
+// delayed a beat. 1 is deliberately conservative given how little headroom
+// this board has without working PSRAM; revisit if PSRAM enumeration ever
+// gets fixed.
 // ---------------------------------------------------------------------------
-#define STATIC_MAX_CONCURRENT 2
+#define STATIC_MAX_CONCURRENT 1
 #define STATIC_QUEUE_LEN      8
 
 struct StaticQueueEntry {
