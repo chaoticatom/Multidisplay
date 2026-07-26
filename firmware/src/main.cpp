@@ -501,7 +501,15 @@ static uint8_t* allocBuffer() {
 
 static bool allocBuffers() {
     bool usedInternalFallback = false;
-    for (uint8_t i = 0; i < NUM_FACES; i++) {
+    // Only allocate video-stream buffers for faces that actually have a
+    // physical panel wired (HUB75_WIRED_PANELS) - g_frameBuf[i]/g_dmaBuf[i]
+    // stay null for the rest, which the WS handler (web_server.h) and
+    // displayTask already check for before touching them. Without PSRAM,
+    // allocating all NUM_FACES (6) worth of buffers here (147KB) left too
+    // little internal RAM for the WiFi driver's own init to succeed
+    // ("esp_wifi_init 257" = out of memory) - wasted on faces with no
+    // panel to show them anyway during single-panel bring-up.
+    for (uint8_t i = 0; i < HUB75_WIRED_PANELS; i++) {
         g_frameBuf[i] = allocBuffer();
         g_dmaBuf[i]   = allocBuffer();
         if (!g_frameBuf[i] || !g_dmaBuf[i]) {
