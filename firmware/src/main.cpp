@@ -566,7 +566,7 @@ void setup() {
             Serial.println("[COREDUMP] Previous run left a crash dump:");
             Serial.printf("[COREDUMP]   crashed task: %s\n", summary.exc_task);
             Serial.printf("[COREDUMP]   PC: 0x%08x\n", (unsigned)summary.exc_pc);
-            for (uint32_t i = 0; i < summary.exc_bt_info.dump_size && i < 16; i++) {
+            for (uint32_t i = 0; i < summary.exc_bt_info.depth && i < 16; i++) {
                 Serial.printf("[COREDUMP]   backtrace[%u]: 0x%08x\n",
                               (unsigned)i, (unsigned)summary.exc_bt_info.bt[i]);
             }
