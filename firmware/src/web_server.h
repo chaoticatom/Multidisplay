@@ -389,6 +389,18 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws) {
     // server - the port-81 one.
     ws.onEvent(onWsEvent);
 
+    // ---- Diagnostic: bare-minimum page, no LittleFS/gzip/static-queue
+    // involvement at all - a single inline string response, same shape as
+    // /api/status (which has always stayed reliable). Used to isolate
+    // whether "/" wedging the board is about page complexity/concurrent
+    // connections, or something more fundamental (e.g. any GET at all).
+    server.on("/test", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(200, "text/html",
+            "<!DOCTYPE html><html><body><h1>Multidisplay test page</h1>"
+            "<p>If you can see this and the board is still pingable, "
+            "loading a minimal page is fine.</p></body></html>");
+    });
+
     // ---- Loader page (PROGMEM gzip) ----
     server.on("/loader", HTTP_GET, [](AsyncWebServerRequest* request) {
         AsyncWebServerResponse* resp = request->beginResponse_P(
