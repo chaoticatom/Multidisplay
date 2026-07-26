@@ -308,16 +308,25 @@ inline void* snAllocPreferPsram(size_t bytes) {
 
 #define SN_BUF_BYTES_PER_FACE (PANEL_SIZE * PANEL_SIZE * 3)
 inline uint8_t* g_snBuf[NUM_FACES] = { nullptr };
-inline void snEnsureBuf(int face) {
+// Returns false if the allocation failed (heap exhausted/fragmented - this
+// board has no working PSRAM and the HUB75 DMA driver alone consumes a
+// large chunk of internal RAM, so this can genuinely fail). Every caller
+// below checks this instead of assuming success - the old code called
+// memset() on whatever snAllocPreferPsram() returned with no null check,
+// which was a guaranteed Guru Meditation (StoreProhibited) crash the first
+// time internal RAM ran too low to satisfy this allocation.
+inline bool snEnsureBuf(int face) {
     if (!g_snBuf[face]) {
         g_snBuf[face] = (uint8_t*)snAllocPreferPsram(SN_BUF_BYTES_PER_FACE);
+        if (!g_snBuf[face]) return false;
         memset(g_snBuf[face], 0, SN_BUF_BYTES_PER_FACE);
     }
+    return true;
 }
 
 inline void snSet(int face, int x, int y, float r, float g, float b) {
     if (face < 0 || face >= NUM_FACES || x < 0 || x >= PANEL_SIZE || y < 0 || y >= PANEL_SIZE) return;
-    snEnsureBuf(face);
+    if (!snEnsureBuf(face)) return;
     uint8_t* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
     p[0] = (uint8_t)(saClamp01(r) * 255.0f);
     p[1] = (uint8_t)(saClamp01(g) * 255.0f);
@@ -327,7 +336,7 @@ inline void snSet(int face, int x, int y, float r, float g, float b) {
 // Math.min(1, colBuf[i]+r) pattern).
 inline void snAdd(int face, int x, int y, float r, float g, float b) {
     if (face < 0 || face >= NUM_FACES || x < 0 || x >= PANEL_SIZE || y < 0 || y >= PANEL_SIZE) return;
-    snEnsureBuf(face);
+    if (!snEnsureBuf(face)) return;
     uint8_t* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
     p[0] = (uint8_t)(saClamp01(p[0] / 255.0f + r) * 255.0f);
     p[1] = (uint8_t)(saClamp01(p[1] / 255.0f + g) * 255.0f);
@@ -338,7 +347,7 @@ inline void snAdd(int face, int x, int y, float r, float g, float b) {
 // brighter, not accumulate/wash out like snAdd).
 inline void snMax(int face, int x, int y, float r, float g, float b) {
     if (face < 0 || face >= NUM_FACES || x < 0 || x >= PANEL_SIZE || y < 0 || y >= PANEL_SIZE) return;
-    snEnsureBuf(face);
+    if (!snEnsureBuf(face)) return;
     uint8_t* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
     uint8_t rr = (uint8_t)(saClamp01(r) * 255.0f), gg = (uint8_t)(saClamp01(g) * 255.0f), bb = (uint8_t)(saClamp01(b) * 255.0f);
     if (rr > p[0]) p[0] = rr;
@@ -347,17 +356,16 @@ inline void snMax(int face, int x, int y, float r, float g, float b) {
 }
 // Decay the whole buffer (fade-trail effects: colBuf[i]*=mul each frame).
 inline void snDecay(int face, float mul) {
-    snEnsureBuf(face);
+    if (!snEnsureBuf(face)) return;
     uint8_t* p = g_snBuf[face];
     for (int i = 0; i < PANEL_SIZE * PANEL_SIZE * 3; i++) p[i] = (uint8_t)(p[i] * mul);
 }
-inline void snClear(int face) { snEnsureBuf(face); memset(g_snBuf[face], 0, SN_BUF_BYTES_PER_FACE); }
+inline void snClear(int face) { if (snEnsureBuf(face)) memset(g_snBuf[face], 0, SN_BUF_BYTES_PER_FACE); }
 inline void snClearAll() { for (int f = 0; f < NUM_FACES; f++) snClear(f); }
 // Read back a pixel's current 0..1 value - needed by overlays that sample
 // the buffer (e.g. glitch, which shifts/re-blends existing pixels).
 inline void snGet(int face, int x, int y, float& r, float& g, float& b) {
-    if (face < 0 || face >= NUM_FACES || x < 0 || x >= PANEL_SIZE || y < 0 || y >= PANEL_SIZE) { r = g = b = 0; return; }
-    snEnsureBuf(face);
+    if (face < 0 || face >= NUM_FACES || x < 0 || x >= PANEL_SIZE || y < 0 || y >= PANEL_SIZE || !snEnsureBuf(face)) { r = g = b = 0; return; }
     uint8_t* p = &g_snBuf[face][(y * PANEL_SIZE + x) * 3];
     r = p[0] / 255.0f; g = p[1] / 255.0f; b = p[2] / 255.0f;
 }
@@ -2856,7 +2864,12 @@ inline void standaloneRender(MatrixPanel_I2S_DMA* display, float dt) {
     // avoid fillRect/fillCircle.
     for (uint8_t face = 0; face < NUM_FACES; face++) {
         const int xOff = face * PANEL_SIZE;
-        snEnsureBuf(face);
+        // If this face's buffer failed to allocate (heap exhausted - no
+        // working PSRAM on this board), skip blitting it rather than
+        // dereferencing null; that face just stays whatever the panel
+        // already had (typically off/black), instead of crashing the
+        // display task.
+        if (!snEnsureBuf(face)) continue;
         const uint8_t* buf = g_snBuf[face];
         for (int y = 0; y < PANEL_SIZE; y++) {
             for (int x = 0; x < PANEL_SIZE; x++) {
