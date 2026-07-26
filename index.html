@@ -369,11 +369,9 @@
     background: rgba(0,0,0,0.35);
   }
 </style>
-<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000308">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
 <body>
 
@@ -1889,7 +1887,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script>const APP_VERSION = 'v2026.07.26.882';</script>
+<script>const APP_VERSION = 'v2026.07.26.883';</script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1953,13 +1951,30 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=882','effects.js?v=882','ui.js?v=882'];
+  const appScripts = ['cube.js?v=883','effects.js?v=883','ui.js?v=883'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
   }
   function loadSeq(idx){
-    if (idx >= appScripts.length) return;
+    if (idx >= appScripts.length) {
+      // Deferred, non-critical requests - manifest.json (PWA install data)
+      // and the apple-touch-icon - moved out of <head> and fired only
+      // after the whole app has finished loading. Firing them alongside
+      // index.html/three.min.js at initial parse time was 1-2 extra
+      // concurrent connections during the highest heap-pressure moment on
+      // this board's ~10-14KB heap (no working PSRAM), which was enough
+      // to wedge the network stack solid on some loads.
+      const manifestLink = document.createElement('link');
+      manifestLink.rel = 'manifest';
+      manifestLink.href = 'manifest.json';
+      document.head.appendChild(manifestLink);
+      const touchIcon = document.createElement('link');
+      touchIcon.rel = 'apple-touch-icon';
+      touchIcon.href = 'icons/icon-192.png';
+      document.head.appendChild(touchIcon);
+      return;
+    }
     const s = document.createElement('script');
     s.src = appScripts[idx];
     s.onload = function(){ loadSeq(idx+1); };
