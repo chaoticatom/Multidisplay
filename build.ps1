@@ -15,6 +15,14 @@ $ErrorActionPreference = "Stop"
 # wrong folder before this fix (e.g. running from one level up), which let
 # the gzip loop fail on the very first file without aborting the build.
 Set-Location $PSScriptRoot
+# PowerShell's Set-Location only updates $PWD (the provider location); raw
+# .NET calls like [System.IO.File]::ReadAllBytes() with a relative path
+# resolve against [Environment]::CurrentDirectory instead, which does NOT
+# reliably follow $PWD in PowerShell 7+. Without this, GzipFile below could
+# silently resolve against wherever the shell was originally launched from,
+# throw a FileNotFound, and abort the whole script before any files were
+# written - with no clear indication why.
+[System.IO.Directory]::SetCurrentDirectory((Get-Location).Path)
 
 $Dist = ".\data"
 $ThreeJsUrl = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r168/three.min.js"
@@ -65,14 +73,22 @@ $missing = @()
 
 foreach ($f in $files) {
     if (Test-Path $f) {
-        $dstDir = Join-Path $Dist (Split-Path $f -Parent)
-        if ($dstDir -and -not (Test-Path $dstDir)) { New-Item -ItemType Directory -Path $dstDir | Out-Null }
-        $dst = Join-Path $Dist "$f.gz"
-        GzipFile $f $dst
-        $orig = (Get-Item $f).Length
-        $comp = (Get-Item $dst).Length
-        $pct = [math]::Round((($orig - $comp) * 100 / $orig))
-        Write-Host ("    {0,-24} {1,6} -> {2,6} bytes ({3}% smaller)" -f $f, $orig, $comp, $pct)
+        try {
+            $srcFull = (Resolve-Path $f).Path
+            $dstDir = Join-Path $Dist (Split-Path $f -Parent)
+            if ($dstDir -and -not (Test-Path $dstDir)) { New-Item -ItemType Directory -Path $dstDir | Out-Null }
+            $dst = Join-Path $Dist "$f.gz"
+            New-Item -ItemType File -Path $dst -Force | Out-Null
+            $dstFull = (Resolve-Path $dst).Path
+            GzipFile $srcFull $dstFull
+            $orig = (Get-Item $srcFull).Length
+            $comp = (Get-Item $dstFull).Length
+            $pct = [math]::Round((($orig - $comp) * 100 / $orig))
+            Write-Host ("    {0,-24} {1,6} -> {2,6} bytes ({3}% smaller)" -f $f, $orig, $comp, $pct)
+        } catch {
+            Write-Host "    ERROR: failed to gzip $f - $($_.Exception.Message)"
+            $missing += $f
+        }
     } else {
         Write-Host "    WARNING: $f not found, skipping."
         $missing += $f
