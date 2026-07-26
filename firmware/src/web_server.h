@@ -372,19 +372,6 @@ inline void handleOtaUpload(AsyncWebServerRequest* request, String filename,
 // Route registration
 // ---------------------------------------------------------------------------
 inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws) {
-    // Force every HTTP response on this server to close its connection
-    // instead of attempting keep-alive. ESPAsyncWebServer's keep-alive
-    // handling has long-standing bugs where a reused connection doesn't
-    // get serviced correctly and just sits open until AsyncTCP's own
-    // ack/rx timeout kills it ~20-30s later (visible as "ack timeout"/
-    // "rx timeout" in the serial log). On this board's small lwIP TCP PCB
-    // pool, a couple of quick page refreshes - each opening several
-    // connections - was enough to exhaust that pool before those timeouts
-    // could free anything, wedging the whole network stack even though
-    // free heap stayed completely healthy the whole time. Applied via
-    // DefaultHeaders so every handler gets it without individual edits.
-    DefaultHeaders::Instance().addHeader("Connection", "close");
-
     // ---- Camera API ----
     camApiInit(server);
 
