@@ -1131,7 +1131,7 @@ function effectFireworks(dt) {
     }
   }
 
-  // ── Scrolling text overlay — uses same setStripLED pattern as F1 idle scroll ──
+  // ── Scrolling text overlay ──
   if(fwTextOn && fwTextPixels && fwTextWidth>0){
     fwScrollX=(fwScrollX+dt*SIZE*0.38)%fwTextWidth;
 
@@ -3209,7 +3209,7 @@ let radioScrollX=0;
 // tens of thousands of internet radio streams, no API key needed. It's
 // served from several equivalent mirror hosts; if the first one is down or
 // unreachable we retry once against a second mirror, same "don't collapse
-// a failure into a bare error" spirit as f1-providers.js's f1Fetch().
+// a failure into a bare error" spirit as the old F1 module's fetch helper.
 const RADIO_BROWSER_MIRRORS=['https://de1.api.radio-browser.info','https://nl1.api.radio-browser.info'];
 let radioSearchResults=[], radioSearching=false, radioSearchError='';
 

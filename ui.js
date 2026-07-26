@@ -982,13 +982,11 @@ function alarmFire(al,now){
     }catch(e){}
   } else if(al.effect&&al.effect!==''&&EFFECTS[al.effect]){
     currentEffect=al.effect;
-    if(currentEffect==='f1') startF1SessionTimer(); else stopF1SessionTimer();
     panelEditorOn=false;
     document.querySelectorAll('.effect-btn').forEach(b=>b.classList.toggle('active',b.dataset.effect===al.effect));
   } else {
     // No effect selected - just show message on black
     currentEffect='';
-    stopF1SessionTimer();
   }
   // Activate alarm overlays
   if(al.overlayKeys&&al.overlayKeys.length){
@@ -1218,49 +1216,10 @@ function renderAlarmSunrise(progress,startBrightPct){
 
 const GHOST_ALL_EFFECTS=null; // placeholder resolved at runtime
 
-var startF1SessionTimer = function(){};
-var stopF1SessionTimer = function(){};
-let _f1Loaded = false, _f1Loading = false;
-function _f1LoadScripts() {
-  if (_f1Loaded || _f1Loading) return;
-  _f1Loading = true;
-  const _f1v = (typeof APP_VERSION !== 'undefined' ? APP_VERSION : Date.now());
-  const scripts = ['f1-state.js?v='+_f1v,'f1.js?v='+_f1v,'f1-providers.js?v='+_f1v];
-  let idx = 0;
-  function next() {
-    if (idx >= scripts.length) {
-      _f1Loaded = true; _f1Loading = false;
-      EFFECTS.f1 = effectF1;
-      if (currentEffect === 'f1' && typeof effectF1 === 'function') {
-        var saved = localStorage.getItem('f1-mode') || 'openf1';
-        f1SetMode(saved);
-        document.querySelectorAll('[data-f1src]').forEach(function(b) {
-          b.classList.toggle('active', b.dataset.f1src === saved);
-        });
-        var simToggle = document.getElementById('f1-dev-toggle');
-        if (simToggle) simToggle.style.display = saved === 'simulation' ? '' : 'none';
-        startF1SessionTimer();
-        f1DataDirty = true;
-      }
-      return;
-    }
-    const s = document.createElement('script');
-    s.src = scripts[idx++];
-    s.onload = next;
-    s.onerror = () => { _f1Loading = false; };
-    document.head.appendChild(s);
-  }
-  next();
-}
-function _f1Stub(dt) {
-  _f1LoadScripts();
-  if (_f1Loaded && typeof effectF1 === 'function') effectF1(dt);
-}
-
 const EFFECTS={
   wave:effectWave, rain:effectRain, plasma:effectPlasma, sphere:effectSphere,
   fireworks:effectFireworks, dna:effectDNA, datetime:effectDateTime,
-  balls:effectBouncingBalls, sand:effectGravitySand, f1:_f1Stub,
+  balls:effectBouncingBalls, sand:effectGravitySand,
   gradient_wash:effectGradientWash, aurora:effectAurora, depth_rings:effectDepthRings,
   prism:effectPrism, tide:effectTide, nebula:effectNebula,
   maze:effectMaze,
@@ -1288,7 +1247,7 @@ const EFFECTS={
 const EFFECT_NAMES={
   wave:'Wave Cascade', rain:'Colour Rain', plasma:'Plasma Storm', sphere:'Laser Grid',
   fireworks:'Fireworks', dna:'DNA Helix', datetime:'Time & Date',
-  balls:'Bouncing Balls', sand:'Gravity Sand', f1:'F1 Live',
+  balls:'Bouncing Balls', sand:'Gravity Sand',
   gradient_wash:'Rainbow Wash', aurora:'Aurora Borealis', depth_rings:'Depth Rings',
   prism:'Prism Sweep', tide:'Color Tide', nebula:'Nebula Drift',
   maze:'Maze Runner',
@@ -1324,11 +1283,11 @@ const effectLabel=document.getElementById('el-effect')||document.getElementById(
 
 // Effect → auto-expand linked options section
 const EFFECT_SECTION_MAP = {
-  maze:'maze', tron:'tron', f1:'f1', video:'video', simhouse:'simhouse',
+  maze:'maze', tron:'tron', video:'video', simhouse:'simhouse',
   balls:'',sand:'',lightning:'',warp:'',life:'',fluid:'',
 };
 
-const PANEL_EFFECTS = new Set(['tron','maze','video','f1','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','artic','joke','otd','trivia','epic','iss','cam','radio']);
+const PANEL_EFFECTS = new Set(['tron','maze','video','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','artic','joke','otd','trivia','epic','iss','cam','radio']);
 
 // Effects that have a real native ESP32 implementation (run on-device with no
 // browser). Any effect NOT in this set is greyed out in the sidebar, since it
@@ -1494,7 +1453,6 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
     document.querySelectorAll('.effect-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     currentEffect = eff;
-    if(currentEffect==='f1') startF1SessionTimer(); else stopF1SessionTimer();
     // Stop alarm if it's running and user switched effects
     if(activeAlarm){
       if(activeAlarm.phase==='done'){ brightness=1; if(mesh) mesh.material.color.setScalar(1); const bs=document.getElementById('bright-slider'); if(bs) bs.value='1'; }
@@ -1927,190 +1885,6 @@ window.addEventListener('deviceorientation', e => {
   gyroGX/=len; gyroGY/=len; gyroGZ/=len;
 });
 
-function activateF1Mode() {
-  effectsOn = true;
-  document.querySelectorAll('.effect-btn').forEach(b => b.classList.remove('active'));
-  const f1Btn = document.querySelector('[data-effect="f1"]');
-  if (f1Btn) f1Btn.classList.add('active');
-  currentEffect = 'f1';
-  startF1SessionTimer();
-  effectLabel.textContent = 'F1 Live';
-  t = 0;
-}
-
-// ── F1 Source selector ──
-document.querySelectorAll('[data-f1src]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('[data-f1src]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const mode = btn.dataset.f1src;
-    const simToggle = document.getElementById('f1-dev-toggle');
-    const simBody = document.getElementById('f1-dev-body');
-    if (simToggle) {
-      if (mode === 'simulation') {
-        simToggle.style.display = '';
-      } else {
-        simToggle.style.display = 'none';
-        if (simBody) simBody.style.display = 'none';
-        if (simToggle) simToggle.textContent = '▸ Simulation Options';
-      }
-    }
-    f1SetMode(mode);
-    activateF1Mode();
-  });
-});
-
-// ── F1 Dev Tools: session buttons ──
-document.querySelectorAll('[data-f1sim]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const type = btn.dataset.f1sim;
-    if (type === 'idle') { simNoSession(); }
-    else { simSession(type.charAt(0).toUpperCase() + type.slice(1)); }
-  });
-});
-
-// ── F1 Dev Tools: flag buttons ──
-document.querySelectorAll('[data-f1flag]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const f = btn.dataset.f1flag;
-    if (f === 'blue' || f === 'bw') {
-      const other = f === 'blue' ? 'bw' : 'blue';
-      const otherBtn = document.querySelector(`[data-f1flag="${other}"]`);
-      if (otherBtn && otherBtn.classList.contains('active')) {
-        otherBtn.classList.remove('active');
-        if (other === 'blue') { simBlueFlag(); } else { simBWFlag(); }
-      }
-      btn.classList.toggle('active');
-    } else {
-      document.querySelectorAll('[data-f1flag]').forEach(b => {
-        if (b.dataset.f1flag !== 'blue' && b.dataset.f1flag !== 'bw') b.classList.remove('active');
-      });
-      btn.classList.add('active');
-    }
-    if (f === 'blue') { simBlueFlag(); }
-    else if (f === 'bw') { simBWFlag(); }
-    else if (f === 'finish') { simFinish(); }
-    else if (f === 'sc') { simFlag('SAFETY', 'SAFETY CAR'); }
-    else if (f === 'vsc') { simFlag('VIRTUAL', 'VIRTUAL SC'); }
-    else if (f === 'doubleyellow') { simFlag('DOUBLE YELLOW', 'DOUBLE YELLOW'); }
-    else { simFlag(f.toUpperCase(), f.toUpperCase()); }
-  });
-});
-
-// ── F1 Dev Tools: weather buttons ──
-document.querySelectorAll('[data-f1wx]').forEach(btn => {
-  btn.addEventListener('click', () => simWeather(btn.dataset.f1wx));
-});
-
-// ── F1 Race Weekend Simulator ──
-document.getElementById('f1-sim-weekend')?.addEventListener('click', () => {
-  if (typeof simWeekendToggle === 'function') simWeekendToggle();
-});
-document.getElementById('f1-sim-racestart')?.addEventListener('click', () => {
-  if (typeof simRaceStart === 'function') simRaceStart();
-});
-document.getElementById('f1-sim-speed')?.addEventListener('input', e => {
-  _simWeekendSpeed = parseInt(e.target.value) || 10;
-  const label = document.getElementById('f1-sim-speed-val');
-  if (label) label.textContent = _simWeekendSpeed + 'x';
-});
-
-// ── F1 Dev Tools: collapsible toggles ──
-document.getElementById('f1-dev-toggle')?.addEventListener('click', function() {
-  const body = document.getElementById('f1-dev-body');
-  const open = body.style.display !== 'none';
-  body.style.display = open ? 'none' : 'block';
-  this.textContent = (open ? '▸' : '▾') + ' Simulation Options';
-});
-document.getElementById('f1-diag-toggle')?.addEventListener('click', function() {
-  const body = document.getElementById('f1-diag-body');
-  const open = body.style.display !== 'none';
-  body.style.display = open ? 'none' : 'block';
-  this.textContent = (open ? '▸' : '▾') + ' Diagnostics';
-  if (!open) _f1UpdateDiag();
-});
-
-// ── F1 Diagnostics updater ──
-function _f1UpdateDiag() {
-  const el = document.getElementById('f1-diag-content');
-  if (!el) return;
-  if (typeof F1State === 'undefined') { el.innerHTML = 'F1 module not loaded'; return; }
-  const s = F1State;
-  const ago = s.lastUpdate ? ((Date.now() - s.lastUpdate) / 1000).toFixed(1) + 's ago' : '--';
-  el.innerHTML = [
-    `Source: <b>${s.source}</b>`,
-    `Connection: <b>${s.connection}</b>${s.connectionError ? ' — <span style="color:#f66">' + s.connectionError + '</span>' : ''}`,
-    `Last Update: ${ago}`,
-    `Packets: ${s.updateCount}`,
-    `Reconnects: ${s.reconnectCount}`,
-    `Circuit: <b>${s.session.circuit || s.meeting?.circuit_short_name || '--'}</b>`,
-    `Country: ${s.session.country || s.meeting?.country_name || '--'}`,
-    `Race: ${s.session.name || s.meeting?.meeting_name || '--'}`,
-    `Date: ${s.session.dateStart || s.meeting?.date_start || '--'}`,
-    `Session: <b>${s.session.type || 'none'}</b>${s.session.type && s.session.type.includes('qual') ? ' Q' + (s.session.qSession||1) : s.session.type && s.session.type.includes('prac') ? ' FP' + (s.session.fpSession||1) : ''} ${s.session.active ? '(active)' : ''}`,
-    `Elapsed: ${Math.floor(s.session.timer.elapsed/60)}:${String(s.session.timer.elapsed%60).padStart(2,'0')} / ${Math.floor(s.session.timer.duration/60)}:${String(s.session.timer.duration%60).padStart(2,'0')}`,
-    `Remaining: ${Math.floor(s.session.timer.remaining/60)}:${String(s.session.timer.remaining%60).padStart(2,'0')}`,
-    `Lap: ${s.session.lap.current}/${s.session.lap.total}`,
-    `Leader: <b>${s.drivers[0]?.name || s.drivers[0]?.abbrev || '--'}</b>`,
-    `Flag: <b>${s.track.flag || 'none'}</b> RGB(${s.track.flagRGB ? s.track.flagRGB.map(c=>(c*255|0)).join(',') : '--'})`,
-    `Track: ${s.track.statusText || '--'}`,
-    `Weather: ${s.weather.temp != null ? s.weather.temp + '°C' : '--'} ${s.weather.humidity != null ? s.weather.humidity + '%' : ''} ${s.weather.wind != null ? s.weather.wind + 'km/h' : ''} ${s.weather.rain ? '🌧' : ''}`,
-    s.track.raceControlMessages.length ? `RC: ${s.track.raceControlMessages[0].message}` : '',
-    (function(){
-      var ns = s.nextSession;
-      if (!ns) return 'Next: <i>not available</i> (active=' + s.session.active + ', finished=' + s.session.finished + ')';
-      var parts = ['Next: <b>' + (ns.session_name || ns.session_type || '') + '</b>'];
-      if (ns.meeting_name) parts.push(ns.meeting_name);
-      if (ns.circuit_short_name) parts.push(ns.circuit_short_name);
-      if (ns.country_name) parts.push(ns.country_name);
-      if (ns.date_start) {
-        var d = new Date(ns.date_start);
-        parts.push(d.toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short'}));
-        parts.push(d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}));
-        var diff = d.getTime() - Date.now();
-        if (diff > 0) {
-          var h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000);
-          parts.push(h >= 24 ? 'in ' + Math.floor(h/24) + 'd ' + (h%24) + 'h' : 'in ' + h + 'h ' + m + 'm');
-        }
-      }
-      if (ns._estimated) parts.push('(estimated)');
-      return parts.join(' · ');
-    })()
-  ].filter(Boolean).join('<br>');
-}
-document.addEventListener('f1-state-change', _f1UpdateDiag);
-setInterval(() => {
-  if (document.getElementById('f1-diag-body')?.style.display !== 'none') _f1UpdateDiag();
-}, 2000);
-
-// ── F1 Badge updater ──
-document.addEventListener('f1-state-change', () => {
-  const badge = document.getElementById('f1-badge');
-  if (!badge) return;
-  const s = F1State;
-  badge.className = 'f1-badge';
-  if (s.source === 'simulation') {
-    badge.textContent = 'SIM';
-    badge.classList.add('sim');
-  } else if (s.connection === 'connected') {
-    badge.textContent = 'LIVE';
-    badge.classList.add('live');
-  } else if (s.connection === 'connecting') {
-    badge.textContent = '...';
-    badge.classList.add('connecting');
-  } else {
-    badge.textContent = '';
-  }
-});
-
-// ── F1 Status dot updater ──
-document.addEventListener('f1-state-change', () => {
-  const dot = document.getElementById('f1-status-dot');
-  if (!dot) return;
-  const c = F1State.connection;
-  dot.style.background = c === 'transferring' ? '#3af' : c === 'connected' ? '#4f4' : c === 'connecting' ? '#ff0' : c === 'error' ? '#f44' : '#444';
-});
-
 let panel2dMode=false, panel2dZoom=60;
 document.querySelectorAll('.size-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
@@ -2446,7 +2220,6 @@ let playlistOn=false, playlistIdx=0, playlistT=0, playlistLoop=true;
 function applyPlaylistItem(item){
   if(!item) return;
   currentEffect=item.effect;
-  if(currentEffect==='f1') startF1SessionTimer(); else stopF1SessionTimer();
   effectsOn=true;
   speedMult=item.speedMult!==undefined?item.speedMult:1;
   const spSl=document.getElementById('speed-slider');
@@ -2859,7 +2632,6 @@ document.querySelectorAll('.rain-style-btn').forEach(b=>b.addEventListener('clic
   rainStyle=b.dataset.rainstyle;
 }));
 document.querySelectorAll('.strobe-mode-btn').forEach(b=>b.addEventListener('click',()=>{
-  if (b.dataset.f1flag === 'blue' || b.dataset.f1flag === 'bw') return;
   const parent=b.parentElement;
   parent.querySelectorAll('.strobe-mode-btn').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
