@@ -75,22 +75,86 @@ inline String wsMimeType(const String& path) {
 }
 
 // Serve a static file from LittleFS, preferring a .gz sibling if present.
+// ---------------------------------------------------------------------------
+// Static-file concurrency throttle. This board has no working PSRAM, so
+// total heap is only ~16-20KB. Loading "/" makes the browser request
+// index.html, style.css, version.js, three.min.js, cube.js/effects.js/
+// ui.js all at once - each buffered LittleFS response needs its own chunk
+// of that tiny heap, and letting them all proceed simultaneously was
+// enough to exhaust it on a single page load (confirmed: /api/status - a
+// single small JSON response - loads fine every time; loading "/" crashes
+// it instantly). Cap how many are actually "in flight" at once; anything
+// past the cap is queued in a fixed-slot table (addresses never move, so
+// the onDisconnect lambda below can safely capture a pointer into it) and
+// served the moment a slot frees, rather than rejected - no asset is ever
+// dropped, just delayed a beat.
+// ---------------------------------------------------------------------------
+#define STATIC_MAX_CONCURRENT 2
+#define STATIC_QUEUE_LEN      8
+
+struct StaticQueueEntry {
+    bool occupied  = false;
+    bool cancelled = false;   // client disconnected while still queued
+    AsyncWebServerRequest* request = nullptr;
+    String path;
+    bool gz = false;
+};
+inline volatile int     g_staticActive = 0;
+inline StaticQueueEntry g_staticQueue[STATIC_QUEUE_LEN];
+
+inline void staticServeNow(AsyncWebServerRequest* request, const String& path, bool gz) {
+    g_staticActive++;
+    request->onDisconnect([]() {
+        if (g_staticActive > 0) g_staticActive--;
+    });
+    AsyncWebServerResponse* resp = request->beginResponse(LittleFS, path, wsMimeType(path));
+    if (gz) resp->addHeader("Content-Encoding", "gzip");
+    request->send(resp);
+}
+
+// Called once per loop() tick (main.cpp) - cheap no-op scan when there's
+// nothing queued or no free slot; only does real work when both line up.
+inline void serviceStaticQueue() {
+    if (g_staticActive >= STATIC_MAX_CONCURRENT) return;
+    for (int i = 0; i < STATIC_QUEUE_LEN; i++) {
+        if (!g_staticQueue[i].occupied) continue;
+        StaticQueueEntry& e = g_staticQueue[i];
+        e.occupied = false;           // free the slot regardless of outcome
+        if (e.cancelled) continue;    // client already gone - drop it, try next
+        staticServeNow(e.request, e.path, e.gz);
+        return;                       // one per tick keeps this call cheap
+    }
+}
+
+// Serve a static file from LittleFS, preferring a .gz sibling if present.
+// Throttled per the note above: past STATIC_MAX_CONCURRENT in-flight
+// responses, the request is queued instead of served immediately.
 inline bool serveStaticFile(AsyncWebServerRequest* request, String path) {
     if (path.endsWith("/")) path += "index.html";
 
     String gzPath = path + ".gz";
-    if (LittleFS.exists(gzPath)) {
-        AsyncWebServerResponse* resp =
-            request->beginResponse(LittleFS, gzPath, wsMimeType(path));
-        resp->addHeader("Content-Encoding", "gzip");
-        request->send(resp);
+    bool gz = LittleFS.exists(gzPath);
+    String finalPath = gz ? gzPath : path;
+    if (!gz && !LittleFS.exists(path)) return false;
+
+    if (g_staticActive < STATIC_MAX_CONCURRENT) {
+        staticServeNow(request, finalPath, gz);
         return true;
     }
-    if (LittleFS.exists(path)) {
-        request->send(LittleFS, path, wsMimeType(path));
+    for (int i = 0; i < STATIC_QUEUE_LEN; i++) {
+        if (g_staticQueue[i].occupied) continue;
+        StaticQueueEntry& slot = g_staticQueue[i];
+        slot.occupied  = true;
+        slot.cancelled = false;
+        slot.request   = request;
+        slot.path      = finalPath;
+        slot.gz        = gz;
+        request->onDisconnect([&slot]() { slot.cancelled = true; });
         return true;
     }
-    return false;
+    // Queue's full too - reject cleanly rather than risk piling on further.
+    request->send(503, "text/plain", "Server busy, try again");
+    return true;
 }
 
 // ---------------------------------------------------------------------------

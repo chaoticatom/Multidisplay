@@ -731,6 +731,11 @@ void loop() {
     // Clean up dead WebSocket clients periodically.
     ws.cleanupClients();
 
+    // Serve the next queued static-file request, if a concurrency slot has
+    // freed up - see the throttle note above serveStaticFile() in
+    // web_server.h.
+    serviceStaticQueue();
+
     // Standalone mode: schedule/alarm check (cheap, every ~20s) and weather
     // refresh (network fetch, every STANDALONE_WX_INTERVAL_MIN minutes).
     // Both run here on core 1, never on the DMA task, so a slow/failed
