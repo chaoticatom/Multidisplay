@@ -48,6 +48,16 @@ static void camTask(void*) {
 
 bool camInit(const CamConfig& cfg) {
   _cfg = cfg;
+  // Skip spawning the task entirely while the camera is disabled (the
+  // default, and currently the only state anything actually passes in -
+  // there's no UI/API path yet that re-enables it after boot). This task
+  // needs an 8192-byte stack that was otherwise sitting there unused for a
+  // dormant feature, and on this board (no working PSRAM) that was part of
+  // what starved AsyncTCP's own task creation ("failed to start task"),
+  // which meant the HTTP/WS servers accepted no connections at all despite
+  // printing "serving on :80" - ping/WiFi worked, but nothing was actually
+  // listening.
+  if (!cfg.enabled) { _running = false; return true; }
   if (!_mutex) _mutex = xSemaphoreCreateMutex();
   _running = true;
   return xTaskCreatePinnedToCore(camTask, "cam", 8192, nullptr, 1, &_task, 1) == pdPASS;
