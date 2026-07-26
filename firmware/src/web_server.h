@@ -69,26 +69,18 @@ inline String wsMimeType(const String& path) {
 
 // Serve a static file from LittleFS, preferring a .gz sibling if present.
 // ---------------------------------------------------------------------------
-// Static-file concurrency throttle. This board's PSRAM fails to enumerate
-// (psramFound() false), so the six per-face video buffers fall back to
-// internal RAM (see allocBuffer() in main.cpp), leaving well under 10KB of
-// heap free even before any HTTP request comes in (confirmed via
-// /api/status: free_heap ~8.8KB, min_free_heap ~1.2KB shortly after boot).
-// Loading "/" makes the browser request index.html, style.css, version.js,
-// three.min.js, cube.js/effects.js/ui.js all at once - each buffered
-// LittleFS response needs its own chunk of that tiny heap, and letting
-// more than one proceed at a time was enough to exhaust it (confirmed:
-// /api/status - a single small JSON response - loads fine every time;
-// loading "/" hung the board solid with 2 concurrent responses allowed).
-// Cap how many are actually "in flight" at once; anything past the cap is
-// queued in a fixed-slot table (addresses never move, so the onDisconnect
-// lambda below can safely capture a pointer into it) and served the moment
-// a slot frees, rather than rejected - no asset is ever dropped, just
-// delayed a beat. 1 is deliberately conservative given how little headroom
-// this board has without working PSRAM; revisit if PSRAM enumeration ever
-// gets fixed.
+// Static-file concurrency throttle. This used to be pinned to 1 because
+// PSRAM failed to enumerate and free heap sat under 10KB - one stalled
+// large-file transfer (e.g. effects.js, by far the biggest asset) could
+// permanently occupy the only concurrency slot and block every other file
+// from ever being served (observed live: g_staticActive/"clients" frozen
+// at 1 with heap otherwise stable, "Loading 3D engine" stuck forever).
+// Now that the octal-SPI PSRAM fix makes psramFound() true (28KB+ free
+// heap at boot instead of ~9KB), raised so a single stuck transfer can't
+// wedge every other asset - anything past the cap still queues rather
+// than being dropped, per the note below.
 // ---------------------------------------------------------------------------
-#define STATIC_MAX_CONCURRENT 1
+#define STATIC_MAX_CONCURRENT 4
 #define STATIC_QUEUE_LEN      8
 
 struct StaticQueueEntry {
