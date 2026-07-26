@@ -640,4 +640,16 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws) {
                           "index.html not found - upload the web app to LittleFS");
         }
     });
+
+    // Diagnostic: a genuinely tiny static page served through the EXACT
+    // same code path as "/" (serveStaticFile -> LittleFS -> gzip -> MIME
+    // lookup), to isolate whether ERR_CONNECTION_RESET mid-transfer is
+    // about file size specifically or the LittleFS/gzip serving path
+    // itself - unlike /test (a hardcoded inline string, no LittleFS/gzip
+    // involvement at all).
+    server.on("/minimal", HTTP_GET, [](AsyncWebServerRequest* request) {
+        if (!serveStaticFile(request, "/minimal.html")) {
+            request->send(404, "text/plain", "minimal.html not found");
+        }
+    });
 }

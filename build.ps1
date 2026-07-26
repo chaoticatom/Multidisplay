@@ -59,7 +59,7 @@ Write-Host "==> Gzipping assets into $Dist\..."
 # separate served assets - don't re-add them here without also un-inlining
 # index.html.
 $files = @(
-    "index.html",
+    "index.html", "minimal.html",
     "cube.js", "effects.js", "ui.js",
     "three.min.js", "manifest.json",
     "service-worker.js", "sw.js",
