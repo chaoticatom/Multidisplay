@@ -769,5 +769,19 @@ void loop() {
         standaloneApodFetch();
     }
 
+    // Temporary diagnostic: this board's free heap has been observed
+    // draining over time even with no obvious cause identified yet (e.g.
+    // 8.8KB -> 4KB over ~8 minutes with schedule/weather/APOD all
+    // inactive). Print it periodically so a serial capture can correlate
+    // the drop against specific events (page loads, WS connects, etc.)
+    // instead of guessing from two isolated /api/status snapshots.
+    // Remove once the leak is found and fixed.
+    static uint32_t lastHeapLog = 0;
+    if (millis() - lastHeapLog > 5000) {
+        lastHeapLog = millis();
+        Serial.printf("[HEAP] free=%u min=%u clients=%u\n",
+                      ESP.getFreeHeap(), ESP.getMinFreeHeap(), g_staticActive);
+    }
+
     delay(20);
 }
