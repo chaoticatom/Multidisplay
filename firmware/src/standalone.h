@@ -315,9 +315,19 @@ inline uint8_t* g_snBuf[NUM_FACES] = { nullptr };
 // memset() on whatever snAllocPreferPsram() returned with no null check,
 // which was a guaranteed Guru Meditation (StoreProhibited) crash the first
 // time internal RAM ran too low to satisfy this allocation.
+//
+// This buffer is deliberately NOT routed through snAllocPreferPsram() even
+// though PSRAM now works (octal-SPI config fixed psramFound()) - it's the
+// per-pixel render target touched by every native effect every frame at
+// CUBE_FPS, and PSRAM's per-access latency is high enough that this alone
+// blew the display task's watchdog deadline (TG1WDT_SYS_RST reboot loop
+// right after HUB75 DMA setup, before WiFi even connects) the moment PSRAM
+// started actually being used for it. Internal RAM only for this one -
+// PSRAM is fine for the other, less perf-critical per-effect state buffers
+// that still go through snAllocPreferPsram().
 inline bool snEnsureBuf(int face) {
     if (!g_snBuf[face]) {
-        g_snBuf[face] = (uint8_t*)snAllocPreferPsram(SN_BUF_BYTES_PER_FACE);
+        g_snBuf[face] = (uint8_t*)heap_caps_malloc(SN_BUF_BYTES_PER_FACE, MALLOC_CAP_8BIT);
         if (!g_snBuf[face]) return false;
         memset(g_snBuf[face], 0, SN_BUF_BYTES_PER_FACE);
     }
