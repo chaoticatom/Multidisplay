@@ -61,9 +61,16 @@
 #define HUB75_B1  40
 #define HUB75_R2  39
 #define HUB75_G2  38
-#define HUB75_B2  37
-#define HUB75_A   36
-#define HUB75_B   35
+// A/B/B2 moved off GPIO 36/35/37: those are reserved exclusively for the
+// octal-SPI PSRAM chip's extra data lines once qio_opi mode is enabled
+// (platformio.ini) - keeping the display wired there caused a
+// TG1WDT_SYS_RST reboot loop right after HUB75 DMA setup the moment PSRAM
+// actually started working. Physically rewire these 3 signals from the
+// panel connector to GPIO 4/5/6 instead (all free, non-strapping,
+// non-PSRAM-reserved pins) to use both the display and PSRAM together.
+#define HUB75_B2  6
+#define HUB75_A   4
+#define HUB75_B   5
 #define HUB75_C   45
 // GPIO 47 is confirmed by continuity check to reach the panel's real 4th
 // address wire - silkscreened "E" on the connector, since this is the
