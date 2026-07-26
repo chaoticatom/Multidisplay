@@ -722,6 +722,56 @@ void loop() {
     // Clean up dead WebSocket clients periodically.
     ws.cleanupClients();
 
+    // ---------------------------------------------------------------------
+    // Network-health watchdog: self-reboot if the WiFi/lwIP stack wedges.
+    // ---------------------------------------------------------------------
+    // Observed live: the board's own loop()/tasks stay completely healthy
+    // (heap heartbeat keeps printing normally, no crash) while the WiFi/
+    // lwIP stack itself stops answering ANY request - ping, HTTP,
+    // everything. This lives below anything our application code touches
+    // (AsyncWebServer/AsyncTCP), so there's no way to detect or recover
+    // from it through those APIs. Instead, periodically connect to our OWN
+    // HTTP server (self-test, not the router/gateway - many routers don't
+    // even listen on port 80, which would cause false-positive reboots)
+    // and request /api/status; if that consistently gets no response while
+    // WiFi.status() still claims connected, the stack is wedged even
+    // though nothing crashed, and a full reboot is the only way to
+    // recover it. Core 1's idle-task watchdog is still active (only Core
+    // 0's was disabled, for the display task's own unrelated reasons), so
+    // even if this probe itself blocks longer than its own timeout,
+    // there's a hard system-level fallback that will reboot the board
+    // anyway.
+    static uint32_t lastNetCheck   = 0;
+    static uint8_t  netCheckFails  = 0;
+    if (millis() - lastNetCheck > 15000) {
+        lastNetCheck = millis();
+        if (WiFi.status() == WL_CONNECTED) {
+            WiFiClient probe;
+            bool ok = false;
+            if (probe.connect(WiFi.localIP(), HTTP_PORT, 2000)) {
+                probe.print("GET /api/status HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+                uint32_t waitStart = millis();
+                while (probe.connected() && !probe.available() && (millis() - waitStart) < 2000) {
+                    delay(10);
+                }
+                ok = probe.available() > 0;
+            }
+            probe.stop();
+            if (ok) {
+                netCheckFails = 0;
+            } else {
+                netCheckFails++;
+                Serial.printf("[NETCHK] self-probe to own HTTP server failed (%u/3)\n", netCheckFails);
+                if (netCheckFails >= 3) {
+                    Serial.println("[NETCHK] network stack appears wedged after 3 failed probes - rebooting");
+                    Serial.flush();
+                    delay(200);
+                    ESP.restart();
+                }
+            }
+        }
+    }
+
     // Serve the next queued static-file request, if a concurrency slot has
     // freed up - see the throttle note above serveStaticFile() in
     // web_server.h.
