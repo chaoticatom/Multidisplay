@@ -16,13 +16,6 @@
 // web_server.h - HTTP routes + WebSocket handler for the cube.
 // ---------------------------------------------------------------------------
 
-// Cached F1 timing/state. Each member holds a ready-to-serve JSON string.
-struct F1State {
-    String session;   // for GET /api/session
-    String drivers;   // for GET /api/drivers
-    String flag;      // for GET /api/flags
-};
-
 // ---- Shared state owned by main.cpp ----------------------------------------
 // Per-face incoming frame buffers (PSRAM allocated). Indexed by face id 0..5.
 extern uint8_t*       g_frameBuf[NUM_FACES];
@@ -373,7 +366,7 @@ inline void handleOtaUpload(AsyncWebServerRequest* request, String filename,
 // ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
-inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws, F1State& f1) {
+inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws) {
     // ---- Camera API ----
     camApiInit(server);
 
@@ -397,38 +390,6 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws, F1State& f
         resp->addHeader("Content-Encoding", "gzip");
         request->send(resp);
     });
-
-    // ---- F1 API: GET ----
-    server.on("/api/session", HTTP_GET, [&f1](AsyncWebServerRequest* request) {
-        request->send(200, "application/json",
-                      f1.session.length() ? f1.session : "{\"type\":\"standby\"}");
-    });
-    server.on("/api/drivers", HTTP_GET, [&f1](AsyncWebServerRequest* request) {
-        request->send(200, "application/json",
-                      f1.drivers.length() ? f1.drivers : "[]");
-    });
-    server.on("/api/flags", HTTP_GET, [&f1](AsyncWebServerRequest* request) {
-        request->send(200, "application/json",
-                      f1.flag.length() ? f1.flag : "{\"flag\":\"none\"}");
-    });
-
-    // ---- F1 API: POST (external pusher updates cached JSON) ----
-    auto makePostHandler = [](String* target) {
-        return [target](AsyncWebServerRequest* request, uint8_t* data,
-                        size_t len, size_t index, size_t total) {
-            if (index == 0) target->clear();
-            target->concat((const char*)data, len);
-            if (index + len == total) {
-                request->send(200, "application/json", "{\"ok\":true}");
-            }
-        };
-    };
-    server.on("/api/session", HTTP_POST,
-              [](AsyncWebServerRequest* r) {}, nullptr, makePostHandler(&f1.session));
-    server.on("/api/drivers", HTTP_POST,
-              [](AsyncWebServerRequest* r) {}, nullptr, makePostHandler(&f1.drivers));
-    server.on("/api/flags", HTTP_POST,
-              [](AsyncWebServerRequest* r) {}, nullptr, makePostHandler(&f1.flag));
 
     // ---- Standalone mode: status, manual effect select, schedule config ----
     // No browser UI wired up for these yet (see docs/STANDALONE_MODE_PLAN.md)

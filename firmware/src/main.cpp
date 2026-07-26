@@ -70,7 +70,6 @@ volatile uint8_t  g_lastVideoPktFace   = 0;
 static AsyncWebServer httpServer(HTTP_PORT);
 static AsyncWebServer wsServer(WS_PORT);
 static AsyncWebSocket ws("/");
-static F1State        f1State;
 static MatrixPanel_I2S_DMA* dma_display = nullptr;
 
 // DMA-output (front) buffer, distinct from the WS-receive buffers so a frame
@@ -696,7 +695,7 @@ void setup() {
     // slow or failing weather API); with the servers starting only after it,
     // the browser/app got "connection refused" for that entire window even
     // though ping/mDNS already worked (neither depends on these servers).
-    initWebServer(httpServer, ws, f1State);
+    initWebServer(httpServer, ws);
     httpServer.begin();
 
     // The WebSocket lives on its own port (81). Reuse the same handler.
