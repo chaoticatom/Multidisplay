@@ -5,6 +5,8 @@
 
 set -e
 
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
 DIST="./data"
 THREEJS_URL="https://cdnjs.cloudflare.com/ajax/libs/three.js/r168/three.min.js"
 
@@ -28,6 +30,11 @@ echo "==> Gzipping assets into $DIST/..."
 # equivalent). version.js, sw.js, and icons/icon.svg were missing here
 # before - the server falls back to serving an uncompressed file if no
 # .gz sibling exists, so gzipping everything actually needed is always safe.
+# If any of these fail to gzip, the build is not safe to flash (see the
+# empty-filesystem-flashed incident this check was added for).
+REQUIRED="index.html style.css version.js cube.js effects.js ui.js"
+MISSING=""
+
 for f in index.html style.css version.js cube.js effects.js ui.js three.min.js manifest.json service-worker.js sw.js icons/icon-192.png icons/icon-512.png icons/icon.svg; do
   if [ -f "$f" ]; then
     mkdir -p "$DIST/$(dirname "$f")"
@@ -38,6 +45,7 @@ for f in index.html style.css version.js cube.js effects.js ui.js three.min.js m
     printf "    %-20s %6d → %6d bytes (%d%% smaller)\n" "$f" "$orig" "$comp" "$pct"
   else
     echo "    WARNING: $f not found, skipping."
+    MISSING="$MISSING $f"
   fi
 done
 
@@ -48,6 +56,15 @@ echo ""
 total=$(du -sh "$DIST/" | cut -f1)
 echo "    Total size: $total"
 echo ""
+
+for f in $REQUIRED; do
+  case " $MISSING " in
+    *" $f "*)
+      echo "ERROR: required file '$f' is missing from $DIST/ - refusing to leave a broken image for uploadfs." >&2
+      exit 1
+      ;;
+  esac
+done
 echo "==> Upload to ESP32-S3 with Arduino IDE or PlatformIO:"
 echo "    Arduino: Sketch → Upload Filesystem Image"
 echo "    PlatformIO: pio run --target uploadfs"

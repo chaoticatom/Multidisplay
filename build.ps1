@@ -10,6 +10,12 @@
 
 $ErrorActionPreference = "Stop"
 
+# Anchor to the script's own directory rather than trusting the caller's
+# current directory - relative paths below silently resolved against the
+# wrong folder before this fix (e.g. running from one level up), which let
+# the gzip loop fail on the very first file without aborting the build.
+Set-Location $PSScriptRoot
+
 $Dist = ".\data"
 $ThreeJsUrl = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r168/three.min.js"
 
@@ -51,6 +57,12 @@ $files = @(
     "icons\icon-192.png", "icons\icon-512.png", "icons\icon.svg"
 )
 
+# Files the app cannot run without - if any of these fail to gzip, the
+# build is not safe to flash (see the empty-filesystem-flashed incident
+# this check was added for).
+$required = @("index.html", "style.css", "version.js", "cube.js", "effects.js", "ui.js")
+$missing = @()
+
 foreach ($f in $files) {
     if (Test-Path $f) {
         $dstDir = Join-Path $Dist (Split-Path $f -Parent)
@@ -63,6 +75,7 @@ foreach ($f in $files) {
         Write-Host ("    {0,-24} {1,6} -> {2,6} bytes ({3}% smaller)" -f $f, $orig, $comp, $pct)
     } else {
         Write-Host "    WARNING: $f not found, skipping."
+        $missing += $f
     }
 }
 
@@ -70,5 +83,11 @@ Write-Host ""
 Write-Host "==> Build complete. Files in $Dist\:"
 Get-ChildItem -Recurse $Dist | ForEach-Object { Write-Host "    $($_.FullName)" }
 Write-Host ""
+
+$missingRequired = $required | Where-Object { $missing -contains $_ }
+if ($missingRequired) {
+    Write-Error "Build incomplete - required file(s) missing from $Dist\: $($missingRequired -join ', '). Refusing to leave a broken image for uploadfs. Fix the source problem and rerun."
+}
+
 Write-Host "==> Upload to ESP32-S3 with PlatformIO:"
 Write-Host "    cd firmware; python -m platformio run --target uploadfs"
