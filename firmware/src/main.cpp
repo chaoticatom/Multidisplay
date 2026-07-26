@@ -15,6 +15,7 @@
 #include <AsyncTCP.h>
 #include <time.h>
 #include <esp_heap_caps.h>   // heap_caps_malloc / MALLOC_CAP_8BIT (internal-RAM buffer fallback)
+#include <esp_core_dump.h>   // core dump summary printout - see setup()
 
 #include "config.h"
 #include "led_matrix.h"
@@ -549,6 +550,31 @@ void setup() {
     delay(2000);
     g_bootMillis = millis();
     Serial.println("\n[Boot] Multidisplay cube starting...");
+
+    // If the previous run crashed hard enough to produce a core dump
+    // (requires the `coredump` partition in partitions_16MB.csv), print a
+    // summary right here so it's visible in the normal serial monitor with
+    // no extra tooling needed - then erase it so it doesn't repeat every
+    // boot. This is the only way to get real crash info for anything that
+    // panics below our own application code (e.g. inside the WiFi driver/
+    // lwIP) - the live "loop() stays alive, network just stops answering"
+    // wedge investigated so far has shown no crash at all, so an empty
+    // result here is itself useful data, not a failure of this check.
+    if (esp_core_dump_image_check() == ESP_OK) {
+        esp_core_dump_summary_t summary;
+        if (esp_core_dump_get_summary(&summary) == ESP_OK) {
+            Serial.println("[COREDUMP] Previous run left a crash dump:");
+            Serial.printf("[COREDUMP]   crashed task: %s\n", summary.exc_task);
+            Serial.printf("[COREDUMP]   PC: 0x%08x\n", (unsigned)summary.exc_pc);
+            for (uint32_t i = 0; i < summary.exc_bt_info.dump_size && i < 16; i++) {
+                Serial.printf("[COREDUMP]   backtrace[%u]: 0x%08x\n",
+                              (unsigned)i, (unsigned)summary.exc_bt_info.bt[i]);
+            }
+        } else {
+            Serial.println("[COREDUMP] A dump exists but summary read failed.");
+        }
+        esp_core_dump_image_erase();
+    }
 
     // Status LED indicator task.
     xTaskCreatePinnedToCore(statusLedTask, "statusLed", 2048, nullptr, 1, nullptr, 1);

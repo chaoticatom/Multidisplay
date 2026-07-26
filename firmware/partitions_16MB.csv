@@ -1,6 +1,12 @@
-# Name,   Type, SubType, Offset,   Size
-nvs,      data, nvs,     0x9000,   0x5000
-otadata,  data, ota,     0xe000,   0x2000
-ota_0,    app,  ota_0,   0x10000,  0x400000
-ota_1,    app,  ota_1,   0x410000, 0x400000
-spiffs,   data, spiffs,  0x810000, 0x7F0000
+# Name,   Type, SubType,  Offset,   Size
+nvs,      data, nvs,      0x9000,   0x5000
+otadata,  data, ota,      0xe000,   0x2000
+ota_0,    app,  ota_0,    0x10000,  0x400000
+ota_1,    app,  ota_1,    0x410000, 0x400000
+# 256KB carved out of spiffs's previous 0x7F0000 (LittleFS is currently
+# using well under 1MB of it, plenty of headroom) - lets a real crash
+# write a core dump to flash instead of just "No core dump partition
+# found!" every boot, with no useful information about what's actually
+# happening during the reset/wedge symptom this was added to diagnose.
+coredump, data, coredump, 0x810000, 0x40000
+spiffs,   data, spiffs,   0x850000, 0x7B0000
