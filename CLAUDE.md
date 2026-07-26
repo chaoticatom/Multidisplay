@@ -35,11 +35,9 @@ No test suite or linter is configured (`package.json` only lists `playwright` as
 
 ## Version Bumping
 
-Every change requires updating **two** files in sync (there is no service-worker precache step — see PWA note below):
-1. `version.js` — `APP_VERSION` string
-2. `index.html` — every `?v=` param, on the `style.css`/`version.js` tags and inside the `appScripts` array (`cube.js`, `effects.js`, `ui.js`)
+Every change requires updating `index.html` (there is no service-worker precache step — see PWA note below): bump the inline `const APP_VERSION = '...'` near the bottom of `<body>`, and every `?v=` param inside the `appScripts` array (`cube.js`, `effects.js`, `ui.js`).
 
-`f1-state.js`/`f1.js`/`f1-providers.js` are loaded dynamically at runtime (see File Load Order below) and append `?v=` + `APP_VERSION` automatically — they never need a manual bump.
+`style.css` and `version.js` used to be separate files but are now inlined directly into `index.html` (a `<style>` block and an inline `<script>` setting `APP_VERSION`) — this cuts 2 of the concurrent connections a browser opens on first page load, which mattered on the ESP32's very tight (~16-20KB, no working PSRAM) heap. Don't re-extract them into external files without re-checking that heap budget.
 
 ### PWA / service worker is retired
 
@@ -85,9 +83,7 @@ Each frame: FPS counter → playlist advance → alarm check → alarm phase ren
 
 ### File Load Order
 
-`three.min.js` (local, CDN fallback) → `version.js` → then `index.html`'s inline loader sequentially injects `cube.js` → `effects.js` → `ui.js` (each with a `?v=APP_VERSION` cache-bust) once `THREE` is confirmed available.
-
-`f1-state.js` → `f1.js` → `f1-providers.js` are **not** part of that static load — `ui.js`'s `_f1LoadScripts()` injects them lazily the first time the F1 effect is activated, using the same `?v=APP_VERSION` cache-busting. Don't assume F1 globals exist until that effect has been selected at least once.
+`APP_VERSION` is set by an inline `<script>` in `index.html` (no longer a separate `version.js` fetch) → `three.min.js` (local, CDN fallback) → then `index.html`'s inline loader sequentially injects `cube.js` → `effects.js` → `ui.js` (each with a `?v=APP_VERSION` cache-bust) once `THREE` is confirmed available.
 
 ## Writing Effects
 

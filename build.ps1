@@ -53,12 +53,13 @@ function GzipFile($srcPath, $dstPath) {
 }
 
 Write-Host "==> Gzipping assets into $Dist\..."
-# Same file list as build.sh - keep both in sync. version.js, sw.js, and
-# icons/icon.svg were missing from build.sh before this fix; the server
-# falls back to serving an uncompressed file if no .gz sibling exists, so
-# gzipping everything here is always safe.
+# Same file list as build.sh - keep both in sync. style.css and version.js
+# are inlined directly into index.html (cuts 2 concurrent connections off
+# the page-load flurry on this board's ~16-20KB heap) so they're no longer
+# separate served assets - don't re-add them here without also un-inlining
+# index.html.
 $files = @(
-    "index.html", "style.css", "version.js",
+    "index.html",
     "cube.js", "effects.js", "ui.js",
     "three.min.js", "manifest.json",
     "service-worker.js", "sw.js",
@@ -68,7 +69,7 @@ $files = @(
 # Files the app cannot run without - if any of these fail to gzip, the
 # build is not safe to flash (see the empty-filesystem-flashed incident
 # this check was added for).
-$required = @("index.html", "style.css", "version.js", "cube.js", "effects.js", "ui.js")
+$required = @("index.html", "cube.js", "effects.js", "ui.js")
 $missing = @()
 
 foreach ($f in $files) {

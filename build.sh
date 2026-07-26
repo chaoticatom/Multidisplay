@@ -27,15 +27,16 @@ fi
 
 echo "==> Gzipping assets into $DIST/..."
 # Keep this file list in sync with build.ps1 (the Windows/no-WSL
-# equivalent). version.js, sw.js, and icons/icon.svg were missing here
-# before - the server falls back to serving an uncompressed file if no
-# .gz sibling exists, so gzipping everything actually needed is always safe.
+# equivalent). style.css and version.js are inlined directly into
+# index.html (cuts 2 concurrent connections off the page-load flurry on
+# this board's ~16-20KB heap) so they're no longer separate served
+# assets - don't re-add them here without also un-inlining index.html.
 # If any of these fail to gzip, the build is not safe to flash (see the
 # empty-filesystem-flashed incident this check was added for).
-REQUIRED="index.html style.css version.js cube.js effects.js ui.js"
+REQUIRED="index.html cube.js effects.js ui.js"
 MISSING=""
 
-for f in index.html style.css version.js cube.js effects.js ui.js three.min.js manifest.json service-worker.js sw.js icons/icon-192.png icons/icon-512.png icons/icon.svg; do
+for f in index.html cube.js effects.js ui.js three.min.js manifest.json service-worker.js sw.js icons/icon-192.png icons/icon-512.png icons/icon.svg; do
   if [ -f "$f" ]; then
     mkdir -p "$DIST/$(dirname "$f")"
     gzip -9 -c "$f" > "$DIST/${f}.gz"
