@@ -1885,8 +1885,17 @@
 <!-- Hidden video pipeline for Video Display effect -->
 <video id="vid-el" autoplay muted playsinline style="position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;"></video>
 <canvas id="vid-cv" style="display:none;"></canvas>
-<!-- Bisection step 2: load three.min.js (the largest single asset, ~600KB
-     source) to test whether loading that specific file is what triggers
-     the reset, independent of the rest of the app. -->
-<script src="three.min.js"></script>
+<!-- Bisection step 3: three.min.js triggered the reset via a synchronous
+     <script src> tag (fired immediately while parsing, likely overlapping
+     the tail of this page's own connection). This defers the fetch until
+     3 seconds after full page load, so it starts as a single, isolated
+     connection with nothing else in flight - testing whether it's really
+     about concurrency/timing rather than the file itself. -->
+<script>
+setTimeout(function(){
+  var s = document.createElement('script');
+  s.src = 'three.min.js';
+  document.head.appendChild(s);
+}, 3000);
+</script>
 </body></html>
