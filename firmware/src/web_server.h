@@ -96,17 +96,27 @@ struct StaticQueueEntry {
     bool cancelled = false;   // client disconnected while still queued
     AsyncWebServerRequest* request = nullptr;
     String path;
+    String mimePath;
     bool gz = false;
 };
 inline volatile int     g_staticActive = 0;
 inline StaticQueueEntry g_staticQueue[STATIC_QUEUE_LEN];
 
-inline void staticServeNow(AsyncWebServerRequest* request, const String& path, bool gz) {
+// mimePath is the LOGICAL path (e.g. "index.html") for MIME sniffing -
+// deliberately separate from `path`, which is the actual file opened on
+// LittleFS and may carry a ".gz" suffix. Passing the .gz-suffixed path
+// into wsMimeType() (as this used to) matches none of its extension
+// checks, falls through to "application/octet-stream", and the browser
+// downloads the response as a generic file named "download" instead of
+// rendering it - this is exactly that bug, fixed by keeping the two
+// paths distinct.
+inline void staticServeNow(AsyncWebServerRequest* request, const String& path,
+                           const String& mimePath, bool gz) {
     g_staticActive++;
     request->onDisconnect([]() {
         if (g_staticActive > 0) g_staticActive--;
     });
-    AsyncWebServerResponse* resp = request->beginResponse(LittleFS, path, wsMimeType(path));
+    AsyncWebServerResponse* resp = request->beginResponse(LittleFS, path, wsMimeType(mimePath));
     if (gz) resp->addHeader("Content-Encoding", "gzip");
     request->send(resp);
 }
@@ -120,7 +130,7 @@ inline void serviceStaticQueue() {
         StaticQueueEntry& e = g_staticQueue[i];
         e.occupied = false;           // free the slot regardless of outcome
         if (e.cancelled) continue;    // client already gone - drop it, try next
-        staticServeNow(e.request, e.path, e.gz);
+        staticServeNow(e.request, e.path, e.mimePath, e.gz);
         return;                       // one per tick keeps this call cheap
     }
 }
@@ -137,7 +147,7 @@ inline bool serveStaticFile(AsyncWebServerRequest* request, String path) {
     if (!gz && !LittleFS.exists(path)) return false;
 
     if (g_staticActive < STATIC_MAX_CONCURRENT) {
-        staticServeNow(request, finalPath, gz);
+        staticServeNow(request, finalPath, path, gz);
         return true;
     }
     for (int i = 0; i < STATIC_QUEUE_LEN; i++) {
@@ -147,6 +157,7 @@ inline bool serveStaticFile(AsyncWebServerRequest* request, String path) {
         slot.cancelled = false;
         slot.request   = request;
         slot.path      = finalPath;
+        slot.mimePath  = path;
         slot.gz        = gz;
         request->onDisconnect([&slot]() { slot.cancelled = true; });
         return true;
