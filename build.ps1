@@ -39,14 +39,13 @@ function GzipFile($srcPath, $dstPath) {
 }
 
 Write-Host "==> Gzipping assets into $Dist\..."
-# Same file list as build.sh - keep both in sync. version.js, f1-state.js,
-# f1-providers.js, sw.js, and icons/icon.svg were missing from build.sh
-# before this fix; the server falls back to serving an uncompressed file if
-# no .gz sibling exists, so gzipping everything here is always safe.
+# Same file list as build.sh - keep both in sync. version.js, sw.js, and
+# icons/icon.svg were missing from build.sh before this fix; the server
+# falls back to serving an uncompressed file if no .gz sibling exists, so
+# gzipping everything here is always safe.
 $files = @(
     "index.html", "style.css", "version.js",
     "cube.js", "effects.js", "ui.js",
-    "f1-state.js", "f1.js", "f1-providers.js",
     "three.min.js", "manifest.json",
     "service-worker.js", "sw.js",
     "icons\icon-192.png", "icons\icon-512.png", "icons\icon.svg"
