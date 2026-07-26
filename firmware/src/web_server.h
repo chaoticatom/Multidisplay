@@ -91,7 +91,20 @@ struct StaticQueueEntry {
     String mimePath;
     bool gz = false;
 };
-inline volatile int     g_staticActive = 0;
+inline volatile int      g_staticActive = 0;
+// Set to millis() whenever g_staticActive goes from 0 -> >0, left alone
+// while it stays above 0. Live testing showed the ESP32Async fork can
+// abort a response mid-transfer (browser sees ERR_CONNECTION_RESET,
+// confirmed via serial that the board itself doesn't crash/reboot) WITHOUT
+// calling onDisconnect - so g_staticActive never decrements and every
+// static file is permanently blocked from then on, even though nothing is
+// actually still in flight. There's no handle kept to the individual stuck
+// AsyncWebServerRequest to cancel it directly, so this is a blunt but
+// effective safety valve: if the counter's been stuck non-zero for too
+// long, assume whatever was stuck is gone and reset so new requests can
+// proceed again.
+inline uint32_t          g_staticActiveSince = 0;
+#define STATIC_STUCK_TIMEOUT_MS 8000
 inline StaticQueueEntry g_staticQueue[STATIC_QUEUE_LEN];
 
 // mimePath is the LOGICAL path (e.g. "index.html") for MIME sniffing -
@@ -104,6 +117,7 @@ inline StaticQueueEntry g_staticQueue[STATIC_QUEUE_LEN];
 // paths distinct.
 inline void staticServeNow(AsyncWebServerRequest* request, const String& path,
                            const String& mimePath, bool gz) {
+    if (g_staticActive == 0) g_staticActiveSince = millis();
     g_staticActive++;
     request->onDisconnect([]() {
         if (g_staticActive > 0) g_staticActive--;
@@ -116,6 +130,11 @@ inline void staticServeNow(AsyncWebServerRequest* request, const String& path,
 // Called once per loop() tick (main.cpp) - cheap no-op scan when there's
 // nothing queued or no free slot; only does real work when both line up.
 inline void serviceStaticQueue() {
+    if (g_staticActive > 0 && (millis() - g_staticActiveSince) > STATIC_STUCK_TIMEOUT_MS) {
+        Serial.printf("[STATIC] %d in-flight response(s) stuck >%dms with no onDisconnect - forcing reset\n",
+                      g_staticActive, STATIC_STUCK_TIMEOUT_MS);
+        g_staticActive = 0;
+    }
     if (g_staticActive >= STATIC_MAX_CONCURRENT) return;
     for (int i = 0; i < STATIC_QUEUE_LEN; i++) {
         if (!g_staticQueue[i].occupied) continue;
