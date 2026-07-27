@@ -122,8 +122,26 @@ inline void staticServeNow(AsyncWebServerRequest* request, const String& path,
     request->onDisconnect([]() {
         if (g_staticActive > 0) g_staticActive--;
     });
-    AsyncWebServerResponse* resp = request->beginResponse(LittleFS, path, wsMimeType(mimePath));
+    String mime = wsMimeType(mimePath);
+    AsyncWebServerResponse* resp = request->beginResponse(LittleFS, path, mime);
     if (gz) resp->addHeader("Content-Encoding", "gzip");
+    // Repeated large-file transfers (cube.js/effects.js/ui.js/three.min.js)
+    // have been confirmed live to eventually wedge the whole network stack
+    // - not just three.min.js specifically, any of these fail the same way
+    // under quick repeated reload, while tiny responses like /api/status
+    // never do. That points at a leaking fixed-size lwIP resource (packet
+    // buffers/TCP segments - static pools, unrelated to how much general
+    // heap is free) rather than anything fixable by serving differently.
+    // The practical fix: stop needing repeat large-file transfers at all.
+    // These JS files are requested with a "?v=APP_VERSION" cache-busting
+    // query string (see index.html), so a specific URL's content is
+    // genuinely immutable - safe to cache for a long time. index.html
+    // itself is requested at the same bare "/" every time and must stay
+    // uncached so it always points at the current version's asset URLs -
+    // only long-cache the JS files this applies to.
+    if (mime == "application/javascript") {
+        resp->addHeader("Cache-Control", "public, max-age=31536000, immutable");
+    }
     request->send(resp);
 }
 
