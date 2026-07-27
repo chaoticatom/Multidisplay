@@ -105,14 +105,13 @@ inline volatile int      g_staticActive = 0;
 // long, assume whatever was stuck is gone and reset so new requests can
 // proceed again.
 inline uint32_t          g_staticActiveSince = 0;
-// Raised from 8000 - the RESPONSE_TRY_AGAIN chunk-timing gap added to
-// staticServeNow() (15ms minimum between chunks) means a large file
-// streamed in small 512-byte pieces can legitimately take several
-// seconds on its own now (e.g. effects.js's ~286KB gzipped body is
-// ~560 chunks - 560*15ms = 8.4s from the throttle alone, before any
-// actual read/send time), so 8000ms risked firing on transfers that
-// were still genuinely progressing, not just truly stuck ones.
-#define STATIC_STUCK_TIMEOUT_MS 30000
+// Raised again, 30000 still fired on genuinely-progressing transfers.
+// This value only guards against a real leak (no onDisconnect ever
+// firing after the client is truly gone) - a false-positive reset that
+// kills a slow-but-live transfer is worse than just waiting longer, so
+// err generous. On weak WiFi a throttled chunked transfer plus real
+// retransmission delays can legitimately run well past 30s.
+#define STATIC_STUCK_TIMEOUT_MS 90000
 inline StaticQueueEntry g_staticQueue[STATIC_QUEUE_LEN];
 
 // mimePath is the LOGICAL path (e.g. "index.html") for MIME sniffing -
