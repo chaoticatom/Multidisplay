@@ -754,14 +754,19 @@ void setup() {
 // loop()
 // ---------------------------------------------------------------------------
 void loop() {
-    // Feed the hardware task watchdog registered in setup(). This must be
-    // unconditional and reached every iteration - the whole point is that
-    // if ANY code below this point ever blocks for longer than
-    // WDT_TIMEOUT_SEC (including a hung socket call the network-health
-    // self-probe further down can't reliably detect on its own), this
-    // simply stops getting called and the watchdog force-reboots the
-    // board regardless of what it's stuck in.
-    esp_task_wdt_reset();
+    // NOTE: esp_task_wdt_reset() is deliberately NOT called unconditionally
+    // here. Live testing proved loop() itself never actually hangs during
+    // the "network stops responding" wedge - the [HEAP] heartbeat kept
+    // printing every single time. Feeding the watchdog just because
+    // loop() reached this line would therefore never catch anything; the
+    // real hang lives inside some other FreeRTOS task (WiFi driver/lwIP),
+    // invisible to this task's own execution. Instead, this watchdog is
+    // only fed further down when the periodic self-probe to our own HTTP
+    // server actually succeeds - so it acts as a proxy for "the network
+    // stack is verifiably still answering requests," not "this task is
+    // still executing." If the probe stalls (even indefinitely, inside a
+    // hung socket call) or keeps failing, feeding simply stops and the
+    // watchdog fires on its own schedule regardless of what's stuck.
 
     // Reconnect handling: if WiFi drops, fall back to connecting state and try
     // to recover; AsyncWebServer + tasks keep running.
@@ -787,17 +792,23 @@ void loop() {
     // lwIP stack itself stops answering ANY request - ping, HTTP,
     // everything. This lives below anything our application code touches
     // (AsyncWebServer/AsyncTCP), so there's no way to detect or recover
-    // from it through those APIs. Instead, periodically connect to our OWN
-    // HTTP server (self-test, not the router/gateway - many routers don't
-    // even listen on port 80, which would cause false-positive reboots)
-    // and request /api/status; if that consistently gets no response while
-    // WiFi.status() still claims connected, the stack is wedged even
-    // though nothing crashed, and a full reboot is the only way to
-    // recover it. Core 1's idle-task watchdog is still active (only Core
-    // 0's was disabled, for the display task's own unrelated reasons), so
-    // even if this probe itself blocks longer than its own timeout,
-    // there's a hard system-level fallback that will reboot the board
-    // anyway.
+    // from it through those APIs. Periodically connect to our OWN HTTP
+    // server (self-test, not the router/gateway - many routers don't even
+    // listen on port 80, which would cause false-positive reboots) and
+    // request /api/status.
+    //
+    // The hardware task watchdog set up in setup() is ONLY fed on a
+    // successful probe (see esp_task_wdt_reset() below) - deliberately not
+    // unconditionally every loop() iteration, since loop() reaching this
+    // line proves nothing about whether the network stack actually still
+    // answers requests (confirmed live: it kept iterating fine throughout
+    // the wedge). This makes the watchdog a proxy for verified network
+    // health: if the probe stalls (even indefinitely inside a hung socket
+    // call) or keeps failing, feeding just stops and the watchdog fires on
+    // its own 25s schedule regardless of what's actually stuck. The
+    // explicit netCheckFails counter below still gives a softer, faster
+    // (~45s) graceful-restart path when the probe itself keeps completing
+    // but reporting failure.
     static uint32_t lastNetCheck   = 0;
     static uint8_t  netCheckFails  = 0;
     if (millis() - lastNetCheck > 15000) {
@@ -816,6 +827,7 @@ void loop() {
             probe.stop();
             if (ok) {
                 netCheckFails = 0;
+                esp_task_wdt_reset();
             } else {
                 netCheckFails++;
                 Serial.printf("[NETCHK] self-probe to own HTTP server failed (%u/3)\n", netCheckFails);
