@@ -115,6 +115,16 @@ inline StaticQueueEntry g_staticQueue[STATIC_QUEUE_LEN];
 // downloads the response as a generic file named "download" instead of
 // rendering it - this is exactly that bug, fixed by keeping the two
 // paths distinct.
+// Small, fixed chunk size used when manually streaming large files (see
+// staticServeNow below) - deliberately much smaller than whatever the
+// library's own default LittleFS response chunking would use, so fewer
+// packet buffers are ever in flight at once. Direct attempt at the "any
+// moderately large file eventually wedges the whole network stack under
+// repeated reload, while tiny responses never do" fault confirmed live -
+// consistent with a leaking/limited fixed-size lwIP resource pool that a
+// big burst of chunks exhausts faster than a trickle of small ones.
+#define STATIC_STREAM_CHUNK_BYTES 512
+
 inline void staticServeNow(AsyncWebServerRequest* request, const String& path,
                            const String& mimePath, bool gz) {
     if (g_staticActive == 0) g_staticActiveSince = millis();
@@ -123,16 +133,19 @@ inline void staticServeNow(AsyncWebServerRequest* request, const String& path,
         if (g_staticActive > 0) g_staticActive--;
     });
     String mime = wsMimeType(mimePath);
-    AsyncWebServerResponse* resp = request->beginResponse(LittleFS, path, mime);
+
+    File file = LittleFS.open(path, "r");
+    if (!file) {
+        request->send(500, "text/plain", "Failed to open file");
+        if (g_staticActive > 0) g_staticActive--;
+        return;
+    }
+    AsyncWebServerResponse* resp = request->beginChunkedResponse(mime,
+        [file](uint8_t* buffer, size_t maxLen, size_t index) mutable -> size_t {
+            size_t toRead = maxLen < STATIC_STREAM_CHUNK_BYTES ? maxLen : STATIC_STREAM_CHUNK_BYTES;
+            return file.read(buffer, toRead);
+        });
     if (gz) resp->addHeader("Content-Encoding", "gzip");
-    // Repeated large-file transfers (cube.js/effects.js/ui.js/three.min.js)
-    // have been confirmed live to eventually wedge the whole network stack
-    // - not just three.min.js specifically, any of these fail the same way
-    // under quick repeated reload, while tiny responses like /api/status
-    // never do. That points at a leaking fixed-size lwIP resource (packet
-    // buffers/TCP segments - static pools, unrelated to how much general
-    // heap is free) rather than anything fixable by serving differently.
-    // The practical fix: stop needing repeat large-file transfers at all.
     // These JS files are requested with a "?v=APP_VERSION" cache-busting
     // query string (see index.html), so a specific URL's content is
     // genuinely immutable - safe to cache for a long time. index.html
