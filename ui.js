@@ -655,15 +655,6 @@ function buildAlarmEffectOpts(key){
     sl.addEventListener('input',()=>{sv.textContent=sl.value+'s';alarmEffectRiseOpts.rotate=parseInt(sl.value);});
     const sr=document.createElement('div');sr.className='slider-row';sr.appendChild(sl);sr.appendChild(sv);
     c.appendChild(sr);
-  } else if(key==='simhouse'){
-    c.style.display='block';
-    c.appendChild(mkLabel('Mode'));
-    const g=mkGrid();
-    ['normal','shadows'].forEach(s=>{
-      const b=mkBtn(s.charAt(0).toUpperCase()+s.slice(1),(opts.shMode||'normal')===s,()=>{activateOne(g,b);alarmEffectRiseOpts.shMode=s;});
-      g.appendChild(b);
-    });
-    c.appendChild(g);
   } else if(key==='lightspeed'){
     c.style.display='block';
     c.appendChild(mkLabel('Speed'));
@@ -1229,7 +1220,6 @@ const EFFECTS={
   weather:effectWeather,
   coinflip:effectCoinFlip,
   dice:effectDice,
-  simhouse:effectSimHouse,
   retro:effectRetro,
   moon:effectMoon,
   neo:effectNEO,
@@ -1257,7 +1247,6 @@ const EFFECT_NAMES={
   weather:'Weather',
   coinflip:'Coin Flip',
   dice:'Dice Roll',
-  simhouse:'Sim House',
   moon:'Celestial',
   neo:'Near-Earth Objects',
   apod:'Astronomy Pic of the Day',
@@ -1283,11 +1272,11 @@ const effectLabel=document.getElementById('el-effect')||document.getElementById(
 
 // Effect → auto-expand linked options section
 const EFFECT_SECTION_MAP = {
-  maze:'maze', tron:'tron', video:'video', simhouse:'simhouse',
+  maze:'maze', tron:'tron', video:'video',
   balls:'',sand:'',lightning:'',warp:'',life:'',fluid:'',
 };
 
-const PANEL_EFFECTS = new Set(['tron','maze','video','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','simhouse','retro','random','neo','apod','unsplash','artic','joke','otd','trivia','epic','iss','cam','radio']);
+const PANEL_EFFECTS = new Set(['tron','maze','video','datetime','strobe','rain','fireworks','lightspeed','custom_cube','weather','moon','coinflip','dice','balls','retro','random','neo','apod','unsplash','artic','joke','otd','trivia','epic','iss','cam','radio']);
 
 // Effects that have a real native ESP32 implementation (run on-device with no
 // browser). Any effect NOT in this set is greyed out in the sidebar, since it
@@ -1511,13 +1500,6 @@ function updateRetroAutoGames(){
 document.querySelectorAll('.retro-auto-chk').forEach(c=>c.addEventListener('change',updateRetroAutoGames));
 
 // Fireworks mode buttons
-document.querySelectorAll('[data-shmode]').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    document.querySelectorAll('[data-shmode]').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    shShadowMode=btn.dataset.shmode==='shadows';
-  });
-});
 document.querySelectorAll('[data-fwmode]').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('[data-fwmode]').forEach(b=>b.classList.remove('active'));
@@ -3199,7 +3181,7 @@ function animate(now){
           const _bcf=ballCrossFaces, _bpf=ballsPerFace;
           const _mrc=mazeRunnerCount, _tbc=tronBikeCount, _tsm=tronSpeedMult;
           const _rsg=retroSelectedGame, _rri=retroRotateInterval;
-          const _shsm=shShadowMode, _lss=lsSpeed, _lst=lsTrail, _lsz=lsSize, _lsc=lsColour, _lscn=lsCount, _lsn=lsNudge;
+          const _lss=lsSpeed, _lst=lsTrail, _lsz=lsSize, _lsc=lsColour, _lscn=lsCount, _lsn=lsNudge;
           const _cs=coinSpeed, _dar=diceAutoRoll;
           const _aus=auStyle, _aut=auTheme, _aug=auGain, _aubm=auBarMode;
           if(efKey==='rain'&&eopts.style) rainStyle=eopts.style;
@@ -3224,7 +3206,6 @@ function animate(now){
             if(eopts.game!==undefined) retroSelectedGame=eopts.game;
             if(eopts.rotate) retroRotateInterval=eopts.rotate;
           }
-          if(efKey==='simhouse'&&eopts.shMode) shShadowMode=(eopts.shMode==='shadows');
           if(efKey==='lightspeed'){
             if(eopts.lsSpeed) lsSpeed=eopts.lsSpeed;
             if(eopts.lsTrail) lsTrail=eopts.lsTrail;
@@ -3240,7 +3221,7 @@ function animate(now){
           ballCrossFaces=_bcf; ballsPerFace=_bpf;
           mazeRunnerCount=_mrc; tronBikeCount=_tbc; tronSpeedMult=_tsm;
           retroSelectedGame=_rsg; retroRotateInterval=_rri;
-          shShadowMode=_shsm; lsSpeed=_lss; lsTrail=_lst; lsSize=_lsz; lsColour=_lsc; lsCount=_lscn; lsNudge=_lsn;
+          lsSpeed=_lss; lsTrail=_lst; lsSize=_lsz; lsColour=_lsc; lsCount=_lscn; lsNudge=_lsn;
           coinSpeed=_cs; diceAutoRoll=_dar;
           auStyle=_aus; auTheme=_aut; auGain=_aug; auBarMode=_aubm;
           _peTargetOpts=null;
