@@ -803,8 +803,8 @@ inline bool standaloneWxIsStorm(int code) { return code >= 95; }
 
 // Simplified synodic-month moon phase approximation (no ephemeris data on
 // the ESP32, unlike the browser's SunCalc-based getMoonIllumination()).
-// 0 = new, 0.5 = full, matching wxMoonPhase()'s convention. Reference new
-// moon: 2000-01-06 18:14 UTC (epoch seconds 947182440), period 29.530588853d.
+// 0 = new, 0.5 = full. Reference new moon: 2000-01-06 18:14 UTC (epoch
+// seconds 947182440), period 29.530588853 days.
 inline float standaloneMoonPhaseApprox(float epochSecs) {
     const double synodic = 29.530588853 * 86400.0;
     const double refNewMoon = 947182440.0;
@@ -813,27 +813,72 @@ inline float standaloneMoonPhaseApprox(float epochSecs) {
     return (float)(days / synodic);
 }
 
-// Faithful (but visually simplified) port of the browser's effectWeather.
-// Ported: vertical sky gradient with twilight blend, sun/moon arc with
-// elevation + moon-phase terminator shading, precipitation (rain/snow/fog),
-// storm flash, temperature/condition text feed (g_wxLine1Buf/g_wxLine2Buf),
-// and a handful of drifting cloud blobs.
-// Deliberately NOT ported (each is its own multi-hundred-line subsystem in
-// effects.js and not worth the native-code weight for a single-panel
-// standalone board): the procedurally-generated city skyline silhouettes
-// (wxSkyShapes: houses/trees/skyscrapers/cranes/landmarks with lit windows),
-// the panoramic scrolling city-name text, twinkling star field, and the
-// birds/planes/hot-air-balloon creature layer. If any of those are wanted
-// on real hardware later, port them individually rather than all at once -
-// same lesson as the fireworks sync-mode note above.
+// Multi-stop sky gradient, faithful port of effects.js's wxSkyRGB(): remaps
+// dayFrac so sunrise->0.25, noon->0.5, sunset->0.75 (rather than a linear
+// 0..1 clock), then interpolates across the same 14 colour stops the browser
+// uses (night -> dawn glow -> day -> dusk glow -> night). This replaces the
+// old native version's flat two-stop day/night lerp, which had none of the
+// dawn/dusk colour character.
+inline void standaloneWxSkyRGB(float dayFrac, uint32_t sunriseSec, uint32_t sunsetSec,
+                                float& r, float& g, float& b) {
+    static const float STOPS_F[14] = {
+        0.00f,0.20f,0.22f,0.25f,0.27f,0.30f,0.40f,0.50f,0.60f,0.70f,0.73f,0.75f,0.80f,1.00f
+    };
+    static const uint16_t STOPS_RGB[14][3] = {
+        {0,2,20},   {2,4,25},   {25,15,40}, {180,90,40},{240,160,60},{100,180,240},
+        {20,130,245},{15,120,255},{20,130,245},{80,160,240},{240,160,50},{220,80,30},
+        {30,10,30}, {0,2,20}
+    };
+    float srFrac = sunriseSec / 86400.0f, ssFrac = sunsetSec / 86400.0f;
+    float noon = (srFrac + ssFrac) * 0.5f;
+    float mapped;
+    if (dayFrac < srFrac)       mapped = 0.25f * (dayFrac / fmaxf(srFrac, 0.0001f));
+    else if (dayFrac < noon)    mapped = 0.25f + 0.25f * ((dayFrac - srFrac) / fmaxf(noon - srFrac, 0.0001f));
+    else if (dayFrac < ssFrac)  mapped = 0.5f + 0.25f * ((dayFrac - noon) / fmaxf(ssFrac - noon, 0.0001f));
+    else                        mapped = 0.75f + 0.25f * ((dayFrac - ssFrac) / fmaxf(1.0f - ssFrac, 0.0001f));
+    int a = 0, bIdx = 13;
+    for (int i = 0; i < 13; i++) {
+        if (mapped >= STOPS_F[i] && mapped < STOPS_F[i + 1]) { a = i; bIdx = i + 1; break; }
+    }
+    float m = (mapped - STOPS_F[a]) / fmaxf(STOPS_F[bIdx] - STOPS_F[a], 0.0001f);
+    r = saLerp(STOPS_RGB[a][0], STOPS_RGB[bIdx][0], m) / 255.0f;
+    g = saLerp(STOPS_RGB[a][1], STOPS_RGB[bIdx][1], m) / 255.0f;
+    b = saLerp(STOPS_RGB[a][2], STOPS_RGB[bIdx][2], m) / 255.0f;
+}
+
+// Faithful-as-practical port of effectWeather() onto a single flat 64x64
+// panel. The browser paints a full 360 deg panorama across 4 side faces plus
+// top/bottom/city-skyline/text; none of that geometry exists here (no
+// lat/lon or city name reach the ESP32 - g_wx* only carries temp/code/
+// sunrise/sunset from Open-Meteo), so this renders the same *sky*: gradient,
+// ground, sun/moon arc, stars, clouds, precipitation and storm flash, folded
+// onto one panel instead of wrapped around a panorama. Known permanent gaps
+// (documented rather than worked around): no skyline/city silhouette, no
+// scrolling city/temperature text on this path (kept on the generic
+// g_wxLine1/2Buf overlay instead), no real moon phase (SunCalc has no native
+// equivalent - moon is drawn as a plain disc).
+//
+// Cloud/star arrays are `static` (shared across all faces), matching the
+// same known limitation already called out on standaloneRenderFireworks:
+// with NUM_FACES>1 every face would show identical sky/cloud motion in
+// lockstep rather than independent scenes. Fine for the current single-panel
+// hardware.
 inline void standaloneRenderWeather(MatrixPanel_I2S_DMA* display, int face, float t) {
     (void)display;
     const int S = PANEL_SIZE;
+    const float WX_HORIZ = 0.26f;                 // matches browser's HORIZ
+    const int horizY = (int)((1.0f - WX_HORIZ) * (S - 1));  // ground starts here (y=0 is top)
 
     struct tm tmv;
     long secOfDay;
     standaloneLocalTm(tmv, &secOfDay);
     float dayFrac = secOfDay / 86400.0f;
+    int code = g_wxCode;
+    bool isRain  = standaloneWxIsRain(code);
+    bool isSnow  = standaloneWxIsSnow(code);
+    bool isFog   = standaloneWxIsFog(code);
+    bool isStorm = standaloneWxIsStorm(code);
+    bool isOvercast = (code == 3);
 
     bool isDay = g_wxValid
         ? (secOfDay >= (long)g_wxSunriseSec && secOfDay < (long)g_wxSunsetSec)
@@ -849,21 +894,90 @@ inline void standaloneRenderWeather(MatrixPanel_I2S_DMA* display, int face, floa
         if (!isDay && fromSs > 0 && fromSs < twilS) lightLvl = 1.0f - fromSs / twilS;
     }
 
-    // Sky: vertical gradient, blended smoothly across the twilight fade
-    // rather than a hard day/night cut. Drawn via snSet (not drawFastHLine,
-    // which - like fillRect/fillCircle - bypasses the virtual drawPixel the
-    // four-scan remap depends on).
-    float topR = saLerp(5, 70, lightLvl) / 255.0f, topG = saLerp(8, 140, lightLvl) / 255.0f, topB = saLerp(30, 235, lightLvl) / 255.0f;
-    float botR = saLerp(20, 160, lightLvl) / 255.0f, botG = saLerp(20, 210, lightLvl) / 255.0f, botB = saLerp(55, 250, lightLvl) / 255.0f;
+    // Sky colour: real multi-stop gradient (dawn/day/dusk/night hues), not a
+    // flat lerp. Then darken/grey for storm/rain/overcast/cloudy exactly like
+    // the browser's isDay branch.
+    float skyR, skyG, skyB;
+    standaloneWxSkyRGB(dayFrac, g_wxValid ? g_wxSunriseSec : 6UL * 3600,
+                        g_wxValid ? g_wxSunsetSec : 18UL * 3600, skyR, skyG, skyB);
+    if (isDay) {
+        if (isStorm)        { skyR = skyR * 0.3f + 0.12f; skyG = skyG * 0.3f + 0.13f; skyB = skyB * 0.35f + 0.15f; }
+        else if (isRain)    { skyR = skyR * 0.4f + 0.08f; skyG = skyG * 0.4f + 0.10f; skyB = skyB * 0.5f + 0.10f; }
+        else if (isOvercast){ skyR = 0.25f; skyG = 0.27f; skyB = 0.3f; }
+        else if (code == 2) { skyR = skyR * 0.75f + 0.04f; skyG = skyG * 0.75f + 0.04f; skyB = skyB * 0.8f + 0.03f; }
+    }
+
+    // Ground colour.
+    bool gNight = (dayFrac < 0.25f || dayFrac > 0.75f);
+    float gR = isSnow ? (gNight ? 0.5f : 0.9f)  : (gNight ? 0.02f : 0.04f);
+    float gG = isSnow ? (gNight ? 0.52f : 0.94f) : (gNight ? 0.04f : 0.09f);
+    float gB = isSnow ? (gNight ? 0.55f : 0.98f) : (gNight ? 0.02f : 0.03f);
+
+    // Dawn/dusk horizon glow, blended into the sky colour just above ground.
+    bool isDawn = dayFrac > 0.22f && dayFrac < 0.32f;
+    bool isDusk = dayFrac > 0.70f && dayFrac < 0.80f;
+    float glowAmt = isDawn ? sinf((dayFrac - 0.22f) / 0.10f * (float)M_PI)
+                  : isDusk ? sinf((dayFrac - 0.70f) / 0.10f * (float)M_PI) : 0.0f;
+    float hzR = fminf(1.0f, skyR + glowAmt * 0.6f);
+    float hzG = fminf(1.0f, skyG + glowAmt * 0.15f);
+    float hzB = fminf(1.0f, skyB * 0.3f);
+
+    // Storm flash: decaying brightness added on top of the sky, matching
+    // wxLightFlash. Advances once per unique `t` value so multiple faces
+    // sharing one tick don't re-trigger/re-decay it multiple times.
+    static float wxFlash = 0.0f;
+    static float wxFlashLastT = -1.0f;
+    if (t != wxFlashLastT) {
+        float fdt = wxFlashLastT >= 0 ? (t - wxFlashLastT) : 0.0f;
+        if (fdt < 0) fdt = 0; if (fdt > 0.5f) fdt = 0.5f;
+        wxFlashLastT = t;
+        if (wxFlash > 0) wxFlash = fmaxf(0.0f, wxFlash - fdt * 3.0f);
+        if (isStorm && standaloneHash01((int)(t * 37.0f)) > 0.96f) {
+            wxFlash = fminf(1.0f, wxFlash + 0.7f + standaloneHash01((int)(t * 53.0f)) * 0.3f);
+        }
+    }
+
+    // ── Sky + ground rows ──
     for (int y = 0; y < S; y++) {
-        float f = (float)y / (S - 1);
-        float r = saLerp(topR, botR, f), g = saLerp(topG, botG, f), b = saLerp(topB, botB, f);
+        if (y >= horizY) {
+            for (int x = 0; x < S; x++) snSet(face, x, y, gR, gG, gB);
+            continue;
+        }
+        float vFrac = 1.0f - (float)y / (S - 1);          // 0 at horizon, 1 at top
+        float skyFrac = (vFrac - WX_HORIZ) / (1.0f - WX_HORIZ);
+        float sf2 = powf(fmaxf(0.0f, skyFrac), 0.65f);
+        float r = hzR + (skyR - hzR) * sf2;
+        float g = hzG + (skyG - hzG) * sf2;
+        float b = hzB + (skyB - hzB) * sf2;
+        if (isFog) {
+            float fga = 0.72f * (1.0f - skyFrac * 0.3f);
+            r += (0.78f - r) * fga; g += (0.80f - g) * fga; b += (0.84f - b) * fga;
+        }
+        if (wxFlash > 0) { r = fminf(1.0f, r + wxFlash * 0.8f); g = fminf(1.0f, g + wxFlash * 0.8f); b = fminf(1.0f, b + wxFlash * 0.8f); }
         for (int x = 0; x < S; x++) snSet(face, x, y, r, g, b);
     }
 
-    // Sun/moon arc: elevation follows sin(progress*PI) like the browser
-    // (rises from the horizon, peaks at midday/midnight, sets), not a flat
-    // left-to-right line.
+    // ── Stars (night only, fade with lightLvl like the browser) ──
+    float starAlpha = fmaxf(0.0f, 1.0f - lightLvl) * 0.95f;
+    if (starAlpha > 0.05f) {
+        const int NSTARS = 24;
+        for (int i = 0; i < NSTARS; i++) {
+            float px = standaloneHash01(i * 13);
+            float py = standaloneHash01(i * 19);
+            float br = 0.3f + standaloneHash01(i * 7) * 0.7f;
+            float spd = 1.5f + standaloneHash01(i * 5) * 3.0f;
+            float tw = standaloneHash01(i * 3) * 6.2832f;
+            float twinkle = 0.5f + 0.5f * sinf(t * spd + tw);
+            float sb = br * starAlpha * twinkle;
+            if (sb < 0.04f) continue;
+            int sx = (int)(px * (S - 1));
+            int sy = (int)(py * horizY);            // confine to sky band
+            snMax(face, sx, sy, sb, sb * 0.9f, sb);
+        }
+    }
+
+    // ── Sun/moon arc: elevation follows sin(progress*PI) (rises from the
+    // horizon, peaks at midday/midnight, sets), matching the browser. ──
     float dayLen = g_wxValid ? (float)(g_wxSunsetSec - g_wxSunriseSec) : 43200.0f;
     if (dayLen <= 0) dayLen = 43200.0f;
     float dayProg = isDay ? (secOfDay - (float)g_wxSunriseSec) / dayLen : 0;
@@ -872,90 +986,103 @@ inline void standaloneRenderWeather(MatrixPanel_I2S_DMA* display, int face, floa
     float nightProg = !isDay ? fromSunset / nightLen : 0;
     float prog = isDay ? dayProg : nightProg;
     float elev = sinf(constrain(prog, 0.0f, 1.0f) * (float)M_PI);
-    int cx = 6 + (int)(constrain(prog, 0.0f, 1.0f) * (S - 12));
-    int cy = (int)(S * 0.42f - elev * S * 0.32f);
-    const int R = 5;
-    if (isDay) {
-        // Sun: flat warm disc, matching drawBody's sunDim-scaled fill.
-        for (int y = -R; y <= R; y++)
-            for (int x = -R; x <= R; x++)
-                if (x * x + y * y <= R * R) snSet(face, cx + x, cy + y, 1.0f, 0.98f, 0.7f);
-    } else {
-        // Moon: terminator-shaded disc (same illum/dir/cosAngle formula as
-        // the browser's drawMoon), driven by the synodic-approximation phase.
-        float phase = standaloneMoonPhaseApprox((float)(time(nullptr)));
-        float illum = phase <= 0.5f ? phase * 2.0f : (1.0f - phase) * 2.0f; // 0=new,1=full
-        float dir = phase <= 0.5f ? 1.0f : -1.0f;
-        float cosAngle = (1.0f - illum) * 2.0f - 1.0f;
-        for (int y = -R; y <= R; y++) {
-            for (int x = -R; x <= R; x++) {
-                float dist = sqrtf((float)(x * x + y * y));
-                if (dist > R) continue;
-                float termX = x / (float)R;
-                float lit = termX * dir > cosAngle ? 1.0f
-                          : termX * dir > cosAngle - 0.15f ? ((termX * dir - cosAngle + 0.15f) / 0.15f) * 0.7f
-                          : 0.0f;
-                if (lit <= 0.05f) continue;
-                float edge = 1.0f - (dist / R) * (dist / R) * 0.3f;
-                float mb = 0.85f * lit * edge;
-                snSet(face, cx + x, cy + y, mb, mb * 0.97f, mb * 0.9f);
+    const int margin = 6;
+    int cx = margin + (int)(constrain(prog, 0.0f, 1.0f) * (S - 2 * margin));
+    int cy = horizY - (int)(elev * (horizY - margin));
+    float dr, dg, db; int R;
+    if (isDay) { dr = 1.0f; dg = 0.98f; db = 0.7f; R = 4; }         // warm sun disc
+    else       { dr = 0.85f; dg = 0.83f; db = 0.9f; R = 3; }        // pale moon disc
+    float sunDim = (isDay && isStorm) ? 0.35f : (isDay && isRain) ? 0.55f : 1.0f;
+    // Moon phase terminator: no ephemeris on-device (unlike the browser's
+    // SunCalc), so approximate via a synodic-month cycle and shade the disc
+    // the same way the browser's drawMoon does (illum/dir/cosAngle), rather
+    // than drawing a flat/full disc every night regardless of actual phase.
+    float moonPhase = 0.0f, moonIllum = 1.0f, moonDir = 1.0f, moonCosAngle = -1.0f;
+    if (!isDay) {
+        moonPhase = standaloneMoonPhaseApprox((float)time(nullptr));
+        moonIllum = moonPhase <= 0.5f ? moonPhase * 2.0f : (1.0f - moonPhase) * 2.0f; // 0=new,1=full
+        moonDir = moonPhase <= 0.5f ? 1.0f : -1.0f;
+        moonCosAngle = (1.0f - moonIllum) * 2.0f - 1.0f;
+    }
+    for (int y = -(R + 3); y <= R + 3; y++) {
+        for (int x = -(R + 3); x <= R + 3; x++) {
+            float dist = sqrtf((float)(x * x + y * y));
+            float lit = 1.0f;
+            if (!isDay && dist <= R + 3) {
+                float termX = R > 0 ? x / (float)R : 0.0f;
+                lit = termX * moonDir > moonCosAngle ? 1.0f
+                    : termX * moonDir > moonCosAngle - 0.15f ? ((termX * moonDir - moonCosAngle + 0.15f) / 0.15f) * 0.7f
+                    : 0.05f; // faint earthshine rather than pure black
+            }
+            if (dist <= R) {
+                snSet(face, cx + x, cy + y, dr * sunDim * lit, dg * sunDim * lit, db * sunDim * lit);
+            } else if (dist < R + 3) {
+                float gAmt = (1.0f - (dist - R) / 3.0f) * 0.4f * sunDim * lit;
+                snMax(face, cx + x, cy + y, dr * gAmt, dg * gAmt, db * gAmt);
             }
         }
     }
 
-    // Clouds: a few drifting soft blobs, simplified stand-in for the
-    // browser's multi-puff wxClouds system (per-cloud puff array, overcast
-    // tinting, sun-dawn/dusk warm edge lift) - here just a radial falloff
-    // blob whose brightness responds to the same isRain/isStorm/isOvercast
-    // darkening the browser applies via cloudDark.
-    {
-        int cloudCode = g_wxCode;
-        bool isFog2 = standaloneWxIsFog(cloudCode);
-        bool isRain2 = standaloneWxIsRain(cloudCode);
-        bool isStorm2 = standaloneWxIsStorm(cloudCode);
-        bool isOvercast2 = cloudCode == 3;
-        float cloudDark = isStorm2 ? 0.85f : isRain2 ? 0.7f : isOvercast2 ? 0.95f : cloudCode >= 3 ? 0.65f : 0.85f;
-        if (!isFog2) {
-            const int NCLOUDS = 3;
-            for (int c = 0; c < NCLOUDS; c++) {
-                float seed = c * 71.0f + face * 13.0f;
-                float speed = 0.03f + standaloneHash01((int)seed) * 0.03f;
-                float cx2 = fmodf(standaloneHash01((int)seed * 3) * S + t * speed * S, (float)S);
-                float cy2 = S * (0.55f + 0.3f * standaloneHash01((int)seed * 7));
-                float wU = S * 0.16f, wV = S * 0.08f;
-                for (int dy = -(int)wV; dy <= (int)wV; dy++) {
-                    for (int dx = -(int)wU; dx <= (int)wU; dx++) {
-                        float dist = sqrtf((dx / wU) * (dx / wU) + (dy / wV) * (dy / wV));
-                        if (dist > 1.0f) continue;
-                        int fx = (int)(cx2 + dx), fy = (int)(cy2 + dy);
-                        if (fx < 0 || fx >= S || fy < 0 || fy >= S) continue;
-                        float edge = 1.0f - dist;
-                        float cb = 0.75f * cloudDark * edge;
-                        snAdd(face, fx, fy, cb, cb, cb * 1.02f);
-                    }
+    // ── Clouds: a handful of soft blobs drifting across the sky band,
+    // darkened per condition (storm/rain/overcast darker, clear brighter).
+    // Skipped entirely for code 0 (clear), matching the browser's nc=0. ──
+    if (code != 0) {
+        struct Cloud { float px, py, sz, br; };
+        static Cloud clouds[6];
+        static bool cloudsInit = false;
+        static float cloudLastT = -1.0f;
+        if (!cloudsInit) {
+            for (int i = 0; i < 6; i++) {
+                clouds[i] = { standaloneHash01(i * 31), 0.15f + standaloneHash01(i * 37) * 0.55f,
+                              0.12f + standaloneHash01(i * 41) * 0.18f, 0.5f + standaloneHash01(i * 43) * 0.4f };
+            }
+            cloudsInit = true;
+        }
+        float cdt = cloudLastT >= 0 ? (t - cloudLastT) : 0.0f;
+        if (cdt < 0) cdt = 0; if (cdt > 0.5f) cdt = 0.5f;
+        cloudLastT = t;
+        float cloudDark = isStorm ? 0.85f : isRain ? 0.7f : isOvercast ? 0.95f : code >= 3 ? 0.65f : 0.85f;
+        for (int i = 0; i < 6; i++) {
+            Cloud& cl = clouds[i];
+            cl.px = fmodf(cl.px + cdt * 0.02f + 1.0f, 1.0f);
+            int ccx = (int)(cl.px * (S - 1));
+            int ccy = (int)(cl.py * horizY);
+            int wU = (int)(cl.sz * 0.9f * S), wV = (int)(cl.sz * 0.5f * S);
+            if (wU < 1) wU = 1; if (wV < 1) wV = 1;
+            for (int dv = -wV; dv <= wV; dv++) {
+                for (int du = -wU; du <= wU; du++) {
+                    float dist = sqrtf((float)(du * du) / (wU * wU) + (float)(dv * dv) / (wV * wV));
+                    if (dist > 1.0f) continue;
+                    float edge = 1.0f - dist;
+                    float cb = cl.br * cloudDark * edge;
+                    float warm = (isDawn || isDusk) ? 0.06f * glowAmt : 0.0f;
+                    snMax(face, ccx + du, ccy + dv, cb + warm, cb * (1.0f - warm * 0.3f), cb * (1.0f - warm * 0.8f));
                 }
             }
         }
     }
 
-    // Precipitation.
-    int code = g_wxCode;
-    if (standaloneWxIsRain(code)) {
+    // Precipitation - colours match effectWeather's wxParticles blend
+    // exactly (rain 0.35/0.45/0.65, snow 0.9/0.92/0.98); the old native
+    // version used much dimmer placeholder colours (0.15/0.15/0.35 rain,
+    // 0.7/0.7/0.75 snow) that read as far too dark/grey next to the browser.
+    if (isRain) {
         for (int i = 0; i < 24; i++) {
             float px = standaloneHash01(i * 13) * S;
             float py = fmodf(standaloneHash01(i * 19) * S + t * (S * 1.6f), (float)S);
-            snAdd(face, (int)px, (int)py, 0.15f, 0.15f, 0.35f);
+            if ((int)py >= horizY) continue;   // stay above the ground line
+            snMax(face, (int)px, (int)py, 0.35f, 0.45f, 0.65f);
         }
-    } else if (standaloneWxIsSnow(code)) {
+    } else if (isSnow) {
         for (int i = 0; i < 20; i++) {
             float px = fmodf(standaloneHash01(i * 13) * S + sinf(t + i) * 3, (float)S);
             float py = fmodf(standaloneHash01(i * 19) * S + t * (S * 0.4f), (float)S);
-            snAdd(face, (int)px, (int)py, 0.7f, 0.7f, 0.75f);
+            snMax(face, (int)px, (int)py, 0.9f, 0.92f, 0.98f);
         }
-    } else if (standaloneWxIsFog(code)) {
+    } else if (isFog) {
         for (int y = S / 2; y < S; y++) for (int x = 0; x < S; x++) snAdd(face, x, y, 0.15f, 0.15f, 0.15f);
     }
-    if (standaloneWxIsStorm(code) && standaloneHash01((int)(t * 3.0f)) > 0.92f) {
+    if (isStorm && standaloneHash01((int)(t * 3.0f)) > 0.92f) {
         for (int y = 0; y < S; y++) snAdd(face, S / 2, y, 0.6f, 0.6f, 0.7f);
     }
 
