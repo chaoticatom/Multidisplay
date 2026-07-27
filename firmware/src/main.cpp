@@ -746,8 +746,15 @@ void setup() {
     // This framework version's esp_task_wdt API takes a plain (timeout
     // seconds, panic-on-timeout) pair rather than the newer IDF5.x
     // esp_task_wdt_config_t/esp_task_wdt_reconfigure() struct form.
-    esp_task_wdt_init(25, true);
-    esp_task_wdt_add(NULL);
+    // Logging both return codes - the watchdog has failed to fire even
+    // when it should have (confirmed: probe genuinely fails 3x in a row,
+    // still no reboot), which is only explainable if one of these two
+    // calls is silently failing (e.g. the task watchdog subsystem being
+    // compiled out / already in a state that rejects re-init).
+    esp_err_t wdtInitErr = esp_task_wdt_init(25, true);
+    esp_err_t wdtAddErr  = esp_task_wdt_add(NULL);
+    Serial.printf("[WDT] init=%d add=%d (0=ESP_OK; see esp_err.h for others)\n",
+                  (int)wdtInitErr, (int)wdtAddErr);
 }
 
 // ---------------------------------------------------------------------------
