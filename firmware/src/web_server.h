@@ -466,18 +466,6 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws) {
     // server - the port-81 one.
     ws.onEvent(onWsEvent);
 
-    // ---- Diagnostic: bare-minimum page, no LittleFS/gzip/static-queue
-    // involvement at all - a single inline string response, same shape as
-    // /api/status (which has always stayed reliable). Used to isolate
-    // whether "/" wedging the board is about page complexity/concurrent
-    // connections, or something more fundamental (e.g. any GET at all).
-    server.on("/test", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(200, "text/html",
-            "<!DOCTYPE html><html><body><h1>Multidisplay test page</h1>"
-            "<p>If you can see this and the board is still pingable, "
-            "loading a minimal page is fine.</p></body></html>");
-    });
-
     // ---- Loader page (PROGMEM gzip) ----
     server.on("/loader", HTTP_GET, [](AsyncWebServerRequest* request) {
         AsyncWebServerResponse* resp = request->beginResponse_P(
@@ -697,15 +685,4 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws) {
         }
     });
 
-    // Diagnostic: a genuinely tiny static page served through the EXACT
-    // same code path as "/" (serveStaticFile -> LittleFS -> gzip -> MIME
-    // lookup), to isolate whether ERR_CONNECTION_RESET mid-transfer is
-    // about file size specifically or the LittleFS/gzip serving path
-    // itself - unlike /test (a hardcoded inline string, no LittleFS/gzip
-    // involvement at all).
-    server.on("/minimal", HTTP_GET, [](AsyncWebServerRequest* request) {
-        if (!serveStaticFile(request, "/minimal.html")) {
-            request->send(404, "text/plain", "minimal.html not found");
-        }
-    });
 }

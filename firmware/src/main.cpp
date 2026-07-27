@@ -746,15 +746,8 @@ void setup() {
     // This framework version's esp_task_wdt API takes a plain (timeout
     // seconds, panic-on-timeout) pair rather than the newer IDF5.x
     // esp_task_wdt_config_t/esp_task_wdt_reconfigure() struct form.
-    // Logging both return codes - the watchdog has failed to fire even
-    // when it should have (confirmed: probe genuinely fails 3x in a row,
-    // still no reboot), which is only explainable if one of these two
-    // calls is silently failing (e.g. the task watchdog subsystem being
-    // compiled out / already in a state that rejects re-init).
-    esp_err_t wdtInitErr = esp_task_wdt_init(25, true);
-    esp_err_t wdtAddErr  = esp_task_wdt_add(NULL);
-    Serial.printf("[WDT] init=%d add=%d (0=ESP_OK; see esp_err.h for others)\n",
-                  (int)wdtInitErr, (int)wdtAddErr);
+    esp_task_wdt_init(25, true);
+    esp_task_wdt_add(NULL);
 }
 
 // ---------------------------------------------------------------------------
@@ -785,37 +778,6 @@ void loop() {
     // Clean up dead WebSocket clients periodically.
     ws.cleanupClients();
 
-    // ---------------------------------------------------------------------
-    // Periodic unconditional reboot: works around the WiFi-RX-path wedge.
-    // ---------------------------------------------------------------------
-    // Confirmed live: external clients lose ALL connectivity (ping, HTTP -
-    // even /api/status) while the board's own loop()/tasks stay completely
-    // healthy (heap heartbeat keeps printing, no crash). A self-probe
-    // (WiFiClient connecting to WiFi.localIP()) was tried as a health
-    // check, but it kept "succeeding" during a confirmed-dead-from-outside
-    // wedge - the browser couldn't reach /api/status at the same moment
-    // our own probe to that same endpoint reported fine. The only
-    // explanation: connecting to our OWN assigned IP gets silently
-    // shortcut through an internal loopback path in lwIP, bypassing the
-    // real WiFi radio's receive path entirely - so if the actual fault is
-    // in that RX path (a stuck interrupt handler, exhausted DMA
-    // descriptors, or similar low-level WiFi driver issue), no self-test
-    // run from the device itself can ever detect it; it's fundamentally
-    // testing the wrong side of the fault.
-    //
-    // Given that, the only fix guaranteed to work regardless of what's
-    // actually broken is a fixed-schedule reboot with no health check
-    // involved at all. 20 minutes bounds worst-case downtime to a level
-    // reasonable for a display device, at the cost of a ~5-10s blackout
-    // for the reboot itself.
-    static const uint32_t PERIODIC_REBOOT_INTERVAL_MS = 20UL * 60UL * 1000UL;
-    if (millis() - g_bootMillis > PERIODIC_REBOOT_INTERVAL_MS) {
-        Serial.println("[REBOOT] Scheduled periodic reboot (works around the WiFi-RX-path wedge - see notes in loop())");
-        Serial.flush();
-        delay(200);
-        ESP.restart();
-    }
-
     // Serve the next queued static-file request, if a concurrency slot has
     // freed up - see the throttle note above serveStaticFile() in
     // web_server.h.
@@ -845,20 +807,6 @@ void loop() {
                       : (millis() - lastApodFetch > 6UL * 3600000UL))) {
         lastApodFetch = millis();
         standaloneApodFetch();
-    }
-
-    // Temporary diagnostic: this board's free heap has been observed
-    // draining over time even with no obvious cause identified yet (e.g.
-    // 8.8KB -> 4KB over ~8 minutes with schedule/weather/APOD all
-    // inactive). Print it periodically so a serial capture can correlate
-    // the drop against specific events (page loads, WS connects, etc.)
-    // instead of guessing from two isolated /api/status snapshots.
-    // Remove once the leak is found and fixed.
-    static uint32_t lastHeapLog = 0;
-    if (millis() - lastHeapLog > 5000) {
-        lastHeapLog = millis();
-        Serial.printf("[HEAP] free=%u min=%u clients=%u\n",
-                      ESP.getFreeHeap(), ESP.getMinFreeHeap(), g_staticActive);
     }
 
     delay(20);

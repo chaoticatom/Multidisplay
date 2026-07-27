@@ -36,7 +36,7 @@ echo "==> Gzipping assets into $DIST/..."
 REQUIRED="index.html cube.js effects.js ui.js"
 MISSING=""
 
-for f in index.html minimal.html cube.js effects.js ui.js three.min.js manifest.json service-worker.js sw.js icons/icon-192.png icons/icon-512.png icons/icon.svg; do
+for f in index.html cube.js effects.js ui.js three.min.js manifest.json service-worker.js sw.js icons/icon-192.png icons/icon-512.png icons/icon.svg; do
   if [ -f "$f" ]; then
     mkdir -p "$DIST/$(dirname "$f")"
     gzip -9 -c "$f" > "$DIST/${f}.gz"
