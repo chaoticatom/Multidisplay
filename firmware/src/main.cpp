@@ -743,12 +743,10 @@ void setup() {
     // top of every loop() iteration below; a genuinely wedged iteration
     // (stuck in the self-probe or anywhere else) will simply stop feeding
     // it and get force-rebooted after WDT_TIMEOUT_SEC.
-    esp_task_wdt_config_t wdtConfig = {
-        .timeout_ms = 25000,
-        .idle_core_mask = 0,
-        .trigger_panic = true
-    };
-    esp_task_wdt_reconfigure(&wdtConfig);
+    // This framework version's esp_task_wdt API takes a plain (timeout
+    // seconds, panic-on-timeout) pair rather than the newer IDF5.x
+    // esp_task_wdt_config_t/esp_task_wdt_reconfigure() struct form.
+    esp_task_wdt_init(25, true);
     esp_task_wdt_add(NULL);
 }
 
