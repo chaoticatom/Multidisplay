@@ -33,10 +33,10 @@ echo "==> Gzipping assets into $DIST/..."
 # assets - don't re-add them here without also un-inlining index.html.
 # If any of these fail to gzip, the build is not safe to flash (see the
 # empty-filesystem-flashed incident this check was added for).
-REQUIRED="index.html cube.js effects.js ui.js"
+REQUIRED="index.html cube.js effects-core.js effects-motion.js effects-physics.js effects-colour.js effects-livedata.js effects-games.js effects-scenes.js effects-media.js ui.js"
 MISSING=""
 
-for f in index.html cube.js effects.js ui.js three.min.js manifest.json service-worker.js sw.js icons/icon-192.png icons/icon-512.png icons/icon.svg; do
+for f in index.html cube.js effects-core.js effects-motion.js effects-physics.js effects-colour.js effects-livedata.js effects-games.js effects-scenes.js effects-media.js ui.js three.min.js manifest.json service-worker.js sw.js icons/icon-192.png icons/icon-512.png icons/icon.svg; do
   if [ -f "$f" ]; then
     mkdir -p "$DIST/$(dirname "$f")"
     gzip -9 -c "$f" > "$DIST/${f}.gz"

@@ -321,11 +321,24 @@ function initCube(newSize) {
   const total = N.toLocaleString();
   document.getElementById('led-count-label').innerHTML = `${SIZE}<sup>3</sup> · ${total} surface LEDs`;
 
-  fwParticles.length = 0;
-  resetRain(); resetBalls(); resetSand();
-  mazeOpen = null; auRings.length = 0; tronTrail = null;
-  warpStars=[]; lifeGrid=null; fluidH=null; lightningBolts=[];
-  auroraStar=null; nebStars=null; ballFlashes=[];
+  // These effect-specific globals/resets live in lazily-loaded category
+  // files (effects-motion.js / effects-physics.js / effects-games.js) and
+  // may not exist yet if that category hasn't been opened once — guard
+  // each reference so a fresh page load / size change never throws.
+  if (typeof fwParticles !== 'undefined') fwParticles.length = 0;
+  if (typeof resetRain !== 'undefined') resetRain();
+  if (typeof resetBalls !== 'undefined') resetBalls();
+  if (typeof resetSand !== 'undefined') resetSand();
+  if (typeof mazeOpen !== 'undefined') mazeOpen = null;
+  if (typeof auRings !== 'undefined') auRings.length = 0;
+  if (typeof tronTrail !== 'undefined') tronTrail = null;
+  if (typeof warpStars !== 'undefined') warpStars=[];
+  if (typeof lifeGrid !== 'undefined') lifeGrid=null;
+  if (typeof fluidH !== 'undefined') fluidH=null;
+  if (typeof lightningBolts !== 'undefined') lightningBolts=[];
+  if (typeof auroraStar !== 'undefined') auroraStar=null;
+  if (typeof nebStars !== 'undefined') nebStars=null;
+  if (typeof ballFlashes !== 'undefined') ballFlashes=[];
   t = 0;
 }
 
