@@ -761,19 +761,13 @@ void setup() {
 // loop()
 // ---------------------------------------------------------------------------
 void loop() {
-    // NOTE: esp_task_wdt_reset() is deliberately NOT called unconditionally
-    // here. Live testing proved loop() itself never actually hangs during
-    // the "network stops responding" wedge - the [HEAP] heartbeat kept
-    // printing every single time. Feeding the watchdog just because
-    // loop() reached this line would therefore never catch anything; the
-    // real hang lives inside some other FreeRTOS task (WiFi driver/lwIP),
-    // invisible to this task's own execution. Instead, this watchdog is
-    // only fed further down when the periodic self-probe to our own HTTP
-    // server actually succeeds - so it acts as a proxy for "the network
-    // stack is verifiably still answering requests," not "this task is
-    // still executing." If the probe stalls (even indefinitely, inside a
-    // hung socket call) or keeps failing, feeding simply stops and the
-    // watchdog fires on its own schedule regardless of what's stuck.
+    // Feeds the hardware task watchdog registered in setup(). This is a
+    // generic "loop() itself never hangs" guard, unrelated to the WiFi-RX
+    // wedge investigated at length below (that symptom leaves loop()
+    // completely healthy - confirmed live - so no in-process check can
+    // detect it; see the periodic-reboot block further down for how
+    // that's actually handled).
+    esp_task_wdt_reset();
 
     // Reconnect handling: if WiFi drops, fall back to connecting state and try
     // to recover; AsyncWebServer + tasks keep running.
@@ -792,60 +786,34 @@ void loop() {
     ws.cleanupClients();
 
     // ---------------------------------------------------------------------
-    // Network-health watchdog: self-reboot if the WiFi/lwIP stack wedges.
+    // Periodic unconditional reboot: works around the WiFi-RX-path wedge.
     // ---------------------------------------------------------------------
-    // Observed live: the board's own loop()/tasks stay completely healthy
-    // (heap heartbeat keeps printing normally, no crash) while the WiFi/
-    // lwIP stack itself stops answering ANY request - ping, HTTP,
-    // everything. This lives below anything our application code touches
-    // (AsyncWebServer/AsyncTCP), so there's no way to detect or recover
-    // from it through those APIs. Periodically connect to our OWN HTTP
-    // server (self-test, not the router/gateway - many routers don't even
-    // listen on port 80, which would cause false-positive reboots) and
-    // request /api/status.
+    // Confirmed live: external clients lose ALL connectivity (ping, HTTP -
+    // even /api/status) while the board's own loop()/tasks stay completely
+    // healthy (heap heartbeat keeps printing, no crash). A self-probe
+    // (WiFiClient connecting to WiFi.localIP()) was tried as a health
+    // check, but it kept "succeeding" during a confirmed-dead-from-outside
+    // wedge - the browser couldn't reach /api/status at the same moment
+    // our own probe to that same endpoint reported fine. The only
+    // explanation: connecting to our OWN assigned IP gets silently
+    // shortcut through an internal loopback path in lwIP, bypassing the
+    // real WiFi radio's receive path entirely - so if the actual fault is
+    // in that RX path (a stuck interrupt handler, exhausted DMA
+    // descriptors, or similar low-level WiFi driver issue), no self-test
+    // run from the device itself can ever detect it; it's fundamentally
+    // testing the wrong side of the fault.
     //
-    // The hardware task watchdog set up in setup() is ONLY fed on a
-    // successful probe (see esp_task_wdt_reset() below) - deliberately not
-    // unconditionally every loop() iteration, since loop() reaching this
-    // line proves nothing about whether the network stack actually still
-    // answers requests (confirmed live: it kept iterating fine throughout
-    // the wedge). This makes the watchdog a proxy for verified network
-    // health: if the probe stalls (even indefinitely inside a hung socket
-    // call) or keeps failing, feeding just stops and the watchdog fires on
-    // its own 25s schedule regardless of what's actually stuck. The
-    // explicit netCheckFails counter below still gives a softer, faster
-    // (~45s) graceful-restart path when the probe itself keeps completing
-    // but reporting failure.
-    static uint32_t lastNetCheck   = 0;
-    static uint8_t  netCheckFails  = 0;
-    if (millis() - lastNetCheck > 15000) {
-        lastNetCheck = millis();
-        if (WiFi.status() == WL_CONNECTED) {
-            WiFiClient probe;
-            bool ok = false;
-            if (probe.connect(WiFi.localIP(), HTTP_PORT, 2000)) {
-                probe.print("GET /api/status HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n");
-                uint32_t waitStart = millis();
-                while (probe.connected() && !probe.available() && (millis() - waitStart) < 2000) {
-                    delay(10);
-                }
-                ok = probe.available() > 0;
-            }
-            probe.stop();
-            if (ok) {
-                netCheckFails = 0;
-                esp_task_wdt_reset();
-            } else {
-                netCheckFails++;
-                Serial.printf("[NETCHK] self-probe to own HTTP server failed (%u/3)\n", netCheckFails);
-                if (netCheckFails >= 3) {
-                    Serial.println("[NETCHK] network stack appears wedged after 3 failed probes - rebooting");
-                    Serial.flush();
-                    delay(200);
-                    ESP.restart();
-                }
-            }
-        }
+    // Given that, the only fix guaranteed to work regardless of what's
+    // actually broken is a fixed-schedule reboot with no health check
+    // involved at all. 20 minutes bounds worst-case downtime to a level
+    // reasonable for a display device, at the cost of a ~5-10s blackout
+    // for the reboot itself.
+    static const uint32_t PERIODIC_REBOOT_INTERVAL_MS = 20UL * 60UL * 1000UL;
+    if (millis() - g_bootMillis > PERIODIC_REBOOT_INTERVAL_MS) {
+        Serial.println("[REBOOT] Scheduled periodic reboot (works around the WiFi-RX-path wedge - see notes in loop())");
+        Serial.flush();
+        delay(200);
+        ESP.restart();
     }
 
     // Serve the next queued static-file request, if a concurrency slot has
