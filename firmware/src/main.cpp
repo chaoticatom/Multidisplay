@@ -16,6 +16,7 @@
 #include <time.h>
 #include <esp_heap_caps.h>   // heap_caps_malloc / MALLOC_CAP_8BIT (internal-RAM buffer fallback)
 #include <esp_core_dump.h>   // core dump summary printout - see setup()
+#include <esp_task_wdt.h>    // hardware task watchdog - see setup()/loop()
 
 #include "config.h"
 #include "led_matrix.h"
@@ -726,12 +727,44 @@ void setup() {
     // its own timeout too.
     standaloneLoad();
     standaloneNtpInit();
+
+    // Hardware task watchdog on THIS task (Arduino's loop task, Core 1) as
+    // the guaranteed fallback for the "network stack wedges, board stays
+    // unreachable forever" symptom. The earlier attempt at this
+    // (WiFiClient self-probe in loop()) never fired even after a real
+    // crash+manual-reset cycle - almost certainly because that probe's own
+    // connect() call was itself swallowed by the same wedged stack it was
+    // trying to detect, past its nominal 2s timeout, so loop() never got
+    // back around to the failure-counting/reboot logic at all. A hardware
+    // watchdog doesn't have that chicken-and-egg problem: it fires
+    // whenever this task fails to feed it within the timeout, REGARDLESS
+    // of what that task is stuck doing - including stuck inside a hung
+    // socket call. esp_task_wdt_reset() is called unconditionally at the
+    // top of every loop() iteration below; a genuinely wedged iteration
+    // (stuck in the self-probe or anywhere else) will simply stop feeding
+    // it and get force-rebooted after WDT_TIMEOUT_SEC.
+    esp_task_wdt_config_t wdtConfig = {
+        .timeout_ms = 25000,
+        .idle_core_mask = 0,
+        .trigger_panic = true
+    };
+    esp_task_wdt_reconfigure(&wdtConfig);
+    esp_task_wdt_add(NULL);
 }
 
 // ---------------------------------------------------------------------------
 // loop()
 // ---------------------------------------------------------------------------
 void loop() {
+    // Feed the hardware task watchdog registered in setup(). This must be
+    // unconditional and reached every iteration - the whole point is that
+    // if ANY code below this point ever blocks for longer than
+    // WDT_TIMEOUT_SEC (including a hung socket call the network-health
+    // self-probe further down can't reliably detect on its own), this
+    // simply stops getting called and the watchdog force-reboots the
+    // board regardless of what it's stuck in.
+    esp_task_wdt_reset();
+
     // Reconnect handling: if WiFi drops, fall back to connecting state and try
     // to recover; AsyncWebServer + tasks keep running.
     static uint32_t lastCheck = 0;
