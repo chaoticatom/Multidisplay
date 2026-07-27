@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <memory>           // std::shared_ptr - per-response chunk-timing state
 #include <WiFi.h>          // WiFi.RSSI() for the /api/status signal-strength field
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
@@ -140,15 +141,26 @@ inline void staticServeNow(AsyncWebServerRequest* request, const String& path,
         if (g_staticActive > 0) g_staticActive--;
         return;
     }
-    // Reverted the RESPONSE_TRY_AGAIN time-gap experiment - it caused a
-    // new failure mode (transfer stalls partway, network otherwise stays
-    // healthy/pingable) once the real fix (platform version pin + smaller
-    // chunk size) resolved the original catastrophic whole-stack wedge.
-    // Likely this library version doesn't reschedule the callback the way
-    // that sentinel assumes. Plain small-chunk reads only, no artificial
-    // delay.
+    // Restored after live testing showed removing this brought back the
+    // original catastrophic whole-network wedge (ping dies) - without it,
+    // only the smaller chunk size + platform version pin weren't enough
+    // on their own. With it, the failure mode is much milder: an
+    // occasional single transfer stalls partway while the rest of the
+    // network (ping, other requests) stays healthy - recoverable with a
+    // reload, a clear improvement over the whole board going unreachable.
+    // delay() here would block the whole AsyncTCP task (freezing every
+    // other connection), so RESPONSE_TRY_AGAIN is used instead - tells
+    // the library "not ready yet, call me again shortly" without ending
+    // the response early - giving the suspected leaking/limited lwIP
+    // resource pool real wall-clock time to drain between chunks.
+    auto lastChunkMs = std::make_shared<uint32_t>(0);
     AsyncWebServerResponse* resp = request->beginChunkedResponse(mime,
-        [file](uint8_t* buffer, size_t maxLen, size_t index) mutable -> size_t {
+        [file, lastChunkMs](uint8_t* buffer, size_t maxLen, size_t index) mutable -> size_t {
+            uint32_t now = millis();
+            if (*lastChunkMs != 0 && (now - *lastChunkMs) < 15) {
+                return RESPONSE_TRY_AGAIN;
+            }
+            *lastChunkMs = now;
             size_t toRead = maxLen < STATIC_STREAM_CHUNK_BYTES ? maxLen : STATIC_STREAM_CHUNK_BYTES;
             return file.read(buffer, toRead);
         });
