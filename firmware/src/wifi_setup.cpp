@@ -31,7 +31,19 @@ bool connectWifi() {
         // requests. Costs a little extra power draw; worth it for a
         // always-on display that needs a reliable web UI.
         WiFi.setSleep(false);
-        Serial.printf("[WiFi] Connected, IP=%s (modem sleep disabled)\n", WiFi.localIP().toString().c_str());
+        // This board's signal has been documented as weak ("-80dBm/poor")
+        // since early bring-up, and current testing still shows -63 to
+        // -65dBm even in the same room as the router - genuinely weak,
+        // not "too strong/receiver desense" territory. ESP32 doesn't
+        // always run at its max TX power by default; forcing it here is a
+        // cheap experiment against the "large sustained transfer wedges
+        // the whole network stack, byte count varies each attempt" fault
+        // signature, which is consistent with marginal-signal packet loss
+        // triggering pathological retry/retransmission behavior under
+        // sustained load (where a single-packet response like /api/status
+        // never gets enough tries to hit the same problem).
+        WiFi.setTxPower(WIFI_POWER_19_5dBm);
+        Serial.printf("[WiFi] Connected, IP=%s (modem sleep disabled, TX power forced to max)\n", WiFi.localIP().toString().c_str());
     } else {
         Serial.println("[WiFi] Failed to connect / portal timed out");
     }
