@@ -1207,32 +1207,81 @@ function renderAlarmSunrise(progress,startBrightPct){
 
 const GHOST_ALL_EFFECTS=null; // placeholder resolved at runtime
 
+// ── Lazy-loaded effect categories ──────────────────────────────────
+// Mirrors the pattern the old F1 subsystem used before it was removed: a
+// stub sits in the EFFECTS map for every key in a category. On first
+// invocation the stub injects <script src="effects-CATEGORY.js">; once
+// that loads, every key in the category gets its EFFECTS entry swapped
+// for the real (now-defined) function, and the currently-selected effect
+// is invoked immediately so the first frame after load isn't blank.
+// effects-core.js (overlays, gallery/word-cascade engines, image loader,
+// audio/spectrum + radio) is NOT part of this — it's eager-loaded as part
+// of appScripts, since everything below depends on it being defined first.
+const LAZY_CATEGORIES = {
+  motion:   { file:'effects-motion.js',   map:{ wave:'effectWave', rain:'effectRain', plasma:'effectPlasma', sphere:'effectSphere', dna:'effectDNA', nebula:'effectNebula', aurora:'effectAurora', warp:'effectWarp', lightning:'effectLightning', lightspeed:'effectLightspeed' } },
+  physics:  { file:'effects-physics.js',  map:{ balls:'effectBouncingBalls', sand:'effectGravitySand', life:'effectLife', fluid:'effectFluid', fireworks:'effectFireworks', strobe:'effectStrobe' } },
+  colour:   { file:'effects-colour.js',   map:{ gradient_wash:'effectGradientWash', depth_rings:'effectDepthRings', prism:'effectPrism', tide:'effectTide' } },
+  livedata: { file:'effects-livedata.js', map:{ weather:'effectWeather', moon:'effectMoon', datetime:'effectDateTime', neo:'effectNEO', apod:'effectAPOD', unsplash:'effectUnsplash', artic:'effectArtic', joke:'effectJoke', otd:'effectOnThisDay', trivia:'effectTrivia', epic:'effectEPIC', iss:'effectISS', cam:'effectCam' } },
+  games:    { file:'effects-games.js',    map:{ maze:'effectMaze', tron:'effectTron', retro:'effectRetro', coinflip:'effectCoinFlip', dice:'effectDice', random:'effectRandom', random80s:'effectRandom80s' } },
+  scenes:   { file:'effects-scenes.js',   map:{ ghost:'effectGhost', custom_cube:'effectCustomCube' } },
+  media:    { file:'effects-media.js',    map:{ video:'effectVideo' } },
+};
+const _lazyStubs = {};
+function getLazyCategoryStub(catName){
+  if(_lazyStubs[catName]) return _lazyStubs[catName];
+  const cat = LAZY_CATEGORIES[catName];
+  let state = 'idle'; // 'idle' -> 'loading' -> 'loaded' (or back to 'idle' on error, to allow retry)
+  function stub(dt){
+    if(state==='idle'){
+      state='loading';
+      const s=document.createElement('script');
+      s.src=cat.file+'?v='+APP_VERSION;
+      s.onload=()=>{
+        state='loaded';
+        Object.keys(cat.map).forEach(k=>{
+          const fn=window[cat.map[k]];
+          if(typeof fn==='function') EFFECTS[k]=fn;
+        });
+        // Re-invoke the currently active effect now that it's real, so
+        // the first frame after load isn't skipped/blank.
+        const active=EFFECTS[currentEffect];
+        if(typeof active==='function' && active!==stub) active(dt);
+      };
+      s.onerror=()=>{ state='idle'; console.error('Failed to load '+cat.file); };
+      document.head.appendChild(s);
+    }
+    // Still loading (or a load just failed and will retry next call):
+    // no-op this frame rather than throwing.
+  }
+  _lazyStubs[catName]=stub;
+  return stub;
+}
 const EFFECTS={
-  wave:effectWave, rain:effectRain, plasma:effectPlasma, sphere:effectSphere,
-  fireworks:effectFireworks, dna:effectDNA, datetime:effectDateTime,
-  balls:effectBouncingBalls, sand:effectGravitySand,
-  gradient_wash:effectGradientWash, aurora:effectAurora, depth_rings:effectDepthRings,
-  prism:effectPrism, tide:effectTide, nebula:effectNebula,
-  maze:effectMaze,
-  tron:effectTron, lightning:effectLightning, warp:effectWarp, life:effectLife, fluid:effectFluid,
-  video:effectVideo, strobe:effectStrobe, random:effectRandom, random80s:effectRandom80s, ghost:effectGhost, lightspeed:effectLightspeed,
-  custom_cube:effectCustomCube,
-  weather:effectWeather,
-  coinflip:effectCoinFlip,
-  dice:effectDice,
-  retro:effectRetro,
-  moon:effectMoon,
-  neo:effectNEO,
-  apod:effectAPOD,
-  unsplash:effectUnsplash,
-  artic:effectArtic,
-  joke:effectJoke,
-  otd:effectOnThisDay,
-  trivia:effectTrivia,
-  epic:effectEPIC,
-  iss:effectISS,
-  cam:effectCam,
-  radio:effectRadio,
+  wave:getLazyCategoryStub('motion'), rain:getLazyCategoryStub('motion'), plasma:getLazyCategoryStub('motion'), sphere:getLazyCategoryStub('motion'),
+  fireworks:getLazyCategoryStub('physics'), dna:getLazyCategoryStub('motion'), datetime:getLazyCategoryStub('livedata'),
+  balls:getLazyCategoryStub('physics'), sand:getLazyCategoryStub('physics'),
+  gradient_wash:getLazyCategoryStub('colour'), aurora:getLazyCategoryStub('motion'), depth_rings:getLazyCategoryStub('colour'),
+  prism:getLazyCategoryStub('colour'), tide:getLazyCategoryStub('colour'), nebula:getLazyCategoryStub('motion'),
+  maze:getLazyCategoryStub('games'),
+  tron:getLazyCategoryStub('games'), lightning:getLazyCategoryStub('motion'), warp:getLazyCategoryStub('motion'), life:getLazyCategoryStub('physics'), fluid:getLazyCategoryStub('physics'),
+  video:getLazyCategoryStub('media'), strobe:getLazyCategoryStub('physics'), random:getLazyCategoryStub('games'), random80s:getLazyCategoryStub('games'), ghost:getLazyCategoryStub('scenes'), lightspeed:getLazyCategoryStub('motion'),
+  custom_cube:getLazyCategoryStub('scenes'),
+  weather:getLazyCategoryStub('livedata'),
+  coinflip:getLazyCategoryStub('games'),
+  dice:getLazyCategoryStub('games'),
+  retro:getLazyCategoryStub('games'),
+  moon:getLazyCategoryStub('livedata'),
+  neo:getLazyCategoryStub('livedata'),
+  apod:getLazyCategoryStub('livedata'),
+  unsplash:getLazyCategoryStub('livedata'),
+  artic:getLazyCategoryStub('livedata'),
+  joke:getLazyCategoryStub('livedata'),
+  otd:getLazyCategoryStub('livedata'),
+  trivia:getLazyCategoryStub('livedata'),
+  epic:getLazyCategoryStub('livedata'),
+  iss:getLazyCategoryStub('livedata'),
+  cam:getLazyCategoryStub('livedata'),
+  radio:effectRadio, // lives in effects-core.js, eager-loaded — no stub needed
 };
 const EFFECT_NAMES={
   wave:'Wave Cascade', rain:'Colour Rain', plasma:'Plasma Storm', sphere:'Laser Grid',
@@ -1391,16 +1440,17 @@ document.getElementById('cc-load-btn')?.addEventListener('click',()=>{
     const lib=JSON.parse(localStorage.getItem('ledcube_cubes')||'[]');
     const cube=lib[parseInt(sel.value)];
     if(!cube) return;
-    _customCubeName=cube.name;
-    _customCubeData=cube.faces;
+    if(typeof _customCubeName!=='undefined') _customCubeName=cube.name;
+    if(typeof _customCubeData!=='undefined') _customCubeData=cube.faces;
     const act=document.getElementById('cc-active');
     if(act) act.textContent='Active: '+cube.name;
   } catch(e){}
 });
 
-// Refresh cc-select when custom_cube panel opens
-const _origCCOpen=()=>ccRefreshSelect();
-document.querySelector('[data-effect="custom_cube"]')?.addEventListener('click',()=>{ setTimeout(ccRefreshSelect,50); });
+// Refresh cc-select when custom_cube panel opens. ccRefreshSelect lives in
+// the lazily-loaded effects-scenes.js — guard in case this is the very
+// first click and the category script hasn't finished loading yet.
+document.querySelector('[data-effect="custom_cube"]')?.addEventListener('click',()=>{ setTimeout(()=>{ if(typeof ccRefreshSelect==='function') ccRefreshSelect(); },50); });
 
 document.querySelectorAll('.effect-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{ window._eeActive=0; document.title='Multidisplay'; });
@@ -1450,17 +1500,23 @@ document.querySelectorAll('.effect-btn').forEach(btn=>{
     effectLabel.textContent=EFFECT_NAMES[currentEffect]||currentEffect;
     if(typeof artSyncSharedControls==='function') artSyncSharedControls();
     if(typeof tfSyncSharedControls==='function') tfSyncSharedControls();
-    if(currentEffect==='rain') resetRain();
-    if(currentEffect==='balls') resetBalls();
-    if(currentEffect==='sand') resetSand();
-    if(currentEffect==='maze') mazeOpen=null;
-    if(currentEffect==='tron') tronTrail=null;
+    // The reset globals/functions below live in lazily-loaded category
+    // files; guard each so switching effects never throws before that
+    // category has been loaded once (see CLAUDE.md "Writing Effects").
+    if(currentEffect==='rain' && typeof resetRain==='function') resetRain();
+    if(currentEffect==='balls' && typeof resetBalls==='function') resetBalls();
+    if(currentEffect==='sand' && typeof resetSand==='function') resetSand();
+    if(currentEffect==='maze' && typeof mazeOpen!=='undefined') mazeOpen=null;
+    if(currentEffect==='tron' && typeof tronTrail!=='undefined') tronTrail=null;
     else { const sb=document.getElementById('tron-scoreboard');if(sb)sb.style.display='none'; }
     if(currentEffect==='weather' && typeof wxFetch==='function' && !wxFetching) wxFetch();
-    if(currentEffect==='warp') warpStars=[];
-    if(currentEffect==='life') lifeGrid=null;
-    if(currentEffect==='fluid') fluidH=null;
-    fwParticles.length=0; t=0; sphT=0; _lgState='expand'; _lgStateT=0; _lgScanT=0; _lgBaseAngle=0; _lgFlatT=-1; _lgPulseT=-1; _lgColSweepT=-1; _lgWaveT=-1; _lgDblScanT=-1; _lgCollapsePhase=0; _lgRoutineIdx=0;
+    if(currentEffect==='warp' && typeof warpStars!=='undefined') warpStars=[];
+    if(currentEffect==='life' && typeof lifeGrid!=='undefined') lifeGrid=null;
+    if(currentEffect==='fluid' && typeof fluidH!=='undefined') fluidH=null;
+    if(typeof fwParticles!=='undefined') fwParticles.length=0;
+    t=0;
+    if(typeof sphT!=='undefined') sphT=0;
+    if(typeof _lgState!=='undefined'){ _lgState='expand'; _lgStateT=0; _lgScanT=0; _lgBaseAngle=0; _lgFlatT=-1; _lgPulseT=-1; _lgColSweepT=-1; _lgWaveT=-1; _lgDblScanT=-1; _lgCollapsePhase=0; _lgRoutineIdx=0; }
     // Tell the ESP32 which effect to run natively (works with no streaming).
     if(typeof cubeSendCmd==='function') cubeSendCmd({cmd:'setEffect', effect: currentEffect});
   });
@@ -1752,7 +1808,7 @@ document.getElementById('vid-cam-btn')?.addEventListener('click', () => {
   if(currentEffect!=='video'){ const eb=document.querySelector('[data-effect="video"]'); if(eb) eb.click(); }
 });
 
-document.getElementById('vid-stop-btn')?.addEventListener('click', stopVid);
+document.getElementById('vid-stop-btn')?.addEventListener('click', ()=>{ if(typeof stopVid==='function') stopVid(); });
 
 document.querySelectorAll('.vid-layout-btn').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('.vid-layout-btn').forEach(x => x.classList.remove('active'));

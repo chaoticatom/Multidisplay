@@ -35,7 +35,7 @@ No test suite or linter is configured (`package.json` only lists `playwright` as
 
 ## Version Bumping
 
-Every change requires updating `index.html` (there is no service-worker precache step — see PWA note below): bump the inline `const APP_VERSION = '...'` near the bottom of `<body>`, and every `?v=` param inside the `appScripts` array (`cube.js`, `effects.js`, `ui.js`).
+Every change requires updating `index.html` (there is no service-worker precache step — see PWA note below): bump the inline `const APP_VERSION = '...'` near the bottom of `<body>`, and every `?v=` param inside the `appScripts` array (`cube.js`, `effects-core.js`, `ui.js`). The 7 lazy-loaded `effects-*.js` category files aren't listed in `appScripts` — they're cache-busted at runtime via `getLazyCategoryStub()`'s `cat.file+'?v='+APP_VERSION`, so bumping `APP_VERSION` alone is enough to bust them too.
 
 `style.css` and `version.js` used to be separate files but are now inlined directly into `index.html` (a `<style>` block and an inline `<script>` setting `APP_VERSION`) — this cuts 2 of the concurrent connections a browser opens on first page load, which mattered on the ESP32's very tight (~16-20KB, no working PSRAM) heap. Don't re-extract them into external files without re-checking that heap budget.
 
@@ -83,15 +83,26 @@ Each frame: FPS counter → playlist advance → alarm check → alarm phase ren
 
 ### File Load Order
 
-`APP_VERSION` is set by an inline `<script>` in `index.html` (no longer a separate `version.js` fetch) → `three.min.js` (local, CDN fallback) → then `index.html`'s inline loader sequentially injects `cube.js` → `effects.js` → `ui.js` (each with a `?v=APP_VERSION` cache-bust) once `THREE` is confirmed available.
+`APP_VERSION` is set by an inline `<script>` in `index.html` (no longer a separate `version.js` fetch) → `three.min.js` (local, CDN fallback) → then `index.html`'s inline loader sequentially injects `cube.js` → `effects-core.js` → `ui.js` (each with a `?v=APP_VERSION` cache-bust) once `THREE` is confirmed available. The other seven `effects-*.js` category files (below) are NOT part of this eager sequence — each is injected on demand, the first time an effect in that category is invoked.
 
 ## Writing Effects
 
-Effect functions live in `effects.js`, signature: `function effectMyEffect(dt) { ... }`
+Effect functions used to all live in one 15k-line `effects.js`, loaded eagerly on every page load. That file has been split into 8 files to cut how much JS a first-time visitor has to download before anything renders:
+
+- **`effects-core.js`** — eager-loaded, part of the normal `appScripts` sequence, always available. Holds genuinely shared infrastructure used across multiple categories: the overlay engine (`OV`, all `ov*` functions, `OV_FUNCS`, `applyFaceOverlays`, `runOverlays`), the gallery-slideshow shared engine (`galleryInitFaceState`/`gallerySlideshowStep`/`galleryApplyToFace`/`galleryApplyBlendToFace`), the word-cascade text engine (`WC_FONT`, `wcInit`/`wcStep`/`wcDrawToFace`/`wcDrawGlyph`/`wcTagQA`), `loadImageForPixels()`, the audio/spectrum-analyser + internet radio subsystem (all `au*`/mic/phone globals, `drawSpectrumOverlay`, `RADIO_STATIONS`, `radio*` functions, `effectRadio` itself), and a handful of helpers that turned out to be used by more than one category (`cubePx`/`fwPx`/`FW_FACES`, `tronMove`, `surfIdx`, `VID_FACE_ORDER`, the fireworks-text builder, the panel-editor `_peTarget*` vars, `DT_RES`).
+- **`effects-motion.js`** (lazy) — wave, rain, plasma, sphere, dna, nebula, aurora, warp, lightning, lightspeed
+- **`effects-physics.js`** (lazy) — balls, sand, life, fluid, fireworks, strobe
+- **`effects-colour.js`** (lazy) — gradient_wash, depth_rings, prism, tide
+- **`effects-livedata.js`** (lazy) — weather, moon, datetime, neo, apod, unsplash, artic, joke, otd, trivia, epic, iss, cam
+- **`effects-games.js`** (lazy) — maze, tron, retro, coinflip, dice, random, random80s
+- **`effects-scenes.js`** (lazy) — ghost, custom_cube
+- **`effects-media.js`** (lazy) — video (radio lives in `effects-core.js`, not here, since radio playback and the spectrum overlay are tightly coupled and the overlay runs unconditionally from core's `runOverlays`)
+
+The 7 non-core files load lazily: in `ui.js`, every key in a lazy category maps in the `EFFECTS` object to a shared stub built by `getLazyCategoryStub(catName)` (see `LAZY_CATEGORIES` in `ui.js`, just above the `EFFECTS` map). The first time any effect in that category is invoked, the stub injects `<script src="effects-CATEGORY.js?v=APP_VERSION">`; once it loads, every key in that category's `EFFECTS` entry is swapped for the real function and the currently-selected effect is invoked immediately (so the first frame after load isn't blank). A second invocation while still loading is a no-op, not an error. Because these are classic `<script>` tags sharing one global scope, anything a lazy file's effect needs from outside its own file must already exist in `effects-core.js` (loaded before all of them) — never assume another lazy category file happens to be loaded first.
 
 Registration requires three steps:
-1. Add function to `effects.js`
-2. Add to `EFFECTS` and `EFFECT_NAMES` maps in `ui.js`
+1. Add the function to the correct `effects-*.js` file (or `effects-core.js` if it's shared infrastructure)
+2. Add to `EFFECTS` (via `getLazyCategoryStub('category')`, or `getLazyCategoryStub` + a new entry in `LAZY_CATEGORIES` if it's a new category) and `EFFECT_NAMES` maps in `ui.js`
 3. Add button in `index.html`: `<button class="effect-btn" data-effect="key">Name</button>`
 
 Use `setLED(i, r, g, b)` for coordinate-based patterns (iterate `surfX/Y/Z`), or `faceMap[face][v*SIZE+u]` for pixel-precise face rendering. Pre-allocate state arrays at module level with lazy init guards.
@@ -100,11 +111,11 @@ Effects read UI controls directly via `document.getElementById()` inside the eff
 
 ### Shared engines — reuse these instead of reimplementing per effect
 
-Several visual patterns recur across effects and have been factored into shared helpers in `effects.js`. When adding an effect that fits one of these shapes, wrap the shared engine rather than copy-pasting an existing effect's version of it (this has happened twice already and both times got unified later):
+Several visual patterns recur across effects and have been factored into shared helpers in `effects-core.js`. When adding an effect that fits one of these shapes, wrap the shared engine rather than copy-pasting an existing effect's version of it (this has happened twice already and both times got unified later):
 
 - **Photo-gallery slideshow** (Unsplash, Art Gallery): `galleryInitFaceState(n, periodSecs)` sets up per-face staggered timing state; `gallerySlideshowStep(state, n, dt, periodSecs, fadeDur, slideshowOn, loadFn, pixelsArr)` advances one face's cycle/crossfade per frame; `galleryApplyToFace`/`galleryApplyBlendToFace` do the actual pixel blit/crossfade given generic `pixelsArr`/`sizesArr` arrays. Each face cycles on the same period but offset by `period/6` and crossfades over `fadeDur` seconds instead of cutting.
 - **Word-cascade text** (Jokes, Trivia, On This Day, Date & Time's Words mode): `WC_FONT` (4-wide × 7-tall bitmap font), `WC_CHAR_W`/`WC_LINE_H`, `wcInit(taggedWords)`/`wcStep(state, dt)`/`wcDrawToFace(state, face)`/`wcDrawGlyph(face, ch, su, sv, rgb)`, and `wcTagQA(text)` (splits a question/answer string into per-word color tags). Any "words appear staggered with per-word timing" effect should reuse this rather than hand-rolling text layout.
-- **Image loading** (`loadImageForPixels()` in `effects.js`): 4-tier fallback — direct fetch→blob, direct `<img crossOrigin>`, proxy fetch→blob (images.weserv.nl), proxy `<img>`. Some CDNs (e.g. Art Institute of Chicago's IIIF server) block all four tiers via hotlink/referrer protection with no client-side workaround — if every strategy fails for a given host, the fix is switching data source, not adding a 5th strategy.
+- **Image loading** (`loadImageForPixels()` in `effects-core.js`): 4-tier fallback — direct fetch→blob, direct `<img crossOrigin>`, proxy fetch→blob (images.weserv.nl), proxy `<img>`. Some CDNs (e.g. Art Institute of Chicago's IIIF server) block all four tiers via hotlink/referrer protection with no client-side workaround — if every strategy fails for a given host, the fix is switching data source, not adding a 5th strategy.
 
 ## Submenu / shared-controls UI pattern
 
@@ -112,7 +123,7 @@ The "Art" and "Trivia & Facts" sidebar entries are submenus grouping several rel
 
 ## Overlays
 
-13 overlays (stars, snow, meteors, edgeglow, fire, sparkle, colorwave, pulse, scanline, vignette, glitch, mist, lightning) defined in `effects.js`. Each has an `OV[key].on` flag. They blend onto colBuf after the main effect via `runOverlays(dt)`. UI uses `.ov-toggle`/`.ov-slider` CSS classes for pill-shaped slide toggles.
+13 overlays (stars, snow, meteors, edgeglow, fire, sparkle, colorwave, pulse, scanline, vignette, glitch, mist, lightning) defined in `effects-core.js`. Each has an `OV[key].on` flag. They blend onto colBuf after the main effect via `runOverlays(dt)`. UI uses `.ov-toggle`/`.ov-slider` CSS classes for pill-shaped slide toggles.
 
 ## Timer System (ui.js, lines ~286-1016)
 
@@ -159,7 +170,7 @@ The F1 sidebar panel's collapsible "▸ Diagnostics" section (`_f1UpdateDiag()` 
 - `.modern-chk` class for custom styled checkboxes (dark square, blue check)
 - Timer list uses custom slide-switch HTML (not CSS class)
 
-## Weather System (effects.js)
+## Weather System (effects-livedata.js)
 
 Real-time weather via Open-Meteo API. Key globals: `wxData`, `wxCity`, `HORIZ` (horizon line fraction), `WX_CLEAR_TOP` (clear zone top). Clouds use dist-based falloff and naturally dip 6px into the clear zone. `SIDE=[2,0,3,1]` maps face indices for panoramic rendering.
 

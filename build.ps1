@@ -60,7 +60,10 @@ Write-Host "==> Gzipping assets into $Dist\..."
 # index.html.
 $files = @(
     "index.html",
-    "cube.js", "effects.js", "ui.js",
+    "cube.js",
+    "effects-core.js", "effects-motion.js", "effects-physics.js", "effects-colour.js",
+    "effects-livedata.js", "effects-games.js", "effects-scenes.js", "effects-media.js",
+    "ui.js",
     "three.min.js", "manifest.json",
     "service-worker.js", "sw.js",
     "icons\icon-192.png", "icons\icon-512.png", "icons\icon.svg"
@@ -69,7 +72,7 @@ $files = @(
 # Files the app cannot run without - if any of these fail to gzip, the
 # build is not safe to flash (see the empty-filesystem-flashed incident
 # this check was added for).
-$required = @("index.html", "cube.js", "effects.js", "ui.js")
+$required = @("index.html", "cube.js", "effects-core.js", "effects-motion.js", "effects-physics.js", "effects-colour.js", "effects-livedata.js", "effects-games.js", "effects-scenes.js", "effects-media.js", "ui.js")
 $missing = @()
 
 foreach ($f in $files) {
