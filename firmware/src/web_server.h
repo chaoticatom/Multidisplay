@@ -277,6 +277,16 @@ inline void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
     case WS_EVT_DISCONNECT:
         Serial.printf("[WS] client #%u disconnected\n", client->id());
         g_browserConnected = (server->count() > 0);
+        // Once the last browser disconnects, don't wait out the full
+        // STANDALONE_FALLBACK_MS staleness window (main.cpp's displayTask)
+        // showing a frozen last-streamed frame - a clean WS disconnect is
+        // a definite signal the browser is gone, not just a momentary lag,
+        // so switch to the live native version of the effect right away.
+        // Backdating g_lastFrameMs makes the next displayTask iteration's
+        // staleness check trip immediately instead of after the timeout.
+        if (server->count() == 0) {
+            g_lastFrameMs = millis() - STANDALONE_FALLBACK_MS - 1;
+        }
         break;
 
     case WS_EVT_DATA: {
