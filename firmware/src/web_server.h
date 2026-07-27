@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <memory>           // std::shared_ptr - per-response chunk-timing state
 #include <WiFi.h>          // WiFi.RSSI() for the /api/status signal-strength field
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
@@ -140,8 +141,22 @@ inline void staticServeNow(AsyncWebServerRequest* request, const String& path,
         if (g_staticActive > 0) g_staticActive--;
         return;
     }
+    // Enforce an actual time gap between chunks, not just a small chunk
+    // size - a real delay() here would block the whole AsyncTCP task
+    // (freezing every other connection), so instead return RESPONSE_
+    // TRY_AGAIN to tell the library "not ready yet, call me again
+    // shortly" without ending the response early. Further attempt at the
+    // burst/leak theory: give the (suspected leaking/limited) lwIP
+    // resource pool more real time to drain between chunks, not just
+    // smaller individual chunks.
+    auto lastChunkMs = std::make_shared<uint32_t>(0);
     AsyncWebServerResponse* resp = request->beginChunkedResponse(mime,
-        [file](uint8_t* buffer, size_t maxLen, size_t index) mutable -> size_t {
+        [file, lastChunkMs](uint8_t* buffer, size_t maxLen, size_t index) mutable -> size_t {
+            uint32_t now = millis();
+            if (*lastChunkMs != 0 && (now - *lastChunkMs) < 15) {
+                return RESPONSE_TRY_AGAIN;
+            }
+            *lastChunkMs = now;
             size_t toRead = maxLen < STATIC_STREAM_CHUNK_BYTES ? maxLen : STATIC_STREAM_CHUNK_BYTES;
             return file.read(buffer, toRead);
         });
