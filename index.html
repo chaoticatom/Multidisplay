@@ -1879,7 +1879,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script>const APP_VERSION = 'v2026.07.27.885';</script>
+<script>const APP_VERSION = 'v2026.07.28.886';</script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1911,7 +1911,11 @@ setTimeout(showVersion,1000);
 })();
 </script>
 <!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
-<script src="three.min.js"></script>
+<!-- Cache-busted with ?v= like appScripts below: three.min.js gets the same
+     long "immutable" Cache-Control as any other .js file the ESP32 serves
+     (see web_server.h staticServeNow), so a rebuilt bundle under the bare
+     URL would never reach browsers that already cached the old one. -->
+<script>document.write('<script src="three.min.js?v=' + APP_VERSION + '"><' + '/script>');</script>
 <script>
 // Fallback: if local bundle failed (e.g. missing/blocked), try CDNs.
 (function ensureThree(){
@@ -1943,7 +1947,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=885','effects-core.js?v=885','ui.js?v=885'];
+  const appScripts = ['cube.js?v=886','effects-core.js?v=886','ui.js?v=886'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';

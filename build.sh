@@ -8,17 +8,28 @@ set -e
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 DIST="./data"
-THREEJS_URL="https://cdnjs.cloudflare.com/ajax/libs/three.js/r168/three.min.js"
 
 echo "==> Cleaning output directory..."
 rm -rf "$DIST"
 mkdir -p "$DIST"
 
-echo "==> Downloading Three.js r168..."
-if curl -fL --max-time 30 "$THREEJS_URL" -o three.min.js; then
-  echo "    three.min.js downloaded ($(wc -c < three.min.js) bytes)"
+# Custom tree-shaken Three.js build (build-tools/three-entry.js) instead of
+# the full upstream r168 minified UMD build. The ESP32-S3's lwIP/AsyncTCP
+# stack wedges on sustained large-file transfers (see platformio.ini's
+# notes - every firmware-side mitigation tried has failed to fix it
+# outright), so shrinking the file itself is the remaining lever. Only
+# exports the ~20 THREE.* symbols the app actually references (see
+# three-entry.js) - WebGLRenderer's own shader/material library still
+# dominates the bundle since three.js isn't tree-shakeable at that depth,
+# but this still cuts real bytes off every serve.
+echo "==> Building tree-shaken Three.js bundle..."
+if [ ! -d node_modules/esbuild ] || [ ! -d node_modules/three ]; then
+  npm install --no-audit --no-fund
+fi
+if npx esbuild build-tools/three-entry.js --bundle --minify --format=iife --global-name=THREE --outfile=three.min.js; then
+  echo "    three.min.js built ($(wc -c < three.min.js) bytes)"
 else
-  echo "    WARNING: Could not download Three.js. Using existing file if present."
+  echo "    WARNING: Could not build custom Three.js bundle. Using existing file if present."
   if [ ! -s three.min.js ]; then
     echo "    ERROR: three.min.js missing or empty. Cannot build." >&2
     exit 1

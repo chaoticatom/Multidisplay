@@ -25,19 +25,27 @@ Set-Location $PSScriptRoot
 [System.IO.Directory]::SetCurrentDirectory((Get-Location).Path)
 
 $Dist = ".\data"
-$ThreeJsUrl = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r168/three.min.js"
 
 Write-Host "==> Cleaning output directory..."
 if (Test-Path $Dist) { Remove-Item -Recurse -Force $Dist }
 New-Item -ItemType Directory -Path $Dist | Out-Null
 
-Write-Host "==> Downloading Three.js r168..."
+# Custom tree-shaken Three.js build (build-tools/three-entry.js) instead of
+# the full upstream r168 minified UMD build - see build.sh for why (ESP32-S3
+# network-stack wedge on large-file transfers; shrinking the file is the
+# remaining lever since every firmware-side mitigation has failed).
+Write-Host "==> Building tree-shaken Three.js bundle..."
 try {
-    Invoke-WebRequest -Uri $ThreeJsUrl -OutFile "three.min.js" -TimeoutSec 30
+    if (-not (Test-Path "node_modules\esbuild") -or -not (Test-Path "node_modules\three")) {
+        npm install --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
+    }
+    npx esbuild build-tools/three-entry.js --bundle --minify --format=iife --global-name=THREE --outfile=three.min.js
+    if ($LASTEXITCODE -ne 0) { throw "esbuild failed" }
     $size = (Get-Item "three.min.js").Length
-    Write-Host "    three.min.js downloaded ($size bytes)"
+    Write-Host "    three.min.js built ($size bytes)"
 } catch {
-    Write-Host "    WARNING: Could not download Three.js. Using existing file if present."
+    Write-Host "    WARNING: Could not build custom Three.js bundle. Using existing file if present."
     if (-not (Test-Path "three.min.js") -or (Get-Item "three.min.js").Length -eq 0) {
         Write-Error "three.min.js missing or empty. Cannot build."
     }

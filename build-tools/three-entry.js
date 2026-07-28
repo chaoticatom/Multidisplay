@@ -1,0 +1,52 @@
+// Custom tree-shaken Three.js entry point. Only exports classes this app
+// actually references (see `grep -ohE "THREE\.[A-Za-z0-9_]+"` over the app's
+// JS files) so esbuild can drop everything else - loaders, controls,
+// curves, other geometries, audio, nodes/TSL/WebGPU, exporters, etc.
+// Keep this list in sync if a new THREE.* symbol is used anywhere.
+import {
+  BoxGeometry,
+  Color,
+  DynamicDrawUsage,
+  Euler,
+  FogExp2,
+  FrontSide,
+  Group,
+  InstancedMesh,
+  LineSegments,
+  Mesh,
+  MeshBasicMaterial,
+  Object3D,
+  PerspectiveCamera,
+  PlaneGeometry,
+  Quaternion,
+  Raycaster,
+  Scene,
+  SphereGeometry,
+  Vector2,
+  Vector3,
+  WebGLRenderer,
+} from 'three';
+
+export {
+  BoxGeometry,
+  Color,
+  DynamicDrawUsage,
+  Euler,
+  FogExp2,
+  FrontSide,
+  Group,
+  InstancedMesh,
+  LineSegments,
+  Mesh,
+  MeshBasicMaterial,
+  Object3D,
+  PerspectiveCamera,
+  PlaneGeometry,
+  Quaternion,
+  Raycaster,
+  Scene,
+  SphereGeometry,
+  Vector2,
+  Vector3,
+  WebGLRenderer,
+};
