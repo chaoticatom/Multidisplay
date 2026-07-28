@@ -701,6 +701,48 @@ inline bool standaloneApodFetch() {
 }
 
 // ---------------------------------------------------------------------------
+// Dedicated task for the blocking network fetches above. standaloneWxFetch()
+// and standaloneApodFetch() are synchronous HTTPClient/WiFiClientSecure
+// calls - weather can block for several seconds, APOD's image-download loop
+// can legitimately block for up to 20s. These used to be called directly
+// from main.cpp's loop() (Core 1), which ALSO calls serviceStaticQueue()
+// (services queued static-file HTTP requests past the concurrency cap),
+// ws.cleanupClients(), and the WiFi-reconnect health check every iteration.
+// While a fetch was blocking, none of those ran - any static-file request
+// that got queued during that window just sat frozen until the fetch
+// finished. That's consistent with reports of page loads freezing at
+// different points inconsistently: whether it happened depended on whether
+// a weather/APOD fetch happened to be in flight at that moment, not on
+// which file was being requested. Running the fetches on their own task
+// means a slow or hanging fetch can no longer stall static-file serving,
+// WebSocket cleanup, or WiFi reconnect handling.
+//
+// Pinned to Core 1 (same core loop() runs on - Core 0 is exclusively the
+// HUB75 DMA display task and must never be given extra work), low priority
+// so it never contends with anything time-critical; the fetches themselves
+// already yield during I/O waits so priority contention with loop() is not
+// a concern the way it would be for a tight compute loop.
+inline void standaloneNetTask(void* pvParameters) {
+    uint32_t lastWxFetch   = 0;
+    uint32_t lastApodFetch = 0;
+    for (;;) {
+        if (millis() - lastWxFetch > (uint32_t)STANDALONE_WX_INTERVAL_MIN * 60000UL) {
+            lastWxFetch = millis();
+            standaloneWxFetch();
+        }
+        if (g_standaloneEffect == SA_APOD &&
+            (!g_apodValid ? (millis() - lastApodFetch > 15000)
+                          : (millis() - lastApodFetch > 6UL * 3600000UL))) {
+            lastApodFetch = millis();
+            standaloneApodFetch();
+        }
+        // The fetches themselves (when due) are what's expensive - this is
+        // just the idle poll cadence the rest of the time.
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Schedule / alarm check — call every ~20-30s from loop(). Fires at most
 // once per calendar minute so a slow poll interval can't double-fire.
 // ---------------------------------------------------------------------------

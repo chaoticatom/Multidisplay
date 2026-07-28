@@ -728,6 +728,13 @@ void setup() {
     standaloneLoad();
     standaloneNtpInit();
 
+    // Weather/APOD fetches run on their own task now, not inline in loop() -
+    // see standaloneNetTask's comment for why (a blocking fetch used to stall
+    // serviceStaticQueue()/ws.cleanupClients()/WiFi-reconnect handling for as
+    // long as it ran). Pinned to Core 1 alongside loop() itself; Core 0 stays
+    // exclusively the DMA display task.
+    xTaskCreatePinnedToCore(standaloneNetTask, "standaloneNet", 10240, nullptr, 1, nullptr, 1);
+
     // Hardware task watchdog on THIS task (Arduino's loop task, Core 1) as
     // the guaranteed fallback for the "network stack wedges, board stays
     // unreachable forever" symptom. The earlier attempt at this
@@ -783,30 +790,17 @@ void loop() {
     // web_server.h.
     serviceStaticQueue();
 
-    // Standalone mode: schedule/alarm check (cheap, every ~20s) and weather
-    // refresh (network fetch, every STANDALONE_WX_INTERVAL_MIN minutes).
-    // Both run here on core 1, never on the DMA task, so a slow/failed
-    // HTTPS request can't stall the display.
+    // Standalone mode: schedule/alarm check (cheap, every ~20s). Weather and
+    // APOD fetches used to run here too, but they're blocking HTTPClient
+    // calls (weather up to several seconds, APOD's image download up to
+    // 20s) that stalled serviceStaticQueue()/ws.cleanupClients()/WiFi
+    // reconnect handling above for their entire duration - moved to their
+    // own task (standaloneNetTask, spawned in setup()) so a slow/hanging
+    // fetch can't do that anymore.
     static uint32_t lastSchedCheck = 0;
-    static uint32_t lastWxFetch    = 0;
     if (millis() - lastSchedCheck > 20000) {
         lastSchedCheck = millis();
         standaloneCheckSchedule();
-    }
-    if (millis() - lastWxFetch > (uint32_t)STANDALONE_WX_INTERVAL_MIN * 60000UL) {
-        lastWxFetch = millis();
-        standaloneWxFetch();
-    }
-
-    // APOD: fetch once when the effect is selected and nothing's cached yet,
-    // then refresh once every 6h (it's a daily image, no need to poll often).
-    // Runs here on core 1 like weather - never on the DMA task.
-    static uint32_t lastApodFetch = 0;
-    if (g_standaloneEffect == SA_APOD &&
-        (!g_apodValid ? (millis() - lastApodFetch > 15000)
-                      : (millis() - lastApodFetch > 6UL * 3600000UL))) {
-        lastApodFetch = millis();
-        standaloneApodFetch();
     }
 
     delay(20);
