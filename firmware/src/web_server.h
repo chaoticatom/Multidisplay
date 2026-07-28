@@ -105,6 +105,36 @@ inline volatile int      g_staticActive = 0;
 // long, assume whatever was stuck is gone and reset so new requests can
 // proceed again.
 inline uint32_t          g_staticActiveSince = 0;
+// The abandoned-response case above doesn't just leak a slot in the
+// g_staticActive counter - the File opened for that transfer (captured
+// inside the chunked-response lambda) never gets closed either, since
+// nothing ever destructs that lambda if onDisconnect never fires. LittleFS
+// only has a small fixed pool of open-file handles; each leaked one is
+// permanent until reboot. This would explain session-to-session
+// inconsistency that pure network-layer tuning (chunk size/delay,
+// concurrency limits) can't touch: early in a boot, few/no handles have
+// leaked yet and most transfers succeed; after enough abandoned transfers,
+// LittleFS.open() itself starts failing for new requests, producing the
+// "loads a lot, then later loads almost nothing" pattern. Tracking the
+// actual File objects by slot (instead of only a bare counter) lets the
+// stuck-timeout reset below force-close whatever leaked, instead of just
+// hiding the leak by resetting a number.
+struct StaticFileSlot { bool inUse = false; File file; };
+inline StaticFileSlot   g_staticFileSlots[STATIC_MAX_CONCURRENT];
+inline uint32_t         g_staticLeakedFiles = 0;   // diagnostic counter, see /api/status
+
+inline int allocStaticFileSlot() {
+    for (int i = 0; i < STATIC_MAX_CONCURRENT; i++) {
+        if (!g_staticFileSlots[i].inUse) return i;
+    }
+    return -1;   // shouldn't happen - caller only serves when under STATIC_MAX_CONCURRENT
+}
+
+inline void freeStaticFileSlot(int idx) {
+    if (idx < 0) return;
+    if (g_staticFileSlots[idx].file) g_staticFileSlots[idx].file.close();
+    g_staticFileSlots[idx].inUse = false;
+}
 // Raised again, 30000 still fired on genuinely-progressing transfers.
 // This value only guards against a real leak (no onDisconnect ever
 // firing after the client is truly gone) - a false-positive reset that
@@ -145,10 +175,6 @@ inline void staticServeNow(AsyncWebServerRequest* request, const String& path,
                            const String& mimePath, bool gz) {
     if (g_staticActive == 0) g_staticActiveSince = millis();
     g_staticActive++;
-    request->onDisconnect([]() {
-        if (g_staticActive > 0) g_staticActive--;
-    });
-    String mime = wsMimeType(mimePath);
 
     File file = LittleFS.open(path, "r");
     if (!file) {
@@ -156,6 +182,21 @@ inline void staticServeNow(AsyncWebServerRequest* request, const String& path,
         if (g_staticActive > 0) g_staticActive--;
         return;
     }
+    // Own the File via a slot instead of only a bare lambda capture, so an
+    // abandoned response (see g_staticActiveSince's comment) can still be
+    // force-closed by serviceStaticQueue's stuck-timeout reset instead of
+    // permanently leaking a LittleFS file handle.
+    int slotIdx = allocStaticFileSlot();
+    if (slotIdx >= 0) {
+        g_staticFileSlots[slotIdx].file  = file;
+        g_staticFileSlots[slotIdx].inUse = true;
+    }
+    request->onDisconnect([slotIdx]() {
+        if (g_staticActive > 0) g_staticActive--;
+        freeStaticFileSlot(slotIdx);
+    });
+    String mime = wsMimeType(mimePath);
+
     // Restored after live testing showed removing this brought back the
     // original catastrophic whole-network wedge (ping dies) - without it,
     // only the smaller chunk size + platform version pin weren't enough
@@ -170,14 +211,15 @@ inline void staticServeNow(AsyncWebServerRequest* request, const String& path,
     // resource pool real wall-clock time to drain between chunks.
     auto lastChunkMs = std::make_shared<uint32_t>(0);
     AsyncWebServerResponse* resp = request->beginChunkedResponse(mime,
-        [file, lastChunkMs](uint8_t* buffer, size_t maxLen, size_t index) mutable -> size_t {
+        [slotIdx, lastChunkMs](uint8_t* buffer, size_t maxLen, size_t index) mutable -> size_t {
+            if (slotIdx < 0) return 0;   // no slot available - shouldn't happen, bail cleanly
             uint32_t now = millis();
             if (*lastChunkMs != 0 && (now - *lastChunkMs) < STATIC_STREAM_CHUNK_DELAY_MS) {
                 return RESPONSE_TRY_AGAIN;
             }
             *lastChunkMs = now;
             size_t toRead = maxLen < STATIC_STREAM_CHUNK_BYTES ? maxLen : STATIC_STREAM_CHUNK_BYTES;
-            return file.read(buffer, toRead);
+            return g_staticFileSlots[slotIdx].file.read(buffer, toRead);
         });
     if (gz) resp->addHeader("Content-Encoding", "gzip");
     // These JS files are requested with a "?v=APP_VERSION" cache-busting
@@ -198,6 +240,19 @@ inline void serviceStaticQueue() {
     if (g_staticActive > 0 && (millis() - g_staticActiveSince) > STATIC_STUCK_TIMEOUT_MS) {
         Serial.printf("[STATIC] %d in-flight response(s) stuck >%dms with no onDisconnect - forcing reset\n",
                       g_staticActive, STATIC_STUCK_TIMEOUT_MS);
+        // Force-close whatever File handles are still marked in-use rather
+        // than just zeroing the counter - otherwise every stuck transfer
+        // permanently leaks a LittleFS file descriptor from the small fixed
+        // pool, which would explain reliability degrading over a session
+        // even though this reset already made new requests possible again.
+        for (int i = 0; i < STATIC_MAX_CONCURRENT; i++) {
+            if (g_staticFileSlots[i].inUse) {
+                g_staticLeakedFiles++;
+                Serial.printf("[STATIC] force-closing leaked file handle in slot %d (total leaked so far: %u)\n",
+                              i, g_staticLeakedFiles);
+                freeStaticFileSlot(i);
+            }
+        }
         g_staticActive = 0;
     }
     if (g_staticActive >= STATIC_MAX_CONCURRENT) return;
@@ -634,6 +689,15 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws) {
         // low WebSocket throughput to an ESP32.
         doc["wifi_rssi"]         = WiFi.RSSI();
         doc["min_free_heap"]     = ESP.getMinFreeHeap();
+        // Static-file transfer diagnostics - see staticServeNow/
+        // serviceStaticQueue. static_leaked_files climbing over a session
+        // (it should normally stay at 0) means transfers are being abandoned
+        // by the client/library without a clean onDisconnect often enough to
+        // exhaust LittleFS's file-descriptor pool - a plausible cause of
+        // "loads fine sometimes, barely anything other times" reliability
+        // complaints that pure network-layer tuning can't fix.
+        doc["static_active"]        = g_staticActive;
+        doc["static_leaked_files"]  = g_staticLeakedFiles;
         String out; serializeJson(doc, out);
         request->send(200, "application/json", out);
     });
