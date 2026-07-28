@@ -542,7 +542,7 @@ inline void initWebServer(AsyncWebServer& server, AsyncWebSocket& ws) {
 
     // ---- Loader page (PROGMEM gzip) ----
     server.on("/loader", HTTP_GET, [](AsyncWebServerRequest* request) {
-        AsyncWebServerResponse* resp = request->beginResponse_P(
+        AsyncWebServerResponse* resp = request->beginResponse(
             200, "text/html", LOADER_HTML_GZ, LOADER_HTML_GZ_LEN);
         resp->addHeader("Content-Encoding", "gzip");
         request->send(resp);
