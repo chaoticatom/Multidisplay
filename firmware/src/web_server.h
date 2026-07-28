@@ -130,7 +130,16 @@ inline StaticQueueEntry g_staticQueue[STATIC_QUEUE_LEN];
 // repeated reload, while tiny responses never do" fault confirmed live -
 // consistent with a leaking/limited fixed-size lwIP resource pool that a
 // big burst of chunks exhausts faster than a trickle of small ones.
-#define STATIC_STREAM_CHUNK_BYTES 512
+#define STATIC_STREAM_CHUNK_BYTES 256
+// Minimum gap between successive chunks of the same static-file transfer
+// (see staticServeNow's RESPONSE_TRY_AGAIN loop below). Raised from 15 to
+// slow the whole transfer down further - reports of the "loading 3D
+// engine"/app-script stall moving between different files (three.js parts,
+// ui.js, effects-core.js) rather than sticking to one suggest the trigger
+// is sustained throughput, not any single file's size, so trickling
+// everything out even slower gives the suspected leaking/limited lwIP
+// resource pool more wall-clock time to drain per chunk.
+#define STATIC_STREAM_CHUNK_DELAY_MS 40
 
 inline void staticServeNow(AsyncWebServerRequest* request, const String& path,
                            const String& mimePath, bool gz) {
@@ -163,7 +172,7 @@ inline void staticServeNow(AsyncWebServerRequest* request, const String& path,
     AsyncWebServerResponse* resp = request->beginChunkedResponse(mime,
         [file, lastChunkMs](uint8_t* buffer, size_t maxLen, size_t index) mutable -> size_t {
             uint32_t now = millis();
-            if (*lastChunkMs != 0 && (now - *lastChunkMs) < 15) {
+            if (*lastChunkMs != 0 && (now - *lastChunkMs) < STATIC_STREAM_CHUNK_DELAY_MS) {
                 return RESPONSE_TRY_AGAIN;
             }
             *lastChunkMs = now;
