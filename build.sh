@@ -36,6 +36,15 @@ else
   fi
 fi
 
+# Split into THREE_PART_COUNT text-safe chunks (index.html's loadThree()
+# fetches each in turn and reassembles before executing) so the ESP32 never
+# has to serve one continuous ~480KB response - see three.min.js's build
+# comment above and split-three.js for why. Keep this count in sync with
+# THREE_PART_COUNT in index.html.
+THREE_PART_COUNT=4
+echo "==> Splitting three.min.js into $THREE_PART_COUNT parts..."
+node build-tools/split-three.js three.min.js three.part "$THREE_PART_COUNT"
+
 echo "==> Gzipping assets into $DIST/..."
 # Keep this file list in sync with build.ps1 (the Windows/no-WSL
 # equivalent). style.css and version.js are inlined directly into
@@ -44,10 +53,13 @@ echo "==> Gzipping assets into $DIST/..."
 # assets - don't re-add them here without also un-inlining index.html.
 # If any of these fail to gzip, the build is not safe to flash (see the
 # empty-filesystem-flashed incident this check was added for).
-REQUIRED="index.html cube.js effects-core.js effects-motion.js effects-physics.js effects-colour.js effects-livedata.js effects-games.js effects-scenes.js effects-media.js ui.js"
+THREE_PARTS=""
+for i in $(seq 0 $((THREE_PART_COUNT - 1))); do THREE_PARTS="$THREE_PARTS three.part${i}.js"; done
+
+REQUIRED="index.html cube.js effects-core.js effects-motion.js effects-physics.js effects-colour.js effects-livedata.js effects-games.js effects-scenes.js effects-media.js ui.js$THREE_PARTS"
 MISSING=""
 
-for f in index.html cube.js effects-core.js effects-motion.js effects-physics.js effects-colour.js effects-livedata.js effects-games.js effects-scenes.js effects-media.js ui.js three.min.js manifest.json service-worker.js sw.js icons/icon-192.png icons/icon-512.png icons/icon.svg; do
+for f in index.html cube.js effects-core.js effects-motion.js effects-physics.js effects-colour.js effects-livedata.js effects-games.js effects-scenes.js effects-media.js ui.js $THREE_PARTS manifest.json service-worker.js sw.js icons/icon-192.png icons/icon-512.png icons/icon.svg; do
   if [ -f "$f" ]; then
     mkdir -p "$DIST/$(dirname "$f")"
     gzip -9 -c "$f" > "$DIST/${f}.gz"

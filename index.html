@@ -1910,36 +1910,67 @@ setTimeout(showVersion,1000);
   v.addEventListener('click', forceUpdate);
 })();
 </script>
-<!-- ═══ THREE.JS — local bundle first (works offline), CDN fallbacks ═══ -->
-<!-- Cache-busted with ?v= like appScripts below: three.min.js gets the same
-     long "immutable" Cache-Control as any other .js file the ESP32 serves
-     (see web_server.h staticServeNow), so a rebuilt bundle under the bare
-     URL would never reach browsers that already cached the old one. -->
-<script>document.write('<script src="three.min.js?v=' + APP_VERSION + '"><' + '/script>');</script>
+<!-- ═══ THREE.JS — local bundle (split into parts) first, CDN fallbacks ═══ -->
 <script>
-// Fallback: if local bundle failed (e.g. missing/blocked), try CDNs.
-(function ensureThree(){
-  if (window.THREE) return;
-  let cdns = [
+// The ESP32's network stack stalls on one continuous large response (see
+// firmware/platformio.ini's notes - every firmware-side mitigation tried
+// has failed to fix this outright). Instead of one <script src="three.min.js">
+// tag, fetch it as THREE_PART_COUNT separate small files (build-tools/
+// split-three.js cuts the built bundle into text-safe chunks - not valid
+// JS individually), await each in turn so every part is its own
+// request/connection, concatenate the text back into the original source,
+// then execute the assembled whole via a Blob script tag. Falls back to
+// CDN mirrors of the full upstream three.js if any part fails to load
+// (offline-with-broken-local-copy, or genuinely corrupted parts).
+(function loadThree(){
+  const THREE_PART_COUNT = 4;
+  const cdns = [
     'https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js',
     'https://unpkg.com/three@0.134.0/build/three.min.js',
     'https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js'
   ];
-  let i = 0;
-  function tryNext(){
-    if (window.THREE) return;
-    if (i >= cdns.length){
-      const ov = document.getElementById('loading-overlay');
-      if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">3D library failed to load</h2><p style="font-size:13px;color:#889">Could not load Three.js locally or from any CDN.<br>Open browser console (F12) for details.</p></div>';
-      return;
+  function loadFromCdns(){
+    let i = 0;
+    function tryNext(){
+      if (window.THREE) return;
+      if (i >= cdns.length){
+        const ov = document.getElementById('loading-overlay');
+        if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">3D library failed to load</h2><p style="font-size:13px;color:#889">Could not load Three.js locally or from any CDN.<br>Open browser console (F12) for details.</p></div>';
+        return;
+      }
+      let s = document.createElement('script');
+      s.src = cdns[i++];
+      s.onload = function(){};
+      s.onerror = tryNext;
+      document.head.appendChild(s);
     }
-    let s = document.createElement('script');
-    s.src = cdns[i++];
-    s.onload = function(){};
-    s.onerror = tryNext;
-    document.head.appendChild(s);
+    tryNext();
   }
-  tryNext();
+  async function loadLocalParts(){
+    let combined = '';
+    for (let i = 0; i < THREE_PART_COUNT; i++){
+      const resp = await fetch('three.part' + i + '.js?v=' + APP_VERSION);
+      if (!resp.ok) throw new Error('three.part' + i + '.js: HTTP ' + resp.status);
+      combined += await resp.text();
+    }
+    const url = URL.createObjectURL(new Blob([combined], {type: 'application/javascript'}));
+    try {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = url;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('assembled bundle failed to execute'));
+        document.head.appendChild(s);
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+    if (!window.THREE) throw new Error('three.min.js parts loaded but window.THREE is missing');
+  }
+  loadLocalParts().catch(function(err){
+    console.warn('Local Three.js parts failed, falling back to CDN:', err);
+    loadFromCdns();
+  });
 })();
 </script>
 

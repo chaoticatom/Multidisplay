@@ -51,6 +51,16 @@ try {
     }
 }
 
+# Split into THREE_PART_COUNT text-safe chunks (index.html's loadThree()
+# fetches each in turn and reassembles before executing) so the ESP32 never
+# has to serve one continuous ~480KB response - see split-three.js. Keep
+# this count in sync with THREE_PART_COUNT in index.html and build.sh.
+$ThreePartCount = 4
+Write-Host "==> Splitting three.min.js into $ThreePartCount parts..."
+node build-tools/split-three.js three.min.js three.part $ThreePartCount
+if ($LASTEXITCODE -ne 0) { Write-Error "Failed to split three.min.js into parts." }
+$threeParts = 0..($ThreePartCount - 1) | ForEach-Object { "three.part$_.js" }
+
 function GzipFile($srcPath, $dstPath) {
     $inBytes = [System.IO.File]::ReadAllBytes($srcPath)
     $outStream = [System.IO.File]::Create($dstPath)
@@ -71,8 +81,9 @@ $files = @(
     "cube.js",
     "effects-core.js", "effects-motion.js", "effects-physics.js", "effects-colour.js",
     "effects-livedata.js", "effects-games.js", "effects-scenes.js", "effects-media.js",
-    "ui.js",
-    "three.min.js", "manifest.json",
+    "ui.js"
+) + $threeParts + @(
+    "manifest.json",
     "service-worker.js", "sw.js",
     "icons\icon-192.png", "icons\icon-512.png", "icons\icon.svg"
 )
@@ -80,7 +91,7 @@ $files = @(
 # Files the app cannot run without - if any of these fail to gzip, the
 # build is not safe to flash (see the empty-filesystem-flashed incident
 # this check was added for).
-$required = @("index.html", "cube.js", "effects-core.js", "effects-motion.js", "effects-physics.js", "effects-colour.js", "effects-livedata.js", "effects-games.js", "effects-scenes.js", "effects-media.js", "ui.js")
+$required = @("index.html", "cube.js", "effects-core.js", "effects-motion.js", "effects-physics.js", "effects-colour.js", "effects-livedata.js", "effects-games.js", "effects-scenes.js", "effects-media.js", "ui.js") + $threeParts
 $missing = @()
 
 foreach ($f in $files) {
