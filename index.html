@@ -1879,7 +1879,7 @@
 <canvas id="vid-cv" style="display:none;"></canvas>
 
 <!-- ═══ VERSION ═══ -->
-<script>const APP_VERSION = 'v2026.07.28.888';</script>
+<script>const APP_VERSION = 'v2026.07.28.889';</script>
 <script>
 function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
 setTimeout(showVersion,1000);
@@ -1946,12 +1946,37 @@ setTimeout(showVersion,1000);
     }
     tryNext();
   }
+  // The ESP32's AsyncTCP library is documented (see firmware/web_server.h)
+  // to occasionally abandon a response mid-transfer without ever closing
+  // the connection or erroring - the browser then just waits forever, since
+  // plain fetch() has no default timeout. Each attempt gets a hard deadline
+  // via AbortController; a few retries (fresh connection each time) before
+  // giving up and falling back to CDN, since a stall is usually a one-off
+  // rather than a permanent failure of that specific file.
+  const PART_FETCH_TIMEOUT_MS = 25000;
+  const PART_FETCH_RETRIES = 3;
+  async function fetchPartWithRetry(name){
+    let lastErr;
+    for (let attempt = 1; attempt <= PART_FETCH_RETRIES; attempt++){
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), PART_FETCH_TIMEOUT_MS);
+      try {
+        const resp = await fetch(name + '?v=' + APP_VERSION, {signal: controller.signal});
+        clearTimeout(timer);
+        if (!resp.ok) throw new Error(name + ': HTTP ' + resp.status);
+        return await resp.text();
+      } catch (err) {
+        clearTimeout(timer);
+        lastErr = err;
+        console.warn(name + ' attempt ' + attempt + '/' + PART_FETCH_RETRIES + ' failed:', err);
+      }
+    }
+    throw lastErr;
+  }
   async function loadLocalParts(){
     let combined = '';
     for (let i = 0; i < THREE_PART_COUNT; i++){
-      const resp = await fetch('three.part' + i + '.js?v=' + APP_VERSION);
-      if (!resp.ok) throw new Error('three.part' + i + '.js: HTTP ' + resp.status);
-      combined += await resp.text();
+      combined += await fetchPartWithRetry('three.part' + i + '.js');
     }
     const url = URL.createObjectURL(new Blob([combined], {type: 'application/javascript'}));
     try {
@@ -1978,7 +2003,7 @@ setTimeout(showVersion,1000);
 <script>
 // Wait for THREE to be available then load app scripts in order.
 (function loadApp(){
-  const appScripts = ['cube.js?v=888','effects-core.js?v=888','ui.js?v=888'];
+  const appScripts = ['cube.js?v=889','effects-core.js?v=889','ui.js?v=889'];
   function showError(msg){
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
@@ -2009,16 +2034,16 @@ setTimeout(showVersion,1000);
     document.head.appendChild(s);
   }
   let tries = 0;
-  // 2400 * 50ms = 120s. The ESP32's deliberately-throttled static file
-  // streaming (see firmware/web_server.h's STATIC_STREAM_CHUNK_DELAY_MS)
-  // can legitimately take 30s+ to deliver the full asset set on a slow
-  // connection - the old 300-try/15s cap fired this error on loads that
-  // were still genuinely in progress and would have succeeded, and once
-  // fired this loop stops polling for good (no resuming if THREE shows up
-  // moments later), so err generous here.
+  // 8000 * 50ms = 400s. loadThree()'s fetchPartWithRetry can itself burn up
+  // to PART_FETCH_RETRIES * PART_FETCH_TIMEOUT_MS (currently 3*25s=75s) per
+  // part retrying a stalled connection, across THREE_PART_COUNT (4) parts -
+  // worst case ~300s before it gives up and falls back to CDN. The old cap
+  // fired this error on loads that were still genuinely in progress and
+  // would have succeeded, and once fired this loop stops polling for good
+  // (no resuming if THREE shows up moments later), so err generous here.
   function check(){
     if (window.THREE && document.getElementById('c')){ loadSeq(0); return; }
-    if (tries++ > 2400){ showError('3D engine took too long to load.'); return; }
+    if (tries++ > 8000){ showError('3D engine took too long to load.'); return; }
     setTimeout(check, 50);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', check);
