@@ -38,7 +38,9 @@ const FACE_LAYOUT = [
 ];
 
 class RgbMatrixDriver {
-  // opts.mode: 'cube' (default, 6 panels via FACE_LAYOUT) | '2d' (1 panel).
+  // opts.mode: 'cube' (6 panels via FACE_LAYOUT) | '2d' (default, 1 panel -
+  // matches panelConfig.js's DEFAULT_CONFIG, so a fresh install doesn't
+  // assume all 6 panels are already wired and FACE_LAYOUT calibrated).
   // This is read ONCE at construction - rpi-led-matrix has no API to
   // reconfigure or tear down/recreate an LedMatrix instance at runtime
   // (see close() below), so changing mode via the WS setPanelConfig
@@ -46,7 +48,7 @@ class RgbMatrixDriver {
   // panels after a process restart, even though it updates core/the WS
   // preview immediately - app.js logs a warning about this when it happens.
   constructor(opts = {}) {
-    this.mode = opts.mode || 'cube';
+    this.mode = opts.mode || '2d';
     const topology = this.mode === '2d'
       ? { chainLength: 1, parallel: 1 }
       : { chainLength: 2, parallel: 3 };

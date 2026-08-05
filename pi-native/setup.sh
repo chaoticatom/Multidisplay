@@ -176,9 +176,12 @@ display once the physical panels are wired up:
        sudo systemctl start $SERVICE_NAME
        sudo systemctl status $SERVICE_NAME
 
-  5. Set your actual panel layout (persists across restarts):
-     send {"cmd":"setPanelConfig","size":64,"mode":"cube"} (or "2d" for a
-     single panel) to the same WS port.
+  5. Panel layout defaults to "2d" (1 panel) on a fresh install - safer
+     than assuming all 6 are already wired and FACE_LAYOUT calibrated.
+     Once you've got the full cube wired and step 2-3 above look right,
+     switch it over (persists across restarts):
+       send {"cmd":"setPanelConfig","size":64,"mode":"cube"} to the same
+       WS port.
 
   6. Bluetooth (optional - speaker + phone audio): the packages are
      already installed (step 1). Pairing/routing happens at runtime via

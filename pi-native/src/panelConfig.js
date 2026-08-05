@@ -13,7 +13,12 @@ const path = require('path');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'panel-config.json');
 const VALID_SIZES = [8, 16, 64];
-const DEFAULT_CONFIG = { size: 64, mode: 'cube' }; // mode: 'cube' (6 faces) | '2d' (1 panel)
+// Defaults to "2d" (1 panel) rather than the full 6-face cube - a fresh
+// install shouldn't assume you've already got all 6 panels wired up and
+// FACE_LAYOUT calibrated; safer to start from the simplest possible
+// physical setup and have you explicitly opt into "cube" once you're
+// ready, via setPanelConfig (see wsServer.js).
+const DEFAULT_CONFIG = { size: 64, mode: '2d' }; // mode: 'cube' (6 faces) | '2d' (1 panel)
 
 function load() {
   try {

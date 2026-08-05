@@ -141,6 +141,11 @@ last chosen on the Pi rather than defaulting to something stale. Verified
 live: set via one client, confirmed a second client sees it on connect,
 confirmed it survives a full process restart.
 
+**Defaults to `mode: "2d"` (1 panel) on a fresh install** - a first run
+shouldn't assume all 6 panels are already wired and `FACE_LAYOUT`
+calibrated (see `src/panelConfig.js`'s `DEFAULT_CONFIG`); switch to
+`"cube"` explicitly via `setPanelConfig` once you're actually ready.
+
 Size changes apply live (`CubeCore.resize()`). Mode changes (cube/2D) also
 apply live to the WS preview, but **not** to real physical panels if
 you're running `DRIVER=hardware` - `rpi-led-matrix` fixes its panel
