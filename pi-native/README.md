@@ -45,8 +45,26 @@ HUB75 panels, and no ARM hardware available**. What that means concretely:
 - The instant boot screen (`app.js`'s `renderBootScreen`) - confirmed via
   a real spawned-process test (`test/bootScreen.test.js`) that it renders
   to the driver strictly before the WS server starts listening.
+- `src/bluetooth.js`'s device-line parsing (the only hardware-independent
+  part) against realistic canned `bluetoothctl` output, including a real
+  bug this caught: `[CHG] Device MAC RSSI: -60`-style lines match the same
+  generic pattern as `[NEW] Device MAC Name` lines and were overwriting
+  the correct name with RSSI junk on repeat sightings during a scan -
+  fixed with first-sighting-wins instead of last-write-wins. The same
+  regex-based approach is used in `pi/bluetooth_server.py` (the existing
+  Python service for the browser-based deployment), which likely has the
+  same latent bug - not fixed there as part of this port, since that's a
+  different, separately-deployed file.
+- Confirmed live that a Bluetooth command sent to a real running server
+  fails gracefully (`{"ok":false,"error":"spawn bluetoothctl ENOENT"}`)
+  rather than crashing or hanging the process when `bluetoothctl` isn't
+  present (expected in this sandbox - no Bluetooth hardware here at all).
 
 **NOT verified — needs real hardware:**
+- `src/bluetooth.js`'s actual `bluetoothctl`/`pactl` execution (pairing,
+  discoverable mode, phone-audio routing) - only the parsing logic is
+  tested here, since there's no Bluetooth hardware or those binaries in
+  this sandbox.
 - `src/drivers/rgbMatrixDriver.js` — written against `rpi-led-matrix`'s
   actual documented API and its native addon's C++ source (verified the
   `drawBuffer()` byte-buffer contract by reading `led-matrix.addon.cc`
@@ -117,6 +135,34 @@ Also note: only `size=64` is meaningful with `DRIVER=hardware` -
 which is hardcoded `PANEL_SIZE=64`); real HUB75 panels are a fixed
 physical resolution and `rgbMatrixDriver.js` will throw rather than
 silently misbehave if asked to render a non-64 size.
+
+## Bluetooth audio
+
+Ported from `pi/bluetooth_server.py` (a standalone Python HTTP service used
+by the browser-based deployment) into `src/bluetooth.js`, wired directly
+into this project's existing WS control channel instead of adding a
+second separate service/port. Same `bluetoothctl`-over-stdin technique and
+PulseAudio `module-remap-source`/`module-loopback` plumbing for routing a
+paired phone's audio to both a connected speaker and a capturable
+`phone_capture` input.
+
+Commands (see `src/wsServer.js`'s module comment for exact shapes):
+`btScan`, `btPair`, `btStatus`, `btDiscoverable`, `btRoutePhoneAudio` -
+each replies only to the requesting client (`btScanResult` etc.), not a
+broadcast, since a scan/pair result is specific to that request.
+
+One-time setup on the Pi (same as the Python version):
+```bash
+sudo apt install bluez pulseaudio-module-bluetooth pulseaudio-utils
+sudo systemctl enable --now bluetooth
+```
+
+This relies on a working PulseAudio/PipeWire **user session** to actually
+route audio after pairing - if `app.js` runs as root (as the provided
+`systemd` unit does, for GPIO access), phone-audio routing specifically
+won't have a session to route into. Run as the same non-root user with a
+logged-in desktop session if you need that piece, same caveat the
+original Python script's README carried.
 
 ## Instant boot screen
 

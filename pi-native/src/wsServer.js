@@ -19,6 +19,18 @@
 //       survives a restart, and always included in the "state" message so
 //       a freshly-connected remote browser's UI reflects whatever was last
 //       chosen on the Pi rather than defaulting to something stale.
+//     {"cmd":"btScan"}                                    -> {"cmd":"btScanResult","devices":[{"mac":"..","name":".."}]}
+//     {"cmd":"btPair","mac":"AA:BB:CC:DD:EE:FF"}           -> {"cmd":"btPairResult","ok":bool,"log":".."}
+//     {"cmd":"btStatus"}                                   -> {"cmd":"btStatusResult","devices":[..]}
+//     {"cmd":"btDiscoverable"}                             -> {"cmd":"btDiscoverableResult","ok":bool,"log":".."}
+//     {"cmd":"btRoutePhoneAudio"}                          -> {"cmd":"btRoutePhoneAudioResult","ok":bool,"log":[..]}
+//       Ported from pi/bluetooth_server.py (a separate Python HTTP service
+//       for the browser-based deployment) - see src/bluetooth.js. Wired
+//       into this same control channel instead of a second service/port,
+//       since this project already has one. Bluetooth operations reply
+//       ONLY to the requesting client (request/response, not broadcast
+//       state) since a scan/status result is specific to that request, not
+//       shared app state every client should see.
 //   Text frames, server -> client, on connect and on every change:
 //     {"cmd":"state","effect":"wave","brightness":1,"speed":1,"panelSize":64,"panelMode":"cube"}
 //   Binary frames, server -> client, one per face per tick, only while
@@ -32,6 +44,7 @@
 const WebSocket = require('ws');
 const { EFFECTS, EFFECT_NAMES } = require('./effects');
 const panelConfig = require('./panelConfig');
+const bluetooth = require('./bluetooth');
 
 const PREVIEW_FPS = 20; // matches the ESP32 firmware's streamFrameToCube() throttle
 
@@ -87,6 +100,30 @@ class WsServer {
       panelConfig.save(this.config);
       if (this.onConfigChange) this.onConfigChange(this.config);
       this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'btScan') {
+      this._replyBt(ws, 'btScanResult', async () => ({ devices: await bluetooth.scanDevices() }));
+    } else if (msg.cmd === 'btPair') {
+      this._replyBt(ws, 'btPairResult', () => bluetooth.pairDevice(msg.mac));
+    } else if (msg.cmd === 'btStatus') {
+      this._replyBt(ws, 'btStatusResult', async () => ({ devices: await bluetooth.listPaired() }));
+    } else if (msg.cmd === 'btDiscoverable') {
+      this._replyBt(ws, 'btDiscoverableResult', () => bluetooth.makeDiscoverable());
+    } else if (msg.cmd === 'btRoutePhoneAudio') {
+      this._replyBt(ws, 'btRoutePhoneAudioResult', () => bluetooth.routePhoneAudio());
+    }
+  }
+
+  // Runs a Bluetooth operation (all async, several seconds each for
+  // bluetoothctl calls) and replies ONLY to the requesting client, not a
+  // broadcast - see module comment. Failures (missing bluetoothctl/pactl,
+  // a rejected promise) become {ok:false, error:message} rather than an
+  // unhandled rejection or a silently dropped request.
+  async _replyBt(ws, resultCmd, fn) {
+    try {
+      const result = await fn();
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ cmd: resultCmd, ok: true, ...result }));
+    } catch (err) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ cmd: resultCmd, ok: false, error: err.message }));
     }
   }
 

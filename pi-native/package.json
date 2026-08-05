@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/app.js",
     "start:mock": "DRIVER=mock node src/app.js",
-    "test": "node test/core.test.js && node test/weather.test.js && node test/easterEgg.test.js && node test/bootScreen.test.js"
+    "test": "node test/core.test.js && node test/weather.test.js && node test/easterEgg.test.js && node test/bootScreen.test.js && node test/bluetooth.test.js"
   },
   "dependencies": {
     "ws": "^8.18.0"
