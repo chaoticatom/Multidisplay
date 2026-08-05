@@ -6,8 +6,8 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "start:mock": "DRIVER=mock node src/app.js",
-    "test": "node test/core.test.js && node test/weather.test.js && node test/easterEgg.test.js && node test/bootScreen.test.js && node test/bluetooth.test.js"
+    "start:mock": "DRIVER=mock SKIP_WIFI_SETUP=1 node src/app.js",
+    "test": "node test/core.test.js && node test/weather.test.js && node test/easterEgg.test.js && node test/bootScreen.test.js && node test/bluetooth.test.js && node test/wifiSetup.test.js"
   },
   "dependencies": {
     "ws": "^8.18.0"

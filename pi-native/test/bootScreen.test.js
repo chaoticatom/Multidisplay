@@ -20,7 +20,7 @@ function test(name, fn) {
 async function run() {
   await test('boot screen renders (mockDriver frame 1, amber fill) before the WS server starts listening', () => new Promise((resolve, reject) => {
     const child = spawn('node', [path.join(__dirname, '../src/app.js')], {
-      env: { ...process.env, DRIVER: 'mock' },
+      env: { ...process.env, DRIVER: 'mock', SKIP_WIFI_SETUP: '1' },
       cwd: path.join(__dirname, '..'),
     });
     let output = '';

@@ -77,12 +77,23 @@ HUB75 panels, and no ARM hardware available**. What that means concretely:
   fails gracefully (`{"ok":false,"error":"spawn bluetoothctl ENOENT"}`)
   rather than crashing or hanging the process when `bluetoothctl` isn't
   present (expected in this sandbox - no Bluetooth hardware here at all).
+- `src/wifiSetup.js`'s orchestration logic (`isConnected`/`startAccessPoint`/
+  `stopAccessPoint`/`connectToNetwork`) against a fake `nmcli`, and the
+  captive-portal HTTP server itself for real (it's just Node's `http`
+  module, no hardware dependency) - serves the setup page, accepts
+  `/connect` POSTs, resolves only on success, keeps serving after a
+  failure so the user can retry. Confirmed live that with no `nmcli`
+  present at all (this sandbox), `ensureWifiConnected()` logs a warning and
+  assumes already-connected rather than crashing or blocking the app
+  forever - `app.js` starts up fine either way.
 
 **NOT verified — needs real hardware:**
 - `src/bluetooth.js`'s actual `bluetoothctl`/`pactl` execution (pairing,
   discoverable mode, phone-audio routing) - only the parsing logic is
   tested here, since there's no Bluetooth hardware or those binaries in
   this sandbox.
+- `src/wifiSetup.js`'s actual `nmcli` AP creation and network join - no
+  NetworkManager, no wlan0, no real network hardware in this sandbox.
 - `src/drivers/rgbMatrixDriver.js` — written against `rpi-led-matrix`'s
   actual documented API and its native addon's C++ source (verified the
   `drawBuffer()` byte-buffer contract by reading `led-matrix.addon.cc`
@@ -158,6 +169,33 @@ Also note: only `size=64` is meaningful with `DRIVER=hardware` -
 which is hardcoded `PANEL_SIZE=64`); real HUB75 panels are a fixed
 physical resolution and `rgbMatrixDriver.js` will throw rather than
 silently misbehave if asked to render a non-64 size.
+
+## WiFi setup
+
+Mirrors the ESP32 firmware's `WiFiManager` captive-portal flow
+(`firmware/src/wifi_setup.cpp`): every time `app.js` starts, it checks for
+a working connection (`src/wifiSetup.js`, via NetworkManager/`nmcli` - the
+default network stack on Raspberry Pi OS Bullseye and later). If none is
+found, it opens its own AP - same credentials as the firmware for
+consistency: SSID `Multidisplay-Setup`, password `cube1234` - and blocks
+startup until real credentials are submitted through a small web form at
+`http://10.42.0.1/` (NetworkManager's default AP gateway address). The
+instant boot screen is already showing at this point, so real panels
+aren't dark during the wait.
+
+This is a genuinely new subsystem (the browser-based/ESP32 project never
+needed this on the Pi side), not previously scoped work. Unlike a full
+captive portal, there's no DNS hijacking to trigger the OS's automatic
+"Sign in to network" popup - same UX as the ESP32's own portal: connect,
+then manually browse to the address. A DNS redirect (`dnsmasq` on the AP
+interface) would upgrade this to auto-popup, but is a separate, real
+chunk of infrastructure, not built here.
+
+Opt out entirely with `SKIP_WIFI_SETUP=1` (useful for local dev on a
+machine you don't want this touching, or if you're not on Raspberry Pi
+OS's NetworkManager-based network stack). If `nmcli` itself isn't
+installed, this is detected and logged rather than crashing or hanging -
+confirmed live in this sandbox (no `nmcli` at all here).
 
 ## Bluetooth audio
 

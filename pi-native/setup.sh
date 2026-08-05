@@ -58,8 +58,10 @@ log "Step 1/7: system packages"
 sudo apt-get update
 sudo apt-get install -y \
   build-essential git curl \
-  bluez pulseaudio-module-bluetooth pulseaudio-utils
+  bluez pulseaudio-module-bluetooth pulseaudio-utils \
+  network-manager
 sudo systemctl enable --now bluetooth
+sudo systemctl enable --now NetworkManager
 
 # ---------------------------------------------------------------------------
 log "Step 2/7: boot config (disable onboard audio, isolate a CPU core for display timing)"
@@ -183,7 +185,18 @@ display once the physical panels are wired up:
        send {"cmd":"setPanelConfig","size":64,"mode":"cube"} to the same
        WS port.
 
-  6. Bluetooth (optional - speaker + phone audio): the packages are
+  6. WiFi setup: the app checks connectivity on every startup and, if
+     none is found, opens its own setup AP ("Multidisplay-Setup", password
+     "cube1234" - see src/wifiSetup.js, must match firmware/src/config.h's
+     AP_SSID/AP_PASSWORD) you can connect a phone/PC to and submit real
+     WiFi credentials through - mirrors the ESP32 firmware's captive-portal
+     flow. This is mostly relevant for LATER (e.g. moving the Pi to a new
+     WiFi network without needing SSH again) rather than this first run -
+     you already needed working network access for this very script to
+     git-clone/npm-install anything, so it won't trigger during initial
+     setup.
+
+  7. Bluetooth (optional - speaker + phone audio): the packages are
      already installed (step 1). Pairing/routing happens at runtime via
      WS commands (btScan/btPair/btDiscoverable/btRoutePhoneAudio) - see
      pi-native/README.md's "Bluetooth audio" section. Note: phone-audio

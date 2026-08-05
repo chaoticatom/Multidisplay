@@ -9,6 +9,7 @@ const { CubeCore } = require('./core');
 const { EFFECTS } = require('./effects');
 const WsServer = require('./wsServer');
 const panelConfig = require('./panelConfig');
+const wifiSetup = require('./wifiSetup');
 
 const TICK_HZ = 30; // effect-compute + panel-push rate; independent of the driver's own PWM refresh
 const WS_PORT = 8081;
@@ -48,13 +49,26 @@ function loadDriver(config) {
   return new MockDriver();
 }
 
-function main() {
+async function main() {
   const config = panelConfig.load();
   console.log(`[app] panel config: size=${config.size} mode=${config.mode} (${config.mode === '2d' ? 1 : 6} panel(s))`);
   const core = new CubeCore(config.size);
   const driver = loadDriver(config);
   const driverKind = process.env.DRIVER || 'mock';
   renderBootScreen(core, driver);
+
+  // WiFi provisioning, mirroring the ESP32 firmware's WiFiManager captive
+  // portal: if there's no working connection, this opens a setup AP and
+  // BLOCKS here until real credentials are submitted through it - matches
+  // the firmware's connectWifi() blocking-until-connected pattern. The
+  // boot screen above is already showing, so real panels aren't dark
+  // during this wait, however long it takes. Opt out entirely (e.g. local
+  // dev on a machine you don't want this touching) with SKIP_WIFI_SETUP=1.
+  if (process.env.SKIP_WIFI_SETUP !== '1') {
+    await wifiSetup.ensureWifiConnected();
+  } else {
+    console.log('[app] SKIP_WIFI_SETUP=1 - skipping WiFi provisioning check');
+  }
 
   const state = { effect: 'wave', brightness: 1.0, speed: 1.0 };
   const ws = new WsServer(WS_PORT, state, config, (newConfig) => {
@@ -115,4 +129,7 @@ function main() {
   });
 }
 
-main();
+main().catch((err) => {
+  console.error('[app] fatal startup error:', err);
+  process.exit(1);
+});
