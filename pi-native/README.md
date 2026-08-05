@@ -9,6 +9,24 @@ is unrelated: helper scripts (Bluetooth audio bridge) for a Raspberry Pi
 that's running the *existing browser-based* app as a client, not this
 native rewrite.
 
+## Quick setup
+
+`setup.sh` automates everything scriptable on a fresh Raspberry Pi OS Lite
+install - system packages, boot config (audio off / isolated CPU core),
+Node.js, `npm install`, a baseline test run, and installing the systemd
+service. Run it on the Pi as your normal user (not root):
+
+```bash
+bash pi-native/setup.sh
+```
+
+It deliberately stops short of the one thing that can't be scripted -
+calibrating `FACE_LAYOUT` against your actual panel wiring - and prints
+exactly what to do next once it's done. See the script's own header
+comment for the one-liner `curl | bash` form. Not tested against real Pi
+hardware (none available while writing this); read it before running it,
+same as any setup script from the internet.
+
 ## Status: proof-of-concept, NOT feature-complete, NOT hardware-tested
 
 This was built and tested entirely in a sandbox with **no Raspberry Pi, no
