@@ -84,6 +84,35 @@ Connect a WS client to `ws://localhost:8081` to drive it — see
 `src/wsServer.js`'s module comment for the exact protocol, or run
 `node test/smoke-client.js` against a live `npm start` as a working example.
 
+## Panel layout config (size + 2D/cube mode)
+
+Reuses the browser's existing cube-size picker (8×8 / 16×16 / 64×64 / 2D)
+as the panel-layout setting here too, rather than inventing new config UI -
+users already know it. All 3 sizes mean the same 6-face physical layout;
+"2D" means 1 flat panel instead of a full cube. HUB75 itself can't be
+auto-probed for how many panels are connected (it's a write-only protocol
+with no return signal - see this project's design discussion), so this is
+a `{"cmd":"setPanelConfig","size":8|16|64,"mode":"cube"|"2d"}` WS command
+(see `src/wsServer.js`), persisted to `panel-config.json` (gitignored,
+created on first run) and included in the `state` message sent to every
+newly-connected client, so a remote browser's UI reflects whatever was
+last chosen on the Pi rather than defaulting to something stale. Verified
+live: set via one client, confirmed a second client sees it on connect,
+confirmed it survives a full process restart.
+
+Size changes apply live (`CubeCore.resize()`). Mode changes (cube/2D) also
+apply live to the WS preview, but **not** to real physical panels if
+you're running `DRIVER=hardware` - `rpi-led-matrix` fixes its panel
+topology (chain length/parallel count) at construction time with no
+runtime reconfiguration API, so changing mode there only takes effect
+after a process restart (`app.js` logs a warning when this happens).
+
+Also note: only `size=64` is meaningful with `DRIVER=hardware` -
+`8`/`16` are browser-preview-only resolutions (same as the ESP32 firmware,
+which is hardcoded `PANEL_SIZE=64`); real HUB75 panels are a fixed
+physical resolution and `rgbMatrixDriver.js` will throw rather than
+silently misbehave if asked to render a non-64 size.
+
 ## Running on real hardware
 
 ```bash

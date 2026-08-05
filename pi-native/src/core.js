@@ -25,6 +25,13 @@ class CubeCore {
     this._init(size);
   }
 
+  // Rebuilds faceMap/colBuf/etc for a new SIZE - matches the browser's
+  // initCube(newSize) being callable repeatedly (e.g. when the panel-size
+  // picker changes). Public alias of the same logic the constructor uses.
+  resize(size) {
+    this._init(size);
+  }
+
   _init(size) {
     const SIZE = size;
     const gx = [], gy = [], gz = [];

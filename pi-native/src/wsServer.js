@@ -9,10 +9,21 @@
 //     {"cmd":"setEffect",    "effect":"wave"}
 //     {"cmd":"setBrightness","value":0.0-1.5}
 //     {"cmd":"setSpeed",     "value":0.0-8.0}
-//   Text frames, server -> client, on connect and on every effect change:
-//     {"cmd":"state","effect":"wave","brightness":1,"speed":1}
+//     {"cmd":"setPanelConfig","size":8|16|64,"mode":"cube"|"2d"}
+//       Mirrors the browser's cube-size picker (8x8/16x16/64x64/2D) -
+//       reused as the panel-layout config here instead of inventing a new
+//       setting, since HUB75 itself can't be auto-probed for panel count
+//       (write-only protocol, no return path - see project discussion).
+//       All 3 sizes mean the same 6-face physical layout; "2d" means 1
+//       flat panel instead. Persisted to disk (panelConfig.js) so it
+//       survives a restart, and always included in the "state" message so
+//       a freshly-connected remote browser's UI reflects whatever was last
+//       chosen on the Pi rather than defaulting to something stale.
+//   Text frames, server -> client, on connect and on every change:
+//     {"cmd":"state","effect":"wave","brightness":1,"speed":1,"panelSize":64,"panelMode":"cube"}
 //   Binary frames, server -> client, one per face per tick, only while
-//   >=1 client is connected:
+//   >=1 client is connected (only face 0 when panelMode is "2d" - 1 panel,
+//   nothing else to stream):
 //     [faceId(1 byte)][R,G,B * SIZE*SIZE bytes, row-major, faceMap order]
 //   This is a new, simpler protocol - not required to bit-match the
 //   ESP32's PKT_VIDEO framing, since direction/purpose differ (Pi -> any
@@ -20,12 +31,21 @@
 //   code depends on the ESP32's exact framing.
 const WebSocket = require('ws');
 const { EFFECTS, EFFECT_NAMES } = require('./effects');
+const panelConfig = require('./panelConfig');
 
 const PREVIEW_FPS = 20; // matches the ESP32 firmware's streamFrameToCube() throttle
 
 class WsServer {
-  constructor(port, state) {
-    this.state = state; // shared mutable state: {effect, brightness, speed}
+  // state: shared mutable {effect, brightness, speed}.
+  // config: shared mutable {size, mode} (panelConfig.js shape) - already
+  // loaded from disk by app.js before this is constructed.
+  // onConfigChange(config): called after a validated setPanelConfig command
+  // is applied and persisted, so app.js can rebuild the CubeCore/driver
+  // (which this module has no reference to and shouldn't own).
+  constructor(port, state, config, onConfigChange) {
+    this.state = state;
+    this.config = config;
+    this.onConfigChange = onConfigChange;
     this.wss = new WebSocket.Server({ port });
     this._lastFrameMs = 0;
 
@@ -39,7 +59,11 @@ class WsServer {
   }
 
   _stateMsg() {
-    return { cmd: 'state', effect: this.state.effect, brightness: this.state.brightness, speed: this.state.speed };
+    return {
+      cmd: 'state',
+      effect: this.state.effect, brightness: this.state.brightness, speed: this.state.speed,
+      panelSize: this.config.size, panelMode: this.config.mode,
+    };
   }
 
   _handleMessage(ws, data) {
@@ -54,6 +78,15 @@ class WsServer {
     } else if (msg.cmd === 'setSpeed') {
       const v = Number(msg.value);
       if (Number.isFinite(v)) this.state.speed = Math.max(0, Math.min(8, v));
+    } else if (msg.cmd === 'setPanelConfig') {
+      const size = Number(msg.size);
+      const mode = msg.mode;
+      if (!panelConfig.VALID_SIZES.includes(size) || (mode !== 'cube' && mode !== '2d')) return;
+      this.config.size = size;
+      this.config.mode = mode;
+      panelConfig.save(this.config);
+      if (this.onConfigChange) this.onConfigChange(this.config);
+      this._broadcast(this._stateMsg());
     }
   }
 
@@ -80,7 +113,8 @@ class WsServer {
     this._lastFrameMs = now;
 
     const SIZE = core.SIZE;
-    for (let face = 0; face < 6; face++) {
+    const faceCount = this.config.mode === '2d' ? 1 : 6;
+    for (let face = 0; face < faceCount; face++) {
       const faceMap = core.faceMap[face];
       const buf = Buffer.allocUnsafe(1 + SIZE * SIZE * 3);
       buf[0] = face;

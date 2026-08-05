@@ -8,18 +8,18 @@
 const { CubeCore } = require('./core');
 const { EFFECTS } = require('./effects');
 const WsServer = require('./wsServer');
+const panelConfig = require('./panelConfig');
 
-const PANEL_SIZE = 64;
 const TICK_HZ = 30; // effect-compute + panel-push rate; independent of the driver's own PWM refresh
 const WS_PORT = 8081;
 
-function loadDriver() {
+function loadDriver(config) {
   const which = process.env.DRIVER || 'mock';
   if (which === 'hardware') {
     // eslint-disable-next-line global-require
     const RgbMatrixDriver = require('./drivers/rgbMatrixDriver');
-    console.log('[app] using rgbMatrixDriver (real hardware)');
-    return new RgbMatrixDriver();
+    console.log('[app] using rgbMatrixDriver (real hardware), mode=' + config.mode);
+    return new RgbMatrixDriver({ mode: config.mode });
   }
   // eslint-disable-next-line global-require
   const MockDriver = require('./drivers/mockDriver');
@@ -28,11 +28,36 @@ function loadDriver() {
 }
 
 function main() {
-  const core = new CubeCore(PANEL_SIZE);
-  const driver = loadDriver();
+  const config = panelConfig.load();
+  console.log(`[app] panel config: size=${config.size} mode=${config.mode} (${config.mode === '2d' ? 1 : 6} panel(s))`);
+  const core = new CubeCore(config.size);
+  const driver = loadDriver(config);
+  const driverKind = process.env.DRIVER || 'mock';
 
   const state = { effect: 'wave', brightness: 1.0, speed: 1.0 };
-  const ws = new WsServer(WS_PORT, state);
+  const ws = new WsServer(WS_PORT, state, config, (newConfig) => {
+    // Size changes apply live - CubeCore.resize() just rebuilds faceMap/
+    // colBuf, cheap and safe (mockDriver and rgbMatrixDriver both just
+    // read whatever core.SIZE/faceMap say on the next tick). Note
+    // rgbMatrixDriver.js currently hardcodes a SIZE===64 check and will
+    // throw on the next renderFrame() if you pick 8/16 with DRIVER=hardware
+    // - those sizes are browser-preview-only concepts (the ESP32 firmware
+    // is hardcoded PANEL_SIZE=64 too; real HUB75 panels are a fixed
+    // physical resolution, they don't "become" an 8x8 panel).
+    core.resize(newConfig.size);
+    // Panel MODE (cube vs 2d), unlike size, is not just a data-shape change
+    // on real hardware - rgbMatrixDriver.js's MatrixOptions (chainLength/
+    // parallel, i.e. how many physical panels the driver expects) are
+    // fixed at construction time, and rpi-led-matrix exposes no API to
+    // reconfigure or tear down and recreate that at runtime (see that
+    // file's close() comment). So a live mode change is only fully safe
+    // with the mock driver; on real hardware it's applied to core/WS
+    // preview immediately, but actually changes what physical panels the
+    // driver pushes to only after a process restart.
+    if (driverKind === 'hardware') {
+      console.warn('[app] panel mode changed to', newConfig.mode, '- restart the process to apply this to the physical panel driver (rgbMatrixDriver.js\'s panel topology is fixed at startup)');
+    }
+  });
   console.log(`[app] control/preview WS server listening on :${WS_PORT}`);
 
   let lastMs = Date.now();

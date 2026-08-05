@@ -38,13 +38,23 @@ const FACE_LAYOUT = [
 ];
 
 class RgbMatrixDriver {
+  // opts.mode: 'cube' (default, 6 panels via FACE_LAYOUT) | '2d' (1 panel).
+  // This is read ONCE at construction - rpi-led-matrix has no API to
+  // reconfigure or tear down/recreate an LedMatrix instance at runtime
+  // (see close() below), so changing mode via the WS setPanelConfig
+  // command (see wsServer.js/app.js) only takes effect on the physical
+  // panels after a process restart, even though it updates core/the WS
+  // preview immediately - app.js logs a warning about this when it happens.
   constructor(opts = {}) {
+    this.mode = opts.mode || 'cube';
+    const topology = this.mode === '2d'
+      ? { chainLength: 1, parallel: 1 }
+      : { chainLength: 2, parallel: 3 };
     const matrixOptions = {
       ...LedMatrix.defaultMatrixOptions(),
       rows: 64,
       cols: 64,
-      chainLength: 2,
-      parallel: 3,
+      ...topology,
       hardwareMapping: GpioMapping.Regular, // change if using an Adafruit HAT instead of the Active-3 board
       ...opts.matrixOptions,
     };
@@ -63,9 +73,14 @@ class RgbMatrixDriver {
   renderFrame(core, brightness = 1.0) {
     const SIZE = core.SIZE;
     if (SIZE !== 64) {
+      // 8/16 are browser-preview-only resolutions (the ESP32 firmware is
+      // hardcoded PANEL_SIZE=64 too) - real HUB75 panels are a fixed
+      // physical resolution, they don't "become" an 8x8 panel. Only 64 is
+      // meaningful here.
       throw new Error(`rgbMatrixDriver is hardcoded for 64x64 faces (matrixOptions rows/cols), got SIZE=${SIZE}`);
     }
-    for (let face = 0; face < 6; face++) {
+    const faceCount = this.mode === '2d' ? 1 : 6;
+    for (let face = 0; face < faceCount; face++) {
       const layout = FACE_LAYOUT[face];
       const buf = this._buildFaceBuffer(core, face, brightness);
       this.matrix.drawBuffer(buf, SIZE, SIZE, layout.pos * SIZE, layout.chain * SIZE);
