@@ -1,0 +1,20 @@
+[Unit]
+Description=Multidisplay Pi native effect engine + LED panel driver
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# rpi-led-matrix needs GPIO/DMA access - run as root (matches the library's
+# own documented requirement). If you'd rather not run as root, see its
+# docs for the capability-based alternative (CAP_SYS_RAWIO plus specific
+# device permissions) and adjust User=/AmbientCapabilities= here instead.
+User=root
+WorkingDirectory=/home/pi/multidisplay-pi
+Environment=DRIVER=hardware
+ExecStart=/usr/bin/node src/app.js
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

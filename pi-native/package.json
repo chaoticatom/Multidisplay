@@ -1,0 +1,18 @@
+{
+  "name": "multidisplay-pi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Native (no-browser) effect engine + panel driver for Multidisplay, running on a Raspberry Pi instead of streaming from a browser to an ESP32.",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "start:mock": "DRIVER=mock node src/app.js",
+    "test": "node test/core.test.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "optionalDependencies": {
+    "rpi-led-matrix": "^1.15.0"
+  }
+}
