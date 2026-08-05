@@ -3,20 +3,26 @@
 // convention as the browser's EFFECTS map in ui.js, just addressed through
 // `core` instead of bare globals (see ../core.js's module comment for why).
 //
-// Only 2 effects ported so far (proof-of-concept for the architecture, not
+// Only 4 effects ported so far (proof-of-concept for the architecture, not
 // full feature parity - see the project's pending task list for the much
 // longer list of effects still to port from effects-*.js).
 const wave = require('./wave');
 const gradientWash = require('./gradientWash');
+const weather = require('./weather');
+const easterEgg = require('./easterEgg');
 
 const EFFECTS = {
   wave,
   gradient_wash: gradientWash,
+  weather,
+  easter_egg: easterEgg,
 };
 
 const EFFECT_NAMES = {
   wave: 'Wave Cascade',
   gradient_wash: 'Rainbow Wash',
+  weather: 'Weather',
+  easter_egg: 'Easter Egg',
 };
 
 module.exports = { EFFECTS, EFFECT_NAMES };

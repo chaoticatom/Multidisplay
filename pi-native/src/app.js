@@ -41,6 +41,11 @@ function main() {
     const dt = Math.min(0.1, (now - lastMs) / 1000) * state.speed; // cap dt so a stall/GC pause can't produce a huge jump
     lastMs = now;
 
+    // core.speedMult: raw (not dt-multiplied) speed value, for effects that
+    // need it separately from the pre-scaled dt above - see effects/weather/
+    // weather.js's module comment for why (it double-applies speedMult for
+    // one specific timer, faithfully matching the browser source).
+    core.speedMult = state.speed;
     const fn = EFFECTS[state.effect];
     if (fn) fn(core, dt);
 

@@ -66,7 +66,12 @@ test('lerp interpolates linearly', () => {
 });
 
 console.log('effects');
-for (const [name, fn] of Object.entries(EFFECTS)) {
+// SIZE-agnostic effects only - easter_egg is intentionally hardcoded to
+// SIZE=64 (its images are baked at that resolution, no resampling logic
+// exists) and has full dedicated coverage at the correct size in
+// easterEgg.test.js instead.
+const SIZE_AGNOSTIC_EFFECTS = Object.entries(EFFECTS).filter(([name]) => name !== 'easter_egg');
+for (const [name, fn] of SIZE_AGNOSTIC_EFFECTS) {
   test(`${name}: runs without throwing and writes finite, in-range colors`, () => {
     const core = new CubeCore(16); // small size, fast
     for (let i = 0; i < 5; i++) fn(core, 1 / 30);
@@ -76,6 +81,14 @@ for (const [name, fn] of Object.entries(EFFECTS)) {
     }
   });
 }
+test('easter_egg: runs at its required SIZE=64 without throwing', () => {
+  const core = new CubeCore(64);
+  for (let i = 0; i < 5; i++) EFFECTS.easter_egg(core, 1 / 30);
+  for (const v of core.colBuf) {
+    assert.ok(Number.isFinite(v), `non-finite value ${v}`);
+    assert.ok(v >= -0.01 && v <= 1.5, `color component ${v} looks out of plausible range`);
+  }
+});
 
 if (process.exitCode) {
   console.log('\nFAILED');
