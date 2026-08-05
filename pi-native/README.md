@@ -40,6 +40,11 @@ HUB75 panels, and no ARM hardware available**. What that means concretely:
   `setEffect` → receive correctly-shaped binary preview frames for all 6
   faces, confirmed for all 4 registered effects. See `test/smoke-client.js`
   (manual, run against a live `npm start`).
+- Panel-layout config (size + cube/2D mode), persisted and synced to
+  clients on connect - see the dedicated section below.
+- The instant boot screen (`app.js`'s `renderBootScreen`) - confirmed via
+  a real spawned-process test (`test/bootScreen.test.js`) that it renders
+  to the driver strictly before the WS server starts listening.
 
 **NOT verified — needs real hardware:**
 - `src/drivers/rgbMatrixDriver.js` — written against `rpi-led-matrix`'s
@@ -112,6 +117,19 @@ Also note: only `size=64` is meaningful with `DRIVER=hardware` -
 which is hardcoded `PANEL_SIZE=64`); real HUB75 panels are a fixed
 physical resolution and `rgbMatrixDriver.js` will throw rather than
 silently misbehave if asked to render a non-64 size.
+
+## Instant boot screen
+
+The moment `app.js` has a driver constructed, it renders a single solid
+amber fill (`renderBootScreen`) directly to the physical panels -
+synchronously, before the WS server or animation loop exist. This mirrors
+the ESP32 firmware's own pattern (`main.cpp`: "Start the display task
+RIGHT AWAY, before any networking") - real panels should never sit dark
+while the rest of the system comes up, however long that ends up taking.
+Nothing needs to explicitly clear it; the first real animation-loop tick
+overwrites it naturally. Verified via a spawned-process test
+(`test/bootScreen.test.js`) that it renders strictly before the WS server
+starts listening.
 
 ## Running on real hardware
 

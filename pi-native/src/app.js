@@ -13,6 +13,27 @@ const panelConfig = require('./panelConfig');
 const TICK_HZ = 30; // effect-compute + panel-push rate; independent of the driver's own PWM refresh
 const WS_PORT = 8081;
 
+// Solid amber fill, distinct from any real effect's likely palette - a
+// common embedded "still booting" convention (matches the spirit of the
+// ESP32 firmware's boot-time WiFi status icon: something is shown
+// immediately, not left dark, while the rest of the system comes up - see
+// main.cpp's "Start the display task RIGHT AWAY, before any networking"
+// comment). Rendered synchronously, directly to the driver, before the WS
+// server or the animation loop exist - so real panels never sit dark
+// during startup, however long driver construction or future async init
+// steps end up taking. The first real animation-loop tick (a JS event-loop
+// turn away, effectively instant today) naturally supersedes it - nothing
+// needs to explicitly "turn it off".
+const BOOT_COLOR = [0.35, 0.18, 0.0];
+function renderBootScreen(core, driver) {
+  for (let i = 0; i < core.colBuf.length; i += 3) {
+    core.colBuf[i] = BOOT_COLOR[0];
+    core.colBuf[i + 1] = BOOT_COLOR[1];
+    core.colBuf[i + 2] = BOOT_COLOR[2];
+  }
+  driver.renderFrame(core, 1.0);
+}
+
 function loadDriver(config) {
   const which = process.env.DRIVER || 'mock';
   if (which === 'hardware') {
@@ -33,6 +54,7 @@ function main() {
   const core = new CubeCore(config.size);
   const driver = loadDriver(config);
   const driverKind = process.env.DRIVER || 'mock';
+  renderBootScreen(core, driver);
 
   const state = { effect: 'wave', brightness: 1.0, speed: 1.0 };
   const ws = new WsServer(WS_PORT, state, config, (newConfig) => {
