@@ -27,6 +27,31 @@ comment for the one-liner `curl | bash` form. Not tested against real Pi
 hardware (none available while writing this); read it before running it,
 same as any setup script from the internet.
 
+### Alternative: pre-built image (`build-image.sh`)
+
+If you'd rather flash one ready-to-go image than run `setup.sh` after
+booting, `build-image.sh` customizes an official Raspberry Pi OS Lite
+(64-bit) image offline - mounts it via a loop device, chroots in with
+`qemu-user-static`, and installs everything `setup.sh` would (packages,
+Node.js, the app, boot config, systemd service) without ever booting a
+Pi. Run on a Linux machine (needs root, `qemu-user-static`, `rsync`):
+
+```bash
+# Download raspios_lite_arm64 from raspberrypi.com/software first
+sudo ./pi-native/build-image.sh raspios-lite-arm64.img.xz multidisplay-cube.img
+```
+
+**Read the script's own header comment before trusting this one** - it's
+honestly labeled as partially unverified. The mounting/chrooting
+mechanics are demonstrated working (a full `debootstrap` completed
+successfully under the same emulation technique), but the actual package-
+install run hit an environment-specific hang partway through while being
+developed (root-caused to a missing `policy-rc.d` guard, now added, but
+not re-verified by a clean successful run) - the riskiest unverified
+piece is whether `rpi-led-matrix`'s native addon compiles under
+emulation, since that step was never reached. `setup.sh` (above) is the
+better-tested path if you want something proven to work end-to-end.
+
 ## Status: proof-of-concept, NOT feature-complete, NOT hardware-tested
 
 This was built and tested entirely in a sandbox with **no Raspberry Pi, no
