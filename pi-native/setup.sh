@@ -155,20 +155,24 @@ Everything above is done. What's left needs your eyes on real hardware -
 this cannot be scripted, and skipping it risks a corrupted/incorrect
 display once the physical panels are wired up:
 
-  1. Wire your HUB75 panels to the driver board per its documentation,
+  1. Wire your HUB75 panel(s) to the driver board per its documentation,
      the driver board to the Pi's GPIO header, and panel power to a
      dedicated 5V supply (never through the Pi itself).
 
-  2. Edit $PI_NATIVE_DIR/src/drivers/rgbMatrixDriver.js:
-     FACE_LAYOUT is currently a PLACEHOLDER, not calibrated to your
-     wiring. Run it manually first to check:
+  2. If you're staying in the default "2d" (1 panel) mode: FACE_LAYOUT
+     calibration doesn't apply - with only one panel there's no mapping
+     ambiguity to resolve. Just sanity-check it lights up correctly:
 
        cd $PI_NATIVE_DIR
        sudo DRIVER=hardware npm start
 
-     Then send {"cmd":"setEffect","effect":"wave"} to
-     ws://<this-pi>:8081 from any WS client and see which physical panel
-     lights up as which cube face. Fix FACE_LAYOUT until it's correct.
+     Only if/when you wire up the full 6-panel cube and switch to
+     mode:"cube" (step 5 below) do you need to edit
+     $PI_NATIVE_DIR/src/drivers/rgbMatrixDriver.js's FACE_LAYOUT (a
+     PLACEHOLDER, not calibrated to your wiring) - send
+     {"cmd":"setEffect","effect":"wave"} to ws://<this-pi>:8081 and see
+     which physical panel lights up as which cube face, then fix
+     FACE_LAYOUT until it's correct.
 
   3. If the image flickers/looks unstable, raise gpioSlowdown in the same
      file (starts at 2; Pi 3/4 sometimes need higher).

@@ -21,11 +21,13 @@ bash pi-native/setup.sh
 ```
 
 It deliberately stops short of the one thing that can't be scripted -
-calibrating `FACE_LAYOUT` against your actual panel wiring - and prints
-exactly what to do next once it's done. See the script's own header
-comment for the one-liner `curl | bash` form. Not tested against real Pi
-hardware (none available while writing this); read it before running it,
-same as any setup script from the internet.
+calibrating `FACE_LAYOUT` against your actual panel wiring, needed once
+you wire up the full 6-panel cube (the default single "2d" panel needs no
+calibration at all - see the "Panel layout config" section below) - and
+prints exactly what to do next once it's done. See the script's own
+header comment for the one-liner `curl | bash` form. Not tested against
+real Pi hardware (none available while writing this); read it before
+running it, same as any setup script from the internet.
 
 ### Alternative: pre-built image (`build-image.sh`)
 
@@ -270,9 +272,11 @@ npm install          # now including rpi-led-matrix - needs build tools + the ac
 sudo DRIVER=hardware node src/app.js
 ```
 
-Before trusting any effect's visual output: **calibrate `FACE_LAYOUT` in
-`src/drivers/rgbMatrixDriver.js` against your actual wiring** by testing
-one distinctive solid color per face.
+If you're running in "cube" mode (6 panels): before trusting any effect's
+visual output, **calibrate `FACE_LAYOUT` in `src/drivers/rgbMatrixDriver.js`
+against your actual wiring** by testing one distinctive solid color per
+face. Not needed in the default "2d" (1 panel) mode - see "Panel layout
+config" above.
 
 Then install `systemd/multidisplay-pi.service` (adjust `WorkingDirectory`
 to wherever this is deployed) to run it as a boot-time service.

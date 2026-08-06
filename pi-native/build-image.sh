@@ -248,10 +248,12 @@ Flash it with Raspberry Pi Imager (Choose OS -> Use custom) or:
   sudo dd if=$OUT_IMG of=/dev/sdX bs=4M status=progress conv=fsync
 
 Same manual steps as setup.sh's printed next-steps still apply after
-first boot - wiring the panels, calibrating FACE_LAYOUT in
-src/drivers/rgbMatrixDriver.js (at /opt/multidisplay/pi-native/src/
-drivers/rgbMatrixDriver.js on the Pi), and switching panel-config from
-its "2d" default to "cube" once you're ready. See pi-native/README.md.
+first boot - wiring the panel(s), and switching panel-config from its
+"2d" default to "cube" once the full 6-panel setup is wired. FACE_LAYOUT
+(src/drivers/rgbMatrixDriver.js, at /opt/multidisplay/pi-native/src/
+drivers/rgbMatrixDriver.js on the Pi) only needs calibrating once you're
+in "cube" mode - with the default single "2d" panel there's no mapping
+ambiguity to resolve. See pi-native/README.md.
 
 WiFi: this image doesn't have credentials baked in unless you set them
 via Raspberry Pi Imager separately before running this script (its
