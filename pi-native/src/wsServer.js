@@ -1,10 +1,23 @@
-// Local control + preview WebSocket server. Idles (no frame encoding/
-// sending) until a client connects, then streams frames - same pattern as
-// g_browserConnected/WS_EVT_CONNECT in the ESP32 firmware's web_server.h,
-// deliberately kept (per this project's design discussion) so nobody
-// watching means zero wasted CPU/bandwidth on preview encoding.
+// Local control + preview server - both plain HTTP (the control page) and
+// WebSocket (commands + frame streaming) on the SAME port, via one
+// http.Server the `ws` library attaches to. Before this, the port was
+// WebSocket-only, so browsing to http://<pi>:8081/ directly (the obvious
+// first thing to try) showed a bare "Upgrade Required" error - confirmed
+// live by a real user hitting exactly that. Idles (no frame encoding/
+// sending) until a WS client connects, then streams frames - same pattern
+// as g_browserConnected/WS_EVT_CONNECT in the ESP32 firmware's
+// web_server.h, deliberately kept (per this project's design discussion)
+// so nobody watching means zero wasted CPU/bandwidth on preview encoding.
 //
-// Wire protocol:
+// HTTP routes:
+//   GET /             -> public/index.html, the control page (effect
+//                         buttons, brightness/speed, panel layout, live
+//                         per-face preview canvases, Bluetooth pairing UI)
+//   GET /effects.json -> {"wave":"Wave Cascade", ...} (EFFECT_NAMES) - the
+//                         page fetches this once instead of hand-
+//                         maintaining its own copy of the effect list
+//
+// WebSocket wire protocol:
 //   Text frames (JSON), client -> server, control commands:
 //     {"cmd":"setEffect",    "effect":"wave"}
 //     {"cmd":"setBrightness","value":0.0-1.5}
@@ -42,11 +55,16 @@
 //   preview client, vs. today's browser -> ESP32) and no existing consumer
 //   code depends on the ESP32's exact framing.
 const WebSocket = require('ws');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const { EFFECTS, EFFECT_NAMES } = require('./effects');
 const panelConfig = require('./panelConfig');
 const bluetooth = require('./bluetooth');
 
 const PREVIEW_FPS = 20; // matches the ESP32 firmware's streamFrameToCube() throttle
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const INDEX_HTML = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'));   // read once at startup, not per-request
 
 class WsServer {
   // state: shared mutable {effect, brightness, speed}.
@@ -59,8 +77,16 @@ class WsServer {
     this.state = state;
     this.config = config;
     this.onConfigChange = onConfigChange;
-    this.wss = new WebSocket.Server({ port });
     this._lastFrameMs = 0;
+
+    // One HTTP server handles both the control page (GET /, GET
+    // /effects.json) and the WebSocket upgrade, on the same port - so
+    // http://<pi>:8081/ actually shows something instead of the "Upgrade
+    // Required" error a bare WebSocket-only server gives a normal browser
+    // GET request (see project discussion - this is exactly the confusion
+    // that prompted building this page in the first place).
+    this.http = http.createServer((req, res) => this._handleHttp(req, res));
+    this.wss = new WebSocket.Server({ server: this.http });
 
     this.wss.on('connection', (ws) => {
       console.log('[WS] client connected');
@@ -69,6 +95,22 @@ class WsServer {
       ws.on('close', () => console.log('[WS] client disconnected'));
       ws.on('error', (err) => console.warn('[WS] client error:', err.message));
     });
+
+    this.http.listen(port);
+  }
+
+  _handleHttp(req, res) {
+    if (req.method !== 'GET') { res.writeHead(404).end(); return; }
+    if (req.url === '/' || req.url === '/index.html') {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(INDEX_HTML);
+    } else if (req.url === '/effects.json') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(EFFECT_NAMES));
+    } else {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not Found');
+    }
   }
 
   _stateMsg() {
@@ -175,6 +217,7 @@ class WsServer {
 
   close() {
     this.wss.close();
+    this.http.close();
   }
 }
 

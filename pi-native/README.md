@@ -85,6 +85,12 @@ HUB75 panels, and no ARM hardware available**. What that means concretely:
   `setEffect` → receive correctly-shaped binary preview frames for all 6
   faces, confirmed for all 4 registered effects. See `test/smoke-client.js`
   (manual, run against a live `npm start`).
+- The control web page (`public/index.html`) - `GET /` and `GET
+  /effects.json` served correctly (`test/webPage.test.js`), and confirmed
+  the WebSocket upgrade still works on the same port alongside plain HTTP.
+  Added after a real user tried browsing to `http://<pi>:8081/` directly
+  (a completely reasonable first instinct) and got a bare "Upgrade
+  Required" error, since the server used to be WebSocket-only.
 - Panel-layout config (size + cube/2D mode), persisted and synced to
   clients on connect - see the dedicated section below.
 - The instant boot screen (`app.js`'s `renderBootScreen`) - confirmed via
@@ -159,9 +165,13 @@ With `DRIVER=mock` (the default), no GPIO/hardware calls happen at all —
 `mockDriver.js` just logs a periodic frame/brightness summary, so the
 effect engine + WS server can be exercised on any machine.
 
-Connect a WS client to `ws://localhost:8081` to drive it — see
-`src/wsServer.js`'s module comment for the exact protocol, or run
-`node test/smoke-client.js` against a live `npm start` as a working example.
+Open `http://localhost:8081/` in a browser for the actual control page
+(`public/index.html`) — effect buttons, brightness/speed sliders, panel
+layout picker, a live per-face preview (real pixel data via `putImageData`,
+not a placeholder), and Bluetooth pairing controls. Or connect a raw WS
+client to `ws://localhost:8081` directly — see `src/wsServer.js`'s module
+comment for the exact protocol, or run `node test/smoke-client.js` against
+a live `npm start` as a working example.
 
 ## Panel layout config (size + 2D/cube mode)
 

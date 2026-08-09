@@ -10,8 +10,12 @@ let textMsgs = 0, binMsgs = 0, faceSeen = new Set();
 ws.on('open', () => {
   console.log('connected');
   setTimeout(() => {
+    // Panel config now defaults to "2d" (1 panel) - explicitly request
+    // "cube" so this test's 6-face assertions below stay meaningful
+    // regardless of whatever the server's persisted default currently is.
+    ws.send(JSON.stringify({ cmd: 'setPanelConfig', size: 64, mode: 'cube' }));
     ws.send(JSON.stringify({ cmd: 'setEffect', effect: 'gradient_wash' }));
-    console.log('sent setEffect gradient_wash');
+    console.log('sent setPanelConfig cube + setEffect gradient_wash');
   }, 200);
 });
 

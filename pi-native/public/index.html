@@ -1,0 +1,239 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multidisplay Pi</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; background: #0b0d12; color: #e8ecf1; margin: 0; padding: 16px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #8891a5; margin: 24px 0 8px; }
+  #status { font-size: 12px; color: #8891a5; margin-bottom: 16px; }
+  #status.connected { color: #5fd97a; }
+  #status.disconnected { color: #f7768e; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button { background: #1b1f2a; color: #e8ecf1; border: 1px solid #2c3141; border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+  button:hover { background: #262b3a; }
+  button.active { background: #3a6ff7; border-color: #3a6ff7; color: #fff; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .slider-row label { width: 90px; font-size: 13px; color: #b7bfd1; }
+  .slider-row input[type=range] { flex: 1; }
+  .slider-row span { width: 40px; text-align: right; font-size: 12px; color: #8891a5; }
+  #preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  #preview canvas { image-rendering: pixelated; background: #000; border: 1px solid #2c3141; border-radius: 4px; }
+  .preview-cell { text-align: center; }
+  .preview-cell span { display: block; font-size: 11px; color: #8891a5; margin-top: 2px; }
+  #bt-log { white-space: pre-wrap; font-family: monospace; font-size: 11px; background: #12151d; border: 1px solid #2c3141; border-radius: 6px; padding: 8px; margin-top: 8px; max-height: 160px; overflow-y: auto; color: #b7bfd1; }
+  #bt-devices { margin-top: 8px; }
+  .device-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
+  .device-row .mac { color: #8891a5; font-family: monospace; font-size: 11px; }
+</style>
+</head>
+<body>
+  <h1>Multidisplay</h1>
+  <div id="status" class="disconnected">connecting...</div>
+
+  <h2>Effect</h2>
+  <div class="row" id="effect-buttons"></div>
+
+  <h2>Brightness / Speed</h2>
+  <div class="slider-row">
+    <label>Brightness</label>
+    <input type="range" id="brightness" min="0" max="1.5" step="0.05" value="1">
+    <span id="brightness-val">1.0</span>
+  </div>
+  <div class="slider-row">
+    <label>Speed</label>
+    <input type="range" id="speed" min="0" max="8" step="0.1" value="1">
+    <span id="speed-val">1.0</span>
+  </div>
+
+  <h2>Panel Layout</h2>
+  <div class="row" id="panel-buttons"></div>
+
+  <h2>Preview</h2>
+  <div id="preview"></div>
+
+  <h2>Bluetooth</h2>
+  <div class="row">
+    <button id="bt-scan">Scan for devices</button>
+    <button id="bt-status">Show paired</button>
+    <button id="bt-discoverable">Make discoverable (pair a phone)</button>
+    <button id="bt-route">Route phone audio to speaker</button>
+  </div>
+  <div id="bt-devices"></div>
+  <div id="bt-log">Bluetooth results appear here.</div>
+
+<script>
+const PANEL_SIZES = [8, 16, 64];
+const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
+
+let ws;
+let effectNames = {};
+let currentState = { effect: null, brightness: 1, speed: 1, panelSize: 64, panelMode: 'cube' };
+const canvases = {}; // face -> {canvas, ctx, imgData}
+
+function connect() {
+  ws = new WebSocket(`ws://${location.hostname}:${location.port || 8081}`);
+  ws.binaryType = 'arraybuffer';
+  const statusEl = document.getElementById('status');
+
+  ws.onopen = () => { statusEl.textContent = 'connected'; statusEl.className = 'connected'; };
+  ws.onclose = () => { statusEl.textContent = 'disconnected - retrying...'; statusEl.className = 'disconnected'; setTimeout(connect, 2000); };
+  ws.onerror = () => { ws.close(); };
+
+  ws.onmessage = (ev) => {
+    if (typeof ev.data === 'string') {
+      handleTextMessage(JSON.parse(ev.data));
+    } else {
+      handleFrame(ev.data);
+    }
+  };
+}
+
+function send(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+}
+
+function handleTextMessage(msg) {
+  if (msg.cmd === 'state') {
+    currentState = msg;
+    renderEffectButtons();
+    renderPanelButtons();
+    document.getElementById('brightness').value = msg.brightness;
+    document.getElementById('brightness-val').textContent = Number(msg.brightness).toFixed(2);
+    document.getElementById('speed').value = msg.speed;
+    document.getElementById('speed-val').textContent = Number(msg.speed).toFixed(1);
+    ensurePreviewCanvases();
+  } else if (msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
+    handleBtResult(msg);
+  }
+}
+
+// Effect names aren't sent over the wire today (only the current key) -
+// fetched once via a plain HTTP request to this same server's /effects.json
+// so the button list doesn't need to be hand-maintained here too.
+async function loadEffectNames() {
+  const resp = await fetch('/effects.json');
+  effectNames = await resp.json();
+  renderEffectButtons();
+}
+
+function renderEffectButtons() {
+  const container = document.getElementById('effect-buttons');
+  container.innerHTML = '';
+  for (const [key, label] of Object.entries(effectNames)) {
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    if (key === currentState.effect) btn.className = 'active';
+    btn.onclick = () => send({ cmd: 'setEffect', effect: key });
+    container.appendChild(btn);
+  }
+}
+
+function renderPanelButtons() {
+  const container = document.getElementById('panel-buttons');
+  container.innerHTML = '';
+  for (const size of PANEL_SIZES) {
+    const btn = document.createElement('button');
+    btn.textContent = `${size}x${size} cube`;
+    if (currentState.panelMode === 'cube' && currentState.panelSize === size) btn.className = 'active';
+    btn.onclick = () => send({ cmd: 'setPanelConfig', size, mode: 'cube' });
+    container.appendChild(btn);
+  }
+  const btn2d = document.createElement('button');
+  btn2d.textContent = '2D (1 panel)';
+  if (currentState.panelMode === '2d') btn2d.className = 'active';
+  btn2d.onclick = () => send({ cmd: 'setPanelConfig', size: currentState.panelSize || 64, mode: '2d' });
+  container.appendChild(btn2d);
+}
+
+function ensurePreviewCanvases() {
+  const container = document.getElementById('preview');
+  const faceCount = currentState.panelMode === '2d' ? 1 : 6;
+  const size = currentState.panelSize;
+  container.innerHTML = '';
+  for (const key in canvases) delete canvases[key];
+  for (let face = 0; face < faceCount; face++) {
+    const cell = document.createElement('div');
+    cell.className = 'preview-cell';
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    canvas.style.width = '128px'; canvas.style.height = '128px';
+    const label = document.createElement('span');
+    label.textContent = currentState.panelMode === '2d' ? 'Panel' : FACE_NAMES[face];
+    cell.appendChild(canvas);
+    cell.appendChild(label);
+    container.appendChild(cell);
+    const ctx = canvas.getContext('2d');
+    canvases[face] = { canvas, ctx, imgData: ctx.createImageData(size, size) };
+  }
+}
+
+function handleFrame(buf) {
+  const bytes = new Uint8Array(buf);
+  const face = bytes[0];
+  const entry = canvases[face];
+  if (!entry) return;
+  const size = currentState.panelSize;
+  const { ctx, imgData } = entry;
+  const px = imgData.data;
+  for (let i = 0; i < size * size; i++) {
+    px[i * 4]     = bytes[1 + i * 3];
+    px[i * 4 + 1] = bytes[1 + i * 3 + 1];
+    px[i * 4 + 2] = bytes[1 + i * 3 + 2];
+    px[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+document.getElementById('brightness').addEventListener('input', (e) => {
+  document.getElementById('brightness-val').textContent = Number(e.target.value).toFixed(2);
+  send({ cmd: 'setBrightness', value: Number(e.target.value) });
+});
+document.getElementById('speed').addEventListener('input', (e) => {
+  document.getElementById('speed-val').textContent = Number(e.target.value).toFixed(1);
+  send({ cmd: 'setSpeed', value: Number(e.target.value) });
+});
+
+// ---- Bluetooth ----
+const btLog = document.getElementById('bt-log');
+const btDevices = document.getElementById('bt-devices');
+function logBt(text) { btLog.textContent = text; }
+
+document.getElementById('bt-scan').onclick = () => { logBt('Scanning (~6s)...'); send({ cmd: 'btScan' }); };
+document.getElementById('bt-status').onclick = () => { logBt('Checking paired devices...'); send({ cmd: 'btStatus' }); };
+document.getElementById('bt-discoverable').onclick = () => { logBt('Opening pairing window (~120s)...'); send({ cmd: 'btDiscoverable' }); };
+document.getElementById('bt-route').onclick = () => { logBt('Routing phone audio...'); send({ cmd: 'btRoutePhoneAudio' }); };
+
+function handleBtResult(msg) {
+  if (!msg.ok) { logBt('Error: ' + (msg.error || 'unknown')); return; }
+  if (msg.cmd === 'btScanResult' || msg.cmd === 'btStatusResult') {
+    logBt(`${msg.devices.length} device(s) found.`);
+    btDevices.innerHTML = '';
+    for (const d of msg.devices) {
+      const row = document.createElement('div');
+      row.className = 'device-row';
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = d.name;
+      const macSpan = document.createElement('span');
+      macSpan.className = 'mac';
+      macSpan.textContent = d.mac;
+      const pairBtn = document.createElement('button');
+      pairBtn.textContent = 'Pair';
+      pairBtn.onclick = () => { logBt('Pairing with ' + d.name + '...'); send({ cmd: 'btPair', mac: d.mac }); };
+      row.append(nameSpan, macSpan, pairBtn);
+      btDevices.appendChild(row);
+    }
+  } else {
+    logBt('OK: ' + JSON.stringify(msg.log || msg, null, 2));
+  }
+}
+
+loadEffectNames();
+connect();
+</script>
+</body>
+</html>
