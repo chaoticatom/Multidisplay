@@ -22,6 +22,11 @@ const lightspeed = require('./lightspeed');
 const gradientWashWall = require('./gradientWashWall');
 const cam = require('./cam');
 const maze = require('./maze');
+const coinflip = require('./coinflip');
+const dice = require('./dice');
+const random = require('./random');
+const random80s = require('./random80s');
+const tron = require('./tron');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -53,6 +58,11 @@ const EFFECTS = {
   lightspeed,
   cam,
   maze,
+  tron,
+  coinflip,
+  dice,
+  random,
+  random80s,
 };
 
 const EFFECT_NAMES = {
@@ -71,6 +81,11 @@ const EFFECT_NAMES = {
   lightspeed: 'Light Speed',
   cam: 'Camera',
   maze: 'Maze Runner',
+  tron: 'Tron Bikes',
+  coinflip: 'Coin Flip',
+  dice: 'Dice Roll',
+  random: 'Random 1',
+  random80s: 'Random 2',
 };
 
 module.exports = { EFFECTS, EFFECT_NAMES, WALL_EFFECTS };

@@ -26,7 +26,12 @@ const FACE_XFORM = [
 // wsServer.js's setEffectOption / rain.js's core.effectOptions.rain.style /
 // lightspeed.js's core.effectOptions.lightspeed.*) - every other has-panel
 // effect still gets the generic "not wired yet" greying in loadEffectNames().
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze']);
+// 'random' has no real controls of its own - panel-random is just the two
+// Random 1 / Random 2 selector buttons, already handled by the generic
+// .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
+// here (not wired to any setEffectOption) purely so markUnsupported() below
+// doesn't disable those two buttons, which live inside panel-random.
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random']);
 
 let ws;
 let effectNames = {};
@@ -61,6 +66,9 @@ function handleTextMessage(msg) {
     syncCamPanel();
     syncWeatherPanel();
     syncMazePanel();
+    syncTronPanel();
+    syncDicePanel();
+    syncCoinflipPanel();
     renderWallGrid();
     if (modeChanged) rebuildScene();
   } else if (msg.cmd && msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
@@ -260,6 +268,101 @@ function syncMazePanel() {
   const opts = currentState.effectOptions?.maze || {};
   const runners = panel.querySelector('#mz-runners'), runnersVal = panel.querySelector('#mz-runners-val');
   if (runners && document.activeElement !== runners) { runners.value = opts.runners ?? 3; if (runnersVal) runnersVal.textContent = runners.value; }
+}
+
+// ---------------------------------------------------------------------
+// Tron Bikes' option panel (panel-tron), backed by
+// core.effectOptions.tron.{bikes,speed,straight,borderWalls,newGame} - see
+// tron.js's module comment for the full mapping, including the
+// straight-lines checkbox being a faithfully-ported dead control (the
+// original #tron-straight-check has no change listener in ui.js either).
+// "⟳ NEW GAME" reuses maze's monotonic-token trick since there's no
+// dedicated one-shot WS command for "force a restart now".
+// ---------------------------------------------------------------------
+let _tronToken = 0;
+function wireTronPanel() {
+  const panel = document.getElementById('panel-tron');
+  if (!panel) return;
+  const count = panel.querySelector('#tron-count'), countVal = panel.querySelector('#tron-count-val');
+  if (count) count.addEventListener('input', () => {
+    if (countVal) countVal.textContent = count.value;
+    setEffectOption('tron', 'bikes', Number(count.value));
+  });
+  const speed = panel.querySelector('#tron-speed'), speedVal = panel.querySelector('#tron-speed-val');
+  if (speed) speed.addEventListener('input', () => {
+    if (speedVal) speedVal.textContent = Number(speed.value).toFixed(1) + '×';
+    setEffectOption('tron', 'speed', Number(speed.value));
+  });
+  const straightChk = panel.querySelector('#tron-straight-check');
+  if (straightChk) straightChk.addEventListener('change', () => {
+    setEffectOption('tron', 'straight', straightChk.checked ? 1 : 0);
+  });
+  const borderChk = panel.querySelector('#tron-border-check');
+  if (borderChk) borderChk.addEventListener('change', () => {
+    setEffectOption('tron', 'borderWalls', borderChk.checked);
+  });
+  const newBtn = panel.querySelector('#new-tron-btn');
+  if (newBtn) newBtn.addEventListener('click', () => setEffectOption('tron', 'newGame', ++_tronToken));
+}
+
+function syncTronPanel() {
+  const panel = document.getElementById('panel-tron');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.tron || {};
+  const count = panel.querySelector('#tron-count'), countVal = panel.querySelector('#tron-count-val');
+  if (count && document.activeElement !== count) { count.value = opts.bikes ?? 4; if (countVal) countVal.textContent = count.value; }
+  const speed = panel.querySelector('#tron-speed'), speedVal = panel.querySelector('#tron-speed-val');
+  if (speed && document.activeElement !== speed) { speed.value = opts.speed ?? 1; if (speedVal) speedVal.textContent = Number(speed.value).toFixed(1) + '×'; }
+  const straightChk = panel.querySelector('#tron-straight-check');
+  if (straightChk && document.activeElement !== straightChk) straightChk.checked = !!(opts.straight ?? 1);
+  const borderChk = panel.querySelector('#tron-border-check');
+  if (borderChk && document.activeElement !== borderChk) borderChk.checked = !!opts.borderWalls;
+}
+
+// ---------------------------------------------------------------------
+// Dice Roll's option panel (panel-dice) - "ROLL DICE" button + "AUTO ROLL"
+// checkbox, backed by core.effectOptions.dice.rollToken/autoRoll (see
+// dice.js's module comment - rollToken is the same monotonically-increasing-
+// token one-shot-action pattern as maze.js's "NEW MAZE" button).
+// ---------------------------------------------------------------------
+let _diceToken = 0;
+function wireDicePanel() {
+  const panel = document.getElementById('panel-dice');
+  if (!panel) return;
+  const rollBtn = panel.querySelector('#dice-roll-btn');
+  if (rollBtn) rollBtn.addEventListener('click', () => setEffectOption('dice', 'rollToken', ++_diceToken));
+  const autoChk = panel.querySelector('#dice-auto-check');
+  if (autoChk) autoChk.addEventListener('change', () => setEffectOption('dice', 'autoRoll', autoChk.checked));
+}
+
+function syncDicePanel() {
+  const panel = document.getElementById('panel-dice');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.dice || {};
+  const autoChk = panel.querySelector('#dice-auto-check');
+  if (autoChk && document.activeElement !== autoChk) autoChk.checked = !!opts.autoRoll;
+}
+
+// ---------------------------------------------------------------------
+// Coin Flip's option panel (panel-coinflip) - Flip Speed slider, backed by
+// core.effectOptions.coinflip.speed.
+// ---------------------------------------------------------------------
+function wireCoinflipPanel() {
+  const panel = document.getElementById('panel-coinflip');
+  if (!panel) return;
+  const speed = panel.querySelector('#coin-speed'), speedVal = panel.querySelector('#coin-speed-val');
+  if (speed) speed.addEventListener('input', () => {
+    if (speedVal) speedVal.textContent = Number(speed.value).toFixed(1) + 'x';
+    setEffectOption('coinflip', 'speed', Number(speed.value));
+  });
+}
+
+function syncCoinflipPanel() {
+  const panel = document.getElementById('panel-coinflip');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.coinflip || {};
+  const speed = panel.querySelector('#coin-speed'), speedVal = panel.querySelector('#coin-speed-val');
+  if (speed && document.activeElement !== speed) { speed.value = opts.speed ?? 1; if (speedVal) speedVal.textContent = Number(speed.value).toFixed(1) + 'x'; }
 }
 
 // ---------------------------------------------------------------------
@@ -766,6 +869,9 @@ document.addEventListener('DOMContentLoaded', () => {
   wireCamPanel();
   wireWeatherPanel();
   wireMazePanel();
+  wireTronPanel();
+  wireDicePanel();
+  wireCoinflipPanel();
   greyOutUnsupported();
   loadEffectNames();
   connect();
