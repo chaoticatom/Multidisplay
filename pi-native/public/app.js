@@ -65,8 +65,26 @@ async function loadEffectNames() {
   effectNames = await resp.json();
   document.querySelectorAll('.effect-btn[data-effect]').forEach((btn) => {
     const key = btn.dataset.effect;
+    const panel = document.getElementById('panel-' + key);
     if (Object.prototype.hasOwnProperty.call(effectNames, key)) {
-      btn.addEventListener('click', () => send({ cmd: 'setEffect', effect: key }));
+      btn.addEventListener('click', () => {
+        send({ cmd: 'setEffect', effect: key });
+        if (btn.classList.contains('has-panel')) {
+          // Same open/close convention as the original app: clicking an
+          // already-open has-panel button just closes its panel; clicking
+          // any other has-panel button opens its own and closes all others.
+          const wasOpen = btn.classList.contains('open');
+          document.querySelectorAll('.effect-btn.open').forEach((b) => b.classList.remove('open'));
+          document.querySelectorAll('.effect-panel.open').forEach((p) => p.classList.remove('open'));
+          if (!wasOpen) { btn.classList.add('open'); if (panel) panel.classList.add('open'); }
+        }
+      });
+      // None of the ported effects have their per-effect option controls
+      // (city search, colour pickers, etc.) wired to a pi-native backend
+      // command yet - only the effect itself can be switched to. Grey out
+      // the panel's contents so opening it doesn't imply those controls do
+      // something they don't, while still letting the panel open/close.
+      if (panel) markUnsupported(panel, 'Effect options aren’t wired to the Pi-native engine yet.');
     } else {
       btn.classList.add('not-ported');
       btn.title = 'Not yet ported to the Pi-native engine';
@@ -173,7 +191,7 @@ function greyOutUnsupported() {
   });
 }
 
-function markUnsupported(el) {
+function markUnsupported(el, message) {
   if (!el) return;
   el.classList.add('pi-unsupported');
   el.querySelectorAll('input, button, select, textarea').forEach((ctrl) => {
@@ -184,7 +202,7 @@ function markUnsupported(el) {
   if (body && !body.querySelector('.pi-unsupported-note')) {
     const note = document.createElement('div');
     note.className = 'pi-unsupported-note';
-    note.textContent = 'Not available in the Pi-native engine yet.';
+    note.textContent = message || 'Not available in the Pi-native engine yet.';
     body.insertBefore(note, body.firstChild);
   }
 }
