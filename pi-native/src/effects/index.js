@@ -20,6 +20,7 @@ const warp = require('./warp');
 const lightning = require('./lightning');
 const lightspeed = require('./lightspeed');
 const gradientWashWall = require('./gradientWashWall');
+const cam = require('./cam');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -49,6 +50,7 @@ const EFFECTS = {
   warp,
   lightning,
   lightspeed,
+  cam,
 };
 
 const EFFECT_NAMES = {
@@ -65,6 +67,7 @@ const EFFECT_NAMES = {
   warp: 'Warp Drive',
   lightning: 'Lightning Storm',
   lightspeed: 'Light Speed',
+  cam: 'Camera',
 };
 
 module.exports = { EFFECTS, EFFECT_NAMES, WALL_EFFECTS };

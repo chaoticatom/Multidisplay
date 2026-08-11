@@ -7,9 +7,10 @@
   "scripts": {
     "start": "node src/app.js",
     "start:mock": "DRIVER=mock SKIP_WIFI_SETUP=1 node src/app.js",
-    "test": "node test/core.test.js && node test/weather.test.js && node test/easterEgg.test.js && node test/bootScreen.test.js && node test/bluetooth.test.js && node test/wifiSetup.test.js && node test/webPage.test.js"
+    "test": "node test/core.test.js && node test/weather.test.js && node test/cam.test.js && node test/easterEgg.test.js && node test/bootScreen.test.js && node test/bluetooth.test.js && node test/wifiSetup.test.js && node test/webPage.test.js"
   },
   "dependencies": {
+    "jimp": "^1.6.1",
     "ws": "^8.18.0"
   },
   "optionalDependencies": {

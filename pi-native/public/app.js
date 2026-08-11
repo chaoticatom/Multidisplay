@@ -26,7 +26,7 @@ const FACE_XFORM = [
 // wsServer.js's setEffectOption / rain.js's core.effectOptions.rain.style /
 // lightspeed.js's core.effectOptions.lightspeed.*) - every other has-panel
 // effect still gets the generic "not wired yet" greying in loadEffectNames().
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed']);
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam']);
 
 let ws;
 let effectNames = {};
@@ -58,6 +58,7 @@ function handleTextMessage(msg) {
     syncSliders();
     syncRainPanel();
     syncLightspeedPanel();
+    syncCamPanel();
     renderWallGrid();
     if (modeChanged) rebuildScene();
   } else if (msg.cmd && msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
@@ -188,6 +189,42 @@ function syncLightspeedPanel() {
   panel.querySelectorAll('[data-ls-size]').forEach((b) => b.classList.toggle('active', Number(b.dataset.lsSize) === (opts.size ?? 1)));
   panel.querySelectorAll('[data-ls-nudge]').forEach((b) => b.classList.toggle('active', Number(b.dataset.lsNudge) === (opts.nudge ?? 0)));
   panel.querySelectorAll('[data-ls-col]').forEach((b) => b.classList.toggle('active', b.dataset.lsCol === (opts.colour || 'multi')));
+}
+
+// ---------------------------------------------------------------------
+// Camera's option panel (panel-cam) - snapshot URL + fetch-rate slider,
+// backed by core.effectOptions.cam.{url,rate}. The original browser effect
+// just reads `#cam-url`/`#cam-rate`'s live `.value` each fetch cycle with no
+// explicit submit step; there's no equivalent "read the DOM directly" path
+// server-side; setEffectOption on the URL field's blur/change (not on every
+// keystroke like the rate slider's `input`) is the closest equivalent to
+// "read when needed" without spamming a setEffectOption message per
+// keystroke while someone's still typing a URL.
+// ---------------------------------------------------------------------
+function wireCamPanel() {
+  const panel = document.getElementById('panel-cam');
+  if (!panel) return;
+
+  const url = panel.querySelector('#cam-url');
+  if (url) url.addEventListener('change', () => setEffectOption('cam', 'url', url.value.trim()));
+
+  const rate = panel.querySelector('#cam-rate'), rateVal = panel.querySelector('#cam-rate-val');
+  if (rate) rate.addEventListener('input', () => {
+    if (rateVal) rateVal.textContent = rate.value;
+    setEffectOption('cam', 'rate', Number(rate.value));
+  });
+}
+
+function syncCamPanel() {
+  const panel = document.getElementById('panel-cam');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.cam || {};
+  const url = panel.querySelector('#cam-url');
+  if (url && document.activeElement !== url) url.value = opts.url || '';
+  const rate = panel.querySelector('#cam-rate'), rateVal = panel.querySelector('#cam-rate-val');
+  if (rate && document.activeElement !== rate) { rate.value = opts.rate ?? 5; if (rateVal) rateVal.textContent = rate.value; }
+  const statusEl = document.getElementById('cam-status');
+  if (statusEl) statusEl.textContent = currentState.effectStatus?.cam || 'Idle';
 }
 
 // ---------------------------------------------------------------------
@@ -655,6 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireWallGrid();
   wireRainPanel();
   wireLightspeedPanel();
+  wireCamPanel();
   greyOutUnsupported();
   loadEffectNames();
   connect();

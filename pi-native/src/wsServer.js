@@ -136,7 +136,7 @@ class WsServer {
       cmd: 'state',
       effect: this.state.effect, brightness: this.state.brightness, speed: this.state.speed,
       panelSize: this.config.size, panelMode: this.config.mode, panels: this.config.panels,
-      effectOptions: this.state.effectOptions,
+      effectOptions: this.state.effectOptions, effectStatus: this.state.effectStatus,
     };
   }
 
