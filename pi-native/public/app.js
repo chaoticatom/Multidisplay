@@ -257,11 +257,21 @@ function handleBtResult(msg) {
 }
 
 // ---------------------------------------------------------------------
-// 3D preview (Three.js), targeting the original app's #c canvas.
+// Preview - two completely different renderers, matching the original
+// app exactly: 2D-panel mode never used WebGL at all (see ui.js's
+// renderPanel2d()/#panel2d-canvas), it draws round LED dots on a plain 2D
+// canvas; only cube mode (6 faces) uses the Three.js/WebGL cube on #c.
 // ---------------------------------------------------------------------
 let renderer, scene, camera, group;
+let panel2dCanvas, panel2dCtx;
+const PANEL2D_OUT = 512; // fixed backing resolution, same as ui.js's renderPanel2d()
 
 function initScene() {
+  panel2dCanvas = document.getElementById('panel2d-canvas');
+  panel2dCanvas.width = PANEL2D_OUT;
+  panel2dCanvas.height = PANEL2D_OUT;
+  panel2dCtx = panel2dCanvas.getContext('2d');
+
   const canvas = document.getElementById('c');
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio || 1);
@@ -272,7 +282,8 @@ function initScene() {
   // (see build-tools/three-entry.js) that only exports what cube.js's own
   // InstancedMesh needs, which is unlit (vertex colors, no lighting model)
   // - THREE.AmbientLight etc. simply aren't in the bundle. Not needed here
-  // either: the preview planes use MeshBasicMaterial, which is self-lit.
+  // either: the cube preview's per-LED spheres use MeshBasicMaterial,
+  // which is self-lit.
   window.addEventListener('resize', resizeRenderer);
   resizeRenderer();
   rebuildScene();
@@ -284,18 +295,26 @@ function resizeRenderer() {
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  fitPanel2dCanvas();
+}
+
+// Matches cube.js's fitPanel2d(): fit the fixed-resolution square canvas
+// into the viewport with a margin, via CSS size (the backing resolution
+// stays PANEL2D_OUT regardless).
+function fitPanel2dCanvas() {
+  const buf = 20;
+  const size = Math.min(window.innerWidth - buf * 2, window.innerHeight - buf * 2);
+  panel2dCanvas.style.width = size + 'px';
+  panel2dCanvas.style.height = size + 'px';
 }
 
 // No textures here either: same custom-bundle constraint as the missing
 // AmbientLight above (see build-tools/three-entry.js) - CanvasTexture etc.
 // aren't exported since the real cube.js never uses textures. It instead
-// colors each LED via an InstancedMesh's per-instance color, so the preview
-// does the same thing here: one InstancedMesh per face, one instance per
-// pixel, colored directly from the incoming binary frame - no texture
-// upload involved at all.
-const _tmpObj = () => new THREE.Object3D();
-const _tmpColor = () => new THREE.Color();
-
+// colors each LED via an InstancedMesh's per-instance color, so the cube
+// preview does the same thing here: one InstancedMesh per face, one
+// sphere instance per pixel (matching cube.js's own SphereGeometry LED
+// look), colored directly from the incoming binary frame.
 function rebuildScene() {
   if (group) scene.remove(group);
   group = new THREE.Group();
@@ -303,19 +322,22 @@ function rebuildScene() {
   for (const key in faceCanvases) delete faceCanvases[key];
 
   const size = currentState.panelSize || 64;
-  const faceCount = currentState.panelMode === '2d' ? 1 : 6;
-  const cell = 2 / size;          // each instance's footprint within the 2x2 face
-  const gap = cell * 0.08;        // small gap so individual LEDs are visible, like the real cube preview
-  const geom = new THREE.PlaneGeometry(cell - gap, cell - gap);
-  const dummy = _tmpObj();
-  const color = _tmpColor();
+  const is2d = currentState.panelMode === '2d';
+  panel2dCanvas.style.display = is2d ? 'block' : 'none';
+  document.getElementById('c').style.display = is2d ? 'none' : 'block';
+  if (is2d) { fitPanel2dCanvas(); return; } // 2D mode is drawn straight into panel2dCtx by handleFrame(), no Three.js scene needed
 
-  for (let face = 0; face < faceCount; face++) {
+  const spacing = 2 / size;                    // matches cube.js's SPACING = TOTAL_SPAN/(SIZE-1) scaled to a 2-unit face
+  const geom = new THREE.SphereGeometry(spacing * 0.44, 6, 5); // segment counts kept low: up to 6 * SIZE^2 instances
+  const dummy = new THREE.Object3D();
+  const color = new THREE.Color();
+
+  for (let face = 0; face < 6; face++) {
     const mesh = new THREE.InstancedMesh(geom, new THREE.MeshBasicMaterial(), size * size);
     for (let v = 0; v < size; v++) {
       for (let u = 0; u < size; u++) {
         const i = v * size + u;
-        dummy.position.set(-1 + cell * (u + 0.5), -1 + cell * (v + 0.5), 0);
+        dummy.position.set(-1 + spacing * (u + 0.5), -1 + spacing * (v + 0.5), 0);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
         mesh.setColorAt(i, color.setRGB(0, 0, 0));
@@ -323,32 +345,57 @@ function rebuildScene() {
     }
     mesh.instanceMatrix.needsUpdate = true;
 
-    if (faceCount === 1) {
-      group.add(mesh);
-    } else {
-      const xf = FACE_XFORM[face];
-      mesh.position.set(xf.pos[0] * 1.001, xf.pos[1] * 1.001, xf.pos[2] * 1.001);
-      mesh.rotation.set(xf.rot[0], xf.rot[1], xf.rot[2]);
-      group.add(mesh);
-    }
+    const xf = FACE_XFORM[face];
+    mesh.position.set(xf.pos[0] * 1.001, xf.pos[1] * 1.001, xf.pos[2] * 1.001);
+    mesh.rotation.set(xf.rot[0], xf.rot[1], xf.rot[2]);
+    group.add(mesh);
     faceCanvases[face] = { mesh, size };
   }
 
-  camera.position.set(faceCount === 1 ? 0 : 2.6, faceCount === 1 ? 0 : 2.0, faceCount === 1 ? 2.4 : 2.6);
+  camera.position.set(2.6, 2.0, 2.6);
   camera.lookAt(0, 0, 0);
 }
 
 function animate() {
   requestAnimationFrame(animate);
+  if (currentState.panelMode === '2d') return; // 2D mode never touches the WebGL renderer
   const autoRotate = document.getElementById('auto-rotate-chk');
-  if (group && currentState.panelMode !== '2d' && (!autoRotate || autoRotate.checked)) group.rotation.y += 0.003;
+  if (group && (!autoRotate || autoRotate.checked)) group.rotation.y += 0.003;
   renderer.render(scene, camera);
 }
 
 const _frameColor = new THREE.Color();
+
+// Ported verbatim (math unchanged) from ui.js's renderPanel2d(): round LED
+// dots on black, drawn straight into the 2D canvas - no WebGL involved.
+function drawPanel2dFrame(bytes) {
+  const size = currentState.panelSize;
+  const cell = PANEL2D_OUT / size;
+  const r = cell * 0.44;
+  panel2dCtx.fillStyle = '#000';
+  panel2dCtx.fillRect(0, 0, PANEL2D_OUT, PANEL2D_OUT);
+  for (let v = 0; v < size; v++) {
+    for (let u = 0; u < size; u++) {
+      const o = 1 + (v * size + u) * 3;
+      const fv = size - 1 - v;
+      panel2dCtx.fillStyle = `rgb(${bytes[o]},${bytes[o + 1]},${bytes[o + 2]})`;
+      panel2dCtx.beginPath();
+      panel2dCtx.arc((u + 0.5) * cell, (fv + 0.5) * cell, r, 0, Math.PI * 2);
+      panel2dCtx.fill();
+    }
+  }
+  panel2dCtx.strokeStyle = '#99ddff';
+  panel2dCtx.lineWidth = 2;
+  panel2dCtx.strokeRect(1, 1, PANEL2D_OUT - 2, PANEL2D_OUT - 2);
+}
+
 function handleFrame(buf) {
   const bytes = new Uint8Array(buf);
   const face = bytes[0];
+  if (currentState.panelMode === '2d') {
+    if (face === 0) drawPanel2dFrame(bytes);
+    return;
+  }
   const entry = faceCanvases[face];
   if (!entry) return;
   const { mesh, size } = entry;

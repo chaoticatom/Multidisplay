@@ -377,6 +377,13 @@
   .pi-unsupported-note {
     font-size: 10px; color: #667; margin: 0 0 8px; line-height: 1.4; font-style: italic;
   }
+  /* Ported from the original app's #panel2d-canvas (ui.js) - a plain 2D
+     canvas used for 2D-panel mode instead of the WebGL cube, since a
+     single flat panel doesn't need 3D at all. */
+  #panel2d-canvas {
+    display: none; position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%); image-rendering: pixelated;
+  }
 </style>
 </head>
 <body>
@@ -1640,7 +1647,7 @@
 </div>
 
 
-<div id="canvas-wrap"><canvas id="c"></canvas></div>
+<div id="canvas-wrap"><canvas id="c"></canvas><canvas id="panel2d-canvas"></canvas></div>
 
 <script src="three.min.js"></script>
 <script src="app.js"></script>
