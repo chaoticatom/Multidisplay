@@ -286,6 +286,16 @@ function resizeRenderer() {
   camera.updateProjectionMatrix();
 }
 
+// No textures here either: same custom-bundle constraint as the missing
+// AmbientLight above (see build-tools/three-entry.js) - CanvasTexture etc.
+// aren't exported since the real cube.js never uses textures. It instead
+// colors each LED via an InstancedMesh's per-instance color, so the preview
+// does the same thing here: one InstancedMesh per face, one instance per
+// pixel, colored directly from the incoming binary frame - no texture
+// upload involved at all.
+const _tmpObj = () => new THREE.Object3D();
+const _tmpColor = () => new THREE.Color();
+
 function rebuildScene() {
   if (group) scene.remove(group);
   group = new THREE.Group();
@@ -294,26 +304,34 @@ function rebuildScene() {
 
   const size = currentState.panelSize || 64;
   const faceCount = currentState.panelMode === '2d' ? 1 : 6;
+  const cell = 2 / size;          // each instance's footprint within the 2x2 face
+  const gap = cell * 0.08;        // small gap so individual LEDs are visible, like the real cube preview
+  const geom = new THREE.PlaneGeometry(cell - gap, cell - gap);
+  const dummy = _tmpObj();
+  const color = _tmpColor();
 
   for (let face = 0; face < faceCount; face++) {
-    const canvas = document.createElement('canvas');
-    canvas.width = size; canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, size, size);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.NearestFilter;
-    faceCanvases[face] = { canvas, ctx, imgData: ctx.createImageData(size, size), texture };
+    const mesh = new THREE.InstancedMesh(geom, new THREE.MeshBasicMaterial(), size * size);
+    for (let v = 0; v < size; v++) {
+      for (let u = 0; u < size; u++) {
+        const i = v * size + u;
+        dummy.position.set(-1 + cell * (u + 0.5), -1 + cell * (v + 0.5), 0);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+        mesh.setColorAt(i, color.setRGB(0, 0, 0));
+      }
+    }
+    mesh.instanceMatrix.needsUpdate = true;
 
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ map: texture }));
     if (faceCount === 1) {
-      group.add(plane);
+      group.add(mesh);
     } else {
       const xf = FACE_XFORM[face];
-      plane.position.set(xf.pos[0] * 1.001, xf.pos[1] * 1.001, xf.pos[2] * 1.001);
-      plane.rotation.set(xf.rot[0], xf.rot[1], xf.rot[2]);
-      group.add(plane);
+      mesh.position.set(xf.pos[0] * 1.001, xf.pos[1] * 1.001, xf.pos[2] * 1.001);
+      mesh.rotation.set(xf.rot[0], xf.rot[1], xf.rot[2]);
+      group.add(mesh);
     }
+    faceCanvases[face] = { mesh, size };
   }
 
   camera.position.set(faceCount === 1 ? 0 : 2.6, faceCount === 1 ? 0 : 2.0, faceCount === 1 ? 2.4 : 2.6);
@@ -327,22 +345,19 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+const _frameColor = new THREE.Color();
 function handleFrame(buf) {
   const bytes = new Uint8Array(buf);
   const face = bytes[0];
   const entry = faceCanvases[face];
   if (!entry) return;
-  const size = currentState.panelSize;
-  const { ctx, imgData, texture } = entry;
-  const px = imgData.data;
+  const { mesh, size } = entry;
   for (let i = 0; i < size * size; i++) {
-    px[i * 4] = bytes[1 + i * 3];
-    px[i * 4 + 1] = bytes[1 + i * 3 + 1];
-    px[i * 4 + 2] = bytes[1 + i * 3 + 2];
-    px[i * 4 + 3] = 255;
+    const o = 1 + i * 3;
+    _frameColor.setRGB(bytes[o] / 255, bytes[o + 1] / 255, bytes[o + 2] / 255);
+    mesh.setColorAt(i, _frameColor);
   }
-  ctx.putImageData(imgData, 0, 0);
-  texture.needsUpdate = true;
+  mesh.instanceColor.needsUpdate = true;
 }
 
 // ---------------------------------------------------------------------
