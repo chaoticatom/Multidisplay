@@ -268,7 +268,11 @@ function initScene() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x05070c);
   camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-  scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+  // No lights: this repo's three.min.js is a custom stripped-down build
+  // (see build-tools/three-entry.js) that only exports what cube.js's own
+  // InstancedMesh needs, which is unlit (vertex colors, no lighting model)
+  // - THREE.AmbientLight etc. simply aren't in the bundle. Not needed here
+  // either: the preview planes use MeshBasicMaterial, which is self-lit.
   window.addEventListener('resize', resizeRenderer);
   resizeRenderer();
   rebuildScene();
@@ -342,6 +346,13 @@ function handleFrame(buf) {
 }
 
 // ---------------------------------------------------------------------
+// connect() (the real control channel) runs first and unconditionally.
+// initScene() (just the cosmetic 3D preview) is wrapped in try/catch so a
+// bug in it can never again take the rest of startup down with it - that's
+// exactly what happened here: an uncaught exception in initScene() aborted
+// this handler before the connect() call after it ever ran, silently
+// leaving every effect/panel/slider button wired to a `ws` that was never
+// created, so every click's send() no-op'd on `ws && ws.readyState===OPEN`.
 document.addEventListener('DOMContentLoaded', () => {
   wireCollapsibles();
   wirePanelButtons();
@@ -349,6 +360,10 @@ document.addEventListener('DOMContentLoaded', () => {
   wireBluetooth();
   greyOutUnsupported();
   loadEffectNames();
-  initScene();
   connect();
+  try {
+    initScene();
+  } catch (err) {
+    console.error('[app] 3D preview failed to start (controls are unaffected):', err);
+  }
 });
