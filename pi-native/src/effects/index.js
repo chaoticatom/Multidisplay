@@ -10,12 +10,30 @@ const wave = require('./wave');
 const gradientWash = require('./gradientWash');
 const weather = require('./weather');
 const easterEgg = require('./easterEgg');
+const rain = require('./rain');
+const plasma = require('./plasma');
+const sphere = require('./sphere');
+const dna = require('./dna');
+const aurora = require('./aurora');
+const nebula = require('./nebula');
+const warp = require('./warp');
+const lightning = require('./lightning');
+const lightspeed = require('./lightspeed');
 
 const EFFECTS = {
   wave,
   gradient_wash: gradientWash,
   weather,
   easter_egg: easterEgg,
+  rain,
+  plasma,
+  sphere,
+  dna,
+  aurora,
+  nebula,
+  warp,
+  lightning,
+  lightspeed,
 };
 
 const EFFECT_NAMES = {
@@ -23,6 +41,15 @@ const EFFECT_NAMES = {
   gradient_wash: 'Rainbow Wash',
   weather: 'Weather',
   easter_egg: 'Easter Egg',
+  rain: 'Colour Rain',
+  plasma: 'Plasma Storm',
+  sphere: 'Laser Grid',
+  dna: 'DNA Helix',
+  aurora: 'Aurora Borealis',
+  nebula: 'Nebula Drift',
+  warp: 'Warp Drive',
+  lightning: 'Lightning Storm',
+  lightspeed: 'Light Speed',
 };
 
 module.exports = { EFFECTS, EFFECT_NAMES };
