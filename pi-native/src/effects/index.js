@@ -27,6 +27,7 @@ const dice = require('./dice');
 const random = require('./random');
 const random80s = require('./random80s');
 const tron = require('./tron');
+const retro = require('./retro');
 const fireworks = require('./fireworks');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
@@ -65,6 +66,7 @@ const EFFECTS = {
   random,
   random80s,
   fireworks,
+  retro,
 };
 
 const EFFECT_NAMES = {
@@ -89,6 +91,7 @@ const EFFECT_NAMES = {
   random: 'Random 1',
   random80s: 'Random 2',
   fireworks: 'Fireworks',
+  retro: 'Retro',
 };
 
 module.exports = { EFFECTS, EFFECT_NAMES, WALL_EFFECTS };

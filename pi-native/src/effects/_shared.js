@@ -13,6 +13,12 @@
 // branch, never the flat/bordered-2D-net branch.
 const FW_FACES = [0, 2, 1, 3];
 
+// Ported verbatim from effects-core.js's VID_FACE_ORDER - front→left→right→
+// back ordering for a seamless panorama across 4 side faces. Used by
+// retro.js (and effects-media.js's video effect in the browser, not yet
+// ported here).
+const VID_FACE_ORDER = [0, 3, 1, 2];
+
 function cubePx(core, col, v) {
   const S = core.SIZE, T = S * 4, M = S - 1;
   const faceMap = core.faceMap;
@@ -67,4 +73,4 @@ function tronMove(core, face, u, v, du, dv) {
   }
 }
 
-module.exports = { cubePx, fwPx, tronMove, surfIdx, FW_FACES };
+module.exports = { cubePx, fwPx, tronMove, surfIdx, FW_FACES, VID_FACE_ORDER };

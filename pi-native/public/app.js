@@ -31,7 +31,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks']);
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro']);
 
 let ws;
 let effectNames = {};
@@ -70,6 +70,7 @@ function handleTextMessage(msg) {
     syncDicePanel();
     syncCoinflipPanel();
     syncFireworksPanel();
+    syncRetroPanel();
     renderWallGrid();
     if (modeChanged) rebuildScene();
   } else if (msg.cmd && msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
@@ -269,6 +270,64 @@ function syncMazePanel() {
   const opts = currentState.effectOptions?.maze || {};
   const runners = panel.querySelector('#mz-runners'), runnersVal = panel.querySelector('#mz-runners-val');
   if (runners && document.activeElement !== runners) { runners.value = opts.runners ?? 3; if (runnersVal) runnersVal.textContent = runners.value; }
+}
+
+// ---------------------------------------------------------------------
+// Retro's option panel (panel-retro) - the 14-game .retro-game-btn picker
+// ("Auto" = -1, per-game buttons 0-13), the .retro-auto-chk checkboxes
+// controlling which games are eligible for auto-rotation, the rotate-
+// interval slider, and the "▶ Show" button that actually switches the
+// active effect to Retro (mirrors ui.js's #retro-show-btn handler - opening
+// the panel to configure a game doesn't itself switch the display, same as
+// the original browser app). All backed by core.effectOptions.retro.
+// {selectedGame,autoGames,rotate} via retro.js - see that file's module
+// comment for the exact meaning of each.
+// ---------------------------------------------------------------------
+const RETRO_DEFAULT_AUTO_GAMES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13]; // Sam Fox (9) excluded by default
+function wireRetroPanel() {
+  const panel = document.getElementById('panel-retro');
+  if (!panel) return;
+
+  panel.querySelectorAll('.retro-game-btn[data-retrogame]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('.retro-game-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('retro', 'selectedGame', Number(btn.dataset.retrogame));
+    });
+  });
+
+  const updateAutoGames = () => {
+    const chks = panel.querySelectorAll('.retro-auto-chk');
+    const enabled = [];
+    chks.forEach((c) => { if (c.checked) enabled.push(Number(c.dataset.idx)); });
+    setEffectOption('retro', 'autoGames', enabled.length === chks.length ? null : enabled);
+  };
+  panel.querySelectorAll('.retro-auto-chk').forEach((c) => c.addEventListener('change', updateAutoGames));
+
+  const slider = panel.querySelector('#retro-rotate-slider'), sliderVal = panel.querySelector('#retro-rotate-val');
+  if (slider) slider.addEventListener('input', () => {
+    if (sliderVal) sliderVal.textContent = slider.value;
+    setEffectOption('retro', 'rotate', Number(slider.value));
+  });
+
+  const showBtn = panel.querySelector('#retro-show-btn');
+  if (showBtn) showBtn.addEventListener('click', () => send({ cmd: 'setEffect', effect: 'retro' }));
+}
+
+function syncRetroPanel() {
+  const panel = document.getElementById('panel-retro');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.retro || {};
+  const selectedGame = opts.selectedGame ?? -1;
+  panel.querySelectorAll('.retro-game-btn[data-retrogame]').forEach((btn) => {
+    btn.classList.toggle('active', Number(btn.dataset.retrogame) === selectedGame);
+  });
+  const autoGames = opts.autoGames || RETRO_DEFAULT_AUTO_GAMES;
+  panel.querySelectorAll('.retro-auto-chk').forEach((c) => {
+    if (document.activeElement !== c) c.checked = autoGames.includes(Number(c.dataset.idx));
+  });
+  const slider = panel.querySelector('#retro-rotate-slider'), sliderVal = panel.querySelector('#retro-rotate-val');
+  if (slider && document.activeElement !== slider) { slider.value = opts.rotate ?? 8; if (sliderVal) sliderVal.textContent = slider.value; }
 }
 
 // ---------------------------------------------------------------------
@@ -915,6 +974,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireDicePanel();
   wireCoinflipPanel();
   wireFireworksPanel();
+  wireRetroPanel();
   greyOutUnsupported();
   loadEffectNames();
   connect();
