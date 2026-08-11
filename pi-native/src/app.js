@@ -6,7 +6,7 @@
 // including this dev sandbox with no ARM hardware) so a bare `npm start`
 // never accidentally tries to touch GPIO on a machine that isn't a Pi.
 const { CubeCore } = require('./core');
-const { EFFECTS } = require('./effects');
+const { EFFECTS, WALL_EFFECTS } = require('./effects');
 const WsServer = require('./wsServer');
 const panelConfig = require('./panelConfig');
 const wifiSetup = require('./wifiSetup');
@@ -51,8 +51,10 @@ function loadDriver(config) {
 
 async function main() {
   const config = panelConfig.load();
-  console.log(`[app] panel config: size=${config.size} mode=${config.mode} (${config.mode === '2d' ? 1 : 6} panel(s))`);
+  const panelCount = config.mode === 'wall' ? config.panels.length : (config.mode === '2d' ? 1 : 6);
+  console.log(`[app] panel config: size=${config.size} mode=${config.mode} (${panelCount} panel(s))`);
   const core = new CubeCore(config.size);
+  if (config.mode === 'wall') core.initWall(config.panels, config.size);
   const driver = loadDriver(config);
   const driverKind = process.env.DRIVER || 'mock';
   renderBootScreen(core, driver);
@@ -81,6 +83,12 @@ async function main() {
     // is hardcoded PANEL_SIZE=64 too; real HUB75 panels are a fixed
     // physical resolution, they don't "become" an 8x8 panel).
     core.resize(newConfig.size);
+    // Wall layout (panel count/positions) changes just as freely as size -
+    // initWall() only rebuilds JS-side buffers (wallBuf/occupancy mask),
+    // same "cheap and safe" situation as core.resize() above. Covers the
+    // "+" add-panel button, drag-to-rearrange, and switching into wall mode
+    // via the cube/2d/wall picker, all of which land here via onConfigChange.
+    if (newConfig.mode === 'wall') core.initWall(newConfig.panels, newConfig.size);
     // Panel MODE (cube vs 2d), unlike size, is not just a data-shape change
     // on real hardware - rgbMatrixDriver.js's MatrixOptions (chainLength/
     // parallel, i.e. how many physical panels the driver expects) are
@@ -107,7 +115,12 @@ async function main() {
     // weather.js's module comment for why (it double-applies speedMult for
     // one specific timer, faithfully matching the browser source).
     core.speedMult = state.speed;
-    const fn = EFFECTS[state.effect];
+    // Wall mode uses a completely separate effect registry (WALL_EFFECTS -
+    // see effects/index.js) since it writes core.wallBuf, not core.colBuf.
+    // Falls back to doing nothing (not the cube EFFECTS entry) when the
+    // selected effect has no wall variant yet - a cube effect writing to
+    // colBuf has zero effect on what the wall driver actually reads.
+    const fn = config.mode === 'wall' ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
     if (fn) fn(core, dt);
 
     // Brightness is applied at push time, not baked into core.colBuf -

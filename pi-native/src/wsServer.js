@@ -22,7 +22,7 @@
 //     {"cmd":"setEffect",    "effect":"wave"}
 //     {"cmd":"setBrightness","value":0.0-1.5}
 //     {"cmd":"setSpeed",     "value":0.0-8.0}
-//     {"cmd":"setPanelConfig","size":8|16|64,"mode":"cube"|"2d"}
+//     {"cmd":"setPanelConfig","size":8|16|64,"mode":"cube"|"2d"|"wall"}
 //       Mirrors the browser's cube-size picker (8x8/16x16/64x64/2D) -
 //       reused as the panel-layout config here instead of inventing a new
 //       setting, since HUB75 itself can't be auto-probed for panel count
@@ -32,6 +32,16 @@
 //       survives a restart, and always included in the "state" message so
 //       a freshly-connected remote browser's UI reflects whatever was last
 //       chosen on the Pi rather than defaulting to something stale.
+//     {"cmd":"addPanel"}
+//       Pi-native-only addition, not in the original ESP32 app: appends a
+//       panel at the first free cell of the wall grid (switching to "wall"
+//       mode if not already in it) - the sidebar's "+ Add Display" button.
+//     {"cmd":"removePanel","gx":0,"gy":0}
+//     {"cmd":"setPanelPositions","panels":[{"gx":0,"gy":0}, ...]}
+//       Drag-to-rearrange result: a full replacement layout for wall mode.
+//       See panelConfig.isValidPanels()/WALL_MAX_COLS/WALL_MAX_ROWS for the
+//       grid bounds (currently 2x3, matching the physical topology already
+//       wired for cube mode's 3-chain x 2-panel Active-3 layout).
 //     {"cmd":"btScan"}                                    -> {"cmd":"btScanResult","devices":[{"mac":"..","name":".."}]}
 //     {"cmd":"btPair","mac":"AA:BB:CC:DD:EE:FF"}           -> {"cmd":"btPairResult","ok":bool,"log":".."}
 //     {"cmd":"btStatus"}                                   -> {"cmd":"btStatusResult","devices":[..]}
@@ -125,7 +135,7 @@ class WsServer {
     return {
       cmd: 'state',
       effect: this.state.effect, brightness: this.state.brightness, speed: this.state.speed,
-      panelSize: this.config.size, panelMode: this.config.mode,
+      panelSize: this.config.size, panelMode: this.config.mode, panels: this.config.panels,
     };
   }
 
@@ -144,9 +154,57 @@ class WsServer {
     } else if (msg.cmd === 'setPanelConfig') {
       const size = Number(msg.size);
       const mode = msg.mode;
-      if (!panelConfig.VALID_SIZES.includes(size) || (mode !== 'cube' && mode !== '2d')) return;
+      if (!panelConfig.VALID_SIZES.includes(size) || !panelConfig.VALID_MODES.includes(mode)) return;
+      // panels is optional here, only meaningful for mode:'wall' - lets the
+      // client's wall-grid UI switch INTO wall mode and set an initial
+      // layout in one message (setPanelPositions below requires already
+      // being in wall mode, which isn't true yet on that first click/drag).
+      if (mode === 'wall' && msg.panels !== undefined) {
+        if (!panelConfig.isValidPanels(msg.panels)) return;
+        this.config.panels = msg.panels;
+      }
       this.config.size = size;
       this.config.mode = mode;
+      panelConfig.save(this.config);
+      if (this.onConfigChange) this.onConfigChange(this.config);
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'addPanel') {
+      // Adds a panel at the first free cell (row-major) in the wall grid,
+      // switching to wall mode if not already in it - this is the "+"
+      // button's command. No-ops (rather than erroring) once the grid is
+      // full (WALL_MAX_COLS*WALL_MAX_ROWS panels, matching the physical
+      // 2x3 topology already wired for cube mode).
+      const panels = this.config.mode === 'wall' ? this.config.panels.slice() : [{ gx: 0, gy: 0 }];
+      let placed = null;
+      outer: for (let gy = 0; gy < panelConfig.WALL_MAX_ROWS; gy++) {
+        for (let gx = 0; gx < panelConfig.WALL_MAX_COLS; gx++) {
+          if (!panels.some((p) => p.gx === gx && p.gy === gy)) { placed = { gx, gy }; break outer; }
+        }
+      }
+      if (!placed) return; // grid already full
+      panels.push(placed);
+      this.config.mode = 'wall';
+      this.config.panels = panels;
+      panelConfig.save(this.config);
+      if (this.onConfigChange) this.onConfigChange(this.config);
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'removePanel') {
+      // Removes by grid position (what the drag UI knows, not array index,
+      // since positions are what's rendered) - keeps at least 1 panel.
+      if (this.config.mode !== 'wall' || this.config.panels.length <= 1) return;
+      const panels = this.config.panels.filter((p) => !(p.gx === msg.gx && p.gy === msg.gy));
+      if (panels.length === this.config.panels.length) return; // no matching panel
+      this.config.panels = panels;
+      panelConfig.save(this.config);
+      if (this.onConfigChange) this.onConfigChange(this.config);
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'setPanelPositions') {
+      // Drag-to-rearrange result: a full replacement panels array. Validated
+      // the same way as everywhere else a layout can enter config (see
+      // panelConfig.isValidPanels) so a malformed drag can never reach
+      // core.initWall()/the driver.
+      if (this.config.mode !== 'wall' || !panelConfig.isValidPanels(msg.panels)) return;
+      this.config.panels = msg.panels;
       panelConfig.save(this.config);
       if (this.onConfigChange) this.onConfigChange(this.config);
       this._broadcast(this._stateMsg());
@@ -199,6 +257,8 @@ class WsServer {
     if (now - this._lastFrameMs < 1000 / PREVIEW_FPS) return;
     this._lastFrameMs = now;
 
+    if (this.config.mode === 'wall') { this._streamWallFrames(core, brightness); return; }
+
     const SIZE = core.SIZE;
     const faceCount = this.config.mode === '2d' ? 1 : 6;
     for (let face = 0; face < faceCount; face++) {
@@ -221,6 +281,33 @@ class WsServer {
         if (client.readyState === WebSocket.OPEN) client.send(buf);
       }
     }
+  }
+
+  // One binary frame per panel (not per cube face - wall mode has no
+  // faces), keyed by index into this.config.panels (the same array the
+  // client already has from the "state" message, so it knows each frame's
+  // grid position). Slices each panel's panelSize x panelSize square out
+  // of core.wallBuf at that panel's (gx,gy) offset.
+  _streamWallFrames(core, brightness) {
+    if (!core.wallBuf) return; // initWall() hasn't run yet
+    const S = core.wallPanelSize, wallW = core.wallW, wallBuf = core.wallBuf;
+    this.config.panels.forEach((p, idx) => {
+      const buf = Buffer.allocUnsafe(1 + S * S * 3);
+      buf[0] = idx;
+      const ox = p.gx * S, oy = p.gy * S;
+      for (let v = 0; v < S; v++) {
+        for (let u = 0; u < S; u++) {
+          const c = ((oy + v) * wallW + (ox + u)) * 3;
+          const o = 1 + (v * S + u) * 3;
+          buf[o]     = Math.max(0, Math.min(255, (wallBuf[c] * brightness * 255) | 0));
+          buf[o + 1] = Math.max(0, Math.min(255, (wallBuf[c + 1] * brightness * 255) | 0));
+          buf[o + 2] = Math.max(0, Math.min(255, (wallBuf[c + 2] * brightness * 255) | 0));
+        }
+      }
+      for (const client of this.wss.clients) {
+        if (client.readyState === WebSocket.OPEN) client.send(buf);
+      }
+    });
   }
 
   close() {

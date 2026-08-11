@@ -44,11 +44,13 @@ function send(obj) {
 
 function handleTextMessage(msg) {
   if (msg.cmd === 'state') {
-    const modeChanged = msg.panelMode !== currentState.panelMode || msg.panelSize !== currentState.panelSize;
+    const modeChanged = msg.panelMode !== currentState.panelMode || msg.panelSize !== currentState.panelSize
+      || JSON.stringify(msg.panels) !== JSON.stringify(currentState.panels);
     currentState = msg;
     syncEffectButtons();
     syncPanelButtons();
     syncSliders();
+    renderWallGrid();
     if (modeChanged) rebuildScene();
   } else if (msg.cmd && msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
     handleBtResult(msg);
@@ -257,6 +259,93 @@ function handleBtResult(msg) {
 }
 
 // ---------------------------------------------------------------------
+// Video Wall layout editor - Pi-native-only, no original-app equivalent.
+// A fixed WALL_COLS x WALL_ROWS grid (matches panelConfig.js's
+// WALL_MAX_COLS/WALL_MAX_ROWS - the same 2x3 physical topology already
+// wired for cube mode) of drag-and-drop tiles. "+" (or clicking an empty
+// cell) adds a panel; dragging a filled tile onto an empty cell moves it;
+// the × removes it. Every change sends a full layout to the server, which
+// is the single source of truth - this grid always re-renders from the
+// next "state" message rather than assuming its own optimistic result,
+// so a rejected/invalid drag just snaps back on the next state echo.
+// ---------------------------------------------------------------------
+const WALL_COLS = 2, WALL_ROWS = 3;
+let _wallDragFrom = null;
+
+function wireWallGrid() {
+  const addBtn = document.getElementById('wall-add-btn');
+  if (addBtn) addBtn.addEventListener('click', () => send({ cmd: 'addPanel' }));
+  renderWallGrid();
+}
+
+function currentWallPanels() {
+  // Outside wall mode there's still exactly one physical panel (whatever
+  // 2d/cube mode is showing) - represent it as a single fixed tile at
+  // (0,0) so the grid always has something to show and the "+" button (or
+  // an empty-cell click) has an obvious first panel to add alongside.
+  return currentState.panelMode === 'wall' && Array.isArray(currentState.panels) && currentState.panels.length
+    ? currentState.panels
+    : [{ gx: 0, gy: 0 }];
+}
+
+function renderWallGrid() {
+  const grid = document.getElementById('wall-grid');
+  if (!grid) return;
+  const panels = currentWallPanels();
+  grid.innerHTML = '';
+  for (let gy = 0; gy < WALL_ROWS; gy++) {
+    for (let gx = 0; gx < WALL_COLS; gx++) {
+      const panel = panels.find((p) => p.gx === gx && p.gy === gy);
+      const cell = document.createElement('div');
+      cell.dataset.gx = gx; cell.dataset.gy = gy;
+      cell.addEventListener('dragover', (e) => { e.preventDefault(); cell.classList.add('drop-target'); });
+      cell.addEventListener('dragleave', () => cell.classList.remove('drop-target'));
+      cell.addEventListener('drop', (e) => {
+        e.preventDefault();
+        cell.classList.remove('drop-target');
+        if (!_wallDragFrom || panel) return; // only drop onto empty cells
+        const next = currentWallPanels().map((p) => (p.gx === _wallDragFrom.gx && p.gy === _wallDragFrom.gy ? { gx, gy } : p));
+        sendWallLayout(next);
+        _wallDragFrom = null;
+      });
+
+      if (panel) {
+        cell.className = 'wall-cell filled';
+        cell.draggable = true;
+        cell.textContent = `${gx},${gy}`;
+        cell.addEventListener('dragstart', () => { _wallDragFrom = { gx, gy }; cell.classList.add('dragging'); });
+        cell.addEventListener('dragend', () => cell.classList.remove('dragging'));
+        const remove = document.createElement('span');
+        remove.className = 'wall-remove';
+        remove.textContent = '×';
+        remove.title = 'Remove this display';
+        remove.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (currentWallPanels().length <= 1) return; // keep at least one
+          send({ cmd: 'removePanel', gx, gy });
+        });
+        cell.appendChild(remove);
+      } else {
+        cell.className = 'wall-cell empty';
+        cell.textContent = '+';
+        cell.addEventListener('click', () => sendWallLayout([...currentWallPanels(), { gx, gy }]));
+      }
+      grid.appendChild(cell);
+    }
+  }
+}
+
+// First click/drag while still in 2d/cube mode needs to both switch into
+// wall mode AND carry the new layout in the same message, since the
+// server's setPanelPositions command requires already being in wall mode
+// (see wsServer.js) - setPanelConfig accepts an optional panels array for
+// exactly this transition.
+function sendWallLayout(panels) {
+  if (currentState.panelMode === 'wall') send({ cmd: 'setPanelPositions', panels });
+  else send({ cmd: 'setPanelConfig', size: currentState.panelSize || 64, mode: 'wall', panels });
+}
+
+// ---------------------------------------------------------------------
 // Preview - two completely different renderers, matching the original
 // app exactly: 2D-panel mode never used WebGL at all (see ui.js's
 // renderPanel2d()/#panel2d-canvas), it draws round LED dots on a plain 2D
@@ -266,11 +355,16 @@ let renderer, scene, camera, group;
 let panel2dCanvas, panel2dCtx;
 const PANEL2D_OUT = 512; // fixed backing resolution, same as ui.js's renderPanel2d()
 
+let wallPreviewEl;
+const wallPanelCanvases = {}; // panel index -> {canvas, ctx}
+const WALL_CELL = 130; // preview px per panel, including its border/gap
+
 function initScene() {
   panel2dCanvas = document.getElementById('panel2d-canvas');
   panel2dCanvas.width = PANEL2D_OUT;
   panel2dCanvas.height = PANEL2D_OUT;
   panel2dCtx = panel2dCanvas.getContext('2d');
+  wallPreviewEl = document.getElementById('wall-preview');
 
   const canvas = document.getElementById('c');
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -322,10 +416,12 @@ function rebuildScene() {
   for (const key in faceCanvases) delete faceCanvases[key];
 
   const size = currentState.panelSize || 64;
-  const is2d = currentState.panelMode === '2d';
-  panel2dCanvas.style.display = is2d ? 'block' : 'none';
-  document.getElementById('c').style.display = is2d ? 'none' : 'block';
-  if (is2d) { fitPanel2dCanvas(); return; } // 2D mode is drawn straight into panel2dCtx by handleFrame(), no Three.js scene needed
+  const mode = currentState.panelMode;
+  panel2dCanvas.style.display = mode === '2d' ? 'block' : 'none';
+  wallPreviewEl.style.display = mode === 'wall' ? 'block' : 'none';
+  document.getElementById('c').style.display = mode === 'cube' ? 'block' : 'none';
+  if (mode === '2d') { fitPanel2dCanvas(); return; } // drawn straight into panel2dCtx by handleFrame(), no Three.js scene needed
+  if (mode === 'wall') { rebuildWallPreview(); return; } // ditto, drawn into per-panel 2D canvases
 
   const spacing = 2 / size;                    // matches cube.js's SPACING = TOTAL_SPAN/(SIZE-1) scaled to a 2-unit face
   const geom = new THREE.SphereGeometry(spacing * 0.44, 6, 5); // segment counts kept low: up to 6 * SIZE^2 instances
@@ -358,7 +454,7 @@ function rebuildScene() {
 
 function animate() {
   requestAnimationFrame(animate);
-  if (currentState.panelMode === '2d') return; // 2D mode never touches the WebGL renderer
+  if (currentState.panelMode !== 'cube') return; // 2D and wall modes never touch the WebGL renderer
   const autoRotate = document.getElementById('auto-rotate-chk');
   if (group && (!autoRotate || autoRotate.checked)) group.rotation.y += 0.003;
   renderer.render(scene, camera);
@@ -389,11 +485,59 @@ function drawPanel2dFrame(bytes) {
   panel2dCtx.strokeRect(1, 1, PANEL2D_OUT - 2, PANEL2D_OUT - 2);
 }
 
+// Same round-dot-on-black technique as drawPanel2dFrame(), one small
+// canvas per panel, positioned via absolute CSS to match its (gx,gy) grid
+// position - so dragging a tile in the sidebar and seeing it move here
+// use the exact same layout data (currentState.panels).
+function rebuildWallPreview() {
+  wallPreviewEl.innerHTML = '';
+  for (const key in wallPanelCanvases) delete wallPanelCanvases[key];
+  const panels = currentState.panels || [];
+  const cols = Math.max(1, ...panels.map((p) => p.gx + 1));
+  const rows = Math.max(1, ...panels.map((p) => p.gy + 1));
+  wallPreviewEl.style.width = (cols * WALL_CELL) + 'px';
+  wallPreviewEl.style.height = (rows * WALL_CELL) + 'px';
+  panels.forEach((p, idx) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 256; // fixed backing resolution per panel, same spirit as PANEL2D_OUT
+    canvas.style.left = (p.gx * WALL_CELL) + 'px';
+    canvas.style.top = (p.gy * WALL_CELL) + 'px';
+    canvas.style.width = (WALL_CELL - 4) + 'px';
+    canvas.style.height = (WALL_CELL - 4) + 'px';
+    wallPreviewEl.appendChild(canvas);
+    wallPanelCanvases[idx] = canvas.getContext('2d');
+  });
+}
+
+function drawWallPanelFrame(ctx, bytes) {
+  const size = currentState.panelSize;
+  const out = 256;
+  const cell = out / size;
+  const r = cell * 0.44;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, out, out);
+  for (let v = 0; v < size; v++) {
+    for (let u = 0; u < size; u++) {
+      const o = 1 + (v * size + u) * 3;
+      const fv = size - 1 - v;
+      ctx.fillStyle = `rgb(${bytes[o]},${bytes[o + 1]},${bytes[o + 2]})`;
+      ctx.beginPath();
+      ctx.arc((u + 0.5) * cell, (fv + 0.5) * cell, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
 function handleFrame(buf) {
   const bytes = new Uint8Array(buf);
   const face = bytes[0];
   if (currentState.panelMode === '2d') {
     if (face === 0) drawPanel2dFrame(bytes);
+    return;
+  }
+  if (currentState.panelMode === 'wall') {
+    const ctx = wallPanelCanvases[face]; // "face" byte is a panel index here, not a cube face
+    if (ctx) drawWallPanelFrame(ctx, bytes);
     return;
   }
   const entry = faceCanvases[face];
@@ -420,6 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wirePanelButtons();
   wireSliders();
   wireBluetooth();
+  wireWallGrid();
   greyOutUnsupported();
   loadEffectNames();
   connect();

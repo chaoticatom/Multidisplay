@@ -40,7 +40,10 @@ const FACE_LAYOUT = [
 class RgbMatrixDriver {
   // opts.mode: 'cube' (6 panels via FACE_LAYOUT) | '2d' (default, 1 panel -
   // matches panelConfig.js's DEFAULT_CONFIG, so a fresh install doesn't
-  // assume all 6 panels are already wired and FACE_LAYOUT calibrated).
+  // assume all 6 panels are already wired and FACE_LAYOUT calibrated) |
+  // 'wall' (N panels in an arbitrary flat grid, via opts.panels - reuses
+  // the exact same 2x3 physical wiring as 'cube', just read as a flat
+  // mosaic instead of 6 cube faces, so no new hardware topology needed).
   // This is read ONCE at construction - rpi-led-matrix has no API to
   // reconfigure or tear down/recreate an LedMatrix instance at runtime
   // (see close() below), so changing mode via the WS setPanelConfig
@@ -73,6 +76,8 @@ class RgbMatrixDriver {
   }
 
   renderFrame(core, brightness = 1.0) {
+    if (this.mode === 'wall') { this._renderWallFrame(core, brightness); return; }
+
     const SIZE = core.SIZE;
     if (SIZE !== 64) {
       // 8/16 are browser-preview-only resolutions (the ESP32 firmware is
@@ -88,6 +93,38 @@ class RgbMatrixDriver {
       this.matrix.drawBuffer(buf, SIZE, SIZE, layout.pos * SIZE, layout.chain * SIZE);
     }
     this.matrix.sync();
+  }
+
+  // Wall mode: each panel's (gx,gy) grid position maps directly onto the
+  // same physical offsets FACE_LAYOUT uses (gx -> pos/x, the chainLength
+  // direction; gy -> chain/y, the parallel direction) - no separate mapping
+  // table needed, since it's the identical 2x3 wiring, just addressed by
+  // grid coordinate instead of cube face index.
+  _renderWallFrame(core, brightness) {
+    if (!core.wallBuf) return; // initWall() hasn't run yet
+    const S = core.wallPanelSize;
+    if (S !== 64) throw new Error(`rgbMatrixDriver is hardcoded for 64x64 panels, got wallPanelSize=${S}`);
+    for (const p of core.wallPanels) {
+      const buf = this._buildWallPanelBuffer(core, p, brightness);
+      this.matrix.drawBuffer(buf, S, S, p.gx * S, p.gy * S);
+    }
+    this.matrix.sync();
+  }
+
+  _buildWallPanelBuffer(core, panel, brightness) {
+    const S = core.wallPanelSize, wallW = core.wallW, wallBuf = core.wallBuf;
+    const buf = this._faceBufCache;
+    const ox = panel.gx * S, oy = panel.gy * S;
+    for (let v = 0; v < S; v++) {
+      for (let u = 0; u < S; u++) {
+        const c = ((oy + v) * wallW + (ox + u)) * 3;
+        const o = (v * S + u) * 3;
+        buf[o]     = Math.max(0, Math.min(255, (wallBuf[c] * brightness * 255) | 0));
+        buf[o + 1] = Math.max(0, Math.min(255, (wallBuf[c + 1] * brightness * 255) | 0));
+        buf[o + 2] = Math.max(0, Math.min(255, (wallBuf[c + 2] * brightness * 255) | 0));
+      }
+    }
+    return buf;
   }
 
   _buildFaceBuffer(core, face, brightness) {

@@ -14,10 +14,11 @@ class MockDriver {
     const now = Date.now();
     if (now - this._lastLog < 1000) return; // log ~once/sec, not every frame
     this._lastLog = now;
+    const buf = core.wallBuf || core.colBuf; // wall mode has no cube colBuf content
     let sum = 0;
-    for (let i = 0; i < core.colBuf.length; i++) sum += core.colBuf[i];
-    const avg = sum / core.colBuf.length;
-    console.log(`[mockDriver] frame ${this.frameCount}, N=${core.N}, avg brightness=${avg.toFixed(3)}`);
+    for (let i = 0; i < buf.length; i++) sum += buf[i];
+    const avg = sum / buf.length;
+    console.log(`[mockDriver] frame ${this.frameCount}, N=${core.wallBuf ? core.wallW * core.wallH : core.N}, avg brightness=${avg.toFixed(3)}`);
   }
 
   close() {}

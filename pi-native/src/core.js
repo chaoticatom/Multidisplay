@@ -84,6 +84,43 @@ class CubeCore {
     const i = this.faceMap[face][v * this.SIZE + u];
     if (i >= 0) this.setLED(i, r, g, b);
   }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // "Wall" mode: an arbitrary grid of same-size flat panels forming one
+  // big stitched 2D canvas, as opposed to the fixed 6-face cube geometry
+  // above. Unrelated to (and independent of) the cube fields - a CubeCore
+  // can have both initialized at once; which one an effect/driver/preview
+  // actually reads depends on panelConfig.js's mode ('cube'/'2d' use the
+  // cube fields via faceMap[0]; 'wall' uses these).
+  //
+  // panels: array of {gx, gy} - integer grid coordinates, one entry per
+  // physical panel, gx/gy both 0-based from the top-left. Each panel is
+  // panelSize x panelSize pixels; the overall canvas is
+  // (max(gx)+1)*panelSize wide by (max(gy)+1)*panelSize tall - panels
+  // don't have to fill every cell of that bounding box (setWallPixel
+  // silently no-ops writes that land in an empty cell).
+  initWall(panels, panelSize) {
+    this.wallPanels = panels;
+    this.wallPanelSize = panelSize;
+    this.wallCols = Math.max(1, ...panels.map((p) => p.gx + 1));
+    this.wallRows = Math.max(1, ...panels.map((p) => p.gy + 1));
+    this.wallW = this.wallCols * panelSize;
+    this.wallH = this.wallRows * panelSize;
+    this.wallBuf = new Float32Array(this.wallW * this.wallH * 3);
+    // Occupancy mask so setWallPixel can cheaply skip grid cells with no
+    // physical panel in them (e.g. an L-shaped arrangement), same spirit
+    // as faceMap's -1 "no LED here" sentinel.
+    this._wallOccupied = new Uint8Array(this.wallCols * this.wallRows);
+    for (const p of panels) this._wallOccupied[p.gy * this.wallCols + p.gx] = 1;
+  }
+
+  setWallPixel(x, y, r, g, b) {
+    if (x < 0 || x >= this.wallW || y < 0 || y >= this.wallH) return;
+    const gx = (x / this.wallPanelSize) | 0, gy = (y / this.wallPanelSize) | 0;
+    if (!this._wallOccupied[gy * this.wallCols + gx]) return;
+    const o = (y * this.wallW + x) * 3;
+    this.wallBuf[o] = r; this.wallBuf[o + 1] = g; this.wallBuf[o + 2] = b;
+  }
 }
 
 // Verbatim from cube.js.
