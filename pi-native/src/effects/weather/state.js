@@ -392,7 +392,7 @@ function buildLandmarks() {
 // Ported from wxInitScene. `size` = core.SIZE (panel side length, e.g. 64).
 // Populates wxState.clouds/particles/stars/skyline/skyShapes/creatures in
 // place - mirrors the original mutating module-scope globals directly.
-function wxInitScene(code, wxState, size) {
+function wxInitScene(code, wxState, size, is2d) {
   wxState.clouds = []; wxState.particles = []; wxState.stars = [];
   const isRainCode = code >= 51 && code <= 55 || code >= 61 && code <= 65 || code >= 80 && code <= 82 || code >= 95;
   const isSnowCode = code >= 71 && code <= 77 || code >= 85 && code <= 86;
@@ -478,7 +478,11 @@ function wxInitScene(code, wxState, size) {
   }
 
   if (cityLandmark) {
-    const nFaces = 4; // panel2dMode doesn't apply to physical hardware - always the 4-face case
+    // panel2dMode is TRUE for pi-native's own single-2D-panel hardware mode
+    // (core.panelMode==='2d') - see weather.js's header comment for the
+    // porting-mistake history. Single panel only has one "face" worth of
+    // panorama width to place a landmark on.
+    const nFaces = is2d ? 1 : 4;
     for (let fi = 0; fi < nFaces; fi++) {
       const faceCenter = fi * size + Math.floor(size / 2);
       const lx = Math.max(fi * size, Math.min((fi + 1) * size - cityLandmark.w, faceCenter - Math.floor(cityLandmark.w / 2)));

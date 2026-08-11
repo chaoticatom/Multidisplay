@@ -21,10 +21,16 @@
 //     unintentional quirk, but this is a faithful port, not a rewrite, so
 //     it's preserved exactly - app.js passes both the pre-scaled `dt` and
 //     the raw `speedMult` for this reason.
-//   - panel2dMode (a browser-only 2D flat-preview toggle with no hardware
-//     equivalent - there's no "2D mode" for physical LED panels) is
-//     hardcoded false and its dead branches removed, since every physical
-//     deployment is the panel2dMode===false case.
+//   - panel2dMode is TRUE for pi-native's own single-2D-panel hardware mode
+//     (core.panelMode==='2d', one physical 64x64 panel, as opposed to
+//     core.panelMode==='cube' which is 6 faces) - this was incorrectly
+//     assumed to have no hardware equivalent and hardcoded false in an
+//     earlier version of this port; that was wrong and caused the weather
+//     effect to render incorrectly (wrong horizon/text/sun/moon/cloud
+//     placement) on a real single-panel setup. It's now derived each tick
+//     as `const is2d = core.panelMode === '2d';` and threaded through the
+//     same 10 branch points the browser source has (plus wxInitScene's
+//     nFaces line in state.js).
 //   - Reads that depended on a live DOM city-search input
 //     (`document.getElementById('wx-city')?.value`) now just use
 //     `wxState.cityDisplay`, set once by fetch.js's fetchWeather().
@@ -39,8 +45,9 @@ const { wxSkyRGB, wxInitScene } = require('./state');
 const { PIXEL_FONT } = require('./font');
 
 function effectWeather(core, dt, wxState, speedMult) {
+  const is2d = core.panelMode === '2d';
   if (!wxState.skyline) {
-    wxInitScene(wxState.code, wxState, core.SIZE);
+    wxInitScene(wxState.code, wxState, core.SIZE, is2d);
   }
   wxState.t2 += dt;
   const S = core.SIZE, S1 = S - 1;
@@ -191,6 +198,10 @@ function effectWeather(core, dt, wxState, speedMult) {
     return Math.round(((px - 0.75) / 0.25) * S1);
   }
   function uOfFacePanIdx(face, pi) {
+    if (is2d) {
+      if (pi < 0 || pi >= S) return -1;
+      return pi;
+    }
     const fIdx = SIDE.indexOf(face);
     if (fIdx < 0) return -1;
     const fStart = fIdx * S;
@@ -293,11 +304,12 @@ function effectWeather(core, dt, wxState, speedMult) {
 
   if (locStr) {
     const textW = locStr.length * 4;
-    const totalW = S * 4;
+    const totalW = is2d ? S : S * 4;
     const lr = txtR * 0.7, lg = txtG * 0.7, lb = txtB * 0.85;
     if (textW <= S) {
       wxState.scrollOff = 0;
-      for (let fi = 0; fi < 4; fi++) wxText(SIDE[fi], locStr, Math.max(0, S - textW - 1), textV, lr, lg, lb);
+      if (is2d) wxText(0, locStr, Math.max(0, S - textW - 1), textV, lr, lg, lb);
+      else for (let fi = 0; fi < 4; fi++) wxText(SIDE[fi], locStr, Math.max(0, S - textW - 1), textV, lr, lg, lb);
     } else {
       const sep = Math.max(S / 2 | 0, 16);
       const tileW = textW + sep;
@@ -315,7 +327,14 @@ function effectWeather(core, dt, wxState, speedMult) {
                 const u = col + c, v = textV + (4 - row);
                 if (v < 0 || v >= S) continue;
                 if (u < 0 || u >= totalW) { /* skip off-screen */ }
-                else {
+                else if (is2d) {
+                  const idx = faceMap[0][v * S + u];
+                  if (idx >= 0) {
+                    if (lr > colBuf[idx * 3]) colBuf[idx * 3] = lr;
+                    if (lg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = lg;
+                    if (lb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = lb;
+                  }
+                } else {
                   const idx = creaturePx(u, v);
                   if (idx >= 0) {
                     if (lr > colBuf[idx * 3]) colBuf[idx * 3] = lr;
@@ -443,8 +462,8 @@ function effectWeather(core, dt, wxState, speedMult) {
     }
   }
 
-  if (isDay && sunPX >= 0) drawBody(sunPX, sunElev, true, 0);
-  if (moonUp && moonAlpha > 0.01) drawBody(moonPX, moonElev, false, moonPh);
+  if (!is2d && isDay && sunPX >= 0) drawBody(sunPX, sunElev, true, 0);
+  if (!is2d && moonUp && moonAlpha > 0.01) drawBody(moonPX, moonElev, false, moonPh);
 
   const cloudDark = isStorm ? 0.85 : isRain ? 0.7 : isOvercast ? 0.95 : wxCode >= 3 ? 0.65 : 0.85;
   for (const cl of wxState.clouds) {
@@ -526,6 +545,51 @@ function effectWeather(core, dt, wxState, speedMult) {
     }
   }
 
+  // For 2D panel mode, draw sun/moon on face 0 (before creatures so they appear in front)
+  if (is2d) {
+    const horizV2d = Math.round(HORIZ * S1);
+    if (isDay) {
+      const sunX = dayProg * S;
+      const arc = Math.sin(dayProg * Math.PI);
+      const sunY = horizV2d + arc * (S1 - horizV2d) * 0.92;
+      const sunRad = Math.max(3, S * 0.06);
+      for (let dv = -Math.ceil(sunRad + 4); dv <= Math.ceil(sunRad + 4); dv++) {
+        for (let du = -Math.ceil(sunRad + 4); du <= Math.ceil(sunRad + 4); du++) {
+          const dist = Math.sqrt(du * du + dv * dv);
+          const fu = Math.round(sunX + du), fv = Math.round(sunY + dv);
+          if (fu < 0 || fu >= S || fv < horizV2d || fv >= S) continue;
+          const idx = faceMap[0][fv * S + fu]; if (idx < 0) continue;
+          if (dist <= sunRad) { colBuf[idx * 3] = sunDim; colBuf[idx * 3 + 1] = 0.98 * sunDim; colBuf[idx * 3 + 2] = 0.7 * sunDim; }
+          else if (dist < sunRad + 2) { const b = (1 - (dist - sunRad) / 2) * 0.9 * sunDim; colBuf[idx * 3] = Math.min(1, colBuf[idx * 3] + b); colBuf[idx * 3 + 1] = Math.min(1, colBuf[idx * 3 + 1] + b * 0.85); colBuf[idx * 3 + 2] = Math.min(1, colBuf[idx * 3 + 2] + b * 0.25); }
+          else if (dist < sunRad + 4) { const b = (1 - (dist - sunRad - 2) / 2) * 0.35 * sunDim; colBuf[idx * 3] = Math.min(1, colBuf[idx * 3] + b); colBuf[idx * 3 + 1] = Math.min(1, colBuf[idx * 3 + 1] + b * 0.65); colBuf[idx * 3 + 2] = Math.min(1, colBuf[idx * 3 + 2] + b * 0.08); }
+        }
+      }
+    }
+    // 2D moon — drawn when above horizon, moonAlpha controls brightness
+    if (moonUp && moonAlpha > 0.01) {
+      const moonX = moonDayProg * S;
+      const arc = Math.sin(moonDayProg * Math.PI);
+      const moonY = horizV2d + arc * (S1 - horizV2d) * 0.75;
+      const moonRad = Math.max(2, S * 0.04);
+      for (let dv = -Math.ceil(moonRad + 2); dv <= Math.ceil(moonRad + 2); dv++) {
+        for (let du = -Math.ceil(moonRad + 2); du <= Math.ceil(moonRad + 2); du++) {
+          const dist = Math.sqrt(du * du + dv * dv);
+          const fu = Math.round(moonX + du), fv = Math.round(moonY + dv);
+          if (fu < 0 || fu >= S || fv < horizV2d || fv >= S) continue;
+          const idx = faceMap[0][fv * S + fu]; if (idx < 0) continue;
+          if (dist <= moonRad) {
+            const illum = moonPh <= 0.5 ? moonPh * 2 : (1 - moonPh) * 2;
+            const dir2d = moonPh <= 0.5 ? 1 : -1;
+            const tX = du / moonRad;
+            const cosA = (1 - illum) * 2 - 1;
+            const lit2d = tX * dir2d > cosA ? 1 : tX * dir2d > cosA - 0.2 ? ((tX * dir2d - cosA + 0.2) / 0.2) * 0.6 : 0;
+            if (lit2d > 0.05) { const mb = 0.85 * lit2d * moonAlpha; colBuf[idx * 3] = Math.min(1, colBuf[idx * 3] + mb); colBuf[idx * 3 + 1] = Math.min(1, colBuf[idx * 3 + 1] + mb * 0.97); colBuf[idx * 3 + 2] = Math.min(1, colBuf[idx * 3 + 2] + mb * 0.9); }
+          } else if (dist < moonRad + 2) { const b = (1 - (dist - moonRad) / 2) * 0.18 * moonAlpha; colBuf[idx * 3] = Math.min(1, colBuf[idx * 3] + b); colBuf[idx * 3 + 1] = Math.min(1, colBuf[idx * 3 + 1] + b * 0.95); colBuf[idx * 3 + 2] = Math.min(1, colBuf[idx * 3 + 2] + b * 0.88); }
+        }
+      }
+    }
+  }
+
   // Birds & Planes
   for (const cr of wxState.creatures) {
     if (cr.delay > 0) { cr.delay -= dt; continue; }
@@ -554,7 +618,7 @@ function effectWeather(core, dt, wxState, speedMult) {
       const _bc = [[1, 0.2, 0.1], [0.1, 0.5, 1], [0.9, 0.8, 0.1], [0.2, 0.8, 0.3], [0.8, 0.2, 0.8], [1, 0.5, 0]];
       let bestD = 0; for (const cc of _bc) { const d = (cc[0] - skyCol[0]) ** 2 + (cc[1] - skyCol[1]) ** 2 + (cc[2] - skyCol[2]) ** 2; if (d > bestD) { bestD = d; cr.color = cc; } }
       const crV = Math.round((HORIZ + cr.py * (1 - HORIZ)) * S1);
-      if (crV >= Math.round(HORIZ * S) && crV <= Math.round(WX_CLEAR_TOP * S)) continue;
+      if (!is2d && crV >= Math.round(HORIZ * S) && crV <= Math.round(WX_CLEAR_TOP * S)) continue;
       const baseCol = Math.round(cr.px * S * 4);
       const c = cr.color;
       const envRows = [
@@ -605,7 +669,7 @@ function effectWeather(core, dt, wxState, speedMult) {
       cr.lightningHit = 0.3; cr.wobble = 2.5;
     }
     const crV = Math.round((HORIZ + cr.py * (1 - HORIZ)) * S1);
-    if (crV >= Math.round(HORIZ * S) && crV <= Math.round(WX_CLEAR_TOP * S)) continue;
+    if (!is2d && crV >= Math.round(HORIZ * S) && crV <= Math.round(WX_CLEAR_TOP * S)) continue;
     const baseCol = Math.round(cr.px * S * 4);
     if (cr.type === 'bird') {
       cr.wingT += dt;
@@ -725,7 +789,7 @@ function effectWeather(core, dt, wxState, speedMult) {
   // Skyline silhouettes - final pass, drawn over all weather
   if (wxState.skyShapes.length > 0) {
     const _panW = 4 * S;
-    const _faces = [SIDE[0], SIDE[1], SIDE[2], SIDE[3]];
+    const _faces = is2d ? [0] : [SIDE[0], SIDE[1], SIDE[2], SIDE[3]];
     const night = !bldDay;
     for (const face of _faces) {
       for (const sh of wxState.skyShapes) {
