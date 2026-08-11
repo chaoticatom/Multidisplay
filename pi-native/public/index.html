@@ -5,406 +5,1648 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Multidisplay</title>
 <style>
-  * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; }
-  body {
-    font-family: system-ui, sans-serif; background: #05070c; color: #e8ecf1;
-    display: flex; overflow: hidden;
-  }
-  #sidebar {
-    width: 300px; min-width: 300px; height: 100%; overflow-y: auto;
-    background: #0b0d12; border-right: 1px solid rgba(80,120,255,0.12);
-    padding-bottom: 40px;
-  }
-  #sidebar h1 { font-size: 16px; margin: 0; padding: 16px; border-bottom: 1px solid rgba(80,120,255,0.12); }
-  #status { font-size: 11px; padding: 0 16px 12px; color: #8891a5; }
-  #status.connected { color: #5fd97a; }
-  #status.disconnected { color: #f7768e; }
-  .sidebar-section { border-bottom: 1px solid rgba(80,120,255,0.12); padding: 12px 16px; }
-  .sidebar-section label {
-    font-size: 11px; letter-spacing: 1.5px; color: rgba(160,200,255,0.8);
-    text-transform: uppercase; display: block; margin-bottom: 8px;
-  }
-  .row { display: flex; flex-wrap: wrap; gap: 6px; }
-  .effect-btn {
-    display: block; width: 100%; text-align: left; font-size: 13px;
-    background: rgba(255,255,255,0.03); color: #cdd3e0; border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 7px; padding: 9px 12px; margin-bottom: 5px; cursor: pointer;
-  }
-  .effect-btn:hover { background: rgba(80,120,255,0.12); color: #fff; }
-  .effect-btn.active { background: rgba(80,120,255,0.22); border-color: rgba(100,160,255,0.5); color: #7aadff; }
-  .effect-btn.not-ported { opacity: 0.35; cursor: default; }
-  .effect-btn.not-ported:hover { background: rgba(255,255,255,0.03); color: #cdd3e0; }
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; color: #eee; }
 
-  .category { margin-bottom: 2px; }
-  .category-head {
-    display: flex; justify-content: space-between; align-items: center; width: 100%;
-    background: none; border: none; color: rgba(180,220,255,0.85); font-size: 12px;
-    letter-spacing: 0.5px; padding: 8px 2px; cursor: pointer; text-align: left;
+  #sidebar {
+    width: 300px; min-width: 300px;
+    background: #0a0a14;
+    border-right: 1px solid rgba(80,120,255,0.2);
+    display: flex; flex-direction: column; z-index: 10;
+    box-shadow: 4px 0 30px rgba(0,60,255,0.12); overflow: visible;
+    transition: width 0.5s ease, min-width 0.5s ease;
   }
-  .category-head .chev { transition: transform 0.15s; font-size: 10px; color: rgba(160,200,255,0.5); }
-  .category.collapsed .chev { transform: rotate(-90deg); }
-  .category-body { padding-left: 2px; }
-  .category.collapsed .category-body { display: none; }
-  button.panel-btn {
-    background: rgba(255,255,255,0.03); color: #cdd3e0; border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 6px; padding: 7px 11px; font-size: 12px; cursor: pointer;
+  #sidebar-scroll {
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+    scrollbar-width: thin; scrollbar-color: rgba(80,120,255,0.4) transparent;
   }
-  button.panel-btn:hover { background: rgba(80,120,255,0.12); }
-  button.panel-btn.active { background: rgba(80,120,255,0.22); border-color: rgba(100,160,255,0.5); color: #7aadff; }
+  #sidebar-scroll::-webkit-scrollbar { width: 4px; }
+  #sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+  #sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(80,120,255,0.4); border-radius: 2px; }
+  #sidebar.hidden { width: 0 !important; min-width: 0 !important; overflow: hidden; border-right: none; transition: width 0.5s ease, min-width 0.5s ease; }
+
+  #sidebar-open-btn {
+    display: none; position: fixed; top: 10px; left: 10px; z-index: 200;
+    width: 48px; height: 48px; background: rgba(20,30,60,0.95);
+    border: 2px solid rgba(80,120,255,0.45); border-radius: 10px;
+    color: #7aadff; font-size: 22px; cursor: pointer; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #sidebar-open-btn.show { display: flex; }
+
+  #sidebar-collapse-btn {
+    background: rgba(80,120,255,0.08); border: 1px solid rgba(80,120,255,0.25); color: rgba(120,170,255,0.7);
+    font-size: 16px; cursor: pointer; padding: 8px 12px; margin-left: auto;
+    transition: all 0.2s; border-radius: 8px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #sidebar-collapse-btn:hover { color: #7aadff; background: rgba(80,120,255,0.15); }
+
+  #menu-toggle {
+    position: absolute; top: max(14px, env(safe-area-inset-top, 14px)); right: -48px; z-index: 200;
+    width: 38px; height: 38px; padding: 0;
+    background: rgba(10,15,30,0.85); border: 1px solid rgba(80,120,255,0.3);
+    border-radius: 0 8px 8px 0; color: rgba(120,170,255,0.8); font-size: 18px; cursor: pointer;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    display: none; align-items: center; justify-content: center;
+    transition: all 0.2s; font-weight: bold;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #menu-toggle:hover { background: rgba(80,120,255,0.45); transform: scale(1.05); }
+  #menu-toggle.show { display: flex; }
+  @media (max-width: 768px) {
+    #menu-toggle { width: 38px; height: 38px; font-size: 18px; right: -46px; }
+  }
+
+  @media (max-width: 768px) {
+    #sidebar { width: 100vw; position: fixed; left: 0; top: 0; height: 100vh; height: 100dvh;
+               transform: translateX(-100%); transition: transform 0.5s ease; z-index: 150; }
+    #sidebar.open { transform: translateX(0); }
+    #sidebar-header { padding: calc(20px + env(safe-area-inset-top, 0px)) 24px 16px; position: sticky; top: 0; z-index: 3; background: #0a0a14; }
+    #sidebar { background: #0a0a14; min-width: 0; }
+    #menu-toggle { display: flex !important; }
+    #canvas-wrap { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; z-index: 5; }
+    body { flex-direction: row; }
+    .effect-btn { font-size: 14px; padding: 12px 14px; margin-bottom: 5px; min-height: 40px; border-radius: 7px; }
+    .size-btn { font-size: 13px; padding: 10px 8px; min-height: 38px; border-radius: 7px; }
+    .size-row { gap: 6px; }
+    .sidebar-section label { font-size: 13px; margin-bottom: 6px; letter-spacing: 1px; }
+    .slider-row { gap: 8px; margin-bottom: 8px; }
+    .slider-label { font-size: 13px; width: 44px; }
+    .slider-val { font-size: 13px; width: 38px; }
+    .slider-row input[type="range"] { height: 8px; border-radius: 4px; }
+    .slider-row input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; }
+    .slider-row input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; }
+    .check-row { font-size: 14px; gap: 10px; margin-bottom: 8px; min-height: 38px; }
+    .check-row input[type="checkbox"] { width: 40px; height: 22px; min-width: 40px; }
+    .section-head { font-size: 15px; padding: 14px 16px; min-height: 40px; }
+    .sub-head { font-size: 14px; padding: 8px 6px; min-height: 36px; }
+    .sub-head.sub-head-boxed { font-size: 14px; padding: 12px 14px; min-height: 40px; border-radius: 7px; }
+    .util-btn { font-size: 13px; padding: 10px 12px; min-height: 38px; border-radius: 7px; }
+    .opt-grid { gap: 5px; }
+    .opt-grid button { font-size: 12px; padding: 8px 6px; min-height: 34px; border-radius: 7px; }
+    .ov-hdr { font-size: 13px; padding: 10px 14px; min-height: 38px; }
+    .ov-toggle { width: 40px; height: 22px; }
+    .ov-slider::before { width: 18px; height: 18px; }
+    .ov-toggle input:checked + .ov-slider::before { transform: translateX(18px); }
+    #sidebar-footer { font-size: 12px; padding: 10px 16px; }
+    #sidebar-collapse-btn { font-size: 14px; padding: 6px 10px; min-width: auto; min-height: auto; border-width: 1px; border-radius: 7px; }
+    #sidebar-header { padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 10px; }
+    #sidebar-header h1 { font-size: 15px; letter-spacing: 2px; }
+    #sidebar-header p { font-size: 12px; }
+    .strobe-mode-btn { font-size: 12px !important; padding: 8px 6px !important; min-height: 34px; border-radius: 7px !important; }
+    .effect-panel { padding: 10px 14px; }
+    .effect-panel .check-row { font-size: 13px; }
+    .effect-panel .slider-label { font-size: 12px; }
+    #sidebar-scroll::-webkit-scrollbar { width: 5px; }
+  }
+
+  #sidebar-header { padding: 18px 16px 12px; border-bottom: 1px solid rgba(80,120,255,0.15); }
+  #sidebar-header h1 { font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #7aadff; }
+  #sidebar-header p  { font-size: 12px; color: #bbc; margin-top: 3px; letter-spacing: 1px; }
+
+  .sidebar-section { padding: 0; border-bottom: 1px solid rgba(80,120,255,0.12); }
+  .sidebar-section label { font-size: 12px; letter-spacing: 1.5px; color: rgba(160,200,255,0.8); text-transform: uppercase; display: block; margin-bottom: 8px; }
+
+  .size-row { display: flex; gap: 6px; }
+  .size-btn {
+    flex: 1; padding: 7px 4px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(80,120,255,0.2);
+    border-radius: 5px; color: #bbc; font-size: 13px; cursor: pointer;
+    text-align: center; transition: all 0.2s; font-weight: 600;
+  }
+  .size-btn:hover { background: rgba(80,120,255,0.15); color: #ccd; }
+  .size-btn.active { background: rgba(80,120,255,0.25); border-color: rgba(100,160,255,0.6); color: #7aadff; }
+
+  .effect-btn {
+    display: block; width: 100%; padding: 7px 10px; margin-bottom: 4px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(80,120,255,0.15);
+    border-radius: 5px; color: #bbc; font-size: 13px; cursor: pointer;
+    text-align: left; transition: all 0.2s;
+  }
+  .effect-btn:hover { background: rgba(80,120,255,0.12); color: #bbc; }
+  .effect-btn.active { background: rgba(80,120,255,0.22); border-color: rgba(100,160,255,0.5); color: #7aadff; }
+  /* Effects without a native ESP32 implementation yet - greyed out. Still
+     clickable (they show a stand-in), just visually marked as not-on-cube. */
+  .effect-btn.not-native { opacity: 0.38; }
+  .effect-btn.not-native:hover { opacity: 0.55; }
+  .effect-btn.not-native.active { opacity: 0.7; }
+  .al-day-btn.active { background:rgba(80,120,255,0.25)!important;border-color:rgba(80,120,255,0.6)!important;color:#9bd!important; }
+  #alarm-banner { display:none; }
+  @keyframes alarmPulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+  #alarm-banner.active { animation:alarmPulse 1.5s infinite; }
+
+  #toggle-effects {
+    display: block; padding: 9px 10px;
+    background: rgba(255,60,60,0.1); border: 1px solid rgba(255,60,60,0.25);
+    border-radius: 5px; color: #f77; font-size: 13px; cursor: pointer;
+    text-align: center; transition: all 0.2s; letter-spacing: 1px; text-transform: uppercase;
+  }
+  #toggle-effects:hover { background: rgba(255,60,60,0.2); }
+  #toggle-effects.on { background: rgba(60,220,120,0.1); border-color: rgba(60,220,120,0.3); color: #6e8; }
+
   .slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .slider-row label { width: auto; margin: 0; text-transform: none; font-size: 12px; letter-spacing: 0; color: #b7bfd1; flex: 0 0 66px; }
-  .slider-row input[type=range] { flex: 1; }
-  .slider-row span { width: 36px; text-align: right; font-size: 11px; color: #8891a5; }
-  #bt-log { white-space: pre-wrap; font-family: monospace; font-size: 10px; background: #12151d; border: 1px solid #2c3141; border-radius: 6px; padding: 6px; margin-top: 6px; max-height: 120px; overflow-y: auto; color: #b7bfd1; }
-  .device-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 12px; }
-  .device-row .mac { color: #8891a5; font-family: monospace; font-size: 10px; flex: 1; }
-  #viewport { flex: 1; position: relative; height: 100%; }
-  #viewport canvas.gl { display: block; width: 100%; height: 100%; }
-  #viewport-label { position: absolute; top: 12px; left: 16px; font-size: 12px; color: rgba(200,210,230,0.55); letter-spacing: 0.5px; }
+  .slider-label { font-size: 13px; letter-spacing: 1px; color: rgba(160,200,255,0.8); text-transform: uppercase; width: 38px; flex-shrink: 0; }
+  .slider-val { font-size: 13px; color: #7aadff; width: 34px; text-align: right; flex-shrink: 0; font-family: monospace; }
+  .slider-row input[type="range"] {
+    flex: 1; -webkit-appearance: none; appearance: none; height: 4px;
+    background: rgba(80,120,255,0.2); border-radius: 2px; outline: none; cursor: pointer;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 12px; height: 12px;
+    border-radius: 50%; background: #7aadff; cursor: pointer;
+    box-shadow: 0 0 6px rgba(100,160,255,0.6);
+  }
+  .slider-row input[type="range"]::-moz-range-thumb {
+    width: 12px; height: 12px; border: none;
+    border-radius: 50%; background: #7aadff; cursor: pointer;
+    box-shadow: 0 0 6px rgba(100,160,255,0.6);
+  }
+
+  .check-row { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #bbc; letter-spacing: 1px; margin-bottom: 8px; cursor: pointer; }
+  .check-row input[type="checkbox"] {
+    -webkit-appearance: none; appearance: none; cursor: pointer;
+    width: 36px; height: 20px; min-width: 36px; margin-right: 8px;
+    background: rgba(60,60,100,0.5); border: 1px solid rgba(80,120,255,0.25);
+    border-radius: 20px; position: relative; transition: background 0.2s, border-color 0.2s;
+  }
+  .check-row input[type="checkbox"]::before {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: rgba(140,160,200,0.6); transition: transform 0.2s, background 0.2s;
+  }
+  .check-row input[type="checkbox"]:checked {
+    background: rgba(60,120,255,0.5); border-color: rgba(80,140,255,0.6);
+  }
+  .check-row input[type="checkbox"]:checked::before {
+    transform: translateX(16px); background: #7aadff;
+  }
+
+  .modern-chk {
+    -webkit-appearance: none; appearance: none; cursor: pointer;
+    width: 16px; height: 16px; min-width: 16px; margin: 0;
+    background: rgba(30,40,80,0.6); border: 1.5px solid rgba(80,120,255,0.35);
+    border-radius: 4px; position: relative; transition: background 0.2s, border-color 0.2s;
+  }
+  .modern-chk:checked {
+    background: rgba(60,120,255,0.45); border-color: #7aadff;
+  }
+  .modern-chk:checked::after {
+    content: '✓'; position: absolute; top: -1px; left: 2px;
+    font-size: 13px; color: #fff; font-weight: 700;
+  }
+
+  .util-btn {
+    display: block; width: 100%; padding: 7px 10px; margin-bottom: 4px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(80,120,255,0.2);
+    border-radius: 5px; color: #bbc; font-size: 13px; cursor: pointer;
+    text-align: center; transition: all 0.2s;
+  }
+  .util-btn:hover { background: rgba(80,120,255,0.15); color: #ccd; }
+
+  .opt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .opt-grid button {
+    padding: 6px 4px; background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(80,120,255,0.18); border-radius: 5px;
+    color: #bbc; font-size: 12px; cursor: pointer; transition: all 0.2s; font-weight: 600;
+  }
+  .opt-grid button:hover { background: rgba(80,120,255,0.12); color: #bbc; }
+  .opt-grid button.active { background: rgba(80,120,255,0.25); border-color: rgba(100,160,255,0.6); color: #7aadff; }
+
+  .section-head {
+    width: 100%; background: none; border: none; padding: 12px 16px; margin: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; font-size: 12px; letter-spacing: 1.5px;
+    color: rgba(160,200,255,0.85); text-transform: uppercase; font-weight: 700;
+    transition: color 0.2s, background 0.15s;
+  }
+  .section-head:hover { color: #7aadff; background: rgba(80,120,255,0.05); }
+  .section-head .chev { font-size: 12px; transition: transform 0.25s; }
+  .section-body { padding: 6px 16px 12px; }
+  .sidebar-section.collapsed .section-body { display: none; }
+  .sidebar-section.collapsed .chev { transform: rotate(-90deg); }
+
+  .swatch-row { display: flex; gap: 4px; }
+  .swatch {
+    flex: 1; height: 18px; border-radius: 4px; padding: 0;
+    border: 1px solid rgba(255,255,255,0.18); cursor: pointer; transition: transform 0.15s;
+  }
+  .swatch:hover { transform: scale(1.1); }
+  .swatch.active { outline: 2px solid #7aadff; outline-offset: 1px; }
+
+  /* ── Overlays ── */
+  .ov-item { margin-bottom:6px; border:1px solid rgba(80,120,255,0.13); border-radius:7px; overflow:hidden; transition:border-color 0.2s; }
+  .ov-item.ov-on { border-color:rgba(80,180,255,0.35); }
+  .ov-hdr  { display:flex; align-items:center; gap:8px; padding:8px 10px; cursor:pointer; font-size:11px; color:#99b; width:100%; background:none; border:none; text-align:left; transition:color 0.15s,background 0.15s; letter-spacing:0.5px; }
+  .ov-hdr:hover { color:#ccd; background:rgba(80,120,255,0.06); }
+  .ov-item.ov-on .ov-hdr { color:#8dcfff; background:rgba(80,150,255,0.08); }
+  .ov-body { padding:8px 10px 10px; border-top:1px solid rgba(80,120,255,0.10); background:rgba(0,0,0,0.2); display:none; }
+  .ov-item.ov-on .ov-body { display:block; }
+  .ov-row-label { font-size:10px; letter-spacing:1.5px; color:rgba(140,180,255,0.7); text-transform:uppercase; margin:6px 0 4px; }
+  /* Toggle switch replaces checkbox */
+  .ov-toggle { position:relative; display:inline-block; width:34px; height:18px; flex-shrink:0; margin-left:auto; }
+  .ov-toggle input { opacity:0; width:0; height:0; position:absolute; }
+  .ov-slider { position:absolute; inset:0; background:rgba(60,60,100,0.5); border-radius:18px; border:1px solid rgba(80,120,255,0.25); transition:background 0.2s,border-color 0.2s; cursor:pointer; }
+  .ov-slider::before { content:''; position:absolute; width:12px; height:12px; left:2px; top:2px; background:#555; border-radius:50%; transition:transform 0.2s,background 0.2s; }
+  .ov-toggle input:checked + .ov-slider { background:rgba(40,120,255,0.5); border-color:rgba(80,180,255,0.6); }
+  .ov-toggle input:checked + .ov-slider::before { transform:translateX(16px); background:#7aedff; box-shadow:0 0 6px rgba(100,220,255,0.8); }
+  .ov-name { flex:1; }
+
+  #sidebar-footer { padding: 10px 16px; border-top: 1px solid rgba(80,120,255,0.1); font-size: 12px; color: #aac; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; background: rgba(10,10,20,0.97); z-index: 2; }
+  #fps-counter { color: #3b7; }
+
+  #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
+  #canvas-wrap canvas { display: block; }
+  #hint        { position: absolute; bottom: 14px; right: 14px; font-size: 12px; color: rgba(120,160,255,0.25); letter-spacing: 1px; pointer-events: none; max-width: 150px; text-align: right; }
+  @media (max-width: 768px) { #hint { font-size: 13px; bottom: 10px; right: 10px; } }
+  @media (max-width: 480px) { #hint { font-size: 13px; bottom: 8px; right: 8px; } }
+  #effect-label{
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    font-size: 14px; letter-spacing: 1px; color: #7aadff;
+    background: rgba(8,10,20,0.55); padding: 5px 14px; border-radius: 16px;
+    border: 1px solid rgba(80,120,255,0.2);
+    pointer-events: none; white-space: nowrap; z-index: 6;
+  }
+  #cube-label  { display: none; }
+
+  /* ── Sub-sections inside Controls ── */
+  .sub-section { margin-bottom: 4px; border: 1px solid rgba(80,120,255,0.08); border-radius: 5px; overflow: hidden; }
+  .sub-section:last-child { margin-bottom: 0; }
+  .sub-head {
+    width: 100%; background: rgba(80,120,255,0.04); border: none; padding: 7px 10px;
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; font-size: 11px; letter-spacing: 1.2px;
+    color: rgba(160,200,255,0.8); text-align: left; font-weight: 600;
+    text-transform: uppercase; transition: color 0.15s, background 0.15s;
+  }
+  .sub-head:hover { color: #7aadff; background: rgba(80,120,255,0.08); }
+  .sub-head .chev { font-size: 10px; transition: transform 0.2s; }
+  /* Styled like a regular .effect-btn (e.g. Near-Earth Objects) instead of
+     the small uppercase category-label look other sub-heads use. */
+  .sub-head.sub-head-boxed {
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(80,120,255,0.15);
+    border-radius: 5px; padding: 7px 10px; font-size: 13px; letter-spacing: normal;
+    text-transform: none; font-weight: 400; color: #bbc;
+  }
+  .sub-head.sub-head-boxed:hover { background: rgba(80,120,255,0.12); color: #bbc; }
+  /* Same arrow as a regular effect button: points right when collapsed,
+     rotates to point down when expanded — same 20px size too. */
+  .sub-head.sub-head-boxed .panel-arrow { font-size: 20px; transition: transform 0.2s; }
+  .sub-section:not(.collapsed) > .sub-head.sub-head-boxed .panel-arrow { transform: rotate(90deg); }
+  .sub-body { padding: 6px 8px 8px; }
+  .sub-section.collapsed .sub-body { display: none; }
+  .sub-section.collapsed .chev { transform: rotate(-90deg); }
+
+  .effect-panel {
+    display: none;
+    background: rgba(80,120,255,0.06);
+    border: 1px solid rgba(80,120,255,0.2);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 4px 0 6px 0;
+  }
+  .effect-panel.open { display: block; }
+  /* Always-visible shared controls block in the Art submenu — deliberately
+     NOT .effect-panel, since that class gets its 'open' toggled off whenever
+     any effect button is clicked (which would hide this along with it). */
+  .art-shared-panel {
+    display: block;
+    background: rgba(80,120,255,0.06);
+    border: 1px solid rgba(80,120,255,0.2);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 4px 0 6px 0;
+  }
+  .retro-game-btn {
+    background: rgba(60,100,200,0.15); border: 1px solid rgba(100,160,255,0.3);
+    color: #cde; border-radius: 5px; padding: 6px 4px; font-size: 11px;
+    cursor: pointer; text-align: center; transition: background 0.15s;
+  }
+  .retro-game-btn:hover { background: rgba(80,140,255,0.3); }
+  .retro-game-btn.active { background: rgba(80,200,120,0.3); border-color: rgba(80,200,120,0.6); color: #9fd; }
+  .effect-btn.has-panel { position: relative; }
+  .effect-btn.has-panel.open {
+    background: rgba(80,120,255,0.22);
+    border-color: rgba(100,160,255,0.6);
+    color: #9fd;
+  }
+  .effect-btn .panel-arrow { float: right; font-size: 20px; transition: transform 0.2s; }
+  .effect-btn.open .panel-arrow { transform: rotate(90deg); }
+
+
+  /* ── Loading overlay (shown until the 3D engine is ready) ── */
+  #loading-overlay {
+    position: fixed; inset: 0; z-index: 5000;
+    background: #000;
+    display: flex; align-items: center; justify-content: center;
+    color: #7aadff; font-family: 'Segoe UI', sans-serif;
+    font-size: 16px; letter-spacing: 2px; text-transform: uppercase;
+    transition: opacity 0.35s ease;
+  }
+  #loading-overlay .ld-inner {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+  #loading-overlay .ld-spinner {
+    width: 38px; height: 38px; border-radius: 50%;
+    border: 3px solid rgba(80,120,255,0.2);
+    border-top-color: #7aadff;
+    animation: ldSpin 0.9s linear infinite;
+  }
+  @keyframes ldSpin { to { transform: rotate(360deg); } }
+
+  /* ── Sidebar scroll indicator ── */
+  #sidebar { --scroll-fade: linear-gradient(to bottom, transparent 85%, rgba(10,10,20,0.97) 100%); }
+  #sidebar-fade {
+    position: sticky; bottom: 0; left: 0; width: 100%; height: 34px;
+    margin-top: -34px; pointer-events: none; flex-shrink: 0;
+    background: var(--scroll-fade);
+  }
+
+  /* ── Mobile menu close overlay ── */
+  #sidebar-overlay {
+    display: none; position: fixed; inset: 0; z-index: 9;
+    background: rgba(0,0,0,0.35);
+  }
+</style>
+
+
+  /* --- pi-native additions: 3D preview canvas host + not-ported greying --- */
+  #canvas-wrap { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+  .not-ported, .pi-unsupported input, .pi-unsupported button:not(.section-head):not(.sub-head),
+  button.not-ported, .effect-btn.not-ported {
+    opacity: 0.32 !important; pointer-events: none; filter: grayscale(60%);
+  }
+  .pi-unsupported-note {
+    font-size: 10px; color: #667; margin: 0 0 8px; line-height: 1.4; font-style: italic;
+  }
+
 </style>
 </head>
 <body>
-  <div id="sidebar">
-    <h1>Multidisplay</h1>
-    <div id="status" class="disconnected">connecting...</div>
-
-    <div class="sidebar-section">
-      <label>Effects</label>
-      <div id="effect-categories"></div>
+<div id="sidebar">
+  <button id="menu-toggle" title="Toggle Menu">☰</button>
+  <div id="sidebar-header" style="display:flex;align-items:center;gap:0;">
+    <div style="flex:1;">
+      <h1>LED Multidisplay</h1>
+      <p id="led-count-label">64<sup>3</sup> · 24,576 surface LEDs</p>
     </div>
+    <button id="sidebar-collapse-btn" title="Collapse menu">◀</button>
+  </div>
 
-    <div class="sidebar-section">
-      <label>Brightness / Speed</label>
-      <div class="slider-row">
-        <label>Brightness</label>
-        <input type="range" id="brightness" min="0" max="1.5" step="0.05" value="1">
-        <span id="brightness-val">1.0</span>
-      </div>
-      <div class="slider-row">
-        <label>Speed</label>
-        <input type="range" id="speed" min="0" max="8" step="0.1" value="1">
-        <span id="speed-val">1.0</span>
-      </div>
-    </div>
-
-    <div class="sidebar-section">
-      <label>Panel Layout</label>
-      <div class="row" id="panel-buttons"></div>
-    </div>
-
-    <div class="sidebar-section">
-      <label>Bluetooth</label>
-      <div class="row">
-        <button class="panel-btn" id="bt-scan">Scan</button>
-        <button class="panel-btn" id="bt-status">Paired</button>
-        <button class="panel-btn" id="bt-discoverable">Pair phone</button>
-        <button class="panel-btn" id="bt-route">Route audio</button>
-      </div>
-      <div id="bt-devices"></div>
-      <div id="bt-log">Bluetooth results appear here.</div>
+  <div id="sidebar-size-bar" style="padding:8px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;">
+    <div style="font-size:11px;color:#7af;margin-bottom:5px;text-transform:uppercase;letter-spacing:1px;">Cube Size</div>
+    <div class="size-row">
+      <button class="size-btn" data-size="8">8×8</button>
+      <button class="size-btn" data-size="16">16×16</button>
+      <button class="size-btn" data-size="64">64×64</button>
+      <button class="size-btn" data-size="64" data-mode="panel2d" id="panel2d-btn" style="font-size:10px;">Panel 2D</button>
     </div>
   </div>
 
-  <div id="viewport">
-    <div id="viewport-label">live preview</div>
+  <div id="fx-toggle-bar" style="padding:6px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;display:flex;gap:6px;">
+    <button id="clear-all-btn" style="flex:1;padding:9px 10px;background:rgba(255,60,60,0.1);border:1px solid rgba(255,60,60,0.25);color:#f77;border-radius:5px;cursor:pointer;font-size:13px;letter-spacing:1px;text-transform:uppercase;transition:all 0.2s;text-align:center;">✕ Clear All</button>
   </div>
+
+  <div id="standalone-mode-bar" style="padding:8px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;">
+    <label class="check-row" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>🔌 Standalone</span>
+      <span class="ov-toggle"><input type="checkbox" id="standalone-mode-chk"><span class="ov-slider"></span></span>
+    </label>
+    <div id="standalone-mode-note" style="display:none;font-size:11px;line-height:1.4;color:#9ab;margin-top:6px;">
+      Fully disconnects this browser from the physical cube — nothing you do here (effects, brightness, speed, overlays) reaches the ESP32 while this is on, so it keeps running whatever it's already showing, completely on its own. Every effect and overlay still works normally here for local preview. Untick to reconnect and resume control immediately.
+    </div>
+  </div>
+
+  <div id="sidebar-scroll">
+
+  <div class="sidebar-section collapsed">
+    <button class="section-head" style="color:rgba(180,220,255,0.95);">◈ Effects <span class="chev">▾</span></button>
+    <div class="section-body">
+
+    <div class="sub-section collapsed">
+    <button class="sub-head">Motion &amp; Particles <span class="chev">▾</span></button>
+    <div class="sub-body">
+    <button class="effect-btn active" data-effect="wave">◈ Wave Cascade</button>
+    <button class="effect-btn has-panel" data-effect="rain">◈ Colour Rain <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-rain">
+      <div class="ov-row-label">Style</div>
+      <div class="opt-grid">
+        <button class="rain-style-btn active" data-rainstyle="colour">Colour</button>
+        <button class="rain-style-btn" data-rainstyle="matrix">Matrix</button>
+      </div>
+    </div>
+    <button class="effect-btn" data-effect="plasma">◈ Plasma Storm</button>
+    <button class="effect-btn" data-effect="sphere">◈ Laser Grid</button>
+    <button class="effect-btn" data-effect="dna">◈ DNA Helix</button>
+    <button class="effect-btn" data-effect="nebula">◈ Nebula Drift</button>
+    <button class="effect-btn" data-effect="aurora">◈ Aurora Borealis</button>
+    <button class="effect-btn" data-effect="warp">◈ Warp Drive</button>
+    <button class="effect-btn" data-effect="lightning">◈ Lightning Storm</button>
+    <button class="effect-btn has-panel" data-effect="lightspeed">◈ Light Speed <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-lightspeed">
+      <div class="ov-row-label">Speed</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="ls-speed" min="1" max="20" step="0.5" value="8" style="flex:1;">
+        <span id="ls-speed-val" style="font-size:11px;color:#9cd;width:32px;">8</span>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Trail Length</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="ls-trail" min="4" max="120" step="2" value="32" style="flex:1;">
+        <span id="ls-trail-val" style="font-size:11px;color:#9cd;width:32px;">32</span>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Size (pixels)</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(4,1fr);">
+        <button class="strobe-mode-btn active" data-ls-size="1">1</button>
+        <button class="strobe-mode-btn" data-ls-size="2">2</button>
+        <button class="strobe-mode-btn" data-ls-size="3">3</button>
+        <button class="strobe-mode-btn" data-ls-size="4">4</button>
+        <button class="strobe-mode-btn" data-ls-size="6">6</button>
+        <button class="strobe-mode-btn" data-ls-size="8">8</button>
+        <button class="strobe-mode-btn" data-ls-size="12">12</button>
+        <button class="strobe-mode-btn" data-ls-size="16">16</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Nudge (degrees)</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(4,1fr);">
+        <button class="strobe-mode-btn active" data-ls-nudge="0">0°</button>
+        <button class="strobe-mode-btn" data-ls-nudge="1">1°</button>
+        <button class="strobe-mode-btn" data-ls-nudge="2">2°</button>
+        <button class="strobe-mode-btn" data-ls-nudge="5">5°</button>
+        <button class="strobe-mode-btn" data-ls-nudge="10">10°</button>
+        <button class="strobe-mode-btn" data-ls-nudge="20">20°</button>
+        <button class="strobe-mode-btn" data-ls-nudge="45">45°</button>
+        <button class="strobe-mode-btn" data-ls-nudge="90">90°</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Objects</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="ls-count" min="1" max="12" step="1" value="3" style="flex:1;">
+        <span id="ls-count-val" style="font-size:11px;color:#9cd;width:28px;">3</span>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Colour</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);">
+        <button class="strobe-mode-btn active" data-ls-col="multi">Multi</button>
+        <button class="strobe-mode-btn" data-ls-col="white">White</button>
+        <button class="strobe-mode-btn" data-ls-col="cyan">Cyan</button>
+        <button class="strobe-mode-btn" data-ls-col="red">Red</button>
+        <button class="strobe-mode-btn" data-ls-col="green">Green</button>
+        <button class="strobe-mode-btn" data-ls-col="gold">Gold</button>
+      </div>
+    </div>
+
+    </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head">Physics &amp; Simulation <span class="chev">▾</span></button>
+    <div class="sub-body">
+    <button class="effect-btn has-panel" data-effect="balls">◈ Bouncing Balls <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-balls">
+      <div class="ov-row-label">Mode</div>
+      <div class="opt-grid">
+        <button class="strobe-mode-btn active" data-ballmode="cross">Cross Faces</button>
+        <button class="strobe-mode-btn" data-ballmode="own">Own Face</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Balls per face</div>
+      <div class="slider-row">
+        <input type="range" id="ball-count" min="1" max="8" value="3" style="flex:1;">
+        <span class="slider-val" id="ball-count-val">3</span>
+      </div>
+    </div>
+    <button class="effect-btn" data-effect="sand">◈ Gravity Sand</button>
+    <button class="effect-btn" data-effect="life">◈ Crystal Life</button>
+    <button class="effect-btn" data-effect="fluid">◈ Liquid Crystal</button>
+    <button class="effect-btn has-panel" data-effect="fireworks">◈ Fireworks <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-fireworks">
+      <div class="ov-row-label">Mode</div>
+      <div class="opt-grid" style="margin-bottom:8px;">
+        <button class="strobe-mode-btn active" data-fwmode="random">Random</button>
+        <button class="strobe-mode-btn" data-fwmode="sync">Sync Show</button>
+        <button class="strobe-mode-btn" data-fwmode="mic">🎤 Mic</button>
+      </div>
+      <label class="check-row"><input type="checkbox" id="fw-text-on"> Show text on cube</label>
+      <input type="text" id="fw-text-input" placeholder="Enter message…" maxlength="80"
+        style="width:100%;margin-top:6px;padding:5px 8px;background:#111;border:1px solid #444;color:#eee;border-radius:4px;font-size:12px;">
+    </div>
+    <button class="effect-btn has-panel" data-effect="strobe">◈ Strobe Flash <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-strobe">
+      <div class="ov-row-label">Pattern</div>
+      <div id="strobe-mode" class="opt-grid" style="grid-template-columns:repeat(4,1fr);">
+        <button class="strobe-mode-btn active" data-strobe="all">Full</button>
+        <button class="strobe-mode-btn" data-strobe="checker">Alt</button>
+        <button class="strobe-mode-btn" data-strobe="faces">Faces</button>
+        <button class="strobe-mode-btn" data-strobe="rings">Rings</button>
+        <button class="strobe-mode-btn" data-strobe="diagonal">Diag</button>
+        <button class="strobe-mode-btn" data-strobe="scanline">Scan</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Speed (Hz)</div>
+      <div class="slider-row">
+        <input type="range" id="strobe-speed" min="1" max="30" step="1" value="8" style="flex:1;">
+        <span class="slider-val" id="strobe-speed-val">8/s</span>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Colour</div>
+      <div id="strobe-color" class="opt-grid" style="grid-template-columns:repeat(3,1fr);">
+        <button class="strobe-mode-btn active" data-scol="white">White</button>
+        <button class="strobe-mode-btn" data-scol="red">Red</button>
+        <button class="strobe-mode-btn" data-scol="green">Green</button>
+        <button class="strobe-mode-btn" data-scol="blue">Blue</button>
+        <button class="strobe-mode-btn" data-scol="cyan">Cyan</button>
+        <button class="strobe-mode-btn" data-scol="multi">Multi</button>
+      </div>
+    </div>
+
+    </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head">Colour &amp; Gradients <span class="chev">▾</span></button>
+    <div class="sub-body">
+    <button class="effect-btn" data-effect="gradient_wash">◈ Rainbow Wash</button>
+    <button class="effect-btn" data-effect="depth_rings">◈ Depth Rings</button>
+    <button class="effect-btn" data-effect="prism">◈ Prism Sweep</button>
+    <button class="effect-btn" data-effect="tide">◈ Color Tide</button>
+
+    </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head">Live Data <span class="chev">▾</span></button>
+    <div class="sub-body">
+    <button class="effect-btn has-panel" data-effect="weather">◈ Weather <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-weather">
+      <div style="display:flex;gap:5px;margin-bottom:8px;">
+        <div style="flex:1;position:relative;">
+          <input id="wx-city" type="text" placeholder="Search cities…" value="Milton Keynes"
+            style="width:100%;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:14px;border-radius:4px;box-sizing:border-box;">
+          <div id="wx-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:150px;overflow-y:auto;z-index:1000;margin-top:2px;">
+          </div>
+        </div>
+        <button id="wx-fetch-btn" style="padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;">GO</button>
+      </div>
+      <div id="wx-status" style="font-size:13px;color:#778;min-height:16px;">Enter city and press GO</div>
+      <div id="wx-info" style="margin-top:6px;display:none;">
+        <div id="wx-temp-line" style="font-size:15px;color:#cde;font-weight:700;"></div>
+        <div id="wx-desc-line" style="font-size:13px;color:#99a;margin-top:2px;"></div>
+        <div id="wx-sun-line" style="font-size:15px;color:#99b;margin-top:6px;font-weight:600;letter-spacing:0.3px;"></div>
+        <div id="wx-moon-line" style="font-size:14px;color:#889;margin-top:3px;font-weight:600;letter-spacing:0.3px;"></div>
+      </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="moon">◈ Celestial <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-moon">
+      <div style="display:flex;gap:5px;margin-bottom:8px;">
+        <div style="flex:1;position:relative;">
+          <input id="moon-city" type="text" placeholder="Search cities…" value="Milton Keynes"
+            style="width:100%;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:14px;border-radius:4px;box-sizing:border-box;">
+          <div id="moon-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:150px;overflow-y:auto;z-index:1000;margin-top:2px;">
+          </div>
+        </div>
+        <button id="moon-fetch-btn" style="padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;">GO</button>
+      </div>
+      <div id="moon-status" style="font-size:13px;color:#778;min-height:16px;">Enter city and press GO</div>
+      <div id="moon-info" style="margin-top:6px;display:none;">
+        <div id="moon-phase-line" style="font-size:15px;color:#cde;font-weight:700;"></div>
+        <div id="moon-rise-line" style="font-size:14px;color:#99b;margin-top:3px;font-weight:600;"></div>
+      </div>
+      <div style="margin-top:8px;">
+        <div style="font-size:13px;color:#778;margin-bottom:4px;">Celestial Body</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;">
+          <label class="check-row"><input type="radio" name="celestial-body" value="moon" checked> Moon</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="mercury"> Mercury</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="venus"> Venus</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="earth"> Earth</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="mars"> Mars</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="jupiter"> Jupiter</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="saturn"> Saturn</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="uranus"> Uranus</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="neptune"> Neptune</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="pluto"> Pluto</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="sun"> Sun</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="blackhole"> Black Hole</label>
+          <label class="check-row"><input type="radio" name="celestial-body" value="solarsystem"> Solar System</label>
+        </div>
+        <div id="solar-speed-row" style="display:none;margin-top:8px;">
+          <label style="font-size:11px;color:#aaa;">Orbit Speed: <span id="solar-speed-label">1x</span></label>
+          <input type="range" id="solar-speed" min="0" max="7" step="0.01" value="0" style="width:100%;margin-top:2px;">
+        </div>
+        <script>
+        document.querySelectorAll('input[name="celestial-body"]').forEach(r=>r.addEventListener('change',()=>{
+          document.getElementById('solar-speed-row').style.display=r.value==='solarsystem'?'':'none';
+        }));
+        document.getElementById('solar-speed').addEventListener('input',function(){
+          const v=parseFloat(this.value);
+          const mult=Math.pow(10,v);
+          document.getElementById('solar-speed-label').textContent=mult<10?mult.toFixed(1)+'x':Math.round(mult)+'x';
+        });
+        </script>
+      </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="datetime">◈ Time &amp; Date <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-datetime">
+      <label class="check-row" style="margin-bottom:6px;"><input type="checkbox" id="dt-allpanels-check">ALL PANELS</label>
+      <label class="check-row"><input type="checkbox" id="dt-scroll-check">SCROLL</label>
+      <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
+      <div class="slider-row">
+        <input type="range" id="dt-scroll-speed" min="-5" max="5" step="0.5" value="1" style="flex:1;">
+        <span class="slider-val" id="dt-scroll-speed-val">1</span>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Mode</div>
+      <div class="opt-grid">
+        <button class="strobe-mode-btn active" data-dtmode="time">Time</button>
+        <button class="strobe-mode-btn" data-dtmode="date">Date</button>
+        <button class="strobe-mode-btn" data-dtmode="both">Both</button>
+        <button class="strobe-mode-btn" data-dtmode="full">Full</button>
+        <button class="strobe-mode-btn" data-dtmode="analogue">Analogue</button>
+        <button class="strobe-mode-btn" data-dtmode="words">Words</button>
+      </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="neo">◈ Near-Earth Objects <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-neo">
+      <div id="neo-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Not fetched yet</div>
+      <button id="neo-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh Tracking Data</button>
+      <div id="neo-info" style="display:none;font-size:11px;color:#ccc;line-height:1.5;">
+        <div id="neo-closest-line">Closest: —</div>
+        <div id="neo-risk-line">Risk level: —</div>
+      </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head sub-head-boxed">◈ Art <span class="panel-arrow">▸</span></button>
+    <div class="sub-body">
+    <div class="art-shared-panel" style="margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Shared Controls</div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;cursor:pointer;margin-bottom:6px;">
+        <input type="checkbox" id="art-slideshow-chk" checked style="cursor:pointer;">
+        Slideshow (auto-advance)
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;cursor:pointer;margin-bottom:6px;">
+        <input type="checkbox" id="art-letterbox-chk" checked style="cursor:pointer;">
+        Full image (letterbox — preserve ratio)
+      </label>
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;margin-bottom:8px;">
+        Speed: <input type="range" id="art-speed" min="3" max="30" value="8" style="flex:1;"> <span id="art-speed-label">8s</span>
+      </div>
+      <div style="display:flex;gap:4px;">
+        <button id="art-prev-btn" style="flex:1;padding:5px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:3px;cursor:pointer;font-size:11px;font-weight:700;">&#9664; Prev</button>
+        <button id="art-next-btn" style="flex:1;padding:5px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:3px;cursor:pointer;font-size:11px;font-weight:700;">Next &#9654;</button>
+      </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="apod">◈ Astronomy Pic of the Day <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-apod">
+      <div id="apod-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Not fetched yet</div>
+      <button id="apod-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh</button>
+      <div id="apod-slideshow-info" style="font-size:10px;color:#666;margin-bottom:6px;"></div>
+      <div id="apod-info" style="display:none;font-size:11px;color:#ccc;line-height:1.5;">
+        <div id="apod-title-line">Title: —</div>
+        <div id="apod-date-line">Date: —</div>
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:#777;">
+        NASA API key (<a href="https://api.nasa.gov/" target="_blank" style="color:#5a9eff;">get free key</a>):
+        <div style="display:flex;gap:4px;margin-top:3px;">
+          <input id="nasa-api-key-input" type="text" placeholder="DEMO_KEY" style="flex:1;padding:3px 6px;background:#1a1a2e;border:1px solid #444;color:#ccc;border-radius:3px;font-size:10px;font-family:monospace;">
+          <button id="nasa-api-key-save" style="padding:3px 8px;background:rgba(80,120,255,0.2);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:3px;cursor:pointer;font-size:10px;">Save</button>
+        </div>
+      </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="unsplash">◈ Unsplash Photos <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-unsplash">
+      <div id="unsplash-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Enter API key below to start</div>
+      <div style="display:flex;gap:4px;margin-bottom:8px;">
+        <input id="unsplash-query" type="text" value="nature" placeholder="search topic…" style="flex:1;padding:5px 7px;background:#1a1a2e;border:1px solid #444;color:#ccc;border-radius:3px;font-size:12px;">
+        <button id="unsplash-fetch-btn" style="padding:5px 10px;background:rgba(20,180,100,0.15);border:1px solid rgba(20,180,100,0.4);color:#3ddc84;border-radius:3px;cursor:pointer;font-size:12px;font-weight:700;">Search</button>
+      </div>
+      <div id="unsplash-info" style="display:none;">
+        <div id="unsplash-photo-info" style="font-size:10px;color:#666;margin-bottom:6px;"></div>
+      </div>
+      <div style="margin-top:4px;font-size:10px;color:#777;">
+        Unsplash Access Key (<a href="https://unsplash.com/developers" target="_blank" style="color:#3ddc84;">get free key</a>):
+        <div style="display:flex;gap:4px;margin-top:3px;">
+          <input id="unsplash-api-key-input" type="text" placeholder="paste Access Key…" style="flex:1;padding:3px 6px;background:#1a1a2e;border:1px solid #444;color:#ccc;border-radius:3px;font-size:10px;font-family:monospace;">
+          <button id="unsplash-api-key-save" style="padding:3px 8px;background:rgba(20,180,100,0.2);border:1px solid rgba(20,180,100,0.4);color:#3ddc84;border-radius:3px;cursor:pointer;font-size:10px;">Save</button>
+        </div>
+      </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="artic">◈ Art Gallery <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-artic">
+      <div id="artic-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Loading random artworks…</div>
+      <div style="display:flex;gap:4px;margin-bottom:8px;">
+        <input id="artic-query" type="text" placeholder="search artist/title (optional)…" style="flex:1;padding:5px 7px;background:#1a1a2e;border:1px solid #444;color:#ccc;border-radius:3px;font-size:12px;">
+        <button id="artic-fetch-btn" style="padding:5px 10px;background:rgba(220,180,60,0.15);border:1px solid rgba(220,180,60,0.4);color:#e8c250;border-radius:3px;cursor:pointer;font-size:12px;font-weight:700;">Search</button>
+      </div>
+      <div id="artic-info" style="display:none;">
+        <div id="artic-work-info" style="font-size:10px;color:#666;margin-bottom:6px;"></div>
+      </div>
+      <div style="font-size:10px;color:#666;">Free public-domain collection (Met Museum) — no API key needed.</div>
+    </div>
+    </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head sub-head-boxed">◈ Trivia &amp; Facts <span class="panel-arrow">▸</span></button>
+    <div class="sub-body">
+    <div class="art-shared-panel" style="margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:700;color:#e8c250;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Shared Controls (Jokes &amp; Trivia)</div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;cursor:pointer;margin-bottom:6px;">
+        <input type="checkbox" id="tf-auto-chk" checked style="cursor:pointer;">
+        Auto-advance
+      </label>
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa;">
+        Next after: <input type="range" id="tf-speed" min="3" max="30" value="5" style="flex:1;"> <span id="tf-speed-label">5s</span>
+      </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="joke">◈ Jokes <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-joke">
+      <div id="joke-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Fetching a joke…</div>
+      <button id="joke-fetch-btn" style="width:100%;padding:6px 12px;background:rgba(220,180,60,0.15);border:1px solid rgba(220,180,60,0.4);color:#e8c250;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">New Joke</button>
+    </div>
+    <button class="effect-btn has-panel" data-effect="otd">◈ On This Day <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-otd">
+      <div id="otd-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Fetching today in history…</div>
+      <button id="otd-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,160,220,0.15);border:1px solid rgba(80,160,220,0.4);color:#7ad0ff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh</button>
+      <div id="otd-info" style="display:none;font-size:11px;color:#ccc;">
+        <div id="otd-count-line">— events</div>
+      </div>
+      <div style="font-size:10px;color:#666;margin-top:6px;">Wikipedia "On this day" feed — free, no API key needed.</div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="trivia">◈ Trivia <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-trivia">
+      <div id="trivia-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Fetching a question…</div>
+      <button id="trivia-fetch-btn" style="width:100%;padding:6px 12px;background:rgba(220,180,60,0.15);border:1px solid rgba(220,180,60,0.4);color:#e8c250;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">New Question</button>
+      <div style="font-size:10px;color:#666;margin-top:6px;">Open Trivia DB — free, no API key needed.</div>
+    </div>
+    </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="epic">◈ Earth Live View <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-epic">
+      <div id="epic-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Not fetched yet</div>
+      <button id="epic-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh Earth Image</button>
+      <div id="epic-info" style="display:none;font-size:11px;color:#ccc;line-height:1.5;">
+        <div id="epic-date-line">Captured: —</div>
+        <div id="epic-coord-line"></div>
+      </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="iss">◈ ISS Tracker <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-iss">
+      <div id="iss-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Not fetched yet</div>
+      <button id="iss-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh Position</button>
+      <div id="iss-info" style="display:none;font-size:11px;color:#ccc;line-height:1.5;">
+        <div id="iss-coord-line">Lat — Lon —</div>
+        <div id="iss-time-line">Last fix: —</div>
+        <div id="iss-country-line">Currently over: —</div>
+      </div>
+    </div>
+
+    <button class="effect-btn has-panel" data-effect="cam">◈ Camera <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-cam">
+      <label class="ov-label" style="display:block;margin-bottom:8px">Snapshot URL
+        <input id="cam-url" type="text" style="width:100%;margin-top:4px;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:5px 7px;font-size:11px;box-sizing:border-box" placeholder="http://multidisplay.local/api/cam/snap">
+      </label>
+      <div style="font-size:10px;color:#666;margin-bottom:8px">
+        Direct: http://CAM-IP/cgi-bin/api.cgi?cmd=Snap&amp;channel=0&amp;user=USER&amp;password=PASS<br>
+        Via ESP32: http://multidisplay.local/api/cam/snap
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span class="ov-label" style="flex:0 0 auto">FPS</span>
+        <input id="cam-rate" type="range" min="1" max="15" value="5" style="flex:1">
+        <span id="cam-rate-val" style="font-size:11px;color:#aaa;min-width:20px;text-align:right">5</span>
+      </div>
+      <div id="cam-status" style="font-size:10px;color:#777;margin-top:4px">Idle</div>
+    </div>
+
+    </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head">Audio &amp; Media <span class="chev">▾</span></button>
+    <div class="sub-body">
+    <button class="effect-btn has-panel" data-effect="radio">◈ Internet Radio <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-radio">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+        <button class="radio-stop-btn-el" style="flex:0 0 auto;padding:6px 12px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.25);color:#f88;border-radius:4px;cursor:pointer;font-size:11px;">■ Stop</button>
+        <span class="ov-label" style="flex:0 0 auto;">Vol</span>
+        <input class="radio-vol-el" type="range" min="0" max="1" step="0.05" value="0.8" style="flex:1;">
+      </div>
+      <div class="radio-status-el" style="font-size:10px;color:#778;text-align:center;margin-bottom:10px;">Pick a station</div>
+
+      <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Directory search (thousands of stations)</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <input class="radio-search-input-el" type="text" placeholder="Search by name, genre, city…" style="flex:1;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:6px 8px;font-size:11px;box-sizing:border-box;">
+        <button class="radio-search-btn-el" style="flex:0 0 auto;padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Search</button>
+      </div>
+      <button class="radio-browse-top-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.1);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Browse Top 60 Worldwide</button>
+      <div class="radio-search-status-el" style="font-size:10px;color:#778;margin-bottom:6px;"></div>
+      <div class="radio-search-results-el" style="max-height:260px;overflow-y:auto;margin-bottom:10px;"></div>
+
+      <div style="font-size:11px;font-weight:700;color:#e8c250;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Featured</div>
+      <div class="radio-station-list-el" style="margin-bottom:8px;"></div>
+
+      <div style="font-size:10px;color:#666;margin-top:4px;">Directory: <a href="https://www.radio-browser.info" target="_blank" rel="noopener" style="color:#7ad">radio-browser.info</a> — free, community-run, no API key needed. Visual style/colour theme reuse the Spectrum Analyser controls above. Bluetooth speaker output is configured under the "Setup" section near the bottom of the sidebar.</div>
+
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="ov-chk" data-ov="spectrum">Spectrum Analyser</label>
+        <div class="ov-options-el" data-ov="spectrum" style="display:none;">
+        <div class="ov-row-label">Bands</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="spectrum-bands-btn" data-bands="8">8</button>
+          <button class="spectrum-bands-btn" data-bands="16">16</button>
+          <button class="spectrum-bands-btn" data-bands="32">32</button>
+          <button class="spectrum-bands-btn active" data-bands="64">64</button>
+          <button class="spectrum-bands-btn" data-bands="128">128</button>
+          <button class="spectrum-bands-btn" data-bands="256">256</button>
+        </div>
+        <div class="ov-row-label">Style</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="au-style-btn active" data-austyle="bars">Bars</button>
+          <button class="au-style-btn" data-austyle="mirror">Mirror</button>
+          <button class="au-style-btn" data-austyle="dots">Dots</button>
+          <button class="au-style-btn" data-austyle="blocks">Blocks</button>
+          <button class="au-style-btn" data-austyle="outline">Outline</button>
+          <button class="au-style-btn" data-austyle="radial">Radial</button>
+          <button class="au-style-btn" data-austyle="vu">VU</button>
+          <button class="au-style-btn" data-austyle="waterfall">Waterfall</button>
+          <button class="au-style-btn" data-austyle="waveform">Waveform</button>
+          <button class="au-style-btn" data-austyle="tunnel">Tunnel</button>
+          <button class="au-style-btn" data-austyle="storm">Storm</button>
+          <button class="au-style-btn" data-austyle="plasma">Plasma</button>
+          <button class="au-style-btn" data-austyle="rings">Rings</button>
+          <button class="au-style-btn" data-austyle="fire">Fire</button>
+        </div>
+        <div class="ov-row-label">Colour Theme</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="au-theme-btn" data-autheme="0">Rainbow</button>
+          <button class="au-theme-btn" data-autheme="1">Fire</button>
+          <button class="au-theme-btn" data-autheme="2">Ocean</button>
+          <button class="au-theme-btn" data-autheme="3">Neon</button>
+          <button class="au-theme-btn" data-autheme="4">Matrix</button>
+          <button class="au-theme-btn" data-autheme="5">Pastel</button>
+          <button class="au-theme-btn active" data-autheme="6">VU Meter</button>
+        </div>
+        <div class="ov-row-label">Bar Mode</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="au-barmode-btn active" data-barmode="solid">Solid</button>
+          <button class="au-barmode-btn" data-barmode="striped">Striped</button>
+          <button class="au-barmode-btn" data-barmode="center">Center</button>
+          <button class="au-barmode-btn" data-barmode="falling">Falling</button>
+          <button class="au-barmode-btn" data-barmode="stacked">Stacked</button>
+          <button class="au-barmode-btn" data-barmode="wave">Wave</button>
+        </div>
+        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
+        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="au-autogain-el">AUTO GAIN</label>
+        <div class="ov-row-label">Gain</div>
+        <div class="slider-row">
+          <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
+          <span class="slider-val au-gain-val-el">1.0×</span>
+        </div>
+        <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
+        <div class="slider-row">
+          <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
+          <span class="slider-val au-scroll-speed-val-el">0</span>
+        </div>
+        </div>
+      </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="video">◈ Video Display <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-video">
+      <div style="font-size:11px;color:#99a;line-height:1.5;margin-bottom:8px;">Maps video/image to the 4 side panels. YouTube: open in another tab then use Screen Capture.</div>
+      <div id="vid-status" style="font-size:10px;color:#778;margin-bottom:6px;text-align:center;">No source loaded</div>
+      <div style="display:flex;gap:5px;margin-bottom:8px;">
+        <button id="vid-file-btn" style="flex:1;padding:5px 3px;font-size:10px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;">📁 Video</button>
+        <button id="img-file-btn" style="flex:1;padding:5px 3px;font-size:10px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;">🖼 Image</button>
+        <button id="vid-screen-btn" style="flex:1;padding:5px 3px;font-size:10px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;">🖥 Screen</button>
+        <button id="vid-cam-btn" style="flex:1;padding:5px 3px;font-size:10px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;">📷 Cam</button>
+        <button id="vid-stop-btn" style="flex:1;padding:5px 3px;font-size:10px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.25);color:#f88;border-radius:4px;cursor:pointer;">■ Stop</button>
+      </div>
+      <input type="file" id="vid-file-input" accept="video/*" style="display:none;">
+      <input type="file" id="img-file-input" accept="image/*" style="display:none;">
+      <div class="ov-row-label">Brightness</div>
+      <div class="slider-row"><input type="range" id="vid-bright" min="0.1" max="2" step="0.05" value="1" style="flex:1;"><span class="slider-val" id="vid-bright-val">1×</span></div>
+      <div class="ov-row-label" style="margin-top:6px;">Saturation</div>
+      <div class="slider-row"><input type="range" id="vid-sat" min="0" max="3" step="0.1" value="1" style="flex:1;"><span class="slider-val" id="vid-sat-val">1×</span></div>
+      <div class="ov-row-label" style="margin-top:6px;">Scroll Speed</div>
+      <div class="slider-row"><input type="range" id="vid-scroll" min="-5" max="5" step="0.5" value="0" style="flex:1;"><span class="slider-val" id="vid-scroll-val">0</span></div>
+      <div class="ov-row-label" style="margin-top:6px;">Mode</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(2,1fr);">
+        <button class="vid-layout-btn active" data-layout="panorama">Panorama</button>
+        <button class="vid-layout-btn" data-layout="mirror">Mirror</button>
+        <button class="vid-layout-btn" data-layout="tile">Tile</button>
+        <button class="vid-layout-btn" data-layout="perspective">Perspective</button>
+      </div>
+
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="ov-chk" data-ov="spectrum">Spectrum Analyser</label>
+        <div class="ov-options-el" data-ov="spectrum" style="display:none;">
+        <div class="ov-row-label">Bands</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="spectrum-bands-btn" data-bands="8">8</button>
+          <button class="spectrum-bands-btn" data-bands="16">16</button>
+          <button class="spectrum-bands-btn" data-bands="32">32</button>
+          <button class="spectrum-bands-btn active" data-bands="64">64</button>
+          <button class="spectrum-bands-btn" data-bands="128">128</button>
+          <button class="spectrum-bands-btn" data-bands="256">256</button>
+        </div>
+        <div class="ov-row-label">Style</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="au-style-btn active" data-austyle="bars">Bars</button>
+          <button class="au-style-btn" data-austyle="mirror">Mirror</button>
+          <button class="au-style-btn" data-austyle="dots">Dots</button>
+          <button class="au-style-btn" data-austyle="blocks">Blocks</button>
+          <button class="au-style-btn" data-austyle="outline">Outline</button>
+          <button class="au-style-btn" data-austyle="radial">Radial</button>
+          <button class="au-style-btn" data-austyle="vu">VU</button>
+          <button class="au-style-btn" data-austyle="waterfall">Waterfall</button>
+          <button class="au-style-btn" data-austyle="waveform">Waveform</button>
+          <button class="au-style-btn" data-austyle="tunnel">Tunnel</button>
+          <button class="au-style-btn" data-austyle="storm">Storm</button>
+          <button class="au-style-btn" data-austyle="plasma">Plasma</button>
+          <button class="au-style-btn" data-austyle="rings">Rings</button>
+          <button class="au-style-btn" data-austyle="fire">Fire</button>
+        </div>
+        <div class="ov-row-label">Colour Theme</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="au-theme-btn" data-autheme="0">Rainbow</button>
+          <button class="au-theme-btn" data-autheme="1">Fire</button>
+          <button class="au-theme-btn" data-autheme="2">Ocean</button>
+          <button class="au-theme-btn" data-autheme="3">Neon</button>
+          <button class="au-theme-btn" data-autheme="4">Matrix</button>
+          <button class="au-theme-btn" data-autheme="5">Pastel</button>
+          <button class="au-theme-btn active" data-autheme="6">VU Meter</button>
+        </div>
+        <div class="ov-row-label">Bar Mode</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="au-barmode-btn active" data-barmode="solid">Solid</button>
+          <button class="au-barmode-btn" data-barmode="striped">Striped</button>
+          <button class="au-barmode-btn" data-barmode="center">Center</button>
+          <button class="au-barmode-btn" data-barmode="falling">Falling</button>
+          <button class="au-barmode-btn" data-barmode="stacked">Stacked</button>
+          <button class="au-barmode-btn" data-barmode="wave">Wave</button>
+        </div>
+        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
+        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="au-autogain-el">AUTO GAIN</label>
+        <div class="ov-row-label">Gain</div>
+        <div class="slider-row">
+          <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
+          <span class="slider-val au-gain-val-el">1.0×</span>
+        </div>
+        <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
+        <div class="slider-row">
+          <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
+          <span class="slider-val au-scroll-speed-val-el">0</span>
+        </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="sub-section collapsed">
+      <button class="sub-head sub-head-boxed">◈ Bluetooth <span class="panel-arrow">▸</span></button>
+      <div class="sub-body">
+        <div style="font-size:10px;color:#666;margin-bottom:8px;">Accept an incoming Bluetooth audio connection from a phone so it can play through the cube. Requires <code>pi/bluetooth_server.py</code> running on the Raspberry Pi — see <code>pi/README.md</code>. Not available on your laptop or GitHub Pages.</div>
+        <button class="bt-discoverable-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Accept Bluetooth Audio Connection</button>
+        <div class="bt-phone-status-el" style="font-size:10px;color:#778;">Not set up yet</div>
+
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="ov-chk" data-ov="spectrum">Spectrum Analyser</label>
+          <div class="ov-options-el" data-ov="spectrum" style="display:none;">
+          <div class="ov-row-label">Bands</div>
+          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+            <button class="spectrum-bands-btn" data-bands="8">8</button>
+            <button class="spectrum-bands-btn" data-bands="16">16</button>
+            <button class="spectrum-bands-btn" data-bands="32">32</button>
+            <button class="spectrum-bands-btn active" data-bands="64">64</button>
+            <button class="spectrum-bands-btn" data-bands="128">128</button>
+            <button class="spectrum-bands-btn" data-bands="256">256</button>
+          </div>
+          <div class="ov-row-label">Style</div>
+          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+            <button class="au-style-btn active" data-austyle="bars">Bars</button>
+            <button class="au-style-btn" data-austyle="mirror">Mirror</button>
+            <button class="au-style-btn" data-austyle="dots">Dots</button>
+            <button class="au-style-btn" data-austyle="blocks">Blocks</button>
+            <button class="au-style-btn" data-austyle="outline">Outline</button>
+            <button class="au-style-btn" data-austyle="radial">Radial</button>
+            <button class="au-style-btn" data-austyle="vu">VU</button>
+            <button class="au-style-btn" data-austyle="waterfall">Waterfall</button>
+            <button class="au-style-btn" data-austyle="waveform">Waveform</button>
+            <button class="au-style-btn" data-austyle="tunnel">Tunnel</button>
+            <button class="au-style-btn" data-austyle="storm">Storm</button>
+            <button class="au-style-btn" data-austyle="plasma">Plasma</button>
+            <button class="au-style-btn" data-austyle="rings">Rings</button>
+            <button class="au-style-btn" data-austyle="fire">Fire</button>
+          </div>
+          <div class="ov-row-label">Colour Theme</div>
+          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+            <button class="au-theme-btn" data-autheme="0">Rainbow</button>
+            <button class="au-theme-btn" data-autheme="1">Fire</button>
+            <button class="au-theme-btn" data-autheme="2">Ocean</button>
+            <button class="au-theme-btn" data-autheme="3">Neon</button>
+            <button class="au-theme-btn" data-autheme="4">Matrix</button>
+            <button class="au-theme-btn" data-autheme="5">Pastel</button>
+            <button class="au-theme-btn active" data-autheme="6">VU Meter</button>
+          </div>
+          <div class="ov-row-label">Bar Mode</div>
+          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+            <button class="au-barmode-btn active" data-barmode="solid">Solid</button>
+            <button class="au-barmode-btn" data-barmode="striped">Striped</button>
+            <button class="au-barmode-btn" data-barmode="center">Center</button>
+            <button class="au-barmode-btn" data-barmode="falling">Falling</button>
+            <button class="au-barmode-btn" data-barmode="stacked">Stacked</button>
+            <button class="au-barmode-btn" data-barmode="wave">Wave</button>
+          </div>
+          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
+          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="au-autogain-el">AUTO GAIN</label>
+          <div class="ov-row-label">Gain</div>
+          <div class="slider-row">
+            <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
+            <span class="slider-val au-gain-val-el">1.0×</span>
+          </div>
+          <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
+          <div class="slider-row">
+            <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
+            <span class="slider-val au-scroll-speed-val-el">0</span>
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub-section collapsed">
+      <button class="sub-head sub-head-boxed">◈ Microphone <span class="panel-arrow">▸</span></button>
+      <div class="sub-body">
+        <div style="font-size:10px;color:#666;margin-bottom:8px;">Pick which microphone feeds the Spectrum Analyser overlay — the cube's own mic, or a phone's mic over Bluetooth (same connection as the Bluetooth section above). Only one can be active at a time.</div>
+        <button class="mic-btn-el" style="width:100%;padding:6px;margin-bottom:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">🎤 START MIC</button>
+        <div class="mic-status-el" style="font-size:10px;color:#778;margin-bottom:6px;text-align:center;"></div>
+        <button class="phone-audio-btn-el" style="width:100%;padding:6px;margin-bottom:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">📱 Use Phone (Bluetooth)</button>
+        <div class="phone-audio-status-el" style="font-size:10px;color:#778;text-align:center;"></div>
+
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="ov-chk" data-ov="spectrum">Spectrum Analyser</label>
+          <div class="ov-options-el" data-ov="spectrum" style="display:none;">
+          <div class="ov-row-label">Bands</div>
+          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+            <button class="spectrum-bands-btn" data-bands="8">8</button>
+            <button class="spectrum-bands-btn" data-bands="16">16</button>
+            <button class="spectrum-bands-btn" data-bands="32">32</button>
+            <button class="spectrum-bands-btn active" data-bands="64">64</button>
+            <button class="spectrum-bands-btn" data-bands="128">128</button>
+            <button class="spectrum-bands-btn" data-bands="256">256</button>
+          </div>
+          <div class="ov-row-label">Style</div>
+          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+            <button class="au-style-btn active" data-austyle="bars">Bars</button>
+            <button class="au-style-btn" data-austyle="mirror">Mirror</button>
+            <button class="au-style-btn" data-austyle="dots">Dots</button>
+            <button class="au-style-btn" data-austyle="blocks">Blocks</button>
+            <button class="au-style-btn" data-austyle="outline">Outline</button>
+            <button class="au-style-btn" data-austyle="radial">Radial</button>
+            <button class="au-style-btn" data-austyle="vu">VU</button>
+            <button class="au-style-btn" data-austyle="waterfall">Waterfall</button>
+            <button class="au-style-btn" data-austyle="waveform">Waveform</button>
+            <button class="au-style-btn" data-austyle="tunnel">Tunnel</button>
+            <button class="au-style-btn" data-austyle="storm">Storm</button>
+            <button class="au-style-btn" data-austyle="plasma">Plasma</button>
+            <button class="au-style-btn" data-austyle="rings">Rings</button>
+            <button class="au-style-btn" data-austyle="fire">Fire</button>
+          </div>
+          <div class="ov-row-label">Colour Theme</div>
+          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+            <button class="au-theme-btn" data-autheme="0">Rainbow</button>
+            <button class="au-theme-btn" data-autheme="1">Fire</button>
+            <button class="au-theme-btn" data-autheme="2">Ocean</button>
+            <button class="au-theme-btn" data-autheme="3">Neon</button>
+            <button class="au-theme-btn" data-autheme="4">Matrix</button>
+            <button class="au-theme-btn" data-autheme="5">Pastel</button>
+            <button class="au-theme-btn active" data-autheme="6">VU Meter</button>
+          </div>
+          <div class="ov-row-label">Bar Mode</div>
+          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+            <button class="au-barmode-btn active" data-barmode="solid">Solid</button>
+            <button class="au-barmode-btn" data-barmode="striped">Striped</button>
+            <button class="au-barmode-btn" data-barmode="center">Center</button>
+            <button class="au-barmode-btn" data-barmode="falling">Falling</button>
+            <button class="au-barmode-btn" data-barmode="stacked">Stacked</button>
+            <button class="au-barmode-btn" data-barmode="wave">Wave</button>
+          </div>
+          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
+          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="au-autogain-el">AUTO GAIN</label>
+          <div class="ov-row-label">Gain</div>
+          <div class="slider-row">
+            <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
+            <span class="slider-val au-gain-val-el">1.0×</span>
+          </div>
+          <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
+          <div class="slider-row">
+            <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
+            <span class="slider-val au-scroll-speed-val-el">0</span>
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head">Games &amp; Chance <span class="chev">▾</span></button>
+    <div class="sub-body">
+    <button class="effect-btn has-panel" data-effect="maze">◈ Maze Runner <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-maze">
+      <div class="slider-row">
+        <span class="slider-label">Runners</span>
+        <input type="range" id="mz-runners" min="1" max="6" step="1" value="3">
+        <span class="slider-val" id="mz-runners-val">3</span>
+      </div>
+      <button id="new-maze-btn" style="margin-top:6px;width:100%;padding:5px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">⟳ NEW MAZE</button>
+    </div>
+    <button class="effect-btn has-panel" data-effect="tron">◈ Tron Bikes <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-tron">
+      <div class="slider-row">
+        <span class="slider-label">Bikes</span>
+        <input type="range" id="tron-count" min="2" max="8" step="1" value="4">
+        <span class="slider-val" id="tron-count-val">4</span>
+      </div>
+      <div class="slider-row" style="margin-top:4px;">
+        <span class="slider-label">Speed</span>
+        <input type="range" id="tron-speed" min="0.5" max="3" step="0.1" value="1">
+        <span class="slider-val" id="tron-speed-val">1×</span>
+      </div>
+      <label class="check-row" style="margin-top:6px;"><input type="checkbox" id="tron-straight-check">STRAIGHT LINES</label>
+      <label class="check-row" style="margin-top:4px;"><input type="checkbox" id="tron-border-check">BORDER WALLS (2D)</label>
+      <button id="new-tron-btn" style="margin-top:6px;width:100%;padding:5px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">⟳ NEW GAME</button>
+    </div>
+    <button class="effect-btn has-panel" data-effect="retro">◈ Retro <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-retro" style="overflow:visible;">
+      <div class="ov-row-label">Game</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;">
+        <button class="retro-game-btn active" data-retrogame="-1">Auto</button>
+        <button class="retro-game-btn" data-retrogame="0">Jet Pac</button>
+        <button class="retro-game-btn" data-retrogame="1">Manic Miner</button>
+        <button class="retro-game-btn" data-retrogame="2">OutRun</button>
+        <button class="retro-game-btn" data-retrogame="3">Invaders</button>
+        <button class="retro-game-btn" data-retrogame="4">Jet Set Willy</button>
+        <button class="retro-game-btn" data-retrogame="5">Deathchase</button>
+        <button class="retro-game-btn" data-retrogame="6">R-Type</button>
+        <button class="retro-game-btn" data-retrogame="7">Wolfenstein 3D</button>
+        <button class="retro-game-btn" data-retrogame="8">Quake 2</button>
+        <button class="retro-game-btn" data-retrogame="9">Sam Fox SP</button>
+        <button class="retro-game-btn" data-retrogame="10">Tamagotchi</button>
+        <button class="retro-game-btn" data-retrogame="11">Atic Atac</button>
+        <button class="retro-game-btn" data-retrogame="12">Donkey Kong</button>
+        <button class="retro-game-btn" data-retrogame="13">Pac-Man</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Auto Rotation Games</div>
+      <div id="retro-auto-checks" style="display:flex;flex-wrap:wrap;gap:2px 8px;font-size:11px;">
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="0" checked> Jet Pac</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="1" checked> Manic Miner</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="2" checked> OutRun</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="3" checked> Invaders</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="4" checked> JSW</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="5" checked> Deathchase</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="6" checked> R-Type</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="7" checked> Wolf 3D</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="8" checked> Quake 2</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="9"> Sam Fox</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="10" checked> Tamagotchi</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="11" checked> Atic Atac</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="12" checked> Donkey Kong</label>
+        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="13" checked> Pac-Man</label>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Rotate: <span id="retro-rotate-val">8</span>s</div>
+      <input type="range" id="retro-rotate-slider" min="3" max="120" value="8" style="width:100%;cursor:pointer;">
+      <button id="retro-show-btn" style="margin-top:8px;width:100%;padding:8px;background:rgba(80,200,120,0.25);border:1px solid rgba(80,200,120,0.5);border-radius:6px;color:#9fd;font-size:13px;cursor:pointer;">▶ Show</button>
+    </div>
+    <button class="effect-btn has-panel" data-effect="coinflip">◈ Coin Flip <span class="panel-arrow">▸</span></button>
+    <button class="effect-btn has-panel" data-effect="dice">◈ Dice Roll <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-dice">
+      <button id="dice-roll-btn" style="width:100%;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;margin-bottom:8px;">🎲 ROLL DICE</button>
+      <label class="check-row"><input type="checkbox" id="dice-auto-check">AUTO ROLL (every 4s)</label>
+    </div>
+    <div class="effect-panel" id="panel-coinflip">
+      <div class="ov-row-label">Flip Speed</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="coin-speed" min="0.5" max="5" step="0.5" value="1" style="flex:1;">
+        <span id="coin-speed-val" style="font-size:11px;color:#9cd;width:32px;">1x</span>
+      </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="random">◈ Random <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-random">
+      <div style="display:flex;gap:6px;">
+        <button class="effect-btn" data-effect="random" style="flex:1;margin:0;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;">◈ Random 1</button>
+        <button class="effect-btn" data-effect="random80s" style="flex:1;margin:0;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;">◈ Random 2</button>
+      </div>
+    </div>
+
+    </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head">Scenes &amp; Lighting <span class="chev">▾</span></button>
+    <div class="sub-body">
+    <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
+    <button class="effect-btn has-panel" data-effect="custom_cube">◈ Custom Cube <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-custom_cube">
+      <div class="ov-row-label">Saved Cubes</div>
+      <select id="cc-select" style="width:100%;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;border-radius:4px;margin-bottom:8px;">
+        <option value="">— choose a saved cube —</option>
+      </select>
+      <button id="cc-load-btn" style="width:100%;padding:7px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:1px;">▶ LOAD</button>
+      <div id="cc-active" style="font-size:11px;color:#6e8;margin-top:8px;text-align:center;"></div>
+    </div>
+
+    </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="sidebar-section collapsed" data-section="overlays">
+    <button class="section-head" style="color:rgba(180,220,255,0.95);">◈ Overlays <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div style="font-size:9px;color:#556;margin-bottom:10px;line-height:1.5;">Layer effects over any mode. Multiple active at once.</div>
+
+      <!-- Global brightness -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:rgba(80,120,255,0.07);border:1px solid rgba(80,120,255,0.18);border-radius:6px;">
+        <span style="font-size:10px;letter-spacing:1px;color:#7aadff;flex-shrink:0;">BRIGHTNESS</span>
+        <input type="range" id="ov-global-bright" min="0.05" max="1" step="0.05" value="1" style="flex:1;">
+        <span id="ov-global-bright-val" style="font-size:10px;color:#aac;width:30px;text-align:right;">100%</span>
+      </div>
+
+    <div class="ov-item" id="ovi-stars">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="stars"><span class="ov-slider"></span></span><span class="ov-name">✨ Twinkling Stars</span></label>
+      <div class="ov-body">
+        <div class="ov-row-label">Density / Speed</div>
+        <div class="slider-row"><span class="slider-label">Count</span><input type="range" class="ov-sl" data-ov="stars" data-prop="density" min="1" max="25" step="1" value="6"><span class="slider-val ov-vl">6%</span></div>
+        <div class="slider-row"><span class="slider-label">Speed</span><input type="range" class="ov-sl" data-ov="stars" data-prop="speed" min="0.2" max="8" step="0.2" value="1.5"><span class="slider-val ov-vl">1.5x</span></div>
+        <div class="ov-row-label">Colour</div>
+        <div class="opt-grid"><button class="ov-col active" data-ov="stars" data-val="multi">Multi</button><button class="ov-col" data-ov="stars" data-val="white">White</button><button class="ov-col" data-ov="stars" data-val="gold">Gold</button><button class="ov-col" data-ov="stars" data-val="ice">Ice</button></div>
+      </div>
+    </div>
+
+    <div class="ov-item" id="ovi-snow">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="snow"><span class="ov-slider"></span></span><span class="ov-name">❄️ Snowfall</span></label>
+      <div class="ov-body">
+        <div class="slider-row"><span class="slider-label">Density</span><input type="range" class="ov-sl" data-ov="snow" data-prop="density" min="2" max="24" step="1" value="8"><span class="slider-val ov-vl">8</span></div>
+        <div class="slider-row"><span class="slider-label">Speed</span><input type="range" class="ov-sl" data-ov="snow" data-prop="speed" min="0.2" max="3" step="0.1" value="1"><span class="slider-val ov-vl">1.0x</span></div>
+        <div class="opt-grid"><button class="ov-col active" data-ov="snow" data-val="white">White</button><button class="ov-col" data-ov="snow" data-val="ice">Ice Blue</button><button class="ov-col" data-ov="snow" data-val="multi">Rainbow</button></div>
+      </div>
+    </div>
+
+    <div class="ov-item" id="ovi-meteors">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="meteors"><span class="ov-slider"></span></span><span class="ov-name">☄️ Meteor Shower</span></label>
+      <div class="ov-body">
+        <div class="slider-row"><span class="slider-label">Rate</span><input type="range" class="ov-sl" data-ov="meteors" data-prop="rate" min="0.3" max="6" step="0.1" value="1.5"><span class="slider-val ov-vl">1.5/s</span></div>
+        <div class="slider-row"><span class="slider-label">Trail</span><input type="range" class="ov-sl" data-ov="meteors" data-prop="trail" min="2" max="22" step="1" value="8"><span class="slider-val ov-vl">8</span></div>
+        <div class="opt-grid"><button class="ov-col active" data-ov="meteors" data-val="white">White</button><button class="ov-col" data-ov="meteors" data-val="gold">Gold</button><button class="ov-col" data-ov="meteors" data-val="multi">Multi</button><button class="ov-col" data-ov="meteors" data-val="fire">Fire</button></div>
+      </div>
+    </div>
+
+    <div class="ov-item" id="ovi-edgeglow">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="edgeglow"><span class="ov-slider"></span></span><span class="ov-name">🔆 Edge Glow</span></label>
+      <div class="ov-body">
+        <div class="slider-row"><span class="slider-label">Intense</span><input type="range" class="ov-sl" data-ov="edgeglow" data-prop="intensity" min="0.1" max="1" step="0.05" value="0.5"><span class="slider-val ov-vl">50%</span></div>
+        <div class="slider-row"><span class="slider-label">Speed</span><input type="range" class="ov-sl" data-ov="edgeglow" data-prop="speed" min="0.1" max="5" step="0.1" value="1"><span class="slider-val ov-vl">1.0x</span></div>
+        <div class="opt-grid"><button class="ov-col active" data-ov="edgeglow" data-val="cyan">Cyan</button><button class="ov-col" data-ov="edgeglow" data-val="gold">Gold</button><button class="ov-col" data-ov="edgeglow" data-val="white">White</button><button class="ov-col" data-ov="edgeglow" data-val="multi">Rainbow</button></div>
+      </div>
+    </div>
+
+    <div class="ov-item" id="ovi-fire">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="fire"><span class="ov-slider"></span></span><span class="ov-name">🔥 Fire Border</span></label>
+      <div class="ov-body">
+        <div class="slider-row"><span class="slider-label">Height</span><input type="range" class="ov-sl" data-ov="fire" data-prop="height" min="0.05" max="0.65" step="0.05" value="0.22"><span class="slider-val ov-vl">22%</span></div>
+        <div class="slider-row"><span class="slider-label">Intense</span><input type="range" class="ov-sl" data-ov="fire" data-prop="intensity" min="0.3" max="1.8" step="0.05" value="1"><span class="slider-val ov-vl">100%</span></div>
+        <div class="opt-grid"><button class="ov-col active" data-ov="fire" data-val="fire">Fire</button><button class="ov-col" data-ov="fire" data-val="blue">Plasma</button><button class="ov-col" data-ov="fire" data-val="green">Toxic</button><button class="ov-col" data-ov="fire" data-val="purple">Arcane</button></div>
+      </div>
+    </div>
+
+    <div class="ov-item" id="ovi-sparkle">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="sparkle"><span class="ov-slider"></span></span><span class="ov-name">💫 Sparkle Rain</span></label>
+      <div class="ov-body">
+        <div class="slider-row"><span class="slider-label">Density</span><input type="range" class="ov-sl" data-ov="sparkle" data-prop="density" min="1" max="40" step="1" value="12"><span class="slider-val ov-vl">12</span></div>
+        <div class="slider-row"><span class="slider-label">Fade</span><input type="range" class="ov-sl" data-ov="sparkle" data-prop="fade" min="0.5" max="8" step="0.5" value="3"><span class="slider-val ov-vl">3x</span></div>
+        <div class="opt-grid"><button class="ov-col active" data-ov="sparkle" data-val="multi">Multi</button><button class="ov-col" data-ov="sparkle" data-val="white">White</button><button class="ov-col" data-ov="sparkle" data-val="gold">Gold</button><button class="ov-col" data-ov="sparkle" data-val="ice">Ice</button></div>
+      </div>
+    </div>
+
+    <div class="ov-item" id="ovi-colorwave">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="colorwave"><span class="ov-slider"></span></span><span class="ov-name">🌊 Color Wave</span></label>
+      <div class="ov-body">
+        <div class="slider-row"><span class="slider-label">Blend</span><input type="range" class="ov-sl" data-ov="colorwave" data-prop="intensity" min="0.05" max="0.85" step="0.05" value="0.3"><span class="slider-val ov-vl">30%</span></div>
+        <div class="slider-row"><span class="slider-label">Speed</span><input type="range" class="ov-sl" data-ov="colorwave" data-prop="speed" min="0.1" max="6" step="0.1" value="1"><span class="slider-val ov-vl">1.0x</span></div>
+        <div class="opt-grid"><button class="ov-col active" data-ov="colorwave" data-val="rainbow">Rainbow</button><button class="ov-col" data-ov="colorwave" data-val="warm">Warm</button><button class="ov-col" data-ov="colorwave" data-val="cool">Cool</button><button class="ov-col" data-ov="colorwave" data-val="pastel">Pastel</button></div>
+      </div>
+    </div>
+
+    <div class="ov-item" id="ovi-pulse">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="pulse"><span class="ov-slider"></span></span><span class="ov-name">💡 Breathe Pulse</span></label>
+      <div class="ov-body">
+        <div class="slider-row"><span class="slider-label">Speed</span><input type="range" class="ov-sl" data-ov="pulse" data-prop="speed" min="0.1" max="5" step="0.1" value="0.8"><span class="slider-val ov-vl">0.8x</span></div>
+        <div class="slider-row"><span class="slider-label">Depth</span><input type="range" class="ov-sl" data-ov="pulse" data-prop="depth" min="0.05" max="0.95" step="0.05" value="0.45"><span class="slider-val ov-vl">45%</span></div>
+        <div class="opt-grid"><button class="ov-col active" data-ov="pulse" data-val="white">White</button><button class="ov-col" data-ov="pulse" data-val="rainbow">Rainbow</button><button class="ov-col" data-ov="pulse" data-val="gold">Gold</button><button class="ov-col" data-ov="pulse" data-val="red">Red</button></div>
+      </div>
+    </div>
+
+    <div class="ov-item" id="ovi-scanline">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="scanline"><span class="ov-slider"></span></span><span class="ov-name">📡 Scan Line</span></label>
+      <div class="ov-body">
+        <div class="slider-row"><span class="slider-label">Speed</span><input type="range" class="ov-sl" data-ov="scanline" data-prop="speed" min="0.1" max="6" step="0.1" value="1.5"><span class="slider-val ov-vl">1.5x</span></div>
+        <div class="slider-row"><span class="slider-label">Width</span><input type="range" class="ov-sl" data-ov="scanline" data-prop="width" min="1" max="10" step="1" value="3"><span class="slider-val ov-vl">3</span></div>
+        <div class="opt-grid"><button class="ov-col active" data-ov="scanline" data-val="cyan">Cyan</button><button class="ov-col" data-ov="scanline" data-val="white">White</button><button class="ov-col" data-ov="scanline" data-val="rainbow">Rainbow</button><button class="ov-col" data-ov="scanline" data-val="gold">Gold</button></div>
+      </div>
+    </div>
+
+    <div class="ov-item" id="ovi-vignette">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="vignette"><span class="ov-slider"></span></span><span class="ov-name">🌑 Vignette</span></label>
+      <div class="ov-body">
+        <div class="slider-row"><span class="slider-label">Intense</span><input type="range" class="ov-sl" data-ov="vignette" data-prop="intensity" min="0.1" max="1" step="0.05" value="0.65"><span class="slider-val ov-vl">65%</span></div>
+        <div class="slider-row"><span class="slider-label">Radius</span><input type="range" class="ov-sl" data-ov="vignette" data-prop="radius" min="0.2" max="0.95" step="0.05" value="0.5"><span class="slider-val ov-vl">50%</span></div>
+      </div>
+    </div>
+
+    <div class="ov-item" id="ovi-glitch">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="glitch"><span class="ov-slider"></span></span><span class="ov-name">📺 Glitch</span></label>
+      <div class="ov-body">
+        <div class="slider-row"><span class="slider-label">Intense</span><input type="range" class="ov-sl" data-ov="glitch" data-prop="intensity" min="0.05" max="1" step="0.05" value="0.3"><span class="slider-val ov-vl">30%</span></div>
+        <div class="slider-row"><span class="slider-label">Rate</span><input type="range" class="ov-sl" data-ov="glitch" data-prop="rate" min="0.3" max="12" step="0.3" value="3"><span class="slider-val ov-vl">3/s</span></div>
+      </div>
+    </div>
+
+    <div class="ov-item" id="ovi-mist">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="mist"><span class="ov-slider"></span></span><span class="ov-name">🌈 Rainbow Mist</span></label>
+      <div class="ov-body">
+        <div class="slider-row"><span class="slider-label">Blend</span><input type="range" class="ov-sl" data-ov="mist" data-prop="intensity" min="0.03" max="0.85" step="0.03" value="0.22"><span class="slider-val ov-vl">22%</span></div>
+        <div class="slider-row"><span class="slider-label">Speed</span><input type="range" class="ov-sl" data-ov="mist" data-prop="speed" min="0.05" max="3" step="0.05" value="0.4"><span class="slider-val ov-vl">0.4x</span></div>
+      </div>
+    </div>
+
+    <div class="ov-item" id="ovi-lightning">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="lightning"><span class="ov-slider"></span></span><span class="ov-name">⚡ Lightning Strike</span></label>
+      <div class="ov-body">
+        <div class="slider-row"><span class="slider-label">Rate</span><input type="range" class="ov-sl" data-ov="lightning" data-prop="rate" min="0.2" max="5" step="0.1" value="1.2"><span class="slider-val ov-vl">1.2/s</span></div>
+        <div class="slider-row"><span class="slider-label">Width</span><input type="range" class="ov-sl" data-ov="lightning" data-prop="width" min="1" max="6" step="1" value="3"><span class="slider-val ov-vl">3</span></div>
+        <div class="slider-row"><span class="slider-label">Bright</span><input type="range" class="ov-sl" data-ov="lightning" data-prop="brightness" min="0.3" max="1" step="0.05" value="1"><span class="slider-val ov-vl">100%</span></div>
+      </div>
+    </div>
+
+    <div class="ov-item" id="ovi-radio">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="radio"><span class="ov-slider"></span></span><span class="ov-name">📻 Internet Radio (audio only)</span></label>
+      <div class="ov-body">
+        <div style="font-size:10px;color:#666;margin-bottom:8px;">Plays as background audio underneath any effect — no visual change on the cube. Turning this off stops playback. Same station list/controls as the Internet Radio effect panel; both stay in sync.</div>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+          <button class="radio-stop-btn-el" style="flex:0 0 auto;padding:6px 12px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.25);color:#f88;border-radius:4px;cursor:pointer;font-size:11px;">■ Stop</button>
+          <span class="ov-label" style="flex:0 0 auto;">Vol</span>
+          <input class="radio-vol-el" type="range" min="0" max="1" step="0.05" value="0.8" style="flex:1;">
+        </div>
+        <div class="radio-status-el" style="font-size:10px;color:#778;text-align:center;margin-bottom:10px;">Pick a station</div>
+
+        <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Directory search (thousands of stations)</div>
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <input class="radio-search-input-el" type="text" placeholder="Search by name, genre, city…" style="flex:1;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:6px 8px;font-size:11px;box-sizing:border-box;">
+          <button class="radio-search-btn-el" style="flex:0 0 auto;padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Search</button>
+        </div>
+        <button class="radio-browse-top-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.1);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Browse Top 60 Worldwide</button>
+        <div class="radio-search-status-el" style="font-size:10px;color:#778;margin-bottom:6px;"></div>
+        <div class="radio-search-results-el" style="max-height:260px;overflow-y:auto;margin-bottom:10px;"></div>
+
+        <div style="font-size:11px;font-weight:700;color:#e8c250;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Featured</div>
+        <div class="radio-station-list-el" style="margin-bottom:8px;"></div>
+      </div>
+    </div>
+
+    <div class="ov-item" id="ovi-spectrum">
+      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="spectrum"><span class="ov-slider"></span></span><span class="ov-name">🎚️ Spectrum Analyser</span></label>
+      <div class="ov-body">
+        <div style="font-size:10px;color:#666;margin-bottom:8px;">Blends audio-reactive bars on top of whatever effect is currently running, from the mic, a connected phone, or Internet Radio.</div>
+        <div class="ov-row-label">Bands</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="spectrum-bands-btn" data-bands="8">8</button>
+          <button class="spectrum-bands-btn" data-bands="16">16</button>
+          <button class="spectrum-bands-btn" data-bands="32">32</button>
+          <button class="spectrum-bands-btn active" data-bands="64">64</button>
+          <button class="spectrum-bands-btn" data-bands="128">128</button>
+          <button class="spectrum-bands-btn" data-bands="256">256</button>
+        </div>
+        <div class="ov-row-label">Style</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="au-style-btn active" data-austyle="bars">Bars</button>
+          <button class="au-style-btn" data-austyle="mirror">Mirror</button>
+          <button class="au-style-btn" data-austyle="dots">Dots</button>
+          <button class="au-style-btn" data-austyle="blocks">Blocks</button>
+          <button class="au-style-btn" data-austyle="outline">Outline</button>
+          <button class="au-style-btn" data-austyle="radial">Radial</button>
+          <button class="au-style-btn" data-austyle="vu">VU</button>
+          <button class="au-style-btn" data-austyle="waterfall">Waterfall</button>
+          <button class="au-style-btn" data-austyle="waveform">Waveform</button>
+          <button class="au-style-btn" data-austyle="tunnel">Tunnel</button>
+          <button class="au-style-btn" data-austyle="storm">Storm</button>
+          <button class="au-style-btn" data-austyle="plasma">Plasma</button>
+          <button class="au-style-btn" data-austyle="rings">Rings</button>
+          <button class="au-style-btn" data-austyle="fire">Fire</button>
+        </div>
+        <div class="ov-row-label">Colour Theme</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="au-theme-btn" data-autheme="0">Rainbow</button>
+          <button class="au-theme-btn" data-autheme="1">Fire</button>
+          <button class="au-theme-btn" data-autheme="2">Ocean</button>
+          <button class="au-theme-btn" data-autheme="3">Neon</button>
+          <button class="au-theme-btn" data-autheme="4">Matrix</button>
+          <button class="au-theme-btn" data-autheme="5">Pastel</button>
+          <button class="au-theme-btn active" data-autheme="6">VU Meter</button>
+        </div>
+        <div class="ov-row-label">Bar Mode</div>
+        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
+          <button class="au-barmode-btn active" data-barmode="solid">Solid</button>
+          <button class="au-barmode-btn" data-barmode="striped">Striped</button>
+          <button class="au-barmode-btn" data-barmode="center">Center</button>
+          <button class="au-barmode-btn" data-barmode="falling">Falling</button>
+          <button class="au-barmode-btn" data-barmode="stacked">Stacked</button>
+          <button class="au-barmode-btn" data-barmode="wave">Wave</button>
+        </div>
+        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
+        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="au-autogain-el">AUTO GAIN</label>
+        <div class="ov-row-label">Gain</div>
+        <div class="slider-row">
+          <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
+          <span class="slider-val au-gain-val-el">1.0×</span>
+        </div>
+        <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
+        <div class="slider-row">
+          <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
+          <span class="slider-val au-scroll-speed-val-el">0</span>
+        </div>
+        <div class="ov-row-label" style="margin-top:8px;">Sound Source</div>
+        <button class="mic-btn-el" style="margin-top:4px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">🎤 START MIC</button>
+        <div class="mic-status-el" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
+        <button class="phone-audio-btn-el" style="margin-top:6px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">📱 Use Phone (Bluetooth)</button>
+        <div class="phone-audio-status-el" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
+      </div>
+    </div>
+
+    </div>
+  </div>
+
+
+
+
+
+
+  <div class="sidebar-section collapsed">
+    <button class="section-head">◈ Playlist <span class="chev">▾</span></button>
+    <div class="section-body">
+          <div style="display:flex;gap:4px;margin-bottom:8px;">
+            <button id="pl-play-btn" class="util-btn" style="flex:2;margin:0;">▶ Play</button>
+            <button id="pl-stop-btn" class="util-btn" style="flex:0 0 38px;margin:0;padding:7px 4px;">■</button>
+            <button id="pl-skip-btn" class="util-btn" style="flex:0 0 38px;margin:0;padding:7px 4px;">⏭</button>
+          </div>
+          <div id="pl-info" style="font-size:12px;color:#7aadff;text-align:center;margin-bottom:5px;">15 items ready</div>
+          <div style="height:5px;background:rgba(80,120,255,0.15);border-radius:3px;margin-bottom:8px;overflow:hidden;">
+            <div id="pl-progress-inner" style="height:100%;width:0%;background:linear-gradient(90deg,#4af,#9fd);border-radius:3px;transition:width 0.25s linear;"></div>
+          </div>
+          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" id="pl-loop" checked>LOOP PLAYLIST</label>
+          <label class="check-row" style="margin-bottom:6px;"><input type="checkbox" id="pl-transitions" checked>SMOOTH TRANSITIONS</label>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-left:22px;">
+            <select id="pl-trans-type" style="flex:1;padding:5px 8px;background:rgba(12,18,40,0.9);border:1px solid rgba(80,120,255,0.3);color:#bbd;border-radius:5px;font-size:12px;">
+              <option value="random">Random</option>
+              <option value="crossfade">Crossfade</option>
+              <option value="flash">Flash</option>
+              <option value="implode">Implode</option>
+            </select>
+          </div>
+          <div style="font-size:11px;color:#7aadff;margin-bottom:4px;letter-spacing:1px;font-weight:600;">SAVED PLAYLISTS</div>
+          <div style="display:flex;gap:4px;margin-bottom:8px;">
+            <select id="pl-saved-select" style="flex:1;padding:6px 8px;background:rgba(12,18,40,0.9);border:1px solid rgba(80,120,255,0.3);color:#bbd;border-radius:5px;font-size:12px;"><option value="">— choose —</option></select>
+            <button id="pl-saved-load" class="util-btn" style="margin:0;padding:6px 10px;">Load</button>
+            <button id="pl-saved-del" class="util-btn" style="margin:0;padding:6px 10px;color:#f88;border-color:rgba(200,40,40,0.3);">✕</button>
+          </div>
+          <button id="pl-new-btn" class="util-btn">+ New Playlist</button>
+          <button id="pl-edit-btn" class="util-btn">✏ Edit / Save Playlist</button>
+          <button id="pl-reset-btn" class="util-btn">↺ Reset to Demo</button>
+    </div>
+  </div>
+
+  <div class="sidebar-section collapsed" id="custom-faces-section">
+    <button class="section-head">◈ Custom Faces <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div style="font-size:12px;color:#9ab;margin-bottom:10px;line-height:1.5;">Draw custom graphics for each cube face. Save designs by name and load them onto the cube.</div>
+      <button id="cg-open-btn" class="util-btn" style="width:100%;margin-bottom:10px;">🎨 DRAW / EDIT FACES</button>
+      <div style="font-size:11px;color:#7aadff;letter-spacing:1px;margin-bottom:5px;font-weight:600;">SAVE DESIGN</div>
+      <div style="display:flex;gap:5px;margin-bottom:10px;">
+        <input id="cg-name-input" type="text" placeholder="Design name…" maxlength="40"
+          style="flex:1;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;border-radius:4px;">
+        <button id="cg-save-named-btn" style="padding:6px 10px;font-size:12px;background:rgba(60,220,120,0.1);border:1px solid rgba(60,220,120,0.3);color:#6e8;border-radius:5px;cursor:pointer;font-weight:700;">💾</button>
+      </div>
+      <div style="font-size:11px;color:#7aadff;letter-spacing:1px;margin-bottom:5px;font-weight:600;">LOAD DESIGN</div>
+      <div style="display:flex;gap:5px;margin-bottom:6px;">
+        <select id="cg-load-select" style="flex:1;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;border-radius:4px;">
+          <option value="">— choose design —</option>
+        </select>
+        <button id="cg-apply-btn" style="padding:6px 10px;font-size:12px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:5px;cursor:pointer;font-weight:700;">↓</button>
+        <button id="cg-del-btn" style="padding:6px 10px;font-size:12px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.2);color:#f88;border-radius:5px;cursor:pointer;font-weight:700;">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar-section collapsed" id="panel-editor-section">
+    <button class="section-head">◈ Face Editor <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div style="font-size:12px;color:#9ab;margin-bottom:10px;line-height:1.5;">Assign an effect to each face. Click CLEAR to blank the cube, then build your layout. Save as a named cube and load it via the <b style="color:#7aadff">Custom Cube</b> effect.</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <button id="pe-clear-btn" style="flex:1;padding:7px 6px;font-size:12px;letter-spacing:.5px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.2);color:#f88;border-radius:5px;cursor:pointer;font-weight:700;">✕ CLEAR ALL FACES</button>
+      </div>
+      <div style="font-size:11px;color:#7aadff;letter-spacing:1px;margin-bottom:5px;font-weight:600;">SAVE CUBE</div>
+      <div style="display:flex;gap:5px;margin-bottom:10px;">
+        <input id="pe-name-input" type="text" placeholder="Cube name…" maxlength="40"
+          style="flex:1;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;border-radius:4px;">
+        <button id="pe-save-btn" style="padding:6px 10px;font-size:12px;background:rgba(60,220,120,0.1);border:1px solid rgba(60,220,120,0.3);color:#6e8;border-radius:5px;cursor:pointer;font-weight:700;">💾</button>
+      </div>
+      <div style="font-size:11px;color:#7aadff;letter-spacing:1px;margin-bottom:5px;font-weight:600;">LOAD CUBE</div>
+      <div style="display:flex;gap:5px;margin-bottom:12px;">
+        <select id="pe-load-select" style="flex:1;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;border-radius:4px;">
+          <option value="">— choose saved cube —</option>
+        </select>
+        <button id="pe-load-btn" style="padding:6px 10px;font-size:12px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:5px;cursor:pointer;font-weight:700;">↓</button>
+        <button id="pe-del-btn" style="padding:6px 10px;font-size:12px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.2);color:#f88;border-radius:5px;cursor:pointer;font-weight:700;">✕</button>
+      </div>
+      <div id="pe-faces"></div>
+    </div>
+  </div>
+  <!-- ── Timers Section ── -->
+  <div class="sidebar-section collapsed" id="alarm-section">
+    <button class="section-head">◈ Timers <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div id="alarm-list-ui" style="margin-bottom:8px;"></div>
+      <button id="alarm-add-btn" style="width:100%;padding:8px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.35);color:#7aadff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.5px;">+ ADD TIMER</button>
+    </div>
+  </div>
+  <div class="sidebar-section collapsed">
+    <button class="section-head">◈ Display <span class="chev">▾</span></button>
+    <div class="section-body">
+          <label class="check-row"><input type="checkbox" id="auto-rotate-chk" checked>AUTO-ROTATE</label>
+          <label class="check-row"><input type="checkbox" id="rotate-y-only">Y-AXIS ONLY</label>
+          <label class="check-row"><input type="checkbox" id="gyro-chk">GYROSCOPE GRAVITY</label>
+          <label class="check-row"><input type="checkbox" id="face-labels-chk">FACE LABELS</label>
+          <div id="gyro-status" style="font-size:12px;color:#99a;margin-bottom:6px;">Tilt device to steer sand/balls</div>
+          <div class="slider-row">
+            <span class="slider-label">Spin</span>
+            <input type="range" id="rotspeed-slider" min="0" max="4" step="0.1" value="1">
+            <span class="slider-val" id="rotspeed-val">1.0x</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Speed</span>
+            <input type="range" id="speed-slider" min="0.1" max="3" step="0.05" value="1">
+            <span class="slider-val" id="speed-val">1.0x</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Bright</span>
+            <input type="range" id="bright-slider" min="0.1" max="1.5" step="0.05" value="1.15">
+            <span class="slider-val" id="bright-val">115%</span>
+          </div>
+          <button id="reset-view-btn" class="util-btn">⟲ Reset View</button>
+          <button id="fullscreen-btn" class="util-btn">⛶ Fullscreen</button>
+    </div>
+  </div>
+  <div class="sidebar-section collapsed">
+    <button class="section-head">◈ Firmware Update <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div style="font-size:11px;color:#778;margin-bottom:8px;line-height:1.4;">Upload this page to ESP32 via OTA. Enter the ESP32 IP address below.</div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">
+        <span style="font-size:11px;color:#778;letter-spacing:1px;white-space:nowrap;">IP</span>
+        <input type="text" id="esp32-ip" placeholder="192.168.x.x" value="192.168.4.1"
+          style="flex:1;padding:6px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(80,120,255,0.3);color:#bbd;border-radius:5px;font-size:12px;">
+      </div>
+      <button onclick="esp32Upload()"
+        style="width:100%;padding:7px;background:rgba(80,120,255,0.18);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:1px;">
+        ↑ UPLOAD FIRMWARE
+      </button>
+      <div id="esp32-status" style="font-size:11px;color:#778;margin-top:6px;text-align:center;line-height:1.4;"></div>
+    </div>
+  </div>
+  <div class="sidebar-section collapsed">
+    <button class="section-head">◈ Setup <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">🔊 Bluetooth Speaker (Pi only)</div>
+      <div style="font-size:10px;color:#666;margin-bottom:8px;">Requires <code>pi/bluetooth_server.py</code> running on the Raspberry Pi — see <code>pi/README.md</code>. Not available when running on your laptop or GitHub Pages. Used for Internet Radio audio output.</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <button class="bt-scan-btn-el" style="flex:1;padding:6px 10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Scan for Speakers</button>
+        <button class="bt-refresh-btn-el" style="flex:0 0 auto;padding:6px 10px;background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.4);color:#ccc;border-radius:4px;cursor:pointer;font-size:11px;">↻</button>
+      </div>
+      <div class="bt-status-el" style="font-size:10px;color:#778;margin-bottom:6px;">Not checked yet</div>
+      <div class="bt-device-list-el" style="max-height:180px;overflow-y:auto;margin-bottom:14px;"></div>
+
+      <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">📱 Phone Audio Input (Pi only)</div>
+      <div style="font-size:10px;color:#666;margin-bottom:8px;">Play a phone's music through the cube's Spectrum Analyser <i>and</i> the Bluetooth speaker above, at the same time. Pair the speaker first, then: make the Pi discoverable → connect from the phone's Bluetooth settings → start playing music → route the audio. See <code>pi/README.md</code> for the full walkthrough.</div>
+      <button class="bt-discoverable-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Make Cube Discoverable (pair phone)</button>
+      <button class="bt-route-phone-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Route Phone Audio to Speaker</button>
+      <div class="bt-phone-status-el" style="font-size:10px;color:#778;">Not set up yet</div>
+    </div>
+  </div>
+
+
+
+
+
+
+
+  </div><!-- end sidebar-scroll -->
+  <div id="sidebar-footer">
+    <span id="cube-label" style="position:static;font-size:12px;color:#7aadff;letter-spacing:1px;">64×64</span>
+    <span id="app-version" style="font-size:10px;color:#7aadff;opacity:0.6;letter-spacing:0.5px;"></span>
+  </div>
+  <div id="sidebar-fade"></div>
+</div>
+
+
+<div id="canvas-wrap"><canvas id="c"></canvas></div>
 
 <script src="three.min.js"></script>
-<script>
-const PANEL_SIZES = [8, 16, 64];
-const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
-// Cube face normals/positions, matching cube.js: 0=Front(z+) 1=Back(z-) 2=Right(x+) 3=Left(x-) 4=Top(y+) 5=Bottom(y-)
-const FACE_XFORM = [
-  { pos: [0, 0, 1],  rot: [0, 0, 0] },
-  { pos: [0, 0, -1], rot: [0, Math.PI, 0] },
-  { pos: [1, 0, 0],  rot: [0, Math.PI / 2, 0] },
-  { pos: [-1, 0, 0], rot: [0, -Math.PI / 2, 0] },
-  { pos: [0, 1, 0],  rot: [-Math.PI / 2, 0, 0] },
-  { pos: [0, -1, 0], rot: [Math.PI / 2, 0, 0] },
-];
-
-// The full effect menu as it exists in the original browser app (index.html
-// at the repo root) - kept here as plain data so the sidebar looks like the
-// familiar app even though pi-native has only ported a handful of these
-// effects so far. Buttons for anything not yet ported (i.e. not a key in
-// /effects.json) are greyed out and inert rather than omitted, so the menu
-// stays recognisable and it's obvious what's still to come.
-const FULL_MENU = [
-  { category: 'Motion & Particles', effects: [
-    ['wave', '◈ Wave Cascade'], ['rain', '◈ Colour Rain'], ['plasma', '◈ Plasma Storm'],
-    ['sphere', '◈ Laser Grid'], ['dna', '◈ DNA Helix'], ['nebula', '◈ Nebula Drift'],
-    ['aurora', '◈ Aurora Borealis'], ['warp', '◈ Warp Drive'], ['lightning', '◈ Lightning Storm'],
-    ['lightspeed', '◈ Light Speed'],
-  ] },
-  { category: 'Physics & Simulation', effects: [
-    ['balls', '◈ Bouncing Balls'], ['sand', '◈ Gravity Sand'], ['life', '◈ Crystal Life'],
-    ['fluid', '◈ Liquid Crystal'], ['fireworks', '◈ Fireworks'], ['strobe', '◈ Strobe Flash'],
-  ] },
-  { category: 'Colour & Gradients', effects: [
-    ['gradient_wash', '◈ Rainbow Wash'], ['depth_rings', '◈ Depth Rings'],
-    ['prism', '◈ Prism Sweep'], ['tide', '◈ Color Tide'],
-  ] },
-  { category: 'Live Data', effects: [
-    ['weather', '◈ Weather'], ['moon', '◈ Celestial'], ['datetime', '◈ Time & Date'],
-    ['neo', '◈ Near-Earth Objects'], ['apod', '◈ Astronomy Pic of the Day'],
-    ['unsplash', '◈ Unsplash Photos'], ['artic', '◈ Art Gallery'], ['joke', '◈ Jokes'],
-    ['otd', '◈ On This Day'], ['trivia', '◈ Trivia'], ['epic', '◈ Earth Live View'],
-    ['iss', '◈ ISS Tracker'], ['cam', '◈ Camera'], ['radio', '◈ Internet Radio'],
-  ] },
-  { category: 'Audio & Media', effects: [
-    ['video', '◈ Video Display'],
-  ] },
-  { category: 'Games & Chance', effects: [
-    ['maze', '◈ Maze Runner'], ['tron', '◈ Tron Bikes'], ['retro', '◈ Retro'],
-    ['coinflip', '◈ Coin Flip'], ['dice', '◈ Dice Roll'], ['random', '◈ Random 1'],
-    ['random80s', '◈ Random 2'],
-  ] },
-  { category: 'Scenes & Lighting', effects: [
-    ['ghost', '◈ Ghost Face'], ['custom_cube', '◈ Custom Cube'], ['easter_egg', '◈ Easter Egg'],
-  ] },
-];
-
-let ws;
-let effectNames = {};
-let currentState = { effect: null, brightness: 1, speed: 1, panelSize: 64, panelMode: '2d' };
-const faceCanvases = {}; // face -> {canvas, ctx, imgData, texture}
-
-function connect() {
-  ws = new WebSocket(`ws://${location.hostname}:${location.port || 8081}`);
-  ws.binaryType = 'arraybuffer';
-  const statusEl = document.getElementById('status');
-
-  ws.onopen = () => { statusEl.textContent = 'connected'; statusEl.className = 'connected'; };
-  ws.onclose = () => { statusEl.textContent = 'disconnected - retrying...'; statusEl.className = 'disconnected'; setTimeout(connect, 2000); };
-  ws.onerror = () => { ws.close(); };
-
-  ws.onmessage = (ev) => {
-    if (typeof ev.data === 'string') {
-      handleTextMessage(JSON.parse(ev.data));
-    } else {
-      handleFrame(ev.data);
-    }
-  };
-}
-
-function send(obj) {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
-}
-
-function handleTextMessage(msg) {
-  if (msg.cmd === 'state') {
-    const modeChanged = msg.panelMode !== currentState.panelMode || msg.panelSize !== currentState.panelSize;
-    currentState = msg;
-    renderEffectButtons();
-    renderPanelButtons();
-    document.getElementById('brightness').value = msg.brightness;
-    document.getElementById('brightness-val').textContent = Number(msg.brightness).toFixed(2);
-    document.getElementById('speed').value = msg.speed;
-    document.getElementById('speed-val').textContent = Number(msg.speed).toFixed(1);
-    if (modeChanged) rebuildScene();
-  } else if (msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
-    handleBtResult(msg);
-  }
-}
-
-async function loadEffectNames() {
-  const resp = await fetch('/effects.json');
-  effectNames = await resp.json();
-  renderEffectButtons();
-}
-
-function renderEffectButtons() {
-  const container = document.getElementById('effect-categories');
-  container.innerHTML = '';
-  for (const { category, effects } of FULL_MENU) {
-    const catDiv = document.createElement('div');
-    catDiv.className = 'category collapsed';
-
-    const head = document.createElement('button');
-    head.className = 'category-head';
-    head.innerHTML = `<span>${category}</span><span class="chev">▾</span>`;
-    head.onclick = () => catDiv.classList.toggle('collapsed');
-    catDiv.appendChild(head);
-
-    const body = document.createElement('div');
-    body.className = 'category-body';
-    for (const [key, label] of effects) {
-      const available = Object.prototype.hasOwnProperty.call(effectNames, key);
-      const btn = document.createElement('button');
-      btn.className = 'effect-btn' + (key === currentState.effect ? ' active' : '') + (available ? '' : ' not-ported');
-      btn.textContent = label;
-      if (available) {
-        btn.onclick = () => send({ cmd: 'setEffect', effect: key });
-      } else {
-        btn.disabled = true;
-        btn.title = 'Not yet ported to the Pi-native engine';
-      }
-      body.appendChild(btn);
-    }
-    catDiv.appendChild(body);
-    // Auto-expand a category if it's the one containing the current effect,
-    // so switching effects (e.g. via the browser preview) doesn't leave the
-    // active button hidden inside a collapsed section.
-    if (effects.some(([key]) => key === currentState.effect)) catDiv.classList.remove('collapsed');
-    container.appendChild(catDiv);
-  }
-}
-
-function renderPanelButtons() {
-  const container = document.getElementById('panel-buttons');
-  container.innerHTML = '';
-  for (const size of PANEL_SIZES) {
-    const btn = document.createElement('button');
-    btn.className = 'panel-btn' + (currentState.panelMode === 'cube' && currentState.panelSize === size ? ' active' : '');
-    btn.textContent = `${size}x${size} cube`;
-    btn.onclick = () => send({ cmd: 'setPanelConfig', size, mode: 'cube' });
-    container.appendChild(btn);
-  }
-  const btn2d = document.createElement('button');
-  btn2d.className = 'panel-btn' + (currentState.panelMode === '2d' ? ' active' : '');
-  btn2d.textContent = '2D (1 panel)';
-  btn2d.onclick = () => send({ cmd: 'setPanelConfig', size: currentState.panelSize || 64, mode: '2d' });
-  container.appendChild(btn2d);
-}
-
-// ---- Three.js preview ----
-let renderer, scene, camera, group;
-
-function initScene() {
-  const viewport = document.getElementById('viewport');
-  renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(window.devicePixelRatio || 1);
-  renderer.domElement.className = 'gl';
-  viewport.appendChild(renderer.domElement);
-
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x05070c);
-  camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-
-  scene.add(new THREE.AmbientLight(0xffffff, 1.0));
-
-  window.addEventListener('resize', resizeRenderer);
-  resizeRenderer();
-  rebuildScene();
-  animate();
-}
-
-function resizeRenderer() {
-  const viewport = document.getElementById('viewport');
-  const w = viewport.clientWidth, h = viewport.clientHeight;
-  renderer.setSize(w, h, false);
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
-}
-
-function rebuildScene() {
-  if (group) { scene.remove(group); }
-  group = new THREE.Group();
-  scene.add(group);
-  for (const key in faceCanvases) delete faceCanvases[key];
-
-  const size = currentState.panelSize || 64;
-  const faceCount = currentState.panelMode === '2d' ? 1 : 6;
-
-  for (let face = 0; face < faceCount; face++) {
-    const canvas = document.createElement('canvas');
-    canvas.width = size; canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, size, size);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.NearestFilter;
-    faceCanvases[face] = { canvas, ctx, imgData: ctx.createImageData(size, size), texture };
-
-    const mat = new THREE.MeshBasicMaterial({ map: texture });
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
-
-    if (faceCount === 1) {
-      group.add(plane);
-    } else {
-      const xf = FACE_XFORM[face];
-      plane.position.set(xf.pos[0] * 1.001, xf.pos[1] * 1.001, xf.pos[2] * 1.001);
-      plane.rotation.set(xf.rot[0], xf.rot[1], xf.rot[2]);
-      group.add(plane);
-    }
-  }
-
-  camera.position.set(faceCount === 1 ? 0 : 2.6, faceCount === 1 ? 0 : 2.0, faceCount === 1 ? 2.4 : 2.6);
-  camera.lookAt(0, 0, 0);
-}
-
-function animate() {
-  requestAnimationFrame(animate);
-  if (group && currentState.panelMode !== '2d') group.rotation.y += 0.003;
-  renderer.render(scene, camera);
-}
-
-function handleFrame(buf) {
-  const bytes = new Uint8Array(buf);
-  const face = bytes[0];
-  const entry = faceCanvases[face];
-  if (!entry) return;
-  const size = currentState.panelSize;
-  const { ctx, imgData, texture } = entry;
-  const px = imgData.data;
-  for (let i = 0; i < size * size; i++) {
-    px[i * 4]     = bytes[1 + i * 3];
-    px[i * 4 + 1] = bytes[1 + i * 3 + 1];
-    px[i * 4 + 2] = bytes[1 + i * 3 + 2];
-    px[i * 4 + 3] = 255;
-  }
-  ctx.putImageData(imgData, 0, 0);
-  texture.needsUpdate = true;
-}
-
-document.getElementById('brightness').addEventListener('input', (e) => {
-  document.getElementById('brightness-val').textContent = Number(e.target.value).toFixed(2);
-  send({ cmd: 'setBrightness', value: Number(e.target.value) });
-});
-document.getElementById('speed').addEventListener('input', (e) => {
-  document.getElementById('speed-val').textContent = Number(e.target.value).toFixed(1);
-  send({ cmd: 'setSpeed', value: Number(e.target.value) });
-});
-
-// ---- Bluetooth ----
-const btLog = document.getElementById('bt-log');
-const btDevices = document.getElementById('bt-devices');
-function logBt(text) { btLog.textContent = text; }
-
-document.getElementById('bt-scan').onclick = () => { logBt('Scanning (~6s)...'); send({ cmd: 'btScan' }); };
-document.getElementById('bt-status').onclick = () => { logBt('Checking paired devices...'); send({ cmd: 'btStatus' }); };
-document.getElementById('bt-discoverable').onclick = () => { logBt('Opening pairing window (~120s)...'); send({ cmd: 'btDiscoverable' }); };
-document.getElementById('bt-route').onclick = () => { logBt('Routing phone audio...'); send({ cmd: 'btRoutePhoneAudio' }); };
-
-function handleBtResult(msg) {
-  if (!msg.ok) { logBt('Error: ' + (msg.error || 'unknown')); return; }
-  if (msg.cmd === 'btScanResult' || msg.cmd === 'btStatusResult') {
-    logBt(`${msg.devices.length} device(s) found.`);
-    btDevices.innerHTML = '';
-    for (const d of msg.devices) {
-      const row = document.createElement('div');
-      row.className = 'device-row';
-      const nameSpan = document.createElement('span');
-      nameSpan.textContent = d.name;
-      const macSpan = document.createElement('span');
-      macSpan.className = 'mac';
-      macSpan.textContent = d.mac;
-      const pairBtn = document.createElement('button');
-      pairBtn.className = 'panel-btn';
-      pairBtn.textContent = 'Pair';
-      pairBtn.onclick = () => { logBt('Pairing with ' + d.name + '...'); send({ cmd: 'btPair', mac: d.mac }); };
-      row.append(nameSpan, macSpan, pairBtn);
-      btDevices.appendChild(row);
-    }
-  } else {
-    logBt('OK: ' + JSON.stringify(msg.log || msg, null, 2));
-  }
-}
-
-loadEffectNames();
-connect();
-initScene();
-</script>
+<script src="app.js"></script>
 </body>
 </html>

@@ -26,7 +26,15 @@ async function run() {
     assert.ok(resp.headers.get('content-type').includes('text/html'));
     const html = await resp.text();
     assert.ok(html.includes('Multidisplay'));
-    assert.ok(html.includes('WebSocket'));
+    assert.ok(html.includes('app.js'), 'expected the page to load app.js, which owns the WS connection');
+  });
+
+  await test('GET /app.js serves the control script', async () => {
+    const resp = await fetch(`http://127.0.0.1:${port}/app.js`);
+    assert.strictEqual(resp.status, 200);
+    assert.ok(resp.headers.get('content-type').includes('javascript'));
+    const js = await resp.text();
+    assert.ok(js.includes('WebSocket'));
   });
 
   await test('GET /effects.json returns the effect name map', async () => {
