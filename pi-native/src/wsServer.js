@@ -65,6 +65,7 @@ const bluetooth = require('./bluetooth');
 const PREVIEW_FPS = 20; // matches the ESP32 firmware's streamFrameToCube() throttle
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const INDEX_HTML = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'));   // read once at startup, not per-request
+const THREE_JS = fs.readFileSync(path.join(PUBLIC_DIR, 'three.min.js'));   // served for the sidebar/3D-preview page's <script src>, same pattern as INDEX_HTML
 
 class WsServer {
   // state: shared mutable {effect, brightness, speed}.
@@ -107,6 +108,9 @@ class WsServer {
     } else if (req.url === '/effects.json') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(EFFECT_NAMES));
+    } else if (req.url === '/three.min.js') {
+      res.writeHead(200, { 'Content-Type': 'application/javascript' });
+      res.end(THREE_JS);
     } else {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not Found');

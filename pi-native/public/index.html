@@ -3,77 +3,118 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Multidisplay Pi</title>
+<title>Multidisplay</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: system-ui, sans-serif; background: #0b0d12; color: #e8ecf1; margin: 0; padding: 16px; }
-  h1 { font-size: 18px; margin: 0 0 4px; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #8891a5; margin: 24px 0 8px; }
-  #status { font-size: 12px; color: #8891a5; margin-bottom: 16px; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: system-ui, sans-serif; background: #05070c; color: #e8ecf1;
+    display: flex; overflow: hidden;
+  }
+  #sidebar {
+    width: 300px; min-width: 300px; height: 100%; overflow-y: auto;
+    background: #0b0d12; border-right: 1px solid rgba(80,120,255,0.12);
+    padding-bottom: 40px;
+  }
+  #sidebar h1 { font-size: 16px; margin: 0; padding: 16px; border-bottom: 1px solid rgba(80,120,255,0.12); }
+  #status { font-size: 11px; padding: 0 16px 12px; color: #8891a5; }
   #status.connected { color: #5fd97a; }
   #status.disconnected { color: #f7768e; }
-  .row { display: flex; flex-wrap: wrap; gap: 8px; }
-  button { background: #1b1f2a; color: #e8ecf1; border: 1px solid #2c3141; border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
-  button:hover { background: #262b3a; }
-  button.active { background: #3a6ff7; border-color: #3a6ff7; color: #fff; }
-  button:disabled { opacity: 0.4; cursor: default; }
-  .slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-  .slider-row label { width: 90px; font-size: 13px; color: #b7bfd1; }
+  .sidebar-section { border-bottom: 1px solid rgba(80,120,255,0.12); padding: 12px 16px; }
+  .sidebar-section label {
+    font-size: 11px; letter-spacing: 1.5px; color: rgba(160,200,255,0.8);
+    text-transform: uppercase; display: block; margin-bottom: 8px;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .effect-btn {
+    display: block; width: 100%; text-align: left; font-size: 13px;
+    background: rgba(255,255,255,0.03); color: #cdd3e0; border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 7px; padding: 9px 12px; margin-bottom: 5px; cursor: pointer;
+  }
+  .effect-btn:hover { background: rgba(80,120,255,0.12); color: #fff; }
+  .effect-btn.active { background: rgba(80,120,255,0.22); border-color: rgba(100,160,255,0.5); color: #7aadff; }
+  button.panel-btn {
+    background: rgba(255,255,255,0.03); color: #cdd3e0; border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 6px; padding: 7px 11px; font-size: 12px; cursor: pointer;
+  }
+  button.panel-btn:hover { background: rgba(80,120,255,0.12); }
+  button.panel-btn.active { background: rgba(80,120,255,0.22); border-color: rgba(100,160,255,0.5); color: #7aadff; }
+  .slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .slider-row label { width: auto; margin: 0; text-transform: none; font-size: 12px; letter-spacing: 0; color: #b7bfd1; flex: 0 0 66px; }
   .slider-row input[type=range] { flex: 1; }
-  .slider-row span { width: 40px; text-align: right; font-size: 12px; color: #8891a5; }
-  #preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-  #preview canvas { image-rendering: pixelated; background: #000; border: 1px solid #2c3141; border-radius: 4px; }
-  .preview-cell { text-align: center; }
-  .preview-cell span { display: block; font-size: 11px; color: #8891a5; margin-top: 2px; }
-  #bt-log { white-space: pre-wrap; font-family: monospace; font-size: 11px; background: #12151d; border: 1px solid #2c3141; border-radius: 6px; padding: 8px; margin-top: 8px; max-height: 160px; overflow-y: auto; color: #b7bfd1; }
-  #bt-devices { margin-top: 8px; }
-  .device-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
-  .device-row .mac { color: #8891a5; font-family: monospace; font-size: 11px; }
+  .slider-row span { width: 36px; text-align: right; font-size: 11px; color: #8891a5; }
+  #bt-log { white-space: pre-wrap; font-family: monospace; font-size: 10px; background: #12151d; border: 1px solid #2c3141; border-radius: 6px; padding: 6px; margin-top: 6px; max-height: 120px; overflow-y: auto; color: #b7bfd1; }
+  .device-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 12px; }
+  .device-row .mac { color: #8891a5; font-family: monospace; font-size: 10px; flex: 1; }
+  #viewport { flex: 1; position: relative; height: 100%; }
+  #viewport canvas.gl { display: block; width: 100%; height: 100%; }
+  #viewport-label { position: absolute; top: 12px; left: 16px; font-size: 12px; color: rgba(200,210,230,0.55); letter-spacing: 0.5px; }
 </style>
 </head>
 <body>
-  <h1>Multidisplay</h1>
-  <div id="status" class="disconnected">connecting...</div>
+  <div id="sidebar">
+    <h1>Multidisplay</h1>
+    <div id="status" class="disconnected">connecting...</div>
 
-  <h2>Effect</h2>
-  <div class="row" id="effect-buttons"></div>
+    <div class="sidebar-section">
+      <label>Effect</label>
+      <div id="effect-buttons"></div>
+    </div>
 
-  <h2>Brightness / Speed</h2>
-  <div class="slider-row">
-    <label>Brightness</label>
-    <input type="range" id="brightness" min="0" max="1.5" step="0.05" value="1">
-    <span id="brightness-val">1.0</span>
+    <div class="sidebar-section">
+      <label>Brightness / Speed</label>
+      <div class="slider-row">
+        <label>Brightness</label>
+        <input type="range" id="brightness" min="0" max="1.5" step="0.05" value="1">
+        <span id="brightness-val">1.0</span>
+      </div>
+      <div class="slider-row">
+        <label>Speed</label>
+        <input type="range" id="speed" min="0" max="8" step="0.1" value="1">
+        <span id="speed-val">1.0</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <label>Panel Layout</label>
+      <div class="row" id="panel-buttons"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <label>Bluetooth</label>
+      <div class="row">
+        <button class="panel-btn" id="bt-scan">Scan</button>
+        <button class="panel-btn" id="bt-status">Paired</button>
+        <button class="panel-btn" id="bt-discoverable">Pair phone</button>
+        <button class="panel-btn" id="bt-route">Route audio</button>
+      </div>
+      <div id="bt-devices"></div>
+      <div id="bt-log">Bluetooth results appear here.</div>
+    </div>
   </div>
-  <div class="slider-row">
-    <label>Speed</label>
-    <input type="range" id="speed" min="0" max="8" step="0.1" value="1">
-    <span id="speed-val">1.0</span>
+
+  <div id="viewport">
+    <div id="viewport-label">live preview</div>
   </div>
 
-  <h2>Panel Layout</h2>
-  <div class="row" id="panel-buttons"></div>
-
-  <h2>Preview</h2>
-  <div id="preview"></div>
-
-  <h2>Bluetooth</h2>
-  <div class="row">
-    <button id="bt-scan">Scan for devices</button>
-    <button id="bt-status">Show paired</button>
-    <button id="bt-discoverable">Make discoverable (pair a phone)</button>
-    <button id="bt-route">Route phone audio to speaker</button>
-  </div>
-  <div id="bt-devices"></div>
-  <div id="bt-log">Bluetooth results appear here.</div>
-
+<script src="three.min.js"></script>
 <script>
 const PANEL_SIZES = [8, 16, 64];
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
+// Cube face normals/positions, matching cube.js: 0=Front(z+) 1=Back(z-) 2=Right(x+) 3=Left(x-) 4=Top(y+) 5=Bottom(y-)
+const FACE_XFORM = [
+  { pos: [0, 0, 1],  rot: [0, 0, 0] },
+  { pos: [0, 0, -1], rot: [0, Math.PI, 0] },
+  { pos: [1, 0, 0],  rot: [0, Math.PI / 2, 0] },
+  { pos: [-1, 0, 0], rot: [0, -Math.PI / 2, 0] },
+  { pos: [0, 1, 0],  rot: [-Math.PI / 2, 0, 0] },
+  { pos: [0, -1, 0], rot: [Math.PI / 2, 0, 0] },
+];
 
 let ws;
 let effectNames = {};
-let currentState = { effect: null, brightness: 1, speed: 1, panelSize: 64, panelMode: 'cube' };
-const canvases = {}; // face -> {canvas, ctx, imgData}
+let currentState = { effect: null, brightness: 1, speed: 1, panelSize: 64, panelMode: '2d' };
+const faceCanvases = {}; // face -> {canvas, ctx, imgData, texture}
 
 function connect() {
   ws = new WebSocket(`ws://${location.hostname}:${location.port || 8081}`);
@@ -99,6 +140,7 @@ function send(obj) {
 
 function handleTextMessage(msg) {
   if (msg.cmd === 'state') {
+    const modeChanged = msg.panelMode !== currentState.panelMode || msg.panelSize !== currentState.panelSize;
     currentState = msg;
     renderEffectButtons();
     renderPanelButtons();
@@ -106,15 +148,12 @@ function handleTextMessage(msg) {
     document.getElementById('brightness-val').textContent = Number(msg.brightness).toFixed(2);
     document.getElementById('speed').value = msg.speed;
     document.getElementById('speed-val').textContent = Number(msg.speed).toFixed(1);
-    ensurePreviewCanvases();
+    if (modeChanged) rebuildScene();
   } else if (msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
     handleBtResult(msg);
   }
 }
 
-// Effect names aren't sent over the wire today (only the current key) -
-// fetched once via a plain HTTP request to this same server's /effects.json
-// so the button list doesn't need to be hand-maintained here too.
 async function loadEffectNames() {
   const resp = await fetch('/effects.json');
   effectNames = await resp.json();
@@ -126,8 +165,8 @@ function renderEffectButtons() {
   container.innerHTML = '';
   for (const [key, label] of Object.entries(effectNames)) {
     const btn = document.createElement('button');
+    btn.className = 'effect-btn' + (key === currentState.effect ? ' active' : '');
     btn.textContent = label;
-    if (key === currentState.effect) btn.className = 'active';
     btn.onclick = () => send({ cmd: 'setEffect', effect: key });
     container.appendChild(btn);
   }
@@ -138,47 +177,97 @@ function renderPanelButtons() {
   container.innerHTML = '';
   for (const size of PANEL_SIZES) {
     const btn = document.createElement('button');
+    btn.className = 'panel-btn' + (currentState.panelMode === 'cube' && currentState.panelSize === size ? ' active' : '');
     btn.textContent = `${size}x${size} cube`;
-    if (currentState.panelMode === 'cube' && currentState.panelSize === size) btn.className = 'active';
     btn.onclick = () => send({ cmd: 'setPanelConfig', size, mode: 'cube' });
     container.appendChild(btn);
   }
   const btn2d = document.createElement('button');
+  btn2d.className = 'panel-btn' + (currentState.panelMode === '2d' ? ' active' : '');
   btn2d.textContent = '2D (1 panel)';
-  if (currentState.panelMode === '2d') btn2d.className = 'active';
   btn2d.onclick = () => send({ cmd: 'setPanelConfig', size: currentState.panelSize || 64, mode: '2d' });
   container.appendChild(btn2d);
 }
 
-function ensurePreviewCanvases() {
-  const container = document.getElementById('preview');
+// ---- Three.js preview ----
+let renderer, scene, camera, group;
+
+function initScene() {
+  const viewport = document.getElementById('viewport');
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio || 1);
+  renderer.domElement.className = 'gl';
+  viewport.appendChild(renderer.domElement);
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x05070c);
+  camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+
+  window.addEventListener('resize', resizeRenderer);
+  resizeRenderer();
+  rebuildScene();
+  animate();
+}
+
+function resizeRenderer() {
+  const viewport = document.getElementById('viewport');
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+
+function rebuildScene() {
+  if (group) { scene.remove(group); }
+  group = new THREE.Group();
+  scene.add(group);
+  for (const key in faceCanvases) delete faceCanvases[key];
+
+  const size = currentState.panelSize || 64;
   const faceCount = currentState.panelMode === '2d' ? 1 : 6;
-  const size = currentState.panelSize;
-  container.innerHTML = '';
-  for (const key in canvases) delete canvases[key];
+
   for (let face = 0; face < faceCount; face++) {
-    const cell = document.createElement('div');
-    cell.className = 'preview-cell';
     const canvas = document.createElement('canvas');
     canvas.width = size; canvas.height = size;
-    canvas.style.width = '128px'; canvas.style.height = '128px';
-    const label = document.createElement('span');
-    label.textContent = currentState.panelMode === '2d' ? 'Panel' : FACE_NAMES[face];
-    cell.appendChild(canvas);
-    cell.appendChild(label);
-    container.appendChild(cell);
     const ctx = canvas.getContext('2d');
-    canvases[face] = { canvas, ctx, imgData: ctx.createImageData(size, size) };
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, size, size);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
+    faceCanvases[face] = { canvas, ctx, imgData: ctx.createImageData(size, size), texture };
+
+    const mat = new THREE.MeshBasicMaterial({ map: texture });
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+
+    if (faceCount === 1) {
+      group.add(plane);
+    } else {
+      const xf = FACE_XFORM[face];
+      plane.position.set(xf.pos[0] * 1.001, xf.pos[1] * 1.001, xf.pos[2] * 1.001);
+      plane.rotation.set(xf.rot[0], xf.rot[1], xf.rot[2]);
+      group.add(plane);
+    }
   }
+
+  camera.position.set(faceCount === 1 ? 0 : 2.6, faceCount === 1 ? 0 : 2.0, faceCount === 1 ? 2.4 : 2.6);
+  camera.lookAt(0, 0, 0);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (group && currentState.panelMode !== '2d') group.rotation.y += 0.003;
+  renderer.render(scene, camera);
 }
 
 function handleFrame(buf) {
   const bytes = new Uint8Array(buf);
   const face = bytes[0];
-  const entry = canvases[face];
+  const entry = faceCanvases[face];
   if (!entry) return;
   const size = currentState.panelSize;
-  const { ctx, imgData } = entry;
+  const { ctx, imgData, texture } = entry;
   const px = imgData.data;
   for (let i = 0; i < size * size; i++) {
     px[i * 4]     = bytes[1 + i * 3];
@@ -187,6 +276,7 @@ function handleFrame(buf) {
     px[i * 4 + 3] = 255;
   }
   ctx.putImageData(imgData, 0, 0);
+  texture.needsUpdate = true;
 }
 
 document.getElementById('brightness').addEventListener('input', (e) => {
@@ -222,6 +312,7 @@ function handleBtResult(msg) {
       macSpan.className = 'mac';
       macSpan.textContent = d.mac;
       const pairBtn = document.createElement('button');
+      pairBtn.className = 'panel-btn';
       pairBtn.textContent = 'Pair';
       pairBtn.onclick = () => { logBt('Pairing with ' + d.name + '...'); send({ cmd: 'btPair', mac: d.mac }); };
       row.append(nameSpan, macSpan, pairBtn);
@@ -234,6 +325,7 @@ function handleBtResult(msg) {
 
 loadEffectNames();
 connect();
+initScene();
 </script>
 </body>
 </html>
