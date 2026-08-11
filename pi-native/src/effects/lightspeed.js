@@ -1,12 +1,16 @@
 // Ported verbatim (math unchanged) from effects-motion.js's effectLightspeed().
-// lsSpeed/lsTrail/lsSize/lsColour/lsCount/lsNudge are option-panel controls
-// in the browser (sliders/dropdown in the Light Speed effect panel) - no
-// equivalent UI exists here yet, so they stay at the browser's own defaults.
+// lsSpeed/lsTrail/lsSize/lsColour/lsCount/lsNudge are the Light Speed panel's
+// slider/button controls - read each frame from core.effectOptions.lightspeed
+// (set via the WS setEffectOption command, see wsServer.js), same defaults
+// as the browser's plain module-level vars. Matches the browser's own
+// behaviour of only applying a changed "Objects" count on the NEXT
+// resetLightspeed() (i.e. next time this effect is (re)selected) rather
+// than live-adding/removing racers mid-run - ui.js's #ls-count listener
+// doesn't call resetLightspeed() either, it just mutates the count.
 const { hsl } = require('../core');
 
 let lsRacers = [];
 let lsT = 0;
-const lsSpeed = 8, lsTrail = 32, lsSize = 1, lsColour = 'multi', lsCount = 3, lsNudge = 0;
 
 function lsTransfer(face, u, v, du, dv, S) {
   const S1 = S - 1;
@@ -47,7 +51,7 @@ function lsTransfer(face, u, v, du, dv, S) {
   return r;
 }
 
-function resetLightspeed(core) {
+function resetLightspeed(core, lsCount) {
   lsRacers = [];
   const S = core.SIZE;
   for (let k = 0; k < lsCount; k++) {
@@ -68,7 +72,10 @@ function resetLightspeed(core) {
 function effectLightspeed(core, dt) {
   lsT += dt;
   const { N, SIZE, colBuf, faceMap } = core;
-  if (!lsRacers.length || !faceMap) resetLightspeed(core);
+  const opts = core.effectOptions?.lightspeed || {};
+  const lsSpeed = opts.speed ?? 8, lsTrail = opts.trail ?? 32, lsSize = opts.size ?? 1;
+  const lsColour = opts.colour ?? 'multi', lsCount = opts.count ?? 3, lsNudge = opts.nudge ?? 0;
+  if (!lsRacers.length || !faceMap) resetLightspeed(core, lsCount);
   for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
   const S = SIZE;
 

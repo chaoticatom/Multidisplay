@@ -68,7 +68,7 @@ const WebSocket = require('ws');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { EFFECTS, EFFECT_NAMES } = require('./effects');
+const { EFFECTS, EFFECT_NAMES, WALL_EFFECTS } = require('./effects');
 const panelConfig = require('./panelConfig');
 const bluetooth = require('./bluetooth');
 
@@ -136,6 +136,7 @@ class WsServer {
       cmd: 'state',
       effect: this.state.effect, brightness: this.state.brightness, speed: this.state.speed,
       panelSize: this.config.size, panelMode: this.config.mode, panels: this.config.panels,
+      effectOptions: this.state.effectOptions,
     };
   }
 
@@ -151,6 +152,21 @@ class WsServer {
     } else if (msg.cmd === 'setSpeed') {
       const v = Number(msg.value);
       if (Number.isFinite(v)) this.state.speed = Math.max(0, Math.min(8, v));
+    } else if (msg.cmd === 'setEffectOption') {
+      // Generic per-effect option store, e.g. {cmd:'setEffectOption',
+      // effect:'lightspeed', key:'speed', value:8} - backs the effect
+      // option panels (Colour Rain's style, Light Speed's speed/trail/
+      // size/nudge/count/colour, ...). Deliberately untyped/unvalidated
+      // beyond "effect and key are non-empty strings": each effect reads
+      // its own options defensively with its own default (see rain.js/
+      // lightspeed.js), the same way the browser's plain module-level
+      // vars never validated slider/button values either.
+      if (typeof msg.effect !== 'string' || typeof msg.key !== 'string') return;
+      if (!EFFECTS[msg.effect] && !WALL_EFFECTS[msg.effect]) return;
+      if (!this.state.effectOptions) this.state.effectOptions = {};
+      if (!this.state.effectOptions[msg.effect]) this.state.effectOptions[msg.effect] = {};
+      this.state.effectOptions[msg.effect][msg.key] = msg.value;
+      this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'setPanelConfig') {
       const size = Number(msg.size);
       const mode = msg.mode;

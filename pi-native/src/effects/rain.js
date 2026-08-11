@@ -1,12 +1,8 @@
-// Ported verbatim (math unchanged) from effects-motion.js's effectRain().
-// Only the plumbing changed (core.* instead of bare globals), plus one
-// deliberate scope cut: the browser version has a second "Matrix" rain
-// style, gated behind `typeof rainStyle!=='undefined' && rainStyle==='matrix'`
-// - rainStyle is set by a sidebar radio button pi-native's control page
-// doesn't have yet, so rainStyle is always undefined here and that branch
-// is dead code that was never reachable without the missing UI. Left out
-// entirely rather than ported-but-unreachable; the always-reachable colour
-// rain mode below is untouched.
+// Ported verbatim (math unchanged) from effects-motion.js's effectRain(),
+// including both rain styles - now that the sidebar's Style buttons
+// (panel-rain, "Colour"/"Matrix") are wired via core.effectOptions.rain.style
+// (see wsServer.js's setEffectOption / app.js), matching the browser's
+// plain `rainStyle` module variable set by ui.js's rain-style-btn clicks.
 const { hsl } = require('../core');
 
 let rainDrops = [];
@@ -25,10 +21,106 @@ function resetRain(core) {
     }
 }
 
+// Matrix rain state - per-face, per-column streams, plus the top panel
+// (index 6, matching effects-motion.js's matrixStreams[6]).
+let matrixStreams = null;
+function initMatrixStreams(SIZE) {
+  matrixStreams = [];
+  for (let face = 0; face < 4; face++) {
+    matrixStreams[face] = [];
+    for (let u = 0; u < SIZE; u++) {
+      matrixStreams[face][u] = {
+        head: SIZE - 1 + Math.floor(Math.random() * SIZE * 1.5),
+        speed: 0.4 + Math.random() * 0.7,
+        len: Math.floor(SIZE * 0.25 + Math.random() * SIZE * 0.45),
+      };
+    }
+  }
+}
+
+function effectRainMatrix(core, dt) {
+  const { SIZE, faceMap, colBuf } = core;
+  if (!matrixStreams || matrixStreams.length === 0 || matrixStreams[0].length !== SIZE) initMatrixStreams(SIZE);
+
+  // v=0=bottom, v=SIZE-1=top. Head starts at top (SIZE-1), falls toward bottom (0).
+  // ── 4 SIDE FACES ──
+  for (let face = 0; face < 4; face++) {
+    for (let u = 0; u < SIZE; u++) {
+      const stream = matrixStreams[face][u];
+      stream.head -= stream.speed * dt * SIZE;
+      if (stream.head + stream.len < 0) {
+        stream.head = SIZE - 1 + Math.floor(Math.random() * SIZE * 0.8);
+        stream.speed = 0.4 + Math.random() * 0.7;
+        stream.len = Math.floor(SIZE * 0.25 + Math.random() * SIZE * 0.45);
+      }
+      const headV = Math.floor(stream.head);
+      for (let v = 0; v < SIZE; v++) {
+        const dist = v - headV;
+        if (dist < 0 || dist > stream.len) continue;
+        const idx = faceMap[face][v * SIZE + u];
+        if (idx < 0) continue;
+        const isHead = dist === 0;
+        if (isHead) {
+          colBuf[idx * 3] = 0.7; colBuf[idx * 3 + 1] = 1.0; colBuf[idx * 3 + 2] = 0.7;
+        } else {
+          const frac = 1 - dist / stream.len;
+          const bright = Math.pow(frac, 1.8) * 0.9;
+          const flicker = 0.7 + Math.random() * 0.3;
+          colBuf[idx * 3] = Math.max(colBuf[idx * 3], bright * 0.05);
+          colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], bright * flicker);
+          colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], bright * 0.05);
+        }
+      }
+    }
+  }
+
+  // ── TOP PANEL — streams fall along v axis (same direction, inward) ──
+  if (!matrixStreams[6]) {
+    matrixStreams[6] = [];
+    for (let u = 0; u < SIZE; u++) {
+      matrixStreams[6][u] = {
+        head: SIZE - 1 + Math.floor(Math.random() * SIZE * 1.5),
+        speed: 0.35 + Math.random() * 0.6,
+        len: Math.floor(SIZE * 0.2 + Math.random() * SIZE * 0.4),
+      };
+    }
+  }
+  for (let u = 0; u < SIZE; u++) {
+    const stream = matrixStreams[6][u];
+    stream.head -= stream.speed * dt * SIZE;
+    if (stream.head + stream.len < 0) {
+      stream.head = SIZE - 1 + Math.floor(Math.random() * SIZE * 0.8);
+      stream.speed = 0.35 + Math.random() * 0.6;
+      stream.len = Math.floor(SIZE * 0.2 + Math.random() * SIZE * 0.4);
+    }
+    const headV = Math.floor(stream.head);
+    for (let v = 0; v < SIZE; v++) {
+      const dist = v - headV;
+      if (dist < 0 || dist > stream.len) continue;
+      const idx = faceMap[4][v * SIZE + u];
+      if (idx < 0) continue;
+      const isHead = dist === 0;
+      if (isHead) {
+        colBuf[idx * 3] = 0.7; colBuf[idx * 3 + 1] = 1.0; colBuf[idx * 3 + 2] = 0.7;
+      } else {
+        const frac = 1 - dist / stream.len;
+        const bright = Math.pow(frac, 1.8) * 0.85;
+        const flicker = 0.7 + Math.random() * 0.3;
+        colBuf[idx * 3] = Math.max(colBuf[idx * 3], bright * 0.05);
+        colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], bright * flicker);
+        colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], bright * 0.05);
+      }
+    }
+  }
+}
+
 function effectRain(core, dt) {
   core.t += dt;
   const { N, SIZE, colBuf } = core;
   for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.78;
+
+  const style = core.effectOptions?.rain?.style || 'colour';
+  if (style === 'matrix') { effectRainMatrix(core, dt); return; }
 
   if (!rainDrops.length || rainDrops[0]._size !== SIZE) {
     resetRain(core);

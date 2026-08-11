@@ -22,6 +22,12 @@ const FACE_XFORM = [
   { pos: [0, -1, 0], rot: [Math.PI / 2, 0, 0] },
 ];
 
+// Effect option panels with a real backend behind them (see
+// wsServer.js's setEffectOption / rain.js's core.effectOptions.rain.style /
+// lightspeed.js's core.effectOptions.lightspeed.*) - every other has-panel
+// effect still gets the generic "not wired yet" greying in loadEffectNames().
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed']);
+
 let ws;
 let effectNames = {};
 let currentState = { effect: null, brightness: 1, speed: 1, panelSize: 64, panelMode: '2d' };
@@ -50,6 +56,8 @@ function handleTextMessage(msg) {
     syncEffectButtons();
     syncPanelButtons();
     syncSliders();
+    syncRainPanel();
+    syncLightspeedPanel();
     renderWallGrid();
     if (modeChanged) rebuildScene();
   } else if (msg.cmd && msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
@@ -81,12 +89,12 @@ async function loadEffectNames() {
           if (!wasOpen) { btn.classList.add('open'); if (panel) panel.classList.add('open'); }
         }
       });
-      // None of the ported effects have their per-effect option controls
+      // Most ported effects don't have their per-effect option controls
       // (city search, colour pickers, etc.) wired to a pi-native backend
-      // command yet - only the effect itself can be switched to. Grey out
-      // the panel's contents so opening it doesn't imply those controls do
-      // something they don't, while still letting the panel open/close.
-      if (panel) markUnsupported(panel, 'Effect options aren’t wired to the Pi-native engine yet.');
+      // command yet - grey those panels out so opening them doesn't imply
+      // the controls inside do something they don't. Colour Rain and Light
+      // Speed are the exception (wired below via WIRED_OPTION_PANELS).
+      if (panel && !WIRED_OPTION_PANELS.has(key)) markUnsupported(panel, 'Effect options aren’t wired to the Pi-native engine yet.');
     } else {
       btn.classList.add('not-ported');
       btn.title = 'Not yet ported to the Pi-native engine';
@@ -100,6 +108,86 @@ function syncEffectButtons() {
   document.querySelectorAll('.effect-btn[data-effect]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.effect === currentState.effect);
   });
+}
+
+function setEffectOption(effect, key, value) {
+  send({ cmd: 'setEffectOption', effect, key, value });
+}
+
+// ---------------------------------------------------------------------
+// Colour Rain's Style buttons (panel-rain) - core.effectOptions.rain.style.
+// ---------------------------------------------------------------------
+function wireRainPanel() {
+  document.querySelectorAll('.rain-style-btn[data-rainstyle]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.rain-style-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('rain', 'style', btn.dataset.rainstyle);
+    });
+  });
+}
+
+function syncRainPanel() {
+  const style = currentState.effectOptions?.rain?.style || 'colour';
+  document.querySelectorAll('.rain-style-btn[data-rainstyle]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.rainstyle === style);
+  });
+}
+
+// ---------------------------------------------------------------------
+// Light Speed's option panel (panel-lightspeed) - sliders for
+// speed/trail/count, button groups for size/nudge/colour, all backed by
+// core.effectOptions.lightspeed.*.
+// ---------------------------------------------------------------------
+function wireLightspeedPanel() {
+  const panel = document.getElementById('panel-lightspeed');
+  if (!panel) return;
+
+  const speed = panel.querySelector('#ls-speed'), speedVal = panel.querySelector('#ls-speed-val');
+  if (speed) speed.addEventListener('input', () => {
+    if (speedVal) speedVal.textContent = speed.value;
+    setEffectOption('lightspeed', 'speed', Number(speed.value));
+  });
+
+  const trail = panel.querySelector('#ls-trail'), trailVal = panel.querySelector('#ls-trail-val');
+  if (trail) trail.addEventListener('input', () => {
+    if (trailVal) trailVal.textContent = trail.value;
+    setEffectOption('lightspeed', 'trail', Number(trail.value));
+  });
+
+  const count = panel.querySelector('#ls-count'), countVal = panel.querySelector('#ls-count-val');
+  if (count) count.addEventListener('input', () => {
+    if (countVal) countVal.textContent = count.value;
+    setEffectOption('lightspeed', 'count', Number(count.value));
+  });
+
+  const wireButtonGroup = (selector, dataAttr, key, parse) => {
+    panel.querySelectorAll(selector).forEach((btn) => {
+      btn.addEventListener('click', () => {
+        panel.querySelectorAll(selector).forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        setEffectOption('lightspeed', key, parse(btn.dataset[dataAttr]));
+      });
+    });
+  };
+  wireButtonGroup('[data-ls-size]', 'lsSize', 'size', Number);
+  wireButtonGroup('[data-ls-nudge]', 'lsNudge', 'nudge', Number);
+  wireButtonGroup('[data-ls-col]', 'lsCol', 'colour', String);
+}
+
+function syncLightspeedPanel() {
+  const panel = document.getElementById('panel-lightspeed');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.lightspeed || {};
+  const speed = panel.querySelector('#ls-speed'), speedVal = panel.querySelector('#ls-speed-val');
+  if (speed && document.activeElement !== speed) { speed.value = opts.speed ?? 8; if (speedVal) speedVal.textContent = speed.value; }
+  const trail = panel.querySelector('#ls-trail'), trailVal = panel.querySelector('#ls-trail-val');
+  if (trail && document.activeElement !== trail) { trail.value = opts.trail ?? 32; if (trailVal) trailVal.textContent = trail.value; }
+  const count = panel.querySelector('#ls-count'), countVal = panel.querySelector('#ls-count-val');
+  if (count && document.activeElement !== count) { count.value = opts.count ?? 3; if (countVal) countVal.textContent = count.value; }
+  panel.querySelectorAll('[data-ls-size]').forEach((b) => b.classList.toggle('active', Number(b.dataset.lsSize) === (opts.size ?? 1)));
+  panel.querySelectorAll('[data-ls-nudge]').forEach((b) => b.classList.toggle('active', Number(b.dataset.lsNudge) === (opts.nudge ?? 0)));
+  panel.querySelectorAll('[data-ls-col]').forEach((b) => b.classList.toggle('active', b.dataset.lsCol === (opts.colour || 'multi')));
 }
 
 // ---------------------------------------------------------------------
@@ -565,6 +653,8 @@ document.addEventListener('DOMContentLoaded', () => {
   wireSliders();
   wireBluetooth();
   wireWallGrid();
+  wireRainPanel();
+  wireLightspeedPanel();
   greyOutUnsupported();
   loadEffectNames();
   connect();

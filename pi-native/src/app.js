@@ -32,6 +32,18 @@ function renderBootScreen(core, driver) {
     core.colBuf[i + 1] = BOOT_COLOR[1];
     core.colBuf[i + 2] = BOOT_COLOR[2];
   }
+  // Wall mode's driver reads core.wallBuf, not colBuf (see rgbMatrixDriver.js's
+  // _renderWallFrame) - filling only colBuf here would leave wall panels dark
+  // through the whole boot/WiFi-provisioning wait, defeating the entire point
+  // of this function. Only relevant once initWall() has run (main() below
+  // calls it before renderBootScreen() when config.mode is 'wall').
+  if (core.wallBuf) {
+    for (let i = 0; i < core.wallBuf.length; i += 3) {
+      core.wallBuf[i] = BOOT_COLOR[0];
+      core.wallBuf[i + 1] = BOOT_COLOR[1];
+      core.wallBuf[i + 2] = BOOT_COLOR[2];
+    }
+  }
   driver.renderFrame(core, 1.0);
 }
 
@@ -115,6 +127,12 @@ async function main() {
     // weather.js's module comment for why (it double-applies speedMult for
     // one specific timer, faithfully matching the browser source).
     core.speedMult = state.speed;
+    // core.effectOptions: per-effect option panel state (Colour Rain's
+    // style, Light Speed's speed/trail/size/nudge/count/colour, ...) set
+    // via the WS setEffectOption command - see wsServer.js's module
+    // comment and rain.js/lightspeed.js for how each effect reads its own
+    // slice of this, defensively, with its own default.
+    core.effectOptions = state.effectOptions;
     // Wall mode uses a completely separate effect registry (WALL_EFFECTS -
     // see effects/index.js) since it writes core.wallBuf, not core.colBuf.
     // Falls back to doing nothing (not the cube EFFECTS entry) when the
