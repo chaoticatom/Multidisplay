@@ -38,6 +38,22 @@ function cubePx(core, col, v) {
 
 function fwPx(core, col, v) { return cubePx(core, col, v); }
 
+// (x,y,z) -> surface LED index, or -1. Ported verbatim from
+// effects-core.js's surfIdx() - used by maze.js (and any future effect
+// that needs to walk the cube surface via integer voxel coords rather
+// than per-face u,v).
+function surfIdx(core, x, y, z) {
+  const SIZE = core.SIZE, faceMap = core.faceMap, M = SIZE - 1;
+  if (x < 0 || y < 0 || z < 0 || x > M || y > M || z > M) return -1;
+  if (z === M) return faceMap[0][y * SIZE + x];
+  if (z === 0) return faceMap[1][y * SIZE + (M - x)];
+  if (x === M) return faceMap[2][y * SIZE + (M - z)];
+  if (x === 0) return faceMap[3][y * SIZE + z];
+  if (y === M) return faceMap[4][z * SIZE + x];
+  if (y === 0) return faceMap[5][z * SIZE + x];
+  return -1;
+}
+
 function tronMove(core, face, u, v, du, dv) {
   const SIZE = core.SIZE, M = SIZE - 1, nu = u + du, nv = v + dv;
   if (nu >= 0 && nu <= M && nv >= 0 && nv <= M) return [face, nu, nv, du, dv];
@@ -51,4 +67,4 @@ function tronMove(core, face, u, v, du, dv) {
   }
 }
 
-module.exports = { cubePx, fwPx, tronMove, FW_FACES };
+module.exports = { cubePx, fwPx, tronMove, surfIdx, FW_FACES };

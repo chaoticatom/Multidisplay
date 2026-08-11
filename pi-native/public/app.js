@@ -26,7 +26,7 @@ const FACE_XFORM = [
 // wsServer.js's setEffectOption / rain.js's core.effectOptions.rain.style /
 // lightspeed.js's core.effectOptions.lightspeed.*) - every other has-panel
 // effect still gets the generic "not wired yet" greying in loadEffectNames().
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam']);
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze']);
 
 let ws;
 let effectNames = {};
@@ -59,6 +59,8 @@ function handleTextMessage(msg) {
     syncRainPanel();
     syncLightspeedPanel();
     syncCamPanel();
+    syncWeatherPanel();
+    syncMazePanel();
     renderWallGrid();
     if (modeChanged) rebuildScene();
   } else if (msg.cmd && msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
@@ -189,6 +191,75 @@ function syncLightspeedPanel() {
   panel.querySelectorAll('[data-ls-size]').forEach((b) => b.classList.toggle('active', Number(b.dataset.lsSize) === (opts.size ?? 1)));
   panel.querySelectorAll('[data-ls-nudge]').forEach((b) => b.classList.toggle('active', Number(b.dataset.lsNudge) === (opts.nudge ?? 0)));
   panel.querySelectorAll('[data-ls-col]').forEach((b) => b.classList.toggle('active', b.dataset.lsCol === (opts.colour || 'multi')));
+}
+
+// ---------------------------------------------------------------------
+// Weather's option panel (panel-weather) - city search box + live status/
+// temp/description readouts, backed by core.effectOptions.weather.city and
+// the effectStatus.weather snapshot effects/weather.js's getStatus()
+// exposes (see wsServer.js's _stateMsg()/app.js's per-tick poll).
+// ---------------------------------------------------------------------
+function wireWeatherPanel() {
+  const panel = document.getElementById('panel-weather');
+  if (!panel) return;
+  const cityInput = panel.querySelector('#wx-city');
+  const goBtn = panel.querySelector('#wx-fetch-btn');
+  const submit = () => {
+    const city = (cityInput?.value || '').trim();
+    if (city) setEffectOption('weather', 'city', city);
+  };
+  if (goBtn) goBtn.addEventListener('click', submit);
+  if (cityInput) cityInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+}
+
+function syncWeatherPanel() {
+  const panel = document.getElementById('panel-weather');
+  if (!panel) return;
+  const status = currentState.effectStatus?.weather;
+  const statusEl = panel.querySelector('#wx-status');
+  const infoEl = panel.querySelector('#wx-info');
+  const tempEl = panel.querySelector('#wx-temp-line');
+  const descEl = panel.querySelector('#wx-desc-line');
+  const sunEl = panel.querySelector('#wx-sun-line');
+  if (!status) { if (statusEl) statusEl.textContent = 'Enter city and press GO'; return; }
+  if (status.fetching) { if (statusEl) statusEl.textContent = 'Fetching...'; return; }
+  if (status.error) { if (statusEl) statusEl.textContent = 'Error: ' + status.error; return; }
+  if (!status.city) { if (statusEl) statusEl.textContent = 'Enter city and press GO'; return; }
+  if (statusEl) statusEl.textContent = status.city;
+  if (infoEl) infoEl.style.display = 'block';
+  if (tempEl) tempEl.textContent = (status.temp ?? '?') + '°C';
+  if (descEl) descEl.textContent = status.desc || '';
+  if (sunEl && Number.isFinite(status.sunriseS) && Number.isFinite(status.sunsetS)) {
+    const fmt = (s) => { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0'); };
+    sunEl.textContent = `☀ ${fmt(status.sunriseS)} - ${fmt(status.sunsetS)}`;
+  }
+}
+
+// ---------------------------------------------------------------------
+// Maze Runner's option panel (panel-maze) - Runners slider + "NEW MAZE"
+// button, backed by core.effectOptions.maze.runners/newMaze (see maze.js's
+// module comment for how the button's rebuild-now behaviour works without
+// a dedicated one-shot WS command - a monotonically increasing token).
+// ---------------------------------------------------------------------
+let _mazeToken = 0;
+function wireMazePanel() {
+  const panel = document.getElementById('panel-maze');
+  if (!panel) return;
+  const runners = panel.querySelector('#mz-runners'), runnersVal = panel.querySelector('#mz-runners-val');
+  if (runners) runners.addEventListener('input', () => {
+    if (runnersVal) runnersVal.textContent = runners.value;
+    setEffectOption('maze', 'runners', Number(runners.value));
+  });
+  const newBtn = panel.querySelector('#new-maze-btn');
+  if (newBtn) newBtn.addEventListener('click', () => setEffectOption('maze', 'newMaze', ++_mazeToken));
+}
+
+function syncMazePanel() {
+  const panel = document.getElementById('panel-maze');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.maze || {};
+  const runners = panel.querySelector('#mz-runners'), runnersVal = panel.querySelector('#mz-runners-val');
+  if (runners && document.activeElement !== runners) { runners.value = opts.runners ?? 3; if (runnersVal) runnersVal.textContent = runners.value; }
 }
 
 // ---------------------------------------------------------------------
@@ -693,6 +764,8 @@ document.addEventListener('DOMContentLoaded', () => {
   wireRainPanel();
   wireLightspeedPanel();
   wireCamPanel();
+  wireWeatherPanel();
+  wireMazePanel();
   greyOutUnsupported();
   loadEffectNames();
   connect();

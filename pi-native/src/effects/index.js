@@ -21,6 +21,7 @@ const lightning = require('./lightning');
 const lightspeed = require('./lightspeed');
 const gradientWashWall = require('./gradientWashWall');
 const cam = require('./cam');
+const maze = require('./maze');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -51,6 +52,7 @@ const EFFECTS = {
   lightning,
   lightspeed,
   cam,
+  maze,
 };
 
 const EFFECT_NAMES = {
@@ -68,6 +70,7 @@ const EFFECT_NAMES = {
   lightning: 'Lightning Storm',
   lightspeed: 'Light Speed',
   cam: 'Camera',
+  maze: 'Maze Runner',
 };
 
 module.exports = { EFFECTS, EFFECT_NAMES, WALL_EFFECTS };
