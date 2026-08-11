@@ -127,12 +127,31 @@ async function main() {
     // weather.js's module comment for why (it double-applies speedMult for
     // one specific timer, faithfully matching the browser source).
     core.speedMult = state.speed;
+    // core.panelMode: the browser's `panel2dMode` global, read by effects
+    // that render differently on a single flat panel vs. a cube face (e.g.
+    // weather.js's horizon/sun/moon/text placement) - see that file's
+    // module comment. Only 'wall'/'2d'/'cube' as set by panelConfig; 'wall'
+    // isn't a real single flat panel in the same sense (it's N panels), so
+    // effects keying off "is this the old single-2D-panel case" check
+    // `core.panelMode === '2d'` specifically, not `!== 'cube'`.
+    core.panelMode = config.mode;
     // core.effectOptions: per-effect option panel state (Colour Rain's
     // style, Light Speed's speed/trail/size/nudge/count/colour, ...) set
     // via the WS setEffectOption command - see wsServer.js's module
     // comment and rain.js/lightspeed.js for how each effect reads its own
     // slice of this, defensively, with its own default.
     core.effectOptions = state.effectOptions;
+    // Some effects (weather, and potentially others with their own
+    // background fetch - see effects/weather.js's getStatus()) expose a
+    // status snapshot (fetch in progress / last error / live values) for
+    // the control page's option panel to display, since it has no other
+    // way to see what a Pi-side-only fetch actually did. Only polled for
+    // the currently-selected effect - cheap, and nothing else needs it.
+    const activeFn = EFFECTS[state.effect] || WALL_EFFECTS[state.effect];
+    if (typeof activeFn?.getStatus === 'function') {
+      if (!state.effectStatus) state.effectStatus = {};
+      state.effectStatus[state.effect] = activeFn.getStatus();
+    }
     // Wall mode uses a completely separate effect registry (WALL_EFFECTS -
     // see effects/index.js) since it writes core.wallBuf, not core.colBuf.
     // Falls back to doing nothing (not the cube EFFECTS entry) when the

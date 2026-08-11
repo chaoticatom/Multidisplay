@@ -9,7 +9,7 @@ const effectWeather = require('./weather/weather');
 const { createWxState } = require('./weather/state');
 const { fetchWeather } = require('./weather/fetch');
 
-const WX_CITY = process.env.WEATHER_CITY || 'London';
+const DEFAULT_CITY = process.env.WEATHER_CITY || 'London';
 const WX_REFRESH_SEC = 15 * 60; // matches STANDALONE_WX_INTERVAL_MIN in the ESP32 firmware
 
 let wxState = null;
@@ -21,21 +21,44 @@ let wxState = null;
 // this fired a fetch (and a console.warn) on every tick. lastAttemptMs
 // tracks the last attempt regardless of outcome.
 let lastAttemptMs = 0;
+let lastCity = null; // the city fetchWeather() was last called with - see weather() below
 
-function maybeFetch(core) {
+function maybeFetch(core, city) {
   const now = Date.now();
   if (now - lastAttemptMs < WX_REFRESH_SEC * 1000) return;
   lastAttemptMs = now;
-  fetchWeather(wxState, WX_CITY, core.SIZE).catch((err) => console.warn('[weather] fetch failed:', err.message));
+  fetchWeather(wxState, city, core.SIZE).catch((err) => console.warn('[weather] fetch failed:', err.message));
 }
 
 function weather(core, dt) {
   if (!wxState) wxState = createWxState();
+  const city = core.effectOptions?.weather?.city || DEFAULT_CITY;
+  // A city change from the control page's search box should refetch right
+  // away, not wait up to WX_REFRESH_SEC - same "force it now" idea as
+  // clicking the browser panel's GO button.
+  if (city !== lastCity) { lastCity = city; lastAttemptMs = 0; }
   // effectWeather() works fine with the default state (London-ish fallback
   // values from createWxState()) until a fetch actually succeeds -
   // fire-and-forget, never blocks the render tick.
-  maybeFetch(core);
+  maybeFetch(core, city);
   effectWeather(core, dt, wxState, core.speedMult || 1);
 }
 
+// Polled by app.js each tick into state.effectStatus.weather, broadcast to
+// clients in wsServer.js's "state" message - lets the control page's
+// #wx-status/#wx-info panel show live fetch results, the same information
+// the browser app reads directly off its own module-scope wx* globals.
+function getStatus() {
+  if (!wxState) return null;
+  return {
+    city: wxState.cityDisplay || null,
+    temp: Number.isFinite(wxState.temp) ? wxState.temp : null,
+    desc: wxState.desc || null,
+    sunriseS: wxState.sunriseS, sunsetS: wxState.sunsetS,
+    fetching: !!wxState.fetching,
+    error: wxState.error || null,
+  };
+}
+
 module.exports = weather;
+module.exports.getStatus = getStatus;

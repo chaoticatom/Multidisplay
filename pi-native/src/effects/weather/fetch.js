@@ -42,9 +42,11 @@ async function fetchWeather(wxState, city, size) {
     wxState.moonsetS = moonRS.set;
     wxInitScene(wxState.code, wxState, size);
     wxState.lastFetch = Date.now() / 1000;
+    wxState.error = null; // clears whatever the previous attempt (if any) left behind
     return true;
   } catch (e) {
     console.warn('[weather] fetch error:', e.message);
+    wxState.error = e.message; // surfaced to the control page's #wx-status - see effects/weather.js's getStatus()
     return false;
   } finally {
     wxState.fetching = false;
