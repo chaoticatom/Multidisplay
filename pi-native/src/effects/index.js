@@ -27,6 +27,7 @@ const dice = require('./dice');
 const random = require('./random');
 const random80s = require('./random80s');
 const tron = require('./tron');
+const fireworks = require('./fireworks');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -63,6 +64,7 @@ const EFFECTS = {
   dice,
   random,
   random80s,
+  fireworks,
 };
 
 const EFFECT_NAMES = {
@@ -86,6 +88,7 @@ const EFFECT_NAMES = {
   dice: 'Dice Roll',
   random: 'Random 1',
   random80s: 'Random 2',
+  fireworks: 'Fireworks',
 };
 
 module.exports = { EFFECTS, EFFECT_NAMES, WALL_EFFECTS };

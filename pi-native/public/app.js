@@ -31,7 +31,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random']);
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks']);
 
 let ws;
 let effectNames = {};
@@ -69,6 +69,7 @@ function handleTextMessage(msg) {
     syncTronPanel();
     syncDicePanel();
     syncCoinflipPanel();
+    syncFireworksPanel();
     renderWallGrid();
     if (modeChanged) rebuildScene();
   } else if (msg.cmd && msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
@@ -363,6 +364,47 @@ function syncCoinflipPanel() {
   const opts = currentState.effectOptions?.coinflip || {};
   const speed = panel.querySelector('#coin-speed'), speedVal = panel.querySelector('#coin-speed-val');
   if (speed && document.activeElement !== speed) { speed.value = opts.speed ?? 1; if (speedVal) speedVal.textContent = Number(speed.value).toFixed(1) + 'x'; }
+}
+
+// ---------------------------------------------------------------------
+// Fireworks' option panel (panel-fireworks) - Mode buttons (random/sync/
+// mic, backed by core.effectOptions.fireworks.mode - see fireworks.js's
+// module comment for what each mode actually does, including the mic-mode
+// fallback), "Show text on cube" checkbox + text input, backed by
+// core.effectOptions.fireworks.textOn/text. The text input is committed on
+// 'change' (blur/Enter) rather than every keystroke's 'input' event - same
+// "don't spam a WS message per keystroke" reasoning as cam.js's URL field -
+// since scrolling-text rebuilds are more expensive than a simple option
+// swap and there's no live preview benefit to rebuilding mid-keystroke here.
+// ---------------------------------------------------------------------
+function wireFireworksPanel() {
+  const panel = document.getElementById('panel-fireworks');
+  if (!panel) return;
+  panel.querySelectorAll('.strobe-mode-btn[data-fwmode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('.strobe-mode-btn[data-fwmode]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('fireworks', 'mode', btn.dataset.fwmode);
+    });
+  });
+  const textOn = panel.querySelector('#fw-text-on');
+  if (textOn) textOn.addEventListener('change', () => setEffectOption('fireworks', 'textOn', textOn.checked));
+  const textInput = panel.querySelector('#fw-text-input');
+  if (textInput) textInput.addEventListener('change', () => setEffectOption('fireworks', 'text', textInput.value));
+}
+
+function syncFireworksPanel() {
+  const panel = document.getElementById('panel-fireworks');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.fireworks || {};
+  const mode = opts.mode || 'random';
+  panel.querySelectorAll('.strobe-mode-btn[data-fwmode]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.fwmode === mode);
+  });
+  const textOn = panel.querySelector('#fw-text-on');
+  if (textOn && document.activeElement !== textOn) textOn.checked = !!opts.textOn;
+  const textInput = panel.querySelector('#fw-text-input');
+  if (textInput && document.activeElement !== textInput) textInput.value = opts.text || '';
 }
 
 // ---------------------------------------------------------------------
@@ -872,6 +914,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireTronPanel();
   wireDicePanel();
   wireCoinflipPanel();
+  wireFireworksPanel();
   greyOutUnsupported();
   loadEffectNames();
   connect();
