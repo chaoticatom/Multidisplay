@@ -33,6 +33,19 @@
   }
   .effect-btn:hover { background: rgba(80,120,255,0.12); color: #fff; }
   .effect-btn.active { background: rgba(80,120,255,0.22); border-color: rgba(100,160,255,0.5); color: #7aadff; }
+  .effect-btn.not-ported { opacity: 0.35; cursor: default; }
+  .effect-btn.not-ported:hover { background: rgba(255,255,255,0.03); color: #cdd3e0; }
+
+  .category { margin-bottom: 2px; }
+  .category-head {
+    display: flex; justify-content: space-between; align-items: center; width: 100%;
+    background: none; border: none; color: rgba(180,220,255,0.85); font-size: 12px;
+    letter-spacing: 0.5px; padding: 8px 2px; cursor: pointer; text-align: left;
+  }
+  .category-head .chev { transition: transform 0.15s; font-size: 10px; color: rgba(160,200,255,0.5); }
+  .category.collapsed .chev { transform: rotate(-90deg); }
+  .category-body { padding-left: 2px; }
+  .category.collapsed .category-body { display: none; }
   button.panel-btn {
     background: rgba(255,255,255,0.03); color: #cdd3e0; border: 1px solid rgba(255,255,255,0.06);
     border-radius: 6px; padding: 7px 11px; font-size: 12px; cursor: pointer;
@@ -57,8 +70,8 @@
     <div id="status" class="disconnected">connecting...</div>
 
     <div class="sidebar-section">
-      <label>Effect</label>
-      <div id="effect-buttons"></div>
+      <label>Effects</label>
+      <div id="effect-categories"></div>
     </div>
 
     <div class="sidebar-section">
@@ -111,6 +124,47 @@ const FACE_XFORM = [
   { pos: [0, -1, 0], rot: [Math.PI / 2, 0, 0] },
 ];
 
+// The full effect menu as it exists in the original browser app (index.html
+// at the repo root) - kept here as plain data so the sidebar looks like the
+// familiar app even though pi-native has only ported a handful of these
+// effects so far. Buttons for anything not yet ported (i.e. not a key in
+// /effects.json) are greyed out and inert rather than omitted, so the menu
+// stays recognisable and it's obvious what's still to come.
+const FULL_MENU = [
+  { category: 'Motion & Particles', effects: [
+    ['wave', '◈ Wave Cascade'], ['rain', '◈ Colour Rain'], ['plasma', '◈ Plasma Storm'],
+    ['sphere', '◈ Laser Grid'], ['dna', '◈ DNA Helix'], ['nebula', '◈ Nebula Drift'],
+    ['aurora', '◈ Aurora Borealis'], ['warp', '◈ Warp Drive'], ['lightning', '◈ Lightning Storm'],
+    ['lightspeed', '◈ Light Speed'],
+  ] },
+  { category: 'Physics & Simulation', effects: [
+    ['balls', '◈ Bouncing Balls'], ['sand', '◈ Gravity Sand'], ['life', '◈ Crystal Life'],
+    ['fluid', '◈ Liquid Crystal'], ['fireworks', '◈ Fireworks'], ['strobe', '◈ Strobe Flash'],
+  ] },
+  { category: 'Colour & Gradients', effects: [
+    ['gradient_wash', '◈ Rainbow Wash'], ['depth_rings', '◈ Depth Rings'],
+    ['prism', '◈ Prism Sweep'], ['tide', '◈ Color Tide'],
+  ] },
+  { category: 'Live Data', effects: [
+    ['weather', '◈ Weather'], ['moon', '◈ Celestial'], ['datetime', '◈ Time & Date'],
+    ['neo', '◈ Near-Earth Objects'], ['apod', '◈ Astronomy Pic of the Day'],
+    ['unsplash', '◈ Unsplash Photos'], ['artic', '◈ Art Gallery'], ['joke', '◈ Jokes'],
+    ['otd', '◈ On This Day'], ['trivia', '◈ Trivia'], ['epic', '◈ Earth Live View'],
+    ['iss', '◈ ISS Tracker'], ['cam', '◈ Camera'], ['radio', '◈ Internet Radio'],
+  ] },
+  { category: 'Audio & Media', effects: [
+    ['video', '◈ Video Display'],
+  ] },
+  { category: 'Games & Chance', effects: [
+    ['maze', '◈ Maze Runner'], ['tron', '◈ Tron Bikes'], ['retro', '◈ Retro'],
+    ['coinflip', '◈ Coin Flip'], ['dice', '◈ Dice Roll'], ['random', '◈ Random 1'],
+    ['random80s', '◈ Random 2'],
+  ] },
+  { category: 'Scenes & Lighting', effects: [
+    ['ghost', '◈ Ghost Face'], ['custom_cube', '◈ Custom Cube'], ['easter_egg', '◈ Easter Egg'],
+  ] },
+];
+
 let ws;
 let effectNames = {};
 let currentState = { effect: null, brightness: 1, speed: 1, panelSize: 64, panelMode: '2d' };
@@ -161,14 +215,39 @@ async function loadEffectNames() {
 }
 
 function renderEffectButtons() {
-  const container = document.getElementById('effect-buttons');
+  const container = document.getElementById('effect-categories');
   container.innerHTML = '';
-  for (const [key, label] of Object.entries(effectNames)) {
-    const btn = document.createElement('button');
-    btn.className = 'effect-btn' + (key === currentState.effect ? ' active' : '');
-    btn.textContent = label;
-    btn.onclick = () => send({ cmd: 'setEffect', effect: key });
-    container.appendChild(btn);
+  for (const { category, effects } of FULL_MENU) {
+    const catDiv = document.createElement('div');
+    catDiv.className = 'category collapsed';
+
+    const head = document.createElement('button');
+    head.className = 'category-head';
+    head.innerHTML = `<span>${category}</span><span class="chev">▾</span>`;
+    head.onclick = () => catDiv.classList.toggle('collapsed');
+    catDiv.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'category-body';
+    for (const [key, label] of effects) {
+      const available = Object.prototype.hasOwnProperty.call(effectNames, key);
+      const btn = document.createElement('button');
+      btn.className = 'effect-btn' + (key === currentState.effect ? ' active' : '') + (available ? '' : ' not-ported');
+      btn.textContent = label;
+      if (available) {
+        btn.onclick = () => send({ cmd: 'setEffect', effect: key });
+      } else {
+        btn.disabled = true;
+        btn.title = 'Not yet ported to the Pi-native engine';
+      }
+      body.appendChild(btn);
+    }
+    catDiv.appendChild(body);
+    // Auto-expand a category if it's the one containing the current effect,
+    // so switching effects (e.g. via the browser preview) doesn't leave the
+    // active button hidden inside a collapsed section.
+    if (effects.some(([key]) => key === currentState.effect)) catDiv.classList.remove('collapsed');
+    container.appendChild(catDiv);
   }
 }
 
