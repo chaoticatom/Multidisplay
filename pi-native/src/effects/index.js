@@ -29,6 +29,7 @@ const random80s = require('./random80s');
 const tron = require('./tron');
 const retro = require('./retro');
 const fireworks = require('./fireworks');
+const video = require('./video');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -67,6 +68,7 @@ const EFFECTS = {
   random80s,
   fireworks,
   retro,
+  video,
 };
 
 const EFFECT_NAMES = {
@@ -92,6 +94,7 @@ const EFFECT_NAMES = {
   random80s: 'Random 2',
   fireworks: 'Fireworks',
   retro: 'Retro',
+  video: 'Video Display',
 };
 
 module.exports = { EFFECTS, EFFECT_NAMES, WALL_EFFECTS };

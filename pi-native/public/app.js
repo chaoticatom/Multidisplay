@@ -31,7 +31,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro']);
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video']);
 
 let ws;
 let effectNames = {};
@@ -71,6 +71,7 @@ function handleTextMessage(msg) {
     syncCoinflipPanel();
     syncFireworksPanel();
     syncRetroPanel();
+    syncVideoPanel();
     renderWallGrid();
     if (modeChanged) rebuildScene();
   } else if (msg.cmd && msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
@@ -500,6 +501,76 @@ function syncCamPanel() {
   if (rate && document.activeElement !== rate) { rate.value = opts.rate ?? 5; if (rateVal) rateVal.textContent = rate.value; }
   const statusEl = document.getElementById('cam-status');
   if (statusEl) statusEl.textContent = currentState.effectStatus?.cam || 'Idle';
+}
+
+// ---------------------------------------------------------------------
+// Video Display's option panel (panel-video) - a URL (decoded via ffmpeg
+// on the Pi, see src/effects/video.js) instead of the browser's file/
+// webcam/screen-capture pickers, which have no server-side equivalent -
+// those 4 buttons + the Stop button are disabled here rather than wired,
+// same "grey what has no backend" treatment as everywhere else, just done
+// per-control instead of markUnsupported()'s whole-panel sweep since this
+// panel mixes wired and unwired controls.
+// ---------------------------------------------------------------------
+function wireVideoPanel() {
+  const panel = document.getElementById('panel-video');
+  if (!panel) return;
+
+  ['vid-file-btn', 'img-file-btn', 'vid-screen-btn', 'vid-cam-btn', 'vid-stop-btn'].forEach((id) => {
+    const btn = panel.querySelector('#' + id);
+    if (btn) { btn.disabled = true; btn.title = 'Not available on the Pi-native engine - use the URL field below instead'; btn.style.opacity = 0.35; }
+  });
+
+  const url = panel.querySelector('#vid-url');
+  const loadBtn = panel.querySelector('#vid-load-btn');
+  const submit = () => { if (url) setEffectOption('video', 'url', url.value.trim()); };
+  if (loadBtn) loadBtn.addEventListener('click', submit);
+  if (url) url.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+
+  const bright = panel.querySelector('#vid-bright'), brightVal = panel.querySelector('#vid-bright-val');
+  if (bright) bright.addEventListener('input', () => {
+    if (brightVal) brightVal.textContent = bright.value + '×';
+    setEffectOption('video', 'bright', Number(bright.value));
+  });
+  const sat = panel.querySelector('#vid-sat'), satVal = panel.querySelector('#vid-sat-val');
+  if (sat) sat.addEventListener('input', () => {
+    if (satVal) satVal.textContent = sat.value + '×';
+    setEffectOption('video', 'sat', Number(sat.value));
+  });
+  const scroll = panel.querySelector('#vid-scroll'), scrollVal = panel.querySelector('#vid-scroll-val');
+  if (scroll) scroll.addEventListener('input', () => {
+    if (scrollVal) scrollVal.textContent = scroll.value;
+    setEffectOption('video', 'scroll', Number(scroll.value));
+  });
+
+  panel.querySelectorAll('.vid-layout-btn[data-layout]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('.vid-layout-btn[data-layout]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('video', 'layout', btn.dataset.layout);
+    });
+  });
+}
+
+function syncVideoPanel() {
+  const panel = document.getElementById('panel-video');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.video || {};
+
+  const url = panel.querySelector('#vid-url');
+  if (url && document.activeElement !== url) url.value = opts.url || '';
+  const bright = panel.querySelector('#vid-bright'), brightVal = panel.querySelector('#vid-bright-val');
+  if (bright && document.activeElement !== bright) { bright.value = opts.bright ?? 1; if (brightVal) brightVal.textContent = bright.value + '×'; }
+  const sat = panel.querySelector('#vid-sat'), satVal = panel.querySelector('#vid-sat-val');
+  if (sat && document.activeElement !== sat) { sat.value = opts.sat ?? 1; if (satVal) satVal.textContent = sat.value + '×'; }
+  const scroll = panel.querySelector('#vid-scroll'), scrollVal = panel.querySelector('#vid-scroll-val');
+  if (scroll && document.activeElement !== scroll) { scroll.value = opts.scroll ?? 0; if (scrollVal) scrollVal.textContent = scroll.value; }
+  panel.querySelectorAll('.vid-layout-btn[data-layout]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.layout === (opts.layout || 'panorama'));
+  });
+
+  const statusEl = document.getElementById('vid-status');
+  if (statusEl) statusEl.textContent = currentState.effectStatus?.video || 'No source loaded';
 }
 
 // ---------------------------------------------------------------------
@@ -975,6 +1046,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireCoinflipPanel();
   wireFireworksPanel();
   wireRetroPanel();
+  wireVideoPanel();
   greyOutUnsupported();
   loadEffectNames();
   connect();
