@@ -5,9 +5,10 @@
 // back small per-face preview frames). This script instead:
 //   - drives the small set of controls pi-native actually has a backend
 //     for (effect selection, cube-size/2D panel mode, master brightness/
-//     speed, the Pi-only Bluetooth pairing panel in the Setup section)
+//     speed, the Pi-only Bluetooth pairing panel in the Setup section, and
+//     the Overlays panel - global compositing layers, see wireOverlaysPanel)
 //   - greys out everything else the markup contains but pi-native doesn't
-//     support yet (Overlays, Custom Faces, Panel Editor, Timers, ESP32
+//     support yet (Custom Faces, Panel Editor, Timers, ESP32
 //     Firmware Update, Standalone Mode, Clear All) so the page still looks
 //     like the familiar app instead of silently doing nothing on click
 //   - renders a live 3D preview on the #c canvas from the binary per-face
@@ -72,6 +73,7 @@ function handleTextMessage(msg) {
     syncFireworksPanel();
     syncRetroPanel();
     syncVideoPanel();
+    syncOverlaysPanel();
     renderWallGrid();
     if (modeChanged) rebuildScene();
   } else if (msg.cmd && msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
@@ -437,6 +439,82 @@ function syncCoinflipPanel() {
 // since scrolling-text rebuilds are more expensive than a simple option
 // swap and there's no live preview benefit to rebuilding mid-keystroke here.
 // ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
+// Overlays panel (data-section="overlays") - global compositing layers
+// (stars/snow/fire/lightning/...), NOT a selectable effect, backed by
+// src/effects/overlays.js + wsServer.js's setOverlay/setOverlayOption/
+// setOverlayGlobalBright commands (see that file's module comment for the
+// wire protocol). Unlike every other panel here, the 13 ported overlays
+// share a uniform markup convention (.ov-chk[data-ov] toggle, .ov-sl
+// [data-ov][data-prop] param sliders, .ov-col[data-ov][data-val] colour
+// swatch buttons) - so this wires all of them generically in one loop
+// instead of 13 near-identical hand-written blocks. Radio/Spectrum use the
+// same .ov-chk markup but have no backend (see greyOutUnsupported) and are
+// left alone here - sending setOverlay for a key wsServer.js doesn't
+// recognise is just silently dropped, but they're disabled anyway so their
+// checkboxes can't be clicked in the first place.
+function wireOverlaysPanel() {
+  document.querySelectorAll('.ov-chk[data-ov]').forEach((chk) => {
+    const key = chk.dataset.ov;
+    chk.addEventListener('change', () => send({ cmd: 'setOverlay', key, enabled: chk.checked }));
+  });
+  document.querySelectorAll('.ov-sl[data-ov][data-prop]').forEach((sl) => {
+    const key = sl.dataset.ov, prop = sl.dataset.prop;
+    sl.addEventListener('input', () => {
+      const valEl = sl.parentElement && sl.parentElement.querySelector('.ov-vl');
+      if (valEl) valEl.textContent = sl.value;
+      send({ cmd: 'setOverlayOption', key, option: prop, value: Number(sl.value) });
+    });
+  });
+  document.querySelectorAll('.ov-col[data-ov][data-val]').forEach((btn) => {
+    const key = btn.dataset.ov;
+    btn.addEventListener('click', () => {
+      const group = btn.parentElement;
+      if (group) group.querySelectorAll('.ov-col[data-ov="' + key + '"]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      send({ cmd: 'setOverlayOption', key, option: 'color', value: btn.dataset.val });
+    });
+  });
+  const gb = document.getElementById('ov-global-bright');
+  if (gb) {
+    gb.addEventListener('input', () => {
+      const lbl = document.getElementById('ov-global-bright-val');
+      if (lbl) lbl.textContent = Math.round(gb.value * 100) + '%';
+      send({ cmd: 'setOverlayGlobalBright', value: Number(gb.value) });
+    });
+  }
+}
+
+function syncOverlaysPanel() {
+  const overlays = currentState.overlays;
+  if (!overlays) return;
+  document.querySelectorAll('.ov-chk[data-ov]').forEach((chk) => {
+    const cfg = overlays[chk.dataset.ov];
+    if (cfg && document.activeElement !== chk) chk.checked = !!cfg.on;
+  });
+  document.querySelectorAll('.ov-sl[data-ov][data-prop]').forEach((sl) => {
+    const cfg = overlays[sl.dataset.ov];
+    if (!cfg || document.activeElement === sl) return;
+    const v = cfg[sl.dataset.prop];
+    if (v !== undefined) {
+      sl.value = v;
+      const valEl = sl.parentElement && sl.parentElement.querySelector('.ov-vl');
+      if (valEl) valEl.textContent = v;
+    }
+  });
+  document.querySelectorAll('.ov-col[data-ov][data-val]').forEach((btn) => {
+    const cfg = overlays[btn.dataset.ov];
+    if (!cfg) return;
+    btn.classList.toggle('active', cfg.color === btn.dataset.val);
+  });
+  const gb = document.getElementById('ov-global-bright');
+  if (gb && document.activeElement !== gb && overlays.globalBright !== undefined) {
+    gb.value = overlays.globalBright;
+    const lbl = document.getElementById('ov-global-bright-val');
+    if (lbl) lbl.textContent = Math.round(overlays.globalBright * 100) + '%';
+  }
+}
+
 function wireFireworksPanel() {
   const panel = document.getElementById('panel-fireworks');
   if (!panel) return;
@@ -642,13 +720,12 @@ function wireCollapsibles() {
 }
 
 // ---------------------------------------------------------------------
-// Grey out sections pi-native has no backend for yet: Overlays, Custom
+// Grey out sections pi-native has no backend for yet: Custom
 // Faces, Panel Editor, Timers, Standalone Mode, Clear All, ESP32 Firmware
 // Update (that's an ESP32-only OTA flow, meaningless on the Pi).
 // ---------------------------------------------------------------------
 function greyOutUnsupported() {
   const bySelector = [
-    '[data-section="overlays"]',
     '#custom-faces-section',
     '#panel-editor-section',
     '#alarm-section',
@@ -656,6 +733,14 @@ function greyOutUnsupported() {
     '#fx-toggle-bar',
   ];
   bySelector.forEach((sel) => markUnsupported(document.querySelector(sel)));
+
+  // Radio and Spectrum are the two overlays deliberately NOT ported (see
+  // src/effects/overlays.js's module comment: radio is an audio-only no-op
+  // in the browser too, spectrum needs an audio-input pipeline pi-native
+  // doesn't have) - grey out just those two items rather than the whole
+  // Overlays section, which is otherwise fully wired (see wireOverlaysPanel).
+  markUnsupported(document.getElementById('ovi-radio'), 'Audio playback has no equivalent here - not ported.');
+  markUnsupported(document.getElementById('ovi-spectrum'), 'No audio-input pipeline in pi-native - not ported.');
 
   // Firmware Update has no id - match by its header text.
   document.querySelectorAll('.sidebar-section').forEach((section) => {
@@ -1047,6 +1132,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireFireworksPanel();
   wireRetroPanel();
   wireVideoPanel();
+  wireOverlaysPanel();
   greyOutUnsupported();
   loadEffectNames();
   connect();

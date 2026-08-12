@@ -42,6 +42,21 @@
 //       See panelConfig.isValidPanels()/WALL_MAX_COLS/WALL_MAX_ROWS for the
 //       grid bounds (currently 2x3, matching the physical topology already
 //       wired for cube mode's 3-chain x 2-panel Active-3 layout).
+//     {"cmd":"setOverlay","key":"stars","enabled":true}
+//       Toggles one of the 13 ported overlays on/off (see
+//       effects/overlays.js's OVERLAY_KEYS/module comment - overlays are
+//       GLOBAL layers, not a selectable effect, so this is a separate
+//       command from setEffect/setEffectOption). `key` must be one of
+//       OVERLAY_KEYS or the message is dropped, same defensive spirit as
+//       setEffectOption's effect/key checks above.
+//     {"cmd":"setOverlayOption","key":"stars","option":"density","value":10}
+//       Sets one param on one overlay (e.g. stars' density/speed/color).
+//     {"cmd":"setOverlayGlobalBright","value":0.8}
+//       Sets state.overlays.globalBright (mirrors the browser's
+//       ovGlobalBright slider) - a separate command rather than overloading
+//       setOverlay/setOverlayOption with a magic "__global__" key, since
+//       global brightness isn't a per-overlay on/off or param and doesn't
+//       need `key` validated against OVERLAY_KEYS at all.
 //     {"cmd":"btScan"}                                    -> {"cmd":"btScanResult","devices":[{"mac":"..","name":".."}]}
 //     {"cmd":"btPair","mac":"AA:BB:CC:DD:EE:FF"}           -> {"cmd":"btPairResult","ok":bool,"log":".."}
 //     {"cmd":"btStatus"}                                   -> {"cmd":"btStatusResult","devices":[..]}
@@ -69,6 +84,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { EFFECTS, EFFECT_NAMES, WALL_EFFECTS } = require('./effects');
+const { OVERLAY_KEYS } = require('./effects/overlays');
 const panelConfig = require('./panelConfig');
 const bluetooth = require('./bluetooth');
 
@@ -137,6 +153,7 @@ class WsServer {
       effect: this.state.effect, brightness: this.state.brightness, speed: this.state.speed,
       panelSize: this.config.size, panelMode: this.config.mode, panels: this.config.panels,
       effectOptions: this.state.effectOptions, effectStatus: this.state.effectStatus,
+      overlays: this.state.overlays,
     };
   }
 
@@ -223,6 +240,25 @@ class WsServer {
       this.config.panels = msg.panels;
       panelConfig.save(this.config);
       if (this.onConfigChange) this.onConfigChange(this.config);
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'setOverlay') {
+      if (typeof msg.key !== 'string' || !OVERLAY_KEYS.includes(msg.key)) return;
+      if (!this.state.overlays || !this.state.overlays[msg.key]) return;
+      this.state.overlays[msg.key].on = !!msg.enabled;
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'setOverlayOption') {
+      // Same "untyped, each overlay reads its own params defensively"
+      // spirit as setEffectOption above - `key` is validated against the
+      // real overlay list, `option`/`value` are not further checked here.
+      if (typeof msg.key !== 'string' || !OVERLAY_KEYS.includes(msg.key)) return;
+      if (typeof msg.option !== 'string') return;
+      if (!this.state.overlays || !this.state.overlays[msg.key]) return;
+      this.state.overlays[msg.key][msg.option] = msg.value;
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'setOverlayGlobalBright') {
+      const v = Number(msg.value);
+      if (!Number.isFinite(v) || !this.state.overlays) return;
+      this.state.overlays.globalBright = Math.max(0, Math.min(1, v));
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'btScan') {
       this._replyBt(ws, 'btScanResult', async () => ({ devices: await bluetooth.scanDevices() }));

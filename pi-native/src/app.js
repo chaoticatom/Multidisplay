@@ -7,6 +7,7 @@
 // never accidentally tries to touch GPIO on a machine that isn't a Pi.
 const { CubeCore } = require('./core');
 const { EFFECTS, WALL_EFFECTS } = require('./effects');
+const { OV_DEFAULTS, runOverlays } = require('./effects/overlays');
 const WsServer = require('./wsServer');
 const panelConfig = require('./panelConfig');
 const wifiSetup = require('./wifiSetup');
@@ -84,7 +85,12 @@ async function main() {
     console.log('[app] SKIP_WIFI_SETUP=1 - skipping WiFi provisioning check');
   }
 
-  const state = { effect: 'wave', brightness: 1.0, speed: 1.0 };
+  // state.overlays: GLOBAL overlay config (composite on top of whatever
+  // effect is selected, not tied to it like state.effectOptions) - see
+  // effects/overlays.js's module comment. Deep-cloned off OV_DEFAULTS so
+  // mutating one overlay's params (via the setOverlayOption WS command)
+  // never mutates the shared defaults object itself.
+  const state = { effect: 'wave', brightness: 1.0, speed: 1.0, overlays: JSON.parse(JSON.stringify(OV_DEFAULTS)) };
   const ws = new WsServer(WS_PORT, state, config, (newConfig) => {
     // Size changes apply live - CubeCore.resize() just rebuilds faceMap/
     // colBuf, cheap and safe (mockDriver and rgbMatrixDriver both just
@@ -159,6 +165,18 @@ async function main() {
     // colBuf has zero effect on what the wall driver actually reads.
     const fn = config.mode === 'wall' ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
     if (fn) fn(core, dt);
+
+    // Overlays composite on top of whatever the main effect just wrote,
+    // every tick, regardless of which effect is selected - see
+    // effects/overlays.js's module comment. Cube-mode only: overlays write
+    // to core.colBuf/core.faceMap (6-face geometry), which core.wallBuf
+    // (wall mode's flat stitched-panel buffer) has no relationship to -
+    // same "a cube effect writing to colBuf has zero effect on core.wallBuf"
+    // boundary already established for WALL_EFFECTS above. Skipped in wall
+    // mode entirely for now rather than silently doing nothing per-overlay;
+    // wall-mode overlay support (rewriting each ov* function to iterate
+    // wallW/wallH instead of surfX/Y/Z/faceMap) is future work.
+    if (config.mode !== 'wall') runOverlays(core, dt, state.overlays);
 
     // Brightness is applied at push time, not baked into core.colBuf -
     // matches the browser's non-destructive approach (mesh.material.color.

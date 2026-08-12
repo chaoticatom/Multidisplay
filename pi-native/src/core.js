@@ -20,6 +20,7 @@ class CubeCore {
     this.gridX = null; this.gridY = null; this.gridZ = null;
     this.surfX = null; this.surfY = null; this.surfZ = null;
     this.faceMap = null;       // faceMap[face] : Int32Array(SIZE*SIZE), value = LED index or -1
+    this.faceMembership = null; // Uint8Array(N), per-LED bitmask of which faces it belongs to (1<<face) - mirrors cube.js's faceMembership, used by overlays.js's edge-glow overlay to find corner/edge LEDs (member of >=2 faces)
     this.colBuf = null;        // Float32Array(N*3), RGB 0..1 - plain array, NOT GPU-backed (see module comment)
     this.t = 0;                // shared animation clock, matches the browser's global `t`
     this._init(size);
@@ -66,11 +67,27 @@ class CubeCore {
       if (y === 0)        faceMap[5][z * SIZE + x] = i;                 // bottom
     }
 
+    // Face membership bitmask per LED (mirrors cube.js's initCube() logic,
+    // lines ~279-288) - face bit values match faceMap's ordering above
+    // (0=front..5=bottom): 1,2,4,8,16,32. Used by overlays.js's edge-glow
+    // overlay to find LEDs on cube edges/corners (member of >=2 faces).
+    const faceMembership = new Uint8Array(N);
+    for (let i = 0; i < N; i++) {
+      const x = gridX[i], y = gridY[i], z = gridZ[i];
+      if (z === SIZE - 1) faceMembership[i] |= 1;
+      if (z === 0)        faceMembership[i] |= 2;
+      if (x === SIZE - 1) faceMembership[i] |= 4;
+      if (x === 0)        faceMembership[i] |= 8;
+      if (y === SIZE - 1) faceMembership[i] |= 16;
+      if (y === 0)        faceMembership[i] |= 32;
+    }
+
     this.SIZE = SIZE;
     this.N = N;
     this.gridX = gridX; this.gridY = gridY; this.gridZ = gridZ;
     this.surfX = surfX; this.surfY = surfY; this.surfZ = surfZ;
     this.faceMap = faceMap;
+    this.faceMembership = faceMembership;
     this.colBuf = new Float32Array(N * 3);
   }
 
