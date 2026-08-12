@@ -46,6 +46,20 @@ let searchError = null;
 let searching = false;
 let lastQuery = '';
 
+// ── Gain/Auto Gain/Fit-to-Screen — downstream amplitude shaping applied at
+// the presentation layer (ctx.amp/ctx.peak), NOT inside ffmpegAudio.js's
+// decode/FFT pipeline (out of scope for this pass - see CLAUDE.md task
+// note). This mirrors where the browser original applies the equivalent
+// logic: auAutoGainMult is computed in readMicSpectrum() (effects-core.js
+// ~153-163) as a slow-adapting multiplier separate from the manual Gain
+// slider, and auFitScale in auUpdateFitScale() (~95-101) rescales so the
+// loudest current band reaches near the top of the face - both applied
+// AFTER auSpec/auPeak already hold their smoothed decode-side values,
+// exactly where these apply here relative to audio.spec/audio.peak.
+let autoGainMult = 1;
+let lastLevelSmoothed = 0;
+let fitScale = 1;
+
 // station: {name, genre, url} - from RADIO_STATIONS or a search result,
 // same shape either way (matches the original's radioPlay() contract).
 function playStation(station) {
@@ -93,6 +107,11 @@ function effectRadio(core, dt) {
   const bands = [8, 16, 32, 64, 128, 256].includes(opts.bands) ? opts.bands : 64;
   const theme = Number.isFinite(opts.theme) ? opts.theme : 6;
   const style = opts.style || 'bars';
+  const barMode = opts.barMode || 'solid';
+  const gain = Number.isFinite(opts.gain) ? opts.gain : 1;
+  const autoGainOn = !!opts.autoGain;
+  const fitToScreen = !!opts.fitToScreen;
+  const scrollSpeed = Number.isFinite(opts.scrollSpeed) ? opts.scrollSpeed : 0;
   if (Number.isFinite(opts.volume)) setVolume(opts.volume);
 
   audio.ensure(playing && currentStation ? currentStation.url : null);
@@ -100,10 +119,46 @@ function effectRadio(core, dt) {
   for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] = 0;
 
   if (spectrumOn) {
+    // Auto Gain - slow-adapting overall multiplier toward a target overall
+    // loudness (deliberately slow, per-second not per-band, so it can't
+    // "pin to the top"), separate from the manual Gain slider.
+    let overallLevel = 0;
+    for (let b = 0; b < bands; b++) { const v = sample(audio.spec, b, bands); if (v > overallLevel) overallLevel = v; }
+    lastLevelSmoothed += (overallLevel - lastLevelSmoothed) * Math.min(1, dt * 3);
+    if (autoGainOn) {
+      const target = 0.55;
+      if (lastLevelSmoothed > 0.01) {
+        const desired = target / Math.max(0.05, lastLevelSmoothed * autoGainMult);
+        autoGainMult += (desired - autoGainMult) * Math.min(1, dt * 0.5);
+        autoGainMult = Math.max(0.3, Math.min(4, autoGainMult));
+      }
+    } else {
+      autoGainMult = 1;
+    }
+    const totalGain = gain * autoGainMult;
+
+    // Fit to Screen - rescale bar-style displays each frame so the loudest
+    // current band reaches near the top of the face, smoothed so it
+    // doesn't visibly pump on every transient.
+    if (fitToScreen) {
+      let mx = 0;
+      for (let b = 0; b < bands; b++) { const v = sample(audio.spec, b, bands) * totalGain; if (v > mx) mx = v; }
+      const target = mx > 0.015 ? Math.min(3.5, 0.94 / mx) : fitScale;
+      fitScale += (target - fitScale) * 0.12;
+    } else {
+      fitScale = 1;
+    }
+
+    // Scroll offset - advances only while Scroll Speed > 0, wraps every
+    // 4*SIZE columns, matches effects-core.js's auRefreshCurrentSource().
+    if (scrollSpeed > 0) {
+      spectrumState.scrollX = ((spectrumState.scrollX || 0) + dt * scrollSpeed * core.SIZE * 1.5 + 4 * core.SIZE) % (4 * core.SIZE);
+    }
+
     const ctx = {
-      amp: (b) => Math.min(1, sample(audio.spec, b, bands)),
-      peak: (b) => Math.min(1, sample(audio.peak, b, bands)),
-      bands, theme, t: core.t, dt,
+      amp: (b) => Math.min(1, sample(audio.spec, b, bands) * totalGain * fitScale),
+      peak: (b) => Math.min(1, sample(audio.peak, b, bands) * totalGain * fitScale),
+      bands, theme, barMode, scrollX: spectrumState.scrollX || 0, t: core.t, dt,
     };
     renderSpectrumStyle(core, ctx, style, spectrumState);
   }

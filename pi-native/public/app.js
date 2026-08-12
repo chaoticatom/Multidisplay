@@ -742,16 +742,14 @@ function syncVideoPanel() {
 // wsServer.js's module comment for why search results are broadcast state
 // rather than a per-request reply, unlike Bluetooth's btScan), the
 // featured RADIO_STATIONS list (station selection -> radioPlay command),
-// and the Spectrum Analyser style/band-count/colour-theme selectors
-// (core.effectOptions.radio.{spectrumOn,bands,style,theme} via the
-// generic setEffectOption path - see radio.js's module comment for why
-// this is a LOCAL per-effect toggle here rather than the browser's global
-// OV.spectrum overlay). Bar Mode/Gain/Scroll Speed/Fit-to-Screen/Auto Gain
-// controls in the markup have no backend yet (spectrum.js doesn't read
-// them) and are deliberately left unwired rather than faked - same "grey
-// what has no backend" spirit as video.js's disabled file/webcam buttons,
-// just not visually disabled since they share generic .ov-* markup with
-// other panels. RADIO_STATIONS is duplicated here (not fetched from the
+// and the Spectrum Analyser style/band-count/colour-theme/bar-mode/gain/
+// scroll-speed/fit-to-screen/auto-gain controls, all via
+// core.effectOptions.radio.{spectrumOn,bands,style,theme,barMode,gain,
+// scrollSpeed,fitToScreen,autoGain} through the generic setEffectOption
+// path - see radio.js's module comment for why this is a LOCAL per-effect
+// toggle here rather than the browser's global OV.spectrum overlay, and
+// for where gain/auto-gain/fit-to-screen amplitude shaping is applied.
+// RADIO_STATIONS is duplicated here (not fetched from the
 // server) - same "small static list, client already has it" precedent as
 // the browser original itself hard-coding it, and pi-native's Retro/Tron
 // panels hard-coding their own per-game/option button markup.
@@ -823,6 +821,27 @@ function wireRadioPanel() {
       setEffectOption('radio', 'theme', Number(btn.dataset.autheme));
     });
   });
+  panel.querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('.au-barmode-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('radio', 'barMode', btn.dataset.barmode);
+    });
+  });
+  const fitScreenChk = panel.querySelector('.sp-fit-screen-el');
+  if (fitScreenChk) fitScreenChk.addEventListener('change', () => setEffectOption('radio', 'fitToScreen', fitScreenChk.checked));
+  const autoGainChk = panel.querySelector('.au-autogain-el');
+  if (autoGainChk) autoGainChk.addEventListener('change', () => setEffectOption('radio', 'autoGain', autoGainChk.checked));
+  const gainSlider = panel.querySelector('.au-gain-el'), gainVal = panel.querySelector('.au-gain-val-el');
+  if (gainSlider) gainSlider.addEventListener('input', () => {
+    if (gainVal) gainVal.textContent = Number(gainSlider.value).toFixed(1) + '×';
+    setEffectOption('radio', 'gain', Number(gainSlider.value));
+  });
+  const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
+  if (scrollSlider) scrollSlider.addEventListener('input', () => {
+    if (scrollVal) scrollVal.textContent = scrollSlider.value;
+    setEffectOption('radio', 'scrollSpeed', Number(scrollSlider.value));
+  });
 }
 
 function renderFeaturedList(el, current) {
@@ -877,6 +896,16 @@ function syncRadioPanel() {
   panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.bands) === (opts.bands ?? 64)));
   panel.querySelectorAll('.au-style-btn[data-austyle]').forEach((btn) => btn.classList.toggle('active', btn.dataset.austyle === (opts.style || 'bars')));
   panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 6)));
+  panel.querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => btn.classList.toggle('active', btn.dataset.barmode === (opts.barMode || 'solid')));
+
+  const fitScreenChk = panel.querySelector('.sp-fit-screen-el');
+  if (fitScreenChk && document.activeElement !== fitScreenChk) fitScreenChk.checked = !!opts.fitToScreen;
+  const autoGainChk = panel.querySelector('.au-autogain-el');
+  if (autoGainChk && document.activeElement !== autoGainChk) autoGainChk.checked = !!opts.autoGain;
+  const gainSlider = panel.querySelector('.au-gain-el'), gainVal = panel.querySelector('.au-gain-val-el');
+  if (gainSlider && document.activeElement !== gainSlider) { gainSlider.value = opts.gain ?? 1; if (gainVal) gainVal.textContent = Number(gainSlider.value).toFixed(1) + '×'; }
+  const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
+  if (scrollSlider && document.activeElement !== scrollSlider) { scrollSlider.value = opts.scrollSpeed ?? 0; if (scrollVal) scrollVal.textContent = scrollSlider.value; }
 }
 
 // ---------------------------------------------------------------------
