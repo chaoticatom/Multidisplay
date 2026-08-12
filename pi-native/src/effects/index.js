@@ -36,6 +36,9 @@ const balls = require('./balls');
 const sand = require('./sand');
 const life = require('./life');
 const fluid = require('./fluid');
+const depthRings = require('./depthRings');
+const prism = require('./prism');
+const tide = require('./tide');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -81,6 +84,9 @@ const EFFECTS = {
   sand,
   life,
   fluid,
+  depth_rings: depthRings,
+  prism,
+  tide,
 };
 
 const EFFECT_NAMES = {
@@ -113,6 +119,9 @@ const EFFECT_NAMES = {
   sand: 'Gravity Sand',
   life: 'Crystal Life',
   fluid: 'Liquid Crystal',
+  depth_rings: 'Depth Rings',
+  prism: 'Prism Sweep',
+  tide: 'Color Tide',
 };
 
 module.exports = { EFFECTS, EFFECT_NAMES, WALL_EFFECTS };
