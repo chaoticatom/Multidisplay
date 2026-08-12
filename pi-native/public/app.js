@@ -35,7 +35,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio']);
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon']);
 
 let ws;
 let effectNames = {};
@@ -71,6 +71,7 @@ function handleTextMessage(msg) {
     syncWeatherPanel();
     syncMazePanel();
     syncTronPanel();
+    syncDatetimePanel();
     syncDicePanel();
     syncCoinflipPanel();
     syncFireworksPanel();
@@ -79,6 +80,7 @@ function handleTextMessage(msg) {
     syncStrobePanel();
     syncBallsPanel();
     syncRadioPanel();
+    syncCelestialPanel();
     syncOverlaysPanel();
     renderAlarmList();
     renderWallGrid();
@@ -387,6 +389,51 @@ function syncTronPanel() {
   if (straightChk && document.activeElement !== straightChk) straightChk.checked = !!(opts.straight ?? 1);
   const borderChk = panel.querySelector('#tron-border-check');
   if (borderChk && document.activeElement !== borderChk) borderChk.checked = !!opts.borderWalls;
+}
+
+// ---------------------------------------------------------------------
+// Time & Date's option panel (panel-datetime) - ALL PANELS/SCROLL checkboxes,
+// Scroll Speed slider, and the six Mode buttons (data-dtmode), backed by
+// core.effectOptions.datetime.{allPanels,scroll,scrollSpeed,mode} - see
+// datetime.js's module comment for how each mode renders without a browser
+// <canvas>. Mirrors the browser's #dt-allpanels-check/#dt-scroll-check/
+// #dt-scroll-speed/[data-dtmode] wiring in ui.js.
+// ---------------------------------------------------------------------
+function wireDatetimePanel() {
+  const panel = document.getElementById('panel-datetime');
+  if (!panel) return;
+  const allPanels = panel.querySelector('#dt-allpanels-check');
+  if (allPanels) allPanels.addEventListener('change', () => setEffectOption('datetime', 'allPanels', allPanels.checked));
+  const scroll = panel.querySelector('#dt-scroll-check');
+  if (scroll) scroll.addEventListener('change', () => setEffectOption('datetime', 'scroll', scroll.checked));
+  const speed = panel.querySelector('#dt-scroll-speed'), speedVal = panel.querySelector('#dt-scroll-speed-val');
+  if (speed) speed.addEventListener('input', () => {
+    if (speedVal) speedVal.textContent = speed.value;
+    setEffectOption('datetime', 'scrollSpeed', Number(speed.value));
+  });
+  panel.querySelectorAll('[data-dtmode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('[data-dtmode]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('datetime', 'mode', btn.dataset.dtmode);
+    });
+  });
+}
+
+function syncDatetimePanel() {
+  const panel = document.getElementById('panel-datetime');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.datetime || {};
+  const allPanels = panel.querySelector('#dt-allpanels-check');
+  if (allPanels && document.activeElement !== allPanels) allPanels.checked = !!opts.allPanels;
+  const scroll = panel.querySelector('#dt-scroll-check');
+  if (scroll && document.activeElement !== scroll) scroll.checked = !!opts.scroll;
+  const speed = panel.querySelector('#dt-scroll-speed'), speedVal = panel.querySelector('#dt-scroll-speed-val');
+  if (speed && document.activeElement !== speed) { speed.value = opts.scrollSpeed ?? 1; if (speedVal) speedVal.textContent = speed.value; }
+  const mode = opts.mode || 'time';
+  panel.querySelectorAll('[data-dtmode]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.dtmode === mode);
+  });
 }
 
 // ---------------------------------------------------------------------
@@ -906,6 +953,47 @@ function syncRadioPanel() {
   if (gainSlider && document.activeElement !== gainSlider) { gainSlider.value = opts.gain ?? 1; if (gainVal) gainVal.textContent = Number(gainSlider.value).toFixed(1) + '×'; }
   const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
   if (scrollSlider && document.activeElement !== scrollSlider) { scrollSlider.value = opts.scrollSpeed ?? 0; if (scrollVal) scrollVal.textContent = scrollSlider.value; }
+}
+
+// ---------------------------------------------------------------------
+// Celestial's option panel (panel-moon) - the 13-way "celestial-body" radio
+// group (moon/mercury/venus/earth/mars/jupiter/saturn/uranus/neptune/pluto/
+// sun/blackhole/solarsystem), backed by core.effectOptions.moon.body, plus
+// the Solar System view's Orbit Speed slider, backed by
+// core.effectOptions.moon.solarSpeed - same 0-7 logarithmic-multiplier
+// slider as the original (see effects/celestial/solarsystem.js). The
+// #solar-speed-row show/hide-on-selection behaviour is verbatim from
+// index.html's own inline <script> for this panel (harmless leftover -
+// still just toggling a style, no bearing on the WS wiring below).
+// ---------------------------------------------------------------------
+function wireCelestialPanel() {
+  const panel = document.getElementById('panel-moon');
+  if (!panel) return;
+  panel.querySelectorAll('input[name="celestial-body"]').forEach((r) => {
+    r.addEventListener('change', () => { if (r.checked) setEffectOption('moon', 'body', r.value); });
+  });
+  const speed = panel.querySelector('#solar-speed'), speedLabel = panel.querySelector('#solar-speed-label');
+  if (speed) speed.addEventListener('input', () => {
+    const mult = Math.pow(10, Number(speed.value));
+    if (speedLabel) speedLabel.textContent = mult < 10 ? mult.toFixed(1) + 'x' : Math.round(mult) + 'x';
+    setEffectOption('moon', 'solarSpeed', Number(speed.value));
+  });
+}
+
+function syncCelestialPanel() {
+  const panel = document.getElementById('panel-moon');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.moon || {};
+  const body = opts.body || 'moon';
+  panel.querySelectorAll('input[name="celestial-body"]').forEach((r) => { r.checked = (r.value === body); });
+  const speedRow = panel.querySelector('#solar-speed-row');
+  if (speedRow) speedRow.style.display = body === 'solarsystem' ? '' : 'none';
+  const speed = panel.querySelector('#solar-speed'), speedLabel = panel.querySelector('#solar-speed-label');
+  if (speed && document.activeElement !== speed) {
+    speed.value = opts.solarSpeed ?? 0;
+    const mult = Math.pow(10, Number(speed.value));
+    if (speedLabel) speedLabel.textContent = mult < 10 ? mult.toFixed(1) + 'x' : Math.round(mult) + 'x';
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -1600,6 +1688,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireWeatherPanel();
   wireMazePanel();
   wireTronPanel();
+  wireDatetimePanel();
   wireDicePanel();
   wireCoinflipPanel();
   wireFireworksPanel();
@@ -1608,6 +1697,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireStrobePanel();
   wireBallsPanel();
   wireRadioPanel();
+  wireCelestialPanel();
   wireOverlaysPanel();
   wireAlarmSection();
   wireAlarmModal();
