@@ -39,6 +39,9 @@ const fluid = require('./fluid');
 const depthRings = require('./depthRings');
 const prism = require('./prism');
 const tide = require('./tide');
+const datetime = require('./datetime');
+const ghost = require('./ghost');
+const moon = require('./celestial/celestial');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -87,6 +90,9 @@ const EFFECTS = {
   depth_rings: depthRings,
   prism,
   tide,
+  ghost,
+  datetime,
+  moon,
 };
 
 const EFFECT_NAMES = {
@@ -122,6 +128,9 @@ const EFFECT_NAMES = {
   depth_rings: 'Depth Rings',
   prism: 'Prism Sweep',
   tide: 'Color Tide',
+  ghost: 'Ghost Face',
+  datetime: 'Time & Date',
+  moon: 'Celestial',
 };
 
 module.exports = { EFFECTS, EFFECT_NAMES, WALL_EFFECTS };
