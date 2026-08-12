@@ -35,7 +35,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon']);
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss']);
 
 let ws;
 let effectNames = {};
@@ -68,7 +68,10 @@ function handleTextMessage(msg) {
     syncRainPanel();
     syncLightspeedPanel();
     syncCamPanel();
+    syncApodPanel();
     syncWeatherPanel();
+    syncEpicPanel();
+    syncIssPanel();
     syncMazePanel();
     syncTronPanel();
     syncDatetimePanel();
@@ -137,6 +140,76 @@ function syncEffectButtons() {
 
 function setEffectOption(effect, key, value) {
   send({ cmd: 'setEffectOption', effect, key, value });
+}
+
+// ---------------------------------------------------------------------
+// Earth Live View (panel-epic) - "Refresh Earth Image" button sends a
+// fresh timestamp as effectOptions.epic.refreshRequestedAt; effects/epic.js
+// treats any change to that value as "force a re-fetch now", same trick
+// used because setEffectOption is a value-store, not a fire-once command
+// channel (see wsServer.js's setEffectOption comment). Status readout
+// mirrors effects/epic.js's getStatus() shape (caption/date/lat/lon/
+// fetching/error), same convention as syncWeatherPanel()/syncCamPanel().
+// ---------------------------------------------------------------------
+function wireEpicPanel() {
+  const panel = document.getElementById('panel-epic');
+  if (!panel) return;
+  const btn = panel.querySelector('#epic-fetch-btn');
+  if (btn) btn.addEventListener('click', () => setEffectOption('epic', 'refreshRequestedAt', Date.now()));
+}
+
+function syncEpicPanel() {
+  const panel = document.getElementById('panel-epic');
+  if (!panel) return;
+  const status = currentState.effectStatus?.epic;
+  const statusEl = panel.querySelector('#epic-status');
+  const infoEl = panel.querySelector('#epic-info');
+  const dateEl = panel.querySelector('#epic-date-line');
+  const coordEl = panel.querySelector('#epic-coord-line');
+  if (!status) { if (statusEl) statusEl.textContent = 'Not fetched yet'; return; }
+  if (status.fetching) { if (statusEl) statusEl.textContent = 'Fetching latest Earth image…'; return; }
+  if (status.error) { if (statusEl) statusEl.textContent = '✕ ' + status.error; return; }
+  if (!status.caption) { if (statusEl) statusEl.textContent = 'Not fetched yet'; return; }
+  if (statusEl) statusEl.textContent = status.imgError ? '✕ ' + status.imgError : status.caption;
+  if (infoEl) infoEl.style.display = 'block';
+  if (dateEl) dateEl.textContent = 'Captured: ' + status.date + ' UTC';
+  if (coordEl) coordEl.textContent = (status.lat != null) ? `Centroid: ${status.lat.toFixed(1)}°, ${status.lon.toFixed(1)}°` : '';
+}
+
+// ---------------------------------------------------------------------
+// ISS Tracker (panel-iss) - "Refresh Position" button sends a fresh
+// timestamp as effectOptions.iss.refreshRequestedAt; effects/iss.js treats
+// any change to that value as "force a re-fetch now", same trick as
+// wireEpicPanel() above (setEffectOption is a value-store, not a fire-once
+// command channel - see wsServer.js's setEffectOption comment). Status
+// readout mirrors effects/iss.js's getStatus() shape (hasFix/lat/lon/
+// timestamp/fetching/error/countryCode/countryName).
+// ---------------------------------------------------------------------
+function wireIssPanel() {
+  const panel = document.getElementById('panel-iss');
+  if (!panel) return;
+  const btn = panel.querySelector('#iss-fetch-btn');
+  if (btn) btn.addEventListener('click', () => setEffectOption('iss', 'refreshRequestedAt', Date.now()));
+}
+
+function syncIssPanel() {
+  const panel = document.getElementById('panel-iss');
+  if (!panel) return;
+  const status = currentState.effectStatus?.iss;
+  const statusEl = panel.querySelector('#iss-status');
+  const infoEl = panel.querySelector('#iss-info');
+  const coordEl = panel.querySelector('#iss-coord-line');
+  const timeEl = panel.querySelector('#iss-time-line');
+  const countryEl = panel.querySelector('#iss-country-line');
+  if (!status) { if (statusEl) statusEl.textContent = 'Not fetched yet'; return; }
+  if (status.fetching) { if (statusEl) statusEl.textContent = 'Fetching…'; return; }
+  if (status.error) { if (statusEl) statusEl.textContent = '✕ ' + status.error; return; }
+  if (!status.hasFix) { if (statusEl) statusEl.textContent = 'Not fetched yet'; return; }
+  if (statusEl) statusEl.textContent = `Tracking — fix at ${new Date(status.timestamp * 1000).toLocaleTimeString()}`;
+  if (infoEl) infoEl.style.display = 'block';
+  if (coordEl) coordEl.textContent = `Lat ${status.lat.toFixed(2)}°  Lon ${status.lon.toFixed(2)}°`;
+  if (timeEl) timeEl.textContent = 'Last fix: ' + new Date(status.timestamp * 1000).toLocaleTimeString();
+  if (countryEl) countryEl.textContent = 'Currently over: ' + (status.countryCode ? status.countryName : 'International waters');
 }
 
 // ---------------------------------------------------------------------
@@ -697,6 +770,47 @@ function wireCamPanel() {
     if (rateVal) rateVal.textContent = rate.value;
     setEffectOption('cam', 'rate', Number(rate.value));
   });
+}
+
+// ---------------------------------------------------------------------
+// Astronomy Pic of the Day's option panel (panel-apod) - a status readout
+// plus a manual "Refresh" button, backed by src/effects/apod.js's daily
+// auto-fetch + getStatus(). The browser's history-browsing Prev/Next and
+// the shared .art-shared-panel Slideshow/Letterbox controls are not wired
+// here - they belong to Unsplash/Art Gallery too, neither of which is
+// ported to pi-native yet (see apod.js's module comment). The NASA API
+// key input is also left unwired: this port reads NASA_API_KEY from the
+// server's environment rather than per-browser localStorage, so there's
+// no setEffectOption equivalent for it - grey just that sub-block.
+// There's no dedicated one-shot "refresh now" command, so this reuses the
+// same monotonically-increasing-token trick as maze.js's "NEW MAZE"/
+// dice.js's "roll" buttons.
+// ---------------------------------------------------------------------
+let _apodRefreshToken = 0;
+function wireApodPanel() {
+  const panel = document.getElementById('panel-apod');
+  if (!panel) return;
+  const keyBlock = panel.querySelector('#nasa-api-key-input')?.closest('div')?.parentElement;
+  if (keyBlock) markUnsupported(keyBlock, 'NASA API key is set via the server’s NASA_API_KEY environment variable, not per-browser.');
+  const fetchBtn = panel.querySelector('#apod-fetch-btn');
+  if (fetchBtn) fetchBtn.addEventListener('click', () => setEffectOption('apod', 'refresh', ++_apodRefreshToken));
+}
+
+function syncApodPanel() {
+  const panel = document.getElementById('panel-apod');
+  if (!panel) return;
+  const status = currentState.effectStatus?.apod;
+  const statusEl = panel.querySelector('#apod-status');
+  const infoEl = panel.querySelector('#apod-info');
+  const titleEl = panel.querySelector('#apod-title-line');
+  const dateEl = panel.querySelector('#apod-date-line');
+  if (!status) { if (statusEl) statusEl.textContent = 'Not fetched yet'; return; }
+  if (statusEl) statusEl.textContent = status.error ? ('✕ ' + status.error) : status.text;
+  if (status.title) {
+    if (infoEl) infoEl.style.display = 'block';
+    if (titleEl) titleEl.textContent = 'Title: ' + status.title;
+    if (dateEl) dateEl.textContent = 'Date: ' + (status.date || '—') + (status.mediaType === 'video' ? ' (video — thumbnail)' : '');
+  }
 }
 
 function syncCamPanel() {
@@ -1685,7 +1799,10 @@ document.addEventListener('DOMContentLoaded', () => {
   wireRainPanel();
   wireLightspeedPanel();
   wireCamPanel();
+  wireApodPanel();
   wireWeatherPanel();
+  wireEpicPanel();
+  wireIssPanel();
   wireMazePanel();
   wireTronPanel();
   wireDatetimePanel();

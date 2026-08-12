@@ -42,6 +42,9 @@ const tide = require('./tide');
 const datetime = require('./datetime');
 const ghost = require('./ghost');
 const moon = require('./celestial/celestial');
+const iss = require('./iss');
+const apod = require('./apod');
+const epic = require('./epic');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -93,6 +96,9 @@ const EFFECTS = {
   ghost,
   datetime,
   moon,
+  epic,
+  apod,
+  iss,
 };
 
 const EFFECT_NAMES = {
@@ -131,6 +137,9 @@ const EFFECT_NAMES = {
   ghost: 'Ghost Face',
   datetime: 'Time & Date',
   moon: 'Celestial',
+  epic: 'Earth Live View',
+  apod: 'Astronomy Pic of the Day',
+  iss: 'ISS Tracker',
 };
 
 module.exports = { EFFECTS, EFFECT_NAMES, WALL_EFFECTS };
