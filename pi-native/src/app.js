@@ -8,9 +8,11 @@
 const { CubeCore } = require('./core');
 const { EFFECTS, WALL_EFFECTS } = require('./effects');
 const { OV_DEFAULTS, runOverlays } = require('./effects/overlays');
+const alarms = require('./effects/alarms');
 const WsServer = require('./wsServer');
 const panelConfig = require('./panelConfig');
 const wifiSetup = require('./wifiSetup');
+const alarmConfig = require('./alarmConfig');
 
 const TICK_HZ = 30; // effect-compute + panel-push rate; independent of the driver's own PWM refresh
 const WS_PORT = 8081;
@@ -90,7 +92,21 @@ async function main() {
   // effects/overlays.js's module comment. Deep-cloned off OV_DEFAULTS so
   // mutating one overlay's params (via the setOverlayOption WS command)
   // never mutates the shared defaults object itself.
-  const state = { effect: 'wave', brightness: 1.0, speed: 1.0, overlays: JSON.parse(JSON.stringify(OV_DEFAULTS)) };
+  // state.alarms / state.activeAlarm: Timer system, same "GLOBAL, runs
+  // every tick regardless of selected effect" category as state.overlays -
+  // see effects/alarms.js's module comment for the persisted-state file
+  // (alarmConfig.js) and the exact tick-order this composes with overlays
+  // in below. onAlarmsChanged persists to disk + broadcasts state on any
+  // mutation alarmFire() itself makes (e.g. a 'once' alarm disabling
+  // itself, or an alarm's overlayKeys turning overlays on) - wsServer.js's
+  // add/update/delete/toggle/dismiss handlers persist+broadcast too, but
+  // alarmFire() runs from THIS tick loop, not from a WS handler, so it
+  // needs its own hook to do the same.
+  const state = {
+    effect: 'wave', brightness: 1.0, speed: 1.0, overlays: JSON.parse(JSON.stringify(OV_DEFAULTS)),
+    alarms: alarmConfig.load(), activeAlarm: null,
+  };
+  state.onAlarmsChanged = () => { alarmConfig.save(state.alarms); ws._broadcast(ws._stateMsg()); };
   const ws = new WsServer(WS_PORT, state, config, (newConfig) => {
     // Size changes apply live - CubeCore.resize() just rebuilds faceMap/
     // colBuf, cheap and safe (mockDriver and rgbMatrixDriver both just
@@ -163,8 +179,21 @@ async function main() {
     // Falls back to doing nothing (not the cube EFFECTS entry) when the
     // selected effect has no wall variant yet - a cube effect writing to
     // colBuf has zero effect on what the wall driver actually reads.
+    // Timer system: same "runs every tick regardless of selected effect,
+    // cube-geometry-only (faceMap-based), skipped entirely in wall mode"
+    // category as overlays just below - see effects/alarms.js's module
+    // comment for the exact 5-step order this interleaves with the normal
+    // effect render and runOverlays() (steps are numbered there to match).
+    // tickCheck() polls on its own 2s interval regardless of mode (cheap,
+    // and keeps _lastFireMin/hourly bookkeeping correct even while in wall
+    // mode) - only the actual pixel rendering is cube-mode-gated below.
+    alarms.tickCheck(state, dt, EFFECTS);
+    const cubeMode = config.mode !== 'wall';
+    if (cubeMode) alarms.renderMainMessage(core, state); // step 1
+
+    const alarmBlocking = cubeMode && alarms.isBlockingNormalEffect(state);
     const fn = config.mode === 'wall' ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
-    if (fn) fn(core, dt);
+    if (fn && !alarmBlocking) fn(core, dt); // step 2
 
     // Overlays composite on top of whatever the main effect just wrote,
     // every tick, regardless of which effect is selected - see
@@ -176,7 +205,12 @@ async function main() {
     // mode entirely for now rather than silently doing nothing per-overlay;
     // wall-mode overlay support (rewriting each ov* function to iterate
     // wallW/wallH instead of surfX/Y/Z/faceMap) is future work.
-    if (config.mode !== 'wall') runOverlays(core, dt, state.overlays);
+    if (config.mode !== 'wall') runOverlays(core, dt, state.overlays); // step 3
+
+    if (cubeMode) {
+      alarms.applyDonePhase(core, state); // step 4
+      alarms.renderPrePhase(core, dt, state, EFFECTS); // step 5 - overwrites colBuf, matches browser order exactly
+    }
 
     // Brightness is applied at push time, not baked into core.colBuf -
     // matches the browser's non-destructive approach (mesh.material.color.

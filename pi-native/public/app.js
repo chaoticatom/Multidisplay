@@ -8,9 +8,12 @@
 //     speed, the Pi-only Bluetooth pairing panel in the Setup section, and
 //     the Overlays panel - global compositing layers, see wireOverlaysPanel)
 //   - greys out everything else the markup contains but pi-native doesn't
-//     support yet (Custom Faces, Panel Editor, Timers, ESP32
-//     Firmware Update, Standalone Mode, Clear All) so the page still looks
-//     like the familiar app instead of silently doing nothing on click
+//     support yet (Custom Faces, Panel Editor, ESP32 Firmware Update,
+//     Standalone Mode, Clear All) so the page still looks like the
+//     familiar app instead of silently doing nothing on click
+//   - wires the Timers section (#alarm-section / #alarm-modal) to the
+//     server's addAlarm/updateAlarm/deleteAlarm/setAlarmEnabled/
+//     dismissAlarm commands - see wireAlarmSection()/wireAlarmModal()
 //   - renders a live 3D preview on the #c canvas from the binary per-face
 //     frames the WS server already streams for this purpose
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
@@ -74,6 +77,7 @@ function handleTextMessage(msg) {
     syncRetroPanel();
     syncVideoPanel();
     syncOverlaysPanel();
+    renderAlarmList();
     renderWallGrid();
     if (modeChanged) rebuildScene();
   } else if (msg.cmd && msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
@@ -707,6 +711,221 @@ function syncSliders() {
 }
 
 // ---------------------------------------------------------------------
+// Timers ("alarms") - #alarm-section's list + #alarm-modal's editor.
+// Mirrors the browser's own function breakdown (alarmBuildList()/
+// alarmOpenEditor()/alarmSetTriggerType()/alarmUpdateSunriseTog() in
+// ui.js), but list rendering here builds real DOM client-side from
+// currentState.alarms/activeAlarm (the WS "state" broadcast) instead of
+// the browser's own local `alarms` array - see effects/alarms.js's module
+// comment on the server for the full data model and the effectRise/
+// wxRise/playlist scope boundaries this editor deliberately doesn't expose
+// UI for (index.html's alarm-modal was trimmed to match: no playlist
+// picker beyond a disabled placeholder, no Effect-Rise sub-panel).
+const AL_DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const OV_NAMES = { stars: '✨ Stars', snow: '❄️ Snow', meteors: '☄️ Meteors', edgeglow: '🔆 Edge Glow', fire: '🔥 Fire', sparkle: '💫 Sparkle', colorwave: '🌊 Color Wave', pulse: '💡 Pulse', scanline: '📡 Scan Line', vignette: '🌑 Vignette', glitch: '📺 Glitch', mist: '🌫️ Mist', lightning: '⚡ Lightning' };
+let alarmEditId = null;
+
+function renderAlarmList() {
+  const el = document.getElementById('alarm-list-ui');
+  if (!el) return;
+  const alarms = currentState.alarms || [];
+  if (!alarms.length) { el.innerHTML = '<div style="font-size:12px;color:#667;text-align:center;padding:10px 0;">No timers set</div>'; return; }
+  el.innerHTML = '';
+  alarms.forEach((al) => {
+    const h = String(al.hour).padStart(2, '0'), m = String(al.minute).padStart(2, '0');
+    const repeatLabel = { once: 'Once', daily: 'Daily', weekdays: 'Weekdays', weekends: 'Weekends', weekly: (al.days || []).map((d) => AL_DAYS[d]).join(','), hourly: 'Hourly' }[al.repeat] || al.repeat;
+    const isWd = !!al.prealarm?.windDown;
+    const typeLabel = isWd ? 'Wind Down' : 'Alarm';
+    const on = al.enabled;
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:5px;background:rgba(20,30,60,0.5);border-radius:6px;border:1px solid rgba(80,120,255,0.18);';
+    div.innerHTML = `
+      <span class="al-tog" style="display:inline-block;width:28px;height:15px;border-radius:8px;position:relative;cursor:pointer;flex-shrink:0;background:${on ? 'rgba(80,200,120,0.6)' : 'rgba(60,70,100,0.8)'};border:1px solid ${on ? 'rgba(80,200,120,0.8)' : 'rgba(80,120,255,0.3)'};transition:all 0.2s;">
+        <span style="position:absolute;top:2px;left:${on ? '13px' : '2px'};width:9px;height:9px;border-radius:50%;background:${on ? '#4d8' : '#668'};transition:all 0.2s;"></span>
+      </span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:16px;color:#dde;font-weight:700;letter-spacing:1px;">${h}:${m} <span style="font-size:11px;color:#8899bb;font-weight:600;">${repeatLabel}</span></div>
+        <div style="font-size:12px;color:#99aabb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${al.name || ''} <span style="font-size:10px;color:#7aadff;">${typeLabel}</span></div>
+      </div>
+      <button class="al-edit-btn" style="padding:4px 10px;font-size:11px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;">✏</button>
+      <button class="al-del-btn" style="padding:4px 10px;font-size:11px;background:rgba(255,60,60,0.08);border:1px solid rgba(255,60,60,0.2);color:#f88;border-radius:4px;cursor:pointer;">✕</button>`;
+    div.querySelector('.al-tog').addEventListener('click', () => send({ cmd: 'setAlarmEnabled', id: al.id, enabled: !al.enabled }));
+    div.querySelector('.al-edit-btn').addEventListener('click', () => openAlarmEditor(al.id));
+    div.querySelector('.al-del-btn').addEventListener('click', () => { if (confirm('Delete timer?')) send({ cmd: 'deleteAlarm', id: al.id }); });
+    el.appendChild(div);
+  });
+}
+
+function wireAlarmSection() {
+  document.getElementById('alarm-add-btn')?.addEventListener('click', () => openAlarmEditor(null));
+}
+
+function buildOverlayCheckboxes(container, checkedKeys) {
+  container.innerHTML = '';
+  Object.keys(OV_NAMES).forEach((ov) => {
+    const lbl = document.createElement('label');
+    lbl.style.cssText = 'font-size:12px;color:#99b;display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 0;';
+    const tog = document.createElement('span'); tog.className = 'ov-toggle'; tog.style.marginLeft = '0';
+    const chk = document.createElement('input'); chk.type = 'checkbox'; chk.value = ov;
+    chk.checked = (checkedKeys || []).includes(ov);
+    const slider = document.createElement('span'); slider.className = 'ov-slider';
+    tog.appendChild(chk); tog.appendChild(slider);
+    lbl.appendChild(tog); lbl.appendChild(document.createTextNode(OV_NAMES[ov]));
+    container.appendChild(lbl);
+  });
+}
+
+function readCheckedOverlayKeys(container) {
+  return Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map((c) => c.value);
+}
+
+function populateEffectSelect(sel, selected) {
+  sel.innerHTML = '<option value="">─ None (no effect) ─</option>';
+  Object.entries(effectNames || {}).filter(([k]) => k !== 'custom_cube').forEach(([k, v]) => {
+    const o = document.createElement('option'); o.value = k; o.textContent = v;
+    if (k === selected) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+function alarmSetTriggerType(type) {
+  const eff = type === 'effect';
+  document.getElementById('al-type-effect')?.classList.toggle('active', eff);
+  document.getElementById('al-type-playlist')?.classList.toggle('active', !eff);
+  const effRow = document.getElementById('al-effect-row'), plRow = document.getElementById('al-playlist-row');
+  if (effRow) effRow.style.display = eff ? '' : 'none';
+  if (plRow) plRow.style.display = eff ? 'none' : '';
+}
+
+function openAlarmEditor(id) {
+  alarmEditId = id;
+  const al = id ? (currentState.alarms || []).find((a) => a.id === id) : null;
+  const d = al || {
+    name: 'Morning Timer', enabled: true, hour: 7, minute: 30, repeat: 'daily', days: [1, 2, 3, 4, 5],
+    triggerType: 'effect', effect: 'wave', overlayKeys: [], message: 'Good Morning! 🌅', prealarm: { enabled: false, preMinutes: 15, startBright: 5 },
+  };
+
+  document.getElementById('al-name').value = d.name || '';
+  document.getElementById('al-hour').value = d.hour;
+  document.getElementById('al-min').value = String(d.minute).padStart(2, '0');
+  document.getElementById('al-repeat').value = d.repeat || 'daily';
+  document.getElementById('al-message').value = d.message || '';
+  document.getElementById('al-pre-mins').value = d.prealarm?.preMinutes || 15;
+  document.getElementById('al-dim-start').value = d.prealarm?.startBright || 5;
+  document.getElementById('al-dim-val').textContent = (d.prealarm?.startBright || 5) + '%';
+
+  const isWd = !!d.prealarm?.windDown;
+  document.getElementById('al-alarm-on').value = isWd ? '0' : '1';
+  document.getElementById('al-alarm-opts').style.display = isWd ? 'none' : '';
+  document.getElementById('al-alarm-arrow').style.transform = isWd ? '' : 'rotate(90deg)';
+  document.getElementById('al-wind-down').value = isWd ? '1' : '0';
+  document.getElementById('al-wd-use-effect').checked = !!d.prealarm?.wdUseEffect;
+  const wdMinsEl = document.getElementById('al-wd-mins');
+  if (wdMinsEl) wdMinsEl.value = d.prealarm?.wdMinutes || 15;
+  document.getElementById('al-wd-opts').style.display = isWd ? '' : 'none';
+  document.getElementById('al-wd-arrow').style.transform = isWd ? 'rotate(90deg)' : '';
+  document.getElementById('al-sunrise-chk').checked = !!d.prealarm?.enabled;
+  document.getElementById('al-sunrise-opts').style.display = d.prealarm?.enabled ? 'block' : 'none';
+  document.getElementById('al-giant-sun-chk').checked = !!d.prealarm?.giantSun;
+
+  document.querySelectorAll('.al-day-btn').forEach((b) => {
+    const dd = +b.dataset.d;
+    b.classList.toggle('active', (d.days || []).includes(dd));
+  });
+  document.getElementById('al-days-row').style.display = d.repeat === 'weekly' ? '' : 'none';
+
+  alarmSetTriggerType(d.triggerType || 'effect');
+  populateEffectSelect(document.getElementById('al-effect'), d.effect);
+  buildOverlayCheckboxes(document.getElementById('al-overlays'), d.overlayKeys);
+  populateEffectSelect(document.getElementById('al-wd-effect'), d.prealarm?.wdEffectKey || currentState.effect);
+  buildOverlayCheckboxes(document.getElementById('al-wd-overlays'), d.prealarm?.wdOverlayKeys);
+  document.getElementById('al-wd-effect-section').style.display = d.prealarm?.wdUseEffect ? 'none' : '';
+
+  document.getElementById('alarm-modal-title').textContent = id ? 'EDIT TIMER' : 'ADD TIMER';
+  document.getElementById('alarm-modal').style.display = 'block';
+}
+
+function closeAlarmEditor() {
+  document.getElementById('alarm-modal').style.display = 'none';
+}
+
+function readAlarmFromModal() {
+  const triggerType = document.getElementById('al-type-playlist').classList.contains('active') ? 'playlist' : 'effect';
+  const repeat = document.getElementById('al-repeat').value;
+  const days = repeat === 'weekly' ? Array.from(document.querySelectorAll('.al-day-btn.active')).map((b) => +b.dataset.d) : [];
+  const isWd = document.getElementById('al-wind-down').value === '1';
+  return {
+    name: document.getElementById('al-name').value || 'Timer',
+    enabled: true,
+    hour: Math.max(0, Math.min(23, parseInt(document.getElementById('al-hour').value, 10) || 0)),
+    minute: Math.max(0, Math.min(59, parseInt(document.getElementById('al-min').value, 10) || 0)),
+    repeat, days,
+    triggerType,
+    effect: document.getElementById('al-effect').value || '',
+    overlayKeys: readCheckedOverlayKeys(document.getElementById('al-overlays')),
+    playlistName: '',
+    message: document.getElementById('al-message').value || '',
+    prealarm: {
+      enabled: !isWd && document.getElementById('al-sunrise-chk').checked,
+      preMinutes: parseInt(document.getElementById('al-pre-mins').value, 10) || 15,
+      startBright: parseInt(document.getElementById('al-dim-start').value, 10) || 5,
+      giantSun: document.getElementById('al-giant-sun-chk').checked,
+      windDown: isWd,
+      wdMinutes: parseInt(document.getElementById('al-wd-mins').value, 10) || 15,
+      wdUseEffect: document.getElementById('al-wd-use-effect').checked,
+      wdEffectKey: document.getElementById('al-wd-effect').value || '',
+      wdOverlayKeys: readCheckedOverlayKeys(document.getElementById('al-wd-overlays')),
+    },
+  };
+}
+
+function wireAlarmModal() {
+  document.getElementById('al-type-effect')?.addEventListener('click', () => alarmSetTriggerType('effect'));
+  // Playlist trigger type is a permanent scope boundary (see this file's
+  // module comment + effects/alarms.js) - the button is disabled in
+  // index.html so this click handler never fires from it, kept out
+  // entirely rather than wired to a dead end.
+  document.getElementById('al-repeat')?.addEventListener('change', (e) => {
+    document.getElementById('al-days-row').style.display = e.target.value === 'weekly' ? '' : 'none';
+  });
+  document.querySelectorAll('.al-day-btn').forEach((b) => b.addEventListener('click', () => b.classList.toggle('active')));
+  document.getElementById('al-dim-start')?.addEventListener('input', (e) => {
+    document.getElementById('al-dim-val').textContent = e.target.value + '%';
+  });
+  document.getElementById('al-sunrise-chk')?.addEventListener('change', (e) => {
+    document.getElementById('al-sunrise-opts').style.display = e.target.checked ? 'block' : 'none';
+  });
+  document.getElementById('al-alarm-hdr')?.addEventListener('click', () => {
+    const on = document.getElementById('al-alarm-on').value === '1';
+    document.getElementById('al-alarm-on').value = on ? '0' : '1';
+    document.getElementById('al-wind-down').value = on ? '1' : '0';
+    document.getElementById('al-alarm-opts').style.display = on ? 'none' : '';
+    document.getElementById('al-alarm-arrow').style.transform = on ? '' : 'rotate(90deg)';
+    document.getElementById('al-wd-opts').style.display = on ? '' : 'none';
+    document.getElementById('al-wd-arrow').style.transform = on ? 'rotate(90deg)' : '';
+  });
+  document.getElementById('al-wd-hdr')?.addEventListener('click', () => {
+    const on = document.getElementById('al-wind-down').value === '1';
+    document.getElementById('al-wind-down').value = on ? '0' : '1';
+    document.getElementById('al-alarm-on').value = on ? '1' : '0';
+    document.getElementById('al-wd-opts').style.display = on ? 'none' : '';
+    document.getElementById('al-wd-arrow').style.transform = on ? '' : 'rotate(90deg)';
+    document.getElementById('al-alarm-opts').style.display = on ? '' : 'none';
+    document.getElementById('al-alarm-arrow').style.transform = on ? 'rotate(90deg)' : '';
+  });
+  document.getElementById('al-wd-use-effect')?.addEventListener('change', (e) => {
+    document.getElementById('al-wd-effect-section').style.display = e.target.checked ? 'none' : '';
+  });
+  document.getElementById('al-save-btn')?.addEventListener('click', () => {
+    const alarm = readAlarmFromModal();
+    if (alarmEditId) send({ cmd: 'updateAlarm', id: alarmEditId, alarm });
+    else send({ cmd: 'addAlarm', alarm });
+    closeAlarmEditor();
+  });
+  document.getElementById('al-cancel-btn')?.addEventListener('click', closeAlarmEditor);
+}
+
+// ---------------------------------------------------------------------
 // Collapsible sections/sub-sections - the original app's ui.js normally
 // handles this; reimplemented minimally here since ui.js isn't loaded.
 // ---------------------------------------------------------------------
@@ -721,14 +940,15 @@ function wireCollapsibles() {
 
 // ---------------------------------------------------------------------
 // Grey out sections pi-native has no backend for yet: Custom
-// Faces, Panel Editor, Timers, Standalone Mode, Clear All, ESP32 Firmware
-// Update (that's an ESP32-only OTA flow, meaningless on the Pi).
+// Faces, Panel Editor, Standalone Mode, Clear All, ESP32 Firmware
+// Update (that's an ESP32-only OTA flow, meaningless on the Pi). Timers
+// (#alarm-section) is NOT in this list - it's fully wired, see
+// wireAlarmSection().
 // ---------------------------------------------------------------------
 function greyOutUnsupported() {
   const bySelector = [
     '#custom-faces-section',
     '#panel-editor-section',
-    '#alarm-section',
     '#standalone-mode-bar',
     '#fx-toggle-bar',
   ];
@@ -1133,6 +1353,8 @@ document.addEventListener('DOMContentLoaded', () => {
   wireRetroPanel();
   wireVideoPanel();
   wireOverlaysPanel();
+  wireAlarmSection();
+  wireAlarmModal();
   greyOutUnsupported();
   loadEffectNames();
   connect();

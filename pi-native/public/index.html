@@ -1697,6 +1697,143 @@
 </div>
 
 
+<!-- Timer editor modal, copied verbatim from the browser app's index.html
+     (alarm-modal, lines ~1653-1799 there) - see public/app.js's
+     wireAlarmModal()/openAlarmEditor() for the JS driving these #al-*
+     fields. al-playlist-row/al-type-playlist stay in the markup (matching
+     the browser 1:1) but are permanently disabled - see app.js's module
+     comment on the playlist-trigger-type scope boundary. -->
+<div id="alarm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:2000;overflow-y:auto;padding:16px;">
+  <div style="max-width:380px;margin:0 auto;background:#07251f;border:1px solid rgba(80,120,255,0.4);border-radius:10px;padding:18px;">
+    <div style="font-size:16px;color:#7aadff;font-weight:700;letter-spacing:1px;margin-bottom:16px;" id="alarm-modal-title">TIMER EDITOR</div>
+
+    <label style="font-size:13px;color:#99b;letter-spacing:1px;font-weight:600;">NAME</label>
+    <input id="al-name" type="text" value="Morning Timer" style="width:100%;margin:5px 0 12px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:14px;border-radius:5px;box-sizing:border-box;">
+
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:flex-end;">
+      <div style="flex:1;">
+        <label style="font-size:13px;color:#99b;letter-spacing:1px;font-weight:600;">HOUR</label>
+        <input id="al-hour" type="number" min="0" max="23" value="7" style="width:100%;margin-top:5px;padding:8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:24px;font-weight:700;border-radius:5px;text-align:center;">
+      </div>
+      <div style="font-size:26px;color:#7aadff;padding-bottom:8px;">:</div>
+      <div style="flex:1;">
+        <label style="font-size:13px;color:#99b;letter-spacing:1px;font-weight:600;">MINUTE</label>
+        <input id="al-min" type="number" min="0" max="59" value="30" style="width:100%;margin-top:5px;padding:8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:24px;font-weight:700;border-radius:5px;text-align:center;">
+      </div>
+    </div>
+
+    <label style="font-size:13px;color:#99b;letter-spacing:1px;font-weight:600;">REPEAT</label>
+    <select id="al-repeat" style="width:100%;margin:5px 0 12px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;">
+      <option value="once">Once</option>
+      <option value="daily" selected>Daily</option>
+      <option value="weekdays">Weekdays (Mon–Fri)</option>
+      <option value="weekends">Weekends (Sat–Sun)</option>
+      <option value="weekly">Weekly (choose days)</option>
+      <option value="hourly">Every hour (at this minute)</option>
+    </select>
+
+    <div id="al-days-row" style="display:none;margin-bottom:10px;">
+      <label style="font-size:11px;color:#778;letter-spacing:1px;">DAYS</label>
+      <div style="display:flex;gap:4px;margin-top:4px;">
+        <button class="al-day-btn" data-d="0">Su</button>
+        <button class="al-day-btn" data-d="1">Mo</button>
+        <button class="al-day-btn" data-d="2">Tu</button>
+        <button class="al-day-btn" data-d="3">We</button>
+        <button class="al-day-btn" data-d="4">Th</button>
+        <button class="al-day-btn" data-d="5">Fr</button>
+        <button class="al-day-btn" data-d="6">Sa</button>
+      </div>
+    </div>
+
+    <label style="font-size:13px;color:#99b;letter-spacing:1px;font-weight:600;margin-top:4px;display:block;">MESSAGE</label>
+    <input id="al-message" type="text" placeholder="Good Morning! 🌅" style="width:100%;margin:5px 0 12px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:14px;border-radius:5px;box-sizing:border-box;">
+
+    <!-- ═══ ALARM SECTION ═══ -->
+    <div style="border-top:1px solid rgba(80,120,255,0.25);padding-top:10px;margin-top:4px;">
+      <div id="al-alarm-hdr" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer;user-select:none;">
+        <span id="al-alarm-arrow" style="font-size:12px;color:#7aadff;transition:transform 0.2s;display:inline-block;">▶</span>
+        <span style="font-size:13px;color:#7aadff;font-weight:700;letter-spacing:1px;">ALARM</span>
+      </div>
+      <input type="hidden" id="al-alarm-on" value="1">
+      <div id="al-alarm-opts" style="display:none;">
+
+      <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">TRIGGER</label>
+      <div style="display:flex;gap:6px;margin:4px 0 10px;">
+        <button id="al-type-effect" class="al-type-btn active" style="flex:1;padding:8px;background:rgba(80,120,255,0.2);border:1px solid rgba(80,120,255,0.5);color:#7aadff;border-radius:4px;cursor:pointer;font-size:13px;font-weight:700;">⚡ EFFECT</button>
+        <button id="al-type-playlist" class="al-type-btn" style="flex:1;padding:8px;background:rgba(30,40,80,0.4);border:1px solid rgba(80,120,255,0.2);color:#668;border-radius:4px;cursor:not-allowed;font-size:13px;font-weight:700;opacity:0.4;" disabled title="Playlists aren't ported to pi-native - see app.js's module comment.">▶ PLAYLIST</button>
+      </div>
+
+      <div id="al-effect-row">
+        <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">EFFECT</label>
+        <select id="al-effect" style="width:100%;margin:5px 0 8px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;"></select>
+        <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">OVERLAYS</label>
+        <div id="al-overlays" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:4px 0 8px;"></div>
+      </div>
+
+      <div id="al-playlist-row" style="display:none;">
+        <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">PLAYLIST</label>
+        <select id="al-playlist" disabled style="width:100%;margin:5px 0 8px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;"><option value="">— none —</option></select>
+      </div>
+
+      <!-- Pre-alarm: wake up -->
+      <div style="margin-top:4px;padding-top:8px;border-top:1px solid rgba(80,120,255,0.1);">
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;">
+          <span class="ov-toggle" style="margin-left:0;"><input type="checkbox" id="al-sunrise-chk"><span class="ov-slider"></span></span>
+          <span style="font-size:12px;color:#9cd;font-weight:600;">Pre-Alarm (dim → bright)</span>
+        </label>
+        <div id="al-sunrise-opts" style="display:none;padding:8px;background:rgba(0,0,0,0.25);border-radius:6px;border:1px solid rgba(80,120,255,0.12);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="font-size:12px;color:#99b;flex:0 0 120px;">Minutes before</span>
+            <input id="al-pre-mins" type="number" min="1" max="60" value="15" style="flex:1;padding:4px 6px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:12px;border-radius:3px;text-align:center;">
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="font-size:12px;color:#99b;flex:0 0 120px;">Start brightness</span>
+            <input type="range" id="al-dim-start" min="1" max="30" value="5" style="flex:1;">
+            <span id="al-dim-val" style="font-size:12px;color:#9cd;width:28px;font-weight:600;">5%</span>
+          </div>
+          <div style="font-size:10px;color:#556;line-height:1.4;margin-bottom:8px;">Gradually brightens from dim to full at the set time.</div>
+          <!-- Giant Sun toggle -->
+          <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;">
+            <span class="ov-toggle" style="margin-left:0;"><input type="checkbox" id="al-giant-sun-chk"><span class="ov-slider"></span></span>
+            <span style="font-size:12px;color:#9cd;font-weight:600;">Giant Sun Rise</span>
+          </label>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <!-- ═══ WIND DOWN SECTION ═══ -->
+    <div style="border-top:1px solid rgba(80,120,255,0.25);padding-top:10px;margin-top:12px;">
+      <div id="al-wd-hdr" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;user-select:none;">
+        <span id="al-wd-arrow" style="font-size:12px;color:#7aadff;transition:transform 0.2s;display:inline-block;">▶</span>
+        <span style="font-size:13px;color:#7aadff;font-weight:700;letter-spacing:1px;">WIND DOWN</span>
+      </div>
+      <input type="hidden" id="al-wind-down" value="0">
+      <div id="al-wd-opts" style="display:none;padding:8px;background:rgba(0,0,0,0.25);border-radius:6px;border:1px solid rgba(80,120,255,0.12);">
+        <div style="font-size:10px;color:#556;line-height:1.4;margin-bottom:8px;">Dims from full brightness to off over the set duration. Displays blank when done. Starts at the set time.</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="font-size:12px;color:#99b;flex:0 0 120px;">Duration (mins)</span>
+          <input id="al-wd-mins" type="number" min="1" max="120" value="15" style="flex:1;padding:4px 6px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:12px;border-radius:3px;text-align:center;">
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:8px;">
+          <span class="ov-toggle" style="margin-left:0;"><input type="checkbox" id="al-wd-use-effect"><span class="ov-slider"></span></span> <span style="font-size:12px;color:#99b;">Use current effect while dimming</span>
+        </label>
+        <div id="al-wd-effect-section">
+          <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">EFFECT</label>
+          <select id="al-wd-effect" style="width:100%;margin:5px 0 8px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;"></select>
+          <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">OVERLAYS</label>
+          <div id="al-wd-overlays" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:4px 0 8px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:24px;">
+      <button id="al-save-btn" style="flex:1;padding:11px;background:rgba(60,220,120,0.15);border:1px solid rgba(60,220,120,0.35);color:#6e8;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;">💾 SAVE</button>
+      <button id="al-cancel-btn" style="flex:1;padding:11px;background:rgba(80,80,100,0.2);border:1px solid rgba(80,80,100,0.3);color:#778;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;">CANCEL</button>
+    </div>
+  </div>
+</div>
+
 <div id="canvas-wrap"><canvas id="c"></canvas><canvas id="panel2d-canvas"></canvas><div id="wall-preview"></div></div>
 
 <script src="three.min.js"></script>

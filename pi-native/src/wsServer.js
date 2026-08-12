@@ -57,6 +57,20 @@
 //       setOverlay/setOverlayOption with a magic "__global__" key, since
 //       global brightness isn't a per-overlay on/off or param and doesn't
 //       need `key` validated against OVERLAY_KEYS at all.
+//     {"cmd":"addAlarm","alarm":{...}}                    -> broadcasts state with the new alarm appended (id assigned server-side)
+//     {"cmd":"updateAlarm","id":"...","alarm":{...}}       -> replaces the stored alarm with that id (id itself is not editable)
+//     {"cmd":"deleteAlarm","id":"..."}
+//     {"cmd":"setAlarmEnabled","id":"...","enabled":bool}
+//     {"cmd":"dismissAlarm"}                               -> clears state.activeAlarm early (Timers panel's toggle-off-while-firing behaviour)
+//       Timer system - see effects/alarms.js's module comment for the full
+//       data model / tick-order this composes with overlays. `alarm`
+//       payloads are validated defensively (alarmConfig.isValidAlarm, plus
+//       the same-spirit checks below for the nested prealarm/overlayKeys
+//       fields it doesn't cover) before ever reaching alarmConfig.save() or
+//       state.alarms - same defensive posture as panelConfig.isValidPanels.
+//       Every one of these persists to disk (alarmConfig.save) and
+//       broadcasts the new "state" message so all connected clients (and a
+//       freshly-connected one) see the current list.
 //     {"cmd":"btScan"}                                    -> {"cmd":"btScanResult","devices":[{"mac":"..","name":".."}]}
 //     {"cmd":"btPair","mac":"AA:BB:CC:DD:EE:FF"}           -> {"cmd":"btPairResult","ok":bool,"log":".."}
 //     {"cmd":"btStatus"}                                   -> {"cmd":"btStatusResult","devices":[..]}
@@ -86,7 +100,10 @@ const path = require('path');
 const { EFFECTS, EFFECT_NAMES, WALL_EFFECTS } = require('./effects');
 const { OVERLAY_KEYS } = require('./effects/overlays');
 const panelConfig = require('./panelConfig');
+const alarmConfig = require('./alarmConfig');
 const bluetooth = require('./bluetooth');
+const alarmsEngine = require('./effects/alarms');
+const crypto = require('crypto');
 
 const PREVIEW_FPS = 20; // matches the ESP32 firmware's streamFrameToCube() throttle
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -154,7 +171,52 @@ class WsServer {
       panelSize: this.config.size, panelMode: this.config.mode, panels: this.config.panels,
       effectOptions: this.state.effectOptions, effectStatus: this.state.effectStatus,
       overlays: this.state.overlays,
+      alarms: this.state.alarms, activeAlarm: this.state.activeAlarm,
     };
+  }
+
+  // Defensive shape-check for an incoming alarm payload beyond what
+  // alarmConfig.isValidAlarm covers (id/hour/minute/repeat/days/
+  // triggerType/overlayKeys) - the nested prealarm object's fields are
+  // never trusted as anything but plain values by effects/alarms.js
+  // (it reads them with `|| default` throughout), so this only rejects
+  // structurally wrong payloads, same "each reads its own params
+  // defensively" spirit as setEffectOption/setOverlayOption.
+  _sanitizeAlarm(raw, id) {
+    if (!raw || typeof raw !== 'object') return null;
+    const al = {
+      id,
+      name: typeof raw.name === 'string' ? raw.name : '',
+      enabled: !!raw.enabled,
+      hour: Number(raw.hour), minute: Number(raw.minute),
+      repeat: raw.repeat,
+      days: Array.isArray(raw.days) ? raw.days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6) : [],
+      triggerType: raw.triggerType === 'playlist' ? 'playlist' : 'effect',
+      effect: typeof raw.effect === 'string' ? raw.effect : '',
+      overlayKeys: Array.isArray(raw.overlayKeys) ? raw.overlayKeys.filter((k) => OVERLAY_KEYS.includes(k)) : [],
+      playlistName: typeof raw.playlistName === 'string' ? raw.playlistName : '',
+      message: typeof raw.message === 'string' ? raw.message : '',
+      prealarm: raw.prealarm && typeof raw.prealarm === 'object' ? {
+        enabled: !!raw.prealarm.enabled,
+        preMinutes: Number(raw.prealarm.preMinutes) || 15,
+        startBright: Number(raw.prealarm.startBright) || 5,
+        giantSun: !!raw.prealarm.giantSun,
+        windDown: !!raw.prealarm.windDown,
+        wdMinutes: Number(raw.prealarm.wdMinutes) || 15,
+        wdUseEffect: !!raw.prealarm.wdUseEffect,
+        wdEffectKey: typeof raw.prealarm.wdEffectKey === 'string' ? raw.prealarm.wdEffectKey : '',
+        wdOverlayKeys: Array.isArray(raw.prealarm.wdOverlayKeys) ? raw.prealarm.wdOverlayKeys.filter((k) => OVERLAY_KEYS.includes(k)) : [],
+      } : {},
+    };
+    if (!Number.isInteger(al.hour)) al.hour = 0;
+    if (!Number.isInteger(al.minute)) al.minute = 0;
+    if (!alarmConfig.isValidAlarm(al)) return null;
+    return al;
+  }
+
+  _persistAlarms() {
+    alarmConfig.save(this.state.alarms);
+    this._broadcast(this._stateMsg());
   }
 
   _handleMessage(ws, data) {
@@ -259,6 +321,42 @@ class WsServer {
       const v = Number(msg.value);
       if (!Number.isFinite(v) || !this.state.overlays) return;
       this.state.overlays.globalBright = Math.max(0, Math.min(1, v));
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'addAlarm') {
+      const al = this._sanitizeAlarm(msg.alarm, crypto.randomUUID());
+      if (!al) return;
+      if (!this.state.alarms) this.state.alarms = [];
+      this.state.alarms.push(al);
+      this._persistAlarms();
+    } else if (msg.cmd === 'updateAlarm') {
+      if (typeof msg.id !== 'string' || !this.state.alarms) return;
+      const idx = this.state.alarms.findIndex((a) => a.id === msg.id);
+      if (idx < 0) return;
+      const al = this._sanitizeAlarm(msg.alarm, msg.id);
+      if (!al) return;
+      this.state.alarms[idx] = al;
+      // Editing the alarm currently firing dismisses it, same as the
+      // browser's alarmOpenEditor save-path (ui.js ~line 776) - stale
+      // in-flight state referencing the pre-edit alarm object shouldn't
+      // keep rendering.
+      if (this.state.activeAlarm && this.state.activeAlarm.al.id === msg.id) this.state.activeAlarm = null;
+      this._persistAlarms();
+    } else if (msg.cmd === 'deleteAlarm') {
+      if (typeof msg.id !== 'string' || !this.state.alarms) return;
+      const before = this.state.alarms.length;
+      this.state.alarms = this.state.alarms.filter((a) => a.id !== msg.id);
+      if (this.state.alarms.length === before) return; // no matching alarm
+      if (this.state.activeAlarm && this.state.activeAlarm.al.id === msg.id) this.state.activeAlarm = null;
+      this._persistAlarms();
+    } else if (msg.cmd === 'setAlarmEnabled') {
+      if (typeof msg.id !== 'string' || !this.state.alarms) return;
+      const al = this.state.alarms.find((a) => a.id === msg.id);
+      if (!al) return;
+      al.enabled = !!msg.enabled;
+      if (!al.enabled && this.state.activeAlarm && this.state.activeAlarm.al.id === msg.id) this.state.activeAlarm = null;
+      this._persistAlarms();
+    } else if (msg.cmd === 'dismissAlarm') {
+      alarmsEngine.dismissActive(this.state);
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'btScan') {
       this._replyBt(ws, 'btScanResult', async () => ({ devices: await bluetooth.scanDevices() }));
