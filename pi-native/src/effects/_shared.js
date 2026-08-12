@@ -73,4 +73,17 @@ function tronMove(core, face, u, v, du, dv) {
   }
 }
 
-module.exports = { cubePx, fwPx, tronMove, surfIdx, FW_FACES, VID_FACE_ORDER };
+// Fixed "down" gravity vector, in cube-local coordinates. Ported in spirit
+// (not verbatim) from cube.js's getLocalGravity() - the browser version
+// resolves gravity through either live device-orientation (gyroEnabled) or
+// the mouse-drag pivotGroup's inverse quaternion, so a dragged/tilted cube
+// tips its sand/balls/fluid accordingly. pi-native has no orbit-drag preview
+// and no device-orientation sensor (headless Pi), so there is nothing for
+// either branch to read - gravity is just a fixed world-down vector,
+// matching the browser's own untouched-cube default (pivotGroup identity ->
+// {x:0,y:-1,z:0}). Used by balls.js/sand.js/fluid.js.
+function getLocalGravity() {
+  return { x: 0, y: -1, z: 0 };
+}
+
+module.exports = { cubePx, fwPx, tronMove, surfIdx, FW_FACES, VID_FACE_ORDER, getLocalGravity };

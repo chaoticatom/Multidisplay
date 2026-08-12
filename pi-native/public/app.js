@@ -35,7 +35,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video']);
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls']);
 
 let ws;
 let effectNames = {};
@@ -76,6 +76,8 @@ function handleTextMessage(msg) {
     syncFireworksPanel();
     syncRetroPanel();
     syncVideoPanel();
+    syncStrobePanel();
+    syncBallsPanel();
     syncOverlaysPanel();
     renderAlarmList();
     renderWallGrid();
@@ -443,6 +445,82 @@ function syncCoinflipPanel() {
 // since scrolling-text rebuilds are more expensive than a simple option
 // swap and there's no live preview benefit to rebuilding mid-keystroke here.
 // ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
+// Strobe Flash's option panel (panel-strobe) - Pattern buttons (data-strobe,
+// backed by core.effectOptions.strobe.pattern), Speed slider
+// (core.effectOptions.strobe.speed), and Colour buttons (data-scol, backed
+// by core.effectOptions.strobe.color) - see strobe.js's module comment for
+// why this always reads straight from effectOptions (no Panel Editor here).
+// ---------------------------------------------------------------------
+function wireStrobePanel() {
+  const panel = document.getElementById('panel-strobe');
+  if (!panel) return;
+  panel.querySelectorAll('[data-strobe]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('[data-strobe]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('strobe', 'pattern', btn.dataset.strobe);
+    });
+  });
+  const speed = panel.querySelector('#strobe-speed'), speedVal = panel.querySelector('#strobe-speed-val');
+  if (speed) speed.addEventListener('input', () => {
+    if (speedVal) speedVal.textContent = speed.value + '/s';
+    setEffectOption('strobe', 'speed', Number(speed.value));
+  });
+  panel.querySelectorAll('[data-scol]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('[data-scol]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('strobe', 'color', btn.dataset.scol);
+    });
+  });
+}
+
+function syncStrobePanel() {
+  const panel = document.getElementById('panel-strobe');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.strobe || {};
+  const pattern = opts.pattern || 'all';
+  panel.querySelectorAll('[data-strobe]').forEach((b) => b.classList.toggle('active', b.dataset.strobe === pattern));
+  const speed = panel.querySelector('#strobe-speed'), speedVal = panel.querySelector('#strobe-speed-val');
+  if (speed && document.activeElement !== speed) { speed.value = opts.speed ?? 8; if (speedVal) speedVal.textContent = speed.value + '/s'; }
+  const color = opts.color || 'white';
+  panel.querySelectorAll('[data-scol]').forEach((b) => b.classList.toggle('active', b.dataset.scol === color));
+}
+
+// ---------------------------------------------------------------------
+// Bouncing Balls' option panel (panel-balls) - Mode buttons (data-ballmode
+// "cross"/"own", backed by core.effectOptions.balls.crossFaces) and Balls
+// per face slider (core.effectOptions.balls.count) - see balls.js's module
+// comment for what each controls.
+// ---------------------------------------------------------------------
+function wireBallsPanel() {
+  const panel = document.getElementById('panel-balls');
+  if (!panel) return;
+  panel.querySelectorAll('[data-ballmode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('[data-ballmode]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('balls', 'crossFaces', btn.dataset.ballmode === 'cross');
+    });
+  });
+  const count = panel.querySelector('#ball-count'), countVal = panel.querySelector('#ball-count-val');
+  if (count) count.addEventListener('input', () => {
+    if (countVal) countVal.textContent = count.value;
+    setEffectOption('balls', 'count', Number(count.value));
+  });
+}
+
+function syncBallsPanel() {
+  const panel = document.getElementById('panel-balls');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.balls || {};
+  const crossFaces = opts.crossFaces ?? true;
+  panel.querySelectorAll('[data-ballmode]').forEach((b) => b.classList.toggle('active', (b.dataset.ballmode === 'cross') === crossFaces));
+  const count = panel.querySelector('#ball-count'), countVal = panel.querySelector('#ball-count-val');
+  if (count && document.activeElement !== count) { count.value = opts.count ?? 3; if (countVal) countVal.textContent = count.value; }
+}
+
 // ---------------------------------------------------------------------
 // Overlays panel (data-section="overlays") - global compositing layers
 // (stars/snow/fire/lightning/...), NOT a selectable effect, backed by
@@ -1352,6 +1430,8 @@ document.addEventListener('DOMContentLoaded', () => {
   wireFireworksPanel();
   wireRetroPanel();
   wireVideoPanel();
+  wireStrobePanel();
+  wireBallsPanel();
   wireOverlaysPanel();
   wireAlarmSection();
   wireAlarmModal();

@@ -30,6 +30,11 @@ const tron = require('./tron');
 const retro = require('./retro');
 const fireworks = require('./fireworks');
 const video = require('./video');
+const strobe = require('./strobe');
+const balls = require('./balls');
+const sand = require('./sand');
+const life = require('./life');
+const fluid = require('./fluid');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -69,6 +74,11 @@ const EFFECTS = {
   fireworks,
   retro,
   video,
+  strobe,
+  balls,
+  sand,
+  life,
+  fluid,
 };
 
 const EFFECT_NAMES = {
@@ -95,6 +105,11 @@ const EFFECT_NAMES = {
   fireworks: 'Fireworks',
   retro: 'Retro',
   video: 'Video Display',
+  strobe: 'Strobe Flash',
+  balls: 'Bouncing Balls',
+  sand: 'Gravity Sand',
+  life: 'Crystal Life',
+  fluid: 'Liquid Crystal',
 };
 
 module.exports = { EFFECTS, EFFECT_NAMES, WALL_EFFECTS };
