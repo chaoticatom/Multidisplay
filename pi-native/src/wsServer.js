@@ -83,6 +83,28 @@
 //       ONLY to the requesting client (request/response, not broadcast
 //       state) since a scan/status result is specific to that request, not
 //       shared app state every client should see.
+//     {"cmd":"radioPlay","station":{"name":"..","genre":"..","url":".."}}
+//       Selects/plays an Internet Radio station - either one of the
+//       featured RADIO_STATIONS or a directory search result, same shape
+//       either way (see effects/radio/radio.js's playStation()). Unlike
+//       setEffectOption (a plain value store), this is a dedicated command
+//       because it triggers a real side effect (spawns ffmpeg) - same
+//       "dedicated command for a one-shot action with a result" reasoning
+//       as the Bluetooth commands above, not the generic option-store
+//       pattern. Broadcasts state (station/playing show up in
+//       effectStatus.radio for every connected client, not just the
+//       requester - unlike Bluetooth, "what's playing" is shared state).
+//     {"cmd":"radioStop"}
+//       Stops playback (tears down the ffmpeg/paplay pipeline on the next
+//       tick's ensure() call). Broadcasts state.
+//     {"cmd":"radioSearch","query":"jazz"}
+//       Searches the radio-browser.info directory (empty/omitted query =
+//       "top clicked" browse list). Async + fire-and-forget from this
+//       handler's perspective - results land in effectStatus.radio.search
+//       on the next tick's state broadcast, not a direct reply, since
+//       "what did the last search return" is meaningful shared UI state
+//       (unlike Bluetooth's per-request scan results) that a second
+//       connected client should also see.
 //   Text frames, server -> client, on connect and on every change:
 //     {"cmd":"state","effect":"wave","brightness":1,"speed":1,"panelSize":64,"panelMode":"cube"}
 //   Binary frames, server -> client, one per face per tick, only while
@@ -103,6 +125,7 @@ const panelConfig = require('./panelConfig');
 const alarmConfig = require('./alarmConfig');
 const bluetooth = require('./bluetooth');
 const alarmsEngine = require('./effects/alarms');
+const radio = require('./effects/radio');
 const crypto = require('crypto');
 
 const PREVIEW_FPS = 20; // matches the ESP32 firmware's streamFrameToCube() throttle
@@ -368,6 +391,16 @@ class WsServer {
       this._replyBt(ws, 'btDiscoverableResult', () => bluetooth.makeDiscoverable());
     } else if (msg.cmd === 'btRoutePhoneAudio') {
       this._replyBt(ws, 'btRoutePhoneAudioResult', () => bluetooth.routePhoneAudio());
+    } else if (msg.cmd === 'radioPlay') {
+      if (!msg.station || typeof msg.station.url !== 'string' || !msg.station.url) return;
+      radio.playStation({ name: msg.station.name, genre: msg.station.genre, url: msg.station.url });
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'radioStop') {
+      radio.stopStation();
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'radioSearch') {
+      const query = typeof msg.query === 'string' ? msg.query : '';
+      radio.search(query).then(() => this._broadcast(this._stateMsg())).catch((err) => console.warn('[radio] search failed:', err.message));
     }
   }
 

@@ -35,7 +35,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls']);
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio']);
 
 let ws;
 let effectNames = {};
@@ -78,6 +78,7 @@ function handleTextMessage(msg) {
     syncVideoPanel();
     syncStrobePanel();
     syncBallsPanel();
+    syncRadioPanel();
     syncOverlaysPanel();
     renderAlarmList();
     renderWallGrid();
@@ -731,6 +732,151 @@ function syncVideoPanel() {
 
   const statusEl = document.getElementById('vid-status');
   if (statusEl) statusEl.textContent = currentState.effectStatus?.video || 'No source loaded';
+}
+
+// ---------------------------------------------------------------------
+// Internet Radio's option panel (panel-radio) - the real new backend this
+// port added: Stop/volume (dedicated radioStop/setEffectOption('radio',
+// 'volume',...) commands), the directory search box (radioSearch command,
+// results rendered from currentState.effectStatus.radio.search - see
+// wsServer.js's module comment for why search results are broadcast state
+// rather than a per-request reply, unlike Bluetooth's btScan), the
+// featured RADIO_STATIONS list (station selection -> radioPlay command),
+// and the Spectrum Analyser style/band-count/colour-theme selectors
+// (core.effectOptions.radio.{spectrumOn,bands,style,theme} via the
+// generic setEffectOption path - see radio.js's module comment for why
+// this is a LOCAL per-effect toggle here rather than the browser's global
+// OV.spectrum overlay). Bar Mode/Gain/Scroll Speed/Fit-to-Screen/Auto Gain
+// controls in the markup have no backend yet (spectrum.js doesn't read
+// them) and are deliberately left unwired rather than faked - same "grey
+// what has no backend" spirit as video.js's disabled file/webcam buttons,
+// just not visually disabled since they share generic .ov-* markup with
+// other panels. RADIO_STATIONS is duplicated here (not fetched from the
+// server) - same "small static list, client already has it" precedent as
+// the browser original itself hard-coding it, and pi-native's Retro/Tron
+// panels hard-coding their own per-game/option button markup.
+// ---------------------------------------------------------------------
+const RADIO_STATIONS = [
+  { name: 'SomaFM Groove Salad', genre: 'Ambient/Downtempo', url: 'https://ice1.somafm.com/groovesalad-128-mp3' },
+  { name: 'SomaFM Drone Zone', genre: 'Ambient', url: 'https://ice1.somafm.com/dronezone-128-mp3' },
+  { name: 'SomaFM Space Station', genre: 'Space Music', url: 'https://ice1.somafm.com/spacestation-128-mp3' },
+  { name: 'SomaFM Beat Blender', genre: 'Electronica', url: 'https://ice1.somafm.com/beatblender-128-mp3' },
+  { name: 'SomaFM Indie Pop Rocks', genre: 'Indie Pop', url: 'https://ice1.somafm.com/indiepop-128-mp3' },
+  { name: 'SomaFM Lush', genre: 'Mellow Vocals', url: 'https://ice1.somafm.com/lush-128-mp3' },
+  { name: 'SomaFM Secret Agent', genre: 'Spy Lounge', url: 'https://ice1.somafm.com/secretagent-128-mp3' },
+  { name: 'SomaFM Boot Liquor', genre: 'Americana', url: 'https://ice1.somafm.com/bootliquor-128-mp3' },
+];
+
+function radioStationRow(station, current) {
+  const div = document.createElement('div');
+  const isCurrent = current && current.url === station.url;
+  div.style.cssText = `padding:6px 8px;margin-bottom:4px;border-radius:4px;cursor:pointer;font-size:11px;background:${isCurrent ? 'rgba(80,120,255,0.22)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isCurrent ? 'rgba(80,120,255,0.5)' : 'rgba(255,255,255,0.08)'};`;
+  div.innerHTML = `<div style="color:#dde;font-weight:600;">${isCurrent ? '▶ ' : ''}${station.name}</div>${station.genre ? `<div style="color:#8899bb;font-size:10px;">${station.genre}</div>` : ''}`;
+  div.addEventListener('click', () => send({ cmd: 'radioPlay', station }));
+  return div;
+}
+
+function wireRadioPanel() {
+  const panel = document.getElementById('panel-radio');
+  if (!panel) return;
+
+  panel.querySelectorAll('.radio-stop-btn-el').forEach((btn) => btn.addEventListener('click', () => send({ cmd: 'radioStop' })));
+  panel.querySelectorAll('.radio-vol-el').forEach((sl) => sl.addEventListener('input', () => setEffectOption('radio', 'volume', Number(sl.value))));
+
+  const searchInput = panel.querySelector('.radio-search-input-el');
+  const doSearch = () => send({ cmd: 'radioSearch', query: (searchInput?.value || '').trim() });
+  panel.querySelector('.radio-search-btn-el')?.addEventListener('click', doSearch);
+  searchInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+  panel.querySelector('.radio-browse-top-btn-el')?.addEventListener('click', () => { if (searchInput) searchInput.value = ''; send({ cmd: 'radioSearch', query: '' }); });
+
+  // Featured list is static - render once, click handlers close over the
+  // fixed station objects (syncRadioPanel only re-renders it for the
+  // "which one is currently playing" highlight, via a full re-render below).
+  const featuredEl = panel.querySelector('.radio-station-list-el');
+  if (featuredEl) renderFeaturedList(featuredEl, null);
+
+  // Spectrum Analyser sub-panel - the .ov-chk[data-ov="spectrum"] checkbox
+  // here is ALSO caught by wireOverlaysPanel's generic loop (sends a
+  // harmless setOverlay for a key wsServer.js doesn't recognise, see that
+  // function's comment) - this listener does the real work.
+  const spectrumChk = panel.querySelector('.ov-chk[data-ov="spectrum"]');
+  if (spectrumChk) spectrumChk.addEventListener('change', () => setEffectOption('radio', 'spectrumOn', spectrumChk.checked));
+
+  panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('.spectrum-bands-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('radio', 'bands', Number(btn.dataset.bands));
+    });
+  });
+  panel.querySelectorAll('.au-style-btn[data-austyle]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('.au-style-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('radio', 'style', btn.dataset.austyle);
+    });
+  });
+  panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('.au-theme-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('radio', 'theme', Number(btn.dataset.autheme));
+    });
+  });
+}
+
+function renderFeaturedList(el, current) {
+  el.innerHTML = '';
+  RADIO_STATIONS.forEach((s) => el.appendChild(radioStationRow(s, current)));
+}
+
+function renderSearchResults(el, results, current) {
+  el.innerHTML = '';
+  if (!results || !results.length) return;
+  results.forEach((s) => el.appendChild(radioStationRow(s, current)));
+}
+
+function syncRadioPanel() {
+  const panel = document.getElementById('panel-radio');
+  if (!panel) return;
+  const status = currentState.effectStatus?.radio;
+  const opts = currentState.effectOptions?.radio || {};
+  const current = status?.station || null;
+
+  panel.querySelectorAll('.radio-status-el').forEach((el) => {
+    if (!status) { el.textContent = 'Pick a station'; return; }
+    if (!status.playing) { el.textContent = 'Stopped'; return; }
+    const parts = [status.status];
+    if (status.playbackStatus && !/^Starting playback/.test(status.playbackStatus)) parts.push(status.playbackStatus);
+    el.textContent = (current ? '▶ ' + current.name + (current.genre ? ' — ' + current.genre : '') + ' — ' : '') + parts.join(' — ');
+  });
+  panel.querySelectorAll('.radio-vol-el').forEach((sl) => { if (document.activeElement !== sl) sl.value = opts.volume ?? status?.volume ?? 0.8; });
+
+  const searchStatusEls = panel.querySelectorAll('.radio-search-status-el');
+  const search = status?.search;
+  searchStatusEls.forEach((el) => {
+    if (!search) { el.textContent = ''; return; }
+    if (search.searching) { el.textContent = 'Searching…'; return; }
+    if (search.error) { el.textContent = '✕ ' + search.error; return; }
+    el.textContent = search.results.length ? search.results.length + ' stations found' : '';
+  });
+  const resultsEl = panel.querySelector('.radio-search-results-el');
+  if (resultsEl && search) renderSearchResults(resultsEl, search.results, current);
+
+  const featuredEl = panel.querySelector('.radio-station-list-el');
+  if (featuredEl && featuredEl.dataset.lastCurrent !== (current?.url || '')) {
+    featuredEl.dataset.lastCurrent = current?.url || '';
+    renderFeaturedList(featuredEl, current);
+  }
+
+  const spectrumChk = panel.querySelector('.ov-chk[data-ov="spectrum"]');
+  const spectrumOptions = panel.querySelector('.ov-options-el[data-ov="spectrum"]');
+  const spectrumOn = !!opts.spectrumOn;
+  if (spectrumChk && document.activeElement !== spectrumChk) spectrumChk.checked = spectrumOn;
+  if (spectrumOptions) spectrumOptions.style.display = spectrumOn ? '' : 'none';
+  panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.bands) === (opts.bands ?? 64)));
+  panel.querySelectorAll('.au-style-btn[data-austyle]').forEach((btn) => btn.classList.toggle('active', btn.dataset.austyle === (opts.style || 'bars')));
+  panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 6)));
 }
 
 // ---------------------------------------------------------------------
@@ -1432,6 +1578,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireVideoPanel();
   wireStrobePanel();
   wireBallsPanel();
+  wireRadioPanel();
   wireOverlaysPanel();
   wireAlarmSection();
   wireAlarmModal();

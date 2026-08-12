@@ -30,6 +30,7 @@ const tron = require('./tron');
 const retro = require('./retro');
 const fireworks = require('./fireworks');
 const video = require('./video');
+const radio = require('./radio');
 const strobe = require('./strobe');
 const balls = require('./balls');
 const sand = require('./sand');
@@ -74,6 +75,7 @@ const EFFECTS = {
   fireworks,
   retro,
   video,
+  radio,
   strobe,
   balls,
   sand,
@@ -105,6 +107,7 @@ const EFFECT_NAMES = {
   fireworks: 'Fireworks',
   retro: 'Retro',
   video: 'Video Display',
+  radio: 'Internet Radio',
   strobe: 'Strobe Flash',
   balls: 'Bouncing Balls',
   sand: 'Gravity Sand',
