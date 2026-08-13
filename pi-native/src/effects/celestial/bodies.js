@@ -57,11 +57,11 @@ function _earthCloudAt(lonD, latD) {
   return g[yi * 12 + xi] * (1 - fx) * (1 - fy) + g[yi * 12 + xi2] * fx * (1 - fy) + g[yi2 * 12 + xi] * (1 - fx) * fy + g[yi2 * 12 + xi2] * fx * fy;
 }
 
-function drawSaturn(core, faces, S, tt) {
+function drawSaturn(core, faces, W, H, tt) {
   const { colBuf, faceMap } = core;
-  const textTop = 7, topLimit = S - 3;
+  const textTop = 7, topLimit = H - 3;
   const cy = Math.round((textTop + topLimit) / 2);
-  const cx = S / 2;
+  const cx = W / 2;
   const halfW = cx - 2;
   const halfH = Math.min(cy - textTop, topLimit - cy);
   const now = new Date();
@@ -83,8 +83,8 @@ function drawSaturn(core, faces, S, tt) {
   const ringInner = pRad * 1.25, ringOuter = pRad * ringMult;
 
   for (const face of faces) {
-    for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) {
-      const idx = faceMap[face][v * S + u]; if (idx < 0) continue;
+    for (let v = 0; v < H; v++) for (let u = 0; u < W; u++) {
+      const idx = faceMap[face][v * W + u]; if (idx < 0) continue;
       const px = u - cx, py = v - cy;
       const dx = px / pRad, dy = py / pRad;
       const d2 = dx * dx + dy * dy;
@@ -178,8 +178,8 @@ function drawSaturn(core, faces, S, tt) {
         const frac = s / steps;
         const u = Math.round(startX + (endX - startX) * frac);
         const v = Math.round(startY + (endY - startY) * frac);
-        if (u < 0 || u >= S || v < 0 || v >= S) continue;
-        const idx = faceMap[face][v * S + u]; if (idx < 0) continue;
+        if (u < 0 || u >= W || v < 0 || v >= H) continue;
+        const idx = faceMap[face][v * W + u]; if (idx < 0) continue;
         const textDim = v <= 6 ? 0.2 : 1.0;
         const fade = 0.7 * (1 - frac * 0.3) * textDim;
         colBuf[idx * 3] = Math.max(colBuf[idx * 3], fade);
@@ -190,12 +190,12 @@ function drawSaturn(core, faces, S, tt) {
   }
 }
 
-function drawPlanet(core, body, faces, S, tt) {
+function drawPlanet(core, body, faces, W, H, tt) {
   const { colBuf, faceMap } = core;
   const textTop = 7;
-  const topLimit = S - 3;
+  const topLimit = H - 3;
   const cy = Math.round((textTop + topLimit) / 2);
-  const cx = S / 2;
+  const cx = W / 2;
   const halfH = Math.min(cy - textTop, topLimit - cy);
   const halfW = cx - 2;
   const extent = body === 'blackhole' ? 1.5 : 1.0;
@@ -219,8 +219,8 @@ function drawPlanet(core, body, faces, S, tt) {
   }
 
   for (const face of faces) {
-    for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) {
-      const idx = faceMap[face][v * S + u]; if (idx < 0) continue;
+    for (let v = 0; v < H; v++) for (let u = 0; u < W; u++) {
+      const idx = faceMap[face][v * W + u]; if (idx < 0) continue;
       const px = u - cx, py = v - cy;
       const dx = px / pRad, dy = py / pRad;
       const d2 = dx * dx + dy * dy;
@@ -417,8 +417,8 @@ function drawPlanet(core, body, faces, S, tt) {
           const frac = s / steps;
           const u = Math.round(startX + (endX - startX) * frac);
           const v = Math.round(startY + (endY - startY) * frac);
-          if (u < 0 || u >= S || v < 0 || v >= S) continue;
-          const idx = faceMap[face][v * S + u]; if (idx < 0) continue;
+          if (u < 0 || u >= W || v < 0 || v >= H) continue;
+          const idx = faceMap[face][v * W + u]; if (idx < 0) continue;
           const textDim = v <= 6 ? 0.2 : 1.0;
           const fade = 0.7 * (1 - frac * 0.3) * textDim;
           colBuf[idx * 3] = Math.max(colBuf[idx * 3], fade);
@@ -433,8 +433,8 @@ function drawPlanet(core, body, faces, S, tt) {
     const sunTilt = 7.25 * Math.PI / 180;
     const sunCt = Math.cos(sunTilt), sunSt = Math.sin(sunTilt);
     for (const face of faces) {
-      for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) {
-        const idx = faceMap[face][v * S + u]; if (idx < 0) continue;
+      for (let v = 0; v < H; v++) for (let u = 0; u < W; u++) {
+        const idx = faceMap[face][v * W + u]; if (idx < 0) continue;
         const dx2 = (u - cx) / pRad, dy2 = (v - cy) / pRad;
         const d2 = dx2 * dx2 + dy2 * dy2;
         const d = Math.sqrt(d2);
@@ -474,11 +474,11 @@ function drawPlanet(core, body, faces, S, tt) {
   }
 
   if (body === 'blackhole') {
-    const bhRad = Math.round(S * 0.15);
+    const bhRad = Math.round(Math.min(W, H) * 0.15);
     const discInner = bhRad * 1.8, discOuter = bhRad * 4;
     for (const face of faces) {
-      for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) {
-        const idx = faceMap[face][v * S + u]; if (idx < 0) continue;
+      for (let v = 0; v < H; v++) for (let u = 0; u < W; u++) {
+        const idx = faceMap[face][v * W + u]; if (idx < 0) continue;
         const px = u - cx, py = v - cy;
         const dist = Math.sqrt(px * px + py * py);
         const discDy = py / 0.3;

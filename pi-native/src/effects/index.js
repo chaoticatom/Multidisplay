@@ -80,6 +80,10 @@ const fireworksWall = require('./fireworksWall');
 const mazeWall = require('./mazeWall');
 const tronWall = require('./tronWall');
 const camWall = require('./camWall');
+const weatherWall = require('./weatherWall');
+const datetimeWall = require('./datetimeWall');
+const celestialWall = require('./celestialWall');
+const ghostWall = require('./ghostWall');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -124,6 +128,10 @@ const WALL_EFFECTS = {
   maze: mazeWall,
   tron: tronWall,
   cam: camWall,
+  weather: weatherWall,
+  datetime: datetimeWall,
+  moon: celestialWall,
+  ghost: ghostWall,
 };
 
 const EFFECTS = {

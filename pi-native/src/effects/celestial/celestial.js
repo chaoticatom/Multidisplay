@@ -115,11 +115,11 @@ function effectCelestial(core, dt) {
 
   const body = core.effectOptions?.moon?.body || 'moon';
   if (body === 'saturn') {
-    drawSaturn(core, faces, S, tt);
+    drawSaturn(core, faces, S, S, tt);
   } else if (body === 'solarsystem') {
-    drawSolarSystem(core, faces, S, tt, core.effectOptions?.moon?.solarSpeed ?? 0);
+    drawSolarSystem(core, faces, S, S, tt, core.effectOptions?.moon?.solarSpeed ?? 0);
   } else if (body !== 'moon') {
-    drawPlanet(core, body, faces, S, tt);
+    drawPlanet(core, body, faces, S, S, tt);
   }
 
   const mi0 = getMoonIllumination(new Date());

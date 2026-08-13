@@ -7,9 +7,9 @@
 // wired in pi-native/public/app.js - see wireCelestialPanel()).
 let _solarLastT = 0, _solarExtraDays = 0;
 
-function drawSolarSystem(core, faces, S, tt, solarSpeedSliderVal) {
+function drawSolarSystem(core, faces, W, H, tt, solarSpeedSliderVal) {
   const { colBuf, faceMap } = core;
-  const cx = S / 2, cy = S / 2;
+  const cx = W / 2, cy = H / 2;
   const rng = (s) => ((s * 2654435761) >>> 0) / 4294967296;
   const planets = [
     { name: 'Mercury', T: 87.97, L0: 252.25, color: [0.55, 0.53, 0.50], rad: 1.2 },
@@ -21,9 +21,9 @@ function drawSolarSystem(core, faces, S, tt, solarSpeedSliderVal) {
     { name: 'Uranus', T: 30687, L0: 313.23, color: [0.60, 0.82, 0.85], rad: 1.8 },
     { name: 'Neptune', T: 60190, L0: 304.88, color: [0.25, 0.40, 0.80], rad: 1.8 },
   ];
-  const sunRad = Math.round(S * 0.04);
+  const sunRad = Math.round(Math.min(W, H) * 0.04);
   const innerGap = sunRad + 3;
-  const outerEdge = S * 0.47;
+  const outerEdge = Math.min(W, H) * 0.47;
   const spacing = (outerEdge - innerGap) / (planets.length);
   const now = new Date();
   const daysSinceJ2000 = (now.getTime() - 946728000000) / 86400000;
@@ -44,8 +44,8 @@ function drawSolarSystem(core, faces, S, tt, solarSpeedSliderVal) {
   }
 
   for (const face of faces) {
-    for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) {
-      const idx = faceMap[face][v * S + u]; if (idx < 0) continue;
+    for (let v = 0; v < H; v++) for (let u = 0; u < W; u++) {
+      const idx = faceMap[face][v * W + u]; if (idx < 0) continue;
       const dx = u - cx, dy = v - cy;
       const d = Math.sqrt(dx * dx + dy * dy);
 

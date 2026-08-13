@@ -537,4 +537,9 @@ function createWxState() {
 module.exports = {
   WX_CODES, getMoonIllumination, getMoonTimes, calcMoonRiseSet, wxMoonPhase,
   wxSkyRGB, wxInitScene, createWxState,
+  // Exported (not just used internally by wxInitScene) so weather/wallState.js
+  // can build its own width/height-aware scene-init variant without
+  // duplicating all ~19 hardcoded landmark silhouettes - see that file's
+  // module comment.
+  buildLandmarks,
 };
