@@ -63,17 +63,22 @@ const auroraWall = require('./auroraWall');
 const nebulaWall = require('./nebulaWall');
 const warpWall = require('./warpWall');
 const rainWall = require('./rainWall');
+const dnaWall = require('./dnaWall');
+const lightningWall = require('./lightningWall');
+const lightspeedWall = require('./lightspeedWall');
+const sphereWall = require('./sphereWall');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
 // a wall-aware effect needs different math (iterates core.wallW/wallH,
 // not the cube's surfX/Y/Z) from its cube-mode counterpart of the same
 // name - the two aren't interchangeable, a cube effect writing to
-// core.colBuf has no effect on core.wallBuf. 12 effects have a wall variant
+// core.colBuf has no effect on core.wallBuf. 16 effects have a wall variant
 // so far (gradient_wash, video, depth_rings, prism, tide, strobe, wave,
-// plasma, aurora, nebula, warp, rain); app.js leaves the wall canvas
-// untouched (so panels just stay on whatever they last showed, not a hard
-// crash) when the selected effect has no WALL_EFFECTS entry yet - see the
+// plasma, aurora, nebula, warp, rain, dna, lightning, lightspeed, sphere);
+// app.js leaves the wall canvas untouched (so panels just stay on whatever
+// they last showed, not a hard crash) when the selected effect has no
+// WALL_EFFECTS entry yet - see the
 // sidebar's per-effect greying for how this is surfaced to the user.
 const WALL_EFFECTS = {
   gradient_wash: gradientWashWall,
@@ -88,6 +93,10 @@ const WALL_EFFECTS = {
   nebula: nebulaWall,
   warp: warpWall,
   rain: rainWall,
+  dna: dnaWall,
+  lightning: lightningWall,
+  lightspeed: lightspeedWall,
+  sphere: sphereWall,
 };
 
 const EFFECTS = {
