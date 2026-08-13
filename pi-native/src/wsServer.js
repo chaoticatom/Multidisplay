@@ -157,6 +157,41 @@ const INDEX_HTML = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'));   // re
 const THREE_JS = fs.readFileSync(path.join(PUBLIC_DIR, 'three.min.js'));   // served for the sidebar/3D-preview page's <script src>, same pattern as INDEX_HTML
 const APP_JS = fs.readFileSync(path.join(PUBLIC_DIR, 'app.js'));           // wires the copied sidebar markup to pi-native's WS protocol
 
+// Local-file upload for Video Display, restoring the browser original's
+// "pick a file from your computer/phone" flow that a headless Pi has no
+// direct equivalent for (see video.js's module comment - this port had
+// scoped that down to URL-only, ffmpeg-decoded playback). ffmpeg reads a
+// local filesystem path exactly the same way it reads a URL (video.js's
+// FfmpegSource just passes whatever string effectOptions.video.url holds
+// straight to `ffmpeg -i`), so the fix is entirely upload-plumbing: the
+// browser POSTs the raw file bytes here, we save it to disk, and the
+// client then does the exact same setEffectOption('video','url',<path>)
+// it already does for a typed URL.
+// No multipart/form-data parsing (would need a new npm dependency) - the
+// client sends the raw File object as the POST body via fetch(), which
+// streams the exact bytes with no multipart boilerplate; the filename
+// travels via a query param instead of a form field.
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+const UPLOAD_MAX_BYTES = 500 * 1024 * 1024; // 500MB - generous for a phone-shot video, still bounded so a bad/huge upload can't fill the Pi's disk
+// Only one upload lives on disk at a time - each new upload deletes
+// whatever the previous one saved first, same "personal-use, don't grow
+// unbounded" policy as unsplashConfig's single-entry persistence.
+function clearUploadDir() {
+  if (!fs.existsSync(UPLOAD_DIR)) return;
+  for (const f of fs.readdirSync(UPLOAD_DIR)) {
+    try { fs.unlinkSync(path.join(UPLOAD_DIR, f)); } catch (e) { /* ignore - best-effort cleanup */ }
+  }
+}
+// Strips path separators and any leading dots so the saved filename can
+// never escape UPLOAD_DIR (e.g. a crafted "../../etc/passwd" name) and
+// can't be hidden/dotfile-prefixed; a short random prefix keeps repeated
+// uploads of the same filename from colliding while the (single-file)
+// directory is mid-clear.
+function sanitizeUploadName(raw) {
+  const base = String(raw || 'video').replace(/[\\/]/g, '_').replace(/^\.+/, '') || 'video';
+  return crypto.randomBytes(4).toString('hex') + '_' + base.slice(-120);
+}
+
 class WsServer {
   // state: shared mutable {effect, brightness, speed}.
   // config: shared mutable {size, mode} (panelConfig.js shape) - already
@@ -191,6 +226,7 @@ class WsServer {
   }
 
   _handleHttp(req, res) {
+    if (req.method === 'POST' && req.url.startsWith('/api/uploadVideo')) { this._handleUpload(req, res); return; }
     if (req.method !== 'GET') { res.writeHead(404).end(); return; }
     if (req.url === '/' || req.url === '/index.html') {
       res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -208,6 +244,53 @@ class WsServer {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not Found');
     }
+  }
+
+  // POST /api/uploadVideo?name=<original filename> - raw file bytes as the
+  // whole request body (see the UPLOAD_DIR block above for why this isn't
+  // multipart/form-data). Responds {ok:true,path:"<absolute path>"} for
+  // effects/video.js's FfmpegSource (via setEffectOption('video','url',...))
+  // to decode exactly like a typed URL, or {ok:false,error:"..."} - a
+  // malformed/oversized/failed upload never crashes the server, matching
+  // every other request-handler's defensiveness in this file.
+  _handleUpload(req, res) {
+    let name = 'video';
+    try { name = new URL(req.url, 'http://x').searchParams.get('name') || 'video'; } catch (e) { /* keep default */ }
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    clearUploadDir(); // drop any previous upload (and stale .part leftovers) before starting the new one
+
+    let total = 0;
+    let tooLarge = false;
+    const destName = sanitizeUploadName(name);
+    const destPath = path.join(UPLOAD_DIR, destName);
+    const tmpPath = destPath + '.part';
+    const out = fs.createWriteStream(tmpPath);
+
+    const fail = (code, message) => {
+      req.unpipe(out);
+      out.destroy();
+      fs.unlink(tmpPath, () => {});
+      if (!res.headersSent) res.writeHead(code, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: message }));
+    };
+
+    req.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > UPLOAD_MAX_BYTES && !tooLarge) {
+        tooLarge = true;
+        fail(413, `File too large (max ${Math.round(UPLOAD_MAX_BYTES / 1024 / 1024)}MB)`);
+      }
+    });
+    req.on('error', (err) => { if (!tooLarge) fail(500, err.message); });
+    out.on('error', (err) => { if (!tooLarge) fail(500, err.message); });
+
+    req.pipe(out);
+    out.on('finish', () => {
+      if (tooLarge) return; // already responded
+      fs.renameSync(tmpPath, destPath);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, path: destPath }));
+    });
   }
 
   _stateMsg() {

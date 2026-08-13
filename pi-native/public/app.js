@@ -1380,14 +1380,48 @@ function syncCamPanel() {
 // per-control instead of markUnsupported()'s whole-panel sweep since this
 // panel mixes wired and unwired controls.
 // ---------------------------------------------------------------------
+// Uploads a File chosen via the browser's native file picker (works from a
+// phone too - <input type=file accept="video/*"> opens the camera roll/
+// Files app there) to the server's /api/uploadVideo endpoint as the raw
+// POST body, then points the video effect at whatever local path the
+// server saved it to - see wsServer.js's _handleUpload()/UPLOAD_DIR
+// comments for why this is a raw-body upload rather than multipart, and
+// for why only one upload is ever kept on disk.
+function uploadVideoFile(file, statusEl) {
+  if (!file) return;
+  if (statusEl) statusEl.textContent = 'Uploading ' + file.name + '…';
+  fetch('/api/uploadVideo?name=' + encodeURIComponent(file.name), { method: 'POST', body: file })
+    .then((r) => r.json())
+    .then((d) => {
+      if (!d.ok) throw new Error(d.error || 'Upload failed');
+      setEffectOption('video', 'url', d.path);
+      if (statusEl) statusEl.textContent = 'Uploaded ' + file.name + ' — decoding…';
+    })
+    .catch((err) => { if (statusEl) statusEl.textContent = '✕ ' + err.message; });
+}
+
 function wireVideoPanel() {
   const panel = document.getElementById('panel-video');
   if (!panel) return;
 
-  ['vid-file-btn', 'img-file-btn', 'vid-screen-btn', 'vid-cam-btn', 'vid-stop-btn'].forEach((id) => {
+  ['vid-screen-btn', 'vid-cam-btn'].forEach((id) => {
     const btn = panel.querySelector('#' + id);
-    if (btn) { btn.disabled = true; btn.title = 'Not available on the Pi-native engine - use the URL field below instead'; btn.style.opacity = 0.35; }
+    if (btn) { btn.disabled = true; btn.title = 'No webcam/screen-capture on a headless Pi - use Video/Image (file) or the URL field below instead'; btn.style.opacity = 0.35; }
   });
+
+  const statusEl = panel.querySelector('#vid-status');
+  const vidFileBtn = panel.querySelector('#vid-file-btn'), vidFileInput = panel.querySelector('#vid-file-input');
+  if (vidFileBtn && vidFileInput) {
+    vidFileBtn.addEventListener('click', () => vidFileInput.click());
+    vidFileInput.addEventListener('change', () => { uploadVideoFile(vidFileInput.files[0], statusEl); vidFileInput.value = ''; });
+  }
+  const imgFileBtn = panel.querySelector('#img-file-btn'), imgFileInput = panel.querySelector('#img-file-input');
+  if (imgFileBtn && imgFileInput) {
+    imgFileBtn.addEventListener('click', () => imgFileInput.click());
+    imgFileInput.addEventListener('change', () => { uploadVideoFile(imgFileInput.files[0], statusEl); imgFileInput.value = ''; });
+  }
+  const stopBtn = panel.querySelector('#vid-stop-btn');
+  if (stopBtn) stopBtn.addEventListener('click', () => setEffectOption('video', 'url', ''));
 
   const url = panel.querySelector('#vid-url');
   const loadBtn = panel.querySelector('#vid-load-btn');

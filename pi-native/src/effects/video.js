@@ -10,11 +10,24 @@
 // between this and the static-image fallback since the browser
 // duplicates that same compositing math across both its own code paths).
 //
-// Explicitly out of scope (no server-side equivalent, same "permanent
-// scope boundary" category as cam.js's snapshot-only Camera effect):
-//   - local file upload / webcam / screen capture (#vid-file-btn/
-//     #img-file-btn/#vid-screen-btn/#vid-cam-btn in the sidebar markup are
-//     greyed out client-side, see public/app.js's wireVideoPanel())
+// Local file upload IS supported, just not via drag-drop/<input> reading
+// the file directly the way a browser tab could: #vid-file-btn/
+// #img-file-btn open the browser's native file picker (works from a
+// phone's camera roll too), the chosen File's raw bytes are POSTed to
+// wsServer.js's /api/uploadVideo, saved to disk on the Pi, and the
+// resulting local path is fed to effectOptions.video.url exactly like a
+// typed URL - ffmpeg reads a filesystem path the same way it reads a URL,
+// so no extra code path was needed here once the upload plumbing existed.
+// See wsServer.js's UPLOAD_DIR block and public/app.js's
+// uploadVideoFile()/wireVideoPanel() for the rest of that flow.
+//
+// Still explicitly out of scope (no server-side equivalent, same
+// "permanent scope boundary" category as cam.js's snapshot-only Camera
+// effect):
+//   - live webcam / screen capture (#vid-screen-btn/#vid-cam-btn stay
+//     greyed out client-side, see public/app.js's wireVideoPanel()) - a
+//     headless Pi has no display to capture and no camera stream API a
+//     browser tab would normally hand over via getDisplayMedia/getUserMedia
 //   - vidTB==='spectrum' (mic-driven spectrum analyser on the top/bottom
 //     faces) - no audio pipeline here, falls back to 'dark' behaviour,
 //     same documented fallback fireworks.js's mic mode already uses.
