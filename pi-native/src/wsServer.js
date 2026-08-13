@@ -300,14 +300,17 @@ class WsServer {
     const destPath = path.join(UPLOAD_DIR, destName);
     const tmpPath = destPath + '.part';
     const out = fs.createWriteStream(tmpPath);
+    const startedAt = Date.now();
+    console.log(`[upload] start "${name}" -> ${destPath}`);
 
     const safeEnd = (code, body) => {
       if (responded) return;
       responded = true;
+      console.log(`[upload] "${name}" responding ${code} after ${Date.now() - startedAt}ms, ${total} bytes received: ${JSON.stringify(body)}`);
       try {
         if (!res.headersSent) res.writeHead(code, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(body));
-      } catch (e) { /* socket already gone - nothing more to do */ }
+      } catch (e) { console.warn(`[upload] "${name}" res.end() itself threw (socket likely already gone):`, e.message); }
     };
 
     const fail = (code, message) => {
@@ -322,8 +325,21 @@ class WsServer {
       total += chunk.length;
       if (total > UPLOAD_MAX_BYTES) fail(413, `File too large (max ${Math.round(UPLOAD_MAX_BYTES / 1024 / 1024)}MB)`);
     });
-    req.on('error', (err) => fail(500, err.message));
-    out.on('error', (err) => fail(500, err.message));
+    req.on('error', (err) => { console.warn(`[upload] "${name}" req error after ${total} bytes:`, err.code || err.message); fail(500, err.message); });
+    out.on('error', (err) => { console.warn(`[upload] "${name}" write-stream error after ${total} bytes:`, err.code || err.message); fail(500, err.message); });
+    // 'close' fires on ANY end of the request - a clean finish, an 'error',
+    // or (the case none of the above events catch) the client/network
+    // abruptly severing the connection with neither an 'end' nor an
+    // 'error' ever firing on `req` itself. Logging here regardless of
+    // whether we've already responded is the one thing that can tell a
+    // genuine network-level drop (logged bytes stop well short of the
+    // real file size, no error event, no response ever sent) apart from
+    // a normal completed request - added specifically to get hard
+    // evidence for a real report ("net::ERR_CONNECTION_RESET" client-side,
+    // consistently, on real hardware over WiFi) rather than guessing.
+    req.on('close', () => {
+      console.log(`[upload] "${name}" req closed after ${Date.now() - startedAt}ms, ${total} bytes received, responded=${responded}`);
+    });
 
     req.pipe(out);
     out.on('finish', () => {
