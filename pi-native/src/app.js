@@ -263,6 +263,30 @@ async function main() {
     ws.close();
     process.exit(0);
   });
+
+  // Without this, ANY uncaught exception anywhere (a bad frame from
+  // ffmpeg, a malformed WS payload, a bug in one specific effect) crashes
+  // the whole process. systemd's Restart=on-failure (see systemd/
+  // multidisplay-pi.service) brings it back up a few seconds later, but
+  // with fresh in-memory `state` - state.effect isn't persisted anywhere
+  // (unlike alarms/customCube/panelConfig, which ARE saved to disk), so a
+  // crash-restart silently reverts whatever was selected back to the
+  // 'wave' default. A real instance of this was traced to a request-
+  // handler double-response bug in wsServer.js's video-upload endpoint
+  // (fixed separately) - but that class of bug (a stray exception in one
+  // corner of a much larger effect library) is exactly the kind future
+  // code here could reintroduce elsewhere, so log-and-keep-running is a
+  // more appropriate default for a physical display appliance than crash-
+  // and-lose-state. Deliberately NOT re-throwing/exiting: on a Pi driving
+  // real LED panels, staying up in a possibly-degraded state (worst case:
+  // the current effect keeps misbehaving) is better than a naked panel and
+  // a state reset every time something somewhere throws once.
+  process.on('uncaughtException', (err) => {
+    console.error('[app] uncaught exception (continuing):', err);
+  });
+  process.on('unhandledRejection', (err) => {
+    console.error('[app] unhandled promise rejection (continuing):', err);
+  });
 }
 
 main().catch((err) => {

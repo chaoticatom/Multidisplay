@@ -260,36 +260,57 @@ class WsServer {
     clearUploadDir(); // drop any previous upload (and stale .part leftovers) before starting the new one
 
     let total = 0;
-    let tooLarge = false;
+    // Guards every response path below, not just the size-limit one this
+    // used to be scoped to - a real crash was traced to this gap: mobile
+    // browsers commonly tear down the underlying TCP connection slightly
+    // AFTER fetch() has already resolved (backgrounding the tab, a network
+    // handoff, etc.), which fires a late req 'error'/'aborted' event after
+    // out.on('finish') had already sent the success response. Calling
+    // res.end() a second time throws "write after end", and since nothing
+    // in app.js installs a process-wide uncaughtException handler, that
+    // crashed the whole Node process - systemd's Restart=on-failure then
+    // restarted it a few seconds later with fresh in-memory state (state.
+    // effect isn't persisted to disk the way alarms/customCube/panelConfig
+    // are), which is exactly the "pauses, then reverts to the default
+    // effect" symptom that was reported. `responded` makes every one of
+    // fail()/the finish handler a no-op once any one of them has already
+    // sent a response, and res.end() itself is wrapped in try/catch as a
+    // second line of defense in case the socket is already gone by then.
+    let responded = false;
     const destName = sanitizeUploadName(name);
     const destPath = path.join(UPLOAD_DIR, destName);
     const tmpPath = destPath + '.part';
     const out = fs.createWriteStream(tmpPath);
 
+    const safeEnd = (code, body) => {
+      if (responded) return;
+      responded = true;
+      try {
+        if (!res.headersSent) res.writeHead(code, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(body));
+      } catch (e) { /* socket already gone - nothing more to do */ }
+    };
+
     const fail = (code, message) => {
+      if (responded) return;
       req.unpipe(out);
       out.destroy();
       fs.unlink(tmpPath, () => {});
-      if (!res.headersSent) res.writeHead(code, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: false, error: message }));
+      safeEnd(code, { ok: false, error: message });
     };
 
     req.on('data', (chunk) => {
       total += chunk.length;
-      if (total > UPLOAD_MAX_BYTES && !tooLarge) {
-        tooLarge = true;
-        fail(413, `File too large (max ${Math.round(UPLOAD_MAX_BYTES / 1024 / 1024)}MB)`);
-      }
+      if (total > UPLOAD_MAX_BYTES) fail(413, `File too large (max ${Math.round(UPLOAD_MAX_BYTES / 1024 / 1024)}MB)`);
     });
-    req.on('error', (err) => { if (!tooLarge) fail(500, err.message); });
-    out.on('error', (err) => { if (!tooLarge) fail(500, err.message); });
+    req.on('error', (err) => fail(500, err.message));
+    out.on('error', (err) => fail(500, err.message));
 
     req.pipe(out);
     out.on('finish', () => {
-      if (tooLarge) return; // already responded
+      if (responded) return; // already failed (e.g. size limit hit right as the stream finished)
       fs.renameSync(tmpPath, destPath);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true, path: destPath }));
+      safeEnd(200, { ok: true, path: destPath });
     });
   }
 
