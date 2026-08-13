@@ -39,7 +39,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'custom_cube']);
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube']);
 // Shared "Art" submenu prev/next/slideshow/letterbox/speed controls
 // (#art-slideshow-chk/#art-letterbox-chk/#art-speed/#art-prev-btn/
 // #art-next-btn) drive whichever of Unsplash/Art Gallery is the currently
@@ -83,6 +83,10 @@ function handleTextMessage(msg) {
     syncUnsplashPanel();
     syncArticPanel();
     syncGalleryShared();
+    syncJokePanel();
+    syncTriviaPanel();
+    syncOtdPanel();
+    syncTriviaFactsShared();
     syncWeatherPanel();
     syncEpicPanel();
     syncIssPanel();
@@ -1265,6 +1269,96 @@ function syncGalleryShared() {
   }
 }
 
+// ---------------------------------------------------------------------
+// Jokes / Trivia / On This Day (panel-joke/panel-trivia/panel-otd) - the
+// three word-cascade text effects, plus the shared "Trivia & Facts"
+// Auto-advance/Next-after controls above them (#tf-auto-chk/#tf-speed) that
+// drive Jokes and Trivia only (On This Day auto-advances between events on
+// its own fixed 2.5s hold, same as the browser - it has no "static" mode
+// since there's no single-item "done" state to hold on, just a rotating
+// list). Backed by core.effectOptions.triviaFacts.{autoOn,holdSecs} - see
+// joke.js/trivia.js's comment on why a shared pseudo-key instead of two
+// separate per-effect options.
+// ---------------------------------------------------------------------
+function wireJokePanel() {
+  const panel = document.getElementById('panel-joke');
+  if (!panel) return;
+  const btn = panel.querySelector('#joke-fetch-btn');
+  if (btn) btn.addEventListener('click', () => setEffectOption('joke', 'refreshRequestedAt', Date.now()));
+}
+function syncJokePanel() {
+  const panel = document.getElementById('panel-joke');
+  if (!panel) return;
+  const status = currentState.effectStatus?.joke;
+  const statusEl = panel.querySelector('#joke-status');
+  if (statusEl) statusEl.textContent = status ? (status.error ? ('✕ ' + status.error) : status.text) : 'Fetching a joke…';
+}
+
+function wireTriviaPanel() {
+  const panel = document.getElementById('panel-trivia');
+  if (!panel) return;
+  const btn = panel.querySelector('#trivia-fetch-btn');
+  if (btn) btn.addEventListener('click', () => setEffectOption('trivia', 'refreshRequestedAt', Date.now()));
+}
+function syncTriviaPanel() {
+  const panel = document.getElementById('panel-trivia');
+  if (!panel) return;
+  const status = currentState.effectStatus?.trivia;
+  const statusEl = panel.querySelector('#trivia-status');
+  if (statusEl) statusEl.textContent = status ? (status.error ? ('✕ ' + status.error) : status.text) : 'Fetching a question…';
+}
+
+function wireOtdPanel() {
+  const panel = document.getElementById('panel-otd');
+  if (!panel) return;
+  const btn = panel.querySelector('#otd-fetch-btn');
+  if (btn) btn.addEventListener('click', () => setEffectOption('otd', 'refreshRequestedAt', Date.now()));
+}
+function syncOtdPanel() {
+  const panel = document.getElementById('panel-otd');
+  if (!panel) return;
+  const status = currentState.effectStatus?.otd;
+  const statusEl = panel.querySelector('#otd-status');
+  if (statusEl) statusEl.textContent = status ? (status.error ? ('✕ ' + status.error) : status.text) : 'Fetching today in history…';
+  const infoEl = panel.querySelector('#otd-info');
+  const countLine = panel.querySelector('#otd-count-line');
+  if (status && status.count > 0) {
+    if (infoEl) infoEl.style.display = 'block';
+    if (countLine) countLine.textContent = status.count + ' historical events';
+  } else if (infoEl) infoEl.style.display = 'none';
+}
+
+function wireTriviaFactsShared() {
+  const autoChk = document.getElementById('tf-auto-chk');
+  const speed = document.getElementById('tf-speed');
+  const speedLbl = document.getElementById('tf-speed-label');
+  if (!autoChk && !speed) return;
+  // Written under the shared pseudo-effect-key 'triviaFacts' (not a real
+  // registered effect) - joke.js/trivia.js both read
+  // core.effectOptions.triviaFacts.{autoOn,holdSecs} regardless of which of
+  // the two is currently selected, same shape as GALLERY_EFFECTS' shared
+  // panel but with no "active effect" gate needed since there's only one
+  // shared key, not per-effect values.
+  autoChk?.addEventListener('change', () => setEffectOption('triviaFacts', 'autoOn', autoChk.checked));
+  speed?.addEventListener('input', () => {
+    const v = Number(speed.value);
+    if (speedLbl) speedLbl.textContent = v + 's';
+    setEffectOption('triviaFacts', 'holdSecs', v);
+  });
+}
+function syncTriviaFactsShared() {
+  const autoChk = document.getElementById('tf-auto-chk');
+  const speed = document.getElementById('tf-speed');
+  const speedLbl = document.getElementById('tf-speed-label');
+  const opts = currentState.effectOptions?.triviaFacts || {};
+  if (autoChk && document.activeElement !== autoChk) autoChk.checked = opts.autoOn !== false;
+  if (speed && document.activeElement !== speed) {
+    const v = Number(opts.holdSecs) > 0 ? Number(opts.holdSecs) : 5;
+    speed.value = v;
+    if (speedLbl) speedLbl.textContent = v + 's';
+  }
+}
+
 function syncCamPanel() {
   const panel = document.getElementById('panel-cam');
   if (!panel) return;
@@ -2258,6 +2352,10 @@ document.addEventListener('DOMContentLoaded', () => {
   wireUnsplashPanel();
   wireArticPanel();
   wireGalleryShared();
+  wireJokePanel();
+  wireTriviaPanel();
+  wireOtdPanel();
+  wireTriviaFactsShared();
   wireWeatherPanel();
   wireEpicPanel();
   wireIssPanel();

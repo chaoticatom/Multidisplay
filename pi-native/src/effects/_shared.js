@@ -232,8 +232,136 @@ function drawLinesCentered3x5(core, face, lines, scale, r, g, b) {
   }
 }
 
+// ═══════════════════════════════════════════════════
+//  Word cascade — shared text-reveal engine, ported verbatim (math
+//  unchanged) from effects-core.js lines ~2082-2175 (WC_FONT/WC_CHAR_W/
+//  WC_LINE_H/wcWordDelay/wcDrawGlyph/wcInit/wcStep/wcDrawToFace/wcTagQA).
+//  Used by joke.js/trivia.js/otd.js - words appear one at a time filling
+//  rows top-down; once the face is full, rows shift up as new lines arrive.
+//  Only the plumbing changed: wcDrawGlyph/wcDrawToFace take `core` (for
+//  SIZE/faceMap/colBuf) instead of reading bare globals, matching every
+//  other _shared.js helper's convention.
+// ═══════════════════════════════════════════════════
+const WC_FONT = {
+  '0': [6, 9, 9, 9, 9, 9, 6], '1': [4, 12, 4, 4, 4, 4, 14], '2': [14, 1, 2, 4, 8, 8, 15], '3': [14, 1, 6, 1, 1, 9, 6],
+  '4': [2, 6, 10, 10, 15, 2, 2], '5': [15, 8, 14, 1, 1, 9, 6], '6': [6, 8, 8, 14, 9, 9, 6], '7': [15, 1, 2, 2, 4, 4, 4],
+  '8': [6, 9, 9, 6, 9, 9, 6], '9': [6, 9, 9, 7, 1, 1, 6],
+  A: [6, 9, 9, 15, 9, 9, 9], B: [14, 9, 9, 14, 9, 9, 14], C: [7, 8, 8, 8, 8, 8, 7], D: [12, 10, 9, 9, 9, 10, 12],
+  E: [15, 8, 8, 14, 8, 8, 15], F: [15, 8, 8, 14, 8, 8, 8], G: [7, 8, 8, 11, 9, 9, 7], H: [9, 9, 9, 15, 9, 9, 9],
+  I: [14, 4, 4, 4, 4, 4, 14], J: [3, 1, 1, 1, 1, 9, 6], K: [9, 10, 12, 8, 12, 10, 9], L: [8, 8, 8, 8, 8, 8, 15],
+  M: [9, 13, 11, 9, 9, 9, 9], N: [9, 13, 11, 11, 9, 9, 9], O: [6, 9, 9, 9, 9, 9, 6], P: [14, 9, 9, 14, 8, 8, 8],
+  Q: [6, 9, 9, 9, 11, 9, 7], R: [14, 9, 9, 14, 12, 10, 9], S: [7, 8, 8, 6, 1, 1, 14], T: [15, 4, 4, 4, 4, 4, 4],
+  U: [9, 9, 9, 9, 9, 9, 6], V: [9, 9, 9, 9, 9, 6, 2], W: [9, 9, 9, 9, 11, 13, 9], X: [9, 9, 6, 6, 6, 9, 9],
+  Y: [9, 9, 6, 2, 2, 2, 2], Z: [15, 1, 2, 4, 8, 8, 15],
+  ' ': [0, 0, 0, 0, 0, 0, 0], '.': [0, 0, 0, 0, 0, 0, 4], ',': [0, 0, 0, 0, 0, 4, 8], "'": [4, 4, 0, 0, 0, 0, 0],
+  '"': [10, 10, 0, 0, 0, 0, 0], '?': [6, 9, 2, 2, 4, 0, 4], '!': [4, 4, 4, 4, 4, 0, 4], ':': [0, 4, 0, 0, 4, 0, 0],
+  ';': [0, 4, 0, 0, 4, 8, 0], '-': [0, 0, 0, 15, 0, 0, 0], '(': [2, 4, 8, 8, 8, 4, 2], ')': [8, 4, 2, 2, 2, 4, 8],
+};
+const WC_CHAR_W = 5, WC_LINE_H = 8;
+function wcWordDelay(word) {
+  const base = 0.16;
+  const perChar = 0.05;
+  const symbols = (word.match(/[^a-zA-Z0-9]/g) || []).length;
+  return base + word.length * perChar + symbols * 0.08;
+}
+function wcDrawGlyph(core, face, ch, su, sv, rgb) {
+  const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()];
+  if (!rows) return WC_CHAR_W;
+  const { SIZE, faceMap, colBuf } = core;
+  for (let row = 0; row < 7; row++) {
+    const bits = rows[row];
+    for (let col = 0; col < 4; col++) {
+      if (!((bits >> (3 - col)) & 1)) continue;
+      const u = su + col, v = sv + (6 - row);
+      if (u < 0 || u >= SIZE || v < 0 || v >= SIZE) continue;
+      const idx = faceMap[face][v * SIZE + u]; if (idx < 0) continue;
+      colBuf[idx * 3] = rgb[0]; colBuf[idx * 3 + 1] = rgb[1]; colBuf[idx * 3 + 2] = rgb[2];
+    }
+  }
+  return WC_CHAR_W;
+}
+function wcInit(taggedWords) {
+  const maxLines = Math.max(1, Math.floor(64 / WC_LINE_H)); // SIZE is fixed at 64 in this port's cube mode (see core.js) - matches the browser's SIZE-based cap in spirit
+  return {
+    words: taggedWords, idx: 0, cur: [], lines: [], timer: 0, pendingDelay: 0.3,
+    done: false, holdTimer: 0, maxLines,
+  };
+}
+function wcStep(state, dt) {
+  if (state.done) { state.holdTimer += dt; return; }
+  state.timer += dt;
+  const maxW = 64;
+  while (state.timer >= state.pendingDelay && state.idx < state.words.length) {
+    state.timer -= state.pendingDelay;
+    const tw = state.words[state.idx++];
+    const curW = state.cur.reduce((a, t) => a + t.w.length * WC_CHAR_W, 0) + Math.max(0, state.cur.length - 1) * WC_CHAR_W;
+    const addW = (state.cur.length ? WC_CHAR_W : 0) + tw.w.length * WC_CHAR_W;
+    if (curW + addW > maxW && state.cur.length) {
+      state.lines.push(state.cur);
+      state.cur = [tw];
+    } else {
+      state.cur.push(tw);
+    }
+    state.pendingDelay = wcWordDelay(tw.w);
+    if (state.idx >= state.words.length) state.done = true;
+  }
+}
+function wcDrawToFace(core, state, face) {
+  const SIZE = core.SIZE;
+  const allLines = state.cur.length ? [...state.lines, state.cur] : [...state.lines];
+  const visible = allLines.slice(-state.maxLines);
+  const topMargin = 1;
+  visible.forEach((line, i) => {
+    const sv = (SIZE - 1) - topMargin - 6 - i * WC_LINE_H;
+    if (sv + 6 < 0) return;
+    const lineW = line.reduce((a, t) => a + t.w.length * WC_CHAR_W, 0) + Math.max(0, line.length - 1) * WC_CHAR_W;
+    let su = Math.round((SIZE - lineW) / 2);
+    line.forEach((tw) => {
+      let u = su;
+      for (const ch of tw.w) u += wcDrawGlyph(core, face, ch, u, sv, tw.color);
+      su += tw.w.length * WC_CHAR_W + WC_CHAR_W;
+    });
+  });
+}
+function wcTagQA(text) {
+  const splitIdx = text.indexOf('?');
+  const re = /\S+/g;
+  const words = []; let m;
+  while ((m = re.exec(text))) {
+    const isAnswer = splitIdx >= 0 && m.index > splitIdx;
+    words.push({ w: m[0], color: isAnswer ? [1, 0.8, 0.27] : [1, 1, 1] });
+  }
+  return words;
+}
+
+// HTML-entity decoder for Open Trivia DB's `encode` (default "html
+// entities") mode - the browser uses a throwaway <textarea>.innerHTML
+// trick (wcDecodeEntities) which has no DOM equivalent here. Numeric
+// entities (&#039;, &#233;, decimal or &#xNN; hex) are decoded generically;
+// named entities are covered by a lookup table of what OpenTDB actually
+// emits in practice (its question/category/answer text is drawn from a
+// community-maintained trivia set - ampersand, quotes and a handful of
+// accented Latin letters are what shows up, not the full HTML5 entity set).
+const WC_NAMED_ENTITIES = {
+  quot: '"', apos: "'", amp: '&', lt: '<', gt: '>', nbsp: ' ',
+  eacute: 'é', egrave: 'è', ecirc: 'ê', euml: 'ë',
+  aacute: 'á', agrave: 'à', acirc: 'â', auml: 'ä', aring: 'å',
+  iacute: 'í', igrave: 'ì', icirc: 'î', iuml: 'ï',
+  oacute: 'ó', ograve: 'ò', ocirc: 'ô', ouml: 'ö',
+  uacute: 'ú', ugrave: 'ù', ucirc: 'û', uuml: 'ü',
+  ntilde: 'ñ', ccedil: 'ç', ndash: '-', mdash: '-', hellip: '...',
+  rsquo: "'", lsquo: "'", rdquo: '"', ldquo: '"',
+};
+function wcDecodeEntities(str) {
+  return String(str)
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
+    .replace(/&#[xX]([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&([a-zA-Z]+);/g, (m, name) => (WC_NAMED_ENTITIES[name] !== undefined ? WC_NAMED_ENTITIES[name] : m));
+}
+
 module.exports = {
   cubePx, fwPx, tronMove, surfIdx, FW_FACES, VID_FACE_ORDER, getLocalGravity,
   galleryInitFaceState, gallerySlideshowStep, galleryApplyToFace, galleryApplyBlendToFace,
   loadImageForPixels, drawLinesCentered3x5,
+  WC_FONT, WC_CHAR_W, WC_LINE_H, wcWordDelay, wcDrawGlyph, wcInit, wcStep, wcDrawToFace, wcTagQA, wcDecodeEntities,
 };

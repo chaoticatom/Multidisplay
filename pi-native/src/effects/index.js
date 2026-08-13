@@ -49,6 +49,9 @@ const neo = require('./neo');
 const customCube = require('./customCube');
 const unsplash = require('./unsplash');
 const artic = require('./artic');
+const joke = require('./joke');
+const trivia = require('./trivia');
+const otd = require('./otd');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -106,6 +109,9 @@ const EFFECTS = {
   neo,
   unsplash,
   artic,
+  joke,
+  trivia,
+  otd,
   custom_cube: customCube,
 };
 
@@ -151,6 +157,9 @@ const EFFECT_NAMES = {
   neo: 'Near-Earth Objects',
   unsplash: 'Unsplash Photos',
   artic: 'Art Gallery',
+  joke: 'Jokes',
+  trivia: 'Trivia',
+  otd: 'On This Day',
   custom_cube: 'Custom Cube',
 };
 
