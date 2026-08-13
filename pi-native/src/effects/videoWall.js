@@ -47,6 +47,7 @@ function effectVideoWall(core, dt) {
   const bright = opts.bright ?? 1;
   const sat = opts.sat ?? 1;
   const scrollSpeed = opts.scroll ?? 0;
+  const fit = opts.fit === 'contain' ? 'contain' : 'stretch'; // see video.js's equivalent comment
 
   // Browser-captured frames are sent already sized to wallW x wallH (see
   // public/app.js's startBrowserCapture() - it reads the wall's own
@@ -59,7 +60,7 @@ function effectVideoWall(core, dt) {
   if (sourceKind === 'browser') {
     frame = browserFrameSource.getFrame(wallW, wallH);
   } else {
-    source.ensure(url, wallW, wallH, DECODE_FPS);
+    source.ensure(url, wallW, wallH, DECODE_FPS, fit);
     frame = source.getFrame(wallW, wallH);
   }
 

@@ -65,9 +65,15 @@ class FfmpegSource {
   }
 
   // Call every tick the video effect is active. `url` empty/falsy tears
-  // down any running process. Changing url/width/height/fps mid-stream
+  // down any running process. Changing url/width/height/fps/fit mid-stream
   // restarts immediately (same as the browser swapping vidEl.src).
-  ensure(url, w, h, fps) {
+  // `fit`: 'stretch' (default - scale to exactly w×h, distorting the
+  // source's own aspect ratio to fill it, matching this project's
+  // original behavior) or 'contain' (scale down preserving aspect ratio,
+  // letterboxed/pillarboxed with black bars to exactly w×h - see
+  // _launch()'s -vf filter for how ffmpeg does this in one pass without
+  // this code needing to know the source's actual dimensions upfront).
+  ensure(url, w, h, fps, fit = 'stretch') {
     this.lastEnsureMs = Date.now();
     if (!url) {
       this._teardown();
@@ -75,7 +81,7 @@ class FfmpegSource {
       this.status = 'No source';
       return;
     }
-    const key = `${url}|${w}x${h}|${fps}`;
+    const key = `${url}|${w}x${h}|${fps}|${fit}`;
     if (this.proc && this.key === key) return; // already running the right thing
 
     if (this.key !== key) {
@@ -85,17 +91,17 @@ class FfmpegSource {
       this.height = h;
       this.frameSize = w * h * 3;
       this.errored = false;
-      this._launch(url, w, h, fps);
+      this._launch(url, w, h, fps, fit);
       return;
     }
 
     // Same key, no process running: either it just looped (clean EOF,
     // errored===false) or it died with an error (respect cooldown).
     if (this.errored && Date.now() - this.lastAttemptMs < RETRY_COOLDOWN_MS) return;
-    this._launch(url, w, h, fps);
+    this._launch(url, w, h, fps, fit);
   }
 
-  _launch(url, w, h, fps) {
+  _launch(url, w, h, fps, fit) {
     this.lastAttemptMs = Date.now();
     this.pending = Buffer.alloc(0);
     this.latestFrame = null;
@@ -121,13 +127,23 @@ class FfmpegSource {
     const isStillImage = /\.(jpe?g|png|gif|bmp|webp|tiff?)(\.part)?$/i.test(url);
     const inputArgs = isStillImage ? ['-loop', '1', '-i', url] : ['-i', url];
 
+    // 'contain': scale DOWN preserving the source's own aspect ratio
+    // (force_original_aspect_ratio=decrease - never upscales past w×h
+    // either dimension), then pad the result out to exactly w×h with
+    // black bars, centered. One filter chain, no separate probe step
+    // needed to learn the source's real dimensions first - ffmpeg figures
+    // the fit out itself from whatever it's actually decoding.
+    const scaleFilter = fit === 'contain'
+      ? `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black`
+      : `scale=${w}:${h}`;
+
     let proc;
     try {
       proc = this._spawn('ffmpeg', [
         '-loglevel', 'error',
         ...inputArgs,
         '-an',
-        '-vf', `scale=${w}:${h}`,
+        '-vf', scaleFilter,
         '-r', String(fps),
         '-f', 'rawvideo',
         '-pix_fmt', 'rgb24',

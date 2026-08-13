@@ -1579,6 +1579,13 @@ function wireVideoPanel() {
       setEffectOption('video', 'layout', btn.dataset.layout);
     });
   });
+  panel.querySelectorAll('.vid-fit-btn[data-fit]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('.vid-fit-btn[data-fit]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('video', 'fit', btn.dataset.fit);
+    });
+  });
 }
 
 function syncVideoPanel() {
@@ -1605,6 +1612,9 @@ function syncVideoPanel() {
     const disable = needsWrap && opts.source === 'browser';
     btn.disabled = disable;
     btn.style.opacity = disable ? 0.35 : '';
+  });
+  panel.querySelectorAll('.vid-fit-btn[data-fit]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.fit === (opts.fit || 'stretch'));
   });
 
   const camBtn = panel.querySelector('#vid-cam-btn'), screenBtn = panel.querySelector('#vid-screen-btn');

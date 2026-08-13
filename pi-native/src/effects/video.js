@@ -70,6 +70,18 @@ function effectVideo(core, dt) {
   const sat = opts.sat ?? 1;
   const scrollSpeed = opts.scroll ?? 0;
   const tb = opts.tb === 'spectrum' ? 'dark' : (opts.tb || 'dark'); // spectrum has no audio pipeline here - see module comment
+  // 'contain' preserves the source's aspect ratio (letterboxed/pillarboxed
+  // with black bars) instead of the default 'stretch' (fills w×h exactly,
+  // distorting the source to fit) - see ffmpegSource.js's ensure()/_launch()
+  // for how ffmpeg does the actual scale+pad in one filter pass. Most
+  // useful with 'mirror'/'tile' layout (a single undistorted square tile)
+  // or 2D single-panel mode (which only ever shows face 0's content
+  // regardless of layout) - a real report specifically asked for this on
+  // the 2D display. Has no effect on browser-captured frames (no ffmpeg
+  // involved there - the browser's own canvas capture already draws at
+  // exactly the target dims via drawImage's stretch, see
+  // startBrowserCapture() in public/app.js).
+  const fit = opts.fit === 'contain' ? 'contain' : 'stretch';
 
   let decodeW, decodeH, frame;
   if (sourceKind === 'browser') {
@@ -92,7 +104,7 @@ function effectVideo(core, dt) {
     // downsample/discard.
     const wrap = layout === 'panorama' || layout === 'perspective';
     decodeW = wrap ? 4 * S : S; decodeH = S;
-    source.ensure(url, decodeW, decodeH, DECODE_FPS);
+    source.ensure(url, decodeW, decodeH, DECODE_FPS, fit);
     frame = source.getFrame(decodeW, decodeH);
   }
 
