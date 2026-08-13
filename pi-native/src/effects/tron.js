@@ -40,6 +40,53 @@ const { tronMove } = require('./_shared');
 const TRON_HUES = [0.57, 0.08, 0.92, 0.33, 0.70, 0.15, 0.50, 0.02];
 const TRON_GRIDS = [[0.01, 0.06, 0.12], [0.01, 0.06, 0.01], [0.06, 0.01, 0.06], [0.04, 0.04, 0.04]];
 
+// Non-allocating counterpart of _shared.js's tronMove(), used only inside
+// this file's hot AI-decision loops (floodfill BFS + the runway/escape/
+// future-options probes in tronDecide()). Those loops call this thousands
+// of times per bike per frame; tronMove()'s [face,u,v,du,dv] array return
+// was measured allocating enough garbage to make tronDecide() take ~150ms/
+// tick on ordinary desktop hardware (worse on a Pi) - by far the slowest
+// thing in the whole tick loop. None of these callers read the
+// post-wrap du/dv tronMove() also returns (verified against the original
+// effects-games.js source: floodfill and the runway/escape/future-options
+// probes only ever destructure [nf,nu,nv], never [,,,ndu,ndv]), so writing
+// face/u/v into a single reused scratch object is behaviourally identical,
+// just without the per-call array allocation. The real per-substep bike
+// move in effectTron() still uses the original tronMove() (needs the
+// rotated direction, and only runs once or twice per bike per frame, so
+// its allocation cost is negligible).
+const _mv = { face: 0, u: 0, v: 0 };
+function tronMoveFast(core, face, u, v, du, dv) {
+  const SIZE = core.SIZE, M = SIZE - 1, nu = u + du, nv = v + dv;
+  if (nu >= 0 && nu <= M && nv >= 0 && nv <= M) { _mv.face = face; _mv.u = nu; _mv.v = nv; return _mv; }
+  switch (face) {
+    case 0:
+      if (du === 1) { _mv.face = 2; _mv.u = M; _mv.v = v; } else if (du === -1) { _mv.face = 3; _mv.u = M; _mv.v = v; }
+      else if (dv === 1) { _mv.face = 4; _mv.u = u; _mv.v = M; } else { _mv.face = 5; _mv.u = u; _mv.v = M; }
+      return _mv;
+    case 1:
+      if (du === 1) { _mv.face = 2; _mv.u = 0; _mv.v = v; } else if (du === -1) { _mv.face = 3; _mv.u = 0; _mv.v = v; }
+      else if (dv === 1) { _mv.face = 4; _mv.u = u; _mv.v = 0; } else { _mv.face = 5; _mv.u = u; _mv.v = 0; }
+      return _mv;
+    case 2:
+      if (du === 1) { _mv.face = 0; _mv.u = M; _mv.v = v; } else if (du === -1) { _mv.face = 1; _mv.u = M; _mv.v = v; }
+      else if (dv === 1) { _mv.face = 4; _mv.u = M; _mv.v = u; } else { _mv.face = 5; _mv.u = M; _mv.v = u; }
+      return _mv;
+    case 3:
+      if (du === 1) { _mv.face = 0; _mv.u = 0; _mv.v = v; } else if (du === -1) { _mv.face = 1; _mv.u = 0; _mv.v = v; }
+      else if (dv === 1) { _mv.face = 4; _mv.u = 0; _mv.v = u; } else { _mv.face = 5; _mv.u = 0; _mv.v = u; }
+      return _mv;
+    case 4:
+      if (du === 1) { _mv.face = 2; _mv.u = v; _mv.v = M; } else if (du === -1) { _mv.face = 3; _mv.u = v; _mv.v = M; }
+      else if (dv === 1) { _mv.face = 0; _mv.u = u; _mv.v = M; } else { _mv.face = 1; _mv.u = u; _mv.v = M; }
+      return _mv;
+    default:
+      if (du === 1) { _mv.face = 2; _mv.u = v; _mv.v = 0; } else if (du === -1) { _mv.face = 3; _mv.u = v; _mv.v = 0; }
+      else if (dv === 1) { _mv.face = 0; _mv.u = u; _mv.v = 0; } else { _mv.face = 1; _mv.u = u; _mv.v = 0; }
+      return _mv;
+  }
+}
+
 let tronTrail = null, tronBikes = [], tronExplosions = [], tronState = 'run', tronStateT = 0;
 let tronBikeCount = 4, tronWinner = -1, tronGridTheme = 0;
 let tronVisited = null;   // reusable buffer - allocated once per initTron
@@ -63,29 +110,42 @@ function tronScoreZone(core) {
   return { u0: startU - 2, v0: 0, u1: SIZE - 1, v1: totalH };
 }
 
+// dx/dy pairs for the 4-neighbour BFS step below, hoisted out of the loop
+// body (was a fresh array-of-arrays literal re-created and re-iterated via
+// for-of on every single queue node - see tronMoveFast's comment for why
+// this hot path is written to avoid allocation).
+const TRON_BFS_DIRS_U = [1, -1, 0, 0];
+const TRON_BFS_DIRS_V = [0, 0, 1, -1];
+
 function tronFloodFill(core, face, u, v, du, dv) {
   if (!tronVisited) return 0;
   const SIZE = core.SIZE, N = core.N, faceMap = core.faceMap;
-  const [nf, nu, nv] = tronMove(core, face, u, v, du, dv);
+  const start = tronMoveFast(core, face, u, v, du, dv);
+  const nf = start.face, nu = start.u, nv = start.v;
   const startIdx = faceMap[nf][nv * SIZE + nu];
   if (startIdx < 0 || tronTrail[startIdx] > 0) return 0;
 
-  const CAP = Math.min(N, SIZE * SIZE * 3);
+  // Capped well below the full board size - this only needs to tell "wide
+  // open" apart from "cramped", not measure exact reachable area, and the
+  // full-board cap (browser's Math.min(N,SIZE*SIZE*3)) made this BFS the
+  // single most expensive thing in the tick loop on real (especially Pi-
+  // class) hardware. All candidates are scored with the same cap, so the
+  // relative comparisons tronDecide() actually uses are unaffected.
+  const CAP = Math.min(N, SIZE * SIZE);
   const dirty = [];
   const Q = tronBFSQueue;
   tronVisited[startIdx] = 1; dirty.push(startIdx);
   Q[0] = nf; Q[1] = nu; Q[2] = nv;
   let qi = 0, qe = 3, count = 1;
-  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
   while (qi < qe && count < CAP) {
     const cf = Q[qi++], cu = Q[qi++], cv = Q[qi++];
-    for (const [dd, ddd] of dirs) {
-      const [ff, fu, fv] = tronMove(core, cf, cu, cv, dd, ddd);
-      const idx = faceMap[ff][fv * SIZE + fu];
+    for (let d = 0; d < 4; d++) {
+      const m = tronMoveFast(core, cf, cu, cv, TRON_BFS_DIRS_U[d], TRON_BFS_DIRS_V[d]);
+      const idx = faceMap[m.face][m.v * SIZE + m.u];
       if (idx < 0 || tronTrail[idx] > 0 || tronVisited[idx]) continue;
       tronVisited[idx] = 1; dirty.push(idx);
-      Q[qe++] = ff; Q[qe++] = fu; Q[qe++] = fv;
+      Q[qe++] = m.face; Q[qe++] = m.u; Q[qe++] = m.v;
       count++;
       if (count >= CAP) break;
     }
@@ -115,31 +175,38 @@ function tronDecide(core, bk, is2d, borderWalls) {
 
     let runway = 0, rf = nf, ru = nu, rv = nv;
     for (let step = 0; step < SIZE; step++) {
-      const [sf, su, sv] = tronMove(core, rf, ru, rv, m.du, m.dv);
-      const si = faceMap[sf][sv * SIZE + su];
+      const sm = tronMoveFast(core, rf, ru, rv, m.du, m.dv);
+      const si = faceMap[sm.face][sm.v * SIZE + sm.u];
       if (si < 0 || tronTrail[si] > 0) break;
-      rf = sf; ru = su; rv = sv; runway++;
+      rf = sm.face; ru = sm.u; rv = sm.v; runway++;
     }
 
     let escapeRoutes = 0;
-    for (const [ed, ev] of [[m.du, m.dv], [-m.dv, m.du], [m.dv, -m.du]]) {
-      const [ef, eu, ev2] = tronMove(core, nf, nu, nv, ed, ev);
-      const ei = faceMap[ef][ev2 * SIZE + eu];
-      if (ei >= 0 && tronTrail[ei] === 0) escapeRoutes++;
+    {
+      const em1 = tronMoveFast(core, nf, nu, nv, m.du, m.dv);
+      const ei1 = faceMap[em1.face][em1.v * SIZE + em1.u];
+      if (ei1 >= 0 && tronTrail[ei1] === 0) escapeRoutes++;
+      const em2 = tronMoveFast(core, nf, nu, nv, -m.dv, m.du);
+      const ei2 = faceMap[em2.face][em2.v * SIZE + em2.u];
+      if (ei2 >= 0 && tronTrail[ei2] === 0) escapeRoutes++;
+      const em3 = tronMoveFast(core, nf, nu, nv, m.dv, -m.du);
+      const ei3 = faceMap[em3.face][em3.v * SIZE + em3.u];
+      if (ei3 >= 0 && tronTrail[ei3] === 0) escapeRoutes++;
     }
 
     let futureOptions = 0;
     let wf = nf, wu = nu, wv = nv, wd = m.du, wdv2 = m.dv;
     for (let step = 0; step < 4; step++) {
-      const [sf, su, sv] = tronMove(core, wf, wu, wv, wd, wdv2);
-      const si = faceMap[sf][sv * SIZE + su];
+      const sm = tronMoveFast(core, wf, wu, wv, wd, wdv2);
+      const si = faceMap[sm.face][sm.v * SIZE + sm.u];
       if (si < 0 || tronTrail[si] > 0) break;
-      wf = sf; wu = su; wv = sv;
-      for (const [ed, ev] of [[-wdv2, wd], [wdv2, -wd]]) {
-        const [ef, eu, ev3] = tronMove(core, wf, wu, wv, ed, ev);
-        const ei = faceMap[ef][ev3 * SIZE + eu];
-        if (ei >= 0 && tronTrail[ei] === 0) futureOptions++;
-      }
+      wf = sm.face; wu = sm.u; wv = sm.v;
+      const fm1 = tronMoveFast(core, wf, wu, wv, -wdv2, wd);
+      const fi1 = faceMap[fm1.face][fm1.v * SIZE + fm1.u];
+      if (fi1 >= 0 && tronTrail[fi1] === 0) futureOptions++;
+      const fm2 = tronMoveFast(core, wf, wu, wv, wdv2, -wd);
+      const fi2 = faceMap[fm2.face][fm2.v * SIZE + fm2.u];
+      if (fi2 >= 0 && tronTrail[fi2] === 0) futureOptions++;
     }
 
     const centerDist = Math.abs(nu - SIZE / 2) + Math.abs(nv - SIZE / 2);
