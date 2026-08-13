@@ -297,9 +297,11 @@ function issDrawInfoCard(core, face) {
 // fire-once command channel - see wsServer.js's setEffectOption comment).
 let lastRefreshOpt = null;
 
-// ── Effect entry point ───────────────────────────────────────────────────
-function effectISS(core, dt) {
-  issT += dt;
+// Extracted out of effectISS() so issWall.js (wall-mode counterpart) can
+// drive the exact same 5s live-position poll + reverse-geocode/flag
+// fetch instead of running a second independent poller against the same
+// rate-limited free APIs (wheretheiss.at / BigDataCloud / flagcdn).
+function ensureFetch(core) {
   const opts = core.effectOptions?.iss || {};
   if (opts.refreshRequestedAt && opts.refreshRequestedAt !== lastRefreshOpt) {
     lastRefreshOpt = opts.refreshRequestedAt;
@@ -307,6 +309,12 @@ function effectISS(core, dt) {
     if (!issFetching) issFetch();
   }
   if (!issFetching && (Date.now() / 1000 - issLastFetch) > 5) issFetch();
+}
+
+// ── Effect entry point ───────────────────────────────────────────────────
+function effectISS(core, dt) {
+  issT += dt;
+  ensureFetch(core);
 
   const { N, colBuf, SIZE: S } = core;
   colBuf.fill(0);
@@ -377,3 +385,12 @@ function getStatus() {
 
 module.exports = effectISS;
 module.exports.getStatus = getStatus;
+// Reused by issWall.js - same "share the fetch/decode plumbing, only
+// reimplement rendering" approach as epic.js's exports above.
+module.exports.ensureFetch = ensureFetch;
+module.exports.issIsLand = issIsLand;
+module.exports.getState = () => ({
+  issLat, issLon, issHasFix, issTrail, issT,
+  issFlagPixels, issFlagSize, issFlagState,
+  issCountryCode,
+});

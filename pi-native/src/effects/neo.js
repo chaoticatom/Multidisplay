@@ -457,3 +457,14 @@ function effectNEO(core, dt) {
 
 module.exports = effectNEO;
 module.exports.getStatus = getStatus;
+// Reused by neoWall.js, which generalizes neoDraw2D's composition to
+// wallW x wallH (same approach weatherWall.js used for weather's is2D
+// branch) rather than re-deriving the fetch/risk-classification logic
+// that composition depends on.
+module.exports.neoFetch = neoFetch;
+module.exports.neoRisk = neoRisk;
+module.exports.neoRiskRGB = neoRiskRGB;
+module.exports.neo2dRiskRGB = neo2dRiskRGB;
+module.exports.neoOverallRisk = neoOverallRisk;
+module.exports.neoBuildSegments = neoBuildSegments;
+module.exports.getObjects = () => neoObjects;

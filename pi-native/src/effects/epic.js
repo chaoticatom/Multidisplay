@@ -224,7 +224,13 @@ function buildTickerLabel() {
     : 'EARTH FULL-DISK IMAGERY  •  LOADING…    ';
 }
 
-function effectEpic(core, dt) {
+// Extracted out of effectEpic() so epicWall.js (wall-mode counterpart) can
+// drive the exact same fetch-scheduling/backoff/refresh-button logic
+// instead of re-implementing its own copy - epic's two network sources
+// (EPIC metadata+PNG, GIBS equirect) are both real external APIs worth
+// sharing a single polling cadence for, unlike e.g. camWall.js's cheap
+// local-network snapshot polling which is fine siloed per registry entry.
+function ensureFetches(core) {
   const opts = core.effectOptions?.epic || {};
   if (opts.refreshRequestedAt && opts.refreshRequestedAt !== lastRefreshOpt) {
     lastRefreshOpt = opts.refreshRequestedAt;
@@ -238,6 +244,10 @@ function effectEpic(core, dt) {
   }
   if (!epicEqPixels && !epicEqFetching) fetchEq();
   if (epicEqLastFetch > 0 && (Date.now() / 1000 - epicEqLastFetch) > 6 * 3600 && !epicEqFetching) fetchEq();
+}
+
+function effectEpic(core, dt) {
+  ensureFetches(core);
 
   const { N, SIZE } = core;
   for (let i = 0; i < N; i++) core.setLED(i, 0, 0, 0);
@@ -275,3 +285,14 @@ function getStatus() {
 
 module.exports = effectEpic;
 module.exports.getStatus = getStatus;
+// Reused by epicWall.js so it can drive the same fetch cadence and sample
+// the same decoded pixels/caption without a second, independent poller.
+module.exports.ensureFetches = ensureFetches;
+module.exports.getSubSolar = getSubSolar;
+module.exports.getPixelState = () => ({
+  epicEqPixels, epicEqWidth, epicEqHeight,
+  epicImgReady, epicImgPixels, epicImgSize,
+});
+module.exports.getCaption = () => (epicData
+  ? `EARTH NOW  •  ${epicData.date} UTC  •  ${epicData.caption}    `
+  : 'EARTH FULL-DISK IMAGERY  •  LOADING…    ');

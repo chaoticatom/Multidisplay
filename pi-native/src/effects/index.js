@@ -46,6 +46,10 @@ const iss = require('./iss');
 const apod = require('./apod');
 const epic = require('./epic');
 const neo = require('./neo');
+const apodWall = require('./apodWall');
+const epicWall = require('./epicWall');
+const issWall = require('./issWall');
+const neoWall = require('./neoWall');
 const customCube = require('./customCube');
 const unsplash = require('./unsplash');
 const artic = require('./artic');
@@ -132,6 +136,10 @@ const WALL_EFFECTS = {
   datetime: datetimeWall,
   moon: celestialWall,
   ghost: ghostWall,
+  apod: apodWall,
+  epic: epicWall,
+  iss: issWall,
+  neo: neoWall,
 };
 
 const EFFECTS = {
