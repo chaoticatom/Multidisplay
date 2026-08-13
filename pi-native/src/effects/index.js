@@ -77,17 +77,20 @@ const diceWall = require('./diceWall');
 const randomWall = require('./randomWall');
 const random80sWall = require('./random80sWall');
 const fireworksWall = require('./fireworksWall');
+const mazeWall = require('./mazeWall');
+const tronWall = require('./tronWall');
+const camWall = require('./camWall');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
 // a wall-aware effect needs different math (iterates core.wallW/wallH,
 // not the cube's surfX/Y/Z) from its cube-mode counterpart of the same
 // name - the two aren't interchangeable, a cube effect writing to
-// core.colBuf has no effect on core.wallBuf. 26 effects have a wall variant
+// core.colBuf has no effect on core.wallBuf. 29 effects have a wall variant
 // so far (gradient_wash, video, depth_rings, prism, tide, strobe, wave,
 // plasma, aurora, nebula, warp, rain, dna, lightning, lightspeed, sphere,
 // balls, sand, life, fluid, easter_egg, coinflip, dice, random, random80s,
-// fireworks); app.js leaves the wall canvas untouched (so panels just stay
+// fireworks, maze, tron, cam); app.js leaves the wall canvas untouched (so panels just stay
 // on whatever they last showed, not a hard crash) when the selected effect
 // has no WALL_EFFECTS entry yet - see the sidebar's per-effect greying for
 // how this is surfaced to the user.
@@ -118,6 +121,9 @@ const WALL_EFFECTS = {
   random: randomWall,
   random80s: random80sWall,
   fireworks: fireworksWall,
+  maze: mazeWall,
+  tron: tronWall,
+  cam: camWall,
 };
 
 const EFFECTS = {
