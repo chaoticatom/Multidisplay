@@ -39,7 +39,14 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'custom_cube']);
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'custom_cube']);
+// Shared "Art" submenu prev/next/slideshow/letterbox/speed controls
+// (#art-slideshow-chk/#art-letterbox-chk/#art-speed/#art-prev-btn/
+// #art-next-btn) drive whichever of Unsplash/Art Gallery is the currently
+// selected effect - same shared-panel shape as the browser's
+// artSyncSharedControls()/ART_EFFECTS, minus APOD (not wired to these
+// controls here - see wireApodPanel's comment on why).
+const GALLERY_EFFECTS = ['unsplash', 'artic'];
 
 let ws;
 let effectNames = {};
@@ -73,6 +80,9 @@ function handleTextMessage(msg) {
     syncLightspeedPanel();
     syncCamPanel();
     syncApodPanel();
+    syncUnsplashPanel();
+    syncArticPanel();
+    syncGalleryShared();
     syncWeatherPanel();
     syncEpicPanel();
     syncIssPanel();
@@ -1120,6 +1130,141 @@ function syncApodPanel() {
   }
 }
 
+// ---------------------------------------------------------------------
+// Unsplash Photos (panel-unsplash) - search query + API key input, backed
+// by the dedicated setUnsplashConfig command (persisted server-side, see
+// wsServer.js's module comment and unsplashConfig.js) rather than the
+// generic setEffectOption store, since the key must survive a restart.
+// Prev/Next and the shared Slideshow/Letterbox/Speed controls live in the
+// .art-shared-panel above it - see wireGalleryShared()/syncGalleryShared()
+// below, shared with Art Gallery.
+// ---------------------------------------------------------------------
+function wireUnsplashPanel() {
+  const panel = document.getElementById('panel-unsplash');
+  if (!panel) return;
+  const queryInput = panel.querySelector('#unsplash-query');
+  const keyInput = panel.querySelector('#unsplash-api-key-input');
+  const sendConfig = () => send({
+    cmd: 'setUnsplashConfig',
+    apiKey: (keyInput?.value || '').trim(),
+    query: (queryInput?.value || '').trim() || 'nature',
+  });
+  panel.querySelector('#unsplash-fetch-btn')?.addEventListener('click', sendConfig);
+  panel.querySelector('#unsplash-api-key-save')?.addEventListener('click', sendConfig);
+  queryInput?.addEventListener('change', sendConfig);
+}
+
+function syncUnsplashPanel() {
+  const panel = document.getElementById('panel-unsplash');
+  if (!panel) return;
+  const cfg = currentState.unsplashConfig || { apiKey: '', query: 'nature' };
+  const queryInput = panel.querySelector('#unsplash-query');
+  const keyInput = panel.querySelector('#unsplash-api-key-input');
+  if (queryInput && document.activeElement !== queryInput) queryInput.value = cfg.query || 'nature';
+  if (keyInput && document.activeElement !== keyInput) keyInput.value = cfg.apiKey || '';
+  const status = currentState.effectStatus?.unsplash;
+  const statusEl = panel.querySelector('#unsplash-status');
+  if (statusEl) statusEl.textContent = status ? (status.error ? ('✕ ' + status.error) : status.text) : 'Enter API key below to start';
+  const infoEl = panel.querySelector('#unsplash-info');
+  const photoInfoEl = panel.querySelector('#unsplash-photo-info');
+  if (status && status.count > 0) {
+    if (infoEl) infoEl.style.display = 'block';
+    if (photoInfoEl) photoInfoEl.textContent = (status.index + 1) + '/' + status.count;
+  } else if (infoEl) infoEl.style.display = 'none';
+}
+
+// ---------------------------------------------------------------------
+// Art Gallery / Met Museum (panel-artic) - search query only, no API key
+// (keyless public collection API). Prev/Next/Slideshow/Letterbox/Speed
+// come from the shared .art-shared-panel - see wireGalleryShared() below.
+// ---------------------------------------------------------------------
+function wireArticPanel() {
+  const panel = document.getElementById('panel-artic');
+  if (!panel) return;
+  const queryInput = panel.querySelector('#artic-query');
+  const sendQuery = () => setEffectOption('artic', 'query', (queryInput?.value || '').trim());
+  panel.querySelector('#artic-fetch-btn')?.addEventListener('click', sendQuery);
+  queryInput?.addEventListener('change', sendQuery);
+}
+
+function syncArticPanel() {
+  const panel = document.getElementById('panel-artic');
+  if (!panel) return;
+  const queryInput = panel.querySelector('#artic-query');
+  const opts = currentState.effectOptions?.artic || {};
+  if (queryInput && document.activeElement !== queryInput) queryInput.value = opts.query || '';
+  const status = currentState.effectStatus?.artic;
+  const statusEl = panel.querySelector('#artic-status');
+  if (statusEl) statusEl.textContent = status ? (status.error ? ('✕ ' + status.error) : status.text) : 'Loading random artworks…';
+  const infoEl = panel.querySelector('#artic-info');
+  const workInfoEl = panel.querySelector('#artic-work-info');
+  if (status && status.count > 0) {
+    if (infoEl) infoEl.style.display = 'block';
+    if (workInfoEl) workInfoEl.textContent = (status.index + 1) + '/' + status.count;
+  } else if (infoEl) infoEl.style.display = 'none';
+}
+
+// ---------------------------------------------------------------------
+// Shared "Art" submenu controls (#art-slideshow-chk/#art-letterbox-chk/
+// #art-speed/#art-prev-btn/#art-next-btn) - apply to whichever of
+// Unsplash/Art Gallery (GALLERY_EFFECTS) is the currently selected effect,
+// same single-shared-panel-drives-several-effects shape as the browser's
+// artSyncSharedControls()/ART_EFFECTS (minus APOD - see wireApodPanel).
+// Prev/Next use monotonically-increasing tokens (effects/unsplash.js's/
+// effects/artic.js's prevToken/nextToken), same trick as apod.js's Refresh.
+// ---------------------------------------------------------------------
+let _galleryPrevToken = 0, _galleryNextToken = 0;
+function wireGalleryShared() {
+  // IDs (not the shared .art-shared-panel CLASS) are used to locate these -
+  // index.html reuses that same class name for the unrelated Jokes/Trivia
+  // shared-controls block too (see CLAUDE.md's "Submenu / shared-controls
+  // UI pattern"), so a class-scoped query would silently grab the wrong
+  // block if section order ever changes; these element IDs are unique.
+  const slideshowChk = document.getElementById('art-slideshow-chk');
+  const letterboxChk = document.getElementById('art-letterbox-chk');
+  const speed = document.getElementById('art-speed');
+  const speedLbl = document.getElementById('art-speed-label');
+  const prevBtn = document.getElementById('art-prev-btn');
+  const nextBtn = document.getElementById('art-next-btn');
+  if (!slideshowChk && !letterboxChk && !speed && !prevBtn && !nextBtn) return;
+
+  const activeGalleryEffect = () => (GALLERY_EFFECTS.includes(currentState.effect) ? currentState.effect : null);
+
+  slideshowChk?.addEventListener('change', () => {
+    const eff = activeGalleryEffect(); if (eff) setEffectOption(eff, 'slideshowOn', slideshowChk.checked);
+  });
+  letterboxChk?.addEventListener('change', () => {
+    const eff = activeGalleryEffect(); if (eff) setEffectOption(eff, 'letterbox', letterboxChk.checked);
+  });
+  speed?.addEventListener('input', () => {
+    const v = Number(speed.value);
+    if (speedLbl) speedLbl.textContent = v + 's';
+    const eff = activeGalleryEffect(); if (eff) setEffectOption(eff, 'speedSecs', v);
+  });
+  prevBtn?.addEventListener('click', () => {
+    const eff = activeGalleryEffect(); if (eff) setEffectOption(eff, 'prevToken', ++_galleryPrevToken);
+  });
+  nextBtn?.addEventListener('click', () => {
+    const eff = activeGalleryEffect(); if (eff) setEffectOption(eff, 'nextToken', ++_galleryNextToken);
+  });
+}
+
+function syncGalleryShared() {
+  const eff = GALLERY_EFFECTS.includes(currentState.effect) ? currentState.effect : null;
+  const slideshowChk = document.getElementById('art-slideshow-chk');
+  const letterboxChk = document.getElementById('art-letterbox-chk');
+  const speed = document.getElementById('art-speed');
+  const speedLbl = document.getElementById('art-speed-label');
+  const opts = eff ? (currentState.effectOptions?.[eff] || {}) : {};
+  if (slideshowChk) slideshowChk.checked = opts.slideshowOn !== false;
+  if (letterboxChk) letterboxChk.checked = opts.letterbox !== false;
+  if (speed && document.activeElement !== speed) {
+    const v = Number(opts.speedSecs) > 0 ? Number(opts.speedSecs) : (eff === 'artic' ? 10 : 8);
+    speed.value = v;
+    if (speedLbl) speedLbl.textContent = v + 's';
+  }
+}
+
 function syncCamPanel() {
   const panel = document.getElementById('panel-cam');
   if (!panel) return;
@@ -2110,6 +2255,9 @@ document.addEventListener('DOMContentLoaded', () => {
   wireLightspeedPanel();
   wireCamPanel();
   wireApodPanel();
+  wireUnsplashPanel();
+  wireArticPanel();
+  wireGalleryShared();
   wireWeatherPanel();
   wireEpicPanel();
   wireIssPanel();

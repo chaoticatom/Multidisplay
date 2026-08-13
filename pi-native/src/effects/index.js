@@ -47,6 +47,8 @@ const apod = require('./apod');
 const epic = require('./epic');
 const neo = require('./neo');
 const customCube = require('./customCube');
+const unsplash = require('./unsplash');
+const artic = require('./artic');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -102,6 +104,8 @@ const EFFECTS = {
   apod,
   iss,
   neo,
+  unsplash,
+  artic,
   custom_cube: customCube,
 };
 
@@ -145,6 +149,8 @@ const EFFECT_NAMES = {
   apod: 'Astronomy Pic of the Day',
   iss: 'ISS Tracker',
   neo: 'Near-Earth Objects',
+  unsplash: 'Unsplash Photos',
+  artic: 'Art Gallery',
   custom_cube: 'Custom Cube',
 };
 

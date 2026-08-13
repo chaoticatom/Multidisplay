@@ -86,4 +86,154 @@ function getLocalGravity() {
   return { x: 0, y: -1, z: 0 };
 }
 
-module.exports = { cubePx, fwPx, tronMove, surfIdx, FW_FACES, VID_FACE_ORDER, getLocalGravity };
+// ═══════════════════════════════════════════════════
+//  Shared photo-gallery slideshow engine
+// ═══════════════════════════════════════════════════
+// Ported verbatim (math unchanged) from effects-core.js's
+// galleryInitFaceState()/gallerySlideshowStep()/galleryApplyToFace()/
+// galleryApplyBlendToFace() - the shared engine behind any "cycle through a
+// set of loaded photos, one per face, staggered and crossfading" effect
+// (Unsplash, Art Gallery, and future ones). Only the plumbing changed:
+// galleryApplyToFace/galleryApplyBlendToFace take `core` (for SIZE/faceMap/
+// setLED) instead of reading bare globals.
+function galleryInitFaceState(n, periodSecs) {
+  const stagger = periodSecs / 6;
+  return Array.from({ length: 6 }, (_, f) => ({
+    curIdx: n ? f % n : 0, nextIdx: null, fadeT: 0, timer: f * stagger,
+  }));
+}
+
+function gallerySlideshowStep(state, n, dt, periodSecs, fadeDur, slideshowOn, loadFn, pixelsArr) {
+  loadFn(state.curIdx);
+  if (state.nextIdx != null) loadFn(state.nextIdx);
+  if (state.fadeT > 0) {
+    const nextPixels = pixelsArr[state.nextIdx];
+    if (nextPixels === 'error') {
+      state.nextIdx = (state.nextIdx + 1) % n;
+      loadFn(state.nextIdx);
+    } else if (nextPixels) {
+      state.fadeT += dt;
+      if (state.fadeT >= fadeDur) { state.curIdx = state.nextIdx; state.nextIdx = null; state.fadeT = 0; }
+    }
+  } else if (slideshowOn) {
+    state.timer += dt;
+    if (state.timer >= periodSecs) {
+      state.timer -= periodSecs;
+      state.nextIdx = n > 6 ? (state.curIdx + 6) % n : (state.curIdx + 1) % n;
+      loadFn(state.nextIdx);
+      state.fadeT = 0.0001;
+    }
+  }
+}
+
+function galleryApplyToFace(core, pixelsArr, sizesArr, face, idx) {
+  const pixels = pixelsArr[idx];
+  if (!pixels || pixels === 'error') return false;
+  const S = core.SIZE, IS = sizesArr[idx];
+  for (let v = 0; v < S; v++) {
+    for (let u = 0; u < S; u++) {
+      const su = Math.min(IS - 1, Math.floor(u / S * IS));
+      const sv = Math.min(IS - 1, Math.floor((S - 1 - v) / S * IS));
+      const pi = (sv * IS + su) * 4;
+      core.setFaceLED(face, u, v, pixels[pi] / 255, pixels[pi + 1] / 255, pixels[pi + 2] / 255);
+    }
+  }
+  return true;
+}
+
+function galleryApplyBlendToFace(core, pixelsArr, sizesArr, face, idxA, idxB, alpha) {
+  const pixelsA = pixelsArr[idxA], pixelsB = pixelsArr[idxB];
+  const okA = pixelsA && pixelsA !== 'error', okB = pixelsB && pixelsB !== 'error';
+  if (!okA && !okB) return false;
+  if (!okA) return galleryApplyToFace(core, pixelsArr, sizesArr, face, idxB);
+  if (!okB) return galleryApplyToFace(core, pixelsArr, sizesArr, face, idxA);
+  const S = core.SIZE, ISA = sizesArr[idxA], ISB = sizesArr[idxB];
+  for (let v = 0; v < S; v++) {
+    for (let u = 0; u < S; u++) {
+      const suA = Math.min(ISA - 1, Math.floor(u / S * ISA)), svA = Math.min(ISA - 1, Math.floor((S - 1 - v) / S * ISA));
+      const piA = (svA * ISA + suA) * 4;
+      const suB = Math.min(ISB - 1, Math.floor(u / S * ISB)), svB = Math.min(ISB - 1, Math.floor((S - 1 - v) / S * ISB));
+      const piB = (svB * ISB + suB) * 4;
+      const r = (pixelsA[piA] / 255) + ((pixelsB[piB] / 255) - (pixelsA[piA] / 255)) * alpha;
+      const g = (pixelsA[piA + 1] / 255) + ((pixelsB[piB + 1] / 255) - (pixelsA[piA + 1] / 255)) * alpha;
+      const b = (pixelsA[piA + 2] / 255) + ((pixelsB[piB + 2] / 255) - (pixelsA[piA + 2] / 255)) * alpha;
+      core.setFaceLED(face, u, v, r, g, b);
+    }
+  }
+  return true;
+}
+
+// Fetches a remote image and decodes it into an RGBA pixel buffer sized
+// targetSize x targetSize, via Jimp - same decode tool cam.js/apod.js/
+// epic.js already use (no DOM/Canvas here). `letterbox:true` (default,
+// matches the browser's loadImageForPixels() default) fits the whole image
+// within the square preserving aspect ratio, composited onto black
+// (Jimp's contain()); `letterbox:false` crops to fill (Jimp's cover()).
+// Only a direct fetch is attempted here - not the browser's full 4-tier
+// fetch/proxy fallback chain (CLAUDE.md's image-loading note: that chain
+// exists for browser CORS restrictions, which don't apply to a server-side
+// fetch running with no Origin header - so tiers 3/4 (the weserv.nl proxy)
+// would add complexity with no benefit here).
+async function loadImageForPixels(url, targetSize, opts) {
+  const { Jimp } = require('jimp');
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const buf = Buffer.from(await resp.arrayBuffer());
+  const src = await Jimp.read(buf);
+  const letterbox = opts && opts.letterbox === false ? false : true;
+  let out;
+  if (letterbox) {
+    src.contain({ w: targetSize, h: targetSize });
+    out = new Jimp({ width: targetSize, height: targetSize, color: 0x000000ff });
+    out.composite(src, 0, 0);
+  } else {
+    src.cover({ w: targetSize, h: targetSize });
+    out = src;
+  }
+  return { pixels: out.bitmap.data, size: targetSize };
+}
+
+// Small centered-text placeholder drawer (3x5 PIXEL_FONT, same font weather
+// uses for its ticker) - shared by unsplash.js/artic.js for their "no
+// results yet" / "API ERROR" cards, same approach as apod.js's own local
+// drawLinesCentered/drawGlyph3x5 (kept separate there rather than
+// refactored onto this copy, to avoid touching a file outside this task's
+// scope).
+const { PIXEL_FONT } = require('./weather/font');
+function drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b) {
+  const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
+  if (!rows) return 4 * scale;
+  const S = core.SIZE;
+  for (let row = 0; row < 5; row++) {
+    const bits = rows[row];
+    for (let col = 0; col < 3; col++) {
+      if (!((bits >> (2 - col)) & 1)) continue;
+      for (let sy = 0; sy < scale; sy++) {
+        for (let sx = 0; sx < scale; sx++) {
+          const u = su + col * scale + sx, v = sv + row * scale + sy;
+          if (u < 0 || u >= S || v < 0 || v >= S) continue;
+          core.setFaceLED(face, u, v, r, g, b);
+        }
+      }
+    }
+  }
+  return 4 * scale;
+}
+function textWidth3x5(str, scale) { return str.length * 4 * scale - scale; }
+function drawLinesCentered3x5(core, face, lines, scale, r, g, b) {
+  const S = core.SIZE;
+  const lineH = 6 * scale;
+  const totalH = lines.length * lineH;
+  let sv = Math.round((S - totalH) / 2);
+  for (const line of lines) {
+    let su = Math.round((S - textWidth3x5(line, scale)) / 2);
+    for (const ch of line) su += drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b);
+    sv += lineH;
+  }
+}
+
+module.exports = {
+  cubePx, fwPx, tronMove, surfIdx, FW_FACES, VID_FACE_ORDER, getLocalGravity,
+  galleryInitFaceState, gallerySlideshowStep, galleryApplyToFace, galleryApplyBlendToFace,
+  loadImageForPixels, drawLinesCentered3x5,
+};

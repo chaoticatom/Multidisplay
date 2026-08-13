@@ -100,6 +100,10 @@
 //       ONLY to the requesting client (request/response, not broadcast
 //       state) since a scan/status result is specific to that request, not
 //       shared app state every client should see.
+//     {"cmd":"setUnsplashConfig","apiKey":"...","query":"nature"}
+//       Persists the Unsplash Access Key + default search query to disk
+//       (unsplashConfig.js) and broadcasts state.unsplashConfig to every
+//       connected client - see effects/unsplash.js's module comment.
 //     {"cmd":"radioPlay","station":{"name":"..","genre":"..","url":".."}}
 //       Selects/plays an Internet Radio station - either one of the
 //       featured RADIO_STATIONS or a directory search result, same shape
@@ -141,6 +145,7 @@ const { OVERLAY_KEYS } = require('./effects/overlays');
 const panelConfig = require('./panelConfig');
 const alarmConfig = require('./alarmConfig');
 const customCubeConfig = require('./customCubeConfig');
+const unsplashConfig = require('./unsplashConfig');
 const bluetooth = require('./bluetooth');
 const alarmsEngine = require('./effects/alarms');
 const radio = require('./effects/radio');
@@ -214,6 +219,7 @@ class WsServer {
       overlays: this.state.overlays,
       alarms: this.state.alarms, activeAlarm: this.state.activeAlarm,
       customCube: this.state.customCube,
+      unsplashConfig: this.state.unsplashConfig,
     };
   }
 
@@ -502,6 +508,16 @@ class WsServer {
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'radioStop') {
       radio.stopStation();
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'setUnsplashConfig') {
+      // Persists the Unsplash Access Key + default search query - see
+      // unsplashConfig.js's module comment for why this is a dedicated
+      // small JSON file rather than the generic setEffectOption store: the
+      // key needs to survive a restart the same way alarms/customCube do,
+      // which setEffectOption's in-memory-only state.effectOptions does not.
+      if (typeof msg.apiKey !== 'string' || typeof msg.query !== 'string') return;
+      this.state.unsplashConfig = { apiKey: msg.apiKey.trim(), query: msg.query.trim() || 'nature' };
+      unsplashConfig.save(this.state.unsplashConfig);
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'radioSearch') {
       const query = typeof msg.query === 'string' ? msg.query : '';

@@ -14,6 +14,7 @@ const panelConfig = require('./panelConfig');
 const wifiSetup = require('./wifiSetup');
 const alarmConfig = require('./alarmConfig');
 const customCubeConfig = require('./customCubeConfig');
+const unsplashConfig = require('./unsplashConfig');
 
 const TICK_HZ = 30; // effect-compute + panel-push rate; independent of the driver's own PWM refresh
 const WS_PORT = 8081;
@@ -118,6 +119,12 @@ async function main() {
     effect: 'wave', brightness: 1.0, speed: 1.0, overlays: JSON.parse(JSON.stringify(OV_DEFAULTS)),
     alarms: alarmConfig.load(), activeAlarm: null,
     customCube: customCubeConfig.load(),
+    // Unsplash's saved API key/query - persisted server-side (JSON file, no
+    // browser localStorage here - see unsplashConfig.js's module comment)
+    // and included in every "state" broadcast so a freshly-connected
+    // client's Unsplash panel reflects whatever key was last saved, same
+    // as customCube/alarms.
+    unsplashConfig: unsplashConfig.load(),
   };
   state.onAlarmsChanged = () => { alarmConfig.save(state.alarms); ws._broadcast(ws._stateMsg()); };
   const ws = new WsServer(WS_PORT, state, config, (newConfig) => {
