@@ -111,13 +111,24 @@ class RgbMatrixDriver {
     this.matrix.sync();
   }
 
+  // Same real-hardware-reported left-right mirror as _buildFaceBuffer's
+  // '2d' branch above, for wall mode. Mirrors the WHOLE assembled
+  // wallW x wallH canvas, not each panel in isolation - for a multi-panel
+  // wall, content that was on the far right of the stitched image needs to
+  // end up on the far left panel (not just flipped in place within
+  // whichever physical panel already had it), which is what makes the
+  // whole picture actually flip rather than each panel just showing its
+  // own content backwards. The physical panel positions/wiring
+  // (panel.gx/gy -> drawBuffer offset, in _renderWallFrame) are untouched -
+  // only which CONTENT lands at each physical offset changes.
   _buildWallPanelBuffer(core, panel, brightness) {
     const S = core.wallPanelSize, wallW = core.wallW, wallBuf = core.wallBuf;
     const buf = this._faceBufCache;
     const ox = panel.gx * S, oy = panel.gy * S;
     for (let v = 0; v < S; v++) {
       for (let u = 0; u < S; u++) {
-        const c = ((oy + v) * wallW + (ox + u)) * 3;
+        const srcX = wallW - 1 - (ox + u);
+        const c = ((oy + v) * wallW + srcX) * 3;
         const o = (v * S + u) * 3;
         buf[o]     = Math.max(0, Math.min(255, (wallBuf[c] * brightness * 255) | 0));
         buf[o + 1] = Math.max(0, Math.min(255, (wallBuf[c + 1] * brightness * 255) | 0));
@@ -127,14 +138,28 @@ class RgbMatrixDriver {
     return buf;
   }
 
+  // '2d' mode (a single flat panel, face 0) came back from a real-hardware
+  // test mirrored left-right - a real user report, not a guess (the
+  // browser preview, which goes through a completely separate path -
+  // wsServer.js's maybeStreamFrame() streams colBuf/faceMap straight
+  // through with no flip - was confirmed correct, so this is specific to
+  // physical panel orientation, not the effect math itself). Cube mode
+  // (6 faces) is left untouched here: its faceMap already bakes a
+  // deliberate, separately-verified mirror for faces 1/2 (see core.js's
+  // module comment and CLAUDE.md's "Face Mirroring" section) that predates
+  // this driver and was carried over from the original ESP32 architecture -
+  // flipping this function unconditionally would double up on/undo that
+  // existing calibration with no report that cube mode is actually wrong.
   _buildFaceBuffer(core, face, brightness) {
     const SIZE = core.SIZE;
     const buf = this._faceBufCache;
     const faceMap = core.faceMap[face];
     const colBuf = core.colBuf;
+    const mirror = this.mode === '2d';
     for (let v = 0; v < SIZE; v++) {
       for (let u = 0; u < SIZE; u++) {
-        const led = faceMap[v * SIZE + u];
+        const su = mirror ? SIZE - 1 - u : u;
+        const led = faceMap[v * SIZE + su];
         const o = (v * SIZE + u) * 3;
         if (led < 0) {
           buf[o] = 0; buf[o + 1] = 0; buf[o + 2] = 0;
