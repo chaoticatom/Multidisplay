@@ -198,7 +198,12 @@ async function main() {
     // the control page's option panel to display, since it has no other
     // way to see what a Pi-side-only fetch actually did. Only polled for
     // the currently-selected effect - cheap, and nothing else needs it.
-    const activeFn = EFFECTS[state.effect] || WALL_EFFECTS[state.effect];
+    // Picked from whichever registry actually renders this tick (matches
+    // the `fn` selection just below) - video's cube and wall variants each
+    // own a SEPARATE FfmpegSource (see videoWall.js's module comment), so
+    // picking the wrong registry here would show the idle one's "No
+    // source" status instead of the one actually decoding.
+    const activeFn = config.mode === 'wall' ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
     if (typeof activeFn?.getStatus === 'function') {
       if (!state.effectStatus) state.effectStatus = {};
       state.effectStatus[state.effect] = activeFn.getStatus();

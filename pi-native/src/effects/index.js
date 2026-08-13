@@ -52,6 +52,7 @@ const artic = require('./artic');
 const joke = require('./joke');
 const trivia = require('./trivia');
 const otd = require('./otd');
+const videoWall = require('./videoWall');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -65,6 +66,7 @@ const otd = require('./otd');
 // greying for how this is surfaced to the user.
 const WALL_EFFECTS = {
   gradient_wash: gradientWashWall,
+  video: videoWall,
 };
 
 const EFFECTS = {
