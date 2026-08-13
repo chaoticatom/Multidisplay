@@ -21,13 +21,20 @@
 // See wsServer.js's UPLOAD_DIR block and public/app.js's
 // uploadVideoFile()/wireVideoPanel() for the rest of that flow.
 //
-// Still explicitly out of scope (no server-side equivalent, same
-// "permanent scope boundary" category as cam.js's snapshot-only Camera
-// effect):
-//   - live webcam / screen capture (#vid-screen-btn/#vid-cam-btn stay
-//     greyed out client-side, see public/app.js's wireVideoPanel()) - a
-//     headless Pi has no display to capture and no camera stream API a
-//     browser tab would normally hand over via getDisplayMedia/getUserMedia
+// Live webcam / screen capture (#vid-cam-btn/#vid-screen-btn) IS also
+// supported, just via a different mechanism than the browser original's
+// direct getUserMedia()/getDisplayMedia() -> <video> -> <canvas> pipeline:
+// a headless Pi has no camera/display of its own, but the CONNECTED
+// BROWSER TAB does, so it captures+downsamples frames itself and streams
+// them to the Pi over the WS connection as binary messages (see
+// wsServer.js's module comment for the wire format and public/app.js's
+// startBrowserCapture()). Server-side this just means reading from
+// browserFrameSource.js's shared singleton instead of FfmpegSource when
+// effectOptions.video.source==='browser' - buildComposite()/
+// projectToFaces() below don't know or care which source a frame came
+// from. See that file's module comment for the full story.
+//
+// Still explicitly out of scope (no server-side equivalent):
 //   - vidTB==='spectrum' (mic-driven spectrum analyser on the top/bottom
 //     faces) - no audio pipeline here, falls back to 'dark' behaviour,
 //     same documented fallback fireworks.js's mic mode already uses.
@@ -41,36 +48,53 @@
 // this effect working until that's installed - status is surfaced via
 // getStatus() same as every other network/process-backed effect.
 const { FfmpegSource } = require('./video/ffmpegSource');
+const { browserFrameSource } = require('./video/browserFrameSource');
 const { buildComposite, projectToFaces } = require('./video/render');
 
 const DECODE_FPS = 10; // an LED wall has no use for real video frame rates; keeps ffmpeg CPU/pipe load sane on a Pi
 
 const source = new FfmpegSource();
 let vidScrollX = 0;
+let lastSourceKind = 'url'; // read by getStatus(), which is called with no args (see module comment)
 
-function getStatus() { return source.getStatus(); }
+function getStatus() { return lastSourceKind === 'browser' ? browserFrameSource.getStatus() : source.getStatus(); }
 
 function effectVideo(core, dt) {
   const { N, SIZE: S } = core;
   const opts = core.effectOptions?.video || {};
+  const sourceKind = opts.source === 'browser' ? 'browser' : 'url';
+  lastSourceKind = sourceKind;
   const url = (opts.url || '').trim();
-  const layout = opts.layout || 'panorama';
+  let layout = opts.layout || 'panorama';
   const bright = opts.bright ?? 1;
   const sat = opts.sat ?? 1;
   const scrollSpeed = opts.scroll ?? 0;
   const tb = opts.tb === 'spectrum' ? 'dark' : (opts.tb || 'dark'); // spectrum has no audio pipeline here - see module comment
 
-  // Decode dims: panorama/perspective need the full 4-wide panorama
-  // straight out of ffmpeg (render.js composites those with a straight
-  // per-pixel pass); mirror/tile only need a single S×S source tile
-  // (render.js composites the 4 flipped/tiled copies itself) - no point
-  // asking ffmpeg to decode 4x the pixels those layouts would just
-  // downsample/discard.
-  const wrap = layout === 'panorama' || layout === 'perspective';
-  const decodeW = wrap ? 4 * S : S, decodeH = S;
-
-  source.ensure(url, decodeW, decodeH, DECODE_FPS);
-  const frame = source.getFrame(decodeW, decodeH);
+  let decodeW, decodeH, frame;
+  if (sourceKind === 'browser') {
+    // Browser-captured frames always arrive as a single S×S tile (see
+    // browserFrameSource.js's module comment) - there's no browser-side
+    // equivalent of a real panoramic video source to fill a 4-wide
+    // composite from, so panorama/perspective (which need one) aren't
+    // meaningful here. Clamp to 'mirror' if that's what's selected -
+    // public/app.js also disables those two layout buttons while
+    // source==='browser', this is just defensive on the server side too.
+    if (layout === 'panorama' || layout === 'perspective') layout = 'mirror';
+    decodeW = S; decodeH = S;
+    frame = browserFrameSource.getFrame(decodeW, decodeH);
+  } else {
+    // Decode dims: panorama/perspective need the full 4-wide panorama
+    // straight out of ffmpeg (render.js composites those with a straight
+    // per-pixel pass); mirror/tile only need a single S×S source tile
+    // (render.js composites the 4 flipped/tiled copies itself) - no point
+    // asking ffmpeg to decode 4x the pixels those layouts would just
+    // downsample/discard.
+    const wrap = layout === 'panorama' || layout === 'perspective';
+    decodeW = wrap ? 4 * S : S; decodeH = S;
+    source.ensure(url, decodeW, decodeH, DECODE_FPS);
+    frame = source.getFrame(decodeW, decodeH);
+  }
 
   core.t += dt;
   const t = core.t;

@@ -25,27 +25,43 @@
 // idles-out the other's process on its own schedule (see
 // ffmpegSource.js's IDLE_TIMEOUT_MS) rather than needing any hand-off.
 const { FfmpegSource } = require('./video/ffmpegSource');
+const { browserFrameSource } = require('./video/browserFrameSource');
 const { applyBrightSat } = require('./video/render');
 
 const DECODE_FPS = 10; // matches video.js - an LED wall has no use for real video frame rates
 
 const source = new FfmpegSource();
 let scrollX = 0;
+let lastSourceKind = 'url'; // read by getStatus(), which is called with no args (see video.js's equivalent comment)
 
-function getStatus() { return source.getStatus(); }
+function getStatus() { return lastSourceKind === 'browser' ? browserFrameSource.getStatus() : source.getStatus(); }
 
 function effectVideoWall(core, dt) {
   const { wallW, wallH } = core;
   if (!wallW || !wallH) return; // core.initWall() hasn't run yet
 
   const opts = core.effectOptions?.video || {};
+  const sourceKind = opts.source === 'browser' ? 'browser' : 'url';
+  lastSourceKind = sourceKind;
   const url = (opts.url || '').trim();
   const bright = opts.bright ?? 1;
   const sat = opts.sat ?? 1;
   const scrollSpeed = opts.scroll ?? 0;
 
-  source.ensure(url, wallW, wallH, DECODE_FPS);
-  const frame = source.getFrame(wallW, wallH);
+  // Browser-captured frames are sent already sized to wallW x wallH (see
+  // public/app.js's startBrowserCapture() - it reads the wall's own
+  // current dims to size its capture canvas), so there's no compositing
+  // difference from the ffmpeg path here at all, unlike video.js's cube
+  // variant (which has to clamp the layout for browser sources) - a flat
+  // wall was already "one continuous image, no layout picker" to begin
+  // with.
+  let frame;
+  if (sourceKind === 'browser') {
+    frame = browserFrameSource.getFrame(wallW, wallH);
+  } else {
+    source.ensure(url, wallW, wallH, DECODE_FPS);
+    frame = source.getFrame(wallW, wallH);
+  }
 
   core.t += dt;
   const t = core.t;

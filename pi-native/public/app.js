@@ -1389,11 +1389,13 @@ function syncCamPanel() {
 // for why only one upload is ever kept on disk.
 function uploadVideoFile(file, statusEl) {
   if (!file) return;
+  stopBrowserCapture(); // an upload supersedes any live camera/screen capture in progress
   if (statusEl) statusEl.textContent = 'Uploading ' + file.name + '…';
   fetch('/api/uploadVideo?name=' + encodeURIComponent(file.name), { method: 'POST', body: file })
     .then((r) => r.json())
     .then((d) => {
       if (!d.ok) throw new Error(d.error || 'Upload failed');
+      setEffectOption('video', 'source', 'url');
       setEffectOption('video', 'url', d.path);
       // Guarantees the upload is actually visible regardless of whatever
       // effect happened to be selected before - a real report traced to
@@ -1410,14 +1412,110 @@ function uploadVideoFile(file, statusEl) {
     .catch((err) => { if (statusEl) statusEl.textContent = '✕ ' + err.message; });
 }
 
+// ---------------------------------------------------------------------
+// Live webcam / screen-share capture for Video Display - a headless Pi
+// has no camera/display of its own, but THIS browser tab does
+// (getUserMedia/getDisplayMedia are browser APIs, independent of what's
+// actually driving the LED panels), so frames are captured+downsampled
+// right here and streamed to the Pi over the existing WS connection as
+// binary messages (see wsServer.js's module comment for the wire format
+// and effects/video/browserFrameSource.js for how the server consumes
+// them). Only runs while this tab stays open/connected and the capture
+// hasn't been stopped - unlike a typed URL or an uploaded file (which
+// play back entirely server-side via ffmpeg and keep going with no
+// browser needed), this is fundamentally tab-dependent.
+let browserCaptureState = null; // {stream, video, canvas, ctx, interval, kind} | null
+
+function stopBrowserCapture() {
+  if (!browserCaptureState) return;
+  clearInterval(browserCaptureState.interval);
+  browserCaptureState.stream.getTracks().forEach((t) => t.stop());
+  browserCaptureState = null;
+}
+
+// Mirrors video.js's/videoWall.js's own decode-dims logic (see their
+// module comments): a single square SIZE×SIZE tile in cube/2d mode
+// (panorama/perspective layouts aren't meaningful for a live capture -
+// video.js clamps to 'mirror' server-side if one is still selected when
+// switching to a browser source), or the full stitched wallW×wallH
+// canvas in wall mode.
+function computeCaptureDims() {
+  const size = currentState.panelSize || 64;
+  if (currentState.panelMode === 'wall') {
+    const panels = currentState.panels || [];
+    if (!panels.length) return { w: size, h: size };
+    const cols = Math.max(1, ...panels.map((p) => p.gx + 1));
+    const rows = Math.max(1, ...panels.map((p) => p.gy + 1));
+    return { w: cols * size, h: rows * size };
+  }
+  return { w: size, h: size };
+}
+
+function startBrowserCapture(kind, statusEl) {
+  stopBrowserCapture();
+  if (statusEl) statusEl.textContent = kind === 'screen' ? 'Requesting screen share…' : 'Requesting camera…';
+  const getMedia = kind === 'screen'
+    ? navigator.mediaDevices.getDisplayMedia({ video: true })
+    : navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+
+  getMedia.then((stream) => {
+    const videoEl = document.createElement('video');
+    videoEl.srcObject = stream;
+    videoEl.muted = true;
+    videoEl.playsInline = true;
+    videoEl.play().catch(() => {}); // autoplay can reject before the first user gesture settles - harmless, drawImage below just waits for readyState
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const kindByte = kind === 'screen' ? 1 : 0;
+
+    const captureFrame = () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN || videoEl.readyState < 2) return;
+      const { w, h } = computeCaptureDims();
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      ctx.drawImage(videoEl, 0, 0, w, h);
+      let imgData;
+      try { imgData = ctx.getImageData(0, 0, w, h).data; } catch (e) { return; } // e.g. a tainted canvas - shouldn't happen for a local getUserMedia/getDisplayMedia stream, but never let a capture-loop error go uncaught
+      // [type=1][w LE16][h LE16][kind][R,G,B * w*h] - see wsServer.js's
+      // module comment. RGBA -> RGB24 here (drop alpha) to match what
+      // FfmpegSource's ffmpeg output already looks like server-side, and
+      // to cut the wire payload by 25%.
+      const out = new Uint8Array(6 + w * h * 3);
+      out[0] = 1;
+      out[1] = w & 0xff; out[2] = (w >> 8) & 0xff;
+      out[3] = h & 0xff; out[4] = (h >> 8) & 0xff;
+      out[5] = kindByte;
+      for (let i = 0, j = 6; i < imgData.length; i += 4, j += 3) {
+        out[j] = imgData[i]; out[j + 1] = imgData[i + 1]; out[j + 2] = imgData[i + 2];
+      }
+      ws.send(out);
+    };
+
+    const interval = setInterval(captureFrame, 1000 / 10); // matches video.js's DECODE_FPS - an LED wall has no use for a faster capture rate
+    browserCaptureState = { stream, video: videoEl, canvas, ctx, interval, kind };
+
+    setEffectOption('video', 'source', 'browser');
+    send({ cmd: 'setEffect', effect: 'video' });
+    if (statusEl) statusEl.textContent = (kind === 'screen' ? 'Sharing screen' : 'Streaming camera') + '…';
+
+    // The browser's OWN "Stop sharing" bar (screen capture) or the OS
+    // revoking camera access ends the track directly, bypassing our Stop
+    // button entirely - detect that and tear the capture loop down too,
+    // rather than continuing to try to draw from a dead stream forever.
+    stream.getVideoTracks()[0].addEventListener('ended', () => {
+      if (browserCaptureState && browserCaptureState.stream === stream) {
+        stopBrowserCapture();
+        if (statusEl) statusEl.textContent = 'Capture ended';
+      }
+    });
+  }).catch((err) => {
+    if (statusEl) statusEl.textContent = '✕ ' + (err.message || 'Permission denied or cancelled');
+  });
+}
+
 function wireVideoPanel() {
   const panel = document.getElementById('panel-video');
   if (!panel) return;
-
-  ['vid-screen-btn', 'vid-cam-btn'].forEach((id) => {
-    const btn = panel.querySelector('#' + id);
-    if (btn) { btn.disabled = true; btn.title = 'No webcam/screen-capture on a headless Pi - use Video/Image (file) or the URL field below instead'; btn.style.opacity = 0.35; }
-  });
 
   const statusEl = panel.querySelector('#vid-status');
   const vidFileBtn = panel.querySelector('#vid-file-btn'), vidFileInput = panel.querySelector('#vid-file-input');
@@ -1430,12 +1528,31 @@ function wireVideoPanel() {
     imgFileBtn.addEventListener('click', () => imgFileInput.click());
     imgFileInput.addEventListener('change', () => { uploadVideoFile(imgFileInput.files[0], statusEl); imgFileInput.value = ''; });
   }
+  const camBtn = panel.querySelector('#vid-cam-btn');
+  if (camBtn) {
+    if (!navigator.mediaDevices?.getUserMedia) { camBtn.disabled = true; camBtn.title = 'This browser doesn\'t support camera capture'; camBtn.style.opacity = 0.35; }
+    else camBtn.addEventListener('click', () => startBrowserCapture('cam', statusEl));
+  }
+  const screenBtn = panel.querySelector('#vid-screen-btn');
+  if (screenBtn) {
+    if (!navigator.mediaDevices?.getDisplayMedia) { screenBtn.disabled = true; screenBtn.title = 'This browser doesn\'t support screen capture'; screenBtn.style.opacity = 0.35; }
+    else screenBtn.addEventListener('click', () => startBrowserCapture('screen', statusEl));
+  }
   const stopBtn = panel.querySelector('#vid-stop-btn');
-  if (stopBtn) stopBtn.addEventListener('click', () => setEffectOption('video', 'url', ''));
+  if (stopBtn) stopBtn.addEventListener('click', () => {
+    stopBrowserCapture();
+    setEffectOption('video', 'source', 'url');
+    setEffectOption('video', 'url', '');
+  });
 
   const url = panel.querySelector('#vid-url');
   const loadBtn = panel.querySelector('#vid-load-btn');
-  const submit = () => { if (url) setEffectOption('video', 'url', url.value.trim()); };
+  const submit = () => {
+    if (!url) return;
+    stopBrowserCapture(); // a typed URL supersedes any live camera/screen capture in progress
+    setEffectOption('video', 'source', 'url');
+    setEffectOption('video', 'url', url.value.trim());
+  };
   if (loadBtn) loadBtn.addEventListener('click', submit);
   if (url) url.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
 
@@ -1479,7 +1596,21 @@ function syncVideoPanel() {
   if (scroll && document.activeElement !== scroll) { scroll.value = opts.scroll ?? 0; if (scrollVal) scrollVal.textContent = scroll.value; }
   panel.querySelectorAll('.vid-layout-btn[data-layout]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.layout === (opts.layout || 'panorama'));
+    // Panorama/perspective need a full 4-wide composite that only a real
+    // decoded video source can produce - a live browser camera/screen
+    // capture is always a single square tile (see video.js's clamp on
+    // the server side, and computeCaptureDims() here), so those two
+    // layouts have nothing meaningful to do with a browser source.
+    const needsWrap = btn.dataset.layout === 'panorama' || btn.dataset.layout === 'perspective';
+    const disable = needsWrap && opts.source === 'browser';
+    btn.disabled = disable;
+    btn.style.opacity = disable ? 0.35 : '';
   });
+
+  const camBtn = panel.querySelector('#vid-cam-btn'), screenBtn = panel.querySelector('#vid-screen-btn');
+  const capturing = opts.source === 'browser';
+  if (camBtn && !camBtn.title.includes('support')) camBtn.classList.toggle('active', capturing && browserCaptureState?.kind === 'cam');
+  if (screenBtn && !screenBtn.title.includes('support')) screenBtn.classList.toggle('active', capturing && browserCaptureState?.kind === 'screen');
 
   const statusEl = document.getElementById('vid-status');
   if (statusEl) statusEl.textContent = currentState.effectStatus?.video || 'No source loaded';

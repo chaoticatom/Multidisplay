@@ -136,6 +136,18 @@
 //   ESP32's PKT_VIDEO framing, since direction/purpose differ (Pi -> any
 //   preview client, vs. today's browser -> ESP32) and no existing consumer
 //   code depends on the ESP32's exact framing.
+//   Binary frames, CLIENT -> server - live webcam/screen-share capture for
+//   Video Display's browser source (see effects/video/browserFrameSource.js's
+//   module comment for why this exists: a headless Pi has no camera of its
+//   own, but a connected browser tab does). public/app.js's
+//   startBrowserCapture() sends one of these per captured frame, at
+//   whatever fps its capture interval runs (see that function):
+//     [type(1 byte, always 1)][width(uint16 LE)][height(uint16 LE)]
+//     [kind(1 byte: 0='cam', 1='screen')][R,G,B * width*height bytes, row-major]
+//   Routed by _handleBinaryFrame() straight into browserFrameSource's
+//   shared singleton - effects/video.js and videoWall.js read from it via
+//   the same getFrame(w,h)-exact-dims-match contract FfmpegSource uses, so
+//   they don't need to know or care which source produced a frame.
 const WebSocket = require('ws');
 const http = require('http');
 const fs = require('fs');
@@ -149,6 +161,7 @@ const unsplashConfig = require('./unsplashConfig');
 const bluetooth = require('./bluetooth');
 const alarmsEngine = require('./effects/alarms');
 const radio = require('./effects/radio');
+const { browserFrameSource } = require('./effects/video/browserFrameSource');
 const crypto = require('crypto');
 
 const PREVIEW_FPS = 20; // matches the ESP32 firmware's streamFrameToCube() throttle
@@ -217,7 +230,7 @@ class WsServer {
     this.wss.on('connection', (ws) => {
       console.log('[WS] client connected');
       ws.send(JSON.stringify(this._stateMsg()));
-      ws.on('message', (data) => this._handleMessage(ws, data));
+      ws.on('message', (data, isBinary) => this._handleMessage(ws, data, isBinary));
       ws.on('close', () => console.log('[WS] client disconnected'));
       ws.on('error', (err) => console.warn('[WS] client error:', err.message));
     });
@@ -354,6 +367,25 @@ class WsServer {
     });
   }
 
+  // Client -> server binary frame (see the module comment's wire-format
+  // block above) - one captured webcam/screen-share frame from
+  // startBrowserCapture(). Deliberately silent/defensive on any malformed
+  // input (too-short buffer, a width/height that doesn't match the actual
+  // payload length) rather than throwing - a single dropped video frame
+  // is a total non-event (the next one arrives ~100ms later), so there's
+  // nothing worth logging or erroring over, same "just drop it" spirit as
+  // this file's other malformed-payload handling (setOverlay with an
+  // unknown key, etc).
+  _handleBinaryFrame(data) {
+    if (!Buffer.isBuffer(data) || data.length < 5) return;
+    if (data[0] !== 1) return; // only one binary frame type exists so far
+    const w = data.readUInt16LE(1), h = data.readUInt16LE(3);
+    const kind = data[5] === 1 ? 'screen' : 'cam';
+    const payload = data.subarray(6);
+    if (w <= 0 || h <= 0 || payload.length !== w * h * 3) return;
+    browserFrameSource.setFrame(payload, w, h, kind);
+  }
+
   _stateMsg() {
     return {
       cmd: 'state',
@@ -426,7 +458,8 @@ class WsServer {
     this._broadcast(this._stateMsg());
   }
 
-  _handleMessage(ws, data) {
+  _handleMessage(ws, data, isBinary) {
+    if (isBinary) { this._handleBinaryFrame(data); return; }
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
     if (msg.cmd === 'setEffect' && EFFECTS[msg.effect]) {
