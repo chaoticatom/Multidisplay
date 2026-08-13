@@ -4,3 +4,5 @@ alarms.json
 custom-cube-config.json
 unsplash-config.json
 uploads/
+tls-key.pem
+tls-cert.pem

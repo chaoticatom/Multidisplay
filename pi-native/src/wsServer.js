@@ -17,6 +17,19 @@
 //                         page fetches this once instead of hand-
 //                         maintaining its own copy of the effect list
 //
+// Served on TWO ports: the primary one (plain HTTP, e.g. :8081) and a
+// second HTTPS listener on port+1 (e.g. :8082) with a self-signed cert
+// (see tls.js) - identical content/protocol on both, the ONLY reason the
+// second one exists is that
+// getUserMedia()/getDisplayMedia() (Video Display's webcam/screen-capture
+// buttons) are unavailable to JS entirely outside a "secure context"
+// (HTTPS, or literal localhost/127.0.0.1) - browser policy, not something
+// this app can work around. A real report traced those two buttons
+// staying permanently greyed out to exactly this. Every other feature
+// works identically on either port; this is purely an additional entry
+// point, not a replacement - existing http://<pi>:8081/ bookmarks keep
+// working unchanged. Absent (not fatal) if openssl isn't installed.
+//
 // WebSocket wire protocol:
 //   Text frames (JSON), client -> server, control commands:
 //     {"cmd":"setEffect",    "effect":"wave"}
@@ -150,6 +163,8 @@
 //   they don't need to know or care which source produced a frame.
 const WebSocket = require('ws');
 const http = require('http');
+const https = require('https');
+const { ensureSelfSignedCert } = require('./tls');
 const fs = require('fs');
 const path = require('path');
 const { EFFECTS, EFFECT_NAMES, WALL_EFFECTS } = require('./effects');
@@ -227,15 +242,52 @@ class WsServer {
     this.http = http.createServer((req, res) => this._handleHttp(req, res));
     this.wss = new WebSocket.Server({ server: this.http });
 
-    this.wss.on('connection', (ws) => {
-      console.log('[WS] client connected');
-      ws.send(JSON.stringify(this._stateMsg()));
-      ws.on('message', (data, isBinary) => this._handleMessage(ws, data, isBinary));
-      ws.on('close', () => console.log('[WS] client disconnected'));
-      ws.on('error', (err) => console.warn('[WS] client error:', err.message));
-    });
+    // Tracks EVERY connected client across both the plain-HTTP and (if
+    // available) HTTPS listeners as one set, so broadcast/preview-
+    // streaming code doesn't need to know or care which transport any
+    // given client came in on - see _wireConnection() below.
+    this._clients = new Set();
+    this._wireConnection(this.wss);
 
     this.http.listen(port);
+
+    // Second listener, on port+1, serving the exact same content/protocol
+    // over TLS with a self-signed cert (see tls.js's module comment) -
+    // ONLY reason this exists is that getUserMedia()/getDisplayMedia()
+    // (Video Display's webcam/screen-capture buttons) are unavailable to
+    // JS entirely on a plain-HTTP, non-localhost origin ("secure context"
+    // browser policy, not something this app can work around) - a real
+    // report traced those buttons staying permanently greyed out to
+    // exactly this. Regular usage (every other feature) is entirely
+    // unaffected and keeps working over the existing plain-HTTP port with
+    // no changes - this is purely an ADDITIONAL entry point for whoever
+    // wants to use the camera/screen-capture feature specifically, not a
+    // replacement. Self-signed means a one-time "not secure" browser
+    // warning to click through per device/browser; unavoidable without a
+    // real CA-issued cert, impractical for a device with no public DNS
+    // name. Gracefully absent (not fatal) if openssl isn't installed or
+    // cert generation fails for any reason - see tls.js.
+    const tlsFiles = ensureSelfSignedCert();
+    if (tlsFiles) {
+      this.https = https.createServer(tlsFiles, (req, res) => this._handleHttp(req, res));
+      this.wssHttps = new WebSocket.Server({ server: this.https });
+      this._wireConnection(this.wssHttps);
+      this.https.listen(port + 1);
+      console.log(`[app] HTTPS control page (needed for camera/screen capture) on :${port + 1} - self-signed, browsers will warn once`);
+    } else {
+      this.https = null;
+    }
+  }
+
+  _wireConnection(wss) {
+    wss.on('connection', (ws) => {
+      console.log('[WS] client connected');
+      this._clients.add(ws);
+      ws.send(JSON.stringify(this._stateMsg()));
+      ws.on('message', (data, isBinary) => this._handleMessage(ws, data, isBinary));
+      ws.on('close', () => { this._clients.delete(ws); console.log('[WS] client disconnected'); });
+      ws.on('error', (err) => console.warn('[WS] client error:', err.message));
+    });
   }
 
   _handleHttp(req, res) {
@@ -724,7 +776,7 @@ class WsServer {
   }
 
   get hasClients() {
-    return this.wss.clients.size > 0;
+    return this._clients.size > 0;
   }
 
   // Call once per animation tick. Throttles internally to PREVIEW_FPS and
@@ -758,7 +810,7 @@ class WsServer {
           buf[o + 2] = Math.max(0, Math.min(255, (colBuf[c + 2] * brightness * 255) | 0));
         }
       }
-      for (const client of this.wss.clients) {
+      for (const client of this._clients) {
         if (client.readyState === WebSocket.OPEN) client.send(buf);
       }
     }
@@ -785,7 +837,7 @@ class WsServer {
           buf[o + 2] = Math.max(0, Math.min(255, (wallBuf[c + 2] * brightness * 255) | 0));
         }
       }
-      for (const client of this.wss.clients) {
+      for (const client of this._clients) {
         if (client.readyState === WebSocket.OPEN) client.send(buf);
       }
     });
@@ -794,6 +846,7 @@ class WsServer {
   close() {
     this.wss.close();
     this.http.close();
+    if (this.https) { this.wssHttps.close(); this.https.close(); }
   }
 }
 

@@ -54,7 +54,15 @@ let currentState = { effect: null, brightness: 1, speed: 1, panelSize: 64, panel
 const faceCanvases = {};
 
 function connect() {
-  ws = new WebSocket(`ws://${location.hostname}:${location.port || 8081}`);
+  // Matches whichever transport the page itself was loaded over - plain
+  // ws:// on the regular HTTP port, or wss:// on the HTTPS port (see
+  // wsServer.js's module comment: a second TLS listener on port+1 exists
+  // solely so getUserMedia()/getDisplayMedia() work at all, since browsers
+  // refuse them entirely outside a secure context). A page loaded over
+  // https:// trying to open a plain ws:// connection would be blocked as
+  // mixed content anyway, so this isn't optional once HTTPS is in play.
+  const wsScheme = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${wsScheme}://${location.hostname}:${location.port || 8081}`);
   ws.binaryType = 'arraybuffer';
   ws.onmessage = (ev) => {
     if (typeof ev.data === 'string') handleTextMessage(JSON.parse(ev.data));
@@ -1528,15 +1536,36 @@ function wireVideoPanel() {
     imgFileBtn.addEventListener('click', () => imgFileInput.click());
     imgFileInput.addEventListener('change', () => { uploadVideoFile(imgFileInput.files[0], statusEl); imgFileInput.value = ''; });
   }
+  // getUserMedia()/getDisplayMedia() only exist in a "secure context" -
+  // HTTPS, or the literal localhost/127.0.0.1 origin - browser policy,
+  // not a feature this app can work around. This page is normally loaded
+  // over plain http://<pi-hostname>:8081/ on a LAN, which does NOT
+  // qualify, so navigator.mediaDevices itself is undefined there. A real
+  // report traced the greyed-out cam/screen buttons to exactly this
+  // (mistakenly assumed at first to be a "browser doesn't support it"
+  // problem, which it wasn't) - see wsServer.js's module comment for the
+  // HTTPS listener (port+1, self-signed cert) this app runs specifically
+  // so these two buttons have somewhere secure to work from.
+  const insecureContext = !window.isSecureContext;
   const camBtn = panel.querySelector('#vid-cam-btn');
   if (camBtn) {
-    if (!navigator.mediaDevices?.getUserMedia) { camBtn.disabled = true; camBtn.title = 'This browser doesn\'t support camera capture'; camBtn.style.opacity = 0.35; }
-    else camBtn.addEventListener('click', () => startBrowserCapture('cam', statusEl));
+    if (insecureContext || !navigator.mediaDevices?.getUserMedia) {
+      camBtn.disabled = true;
+      camBtn.title = insecureContext
+        ? `Needs a secure connection - open https://${location.hostname}:${(Number(location.port) || 8081) + 1}/ instead (self-signed, your browser will warn once)`
+        : 'This browser doesn\'t support camera capture';
+      camBtn.style.opacity = 0.35;
+    } else camBtn.addEventListener('click', () => startBrowserCapture('cam', statusEl));
   }
   const screenBtn = panel.querySelector('#vid-screen-btn');
   if (screenBtn) {
-    if (!navigator.mediaDevices?.getDisplayMedia) { screenBtn.disabled = true; screenBtn.title = 'This browser doesn\'t support screen capture'; screenBtn.style.opacity = 0.35; }
-    else screenBtn.addEventListener('click', () => startBrowserCapture('screen', statusEl));
+    if (insecureContext || !navigator.mediaDevices?.getDisplayMedia) {
+      screenBtn.disabled = true;
+      screenBtn.title = insecureContext
+        ? `Needs a secure connection - open https://${location.hostname}:${(Number(location.port) || 8081) + 1}/ instead (self-signed, your browser will warn once)`
+        : 'This browser doesn\'t support screen capture';
+      screenBtn.style.opacity = 0.35;
+    } else screenBtn.addEventListener('click', () => startBrowserCapture('screen', statusEl));
   }
   const stopBtn = panel.querySelector('#vid-stop-btn');
   if (stopBtn) stopBtn.addEventListener('click', () => {
