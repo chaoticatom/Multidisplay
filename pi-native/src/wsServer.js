@@ -71,6 +71,23 @@
 //       Every one of these persists to disk (alarmConfig.save) and
 //       broadcasts the new "state" message so all connected clients (and a
 //       freshly-connected one) see the current list.
+//     {"cmd":"setFaceEffect","face":0,"effect":"fireworks"}  -> assigns an effect to one cube face (face 0-5); effect:null or "none" clears it
+//     {"cmd":"setFaceOpts","face":0,"opts":{...}}            -> replaces that face's saved sub-options (fireworks' text, rain's style, ...); face must already have an effect assigned
+//     {"cmd":"setFaceOverlays","face":0,"overlayKeys":["stars","fire"]} -> per-face overlay picks (a subset of OVERLAY_KEYS), applied only to that face's LEDs when Custom Cube renders it
+//     {"cmd":"saveCube","name":"My Cube"}                    -> snapshots the current per-face assignment (state.customCube.faces) into the named-configuration library; overwrites an existing entry with the same name
+//     {"cmd":"loadCube","index":0}                           -> copies a library entry's faces into the live assignment
+//     {"cmd":"deleteCube","index":0}
+//     {"cmd":"clearFaces"}                                   -> blanks all 6 faces (does not touch the library)
+//       Custom Cube - lets each of the 6 cube faces run a different effect
+//       simultaneously, with a saved-configuration library. See
+//       effects/customCube.js's module comment for the per-face composition
+//       mechanism and customCubeConfig.js for the persisted shape (unifying
+//       the browser's separate draft-editor/active-effect state into one
+//       `faces` array - see that file's module comment for why). Every
+//       command here is validated defensively (face 0-5, effect must be a
+//       real EFFECTS key or null/'none', overlayKeys must be a subset of
+//       OVERLAY_KEYS) before ever reaching customCubeConfig.save() or
+//       state.customCube - same defensive posture as alarmConfig/panelConfig.
 //     {"cmd":"btScan"}                                    -> {"cmd":"btScanResult","devices":[{"mac":"..","name":".."}]}
 //     {"cmd":"btPair","mac":"AA:BB:CC:DD:EE:FF"}           -> {"cmd":"btPairResult","ok":bool,"log":".."}
 //     {"cmd":"btStatus"}                                   -> {"cmd":"btStatusResult","devices":[..]}
@@ -123,6 +140,7 @@ const { EFFECTS, EFFECT_NAMES, WALL_EFFECTS } = require('./effects');
 const { OVERLAY_KEYS } = require('./effects/overlays');
 const panelConfig = require('./panelConfig');
 const alarmConfig = require('./alarmConfig');
+const customCubeConfig = require('./customCubeConfig');
 const bluetooth = require('./bluetooth');
 const alarmsEngine = require('./effects/alarms');
 const radio = require('./effects/radio');
@@ -195,6 +213,7 @@ class WsServer {
       effectOptions: this.state.effectOptions, effectStatus: this.state.effectStatus,
       overlays: this.state.overlays,
       alarms: this.state.alarms, activeAlarm: this.state.activeAlarm,
+      customCube: this.state.customCube,
     };
   }
 
@@ -239,6 +258,21 @@ class WsServer {
 
   _persistAlarms() {
     alarmConfig.save(this.state.alarms);
+    this._broadcast(this._stateMsg());
+  }
+
+  // Final gate before every Custom Cube mutation reaches disk - each
+  // handler below constructs state.customCube.faces/library itself (already
+  // shape-correct), but this is cheap insurance against a future handler
+  // bug writing something malformed, same "each reads/writes its own state
+  // defensively" spirit as the rest of this file. Skips the persist+
+  // broadcast entirely (rather than persisting a fallback) if the shape
+  // somehow went bad - a handler bug should be visible as "nothing
+  // happened", not a silently-corrected save.
+  _persistCustomCube() {
+    if (!customCubeConfig.isValidFaces(this.state.customCube.faces)) return;
+    if (!customCubeConfig.isValidLibrary(this.state.customCube.library)) return;
+    customCubeConfig.save(this.state.customCube);
     this._broadcast(this._stateMsg());
   }
 
@@ -381,6 +415,77 @@ class WsServer {
     } else if (msg.cmd === 'dismissAlarm') {
       alarmsEngine.dismissActive(this.state);
       this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'setFaceEffect') {
+      if (!this.state.customCube) return;
+      const face = Number(msg.face);
+      if (!Number.isInteger(face) || face < 0 || face > 5) return;
+      if (msg.effect === null || msg.effect === undefined || msg.effect === 'none') {
+        this.state.customCube.faces[face] = null;
+      } else {
+        if (typeof msg.effect !== 'string' || msg.effect === 'custom_cube' || !EFFECTS[msg.effect]) return;
+        // Preserve overlayKeys/opts across a same-effect re-pick (e.g.
+        // re-selecting the effect already assigned doesn't wipe its saved
+        // opts); a genuine effect CHANGE starts that face's opts fresh,
+        // same as the browser's sel 'change' handler (ui.js ~line 149-159).
+        const existing = this.state.customCube.faces[face];
+        const keepOpts = existing && existing.effect === msg.effect;
+        this.state.customCube.faces[face] = {
+          effect: msg.effect,
+          overlayKeys: existing ? [...existing.overlayKeys] : [],
+          opts: keepOpts ? { ...existing.opts } : {},
+        };
+      }
+      this._persistCustomCube();
+    } else if (msg.cmd === 'setFaceOpts') {
+      if (!this.state.customCube) return;
+      const face = Number(msg.face);
+      if (!Number.isInteger(face) || face < 0 || face > 5) return;
+      const cfg = this.state.customCube.faces[face];
+      if (!cfg || !msg.opts || typeof msg.opts !== 'object' || Array.isArray(msg.opts)) return;
+      cfg.opts = { ...msg.opts };
+      this._persistCustomCube();
+    } else if (msg.cmd === 'setFaceOverlays') {
+      if (!this.state.customCube) return;
+      const face = Number(msg.face);
+      if (!Number.isInteger(face) || face < 0 || face > 5) return;
+      const cfg = this.state.customCube.faces[face];
+      if (!cfg || !Array.isArray(msg.overlayKeys)) return;
+      // Reject (not silently filter) a payload containing an unknown key -
+      // same "malformed payload dropped whole" posture as _sanitizeAlarm,
+      // rather than quietly saving a truncated list the client didn't ask for.
+      if (msg.overlayKeys.some((k) => typeof k !== 'string' || !OVERLAY_KEYS.includes(k))) return;
+      cfg.overlayKeys = [...msg.overlayKeys];
+      this._persistCustomCube();
+    } else if (msg.cmd === 'saveCube') {
+      if (!this.state.customCube) return;
+      if (typeof msg.name !== 'string' || !msg.name.trim()) return;
+      const name = msg.name.trim();
+      const snapshot = {
+        name,
+        faces: this.state.customCube.faces.map((f) => (f ? { effect: f.effect, overlayKeys: [...f.overlayKeys], opts: { ...f.opts } } : null)),
+      };
+      const idx = this.state.customCube.library.findIndex((c) => c.name === name);
+      if (idx >= 0) this.state.customCube.library[idx] = snapshot;
+      else this.state.customCube.library.push(snapshot);
+      this._persistCustomCube();
+    } else if (msg.cmd === 'loadCube') {
+      if (!this.state.customCube) return;
+      const idx = Number(msg.index);
+      if (!Number.isInteger(idx)) return;
+      const entry = this.state.customCube.library[idx];
+      if (!entry) return;
+      this.state.customCube.faces = entry.faces.map((f) => (f ? { effect: f.effect, overlayKeys: [...f.overlayKeys], opts: { ...f.opts } } : null));
+      this._persistCustomCube();
+    } else if (msg.cmd === 'deleteCube') {
+      if (!this.state.customCube) return;
+      const idx = Number(msg.index);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= this.state.customCube.library.length) return;
+      this.state.customCube.library.splice(idx, 1);
+      this._persistCustomCube();
+    } else if (msg.cmd === 'clearFaces') {
+      if (!this.state.customCube) return;
+      this.state.customCube.faces = [null, null, null, null, null, null];
+      this._persistCustomCube();
     } else if (msg.cmd === 'btScan') {
       this._replyBt(ws, 'btScanResult', async () => ({ devices: await bluetooth.scanDevices() }));
     } else if (msg.cmd === 'btPair') {

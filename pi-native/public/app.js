@@ -8,12 +8,16 @@
 //     speed, the Pi-only Bluetooth pairing panel in the Setup section, and
 //     the Overlays panel - global compositing layers, see wireOverlaysPanel)
 //   - greys out everything else the markup contains but pi-native doesn't
-//     support yet (Custom Faces, Panel Editor, ESP32 Firmware Update,
+//     support yet (Custom Faces freehand drawing, ESP32 Firmware Update,
 //     Standalone Mode, Clear All) so the page still looks like the
 //     familiar app instead of silently doing nothing on click
 //   - wires the Timers section (#alarm-section / #alarm-modal) to the
 //     server's addAlarm/updateAlarm/deleteAlarm/setAlarmEnabled/
 //     dismissAlarm commands - see wireAlarmSection()/wireAlarmModal()
+//   - wires the Face Editor (#panel-editor-section) and the Custom Cube
+//     effect's own panel (#panel-custom_cube) to setFaceEffect/setFaceOpts/
+//     setFaceOverlays/saveCube/loadCube/deleteCube/clearFaces - see
+//     wirePanelEditor()/wireCustomCubeEffectPanel()
 //   - renders a live 3D preview on the #c canvas from the binary per-face
 //     frames the WS server already streams for this purpose
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
@@ -35,7 +39,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss']);
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'custom_cube']);
 
 let ws;
 let effectNames = {};
@@ -85,6 +89,9 @@ function handleTextMessage(msg) {
     syncRadioPanel();
     syncCelestialPanel();
     syncOverlaysPanel();
+    syncPanelEditor();
+    syncCustomCubeLibrarySelects();
+    syncCustomCubeEffectPanel();
     renderAlarmList();
     renderWallGrid();
     if (modeChanged) rebuildScene();
@@ -716,6 +723,271 @@ function syncOverlaysPanel() {
     const lbl = document.getElementById('ov-global-bright-val');
     if (lbl) lbl.textContent = Math.round(overlays.globalBright * 100) + '%';
   }
+}
+
+// ---------------------------------------------------------------------
+// Custom Cube - Face Editor (#panel-editor-section, pe-* ids) assigns an
+// effect + sub-options + a per-face overlay subset to each of the 6 cube
+// faces, and the Custom Cube effect's own panel (#panel-custom_cube,
+// cc-select/cc-load-btn) activates a saved configuration from the library.
+// Ported from ui.js's buildPanelEditor()/buildSubOptions() (lines 7-270)
+// and effects-scenes.js's ccRefreshSelect() - see customCubeConfig.js's
+// module comment for how pi-native unifies the browser's separate
+// perFaceEffect(draft)/_customCubeData(active) state into one live `faces`
+// array server-side (currentState.customCube.faces), which is why there's
+// no "— Use global effect —" option here (that indirection existed only to
+// let the draft diverge from what was actually running - not a concept
+// this design needs) and no local pe-* draft state at all: every control
+// below sends straight to the server and re-renders from the next "state"
+// broadcast, same as every other panel in this file.
+// ---------------------------------------------------------------------
+const CC_FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
+const CC_FACE_OVERLAY_KEYS = ['stars', 'fire', 'sparkle', 'glitch', 'mist', 'snow'];
+
+// Sub-option control set per effect - mirrors ui.js's buildSubOptions()
+// (lines 82-107) exactly, restricted to effects actually ported here (e.g.
+// no 'video' sub-options - video.js's option is 'bright', already covered
+// below; every effect not listed gets no sub-options at all, same as the
+// browser's own fall-through for balls/sand/everything-else).
+const CC_SUBOPTIONS = {
+  fireworks: [
+    { key: 'textOn', type: 'toggle', label: 'Show text on cube', default: false },
+    { key: 'text', type: 'text', label: 'Text:', placeholder: 'Enter message…' },
+  ],
+  rain: [
+    { key: 'style', type: 'select', label: 'Style:', options: [['colour', 'Colour'], ['matrix', 'Matrix']], default: 'colour' },
+  ],
+  datetime: [
+    { key: 'mode', type: 'select', label: 'Mode:', options: [['time', 'Time'], ['date', 'Date'], ['both', 'Both'], ['full', 'Full']], default: 'time' },
+    { key: 'scroll', type: 'toggle', label: 'Scroll', default: false },
+  ],
+  strobe: [
+    { key: 'pattern', type: 'select', label: 'Pattern:', options: [['all', 'Full'], ['checker', 'Alt'], ['faces', 'Faces'], ['rings', 'Rings'], ['diagonal', 'Diag'], ['scanline', 'Scan']], default: 'all' },
+    { key: 'speed', type: 'slider', label: 'Speed:', min: 1, max: 30, step: 1, default: 8, fmt: (v) => v + '/s' },
+    { key: 'color', type: 'select', label: 'Colour:', options: [['white', 'White'], ['red', 'Red'], ['green', 'Green'], ['blue', 'Blue'], ['cyan', 'Cyan'], ['multi', 'Multi']], default: 'white' },
+  ],
+  lightspeed: [
+    { key: 'speed', type: 'slider', label: 'Speed:', min: 1, max: 20, step: 0.5, default: 8, fmt: (v) => v },
+    { key: 'trail', type: 'slider', label: 'Trail:', min: 4, max: 120, step: 2, default: 32, fmt: (v) => v },
+    { key: 'nudge', type: 'select', label: 'Nudge:', options: [['0', '0°'], ['1', '1°'], ['2', '2°'], ['5', '5°'], ['10', '10°'], ['20', '20°'], ['45', '45°'], ['90', '90°']], default: '0' },
+  ],
+  maze: [
+    { key: 'runners', type: 'slider', label: 'Runners:', min: 1, max: 6, step: 1, default: 3, fmt: (v) => v },
+  ],
+  tron: [
+    { key: 'bikes', type: 'slider', label: 'Bikes:', min: 2, max: 8, step: 1, default: 4, fmt: (v) => v },
+    { key: 'speed', type: 'slider', label: 'Speed:', min: 0.5, max: 3, step: 0.1, default: 1, fmt: (v) => parseFloat(v).toFixed(1) + '×' },
+  ],
+  video: [
+    { key: 'bright', type: 'slider', label: 'Bright:', min: 0.1, max: 2, step: 0.1, default: 1, fmt: (v) => parseFloat(v).toFixed(1) + '×' },
+  ],
+  // balls/sand/everything else: no sub-options, matching ui.js line 105-107.
+};
+
+function ccLibrary() {
+  return (currentState.customCube && currentState.customCube.library) || [];
+}
+
+function ccFaces() {
+  return (currentState.customCube && currentState.customCube.faces) || [null, null, null, null, null, null];
+}
+
+// Builds one sub-options control from CC_SUBOPTIONS's declarative spec -
+// same 4 control shapes (text/select/slider/toggle) as ui.js's
+// buildSubOptions() row()/textInput()/slider()/select()/chk() helpers.
+function buildFaceSubOptionRow(f, spec, opts) {
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:5px;';
+  const currentVal = opts[spec.key] !== undefined ? opts[spec.key] : spec.default;
+  const commit = (val) => send({ cmd: 'setFaceOpts', face: f, opts: { ...opts, [spec.key]: val } });
+
+  if (spec.type === 'toggle') {
+    const tog = document.createElement('span'); tog.className = 'ov-toggle'; tog.style.marginLeft = '0';
+    const chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = !!currentVal;
+    chk.addEventListener('change', () => commit(chk.checked));
+    const slider = document.createElement('span'); slider.className = 'ov-slider';
+    tog.appendChild(chk); tog.appendChild(slider);
+    const lbl = document.createElement('span'); lbl.style.cssText = 'font-size:11px;color:#99b;'; lbl.textContent = spec.label;
+    row.appendChild(tog); row.appendChild(lbl);
+    return row;
+  }
+
+  const lbl = document.createElement('span');
+  lbl.style.cssText = 'font-size:11px;color:#778;flex:0 0 72px;';
+  lbl.textContent = spec.label;
+  row.appendChild(lbl);
+
+  if (spec.type === 'text') {
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.placeholder = spec.placeholder || ''; inp.value = currentVal || '';
+    inp.style.cssText = 'flex:1;padding:4px 7px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:11px;border-radius:3px;';
+    inp.addEventListener('change', () => commit(inp.value));
+    row.appendChild(inp);
+  } else if (spec.type === 'select') {
+    const sel = document.createElement('select');
+    sel.style.cssText = 'flex:1;padding:4px 6px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:11px;border-radius:3px;';
+    spec.options.forEach(([v, l]) => {
+      const o = document.createElement('option'); o.value = v; o.textContent = l;
+      if (String(currentVal) === v) o.selected = true;
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', () => commit(sel.value));
+    row.appendChild(sel);
+  } else if (spec.type === 'slider') {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;align-items:center;gap:5px;flex:1;';
+    const s = document.createElement('input'); s.type = 'range';
+    s.min = spec.min; s.max = spec.max; s.step = spec.step; s.value = currentVal;
+    s.style.cssText = 'flex:1;';
+    const vl = document.createElement('span'); vl.style.cssText = 'font-size:10px;color:#9cd;width:34px;';
+    vl.textContent = spec.fmt(currentVal);
+    s.addEventListener('input', () => { vl.textContent = spec.fmt(s.value); });
+    s.addEventListener('change', () => commit(parseFloat(s.value)));
+    wrap.appendChild(s); wrap.appendChild(vl);
+    row.appendChild(wrap);
+  }
+  return row;
+}
+
+function buildFaceCard(f) {
+  const cfg = ccFaces()[f];
+  const div = document.createElement('div');
+  div.style.cssText = 'margin-bottom:12px;padding:10px;background:rgba(20,30,60,0.5);border-radius:6px;border:1px solid rgba(80,120,255,0.2);';
+
+  const label = document.createElement('div');
+  label.style.cssText = 'font-size:13px;letter-spacing:1px;color:#7aadff;margin-bottom:8px;font-weight:bold;';
+  label.textContent = `Face ${f + 1} — ${CC_FACE_NAMES[f]}`;
+  div.appendChild(label);
+
+  const sel = document.createElement('select');
+  sel.style.cssText = 'width:100%;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;padding:5px 7px;border-radius:4px;margin-bottom:8px;';
+  const optNone = document.createElement('option');
+  optNone.value = 'none'; optNone.textContent = '✕ None (blank face)';
+  if (!cfg) optNone.selected = true;
+  sel.appendChild(optNone);
+  Object.entries(effectNames).filter(([k]) => k !== 'custom_cube').forEach(([k, name]) => {
+    const o = document.createElement('option'); o.value = k; o.textContent = name;
+    if (cfg && cfg.effect === k) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.addEventListener('change', () => send({ cmd: 'setFaceEffect', face: f, effect: sel.value === 'none' ? null : sel.value }));
+  div.appendChild(sel);
+
+  const subDiv = document.createElement('div');
+  subDiv.style.cssText = 'background:rgba(0,0,0,0.2);border-radius:4px;padding:6px 8px;margin-bottom:8px;';
+  const specs = cfg && cfg.effect ? CC_SUBOPTIONS[cfg.effect] : null;
+  if (specs && specs.length) {
+    const opts = cfg.opts || {};
+    specs.forEach((spec) => subDiv.appendChild(buildFaceSubOptionRow(f, spec, opts)));
+  } else {
+    subDiv.style.display = 'none';
+  }
+  div.appendChild(subDiv);
+
+  const ovLabel = document.createElement('div');
+  ovLabel.style.cssText = 'font-size:11px;color:#778;margin-bottom:6px;';
+  ovLabel.textContent = 'Overlays on this face:';
+  div.appendChild(ovLabel);
+  const ovGrid = document.createElement('div');
+  ovGrid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:5px;';
+  CC_FACE_OVERLAY_KEYS.forEach((ov) => {
+    const lbl = document.createElement('label');
+    lbl.style.cssText = 'font-size:12px;color:#99b;display:flex;align-items:center;gap:6px;cursor:pointer;';
+    const tog = document.createElement('span'); tog.className = 'ov-toggle'; tog.style.marginLeft = '0';
+    const chk = document.createElement('input'); chk.type = 'checkbox';
+    chk.checked = !!(cfg && cfg.overlayKeys && cfg.overlayKeys.includes(ov));
+    chk.disabled = !cfg; // no face effect assigned yet - nothing to overlay onto
+    chk.addEventListener('change', () => {
+      const keys = new Set((cfg && cfg.overlayKeys) || []);
+      if (chk.checked) keys.add(ov); else keys.delete(ov);
+      send({ cmd: 'setFaceOverlays', face: f, overlayKeys: [...keys] });
+    });
+    const slider = document.createElement('span'); slider.className = 'ov-slider';
+    tog.appendChild(chk); tog.appendChild(slider);
+    lbl.appendChild(tog); lbl.appendChild(document.createTextNode(ov));
+    ovGrid.appendChild(lbl);
+  });
+  div.appendChild(ovGrid);
+
+  return div;
+}
+
+// Full rebuild on every "state" broadcast, same convention as
+// renderAlarmList() - simplest way to stay in sync with server-authoritative
+// state, at the cost of not preserving in-progress focus/scroll through an
+// unrelated broadcast (e.g. a brightness drag elsewhere), an accepted
+// trade-off this codebase already makes for the Timers list.
+function syncPanelEditor() {
+  const el = document.getElementById('pe-faces');
+  if (!el || !effectNames || !Object.keys(effectNames).length) return;
+  el.innerHTML = '';
+  for (let f = 0; f < 6; f += 1) el.appendChild(buildFaceCard(f));
+}
+
+function wirePanelEditor() {
+  document.getElementById('pe-clear-btn')?.addEventListener('click', () => send({ cmd: 'clearFaces' }));
+  document.getElementById('pe-save-btn')?.addEventListener('click', () => {
+    const nameEl = document.getElementById('pe-name-input');
+    const name = (nameEl?.value || '').trim() || `Cube ${ccLibrary().length + 1}`;
+    send({ cmd: 'saveCube', name });
+  });
+  document.getElementById('pe-load-btn')?.addEventListener('click', () => {
+    const sel = document.getElementById('pe-load-select');
+    if (!sel || sel.value === '') return;
+    const idx = Number(sel.value);
+    send({ cmd: 'loadCube', index: idx });
+    const nameEl = document.getElementById('pe-name-input');
+    const entry = ccLibrary()[idx];
+    if (nameEl && entry) nameEl.value = entry.name;
+  });
+  document.getElementById('pe-del-btn')?.addEventListener('click', () => {
+    const sel = document.getElementById('pe-load-select');
+    if (!sel || sel.value === '') return;
+    send({ cmd: 'deleteCube', index: Number(sel.value) });
+  });
+}
+
+// Keeps pe-load-select and the Custom Cube effect panel's cc-select in sync
+// with currentState.customCube.library - mirrors ui.js's peRefreshSelect()
+// (which drove both dropdowns from the same localStorage-backed list).
+function syncCustomCubeLibrarySelects() {
+  const lib = ccLibrary();
+  ['pe-load-select', 'cc-select'].forEach((id) => {
+    const sel = document.getElementById(id);
+    if (!sel || document.activeElement === sel) return;
+    const prevVal = sel.value;
+    sel.innerHTML = '<option value="">— choose a saved cube —</option>';
+    lib.forEach((c, i) => { const o = document.createElement('option'); o.value = i; o.textContent = c.name; sel.appendChild(o); });
+    if (prevVal !== '' && Number(prevVal) < lib.length) sel.value = prevVal;
+  });
+}
+
+// Custom Cube effect's own panel (#panel-custom_cube) - "activate a saved
+// cube" picker, ported from effects-scenes.js's ccRefreshSelect()/ui.js's
+// cc-select wiring. pi-native's unified `faces`-array design (see
+// customCubeConfig.js's module comment) makes this functionally identical
+// to the Face Editor's own Load button - both just copy a library entry
+// into the live `faces` assignment - so it's wired the same way rather than
+// left dead. #cc-active is frontend-only cosmetic state (which library
+// entry was last loaded via THIS button) since the unified design has no
+// server-side "active cube name" to track once you've loaded one).
+let ccLastLoadedName = null;
+function wireCustomCubeEffectPanel() {
+  document.getElementById('cc-load-btn')?.addEventListener('click', () => {
+    const sel = document.getElementById('cc-select');
+    if (!sel || sel.value === '') return;
+    const idx = Number(sel.value);
+    const entry = ccLibrary()[idx];
+    send({ cmd: 'loadCube', index: idx });
+    ccLastLoadedName = entry ? entry.name : null;
+    syncCustomCubeEffectPanel();
+  });
+}
+
+function syncCustomCubeEffectPanel() {
+  const active = document.getElementById('cc-active');
+  if (!active) return;
+  active.textContent = ccLastLoadedName ? `Active: ${ccLastLoadedName}` : '';
 }
 
 function wireFireworksPanel() {
@@ -1395,15 +1667,18 @@ function wireCollapsibles() {
 
 // ---------------------------------------------------------------------
 // Grey out sections pi-native has no backend for yet: Custom
-// Faces, Panel Editor, Standalone Mode, Clear All, ESP32 Firmware
-// Update (that's an ESP32-only OTA flow, meaningless on the Pi). Timers
-// (#alarm-section) is NOT in this list - it's fully wired, see
-// wireAlarmSection().
+// Faces (freehand pixel-art drawing onto each face - a different feature
+// from Custom Cube's per-face EFFECT assignment below, and not ported),
+// Standalone Mode, Clear All, ESP32 Firmware Update (that's an ESP32-only
+// OTA flow, meaningless on the Pi). Timers (#alarm-section) is NOT in this
+// list - it's fully wired, see wireAlarmSection(). #panel-editor-section
+// (Face Editor) is NOT in this list either - it's fully wired, see
+// wirePanelEditor()/syncPanelEditor() below (Custom Cube's per-face effect
+// assignment UI).
 // ---------------------------------------------------------------------
 function greyOutUnsupported() {
   const bySelector = [
     '#custom-faces-section',
-    '#panel-editor-section',
     '#standalone-mode-bar',
     '#fx-toggle-bar',
   ];
@@ -1816,6 +2091,8 @@ document.addEventListener('DOMContentLoaded', () => {
   wireRadioPanel();
   wireCelestialPanel();
   wireOverlaysPanel();
+  wirePanelEditor();
+  wireCustomCubeEffectPanel();
   wireAlarmSection();
   wireAlarmModal();
   greyOutUnsupported();

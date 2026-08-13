@@ -13,6 +13,7 @@ const WsServer = require('./wsServer');
 const panelConfig = require('./panelConfig');
 const wifiSetup = require('./wifiSetup');
 const alarmConfig = require('./alarmConfig');
+const customCubeConfig = require('./customCubeConfig');
 
 const TICK_HZ = 30; // effect-compute + panel-push rate; independent of the driver's own PWM refresh
 const WS_PORT = 8081;
@@ -102,9 +103,21 @@ async function main() {
   // add/update/delete/toggle/dismiss handlers persist+broadcast too, but
   // alarmFire() runs from THIS tick loop, not from a WS handler, so it
   // needs its own hook to do the same.
+  // state.customCube: Custom Cube's persisted per-face effect assignment +
+  // saved-configuration library - same "GLOBAL-ish but only rendered when
+  // selected as the effect" category as effectOptions, not overlays/alarms
+  // (those two run every tick regardless of state.effect; Custom Cube only
+  // renders when state.effect==='custom_cube', same as any other effect) -
+  // see effects/customCube.js's module comment and customCubeConfig.js for
+  // the persisted shape. Unlike alarms/overlays there's no autonomous
+  // engine-side mutation of this state (nothing here fires on its own the
+  // way an alarm does), so unlike alarmConfig there's no onXChanged hook -
+  // every mutation comes from a WS command, and wsServer.js persists+
+  // broadcasts directly after each one (see its _persistCustomCube()).
   const state = {
     effect: 'wave', brightness: 1.0, speed: 1.0, overlays: JSON.parse(JSON.stringify(OV_DEFAULTS)),
     alarms: alarmConfig.load(), activeAlarm: null,
+    customCube: customCubeConfig.load(),
   };
   state.onAlarmsChanged = () => { alarmConfig.save(state.alarms); ws._broadcast(ws._stateMsg()); };
   const ws = new WsServer(WS_PORT, state, config, (newConfig) => {
@@ -163,6 +176,15 @@ async function main() {
     // comment and rain.js/lightspeed.js for how each effect reads its own
     // slice of this, defensively, with its own default.
     core.effectOptions = state.effectOptions;
+    // core.customCubeFaces / core.overlaysState: read only by
+    // effects/customCube.js (the Custom Cube effect) - see that file's
+    // module comment. overlaysState is the same live overlay-params object
+    // runOverlays() below reads for the GLOBAL overlay layers; Custom Cube
+    // reuses it (via applyFaceOverlays) so a face's per-face overlay picks
+    // use the same user-tuned params (density/speed/color/...) as the
+    // Overlays panel, rather than a second untunable copy of the defaults.
+    core.customCubeFaces = state.customCube && state.customCube.faces;
+    core.overlaysState = state.overlays;
     // Some effects (weather, and potentially others with their own
     // background fetch - see effects/weather.js's getStatus()) expose a
     // status snapshot (fetch in progress / last error / live values) for

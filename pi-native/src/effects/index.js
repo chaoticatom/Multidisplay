@@ -45,6 +45,7 @@ const moon = require('./celestial/celestial');
 const iss = require('./iss');
 const apod = require('./apod');
 const epic = require('./epic');
+const customCube = require('./customCube');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -99,6 +100,7 @@ const EFFECTS = {
   epic,
   apod,
   iss,
+  custom_cube: customCube,
 };
 
 const EFFECT_NAMES = {
@@ -140,6 +142,7 @@ const EFFECT_NAMES = {
   epic: 'Earth Live View',
   apod: 'Astronomy Pic of the Day',
   iss: 'ISS Tracker',
+  custom_cube: 'Custom Cube',
 };
 
 module.exports = { EFFECTS, EFFECT_NAMES, WALL_EFFECTS };
