@@ -1603,13 +1603,16 @@ function syncVideoPanel() {
   if (scroll && document.activeElement !== scroll) { scroll.value = opts.scroll ?? 0; if (scrollVal) scrollVal.textContent = scroll.value; }
   panel.querySelectorAll('.vid-layout-btn[data-layout]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.layout === (opts.layout || 'panorama'));
-    // Panorama/perspective need a full 4-wide composite that only a real
-    // decoded video source can produce - a live browser camera/screen
-    // capture is always a single square tile (see video.js's clamp on
-    // the server side, and computeCaptureDims() here), so those two
-    // layouts have nothing meaningful to do with a browser source.
+    // Panorama/perspective decode a 4-wide composite meant to wrap around
+    // the cube's 4 side faces - meaningless for a live browser camera/
+    // screen capture (always a single square tile, see video.js's clamp
+    // and computeCaptureDims() here) AND for '2d' single-panel mode
+    // (there's no "wrap around 4 faces" when only one panel is physically
+    // shown - video.js clamps this server-side too, see its module
+    // comment for the real report this fixed: a single panel was only
+    // ever showing a cropped 1/4-width slice of the image/video).
     const needsWrap = btn.dataset.layout === 'panorama' || btn.dataset.layout === 'perspective';
-    const disable = needsWrap && opts.source === 'browser';
+    const disable = needsWrap && (opts.source === 'browser' || currentState.panelMode === '2d');
     btn.disabled = disable;
     btn.style.opacity = disable ? 0.35 : '';
   });

@@ -1,12 +1,32 @@
-// Verifies the "Fit" option (Stretch vs Native Ratio) - a real report
-// asked for a way to show video at its native aspect ratio on the 2D
-// display instead of always being stretched to fill the square panel.
-// 'contain' should add ffmpeg's scale+pad filter chain (letterbox/
-// pillarbox with black bars, no separate probe step needed - see
-// ffmpegSource.js's _launch() module comment); the default 'stretch'
-// keeps the original plain scale=w:h behavior unchanged.
+// Verifies the "Fit" option (Stretch vs Native Ratio) and the '2d'-mode
+// panorama/perspective clamp - both real reports:
+//   1. "Fit": a way to show video at its native aspect ratio on the 2D
+//      display instead of always being stretched to fill the square panel.
+//   2. "image and video need to be able to fit on one display 64x64":
+//      the default "Panorama" layout decodes a 4S-wide composite meant to
+//      wrap around 4 cube faces, but in '2d' single-panel mode only face 0
+//      is ever physically shown - without a clamp, that meant a single
+//      panel only displayed a cropped 1/4-width slice of the actual
+//      image/video instead of the whole frame fitting on the one panel.
+//
+// Patches child_process.spawn BEFORE requiring video.js/videoWall.js (both
+// own a module-level FfmpegSource singleton created at require time using
+// the real spawn by default) so these exercise the actual singleton
+// video.js/videoWall.js use, not a second throwaway instance.
 const assert = require('assert');
 const { EventEmitter } = require('events');
+const childProcess = require('child_process');
+
+let capturedArgs = null;
+const realSpawn = childProcess.spawn;
+childProcess.spawn = (cmd, args, opts) => {
+  capturedArgs = args;
+  const proc = new EventEmitter();
+  proc.stdout = new EventEmitter();
+  proc.stderr = new EventEmitter();
+  return proc;
+};
+
 const { FfmpegSource } = require('../src/effects/video/ffmpegSource');
 const { CubeCore } = require('../src/core');
 const effectVideo = require('../src/effects/video');
@@ -30,17 +50,17 @@ function vfArg(args) { return args[args.indexOf('-vf') + 1]; }
 
 async function run() {
   await test('default fit ("stretch") uses a plain scale filter', () => {
-    let capturedArgs = null;
-    const source = new FfmpegSource((cmd, args) => { capturedArgs = args; return fakeProc(); });
+    let args = null;
+    const source = new FfmpegSource((cmd, a) => { args = a; return fakeProc(); });
     source.ensure('http://x/video.mp4', 64, 64, 10);
-    assert.strictEqual(vfArg(capturedArgs), 'scale=64:64');
+    assert.strictEqual(vfArg(args), 'scale=64:64');
   });
 
   await test('fit="contain" adds aspect-preserving scale+pad', () => {
-    let capturedArgs = null;
-    const source = new FfmpegSource((cmd, args) => { capturedArgs = args; return fakeProc(); });
+    let args = null;
+    const source = new FfmpegSource((cmd, a) => { args = a; return fakeProc(); });
     source.ensure('http://x/video.mp4', 64, 64, 10, 'contain');
-    const vf = vfArg(capturedArgs);
+    const vf = vfArg(args);
     assert.ok(vf.includes('force_original_aspect_ratio=decrease'), 'expected aspect-preserving scale: ' + vf);
     assert.ok(vf.includes('pad=64:64'), 'expected a pad to the full target dims: ' + vf);
   });
@@ -69,6 +89,28 @@ async function run() {
       assert.doesNotThrow(() => effectVideoWall(core, 0.05));
     }
   });
+
+  await test('cube mode with layout=panorama decodes a 4S-wide composite (unclamped baseline)', () => {
+    capturedArgs = null;
+    const core = new CubeCore(8);
+    core.panelMode = 'cube';
+    core.effectOptions = { video: { url: 'http://x/video.mp4', layout: 'panorama' } };
+    effectVideo(core, 0.05);
+    assert.ok(capturedArgs, 'expected ffmpeg to be spawned');
+    assert.ok(capturedArgs.includes('scale=32:8'), 'expected a 4×8=32 wide decode in cube mode: ' + capturedArgs.join(' '));
+  });
+
+  await test('2D panel mode clamps layout=panorama to a single S×S tile, not a cropped 4S-wide slice', () => {
+    capturedArgs = null;
+    const core = new CubeCore(8);
+    core.panelMode = '2d';
+    core.effectOptions = { video: { url: 'http://x/video2.mp4', layout: 'panorama' } };
+    effectVideo(core, 0.05);
+    assert.ok(capturedArgs, 'expected ffmpeg to be spawned');
+    assert.ok(capturedArgs.includes('scale=8:8'), 'expected a single 8×8 tile decode in 2d mode, not a 4x-wide composite: ' + capturedArgs.join(' '));
+  });
+
+  childProcess.spawn = realSpawn;
 
   if (process.exitCode) {
     console.log('\nFAILED');

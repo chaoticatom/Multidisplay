@@ -35,13 +35,21 @@ test('img1.bin matches firmware/src/easter_egg_images.h byte-for-byte', () => {
 });
 
 console.log('easterEgg effect');
-test('at t~0 (phase<15), a center pixel matches img1 exactly (alpha=0)', () => {
+test('at t~0 (phase<15), a pixel matches img1 exactly (alpha=0), vertically flipped onto faceMap', () => {
+  // Real report: the easter egg displayed upside down on real hardware.
+  // img1.bin/img2.bin are standard top-down RGB888 (row 0 = top), but
+  // faceMap's row 0 is the BOTTOM (matching cube.js's Y-up 3D convention,
+  // same as every other effect that blits a top-down image buffer - see
+  // e.g. neo.js's title-card blit). faceMap row `fy` should hold image
+  // row `63 - fy`, not image row `fy` directly.
   const core = new CubeCore(64);
   const easterEgg = require('../src/effects/easterEgg');
   const img1 = fs.readFileSync(path.join(__dirname, '../src/effects/easterEgg/img1.bin'));
   easterEgg(core, 0.001);
-  const led = core.faceMap[0][32 * 64 + 32]; // center pixel - not shared with other faces
-  const pi = (32 * 64 + 32) * 3;
+  const fy = 20, x = 32; // an arbitrary non-center row so a missing/wrong flip would actually be caught
+  const led = core.faceMap[0][fy * 64 + x];
+  const imgY = 63 - fy;
+  const pi = (imgY * 64 + x) * 3;
   assert.ok(Math.abs(core.colBuf[led * 3] - img1[pi] / 255) < 1e-5);
   assert.ok(Math.abs(core.colBuf[led * 3 + 1] - img1[pi + 1] / 255) < 1e-5);
   assert.ok(Math.abs(core.colBuf[led * 3 + 2] - img1[pi + 2] / 255) < 1e-5);

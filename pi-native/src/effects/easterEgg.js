@@ -45,8 +45,19 @@ function easterEgg(core, dt) {
   for (let face = 0; face < 6; face++) {
     const faceMap = core.faceMap[face];
     for (let y = 0; y < S; y++) {
+      // img1.bin/img2.bin are standard top-down RGB888 (row 0 = top of
+      // the image, extracted straight from the firmware header) but
+      // faceMap's row 0 is the BOTTOM (matching cube.js's Y-up 3D
+      // convention, same as every other effect that blits a top-down
+      // image buffer - see e.g. neo.js's title-card blit or apod.js's
+      // image sampling, both of which flip the destination/source row
+      // the same way). This file was missing that flip entirely (a
+      // direct "faithful port" of the firmware's own raw-panel addressing,
+      // which has no such convention to match), which showed up as a
+      // real report: the easter egg displaying upside down.
+      const fy = S - 1 - y;
       for (let x = 0; x < S; x++) {
-        const led = faceMap[y * S + x];
+        const led = faceMap[fy * S + x];
         if (led < 0) continue;
         const pi = (y * S + x) * 3;
         const r1 = img1[pi], g1 = img1[pi + 1], b1 = img1[pi + 2];

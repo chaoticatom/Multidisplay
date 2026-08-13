@@ -83,16 +83,26 @@ function effectVideo(core, dt) {
   // startBrowserCapture() in public/app.js).
   const fit = opts.fit === 'contain' ? 'contain' : 'stretch';
 
+  // Panorama/perspective decode a 4S-wide composite meant to wrap around
+  // the cube's 4 side faces - in '2d' single-panel mode there IS no
+  // "wrap around 4 faces" (only face 0 is ever physically shown, per
+  // rgbMatrixDriver.js's faceCount=1), so those layouts just showed a
+  // cropped 1/4-width slice of the actual image/video instead of the
+  // whole thing fitting on the one panel - a real report. Clamp to
+  // 'mirror' (a single undistorted S×S tile) the same way browser-
+  // captured sources already were, so a single panel always shows the
+  // complete frame (optionally letterboxed via the Fit option above)
+  // regardless of which layout button happens to be selected.
+  const forceSingleTile = sourceKind === 'browser' || core.panelMode === '2d';
+  if (forceSingleTile && (layout === 'panorama' || layout === 'perspective')) layout = 'mirror';
+
   let decodeW, decodeH, frame;
   if (sourceKind === 'browser') {
     // Browser-captured frames always arrive as a single S×S tile (see
     // browserFrameSource.js's module comment) - there's no browser-side
     // equivalent of a real panoramic video source to fill a 4-wide
     // composite from, so panorama/perspective (which need one) aren't
-    // meaningful here. Clamp to 'mirror' if that's what's selected -
-    // public/app.js also disables those two layout buttons while
-    // source==='browser', this is just defensive on the server side too.
-    if (layout === 'panorama' || layout === 'perspective') layout = 'mirror';
+    // meaningful here.
     decodeW = S; decodeH = S;
     frame = browserFrameSource.getFrame(decodeW, decodeH);
   } else {
