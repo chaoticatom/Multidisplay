@@ -93,20 +93,21 @@ const articWall = require('./articWall');
 const jokeWall = require('./jokeWall');
 const triviaWall = require('./triviaWall');
 const otdWall = require('./otdWall');
+const retroWall = require('./retroWall');
+const radioWall = require('./radioWall');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
 // a wall-aware effect needs different math (iterates core.wallW/wallH,
 // not the cube's surfX/Y/Z) from its cube-mode counterpart of the same
 // name - the two aren't interchangeable, a cube effect writing to
-// core.colBuf has no effect on core.wallBuf. 29 effects have a wall variant
-// so far (gradient_wash, video, depth_rings, prism, tide, strobe, wave,
-// plasma, aurora, nebula, warp, rain, dna, lightning, lightspeed, sphere,
-// balls, sand, life, fluid, easter_egg, coinflip, dice, random, random80s,
-// fireworks, maze, tron, cam); app.js leaves the wall canvas untouched (so panels just stay
-// on whatever they last showed, not a hard crash) when the selected effect
-// has no WALL_EFFECTS entry yet - see the sidebar's per-effect greying for
-// how this is surfaced to the user.
+// core.colBuf has no effect on core.wallBuf. 42 of the 45 effects have a
+// wall variant now (every EFFECTS key below except custom_cube - see its
+// own entry's comment for why that one's deliberately excluded); app.js
+// leaves the wall canvas untouched (so panels just stay on whatever they
+// last showed, not a hard crash) when the selected effect has no
+// WALL_EFFECTS entry yet - see the sidebar's per-effect greying for how
+// this is surfaced to the user.
 const WALL_EFFECTS = {
   gradient_wash: gradientWashWall,
   video: videoWall,
@@ -150,6 +151,8 @@ const WALL_EFFECTS = {
   joke: jokeWall,
   trivia: triviaWall,
   otd: otdWall,
+  retro: retroWall,
+  radio: radioWall,
 };
 
 const EFFECTS = {
@@ -197,6 +200,12 @@ const EFFECTS = {
   joke,
   trivia,
   otd,
+  // No wall variant, and not planned: this is inherently a per-cube-face
+  // composition tool (assigns a different effect to each of the 6 cube
+  // faces), which has no flat-wall equivalent - there's no "6 faces" to
+  // assign on a stitched flat canvas. Nothing is actually lost: each
+  // face's assigned effect already has its own wall port (if it has one)
+  // that can be selected directly.
   custom_cube: customCube,
 };
 

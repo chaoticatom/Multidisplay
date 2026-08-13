@@ -184,6 +184,16 @@ function getStatus() {
   };
 }
 
+// Read-only accessor for radioWall.js - exposes the SAME audio decode
+// pipeline/playback state this module owns, rather than radioWall.js
+// spinning up its own RadioAudio instance (which would double-decode the
+// same stream). Matches epic.js/iss.js's ensureFetches() sharing pattern
+// referenced in neoWall.js's module comment - one underlying resource,
+// two rendering front-ends (cube-face and wall).
+function getPlaybackState() {
+  return { playing, currentStation };
+}
+
 module.exports = effectRadio;
 module.exports.getStatus = getStatus;
 module.exports.playStation = playStation;
@@ -191,3 +201,6 @@ module.exports.stopStation = stopStation;
 module.exports.setVolume = setVolume;
 module.exports.search = search;
 module.exports.RADIO_STATIONS = RADIO_STATIONS;
+module.exports.audio = audio;
+module.exports.getPlaybackState = getPlaybackState;
+module.exports.sample = sample;
