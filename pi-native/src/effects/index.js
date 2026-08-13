@@ -88,6 +88,11 @@ const weatherWall = require('./weatherWall');
 const datetimeWall = require('./datetimeWall');
 const celestialWall = require('./celestialWall');
 const ghostWall = require('./ghostWall');
+const unsplashWall = require('./unsplashWall');
+const articWall = require('./articWall');
+const jokeWall = require('./jokeWall');
+const triviaWall = require('./triviaWall');
+const otdWall = require('./otdWall');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
 // core.js's initWall()/setWallPixel()) has its own effect registry, since
@@ -140,6 +145,11 @@ const WALL_EFFECTS = {
   epic: epicWall,
   iss: issWall,
   neo: neoWall,
+  unsplash: unsplashWall,
+  artic: articWall,
+  joke: jokeWall,
+  trivia: triviaWall,
+  otd: otdWall,
 };
 
 const EFFECTS = {

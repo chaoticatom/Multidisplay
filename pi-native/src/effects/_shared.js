@@ -163,6 +163,58 @@ function galleryApplyBlendToFace(core, pixelsArr, sizesArr, face, idxA, idxB, al
   return true;
 }
 
+// ── Wall-mode siblings of galleryApplyToFace/galleryApplyBlendToFace ──────
+// Wall batch (unsplashWall.js/articWall.js): a stitched wall isn't six
+// independent faces, so unlike the cube version's "one photo per face,
+// staggered" this shows ONE photo at a time, stretched to fill the whole
+// wallW x wallH canvas (apodWall.js's "one continuous image" shape). Photo
+// decode/fetch is untouched - still loadImageForPixels() at a fixed square
+// size (see unsplashWall.js/articWall.js's own load()) - only this
+// pixel-output/blit step needed a wallW x wallH-aware version, per the
+// batch brief; the SxS decoded image is stretched (nearest-neighbour) to
+// cover the wall canvas here instead of being placed 1:1 onto a SIZE-square
+// face.
+function galleryApplyToWall(core, pixelsArr, sizesArr, idx) {
+  const pixels = pixelsArr[idx];
+  if (!pixels || pixels === 'error') return false;
+  const { wallW: W, wallH: H } = core;
+  const IS = sizesArr[idx];
+  for (let y = 0; y < H; y++) {
+    const sv = Math.min(IS - 1, Math.floor(y / H * IS));
+    for (let x = 0; x < W; x++) {
+      const su = Math.min(IS - 1, Math.floor(x / W * IS));
+      const pi = (sv * IS + su) * 4;
+      core.setWallPixel(x, y, pixels[pi] / 255, pixels[pi + 1] / 255, pixels[pi + 2] / 255);
+    }
+  }
+  return true;
+}
+
+function galleryApplyBlendToWall(core, pixelsArr, sizesArr, idxA, idxB, alpha) {
+  const pixelsA = pixelsArr[idxA], pixelsB = pixelsArr[idxB];
+  const okA = pixelsA && pixelsA !== 'error', okB = pixelsB && pixelsB !== 'error';
+  if (!okA && !okB) return false;
+  if (!okA) return galleryApplyToWall(core, pixelsArr, sizesArr, idxB);
+  if (!okB) return galleryApplyToWall(core, pixelsArr, sizesArr, idxA);
+  const { wallW: W, wallH: H } = core;
+  const ISA = sizesArr[idxA], ISB = sizesArr[idxB];
+  for (let y = 0; y < H; y++) {
+    const svA = Math.min(ISA - 1, Math.floor(y / H * ISA));
+    const svB = Math.min(ISB - 1, Math.floor(y / H * ISB));
+    for (let x = 0; x < W; x++) {
+      const suA = Math.min(ISA - 1, Math.floor(x / W * ISA));
+      const piA = (svA * ISA + suA) * 4;
+      const suB = Math.min(ISB - 1, Math.floor(x / W * ISB));
+      const piB = (svB * ISB + suB) * 4;
+      const r = (pixelsA[piA] / 255) + ((pixelsB[piB] / 255) - (pixelsA[piA] / 255)) * alpha;
+      const g = (pixelsA[piA + 1] / 255) + ((pixelsB[piB + 1] / 255) - (pixelsA[piA + 1] / 255)) * alpha;
+      const b = (pixelsA[piA + 2] / 255) + ((pixelsB[piB + 2] / 255) - (pixelsA[piA + 2] / 255)) * alpha;
+      core.setWallPixel(x, y, r, g, b);
+    }
+  }
+  return true;
+}
+
 // Fetches a remote image and decodes it into an RGBA pixel buffer sized
 // targetSize x targetSize, via Jimp - same decode tool cam.js/apod.js/
 // epic.js already use (no DOM/Canvas here). `letterbox:true` (default,
@@ -334,6 +386,77 @@ function wcTagQA(text) {
   return words;
 }
 
+// ── Wall-mode siblings of wcInit/wcStep/wcDrawToFace ──────────────────────
+// joke.js/trivia.js/otd.js's cascade math is genuinely SIZE-relative:
+// wcInit() hardcodes `maxLines = floor(64/WC_LINE_H)` and wcStep()
+// hardcodes `maxW = 64` for its word-wrap width - both assume the fixed
+// 64x64 cube-face panel the engine was written for, not a parameter core
+// already carries. So per the batch brief, these are separate
+// wallW/wallH-aware siblings (not a call-the-existing-helper-with-different-
+// args reuse) - same wrap/reveal/line-eviction algorithm, just against
+// wallW (word-wrap width) and wallH (line-count cap + vertical layout)
+// instead of the hardcoded 64. wcDrawGlyphWall/wcDrawToFaceWall similarly
+// mirror wcDrawGlyph/wcDrawToFace but write through core.setWallPixel
+// across the full wallW x wallH canvas instead of one face's faceMap/SIZE.
+function wcInitWall(taggedWords, wallH) {
+  const maxLines = Math.max(1, Math.floor(wallH / WC_LINE_H));
+  return {
+    words: taggedWords, idx: 0, cur: [], lines: [], timer: 0, pendingDelay: 0.3,
+    done: false, holdTimer: 0, maxLines,
+  };
+}
+function wcStepWall(state, dt, wallW) {
+  if (state.done) { state.holdTimer += dt; return; }
+  state.timer += dt;
+  const maxW = wallW;
+  while (state.timer >= state.pendingDelay && state.idx < state.words.length) {
+    state.timer -= state.pendingDelay;
+    const tw = state.words[state.idx++];
+    const curW = state.cur.reduce((a, t) => a + t.w.length * WC_CHAR_W, 0) + Math.max(0, state.cur.length - 1) * WC_CHAR_W;
+    const addW = (state.cur.length ? WC_CHAR_W : 0) + tw.w.length * WC_CHAR_W;
+    if (curW + addW > maxW && state.cur.length) {
+      state.lines.push(state.cur);
+      state.cur = [tw];
+    } else {
+      state.cur.push(tw);
+    }
+    state.pendingDelay = wcWordDelay(tw.w);
+    if (state.idx >= state.words.length) state.done = true;
+  }
+}
+function wcDrawGlyphWall(core, ch, su, sv, rgb) {
+  const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()];
+  if (!rows) return WC_CHAR_W;
+  const { wallW: W, wallH: H } = core;
+  for (let row = 0; row < 7; row++) {
+    const bits = rows[row];
+    for (let col = 0; col < 4; col++) {
+      if (!((bits >> (3 - col)) & 1)) continue;
+      const u = su + col, v = sv + (6 - row);
+      if (u < 0 || u >= W || v < 0 || v >= H) continue;
+      core.setWallPixel(u, v, rgb[0], rgb[1], rgb[2]);
+    }
+  }
+  return WC_CHAR_W;
+}
+function wcDrawToFaceWall(core, state, topMarginRows) {
+  const { wallW: W, wallH: H } = core;
+  const allLines = state.cur.length ? [...state.lines, state.cur] : [...state.lines];
+  const visible = allLines.slice(-state.maxLines);
+  const topMargin = topMarginRows == null ? 1 : topMarginRows;
+  visible.forEach((line, i) => {
+    const sv = (H - 1) - topMargin - 6 - i * WC_LINE_H;
+    if (sv + 6 < 0) return;
+    const lineW = line.reduce((a, t) => a + t.w.length * WC_CHAR_W, 0) + Math.max(0, line.length - 1) * WC_CHAR_W;
+    let su = Math.round((W - lineW) / 2);
+    line.forEach((tw) => {
+      let u = su;
+      for (const ch of tw.w) u += wcDrawGlyphWall(core, ch, u, sv, tw.color);
+      su += tw.w.length * WC_CHAR_W + WC_CHAR_W;
+    });
+  });
+}
+
 // HTML-entity decoder for Open Trivia DB's `encode` (default "html
 // entities") mode - the browser uses a throwaway <textarea>.innerHTML
 // trick (wcDecodeEntities) which has no DOM equivalent here. Numeric
@@ -362,6 +485,8 @@ function wcDecodeEntities(str) {
 module.exports = {
   cubePx, fwPx, tronMove, surfIdx, FW_FACES, VID_FACE_ORDER, getLocalGravity,
   galleryInitFaceState, gallerySlideshowStep, galleryApplyToFace, galleryApplyBlendToFace,
+  galleryApplyToWall, galleryApplyBlendToWall,
   loadImageForPixels, drawLinesCentered3x5,
   WC_FONT, WC_CHAR_W, WC_LINE_H, wcWordDelay, wcDrawGlyph, wcInit, wcStep, wcDrawToFace, wcTagQA, wcDecodeEntities,
+  wcInitWall, wcStepWall, wcDrawGlyphWall, wcDrawToFaceWall,
 };
