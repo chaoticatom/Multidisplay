@@ -39,7 +39,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'custom_cube']);
+const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'custom_cube']);
 
 let ws;
 let effectNames = {};
@@ -76,6 +76,7 @@ function handleTextMessage(msg) {
     syncWeatherPanel();
     syncEpicPanel();
     syncIssPanel();
+    syncNeoPanel();
     syncMazePanel();
     syncTronPanel();
     syncDatetimePanel();
@@ -217,6 +218,40 @@ function syncIssPanel() {
   if (coordEl) coordEl.textContent = `Lat ${status.lat.toFixed(2)}°  Lon ${status.lon.toFixed(2)}°`;
   if (timeEl) timeEl.textContent = 'Last fix: ' + new Date(status.timestamp * 1000).toLocaleTimeString();
   if (countryEl) countryEl.textContent = 'Currently over: ' + (status.countryCode ? status.countryName : 'International waters');
+}
+
+// ---------------------------------------------------------------------
+// Near-Earth Objects (panel-neo) - "Refresh Tracking Data" button sends a
+// fresh timestamp as effectOptions.neo.refreshRequestedAt; effects/neo.js
+// treats any change to that value as "force a re-fetch now", same trick
+// as wireEpicPanel()/wireIssPanel() above (setEffectOption is a
+// value-store, not a fire-once command channel - see wsServer.js's
+// setEffectOption comment). Status readout mirrors effects/neo.js's
+// getStatus() shape (count/closest/risk/fetching/error).
+// ---------------------------------------------------------------------
+function wireNeoPanel() {
+  const panel = document.getElementById('panel-neo');
+  if (!panel) return;
+  const btn = panel.querySelector('#neo-fetch-btn');
+  if (btn) btn.addEventListener('click', () => setEffectOption('neo', 'refreshRequestedAt', Date.now()));
+}
+
+function syncNeoPanel() {
+  const panel = document.getElementById('panel-neo');
+  if (!panel) return;
+  const status = currentState.effectStatus?.neo;
+  const statusEl = panel.querySelector('#neo-status');
+  const infoEl = panel.querySelector('#neo-info');
+  const closestEl = panel.querySelector('#neo-closest-line');
+  const riskEl = panel.querySelector('#neo-risk-line');
+  if (!status) { if (statusEl) statusEl.textContent = 'Not fetched yet'; return; }
+  if (status.fetching) { if (statusEl) statusEl.textContent = 'Fetching near-Earth object data…'; return; }
+  if (status.error) { if (statusEl) statusEl.textContent = '✕ ' + status.error; return; }
+  if (!status.count) { if (statusEl) statusEl.textContent = 'Not fetched yet'; return; }
+  if (statusEl) statusEl.textContent = status.text || `${status.count} objects tracked`;
+  if (infoEl) infoEl.style.display = 'block';
+  if (closestEl) closestEl.textContent = status.closest ? `Closest: ${status.closest.name} — ${status.closest.missLD.toFixed(1)} LD` : 'Closest: —';
+  if (riskEl) riskEl.textContent = 'Risk level: ' + (status.risk || '—').toUpperCase();
 }
 
 // ---------------------------------------------------------------------
@@ -2078,6 +2113,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireWeatherPanel();
   wireEpicPanel();
   wireIssPanel();
+  wireNeoPanel();
   wireMazePanel();
   wireTronPanel();
   wireDatetimePanel();
