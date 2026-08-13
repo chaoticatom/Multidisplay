@@ -100,11 +100,32 @@ class FfmpegSource {
     this.pending = Buffer.alloc(0);
     this.latestFrame = null;
 
+    // A static image (the "🖼 Image" upload button feeds the exact same
+    // pipeline as "📁 Video" - both just set effectOptions.video.url)
+    // decodes to exactly ONE frame with no -loop flag, so ffmpeg hits a
+    // clean EOF and exits immediately after it. ensure()'s "clean EOF ->
+    // respawn on the next tick" handling (see its module comment) keeps
+    // this technically working, but it means spawning a brand new ffmpeg
+    // process (real OS overhead, tens of ms) on every single decode
+    // cycle instead of once - a real report traced choppy/inconsistent
+    // display of an uploaded image to exactly this. `-loop 1` (an INPUT
+    // option, must come before -i) tells ffmpeg's image demuxer to treat
+    // a still image as an infinitely-repeating single-frame "video"
+    // instead, so it decodes once and then just keeps re-emitting that
+    // same frame at -r fps from the SAME long-lived process, matching
+    // real video's steady-state behavior. Detected by extension on the
+    // upload's original filename (preserved as-is in the saved path by
+    // wsServer.js's sanitizeUploadName) rather than probing file
+    // contents - simple and sufficient, since this only needs to
+    // distinguish "still image" from "real video", not validate the file.
+    const isStillImage = /\.(jpe?g|png|gif|bmp|webp|tiff?)(\.part)?$/i.test(url);
+    const inputArgs = isStillImage ? ['-loop', '1', '-i', url] : ['-i', url];
+
     let proc;
     try {
       proc = this._spawn('ffmpeg', [
         '-loglevel', 'error',
-        '-i', url,
+        ...inputArgs,
         '-an',
         '-vf', `scale=${w}:${h}`,
         '-r', String(fps),

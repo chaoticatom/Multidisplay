@@ -1395,6 +1395,16 @@ function uploadVideoFile(file, statusEl) {
     .then((d) => {
       if (!d.ok) throw new Error(d.error || 'Upload failed');
       setEffectOption('video', 'url', d.path);
+      // Guarantees the upload is actually visible regardless of whatever
+      // effect happened to be selected before - a real report traced to
+      // this exact gap: the panel can still LOOK selected in a stale
+      // browser tab (e.g. after a server restart reset state.effect back
+      // to the default 'wave', which isn't persisted to disk) while the
+      // server is actually showing something else, so the upload
+      // "succeeds" (status says Playing) but nothing on the panels
+      // changes. Explicitly selecting Video Display here removes that
+      // whole class of confusing state mismatch.
+      send({ cmd: 'setEffect', effect: 'video' });
       if (statusEl) statusEl.textContent = 'Uploaded ' + file.name + ' — decoding…';
     })
     .catch((err) => { if (statusEl) statusEl.textContent = '✕ ' + err.message; });
