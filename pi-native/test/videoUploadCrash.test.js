@@ -95,6 +95,31 @@ async function run() {
     assert.strictEqual(res.endCalls, 1, 'expected no second response after the request later ends');
   });
 
+  await test('a filesystem permission error (e.g. EACCES on mkdir) responds cleanly instead of leaving the request hanging', async () => {
+    // Real deployment hit exactly this: the service user couldn't create
+    // UPLOAD_DIR (EACCES). Before this was guarded, the throw happened
+    // before any response was sent, so the browser's fetch() just hung
+    // until it timed out client-side with a bare "Failed to fetch" - no
+    // usable error message anywhere. Monkeypatch fs.mkdirSync to reproduce
+    // that failure deterministically.
+    const orig = fs.mkdirSync;
+    fs.mkdirSync = () => { const e = new Error('permission denied'); e.code = 'EACCES'; throw e; };
+    try {
+      const req = new PassThrough();
+      req.url = '/api/uploadVideo?name=clip3.mp4';
+      const res = makeFakeRes();
+      server._handleUpload(req, res);
+      req.end(Buffer.from('irrelevant'));
+      await new Promise((r) => setTimeout(r, 20));
+      assert.strictEqual(res.endCalls, 1, 'expected an immediate response, not a hang');
+      const body = JSON.parse(res.body);
+      assert.strictEqual(body.ok, false);
+      assert.ok(/EACCES/.test(body.error), 'expected the error code to be surfaced: ' + body.error);
+    } finally {
+      fs.mkdirSync = orig;
+    }
+  });
+
   server.close();
   rmUploadDir();
 

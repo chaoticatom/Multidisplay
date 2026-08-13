@@ -256,8 +256,27 @@ class WsServer {
   _handleUpload(req, res) {
     let name = 'video';
     try { name = new URL(req.url, 'http://x').searchParams.get('name') || 'video'; } catch (e) { /* keep default */ }
-    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-    clearUploadDir(); // drop any previous upload (and stale .part leftovers) before starting the new one
+
+    // mkdirSync/clearUploadDir are synchronous fs calls that can throw for
+    // reasons entirely outside this code's control (e.g. the service
+    // user lacking write permission on UPLOAD_DIR's parent - a real
+    // deployment hit exactly this: EACCES on mkdir). Before the
+    // process-wide uncaughtException handler in app.js was added, an
+    // uncaught throw here crashed the whole server; even with that safety
+    // net in place, an uncaught throw HERE specifically happens before any
+    // response is ever sent, so the request just hangs until the browser's
+    // fetch() itself times out ("Failed to fetch") - a real, confusing
+    // symptom to debug blind on a headless Pi with no stack trace visible
+    // client-side. Catching it here turns that into an immediate, clear
+    // {ok:false,error:...} response instead.
+    try {
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+      clearUploadDir(); // drop any previous upload (and stale .part leftovers) before starting the new one
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: `Could not prepare the upload directory (${e.code || e.message}) - check that the multidisplay-pi service's user can write to ${UPLOAD_DIR}` }));
+      return;
+    }
 
     let total = 0;
     // Guards every response path below, not just the size-limit one this
@@ -309,7 +328,12 @@ class WsServer {
     req.pipe(out);
     out.on('finish', () => {
       if (responded) return; // already failed (e.g. size limit hit right as the stream finished)
-      fs.renameSync(tmpPath, destPath);
+      try {
+        fs.renameSync(tmpPath, destPath);
+      } catch (e) {
+        fail(500, `Could not finalize the upload (${e.code || e.message})`);
+        return;
+      }
       safeEnd(200, { ok: true, path: destPath });
     });
   }
