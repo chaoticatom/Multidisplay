@@ -143,3 +143,8 @@ function effectVideo(core, dt) {
 
 module.exports = effectVideo;
 module.exports.getStatus = getStatus;
+// See wsServer.js's "stopVideoSource" command - immediately tears down
+// this file's FfmpegSource instance regardless of whether effectVideo()
+// is even being ticked right now (it won't be, once a different effect
+// is selected - see ffmpegSource.js's stop() for why that matters).
+module.exports.stop = () => source.stop();

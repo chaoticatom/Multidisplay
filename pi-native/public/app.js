@@ -136,6 +136,26 @@ async function loadEffectNames() {
     const panel = document.getElementById('panel-' + key);
     if (Object.prototype.hasOwnProperty.call(effectNames, key)) {
       btn.addEventListener('click', () => {
+        // Switching away from Video Display to any other effect - a real
+        // report traced a persistent flicker between video content and
+        // whatever effect was just selected to this: nothing ever told
+        // the video source to actually stop. The tick loop only ever
+        // calls the CURRENTLY SELECTED effect's function (see app.js's
+        // module comment on the Pi), so once a different effect is
+        // selected, just clearing effectOptions.video.url wouldn't
+        // actually reach ffmpegSource.js's teardown (that only runs
+        // inside effectVideo() itself, which stops being called) - hence
+        // the dedicated stopVideoSource command for an immediate,
+        // selection-independent stop (see wsServer.js's module comment),
+        // on top of stopping any live browser camera/screen capture here
+        // and resetting the stored url so Video Display starts fresh
+        // rather than trying to resume the old source if reselected.
+        if (currentState.effect === 'video' && key !== 'video') {
+          stopBrowserCapture();
+          send({ cmd: 'stopVideoSource' });
+          setEffectOption('video', 'source', 'url');
+          setEffectOption('video', 'url', '');
+        }
         send({ cmd: 'setEffect', effect: key });
         if (btn.classList.contains('has-panel')) {
           // Same open/close convention as the original app: clicking an
@@ -1570,6 +1590,7 @@ function wireVideoPanel() {
   const stopBtn = panel.querySelector('#vid-stop-btn');
   if (stopBtn) stopBtn.addEventListener('click', () => {
     stopBrowserCapture();
+    send({ cmd: 'stopVideoSource' }); // immediate - see the effect-btn click handler's comment on why this can't just wait for the option change to reach ffmpegSource.js
     setEffectOption('video', 'source', 'url');
     setEffectOption('video', 'url', '');
   });

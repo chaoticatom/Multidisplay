@@ -58,6 +58,17 @@ class BrowserFrameSource {
     return this.latestFrame;
   }
 
+  // See wsServer.js's "stopVideoSource" command / ffmpegSource.js's
+  // stop() - same "let the moment of switching away trigger an immediate
+  // clean stop" reasoning, for the browser-capture source specifically.
+  clear() {
+    this.latestFrame = null;
+    this.width = 0;
+    this.height = 0;
+    this.lastFrameMs = 0;
+    this.kind = null;
+  }
+
   getStatus() {
     if (!this.latestFrame) return 'Waiting for browser camera/screen…';
     if (Date.now() - this.lastFrameMs > STALE_MS) return 'Browser feed stalled (tab closed/backgrounded?)';

@@ -95,3 +95,5 @@ function effectVideoWall(core, dt) {
 
 module.exports = effectVideoWall;
 module.exports.getStatus = getStatus;
+// See wsServer.js's "stopVideoSource" command / video.js's equivalent export.
+module.exports.stop = () => source.stop();

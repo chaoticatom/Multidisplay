@@ -240,6 +240,24 @@ class FfmpegSource {
     this.pending = Buffer.alloc(0);
   }
 
+  // Public immediate-stop, equivalent to ensure('', ...) but callable
+  // without needing to know the current w/h/fps/fit - see wsServer.js's
+  // "stopVideoSource" command, which this backs. Needed because the tick
+  // loop only ever calls the CURRENTLY SELECTED effect's function (see
+  // app.js's module comment), so once the user switches away from Video
+  // Display, ensure() simply stops being called at all - _checkIdle()'s
+  // own timer would eventually catch this on its own (IDLE_TIMEOUT_MS),
+  // but that left a real, reported gap: a live browser camera/screen
+  // capture kept sending frames and a stale decoded frame sat in memory
+  // for up to that whole timeout, flashing back if Video Display was
+  // reselected in the meantime. This lets the moment of switching away
+  // itself trigger an immediate, clean stop instead of waiting.
+  stop() {
+    this._teardown();
+    this.key = null;
+    this.status = 'No source';
+  }
+
   // For tests/shutdown - stops the process and the idle-check timer.
   destroy() {
     this._teardown();

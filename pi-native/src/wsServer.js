@@ -131,6 +131,22 @@
 //     {"cmd":"radioStop"}
 //       Stops playback (tears down the ffmpeg/paplay pipeline on the next
 //       tick's ensure() call). Broadcasts state.
+//     {"cmd":"stopVideoSource"}
+//       Immediately tears down Video Display's ffmpeg decode (both cube
+//       and wall instances) and any live browser camera/screen capture,
+//       regardless of which effect is currently selected - see video.js's/
+//       videoWall.js's exported stop() and browserFrameSource.js's clear().
+//       Needed because the tick loop only ever runs the CURRENTLY
+//       SELECTED effect's function, so switching away from Video Display
+//       to something else means effectVideo()/effectVideoWall() simply
+//       stop being called - a plain setEffectOption('video','url','')
+//       wouldn't reach ffmpegSource.js's teardown at all in that case
+//       (only ensure()'s own idle timeout would, eventually). public/
+//       app.js sends this the moment the user clicks away from Video
+//       Display to any other effect (a real report traced a persistent
+//       flicker between video content and the new effect to this gap) and
+//       from the panel's own Stop button. No state broadcast - purely a
+//       server-side cleanup action.
 //     {"cmd":"radioSearch","query":"jazz"}
 //       Searches the radio-browser.info directory (empty/omitted query =
 //       "top clicked" browse list). Async + fire-and-forget from this
@@ -538,6 +554,23 @@ class WsServer {
       if (!this.state.effectOptions[msg.effect]) this.state.effectOptions[msg.effect] = {};
       this.state.effectOptions[msg.effect][msg.key] = msg.value;
       this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'stopVideoSource') {
+      // Immediately tears down whichever video source is currently live
+      // (ffmpeg decode, cube AND wall instances, plus any browser camera/
+      // screen capture) regardless of which effect is actually selected
+      // right now. See video.js's/videoWall.js's exported stop() and
+      // browserFrameSource.js's clear() for why this needs to reach past
+      // the tick loop's "only the currently-selected effect runs" rule
+      // (app.js's module comment) - public/app.js sends this the moment
+      // the user clicks away from Video Display to any other effect, a
+      // real report having traced a persistent flicker-on-switch to
+      // nothing ever stopping the video source at that point (it would
+      // eventually stop on its own via ffmpegSource.js's idle timeout,
+      // but that left a real window where a stale frame or a still-live
+      // camera/screen capture could flash back or keep running pointlessly).
+      if (typeof EFFECTS.video?.stop === 'function') EFFECTS.video.stop();
+      if (typeof WALL_EFFECTS.video?.stop === 'function') WALL_EFFECTS.video.stop();
+      browserFrameSource.clear();
     } else if (msg.cmd === 'setPanelConfig') {
       const size = Number(msg.size);
       const mode = msg.mode;
