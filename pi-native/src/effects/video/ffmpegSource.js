@@ -60,6 +60,7 @@ class FfmpegSource {
     this.lastEnsureMs = 0;
     this.errored = false;
     this._stoppedIntentionally = false;
+    this._generation = 0; // see _launch()'s module comment on the stale-data race this guards against
     this._idleTimer = setInterval(() => this._checkIdle(), IDLE_CHECK_MS);
     if (this._idleTimer.unref) this._idleTimer.unref(); // never keep the process alive on its own
   }
@@ -105,6 +106,21 @@ class FfmpegSource {
     this.lastAttemptMs = Date.now();
     this.pending = Buffer.alloc(0);
     this.latestFrame = null;
+    // Real report: loading a new image/video (or just changing the Fit
+    // option) kept flickering between the OLD content and the new one.
+    // Root cause: _teardown() SIGKILLs the old process and nulls
+    // this.proc, but the OLD process's stdout 'data' listener (attached
+    // below) stays registered on ITS OWN stream object regardless -
+    // SIGKILL doesn't retroactively un-emit data already sitting in the
+    // OS pipe buffer, so a few more 'data' events for the dying process
+    // can still fire and call _onData() AFTER teardown, mutating
+    // this.pending/this.latestFrame with stale bytes that then race
+    // against (and can interleave with) the NEW process's own output.
+    // _generation is bumped on every _launch()/_teardown(); the data
+    // handler captures the generation it was created for and silently
+    // ignores any callback that fires after a newer one has started,
+    // so a straggling old-process event can never corrupt current state.
+    const myGen = ++this._generation;
 
     // A static image (the "🖼 Image" upload button feeds the exact same
     // pipeline as "📁 Video" - both just set effectOptions.video.url)
@@ -163,7 +179,7 @@ class FfmpegSource {
     // paths are covered.
     proc.on('error', (err) => this._onSpawnFail(err));
 
-    if (proc.stdout) proc.stdout.on('data', (chunk) => this._onData(chunk));
+    if (proc.stdout) proc.stdout.on('data', (chunk) => { if (myGen === this._generation) this._onData(chunk); });
     if (proc.stderr) {
       proc.stderr.on('data', (d) => {
         stderrTail = (stderrTail + d.toString()).slice(-4000);
@@ -238,6 +254,11 @@ class FfmpegSource {
     }
     this.latestFrame = null;
     this.pending = Buffer.alloc(0);
+    // Invalidates the just-killed process's stdout 'data' closure (see
+    // _launch()'s module comment) even when nothing calls _launch() again
+    // right away (e.g. stop()/ensure('')) - a straggling data event from
+    // it should never resurrect this.latestFrame after an explicit stop.
+    this._generation++;
   }
 
   // Public immediate-stop, equivalent to ensure('', ...) but callable
