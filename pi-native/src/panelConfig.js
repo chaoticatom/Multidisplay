@@ -26,7 +26,23 @@ const WALL_MAX_COLS = 2, WALL_MAX_ROWS = 3;
 // FACE_LAYOUT calibrated; safer to start from the simplest possible
 // physical setup and have you explicitly opt into "cube"/"wall" once
 // you're ready, via setPanelConfig (see wsServer.js).
-const DEFAULT_CONFIG = { size: 64, mode: '2d', panels: [{ gx: 0, gy: 0 }] };
+// How many of the 6 cube faces are ACTUALLY wired to real hardware, as
+// opposed to the always-full-6-face browser preview - independent of
+// `mode`/`size`. A real report: cube mode with only 1 physical panel
+// wired gave no indication in the UI that 5 of the 6 faces being shown
+// in the 3D preview are pure simulation, not anything a real panel would
+// display. Only meaningful in mode==='cube' (rgbMatrixDriver.js's
+// FACE_LAYOUT always assumes the full 6 when mode is 'cube' - this is a
+// purely informational flag surfaced in the UI, it doesn't change what
+// the driver actually tries to push). Defaults to 6 (assume fully wired)
+// rather than 1, matching this project's existing "assume the more
+// capable setup, let the user dial back" convention for VALID_SIZES/
+// DEFAULT_CONFIG.mode's own reasoning.
+const DEFAULT_CONFIG = { size: 64, mode: '2d', panels: [{ gx: 0, gy: 0 }], physicalCubePanels: 6 };
+
+function isValidPhysicalCubePanels(n) {
+  return Number.isInteger(n) && n >= 1 && n <= 6;
+}
 
 // Shared by load() and wsServer.js's setPanelConfig/addPanel/
 // setPanelPositions handlers, so a malformed layout can never reach
@@ -52,6 +68,7 @@ function load() {
       throw new Error('invalid stored config');
     }
     if (!isValidPanels(parsed.panels)) parsed.panels = [...DEFAULT_CONFIG.panels];
+    if (!isValidPhysicalCubePanels(parsed.physicalCubePanels)) parsed.physicalCubePanels = DEFAULT_CONFIG.physicalCubePanels;
     return parsed;
   } catch (err) {
     // Missing file (first run) or corrupt content - fall back to defaults
@@ -64,4 +81,4 @@ function save(config) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
 }
 
-module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH };
+module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, isValidPanels, isValidPhysicalCubePanels, DEFAULT_CONFIG, CONFIG_PATH };

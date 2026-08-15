@@ -116,6 +116,8 @@ function handleTextMessage(msg) {
     syncCustomCubeLibrarySelects();
     syncCustomCubeEffectPanel();
     renderAlarmList();
+    syncClearAllButton();
+    syncPhysicalPanelsControl();
     // Re-renders the wall grid on every state update (not just a mode
     // change) so adding/removing/dragging a panel is reflected immediately -
     // rebuildWallPreview() itself no-ops when not in wall mode. modeChanged
@@ -1921,6 +1923,42 @@ function syncPanelButtons() {
   if (label) label.textContent = currentState.panelMode === '2d' ? '2D Panel' : `${currentState.panelSize}×${currentState.panelSize}`;
 }
 
+// "✕ Clear All" - see wsServer.js's "clearAll" command comment.
+function wireClearAllButton() {
+  const btn = document.getElementById('clear-all-btn');
+  if (btn) btn.addEventListener('click', () => send({ cmd: 'clearAll' }));
+}
+
+function syncClearAllButton() {
+  const btn = document.getElementById('clear-all-btn');
+  if (btn) btn.classList.toggle('active', !!currentState.blank);
+}
+
+// ---------------------------------------------------------------------
+// Physical Cube Panels (Setup section) + the "simulation" banner over the
+// 3D preview - see wsServer.js's "setPhysicalCubePanels" command comment.
+// ---------------------------------------------------------------------
+function wirePhysicalPanelsControl() {
+  document.querySelectorAll('.physical-panels-btn[data-count]').forEach((btn) => {
+    btn.addEventListener('click', () => send({ cmd: 'setPhysicalCubePanels', value: Number(btn.dataset.count) }));
+  });
+}
+
+function syncPhysicalPanelsControl() {
+  const count = currentState.physicalCubePanels ?? 6;
+  document.querySelectorAll('.physical-panels-btn[data-count]').forEach((btn) => {
+    btn.classList.toggle('active', Number(btn.dataset.count) === count);
+  });
+  const banner = document.getElementById('sim-banner');
+  if (!banner) return;
+  const show = currentState.panelMode === 'cube' && count < 6;
+  banner.style.display = show ? 'block' : 'none';
+  if (show) {
+    const countEl = document.getElementById('sim-banner-count');
+    if (countEl) countEl.textContent = count;
+  }
+}
+
 // ---------------------------------------------------------------------
 // Master brightness / speed sliders (Display section)
 // ---------------------------------------------------------------------
@@ -2196,8 +2234,6 @@ function wireCollapsibles() {
 function greyOutUnsupported() {
   const bySelector = [
     '#custom-faces-section',
-    '#standalone-mode-bar',
-    '#fx-toggle-bar',
   ];
   bySelector.forEach((sel) => markUnsupported(document.querySelector(sel)));
 
@@ -2591,6 +2627,8 @@ document.addEventListener('DOMContentLoaded', () => {
   wireSliders();
   wireBluetooth();
   wireWallToolbar();
+  wireClearAllButton();
+  wirePhysicalPanelsControl();
   wireRainPanel();
   wireLightspeedPanel();
   wireCamPanel();

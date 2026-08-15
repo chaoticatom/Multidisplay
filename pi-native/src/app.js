@@ -223,11 +223,26 @@ async function main() {
     // mode) - only the actual pixel rendering is cube-mode-gated below.
     alarms.tickCheck(state, dt, EFFECTS);
     const cubeMode = config.mode !== 'wall';
-    if (cubeMode) alarms.renderMainMessage(core, state); // step 1
+    // state.blank: the "✕ Clear All" button's effect (see wsServer.js's
+    // "clearAll" command) - matches the browser original's clear-all-btn
+    // handler (turns every overlay off AND sets effectsOn=false, so
+    // colBuf goes and stays solid black rather than the just-selected
+    // effect immediately redrawing over it next frame). Skips the main
+    // effect AND overlays entirely while set; alarms still run as normal
+    // (a timer firing should still interrupt a blanked display, same as
+    // it would interrupt any other effect - "clear all" isn't a stronger
+    // guarantee than that). Selecting a new effect (setEffect) clears
+    // this automatically - see wsServer.js.
+    if (!state.blank) {
+      if (cubeMode) alarms.renderMainMessage(core, state); // step 1
 
-    const alarmBlocking = cubeMode && alarms.isBlockingNormalEffect(state);
-    const fn = config.mode === 'wall' ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
-    if (fn && !alarmBlocking) fn(core, dt); // step 2
+      const alarmBlocking = cubeMode && alarms.isBlockingNormalEffect(state);
+      const fn = config.mode === 'wall' ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
+      if (fn && !alarmBlocking) fn(core, dt); // step 2
+    } else {
+      core.colBuf.fill(0);
+      if (core.wallBuf) core.wallBuf.fill(0);
+    }
 
     // Overlays composite on top of whatever the main effect just wrote,
     // every tick, regardless of which effect is selected - see

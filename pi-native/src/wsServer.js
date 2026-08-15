@@ -33,6 +33,14 @@
 // WebSocket wire protocol:
 //   Text frames (JSON), client -> server, control commands:
 //     {"cmd":"setEffect",    "effect":"wave"}
+//       Also clears state.blank (see "clearAll" below) - selecting any
+//       effect always un-blanks the display.
+//     {"cmd":"clearAll"}
+//       Sidebar's "✕ Clear All" button - turns every overlay off and sets
+//       state.blank=true, which app.js's tick loop checks to skip the main
+//       effect entirely (colBuf/wallBuf go and stay solid black) - matches
+//       the browser original's clear-all-btn handler. Cleared by selecting
+//       any effect again.
 //     {"cmd":"setBrightness","value":0.0-1.5}
 //     {"cmd":"setSpeed",     "value":0.0-8.0}
 //     {"cmd":"setPanelConfig","size":8|16|64,"mode":"cube"|"2d"|"wall"}
@@ -45,6 +53,12 @@
 //       survives a restart, and always included in the "state" message so
 //       a freshly-connected remote browser's UI reflects whatever was last
 //       chosen on the Pi rather than defaulting to something stale.
+//     {"cmd":"setPhysicalCubePanels","value":1-6}
+//       How many of the 6 cube faces are actually wired to real hardware
+//       (see panelConfig.js's module comment) - purely informational for
+//       the UI (a "simulation" indicator when the 3D preview is showing
+//       more faces than physically exist), doesn't affect config.mode/
+//       size/panels or what the driver pushes.
 //     {"cmd":"addPanel"}
 //       Pi-native-only addition, not in the original ESP32 app: appends a
 //       panel at the first free cell of the wall grid (switching to "wall"
@@ -458,7 +472,9 @@ class WsServer {
     return {
       cmd: 'state',
       effect: this.state.effect, brightness: this.state.brightness, speed: this.state.speed,
+      blank: !!this.state.blank,
       panelSize: this.config.size, panelMode: this.config.mode, panels: this.config.panels,
+      physicalCubePanels: this.config.physicalCubePanels ?? 6,
       effectOptions: this.state.effectOptions, effectStatus: this.state.effectStatus,
       overlays: this.state.overlays,
       alarms: this.state.alarms, activeAlarm: this.state.activeAlarm,
@@ -532,6 +548,24 @@ class WsServer {
     try { msg = JSON.parse(data.toString()); } catch { return; }
     if (msg.cmd === 'setEffect' && EFFECTS[msg.effect]) {
       this.state.effect = msg.effect;
+      this.state.blank = false; // selecting a new effect always un-blanks - see "clearAll" below
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'clearAll') {
+      // The sidebar's "✕ Clear All" button - matches the browser
+      // original's clear-all-btn handler (see ui.js): turns every overlay
+      // off AND stops rendering the current effect, so the display goes
+      // and stays solid black rather than the previously-selected effect
+      // simply keeping running underneath. app.js's tick loop checks
+      // state.blank and skips the main effect entirely while it's set
+      // (see its module comment); selecting any effect again (setEffect,
+      // above) clears it automatically, matching the browser's own
+      // "still fully usable, just currently blanked" behavior.
+      if (!this.state.overlays) this.state.overlays = {};
+      for (const key of OVERLAY_KEYS) {
+        if (!this.state.overlays[key]) this.state.overlays[key] = {};
+        this.state.overlays[key].on = false;
+      }
+      this.state.blank = true;
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'setBrightness') {
       const v = Number(msg.value);
@@ -587,6 +621,17 @@ class WsServer {
       this.config.mode = mode;
       panelConfig.save(this.config);
       if (this.onConfigChange) this.onConfigChange(this.config);
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'setPhysicalCubePanels') {
+      // How many of the 6 cube faces are actually wired to real hardware
+      // (see panelConfig.js's module comment) - purely informational, lets
+      // the UI show a "simulation" indicator when cube mode's 3D preview
+      // is showing more faces than physically exist. Doesn't touch
+      // config.mode/size/panels or the driver at all.
+      const n = Number(msg.value);
+      if (!panelConfig.isValidPhysicalCubePanels(n)) return;
+      this.config.physicalCubePanels = n;
+      panelConfig.save(this.config);
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'addPanel') {
       // Adds a panel at the first free cell (row-major) in the wall grid,

@@ -117,6 +117,7 @@
   }
   .size-btn:hover { background: rgba(80,120,255,0.15); color: #ccd; }
   .size-btn.active { background: rgba(80,120,255,0.25); border-color: rgba(100,160,255,0.6); color: #7aadff; }
+  #clear-all-btn.active { background: rgba(255,60,60,0.35); border-color: rgba(255,100,100,0.7); color: #fff; }
 
   .effect-btn {
     display: block; width: 100%; padding: 7px 10px; margin-bottom: 4px;
@@ -413,6 +414,17 @@
     cursor: pointer; font-size: 17px; line-height: 1;
   }
   #wall-add-btn:hover { background: rgba(80,120,255,0.3); }
+  /* Cube mode with fewer physical panels wired than the 3D preview shows
+     (see panelConfig.js's physicalCubePanels/wsServer.js's
+     setPhysicalCubePanels) - a real report asked for exactly this, no
+     original-app equivalent since the browser+ESP32 architecture always
+     assumed a full physical cube. */
+  #sim-banner {
+    display: none; position: absolute; top: 18px; left: 18px; z-index: 6;
+    max-width: 320px; font-size: 12px; line-height: 1.4; color: #ffcf7a;
+    background: rgba(50,30,0,0.75); backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,180,60,0.4); border-radius: 8px; padding: 8px 12px;
+  }
   .wall-cell {
     position: absolute; border-radius: 6px; display: flex; align-items: center; justify-content: center;
     font-size: 12px; color: #667; user-select: none; box-sizing: border-box;
@@ -460,15 +472,6 @@
     <button id="clear-all-btn" style="flex:1;padding:9px 10px;background:rgba(255,60,60,0.1);border:1px solid rgba(255,60,60,0.25);color:#f77;border-radius:5px;cursor:pointer;font-size:13px;letter-spacing:1px;text-transform:uppercase;transition:all 0.2s;text-align:center;">✕ Clear All</button>
   </div>
 
-  <div id="standalone-mode-bar" style="padding:8px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;">
-    <label class="check-row" style="display:flex;align-items:center;justify-content:space-between;">
-      <span>🔌 Standalone</span>
-      <span class="ov-toggle"><input type="checkbox" id="standalone-mode-chk"><span class="ov-slider"></span></span>
-    </label>
-    <div id="standalone-mode-note" style="display:none;font-size:11px;line-height:1.4;color:#9ab;margin-top:6px;">
-      Fully disconnects this browser from the physical cube — nothing you do here (effects, brightness, speed, overlays) reaches the ESP32 while this is on, so it keeps running whatever it's already showing, completely on its own. Every effect and overlay still works normally here for local preview. Untick to reconnect and resume control immediately.
-    </div>
-  </div>
 
   <div id="sidebar-scroll">
 
@@ -1499,6 +1502,17 @@
   <div class="sidebar-section collapsed">
     <button class="section-head">◈ Setup <span class="chev">▾</span></button>
     <div class="section-body">
+      <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">📦 Physical Cube Panels</div>
+      <div style="font-size:10px;color:#666;margin-bottom:8px;">How many of the 6 cube faces are actually wired to real HUB75 panels. The 3D preview always shows all 6 faces (in "Cube" mode); if fewer are actually connected, the rest of the cube is showing in simulation only, and this cube view flags that.</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:8px;">
+        <button class="physical-panels-btn" data-count="1">1</button>
+        <button class="physical-panels-btn" data-count="2">2</button>
+        <button class="physical-panels-btn" data-count="3">3</button>
+        <button class="physical-panels-btn" data-count="4">4</button>
+        <button class="physical-panels-btn" data-count="5">5</button>
+        <button class="physical-panels-btn active" data-count="6">6</button>
+      </div>
+
       <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">🔊 Bluetooth Speaker (Pi only)</div>
       <div style="font-size:10px;color:#666;margin-bottom:8px;">Requires <code>pi/bluetooth_server.py</code> running on the Raspberry Pi — see <code>pi/README.md</code>. Not available when running on your laptop or GitHub Pages. Used for Internet Radio audio output.</div>
       <div style="display:flex;gap:6px;margin-bottom:6px;">
@@ -1672,6 +1686,7 @@
     <span>Displays</span>
     <button id="wall-add-btn" title="Add a display at the first open spot">+</button>
   </div>
+  <div id="sim-banner">⚠ Simulation — only <span id="sim-banner-count"></span> face(s) are on real hardware, the rest is preview only</div>
 </div>
 
 <script src="three.min.js"></script>
