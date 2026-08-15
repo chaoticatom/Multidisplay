@@ -384,37 +384,54 @@
     display: none; position: absolute; top: 50%; left: 50%;
     transform: translate(-50%, -50%); image-rendering: pixelated;
   }
-  /* Wall-mode preview: a grid of small canvases positioned to match the
-     dragged layout (see app.js's rebuildWallPreview()). */
+  /* Wall-mode preview/editor, lives in the main canvas area (right of the
+     sidebar), not tucked away in a sidebar section - shows the actual
+     live per-panel feeds AND doubles as the drag-and-drop layout editor,
+     so placing a new panel above/below/left/right of an existing one
+     happens right where you can see the real content. A fixed
+     WALL_MAX_COLS x WALL_MAX_ROWS grid (panelConfig.js) of cells: filled
+     ones are live-updating canvases (draggable, with a × to remove),
+     empty ones are dashed drop-targets/click-to-add-here placeholders -
+     see app.js's rebuildWallPreview(). */
   #wall-preview {
     display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   }
-  #wall-preview canvas { position: absolute; image-rendering: pixelated; border: 1px solid rgba(80,120,255,0.25); }
-  /* Video Wall layout editor - a fixed 2x3 grid (WALL_MAX_COLS x
-     WALL_MAX_ROWS in panelConfig.js) of drag-and-drop tiles. Pi-native-only
-     addition, no original-app equivalent to match. */
-  #wall-grid {
-    display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;
-    aspect-ratio: 2 / 3; max-width: 160px; margin: 0 auto;
+  #wall-preview canvas { position: absolute; image-rendering: pixelated; border: 1px solid rgba(80,120,255,0.25); border-radius: 4px; }
+  /* Always visible (not gated on wall mode) - this is the entry point for
+     switching INTO wall mode in the first place, from whatever view
+     (cube/2D) is currently showing; the full editing grid (#wall-preview)
+     only appears once wall mode is actually active. */
+  #wall-toolbar {
+    display: flex; position: absolute; top: 18px; right: 18px; z-index: 6;
+    align-items: center; gap: 8px; background: rgba(10,10,20,0.75); backdrop-filter: blur(6px);
+    border: 1px solid rgba(80,120,255,0.3); border-radius: 8px; padding: 8px 10px;
   }
+  #wall-toolbar span { font-size: 11px; color: #7aadff; letter-spacing: 0.5px; }
+  #wall-add-btn {
+    width: 28px; height: 28px; padding: 0; background: rgba(80,120,255,0.18);
+    border: 1px solid rgba(80,120,255,0.4); color: #7aadff; border-radius: 6px;
+    cursor: pointer; font-size: 17px; line-height: 1;
+  }
+  #wall-add-btn:hover { background: rgba(80,120,255,0.3); }
   .wall-cell {
-    position: relative; border-radius: 5px; display: flex; align-items: center; justify-content: center;
-    font-size: 10px; color: #667; user-select: none;
+    position: absolute; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: #667; user-select: none; box-sizing: border-box;
   }
   .wall-cell.empty {
-    border: 1px dashed rgba(120,140,180,0.3); cursor: pointer;
+    border: 2px dashed rgba(120,140,180,0.35); cursor: pointer;
   }
-  .wall-cell.empty:hover { border-color: rgba(120,170,255,0.6); background: rgba(80,120,255,0.06); }
+  .wall-cell.empty:hover { border-color: rgba(120,170,255,0.75); background: rgba(80,120,255,0.1); }
+  .wall-cell.empty::after { content: '+'; font-size: 26px; color: rgba(120,140,180,0.5); }
+  .wall-cell.empty:hover::after { color: rgba(120,170,255,0.9); }
   .wall-cell.filled {
-    border: 1px solid rgba(100,160,255,0.5); background: rgba(80,120,255,0.22); color: #7aadff;
-    cursor: grab; font-weight: 700;
+    cursor: grab;
   }
   .wall-cell.filled.dragging { opacity: 0.4; }
-  .wall-cell.drop-target { border-color: #7aadff; background: rgba(80,120,255,0.3); }
+  .wall-cell.drop-target { border-color: #7aadff !important; background: rgba(80,120,255,0.3); }
   .wall-cell .wall-remove {
-    position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%;
-    background: #2a0a0a; border: 1px solid rgba(255,100,100,0.6); color: #f88; font-size: 10px;
-    line-height: 14px; text-align: center; cursor: pointer;
+    position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; border-radius: 50%;
+    background: #2a0a0a; border: 1px solid rgba(255,100,100,0.6); color: #f88; font-size: 12px;
+    line-height: 18px; text-align: center; cursor: pointer; z-index: 1;
   }
 </style>
 </head>
@@ -1499,18 +1516,6 @@
     </div>
   </div>
 
-  <div class="sidebar-section collapsed">
-    <button class="section-head">◈ Video Wall (Pi only) <span class="chev">▾</span></button>
-    <div class="section-body">
-      <div style="font-size:10px;color:#666;margin-bottom:10px;line-height:1.4;">Extra physical panels wired to the other HUB75 ports, stitched into one flat canvas an effect can flow across. Drag tiles to rearrange; the × removes a panel.</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <span style="font-size:11px;color:#7aadff;letter-spacing:0.5px;">Layout</span>
-        <button id="wall-add-btn" title="Add a display" style="width:26px;height:26px;padding:0;background:rgba(80,120,255,0.18);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:16px;line-height:1;">+</button>
-      </div>
-      <div id="wall-grid"></div>
-    </div>
-  </div>
-
 
 
 
@@ -1661,7 +1666,13 @@
   </div>
 </div>
 
-<div id="canvas-wrap"><canvas id="c"></canvas><canvas id="panel2d-canvas"></canvas><div id="wall-preview"></div></div>
+<div id="canvas-wrap">
+  <canvas id="c"></canvas><canvas id="panel2d-canvas"></canvas><div id="wall-preview"></div>
+  <div id="wall-toolbar">
+    <span>Displays</span>
+    <button id="wall-add-btn" title="Add a display at the first open spot">+</button>
+  </div>
+</div>
 
 <script src="three.min.js"></script>
 <script src="app.js"></script>

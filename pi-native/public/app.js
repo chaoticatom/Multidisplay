@@ -116,7 +116,12 @@ function handleTextMessage(msg) {
     syncCustomCubeLibrarySelects();
     syncCustomCubeEffectPanel();
     renderAlarmList();
-    renderWallGrid();
+    // Re-renders the wall grid on every state update (not just a mode
+    // change) so adding/removing/dragging a panel is reflected immediately -
+    // rebuildWallPreview() itself no-ops when not in wall mode. modeChanged
+    // still separately triggers the full rebuildScene() (cube/2D<->wall
+    // canvas visibility, WebGL scene teardown, etc) below.
+    if (!modeChanged) rebuildWallPreview();
     if (modeChanged) rebuildScene();
   } else if (msg.cmd && msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
     handleBtResult(msg);
@@ -2278,79 +2283,40 @@ function handleBtResult(msg) {
 
 // ---------------------------------------------------------------------
 // Video Wall layout editor - Pi-native-only, no original-app equivalent.
-// A fixed WALL_COLS x WALL_ROWS grid (matches panelConfig.js's
-// WALL_MAX_COLS/WALL_MAX_ROWS - the same 2x3 physical topology already
-// wired for cube mode) of drag-and-drop tiles. "+" (or clicking an empty
-// cell) adds a panel; dragging a filled tile onto an empty cell moves it;
-// the × removes it. Every change sends a full layout to the server, which
-// is the single source of truth - this grid always re-renders from the
-// next "state" message rather than assuming its own optimistic result,
-// so a rejected/invalid drag just snaps back on the next state echo.
+// Lives directly in the main preview area (#wall-preview, right of the
+// sidebar), not a separate abstract grid tucked away in the sidebar - you
+// see the actual live per-panel feeds while placing new ones, and drag/
+// click straight onto the real layout to put a new display above, below,
+// left, or right of an existing one. A fixed WALL_COLS x WALL_ROWS grid
+// (matches panelConfig.js's WALL_MAX_COLS/WALL_MAX_ROWS - the same 2x3
+// physical topology already wired for cube mode, so up to 6 displays
+// total) of cells: filled ones are live-updating canvases (draggable,
+// with a × to remove), empty ones are dashed drop-targets/click-to-add-
+// here placeholders. Every change sends a full layout to the server,
+// which is the single source of truth - the grid always re-renders from
+// the next "state" message rather than assuming its own optimistic
+// result, so a rejected/invalid drag just snaps back on the next state
+// echo. The #wall-toolbar "+" button is the entry point for switching
+// INTO wall mode from cube/2D in the first place (always visible, not
+// gated on already being in wall mode); rebuildWallPreview() itself only
+// renders the full editable grid once wall mode is actually active.
 // ---------------------------------------------------------------------
 const WALL_COLS = 2, WALL_ROWS = 3;
 let _wallDragFrom = null;
 
-function wireWallGrid() {
+function wireWallToolbar() {
   const addBtn = document.getElementById('wall-add-btn');
   if (addBtn) addBtn.addEventListener('click', () => send({ cmd: 'addPanel' }));
-  renderWallGrid();
 }
 
 function currentWallPanels() {
   // Outside wall mode there's still exactly one physical panel (whatever
   // 2d/cube mode is showing) - represent it as a single fixed tile at
-  // (0,0) so the grid always has something to show and the "+" button (or
-  // an empty-cell click) has an obvious first panel to add alongside.
+  // (0,0) so a layout change sent from here (e.g. the first click/drag)
+  // has an obvious existing panel to place a new one alongside.
   return currentState.panelMode === 'wall' && Array.isArray(currentState.panels) && currentState.panels.length
     ? currentState.panels
     : [{ gx: 0, gy: 0 }];
-}
-
-function renderWallGrid() {
-  const grid = document.getElementById('wall-grid');
-  if (!grid) return;
-  const panels = currentWallPanels();
-  grid.innerHTML = '';
-  for (let gy = 0; gy < WALL_ROWS; gy++) {
-    for (let gx = 0; gx < WALL_COLS; gx++) {
-      const panel = panels.find((p) => p.gx === gx && p.gy === gy);
-      const cell = document.createElement('div');
-      cell.dataset.gx = gx; cell.dataset.gy = gy;
-      cell.addEventListener('dragover', (e) => { e.preventDefault(); cell.classList.add('drop-target'); });
-      cell.addEventListener('dragleave', () => cell.classList.remove('drop-target'));
-      cell.addEventListener('drop', (e) => {
-        e.preventDefault();
-        cell.classList.remove('drop-target');
-        if (!_wallDragFrom || panel) return; // only drop onto empty cells
-        const next = currentWallPanels().map((p) => (p.gx === _wallDragFrom.gx && p.gy === _wallDragFrom.gy ? { gx, gy } : p));
-        sendWallLayout(next);
-        _wallDragFrom = null;
-      });
-
-      if (panel) {
-        cell.className = 'wall-cell filled';
-        cell.draggable = true;
-        cell.textContent = `${gx},${gy}`;
-        cell.addEventListener('dragstart', () => { _wallDragFrom = { gx, gy }; cell.classList.add('dragging'); });
-        cell.addEventListener('dragend', () => cell.classList.remove('dragging'));
-        const remove = document.createElement('span');
-        remove.className = 'wall-remove';
-        remove.textContent = '×';
-        remove.title = 'Remove this display';
-        remove.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (currentWallPanels().length <= 1) return; // keep at least one
-          send({ cmd: 'removePanel', gx, gy });
-        });
-        cell.appendChild(remove);
-      } else {
-        cell.className = 'wall-cell empty';
-        cell.textContent = '+';
-        cell.addEventListener('click', () => sendWallLayout([...currentWallPanels(), { gx, gy }]));
-      }
-      grid.appendChild(cell);
-    }
-  }
 }
 
 // First click/drag while still in 2d/cube mode needs to both switch into
@@ -2504,27 +2470,69 @@ function drawPanel2dFrame(bytes) {
 }
 
 // Same round-dot-on-black technique as drawPanel2dFrame(), one small
-// canvas per panel, positioned via absolute CSS to match its (gx,gy) grid
-// position - so dragging a tile in the sidebar and seeing it move here
-// use the exact same layout data (currentState.panels).
+// canvas per EXISTING panel (drawWallPanelFrame() below keeps them live-
+// updating), plus a dashed placeholder for every other cell in the fixed
+// WALL_COLS x WALL_ROWS grid so there's always somewhere to drag onto or
+// click to add a new display above/below/left/right of the current
+// layout - see this section's module comment. wallPanelCanvases stays
+// keyed by each panel's INDEX INTO currentState.panels (not gx/gy),
+// matching the wire protocol's per-panel frame index (see handleFrame()).
 function rebuildWallPreview() {
   wallPreviewEl.innerHTML = '';
   for (const key in wallPanelCanvases) delete wallPanelCanvases[key];
+  if (currentState.panelMode !== 'wall') return; // full grid only makes sense once wall mode is actually active - see wireWallToolbar()'s "+"  for how you get there
   const panels = currentState.panels || [];
-  const cols = Math.max(1, ...panels.map((p) => p.gx + 1));
-  const rows = Math.max(1, ...panels.map((p) => p.gy + 1));
-  wallPreviewEl.style.width = (cols * WALL_CELL) + 'px';
-  wallPreviewEl.style.height = (rows * WALL_CELL) + 'px';
-  panels.forEach((p, idx) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256; canvas.height = 256; // fixed backing resolution per panel, same spirit as PANEL2D_OUT
-    canvas.style.left = (p.gx * WALL_CELL) + 'px';
-    canvas.style.top = (p.gy * WALL_CELL) + 'px';
-    canvas.style.width = (WALL_CELL - 4) + 'px';
-    canvas.style.height = (WALL_CELL - 4) + 'px';
-    wallPreviewEl.appendChild(canvas);
-    wallPanelCanvases[idx] = canvas.getContext('2d');
-  });
+  wallPreviewEl.style.width = (WALL_COLS * WALL_CELL) + 'px';
+  wallPreviewEl.style.height = (WALL_ROWS * WALL_CELL) + 'px';
+
+  for (let gy = 0; gy < WALL_ROWS; gy++) {
+    for (let gx = 0; gx < WALL_COLS; gx++) {
+      const idx = panels.findIndex((p) => p.gx === gx && p.gy === gy);
+      const cell = document.createElement('div');
+      cell.className = 'wall-cell ' + (idx >= 0 ? 'filled' : 'empty');
+      cell.style.left = (gx * WALL_CELL) + 'px';
+      cell.style.top = (gy * WALL_CELL) + 'px';
+      cell.style.width = (WALL_CELL - 6) + 'px';
+      cell.style.height = (WALL_CELL - 6) + 'px';
+
+      cell.addEventListener('dragover', (e) => { if (idx < 0) { e.preventDefault(); cell.classList.add('drop-target'); } });
+      cell.addEventListener('dragleave', () => cell.classList.remove('drop-target'));
+      cell.addEventListener('drop', (e) => {
+        e.preventDefault();
+        cell.classList.remove('drop-target');
+        if (!_wallDragFrom || idx >= 0) return; // only drop onto empty cells
+        const next = currentWallPanels().map((p) => (p.gx === _wallDragFrom.gx && p.gy === _wallDragFrom.gy ? { gx, gy } : p));
+        sendWallLayout(next);
+        _wallDragFrom = null;
+      });
+
+      if (idx >= 0) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 256; // fixed backing resolution per panel, same spirit as PANEL2D_OUT
+        canvas.style.width = '100%'; canvas.style.height = '100%'; canvas.style.position = 'static';
+        canvas.draggable = true;
+        canvas.addEventListener('dragstart', () => { _wallDragFrom = { gx, gy }; cell.classList.add('dragging'); });
+        canvas.addEventListener('dragend', () => cell.classList.remove('dragging'));
+        cell.appendChild(canvas);
+        wallPanelCanvases[idx] = canvas.getContext('2d');
+
+        const remove = document.createElement('span');
+        remove.className = 'wall-remove';
+        remove.textContent = '×';
+        remove.title = 'Remove this display';
+        remove.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (panels.length <= 1) return; // keep at least one
+          send({ cmd: 'removePanel', gx, gy });
+        });
+        cell.appendChild(remove);
+      } else {
+        cell.title = 'Add a display here';
+        cell.addEventListener('click', () => sendWallLayout([...currentWallPanels(), { gx, gy }]));
+      }
+      wallPreviewEl.appendChild(cell);
+    }
+  }
 }
 
 function drawWallPanelFrame(ctx, bytes) {
@@ -2582,7 +2590,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wirePanelButtons();
   wireSliders();
   wireBluetooth();
-  wireWallGrid();
+  wireWallToolbar();
   wireRainPanel();
   wireLightspeedPanel();
   wireCamPanel();
