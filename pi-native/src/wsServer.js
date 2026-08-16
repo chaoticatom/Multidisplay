@@ -323,17 +323,30 @@ class WsServer {
   _handleHttp(req, res) {
     if (req.method === 'POST' && req.url.startsWith('/api/uploadVideo')) { this._handleUpload(req, res); return; }
     if (req.method !== 'GET') { res.writeHead(404).end(); return; }
+    // No-cache on every response this route serves - a real report ("click
+    // a button, nothing happens until I refresh the page") pointed at
+    // exactly this gap: none of these responses ever sent a Cache-Control
+    // header at all, so it was entirely up to browser heuristics whether a
+    // stale cached app.js (missing whatever click-handler fix had just
+    // shipped) got reused instead of fetching the current one - and
+    // heuristic caching can persist across an ordinary refresh, not just
+    // repeat visits. `no-store` is the strongest guarantee available (never
+    // cache, always refetch) - appropriate here since this whole app is
+    // versioned by "pull the latest code and restart the service", not by
+    // any cache-busting query param scheme, so there's no mechanism for a
+    // stale cached copy to ever self-correct without this.
+    const noCacheHeaders = { 'Cache-Control': 'no-store, must-revalidate' };
     if (req.url === '/' || req.url === '/index.html') {
-      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.writeHead(200, { 'Content-Type': 'text/html', ...noCacheHeaders });
       res.end(INDEX_HTML);
     } else if (req.url === '/effects.json') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.writeHead(200, { 'Content-Type': 'application/json', ...noCacheHeaders });
       res.end(JSON.stringify(EFFECT_NAMES));
     } else if (req.url === '/three.min.js') {
-      res.writeHead(200, { 'Content-Type': 'application/javascript' });
+      res.writeHead(200, { 'Content-Type': 'application/javascript', ...noCacheHeaders });
       res.end(THREE_JS);
     } else if (req.url === '/app.js') {
-      res.writeHead(200, { 'Content-Type': 'application/javascript' });
+      res.writeHead(200, { 'Content-Type': 'application/javascript', ...noCacheHeaders });
       res.end(APP_JS);
     } else {
       res.writeHead(404, { 'Content-Type': 'text/plain' });

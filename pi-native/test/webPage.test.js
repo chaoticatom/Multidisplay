@@ -51,6 +51,21 @@ async function run() {
     assert.strictEqual(resp.status, 404);
   });
 
+  await test('/, /app.js, /three.min.js, and /effects.json all send Cache-Control: no-store', async () => {
+    // Real report: clicking a control (cube-size buttons, the wall "+")
+    // appeared to do nothing until the page was manually refreshed - none
+    // of these responses ever sent a Cache-Control header at all, so a
+    // stale cached app.js (missing whatever fix had just shipped) could
+    // persist across an ordinary refresh purely by browser heuristic
+    // caching. This app has no cache-busting query-param scheme, so
+    // there's no other mechanism for a stale cached copy to self-correct.
+    for (const path of ['/', '/app.js', '/three.min.js', '/effects.json']) {
+      const resp = await fetch(`http://127.0.0.1:${port}${path}`);
+      const cc = resp.headers.get('cache-control') || '';
+      assert.ok(cc.includes('no-store'), `expected no-store on ${path}, got: "${cc}"`);
+    }
+  });
+
   await test('the WebSocket upgrade still works on the same port', async () => {
     const WebSocket = require('ws');
     const ws = new WebSocket(`ws://127.0.0.1:${port}`);
