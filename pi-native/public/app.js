@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.2.1';
+const APP_VERSION = '0.3.0';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2023,6 +2023,15 @@ function syncPanelButtons() {
   });
   const label = document.getElementById('cube-label');
   if (label) label.textContent = currentState.panelMode === '2d' ? '2D Panel' : `${currentState.panelSize}×${currentState.panelSize}`;
+  // Displays "+" (multi-panel wall layout) only makes sense starting from
+  // a single flat 2D panel - a real request scoped it to exactly that: "only
+  // allow adding displays on 2D display mode". Wall mode itself (once
+  // already in it, from a previous 2D + click) still shows the toolbar too,
+  // since #wall-toolbar is how you keep adding further displays to an
+  // existing wall layout - only the 3 CUBE size modes (8x8/16x16/64x64)
+  // hide it entirely, since a 6-face cube has no flat "wall" analogue.
+  const wallToolbar = document.getElementById('wall-toolbar');
+  if (wallToolbar) wallToolbar.style.display = currentState.panelMode === 'cube' ? 'none' : 'flex';
 }
 
 // "✕ Clear All" - see wsServer.js's "clearAll" command comment.
@@ -2633,7 +2642,34 @@ function resizeRenderer() {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   fitPanel2dCanvas();
+  fitCubeCamera(); // no-ops outside cube mode
   rebuildWallPreview(); // no-ops outside wall mode - re-flows wallCellSize() on viewport/sidebar changes
+}
+
+// Pulls the camera back (or in) along its original viewing direction just
+// far enough that the whole cube stays inside the frustum at the CURRENT
+// aspect ratio, instead of the fixed camera.position.set(2.6, 2.0, 2.6)
+// this used to always use regardless of viewport shape - a real report
+// ("resize the cube so it fits the available screen space") traced to
+// exactly that: on a narrow/tall viewport the cube's horizontal FOV
+// shrinks (aspect = w/h < 1) but the camera never moved back to
+// compensate, so the cube overflowed top and bottom of the screen.
+// Bounding radius is the cube's corner-to-center distance: faces span
+// -1..1 build in rebuildScene()'s `spacing`/`dummy.position` loop, so the
+// cube is a 2x2x2 box centered on the origin -> corner distance
+// sqrt(1²+1²+1²).
+const CUBE_BOUND_RADIUS = Math.sqrt(3);
+const CUBE_CAMERA_DIR = new THREE.Vector3(2.6, 2.0, 2.6).normalize();
+function fitCubeCamera() {
+  if (!camera || currentState.panelMode !== 'cube') return;
+  const vFov = camera.fov * Math.PI / 180;
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  const vDist = CUBE_BOUND_RADIUS / Math.sin(vFov / 2);
+  const hDist = CUBE_BOUND_RADIUS / Math.sin(hFov / 2);
+  const dist = Math.max(vDist, hDist) * 1.15; // small margin so the cube isn't touching the screen edge
+  const pos = CUBE_CAMERA_DIR.clone().multiplyScalar(dist);
+  camera.position.copy(pos);
+  camera.lookAt(0, 0, 0);
 }
 
 // Matches cube.js's fitPanel2d(): fit the fixed-resolution square canvas
@@ -2692,8 +2728,7 @@ function rebuildScene() {
     faceCanvases[face] = { mesh, size };
   }
 
-  camera.position.set(2.6, 2.0, 2.6);
-  camera.lookAt(0, 0, 0);
+  fitCubeCamera();
 }
 
 function animate() {
