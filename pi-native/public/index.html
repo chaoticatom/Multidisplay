@@ -1684,6 +1684,11 @@
 
 <div id="canvas-wrap">
   <canvas id="c"></canvas><canvas id="panel2d-canvas"></canvas><div id="wall-preview"></div>
+  <div id="webgl-fallback" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);max-width:340px;text-align:center;color:#9ab;font-size:14px;line-height:1.6;padding:20px;">
+    <div style="font-size:32px;margin-bottom:10px;">⚠</div>
+    3D cube preview isn't available on this browser/device (no WebGL).<br>
+    Switch to <b>Panel 2D</b> in Cube Size to see the live preview.
+  </div>
   <div id="wall-toolbar">
     <span>Displays</span>
     <button id="wall-add-btn" title="Add a display at the first open spot">+</button>

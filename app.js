@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.3.0';
+const APP_VERSION = '0.3.1';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2611,6 +2611,18 @@ function wallCellSize() {
   return Math.max(60, Math.min(320, Math.floor(cell)));
 }
 
+// Whether the WebGL cube preview is actually usable this session - a real
+// report ("cube does not show now, 2d does" - Android, cube-size buttons
+// leave the preview blank) traced to WebGL context creation itself failing
+// on some mobile browsers/devices (weak GPU, power-saving mode, certain
+// WebViews), which previously threw out of initScene() and got swallowed
+// by the DOMContentLoaded handler's try/catch into a console.error only -
+// 2D mode kept working (plain 2D canvas, no WebGL needed) while cube mode
+// silently rendered nothing with zero feedback to the user. false once
+// WebGL is confirmed unavailable; rebuildScene()'s cube branch checks this
+// and shows #webgl-fallback instead of trying to build a Three.js scene.
+let webglOK = true;
+
 function initScene() {
   panel2dCanvas = document.getElementById('panel2d-canvas');
   panel2dCanvas.width = PANEL2D_OUT;
@@ -2619,31 +2631,45 @@ function initScene() {
   wallPreviewEl = document.getElementById('wall-preview');
 
   const canvas = document.getElementById('c');
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(window.devicePixelRatio || 1);
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x05070c);
-  camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-  // No lights: this repo's three.min.js is a custom stripped-down build
-  // (see build-tools/three-entry.js) that only exports what cube.js's own
-  // InstancedMesh needs, which is unlit (vertex colors, no lighting model)
-  // - THREE.AmbientLight etc. simply aren't in the bundle. Not needed here
-  // either: the cube preview's per-LED spheres use MeshBasicMaterial,
-  // which is self-lit.
+  // Retry once with antialias off (a lighter-weight context request some
+  // constrained GPUs will grant even when the antialiased one fails)
+  // before giving up on WebGL entirely.
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  } catch (err) {
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+    } catch (err2) {
+      webglOK = false;
+    }
+  }
+  if (webglOK) {
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x05070c);
+    camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    // No lights: this repo's three.min.js is a custom stripped-down build
+    // (see build-tools/three-entry.js) that only exports what cube.js's own
+    // InstancedMesh needs, which is unlit (vertex colors, no lighting model)
+    // - THREE.AmbientLight etc. simply aren't in the bundle. Not needed here
+    // either: the cube preview's per-LED spheres use MeshBasicMaterial,
+    // which is self-lit.
+  }
   window.addEventListener('resize', resizeRenderer);
   resizeRenderer();
-  rebuildScene();
-  animate();
+  rebuildScene(); // shows #webgl-fallback instead of a Three.js scene if !webglOK and currently in cube mode
+  if (webglOK) animate();
 }
 
 function resizeRenderer() {
+  fitPanel2dCanvas();
+  rebuildWallPreview(); // no-ops outside wall mode - re-flows wallCellSize() on viewport/sidebar changes
+  if (!webglOK) return; // nothing WebGL-dependent left to resize
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  fitPanel2dCanvas();
   fitCubeCamera(); // no-ops outside cube mode
-  rebuildWallPreview(); // no-ops outside wall mode - re-flows wallCellSize() on viewport/sidebar changes
 }
 
 // Pulls the camera back (or in) along its original viewing direction just
@@ -2690,18 +2716,21 @@ function fitPanel2dCanvas() {
 // sphere instance per pixel (matching cube.js's own SphereGeometry LED
 // look), colored directly from the incoming binary frame.
 function rebuildScene() {
-  if (group) scene.remove(group);
-  group = new THREE.Group();
-  scene.add(group);
-  for (const key in faceCanvases) delete faceCanvases[key];
-
   const size = currentState.panelSize || 64;
   const mode = currentState.panelMode;
   panel2dCanvas.style.display = mode === '2d' ? 'block' : 'none';
   wallPreviewEl.style.display = mode === 'wall' ? 'block' : 'none';
-  document.getElementById('c').style.display = mode === 'cube' ? 'block' : 'none';
+  document.getElementById('c').style.display = (mode === 'cube' && webglOK) ? 'block' : 'none';
+  const fallback = document.getElementById('webgl-fallback');
+  if (fallback) fallback.style.display = (mode === 'cube' && !webglOK) ? 'block' : 'none';
   if (mode === '2d') { fitPanel2dCanvas(); return; } // drawn straight into panel2dCtx by handleFrame(), no Three.js scene needed
   if (mode === 'wall') { rebuildWallPreview(); return; } // ditto, drawn into per-panel 2D canvases
+  if (!webglOK) return; // #webgl-fallback shown above instead - nothing WebGL-dependent below is safe to touch
+
+  if (group) scene.remove(group);
+  group = new THREE.Group();
+  scene.add(group);
+  for (const key in faceCanvases) delete faceCanvases[key];
 
   const spacing = 2 / size;                    // matches cube.js's SPACING = TOTAL_SPAN/(SIZE-1) scaled to a 2-unit face
   const geom = new THREE.SphereGeometry(spacing * 0.44, 6, 5); // segment counts kept low: up to 6 * SIZE^2 instances
