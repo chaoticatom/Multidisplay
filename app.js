@@ -2311,6 +2311,32 @@ function wireCollapsibles() {
   });
 }
 
+// Sidebar-wide collapse/expand (the ◀ button in the sidebar header, and the
+// floating "show sidebar" button that appears once it's hidden) - present
+// in the markup/CSS (both copied verbatim from the browser original) but
+// never wired here, unlike ui.js's own version of this. Ported from ui.js's
+// "SIDEBAR COLLAPSE" section; resizeRenderer() (this file's equivalent of
+// ui.js's resize()) is called after the CSS width transition finishes so
+// the 3D preview/2D canvas immediately fills the space the sidebar freed up
+// or reclaimed, instead of staying sized for the old layout until the next
+// unrelated resize.
+function wireSidebarCollapse() {
+  const sidebar = document.getElementById('sidebar');
+  const collapseBtn = document.getElementById('sidebar-collapse-btn');
+  const openBtn = document.getElementById('sidebar-open-btn');
+  if (!sidebar || !collapseBtn || !openBtn) return;
+  collapseBtn.addEventListener('click', () => {
+    sidebar.classList.add('hidden');
+    openBtn.classList.add('show');
+    setTimeout(resizeRenderer, 550);
+  });
+  openBtn.addEventListener('click', () => {
+    sidebar.classList.remove('hidden');
+    openBtn.classList.remove('show');
+    setTimeout(resizeRenderer, 550);
+  });
+}
+
 // ---------------------------------------------------------------------
 // Grey out sections pi-native has no backend for yet: Custom
 // Faces (freehand pixel-art drawing onto each face - a different feature
@@ -2714,6 +2740,7 @@ function handleFrame(buf) {
 // created, so every click's send() no-op'd on `ws && ws.readyState===OPEN`.
 document.addEventListener('DOMContentLoaded', () => {
   wireCollapsibles();
+  wireSidebarCollapse();
   wirePanelButtons();
   wireSliders();
   wireBluetooth();
