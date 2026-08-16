@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.4.4';
+const APP_VERSION = '0.5.0';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -3097,7 +3097,12 @@ function rebuildWallPreview() {
       cell.appendChild(canvas);
       wallPanelCanvases[idx] = canvas.getContext('2d');
 
-      if (idx !== 0) { // index 0 is the primary display - never removable
+      // Only shown while actively editing (same gating as the candidate
+      // outlines above) - a real report: "when I've finished adding
+      // displays you need to remove the top right x and the space outline"
+      // - both should disappear once you're done, not sit there
+      // permanently. index 0 (primary) never gets one regardless.
+      if (idx !== 0 && (_wallPendingAdd || _wallDragFrom)) {
         const remove = document.createElement('span');
         remove.className = 'wall-remove';
         remove.textContent = '×';

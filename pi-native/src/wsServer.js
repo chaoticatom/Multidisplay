@@ -923,14 +923,23 @@ class WsServer {
   // of core.wallBuf at that panel's (gx,gy) offset.
   _streamWallFrames(core, brightness) {
     if (!core.wallBuf) return; // initWall() hasn't run yet
-    const S = core.wallPanelSize, wallW = core.wallW, wallBuf = core.wallBuf;
+    const S = core.wallPanelSize, wallW = core.wallW, wallH = core.wallH, wallBuf = core.wallBuf;
     this.config.panels.forEach((p, idx) => {
       const buf = Buffer.allocUnsafe(1 + S * S * 3);
       buf[0] = idx;
       const ox = p.gx * S, oy = p.gy * S;
       for (let v = 0; v < S; v++) {
         for (let u = 0; u < S; u++) {
-          const c = ((oy + v) * wallW + (ox + u)) * 3;
+          // Whole-canvas vertical flip (row R of the OUTPUT always reads
+          // wallBuf row wallH-1-R, for every panel alike) - NOT a
+          // per-panel flip. Several wall effects (weatherWall.js
+          // confirmed directly) are written assuming wallBuf row 0 is the
+          // BOTTOM of the wall (ground/horizon), not the top - matches
+          // public/app.js's drawWallPanelFrame(), which intentionally
+          // does NOT flip per-panel (that broke cross-panel continuity -
+          // see its module comment), relying on this slicing step to be
+          // the one place orientation gets corrected instead.
+          const c = ((wallH - 1 - (oy + v)) * wallW + (ox + u)) * 3;
           const o = 1 + (v * S + u) * 3;
           buf[o]     = Math.max(0, Math.min(255, (wallBuf[c] * brightness * 255) | 0));
           buf[o + 1] = Math.max(0, Math.min(255, (wallBuf[c + 1] * brightness * 255) | 0));

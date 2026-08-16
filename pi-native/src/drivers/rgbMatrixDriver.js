@@ -122,13 +122,29 @@ class RgbMatrixDriver {
   // (panel.gx/gy -> drawBuffer offset, in _renderWallFrame) are untouched -
   // only which CONTENT lands at each physical offset changes.
   _buildWallPanelBuffer(core, panel, brightness) {
-    const S = core.wallPanelSize, wallW = core.wallW, wallBuf = core.wallBuf;
+    const S = core.wallPanelSize, wallW = core.wallW, wallH = core.wallH, wallBuf = core.wallBuf;
     const buf = this._faceBufCache;
     const ox = panel.gx * S, oy = panel.gy * S;
     for (let v = 0; v < S; v++) {
       for (let u = 0; u < S; u++) {
         const srcX = wallW - 1 - (ox + u);
-        const c = ((oy + v) * wallW + srcX) * 3;
+        // Whole-canvas vertical flip, same spirit as the horizontal mirror
+        // above but for the OTHER axis: several wall effects
+        // (weatherWall.js confirmed directly - ground/horizon renders at
+        // small v, sky near wallH-1) are written assuming wallBuf row 0 is
+        // the BOTTOM of the wall, not the top. Kept consistent with
+        // wsServer.js's _streamWallFrames() (the browser preview's
+        // source), which applies the identical flip - a real report
+        // ("weather... upside down") on the browser side confirmed this
+        // is genuinely how the affected effects' own coordinate
+        // convention works, not a preview-only quirk, so the physical
+        // output needs the same correction to actually match what the
+        // preview shows. Unlike the horizontal mirror above (confirmed
+        // against a real device report), this hasn't been verified on
+        // physical panels - flag any real-hardware orientation mismatch
+        // if this turns out wrong for the actual wiring.
+        const srcY = wallH - 1 - (oy + v);
+        const c = (srcY * wallW + srcX) * 3;
         const o = (v * S + u) * 3;
         buf[o]     = Math.max(0, Math.min(255, (wallBuf[c] * brightness * 255) | 0));
         buf[o + 1] = Math.max(0, Math.min(255, (wallBuf[c + 1] * brightness * 255) | 0));
