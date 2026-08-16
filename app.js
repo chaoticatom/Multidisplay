@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.3.3';
+const APP_VERSION = '0.4.0';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2668,7 +2668,7 @@ function initScene() {
   window.addEventListener('resize', resizeRenderer);
   resizeRenderer();
   rebuildScene(); // shows #webgl-fallback instead of a Three.js scene if !webglOK and currently in cube mode
-  if (webglOK) animate();
+  if (webglOK) { wireCubeDrag(); animate(); }
 }
 
 function resizeRenderer() {
@@ -2765,16 +2765,111 @@ function rebuildScene() {
     mesh.rotation.set(xf.rot[0], xf.rot[1], xf.rot[2]);
     group.add(mesh);
     faceCanvases[face] = { mesh, size };
+
+    // Solid opaque backing panel, positioned just behind this face's LED
+    // spheres - ported from the original browser app's cube.js
+    // createPanels() (its own module comment: "fills the gaps between
+    // LEDs"). Without it there's nothing physically blocking the view
+    // between LED dots, so the opposite face's spheres show straight
+    // through the gaps - a real report ("I shouldn't be able to see
+    // through it") since a real LED panel has an opaque PCB backing, not a
+    // transparent one. Same span/offset math as cube.js's version, scaled
+    // to this file's normalized -1..1 face coordinate space (HALF=1 here
+    // vs. cube.js's HALF constant - same role).
+    const panelSpan = 2 + spacing * 1.2; // slightly wider than the LED array
+    const panelOffset = spacing * 0.55;  // placed just behind LED sphere centres
+    const backing = new THREE.Mesh(
+      new THREE.PlaneGeometry(panelSpan, panelSpan),
+      new THREE.MeshBasicMaterial({ color: 0x06060e, side: THREE.FrontSide }),
+    );
+    const HALF = 1;
+    backing.position.set(
+      xf.pos[0] * (HALF - panelOffset),
+      xf.pos[1] * (HALF - panelOffset),
+      xf.pos[2] * (HALF - panelOffset),
+    );
+    backing.rotation.set(xf.rot[0], xf.rot[1], xf.rot[2]);
+    group.add(backing);
   }
 
+  // group gets fully recreated on every rebuildScene() (mode/size change),
+  // which would otherwise silently reset the user's manual rotation back
+  // to identity - _qRot (module-level, survives rebuilds) is the actual
+  // source of truth for cube orientation, re-applied here every time.
+  group.quaternion.copy(_qRot);
   fitCubeCamera();
+}
+
+// ---------------------------------------------------------------------
+// Click/touch-and-drag cube rotation - "same look and feel as it was on
+// the ESP32 version": ported from cube.js's quaternion-based orbit
+// (applyRotation()/tickInertia()), not a simplified from-scratch version.
+// Y-then-X axis-angle quaternion composition (avoids gimbal lock a plain
+// Euler.x/y increment would hit), momentum that decays after release, and
+// disabling the "auto-rotate" checkbox the moment a drag starts - all
+// matching the original's behavior. rotateYOnly/gyro/tap-to-snap-a-face
+// from cube.js aren't ported (not requested, no auto-rotate-only /
+// device-orientation permission UI exists here to hang them off).
+// ---------------------------------------------------------------------
+const _qRot = new THREE.Quaternion();
+const _qDelta = new THREE.Quaternion();
+const _yAxis = new THREE.Vector3(0, 1, 0);
+const _xAxis = new THREE.Vector3(1, 0, 0);
+const DRAG_SENS = 0.007, TOUCH_SENS = 0.009;
+const INERTIA_DECAY = 0.88, INERTIA_MIN = 0.0003;
+let cubeDragging = false, cubeLastX = 0, cubeLastY = 0, cubeVelX = 0, cubeVelY = 0;
+
+function applyCubeRotation(dx, dy, sens) {
+  _qDelta.setFromAxisAngle(_yAxis, dx * sens);
+  _qRot.multiplyQuaternions(_qDelta, _qRot);
+  _qDelta.setFromAxisAngle(_xAxis, dy * sens);
+  _qRot.multiplyQuaternions(_qDelta, _qRot);
+  if (group) group.quaternion.copy(_qRot);
+}
+
+function wireCubeDrag() {
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap) return;
+  const uncheckAutoRotate = () => {
+    const c = document.getElementById('auto-rotate-chk');
+    if (c) c.checked = false;
+  };
+  const start = (x, y) => {
+    if (currentState.panelMode !== 'cube' || !group) return;
+    cubeDragging = true; cubeVelX = 0; cubeVelY = 0; cubeLastX = x; cubeLastY = y;
+    uncheckAutoRotate();
+  };
+  const move = (x, y, sens) => {
+    if (!cubeDragging) return;
+    const dx = x - cubeLastX, dy = y - cubeLastY;
+    cubeLastX = x; cubeLastY = y;
+    cubeVelX = dx * 0.015; cubeVelY = dy * 0.015;
+    applyCubeRotation(dx, dy, sens);
+  };
+  const end = () => { cubeDragging = false; };
+
+  wrap.addEventListener('mousedown', (e) => start(e.clientX, e.clientY));
+  window.addEventListener('mousemove', (e) => move(e.clientX, e.clientY, DRAG_SENS));
+  window.addEventListener('mouseup', end);
+  wrap.addEventListener('touchstart', (e) => { if (e.touches.length === 1) start(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+  wrap.addEventListener('touchmove', (e) => { if (e.touches.length === 1) move(e.touches[0].clientX, e.touches[0].clientY, TOUCH_SENS); }, { passive: true });
+  wrap.addEventListener('touchend', end, { passive: true });
 }
 
 function animate() {
   requestAnimationFrame(animate);
   if (currentState.panelMode !== 'cube') return; // 2D and wall modes never touch the WebGL renderer
   const autoRotate = document.getElementById('auto-rotate-chk');
-  if (group && (!autoRotate || autoRotate.checked)) group.rotation.y += 0.003;
+  if (cubeDragging) {
+    // rotation already applied directly in the move handler above
+  } else if (Math.abs(cubeVelX) > INERTIA_MIN || Math.abs(cubeVelY) > INERTIA_MIN) {
+    applyCubeRotation(cubeVelX * 60, cubeVelY * 60, DRAG_SENS);
+    cubeVelX *= INERTIA_DECAY; cubeVelY *= INERTIA_DECAY;
+  } else if (group && (!autoRotate || autoRotate.checked)) {
+    _qDelta.setFromAxisAngle(_yAxis, 0.003);
+    _qRot.multiplyQuaternions(_qDelta, _qRot);
+    group.quaternion.copy(_qRot);
+  }
   renderer.render(scene, camera);
 }
 
