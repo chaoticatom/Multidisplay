@@ -2550,7 +2550,25 @@ const PANEL2D_OUT = 512; // fixed backing resolution, same as ui.js's renderPane
 
 let wallPreviewEl;
 const wallPanelCanvases = {}; // panel index -> {canvas, ctx}
-const WALL_CELL = 130; // preview px per panel, including its border/gap
+// Preview px per panel, including its border/gap - dynamic, not a fixed
+// 130px, so the grid actually uses the available preview area (a real
+// report: "resize so 2 displays are shown in the available space" - two
+// small fixed-size tiles in a corner didn't grow to fill the screen the
+// way the single-panel 2D/cube previews already do via
+// fitPanel2dCanvas()/resizeRenderer()). Computed from whatever room is
+// left after the sidebar (accounting for the sidebar being hidden/mobile-
+// overlay, same margin logic as fitPanel2dCanvas's `buf`), clamped so a
+// lone display isn't comically huge and a full 2x3 grid doesn't overflow
+// the window.
+function wallCellSize() {
+  const buf = 40;
+  const sidebar = document.getElementById('sidebar');
+  const sidebarW = (sidebar && !sidebar.classList.contains('hidden') && window.innerWidth > 768) ? sidebar.offsetWidth : 0;
+  const availW = window.innerWidth - sidebarW - buf * 2;
+  const availH = window.innerHeight - buf * 2;
+  const cell = Math.min(availW / WALL_COLS, availH / WALL_ROWS);
+  return Math.max(60, Math.min(320, Math.floor(cell)));
+}
 
 function initScene() {
   panel2dCanvas = document.getElementById('panel2d-canvas');
@@ -2583,6 +2601,7 @@ function resizeRenderer() {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   fitPanel2dCanvas();
+  rebuildWallPreview(); // no-ops outside wall mode - re-flows wallCellSize() on viewport/sidebar changes
 }
 
 // Matches cube.js's fitPanel2d(): fit the fixed-resolution square canvas
@@ -2691,18 +2710,19 @@ function rebuildWallPreview() {
   for (const key in wallPanelCanvases) delete wallPanelCanvases[key];
   if (currentState.panelMode !== 'wall') return; // full grid only makes sense once wall mode is actually active - see wireWallToolbar()'s "+"  for how you get there
   const panels = currentState.panels || [];
-  wallPreviewEl.style.width = (WALL_COLS * WALL_CELL) + 'px';
-  wallPreviewEl.style.height = (WALL_ROWS * WALL_CELL) + 'px';
+  const cellSize = wallCellSize();
+  wallPreviewEl.style.width = (WALL_COLS * cellSize) + 'px';
+  wallPreviewEl.style.height = (WALL_ROWS * cellSize) + 'px';
 
   for (let gy = 0; gy < WALL_ROWS; gy++) {
     for (let gx = 0; gx < WALL_COLS; gx++) {
       const idx = panels.findIndex((p) => p.gx === gx && p.gy === gy);
       const cell = document.createElement('div');
       cell.className = 'wall-cell ' + (idx >= 0 ? 'filled' : 'empty');
-      cell.style.left = (gx * WALL_CELL) + 'px';
-      cell.style.top = (gy * WALL_CELL) + 'px';
-      cell.style.width = (WALL_CELL - 6) + 'px';
-      cell.style.height = (WALL_CELL - 6) + 'px';
+      cell.style.left = (gx * cellSize) + 'px';
+      cell.style.top = (gy * cellSize) + 'px';
+      cell.style.width = (cellSize - 6) + 'px';
+      cell.style.height = (cellSize - 6) + 'px';
 
       cell.addEventListener('dragover', (e) => { if (idx < 0) { e.preventDefault(); cell.classList.add('drop-target'); } });
       cell.addEventListener('dragleave', () => cell.classList.remove('drop-target'));
