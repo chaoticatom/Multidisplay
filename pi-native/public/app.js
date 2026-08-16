@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.3.2';
+const APP_VERSION = '0.3.3';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2356,12 +2356,22 @@ function updateMenuToggleButton() {
   if (!sidebar || !menuToggle) return;
   const isSmall = window.innerWidth <= 768;
   menuToggle.classList.toggle('show', isSmall);
+  const openBtn = document.getElementById('sidebar-open-btn');
   if (isSmall) {
     sidebar.classList.toggle('open', menuOpen);
+    // #menu-toggle lives INSIDE #sidebar, so it slides off-screen along
+    // with it once closed (translateX(-100%)) - there is no way to reach
+    // it again from a closed sidebar. #sidebar-open-btn is `position:
+    // fixed` OUTSIDE #sidebar (already the desktop mechanism for the same
+    // problem: reopening a hidden sidebar) - reused here for mobile too,
+    // shown only while the sidebar is actually closed so it doesn't
+    // overlap #menu-toggle while open. A real report ("the open button
+    // has now disappeared... make sure when the sidebar is closed, the
+    // cube is visible under it") traced to exactly this gap.
+    if (openBtn) openBtn.classList.toggle('show', !menuOpen);
   } else {
     sidebar.classList.remove('open');
     sidebar.classList.toggle('hidden', !menuOpen);
-    const openBtn = document.getElementById('sidebar-open-btn');
     if (openBtn) openBtn.classList.toggle('show', !menuOpen);
   }
   menuToggle.textContent = menuOpen ? '✕' : '☰';
