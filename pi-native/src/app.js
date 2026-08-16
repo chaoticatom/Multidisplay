@@ -9,6 +9,7 @@ const { CubeCore } = require('./core');
 const { EFFECTS, WALL_EFFECTS } = require('./effects');
 const { OV_DEFAULTS, runOverlays } = require('./effects/overlays');
 const alarms = require('./effects/alarms');
+const { tick } = require('./tick');
 const WsServer = require('./wsServer');
 const panelConfig = require('./panelConfig');
 const wifiSetup = require('./wifiSetup');
@@ -184,90 +185,16 @@ async function main() {
     // isn't a real single flat panel in the same sense (it's N panels), so
     // effects keying off "is this the old single-2D-panel case" check
     // `core.panelMode === '2d'` specifically, not `!== 'cube'`.
-    core.panelMode = config.mode;
-    // core.effectOptions: per-effect option panel state (Colour Rain's
-    // style, Light Speed's speed/trail/size/nudge/count/colour, ...) set
-    // via the WS setEffectOption command - see wsServer.js's module
-    // comment and rain.js/lightspeed.js for how each effect reads its own
-    // slice of this, defensively, with its own default.
-    core.effectOptions = state.effectOptions;
-    // core.customCubeFaces / core.overlaysState: read only by
-    // effects/customCube.js (the Custom Cube effect) - see that file's
-    // module comment. overlaysState is the same live overlay-params object
-    // runOverlays() below reads for the GLOBAL overlay layers; Custom Cube
-    // reuses it (via applyFaceOverlays) so a face's per-face overlay picks
-    // use the same user-tuned params (density/speed/color/...) as the
-    // Overlays panel, rather than a second untunable copy of the defaults.
-    core.customCubeFaces = state.customCube && state.customCube.faces;
-    core.overlaysState = state.overlays;
+    // core.panelMode/effectOptions/customCubeFaces/overlaysState are set
+    // inside tick() (src/tick.js) now, shared verbatim with the browser
+    // simulator bundle - see that file's module comment.
     // Some effects (weather, and potentially others with their own
     // background fetch - see effects/weather.js's getStatus()) expose a
     // status snapshot (fetch in progress / last error / live values) for
     // the control page's option panel to display, since it has no other
-    // way to see what a Pi-side-only fetch actually did. Only polled for
-    // the currently-selected effect - cheap, and nothing else needs it.
-    // Picked from whichever registry actually renders this tick (matches
-    // the `fn` selection just below) - video's cube and wall variants each
-    // own a SEPARATE FfmpegSource (see videoWall.js's module comment), so
-    // picking the wrong registry here would show the idle one's "No
-    // source" status instead of the one actually decoding.
-    const activeFn = config.mode === 'wall' ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
-    if (typeof activeFn?.getStatus === 'function') {
-      if (!state.effectStatus) state.effectStatus = {};
-      state.effectStatus[state.effect] = activeFn.getStatus();
-    }
-    // Wall mode uses a completely separate effect registry (WALL_EFFECTS -
-    // see effects/index.js) since it writes core.wallBuf, not core.colBuf.
-    // Falls back to doing nothing (not the cube EFFECTS entry) when the
-    // selected effect has no wall variant yet - a cube effect writing to
-    // colBuf has zero effect on what the wall driver actually reads.
-    // Timer system: same "runs every tick regardless of selected effect,
-    // cube-geometry-only (faceMap-based), skipped entirely in wall mode"
-    // category as overlays just below - see effects/alarms.js's module
-    // comment for the exact 5-step order this interleaves with the normal
-    // effect render and runOverlays() (steps are numbered there to match).
-    // tickCheck() polls on its own 2s interval regardless of mode (cheap,
-    // and keeps _lastFireMin/hourly bookkeeping correct even while in wall
-    // mode) - only the actual pixel rendering is cube-mode-gated below.
-    alarms.tickCheck(state, dt, EFFECTS);
-    const cubeMode = config.mode !== 'wall';
-    // state.blank: the "✕ Clear All" button's effect (see wsServer.js's
-    // "clearAll" command) - matches the browser original's clear-all-btn
-    // handler (turns every overlay off AND sets effectsOn=false, so
-    // colBuf goes and stays solid black rather than the just-selected
-    // effect immediately redrawing over it next frame). Skips the main
-    // effect AND overlays entirely while set; alarms still run as normal
-    // (a timer firing should still interrupt a blanked display, same as
-    // it would interrupt any other effect - "clear all" isn't a stronger
-    // guarantee than that). Selecting a new effect (setEffect) clears
-    // this automatically - see wsServer.js.
-    if (!state.blank) {
-      if (cubeMode) alarms.renderMainMessage(core, state); // step 1
-
-      const alarmBlocking = cubeMode && alarms.isBlockingNormalEffect(state);
-      const fn = config.mode === 'wall' ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
-      if (fn && !alarmBlocking) fn(core, dt); // step 2
-    } else {
-      core.colBuf.fill(0);
-      if (core.wallBuf) core.wallBuf.fill(0);
-    }
-
-    // Overlays composite on top of whatever the main effect just wrote,
-    // every tick, regardless of which effect is selected - see
-    // effects/overlays.js's module comment. Cube-mode only: overlays write
-    // to core.colBuf/core.faceMap (6-face geometry), which core.wallBuf
-    // (wall mode's flat stitched-panel buffer) has no relationship to -
-    // same "a cube effect writing to colBuf has zero effect on core.wallBuf"
-    // boundary already established for WALL_EFFECTS above. Skipped in wall
-    // mode entirely for now rather than silently doing nothing per-overlay;
-    // wall-mode overlay support (rewriting each ov* function to iterate
-    // wallW/wallH instead of surfX/Y/Z/faceMap) is future work.
-    if (config.mode !== 'wall') runOverlays(core, dt, state.overlays); // step 3
-
-    if (cubeMode) {
-      alarms.applyDonePhase(core, state); // step 4
-      alarms.renderPrePhase(core, dt, state, EFFECTS); // step 5 - overwrites colBuf, matches browser order exactly
-    }
+    // way to see what a Pi-side-only fetch actually did - also computed
+    // inside tick().
+    tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt);
 
     // Brightness is applied at push time, not baked into core.colBuf -
     // matches the browser's non-destructive approach (mesh.material.color.
