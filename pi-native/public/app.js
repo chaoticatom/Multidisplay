@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '0.4.1';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2611,13 +2611,17 @@ const wallPanelCanvases = {}; // panel index -> {canvas, ctx}
 // overlay, same margin logic as fitPanel2dCanvas's `buf`), clamped so a
 // lone display isn't comically huge and a full 2x3 grid doesn't overflow
 // the window.
-function wallCellSize() {
+// cols/rows: the actual bounding box of cells being rendered this call
+// (see rebuildWallPreview()) - NOT always the fixed WALL_COLS x WALL_ROWS
+// hardware maximum, so a lone display (or two) gets to be genuinely large
+// rather than sized as if a full 6-panel layout were always present.
+function wallCellSize(cols, rows) {
   const buf = 40;
   const sidebar = document.getElementById('sidebar');
   const sidebarW = (sidebar && !sidebar.classList.contains('hidden') && window.innerWidth > 768) ? sidebar.offsetWidth : 0;
   const availW = window.innerWidth - sidebarW - buf * 2;
   const availH = window.innerHeight - buf * 2;
-  const cell = Math.min(availW / WALL_COLS, availH / WALL_ROWS);
+  const cell = Math.min(availW / cols, availH / rows);
   return Math.max(60, Math.min(320, Math.floor(cell)));
 }
 
@@ -2900,68 +2904,100 @@ function drawPanel2dFrame(bytes) {
 
 // Same round-dot-on-black technique as drawPanel2dFrame(), one small
 // canvas per EXISTING panel (drawWallPanelFrame() below keeps them live-
-// updating), plus a dashed placeholder for every other cell in the fixed
-// WALL_COLS x WALL_ROWS grid so there's always somewhere to drag onto or
-// click to add a new display above/below/left/right of the current
-// layout - see this section's module comment. wallPanelCanvases stays
-// keyed by each panel's INDEX INTO currentState.panels (not gx/gy),
-// matching the wire protocol's per-panel frame index (see handleFrame()).
+// updating), plus a dashed drop-target placeholder ONLY at cells directly
+// above/below/left/right of an already-placed panel - NOT every cell in
+// the fixed WALL_COLS x WALL_ROWS grid (that was the previous behavior: a
+// real report - "when I click + display, it gives me 6 grid boxes, I
+// don't want exactly this... I want to see an outline of where I can
+// click and drag the additional display to [above/below/left/right of
+// existing ones]" - specifically asked for contextual placement targets
+// instead of the whole grid always being visible). The rendered area's
+// size also now tracks just the panels+candidates bounding box, not the
+// full 2x3 hardware maximum, so a lone display (or two) stays genuinely
+// large instead of being sized as if 6 were always present. Panel at
+// index 0 is the original/primary display (see wireWallToolbar()'s "+" -
+// the FIRST panel switching INTO wall mode) - its remove (×) button is
+// never shown, it can't be deleted regardless of how many others exist
+// (still draggable to a new position like any other panel, just not
+// removable). wallPanelCanvases stays keyed by each panel's INDEX INTO
+// currentState.panels (not gx/gy), matching the wire protocol's per-panel
+// frame index (see handleFrame()).
 function rebuildWallPreview() {
   wallPreviewEl.innerHTML = '';
   for (const key in wallPanelCanvases) delete wallPanelCanvases[key];
   if (currentState.panelMode !== 'wall') return; // full grid only makes sense once wall mode is actually active - see wireWallToolbar()'s "+"  for how you get there
   const panels = currentState.panels || [];
-  const cellSize = wallCellSize();
-  wallPreviewEl.style.width = (WALL_COLS * cellSize) + 'px';
-  wallPreviewEl.style.height = (WALL_ROWS * cellSize) + 'px';
+  const occupied = new Set(panels.map((p) => p.gx + ',' + p.gy));
 
-  for (let gy = 0; gy < WALL_ROWS; gy++) {
-    for (let gx = 0; gx < WALL_COLS; gx++) {
-      const idx = panels.findIndex((p) => p.gx === gx && p.gy === gy);
-      const cell = document.createElement('div');
-      cell.className = 'wall-cell ' + (idx >= 0 ? 'filled' : 'empty');
-      cell.style.left = (gx * cellSize) + 'px';
-      cell.style.top = (gy * cellSize) + 'px';
-      cell.style.width = (cellSize - 6) + 'px';
-      cell.style.height = (cellSize - 6) + 'px';
+  const candidates = [];
+  const seenCandidate = new Set();
+  const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  for (const p of panels) {
+    for (const [dx, dy] of DIRS) {
+      const gx = p.gx + dx, gy = p.gy + dy;
+      if (gx < 0 || gx >= WALL_COLS || gy < 0 || gy >= WALL_ROWS) continue;
+      const key = gx + ',' + gy;
+      if (occupied.has(key) || seenCandidate.has(key)) continue;
+      seenCandidate.add(key);
+      candidates.push({ gx, gy });
+    }
+  }
 
-      cell.addEventListener('dragover', (e) => { if (idx < 0) { e.preventDefault(); cell.classList.add('drop-target'); } });
-      cell.addEventListener('dragleave', () => cell.classList.remove('drop-target'));
-      cell.addEventListener('drop', (e) => {
-        e.preventDefault();
-        cell.classList.remove('drop-target');
-        if (!_wallDragFrom || idx >= 0) return; // only drop onto empty cells
-        const next = currentWallPanels().map((p) => (p.gx === _wallDragFrom.gx && p.gy === _wallDragFrom.gy ? { gx, gy } : p));
-        sendWallLayout(next);
-        _wallDragFrom = null;
-      });
+  const allCells = [...panels.map((p) => ({ ...p, filled: true })), ...candidates.map((c) => ({ ...c, filled: false }))];
+  const minGx = Math.min(...allCells.map((c) => c.gx)), maxGx = Math.max(...allCells.map((c) => c.gx));
+  const minGy = Math.min(...allCells.map((c) => c.gy)), maxGy = Math.max(...allCells.map((c) => c.gy));
+  const cols = maxGx - minGx + 1, rows = maxGy - minGy + 1;
+  const cellSize = wallCellSize(cols, rows);
+  wallPreviewEl.style.width = (cols * cellSize) + 'px';
+  wallPreviewEl.style.height = (rows * cellSize) + 'px';
 
-      if (idx >= 0) {
-        const canvas = document.createElement('canvas');
-        canvas.width = 256; canvas.height = 256; // fixed backing resolution per panel, same spirit as PANEL2D_OUT
-        canvas.style.width = '100%'; canvas.style.height = '100%'; canvas.style.position = 'static';
-        canvas.draggable = true;
-        canvas.addEventListener('dragstart', () => { _wallDragFrom = { gx, gy }; cell.classList.add('dragging'); });
-        canvas.addEventListener('dragend', () => cell.classList.remove('dragging'));
-        cell.appendChild(canvas);
-        wallPanelCanvases[idx] = canvas.getContext('2d');
+  for (const c of allCells) {
+    const { gx, gy, filled } = c;
+    const idx = filled ? panels.findIndex((p) => p.gx === gx && p.gy === gy) : -1;
+    const cell = document.createElement('div');
+    cell.className = 'wall-cell ' + (filled ? 'filled' : 'empty');
+    cell.style.left = ((gx - minGx) * cellSize) + 'px';
+    cell.style.top = ((gy - minGy) * cellSize) + 'px';
+    cell.style.width = (cellSize - 6) + 'px';
+    cell.style.height = (cellSize - 6) + 'px';
 
+    cell.addEventListener('dragover', (e) => { if (!filled) { e.preventDefault(); cell.classList.add('drop-target'); } });
+    cell.addEventListener('dragleave', () => cell.classList.remove('drop-target'));
+    cell.addEventListener('drop', (e) => {
+      e.preventDefault();
+      cell.classList.remove('drop-target');
+      if (!_wallDragFrom || filled) return; // only drop onto an empty candidate cell
+      const next = currentWallPanels().map((p) => (p.gx === _wallDragFrom.gx && p.gy === _wallDragFrom.gy ? { gx, gy } : p));
+      sendWallLayout(next);
+      _wallDragFrom = null;
+    });
+
+    if (filled) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256; canvas.height = 256; // fixed backing resolution per panel, same spirit as PANEL2D_OUT
+      canvas.style.width = '100%'; canvas.style.height = '100%'; canvas.style.position = 'static';
+      canvas.draggable = true;
+      canvas.addEventListener('dragstart', () => { _wallDragFrom = { gx, gy }; cell.classList.add('dragging'); });
+      canvas.addEventListener('dragend', () => cell.classList.remove('dragging'));
+      cell.appendChild(canvas);
+      wallPanelCanvases[idx] = canvas.getContext('2d');
+
+      if (idx !== 0) { // index 0 is the primary display - never removable
         const remove = document.createElement('span');
         remove.className = 'wall-remove';
         remove.textContent = '×';
         remove.title = 'Remove this display';
         remove.addEventListener('click', (e) => {
           e.stopPropagation();
-          if (panels.length <= 1) return; // keep at least one
           send({ cmd: 'removePanel', gx, gy });
         });
         cell.appendChild(remove);
-      } else {
-        cell.title = 'Add a display here';
-        cell.addEventListener('click', () => sendWallLayout([...currentWallPanels(), { gx, gy }]));
       }
-      wallPreviewEl.appendChild(cell);
+    } else {
+      cell.title = 'Add a display here';
+      cell.addEventListener('click', () => sendWallLayout([...currentWallPanels(), { gx, gy }]));
     }
+    wallPreviewEl.appendChild(cell);
   }
 }
 
