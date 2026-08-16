@@ -203,6 +203,7 @@ const panelConfig = require('./panelConfig');
 const alarmConfig = require('./alarmConfig');
 const customCubeConfig = require('./customCubeConfig');
 const unsplashConfig = require('./unsplashConfig');
+const weatherConfig = require('./weatherConfig');
 const bluetooth = require('./bluetooth');
 const alarmsEngine = require('./effects/alarms');
 const radio = require('./effects/radio');
@@ -600,6 +601,14 @@ class WsServer {
       if (!this.state.effectOptions) this.state.effectOptions = {};
       if (!this.state.effectOptions[msg.effect]) this.state.effectOptions[msg.effect] = {};
       this.state.effectOptions[msg.effect][msg.key] = msg.value;
+      // Weather's city is the one effect option persisted across a restart
+      // (see weatherConfig.js's module comment for the real report this
+      // fixes - it always reverted to London otherwise) - everything else
+      // in effectOptions is deliberately in-memory-only, matching how the
+      // rest of this generic store already worked.
+      if (msg.effect === 'weather' && msg.key === 'city' && typeof msg.value === 'string') {
+        weatherConfig.save({ city: msg.value });
+      }
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'stopVideoSource') {
       // Immediately tears down whichever video source is currently live

@@ -385,17 +385,69 @@ function syncLightspeedPanel() {
 // the effectStatus.weather snapshot effects/weather.js's getStatus()
 // exposes (see wsServer.js's _stateMsg()/app.js's per-tick poll).
 // ---------------------------------------------------------------------
+// City autocomplete-as-you-type - ported from the browser original's
+// wxUpdateCityDropdown() (effects-livedata.js). Queries Open-Meteo's free
+// geocoding API directly from the browser (debounced 250ms, matching the
+// original) and lets you pick an exact match instead of typing a bare
+// name and hoping the server's own geocode (fetch.js's fetchWeather(),
+// which re-geocodes by name server-side with count=1) picks the right
+// one - e.g. "Paris" alone is ambiguous (France vs Texas), the dropdown
+// shows country/region to disambiguate. Picking an entry sends the
+// disambiguated "City, Country" string immediately (same as pressing GO),
+// rather than just filling the input and waiting for a separate submit.
+let _wxCityTimer = null;
+function wireWeatherCityDropdown(cityInput, dropdown) {
+  if (!cityInput || !dropdown) return;
+  const query = () => {
+    const q = cityInput.value.trim();
+    if (q.length < 2) { dropdown.style.display = 'none'; return; }
+    clearTimeout(_wxCityTimer);
+    _wxCityTimer = setTimeout(() => {
+      fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&format=json`)
+        .then((r) => r.json())
+        .then((data) => {
+          const results = data.results || [];
+          if (!results.length) { dropdown.style.display = 'none'; return; }
+          dropdown.innerHTML = '';
+          results.forEach((r) => {
+            const label = `${r.name}${r.admin1 ? ', ' + r.admin1 : ''}${r.country ? ', ' + r.country : ''}`;
+            const short = r.country ? `${r.name}, ${r.country}` : r.name;
+            const row = document.createElement('div');
+            row.style.cssText = 'padding:6px 8px;cursor:pointer;font-size:13px;color:#9bd;border-bottom:1px solid rgba(80,120,255,0.1);';
+            row.textContent = label;
+            row.addEventListener('click', () => {
+              cityInput.value = short;
+              dropdown.style.display = 'none';
+              setEffectOption('weather', 'city', short);
+            });
+            dropdown.appendChild(row);
+          });
+          dropdown.style.display = 'block';
+        })
+        .catch(() => { dropdown.style.display = 'none'; });
+    }, 250);
+  };
+  cityInput.addEventListener('input', query);
+  cityInput.addEventListener('focus', query);
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#wx-city') && !e.target.closest('#wx-city-dropdown')) dropdown.style.display = 'none';
+  });
+}
+
 function wireWeatherPanel() {
   const panel = document.getElementById('panel-weather');
   if (!panel) return;
   const cityInput = panel.querySelector('#wx-city');
+  const dropdown = panel.querySelector('#wx-city-dropdown');
   const goBtn = panel.querySelector('#wx-fetch-btn');
   const submit = () => {
     const city = (cityInput?.value || '').trim();
     if (city) setEffectOption('weather', 'city', city);
+    if (dropdown) dropdown.style.display = 'none';
   };
   if (goBtn) goBtn.addEventListener('click', submit);
   if (cityInput) cityInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  wireWeatherCityDropdown(cityInput, dropdown);
 }
 
 function syncWeatherPanel() {
@@ -407,6 +459,18 @@ function syncWeatherPanel() {
   const tempEl = panel.querySelector('#wx-temp-line');
   const descEl = panel.querySelector('#wx-desc-line');
   const sunEl = panel.querySelector('#wx-sun-line');
+  // Reflects the server's actual current city (persisted across a restart
+  // via weatherConfig.js - see effects/weather.js's DEFAULT_CITY fallback)
+  // into the input box, so a freshly-loaded/reconnected page shows what's
+  // really selected instead of the field's static HTML placeholder value -
+  // guarded against clobbering while the user is actively typing/picking
+  // from the dropdown, same pattern every other synced input in this file
+  // uses.
+  const cityInput = panel.querySelector('#wx-city');
+  const optCity = currentState.effectOptions?.weather?.city;
+  if (cityInput && document.activeElement !== cityInput && optCity && cityInput.value !== optCity) {
+    cityInput.value = optCity;
+  }
   if (!status) { if (statusEl) statusEl.textContent = 'Enter city and press GO'; return; }
   if (status.fetching) { if (statusEl) statusEl.textContent = 'Fetching...'; return; }
   if (status.error) { if (statusEl) statusEl.textContent = 'Error: ' + status.error; return; }

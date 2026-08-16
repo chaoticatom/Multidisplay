@@ -15,6 +15,7 @@ const wifiSetup = require('./wifiSetup');
 const alarmConfig = require('./alarmConfig');
 const customCubeConfig = require('./customCubeConfig');
 const unsplashConfig = require('./unsplashConfig');
+const weatherConfig = require('./weatherConfig');
 
 const TICK_HZ = 30; // effect-compute + panel-push rate; independent of the driver's own PWM refresh
 const WS_PORT = 8081;
@@ -125,6 +126,13 @@ async function main() {
     // client's Unsplash panel reflects whatever key was last saved, same
     // as customCube/alarms.
     unsplashConfig: unsplashConfig.load(),
+    // Weather's last-selected city (see weatherConfig.js's module comment
+    // for the real report this fixes: it always reverted to London on
+    // every restart otherwise). An empty string here correctly falls
+    // through to effects/weather.js's own DEFAULT_CITY fallback via its
+    // `core.effectOptions?.weather?.city || DEFAULT_CITY` check - nothing
+    // special needed for "never picked one yet".
+    effectOptions: { weather: { city: weatherConfig.load().city } },
   };
   state.onAlarmsChanged = () => { alarmConfig.save(state.alarms); ws._broadcast(ws._stateMsg()); };
   const ws = new WsServer(WS_PORT, state, config, (newConfig) => {
