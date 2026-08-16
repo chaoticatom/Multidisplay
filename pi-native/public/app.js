@@ -2369,13 +2369,45 @@ function toggleMenu() {
   // resize.
   setTimeout(resizeRenderer, 550);
 }
+// Ported verbatim (behavior, not code shape) from ui.js's wireForceUpdate()
+// - a real report ("GitHub still says 0.1.0" after a fresh deploy) traced
+// to browser/CDN caching outliving a plain reload, same class of problem
+// the original app's version tap already solved. clears the Cache
+// Storage API and unregisters any service workers (pi-native registers
+// neither itself, but a stale one from visiting this exact URL under the
+// old retired ESP32-architecture app - which DID use both - could still be
+// sitting in the browser), then reloads with a cache-busting query param
+// (location.reload() alone doesn't reliably bypass HTTP caching in modern
+// browsers - the old location.reload(true) "force" argument is a no-op
+// today).
 function wireVersionDisplay() {
   const el = document.getElementById('app-version');
   if (!el) return;
   el.textContent = 'v' + APP_VERSION;
   el.style.cursor = 'pointer';
-  el.title = 'Tap to reload';
-  el.addEventListener('click', () => location.reload());
+  el.title = 'Tap to force update';
+  let busy = false;
+  function forceUpdate(e) {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    if (busy) return;
+    busy = true;
+    el.textContent = 'Clearing…';
+    Promise.resolve().then(async () => {
+      try {
+        if (window.caches) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        }
+        if (navigator.serviceWorker) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.unregister()));
+        }
+      } catch (err) { /* ignore, still reload */ }
+      location.href = location.pathname + '?nocache=' + Date.now();
+    });
+  }
+  el.addEventListener('touchend', forceUpdate, { passive: false });
+  el.addEventListener('click', forceUpdate);
 }
 
 function wireSidebarMenu() {
