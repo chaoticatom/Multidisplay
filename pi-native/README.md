@@ -9,6 +9,27 @@ is unrelated: helper scripts (Bluetooth audio bridge) for a Raspberry Pi
 that's running the *existing browser-based* app as a client, not this
 native rewrite.
 
+## Version bumping
+
+The sidebar footer (`#app-version`) shows a version number, sourced from
+two places that must be bumped together on every change that ships:
+`public/app.js`'s `APP_VERSION` constant (what's actually displayed - it's
+a plain hardcoded string, not read from JSON at runtime, since there's no
+bundler wiring the two together) and `package.json`'s `"version"` field
+(kept in sync by hand as the canonical value `APP_VERSION` should match).
+Bump the patch/minor number for a normal change (e.g. `0.2.0` -> `0.2.1`),
+minor for a real feature, and re-run `node sim/deploy.js` afterward so the
+deployed GitHub Pages simulator's copy of `app.js` (at the repo root)
+picks up the new value too - see `sim/README.md`.
+
+Unlike the original browser app's `APP_VERSION` (see the root `CLAUDE.md`'s
+"Version Bumping" section), this isn't a cache-busting mechanism - pi-
+native's wsServer.js already sends `Cache-Control: no-store` on every
+response (see that file's module comment), so there's no stale-cache
+problem to solve. This version number exists purely so it's obvious at a
+glance (sidebar footer, tap to reload) which build is actually running -
+useful when checking whether the Pi has picked up a `git pull` yet.
+
 ## Quick setup
 
 `setup.sh` automates everything scriptable on a fresh Raspberry Pi OS Lite
