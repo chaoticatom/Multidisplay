@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.4.1';
+const APP_VERSION = '0.4.2';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2922,6 +2922,51 @@ function drawPanel2dFrame(bytes) {
 // removable). wallPanelCanvases stays keyed by each panel's INDEX INTO
 // currentState.panels (not gx/gy), matching the wire protocol's per-panel
 // frame index (see handleFrame()).
+// The server's isValidPanels() (panelConfig.js) requires every gx/gy to
+// stay within [0, WALL_COLS) x [0, WALL_ROWS) - the real 2-column x
+// 3-row physical chain limit. The primary display always starts at
+// (0,0) (the fixed top-left corner), which only ever has room to its
+// RIGHT and BELOW within that box - "left of" or "above" the primary
+// would need a negative coordinate, permanently out of reach no matter
+// how candidates are computed. A real report specifically asked for all
+// 4 directions to be real options around the primary ("top bottom left
+// right"), so instead of only offering neighbors that already fit,
+// this computes the SHIFT (translation) that would need to apply to
+// EVERY currently-placed panel to make an out-of-bounds neighbor (and
+// everything else) fit - e.g. dropping a display to the left of a
+// primary sitting at gx=0 shifts the whole layout one column right
+// (primary -> gx=1) and places the new one at gx=0. Returns null if no
+// shift exists that keeps every panel in bounds (e.g. both columns are
+// already occupied, so there is nowhere left to shift into).
+function shiftForCandidate(panels, gx, gy) {
+  let shiftX = 0, shiftY = 0;
+  if (gx < 0) shiftX = -gx;
+  else if (gx >= WALL_COLS) shiftX = (WALL_COLS - 1) - gx;
+  if (gy < 0) shiftY = -gy;
+  else if (gy >= WALL_ROWS) shiftY = (WALL_ROWS - 1) - gy;
+  for (const p of panels) {
+    const sx = p.gx + shiftX, sy = p.gy + shiftY;
+    if (sx < 0 || sx >= WALL_COLS || sy < 0 || sy >= WALL_ROWS) return null;
+  }
+  return { shiftX, shiftY };
+}
+
+// Applies a candidate's shift to every existing panel, then adds/moves one
+// panel into the (already-shifted) target cell - the single code path
+// both the "click an empty cell to add here" and "drop a dragged display
+// here" handlers below funnel through, so a shifted placement behaves
+// identically either way. `movingFrom`: null when adding a brand new
+// display, or {gx,gy} (PRE-shift, i.e. as currently stored in
+// currentState.panels) when repositioning an already-placed one instead.
+function placeAtCandidate(candidate, movingFrom) {
+  const { gx, gy, shiftX, shiftY } = candidate;
+  const shifted = currentWallPanels()
+    .filter((p) => !movingFrom || p.gx !== movingFrom.gx || p.gy !== movingFrom.gy)
+    .map((p) => ({ gx: p.gx + shiftX, gy: p.gy + shiftY }));
+  shifted.push({ gx: gx + shiftX, gy: gy + shiftY });
+  sendWallLayout(shifted);
+}
+
 function rebuildWallPreview() {
   wallPreviewEl.innerHTML = '';
   for (const key in wallPanelCanvases) delete wallPanelCanvases[key];
@@ -2929,17 +2974,27 @@ function rebuildWallPreview() {
   const panels = currentState.panels || [];
   const occupied = new Set(panels.map((p) => p.gx + ',' + p.gy));
 
+  // A "must be adjacent to an existing display" candidate, at every one of
+  // the 4 sides of every currently-placed panel - a real report: "when
+  // dragging a display, it must be adjacent to another display." gx/gy
+  // here are the RAW (possibly out-of-hardware-bounds, e.g. -1) grid
+  // coordinates relative to the CURRENT unshifted layout - kept unshifted
+  // so the bounding-box math below renders them in the correct relative
+  // position (e.g. one column to the left of the primary), even though
+  // placing one actually requires shifting every panel (see
+  // shiftForCandidate()/placeAtCandidate() above).
   const candidates = [];
   const seenCandidate = new Set();
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   for (const p of panels) {
     for (const [dx, dy] of DIRS) {
       const gx = p.gx + dx, gy = p.gy + dy;
-      if (gx < 0 || gx >= WALL_COLS || gy < 0 || gy >= WALL_ROWS) continue;
       const key = gx + ',' + gy;
       if (occupied.has(key) || seenCandidate.has(key)) continue;
       seenCandidate.add(key);
-      candidates.push({ gx, gy });
+      const shift = shiftForCandidate(panels, gx, gy);
+      if (!shift) continue; // no room in that direction at all (e.g. both columns already full)
+      candidates.push({ gx, gy, shiftX: shift.shiftX, shiftY: shift.shiftY });
     }
   }
 
@@ -2952,7 +3007,7 @@ function rebuildWallPreview() {
   wallPreviewEl.style.height = (rows * cellSize) + 'px';
 
   for (const c of allCells) {
-    const { gx, gy, filled } = c;
+    const { gx, gy, filled, shiftX, shiftY } = c;
     const idx = filled ? panels.findIndex((p) => p.gx === gx && p.gy === gy) : -1;
     const cell = document.createElement('div');
     cell.className = 'wall-cell ' + (filled ? 'filled' : 'empty');
@@ -2967,8 +3022,7 @@ function rebuildWallPreview() {
       e.preventDefault();
       cell.classList.remove('drop-target');
       if (!_wallDragFrom || filled) return; // only drop onto an empty candidate cell
-      const next = currentWallPanels().map((p) => (p.gx === _wallDragFrom.gx && p.gy === _wallDragFrom.gy ? { gx, gy } : p));
-      sendWallLayout(next);
+      placeAtCandidate({ gx, gy, shiftX, shiftY }, _wallDragFrom);
       _wallDragFrom = null;
     });
 
@@ -2995,7 +3049,7 @@ function rebuildWallPreview() {
       }
     } else {
       cell.title = 'Add a display here';
-      cell.addEventListener('click', () => sendWallLayout([...currentWallPanels(), { gx, gy }]));
+      cell.addEventListener('click', () => placeAtCandidate({ gx, gy, shiftX, shiftY }, null));
     }
     wallPreviewEl.appendChild(cell);
   }
