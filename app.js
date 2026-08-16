@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.4.3';
+const APP_VERSION = '0.4.4';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -3116,6 +3116,20 @@ function rebuildWallPreview() {
   }
 }
 
+// Unlike drawPanel2dFrame() (single 2D panel, reuses cube face 0's own
+// v-flip convention baked into faceMap - see that function), wall-mode
+// per-panel bytes come straight from core.wallBuf via plain row-major
+// slicing (encodeWallFrames() in sim-loopback.js / wsServer.js's
+// _streamWallFrames(), and rgbMatrixDriver.js's _buildWallPanelBuffer()
+// for the real hardware output - none of them flip v) - so this must NOT
+// flip v either, or a vertically-stacked wall's panel-to-panel seam joins
+// rows that were never actually adjacent in the source buffer. A real
+// report ("horizontal... flies between them, that's good, but it does
+// not glow vertically") traced to exactly this: horizontal stacking never
+// exposed the bug (a per-panel vertical flip doesn't affect column
+// order), but the real hardware driver's un-flipped convention proves
+// this preview-only flip was simply wrong, not a deliberate orientation
+// choice to preserve.
 function drawWallPanelFrame(ctx, bytes) {
   const size = currentState.panelSize;
   const out = 256;
@@ -3126,10 +3140,9 @@ function drawWallPanelFrame(ctx, bytes) {
   for (let v = 0; v < size; v++) {
     for (let u = 0; u < size; u++) {
       const o = 1 + (v * size + u) * 3;
-      const fv = size - 1 - v;
       ctx.fillStyle = `rgb(${bytes[o]},${bytes[o + 1]},${bytes[o + 2]})`;
       ctx.beginPath();
-      ctx.arc((u + 0.5) * cell, (fv + 0.5) * cell, r, 0, Math.PI * 2);
+      ctx.arc((u + 0.5) * cell, (v + 0.5) * cell, r, 0, Math.PI * 2);
       ctx.fill();
     }
   }

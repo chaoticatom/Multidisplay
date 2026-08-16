@@ -86,6 +86,15 @@
     } else if (msg.cmd === 'setPanelConfig') {
       if (E.panelConfig.VALID_SIZES.includes(msg.size)) config.size = msg.size;
       if (E.panelConfig.VALID_MODES.includes(msg.mode)) config.mode = msg.mode;
+      // panels is optional here, only meaningful for mode:'wall' - matches
+      // wsServer.js's real handler (lets the first "+" click switch INTO
+      // wall mode and set an initial layout in the same message). Missing
+      // here previously - msg.panels was silently ignored, so any caller
+      // that switches into wall mode with more than the default single
+      // panel lost everything but that one panel.
+      if (config.mode === 'wall' && msg.panels !== undefined && E.panelConfig.isValidPanels(msg.panels)) {
+        config.panels = msg.panels;
+      }
       core.resize(config.size);
       if (config.mode === 'wall') core.initWall(config.panels, config.size);
     } else if (msg.cmd === 'setPhysicalCubePanels') {
