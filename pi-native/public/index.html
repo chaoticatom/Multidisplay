@@ -448,6 +448,11 @@
   }
   .wall-cell.filled.dragging { opacity: 0.4; }
   .wall-cell.drop-target { border-color: #7aadff !important; background: rgba(80,120,255,0.3); }
+  /* Suggested placement while "+" is pending (see rebuildWallPreview()'s
+     isDefault) - solid instead of dashed, still just a candidate you can
+     override by clicking a different outline. */
+  .wall-cell.empty.default { border-style: solid; border-color: rgba(120,170,255,0.6); background: rgba(80,120,255,0.08); }
+  .wall-cell.empty.default::after { color: rgba(120,170,255,0.8); }
   .wall-cell .wall-remove {
     position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; border-radius: 50%;
     background: #2a0a0a; border: 1px solid rgba(255,100,100,0.6); color: #f88; font-size: 12px;

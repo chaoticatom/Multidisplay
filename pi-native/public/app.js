@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.4.2';
+const APP_VERSION = '0.4.3';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2563,10 +2563,45 @@ function handleBtResult(msg) {
 // ---------------------------------------------------------------------
 const WALL_COLS = 2, WALL_ROWS = 3;
 let _wallDragFrom = null;
+// Whether placement-candidate outlines should currently be rendered at
+// all - a real report: candidates used to be shown PERMANENTLY around
+// every placed panel, which (once 2+ panels exist) fills out to look
+// like the original disliked "static 6-box grid" all over again. Now
+// candidates only appear while actively choosing where to put a new
+// display (toggled by the "+" button - see wireWallToolbar()) or while
+// dragging an existing one to reposition it (_wallDragFrom above) - at
+// rest, only the actually-placed displays are shown.
+let _wallPendingAdd = false;
 
+// "+" toggles a pending-placement state rather than committing
+// immediately: first click shows every valid candidate outline (see
+// rebuildWallPreview()) without adding anything yet; clicking one of
+// those outlines (or one of them) commits the add; clicking "+" again
+// while already pending cancels it. A real report specifically wanted
+// this "show me the options, I pick" flow instead of the old
+// auto-place-then-show-more-options behavior.
 function wireWallToolbar() {
   const addBtn = document.getElementById('wall-add-btn');
-  if (addBtn) addBtn.addEventListener('click', () => send({ cmd: 'addPanel' }));
+  if (!addBtn) return;
+  addBtn.addEventListener('click', () => {
+    if (currentState.panelMode !== 'wall') {
+      // First-ever click: just switch into wall mode with the single
+      // existing panel carried over - no addPanel yet, so the very next
+      // rebuildWallPreview() (triggered by the resulting "state" broadcast)
+      // has an actual wall layout to compute candidates against. Set
+      // BEFORE send(), not after - the sim loopback (and, in principle, a
+      // fast-enough real WS round-trip) can deliver the resulting "state"
+      // message and call rebuildWallPreview() SYNCHRONOUSLY inside send(),
+      // before this function would otherwise get back around to setting
+      // the flag - candidates would silently not render on the very first
+      // "+" click.
+      _wallPendingAdd = true;
+      send({ cmd: 'setPanelConfig', size: currentState.panelSize || 64, mode: 'wall', panels: currentWallPanels() });
+      return;
+    }
+    _wallPendingAdd = !_wallPendingAdd;
+    rebuildWallPreview();
+  });
 }
 
 function currentWallPanels() {
@@ -2964,6 +2999,7 @@ function placeAtCandidate(candidate, movingFrom) {
     .filter((p) => !movingFrom || p.gx !== movingFrom.gx || p.gy !== movingFrom.gy)
     .map((p) => ({ gx: p.gx + shiftX, gy: p.gy + shiftY }));
   shifted.push({ gx: gx + shiftX, gy: gy + shiftY });
+  _wallPendingAdd = false; // commits (or cancels) whatever "+" was showing options for
   sendWallLayout(shifted);
 }
 
@@ -2983,22 +3019,38 @@ function rebuildWallPreview() {
   // position (e.g. one column to the left of the primary), even though
   // placing one actually requires shifting every panel (see
   // shiftForCandidate()/placeAtCandidate() above).
+  // Only computed/shown while actively placing a new display ("+" was
+  // clicked - _wallPendingAdd) or dragging an existing one to reposition
+  // it (_wallDragFrom) - NOT permanently at rest. Showing them
+  // unconditionally (the previous behavior) meant that once 2+ panels
+  // existed, their combined neighbor cells routinely filled out the
+  // entire remaining hardware grid, recreating the exact "static 6-box
+  // grid" look a real report specifically objected to in the first place.
   const candidates = [];
-  const seenCandidate = new Set();
-  const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-  for (const p of panels) {
-    for (const [dx, dy] of DIRS) {
-      const gx = p.gx + dx, gy = p.gy + dy;
-      const key = gx + ',' + gy;
-      if (occupied.has(key) || seenCandidate.has(key)) continue;
-      seenCandidate.add(key);
-      const shift = shiftForCandidate(panels, gx, gy);
-      if (!shift) continue; // no room in that direction at all (e.g. both columns already full)
-      candidates.push({ gx, gy, shiftX: shift.shiftX, shiftY: shift.shiftY });
+  if (_wallPendingAdd || _wallDragFrom) {
+    const seenCandidate = new Set();
+    // Right-first: with only the primary placed, this is also the
+    // "default" placement (see the .default class below) - clicking "+"
+    // itself (rather than a specific outline) commits to whichever
+    // candidate is first, i.e. this one.
+    const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (const p of panels) {
+      for (const [dx, dy] of DIRS) {
+        const gx = p.gx + dx, gy = p.gy + dy;
+        const key = gx + ',' + gy;
+        if (occupied.has(key) || seenCandidate.has(key)) continue;
+        seenCandidate.add(key);
+        const shift = shiftForCandidate(panels, gx, gy);
+        if (!shift) continue; // no room in that direction at all (e.g. both columns already full)
+        candidates.push({ gx, gy, shiftX: shift.shiftX, shiftY: shift.shiftY });
+      }
     }
   }
 
-  const allCells = [...panels.map((p) => ({ ...p, filled: true })), ...candidates.map((c) => ({ ...c, filled: false }))];
+  const allCells = [
+    ...panels.map((p) => ({ ...p, filled: true })),
+    ...candidates.map((c, i) => ({ ...c, filled: false, isDefault: _wallPendingAdd && i === 0 })),
+  ];
   const minGx = Math.min(...allCells.map((c) => c.gx)), maxGx = Math.max(...allCells.map((c) => c.gx));
   const minGy = Math.min(...allCells.map((c) => c.gy)), maxGy = Math.max(...allCells.map((c) => c.gy));
   const cols = maxGx - minGx + 1, rows = maxGy - minGy + 1;
@@ -3007,10 +3059,10 @@ function rebuildWallPreview() {
   wallPreviewEl.style.height = (rows * cellSize) + 'px';
 
   for (const c of allCells) {
-    const { gx, gy, filled, shiftX, shiftY } = c;
+    const { gx, gy, filled, shiftX, shiftY, isDefault } = c;
     const idx = filled ? panels.findIndex((p) => p.gx === gx && p.gy === gy) : -1;
     const cell = document.createElement('div');
-    cell.className = 'wall-cell ' + (filled ? 'filled' : 'empty');
+    cell.className = 'wall-cell ' + (filled ? 'filled' : 'empty') + (isDefault ? ' default' : '');
     cell.style.left = ((gx - minGx) * cellSize) + 'px';
     cell.style.top = ((gy - minGy) * cellSize) + 'px';
     cell.style.width = (cellSize - 6) + 'px';
@@ -3031,8 +3083,17 @@ function rebuildWallPreview() {
       canvas.width = 256; canvas.height = 256; // fixed backing resolution per panel, same spirit as PANEL2D_OUT
       canvas.style.width = '100%'; canvas.style.height = '100%'; canvas.style.position = 'static';
       canvas.draggable = true;
+      // mousedown (fires before the native drag gesture actually starts,
+      // unlike dragstart) is what shows candidate outlines - rebuilding
+      // the WHOLE grid from inside dragstart itself would tear down and
+      // recreate the very element mid-drag, risking Chromium canceling
+      // the drag outright. By mousedown time nothing has started yet, so
+      // the fresh candidate cells + a freshly-bound dragstart listener on
+      // the recreated canvas are safely in place before the browser's
+      // actual drag gesture begins.
+      canvas.addEventListener('mousedown', () => { _wallDragFrom = { gx, gy }; rebuildWallPreview(); });
       canvas.addEventListener('dragstart', () => { _wallDragFrom = { gx, gy }; cell.classList.add('dragging'); });
-      canvas.addEventListener('dragend', () => cell.classList.remove('dragging'));
+      canvas.addEventListener('dragend', () => { _wallDragFrom = null; rebuildWallPreview(); });
       cell.appendChild(canvas);
       wallPanelCanvases[idx] = canvas.getContext('2d');
 
