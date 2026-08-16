@@ -514,7 +514,15 @@ function effectTron(core, dt) {
     // update bikes
     for (const bk of tronBikes) {
       if (!bk.alive) continue;
-      bk.acc += dt * bk.speed * speedOpt * (core.speedMult || 1);
+      // dt (passed in from app.js) is already pre-scaled by state.speed -
+      // multiplying by core.speedMult here as well double-applies the same
+      // speed setting (squaring it), unlike the browser original where dt
+      // is unscaled and speedMult is applied exactly once inside tron's own
+      // calc. At higher speed settings this caused many extra bike ticks
+      // per frame, each one running tronDecide()'s flood-fills - the more
+      // bikes, the more expensive each extra tick, compounding into the
+      // "still very slow with many bikes" report.
+      bk.acc += dt * bk.speed * speedOpt;
       while (bk.acc >= 1) {
         bk.acc -= 1;
         const newDir = tronDecide(core, bk, is2d, borderWalls);
