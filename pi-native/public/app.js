@@ -20,6 +20,17 @@
 //     wirePanelEditor()/wireCustomCubeEffectPanel()
 //   - renders a live 3D preview on the #c canvas from the binary per-face
 //     frames the WS server already streams for this purpose
+// Shown in the sidebar footer (#app-version, markup already present but
+// never populated - unlike the browser original's version.js/inline
+// APP_VERSION script). Kept in sync with pi-native/package.json's
+// "version" field by hand (no bundler here to read it from JSON at build
+// time). pi-native has no equivalent of the original's cache-busting
+// per-file query-string scheme to force-update against (wsServer.js
+// already sends Cache-Control: no-store on everything - see that file's
+// module comment), so clicking it is just a plain hard reload rather than
+// the original's cache-clearing dance.
+const APP_VERSION = '0.1.0';
+
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
   { pos: [0, 0, 1],  rot: [0, 0, 0] },
@@ -2311,30 +2322,75 @@ function wireCollapsibles() {
   });
 }
 
-// Sidebar-wide collapse/expand (the ◀ button in the sidebar header, and the
-// floating "show sidebar" button that appears once it's hidden) - present
-// in the markup/CSS (both copied verbatim from the browser original) but
-// never wired here, unlike ui.js's own version of this. Ported from ui.js's
-// "SIDEBAR COLLAPSE" section; resizeRenderer() (this file's equivalent of
-// ui.js's resize()) is called after the CSS width transition finishes so
-// the 3D preview/2D canvas immediately fills the space the sidebar freed up
-// or reclaimed, instead of staying sized for the old layout until the next
-// unrelated resize.
-function wireSidebarCollapse() {
+// Sidebar-wide menu system - the ◀ collapse button + floating "show
+// sidebar" button on desktop (#sidebar.hidden), and the ☰ #menu-toggle +
+// #sidebar-overlay slide-in/out on narrow/mobile viewports (#sidebar.open)
+// - present in the markup/CSS (all copied verbatim from the browser
+// original) but NONE of it was ever wired here, unlike ui.js's own
+// cube.js-based version of this. Ported from cube.js's "MENU TOGGLE"
+// section/ui.js's "SIDEBAR COLLAPSE" section (toggleMenu() there is the
+// same unified function both delegate to), with one deliberate behavior
+// change: the original started with the sidebar CLOSED on a narrow
+// viewport (`menuOpen = window.innerWidth > 768`) - this always starts
+// OPEN regardless of viewport width, per a real report that the sidebar
+// wasn't there to begin with on first load.
+let menuOpen = true;
+function updateSidebarOverlay() {
+  const overlay = document.getElementById('sidebar-overlay');
+  if (!overlay) return;
+  const isSmall = window.innerWidth <= 768;
+  overlay.style.display = (isSmall && menuOpen) ? 'block' : 'none';
+}
+function updateMenuToggleButton() {
   const sidebar = document.getElementById('sidebar');
+  const menuToggle = document.getElementById('menu-toggle');
+  if (!sidebar || !menuToggle) return;
+  const isSmall = window.innerWidth <= 768;
+  menuToggle.classList.toggle('show', isSmall);
+  if (isSmall) {
+    sidebar.classList.toggle('open', menuOpen);
+  } else {
+    sidebar.classList.remove('open');
+    sidebar.classList.toggle('hidden', !menuOpen);
+    const openBtn = document.getElementById('sidebar-open-btn');
+    if (openBtn) openBtn.classList.toggle('show', !menuOpen);
+  }
+  menuToggle.textContent = menuOpen ? '✕' : '☰';
+  updateSidebarOverlay();
+}
+function toggleMenu() {
+  menuOpen = !menuOpen;
+  updateMenuToggleButton();
+  updateSidebarOverlay();
+  // resizeRenderer() (this file's equivalent of ui.js's resize()) after
+  // the CSS width/transform transition finishes, so the 3D preview/2D
+  // canvas immediately fills the space the sidebar freed up or reclaimed
+  // instead of staying sized for the old layout until the next unrelated
+  // resize.
+  setTimeout(resizeRenderer, 550);
+}
+function wireVersionDisplay() {
+  const el = document.getElementById('app-version');
+  if (!el) return;
+  el.textContent = 'v' + APP_VERSION;
+  el.style.cursor = 'pointer';
+  el.title = 'Tap to reload';
+  el.addEventListener('click', () => location.reload());
+}
+
+function wireSidebarMenu() {
+  const sidebar = document.getElementById('sidebar');
+  const menuToggle = document.getElementById('menu-toggle');
   const collapseBtn = document.getElementById('sidebar-collapse-btn');
   const openBtn = document.getElementById('sidebar-open-btn');
-  if (!sidebar || !collapseBtn || !openBtn) return;
-  collapseBtn.addEventListener('click', () => {
-    sidebar.classList.add('hidden');
-    openBtn.classList.add('show');
-    setTimeout(resizeRenderer, 550);
-  });
-  openBtn.addEventListener('click', () => {
-    sidebar.classList.remove('hidden');
-    openBtn.classList.remove('show');
-    setTimeout(resizeRenderer, 550);
-  });
+  const overlay = document.getElementById('sidebar-overlay');
+  if (!sidebar) return;
+  if (menuToggle) menuToggle.addEventListener('click', toggleMenu);
+  if (collapseBtn) collapseBtn.addEventListener('click', () => { if (menuOpen) toggleMenu(); });
+  if (openBtn) openBtn.addEventListener('click', () => { if (!menuOpen) toggleMenu(); });
+  if (overlay) overlay.addEventListener('click', () => { if (menuOpen) toggleMenu(); });
+  window.addEventListener('resize', updateMenuToggleButton);
+  updateMenuToggleButton();
 }
 
 // ---------------------------------------------------------------------
@@ -2740,7 +2796,8 @@ function handleFrame(buf) {
 // created, so every click's send() no-op'd on `ws && ws.readyState===OPEN`.
 document.addEventListener('DOMContentLoaded', () => {
   wireCollapsibles();
-  wireSidebarCollapse();
+  wireSidebarMenu();
+  wireVersionDisplay();
   wirePanelButtons();
   wireSliders();
   wireBluetooth();
