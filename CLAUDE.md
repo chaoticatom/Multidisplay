@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Multidisplay is a 6-face RGB LED cube (64×64 per face) with a browser-based Three.js simulator that streams pixel frames over WebSocket to an ESP32-S3 driving HUB75 panels via DMA at 20 fps. The browser computes all effects in JavaScript; the ESP32 does no effect computation — it only receives and displays frames.
+**The ESP32+browser architecture described in most of this file is retired.** The project now runs on `pi-native/` - a Node.js app running directly on a Raspberry Pi, computing effects server-side and driving HUB75 panels via `rpi-led-matrix` (see the "Pi-native architecture" section below, and `pi-native/README.md`). The rest of this document (firmware/, build.sh, cube.js/ui.js/effects-*.js at the repo root, the WebSocket-to-ESP32 pipeline) is kept as historical reference for now, not current guidance - don't build against it.
 
-**Live demo**: https://chaoticatom.github.io/Multidisplay/ (simulator-only, no hardware streaming on HTTPS)
+Multidisplay is a 6-face RGB LED cube (64×64 per face). Originally: a browser-based Three.js simulator streaming pixel frames over WebSocket to an ESP32-S3 driving HUB75 panels via DMA at 20 fps, with the browser computing all effects in JavaScript. Now: pi-native computes effects and drives the panels directly from the Pi, with a thin browser control/preview UI (`pi-native/public/`) talking to it over WebSocket.
+
+**Live demo**: https://chaoticatom.github.io/Multidisplay/ - a browser-native build of the pi-native effect engine (bundled via `pi-native/sim/`, see `pi-native/sim/README.md`), running standalone with no Pi or server behind it. This is NOT the ESP32-architecture simulator that used to be deployed at this URL from the repo-root `index.html`/`ui.js`/`effects-*.js` files - those were removed when this took over the URL (see git history before that commit if you need them).
 
 ## Development
 

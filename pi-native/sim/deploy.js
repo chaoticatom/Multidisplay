@@ -2,16 +2,22 @@
 // simulator: sim-engine.js (via build.js), effects.json (static snapshot
 // of EFFECT_NAMES - wsServer.js serves this dynamically on the real Pi,
 // there's no server here to do that), and a copy of public/{index.html,
-// app.js, three.min.js, sim-loopback.js} into <repo root>/pi-sim/, with
-// index.html patched to load the two extra sim-only scripts and set
+// app.js, three.min.js, sim-loopback.js} into <repo root>, with index.html
+// patched to load the two extra sim-only scripts and set
 // window.MULTIDISPLAY_SIM before app.js runs. See sim/README.md.
+//
+// Deploys to the REPO ROOT (not a pi-sim/ subfolder) - the ESP32+browser
+// architecture this root URL used to serve is retired, this is the only
+// simulator now. The old root-level browser app files (ui.js, cube.js,
+// effects-*.js, sw.js/service-worker.js, three.part*.js) were removed in
+// the same commit that introduced this; if you're looking for that
+// architecture, it's still in git history before that commit.
 //
 // Run this (`node sim/deploy.js` from pi-native/) any time public/app.js,
 // public/index.html, src/core.js, src/tick.js, or anything under
-// src/effects/ changes - the deployed pi-sim/ folder is a build output,
-// not hand-edited, and needs regenerating + committing like any other
-// build artifact this project ships (see build.sh at the repo root for the
-// precedent - the original browser app's own asset bundling step).
+// src/effects/ changes - the deployed root files are a build output, not
+// hand-edited, and need regenerating + committing like any other build
+// artifact this project ships.
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
@@ -19,7 +25,7 @@ const { execFileSync } = require('child_process');
 const ROOT = path.join(__dirname, '..', '..'); // repo root
 const PI_NATIVE = path.join(__dirname, '..');
 const PUBLIC = path.join(PI_NATIVE, 'public');
-const DEPLOY = path.join(ROOT, 'pi-sim');
+const DEPLOY = ROOT;
 
 execFileSync(process.execPath, [path.join(__dirname, 'build.js')], { stdio: 'inherit' });
 

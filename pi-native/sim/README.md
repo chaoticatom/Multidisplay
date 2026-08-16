@@ -1,7 +1,8 @@
 # Browser-native simulator (GitHub Pages)
 
 Lets you preview pi-native effects from a desktop browser with no Pi
-connected at all - deployed at `/Multidisplay/pi-sim/` on GitHub Pages.
+connected at all - deployed at the repo root on GitHub Pages
+(`https://chaoticatom.github.io/Multidisplay/`).
 
 ## Why this exists, and what it is NOT
 
@@ -11,10 +12,14 @@ computes every effect frame server-side. That page has nothing to talk to
 without a Pi running, so it can't just be copied to GitHub Pages (a static
 host - no Node process behind it) and expected to work.
 
-This is **not** the original browser-only simulator at the repo root
-(`index.html`/`effects-*.js`/`ui.js`, deployed at `/Multidisplay/`) - that's
-a separate, older codebase that computes effects differently and predates
-pi-native. This one runs the actual pi-native effect engine.
+This is **not** the original ESP32+browser architecture's simulator
+(`index.html`/`effects-*.js`/`ui.js`, which used to be deployed at this
+same root URL) - that was a separate, older codebase that computed effects
+differently, for a different physical architecture (browser -> ESP32 over
+WebSocket, no Pi involved). That architecture is retired; its source files
+were removed from the repo root when this simulator took over the URL (see
+git history before the commit that did that if you need them). This one
+runs the actual pi-native effect engine.
 
 ## How it works
 
@@ -56,12 +61,10 @@ node sim/deploy.js
 ```
 
 Regenerates `public/sim-engine.js` + `public/effects.json`, then writes a
-full static copy into `<repo root>/pi-sim/` (index.html patched to load
+full static copy into `<repo root>` (index.html patched to load
 `sim-engine.js`/`sim-loopback.js` and set `window.MULTIDISPLAY_SIM` before
-`app.js` runs). `pi-sim/` is committed directly (same "no CI build step,
-built output lives in git" precedent as the root simulator's
-`three.min.js` - see the top-level `build.sh`) - GitHub Pages serves it
-as-is once pushed to `main`.
+`app.js` runs). The repo-root copies are committed directly (no CI build
+step for this repo) - GitHub Pages serves them as-is once pushed to `main`.
 
 **Run this again, and commit the result, any time you change**
 `public/app.js`, `public/index.html`, `src/core.js`, `src/tick.js`, or

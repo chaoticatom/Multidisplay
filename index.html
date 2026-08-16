@@ -1,10 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>RGB LED Cube</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multidisplay</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #000; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; color: #eee; }
@@ -118,6 +117,7 @@
   }
   .size-btn:hover { background: rgba(80,120,255,0.15); color: #ccd; }
   .size-btn.active { background: rgba(80,120,255,0.25); border-color: rgba(100,160,255,0.6); color: #7aadff; }
+  #clear-all-btn.active { background: rgba(255,60,60,0.35); border-color: rgba(255,100,100,0.7); color: #fff; }
 
   .effect-btn {
     display: block; width: 100%; padding: 7px 10px; margin-bottom: 4px;
@@ -368,27 +368,86 @@
     display: none; position: fixed; inset: 0; z-index: 9;
     background: rgba(0,0,0,0.35);
   }
+
+  /* --- pi-native additions: 3D preview canvas host + not-ported greying --- */
+  #canvas-wrap { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+  .not-ported, .pi-unsupported input, .pi-unsupported button:not(.section-head):not(.sub-head),
+  button.not-ported, .effect-btn.not-ported {
+    opacity: 0.32 !important; pointer-events: none; filter: grayscale(60%);
+  }
+  .pi-unsupported-note {
+    font-size: 10px; color: #667; margin: 0 0 8px; line-height: 1.4; font-style: italic;
+  }
+  /* Ported from the original app's #panel2d-canvas (ui.js) - a plain 2D
+     canvas used for 2D-panel mode instead of the WebGL cube, since a
+     single flat panel doesn't need 3D at all. */
+  #panel2d-canvas {
+    display: none; position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%); image-rendering: pixelated;
+  }
+  /* Wall-mode preview/editor, lives in the main canvas area (right of the
+     sidebar), not tucked away in a sidebar section - shows the actual
+     live per-panel feeds AND doubles as the drag-and-drop layout editor,
+     so placing a new panel above/below/left/right of an existing one
+     happens right where you can see the real content. A fixed
+     WALL_MAX_COLS x WALL_MAX_ROWS grid (panelConfig.js) of cells: filled
+     ones are live-updating canvases (draggable, with a × to remove),
+     empty ones are dashed drop-targets/click-to-add-here placeholders -
+     see app.js's rebuildWallPreview(). */
+  #wall-preview {
+    display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  }
+  #wall-preview canvas { position: absolute; image-rendering: pixelated; border: 1px solid rgba(80,120,255,0.25); border-radius: 4px; }
+  /* Always visible (not gated on wall mode) - this is the entry point for
+     switching INTO wall mode in the first place, from whatever view
+     (cube/2D) is currently showing; the full editing grid (#wall-preview)
+     only appears once wall mode is actually active. */
+  #wall-toolbar {
+    display: flex; position: absolute; top: 18px; right: 18px; z-index: 6;
+    align-items: center; gap: 8px; background: rgba(10,10,20,0.75); backdrop-filter: blur(6px);
+    border: 1px solid rgba(80,120,255,0.3); border-radius: 8px; padding: 8px 10px;
+  }
+  #wall-toolbar span { font-size: 11px; color: #7aadff; letter-spacing: 0.5px; }
+  #wall-add-btn {
+    width: 28px; height: 28px; padding: 0; background: rgba(80,120,255,0.18);
+    border: 1px solid rgba(80,120,255,0.4); color: #7aadff; border-radius: 6px;
+    cursor: pointer; font-size: 17px; line-height: 1;
+  }
+  #wall-add-btn:hover { background: rgba(80,120,255,0.3); }
+  /* Cube mode with fewer physical panels wired than the 3D preview shows
+     (see panelConfig.js's physicalCubePanels/wsServer.js's
+     setPhysicalCubePanels) - a real report asked for exactly this, no
+     original-app equivalent since the browser+ESP32 architecture always
+     assumed a full physical cube. */
+  #sim-banner {
+    display: none; position: absolute; top: 18px; left: 18px; z-index: 6;
+    max-width: 320px; font-size: 12px; line-height: 1.4; color: #ffcf7a;
+    background: rgba(50,30,0,0.75); backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,180,60,0.4); border-radius: 8px; padding: 8px 12px;
+  }
+  .wall-cell {
+    position: absolute; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: #667; user-select: none; box-sizing: border-box;
+  }
+  .wall-cell.empty {
+    border: 2px dashed rgba(120,140,180,0.35); cursor: pointer;
+  }
+  .wall-cell.empty:hover { border-color: rgba(120,170,255,0.75); background: rgba(80,120,255,0.1); }
+  .wall-cell.empty::after { content: '+'; font-size: 26px; color: rgba(120,140,180,0.5); }
+  .wall-cell.empty:hover::after { color: rgba(120,170,255,0.9); }
+  .wall-cell.filled {
+    cursor: grab;
+  }
+  .wall-cell.filled.dragging { opacity: 0.4; }
+  .wall-cell.drop-target { border-color: #7aadff !important; background: rgba(80,120,255,0.3); }
+  .wall-cell .wall-remove {
+    position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; border-radius: 50%;
+    background: #2a0a0a; border: 1px solid rgba(255,100,100,0.6); color: #f88; font-size: 12px;
+    line-height: 18px; text-align: center; cursor: pointer; z-index: 1;
+  }
 </style>
-<meta name="theme-color" content="#000308">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
-
-<!-- ═══ LOADING OVERLAY ═══ -->
-<div id="loading-overlay">
-  <div class="ld-inner">
-    <div class="ld-spinner"></div>
-    <div>Loading 3D engine…</div>
-  </div>
-</div>
-
-<!-- ═══ MOBILE MENU CLOSE OVERLAY ═══ -->
-<div id="sidebar-overlay"></div>
-
-
-<!-- ═══ SIDEBAR ═══ -->
-<button id="sidebar-open-btn" title="Open Menu">☰</button>
 <div id="sidebar">
   <button id="menu-toggle" title="Toggle Menu">☰</button>
   <div id="sidebar-header" style="display:flex;align-items:center;gap:0;">
@@ -413,15 +472,6 @@
     <button id="clear-all-btn" style="flex:1;padding:9px 10px;background:rgba(255,60,60,0.1);border:1px solid rgba(255,60,60,0.25);color:#f77;border-radius:5px;cursor:pointer;font-size:13px;letter-spacing:1px;text-transform:uppercase;transition:all 0.2s;text-align:center;">✕ Clear All</button>
   </div>
 
-  <div id="standalone-mode-bar" style="padding:8px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;">
-    <label class="check-row" style="display:flex;align-items:center;justify-content:space-between;">
-      <span>🔌 Standalone</span>
-      <span class="ov-toggle"><input type="checkbox" id="standalone-mode-chk"><span class="ov-slider"></span></span>
-    </label>
-    <div id="standalone-mode-note" style="display:none;font-size:11px;line-height:1.4;color:#9ab;margin-top:6px;">
-      Fully disconnects this browser from the physical cube — nothing you do here (effects, brightness, speed, overlays) reaches the ESP32 while this is on, so it keeps running whatever it's already showing, completely on its own. Every effect and overlay still works normally here for local preview. Untick to reconnect and resume control immediately.
-    </div>
-  </div>
 
   <div id="sidebar-scroll">
 
@@ -811,6 +861,16 @@
       <div id="cam-status" style="font-size:10px;color:#777;margin-top:4px">Idle</div>
     </div>
 
+    <button class="effect-btn has-panel" data-effect="epic">◈ Earth Live View <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-epic">
+      <div id="epic-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Not fetched yet</div>
+      <button id="epic-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh Earth Image</button>
+      <div id="epic-info" style="display:none;font-size:11px;color:#ccc;line-height:1.5;">
+        <div id="epic-date-line">Captured: —</div>
+        <div id="epic-coord-line"></div>
+      </div>
+    </div>
+
     </div>
     </div>
     <div class="sub-section collapsed">
@@ -915,6 +975,14 @@
       </div>
       <input type="file" id="vid-file-input" accept="video/*" style="display:none;">
       <input type="file" id="img-file-input" accept="image/*" style="display:none;">
+      <!-- Pi-native addition: the file/screen/webcam buttons above have no
+           server-side equivalent (no browser, no local file picker) - this
+           app decodes a real video from a URL via ffmpeg instead. See
+           src/effects/video.js's module comment. -->
+      <label class="ov-label" style="display:block;margin:8px 0;">Video URL (decoded via ffmpeg on the Pi)
+        <input id="vid-url" type="text" style="width:100%;margin-top:4px;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:5px 7px;font-size:11px;box-sizing:border-box" placeholder="https://example.com/video.mp4">
+      </label>
+      <button id="vid-load-btn" style="width:100%;padding:6px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">▶ Load</button>
       <div class="ov-row-label">Brightness</div>
       <div class="slider-row"><input type="range" id="vid-bright" min="0.1" max="2" step="0.05" value="1" style="flex:1;"><span class="slider-val" id="vid-bright-val">1×</span></div>
       <div class="ov-row-label" style="margin-top:6px;">Saturation</div>
@@ -928,68 +996,10 @@
         <button class="vid-layout-btn" data-layout="tile">Tile</button>
         <button class="vid-layout-btn" data-layout="perspective">Perspective</button>
       </div>
-
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
-        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="ov-chk" data-ov="spectrum">Spectrum Analyser</label>
-        <div class="ov-options-el" data-ov="spectrum" style="display:none;">
-        <div class="ov-row-label">Bands</div>
-        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-          <button class="spectrum-bands-btn" data-bands="8">8</button>
-          <button class="spectrum-bands-btn" data-bands="16">16</button>
-          <button class="spectrum-bands-btn" data-bands="32">32</button>
-          <button class="spectrum-bands-btn active" data-bands="64">64</button>
-          <button class="spectrum-bands-btn" data-bands="128">128</button>
-          <button class="spectrum-bands-btn" data-bands="256">256</button>
-        </div>
-        <div class="ov-row-label">Style</div>
-        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-          <button class="au-style-btn active" data-austyle="bars">Bars</button>
-          <button class="au-style-btn" data-austyle="mirror">Mirror</button>
-          <button class="au-style-btn" data-austyle="dots">Dots</button>
-          <button class="au-style-btn" data-austyle="blocks">Blocks</button>
-          <button class="au-style-btn" data-austyle="outline">Outline</button>
-          <button class="au-style-btn" data-austyle="radial">Radial</button>
-          <button class="au-style-btn" data-austyle="vu">VU</button>
-          <button class="au-style-btn" data-austyle="waterfall">Waterfall</button>
-          <button class="au-style-btn" data-austyle="waveform">Waveform</button>
-          <button class="au-style-btn" data-austyle="tunnel">Tunnel</button>
-          <button class="au-style-btn" data-austyle="storm">Storm</button>
-          <button class="au-style-btn" data-austyle="plasma">Plasma</button>
-          <button class="au-style-btn" data-austyle="rings">Rings</button>
-          <button class="au-style-btn" data-austyle="fire">Fire</button>
-        </div>
-        <div class="ov-row-label">Colour Theme</div>
-        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-          <button class="au-theme-btn" data-autheme="0">Rainbow</button>
-          <button class="au-theme-btn" data-autheme="1">Fire</button>
-          <button class="au-theme-btn" data-autheme="2">Ocean</button>
-          <button class="au-theme-btn" data-autheme="3">Neon</button>
-          <button class="au-theme-btn" data-autheme="4">Matrix</button>
-          <button class="au-theme-btn" data-autheme="5">Pastel</button>
-          <button class="au-theme-btn active" data-autheme="6">VU Meter</button>
-        </div>
-        <div class="ov-row-label">Bar Mode</div>
-        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-          <button class="au-barmode-btn active" data-barmode="solid">Solid</button>
-          <button class="au-barmode-btn" data-barmode="striped">Striped</button>
-          <button class="au-barmode-btn" data-barmode="center">Center</button>
-          <button class="au-barmode-btn" data-barmode="falling">Falling</button>
-          <button class="au-barmode-btn" data-barmode="stacked">Stacked</button>
-          <button class="au-barmode-btn" data-barmode="wave">Wave</button>
-        </div>
-        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
-        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="au-autogain-el">AUTO GAIN</label>
-        <div class="ov-row-label">Gain</div>
-        <div class="slider-row">
-          <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
-          <span class="slider-val au-gain-val-el">1.0×</span>
-        </div>
-        <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
-        <div class="slider-row">
-          <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
-          <span class="slider-val au-scroll-speed-val-el">0</span>
-        </div>
-        </div>
+      <div class="ov-row-label" style="margin-top:6px;">Fit</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(2,1fr);">
+        <button class="vid-fit-btn active" data-fit="stretch">Stretch</button>
+        <button class="vid-fit-btn" data-fit="contain">Native Ratio</button>
       </div>
 
     </div>
@@ -1000,69 +1010,6 @@
         <div style="font-size:10px;color:#666;margin-bottom:8px;">Accept an incoming Bluetooth audio connection from a phone so it can play through the cube. Requires <code>pi/bluetooth_server.py</code> running on the Raspberry Pi — see <code>pi/README.md</code>. Not available on your laptop or GitHub Pages.</div>
         <button class="bt-discoverable-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Accept Bluetooth Audio Connection</button>
         <div class="bt-phone-status-el" style="font-size:10px;color:#778;">Not set up yet</div>
-
-        <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
-          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="ov-chk" data-ov="spectrum">Spectrum Analyser</label>
-          <div class="ov-options-el" data-ov="spectrum" style="display:none;">
-          <div class="ov-row-label">Bands</div>
-          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-            <button class="spectrum-bands-btn" data-bands="8">8</button>
-            <button class="spectrum-bands-btn" data-bands="16">16</button>
-            <button class="spectrum-bands-btn" data-bands="32">32</button>
-            <button class="spectrum-bands-btn active" data-bands="64">64</button>
-            <button class="spectrum-bands-btn" data-bands="128">128</button>
-            <button class="spectrum-bands-btn" data-bands="256">256</button>
-          </div>
-          <div class="ov-row-label">Style</div>
-          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-            <button class="au-style-btn active" data-austyle="bars">Bars</button>
-            <button class="au-style-btn" data-austyle="mirror">Mirror</button>
-            <button class="au-style-btn" data-austyle="dots">Dots</button>
-            <button class="au-style-btn" data-austyle="blocks">Blocks</button>
-            <button class="au-style-btn" data-austyle="outline">Outline</button>
-            <button class="au-style-btn" data-austyle="radial">Radial</button>
-            <button class="au-style-btn" data-austyle="vu">VU</button>
-            <button class="au-style-btn" data-austyle="waterfall">Waterfall</button>
-            <button class="au-style-btn" data-austyle="waveform">Waveform</button>
-            <button class="au-style-btn" data-austyle="tunnel">Tunnel</button>
-            <button class="au-style-btn" data-austyle="storm">Storm</button>
-            <button class="au-style-btn" data-austyle="plasma">Plasma</button>
-            <button class="au-style-btn" data-austyle="rings">Rings</button>
-            <button class="au-style-btn" data-austyle="fire">Fire</button>
-          </div>
-          <div class="ov-row-label">Colour Theme</div>
-          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-            <button class="au-theme-btn" data-autheme="0">Rainbow</button>
-            <button class="au-theme-btn" data-autheme="1">Fire</button>
-            <button class="au-theme-btn" data-autheme="2">Ocean</button>
-            <button class="au-theme-btn" data-autheme="3">Neon</button>
-            <button class="au-theme-btn" data-autheme="4">Matrix</button>
-            <button class="au-theme-btn" data-autheme="5">Pastel</button>
-            <button class="au-theme-btn active" data-autheme="6">VU Meter</button>
-          </div>
-          <div class="ov-row-label">Bar Mode</div>
-          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-            <button class="au-barmode-btn active" data-barmode="solid">Solid</button>
-            <button class="au-barmode-btn" data-barmode="striped">Striped</button>
-            <button class="au-barmode-btn" data-barmode="center">Center</button>
-            <button class="au-barmode-btn" data-barmode="falling">Falling</button>
-            <button class="au-barmode-btn" data-barmode="stacked">Stacked</button>
-            <button class="au-barmode-btn" data-barmode="wave">Wave</button>
-          </div>
-          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
-          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="au-autogain-el">AUTO GAIN</label>
-          <div class="ov-row-label">Gain</div>
-          <div class="slider-row">
-            <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
-            <span class="slider-val au-gain-val-el">1.0×</span>
-          </div>
-          <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
-          <div class="slider-row">
-            <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
-            <span class="slider-val au-scroll-speed-val-el">0</span>
-          </div>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -1074,69 +1021,6 @@
         <div class="mic-status-el" style="font-size:10px;color:#778;margin-bottom:6px;text-align:center;"></div>
         <button class="phone-audio-btn-el" style="width:100%;padding:6px;margin-bottom:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">📱 Use Phone (Bluetooth)</button>
         <div class="phone-audio-status-el" style="font-size:10px;color:#778;text-align:center;"></div>
-
-        <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
-          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="ov-chk" data-ov="spectrum">Spectrum Analyser</label>
-          <div class="ov-options-el" data-ov="spectrum" style="display:none;">
-          <div class="ov-row-label">Bands</div>
-          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-            <button class="spectrum-bands-btn" data-bands="8">8</button>
-            <button class="spectrum-bands-btn" data-bands="16">16</button>
-            <button class="spectrum-bands-btn" data-bands="32">32</button>
-            <button class="spectrum-bands-btn active" data-bands="64">64</button>
-            <button class="spectrum-bands-btn" data-bands="128">128</button>
-            <button class="spectrum-bands-btn" data-bands="256">256</button>
-          </div>
-          <div class="ov-row-label">Style</div>
-          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-            <button class="au-style-btn active" data-austyle="bars">Bars</button>
-            <button class="au-style-btn" data-austyle="mirror">Mirror</button>
-            <button class="au-style-btn" data-austyle="dots">Dots</button>
-            <button class="au-style-btn" data-austyle="blocks">Blocks</button>
-            <button class="au-style-btn" data-austyle="outline">Outline</button>
-            <button class="au-style-btn" data-austyle="radial">Radial</button>
-            <button class="au-style-btn" data-austyle="vu">VU</button>
-            <button class="au-style-btn" data-austyle="waterfall">Waterfall</button>
-            <button class="au-style-btn" data-austyle="waveform">Waveform</button>
-            <button class="au-style-btn" data-austyle="tunnel">Tunnel</button>
-            <button class="au-style-btn" data-austyle="storm">Storm</button>
-            <button class="au-style-btn" data-austyle="plasma">Plasma</button>
-            <button class="au-style-btn" data-austyle="rings">Rings</button>
-            <button class="au-style-btn" data-austyle="fire">Fire</button>
-          </div>
-          <div class="ov-row-label">Colour Theme</div>
-          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-            <button class="au-theme-btn" data-autheme="0">Rainbow</button>
-            <button class="au-theme-btn" data-autheme="1">Fire</button>
-            <button class="au-theme-btn" data-autheme="2">Ocean</button>
-            <button class="au-theme-btn" data-autheme="3">Neon</button>
-            <button class="au-theme-btn" data-autheme="4">Matrix</button>
-            <button class="au-theme-btn" data-autheme="5">Pastel</button>
-            <button class="au-theme-btn active" data-autheme="6">VU Meter</button>
-          </div>
-          <div class="ov-row-label">Bar Mode</div>
-          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-            <button class="au-barmode-btn active" data-barmode="solid">Solid</button>
-            <button class="au-barmode-btn" data-barmode="striped">Striped</button>
-            <button class="au-barmode-btn" data-barmode="center">Center</button>
-            <button class="au-barmode-btn" data-barmode="falling">Falling</button>
-            <button class="au-barmode-btn" data-barmode="stacked">Stacked</button>
-            <button class="au-barmode-btn" data-barmode="wave">Wave</button>
-          </div>
-          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
-          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="au-autogain-el">AUTO GAIN</label>
-          <div class="ov-row-label">Gain</div>
-          <div class="slider-row">
-            <input type="range" class="au-gain-el" min="0.2" max="3" step="0.1" value="1" style="flex:1;">
-            <span class="slider-val au-gain-val-el">1.0×</span>
-          </div>
-          <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
-          <div class="slider-row">
-            <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
-            <span class="slider-val au-scroll-speed-val-el">0</span>
-          </div>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -1238,6 +1122,7 @@
     <button class="sub-head">Scenes &amp; Lighting <span class="chev">▾</span></button>
     <div class="sub-body">
     <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
+    <button class="effect-btn" data-effect="easter_egg">◈ Easter Egg</button>
     <button class="effect-btn has-panel" data-effect="custom_cube">◈ Custom Cube <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-custom_cube">
       <div class="ov-row-label">Saved Cubes</div>
@@ -1617,6 +1502,17 @@
   <div class="sidebar-section collapsed">
     <button class="section-head">◈ Setup <span class="chev">▾</span></button>
     <div class="section-body">
+      <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">📦 Physical Cube Panels</div>
+      <div style="font-size:10px;color:#666;margin-bottom:8px;">How many of the 6 cube faces are actually wired to real HUB75 panels. The 3D preview always shows all 6 faces (in "Cube" mode); if fewer are actually connected, the rest of the cube is showing in simulation only, and this cube view flags that.</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:8px;">
+        <button class="physical-panels-btn" data-count="1">1</button>
+        <button class="physical-panels-btn" data-count="2">2</button>
+        <button class="physical-panels-btn" data-count="3">3</button>
+        <button class="physical-panels-btn" data-count="4">4</button>
+        <button class="physical-panels-btn" data-count="5">5</button>
+        <button class="physical-panels-btn active" data-count="6">6</button>
+      </div>
+
       <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">🔊 Bluetooth Speaker (Pi only)</div>
       <div style="font-size:10px;color:#666;margin-bottom:8px;">Requires <code>pi/bluetooth_server.py</code> running on the Raspberry Pi — see <code>pi/README.md</code>. Not available when running on your laptop or GitHub Pages. Used for Internet Radio audio output.</div>
       <div style="display:flex;gap:6px;margin-bottom:6px;">
@@ -1638,8 +1534,6 @@
 
 
 
-
-
   </div><!-- end sidebar-scroll -->
   <div id="sidebar-footer">
     <span id="cube-label" style="position:static;font-size:12px;color:#7aadff;letter-spacing:1px;">64×64</span>
@@ -1649,7 +1543,12 @@
 </div>
 
 
-<!-- ── ALARM EDITOR MODAL ── -->
+<!-- Timer editor modal, copied verbatim from the browser app's index.html
+     (alarm-modal, lines ~1653-1799 there) - see public/app.js's
+     wireAlarmModal()/openAlarmEditor() for the JS driving these #al-*
+     fields. al-playlist-row/al-type-playlist stay in the markup (matching
+     the browser 1:1) but are permanently disabled - see app.js's module
+     comment on the playlist-trigger-type scope boundary. -->
 <div id="alarm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:2000;overflow-y:auto;padding:16px;">
   <div style="max-width:380px;margin:0 auto;background:#07251f;border:1px solid rgba(80,120,255,0.4);border-radius:10px;padding:18px;">
     <div style="font-size:16px;color:#7aadff;font-weight:700;letter-spacing:1px;margin-bottom:16px;" id="alarm-modal-title">TIMER EDITOR</div>
@@ -1707,7 +1606,7 @@
       <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">TRIGGER</label>
       <div style="display:flex;gap:6px;margin:4px 0 10px;">
         <button id="al-type-effect" class="al-type-btn active" style="flex:1;padding:8px;background:rgba(80,120,255,0.2);border:1px solid rgba(80,120,255,0.5);color:#7aadff;border-radius:4px;cursor:pointer;font-size:13px;font-weight:700;">⚡ EFFECT</button>
-        <button id="al-type-playlist" class="al-type-btn" style="flex:1;padding:8px;background:rgba(30,40,80,0.4);border:1px solid rgba(80,120,255,0.2);color:#668;border-radius:4px;cursor:pointer;font-size:13px;font-weight:700;">▶ PLAYLIST</button>
+        <button id="al-type-playlist" class="al-type-btn" style="flex:1;padding:8px;background:rgba(30,40,80,0.4);border:1px solid rgba(80,120,255,0.2);color:#668;border-radius:4px;cursor:not-allowed;font-size:13px;font-weight:700;opacity:0.4;" disabled title="Playlists aren't ported to pi-native - see app.js's module comment.">▶ PLAYLIST</button>
       </div>
 
       <div id="al-effect-row">
@@ -1719,7 +1618,7 @@
 
       <div id="al-playlist-row" style="display:none;">
         <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">PLAYLIST</label>
-        <select id="al-playlist" style="width:100%;margin:5px 0 8px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;"><option value="">— none —</option></select>
+        <select id="al-playlist" disabled style="width:100%;margin:5px 0 8px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;"><option value="">— none —</option></select>
       </div>
 
       <!-- Pre-alarm: wake up -->
@@ -1744,23 +1643,6 @@
             <span class="ov-toggle" style="margin-left:0;"><input type="checkbox" id="al-giant-sun-chk"><span class="ov-slider"></span></span>
             <span style="font-size:12px;color:#9cd;font-weight:600;">Giant Sun Rise</span>
           </label>
-          <!-- Effect toggle -->
-          <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;">
-            <span class="ov-toggle" style="margin-left:0;"><input type="checkbox" id="al-effect-rise-chk"><span class="ov-slider"></span></span>
-            <span style="font-size:12px;color:#9cd;font-weight:600;">Effect Rise</span>
-          </label>
-          <!-- Effect chooser -->
-          <div id="al-effect-rise-opts" style="display:none;margin-bottom:6px;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px;">
-            <select id="al-effect-rise-select" style="width:100%;padding:5px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:12px;border-radius:4px;margin-bottom:6px;"></select>
-            <div id="al-effect-rise-city-row" style="display:none;">
-              <label style="font-size:11px;color:#99b;display:block;margin-bottom:3px;">City</label>
-              <div style="position:relative;">
-                <input id="al-effect-rise-city" type="text" placeholder="Search cities…" style="width:100%;padding:5px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:12px;border-radius:4px;">
-                <div id="al-effect-rise-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:120px;overflow-y:auto;z-index:1000;margin-top:2px;"></div>
-              </div>
-            </div>
-            <div id="al-effect-rise-effect-opts" style="display:none;margin-top:6px;"></div>
-          </div>
         </div>
       </div>
       </div>
@@ -1798,268 +1680,19 @@
   </div>
 </div>
 
-<!-- ═══ CANVAS ═══ (moved below, first child of body via script) -->
-<div id="canvas-wrap" style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:1;">
-  <canvas id="c"></canvas>
-  <div id="face-labels" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;"></div>
-  <div id="effect-label"><span id="el-effect">Wave Cascade</span> <span id="el-meta" style="font-size:11px;opacity:0.6;margin-left:8px;">64×64 · 60fps</span></div>
-  <div id="hint">drag to rotate · scroll to zoom</div>
-  <div id="version-label" style="position:absolute;bottom:8px;left:8px;font-size:11px;color:rgba(180,210,255,0.85);z-index:10;cursor:pointer;user-select:none;padding:6px 10px;" title="Tap to force update"></div>
-</div>
-
-
-<div id="pl-modal"></div>
-
-<!-- Custom Graphics Editor -->
-<div id="cg-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
-  <div style="background:#1a2a4a;border:2px solid rgba(100,150,255,0.4);border-radius:8px;padding:20px;max-width:90%;max-height:90%;overflow:auto;color:#aaf;font-family:monospace;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
-      <h2 style="margin:0;font-size:16px;color:#7aadff;">CUSTOM GRAPHICS EDITOR</h2>
-      <button id="cg-close-btn" style="background:none;border:1px solid #7aadff;color:#7aadff;padding:4px 8px;cursor:pointer;">×</button>
-    </div>
-    
-    <div style="display:grid;grid-template-columns:1fr 250px;gap:15px;">
-      <!-- Canvas area -->
-      <div style="border:1px solid rgba(100,150,255,0.3);padding:10px;background:#0a1a3a;">
-        <div style="margin-bottom:10px;">
-          <label style="display:block;margin-bottom:5px;font-size:12px;">SELECT FACE:</label>
-          <div style="display:flex;gap:5px;flex-wrap:wrap;">
-            <button class="cg-face-btn" data-face="0" style="width:40px;height:40px;background:#2a3a5a;border:2px solid #555;cursor:pointer;color:#aaf;font-size:11px;">Front</button>
-            <button class="cg-face-btn" data-face="1" style="width:40px;height:40px;background:#2a3a5a;border:2px solid #555;cursor:pointer;color:#aaf;font-size:11px;">Back</button>
-            <button class="cg-face-btn" data-face="2" style="width:40px;height:40px;background:#2a3a5a;border:2px solid #555;cursor:pointer;color:#aaf;font-size:11px;">Right</button>
-            <button class="cg-face-btn" data-face="3" style="width:40px;height:40px;background:#2a3a5a;border:2px solid #555;cursor:pointer;color:#aaf;font-size:11px;">Left</button>
-            <button class="cg-face-btn" data-face="4" style="width:40px;height:40px;background:#2a3a5a;border:2px solid #555;cursor:pointer;color:#aaf;font-size:11px;">Top</button>
-            <button class="cg-face-btn" data-face="5" style="width:40px;height:40px;background:#2a3a5a;border:2px solid #555;cursor:pointer;color:#aaf;font-size:11px;">Bot</button>
-          </div>
-        </div>
-        <canvas id="cg-canvas" width="256" height="256" style="border:1px solid #7aadff;background:#000;display:block;cursor:crosshair;"></canvas>
-      </div>
-      
-      <!-- Tools panel -->
-      <div style="display:flex;flex-direction:column;gap:10px;">
-        <div>
-          <label style="display:block;font-size:12px;margin-bottom:3px;">TOOL:</label>
-          <select id="cg-tool" style="width:100%;background:#1a3a5a;color:#aaf;border:1px solid #7aadff;padding:5px;">
-            <option value="pen">Pen</option>
-            <option value="line">Line</option>
-            <option value="rect">Rectangle</option>
-            <option value="circle">Circle</option>
-            <option value="fill">Fill Bucket</option>
-            <option value="eraser">Eraser</option>
-          </select>
-        </div>
-        
-        <div>
-          <label style="display:block;font-size:12px;margin-bottom:3px;">COLOUR:</label>
-          <input type="color" id="cg-colour" value="#ff6600" style="width:100%;height:30px;cursor:pointer;border:1px solid #7aadff;">
-        </div>
-        
-        <div>
-          <label style="display:block;font-size:12px;margin-bottom:3px;">BRUSH SIZE:</label>
-          <input type="range" id="cg-brush-size" min="1" max="20" value="3" style="width:100%;">
-          <span id="cg-brush-label" style="font-size:11px;">3px</span>
-        </div>
-        
-        <div style="border-top:1px solid rgba(100,150,255,0.3);padding-top:10px;">
-          <button id="cg-clear-btn" style="width:100%;background:#2a3a5a;border:1px solid #7aadff;color:#aaf;padding:6px;margin-bottom:5px;cursor:pointer;font-size:11px;">CLEAR FACE</button>
-          <button id="cg-undo-btn" style="width:100%;background:#2a3a5a;border:1px solid #7aadff;color:#aaf;padding:6px;margin-bottom:5px;cursor:pointer;font-size:11px;">UNDO</button>
-          <button id="cg-save-btn" style="width:100%;background:#2a5a3a;border:1px solid #7aadff;color:#7f7;padding:6px;margin-bottom:5px;cursor:pointer;font-size:11px;font-weight:bold;">💾 SAVE DESIGN</button>
-        </div>
-      </div>
-    </div>
-    
-    <div style="margin-top:15px;padding-top:10px;border-top:1px solid rgba(100,150,255,0.3);font-size:11px;color:#88f;">
-      <p style="margin:0;">Select a face, draw with your chosen tool, then SAVE to name and store your design.</p>
-    </div>
+<div id="canvas-wrap">
+  <canvas id="c"></canvas><canvas id="panel2d-canvas"></canvas><div id="wall-preview"></div>
+  <div id="wall-toolbar">
+    <span>Displays</span>
+    <button id="wall-add-btn" title="Add a display at the first open spot">+</button>
   </div>
+  <div id="sim-banner">⚠ Simulation — only <span id="sim-banner-count"></span> face(s) are on real hardware, the rest is preview only</div>
 </div>
 
-<!-- Hidden video pipeline for Video Display effect -->
-<video id="vid-el" autoplay muted playsinline style="position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;"></video>
-<canvas id="vid-cv" style="display:none;"></canvas>
-
-<!-- ═══ VERSION ═══ -->
-<script>const APP_VERSION = 'v2026.07.28.889';</script>
-<script>
-function showVersion(){var v=document.getElementById('version-label');if(v&&typeof APP_VERSION!=='undefined')v.textContent=APP_VERSION;else setTimeout(showVersion,500);}
-setTimeout(showVersion,1000);
-(function(){
-  var v = document.getElementById('version-label');
-  if (!v) return;
-  var busy = false;
-  function forceUpdate(e){
-    if (e) { e.preventDefault(); e.stopPropagation(); }
-    if (busy) return;
-    busy = true;
-    v.textContent = 'Clearing…';
-    Promise.resolve().then(async () => {
-      try {
-        if (window.caches) {
-          const ks = await caches.keys();
-          await Promise.all(ks.map(k => caches.delete(k)));
-        }
-        if (navigator.serviceWorker) {
-          const regs = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(regs.map(r => r.unregister()));
-        }
-      } catch (err) { /* ignore, still reload */ }
-      location.href = location.pathname + '?nocache=' + Date.now();
-    });
-  }
-  v.addEventListener('touchend', forceUpdate, {passive:false});
-  v.addEventListener('click', forceUpdate);
-})();
-</script>
-<!-- ═══ THREE.JS — local bundle (split into parts) first, CDN fallbacks ═══ -->
-<script>
-// The ESP32's network stack stalls on one continuous large response (see
-// firmware/platformio.ini's notes - every firmware-side mitigation tried
-// has failed to fix this outright). Instead of one <script src="three.min.js">
-// tag, fetch it as THREE_PART_COUNT separate small files (build-tools/
-// split-three.js cuts the built bundle into text-safe chunks - not valid
-// JS individually), await each in turn so every part is its own
-// request/connection, concatenate the text back into the original source,
-// then execute the assembled whole via a Blob script tag. Falls back to
-// CDN mirrors of the full upstream three.js if any part fails to load
-// (offline-with-broken-local-copy, or genuinely corrupted parts).
-(function loadThree(){
-  const THREE_PART_COUNT = 4;
-  const cdns = [
-    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js',
-    'https://unpkg.com/three@0.134.0/build/three.min.js',
-    'https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js'
-  ];
-  function loadFromCdns(){
-    let i = 0;
-    function tryNext(){
-      if (window.THREE) return;
-      if (i >= cdns.length){
-        const ov = document.getElementById('loading-overlay');
-        if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">3D library failed to load</h2><p style="font-size:13px;color:#889">Could not load Three.js locally or from any CDN.<br>Open browser console (F12) for details.</p></div>';
-        return;
-      }
-      let s = document.createElement('script');
-      s.src = cdns[i++];
-      s.onload = function(){};
-      s.onerror = tryNext;
-      document.head.appendChild(s);
-    }
-    tryNext();
-  }
-  // The ESP32's AsyncTCP library is documented (see firmware/web_server.h)
-  // to occasionally abandon a response mid-transfer without ever closing
-  // the connection or erroring - the browser then just waits forever, since
-  // plain fetch() has no default timeout. Each attempt gets a hard deadline
-  // via AbortController; a few retries (fresh connection each time) before
-  // giving up and falling back to CDN, since a stall is usually a one-off
-  // rather than a permanent failure of that specific file.
-  const PART_FETCH_TIMEOUT_MS = 25000;
-  const PART_FETCH_RETRIES = 3;
-  async function fetchPartWithRetry(name){
-    let lastErr;
-    for (let attempt = 1; attempt <= PART_FETCH_RETRIES; attempt++){
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), PART_FETCH_TIMEOUT_MS);
-      try {
-        const resp = await fetch(name + '?v=' + APP_VERSION, {signal: controller.signal});
-        clearTimeout(timer);
-        if (!resp.ok) throw new Error(name + ': HTTP ' + resp.status);
-        return await resp.text();
-      } catch (err) {
-        clearTimeout(timer);
-        lastErr = err;
-        console.warn(name + ' attempt ' + attempt + '/' + PART_FETCH_RETRIES + ' failed:', err);
-      }
-    }
-    throw lastErr;
-  }
-  async function loadLocalParts(){
-    let combined = '';
-    for (let i = 0; i < THREE_PART_COUNT; i++){
-      combined += await fetchPartWithRetry('three.part' + i + '.js');
-    }
-    const url = URL.createObjectURL(new Blob([combined], {type: 'application/javascript'}));
-    try {
-      await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = url;
-        s.onload = resolve;
-        s.onerror = () => reject(new Error('assembled bundle failed to execute'));
-        document.head.appendChild(s);
-      });
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-    if (!window.THREE) throw new Error('three.min.js parts loaded but window.THREE is missing');
-  }
-  loadLocalParts().catch(function(err){
-    console.warn('Local Three.js parts failed, falling back to CDN:', err);
-    loadFromCdns();
-  });
-})();
-</script>
-
-<!-- ═══ APP SCRIPTS (shared global scope, ordered) ═══ -->
-<script>
-// Wait for THREE to be available then load app scripts in order.
-(function loadApp(){
-  const appScripts = ['cube.js?v=889','effects-core.js?v=889','ui.js?v=889'];
-  function showError(msg){
-    const ov = document.getElementById('loading-overlay');
-    if (ov) ov.innerHTML = '<div class="ld-inner" style="color:#f77"><h2 style="margin-bottom:12px">Failed to load</h2><p style="font-size:13px;color:#889">' + msg + '<br>Open browser console (F12) for details.</p></div>';
-  }
-  function loadSeq(idx){
-    if (idx >= appScripts.length) {
-      // Deferred, non-critical requests - manifest.json (PWA install data)
-      // and the apple-touch-icon - moved out of <head> and fired only
-      // after the whole app has finished loading. Firing them alongside
-      // index.html/three.min.js at initial parse time was 1-2 extra
-      // concurrent connections during the highest heap-pressure moment on
-      // this board's ~10-14KB heap (no working PSRAM), which was enough
-      // to wedge the network stack solid on some loads.
-      const manifestLink = document.createElement('link');
-      manifestLink.rel = 'manifest';
-      manifestLink.href = 'manifest.json';
-      document.head.appendChild(manifestLink);
-      const touchIcon = document.createElement('link');
-      touchIcon.rel = 'apple-touch-icon';
-      touchIcon.href = 'icons/icon-192.png';
-      document.head.appendChild(touchIcon);
-      return;
-    }
-    const s = document.createElement('script');
-    s.src = appScripts[idx];
-    s.onload = function(){ loadSeq(idx+1); };
-    s.onerror = function(){ showError('Could not load ' + appScripts[idx]); };
-    document.head.appendChild(s);
-  }
-  let tries = 0;
-  // 8000 * 50ms = 400s. loadThree()'s fetchPartWithRetry can itself burn up
-  // to PART_FETCH_RETRIES * PART_FETCH_TIMEOUT_MS (currently 3*25s=75s) per
-  // part retrying a stalled connection, across THREE_PART_COUNT (4) parts -
-  // worst case ~300s before it gives up and falls back to CDN. The old cap
-  // fired this error on loads that were still genuinely in progress and
-  // would have succeeded, and once fired this loop stops polling for good
-  // (no resuming if THREE shows up moments later), so err generous here.
-  function check(){
-    if (window.THREE && document.getElementById('c')){ loadSeq(0); return; }
-    if (tries++ > 8000){ showError('3D engine took too long to load.'); return; }
-    setTimeout(check, 50);
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', check);
-  else check();
-})();
-</script>
-<script>
-// Service workers caused nothing but stuck-version headaches. Unregister any
-// and don't auto-reload at all — no timers, no background checks, nothing
-// that can loop. Use the version-label tap button (above) to force-update
-// manually when you know a new version is out.
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(regs => {
-    regs.forEach(r => r.unregister());
-  });
-}
-</script>
+<script src="three.min.js"></script>
+<script>window.MULTIDISPLAY_SIM = true;</script>
+<script src="sim-engine.js"></script>
+<script src="sim-loopback.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
