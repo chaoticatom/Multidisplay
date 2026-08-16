@@ -658,10 +658,16 @@ class WsServer {
     } else if (msg.cmd === 'addPanel') {
       // Adds a panel at the first free cell (row-major) in the wall grid,
       // switching to wall mode if not already in it - this is the "+"
-      // button's command. No-ops (rather than erroring) once the grid is
-      // full (WALL_MAX_COLS*WALL_MAX_ROWS panels, matching the physical
-      // 2x3 topology already wired for cube mode).
+      // button's command. No-ops (rather than erroring) once
+      // WALL_MAX_PANELS is reached - checked explicitly by count, NOT by
+      // running out of free cells within the WALL_MAX_COLS x
+      // WALL_MAX_ROWS scan bounds, since those bounds are now much more
+      // generous than the real panel budget (they allow any 1-wide/
+      // 1-tall row/column shape up to WALL_MAX_PANELS long, not just a
+      // fixed 2x3 block) - relying on "no free cell left in the scan"
+      // would incorrectly allow far more than WALL_MAX_PANELS panels.
       const panels = this.config.mode === 'wall' ? this.config.panels.slice() : [{ gx: 0, gy: 0 }];
+      if (panels.length >= panelConfig.WALL_MAX_PANELS) return;
       let placed = null;
       outer: for (let gy = 0; gy < panelConfig.WALL_MAX_ROWS; gy++) {
         for (let gx = 0; gx < panelConfig.WALL_MAX_COLS; gx++) {

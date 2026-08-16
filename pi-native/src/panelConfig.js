@@ -16,11 +16,23 @@ const path = require('path');
 const CONFIG_PATH = path.join(__dirname, '..', 'panel-config.json');
 const VALID_SIZES = [8, 16, 64];
 const VALID_MODES = ['cube', '2d', 'wall'];
-// Wall grid is capped at the same 2-wide x 3-tall physical topology already
-// wired for cube mode (rgbMatrixDriver's chainLength:2, parallel:3) - a
-// wall panel just reuses that same 6-panel wiring, read as a flat grid
-// instead of 6 cube faces, rather than needing separate wiring/topology.
-const WALL_MAX_COLS = 2, WALL_MAX_ROWS = 3;
+// Wall grid: up to WALL_MAX_PANELS physical panels total (matches this
+// project's 6-panel hardware budget - same count cube mode's 6 faces
+// use), arranged in ANY rectangular shape up to WALL_MAX_COLS x
+// WALL_MAX_ROWS - a straight 1-wide x 6-tall or 6-wide x 1-tall row is
+// just as valid as a 2x3 block. Unlike cube mode (a FIXED 2x3 physical
+// topology via rgbMatrixDriver's FACE_LAYOUT, which this does NOT
+// change), wall mode's rgbMatrixDriver.js now computes chainLength/
+// parallel dynamically from the actual panels layout at driver
+// construction time - real hardware wiring must actually match whatever
+// shape gets chosen (same "takes effect after a restart" caveat as any
+// other panel mode/topology change - see rgbMatrixDriver.js's module
+// comment). WALL_MAX_COLS/WALL_MAX_ROWS are the per-axis bound (generous
+// enough to allow any single-row/single-column arrangement of up to
+// WALL_MAX_PANELS); WALL_MAX_PANELS is the actual hardware panel count
+// cap, checked separately since a WALL_MAX_COLS x WALL_MAX_ROWS bounding
+// box on its own would permit far more than WALL_MAX_PANELS cells.
+const WALL_MAX_COLS = 6, WALL_MAX_ROWS = 6, WALL_MAX_PANELS = 6;
 // Defaults to "2d" (1 panel) rather than the full 6-face cube - a fresh
 // install shouldn't assume you've already got all 6 panels wired up and
 // FACE_LAYOUT calibrated; safer to start from the simplest possible
@@ -48,7 +60,7 @@ function isValidPhysicalCubePanels(n) {
 // setPanelPositions handlers, so a malformed layout can never reach
 // core.initWall() or the driver.
 function isValidPanels(panels) {
-  if (!Array.isArray(panels) || panels.length === 0 || panels.length > WALL_MAX_COLS * WALL_MAX_ROWS) return false;
+  if (!Array.isArray(panels) || panels.length === 0 || panels.length > WALL_MAX_PANELS) return false;
   const seen = new Set();
   for (const p of panels) {
     if (!p || !Number.isInteger(p.gx) || !Number.isInteger(p.gy)) return false;
@@ -81,4 +93,4 @@ function save(config) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
 }
 
-module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, isValidPanels, isValidPhysicalCubePanels, DEFAULT_CONFIG, CONFIG_PATH };
+module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, isValidPhysicalCubePanels, DEFAULT_CONFIG, CONFIG_PATH };

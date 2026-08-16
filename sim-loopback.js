@@ -100,7 +100,7 @@
     } else if (msg.cmd === 'setPhysicalCubePanels') {
       if (E.panelConfig.isValidPhysicalCubePanels(msg.value)) config.physicalCubePanels = msg.value;
     } else if (msg.cmd === 'addPanel') {
-      if (config.panels.length >= E.panelConfig.WALL_MAX_COLS * E.panelConfig.WALL_MAX_ROWS) return;
+      if (config.panels.length >= E.panelConfig.WALL_MAX_PANELS) return;
       const occupied = new Set(config.panels.map((p) => p.gx + ',' + p.gy));
       outer: for (let gy = 0; gy < E.panelConfig.WALL_MAX_ROWS; gy++) {
         for (let gx = 0; gx < E.panelConfig.WALL_MAX_COLS; gx++) {

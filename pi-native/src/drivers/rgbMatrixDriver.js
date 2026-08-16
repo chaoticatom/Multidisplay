@@ -38,23 +38,39 @@ const FACE_LAYOUT = [
 ];
 
 class RgbMatrixDriver {
-  // opts.mode: 'cube' (6 panels via FACE_LAYOUT) | '2d' (default, 1 panel -
-  // matches panelConfig.js's DEFAULT_CONFIG, so a fresh install doesn't
-  // assume all 6 panels are already wired and FACE_LAYOUT calibrated) |
-  // 'wall' (N panels in an arbitrary flat grid, via opts.panels - reuses
-  // the exact same 2x3 physical wiring as 'cube', just read as a flat
-  // mosaic instead of 6 cube faces, so no new hardware topology needed).
-  // This is read ONCE at construction - rpi-led-matrix has no API to
-  // reconfigure or tear down/recreate an LedMatrix instance at runtime
-  // (see close() below), so changing mode via the WS setPanelConfig
-  // command (see wsServer.js/app.js) only takes effect on the physical
-  // panels after a process restart, even though it updates core/the WS
-  // preview immediately - app.js logs a warning about this when it happens.
+  // opts.mode: 'cube' (6 panels via FACE_LAYOUT, FIXED 2x3 physical wiring
+  // - unlike 'wall' below, this topology never changes since FACE_LAYOUT's
+  // chain/pos values are hardcoded assuming exactly this shape) | '2d'
+  // (default, 1 panel - matches panelConfig.js's DEFAULT_CONFIG, so a
+  // fresh install doesn't assume all 6 panels are already wired and
+  // FACE_LAYOUT calibrated) | 'wall' (N panels in an ARBITRARY flat grid,
+  // via opts.panels - chainLength/parallel are computed from the actual
+  // layout below, e.g. a 1-wide x 6-tall or 6-wide x 1-tall row needs
+  // completely different physical wiring than a 2x3 block, not just a
+  // different way of reading the same fixed topology cube mode uses). A
+  // real request: "I need the ability to choose all horizontal displays
+  // if I wish (or vertical). e.g. 1 row by 6 wide" - your actual cabling
+  // needs to match whatever shape you configure. This is read ONCE at
+  // construction - rpi-led-matrix has no API to reconfigure or tear down/
+  // recreate an LedMatrix instance at runtime (see close() below), so
+  // changing mode OR wall shape via the WS setPanelConfig/
+  // setPanelPositions commands (see wsServer.js/app.js) only takes effect
+  // on the physical panels after a process restart, even though it
+  // updates core/the WS preview immediately - app.js logs a warning about
+  // this when it happens.
   constructor(opts = {}) {
     this.mode = opts.mode || '2d';
-    const topology = this.mode === '2d'
-      ? { chainLength: 1, parallel: 1 }
-      : { chainLength: 2, parallel: 3 };
+    let topology;
+    if (this.mode === '2d') {
+      topology = { chainLength: 1, parallel: 1 };
+    } else if (this.mode === 'wall' && Array.isArray(opts.panels) && opts.panels.length) {
+      topology = {
+        chainLength: Math.max(1, ...opts.panels.map((p) => p.gx + 1)),
+        parallel: Math.max(1, ...opts.panels.map((p) => p.gy + 1)),
+      };
+    } else {
+      topology = { chainLength: 2, parallel: 3 }; // 'cube' - fixed, see above
+    }
     const matrixOptions = {
       ...LedMatrix.defaultMatrixOptions(),
       rows: 64,

@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.5.0';
+const APP_VERSION = '0.5.1';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2561,7 +2561,15 @@ function handleBtResult(msg) {
 // gated on already being in wall mode); rebuildWallPreview() itself only
 // renders the full editable grid once wall mode is actually active.
 // ---------------------------------------------------------------------
-const WALL_COLS = 2, WALL_ROWS = 3;
+// Mirrors panelConfig.js's WALL_MAX_COLS/WALL_MAX_ROWS/WALL_MAX_PANELS -
+// this file has no access to that module (it also runs standalone against
+// a real Pi's wsServer.js over plain WebSocket, not just the bundled
+// simulator), so it keeps its own copy, same as before this was 2x3. A
+// real request: "I need the ability to choose all horizontal displays...
+// e.g. 1 row by 6 wide" - WALL_COLS/WALL_ROWS are now a generous per-axis
+// bound (any 1-wide or 1-tall row/column up to 6 long is valid, not just
+// a fixed 2x3 block); WALL_MAX_PANELS is the real hardware panel-count cap.
+const WALL_COLS = 6, WALL_ROWS = 6, WALL_MAX_PANELS = 6;
 let _wallDragFrom = null;
 // Whether placement-candidate outlines should currently be rendered at
 // all - a real report: candidates used to be shown PERMANENTLY around
@@ -2599,6 +2607,7 @@ function wireWallToolbar() {
       send({ cmd: 'setPanelConfig', size: currentState.panelSize || 64, mode: 'wall', panels: currentWallPanels() });
       return;
     }
+    if (currentWallPanels().length >= WALL_MAX_PANELS) return; // already at the hardware panel cap - nothing to add
     _wallPendingAdd = !_wallPendingAdd;
     rebuildWallPreview();
   });
@@ -3027,7 +3036,11 @@ function rebuildWallPreview() {
   // entire remaining hardware grid, recreating the exact "static 6-box
   // grid" look a real report specifically objected to in the first place.
   const candidates = [];
-  if (_wallPendingAdd || _wallDragFrom) {
+  // Adding is blocked once WALL_MAX_PANELS is already reached (matches
+  // the server's own addPanel/setPanelPositions cap) - but repositioning
+  // an EXISTING panel via drag doesn't change the total count, so that
+  // stays allowed regardless.
+  if ((_wallPendingAdd && panels.length < WALL_MAX_PANELS) || _wallDragFrom) {
     const seenCandidate = new Set();
     // Right-first: with only the primary placed, this is also the
     // "default" placement (see the .default class below) - clicking "+"
