@@ -100,6 +100,18 @@ function dtDrawAnalogue(buf, W, H, now) {
 const DT_DAYS = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 const DT_MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
+// Same "actually fits" fix as datetime.js's fitScale() (see its module
+// comment for the real report/root cause) - picks the largest scale that
+// fits `text` within W*widthFrac pixels, capped at maxScale so short
+// strings don't blow up relative to their role (main time vs. day/date
+// subtitle). Uses W (available horizontal room across the whole wall),
+// not M, for the fit check - a wide multi-panel wall has much more room
+// than a single square panel; M only sets the relative-size cap baseline.
+function fitScale(availW, text, maxScale, widthFrac = 0.94) {
+  const fit = Math.floor((availW * widthFrac) / (text.length * 6));
+  return Math.max(1, Math.min(maxScale, fit));
+}
+
 function dtRenderBuf(core, W, H, now, mode) {
   if (!dtBuf || dtBufW !== W || dtBufH !== H) { dtBuf = new Uint8Array(W * H); dtBufW = W; dtBufH = H; }
   else dtBuf.fill(0);
@@ -109,28 +121,37 @@ function dtRenderBuf(core, W, H, now, mode) {
   const ss = String(now.getSeconds()).padStart(2, '0');
   const dayStr = DT_DAYS[now.getDay()];
   const dateStr = now.getDate() + ' ' + DT_MONTHS[now.getMonth()];
+  const timeStr = hh + ':' + mm;
+  const secStr = ':' + ss;
 
   const M = Math.min(W, H);
-  const scaleBig = Math.max(1, Math.round(M / 22));
-  const scaleSm = Math.max(1, Math.round(M / 40));
+  const bigScale = fitScale(W, timeStr, Math.max(1, Math.round(M / 11)));
 
   if (mode === 'date') {
-    fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.28, scaleSm);
-    fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.55, scaleSm);
+    const dayScale = fitScale(W, dayStr, Math.max(1, Math.round(M / 22)));
+    const dateScale = fitScale(W, dateStr, Math.max(1, Math.round(M / 18)));
+    fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.28, dayScale);
+    fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.55, dateScale);
   } else if (mode === 'both') {
-    fontDrawText(dtBuf, W, H, hh + ':' + mm, W / 2, H * 0.12, scaleBig);
-    fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.58, scaleSm);
-    fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.76, scaleSm);
+    const dayScale = fitScale(W, dayStr, Math.max(1, Math.round(M / 28)));
+    const dateScale = fitScale(W, dateStr, Math.max(1, Math.round(M / 24)));
+    fontDrawText(dtBuf, W, H, timeStr, W / 2, H * 0.12, bigScale);
+    fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.58, dayScale);
+    fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.76, dateScale);
   } else if (mode === 'analogue') {
     dtDrawAnalogue(dtBuf, W, H, now);
   } else if (mode === 'full') {
-    fontDrawText(dtBuf, W, H, hh + ':' + mm, W / 2, H * 0.04, scaleBig);
-    fontDrawText(dtBuf, W, H, ':' + ss, W / 2, H * 0.38, scaleSm);
-    fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.6, scaleSm);
-    fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.78, scaleSm);
+    const secScale = fitScale(W, secStr, Math.max(1, Math.round(M / 16)));
+    const dayScale = fitScale(W, dayStr, Math.max(1, Math.round(M / 28)));
+    const dateScale = fitScale(W, dateStr, Math.max(1, Math.round(M / 24)));
+    fontDrawText(dtBuf, W, H, timeStr, W / 2, H * 0.04, bigScale);
+    fontDrawText(dtBuf, W, H, secStr, W / 2, H * 0.38, secScale);
+    fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.6, dayScale);
+    fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.78, dateScale);
   } else { // 'time' (default)
-    fontDrawText(dtBuf, W, H, hh + ':' + mm, W / 2, H * 0.24, scaleBig);
-    fontDrawText(dtBuf, W, H, ':' + ss, W / 2, H * 0.62, scaleSm);
+    const secScale = fitScale(W, secStr, Math.max(1, Math.round(M / 16)));
+    fontDrawText(dtBuf, W, H, timeStr, W / 2, H * 0.24, bigScale);
+    fontDrawText(dtBuf, W, H, secStr, W / 2, H * 0.62, secScale);
   }
 }
 

@@ -104,6 +104,26 @@ function dtDrawAnalogue(buf, S, now) {
 const DT_DAYS = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 const DT_MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
+// Picks the largest integer scale that still fits `text` within S*widthFrac
+// pixels (fontDrawText's cell is 6*scale wide per glyph, including the 1px
+// gap), capped at maxScale so a short string (e.g. ":SS") doesn't blow up
+// to a size that no longer reads as "the smaller line" relative to the
+// main time. A real report: "time & date is rubbish... make... fit on
+// screen" - the previous scale (Math.round(S/22), same fixed number
+// regardless of what string it was applied to) was never actually checked
+// against any string's real width - "HH:MM" at that scale came out to
+// 90px on a 64px panel, running off the edge entirely (screenshot-
+// confirmed). The original browser version didn't have this problem
+// because it used real canvas font metrics tuned per string (e.g. "bold
+// 160px" for the main time, comment: "reduced from 200px to fit with
+// padding") - this is the bitmap-font equivalent of that same "make sure
+// it actually fits" step, just computed instead of eyeballed since there's
+// no canvas here to try font sizes against (see module comment).
+function fitScale(S, text, maxScale, widthFrac = 0.94) {
+  const fit = Math.floor((S * widthFrac) / (text.length * 6));
+  return Math.max(1, Math.min(maxScale, fit));
+}
+
 function dtRenderBuf(core, now, mode) {
   const S = core.SIZE;
   if (!dtBuf || dtBuf.length !== S * S) dtBuf = new Uint8Array(S * S);
@@ -114,27 +134,42 @@ function dtRenderBuf(core, now, mode) {
   const ss = String(now.getSeconds()).padStart(2, '0');
   const dayStr = DT_DAYS[now.getDay()];
   const dateStr = now.getDate() + ' ' + DT_MONTHS[now.getMonth()];
+  const timeStr = hh + ':' + mm;
+  const secStr = ':' + ss;
 
-  const scaleBig = Math.max(1, Math.round(S / 22));
-  const scaleSm = Math.max(1, Math.round(S / 40));
+  // maxScale caps mirror the original's relative font-size ratios (main
+  // time was always the biggest line, seconds/day/date smaller) - actual
+  // scale is whichever is smaller of that cap and what fitScale() says
+  // will actually fit THIS string, so a long day name like "WEDNESDAY"
+  // shrinks itself instead of overflowing even though it shares a role
+  // with a shorter one like "MONDAY".
+  const bigScale = fitScale(S, timeStr, Math.max(1, Math.round(S / 11)));
 
   if (mode === 'date') {
-    fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.28, scaleSm);
-    fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.55, scaleSm);
+    const dayScale = fitScale(S, dayStr, Math.max(1, Math.round(S / 22)));
+    const dateScale = fitScale(S, dateStr, Math.max(1, Math.round(S / 18)));
+    fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.28, dayScale);
+    fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.55, dateScale);
   } else if (mode === 'both') {
-    fontDrawText(dtBuf, S, hh + ':' + mm, S / 2, S * 0.12, scaleBig);
-    fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.58, scaleSm);
-    fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.76, scaleSm);
+    const dayScale = fitScale(S, dayStr, Math.max(1, Math.round(S / 28)));
+    const dateScale = fitScale(S, dateStr, Math.max(1, Math.round(S / 24)));
+    fontDrawText(dtBuf, S, timeStr, S / 2, S * 0.12, bigScale);
+    fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.58, dayScale);
+    fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.76, dateScale);
   } else if (mode === 'analogue') {
     dtDrawAnalogue(dtBuf, S, now);
   } else if (mode === 'full') {
-    fontDrawText(dtBuf, S, hh + ':' + mm, S / 2, S * 0.04, scaleBig);
-    fontDrawText(dtBuf, S, ':' + ss, S / 2, S * 0.38, scaleSm);
-    fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.6, scaleSm);
-    fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.78, scaleSm);
+    const secScale = fitScale(S, secStr, Math.max(1, Math.round(S / 16)));
+    const dayScale = fitScale(S, dayStr, Math.max(1, Math.round(S / 28)));
+    const dateScale = fitScale(S, dateStr, Math.max(1, Math.round(S / 24)));
+    fontDrawText(dtBuf, S, timeStr, S / 2, S * 0.04, bigScale);
+    fontDrawText(dtBuf, S, secStr, S / 2, S * 0.38, secScale);
+    fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.6, dayScale);
+    fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.78, dateScale);
   } else { // 'time' (default)
-    fontDrawText(dtBuf, S, hh + ':' + mm, S / 2, S * 0.24, scaleBig);
-    fontDrawText(dtBuf, S, ':' + ss, S / 2, S * 0.62, scaleSm);
+    const secScale = fitScale(S, secStr, Math.max(1, Math.round(S / 16)));
+    fontDrawText(dtBuf, S, timeStr, S / 2, S * 0.24, bigScale);
+    fontDrawText(dtBuf, S, secStr, S / 2, S * 0.62, secScale);
   }
 }
 

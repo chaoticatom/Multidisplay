@@ -13193,6 +13193,10 @@ var PiEngine = (() => {
       }
       var DT_DAYS = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
       var DT_MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+      function fitScale(S, text, maxScale, widthFrac = 0.94) {
+        const fit = Math.floor(S * widthFrac / (text.length * 6));
+        return Math.max(1, Math.min(maxScale, fit));
+      }
       function dtRenderBuf(core, now, mode) {
         const S = core.SIZE;
         if (!dtBuf || dtBuf.length !== S * S) dtBuf = new Uint8Array(S * S);
@@ -13202,25 +13206,34 @@ var PiEngine = (() => {
         const ss = String(now.getSeconds()).padStart(2, "0");
         const dayStr = DT_DAYS[now.getDay()];
         const dateStr = now.getDate() + " " + DT_MONTHS[now.getMonth()];
-        const scaleBig = Math.max(1, Math.round(S / 22));
-        const scaleSm = Math.max(1, Math.round(S / 40));
+        const timeStr = hh + ":" + mm;
+        const secStr = ":" + ss;
+        const bigScale = fitScale(S, timeStr, Math.max(1, Math.round(S / 11)));
         if (mode === "date") {
-          fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.28, scaleSm);
-          fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.55, scaleSm);
+          const dayScale = fitScale(S, dayStr, Math.max(1, Math.round(S / 22)));
+          const dateScale = fitScale(S, dateStr, Math.max(1, Math.round(S / 18)));
+          fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.28, dayScale);
+          fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.55, dateScale);
         } else if (mode === "both") {
-          fontDrawText(dtBuf, S, hh + ":" + mm, S / 2, S * 0.12, scaleBig);
-          fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.58, scaleSm);
-          fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.76, scaleSm);
+          const dayScale = fitScale(S, dayStr, Math.max(1, Math.round(S / 28)));
+          const dateScale = fitScale(S, dateStr, Math.max(1, Math.round(S / 24)));
+          fontDrawText(dtBuf, S, timeStr, S / 2, S * 0.12, bigScale);
+          fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.58, dayScale);
+          fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.76, dateScale);
         } else if (mode === "analogue") {
           dtDrawAnalogue(dtBuf, S, now);
         } else if (mode === "full") {
-          fontDrawText(dtBuf, S, hh + ":" + mm, S / 2, S * 0.04, scaleBig);
-          fontDrawText(dtBuf, S, ":" + ss, S / 2, S * 0.38, scaleSm);
-          fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.6, scaleSm);
-          fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.78, scaleSm);
+          const secScale = fitScale(S, secStr, Math.max(1, Math.round(S / 16)));
+          const dayScale = fitScale(S, dayStr, Math.max(1, Math.round(S / 28)));
+          const dateScale = fitScale(S, dateStr, Math.max(1, Math.round(S / 24)));
+          fontDrawText(dtBuf, S, timeStr, S / 2, S * 0.04, bigScale);
+          fontDrawText(dtBuf, S, secStr, S / 2, S * 0.38, secScale);
+          fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.6, dayScale);
+          fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.78, dateScale);
         } else {
-          fontDrawText(dtBuf, S, hh + ":" + mm, S / 2, S * 0.24, scaleBig);
-          fontDrawText(dtBuf, S, ":" + ss, S / 2, S * 0.62, scaleSm);
+          const secScale = fitScale(S, secStr, Math.max(1, Math.round(S / 16)));
+          fontDrawText(dtBuf, S, timeStr, S / 2, S * 0.24, bigScale);
+          fontDrawText(dtBuf, S, secStr, S / 2, S * 0.62, secScale);
         }
       }
       function paintFace(core, face, flip, srcOffsetLEDs, hue) {
@@ -22963,6 +22976,10 @@ var PiEngine = (() => {
       }
       var DT_DAYS = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
       var DT_MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+      function fitScale(availW, text, maxScale, widthFrac = 0.94) {
+        const fit = Math.floor(availW * widthFrac / (text.length * 6));
+        return Math.max(1, Math.min(maxScale, fit));
+      }
       function dtRenderBuf(core, W, H, now, mode) {
         if (!dtBuf || dtBufW !== W || dtBufH !== H) {
           dtBuf = new Uint8Array(W * H);
@@ -22974,26 +22991,35 @@ var PiEngine = (() => {
         const ss = String(now.getSeconds()).padStart(2, "0");
         const dayStr = DT_DAYS[now.getDay()];
         const dateStr = now.getDate() + " " + DT_MONTHS[now.getMonth()];
+        const timeStr = hh + ":" + mm;
+        const secStr = ":" + ss;
         const M = Math.min(W, H);
-        const scaleBig = Math.max(1, Math.round(M / 22));
-        const scaleSm = Math.max(1, Math.round(M / 40));
+        const bigScale = fitScale(W, timeStr, Math.max(1, Math.round(M / 11)));
         if (mode === "date") {
-          fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.28, scaleSm);
-          fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.55, scaleSm);
+          const dayScale = fitScale(W, dayStr, Math.max(1, Math.round(M / 22)));
+          const dateScale = fitScale(W, dateStr, Math.max(1, Math.round(M / 18)));
+          fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.28, dayScale);
+          fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.55, dateScale);
         } else if (mode === "both") {
-          fontDrawText(dtBuf, W, H, hh + ":" + mm, W / 2, H * 0.12, scaleBig);
-          fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.58, scaleSm);
-          fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.76, scaleSm);
+          const dayScale = fitScale(W, dayStr, Math.max(1, Math.round(M / 28)));
+          const dateScale = fitScale(W, dateStr, Math.max(1, Math.round(M / 24)));
+          fontDrawText(dtBuf, W, H, timeStr, W / 2, H * 0.12, bigScale);
+          fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.58, dayScale);
+          fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.76, dateScale);
         } else if (mode === "analogue") {
           dtDrawAnalogue(dtBuf, W, H, now);
         } else if (mode === "full") {
-          fontDrawText(dtBuf, W, H, hh + ":" + mm, W / 2, H * 0.04, scaleBig);
-          fontDrawText(dtBuf, W, H, ":" + ss, W / 2, H * 0.38, scaleSm);
-          fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.6, scaleSm);
-          fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.78, scaleSm);
+          const secScale = fitScale(W, secStr, Math.max(1, Math.round(M / 16)));
+          const dayScale = fitScale(W, dayStr, Math.max(1, Math.round(M / 28)));
+          const dateScale = fitScale(W, dateStr, Math.max(1, Math.round(M / 24)));
+          fontDrawText(dtBuf, W, H, timeStr, W / 2, H * 0.04, bigScale);
+          fontDrawText(dtBuf, W, H, secStr, W / 2, H * 0.38, secScale);
+          fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.6, dayScale);
+          fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.78, dateScale);
         } else {
-          fontDrawText(dtBuf, W, H, hh + ":" + mm, W / 2, H * 0.24, scaleBig);
-          fontDrawText(dtBuf, W, H, ":" + ss, W / 2, H * 0.62, scaleSm);
+          const secScale = fitScale(W, secStr, Math.max(1, Math.round(M / 16)));
+          fontDrawText(dtBuf, W, H, timeStr, W / 2, H * 0.24, bigScale);
+          fontDrawText(dtBuf, W, H, secStr, W / 2, H * 0.62, secScale);
         }
       }
       function paintWall(core, W, H, srcOffsetPx, hue) {
