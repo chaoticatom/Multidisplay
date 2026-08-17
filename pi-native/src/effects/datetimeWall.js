@@ -42,6 +42,64 @@ function setPx(buf, W, H, x, y, v) {
   if (v > buf[i]) buf[i] = v;
 }
 
+// ─── Seven-segment main clock digits - see datetime.js's module comment
+// for the real report/root cause (cramped bitmap font, overlapping
+// "full" mode). Same design, W/H-signature to match this file's setPx().
+const SEG = {
+  '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc',
+  '5': 'afgcd', '6': 'afgecd', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg',
+};
+function fillRect(buf, W, H, x0, y0, x1, y1, v) {
+  const xs = Math.round(x0), xe = Math.round(x1), ys = Math.round(y0), ye = Math.round(y1);
+  for (let y = ys; y < ye; y++) for (let x = xs; x < xe; x++) setPx(buf, W, H, x, y, v);
+}
+function drawSegDigit(buf, W, H, x, y, w, h, ch, val) {
+  const segs = SEG[ch] || '';
+  if (!segs) return;
+  const has = (s) => segs.includes(s);
+  const t = Math.max(1, Math.round(w * 0.24));
+  const midY = y + h / 2;
+  if (has('a')) fillRect(buf, W, H, x + t, y, x + w - t, y + t, val);
+  if (has('g')) fillRect(buf, W, H, x + t, midY - t / 2, x + w - t, midY + t / 2, val);
+  if (has('d')) fillRect(buf, W, H, x + t, y + h - t, x + w - t, y + h, val);
+  if (has('f')) fillRect(buf, W, H, x, y, x + t, midY + t / 2, val);
+  if (has('b')) fillRect(buf, W, H, x + w - t, y, x + w, midY + t / 2, val);
+  if (has('e')) fillRect(buf, W, H, x, midY - t / 2, x + t, y + h, val);
+  if (has('c')) fillRect(buf, W, H, x + w - t, midY - t / 2, x + w, y + h, val);
+}
+function drawSegColon(buf, W, H, x, y, w, h, val) {
+  const t = Math.max(1, Math.round(w * 0.55));
+  const cx = x + w / 2 - t / 2;
+  fillRect(buf, W, H, cx, y + h * 0.26, cx + t, y + h * 0.26 + t, val);
+  fillRect(buf, W, H, cx, y + h * 0.64, cx + t, y + h * 0.64 + t, val);
+}
+function drawSegString(buf, W, H, str, cx, topY, digitW, digitH, gap, val) {
+  const colonW = digitW * 0.42;
+  let total = 0;
+  for (const ch of str) total += (ch === ':' ? colonW : digitW) + gap;
+  total -= gap;
+  let x = cx - total / 2;
+  for (const ch of str) {
+    const w = ch === ':' ? colonW : digitW;
+    if (ch === ':') drawSegColon(buf, W, H, x, topY, w, digitH, val);
+    else drawSegDigit(buf, W, H, x, topY, w, digitH, ch, val);
+    x += w + gap;
+  }
+  return total;
+}
+function fitDigitHeight(str, idealH, maxW) {
+  const widthAt = (h) => {
+    const dW = h * 0.56, gap = dW * 0.3, colonW = dW * 0.42;
+    let total = 0;
+    for (const ch of str) total += (ch === ':' ? colonW : dW) + gap;
+    return total - gap;
+  };
+  if (widthAt(idealH) <= maxW) return idealH;
+  let h = idealH * (maxW / widthAt(idealH));
+  while (widthAt(h) > maxW && h > 1) h -= 0.5;
+  return Math.max(1, h);
+}
+
 function fontDrawText(buf, W, H, text, cx, cy, scale) {
   const advance = 6 * scale;
   const w = text.length * advance;
@@ -112,6 +170,31 @@ function fitScale(availW, text, maxScale, widthFrac = 0.94) {
   return Math.max(1, Math.min(maxScale, fit));
 }
 
+// Same block-centering fix as datetime.js's dtLayoutStack() - see its
+// module comment for the real report ("full mode overlaps... centralise
+// vertically and horizontally"). Fits against W (available wall width,
+// can be much wider than H on a multi-panel-wide wall) but centers/stacks
+// against H (actual wall height) so it stays correct whichever axis ends
+// up the tighter constraint.
+function dtLayoutStack(buf, W, H, lines) {
+  const gap = Math.max(1, H * 0.04);
+  const resolved = lines.map((ln) => {
+    if (ln.type === 'seg') return { ...ln, h: fitDigitHeight(ln.str, H * ln.idealHFrac, W * 0.94) };
+    return { ...ln, h: 7 * ln.scale };
+  });
+  const totalH = resolved.reduce((a, l) => a + l.h, 0) + gap * (resolved.length - 1);
+  let y = (H - totalH) / 2;
+  for (const ln of resolved) {
+    if (ln.type === 'seg') {
+      const digitW = ln.h * 0.56, dgap = digitW * 0.3;
+      drawSegString(buf, W, H, ln.str, W / 2, y, digitW, ln.h, dgap, 255);
+    } else {
+      fontDrawText(buf, W, H, ln.str, W / 2, y, ln.scale);
+    }
+    y += ln.h + gap;
+  }
+}
+
 function dtRenderBuf(core, W, H, now, mode) {
   if (!dtBuf || dtBufW !== W || dtBufH !== H) { dtBuf = new Uint8Array(W * H); dtBufW = W; dtBufH = H; }
   else dtBuf.fill(0);
@@ -125,33 +208,35 @@ function dtRenderBuf(core, W, H, now, mode) {
   const secStr = ':' + ss;
 
   const M = Math.min(W, H);
-  const bigScale = fitScale(W, timeStr, Math.max(1, Math.round(M / 11)));
+  const daySc = fitScale(W, dayStr, Math.max(1, Math.round(M / 16)));
+  const dateSc = fitScale(W, dateStr, Math.max(1, Math.round(M / 14)));
+  const secSc = fitScale(W, secStr, Math.max(1, Math.round(M / 10)));
 
-  if (mode === 'date') {
-    const dayScale = fitScale(W, dayStr, Math.max(1, Math.round(M / 22)));
-    const dateScale = fitScale(W, dateStr, Math.max(1, Math.round(M / 18)));
-    fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.28, dayScale);
-    fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.55, dateScale);
-  } else if (mode === 'both') {
-    const dayScale = fitScale(W, dayStr, Math.max(1, Math.round(M / 28)));
-    const dateScale = fitScale(W, dateStr, Math.max(1, Math.round(M / 24)));
-    fontDrawText(dtBuf, W, H, timeStr, W / 2, H * 0.12, bigScale);
-    fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.58, dayScale);
-    fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.76, dateScale);
-  } else if (mode === 'analogue') {
+  if (mode === 'analogue') {
     dtDrawAnalogue(dtBuf, W, H, now);
+  } else if (mode === 'date') {
+    dtLayoutStack(dtBuf, W, H, [
+      { type: 'text', str: dayStr, scale: daySc },
+      { type: 'text', str: dateStr, scale: dateSc },
+    ]);
+  } else if (mode === 'both') {
+    dtLayoutStack(dtBuf, W, H, [
+      { type: 'seg', str: timeStr, idealHFrac: 0.42 },
+      { type: 'text', str: dayStr, scale: daySc },
+      { type: 'text', str: dateStr, scale: dateSc },
+    ]);
   } else if (mode === 'full') {
-    const secScale = fitScale(W, secStr, Math.max(1, Math.round(M / 16)));
-    const dayScale = fitScale(W, dayStr, Math.max(1, Math.round(M / 28)));
-    const dateScale = fitScale(W, dateStr, Math.max(1, Math.round(M / 24)));
-    fontDrawText(dtBuf, W, H, timeStr, W / 2, H * 0.04, bigScale);
-    fontDrawText(dtBuf, W, H, secStr, W / 2, H * 0.38, secScale);
-    fontDrawText(dtBuf, W, H, dayStr, W / 2, H * 0.6, dayScale);
-    fontDrawText(dtBuf, W, H, dateStr, W / 2, H * 0.78, dateScale);
+    dtLayoutStack(dtBuf, W, H, [
+      { type: 'seg', str: timeStr, idealHFrac: 0.36 },
+      { type: 'text', str: secStr, scale: secSc },
+      { type: 'text', str: dayStr, scale: daySc },
+      { type: 'text', str: dateStr, scale: dateSc },
+    ]);
   } else { // 'time' (default)
-    const secScale = fitScale(W, secStr, Math.max(1, Math.round(M / 16)));
-    fontDrawText(dtBuf, W, H, timeStr, W / 2, H * 0.24, bigScale);
-    fontDrawText(dtBuf, W, H, secStr, W / 2, H * 0.62, secScale);
+    dtLayoutStack(dtBuf, W, H, [
+      { type: 'seg', str: timeStr, idealHFrac: 0.55 },
+      { type: 'text', str: secStr, scale: secSc },
+    ]);
   }
 }
 

@@ -43,6 +43,83 @@ function setPx(buf, S, x, y, v) {
   if (v > buf[y * S + x]) buf[y * S + x] = v;
 }
 
+// ─── Seven-segment main clock digits ───────────────────────────────────
+// Redesign of the main HH:MM display - a real report: "the time & date
+// looks terrible... redesign with smooth font text that fits the
+// screen... make it look good". The tiny 5x7 bitmap FONT (still used
+// below for the smaller seconds/day/date sub-lines, where it reads fine)
+// looked cramped and blocky scaled up to be the headline element; large
+// seven-segment digits are the standard, genuinely good-looking treatment
+// for a prominent LED clock display, and only need filled rectangles
+// (no fine bitmap detail) so they stay crisp at any panel size.
+const SEG = {
+  '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc',
+  '5': 'afgcd', '6': 'afgecd', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg',
+};
+function fillRect(buf, S, x0, y0, x1, y1, v) {
+  const xs = Math.round(x0), xe = Math.round(x1), ys = Math.round(y0), ye = Math.round(y1);
+  for (let y = ys; y < ye; y++) for (let x = xs; x < xe; x++) setPx(buf, S, x, y, v);
+}
+// x,y,w,h: digit's bounding box. val: intensity (0-255).
+function drawSegDigit(buf, S, x, y, w, h, ch, val) {
+  const segs = SEG[ch] || '';
+  if (!segs) return;
+  const has = (s) => segs.includes(s);
+  const t = Math.max(1, Math.round(w * 0.24)); // segment thickness
+  const midY = y + h / 2;
+  if (has('a')) fillRect(buf, S, x + t, y, x + w - t, y + t, val);
+  if (has('g')) fillRect(buf, S, x + t, midY - t / 2, x + w - t, midY + t / 2, val);
+  if (has('d')) fillRect(buf, S, x + t, y + h - t, x + w - t, y + h, val);
+  if (has('f')) fillRect(buf, S, x, y, x + t, midY + t / 2, val);
+  if (has('b')) fillRect(buf, S, x + w - t, y, x + w, midY + t / 2, val);
+  if (has('e')) fillRect(buf, S, x, midY - t / 2, x + t, y + h, val);
+  if (has('c')) fillRect(buf, S, x + w - t, midY - t / 2, x + w, y + h, val);
+}
+function drawSegColon(buf, S, x, y, w, h, val) {
+  const t = Math.max(1, Math.round(w * 0.55));
+  const cx = x + w / 2 - t / 2;
+  fillRect(buf, S, cx, y + h * 0.26, cx + t, y + h * 0.26 + t, val);
+  fillRect(buf, S, cx, y + h * 0.64, cx + t, y + h * 0.64 + t, val);
+}
+// Draws a digits/colons string centered on (cx, topY), each digit
+// digitW x digitH with `gap` between characters and colons at 0.42x the
+// digit width - returns the string's total rendered width (used to size-
+// check it against the available panel width before committing to a
+// digitW, see fitDigitWidth()).
+function drawSegString(buf, S, str, cx, topY, digitW, digitH, gap, val) {
+  const colonW = digitW * 0.42;
+  let total = 0;
+  for (const ch of str) total += (ch === ':' ? colonW : digitW) + gap;
+  total -= gap;
+  let x = cx - total / 2;
+  for (const ch of str) {
+    const w = ch === ':' ? colonW : digitW;
+    if (ch === ':') drawSegColon(buf, S, x, topY, w, digitH, val);
+    else drawSegDigit(buf, S, x, topY, w, digitH, ch, val);
+    x += w + gap;
+  }
+  return total;
+}
+// Largest digitH (digitW = digitH*0.56, gap = digitW*0.3) whose rendered
+// string width still fits within maxW - the same "measure the real string,
+// don't just guess a ratio" fix as fitScale() below, applied to the seg
+// font. idealH is the height we'd like if width weren't a constraint
+// (shrinks further only if the string is too wide at that height).
+function fitDigitHeight(str, idealH, maxW) {
+  const widthAt = (h) => {
+    const dW = h * 0.56, gap = dW * 0.3, colonW = dW * 0.42;
+    let total = 0;
+    for (const ch of str) total += (ch === ':' ? colonW : dW) + gap;
+    return total - gap;
+  };
+  if (widthAt(idealH) <= maxW) return idealH;
+  // Scale down proportionally, then nudge down further if rounding left it
+  // still slightly over (fine at this size, avoids an iterative search).
+  let h = idealH * (maxW / widthAt(idealH));
+  while (widthAt(h) > maxW && h > 1) h -= 0.5;
+  return Math.max(1, h);
+}
+
 // Draws `text` (upper-cased) centered horizontally on `cx`, top edge at `cy`,
 // each glyph cell `6*scale` wide / `7*scale` tall - same cell layout as
 // retro/title.js's drawText(), just writing intensity instead of RGB.
@@ -124,6 +201,37 @@ function fitScale(S, text, maxScale, widthFrac = 0.94) {
   return Math.max(1, Math.min(maxScale, fit));
 }
 
+// Stacks `lines` (each {type:'seg', str, idealHFrac} for the seg-digit
+// clock or {type:'text', str, scale} for small bitmap-font text)
+// vertically, block-centered as a WHOLE on the panel - both axes, real
+// measured heights. Real report: "when on full it overlaps each other.
+// centralise vertically and horizontally" - the previous version placed
+// every line at a fixed fractional Y (S*0.04, S*0.38, S*0.6, S*0.78 for
+// "full") with no relationship to how TALL each line actually rendered,
+// so a bigger font size (or this file's own earlier overflow bug) could
+// easily push one line into the next. This computes total stack height
+// first, then centers the whole block, then places each line immediately
+// below the previous one - overlap becomes structurally impossible, and
+// centering doesn't need per-mode tuning ever again.
+function dtLayoutStack(buf, S, lines) {
+  const gap = Math.max(1, S * 0.04);
+  const resolved = lines.map((ln) => {
+    if (ln.type === 'seg') return { ...ln, h: fitDigitHeight(ln.str, S * ln.idealHFrac, S * 0.94) };
+    return { ...ln, h: 7 * ln.scale };
+  });
+  const totalH = resolved.reduce((a, l) => a + l.h, 0) + gap * (resolved.length - 1);
+  let y = (S - totalH) / 2;
+  for (const ln of resolved) {
+    if (ln.type === 'seg') {
+      const digitW = ln.h * 0.56, dgap = digitW * 0.3;
+      drawSegString(buf, S, ln.str, S / 2, y, digitW, ln.h, dgap, 255);
+    } else {
+      fontDrawText(buf, S, ln.str, S / 2, y, ln.scale);
+    }
+    y += ln.h + gap;
+  }
+}
+
 function dtRenderBuf(core, now, mode) {
   const S = core.SIZE;
   if (!dtBuf || dtBuf.length !== S * S) dtBuf = new Uint8Array(S * S);
@@ -137,39 +245,35 @@ function dtRenderBuf(core, now, mode) {
   const timeStr = hh + ':' + mm;
   const secStr = ':' + ss;
 
-  // maxScale caps mirror the original's relative font-size ratios (main
-  // time was always the biggest line, seconds/day/date smaller) - actual
-  // scale is whichever is smaller of that cap and what fitScale() says
-  // will actually fit THIS string, so a long day name like "WEDNESDAY"
-  // shrinks itself instead of overflowing even though it shares a role
-  // with a shorter one like "MONDAY".
-  const bigScale = fitScale(S, timeStr, Math.max(1, Math.round(S / 11)));
+  const daySc = fitScale(S, dayStr, Math.max(1, Math.round(S / 16)));
+  const dateSc = fitScale(S, dateStr, Math.max(1, Math.round(S / 14)));
+  const secSc = fitScale(S, secStr, Math.max(1, Math.round(S / 10)));
 
-  if (mode === 'date') {
-    const dayScale = fitScale(S, dayStr, Math.max(1, Math.round(S / 22)));
-    const dateScale = fitScale(S, dateStr, Math.max(1, Math.round(S / 18)));
-    fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.28, dayScale);
-    fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.55, dateScale);
-  } else if (mode === 'both') {
-    const dayScale = fitScale(S, dayStr, Math.max(1, Math.round(S / 28)));
-    const dateScale = fitScale(S, dateStr, Math.max(1, Math.round(S / 24)));
-    fontDrawText(dtBuf, S, timeStr, S / 2, S * 0.12, bigScale);
-    fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.58, dayScale);
-    fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.76, dateScale);
-  } else if (mode === 'analogue') {
+  if (mode === 'analogue') {
     dtDrawAnalogue(dtBuf, S, now);
+  } else if (mode === 'date') {
+    dtLayoutStack(dtBuf, S, [
+      { type: 'text', str: dayStr, scale: daySc },
+      { type: 'text', str: dateStr, scale: dateSc },
+    ]);
+  } else if (mode === 'both') {
+    dtLayoutStack(dtBuf, S, [
+      { type: 'seg', str: timeStr, idealHFrac: 0.42 },
+      { type: 'text', str: dayStr, scale: daySc },
+      { type: 'text', str: dateStr, scale: dateSc },
+    ]);
   } else if (mode === 'full') {
-    const secScale = fitScale(S, secStr, Math.max(1, Math.round(S / 16)));
-    const dayScale = fitScale(S, dayStr, Math.max(1, Math.round(S / 28)));
-    const dateScale = fitScale(S, dateStr, Math.max(1, Math.round(S / 24)));
-    fontDrawText(dtBuf, S, timeStr, S / 2, S * 0.04, bigScale);
-    fontDrawText(dtBuf, S, secStr, S / 2, S * 0.38, secScale);
-    fontDrawText(dtBuf, S, dayStr, S / 2, S * 0.6, dayScale);
-    fontDrawText(dtBuf, S, dateStr, S / 2, S * 0.78, dateScale);
+    dtLayoutStack(dtBuf, S, [
+      { type: 'seg', str: timeStr, idealHFrac: 0.36 },
+      { type: 'text', str: secStr, scale: secSc },
+      { type: 'text', str: dayStr, scale: daySc },
+      { type: 'text', str: dateStr, scale: dateSc },
+    ]);
   } else { // 'time' (default)
-    const secScale = fitScale(S, secStr, Math.max(1, Math.round(S / 16)));
-    fontDrawText(dtBuf, S, timeStr, S / 2, S * 0.24, bigScale);
-    fontDrawText(dtBuf, S, secStr, S / 2, S * 0.62, secScale);
+    dtLayoutStack(dtBuf, S, [
+      { type: 'seg', str: timeStr, idealHFrac: 0.55 },
+      { type: 'text', str: secStr, scale: secSc },
+    ]);
   }
 }
 
