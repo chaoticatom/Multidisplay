@@ -237,9 +237,17 @@ function dtLayoutStack(buf, W, H, lines) {
   }
 }
 
+// See datetime.js's DT_SS/dtRenderBuf module comment for why.
+const DT_SS = 3;
+
 function dtRenderBuf(core, W, H, now, mode) {
   if (!dtBuf || dtBufW !== W || dtBufH !== H) { dtBuf = new Uint8Array(W * H); dtBufW = W; dtBufH = H; }
   else dtBuf.fill(0);
+
+  if (mode === 'analogue') {
+    dtDrawAnalogue(dtBuf, W, H, now);
+    return;
+  }
 
   const hh = String(now.getHours()).padStart(2, '0');
   const mm = String(now.getMinutes()).padStart(2, '0');
@@ -249,38 +257,52 @@ function dtRenderBuf(core, W, H, now, mode) {
   const timeStr = hh + ':' + mm;
   const secStr = ':' + ss;
 
-  const M = Math.min(W, H);
-  const daySc = fitScale(W, dayStr, Math.max(1, Math.round(M / 16)));
-  const dateSc = fitScale(W, dateStr, Math.max(1, Math.round(M / 14)));
-  const secSc = fitScale(W, secStr, Math.max(1, Math.round(M / 10)));
+  const bigW = W * DT_SS, bigH = H * DT_SS, bigM = Math.min(bigW, bigH);
+  const bigBuf = new Uint8Array(bigW * bigH);
 
-  if (mode === 'analogue') {
-    dtDrawAnalogue(dtBuf, W, H, now);
-  } else if (mode === 'date') {
-    dtLayoutStack(dtBuf, W, H, [
+  const daySc = fitScale(bigW, dayStr, Math.max(1, Math.round(bigM / 16)));
+  const dateSc = fitScale(bigW, dateStr, Math.max(1, Math.round(bigM / 14)));
+  const secSc = fitScale(bigW, secStr, Math.max(1, Math.round(bigM / 10)));
+
+  if (mode === 'date') {
+    dtLayoutStack(bigBuf, bigW, bigH, [
       { type: 'text', str: dayStr, scale: daySc },
       { type: 'text', str: dateStr, scale: dateSc },
     ]);
   } else if (mode === 'both') {
-    dtLayoutStack(dtBuf, W, H, [
+    dtLayoutStack(bigBuf, bigW, bigH, [
       { type: 'seg', str: timeStr, idealHFrac: 0.42 },
       { type: 'text', str: dayStr, scale: daySc },
       { type: 'text', str: dateStr, scale: dateSc },
     ]);
   } else if (mode === 'full') {
-    dtLayoutStack(dtBuf, W, H, [
+    dtLayoutStack(bigBuf, bigW, bigH, [
       { type: 'seg', str: timeStr, idealHFrac: 0.36 },
       { type: 'text', str: secStr, scale: secSc },
       { type: 'text', str: dayStr, scale: daySc },
       { type: 'text', str: dateStr, scale: dateSc },
     ]);
   } else { // 'time' (default)
-    dtLayoutStack(dtBuf, W, H, [
+    dtLayoutStack(bigBuf, bigW, bigH, [
       { type: 'seg', str: timeStr, idealHFrac: 0.55 },
       { type: 'text', str: secStr, scale: secSc },
     ]);
   }
-  if (mode !== 'analogue') dtGlow(dtBuf, W, H);
+
+  for (let y = 0; y < H; y++) {
+    const by0 = y * DT_SS;
+    for (let x = 0; x < W; x++) {
+      const bx0 = x * DT_SS;
+      let sum = 0;
+      for (let sy = 0; sy < DT_SS; sy++) {
+        const row = (by0 + sy) * bigW;
+        for (let sx = 0; sx < DT_SS; sx++) sum += bigBuf[row + bx0 + sx];
+      }
+      dtBuf[y * W + x] = sum / (DT_SS * DT_SS);
+    }
+  }
+
+  dtGlow(dtBuf, W, H);
 }
 
 function paintWall(core, W, H, srcOffsetPx, hue) {

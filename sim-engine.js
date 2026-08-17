@@ -13312,10 +13312,15 @@ var PiEngine = (() => {
           y += ln.h + stackGap;
         }
       }
+      var DT_SS = 3;
       function dtRenderBuf(core, now, mode) {
         const S = core.SIZE;
         if (!dtBuf || dtBuf.length !== S * S) dtBuf = new Uint8Array(S * S);
         else dtBuf.fill(0);
+        if (mode === "analogue") {
+          dtDrawAnalogue(dtBuf, S, now);
+          return;
+        }
         const hh = String(now.getHours()).padStart(2, "0");
         const mm = String(now.getMinutes()).padStart(2, "0");
         const ss = String(now.getSeconds()).padStart(2, "0");
@@ -13323,36 +13328,48 @@ var PiEngine = (() => {
         const dateStr = now.getDate() + " " + DT_MONTHS[now.getMonth()];
         const timeStr = hh + ":" + mm;
         const secStr = ":" + ss;
-        const daySc = fitScale(S, dayStr, Math.max(1, Math.round(S / 16)));
-        const dateSc = fitScale(S, dateStr, Math.max(1, Math.round(S / 14)));
-        const secSc = fitScale(S, secStr, Math.max(1, Math.round(S / 10)));
-        if (mode === "analogue") {
-          dtDrawAnalogue(dtBuf, S, now);
-        } else if (mode === "date") {
-          dtLayoutStack(dtBuf, S, [
+        const bigS = S * DT_SS;
+        const bigBuf = new Uint8Array(bigS * bigS);
+        const daySc = fitScale(bigS, dayStr, Math.max(1, Math.round(bigS / 16)));
+        const dateSc = fitScale(bigS, dateStr, Math.max(1, Math.round(bigS / 14)));
+        const secSc = fitScale(bigS, secStr, Math.max(1, Math.round(bigS / 10)));
+        if (mode === "date") {
+          dtLayoutStack(bigBuf, bigS, [
             { type: "text", str: dayStr, scale: daySc },
             { type: "text", str: dateStr, scale: dateSc }
           ]);
         } else if (mode === "both") {
-          dtLayoutStack(dtBuf, S, [
+          dtLayoutStack(bigBuf, bigS, [
             { type: "seg", str: timeStr, idealHFrac: 0.42 },
             { type: "text", str: dayStr, scale: daySc },
             { type: "text", str: dateStr, scale: dateSc }
           ]);
         } else if (mode === "full") {
-          dtLayoutStack(dtBuf, S, [
+          dtLayoutStack(bigBuf, bigS, [
             { type: "seg", str: timeStr, idealHFrac: 0.36 },
             { type: "text", str: secStr, scale: secSc },
             { type: "text", str: dayStr, scale: daySc },
             { type: "text", str: dateStr, scale: dateSc }
           ]);
         } else {
-          dtLayoutStack(dtBuf, S, [
+          dtLayoutStack(bigBuf, bigS, [
             { type: "seg", str: timeStr, idealHFrac: 0.55 },
             { type: "text", str: secStr, scale: secSc }
           ]);
         }
-        if (mode !== "analogue") dtGlow(dtBuf, S);
+        for (let y = 0; y < S; y++) {
+          const by0 = y * DT_SS;
+          for (let x = 0; x < S; x++) {
+            const bx0 = x * DT_SS;
+            let sum = 0;
+            for (let sy = 0; sy < DT_SS; sy++) {
+              const row = (by0 + sy) * bigS;
+              for (let sx = 0; sx < DT_SS; sx++) sum += bigBuf[row + bx0 + sx];
+            }
+            dtBuf[y * S + x] = sum / (DT_SS * DT_SS);
+          }
+        }
+        dtGlow(dtBuf, S);
       }
       function paintFace(core, face, flip, srcOffsetLEDs, hue) {
         const S = core.SIZE, faceMap = core.faceMap, colBuf = core.colBuf;
@@ -23294,12 +23311,17 @@ var PiEngine = (() => {
           y += ln.h + stackGap;
         }
       }
+      var DT_SS = 3;
       function dtRenderBuf(core, W, H, now, mode) {
         if (!dtBuf || dtBufW !== W || dtBufH !== H) {
           dtBuf = new Uint8Array(W * H);
           dtBufW = W;
           dtBufH = H;
         } else dtBuf.fill(0);
+        if (mode === "analogue") {
+          dtDrawAnalogue(dtBuf, W, H, now);
+          return;
+        }
         const hh = String(now.getHours()).padStart(2, "0");
         const mm = String(now.getMinutes()).padStart(2, "0");
         const ss = String(now.getSeconds()).padStart(2, "0");
@@ -23307,37 +23329,48 @@ var PiEngine = (() => {
         const dateStr = now.getDate() + " " + DT_MONTHS[now.getMonth()];
         const timeStr = hh + ":" + mm;
         const secStr = ":" + ss;
-        const M = Math.min(W, H);
-        const daySc = fitScale(W, dayStr, Math.max(1, Math.round(M / 16)));
-        const dateSc = fitScale(W, dateStr, Math.max(1, Math.round(M / 14)));
-        const secSc = fitScale(W, secStr, Math.max(1, Math.round(M / 10)));
-        if (mode === "analogue") {
-          dtDrawAnalogue(dtBuf, W, H, now);
-        } else if (mode === "date") {
-          dtLayoutStack(dtBuf, W, H, [
+        const bigW = W * DT_SS, bigH = H * DT_SS, bigM = Math.min(bigW, bigH);
+        const bigBuf = new Uint8Array(bigW * bigH);
+        const daySc = fitScale(bigW, dayStr, Math.max(1, Math.round(bigM / 16)));
+        const dateSc = fitScale(bigW, dateStr, Math.max(1, Math.round(bigM / 14)));
+        const secSc = fitScale(bigW, secStr, Math.max(1, Math.round(bigM / 10)));
+        if (mode === "date") {
+          dtLayoutStack(bigBuf, bigW, bigH, [
             { type: "text", str: dayStr, scale: daySc },
             { type: "text", str: dateStr, scale: dateSc }
           ]);
         } else if (mode === "both") {
-          dtLayoutStack(dtBuf, W, H, [
+          dtLayoutStack(bigBuf, bigW, bigH, [
             { type: "seg", str: timeStr, idealHFrac: 0.42 },
             { type: "text", str: dayStr, scale: daySc },
             { type: "text", str: dateStr, scale: dateSc }
           ]);
         } else if (mode === "full") {
-          dtLayoutStack(dtBuf, W, H, [
+          dtLayoutStack(bigBuf, bigW, bigH, [
             { type: "seg", str: timeStr, idealHFrac: 0.36 },
             { type: "text", str: secStr, scale: secSc },
             { type: "text", str: dayStr, scale: daySc },
             { type: "text", str: dateStr, scale: dateSc }
           ]);
         } else {
-          dtLayoutStack(dtBuf, W, H, [
+          dtLayoutStack(bigBuf, bigW, bigH, [
             { type: "seg", str: timeStr, idealHFrac: 0.55 },
             { type: "text", str: secStr, scale: secSc }
           ]);
         }
-        if (mode !== "analogue") dtGlow(dtBuf, W, H);
+        for (let y = 0; y < H; y++) {
+          const by0 = y * DT_SS;
+          for (let x = 0; x < W; x++) {
+            const bx0 = x * DT_SS;
+            let sum = 0;
+            for (let sy = 0; sy < DT_SS; sy++) {
+              const row = (by0 + sy) * bigW;
+              for (let sx = 0; sx < DT_SS; sx++) sum += bigBuf[row + bx0 + sx];
+            }
+            dtBuf[y * W + x] = sum / (DT_SS * DT_SS);
+          }
+        }
+        dtGlow(dtBuf, W, H);
       }
       function paintWall(core, W, H, srcOffsetPx, hue) {
         for (let v = 0; v < H; v++) {

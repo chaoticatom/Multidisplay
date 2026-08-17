@@ -297,10 +297,19 @@ function dtLayoutStack(buf, S, lines) {
   }
 }
 
+// How many sub-samples per axis to render digits/text at internally before
+// downsampling - see the module comment on the supersampling block below.
+const DT_SS = 3;
+
 function dtRenderBuf(core, now, mode) {
   const S = core.SIZE;
   if (!dtBuf || dtBuf.length !== S * S) dtBuf = new Uint8Array(S * S);
   else dtBuf.fill(0);
+
+  if (mode === 'analogue') {
+    dtDrawAnalogue(dtBuf, S, now);
+    return;
+  }
 
   const hh = String(now.getHours()).padStart(2, '0');
   const mm = String(now.getMinutes()).padStart(2, '0');
@@ -310,37 +319,67 @@ function dtRenderBuf(core, now, mode) {
   const timeStr = hh + ':' + mm;
   const secStr = ':' + ss;
 
-  const daySc = fitScale(S, dayStr, Math.max(1, Math.round(S / 16)));
-  const dateSc = fitScale(S, dateStr, Math.max(1, Math.round(S / 14)));
-  const secSc = fitScale(S, secStr, Math.max(1, Math.round(S / 10)));
+  // Supersampled rendering - real report ("FONT IS AWFUL. ITS NOT SMOOTH...
+  // no pixelated edges"): fillRect's per-edge fractional coverage already
+  // smooths a shape's own boundary, but every glyph is still laid out and
+  // drawn at native 1:1 panel resolution, so a letter's actual strokes are
+  // only a few pixels wide with nothing but that single edge softening -
+  // still reads as "pixelated" up close. This instead renders the WHOLE
+  // layout at DT_SS times the linear resolution into a scratch buffer (all
+  // the layout/fit math below is already expressed as fractions of S, so
+  // handing it a bigger S "just works" - no other function needs to know)
+  // and then box-filter-downsamples every DT_SS x DT_SS block back down to
+  // one real pixel. That's true supersampled anti-aliasing - the standard
+  // technique for smoothing rasterized vector/text shapes onto a fixed
+  // pixel grid - and is as smooth as this can get short of embedding an
+  // actual TrueType rasterizer (no such dependency exists in this project
+  // and one can't be added here safely - see the PR/commit note for why).
+  const bigS = S * DT_SS;
+  const bigBuf = new Uint8Array(bigS * bigS);
 
-  if (mode === 'analogue') {
-    dtDrawAnalogue(dtBuf, S, now);
-  } else if (mode === 'date') {
-    dtLayoutStack(dtBuf, S, [
+  const daySc = fitScale(bigS, dayStr, Math.max(1, Math.round(bigS / 16)));
+  const dateSc = fitScale(bigS, dateStr, Math.max(1, Math.round(bigS / 14)));
+  const secSc = fitScale(bigS, secStr, Math.max(1, Math.round(bigS / 10)));
+
+  if (mode === 'date') {
+    dtLayoutStack(bigBuf, bigS, [
       { type: 'text', str: dayStr, scale: daySc },
       { type: 'text', str: dateStr, scale: dateSc },
     ]);
   } else if (mode === 'both') {
-    dtLayoutStack(dtBuf, S, [
+    dtLayoutStack(bigBuf, bigS, [
       { type: 'seg', str: timeStr, idealHFrac: 0.42 },
       { type: 'text', str: dayStr, scale: daySc },
       { type: 'text', str: dateStr, scale: dateSc },
     ]);
   } else if (mode === 'full') {
-    dtLayoutStack(dtBuf, S, [
+    dtLayoutStack(bigBuf, bigS, [
       { type: 'seg', str: timeStr, idealHFrac: 0.36 },
       { type: 'text', str: secStr, scale: secSc },
       { type: 'text', str: dayStr, scale: daySc },
       { type: 'text', str: dateStr, scale: dateSc },
     ]);
   } else { // 'time' (default)
-    dtLayoutStack(dtBuf, S, [
+    dtLayoutStack(bigBuf, bigS, [
       { type: 'seg', str: timeStr, idealHFrac: 0.55 },
       { type: 'text', str: secStr, scale: secSc },
     ]);
   }
-  if (mode !== 'analogue') dtGlow(dtBuf, S);
+
+  for (let y = 0; y < S; y++) {
+    const by0 = y * DT_SS;
+    for (let x = 0; x < S; x++) {
+      const bx0 = x * DT_SS;
+      let sum = 0;
+      for (let sy = 0; sy < DT_SS; sy++) {
+        const row = (by0 + sy) * bigS;
+        for (let sx = 0; sx < DT_SS; sx++) sum += bigBuf[row + bx0 + sx];
+      }
+      dtBuf[y * S + x] = sum / (DT_SS * DT_SS);
+    }
+  }
+
+  dtGlow(dtBuf, S);
 }
 
 // Same modulo-wrap sampling as the browser's paintFace(), with DT_RES
