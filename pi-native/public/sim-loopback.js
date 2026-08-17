@@ -25,6 +25,17 @@
   const core = new E.CubeCore(config.size);
   if (config.mode === 'wall') core.initWall(config.panels, config.size);
 
+  // Weather's last-picked city is the one bit of state this simulator
+  // persists across a browser refresh - a real report ("weather should
+  // remember last city even after a browser refresh"). Everything else in
+  // `state` really does reset every load (this is a from-scratch in-memory
+  // fake server, not the real Pi's wsServer.js backed by weatherConfig.js's
+  // on-disk JSON file), but a blank localStorage read/write is cheap and
+  // matches what a user coming from the real backend would expect.
+  const LS_WEATHER_CITY_KEY = 'multidisplay-weather-city';
+  let savedCity = '';
+  try { savedCity = localStorage.getItem(LS_WEATHER_CITY_KEY) || ''; } catch (err) { /* localStorage unavailable (private mode etc) - just fall back to '' */ }
+
   const state = {
     effect: 'wave', brightness: 1.0, speed: 1.0,
     overlays: JSON.parse(JSON.stringify(E.OV_DEFAULTS)),
@@ -32,7 +43,7 @@
     customCube: { faces: {}, saved: {} },
     unsplashConfig: { apiKey: '', query: 'nature' },
     nasaConfig: { apiKey: '' },
-    effectOptions: { weather: { city: '' } },
+    effectOptions: { weather: { city: savedCity } },
     blank: false,
   };
 
@@ -78,6 +89,9 @@
       if (!E.EFFECTS[msg.effect] && !E.WALL_EFFECTS[msg.effect]) return;
       if (!state.effectOptions[msg.effect]) state.effectOptions[msg.effect] = {};
       state.effectOptions[msg.effect][msg.key] = msg.value;
+      if (msg.effect === 'weather' && msg.key === 'city' && typeof msg.value === 'string') {
+        try { localStorage.setItem(LS_WEATHER_CITY_KEY, msg.value); } catch (err) { /* ignore */ }
+      }
     } else if (msg.cmd === 'setOverlay') {
       if (!E.OVERLAY_KEYS.includes(msg.key)) return;
       state.overlays[msg.key].on = !!msg.enabled;
