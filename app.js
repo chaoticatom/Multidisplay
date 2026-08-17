@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.5.8';
+const APP_VERSION = '0.5.9';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1245,11 +1245,18 @@ function wireCamPanel() {
 // dice.js's "roll" buttons.
 // ---------------------------------------------------------------------
 let _apodRefreshToken = 0;
+// NASA API key input - backed by the dedicated setNasaConfig command
+// (persisted server-side, shared by APOD/EPIC/NEO - see wsServer.js's
+// module comment and nasaConfig.js). Was previously greyed out entirely
+// ("set via the server's NASA_API_KEY environment variable, not per-
+// browser") - a real request: "enable the NASA apod API field. I have the
+// api to enter."
 function wireApodPanel() {
   const panel = document.getElementById('panel-apod');
   if (!panel) return;
-  const keyBlock = panel.querySelector('#nasa-api-key-input')?.closest('div')?.parentElement;
-  if (keyBlock) markUnsupported(keyBlock, 'NASA API key is set via the server’s NASA_API_KEY environment variable, not per-browser.');
+  const keyInput = panel.querySelector('#nasa-api-key-input');
+  const saveBtn = panel.querySelector('#nasa-api-key-save');
+  if (saveBtn) saveBtn.addEventListener('click', () => send({ cmd: 'setNasaConfig', apiKey: (keyInput?.value || '').trim() }));
   const fetchBtn = panel.querySelector('#apod-fetch-btn');
   if (fetchBtn) fetchBtn.addEventListener('click', () => setEffectOption('apod', 'refresh', ++_apodRefreshToken));
 }
@@ -1257,6 +1264,8 @@ function wireApodPanel() {
 function syncApodPanel() {
   const panel = document.getElementById('panel-apod');
   if (!panel) return;
+  const keyInput = panel.querySelector('#nasa-api-key-input');
+  if (keyInput && document.activeElement !== keyInput) keyInput.value = currentState.nasaConfig?.apiKey || '';
   const status = currentState.effectStatus?.apod;
   const statusEl = panel.querySelector('#apod-status');
   const infoEl = panel.querySelector('#apod-info');

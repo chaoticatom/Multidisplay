@@ -25,7 +25,11 @@ const { Jimp } = require('jimp');
 const { drawGlyph, CHAR_W } = require('./radio/font');
 const { PIXEL_FONT } = require('./weather/font');
 
-const NASA_API_KEY = process.env.NASA_API_KEY || 'DEMO_KEY';
+const nasaConfig = require('../nasaConfig');
+// Live-read (not a frozen constant) so a key entered via the UI takes
+// effect on the next fetch without a restart - see nasaConfig.js's module
+// comment for the real report this fixes.
+function NASA_API_KEY() { return nasaConfig.currentKey(); }
 const APOD_REFRESH_SEC = 24 * 60 * 60;
 
 let apodData = null;
@@ -72,7 +76,7 @@ function maybeFetch(core, W, H) {
   status.text = 'Fetching astronomy picture of the day…';
 
   (async () => {
-    const url = `https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY}`;
+    const url = `https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY()}`;
     let r;
     try { r = await fetch(url); }
     catch (fe) { retryAfterMs = 5000; throw new Error('Network error — check connection'); }

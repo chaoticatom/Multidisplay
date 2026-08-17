@@ -25,7 +25,11 @@
 
 const { PIXEL_FONT } = require('./weather/font');
 
-const NASA_API_KEY = process.env.NASA_API_KEY || 'DEMO_KEY';
+const nasaConfig = require('../nasaConfig');
+// Live-read (not a frozen constant) so a key entered via the UI takes
+// effect on the next fetch without a restart - see nasaConfig.js's module
+// comment for the real report this fixes.
+function NASA_API_KEY() { return nasaConfig.currentKey(); }
 const NEO_REFRESH_SEC = 3600; // matches the browser's 1-hour re-fetch gate
 
 // ── State ────────────────────────────────────────────────────────────────
@@ -83,7 +87,7 @@ function neoFetch() {
   const start = new Date();
   const end = new Date(start.getTime() + 6 * 86400000);
   const fmt = (d) => d.toISOString().slice(0, 10);
-  const url = `https://api.nasa.gov/neo/rest/v1/feed?start_date=${fmt(start)}&end_date=${fmt(end)}&api_key=${NASA_API_KEY}`;
+  const url = `https://api.nasa.gov/neo/rest/v1/feed?start_date=${fmt(start)}&end_date=${fmt(end)}&api_key=${NASA_API_KEY()}`;
 
   (async () => {
     let r;

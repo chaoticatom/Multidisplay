@@ -30,7 +30,11 @@
 const { Jimp } = require('jimp');
 const { drawTicker } = require('./radio/ticker');
 
-const NASA_API_KEY = process.env.NASA_API_KEY || 'DEMO_KEY';
+const nasaConfig = require('../nasaConfig');
+// Live-read (not a frozen constant) so a key entered via the UI takes
+// effect on the next fetch without a restart - see nasaConfig.js's module
+// comment for the real report this fixes.
+function NASA_API_KEY() { return nasaConfig.currentKey(); }
 
 // ── EPIC natural-image metadata + PNG fetch state ───────────────────────
 let epicData = null;         // {caption, date, lat, lon, url}
@@ -165,8 +169,8 @@ async function fetchEpic() {
       const d = new Date(); d.setDate(d.getDate() - daysAgo);
       const dateStr = d.toISOString().slice(0, 10);
       const url = daysAgo === 0
-        ? `https://api.nasa.gov/EPIC/api/natural/images?api_key=${NASA_API_KEY}`
-        : `https://api.nasa.gov/EPIC/api/natural/date/${dateStr}?api_key=${NASA_API_KEY}`;
+        ? `https://api.nasa.gov/EPIC/api/natural/images?api_key=${NASA_API_KEY()}`
+        : `https://api.nasa.gov/EPIC/api/natural/date/${dateStr}?api_key=${NASA_API_KEY()}`;
       let r;
       try { r = await fetch(url); } catch (fe) { throw new Error('Network error — check connection'); }
       if (r.status === 429) { epicRetryAfter = 60; throw new Error('Rate limited — set NASA_API_KEY env var'); }
@@ -180,7 +184,7 @@ async function fetchEpic() {
     const item = arr[arr.length - 1];
     const d = new Date(item.date.replace(' ', 'T') + 'Z');
     const yyyy = d.getUTCFullYear(), mm = String(d.getUTCMonth() + 1).padStart(2, '0'), dd = String(d.getUTCDate()).padStart(2, '0');
-    const imgUrl = `https://api.nasa.gov/EPIC/archive/natural/${yyyy}/${mm}/${dd}/png/${item.image}.png?api_key=${NASA_API_KEY}`;
+    const imgUrl = `https://api.nasa.gov/EPIC/archive/natural/${yyyy}/${mm}/${dd}/png/${item.image}.png?api_key=${NASA_API_KEY()}`;
     epicData = {
       caption: item.caption || 'Earth from DSCOVR',
       date: item.date,

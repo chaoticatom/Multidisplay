@@ -31,6 +31,7 @@
     alarms: [], activeAlarm: null,
     customCube: { faces: {}, saved: {} },
     unsplashConfig: { apiKey: '', query: 'nature' },
+    nasaConfig: { apiKey: '' },
     effectOptions: { weather: { city: '' } },
     blank: false,
   };
@@ -45,7 +46,7 @@
       panelSize: config.size, panelMode: config.mode, panels: config.panels,
       physicalCubePanels: config.physicalCubePanels,
       overlays: state.overlays, alarms: state.alarms, activeAlarm: state.activeAlarm,
-      customCube: state.customCube, unsplashConfig: state.unsplashConfig,
+      customCube: state.customCube, unsplashConfig: state.unsplashConfig, nasaConfig: state.nasaConfig,
       effectOptions: state.effectOptions, effectStatus: state.effectStatus, blank: state.blank,
       effectNames: E.EFFECT_NAMES,
       simulator: true,
@@ -97,6 +98,9 @@
       }
       core.resize(config.size);
       if (config.mode === 'wall') core.initWall(config.panels, config.size);
+    } else if (msg.cmd === 'setNasaConfig') {
+      if (typeof msg.apiKey !== 'string') return;
+      state.nasaConfig = { apiKey: msg.apiKey.trim() };
     } else if (msg.cmd === 'setPhysicalCubePanels') {
       if (E.panelConfig.isValidPhysicalCubePanels(msg.value)) config.physicalCubePanels = msg.value;
     } else if (msg.cmd === 'addPanel') {

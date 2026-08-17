@@ -17,6 +17,7 @@ const alarmConfig = require('./alarmConfig');
 const customCubeConfig = require('./customCubeConfig');
 const unsplashConfig = require('./unsplashConfig');
 const weatherConfig = require('./weatherConfig');
+const nasaConfig = require('./nasaConfig');
 
 const TICK_HZ = 30; // effect-compute + panel-push rate; independent of the driver's own PWM refresh
 const WS_PORT = 8081;
@@ -127,6 +128,9 @@ async function main() {
     // client's Unsplash panel reflects whatever key was last saved, same
     // as customCube/alarms.
     unsplashConfig: unsplashConfig.load(),
+    // NASA API key (shared by APOD/EPIC/NEO) - same shape/reason as
+    // unsplashConfig above. See nasaConfig.js's module comment.
+    nasaConfig: nasaConfig.load(),
     // Weather's last-selected city (see weatherConfig.js's module comment
     // for the real report this fixes: it always reverted to London on
     // every restart otherwise). An empty string here correctly falls

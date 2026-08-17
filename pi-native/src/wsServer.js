@@ -203,6 +203,7 @@ const panelConfig = require('./panelConfig');
 const alarmConfig = require('./alarmConfig');
 const customCubeConfig = require('./customCubeConfig');
 const unsplashConfig = require('./unsplashConfig');
+const nasaConfig = require('./nasaConfig');
 const weatherConfig = require('./weatherConfig');
 const bluetooth = require('./bluetooth');
 const alarmsEngine = require('./effects/alarms');
@@ -494,6 +495,7 @@ class WsServer {
       alarms: this.state.alarms, activeAlarm: this.state.activeAlarm,
       customCube: this.state.customCube,
       unsplashConfig: this.state.unsplashConfig,
+      nasaConfig: this.state.nasaConfig,
     };
   }
 
@@ -853,6 +855,16 @@ class WsServer {
       if (typeof msg.apiKey !== 'string' || typeof msg.query !== 'string') return;
       this.state.unsplashConfig = { apiKey: msg.apiKey.trim(), query: msg.query.trim() || 'nature' };
       unsplashConfig.save(this.state.unsplashConfig);
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'setNasaConfig') {
+      // Persists the shared NASA API key (APOD/EPIC/NEO all read this via
+      // nasaConfig.currentKey()) - a real request: "enable the NASA apod
+      // API field. I have the api to enter." Same dedicated-small-file
+      // shape as setUnsplashConfig above, for the same reason (needs to
+      // survive a restart).
+      if (typeof msg.apiKey !== 'string') return;
+      this.state.nasaConfig = { apiKey: msg.apiKey.trim() };
+      nasaConfig.save(this.state.nasaConfig);
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'radioSearch') {
       const query = typeof msg.query === 'string' ? msg.query : '';

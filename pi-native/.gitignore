@@ -3,6 +3,7 @@ panel-config.json
 alarms.json
 custom-cube-config.json
 unsplash-config.json
+nasa-config.json
 weather-config.json
 uploads/
 tls-key.pem

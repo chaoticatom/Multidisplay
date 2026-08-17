@@ -15272,6 +15272,40 @@ var PiEngine = (() => {
     }
   });
 
+  // src/nasaConfig.js
+  var require_nasaConfig = __commonJS({
+    "src/nasaConfig.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var fs = require_fs();
+      var path = require_path();
+      var CONFIG_PATH = path.join(".", "..", "nasa-config.json");
+      var DEFAULT_CONFIG = { apiKey: "" };
+      function isValidConfig(c) {
+        return !!c && typeof c === "object" && typeof c.apiKey === "string";
+      }
+      function load() {
+        try {
+          const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+          const parsed = JSON.parse(raw);
+          if (!isValidConfig(parsed)) throw new Error("invalid stored nasa config");
+          return parsed;
+        } catch (err) {
+          return { ...DEFAULT_CONFIG };
+        }
+      }
+      function save(config) {
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+      }
+      function currentKey() {
+        const saved = load().apiKey.trim();
+        if (saved) return saved;
+        return define_process_env_default.NASA_API_KEY || "DEMO_KEY";
+      }
+      module.exports = { load, save, isValidConfig, currentKey, DEFAULT_CONFIG, CONFIG_PATH };
+    }
+  });
+
   // src/effects/apod.js
   var require_apod = __commonJS({
     "src/effects/apod.js"(exports, module) {
@@ -15280,7 +15314,10 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { Jimp } = (init_browser(), __toCommonJS(browser_exports));
       var { drawGlyph, CHAR_W } = require_font2();
-      var NASA_API_KEY = define_process_env_default.NASA_API_KEY || "DEMO_KEY";
+      var nasaConfig = require_nasaConfig();
+      function NASA_API_KEY() {
+        return nasaConfig.currentKey();
+      }
       var APOD_REFRESH_SEC = 24 * 60 * 60;
       var apodData = null;
       var fetching = false;
@@ -15327,7 +15364,7 @@ var PiEngine = (() => {
         fetching = true;
         status.text = "Fetching astronomy picture of the day\u2026";
         (async () => {
-          const url = `https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY}`;
+          const url = `https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY()}`;
           let r;
           try {
             r = await fetch(url);
@@ -15485,7 +15522,10 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { Jimp } = (init_browser(), __toCommonJS(browser_exports));
       var { drawTicker } = require_ticker();
-      var NASA_API_KEY = define_process_env_default.NASA_API_KEY || "DEMO_KEY";
+      var nasaConfig = require_nasaConfig();
+      function NASA_API_KEY() {
+        return nasaConfig.currentKey();
+      }
       var epicData = null;
       var epicFetching = false;
       var epicLastFetch = 0;
@@ -15617,7 +15657,7 @@ var PiEngine = (() => {
             const d2 = /* @__PURE__ */ new Date();
             d2.setDate(d2.getDate() - daysAgo);
             const dateStr = d2.toISOString().slice(0, 10);
-            const url = daysAgo === 0 ? `https://api.nasa.gov/EPIC/api/natural/images?api_key=${NASA_API_KEY}` : `https://api.nasa.gov/EPIC/api/natural/date/${dateStr}?api_key=${NASA_API_KEY}`;
+            const url = daysAgo === 0 ? `https://api.nasa.gov/EPIC/api/natural/images?api_key=${NASA_API_KEY()}` : `https://api.nasa.gov/EPIC/api/natural/date/${dateStr}?api_key=${NASA_API_KEY()}`;
             let r;
             try {
               r = await fetch(url);
@@ -15644,7 +15684,7 @@ var PiEngine = (() => {
           const item = arr[arr.length - 1];
           const d = /* @__PURE__ */ new Date(item.date.replace(" ", "T") + "Z");
           const yyyy = d.getUTCFullYear(), mm = String(d.getUTCMonth() + 1).padStart(2, "0"), dd = String(d.getUTCDate()).padStart(2, "0");
-          const imgUrl = `https://api.nasa.gov/EPIC/archive/natural/${yyyy}/${mm}/${dd}/png/${item.image}.png?api_key=${NASA_API_KEY}`;
+          const imgUrl = `https://api.nasa.gov/EPIC/archive/natural/${yyyy}/${mm}/${dd}/png/${item.image}.png?api_key=${NASA_API_KEY()}`;
           epicData = {
             caption: item.caption || "Earth from DSCOVR",
             date: item.date,
@@ -15746,7 +15786,10 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { PIXEL_FONT } = require_font();
-      var NASA_API_KEY = define_process_env_default.NASA_API_KEY || "DEMO_KEY";
+      var nasaConfig = require_nasaConfig();
+      function NASA_API_KEY() {
+        return nasaConfig.currentKey();
+      }
       var NEO_REFRESH_SEC = 3600;
       var neoObjects = [];
       var neoFetching = false;
@@ -15797,7 +15840,7 @@ var PiEngine = (() => {
         const start = /* @__PURE__ */ new Date();
         const end = new Date(start.getTime() + 6 * 864e5);
         const fmt = (d) => d.toISOString().slice(0, 10);
-        const url = `https://api.nasa.gov/neo/rest/v1/feed?start_date=${fmt(start)}&end_date=${fmt(end)}&api_key=${NASA_API_KEY}`;
+        const url = `https://api.nasa.gov/neo/rest/v1/feed?start_date=${fmt(start)}&end_date=${fmt(end)}&api_key=${NASA_API_KEY()}`;
         (async () => {
           let r;
           try {
@@ -16187,7 +16230,10 @@ var PiEngine = (() => {
       var { Jimp } = (init_browser(), __toCommonJS(browser_exports));
       var { drawGlyph, CHAR_W } = require_font2();
       var { PIXEL_FONT } = require_font();
-      var NASA_API_KEY = define_process_env_default.NASA_API_KEY || "DEMO_KEY";
+      var nasaConfig = require_nasaConfig();
+      function NASA_API_KEY() {
+        return nasaConfig.currentKey();
+      }
       var APOD_REFRESH_SEC = 24 * 60 * 60;
       var apodData = null;
       var fetching = false;
@@ -16235,7 +16281,7 @@ var PiEngine = (() => {
         fetching = true;
         status.text = "Fetching astronomy picture of the day\u2026";
         (async () => {
-          const url = `https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY}`;
+          const url = `https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY()}`;
           let r;
           try {
             r = await fetch(url);
