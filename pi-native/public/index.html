@@ -378,7 +378,18 @@
   }
 
   /* --- pi-native additions: 3D preview canvas host + not-ported greying --- */
-  #canvas-wrap { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+  /* height: 100dvh after the 100vh fallback, not just 100vh - a real
+     report ("cube not centralised in available space" on Android, after
+     the earlier blank-screen fix). This rule is unconditional (applies at
+     every viewport width) and comes AFTER the @media(max-width:768px)
+     block above in source order, so at equal specificity it was winning
+     even on mobile and silently dropping that block's own 100dvh - static
+     100vh on mobile browsers includes the area hidden behind a
+     collapsible address bar, taller than the actually-visible viewport,
+     while resizeRenderer()'s JS sizing (window.innerWidth/innerHeight)
+     tracks the real dynamic viewport - that CSS/JS mismatch is what made
+     the cube render off-center/cropped. */
+  #canvas-wrap { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; z-index: 1; }
   .not-ported, .pi-unsupported input, .pi-unsupported button:not(.section-head):not(.sub-head),
   button.not-ported, .effect-btn.not-ported {
     opacity: 0.32 !important; pointer-events: none; filter: grayscale(60%);
