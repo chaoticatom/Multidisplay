@@ -294,6 +294,19 @@
     pointer-events: none; white-space: nowrap; z-index: 6;
   }
   #cube-label  { display: none; }
+  /* Per-face name overlays for the 3D cube preview (app.js's
+     buildFaceLabels()/updateFaceLabels()) - plain DOM spans positioned via
+     Vector3.project() every frame, not real 3D text (the stripped
+     three.min.js build has no Sprite/CanvasTexture/font support - see that
+     function's own comment). transform:translate(-50%,-50%) centers the
+     label ON the projected point rather than growing from its top-left. */
+  .face-label {
+    position: absolute; display: none; transform: translate(-50%, -50%);
+    font-size: 12px; font-weight: 700; letter-spacing: 1.5px; color: #cde;
+    background: rgba(8,10,20,0.6); padding: 3px 10px; border-radius: 10px;
+    border: 1px solid rgba(80,120,255,0.35);
+    pointer-events: none; white-space: nowrap; z-index: 4;
+  }
 
   /* ── Sub-sections inside Controls ── */
   .sub-section { margin-bottom: 4px; border: 1px solid rgba(80,120,255,0.08); border-radius: 5px; overflow: hidden; }
@@ -1763,6 +1776,6 @@
      package.json's version on every release, same discipline the old
      retired ESP32 app documented in CLAUDE.md for its own ?v= params. -->
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.17"></script>
+<script src="app.js?v=0.6.18"></script>
 </body>
 </html>

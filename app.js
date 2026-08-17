@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.17';
+const APP_VERSION = '0.6.18';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2788,7 +2788,66 @@ function initScene() {
   window.addEventListener('resize', resizeRenderer);
   resizeRenderer();
   rebuildScene(); // shows #webgl-fallback instead of a Three.js scene if !webglOK and currently in cube mode
-  if (webglOK) { wireCubeDrag(); animate(); }
+  if (webglOK) { wireCubeDrag(); buildFaceLabels(); animate(); }
+}
+
+// ---------------------------------------------------------------------
+// Face labels (#face-labels-chk, "Display" section) - a real report
+// ("enable the face labels option": the checkbox existed in the HTML but
+// had no wiring at all behind it). The custom stripped three.min.js build
+// (see build-tools/three-entry.js) exports no Sprite/CanvasTexture/font-
+// rendering classes, so real 3D floating text isn't available here - this
+// instead projects each face's center through the camera every frame (the
+// standard "HTML overlay label for a 3D scene" technique) and positions a
+// plain DOM span over it, which needs nothing beyond Vector3.project()
+// (already included - it's a method on the Vector3 class we already
+// import whole, not a separate tree-shaken export) and CSS.
+// ---------------------------------------------------------------------
+let faceLabelEls = [];
+function buildFaceLabels() {
+  if (faceLabelEls.length) return; // already built - initScene() can run more than once? no, but cheap to guard anyway
+  const wrap = document.getElementById('canvas-wrap');
+  if (!wrap) return;
+  faceLabelEls = FACE_NAMES.map((name) => {
+    const el = document.createElement('div');
+    el.className = 'face-label';
+    el.textContent = name.toUpperCase();
+    wrap.appendChild(el);
+    return el;
+  });
+}
+
+const _flVec = new THREE.Vector3();
+function updateFaceLabels() {
+  if (!faceLabelEls.length) return;
+  const chk = document.getElementById('face-labels-chk');
+  const on = !!(chk && chk.checked) && currentState.panelMode === 'cube' && group;
+  if (!on) {
+    for (const el of faceLabelEls) el.style.display = 'none';
+    return;
+  }
+  const w = window.innerWidth, h = window.innerHeight;
+  for (let face = 0; face < 6; face++) {
+    const el = faceLabelEls[face];
+    const xf = FACE_XFORM[face];
+    // xf.pos is the face's outward unit normal on the 2x2x2 cube (see
+    // rebuildScene()'s own comment on that box size) - pushed to 1.35x so
+    // the label floats just outside the panel surface instead of
+    // overlapping the LEDs.
+    _flVec.set(xf.pos[0], xf.pos[1], xf.pos[2]).multiplyScalar(1.35).applyQuaternion(group.quaternion);
+    // Only show labels for faces actually turned toward the camera - dot
+    // of the (rotated) outward normal with the direction from the face to
+    // the camera. Faces pointing away are on the far side of the cube,
+    // hidden behind the near faces' spheres/backing panel; without this
+    // check their labels would float in front of the wrong face.
+    const towardCam = _flVec.dot(camera.position) > 0;
+    if (!towardCam) { el.style.display = 'none'; continue; }
+    const proj = _flVec.clone().project(camera);
+    if (proj.z > 1) { el.style.display = 'none'; continue; } // behind the camera
+    el.style.display = 'block';
+    el.style.left = ((proj.x * 0.5 + 0.5) * w) + 'px';
+    el.style.top = ((-proj.y * 0.5 + 0.5) * h) + 'px';
+  }
 }
 
 function resizeRenderer() {
@@ -2853,6 +2912,10 @@ function rebuildScene() {
   document.getElementById('c').style.display = (mode === 'cube' && webglOK) ? 'block' : 'none';
   const fallback = document.getElementById('webgl-fallback');
   if (fallback) fallback.style.display = (mode === 'cube' && !webglOK) ? 'block' : 'none';
+  // animate() (which drives updateFaceLabels()) only runs its body in cube
+  // mode, so leaving these visible/stale-positioned here would float them
+  // over the 2D/wall preview instead of disappearing with the cube.
+  if (mode !== 'cube') for (const el of faceLabelEls) el.style.display = 'none';
   if (mode === '2d') { fitPanel2dCanvas(); return; } // drawn straight into panel2dCtx by handleFrame(), no Three.js scene needed
   if (mode === 'wall') { rebuildWallPreview(); return; } // ditto, drawn into per-panel 2D canvases
   if (!webglOK) return; // #webgl-fallback shown above instead - nothing WebGL-dependent below is safe to touch
@@ -2990,6 +3053,7 @@ function animate() {
     _qRot.multiplyQuaternions(_qDelta, _qRot);
     group.quaternion.copy(_qRot);
   }
+  updateFaceLabels();
   renderer.render(scene, camera);
 }
 
