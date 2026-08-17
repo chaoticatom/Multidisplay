@@ -21263,8 +21263,14 @@ var PiEngine = (() => {
         [0.105, 0.105, 0.115]
       ];
       var MZ_HUES = [0.5, 0.08, 0.85, 0.16, 0.7, 0.42];
-      function idxAt(wallW, wallH, x, y) {
+      function pixelOccupied(core, x, y) {
+        const gx = x / core.wallPanelSize | 0, gy = y / core.wallPanelSize | 0;
+        return !!core._wallOccupied[gy * core.wallCols + gx];
+      }
+      function idxAt(core, x, y) {
+        const { wallW, wallH } = core;
         if (x < 0 || x >= wallW || y < 0 || y >= wallH) return -1;
+        if (!pixelOccupied(core, x, y)) return -1;
         return y * wallW + x;
       }
       function buildMaze(core) {
@@ -21274,15 +21280,20 @@ var PiEngine = (() => {
         mazeOpen = new Uint8Array(N);
         mazeGridKey = `${wallW}|${wallH}`;
         function openLocal(x, y) {
-          const i = idxAt(wallW, wallH, x, y);
+          const i = idxAt(core, x, y);
           if (i >= 0) mazeOpen[i] = 1;
         }
         function openCell(ci, cj) {
           openLocal(2 * ci + 1, 2 * cj + 1);
         }
+        function cellOccupied(ci, cj) {
+          return pixelOccupied(core, 2 * ci + 1, 2 * cj + 1);
+        }
         const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
         const vis = new Uint8Array(Cw * Ch);
-        const sx = Math.random() * Cw | 0, sy = Math.random() * Ch | 0;
+        const occCells = [];
+        for (let cj = 0; cj < Ch; cj++) for (let ci = 0; ci < Cw; ci++) if (cellOccupied(ci, cj)) occCells.push([ci, cj]);
+        const [sx, sy] = occCells.length ? occCells[Math.random() * occCells.length | 0] : [0, 0];
         const stack = [[sx, sy]];
         vis[sy * Cw + sx] = 1;
         openCell(sx, sy);
@@ -21291,7 +21302,7 @@ var PiEngine = (() => {
           const opts = [];
           for (const d of dirs) {
             const ni = ci + d[0], nj = cj + d[1];
-            if (ni >= 0 && ni < Cw && nj >= 0 && nj < Ch && !vis[nj * Cw + ni]) opts.push([ni, nj]);
+            if (ni >= 0 && ni < Cw && nj >= 0 && nj < Ch && !vis[nj * Cw + ni] && cellOccupied(ni, nj)) opts.push([ni, nj]);
           }
           if (!opts.length) {
             stack.pop();
@@ -21303,14 +21314,14 @@ var PiEngine = (() => {
           openCell(nx[0], nx[1]);
           stack.push(nx);
         }
-        mazeStartI = idxAt(wallW, wallH, 1, 1);
+        mazeStartI = idxAt(core, 1, 1);
         const endU = 2 * Cw - 1, endV = 2 * Ch - 1;
-        mazeEndI = idxAt(wallW, wallH, endU, endV);
+        mazeEndI = idxAt(core, endU, endV);
         if (mazeEndI < 0 || !mazeOpen[mazeEndI]) {
           let best = -1;
           for (let cj = Ch - 1; cj >= 0 && best < 0; cj--) {
             for (let ci = Cw - 1; ci >= 0 && best < 0; ci--) {
-              const idx = idxAt(wallW, wallH, 2 * ci + 1, 2 * cj + 1);
+              const idx = idxAt(core, 2 * ci + 1, 2 * cj + 1);
               if (idx >= 0 && mazeOpen[idx]) best = idx;
             }
           }
@@ -21326,7 +21337,7 @@ var PiEngine = (() => {
           if (i === mazeEndI) break;
           const x = i % wallW, y = i / wallW | 0;
           for (const nb of NB2) {
-            const j = idxAt(wallW, wallH, x + nb[0], y + nb[1]);
+            const j = idxAt(core, x + nb[0], y + nb[1]);
             if (j >= 0 && mazeOpen[j] && prev[j] < 0) {
               prev[j] = i;
               q[qt++] = j;
@@ -21361,7 +21372,7 @@ var PiEngine = (() => {
           const x = i % wallW, y = i / wallW | 0;
           const opts = [];
           for (const nb of NB2) {
-            const j = idxAt(wallW, wallH, x + nb[0], y + nb[1]);
+            const j = idxAt(core, x + nb[0], y + nb[1]);
             if (j >= 0 && mazeOpen[j] && !visited[j]) opts.push(j);
           }
           if (!opts.length) {
@@ -21405,7 +21416,7 @@ var PiEngine = (() => {
           for (let cj = 0; cj < Ch; cj++) {
             for (let ci = 0; ci < Cw; ci++) {
               const u = 2 * ci + 1, v = 2 * cj + 1;
-              const idx = idxAt(wallW, wallH, u, v);
+              const idx = idxAt(core, u, v);
               if (idx >= 0 && mazeOpen[idx]) {
                 const d = Math.abs(u - corner[0]) + Math.abs(v - corner[1]);
                 if (d < bd) {
@@ -21442,7 +21453,7 @@ var PiEngine = (() => {
         const x = i % wallW, y = i / wallW | 0;
         core.setWallPixel(x, y, r, g, b);
         for (const nb of NB2) {
-          const j = idxAt(wallW, wallH, x + nb[0], y + nb[1]);
+          const j = idxAt(core, x + nb[0], y + nb[1]);
           if (j >= 0) {
             const jx = j % wallW, jy = j / wallW | 0;
             core.setWallPixel(jx, jy, r * 0.55, g * 0.55, b * 0.55);
@@ -21528,7 +21539,7 @@ var PiEngine = (() => {
           const ex = mazeEndI % wallW, ey = mazeEndI / wallW | 0;
           core.setWallPixel(ex, ey, 1, 1, 1);
           for (const nb of NB2) {
-            const j = idxAt(wallW, wallH, ex + nb[0], ey + nb[1]);
+            const j = idxAt(core, ex + nb[0], ey + nb[1]);
             if (j >= 0) {
               const jx = j % wallW, jy = j / wallW | 0;
               core.setWallPixel(jx, jy, gr, gg, gb);
@@ -21786,6 +21797,12 @@ var PiEngine = (() => {
           tronTrail[y * wallW] = 255;
           tronTrail[y * wallW + (wallW - 1)] = 255;
         }
+        for (let y = 0; y < wallH; y++) {
+          for (let x = 0; x < wallW; x++) {
+            const gx = x / core.wallPanelSize | 0, gy = y / core.wallPanelSize | 0;
+            if (!core._wallOccupied[gy * core.wallCols + gx]) tronTrail[y * wallW + x] = 255;
+          }
+        }
         tronBikes = [];
         tronExplosions = [];
         tronWinner = -1;
@@ -21801,7 +21818,7 @@ var PiEngine = (() => {
             sx = margin + Math.floor(Math.random() * Math.max(1, wallW - margin * 2));
             sy = margin + Math.floor(Math.random() * Math.max(1, wallH - margin * 2));
             tries++;
-          } while (sx >= sz.u0 && sy <= sz.v1 && tries < 50);
+          } while ((sx >= sz.u0 && sy <= sz.v1 || tronTrail[sy * wallW + sx] > 0) && tries < 50);
           let dir;
           if (k % 2 === 0) dir = HDIR[Math.floor(Math.random() * 2)];
           else dir = VDIR[Math.floor(Math.random() * 2)];

@@ -267,6 +267,25 @@ function initTronWall(core) {
   // Canvas edges are always walls in wall mode (no wrap alternative exists)
   for (let x = 0; x < wallW; x++) { tronTrail[x] = 255; tronTrail[(wallH - 1) * wallW + x] = 255; }
   for (let y = 0; y < wallH; y++) { tronTrail[y * wallW] = 255; tronTrail[y * wallW + (wallW - 1)] = 255; }
+  // Real report (same root cause as mazeWall.js's identical fix): on a
+  // non-rectangular layout (e.g. an L-shape), wallW x wallH is only the
+  // BOUNDING box - "gap" cells with no physical panel there were still
+  // fully playable/passable as far as bike movement/collision/AI flood-
+  // fill were concerned (all of it only ever bounds-checked against
+  // wallW/wallH, never against which panel cells are actually occupied),
+  // so a bike could ride straight into a gap and off the visible display
+  // entirely. Marking every unoccupied cell as a wall up front means the
+  // game's EXISTING trail-collision check (tronTrail[i] > 0, used
+  // everywhere - tronMoveFastWall's callers, tronDecide's flood-fill/
+  // runway/escape-route probes) automatically treats the shape's real
+  // boundary as solid, with no changes needed to the movement/AI code
+  // itself.
+  for (let y = 0; y < wallH; y++) {
+    for (let x = 0; x < wallW; x++) {
+      const gx = (x / core.wallPanelSize) | 0, gy = (y / core.wallPanelSize) | 0;
+      if (!core._wallOccupied[gy * core.wallCols + gx]) tronTrail[y * wallW + x] = 255;
+    }
+  }
 
   tronBikes = []; tronExplosions = []; tronWinner = -1; tronState = 'run'; tronStateT = 0;
   const HDIR = [[1, 0], [-1, 0]];
@@ -279,7 +298,11 @@ function initTronWall(core) {
       sx = margin + Math.floor(Math.random() * Math.max(1, wallW - margin * 2));
       sy = margin + Math.floor(Math.random() * Math.max(1, wallH - margin * 2));
       tries++;
-    } while (sx >= sz.u0 && sy <= sz.v1 && tries < 50);
+      // Also reject a spawn landing on a wall cell - previously only the
+      // scoreboard zone was checked, but gap cells on an irregular layout
+      // are marked as walls the same way now (see above), and a bike
+      // spawning directly on one would die instantly.
+    } while (((sx >= sz.u0 && sy <= sz.v1) || tronTrail[sy * wallW + sx] > 0) && tries < 50);
     let dir;
     if (k % 2 === 0) dir = HDIR[Math.floor(Math.random() * 2)];
     else dir = VDIR[Math.floor(Math.random() * 2)];
