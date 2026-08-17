@@ -13340,20 +13340,20 @@ var PiEngine = (() => {
           ]);
         } else if (mode === "both") {
           dtLayoutStack(bigBuf, bigS, [
-            { type: "seg", str: timeStr, idealHFrac: 0.42 },
+            { type: "seg", str: timeStr, idealHFrac: 0.36 },
             { type: "text", str: dayStr, scale: daySc },
             { type: "text", str: dateStr, scale: dateSc }
           ]);
         } else if (mode === "full") {
           dtLayoutStack(bigBuf, bigS, [
-            { type: "seg", str: timeStr, idealHFrac: 0.36 },
+            { type: "seg", str: timeStr, idealHFrac: 0.3 },
             { type: "text", str: secStr, scale: secSc },
             { type: "text", str: dayStr, scale: daySc },
             { type: "text", str: dateStr, scale: dateSc }
           ]);
         } else {
           dtLayoutStack(bigBuf, bigS, [
-            { type: "seg", str: timeStr, idealHFrac: 0.55 },
+            { type: "seg", str: timeStr, idealHFrac: 0.46 },
             { type: "text", str: secStr, scale: secSc }
           ]);
         }
@@ -23341,20 +23341,20 @@ var PiEngine = (() => {
           ]);
         } else if (mode === "both") {
           dtLayoutStack(bigBuf, bigW, bigH, [
-            { type: "seg", str: timeStr, idealHFrac: 0.42 },
+            { type: "seg", str: timeStr, idealHFrac: 0.36 },
             { type: "text", str: dayStr, scale: daySc },
             { type: "text", str: dateStr, scale: dateSc }
           ]);
         } else if (mode === "full") {
           dtLayoutStack(bigBuf, bigW, bigH, [
-            { type: "seg", str: timeStr, idealHFrac: 0.36 },
+            { type: "seg", str: timeStr, idealHFrac: 0.3 },
             { type: "text", str: secStr, scale: secSc },
             { type: "text", str: dayStr, scale: daySc },
             { type: "text", str: dateStr, scale: dateSc }
           ]);
         } else {
           dtLayoutStack(bigBuf, bigW, bigH, [
-            { type: "seg", str: timeStr, idealHFrac: 0.55 },
+            { type: "seg", str: timeStr, idealHFrac: 0.46 },
             { type: "text", str: secStr, scale: secSc }
           ]);
         }
