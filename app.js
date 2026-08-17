@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.10';
+const APP_VERSION = '0.6.11';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -3094,9 +3094,6 @@ function rebuildWallPreview() {
   const candidates = [];
   if (_wallEditMode) {
     const seenCandidate = new Set();
-    // Right-first: with only the primary placed, this is also the
-    // "default" placement (see the .default class below) - the first
-    // candidate outline shown once editing starts.
     const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     for (const p of panels) {
       for (const [dx, dy] of DIRS) {
@@ -3118,7 +3115,10 @@ function rebuildWallPreview() {
 
   const allCells = [
     ...panels.map((p) => ({ ...p, filled: true })),
-    ...candidates.map((c, i) => ({ ...c, filled: false, isDefault: _wallEditMode && i === 0 })),
+    // No "default"/suggested candidate anymore - a real report: don't
+    // highlight a suggested square, just show every candidate as an equal
+    // plain dotted outline.
+    ...candidates.map((c) => ({ ...c, filled: false })),
   ];
   const minGx = Math.min(...allCells.map((c) => c.gx)), maxGx = Math.max(...allCells.map((c) => c.gx));
   const minGy = Math.min(...allCells.map((c) => c.gy)), maxGy = Math.max(...allCells.map((c) => c.gy));
@@ -3128,10 +3128,10 @@ function rebuildWallPreview() {
   wallPreviewEl.style.height = (rows * cellSize) + 'px';
 
   for (const c of allCells) {
-    const { gx, gy, filled, shiftX, shiftY, isDefault } = c;
+    const { gx, gy, filled, shiftX, shiftY } = c;
     const idx = filled ? panels.findIndex((p) => p.gx === gx && p.gy === gy) : -1;
     const cell = document.createElement('div');
-    cell.className = 'wall-cell ' + (filled ? 'filled' : 'empty') + (isDefault ? ' default' : '');
+    cell.className = 'wall-cell ' + (filled ? 'filled' : 'empty');
     cell.style.left = ((gx - minGx) * cellSize) + 'px';
     cell.style.top = ((gy - minGy) * cellSize) + 'px';
     cell.style.width = (cellSize - 6) + 'px';
