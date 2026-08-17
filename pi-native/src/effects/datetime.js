@@ -56,9 +56,29 @@ const SEG = {
   '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc',
   '5': 'afgcd', '6': 'afgecd', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg',
 };
+// Anti-aliased rectangle fill - a real report ("use a much nicer font. I
+// see massive pixels"): the old version rounded x0/y0/x1/y1 to the nearest
+// whole pixel and hard-filled it, so every segment edge landed on a
+// visible stair-step boundary (0 or full intensity, nothing between) - the
+// "massive pixel" blocky look. This instead computes each touched pixel's
+// FRACTIONAL coverage by the true (sub-pixel) rectangle and writes
+// intensity proportional to that coverage, so edges fall off smoothly
+// across 1-2 pixels instead of snapping - the standard fix for
+// blocky-looking vector shapes on a low-res grid, and the biggest lever
+// available here (a real LED matrix can't get "smoother" than its
+// physical pixel pitch, but the EDGES of each shape can still read as
+// smooth curves/diagonals instead of jagged blocks).
 function fillRect(buf, S, x0, y0, x1, y1, v) {
-  const xs = Math.round(x0), xe = Math.round(x1), ys = Math.round(y0), ye = Math.round(y1);
-  for (let y = ys; y < ye; y++) for (let x = xs; x < xe; x++) setPx(buf, S, x, y, v);
+  const xs = Math.floor(x0), xe = Math.ceil(x1), ys = Math.floor(y0), ye = Math.ceil(y1);
+  for (let y = ys; y < ye; y++) {
+    const covY = Math.min(y + 1, y1) - Math.max(y, y0);
+    if (covY <= 0) continue;
+    for (let x = xs; x < xe; x++) {
+      const covX = Math.min(x + 1, x1) - Math.max(x, x0);
+      if (covX <= 0) continue;
+      setPx(buf, S, x, y, v * covX * covY);
+    }
+  }
 }
 // x,y,w,h: digit's bounding box. val: intensity (0-255).
 function drawSegDigit(buf, S, x, y, w, h, ch, val) {
@@ -246,7 +266,25 @@ function dtLayoutStack(buf, S, lines) {
     if (ln.type === 'seg') return { ...ln, h: fitDigitHeight(ln.str, S * ln.idealHFrac, S * 0.94) };
     return { ...ln, h: 7 * ln.scale };
   });
-  const totalH = resolved.reduce((a, l) => a + l.h, 0) + gap * (resolved.length - 1);
+  let totalH = resolved.reduce((a, l) => a + l.h, 0) + gap * (resolved.length - 1);
+  // Real report: "Clock. Full mode goes off screen" - each line above only
+  // fits itself to the panel WIDTH (fitDigitHeight/fitScale), never against
+  // the stack's total HEIGHT. On smaller panels the per-line integer scale
+  // steps (fitScale rounds to whole glyph scales) round up just enough that
+  // the sum of all 4 'full'-mode lines exceeds S, pushing y negative and
+  // overflowing top and bottom even though every individual line fits its
+  // own width fine. Shrink every line proportionally until the whole block
+  // fits, instead of centering an already-too-tall block.
+  let stackGap = gap;
+  if (totalH > S * 0.98) {
+    const k = (S * 0.98) / totalH;
+    for (const ln of resolved) {
+      if (ln.type === 'text') ln.scale = Math.max(0.5, ln.scale * k);
+      ln.h *= k;
+    }
+    stackGap = gap * k;
+    totalH = resolved.reduce((a, l) => a + l.h, 0) + stackGap * (resolved.length - 1);
+  }
   let y = (S - totalH) / 2;
   for (const ln of resolved) {
     if (ln.type === 'seg') {
@@ -255,7 +293,7 @@ function dtLayoutStack(buf, S, lines) {
     } else {
       fontDrawText(buf, S, ln.str, S / 2, y, ln.scale);
     }
-    y += ln.h + gap;
+    y += ln.h + stackGap;
   }
 }
 
@@ -364,20 +402,28 @@ const WC_CHAR_W = 5, WC_LINE_H = 8;
 // enough to describe as "back to front" too, same as celestial's own
 // "reversed" report turned out to be fully explained by an identical
 // vertical-only bug.
-function wcDrawGlyph(core, face, ch, su, sv, rgb) {
+// scale multiplies both the glyph cell and its advance width - real report
+// ("for the word clock, if space is available 1 or more displays, increase
+// font size to fit"): dtBuildWordClockToFace picks the largest scale whose
+// wrapped text still fits the panel (see wcPickScale) before drawing.
+function wcDrawGlyph(core, face, ch, su, sv, rgb, scale = 1) {
   const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()];
-  if (!rows) return WC_CHAR_W;
   const S = core.SIZE;
+  if (!rows) return WC_CHAR_W * scale;
   for (let row = 0; row < 7; row++) {
     const bits = rows[row];
     for (let col = 0; col < 4; col++) {
       if (!((bits >> (3 - col)) & 1)) continue;
-      const u = su + col, v = S - 1 - (sv + (6 - row));
-      if (u < 0 || u >= S || v < 0 || v >= S) continue;
-      core.setFaceLED(face, u, v, rgb[0], rgb[1], rgb[2]);
+      for (let sy = 0; sy < scale; sy++) {
+        for (let sx = 0; sx < scale; sx++) {
+          const u = su + col * scale + sx, v = S - 1 - (sv + (6 - row) * scale + sy);
+          if (u < 0 || u >= S || v < 0 || v >= S) continue;
+          core.setFaceLED(face, u, v, rgb[0], rgb[1], rgb[2]);
+        }
+      }
     }
   }
-  return WC_CHAR_W;
+  return WC_CHAR_W * scale;
 }
 
 const DT_WORDS_NUM = ['TWELVE', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'ELEVEN'];
@@ -434,11 +480,12 @@ function dtWordsForDate(now) {
   return tokens;
 }
 
-function dtWrapTokens(tokens, maxW) {
+function dtWrapTokens(tokens, maxW, scale = 1) {
   const lines = []; let cur = [], curW = 0;
+  const charW = WC_CHAR_W * scale;
   tokens.forEach((tok) => {
-    const w = tok.t.length * WC_CHAR_W;
-    const addW = (cur.length ? WC_CHAR_W : 0) + w;
+    const w = tok.t.length * charW;
+    const addW = (cur.length ? charW : 0) + w;
     if (curW + addW > maxW && cur.length) { lines.push(cur); cur = [tok]; curW = w; }
     else { cur.push(tok); curW += addW; }
   });
@@ -447,31 +494,49 @@ function dtWrapTokens(tokens, maxW) {
 }
 
 const DT_STAGGER_FRACS = [0.04, 0.5, 0.8, 0.15, 0.6, 0.3, 0.75];
-function dtDrawWordLines(core, face, lines, startRow) {
+function dtDrawWordLines(core, face, lines, startRow, scale = 1) {
   const S = core.SIZE;
+  const charW = WC_CHAR_W * scale, lineH = WC_LINE_H * scale;
   let row = startRow;
   lines.forEach((line) => {
-    const lineW = line.reduce((a, t) => a + t.t.length * WC_CHAR_W, 0) + Math.max(0, line.length - 1) * WC_CHAR_W;
+    const lineW = line.reduce((a, t) => a + t.t.length * charW, 0) + Math.max(0, line.length - 1) * charW;
     const margin = Math.max(0, S - lineW);
-    const sv = (S - 1) - 1 - 6 - row * WC_LINE_H;
-    if (sv + 6 < 0) { row++; return; }
+    const sv = (S - 1) - 1 - 6 * scale - row * lineH;
+    if (sv + 6 * scale < 0) { row++; return; }
     let su = Math.round(margin * DT_STAGGER_FRACS[row % DT_STAGGER_FRACS.length]);
     line.forEach((tok) => {
       let u = su;
-      for (const ch of tok.t) u += wcDrawGlyph(core, face, ch, u, sv, tok.c);
-      su += tok.t.length * WC_CHAR_W + WC_CHAR_W;
+      for (const ch of tok.t) u += wcDrawGlyph(core, face, ch, u, sv, tok.c, scale);
+      su += tok.t.length * charW + charW;
     });
     row++;
   });
   return row;
 }
 
+// Picks the largest integer glyph scale whose wrapped time+date text stack
+// still fits vertically within S ("increase font size to fit" when a
+// bigger panel/wall leaves room to spare, instead of always using the
+// smallest-panel-safe fixed size).
+function wcPickScale(S, timeTokens, dateTokens) {
+  for (let s = 4; s >= 1; s--) {
+    const tLines = dtWrapTokens(timeTokens, S, s);
+    const dLines = dtWrapTokens(dateTokens, S, s);
+    const rows = tLines.length + 1 + dLines.length;
+    if (rows * WC_LINE_H * s <= S) return s;
+  }
+  return 1;
+}
+
 function dtBuildWordClockToFace(core, face, now) {
   const S = core.SIZE;
+  const timeTok = dtWordsForTime(now.getHours(), now.getMinutes());
+  const dateTok = dtWordsForDate(now);
+  const scale = wcPickScale(S, timeTok, dateTok);
   let row = 0;
-  row = dtDrawWordLines(core, face, dtWrapTokens(dtWordsForTime(now.getHours(), now.getMinutes()), S), row);
+  row = dtDrawWordLines(core, face, dtWrapTokens(timeTok, S, scale), row, scale);
   row += 1;
-  row = dtDrawWordLines(core, face, dtWrapTokens(dtWordsForDate(now), S), row);
+  row = dtDrawWordLines(core, face, dtWrapTokens(dateTok, S, scale), row, scale);
 }
 
 // ─── Main effect entry point ───────────────────────────────────────────

@@ -13152,8 +13152,16 @@ var PiEngine = (() => {
         "9": "abcdfg"
       };
       function fillRect(buf, S, x0, y0, x1, y1, v) {
-        const xs = Math.round(x0), xe = Math.round(x1), ys = Math.round(y0), ye = Math.round(y1);
-        for (let y = ys; y < ye; y++) for (let x = xs; x < xe; x++) setPx(buf, S, x, y, v);
+        const xs = Math.floor(x0), xe = Math.ceil(x1), ys = Math.floor(y0), ye = Math.ceil(y1);
+        for (let y = ys; y < ye; y++) {
+          const covY = Math.min(y + 1, y1) - Math.max(y, y0);
+          if (covY <= 0) continue;
+          for (let x = xs; x < xe; x++) {
+            const covX = Math.min(x + 1, x1) - Math.max(x, x0);
+            if (covX <= 0) continue;
+            setPx(buf, S, x, y, v * covX * covY);
+          }
+        }
       }
       function drawSegDigit(buf, S, x, y, w, h, ch, val) {
         const segs = SEG[ch] || "";
@@ -13282,7 +13290,17 @@ var PiEngine = (() => {
           if (ln.type === "seg") return { ...ln, h: fitDigitHeight(ln.str, S * ln.idealHFrac, S * 0.94) };
           return { ...ln, h: 7 * ln.scale };
         });
-        const totalH = resolved.reduce((a, l) => a + l.h, 0) + gap * (resolved.length - 1);
+        let totalH = resolved.reduce((a, l) => a + l.h, 0) + gap * (resolved.length - 1);
+        let stackGap = gap;
+        if (totalH > S * 0.98) {
+          const k = S * 0.98 / totalH;
+          for (const ln of resolved) {
+            if (ln.type === "text") ln.scale = Math.max(0.5, ln.scale * k);
+            ln.h *= k;
+          }
+          stackGap = gap * k;
+          totalH = resolved.reduce((a, l) => a + l.h, 0) + stackGap * (resolved.length - 1);
+        }
         let y = (S - totalH) / 2;
         for (const ln of resolved) {
           if (ln.type === "seg") {
@@ -13291,7 +13309,7 @@ var PiEngine = (() => {
           } else {
             fontDrawText(buf, S, ln.str, S / 2, y, ln.scale);
           }
-          y += ln.h + gap;
+          y += ln.h + stackGap;
         }
       }
       function dtRenderBuf(core, now, mode) {
@@ -13400,20 +13418,24 @@ var PiEngine = (() => {
       };
       var WC_CHAR_W = 5;
       var WC_LINE_H = 8;
-      function wcDrawGlyph(core, face, ch, su, sv, rgb) {
+      function wcDrawGlyph(core, face, ch, su, sv, rgb, scale = 1) {
         const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()];
-        if (!rows) return WC_CHAR_W;
         const S = core.SIZE;
+        if (!rows) return WC_CHAR_W * scale;
         for (let row = 0; row < 7; row++) {
           const bits = rows[row];
           for (let col = 0; col < 4; col++) {
             if (!(bits >> 3 - col & 1)) continue;
-            const u = su + col, v = S - 1 - (sv + (6 - row));
-            if (u < 0 || u >= S || v < 0 || v >= S) continue;
-            core.setFaceLED(face, u, v, rgb[0], rgb[1], rgb[2]);
+            for (let sy = 0; sy < scale; sy++) {
+              for (let sx = 0; sx < scale; sx++) {
+                const u = su + col * scale + sx, v = S - 1 - (sv + (6 - row) * scale + sy);
+                if (u < 0 || u >= S || v < 0 || v >= S) continue;
+                core.setFaceLED(face, u, v, rgb[0], rgb[1], rgb[2]);
+              }
+            }
           }
         }
-        return WC_CHAR_W;
+        return WC_CHAR_W * scale;
       }
       var DT_WORDS_NUM = ["TWELVE", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN", "ELEVEN"];
       var DT_WORDS_ORDINAL = [
@@ -13496,12 +13518,13 @@ var PiEngine = (() => {
         tokens.push({ t: "OF", c: BLUE }, { t: DT_WORDS_MONTH[now.getMonth()], c: BLUE });
         return tokens;
       }
-      function dtWrapTokens(tokens, maxW) {
+      function dtWrapTokens(tokens, maxW, scale = 1) {
         const lines = [];
         let cur = [], curW = 0;
+        const charW = WC_CHAR_W * scale;
         tokens.forEach((tok) => {
-          const w = tok.t.length * WC_CHAR_W;
-          const addW = (cur.length ? WC_CHAR_W : 0) + w;
+          const w = tok.t.length * charW;
+          const addW = (cur.length ? charW : 0) + w;
           if (curW + addW > maxW && cur.length) {
             lines.push(cur);
             cur = [tok];
@@ -13515,33 +13538,46 @@ var PiEngine = (() => {
         return lines;
       }
       var DT_STAGGER_FRACS = [0.04, 0.5, 0.8, 0.15, 0.6, 0.3, 0.75];
-      function dtDrawWordLines(core, face, lines, startRow) {
+      function dtDrawWordLines(core, face, lines, startRow, scale = 1) {
         const S = core.SIZE;
+        const charW = WC_CHAR_W * scale, lineH = WC_LINE_H * scale;
         let row = startRow;
         lines.forEach((line) => {
-          const lineW = line.reduce((a, t) => a + t.t.length * WC_CHAR_W, 0) + Math.max(0, line.length - 1) * WC_CHAR_W;
+          const lineW = line.reduce((a, t) => a + t.t.length * charW, 0) + Math.max(0, line.length - 1) * charW;
           const margin = Math.max(0, S - lineW);
-          const sv = S - 1 - 1 - 6 - row * WC_LINE_H;
-          if (sv + 6 < 0) {
+          const sv = S - 1 - 1 - 6 * scale - row * lineH;
+          if (sv + 6 * scale < 0) {
             row++;
             return;
           }
           let su = Math.round(margin * DT_STAGGER_FRACS[row % DT_STAGGER_FRACS.length]);
           line.forEach((tok) => {
             let u = su;
-            for (const ch of tok.t) u += wcDrawGlyph(core, face, ch, u, sv, tok.c);
-            su += tok.t.length * WC_CHAR_W + WC_CHAR_W;
+            for (const ch of tok.t) u += wcDrawGlyph(core, face, ch, u, sv, tok.c, scale);
+            su += tok.t.length * charW + charW;
           });
           row++;
         });
         return row;
       }
+      function wcPickScale(S, timeTokens, dateTokens) {
+        for (let s = 4; s >= 1; s--) {
+          const tLines = dtWrapTokens(timeTokens, S, s);
+          const dLines = dtWrapTokens(dateTokens, S, s);
+          const rows = tLines.length + 1 + dLines.length;
+          if (rows * WC_LINE_H * s <= S) return s;
+        }
+        return 1;
+      }
       function dtBuildWordClockToFace(core, face, now) {
         const S = core.SIZE;
+        const timeTok = dtWordsForTime(now.getHours(), now.getMinutes());
+        const dateTok = dtWordsForDate(now);
+        const scale = wcPickScale(S, timeTok, dateTok);
         let row = 0;
-        row = dtDrawWordLines(core, face, dtWrapTokens(dtWordsForTime(now.getHours(), now.getMinutes()), S), row);
+        row = dtDrawWordLines(core, face, dtWrapTokens(timeTok, S, scale), row, scale);
         row += 1;
-        row = dtDrawWordLines(core, face, dtWrapTokens(dtWordsForDate(now), S), row);
+        row = dtDrawWordLines(core, face, dtWrapTokens(dateTok, S, scale), row, scale);
       }
       var DT_PANEL_SEQ = [3, 0, 2, 1];
       var DT_NEEDS_FLIP = [false, false, true, true];
@@ -23098,8 +23134,16 @@ var PiEngine = (() => {
         "9": "abcdfg"
       };
       function fillRect(buf, W, H, x0, y0, x1, y1, v) {
-        const xs = Math.round(x0), xe = Math.round(x1), ys = Math.round(y0), ye = Math.round(y1);
-        for (let y = ys; y < ye; y++) for (let x = xs; x < xe; x++) setPx(buf, W, H, x, y, v);
+        const xs = Math.floor(x0), xe = Math.ceil(x1), ys = Math.floor(y0), ye = Math.ceil(y1);
+        for (let y = ys; y < ye; y++) {
+          const covY = Math.min(y + 1, y1) - Math.max(y, y0);
+          if (covY <= 0) continue;
+          for (let x = xs; x < xe; x++) {
+            const covX = Math.min(x + 1, x1) - Math.max(x, x0);
+            if (covX <= 0) continue;
+            setPx(buf, W, H, x, y, v * covX * covY);
+          }
+        }
       }
       function drawSegDigit(buf, W, H, x, y, w, h, ch, val) {
         const segs = SEG[ch] || "";
@@ -23228,7 +23272,17 @@ var PiEngine = (() => {
           if (ln.type === "seg") return { ...ln, h: fitDigitHeight(ln.str, H * ln.idealHFrac, W * 0.94) };
           return { ...ln, h: 7 * ln.scale };
         });
-        const totalH = resolved.reduce((a, l) => a + l.h, 0) + gap * (resolved.length - 1);
+        let totalH = resolved.reduce((a, l) => a + l.h, 0) + gap * (resolved.length - 1);
+        let stackGap = gap;
+        if (totalH > H * 0.98) {
+          const k = H * 0.98 / totalH;
+          for (const ln of resolved) {
+            if (ln.type === "text") ln.scale = Math.max(0.5, ln.scale * k);
+            ln.h *= k;
+          }
+          stackGap = gap * k;
+          totalH = resolved.reduce((a, l) => a + l.h, 0) + stackGap * (resolved.length - 1);
+        }
         let y = (H - totalH) / 2;
         for (const ln of resolved) {
           if (ln.type === "seg") {
@@ -23237,7 +23291,7 @@ var PiEngine = (() => {
           } else {
             fontDrawText(buf, W, H, ln.str, W / 2, y, ln.scale);
           }
-          y += ln.h + gap;
+          y += ln.h + stackGap;
         }
       }
       function dtRenderBuf(core, W, H, now, mode) {
@@ -23342,19 +23396,23 @@ var PiEngine = (() => {
       };
       var WC_CHAR_W = 5;
       var WC_LINE_H = 8;
-      function wcDrawGlyphWall(core, W, H, ch, su, sv, rgb) {
+      function wcDrawGlyphWall(core, W, H, ch, su, sv, rgb, scale = 1) {
         const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()];
-        if (!rows) return WC_CHAR_W;
+        if (!rows) return WC_CHAR_W * scale;
         for (let row = 0; row < 7; row++) {
           const bits = rows[row];
           for (let col = 0; col < 4; col++) {
             if (!(bits >> 3 - col & 1)) continue;
-            const u = su + col, v = H - 1 - (sv + (6 - row));
-            if (u < 0 || u >= W || v < 0 || v >= H) continue;
-            core.setWallPixel(u, v, rgb[0], rgb[1], rgb[2]);
+            for (let sy = 0; sy < scale; sy++) {
+              for (let sx = 0; sx < scale; sx++) {
+                const u = su + col * scale + sx, v = H - 1 - (sv + (6 - row) * scale + sy);
+                if (u < 0 || u >= W || v < 0 || v >= H) continue;
+                core.setWallPixel(u, v, rgb[0], rgb[1], rgb[2]);
+              }
+            }
           }
         }
-        return WC_CHAR_W;
+        return WC_CHAR_W * scale;
       }
       var DT_WORDS_NUM = ["TWELVE", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN", "ELEVEN"];
       var DT_WORDS_ORDINAL = [
@@ -23437,12 +23495,13 @@ var PiEngine = (() => {
         tokens.push({ t: "OF", c: BLUE }, { t: DT_WORDS_MONTH[now.getMonth()], c: BLUE });
         return tokens;
       }
-      function dtWrapTokens(tokens, maxW) {
+      function dtWrapTokens(tokens, maxW, scale = 1) {
         const lines = [];
         let cur = [], curW = 0;
+        const charW = WC_CHAR_W * scale;
         tokens.forEach((tok) => {
-          const w = tok.t.length * WC_CHAR_W;
-          const addW = (cur.length ? WC_CHAR_W : 0) + w;
+          const w = tok.t.length * charW;
+          const addW = (cur.length ? charW : 0) + w;
           if (curW + addW > maxW && cur.length) {
             lines.push(cur);
             cur = [tok];
@@ -23456,31 +23515,44 @@ var PiEngine = (() => {
         return lines;
       }
       var DT_STAGGER_FRACS = [0.04, 0.5, 0.8, 0.15, 0.6, 0.3, 0.75];
-      function dtDrawWordLines(core, W, H, lines, startRow) {
+      function dtDrawWordLines(core, W, H, lines, startRow, scale = 1) {
+        const charW = WC_CHAR_W * scale, lineH = WC_LINE_H * scale;
         let row = startRow;
         lines.forEach((line) => {
-          const lineW = line.reduce((a, t) => a + t.t.length * WC_CHAR_W, 0) + Math.max(0, line.length - 1) * WC_CHAR_W;
+          const lineW = line.reduce((a, t) => a + t.t.length * charW, 0) + Math.max(0, line.length - 1) * charW;
           const margin = Math.max(0, W - lineW);
-          const sv = H - 1 - 1 - 6 - row * WC_LINE_H;
-          if (sv + 6 < 0) {
+          const sv = H - 1 - 1 - 6 * scale - row * lineH;
+          if (sv + 6 * scale < 0) {
             row++;
             return;
           }
           let su = Math.round(margin * DT_STAGGER_FRACS[row % DT_STAGGER_FRACS.length]);
           line.forEach((tok) => {
             let u = su;
-            for (const ch of tok.t) u += wcDrawGlyphWall(core, W, H, ch, u, sv, tok.c);
-            su += tok.t.length * WC_CHAR_W + WC_CHAR_W;
+            for (const ch of tok.t) u += wcDrawGlyphWall(core, W, H, ch, u, sv, tok.c, scale);
+            su += tok.t.length * charW + charW;
           });
           row++;
         });
         return row;
       }
+      function wcPickScale(W, H, timeTokens, dateTokens) {
+        for (let s = 4; s >= 1; s--) {
+          const tLines = dtWrapTokens(timeTokens, W, s);
+          const dLines = dtWrapTokens(dateTokens, W, s);
+          const rows = tLines.length + 1 + dLines.length;
+          if (rows * WC_LINE_H * s <= H) return s;
+        }
+        return 1;
+      }
       function dtBuildWordClockWall(core, W, H, now) {
+        const timeTok = dtWordsForTime(now.getHours(), now.getMinutes());
+        const dateTok = dtWordsForDate(now);
+        const scale = wcPickScale(W, H, timeTok, dateTok);
         let row = 0;
-        row = dtDrawWordLines(core, W, H, dtWrapTokens(dtWordsForTime(now.getHours(), now.getMinutes()), W), row);
+        row = dtDrawWordLines(core, W, H, dtWrapTokens(timeTok, W, scale), row, scale);
         row += 1;
-        row = dtDrawWordLines(core, W, H, dtWrapTokens(dtWordsForDate(now), W), row);
+        row = dtDrawWordLines(core, W, H, dtWrapTokens(dateTok, W, scale), row, scale);
       }
       function effectDateTimeWall(core, dt) {
         const { wallW: W, wallH: H } = core;
