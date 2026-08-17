@@ -422,11 +422,21 @@
     cursor: pointer; font-size: 17px; line-height: 1;
   }
   #wall-add-btn:hover { background: rgba(80,120,255,0.3); }
-  /* Shown while _wallPendingAdd is true (see wireWallToolbar()) - the "+"
-     becomes a "✕ done editing" affordance, both visually flagging that
-     you're mid-placement and giving an obvious way out of it (a real
-     report specifically asked for "a way to exit edit mode"). */
+  /* Shown while _wallPendingAdd is true (see wireWallToolbar()) - flags
+     that "+" is mid-placement (a real report asked for this visual cue). */
   #wall-add-btn.editing { background: rgba(80,120,255,0.4); border-color: #7aadff; }
+  /* A DEDICATED exit-edit-mode button, separate from "+" itself - a real
+     report specifically asked for this ("need a separate exit panel edit
+     button") rather than relying on "+" doubling as both add and cancel,
+     or on Escape/click-outside alone (both still work too, this is in
+     addition). Hidden except while actually editing. */
+  #wall-exit-edit-btn {
+    display: none; padding: 0 10px; height: 28px; background: rgba(255,80,80,0.15);
+    border: 1px solid rgba(255,100,100,0.5); color: #f88; border-radius: 6px;
+    cursor: pointer; font-size: 12px; font-weight: 600; letter-spacing: 0.3px;
+  }
+  #wall-exit-edit-btn:hover { background: rgba(255,80,80,0.3); }
+  #wall-exit-edit-btn.show { display: inline-flex; align-items: center; }
   /* Cube mode with fewer physical panels wired than the 3D preview shows
      (see panelConfig.js's physicalCubePanels/wsServer.js's
      setPhysicalCubePanels) - a real report asked for exactly this, no
@@ -1710,6 +1720,7 @@
   <div id="wall-toolbar">
     <span>Displays</span>
     <button id="wall-add-btn" title="Add a display at the first open spot">+</button>
+    <button id="wall-exit-edit-btn" title="Exit edit mode">✕ Done</button>
   </div>
   <div id="sim-banner">⚠ Simulation — only <span id="sim-banner-count"></span> face(s) are on real hardware, the rest is preview only</div>
 </div>

@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.5.2';
+const APP_VERSION = '0.5.3';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2594,10 +2594,9 @@ let _wallPendingAdd = false;
 // drifts out of sync with what's actually showing.
 function updateWallAddButtonState() {
   const addBtn = document.getElementById('wall-add-btn');
-  if (!addBtn) return;
-  addBtn.classList.toggle('editing', _wallPendingAdd);
-  addBtn.textContent = _wallPendingAdd ? '✕' : '+';
-  addBtn.title = _wallPendingAdd ? 'Cancel adding a display' : 'Add a display at the first open spot';
+  const exitBtn = document.getElementById('wall-exit-edit-btn');
+  if (addBtn) addBtn.classList.toggle('editing', _wallPendingAdd);
+  if (exitBtn) exitBtn.classList.toggle('show', _wallPendingAdd);
 }
 
 // Cancels a pending "+" placement without adding anything - the explicit
@@ -2634,8 +2633,12 @@ function wireWallToolbar() {
     rebuildWallPreview();
   });
 
-  // Escape and clicking anywhere outside the wall preview/toolbar both
-  // cancel a pending placement - same "give me an obvious way out" report.
+  // A dedicated, separate exit button - a real report specifically asked
+  // for this rather than relying on "+" doubling as add/cancel. Escape and
+  // clicking anywhere outside the wall preview/toolbar both cancel too,
+  // all converging on the same exitWallEditMode().
+  const exitBtn = document.getElementById('wall-exit-edit-btn');
+  if (exitBtn) exitBtn.addEventListener('click', exitWallEditMode);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') exitWallEditMode(); });
   document.addEventListener('click', (e) => {
     if (!_wallPendingAdd) return;
