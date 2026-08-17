@@ -14735,7 +14735,7 @@ var PiEngine = (() => {
           const bits = rows[row];
           for (let col = 0; col < 3; col++) {
             if (!(bits >> 2 - col & 1)) continue;
-            const u = su + col, v = sv + (4 - row);
+            const u = su + col, v = S - 1 - (sv + (4 - row));
             if (u < 0 || u >= S || v < 0 || v >= S) continue;
             const idx = faceMap[face][v * S + u];
             if (idx < 0) continue;
@@ -23272,7 +23272,7 @@ var PiEngine = (() => {
           const bits = rows[row];
           for (let col = 0; col < 3; col++) {
             if (!(bits >> 2 - col & 1)) continue;
-            const u = su + col, v = sv + (4 - row);
+            const u = su + col, v = H - 1 - (sv + (4 - row));
             if (u < 0 || u >= W || v < 0 || v >= H) continue;
             const o = (v * W + u) * 3;
             core.wallBuf[o] = Math.max(core.wallBuf[o], 0.75);

@@ -64,13 +64,16 @@ function moonInit() {
 function getMoonPhase() { return getMoonIllumination(new Date()).phase; }
 
 const MOON_FONT = { ...PIXEL_FONT, '%': [5, 1, 2, 4, 5] };
+// v is flipped (H-1-v) at the point of writing - see celestial.js's
+// moonGlyph module comment for the real report/root cause this fixes
+// (garbled moon-phase ticker text).
 function moonGlyphWall(core, W, H, ch, su, sv) {
   const rows = MOON_FONT[ch.toUpperCase()]; if (!rows) return 4;
   for (let row = 0; row < 5; row++) {
     const bits = rows[row];
     for (let col = 0; col < 3; col++) {
       if (!((bits >> (2 - col)) & 1)) continue;
-      const u = su + col, v = sv + (4 - row);
+      const u = su + col, v = H - 1 - (sv + (4 - row));
       if (u < 0 || u >= W || v < 0 || v >= H) continue;
       const o = (v * W + u) * 3;
       core.wallBuf[o] = Math.max(core.wallBuf[o], 0.75);
