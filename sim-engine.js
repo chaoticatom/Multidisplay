@@ -810,8 +810,8 @@ var PiEngine = (() => {
           }
         }
         wxState.creatures = [];
-        for (let i = 0; i < 4; i++) {
-          const isPlane = i === 3;
+        for (let i = 0; i < 3; i++) {
+          const isPlane = i === 2;
           wxState.creatures.push({
             type: isPlane ? "plane" : "bird",
             px: isPlane ? -0.5 : Math.random(),
@@ -22345,8 +22345,8 @@ var PiEngine = (() => {
           wxState.skyShapes.push({ x: lx, w: cityLandmark.w, h: cityLandmark.h, t: 8, lm: cityLandmark });
         }
         wxState.creatures = [];
-        for (let i = 0; i < 4; i++) {
-          const isPlane = i === 3;
+        for (let i = 0; i < 3; i++) {
+          const isPlane = i === 2;
           wxState.creatures.push({
             type: isPlane ? "plane" : "bird",
             px: isPlane ? -0.5 : Math.random(),

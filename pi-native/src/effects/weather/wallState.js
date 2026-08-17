@@ -126,8 +126,10 @@ function wxInitSceneWall(code, wxState, wallW, wallH) {
   }
 
   wxState.creatures = [];
-  for (let i = 0; i < 4; i++) {
-    const isPlane = i === 3;
+  // 2 birds + 1 plane - a real report ("30 percent less birds") down from
+  // 3 birds + 1 plane.
+  for (let i = 0; i < 3; i++) {
+    const isPlane = i === 2;
     wxState.creatures.push({
       type: isPlane ? 'plane' : 'bird',
       px: isPlane ? -0.5 : Math.random(),
