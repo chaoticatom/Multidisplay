@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.5';
+const APP_VERSION = '0.6.6';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2588,44 +2588,48 @@ let _wallDragFrom = null;
 // display (toggled by the "+" button - see wireWallToolbar()) or while
 // dragging an existing one to reposition it (_wallDragFrom above) - at
 // rest, only the actually-placed displays are shown.
-let _wallPendingAdd = false;
+// Single source of truth for "am I currently editing the wall layout" -
+// gates candidate outlines, the per-panel remove "×", and whether a placed
+// panel can be dragged at all. A real report: "don't go to edit mode when
+// tapping on the display. the button must be pressed to go into edit mode
+// and pressed again to exit edit mode" - tapping/dragging a placed panel
+// used to flip this on by itself (the old canvas mousedown handler set
+// _wallDragFrom unconditionally), so merely touching a display while just
+// looking at the wall started an edit session. Now ONLY the toolbar button
+// (or Escape/click-outside while already editing) can turn this on or off;
+// dragging is still how you reposition a panel, but only once edit mode is
+// already active via the button.
+let _wallEditMode = false;
 
-// "+" toggles a pending-placement state rather than committing
-// immediately: first click shows every valid candidate outline (see
-// rebuildWallPreview()) without adding anything yet; clicking one of
-// those outlines (or one of them) commits the add; clicking "+" again
-// while already pending cancels it. A real report specifically wanted
-// this "show me the options, I pick" flow instead of the old
-// auto-place-then-show-more-options behavior.
-// Reflects _wallPendingAdd on the "+" button itself - a real report:
-// "need a way to exit edit mode". Called from rebuildWallPreview() (the
-// one place that already runs on every _wallPendingAdd change) so it never
-// drifts out of sync with what's actually showing.
-function updateWallAddButtonState() {
-  const addBtn = document.getElementById('wall-add-btn');
-  const exitBtn = document.getElementById('wall-exit-edit-btn');
-  if (addBtn) addBtn.classList.toggle('editing', _wallPendingAdd);
-  // Shown whenever candidate outlines are - a real report: the exit
-  // button previously only appeared for _wallPendingAdd (via "+"), not
-  // while actively dragging an existing panel (_wallDragFrom), even
-  // though dragging shows the exact same candidate outlines and is just
-  // as much "edit mode".
-  if (exitBtn) exitBtn.classList.toggle('show', _wallPendingAdd || !!_wallDragFrom);
+// Reflects _wallEditMode on the single "Layout" toggle button - a real
+// report ("rename to layout with a plus or x icon"): one button showing a
+// "+" (enter layout editing) or "✕" (exit it) instead of two separate
+// add/exit buttons. Called from rebuildWallPreview() (the one place that
+// already runs on every _wallEditMode change) so it never drifts out of
+// sync with what's actually showing.
+function updateWallLayoutButtonState() {
+  const btn = document.getElementById('wall-layout-btn');
+  if (!btn) return;
+  btn.classList.toggle('editing', _wallEditMode);
+  const icon = btn.querySelector('.wall-layout-icon');
+  if (icon) icon.textContent = _wallEditMode ? '✕' : '+';
+  btn.title = _wallEditMode ? 'Exit layout editing' : 'Edit wall layout';
 }
 
-// Cancels a pending "+" placement without adding anything - the explicit
-// "way to exit edit mode" a real report asked for, on top of "+" itself
-// already toggling it off. Safe to call even when nothing is pending.
+// Turns layout editing off - the explicit "press again to exit" a real
+// report asked for, on top of the toolbar button itself already toggling
+// it off. Safe to call even when not currently editing.
 function exitWallEditMode() {
-  if (!_wallPendingAdd) return;
-  _wallPendingAdd = false;
+  if (!_wallEditMode) return;
+  _wallEditMode = false;
+  _wallDragFrom = null;
   rebuildWallPreview();
 }
 
 function wireWallToolbar() {
-  const addBtn = document.getElementById('wall-add-btn');
-  if (!addBtn) return;
-  addBtn.addEventListener('click', () => {
+  const btn = document.getElementById('wall-layout-btn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
     if (currentState.panelMode !== 'wall') {
       // First-ever click: just switch into wall mode with the single
       // existing panel carried over - no addPanel yet, so the very next
@@ -2636,26 +2640,19 @@ function wireWallToolbar() {
       // message and call rebuildWallPreview() SYNCHRONOUSLY inside send(),
       // before this function would otherwise get back around to setting
       // the flag - candidates would silently not render on the very first
-      // "+" click.
-      _wallPendingAdd = true;
+      // click.
+      _wallEditMode = true;
       send({ cmd: 'setPanelConfig', size: currentState.panelSize || 64, mode: 'wall', panels: currentWallPanels() });
       return;
     }
-    if (_wallPendingAdd) { exitWallEditMode(); return; }
-    if (currentWallPanels().length >= WALL_MAX_PANELS) return; // already at the hardware panel cap - nothing to add
-    _wallPendingAdd = true;
+    if (_wallEditMode) { exitWallEditMode(); return; }
+    _wallEditMode = true;
     rebuildWallPreview();
   });
 
-  // A dedicated, separate exit button - a real report specifically asked
-  // for this rather than relying on "+" doubling as add/cancel. Escape and
-  // clicking anywhere outside the wall preview/toolbar both cancel too,
-  // all converging on the same exitWallEditMode().
-  const exitBtn = document.getElementById('wall-exit-edit-btn');
-  if (exitBtn) exitBtn.addEventListener('click', exitWallEditMode);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') exitWallEditMode(); });
   document.addEventListener('click', (e) => {
-    if (!_wallPendingAdd) return;
+    if (!_wallEditMode) return;
     if (e.target.closest('#wall-preview') || e.target.closest('#wall-toolbar')) return;
     exitWallEditMode();
   });
@@ -3056,12 +3053,15 @@ function placeAtCandidate(candidate, movingFrom) {
     .filter((p) => !movingFrom || p.gx !== movingFrom.gx || p.gy !== movingFrom.gy)
     .map((p) => ({ gx: p.gx + shiftX, gy: p.gy + shiftY }));
   shifted.push({ gx: gx + shiftX, gy: gy + shiftY });
-  _wallPendingAdd = false; // commits (or cancels) whatever "+" was showing options for
+  // Deliberately does NOT clear _wallEditMode - a real report: edit mode
+  // should stay open across a single add/move so you can place several
+  // displays in a row, only closing when the toolbar button (or Escape/
+  // click-outside) is pressed again.
   sendWallLayout(shifted);
 }
 
 function rebuildWallPreview() {
-  updateWallAddButtonState();
+  updateWallLayoutButtonState();
   wallPreviewEl.innerHTML = '';
   for (const key in wallPanelCanvases) delete wallPanelCanvases[key];
   if (currentState.panelMode !== 'wall') return; // full grid only makes sense once wall mode is actually active - see wireWallToolbar()'s "+"  for how you get there
@@ -3077,24 +3077,18 @@ function rebuildWallPreview() {
   // position (e.g. one column to the left of the primary), even though
   // placing one actually requires shifting every panel (see
   // shiftForCandidate()/placeAtCandidate() above).
-  // Only computed/shown while actively placing a new display ("+" was
-  // clicked - _wallPendingAdd) or dragging an existing one to reposition
-  // it (_wallDragFrom) - NOT permanently at rest. Showing them
+  // Only computed/shown while layout editing is active (_wallEditMode, on
+  // via the toolbar button) - NOT permanently at rest. Showing them
   // unconditionally (the previous behavior) meant that once 2+ panels
   // existed, their combined neighbor cells routinely filled out the
   // entire remaining hardware grid, recreating the exact "static 6-box
   // grid" look a real report specifically objected to in the first place.
   const candidates = [];
-  // Adding is blocked once WALL_MAX_PANELS is already reached (matches
-  // the server's own addPanel/setPanelPositions cap) - but repositioning
-  // an EXISTING panel via drag doesn't change the total count, so that
-  // stays allowed regardless.
-  if ((_wallPendingAdd && panels.length < WALL_MAX_PANELS) || _wallDragFrom) {
+  if (_wallEditMode) {
     const seenCandidate = new Set();
     // Right-first: with only the primary placed, this is also the
-    // "default" placement (see the .default class below) - clicking "+"
-    // itself (rather than a specific outline) commits to whichever
-    // candidate is first, i.e. this one.
+    // "default" placement (see the .default class below) - the first
+    // candidate outline shown once editing starts.
     const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     for (const p of panels) {
       for (const [dx, dy] of DIRS) {
@@ -3104,6 +3098,11 @@ function rebuildWallPreview() {
         seenCandidate.add(key);
         const shift = shiftForCandidate(panels, gx, gy);
         if (!shift) continue; // no room in that direction at all (e.g. both columns already full)
+        // Adding is blocked once WALL_MAX_PANELS is already reached
+        // (matches the server's own addPanel/setPanelPositions cap) - but
+        // repositioning an EXISTING panel via drag doesn't change the
+        // total count, so that stays allowed regardless.
+        if (panels.length >= WALL_MAX_PANELS && !_wallDragFrom) continue;
         candidates.push({ gx, gy, shiftX: shift.shiftX, shiftY: shift.shiftY });
       }
     }
@@ -3111,7 +3110,7 @@ function rebuildWallPreview() {
 
   const allCells = [
     ...panels.map((p) => ({ ...p, filled: true })),
-    ...candidates.map((c, i) => ({ ...c, filled: false, isDefault: _wallPendingAdd && i === 0 })),
+    ...candidates.map((c, i) => ({ ...c, filled: false, isDefault: _wallEditMode && i === 0 })),
   ];
   const minGx = Math.min(...allCells.map((c) => c.gx)), maxGx = Math.max(...allCells.map((c) => c.gx));
   const minGy = Math.min(...allCells.map((c) => c.gy)), maxGy = Math.max(...allCells.map((c) => c.gy));
@@ -3144,7 +3143,12 @@ function rebuildWallPreview() {
       const canvas = document.createElement('canvas');
       canvas.width = 256; canvas.height = 256; // fixed backing resolution per panel, same spirit as PANEL2D_OUT
       canvas.style.width = '100%'; canvas.style.height = '100%'; canvas.style.position = 'static';
-      canvas.draggable = true;
+      // Only draggable while layout editing is on - a real report: "don't
+      // go to edit mode when tapping on the display. the button must be
+      // pressed to go into edit mode" - draggable=false means the browser
+      // never starts a drag gesture from this canvas at all outside edit
+      // mode, and the mousedown guard below belt-and-suspenders that.
+      canvas.draggable = _wallEditMode;
       // mousedown (fires before the native drag gesture actually starts,
       // unlike dragstart) is what shows candidate outlines - rebuilding
       // the WHOLE grid from inside dragstart itself would tear down and
@@ -3153,7 +3157,10 @@ function rebuildWallPreview() {
       // the fresh candidate cells + a freshly-bound dragstart listener on
       // the recreated canvas are safely in place before the browser's
       // actual drag gesture begins.
-      canvas.addEventListener('mousedown', () => { _wallDragFrom = { gx, gy }; rebuildWallPreview(); });
+      canvas.addEventListener('mousedown', () => {
+        if (!_wallEditMode) return;
+        _wallDragFrom = { gx, gy }; rebuildWallPreview();
+      });
       canvas.addEventListener('dragstart', () => { _wallDragFrom = { gx, gy }; cell.classList.add('dragging'); });
       canvas.addEventListener('dragend', () => { _wallDragFrom = null; rebuildWallPreview(); });
       cell.appendChild(canvas);
@@ -3164,7 +3171,7 @@ function rebuildWallPreview() {
       // displays you need to remove the top right x and the space outline"
       // - both should disappear once you're done, not sit there
       // permanently. index 0 (primary) never gets one regardless.
-      if (idx !== 0 && (_wallPendingAdd || _wallDragFrom)) {
+      if (idx !== 0 && _wallEditMode) {
         const remove = document.createElement('span');
         remove.className = 'wall-remove';
         remove.textContent = '×';

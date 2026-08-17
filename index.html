@@ -415,28 +415,23 @@
     align-items: center; gap: 8px; background: rgba(10,10,20,0.75); backdrop-filter: blur(6px);
     border: 1px solid rgba(80,120,255,0.3); border-radius: 8px; padding: 8px 10px;
   }
-  #wall-toolbar span { font-size: 11px; color: #7aadff; letter-spacing: 0.5px; }
-  #wall-add-btn {
-    width: 28px; height: 28px; padding: 0; background: rgba(80,120,255,0.18);
-    border: 1px solid rgba(80,120,255,0.4); color: #7aadff; border-radius: 6px;
-    cursor: pointer; font-size: 17px; line-height: 1;
+  /* Single toggle button - a real report ("rename to layout with a plus or
+     x icon") replacing the old separate "+" add / "✕ Done" exit buttons.
+     The icon span flips between "+" (not editing) and "✕" (editing, tap
+     again to exit) via updateWallLayoutButtonState(); tapping/dragging a
+     placed display no longer enters edit mode by itself - only this
+     button (or Escape/click-outside while already editing) can. */
+  #wall-layout-btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; height: 28px;
+    background: rgba(80,120,255,0.18); border: 1px solid rgba(80,120,255,0.4);
+    color: #7aadff; border-radius: 6px; cursor: pointer;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.3px;
   }
-  #wall-add-btn:hover { background: rgba(80,120,255,0.3); }
-  /* Shown while _wallPendingAdd is true (see wireWallToolbar()) - flags
-     that "+" is mid-placement (a real report asked for this visual cue). */
-  #wall-add-btn.editing { background: rgba(80,120,255,0.4); border-color: #7aadff; }
-  /* A DEDICATED exit-edit-mode button, separate from "+" itself - a real
-     report specifically asked for this ("need a separate exit panel edit
-     button") rather than relying on "+" doubling as both add and cancel,
-     or on Escape/click-outside alone (both still work too, this is in
-     addition). Hidden except while actually editing. */
-  #wall-exit-edit-btn {
-    display: none; padding: 0 10px; height: 28px; background: rgba(255,80,80,0.15);
-    border: 1px solid rgba(255,100,100,0.5); color: #f88; border-radius: 6px;
-    cursor: pointer; font-size: 12px; font-weight: 600; letter-spacing: 0.3px;
+  #wall-layout-btn:hover { background: rgba(80,120,255,0.3); }
+  #wall-layout-btn .wall-layout-icon { font-size: 14px; line-height: 1; }
+  #wall-layout-btn.editing {
+    background: rgba(255,80,80,0.15); border-color: rgba(255,100,100,0.5); color: #f88;
   }
-  #wall-exit-edit-btn:hover { background: rgba(255,80,80,0.3); }
-  #wall-exit-edit-btn.show { display: inline-flex; align-items: center; }
   /* Cube mode with fewer physical panels wired than the 3D preview shows
      (see panelConfig.js's physicalCubePanels/wsServer.js's
      setPhysicalCubePanels) - a real report asked for exactly this, no
@@ -1718,9 +1713,7 @@
     Switch to <b>Panel 2D</b> in Cube Size to see the live preview.
   </div>
   <div id="wall-toolbar">
-    <span>Displays</span>
-    <button id="wall-add-btn" title="Add a display at the first open spot">+</button>
-    <button id="wall-exit-edit-btn" title="Exit edit mode">✕ Done</button>
+    <button id="wall-layout-btn" title="Edit wall layout">Layout <span class="wall-layout-icon">+</span></button>
   </div>
   <div id="sim-banner">⚠ Simulation — only <span id="sim-banner-count"></span> face(s) are on real hardware, the rest is preview only</div>
 </div>
