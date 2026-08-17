@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.6';
+const APP_VERSION = '0.6.7';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -500,12 +500,20 @@ function syncWeatherPanel() {
   // Reflects the server's actual current city (persisted across a restart
   // via weatherConfig.js - see effects/weather.js's DEFAULT_CITY fallback)
   // into the input box, so a freshly-loaded/reconnected page shows what's
-  // really selected instead of the field's static HTML placeholder value -
-  // guarded against clobbering while the user is actively typing/picking
-  // from the dropdown, same pattern every other synced input in this file
-  // uses.
+  // really selected instead of a stale/placeholder value - guarded against
+  // clobbering while the user is actively typing/picking from the
+  // dropdown, same pattern every other synced input in this file uses. A
+  // real report: the display showed "London" (weather.js's DEFAULT_CITY
+  // fallback, used whenever effectOptions.weather.city is still '' -
+  // nothing picked yet) while the sidebar showed a hardcoded HTML
+  // value="Milton Keynes" that never got corrected, since optCity was
+  // falsy and this never ran. status.city is the server's OWN resolved
+  // name for whatever it's actually displaying (falls back to the same
+  // DEFAULT_CITY), so use that once effectOptions.weather.city is empty -
+  // it's always in sync with what's on the panel, unlike a second
+  // hardcoded default living in this file.
   const cityInput = panel.querySelector('#wx-city');
-  const optCity = currentState.effectOptions?.weather?.city;
+  const optCity = currentState.effectOptions?.weather?.city || status?.city;
   if (cityInput && document.activeElement !== cityInput && optCity && cityInput.value !== optCity) {
     cityInput.value = optCity;
   }
