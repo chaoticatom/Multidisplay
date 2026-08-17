@@ -64,6 +64,54 @@ function idxAt(core, x, y) {
   return y * wallW + x;
 }
 
+// Up to 6 "start" candidates (nearest open cell to each of 6 fixed
+// corners) - shared between buildMaze()'s goal placement (farthest from
+// ALL of these - see farthestFromAll()) and respawnRunners()'s actual
+// runner spawn points, so the goal is always measured against exactly
+// where runners really start. See maze.js's identical-purpose
+// computeStartCandidates() for the cube-mode counterpart.
+function computeStartCandidates(core, Cw, Ch) {
+  const corners = [[1, 1], [2 * Cw - 1, 1], [1, 2 * Ch - 1], [2 * Cw - 1, 2 * Ch - 1], [Cw, 1], [1, Ch]];
+  return corners.map((corner) => {
+    let best = -1, bd = 1e9;
+    for (let cj = 0; cj < Ch; cj++) {
+      for (let ci = 0; ci < Cw; ci++) {
+        const u = 2 * ci + 1, v = 2 * cj + 1;
+        const idx = idxAt(core, u, v);
+        if (idx >= 0 && mazeOpen[idx]) {
+          const d = Math.abs(u - corner[0]) + Math.abs(v - corner[1]);
+          if (d < bd) { bd = d; best = idx; }
+        }
+      }
+    }
+    return best;
+  });
+}
+
+// Multi-source BFS: the open cell with the greatest distance to its
+// NEAREST start candidate - a real report ("the end target needs to be
+// the furthest away from all the start points"), replacing the previous
+// fixed bottom-right-ish corner goal which only ever considered the
+// single top-left start.
+function farthestFromAll(core, starts) {
+  const { wallW } = core;
+  const N = wallW * core.wallH;
+  const dist = new Int32Array(N).fill(-1);
+  const q = new Int32Array(N); let qh = 0, qt = 0;
+  for (const s of starts) { if (s >= 0 && dist[s] < 0) { dist[s] = 0; q[qt++] = s; } }
+  while (qh < qt) {
+    const i = q[qh++];
+    const x = i % wallW, y = (i / wallW) | 0;
+    for (const nb of NB2) {
+      const j = idxAt(core, x + nb[0], y + nb[1]);
+      if (j >= 0 && mazeOpen[j] && dist[j] < 0) { dist[j] = dist[i] + 1; q[qt++] = j; }
+    }
+  }
+  let best = -1, bd = -1;
+  for (let i = 0; i < N; i++) if (mazeOpen[i] && dist[i] > bd) { bd = dist[i]; best = i; }
+  return best;
+}
+
 function buildMaze(core) {
   const { wallW, wallH } = core;
   const N = wallW * wallH;
@@ -106,21 +154,14 @@ function buildMaze(core) {
     stack.push(nx);
   }
 
-  // 2 — start (top-left) and goal (bottom-right-ish), mirroring the is2D
-  // cube branch's corner placement, just over Cw x Ch instead of C x C.
-  mazeStartI = idxAt(core, 1, 1);
-  const endU = 2 * Cw - 1, endV = 2 * Ch - 1;
-  mazeEndI = idxAt(core, endU, endV);
-  if (mazeEndI < 0 || !mazeOpen[mazeEndI]) {
-    let best = -1;
-    for (let cj = Ch - 1; cj >= 0 && best < 0; cj--) {
-      for (let ci = Cw - 1; ci >= 0 && best < 0; ci--) {
-        const idx = idxAt(core, 2 * ci + 1, 2 * cj + 1);
-        if (idx >= 0 && mazeOpen[idx]) best = idx;
-      }
-    }
-    mazeEndI = best >= 0 ? best : mazeStartI;
-  }
+  // 2 — start (top-left) and goal, placed as far as possible from EVERY
+  // runner's actual start point at once (farthestFromAll() over the SAME
+  // candidates respawnRunners() spawns from below), not a fixed bottom-
+  // right-ish corner that ignored every other runner's starting position.
+  const startCandidates = computeStartCandidates(core, Cw, Ch);
+  mazeStartI = startCandidates[0] >= 0 ? startCandidates[0] : idxAt(core, 1, 1);
+  const farthest = farthestFromAll(core, startCandidates);
+  mazeEndI = farthest >= 0 ? farthest : mazeStartI;
 
   // 3 — BFS shortest path (reference for capping runner wandering)
   const prev = new Int32Array(N).fill(-1);
@@ -143,7 +184,7 @@ function buildMaze(core) {
   } else mazeBFS = [mazeStartI];
 
   // 4 — spawn the runners
-  respawnRunners(core, Cw, Ch);
+  respawnRunners(core, startCandidates);
 }
 
 // Goal-biased randomized DFS that records the FULL walk including
@@ -191,7 +232,7 @@ function genRunnerSeq(core, bias, startI) {
   return { seq, route: stack.slice() };
 }
 
-function respawnRunners(core, Cw, Ch) {
+function respawnRunners(core, startCandidates) {
   const { wallW, wallH } = core;
   const N = wallW * wallH;
   mazeVisited = new Uint8Array(N);
@@ -199,23 +240,14 @@ function respawnRunners(core, Cw, Ch) {
   const base = 6 + Math.max(wallW, wallH) * 0.5;
   const maxLen = Math.max(60, mazeBFS.length * 4.5);
   const mazeRunnerCount = core.effectOptions?.maze?.runners ?? 3;
-
-  const corners = [[1, 1], [2 * Cw - 1, 1], [1, 2 * Ch - 1], [2 * Cw - 1, 2 * Ch - 1], [Cw, 1], [1, Ch]];
+  // Same up-to-6 corner-start candidates buildMaze() placed the goal
+  // farthest from - threaded through so runners spawn at exactly what the
+  // goal placement measured against.
+  if (!startCandidates) { const Cw = Math.max(1, (wallW >> 1) - 1), Ch = Math.max(1, (wallH >> 1) - 1); startCandidates = computeStartCandidates(core, Cw, Ch); }
 
   for (let k = 0; k < mazeRunnerCount; k++) {
-    const corner = corners[k % corners.length];
-    let best = -1, bd = 1e9;
-    for (let cj = 0; cj < Ch; cj++) {
-      for (let ci = 0; ci < Cw; ci++) {
-        const u = 2 * ci + 1, v = 2 * cj + 1;
-        const idx = idxAt(core, u, v);
-        if (idx >= 0 && mazeOpen[idx]) {
-          const d = Math.abs(u - corner[0]) + Math.abs(v - corner[1]);
-          if (d < bd) { bd = d; best = idx; }
-        }
-      }
-    }
-    const startI = best >= 0 ? best : mazeStartI;
+    const cand = startCandidates[k % startCandidates.length];
+    const startI = cand >= 0 ? cand : mazeStartI;
 
     let gp = null;
     const biases = [0.75, 0.82, 0.9, 0.96];

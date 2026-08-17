@@ -3877,6 +3877,77 @@ var PiEngine = (() => {
         [0.105, 0.105, 0.115]
       ];
       var MZ_HUES = [0.5, 0.08, 0.85, 0.16, 0.7, 0.42];
+      function computeStartCandidates(core) {
+        const S = core.SIZE, faceMap = core.faceMap;
+        const is2D = core.panelMode === "2d";
+        const C = (S >> 1) - 1;
+        if (is2D) {
+          const corners = [[1, 1], [2 * C - 1, 1], [1, 2 * C - 1], [2 * C - 1, 2 * C - 1], [C, 1], [1, C]];
+          return corners.map((corner) => {
+            let best = -1, bd = 1e9;
+            for (let cj = 0; cj < C; cj++) for (let ci = 0; ci < C; ci++) {
+              const u = 2 * ci + 1, v = 2 * cj + 1;
+              const idx = faceMap[0][v * S + u];
+              if (idx >= 0 && mazeOpen[idx]) {
+                const d = Math.abs(u - corner[0]) + Math.abs(v - corner[1]);
+                if (d < bd) {
+                  bd = d;
+                  best = idx;
+                }
+              }
+            }
+            return best;
+          });
+        }
+        return [0, 1, 2, 3, 4, 5].map((f) => {
+          let found = -1;
+          for (let r = 0; r < C && found < 0; r++) {
+            for (let ci = Math.max(0, C / 2 - r) | 0, ce = Math.min(C - 1, C / 2 + r | 0); ci <= ce && found < 0; ci++) {
+              for (let cj = Math.max(0, C / 2 - r) | 0, cje = Math.min(C - 1, C / 2 + r | 0); cj <= cje && found < 0; cj++) {
+                const idx = faceMap[f][(2 * cj + 1) * S + (2 * ci + 1)];
+                if (idx >= 0 && mazeOpen[idx]) found = idx;
+              }
+            }
+          }
+          if (found < 0) {
+            for (let v = 1; v < S - 1 && found < 0; v += 2)
+              for (let u = 1; u < S - 1 && found < 0; u += 2) {
+                const idx = faceMap[f][v * S + u];
+                if (idx >= 0 && mazeOpen[idx]) found = idx;
+              }
+          }
+          return found;
+        });
+      }
+      function farthestFromAll(core, starts) {
+        const N = core.N;
+        const dist = new Int32Array(N).fill(-1);
+        const q = new Int32Array(N);
+        let qh = 0, qt = 0;
+        for (const s of starts) {
+          if (s >= 0 && dist[s] < 0) {
+            dist[s] = 0;
+            q[qt++] = s;
+          }
+        }
+        while (qh < qt) {
+          const i = q[qh++];
+          const x = core.gridX[i], y = core.gridY[i], z = core.gridZ[i];
+          for (const nb of NB6) {
+            const j = surfIdx(core, x + nb[0], y + nb[1], z + nb[2]);
+            if (j >= 0 && mazeOpen[j] && dist[j] < 0) {
+              dist[j] = dist[i] + 1;
+              q[qt++] = j;
+            }
+          }
+        }
+        let best = -1, bd = -1;
+        for (let i = 0; i < N; i++) if (mazeOpen[i] && dist[i] > bd) {
+          bd = dist[i];
+          best = i;
+        }
+        return best;
+      }
       function buildMaze(core) {
         const S = core.SIZE, N = core.N, faceMap = core.faceMap;
         const M = S - 1, C = (S >> 1) - 1;
@@ -3946,29 +4017,11 @@ var PiEngine = (() => {
             }
           }
         }
-        if (is2D) {
-          mazeStartI = faceMap[0][1 * S + 1];
-          const endU = 2 * C - 1, endV = 2 * C - 1;
-          mazeEndI = faceMap[0][endV * S + endU];
-          if (mazeEndI < 0 || !mazeOpen[mazeEndI]) {
-            let best = -1;
-            for (let cj = C - 1; cj >= 0 && best < 0; cj--) for (let ci = C - 1; ci >= 0 && best < 0; ci--) {
-              const idx = faceMap[0][(2 * cj + 1) * S + (2 * ci + 1)];
-              if (idx >= 0 && mazeOpen[idx]) best = idx;
-            }
-            mazeEndI = best >= 0 ? best : mazeStartI;
-          }
-        } else {
-          mazeStartI = faceMap[4][1 * S + 1];
-          const endFaces = [0, 1, 2, 3, 5];
-          const endFace = endFaces[Math.floor(Math.random() * endFaces.length)];
-          const candidates = [];
-          for (let cj = 0; cj < C; cj++) for (let ci = 0; ci < C; ci++) {
-            const idx = faceMap[endFace][(2 * cj + 1) * S + (2 * ci + 1)];
-            if (idx >= 0 && mazeOpen[idx]) candidates.push(idx);
-          }
-          mazeEndI = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : faceMap[5][(2 * C - 1) * S + (2 * C - 1)];
-        }
+        const startCandidates = computeStartCandidates(core);
+        const primaryStart = startCandidates[is2D ? 0 : 4];
+        mazeStartI = primaryStart >= 0 ? primaryStart : is2D ? faceMap[0][1 * S + 1] : faceMap[4][1 * S + 1];
+        const farthest = farthestFromAll(core, startCandidates);
+        mazeEndI = farthest >= 0 ? farthest : mazeStartI;
         const prev = new Int32Array(N).fill(-1);
         const q = new Int32Array(N);
         let qh = 0, qt = 0;
@@ -3996,7 +4049,7 @@ var PiEngine = (() => {
           mazeBFS.push(mazeStartI);
           mazeBFS.reverse();
         } else mazeBFS = [mazeStartI];
-        respawnRunners(core);
+        respawnRunners(core, startCandidates);
       }
       function genRunnerSeq(core, bias, startI) {
         const N = core.N;
@@ -4041,59 +4094,17 @@ var PiEngine = (() => {
         }
         return { seq, route: stack.slice() };
       }
-      function respawnRunners(core) {
-        const SIZE = core.SIZE, N = core.N, faceMap = core.faceMap;
+      function respawnRunners(core, startCandidates) {
+        const SIZE = core.SIZE, N = core.N;
         mazeVisited = new Uint8Array(N);
         mazeRunners = [];
-        const is2D = core.panelMode === "2d";
         const base = 6 + SIZE * 0.5;
         const maxLen = Math.max(60, mazeBFS.length * 4.5);
         const mazeRunnerCount = core.effectOptions?.maze?.runners ?? 3;
-        const C = (SIZE >> 1) - 1;
-        const facesToUse = is2D ? [0] : [0, 1, 2, 3, 4, 5];
-        const faceStarts = [];
-        for (const f of facesToUse) {
-          let found = -1;
-          for (let r = 0; r < C && found < 0; r++) {
-            for (let ci = Math.max(0, C / 2 - r) | 0, ce = Math.min(C - 1, C / 2 + r | 0); ci <= ce && found < 0; ci++) {
-              for (let cj = Math.max(0, C / 2 - r) | 0, cje = Math.min(C - 1, C / 2 + r | 0); cj <= cje && found < 0; cj++) {
-                const idx = faceMap[f][(2 * cj + 1) * SIZE + (2 * ci + 1)];
-                if (idx >= 0 && mazeOpen[idx]) found = idx;
-              }
-            }
-          }
-          if (found < 0) {
-            for (let v = 1; v < SIZE - 1 && found < 0; v += 2)
-              for (let u = 1; u < SIZE - 1 && found < 0; u += 2) {
-                const idx = faceMap[f][v * SIZE + u];
-                if (idx >= 0 && mazeOpen[idx]) found = idx;
-              }
-          }
-          faceStarts.push(found);
-        }
+        if (!startCandidates) startCandidates = computeStartCandidates(core);
         for (let k = 0; k < mazeRunnerCount; k++) {
-          const startFace = is2D ? 0 : k % 6;
-          const fsIdx = is2D ? 0 : startFace;
-          let startI;
-          if (is2D) {
-            const corners = [[1, 1], [2 * C - 1, 1], [1, 2 * C - 1], [2 * C - 1, 2 * C - 1], [C, 1], [1, C]];
-            const corner = corners[k % corners.length];
-            let best = -1, bd = 1e9;
-            for (let cj = 0; cj < C; cj++) for (let ci = 0; ci < C; ci++) {
-              const u = 2 * ci + 1, v = 2 * cj + 1;
-              const idx = faceMap[0][v * SIZE + u];
-              if (idx >= 0 && mazeOpen[idx]) {
-                const d = Math.abs(u - corner[0]) + Math.abs(v - corner[1]);
-                if (d < bd) {
-                  bd = d;
-                  best = idx;
-                }
-              }
-            }
-            startI = best >= 0 ? best : mazeStartI;
-          } else {
-            startI = faceStarts[fsIdx] >= 0 ? faceStarts[fsIdx] : mazeStartI;
-          }
+          const cand = startCandidates[k % startCandidates.length];
+          const startI = cand >= 0 ? cand : mazeStartI;
           let gp = null;
           const biases = [0.75, 0.82, 0.9, 0.96];
           for (const b of biases) {
@@ -21344,6 +21355,56 @@ var PiEngine = (() => {
         if (!pixelOccupied(core, x, y)) return -1;
         return y * wallW + x;
       }
+      function computeStartCandidates(core, Cw, Ch) {
+        const corners = [[1, 1], [2 * Cw - 1, 1], [1, 2 * Ch - 1], [2 * Cw - 1, 2 * Ch - 1], [Cw, 1], [1, Ch]];
+        return corners.map((corner) => {
+          let best = -1, bd = 1e9;
+          for (let cj = 0; cj < Ch; cj++) {
+            for (let ci = 0; ci < Cw; ci++) {
+              const u = 2 * ci + 1, v = 2 * cj + 1;
+              const idx = idxAt(core, u, v);
+              if (idx >= 0 && mazeOpen[idx]) {
+                const d = Math.abs(u - corner[0]) + Math.abs(v - corner[1]);
+                if (d < bd) {
+                  bd = d;
+                  best = idx;
+                }
+              }
+            }
+          }
+          return best;
+        });
+      }
+      function farthestFromAll(core, starts) {
+        const { wallW } = core;
+        const N = wallW * core.wallH;
+        const dist = new Int32Array(N).fill(-1);
+        const q = new Int32Array(N);
+        let qh = 0, qt = 0;
+        for (const s of starts) {
+          if (s >= 0 && dist[s] < 0) {
+            dist[s] = 0;
+            q[qt++] = s;
+          }
+        }
+        while (qh < qt) {
+          const i = q[qh++];
+          const x = i % wallW, y = i / wallW | 0;
+          for (const nb of NB2) {
+            const j = idxAt(core, x + nb[0], y + nb[1]);
+            if (j >= 0 && mazeOpen[j] && dist[j] < 0) {
+              dist[j] = dist[i] + 1;
+              q[qt++] = j;
+            }
+          }
+        }
+        let best = -1, bd = -1;
+        for (let i = 0; i < N; i++) if (mazeOpen[i] && dist[i] > bd) {
+          bd = dist[i];
+          best = i;
+        }
+        return best;
+      }
       function buildMaze(core) {
         const { wallW, wallH } = core;
         const N = wallW * wallH;
@@ -21385,19 +21446,10 @@ var PiEngine = (() => {
           openCell(nx[0], nx[1]);
           stack.push(nx);
         }
-        mazeStartI = idxAt(core, 1, 1);
-        const endU = 2 * Cw - 1, endV = 2 * Ch - 1;
-        mazeEndI = idxAt(core, endU, endV);
-        if (mazeEndI < 0 || !mazeOpen[mazeEndI]) {
-          let best = -1;
-          for (let cj = Ch - 1; cj >= 0 && best < 0; cj--) {
-            for (let ci = Cw - 1; ci >= 0 && best < 0; ci--) {
-              const idx = idxAt(core, 2 * ci + 1, 2 * cj + 1);
-              if (idx >= 0 && mazeOpen[idx]) best = idx;
-            }
-          }
-          mazeEndI = best >= 0 ? best : mazeStartI;
-        }
+        const startCandidates = computeStartCandidates(core, Cw, Ch);
+        mazeStartI = startCandidates[0] >= 0 ? startCandidates[0] : idxAt(core, 1, 1);
+        const farthest = farthestFromAll(core, startCandidates);
+        mazeEndI = farthest >= 0 ? farthest : mazeStartI;
         const prev = new Int32Array(N).fill(-1);
         const q = new Int32Array(N);
         let qh = 0, qt = 0;
@@ -21425,7 +21477,7 @@ var PiEngine = (() => {
           mazeBFS.push(mazeStartI);
           mazeBFS.reverse();
         } else mazeBFS = [mazeStartI];
-        respawnRunners(core, Cw, Ch);
+        respawnRunners(core, startCandidates);
       }
       function genRunnerSeq(core, bias, startI) {
         const { wallW, wallH } = core;
@@ -21472,7 +21524,7 @@ var PiEngine = (() => {
         }
         return { seq, route: stack.slice() };
       }
-      function respawnRunners(core, Cw, Ch) {
+      function respawnRunners(core, startCandidates) {
         const { wallW, wallH } = core;
         const N = wallW * wallH;
         mazeVisited = new Uint8Array(N);
@@ -21480,24 +21532,13 @@ var PiEngine = (() => {
         const base = 6 + Math.max(wallW, wallH) * 0.5;
         const maxLen = Math.max(60, mazeBFS.length * 4.5);
         const mazeRunnerCount = core.effectOptions?.maze?.runners ?? 3;
-        const corners = [[1, 1], [2 * Cw - 1, 1], [1, 2 * Ch - 1], [2 * Cw - 1, 2 * Ch - 1], [Cw, 1], [1, Ch]];
+        if (!startCandidates) {
+          const Cw = Math.max(1, (wallW >> 1) - 1), Ch = Math.max(1, (wallH >> 1) - 1);
+          startCandidates = computeStartCandidates(core, Cw, Ch);
+        }
         for (let k = 0; k < mazeRunnerCount; k++) {
-          const corner = corners[k % corners.length];
-          let best = -1, bd = 1e9;
-          for (let cj = 0; cj < Ch; cj++) {
-            for (let ci = 0; ci < Cw; ci++) {
-              const u = 2 * ci + 1, v = 2 * cj + 1;
-              const idx = idxAt(core, u, v);
-              if (idx >= 0 && mazeOpen[idx]) {
-                const d = Math.abs(u - corner[0]) + Math.abs(v - corner[1]);
-                if (d < bd) {
-                  bd = d;
-                  best = idx;
-                }
-              }
-            }
-          }
-          const startI = best >= 0 ? best : mazeStartI;
+          const cand = startCandidates[k % startCandidates.length];
+          const startI = cand >= 0 ? cand : mazeStartI;
           let gp = null;
           const biases = [0.75, 0.82, 0.9, 0.96];
           for (const b of biases) {

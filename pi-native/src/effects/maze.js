@@ -35,6 +35,77 @@ const MAZE_WALLS = [
 ];
 const MZ_HUES = [0.50, 0.08, 0.85, 0.16, 0.70, 0.42];
 
+// Up to 6 "start" candidate cells - one per cube face (near face-center,
+// spiral search outward) in cube mode, or one per fixed corner (nearest
+// open cell to it) in 2D flat-panel mode. Shared between buildMaze()'s
+// goal placement (farthest from ALL of these - see farthestFromAll()
+// below) and respawnRunners()'s actual runner spawn points, so the goal
+// is always measured against exactly where runners really start, not a
+// separately-computed approximation of it.
+function computeStartCandidates(core) {
+  const S = core.SIZE, faceMap = core.faceMap;
+  const is2D = core.panelMode === '2d';
+  const C = (S >> 1) - 1;
+  if (is2D) {
+    const corners = [[1, 1], [2 * C - 1, 1], [1, 2 * C - 1], [2 * C - 1, 2 * C - 1], [C, 1], [1, C]];
+    return corners.map((corner) => {
+      let best = -1, bd = 1e9;
+      for (let cj = 0; cj < C; cj++) for (let ci = 0; ci < C; ci++) {
+        const u = 2 * ci + 1, v = 2 * cj + 1;
+        const idx = faceMap[0][v * S + u];
+        if (idx >= 0 && mazeOpen[idx]) {
+          const d = Math.abs(u - corner[0]) + Math.abs(v - corner[1]);
+          if (d < bd) { bd = d; best = idx; }
+        }
+      }
+      return best;
+    });
+  }
+  return [0, 1, 2, 3, 4, 5].map((f) => {
+    let found = -1;
+    for (let r = 0; r < C && found < 0; r++) {
+      for (let ci = Math.max(0, C / 2 - r) | 0, ce = Math.min(C - 1, (C / 2 + r) | 0); ci <= ce && found < 0; ci++) {
+        for (let cj = Math.max(0, C / 2 - r) | 0, cje = Math.min(C - 1, (C / 2 + r) | 0); cj <= cje && found < 0; cj++) {
+          const idx = faceMap[f][(2 * cj + 1) * S + (2 * ci + 1)];
+          if (idx >= 0 && mazeOpen[idx]) found = idx;
+        }
+      }
+    }
+    if (found < 0) {
+      for (let v = 1; v < S - 1 && found < 0; v += 2)
+        for (let u = 1; u < S - 1 && found < 0; u += 2) {
+          const idx = faceMap[f][v * S + u];
+          if (idx >= 0 && mazeOpen[idx]) found = idx;
+        }
+    }
+    return found;
+  });
+}
+
+// Multi-source BFS: the open cell with the greatest distance to its
+// NEAREST start candidate, i.e. as far as possible from ALL of them at
+// once - a real report ("the end target needs to be the furthest away
+// from all the start points"), replacing the previous single-corner/
+// random-face goal placement which only ever considered one start point
+// (or none at all).
+function farthestFromAll(core, starts) {
+  const N = core.N;
+  const dist = new Int32Array(N).fill(-1);
+  const q = new Int32Array(N); let qh = 0, qt = 0;
+  for (const s of starts) { if (s >= 0 && dist[s] < 0) { dist[s] = 0; q[qt++] = s; } }
+  while (qh < qt) {
+    const i = q[qh++];
+    const x = core.gridX[i], y = core.gridY[i], z = core.gridZ[i];
+    for (const nb of NB6) {
+      const j = surfIdx(core, x + nb[0], y + nb[1], z + nb[2]);
+      if (j >= 0 && mazeOpen[j] && dist[j] < 0) { dist[j] = dist[i] + 1; q[qt++] = j; }
+    }
+  }
+  let best = -1, bd = -1;
+  for (let i = 0; i < N; i++) if (mazeOpen[i] && dist[i] > bd) { bd = dist[i]; best = i; }
+  return best;
+}
+
 function buildMaze(core) {
   const S = core.SIZE, N = core.N, faceMap = core.faceMap;
   const M = S - 1, C = (S >> 1) - 1;
@@ -87,32 +158,20 @@ function buildMaze(core) {
     }
   }
 
-  // 3 — start and goal
-  if (is2D) {
-    mazeStartI = faceMap[0][1 * S + 1];
-    const endU = 2 * C - 1, endV = 2 * C - 1;
-    mazeEndI = faceMap[0][endV * S + endU];
-    if (mazeEndI < 0 || !mazeOpen[mazeEndI]) {
-      let best = -1;
-      for (let cj = C - 1; cj >= 0 && best < 0; cj--) for (let ci = C - 1; ci >= 0 && best < 0; ci--) {
-        const idx = faceMap[0][(2 * cj + 1) * S + (2 * ci + 1)];
-        if (idx >= 0 && mazeOpen[idx]) best = idx;
-      }
-      mazeEndI = best >= 0 ? best : mazeStartI;
-    }
-  } else {
-    mazeStartI = faceMap[4][1 * S + 1];
-    const endFaces = [0, 1, 2, 3, 5];
-    const endFace = endFaces[Math.floor(Math.random() * endFaces.length)];
-    const candidates = [];
-    for (let cj = 0; cj < C; cj++) for (let ci = 0; ci < C; ci++) {
-      const idx = faceMap[endFace][(2 * cj + 1) * S + (2 * ci + 1)];
-      if (idx >= 0 && mazeOpen[idx]) candidates.push(idx);
-    }
-    mazeEndI = candidates.length
-      ? candidates[Math.floor(Math.random() * candidates.length)]
-      : faceMap[5][(2 * C - 1) * S + (2 * C - 1)];
-  }
+  // 3 — start and goal. The goal is placed as far as possible from EVERY
+  // runner's actual start point at once (farthestFromAll() over the SAME
+  // candidates respawnRunners() spawns from below - see
+  // computeStartCandidates()'s own comment), not a fixed opposite corner
+  // (2D) or a single random face (cube) that ignored every other runner's
+  // starting position.
+  const startCandidates = computeStartCandidates(core);
+  // Reference "the" start point for the runner-length BFS cap below and as
+  // a last-resort fallback - corner 0 ([1,1]) in 2D, face 4 (Top) in cube
+  // mode, matching this effect's traditional single-start-point framing.
+  const primaryStart = startCandidates[is2D ? 0 : 4];
+  mazeStartI = primaryStart >= 0 ? primaryStart : (is2D ? faceMap[0][1 * S + 1] : faceMap[4][1 * S + 1]);
+  const farthest = farthestFromAll(core, startCandidates);
+  mazeEndI = farthest >= 0 ? farthest : mazeStartI;
 
   // 4 — BFS shortest path (reference for capping runner wandering)
   const prev = new Int32Array(N).fill(-1);
@@ -135,7 +194,7 @@ function buildMaze(core) {
   } else mazeBFS = [mazeStartI];
 
   // 5 — spawn the runners
-  respawnRunners(core);
+  respawnRunners(core, startCandidates);
 }
 
 // Goal-biased randomized DFS that records the FULL walk including
@@ -180,58 +239,23 @@ function genRunnerSeq(core, bias, startI) {
   return { seq, route: stack.slice() };
 }
 
-function respawnRunners(core) {
-  const SIZE = core.SIZE, N = core.N, faceMap = core.faceMap;
+function respawnRunners(core, startCandidates) {
+  const SIZE = core.SIZE, N = core.N;
   mazeVisited = new Uint8Array(N);
   mazeRunners = [];
-  const is2D = core.panelMode === '2d';
   const base = 6 + SIZE * 0.5;
   const maxLen = Math.max(60, mazeBFS.length * 4.5);
   const mazeRunnerCount = core.effectOptions?.maze?.runners ?? 3;
-
-  const C = (SIZE >> 1) - 1;
-  const facesToUse = is2D ? [0] : [0, 1, 2, 3, 4, 5];
-  const faceStarts = [];
-  for (const f of facesToUse) {
-    let found = -1;
-    for (let r = 0; r < C && found < 0; r++) {
-      for (let ci = Math.max(0, C / 2 - r) | 0, ce = Math.min(C - 1, (C / 2 + r) | 0); ci <= ce && found < 0; ci++) {
-        for (let cj = Math.max(0, C / 2 - r) | 0, cje = Math.min(C - 1, (C / 2 + r) | 0); cj <= cje && found < 0; cj++) {
-          const idx = faceMap[f][(2 * cj + 1) * SIZE + (2 * ci + 1)];
-          if (idx >= 0 && mazeOpen[idx]) found = idx;
-        }
-      }
-    }
-    if (found < 0) {
-      for (let v = 1; v < SIZE - 1 && found < 0; v += 2)
-        for (let u = 1; u < SIZE - 1 && found < 0; u += 2) {
-          const idx = faceMap[f][v * SIZE + u];
-          if (idx >= 0 && mazeOpen[idx]) found = idx;
-        }
-    }
-    faceStarts.push(found);
-  }
+  // startCandidates (one per corner in 2D / one per face in cube mode) is
+  // computed once by buildMaze() via computeStartCandidates() and threaded
+  // through here - the exact same points the goal was placed farthest
+  // from, so runners always spawn at what the goal placement actually
+  // measured against.
+  if (!startCandidates) startCandidates = computeStartCandidates(core);
 
   for (let k = 0; k < mazeRunnerCount; k++) {
-    const startFace = is2D ? 0 : k % 6;
-    const fsIdx = is2D ? 0 : startFace;
-    let startI;
-    if (is2D) {
-      const corners = [[1, 1], [2 * C - 1, 1], [1, 2 * C - 1], [2 * C - 1, 2 * C - 1], [C, 1], [1, C]];
-      const corner = corners[k % corners.length];
-      let best = -1, bd = 1e9;
-      for (let cj = 0; cj < C; cj++) for (let ci = 0; ci < C; ci++) {
-        const u = 2 * ci + 1, v = 2 * cj + 1;
-        const idx = faceMap[0][v * SIZE + u];
-        if (idx >= 0 && mazeOpen[idx]) {
-          const d = Math.abs(u - corner[0]) + Math.abs(v - corner[1]);
-          if (d < bd) { bd = d; best = idx; }
-        }
-      }
-      startI = best >= 0 ? best : mazeStartI;
-    } else {
-      startI = faceStarts[fsIdx] >= 0 ? faceStarts[fsIdx] : mazeStartI;
-    }
+    const cand = startCandidates[k % startCandidates.length];
+    const startI = cand >= 0 ? cand : mazeStartI;
 
     let gp = null;
     const biases = [0.75, 0.82, 0.9, 0.96];
