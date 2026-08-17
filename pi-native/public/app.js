@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.16';
+const APP_VERSION = '0.6.17';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -882,8 +882,6 @@ function wireOverlaysPanel() {
   const gb = document.getElementById('ov-global-bright');
   if (gb) {
     gb.addEventListener('input', () => {
-      const lbl = document.getElementById('ov-global-bright-val');
-      if (lbl) lbl.textContent = Math.round(gb.value * 100) + '%';
       send({ cmd: 'setOverlayGlobalBright', value: Number(gb.value) });
     });
   }
@@ -914,8 +912,6 @@ function syncOverlaysPanel() {
   const gb = document.getElementById('ov-global-bright');
   if (gb && document.activeElement !== gb && overlays.globalBright !== undefined) {
     gb.value = overlays.globalBright;
-    const lbl = document.getElementById('ov-global-bright-val');
-    if (lbl) lbl.textContent = Math.round(overlays.globalBright * 100) + '%';
   }
 }
 
