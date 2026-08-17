@@ -22167,8 +22167,10 @@ var PiEngine = (() => {
         const { wallW, wallH } = core;
         if (!wallW) return;
         const is2d = true;
-        if (!wxState.skyline) {
+        if (!wxState.skyline || wxState._sceneWallW !== wallW || wxState._sceneWallH !== wallH) {
           require_wallState().wxInitSceneWall(wxState.code, wxState, wallW, wallH);
+          wxState._sceneWallW = wallW;
+          wxState._sceneWallH = wallH;
         }
         wxState.t2 += dt;
         const W = wallW, W1 = W - 1, H = wallH, H1 = H - 1;

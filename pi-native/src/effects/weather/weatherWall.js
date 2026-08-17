@@ -52,8 +52,19 @@ function effectWeatherWall(core, dt, wxState, speedMult) {
   const { wallW, wallH } = core;
   if (!wallW) return; // core.initWall() hasn't run yet (wall mode not active)
   const is2d = true; // a wall is always the "one flat panorama" shape, never a cube
-  if (!wxState.skyline) {
+  // Also re-inits when wallW/wallH change (not just on first run) - a real
+  // report: "the city silhouette needs to extend to all screens" when
+  // adding more displays. wxState.skyline/skyShapes are sized for whatever
+  // wallW was AT THE TIME they were built (see wallState.js's
+  // wxInitSceneWall - `panW = wallW`) - re-adding a panel later changed
+  // core.wallW but never re-triggered a rebuild, so the skyline (and
+  // clouds/stars/particles, which are equally position-dependent) stayed
+  // sized for the narrower wall it was first drawn on, leaving new panels
+  // with no skyline at all.
+  if (!wxState.skyline || wxState._sceneWallW !== wallW || wxState._sceneWallH !== wallH) {
     require('./wallState').wxInitSceneWall(wxState.code, wxState, wallW, wallH);
+    wxState._sceneWallW = wallW;
+    wxState._sceneWallH = wallH;
   }
   wxState.t2 += dt;
   const W = wallW, W1 = W - 1, H = wallH, H1 = H - 1;
