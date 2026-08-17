@@ -265,7 +265,24 @@
   #fps-counter { color: #3b7; }
 
   #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
-  #canvas-wrap canvas { display: block; }
+  /* width/height:100% - a real report ("cube still not centered in
+     available space" on phone). <canvas> is a replaced element: with no
+     explicit CSS size it lays out at its own width/height ATTRIBUTES
+     (the drawing-buffer resolution renderer.setSize() sets, since it's
+     called with updateStyle=false so it deliberately leaves CSS sizing to
+     us) rather than filling its container. Those attributes are
+     window.innerWidth/innerHeight times devicePixelRatio - now clamped to
+     2 (see the earlier Android black-screen fix) - so on any phone with
+     DPR>1 the canvas's actual CSS box was up to 2x the visible viewport
+     in each dimension, overflowing off the top-left-anchored #canvas-wrap
+     with no `overflow` rule catching it on the active (pi-native)
+     #canvas-wrap override - the cube rendered fine but only the top-left
+     quadrant of it was ever inside the visible viewport, reading as
+     "not centered". Forcing the CSS box to 100% of the container
+     decouples layout size from drawing-buffer resolution entirely, which
+     is the standard pattern for any canvas/three.js app - the drawing
+     buffer being higher-res just means sharper pixels, not a bigger box. */
+  #canvas-wrap canvas { display: block; width: 100%; height: 100%; }
   #hint        { position: absolute; bottom: 14px; right: 14px; font-size: 12px; color: rgba(120,160,255,0.25); letter-spacing: 1px; pointer-events: none; max-width: 150px; text-align: right; }
   @media (max-width: 768px) { #hint { font-size: 13px; bottom: 10px; right: 10px; } }
   @media (max-width: 480px) { #hint { font-size: 13px; bottom: 8px; right: 8px; } }
@@ -389,7 +406,7 @@
      while resizeRenderer()'s JS sizing (window.innerWidth/innerHeight)
      tracks the real dynamic viewport - that CSS/JS mismatch is what made
      the cube render off-center/cropped. */
-  #canvas-wrap { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; z-index: 1; }
+  #canvas-wrap { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; z-index: 1; overflow: hidden; }
   .not-ported, .pi-unsupported input, .pi-unsupported button:not(.section-head):not(.sub-head),
   button.not-ported, .effect-btn.not-ported {
     opacity: 0.32 !important; pointer-events: none; filter: grayscale(60%);
