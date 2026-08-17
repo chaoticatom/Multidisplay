@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.18';
+const APP_VERSION = '0.6.19';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -881,11 +881,38 @@ function wireOverlaysPanel() {
   });
   const gb = document.getElementById('ov-global-bright');
   if (gb) {
+    // Every drag tick sends setOverlayGlobalBright, which the server
+    // echoes straight back as a "state" broadcast to every connected
+    // client - including this one, mid-drag. syncOverlaysPanel() used to
+    // guard against that echo clobbering the slider with
+    // `document.activeElement !== gb`, but that's unreliable on touch:
+    // some mobile browsers don't actually focus a range input on a touch-
+    // drag the way a mouse-drag focuses it, so the guard silently failed
+    // and every echo snapped the thumb back to the server's (slightly
+    // stale, since network round-trip has real latency) value while the
+    // finger kept moving - a real report ("keeps moving to 100%, hard to
+    // move it"). _gbEditingUntil is a time-based guard instead, set well
+    // past "now" on every input tick regardless of focus state, so
+    // syncOverlaysPanel() ignores echoes for a bit after the last local
+    // edit no matter how touch/focus behaves on a given device.
+    let gbSendQueued = false;
     gb.addEventListener('input', () => {
-      send({ cmd: 'setOverlayGlobalBright', value: Number(gb.value) });
+      _gbEditingUntil = Date.now() + 1200;
+      // Coalesce to at most one send per animation frame - a native range
+      // input fires 'input' on every pixel of movement (dozens/sec while
+      // dragging), each otherwise triggering a full state broadcast to
+      // every connected client. Doesn't change the echo-fighting fix above
+      // (that's the time guard), just cuts needless network/server load.
+      if (gbSendQueued) return;
+      gbSendQueued = true;
+      requestAnimationFrame(() => {
+        gbSendQueued = false;
+        send({ cmd: 'setOverlayGlobalBright', value: Number(gb.value) });
+      });
     });
   }
 }
+let _gbEditingUntil = 0;
 
 function syncOverlaysPanel() {
   const overlays = currentState.overlays;
@@ -910,7 +937,7 @@ function syncOverlaysPanel() {
     btn.classList.toggle('active', cfg.color === btn.dataset.val);
   });
   const gb = document.getElementById('ov-global-bright');
-  if (gb && document.activeElement !== gb && overlays.globalBright !== undefined) {
+  if (gb && document.activeElement !== gb && Date.now() >= _gbEditingUntil && overlays.globalBright !== undefined) {
     gb.value = overlays.globalBright;
   }
 }
