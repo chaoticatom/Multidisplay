@@ -137,30 +137,26 @@ class RgbMatrixDriver {
   // own content backwards. The physical panel positions/wiring
   // (panel.gx/gy -> drawBuffer offset, in _renderWallFrame) are untouched -
   // only which CONTENT lands at each physical offset changes.
+  // NOTE (irregular layouts): this horizontal mirror reads column
+  // wallW-1-(ox+u) instead of ox+u - for a layout that ISN'T symmetric
+  // about the vertical centerline (e.g. an L-shape, or any row that
+  // doesn't span the full wallW), that mirrored column can land on an
+  // UNOCCUPIED cell (always black) instead of real content, the same class
+  // of bug a whole-canvas VERTICAL flip was found to cause here (tried and
+  // reverted - see wsServer.js's _streamWallFrames() module comment) for
+  // non-rectangular shapes. Left as-is since it's confirmed against a real
+  // device report and out of scope for the L-shape-layout fix that
+  // reverted the vertical version, but worth knowing about if an
+  // irregular/asymmetric horizontal shape ever looks wrong on real
+  // hardware.
   _buildWallPanelBuffer(core, panel, brightness) {
-    const S = core.wallPanelSize, wallW = core.wallW, wallH = core.wallH, wallBuf = core.wallBuf;
+    const S = core.wallPanelSize, wallW = core.wallW, wallBuf = core.wallBuf;
     const buf = this._faceBufCache;
     const ox = panel.gx * S, oy = panel.gy * S;
     for (let v = 0; v < S; v++) {
       for (let u = 0; u < S; u++) {
         const srcX = wallW - 1 - (ox + u);
-        // Whole-canvas vertical flip, same spirit as the horizontal mirror
-        // above but for the OTHER axis: several wall effects
-        // (weatherWall.js confirmed directly - ground/horizon renders at
-        // small v, sky near wallH-1) are written assuming wallBuf row 0 is
-        // the BOTTOM of the wall, not the top. Kept consistent with
-        // wsServer.js's _streamWallFrames() (the browser preview's
-        // source), which applies the identical flip - a real report
-        // ("weather... upside down") on the browser side confirmed this
-        // is genuinely how the affected effects' own coordinate
-        // convention works, not a preview-only quirk, so the physical
-        // output needs the same correction to actually match what the
-        // preview shows. Unlike the horizontal mirror above (confirmed
-        // against a real device report), this hasn't been verified on
-        // physical panels - flag any real-hardware orientation mismatch
-        // if this turns out wrong for the actual wiring.
-        const srcY = wallH - 1 - (oy + v);
-        const c = (srcY * wallW + srcX) * 3;
+        const c = ((oy + v) * wallW + srcX) * 3;
         const o = (v * S + u) * 3;
         buf[o]     = Math.max(0, Math.min(255, (wallBuf[c] * brightness * 255) | 0));
         buf[o + 1] = Math.max(0, Math.min(255, (wallBuf[c + 1] * brightness * 255) | 0));

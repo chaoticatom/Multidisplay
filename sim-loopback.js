@@ -148,24 +148,25 @@
   }
   function encodeWallFrames() {
     if (!core.wallBuf) return;
-    const S = core.wallPanelSize, wallW = core.wallW, wallH = core.wallH, wallBuf = core.wallBuf;
+    const S = core.wallPanelSize, wallW = core.wallW, wallBuf = core.wallBuf;
     config.panels.forEach((p, idx) => {
       const buf = new Uint8Array(1 + S * S * 3);
       buf[0] = idx;
       const ox = p.gx * S, oy = p.gy * S;
       for (let v = 0; v < S; v++) {
         for (let u = 0; u < S; u++) {
-          // Whole-canvas vertical flip (row R of the OUTPUT always reads
-          // wallBuf row wallH-1-R, for every panel alike) - NOT a per-panel
-          // flip, which is what broke cross-panel continuity before (see
-          // drawWallPanelFrame()'s module comment in app.js). Several wall
-          // effects (weatherWall.js confirmed directly: ground/horizon
-          // renders at small v, sky at v approaching wallH-1) were written
-          // assuming wallBuf row 0 is the BOTTOM of the wall, not the top -
-          // a real report ("weather... upside down") traced to exactly
-          // this after removing the (buggy, per-panel) flip that had been
-          // accidentally compensating for it.
-          const c = ((wallH - 1 - (oy + v)) * wallW + (ox + u)) * 3;
+          // Plain row-major, no flip - a whole-canvas vertical flip was
+          // tried here to fix orientation-sensitive effects like
+          // weatherWall.js, but it turned out to be wrong: flipping which
+          // wallBuf ROW a panel's output sources from also silently
+          // changes WHICH OCCUPIED CELL it reads from whenever the layout
+          // isn't symmetric about the vertical midline (confirmed: an
+          // L-shaped layout read two of its panels from an unoccupied
+          // (always-black) gap cell instead of their own data). The
+          // correct fix belongs in the AFFECTED EFFECTS' own vertical
+          // convention (see weatherWall.js), not here - this must stay a
+          // pure, position-preserving slice.
+          const c = ((oy + v) * wallW + (ox + u)) * 3;
           const o = 1 + (v * S + u) * 3;
           buf[o] = Math.max(0, Math.min(255, (wallBuf[c] * state.brightness * 255) | 0));
           buf[o + 1] = Math.max(0, Math.min(255, (wallBuf[c + 1] * state.brightness * 255) | 0));

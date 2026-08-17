@@ -422,6 +422,11 @@
     cursor: pointer; font-size: 17px; line-height: 1;
   }
   #wall-add-btn:hover { background: rgba(80,120,255,0.3); }
+  /* Shown while _wallPendingAdd is true (see wireWallToolbar()) - the "+"
+     becomes a "✕ done editing" affordance, both visually flagging that
+     you're mid-placement and giving an obvious way out of it (a real
+     report specifically asked for "a way to exit edit mode"). */
+  #wall-add-btn.editing { background: rgba(80,120,255,0.4); border-color: #7aadff; }
   /* Cube mode with fewer physical panels wired than the 3D preview shows
      (see panelConfig.js's physicalCubePanels/wsServer.js's
      setPhysicalCubePanels) - a real report asked for exactly this, no

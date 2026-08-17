@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.5.1';
+const APP_VERSION = '0.5.2';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2588,6 +2588,27 @@ let _wallPendingAdd = false;
 // while already pending cancels it. A real report specifically wanted
 // this "show me the options, I pick" flow instead of the old
 // auto-place-then-show-more-options behavior.
+// Reflects _wallPendingAdd on the "+" button itself - a real report:
+// "need a way to exit edit mode". Called from rebuildWallPreview() (the
+// one place that already runs on every _wallPendingAdd change) so it never
+// drifts out of sync with what's actually showing.
+function updateWallAddButtonState() {
+  const addBtn = document.getElementById('wall-add-btn');
+  if (!addBtn) return;
+  addBtn.classList.toggle('editing', _wallPendingAdd);
+  addBtn.textContent = _wallPendingAdd ? '✕' : '+';
+  addBtn.title = _wallPendingAdd ? 'Cancel adding a display' : 'Add a display at the first open spot';
+}
+
+// Cancels a pending "+" placement without adding anything - the explicit
+// "way to exit edit mode" a real report asked for, on top of "+" itself
+// already toggling it off. Safe to call even when nothing is pending.
+function exitWallEditMode() {
+  if (!_wallPendingAdd) return;
+  _wallPendingAdd = false;
+  rebuildWallPreview();
+}
+
 function wireWallToolbar() {
   const addBtn = document.getElementById('wall-add-btn');
   if (!addBtn) return;
@@ -2607,9 +2628,19 @@ function wireWallToolbar() {
       send({ cmd: 'setPanelConfig', size: currentState.panelSize || 64, mode: 'wall', panels: currentWallPanels() });
       return;
     }
+    if (_wallPendingAdd) { exitWallEditMode(); return; }
     if (currentWallPanels().length >= WALL_MAX_PANELS) return; // already at the hardware panel cap - nothing to add
-    _wallPendingAdd = !_wallPendingAdd;
+    _wallPendingAdd = true;
     rebuildWallPreview();
+  });
+
+  // Escape and clicking anywhere outside the wall preview/toolbar both
+  // cancel a pending placement - same "give me an obvious way out" report.
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') exitWallEditMode(); });
+  document.addEventListener('click', (e) => {
+    if (!_wallPendingAdd) return;
+    if (e.target.closest('#wall-preview') || e.target.closest('#wall-toolbar')) return;
+    exitWallEditMode();
   });
 }
 
@@ -3013,6 +3044,7 @@ function placeAtCandidate(candidate, movingFrom) {
 }
 
 function rebuildWallPreview() {
+  updateWallAddButtonState();
   wallPreviewEl.innerHTML = '';
   for (const key in wallPanelCanvases) delete wallPanelCanvases[key];
   if (currentState.panelMode !== 'wall') return; // full grid only makes sense once wall mode is actually active - see wireWallToolbar()'s "+"  for how you get there
