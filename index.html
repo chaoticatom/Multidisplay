@@ -499,6 +499,15 @@
     </div>
   </div>
 
+  <!-- Global brightness - moved here from the Overlays section (a real
+       report asked for it right under the display-mode buttons, not
+       buried inside a collapsed section further down). -->
+  <div id="sidebar-brightness-bar" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;background:rgba(80,120,255,0.07);">
+    <span style="font-size:10px;letter-spacing:1px;color:#7aadff;flex-shrink:0;">BRIGHTNESS</span>
+    <input type="range" id="ov-global-bright" min="0.05" max="1" step="0.05" value="1" style="flex:1;">
+    <span id="ov-global-bright-val" style="font-size:10px;color:#aac;width:30px;text-align:right;">100%</span>
+  </div>
+
   <div id="fx-toggle-bar" style="padding:6px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;display:flex;gap:6px;">
     <button id="clear-all-btn" style="flex:1;padding:9px 10px;background:rgba(255,60,60,0.1);border:1px solid rgba(255,60,60,0.25);color:#f77;border-radius:5px;cursor:pointer;font-size:13px;letter-spacing:1px;text-transform:uppercase;transition:all 0.2s;text-align:center;">✕ Clear All</button>
   </div>
@@ -1173,13 +1182,6 @@
     <button class="section-head" style="color:rgba(180,220,255,0.95);">◈ Overlays <span class="chev">▾</span></button>
     <div class="section-body">
       <div style="font-size:9px;color:#556;margin-bottom:10px;line-height:1.5;">Layer effects over any mode. Multiple active at once.</div>
-
-      <!-- Global brightness -->
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:rgba(80,120,255,0.07);border:1px solid rgba(80,120,255,0.18);border-radius:6px;">
-        <span style="font-size:10px;letter-spacing:1px;color:#7aadff;flex-shrink:0;">BRIGHTNESS</span>
-        <input type="range" id="ov-global-bright" min="0.05" max="1" step="0.05" value="1" style="flex:1;">
-        <span id="ov-global-bright-val" style="font-size:10px;color:#aac;width:30px;text-align:right;">100%</span>
-      </div>
 
     <div class="ov-item" id="ovi-stars">
       <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="stars"><span class="ov-slider"></span></span><span class="ov-name">✨ Twinkling Stars</span></label>
