@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.5.4';
+const APP_VERSION = '0.5.5';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2596,7 +2596,12 @@ function updateWallAddButtonState() {
   const addBtn = document.getElementById('wall-add-btn');
   const exitBtn = document.getElementById('wall-exit-edit-btn');
   if (addBtn) addBtn.classList.toggle('editing', _wallPendingAdd);
-  if (exitBtn) exitBtn.classList.toggle('show', _wallPendingAdd);
+  // Shown whenever candidate outlines are - a real report: the exit
+  // button previously only appeared for _wallPendingAdd (via "+"), not
+  // while actively dragging an existing panel (_wallDragFrom), even
+  // though dragging shows the exact same candidate outlines and is just
+  // as much "edit mode".
+  if (exitBtn) exitBtn.classList.toggle('show', _wallPendingAdd || !!_wallDragFrom);
 }
 
 // Cancels a pending "+" placement without adding anything - the explicit
