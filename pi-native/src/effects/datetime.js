@@ -201,6 +201,33 @@ function fitScale(S, text, maxScale, widthFrac = 0.94) {
   return Math.max(1, Math.min(maxScale, fit));
 }
 
+// Cheap bloom/glow pass over the intensity buffer - a real report ("the
+// font is so old fashioned, it needs to be smooth with no pixels showing,
+// add a bit of glow"). A real per-pixel blur convolution is overkill (and
+// this only runs once per second anyway - see dtRenderBuf's caller - so
+// cost isn't really a concern either way): this instead spreads each lit
+// pixel's intensity into its 4 neighbours at reduced strength (max-blended,
+// never dimming a pixel something else already lit brighter), which reads
+// as a soft halo around every segment/glyph edge instead of a hard-edged
+// rectangle, without softening the segment's own core brightness at all.
+function dtGlow(buf, S) {
+  const src = buf.slice();
+  const NB = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const v = src[y * S + x];
+      if (v < 60) continue;
+      const g = v * 0.4;
+      for (const [dx, dy] of NB) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= S || ny < 0 || ny >= S) continue;
+        const i = ny * S + nx;
+        if (g > buf[i]) buf[i] = g;
+      }
+    }
+  }
+}
+
 // Stacks `lines` (each {type:'seg', str, idealHFrac} for the seg-digit
 // clock or {type:'text', str, scale} for small bitmap-font text)
 // vertically, block-centered as a WHOLE on the panel - both axes, real
@@ -275,6 +302,7 @@ function dtRenderBuf(core, now, mode) {
       { type: 'text', str: secStr, scale: secSc },
     ]);
   }
+  if (mode !== 'analogue') dtGlow(dtBuf, S);
 }
 
 // Same modulo-wrap sampling as the browser's paintFace(), with DT_RES
@@ -292,7 +320,14 @@ function paintFace(core, face, flip, srcOffsetLEDs, hue) {
       if (pv < 0.04) continue;
       const idx = faceMap[face][lv * S + u];
       if (idx < 0) continue;
-      const [r, g, b] = hsl(hue, 1, pv);
+      // Lightness capped well below 1.0 - a real report ("add a bit of
+      // glow, colour, something") traced partly to this: HSL lightness=1
+      // is always pure white regardless of hue, so every fully-lit segment
+      // pixel (pv≈1) washed out to colourless white, only the dim glow
+      // halo (see dtGlow()) ever showed real hue. 0.12-0.62 keeps peak
+      // brightness vividly coloured while still leaving room for the glow
+      // falloff to read as dimmer.
+      const [r, g, b] = hsl(hue, 1, 0.12 + pv * 0.5);
       colBuf[idx * 3] = r; colBuf[idx * 3 + 1] = g; colBuf[idx * 3 + 2] = b;
     }
   }
@@ -319,6 +354,16 @@ const WC_FONT = {
 };
 const WC_CHAR_W = 5, WC_LINE_H = 8;
 
+// v is flipped (S-1-v) at the point of writing - same fix, same root cause
+// as celestial.js's moonGlyph (see its module comment): this file's word-
+// clock layout (dtDrawWordLines below) places its first line near sv=S-8
+// and stacks subsequent lines toward sv=0, a "v-up" mental model that
+// needs correcting when it actually hits core.setFaceLED's plain row-major
+// faceMap addressing. A real report ("the words version is upside down and
+// back to front") - severely flipped text reads as scrambled/reversed
+// enough to describe as "back to front" too, same as celestial's own
+// "reversed" report turned out to be fully explained by an identical
+// vertical-only bug.
 function wcDrawGlyph(core, face, ch, su, sv, rgb) {
   const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()];
   if (!rows) return WC_CHAR_W;
@@ -327,7 +372,7 @@ function wcDrawGlyph(core, face, ch, su, sv, rgb) {
     const bits = rows[row];
     for (let col = 0; col < 4; col++) {
       if (!((bits >> (3 - col)) & 1)) continue;
-      const u = su + col, v = sv + (6 - row);
+      const u = su + col, v = S - 1 - (sv + (6 - row));
       if (u < 0 || u >= S || v < 0 || v >= S) continue;
       core.setFaceLED(face, u, v, rgb[0], rgb[1], rgb[2]);
     }

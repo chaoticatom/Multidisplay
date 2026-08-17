@@ -13259,6 +13259,23 @@ var PiEngine = (() => {
         const fit = Math.floor(S * widthFrac / (text.length * 6));
         return Math.max(1, Math.min(maxScale, fit));
       }
+      function dtGlow(buf, S) {
+        const src = buf.slice();
+        const NB = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+        for (let y = 0; y < S; y++) {
+          for (let x = 0; x < S; x++) {
+            const v = src[y * S + x];
+            if (v < 60) continue;
+            const g = v * 0.4;
+            for (const [dx, dy] of NB) {
+              const nx = x + dx, ny = y + dy;
+              if (nx < 0 || nx >= S || ny < 0 || ny >= S) continue;
+              const i = ny * S + nx;
+              if (g > buf[i]) buf[i] = g;
+            }
+          }
+        }
+      }
       function dtLayoutStack(buf, S, lines) {
         const gap = Math.max(1, S * 0.04);
         const resolved = lines.map((ln) => {
@@ -13317,6 +13334,7 @@ var PiEngine = (() => {
             { type: "text", str: secStr, scale: secSc }
           ]);
         }
+        if (mode !== "analogue") dtGlow(dtBuf, S);
       }
       function paintFace(core, face, flip, srcOffsetLEDs, hue) {
         const S = core.SIZE, faceMap = core.faceMap, colBuf = core.colBuf;
@@ -13331,7 +13349,7 @@ var PiEngine = (() => {
             if (pv < 0.04) continue;
             const idx = faceMap[face][lv * S + u];
             if (idx < 0) continue;
-            const [r, g, b] = hsl(hue, 1, pv);
+            const [r, g, b] = hsl(hue, 1, 0.12 + pv * 0.5);
             colBuf[idx * 3] = r;
             colBuf[idx * 3 + 1] = g;
             colBuf[idx * 3 + 2] = b;
@@ -13390,7 +13408,7 @@ var PiEngine = (() => {
           const bits = rows[row];
           for (let col = 0; col < 4; col++) {
             if (!(bits >> 3 - col & 1)) continue;
-            const u = su + col, v = sv + (6 - row);
+            const u = su + col, v = S - 1 - (sv + (6 - row));
             if (u < 0 || u >= S || v < 0 || v >= S) continue;
             core.setFaceLED(face, u, v, rgb[0], rgb[1], rgb[2]);
           }
@@ -23187,6 +23205,23 @@ var PiEngine = (() => {
         const fit = Math.floor(availW * widthFrac / (text.length * 6));
         return Math.max(1, Math.min(maxScale, fit));
       }
+      function dtGlow(buf, W, H) {
+        const src = buf.slice();
+        const NB = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const v = src[y * W + x];
+            if (v < 60) continue;
+            const g = v * 0.4;
+            for (const [dx, dy] of NB) {
+              const nx = x + dx, ny = y + dy;
+              if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+              const i = ny * W + nx;
+              if (g > buf[i]) buf[i] = g;
+            }
+          }
+        }
+      }
       function dtLayoutStack(buf, W, H, lines) {
         const gap = Math.max(1, H * 0.04);
         const resolved = lines.map((ln) => {
@@ -23248,6 +23283,7 @@ var PiEngine = (() => {
             { type: "text", str: secStr, scale: secSc }
           ]);
         }
+        if (mode !== "analogue") dtGlow(dtBuf, W, H);
       }
       function paintWall(core, W, H, srcOffsetPx, hue) {
         for (let v = 0; v < H; v++) {
@@ -23257,7 +23293,7 @@ var PiEngine = (() => {
             const cx = (srcPx % W + W) % W;
             const pv = dtBuf[row + cx] / 255;
             if (pv < 0.04) continue;
-            const [r, g, b] = hsl(hue, 1, pv);
+            const [r, g, b] = hsl(hue, 1, 0.12 + pv * 0.5);
             core.setWallPixel(u, v, r, g, b);
           }
         }
@@ -23313,7 +23349,7 @@ var PiEngine = (() => {
           const bits = rows[row];
           for (let col = 0; col < 4; col++) {
             if (!(bits >> 3 - col & 1)) continue;
-            const u = su + col, v = sv + (6 - row);
+            const u = su + col, v = H - 1 - (sv + (6 - row));
             if (u < 0 || u >= W || v < 0 || v >= H) continue;
             core.setWallPixel(u, v, rgb[0], rgb[1], rgb[2]);
           }

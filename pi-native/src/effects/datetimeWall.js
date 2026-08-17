@@ -176,6 +176,25 @@ function fitScale(availW, text, maxScale, widthFrac = 0.94) {
 // can be much wider than H on a multi-panel-wide wall) but centers/stacks
 // against H (actual wall height) so it stays correct whichever axis ends
 // up the tighter constraint.
+// Same bloom/glow pass as datetime.js's dtGlow() - see its module comment.
+function dtGlow(buf, W, H) {
+  const src = buf.slice();
+  const NB = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const v = src[y * W + x];
+      if (v < 60) continue;
+      const g = v * 0.4;
+      for (const [dx, dy] of NB) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+        const i = ny * W + nx;
+        if (g > buf[i]) buf[i] = g;
+      }
+    }
+  }
+}
+
 function dtLayoutStack(buf, W, H, lines) {
   const gap = Math.max(1, H * 0.04);
   const resolved = lines.map((ln) => {
@@ -238,6 +257,7 @@ function dtRenderBuf(core, W, H, now, mode) {
       { type: 'text', str: secStr, scale: secSc },
     ]);
   }
+  if (mode !== 'analogue') dtGlow(dtBuf, W, H);
 }
 
 function paintWall(core, W, H, srcOffsetPx, hue) {
@@ -248,7 +268,9 @@ function paintWall(core, W, H, srcOffsetPx, hue) {
       const cx = ((srcPx % W) + W) % W;
       const pv = dtBuf[row + cx] / 255;
       if (pv < 0.04) continue;
-      const [r, g, b] = hsl(hue, 1, pv);
+      // Lightness capped - see datetime.js's paintFace() module comment
+      // for why (HSL lightness=1 washes fully-lit pixels to plain white).
+      const [r, g, b] = hsl(hue, 1, 0.12 + pv * 0.5);
       core.setWallPixel(u, v, r, g, b);
     }
   }
@@ -272,6 +294,8 @@ const WC_FONT = {
 };
 const WC_CHAR_W = 5, WC_LINE_H = 8;
 
+// v is flipped (H-1-v) at the point of writing - same fix/root cause as
+// datetime.js's wcDrawGlyph (see its module comment).
 function wcDrawGlyphWall(core, W, H, ch, su, sv, rgb) {
   const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()];
   if (!rows) return WC_CHAR_W;
@@ -279,7 +303,7 @@ function wcDrawGlyphWall(core, W, H, ch, su, sv, rgb) {
     const bits = rows[row];
     for (let col = 0; col < 4; col++) {
       if (!((bits >> (3 - col)) & 1)) continue;
-      const u = su + col, v = sv + (6 - row);
+      const u = su + col, v = H - 1 - (sv + (6 - row));
       if (u < 0 || u >= W || v < 0 || v >= H) continue;
       core.setWallPixel(u, v, rgb[0], rgb[1], rgb[2]);
     }
