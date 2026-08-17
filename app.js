@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.11';
+const APP_VERSION = '0.6.12';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2755,7 +2755,30 @@ function initScene() {
     }
   }
   if (webglOK) {
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    // Clamped, not raw window.devicePixelRatio - a real report ("cube view
+    // does not work on my android phone, blank/black screen - works on
+    // Windows desktop"). Many Android phones report a DPR of 3-4; combined
+    // with a full-viewport canvas (resizeRenderer() below sizes it to
+    // window.innerWidth/innerHeight), an uncapped DPR asks for a framebuffer
+    // several times larger than the actual screen resolution (e.g.
+    // 1080x2000 physical px * DPR 4 = huge) - a well-known Three.js mobile
+    // pitfall where weaker/budget GPUs silently fail to allocate that and
+    // render nothing, with no thrown error to catch (desktop's DPR=1 never
+    // hits this). 2 is the standard safe ceiling - visually indistinguishable
+    // from higher DPR at this canvas's actual on-screen size, but a much
+    // smaller framebuffer.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    // Second line of defense for the same report: a context that WAS
+    // successfully created can still be lost/fail to render on some mobile
+    // GPUs after the fact (no exception at construction time either) -
+    // without this, that reads as the exact same silent black screen.
+    // Falling back to the existing #webgl-fallback message at least turns
+    // it into a legible "use Panel 2D instead" instead of a dead canvas.
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      webglOK = false;
+      rebuildScene();
+    });
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x05070c);
     camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
