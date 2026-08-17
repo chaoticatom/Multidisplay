@@ -1743,6 +1743,19 @@
   <div id="sim-banner">⚠ Simulation — only <span id="sim-banner-count"></span> face(s) are on real hardware, the rest is preview only</div>
 </div>
 
+<!-- ?v= cache-busts app.js itself - a real report ("clicking the version
+     text does not refresh the page properly, I need to shut down the
+     webpage and open again"). The version-text tap (wireVersionDisplay()
+     in app.js) clears Cache Storage/service workers then reloads
+     index.html with a fresh ?nocache= query param - but that only busts
+     the HTML DOCUMENT's own cache entry. app.js itself was requested from
+     a URL that never changed between releases, so the browser (or any
+     intermediate cache/CDN) could still legitimately serve a stale
+     cached copy even on a "fresh" reload of index.html - only fully
+     closing/reopening the browser forced a harder cache purge that
+     happened to catch it too. Bump this alongside APP_VERSION/
+     package.json's version on every release, same discipline the old
+     retired ESP32 app documented in CLAUDE.md for its own ?v= params. -->
 <script src="three.min.js"></script>
 <script>window.MULTIDISPLAY_SIM = true;</script>
 <script src="sim-engine.js"></script>

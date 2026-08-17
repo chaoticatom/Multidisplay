@@ -44,10 +44,17 @@ const SIM_INJECT = `<script>window.MULTIDISPLAY_SIM = true;</script>
 <script src="sim-engine.js"></script>
 <script src="sim-loopback.js"></script>
 <script src="app.js"></script>`;
-if (!html.includes('<script src="app.js"></script>')) {
+// Tolerant of a "?v=..." cache-busting query string on the app.js tag
+// (public/index.html carries one for the real Pi-served app - see its own
+// comment above that tag - regenerated each release; this GitHub Pages
+// build always ships a byte-fresh app.js under a stable "app.js" filename
+// regardless, so the injected copy deliberately drops any query string
+// rather than propagating it).
+const APP_JS_TAG_RE = /<script src="app\.js(?:\?[^"]*)?"><\/script>/;
+if (!APP_JS_TAG_RE.test(html)) {
   throw new Error('deploy.js: index.html\'s <script src="app.js"> tag not found where expected - check public/index.html hasn\'t changed shape');
 }
-html = html.replace('<script src="app.js"></script>', SIM_INJECT);
+html = html.replace(APP_JS_TAG_RE, SIM_INJECT);
 fs.writeFileSync(path.join(DEPLOY, 'index.html'), html);
 
 fs.writeFileSync(path.join(DEPLOY, '.nojekyll'), '');
