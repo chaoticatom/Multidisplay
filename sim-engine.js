@@ -22172,6 +22172,16 @@ var PiEngine = (() => {
         }
         wxState.t2 += dt;
         const W = wallW, W1 = W - 1, H = wallH, H1 = H - 1;
+        function wp(u, v, r, g, b) {
+          core.setWallPixel(u, H1 - v, r, g, b);
+        }
+        function wb(u, v, r, g, b) {
+          if (u < 0 || u >= W || v < 0 || v >= H) return;
+          const o = ((H1 - v) * W + u) * 3;
+          if (r > core.wallBuf[o]) core.wallBuf[o] = r;
+          if (g > core.wallBuf[o + 1]) core.wallBuf[o + 1] = g;
+          if (b > core.wallBuf[o + 2]) core.wallBuf[o + 2] = b;
+        }
         const localMs = Date.now() + wxState.tzOffset * 1e3;
         const secsDay = Math.floor(localMs / 1e3) % 86400;
         const dayFrac = secsDay / 86400;
@@ -22289,11 +22299,7 @@ var PiEngine = (() => {
             for (let col = 0; col < 3; col++) {
               if (!(bits >> 2 - col & 1)) continue;
               const u = su + col, v = sv + (4 - row);
-              if (u < 0 || u >= W || v < 0 || v >= H) continue;
-              const o = (v * W + u) * 3;
-              if (tr > core.wallBuf[o]) core.wallBuf[o] = tr;
-              if (tg > core.wallBuf[o + 1]) core.wallBuf[o + 1] = tg;
-              if (tb > core.wallBuf[o + 2]) core.wallBuf[o + 2] = tb;
+              wb(u, v, tr, tg, tb);
             }
           }
           return 4;
@@ -22313,7 +22319,7 @@ var PiEngine = (() => {
         for (let v = 0; v < H; v++) {
           const vFrac = v / H1;
           if (vFrac < HORIZ) {
-            for (let u = 0; u < W; u++) core.setWallPixel(u, v, gR, gG, gB);
+            for (let u = 0; u < W; u++) wp(u, v, gR, gG, gB);
             continue;
           }
           const skyFrac = (vFrac - HORIZ) / (1 - HORIZ);
@@ -22348,7 +22354,7 @@ var PiEngine = (() => {
                 pb = Math.min(1, pb + glow * 0.45);
               }
             }
-            core.setWallPixel(u, v, pr, pg, pb);
+            wp(u, v, pr, pg, pb);
           }
         }
         wxText(tempStr, 1, tempV, txtR, txtG, txtB);
@@ -22362,11 +22368,7 @@ var PiEngine = (() => {
           wxText(timeStr, tx, textV + 7, txtR * 0.7, txtG * 0.7, txtB * 0.85);
         }
         function blendLED(x, y, r, g, b) {
-          if (x < 0 || x >= W || y < 0 || y >= H) return;
-          const o = (y * W + x) * 3;
-          if (r > core.wallBuf[o]) core.wallBuf[o] = r;
-          if (g > core.wallBuf[o + 1]) core.wallBuf[o + 1] = g;
-          if (b > core.wallBuf[o + 2]) core.wallBuf[o + 2] = b;
+          wb(x, y, r, g, b);
         }
         if (locStr) {
           const textW = locStr.length * 4;
@@ -22422,7 +22424,7 @@ var PiEngine = (() => {
               const fu = Math.round(sunX + du), fv = Math.round(sunY + dv);
               if (fu < 0 || fu >= W || fv < horizV || fv >= H) continue;
               if (dist <= sunRad) {
-                core.setWallPixel(fu, fv, sunDim, 0.98 * sunDim, 0.7 * sunDim);
+                wp(fu, fv, sunDim, 0.98 * sunDim, 0.7 * sunDim);
               } else if (dist < sunRad + 2) {
                 const b = (1 - (dist - sunRad) / 2) * 0.9 * sunDim;
                 blendLED(fu, fv, b, b * 0.85, b * 0.25);
@@ -22568,14 +22570,14 @@ var PiEngine = (() => {
               for (let eu = -w; eu <= w; eu++) {
                 const panel = (eu + 100) % 2 === 0 ? 0.75 : 1;
                 const vShade = 0.8 + 0.2 * (ev - 1) / 6;
-                core.setWallPixel(baseCol2 + eu, crV2 + ev, c[0] * panel * vShade, c[1] * panel * vShade, c[2] * panel * vShade);
+                wp(baseCol2 + eu, crV2 + ev, c[0] * panel * vShade, c[1] * panel * vShade, c[2] * panel * vShade);
               }
             }
-            core.setWallPixel(baseCol2, crV2, c[0] * 0.5, c[1] * 0.5, c[2] * 0.5);
-            if (Math.sin(cr.phaseT * 8) > 0.2) core.setWallPixel(baseCol2, crV2, 1, 0.6, 0.1);
-            core.setWallPixel(baseCol2 - 1, crV2 - 1, 0.25, 0.15, 0.05);
-            core.setWallPixel(baseCol2 + 1, crV2 - 1, 0.25, 0.15, 0.05);
-            for (let bu = -1; bu <= 1; bu++) core.setWallPixel(baseCol2 + bu, crV2 - 2, 0.45, 0.25, 0.08);
+            wp(baseCol2, crV2, c[0] * 0.5, c[1] * 0.5, c[2] * 0.5);
+            if (Math.sin(cr.phaseT * 8) > 0.2) wp(baseCol2, crV2, 1, 0.6, 0.1);
+            wp(baseCol2 - 1, crV2 - 1, 0.25, 0.15, 0.05);
+            wp(baseCol2 + 1, crV2 - 1, 0.25, 0.15, 0.05);
+            for (let bu = -1; bu <= 1; bu++) wp(baseCol2 + bu, crV2 - 2, 0.45, 0.25, 0.08);
             continue;
           }
           if (cr.type === "plane") {
@@ -22605,7 +22607,7 @@ var PiEngine = (() => {
             const wOff = Math.round(flap * 1.5);
             const dir = cr.dx > 0 ? 1 : -1;
             const pixels = [{ du: -2, dv: -wOff }, { du: -1, dv: -wOff / 2 }, { du: 0, dv: 0 }, { du: 1, dv: -wOff / 2 }, { du: 2, dv: -wOff }];
-            for (const { du, dv } of pixels) core.setWallPixel(baseCol + du * dir, crV + Math.round(dv), 0.08, 0.06, 0.05);
+            for (const { du, dv } of pixels) wp(baseCol + du * dir, crV + Math.round(dv), 0.08, 0.06, 0.05);
           } else {
             cr.blink += dt * 2;
             const blinkOn = Math.sin(cr.blink) > 0;
@@ -22616,29 +22618,29 @@ var PiEngine = (() => {
             if (cr.lightningHit > 0.1) {
               for (let bv = Math.min(H - 1, planeV + 1); bv < H; bv++) {
                 const jitter = Math.round((Math.random() - 0.5) * 2);
-                core.setWallPixel(baseCol + jitter, bv, 0.9, 0.9, 1);
+                wp(baseCol + jitter, bv, 0.9, 0.9, 1);
               }
             }
             const wh = isHit;
             const body = [0.85, 0.85, 0.9];
-            for (let d = -2; d <= 2; d++) core.setWallPixel(baseCol + d * dir, planeV, wh ? 1 : body[0], wh ? 1 : body[1], wh ? 1 : body[2]);
-            core.setWallPixel(baseCol + 3 * dir, planeV, wh ? 1 : 0.6, wh ? 1 : 0.65, wh ? 1 : 0.75);
-            core.setWallPixel(baseCol + 2 * dir, planeV - 1, wh ? 1 : 0.2, wh ? 1 : 0.5, wh ? 1 : 0.9);
+            for (let d = -2; d <= 2; d++) wp(baseCol + d * dir, planeV, wh ? 1 : body[0], wh ? 1 : body[1], wh ? 1 : body[2]);
+            wp(baseCol + 3 * dir, planeV, wh ? 1 : 0.6, wh ? 1 : 0.65, wh ? 1 : 0.75);
+            wp(baseCol + 2 * dir, planeV - 1, wh ? 1 : 0.2, wh ? 1 : 0.5, wh ? 1 : 0.9);
             for (let w = 1; w <= 3; w++) {
               const sweep = w > 1 ? -1 * dir : 0;
-              const wb = 0.7 - w * 0.08;
-              core.setWallPixel(baseCol + sweep, planeV - w, wh ? 1 : wb, wh ? 1 : wb, wh ? 1 : wb + 0.05);
-              core.setWallPixel(baseCol + sweep, planeV + w, wh ? 1 : wb, wh ? 1 : wb, wh ? 1 : wb + 0.05);
+              const wb2 = 0.7 - w * 0.08;
+              wp(baseCol + sweep, planeV - w, wh ? 1 : wb2, wh ? 1 : wb2, wh ? 1 : wb2 + 0.05);
+              wp(baseCol + sweep, planeV + w, wh ? 1 : wb2, wh ? 1 : wb2, wh ? 1 : wb2 + 0.05);
             }
-            for (let tf = 1; tf <= 2; tf++) core.setWallPixel(baseCol - (2 + tf) * dir, planeV + tf, wh ? 1 : 0.6, wh ? 1 : 0.6, wh ? 1 : 0.65);
-            if (blinkOn && !isHit) core.setWallPixel(baseCol - 3 * dir, planeV, 1, 0.1, 0.1);
+            for (let tf = 1; tf <= 2; tf++) wp(baseCol - (2 + tf) * dir, planeV + tf, wh ? 1 : 0.6, wh ? 1 : 0.6, wh ? 1 : 0.65);
+            if (blinkOn && !isHit) wp(baseCol - 3 * dir, planeV, 1, 0.1, 0.1);
             if (!isHit) {
               if (dir > 0) {
-                core.setWallPixel(baseCol, planeV - 3, 0.1, 0.9, 0.1);
-                core.setWallPixel(baseCol, planeV + 3, 0.9, 0.1, 0.1);
+                wp(baseCol, planeV - 3, 0.1, 0.9, 0.1);
+                wp(baseCol, planeV + 3, 0.9, 0.1, 0.1);
               } else {
-                core.setWallPixel(baseCol, planeV - 3, 0.9, 0.1, 0.1);
-                core.setWallPixel(baseCol, planeV + 3, 0.1, 0.9, 0.1);
+                wp(baseCol, planeV - 3, 0.9, 0.1, 0.1);
+                wp(baseCol, planeV + 3, 0.1, 0.9, 0.1);
               }
             }
           }
@@ -22827,7 +22829,7 @@ var PiEngine = (() => {
                   bg = 0.8;
                   bb = 0;
                 }
-                core.setWallPixel(u, v, br, bg, bb);
+                wp(u, v, br, bg, bb);
               }
             }
           }
