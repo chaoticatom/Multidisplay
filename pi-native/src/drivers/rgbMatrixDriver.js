@@ -52,12 +52,9 @@ const FACE_LAYOUT = [
   { chain: 0, pos: 0 }, // 1 Back   - PLACEHOLDER
   { chain: 1, pos: 0 }, // 2 Right  - PLACEHOLDER
   { chain: 1, pos: 1 }, // 3 Left   - PLACEHOLDER
-  // rotate180 and flipV each only partly fixed it, then rotateCW90 (a
-  // single quarter turn) - latest report asks for another 90° clockwise
-  // on top of that, i.e. 90+90=180° total, which is exactly rotate180
-  // (two composed CW quarter-turns and a half-turn produce the same
-  // result either way).
-  { chain: 2, pos: 0, rotate180: true }, // 4 Top    - PLACEHOLDER position
+  // 180° (this and rotate180/flipV before it) still wasn't right -
+  // follow-up report says back to a single 90° clockwise turn.
+  { chain: 2, pos: 0, rotateCW90: true }, // 4 Top    - PLACEHOLDER position
 
   { chain: 2, pos: 1 }, // 5 Bottom - PLACEHOLDER
 ];
