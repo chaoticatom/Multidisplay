@@ -747,15 +747,30 @@
     </div>
     <button class="effect-btn has-panel" data-effect="moon">◈ Celestial <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-moon">
-      <!-- No city search here (unlike Weather's identical-looking widget
-           above) - a real audit found this block was leftover/copy-pasted
-           markup with zero JS wiring behind it (app.js never touches
-           #moon-city/#moon-fetch-btn/etc). The pi-native Celestial effect
-           has no location concept at all - src/effects/celestial/
-           celestial.js hardcodes its observer latitude - so wiring a real
-           city search here would be a new feature, not a wiring fix.
-           Removed rather than leave a control that implies a working
-           feature but silently does nothing. -->
+      <!-- City search for the Moon's terminator tilt - a real report:
+           "celestial needs to have a city search function like the
+           weather does. the moon needs to take that into consideration
+           to show angle of the terminator. it was working on the esp32
+           version". Confirmed against the retired ESP32/browser app's
+           actual source (effects-livedata.js's effectMoon()/
+           moonFetchData()): it DID have its own city search (moonLat/
+           moonLon, separate from Weather's own), used only to tilt the
+           terminator ellipse - an earlier audit here wrongly assumed this
+           markup was dead leftover copy-paste and removed it; it was a
+           real, working, since-dropped feature. Sends lat/lon straight
+           from the geocode result (see wireCelestialCityDropdown() in
+           app.js) rather than a city name - simpler than Weather's
+           server-side re-geocode-by-name, and celestial.js only ever
+           needed the coordinates anyway. -->
+      <div style="display:flex;gap:5px;margin-bottom:8px;">
+        <div style="flex:1;position:relative;">
+          <input id="moon-city" type="text" placeholder="Search cities…"
+            style="width:100%;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:14px;border-radius:4px;box-sizing:border-box;">
+          <div id="moon-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:150px;overflow-y:auto;z-index:1000;margin-top:2px;">
+          </div>
+        </div>
+      </div>
+      <div id="moon-city-status" style="font-size:12px;color:#778;min-height:16px;margin-bottom:6px;"></div>
       <div style="margin-top:8px;">
         <div style="font-size:13px;color:#778;margin-bottom:4px;">Celestial Body</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;">
@@ -1834,6 +1849,6 @@
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.48"></script>
+<script src="app.js?v=0.6.49"></script>
 </body>
 </html>

@@ -14960,7 +14960,7 @@ var PiEngine = (() => {
           const frac = mi0.fraction;
           const waxing = phase < 0.5;
           const termPos = frac * 2 - 1;
-          const lat = MOON_LAT_DEFAULT;
+          const lat = Number.isFinite(core.effectOptions?.moon?.lat) ? core.effectOptions.moon.lat : MOON_LAT_DEFAULT;
           const hourNow = Date.now() % 864e5 / 36e5;
           const tiltBase = lat * Math.PI / 180 * 0.4;
           const tiltShift = Math.sin(hourNow / 24 * Math.PI * 2) * 0.3;
@@ -23782,7 +23782,7 @@ var PiEngine = (() => {
           const frac = mi0.fraction;
           const waxing = phase < 0.5;
           const termPos = frac * 2 - 1;
-          const lat = MOON_LAT_DEFAULT;
+          const lat = Number.isFinite(core.effectOptions?.moon?.lat) ? core.effectOptions.moon.lat : MOON_LAT_DEFAULT;
           const hourNow = Date.now() % 864e5 / 36e5;
           const tiltBase = lat * Math.PI / 180 * 0.4;
           const tiltShift = Math.sin(hourNow / 24 * Math.PI * 2) * 0.3;

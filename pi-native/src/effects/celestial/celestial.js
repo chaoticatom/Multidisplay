@@ -16,10 +16,17 @@
 // SunCalc-derived math - same _moonCoords/_sunCoords/getMoonIllumination
 // this file's browser counterpart calls) rather than re-derived here -
 // per CLAUDE.md's reuse-first instruction. moonLat (used only to tilt the
-// terminator ellipse, not for rise/set times) is hardcoded to the browser's
-// own default of 52.04 - the browser's moon effect has no city-picker of
-// its own (that's the separate Weather effect's moonLat/moonLon), it just
-// happens to share the module-scope default.
+// terminator ellipse, not for rise/set times) is core.effectOptions.moon.lat,
+// wired via the Celestial panel's own city search
+// (wireCelestialCityDropdown() in app.js), falling back to
+// MOON_LAT_DEFAULT (52.04, the browser original's own default) when
+// nothing's been picked. A real report ("celestial needs [this]... it was
+// working on the esp32 version") - and it genuinely was: the browser's
+// moon effect DOES have its own real city search (moonFetchData(),
+// separate from Weather's own moonLat/moonLon), confirmed against its
+// actual source. An earlier port of this file (and an earlier audit here)
+// both incorrectly assumed there was no city-picker at all and left it
+// hardcoded / deleted the panel markup as dead leftovers - it wasn't.
 const { getMoonIllumination } = require('../weather/state');
 const { PIXEL_FONT } = require('../weather/font');
 const { drawSaturn, drawPlanet } = require('./bodies');
@@ -141,7 +148,13 @@ function effectCelestial(core, dt) {
     const waxing = phase < 0.5;
     const termPos = frac * 2 - 1; // -1=new, 0=quarter, +1=full
 
-    const lat = MOON_LAT_DEFAULT;
+    // Real report: "celestial needs to have a city search function like
+    // the weather does. the moon needs to take that into consideration
+    // to show angle of the terminator. it was working on the esp32
+    // version" - confirmed against the retired app's actual source: it
+    // DID read a real, user-picked moonLat here (see this file's module
+    // comment for the full story of how this was dropped and restored).
+    const lat = Number.isFinite(core.effectOptions?.moon?.lat) ? core.effectOptions.moon.lat : MOON_LAT_DEFAULT;
     const hourNow = (Date.now() % 86400000) / 3600000;
     const tiltBase = lat * Math.PI / 180 * 0.4;
     const tiltShift = Math.sin((hourNow / 24) * Math.PI * 2) * 0.3;

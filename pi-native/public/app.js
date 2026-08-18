@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.48';
+const APP_VERSION = '0.6.49';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2193,12 +2193,63 @@ function syncRadioPanel() {
 // index.html's own inline <script> for this panel (harmless leftover -
 // still just toggling a style, no bearing on the WS wiring below).
 // ---------------------------------------------------------------------
+// City search for the Moon's terminator tilt - mirrors
+// wireWeatherCityDropdown()'s open-meteo geocoding search, but commits
+// lat/lon directly from the picked result (setEffectOption('moon','lat'/
+// 'lon', ...)) rather than a city name string - celestial.js only ever
+// needed the coordinates, no server-side re-geocode-by-name step needed.
+let _moonCityTimer = null;
+function wireCelestialCityDropdown(cityInput, dropdown, statusEl) {
+  if (!cityInput || !dropdown) return;
+  const query = () => {
+    const q = cityInput.value.trim();
+    if (q.length < 2) { dropdown.style.display = 'none'; return; }
+    clearTimeout(_moonCityTimer);
+    _moonCityTimer = setTimeout(() => {
+      fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&format=json`)
+        .then((r) => r.json())
+        .then((data) => {
+          const results = data.results || [];
+          if (!results.length) { dropdown.style.display = 'none'; return; }
+          dropdown.innerHTML = '';
+          results.forEach((r) => {
+            const label = `${r.name}${r.admin1 ? ', ' + r.admin1 : ''}${r.country ? ', ' + r.country : ''}`;
+            const short = r.country ? `${r.name}, ${r.country}` : r.name;
+            const row = document.createElement('div');
+            row.style.cssText = 'padding:6px 8px;cursor:pointer;font-size:13px;color:#9bd;border-bottom:1px solid rgba(80,120,255,0.1);';
+            row.textContent = label;
+            row.addEventListener('click', () => {
+              cityInput.value = short;
+              dropdown.style.display = 'none';
+              setEffectOption('moon', 'lat', r.latitude);
+              setEffectOption('moon', 'lon', r.longitude);
+              if (statusEl) statusEl.textContent = 'Terminator tilt: ' + short;
+            });
+            dropdown.appendChild(row);
+          });
+          dropdown.style.display = 'block';
+        })
+        .catch(() => { dropdown.style.display = 'none'; });
+    }, 250);
+  };
+  cityInput.addEventListener('input', query);
+  cityInput.addEventListener('focus', query);
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#moon-city') && !e.target.closest('#moon-city-dropdown')) dropdown.style.display = 'none';
+  });
+}
+
 function wireCelestialPanel() {
   const panel = document.getElementById('panel-moon');
   if (!panel) return;
   panel.querySelectorAll('input[name="celestial-body"]').forEach((r) => {
     r.addEventListener('change', () => { if (r.checked) setEffectOption('moon', 'body', r.value); });
   });
+  wireCelestialCityDropdown(
+    panel.querySelector('#moon-city'),
+    panel.querySelector('#moon-city-dropdown'),
+    panel.querySelector('#moon-city-status'),
+  );
   const speed = panel.querySelector('#solar-speed'), speedLabel = panel.querySelector('#solar-speed-label');
   if (speed) speed.addEventListener('input', () => {
     const mult = Math.pow(10, Number(speed.value));
