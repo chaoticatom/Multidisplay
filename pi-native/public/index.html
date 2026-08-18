@@ -80,7 +80,7 @@
     .size-row { gap: 6px; }
     .sidebar-section label { font-size: 13px; margin-bottom: 6px; letter-spacing: 1px; }
     .slider-row { gap: 8px; margin-bottom: 8px; }
-    .slider-label { font-size: 13px; width: 44px; }
+    .slider-label { font-size: 13px; width: 58px; }
     .slider-val { font-size: 13px; width: 38px; }
     .slider-row input[type="range"] { height: 8px; border-radius: 4px; }
     .slider-row input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; }
@@ -155,7 +155,14 @@
   #toggle-effects.on { background: rgba(60,220,120,0.1); border-color: rgba(60,220,120,0.3); color: #6e8; }
 
   .slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .slider-label { font-size: 13px; letter-spacing: 1px; color: rgba(160,200,255,0.8); text-transform: uppercase; width: 38px; flex-shrink: 0; }
+  /* width: 38px -> 52px - a real report ("left of the bar overlaps the
+     brightness text"): "BRIGHT" (uppercase + 1px letter-spacing) renders
+     wider than the old 38px box, and a plain <span> doesn't clip its own
+     overflow, so the extra text visually spilled rightward into the
+     slider track that follows instead of actually being reserved space -
+     the shared class other short labels (Speed/Spin) happened to fit
+     inside. */
+  .slider-label { font-size: 13px; letter-spacing: 1px; color: rgba(160,200,255,0.8); text-transform: uppercase; width: 52px; flex-shrink: 0; }
   .slider-val { font-size: 13px; color: #7aadff; width: 34px; text-align: right; flex-shrink: 0; font-family: monospace; }
   .slider-row input[type="range"] {
     /* min-width:0 - a real report ("the bar also overlaps at the ends"):
@@ -1801,6 +1808,6 @@
      package.json's version on every release, same discipline the old
      retired ESP32 app documented in CLAUDE.md for its own ?v= params. -->
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.23"></script>
+<script src="app.js?v=0.6.24"></script>
 </body>
 </html>
