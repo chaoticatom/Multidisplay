@@ -28,12 +28,27 @@ const { LedMatrix, GpioMapping } = require('rpi-led-matrix');
 // session). Wire up the panels, run one distinctive test pattern per face
 // (e.g. solid red/green/blue/yellow/cyan/magenta), and correct this table
 // to match reality before trusting any effect's visual output.
+// rotate180 - a real report: "on cube mode, the top panel is reversed,
+// the flow from side panels does not flow to top correctly" (fireworks,
+// rainbow/gradient effects, etc. - anything whose content should read
+// continuously across a face edge). The 4 side faces apparently read
+// correctly, singling out Top - the classic real-world cause is the
+// physical Top panel being MOUNTED upside-down relative to the other 5
+// (a "lid" panel's natural mounting orientation often differs from the 4
+// vertical side panels', independent of which HUB75 chain/position its
+// data cable is wired to), which reads as content flowing in/rotated
+// the wrong way at every edge it shares with a side face. See
+// _buildFaceBuffer() for where this is applied. Not verified against real
+// hardware (none available to this session) - if 180° doesn't fully fix
+// it, the same mechanism supports flipH/flipV instead (see
+// _buildFaceBuffer()) for whichever single-axis mirror actually matches
+// this panel's mount.
 const FACE_LAYOUT = [
   { chain: 0, pos: 0 }, // 0 Front  - PLACEHOLDER, verify against real wiring
   { chain: 0, pos: 1 }, // 1 Back   - PLACEHOLDER
   { chain: 1, pos: 0 }, // 2 Right  - PLACEHOLDER
   { chain: 1, pos: 1 }, // 3 Left   - PLACEHOLDER
-  { chain: 2, pos: 0 }, // 4 Top    - PLACEHOLDER
+  { chain: 2, pos: 0, rotate180: true }, // 4 Top    - PLACEHOLDER position, rotate180 per the real report above
   { chain: 2, pos: 1 }, // 5 Bottom - PLACEHOLDER
 ];
 
@@ -184,10 +199,22 @@ class RgbMatrixDriver {
     const faceMap = core.faceMap[face];
     const colBuf = core.colBuf;
     const mirror = this.mode === '2d';
+    // Per-face physical-mount correction (rotate180/flipH/flipV, see
+    // FACE_LAYOUT's module comment) - independent of the '2d' mirror above
+    // and of faceMap's own baked-in mirror for faces 1/2, both of which
+    // are about the SOFTWARE-side face mapping; this is purely "this one
+    // physical panel is mounted rotated/flipped relative to the others",
+    // applied last by remapping which source (u,v) each output pixel reads
+    // from before faceMap even sees it.
+    const layout = this.mode === '2d' ? null : FACE_LAYOUT[face];
     for (let v = 0; v < SIZE; v++) {
       for (let u = 0; u < SIZE; u++) {
-        const su = mirror ? SIZE - 1 - u : u;
-        const led = faceMap[v * SIZE + su];
+        let su = mirror ? SIZE - 1 - u : u;
+        let sv = v;
+        if (layout && layout.rotate180) { su = SIZE - 1 - su; sv = SIZE - 1 - sv; }
+        else if (layout && layout.flipH) { su = SIZE - 1 - su; }
+        else if (layout && layout.flipV) { sv = SIZE - 1 - sv; }
+        const led = faceMap[sv * SIZE + su];
         const o = (v * SIZE + u) * 3;
         if (led < 0) {
           buf[o] = 0; buf[o + 1] = 0; buf[o + 2] = 0;
