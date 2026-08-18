@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.40';
+const APP_VERSION = '0.6.41';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1980,7 +1980,19 @@ function radioAnalyserTick(nowMs) {
   if (!_raAnalyser || !audio || !el || el.paused) return;
   if (!_raSilent) {
     _raAnalyser.getByteFrequencyData(_raBuf);
-    const AB = audio.spec.length, nb = _raBuf.length, minBin = 1, maxBin = nb - 1;
+    const AB = audio.spec.length, nb = _raBuf.length, minBin = 1;
+    // maxBin capped to ~80% of the true Nyquist-adjacent bin, not nb-1 - a
+    // real report ("even with gain high, the right 3 bars don't move").
+    // Gain can't amplify signal that isn't there: the bins right next to
+    // Nyquist carry essentially zero energy for ANY real-world audio (every
+    // encode/playback pipeline anti-alias-filters well below Nyquist, and
+    // lossy internet radio streams roll off earlier still, often ~16kHz).
+    // Mapping the last few display bars all the way out to that
+    // acoustically-dead edge meant they could never show real movement
+    // regardless of gain - capping the usable range to a realistic top
+    // frequency keeps every displayed bar inside the range that actually
+    // carries content.
+    const maxBin = Math.max(minBin + 1, Math.round((nb - 1) * 0.8));
     let lo = minBin, level = 0;
     for (let b = 0; b < AB; b++) {
       const frac = (b + 1) / AB;

@@ -68,7 +68,13 @@ function computeBands(samples, sampleRate) {
   }
 
   const bands = new Float32Array(BAND_COUNT);
-  const minBin = 1, maxBin = half - 1;
+  // maxBin capped to ~80% of the true Nyquist-adjacent bin, not half-1 -
+  // same fix/root cause as app.js's radioAnalyserTick() (a real report:
+  // "even with gain high, the right 3 bars don't move" - gain can't
+  // amplify signal that isn't there, and the bins right next to Nyquist
+  // carry essentially zero energy for any real-world audio). Keeps every
+  // displayed bar inside the range that actually carries content.
+  const minBin = 1, maxBin = Math.max(minBin + 1, Math.round((half - 1) * 0.8));
   let lo = minBin;
   for (let b = 0; b < BAND_COUNT; b++) {
     const frac = (b + 1) / BAND_COUNT;
