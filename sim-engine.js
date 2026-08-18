@@ -12132,7 +12132,7 @@ var PiEngine = (() => {
         searching = false;
       }
       function sample(arr, b, bands) {
-        const idx = Math.min(BAND_COUNT - 1, Math.floor(b * BAND_COUNT / bands));
+        const idx = bands > 1 ? Math.min(BAND_COUNT - 1, Math.round(b * (BAND_COUNT - 1) / (bands - 1))) : BAND_COUNT - 1;
         return arr[idx];
       }
       function effectRadio(core, dt) {
@@ -25347,7 +25347,7 @@ var PiEngine = (() => {
       var fitScaleW = 1;
       var tickerScrollX = 0;
       function sample(arr, b, bands, BAND_COUNT) {
-        const idx = Math.min(BAND_COUNT - 1, Math.floor(b * BAND_COUNT / bands));
+        const idx = bands > 1 ? Math.min(BAND_COUNT - 1, Math.round(b * (BAND_COUNT - 1) / (bands - 1))) : BAND_COUNT - 1;
         return arr[idx];
       }
       function glyphWall(core, ch, su, sv, rgb) {

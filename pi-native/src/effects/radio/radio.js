@@ -95,8 +95,22 @@ async function search(query) {
 // ffmpegAudio.js's module comment for why this differs slightly from the
 // literal (arguably accidental) behaviour of the browser original's direct
 // auSpec[b] indexing.
+//
+// Endpoint-correct linear mapping - a real report ("the far right few bars
+// never move"). The old `floor(b*BAND_COUNT/bands)` never actually reaches
+// the true top of the underlying BAND_COUNT-sized array: for bands=64 (a
+// common display setting), the last displayed bar (b=63) mapped to index
+// floor(63*256/64)=252, never 253-255 - the rightmost few source bands
+// were simply never sampled by ANY displayed bar, so if those specific
+// top-of-spectrum bins happen to sit in a compressed stream's quiet/
+// rolled-off range, the last bar or two reads a near-static value and
+// looks like it "never moves". `b*(BAND_COUNT-1)/(bands-1)` instead
+// guarantees b=0 -> index 0 and b=bands-1 -> index BAND_COUNT-1 exactly,
+// so every source band is reachable by some displayed bar.
 function sample(arr, b, bands) {
-  const idx = Math.min(BAND_COUNT - 1, Math.floor((b * BAND_COUNT) / bands));
+  const idx = bands > 1
+    ? Math.min(BAND_COUNT - 1, Math.round((b * (BAND_COUNT - 1)) / (bands - 1)))
+    : BAND_COUNT - 1;
   return arr[idx];
 }
 

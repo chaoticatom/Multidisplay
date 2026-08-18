@@ -38,8 +38,15 @@ let lastLevelSmoothedW = 0;
 let fitScaleW = 1;
 let tickerScrollX = 0;
 
+// Endpoint-correct linear mapping - same fix/root cause as radio.js's
+// sample() (see its own comment): the old floor-based mapping never
+// reached the true top of the BAND_COUNT-sized array for the last
+// displayed bar, which real report described as "the far right few bars
+// never move".
 function sample(arr, b, bands, BAND_COUNT) {
-  const idx = Math.min(BAND_COUNT - 1, Math.floor((b * BAND_COUNT) / bands));
+  const idx = bands > 1
+    ? Math.min(BAND_COUNT - 1, Math.round((b * (BAND_COUNT - 1)) / (bands - 1)))
+    : BAND_COUNT - 1;
   return arr[idx];
 }
 
