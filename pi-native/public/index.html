@@ -1016,25 +1016,6 @@
       <div style="font-size:10px;color:#666;margin-top:4px;">Directory: <a href="https://www.radio-browser.info" target="_blank" rel="noopener" style="color:#7ad">radio-browser.info</a> — free, community-run, no API key needed. Visual style/colour theme reuse the Spectrum Analyser controls above. Bluetooth speaker output is configured under the "Setup" section near the bottom of the sidebar.</div>
 
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
-        <!-- Shown only in the GitHub Pages standalone simulator (toggled by
-             app.js's DOMContentLoaded handler checking window.MULTIDISPLAY_SIM)
-             - real reports ("spectrum analyser not working", then "must be
-             a way of playing internet radio and displaying the spectrum
-             analyser"). This simulator can't spawn a real ffmpeg decode
-             process (static site, no Node process behind it - see
-             sim/README.md). A Web Audio API AnalyserNode reading the
-             "Play in this browser" <audio> element directly was tried as a
-             workaround (see app.js's git history) but turned out to be a
-             genuine dead end, not just a bug: createMediaElementSource()
-             TAINTS the resulting node for any cross-origin stream without
-             CORS headers (every station this app lists), and a tainted
-             source outputs SILENCE once routed through the graph per the
-             Web Audio spec - broke audio entirely rather than adding
-             working bars, so it was reverted. The toggle itself still
-             works (it's just a setEffectOption flag) but there's no real
-             audio to analyse here, so it can only ever show flat/empty
-             bars - needs a real Pi. -->
-        <div id="radio-sim-spectrum-note" style="display:none;font-size:10px;color:#c98;background:rgba(255,180,60,0.1);border:1px solid rgba(255,180,60,0.3);border-radius:4px;padding:6px 8px;margin-bottom:8px;">⚠ Needs a real Pi - this simulator has no audio decoder, so bars stay empty here.</div>
         <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="ov-chk" data-ov="spectrum">Spectrum Analyser</label>
         <div class="ov-options-el" data-ov="spectrum" style="display:none;">
         <div class="ov-row-label">Bands</div>
@@ -1849,9 +1830,15 @@
      <audio> element pointed straight at the station's stream URL, entirely
      independent of the Pi's own paplay/Bluetooth output. No "controls"
      attribute - play/pause/volume are driven by the sidebar UI, not a
-     native player widget floating on the page. -->
-<audio id="radio-browser-audio" preload="none"></audio>
+     native player widget floating on the page. crossorigin="anonymous" -
+     matches the ORIGINAL retired browser app's radioEnsureGraph() exactly
+     (see app.js's own comment on this element's Web Audio wiring) - lets
+     stations that DO send CORS headers be fully analysed; ones that don't
+     still play audibly (Web Audio only silences ANALYSIS data for a
+     tainted source, not audible output), just without real spectrum bars
+     for that station specifically. -->
+<audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.35"></script>
+<script src="app.js?v=0.6.36"></script>
 </body>
 </html>

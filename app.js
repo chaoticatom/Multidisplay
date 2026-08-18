@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.35';
+const APP_VERSION = '0.6.36';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1904,12 +1904,51 @@ function radioBrowserPlaybackWanted() {
 function setRadioBrowserPlaybackWanted(on) {
   try { localStorage.setItem(RADIO_BROWSER_PLAY_KEY, on ? '1' : '0'); } catch (err) { /* ignore */ }
 }
+// Web Audio graph for #radio-browser-audio - ported to match the ORIGINAL
+// retired browser app's radioEnsureGraph()/radioPlay() EXACTLY (see git
+// history's effects-core.js), after an earlier attempt here got the
+// underlying Web Audio behavior wrong: MediaElementAudioSourceNode does
+// NOT silence audible OUTPUT for a cross-origin/non-CORS source - it only
+// blocks READING the node's data (getByteFrequencyData() etc returns
+// zeros). Audio keeps playing fine either way; only the visualizer needs a
+// fallback for stations that don't support analysis. Always created (not
+// gated behind the Spectrum Analyser checkbox) and BEFORE play(), inside
+// the same synchronous click handler, matching the original exactly - a
+// real report ("radio sounds works until I click the spectrum analyser")
+// was this file's own bug (missing crossOrigin='anonymous', graph created
+// too late/async), not a platform limitation as first assumed.
+let _raCtx = null, _raAnalyser = null, _raSource = null, _raBuf = null, _raRunning = false;
+let _raSilent = false, _raSilentTimer = 0, _raLastLevel = 0;
+function radioEnsureGraph() {
+  const el = document.getElementById('radio-browser-audio');
+  if (!el) return false;
+  try {
+    _raCtx = _raCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (_raCtx.state === 'suspended') _raCtx.resume();
+    if (!_raSource) {
+      _raSource = _raCtx.createMediaElementSource(el);
+      _raAnalyser = _raCtx.createAnalyser();
+      _raAnalyser.fftSize = 2048;
+      _raAnalyser.smoothingTimeConstant = 0.45;
+      _raBuf = new Uint8Array(_raAnalyser.frequencyBinCount);
+      // Route through the analyser AND back out to speakers - creating a
+      // MediaElementSource replaces the <audio> tag's default output path,
+      // so without this explicit connect() the stream would play silently.
+      _raSource.connect(_raAnalyser);
+      _raAnalyser.connect(_raCtx.destination);
+    }
+    return true;
+  } catch (err) { return false; } // e.g. no Web Audio API support - falls back to the element's own native playback below
+}
 function radioBrowserPlay(station) {
   if (!radioBrowserPlaybackWanted() || !station || !station.url) return;
   const el = document.getElementById('radio-browser-audio');
   if (!el) return;
+  radioEnsureGraph();
+  _raSilent = false; _raSilentTimer = 0; _raLastLevel = 0;
   if (el.src !== station.url) el.src = station.url;
   el.play().catch(() => { /* autoplay blocked or stream unreachable - #radio-status-el already shows the Pi-side status regardless */ });
+  if (!_raRunning) { _raRunning = true; _raLastMs = 0; requestAnimationFrame(radioAnalyserTick); }
 }
 function radioBrowserStop() {
   const el = document.getElementById('radio-browser-audio');
@@ -1919,26 +1958,67 @@ function radioBrowserStop() {
   el.load();
 }
 
-// A real Web Audio API AnalyserNode reading #radio-browser-audio (tried in
-// an earlier version, see git history) turned out to be a dead end, not
-// just a wiring bug: a real report ("radio sounds works until I click the
-// spectrum analyser") traced to createMediaElementSource() TAINTING the
-// resulting node for any cross-origin stream without CORS headers (nearly
-// all internet radio streams, including every station this app lists) -
-// per the Web Audio spec, a tainted source outputs SILENCE once routed
-// through the graph, even though the element itself keeps "playing". Not
-// fixable from this side (we don't control the streaming servers' CORS
-// headers, and setting audio.crossOrigin on a non-CORS stream just breaks
-// playback outright instead). Reverted entirely - the Spectrum Analyser
-// genuinely cannot animate in this browser-only simulator; see
-// #radio-sim-spectrum-note.
+// Reads the analyser every frame (only actually useful in the simulator,
+// where window.PiEngine.EFFECTS.radio.audio is the same live spec/peak
+// object the bundled tick loop's renderSpectrumStyle() already reads every
+// tick - on a real Pi this object doesn't exist client-side and the loop
+// below just no-ops). Bucketing (log-spaced bins, treble-compensation
+// curve) and smoothing (attack/release + peak-hold) ported verbatim from
+// the original app's readMicSpectrum()/auSmooth(). radioAnalyserSilent
+// detection matches the original's auRefreshCurrentSource(): if the
+// average level stays near zero for 4+ seconds despite playing, the
+// station's stream doesn't support analysis (no CORS headers) - stop
+// feeding fake-looking near-zero data and let bars ease to idle instead,
+// same as the original did, WITHOUT affecting audible playback at all.
+let _raLastMs = 0;
+function radioAnalyserTick(nowMs) {
+  requestAnimationFrame(radioAnalyserTick);
+  const el = document.getElementById('radio-browser-audio');
+  const audio = window.PiEngine?.EFFECTS?.radio?.audio;
+  const dt = Math.max(0.005, Math.min(0.5, (nowMs - (_raLastMs || nowMs)) / 1000));
+  _raLastMs = nowMs;
+  if (!_raAnalyser || !audio || !el || el.paused) return;
+  if (!_raSilent) {
+    _raAnalyser.getByteFrequencyData(_raBuf);
+    const AB = audio.spec.length, nb = _raBuf.length, minBin = 1, maxBin = nb - 1;
+    let lo = minBin, level = 0;
+    for (let b = 0; b < AB; b++) {
+      const frac = (b + 1) / AB;
+      let hi = Math.round(minBin * Math.pow(maxBin / minBin, frac));
+      if (hi <= lo) hi = lo + 1;
+      hi = Math.min(hi, maxBin);
+      let sum = 0, count = 0;
+      for (let k = lo; k <= hi; k++) { sum += _raBuf[k]; count++; }
+      const raw = count > 0 ? (sum / count) / 255 : 0;
+      if (raw > level) level = raw;
+      const trebleBoost = 1 + frac * 1.8;
+      const target = Math.min(1, raw * trebleBoost);
+      if (target > audio.spec[b]) audio.spec[b] += (target - audio.spec[b]) * Math.min(1, dt * 20);
+      else audio.spec[b] += (target - audio.spec[b]) * Math.min(1, dt * 7);
+      if (audio.spec[b] > audio.peak[b]) { audio.peak[b] = audio.spec[b]; audio._peakVel[b] = 0; }
+      else { audio._peakVel[b] += dt * 1.2; audio.peak[b] = Math.max(0, audio.peak[b] - audio._peakVel[b] * dt); }
+      lo = hi + 1;
+      if (lo > maxBin) lo = maxBin;
+    }
+    _raLastLevel += (level - _raLastLevel) * Math.min(1, dt * 3);
+    if (_raLastLevel <= 0.04) _raSilentTimer += dt; else _raSilentTimer = 0;
+    if (_raSilentTimer > 4) {
+      _raSilent = true;
+      const statusEl = document.querySelector('.radio-status-el');
+      if (statusEl) statusEl.textContent += ' (visualizer unavailable — station blocks audio analysis)';
+    }
+  } else {
+    for (let b = 0; b < audio.spec.length; b++) {
+      audio.spec[b] += (0 - audio.spec[b]) * Math.min(1, dt * 7);
+      if (audio.spec[b] > audio.peak[b]) audio.peak[b] = audio.spec[b];
+      else { audio._peakVel[b] += dt * 1.2; audio.peak[b] = Math.max(0, audio.peak[b] - audio._peakVel[b] * dt); }
+    }
+  }
+}
 
 function wireRadioPanel() {
   const panel = document.getElementById('panel-radio');
   if (!panel) return;
-
-  const simNote = document.getElementById('radio-sim-spectrum-note');
-  if (simNote && window.MULTIDISPLAY_SIM) simNote.style.display = 'block';
 
   panel.querySelectorAll('.radio-stop-btn-el').forEach((btn) => btn.addEventListener('click', () => { send({ cmd: 'radioStop' }); radioBrowserStop(); }));
   panel.querySelectorAll('.radio-vol-el').forEach((sl) => sl.addEventListener('input', () => {
