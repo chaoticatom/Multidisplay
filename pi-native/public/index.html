@@ -981,6 +981,19 @@
     <div class="sub-body">
     <button class="effect-btn has-panel" data-effect="radio">◈ Internet Radio <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-radio">
+      <!-- radioPlay always plays server-side (paplay -> whatever PulseAudio
+           sink is currently default - a paired Bluetooth speaker, or the
+           Pi's own local output). A real report: "internet radio does not
+           play on phone speaker" - the Pi's audio output was never routed
+           to the connecting browser/phone at all. This checkbox ALSO plays
+           the same station directly in this browser tab via a plain
+           <audio> element pointed at the station URL (see
+           radioBrowserAudio()/wireRadioPanel() in app.js) - independent of
+           whatever the Pi itself is doing with paplay/Bluetooth, so both
+           can be silenced/enabled separately. Defaults on: a phone/browser
+           essentially always has its own speaker "connected", Bluetooth is
+           the exception, not the rule. -->
+      <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="radio-browser-play-el" checked>Play in this browser</label>
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
         <button class="radio-stop-btn-el" style="flex:0 0 auto;padding:6px 12px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.25);color:#f88;border-radius:4px;cursor:pointer;font-size:11px;">■ Stop</button>
         <span class="ov-label" style="flex:0 0 auto;">Vol</span>
@@ -1812,7 +1825,14 @@
      happened to catch it too. Bump this alongside APP_VERSION/
      package.json's version on every release, same discipline the old
      retired ESP32 app documented in CLAUDE.md for its own ?v= params. -->
+<!-- Internet Radio's browser-side playback (see #panel-radio's
+     .radio-browser-play-el checkbox / app.js's wireRadioPanel()) - a plain
+     <audio> element pointed straight at the station's stream URL, entirely
+     independent of the Pi's own paplay/Bluetooth output. No "controls"
+     attribute - play/pause/volume are driven by the sidebar UI, not a
+     native player widget floating on the page. -->
+<audio id="radio-browser-audio" preload="none"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.30"></script>
+<script src="app.js?v=0.6.31"></script>
 </body>
 </html>

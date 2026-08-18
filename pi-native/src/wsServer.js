@@ -842,9 +842,11 @@ class WsServer {
     } else if (msg.cmd === 'radioPlay') {
       if (!msg.station || typeof msg.station.url !== 'string' || !msg.station.url) return;
       radio.playStation({ name: msg.station.name, genre: msg.station.genre, url: msg.station.url });
+      this._refreshRadioStatus();
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'radioStop') {
       radio.stopStation();
+      this._refreshRadioStatus();
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'setUnsplashConfig') {
       // Persists the Unsplash Access Key + default search query - see
@@ -868,8 +870,23 @@ class WsServer {
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'radioSearch') {
       const query = typeof msg.query === 'string' ? msg.query : '';
-      radio.search(query).then(() => this._broadcast(this._stateMsg())).catch((err) => console.warn('[radio] search failed:', err.message));
+      radio.search(query).then(() => { this._refreshRadioStatus(); this._broadcast(this._stateMsg()); }).catch((err) => console.warn('[radio] search failed:', err.message));
     }
+  }
+
+  // Writes effectStatus.radio directly - a real report ("radio search does
+  // not seem to work"). The tick loop (tick.js) only ever refreshes
+  // effectStatus[state.effect] for whichever effect is CURRENTLY ACTIVE/
+  // DISPLAYED, but radioPlay/radioStop/radioSearch are meant to work from
+  // the sidebar panel regardless of what's currently showing on the cube -
+  // searching for a station while some other effect is selected updated
+  // radio.js's own internal state fine, but the client never received it,
+  // since nothing wrote effectStatus.radio unless radio also happened to
+  // be the active effect. Called after every radio command instead of
+  // relying on the tick loop.
+  _refreshRadioStatus() {
+    if (!this.state.effectStatus) this.state.effectStatus = {};
+    this.state.effectStatus.radio = EFFECTS.radio.getStatus();
   }
 
   // Runs a Bluetooth operation (all async, several seconds each for

@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.30';
+const APP_VERSION = '0.6.31';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1868,16 +1868,83 @@ function radioStationRow(station, current) {
   const isCurrent = current && current.url === station.url;
   div.style.cssText = `padding:6px 8px;margin-bottom:4px;border-radius:4px;cursor:pointer;font-size:11px;background:${isCurrent ? 'rgba(80,120,255,0.22)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isCurrent ? 'rgba(80,120,255,0.5)' : 'rgba(255,255,255,0.08)'};`;
   div.innerHTML = `<div style="color:#dde;font-weight:600;">${isCurrent ? '▶ ' : ''}${station.name}</div>${station.genre ? `<div style="color:#8899bb;font-size:10px;">${station.genre}</div>` : ''}`;
-  div.addEventListener('click', () => send({ cmd: 'radioPlay', station }));
+  div.addEventListener('click', () => {
+    send({ cmd: 'radioPlay', station });
+    // Fired directly inside this click's own handler (a genuine user
+    // gesture), NOT from the later "state" broadcast that comes back over
+    // the WebSocket - browsers require audio.play() to happen synchronously
+    // within a user gesture or it's silently rejected (NotAllowedError),
+    // and a WS round-trip breaks that chain. See radioBrowserPlay()'s own
+    // comment for the full "why a separate <audio> element at all" story.
+    radioBrowserPlay(station);
+  });
   return div;
+}
+
+// ---------------------------------------------------------------------
+// Browser-side Internet Radio playback (#radio-browser-audio, toggled by
+// #panel-radio's .radio-browser-play-el checkbox) - a real report:
+// "internet radio does not play on phone speaker." radioPlay always plays
+// server-side via paplay, routed to whatever PulseAudio sink is currently
+// default on the PI (a paired Bluetooth speaker, or the Pi's own local
+// output) - never to the connecting browser/phone at all, which is
+// surprising if you're used to "press play, hear it on the device you're
+// holding". This plays the SAME station URL directly in this browser tab
+// via a plain <audio> element, entirely independent of whatever the Pi
+// itself is doing - most radio-browser.info/SomaFM-style stream URLs are
+// plain HTTP(S) audio streams a <audio src> can play cross-origin without
+// needing CORS headers (unlike fetch()/Web Audio API, which do) since
+// that's just "the browser renders it", the same way an <img src> from
+// another domain works with no CORS setup on that domain's part.
+// ---------------------------------------------------------------------
+const RADIO_BROWSER_PLAY_KEY = 'multidisplay-radio-browser-play';
+function radioBrowserPlaybackWanted() {
+  try { return localStorage.getItem(RADIO_BROWSER_PLAY_KEY) !== '0'; } catch (err) { return true; } // default ON
+}
+function setRadioBrowserPlaybackWanted(on) {
+  try { localStorage.setItem(RADIO_BROWSER_PLAY_KEY, on ? '1' : '0'); } catch (err) { /* ignore */ }
+}
+function radioBrowserPlay(station) {
+  if (!radioBrowserPlaybackWanted() || !station || !station.url) return;
+  const el = document.getElementById('radio-browser-audio');
+  if (!el) return;
+  if (el.src !== station.url) el.src = station.url;
+  el.play().catch(() => { /* autoplay blocked or stream unreachable - #radio-status-el already shows the Pi-side status regardless */ });
+}
+function radioBrowserStop() {
+  const el = document.getElementById('radio-browser-audio');
+  if (!el) return;
+  el.pause();
+  el.removeAttribute('src');
+  el.load();
 }
 
 function wireRadioPanel() {
   const panel = document.getElementById('panel-radio');
   if (!panel) return;
 
-  panel.querySelectorAll('.radio-stop-btn-el').forEach((btn) => btn.addEventListener('click', () => send({ cmd: 'radioStop' })));
-  panel.querySelectorAll('.radio-vol-el').forEach((sl) => sl.addEventListener('input', () => setEffectOption('radio', 'volume', Number(sl.value))));
+  panel.querySelectorAll('.radio-stop-btn-el').forEach((btn) => btn.addEventListener('click', () => { send({ cmd: 'radioStop' }); radioBrowserStop(); }));
+  panel.querySelectorAll('.radio-vol-el').forEach((sl) => sl.addEventListener('input', () => {
+    setEffectOption('radio', 'volume', Number(sl.value));
+    const el = document.getElementById('radio-browser-audio');
+    if (el) el.volume = Number(sl.value);
+  }));
+  const browserPlayChk = panel.querySelector('.radio-browser-play-el');
+  if (browserPlayChk) {
+    browserPlayChk.checked = radioBrowserPlaybackWanted();
+    browserPlayChk.addEventListener('change', () => {
+      setRadioBrowserPlaybackWanted(browserPlayChk.checked);
+      if (browserPlayChk.checked) {
+        // Turning the checkbox ON is itself a user gesture, so a currently-
+        // playing station can start in this browser right now too, not
+        // just the next time one is picked.
+        const current = currentState.effectStatus?.radio?.station;
+        if (current && currentState.effectStatus?.radio?.playing) radioBrowserPlay(current);
+      } else {
+        radioBrowserStop();
+      }
+    });
+  }
 
   const searchInput = panel.querySelector('.radio-search-input-el');
   const doSearch = () => send({ cmd: 'radioSearch', query: (searchInput?.value || '').trim() });
