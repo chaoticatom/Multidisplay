@@ -26,17 +26,28 @@ function resetTicker() { scrollX = 0; }
 // of the bottom. sv needs to be near SIZE-1 (bottom) in this top-down
 // frame, not near 0, for the exact same formula to place a full,
 // unclipped glyph just above the true bottom edge.
+// mir: face 2/3 - a real report ("radio text needs to be flipped
+// [mirrored]"). Matches alarms.js's drawBigMessage() (the established
+// reference for this): reverses which character occupies which on-screen
+// slot (iterate the label backwards while still advancing u left-to-
+// right as normal) - the matching half of font.js's drawGlyph() mirroring
+// each letter's own internal columns, so the WHOLE line reads correctly
+// on a face whose u-axis runs the opposite physical direction to face
+// 0's, instead of either individual letters or the whole message coming
+// out backwards.
 function drawTicker(core, face, label, dt) {
   if (!label) return;
   const textW = label.length * CHAR_W;
   scrollX += dt * 14;
   if (scrollX > textW) scrollX -= textW;
   const sv = core.SIZE - 2;
+  const mir = face === 2 || face === 3;
+  const chars = mir ? Array.from(label).reverse() : label;
   let u = -Math.floor(scrollX);
   const rgb = [0.6, 0.85, 1];
   while (u < core.SIZE) {
-    for (const ch of label) {
-      u += drawGlyph(core, face, ch, u, sv, rgb);
+    for (const ch of chars) {
+      u += drawGlyph(core, face, ch, u, sv, rgb, mir);
       if (u > core.SIZE) break;
     }
   }

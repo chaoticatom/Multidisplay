@@ -11982,7 +11982,7 @@ var PiEngine = (() => {
         "!": [4, 4, 4, 4, 4, 0, 4],
         "?": [14, 17, 1, 2, 4, 0, 4]
       };
-      function drawGlyph(core, face, ch, su, sv, rgb) {
+      function drawGlyph(core, face, ch, su, sv, rgb, mir) {
         const rows = FONT[ch.toUpperCase()] || FONT["?"];
         for (let ry = 0; ry < 7; ry++) {
           const bits = rows[ry];
@@ -11990,7 +11990,7 @@ var PiEngine = (() => {
           if (y < 0 || y >= core.SIZE) continue;
           for (let rx = 0; rx < 5; rx++) {
             if (!(bits & 1 << 4 - rx)) continue;
-            const x = su + rx;
+            const x = su + (mir ? 4 - rx : rx);
             if (x < 0 || x >= core.SIZE) continue;
             core.setFaceLED(face, x, y, rgb[0], rgb[1], rgb[2]);
           }
@@ -12018,11 +12018,13 @@ var PiEngine = (() => {
         scrollX += dt * 14;
         if (scrollX > textW) scrollX -= textW;
         const sv = core.SIZE - 2;
+        const mir = face === 2 || face === 3;
+        const chars = mir ? Array.from(label).reverse() : label;
         let u = -Math.floor(scrollX);
         const rgb = [0.6, 0.85, 1];
         while (u < core.SIZE) {
-          for (const ch of label) {
-            u += drawGlyph(core, face, ch, u, sv, rgb);
+          for (const ch of chars) {
+            u += drawGlyph(core, face, ch, u, sv, rgb, mir);
             if (u > core.SIZE) break;
           }
         }
