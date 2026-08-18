@@ -12018,10 +12018,11 @@ var PiEngine = (() => {
         scrollX += dt * 14;
         if (scrollX > textW) scrollX -= textW;
         const sv = 7;
+        const chars = Array.from(label).reverse();
         let u = -Math.floor(scrollX);
         const rgb = [0.6, 0.85, 1];
         while (u < core.SIZE) {
-          for (const ch of label) {
+          for (const ch of chars) {
             u += drawGlyph(core, face, ch, u, sv, rgb, false);
             if (u > core.SIZE) break;
           }

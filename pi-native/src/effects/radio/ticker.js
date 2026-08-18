@@ -29,31 +29,24 @@ function resetTicker() { scrollX = 0; }
 // smallest value that keeps drawGlyph's y range (sv-6..sv = 1..7) fully
 // non-negative - full glyph, no clipping - while sitting at the LOW end,
 // which the same empirical evidence says is the bottom.
-// No mirroring - two prior attempts (mirroring faces 2/3, then face 0
-// instead) both turned out wrong, and the second one is what actually
-// caused the most recent report ("individual letters are backwards").
-// Manually traced font.js's FONT table against its own documented
-// convention ("bit 4 = leftmost pixel") using the 'L' glyph
-// ([0x10,0x10,0x10,0x10,0x10,0x10,0x1F] - a left-side vertical stroke for
-// 6 rows, then a full bottom bar) - drawGlyph's un-mirrored `x = su + rx`
-// already places that stroke on the correct (left) side, confirming the
-// BASE rendering was always correct. Applying `mir` (rx -> 4-rx) is what
-// flipped a correctly-shaped 'L' into a backwards one. The original vague
-// "needs to be flipped" report was very likely describing the sv=1
-// clipping bug (a near-unreadable 2px sliver reads as "wrong" in a lot of
-// ways) rather than a genuine mirroring issue - font.js's `mir` parameter
-// is left in place (now always false here) rather than removed, in case a
-// real mirroring need turns up on a different face later.
+// Letter shapes are NOT mirrored (font.js's `mir` stays false - see git
+// history for why: two earlier attempts at mirroring letter shapes both
+// turned out wrong and were reverted). This is a DIFFERENT, narrower fix:
+// a real report confirmed the word/reading ORDER needs to flip while
+// individual letters stay correctly shaped - so only WHICH character
+// occupies which on-screen slot is reversed here (chars, built once per
+// call by reversing the label), not each glyph's own internal columns.
 function drawTicker(core, face, label, dt) {
   if (!label) return;
   const textW = label.length * CHAR_W;
   scrollX += dt * 14;
   if (scrollX > textW) scrollX -= textW;
   const sv = 7;
+  const chars = Array.from(label).reverse();
   let u = -Math.floor(scrollX);
   const rgb = [0.6, 0.85, 1];
   while (u < core.SIZE) {
-    for (const ch of label) {
+    for (const ch of chars) {
       u += drawGlyph(core, face, ch, u, sv, rgb, false);
       if (u > core.SIZE) break;
     }
