@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.34';
+const APP_VERSION = '0.6.35';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1909,20 +1909,7 @@ function radioBrowserPlay(station) {
   const el = document.getElementById('radio-browser-audio');
   if (!el) return;
   if (el.src !== station.url) el.src = station.url;
-  // el.play() alone (native output, untouched by Web Audio) is the ONLY
-  // thing that has to work reliably - a real report ("not hearing sound on
-  // browser") traced to calling startRadioAnalyser() here too, which
-  // reroutes the element's entire output through a Web Audio graph
-  // (createMediaElementSource) from inside a .then() microtask rather than
-  // directly inside a click handler; some browsers won't reliably resume
-  // an AudioContext created that way, and a suspended context silences
-  // audio completely even though the element itself is "playing". The
-  // Spectrum Analyser checkbox's own change handler (a full, unambiguous
-  // user gesture) is now the only thing that calls startRadioAnalyser() -
-  // see wireRadioPanel() - so plain playback never touches that graph at
-  // all unless the spectrum feature is explicitly turned on.
   el.play().catch(() => { /* autoplay blocked or stream unreachable - #radio-status-el already shows the Pi-side status regardless */ });
-  if (spectrumAnalyserWanted()) startRadioAnalyser();
 }
 function radioBrowserStop() {
   const el = document.getElementById('radio-browser-audio');
@@ -1932,80 +1919,19 @@ function radioBrowserStop() {
   el.load();
 }
 
-// ---------------------------------------------------------------------
-// Real Spectrum Analyser data in the standalone simulator, fed from the
-// browser's own Web Audio API instead of a real ffmpeg decode - a real
-// report ("must be a way of playing internet radio and displaying the
-// spectrum analyser"). ffmpeg-based decode is genuinely impossible in a
-// browser bundle (see #radio-sim-spectrum-note's updated wording - still
-// true for the Pi-side ffmpeg path, which has nothing to decode here),
-// but the #radio-browser-audio element added for that playback IS real
-// audio the Web Audio API's AnalyserNode can read directly - no ffmpeg
-// needed at all for this path. Only relevant in the simulator: on a real
-// Pi, E.EFFECTS/window.__simLoopback don't exist client-side (this file's
-// browser half has no reach into the server's actual radio module), and
-// the Pi's own real ffmpeg decode already feeds the physical LEDs
-// correctly there - this would be redundant at best.
-//
-// Bucketing algorithm ported verbatim (log-spaced bins, finer resolution
-// at the bass end, fixed treble-compensation curve) from the ORIGINAL
-// retired browser app's readMicSpectrum() (effects-core.js, pre-pi-native)
-// - same "log-spaced AnalyserNode bucketing" job src/effects/radio/fft.js's
-// own module comment says it mirrors, just for a real AnalyserNode instead
-// of decoded PCM. Smoothing (attack/release + peak-hold decay) matches
-// ffmpegAudio.js's _processFrame() so bars behave identically either way.
-function spectrumAnalyserWanted() {
-  return !!currentState.effectOptions?.radio?.spectrumOn;
-}
-let _raCtx = null, _raAnalyser = null, _raSource = null, _raBuf = null, _raRunning = false;
-function startRadioAnalyser() {
-  if (!window.MULTIDISPLAY_SIM || !window.__simLoopback) return;
-  const el = document.getElementById('radio-browser-audio');
-  if (!el) return;
-  try {
-    if (!_raCtx) {
-      _raCtx = new (window.AudioContext || window.webkitAudioContext)();
-      _raSource = _raCtx.createMediaElementSource(el); // can only be called once per <audio> element - guarded by _raCtx existing
-      _raAnalyser = _raCtx.createAnalyser();
-      _raAnalyser.fftSize = 2048;
-      _raAnalyser.smoothingTimeConstant = 0; // this file does its own attack/release smoothing below
-      _raSource.connect(_raAnalyser);
-      _raAnalyser.connect(_raCtx.destination); // still audible - createMediaElementSource reroutes output through the graph
-      _raBuf = new Uint8Array(_raAnalyser.frequencyBinCount);
-    }
-    if (_raCtx.state === 'suspended') _raCtx.resume();
-  } catch (err) { return; } // e.g. no Web Audio API support - bars just stay whatever they were
-  if (!_raRunning) { _raRunning = true; requestAnimationFrame(radioAnalyserTick); }
-}
-let _raLastMs = 0;
-function radioAnalyserTick(nowMs) {
-  requestAnimationFrame(radioAnalyserTick);
-  const el = document.getElementById('radio-browser-audio');
-  const audio = window.PiEngine?.EFFECTS?.radio?.audio;
-  if (!_raAnalyser || !audio || !el || el.paused || !radioBrowserPlaybackWanted()) { _raLastMs = nowMs; return; }
-  const dt = Math.max(0.005, Math.min(0.5, (nowMs - (_raLastMs || nowMs)) / 1000));
-  _raLastMs = nowMs;
-  _raAnalyser.getByteFrequencyData(_raBuf);
-  const AB = audio.spec.length, nb = _raBuf.length, minBin = 1, maxBin = nb - 1;
-  let lo = minBin;
-  for (let b = 0; b < AB; b++) {
-    const frac = (b + 1) / AB;
-    let hi = Math.round(minBin * Math.pow(maxBin / minBin, frac));
-    if (hi <= lo) hi = lo + 1;
-    hi = Math.min(hi, maxBin);
-    let sum = 0, count = 0;
-    for (let k = lo; k <= hi; k++) { sum += _raBuf[k]; count++; }
-    const raw = count > 0 ? (sum / count) / 255 : 0;
-    const trebleBoost = 1 + frac * 1.8;
-    const target = Math.min(1, raw * trebleBoost);
-    if (target > audio.spec[b]) audio.spec[b] += (target - audio.spec[b]) * Math.min(1, dt * 20);
-    else audio.spec[b] += (target - audio.spec[b]) * Math.min(1, dt * 7);
-    if (audio.spec[b] > audio.peak[b]) { audio.peak[b] = audio.spec[b]; audio._peakVel[b] = 0; }
-    else { audio._peakVel[b] += dt * 1.2; audio.peak[b] = Math.max(0, audio.peak[b] - audio._peakVel[b] * dt); }
-    lo = hi + 1;
-    if (lo > maxBin) lo = maxBin;
-  }
-}
+// A real Web Audio API AnalyserNode reading #radio-browser-audio (tried in
+// an earlier version, see git history) turned out to be a dead end, not
+// just a wiring bug: a real report ("radio sounds works until I click the
+// spectrum analyser") traced to createMediaElementSource() TAINTING the
+// resulting node for any cross-origin stream without CORS headers (nearly
+// all internet radio streams, including every station this app lists) -
+// per the Web Audio spec, a tainted source outputs SILENCE once routed
+// through the graph, even though the element itself keeps "playing". Not
+// fixable from this side (we don't control the streaming servers' CORS
+// headers, and setting audio.crossOrigin on a non-CORS stream just breaks
+// playback outright instead). Reverted entirely - the Spectrum Analyser
+// genuinely cannot animate in this browser-only simulator; see
+// #radio-sim-spectrum-note.
 
 function wireRadioPanel() {
   const panel = document.getElementById('panel-radio');
@@ -2054,17 +1980,7 @@ function wireRadioPanel() {
   // harmless setOverlay for a key wsServer.js doesn't recognise, see that
   // function's comment) - this listener does the real work.
   const spectrumChk = panel.querySelector('.ov-chk[data-ov="spectrum"]');
-  if (spectrumChk) spectrumChk.addEventListener('change', () => {
-    setEffectOption('radio', 'spectrumOn', spectrumChk.checked);
-    // Direct click gesture - the only place that's allowed to reroute
-    // #radio-browser-audio's output through the Web Audio graph (see
-    // radioBrowserPlay()'s own comment for why plain playback never does
-    // this itself). Only bothers if a station is already playing in this
-    // browser; radioBrowserPlay() also calls this on the next station pick
-    // if the checkbox is already on.
-    const el = document.getElementById('radio-browser-audio');
-    if (spectrumChk.checked && el && !el.paused) startRadioAnalyser();
-  });
+  if (spectrumChk) spectrumChk.addEventListener('change', () => setEffectOption('radio', 'spectrumOn', spectrumChk.checked));
 
   panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => {
     btn.addEventListener('click', () => {
