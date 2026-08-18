@@ -44,8 +44,12 @@ const { LedMatrix, GpioMapping } = require('rpi-led-matrix');
 // _buildFaceBuffer()) for whichever single-axis mirror actually matches
 // this panel's mount.
 const FACE_LAYOUT = [
-  { chain: 0, pos: 0 }, // 0 Front  - PLACEHOLDER, verify against real wiring
-  { chain: 0, pos: 1 }, // 1 Back   - PLACEHOLDER
+  // Front/Back swapped from the original chain:0 pos:0/pos:1 guess - a
+  // real report ("front and back are swapped": Front showed Back's
+  // content and vice versa) - the physical panel at chain 0 pos 0 is
+  // actually wired as Back, not Front.
+  { chain: 0, pos: 1 }, // 0 Front  - PLACEHOLDER, verify against real wiring
+  { chain: 0, pos: 0 }, // 1 Back   - PLACEHOLDER
   { chain: 1, pos: 0 }, // 2 Right  - PLACEHOLDER
   { chain: 1, pos: 1 }, // 3 Left   - PLACEHOLDER
   // rotate180 and flipV each only partly fixed it (follow-up reports) -
