@@ -12176,7 +12176,7 @@ var PiEngine = (() => {
               const v = sample(audio.spec, b, bands) * totalGain;
               if (v > mx) mx = v;
             }
-            const target = mx > 0.015 ? Math.min(3.5, 0.94 / mx) : fitScale;
+            const target = mx > 0.015 ? Math.min(3.5, 0.99 / mx) : fitScale;
             fitScale += (target - fitScale) * 0.12;
           } else {
             fitScale = 1;
@@ -25422,7 +25422,7 @@ var PiEngine = (() => {
               const v = sample(audio.spec, b, bands, BAND_COUNT) * totalGain;
               if (v > mx) mx = v;
             }
-            const target = mx > 0.015 ? Math.min(3.5, 0.94 / mx) : fitScaleW;
+            const target = mx > 0.015 ? Math.min(3.5, 0.99 / mx) : fitScaleW;
             fitScaleW += (target - fitScaleW) * 0.12;
           } else {
             fitScaleW = 1;

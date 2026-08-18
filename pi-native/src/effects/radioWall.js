@@ -121,10 +121,13 @@ function effectRadioWall(core, dt) {
     }
     const totalGain = gain * autoGainMultW;
 
+    // Target 0.99, not 0.94 - same fix/root cause as radio.js's own
+    // Fit-to-Screen comment (a real report: bars capped below the true
+    // top, "flat lines on loud music").
     if (fitToScreen) {
       let mx = 0;
       for (let b = 0; b < bands; b++) { const v = sample(audio.spec, b, bands, BAND_COUNT) * totalGain; if (v > mx) mx = v; }
-      const target = mx > 0.015 ? Math.min(3.5, 0.94 / mx) : fitScaleW;
+      const target = mx > 0.015 ? Math.min(3.5, 0.99 / mx) : fitScaleW;
       fitScaleW += (target - fitScaleW) * 0.12;
     } else {
       fitScaleW = 1;

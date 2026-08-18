@@ -152,12 +152,22 @@ function effectRadio(core, dt) {
     const totalGain = gain * autoGainMult;
 
     // Fit to Screen - rescale bar-style displays each frame so the loudest
-    // current band reaches near the top of the face, smoothed so it
-    // doesn't visibly pump on every transient.
+    // current band reaches the top of the face, smoothed so it doesn't
+    // visibly pump on every transient.
+    //
+    // Target 0.99, not 0.94 - a real report ("bars should be able to
+    // reach to top of the display. most seem to be capped so looks like
+    // it flat lines on loud music"). The old 0.94 ceiling meant even the
+    // loudest band, with Fit to Screen doing exactly what it's supposed
+    // to, could never exceed 94% of the face height - reading as "capped,
+    // never quite reaches the top" precisely when the display should be
+    // showing its most dynamic, loudest moments. 0.99 leaves a hairline
+    // margin (avoids a peak cap/glow clipping right at the very edge
+    // pixel) while letting bars genuinely reach the top.
     if (fitToScreen) {
       let mx = 0;
       for (let b = 0; b < bands; b++) { const v = sample(audio.spec, b, bands) * totalGain; if (v > mx) mx = v; }
-      const target = mx > 0.015 ? Math.min(3.5, 0.94 / mx) : fitScale;
+      const target = mx > 0.015 ? Math.min(3.5, 0.99 / mx) : fitScale;
       fitScale += (target - fitScale) * 0.12;
     } else {
       fitScale = 1;
