@@ -64,7 +64,11 @@ function drawTickerWall(core, label, dt) {
   const textW = label.length * CHAR_W;
   tickerScrollX += dt * 14;
   if (tickerScrollX > textW) tickerScrollX -= textW;
-  const sv = 1;
+  // sv = core.wallH - 2, not 1 - same fix/root cause as ticker.js's
+  // drawTicker(): glyphWall()'s `y = sv - (6-ry)` needs sv near the bottom
+  // edge (wallH-ish) in this top-down (row 0 = top) frame, not near 0 - see
+  // that file's own comment for the full explanation.
+  const sv = core.wallH - 2;
   let u = -Math.floor(tickerScrollX);
   const rgb = [0.6, 0.85, 1];
   while (u < core.wallW) {

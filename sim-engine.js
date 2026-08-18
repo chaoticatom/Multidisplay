@@ -12017,7 +12017,7 @@ var PiEngine = (() => {
         const textW = label.length * CHAR_W;
         scrollX += dt * 14;
         if (scrollX > textW) scrollX -= textW;
-        const sv = 1;
+        const sv = core.SIZE - 2;
         let u = -Math.floor(scrollX);
         const rgb = [0.6, 0.85, 1];
         while (u < core.SIZE) {
@@ -25370,7 +25370,7 @@ var PiEngine = (() => {
         const textW = label.length * CHAR_W;
         tickerScrollX += dt * 14;
         if (tickerScrollX > textW) tickerScrollX -= textW;
-        const sv = 1;
+        const sv = core.wallH - 2;
         let u = -Math.floor(tickerScrollX);
         const rgb = [0.6, 0.85, 1];
         while (u < core.wallW) {
