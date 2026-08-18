@@ -48,7 +48,10 @@ const FACE_LAYOUT = [
   { chain: 0, pos: 1 }, // 1 Back   - PLACEHOLDER
   { chain: 1, pos: 0 }, // 2 Right  - PLACEHOLDER
   { chain: 1, pos: 1 }, // 3 Left   - PLACEHOLDER
-  { chain: 2, pos: 0, rotate180: true }, // 4 Top    - PLACEHOLDER position, rotate180 per the real report above
+  // rotate180 didn't fully fix it (follow-up report) - trying flipV
+  // (vertical mirror only) next instead of the full 180° rotation.
+  { chain: 2, pos: 0, flipV: true }, // 4 Top    - PLACEHOLDER position
+
   { chain: 2, pos: 1 }, // 5 Bottom - PLACEHOLDER
 ];
 
