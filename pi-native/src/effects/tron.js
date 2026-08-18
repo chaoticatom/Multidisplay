@@ -12,13 +12,14 @@
 // mechanism, same pattern as maze.js/rain.js/lightspeed.js):
 //   tronBikeCount    -> core.effectOptions.tron.bikes      (default 4, 2-8)
 //   tronSpeedMult    -> core.effectOptions.tron.speed      (default 1)
-//   tronStraightness -> core.effectOptions.tron.straight   (default 0.72) -
-//     ported faithfully as a DEAD value: grepping ui.js shows
-//     #tron-straight-check has no change listener anywhere in the browser
-//     app, so this control round-trips its value but, exactly like
-//     upstream, never actually reaches tronDecide()'s scoring. Not a bug
-//     introduced by this port - preserving the browser's actual (if
-//     accidental) behaviour.
+//   tronStraightness -> core.effectOptions.tron.straight   (checkbox,
+//     default checked/true) - originally ported faithfully as a dead
+//     value (the browser's own #tron-straight-check has no change
+//     listener either), but a real audit specifically asked for every
+//     control to actually work, so tronDecide() now reads it: checked
+//     keeps the original strong straight-ahead bias (straightWeight 0.8),
+//     unchecked cuts it to 0.15 so bikes turn far more freely. This is a
+//     deliberate departure from the browser original's own bug.
 //   tronBorderWalls  -> core.effectOptions.tron.borderWalls (default false)
 //   "⟳ NEW GAME" button -> core.effectOptions.tron.newGame (monotonically
 //     increasing token, same one-shot-via-token trick as maze.js's newMaze)
@@ -156,6 +157,13 @@ function tronFloodFill(core, face, u, v, du, dv) {
 
 function tronDecide(core, bk, is2d, borderWalls) {
   const SIZE = core.SIZE, faceMap = core.faceMap;
+  // "STRAIGHT LINES" checkbox - a real audit finding: this option
+  // round-tripped through effectOptions.tron.straight but tronDecide()
+  // never read it, exactly replicating an upstream browser-app bug (see
+  // this file's own module comment above). Wired up here: checked (the
+  // default) keeps the existing strong straight-ahead preference;
+  // unchecked cuts that bonus down sharply so bikes turn far more freely.
+  const straightWeight = (core.effectOptions?.tron?.straight ?? 1) ? 0.8 : 0.15;
   const { face: f, u, v, du, dv } = bk;
   const ldu = -dv, ldv = du;
   const rdu = dv, rdv = -du;
@@ -247,7 +255,7 @@ function tronDecide(core, bk, is2d, borderWalls) {
   for (const s of scored) {
     const escapePenalty = s.escapeRoutes === 0 ? -SIZE * 10 : (s.escapeRoutes === 1 ? -SIZE * 2 : 0);
     const openBonus = s.space >= maxSpace * 0.95 ? SIZE * 0.5 : 0;
-    const straightBonus = s.m.straight ? (Math.min(s.runway, SIZE / 4) * 0.8) : 0;
+    const straightBonus = s.m.straight ? (Math.min(s.runway, SIZE / 4) * straightWeight) : 0;
     const runwayPenalty = s.runway < 3 ? -SIZE * 3 : (s.runway < 6 ? -SIZE : 0);
     const futureBonus = s.futureOptions * SIZE * 0.15;
     const centerWeight = borderMode ? 0.02 : 0.1;

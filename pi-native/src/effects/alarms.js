@@ -401,8 +401,17 @@ function alarmCheck(state, now) {
       || al.repeat === 'once';
     if (!matchesDay) continue;
 
+    // fireKey includes the date, not just h*60+m - a real audit finding:
+    // the old minutes-of-day-only key meant a repeating (daily/weekly/
+    // weekdays/weekends) alarm's dedupe guard could never differ again
+    // once set (same hour:minute every day it's due), so it silently
+    // fired exactly once, ever, and never again. Hourly alarms happened
+    // to "work" only because h changes every occurrence within a day;
+    // they'd have hit the same bug across a day boundary otherwise.
+    const dateKey = now.toDateString();
     if (al.repeat === 'hourly') {
-      if (m === al.minute && s < 3 && al._lastFireMin !== (h * 60 + m)) { al._lastFireMin = h * 60 + m; alarmFire(state, al, now); break; }
+      const fireKey = dateKey + '_' + h + '_' + m;
+      if (m === al.minute && s < 3 && al._lastFireKey !== fireKey) { al._lastFireKey = fireKey; alarmFire(state, al, now); break; }
       continue;
     }
 
@@ -422,8 +431,8 @@ function alarmCheck(state, now) {
       state.activeAlarm = { al, phase: 'pre', startMs: now.getTime(), preMs, dismissed: false };
       break;
     }
-    if (h === al.hour && m === al.minute && s < 3 && al._lastFireMin !== (h * 60 + m)) {
-      al._lastFireMin = h * 60 + m;
+    if (h === al.hour && m === al.minute && s < 3 && al._lastFireKey !== dateKey) {
+      al._lastFireKey = dateKey;
       alarmFire(state, al, now);
       break;
     }

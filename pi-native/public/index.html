@@ -747,20 +747,15 @@
     </div>
     <button class="effect-btn has-panel" data-effect="moon">◈ Celestial <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-moon">
-      <div style="display:flex;gap:5px;margin-bottom:8px;">
-        <div style="flex:1;position:relative;">
-          <input id="moon-city" type="text" placeholder="Search cities…" value="Milton Keynes"
-            style="width:100%;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:14px;border-radius:4px;box-sizing:border-box;">
-          <div id="moon-city-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0a1020;border:1px solid rgba(80,120,255,0.3);border-radius:4px;max-height:150px;overflow-y:auto;z-index:1000;margin-top:2px;">
-          </div>
-        </div>
-        <button id="moon-fetch-btn" style="padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;">GO</button>
-      </div>
-      <div id="moon-status" style="font-size:13px;color:#778;min-height:16px;">Enter city and press GO</div>
-      <div id="moon-info" style="margin-top:6px;display:none;">
-        <div id="moon-phase-line" style="font-size:15px;color:#cde;font-weight:700;"></div>
-        <div id="moon-rise-line" style="font-size:14px;color:#99b;margin-top:3px;font-weight:600;"></div>
-      </div>
+      <!-- No city search here (unlike Weather's identical-looking widget
+           above) - a real audit found this block was leftover/copy-pasted
+           markup with zero JS wiring behind it (app.js never touches
+           #moon-city/#moon-fetch-btn/etc). The pi-native Celestial effect
+           has no location concept at all - src/effects/celestial/
+           celestial.js hardcodes its observer latitude - so wiring a real
+           city search here would be a new feature, not a wiring fix.
+           Removed rather than leave a control that implies a working
+           feature but silently does nothing. -->
       <div style="margin-top:8px;">
         <div style="font-size:13px;color:#778;margin-bottom:4px;">Celestial Body</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;">
@@ -1839,6 +1834,6 @@
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.47"></script>
+<script src="app.js?v=0.6.48"></script>
 </body>
 </html>

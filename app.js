@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.47';
+const APP_VERSION = '0.6.48';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2470,7 +2470,7 @@ function openAlarmEditor(id) {
   buildOverlayCheckboxes(document.getElementById('al-overlays'), d.overlayKeys);
   populateEffectSelect(document.getElementById('al-wd-effect'), d.prealarm?.wdEffectKey || currentState.effect);
   buildOverlayCheckboxes(document.getElementById('al-wd-overlays'), d.prealarm?.wdOverlayKeys);
-  document.getElementById('al-wd-effect-section').style.display = d.prealarm?.wdUseEffect ? 'none' : '';
+  document.getElementById('al-wd-effect-section').style.display = d.prealarm?.wdUseEffect ? '' : 'none';
 
   document.getElementById('alarm-modal-title').textContent = id ? 'EDIT TIMER' : 'ADD TIMER';
   document.getElementById('alarm-modal').style.display = 'block';
@@ -2545,7 +2545,7 @@ function wireAlarmModal() {
     document.getElementById('al-alarm-arrow').style.transform = on ? 'rotate(90deg)' : '';
   });
   document.getElementById('al-wd-use-effect')?.addEventListener('change', (e) => {
-    document.getElementById('al-wd-effect-section').style.display = e.target.checked ? 'none' : '';
+    document.getElementById('al-wd-effect-section').style.display = e.target.checked ? '' : 'none';
   });
   document.getElementById('al-save-btn')?.addEventListener('click', () => {
     const alarm = readAlarmFromModal();

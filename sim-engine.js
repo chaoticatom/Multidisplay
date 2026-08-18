@@ -5157,6 +5157,7 @@ var PiEngine = (() => {
       }
       function tronDecide(core, bk, is2d, borderWalls) {
         const SIZE = core.SIZE, faceMap = core.faceMap;
+        const straightWeight = core.effectOptions?.tron?.straight ?? 1 ? 0.8 : 0.15;
         const { face: f, u, v, du, dv } = bk;
         const ldu = -dv, ldv = du;
         const rdu = dv, rdv = -du;
@@ -5242,7 +5243,7 @@ var PiEngine = (() => {
         for (const s of scored) {
           const escapePenalty = s.escapeRoutes === 0 ? -SIZE * 10 : s.escapeRoutes === 1 ? -SIZE * 2 : 0;
           const openBonus = s.space >= maxSpace * 0.95 ? SIZE * 0.5 : 0;
-          const straightBonus = s.m.straight ? Math.min(s.runway, SIZE / 4) * 0.8 : 0;
+          const straightBonus = s.m.straight ? Math.min(s.runway, SIZE / 4) * straightWeight : 0;
           const runwayPenalty = s.runway < 3 ? -SIZE * 3 : s.runway < 6 ? -SIZE : 0;
           const futureBonus = s.futureOptions * SIZE * 0.15;
           const centerWeight = borderMode ? 0.02 : 0.1;
@@ -26089,9 +26090,11 @@ var PiEngine = (() => {
           const alMs = (al.hour * 60 + al.minute) * 6e4;
           const matchesDay = al.repeat === "daily" || al.repeat === "hourly" || al.repeat === "weekdays" && dow >= 1 && dow <= 5 || al.repeat === "weekends" && (dow === 0 || dow === 6) || al.repeat === "weekly" && (al.days || []).includes(dow) || al.repeat === "once";
           if (!matchesDay) continue;
+          const dateKey = now.toDateString();
           if (al.repeat === "hourly") {
-            if (m === al.minute && s < 3 && al._lastFireMin !== h * 60 + m) {
-              al._lastFireMin = h * 60 + m;
+            const fireKey = dateKey + "_" + h + "_" + m;
+            if (m === al.minute && s < 3 && al._lastFireKey !== fireKey) {
+              al._lastFireKey = fireKey;
               alarmFire(state, al, now);
               break;
             }
@@ -26111,8 +26114,8 @@ var PiEngine = (() => {
             state.activeAlarm = { al, phase: "pre", startMs: now.getTime(), preMs, dismissed: false };
             break;
           }
-          if (h === al.hour && m === al.minute && s < 3 && al._lastFireMin !== h * 60 + m) {
-            al._lastFireMin = h * 60 + m;
+          if (h === al.hour && m === al.minute && s < 3 && al._lastFireKey !== dateKey) {
+            al._lastFireKey = dateKey;
             alarmFire(state, al, now);
             break;
           }
