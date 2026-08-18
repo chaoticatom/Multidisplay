@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.31';
+const APP_VERSION = '0.6.32';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1922,6 +1922,9 @@ function radioBrowserStop() {
 function wireRadioPanel() {
   const panel = document.getElementById('panel-radio');
   if (!panel) return;
+
+  const simNote = document.getElementById('radio-sim-spectrum-note');
+  if (simNote && window.MULTIDISPLAY_SIM) simNote.style.display = 'block';
 
   panel.querySelectorAll('.radio-stop-btn-el').forEach((btn) => btn.addEventListener('click', () => { send({ cmd: 'radioStop' }); radioBrowserStop(); }));
   panel.querySelectorAll('.radio-vol-el').forEach((sl) => sl.addEventListener('input', () => {

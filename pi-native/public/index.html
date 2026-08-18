@@ -1016,6 +1016,16 @@
       <div style="font-size:10px;color:#666;margin-top:4px;">Directory: <a href="https://www.radio-browser.info" target="_blank" rel="noopener" style="color:#7ad">radio-browser.info</a> — free, community-run, no API key needed. Visual style/colour theme reuse the Spectrum Analyser controls above. Bluetooth speaker output is configured under the "Setup" section near the bottom of the sidebar.</div>
 
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+        <!-- Shown only in the GitHub Pages standalone simulator (toggled by
+             app.js's DOMContentLoaded handler checking window.MULTIDISPLAY_SIM)
+             - a real report ("spectrum analyser not working"). The bars
+             visualise real decoded audio (ffmpegAudio.js spawns a real
+             ffmpeg process), which this simulator - a static site, no Node
+             process behind it (see sim/README.md) - has no way to do; the
+             checkbox itself still works (it's just a setEffectOption flag)
+             but there's no real audio to analyse, so it can only ever show
+             flat/empty bars here, not a bug in the toggle. -->
+        <div id="radio-sim-spectrum-note" style="display:none;font-size:10px;color:#c98;background:rgba(255,180,60,0.1);border:1px solid rgba(255,180,60,0.3);border-radius:4px;padding:6px 8px;margin-bottom:8px;">⚠ Needs a real Pi - this simulator has no audio decoder, so bars stay empty here.</div>
         <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="ov-chk" data-ov="spectrum">Spectrum Analyser</label>
         <div class="ov-options-el" data-ov="spectrum" style="display:none;">
         <div class="ov-row-label">Bands</div>
@@ -1833,6 +1843,6 @@
      native player widget floating on the page. -->
 <audio id="radio-browser-audio" preload="none"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.31"></script>
+<script src="app.js?v=0.6.32"></script>
 </body>
 </html>

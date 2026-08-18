@@ -136,8 +136,39 @@
         config.panels = msg.panels;
         core.initWall(config.panels, config.size);
       }
+    } else if (msg.cmd === 'radioPlay') {
+      // Delegates to the SAME bundled radio effect module (E.EFFECTS.radio -
+      // literally src/effects/radio.js, run through esbuild like everything
+      // else here) wsServer.js's real handler calls - a real report ("radio
+      // browse and search not working"): this command (and radioStop/
+      // radioSearch below) previously wasn't handled here AT ALL, silently
+      // no-op'd by the same "anything not listed just falls through" catch-
+      // all this function's own module comment describes for genuinely
+      // hardware-only commands - radio search/play are NOT hardware-only
+      // (search is a plain fetch, play is just state - see
+      // ffmpegAudio.js's own "playback failure doesn't break decode/FFT"
+      // design, already covered by test/radio.test.js's "ffmpeg missing"
+      // case), so there was no reason for them to be unsupported here.
+      if (!msg.station || typeof msg.station.url !== 'string' || !msg.station.url) return;
+      E.EFFECTS.radio.playStation({ name: msg.station.name, genre: msg.station.genre, url: msg.station.url });
+      refreshRadioStatus();
+    } else if (msg.cmd === 'radioStop') {
+      E.EFFECTS.radio.stopStation();
+      refreshRadioStatus();
+    } else if (msg.cmd === 'radioSearch') {
+      // Async, like wsServer.js's own handler - emits its own follow-up
+      // state message once the fetch resolves rather than relying on this
+      // function's trailing synchronous emitText() below (which would fire
+      // before results are in and send stale/empty search state).
+      const query = typeof msg.query === 'string' ? msg.query : '';
+      E.EFFECTS.radio.search(query).then(() => { refreshRadioStatus(); emitText(stateMsg()); }).catch(() => {});
     }
     emitText(stateMsg());
+  }
+
+  function refreshRadioStatus() {
+    if (!state.effectStatus) state.effectStatus = {};
+    state.effectStatus.radio = E.EFFECTS.radio.getStatus();
   }
 
   // ── Frame encoding - byte-identical to wsServer.js's maybeStreamFrame/
