@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.29';
+const APP_VERSION = '0.6.30';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2981,10 +2981,27 @@ function rebuildScene() {
 
   for (let face = 0; face < 6; face++) {
     const mesh = new THREE.InstancedMesh(geom, new THREE.MeshBasicMaterial(), size * size);
+    // Top (face 4) needs its LOCAL row order flipped here, not fixed via
+    // FACE_XFORM's rotation - a real report ("top panel is reversed, flow
+    // from side panels doesn't flow to top correctly", confirmed via the
+    // GitHub Pages browser simulator specifically, which renders this
+    // Three.js preview - NOT the real-hardware rgbMatrixDriver.js path,
+    // which was a dead end for this report). Front/Back/Left/Right/Bottom
+    // all happen to have a single X or Y axis rotation that satisfies BOTH
+    // "v increases toward the correct adjacent face" (matching core.js's
+    // faceMap[4][z*SIZE+x] - v=z, 0=Back edge, SIZE-1=Front edge) AND "the
+    // backing panel's plane normal points outward" at once. Top's rotation
+    // (rot:[-π/2,0,0], chosen for the correct outward normal) inverts the
+    // v/z direction instead - the two requirements are in conflict for any
+    // single X-axis rotation, unlike Bottom's mirror-image case where they
+    // align. Flipping v only in the position lookup (not the rotation)
+    // fixes the v-direction without touching the normal at all.
+    const vFlip = face === 4;
     for (let v = 0; v < size; v++) {
+      const lv = vFlip ? size - 1 - v : v;
       for (let u = 0; u < size; u++) {
         const i = v * size + u;
-        dummy.position.set(-1 + spacing * (u + 0.5), -1 + spacing * (v + 0.5), 0);
+        dummy.position.set(-1 + spacing * (u + 0.5), -1 + spacing * (lv + 0.5), 0);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
         mesh.setColorAt(i, color.setRGB(0, 0, 0));
