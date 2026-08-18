@@ -46,25 +46,22 @@ const FONT = {
 // same contract effects-core.js's wcDrawGlyph() has - so callers can just
 // do `u += drawGlyph(...)` in a loop.
 //
-// mir - a real report ("radio text needs to be flipped [mirrored]").
-// faceMap bakes a horizontal flip into faces 2/3 for 3D-geometry
-// continuity (see core.js's module comment), which most effects never
-// need to know about - but a DIRECT per-face 2D text draw like this one
-// does, same as alarms.js's drawBigMessage() (the established, working
-// reference for exactly this - see its own `mir` handling). When mir is
-// true, mirrors this glyph's own internal columns (rx -> 4-rx) so each
-// letter shape stays correctly oriented rather than backwards; the
-// caller (ticker.js) is responsible for the matching half of the fix -
-// reversing which character occupies which on-screen slot.
-function drawGlyph(core, face, ch, su, sv, rgb, mir) {
+// Each letter is rotated a full 180° (both row order AND column order
+// reversed) - a real report, precisely worded this time: "flip upside
+// down then left to right" (i.e. both axes) - "it scrolls the correct
+// way" (confirms this is purely about each glyph's own pixel pattern, not
+// scroll direction or word order, both left untouched). Earlier attempts
+// at a plain left-right mirror (rx -> 4-rx alone) were wrong; this is a
+// genuine 180° rotation instead (ry -> 6-ry for row order too).
+function drawGlyph(core, face, ch, su, sv, rgb) {
   const rows = FONT[ch.toUpperCase()] || FONT['?'];
   for (let ry = 0; ry < 7; ry++) {
-    const bits = rows[ry];
+    const bits = rows[6 - ry];
     const y = sv - (6 - ry); // draw upward from the baseline at sv
     if (y < 0 || y >= core.SIZE) continue;
     for (let rx = 0; rx < 5; rx++) {
       if (!(bits & (1 << (4 - rx)))) continue;
-      const x = su + (mir ? 4 - rx : rx);
+      const x = su + (4 - rx);
       if (x < 0 || x >= core.SIZE) continue;
       core.setFaceLED(face, x, y, rgb[0], rgb[1], rgb[2]);
     }

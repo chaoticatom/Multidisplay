@@ -29,13 +29,10 @@ function resetTicker() { scrollX = 0; }
 // smallest value that keeps drawGlyph's y range (sv-6..sv = 1..7) fully
 // non-negative - full glyph, no clipping - while sitting at the LOW end,
 // which the same empirical evidence says is the bottom.
-// Letter shapes are NOT mirrored (font.js's `mir` stays false - see git
-// history for why: two earlier attempts at mirroring letter shapes both
-// turned out wrong and were reverted). This is a DIFFERENT, narrower fix:
-// a real report confirmed the word/reading ORDER needs to flip while
-// individual letters stay correctly shaped - so only WHICH character
-// occupies which on-screen slot is reversed here (chars, built once per
-// call by reversing the label), not each glyph's own internal columns.
+// Word/reading order stays reversed (chars, built once per call) - a
+// separate, already-confirmed-correct fix (word order needed to flip,
+// independent of each letter's own pixel pattern - see font.js's
+// drawGlyph() for that half, now a full 180° rotation per letter).
 function drawTicker(core, face, label, dt) {
   if (!label) return;
   const textW = label.length * CHAR_W;
@@ -47,7 +44,7 @@ function drawTicker(core, face, label, dt) {
   const rgb = [0.6, 0.85, 1];
   while (u < core.SIZE) {
     for (const ch of chars) {
-      u += drawGlyph(core, face, ch, u, sv, rgb, false);
+      u += drawGlyph(core, face, ch, u, sv, rgb);
       if (u > core.SIZE) break;
     }
   }
