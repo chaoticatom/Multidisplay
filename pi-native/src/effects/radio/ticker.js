@@ -29,22 +29,29 @@ function resetTicker() { scrollX = 0; }
 // smallest value that keeps drawGlyph's y range (sv-6..sv = 1..7) fully
 // non-negative - full glyph, no clipping - while sitting at the LOW end,
 // which the same empirical evidence says is the bottom.
-// mir: face 2/3 - a real report ("radio text needs to be flipped
-// [mirrored]"). Matches alarms.js's drawBigMessage() (the established
-// reference for this): reverses which character occupies which on-screen
-// slot (iterate the label backwards while still advancing u left-to-
-// right as normal) - the matching half of font.js's drawGlyph() mirroring
-// each letter's own internal columns, so the WHOLE line reads correctly
-// on a face whose u-axis runs the opposite physical direction to face
-// 0's, instead of either individual letters or the whole message coming
-// out backwards.
+// mir - a real report ("radio text needs to be flipped [mirrored]"),
+// confirmed via a follow-up to be visible in Panel 2D mode specifically,
+// which only ever shows face 0. The first attempt at this mirrored faces
+// 2/3 instead (matching alarms.js's drawBigMessage(), which needs that
+// for its own 4-face wraparound message) and left face 0 untouched on the
+// assumption it was already correct - but alarms.js's specific 2/3 choice
+// depends on ITS OWN u-computation for a coordinated multi-face message,
+// which doesn't transfer to this ticker's independent "show the same
+// thing on 2 separate faces" use case. Direct evidence (still mirrored on
+// face 0, the only face Panel 2D ever shows) says face 0 is the one that
+// actually needs it here. Mirrors which character occupies which on-
+// screen slot (iterate the label backwards while still advancing u left-
+// to-right as normal) - the matching half of font.js's drawGlyph()
+// mirroring each letter's own internal columns, so the WHOLE line reads
+// correctly rather than either individual letters or the whole message
+// coming out backwards.
 function drawTicker(core, face, label, dt) {
   if (!label) return;
   const textW = label.length * CHAR_W;
   scrollX += dt * 14;
   if (scrollX > textW) scrollX -= textW;
   const sv = 7;
-  const mir = face === 2 || face === 3;
+  const mir = face === 0;
   const chars = mir ? Array.from(label).reverse() : label;
   let u = -Math.floor(scrollX);
   const rgb = [0.6, 0.85, 1];

@@ -12018,7 +12018,7 @@ var PiEngine = (() => {
         scrollX += dt * 14;
         if (scrollX > textW) scrollX -= textW;
         const sv = 7;
-        const mir = face === 2 || face === 3;
+        const mir = face === 0;
         const chars = mir ? Array.from(label).reverse() : label;
         let u = -Math.floor(scrollX);
         const rgb = [0.6, 0.85, 1];
