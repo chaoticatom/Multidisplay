@@ -5157,7 +5157,8 @@ var PiEngine = (() => {
       }
       function tronDecide(core, bk, is2d, borderWalls) {
         const SIZE = core.SIZE, faceMap = core.faceMap;
-        const straightWeight = core.effectOptions?.tron?.straight ?? 1 ? 0.8 : 0.15;
+        const straightOn = !!(core.effectOptions?.tron?.straight ?? 1);
+        const straightWeight = straightOn ? 0.8 : 0.15;
         const { face: f, u, v, du, dv } = bk;
         const ldu = -dv, ldv = du;
         const rdu = dv, rdv = -du;
@@ -5244,6 +5245,7 @@ var PiEngine = (() => {
           const escapePenalty = s.escapeRoutes === 0 ? -SIZE * 10 : s.escapeRoutes === 1 ? -SIZE * 2 : 0;
           const openBonus = s.space >= maxSpace * 0.95 ? SIZE * 0.5 : 0;
           const straightBonus = s.m.straight ? Math.min(s.runway, SIZE / 4) * straightWeight : 0;
+          const turnBias = !straightOn && !s.m.straight ? SIZE * 0.5 : 0;
           const runwayPenalty = s.runway < 3 ? -SIZE * 3 : s.runway < 6 ? -SIZE : 0;
           const futureBonus = s.futureOptions * SIZE * 0.15;
           const centerWeight = borderMode ? 0.02 : 0.1;
@@ -5252,7 +5254,7 @@ var PiEngine = (() => {
           const spiralPenalty = spiralPenaltyDir !== 0 && s.m.turnDir === spiralPenaltyDir ? -SIZE * 4 : 0;
           const cut = cutBonus.get(s) || 0;
           const avoid = avoidanceMap.get(s) || 0;
-          const score = s.space * 1.2 + straightBonus + cut + openBonus + escapePenalty + runwayPenalty + futureBonus + centerBonus + spiralPenalty + edgeAttract - avoid + (Math.random() - 0.5) * 1.5;
+          const score = s.space * 1.2 + straightBonus + turnBias + cut + openBonus + escapePenalty + runwayPenalty + futureBonus + centerBonus + spiralPenalty + edgeAttract - avoid + (Math.random() - 0.5) * 1.5;
           if (score > bestScore) {
             bestScore = score;
             best = s;

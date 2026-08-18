@@ -160,10 +160,21 @@ function tronDecide(core, bk, is2d, borderWalls) {
   // "STRAIGHT LINES" checkbox - a real audit finding: this option
   // round-tripped through effectOptions.tron.straight but tronDecide()
   // never read it, exactly replicating an upstream browser-app bug (see
-  // this file's own module comment above). Wired up here: checked (the
-  // default) keeps the existing strong straight-ahead preference;
-  // unchecked cuts that bonus down sharply so bikes turn far more freely.
-  const straightWeight = (core.effectOptions?.tron?.straight ?? 1) ? 0.8 : 0.15;
+  // this file's own module comment above). First fix just weakened the
+  // straight-ahead bonus, but a follow-up report ("if unchecked, the
+  // bikes can curve as they race" - i.e. it wasn't visibly happening)
+  // confirmed that alone isn't enough: the dominant scoring term below
+  // (s.space, flood-fill territory) already favours going straight in
+  // open space on its own, independent of straightBonus's weight, so
+  // shrinking that one term barely changed anything observable. Bikes
+  // move on a fixed grid (no true diagonal movement is possible), so
+  // "curving" here means turning noticeably more often - straightOn=false
+  // now ALSO adds an explicit turnBias favouring the two turning
+  // candidates over going straight (applied per-candidate below), strong
+  // enough to compete with the space-preservation instinct instead of
+  // just slightly discounting one input to it.
+  const straightOn = !!(core.effectOptions?.tron?.straight ?? 1);
+  const straightWeight = straightOn ? 0.8 : 0.15;
   const { face: f, u, v, du, dv } = bk;
   const ldu = -dv, ldv = du;
   const rdu = dv, rdv = -du;
@@ -256,6 +267,18 @@ function tronDecide(core, bk, is2d, borderWalls) {
     const escapePenalty = s.escapeRoutes === 0 ? -SIZE * 10 : (s.escapeRoutes === 1 ? -SIZE * 2 : 0);
     const openBonus = s.space >= maxSpace * 0.95 ? SIZE * 0.5 : 0;
     const straightBonus = s.m.straight ? (Math.min(s.runway, SIZE / 4) * straightWeight) : 0;
+    // Explicit push toward turning (not just a weaker pull toward
+    // straight) - see this function's module comment above for why this
+    // is needed on top of straightWeight. A flat SIZE*0.5, not
+    // runway-scaled like straightBonus - deliberately sized to match
+    // openBonus (also SIZE*0.5), the strongest of the "soft preference"
+    // terms here, so it reliably wins ties in open space instead of being
+    // just another minor input the much-larger s.space*1.2 term (up to
+    // ~SIZE*SIZE) swamps. escapePenalty/runwayPenalty (hundreds of units)
+    // still dominate this when a direction is genuinely dangerous, so
+    // this can't force a bike into an obviously bad turn, only break ties
+    // between safe ones toward turning.
+    const turnBias = (!straightOn && !s.m.straight) ? SIZE * 0.5 : 0;
     const runwayPenalty = s.runway < 3 ? -SIZE * 3 : (s.runway < 6 ? -SIZE : 0);
     const futureBonus = s.futureOptions * SIZE * 0.15;
     const centerWeight = borderMode ? 0.02 : 0.1;
@@ -266,7 +289,7 @@ function tronDecide(core, bk, is2d, borderWalls) {
     const spiralPenalty = (spiralPenaltyDir !== 0 && s.m.turnDir === spiralPenaltyDir) ? -SIZE * 4 : 0;
     const cut = cutBonus.get(s) || 0;
     const avoid = avoidanceMap.get(s) || 0;
-    const score = s.space * 1.2 + straightBonus + cut + openBonus + escapePenalty
+    const score = s.space * 1.2 + straightBonus + turnBias + cut + openBonus + escapePenalty
       + runwayPenalty + futureBonus + centerBonus + spiralPenalty + edgeAttract
       - avoid + (Math.random() - 0.5) * 1.5;
     if (score > bestScore) { bestScore = score; best = s; }
