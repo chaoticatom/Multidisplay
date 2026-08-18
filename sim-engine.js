@@ -12017,7 +12017,7 @@ var PiEngine = (() => {
         const textW = label.length * CHAR_W;
         scrollX += dt * 14;
         if (scrollX > textW) scrollX -= textW;
-        const sv = core.SIZE - 2;
+        const sv = 7;
         const mir = face === 2 || face === 3;
         const chars = mir ? Array.from(label).reverse() : label;
         let u = -Math.floor(scrollX);
