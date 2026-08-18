@@ -29,35 +29,32 @@ function resetTicker() { scrollX = 0; }
 // smallest value that keeps drawGlyph's y range (sv-6..sv = 1..7) fully
 // non-negative - full glyph, no clipping - while sitting at the LOW end,
 // which the same empirical evidence says is the bottom.
-// mir - a real report ("radio text needs to be flipped [mirrored]"),
-// confirmed via a follow-up to be visible in Panel 2D mode specifically,
-// which only ever shows face 0. The first attempt at this mirrored faces
-// 2/3 instead (matching alarms.js's drawBigMessage(), which needs that
-// for its own 4-face wraparound message) and left face 0 untouched on the
-// assumption it was already correct - but alarms.js's specific 2/3 choice
-// depends on ITS OWN u-computation for a coordinated multi-face message,
-// which doesn't transfer to this ticker's independent "show the same
-// thing on 2 separate faces" use case. Direct evidence (still mirrored on
-// face 0, the only face Panel 2D ever shows) says face 0 is the one that
-// actually needs it here. Mirrors which character occupies which on-
-// screen slot (iterate the label backwards while still advancing u left-
-// to-right as normal) - the matching half of font.js's drawGlyph()
-// mirroring each letter's own internal columns, so the WHOLE line reads
-// correctly rather than either individual letters or the whole message
-// coming out backwards.
+// No mirroring - two prior attempts (mirroring faces 2/3, then face 0
+// instead) both turned out wrong, and the second one is what actually
+// caused the most recent report ("individual letters are backwards").
+// Manually traced font.js's FONT table against its own documented
+// convention ("bit 4 = leftmost pixel") using the 'L' glyph
+// ([0x10,0x10,0x10,0x10,0x10,0x10,0x1F] - a left-side vertical stroke for
+// 6 rows, then a full bottom bar) - drawGlyph's un-mirrored `x = su + rx`
+// already places that stroke on the correct (left) side, confirming the
+// BASE rendering was always correct. Applying `mir` (rx -> 4-rx) is what
+// flipped a correctly-shaped 'L' into a backwards one. The original vague
+// "needs to be flipped" report was very likely describing the sv=1
+// clipping bug (a near-unreadable 2px sliver reads as "wrong" in a lot of
+// ways) rather than a genuine mirroring issue - font.js's `mir` parameter
+// is left in place (now always false here) rather than removed, in case a
+// real mirroring need turns up on a different face later.
 function drawTicker(core, face, label, dt) {
   if (!label) return;
   const textW = label.length * CHAR_W;
   scrollX += dt * 14;
   if (scrollX > textW) scrollX -= textW;
   const sv = 7;
-  const mir = face === 0;
-  const chars = mir ? Array.from(label).reverse() : label;
   let u = -Math.floor(scrollX);
   const rgb = [0.6, 0.85, 1];
   while (u < core.SIZE) {
-    for (const ch of chars) {
-      u += drawGlyph(core, face, ch, u, sv, rgb, mir);
+    for (const ch of label) {
+      u += drawGlyph(core, face, ch, u, sv, rgb, false);
       if (u > core.SIZE) break;
     }
   }
