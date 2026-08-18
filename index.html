@@ -1018,14 +1018,16 @@
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
         <!-- Shown only in the GitHub Pages standalone simulator (toggled by
              app.js's DOMContentLoaded handler checking window.MULTIDISPLAY_SIM)
-             - a real report ("spectrum analyser not working"). The bars
-             visualise real decoded audio (ffmpegAudio.js spawns a real
-             ffmpeg process), which this simulator - a static site, no Node
-             process behind it (see sim/README.md) - has no way to do; the
-             checkbox itself still works (it's just a setEffectOption flag)
-             but there's no real audio to analyse, so it can only ever show
-             flat/empty bars here, not a bug in the toggle. -->
-        <div id="radio-sim-spectrum-note" style="display:none;font-size:10px;color:#c98;background:rgba(255,180,60,0.1);border:1px solid rgba(255,180,60,0.3);border-radius:4px;padding:6px 8px;margin-bottom:8px;">⚠ Needs a real Pi - this simulator has no audio decoder, so bars stay empty here.</div>
+             - real reports ("spectrum analyser not working", then "must be
+             a way of playing internet radio and displaying the spectrum
+             analyser"). This simulator can't spawn a real ffmpeg decode
+             process (static site, no Node process behind it - see
+             sim/README.md), so bars only animate for the "Play in this
+             browser" path above - a real Web Audio API AnalyserNode reads
+             the actual playing <audio> element (see app.js's
+             startRadioAnalyser()/radioAnalyserTick()) - not the Pi-side
+             ffmpeg path, which has nothing to decode here. -->
+        <div id="radio-sim-spectrum-note" style="display:none;font-size:10px;color:#8ac;background:rgba(80,160,255,0.1);border:1px solid rgba(80,160,255,0.3);border-radius:4px;padding:6px 8px;margin-bottom:8px;">ℹ In this simulator, bars only animate while "Play in this browser" (above) is on and a station is playing.</div>
         <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="ov-chk" data-ov="spectrum">Spectrum Analyser</label>
         <div class="ov-options-el" data-ov="spectrum" style="display:none;">
         <div class="ov-row-label">Bands</div>
