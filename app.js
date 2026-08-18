@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.33';
+const APP_VERSION = '0.6.34';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1909,7 +1909,20 @@ function radioBrowserPlay(station) {
   const el = document.getElementById('radio-browser-audio');
   if (!el) return;
   if (el.src !== station.url) el.src = station.url;
-  el.play().then(startRadioAnalyser).catch(() => { /* autoplay blocked or stream unreachable - #radio-status-el already shows the Pi-side status regardless */ });
+  // el.play() alone (native output, untouched by Web Audio) is the ONLY
+  // thing that has to work reliably - a real report ("not hearing sound on
+  // browser") traced to calling startRadioAnalyser() here too, which
+  // reroutes the element's entire output through a Web Audio graph
+  // (createMediaElementSource) from inside a .then() microtask rather than
+  // directly inside a click handler; some browsers won't reliably resume
+  // an AudioContext created that way, and a suspended context silences
+  // audio completely even though the element itself is "playing". The
+  // Spectrum Analyser checkbox's own change handler (a full, unambiguous
+  // user gesture) is now the only thing that calls startRadioAnalyser() -
+  // see wireRadioPanel() - so plain playback never touches that graph at
+  // all unless the spectrum feature is explicitly turned on.
+  el.play().catch(() => { /* autoplay blocked or stream unreachable - #radio-status-el already shows the Pi-side status regardless */ });
+  if (spectrumAnalyserWanted()) startRadioAnalyser();
 }
 function radioBrowserStop() {
   const el = document.getElementById('radio-browser-audio');
@@ -1941,6 +1954,9 @@ function radioBrowserStop() {
 // own module comment says it mirrors, just for a real AnalyserNode instead
 // of decoded PCM. Smoothing (attack/release + peak-hold decay) matches
 // ffmpegAudio.js's _processFrame() so bars behave identically either way.
+function spectrumAnalyserWanted() {
+  return !!currentState.effectOptions?.radio?.spectrumOn;
+}
 let _raCtx = null, _raAnalyser = null, _raSource = null, _raBuf = null, _raRunning = false;
 function startRadioAnalyser() {
   if (!window.MULTIDISPLAY_SIM || !window.__simLoopback) return;
@@ -2038,7 +2054,17 @@ function wireRadioPanel() {
   // harmless setOverlay for a key wsServer.js doesn't recognise, see that
   // function's comment) - this listener does the real work.
   const spectrumChk = panel.querySelector('.ov-chk[data-ov="spectrum"]');
-  if (spectrumChk) spectrumChk.addEventListener('change', () => setEffectOption('radio', 'spectrumOn', spectrumChk.checked));
+  if (spectrumChk) spectrumChk.addEventListener('change', () => {
+    setEffectOption('radio', 'spectrumOn', spectrumChk.checked);
+    // Direct click gesture - the only place that's allowed to reroute
+    // #radio-browser-audio's output through the Web Audio graph (see
+    // radioBrowserPlay()'s own comment for why plain playback never does
+    // this itself). Only bothers if a station is already playing in this
+    // browser; radioBrowserPlay() also calls this on the next station pick
+    // if the checkbox is already on.
+    const el = document.getElementById('radio-browser-audio');
+    if (spectrumChk.checked && el && !el.paused) startRadioAnalyser();
+  });
 
   panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => {
     btn.addEventListener('click', () => {
