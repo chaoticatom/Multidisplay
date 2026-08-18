@@ -48,9 +48,9 @@ const FACE_LAYOUT = [
   { chain: 0, pos: 1 }, // 1 Back   - PLACEHOLDER
   { chain: 1, pos: 0 }, // 2 Right  - PLACEHOLDER
   { chain: 1, pos: 1 }, // 3 Left   - PLACEHOLDER
-  // rotate180 didn't fully fix it (follow-up report) - trying flipV
-  // (vertical mirror only) next instead of the full 180° rotation.
-  { chain: 2, pos: 0, flipV: true }, // 4 Top    - PLACEHOLDER position
+  // rotate180 and flipV each only partly fixed it (follow-up reports) -
+  // latest report asks for a quarter turn clockwise instead of a mirror.
+  { chain: 2, pos: 0, rotateCW90: true }, // 4 Top    - PLACEHOLDER position
 
   { chain: 2, pos: 1 }, // 5 Bottom - PLACEHOLDER
 ];
@@ -202,19 +202,24 @@ class RgbMatrixDriver {
     const faceMap = core.faceMap[face];
     const colBuf = core.colBuf;
     const mirror = this.mode === '2d';
-    // Per-face physical-mount correction (rotate180/flipH/flipV, see
-    // FACE_LAYOUT's module comment) - independent of the '2d' mirror above
-    // and of faceMap's own baked-in mirror for faces 1/2, both of which
-    // are about the SOFTWARE-side face mapping; this is purely "this one
-    // physical panel is mounted rotated/flipped relative to the others",
-    // applied last by remapping which source (u,v) each output pixel reads
-    // from before faceMap even sees it.
+    // Per-face physical-mount correction (rotate180/rotateCW90/rotateCCW90/
+    // flipH/flipV, see FACE_LAYOUT's module comment) - independent of the
+    // '2d' mirror above and of faceMap's own baked-in mirror for faces
+    // 1/2, both of which are about the SOFTWARE-side face mapping; this is
+    // purely "this one physical panel is mounted rotated/flipped relative
+    // to the others", applied last by remapping which source (u,v) each
+    // output pixel reads from before faceMap even sees it. rotateCW90/CCW90
+    // compute (su,sv) directly from the untransformed (u,v) - not
+    // composable with mirror/the other flags (never both true at once in
+    // practice: mirror only applies in '2d' mode, where layout is null).
     const layout = this.mode === '2d' ? null : FACE_LAYOUT[face];
     for (let v = 0; v < SIZE; v++) {
       for (let u = 0; u < SIZE; u++) {
         let su = mirror ? SIZE - 1 - u : u;
         let sv = v;
-        if (layout && layout.rotate180) { su = SIZE - 1 - su; sv = SIZE - 1 - sv; }
+        if (layout && layout.rotateCW90) { su = v; sv = SIZE - 1 - u; }
+        else if (layout && layout.rotateCCW90) { su = SIZE - 1 - v; sv = u; }
+        else if (layout && layout.rotate180) { su = SIZE - 1 - su; sv = SIZE - 1 - sv; }
         else if (layout && layout.flipH) { su = SIZE - 1 - su; }
         else if (layout && layout.flipV) { sv = SIZE - 1 - sv; }
         const led = faceMap[sv * SIZE + su];
