@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.22';
+const APP_VERSION = '0.6.23';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -909,6 +909,8 @@ function wireOverlaysPanel() {
         gbSendQueued = false;
         send({ cmd: 'setOverlayGlobalBright', value: Number(gb.value) });
       });
+      const lbl = document.getElementById('ov-global-bright-val');
+      if (lbl) lbl.textContent = Math.round(gb.value * 100) + '%';
     });
   }
 }
@@ -939,6 +941,8 @@ function syncOverlaysPanel() {
   const gb = document.getElementById('ov-global-bright');
   if (gb && document.activeElement !== gb && Date.now() >= _gbEditingUntil && overlays.globalBright !== undefined) {
     gb.value = overlays.globalBright;
+    const lbl = document.getElementById('ov-global-bright-val');
+    if (lbl) lbl.textContent = Math.round(overlays.globalBright * 100) + '%';
   }
 }
 
@@ -2113,14 +2117,29 @@ function syncPhysicalPanelsControl() {
 // ---------------------------------------------------------------------
 // Master brightness / speed sliders (Display section)
 // ---------------------------------------------------------------------
+let _brightEditingUntil = 0;
 function wireSliders() {
   const bright = document.getElementById('bright-slider');
   const brightVal = document.getElementById('bright-val');
   if (bright) {
+    // Same echo-fighting fix as #ov-global-bright (see that slider's own
+    // comment in wireOverlaysPanel) - a time-based "ignore server echoes
+    // for a bit" guard instead of relying on document.activeElement, which
+    // touch drags don't reliably set. Applied here pre-emptively: this
+    // slider moved to the top of the sidebar (prominent, now the ONLY
+    // brightness control) and shares the exact same input->send->broadcast
+    // ->sync round-trip architecture that caused it for #ov-global-bright.
+    let brightSendQueued = false;
     bright.addEventListener('input', () => {
+      _brightEditingUntil = Date.now() + 1200;
       const v = Number(bright.value);
       if (brightVal) brightVal.textContent = Math.round(v * 100) + '%';
-      send({ cmd: 'setBrightness', value: v });
+      if (brightSendQueued) return;
+      brightSendQueued = true;
+      requestAnimationFrame(() => {
+        brightSendQueued = false;
+        send({ cmd: 'setBrightness', value: Number(bright.value) });
+      });
     });
   }
   const speed = document.getElementById('speed-slider');
@@ -2137,7 +2156,10 @@ function wireSliders() {
 function syncSliders() {
   const bright = document.getElementById('bright-slider');
   const brightVal = document.getElementById('bright-val');
-  if (bright) { bright.value = currentState.brightness; if (brightVal) brightVal.textContent = Math.round(currentState.brightness * 100) + '%'; }
+  if (bright && document.activeElement !== bright && Date.now() >= _brightEditingUntil) {
+    bright.value = currentState.brightness;
+    if (brightVal) brightVal.textContent = Math.round(currentState.brightness * 100) + '%';
+  }
   const speed = document.getElementById('speed-slider');
   const speedVal = document.getElementById('speed-val');
   if (speed) { speed.value = currentState.speed; if (speedVal) speedVal.textContent = Number(currentState.speed).toFixed(1) + 'x'; }

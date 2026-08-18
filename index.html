@@ -158,8 +158,15 @@
   .slider-label { font-size: 13px; letter-spacing: 1px; color: rgba(160,200,255,0.8); text-transform: uppercase; width: 38px; flex-shrink: 0; }
   .slider-val { font-size: 13px; color: #7aadff; width: 34px; text-align: right; flex-shrink: 0; font-family: monospace; }
   .slider-row input[type="range"] {
-    flex: 1; -webkit-appearance: none; appearance: none; height: 4px;
+    /* min-width:0 - a real report ("the bar also overlaps at the ends"):
+       a flex item's default min-width is `auto`, not 0 - without this, a
+       range input can refuse to shrink below its browser-default
+       intrinsic width even with flex:1, overflowing past the edge of a
+       narrow sidebar row and overlapping the label/container border
+       instead of actually filling just the flexed space it was given. */
+    flex: 1; min-width: 0; -webkit-appearance: none; appearance: none; height: 4px;
     background: rgba(80,120,255,0.2); border-radius: 2px; outline: none; cursor: pointer;
+    margin: 0 2px; /* small clearance so the thumb doesn't visually clip the row's own edges at min/max */
   }
   .slider-row input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none; appearance: none; width: 12px; height: 12px;
@@ -529,18 +536,26 @@
     </div>
   </div>
 
-  <!-- Global brightness - moved here from the Overlays section (a real
-       report asked for it right under the display-mode buttons, not
-       buried inside a collapsed section further down). Built with the
-       same .slider-row component every other slider in the sidebar uses
-       (custom-styled track/thumb, known to work) rather than a bare
-       <input> - a real report ("the brightness bar does nothing, not
-       even slide") on the original bespoke-styled version; no percent
-       readout either, per that same report ("remove the 100% text"). -->
+  <!-- Master brightness (#bright-slider - see wireSliders()/syncSliders()
+       in app.js, sends {cmd:'setBrightness'}, actually scales what the
+       driver outputs) moved here from the Display section, right under
+       the display-mode buttons - a real report asked for the brightness
+       bar at the top. It previously lived here as #ov-global-bright
+       instead - a DIFFERENT, overlay-only dimmer (only affects the
+       overlays layered on top of an effect, not the effect/display
+       itself - see overlays.js's runOverlays()) that happened to share
+       the same "Bright" label and .slider-row look, so the swap wasn't
+       obvious. A real report: "the brightness bar does not change the
+       brightness" - with no overlay active, #ov-global-bright genuinely
+       has nothing to dim, so it looked completely dead. #ov-global-bright
+       moved back to its original home in the Overlays section below,
+       where "which overlay intensity does this control" is unambiguous;
+       the old #bright-slider row in the Display section was removed
+       (this is now its only copy, not a duplicate). -->
   <div id="sidebar-brightness-bar" style="padding:8px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;background:rgba(80,120,255,0.07);">
     <div class="slider-row" style="margin-bottom:0;">
       <span class="slider-label">Bright</span>
-      <input type="range" id="ov-global-bright" min="0.05" max="1" step="0.05" value="1">
+      <input type="range" id="bright-slider" min="0.1" max="1.5" step="0.05" value="1.15">
     </div>
   </div>
 
@@ -1219,6 +1234,21 @@
     <div class="section-body">
       <div style="font-size:9px;color:#556;margin-bottom:10px;line-height:1.5;">Layer effects over any mode. Multiple active at once.</div>
 
+      <!-- Overlay-only dimmer (#ov-global-bright, sends
+           {cmd:'setOverlayGlobalBright'}) - only scales the DELTA these
+           overlays add on top of an effect (see overlays.js's
+           runOverlays()), not the effect/display itself. Moved back here
+           (its original home) after briefly living at the top of the
+           sidebar under the master #bright-slider's old "Bright" label -
+           a real report ("the brightness bar does not change the
+           brightness") traced to exactly that mix-up: with no overlay
+           on, this control has nothing to dim and looks completely dead. -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:rgba(80,120,255,0.07);border:1px solid rgba(80,120,255,0.18);border-radius:6px;">
+        <span style="font-size:10px;letter-spacing:1px;color:#7aadff;flex-shrink:0;">OVERLAY DIM</span>
+        <input type="range" id="ov-global-bright" min="0.05" max="1" step="0.05" value="1" style="flex:1;">
+        <span id="ov-global-bright-val" style="font-size:10px;color:#aac;width:30px;text-align:right;">100%</span>
+      </div>
+
     <div class="ov-item" id="ovi-stars">
       <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="stars"><span class="ov-slider"></span></span><span class="ov-name">✨ Twinkling Stars</span></label>
       <div class="ov-body">
@@ -1542,11 +1572,6 @@
             <span class="slider-label">Speed</span>
             <input type="range" id="speed-slider" min="0.1" max="3" step="0.05" value="1">
             <span class="slider-val" id="speed-val">1.0x</span>
-          </div>
-          <div class="slider-row">
-            <span class="slider-label">Bright</span>
-            <input type="range" id="bright-slider" min="0.1" max="1.5" step="0.05" value="1.15">
-            <span class="slider-val" id="bright-val">115%</span>
           </div>
           <button id="reset-view-btn" class="util-btn">⟲ Reset View</button>
           <button id="fullscreen-btn" class="util-btn">⛶ Fullscreen</button>
