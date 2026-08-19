@@ -202,6 +202,7 @@ const { OVERLAY_KEYS } = require('./effects/overlays');
 const panelConfig = require('./panelConfig');
 const alarmConfig = require('./alarmConfig');
 const customCubeConfig = require('./customCubeConfig');
+const wallLayoutConfig = require('./wallLayoutConfig');
 const unsplashConfig = require('./unsplashConfig');
 const nasaConfig = require('./nasaConfig');
 const weatherConfig = require('./weatherConfig');
@@ -497,6 +498,7 @@ class WsServer {
       unsplashConfig: this.state.unsplashConfig,
       nasaConfig: this.state.nasaConfig,
       identifyPanels: !!this.state.identifyPanels,
+      wallLayouts: this.state.wallLayouts || [],
     };
   }
 
@@ -556,6 +558,14 @@ class WsServer {
     if (!customCubeConfig.isValidFaces(this.state.customCube.faces)) return;
     if (!customCubeConfig.isValidLibrary(this.state.customCube.library)) return;
     customCubeConfig.save(this.state.customCube);
+    this._broadcast(this._stateMsg());
+  }
+
+  // Same "skip rather than persist a fallback" posture as _persistCustomCube
+  // above - see wallLayoutConfig.js's module comment for the data shape.
+  _persistWallLayouts() {
+    if (!wallLayoutConfig.isValidLibrary(this.state.wallLayouts)) return;
+    wallLayoutConfig.save({ library: this.state.wallLayouts });
     this._broadcast(this._stateMsg());
   }
 
@@ -838,6 +848,38 @@ class WsServer {
       if (!this.state.customCube) return;
       this.state.customCube.faces = [null, null, null, null, null, null];
       this._persistCustomCube();
+    } else if (msg.cmd === 'saveWallLayout') {
+      // Named library of PHYSICAL panel-grid arrangements (config.panels),
+      // distinct from saveCube's per-face EFFECT assignments above - see
+      // wallLayoutConfig.js's module comment. Saves whatever the wall
+      // layout editor (wireWallToolbar() in app.js) currently has placed,
+      // regardless of which effect/mode is active.
+      if (!Array.isArray(this.state.wallLayouts)) return;
+      if (typeof msg.name !== 'string' || !msg.name.trim()) return;
+      if (!panelConfig.isValidPanels(this.config.panels)) return; // nothing placed yet
+      const name = msg.name.trim();
+      const snapshot = { name, panels: this.config.panels.map((p) => ({ gx: p.gx, gy: p.gy })) };
+      const idx = this.state.wallLayouts.findIndex((l) => l.name === name);
+      if (idx >= 0) this.state.wallLayouts[idx] = snapshot;
+      else this.state.wallLayouts.push(snapshot);
+      this._persistWallLayouts();
+    } else if (msg.cmd === 'loadWallLayout') {
+      if (!Array.isArray(this.state.wallLayouts)) return;
+      const idx = Number(msg.index);
+      if (!Number.isInteger(idx)) return;
+      const entry = this.state.wallLayouts[idx];
+      if (!entry || !panelConfig.isValidPanels(entry.panels)) return;
+      this.config.mode = 'wall';
+      this.config.panels = entry.panels.map((p) => ({ gx: p.gx, gy: p.gy }));
+      panelConfig.save(this.config);
+      if (this.onConfigChange) this.onConfigChange(this.config);
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'deleteWallLayout') {
+      if (!Array.isArray(this.state.wallLayouts)) return;
+      const idx = Number(msg.index);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= this.state.wallLayouts.length) return;
+      this.state.wallLayouts.splice(idx, 1);
+      this._persistWallLayouts();
     } else if (msg.cmd === 'btScan') {
       this._replyBt(ws, 'btScanResult', async () => ({ devices: await bluetooth.scanDevices() }));
     } else if (msg.cmd === 'btPair') {

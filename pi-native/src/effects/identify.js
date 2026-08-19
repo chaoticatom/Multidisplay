@@ -26,6 +26,16 @@ const { FACE_LAYOUT, FACE_NAMES } = require('../panelConfig');
 const { PIXEL_FONT } = require('./weather/font');
 const { drawLinesCentered3x5 } = require('./_shared');
 
+// Largest integer scale that still fits every line's width within `size`
+// px (3x5 glyph cell is 4*scale-scale wide per char, see textWidth3x5 in
+// _shared.js) - picked per-face/per-panel rather than one fixed constant so
+// short labels ("Top"/"OUT 1") render bigger while a long one ("Bottom")
+// still fits instead of clipping off the edge of the panel.
+function pickScale(lines, size, maxScale) {
+  const longest = Math.max(...lines.map((l) => l.length));
+  return Math.max(1, Math.min(maxScale, Math.floor(size / (4 * longest - 1))));
+}
+
 function renderIdentifyCube(core, config) {
   core.colBuf.fill(0);
   const faceCount = config.mode === '2d' ? 1 : 6;
@@ -33,7 +43,7 @@ function renderIdentifyCube(core, config) {
     const lines = config.mode === '2d'
       ? ['PANEL 1']
       : [FACE_NAMES[face], 'OUT ' + (FACE_LAYOUT[face].chain + 1), 'POS ' + (FACE_LAYOUT[face].pos + 1)];
-    drawLinesCentered3x5(core, face, lines, 2, 0.2, 1, 0.4);
+    drawLinesCentered3x5(core, face, lines, pickScale(lines, core.SIZE, 4), 0.2, 1, 0.4);
   }
 }
 
@@ -77,7 +87,7 @@ function renderIdentifyWall(core, config) {
   const S = core.wallPanelSize;
   config.panels.forEach((p, idx) => {
     const lines = ['PANEL ' + (idx + 1), 'OUT ' + (p.gy + 1), 'POS ' + (p.gx + 1)];
-    wallLinesCentered(core, p.gx * S, p.gy * S, S, lines, 1, 0.2, 1, 0.4);
+    wallLinesCentered(core, p.gx * S, p.gy * S, S, lines, pickScale(lines, S, 4), 0.2, 1, 0.4);
   });
 }
 

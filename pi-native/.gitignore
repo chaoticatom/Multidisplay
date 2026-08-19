@@ -5,6 +5,7 @@ custom-cube-config.json
 unsplash-config.json
 nasa-config.json
 weather-config.json
+wall-layout-config.json
 uploads/
 tls-key.pem
 tls-cert.pem

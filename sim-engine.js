@@ -26328,12 +26328,16 @@ var PiEngine = (() => {
       var { FACE_LAYOUT, FACE_NAMES } = require_panelConfig();
       var { PIXEL_FONT } = require_font();
       var { drawLinesCentered3x5 } = require_shared();
+      function pickScale(lines, size, maxScale) {
+        const longest = Math.max(...lines.map((l) => l.length));
+        return Math.max(1, Math.min(maxScale, Math.floor(size / (4 * longest - 1))));
+      }
       function renderIdentifyCube(core, config) {
         core.colBuf.fill(0);
         const faceCount = config.mode === "2d" ? 1 : 6;
         for (let face = 0; face < faceCount; face++) {
           const lines = config.mode === "2d" ? ["PANEL 1"] : [FACE_NAMES[face], "OUT " + (FACE_LAYOUT[face].chain + 1), "POS " + (FACE_LAYOUT[face].pos + 1)];
-          drawLinesCentered3x5(core, face, lines, 2, 0.2, 1, 0.4);
+          drawLinesCentered3x5(core, face, lines, pickScale(lines, core.SIZE, 4), 0.2, 1, 0.4);
         }
       }
       function wallGlyph(core, ox, oy, ch, su, sv, scale, r, g, b) {
@@ -26371,7 +26375,7 @@ var PiEngine = (() => {
         const S = core.wallPanelSize;
         config.panels.forEach((p, idx) => {
           const lines = ["PANEL " + (idx + 1), "OUT " + (p.gy + 1), "POS " + (p.gx + 1)];
-          wallLinesCentered(core, p.gx * S, p.gy * S, S, lines, 1, 0.2, 1, 0.4);
+          wallLinesCentered(core, p.gx * S, p.gy * S, S, lines, pickScale(lines, S, 4), 0.2, 1, 0.4);
         });
       }
       function renderIdentify(core, config) {

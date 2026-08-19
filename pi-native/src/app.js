@@ -15,6 +15,7 @@ const panelConfig = require('./panelConfig');
 const wifiSetup = require('./wifiSetup');
 const alarmConfig = require('./alarmConfig');
 const customCubeConfig = require('./customCubeConfig');
+const wallLayoutConfig = require('./wallLayoutConfig');
 const unsplashConfig = require('./unsplashConfig');
 const weatherConfig = require('./weatherConfig');
 const nasaConfig = require('./nasaConfig');
@@ -122,6 +123,12 @@ async function main() {
     effect: 'wave', brightness: 1.0, speed: 1.0, overlays: JSON.parse(JSON.stringify(OV_DEFAULTS)),
     alarms: alarmConfig.load(), activeAlarm: null,
     customCube: customCubeConfig.load(),
+    // Named wall-mode panel-grid layouts (see wallLayoutConfig.js's module
+    // comment) - a library of PHYSICAL panel arrangements, distinct from
+    // customCube's per-face EFFECT assignments above. Same "no autonomous
+    // engine-side mutation" shape as customCube: every change comes from a
+    // WS command, wsServer.js persists+broadcasts directly.
+    wallLayouts: wallLayoutConfig.load().library,
     // Unsplash's saved API key/query - persisted server-side (JSON file, no
     // browser localStorage here - see unsplashConfig.js's module comment)
     // and included in every "state" broadcast so a freshly-connected

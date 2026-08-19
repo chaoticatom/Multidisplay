@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.53';
+const APP_VERSION = '0.6.54';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -150,6 +150,7 @@ function handleTextMessage(msg) {
     renderAlarmList();
     syncClearAllButton();
     syncIdentifyPanelsButton();
+    renderWallLayoutList();
     syncPhysicalPanelsControl();
     // Re-renders the wall grid on every state update (not just a mode
     // change) so adding/removing/dragging a panel is reflected immediately -
@@ -2955,6 +2956,72 @@ function wireWallToolbar() {
   });
 }
 
+// "💾" dropdown next to the Layout button - save/load/delete a NAMED wall
+// panel-grid arrangement (config.panels), separate from Custom Cube's
+// per-face effect library (wirePanelEditor() above) - see wsServer.js's
+// saveWallLayout/loadWallLayout/deleteWallLayout comment. A real request:
+// wiring up an L-shape/star/long-strip layout via the drag editor is
+// fiddly to redo from scratch every time you want to switch shapes.
+function wireWallLayoutSaveDropdown() {
+  const toggle = document.getElementById('wall-layout-save-toggle');
+  const dropdown = document.getElementById('wall-layout-save-dropdown');
+  const nameInput = document.getElementById('wall-layout-name-input');
+  const saveBtn = document.getElementById('wall-layout-save-btn');
+  if (!toggle || !dropdown) return;
+
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdown.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!dropdown.classList.contains('open')) return;
+    if (e.target.closest('#wall-layout-save-wrap')) return;
+    dropdown.classList.remove('open');
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') dropdown.classList.remove('open'); });
+
+  saveBtn?.addEventListener('click', () => {
+    const name = (nameInput?.value || '').trim();
+    if (!name) return;
+    send({ cmd: 'saveWallLayout', name });
+    if (nameInput) nameInput.value = '';
+  });
+}
+
+function renderWallLayoutList() {
+  const list = document.getElementById('wall-layout-list');
+  if (!list) return;
+  list.textContent = '';
+  const layouts = Array.isArray(currentState.wallLayouts) ? currentState.wallLayouts : [];
+  if (!layouts.length) {
+    const empty = document.createElement('div');
+    empty.id = 'wall-layout-empty';
+    empty.textContent = 'No saved layouts yet.';
+    list.appendChild(empty);
+    return;
+  }
+  // Built via createElement/textContent (not innerHTML), same as
+  // syncCustomCubeLibrarySelects() above - layout names are free-text user
+  // input, never trusted as HTML.
+  layouts.forEach((l, i) => {
+    const row = document.createElement('div');
+    row.className = 'wall-layout-row';
+    const span = document.createElement('span');
+    span.textContent = l.name;
+    span.title = l.name;
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'wl-load-btn';
+    loadBtn.textContent = 'LOAD';
+    loadBtn.addEventListener('click', () => send({ cmd: 'loadWallLayout', index: i }));
+    const delBtn = document.createElement('button');
+    delBtn.className = 'wl-del-btn';
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('click', () => send({ cmd: 'deleteWallLayout', index: i }));
+    row.append(span, loadBtn, delBtn);
+    list.appendChild(row);
+  });
+}
+
 function currentWallPanels() {
   // Outside wall mode there's still exactly one physical panel (whatever
   // 2d/cube mode is showing) - represent it as a single fixed tile at
@@ -3662,6 +3729,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireSliders();
   wireBluetooth();
   wireWallToolbar();
+  wireWallLayoutSaveDropdown();
   wireClearAllButton();
   wireIdentifyPanelsButton();
   wirePhysicalPanelsControl();

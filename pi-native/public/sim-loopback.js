@@ -47,6 +47,7 @@
     effectOptions: { weather: { city: savedCity } },
     blank: false,
     identifyPanels: false,
+    wallLayouts: [],
   };
 
   const listeners = { text: [], frame: [] };
@@ -62,6 +63,7 @@
       customCube: state.customCube, unsplashConfig: state.unsplashConfig, nasaConfig: state.nasaConfig,
       effectOptions: state.effectOptions, effectStatus: state.effectStatus, blank: state.blank,
       identifyPanels: !!state.identifyPanels,
+      wallLayouts: state.wallLayouts || [],
       effectNames: E.EFFECT_NAMES,
       simulator: true,
     };
@@ -264,6 +266,33 @@
     } else if (msg.cmd === 'clearFaces') {
       if (!state.customCube) return;
       state.customCube.faces = [null, null, null, null, null, null];
+    } else if (msg.cmd === 'saveWallLayout') {
+      // Mirrors wsServer.js's saveWallLayout/loadWallLayout/deleteWallLayout
+      // exactly - named library of PHYSICAL panel-grid arrangements, not
+      // simulated here previously (same "no sim-loopback.js handler at all"
+      // gap already found/fixed for Timers and the Face Editor above).
+      if (!Array.isArray(state.wallLayouts)) return;
+      if (typeof msg.name !== 'string' || !msg.name.trim()) return;
+      if (!E.panelConfig.isValidPanels(config.panels)) return;
+      const name = msg.name.trim();
+      const snapshot = { name, panels: config.panels.map((p) => ({ gx: p.gx, gy: p.gy })) };
+      const idx = state.wallLayouts.findIndex((l) => l.name === name);
+      if (idx >= 0) state.wallLayouts[idx] = snapshot;
+      else state.wallLayouts.push(snapshot);
+    } else if (msg.cmd === 'loadWallLayout') {
+      if (!Array.isArray(state.wallLayouts)) return;
+      const idx = Number(msg.index);
+      if (!Number.isInteger(idx)) return;
+      const entry = state.wallLayouts[idx];
+      if (!entry || !E.panelConfig.isValidPanels(entry.panels)) return;
+      config.mode = 'wall';
+      config.panels = entry.panels.map((p) => ({ gx: p.gx, gy: p.gy }));
+      core.initWall(config.panels, config.size);
+    } else if (msg.cmd === 'deleteWallLayout') {
+      if (!Array.isArray(state.wallLayouts)) return;
+      const idx = Number(msg.index);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= state.wallLayouts.length) return;
+      state.wallLayouts.splice(idx, 1);
     }
     emitText(stateMsg());
   }

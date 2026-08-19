@@ -488,6 +488,47 @@
   #wall-layout-btn.editing {
     background: rgba(255,80,80,0.15); border-color: rgba(255,100,100,0.5); color: #f88;
   }
+  /* Save/load a named wall panel arrangement (see wsServer.js's
+     saveWallLayout/loadWallLayout/deleteWallLayout comment) - a small
+     dropdown anchored under the "💾" toggle right next to the Layout
+     button, matching #wall-toolbar's own floating-panel look. Only shown
+     once wall mode is active (see wireWallToolbar()'s syncWallToolbar-style
+     visibility, same gate #wall-toolbar itself uses). */
+  #wall-layout-save-wrap { position: relative; }
+  #wall-layout-save-toggle {
+    display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; height: 28px;
+    background: rgba(80,120,255,0.1); border: 1px solid rgba(80,120,255,0.3);
+    color: #9ab; border-radius: 6px; cursor: pointer; font-size: 13px;
+  }
+  #wall-layout-save-toggle:hover { background: rgba(80,120,255,0.2); }
+  #wall-layout-save-toggle .wall-layout-icon { font-size: 10px; }
+  #wall-layout-save-dropdown {
+    display: none; position: absolute; top: calc(100% + 8px); right: 0; z-index: 7;
+    width: 220px; background: rgba(10,10,20,0.95); backdrop-filter: blur(6px);
+    border: 1px solid rgba(80,120,255,0.35); border-radius: 8px; padding: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  #wall-layout-save-dropdown.open { display: block; }
+  #wall-layout-name-input {
+    flex: 1; padding: 6px 8px; background: #0a1020; border: 1px solid rgba(80,120,255,0.35);
+    color: #ccd; font-size: 12px; border-radius: 4px;
+  }
+  #wall-layout-save-btn {
+    padding: 6px 10px; font-size: 12px; background: rgba(60,220,120,0.1);
+    border: 1px solid rgba(60,220,120,0.3); color: #6e8; border-radius: 5px;
+    cursor: pointer; font-weight: 700;
+  }
+  .wall-layout-row {
+    display: flex; align-items: center; gap: 5px; padding: 5px 0;
+    border-top: 1px solid rgba(80,120,255,0.12); font-size: 12px; color: #ccd;
+  }
+  .wall-layout-row span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wall-layout-row button {
+    padding: 3px 7px; font-size: 11px; border-radius: 4px; cursor: pointer; font-weight: 700;
+  }
+  .wall-layout-row .wl-load-btn { background: rgba(80,120,255,0.12); border: 1px solid rgba(80,120,255,0.3); color: #7aadff; }
+  .wall-layout-row .wl-del-btn { background: rgba(255,80,80,0.08); border: 1px solid rgba(255,80,80,0.2); color: #f88; }
+  #wall-layout-empty { font-size: 11px; color: #667; padding: 6px 0; }
   /* Cube mode with fewer physical panels wired than the 3D preview shows
      (see panelConfig.js's physicalCubePanels/wsServer.js's
      setPhysicalCubePanels) - a real report asked for exactly this, no
@@ -1820,6 +1861,18 @@
   </div>
   <div id="wall-toolbar">
     <button id="wall-layout-btn" title="Edit wall layout">Layout <span class="wall-layout-icon">+</span></button>
+    <div id="wall-layout-save-wrap">
+      <button id="wall-layout-save-toggle" title="Save/load a named wall panel arrangement">💾 <span class="wall-layout-icon">▾</span></button>
+      <div id="wall-layout-save-dropdown">
+        <div style="font-size:10px;color:#7aadff;letter-spacing:1px;margin-bottom:5px;font-weight:600;">SAVE CURRENT LAYOUT</div>
+        <div style="display:flex;gap:5px;margin-bottom:10px;">
+          <input id="wall-layout-name-input" type="text" placeholder="Layout name…" maxlength="40">
+          <button id="wall-layout-save-btn">💾</button>
+        </div>
+        <div style="font-size:10px;color:#7aadff;letter-spacing:1px;margin-bottom:5px;font-weight:600;">SAVED LAYOUTS</div>
+        <div id="wall-layout-list"></div>
+      </div>
+    </div>
   </div>
   <div id="sim-banner">⚠ Simulation — only <span id="sim-banner-count"></span> face(s) are on real hardware, the rest is preview only</div>
 </div>
@@ -1851,6 +1904,6 @@
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.53"></script>
+<script src="app.js?v=0.6.54"></script>
 </body>
 </html>
