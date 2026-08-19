@@ -10,6 +10,10 @@ Multidisplay is a 6-face RGB LED cube (64×64 per face). Originally: a browser-b
 
 **Live demo**: https://chaoticatom.github.io/Multidisplay/ - a browser-native build of the pi-native effect engine (bundled via `pi-native/sim/`, see `pi-native/sim/README.md`), running standalone with no Pi or server behind it. This is NOT the ESP32-architecture simulator that used to be deployed at this URL from the repo-root `index.html`/`ui.js`/`effects-*.js` files - those were removed when this took over the URL (see git history before that commit if you need them).
 
+## Working style
+
+Don't test. Rely on `node --check` on touched files and the existing `npm test` suite in `pi-native/` - don't spin up servers, browsers, or manual verification beyond that.
+
 ## Development
 
 No build step for the web app. Edit JS/CSS/HTML, reload the page.
