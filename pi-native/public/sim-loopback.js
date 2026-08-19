@@ -162,8 +162,76 @@
       // before results are in and send stale/empty search state).
       const query = typeof msg.query === 'string' ? msg.query : '';
       E.EFFECTS.radio.search(query).then(() => { refreshRadioStatus(); emitText(stateMsg()); }).catch(() => {});
+    } else if (msg.cmd === 'addAlarm') {
+      const al = sanitizeAlarm(msg.alarm, crypto.randomUUID());
+      if (!al) return;
+      if (!state.alarms) state.alarms = [];
+      state.alarms.push(al);
+    } else if (msg.cmd === 'updateAlarm') {
+      if (typeof msg.id !== 'string' || !state.alarms) return;
+      const idx = state.alarms.findIndex((a) => a.id === msg.id);
+      if (idx < 0) return;
+      const al = sanitizeAlarm(msg.alarm, msg.id);
+      if (!al) return;
+      state.alarms[idx] = al;
+      if (state.activeAlarm && state.activeAlarm.al.id === msg.id) state.activeAlarm = null;
+    } else if (msg.cmd === 'deleteAlarm') {
+      if (typeof msg.id !== 'string' || !state.alarms) return;
+      const before = state.alarms.length;
+      state.alarms = state.alarms.filter((a) => a.id !== msg.id);
+      if (state.alarms.length === before) return;
+      if (state.activeAlarm && state.activeAlarm.al.id === msg.id) state.activeAlarm = null;
+    } else if (msg.cmd === 'setAlarmEnabled') {
+      if (typeof msg.id !== 'string' || !state.alarms) return;
+      const al = state.alarms.find((a) => a.id === msg.id);
+      if (!al) return;
+      al.enabled = !!msg.enabled;
+      if (!al.enabled && state.activeAlarm && state.activeAlarm.al.id === msg.id) state.activeAlarm = null;
+    } else if (msg.cmd === 'dismissAlarm') {
+      E.alarms.dismissActive(state);
     }
     emitText(stateMsg());
+  }
+
+  // Mirrors wsServer.js's _sanitizeAlarm() exactly - structural validation
+  // only, matching that file's "each reads its own params defensively"
+  // posture. addAlarm/updateAlarm/deleteAlarm/setAlarmEnabled were entirely
+  // missing here before (a real report, "timer save button does not
+  // work" - same bug class as the earlier radioPlay/radioStop/radioSearch
+  // gap this file's own module comment documents above): the Timers panel
+  // sends these commands and app.js closes the editor modal unconditionally
+  // on send, so with no handler here the "save" silently no-op'd and the
+  // modal just closed as if it worked.
+  function sanitizeAlarm(raw, id) {
+    if (!raw || typeof raw !== 'object') return null;
+    const al = {
+      id,
+      name: typeof raw.name === 'string' ? raw.name : '',
+      enabled: !!raw.enabled,
+      hour: Number(raw.hour), minute: Number(raw.minute),
+      repeat: raw.repeat,
+      days: Array.isArray(raw.days) ? raw.days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6) : [],
+      triggerType: raw.triggerType === 'playlist' ? 'playlist' : 'effect',
+      effect: typeof raw.effect === 'string' ? raw.effect : '',
+      overlayKeys: Array.isArray(raw.overlayKeys) ? raw.overlayKeys.filter((k) => E.OVERLAY_KEYS.includes(k)) : [],
+      playlistName: typeof raw.playlistName === 'string' ? raw.playlistName : '',
+      message: typeof raw.message === 'string' ? raw.message : '',
+      prealarm: raw.prealarm && typeof raw.prealarm === 'object' ? {
+        enabled: !!raw.prealarm.enabled,
+        preMinutes: Number(raw.prealarm.preMinutes) || 15,
+        startBright: Number(raw.prealarm.startBright) || 5,
+        giantSun: !!raw.prealarm.giantSun,
+        windDown: !!raw.prealarm.windDown,
+        wdMinutes: Number(raw.prealarm.wdMinutes) || 15,
+        wdUseEffect: !!raw.prealarm.wdUseEffect,
+        wdEffectKey: typeof raw.prealarm.wdEffectKey === 'string' ? raw.prealarm.wdEffectKey : '',
+        wdOverlayKeys: Array.isArray(raw.prealarm.wdOverlayKeys) ? raw.prealarm.wdOverlayKeys.filter((k) => E.OVERLAY_KEYS.includes(k)) : [],
+      } : {},
+    };
+    if (!Number.isInteger(al.hour)) al.hour = 0;
+    if (!Number.isInteger(al.minute)) al.minute = 0;
+    if (!E.isValidAlarm(al)) return null;
+    return al;
   }
 
   function refreshRadioStatus() {

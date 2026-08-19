@@ -26332,6 +26332,43 @@ var PiEngine = (() => {
     }
   });
 
+  // src/alarmConfig.js
+  var require_alarmConfig = __commonJS({
+    "src/alarmConfig.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var fs = require_fs();
+      var path = require_path();
+      var CONFIG_PATH = path.join(".", "..", "alarms.json");
+      var REPEAT_MODES = ["once", "daily", "weekdays", "weekends", "weekly", "hourly"];
+      function isValidAlarm(al) {
+        if (!al || typeof al !== "object") return false;
+        if (typeof al.id !== "string" || !al.id) return false;
+        if (!Number.isInteger(al.hour) || al.hour < 0 || al.hour > 23) return false;
+        if (!Number.isInteger(al.minute) || al.minute < 0 || al.minute > 59) return false;
+        if (!REPEAT_MODES.includes(al.repeat)) return false;
+        if (al.days !== void 0 && (!Array.isArray(al.days) || al.days.some((d) => !Number.isInteger(d) || d < 0 || d > 6))) return false;
+        if (al.triggerType !== void 0 && al.triggerType !== "effect" && al.triggerType !== "playlist") return false;
+        if (al.overlayKeys !== void 0 && !Array.isArray(al.overlayKeys)) return false;
+        return true;
+      }
+      function load() {
+        try {
+          const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed)) throw new Error("invalid stored alarms");
+          return parsed.filter(isValidAlarm);
+        } catch (err) {
+          return [];
+        }
+      }
+      function save(alarms) {
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(alarms, null, 2));
+      }
+      module.exports = { load, save, isValidAlarm, REPEAT_MODES, CONFIG_PATH };
+    }
+  });
+
   // sim/entry.js
   var require_entry = __commonJS({
     "sim/entry.js"(exports, module) {
@@ -26343,6 +26380,7 @@ var PiEngine = (() => {
       var alarms = require_alarms();
       var { tick } = require_tick();
       var panelConfig = require_panelConfig();
+      var { isValidAlarm } = require_alarmConfig();
       module.exports = {
         CubeCore,
         hsl,
@@ -26356,7 +26394,8 @@ var PiEngine = (() => {
         OVERLAY_KEYS,
         alarms,
         tick,
-        panelConfig
+        panelConfig,
+        isValidAlarm
       };
     }
   });
