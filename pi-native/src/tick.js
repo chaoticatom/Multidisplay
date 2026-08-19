@@ -7,11 +7,21 @@
 // simulator hand-duplicating this and silently drifting out of sync with
 // real behavior over time. Any future change to what a tick actually does
 // belongs HERE, not copy-pasted into app.js and the simulator separately.
+const { renderIdentify } = require('./effects/identify');
 function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt) {
   core.panelMode = config.mode;
   core.effectOptions = state.effectOptions;
   core.customCubeFaces = state.customCube && state.customCube.faces;
   core.overlaysState = state.overlays;
+
+  // "Identify Panels" calibration mode - see identify.js's module comment.
+  // Bypasses everything else (effect/alarms/overlays) entirely, same as the
+  // state.blank branch below, since it's a wiring-diagnostic view, not
+  // something that should ever be composited with real content.
+  if (state.identifyPanels) {
+    renderIdentify(core, config);
+    return;
+  }
 
   const activeFn = config.mode === 'wall' ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
   if (typeof activeFn?.getStatus === 'function') {

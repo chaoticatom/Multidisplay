@@ -26246,42 +26246,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/tick.js
-  var require_tick = __commonJS({
-    "src/tick.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt) {
-        core.panelMode = config.mode;
-        core.effectOptions = state.effectOptions;
-        core.customCubeFaces = state.customCube && state.customCube.faces;
-        core.overlaysState = state.overlays;
-        const activeFn = config.mode === "wall" ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
-        if (typeof activeFn?.getStatus === "function") {
-          if (!state.effectStatus) state.effectStatus = {};
-          state.effectStatus[state.effect] = activeFn.getStatus();
-        }
-        alarms.tickCheck(state, dt, EFFECTS);
-        const cubeMode = config.mode !== "wall";
-        if (!state.blank) {
-          if (cubeMode) alarms.renderMainMessage(core, state);
-          const alarmBlocking = cubeMode && alarms.isBlockingNormalEffect(state);
-          const fn = config.mode === "wall" ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
-          if (fn && !alarmBlocking) fn(core, dt);
-        } else {
-          core.colBuf.fill(0);
-          if (core.wallBuf) core.wallBuf.fill(0);
-        }
-        if (config.mode !== "wall") runOverlays(core, dt, state.overlays);
-        if (cubeMode) {
-          alarms.applyDonePhase(core, state);
-          alarms.renderPrePhase(core, dt, state, EFFECTS);
-        }
-      }
-      module.exports = { tick };
-    }
-  });
-
   // src/panelConfig.js
   var require_panelConfig = __commonJS({
     "src/panelConfig.js"(exports, module) {
@@ -26296,6 +26260,30 @@ var PiEngine = (() => {
       var WALL_MAX_ROWS = 6;
       var WALL_MAX_PANELS = 6;
       var DEFAULT_CONFIG = { size: 64, mode: "2d", panels: [{ gx: 0, gy: 0 }], physicalCubePanels: 6 };
+      var FACE_NAMES = ["Front", "Back", "Right", "Left", "Top", "Bottom"];
+      var FACE_LAYOUT = [
+        // Front/Back swapped from the original chain:0 pos:0/pos:1 guess - a real
+        // report ("front and back are swapped": Front showed Back's content and
+        // vice versa) - the physical panel at chain 0 pos 0 is actually wired as
+        // Back, not Front.
+        { chain: 0, pos: 1 },
+        // 0 Front
+        { chain: 0, pos: 0 },
+        // 1 Back
+        { chain: 1, pos: 0 },
+        // 2 Right
+        { chain: 1, pos: 1 },
+        // 3 Left
+        // rotateCW90 - a real report: "on cube mode, the top panel is reversed,
+        // the flow from side panels does not flow to top correctly" - a 180°
+        // flip was tried first and wasn't right; a single 90° clockwise turn
+        // matched the follow-up report. Classic cause: the physical Top panel
+        // mounted in a different orientation than the 4 vertical side panels.
+        { chain: 2, pos: 0, rotateCW90: true },
+        // 4 Top
+        { chain: 2, pos: 1 }
+        // 5 Bottom
+      ];
       function isValidPhysicalCubePanels(n) {
         return Number.isInteger(n) && n >= 1 && n <= 6;
       }
@@ -26328,7 +26316,110 @@ var PiEngine = (() => {
       function save(config) {
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
       }
-      module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, isValidPhysicalCubePanels, DEFAULT_CONFIG, CONFIG_PATH };
+      module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, isValidPhysicalCubePanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };
+    }
+  });
+
+  // src/effects/identify.js
+  var require_identify = __commonJS({
+    "src/effects/identify.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var { FACE_LAYOUT, FACE_NAMES } = require_panelConfig();
+      var { PIXEL_FONT } = require_font();
+      var { drawLinesCentered3x5 } = require_shared();
+      function renderIdentifyCube(core, config) {
+        core.colBuf.fill(0);
+        const faceCount = config.mode === "2d" ? 1 : 6;
+        for (let face = 0; face < faceCount; face++) {
+          const lines = config.mode === "2d" ? ["PANEL 1"] : [FACE_NAMES[face], "OUT " + (FACE_LAYOUT[face].chain + 1), "POS " + (FACE_LAYOUT[face].pos + 1)];
+          drawLinesCentered3x5(core, face, lines, 2, 0.2, 1, 0.4);
+        }
+      }
+      function wallGlyph(core, ox, oy, ch, su, sv, scale, r, g, b) {
+        const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
+        if (!rows) return 4 * scale;
+        for (let row = 0; row < 5; row++) {
+          const bits = rows[row];
+          for (let col = 0; col < 3; col++) {
+            if (!(bits >> 2 - col & 1)) continue;
+            for (let sy = 0; sy < scale; sy++) {
+              for (let sx = 0; sx < scale; sx++) {
+                core.setWallPixel(ox + su + col * scale + sx, oy + sv + row * scale + sy, r, g, b);
+              }
+            }
+          }
+        }
+        return 4 * scale;
+      }
+      function wallLineWidth(str, scale) {
+        return str.length * 4 * scale - scale;
+      }
+      function wallLinesCentered(core, ox, oy, panelSize, lines, scale, r, g, b) {
+        const lineH = 6 * scale;
+        const totalH = lines.length * lineH;
+        let sv = Math.round((panelSize - totalH) / 2);
+        for (const line of lines) {
+          let su = Math.round((panelSize - wallLineWidth(line, scale)) / 2);
+          for (const ch of line) su += wallGlyph(core, ox, oy, ch, su, sv, scale, r, g, b);
+          sv += lineH;
+        }
+      }
+      function renderIdentifyWall(core, config) {
+        if (!core.wallBuf) return;
+        core.wallBuf.fill(0);
+        const S = core.wallPanelSize;
+        config.panels.forEach((p, idx) => {
+          const lines = ["PANEL " + (idx + 1), "OUT " + (p.gy + 1), "POS " + (p.gx + 1)];
+          wallLinesCentered(core, p.gx * S, p.gy * S, S, lines, 1, 0.2, 1, 0.4);
+        });
+      }
+      function renderIdentify(core, config) {
+        if (config.mode === "wall") renderIdentifyWall(core, config);
+        else renderIdentifyCube(core, config);
+      }
+      module.exports = { renderIdentify };
+    }
+  });
+
+  // src/tick.js
+  var require_tick = __commonJS({
+    "src/tick.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var { renderIdentify } = require_identify();
+      function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt) {
+        core.panelMode = config.mode;
+        core.effectOptions = state.effectOptions;
+        core.customCubeFaces = state.customCube && state.customCube.faces;
+        core.overlaysState = state.overlays;
+        if (state.identifyPanels) {
+          renderIdentify(core, config);
+          return;
+        }
+        const activeFn = config.mode === "wall" ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
+        if (typeof activeFn?.getStatus === "function") {
+          if (!state.effectStatus) state.effectStatus = {};
+          state.effectStatus[state.effect] = activeFn.getStatus();
+        }
+        alarms.tickCheck(state, dt, EFFECTS);
+        const cubeMode = config.mode !== "wall";
+        if (!state.blank) {
+          if (cubeMode) alarms.renderMainMessage(core, state);
+          const alarmBlocking = cubeMode && alarms.isBlockingNormalEffect(state);
+          const fn = config.mode === "wall" ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
+          if (fn && !alarmBlocking) fn(core, dt);
+        } else {
+          core.colBuf.fill(0);
+          if (core.wallBuf) core.wallBuf.fill(0);
+        }
+        if (config.mode !== "wall") runOverlays(core, dt, state.overlays);
+        if (cubeMode) {
+          alarms.applyDonePhase(core, state);
+          alarms.renderPrePhase(core, dt, state, EFFECTS);
+        }
+      }
+      module.exports = { tick };
     }
   });
 

@@ -52,6 +52,37 @@ const WALL_MAX_COLS = 6, WALL_MAX_ROWS = 6, WALL_MAX_PANELS = 6;
 // DEFAULT_CONFIG.mode's own reasoning.
 const DEFAULT_CONFIG = { size: 64, mode: '2d', panels: [{ gx: 0, gy: 0 }], physicalCubePanels: 6 };
 
+// ---------------------------------------------------------------------------
+// FACE_LAYOUT - cube mode's fixed 2x3 physical wiring (chain/pos - see
+// rgbMatrixDriver.js's module comment for the full explanation and the
+// real-hardware reports that calibrated these values). Lives here rather
+// than in rgbMatrixDriver.js (a hardware/Node-only file requiring the
+// native `rpi-led-matrix` addon, which can't be pulled into the browser
+// sim bundle) so it's ONE source of truth both the real driver and the
+// browser-side "Identify Panels" helper (src/effects/identify.js) can read
+// - duplicating this table risked exactly the kind of silent-drift bug
+// this project has hit before when the same data lived in two places.
+// FACE_NAMES mirrors app.js's own copy (cube.js's face index convention:
+// 0=Front 1=Back 2=Right 3=Left 4=Top 5=Bottom).
+const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
+const FACE_LAYOUT = [
+  // Front/Back swapped from the original chain:0 pos:0/pos:1 guess - a real
+  // report ("front and back are swapped": Front showed Back's content and
+  // vice versa) - the physical panel at chain 0 pos 0 is actually wired as
+  // Back, not Front.
+  { chain: 0, pos: 1 }, // 0 Front
+  { chain: 0, pos: 0 }, // 1 Back
+  { chain: 1, pos: 0 }, // 2 Right
+  { chain: 1, pos: 1 }, // 3 Left
+  // rotateCW90 - a real report: "on cube mode, the top panel is reversed,
+  // the flow from side panels does not flow to top correctly" - a 180°
+  // flip was tried first and wasn't right; a single 90° clockwise turn
+  // matched the follow-up report. Classic cause: the physical Top panel
+  // mounted in a different orientation than the 4 vertical side panels.
+  { chain: 2, pos: 0, rotateCW90: true }, // 4 Top
+  { chain: 2, pos: 1 }, // 5 Bottom
+];
+
 function isValidPhysicalCubePanels(n) {
   return Number.isInteger(n) && n >= 1 && n <= 6;
 }
@@ -93,4 +124,4 @@ function save(config) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
 }
 
-module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, isValidPhysicalCubePanels, DEFAULT_CONFIG, CONFIG_PATH };
+module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, isValidPhysicalCubePanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };

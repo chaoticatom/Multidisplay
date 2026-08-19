@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.52';
+const APP_VERSION = '0.6.53';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -149,6 +149,7 @@ function handleTextMessage(msg) {
     syncCustomCubeEffectPanel();
     renderAlarmList();
     syncClearAllButton();
+    syncIdentifyPanelsButton();
     syncPhysicalPanelsControl();
     // Re-renders the wall grid on every state update (not just a mode
     // change) so adding/removing/dragging a panel is reflected immediately -
@@ -2305,6 +2306,22 @@ function syncPanelButtons() {
   if (wallToolbar) wallToolbar.style.display = currentState.panelMode === 'cube' ? 'none' : 'flex';
 }
 
+// "🔍 Identify Panels" - a wiring-calibration toggle (see wsServer.js's
+// "setIdentifyPanels" command comment / src/effects/identify.js). Labels
+// every physical panel with its own identity directly on the panel itself,
+// so wiring 6 boards across 3 HAT/Active-3 outputs into a cube - or any
+// arbitrary wall shape (L, star, long strip) - can be verified without the
+// old "remember which solid color meant which face" workflow.
+function wireIdentifyPanelsButton() {
+  const btn = document.getElementById('identify-panels-btn');
+  if (btn) btn.addEventListener('click', () => send({ cmd: 'setIdentifyPanels', enabled: !currentState.identifyPanels }));
+}
+
+function syncIdentifyPanelsButton() {
+  const btn = document.getElementById('identify-panels-btn');
+  if (btn) btn.classList.toggle('active', !!currentState.identifyPanels);
+}
+
 // "✕ Clear All" - see wsServer.js's "clearAll" command comment.
 function wireClearAllButton() {
   const btn = document.getElementById('clear-all-btn');
@@ -3646,6 +3663,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireBluetooth();
   wireWallToolbar();
   wireClearAllButton();
+  wireIdentifyPanelsButton();
   wirePhysicalPanelsControl();
   wireRainPanel();
   wireLightspeedPanel();

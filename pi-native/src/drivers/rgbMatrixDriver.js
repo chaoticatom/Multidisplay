@@ -12,6 +12,7 @@
 // where buffer.length MUST equal w*h*3 - flat RGB, 3 bytes/pixel, row-major,
 // (R,G,B) order per pixel. That's what buildFaceBuffer() below produces.
 const { LedMatrix, GpioMapping } = require('rpi-led-matrix');
+const { FACE_LAYOUT } = require('../panelConfig');
 
 // ---------------------------------------------------------------------------
 // PHYSICAL LAYOUT - MUST BE CALIBRATED FOR YOUR ACTUAL WIRING.
@@ -23,11 +24,13 @@ const { LedMatrix, GpioMapping } = require('rpi-led-matrix');
 //
 // FACE_LAYOUT maps each face to {chain: 0-2, pos: 0-1} - which of the 3
 // parallel chains it's on, and which of the 2 chained positions within that
-// chain. THE DEFAULT BELOW IS A PLACEHOLDER, NOT A VERIFIED MAPPING - it
-// has never been checked against real panels (no hardware available to this
-// session). Wire up the panels, run one distinctive test pattern per face
-// (e.g. solid red/green/blue/yellow/cyan/magenta), and correct this table
-// to match reality before trusting any effect's visual output.
+// chain. Lives in panelConfig.js now (not defined here) so the browser-side
+// "Identify Panels" helper (src/effects/identify.js) can read the exact
+// same table without duplicating it - see that file's own comment. Wire up
+// the panels, run one distinctive test pattern per face (e.g. solid red/
+// green/blue/yellow/cyan/magenta) or use Identify Panels, and correct
+// panelConfig.js's copy to match reality before trusting any effect's
+// visual output.
 // rotate180 - a real report: "on cube mode, the top panel is reversed,
 // the flow from side panels does not flow to top correctly" (fireworks,
 // rainbow/gradient effects, etc. - anything whose content should read
@@ -43,22 +46,6 @@ const { LedMatrix, GpioMapping } = require('rpi-led-matrix');
 // it, the same mechanism supports flipH/flipV instead (see
 // _buildFaceBuffer()) for whichever single-axis mirror actually matches
 // this panel's mount.
-const FACE_LAYOUT = [
-  // Front/Back swapped from the original chain:0 pos:0/pos:1 guess - a
-  // real report ("front and back are swapped": Front showed Back's
-  // content and vice versa) - the physical panel at chain 0 pos 0 is
-  // actually wired as Back, not Front.
-  { chain: 0, pos: 1 }, // 0 Front  - PLACEHOLDER, verify against real wiring
-  { chain: 0, pos: 0 }, // 1 Back   - PLACEHOLDER
-  { chain: 1, pos: 0 }, // 2 Right  - PLACEHOLDER
-  { chain: 1, pos: 1 }, // 3 Left   - PLACEHOLDER
-  // 180° (this and rotate180/flipV before it) still wasn't right -
-  // follow-up report says back to a single 90° clockwise turn.
-  { chain: 2, pos: 0, rotateCW90: true }, // 4 Top    - PLACEHOLDER position
-
-  { chain: 2, pos: 1 }, // 5 Bottom - PLACEHOLDER
-];
-
 class RgbMatrixDriver {
   // opts.mode: 'cube' (6 panels via FACE_LAYOUT, FIXED 2x3 physical wiring
   // - unlike 'wall' below, this topology never changes since FACE_LAYOUT's

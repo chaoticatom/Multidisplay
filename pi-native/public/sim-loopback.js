@@ -46,6 +46,7 @@
     nasaConfig: { apiKey: '' },
     effectOptions: { weather: { city: savedCity } },
     blank: false,
+    identifyPanels: false,
   };
 
   const listeners = { text: [], frame: [] };
@@ -60,6 +61,7 @@
       overlays: state.overlays, alarms: state.alarms, activeAlarm: state.activeAlarm,
       customCube: state.customCube, unsplashConfig: state.unsplashConfig, nasaConfig: state.nasaConfig,
       effectOptions: state.effectOptions, effectStatus: state.effectStatus, blank: state.blank,
+      identifyPanels: !!state.identifyPanels,
       effectNames: E.EFFECT_NAMES,
       simulator: true,
     };
@@ -79,6 +81,8 @@
     } else if (msg.cmd === 'clearAll') {
       for (const k of Object.keys(state.overlays)) state.overlays[k].on = false;
       state.blank = true;
+    } else if (msg.cmd === 'setIdentifyPanels') {
+      state.identifyPanels = !!msg.enabled;
     } else if (msg.cmd === 'setBrightness') {
       const v = Number(msg.value);
       if (Number.isFinite(v)) state.brightness = Math.max(0, Math.min(1.5, v));

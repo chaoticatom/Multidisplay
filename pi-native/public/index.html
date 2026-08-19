@@ -126,6 +126,7 @@
   .size-btn:hover { background: rgba(80,120,255,0.15); color: #ccd; }
   .size-btn.active { background: rgba(80,120,255,0.25); border-color: rgba(100,160,255,0.6); color: #7aadff; }
   #clear-all-btn.active { background: rgba(255,60,60,0.35); border-color: rgba(255,100,100,0.7); color: #fff; }
+  #identify-panels-btn.active { background: rgba(80,220,120,0.25); border-color: rgba(100,220,140,0.7); color: #9f9; }
 
   .effect-btn {
     display: block; width: 100%; padding: 7px 10px; margin-bottom: 4px;
@@ -541,6 +542,7 @@
       <button class="size-btn" data-size="64">64×64</button>
       <button class="size-btn" data-size="64" data-mode="panel2d" id="panel2d-btn" style="font-size:10px;">Panel 2D</button>
     </div>
+    <button id="identify-panels-btn" title="Label every physical panel with its own identity (face/index + which HAT output and chain position it's wired to) - use this while wiring up multiple panels, in any shape, to see which physical board is which." style="width:100%;margin-top:6px;padding:8px;font-size:11px;letter-spacing:0.5px;background:rgba(80,120,255,0.08);border:1px solid rgba(80,120,255,0.25);color:#9ab;border-radius:6px;cursor:pointer;">🔍 IDENTIFY PANELS</button>
   </div>
 
   <!-- Master brightness (#bright-slider - see wireSliders()/syncSliders()
@@ -1849,6 +1851,6 @@
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.52"></script>
+<script src="app.js?v=0.6.53"></script>
 </body>
 </html>

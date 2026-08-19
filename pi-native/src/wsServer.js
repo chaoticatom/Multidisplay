@@ -496,6 +496,7 @@ class WsServer {
       customCube: this.state.customCube,
       unsplashConfig: this.state.unsplashConfig,
       nasaConfig: this.state.nasaConfig,
+      identifyPanels: !!this.state.identifyPanels,
     };
   }
 
@@ -582,6 +583,14 @@ class WsServer {
         this.state.overlays[key].on = false;
       }
       this.state.blank = true;
+      this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'setIdentifyPanels') {
+      // "Identify Panels" - a wiring-calibration toggle, not an effect (see
+      // tick.js/identify.js). Labels each physical panel with its own
+      // identity (face name or wall index, plus which HAT/Active-3 output
+      // and chain position it's wired to) so a real multi-panel install can
+      // be wired up correctly without trial-and-error solid-color testing.
+      this.state.identifyPanels = !!msg.enabled;
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'setBrightness') {
       const v = Number(msg.value);
