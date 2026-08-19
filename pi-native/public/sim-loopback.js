@@ -8,14 +8,15 @@
 // need NO changes to work against this instead of a real connection.
 //
 // What's genuinely simulated (same code as the Pi): every visual effect,
-// overlays, brightness/speed, panel mode/size/layout, the Timer system.
+// overlays, brightness/speed, panel mode/size/layout, the Timer system,
+// the Face Editor / Custom Cube save-load-delete library (in-memory only -
+// resets on refresh, unlike the real Pi's on-disk customCubeConfig.json).
 // What's NOT available here (no server, no hardware, nothing to fake
 // usefully): Bluetooth pairing, WiFi setup, video upload/webcam/screen
-// share, Custom Cube save/load (needs multi-face persistence UX beyond
-// what a demo needs), Unsplash API key persistence. Those panels are left
-// visually present but inert - see wireSimUnsupported() in app.js's own
-// sim-mode branch, same "grey out, don't hide" precedent this app already
-// uses for not-yet-wired features.
+// share, Unsplash API key persistence. Those panels are left visually
+// present but inert - see wireSimUnsupported() in app.js's own sim-mode
+// branch, same "grey out, don't hide" precedent this app already uses for
+// not-yet-wired features.
 (function () {
   const E = window.PiEngine;
   const TICK_HZ = 30;
@@ -40,7 +41,7 @@
     effect: 'wave', brightness: 1.0, speed: 1.0,
     overlays: JSON.parse(JSON.stringify(E.OV_DEFAULTS)),
     alarms: [], activeAlarm: null,
-    customCube: { faces: {}, saved: {} },
+    customCube: { faces: E.customCubeConfig.DEFAULT_CONFIG.faces.slice(), library: [] },
     unsplashConfig: { apiKey: '', query: 'nature' },
     nasaConfig: { apiKey: '' },
     effectOptions: { weather: { city: savedCity } },
@@ -189,6 +190,76 @@
       if (!al.enabled && state.activeAlarm && state.activeAlarm.al.id === msg.id) state.activeAlarm = null;
     } else if (msg.cmd === 'dismissAlarm') {
       E.alarms.dismissActive(state);
+    } else if (msg.cmd === 'setFaceEffect') {
+      // Mirrors wsServer.js's setFaceEffect/setFaceOpts/setFaceOverlays/
+      // saveCube/loadCube/deleteCube/clearFaces handlers exactly. Custom
+      // Cube save/load was previously NOT implemented here at all (this
+      // file's own module comment used to list it as an intentionally
+      // out-of-scope, hardware/persistence-only feature) - but the Face
+      // Editor panel itself was never gated to match (app.js's
+      // greyOutUnsupported() only lists it as unsupported on the real Pi's
+      // missing panels, not the simulator's), so every Face Editor control
+      // silently no-op'd in the browser simulator while looking fully
+      // live. Since none of this actually needs hardware or disk
+      // persistence beyond what state.customCube already holds in memory
+      // for the running Custom Cube effect, implementing it here (rather
+      // than just greying the UI out) is the more useful fix.
+      if (!state.customCube) return;
+      const face = Number(msg.face);
+      if (!Number.isInteger(face) || face < 0 || face > 5) return;
+      if (msg.effect === null || msg.effect === undefined || msg.effect === 'none') {
+        state.customCube.faces[face] = null;
+      } else {
+        if (typeof msg.effect !== 'string' || msg.effect === 'custom_cube' || (!E.EFFECTS[msg.effect] && !E.WALL_EFFECTS[msg.effect])) return;
+        const existing = state.customCube.faces[face];
+        const keepOpts = existing && existing.effect === msg.effect;
+        state.customCube.faces[face] = {
+          effect: msg.effect,
+          overlayKeys: existing ? [...existing.overlayKeys] : [],
+          opts: keepOpts ? { ...existing.opts } : {},
+        };
+      }
+    } else if (msg.cmd === 'setFaceOpts') {
+      if (!state.customCube) return;
+      const face = Number(msg.face);
+      if (!Number.isInteger(face) || face < 0 || face > 5) return;
+      const cfg = state.customCube.faces[face];
+      if (!cfg || !msg.opts || typeof msg.opts !== 'object' || Array.isArray(msg.opts)) return;
+      cfg.opts = { ...msg.opts };
+    } else if (msg.cmd === 'setFaceOverlays') {
+      if (!state.customCube) return;
+      const face = Number(msg.face);
+      if (!Number.isInteger(face) || face < 0 || face > 5) return;
+      const cfg = state.customCube.faces[face];
+      if (!cfg || !Array.isArray(msg.overlayKeys)) return;
+      if (msg.overlayKeys.some((k) => typeof k !== 'string' || !E.OVERLAY_KEYS.includes(k))) return;
+      cfg.overlayKeys = [...msg.overlayKeys];
+    } else if (msg.cmd === 'saveCube') {
+      if (!state.customCube) return;
+      if (typeof msg.name !== 'string' || !msg.name.trim()) return;
+      const name = msg.name.trim();
+      const snapshot = {
+        name,
+        faces: state.customCube.faces.map((f) => (f ? { effect: f.effect, overlayKeys: [...f.overlayKeys], opts: { ...f.opts } } : null)),
+      };
+      const idx = state.customCube.library.findIndex((c) => c.name === name);
+      if (idx >= 0) state.customCube.library[idx] = snapshot;
+      else state.customCube.library.push(snapshot);
+    } else if (msg.cmd === 'loadCube') {
+      if (!state.customCube) return;
+      const idx = Number(msg.index);
+      if (!Number.isInteger(idx)) return;
+      const entry = state.customCube.library[idx];
+      if (!entry) return;
+      state.customCube.faces = entry.faces.map((f) => (f ? { effect: f.effect, overlayKeys: [...f.overlayKeys], opts: { ...f.opts } } : null));
+    } else if (msg.cmd === 'deleteCube') {
+      if (!state.customCube) return;
+      const idx = Number(msg.index);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= state.customCube.library.length) return;
+      state.customCube.library.splice(idx, 1);
+    } else if (msg.cmd === 'clearFaces') {
+      if (!state.customCube) return;
+      state.customCube.faces = [null, null, null, null, null, null];
     }
     emitText(stateMsg());
   }

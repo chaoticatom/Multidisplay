@@ -26369,6 +26369,64 @@ var PiEngine = (() => {
     }
   });
 
+  // src/customCubeConfig.js
+  var require_customCubeConfig = __commonJS({
+    "src/customCubeConfig.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var fs = require_fs();
+      var path = require_path();
+      var CONFIG_PATH = path.join(".", "..", "custom-cube-config.json");
+      var NUM_FACES = 6;
+      function isValidFaceConfig(fc) {
+        if (fc === null) return true;
+        if (!fc || typeof fc !== "object") return false;
+        if (typeof fc.effect !== "string" || !fc.effect) return false;
+        if (!Array.isArray(fc.overlayKeys) || fc.overlayKeys.some((k) => typeof k !== "string")) return false;
+        if (!fc.opts || typeof fc.opts !== "object" || Array.isArray(fc.opts)) return false;
+        return true;
+      }
+      function isValidFaces(faces) {
+        return Array.isArray(faces) && faces.length === NUM_FACES && faces.every(isValidFaceConfig);
+      }
+      function isValidLibraryEntry(entry) {
+        return !!entry && typeof entry === "object" && typeof entry.name === "string" && !!entry.name && isValidFaces(entry.faces);
+      }
+      function isValidLibrary(library) {
+        return Array.isArray(library) && library.every(isValidLibraryEntry);
+      }
+      function emptyFaces() {
+        return [null, null, null, null, null, null];
+      }
+      var DEFAULT_CONFIG = { faces: emptyFaces(), library: [] };
+      function load() {
+        try {
+          const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+          const parsed = JSON.parse(raw);
+          const faces = isValidFaces(parsed.faces) ? parsed.faces : emptyFaces();
+          const library = isValidLibrary(parsed.library) ? parsed.library : [];
+          return { faces, library };
+        } catch (err) {
+          return { faces: emptyFaces(), library: [] };
+        }
+      }
+      function save(config) {
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+      }
+      module.exports = {
+        load,
+        save,
+        isValidFaceConfig,
+        isValidFaces,
+        isValidLibraryEntry,
+        isValidLibrary,
+        NUM_FACES,
+        DEFAULT_CONFIG,
+        CONFIG_PATH
+      };
+    }
+  });
+
   // sim/entry.js
   var require_entry = __commonJS({
     "sim/entry.js"(exports, module) {
@@ -26381,6 +26439,7 @@ var PiEngine = (() => {
       var { tick } = require_tick();
       var panelConfig = require_panelConfig();
       var { isValidAlarm } = require_alarmConfig();
+      var customCubeConfig = require_customCubeConfig();
       module.exports = {
         CubeCore,
         hsl,
@@ -26395,7 +26454,8 @@ var PiEngine = (() => {
         alarms,
         tick,
         panelConfig,
-        isValidAlarm
+        isValidAlarm,
+        customCubeConfig
       };
     }
   });
