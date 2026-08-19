@@ -339,16 +339,25 @@ class WsServer {
     // any cache-busting query param scheme, so there's no mechanism for a
     // stale cached copy to ever self-correct without this.
     const noCacheHeaders = { 'Cache-Control': 'no-store, must-revalidate' };
-    if (req.url === '/' || req.url === '/index.html') {
+    // Strip the query string before route-matching - index.html's
+    // <script src="app.js?v=..."> cache-buster (see that file's own
+    // comment on the tag) means req.url arrives as "/app.js?v=0.6.54", not
+    // "/app.js". A real report: every request for app.js 404'd once that
+    // ?v= param was added, because this matching used to compare the raw
+    // req.url (with the query string still attached) against the bare
+    // path - since every release bumps the version number, this would have
+    // 404'd on literally every real deployment, not just an edge case.
+    const urlPath = req.url.split('?')[0];
+    if (urlPath === '/' || urlPath === '/index.html') {
       res.writeHead(200, { 'Content-Type': 'text/html', ...noCacheHeaders });
       res.end(INDEX_HTML);
-    } else if (req.url === '/effects.json') {
+    } else if (urlPath === '/effects.json') {
       res.writeHead(200, { 'Content-Type': 'application/json', ...noCacheHeaders });
       res.end(JSON.stringify(EFFECT_NAMES));
-    } else if (req.url === '/three.min.js') {
+    } else if (urlPath === '/three.min.js') {
       res.writeHead(200, { 'Content-Type': 'application/javascript', ...noCacheHeaders });
       res.end(THREE_JS);
-    } else if (req.url === '/app.js') {
+    } else if (urlPath === '/app.js') {
       res.writeHead(200, { 'Content-Type': 'application/javascript', ...noCacheHeaders });
       res.end(APP_JS);
     } else {
