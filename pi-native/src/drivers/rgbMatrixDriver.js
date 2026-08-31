@@ -113,7 +113,17 @@ class RgbMatrixDriver {
     }
     const faceCount = this.mode === '2d' ? 1 : 6;
     for (let face = 0; face < faceCount; face++) {
-      const layout = FACE_LAYOUT[face];
+      // '2d' mode's matrixOptions topology (above) is a FIXED chainLength:1,
+      // parallel:1 - i.e. a 64x64 canvas, exactly one panel, always at
+      // offset (0,0). FACE_LAYOUT[0] (Front) is {chain:0, pos:1} - a real
+      // report ("nothing appears on the physical screen", boot-time
+      // flicker then blank once the app starts driving it): using
+      // FACE_LAYOUT[face] unconditionally here meant 2d mode drew at
+      // xOffset=1*64=64 into a canvas that's only 64px wide - entirely
+      // off-canvas, so drawBuffer() silently had nowhere valid to put the
+      // pixels. Cube mode still needs FACE_LAYOUT (6 real chain/pos slots);
+      // 2d mode's one panel is never wired via that table at all.
+      const layout = this.mode === '2d' ? { chain: 0, pos: 0 } : FACE_LAYOUT[face];
       const buf = this._buildFaceBuffer(core, face, brightness);
       this.matrix.drawBuffer(buf, SIZE, SIZE, layout.pos * SIZE, layout.chain * SIZE);
     }
