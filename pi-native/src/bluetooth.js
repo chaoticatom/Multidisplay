@@ -65,8 +65,22 @@ function parseDeviceLines(text) {
     // anything else still only fills in a first-seen placeholder, same
     // "don't let an RSSI update stomp a real name" protection as before.
     const nameMatch = /^Name: (.+)$/.exec(trimmed);
-    if (nameMatch) devices.set(mac, nameMatch[1].trim());
-    else if (!devices.has(mac)) devices.set(mac, trimmed);
+    if (nameMatch) { devices.set(mac, nameMatch[1].trim()); continue; }
+    // Any other "PropertyKey: value"-shaped line (RSSI/Connected/Trusted/
+    // Paired/TxPower/ManufacturerData/ServiceData/...) is a property
+    // update, never a name - a real report: some devices' FIRST-ever line
+    // in a given scan's captured output was already a property update
+    // (e.g. "[CHG] Device MAC RSSI: -67", not a "[NEW] Device MAC <name>"
+    // line - happens when the device was already known/mid-discovery
+    // before this scan's stdout capture started), so the old fallback (any
+    // first-seen line, no shape check) adopted that literal RSSI text as
+    // the device's "name". Falls back to the MAC itself instead - same
+    // "MAC-only" outcome bluetoothctl already shows for a device that
+    // genuinely never advertises a friendly name, not garbage property
+    // text - while still leaving room for a later "Name: " line (handled
+    // above) to upgrade it if one does eventually arrive.
+    const isPropertyLine = /^[A-Za-z][A-Za-z ]*: /.test(trimmed);
+    if (!devices.has(mac)) devices.set(mac, isPropertyLine ? mac : trimmed);
   }
   return [...devices.entries()].map(([mac, name]) => ({ mac, name }));
 }

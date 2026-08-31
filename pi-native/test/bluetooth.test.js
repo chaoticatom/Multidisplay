@@ -61,6 +61,20 @@ test('paired-devices output parses the same way', () => {
   const devices = parseDeviceLines(sample);
   assert.strictEqual(devices.length, 2);
 });
+test('a device whose FIRST captured line is a property update (not a name) falls back to its MAC, not the raw property text', () => {
+  // A real report: the device list showed literal "RSSI: 0xffffffbd (-67)"
+  // as a device's name. Happens when a device's "[NEW] Device MAC <name>"
+  // line isn't in this particular scan's captured output at all (already
+  // known/mid-discovery before capture started) - the old code adopted
+  // whatever first "Device MAC ..." line it saw, property update or not.
+  const sample = `
+[CHG] Device 11:22:33:44:55:66 RSSI: -67
+[CHG] Device 11:22:33:44:55:66 Connected: no
+`;
+  const devices = parseDeviceLines(sample);
+  assert.strictEqual(devices.length, 1);
+  assert.deepStrictEqual(devices[0], { mac: '11:22:33:44:55:66', name: '11:22:33:44:55:66' });
+});
 test('a device whose name resolves AFTER the initial sighting gets upgraded from its MAC placeholder', () => {
   // A real report: the Pi only ever showed raw MAC addresses for devices
   // Windows resolved to a real make/model. Some devices' very first "[NEW]
