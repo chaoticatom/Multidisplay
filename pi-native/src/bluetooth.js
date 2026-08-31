@@ -49,14 +49,24 @@ function parseDeviceLines(text) {
     const m = DEVICE_LINE_RE.exec(line);
     if (!m) continue;
     const [, mac, rest] = m;
-    // First sighting wins, not last: a live scan mixes "[NEW] Device MAC
-    // Name" lines with "[CHG] Device MAC RSSI: -60"-style property-update
-    // lines for the SAME device - both match this same generic pattern,
-    // so overwriting on every match would eventually stomp the real name
-    // with whatever property update happened to scroll by last. Confirmed
-    // live: a canned multi-line sample with an interleaved RSSI update
-    // reproduced exactly this.
-    if (!devices.has(mac)) devices.set(mac, rest.trim());
+    const trimmed = rest.trim();
+    // A real report: the Pi only ever showed raw MAC addresses for a
+    // device Windows resolved to its full make/model. "First sighting
+    // wins" (see below) locked in whatever the device's very first "[NEW]
+    // Device MAC ..." line carried - which for many devices is just the
+    // MAC again (no name known yet), with the real name only arriving
+    // moments later via a separate "[CHG] Device MAC Name: <real name>"
+    // line once BlueZ completes an extended inquiry/name request. That
+    // later line matched this same generic regex but was being discarded
+    // outright by the has()-check below, so the placeholder MAC "name"
+    // never got upgraded. An explicit "Name: " line is NEVER scan noise
+    // (unlike an "RSSI: -60"-style line) - it's always a real resolved
+    // name - so it always wins, overwriting even an existing entry;
+    // anything else still only fills in a first-seen placeholder, same
+    // "don't let an RSSI update stomp a real name" protection as before.
+    const nameMatch = /^Name: (.+)$/.exec(trimmed);
+    if (nameMatch) devices.set(mac, nameMatch[1].trim());
+    else if (!devices.has(mac)) devices.set(mac, trimmed);
   }
   return [...devices.entries()].map(([mac, name]) => ({ mac, name }));
 }

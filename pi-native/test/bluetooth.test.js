@@ -61,6 +61,23 @@ test('paired-devices output parses the same way', () => {
   const devices = parseDeviceLines(sample);
   assert.strictEqual(devices.length, 2);
 });
+test('a device whose name resolves AFTER the initial sighting gets upgraded from its MAC placeholder', () => {
+  // A real report: the Pi only ever showed raw MAC addresses for devices
+  // Windows resolved to a real make/model. Some devices' very first "[NEW]
+  // Device ..." line carries no name yet (BlueZ echoes the MAC again as a
+  // placeholder) - the real name arrives moments later via a separate
+  // "[CHG] Device MAC Name: ..." line, which must be allowed to overwrite
+  // that placeholder (unlike an RSSI update, which must NOT).
+  const sample = `
+[NEW] Device 11:22:33:44:55:66 11-22-33-44-55-66
+[CHG] Device 11:22:33:44:55:66 RSSI: -60
+[CHG] Device 11:22:33:44:55:66 Name: JBL Flip 5
+[CHG] Device 11:22:33:44:55:66 RSSI: -58
+`;
+  const devices = parseDeviceLines(sample);
+  assert.strictEqual(devices.length, 1);
+  assert.deepStrictEqual(devices[0], { mac: '11:22:33:44:55:66', name: 'JBL Flip 5' });
+});
 
 if (process.exitCode) {
   console.log('\nFAILED');
