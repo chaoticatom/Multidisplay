@@ -40,8 +40,8 @@ Discovery started
 `;
   const devices = parseDeviceLines(sample);
   assert.strictEqual(devices.length, 2);
-  assert.deepStrictEqual(devices.find((d) => d.mac === '11:22:33:44:55:66'), { mac: '11:22:33:44:55:66', name: 'JBL Flip 5' });
-  assert.deepStrictEqual(devices.find((d) => d.mac === 'AA:11:BB:22:CC:33'), { mac: 'AA:11:BB:22:CC:33', name: 'Pixel 7' });
+  assert.deepStrictEqual(devices.find((d) => d.mac === '11:22:33:44:55:66'), { mac: '11:22:33:44:55:66', name: 'JBL Flip 5', rssi: -60 });
+  assert.deepStrictEqual(devices.find((d) => d.mac === 'AA:11:BB:22:CC:33'), { mac: 'AA:11:BB:22:CC:33', name: 'Pixel 7', rssi: null });
 });
 test('de-duplicates repeated device lines (same device seen multiple times during a scan)', () => {
   const sample = `
@@ -61,6 +61,20 @@ test('paired-devices output parses the same way', () => {
   const devices = parseDeviceLines(sample);
   assert.strictEqual(devices.length, 2);
 });
+test('RSSI is captured and kept up to date as the strongest/latest reading', () => {
+  // A real report: with several devices left MAC-only even after active
+  // name resolution, there was no way to tell which one was the user's OWN
+  // speaker vs. a neighbor's device - RSSI (closer to 0 = physically
+  // closer) is the practical way to tell. Keep the LATEST reading, not the
+  // first, since signal strength genuinely changes during a scan.
+  const sample = `
+[NEW] Device 11:22:33:44:55:66 JBL Flip 5
+[CHG] Device 11:22:33:44:55:66 RSSI: -70
+[CHG] Device 11:22:33:44:55:66 RSSI: -55
+`;
+  const devices = parseDeviceLines(sample);
+  assert.deepStrictEqual(devices[0], { mac: '11:22:33:44:55:66', name: 'JBL Flip 5', rssi: -55 });
+});
 test('a device whose FIRST captured line is a property update (not a name) falls back to its MAC, not the raw property text', () => {
   // A real report: the device list showed literal "RSSI: 0xffffffbd (-67)"
   // as a device's name. Happens when a device's "[NEW] Device MAC <name>"
@@ -73,7 +87,7 @@ test('a device whose FIRST captured line is a property update (not a name) falls
 `;
   const devices = parseDeviceLines(sample);
   assert.strictEqual(devices.length, 1);
-  assert.deepStrictEqual(devices[0], { mac: '11:22:33:44:55:66', name: '11:22:33:44:55:66' });
+  assert.deepStrictEqual(devices[0], { mac: '11:22:33:44:55:66', name: '11:22:33:44:55:66', rssi: -67 });
 });
 test('a device whose name resolves AFTER the initial sighting gets upgraded from its MAC placeholder', () => {
   // A real report: the Pi only ever showed raw MAC addresses for devices
@@ -90,7 +104,7 @@ test('a device whose name resolves AFTER the initial sighting gets upgraded from
 `;
   const devices = parseDeviceLines(sample);
   assert.strictEqual(devices.length, 1);
-  assert.deepStrictEqual(devices[0], { mac: '11:22:33:44:55:66', name: 'JBL Flip 5' });
+  assert.deepStrictEqual(devices[0], { mac: '11:22:33:44:55:66', name: 'JBL Flip 5', rssi: -58 });
 });
 
 if (process.exitCode) {

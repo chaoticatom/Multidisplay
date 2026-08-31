@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.61';
+const APP_VERSION = '0.6.62';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2830,11 +2830,38 @@ function handleBtResult(msg) {
   if (msg.cmd === 'btScanResult' || msg.cmd === 'btStatusResult') {
     if (statusEl) statusEl.textContent = `${msg.devices.length} device(s) found.`;
     if (listEl) {
-      listEl.innerHTML = '';
-      for (const d of msg.devices) {
+      listEl.textContent = '';
+      // Strongest signal first - a real report ("I can't tell which one is
+      // my speaker" once several devices came back MAC-only even after
+      // active name resolution): RSSI (closer to 0 = physically closer)
+      // is the practical way to guess which device is actually sitting
+      // next to the Pi versus a neighbor's device further away. Devices
+      // with no RSSI reading at all (paired-devices list, or one that
+      // never got a reading during the scan) sort last, not first/middle.
+      const sorted = [...msg.devices].sort((a, b) => (b.rssi ?? -Infinity) - (a.rssi ?? -Infinity));
+      for (const d of sorted) {
         const row = document.createElement('div');
         row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;';
-        row.innerHTML = `<span style="flex:1;">${d.name}</span><span style="color:#778;font-family:monospace;font-size:10px;">${d.mac}</span>`;
+        // Built via createElement/textContent (not innerHTML) - a device
+        // name comes from whatever a nearby Bluetooth device chooses to
+        // broadcast, never trusted as HTML.
+        const nameSpan = document.createElement('span');
+        nameSpan.style.flex = '1';
+        nameSpan.textContent = d.name;
+        const macSpan = document.createElement('span');
+        macSpan.style.cssText = 'color:#778;font-family:monospace;font-size:10px;';
+        macSpan.textContent = d.mac;
+        row.append(nameSpan, macSpan);
+        if (typeof d.rssi === 'number') {
+          const rssiSpan = document.createElement('span');
+          // Rough near/mid/far color coding - a real speaker sitting right
+          // next to the Pi typically reads -40 to -60, a device a room or
+          // two away -70 to -90+.
+          const color = d.rssi >= -60 ? '#6e8' : d.rssi >= -80 ? '#dd6' : '#f88';
+          rssiSpan.style.cssText = `color:${color};font-family:monospace;font-size:10px;min-width:34px;text-align:right;`;
+          rssiSpan.textContent = d.rssi + ' dBm';
+          row.appendChild(rssiSpan);
+        }
         const pairBtn = document.createElement('button');
         pairBtn.textContent = 'Pair';
         pairBtn.style.cssText = 'padding:3px 8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:10px;';

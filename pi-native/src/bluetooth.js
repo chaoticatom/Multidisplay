@@ -44,7 +44,11 @@ function bluetoothctl(commands, waitMs = 1500) {
 }
 
 function parseDeviceLines(text) {
-  const devices = new Map();
+  const devices = new Map(); // mac -> { name, rssi }
+  const get = (mac) => {
+    if (!devices.has(mac)) devices.set(mac, { name: mac, rssi: null });
+    return devices.get(mac);
+  };
   for (const line of text.split('\n')) {
     const m = DEVICE_LINE_RE.exec(line);
     if (!m) continue;
@@ -65,24 +69,37 @@ function parseDeviceLines(text) {
     // anything else still only fills in a first-seen placeholder, same
     // "don't let an RSSI update stomp a real name" protection as before.
     const nameMatch = /^Name: (.+)$/.exec(trimmed);
-    if (nameMatch) { devices.set(mac, nameMatch[1].trim()); continue; }
-    // Any other "PropertyKey: value"-shaped line (RSSI/Connected/Trusted/
+    if (nameMatch) { get(mac).name = nameMatch[1].trim(); continue; }
+    // A real report: with several devices still MAC-only even after the
+    // active info-lookup fix (below), there was no way to tell which one
+    // was actually the user's OWN speaker vs. a neighbor's device sitting
+    // further away - RSSI (signal strength) is the practical way to tell:
+    // your own speaker should be sitting right next to the Pi and read
+    // noticeably stronger (closer to 0, e.g. -40) than someone else's
+    // device on the other side of a wall (e.g. -80). Keep the LATEST RSSI
+    // value seen (unlike name, a moving/rotating device's signal strength
+    // genuinely changes during a scan, so the newest reading is the most
+    // accurate one) and surface it alongside the name/MAC either way.
+    const rssiMatch = /^RSSI: (-?\d+)/.exec(trimmed);
+    if (rssiMatch) { get(mac).rssi = Number(rssiMatch[1]); continue; }
+    // Any other "PropertyKey: value"-shaped line (Connected/Trusted/
     // Paired/TxPower/ManufacturerData/ServiceData/...) is a property
     // update, never a name - a real report: some devices' FIRST-ever line
     // in a given scan's captured output was already a property update
     // (e.g. "[CHG] Device MAC RSSI: -67", not a "[NEW] Device MAC <name>"
     // line - happens when the device was already known/mid-discovery
     // before this scan's stdout capture started), so the old fallback (any
-    // first-seen line, no shape check) adopted that literal RSSI text as
-    // the device's "name". Falls back to the MAC itself instead - same
-    // "MAC-only" outcome bluetoothctl already shows for a device that
-    // genuinely never advertises a friendly name, not garbage property
-    // text - while still leaving room for a later "Name: " line (handled
-    // above) to upgrade it if one does eventually arrive.
+    // first-seen line, no shape check) adopted that literal property text
+    // as the device's "name". get(mac) above already defaults name to the
+    // MAC itself - same "MAC-only" outcome bluetoothctl already shows for
+    // a device that genuinely never advertises a friendly name, not
+    // garbage property text - while still leaving room for a later
+    // "Name: " line (handled above) to upgrade it if one does arrive.
     const isPropertyLine = /^[A-Za-z][A-Za-z ]*: /.test(trimmed);
-    if (!devices.has(mac)) devices.set(mac, isPropertyLine ? mac : trimmed);
+    const d = get(mac); // ensures a sighting is recorded either way, defaulting name to the MAC
+    if (!isPropertyLine && d.name === mac) d.name = trimmed;
   }
-  return [...devices.entries()].map(([mac, name]) => ({ mac, name }));
+  return [...devices.entries()].map(([mac, d]) => ({ mac, name: d.name, rssi: d.rssi }));
 }
 
 // After the passive scan, explicitly ask `bluetoothctl` for each
