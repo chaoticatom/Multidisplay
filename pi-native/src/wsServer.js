@@ -892,7 +892,18 @@ class WsServer {
     } else if (msg.cmd === 'btScan') {
       this._replyBt(ws, 'btScanResult', async () => ({ devices: await bluetooth.scanDevices() }));
     } else if (msg.cmd === 'btPair') {
-      this._replyBt(ws, 'btPairResult', () => bluetooth.pairDevice(msg.mac));
+      // A real report: "says it's pairing but nothing ever happens" -
+      // pairDevice() resolves its OWN {ok, log} (pairing succeeded/failed),
+      // which _replyBt's `{ ok: true, ...result }` spread let clobber the
+      // wrapper's own `ok:true` whenever pairing itself failed (but didn't
+      // throw) - collapsing "the pair attempt failed" into the exact same
+      // shape as "the request itself errored", with no `error` field for
+      // app.js's generic `if (!msg.ok)` fallback to show. Renamed to
+      // `paired` so it can never collide with the wrapper's `ok`.
+      this._replyBt(ws, 'btPairResult', async () => {
+        const r = await bluetooth.pairDevice(msg.mac);
+        return { paired: r.ok, log: r.log };
+      });
     } else if (msg.cmd === 'btStatus') {
       this._replyBt(ws, 'btStatusResult', async () => ({ devices: await bluetooth.listPaired() }));
     } else if (msg.cmd === 'btDiscoverable') {

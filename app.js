@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.63';
+const APP_VERSION = '0.6.64';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2874,6 +2874,19 @@ function handleBtResult(msg) {
         listEl.appendChild(row);
       }
     }
+  } else if (msg.cmd === 'btPairResult') {
+    // A real report: "says it's pairing but nothing ever happens" - this
+    // case was never handled at all, so the "Pairing with X..." text set
+    // by the Pair button's click handler just sat there forever regardless
+    // of whether pairing actually succeeded or failed.
+    if (statusEl) statusEl.textContent = msg.paired ? 'Paired.' : 'Pairing failed - see server log.';
+    // Refresh so a newly-paired device shows up (or a failed one's status
+    // doesn't look stale) without a manual re-scan/refresh click - delayed
+    // rather than immediate, since btStatusResult's own handler overwrites
+    // this same statusEl with a "N device(s) found." message, which would
+    // otherwise instantly clobber the "Paired."/"failed" text before the
+    // user ever saw it.
+    setTimeout(() => send({ cmd: 'btStatus' }), 2000);
   } else if (phoneStatusEl && (msg.cmd === 'btDiscoverableResult' || msg.cmd === 'btRoutePhoneAudioResult')) {
     phoneStatusEl.textContent = 'OK';
   }
