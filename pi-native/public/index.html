@@ -1176,7 +1176,7 @@
     <div class="sub-section collapsed">
       <button class="sub-head sub-head-boxed">◈ Bluetooth <span class="panel-arrow">▸</span></button>
       <div class="sub-body">
-        <div style="font-size:10px;color:#666;margin-bottom:8px;">Accept an incoming Bluetooth audio connection from a phone so it can play through the cube. Requires <code>pi/bluetooth_server.py</code> running on the Raspberry Pi — see <code>pi/README.md</code>. Not available on your laptop or GitHub Pages.</div>
+        <div style="font-size:10px;color:#666;margin-bottom:8px;">Accept an incoming Bluetooth audio connection from a phone so it can play through the cube. Handled directly by this app via <code>bluetoothctl</code>/PulseAudio on the Raspberry Pi (see <code>src/bluetooth.js</code>) — no separate service to run. Not available on your laptop or GitHub Pages.</div>
         <button class="bt-discoverable-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Accept Bluetooth Audio Connection</button>
         <div class="bt-phone-status-el" style="font-size:10px;color:#778;">Not set up yet</div>
       </div>
@@ -1686,7 +1686,7 @@
       </div>
 
       <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">🔊 Bluetooth Speaker (Pi only)</div>
-      <div style="font-size:10px;color:#666;margin-bottom:8px;">Requires <code>pi/bluetooth_server.py</code> running on the Raspberry Pi — see <code>pi/README.md</code>. Not available when running on your laptop or GitHub Pages. Used for Internet Radio audio output.</div>
+      <div style="font-size:10px;color:#666;margin-bottom:8px;">Handled directly by this app via <code>bluetoothctl</code>/PulseAudio on the Raspberry Pi (see <code>src/bluetooth.js</code>) — no separate service to run. Not available when running on your laptop or GitHub Pages. Used for Internet Radio audio output.</div>
       <div style="display:flex;gap:6px;margin-bottom:6px;">
         <button class="bt-scan-btn-el" style="flex:1;padding:6px 10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Scan for Speakers</button>
         <button class="bt-refresh-btn-el" style="flex:0 0 auto;padding:6px 10px;background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.4);color:#ccc;border-radius:4px;cursor:pointer;font-size:11px;">↻</button>
@@ -1904,6 +1904,6 @@
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.56"></script>
+<script src="app.js?v=0.6.57"></script>
 </body>
 </html>
