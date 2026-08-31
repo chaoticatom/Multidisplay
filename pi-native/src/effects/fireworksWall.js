@@ -34,7 +34,7 @@
 // horizontal band instead of the cube's 4-panel front→left→right→back
 // sequence.
 const { hsl } = require('../core');
-const { PIXEL_FONT } = require('./weather/font');
+const { WC_FONT, WC_CHAR_W } = require('./_shared');
 
 const fwRockets = [];
 const fwBursts = [];
@@ -256,16 +256,18 @@ function fwSyncUpdate(core, dt) {
 }
 
 // ── text-overlay glyph rendering (see fireworks.js's module comment for
-// why this uses PIXEL_FONT instead of canvas text) ──
-function glyphWidth(scale) { return 4 * scale; }
+// why this uses WC_FONT instead of canvas text - the 3x5 PIXEL_FONT this
+// used to use came out too blocky/unreadable at the scale needed to fill
+// wallH*0.33px) ──
+function glyphWidth(scale) { return WC_CHAR_W * scale; }
 function textPixelWidth(str, scale) { return str.length * glyphWidth(scale); }
 
 function drawGlyphToBuffer(buf, bw, bh, ch, ox, oy, scale) {
-  const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()] || PIXEL_FONT[' '];
-  for (let row = 0; row < 5; row++) {
+  const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()] || WC_FONT[' '];
+  for (let row = 0; row < 7; row++) {
     const bits = rows[row];
-    for (let col = 0; col < 3; col++) {
-      if (!((bits >> (2 - col)) & 1)) continue;
+    for (let col = 0; col < 4; col++) {
+      if (!((bits >> (3 - col)) & 1)) continue;
       for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
         const x = ox + col * scale + sx, y = oy + row * scale + sy;
         if (x < 0 || x >= bw || y < 0 || y >= bh) continue;
@@ -279,8 +281,8 @@ function buildFwText(core, msg) {
   if (!msg || !msg.trim()) { fwTextPixels = null; fwTextWidth = 0; fwTextH = 0; return; }
   const wallH = core.wallH;
   const maxH = Math.round(wallH * 0.33);
-  const scale = Math.max(1, Math.floor(maxH / 5));
-  const glyphH = scale * 5;
+  const scale = Math.max(1, Math.floor(maxH / 7));
+  const glyphH = scale * 7;
   const yOff = Math.floor((maxH - glyphH) / 2);
 
   const padText = msg.trim() + '   ';
