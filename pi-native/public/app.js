@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.62';
+const APP_VERSION = '0.6.63';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2845,13 +2845,22 @@ function handleBtResult(msg) {
         // Built via createElement/textContent (not innerHTML) - a device
         // name comes from whatever a nearby Bluetooth device chooses to
         // broadcast, never trusted as HTML.
+        // A real request: drop the MAC address column - it's rarely
+        // meaningful to a user trying to pick out their own speaker by
+        // name/signal strength. Kept as a title-attribute tooltip (hover)
+        // rather than deleted outright, since it's still useful when
+        // troubleshooting a pairing failure with support/logs.
         const nameSpan = document.createElement('span');
         nameSpan.style.flex = '1';
         nameSpan.textContent = d.name;
-        const macSpan = document.createElement('span');
-        macSpan.style.cssText = 'color:#778;font-family:monospace;font-size:10px;';
-        macSpan.textContent = d.mac;
-        row.append(nameSpan, macSpan);
+        nameSpan.title = d.mac;
+        const pairBtn = document.createElement('button');
+        pairBtn.textContent = 'Pair';
+        pairBtn.style.cssText = 'padding:3px 8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:10px;';
+        pairBtn.onclick = () => { if (statusEl) statusEl.textContent = 'Pairing with ' + d.name + '...'; send({ cmd: 'btPair', mac: d.mac }); };
+        // A real request: Pair button to the LEFT of the name (was
+        // trailing after RSSI).
+        row.append(pairBtn, nameSpan);
         if (typeof d.rssi === 'number') {
           const rssiSpan = document.createElement('span');
           // Rough near/mid/far color coding - a real speaker sitting right
@@ -2862,11 +2871,6 @@ function handleBtResult(msg) {
           rssiSpan.textContent = d.rssi + ' dBm';
           row.appendChild(rssiSpan);
         }
-        const pairBtn = document.createElement('button');
-        pairBtn.textContent = 'Pair';
-        pairBtn.style.cssText = 'padding:3px 8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:10px;';
-        pairBtn.onclick = () => { if (statusEl) statusEl.textContent = 'Pairing with ' + d.name + '...'; send({ cmd: 'btPair', mac: d.mac }); };
-        row.appendChild(pairBtn);
         listEl.appendChild(row);
       }
     }
