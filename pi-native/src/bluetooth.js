@@ -85,10 +85,35 @@ function parseDeviceLines(text) {
   return [...devices.entries()].map(([mac, name]) => ({ mac, name }));
 }
 
+// After the passive scan, explicitly ask `bluetoothctl` for each
+// still-unresolved device's info - a real report ("I need the full name of
+// the device", most rows still MAC-only after the RSSI/property-line
+// parsing fix above). `scan on` only shows a name if the device happened to
+// include it in whatever advertisement/inquiry-response was captured
+// during the scan window; `info <mac>` makes BlueZ do (or return
+// already-cached results from) an explicit remote-name resolution for that
+// one device, which often succeeds even when the passive scan output never
+// carried a name line for it. Sequential, not parallel (see bluetoothctl()
+// itself - each call spawns its own bluetoothctl process) - fine for a
+// user-initiated one-off scan, not a hot path. Still not guaranteed: a
+// BLE device that puts no name in its advertising and isn't already
+// paired/cached genuinely requires connecting and reading its GATT Device
+// Name characteristic to learn a name at all - `info` alone can't force
+// that, so some devices will legitimately remain MAC-only no matter what.
+async function resolveUnnamedDevices(devices) {
+  for (const d of devices) {
+    if (d.name !== d.mac) continue; // already has a real name
+    const out = await bluetoothctl([`info ${d.mac}`], 1200);
+    const nameMatch = /\bName: (.+)/.exec(out);
+    if (nameMatch) d.name = nameMatch[1].trim();
+  }
+  return devices;
+}
+
 async function scanDevices(durationMs = 6000) {
   const out = await bluetoothctl(['scan on'], durationMs);
   await bluetoothctl(['scan off'], 500);
-  return parseDeviceLines(out);
+  return resolveUnnamedDevices(parseDeviceLines(out));
 }
 
 async function pairDevice(mac) {
