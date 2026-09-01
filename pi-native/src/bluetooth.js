@@ -335,11 +335,25 @@ async function listPaired() {
   const out = await bluetoothctl(['devices Paired'], 1000);
   const devices = parseDeviceLines(out);
   const defaultSinkOut = await run('pactl', ['get-default-sink']);
-  const defaultSink = (defaultSinkOut.split('\n').find((l) => l && !l.startsWith('$')) || '').trim();
+  // A real report: this stayed yellow ("connected, not the output") even
+  // right after a confirmed-successful `pactl set-default-sink`. Two
+  // compounding bugs: (1) the `[pulseEnv: ...]` diagnostic line run() now
+  // prepends broke this "first line not starting with $" parsing - that
+  // JSON debug line doesn't start with '$' either, so it was read as the
+  // sink name instead of the real one below it; (2) even past that, this
+  // reconstructed "bluez_sink.<mac>.a2dp_sink" and compared for an EXACT
+  // match - the same PipeWire-naming bug already fixed in
+  // setAsAudioOutput() (real sinks here are named "bluez_output.<mac>.1"),
+  // never applied here. get-default-sink's actual answer is always the
+  // LAST non-empty line of its output, and matching by MAC substring
+  // (like setAsAudioOutput() already does) works under either naming
+  // convention instead of guessing an exact name.
+  const defaultSinkLines = defaultSinkOut.split('\n').filter((l) => l.trim());
+  const defaultSink = (defaultSinkLines[defaultSinkLines.length - 1] || '').trim();
   for (const d of devices) {
     const infoOut = await bluetoothctl([`info ${d.mac}`], 800);
     d.connected = /Connected: yes/.test(infoOut);
-    d.isDefaultOutput = !!defaultSink && defaultSink === 'bluez_sink.' + d.mac.replace(/:/g, '_') + '.a2dp_sink';
+    d.isDefaultOutput = !!defaultSink && defaultSink.includes(d.mac.replace(/:/g, '_'));
   }
   return devices;
 }
