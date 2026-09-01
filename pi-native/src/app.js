@@ -192,7 +192,7 @@ async function main() {
     } else if (driverKind === 'hardware') {
       console.warn('[app] panel mode changed to', newConfig.mode, '- restart the process to apply this to the physical panel driver (rgbMatrixDriver.js\'s panel topology is fixed at startup)');
     }
-  });
+  }, useRenderWorker ? (cmd, payload) => renderWorker.postMessage({ type: 'effectCommand', cmd, payload }) : null);
   console.log(`[app] control/preview WS server listening on :${WS_PORT}`);
 
   // Fire-and-forget - a real request: "auto try to connect to the previous
@@ -234,7 +234,19 @@ async function main() {
       const { onAlarmsChanged, ...serializableState } = state;
       renderWorker.postMessage({ type: 'tick', state: serializableState, dt });
     };
+    // A real report ("station name never updates in the UI after picking
+    // one") - set by the worker's 'stateChanged' message (see
+    // renderWorker.js's effectCommand handler comment) whenever a relayed
+    // command actually changed something client-visible. Deferred to the
+    // NEXT 'frame' reply rather than broadcast immediately on
+    // 'stateChanged' itself - that message can arrive before the frame
+    // reply that actually carries the command's result, since tick()
+    // messages and effectCommand messages are sent independently; waiting
+    // for the following frame guarantees the broadcast reflects the
+    // command's actual outcome, not a stale pre-command snapshot.
+    let pendingBroadcast = false;
     renderWorker.on('message', (msg) => {
+      if (msg.type === 'stateChanged') { pendingBroadcast = true; return; }
       if (msg.type !== 'frame') return;
       // A resize/mode change landing between this reply being computed and
       // received could leave core's buffers a different length than what
@@ -248,6 +260,7 @@ async function main() {
       state.blank = msg.blank;
       state.effectStatus = msg.effectStatus;
       ws.maybeStreamFrame(core, state.brightness);
+      if (pendingBroadcast) { pendingBroadcast = false; ws._broadcast(ws._stateMsg()); }
       setTimeout(sendTick, Math.max(0, 1000 / TICK_HZ - (Date.now() - lastMs)));
     });
     sendTick();

@@ -254,10 +254,25 @@ class WsServer {
   // onConfigChange(config): called after a validated setPanelConfig command
   // is applied and persisted, so app.js can rebuild the CubeCore/driver
   // (which this module has no reference to and shouldn't own).
-  constructor(port, state, config, onConfigChange) {
+  // effectCommandRelay(cmd, payload): optional (RENDER_WORKER=1 only - see
+  // renderWorker.js's module comment). A real report: enabling the render-
+  // loop worker thread silently broke radio (and would have broken video
+  // stop too) - Node gives each worker_threads Worker its own completely
+  // separate module require() cache, so the copy of effects/radio/radio.js
+  // this file calls playStation()/stopStation()/search() on directly
+  // (below) is a DIFFERENT object instance from the one the worker's own
+  // tick() loop actually renders from - a station picked here never
+  // reached the instance that mattered. When set, radioPlay/radioStop/
+  // radioSearch/the video-stop handler relay through this instead of
+  // calling the effect module directly, so the mutation lands on the
+  // SAME instance tick() uses. Left null for the normal (no worker)
+  // single-threaded path, where calling the module directly is correct
+  // and unchanged.
+  constructor(port, state, config, onConfigChange, effectCommandRelay = null) {
     this.state = state;
     this.config = config;
     this.onConfigChange = onConfigChange;
+    this.effectCommandRelay = effectCommandRelay;
     this._lastFrameMs = 0;
 
     // One HTTP server handles both the control page (GET /, GET
@@ -484,7 +499,13 @@ class WsServer {
     const kind = data[5] === 1 ? 'screen' : 'cam';
     const payload = data.subarray(6);
     if (w <= 0 || h <= 0 || payload.length !== w * h * 3) return;
-    browserFrameSource.setFrame(payload, w, h, kind);
+    // See the constructor's effectCommandRelay comment - browserFrameSource
+    // is ANOTHER module-singleton the render-worker thread (RENDER_WORKER=1)
+    // would otherwise have its own separate, never-updated copy of, same
+    // class of bug as radio - a webcam/screen-share frame arriving here
+    // would never reach the copy tick()'s video effect actually reads from.
+    if (this.effectCommandRelay) this.effectCommandRelay('videoFrame', { payload, w, h, kind });
+    else browserFrameSource.setFrame(payload, w, h, kind);
   }
 
   _stateMsg() {
@@ -647,9 +668,13 @@ class WsServer {
       // eventually stop on its own via ffmpegSource.js's idle timeout,
       // but that left a real window where a stale frame or a still-live
       // camera/screen capture could flash back or keep running pointlessly).
-      if (typeof EFFECTS.video?.stop === 'function') EFFECTS.video.stop();
-      if (typeof WALL_EFFECTS.video?.stop === 'function') WALL_EFFECTS.video.stop();
-      browserFrameSource.clear();
+      if (this.effectCommandRelay) {
+        this.effectCommandRelay('videoStop', {});
+      } else {
+        if (typeof EFFECTS.video?.stop === 'function') EFFECTS.video.stop();
+        if (typeof WALL_EFFECTS.video?.stop === 'function') WALL_EFFECTS.video.stop();
+        browserFrameSource.clear();
+      }
     } else if (msg.cmd === 'setPanelConfig') {
       const size = Number(msg.size);
       const mode = msg.mode;
@@ -910,11 +935,14 @@ class WsServer {
       this._replyBt(ws, 'btRoutePhoneAudioResult', () => bluetooth.routePhoneAudio());
     } else if (msg.cmd === 'radioPlay') {
       if (!msg.station || typeof msg.station.url !== 'string' || !msg.station.url) return;
-      radio.playStation({ name: msg.station.name, genre: msg.station.genre, url: msg.station.url });
+      const station = { name: msg.station.name, genre: msg.station.genre, url: msg.station.url };
+      if (this.effectCommandRelay) this.effectCommandRelay('radioPlay', { station });
+      else radio.playStation(station);
       this._refreshRadioStatus();
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'radioStop') {
-      radio.stopStation();
+      if (this.effectCommandRelay) this.effectCommandRelay('radioStop', {});
+      else radio.stopStation();
       this._refreshRadioStatus();
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'setUnsplashConfig') {
@@ -939,7 +967,15 @@ class WsServer {
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'radioSearch') {
       const query = typeof msg.query === 'string' ? msg.query : '';
-      radio.search(query).then(() => { this._refreshRadioStatus(); this._broadcast(this._stateMsg()); }).catch((err) => console.warn('[radio] search failed:', err.message));
+      if (this.effectCommandRelay) {
+        // Fire-and-forget here too - the worker's own per-tick frame reply
+        // already includes fresh radio status unconditionally (see
+        // renderWorker.js), so results surface within one tick interval
+        // without needing an explicit async reply/rebroadcast round trip.
+        this.effectCommandRelay('radioSearch', { query });
+      } else {
+        radio.search(query).then(() => { this._refreshRadioStatus(); this._broadcast(this._stateMsg()); }).catch((err) => console.warn('[radio] search failed:', err.message));
+      }
     }
   }
 
@@ -954,6 +990,13 @@ class WsServer {
   // be the active effect. Called after every radio command instead of
   // relying on the tick loop.
   _refreshRadioStatus() {
+    // When effectCommandRelay is set (RENDER_WORKER=1), this thread's own
+    // EFFECTS.radio is a dead/never-updated copy (see the constructor
+    // comment) - calling its getStatus() here would overwrite the correct,
+    // worker-relayed status (applied every tick via the frame reply - see
+    // renderWorker.js, which computes this unconditionally itself) with
+    // stale nonsense. Skip entirely and let that per-tick relay do it.
+    if (this.effectCommandRelay) return;
     if (!this.state.effectStatus) this.state.effectStatus = {};
     this.state.effectStatus.radio = EFFECTS.radio.getStatus();
   }

@@ -31,6 +31,25 @@
 //                    source of truth for anything a WS command mutates
 //                    (effect/brightness/overlays/customCube/...), relayed
 //                    to this worker via the next 'tick' message's `state`.
+//
+//   main -> worker: {type:'effectCommand', cmd, payload} - a real report:
+//                    enabling this worker silently broke radio (and would
+//                    have broken video stop / the browser-pushed webcam/
+//                    screen-share source too) - wsServer.js calls several
+//                    effect modules DIRECTLY rather than only through
+//                    state/config (radio.js's playStation/stopStation/
+//                    search, video.js's/videoWall.js's stop(),
+//                    browserFrameSource's setFrame()/clear()), and each of
+//                    those modules is its OWN singleton with its OWN
+//                    require() cache entry PER THREAD - the copy
+//                    wsServer.js (main thread) would call directly is a
+//                    different object instance from the one this worker's
+//                    tick() actually renders from, so the mutation would
+//                    never reach where it mattered. See wsServer.js's
+//                    effectCommandRelay constructor comment for the other
+//                    side of this. Commands: radioPlay {station},
+//                    radioStop {}, radioSearch {query}, videoStop {},
+//                    videoFrame {payload, w, h, kind}.
 'use strict';
 
 const { parentPort, workerData } = require('worker_threads');
@@ -40,6 +59,8 @@ const { runOverlays } = require('./effects/overlays');
 const alarms = require('./effects/alarms');
 const { tick } = require('./tick');
 const { loadDriver } = require('./loadDriver');
+const radio = require('./effects/radio');
+const { browserFrameSource } = require('./effects/video/browserFrameSource');
 
 let config = workerData.config;
 const core = new CubeCore(config.size);
@@ -74,10 +95,54 @@ parentPort.on('message', (msg) => {
     config = newConfig;
     return;
   }
+  if (msg.type === 'effectCommand') {
+    const { cmd, payload } = msg;
+    // Mirrors wsServer.js's own direct-call handlers exactly (see its
+    // effectCommandRelay constructor comment) - the only difference is
+    // WHICH thread's copy of these singletons gets mutated: this one, the
+    // same instance tick() below actually renders from.
+    //
+    // A real report ("station name never updates in the UI after
+    // picking one"): nothing here told the main thread WHEN a command
+    // actually finished being applied - the periodic 'frame' reply (see
+    // below) keeps state.effectStatus fresh on the main thread, but
+    // nothing ever BROADCASTS a "state" message to connected clients from
+    // that alone (same as the non-worker path: every _broadcast() call in
+    // wsServer.js happens at the end of a command handler, never on a
+    // periodic timer - see e.g. its radioSearch handler's own `.then(() =>
+    // {...; this._broadcast(...)})`). Posting 'stateChanged' back lets
+    // app.js do the same thing at the same moment, just relayed through
+    // the worker boundary instead of being the same synchronous call.
+    if (cmd === 'radioPlay') { radio.playStation(payload.station); parentPort.postMessage({ type: 'stateChanged' }); }
+    else if (cmd === 'radioStop') { radio.stopStation(); parentPort.postMessage({ type: 'stateChanged' }); }
+    else if (cmd === 'radioSearch') {
+      radio.search(payload.query)
+        .then(() => parentPort.postMessage({ type: 'stateChanged' }))
+        .catch((err) => console.warn('[renderWorker/radio] search failed:', err.message));
+    } else if (cmd === 'videoStop') {
+      if (typeof EFFECTS.video?.stop === 'function') EFFECTS.video.stop();
+      if (typeof WALL_EFFECTS.video?.stop === 'function') WALL_EFFECTS.video.stop();
+      browserFrameSource.clear();
+    } else if (cmd === 'videoFrame') {
+      browserFrameSource.setFrame(payload.payload, payload.w, payload.h, payload.kind);
+    }
+    return;
+  }
   if (msg.type === 'tick') {
     const { state, dt } = msg;
     core.speedMult = state.speed;
     tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt);
+    // A real report ("nothing on physical/website display when I play
+    // internet radio") led here - radio keeps playing/searching regardless
+    // of which effect is currently SELECTED (see wsServer.js's own
+    // _refreshRadioStatus() comment for why: tick()'s generic "call the
+    // active effect's getStatus()" only fires when radio itself is
+    // selected). Computed unconditionally every tick here, taking over
+    // what _refreshRadioStatus() used to do synchronously right after each
+    // command on the main thread - that thread's own EFFECTS.radio is now
+    // a dead copy under RENDER_WORKER=1 (see this worker's module comment).
+    if (!state.effectStatus) state.effectStatus = {};
+    state.effectStatus.radio = radio.getStatus();
     driver.renderFrame(core, state.brightness);
     parentPort.postMessage({
       type: 'frame',
