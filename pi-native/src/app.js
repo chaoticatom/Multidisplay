@@ -13,6 +13,7 @@ const { tick } = require('./tick');
 const WsServer = require('./wsServer');
 const panelConfig = require('./panelConfig');
 const wifiSetup = require('./wifiSetup');
+const bluetooth = require('./bluetooth');
 const alarmConfig = require('./alarmConfig');
 const customCubeConfig = require('./customCubeConfig');
 const wallLayoutConfig = require('./wallLayoutConfig');
@@ -177,6 +178,13 @@ async function main() {
     }
   });
   console.log(`[app] control/preview WS server listening on :${WS_PORT}`);
+
+  // Fire-and-forget - a real request: "auto try to connect to the previous
+  // paired device, even after a reboot." Never awaited: it retries in the
+  // background for up to ~30s (see bluetooth.js's autoReconnectLastSpeaker())
+  // without blocking the boot screen/effect engine/WS server from coming
+  // up immediately.
+  bluetooth.autoReconnectLastSpeaker().catch((err) => console.warn('[bluetooth] auto-reconnect failed:', err.message));
 
   let lastMs = Date.now();
   setInterval(() => {

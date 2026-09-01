@@ -53,12 +53,6 @@
 //       survives a restart, and always included in the "state" message so
 //       a freshly-connected remote browser's UI reflects whatever was last
 //       chosen on the Pi rather than defaulting to something stale.
-//     {"cmd":"setPhysicalCubePanels","value":1-6}
-//       How many of the 6 cube faces are actually wired to real hardware
-//       (see panelConfig.js's module comment) - purely informational for
-//       the UI (a "simulation" indicator when the 3D preview is showing
-//       more faces than physically exist), doesn't affect config.mode/
-//       size/panels or what the driver pushes.
 //     {"cmd":"addPanel"}
 //       Pi-native-only addition, not in the original ESP32 app: appends a
 //       panel at the first free cell of the wall grid (switching to "wall"
@@ -499,7 +493,6 @@ class WsServer {
       effect: this.state.effect, brightness: this.state.brightness, speed: this.state.speed,
       blank: !!this.state.blank,
       panelSize: this.config.size, panelMode: this.config.mode, panels: this.config.panels,
-      physicalCubePanels: this.config.physicalCubePanels ?? 6,
       effectOptions: this.state.effectOptions, effectStatus: this.state.effectStatus,
       overlays: this.state.overlays,
       alarms: this.state.alarms, activeAlarm: this.state.activeAlarm,
@@ -673,17 +666,6 @@ class WsServer {
       this.config.mode = mode;
       panelConfig.save(this.config);
       if (this.onConfigChange) this.onConfigChange(this.config);
-      this._broadcast(this._stateMsg());
-    } else if (msg.cmd === 'setPhysicalCubePanels') {
-      // How many of the 6 cube faces are actually wired to real hardware
-      // (see panelConfig.js's module comment) - purely informational, lets
-      // the UI show a "simulation" indicator when cube mode's 3D preview
-      // is showing more faces than physically exist. Doesn't touch
-      // config.mode/size/panels or the driver at all.
-      const n = Number(msg.value);
-      if (!panelConfig.isValidPhysicalCubePanels(n)) return;
-      this.config.physicalCubePanels = n;
-      panelConfig.save(this.config);
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'addPanel') {
       // Adds a panel at the first free cell (row-major) in the wall grid,
@@ -906,6 +888,13 @@ class WsServer {
       });
     } else if (msg.cmd === 'btStatus') {
       this._replyBt(ws, 'btStatusResult', async () => ({ devices: await bluetooth.listPaired() }));
+    } else if (msg.cmd === 'btSetOutput') {
+      // A real request: "an option to pass the audio to the BT device,
+      // like the audio-output picker on desktop does" - re-select which
+      // ALREADY-PAIRED/connected device gets the Pi's audio at any time,
+      // not just automatically at the moment it was first paired.
+      if (typeof msg.mac !== 'string') return;
+      this._replyBt(ws, 'btSetOutputResult', () => bluetooth.setAsAudioOutput(msg.mac));
     } else if (msg.cmd === 'btDiscoverable') {
       this._replyBt(ws, 'btDiscoverableResult', () => bluetooth.makeDiscoverable());
     } else if (msg.cmd === 'btRoutePhoneAudio') {

@@ -529,17 +529,6 @@
   .wall-layout-row .wl-load-btn { background: rgba(80,120,255,0.12); border: 1px solid rgba(80,120,255,0.3); color: #7aadff; }
   .wall-layout-row .wl-del-btn { background: rgba(255,80,80,0.08); border: 1px solid rgba(255,80,80,0.2); color: #f88; }
   #wall-layout-empty { font-size: 11px; color: #667; padding: 6px 0; }
-  /* Cube mode with fewer physical panels wired than the 3D preview shows
-     (see panelConfig.js's physicalCubePanels/wsServer.js's
-     setPhysicalCubePanels) - a real report asked for exactly this, no
-     original-app equivalent since the browser+ESP32 architecture always
-     assumed a full physical cube. */
-  #sim-banner {
-    display: none; position: absolute; top: 18px; left: 18px; z-index: 6;
-    max-width: 320px; font-size: 12px; line-height: 1.4; color: #ffcf7a;
-    background: rgba(50,30,0,0.75); backdrop-filter: blur(6px);
-    border: 1px solid rgba(255,180,60,0.4); border-radius: 8px; padding: 8px 12px;
-  }
   .wall-cell {
     position: absolute; border-radius: 6px; display: flex; align-items: center; justify-content: center;
     font-size: 12px; color: #667; user-select: none; box-sizing: border-box;
@@ -1679,19 +1668,21 @@
   <div class="sidebar-section collapsed">
     <button class="section-head">◈ Setup <span class="chev">▾</span></button>
     <div class="section-body">
-      <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">📦 Physical Cube Panels</div>
-      <div style="font-size:10px;color:#666;margin-bottom:8px;">How many of the 6 cube faces are actually wired to real HUB75 panels. The 3D preview always shows all 6 faces (in "Cube" mode); if fewer are actually connected, the rest of the cube is showing in simulation only, and this cube view flags that.</div>
-      <div class="opt-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:8px;">
-        <button class="physical-panels-btn" data-count="1">1</button>
-        <button class="physical-panels-btn" data-count="2">2</button>
-        <button class="physical-panels-btn" data-count="3">3</button>
-        <button class="physical-panels-btn" data-count="4">4</button>
-        <button class="physical-panels-btn" data-count="5">5</button>
-        <button class="physical-panels-btn active" data-count="6">6</button>
-      </div>
-
       <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">🔊 Bluetooth Speaker (Pi only)</div>
-      <div style="font-size:10px;color:#666;margin-bottom:8px;">Handled directly by this app via <code>bluetoothctl</code>/PulseAudio on the Raspberry Pi (see <code>src/bluetooth.js</code>) — no separate service to run. Not available when running on your laptop or GitHub Pages. Used for Internet Radio audio output.</div>
+      <!-- Paired devices - its own section/list, separate from scan
+           results below. A real report: the device list "seems unreliable
+           now, sometimes finds devices then refreshes to 0 then tries
+           again" - the auto-refresh status poll (added for the "is my
+           speaker still connected" indicator) and a live scan both used
+           to render into the SAME list element, so the background poll
+           (paired devices only, often 0-1 of them) kept stomping whatever
+           scan results were currently showing and vice versa. Fully
+           separate elements now: this one only ever shows
+           btStatusResult, the scan list below only ever shows
+           btScanResult - neither can clobber the other. -->
+      <div style="font-size:10px;color:#9ab;margin-bottom:4px;">Paired devices</div>
+      <div class="bt-paired-status-el" style="font-size:10px;color:#778;margin-bottom:4px;">Not checked yet</div>
+      <div class="bt-paired-list-el" style="max-height:120px;overflow-y:auto;margin-bottom:10px;"></div>
       <div style="display:flex;gap:6px;margin-bottom:6px;">
         <button class="bt-scan-btn-el" style="flex:1;padding:6px 10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Scan for Speakers</button>
         <button class="bt-refresh-btn-el" style="flex:0 0 auto;padding:6px 10px;background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.4);color:#ccc;border-radius:4px;cursor:pointer;font-size:11px;">↻</button>
@@ -1879,7 +1870,6 @@
       </div>
     </div>
   </div>
-  <div id="sim-banner">⚠ Simulation — only <span id="sim-banner-count"></span> face(s) are on real hardware, the rest is preview only</div>
 </div>
 
 <!-- ?v= cache-busts app.js itself - a real report ("clicking the version

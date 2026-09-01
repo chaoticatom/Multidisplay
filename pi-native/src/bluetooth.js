@@ -133,6 +133,37 @@ async function scanDevices(durationMs = 6000) {
   return resolveUnnamedDevices(parseDeviceLines(out));
 }
 
+const btConfig = require('./btConfig');
+
+// Selects an already-paired/connected speaker's PulseAudio sink as the
+// system default output - the actual mechanism behind "pass the audio to
+// the BT device" (both pairDevice()'s automatic call right after
+// connecting, and the control page's manual "Set as Output" button for a
+// device that's already paired, "like the audio-output picker on
+// desktop"). `waitMs` gives PulseAudio's bluetooth module a moment to
+// register the sink - needed right after a fresh `connect`, not needed
+// when the device was already connected (setAsAudioOutput() from the
+// manual button/auto-reconnect passes 0).
+async function setAsAudioOutput(mac, waitMs = 0) {
+  if (waitMs > 0) await new Promise((r) => setTimeout(r, waitMs));
+  const sinkName = 'bluez_sink.' + mac.replace(/:/g, '_') + '.a2dp_sink';
+  const sinksOut = await run('pactl', ['list', 'short', 'sinks']);
+  if (!sinksOut.includes(sinkName)) {
+    return { set: false, log: sinksOut + `\nPulseAudio hasn't registered a sink for this speaker yet (${sinkName} not found) - it may need a moment after connecting, or the speaker doesn't support the A2DP sink profile.` };
+  }
+  const setOut = await run('pactl', ['set-default-sink', sinkName]);
+  // Remember this speaker so autoReconnectLastSpeaker() (below, run at
+  // server startup) can reconnect to it after a reboot without requiring
+  // a manual re-pair - a real request: "auto try to connect to the
+  // previous paired device, even after a reboot." Saved here (the one
+  // place that actually knows the output was selected successfully)
+  // rather than at each call site, so it stays correct whether the
+  // selection came from pairDevice(), the manual "Set as Output" button,
+  // or a future auto-reconnect.
+  btConfig.save({ lastSpeakerMac: mac });
+  return { set: true, log: sinksOut + '\n' + setOut };
+}
+
 async function pairDevice(mac) {
   if (!MAC_RE.test(mac)) throw new Error('invalid mac address');
   const out = await bluetoothctl([`pair ${mac}`, `trust ${mac}`, `connect ${mac}`], 6000);
@@ -146,20 +177,43 @@ async function pairDevice(mac) {
     // currently default") kept sending audio to whatever was already
     // default (the Pi's onboard audio/HDMI, typically) - the speaker was
     // connected but never actually selected as the audio destination.
-    // Small delay first: PulseAudio's bluetooth module registers the
-    // sink shortly after `connect` succeeds, not necessarily
-    // instantaneously.
-    await new Promise((r) => setTimeout(r, 800));
-    const sinkName = 'bluez_sink.' + mac.replace(/:/g, '_') + '.a2dp_sink';
-    const sinksOut = await run('pactl', ['list', 'short', 'sinks']);
-    log.push(sinksOut);
-    if (sinksOut.includes(sinkName)) {
-      log.push(await run('pactl', ['set-default-sink', sinkName]));
-    } else {
-      log.push(`PulseAudio hasn't registered a sink for this speaker yet (${sinkName} not found) - it may need a moment after connecting, or the speaker doesn't support the A2DP sink profile.`);
-    }
+    // 800ms delay: PulseAudio's bluetooth module registers the sink
+    // shortly after `connect` succeeds, not necessarily instantaneously.
+    const outputResult = await setAsAudioOutput(mac, 800);
+    log.push(outputResult.log);
   }
   return { ok, log: log.join('\n') };
+}
+
+// A real request: "auto try to connect to the previous paired device, even
+// after a reboot." bluetoothctl's own trusted-device auto-reconnect isn't
+// reliable for a Pi acting as the audio SOURCE (it's the Pi that needs to
+// initiate the connection back to the speaker, not the other way around,
+// and BlueZ doesn't do that automatically on daemon/adapter startup) - so
+// this actively attempts it instead. Retries a few times with a delay
+// since right after boot the Bluetooth adapter may not be fully up yet,
+// and the speaker itself may power on a few seconds after the Pi does
+// (both plugged into the same power strip, say). Fire-and-forget from
+// src/app.js's startup - never blocks the app from serving/rendering
+// while it's still retrying in the background.
+async function autoReconnectLastSpeaker(log = console.log) {
+  const { lastSpeakerMac } = btConfig.load();
+  if (!lastSpeakerMac) return;
+  const MAX_ATTEMPTS = 6, RETRY_DELAY_MS = 5000;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const out = await bluetoothctl([`connect ${lastSpeakerMac}`], 4000);
+      if (out.includes('Connection successful') || out.includes('Connected: yes')) {
+        const result = await setAsAudioOutput(lastSpeakerMac, 800);
+        log(`[bluetooth] Auto-reconnected to last speaker ${lastSpeakerMac} (attempt ${attempt}), audio output ${result.set ? 'selected' : 'NOT selected - ' + result.log}`);
+        return;
+      }
+    } catch (err) {
+      log(`[bluetooth] Auto-reconnect attempt ${attempt} for ${lastSpeakerMac} failed: ${err.message}`);
+    }
+    if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+  }
+  log(`[bluetooth] Gave up auto-reconnecting to last speaker ${lastSpeakerMac} after ${MAX_ATTEMPTS} attempts - pair it manually from the control page.`);
 }
 
 // A real request: "need an indication that the paired speaker is still
@@ -247,4 +301,5 @@ async function routePhoneAudio() {
 
 module.exports = {
   MAC_RE, parseDeviceLines, scanDevices, pairDevice, listPaired, makeDiscoverable, routePhoneAudio,
+  setAsAudioOutput, autoReconnectLastSpeaker,
 };

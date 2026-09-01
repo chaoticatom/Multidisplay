@@ -39,7 +39,7 @@ function withRealConfigFile(fn) {
 async function withServer(fn) {
   const port = 40000 + Math.floor(Math.random() * 10000);
   const state = { effect: 'weather', brightness: 1, speed: 1, effectOptions: {} };
-  const config = { size: 64, mode: 'cube', panels: [{ gx: 0, gy: 0 }], physicalCubePanels: 6 };
+  const config = { size: 64, mode: 'cube', panels: [{ gx: 0, gy: 0 }] };
   const server = new WsServer(port, state, config, () => {});
   await new Promise((r) => setTimeout(r, 100));
   const ws = new WebSocket(`ws://127.0.0.1:${port}`);

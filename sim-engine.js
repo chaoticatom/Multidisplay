@@ -26334,7 +26334,7 @@ var PiEngine = (() => {
       var WALL_MAX_COLS = 6;
       var WALL_MAX_ROWS = 6;
       var WALL_MAX_PANELS = 6;
-      var DEFAULT_CONFIG = { size: 64, mode: "2d", panels: [{ gx: 0, gy: 0 }], physicalCubePanels: 6 };
+      var DEFAULT_CONFIG = { size: 64, mode: "2d", panels: [{ gx: 0, gy: 0 }] };
       var FACE_NAMES = ["Front", "Back", "Right", "Left", "Top", "Bottom"];
       var FACE_LAYOUT = [
         // Front/Back swapped from the original chain:0 pos:0/pos:1 guess - a real
@@ -26359,9 +26359,6 @@ var PiEngine = (() => {
         { chain: 2, pos: 1 }
         // 5 Bottom
       ];
-      function isValidPhysicalCubePanels(n) {
-        return Number.isInteger(n) && n >= 1 && n <= 6;
-      }
       function isValidPanels(panels) {
         if (!Array.isArray(panels) || panels.length === 0 || panels.length > WALL_MAX_PANELS) return false;
         const seen = /* @__PURE__ */ new Set();
@@ -26382,7 +26379,6 @@ var PiEngine = (() => {
             throw new Error("invalid stored config");
           }
           if (!isValidPanels(parsed.panels)) parsed.panels = [...DEFAULT_CONFIG.panels];
-          if (!isValidPhysicalCubePanels(parsed.physicalCubePanels)) parsed.physicalCubePanels = DEFAULT_CONFIG.physicalCubePanels;
           return parsed;
         } catch (err) {
           return { ...DEFAULT_CONFIG, panels: [...DEFAULT_CONFIG.panels] };
@@ -26391,7 +26387,7 @@ var PiEngine = (() => {
       function save(config) {
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
       }
-      module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, isValidPhysicalCubePanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };
+      module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };
     }
   });
 

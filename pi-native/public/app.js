@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.71';
+const APP_VERSION = '0.6.72';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -151,7 +151,6 @@ function handleTextMessage(msg) {
     syncClearAllButton();
     syncIdentifyPanelsButton();
     renderWallLayoutList();
-    syncPhysicalPanelsControl();
     // Re-renders the wall grid on every state update (not just a mode
     // change) so adding/removing/dragging a panel is reflected immediately -
     // rebuildWallPreview() itself no-ops when not in wall mode. modeChanged
@@ -2345,31 +2344,6 @@ function syncClearAllButton() {
 }
 
 // ---------------------------------------------------------------------
-// Physical Cube Panels (Setup section) + the "simulation" banner over the
-// 3D preview - see wsServer.js's "setPhysicalCubePanels" command comment.
-// ---------------------------------------------------------------------
-function wirePhysicalPanelsControl() {
-  document.querySelectorAll('.physical-panels-btn[data-count]').forEach((btn) => {
-    btn.addEventListener('click', () => send({ cmd: 'setPhysicalCubePanels', value: Number(btn.dataset.count) }));
-  });
-}
-
-function syncPhysicalPanelsControl() {
-  const count = currentState.physicalCubePanels ?? 6;
-  document.querySelectorAll('.physical-panels-btn[data-count]').forEach((btn) => {
-    btn.classList.toggle('active', Number(btn.dataset.count) === count);
-  });
-  const banner = document.getElementById('sim-banner');
-  if (!banner) return;
-  const show = currentState.panelMode === 'cube' && count < 6;
-  banner.style.display = show ? 'block' : 'none';
-  if (show) {
-    const countEl = document.getElementById('sim-banner-count');
-    if (countEl) countEl.textContent = count;
-  }
-}
-
-// ---------------------------------------------------------------------
 // Master brightness / speed sliders (Display section)
 // ---------------------------------------------------------------------
 let _brightEditingUntil = 0;
@@ -2819,16 +2793,18 @@ function wireBluetooth() {
   const refreshBtn = document.querySelector('.bt-refresh-btn-el');
   const statusEl = document.querySelector('.bt-status-el');
   const listEl = document.querySelector('.bt-device-list-el');
+  const pairedStatusEl = document.querySelector('.bt-paired-status-el');
+  const pairedListEl = document.querySelector('.bt-paired-list-el');
   const discoverableBtn = document.querySelector('.bt-discoverable-btn-el');
   const routeBtn = document.querySelector('.bt-route-phone-btn-el');
   const phoneStatusEl = document.querySelector('.bt-phone-status-el');
 
   if (scanBtn) scanBtn.addEventListener('click', () => { if (statusEl) statusEl.textContent = 'Scanning (~6s)...'; send({ cmd: 'btScan' }); });
-  if (refreshBtn) refreshBtn.addEventListener('click', () => { if (statusEl) statusEl.textContent = 'Checking paired devices...'; send({ cmd: 'btStatus' }); });
+  if (refreshBtn) refreshBtn.addEventListener('click', () => { if (pairedStatusEl) pairedStatusEl.textContent = 'Checking paired devices...'; send({ cmd: 'btStatus' }); });
   if (discoverableBtn) discoverableBtn.addEventListener('click', () => { if (phoneStatusEl) phoneStatusEl.textContent = 'Opening pairing window (~120s)...'; send({ cmd: 'btDiscoverable' }); });
   if (routeBtn) routeBtn.addEventListener('click', () => { if (phoneStatusEl) phoneStatusEl.textContent = 'Routing phone audio...'; send({ cmd: 'btRoutePhoneAudio' }); });
 
-  window._btUi = { statusEl, listEl, phoneStatusEl };
+  window._btUi = { statusEl, listEl, pairedStatusEl, pairedListEl, phoneStatusEl };
 
   // Keep the connected/output status dots live without a manual refresh
   // click - a real request ("need an indication that the paired speaker
@@ -2837,91 +2813,117 @@ function wireBluetooth() {
   // just right after you clicked something. Every 15s rather than
   // something snappier - each check spawns a bluetoothctl process per
   // paired device (see listPaired()'s comment), not free enough to poll
-  // aggressively for a status dot's sake.
+  // aggressively for a status dot's sake. Only touches the paired-devices
+  // section (see handleBtResult) - a real report that this used to also
+  // stomp an in-progress scan's results ("finds devices then refreshes to
+  // 0 then finds random devices") back when both shared one list element.
+  send({ cmd: 'btStatus' });
   setInterval(() => send({ cmd: 'btStatus' }), 15000);
 }
 
+// Scan results (btScanResult) and paired devices (btStatusResult) now
+// render into COMPLETELY SEPARATE elements - see index.html's comment on
+// .bt-paired-list-el for the bug this fixes (the two used to share one
+// list, so the 15s background paired-status poll kept clobbering whatever
+// scan results were on screen and vice versa).
+function renderBtScanResults(devices, statusEl, listEl) {
+  if (statusEl) statusEl.textContent = `${devices.length} device(s) found.`;
+  if (!listEl) return;
+  listEl.textContent = '';
+  // Strongest signal first - a real report ("I can't tell which one is my
+  // speaker" once several devices came back MAC-only even after active
+  // name resolution): RSSI (closer to 0 = physically closer) is the
+  // practical way to guess which device is actually sitting next to the
+  // Pi versus a neighbor's device further away.
+  const sorted = [...devices].sort((a, b) => (b.rssi ?? -Infinity) - (a.rssi ?? -Infinity));
+  for (const d of sorted) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;';
+    // Built via createElement/textContent (not innerHTML) - a device name
+    // comes from whatever a nearby Bluetooth device chooses to broadcast,
+    // never trusted as HTML.
+    const nameSpan = document.createElement('span');
+    nameSpan.style.flex = '1';
+    nameSpan.textContent = d.name;
+    nameSpan.title = d.mac; // MAC dropped from the visible row, kept as a hover tooltip
+    const pairBtn = document.createElement('button');
+    pairBtn.textContent = 'Pair';
+    pairBtn.style.cssText = 'padding:3px 8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:10px;';
+    pairBtn.onclick = () => { if (statusEl) statusEl.textContent = 'Pairing with ' + d.name + '...'; send({ cmd: 'btPair', mac: d.mac }); };
+    row.append(pairBtn, nameSpan);
+    if (typeof d.rssi === 'number') {
+      const rssiSpan = document.createElement('span');
+      // Rough near/mid/far color coding - a real speaker sitting right
+      // next to the Pi typically reads -40 to -60, a device a room or two
+      // away -70 to -90+.
+      const color = d.rssi >= -60 ? '#6e8' : d.rssi >= -80 ? '#dd6' : '#f88';
+      rssiSpan.style.cssText = `color:${color};font-family:monospace;font-size:10px;min-width:34px;text-align:right;`;
+      rssiSpan.textContent = d.rssi + ' dBm';
+      row.appendChild(rssiSpan);
+    }
+    listEl.appendChild(row);
+  }
+}
+
+function renderBtPairedList(devices, statusEl, listEl) {
+  if (statusEl) statusEl.textContent = devices.length ? `${devices.length} paired.` : 'No paired devices yet.';
+  if (!listEl) return;
+  listEl.textContent = '';
+  for (const d of devices) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;';
+    const statusDot = document.createElement('span');
+    statusDot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;';
+    if (d.connected && d.isDefaultOutput) { statusDot.style.background = '#6e8'; statusDot.title = 'Connected - this is the current audio output'; }
+    else if (d.connected) { statusDot.style.background = '#dd6'; statusDot.title = 'Connected, but not the current audio output'; }
+    else { statusDot.style.background = '#f88'; statusDot.title = 'Not connected'; }
+    const nameSpan = document.createElement('span');
+    nameSpan.style.flex = '1';
+    nameSpan.textContent = d.name;
+    nameSpan.title = d.mac;
+    // A real request: "an option to pass the audio to the BT device, like
+    // the audio-output picker on desktop does" - lets you re-select which
+    // ALREADY-PAIRED device gets the Pi's audio at any time, not just
+    // automatically at the moment you first pair it.
+    const outputBtn = document.createElement('button');
+    outputBtn.textContent = d.isDefaultOutput ? 'Output ✓' : 'Set as Output';
+    outputBtn.disabled = !!d.isDefaultOutput;
+    outputBtn.style.cssText = 'padding:3px 8px;border-radius:4px;cursor:pointer;font-size:10px;' +
+      (d.isDefaultOutput
+        ? 'background:rgba(80,220,120,0.15);border:1px solid rgba(80,220,120,0.4);color:#6e8;cursor:default;'
+        : 'background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;');
+    outputBtn.onclick = () => { if (statusEl) statusEl.textContent = 'Setting ' + d.name + ' as output...'; send({ cmd: 'btSetOutput', mac: d.mac }); };
+    row.append(statusDot, nameSpan, outputBtn);
+    listEl.appendChild(row);
+  }
+}
+
 function handleBtResult(msg) {
-  const { statusEl, listEl, phoneStatusEl } = window._btUi || {};
+  const { statusEl, listEl, pairedStatusEl, pairedListEl, phoneStatusEl } = window._btUi || {};
   if (!msg.ok) {
-    if (statusEl) statusEl.textContent = 'Error: ' + (msg.error || 'unknown');
+    // A scan/status/output-set failure only touches the section it came
+    // from, not the other one - see the module comment on why these are
+    // now fully separate.
+    const target = msg.cmd === 'btScanResult' ? statusEl : pairedStatusEl;
+    if (target) target.textContent = 'Error: ' + (msg.error || 'unknown');
     return;
   }
-  if (msg.cmd === 'btScanResult' || msg.cmd === 'btStatusResult') {
-    if (statusEl) statusEl.textContent = `${msg.devices.length} device(s) found.`;
-    if (listEl) {
-      listEl.textContent = '';
-      // Strongest signal first - a real report ("I can't tell which one is
-      // my speaker" once several devices came back MAC-only even after
-      // active name resolution): RSSI (closer to 0 = physically closer)
-      // is the practical way to guess which device is actually sitting
-      // next to the Pi versus a neighbor's device further away. Devices
-      // with no RSSI reading at all (paired-devices list, or one that
-      // never got a reading during the scan) sort last, not first/middle.
-      const sorted = [...msg.devices].sort((a, b) => (b.rssi ?? -Infinity) - (a.rssi ?? -Infinity));
-      for (const d of sorted) {
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;';
-        // Built via createElement/textContent (not innerHTML) - a device
-        // name comes from whatever a nearby Bluetooth device chooses to
-        // broadcast, never trusted as HTML.
-        // A real request: drop the MAC address column - it's rarely
-        // meaningful to a user trying to pick out their own speaker by
-        // name/signal strength. Kept as a title-attribute tooltip (hover)
-        // rather than deleted outright, since it's still useful when
-        // troubleshooting a pairing failure with support/logs.
-        const nameSpan = document.createElement('span');
-        nameSpan.style.flex = '1';
-        nameSpan.textContent = d.name;
-        nameSpan.title = d.mac;
-        // A real request: "need an indication that the paired speaker is
-        // still pairing and connected and working" - only present on
-        // paired-devices results (btStatusResult, d.connected !==
-        // undefined - see bluetooth.js's listPaired() comment), never on
-        // a fresh scan result (btScanResult devices have no
-        // connected/isDefaultOutput fields at all, nothing to show yet).
-        let statusDot = null;
-        if (d.connected !== undefined) {
-          statusDot = document.createElement('span');
-          statusDot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;';
-          if (d.connected && d.isDefaultOutput) { statusDot.style.background = '#6e8'; statusDot.title = 'Connected - this is the current audio output'; }
-          else if (d.connected) { statusDot.style.background = '#dd6'; statusDot.title = 'Connected, but not the current audio output'; }
-          else { statusDot.style.background = '#f88'; statusDot.title = 'Not connected'; }
-        }
-        const pairBtn = document.createElement('button');
-        pairBtn.textContent = 'Pair';
-        pairBtn.style.cssText = 'padding:3px 8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:10px;';
-        pairBtn.onclick = () => { if (statusEl) statusEl.textContent = 'Pairing with ' + d.name + '...'; send({ cmd: 'btPair', mac: d.mac }); };
-        // A real request: Pair button to the LEFT of the name (was
-        // trailing after RSSI).
-        row.append(pairBtn, nameSpan);
-        if (statusDot) row.appendChild(statusDot);
-        if (typeof d.rssi === 'number') {
-          const rssiSpan = document.createElement('span');
-          // Rough near/mid/far color coding - a real speaker sitting right
-          // next to the Pi typically reads -40 to -60, a device a room or
-          // two away -70 to -90+.
-          const color = d.rssi >= -60 ? '#6e8' : d.rssi >= -80 ? '#dd6' : '#f88';
-          rssiSpan.style.cssText = `color:${color};font-family:monospace;font-size:10px;min-width:34px;text-align:right;`;
-          rssiSpan.textContent = d.rssi + ' dBm';
-          row.appendChild(rssiSpan);
-        }
-        listEl.appendChild(row);
-      }
-    }
+  if (msg.cmd === 'btScanResult') {
+    renderBtScanResults(msg.devices, statusEl, listEl);
+  } else if (msg.cmd === 'btStatusResult') {
+    renderBtPairedList(msg.devices, pairedStatusEl, pairedListEl);
   } else if (msg.cmd === 'btPairResult') {
     // A real report: "says it's pairing but nothing ever happens" - this
     // case was never handled at all, so the "Pairing with X..." text set
     // by the Pair button's click handler just sat there forever regardless
     // of whether pairing actually succeeded or failed.
     if (statusEl) statusEl.textContent = msg.paired ? 'Paired.' : 'Pairing failed - see server log.';
-    // Refresh so a newly-paired device shows up (or a failed one's status
-    // doesn't look stale) without a manual re-scan/refresh click - delayed
-    // rather than immediate, since btStatusResult's own handler overwrites
-    // this same statusEl with a "N device(s) found." message, which would
-    // otherwise instantly clobber the "Paired."/"failed" text before the
-    // user ever saw it.
-    setTimeout(() => send({ cmd: 'btStatus' }), 2000);
+    // Refresh the (separate) paired-devices list so a newly-paired device
+    // shows up without a manual refresh click.
+    send({ cmd: 'btStatus' });
+  } else if (msg.cmd === 'btSetOutputResult') {
+    if (pairedStatusEl) pairedStatusEl.textContent = msg.set ? 'Output updated.' : 'Could not set output - see server log.';
+    send({ cmd: 'btStatus' });
   } else if (phoneStatusEl && (msg.cmd === 'btDiscoverableResult' || msg.cmd === 'btRoutePhoneAudioResult')) {
     phoneStatusEl.textContent = 'OK';
   }
@@ -3811,7 +3813,6 @@ document.addEventListener('DOMContentLoaded', () => {
   wireWallLayoutSaveDropdown();
   wireClearAllButton();
   wireIdentifyPanelsButton();
-  wirePhysicalPanelsControl();
   wireRainPanel();
   wireLightspeedPanel();
   wireCamPanel();

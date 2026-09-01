@@ -58,7 +58,6 @@
     return {
       cmd: 'state', effect: state.effect, brightness: state.brightness, speed: state.speed,
       panelSize: config.size, panelMode: config.mode, panels: config.panels,
-      physicalCubePanels: config.physicalCubePanels,
       overlays: state.overlays, alarms: state.alarms, activeAlarm: state.activeAlarm,
       customCube: state.customCube, unsplashConfig: state.unsplashConfig, nasaConfig: state.nasaConfig,
       effectOptions: state.effectOptions, effectStatus: state.effectStatus, blank: state.blank,
@@ -122,8 +121,6 @@
     } else if (msg.cmd === 'setNasaConfig') {
       if (typeof msg.apiKey !== 'string') return;
       state.nasaConfig = { apiKey: msg.apiKey.trim() };
-    } else if (msg.cmd === 'setPhysicalCubePanels') {
-      if (E.panelConfig.isValidPhysicalCubePanels(msg.value)) config.physicalCubePanels = msg.value;
     } else if (msg.cmd === 'addPanel') {
       if (config.panels.length >= E.panelConfig.WALL_MAX_PANELS) return;
       const occupied = new Set(config.panels.map((p) => p.gx + ',' + p.gy));

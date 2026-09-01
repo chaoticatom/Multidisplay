@@ -6,6 +6,7 @@ unsplash-config.json
 nasa-config.json
 weather-config.json
 wall-layout-config.json
+bt-config.json
 uploads/
 tls-key.pem
 tls-cert.pem
