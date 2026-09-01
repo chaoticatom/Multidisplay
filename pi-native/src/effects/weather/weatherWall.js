@@ -359,6 +359,15 @@ function effectWeatherWall(core, dt, wxState, speedMult) {
     const moonY = horizV + arc * (H1 - horizV) * 0.75;
     const moonRad = 2.5; // fixed disc radius - see module comment
     const rr = Math.ceil(moonRad + 2);
+    // Terminator tilt - same fix/math as weather.js's cube-mode drawMoon()
+    // (see that file's comment) - a real report that the day/night
+    // boundary was always a straight vertical line regardless of the
+    // observer's actual latitude. Reuses wxState.lat, the picked city's
+    // real latitude already fetched for sunrise/sunset/horizon math.
+    const wallMoonHourNow = (Date.now() % 86400000) / 3600000;
+    const wallMoonLat = Number.isFinite(wxState.lat) ? wxState.lat : 52.04;
+    const wallMoonTilt = wallMoonLat * Math.PI / 180 * 0.4 + Math.sin((wallMoonHourNow / 24) * Math.PI * 2) * 0.3;
+    const wallMoonCosT = Math.cos(wallMoonTilt), wallMoonSinT = Math.sin(wallMoonTilt);
     for (let dv = -rr; dv <= rr; dv++) {
       for (let du = -rr; du <= rr; du++) {
         const dist = Math.sqrt(du * du + dv * dv);
@@ -367,7 +376,8 @@ function effectWeatherWall(core, dt, wxState, speedMult) {
         if (dist <= moonRad) {
           const illum = moonPh <= 0.5 ? moonPh * 2 : (1 - moonPh) * 2;
           const dir2d = moonPh <= 0.5 ? 1 : -1;
-          const tX = du / moonRad;
+          const ndu = du / moonRad, ndv = dv / moonRad;
+          const tX = ndu * wallMoonCosT - ndv * wallMoonSinT;
           const cosA = (1 - illum) * 2 - 1;
           const lit2d = tX * dir2d > cosA ? 1 : tX * dir2d > cosA - 0.2 ? ((tX * dir2d - cosA + 0.2) / 0.2) * 0.6 : 0;
           if (lit2d > 0.05) { const mb = 0.85 * lit2d * moonAlpha; blendLED(fu, fv, mb, mb * 0.97, mb * 0.9); }

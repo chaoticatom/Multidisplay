@@ -1338,12 +1338,17 @@ var PiEngine = (() => {
           }
         }
         const sunDim = isDay && isStorm ? 0.35 : isDay && isRain ? 0.55 : 1;
+        const moonHourNow = Date.now() % 864e5 / 36e5;
+        const moonLat = Number.isFinite(wxState.lat) ? wxState.lat : 52.04;
+        const moonTilt = moonLat * Math.PI / 180 * 0.4 + Math.sin(moonHourNow / 24 * Math.PI * 2) * 0.3;
+        const moonCosT = Math.cos(moonTilt), moonSinT = Math.sin(moonTilt);
         function drawMoon(idx, du, dv, dist, radius, phase) {
           if (dist > radius + 3) return;
           if (dist < radius) {
             const illum = phase <= 0.5 ? phase * 2 : (1 - phase) * 2;
             const dir = phase <= 0.5 ? 1 : -1;
-            const termX = du / radius;
+            const ndu = du / radius, ndv = dv / radius;
+            const termX = ndu * moonCosT - ndv * moonSinT;
             const cosAngle = (1 - illum) * 2 - 1;
             const lit = termX * dir > cosAngle ? 1 : termX * dir > cosAngle - 0.15 ? (termX * dir - cosAngle + 0.15) / 0.15 * 0.7 : 0;
             if (lit > 0.05) {
@@ -22716,6 +22721,10 @@ var PiEngine = (() => {
           const moonY = horizV + arc * (H1 - horizV) * 0.75;
           const moonRad = 2.5;
           const rr = Math.ceil(moonRad + 2);
+          const wallMoonHourNow = Date.now() % 864e5 / 36e5;
+          const wallMoonLat = Number.isFinite(wxState.lat) ? wxState.lat : 52.04;
+          const wallMoonTilt = wallMoonLat * Math.PI / 180 * 0.4 + Math.sin(wallMoonHourNow / 24 * Math.PI * 2) * 0.3;
+          const wallMoonCosT = Math.cos(wallMoonTilt), wallMoonSinT = Math.sin(wallMoonTilt);
           for (let dv = -rr; dv <= rr; dv++) {
             for (let du = -rr; du <= rr; du++) {
               const dist = Math.sqrt(du * du + dv * dv);
@@ -22724,7 +22733,8 @@ var PiEngine = (() => {
               if (dist <= moonRad) {
                 const illum = moonPh <= 0.5 ? moonPh * 2 : (1 - moonPh) * 2;
                 const dir2d = moonPh <= 0.5 ? 1 : -1;
-                const tX = du / moonRad;
+                const ndu = du / moonRad, ndv = dv / moonRad;
+                const tX = ndu * wallMoonCosT - ndv * wallMoonSinT;
                 const cosA = (1 - illum) * 2 - 1;
                 const lit2d = tX * dir2d > cosA ? 1 : tX * dir2d > cosA - 0.2 ? (tX * dir2d - cosA + 0.2) / 0.2 * 0.6 : 0;
                 if (lit2d > 0.05) {

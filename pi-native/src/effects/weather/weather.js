@@ -388,12 +388,27 @@ function effectWeather(core, dt, wxState, speedMult) {
   }
 
   const sunDim = isDay && isStorm ? 0.35 : isDay && isRain ? 0.55 : 1;
+  // Terminator tilt - a real report: "make sure it's at the correct angle
+  // depending on the location, it's not just a straight vertical
+  // terminator line". Same math as celestial.js's Moon effect (see that
+  // file's module comment for the full derivation/history) - the
+  // day/night boundary's tilt on a real moon depends on the observer's
+  // latitude (steeper near the equator, closer to vertical near the
+  // poles) plus a small daily wobble as the moon arcs across the sky.
+  // Reuses wxState.lat (the picked city's real latitude, already fetched
+  // for sunrise/sunset/horizon math) rather than a separate location
+  // input - Weather already has this, no reason to ask twice.
+  const moonHourNow = (Date.now() % 86400000) / 3600000;
+  const moonLat = Number.isFinite(wxState.lat) ? wxState.lat : 52.04;
+  const moonTilt = moonLat * Math.PI / 180 * 0.4 + Math.sin((moonHourNow / 24) * Math.PI * 2) * 0.3;
+  const moonCosT = Math.cos(moonTilt), moonSinT = Math.sin(moonTilt);
   function drawMoon(idx, du, dv, dist, radius, phase) {
     if (dist > radius + 3) return;
     if (dist < radius) {
       const illum = phase <= 0.5 ? phase * 2 : (1 - phase) * 2;
       const dir = phase <= 0.5 ? 1 : -1;
-      const termX = du / radius;
+      const ndu = du / radius, ndv = dv / radius;
+      const termX = ndu * moonCosT - ndv * moonSinT;
       const cosAngle = (1 - illum) * 2 - 1;
       const lit = termX * dir > cosAngle ? 1 :
         termX * dir > cosAngle - 0.15 ? ((termX * dir - cosAngle + 0.15) / 0.15) * 0.7 : 0;
