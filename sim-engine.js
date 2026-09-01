@@ -12154,7 +12154,7 @@ var PiEngine = (() => {
         if (scrollX > textW) scrollX -= textW;
         const sv = 7;
         const chars = Array.from(label).reverse();
-        let u = Math.floor(scrollX) - textW;
+        let u = -Math.floor(scrollX);
         const rgb = [0.6, 0.85, 1];
         while (u < core.SIZE) {
           for (const ch of chars) {
