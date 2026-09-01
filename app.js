@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.74';
+const APP_VERSION = '0.6.75';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -99,6 +99,15 @@ function connect() {
     if (typeof ev.data === 'string') handleTextMessage(JSON.parse(ev.data));
     else handleFrame(ev.data);
   };
+  // A real report: "need it to check asap" - the paired-devices list sat
+  // on "Not checked yet" until the first 15s auto-refresh tick, because
+  // wireBluetooth()'s initial send({cmd:'btStatus'}) runs at page-wiring
+  // time, well before this WebSocket connection actually finishes
+  // opening - send() silently no-ops on a socket that isn't OPEN yet (see
+  // its own definition), so that first attempt was just dropped. Checking
+  // here instead, right as the connection actually opens, is the earliest
+  // point a real request could possibly succeed.
+  ws.onopen = () => send({ cmd: 'btStatus' });
   ws.onclose = () => setTimeout(connect, 2000);
   ws.onerror = () => ws.close();
 }
