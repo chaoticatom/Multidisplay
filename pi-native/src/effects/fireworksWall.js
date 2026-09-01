@@ -280,7 +280,9 @@ function buildFwText(core, msg) {
   if (!msg || !msg.trim()) { fwTextPixels = null; fwTextWidth = 0; fwTextH = 0; return; }
   const wallH = core.wallH;
   const maxH = Math.round(wallH * 0.33);
-  const scale = Math.max(1, Math.floor(maxH / 5));
+  // Pinned to 1:1 - see fireworks.js's buildFwText() comment (the old
+  // auto-scale blew each font pixel up into a multi-pixel block).
+  const scale = 1;
   const glyphH = scale * 5;
   const yOff = Math.floor((maxH - glyphH) / 2);
 

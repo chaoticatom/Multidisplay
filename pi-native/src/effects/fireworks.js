@@ -304,7 +304,11 @@ function buildFwText(core, msg) {
   if (!msg || !msg.trim()) { fwTextPixels = null; fwTextWidth = 0; fwTextH = 0; return; }
   const SIZE = core.SIZE;
   const maxH = Math.round(SIZE * 0.33);
-  const scale = Math.max(1, Math.floor(maxH / 5));
+  // A real report: the font was "still massive, 4 pixels width per line,
+  // should be 1" - the old auto-scale (floor(maxH/5), 4 for a 64px face)
+  // blew each font pixel up into a 4x4 block. Pinned to 1:1 (each font
+  // bit = exactly one physical pixel) instead of scaling to fill maxH.
+  const scale = 1;
   const glyphH = scale * 5;
   const yOff = Math.floor((maxH - glyphH) / 2);
 

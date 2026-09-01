@@ -10307,7 +10307,7 @@ var PiEngine = (() => {
         }
         const SIZE = core.SIZE;
         const maxH = Math.round(SIZE * 0.33);
-        const scale = Math.max(1, Math.floor(maxH / 5));
+        const scale = 1;
         const glyphH = scale * 5;
         const yOff = Math.floor((maxH - glyphH) / 2);
         const padText = msg.trim() + "   ";
@@ -21267,7 +21267,7 @@ var PiEngine = (() => {
         }
         const wallH = core.wallH;
         const maxH = Math.round(wallH * 0.33);
-        const scale = Math.max(1, Math.floor(maxH / 5));
+        const scale = 1;
         const glyphH = scale * 5;
         const yOff = Math.floor((maxH - glyphH) / 2);
         const padText = msg.trim() + "   ";
