@@ -39,6 +39,12 @@ const { FW_FONT, FW_CHAR_W } = require('./_shared');
 const fwRockets = [];
 const fwBursts = [];
 let fwSpawnT = 0;
+// Quantity slider's concurrency cap - see fireworks.js's module comment
+// for the full reasoning (a launch-RATE knob can't make "Quantity 1" mean
+// "one visible at a time" when each firework's lifetime far outlasts the
+// 0.4s spawn tick).
+const FW_LIFETIME_EST = 2.5;
+let fwActiveExpiry = [];
 
 const FW_PALETTES = [
   [0.0, 0.03], [0.08, 0.14], [0.55, 0.65], [0.3, 0.38], [0.78, 0.88], [0.0, 1.0],
@@ -280,15 +286,17 @@ function buildFwText(core, msg) {
   if (!msg || !msg.trim()) { fwTextPixels = null; fwTextWidth = 0; fwTextH = 0; return; }
   const wallH = core.wallH;
   const maxH = Math.round(wallH * 0.33);
-  // Pinned to 1:1 - see fireworks.js's buildFwText() comment (the old
-  // auto-scale blew each font pixel up into a multi-pixel block).
-  const scale = 1;
+  // See fireworks.js's buildFwText() comment - 1:1 then bumped "one size
+  // bigger" to 2.
+  const scale = 2;
   const glyphH = scale * 5;
   const yOff = Math.floor((maxH - glyphH) / 2);
 
   const padText = msg.trim() + '   ';
   const oneW = Math.max(1, textPixelWidth(padText, scale));
-  const totalW = Math.max(core.wallW, oneW);
+  // See fireworks.js's buildFwText() comment - totalW must be an exact
+  // multiple of oneW for the tiling loop below to wrap seamlessly.
+  const totalW = oneW * Math.max(1, Math.ceil(core.wallW / oneW));
 
   const pixels = new Uint8Array(totalW * maxH);
   let x = 0;
@@ -310,7 +318,8 @@ function buildFwText(core, msg) {
 function drawTextOverlay(core, dt) {
   if (!fwTextOn || !fwTextPixels || fwTextWidth <= 0) return;
   const { wallW, wallH, t } = core;
-  fwScrollX = (fwScrollX + dt * wallW * 0.19) % fwTextWidth;
+  // A real request to slow the scroll down - was wallW*0.19.
+  fwScrollX = (fwScrollX + dt * wallW * 0.11) % fwTextWidth;
 
   const textRows = fwTextH;
   const rowBase = Math.round(wallH * 0.5 - textRows / 2); // fixed horizontal band, vertically centred
@@ -347,17 +356,20 @@ function effectFireworksWall(core, dt) {
 
   for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= 0.80;
 
-  // See fireworks.js's effectFireworks() comment - quantity slider, only
-  // meaningful for the ad-lib random/mic launch loop, not 'sync's fixed
-  // choreography.
-  const quantity = Math.max(1, Math.min(8, Math.round(opts.quantity) || 1));
+  // See fireworks.js's effectFireworks() comment - quantity slider is a
+  // concurrency cap (how many visible at once), only meaningful for the
+  // ad-lib random/mic launch loop, not 'sync's fixed choreography.
+  const maxConcurrent = Math.max(1, Math.min(10, Math.round(opts.quantity) || 6));
+  while (fwActiveExpiry.length && fwActiveExpiry[0] <= core.t) fwActiveExpiry.shift();
   if (mode === 'random' || mode === 'mic') {
     // 'mic' has no audio-input pipeline here (see module comment) - falls
     // back to the same launch cadence as 'random'.
     fwSpawnT += dt;
     if (fwSpawnT > 0.4) {
-      for (let i = 0; i < quantity; i++) fwLaunch(core);
-      if (Math.random() > 0.6) fwLaunch(core);
+      if (fwActiveExpiry.length < maxConcurrent) {
+        fwLaunch(core);
+        fwActiveExpiry.push(core.t + FW_LIFETIME_EST);
+      }
       fwSpawnT = 0;
     }
   } else if (mode === 'sync') {

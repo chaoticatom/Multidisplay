@@ -10032,6 +10032,8 @@ var PiEngine = (() => {
       var fwTextWidth = 0;
       var fwTextH = 0;
       var fwTextBuiltFor = null;
+      var FW_LIFETIME_EST = 2.5;
+      var fwActiveExpiry = [];
       function fwSet(core, idx, r, g, b) {
         if (idx < 0) return;
         const c = core.colBuf, o = idx * 3;
@@ -10307,12 +10309,12 @@ var PiEngine = (() => {
         }
         const SIZE = core.SIZE;
         const maxH = Math.round(SIZE * 0.33);
-        const scale = 1;
+        const scale = 2;
         const glyphH = scale * 5;
         const yOff = Math.floor((maxH - glyphH) / 2);
         const padText = msg.trim() + "   ";
         const oneW = Math.max(1, textPixelWidth(padText, scale));
-        const totalW = Math.max(4 * SIZE, oneW);
+        const totalW = oneW * Math.max(1, Math.ceil(4 * SIZE / oneW));
         const pixels = new Uint8Array(totalW * maxH);
         let x = 0;
         while (x < totalW) {
@@ -10331,7 +10333,7 @@ var PiEngine = (() => {
       function drawTextOverlay(core, dt) {
         if (!fwTextOn || !fwTextPixels || fwTextWidth <= 0) return;
         const SIZE = core.SIZE, faceMap = core.faceMap, t = core.t;
-        fwScrollX = (fwScrollX + dt * SIZE * 0.38) % fwTextWidth;
+        fwScrollX = (fwScrollX + dt * SIZE * 0.22) % fwTextWidth;
         const textRows = fwTextH;
         const panelSeq = [3, 0, 2, 1];
         for (let pi = 0; pi < 4; pi++) {
@@ -10367,15 +10369,17 @@ var PiEngine = (() => {
           fwTextBuiltFor = null;
         }
         for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.8;
-        const quantity = Math.max(1, Math.min(8, Math.round(opts.quantity) || 1));
-        function fwLaunchBatch() {
-          for (let i = 0; i < quantity; i++) fwLaunch(core, panel2dMode);
-          if (Math.random() > 0.6) fwLaunch(core, panel2dMode);
+        const maxConcurrent = Math.max(1, Math.min(10, Math.round(opts.quantity) || 6));
+        while (fwActiveExpiry.length && fwActiveExpiry[0] <= core.t) fwActiveExpiry.shift();
+        function fwLaunchIfRoom() {
+          if (fwActiveExpiry.length >= maxConcurrent) return;
+          fwLaunch(core, panel2dMode);
+          fwActiveExpiry.push(core.t + FW_LIFETIME_EST);
         }
         if (mode === "random") {
           fwSpawnT += dt;
           if (fwSpawnT > 0.4) {
-            fwLaunchBatch();
+            fwLaunchIfRoom();
             fwSpawnT = 0;
           }
         } else if (mode === "sync") {
@@ -10383,7 +10387,7 @@ var PiEngine = (() => {
         } else if (mode === "mic") {
           fwSpawnT += dt;
           if (fwSpawnT > 0.4) {
-            fwLaunchBatch();
+            fwLaunchIfRoom();
             fwSpawnT = 0;
           }
         }
@@ -20981,6 +20985,8 @@ var PiEngine = (() => {
       var fwRockets = [];
       var fwBursts = [];
       var fwSpawnT = 0;
+      var FW_LIFETIME_EST = 2.5;
+      var fwActiveExpiry = [];
       var FW_PALETTES = [
         [0, 0.03],
         [0.08, 0.14],
@@ -21270,12 +21276,12 @@ var PiEngine = (() => {
         }
         const wallH = core.wallH;
         const maxH = Math.round(wallH * 0.33);
-        const scale = 1;
+        const scale = 2;
         const glyphH = scale * 5;
         const yOff = Math.floor((maxH - glyphH) / 2);
         const padText = msg.trim() + "   ";
         const oneW = Math.max(1, textPixelWidth(padText, scale));
-        const totalW = Math.max(core.wallW, oneW);
+        const totalW = oneW * Math.max(1, Math.ceil(core.wallW / oneW));
         const pixels = new Uint8Array(totalW * maxH);
         let x = 0;
         while (x < totalW) {
@@ -21294,7 +21300,7 @@ var PiEngine = (() => {
       function drawTextOverlay(core, dt) {
         if (!fwTextOn || !fwTextPixels || fwTextWidth <= 0) return;
         const { wallW, wallH, t } = core;
-        fwScrollX = (fwScrollX + dt * wallW * 0.19) % fwTextWidth;
+        fwScrollX = (fwScrollX + dt * wallW * 0.11) % fwTextWidth;
         const textRows = fwTextH;
         const rowBase = Math.round(wallH * 0.5 - textRows / 2);
         for (let v = 0; v < textRows; v++) {
@@ -21325,12 +21331,15 @@ var PiEngine = (() => {
           fwTextBuiltFor = null;
         }
         for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= 0.8;
-        const quantity = Math.max(1, Math.min(8, Math.round(opts.quantity) || 1));
+        const maxConcurrent = Math.max(1, Math.min(10, Math.round(opts.quantity) || 6));
+        while (fwActiveExpiry.length && fwActiveExpiry[0] <= core.t) fwActiveExpiry.shift();
         if (mode === "random" || mode === "mic") {
           fwSpawnT += dt;
           if (fwSpawnT > 0.4) {
-            for (let i = 0; i < quantity; i++) fwLaunch(core);
-            if (Math.random() > 0.6) fwLaunch(core);
+            if (fwActiveExpiry.length < maxConcurrent) {
+              fwLaunch(core);
+              fwActiveExpiry.push(core.t + FW_LIFETIME_EST);
+            }
             fwSpawnT = 0;
           }
         } else if (mode === "sync") {

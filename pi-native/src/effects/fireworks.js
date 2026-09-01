@@ -62,6 +62,27 @@ let fwSyncForceType = -1, fwSyncForceMono = false;
 let fwTextOn = false, fwText = '', fwScrollX = 0;
 let fwTextPixels = null, fwTextWidth = 0, fwTextH = 0, fwTextBuiltFor = null;
 
+// Quantity slider's concurrency cap - a real report that just scaling how
+// many rockets launch per 0.4s spawn tick couldn't make "Quantity 1" mean
+// "one firework on screen at a time": a single rocket's full lifetime
+// (ascent + burst + particle fade) runs several seconds, far longer than
+// the 0.4s tick, so even launching exactly one per tick still overlaps
+// several previous ones still fading - the launch RATE was never the
+// thing controlling how many are visible at once. FW_LIFETIME_EST is a
+// rough estimate of that full visible lifetime (ascent ~1-1.5s + burst
+// fade ~1-1.5s more); fwActiveExpiry tracks an expiry timestamp (core.t +
+// FW_LIFETIME_EST) per launch, appended in increasing order (core.t only
+// increases and the estimate is constant, so a plain FIFO shift() correctly
+// drops expired entries from the front) - its length is a soft estimate of
+// how many fireworks are still visible, used to gate new launches so the
+// total never exceeds the Quantity setting. Deliberately an estimate, not
+// exact per-particle bookkeeping - fwBursts holds flattened PARTICLES from
+// every burst with no per-firework grouping, so precisely knowing when one
+// specific firework's last particle faded would need a larger data-model
+// change; this is close enough for a UI density knob.
+const FW_LIFETIME_EST = 2.5;
+let fwActiveExpiry = [];
+
 function fwSet(core, idx, r, g, b) {
   if (idx < 0) return;
   const c = core.colBuf, o = idx * 3;
@@ -306,15 +327,24 @@ function buildFwText(core, msg) {
   const maxH = Math.round(SIZE * 0.33);
   // A real report: the font was "still massive, 4 pixels width per line,
   // should be 1" - the old auto-scale (floor(maxH/5), 4 for a 64px face)
-  // blew each font pixel up into a 4x4 block. Pinned to 1:1 (each font
-  // bit = exactly one physical pixel) instead of scaling to fill maxH.
-  const scale = 1;
+  // blew each font pixel up into a 4x4 block. Pinned to 1:1 first, then a
+  // follow-up request to bump it "one size bigger" - 2 (each font bit is
+  // a 2x2 physical-pixel block).
+  const scale = 2;
   const glyphH = scale * 5;
   const yOff = Math.floor((maxH - glyphH) / 2);
 
   const padText = msg.trim() + '   ';
   const oneW = Math.max(1, textPixelWidth(padText, scale));
-  const totalW = Math.max(4 * SIZE, oneW);
+  // A real report: with text like "TEST", every so many scroll cycles a
+  // stray extra letter ("TTEST") flashed at the wrap seam. totalW must be
+  // an exact multiple of oneW for the tiling loop below to repeat
+  // seamlessly - Math.max(4*SIZE, oneW) had no such guarantee, so the
+  // buffer's right edge (where drawTextOverlay's `% fwTextWidth` wraps
+  // back to the start) could land mid-tile, clipping one copy of the text
+  // partway through a glyph and leaving that fragment sitting right next
+  // to the next full copy's start.
+  const totalW = oneW * Math.max(1, Math.ceil((4 * SIZE) / oneW));
 
   const pixels = new Uint8Array(totalW * maxH);
   let x = 0;
@@ -336,7 +366,8 @@ function buildFwText(core, msg) {
 function drawTextOverlay(core, dt) {
   if (!fwTextOn || !fwTextPixels || fwTextWidth <= 0) return;
   const SIZE = core.SIZE, faceMap = core.faceMap, t = core.t;
-  fwScrollX = (fwScrollX + dt * SIZE * 0.38) % fwTextWidth;
+  // A real request to slow the scroll down - was SIZE*0.38.
+  fwScrollX = (fwScrollX + dt * SIZE * 0.22) % fwTextWidth;
 
   const textRows = fwTextH;
   const panelSeq = [3, 0, 2, 1];
@@ -383,23 +414,27 @@ function effectFireworks(core, dt) {
 
   for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.80;
 
-  // How many rockets launch per spawn tick - a real request for a
-  // quantity control ("a scroll bar would be best"). Default 1 matches
-  // the original always-launch-one-plus-a-40%-chance-of-a-second cadence;
-  // higher values launch that many guaranteed rockets (still with the same
-  // bonus chance on top) instead of just one. Only meaningful for
-  // 'random'/'mic' (the ad-lib launch loop below) - 'sync' is a fixed,
+  // Quantity slider - how many fireworks are visible AT ONCE, not how many
+  // launch per tick (see FW_LIFETIME_EST's comment above for why a launch-
+  // rate knob can't actually achieve "just one at a time"). Default (6)
+  // approximates the original fixed cadence's typical on-screen density
+  // (1 guaranteed + a 40% chance of a second launch every 0.4s, each
+  // lasting ~FW_LIFETIME_EST seconds, naturally overlaps several at once);
+  // max (10) is a few more than that for a busier show. Only meaningful
+  // for 'random'/'mic' (the ad-lib launch loop below) - 'sync' is a fixed,
   // hand-choreographed timeline (FW_SYNC_ACTS), not something a blanket
-  // "launch N at once" knob should be scaling.
-  const quantity = Math.max(1, Math.min(8, Math.round(opts.quantity) || 1));
-  function fwLaunchBatch() {
-    for (let i = 0; i < quantity; i++) fwLaunch(core, panel2dMode);
-    if (Math.random() > 0.6) fwLaunch(core, panel2dMode);
+  // concurrency cap should be gating.
+  const maxConcurrent = Math.max(1, Math.min(10, Math.round(opts.quantity) || 6));
+  while (fwActiveExpiry.length && fwActiveExpiry[0] <= core.t) fwActiveExpiry.shift();
+  function fwLaunchIfRoom() {
+    if (fwActiveExpiry.length >= maxConcurrent) return;
+    fwLaunch(core, panel2dMode);
+    fwActiveExpiry.push(core.t + FW_LIFETIME_EST);
   }
 
   if (mode === 'random') {
     fwSpawnT += dt;
-    if (fwSpawnT > 0.4) { fwLaunchBatch(); fwSpawnT = 0; }
+    if (fwSpawnT > 0.4) { fwLaunchIfRoom(); fwSpawnT = 0; }
   } else if (mode === 'sync') {
     fwSyncUpdate(core, dt);
   } else if (mode === 'mic') {
@@ -407,7 +442,7 @@ function effectFireworks(core, dt) {
     // fall back to the same launch cadence as 'random' rather than sitting
     // dark or crashing.
     fwSpawnT += dt;
-    if (fwSpawnT > 0.4) { fwLaunchBatch(); fwSpawnT = 0; }
+    if (fwSpawnT > 0.4) { fwLaunchIfRoom(); fwSpawnT = 0; }
   }
 
   const totalCols = panel2dMode ? SIZE : SIZE * 4;
