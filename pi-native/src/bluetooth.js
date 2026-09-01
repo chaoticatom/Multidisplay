@@ -25,7 +25,16 @@ const PHONE_CAPTURE_SOURCE = 'phone_capture';
 // Feeds commands into an interactive `bluetoothctl` session and returns
 // its combined stdout+stderr - same technique as the Python original
 // (simpler and more portable than a D-Bus binding).
+// waitMs: either a single number applied after every command (unchanged
+// default behavior), or an ARRAY giving a per-command wait (shorter than
+// `commands`, the last entry repeats for the rest) - a real report ("it's
+// very slow at pairing"): pairDevice() was waiting the same fixed 6000ms
+// after EVERY command, including 'agent NoInputNoOutput'/'default-agent'
+// (near-instant, no real handshake to wait for) - 5 commands x 6000ms was
+// 30+ seconds for a pair attempt when only `pair`/`connect` (the actual
+// Bluetooth handshake) need anywhere near that long.
 function bluetoothctl(commands, waitMs = 1500) {
+  const waitFor = (i) => Array.isArray(waitMs) ? (waitMs[i] ?? waitMs[waitMs.length - 1]) : waitMs;
   return new Promise((resolve, reject) => {
     const proc = spawn('bluetoothctl', [], { stdio: ['pipe', 'pipe', 'pipe'] });
     let out = '';
@@ -34,9 +43,9 @@ function bluetoothctl(commands, waitMs = 1500) {
     proc.on('error', reject);
 
     (async () => {
-      for (const cmd of commands) {
-        proc.stdin.write(cmd + '\n');
-        await new Promise((r) => setTimeout(r, waitMs));
+      for (let i = 0; i < commands.length; i++) {
+        proc.stdin.write(commands[i] + '\n');
+        await new Promise((r) => setTimeout(r, waitFor(i)));
       }
       proc.stdin.write('quit\n');
       setTimeout(() => { proc.kill(); resolve(out); }, 500);
@@ -231,7 +240,14 @@ async function pairDevice(mac) {
   // the SAME bluetoothctl session as `pair` (it's tied to that process's
   // D-Bus connection, not persisted globally) - NoInputNoOutput
   // auto-accepts Just Works pairing, same choice makeDiscoverable() made.
-  const out = await bluetoothctl(['agent NoInputNoOutput', 'default-agent', `pair ${mac}`, `trust ${mac}`, `connect ${mac}`], 6000);
+  // Per-command waits, not a flat 6000ms x5 (30+s) - a real report ("it's
+  // very slow at pairing"): 'agent'/'default-agent' complete near-
+  // instantly (no Bluetooth handshake involved at all), only 'pair'/
+  // 'connect' (the real over-the-air negotiation) need several seconds.
+  const out = await bluetoothctl(
+    ['agent NoInputNoOutput', 'default-agent', `pair ${mac}`, `trust ${mac}`, `connect ${mac}`],
+    [300, 300, 6000, 1000, 6000],
+  );
   const ok = out.includes('Connection successful') || out.includes('Connected: yes');
   const log = [out];
   if (ok) {
