@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.70';
+const APP_VERSION = '0.6.71';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2829,6 +2829,16 @@ function wireBluetooth() {
   if (routeBtn) routeBtn.addEventListener('click', () => { if (phoneStatusEl) phoneStatusEl.textContent = 'Routing phone audio...'; send({ cmd: 'btRoutePhoneAudio' }); });
 
   window._btUi = { statusEl, listEl, phoneStatusEl };
+
+  // Keep the connected/output status dots live without a manual refresh
+  // click - a real request ("need an indication that the paired speaker
+  // is still connected and working"), since a speaker can silently drop
+  // its Bluetooth link or lose default-output status at any time, not
+  // just right after you clicked something. Every 15s rather than
+  // something snappier - each check spawns a bluetoothctl process per
+  // paired device (see listPaired()'s comment), not free enough to poll
+  // aggressively for a status dot's sake.
+  setInterval(() => send({ cmd: 'btStatus' }), 15000);
 }
 
 function handleBtResult(msg) {
@@ -2864,6 +2874,20 @@ function handleBtResult(msg) {
         nameSpan.style.flex = '1';
         nameSpan.textContent = d.name;
         nameSpan.title = d.mac;
+        // A real request: "need an indication that the paired speaker is
+        // still pairing and connected and working" - only present on
+        // paired-devices results (btStatusResult, d.connected !==
+        // undefined - see bluetooth.js's listPaired() comment), never on
+        // a fresh scan result (btScanResult devices have no
+        // connected/isDefaultOutput fields at all, nothing to show yet).
+        let statusDot = null;
+        if (d.connected !== undefined) {
+          statusDot = document.createElement('span');
+          statusDot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;';
+          if (d.connected && d.isDefaultOutput) { statusDot.style.background = '#6e8'; statusDot.title = 'Connected - this is the current audio output'; }
+          else if (d.connected) { statusDot.style.background = '#dd6'; statusDot.title = 'Connected, but not the current audio output'; }
+          else { statusDot.style.background = '#f88'; statusDot.title = 'Not connected'; }
+        }
         const pairBtn = document.createElement('button');
         pairBtn.textContent = 'Pair';
         pairBtn.style.cssText = 'padding:3px 8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:10px;';
@@ -2871,6 +2895,7 @@ function handleBtResult(msg) {
         // A real request: Pair button to the LEFT of the name (was
         // trailing after RSSI).
         row.append(pairBtn, nameSpan);
+        if (statusDot) row.appendChild(statusDot);
         if (typeof d.rssi === 'number') {
           const rssiSpan = document.createElement('span');
           // Rough near/mid/far color coding - a real speaker sitting right

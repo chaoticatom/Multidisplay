@@ -137,12 +137,53 @@ async function pairDevice(mac) {
   if (!MAC_RE.test(mac)) throw new Error('invalid mac address');
   const out = await bluetoothctl([`pair ${mac}`, `trust ${mac}`, `connect ${mac}`], 6000);
   const ok = out.includes('Connection successful') || out.includes('Connected: yes');
-  return { ok, log: out };
+  const log = [out];
+  if (ok) {
+    // A real report: "I have a paired speaker, how do I get radio to play
+    // through it?" - pairing only connects the Bluetooth A2DP profile, it
+    // never touched PulseAudio's default sink, so radioPlay's paplay (see
+    // ffmpegAudio.js's module comment - it "uses whatever sink is
+    // currently default") kept sending audio to whatever was already
+    // default (the Pi's onboard audio/HDMI, typically) - the speaker was
+    // connected but never actually selected as the audio destination.
+    // Small delay first: PulseAudio's bluetooth module registers the
+    // sink shortly after `connect` succeeds, not necessarily
+    // instantaneously.
+    await new Promise((r) => setTimeout(r, 800));
+    const sinkName = 'bluez_sink.' + mac.replace(/:/g, '_') + '.a2dp_sink';
+    const sinksOut = await run('pactl', ['list', 'short', 'sinks']);
+    log.push(sinksOut);
+    if (sinksOut.includes(sinkName)) {
+      log.push(await run('pactl', ['set-default-sink', sinkName]));
+    } else {
+      log.push(`PulseAudio hasn't registered a sink for this speaker yet (${sinkName} not found) - it may need a moment after connecting, or the speaker doesn't support the A2DP sink profile.`);
+    }
+  }
+  return { ok, log: log.join('\n') };
 }
 
+// A real request: "need an indication that the paired speaker is still
+// pairing and connected and working" - listPaired() previously only
+// listed WHICH devices are paired, with no live connection/output status
+// at all, so a speaker that dropped its Bluetooth link or lost default-
+// sink status (e.g. after reconnecting, or another device taking over as
+// default output) looked identical to one still working. Enriches each
+// device with `connected` (bluetoothctl info's live "Connected: yes/no",
+// not just "was paired at some point") and `isDefaultOutput` (whether
+// THIS is the sink pairDevice()'s auto-routing above actually selected -
+// distinct from merely connected, since a second device could have taken
+// over as default output without disconnecting the first).
 async function listPaired() {
   const out = await bluetoothctl(['paired-devices'], 1000);
-  return parseDeviceLines(out);
+  const devices = parseDeviceLines(out);
+  const defaultSinkOut = await run('pactl', ['get-default-sink']);
+  const defaultSink = (defaultSinkOut.split('\n').find((l) => l && !l.startsWith('$')) || '').trim();
+  for (const d of devices) {
+    const infoOut = await bluetoothctl([`info ${d.mac}`], 800);
+    d.connected = /Connected: yes/.test(infoOut);
+    d.isDefaultOutput = !!defaultSink && defaultSink === 'bluez_sink.' + d.mac.replace(/:/g, '_') + '.a2dp_sink';
+  }
+  return devices;
 }
 
 // Opens a pairing window for an INCOMING connection (a phone finding and
