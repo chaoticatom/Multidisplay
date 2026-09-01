@@ -324,7 +324,15 @@ async function autoReconnectLastSpeaker(log = console.log) {
 // distinct from merely connected, since a second device could have taken
 // over as default output without disconnecting the first).
 async function listPaired() {
-  const out = await bluetoothctl(['paired-devices'], 1000);
+  // A real report: the paired-devices list always showed empty even for
+  // a device directly confirmed "Paired: yes" via `bluetoothctl info`.
+  // Root cause: `paired-devices` isn't a valid bluetoothctl command on
+  // this BlueZ version at all ("Invalid command in menu main:
+  // paired-devices") - it was renamed to `devices Paired` (a filter
+  // argument to the general `devices` command). Every listPaired() call
+  // was silently getting an error message back instead of a device list,
+  // parsing it as "0 devices" every time.
+  const out = await bluetoothctl(['devices Paired'], 1000);
   const devices = parseDeviceLines(out);
   const defaultSinkOut = await run('pactl', ['get-default-sink']);
   const defaultSink = (defaultSinkOut.split('\n').find((l) => l && !l.startsWith('$')) || '').trim();
