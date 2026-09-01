@@ -170,11 +170,38 @@ const btConfig = require('./btConfig');
 // manual button/auto-reconnect passes 0).
 async function setAsAudioOutput(mac, waitMs = 0) {
   if (waitMs > 0) await new Promise((r) => setTimeout(r, waitMs));
-  const sinkName = 'bluez_sink.' + mac.replace(/:/g, '_') + '.a2dp_sink';
-  const sinksOut = await run('pactl', ['list', 'short', 'sinks']);
-  if (!sinksOut.includes(sinkName)) {
-    return { set: false, log: sinksOut + `\nPulseAudio hasn't registered a sink for this speaker yet (${sinkName} not found) - it may need a moment after connecting, or the speaker doesn't support the A2DP sink profile.` };
+  const macUnderscored = mac.replace(/:/g, '_');
+  // A real report, confirmed via raw `pactl list short sinks` output on
+  // real hardware: this system runs PipeWire's PulseAudio-compat layer,
+  // which names a Bluetooth sink "bluez_output.<mac>.1" - completely
+  // different from classic PulseAudio's "bluez_sink.<mac>.a2dp_sink" this
+  // code assumed. The exact-name guess would NEVER match on a PipeWire
+  // system even with a perfectly working pactl connection. Fixed to
+  // search for ANY sink line containing the device's MAC (works for
+  // either naming convention, and for the a2dp_sink/a2dp-sink/av-sink
+  // naming that itself varies just among classic PulseAudio versions) and
+  // read the REAL sink name out of that line, rather than constructing a
+  // guessed name and hoping it matches.
+  //
+  // Retries a few times, not just once after the initial `waitMs` delay -
+  // a real report showed the sink genuinely not registered yet at the
+  // first check on some attempts (transient - a manual `pactl` call
+  // moments later, independent of this code, succeeded against the exact
+  // same live connection), consistent with on-demand PulseAudio/PipeWire
+  // session activation needing a moment under real conditions no fixed
+  // delay reliably covers.
+  const SINK_RETRY_ATTEMPTS = 4, SINK_RETRY_DELAY_MS = 1500;
+  let sinksOut = '', sinkLine = null;
+  for (let attempt = 1; attempt <= SINK_RETRY_ATTEMPTS; attempt++) {
+    sinksOut = await run('pactl', ['list', 'short', 'sinks']);
+    sinkLine = sinksOut.split('\n').find((l) => l.includes(macUnderscored));
+    if (sinkLine) break;
+    if (attempt < SINK_RETRY_ATTEMPTS) await new Promise((r) => setTimeout(r, SINK_RETRY_DELAY_MS));
   }
+  if (!sinkLine) {
+    return { set: false, log: sinksOut + `\nPulseAudio/PipeWire hasn't registered a sink for this speaker yet (no sink line containing ${macUnderscored} after ${SINK_RETRY_ATTEMPTS} attempts) - it may need more time after connecting, or the speaker doesn't support the A2DP sink profile.` };
+  }
+  const sinkName = sinkLine.split(/\s+/)[1];
   const setOut = await run('pactl', ['set-default-sink', sinkName]);
   // Remember this speaker so autoReconnectLastSpeaker() (below, run at
   // server startup) can reconnect to it after a reboot without requiring
