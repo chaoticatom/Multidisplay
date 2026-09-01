@@ -20,6 +20,8 @@ const wallLayoutConfig = require('./wallLayoutConfig');
 const unsplashConfig = require('./unsplashConfig');
 const weatherConfig = require('./weatherConfig');
 const nasaConfig = require('./nasaConfig');
+const { Worker } = require('worker_threads');
+const path = require('path');
 
 const TICK_HZ = 30; // effect-compute + panel-push rate; independent of the driver's own PWM refresh
 const WS_PORT = 8081;
@@ -57,19 +59,7 @@ function renderBootScreen(core, driver) {
   driver.renderFrame(core, 1.0);
 }
 
-function loadDriver(config) {
-  const which = process.env.DRIVER || 'mock';
-  if (which === 'hardware') {
-    // eslint-disable-next-line global-require
-    const RgbMatrixDriver = require('./drivers/rgbMatrixDriver');
-    console.log('[app] using rgbMatrixDriver (real hardware), mode=' + config.mode);
-    return new RgbMatrixDriver({ mode: config.mode, panels: config.panels });
-  }
-  // eslint-disable-next-line global-require
-  const MockDriver = require('./drivers/mockDriver');
-  console.log('[app] using mockDriver (no hardware output) - set DRIVER=hardware to drive real panels');
-  return new MockDriver();
-}
+const { loadDriver } = require('./loadDriver');
 
 async function main() {
   const config = panelConfig.load();
@@ -77,9 +67,30 @@ async function main() {
   console.log(`[app] panel config: size=${config.size} mode=${config.mode} (${panelCount} panel(s))`);
   const core = new CubeCore(config.size);
   if (config.mode === 'wall') core.initWall(config.panels, config.size);
-  const driver = loadDriver(config);
   const driverKind = process.env.DRIVER || 'mock';
-  renderBootScreen(core, driver);
+  // Opt-in (RENDER_WORKER=1) - a real request: "can you use multiple cores
+  // for this?", after measuring this app's own render loop already using
+  // ~85% of one CPU core as a baseline (see ffmpegAudio.js's FFT-throttle
+  // fix's own comment for the full story). See renderWorker.js's module
+  // comment for the message protocol/design. Defaults OFF (unchanged
+  // single-threaded behavior) - this is a bigger, less battle-tested
+  // change than everything else this session, deliberately opt-in rather
+  // than replacing the working default.
+  const useRenderWorker = process.env.RENDER_WORKER === '1';
+  let driver = null;
+  let renderWorker = null;
+  if (useRenderWorker) {
+    console.log('[app] RENDER_WORKER=1 - running tick()/driver.renderFrame() in a separate worker thread');
+    renderWorker = new Worker(path.join(__dirname, 'renderWorker.js'), { workerData: { config } });
+    renderWorker.on('error', (err) => console.error('[renderWorker] error:', err));
+    renderWorker.on('exit', (code) => { if (code !== 0) console.error('[renderWorker] exited unexpectedly with code', code); });
+    // No renderBootScreen() call here - the worker owns the only driver
+    // instance (two RgbMatrixDrivers would fight over the same GPIO/DMA
+    // resources) and renders its own boot screen immediately on startup.
+  } else {
+    driver = loadDriver(config);
+    renderBootScreen(core, driver);
+  }
 
   // WiFi provisioning, mirroring the ESP32 firmware's WiFiManager captive
   // portal: if there's no working connection, this opens a setup AP and
@@ -173,7 +184,12 @@ async function main() {
     // with the mock driver; on real hardware it's applied to core/WS
     // preview immediately, but actually changes what physical panels the
     // driver pushes to only after a process restart.
-    if (driverKind === 'hardware') {
+    if (useRenderWorker) {
+      // The worker owns the real driver - relay the same config change so
+      // its own core/driver stay in sync (it logs the same hardware-mode
+      // warning itself, see renderWorker.js).
+      renderWorker.postMessage({ type: 'config', config: newConfig });
+    } else if (driverKind === 'hardware') {
       console.warn('[app] panel mode changed to', newConfig.mode, '- restart the process to apply this to the physical panel driver (rgbMatrixDriver.js\'s panel topology is fixed at startup)');
     }
   });
@@ -195,48 +211,90 @@ async function main() {
   bluetooth.resetPairability();
 
   let lastMs = Date.now();
-  setInterval(() => {
-    const now = Date.now();
-    const dt = Math.min(0.1, (now - lastMs) / 1000) * state.speed; // cap dt so a stall/GC pause can't produce a huge jump
-    lastMs = now;
 
-    // core.speedMult: raw (not dt-multiplied) speed value, for effects that
-    // need it separately from the pre-scaled dt above - see effects/weather/
-    // weather.js's module comment for why (it double-applies speedMult for
-    // one specific timer, faithfully matching the browser source).
-    core.speedMult = state.speed;
-    // core.panelMode: the browser's `panel2dMode` global, read by effects
-    // that render differently on a single flat panel vs. a cube face (e.g.
-    // weather.js's horizon/sun/moon/text placement) - see that file's
-    // module comment. Only 'wall'/'2d'/'cube' as set by panelConfig; 'wall'
-    // isn't a real single flat panel in the same sense (it's N panels), so
-    // effects keying off "is this the old single-2D-panel case" check
-    // `core.panelMode === '2d'` specifically, not `!== 'cube'`.
-    // core.panelMode/effectOptions/customCubeFaces/overlaysState are set
-    // inside tick() (src/tick.js) now, shared verbatim with the browser
-    // simulator bundle - see that file's module comment.
-    // Some effects (weather, and potentially others with their own
-    // background fetch - see effects/weather.js's getStatus()) expose a
-    // status snapshot (fetch in progress / last error / live values) for
-    // the control page's option panel to display, since it has no other
-    // way to see what a Pi-side-only fetch actually did - also computed
-    // inside tick().
-    tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt);
+  if (useRenderWorker) {
+    // Ping-pong instead of a free-running setInterval: the next 'tick' is
+    // only sent once the worker's 'frame' reply for the current one has
+    // been applied. This (a) naturally paces to whatever rate the worker
+    // can actually keep up with rather than flooding it with messages
+    // faster than it can process them, and (b) guarantees the
+    // alarms/activeAlarm/blank/effectStatus round-trip (see
+    // renderWorker.js's module comment for why this needs to be
+    // authoritative-from-the-worker) is applied to `state` BEFORE the next
+    // outgoing snapshot is built, so nothing the worker mutated ever gets
+    // silently overwritten by a stale main-thread copy.
+    const sendTick = () => {
+      const now = Date.now();
+      const dt = Math.min(0.1, (now - lastMs) / 1000) * state.speed;
+      lastMs = now;
+      core.speedMult = state.speed;
+      // Structured-clone can't carry a function reference across the
+      // thread boundary - strip onAlarmsChanged (main-thread-only, calls
+      // back into `ws`) before sending.
+      const { onAlarmsChanged, ...serializableState } = state;
+      renderWorker.postMessage({ type: 'tick', state: serializableState, dt });
+    };
+    renderWorker.on('message', (msg) => {
+      if (msg.type !== 'frame') return;
+      // A resize/mode change landing between this reply being computed and
+      // received could leave core's buffers a different length than what
+      // the worker sent for a single frame - skip applying a mismatched
+      // one rather than letting TypedArray#set throw (self-heals on the
+      // very next frame once both sides agree on size again).
+      if (msg.colBuf.length === core.colBuf.length) core.colBuf.set(msg.colBuf);
+      if (msg.wallBuf && core.wallBuf && msg.wallBuf.length === core.wallBuf.length) core.wallBuf.set(msg.wallBuf);
+      state.activeAlarm = msg.activeAlarm;
+      state.alarms = msg.alarms;
+      state.blank = msg.blank;
+      state.effectStatus = msg.effectStatus;
+      ws.maybeStreamFrame(core, state.brightness);
+      setTimeout(sendTick, Math.max(0, 1000 / TICK_HZ - (Date.now() - lastMs)));
+    });
+    sendTick();
+  } else {
+    setInterval(() => {
+      const now = Date.now();
+      const dt = Math.min(0.1, (now - lastMs) / 1000) * state.speed; // cap dt so a stall/GC pause can't produce a huge jump
+      lastMs = now;
 
-    // Brightness is applied at push time, not baked into core.colBuf -
-    // matches the browser's non-destructive approach (mesh.material.color.
-    // setScalar(brightness), see CLAUDE.md). Mutating colBuf in place here
-    // would compound incorrectly for any future effect that does partial/
-    // additive updates instead of rewriting every LED every frame (all
-    // effects ported so far happen to do a full rewrite, so it wouldn't
-    // have shown up yet - not worth relying on that staying true).
-    driver.renderFrame(core, state.brightness);
-    ws.maybeStreamFrame(core, state.brightness);
-  }, 1000 / TICK_HZ);
+      // core.speedMult: raw (not dt-multiplied) speed value, for effects that
+      // need it separately from the pre-scaled dt above - see effects/weather/
+      // weather.js's module comment for why (it double-applies speedMult for
+      // one specific timer, faithfully matching the browser source).
+      core.speedMult = state.speed;
+      // core.panelMode: the browser's `panel2dMode` global, read by effects
+      // that render differently on a single flat panel vs. a cube face (e.g.
+      // weather.js's horizon/sun/moon/text placement) - see that file's
+      // module comment. Only 'wall'/'2d'/'cube' as set by panelConfig; 'wall'
+      // isn't a real single flat panel in the same sense (it's N panels), so
+      // effects keying off "is this the old single-2D-panel case" check
+      // `core.panelMode === '2d'` specifically, not `!== 'cube'`.
+      // core.panelMode/effectOptions/customCubeFaces/overlaysState are set
+      // inside tick() (src/tick.js) now, shared verbatim with the browser
+      // simulator bundle - see that file's module comment.
+      // Some effects (weather, and potentially others with their own
+      // background fetch - see effects/weather.js's getStatus()) expose a
+      // status snapshot (fetch in progress / last error / live values) for
+      // the control page's option panel to display, since it has no other
+      // way to see what a Pi-side-only fetch actually did - also computed
+      // inside tick().
+      tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt);
+
+      // Brightness is applied at push time, not baked into core.colBuf -
+      // matches the browser's non-destructive approach (mesh.material.color.
+      // setScalar(brightness), see CLAUDE.md). Mutating colBuf in place here
+      // would compound incorrectly for any future effect that does partial/
+      // additive updates instead of rewriting every LED every frame (all
+      // effects ported so far happen to do a full rewrite, so it wouldn't
+      // have shown up yet - not worth relying on that staying true).
+      driver.renderFrame(core, state.brightness);
+      ws.maybeStreamFrame(core, state.brightness);
+    }, 1000 / TICK_HZ);
+  }
 
   process.on('SIGINT', () => {
     console.log('\n[app] shutting down');
-    driver.close();
+    if (renderWorker) renderWorker.terminate(); else driver.close();
     ws.close();
     process.exit(0);
   });
