@@ -13,29 +13,31 @@
 // branch, never the flat/bordered-2D-net branch.
 const FW_FACES = [0, 2, 1, 3];
 
-// FW_FONT - 6x5 bitmap font (5 rows, glyph strokes in columns 0-4, column 5
+// FW_FONT - 7x6 bitmap font (6 rows, glyph strokes in columns 0-5, column 6
 // always blank as built-in letter-spacing) for the fireworks scrolling
-// text overlay (fireworks.js/fireworksWall.js) - a real request to switch
-// that overlay from the 4x7 WC_FONT (word-cascade text) to a 6x5 font
-// instead. Row values are 5-bit (0-31, MSB = leftmost of the 5 stroke
-// columns); FW_CHAR_W (6) is the full advance width per character
-// including the spacer column.
+// text overlay (fireworks.js/fireworksWall.js) - a real request, after an
+// earlier 6x5 version, for a bigger glyph CELL (not a pixel-scale
+// multiplier - text must stay rendered at a flat 1:1 scale, one font bit
+// per physical pixel, per a separate "should be 1 width" report). Row
+// values are 6-bit (0-63, MSB = leftmost of the 6 stroke columns);
+// FW_CHAR_W (7) is the full advance width per character including the
+// spacer column.
 const FW_FONT = {
-  '0': [14, 17, 17, 17, 14], '1': [4, 12, 4, 4, 14], '2': [14, 17, 6, 8, 31], '3': [14, 17, 6, 17, 14],
-  '4': [2, 6, 10, 31, 2], '5': [31, 16, 30, 1, 30], '6': [6, 8, 30, 17, 14], '7': [31, 1, 2, 4, 4],
-  '8': [14, 17, 14, 17, 14], '9': [14, 17, 15, 1, 14],
-  A: [14, 17, 31, 17, 17], B: [30, 17, 30, 17, 30], C: [15, 16, 16, 16, 15], D: [30, 17, 17, 17, 30],
-  E: [31, 16, 30, 16, 31], F: [31, 16, 30, 16, 16], G: [15, 16, 19, 17, 15], H: [17, 17, 31, 17, 17],
-  I: [14, 4, 4, 4, 14], J: [7, 2, 2, 18, 12], K: [17, 18, 28, 18, 17], L: [16, 16, 16, 16, 31],
-  M: [17, 27, 21, 17, 17], N: [17, 25, 21, 19, 17], O: [14, 17, 17, 17, 14], P: [30, 17, 30, 16, 16],
-  Q: [14, 17, 21, 18, 13], R: [30, 17, 30, 18, 17], S: [15, 16, 14, 1, 30], T: [31, 4, 4, 4, 4],
-  U: [17, 17, 17, 17, 14], V: [17, 17, 17, 10, 4], W: [17, 17, 21, 27, 17], X: [17, 10, 4, 10, 17],
-  Y: [17, 10, 4, 4, 4], Z: [31, 2, 4, 8, 31],
-  ' ': [0, 0, 0, 0, 0], '.': [0, 0, 0, 0, 4], ',': [0, 0, 0, 4, 8], "'": [4, 4, 0, 0, 0],
-  '"': [10, 10, 0, 0, 0], '?': [14, 17, 6, 0, 4], '!': [4, 4, 4, 0, 4], ':': [0, 4, 0, 4, 0],
-  ';': [0, 4, 0, 4, 8], '-': [0, 0, 31, 0, 0], '(': [4, 8, 8, 8, 4], ')': [4, 2, 2, 2, 4],
+  '0': [30, 33, 33, 33, 33, 30], '1': [4, 12, 4, 4, 4, 14], '2': [30, 33, 2, 12, 16, 63], '3': [30, 33, 6, 2, 33, 30],
+  '4': [4, 12, 20, 36, 63, 4], '5': [63, 32, 62, 1, 33, 30], '6': [7, 16, 48, 39, 33, 30], '7': [63, 2, 4, 8, 8, 8],
+  '8': [30, 33, 30, 33, 33, 30], '9': [30, 33, 33, 31, 2, 14],
+  A: [30, 33, 33, 63, 33, 33], B: [62, 33, 62, 33, 33, 62], C: [30, 33, 32, 32, 33, 30], D: [62, 33, 33, 33, 33, 62],
+  E: [63, 32, 62, 32, 32, 63], F: [63, 32, 62, 32, 32, 32], G: [30, 32, 39, 33, 33, 30], H: [33, 33, 63, 33, 33, 33],
+  I: [30, 4, 4, 4, 4, 30], J: [7, 2, 2, 2, 34, 14], K: [33, 34, 52, 52, 34, 33], L: [32, 32, 32, 32, 32, 63],
+  M: [33, 51, 45, 33, 33, 33], N: [33, 49, 41, 37, 35, 33], O: [30, 33, 33, 33, 33, 30], P: [62, 33, 62, 32, 32, 32],
+  Q: [30, 33, 33, 37, 34, 30], R: [62, 33, 62, 36, 34, 33], S: [30, 32, 30, 1, 1, 62], T: [63, 4, 4, 4, 4, 4],
+  U: [33, 33, 33, 33, 33, 30], V: [33, 33, 33, 33, 18, 12], W: [33, 33, 45, 45, 51, 33], X: [33, 18, 12, 12, 18, 33],
+  Y: [33, 18, 12, 4, 4, 4], Z: [63, 2, 4, 8, 16, 63],
+  ' ': [0, 0, 0, 0, 0, 0], '.': [0, 0, 0, 0, 0, 4], ',': [0, 0, 0, 0, 4, 8], "'": [4, 4, 0, 0, 0, 0],
+  '"': [18, 18, 0, 0, 0, 0], '?': [30, 33, 2, 4, 0, 4], '!': [4, 4, 4, 4, 0, 4], ':': [0, 4, 0, 0, 4, 0],
+  ';': [0, 4, 0, 0, 4, 8], '-': [0, 0, 63, 0, 0, 0], '(': [4, 8, 32, 32, 8, 4], ')': [4, 2, 1, 1, 2, 4],
 };
-const FW_CHAR_W = 6;
+const FW_CHAR_W = 7;
 
 // Ported verbatim from effects-core.js's VID_FACE_ORDER - front→left→right→
 // back ordering for a seamless panorama across 4 side faces. Used by

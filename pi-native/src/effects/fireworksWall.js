@@ -262,17 +262,18 @@ function fwSyncUpdate(core, dt) {
 }
 
 // ── text-overlay glyph rendering (see fireworks.js's module comment for
-// the font history - now FW_FONT, 6x5, a real request to switch from
-// WC_FONT's 4x7) ──
+// the font history - now FW_FONT, 7x6, a bigger glyph cell than the
+// earlier 6x5/WC_FONT 4x7 versions, always rendered at a flat 1:1 pixel
+// scale) ──
 function glyphWidth(scale) { return FW_CHAR_W * scale; }
 function textPixelWidth(str, scale) { return str.length * glyphWidth(scale); }
 
 function drawGlyphToBuffer(buf, bw, bh, ch, ox, oy, scale) {
   const rows = FW_FONT[ch] || FW_FONT[ch.toUpperCase()] || FW_FONT[' '];
-  for (let row = 0; row < 5; row++) {
+  for (let row = 0; row < 6; row++) {
     const bits = rows[row];
-    for (let col = 0; col < 5; col++) {
-      if (!((bits >> (4 - col)) & 1)) continue;
+    for (let col = 0; col < 6; col++) {
+      if (!((bits >> (5 - col)) & 1)) continue;
       for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
         const x = ox + col * scale + sx, y = oy + row * scale + sy;
         if (x < 0 || x >= bw || y < 0 || y >= bh) continue;
@@ -286,10 +287,9 @@ function buildFwText(core, msg) {
   if (!msg || !msg.trim()) { fwTextPixels = null; fwTextWidth = 0; fwTextH = 0; return; }
   const wallH = core.wallH;
   const maxH = Math.round(wallH * 0.33);
-  // See fireworks.js's buildFwText() comment - 1:1 then bumped "one size
-  // bigger" to 2.
-  const scale = 2;
-  const glyphH = scale * 5;
+  // See fireworks.js's buildFwText() comment - flat 1:1 pixel scale.
+  const scale = 1;
+  const glyphH = scale * 6;
   const yOff = Math.floor((maxH - glyphH) / 2);
 
   const padText = msg.trim() + '   ';

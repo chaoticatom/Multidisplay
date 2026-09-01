@@ -299,19 +299,19 @@ function fwSyncUpdate(core, dt) {
 // fwTextPixels did, then fed into the same scrolling-strip draw logic as
 // the original.
 //
-// Uses FW_FONT (6x5 - see _shared.js) - a real request to switch this
-// overlay from WC_FONT (4x7, the word-cascade engine's font, used here
-// after an earlier "so big and blocky it can't be read" fix against the
-// original 3x5 PIXEL_FONT) to a wider/flatter 6x5 shape instead.
+// Uses FW_FONT (7x6 - see _shared.js) - after an earlier 6x5 version, a
+// follow-up request for a bigger glyph CELL while keeping rendering at a
+// flat 1:1 pixel scale (a separate "should be 1 width" report ruled out
+// just scaling the smaller font back up).
 function glyphWidth(scale) { return FW_CHAR_W * scale; }
 function textPixelWidth(str, scale) { return str.length * glyphWidth(scale); }
 
 function drawGlyphToBuffer(buf, bw, bh, ch, ox, oy, scale) {
   const rows = FW_FONT[ch] || FW_FONT[ch.toUpperCase()] || FW_FONT[' '];
-  for (let row = 0; row < 5; row++) {
+  for (let row = 0; row < 6; row++) {
     const bits = rows[row];
-    for (let col = 0; col < 5; col++) {
-      if (!((bits >> (4 - col)) & 1)) continue;
+    for (let col = 0; col < 6; col++) {
+      if (!((bits >> (5 - col)) & 1)) continue;
       for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
         const x = ox + col * scale + sx, y = oy + row * scale + sy;
         if (x < 0 || x >= bw || y < 0 || y >= bh) continue;
@@ -327,11 +327,12 @@ function buildFwText(core, msg) {
   const maxH = Math.round(SIZE * 0.33);
   // A real report: the font was "still massive, 4 pixels width per line,
   // should be 1" - the old auto-scale (floor(maxH/5), 4 for a 64px face)
-  // blew each font pixel up into a 4x4 block. Pinned to 1:1 first, then a
-  // follow-up request to bump it "one size bigger" - 2 (each font bit is
-  // a 2x2 physical-pixel block).
-  const scale = 2;
-  const glyphH = scale * 5;
+  // blew each font pixel up into a 4x4 block. Pinned to 1:1 (each font bit
+  // is exactly one physical pixel) - "one size bigger" is now FW_FONT's
+  // own larger 7x6 glyph cell (see _shared.js), not a pixel-scale
+  // multiplier.
+  const scale = 1;
+  const glyphH = scale * 6;
   const yOff = Math.floor((maxH - glyphH) / 2);
 
   const padText = msg.trim() + '   ';
