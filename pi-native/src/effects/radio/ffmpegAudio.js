@@ -42,6 +42,7 @@
 
 const { spawn } = require('child_process');
 const { computeBands, BAND_COUNT } = require('./fft');
+const { findPulseEnv } = require('../../pulseEnv');
 
 const RETRY_COOLDOWN_MS = 8000;
 const IDLE_TIMEOUT_MS = 10000;
@@ -159,12 +160,21 @@ class RadioAudio {
   _launchPlayback() {
     let proc;
     try {
-      proc = this._spawn('paplay', [
-        '--raw',
-        '--format=s16le',
-        '--rate=' + SAMPLE_RATE,
-        '--channels=' + CHANNELS,
-      ], { stdio: ['pipe', 'ignore', 'pipe'] });
+      // A real report: "I don't hear anything on the BT speaker" - despite
+      // the paired speaker correctly showing as the selected PulseAudio
+      // output. Root cause: this app runs as root (needed for
+      // rpi-led-matrix's GPIO/DMA access), but PulseAudio/PipeWire-pulse
+      // runs as a per-user session under the Pi's regular login user -
+      // paplay spawned with no env override tries to reach root's own
+      // nonexistent session and fails silently (see pulseEnv.js's module
+      // comment, and bluetooth.js's original diagnosis of the identical
+      // problem for pactl - this is the same fix, just never applied to
+      // this second PulseAudio-client process).
+      const pulseResult = findPulseEnv();
+      const env = pulseResult.env ? { ...process.env, ...pulseResult.env } : process.env;
+      const args = ['--raw', '--format=s16le', '--rate=' + SAMPLE_RATE, '--channels=' + CHANNELS];
+      if (pulseResult.env) args.unshift('--server=' + pulseResult.env.PULSE_SERVER);
+      proc = this._spawn('paplay', args, { stdio: ['pipe', 'ignore', 'pipe'], env });
     } catch (err) {
       this._onPlaybackFail(err);
       return;

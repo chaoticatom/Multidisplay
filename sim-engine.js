@@ -11085,6 +11085,59 @@ var PiEngine = (() => {
     }
   });
 
+  // src/pulseEnv.js
+  var require_pulseEnv = __commonJS({
+    "src/pulseEnv.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var fs = require_fs();
+      var _pulseEnvCache = null;
+      function findPulseEnv() {
+        if (_pulseEnvCache) return { env: _pulseEnvCache };
+        const debug = [];
+        const runUser = "/run/user";
+        let entries;
+        try {
+          entries = fs.readdirSync(runUser);
+          debug.push(`readdirSync(${runUser}) -> [${entries.join(", ")}]`);
+        } catch (err) {
+          debug.push(`readdirSync(${runUser}) threw: ${err.code || ""} ${err.message}`);
+          return { debug };
+        }
+        for (const uid of entries) {
+          const sock = `${runUser}/${uid}/pulse/native`;
+          let exists;
+          try {
+            exists = fs.existsSync(sock);
+          } catch (err) {
+            exists = false;
+            debug.push(`existsSync(${sock}) threw: ${err.message}`);
+          }
+          debug.push(`existsSync(${sock}) -> ${exists}`);
+          if (!exists) continue;
+          let home = null;
+          try {
+            const passwd = fs.readFileSync("/etc/passwd", "utf8");
+            for (const line of passwd.split("\n")) {
+              const fields = line.split(":");
+              if (fields[2] === uid) {
+                home = fields[5] || null;
+                break;
+              }
+            }
+            debug.push(`home for uid ${uid} -> ${home}`);
+          } catch (err) {
+            debug.push(`readFileSync(/etc/passwd) threw: ${err.message}`);
+          }
+          _pulseEnvCache = { PULSE_SERVER: "unix:" + sock, XDG_RUNTIME_DIR: `${runUser}/${uid}`, ...home ? { HOME: home } : {} };
+          return { env: _pulseEnvCache };
+        }
+        return { debug };
+      }
+      module.exports = { findPulseEnv };
+    }
+  });
+
   // src/effects/radio/ffmpegAudio.js
   var require_ffmpegAudio = __commonJS({
     "src/effects/radio/ffmpegAudio.js"(exports, module) {
@@ -11093,6 +11146,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { spawn } = require_child_process();
       var { computeBands, BAND_COUNT } = require_fft();
+      var { findPulseEnv } = require_pulseEnv();
       var RETRY_COOLDOWN_MS = 8e3;
       var IDLE_TIMEOUT_MS = 1e4;
       var IDLE_CHECK_MS = 3e3;
@@ -11201,12 +11255,11 @@ var PiEngine = (() => {
         _launchPlayback() {
           let proc;
           try {
-            proc = this._spawn("paplay", [
-              "--raw",
-              "--format=s16le",
-              "--rate=" + SAMPLE_RATE,
-              "--channels=" + CHANNELS
-            ], { stdio: ["pipe", "ignore", "pipe"] });
+            const pulseResult = findPulseEnv();
+            const env = pulseResult.env ? { ...define_process_env_default, ...pulseResult.env } : define_process_env_default;
+            const args = ["--raw", "--format=s16le", "--rate=" + SAMPLE_RATE, "--channels=" + CHANNELS];
+            if (pulseResult.env) args.unshift("--server=" + pulseResult.env.PULSE_SERVER);
+            proc = this._spawn("paplay", args, { stdio: ["pipe", "ignore", "pipe"], env });
           } catch (err) {
             this._onPlaybackFail(err);
             return;
