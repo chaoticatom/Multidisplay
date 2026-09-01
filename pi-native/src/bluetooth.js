@@ -16,6 +16,7 @@
 // canned bluetoothctl/pactl-style output without the real binaries. See
 // test/bluetooth.test.js.
 const { spawn, execFile } = require('child_process');
+const fs = require('fs');
 
 const MAC_RE = /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/;
 const DEVICE_LINE_RE = /Device ([0-9A-Fa-f:]{17}) (.+)/;
@@ -341,9 +342,65 @@ async function resetPairability() {
   } catch (err) { /* best-effort - a boot-time cleanup shouldn't crash startup */ }
 }
 
+// A real report (raw pactl output captured via the pairing-log console
+// dump): "Failed to create secure directory (/root/.config/pulse):
+// Permission denied" / "Connection failure: Connection refused". Root
+// cause: multidisplay-pi.service runs as root (needed for rpi-led-matrix's
+// GPIO/DMA access - see the unit file's own comment), but PulseAudio runs
+// as a per-user SESSION daemon under the Pi's regular login user, not
+// root - every `pactl` call this whole time was trying to reach root's
+// own (nonexistent) PulseAudio session instead of the real one. This
+// silently broke EVERY pactl-based feature in this file (sink listing/
+// selection, phone-audio routing), not just pairing - `pairDevice()`'s
+// Bluetooth-level connect/pair could still succeed (that's bluetoothd,
+// unrelated to PulseAudio), while the actual "make this the audio output"
+// step failed every single time with no visible error anywhere but here.
+// Finds the real user's running PulseAudio socket (/run/user/<uid>/pulse/
+// native - the standard per-user runtime location) and points PULSE_SERVER
+// at it explicitly, rather than assuming a uid (varies by install).
+// Pointing PULSE_SERVER at the right socket alone isn't quite enough:
+// PulseAudio's client auth normally relies on a cookie file at
+// $HOME/.config/pulse/cookie, matched against the same file the server
+// (running as the real login user) uses. Root's own $HOME (/root) has no
+// such cookie and can't create one there either (see the "Failed to
+// create secure directory (/root/.config/pulse): Permission denied" error
+// this was diagnosed from) - so the child pactl process also needs HOME/
+// XDG_RUNTIME_DIR pointed at the REAL user's environment, not just the
+// socket path. Reads /etc/passwd for the home directory matching whichever
+// uid under /run/user/ actually has a live PulseAudio socket, rather than
+// assuming a fixed uid/username (varies by install).
+let _pulseEnvCache = null;
+function findPulseEnv() {
+  // Only the found-it case is cached - if PulseAudio's session hasn't
+  // started yet (e.g. checked very early at boot, before the user session
+  // is up), retrying the cheap filesystem scan on the next call is better
+  // than permanently caching a false "not found".
+  if (_pulseEnvCache) return _pulseEnvCache;
+  try {
+    const runUser = '/run/user';
+    for (const uid of fs.readdirSync(runUser)) {
+      const sock = `${runUser}/${uid}/pulse/native`;
+      if (!fs.existsSync(sock)) continue;
+      let home = null;
+      try {
+        const passwd = fs.readFileSync('/etc/passwd', 'utf8');
+        for (const line of passwd.split('\n')) {
+          const fields = line.split(':');
+          if (fields[2] === uid) { home = fields[5] || null; break; }
+        }
+      } catch (err) { /* /etc/passwd unreadable - proceed without HOME override */ }
+      _pulseEnvCache = { PULSE_SERVER: 'unix:' + sock, XDG_RUNTIME_DIR: `${runUser}/${uid}`, ...(home ? { HOME: home } : {}) };
+      return _pulseEnvCache;
+    }
+  } catch (err) { /* /run/user may not exist in some environments - fall through */ }
+  return null;
+}
+
 function run(cmd, args) {
   return new Promise((resolve) => {
-    execFile(cmd, args, { timeout: 15000 }, (err, stdout, stderr) => {
+    const pulseEnv = cmd === 'pactl' ? findPulseEnv() : null;
+    const env = pulseEnv ? { ...process.env, ...pulseEnv } : process.env;
+    execFile(cmd, args, { timeout: 15000, env }, (err, stdout, stderr) => {
       resolve(`$ ${cmd} ${args.join(' ')}\n${stdout || ''}${stderr || ''}`);
     });
   });
