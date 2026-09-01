@@ -1,6 +1,6 @@
 {
   "name": "multidisplay-pi",
-  "version": "0.6.73",
+  "version": "0.6.74",
   "private": true,
   "description": "Native (no-browser) effect engine + panel driver for Multidisplay, running on a Raspberry Pi instead of streaming from a browser to an ESP32.",
   "main": "src/app.js",

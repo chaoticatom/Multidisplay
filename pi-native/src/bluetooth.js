@@ -170,7 +170,21 @@ async function setAsAudioOutput(mac, waitMs = 0) {
 
 async function pairDevice(mac) {
   if (!MAC_RE.test(mac)) throw new Error('invalid mac address');
-  const out = await bluetoothctl([`pair ${mac}`, `trust ${mac}`, `connect ${mac}`], 6000);
+  // A real report: a speaker beeped to confirm it connected, the control
+  // page even said "Paired.", but it never showed up in the paired-devices
+  // list afterward. Root cause: this never registered a pairing agent
+  // before calling `pair` (makeDiscoverable() already does, for INCOMING
+  // connections) - on a headless Pi with no display/keyboard to confirm a
+  // "Just Works"/PIN prompt, `pair` itself can silently fail or time out
+  // with no agent registered, even though `connect` succeeds right after
+  // anyway (often via a stale/cached link key from a previous pairing) -
+  // so `Connected: yes` shows up and looks like success, but BlueZ never
+  // actually recorded this device as Paired, and bluetoothctl
+  // paired-devices correctly omits it. Agent registration must happen in
+  // the SAME bluetoothctl session as `pair` (it's tied to that process's
+  // D-Bus connection, not persisted globally) - NoInputNoOutput
+  // auto-accepts Just Works pairing, same choice makeDiscoverable() made.
+  const out = await bluetoothctl(['agent NoInputNoOutput', 'default-agent', `pair ${mac}`, `trust ${mac}`, `connect ${mac}`], 6000);
   const ok = out.includes('Connection successful') || out.includes('Connected: yes');
   const log = [out];
   if (ok) {
