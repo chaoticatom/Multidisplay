@@ -296,6 +296,10 @@ async function listPaired() {
 // pairing with the Pi), the reverse role from pairDevice() (Pi connecting
 // out to a known speaker). NoInputNoOutput agent auto-accepts the pairing
 // prompt (just-works pairing) - no way to type a PIN on a headless Pi.
+// How long the pairing window advertised to the user (see app.js's
+// "Opening pairing window (~120s)...") actually stays open.
+const DISCOVERABLE_WINDOW_MS = 120000;
+
 async function makeDiscoverable() {
   const out = await bluetoothctl([
     'agent NoInputNoOutput',
@@ -303,7 +307,38 @@ async function makeDiscoverable() {
     'discoverable on',
     'pairable on',
   ], 1000);
+  // A real report: "it keeps adding devices to my paired device list but
+  // I have never paired with them." Root cause: `pairable on` (unlike
+  // `discoverable`, which has BlueZ's own DiscoverableTimeout) has NO
+  // automatic expiry at all - it's a persistent Adapter1 property that
+  // stays on indefinitely, independent of which client process set it or
+  // whether that process has since exited, until something explicitly
+  // turns it back off. Combined with the NoInputNoOutput agent (which
+  // auto-accepts ANY incoming pairing request with no confirmation
+  // prompt), a single click of "Make Cube Discoverable" left the Pi
+  // silently accepting a pairing from literally any nearby device,
+  // forever - explaining random unrecognized devices ("43\" Crystal
+  // UHD", "PowerHubnrGaDGo7") accumulating in the paired list over time.
+  // Explicitly close the window after the same ~120s already advertised
+  // to the user, rather than relying on `discoverable`'s own timeout
+  // (which doesn't touch `pairable` at all).
+  setTimeout(() => {
+    bluetoothctl(['discoverable off', 'pairable off'], 1000).catch(() => {});
+  }, DISCOVERABLE_WINDOW_MS);
   return { ok: true, log: out };
+}
+
+// Defensive reset called once at server startup (see src/app.js) - if a
+// previous run left `pairable`/`discoverable` on (e.g. the process was
+// killed/crashed mid-window before makeDiscoverable()'s own close-out
+// above could fire, or an old build without this fix at all left it on
+// indefinitely), a plain restart alone would never clear it, since
+// `pairable` is a persistent adapter-level property with no timeout of
+// its own. Cheap and safe to run unconditionally on every boot.
+async function resetPairability() {
+  try {
+    await bluetoothctl(['discoverable off', 'pairable off'], 1000);
+  } catch (err) { /* best-effort - a boot-time cleanup shouldn't crash startup */ }
 }
 
 function run(cmd, args) {
@@ -353,5 +388,5 @@ async function routePhoneAudio() {
 
 module.exports = {
   MAC_RE, parseDeviceLines, scanDevices, pairDevice, listPaired, makeDiscoverable, routePhoneAudio,
-  setAsAudioOutput, autoReconnectLastSpeaker, forgetDevice,
+  setAsAudioOutput, autoReconnectLastSpeaker, forgetDevice, resetPairability,
 };

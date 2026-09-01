@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.77';
+const APP_VERSION = '0.6.79';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2936,6 +2936,15 @@ function handleBtResult(msg) {
     // by the Pair button's click handler just sat there forever regardless
     // of whether pairing actually succeeded or failed.
     if (statusEl) statusEl.textContent = msg.paired ? 'Paired.' : 'Pairing failed - see server log.';
+    // Real diagnostic aid: pairDevice() can report "paired" (a beep, a
+    // live connection) while the device still never shows up in the
+    // paired-devices list, because bluetoothctl's own Connected/Paired
+    // states can genuinely diverge for some devices - the full raw
+    // bluetoothctl transcript is the only way to see why without SSHing
+    // into the Pi. Logged to the browser console (not the visible UI, to
+    // avoid dumping a wall of text into the sidebar) - open DevTools ->
+    // Console after a Pair click to see exactly what bluetoothctl said.
+    console.log('[bluetooth] pairDevice raw log:\n' + msg.log);
     // Refresh the (separate) paired-devices list so a newly-paired device
     // shows up without a manual refresh click.
     send({ cmd: 'btStatus' });

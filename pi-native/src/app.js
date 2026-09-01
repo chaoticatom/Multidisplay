@@ -185,6 +185,14 @@ async function main() {
   // without blocking the boot screen/effect engine/WS server from coming
   // up immediately.
   bluetooth.autoReconnectLastSpeaker().catch((err) => console.warn('[bluetooth] auto-reconnect failed:', err.message));
+  // A real report: "it keeps adding devices to my paired device list but
+  // I have never paired with them" - `pairable`/`discoverable` have no
+  // automatic expiry tied to process lifetime (see
+  // makeDiscoverable()/resetPairability()'s own comments), so a prior
+  // crashed/killed run - or an old build without this fix at all - could
+  // leave the Pi silently accepting pairing requests from any nearby
+  // device indefinitely. Clean slate on every boot.
+  bluetooth.resetPairability();
 
   let lastMs = Date.now();
   setInterval(() => {
