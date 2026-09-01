@@ -11273,6 +11273,12 @@ var PiEngine = (() => {
           });
           if (proc.stdin) proc.stdin.on("error", () => {
           });
+          this._playDrained = true;
+          if (proc.stdin) {
+            proc.stdin.on("drain", () => {
+              this._playDrained = true;
+            });
+          }
           proc.on("exit", (code) => {
             if (this.playProc === proc) this.playProc = null;
             if (this._stoppedIntentionally) return;
@@ -11300,9 +11306,9 @@ var PiEngine = (() => {
           }
         }
         _onData(chunk) {
-          if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable) {
+          if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && this._playDrained) {
             try {
-              this.playProc.stdin.write(chunk);
+              this._playDrained = this.playProc.stdin.write(chunk);
             } catch (e) {
             }
           }
@@ -12139,7 +12145,7 @@ var PiEngine = (() => {
         if (scrollX > textW) scrollX -= textW;
         const sv = 7;
         const chars = Array.from(label).reverse();
-        let u = -Math.floor(scrollX);
+        let u = Math.floor(scrollX) - textW;
         const rgb = [0.6, 0.85, 1];
         while (u < core.SIZE) {
           for (const ch of chars) {

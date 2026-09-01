@@ -40,7 +40,12 @@ function drawTicker(core, face, label, dt) {
   if (scrollX > textW) scrollX -= textW;
   const sv = 7;
   const chars = Array.from(label).reverse();
-  let u = -Math.floor(scrollX);
+  // A real report: the scroll direction itself was backwards - flipped by
+  // starting the draw position at (scrollX - textW) instead of (-scrollX),
+  // which reverses which way the text appears to travel across the panel
+  // without touching textW/wrap math or the separate (already-correct)
+  // per-glyph/word-order handling above.
+  let u = Math.floor(scrollX) - textW;
   const rgb = [0.6, 0.85, 1];
   while (u < core.SIZE) {
     for (const ch of chars) {

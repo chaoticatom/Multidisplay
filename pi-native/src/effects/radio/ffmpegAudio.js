@@ -188,6 +188,28 @@ class RadioAudio {
     // already guards with proc.stdin.writable before writing, this is just
     // a backstop for the race between that check and the pipe actually closing.
     if (proc.stdin) proc.stdin.on('error', () => {});
+    // A real report: "the spectrum analyser is very laggy when using the
+    // BT speaker." A2DP playback has real, sometimes bursty buffering
+    // (visible in a real bluetoothctl transport log: "Delay: 0x0064
+    // (100)" - ~100ms baseline, worse under congestion) - paplay's stdin
+    // can't always drain writes as fast as ffmpeg produces them. _onData()
+    // below wrote to it unconditionally with no backpressure handling, so
+    // Node's internal write buffer for that stream had no upper bound:
+    // every write that couldn't be flushed immediately just piled up,
+    // making the audio (and therefore anything perceptually synced to it)
+    // increasingly delayed the longer playback ran, never catching back
+    // up on its own. `_playDrained` tracks whether the pipe can currently
+    // accept more data without buffering further - _onData() skips
+    // forwarding audio to playback while backed up (briefly dropping live
+    // samples, the correct behavior for a live stream that's fallen
+    // behind - it should catch up to "now", not play out a growing
+    // backlog) rather than letting the buffer grow without bound. The FFT/
+    // visualization path is untouched either way, since it already reads
+    // ffmpeg's own stdout directly, not through this write.
+    this._playDrained = true;
+    if (proc.stdin) {
+      proc.stdin.on('drain', () => { this._playDrained = true; });
+    }
     proc.on('exit', (code) => {
       if (this.playProc === proc) this.playProc = null;
       if (this._stoppedIntentionally) return;
@@ -220,9 +242,12 @@ class RadioAudio {
   _onData(chunk) {
     // Forward to playback first (order doesn't matter, but this keeps the
     // two consumers as close to in-sync as possible) - failure here must
-    // never throw or block the FFT path below.
-    if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable) {
-      try { this.playProc.stdin.write(chunk); } catch (e) { /* handled via the stdin 'error' listener */ }
+    // never throw or block the FFT path below. Skipped entirely while the
+    // pipe is still backed up from a previous write (see the 'drain'
+    // listener in _launchPlayback()) instead of writing regardless and
+    // letting Node's internal buffer grow without bound.
+    if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && this._playDrained) {
+      try { this._playDrained = this.playProc.stdin.write(chunk); } catch (e) { /* handled via the stdin 'error' listener */ }
     }
 
     this.pending = this.pending.length ? Buffer.concat([this.pending, chunk]) : Buffer.from(chunk);
