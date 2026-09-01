@@ -75,6 +75,19 @@ test('RSSI is captured and kept up to date as the strongest/latest reading', () 
   const devices = parseDeviceLines(sample);
   assert.deepStrictEqual(devices[0], { mac: '11:22:33:44:55:66', name: 'JBL Flip 5', rssi: -55 });
 });
+test('a "<Key> is nil"-phrased property line (no colon) does not become the device name', () => {
+  // A real report: rows literally reading "RSSI is nil" / "TxPower is
+  // nil" as the device name - this BlueZ/bluetoothctl version phrases an
+  // unset property as "<Key> is nil", not "<Key>: value", so the
+  // colon-based property-line check let it straight through as a name.
+  const sample = `
+[CHG] Device 11:22:33:44:55:66 RSSI is nil
+[CHG] Device 11:22:33:44:55:66 TxPower is nil
+`;
+  const devices = parseDeviceLines(sample);
+  assert.strictEqual(devices.length, 1);
+  assert.deepStrictEqual(devices[0], { mac: '11:22:33:44:55:66', name: '11:22:33:44:55:66', rssi: null });
+});
 test('a device whose FIRST captured line is a property update (not a name) falls back to its MAC, not the raw property text', () => {
   // A real report: the device list showed literal "RSSI: 0xffffffbd (-67)"
   // as a device's name. Happens when a device's "[NEW] Device MAC <name>"

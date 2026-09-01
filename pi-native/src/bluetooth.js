@@ -95,7 +95,11 @@ function parseDeviceLines(text) {
     // a device that genuinely never advertises a friendly name, not
     // garbage property text - while still leaving room for a later
     // "Name: " line (handled above) to upgrade it if one does arrive.
-    const isPropertyLine = /^[A-Za-z][A-Za-z ]*: /.test(trimmed);
+    // A real report: rows literally reading "RSSI is nil" / "TxPower is
+    // nil" as the device name - this BlueZ/bluetoothctl version phrases
+    // an unset property as "<Key> is nil", not "<Key>: value", so the
+    // colon-based check above let it straight through as a name candidate.
+    const isPropertyLine = /^[A-Za-z][A-Za-z ]*: /.test(trimmed) || /^[A-Za-z][A-Za-z ]* is nil$/.test(trimmed);
     const d = get(mac); // ensures a sighting is recorded either way, defaulting name to the MAC
     if (!isPropertyLine && d.name === mac) d.name = trimmed;
   }
