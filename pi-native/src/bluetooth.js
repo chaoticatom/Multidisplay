@@ -400,8 +400,22 @@ function run(cmd, args) {
   return new Promise((resolve) => {
     const pulseEnv = cmd === 'pactl' ? findPulseEnv() : null;
     const env = pulseEnv ? { ...process.env, ...pulseEnv } : process.env;
+    // Belt-and-suspenders: pass --server explicitly too, not just via the
+    // PULSE_SERVER env var - in case this pactl build/environment doesn't
+    // pick up the env var reliably (still investigating why the env-only
+    // approach hasn't fixed a real "Connection refused" yet).
+    if (pulseEnv) args = ['--server=' + pulseEnv.PULSE_SERVER, ...args];
+    // Temporary but real diagnostic need: the PulseAudio-env override
+    // (findPulseEnv()) still didn't fix "Connection refused" on a real
+    // Pi even once its own prerequisites (a live socket, a matching
+    // /etc/passwd entry) were directly confirmed present - rather than
+    // guess at a third explanation blind, surface exactly what this
+    // function actually computed (or why it computed nothing) in the
+    // same log the UI already displays, instead of needing another
+    // console-log round trip to find out.
+    const envNote = cmd === 'pactl' ? `[pulseEnv: ${pulseEnv ? JSON.stringify(pulseEnv) : 'null (findPulseEnv found nothing)'}]\n` : '';
     execFile(cmd, args, { timeout: 15000, env }, (err, stdout, stderr) => {
-      resolve(`$ ${cmd} ${args.join(' ')}\n${stdout || ''}${stderr || ''}`);
+      resolve(`${envNote}$ ${cmd} ${args.join(' ')}\n${stdout || ''}${stderr || ''}`);
     });
   });
 }
