@@ -370,50 +370,74 @@ async function resetPairability() {
 // uid under /run/user/ actually has a live PulseAudio socket, rather than
 // assuming a fixed uid/username (varies by install).
 let _pulseEnvCache = null;
+// Returns { env } on success or { debug } on failure - a real report:
+// this returned null on a real Pi even with its own prerequisites (a live
+// socket at the expected path, a matching /etc/passwd entry) directly
+// confirmed present by hand over SSH, and silently swallowing whatever
+// went wrong here made that impossible to diagnose further. `debug`
+// records exactly what was tried and what fs call failed/returned, so a
+// second failure surfaces the real cause instead of just "found nothing"
+// again.
 function findPulseEnv() {
   // Only the found-it case is cached - if PulseAudio's session hasn't
   // started yet (e.g. checked very early at boot, before the user session
   // is up), retrying the cheap filesystem scan on the next call is better
   // than permanently caching a false "not found".
-  if (_pulseEnvCache) return _pulseEnvCache;
+  if (_pulseEnvCache) return { env: _pulseEnvCache };
+  const debug = [];
+  const runUser = '/run/user';
+  let entries;
   try {
-    const runUser = '/run/user';
-    for (const uid of fs.readdirSync(runUser)) {
-      const sock = `${runUser}/${uid}/pulse/native`;
-      if (!fs.existsSync(sock)) continue;
-      let home = null;
-      try {
-        const passwd = fs.readFileSync('/etc/passwd', 'utf8');
-        for (const line of passwd.split('\n')) {
-          const fields = line.split(':');
-          if (fields[2] === uid) { home = fields[5] || null; break; }
-        }
-      } catch (err) { /* /etc/passwd unreadable - proceed without HOME override */ }
-      _pulseEnvCache = { PULSE_SERVER: 'unix:' + sock, XDG_RUNTIME_DIR: `${runUser}/${uid}`, ...(home ? { HOME: home } : {}) };
-      return _pulseEnvCache;
+    entries = fs.readdirSync(runUser);
+    debug.push(`readdirSync(${runUser}) -> [${entries.join(', ')}]`);
+  } catch (err) {
+    debug.push(`readdirSync(${runUser}) threw: ${err.code || ''} ${err.message}`);
+    return { debug };
+  }
+  for (const uid of entries) {
+    const sock = `${runUser}/${uid}/pulse/native`;
+    let exists;
+    try { exists = fs.existsSync(sock); } catch (err) { exists = false; debug.push(`existsSync(${sock}) threw: ${err.message}`); }
+    debug.push(`existsSync(${sock}) -> ${exists}`);
+    if (!exists) continue;
+    let home = null;
+    try {
+      const passwd = fs.readFileSync('/etc/passwd', 'utf8');
+      for (const line of passwd.split('\n')) {
+        const fields = line.split(':');
+        if (fields[2] === uid) { home = fields[5] || null; break; }
+      }
+      debug.push(`home for uid ${uid} -> ${home}`);
+    } catch (err) {
+      debug.push(`readFileSync(/etc/passwd) threw: ${err.message}`);
     }
-  } catch (err) { /* /run/user may not exist in some environments - fall through */ }
-  return null;
+    _pulseEnvCache = { PULSE_SERVER: 'unix:' + sock, XDG_RUNTIME_DIR: `${runUser}/${uid}`, ...(home ? { HOME: home } : {}) };
+    return { env: _pulseEnvCache };
+  }
+  return { debug };
 }
 
 function run(cmd, args) {
   return new Promise((resolve) => {
-    const pulseEnv = cmd === 'pactl' ? findPulseEnv() : null;
+    const result = cmd === 'pactl' ? findPulseEnv() : null;
+    const pulseEnv = result && result.env;
     const env = pulseEnv ? { ...process.env, ...pulseEnv } : process.env;
     // Belt-and-suspenders: pass --server explicitly too, not just via the
     // PULSE_SERVER env var - in case this pactl build/environment doesn't
-    // pick up the env var reliably (still investigating why the env-only
-    // approach hasn't fixed a real "Connection refused" yet).
+    // pick up the env var reliably.
     if (pulseEnv) args = ['--server=' + pulseEnv.PULSE_SERVER, ...args];
-    // Temporary but real diagnostic need: the PulseAudio-env override
-    // (findPulseEnv()) still didn't fix "Connection refused" on a real
-    // Pi even once its own prerequisites (a live socket, a matching
-    // /etc/passwd entry) were directly confirmed present - rather than
-    // guess at a third explanation blind, surface exactly what this
-    // function actually computed (or why it computed nothing) in the
-    // same log the UI already displays, instead of needing another
-    // console-log round trip to find out.
-    const envNote = cmd === 'pactl' ? `[pulseEnv: ${pulseEnv ? JSON.stringify(pulseEnv) : 'null (findPulseEnv found nothing)'}]\n` : '';
+    // Temporary but real diagnostic need: a previous version of this
+    // override still didn't fix "Connection refused" on a real Pi even
+    // once its own prerequisites (a live socket, a matching /etc/passwd
+    // entry) were directly confirmed present by hand over SSH, and
+    // findPulseEnv() itself reported finding nothing despite that -
+    // meaning the bug was in the detection code, not the pactl approach,
+    // but there was no visibility into WHY it found nothing. Surfaces the
+    // full step-by-step debug trail (what readdirSync/existsSync actually
+    // saw/threw) in the same log the UI already displays.
+    const envNote = cmd === 'pactl'
+      ? `[pulseEnv: ${pulseEnv ? JSON.stringify(pulseEnv) : 'NOT FOUND - debug: ' + JSON.stringify(result.debug)}]\n`
+      : '';
     execFile(cmd, args, { timeout: 15000, env }, (err, stdout, stderr) => {
       resolve(`${envNote}$ ${cmd} ${args.join(' ')}\n${stdout || ''}${stderr || ''}`);
     });
