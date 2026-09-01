@@ -2406,6 +2406,57 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var FW_FACES = [0, 2, 1, 3];
+      var FW_FONT = {
+        "0": [14, 17, 17, 17, 14],
+        "1": [4, 12, 4, 4, 14],
+        "2": [14, 17, 6, 8, 31],
+        "3": [14, 17, 6, 17, 14],
+        "4": [2, 6, 10, 31, 2],
+        "5": [31, 16, 30, 1, 30],
+        "6": [6, 8, 30, 17, 14],
+        "7": [31, 1, 2, 4, 4],
+        "8": [14, 17, 14, 17, 14],
+        "9": [14, 17, 15, 1, 14],
+        A: [14, 17, 31, 17, 17],
+        B: [30, 17, 30, 17, 30],
+        C: [15, 16, 16, 16, 15],
+        D: [30, 17, 17, 17, 30],
+        E: [31, 16, 30, 16, 31],
+        F: [31, 16, 30, 16, 16],
+        G: [15, 16, 19, 17, 15],
+        H: [17, 17, 31, 17, 17],
+        I: [14, 4, 4, 4, 14],
+        J: [7, 2, 2, 18, 12],
+        K: [17, 18, 28, 18, 17],
+        L: [16, 16, 16, 16, 31],
+        M: [17, 27, 21, 17, 17],
+        N: [17, 25, 21, 19, 17],
+        O: [14, 17, 17, 17, 14],
+        P: [30, 17, 30, 16, 16],
+        Q: [14, 17, 21, 18, 13],
+        R: [30, 17, 30, 18, 17],
+        S: [15, 16, 14, 1, 30],
+        T: [31, 4, 4, 4, 4],
+        U: [17, 17, 17, 17, 14],
+        V: [17, 17, 17, 10, 4],
+        W: [17, 17, 21, 27, 17],
+        X: [17, 10, 4, 10, 17],
+        Y: [17, 10, 4, 4, 4],
+        Z: [31, 2, 4, 8, 31],
+        " ": [0, 0, 0, 0, 0],
+        ".": [0, 0, 0, 0, 4],
+        ",": [0, 0, 0, 4, 8],
+        "'": [4, 4, 0, 0, 0],
+        '"': [10, 10, 0, 0, 0],
+        "?": [14, 17, 6, 0, 4],
+        "!": [4, 4, 4, 0, 4],
+        ":": [0, 4, 0, 4, 0],
+        ";": [0, 4, 0, 4, 8],
+        "-": [0, 0, 31, 0, 0],
+        "(": [4, 8, 8, 8, 4],
+        ")": [4, 2, 2, 2, 4]
+      };
+      var FW_CHAR_W = 6;
       var VID_FACE_ORDER = [0, 3, 1, 2];
       function cubePx(core, col, v) {
         const S = core.SIZE, T = S * 4, M = S - 1;
@@ -2899,6 +2950,8 @@ var PiEngine = (() => {
         tronMove,
         surfIdx,
         FW_FACES,
+        FW_FONT,
+        FW_CHAR_W,
         VID_FACE_ORDER,
         getLocalGravity,
         galleryInitFaceState,
@@ -9950,7 +10003,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
-      var { fwPx, WC_FONT, WC_CHAR_W } = require_shared();
+      var { fwPx, FW_FONT, FW_CHAR_W } = require_shared();
       var fwRockets = [];
       var fwBursts = [];
       var fwSpawnT = 0;
@@ -10226,17 +10279,17 @@ var PiEngine = (() => {
         }
       }
       function glyphWidth(scale) {
-        return WC_CHAR_W * scale;
+        return FW_CHAR_W * scale;
       }
       function textPixelWidth(str, scale) {
         return str.length * glyphWidth(scale);
       }
       function drawGlyphToBuffer(buf, bw, bh, ch, ox, oy, scale) {
-        const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()] || WC_FONT[" "];
-        for (let row = 0; row < 7; row++) {
+        const rows = FW_FONT[ch] || FW_FONT[ch.toUpperCase()] || FW_FONT[" "];
+        for (let row = 0; row < 5; row++) {
           const bits = rows[row];
-          for (let col = 0; col < 4; col++) {
-            if (!(bits >> 3 - col & 1)) continue;
+          for (let col = 0; col < 5; col++) {
+            if (!(bits >> 4 - col & 1)) continue;
             for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
               const x = ox + col * scale + sx, y = oy + row * scale + sy;
               if (x < 0 || x >= bw || y < 0 || y >= bh) continue;
@@ -10254,8 +10307,8 @@ var PiEngine = (() => {
         }
         const SIZE = core.SIZE;
         const maxH = Math.round(SIZE * 0.33);
-        const scale = Math.max(1, Math.floor(maxH / 7));
-        const glyphH = scale * 7;
+        const scale = Math.max(1, Math.floor(maxH / 5));
+        const glyphH = scale * 5;
         const yOff = Math.floor((maxH - glyphH) / 2);
         const padText = msg.trim() + "   ";
         const oneW = Math.max(1, textPixelWidth(padText, scale));
@@ -20921,7 +20974,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
-      var { WC_FONT, WC_CHAR_W } = require_shared();
+      var { FW_FONT, FW_CHAR_W } = require_shared();
       var fwRockets = [];
       var fwBursts = [];
       var fwSpawnT = 0;
@@ -21186,17 +21239,17 @@ var PiEngine = (() => {
         }
       }
       function glyphWidth(scale) {
-        return WC_CHAR_W * scale;
+        return FW_CHAR_W * scale;
       }
       function textPixelWidth(str, scale) {
         return str.length * glyphWidth(scale);
       }
       function drawGlyphToBuffer(buf, bw, bh, ch, ox, oy, scale) {
-        const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()] || WC_FONT[" "];
-        for (let row = 0; row < 7; row++) {
+        const rows = FW_FONT[ch] || FW_FONT[ch.toUpperCase()] || FW_FONT[" "];
+        for (let row = 0; row < 5; row++) {
           const bits = rows[row];
-          for (let col = 0; col < 4; col++) {
-            if (!(bits >> 3 - col & 1)) continue;
+          for (let col = 0; col < 5; col++) {
+            if (!(bits >> 4 - col & 1)) continue;
             for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
               const x = ox + col * scale + sx, y = oy + row * scale + sy;
               if (x < 0 || x >= bw || y < 0 || y >= bh) continue;
@@ -21214,8 +21267,8 @@ var PiEngine = (() => {
         }
         const wallH = core.wallH;
         const maxH = Math.round(wallH * 0.33);
-        const scale = Math.max(1, Math.floor(maxH / 7));
-        const glyphH = scale * 7;
+        const scale = Math.max(1, Math.floor(maxH / 5));
+        const glyphH = scale * 5;
         const yOff = Math.floor((maxH - glyphH) / 2);
         const padText = msg.trim() + "   ";
         const oneW = Math.max(1, textPixelWidth(padText, scale));

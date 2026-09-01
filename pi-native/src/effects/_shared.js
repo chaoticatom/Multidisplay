@@ -13,6 +13,30 @@
 // branch, never the flat/bordered-2D-net branch.
 const FW_FACES = [0, 2, 1, 3];
 
+// FW_FONT - 6x5 bitmap font (5 rows, glyph strokes in columns 0-4, column 5
+// always blank as built-in letter-spacing) for the fireworks scrolling
+// text overlay (fireworks.js/fireworksWall.js) - a real request to switch
+// that overlay from the 4x7 WC_FONT (word-cascade text) to a 6x5 font
+// instead. Row values are 5-bit (0-31, MSB = leftmost of the 5 stroke
+// columns); FW_CHAR_W (6) is the full advance width per character
+// including the spacer column.
+const FW_FONT = {
+  '0': [14, 17, 17, 17, 14], '1': [4, 12, 4, 4, 14], '2': [14, 17, 6, 8, 31], '3': [14, 17, 6, 17, 14],
+  '4': [2, 6, 10, 31, 2], '5': [31, 16, 30, 1, 30], '6': [6, 8, 30, 17, 14], '7': [31, 1, 2, 4, 4],
+  '8': [14, 17, 14, 17, 14], '9': [14, 17, 15, 1, 14],
+  A: [14, 17, 31, 17, 17], B: [30, 17, 30, 17, 30], C: [15, 16, 16, 16, 15], D: [30, 17, 17, 17, 30],
+  E: [31, 16, 30, 16, 31], F: [31, 16, 30, 16, 16], G: [15, 16, 19, 17, 15], H: [17, 17, 31, 17, 17],
+  I: [14, 4, 4, 4, 14], J: [7, 2, 2, 18, 12], K: [17, 18, 28, 18, 17], L: [16, 16, 16, 16, 31],
+  M: [17, 27, 21, 17, 17], N: [17, 25, 21, 19, 17], O: [14, 17, 17, 17, 14], P: [30, 17, 30, 16, 16],
+  Q: [14, 17, 21, 18, 13], R: [30, 17, 30, 18, 17], S: [15, 16, 14, 1, 30], T: [31, 4, 4, 4, 4],
+  U: [17, 17, 17, 17, 14], V: [17, 17, 17, 10, 4], W: [17, 17, 21, 27, 17], X: [17, 10, 4, 10, 17],
+  Y: [17, 10, 4, 4, 4], Z: [31, 2, 4, 8, 31],
+  ' ': [0, 0, 0, 0, 0], '.': [0, 0, 0, 0, 4], ',': [0, 0, 0, 4, 8], "'": [4, 4, 0, 0, 0],
+  '"': [10, 10, 0, 0, 0], '?': [14, 17, 6, 0, 4], '!': [4, 4, 4, 0, 4], ':': [0, 4, 0, 4, 0],
+  ';': [0, 4, 0, 4, 8], '-': [0, 0, 31, 0, 0], '(': [4, 8, 8, 8, 4], ')': [4, 2, 2, 2, 4],
+};
+const FW_CHAR_W = 6;
+
 // Ported verbatim from effects-core.js's VID_FACE_ORDER - front→left→right→
 // back ordering for a seamless panorama across 4 side faces. Used by
 // retro.js (and effects-media.js's video effect in the browser, not yet
@@ -483,7 +507,7 @@ function wcDecodeEntities(str) {
 }
 
 module.exports = {
-  cubePx, fwPx, tronMove, surfIdx, FW_FACES, VID_FACE_ORDER, getLocalGravity,
+  cubePx, fwPx, tronMove, surfIdx, FW_FACES, FW_FONT, FW_CHAR_W, VID_FACE_ORDER, getLocalGravity,
   galleryInitFaceState, gallerySlideshowStep, galleryApplyToFace, galleryApplyBlendToFace,
   galleryApplyToWall, galleryApplyBlendToWall,
   loadImageForPixels, drawLinesCentered3x5,

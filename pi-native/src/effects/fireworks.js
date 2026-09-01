@@ -32,7 +32,7 @@
 //    idle screen. If real audio input is ever added to pi-native, this is
 //    the branch to wire up.
 const { hsl } = require('../core');
-const { fwPx, WC_FONT, WC_CHAR_W } = require('./_shared');
+const { fwPx, FW_FONT, FW_CHAR_W } = require('./_shared');
 
 // ── module state (mirrors the browser's bare globals) ──
 const fwRockets = [];
@@ -278,24 +278,19 @@ function fwSyncUpdate(core, dt) {
 // fwTextPixels did, then fed into the same scrolling-strip draw logic as
 // the original.
 //
-// Uses WC_FONT (4x7, the same font the word-cascade engine already uses
-// for Jokes/Trivia/On This Day - see _shared.js) rather than the 3x5
-// PIXEL_FONT weather's ticker uses. A real report: at the scale needed to
-// fill SIZE*0.33px tall, PIXEL_FONT's 3-wide glyphs (with no anti-aliasing,
-// since this is a canvas replacement) came out as blown-up flat squares
-// that were "so big and blocky it can't be read" - WC_FONT's extra column
-// and 2 extra rows give letterforms enough detail to still read once
-// scaled up, the same reason it was already the pick for on-screen word
-// display elsewhere.
-function glyphWidth(scale) { return WC_CHAR_W * scale; }
+// Uses FW_FONT (6x5 - see _shared.js) - a real request to switch this
+// overlay from WC_FONT (4x7, the word-cascade engine's font, used here
+// after an earlier "so big and blocky it can't be read" fix against the
+// original 3x5 PIXEL_FONT) to a wider/flatter 6x5 shape instead.
+function glyphWidth(scale) { return FW_CHAR_W * scale; }
 function textPixelWidth(str, scale) { return str.length * glyphWidth(scale); }
 
 function drawGlyphToBuffer(buf, bw, bh, ch, ox, oy, scale) {
-  const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()] || WC_FONT[' '];
-  for (let row = 0; row < 7; row++) {
+  const rows = FW_FONT[ch] || FW_FONT[ch.toUpperCase()] || FW_FONT[' '];
+  for (let row = 0; row < 5; row++) {
     const bits = rows[row];
-    for (let col = 0; col < 4; col++) {
-      if (!((bits >> (3 - col)) & 1)) continue;
+    for (let col = 0; col < 5; col++) {
+      if (!((bits >> (4 - col)) & 1)) continue;
       for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
         const x = ox + col * scale + sx, y = oy + row * scale + sy;
         if (x < 0 || x >= bw || y < 0 || y >= bh) continue;
@@ -309,8 +304,8 @@ function buildFwText(core, msg) {
   if (!msg || !msg.trim()) { fwTextPixels = null; fwTextWidth = 0; fwTextH = 0; return; }
   const SIZE = core.SIZE;
   const maxH = Math.round(SIZE * 0.33);
-  const scale = Math.max(1, Math.floor(maxH / 7));
-  const glyphH = scale * 7;
+  const scale = Math.max(1, Math.floor(maxH / 5));
+  const glyphH = scale * 5;
   const yOff = Math.floor((maxH - glyphH) / 2);
 
   const padText = msg.trim() + '   ';
