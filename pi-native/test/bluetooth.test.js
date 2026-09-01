@@ -87,6 +87,17 @@ test('RSSI in "0x<hex> (-N)" form (a real bluetoothctl version\'s format) parses
   const devices = parseDeviceLines(sample);
   assert.deepStrictEqual(devices[0], { mac: '11:22:33:44:55:66', name: 'JBL Flip 5', rssi: -67 });
 });
+test('a namespaced property key with a period ("ManufacturerData.Key: ...") does not become the device name', () => {
+  // A real report: "ManufacturerData.Key: 0x3144 (12612)" showed up as a
+  // device's name - a nested/namespaced property key isn't just
+  // letters+spaces, so the earlier colon-based check still missed it.
+  const sample = `
+[CHG] Device 11:22:33:44:55:66 ManufacturerData.Key: 0x3144 (12612)
+`;
+  const devices = parseDeviceLines(sample);
+  assert.strictEqual(devices.length, 1);
+  assert.deepStrictEqual(devices[0], { mac: '11:22:33:44:55:66', name: '11:22:33:44:55:66', rssi: null });
+});
 test('a "<Key> is nil"-phrased property line (no colon) does not become the device name', () => {
   // A real report: rows literally reading "RSSI is nil" / "TxPower is
   // nil" as the device name - this BlueZ/bluetoothctl version phrases an

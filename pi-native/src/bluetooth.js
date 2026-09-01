@@ -108,7 +108,17 @@ function parseDeviceLines(text) {
     // nil" as the device name - this BlueZ/bluetoothctl version phrases
     // an unset property as "<Key> is nil", not "<Key>: value", so the
     // colon-based check above let it straight through as a name candidate.
-    const isPropertyLine = /^[A-Za-z][A-Za-z ]*: /.test(trimmed) || /^[A-Za-z][A-Za-z ]* is nil$/.test(trimmed);
+    // A real report: "ManufacturerData.Key: 0x3144 (12612)" ALSO got
+    // adopted as a name - a nested/namespaced property key with a period
+    // in it ("ManufacturerData.Key") isn't just letters+spaces, so even
+    // the broadened colon check above still missed it. Rather than keep
+    // enumerating every property-key shape a given BlueZ version might
+    // use, invert the heuristic: a real device name essentially never
+    // contains a bare ": " sequence, so treat ANY line with one (or
+    // ending "is nil") as a property update, not a name candidate -
+    // explicit "Name: " lines are still handled separately above and
+    // always win regardless.
+    const isPropertyLine = /: /.test(trimmed) || / is nil$/.test(trimmed);
     const d = get(mac); // ensures a sighting is recorded either way, defaulting name to the MAC
     if (!isPropertyLine && d.name === mac) d.name = trimmed;
   }
