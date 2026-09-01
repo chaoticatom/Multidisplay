@@ -21,6 +21,7 @@ require.cache[fakeMatrixPath] = {
       sync() {}
     },
     GpioMapping: { Regular: 1 },
+    RuntimeFlag: { Disabled: -1, Off: 0, On: 1 },
   },
 };
 

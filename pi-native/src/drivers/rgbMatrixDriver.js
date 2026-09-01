@@ -11,7 +11,7 @@
 //   drawBuffer(buffer, w, h, xOffset, yOffset)
 // where buffer.length MUST equal w*h*3 - flat RGB, 3 bytes/pixel, row-major,
 // (R,G,B) order per pixel. That's what buildFaceBuffer() below produces.
-const { LedMatrix, GpioMapping } = require('rpi-led-matrix');
+const { LedMatrix, GpioMapping, RuntimeFlag } = require('rpi-led-matrix');
 const { FACE_LAYOUT } = require('../panelConfig');
 
 // ---------------------------------------------------------------------------
@@ -94,6 +94,26 @@ class RgbMatrixDriver {
       // - start at 2 and raise if the image looks unstable once on real
       // hardware; there's no way to determine the right value without it.
       gpioSlowdown: 2,
+      // A real, extensively-diagnosed report ("how do I get audio to play
+      // through my speaker" / pactl always "Connection refused", even
+      // after fixing PULSE_SERVER/sink-naming/retries): this library
+      // (hzeller/rpi-rgb-led-matrix's Node binding) DROPS ROOT PRIVILEGES
+      // BY DEFAULT once GPIO/DMA is initialized, down to a low-privilege
+      // user (confirmed on real hardware: the running process's own
+      // /proc/<pid>/status showed Uid: 1 "daemon", CapEff all zero, despite
+      // the systemd unit's own `User=root` and no override files existing
+      // anywhere) - a sensible security default for a program that only
+      // ever needs root for the initial memory-mapped GPIO access, but
+      // catastrophic here: EVERY bluetoothctl/pactl call this file's
+      // src/bluetooth.js makes happens AFTER this constructor runs, so the
+      // entire rest of the process (Bluetooth pairing/audio routing, not
+      // just LED rendering) was unexpectedly unprivileged the whole time,
+      // unable to reach another user's PulseAudio session or write to
+      // /root - explaining "Connection refused"/"Permission denied" that
+      // no amount of PULSE_SERVER/env fixing could ever have solved on its
+      // own. Disabled explicitly - this app needs root for its full
+      // lifetime, not just at hardware-init time.
+      dropPrivileges: RuntimeFlag.Off,
       ...opts.runtimeOptions,
     };
     this.matrix = new LedMatrix(matrixOptions, runtimeOptions);
