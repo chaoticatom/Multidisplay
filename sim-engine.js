@@ -10367,11 +10367,15 @@ var PiEngine = (() => {
           fwTextBuiltFor = null;
         }
         for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.8;
+        const quantity = Math.max(1, Math.min(8, Math.round(opts.quantity) || 1));
+        function fwLaunchBatch() {
+          for (let i = 0; i < quantity; i++) fwLaunch(core, panel2dMode);
+          if (Math.random() > 0.6) fwLaunch(core, panel2dMode);
+        }
         if (mode === "random") {
           fwSpawnT += dt;
           if (fwSpawnT > 0.4) {
-            fwLaunch(core, panel2dMode);
-            if (Math.random() > 0.6) fwLaunch(core, panel2dMode);
+            fwLaunchBatch();
             fwSpawnT = 0;
           }
         } else if (mode === "sync") {
@@ -10379,8 +10383,7 @@ var PiEngine = (() => {
         } else if (mode === "mic") {
           fwSpawnT += dt;
           if (fwSpawnT > 0.4) {
-            fwLaunch(core, panel2dMode);
-            if (Math.random() > 0.6) fwLaunch(core, panel2dMode);
+            fwLaunchBatch();
             fwSpawnT = 0;
           }
         }
@@ -21322,10 +21325,11 @@ var PiEngine = (() => {
           fwTextBuiltFor = null;
         }
         for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= 0.8;
+        const quantity = Math.max(1, Math.min(8, Math.round(opts.quantity) || 1));
         if (mode === "random" || mode === "mic") {
           fwSpawnT += dt;
           if (fwSpawnT > 0.4) {
-            fwLaunch(core);
+            for (let i = 0; i < quantity; i++) fwLaunch(core);
             if (Math.random() > 0.6) fwLaunch(core);
             fwSpawnT = 0;
           }

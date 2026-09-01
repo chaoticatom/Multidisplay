@@ -347,11 +347,19 @@ function effectFireworksWall(core, dt) {
 
   for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= 0.80;
 
+  // See fireworks.js's effectFireworks() comment - quantity slider, only
+  // meaningful for the ad-lib random/mic launch loop, not 'sync's fixed
+  // choreography.
+  const quantity = Math.max(1, Math.min(8, Math.round(opts.quantity) || 1));
   if (mode === 'random' || mode === 'mic') {
     // 'mic' has no audio-input pipeline here (see module comment) - falls
     // back to the same launch cadence as 'random'.
     fwSpawnT += dt;
-    if (fwSpawnT > 0.4) { fwLaunch(core); if (Math.random() > 0.6) fwLaunch(core); fwSpawnT = 0; }
+    if (fwSpawnT > 0.4) {
+      for (let i = 0; i < quantity; i++) fwLaunch(core);
+      if (Math.random() > 0.6) fwLaunch(core);
+      fwSpawnT = 0;
+    }
   } else if (mode === 'sync') {
     fwSyncUpdate(core, dt);
   }

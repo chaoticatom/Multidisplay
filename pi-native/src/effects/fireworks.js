@@ -383,9 +383,23 @@ function effectFireworks(core, dt) {
 
   for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.80;
 
+  // How many rockets launch per spawn tick - a real request for a
+  // quantity control ("a scroll bar would be best"). Default 1 matches
+  // the original always-launch-one-plus-a-40%-chance-of-a-second cadence;
+  // higher values launch that many guaranteed rockets (still with the same
+  // bonus chance on top) instead of just one. Only meaningful for
+  // 'random'/'mic' (the ad-lib launch loop below) - 'sync' is a fixed,
+  // hand-choreographed timeline (FW_SYNC_ACTS), not something a blanket
+  // "launch N at once" knob should be scaling.
+  const quantity = Math.max(1, Math.min(8, Math.round(opts.quantity) || 1));
+  function fwLaunchBatch() {
+    for (let i = 0; i < quantity; i++) fwLaunch(core, panel2dMode);
+    if (Math.random() > 0.6) fwLaunch(core, panel2dMode);
+  }
+
   if (mode === 'random') {
     fwSpawnT += dt;
-    if (fwSpawnT > 0.4) { fwLaunch(core, panel2dMode); if (Math.random() > 0.6) fwLaunch(core, panel2dMode); fwSpawnT = 0; }
+    if (fwSpawnT > 0.4) { fwLaunchBatch(); fwSpawnT = 0; }
   } else if (mode === 'sync') {
     fwSyncUpdate(core, dt);
   } else if (mode === 'mic') {
@@ -393,7 +407,7 @@ function effectFireworks(core, dt) {
     // fall back to the same launch cadence as 'random' rather than sitting
     // dark or crashing.
     fwSpawnT += dt;
-    if (fwSpawnT > 0.4) { fwLaunch(core, panel2dMode); if (Math.random() > 0.6) fwLaunch(core, panel2dMode); fwSpawnT = 0; }
+    if (fwSpawnT > 0.4) { fwLaunchBatch(); fwSpawnT = 0; }
   }
 
   const totalCols = panel2dMode ? SIZE : SIZE * 4;

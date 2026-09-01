@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.67';
+const APP_VERSION = '0.6.68';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1223,6 +1223,11 @@ function wireFireworksPanel() {
       setEffectOption('fireworks', 'mode', btn.dataset.fwmode);
     });
   });
+  const quantity = panel.querySelector('#fw-quantity'), quantityVal = panel.querySelector('#fw-quantity-val');
+  if (quantity) quantity.addEventListener('input', () => {
+    if (quantityVal) quantityVal.textContent = quantity.value;
+    setEffectOption('fireworks', 'quantity', Number(quantity.value));
+  });
   const textOn = panel.querySelector('#fw-text-on');
   if (textOn) textOn.addEventListener('change', () => setEffectOption('fireworks', 'textOn', textOn.checked));
   const textInput = panel.querySelector('#fw-text-input');
@@ -1237,6 +1242,11 @@ function syncFireworksPanel() {
   panel.querySelectorAll('.strobe-mode-btn[data-fwmode]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.fwmode === mode);
   });
+  const quantity = panel.querySelector('#fw-quantity'), quantityVal = panel.querySelector('#fw-quantity-val');
+  if (quantity && document.activeElement !== quantity) {
+    quantity.value = opts.quantity ?? 1;
+    if (quantityVal) quantityVal.textContent = quantity.value;
+  }
   const textOn = panel.querySelector('#fw-text-on');
   if (textOn && document.activeElement !== textOn) textOn.checked = !!opts.textOn;
   const textInput = panel.querySelector('#fw-text-input');
