@@ -264,6 +264,28 @@ class RadioAudio {
     const dt = Math.max(0.005, Math.min(0.5, (now - this._lastChunkMs) / 1000));
     this._lastChunkMs = now;
 
+    // A real report: "bars are going up and down but not smooth" -
+    // measured on real hardware, this app's own render loop (LED panel
+    // pixel/effect computation) was already using ~85% of one CPU core as
+    // a baseline; adding real-time ffmpeg decode + FFT + paplay playback
+    // on top of that (all now genuinely running, once the earlier
+    // privilege/PulseAudio-env bugs were fixed) leaves too little headroom
+    // for the render loop's timing to stay precise, which shows up as
+    // choppy spectrum bars specifically (they need frequent, evenly-paced
+    // updates to read as smooth motion). The FFT itself (a proper O(n log
+    // n) radix-2 transform on 2048 samples, ~22k ops) is cheap in
+    // isolation, but running it on every single ~46ms audio frame all
+    // adds up. Recomputing only every other frame halves this path's CPU
+    // cost - the exponential smoothing below still runs every frame
+    // (interpolating toward whichever target was last computed), so
+    // motion stays continuous rather than visibly freezing between
+    // updates.
+    this._fftFrameCounter = (this._fftFrameCounter || 0) + 1;
+    if (this._fftFrameCounter % 2 === 0 && this._lastTarget) {
+      this._applySpectrumTarget(this._lastTarget, dt);
+      return;
+    }
+
     // Mono-sum the interleaved stereo s16le samples - see module comment /
     // CLAUDE.md task note: full stereo separation isn't worth the added
     // complexity for a 64px visualizer, mono-summed is an acceptable
@@ -277,6 +299,11 @@ class RadioAudio {
     }
 
     const target = computeBands(samples, SAMPLE_RATE);
+    this._lastTarget = target;
+    this._applySpectrumTarget(target, dt);
+  }
+
+  _applySpectrumTarget(target, dt) {
     for (let b = 0; b < BAND_COUNT; b++) {
       const t = target[b];
       if (t > this.spec[b]) this.spec[b] += (t - this.spec[b]) * Math.min(1, dt * 20);

@@ -11324,6 +11324,11 @@ var PiEngine = (() => {
           const now = Date.now();
           const dt = Math.max(5e-3, Math.min(0.5, (now - this._lastChunkMs) / 1e3));
           this._lastChunkMs = now;
+          this._fftFrameCounter = (this._fftFrameCounter || 0) + 1;
+          if (this._fftFrameCounter % 2 === 0 && this._lastTarget) {
+            this._applySpectrumTarget(this._lastTarget, dt);
+            return;
+          }
           const samples = new Float32Array(FRAME_SAMPLES);
           for (let i = 0; i < FRAME_SAMPLES; i++) {
             const l = frameBuf.readInt16LE(i * 4);
@@ -11331,6 +11336,10 @@ var PiEngine = (() => {
             samples[i] = (l + r) / 2 / 32768;
           }
           const target = computeBands(samples, SAMPLE_RATE);
+          this._lastTarget = target;
+          this._applySpectrumTarget(target, dt);
+        }
+        _applySpectrumTarget(target, dt) {
           for (let b = 0; b < BAND_COUNT; b++) {
             const t = target[b];
             if (t > this.spec[b]) this.spec[b] += (t - this.spec[b]) * Math.min(1, dt * 20);
