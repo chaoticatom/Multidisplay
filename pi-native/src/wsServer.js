@@ -895,6 +895,15 @@ class WsServer {
       // not just automatically at the moment it was first paired.
       if (typeof msg.mac !== 'string') return;
       this._replyBt(ws, 'btSetOutputResult', () => bluetooth.setAsAudioOutput(msg.mac));
+    } else if (msg.cmd === 'btForget') {
+      // A real report: "why does it think I have paired 5 devices?" - lets
+      // stale pairings (including ones from testing/debugging) be removed
+      // from the control page instead of only via SSH.
+      if (typeof msg.mac !== 'string') return;
+      this._replyBt(ws, 'btForgetResult', async () => {
+        const r = await bluetooth.forgetDevice(msg.mac);
+        return { forgot: r.ok, log: r.log };
+      });
     } else if (msg.cmd === 'btDiscoverable') {
       this._replyBt(ws, 'btDiscoverableResult', () => bluetooth.makeDiscoverable());
     } else if (msg.cmd === 'btRoutePhoneAudio') {

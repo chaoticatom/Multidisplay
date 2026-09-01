@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.75';
+const APP_VERSION = '0.6.76';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2902,7 +2902,16 @@ function renderBtPairedList(devices, statusEl, listEl) {
         ? 'background:rgba(80,220,120,0.15);border:1px solid rgba(80,220,120,0.4);color:#6e8;cursor:default;'
         : 'background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;');
     outputBtn.onclick = () => { if (statusEl) statusEl.textContent = 'Setting ' + d.name + ' as output...'; send({ cmd: 'btSetOutput', mac: d.mac }); };
-    row.append(statusDot, nameSpan, outputBtn);
+    // A real report: "why does it think I have paired 5 devices?" - each
+    // pairing attempt (including test/debugging ones) creates a real,
+    // persistent BlueZ pairing with no expiry - this lets a stale one be
+    // removed from the control page instead of only via SSH.
+    const forgetBtn = document.createElement('button');
+    forgetBtn.textContent = '✕';
+    forgetBtn.title = 'Forget this device';
+    forgetBtn.style.cssText = 'padding:3px 7px;border-radius:4px;cursor:pointer;font-size:10px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.2);color:#f88;';
+    forgetBtn.onclick = () => { if (statusEl) statusEl.textContent = 'Forgetting ' + d.name + '...'; send({ cmd: 'btForget', mac: d.mac }); };
+    row.append(statusDot, nameSpan, outputBtn, forgetBtn);
     listEl.appendChild(row);
   }
 }
@@ -2932,6 +2941,9 @@ function handleBtResult(msg) {
     send({ cmd: 'btStatus' });
   } else if (msg.cmd === 'btSetOutputResult') {
     if (pairedStatusEl) pairedStatusEl.textContent = msg.set ? 'Output updated.' : 'Could not set output - see server log.';
+    send({ cmd: 'btStatus' });
+  } else if (msg.cmd === 'btForgetResult') {
+    if (pairedStatusEl) pairedStatusEl.textContent = msg.forgot ? 'Forgotten.' : 'Could not forget device - see server log.';
     send({ cmd: 'btStatus' });
   } else if (phoneStatusEl && (msg.cmd === 'btDiscoverableResult' || msg.cmd === 'btRoutePhoneAudioResult')) {
     phoneStatusEl.textContent = 'OK';

@@ -75,6 +75,18 @@ test('RSSI is captured and kept up to date as the strongest/latest reading', () 
   const devices = parseDeviceLines(sample);
   assert.deepStrictEqual(devices[0], { mac: '11:22:33:44:55:66', name: 'JBL Flip 5', rssi: -55 });
 });
+test('RSSI in "0x<hex> (-N)" form (a real bluetoothctl version\'s format) parses the real signed value, not the leading hex digit', () => {
+  // A real report: RSSI showed as "0 dBm" for almost every device. This
+  // BlueZ version formats it as "RSSI: 0xffffffbd (-67)" - the old regex
+  // matched greedily from "RSSI: " and grabbed just the leading "0" of
+  // "0xffffffbd" before the non-digit "x" stopped it.
+  const sample = `
+[NEW] Device 11:22:33:44:55:66 JBL Flip 5
+[CHG] Device 11:22:33:44:55:66 RSSI: 0xffffffbd (-67)
+`;
+  const devices = parseDeviceLines(sample);
+  assert.deepStrictEqual(devices[0], { mac: '11:22:33:44:55:66', name: 'JBL Flip 5', rssi: -67 });
+});
 test('a "<Key> is nil"-phrased property line (no colon) does not become the device name', () => {
   // A real report: rows literally reading "RSSI is nil" / "TxPower is
   // nil" as the device name - this BlueZ/bluetoothctl version phrases an

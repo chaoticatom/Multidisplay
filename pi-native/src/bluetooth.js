@@ -80,8 +80,17 @@ function parseDeviceLines(text) {
     // value seen (unlike name, a moving/rotating device's signal strength
     // genuinely changes during a scan, so the newest reading is the most
     // accurate one) and surface it alongside the name/MAC either way.
-    const rssiMatch = /^RSSI: (-?\d+)/.exec(trimmed);
-    if (rssiMatch) { get(mac).rssi = Number(rssiMatch[1]); continue; }
+    // A real report: RSSI showing as "0 dBm" for almost every device. This
+    // BlueZ/bluetoothctl version formats RSSI as "RSSI: 0xffffffbd (-67)"
+    // (hex encoding of the signed byte, then the real signed decimal in
+    // parens) rather than a plain "RSSI: -67" - the old regex matched
+    // greedily from "RSSI: " and captured just the leading "0" of
+    // "0xffffffbd" before the non-digit "x" stopped it, silently reading
+    // 0 dBm off every single device instead of the real value. Prefer the
+    // parenthesized decimal when present; fall back to a plain "RSSI: N"
+    // for any bluetoothctl version/line that reports it that way instead.
+    const rssiMatch = /^RSSI: (?:0x[0-9a-fA-F]+\s*\((-?\d+)\)|(-?\d+)\b)/.exec(trimmed);
+    if (rssiMatch) { get(mac).rssi = Number(rssiMatch[1] ?? rssiMatch[2]); continue; }
     // Any other "PropertyKey: value"-shaped line (Connected/Trusted/
     // Paired/TxPower/ManufacturerData/ServiceData/...) is a property
     // update, never a name - a real report: some devices' FIRST-ever line
@@ -203,6 +212,21 @@ async function pairDevice(mac) {
   return { ok, log: log.join('\n') };
 }
 
+// A real report: "why does it think I have paired 5 devices?" - each
+// pairing attempt (including test/debugging ones on random nearby
+// devices) creates a REAL, persistent BlueZ pairing that sticks around
+// indefinitely until explicitly removed - bluetoothctl paired-devices was
+// accurately reporting actual state, not a bug, but there was no way to
+// clean up stale entries from the control page. `remove` un-pairs AND
+// un-trusts in one step (BlueZ's own combined operation, not a separate
+// unpair+untrust).
+async function forgetDevice(mac) {
+  if (!MAC_RE.test(mac)) throw new Error('invalid mac address');
+  const out = await bluetoothctl([`remove ${mac}`], 1500);
+  const ok = out.includes('has been removed') || out.includes('Device has been removed');
+  return { ok, log: out };
+}
+
 // A real request: "auto try to connect to the previous paired device, even
 // after a reboot." bluetoothctl's own trusted-device auto-reconnect isn't
 // reliable for a Pi acting as the audio SOURCE (it's the Pi that needs to
@@ -319,5 +343,5 @@ async function routePhoneAudio() {
 
 module.exports = {
   MAC_RE, parseDeviceLines, scanDevices, pairDevice, listPaired, makeDiscoverable, routePhoneAudio,
-  setAsAudioOutput, autoReconnectLastSpeaker,
+  setAsAudioOutput, autoReconnectLastSpeaker, forgetDevice,
 };
