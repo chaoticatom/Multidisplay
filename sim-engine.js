@@ -12120,7 +12120,7 @@ var PiEngine = (() => {
       function drawGlyph(core, face, ch, su, sv, rgb) {
         const rows = FONT[ch.toUpperCase()] || FONT["?"];
         for (let ry = 0; ry < 7; ry++) {
-          const bits = rows[ry];
+          const bits = rows[6 - ry];
           const y = sv - (6 - ry);
           if (y < 0 || y >= core.SIZE) continue;
           for (let rx = 0; rx < 5; rx++) {
