@@ -58,7 +58,22 @@ function glyphWall(core, ch, su, sv, rgb) {
     if (y < 0 || y >= core.wallH) continue;
     for (let rx = 0; rx < 5; rx++) {
       if (!(bits & (1 << (4 - rx)))) continue;
-      const x = su + rx;
+      // rgbMatrixDriver's _buildWallPanelBuffer() mirrors the WHOLE
+      // wallW x wallH canvas left-right before pushing to the physical
+      // panels (a confirmed real-hardware fix for general effect content -
+      // see that function's module comment). That's invisible for
+      // rotationally-generic patterns but flips text backwards, which
+      // matches real screenshots of this ticker. Verified against a local
+      // simulation of both this draw AND that driver mirror together
+      // (not just guessed): swapping to su+(4-rx) here - a LOCAL mirror
+      // within each glyph's own 5px box, leaving `su` (the per-character
+      // anchor driving scroll motion/order) untouched - produces a
+      // correctly-shaped, correctly-ordered "E"/"H"/"I" after the driver's
+      // mirror is applied, with scroll direction unchanged (an earlier
+      // attempt using a global su+rx -> wallW-1-x cancellation fixed the
+      // shape but would have also reversed the already-correct scroll
+      // direction - simulation caught that before it shipped).
+      const x = su + (4 - rx);
       if (x < 0 || x >= core.wallW) continue;
       core.setWallPixel(x, y, rgb[0], rgb[1], rgb[2]);
     }

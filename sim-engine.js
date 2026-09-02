@@ -25505,7 +25505,7 @@ var PiEngine = (() => {
           if (y < 0 || y >= core.wallH) continue;
           for (let rx = 0; rx < 5; rx++) {
             if (!(bits & 1 << 4 - rx)) continue;
-            const x = su + rx;
+            const x = su + (4 - rx);
             if (x < 0 || x >= core.wallW) continue;
             core.setWallPixel(x, y, rgb[0], rgb[1], rgb[2]);
           }
