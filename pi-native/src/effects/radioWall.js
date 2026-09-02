@@ -123,7 +123,10 @@ function effectRadioWall(core, dt) {
       if (lastLevelSmoothedW > 0.01) {
         const desired = target / Math.max(0.05, lastLevelSmoothedW * autoGainMultW);
         autoGainMultW += (desired - autoGainMultW) * Math.min(1, dt * 0.5);
-        autoGainMultW = Math.max(0.3, Math.min(4, autoGainMultW));
+        // See radio.js's effectRadio() - ceiling raised from 4 so auto gain
+        // alone can reach what previously needed the manual Gain slider
+        // stacked on top of an already-maxed-out multiplier.
+        autoGainMultW = Math.max(0.3, Math.min(10, autoGainMultW));
       }
     } else {
       autoGainMultW = 1;

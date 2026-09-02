@@ -168,7 +168,13 @@ function effectRadio(core, dt) {
       if (lastLevelSmoothed > 0.01) {
         const desired = target / Math.max(0.05, lastLevelSmoothed * autoGainMult);
         autoGainMult += (desired - autoGainMult) * Math.min(1, dt * 0.5);
-        autoGainMult = Math.max(0.3, Math.min(4, autoGainMult));
+        // A real report: "even with auto gain, I need to set the gain
+        // slider to about 3" - the old ceiling of 4 was capping auto gain
+        // below what quiet streams/low-output stations actually need,
+        // forcing the manual Gain slider to make up the rest on top of an
+        // already-maxed-out auto multiplier. Raised so auto gain alone can
+        // reach what previously needed gain~3 stacked on top of it.
+        autoGainMult = Math.max(0.3, Math.min(10, autoGainMult));
       }
     } else {
       autoGainMult = 1;
