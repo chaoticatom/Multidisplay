@@ -97,8 +97,14 @@ function computeBands(samples, sampleRate) {
     // boost applied further up. freqBalance now ramps from well below 1
     // at the bass end up through 1 around the low-mid range to a treble
     // boost at the top, instead of starting at ~1 (no correction at all)
-    // for band 0.
-    const freqBalance = 0.35 + frac * 1.75;
+    // for band 0. A follow-up report ("first 5 bars need reducing a bit
+    // more so auto gain works better") - the previous linear ramp still
+    // left the first few bands too close to 1 (frac 0.016-0.078 only
+    // scaled to ~0.38-0.49). Using frac's exponent (1.4) instead of frac
+    // itself steepens the curve specifically near the bass end (band 0-5
+    // now scale to roughly 0.2-0.25) while barely changing the treble end
+    // (frac=1 is still 2.1 either way).
+    const freqBalance = 0.2 + Math.pow(frac, 1.4) * 1.9;
     bands[b] = Math.min(1, norm * freqBalance);
     lo = hi + 1;
     if (lo > maxBin) lo = maxBin;

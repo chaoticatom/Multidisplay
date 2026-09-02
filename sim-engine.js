@@ -11074,7 +11074,7 @@ var PiEngine = (() => {
           }
           const raw = count > 0 ? sum / count : 0;
           const norm = Math.min(1, raw / 0.05);
-          const freqBalance = 0.35 + frac * 1.75;
+          const freqBalance = 0.2 + Math.pow(frac, 1.4) * 1.9;
           bands[b] = Math.min(1, norm * freqBalance);
           lo = hi + 1;
           if (lo > maxBin) lo = maxBin;
