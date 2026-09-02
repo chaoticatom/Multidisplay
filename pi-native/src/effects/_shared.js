@@ -278,24 +278,19 @@ async function loadImageForPixels(url, targetSize, opts) {
 // refactored onto this copy, to avoid touching a file outside this task's
 // scope).
 const { PIXEL_FONT } = require('./weather/font');
-// rgbMatrixDriver's _buildFaceBuffer() mirrors face 0's whole image
-// left-right in '2d' mode only (a real-hardware fix for that single
-// panel's physical mounting - see that function's module comment),
-// which flips text backwards as a side effect; cube mode has no such
-// mirror on face 0 and must not get this compensation. Same fix/same
-// verification approach as radio/font.js's drawGlyph(): a local mirror
-// within each glyph's 3px box (col -> 2-col), gated on
-// core.panelMode==='2d', leaving su (the per-character advance) alone.
+const { needsTextMirror, mirrorCol } = require('./textMirror');
+// See textMirror.js's module comment for why this glyph needs a mode-aware
+// local mirror.
 function drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b) {
   const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
   if (!rows) return 4 * scale;
   const S = core.SIZE;
-  const mirror = core.panelMode !== 'cube';
+  const mirror = needsTextMirror(core.panelMode);
   for (let row = 0; row < 5; row++) {
     const bits = rows[row];
     for (let col = 0; col < 3; col++) {
       if (!((bits >> (2 - col)) & 1)) continue;
-      const localCol = mirror ? (2 - col) : col;
+      const localCol = mirrorCol(col, 3, mirror);
       for (let sy = 0; sy < scale; sy++) {
         for (let sx = 0; sx < scale; sx++) {
           const u = su + localCol * scale + sx, v = sv + row * scale + sy;

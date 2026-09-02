@@ -31,6 +31,7 @@
 const radio = require('./radio/radio');
 const { renderSpectrumStyleWall, createSpectrumWallState } = require('./radio/spectrumWall');
 const { FONT, CHAR_W } = require('./radio/font');
+const { needsTextMirror, mirrorCol } = require('./textMirror');
 
 const spectrumWallState = createSpectrumWallState();
 let autoGainMultW = 1;
@@ -50,30 +51,19 @@ function sample(arr, b, bands, BAND_COUNT) {
   return arr[idx];
 }
 
+// See textMirror.js's module comment - the single shared answer to
+// "does this mode need a local mirror", now used by every glyph drawer in
+// this codebase instead of each reimplementing it separately.
 function glyphWall(core, ch, su, sv, rgb) {
   const rows = FONT[ch.toUpperCase()] || FONT['?'];
+  const mirror = needsTextMirror(core.panelMode);
   for (let ry = 0; ry < 7; ry++) {
     const bits = rows[ry];
     const y = sv - (6 - ry);
     if (y < 0 || y >= core.wallH) continue;
     for (let rx = 0; rx < 5; rx++) {
       if (!(bits & (1 << (4 - rx)))) continue;
-      // rgbMatrixDriver's _buildWallPanelBuffer() mirrors the WHOLE
-      // wallW x wallH canvas left-right before pushing to the physical
-      // panels (a confirmed real-hardware fix for general effect content -
-      // see that function's module comment). That's invisible for
-      // rotationally-generic patterns but flips text backwards, which
-      // matches real screenshots of this ticker. Verified against a local
-      // simulation of both this draw AND that driver mirror together
-      // (not just guessed): swapping to su+(4-rx) here - a LOCAL mirror
-      // within each glyph's own 5px box, leaving `su` (the per-character
-      // anchor driving scroll motion/order) untouched - produces a
-      // correctly-shaped, correctly-ordered "E"/"H"/"I" after the driver's
-      // mirror is applied, with scroll direction unchanged (an earlier
-      // attempt using a global su+rx -> wallW-1-x cancellation fixed the
-      // shape but would have also reversed the already-correct scroll
-      // direction - simulation caught that before it shipped).
-      const x = su + (4 - rx);
+      const x = su + mirrorCol(rx, 5, mirror);
       if (x < 0 || x >= core.wallW) continue;
       core.setWallPixel(x, y, rgb[0], rgb[1], rgb[2]);
     }

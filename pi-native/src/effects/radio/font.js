@@ -10,6 +10,8 @@
 // self-contained replacement used only by ./ticker.js.
 'use strict';
 
+const { needsTextMirror, mirrorCol } = require('../textMirror');
+
 const CHAR_W = 6; // 5px glyph + 1px spacing
 const CHAR_H = 7;
 
@@ -46,33 +48,21 @@ const FONT = {
 // same contract effects-core.js's wcDrawGlyph() has - so callers can just
 // do `u += drawGlyph(...)` in a loop.
 //
-// rgbMatrixDriver's _buildFaceBuffer() mirrors face 0's WHOLE image
-// left-right specifically in '2d' mode (this device's actual default,
-// confirmed by the absence of a panel-config.json on disk - see
-// panelConfig.js) to correct that single panel's physical mounting - a
-// real hardware fix for general effect content, but one that flips text
-// backwards as a side effect (cube mode, which has no such mirror on
-// face 0, is unaffected and must NOT get this compensation). Verified
-// with a local simulation of this draw plus that exact driver transform
-// (not a guess): placing bit (4-rx) at x=su+(4-rx) - a LOCAL mirror
-// within each glyph's 5px box, leaving `su` (the per-character advance
-// driving scroll motion/order) untouched - cancels the '2d' driver
-// mirror and produces correctly-shaped, correctly-ordered letters, with
-// scroll direction unaffected. (Two earlier attempts got this backwards:
-// v0.6.95 changed this to x=su+rx reasoning from the FONT comment alone
-// without simulating the actual driver transform, and two further ships
-// "fixed" a completely different, inactive wall-mode code path instead -
-// this device runs '2d' mode, not 'wall'.)
+// See textMirror.js's module comment for why this glyph needs a mode-aware
+// local mirror at all (rgbMatrixDriver's whole-canvas mirror in '2d'/'wall'
+// modes, which flips text backwards) - that file is now the single shared
+// answer to "does this mode need it", used by every glyph drawer in this
+// codebase instead of each reimplementing/reguessing it separately.
 function drawGlyph(core, face, ch, su, sv, rgb) {
   const rows = FONT[ch.toUpperCase()] || FONT['?'];
-  const mirror = core.panelMode !== 'cube';
+  const mirror = needsTextMirror(core.panelMode);
   for (let ry = 0; ry < 7; ry++) {
     const bits = rows[ry];
     const y = sv - (6 - ry); // draw upward from the baseline at sv
     if (y < 0 || y >= core.SIZE) continue;
     for (let rx = 0; rx < 5; rx++) {
       if (!(bits & (1 << (4 - rx)))) continue;
-      const x = su + (mirror ? (4 - rx) : rx);
+      const x = su + mirrorCol(rx, 5, mirror);
       if (x < 0 || x >= core.SIZE) continue;
       core.setFaceLED(face, x, y, rgb[0], rgb[1], rgb[2]);
     }

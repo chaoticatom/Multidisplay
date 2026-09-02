@@ -25,6 +25,7 @@
 const { FACE_LAYOUT, FACE_NAMES } = require('../panelConfig');
 const { PIXEL_FONT } = require('./weather/font');
 const { drawLinesCentered3x5 } = require('./_shared');
+const { needsTextMirror, mirrorCol } = require('./textMirror');
 
 // Largest integer scale that still fits every line's width within `size`
 // px (3x5 glyph cell is 4*scale-scale wide per char, see textWidth3x5 in
@@ -56,21 +57,13 @@ function renderIdentifyCube(core, config) {
 function wallGlyph(core, ox, oy, ch, su, sv, scale, r, g, b) {
   const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
   if (!rows) return 4 * scale;
+  const mirror = needsTextMirror(core.panelMode);
   for (let row = 0; row < 5; row++) {
     const bits = rows[row];
     for (let col = 0; col < 3; col++) {
       if (!((bits >> (2 - col)) & 1)) continue;
-      // rgbMatrixDriver's _buildWallPanelBuffer() mirrors the whole wall
-      // canvas left-right before pushing to the physical panels (see
-      // radioWall.js's glyphWall() for the same fix, verified there with a
-      // local draw+mirror simulation). This function had the same bug:
-      // `col` placed the leftmost bit at the leftmost pixel, which is
-      // correct pre-mirror but comes out backwards on the physical panel.
-      // Placing at (2-col) instead - a LOCAL mirror within each glyph's 3px
-      // box, leaving `su` (the per-character advance) untouched - cancels
-      // the driver's mirror for glyph shape without affecting character
-      // order/spacing.
-      const localCol = 2 - col;
+      // See textMirror.js's module comment for why.
+      const localCol = mirrorCol(col, 3, mirror);
       for (let sy = 0; sy < scale; sy++) {
         for (let sx = 0; sx < scale; sx++) {
           core.setWallPixel(ox + su + localCol * scale + sx, oy + sv + row * scale + sy, r, g, b);
