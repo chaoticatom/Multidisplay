@@ -163,8 +163,13 @@ function effectRadio(core, dt) {
       // Lowered from 0.55 alongside the max->average change above - an
       // average across all bands is naturally much smaller than the single
       // loudest band was, so the old max-calibrated target would now drive
-      // gain far too high.
-      const target = 0.25;
+      // gain far too high. Raised again from 0.25 - a real report ("why do
+      // I also need to adjust the gain slider to get a good display") -
+      // 0.25 was hit accurately but that's simply not a visually "full"
+      // average level once most bands sit well below it; the goal here is
+      // for auto gain ALONE to fill the display without the manual slider
+      // needing anything on top.
+      const target = 0.45;
       if (lastLevelSmoothed > 0.01) {
         const desired = target / Math.max(0.05, lastLevelSmoothed * autoGainMult);
         // Auto gain's own ADJUSTMENT CADENCE should be gradual (a real

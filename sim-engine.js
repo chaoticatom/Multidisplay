@@ -12293,7 +12293,7 @@ var PiEngine = (() => {
           overallLevel /= bands;
           lastLevelSmoothed += (overallLevel - lastLevelSmoothed) * Math.min(1, dt * 3);
           if (autoGainOn) {
-            const target = 0.25;
+            const target = 0.45;
             if (lastLevelSmoothed > 0.01) {
               const desired = target / Math.max(0.05, lastLevelSmoothed * autoGainMult);
               autoGainMult += (desired - autoGainMult) * Math.min(1, dt * 0.2);
@@ -25548,7 +25548,7 @@ var PiEngine = (() => {
           overallLevel /= bands;
           lastLevelSmoothedW += (overallLevel - lastLevelSmoothedW) * Math.min(1, dt * 3);
           if (autoGainOn) {
-            const target = 0.25;
+            const target = 0.45;
             if (lastLevelSmoothedW > 0.01) {
               const desired = target / Math.max(0.05, lastLevelSmoothedW * autoGainMultW);
               autoGainMultW += (desired - autoGainMultW) * Math.min(1, dt * 0.2);

@@ -119,7 +119,7 @@ function effectRadioWall(core, dt) {
     overallLevel /= bands;
     lastLevelSmoothedW += (overallLevel - lastLevelSmoothedW) * Math.min(1, dt * 3);
     if (autoGainOn) {
-      const target = 0.25;
+      const target = 0.45; // see radio.js's effectRadio() for why this was raised again
       if (lastLevelSmoothedW > 0.01) {
         const desired = target / Math.max(0.05, lastLevelSmoothedW * autoGainMultW);
         // See radio.js's effectRadio() - adjustment cadence deliberately
