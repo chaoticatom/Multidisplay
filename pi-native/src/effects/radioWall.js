@@ -38,16 +38,17 @@ let lastLevelSmoothedW = 0;
 let fitScaleW = 1;
 let tickerScrollX = 0;
 
-// Endpoint-correct linear mapping - same fix/root cause as radio.js's
-// sample() (see its own comment): the old floor-based mapping never
-// reached the true top of the BAND_COUNT-sized array for the last
-// displayed bar, which real report described as "the far right few bars
-// never move".
+// See radio.js's sample() for the full story - this used to pick a
+// single nearest canonical index per displayed bar, which could skip
+// canonical bands (and their peaks) entirely; now takes the max across
+// the full contiguous range each displayed bar represents.
 function sample(arr, b, bands, BAND_COUNT) {
-  const idx = bands > 1
-    ? Math.min(BAND_COUNT - 1, Math.round((b * (BAND_COUNT - 1)) / (bands - 1)))
-    : BAND_COUNT - 1;
-  return arr[idx];
+  if (bands <= 1) return arr[BAND_COUNT - 1];
+  const start = Math.floor((b * BAND_COUNT) / bands);
+  const end = b === bands - 1 ? BAND_COUNT - 1 : Math.floor(((b + 1) * BAND_COUNT) / bands) - 1;
+  let v = arr[start];
+  for (let i = start + 1; i <= end; i++) if (arr[i] > v) v = arr[i];
+  return v;
 }
 
 // Plain, uncorrected glyph draw - see radio/font.js's drawGlyph() comment

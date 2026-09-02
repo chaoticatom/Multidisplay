@@ -11043,7 +11043,7 @@ var PiEngine = (() => {
         return p;
       }
       function computeBands(samples, sampleRate) {
-        const n = nextPow2(samples.length);
+        const n = nextPow2(samples.length) * 2;
         const re = new Float32Array(n);
         const im = new Float32Array(n);
         for (let i = 0; i < samples.length; i++) {
@@ -11060,7 +11060,7 @@ var PiEngine = (() => {
           if (m > maxMag) maxMag = m;
         }
         const bands = new Float32Array(BAND_COUNT);
-        const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(10500 / (sampleRate / n))));
+        const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(1e4 / (sampleRate / n))));
         let lo = minBin;
         for (let b = 0; b < BAND_COUNT; b++) {
           const frac = (b + 1) / BAND_COUNT;
@@ -12335,8 +12335,12 @@ var PiEngine = (() => {
         searching = false;
       }
       function sample(arr, b, bands) {
-        const idx = bands > 1 ? Math.min(BAND_COUNT - 1, Math.round(b * (BAND_COUNT - 1) / (bands - 1))) : BAND_COUNT - 1;
-        return arr[idx];
+        if (bands <= 1) return arr[BAND_COUNT - 1];
+        const start = Math.floor(b * BAND_COUNT / bands);
+        const end = b === bands - 1 ? BAND_COUNT - 1 : Math.floor((b + 1) * BAND_COUNT / bands) - 1;
+        let v = arr[start];
+        for (let i = start + 1; i <= end; i++) if (arr[i] > v) v = arr[i];
+        return v;
       }
       function effectRadio(core, dt) {
         core.t += dt;
@@ -25570,8 +25574,12 @@ var PiEngine = (() => {
       var fitScaleW = 1;
       var tickerScrollX = 0;
       function sample(arr, b, bands, BAND_COUNT) {
-        const idx = bands > 1 ? Math.min(BAND_COUNT - 1, Math.round(b * (BAND_COUNT - 1) / (bands - 1))) : BAND_COUNT - 1;
-        return arr[idx];
+        if (bands <= 1) return arr[BAND_COUNT - 1];
+        const start = Math.floor(b * BAND_COUNT / bands);
+        const end = b === bands - 1 ? BAND_COUNT - 1 : Math.floor((b + 1) * BAND_COUNT / bands) - 1;
+        let v = arr[start];
+        for (let i = start + 1; i <= end; i++) if (arr[i] > v) v = arr[i];
+        return v;
       }
       function glyphWall(core, ch, su, sv, rgb) {
         const rows = FONT[ch.toUpperCase()] || FONT["?"];

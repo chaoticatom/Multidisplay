@@ -57,7 +57,22 @@ function nextPow2(n) { let p = 1; while (p < n) p <<= 1; return p; }
 // feeding synthetic tones at increasing frequencies through this exact
 // function.)
 function computeBands(samples, sampleRate) {
-  const n = nextPow2(samples.length);
+  // *2 zero-padding (not just nextPow2(samples.length)) - a real report:
+  // even after capping the analysis range with deliberate headroom past
+  // 10kHz, the rightmost several bars stayed permanently dark/unreachable
+  // on a 64-bar display. Root cause was the FFT's own resolution, not the
+  // range: 2048 real samples only produces ~464 usable bins up to 10kHz,
+  // and 256 log-spaced canonical bands need MORE bins than that near the
+  // ceiling (each successive band's bin range widens exponentially) -
+  // several of the last bands ran out of distinct bins to cover and
+  // collapsed onto the exact same boundary bin. Zero-padding to double
+  // the FFT size is a standard technique for exactly this (interpolates
+  // twice the frequency bins from the same real audio, no added latency
+  // - `re`/`im` are already sized `n`, only the first samples.length
+  // entries hold real data either way). Verified directly: with this,
+  // capping the analysis range at a plain 10000Hz (no extra headroom
+  // needed at all) now reaches band 63 - the true last bar - cleanly.
+  const n = nextPow2(samples.length) * 2;
   const re = new Float32Array(n);
   const im = new Float32Array(n);
   // Simple Hann window - cheap and meaningfully reduces spectral leakage
@@ -90,22 +105,17 @@ function computeBands(samples, sampleRate) {
   // 10kHz makes the full bar width meaningful for real music instead of
   // reserving space for content that's essentially never there.
   //
-  // 10500 here (not 10000) is deliberate headroom, not the real cutoff -
-  // a real report/screenshot: a 10kHz debug test tone (the frequency
-  // slider's own max) lit up 7 bars all pinned to the same value instead
-  // of one clean peak. Root cause: `hi = Math.min(hi, maxBin)` clamps the
-  // last several log-spaced bands to the SAME boundary bin once their
-  // computed hi naturally exceeds maxBin near the top of the range - a
-  // tone sitting exactly ON that boundary (confirmed directly: 9800Hz
-  // gave one clean peak, 10000Hz gave a 7-band plateau) degenerates into
-  // several near-identical [lo,maxBin] windows. A first attempt used
-  // 12000 for this, which fixed the plateau but left the rightmost ~6
-  // bars completely unreachable by anything the debug tools (max 10kHz)
-  // or real music can produce - a real follow-up confirmed exactly that.
-  // 10500 is the smallest headroom that still keeps 9800Hz/10000Hz each
-  // giving one clean peak (reverified directly), leaving only a sliver
-  // of true dead space instead of 6 whole bars.
-  const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(10500 / (sampleRate / n))));
+  // A 10kHz test tone used to plateau across 7 bars near the boundary
+  // (`hi = Math.min(hi, maxBin)` clamping the last several log-spaced
+  // bands to the same bin once their computed hi exceeded maxBin), which
+  // got "fixed" twice by adding headroom past 10kHz instead of fixing the
+  // actual bin-density shortage - first 12000 (fixed the plateau, but
+  // left ~6 bars completely unreachable by anything that tops out at
+  // 10kHz), then 10500 (fewer dead bars, but still some). The real fix
+  // was the *2 zero-padding above, which gives enough bin density that no
+  // headroom is needed at all - reverified directly: a 10000Hz tone now
+  // reaches band 63 (the true last bar) with a single clean peak.
+  const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(10000 / (sampleRate / n))));
   let lo = minBin;
   for (let b = 0; b < BAND_COUNT; b++) {
     const frac = (b + 1) / BAND_COUNT;

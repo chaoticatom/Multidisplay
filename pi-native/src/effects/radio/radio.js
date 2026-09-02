@@ -176,11 +176,24 @@ async function search(query) {
 // looks like it "never moves". `b*(BAND_COUNT-1)/(bands-1)` instead
 // guarantees b=0 -> index 0 and b=bands-1 -> index BAND_COUNT-1 exactly,
 // so every source band is reachable by some displayed bar.
+// A real report: a manually-dialed 3120Hz (and separately 5000Hz/7000Hz)
+// tone showed almost nothing on the display despite genuinely strong
+// underlying energy. Root cause: this used to pick a SINGLE nearest
+// canonical index per displayed bar - for a common ratio like
+// BAND_COUNT=256 -> bands=64 (4 canonical bands per displayed bar), that
+// nearest-neighbor pick can SKIP canonical bands entirely (e.g. displayed
+// bars 56/57 landed on canonical indices 227/231, never touching 228-230
+// in between) - confirmed directly: canonical band 229 held the real
+// 5000Hz peak, and no displayed bar ever sampled it. Now takes the MAX
+// across the full contiguous range of canonical bands each displayed bar
+// actually represents, so no band's peak can fall through the gap.
 function sample(arr, b, bands) {
-  const idx = bands > 1
-    ? Math.min(BAND_COUNT - 1, Math.round((b * (BAND_COUNT - 1)) / (bands - 1)))
-    : BAND_COUNT - 1;
-  return arr[idx];
+  if (bands <= 1) return arr[BAND_COUNT - 1];
+  const start = Math.floor((b * BAND_COUNT) / bands);
+  const end = b === bands - 1 ? BAND_COUNT - 1 : Math.floor(((b + 1) * BAND_COUNT) / bands) - 1;
+  let v = arr[start];
+  for (let i = start + 1; i <= end; i++) if (arr[i] > v) v = arr[i];
+  return v;
 }
 
 function effectRadio(core, dt) {
