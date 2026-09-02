@@ -126,6 +126,22 @@ class RadioAudio {
     try {
       proc = this._spawn('ffmpeg', isDebug ? [
         '-loglevel', 'error',
+        // A real report: "the BT speaker goes quickly from mid-low to
+        // mid-high in 1 second [...] the bars seem to follow the BT
+        // speaker more" - a synthetic lavfi source (unlike a real network
+        // stream, which is naturally paced by how fast bytes arrive over
+        // the network) gets generated as fast as the CPU allows, not in
+        // real time - ffmpeg would render the whole 60s sweep in a
+        // fraction of a second. That flooded _onData() far faster than
+        // paplay could drain its stdin, and the backpressure fix earlier
+        // in this session (which DROPS data rather than buffering it
+        // without bound) discarded most of the sweep, leaving only a
+        // fast, jumbled fragment for both playback AND the FFT/bars (fed
+        // from the same decode stream) to follow. `-re` makes ffmpeg
+        // read/generate the input at its own native frame rate, pacing
+        // the whole pipeline to real time - the same way a real stream's
+        // network delivery already does.
+        '-re',
         '-f', 'lavfi',
         '-i', lavfiSpec,
         '-vn',

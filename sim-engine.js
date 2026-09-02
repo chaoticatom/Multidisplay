@@ -11209,6 +11209,22 @@ var PiEngine = (() => {
             proc = this._spawn("ffmpeg", isDebug ? [
               "-loglevel",
               "error",
+              // A real report: "the BT speaker goes quickly from mid-low to
+              // mid-high in 1 second [...] the bars seem to follow the BT
+              // speaker more" - a synthetic lavfi source (unlike a real network
+              // stream, which is naturally paced by how fast bytes arrive over
+              // the network) gets generated as fast as the CPU allows, not in
+              // real time - ffmpeg would render the whole 60s sweep in a
+              // fraction of a second. That flooded _onData() far faster than
+              // paplay could drain its stdin, and the backpressure fix earlier
+              // in this session (which DROPS data rather than buffering it
+              // without bound) discarded most of the sweep, leaving only a
+              // fast, jumbled fragment for both playback AND the FFT/bars (fed
+              // from the same decode stream) to follow. `-re` makes ffmpeg
+              // read/generate the input at its own native frame rate, pacing
+              // the whole pipeline to real time - the same way a real stream's
+              // network delivery already does.
+              "-re",
               "-f",
               "lavfi",
               "-i",
@@ -12256,7 +12272,7 @@ var PiEngine = (() => {
         { name: "SomaFM Boot Liquor", genre: "Americana", url: "https://ice1.somafm.com/bootliquor-128-mp3" }
       ];
       var DEBUG_TONES = {
-        sweep: { name: "Debug: Sweep", genre: "20Hz-15kHz over 60s", url: "debug:aevalsrc=sin(2*PI*(20*t+14980*t*t/120)):s=44100:d=60" },
+        sweep: { name: "Debug: Sweep", genre: "40Hz-10kHz over 45s", url: "debug:aevalsrc=sin(2*PI*(40*t+9960*t*t/90)):s=44100:d=45" },
         drum: { name: "Debug: Drum Hit", genre: "Broadband decay", url: "debug:aevalsrc=exp(-6*t)*random(0):s=44100:d=3" }
       };
       var audio = new RadioAudio();

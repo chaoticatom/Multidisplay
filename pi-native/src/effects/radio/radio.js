@@ -40,13 +40,13 @@ const RADIO_STATIONS = [
 // get decoded through the SAME pipeline as a real station (FFT/ticker/
 // playback all unchanged). Both are plain math expressions (aevalsrc), no
 // external files needed.
-//   Sweep: a linear chirp from 20Hz to 15000Hz over 60s - instantaneous
-//   phase = 2*PI*(f0*t + (f1-f0)*t^2/(2*T)) so frequency rises linearly the
-//   whole way, letting you watch every band light up in turn. (A real
-//   report - "far too fast" - the original T=15/d=20 mismatch meant it
-//   actually reached 15kHz within the first 15s then kept climbing past
-//   it, inaudibly, for the remaining 5 - fixed T to match d this time, at
-//   3x the duration.)
+//   Sweep: a linear chirp from 40Hz to 10000Hz over 45s (narrowed from
+//   20Hz-15000Hz - a real follow-up: "only needs to cover low to high of
+//   what a typical song would be" - deep sub-bass below 40Hz and the
+//   near-ultrasonic tail above 10kHz aren't where real music content
+//   actually sits) - instantaneous phase = 2*PI*(f0*t + (f1-f0)*t^2/(2*T))
+//   so frequency rises linearly the whole way, letting you watch every
+//   band light up in turn.
 //   Drum: a single decaying broadband noise burst (like a kick/snare
 //   transient) - exp(-6*t)*random(0) is white noise power-shaped by a fast
 //   exponential decay, covering the full spectrum at once rather than one
@@ -58,7 +58,7 @@ const RADIO_STATIONS = [
 // silent-failure report - throws "Undefined constant or missing '(' in
 // ''", confirmed the same way). Reverting to single colon.
 const DEBUG_TONES = {
-  sweep: { name: 'Debug: Sweep', genre: '20Hz-15kHz over 60s', url: 'debug:aevalsrc=sin(2*PI*(20*t+14980*t*t/120)):s=44100:d=60' },
+  sweep: { name: 'Debug: Sweep', genre: '40Hz-10kHz over 45s', url: 'debug:aevalsrc=sin(2*PI*(40*t+9960*t*t/90)):s=44100:d=45' },
   drum: { name: 'Debug: Drum Hit', genre: 'Broadband decay', url: 'debug:aevalsrc=exp(-6*t)*random(0):s=44100:d=3' },
 };
 
