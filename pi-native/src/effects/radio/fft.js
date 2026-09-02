@@ -89,8 +89,17 @@ function computeBands(samples, sampleRate) {
     // "loud" as loud ones) - 0.05 is an empirically reasonable ceiling for
     // Hann-windowed FFT bin magnitude of typical compressed-stream audio.
     const norm = Math.min(1, raw / 0.05);
-    const trebleBoost = 1 + frac * 1.8;
-    bands[b] = Math.min(1, norm * trebleBoost);
+    // A real report: "the first band is always so much higher than the
+    // rest" - real audio naturally has more raw FFT energy at low
+    // frequencies (spectral roll-off), and this curve only ever boosted
+    // the TREBLE end to compensate, never attenuated the bass end - so
+    // band 0 stayed pinned near its ceiling regardless of the treble
+    // boost applied further up. freqBalance now ramps from well below 1
+    // at the bass end up through 1 around the low-mid range to a treble
+    // boost at the top, instead of starting at ~1 (no correction at all)
+    // for band 0.
+    const freqBalance = 0.35 + frac * 1.75;
+    bands[b] = Math.min(1, norm * freqBalance);
     lo = hi + 1;
     if (lo > maxBin) lo = maxBin;
   }
