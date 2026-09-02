@@ -12256,8 +12256,8 @@ var PiEngine = (() => {
         { name: "SomaFM Boot Liquor", genre: "Americana", url: "https://ice1.somafm.com/bootliquor-128-mp3" }
       ];
       var DEBUG_TONES = {
-        sweep: { name: "Debug: Sweep", genre: "20Hz-15kHz over 60s", url: "debug:aevalsrc=sin(2*PI*(20*t+14980*t*t/120)):s=44100:d=60" },
-        drum: { name: "Debug: Drum Hit", genre: "Broadband decay", url: "debug:aevalsrc=exp(-6*t)*random(0):s=44100:d=3" }
+        sweep: { name: "Debug: Sweep", genre: "20Hz-15kHz over 60s", url: "debug:aevalsrc=sin(2*PI*(20*t+14980*t*t/120))::s=44100:d=60" },
+        drum: { name: "Debug: Drum Hit", genre: "Broadband decay", url: "debug:aevalsrc=exp(-6*t)*random(0)::s=44100:d=3" }
       };
       var audio = new RadioAudio();
       var spectrumState = createSpectrumState();
