@@ -167,12 +167,14 @@ function effectRadio(core, dt) {
       const target = 0.25;
       if (lastLevelSmoothed > 0.01) {
         const desired = target / Math.max(0.05, lastLevelSmoothed * autoGainMult);
-        // Adaptation rate raised from dt*0.5 alongside the ceiling above -
-        // the same rate takes proportionally much longer to traverse a
-        // 0.3-10 range than the old 0.3-4 one, which read as the whole
-        // display lagging/catching up slowly (a real report right after
-        // the ceiling change: "spectrum analyser has gone slow again").
-        autoGainMult += (desired - autoGainMult) * Math.min(1, dt * 1.5);
+        // Auto gain's own ADJUSTMENT CADENCE should be gradual (a real
+        // clarification: it should settle on a gain level over several
+        // seconds, not visibly change within about one) - this is
+        // deliberately separate from bar-motion smoothness, which is
+        // ffmpegAudio.js's _applySpectrumTarget() and stays as fast as
+        // possible, untouched by this. dt*0.2 reaches ~63% of the way to a
+        // new target in ~5s, ~95% in ~15s.
+        autoGainMult += (desired - autoGainMult) * Math.min(1, dt * 0.2);
         // A real report: "even with auto gain, I need to set the gain
         // slider to about 3" - the old ceiling of 4 was capping auto gain
         // below what quiet streams/low-output stations actually need,
