@@ -35,6 +35,23 @@ const RADIO_STATIONS = [
   { name: 'SomaFM Boot Liquor', genre: 'Americana', url: 'https://ice1.somafm.com/bootliquor-128-mp3' },
 ];
 
+// Debug-mode test tones for verifying the spectrum analyser without a real
+// stream - see ffmpegAudio.js's _launch() for how `debug:<lavfi spec>` URLs
+// get decoded through the SAME pipeline as a real station (FFT/ticker/
+// playback all unchanged). Both are plain math expressions (aevalsrc), no
+// external files needed.
+//   Sweep: a linear chirp from 20Hz to 15000Hz over 20s - instantaneous
+//   phase = 2*PI*(f0*t + (f1-f0)*t^2/(2*T)) so frequency rises linearly the
+//   whole way, letting you watch every band light up in turn.
+//   Drum: a single decaying broadband noise burst (like a kick/snare
+//   transient) - exp(-6*t)*random(0) is white noise power-shaped by a fast
+//   exponential decay, covering the full spectrum at once rather than one
+//   tone at a time.
+const DEBUG_TONES = {
+  sweep: { name: 'Debug: Sweep', genre: '20Hz-15kHz over 20s', url: 'debug:aevalsrc=sin(2*PI*(20*t+14980*t*t/30)):s=44100:d=20' },
+  drum: { name: 'Debug: Drum Hit', genre: 'Broadband decay', url: 'debug:aevalsrc=exp(-6*t)*random(0):s=44100:d=3' },
+};
+
 const audio = new RadioAudio();
 const spectrumState = createSpectrumState();
 
@@ -66,6 +83,12 @@ function playStation(station) {
   if (!station || !station.url) return;
   currentStation = { name: station.name || 'Unknown', genre: station.genre || '', url: station.url };
   playing = true;
+}
+
+// kind: 'sweep' | 'drum' - see DEBUG_TONES above.
+function playDebugTone(kind) {
+  const tone = DEBUG_TONES[kind];
+  if (tone) playStation(tone);
 }
 
 function stopStation() {
@@ -263,6 +286,7 @@ function getPlaybackState() {
 module.exports = effectRadio;
 module.exports.getStatus = getStatus;
 module.exports.playStation = playStation;
+module.exports.playDebugTone = playDebugTone;
 module.exports.stopStation = stopStation;
 module.exports.setVolume = setVolume;
 module.exports.search = search;

@@ -48,8 +48,8 @@
 //                    never reach where it mattered. See wsServer.js's
 //                    effectCommandRelay constructor comment for the other
 //                    side of this. Commands: radioPlay {station},
-//                    radioStop {}, radioSearch {query}, videoStop {},
-//                    videoFrame {payload, w, h, kind}.
+//                    radioStop {}, radioDebugTone {kind}, radioSearch
+//                    {query}, videoStop {}, videoFrame {payload, w, h, kind}.
 'use strict';
 
 const { parentPort, workerData } = require('worker_threads');
@@ -115,6 +115,7 @@ parentPort.on('message', (msg) => {
     // the worker boundary instead of being the same synchronous call.
     if (cmd === 'radioPlay') { radio.playStation(payload.station); parentPort.postMessage({ type: 'stateChanged' }); }
     else if (cmd === 'radioStop') { radio.stopStation(); parentPort.postMessage({ type: 'stateChanged' }); }
+    else if (cmd === 'radioDebugTone') { radio.playDebugTone(payload.kind); parentPort.postMessage({ type: 'stateChanged' }); }
     else if (cmd === 'radioSearch') {
       radio.search(payload.query)
         .then(() => parentPort.postMessage({ type: 'stateChanged' }))

@@ -945,6 +945,15 @@ class WsServer {
       else radio.stopStation();
       this._refreshRadioStatus();
       this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'radioDebugTone') {
+      // Two debug-mode buttons ("Sweep Test"/"Drum Test") for verifying the
+      // spectrum analyser without a real stream - see radio.js's
+      // DEBUG_TONES/playDebugTone() for the actual tone generation.
+      if (msg.kind !== 'sweep' && msg.kind !== 'drum') return;
+      if (this.effectCommandRelay) this.effectCommandRelay('radioDebugTone', { kind: msg.kind });
+      else radio.playDebugTone(msg.kind);
+      this._refreshRadioStatus();
+      this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'stopAllSound') {
       // The sidebar's "Stop Sound" button, next to Clear All - a real
       // request: internet radio keeps playing in the background regardless

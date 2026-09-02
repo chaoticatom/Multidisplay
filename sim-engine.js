@@ -11201,9 +11201,29 @@ var PiEngine = (() => {
           this.lastAttemptMs = Date.now();
           this.pending = Buffer2.alloc(0);
           this._lastChunkMs = Date.now();
+          const isDebug = url.startsWith("debug:");
+          this._isDebugSource = isDebug;
+          const lavfiSpec = isDebug ? url.slice("debug:".length) : null;
           let proc;
           try {
-            proc = this._spawn("ffmpeg", [
+            proc = this._spawn("ffmpeg", isDebug ? [
+              "-loglevel",
+              "error",
+              "-f",
+              "lavfi",
+              "-i",
+              lavfiSpec,
+              "-vn",
+              "-f",
+              "s16le",
+              "-acodec",
+              "pcm_s16le",
+              "-ar",
+              String(SAMPLE_RATE),
+              "-ac",
+              String(CHANNELS),
+              "pipe:1"
+            ] : [
               "-loglevel",
               "error",
               "-i",
@@ -11234,9 +11254,14 @@ var PiEngine = (() => {
           proc.on("exit", (code) => {
             const wasIntentional = this._stoppedIntentionally;
             this._stoppedIntentionally = false;
+            const wasDebug = this._isDebugSource;
             this.decodeProc = null;
             this._teardownPlayback();
             if (wasIntentional) return;
+            if (wasDebug && code === 0) {
+              this.status = "Stopped";
+              return;
+            }
             this.errored = true;
             const lastLine = stderrTail.trim().split("\n").filter(Boolean).pop();
             this.status = "Error \u2014 ffmpeg exited (" + (lastLine || `code ${code}`) + ")";
@@ -12230,6 +12255,10 @@ var PiEngine = (() => {
         { name: "SomaFM Secret Agent", genre: "Spy Lounge", url: "https://ice1.somafm.com/secretagent-128-mp3" },
         { name: "SomaFM Boot Liquor", genre: "Americana", url: "https://ice1.somafm.com/bootliquor-128-mp3" }
       ];
+      var DEBUG_TONES = {
+        sweep: { name: "Debug: Sweep", genre: "20Hz-15kHz over 20s", url: "debug:aevalsrc=sin(2*PI*(20*t+14980*t*t/30)):s=44100:d=20" },
+        drum: { name: "Debug: Drum Hit", genre: "Broadband decay", url: "debug:aevalsrc=exp(-6*t)*random(0):s=44100:d=3" }
+      };
       var audio = new RadioAudio();
       var spectrumState = createSpectrumState();
       var playing = false;
@@ -12246,6 +12275,10 @@ var PiEngine = (() => {
         if (!station || !station.url) return;
         currentStation = { name: station.name || "Unknown", genre: station.genre || "", url: station.url };
         playing = true;
+      }
+      function playDebugTone(kind) {
+        const tone = DEBUG_TONES[kind];
+        if (tone) playStation(tone);
       }
       function stopStation() {
         playing = false;
@@ -12346,6 +12379,7 @@ var PiEngine = (() => {
       module.exports = effectRadio;
       module.exports.getStatus = getStatus;
       module.exports.playStation = playStation;
+      module.exports.playDebugTone = playDebugTone;
       module.exports.stopStation = stopStation;
       module.exports.setVolume = setVolume;
       module.exports.search = search;

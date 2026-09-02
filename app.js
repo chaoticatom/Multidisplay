@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.116';
+const APP_VERSION = '0.6.117';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2053,6 +2053,15 @@ function wireRadioPanel() {
   if (!panel) return;
 
   panel.querySelectorAll('.radio-stop-btn-el').forEach((btn) => btn.addEventListener('click', () => { send({ cmd: 'radioStop' }); radioBrowserStop(); }));
+  // Debug mode - two synthetic test tones (server-generated via ffmpeg, no
+  // real station needed) for visually verifying the spectrum analyser -
+  // see wsServer.js's 'radioDebugTone' handler / radio.js's DEBUG_TONES.
+  // "Play in this browser" doesn't apply here (there's no real station URL
+  // to point a client-side <audio> element at), so this only sends the WS
+  // command - the Pi-side ffmpeg/paplay pipeline and pixel stream carry it
+  // the same as any other station.
+  panel.querySelectorAll('.radio-debug-sweep-btn-el').forEach((btn) => btn.addEventListener('click', () => send({ cmd: 'radioDebugTone', kind: 'sweep' })));
+  panel.querySelectorAll('.radio-debug-drum-btn-el').forEach((btn) => btn.addEventListener('click', () => send({ cmd: 'radioDebugTone', kind: 'drum' })));
   panel.querySelectorAll('.radio-vol-el').forEach((sl) => sl.addEventListener('input', () => {
     setEffectOption('radio', 'volume', Number(sl.value));
     const el = document.getElementById('radio-browser-audio');

@@ -109,9 +109,32 @@ class RadioAudio {
     this.pending = Buffer.alloc(0);
     this._lastChunkMs = Date.now();
 
+    // A real request: two "debug mode" buttons (a full-spectrum sweep and a
+    // drum-like broadband thump) to visually verify the spectrum analyser
+    // without needing an actual internet stream. Rather than a second
+    // playback path, `debug:<lavfi spec>` URLs (built by radio.js's
+    // playDebugTone()) are decoded through this SAME pipeline - swap
+    // `-i url` for `-f lavfi -i <spec>` and everything downstream (FFT,
+    // ticker, playback) is unchanged. These sources have a fixed duration
+    // (`d=` in the lavfi spec) and end on their own - not a real error, so
+    // it's tracked here to keep proc.on('exit') from reporting it as one.
+    const isDebug = url.startsWith('debug:');
+    this._isDebugSource = isDebug;
+    const lavfiSpec = isDebug ? url.slice('debug:'.length) : null;
+
     let proc;
     try {
-      proc = this._spawn('ffmpeg', [
+      proc = this._spawn('ffmpeg', isDebug ? [
+        '-loglevel', 'error',
+        '-f', 'lavfi',
+        '-i', lavfiSpec,
+        '-vn',
+        '-f', 's16le',
+        '-acodec', 'pcm_s16le',
+        '-ar', String(SAMPLE_RATE),
+        '-ac', String(CHANNELS),
+        'pipe:1',
+      ] : [
         '-loglevel', 'error',
         '-i', url,
         '-vn',
@@ -137,9 +160,11 @@ class RadioAudio {
     proc.on('exit', (code) => {
       const wasIntentional = this._stoppedIntentionally;
       this._stoppedIntentionally = false;
+      const wasDebug = this._isDebugSource;
       this.decodeProc = null;
       this._teardownPlayback();
       if (wasIntentional) return;
+      if (wasDebug && code === 0) { this.status = 'Stopped'; return; } // ran its fixed duration, not a failure
       this.errored = true; // any exit while a station is still selected is a failure - streams don't have a "clean EOF" in normal use
       const lastLine = stderrTail.trim().split('\n').filter(Boolean).pop();
       this.status = 'Error — ffmpeg exited (' + (lastLine || `code ${code}`) + ')';
