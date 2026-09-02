@@ -12296,7 +12296,7 @@ var PiEngine = (() => {
             const target = 0.25;
             if (lastLevelSmoothed > 0.01) {
               const desired = target / Math.max(0.05, lastLevelSmoothed * autoGainMult);
-              autoGainMult += (desired - autoGainMult) * Math.min(1, dt * 0.5);
+              autoGainMult += (desired - autoGainMult) * Math.min(1, dt * 1.5);
               autoGainMult = Math.max(0.3, Math.min(10, autoGainMult));
             }
           } else {
@@ -25551,7 +25551,7 @@ var PiEngine = (() => {
             const target = 0.25;
             if (lastLevelSmoothedW > 0.01) {
               const desired = target / Math.max(0.05, lastLevelSmoothedW * autoGainMultW);
-              autoGainMultW += (desired - autoGainMultW) * Math.min(1, dt * 0.5);
+              autoGainMultW += (desired - autoGainMultW) * Math.min(1, dt * 1.5);
               autoGainMultW = Math.max(0.3, Math.min(10, autoGainMultW));
             }
           } else {

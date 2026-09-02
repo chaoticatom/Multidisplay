@@ -167,7 +167,12 @@ function effectRadio(core, dt) {
       const target = 0.25;
       if (lastLevelSmoothed > 0.01) {
         const desired = target / Math.max(0.05, lastLevelSmoothed * autoGainMult);
-        autoGainMult += (desired - autoGainMult) * Math.min(1, dt * 0.5);
+        // Adaptation rate raised from dt*0.5 alongside the ceiling above -
+        // the same rate takes proportionally much longer to traverse a
+        // 0.3-10 range than the old 0.3-4 one, which read as the whole
+        // display lagging/catching up slowly (a real report right after
+        // the ceiling change: "spectrum analyser has gone slow again").
+        autoGainMult += (desired - autoGainMult) * Math.min(1, dt * 1.5);
         // A real report: "even with auto gain, I need to set the gain
         // slider to about 3" - the old ceiling of 4 was capping auto gain
         // below what quiet streams/low-output stations actually need,
