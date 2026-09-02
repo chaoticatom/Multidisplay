@@ -89,7 +89,19 @@ function computeBands(samples, sampleRate) {
   // range and where real content actually lives. Capping consistently at
   // 10kHz makes the full bar width meaningful for real music instead of
   // reserving space for content that's essentially never there.
-  const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(10000 / (sampleRate / n))));
+  //
+  // 12000 here (not 10000) is deliberate headroom, not the real cutoff -
+  // a real report/screenshot: a 10kHz debug test tone (the frequency
+  // slider's own max) lit up 7 bars all pinned to the same value instead
+  // of one clean peak. Root cause: `hi = Math.min(hi, maxBin)` clamps the
+  // last several log-spaced bands to the SAME boundary bin once their
+  // computed hi naturally exceeds maxBin near the top of the range - a
+  // tone sitting exactly ON that boundary (confirmed directly: 9800Hz
+  // gave one clean peak, 10000Hz gave a 7-band plateau) degenerates into
+  // several near-identical [lo,maxBin] windows. Extending the analysis
+  // ceiling to 12kHz keeps the slider's 10kHz max safely inside the
+  // range instead of sitting exactly on its edge.
+  const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(12000 / (sampleRate / n))));
   let lo = minBin;
   for (let b = 0; b < BAND_COUNT; b++) {
     const frac = (b + 1) / BAND_COUNT;

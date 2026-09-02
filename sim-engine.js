@@ -11060,7 +11060,7 @@ var PiEngine = (() => {
           if (m > maxMag) maxMag = m;
         }
         const bands = new Float32Array(BAND_COUNT);
-        const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(1e4 / (sampleRate / n))));
+        const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(12e3 / (sampleRate / n))));
         let lo = minBin;
         for (let b = 0; b < BAND_COUNT; b++) {
           const frac = (b + 1) / BAND_COUNT;
