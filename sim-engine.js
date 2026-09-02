@@ -12383,9 +12383,17 @@ var PiEngine = (() => {
           if (scrollSpeed > 0) {
             spectrumState.scrollX = ((spectrumState.scrollX || 0) + dt * scrollSpeed * core.SIZE * 1.5 + 4 * core.SIZE) % (4 * core.SIZE);
           }
+          const rawAmp = (b) => Math.min(1, sample(audio.spec, b, bands) * totalGain * fitScale);
+          const rawPeak = (b) => Math.min(1, sample(audio.peak, b, bands) * totalGain * fitScale);
+          const bloom = (fn, b) => {
+            let v = fn(b);
+            if (b > 0) v = Math.max(v, fn(b - 1) * 0.5);
+            if (b < bands - 1) v = Math.max(v, fn(b + 1) * 0.5);
+            return v;
+          };
           const ctx = {
-            amp: (b) => Math.min(1, sample(audio.spec, b, bands) * totalGain * fitScale),
-            peak: (b) => Math.min(1, sample(audio.peak, b, bands) * totalGain * fitScale),
+            amp: (b) => bloom(rawAmp, b),
+            peak: (b) => bloom(rawPeak, b),
             bands,
             theme,
             barMode,
@@ -25641,9 +25649,17 @@ var PiEngine = (() => {
           if (scrollSpeed > 0) {
             spectrumWallState.scrollX = ((spectrumWallState.scrollX || 0) + dt * scrollSpeed * core.wallW * 0.375 + 4 * core.wallW) % (4 * core.wallW);
           }
+          const rawAmp = (b) => Math.min(1, sample(audio.spec, b, bands, BAND_COUNT) * totalGain * fitScaleW);
+          const rawPeak = (b) => Math.min(1, sample(audio.peak, b, bands, BAND_COUNT) * totalGain * fitScaleW);
+          const bloom = (fn, b) => {
+            let v = fn(b);
+            if (b > 0) v = Math.max(v, fn(b - 1) * 0.5);
+            if (b < bands - 1) v = Math.max(v, fn(b + 1) * 0.5);
+            return v;
+          };
           const ctx = {
-            amp: (b) => Math.min(1, sample(audio.spec, b, bands, BAND_COUNT) * totalGain * fitScaleW),
-            peak: (b) => Math.min(1, sample(audio.peak, b, bands, BAND_COUNT) * totalGain * fitScaleW),
+            amp: (b) => bloom(rawAmp, b),
+            peak: (b) => bloom(rawPeak, b),
             bands,
             theme,
             barMode,

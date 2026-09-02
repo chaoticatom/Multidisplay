@@ -151,9 +151,19 @@ function effectRadioWall(core, dt) {
       spectrumWallState.scrollX = ((spectrumWallState.scrollX || 0) + dt * scrollSpeed * core.wallW * 0.375 + 4 * core.wallW) % (4 * core.wallW);
     }
 
+    // See radio.js's effectRadio() for why this blooms onto neighbouring
+    // bars (display-only, doesn't touch audio.spec/peak).
+    const rawAmp = (b) => Math.min(1, sample(audio.spec, b, bands, BAND_COUNT) * totalGain * fitScaleW);
+    const rawPeak = (b) => Math.min(1, sample(audio.peak, b, bands, BAND_COUNT) * totalGain * fitScaleW);
+    const bloom = (fn, b) => {
+      let v = fn(b);
+      if (b > 0) v = Math.max(v, fn(b - 1) * 0.5);
+      if (b < bands - 1) v = Math.max(v, fn(b + 1) * 0.5);
+      return v;
+    };
     const ctx = {
-      amp: (b) => Math.min(1, sample(audio.spec, b, bands, BAND_COUNT) * totalGain * fitScaleW),
-      peak: (b) => Math.min(1, sample(audio.peak, b, bands, BAND_COUNT) * totalGain * fitScaleW),
+      amp: (b) => bloom(rawAmp, b),
+      peak: (b) => bloom(rawPeak, b),
       bands, theme, barMode, scrollX: spectrumWallState.scrollX || 0, t: core.t, dt,
     };
     renderSpectrumStyleWall(core, ctx, style, spectrumWallState);

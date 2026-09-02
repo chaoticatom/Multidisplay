@@ -279,9 +279,26 @@ function effectRadio(core, dt) {
       spectrumState.scrollX = ((spectrumState.scrollX || 0) + dt * scrollSpeed * core.SIZE * 1.5 + 4 * core.SIZE) % (4 * core.SIZE);
     }
 
+    // Display-only "bloom" onto each bar's immediate neighbours - a real
+    // report: manually dialing the debug frequency slider to a value that
+    // doesn't land exactly on one band's own center only lit that bar
+    // partially (the tone's energy genuinely splits across whichever
+    // band(s) are nearest, since bands are discrete Hz ranges) - "I need
+    // to see maybe the main bar and the 2 side bars extending up to show
+    // there is sound". Doesn't touch audio.spec/peak themselves (auto
+    // gain and everything else still sees the real, unbloomed values) -
+    // purely how amp()/peak() present a band to the renderer.
+    const rawAmp = (b) => Math.min(1, sample(audio.spec, b, bands) * totalGain * fitScale);
+    const rawPeak = (b) => Math.min(1, sample(audio.peak, b, bands) * totalGain * fitScale);
+    const bloom = (fn, b) => {
+      let v = fn(b);
+      if (b > 0) v = Math.max(v, fn(b - 1) * 0.5);
+      if (b < bands - 1) v = Math.max(v, fn(b + 1) * 0.5);
+      return v;
+    };
     const ctx = {
-      amp: (b) => Math.min(1, sample(audio.spec, b, bands) * totalGain * fitScale),
-      peak: (b) => Math.min(1, sample(audio.peak, b, bands) * totalGain * fitScale),
+      amp: (b) => bloom(rawAmp, b),
+      peak: (b) => bloom(rawPeak, b),
       bands, theme, barMode, scrollX: spectrumState.scrollX || 0, t: core.t, dt,
     };
     renderSpectrumStyle(core, ctx, style, spectrumState);
