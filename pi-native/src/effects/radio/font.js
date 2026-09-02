@@ -46,17 +46,17 @@ const FONT = {
 // same contract effects-core.js's wcDrawGlyph() has - so callers can just
 // do `u += drawGlyph(...)` in a loop.
 //
-// Each letter is rotated a full 180° (both row order AND column order
-// reversed) - a real report, precisely worded this time: "flip upside
-// down then left to right" (i.e. both axes) - "it scrolls the correct
-// way" (confirms this is purely about each glyph's own pixel pattern, not
-// scroll direction or word order, both left untouched). Earlier attempts
-// at a plain left-right mirror (rx -> 4-rx alone) were wrong; this is a
-// genuine 180° rotation instead (ry -> 6-ry for row order too).
+// A follow-up screenshot showed each letter mirrored left-right (e.g. "S"
+// backwards) but right-side up and scrolling the correct direction - so
+// the earlier full 180° rotation (both row AND column order reversed) had
+// one axis too many. This keeps the column/x reversal (su+(4-rx), the
+// left-right mirror fix) but drops the row reversal, so font rows map
+// to y in their original top-to-bottom order again - only one axis
+// flipped now, not two.
 function drawGlyph(core, face, ch, su, sv, rgb) {
   const rows = FONT[ch.toUpperCase()] || FONT['?'];
   for (let ry = 0; ry < 7; ry++) {
-    const bits = rows[6 - ry];
+    const bits = rows[ry];
     const y = sv - (6 - ry); // draw upward from the baseline at sv
     if (y < 0 || y >= core.SIZE) continue;
     for (let rx = 0; rx < 5; rx++) {
