@@ -2665,7 +2665,7 @@ var PiEngine = (() => {
         const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
         if (!rows) return 4 * scale;
         const S = core.SIZE;
-        const mirror = core.panelMode === "2d";
+        const mirror = core.panelMode !== "cube";
         for (let row = 0; row < 5; row++) {
           const bits = rows[row];
           for (let col = 0; col < 3; col++) {
@@ -12121,7 +12121,7 @@ var PiEngine = (() => {
       };
       function drawGlyph(core, face, ch, su, sv, rgb) {
         const rows = FONT[ch.toUpperCase()] || FONT["?"];
-        const mirror = core.panelMode === "2d";
+        const mirror = core.panelMode !== "cube";
         for (let ry = 0; ry < 7; ry++) {
           const bits = rows[ry];
           const y = sv - (6 - ry);

@@ -290,7 +290,7 @@ function drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b) {
   const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
   if (!rows) return 4 * scale;
   const S = core.SIZE;
-  const mirror = core.panelMode === '2d';
+  const mirror = core.panelMode !== 'cube';
   for (let row = 0; row < 5; row++) {
     const bits = rows[row];
     for (let col = 0; col < 3; col++) {

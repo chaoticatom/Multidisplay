@@ -65,7 +65,7 @@ const FONT = {
 // this device runs '2d' mode, not 'wall'.)
 function drawGlyph(core, face, ch, su, sv, rgb) {
   const rows = FONT[ch.toUpperCase()] || FONT['?'];
-  const mirror = core.panelMode === '2d';
+  const mirror = core.panelMode !== 'cube';
   for (let ry = 0; ry < 7; ry++) {
     const bits = rows[ry];
     const y = sv - (6 - ry); // draw upward from the baseline at sv
