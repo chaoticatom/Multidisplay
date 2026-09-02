@@ -203,6 +203,7 @@ const weatherConfig = require('./weatherConfig');
 const bluetooth = require('./bluetooth');
 const alarmsEngine = require('./effects/alarms');
 const radio = require('./effects/radio');
+const { spawn } = require('child_process');
 const { browserFrameSource } = require('./effects/video/browserFrameSource');
 const crypto = require('crypto');
 
@@ -357,6 +358,7 @@ class WsServer {
     // path - since every release bumps the version number, this would have
     // 404'd on literally every real deployment, not just an edge case.
     const urlPath = req.url.split('?')[0];
+    if (urlPath === '/api/debugTone') { this._handleDebugTone(req, res); return; }
     if (urlPath === '/' || urlPath === '/index.html') {
       res.writeHead(200, { 'Content-Type': 'text/html', ...noCacheHeaders });
       res.end(INDEX_HTML);
@@ -373,6 +375,42 @@ class WsServer {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not Found');
     }
+  }
+
+  // GET /api/debugTone?kind=sweep|drum - lets the BROWSER hear the same
+  // debug test tones the Pi-side spectrum pipeline plays (see radio.js's
+  // DEBUG_TONES/playDebugTone()). A real report: "can the browser play the
+  // sound" - the "Play in this browser" checkbox only works for real
+  // stations (it points a client-side <audio> element at the station's own
+  // HTTP URL); debug tones use an internal `debug:<lavfi spec>` scheme with
+  // no real URL for a browser to fetch. This route bridges that gap:
+  // spawn a SEPARATE, short-lived ffmpeg (independent of the Pi-side
+  // RadioAudio decode/playback pipeline - this is purely for the browser's
+  // own <audio> element, doesn't touch paplay/Bluetooth at all) that
+  // renders the exact same lavfi expression to a WAV stream and pipes it
+  // straight through as the HTTP response body.
+  _handleDebugTone(req, res) {
+    let kind;
+    try { kind = new URL(req.url, 'http://x').searchParams.get('kind'); } catch (e) { /* kind stays undefined */ }
+    const tone = radio.DEBUG_TONES[kind];
+    if (!tone) { res.writeHead(400, { 'Content-Type': 'text/plain' }).end('Unknown debug tone'); return; }
+    const lavfiSpec = tone.url.slice('debug:'.length);
+
+    let proc;
+    try {
+      proc = spawn('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', lavfiSpec, '-f', 'wav', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' }).end('ffmpeg spawn failed: ' + err.message);
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store' });
+    proc.stdout.pipe(res);
+    // A browser navigating away/pausing mid-stream aborts the request - kill
+    // the now-pointless ffmpeg process rather than leaving it to finish
+    // rendering a WAV nobody will read (same "don't leak background
+    // processes" concern as radio.js's stopStation() fix elsewhere).
+    req.on('close', () => { try { proc.kill('SIGKILL'); } catch (e) { /* already dead */ } });
+    proc.on('error', () => { try { res.destroy(); } catch (e) { /* already closed */ } });
   }
 
   // POST /api/uploadVideo?name=<original filename> - raw file bytes as the

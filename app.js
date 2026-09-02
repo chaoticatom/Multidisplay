@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.120';
+const APP_VERSION = '0.6.121';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2056,12 +2056,21 @@ function wireRadioPanel() {
   // Debug mode - two synthetic test tones (server-generated via ffmpeg, no
   // real station needed) for visually verifying the spectrum analyser -
   // see wsServer.js's 'radioDebugTone' handler / radio.js's DEBUG_TONES.
-  // "Play in this browser" doesn't apply here (there's no real station URL
-  // to point a client-side <audio> element at), so this only sends the WS
-  // command - the Pi-side ffmpeg/paplay pipeline and pixel stream carry it
-  // the same as any other station.
-  panel.querySelectorAll('.radio-debug-sweep-btn-el').forEach((btn) => btn.addEventListener('click', () => send({ cmd: 'radioDebugTone', kind: 'sweep' })));
-  panel.querySelectorAll('.radio-debug-drum-btn-el').forEach((btn) => btn.addEventListener('click', () => send({ cmd: 'radioDebugTone', kind: 'drum' })));
+  // The Pi-side WS command drives the actual spectrum/ticker pipeline
+  // (paplay -> Bluetooth/local output) same as any other station. A real
+  // follow-up ("can the browser play the sound") - the debug tone's
+  // internal `debug:<lavfi spec>` URL isn't a real HTTP URL a browser
+  // <audio> element can fetch, unlike a real station's URL, so this ALSO
+  // points the browser's own audio element at wsServer.js's new
+  // /api/debugTone HTTP route (a separate, independent ffmpeg render just
+  // for this) when "Play in this browser" is on - two completely separate
+  // audio paths, matching how a real station already works.
+  const playDebugTone = (kind) => {
+    send({ cmd: 'radioDebugTone', kind });
+    if (radioBrowserPlaybackWanted()) radioBrowserPlay({ url: '/api/debugTone?kind=' + kind });
+  };
+  panel.querySelectorAll('.radio-debug-sweep-btn-el').forEach((btn) => btn.addEventListener('click', () => playDebugTone('sweep')));
+  panel.querySelectorAll('.radio-debug-drum-btn-el').forEach((btn) => btn.addEventListener('click', () => playDebugTone('drum')));
   panel.querySelectorAll('.radio-vol-el').forEach((sl) => sl.addEventListener('input', () => {
     setEffectOption('radio', 'volume', Number(sl.value));
     const el = document.getElementById('radio-browser-audio');

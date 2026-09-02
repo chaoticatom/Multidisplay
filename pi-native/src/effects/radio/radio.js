@@ -297,6 +297,7 @@ module.exports = effectRadio;
 module.exports.getStatus = getStatus;
 module.exports.playStation = playStation;
 module.exports.playDebugTone = playDebugTone;
+module.exports.DEBUG_TONES = DEBUG_TONES;
 module.exports.stopStation = stopStation;
 module.exports.setVolume = setVolume;
 module.exports.search = search;
