@@ -406,7 +406,9 @@ class WsServer {
     } else {
       const tone = radio.DEBUG_TONES[kind];
       if (!tone) { res.writeHead(400, { 'Content-Type': 'text/plain' }).end('Unknown debug tone'); return; }
-      lavfiSpec = tone.url.slice('debug:'.length);
+      // 'debugloop:' (the sweep) vs 'debug:' (drum) - see radio.js's
+      // DEBUG_TONES/ffmpegAudio.js's ensure() for why the prefix differs.
+      lavfiSpec = tone.url.slice(tone.url.startsWith('debugloop:') ? 'debugloop:'.length : 'debug:'.length);
     }
 
     let proc;

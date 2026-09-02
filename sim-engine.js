@@ -11060,7 +11060,7 @@ var PiEngine = (() => {
           if (m > maxMag) maxMag = m;
         }
         const bands = new Float32Array(BAND_COUNT);
-        const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(12e3 / (sampleRate / n))));
+        const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(10500 / (sampleRate / n))));
         let lo = minBin;
         for (let b = 0; b < BAND_COUNT; b++) {
           const frac = (b + 1) / BAND_COUNT;
@@ -11168,6 +11168,7 @@ var PiEngine = (() => {
           this.lastEnsureMs = 0;
           this.errored = false;
           this._stoppedIntentionally = false;
+          this._debugFinished = false;
           this.spec = new Float32Array(BAND_COUNT);
           this.peak = new Float32Array(BAND_COUNT);
           this._peakVel = new Float32Array(BAND_COUNT);
@@ -11194,6 +11195,7 @@ var PiEngine = (() => {
             this._launch(url);
             return;
           }
+          if (this._debugFinished) return;
           if (this.errored && Date.now() - this.lastAttemptMs < RETRY_COOLDOWN_MS) return;
           this._launch(url);
         }
@@ -11204,9 +11206,11 @@ var PiEngine = (() => {
           this.spec.fill(0);
           this.peak.fill(0);
           this._peakVel.fill(0);
-          const isDebug = url.startsWith("debug:");
+          const isDebug = url.startsWith("debug:") || url.startsWith("debugloop:");
+          const isLoop = url.startsWith("debugloop:");
           this._isDebugSource = isDebug;
-          const lavfiSpec = isDebug ? url.slice("debug:".length) : null;
+          this._isDebugLoop = isLoop;
+          const lavfiSpec = isDebug ? url.slice(isLoop ? "debugloop:".length : "debug:".length) : null;
           let proc;
           try {
             proc = this._spawn("ffmpeg", isDebug ? [
@@ -11276,11 +11280,13 @@ var PiEngine = (() => {
             const wasIntentional = this._stoppedIntentionally;
             this._stoppedIntentionally = false;
             const wasDebug = this._isDebugSource;
+            const wasLoop = this._isDebugLoop;
             this.decodeProc = null;
             this._teardownPlayback();
             if (wasIntentional) return;
             if (wasDebug && code === 0) {
               this.status = "Stopped";
+              if (!wasLoop) this._debugFinished = true;
               return;
             }
             this.errored = true;
@@ -12277,7 +12283,12 @@ var PiEngine = (() => {
         { name: "SomaFM Boot Liquor", genre: "Americana", url: "https://ice1.somafm.com/bootliquor-128-mp3" }
       ];
       var DEBUG_TONES = {
-        sweep: { name: "Debug: Sweep", genre: "40Hz-10kHz over 45s", url: "debug:aevalsrc=sin(2*PI*(40*t+9960*t*t/90)):s=44100:d=45" },
+        // debugloop: (not debug:) - a real follow-up ("the sweep should go
+        // from 40 to 10khz and back to 40hz again and so forth") - the sweep
+        // is meant to keep repeating indefinitely, unlike drum/tone which
+        // should play once and stop. See ffmpegAudio.js's ensure()/
+        // _debugFinished for how the two prefixes are told apart.
+        sweep: { name: "Debug: Sweep", genre: "40Hz-10kHz over 45s", url: "debugloop:aevalsrc=sin(2*PI*(40*t+9960*t*t/90)):s=44100:d=45" },
         drum: { name: "Debug: Drum Hit", genre: "Deep kick", url: "debug:aevalsrc=sin(2*PI*(50+70*exp(-25*t))*t)*exp(-4*t):s=44100:d=3" }
       };
       var audio = new RadioAudio();
@@ -12296,6 +12307,7 @@ var PiEngine = (() => {
         if (!station || !station.url) return;
         currentStation = { name: station.name || "Unknown", genre: station.genre || "", url: station.url };
         playing = true;
+        audio._debugFinished = false;
       }
       function playDebugTone(kind, freq) {
         if (kind === "tone") {

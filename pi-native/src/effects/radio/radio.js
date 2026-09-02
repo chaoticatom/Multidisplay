@@ -56,7 +56,12 @@ const RADIO_STATIONS = [
 //   multiplied by exp(-4*t) for a ~250ms decay (long enough to read as
 //   "loud"/full-bodied, not a clipped click).
 const DEBUG_TONES = {
-  sweep: { name: 'Debug: Sweep', genre: '40Hz-10kHz over 45s', url: 'debug:aevalsrc=sin(2*PI*(40*t+9960*t*t/90)):s=44100:d=45' },
+  // debugloop: (not debug:) - a real follow-up ("the sweep should go
+  // from 40 to 10khz and back to 40hz again and so forth") - the sweep
+  // is meant to keep repeating indefinitely, unlike drum/tone which
+  // should play once and stop. See ffmpegAudio.js's ensure()/
+  // _debugFinished for how the two prefixes are told apart.
+  sweep: { name: 'Debug: Sweep', genre: '40Hz-10kHz over 45s', url: 'debugloop:aevalsrc=sin(2*PI*(40*t+9960*t*t/90)):s=44100:d=45' },
   drum: { name: 'Debug: Drum Hit', genre: 'Deep kick', url: 'debug:aevalsrc=sin(2*PI*(50+70*exp(-25*t))*t)*exp(-4*t):s=44100:d=3' },
 };
 // (A single colon - `exprs:options` - is the correct aevalsrc syntax,
@@ -96,6 +101,12 @@ function playStation(station) {
   if (!station || !station.url) return;
   currentStation = { name: station.name || 'Unknown', genre: station.genre || '', url: station.url };
   playing = true;
+  // Clears ffmpegAudio.js's "this one-shot debug tone already finished,
+  // don't auto-restart it" latch on every genuine new play request (a
+  // real station selection is unaffected - the flag only ever gets set
+  // for a one-shot debug tone in the first place) - see that file's
+  // ensure()/_debugFinished for the other half of this.
+  audio._debugFinished = false;
 }
 
 // kind: 'sweep' | 'drum' | 'tone' - see DEBUG_TONES above. 'tone' is a

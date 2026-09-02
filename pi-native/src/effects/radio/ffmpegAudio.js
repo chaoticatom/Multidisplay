@@ -66,6 +66,7 @@ class RadioAudio {
     this.lastEnsureMs = 0;
     this.errored = false;
     this._stoppedIntentionally = false;
+    this._debugFinished = false;
 
     // Canonical 256 log-spaced band levels (smoothed) + falling peak-hold,
     // same shape as effects-core.js's auSpec/auPeak - see ./spectrum.js for
@@ -100,6 +101,19 @@ class RadioAudio {
       return;
     }
 
+    // A real report: a debug tone (fixed duration, ends on its own) kept
+    // auto-restarting forever - "it restart[s] from the left, even if the
+    // sound has gone". Root cause: nothing here distinguished "process
+    // exited because the station errored" (should retry) from "a debug
+    // tone finished its own fixed duration on purpose" (should just stay
+    // stopped) - both left decodeProc null with the same url still
+    // selected, so this function's normal "the process died, relaunch
+    // it" fallback kept firing every tick forever. _debugFinished is set
+    // by _launch()'s exit handler on a clean debug completion, and
+    // cleared here on any actual NEW play request from radio.js's
+    // playStation() - see that function's own comment.
+    if (this._debugFinished) return;
+
     if (this.errored && Date.now() - this.lastAttemptMs < RETRY_COOLDOWN_MS) return;
     this._launch(url);
   }
@@ -122,15 +136,31 @@ class RadioAudio {
     // A real request: two "debug mode" buttons (a full-spectrum sweep and a
     // drum-like broadband thump) to visually verify the spectrum analyser
     // without needing an actual internet stream. Rather than a second
-    // playback path, `debug:<lavfi spec>` URLs (built by radio.js's
-    // playDebugTone()) are decoded through this SAME pipeline - swap
-    // `-i url` for `-f lavfi -i <spec>` and everything downstream (FFT,
-    // ticker, playback) is unchanged. These sources have a fixed duration
-    // (`d=` in the lavfi spec) and end on their own - not a real error, so
-    // it's tracked here to keep proc.on('exit') from reporting it as one.
-    const isDebug = url.startsWith('debug:');
+    // playback path, `debug:<lavfi spec>` / `debugloop:<lavfi spec>` URLs
+    // (built by radio.js's playDebugTone()) are decoded through this SAME
+    // pipeline - swap `-i url` for `-f lavfi -i <spec>` and everything
+    // downstream (FFT, ticker, playback) is unchanged. These sources have
+    // a fixed duration (`d=` in the lavfi spec) and end on their own - not
+    // a real error, so it's tracked here to keep proc.on('exit') from
+    // reporting it as one.
+    //
+    // `debugloop:` (the sweep specifically) vs plain `debug:` (drum/tone)
+    // distinguishes "should keep repeating" from "should play once and
+    // stop" - a real report caught BOTH directions of this wrong at
+    // different points: first, ALL debug tones silently kept
+    // auto-restarting forever once finished (nothing told ensure()'s
+    // normal "the process died, relaunch it" tick-driven fallback that a
+    // clean debug completion isn't a failure to recover from) - "it
+    // restart[s] from the left, even if the sound has gone". Then, once
+    // that was fixed generically, a follow-up ("the sweep should go from
+    // 40 to 10khz and back to 40hz again and so forth") clarified the
+    // sweep SHOULD keep looping - just the drum/tone shouldn't. See
+    // ensure()'s _debugFinished check for the other half of this.
+    const isDebug = url.startsWith('debug:') || url.startsWith('debugloop:');
+    const isLoop = url.startsWith('debugloop:');
     this._isDebugSource = isDebug;
-    const lavfiSpec = isDebug ? url.slice('debug:'.length) : null;
+    this._isDebugLoop = isLoop;
+    const lavfiSpec = isDebug ? url.slice(isLoop ? 'debugloop:'.length : 'debug:'.length) : null;
 
     let proc;
     try {
@@ -197,10 +227,15 @@ class RadioAudio {
       const wasIntentional = this._stoppedIntentionally;
       this._stoppedIntentionally = false;
       const wasDebug = this._isDebugSource;
+      const wasLoop = this._isDebugLoop;
       this.decodeProc = null;
       this._teardownPlayback();
       if (wasIntentional) return;
-      if (wasDebug && code === 0) { this.status = 'Stopped'; return; } // ran its fixed duration, not a failure
+      if (wasDebug && code === 0) {
+        this.status = 'Stopped';
+        if (!wasLoop) this._debugFinished = true; // one-shot (drum/tone) - don't auto-restart; the sweep (isLoop) is left to restart normally
+        return;
+      }
       this.errored = true; // any exit while a station is still selected is a failure - streams don't have a "clean EOF" in normal use
       const lastLine = stderrTail.trim().split('\n').filter(Boolean).pop();
       this.status = 'Error — ffmpeg exited (' + (lastLine || `code ${code}`) + ')';
