@@ -29,24 +29,22 @@ function resetTicker() { scrollX = 0; }
 // smallest value that keeps drawGlyph's y range (sv-6..sv = 1..7) fully
 // non-negative - full glyph, no clipping - while sitting at the LOW end,
 // which the same empirical evidence says is the bottom.
-// Word/reading order stays reversed (chars, built once per call) - a
-// separate, already-confirmed-correct fix (word order needed to flip,
-// independent of each letter's own pixel pattern - see font.js's
-// drawGlyph() for that half, now a full 180° rotation per letter).
 function drawTicker(core, face, label, dt) {
   if (!label) return;
   const textW = label.length * CHAR_W;
   scrollX += dt * 14;
   if (scrollX > textW) scrollX -= textW;
   const sv = 7;
-  const chars = Array.from(label).reverse();
-  // font.js's drawGlyph() no longer does any mirror compensation (see its
-  // own comment - that belongs in the driver, not the content), so this
-  // sign should now be judged purely against the browser preview (which
-  // shows colBuf uncorrected) rather than re-guessed against physical
-  // hardware reports, which were chasing a moving target while the glyph
-  // function itself kept changing underneath. Left as -scrollX for now -
-  // if this direction is wrong, verify against the BROWSER preview first.
+  // Word order used to be reversed here to counteract font.js's drawGlyph()
+  // doing its own full-180-rotation-per-letter at the time - now that
+  // drawGlyph() draws plain, uncorrected letters (see its own comment),
+  // reversing this array just puts otherwise-correctly-shaped letters in
+  // backwards READING order, which a blocky pixel font makes look exactly
+  // like mirror-writing at a glance (verified directly: rendering "HELLO"
+  // through the array-reversed path here produced a scrambled, mirror-like
+  // result even with fully correct individual glyph shapes; the
+  // non-reversed array reads "HELLO" correctly). Plain forward order.
+  const chars = Array.from(label);
   let u = -Math.floor(scrollX);
   const rgb = [0.6, 0.85, 1];
   while (u < core.SIZE) {
