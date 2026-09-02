@@ -11060,7 +11060,7 @@ var PiEngine = (() => {
           if (m > maxMag) maxMag = m;
         }
         const bands = new Float32Array(BAND_COUNT);
-        const minBin = 1, maxBin = Math.max(minBin + 1, Math.round((half - 1) * 0.8));
+        const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(1e4 / (sampleRate / n))));
         let lo = minBin;
         for (let b = 0; b < BAND_COUNT; b++) {
           const frac = (b + 1) / BAND_COUNT;
@@ -11201,6 +11201,9 @@ var PiEngine = (() => {
           this.lastAttemptMs = Date.now();
           this.pending = Buffer2.alloc(0);
           this._lastChunkMs = Date.now();
+          this.spec.fill(0);
+          this.peak.fill(0);
+          this._peakVel.fill(0);
           const isDebug = url.startsWith("debug:");
           this._isDebugSource = isDebug;
           const lavfiSpec = isDebug ? url.slice("debug:".length) : null;

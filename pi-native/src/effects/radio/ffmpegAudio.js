@@ -108,6 +108,16 @@ class RadioAudio {
     this.lastAttemptMs = Date.now();
     this.pending = Buffer.alloc(0);
     this._lastChunkMs = Date.now();
+    // A real report: "if I stop the sweep and restart I get two peaks...
+    // it should start again at the beginning" - spec/peak only got reset
+    // on an EXPLICIT stop (ensure(null) -> _teardown()), never here on a
+    // fresh (re)start, so the previous play-through's slow-falling peak-
+    // hold markers stayed on screen decaying alongside the new one's
+    // freshly building peaks - looking like two simultaneous peaks
+    // instead of one clean restart from zero.
+    this.spec.fill(0);
+    this.peak.fill(0);
+    this._peakVel.fill(0);
 
     // A real request: two "debug mode" buttons (a full-spectrum sweep and a
     // drum-like broadband thump) to visually verify the spectrum analyser

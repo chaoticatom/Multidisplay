@@ -68,13 +68,18 @@ function computeBands(samples, sampleRate) {
   }
 
   const bands = new Float32Array(BAND_COUNT);
-  // maxBin capped to ~80% of the true Nyquist-adjacent bin, not half-1 -
-  // same fix/root cause as app.js's radioAnalyserTick() (a real report:
-  // "even with gain high, the right 3 bars don't move" - gain can't
-  // amplify signal that isn't there, and the bins right next to Nyquist
-  // carry essentially zero energy for any real-world audio). Keeps every
-  // displayed bar inside the range that actually carries content.
-  const minBin = 1, maxBin = Math.max(minBin + 1, Math.round((half - 1) * 0.8));
+  // maxBin capped to ~10kHz, not 80% of Nyquist (~17.6kHz at 44.1kHz) - a
+  // real report: "songs don't go to the high frequency that the sweep
+  // does [...] bars are not representing the sounds correctly". Real
+  // music rarely carries meaningful energy above ~8-10kHz (same reasoning
+  // that narrowed the debug sweep itself to 40Hz-10kHz - see radio.js's
+  // DEBUG_TONES), so the old 80%-of-Nyquist cutoff left the top third or
+  // so of the displayed bars almost always dark during real playback -
+  // not a bug in the analyser, just a mismatch between the display's
+  // range and where real content actually lives. Capping consistently at
+  // 10kHz makes the full bar width meaningful for real music instead of
+  // reserving space for content that's essentially never there.
+  const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(10000 / (sampleRate / n))));
   let lo = minBin;
   for (let b = 0; b < BAND_COUNT; b++) {
     const frac = (b + 1) / BAND_COUNT;
