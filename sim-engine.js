@@ -11269,7 +11269,9 @@ var PiEngine = (() => {
           if (proc.stderr) proc.stderr.on("data", (d) => {
             stderrTail = (stderrTail + d.toString()).slice(-4e3);
           });
-          if (proc.stdout) proc.stdout.on("data", (chunk) => this._onData(chunk));
+          if (proc.stdout) proc.stdout.on("data", (chunk) => {
+            if (proc === this.decodeProc) this._onData(chunk);
+          });
           proc.on("exit", (code) => {
             const wasIntentional = this._stoppedIntentionally;
             this._stoppedIntentionally = false;

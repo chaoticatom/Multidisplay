@@ -181,7 +181,17 @@ class RadioAudio {
 
     proc.on('error', (err) => this._onSpawnFail(err));
     if (proc.stderr) proc.stderr.on('data', (d) => { stderrTail = (stderrTail + d.toString()).slice(-4000); });
-    if (proc.stdout) proc.stdout.on('data', (chunk) => this._onData(chunk));
+    // A real report: switching the debug frequency slider quickly showed
+    // multiple simultaneous peaks instead of one clean tone - the same
+    // class of bug video.js's FfmpegSource already had fixed (see
+    // ffmpegSourceStaleData.test.js), just not here yet. kill('SIGKILL')
+    // in _teardown() is asynchronous - the OS can still deliver a killed
+    // process's already-buffered stdout data after this.decodeProc has
+    // moved on to a freshly-spawned replacement, briefly feeding the OLD
+    // (stale-frequency) audio into the FFT alongside the new one. Guard
+    // against it: only process data from whichever process is CURRENTLY
+    // this.decodeProc at the moment the data actually arrives.
+    if (proc.stdout) proc.stdout.on('data', (chunk) => { if (proc === this.decodeProc) this._onData(chunk); });
 
     proc.on('exit', (code) => {
       const wasIntentional = this._stoppedIntentionally;
