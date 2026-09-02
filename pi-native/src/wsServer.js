@@ -377,7 +377,7 @@ class WsServer {
     }
   }
 
-  // GET /api/debugTone?kind=sweep|drum - lets the BROWSER hear the same
+  // GET /api/debugTone?kind=sweep|drum|tone[&freq=N] - lets the BROWSER hear the same
   // debug test tones the Pi-side spectrum pipeline plays (see radio.js's
   // DEBUG_TONES/playDebugTone()). A real report: "can the browser play the
   // sound" - the "Play in this browser" checkbox only works for real
@@ -390,11 +390,24 @@ class WsServer {
   // renders the exact same lavfi expression to a WAV stream and pipes it
   // straight through as the HTTP response body.
   _handleDebugTone(req, res) {
-    let kind;
-    try { kind = new URL(req.url, 'http://x').searchParams.get('kind'); } catch (e) { /* kind stays undefined */ }
-    const tone = radio.DEBUG_TONES[kind];
-    if (!tone) { res.writeHead(400, { 'Content-Type': 'text/plain' }).end('Unknown debug tone'); return; }
-    const lavfiSpec = tone.url.slice('debug:'.length);
+    let kind, freqParam;
+    try {
+      const q = new URL(req.url, 'http://x').searchParams;
+      kind = q.get('kind');
+      freqParam = q.get('freq');
+    } catch (e) { /* kind/freqParam stay undefined */ }
+    // 'tone' (the frequency slider) is built on the fly, same as
+    // radio.playDebugTone() does for the Pi-side pipeline - not a fixed
+    // DEBUG_TONES entry, since the frequency is chosen by the user.
+    let lavfiSpec;
+    if (kind === 'tone') {
+      const f = Math.max(40, Math.min(10000, Math.round(Number(freqParam)) || 440));
+      lavfiSpec = 'aevalsrc=sin(2*PI*' + f + '*t):s=44100:d=30';
+    } else {
+      const tone = radio.DEBUG_TONES[kind];
+      if (!tone) { res.writeHead(400, { 'Content-Type': 'text/plain' }).end('Unknown debug tone'); return; }
+      lavfiSpec = tone.url.slice('debug:'.length);
+    }
 
     let proc;
     try {
@@ -984,12 +997,14 @@ class WsServer {
       this._refreshRadioStatus();
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'radioDebugTone') {
-      // Two debug-mode buttons ("Sweep Test"/"Drum Test") for verifying the
+      // Debug-mode controls ("Sweep Test"/"Drum Test" buttons, and a
+      // frequency slider for a steady single-tone 'kind') for verifying the
       // spectrum analyser without a real stream - see radio.js's
       // DEBUG_TONES/playDebugTone() for the actual tone generation.
-      if (msg.kind !== 'sweep' && msg.kind !== 'drum') return;
-      if (this.effectCommandRelay) this.effectCommandRelay('radioDebugTone', { kind: msg.kind });
-      else radio.playDebugTone(msg.kind);
+      if (msg.kind !== 'sweep' && msg.kind !== 'drum' && msg.kind !== 'tone') return;
+      const payload = { kind: msg.kind, freq: msg.freq };
+      if (this.effectCommandRelay) this.effectCommandRelay('radioDebugTone', payload);
+      else radio.playDebugTone(payload.kind, payload.freq);
       this._refreshRadioStatus();
       this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'stopAllSound') {

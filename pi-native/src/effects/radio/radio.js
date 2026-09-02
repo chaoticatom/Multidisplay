@@ -47,20 +47,23 @@ const RADIO_STATIONS = [
 //   actually sits) - instantaneous phase = 2*PI*(f0*t + (f1-f0)*t^2/(2*T))
 //   so frequency rises linearly the whole way, letting you watch every
 //   band light up in turn.
-//   Drum: a single decaying broadband noise burst (like a kick/snare
-//   transient) - exp(-6*t)*random(0) is white noise power-shaped by a fast
-//   exponential decay, covering the full spectrum at once rather than one
-//   tone at a time.
-// A single colon (`exprs:options`) is the correct aevalsrc syntax after
-// all - verified directly against the real ffmpeg build on real hardware
-// (ran the exact command by hand: single colon produces a correctly-sized
-// PCM file, no errors; a double colon - a mistaken "fix" for a previous
-// silent-failure report - throws "Undefined constant or missing '(' in
-// ''", confirmed the same way). Reverting to single colon.
+//   Drum: a synthesized kick drum (a real follow-up: "make it sound like
+//   a deep drum loud sound" - the original was just a broadband noise
+//   burst, no low-end character at all). sin(2*PI*(50+70*exp(-25*t))*t) is
+//   a classic drum-synthesis trick: the sine's OWN frequency starts around
+//   120Hz and drops to 50Hz within about 100ms (the "pitch envelope" that
+//   gives a kick its characteristic thump, not just a plain bass tone),
+//   multiplied by exp(-4*t) for a ~250ms decay (long enough to read as
+//   "loud"/full-bodied, not a clipped click).
 const DEBUG_TONES = {
   sweep: { name: 'Debug: Sweep', genre: '40Hz-10kHz over 45s', url: 'debug:aevalsrc=sin(2*PI*(40*t+9960*t*t/90)):s=44100:d=45' },
-  drum: { name: 'Debug: Drum Hit', genre: 'Broadband decay', url: 'debug:aevalsrc=exp(-6*t)*random(0):s=44100:d=3' },
+  drum: { name: 'Debug: Drum Hit', genre: 'Deep kick', url: 'debug:aevalsrc=sin(2*PI*(50+70*exp(-25*t))*t)*exp(-4*t):s=44100:d=3' },
 };
+// (A single colon - `exprs:options` - is the correct aevalsrc syntax,
+// verified directly against the real ffmpeg build on real hardware: single
+// colon produces a correctly-sized PCM file with no errors, double colon
+// throws "Undefined constant or missing '(' in ''" - both expressions
+// above use it correctly.)
 
 const audio = new RadioAudio();
 const spectrumState = createSpectrumState();
@@ -95,8 +98,19 @@ function playStation(station) {
   playing = true;
 }
 
-// kind: 'sweep' | 'drum' - see DEBUG_TONES above.
-function playDebugTone(kind) {
+// kind: 'sweep' | 'drum' | 'tone' - see DEBUG_TONES above. 'tone' is a
+// steady single frequency built on the fly rather than a fixed table
+// entry - a real follow-up request: "add a scroll bar to the sweep test
+// so I can select the freq", for manually dialing to one exact frequency
+// and watching precisely which band lights up, instead of only the
+// automatic sweep. freq is clamped to the same 40Hz-10kHz musical range
+// the sweep covers.
+function playDebugTone(kind, freq) {
+  if (kind === 'tone') {
+    const f = Math.max(40, Math.min(10000, Math.round(Number(freq)) || 440));
+    playStation({ name: 'Debug: Tone', genre: f + ' Hz', url: 'debug:aevalsrc=sin(2*PI*' + f + '*t):s=44100:d=30' });
+    return;
+  }
   const tone = DEBUG_TONES[kind];
   if (tone) playStation(tone);
 }

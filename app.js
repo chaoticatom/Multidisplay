@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.123';
+const APP_VERSION = '0.6.124';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2065,12 +2065,28 @@ function wireRadioPanel() {
   // /api/debugTone HTTP route (a separate, independent ffmpeg render just
   // for this) when "Play in this browser" is on - two completely separate
   // audio paths, matching how a real station already works.
-  const playDebugTone = (kind) => {
-    send({ cmd: 'radioDebugTone', kind });
-    if (radioBrowserPlaybackWanted()) radioBrowserPlay({ url: '/api/debugTone?kind=' + kind });
+  const playDebugTone = (kind, freq) => {
+    send({ cmd: 'radioDebugTone', kind, freq });
+    if (radioBrowserPlaybackWanted()) {
+      radioBrowserPlay({ url: '/api/debugTone?kind=' + kind + (freq != null ? '&freq=' + freq : '') });
+    }
   };
   panel.querySelectorAll('.radio-debug-sweep-btn-el').forEach((btn) => btn.addEventListener('click', () => playDebugTone('sweep')));
   panel.querySelectorAll('.radio-debug-drum-btn-el').forEach((btn) => btn.addEventListener('click', () => playDebugTone('drum')));
+  // Frequency slider - a real follow-up ("add a scroll bar to the sweep
+  // test so I can select the freq"). Debounced (300ms after the last drag
+  // movement) rather than firing on every 'input' tick - each change
+  // restarts the debug ffmpeg process, which would otherwise thrash badly
+  // while actively dragging.
+  let debugFreqDebounce = null;
+  panel.querySelectorAll('.radio-debug-freq-el').forEach((sl) => {
+    const valEl = panel.querySelector('.radio-debug-freq-val-el');
+    sl.addEventListener('input', () => {
+      if (valEl) valEl.textContent = sl.value + ' Hz';
+      clearTimeout(debugFreqDebounce);
+      debugFreqDebounce = setTimeout(() => playDebugTone('tone', Number(sl.value)), 300);
+    });
+  });
   panel.querySelectorAll('.radio-vol-el').forEach((sl) => sl.addEventListener('input', () => {
     setEffectOption('radio', 'volume', Number(sl.value));
     const el = document.getElementById('radio-browser-audio');

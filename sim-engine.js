@@ -12273,7 +12273,7 @@ var PiEngine = (() => {
       ];
       var DEBUG_TONES = {
         sweep: { name: "Debug: Sweep", genre: "40Hz-10kHz over 45s", url: "debug:aevalsrc=sin(2*PI*(40*t+9960*t*t/90)):s=44100:d=45" },
-        drum: { name: "Debug: Drum Hit", genre: "Broadband decay", url: "debug:aevalsrc=exp(-6*t)*random(0):s=44100:d=3" }
+        drum: { name: "Debug: Drum Hit", genre: "Deep kick", url: "debug:aevalsrc=sin(2*PI*(50+70*exp(-25*t))*t)*exp(-4*t):s=44100:d=3" }
       };
       var audio = new RadioAudio();
       var spectrumState = createSpectrumState();
@@ -12292,7 +12292,12 @@ var PiEngine = (() => {
         currentStation = { name: station.name || "Unknown", genre: station.genre || "", url: station.url };
         playing = true;
       }
-      function playDebugTone(kind) {
+      function playDebugTone(kind, freq) {
+        if (kind === "tone") {
+          const f = Math.max(40, Math.min(1e4, Math.round(Number(freq)) || 440));
+          playStation({ name: "Debug: Tone", genre: f + " Hz", url: "debug:aevalsrc=sin(2*PI*" + f + "*t):s=44100:d=30" });
+          return;
+        }
         const tone = DEBUG_TONES[kind];
         if (tone) playStation(tone);
       }

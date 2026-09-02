@@ -1053,9 +1053,18 @@
            no real stream needed - see radio.js's DEBUG_TONES) for visually
            verifying the spectrum analyser reacts correctly across the whole
            range, without depending on a real station's actual content. -->
-      <div style="display:flex;gap:6px;margin-bottom:10px;">
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
         <button class="radio-debug-sweep-btn-el" style="flex:1;padding:6px 8px;background:rgba(140,100,255,0.1);border:1px solid rgba(140,100,255,0.3);color:#b89aff;border-radius:4px;cursor:pointer;font-size:11px;">🎚 Sweep Test</button>
         <button class="radio-debug-drum-btn-el" style="flex:1;padding:6px 8px;background:rgba(140,100,255,0.1);border:1px solid rgba(140,100,255,0.3);color:#b89aff;border-radius:4px;cursor:pointer;font-size:11px;">🥁 Drum Test</button>
+      </div>
+      <!-- Manual single-frequency debug tone - a real follow-up ("add a
+           scroll bar to the sweep test so I can select the freq") for
+           dialing to one exact frequency and watching precisely which band
+           lights up, instead of only the automatic sweep. -->
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
+        <span class="ov-label" style="flex:0 0 auto;font-size:10px;">Tone</span>
+        <input class="radio-debug-freq-el" type="range" min="40" max="10000" step="10" value="440" style="flex:1;">
+        <span class="radio-debug-freq-val-el" style="flex:0 0 auto;font-size:10px;color:#b89aff;min-width:52px;text-align:right;">440 Hz</span>
       </div>
 
       <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Directory search (thousands of stations)</div>
