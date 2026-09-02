@@ -26486,9 +26486,10 @@ var PiEngine = (() => {
           const bits = rows[row];
           for (let col = 0; col < 3; col++) {
             if (!(bits >> 2 - col & 1)) continue;
+            const localCol = 2 - col;
             for (let sy = 0; sy < scale; sy++) {
               for (let sx = 0; sx < scale; sx++) {
-                core.setWallPixel(ox + su + col * scale + sx, oy + sv + row * scale + sy, r, g, b);
+                core.setWallPixel(ox + su + localCol * scale + sx, oy + sv + row * scale + sy, r, g, b);
               }
             }
           }

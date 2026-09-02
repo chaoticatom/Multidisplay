@@ -60,9 +60,20 @@ function wallGlyph(core, ox, oy, ch, su, sv, scale, r, g, b) {
     const bits = rows[row];
     for (let col = 0; col < 3; col++) {
       if (!((bits >> (2 - col)) & 1)) continue;
+      // rgbMatrixDriver's _buildWallPanelBuffer() mirrors the whole wall
+      // canvas left-right before pushing to the physical panels (see
+      // radioWall.js's glyphWall() for the same fix, verified there with a
+      // local draw+mirror simulation). This function had the same bug:
+      // `col` placed the leftmost bit at the leftmost pixel, which is
+      // correct pre-mirror but comes out backwards on the physical panel.
+      // Placing at (2-col) instead - a LOCAL mirror within each glyph's 3px
+      // box, leaving `su` (the per-character advance) untouched - cancels
+      // the driver's mirror for glyph shape without affecting character
+      // order/spacing.
+      const localCol = 2 - col;
       for (let sy = 0; sy < scale; sy++) {
         for (let sx = 0; sx < scale; sx++) {
-          core.setWallPixel(ox + su + col * scale + sx, oy + sv + row * scale + sy, r, g, b);
+          core.setWallPixel(ox + su + localCol * scale + sx, oy + sv + row * scale + sy, r, g, b);
         }
       }
     }
