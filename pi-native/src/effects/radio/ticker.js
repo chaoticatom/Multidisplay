@@ -40,13 +40,12 @@ function drawTicker(core, face, label, dt) {
   if (scrollX > textW) scrollX -= textW;
   const sv = 7;
   const chars = Array.from(label).reverse();
-  // A real report ("flip spectrum analyser text the other way") reversed
-  // this back again after an earlier flip in the opposite direction -
-  // starting the draw position at (-scrollX) rather than (scrollX-textW).
-  // If this needs flipping a third time, STOP guessing at the sign here -
-  // ask for a screenshot/video of the actual on-panel motion instead
-  // (this file's own history already has two guesses in a row).
-  let u = -Math.floor(scrollX);
+  // Direction flipped again after font.js's drawGlyph() picked up a
+  // panelMode-based local mirror (needed to fix letter shape on real
+  // '2d'-mode hardware) - that changed which physical direction
+  // increasing scrollX corresponds to. Back to (scrollX-textW) to
+  // restore the physical scroll direction.
+  let u = Math.floor(scrollX) - textW;
   const rgb = [0.6, 0.85, 1];
   while (u < core.SIZE) {
     for (const ch of chars) {
