@@ -278,22 +278,19 @@ async function loadImageForPixels(url, targetSize, opts) {
 // refactored onto this copy, to avoid touching a file outside this task's
 // scope).
 const { PIXEL_FONT } = require('./weather/font');
-const { needsTextMirror, mirrorCol, mirrorRow } = require('./textMirror');
-// See textMirror.js's module comment for why this glyph needs a mode-aware
-// local mirror.
+// Plain, uncorrected glyph draw - see radio/font.js's drawGlyph() comment
+// for why: colBuf content should never bake in a driver-specific mirror.
 function drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b) {
   const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
   if (!rows) return 4 * scale;
   const S = core.SIZE;
-  const mirror = needsTextMirror(core.panelMode);
   for (let row = 0; row < 5; row++) {
-    const bits = rows[mirrorRow(row, 5, mirror)];
+    const bits = rows[row];
     for (let col = 0; col < 3; col++) {
       if (!((bits >> (2 - col)) & 1)) continue;
-      const localCol = mirrorCol(col, 3, mirror);
       for (let sy = 0; sy < scale; sy++) {
         for (let sx = 0; sx < scale; sx++) {
-          const u = su + localCol * scale + sx, v = sv + row * scale + sy;
+          const u = su + col * scale + sx, v = sv + row * scale + sy;
           if (u < 0 || u >= S || v < 0 || v >= S) continue;
           core.setFaceLED(face, u, v, r, g, b);
         }

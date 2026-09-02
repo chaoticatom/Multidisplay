@@ -945,6 +945,20 @@ class WsServer {
       else radio.stopStation();
       this._refreshRadioStatus();
       this._broadcast(this._stateMsg());
+    } else if (msg.cmd === 'stopAllSound') {
+      // The sidebar's "Stop Sound" button, next to Clear All - a real
+      // request: internet radio keeps playing in the background regardless
+      // of which effect is selected/displayed (see radio.js's module
+      // comment), so Clear All blanking the display doesn't stop audio -
+      // there was no single button to kill sound without hunting for the
+      // Radio panel and hitting stop there. Radio is the only long-running
+      // background audio source in this codebase (video has no audio
+      // playback) - same relay-aware stop as the 'radioStop' handler above,
+      // just reachable from anywhere in the UI.
+      if (this.effectCommandRelay) this.effectCommandRelay('radioStop', {});
+      else radio.stopStation();
+      this._refreshRadioStatus();
+      this._broadcast(this._stateMsg());
     } else if (msg.cmd === 'setUnsplashConfig') {
       // Persists the Unsplash Access Key + default search query - see
       // unsplashConfig.js's module comment for why this is a dedicated

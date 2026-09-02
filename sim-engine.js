@@ -2400,24 +2400,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/textMirror.js
-  var require_textMirror = __commonJS({
-    "src/effects/textMirror.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      function needsTextMirror(panelMode) {
-        return panelMode !== "cube";
-      }
-      function mirrorCol(col, width, mirror) {
-        return mirror ? width - 1 - col : col;
-      }
-      function mirrorRow(row, height, mirror) {
-        return mirror ? height - 1 - row : row;
-      }
-      module.exports = { needsTextMirror, mirrorCol, mirrorRow };
-    }
-  });
-
   // src/effects/_shared.js
   var require_shared = __commonJS({
     "src/effects/_shared.js"(exports, module) {
@@ -2679,20 +2661,17 @@ var PiEngine = (() => {
         return { pixels: out.bitmap.data, size: targetSize };
       }
       var { PIXEL_FONT } = require_font();
-      var { needsTextMirror, mirrorCol, mirrorRow } = require_textMirror();
       function drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b) {
         const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
         if (!rows) return 4 * scale;
         const S = core.SIZE;
-        const mirror = needsTextMirror(core.panelMode);
         for (let row = 0; row < 5; row++) {
-          const bits = rows[mirrorRow(row, 5, mirror)];
+          const bits = rows[row];
           for (let col = 0; col < 3; col++) {
             if (!(bits >> 2 - col & 1)) continue;
-            const localCol = mirrorCol(col, 3, mirror);
             for (let sy = 0; sy < scale; sy++) {
               for (let sx = 0; sx < scale; sx++) {
-                const u = su + localCol * scale + sx, v = sv + row * scale + sy;
+                const u = su + col * scale + sx, v = sv + row * scale + sy;
                 if (u < 0 || u >= S || v < 0 || v >= S) continue;
                 core.setFaceLED(face, u, v, r, g, b);
               }
@@ -12087,7 +12066,6 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { needsTextMirror, mirrorCol, mirrorRow } = require_textMirror();
       var CHAR_W = 6;
       var CHAR_H = 7;
       var FONT = {
@@ -12141,14 +12119,13 @@ var PiEngine = (() => {
       };
       function drawGlyph(core, face, ch, su, sv, rgb) {
         const rows = FONT[ch.toUpperCase()] || FONT["?"];
-        const mirror = needsTextMirror(core.panelMode);
         for (let ry = 0; ry < 7; ry++) {
-          const bits = rows[mirrorRow(ry, 7, mirror)];
+          const bits = rows[ry];
           const y = sv - (6 - ry);
           if (y < 0 || y >= core.SIZE) continue;
           for (let rx = 0; rx < 5; rx++) {
             if (!(bits & 1 << 4 - rx)) continue;
-            const x = su + mirrorCol(rx, 5, mirror);
+            const x = su + rx;
             if (x < 0 || x >= core.SIZE) continue;
             core.setFaceLED(face, x, y, rgb[0], rgb[1], rgb[2]);
           }
@@ -25511,7 +25488,6 @@ var PiEngine = (() => {
       var radio = require_radio();
       var { renderSpectrumStyleWall, createSpectrumWallState } = require_spectrumWall();
       var { FONT, CHAR_W } = require_font2();
-      var { needsTextMirror, mirrorCol, mirrorRow } = require_textMirror();
       var spectrumWallState = createSpectrumWallState();
       var autoGainMultW = 1;
       var lastLevelSmoothedW = 0;
@@ -25523,14 +25499,13 @@ var PiEngine = (() => {
       }
       function glyphWall(core, ch, su, sv, rgb) {
         const rows = FONT[ch.toUpperCase()] || FONT["?"];
-        const mirror = needsTextMirror(core.panelMode);
         for (let ry = 0; ry < 7; ry++) {
-          const bits = rows[mirrorRow(ry, 7, mirror)];
+          const bits = rows[ry];
           const y = sv - (6 - ry);
           if (y < 0 || y >= core.wallH) continue;
           for (let rx = 0; rx < 5; rx++) {
             if (!(bits & 1 << 4 - rx)) continue;
-            const x = su + mirrorCol(rx, 5, mirror);
+            const x = su + rx;
             if (x < 0 || x >= core.wallW) continue;
             core.setWallPixel(x, y, rgb[0], rgb[1], rgb[2]);
           }
@@ -26492,7 +26467,6 @@ var PiEngine = (() => {
       var { FACE_LAYOUT, FACE_NAMES } = require_panelConfig();
       var { PIXEL_FONT } = require_font();
       var { drawLinesCentered3x5 } = require_shared();
-      var { needsTextMirror, mirrorCol, mirrorRow } = require_textMirror();
       function pickScale(lines, size, maxScale) {
         const longest = Math.max(...lines.map((l) => l.length));
         return Math.max(1, Math.min(maxScale, Math.floor(size / (4 * longest - 1))));
@@ -26508,15 +26482,13 @@ var PiEngine = (() => {
       function wallGlyph(core, ox, oy, ch, su, sv, scale, r, g, b) {
         const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
         if (!rows) return 4 * scale;
-        const mirror = needsTextMirror(core.panelMode);
         for (let row = 0; row < 5; row++) {
-          const bits = rows[mirrorRow(row, 5, mirror)];
+          const bits = rows[row];
           for (let col = 0; col < 3; col++) {
             if (!(bits >> 2 - col & 1)) continue;
-            const localCol = mirrorCol(col, 3, mirror);
             for (let sy = 0; sy < scale; sy++) {
               for (let sx = 0; sx < scale; sx++) {
-                core.setWallPixel(ox + su + localCol * scale + sx, oy + sv + row * scale + sy, r, g, b);
+                core.setWallPixel(ox + su + col * scale + sx, oy + sv + row * scale + sy, r, g, b);
               }
             }
           }

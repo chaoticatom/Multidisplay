@@ -10,8 +10,6 @@
 // self-contained replacement used only by ./ticker.js.
 'use strict';
 
-const { needsTextMirror, mirrorCol, mirrorRow } = require('../textMirror');
-
 const CHAR_W = 6; // 5px glyph + 1px spacing
 const CHAR_H = 7;
 
@@ -48,26 +46,28 @@ const FONT = {
 // same contract effects-core.js's wcDrawGlyph() has - so callers can just
 // do `u += drawGlyph(...)` in a loop.
 //
-// See textMirror.js's module comment for why this glyph needs a mode-aware
-// local mirror at all (rgbMatrixDriver's whole-canvas mirror in '2d'/'wall'
-// modes, which flips text backwards) - that file is now the single shared
-// answer to "does this mode need it", used by every glyph drawer in this
-// codebase instead of each reimplementing/reguessing it separately. A
-// horizontal-only local mirror was verified correct against the driver's
-// documented transform, but a real-hardware report ("rotate 180 degrees")
-// confirmed this particular panel's mount needs both axes flipped per
-// glyph, not just left-right - mirrorRow() on the row lookup, in addition
-// to mirrorCol() on the column placement already here.
+// Draws plain, correctly-oriented text into colBuf - no mirror
+// compensation. Verified directly (no driver transform involved): drawing
+// with no compensation at all produces a correctly-shaped, readable glyph
+// in the buffer itself, which is exactly what the browser preview shows
+// (it streams colBuf with zero correction - see rgbMatrixDriver.js's own
+// module comment). An earlier multi-ship attempt added mode-based mirror
+// compensation directly into this function to work around real-hardware
+// reports of backwards text - wrong architecture: colBuf is shared by both
+// the (uncorrected) browser preview and the physical driver's OWN
+// pre-existing, separately-verified mirror step, so compensating here
+// broke the browser and could double up on physical hardware. If the
+// physical panel needs correction, it belongs in the driver
+// (_buildFaceBuffer/_buildWallPanelBuffer), not baked into the content.
 function drawGlyph(core, face, ch, su, sv, rgb) {
   const rows = FONT[ch.toUpperCase()] || FONT['?'];
-  const mirror = needsTextMirror(core.panelMode);
   for (let ry = 0; ry < 7; ry++) {
-    const bits = rows[mirrorRow(ry, 7, mirror)];
+    const bits = rows[ry];
     const y = sv - (6 - ry); // draw upward from the baseline at sv
     if (y < 0 || y >= core.SIZE) continue;
     for (let rx = 0; rx < 5; rx++) {
       if (!(bits & (1 << (4 - rx)))) continue;
-      const x = su + mirrorCol(rx, 5, mirror);
+      const x = su + rx;
       if (x < 0 || x >= core.SIZE) continue;
       core.setFaceLED(face, x, y, rgb[0], rgb[1], rgb[2]);
     }

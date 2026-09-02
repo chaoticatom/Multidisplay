@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.102';
+const APP_VERSION = '0.6.103';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2350,6 +2350,15 @@ function wireClearAllButton() {
 function syncClearAllButton() {
   const btn = document.getElementById('clear-all-btn');
   if (btn) btn.classList.toggle('active', !!currentState.blank);
+}
+
+// "🔇 Stop Sound" - next to Clear All. Radio plays in the background
+// regardless of which effect is selected/displayed, so Clear All blanking
+// the screen doesn't stop audio - this is a one-click way to kill it
+// without navigating to the Radio panel.
+function wireStopSoundButton() {
+  const btn = document.getElementById('stop-sound-btn');
+  if (btn) btn.addEventListener('click', () => send({ cmd: 'stopAllSound' }));
 }
 
 // ---------------------------------------------------------------------

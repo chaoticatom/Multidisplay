@@ -40,12 +40,13 @@ function drawTicker(core, face, label, dt) {
   if (scrollX > textW) scrollX -= textW;
   const sv = 7;
   const chars = Array.from(label).reverse();
-  // A real-hardware report ("rotate 180 degrees ... make it scroll right to
-  // left, currently scrolling left to right") landed alongside font.js's
-  // drawGlyph() picking up a full per-glyph 180-degree rotation (both row
-  // and column flip, not just the column-only local mirror this direction
-  // was last tuned against) - back to (-scrollX) to restore the requested
-  // physical scroll direction under that new glyph transform.
+  // font.js's drawGlyph() no longer does any mirror compensation (see its
+  // own comment - that belongs in the driver, not the content), so this
+  // sign should now be judged purely against the browser preview (which
+  // shows colBuf uncorrected) rather than re-guessed against physical
+  // hardware reports, which were chasing a moving target while the glyph
+  // function itself kept changing underneath. Left as -scrollX for now -
+  // if this direction is wrong, verify against the BROWSER preview first.
   let u = -Math.floor(scrollX);
   const rgb = [0.6, 0.85, 1];
   while (u < core.SIZE) {
