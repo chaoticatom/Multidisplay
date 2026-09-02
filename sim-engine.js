@@ -12254,6 +12254,7 @@ var PiEngine = (() => {
       }
       function stopStation() {
         playing = false;
+        audio.ensure(null);
       }
       function setVolume(v) {
         const n = Number(v);

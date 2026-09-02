@@ -70,6 +70,17 @@ function playStation(station) {
 
 function stopStation() {
   playing = false;
+  // A real report: a "Stop Sound" action left the decode ffmpeg process
+  // running indefinitely (confirmed via `ps aux` on real hardware) when
+  // radio wasn't the currently-selected/displayed effect. Root cause:
+  // audio.ensure(null) (the only thing that actually tears down the
+  // decode/playback processes) was only ever called from effectRadio()'s
+  // own tick - which, by design, keeps running radio in the background
+  // regardless of the selected effect, but does NOT run at all once
+  // nothing is telling it to (nothing schedules a tick for an effect that
+  // isn't selected and isn't producing pixels). Tearing down here,
+  // synchronously on stop, doesn't depend on another tick ever happening.
+  audio.ensure(null);
 }
 
 function setVolume(v) {

@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.104';
+const APP_VERSION = '0.6.105';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2355,10 +2355,17 @@ function syncClearAllButton() {
 // "🔇 Stop Sound" - next to Clear All. Radio plays in the background
 // regardless of which effect is selected/displayed, so Clear All blanking
 // the screen doesn't stop audio - this is a one-click way to kill it
-// without navigating to the Radio panel.
+// without navigating to the Radio panel. A real report: this button
+// stopped the Pi-side ticker/status but not the audible sound - because
+// "Play in this browser" (see radioBrowserPlay()) plays the stream
+// directly in the CLIENT via its own <audio> element, entirely separate
+// from the Pi's ffmpeg/paplay pipeline the WS 'stopAllSound' command
+// tears down. The existing Radio panel Stop button already calls
+// radioBrowserStop() alongside its WS send for exactly this reason (see
+// its own click handler) - this button needs the same pairing.
 function wireStopSoundButton() {
   const btn = document.getElementById('stop-sound-btn');
-  if (btn) btn.addEventListener('click', () => send({ cmd: 'stopAllSound' }));
+  if (btn) btn.addEventListener('click', () => { send({ cmd: 'stopAllSound' }); radioBrowserStop(); });
 }
 
 // ---------------------------------------------------------------------
