@@ -30,4 +30,12 @@ function mirrorCol(col, width, mirror) {
   return mirror ? (width - 1 - col) : col;
 }
 
-module.exports = { needsTextMirror, mirrorCol };
+// Same idea as mirrorCol but for row order within a glyph's own box - a
+// real-hardware report ("rotate 180 degrees") confirmed the horizontal-only
+// local mirror wasn't enough: this panel's mount needs both axes flipped
+// per glyph, not just left-right.
+function mirrorRow(row, height, mirror) {
+  return mirror ? (height - 1 - row) : row;
+}
+
+module.exports = { needsTextMirror, mirrorCol, mirrorRow };

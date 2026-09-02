@@ -278,7 +278,7 @@ async function loadImageForPixels(url, targetSize, opts) {
 // refactored onto this copy, to avoid touching a file outside this task's
 // scope).
 const { PIXEL_FONT } = require('./weather/font');
-const { needsTextMirror, mirrorCol } = require('./textMirror');
+const { needsTextMirror, mirrorCol, mirrorRow } = require('./textMirror');
 // See textMirror.js's module comment for why this glyph needs a mode-aware
 // local mirror.
 function drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b) {
@@ -287,7 +287,7 @@ function drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b) {
   const S = core.SIZE;
   const mirror = needsTextMirror(core.panelMode);
   for (let row = 0; row < 5; row++) {
-    const bits = rows[row];
+    const bits = rows[mirrorRow(row, 5, mirror)];
     for (let col = 0; col < 3; col++) {
       if (!((bits >> (2 - col)) & 1)) continue;
       const localCol = mirrorCol(col, 3, mirror);

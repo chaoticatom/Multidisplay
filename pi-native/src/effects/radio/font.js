@@ -10,7 +10,7 @@
 // self-contained replacement used only by ./ticker.js.
 'use strict';
 
-const { needsTextMirror, mirrorCol } = require('../textMirror');
+const { needsTextMirror, mirrorCol, mirrorRow } = require('../textMirror');
 
 const CHAR_W = 6; // 5px glyph + 1px spacing
 const CHAR_H = 7;
@@ -52,12 +52,17 @@ const FONT = {
 // local mirror at all (rgbMatrixDriver's whole-canvas mirror in '2d'/'wall'
 // modes, which flips text backwards) - that file is now the single shared
 // answer to "does this mode need it", used by every glyph drawer in this
-// codebase instead of each reimplementing/reguessing it separately.
+// codebase instead of each reimplementing/reguessing it separately. A
+// horizontal-only local mirror was verified correct against the driver's
+// documented transform, but a real-hardware report ("rotate 180 degrees")
+// confirmed this particular panel's mount needs both axes flipped per
+// glyph, not just left-right - mirrorRow() on the row lookup, in addition
+// to mirrorCol() on the column placement already here.
 function drawGlyph(core, face, ch, su, sv, rgb) {
   const rows = FONT[ch.toUpperCase()] || FONT['?'];
   const mirror = needsTextMirror(core.panelMode);
   for (let ry = 0; ry < 7; ry++) {
-    const bits = rows[ry];
+    const bits = rows[mirrorRow(ry, 7, mirror)];
     const y = sv - (6 - ry); // draw upward from the baseline at sv
     if (y < 0 || y >= core.SIZE) continue;
     for (let rx = 0; rx < 5; rx++) {

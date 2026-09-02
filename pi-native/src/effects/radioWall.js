@@ -31,7 +31,7 @@
 const radio = require('./radio/radio');
 const { renderSpectrumStyleWall, createSpectrumWallState } = require('./radio/spectrumWall');
 const { FONT, CHAR_W } = require('./radio/font');
-const { needsTextMirror, mirrorCol } = require('./textMirror');
+const { needsTextMirror, mirrorCol, mirrorRow } = require('./textMirror');
 
 const spectrumWallState = createSpectrumWallState();
 let autoGainMultW = 1;
@@ -58,7 +58,7 @@ function glyphWall(core, ch, su, sv, rgb) {
   const rows = FONT[ch.toUpperCase()] || FONT['?'];
   const mirror = needsTextMirror(core.panelMode);
   for (let ry = 0; ry < 7; ry++) {
-    const bits = rows[ry];
+    const bits = rows[mirrorRow(ry, 7, mirror)];
     const y = sv - (6 - ry);
     if (y < 0 || y >= core.wallH) continue;
     for (let rx = 0; rx < 5; rx++) {

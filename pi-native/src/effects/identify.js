@@ -25,7 +25,7 @@
 const { FACE_LAYOUT, FACE_NAMES } = require('../panelConfig');
 const { PIXEL_FONT } = require('./weather/font');
 const { drawLinesCentered3x5 } = require('./_shared');
-const { needsTextMirror, mirrorCol } = require('./textMirror');
+const { needsTextMirror, mirrorCol, mirrorRow } = require('./textMirror');
 
 // Largest integer scale that still fits every line's width within `size`
 // px (3x5 glyph cell is 4*scale-scale wide per char, see textWidth3x5 in
@@ -59,7 +59,7 @@ function wallGlyph(core, ox, oy, ch, su, sv, scale, r, g, b) {
   if (!rows) return 4 * scale;
   const mirror = needsTextMirror(core.panelMode);
   for (let row = 0; row < 5; row++) {
-    const bits = rows[row];
+    const bits = rows[mirrorRow(row, 5, mirror)];
     for (let col = 0; col < 3; col++) {
       if (!((bits >> (2 - col)) & 1)) continue;
       // See textMirror.js's module comment for why.

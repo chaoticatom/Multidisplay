@@ -2411,7 +2411,10 @@ var PiEngine = (() => {
       function mirrorCol(col, width, mirror) {
         return mirror ? width - 1 - col : col;
       }
-      module.exports = { needsTextMirror, mirrorCol };
+      function mirrorRow(row, height, mirror) {
+        return mirror ? height - 1 - row : row;
+      }
+      module.exports = { needsTextMirror, mirrorCol, mirrorRow };
     }
   });
 
@@ -2676,14 +2679,14 @@ var PiEngine = (() => {
         return { pixels: out.bitmap.data, size: targetSize };
       }
       var { PIXEL_FONT } = require_font();
-      var { needsTextMirror, mirrorCol } = require_textMirror();
+      var { needsTextMirror, mirrorCol, mirrorRow } = require_textMirror();
       function drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b) {
         const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
         if (!rows) return 4 * scale;
         const S = core.SIZE;
         const mirror = needsTextMirror(core.panelMode);
         for (let row = 0; row < 5; row++) {
-          const bits = rows[row];
+          const bits = rows[mirrorRow(row, 5, mirror)];
           for (let col = 0; col < 3; col++) {
             if (!(bits >> 2 - col & 1)) continue;
             const localCol = mirrorCol(col, 3, mirror);
@@ -12084,7 +12087,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { needsTextMirror, mirrorCol } = require_textMirror();
+      var { needsTextMirror, mirrorCol, mirrorRow } = require_textMirror();
       var CHAR_W = 6;
       var CHAR_H = 7;
       var FONT = {
@@ -12140,7 +12143,7 @@ var PiEngine = (() => {
         const rows = FONT[ch.toUpperCase()] || FONT["?"];
         const mirror = needsTextMirror(core.panelMode);
         for (let ry = 0; ry < 7; ry++) {
-          const bits = rows[ry];
+          const bits = rows[mirrorRow(ry, 7, mirror)];
           const y = sv - (6 - ry);
           if (y < 0 || y >= core.SIZE) continue;
           for (let rx = 0; rx < 5; rx++) {
@@ -12174,7 +12177,7 @@ var PiEngine = (() => {
         if (scrollX > textW) scrollX -= textW;
         const sv = 7;
         const chars = Array.from(label).reverse();
-        let u = Math.floor(scrollX) - textW;
+        let u = -Math.floor(scrollX);
         const rgb = [0.6, 0.85, 1];
         while (u < core.SIZE) {
           for (const ch of chars) {
@@ -25508,7 +25511,7 @@ var PiEngine = (() => {
       var radio = require_radio();
       var { renderSpectrumStyleWall, createSpectrumWallState } = require_spectrumWall();
       var { FONT, CHAR_W } = require_font2();
-      var { needsTextMirror, mirrorCol } = require_textMirror();
+      var { needsTextMirror, mirrorCol, mirrorRow } = require_textMirror();
       var spectrumWallState = createSpectrumWallState();
       var autoGainMultW = 1;
       var lastLevelSmoothedW = 0;
@@ -25522,7 +25525,7 @@ var PiEngine = (() => {
         const rows = FONT[ch.toUpperCase()] || FONT["?"];
         const mirror = needsTextMirror(core.panelMode);
         for (let ry = 0; ry < 7; ry++) {
-          const bits = rows[ry];
+          const bits = rows[mirrorRow(ry, 7, mirror)];
           const y = sv - (6 - ry);
           if (y < 0 || y >= core.wallH) continue;
           for (let rx = 0; rx < 5; rx++) {
@@ -26489,7 +26492,7 @@ var PiEngine = (() => {
       var { FACE_LAYOUT, FACE_NAMES } = require_panelConfig();
       var { PIXEL_FONT } = require_font();
       var { drawLinesCentered3x5 } = require_shared();
-      var { needsTextMirror, mirrorCol } = require_textMirror();
+      var { needsTextMirror, mirrorCol, mirrorRow } = require_textMirror();
       function pickScale(lines, size, maxScale) {
         const longest = Math.max(...lines.map((l) => l.length));
         return Math.max(1, Math.min(maxScale, Math.floor(size / (4 * longest - 1))));
@@ -26507,7 +26510,7 @@ var PiEngine = (() => {
         if (!rows) return 4 * scale;
         const mirror = needsTextMirror(core.panelMode);
         for (let row = 0; row < 5; row++) {
-          const bits = rows[row];
+          const bits = rows[mirrorRow(row, 5, mirror)];
           for (let col = 0; col < 3; col++) {
             if (!(bits >> 2 - col & 1)) continue;
             const localCol = mirrorCol(col, 3, mirror);

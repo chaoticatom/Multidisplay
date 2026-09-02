@@ -40,12 +40,13 @@ function drawTicker(core, face, label, dt) {
   if (scrollX > textW) scrollX -= textW;
   const sv = 7;
   const chars = Array.from(label).reverse();
-  // Direction flipped again after font.js's drawGlyph() picked up a
-  // panelMode-based local mirror (needed to fix letter shape on real
-  // '2d'-mode hardware) - that changed which physical direction
-  // increasing scrollX corresponds to. Back to (scrollX-textW) to
-  // restore the physical scroll direction.
-  let u = Math.floor(scrollX) - textW;
+  // A real-hardware report ("rotate 180 degrees ... make it scroll right to
+  // left, currently scrolling left to right") landed alongside font.js's
+  // drawGlyph() picking up a full per-glyph 180-degree rotation (both row
+  // and column flip, not just the column-only local mirror this direction
+  // was last tuned against) - back to (-scrollX) to restore the requested
+  // physical scroll direction under that new glyph transform.
+  let u = -Math.floor(scrollX);
   const rgb = [0.6, 0.85, 1];
   while (u < core.SIZE) {
     for (const ch of chars) {
