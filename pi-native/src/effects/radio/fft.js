@@ -43,9 +43,19 @@ function fft(re, im) {
 function nextPow2(n) { let p = 1; while (p < n) p <<= 1; return p; }
 
 // samples: Float32Array of mono PCM in [-1,1]. Returns a Float32Array of
-// BAND_COUNT levels in [0,1], log-spaced across the audible range the same
-// way effects-core.js's readMicSpectrum() bins the AnalyserNode's
-// frequency data, with the same fixed treble-boost compensation curve.
+// BAND_COUNT levels in [0,1], log-spaced across the audible range - the
+// industry-standard choice for music visualizers (comparable visual
+// weight per octave, rather than per Hz) - the same way effects-core.js's
+// readMicSpectrum() bins the AnalyserNode's frequency data, with the same
+// fixed treble-boost compensation curve. (A linear/even-Hz-per-bar
+// mapping was tried and reverted per a follow-up: "no make it industry
+// standard log" - what looked like the sweep "restarting" after ~10 bars
+// was actually the log spacing itself, not a bug: many low bands each
+// cover a narrow Hz range, so a constant-Hz/sec sweep blows through them
+// quickly before slowing down across the wider high bands - the band
+// index was moving monotonically the whole time, confirmed directly by
+// feeding synthetic tones at increasing frequencies through this exact
+// function.)
 function computeBands(samples, sampleRate) {
   const n = nextPow2(samples.length);
   const re = new Float32Array(n);
