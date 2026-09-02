@@ -2665,13 +2665,15 @@ var PiEngine = (() => {
         const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
         if (!rows) return 4 * scale;
         const S = core.SIZE;
+        const mirror = core.panelMode === "2d";
         for (let row = 0; row < 5; row++) {
           const bits = rows[row];
           for (let col = 0; col < 3; col++) {
             if (!(bits >> 2 - col & 1)) continue;
+            const localCol = mirror ? 2 - col : col;
             for (let sy = 0; sy < scale; sy++) {
               for (let sx = 0; sx < scale; sx++) {
-                const u = su + col * scale + sx, v = sv + row * scale + sy;
+                const u = su + localCol * scale + sx, v = sv + row * scale + sy;
                 if (u < 0 || u >= S || v < 0 || v >= S) continue;
                 core.setFaceLED(face, u, v, r, g, b);
               }
@@ -12119,13 +12121,14 @@ var PiEngine = (() => {
       };
       function drawGlyph(core, face, ch, su, sv, rgb) {
         const rows = FONT[ch.toUpperCase()] || FONT["?"];
+        const mirror = core.panelMode === "2d";
         for (let ry = 0; ry < 7; ry++) {
           const bits = rows[ry];
           const y = sv - (6 - ry);
           if (y < 0 || y >= core.SIZE) continue;
           for (let rx = 0; rx < 5; rx++) {
             if (!(bits & 1 << 4 - rx)) continue;
-            const x = su + rx;
+            const x = su + (mirror ? 4 - rx : rx);
             if (x < 0 || x >= core.SIZE) continue;
             core.setFaceLED(face, x, y, rgb[0], rgb[1], rgb[2]);
           }
