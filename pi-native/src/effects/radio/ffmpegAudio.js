@@ -304,10 +304,19 @@ class RadioAudio {
   }
 
   _applySpectrumTarget(target, dt) {
+    // A real report: "bars go up and down but not smooth" (distinct from
+    // the earlier CPU-timing-choppiness fix above, which addressed uneven
+    // UPDATE TIMING - this is about the MOTION itself once updates arrive
+    // evenly). Slower attack/release time constants (dt*20/dt*7 ->
+    // dt*11/dt*4.5) trade a little responsiveness for visibly smoother
+    // interpolation between FFT frames, while staying fast enough to read
+    // as "in sync with the music" rather than lagging behind it - bass
+    // hits and beat transients (the fast-attack case) still land within
+    // ~1-2 render frames, just without the same abruptness.
     for (let b = 0; b < BAND_COUNT; b++) {
       const t = target[b];
-      if (t > this.spec[b]) this.spec[b] += (t - this.spec[b]) * Math.min(1, dt * 20);
-      else this.spec[b] += (t - this.spec[b]) * Math.min(1, dt * 7);
+      if (t > this.spec[b]) this.spec[b] += (t - this.spec[b]) * Math.min(1, dt * 11);
+      else this.spec[b] += (t - this.spec[b]) * Math.min(1, dt * 4.5);
       if (this.spec[b] > this.peak[b]) { this.peak[b] = this.spec[b]; this._peakVel[b] = 0; }
       else { this._peakVel[b] += dt * 1.2; this.peak[b] = Math.max(0, this.peak[b] - this._peakVel[b] * dt); }
     }
