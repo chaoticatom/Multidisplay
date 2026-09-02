@@ -51,14 +51,15 @@ const RADIO_STATIONS = [
 //   transient) - exp(-6*t)*random(0) is white noise power-shaped by a fast
 //   exponential decay, covering the full spectrum at once rather than one
 //   tone at a time.
-// A real report: "can't hear anything" - aevalsrc's own syntax is
-// `exprs::options` (a DOUBLE colon before the options list), not a single
-// colon - `aevalsrc=EXPR:s=44100:d=60` misparses s=44100/d=60 as part of
-// the filter's OTHER positional args (nb_samples/format/channel_layout),
-// not as sample_rate/duration, which likely explains no audio at all.
+// A single colon (`exprs:options`) is the correct aevalsrc syntax after
+// all - verified directly against the real ffmpeg build on real hardware
+// (ran the exact command by hand: single colon produces a correctly-sized
+// PCM file, no errors; a double colon - a mistaken "fix" for a previous
+// silent-failure report - throws "Undefined constant or missing '(' in
+// ''", confirmed the same way). Reverting to single colon.
 const DEBUG_TONES = {
-  sweep: { name: 'Debug: Sweep', genre: '20Hz-15kHz over 60s', url: 'debug:aevalsrc=sin(2*PI*(20*t+14980*t*t/120))::s=44100:d=60' },
-  drum: { name: 'Debug: Drum Hit', genre: 'Broadband decay', url: 'debug:aevalsrc=exp(-6*t)*random(0)::s=44100:d=3' },
+  sweep: { name: 'Debug: Sweep', genre: '20Hz-15kHz over 60s', url: 'debug:aevalsrc=sin(2*PI*(20*t+14980*t*t/120)):s=44100:d=60' },
+  drum: { name: 'Debug: Drum Hit', genre: 'Broadband decay', url: 'debug:aevalsrc=exp(-6*t)*random(0):s=44100:d=3' },
 };
 
 const audio = new RadioAudio();
