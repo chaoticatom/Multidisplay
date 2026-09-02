@@ -147,11 +147,24 @@ function effectRadio(core, dt) {
     // Auto Gain - slow-adapting overall multiplier toward a target overall
     // loudness (deliberately slow, per-second not per-band, so it can't
     // "pin to the top"), separate from the manual Gain slider.
+    // A real report: "the first bar is always so high, it makes auto gain
+    // not function well" - bass/sub-bass content is legitimately loud in an
+    // FFT (more raw energy concentrated at low frequencies for most music),
+    // so band 0 sits near its ceiling far more often than other bands. Using
+    // the MAX across bands here meant that one persistently-loud band alone
+    // drove the auto-gain multiplier down, crushing every OTHER band even
+    // though they weren't actually loud - average is what "overall
+    // loudness" should mean for this purpose.
     let overallLevel = 0;
-    for (let b = 0; b < bands; b++) { const v = sample(audio.spec, b, bands); if (v > overallLevel) overallLevel = v; }
+    for (let b = 0; b < bands; b++) overallLevel += sample(audio.spec, b, bands);
+    overallLevel /= bands;
     lastLevelSmoothed += (overallLevel - lastLevelSmoothed) * Math.min(1, dt * 3);
     if (autoGainOn) {
-      const target = 0.55;
+      // Lowered from 0.55 alongside the max->average change above - an
+      // average across all bands is naturally much smaller than the single
+      // loudest band was, so the old max-calibrated target would now drive
+      // gain far too high.
+      const target = 0.25;
       if (lastLevelSmoothed > 0.01) {
         const desired = target / Math.max(0.05, lastLevelSmoothed * autoGainMult);
         autoGainMult += (desired - autoGainMult) * Math.min(1, dt * 0.5);

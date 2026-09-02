@@ -12289,13 +12289,11 @@ var PiEngine = (() => {
         for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] = 0;
         if (spectrumOn) {
           let overallLevel = 0;
-          for (let b = 0; b < bands; b++) {
-            const v = sample(audio.spec, b, bands);
-            if (v > overallLevel) overallLevel = v;
-          }
+          for (let b = 0; b < bands; b++) overallLevel += sample(audio.spec, b, bands);
+          overallLevel /= bands;
           lastLevelSmoothed += (overallLevel - lastLevelSmoothed) * Math.min(1, dt * 3);
           if (autoGainOn) {
-            const target = 0.55;
+            const target = 0.25;
             if (lastLevelSmoothed > 0.01) {
               const desired = target / Math.max(0.05, lastLevelSmoothed * autoGainMult);
               autoGainMult += (desired - autoGainMult) * Math.min(1, dt * 0.5);
@@ -25546,13 +25544,11 @@ var PiEngine = (() => {
         for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
         if (spectrumOn) {
           let overallLevel = 0;
-          for (let b = 0; b < bands; b++) {
-            const v = sample(audio.spec, b, bands, BAND_COUNT);
-            if (v > overallLevel) overallLevel = v;
-          }
+          for (let b = 0; b < bands; b++) overallLevel += sample(audio.spec, b, bands, BAND_COUNT);
+          overallLevel /= bands;
           lastLevelSmoothedW += (overallLevel - lastLevelSmoothedW) * Math.min(1, dt * 3);
           if (autoGainOn) {
-            const target = 0.55;
+            const target = 0.25;
             if (lastLevelSmoothedW > 0.01) {
               const desired = target / Math.max(0.05, lastLevelSmoothedW * autoGainMultW);
               autoGainMultW += (desired - autoGainMultW) * Math.min(1, dt * 0.5);
