@@ -161,7 +161,20 @@ function ovMeteors(core, dt, cfg) {
 }
 
 // ── Edge Glow ──
+// A real report: "I see the effect that would show on the top panel if I
+// had it connected" - core.faceMembership (and so ovEdgeIdx) is always
+// built from the FULL 6-face cube geometry regardless of panelMode, since
+// core.js doesn't know or care how many physical panels are actually
+// wired up. In 'cube' mode that's correct - a real seam exists between
+// face 0 and the face above it. In '2d' mode there is exactly ONE
+// physical panel: face 0's own top/left/right/bottom rows/columns are
+// still flagged as "edges" (they're shared with faces 1-5 in the cube
+// geometry that's ALWAYS built), so edge-glow kept lighting up the
+// single panel's own border as if it were an internal cube seam glowing
+// against a neighboring panel that doesn't exist. No-op in '2d' mode -
+// there's no second panel for an edge glow to represent a seam with.
 function ovEdgeGlow(core, dt, cfg) {
+  if (core.panelMode === '2d') return;
   const { surfX, surfY, surfZ, colBuf } = core;
   ovGetEdges(core);
   const spd = cfg.speed, inten = cfg.intensity;

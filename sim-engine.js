@@ -11324,11 +11324,6 @@ var PiEngine = (() => {
           const now = Date.now();
           const dt = Math.max(5e-3, Math.min(0.5, (now - this._lastChunkMs) / 1e3));
           this._lastChunkMs = now;
-          this._fftFrameCounter = (this._fftFrameCounter || 0) + 1;
-          if (this._fftFrameCounter % 2 === 0 && this._lastTarget) {
-            this._applySpectrumTarget(this._lastTarget, dt);
-            return;
-          }
           const samples = new Float32Array(FRAME_SAMPLES);
           for (let i = 0; i < FRAME_SAMPLES; i++) {
             const l = frameBuf.readInt16LE(i * 4);
@@ -17315,6 +17310,7 @@ var PiEngine = (() => {
         }
       }
       function ovEdgeGlow(core, dt, cfg) {
+        if (core.panelMode === "2d") return;
         const { surfX, surfY, surfZ, colBuf } = core;
         ovGetEdges(core);
         const spd = cfg.speed, inten = cfg.intensity;

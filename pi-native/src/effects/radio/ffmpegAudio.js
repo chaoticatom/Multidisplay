@@ -264,27 +264,15 @@ class RadioAudio {
     const dt = Math.max(0.005, Math.min(0.5, (now - this._lastChunkMs) / 1000));
     this._lastChunkMs = now;
 
-    // A real report: "bars are going up and down but not smooth" -
-    // measured on real hardware, this app's own render loop (LED panel
-    // pixel/effect computation) was already using ~85% of one CPU core as
-    // a baseline; adding real-time ffmpeg decode + FFT + paplay playback
-    // on top of that (all now genuinely running, once the earlier
-    // privilege/PulseAudio-env bugs were fixed) leaves too little headroom
-    // for the render loop's timing to stay precise, which shows up as
-    // choppy spectrum bars specifically (they need frequent, evenly-paced
-    // updates to read as smooth motion). The FFT itself (a proper O(n log
-    // n) radix-2 transform on 2048 samples, ~22k ops) is cheap in
-    // isolation, but running it on every single ~46ms audio frame all
-    // adds up. Recomputing only every other frame halves this path's CPU
-    // cost - the exponential smoothing below still runs every frame
-    // (interpolating toward whichever target was last computed), so
-    // motion stays continuous rather than visibly freezing between
-    // updates.
-    this._fftFrameCounter = (this._fftFrameCounter || 0) + 1;
-    if (this._fftFrameCounter % 2 === 0 && this._lastTarget) {
-      this._applySpectrumTarget(this._lastTarget, dt);
-      return;
-    }
+    // Was throttled to every other ~46ms audio frame (halving FFT CPU
+    // cost) back when this ran on the same thread/core as the LED render
+    // loop (a real report at the time: "bars going up and down but not
+    // smooth", traced to the render loop's own ~85% CPU baseline leaving
+    // no headroom for even timing here). RENDER_WORKER=1 now moves the
+    // render loop to its own thread - top -H on real hardware confirmed
+    // comfortable headroom on this (main) thread - so a follow-up report
+    // ("bars FPS need to increase by double") can just be answered by
+    // computing every frame again, doubling the actual update rate.
 
     // Mono-sum the interleaved stereo s16le samples - see module comment /
     // CLAUDE.md task note: full stereo separation isn't worth the added
