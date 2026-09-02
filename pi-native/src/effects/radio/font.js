@@ -46,13 +46,14 @@ const FONT = {
 // same contract effects-core.js's wcDrawGlyph() has - so callers can just
 // do `u += drawGlyph(...)` in a loop.
 //
-// A follow-up screenshot showed each letter mirrored left-right (e.g. "S"
-// backwards) but right-side up and scrolling the correct direction - so
-// the earlier full 180° rotation (both row AND column order reversed) had
-// one axis too many. This keeps the column/x reversal (su+(4-rx), the
-// left-right mirror fix) but drops the row reversal, so font rows map
-// to y in their original top-to-bottom order again - only one axis
-// flipped now, not two.
+// A screenshot on real hardware, taken AFTER the row-reversal fix above
+// (which was correct and fixed the upside-down half), still showed every
+// letter mirrored left-right. Root cause was here all along, in the
+// column loop: FONT's own comment says "bit 4 = leftmost pixel", so
+// reading bit (4-rx) for column offset rx already correctly identifies
+// the leftmost pixel - placing that pixel at x=su+(4-rx) then flips it
+// back to the right side, undoing the correct read. Placing it at
+// x=su+rx instead (bit lookup unchanged) is the actual fix.
 function drawGlyph(core, face, ch, su, sv, rgb) {
   const rows = FONT[ch.toUpperCase()] || FONT['?'];
   for (let ry = 0; ry < 7; ry++) {
@@ -61,7 +62,7 @@ function drawGlyph(core, face, ch, su, sv, rgb) {
     if (y < 0 || y >= core.SIZE) continue;
     for (let rx = 0; rx < 5; rx++) {
       if (!(bits & (1 << (4 - rx)))) continue;
-      const x = su + (4 - rx);
+      const x = su + rx;
       if (x < 0 || x >= core.SIZE) continue;
       core.setFaceLED(face, x, y, rgb[0], rgb[1], rgb[2]);
     }

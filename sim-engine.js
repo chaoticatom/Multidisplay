@@ -12125,7 +12125,7 @@ var PiEngine = (() => {
           if (y < 0 || y >= core.SIZE) continue;
           for (let rx = 0; rx < 5; rx++) {
             if (!(bits & 1 << 4 - rx)) continue;
-            const x = su + (4 - rx);
+            const x = su + rx;
             if (x < 0 || x >= core.SIZE) continue;
             core.setFaceLED(face, x, y, rgb[0], rgb[1], rgb[2]);
           }
