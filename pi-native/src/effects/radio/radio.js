@@ -40,15 +40,19 @@ const RADIO_STATIONS = [
 // get decoded through the SAME pipeline as a real station (FFT/ticker/
 // playback all unchanged). Both are plain math expressions (aevalsrc), no
 // external files needed.
-//   Sweep: a linear chirp from 20Hz to 15000Hz over 20s - instantaneous
+//   Sweep: a linear chirp from 20Hz to 15000Hz over 60s - instantaneous
 //   phase = 2*PI*(f0*t + (f1-f0)*t^2/(2*T)) so frequency rises linearly the
-//   whole way, letting you watch every band light up in turn.
+//   whole way, letting you watch every band light up in turn. (A real
+//   report - "far too fast" - the original T=15/d=20 mismatch meant it
+//   actually reached 15kHz within the first 15s then kept climbing past
+//   it, inaudibly, for the remaining 5 - fixed T to match d this time, at
+//   3x the duration.)
 //   Drum: a single decaying broadband noise burst (like a kick/snare
 //   transient) - exp(-6*t)*random(0) is white noise power-shaped by a fast
 //   exponential decay, covering the full spectrum at once rather than one
 //   tone at a time.
 const DEBUG_TONES = {
-  sweep: { name: 'Debug: Sweep', genre: '20Hz-15kHz over 20s', url: 'debug:aevalsrc=sin(2*PI*(20*t+14980*t*t/30)):s=44100:d=20' },
+  sweep: { name: 'Debug: Sweep', genre: '20Hz-15kHz over 60s', url: 'debug:aevalsrc=sin(2*PI*(20*t+14980*t*t/120)):s=44100:d=60' },
   drum: { name: 'Debug: Drum Hit', genre: 'Broadband decay', url: 'debug:aevalsrc=exp(-6*t)*random(0):s=44100:d=3' },
 };
 
