@@ -67,7 +67,9 @@ function drawBarsWall(core, ctx, mirror) {
     const amp = ctx.amp(b), fb = b / (AB - 1);
 
     if (mirror) {
-      const mid = (H - 1) / 2, half = amp * H * 0.5;
+      // See spectrum.js's drawBars() for why - a real report ("in the
+      // mirror mode, it needs to be 1 row at the centre").
+      const mid = (H - 1) / 2, half = amp > 0 ? Math.max(0.5, amp * H * 0.5) : 0;
       for (let y = 0; y < H; y++) {
         const d = Math.abs(y - mid);
         if (d <= half) {

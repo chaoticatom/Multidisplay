@@ -115,11 +115,12 @@ function computeBands(samples, sampleRate) {
   // was the *2 zero-padding above, which gives enough bin density that no
   // headroom is needed at all - reverified directly: a 10000Hz tone now
   // reaches band 63 (the true last bar) with a single clean peak.
-  // Lowered 10000 -> 7000 -> 6000 across two real, explicit requests
-  // ("do max of 7khz" then "do max 6khz"), applying uniformly to real
-  // audio and the debug tools (DEBUG_TONES.sweep's own range narrowed to
-  // match each time).
-  const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(6000 / (sampleRate / n))));
+  // Lowered 10000 -> 7000 -> 6000 -> back to 7000 across three real,
+  // explicit requests ("do max of 7khz", then "do max 6khz", then "move
+  // back to max 7khz"), applying uniformly to real audio and the debug
+  // tools (DEBUG_TONES.sweep's own range narrowed/restored to match each
+  // time).
+  const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(7000 / (sampleRate / n))));
   let lo = minBin;
   for (let b = 0; b < BAND_COUNT; b++) {
     const frac = (b + 1) / BAND_COUNT;

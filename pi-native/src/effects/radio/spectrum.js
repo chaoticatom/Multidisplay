@@ -144,7 +144,14 @@ function drawBars(core, ctx, mirror) {
     const [face, u] = sideCol(core, c);
 
     if (mirror) {
-      const mid = (S - 1) / 2, half = amp * S * 0.5;
+      // A real report: "in the mirror mode, it needs to be 1 row at the
+      // centre" - for an even panel size, `mid` is a non-integer (e.g.
+      // 31.5 for S=64), so the nearest row is always at least 0.5 away
+      // from it - any amp below ~1/S produced `half` under that minimum
+      // distance and lit NOTHING, even though there was genuine (if
+      // quiet) signal. Math.max(0.5, ...) guarantees at least the
+      // center-most row(s) show as soon as amp is above zero at all.
+      const mid = (S - 1) / 2, half = amp > 0 ? Math.max(0.5, amp * S * 0.5) : 0;
       for (let y = 0; y < S; y++) {
         const d = Math.abs(y - mid);
         if (d <= half) {
