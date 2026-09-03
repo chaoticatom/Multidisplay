@@ -233,7 +233,20 @@ class RadioAudio {
       if (wasIntentional) return;
       if (wasDebug && code === 0) {
         this.status = 'Stopped';
-        if (!wasLoop) this._debugFinished = true; // one-shot (drum/tone) - don't auto-restart; the sweep (isLoop) is left to restart normally
+        if (!wasLoop) {
+          // One-shot (drum/tone) - don't auto-restart (the sweep/isLoop
+          // is left to restart normally via _launch()'s own reset). A
+          // real report: "after a few seconds the sound stops but the
+          // bars still show" - spec/peak only ever got reset on an
+          // explicit stop or a fresh _launch(), never here on a NATURAL
+          // completion that intentionally does NOT relaunch, so a
+          // finished drum/tone's bars just froze at their last value
+          // forever instead of falling back to dark.
+          this._debugFinished = true;
+          this.spec.fill(0);
+          this.peak.fill(0);
+          this._peakVel.fill(0);
+        }
         return;
       }
       this.errored = true; // any exit while a station is still selected is a failure - streams don't have a "clean EOF" in normal use

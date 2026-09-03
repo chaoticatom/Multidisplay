@@ -11286,7 +11286,12 @@ var PiEngine = (() => {
             if (wasIntentional) return;
             if (wasDebug && code === 0) {
               this.status = "Stopped";
-              if (!wasLoop) this._debugFinished = true;
+              if (!wasLoop) {
+                this._debugFinished = true;
+                this.spec.fill(0);
+                this.peak.fill(0);
+                this._peakVel.fill(0);
+              }
               return;
             }
             this.errored = true;
