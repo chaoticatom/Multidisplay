@@ -41,7 +41,10 @@ const RADIO_STATIONS = [
 // get decoded through the SAME pipeline as a real station (FFT/ticker/
 // playback all unchanged). Both are plain math expressions (aevalsrc), no
 // external files needed.
-//   Sweep: a linear chirp from 40Hz to 10000Hz over 45s (narrowed from
+//   Sweep: a linear chirp from 40Hz to 7000Hz over 45s (narrowed further
+//   per a real, explicit request: "do max of 7khz. this is for the debug
+//   and also the live spectrum analyser for all sounds" - fft.js's own
+//   analysis ceiling was lowered to match). Originally narrowed from
 //   20Hz-15000Hz - a real follow-up: "only needs to cover low to high of
 //   what a typical song would be" - deep sub-bass below 40Hz and the
 //   near-ultrasonic tail above 10kHz aren't where real music content
@@ -62,7 +65,7 @@ const DEBUG_TONES = {
   // is meant to keep repeating indefinitely, unlike drum/tone which
   // should play once and stop. See ffmpegAudio.js's ensure()/
   // _debugFinished for how the two prefixes are told apart.
-  sweep: { name: 'Debug: Sweep', genre: '40Hz-10kHz over 45s', url: 'debugloop:aevalsrc=sin(2*PI*(40*t+9960*t*t/90)):s=44100:d=45' },
+  sweep: { name: 'Debug: Sweep', genre: '40Hz-7kHz over 45s', url: 'debugloop:aevalsrc=sin(2*PI*(40*t+6960*t*t/90)):s=44100:d=45' },
   drum: { name: 'Debug: Drum Hit', genre: 'Deep kick', url: 'debug:aevalsrc=sin(2*PI*(50+70*exp(-25*t))*t)*exp(-4*t):s=44100:d=3' },
 };
 // (A single colon - `exprs:options` - is the correct aevalsrc syntax,
@@ -115,11 +118,11 @@ function playStation(station) {
 // entry - a real follow-up request: "add a scroll bar to the sweep test
 // so I can select the freq", for manually dialing to one exact frequency
 // and watching precisely which band lights up, instead of only the
-// automatic sweep. freq is clamped to the same 40Hz-10kHz musical range
+// automatic sweep. freq is clamped to the same 40Hz-7kHz musical range
 // the sweep covers.
 function playDebugTone(kind, freq) {
   if (kind === 'tone') {
-    const f = Math.max(40, Math.min(10000, Math.round(Number(freq)) || 440));
+    const f = Math.max(40, Math.min(7000, Math.round(Number(freq)) || 440));
     playStation({ name: 'Debug: Tone', genre: f + ' Hz', url: 'debug:aevalsrc=sin(2*PI*' + f + '*t):s=44100:d=30' });
     return;
   }
@@ -329,7 +332,7 @@ function effectRadio(core, dt) {
     let genre = currentStation.genre;
     if (currentStation.url.startsWith('debugloop:') && audio.lastAttemptMs) {
       const elapsed = (Date.now() - audio.lastAttemptMs) / 1000;
-      const sweepSecs = 45, f0 = 40, f1 = 10000;
+      const sweepSecs = 45, f0 = 40, f1 = 7000;
       const hz = Math.round(f0 + (f1 - f0) * ((elapsed % sweepSecs) / sweepSecs));
       genre = hz + ' Hz';
     }

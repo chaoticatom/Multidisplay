@@ -401,7 +401,7 @@ class WsServer {
     // DEBUG_TONES entry, since the frequency is chosen by the user.
     let lavfiSpec;
     if (kind === 'tone') {
-      const f = Math.max(40, Math.min(10000, Math.round(Number(freqParam)) || 440));
+      const f = Math.max(40, Math.min(7000, Math.round(Number(freqParam)) || 440));
       lavfiSpec = 'aevalsrc=sin(2*PI*' + f + '*t):s=44100:d=30';
     } else {
       const tone = radio.DEBUG_TONES[kind];
