@@ -20,6 +20,7 @@
 const { RadioAudio, BAND_COUNT } = require('./ffmpegAudio');
 const { renderSpectrumStyle, createSpectrumState } = require('./spectrum');
 const { drawTicker } = require('./ticker');
+const { drawGlyph, CHAR_W } = require('./font');
 const { searchStations } = require('./search');
 
 // Featured stations - verbatim from effects-core.js's RADIO_STATIONS (real,
@@ -332,10 +333,33 @@ function effectRadio(core, dt) {
       const hz = Math.round(f0 + (f1 - f0) * ((elapsed % sweepSecs) / sweepSecs));
       genre = hz + ' Hz';
     }
-    const label = currentStation.name + (genre ? '  •  ' + genre : '') + '    ';
-    drawTicker(core, 0, label, dt);
-    if (core.panelMode !== '2d') drawTicker(core, 2, label, dt);
+    // A real follow-up: "the hz text needs to be on screen at all times" -
+    // the scrolling ticker only shows any given moment of the label
+    // briefly as it marches across the panel, which defeats a LIVE
+    // reading that's meant to be watched continuously. The sweep draws
+    // its Hz reading as a static, centered, non-scrolling label instead
+    // of feeding it through drawTicker(); drum/tone/real stations are
+    // unaffected and keep the normal scrolling now-playing ticker.
+    if (currentStation.url.startsWith('debugloop:')) {
+      drawStaticLabel(core, 0, genre, 7);
+      if (core.panelMode !== '2d') drawStaticLabel(core, 2, genre, 7);
+    } else {
+      const label = currentStation.name + (genre ? '  •  ' + genre : '') + '    ';
+      drawTicker(core, 0, label, dt);
+      if (core.panelMode !== '2d') drawTicker(core, 2, label, dt);
+    }
   }
+}
+
+// Centered, non-scrolling text - see effectRadio()'s call for why (the
+// sweep's live Hz reading needs to stay fully visible, not march past
+// like the normal now-playing ticker).
+function drawStaticLabel(core, face, text, sv) {
+  if (!text) return;
+  const textW = text.length * CHAR_W;
+  let u = Math.round((core.SIZE - textW) / 2);
+  const rgb = [0.6, 0.85, 1];
+  for (const ch of text) u += drawGlyph(core, face, ch, u, sv, rgb);
 }
 
 // Polled every tick (see app.js's module comment on state.effectStatus)

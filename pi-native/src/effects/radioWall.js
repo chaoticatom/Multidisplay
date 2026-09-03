@@ -71,6 +71,18 @@ function glyphWall(core, ch, su, sv, rgb) {
   return CHAR_W;
 }
 
+// Centered, non-scrolling text - see radio.js's effectRadio() for why
+// (the sweep's live Hz reading needs to stay fully visible, not march
+// past like the normal now-playing ticker).
+function drawStaticLabelWall(core, text) {
+  if (!text) return;
+  const textW = text.length * CHAR_W;
+  const sv = core.wallH - 2;
+  let u = Math.round((core.wallW - textW) / 2);
+  const rgb = [0.6, 0.85, 1];
+  for (const ch of text) u += glyphWall(core, ch, u, sv, rgb);
+}
+
 function drawTickerWall(core, label, dt) {
   if (!label) return;
   const textW = label.length * CHAR_W;
@@ -182,8 +194,14 @@ function effectRadioWall(core, dt) {
       const hz = Math.round(f0 + (f1 - f0) * ((elapsed % sweepSecs) / sweepSecs));
       genre = hz + ' Hz';
     }
-    const label = currentStation.name + (genre ? '  •  ' + genre : '') + '    ';
-    drawTickerWall(core, label, dt);
+    // See radio.js's effectRadio() for why the sweep gets a static,
+    // non-scrolling label instead.
+    if (currentStation.url.startsWith('debugloop:')) {
+      drawStaticLabelWall(core, genre);
+    } else {
+      const label = currentStation.name + (genre ? '  •  ' + genre : '') + '    ';
+      drawTickerWall(core, label, dt);
+    }
   }
 }
 

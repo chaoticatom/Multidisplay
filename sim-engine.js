@@ -12271,6 +12271,7 @@ var PiEngine = (() => {
       var { RadioAudio, BAND_COUNT } = require_ffmpegAudio();
       var { renderSpectrumStyle, createSpectrumState } = require_spectrum();
       var { drawTicker } = require_ticker();
+      var { drawGlyph, CHAR_W } = require_font2();
       var { searchStations } = require_search();
       var RADIO_STATIONS = [
         { name: "SomaFM Groove Salad", genre: "Ambient/Downtempo", url: "https://ice1.somafm.com/groovesalad-128-mp3" },
@@ -12415,10 +12416,22 @@ var PiEngine = (() => {
             const hz = Math.round(f0 + (f1 - f0) * (elapsed % sweepSecs / sweepSecs));
             genre = hz + " Hz";
           }
-          const label = currentStation.name + (genre ? "  \u2022  " + genre : "") + "    ";
-          drawTicker(core, 0, label, dt);
-          if (core.panelMode !== "2d") drawTicker(core, 2, label, dt);
+          if (currentStation.url.startsWith("debugloop:")) {
+            drawStaticLabel(core, 0, genre, 7);
+            if (core.panelMode !== "2d") drawStaticLabel(core, 2, genre, 7);
+          } else {
+            const label = currentStation.name + (genre ? "  \u2022  " + genre : "") + "    ";
+            drawTicker(core, 0, label, dt);
+            if (core.panelMode !== "2d") drawTicker(core, 2, label, dt);
+          }
         }
+      }
+      function drawStaticLabel(core, face, text, sv) {
+        if (!text) return;
+        const textW = text.length * CHAR_W;
+        let u = Math.round((core.SIZE - textW) / 2);
+        const rgb = [0.6, 0.85, 1];
+        for (const ch of text) u += drawGlyph(core, face, ch, u, sv, rgb);
       }
       function getStatus() {
         return {
@@ -25603,6 +25616,14 @@ var PiEngine = (() => {
         }
         return CHAR_W;
       }
+      function drawStaticLabelWall(core, text) {
+        if (!text) return;
+        const textW = text.length * CHAR_W;
+        const sv = core.wallH - 2;
+        let u = Math.round((core.wallW - textW) / 2);
+        const rgb = [0.6, 0.85, 1];
+        for (const ch of text) u += glyphWall(core, ch, u, sv, rgb);
+      }
       function drawTickerWall(core, label, dt) {
         if (!label) return;
         const textW = label.length * CHAR_W;
@@ -25693,8 +25714,12 @@ var PiEngine = (() => {
             const hz = Math.round(f0 + (f1 - f0) * (elapsed % sweepSecs / sweepSecs));
             genre = hz + " Hz";
           }
-          const label = currentStation.name + (genre ? "  \u2022  " + genre : "") + "    ";
-          drawTickerWall(core, label, dt);
+          if (currentStation.url.startsWith("debugloop:")) {
+            drawStaticLabelWall(core, genre);
+          } else {
+            const label = currentStation.name + (genre ? "  \u2022  " + genre : "") + "    ";
+            drawTickerWall(core, label, dt);
+          }
         }
       }
       module.exports = effectRadioWall;
