@@ -318,7 +318,21 @@ function effectRadio(core, dt) {
   }
 
   if (playing && currentStation) {
-    const label = currentStation.name + (currentStation.genre ? '  •  ' + currentStation.genre : '') + '    ';
+    // Live current-frequency readout for the sweep specifically - a real
+    // request: "write on the text the current hz, needs to update
+    // quickly". Computed directly from the sweep's own known formula and
+    // elapsed real time since launch (audio.lastAttemptMs, already
+    // tracked for the retry-cooldown logic) rather than reading it back
+    // out of the audio pipeline - updates every tick, at full frame rate,
+    // same as anything else drawn here.
+    let genre = currentStation.genre;
+    if (currentStation.url.startsWith('debugloop:') && audio.lastAttemptMs) {
+      const elapsed = (Date.now() - audio.lastAttemptMs) / 1000;
+      const sweepSecs = 45, f0 = 40, f1 = 10000;
+      const hz = Math.round(f0 + (f1 - f0) * ((elapsed % sweepSecs) / sweepSecs));
+      genre = hz + ' Hz';
+    }
+    const label = currentStation.name + (genre ? '  •  ' + genre : '') + '    ';
     drawTicker(core, 0, label, dt);
     if (core.panelMode !== '2d') drawTicker(core, 2, label, dt);
   }

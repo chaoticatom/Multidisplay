@@ -12408,7 +12408,14 @@ var PiEngine = (() => {
           renderSpectrumStyle(core, ctx, style, spectrumState);
         }
         if (playing && currentStation) {
-          const label = currentStation.name + (currentStation.genre ? "  \u2022  " + currentStation.genre : "") + "    ";
+          let genre = currentStation.genre;
+          if (currentStation.url.startsWith("debugloop:") && audio.lastAttemptMs) {
+            const elapsed = (Date.now() - audio.lastAttemptMs) / 1e3;
+            const sweepSecs = 45, f0 = 40, f1 = 1e4;
+            const hz = Math.round(f0 + (f1 - f0) * (elapsed % sweepSecs / sweepSecs));
+            genre = hz + " Hz";
+          }
+          const label = currentStation.name + (genre ? "  \u2022  " + genre : "") + "    ";
           drawTicker(core, 0, label, dt);
           if (core.panelMode !== "2d") drawTicker(core, 2, label, dt);
         }
@@ -25679,7 +25686,14 @@ var PiEngine = (() => {
         }
         const { playing, currentStation } = radio.getPlaybackState();
         if (playing && currentStation) {
-          const label = currentStation.name + (currentStation.genre ? "  \u2022  " + currentStation.genre : "") + "    ";
+          let genre = currentStation.genre;
+          if (currentStation.url.startsWith("debugloop:") && radio.audio.lastAttemptMs) {
+            const elapsed = (Date.now() - radio.audio.lastAttemptMs) / 1e3;
+            const sweepSecs = 45, f0 = 40, f1 = 1e4;
+            const hz = Math.round(f0 + (f1 - f0) * (elapsed % sweepSecs / sweepSecs));
+            genre = hz + " Hz";
+          }
+          const label = currentStation.name + (genre ? "  \u2022  " + genre : "") + "    ";
           drawTickerWall(core, label, dt);
         }
       }

@@ -172,7 +172,17 @@ function effectRadioWall(core, dt) {
 
   const { playing, currentStation } = radio.getPlaybackState();
   if (playing && currentStation) {
-    const label = currentStation.name + (currentStation.genre ? '  •  ' + currentStation.genre : '') + '    ';
+    // See radio.js's effectRadio() for why - live current-frequency
+    // readout for the sweep specifically, computed from elapsed real
+    // time rather than read back out of the audio pipeline.
+    let genre = currentStation.genre;
+    if (currentStation.url.startsWith('debugloop:') && radio.audio.lastAttemptMs) {
+      const elapsed = (Date.now() - radio.audio.lastAttemptMs) / 1000;
+      const sweepSecs = 45, f0 = 40, f1 = 10000;
+      const hz = Math.round(f0 + (f1 - f0) * ((elapsed % sweepSecs) / sweepSecs));
+      genre = hz + ' Hz';
+    }
+    const label = currentStation.name + (genre ? '  •  ' + genre : '') + '    ';
     drawTickerWall(core, label, dt);
   }
 }
