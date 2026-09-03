@@ -11060,7 +11060,7 @@ var PiEngine = (() => {
           if (m > maxMag) maxMag = m;
         }
         const bands = new Float32Array(BAND_COUNT);
-        const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(7e3 / (sampleRate / n))));
+        const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(6e3 / (sampleRate / n))));
         let lo = minBin;
         for (let b = 0; b < BAND_COUNT; b++) {
           const frac = (b + 1) / BAND_COUNT;
@@ -12294,7 +12294,7 @@ var PiEngine = (() => {
         // is meant to keep repeating indefinitely, unlike drum/tone which
         // should play once and stop. See ffmpegAudio.js's ensure()/
         // _debugFinished for how the two prefixes are told apart.
-        sweep: { name: "Debug: Sweep", genre: "40Hz-7kHz over 45s", url: "debugloop:aevalsrc=sin(2*PI*(40*t+6960*t*t/90)):s=44100:d=45" },
+        sweep: { name: "Debug: Sweep", genre: "40Hz-6kHz over 45s", url: "debugloop:aevalsrc=sin(2*PI*(40*t+5960*t*t/90)):s=44100:d=45" },
         drum: { name: "Debug: Drum Hit", genre: "Deep kick", url: "debug:aevalsrc=sin(2*PI*(50+70*exp(-25*t))*t)*exp(-4*t):s=44100:d=3" }
       };
       var audio = new RadioAudio();
@@ -12317,7 +12317,7 @@ var PiEngine = (() => {
       }
       function playDebugTone(kind, freq) {
         if (kind === "tone") {
-          const f = Math.max(40, Math.min(7e3, Math.round(Number(freq)) || 440));
+          const f = Math.max(40, Math.min(6e3, Math.round(Number(freq)) || 440));
           playStation({ name: "Debug: Tone", genre: f + " Hz", url: "debug:aevalsrc=sin(2*PI*" + f + "*t):s=44100:d=30" });
           return;
         }
@@ -12417,7 +12417,7 @@ var PiEngine = (() => {
           let genre = currentStation.genre;
           if (currentStation.url.startsWith("debugloop:") && audio.lastAttemptMs) {
             const elapsed = (Date.now() - audio.lastAttemptMs) / 1e3;
-            const sweepSecs = 45, f0 = 40, f1 = 7e3;
+            const sweepSecs = 45, f0 = 40, f1 = 6e3;
             const hz = Math.round(f0 + (f1 - f0) * (elapsed % sweepSecs / sweepSecs));
             genre = hz + " Hz";
           }
@@ -25715,7 +25715,7 @@ var PiEngine = (() => {
           let genre = currentStation.genre;
           if (currentStation.url.startsWith("debugloop:") && radio.audio.lastAttemptMs) {
             const elapsed = (Date.now() - radio.audio.lastAttemptMs) / 1e3;
-            const sweepSecs = 45, f0 = 40, f1 = 7e3;
+            const sweepSecs = 45, f0 = 40, f1 = 6e3;
             const hz = Math.round(f0 + (f1 - f0) * (elapsed % sweepSecs / sweepSecs));
             genre = hz + " Hz";
           }
