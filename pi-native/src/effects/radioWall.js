@@ -109,11 +109,13 @@ function effectRadioWall(core, dt) {
   const opts = core.effectOptions?.radio || {};
   const spectrumOn = !!opts.spectrumOn;
   const bands = [8, 16, 32, 64, 128, 256].includes(opts.bands) ? opts.bands : 64;
-  const theme = Number.isFinite(opts.theme) ? opts.theme : 6;
+  // See radio.js's effectRadio() for the default changes (auto gain ON,
+  // gain 2.0x, theme Pastel).
+  const theme = Number.isFinite(opts.theme) ? opts.theme : 5;
   const style = opts.style || 'bars';
   const barMode = opts.barMode || 'solid';
-  const gain = Number.isFinite(opts.gain) ? opts.gain : 1;
-  const autoGainOn = !!opts.autoGain;
+  const gain = Number.isFinite(opts.gain) ? opts.gain : 2;
+  const autoGainOn = opts.autoGain !== false;
   const fitToScreen = !!opts.fitToScreen;
   const scrollSpeed = Number.isFinite(opts.scrollSpeed) ? opts.scrollSpeed : 0;
 

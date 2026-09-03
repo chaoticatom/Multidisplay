@@ -23,7 +23,14 @@ const nasaConfig = require('./nasaConfig');
 const { Worker } = require('worker_threads');
 const path = require('path');
 
-const TICK_HZ = 30; // effect-compute + panel-push rate; independent of the driver's own PWM refresh
+// Real request: "increase the fps of the bars". Raised from 30 - safe to
+// do since the RENDER_WORKER ping-pong loop below already self-throttles
+// to whatever rate the worker can actually sustain (it never sends the
+// next tick until the current frame's reply lands, and Math.max(0, ...)
+// means a slow frame just gets immediately followed by the next request,
+// never queuing up or overloading) - this only raises the ceiling, actual
+// achieved rate is still capped by real hardware capability either way.
+const TICK_HZ = 60; // effect-compute + panel-push rate; independent of the driver's own PWM refresh
 const WS_PORT = 8081;
 
 // Solid amber fill, distinct from any real effect's likely palette - a

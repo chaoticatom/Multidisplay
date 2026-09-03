@@ -205,11 +205,14 @@ function effectRadio(core, dt) {
   const opts = core.effectOptions?.radio || {};
   const spectrumOn = !!opts.spectrumOn;
   const bands = [8, 16, 32, 64, 128, 256].includes(opts.bands) ? opts.bands : 64;
-  const theme = Number.isFinite(opts.theme) ? opts.theme : 6;
+  // Defaults changed per a real request: auto gain ON, gain 2.0x, theme
+  // Pastel (5, not VU Meter/6) - see index.html/app.js for the matching
+  // UI-side defaults (checkbox/slider initial state + sync fallback).
+  const theme = Number.isFinite(opts.theme) ? opts.theme : 5;
   const style = opts.style || 'bars';
   const barMode = opts.barMode || 'solid';
-  const gain = Number.isFinite(opts.gain) ? opts.gain : 1;
-  const autoGainOn = !!opts.autoGain;
+  const gain = Number.isFinite(opts.gain) ? opts.gain : 2;
+  const autoGainOn = opts.autoGain !== false;
   const fitToScreen = !!opts.fitToScreen;
   const scrollSpeed = Number.isFinite(opts.scrollSpeed) ? opts.scrollSpeed : 0;
   if (Number.isFinite(opts.volume)) setVolume(opts.volume);

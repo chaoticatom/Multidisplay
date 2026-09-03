@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.139';
+const APP_VERSION = '0.6.140';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2242,15 +2242,17 @@ function syncRadioPanel() {
   if (spectrumOptions) spectrumOptions.style.display = spectrumOn ? '' : 'none';
   panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.bands) === (opts.bands ?? 64)));
   panel.querySelectorAll('.au-style-btn[data-austyle]').forEach((btn) => btn.classList.toggle('active', btn.dataset.austyle === (opts.style || 'bars')));
-  panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 6)));
+  panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 5)));
   panel.querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => btn.classList.toggle('active', btn.dataset.barmode === (opts.barMode || 'solid')));
 
   const fitScreenChk = panel.querySelector('.sp-fit-screen-el');
   if (fitScreenChk && document.activeElement !== fitScreenChk) fitScreenChk.checked = !!opts.fitToScreen;
   const autoGainChk = panel.querySelector('.au-autogain-el');
-  if (autoGainChk && document.activeElement !== autoGainChk) autoGainChk.checked = !!opts.autoGain;
+  // Defaults to ON (opts.autoGain !== false), not off - see radio.js's
+  // effectRadio() for the matching server-side default change.
+  if (autoGainChk && document.activeElement !== autoGainChk) autoGainChk.checked = opts.autoGain !== false;
   const gainSlider = panel.querySelector('.au-gain-el'), gainVal = panel.querySelector('.au-gain-val-el');
-  if (gainSlider && document.activeElement !== gainSlider) { gainSlider.value = opts.gain ?? 1; if (gainVal) gainVal.textContent = Number(gainSlider.value).toFixed(1) + '×'; }
+  if (gainSlider && document.activeElement !== gainSlider) { gainSlider.value = opts.gain ?? 2; if (gainVal) gainVal.textContent = Number(gainSlider.value).toFixed(1) + '×'; }
   const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
   if (scrollSlider && document.activeElement !== scrollSlider) { scrollSlider.value = opts.scrollSpeed ?? 0; if (scrollVal) scrollVal.textContent = scrollSlider.value; }
 }
