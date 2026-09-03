@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.135';
+const APP_VERSION = '0.6.136';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1966,6 +1966,20 @@ function radioBrowserPlay(station) {
   if (!el) return;
   radioEnsureGraph();
   _raSilent = false; _raSilentTimer = 0; _raLastLevel = 0;
+  // A real report: "the sweep gets to 10khz then starts again at 40hz,
+  // however the sound does not restart" - confirmed as a browser-only
+  // issue (BT untested, ps confirmed the Pi-side ffmpeg/paplay pipeline
+  // genuinely does relaunch each loop). Root cause: /api/debugTone
+  // renders and streams ONE finite WAV clip - the Pi-side pipeline loops
+  // by relaunching a whole new ffmpeg process each time (see
+  // ffmpegAudio.js's `debugloop:` handling), but this <audio> element had
+  // no equivalent - it just played the one clip and stopped, while the
+  // bars kept going since those are driven by the (correctly looping)
+  // Pi-side pipeline instead. The native `loop` property replays the
+  // SAME already-downloaded clip seamlessly with no extra network
+  // request, so it doesn't matter that the WAV itself has a Cache-
+  // Control: no-store response.
+  el.loop = !!station.loop;
   if (el.src !== station.url) el.src = station.url;
   el.play().catch(() => { /* autoplay blocked or stream unreachable - #radio-status-el already shows the Pi-side status regardless */ });
   if (!_raRunning) { _raRunning = true; _raLastMs = 0; requestAnimationFrame(radioAnalyserTick); }
@@ -2068,7 +2082,10 @@ function wireRadioPanel() {
   const playDebugTone = (kind, freq) => {
     send({ cmd: 'radioDebugTone', kind, freq });
     if (radioBrowserPlaybackWanted()) {
-      radioBrowserPlay({ url: '/api/debugTone?kind=' + kind + (freq != null ? '&freq=' + freq : '') });
+      // 'sweep' loops (see radioBrowserPlay()'s own comment) - matches the
+      // Pi-side pipeline, which relaunches the sweep indefinitely but
+      // plays drum/tone once.
+      radioBrowserPlay({ url: '/api/debugTone?kind=' + kind + (freq != null ? '&freq=' + freq : ''), loop: kind === 'sweep' });
     }
   };
   panel.querySelectorAll('.radio-debug-sweep-btn-el').forEach((btn) => btn.addEventListener('click', () => playDebugTone('sweep')));
