@@ -410,7 +410,19 @@ class RadioAudio {
   getPlaybackStatus() { return this.playbackStatus; }
 
   _checkIdle() {
-    if (this.decodeProc && Date.now() - this.lastEnsureMs > IDLE_TIMEOUT_MS) {
+    // A real report: "when on a single freq, the bars sometimes go off
+    // and come back again". Root cause: ensure() only actually runs from
+    // effectRadio()'s own tick, which only fires while radio is the
+    // currently-selected/displayed effect - any gap longer than
+    // IDLE_TIMEOUT_MS (10s) without a tick (briefly viewing a different
+    // effect, a slow frame, etc.) tripped this safety net, tearing down
+    // the process AND clearing this.url - so the very next tick's
+    // ensure() saw url!==this.url and relaunched from scratch, reading
+    // as "went off, came back". This idle safety net exists for REAL
+    // stations (an indefinite stream nobody's watching shouldn't run
+    // forever) - debug tones already self-terminate via their own fixed
+    // `d=` duration and don't need it.
+    if (this.decodeProc && !this._isDebugSource && Date.now() - this.lastEnsureMs > IDLE_TIMEOUT_MS) {
       this._teardown();
       this.url = null;
       this.status = 'Stopped';

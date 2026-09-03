@@ -11407,7 +11407,7 @@ var PiEngine = (() => {
           return this.playbackStatus;
         }
         _checkIdle() {
-          if (this.decodeProc && Date.now() - this.lastEnsureMs > IDLE_TIMEOUT_MS) {
+          if (this.decodeProc && !this._isDebugSource && Date.now() - this.lastEnsureMs > IDLE_TIMEOUT_MS) {
             this._teardown();
             this.url = null;
             this.status = "Stopped";
