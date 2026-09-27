@@ -33,6 +33,7 @@
 //    the branch to wire up.
 const { hsl } = require('../core');
 const { fwPx, FW_CHAR_W, fwDrawGlyphToBuffer: drawGlyphToBuffer } = require('./_shared');
+const { trailFade } = require('./trail');
 
 // ── module state (mirrors the browser's bare globals) ──
 const fwRockets = [];
@@ -399,7 +400,8 @@ function effectFireworks(core, dt) {
     fwTextBuiltFor = null;
   }
 
-  for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.80;
+  const fade = trailFade(0.80, dt); // was a fixed *= 0.80 per frame - see trail.js
+  for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
 
   // Quantity slider - how many fireworks are visible AT ONCE, not how many
   // launch per tick (see FW_LIFETIME_EST's comment above for why a launch-

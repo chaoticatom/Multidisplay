@@ -11,6 +11,7 @@
 // panel2dMode-true branch was ported-but-dead code, so it's cut rather
 // than carried across.
 const { cubePx } = require('./_shared');
+const { trailFade } = require('./trail');
 
 let _lgScanT = 0, _lgBaseAngle = 0, _lgState = 'expand', _lgStateT = 0;
 let _lgSpinTarget = 0, _lgFlatT = -1;
@@ -22,7 +23,8 @@ let sphT = 0;
 function effectSphere(core, dt) {
   core.t += dt; sphT += dt;
   const { SIZE: S, N, colBuf } = core;
-  for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.75;
+  const fade = trailFade(0.75, dt); // was a fixed *= 0.75 per frame - see trail.js
+  for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
   const time = sphT;
   const cx = (S - 1) / 2, cy = (S - 1) / 2;
   const nRays = 6;

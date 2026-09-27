@@ -4,11 +4,13 @@
 // yet, so that's always false, same as the always-false default in the
 // browser outside of an active playlist transition.
 const { hsl } = require('../core');
+const { trailFade } = require('./trail');
 
 function effectDNA(core, dt) {
   core.t += dt * 0.55;
   const { SIZE, colBuf, N, faceMap, t } = core;
-  for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.82;
+  const fade = trailFade(0.82, dt); // was a fixed *= 0.82 per frame - see trail.js
+  for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
 
   const STRANDS = 2; // Classic double helix
   const RADIUS = SIZE * 0.36;

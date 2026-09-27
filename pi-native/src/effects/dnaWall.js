@@ -14,12 +14,14 @@
 // wallW/SIZE so the pitch of the helix looks the same regardless of wall
 // width.
 const { hsl } = require('../core');
+const { trailFade } = require('./trail');
 
 function effectDNAWall(core, dt) {
   core.t += dt * 0.55;
   const { wallW, wallH, wallBuf, t, SIZE } = core;
   if (!wallW) return; // core.initWall() hasn't run yet (wall mode not active)
-  for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= 0.82;
+  const fade = trailFade(0.82, dt); // was a fixed *= 0.82 per frame - see trail.js
+  for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= fade;
 
   const STRANDS = 2; // Classic double helix
   const RADIUS = wallH * 0.36;

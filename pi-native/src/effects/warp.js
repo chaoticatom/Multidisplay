@@ -1,5 +1,6 @@
 // Ported verbatim (math unchanged) from effects-motion.js's effectWarp().
 const { hsl } = require('../core');
+const { trailFade } = require('./trail');
 
 let warpStars = [];
 
@@ -17,7 +18,8 @@ function effectWarp(core, dt) {
   core.t += dt;
   const { SIZE, N, colBuf } = core;
   if (!warpStars.length) resetWarp(core);
-  for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.78;
+  const fade = trailFade(0.78, dt); // was a fixed *= 0.78 per frame - see trail.js
+  for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
   for (const s of warpStars) {
     s.life += dt; s.x += s.ox * s.sp * SIZE * dt * 60; s.y += s.oy * s.sp * SIZE * dt * 60; s.z += s.oz * s.sp * SIZE * dt * 60;
     const wx = s.x, wy = s.y, wz = s.z;

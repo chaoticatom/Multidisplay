@@ -20,6 +20,7 @@
 'use strict';
 
 const { renderGhostFace, R } = require('./ghost/render');
+const { trailFade } = require('./trail');
 
 let ghostT = 0, ghostState = 'hidden', ghostStateT = 0;
 let ghostReveal = 0, ghostAlpha = 0;
@@ -107,7 +108,8 @@ function effectGhostWall(core, dt) {
   const { wallW: W, wallH: H } = core;
   if (!W) return; // core.initWall() hasn't run yet (wall mode not active)
   ghostT += dt; ghostStateT += dt;
-  for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= 0.86;
+  const fade = trailFade(0.86, dt); // was a fixed *= 0.86 per frame - see trail.js
+  for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= fade;
 
   if (ghostState === 'present') {
     ghostBlinkT += dt;

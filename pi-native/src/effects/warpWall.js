@@ -10,6 +10,7 @@
 // drift with distance, 3x3 glow kernel) is unchanged, just re-expressed
 // in wallW/wallH/wallBuf instead of SIZE/N/colBuf.
 const { hsl } = require('../core');
+const { trailFade } = require('./trail');
 
 let warpWallStars = [];
 
@@ -32,7 +33,8 @@ function effectWarpWall(core, dt) {
   const { wallW, wallH, wallBuf } = core;
   if (!wallW) return; // core.initWall() hasn't run yet (wall mode not active)
   if (!warpWallStars.length) resetWarpWall(core);
-  for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= 0.78;
+  const fade = trailFade(0.78, dt); // was a fixed *= 0.78 per frame - see trail.js
+  for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= fade;
 
   const dim = Math.max(wallW, wallH);
   for (const s of warpWallStars) {

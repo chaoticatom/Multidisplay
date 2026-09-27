@@ -4,6 +4,7 @@
 // (see wsServer.js's setEffectOption / app.js), matching the browser's
 // plain `rainStyle` module variable set by ui.js's rain-style-btn clicks.
 const { hsl } = require('../core');
+const { trailFade } = require('./trail');
 
 let rainDrops = [];
 function resetRain(core) {
@@ -117,7 +118,8 @@ function effectRainMatrix(core, dt) {
 function effectRain(core, dt) {
   core.t += dt;
   const { N, SIZE, colBuf } = core;
-  for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.78;
+  const fade = trailFade(0.78, dt); // was a fixed *= 0.78 per frame - see trail.js
+  for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
 
   const style = core.effectOptions?.rain?.style || 'colour';
   if (style === 'matrix') { effectRainMatrix(core, dt); return; }

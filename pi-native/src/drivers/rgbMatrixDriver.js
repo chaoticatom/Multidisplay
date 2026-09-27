@@ -13,6 +13,7 @@
 // (R,G,B) order per pixel. That's what buildFaceBuffer() below produces.
 const { LedMatrix, GpioMapping, RuntimeFlag } = require('rpi-led-matrix');
 const { FACE_LAYOUT } = require('../panelConfig');
+const { writePixel } = require('./pixel');
 
 // ---------------------------------------------------------------------------
 // PHYSICAL LAYOUT - MUST BE CALIBRATED FOR YOUR ACTUAL WIRING.
@@ -197,9 +198,7 @@ class RgbMatrixDriver {
         const srcX = wallW - 1 - (ox + u);
         const c = ((oy + v) * wallW + srcX) * 3;
         const o = (v * S + u) * 3;
-        buf[o]     = Math.max(0, Math.min(255, (wallBuf[c] * brightness * 255) | 0));
-        buf[o + 1] = Math.max(0, Math.min(255, (wallBuf[c + 1] * brightness * 255) | 0));
-        buf[o + 2] = Math.max(0, Math.min(255, (wallBuf[c + 2] * brightness * 255) | 0));
+        writePixel(buf, o, wallBuf[c], wallBuf[c + 1], wallBuf[c + 2], brightness);
       }
     }
     return buf;
@@ -250,9 +249,7 @@ class RgbMatrixDriver {
           continue;
         }
         const c = led * 3;
-        buf[o]     = Math.max(0, Math.min(255, (colBuf[c] * brightness * 255) | 0));
-        buf[o + 1] = Math.max(0, Math.min(255, (colBuf[c + 1] * brightness * 255) | 0));
-        buf[o + 2] = Math.max(0, Math.min(255, (colBuf[c + 2] * brightness * 255) | 0));
+        writePixel(buf, o, colBuf[c], colBuf[c + 1], colBuf[c + 2], brightness);
       }
     }
     return buf;

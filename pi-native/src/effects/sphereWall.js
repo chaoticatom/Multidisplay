@@ -30,6 +30,7 @@
 // is preserved verbatim, just re-scaled from SIZE to wallW/wallH so the
 // geometry fills whatever wall size is configured.
 const { hsl } = require('../core');
+const { trailFade } = require('./trail');
 
 let _lgwScanT = 0, _lgwBaseAngle = 0, _lgwState = 'expand', _lgwStateT = 0;
 let _lgwSpinTarget = 0, _lgwFlatT = -1;
@@ -42,7 +43,8 @@ function effectSphereWall(core, dt) {
   core.t += dt; sphWallT += dt;
   const { wallW, wallH, wallBuf } = core;
   if (!wallW) return; // core.initWall() hasn't run yet (wall mode not active)
-  for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= 0.75;
+  const fade = trailFade(0.75, dt); // was a fixed *= 0.75 per frame - see trail.js
+  for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= fade;
   const time = sphWallT;
   const cx = (wallW - 1) / 2, cy = (wallH - 1) / 2;
   const S = Math.min(wallW, wallH); // reference scale for radii/thresholds that were SIZE-relative

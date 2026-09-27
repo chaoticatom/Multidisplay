@@ -2335,12 +2335,27 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/trail.js
+  var require_trail = __commonJS({
+    "src/effects/trail.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var TUNED_HZ = 30;
+      function trailFade(k, dt) {
+        return Math.pow(k, dt * TUNED_HZ);
+      }
+      module.exports = { trailFade, TUNED_HZ };
+    }
+  });
+
   // src/effects/rain.js
   var require_rain = __commonJS({
     "src/effects/rain.js"(exports, module) {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { trailFade } = require_trail();
       var rainDrops = [];
       function resetRain(core) {
         const SIZE = core.SIZE;
@@ -2451,7 +2466,8 @@ var PiEngine = (() => {
       function effectRain(core, dt) {
         core.t += dt;
         const { N, SIZE, colBuf } = core;
-        for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.78;
+        const fade = trailFade(0.78, dt);
+        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
         const style = core.effectOptions?.rain?.style || "colour";
         if (style === "matrix") {
           effectRainMatrix(core, dt);
@@ -2474,16 +2490,16 @@ var PiEngine = (() => {
           for (let k = 0; k < d.len; k++) {
             const vy = Math.round(d.y + k);
             if (vy < 0 || vy >= SIZE) continue;
-            const fade = Math.pow(1 - k / d.len, 1.2) * d.bright;
+            const fade2 = Math.pow(1 - k / d.len, 1.2) * d.bright;
             const h = (d.hue + k / d.len * 0.15) % 1;
-            const [r, g, b] = hsl(h, 1, fade * 0.95);
+            const [r, g, b] = hsl(h, 1, fade2 * 0.95);
             core.setFaceLED(d.face, d.col, vy, r, g, b);
             if (d.wide) {
               core.setFaceLED(d.face, d.col - 1, vy, r * 0.5, g * 0.5, b * 0.5);
               core.setFaceLED(d.face, d.col + 1, vy, r * 0.5, g * 0.5, b * 0.5);
             }
             if (vy === 0 && k < 4) {
-              const sp = fade * 0.8;
+              const sp = fade2 * 0.8;
               for (let s = -4; s <= 4; s++) {
                 const sf = Math.max(0, 1 - Math.abs(s) / 4) * sp * 0.5;
                 core.setFaceLED(d.face, d.col + s, 0, ...hsl(h, 1, sf));
@@ -3078,6 +3094,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { cubePx } = require_shared();
+      var { trailFade } = require_trail();
       var _lgScanT = 0;
       var _lgBaseAngle = 0;
       var _lgState = "expand";
@@ -3095,7 +3112,8 @@ var PiEngine = (() => {
         core.t += dt;
         sphT += dt;
         const { SIZE: S, N, colBuf } = core;
-        for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.75;
+        const fade = trailFade(0.75, dt);
+        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
         const time = sphT;
         const cx = (S - 1) / 2, cy = (S - 1) / 2;
         const nRays = 6;
@@ -3410,10 +3428,12 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { trailFade } = require_trail();
       function effectDNA(core, dt) {
         core.t += dt * 0.55;
         const { SIZE, colBuf, N, faceMap, t } = core;
-        for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.82;
+        const fade = trailFade(0.82, dt);
+        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
         const STRANDS = 2;
         const RADIUS = SIZE * 0.36;
         const TURNS = 4;
@@ -3431,8 +3451,8 @@ var PiEngine = (() => {
               const [r, g, b] = hsl(hue, 1, bright);
               core.setFaceLED(face, ui, y, r, g, b);
               for (let d = 1; d <= 3; d++) {
-                const fade = Math.pow(1 - d / 4, 2) * 0.7;
-                const [rg, gg, bg] = hsl(hue, 0.9, fade);
+                const fade2 = Math.pow(1 - d / 4, 2) * 0.7;
+                const [rg, gg, bg] = hsl(hue, 0.9, fade2);
                 core.setFaceLED(face, ui - d, y, rg, gg, bg);
                 core.setFaceLED(face, ui + d, y, rg, gg, bg);
               }
@@ -3593,6 +3613,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { trailFade } = require_trail();
       var warpStars = [];
       function resetWarp(core) {
         warpStars = [];
@@ -3607,7 +3628,8 @@ var PiEngine = (() => {
         core.t += dt;
         const { SIZE, N, colBuf } = core;
         if (!warpStars.length) resetWarp(core);
-        for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.78;
+        const fade = trailFade(0.78, dt);
+        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
         for (const s of warpStars) {
           s.life += dt;
           s.x += s.ox * s.sp * SIZE * dt * 60;
@@ -10069,6 +10091,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl } = require_core();
       var { fwPx, FW_CHAR_W, fwDrawGlyphToBuffer: drawGlyphToBuffer } = require_shared();
+      var { trailFade } = require_trail();
       var fwRockets = [];
       var fwBursts = [];
       var fwSpawnT = 0;
@@ -10419,7 +10442,8 @@ var PiEngine = (() => {
         } else if (!wantText) {
           fwTextBuiltFor = null;
         }
-        for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.8;
+        const fade = trailFade(0.8, dt);
+        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
         const maxConcurrent = Math.max(1, Math.min(10, Math.round(opts.quantity) || 6));
         while (fwActiveExpiry.length && fwActiveExpiry[0] <= core.t) fwActiveExpiry.shift();
         function fwLaunchIfRoom() {
@@ -10454,8 +10478,8 @@ var PiEngine = (() => {
           if (r.trail.length > 20) r.trail.shift();
           for (let ti = 0; ti < r.trail.length; ti++) {
             const tp = r.trail[ti];
-            const fade = ti / r.trail.length;
-            const [rh, gh, bh] = hsl(r.hue, 1, fade * 0.95);
+            const fade2 = ti / r.trail.length;
+            const [rh, gh, bh] = hsl(r.hue, 1, fade2 * 0.95);
             const iv = Math.max(0, Math.min(SIZE - 1, Math.round(tp.v)));
             if (panel2dMode) {
               const ic = Math.round(tp.col);
@@ -11561,6 +11585,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { trailFade } = require_trail();
       function auColor(theme, fb, fh, amp, t) {
         switch (theme) {
           case 1:
@@ -11966,7 +11991,8 @@ var PiEngine = (() => {
       }
       function drawWaveform(core, ctx) {
         const S = core.SIZE, M = S - 1, cols = 4 * S, mid = M / 2;
-        for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] *= 0.8;
+        const fade = trailFade(0.8, ctx.dt);
+        for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] *= fade;
         for (let c = 0; c < cols; c++) {
           const sc = (c + ((ctx.scrollX || 0) | 0) + cols) % cols;
           const b = scrolledBand(sc, cols, ctx.bands, ctx.scrollX);
@@ -12027,7 +12053,8 @@ var PiEngine = (() => {
       }
       function drawStorm(core, ctx, state) {
         const S = core.SIZE, cols = 4 * S;
-        for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] *= 0.72;
+        const fade = trailFade(0.72, ctx.dt);
+        for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] *= fade;
         const bass = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
         if (!state.flashes) state.flashes = [];
         if (bass > 0.52 && Math.random() < bass * ctx.dt * 18 && state.flashes.length < 12) {
@@ -14183,6 +14210,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { renderGhostFace, R } = require_render2();
+      var { trailFade } = require_trail();
       var ghostT = 0;
       var ghostFace = 0;
       var ghostState = "hidden";
@@ -14276,7 +14304,8 @@ var PiEngine = (() => {
         const { N, SIZE, colBuf, faceMap } = core;
         ghostT += dt;
         ghostStateT += dt;
-        for (let i = 0; i < N * 3; i++) colBuf[i] *= 0.86;
+        const fade = trailFade(0.86, dt);
+        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
         if (ghostState === "present") {
           ghostBlinkT += dt;
           if (ghostBlinkT > 2.5 + Math.random() * 4 && ghostEyeOpen === 1) {
@@ -19053,6 +19082,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { trailFade } = require_trail();
       var warpWallStars = [];
       function resetWarpWall(core) {
         warpWallStars = [];
@@ -19076,7 +19106,8 @@ var PiEngine = (() => {
         const { wallW, wallH, wallBuf } = core;
         if (!wallW) return;
         if (!warpWallStars.length) resetWarpWall(core);
-        for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= 0.78;
+        const fade = trailFade(0.78, dt);
+        for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= fade;
         const dim = Math.max(wallW, wallH);
         for (const s of warpWallStars) {
           s.life += dt;
@@ -19114,6 +19145,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { trailFade } = require_trail();
       var wallDrops = [];
       function resetWallRain(core) {
         const { wallW, wallH } = core;
@@ -19175,7 +19207,8 @@ var PiEngine = (() => {
         core.t += dt;
         const { wallW, wallH, wallBuf } = core;
         if (!wallW) return;
-        for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= 0.78;
+        const fade = trailFade(0.78, dt);
+        for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= fade;
         const style = core.effectOptions?.rain?.style || "colour";
         if (style === "matrix") {
           effectRainMatrixWall(core, dt);
@@ -19199,16 +19232,16 @@ var PiEngine = (() => {
           for (let k = 0; k < d.len; k++) {
             const vy = Math.round(d.y - k);
             if (vy < 0 || vy >= wallH) continue;
-            const fade = Math.pow(1 - k / d.len, 1.2) * d.bright;
+            const fade2 = Math.pow(1 - k / d.len, 1.2) * d.bright;
             const h = (d.hue + k / d.len * 0.15) % 1;
-            const [r, g, b] = hsl(h, 1, fade * 0.95);
+            const [r, g, b] = hsl(h, 1, fade2 * 0.95);
             core.setWallPixel(d.col, vy, r, g, b);
             if (d.wide) {
               core.setWallPixel(d.col - 1, vy, r * 0.5, g * 0.5, b * 0.5);
               core.setWallPixel(d.col + 1, vy, r * 0.5, g * 0.5, b * 0.5);
             }
             if (vy === wallH - 1 && k < 4) {
-              const sp = fade * 0.8;
+              const sp = fade2 * 0.8;
               for (let s = -4; s <= 4; s++) {
                 const sf = Math.max(0, 1 - Math.abs(s) / 4) * sp * 0.5;
                 const [sr, sg, sb] = hsl(h, 1, sf);
@@ -19238,11 +19271,13 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { trailFade } = require_trail();
       function effectDNAWall(core, dt) {
         core.t += dt * 0.55;
         const { wallW, wallH, wallBuf, t, SIZE } = core;
         if (!wallW) return;
-        for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= 0.82;
+        const fade = trailFade(0.82, dt);
+        for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= fade;
         const STRANDS = 2;
         const RADIUS = wallH * 0.36;
         const cy = wallH / 2;
@@ -19258,8 +19293,8 @@ var PiEngine = (() => {
             const [r, g, b] = hsl(hue, 1, 0.95);
             core.setWallPixel(x, vi, r, g, b);
             for (let d = 1; d <= 3; d++) {
-              const fade = Math.pow(1 - d / 4, 2) * 0.7;
-              const [rg, gg, bg] = hsl(hue, 0.9, fade);
+              const fade2 = Math.pow(1 - d / 4, 2) * 0.7;
+              const [rg, gg, bg] = hsl(hue, 0.9, fade2);
               core.setWallPixel(x, vi - d, rg, gg, bg);
               core.setWallPixel(x, vi + d, rg, gg, bg);
             }
@@ -19510,6 +19545,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { trailFade } = require_trail();
       var _lgwScanT = 0;
       var _lgwBaseAngle = 0;
       var _lgwState = "expand";
@@ -19528,7 +19564,8 @@ var PiEngine = (() => {
         sphWallT += dt;
         const { wallW, wallH, wallBuf } = core;
         if (!wallW) return;
-        for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= 0.75;
+        const fade = trailFade(0.75, dt);
+        for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= fade;
         const time = sphWallT;
         const cx = (wallW - 1) / 2, cy = (wallH - 1) / 2;
         const S = Math.min(wallW, wallH);
@@ -20979,6 +21016,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl } = require_core();
       var { FW_CHAR_W, fwDrawGlyphToBuffer: drawGlyphToBuffer } = require_shared();
+      var { trailFade } = require_trail();
       var fwRockets = [];
       var fwBursts = [];
       var fwSpawnT = 0;
@@ -21313,7 +21351,8 @@ var PiEngine = (() => {
         } else if (!wantText) {
           fwTextBuiltFor = null;
         }
-        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= 0.8;
+        const fade = trailFade(0.8, dt);
+        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= fade;
         const maxConcurrent = Math.max(1, Math.min(10, Math.round(opts.quantity) || 6));
         while (fwActiveExpiry.length && fwActiveExpiry[0] <= core.t) fwActiveExpiry.shift();
         if (mode === "random" || mode === "mic") {
@@ -21338,8 +21377,8 @@ var PiEngine = (() => {
           if (r.trail.length > 20) r.trail.shift();
           for (let ti = 0; ti < r.trail.length; ti++) {
             const tp = r.trail[ti];
-            const fade = ti / r.trail.length;
-            const [rh, gh, bh] = hsl(r.hue, 1, fade * 0.95);
+            const fade2 = ti / r.trail.length;
+            const [rh, gh, bh] = hsl(r.hue, 1, fade2 * 0.95);
             const ix = Math.round(tp.col);
             const wy = wallH - 1 - Math.max(0, Math.min(wallH - 1, Math.round(tp.v)));
             if (ix >= 0 && ix < wallW) fwSet(core, ix, wy, rh, gh, bh);
@@ -23580,6 +23619,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { renderGhostFace, R } = require_render2();
+      var { trailFade } = require_trail();
       var ghostT = 0;
       var ghostState = "hidden";
       var ghostStateT = 0;
@@ -23668,7 +23708,8 @@ var PiEngine = (() => {
         if (!W) return;
         ghostT += dt;
         ghostStateT += dt;
-        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= 0.86;
+        const fade = trailFade(0.86, dt);
+        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= fade;
         if (ghostState === "present") {
           ghostBlinkT += dt;
           if (ghostBlinkT > 2.5 + Math.random() * 4 && ghostEyeOpen === 1) {
@@ -24524,6 +24565,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl } = require_core();
       var { auColor } = require_spectrum();
+      var { trailFade } = require_trail();
       function blendWall(core, x, y, r, g, b) {
         if (x < 0 || x >= core.wallW || y < 0 || y >= core.wallH) return;
         const gx = x / core.wallPanelSize | 0, gy = y / core.wallPanelSize | 0;
@@ -24741,7 +24783,8 @@ var PiEngine = (() => {
       }
       function drawWaveformWall(core, ctx) {
         const W = core.wallW, H = core.wallH, M = H - 1, mid = M / 2;
-        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= 0.8;
+        const fade = trailFade(0.8, ctx.dt);
+        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= fade;
         for (let c = 0; c < W; c++) {
           const sc = (c + ((ctx.scrollX || 0) | 0) + W) % W;
           const b = scrolledBand(sc, W, ctx.bands, ctx.scrollX);
@@ -24798,7 +24841,8 @@ var PiEngine = (() => {
       }
       function drawStormWall(core, ctx, state) {
         const W = core.wallW, H = core.wallH;
-        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= 0.72;
+        const fade = trailFade(0.72, ctx.dt);
+        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= fade;
         const bass = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
         if (!state.flashesW) state.flashesW = [];
         if (bass > 0.52 && Math.random() < bass * ctx.dt * 18 && state.flashesW.length < 16) {

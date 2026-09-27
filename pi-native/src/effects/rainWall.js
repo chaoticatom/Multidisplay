@@ -17,6 +17,7 @@
 // "Colour"/"Matrix" sidebar toggle the cube version already has - no new
 // UI needed.
 const { hsl } = require('../core');
+const { trailFade } = require('./trail');
 
 let wallDrops = [];
 function resetWallRain(core) {
@@ -80,7 +81,8 @@ function effectRainWall(core, dt) {
   core.t += dt;
   const { wallW, wallH, wallBuf } = core;
   if (!wallW) return; // core.initWall() hasn't run yet (wall mode not active)
-  for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= 0.78;
+  const fade = trailFade(0.78, dt); // was a fixed *= 0.78 per frame - see trail.js
+  for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= fade;
 
   const style = core.effectOptions?.rain?.style || 'colour';
   if (style === 'matrix') { effectRainMatrixWall(core, dt); return; }

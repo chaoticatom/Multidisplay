@@ -28,6 +28,7 @@
 
 const { hsl } = require('../../core');
 const { auColor } = require('./spectrum');
+const { trailFade } = require('../trail');
 
 function blendWall(core, x, y, r, g, b) {
   if (x < 0 || x >= core.wallW || y < 0 || y >= core.wallH) return;
@@ -249,7 +250,8 @@ function drawOutlineWall(core, ctx) {
 
 function drawWaveformWall(core, ctx) {
   const W = core.wallW, H = core.wallH, M = H - 1, mid = M / 2;
-  for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= 0.80;
+  const fade = trailFade(0.80, ctx.dt); // was a fixed *= 0.80 per frame - see trail.js
+  for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= fade;
   for (let c = 0; c < W; c++) {
     const sc = (c + ((ctx.scrollX || 0) | 0) + W) % W;
     const b = scrolledBand(sc, W, ctx.bands, ctx.scrollX);
@@ -308,7 +310,8 @@ function drawTunnelWall(core, ctx) {
 
 function drawStormWall(core, ctx, state) {
   const W = core.wallW, H = core.wallH;
-  for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= 0.72;
+  const fade = trailFade(0.72, ctx.dt); // was a fixed *= 0.72 per frame - see trail.js
+  for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= fade;
   const bass = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
   if (!state.flashesW) state.flashesW = [];
   if (bass > 0.52 && Math.random() < bass * ctx.dt * 18 && state.flashesW.length < 16) {

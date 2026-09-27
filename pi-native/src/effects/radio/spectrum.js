@@ -30,6 +30,7 @@
 'use strict';
 
 const { hsl } = require('../../core');
+const { trailFade } = require('../trail');
 
 // Same 7 colour themes as auColor() in effects-core.js.
 function auColor(theme, fb, fh, amp, t) {
@@ -462,7 +463,8 @@ function drawWaterfall(core, ctx, state) {
 
 function drawWaveform(core, ctx) {
   const S = core.SIZE, M = S - 1, cols = 4 * S, mid = M / 2;
-  for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] *= 0.80;
+  const fade = trailFade(0.80, ctx.dt); // was a fixed *= 0.80 per frame - see trail.js
+  for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] *= fade;
   for (let c = 0; c < cols; c++) {
     // NB: this pre-offsets its own column by scrollX AND THEN calls
     // scrolledBand() (which folds scrollX in again) - a literal
@@ -528,7 +530,8 @@ function drawTunnel(core, ctx) {
 
 function drawStorm(core, ctx, state) {
   const S = core.SIZE, cols = 4 * S;
-  for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] *= 0.72;
+  const fade = trailFade(0.72, ctx.dt); // was a fixed *= 0.72 per frame - see trail.js
+  for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] *= fade;
   const bass = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
   if (!state.flashes) state.flashes = [];
   if (bass > 0.52 && Math.random() < bass * ctx.dt * 18 && state.flashes.length < 12) {

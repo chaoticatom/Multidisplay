@@ -35,6 +35,7 @@
 // sequence.
 const { hsl } = require('../core');
 const { FW_CHAR_W, fwDrawGlyphToBuffer: drawGlyphToBuffer } = require('./_shared');
+const { trailFade } = require('./trail');
 
 const fwRockets = [];
 const fwBursts = [];
@@ -340,7 +341,8 @@ function effectFireworksWall(core, dt) {
     fwTextBuiltFor = null;
   }
 
-  for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= 0.80;
+  const fade = trailFade(0.80, dt); // was a fixed *= 0.80 per frame - see trail.js
+  for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= fade;
 
   // See fireworks.js's effectFireworks() comment - quantity slider is a
   // concurrency cap (how many visible at once), only meaningful for the
