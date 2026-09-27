@@ -110,6 +110,35 @@ await test('ensure(falsy url) tears down and resets status - decode can be verif
   audio.close();
 });
 
+await test('switching station: the old process exiting late does not disturb the new station', () => {
+  // Real kill() is async - the old ffmpeg's 'exit' arrives after the new
+  // station has launched. It used to kill the new paplay and null
+  // decodeProc, causing relaunch churn (audible flicker on the BT speaker).
+  const procs = [];
+  const spawnFn = (cmd) => {
+    const proc = new EventEmitter();
+    proc.cmd = cmd;
+    proc.stdout = new PassThrough(); proc.stderr = new PassThrough(); proc.stdin = new PassThrough();
+    proc.killed = false;
+    proc.kill = () => { proc.killed = true; setImmediate(() => proc.emit('exit', null)); };
+    procs.push(proc);
+    return proc;
+  };
+  const audio = new RadioAudio(spawnFn);
+  audio.ensure('http://example.invalid/a');
+  audio.ensure('http://example.invalid/b');
+  const newDecode = audio.decodeProc, newPlay = audio.playProc;
+  return new Promise((resolve) => setTimeout(() => {
+    assert.strictEqual(audio.decodeProc, newDecode);
+    assert.strictEqual(audio.playProc, newPlay);
+    assert.strictEqual(newPlay.killed, false, 'new station playback must survive the old process exiting');
+    audio.ensure('http://example.invalid/b');
+    assert.strictEqual(procs.length, 4, 'no relaunch after the switch');
+    audio.close();
+    resolve();
+  }, 20));
+});
+
 console.log('fft/computeBands');
 await test('computeBands on silence returns all-zero-ish bands, no NaN/throw', () => {
   const silence = new Float32Array(2048);

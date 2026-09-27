@@ -65,7 +65,6 @@ class RadioAudio {
     this.lastAttemptMs = 0;
     this.lastEnsureMs = 0;
     this.errored = false;
-    this._stoppedIntentionally = false;
     this._debugFinished = false;
 
     // Canonical 256 log-spaced band levels (smoothed) + falling peak-hold,
@@ -209,7 +208,7 @@ class RadioAudio {
     this.status = 'Connecting…';
     let stderrTail = '';
 
-    proc.on('error', (err) => this._onSpawnFail(err));
+    proc.on('error', (err) => this._onSpawnFail(err, proc));
     if (proc.stderr) proc.stderr.on('data', (d) => { stderrTail = (stderrTail + d.toString()).slice(-4000); });
     // A real report: switching the debug frequency slider quickly showed
     // multiple simultaneous peaks instead of one clean tone - the same
@@ -224,13 +223,19 @@ class RadioAudio {
     if (proc.stdout) proc.stdout.on('data', (chunk) => { if (proc === this.decodeProc) this._onData(chunk); });
 
     proc.on('exit', (code) => {
-      const wasIntentional = this._stoppedIntentionally;
-      this._stoppedIntentionally = false;
+      // A real report: switching stations left the BT speaker flickering
+      // between previously-selected channels. kill() is asynchronous, so a
+      // replaced process's exit lands AFTER _launch() has already started
+      // its successor - and this handler used to act on whatever was
+      // CURRENT: nulling decodeProc and killing the NEW station's paplay,
+      // which made the next tick relaunch again and orphaned a still-
+      // running ffmpeg. A process that has already been replaced (or torn
+      // down) owns nothing any more, so its exit is ignored outright.
+      if (proc !== this.decodeProc) return;
       const wasDebug = this._isDebugSource;
       const wasLoop = this._isDebugLoop;
       this.decodeProc = null;
       this._teardownPlayback();
-      if (wasIntentional) return;
       if (wasDebug && code === 0) {
         this.status = 'Stopped';
         if (!wasLoop) {
@@ -291,7 +296,7 @@ class RadioAudio {
     this.playProc = proc;
     this.playbackStatus = 'Starting playback…';
     let stderrTail = '';
-    proc.on('error', (err) => this._onPlaybackFail(err));
+    proc.on('error', (err) => this._onPlaybackFail(err, proc));
     if (proc.stderr) proc.stderr.on('data', (d) => { stderrTail = (stderrTail + d.toString()).slice(-2000); });
     // A write to a dead/closing stdin throws EPIPE - swallow it, _onData()
     // already guards with proc.stdin.writable before writing, this is just
@@ -320,8 +325,8 @@ class RadioAudio {
       proc.stdin.on('drain', () => { this._playDrained = true; });
     }
     proc.on('exit', (code) => {
-      if (this.playProc === proc) this.playProc = null;
-      if (this._stoppedIntentionally) return;
+      if (this.playProc !== proc) return; // replaced/torn down - see decode exit handler
+      this.playProc = null;
       if (code !== 0 && code !== null) {
         const lastLine = stderrTail.trim().split('\n').filter(Boolean).pop();
         this.playbackStatus = 'Playback stopped — ' + (lastLine || `paplay exited (code ${code})`);
@@ -329,7 +334,8 @@ class RadioAudio {
     });
   }
 
-  _onPlaybackFail(err) {
+  _onPlaybackFail(err, proc) {
+    if (proc && proc !== this.playProc) return;
     this.playProc = null;
     if (err && err.code === 'ENOENT') {
       this.playbackStatus = 'paplay not found — install with: sudo apt install pulseaudio-utils';
@@ -338,7 +344,8 @@ class RadioAudio {
     }
   }
 
-  _onSpawnFail(err) {
+  _onSpawnFail(err, proc) {
+    if (proc && proc !== this.decodeProc) return; // late error from a replaced process
     this.decodeProc = null;
     this.errored = true;
     if (err && err.code === 'ENOENT') {
@@ -445,7 +452,6 @@ class RadioAudio {
 
   _teardownPlayback() {
     if (this.playProc) {
-      this._stoppedIntentionally = true; // shared flag is fine - decode teardown always accompanies this
       try { this.playProc.stdin && this.playProc.stdin.end(); } catch (e) { /* already closed */ }
       try { this.playProc.kill('SIGKILL'); } catch (e) { /* already dead */ }
       this.playProc = null;
@@ -454,7 +460,6 @@ class RadioAudio {
 
   _teardown() {
     if (this.decodeProc) {
-      this._stoppedIntentionally = true;
       try { this.decodeProc.kill('SIGKILL'); } catch (e) { /* already dead */ }
       this.decodeProc = null;
     }

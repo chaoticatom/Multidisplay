@@ -11200,7 +11200,6 @@ var PiEngine = (() => {
           this.lastAttemptMs = 0;
           this.lastEnsureMs = 0;
           this.errored = false;
-          this._stoppedIntentionally = false;
           this._debugFinished = false;
           this.spec = new Float32Array(BAND_COUNT);
           this.peak = new Float32Array(BAND_COUNT);
@@ -11302,7 +11301,7 @@ var PiEngine = (() => {
           this.decodeProc = proc;
           this.status = "Connecting\u2026";
           let stderrTail = "";
-          proc.on("error", (err) => this._onSpawnFail(err));
+          proc.on("error", (err) => this._onSpawnFail(err, proc));
           if (proc.stderr) proc.stderr.on("data", (d) => {
             stderrTail = (stderrTail + d.toString()).slice(-4e3);
           });
@@ -11310,13 +11309,11 @@ var PiEngine = (() => {
             if (proc === this.decodeProc) this._onData(chunk);
           });
           proc.on("exit", (code) => {
-            const wasIntentional = this._stoppedIntentionally;
-            this._stoppedIntentionally = false;
+            if (proc !== this.decodeProc) return;
             const wasDebug = this._isDebugSource;
             const wasLoop = this._isDebugLoop;
             this.decodeProc = null;
             this._teardownPlayback();
-            if (wasIntentional) return;
             if (wasDebug && code === 0) {
               this.status = "Stopped";
               if (!wasLoop) {
@@ -11357,7 +11354,7 @@ var PiEngine = (() => {
           this.playProc = proc;
           this.playbackStatus = "Starting playback\u2026";
           let stderrTail = "";
-          proc.on("error", (err) => this._onPlaybackFail(err));
+          proc.on("error", (err) => this._onPlaybackFail(err, proc));
           if (proc.stderr) proc.stderr.on("data", (d) => {
             stderrTail = (stderrTail + d.toString()).slice(-2e3);
           });
@@ -11370,15 +11367,16 @@ var PiEngine = (() => {
             });
           }
           proc.on("exit", (code) => {
-            if (this.playProc === proc) this.playProc = null;
-            if (this._stoppedIntentionally) return;
+            if (this.playProc !== proc) return;
+            this.playProc = null;
             if (code !== 0 && code !== null) {
               const lastLine = stderrTail.trim().split("\n").filter(Boolean).pop();
               this.playbackStatus = "Playback stopped \u2014 " + (lastLine || `paplay exited (code ${code})`);
             }
           });
         }
-        _onPlaybackFail(err) {
+        _onPlaybackFail(err, proc) {
+          if (proc && proc !== this.playProc) return;
           this.playProc = null;
           if (err && err.code === "ENOENT") {
             this.playbackStatus = "paplay not found \u2014 install with: sudo apt install pulseaudio-utils";
@@ -11386,7 +11384,8 @@ var PiEngine = (() => {
             this.playbackStatus = "No audio output \u2014 " + (err && err.message || "failed to start paplay") + " (visualizer still works)";
           }
         }
-        _onSpawnFail(err) {
+        _onSpawnFail(err, proc) {
+          if (proc && proc !== this.decodeProc) return;
           this.decodeProc = null;
           this.errored = true;
           if (err && err.code === "ENOENT") {
@@ -11454,7 +11453,6 @@ var PiEngine = (() => {
         }
         _teardownPlayback() {
           if (this.playProc) {
-            this._stoppedIntentionally = true;
             try {
               this.playProc.stdin && this.playProc.stdin.end();
             } catch (e) {
@@ -11468,7 +11466,6 @@ var PiEngine = (() => {
         }
         _teardown() {
           if (this.decodeProc) {
-            this._stoppedIntentionally = true;
             try {
               this.decodeProc.kill("SIGKILL");
             } catch (e) {
