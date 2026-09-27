@@ -266,7 +266,7 @@
   .ov-item.ov-on .ov-hdr { color:#8dcfff; background:rgba(80,150,255,0.08); }
   .ov-body { padding:8px 10px 10px; border-top:1px solid rgba(80,120,255,0.10); background:rgba(0,0,0,0.2); display:none; }
   .ov-item.ov-on .ov-body { display:block; }
-  .ov-row-label { font-size:10px; letter-spacing:1.5px; color:rgba(140,180,255,0.7); text-transform:uppercase; margin:6px 0 4px; }
+  .ov-row-label { font-size:11px; letter-spacing:1.5px; color:rgba(140,180,255,0.7); text-transform:uppercase; margin:6px 0 4px; }
   /* Toggle switch replaces checkbox */
   .ov-toggle { position:relative; display:inline-block; width:34px; height:18px; flex-shrink:0; margin-left:auto; }
   .ov-toggle input { opacity:0; width:0; height:0; position:absolute; }
@@ -334,7 +334,7 @@
     text-transform: uppercase; transition: color 0.15s, background 0.15s;
   }
   .sub-head:hover { color: #7aadff; background: rgba(80,120,255,0.08); }
-  .sub-head .chev { font-size: 10px; transition: transform 0.2s; }
+  .sub-head .chev { font-size: 11px; transition: transform 0.2s; }
   /* Styled like a regular .effect-btn (e.g. Near-Earth Objects) instead of
      the small uppercase category-label look other sub-heads use. */
   .sub-head.sub-head-boxed {
@@ -440,7 +440,7 @@
     opacity: 0.32 !important; pointer-events: none; filter: grayscale(60%);
   }
   .pi-unsupported-note {
-    font-size: 10px; color: #667; margin: 0 0 8px; line-height: 1.4; font-style: italic;
+    font-size: 11px; color: #9aa3b8; margin: 0 0 8px; line-height: 1.4; font-style: italic;
   }
   /* Ported from the original app's #panel2d-canvas (ui.js) - a plain 2D
      canvas used for 2D-panel mode instead of the WebGL cube, since a
@@ -501,7 +501,7 @@
     color: #9ab; border-radius: 6px; cursor: pointer; font-size: 13px;
   }
   #wall-layout-save-toggle:hover { background: rgba(80,120,255,0.2); }
-  #wall-layout-save-toggle .wall-layout-icon { font-size: 10px; }
+  #wall-layout-save-toggle .wall-layout-icon { font-size: 11px; }
   #wall-layout-save-dropdown {
     display: none; position: absolute; top: calc(100% + 8px); right: 0; z-index: 7;
     width: 220px; background: rgba(10,10,20,0.95); backdrop-filter: blur(6px);
@@ -528,10 +528,10 @@
   }
   .wall-layout-row .wl-load-btn { background: rgba(80,120,255,0.12); border: 1px solid rgba(80,120,255,0.3); color: #7aadff; }
   .wall-layout-row .wl-del-btn { background: rgba(255,80,80,0.08); border: 1px solid rgba(255,80,80,0.2); color: #f88; }
-  #wall-layout-empty { font-size: 11px; color: #667; padding: 6px 0; }
+  #wall-layout-empty { font-size: 11px; color: #9aa3b8; padding: 6px 0; }
   .wall-cell {
     position: absolute; border-radius: 6px; display: flex; align-items: center; justify-content: center;
-    font-size: 12px; color: #667; user-select: none; box-sizing: border-box;
+    font-size: 12px; color: #9aa3b8; user-select: none; box-sizing: border-box;
   }
   .wall-cell.empty {
     border: 2px dashed rgba(120,140,180,0.35); cursor: pointer;
@@ -549,6 +549,62 @@
     background: #2a0a0a; border: 1px solid rgba(255,100,100,0.6); color: #f88; font-size: 12px;
     line-height: 18px; text-align: center; cursor: pointer; z-index: 1;
   }
+
+/* Keyboard focus: the default ring is removed on some controls (e.g. the
+   range inputs' outline:none), so give everything a visible one. */
+:focus-visible { outline: 2px solid #7aadff; outline-offset: 2px; }
+input[type=range]:focus-visible { outline: 2px solid #7aadff; outline-offset: 3px; }
+/* Touch screens: bigger tap targets (44px is the usual guideline; 40px
+   keeps dense rows like Light Speed's size buttons on one or two lines). */
+@media (pointer: coarse) {
+  .effect-btn, .sub-head, .section-head, .size-btn, .opt-grid button, #sidebar button { min-height: 40px; }
+  .opt-grid, .size-row { flex-wrap: wrap; }
+  input[type=range] { min-height: 28px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+/* Effect search/filter (see wireEffectFilter() in app.js). */
+.effect-filter-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+#effect-filter { width: 100%; box-sizing: border-box; padding: 8px 10px; font-size: 14px; background: rgba(10,15,35,0.8); color: #dde; border: 1px solid rgba(80,120,255,0.3); border-radius: 5px; }
+.effect-filter-toggle { font-size: 12px; color: #aab4cc; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+#effects-body.filtering .sub-section.collapsed .sub-body { display: block; }
+#effects-body .effect-btn.filter-hide, #effects-body .sub-section.filter-empty { display: none; }
+body.hide-unported .effect-btn.not-ported { display: none; }
+#active-effect-label { margin: 2px 0 0; font-size: 12px; color: #aab4cc; min-height: 1em; }
+/* Effect button clicked, waiting for the Pi to confirm (see syncEffectButtons()). */
+.effect-btn.pending { border-color: rgba(122,173,255,0.8) !important; animation: pending-pulse 0.9s ease-in-out infinite; }
+@keyframes pending-pulse { 50% { opacity: 0.6; } }
+@media (prefers-reduced-motion: reduce) { .effect-btn.pending { animation: none; } }
+/* Connection status pill (see setConnStatus() in app.js). */
+#conn-status {
+  display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+  background: rgba(255,180,60,0.15); color: #fc6; border: 1px solid rgba(255,180,60,0.4);
+}
+#conn-status[data-status="connected"] { background: rgba(80,200,120,0.15); color: #6d9; border-color: rgba(80,200,120,0.4); }
+#conn-status[data-status="simulator"] { background: rgba(80,120,255,0.15); color: #9bf; border-color: rgba(80,120,255,0.4); }
+/* While disconnected, dim the controls (clicks are still queued and sent on reconnect). */
+body.offline #sidebar .effect-btn,
+body.offline #sidebar input,
+body.offline #sidebar select,
+body.offline #sidebar .sub-head { opacity: 0.55; }
+
+/* Shared control styles - formerly the same long inline style= repeated on many
+   elements. The `html body` prefix keeps them winning over generic rules such as
+   `.sidebar-section label`, as the inline styles they replace did. */
+html body .ui-btn-danger { flex:1; padding:9px 10px; background:rgba(255,60,60,0.1); border:1px solid rgba(255,60,60,0.25); color:#f77; border-radius:5px; cursor:pointer; font-size:13px; letter-spacing:1px; text-transform:uppercase; transition:all 0.2s; text-align:center; }
+html body .ui-check-label { display:flex; align-items:center; gap:3px; color:#aac; cursor:pointer; }
+html body .ui-hint { font-size:11px; color:#aaa; margin-bottom:6px; }
+html body .ui-subhead { font-size:12px; color:#99b; letter-spacing:1px; font-weight:600; }
+html body .ui-subhead-lg { font-size:13px; color:#99b; letter-spacing:1px; font-weight:600; }
+html body .ui-note { font-size:11px; color:#9aa3b8; margin-bottom:6px; }
+html body .ui-note-spaced { font-size:11px; color:#9aa3b8; margin-bottom:8px; }
+html body .ui-label-accent { font-size:11px; color:#7aadff; letter-spacing:1px; margin-bottom:5px; font-weight:600; }
+html body .ui-btn-primary { width:100%; padding:6px 12px; margin-bottom:8px; background:rgba(80,120,255,0.15); border:1px solid rgba(80,120,255,0.4); color:#7aadff; border-radius:4px; cursor:pointer; font-size:12px; font-weight:700; }
+html body .ui-btn-purple { flex:1; padding:6px 8px; background:rgba(140,100,255,0.1); border:1px solid rgba(140,100,255,0.3); color:#b89aff; border-radius:4px; cursor:pointer; font-size:11px; }
+html body .ui-input { flex:1; padding:6px 8px; background:#0a1020; border:1px solid rgba(80,120,255,0.35); color:#ccd; font-size:12px; border-radius:4px; }
+html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rgba(80,120,255,0.12); border:1px solid rgba(80,120,255,0.3); color:#7aadff; border-radius:4px; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -560,6 +616,8 @@
     <div style="flex:1;">
       <h1>LED Multidisplay</h1>
       <p id="led-count-label">64<sup>3</sup> · 24,576 surface LEDs</p>
+      <p id="active-effect-label" aria-live="polite"></p>
+      <span id="conn-status" data-status="connecting" role="status" aria-live="polite">Connecting…</span>
     </div>
     <button id="sidebar-collapse-btn" title="Collapse menu">◀</button>
   </div>
@@ -570,7 +628,7 @@
       <button class="size-btn" data-size="8">8×8</button>
       <button class="size-btn" data-size="16">16×16</button>
       <button class="size-btn" data-size="64">64×64</button>
-      <button class="size-btn" data-size="64" data-mode="panel2d" id="panel2d-btn" style="font-size:10px;">Panel 2D</button>
+      <button class="size-btn" data-size="64" data-mode="panel2d" id="panel2d-btn" style="font-size:11px;">Panel 2D</button>
     </div>
     <button id="identify-panels-btn" title="Label every physical panel with its own identity (face/index + which HAT output and chain position it's wired to) - use this while wiring up multiple panels, in any shape, to see which physical board is which." style="width:100%;margin-top:6px;padding:8px;font-size:11px;letter-spacing:0.5px;background:rgba(80,120,255,0.08);border:1px solid rgba(80,120,255,0.25);color:#9ab;border-radius:6px;cursor:pointer;">🔍 IDENTIFY PANELS</button>
   </div>
@@ -604,8 +662,8 @@
   </div>
 
   <div id="fx-toggle-bar" style="padding:6px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;display:flex;gap:6px;">
-    <button id="clear-all-btn" style="flex:1;padding:9px 10px;background:rgba(255,60,60,0.1);border:1px solid rgba(255,60,60,0.25);color:#f77;border-radius:5px;cursor:pointer;font-size:13px;letter-spacing:1px;text-transform:uppercase;transition:all 0.2s;text-align:center;">✕ Clear All</button>
-    <button id="stop-sound-btn" style="flex:1;padding:9px 10px;background:rgba(255,60,60,0.1);border:1px solid rgba(255,60,60,0.25);color:#f77;border-radius:5px;cursor:pointer;font-size:13px;letter-spacing:1px;text-transform:uppercase;transition:all 0.2s;text-align:center;">🔇 Stop Sound</button>
+    <button class="ui-btn-danger" id="clear-all-btn">✕ Clear All</button>
+    <button class="ui-btn-danger" id="stop-sound-btn">🔇 Stop Sound</button>
   </div>
 
 
@@ -613,7 +671,11 @@
 
   <div class="sidebar-section collapsed">
     <button class="section-head" style="color:rgba(180,220,255,0.95);">◈ Effects <span class="chev">▾</span></button>
-    <div class="section-body">
+    <div class="section-body" id="effects-body">
+    <div class="effect-filter-row">
+      <input type="search" id="effect-filter" placeholder="Search effects…" aria-label="Search effects" autocomplete="off">
+      <label class="effect-filter-toggle"><input type="checkbox" id="show-unported-chk"> Show unavailable</label>
+    </div>
 
     <div class="sub-section collapsed">
     <button class="sub-head">Motion &amp; Particles <span class="chev">▾</span></button>
@@ -775,7 +837,7 @@
         </div>
         <button id="wx-fetch-btn" style="padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;">GO</button>
       </div>
-      <div id="wx-status" style="font-size:13px;color:#778;min-height:16px;">Enter city and press GO</div>
+      <div id="wx-status" style="font-size:13px;color:#9aa3b8;min-height:16px;">Enter city and press GO</div>
       <div id="wx-info" style="margin-top:6px;display:none;">
         <div id="wx-temp-line" style="font-size:15px;color:#cde;font-weight:700;"></div>
         <div id="wx-desc-line" style="font-size:13px;color:#99a;margin-top:2px;"></div>
@@ -808,9 +870,9 @@
           </div>
         </div>
       </div>
-      <div id="moon-city-status" style="font-size:12px;color:#778;min-height:16px;margin-bottom:6px;"></div>
+      <div id="moon-city-status" style="font-size:12px;color:#9aa3b8;min-height:16px;margin-bottom:6px;"></div>
       <div style="margin-top:8px;">
-        <div style="font-size:13px;color:#778;margin-bottom:4px;">Celestial Body</div>
+        <div style="font-size:13px;color:#9aa3b8;margin-bottom:4px;">Celestial Body</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;">
           <label class="check-row"><input type="radio" name="celestial-body" value="moon" checked> Moon</label>
           <label class="check-row"><input type="radio" name="celestial-body" value="mercury"> Mercury</label>
@@ -863,8 +925,8 @@
     </div>
     <button class="effect-btn has-panel" data-effect="neo">◈ Near-Earth Objects <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-neo">
-      <div id="neo-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Not fetched yet</div>
-      <button id="neo-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh Tracking Data</button>
+      <div class="ui-hint" id="neo-status">Not fetched yet</div>
+      <button class="ui-btn-primary" id="neo-fetch-btn">Refresh Tracking Data</button>
       <div id="neo-info" style="display:none;font-size:11px;color:#ccc;line-height:1.5;">
         <div id="neo-closest-line">Closest: —</div>
         <div id="neo-risk-line">Risk level: —</div>
@@ -893,50 +955,50 @@
     </div>
     <button class="effect-btn has-panel" data-effect="apod">◈ Astronomy Pic of the Day <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-apod">
-      <div id="apod-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Not fetched yet</div>
-      <button id="apod-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh</button>
-      <div id="apod-slideshow-info" style="font-size:10px;color:#666;margin-bottom:6px;"></div>
+      <div class="ui-hint" id="apod-status">Not fetched yet</div>
+      <button class="ui-btn-primary" id="apod-fetch-btn">Refresh</button>
+      <div class="ui-note" id="apod-slideshow-info"></div>
       <div id="apod-info" style="display:none;font-size:11px;color:#ccc;line-height:1.5;">
         <div id="apod-title-line">Title: —</div>
         <div id="apod-date-line">Date: —</div>
       </div>
-      <div style="margin-top:8px;font-size:10px;color:#777;">
+      <div style="margin-top:8px;font-size:11px;color:#777;">
         NASA API key (<a href="https://api.nasa.gov/" target="_blank" style="color:#5a9eff;">get free key</a>):
         <div style="display:flex;gap:4px;margin-top:3px;">
-          <input id="nasa-api-key-input" type="text" placeholder="DEMO_KEY" style="flex:1;padding:3px 6px;background:#1a1a2e;border:1px solid #444;color:#ccc;border-radius:3px;font-size:10px;font-family:monospace;">
-          <button id="nasa-api-key-save" style="padding:3px 8px;background:rgba(80,120,255,0.2);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:3px;cursor:pointer;font-size:10px;">Save</button>
+          <input id="nasa-api-key-input" type="text" placeholder="DEMO_KEY" style="flex:1;padding:3px 6px;background:#1a1a2e;border:1px solid #444;color:#ccc;border-radius:3px;font-size:11px;font-family:monospace;">
+          <button id="nasa-api-key-save" style="padding:3px 8px;background:rgba(80,120,255,0.2);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:3px;cursor:pointer;font-size:11px;">Save</button>
         </div>
       </div>
     </div>
     <button class="effect-btn has-panel" data-effect="unsplash">◈ Unsplash Photos <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-unsplash">
-      <div id="unsplash-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Enter API key below to start</div>
+      <div class="ui-hint" id="unsplash-status">Enter API key below to start</div>
       <div style="display:flex;gap:4px;margin-bottom:8px;">
         <input id="unsplash-query" type="text" value="nature" placeholder="search topic…" style="flex:1;padding:5px 7px;background:#1a1a2e;border:1px solid #444;color:#ccc;border-radius:3px;font-size:12px;">
         <button id="unsplash-fetch-btn" style="padding:5px 10px;background:rgba(20,180,100,0.15);border:1px solid rgba(20,180,100,0.4);color:#3ddc84;border-radius:3px;cursor:pointer;font-size:12px;font-weight:700;">Search</button>
       </div>
       <div id="unsplash-info" style="display:none;">
-        <div id="unsplash-photo-info" style="font-size:10px;color:#666;margin-bottom:6px;"></div>
+        <div class="ui-note" id="unsplash-photo-info"></div>
       </div>
-      <div style="margin-top:4px;font-size:10px;color:#777;">
+      <div style="margin-top:4px;font-size:11px;color:#777;">
         Unsplash Access Key (<a href="https://unsplash.com/developers" target="_blank" style="color:#3ddc84;">get free key</a>):
         <div style="display:flex;gap:4px;margin-top:3px;">
-          <input id="unsplash-api-key-input" type="text" placeholder="paste Access Key…" style="flex:1;padding:3px 6px;background:#1a1a2e;border:1px solid #444;color:#ccc;border-radius:3px;font-size:10px;font-family:monospace;">
-          <button id="unsplash-api-key-save" style="padding:3px 8px;background:rgba(20,180,100,0.2);border:1px solid rgba(20,180,100,0.4);color:#3ddc84;border-radius:3px;cursor:pointer;font-size:10px;">Save</button>
+          <input id="unsplash-api-key-input" type="text" placeholder="paste Access Key…" style="flex:1;padding:3px 6px;background:#1a1a2e;border:1px solid #444;color:#ccc;border-radius:3px;font-size:11px;font-family:monospace;">
+          <button id="unsplash-api-key-save" style="padding:3px 8px;background:rgba(20,180,100,0.2);border:1px solid rgba(20,180,100,0.4);color:#3ddc84;border-radius:3px;cursor:pointer;font-size:11px;">Save</button>
         </div>
       </div>
     </div>
     <button class="effect-btn has-panel" data-effect="artic">◈ Art Gallery <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-artic">
-      <div id="artic-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Loading random artworks…</div>
+      <div class="ui-hint" id="artic-status">Loading random artworks…</div>
       <div style="display:flex;gap:4px;margin-bottom:8px;">
         <input id="artic-query" type="text" placeholder="search artist/title (optional)…" style="flex:1;padding:5px 7px;background:#1a1a2e;border:1px solid #444;color:#ccc;border-radius:3px;font-size:12px;">
         <button id="artic-fetch-btn" style="padding:5px 10px;background:rgba(220,180,60,0.15);border:1px solid rgba(220,180,60,0.4);color:#e8c250;border-radius:3px;cursor:pointer;font-size:12px;font-weight:700;">Search</button>
       </div>
       <div id="artic-info" style="display:none;">
-        <div id="artic-work-info" style="font-size:10px;color:#666;margin-bottom:6px;"></div>
+        <div class="ui-note" id="artic-work-info"></div>
       </div>
-      <div style="font-size:10px;color:#666;">Free public-domain collection (Met Museum) — no API key needed.</div>
+      <div style="font-size:11px;color:#9aa3b8;">Free public-domain collection (Met Museum) — no API key needed.</div>
     </div>
     </div>
     </div>
@@ -955,30 +1017,30 @@
     </div>
     <button class="effect-btn has-panel" data-effect="joke">◈ Jokes <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-joke">
-      <div id="joke-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Fetching a joke…</div>
+      <div class="ui-hint" id="joke-status">Fetching a joke…</div>
       <button id="joke-fetch-btn" style="width:100%;padding:6px 12px;background:rgba(220,180,60,0.15);border:1px solid rgba(220,180,60,0.4);color:#e8c250;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">New Joke</button>
     </div>
     <button class="effect-btn has-panel" data-effect="otd">◈ On This Day <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-otd">
-      <div id="otd-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Fetching today in history…</div>
+      <div class="ui-hint" id="otd-status">Fetching today in history…</div>
       <button id="otd-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,160,220,0.15);border:1px solid rgba(80,160,220,0.4);color:#7ad0ff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh</button>
       <div id="otd-info" style="display:none;font-size:11px;color:#ccc;">
         <div id="otd-count-line">— events</div>
       </div>
-      <div style="font-size:10px;color:#666;margin-top:6px;">Wikipedia "On this day" feed — free, no API key needed.</div>
+      <div style="font-size:11px;color:#9aa3b8;margin-top:6px;">Wikipedia "On this day" feed — free, no API key needed.</div>
     </div>
     <button class="effect-btn has-panel" data-effect="trivia">◈ Trivia <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-trivia">
-      <div id="trivia-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Fetching a question…</div>
+      <div class="ui-hint" id="trivia-status">Fetching a question…</div>
       <button id="trivia-fetch-btn" style="width:100%;padding:6px 12px;background:rgba(220,180,60,0.15);border:1px solid rgba(220,180,60,0.4);color:#e8c250;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">New Question</button>
-      <div style="font-size:10px;color:#666;margin-top:6px;">Open Trivia DB — free, no API key needed.</div>
+      <div style="font-size:11px;color:#9aa3b8;margin-top:6px;">Open Trivia DB — free, no API key needed.</div>
     </div>
     </div>
     </div>
     <button class="effect-btn has-panel" data-effect="epic">◈ Earth Live View <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-epic">
-      <div id="epic-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Not fetched yet</div>
-      <button id="epic-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh Earth Image</button>
+      <div class="ui-hint" id="epic-status">Not fetched yet</div>
+      <button class="ui-btn-primary" id="epic-fetch-btn">Refresh Earth Image</button>
       <div id="epic-info" style="display:none;font-size:11px;color:#ccc;line-height:1.5;">
         <div id="epic-date-line">Captured: —</div>
         <div id="epic-coord-line"></div>
@@ -986,8 +1048,8 @@
     </div>
     <button class="effect-btn has-panel" data-effect="iss">◈ ISS Tracker <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-iss">
-      <div id="iss-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Not fetched yet</div>
-      <button id="iss-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh Position</button>
+      <div class="ui-hint" id="iss-status">Not fetched yet</div>
+      <button class="ui-btn-primary" id="iss-fetch-btn">Refresh Position</button>
       <div id="iss-info" style="display:none;font-size:11px;color:#ccc;line-height:1.5;">
         <div id="iss-coord-line">Lat — Lon —</div>
         <div id="iss-time-line">Last fix: —</div>
@@ -1000,7 +1062,7 @@
       <label class="ov-label" style="display:block;margin-bottom:8px">Snapshot URL
         <input id="cam-url" type="text" style="width:100%;margin-top:4px;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:5px 7px;font-size:11px;box-sizing:border-box" placeholder="http://multidisplay.local/api/cam/snap">
       </label>
-      <div style="font-size:10px;color:#666;margin-bottom:8px">
+      <div style="font-size:11px;color:#9aa3b8;margin-bottom:8px">
         Direct: http://CAM-IP/cgi-bin/api.cgi?cmd=Snap&amp;channel=0&amp;user=USER&amp;password=PASS<br>
         Via ESP32: http://multidisplay.local/api/cam/snap
       </div>
@@ -1009,13 +1071,13 @@
         <input id="cam-rate" type="range" min="1" max="15" value="5" style="flex:1">
         <span id="cam-rate-val" style="font-size:11px;color:#aaa;min-width:20px;text-align:right">5</span>
       </div>
-      <div id="cam-status" style="font-size:10px;color:#777;margin-top:4px">Idle</div>
+      <div id="cam-status" style="font-size:11px;color:#777;margin-top:4px">Idle</div>
     </div>
 
     <button class="effect-btn has-panel" data-effect="epic">◈ Earth Live View <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-epic">
-      <div id="epic-status" style="font-size:11px;color:#aaa;margin-bottom:6px;">Not fetched yet</div>
-      <button id="epic-fetch-btn" style="width:100%;padding:6px 12px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;">Refresh Earth Image</button>
+      <div class="ui-hint" id="epic-status">Not fetched yet</div>
+      <button class="ui-btn-primary" id="epic-fetch-btn">Refresh Earth Image</button>
       <div id="epic-info" style="display:none;font-size:11px;color:#ccc;line-height:1.5;">
         <div id="epic-date-line">Captured: —</div>
         <div id="epic-coord-line"></div>
@@ -1047,24 +1109,24 @@
         <span class="ov-label" style="flex:0 0 auto;">Vol</span>
         <input class="radio-vol-el" type="range" min="0" max="1" step="0.05" value="0.8" style="flex:1;">
       </div>
-      <div class="radio-status-el" style="font-size:10px;color:#778;text-align:center;margin-bottom:10px;">Pick a station</div>
+      <div class="radio-status-el" style="font-size:11px;color:#9aa3b8;text-align:center;margin-bottom:10px;">Pick a station</div>
 
       <!-- Debug mode: two synthetic test tones (generated by ffmpeg locally,
            no real stream needed - see radio.js's DEBUG_TONES) for visually
            verifying the spectrum analyser reacts correctly across the whole
            range, without depending on a real station's actual content. -->
       <div style="display:flex;gap:6px;margin-bottom:8px;">
-        <button class="radio-debug-sweep-btn-el" style="flex:1;padding:6px 8px;background:rgba(140,100,255,0.1);border:1px solid rgba(140,100,255,0.3);color:#b89aff;border-radius:4px;cursor:pointer;font-size:11px;">🎚 Sweep Test</button>
-        <button class="radio-debug-drum-btn-el" style="flex:1;padding:6px 8px;background:rgba(140,100,255,0.1);border:1px solid rgba(140,100,255,0.3);color:#b89aff;border-radius:4px;cursor:pointer;font-size:11px;">🥁 Drum Test</button>
+        <button class="radio-debug-sweep-btn-el ui-btn-purple">🎚 Sweep Test</button>
+        <button class="radio-debug-drum-btn-el ui-btn-purple">🥁 Drum Test</button>
       </div>
       <!-- Manual single-frequency debug tone - a real follow-up ("add a
            scroll bar to the sweep test so I can select the freq") for
            dialing to one exact frequency and watching precisely which band
            lights up, instead of only the automatic sweep. -->
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
-        <span class="ov-label" style="flex:0 0 auto;font-size:10px;">Tone</span>
+        <span class="ov-label" style="flex:0 0 auto;font-size:11px;">Tone</span>
         <input class="radio-debug-freq-el" type="range" min="40" max="7000" step="10" value="440" style="flex:1;">
-        <span class="radio-debug-freq-val-el" style="flex:0 0 auto;font-size:10px;color:#b89aff;min-width:52px;text-align:right;">440 Hz</span>
+        <span class="radio-debug-freq-val-el" style="flex:0 0 auto;font-size:11px;color:#b89aff;min-width:52px;text-align:right;">440 Hz</span>
       </div>
 
       <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Directory search (thousands of stations)</div>
@@ -1073,13 +1135,13 @@
         <button class="radio-search-btn-el" style="flex:0 0 auto;padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Search</button>
       </div>
       <button class="radio-browse-top-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.1);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Browse Top 60 Worldwide</button>
-      <div class="radio-search-status-el" style="font-size:10px;color:#778;margin-bottom:6px;"></div>
+      <div class="radio-search-status-el ui-note"></div>
       <div class="radio-search-results-el" style="max-height:260px;overflow-y:auto;margin-bottom:10px;"></div>
 
       <div style="font-size:11px;font-weight:700;color:#e8c250;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Featured</div>
       <div class="radio-station-list-el" style="margin-bottom:8px;"></div>
 
-      <div style="font-size:10px;color:#666;margin-top:4px;">Directory: <a href="https://www.radio-browser.info" target="_blank" rel="noopener" style="color:#7ad">radio-browser.info</a> — free, community-run, no API key needed. Visual style/colour theme reuse the Spectrum Analyser controls above. Bluetooth speaker output is configured under the "Setup" section near the bottom of the sidebar.</div>
+      <div style="font-size:11px;color:#9aa3b8;margin-top:4px;">Directory: <a href="https://www.radio-browser.info" target="_blank" rel="noopener" style="color:#7ad">radio-browser.info</a> — free, community-run, no API key needed. Visual style/colour theme reuse the Spectrum Analyser controls above. Bluetooth speaker output is configured under the "Setup" section near the bottom of the sidebar.</div>
 
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
         <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="ov-chk" data-ov="spectrum">Spectrum Analyser</label>
@@ -1147,13 +1209,13 @@
     <button class="effect-btn has-panel" data-effect="video">◈ Video Display <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-video">
       <div style="font-size:11px;color:#99a;line-height:1.5;margin-bottom:8px;">Maps video/image to the 4 side panels. YouTube: open in another tab then use Screen Capture.</div>
-      <div id="vid-status" style="font-size:10px;color:#778;margin-bottom:6px;text-align:center;">No source loaded</div>
+      <div id="vid-status" style="font-size:11px;color:#9aa3b8;margin-bottom:6px;text-align:center;">No source loaded</div>
       <div style="display:flex;gap:5px;margin-bottom:8px;">
-        <button id="vid-file-btn" style="flex:1;padding:5px 3px;font-size:10px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;">📁 Video</button>
-        <button id="img-file-btn" style="flex:1;padding:5px 3px;font-size:10px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;">🖼 Image</button>
-        <button id="vid-screen-btn" style="flex:1;padding:5px 3px;font-size:10px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;">🖥 Screen</button>
-        <button id="vid-cam-btn" style="flex:1;padding:5px 3px;font-size:10px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;">📷 Cam</button>
-        <button id="vid-stop-btn" style="flex:1;padding:5px 3px;font-size:10px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.25);color:#f88;border-radius:4px;cursor:pointer;">■ Stop</button>
+        <button class="ui-btn-small" id="vid-file-btn">📁 Video</button>
+        <button class="ui-btn-small" id="img-file-btn">🖼 Image</button>
+        <button class="ui-btn-small" id="vid-screen-btn">🖥 Screen</button>
+        <button class="ui-btn-small" id="vid-cam-btn">📷 Cam</button>
+        <button id="vid-stop-btn" style="flex:1;padding:5px 3px;font-size:11px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.25);color:#f88;border-radius:4px;cursor:pointer;">■ Stop</button>
       </div>
       <input type="file" id="vid-file-input" accept="video/*" style="display:none;">
       <input type="file" id="img-file-input" accept="image/*" style="display:none;">
@@ -1189,20 +1251,20 @@
     <div class="sub-section collapsed">
       <button class="sub-head sub-head-boxed">◈ Bluetooth <span class="panel-arrow">▸</span></button>
       <div class="sub-body">
-        <div style="font-size:10px;color:#666;margin-bottom:8px;">Accept an incoming Bluetooth audio connection from a phone so it can play through the cube. Handled directly by this app via <code>bluetoothctl</code>/PulseAudio on the Raspberry Pi (see <code>src/bluetooth.js</code>) — no separate service to run. Not available on your laptop or GitHub Pages.</div>
+        <div class="ui-note-spaced">Accept an incoming Bluetooth audio connection from a phone so it can play through the cube. Handled directly by this app via <code>bluetoothctl</code>/PulseAudio on the Raspberry Pi (see <code>src/bluetooth.js</code>) — no separate service to run. Not available on your laptop or GitHub Pages.</div>
         <button class="bt-discoverable-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Accept Bluetooth Audio Connection</button>
-        <div class="bt-phone-status-el" style="font-size:10px;color:#778;">Not set up yet</div>
+        <div class="bt-phone-status-el" style="font-size:11px;color:#9aa3b8;">Not set up yet</div>
       </div>
     </div>
 
     <div class="sub-section collapsed">
       <button class="sub-head sub-head-boxed">◈ Microphone <span class="panel-arrow">▸</span></button>
       <div class="sub-body">
-        <div style="font-size:10px;color:#666;margin-bottom:8px;">Pick which microphone feeds the Spectrum Analyser overlay — the cube's own mic, or a phone's mic over Bluetooth (same connection as the Bluetooth section above). Only one can be active at a time.</div>
+        <div class="ui-note-spaced">Pick which microphone feeds the Spectrum Analyser overlay — the cube's own mic, or a phone's mic over Bluetooth (same connection as the Bluetooth section above). Only one can be active at a time.</div>
         <button class="mic-btn-el" style="width:100%;padding:6px;margin-bottom:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">🎤 START MIC</button>
-        <div class="mic-status-el" style="font-size:10px;color:#778;margin-bottom:6px;text-align:center;"></div>
+        <div class="mic-status-el" style="font-size:11px;color:#9aa3b8;margin-bottom:6px;text-align:center;"></div>
         <button class="phone-audio-btn-el" style="width:100%;padding:6px;margin-bottom:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">📱 Use Phone (Bluetooth)</button>
-        <div class="phone-audio-status-el" style="font-size:10px;color:#778;text-align:center;"></div>
+        <div class="phone-audio-status-el" style="font-size:11px;color:#9aa3b8;text-align:center;"></div>
       </div>
     </div>
 
@@ -1258,20 +1320,20 @@
       </div>
       <div class="ov-row-label" style="margin-top:8px;">Auto Rotation Games</div>
       <div id="retro-auto-checks" style="display:flex;flex-wrap:wrap;gap:2px 8px;font-size:11px;">
-        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="0" checked> Jet Pac</label>
-        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="1" checked> Manic Miner</label>
-        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="2" checked> OutRun</label>
-        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="3" checked> Invaders</label>
-        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="4" checked> JSW</label>
-        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="5" checked> Deathchase</label>
-        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="6" checked> R-Type</label>
-        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="7" checked> Wolf 3D</label>
-        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="8" checked> Quake 2</label>
-        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="9"> Sam Fox</label>
-        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="10" checked> Tamagotchi</label>
-        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="11" checked> Atic Atac</label>
-        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="12" checked> Donkey Kong</label>
-        <label style="display:flex;align-items:center;gap:3px;color:#aac;cursor:pointer;"><input type="checkbox" class="retro-auto-chk" data-idx="13" checked> Pac-Man</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="0" checked> Jet Pac</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="1" checked> Manic Miner</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="2" checked> OutRun</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="3" checked> Invaders</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="4" checked> JSW</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="5" checked> Deathchase</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="6" checked> R-Type</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="7" checked> Wolf 3D</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="8" checked> Quake 2</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="9"> Sam Fox</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="10" checked> Tamagotchi</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="11" checked> Atic Atac</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="12" checked> Donkey Kong</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="13" checked> Pac-Man</label>
       </div>
       <div class="ov-row-label" style="margin-top:8px;">Rotate: <span id="retro-rotate-val">8</span>s</div>
       <input type="range" id="retro-rotate-slider" min="3" max="120" value="8" style="width:100%;cursor:pointer;">
@@ -1323,7 +1385,7 @@
   <div class="sidebar-section collapsed" data-section="overlays">
     <button class="section-head" style="color:rgba(180,220,255,0.95);">◈ Overlays <span class="chev">▾</span></button>
     <div class="section-body">
-      <div style="font-size:9px;color:#556;margin-bottom:10px;line-height:1.5;">Layer effects over any mode. Multiple active at once.</div>
+      <div style="font-size:11px;color:#556;margin-bottom:10px;line-height:1.5;">Layer effects over any mode. Multiple active at once.</div>
 
       <!-- Overlay-only dimmer (#ov-global-bright, sends
            {cmd:'setOverlayGlobalBright'}) - only scales the DELTA these
@@ -1335,9 +1397,9 @@
            brightness") traced to exactly that mix-up: with no overlay
            on, this control has nothing to dim and looks completely dead. -->
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:rgba(80,120,255,0.07);border:1px solid rgba(80,120,255,0.18);border-radius:6px;">
-        <span style="font-size:10px;letter-spacing:1px;color:#7aadff;flex-shrink:0;">OVERLAY DIM</span>
+        <span style="font-size:11px;letter-spacing:1px;color:#7aadff;flex-shrink:0;">OVERLAY DIM</span>
         <input type="range" id="ov-global-bright" min="0.05" max="1" step="0.05" value="1" style="flex:1;">
-        <span id="ov-global-bright-val" style="font-size:10px;color:#aac;width:30px;text-align:right;">100%</span>
+        <span id="ov-global-bright-val" style="font-size:11px;color:#aac;width:30px;text-align:right;">100%</span>
       </div>
 
     <div class="ov-item" id="ovi-stars">
@@ -1459,17 +1521,17 @@
     <div class="ov-item" id="ovi-radio">
       <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="radio"><span class="ov-slider"></span></span><span class="ov-name">📻 Internet Radio (audio only)</span></label>
       <div class="ov-body">
-        <div style="font-size:10px;color:#666;margin-bottom:8px;">Plays as background audio underneath any effect — no visual change on the cube. Turning this off stops playback. Same station list/controls as the Internet Radio effect panel; both stay in sync.</div>
+        <div class="ui-note-spaced">Plays as background audio underneath any effect — no visual change on the cube. Turning this off stops playback. Same station list/controls as the Internet Radio effect panel; both stay in sync.</div>
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
           <button class="radio-stop-btn-el" style="flex:0 0 auto;padding:6px 12px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.25);color:#f88;border-radius:4px;cursor:pointer;font-size:11px;">■ Stop</button>
           <span class="ov-label" style="flex:0 0 auto;">Vol</span>
           <input class="radio-vol-el" type="range" min="0" max="1" step="0.05" value="0.8" style="flex:1;">
         </div>
-        <div class="radio-status-el" style="font-size:10px;color:#778;text-align:center;margin-bottom:10px;">Pick a station</div>
+        <div class="radio-status-el" style="font-size:11px;color:#9aa3b8;text-align:center;margin-bottom:10px;">Pick a station</div>
 
         <div style="display:flex;gap:6px;margin-bottom:10px;">
-          <button class="radio-debug-sweep-btn-el" style="flex:1;padding:6px 8px;background:rgba(140,100,255,0.1);border:1px solid rgba(140,100,255,0.3);color:#b89aff;border-radius:4px;cursor:pointer;font-size:11px;">🎚 Sweep Test</button>
-          <button class="radio-debug-drum-btn-el" style="flex:1;padding:6px 8px;background:rgba(140,100,255,0.1);border:1px solid rgba(140,100,255,0.3);color:#b89aff;border-radius:4px;cursor:pointer;font-size:11px;">🥁 Drum Test</button>
+          <button class="radio-debug-sweep-btn-el ui-btn-purple">🎚 Sweep Test</button>
+          <button class="radio-debug-drum-btn-el ui-btn-purple">🥁 Drum Test</button>
         </div>
 
         <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Directory search (thousands of stations)</div>
@@ -1478,7 +1540,7 @@
           <button class="radio-search-btn-el" style="flex:0 0 auto;padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Search</button>
         </div>
         <button class="radio-browse-top-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.1);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Browse Top 60 Worldwide</button>
-        <div class="radio-search-status-el" style="font-size:10px;color:#778;margin-bottom:6px;"></div>
+        <div class="radio-search-status-el ui-note"></div>
         <div class="radio-search-results-el" style="max-height:260px;overflow-y:auto;margin-bottom:10px;"></div>
 
         <div style="font-size:11px;font-weight:700;color:#e8c250;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Featured</div>
@@ -1489,7 +1551,7 @@
     <div class="ov-item" id="ovi-spectrum">
       <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="spectrum"><span class="ov-slider"></span></span><span class="ov-name">🎚️ Spectrum Analyser</span></label>
       <div class="ov-body">
-        <div style="font-size:10px;color:#666;margin-bottom:8px;">Blends audio-reactive bars on top of whatever effect is currently running, from the mic, a connected phone, or Internet Radio.</div>
+        <div class="ui-note-spaced">Blends audio-reactive bars on top of whatever effect is currently running, from the mic, a connected phone, or Internet Radio.</div>
         <div class="ov-row-label">Bands</div>
         <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
           <button class="spectrum-bands-btn" data-bands="8">8</button>
@@ -1549,9 +1611,9 @@
         </div>
         <div class="ov-row-label" style="margin-top:8px;">Sound Source</div>
         <button class="mic-btn-el" style="margin-top:4px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">🎤 START MIC</button>
-        <div class="mic-status-el" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
+        <div class="mic-status-el" style="font-size:11px;color:#9aa3b8;margin-top:4px;text-align:center;"></div>
         <button class="phone-audio-btn-el" style="margin-top:6px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">📱 Use Phone (Bluetooth)</button>
-        <div class="phone-audio-status-el" style="font-size:10px;color:#778;margin-top:4px;text-align:center;"></div>
+        <div class="phone-audio-status-el" style="font-size:11px;color:#9aa3b8;margin-top:4px;text-align:center;"></div>
       </div>
     </div>
 
@@ -1602,15 +1664,15 @@
     <div class="section-body">
       <div style="font-size:12px;color:#9ab;margin-bottom:10px;line-height:1.5;">Draw custom graphics for each cube face. Save designs by name and load them onto the cube.</div>
       <button id="cg-open-btn" class="util-btn" style="width:100%;margin-bottom:10px;">🎨 DRAW / EDIT FACES</button>
-      <div style="font-size:11px;color:#7aadff;letter-spacing:1px;margin-bottom:5px;font-weight:600;">SAVE DESIGN</div>
+      <div class="ui-label-accent">SAVE DESIGN</div>
       <div style="display:flex;gap:5px;margin-bottom:10px;">
-        <input id="cg-name-input" type="text" placeholder="Design name…" maxlength="40"
-          style="flex:1;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;border-radius:4px;">
+        <input class="ui-input" id="cg-name-input" type="text" placeholder="Design name…" maxlength="40"
+         >
         <button id="cg-save-named-btn" style="padding:6px 10px;font-size:12px;background:rgba(60,220,120,0.1);border:1px solid rgba(60,220,120,0.3);color:#6e8;border-radius:5px;cursor:pointer;font-weight:700;">💾</button>
       </div>
-      <div style="font-size:11px;color:#7aadff;letter-spacing:1px;margin-bottom:5px;font-weight:600;">LOAD DESIGN</div>
+      <div class="ui-label-accent">LOAD DESIGN</div>
       <div style="display:flex;gap:5px;margin-bottom:6px;">
-        <select id="cg-load-select" style="flex:1;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;border-radius:4px;">
+        <select class="ui-input" id="cg-load-select">
           <option value="">— choose design —</option>
         </select>
         <button id="cg-apply-btn" style="padding:6px 10px;font-size:12px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:5px;cursor:pointer;font-weight:700;">↓</button>
@@ -1626,15 +1688,15 @@
       <div style="display:flex;gap:6px;margin-bottom:10px;">
         <button id="pe-clear-btn" style="flex:1;padding:7px 6px;font-size:12px;letter-spacing:.5px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.2);color:#f88;border-radius:5px;cursor:pointer;font-weight:700;">✕ CLEAR ALL FACES</button>
       </div>
-      <div style="font-size:11px;color:#7aadff;letter-spacing:1px;margin-bottom:5px;font-weight:600;">SAVE CUBE</div>
+      <div class="ui-label-accent">SAVE CUBE</div>
       <div style="display:flex;gap:5px;margin-bottom:10px;">
-        <input id="pe-name-input" type="text" placeholder="Cube name…" maxlength="40"
-          style="flex:1;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;border-radius:4px;">
+        <input class="ui-input" id="pe-name-input" type="text" placeholder="Cube name…" maxlength="40"
+         >
         <button id="pe-save-btn" style="padding:6px 10px;font-size:12px;background:rgba(60,220,120,0.1);border:1px solid rgba(60,220,120,0.3);color:#6e8;border-radius:5px;cursor:pointer;font-weight:700;">💾</button>
       </div>
-      <div style="font-size:11px;color:#7aadff;letter-spacing:1px;margin-bottom:5px;font-weight:600;">LOAD CUBE</div>
+      <div class="ui-label-accent">LOAD CUBE</div>
       <div style="display:flex;gap:5px;margin-bottom:12px;">
-        <select id="pe-load-select" style="flex:1;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;border-radius:4px;">
+        <select class="ui-input" id="pe-load-select">
           <option value="">— choose saved cube —</option>
         </select>
         <button id="pe-load-btn" style="padding:6px 10px;font-size:12px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:5px;cursor:pointer;font-weight:700;">↓</button>
@@ -1676,9 +1738,9 @@
   <div class="sidebar-section collapsed">
     <button class="section-head">◈ Firmware Update <span class="chev">▾</span></button>
     <div class="section-body">
-      <div style="font-size:11px;color:#778;margin-bottom:8px;line-height:1.4;">Upload this page to ESP32 via OTA. Enter the ESP32 IP address below.</div>
+      <div style="font-size:11px;color:#9aa3b8;margin-bottom:8px;line-height:1.4;">Upload this page to ESP32 via OTA. Enter the ESP32 IP address below.</div>
       <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">
-        <span style="font-size:11px;color:#778;letter-spacing:1px;white-space:nowrap;">IP</span>
+        <span style="font-size:11px;color:#9aa3b8;letter-spacing:1px;white-space:nowrap;">IP</span>
         <input type="text" id="esp32-ip" placeholder="192.168.x.x" value="192.168.4.1"
           style="flex:1;padding:6px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(80,120,255,0.3);color:#bbd;border-radius:5px;font-size:12px;">
       </div>
@@ -1686,7 +1748,7 @@
         style="width:100%;padding:7px;background:rgba(80,120,255,0.18);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:1px;">
         ↑ UPLOAD FIRMWARE
       </button>
-      <div id="esp32-status" style="font-size:11px;color:#778;margin-top:6px;text-align:center;line-height:1.4;"></div>
+      <div id="esp32-status" style="font-size:11px;color:#9aa3b8;margin-top:6px;text-align:center;line-height:1.4;"></div>
     </div>
   </div>
   <div class="sidebar-section collapsed">
@@ -1704,21 +1766,21 @@
            separate elements now: this one only ever shows
            btStatusResult, the scan list below only ever shows
            btScanResult - neither can clobber the other. -->
-      <div style="font-size:10px;color:#9ab;margin-bottom:4px;">Paired devices</div>
-      <div class="bt-paired-status-el" style="font-size:10px;color:#778;margin-bottom:4px;">Not checked yet</div>
+      <div style="font-size:11px;color:#9ab;margin-bottom:4px;">Paired devices</div>
+      <div class="bt-paired-status-el" style="font-size:11px;color:#9aa3b8;margin-bottom:4px;">Not checked yet</div>
       <div class="bt-paired-list-el" style="max-height:120px;overflow-y:auto;margin-bottom:10px;"></div>
       <div style="display:flex;gap:6px;margin-bottom:6px;">
         <button class="bt-scan-btn-el" style="flex:1;padding:6px 10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Scan for Speakers</button>
         <button class="bt-refresh-btn-el" style="flex:0 0 auto;padding:6px 10px;background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.4);color:#ccc;border-radius:4px;cursor:pointer;font-size:11px;">↻</button>
       </div>
-      <div class="bt-status-el" style="font-size:10px;color:#778;margin-bottom:6px;">Not checked yet</div>
+      <div class="bt-status-el ui-note">Not checked yet</div>
       <div class="bt-device-list-el" style="max-height:180px;overflow-y:auto;margin-bottom:14px;"></div>
 
       <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">📱 Phone Audio Input (Pi only)</div>
-      <div style="font-size:10px;color:#666;margin-bottom:8px;">Play a phone's music through the cube's Spectrum Analyser <i>and</i> the Bluetooth speaker above, at the same time. Pair the speaker first, then: make the Pi discoverable → connect from the phone's Bluetooth settings → start playing music → route the audio. See <code>pi/README.md</code> for the full walkthrough.</div>
+      <div class="ui-note-spaced">Play a phone's music through the cube's Spectrum Analyser <i>and</i> the Bluetooth speaker above, at the same time. Pair the speaker first, then: make the Pi discoverable → connect from the phone's Bluetooth settings → start playing music → route the audio. See <code>pi/README.md</code> for the full walkthrough.</div>
       <button class="bt-discoverable-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Make Cube Discoverable (pair phone)</button>
       <button class="bt-route-phone-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Route Phone Audio to Speaker</button>
-      <div class="bt-phone-status-el" style="font-size:10px;color:#778;">Not set up yet</div>
+      <div class="bt-phone-status-el" style="font-size:11px;color:#9aa3b8;">Not set up yet</div>
     </div>
   </div>
 
@@ -1745,22 +1807,22 @@
   <div style="max-width:380px;margin:0 auto;background:#07251f;border:1px solid rgba(80,120,255,0.4);border-radius:10px;padding:18px;">
     <div style="font-size:16px;color:#7aadff;font-weight:700;letter-spacing:1px;margin-bottom:16px;" id="alarm-modal-title">TIMER EDITOR</div>
 
-    <label style="font-size:13px;color:#99b;letter-spacing:1px;font-weight:600;">NAME</label>
+    <label class="ui-subhead-lg">NAME</label>
     <input id="al-name" type="text" value="Morning Timer" style="width:100%;margin:5px 0 12px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:14px;border-radius:5px;box-sizing:border-box;">
 
     <div style="display:flex;gap:8px;margin-bottom:12px;align-items:flex-end;">
       <div style="flex:1;">
-        <label style="font-size:13px;color:#99b;letter-spacing:1px;font-weight:600;">HOUR</label>
+        <label class="ui-subhead-lg">HOUR</label>
         <input id="al-hour" type="number" min="0" max="23" value="7" style="width:100%;margin-top:5px;padding:8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:24px;font-weight:700;border-radius:5px;text-align:center;">
       </div>
       <div style="font-size:26px;color:#7aadff;padding-bottom:8px;">:</div>
       <div style="flex:1;">
-        <label style="font-size:13px;color:#99b;letter-spacing:1px;font-weight:600;">MINUTE</label>
+        <label class="ui-subhead-lg">MINUTE</label>
         <input id="al-min" type="number" min="0" max="59" value="30" style="width:100%;margin-top:5px;padding:8px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:24px;font-weight:700;border-radius:5px;text-align:center;">
       </div>
     </div>
 
-    <label style="font-size:13px;color:#99b;letter-spacing:1px;font-weight:600;">REPEAT</label>
+    <label class="ui-subhead-lg">REPEAT</label>
     <select id="al-repeat" style="width:100%;margin:5px 0 12px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;">
       <option value="once">Once</option>
       <option value="daily" selected>Daily</option>
@@ -1771,7 +1833,7 @@
     </select>
 
     <div id="al-days-row" style="display:none;margin-bottom:10px;">
-      <label style="font-size:11px;color:#778;letter-spacing:1px;">DAYS</label>
+      <label style="font-size:11px;color:#9aa3b8;letter-spacing:1px;">DAYS</label>
       <div style="display:flex;gap:4px;margin-top:4px;">
         <button class="al-day-btn" data-d="0">Su</button>
         <button class="al-day-btn" data-d="1">Mo</button>
@@ -1795,21 +1857,21 @@
       <input type="hidden" id="al-alarm-on" value="1">
       <div id="al-alarm-opts" style="display:none;">
 
-      <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">TRIGGER</label>
+      <label class="ui-subhead">TRIGGER</label>
       <div style="display:flex;gap:6px;margin:4px 0 10px;">
         <button id="al-type-effect" class="al-type-btn active" style="flex:1;padding:8px;background:rgba(80,120,255,0.2);border:1px solid rgba(80,120,255,0.5);color:#7aadff;border-radius:4px;cursor:pointer;font-size:13px;font-weight:700;">⚡ EFFECT</button>
-        <button id="al-type-playlist" class="al-type-btn" style="flex:1;padding:8px;background:rgba(30,40,80,0.4);border:1px solid rgba(80,120,255,0.2);color:#668;border-radius:4px;cursor:not-allowed;font-size:13px;font-weight:700;opacity:0.4;" disabled title="Playlists aren't ported to pi-native - see app.js's module comment.">▶ PLAYLIST</button>
+        <button id="al-type-playlist" class="al-type-btn" style="flex:1;padding:8px;background:rgba(30,40,80,0.4);border:1px solid rgba(80,120,255,0.2);color:#9aa3b8;border-radius:4px;cursor:not-allowed;font-size:13px;font-weight:700;opacity:0.4;" disabled title="Playlists aren't ported to pi-native - see app.js's module comment.">▶ PLAYLIST</button>
       </div>
 
       <div id="al-effect-row">
-        <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">EFFECT</label>
+        <label class="ui-subhead">EFFECT</label>
         <select id="al-effect" style="width:100%;margin:5px 0 8px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;"></select>
-        <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">OVERLAYS</label>
+        <label class="ui-subhead">OVERLAYS</label>
         <div id="al-overlays" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:4px 0 8px;"></div>
       </div>
 
       <div id="al-playlist-row" style="display:none;">
-        <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">PLAYLIST</label>
+        <label class="ui-subhead">PLAYLIST</label>
         <select id="al-playlist" disabled style="width:100%;margin:5px 0 8px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;"><option value="">— none —</option></select>
       </div>
 
@@ -1829,7 +1891,7 @@
             <input type="range" id="al-dim-start" min="1" max="30" value="5" style="flex:1;">
             <span id="al-dim-val" style="font-size:12px;color:#9cd;width:28px;font-weight:600;">5%</span>
           </div>
-          <div style="font-size:10px;color:#556;line-height:1.4;margin-bottom:8px;">Gradually brightens from dim to full at the set time.</div>
+          <div style="font-size:11px;color:#556;line-height:1.4;margin-bottom:8px;">Gradually brightens from dim to full at the set time.</div>
           <!-- Giant Sun toggle -->
           <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;">
             <span class="ov-toggle" style="margin-left:0;"><input type="checkbox" id="al-giant-sun-chk"><span class="ov-slider"></span></span>
@@ -1848,7 +1910,7 @@
       </div>
       <input type="hidden" id="al-wind-down" value="0">
       <div id="al-wd-opts" style="display:none;padding:8px;background:rgba(0,0,0,0.25);border-radius:6px;border:1px solid rgba(80,120,255,0.12);">
-        <div style="font-size:10px;color:#556;line-height:1.4;margin-bottom:8px;">Dims from full brightness to off over the set duration. Displays blank when done. Starts at the set time.</div>
+        <div style="font-size:11px;color:#556;line-height:1.4;margin-bottom:8px;">Dims from full brightness to off over the set duration. Displays blank when done. Starts at the set time.</div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
           <span style="font-size:12px;color:#99b;flex:0 0 120px;">Duration (mins)</span>
           <input id="al-wd-mins" type="number" min="1" max="120" value="15" style="flex:1;padding:4px 6px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#ccd;font-size:12px;border-radius:3px;text-align:center;">
@@ -1857,9 +1919,9 @@
           <span class="ov-toggle" style="margin-left:0;"><input type="checkbox" id="al-wd-use-effect"><span class="ov-slider"></span></span> <span style="font-size:12px;color:#99b;">Use current effect while dimming</span>
         </label>
         <div id="al-wd-effect-section">
-          <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">EFFECT</label>
+          <label class="ui-subhead">EFFECT</label>
           <select id="al-wd-effect" style="width:100%;margin:5px 0 8px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;"></select>
-          <label style="font-size:12px;color:#99b;letter-spacing:1px;font-weight:600;">OVERLAYS</label>
+          <label class="ui-subhead">OVERLAYS</label>
           <div id="al-wd-overlays" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:4px 0 8px;"></div>
         </div>
       </div>
@@ -1867,7 +1929,7 @@
 
     <div style="display:flex;gap:8px;margin-top:24px;">
       <button id="al-save-btn" style="flex:1;padding:11px;background:rgba(60,220,120,0.15);border:1px solid rgba(60,220,120,0.35);color:#6e8;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;">💾 SAVE</button>
-      <button id="al-cancel-btn" style="flex:1;padding:11px;background:rgba(80,80,100,0.2);border:1px solid rgba(80,80,100,0.3);color:#778;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;">CANCEL</button>
+      <button id="al-cancel-btn" style="flex:1;padding:11px;background:rgba(80,80,100,0.2);border:1px solid rgba(80,80,100,0.3);color:#9aa3b8;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;">CANCEL</button>
     </div>
   </div>
 </div>
@@ -1884,12 +1946,12 @@
     <div id="wall-layout-save-wrap">
       <button id="wall-layout-save-toggle" title="Save/load a named wall panel arrangement">💾 <span class="wall-layout-icon">▾</span></button>
       <div id="wall-layout-save-dropdown">
-        <div style="font-size:10px;color:#7aadff;letter-spacing:1px;margin-bottom:5px;font-weight:600;">SAVE CURRENT LAYOUT</div>
+        <div class="ui-label-accent">SAVE CURRENT LAYOUT</div>
         <div style="display:flex;gap:5px;margin-bottom:10px;">
           <input id="wall-layout-name-input" type="text" placeholder="Layout name…" maxlength="40">
           <button id="wall-layout-save-btn">💾</button>
         </div>
-        <div style="font-size:10px;color:#7aadff;letter-spacing:1px;margin-bottom:5px;font-weight:600;">SAVED LAYOUTS</div>
+        <div class="ui-label-accent">SAVED LAYOUTS</div>
         <div id="wall-layout-list"></div>
       </div>
     </div>
@@ -1923,6 +1985,6 @@
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.150"></script>
+<script src="app.js?v=0.6.151"></script>
 </body>
 </html>

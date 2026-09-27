@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.150';
+const APP_VERSION = '0.6.151';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -83,6 +83,7 @@ function connect() {
     // calling handleTextMessage() synchronously would run rebuildScene()
     // against a 3D scene/2D canvas context that doesn't exist yet.
     setTimeout(() => handleTextMessage(loop.initialState()), 0);
+    setConnStatus('simulator');
     return;
   }
   // Matches whichever transport the page itself was loaded over - plain
@@ -93,11 +94,19 @@ function connect() {
   // https:// trying to open a plain ws:// connection would be blocked as
   // mixed content anyway, so this isn't optional once HTTPS is in play.
   const wsScheme = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${wsScheme}://${location.hostname}:${location.port || 8081}`);
+  clearTimeout(reconnectTimer);
+  setConnStatus(reconnectAttempts ? 'reconnecting' : 'connecting');
+  const sock = new WebSocket(`${wsScheme}://${location.hostname}:${location.port || 8081}`);
+  ws = sock;
   ws.binaryType = 'arraybuffer';
   ws.onmessage = (ev) => {
-    if (typeof ev.data === 'string') handleTextMessage(JSON.parse(ev.data));
-    else handleFrame(ev.data);
+    lastMessageMs = Date.now();
+    if (typeof ev.data !== 'string') { handleFrame(ev.data); return; }
+    // One malformed message must not take down the handler for the rest
+    // of the session.
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch (e) { console.warn('[ws] ignoring unparseable message', e); return; }
+    handleTextMessage(msg);
   };
   // A real report: "need it to check asap" - the paired-devices list sat
   // on "Not checked yet" until the first 15s auto-refresh tick, because
@@ -107,18 +116,81 @@ function connect() {
   // its own definition), so that first attempt was just dropped. Checking
   // here instead, right as the connection actually opens, is the earliest
   // point a real request could possibly succeed.
-  ws.onopen = () => send({ cmd: 'btStatus' });
-  ws.onclose = () => setTimeout(connect, 2000);
-  ws.onerror = () => ws.close();
+  ws.onopen = () => {
+    reconnectAttempts = 0;
+    lastMessageMs = Date.now();
+    setConnStatus('connected');
+    // Anything clicked while disconnected is sent now, in order, rather
+    // than silently lost (the btStatus drop described above was exactly
+    // that failure).
+    const queued = pendingSends.splice(0);
+    for (const m of queued) sock.send(m);
+    send({ cmd: 'btStatus' });
+  };
+  // onclose fires after onerror too - a single guarded scheduler means an
+  // error+close pair can't queue two reconnects.
+  ws.onclose = () => { if (ws === sock) scheduleReconnect(); };
+  ws.onerror = () => sock.close();
 }
 
+// Reconnect with exponential backoff (1s, 2s, 4s ... capped at 15s, plus
+// jitter so several open tabs don't reconnect in lockstep after the Pi
+// reboots) instead of hammering every 2s forever.
+let reconnectTimer = null, reconnectAttempts = 0, lastMessageMs = 0;
+function scheduleReconnect() {
+  setConnStatus('reconnecting');
+  clearTimeout(reconnectTimer);
+  const delay = Math.min(15000, 1000 * 2 ** reconnectAttempts) * (0.8 + Math.random() * 0.4);
+  reconnectAttempts++;
+  reconnectTimer = setTimeout(connect, delay);
+}
+
+// Half-open socket detection: the Pi streams preview frames continuously
+// while any client is connected, so total silence for STALE_MS means the
+// connection died without a close (Pi lost WiFi, laptop slept) - force a
+// reconnect instead of sitting on a dead socket indefinitely.
+const STALE_MS = 10000;
+setInterval(() => {
+  if (window.MULTIDISPLAY_SIM || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (document.visibilityState === 'visible' && Date.now() - lastMessageMs > STALE_MS) ws.close();
+}, 3000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') lastMessageMs = Date.now(); // background tabs get throttled; don't misread that as a dead socket
+});
+
+// Messages sent while not connected are queued (bounded) and flushed on
+// reconnect - see ws.onopen.
+const pendingSends = [];
+const MAX_PENDING_SENDS = 50;
 function send(obj) {
   if (window.MULTIDISPLAY_SIM) { window.__simLoopback.send(obj); return; }
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+  const data = JSON.stringify(obj);
+  if (ws && ws.readyState === WebSocket.OPEN) { ws.send(data); return; }
+  if (pendingSends.length >= MAX_PENDING_SENDS) pendingSends.shift();
+  pendingSends.push(data);
 }
 
+// Connection status pill in the header (see #conn-status in index.html) -
+// previously nothing showed the page had lost the Pi, so clicks just
+// silently did nothing. Controls are dimmed while not connected.
+function setConnStatus(status) {
+  const el = document.getElementById('conn-status');
+  document.body.classList.toggle('offline', status !== 'connected' && status !== 'simulator');
+  if (!el) return;
+  el.dataset.status = status;
+  el.textContent = { connected: 'Connected', connecting: 'Connecting…', reconnecting: 'Reconnecting…', simulator: 'Simulator' }[status] || status;
+}
+
+let _lastStateJson = '';
 function handleTextMessage(msg) {
   if (msg.cmd === 'state') {
+    // Every command triggers a state broadcast, and each one re-runs ~40
+    // panel sync functions (several rebuild whole lists). An identical
+    // repeat (common: another client's no-op, a reconnect) changes nothing,
+    // so skip it entirely.
+    const json = JSON.stringify(msg);
+    if (json === _lastStateJson) return;
+    _lastStateJson = json;
     const modeChanged = msg.panelMode !== currentState.panelMode || msg.panelSize !== currentState.panelSize
       || JSON.stringify(msg.panels) !== JSON.stringify(currentState.panels);
     currentState = msg;
@@ -212,6 +284,12 @@ async function loadEffectNames() {
           setEffectOption('video', 'url', '');
         }
         send({ cmd: 'setEffect', effect: key });
+        // Immediate feedback: the 'active' highlight only moves once the
+        // Pi's state echo arrives, which can take a visible moment on a
+        // busy Pi - mark this button pending until then (cleared in
+        // syncEffectButtons()).
+        document.querySelectorAll('.effect-btn.pending').forEach((b) => b.classList.remove('pending'));
+        if (currentState.effect !== key) btn.classList.add('pending');
         if (btn.classList.contains('has-panel')) {
           // Same open/close convention as the original app: clicking an
           // already-open has-panel button just closes its panel; clicking
@@ -237,10 +315,74 @@ async function loadEffectNames() {
   syncEffectButtons();
 }
 
+// Shows the running effect under the page title, so it's visible without
+// scrolling the long effects list to find the highlighted button.
+function updateActiveEffectLabel() {
+  const el = document.getElementById('active-effect-label');
+  if (!el) return;
+  const btn = document.querySelector(`.effect-btn[data-effect="${CSS.escape(currentState.effect || '')}"]`);
+  const name = btn ? btn.textContent.replace(/[◈▸]/g, '').trim() : currentState.effect;
+  el.textContent = currentState.blank ? 'Now: (cleared)' : (name ? 'Now: ' + name : '');
+}
+
+// Effects search box + "Show unavailable" toggle. While a query is typed,
+// every sub-section is shown expanded (only matching buttons visible, empty
+// sub-sections hidden); clearing it restores the normal collapsed layout.
+// Screen readers announced most sliders/selects as just "slider" - they're
+// laid out with a separate text label div rather than a <label>. Give each
+// unlabelled control an aria-label from the nearest preceding label-ish
+// text (its own row label, or the text of the element just before it).
+function labelUnlabelledControls() {
+  document.querySelectorAll('input[type=range], select, input[type=number], input[type=text], input[type=color]').forEach((el) => {
+    if (el.getAttribute('aria-label') || el.labels?.length || el.getAttribute('aria-labelledby')) return;
+    let text = '';
+    for (let n = el.previousElementSibling; n && !text; n = n.previousElementSibling) text = n.textContent.trim();
+    for (let p = el.parentElement; p && !text; p = p.parentElement) {
+      for (let n = p.previousElementSibling; n && !text; n = n.previousElementSibling) text = n.textContent.trim();
+      if (p.classList.contains('effect-panel')) break;
+    }
+    if (text) el.setAttribute('aria-label', text.replace(/\s+/g, ' ').slice(0, 60));
+  });
+}
+
+function wireEffectFilter() {
+  const body = document.getElementById('effects-body');
+  const input = document.getElementById('effect-filter');
+  const chk = document.getElementById('show-unported-chk');
+  if (!body || !input) return;
+  const apply = () => {
+    const q = input.value.trim().toLowerCase();
+    body.classList.toggle('filtering', !!q);
+    body.querySelectorAll('.effect-btn[data-effect]').forEach((btn) => {
+      const hit = !q || btn.textContent.toLowerCase().includes(q) || btn.dataset.effect.toLowerCase().includes(q);
+      btn.classList.toggle('filter-hide', !hit);
+    });
+    body.querySelectorAll('.sub-section').forEach((sec) => {
+      const any = [...sec.querySelectorAll('.effect-btn[data-effect]')].some((b) => !b.classList.contains('filter-hide')
+        && !(document.body.classList.contains('hide-unported') && b.classList.contains('not-ported')));
+      sec.classList.toggle('filter-empty', !!q && !any);
+    });
+  };
+  input.addEventListener('input', apply);
+  if (chk) {
+    let show = false;
+    try { show = localStorage.getItem('showUnported') === '1'; } catch (e) { /* storage unavailable */ }
+    chk.checked = show;
+    document.body.classList.toggle('hide-unported', !show);
+    chk.addEventListener('change', () => {
+      document.body.classList.toggle('hide-unported', !chk.checked);
+      try { localStorage.setItem('showUnported', chk.checked ? '1' : '0'); } catch (e) { /* storage unavailable */ }
+      apply();
+    });
+  }
+}
+
 function syncEffectButtons() {
   document.querySelectorAll('.effect-btn[data-effect]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.effect === currentState.effect);
+    if (btn.dataset.effect === currentState.effect) btn.classList.remove('pending');
   });
+  updateActiveEffectLabel();
 }
 
 function setEffectOption(effect, key, value) {
@@ -1044,7 +1186,7 @@ function buildFaceSubOptionRow(f, spec, opts) {
   }
 
   const lbl = document.createElement('span');
-  lbl.style.cssText = 'font-size:11px;color:#778;flex:0 0 72px;';
+  lbl.style.cssText = 'font-size:11px;color:#9aa3b8;flex:0 0 72px;';
   lbl.textContent = spec.label;
   row.appendChild(lbl);
 
@@ -1070,7 +1212,7 @@ function buildFaceSubOptionRow(f, spec, opts) {
     const s = document.createElement('input'); s.type = 'range';
     s.min = spec.min; s.max = spec.max; s.step = spec.step; s.value = currentVal;
     s.style.cssText = 'flex:1;';
-    const vl = document.createElement('span'); vl.style.cssText = 'font-size:10px;color:#9cd;width:34px;';
+    const vl = document.createElement('span'); vl.style.cssText = 'font-size:11px;color:#9cd;width:34px;';
     vl.textContent = spec.fmt(currentVal);
     s.addEventListener('input', () => { vl.textContent = spec.fmt(s.value); });
     s.addEventListener('change', () => commit(parseFloat(s.value)));
@@ -1116,7 +1258,7 @@ function buildFaceCard(f) {
   div.appendChild(subDiv);
 
   const ovLabel = document.createElement('div');
-  ovLabel.style.cssText = 'font-size:11px;color:#778;margin-bottom:6px;';
+  ovLabel.style.cssText = 'font-size:11px;color:#9aa3b8;margin-bottom:6px;';
   ovLabel.textContent = 'Overlays on this face:';
   div.appendChild(ovLabel);
   const ovGrid = document.createElement('div');
@@ -1895,7 +2037,7 @@ function radioStationRow(station, current) {
   const div = document.createElement('div');
   const isCurrent = current && current.url === station.url;
   div.style.cssText = `padding:6px 8px;margin-bottom:4px;border-radius:4px;cursor:pointer;font-size:11px;background:${isCurrent ? 'rgba(80,120,255,0.22)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isCurrent ? 'rgba(80,120,255,0.5)' : 'rgba(255,255,255,0.08)'};`;
-  div.innerHTML = `<div style="color:#dde;font-weight:600;">${isCurrent ? '▶ ' : ''}${escHtml(station.name)}</div>${station.genre ? `<div style="color:#8899bb;font-size:10px;">${escHtml(station.genre)}</div>` : ''}`;
+  div.innerHTML = `<div style="color:#dde;font-weight:600;">${isCurrent ? '▶ ' : ''}${escHtml(station.name)}</div>${station.genre ? `<div style="color:#8899bb;font-size:11px;">${escHtml(station.genre)}</div>` : ''}`;
   div.addEventListener('click', () => {
     send({ cmd: 'radioPlay', station });
     // Fired directly inside this click's own handler (a genuine user
@@ -2501,7 +2643,7 @@ function renderAlarmList() {
   const el = document.getElementById('alarm-list-ui');
   if (!el) return;
   const alarms = currentState.alarms || [];
-  if (!alarms.length) { el.innerHTML = '<div style="font-size:12px;color:#667;text-align:center;padding:10px 0;">No timers set</div>'; return; }
+  if (!alarms.length) { el.innerHTML = '<div style="font-size:12px;color:#9aa3b8;text-align:center;padding:10px 0;">No timers set</div>'; return; }
   el.innerHTML = '';
   alarms.forEach((al) => {
     const h = String(al.hour).padStart(2, '0'), m = String(al.minute).padStart(2, '0');
@@ -2517,7 +2659,7 @@ function renderAlarmList() {
       </span>
       <div style="flex:1;min-width:0;">
         <div style="font-size:16px;color:#dde;font-weight:700;letter-spacing:1px;">${h}:${m} <span style="font-size:11px;color:#8899bb;font-weight:600;">${escHtml(repeatLabel)}</span></div>
-        <div style="font-size:12px;color:#99aabb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(al.name)} <span style="font-size:10px;color:#7aadff;">${typeLabel}</span></div>
+        <div style="font-size:12px;color:#99aabb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(al.name)} <span style="font-size:11px;color:#7aadff;">${typeLabel}</span></div>
       </div>
       <button class="al-edit-btn" style="padding:4px 10px;font-size:11px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;">✏</button>
       <button class="al-del-btn" style="padding:4px 10px;font-size:11px;background:rgba(255,60,60,0.08);border:1px solid rgba(255,60,60,0.2);color:#f88;border-radius:4px;cursor:pointer;">✕</button>`;
@@ -2936,7 +3078,7 @@ function renderBtScanResults(devices, statusEl, listEl) {
     nameSpan.title = d.mac; // MAC dropped from the visible row, kept as a hover tooltip
     const pairBtn = document.createElement('button');
     pairBtn.textContent = 'Pair';
-    pairBtn.style.cssText = 'padding:3px 8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:10px;';
+    pairBtn.style.cssText = 'padding:3px 8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;';
     pairBtn.onclick = () => { if (statusEl) statusEl.textContent = 'Pairing with ' + d.name + '...'; send({ cmd: 'btPair', mac: d.mac }); };
     row.append(pairBtn, nameSpan);
     if (typeof d.rssi === 'number') {
@@ -2945,7 +3087,7 @@ function renderBtScanResults(devices, statusEl, listEl) {
       // next to the Pi typically reads -40 to -60, a device a room or two
       // away -70 to -90+.
       const color = d.rssi >= -60 ? '#6e8' : d.rssi >= -80 ? '#dd6' : '#f88';
-      rssiSpan.style.cssText = `color:${color};font-family:monospace;font-size:10px;min-width:34px;text-align:right;`;
+      rssiSpan.style.cssText = `color:${color};font-family:monospace;font-size:11px;min-width:34px;text-align:right;`;
       rssiSpan.textContent = d.rssi + ' dBm';
       row.appendChild(rssiSpan);
     }
@@ -2976,7 +3118,7 @@ function renderBtPairedList(devices, statusEl, listEl) {
     const outputBtn = document.createElement('button');
     outputBtn.textContent = d.isDefaultOutput ? 'Output ✓' : 'Set as Output';
     outputBtn.disabled = !!d.isDefaultOutput;
-    outputBtn.style.cssText = 'padding:3px 8px;border-radius:4px;cursor:pointer;font-size:10px;' +
+    outputBtn.style.cssText = 'padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;' +
       (d.isDefaultOutput
         ? 'background:rgba(80,220,120,0.15);border:1px solid rgba(80,220,120,0.4);color:#6e8;cursor:default;'
         : 'background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;');
@@ -2988,7 +3130,7 @@ function renderBtPairedList(devices, statusEl, listEl) {
     const forgetBtn = document.createElement('button');
     forgetBtn.textContent = '✕';
     forgetBtn.title = 'Forget this device';
-    forgetBtn.style.cssText = 'padding:3px 7px;border-radius:4px;cursor:pointer;font-size:10px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.2);color:#f88;';
+    forgetBtn.style.cssText = 'padding:3px 7px;border-radius:4px;cursor:pointer;font-size:11px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.2);color:#f88;';
     forgetBtn.onclick = () => { if (statusEl) statusEl.textContent = 'Forgetting ' + d.name + '...'; send({ cmd: 'btForget', mac: d.mac }); };
     row.append(statusDot, nameSpan, outputBtn, forgetBtn);
     listEl.appendChild(row);
@@ -3606,10 +3748,11 @@ function wireCubeDrag() {
   wrap.addEventListener('touchend', end, { passive: true });
 }
 
+let _autoRotateChk;
 function animate() {
   requestAnimationFrame(animate);
   if (currentState.panelMode !== 'cube') return; // 2D and wall modes never touch the WebGL renderer
-  const autoRotate = document.getElementById('auto-rotate-chk');
+  const autoRotate = _autoRotateChk || (_autoRotateChk = document.getElementById('auto-rotate-chk'));
   if (cubeDragging) {
     // rotation already applied directly in the move handler above
   } else if (Math.abs(cubeVelX) > INERTIA_MIN || Math.abs(cubeVelY) > INERTIA_MIN) {
@@ -3629,24 +3772,61 @@ const _frameColor = new THREE.Color();
 // Ported verbatim (math unchanged) from ui.js's renderPanel2d(): round LED
 // dots on black, drawn straight into the 2D canvas - no WebGL involved.
 function drawPanel2dFrame(bytes) {
-  const size = currentState.panelSize;
-  const cell = PANEL2D_OUT / size;
-  const r = cell * 0.44;
-  panel2dCtx.fillStyle = '#000';
-  panel2dCtx.fillRect(0, 0, PANEL2D_OUT, PANEL2D_OUT);
-  for (let v = 0; v < size; v++) {
-    for (let u = 0; u < size; u++) {
-      const o = 1 + (v * size + u) * 3;
-      const fv = size - 1 - v;
-      panel2dCtx.fillStyle = `rgb(${bytes[o]},${bytes[o + 1]},${bytes[o + 2]})`;
-      panel2dCtx.beginPath();
-      panel2dCtx.arc((u + 0.5) * cell, (fv + 0.5) * cell, r, 0, Math.PI * 2);
-      panel2dCtx.fill();
-    }
-  }
+  drawLedGrid(panel2dCtx, bytes, currentState.panelSize, PANEL2D_OUT, true);
   panel2dCtx.strokeStyle = '#99ddff';
   panel2dCtx.lineWidth = 2;
   panel2dCtx.strokeRect(1, 1, PANEL2D_OUT - 2, PANEL2D_OUT - 2);
+}
+
+// Fast round-LED rendering shared by the 2D and wall previews. It used to
+// call arc()+fill() and build an rgb() string for every LED - 4,096 path
+// fills per 64x64 panel per frame (x6 on a wall), the page's main CPU cost
+// on phones. Now: write the pixels into a size x size ImageData, scale it
+// up with smoothing off (one drawImage), then draw a cached mask that is
+// black everywhere except round holes - the same dots-on-black look.
+const _ledGrid = { src: null, img: null, size: 0 };
+const _ledMasks = new Map(); // `${out}x${size}` -> canvas
+function ledMask(out, size) {
+  const key = out + 'x' + size;
+  let m = _ledMasks.get(key);
+  if (m) return m;
+  m = document.createElement('canvas');
+  m.width = m.height = out;
+  const c = m.getContext('2d');
+  const cell = out / size, r = cell * 0.44;
+  c.fillStyle = '#000';
+  c.fillRect(0, 0, out, out);
+  c.globalCompositeOperation = 'destination-out';
+  c.beginPath();
+  for (let v = 0; v < size; v++) {
+    for (let u = 0; u < size; u++) {
+      c.moveTo((u + 0.5) * cell + r, (v + 0.5) * cell);
+      c.arc((u + 0.5) * cell, (v + 0.5) * cell, r, 0, Math.PI * 2);
+    }
+  }
+  c.fill();
+  _ledMasks.set(key, m);
+  return m;
+}
+function drawLedGrid(ctx, bytes, size, out, flipY) {
+  if (_ledGrid.size !== size) {
+    _ledGrid.src = document.createElement('canvas');
+    _ledGrid.src.width = _ledGrid.src.height = size;
+    _ledGrid.img = _ledGrid.src.getContext('2d').createImageData(size, size);
+    _ledGrid.size = size;
+  }
+  const px = _ledGrid.img.data;
+  for (let v = 0; v < size; v++) {
+    const row = flipY ? size - 1 - v : v;
+    for (let u = 0; u < size; u++) {
+      const o = 1 + (v * size + u) * 3, d = (row * size + u) * 4;
+      px[d] = bytes[o]; px[d + 1] = bytes[o + 1]; px[d + 2] = bytes[o + 2]; px[d + 3] = 255;
+    }
+  }
+  _ledGrid.src.getContext('2d').putImageData(_ledGrid.img, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(_ledGrid.src, 0, 0, out, out);
+  ctx.drawImage(ledMask(out, size), 0, 0);
 }
 
 // Same round-dot-on-black technique as drawPanel2dFrame(), one small
@@ -3863,33 +4043,38 @@ function rebuildWallPreview() {
 // this preview-only flip was simply wrong, not a deliberate orientation
 // choice to preserve.
 function drawWallPanelFrame(ctx, bytes) {
-  const size = currentState.panelSize;
-  const out = 256;
-  const cell = out / size;
-  const r = cell * 0.44;
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, out, out);
-  for (let v = 0; v < size; v++) {
-    for (let u = 0; u < size; u++) {
-      const o = 1 + (v * size + u) * 3;
-      ctx.fillStyle = `rgb(${bytes[o]},${bytes[o + 1]},${bytes[o + 2]})`;
-      ctx.beginPath();
-      ctx.arc((u + 0.5) * cell, (v + 0.5) * cell, r, 0, Math.PI * 2);
-      ctx.fill();
+  drawLedGrid(ctx, bytes, currentState.panelSize, 256, false);
+}
+
+// 2D/wall frames are kept (latest per panel) and drawn once per display
+// refresh in animate(), rather than immediately on arrival - a burst of
+// frames no longer means a burst of redraws, and nothing is drawn at all
+// while the tab is hidden (requestAnimationFrame pauses).
+const pendingPanelFrames = new Map();
+function flushPanelFrames() {
+  if (!pendingPanelFrames.size) return;
+  for (const [face, bytes] of pendingPanelFrames) {
+    if (currentState.panelMode === '2d') { if (face === 0) drawPanel2dFrame(bytes); }
+    else if (currentState.panelMode === 'wall') {
+      const ctx = wallPanelCanvases[face]; // "face" byte is a panel index here, not a cube face
+      if (ctx) drawWallPanelFrame(ctx, bytes);
     }
   }
+  pendingPanelFrames.clear();
 }
+
+// Own loop, independent of animate() - that one only starts when WebGL is
+// available, and the 2D/wall previews must keep drawing without it.
+(function panelFrameLoop() {
+  requestAnimationFrame(panelFrameLoop);
+  flushPanelFrames();
+})();
 
 function handleFrame(buf) {
   const bytes = new Uint8Array(buf);
   const face = bytes[0];
-  if (currentState.panelMode === '2d') {
-    if (face === 0) drawPanel2dFrame(bytes);
-    return;
-  }
-  if (currentState.panelMode === 'wall') {
-    const ctx = wallPanelCanvases[face]; // "face" byte is a panel index here, not a cube face
-    if (ctx) drawWallPanelFrame(ctx, bytes);
+  if (currentState.panelMode === '2d' || currentState.panelMode === 'wall') {
+    pendingPanelFrames.set(face, bytes);
     return;
   }
   const entry = faceCanvases[face];
@@ -3957,6 +4142,8 @@ document.addEventListener('DOMContentLoaded', () => {
   wireAlarmModal();
   greyOutUnsupported();
   loadEffectNames();
+  wireEffectFilter();
+  labelUnlabelledControls();
   connect();
   try {
     initScene();

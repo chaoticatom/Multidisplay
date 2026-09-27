@@ -64,8 +64,24 @@ async function stopAccessPoint(runFn = run) {
   await runFn('nmcli', ['connection', 'delete', AP_CON_NAME]).catch(() => {});
 }
 
-async function connectToNetwork(ssid, password, runFn = run) {
+// Validates what the setup page submits before it reaches nmcli. execFile
+// already rules out shell injection, but nmcli itself parses its argument
+// list: an SSID starting with '-' could be read as an option. Key-length
+// rules (WPA vs legacy WEP) are left to nmcli, which reports them itself.
+function validateWifiInput(ssid, password) {
   if (!ssid || typeof ssid !== 'string') throw new Error('ssid is required');
+  if (Buffer.byteLength(ssid, 'utf8') > 32) throw new Error('Network name is too long (max 32 bytes)');
+  if (ssid.startsWith('-')) throw new Error('Network name cannot start with "-"');
+  if (/[\x00-\x1f\x7f]/.test(ssid)) throw new Error('Network name contains control characters');
+  if (password) {
+    if (typeof password !== 'string') throw new Error('Password must be text');
+    if (password.length > 64) throw new Error('WiFi password is too long (max 64 characters)');
+    if (/[\x00-\x1f\x7f]/.test(password)) throw new Error('WiFi password contains control characters');
+  }
+}
+
+async function connectToNetwork(ssid, password, runFn = run) {
+  validateWifiInput(ssid, password);
   const args = password
     ? ['device', 'wifi', 'connect', ssid, 'password', password]
     : ['device', 'wifi', 'connect', ssid];
@@ -205,6 +221,7 @@ async function ensureWifiConnected({ runFn = run, log = console.log } = {}) {
 }
 
 module.exports = {
+  validateWifiInput,
   AP_SSID, AP_PASSWORD, AP_CON_NAME, AP_GATEWAY_IP, PORTAL_PORT,
   isConnected, startAccessPoint, stopAccessPoint, connectToNetwork,
   startPortalServer, ensureWifiConnected,

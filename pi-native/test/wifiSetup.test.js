@@ -79,6 +79,14 @@ async function run() {
   });
 
   console.log('connectToNetwork()');
+  await test('rejects an ssid that nmcli could read as an option', async () => {
+    await assert.rejects(wifiSetup.connectToNetwork('-x', 'secret123', async () => ''), /cannot start/);
+  });
+  await test('rejects control characters and oversized input', async () => {
+    await assert.rejects(wifiSetup.connectToNetwork('home\nnet', 'secret123', async () => ''), /control/);
+    await assert.rejects(wifiSetup.connectToNetwork('a'.repeat(33), 'secret123', async () => ''), /too long/);
+    await assert.rejects(wifiSetup.connectToNetwork('home', 'p'.repeat(65), async () => ''), /too long/);
+  });
   await test('rejects a missing ssid', async () => {
     await assert.rejects(() => wifiSetup.connectToNetwork(undefined, 'pw', makeFakeNmcli()));
   });
