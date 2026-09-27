@@ -47,7 +47,11 @@ app.js (main thread)                         renderWorker.js (RENDER_WORKER=1)
 - **Radio audio split**: the real `RadioAudio` (ffmpeg decode, FFT, `paplay` to the Bluetooth sink) runs on the main thread. The worker's `radio.js` uses a `RemoteAudio` proxy fed a spectrum snapshot with each tick, and it sends `ensure()`/clear requests back with each frame. Running decode on the render thread starved it at 60 Hz. See `src/effects/radio/ffmpegAudio.js`.
 - **Child processes (ffmpeg/paplay)**: `kill()` is asynchronous. Exit, error and stdout handlers must ignore any process that is no longer the current one (`proc !== this.proc`). Otherwise a late exit tears down its successor. Both `radio/ffmpegAudio.js` and `video/ffmpegSource.js` follow this pattern, so copy it for any new spawned pipeline.
 - **`src/drivers/`**: `rgbMatrixDriver.js` (real panels; calibrate `FACE_LAYOUT` for cube wiring) and `mockDriver.js`, behind `driverInterface.js`. Brightness is applied at push time, not baked into `colBuf`.
-- **`src/wsServer.js`**: control commands, state broadcast, preview frame streaming, uploads. It sends `Cache-Control: no-store`, so there's no cache layer to fight.
+- **`src/wsServer.js`**: HTTP/WebSocket listeners, state broadcast, preview frame streaming, uploads. It sends `Cache-Control: no-store`, so there's no cache layer to fight. WebSocket connections and uploads from another site's page are refused (`isSameOrigin`), and messages are capped at 8 MB.
+- **`src/wsCommands.js`**: one handler per WebSocket `cmd`, called with `this` bound to the `WsServer`. Add new commands here. Every incoming command bumps `ws.stateVersion`, which is how `app.js` knows to re-send state to the render worker.
+- **Config saves** go through `src/atomicWrite.js` (`atomicWriteJson`: temp file, fsync, rename). Never `writeFileSync` a config file directly.
+- **Panel output**: `src/drivers/pixel.js` converts floats to bytes with a hue-preserving clip above brightness 1.0. Don't add gamma: rpi-rgb-led-matrix already applies CIE1931 correction.
+- **`src/tick.js`** crossfades between effects over 0.4 s.
 
 ## Writing effects
 
@@ -56,8 +60,11 @@ app.js (main thread)                         renderWorker.js (RENDER_WORKER=1)
 - Faces: 0=Front, 1=Back, 2=Right, 3=Left, 4=Top, 5=Bottom.
 - Effect options arrive in `core.effectOptions[effectKey]`. An optional `fn.getStatus()` is surfaced to the UI via `state.effectStatus`.
 - **Text**: always use `src/effects/text.js`, never a hand-rolled glyph loop. It provides `blitGlyph`, `drawGlyph`/`drawString`/`textWidth`/`drawLinesCentered`/`drawMarquee`, the fonts `FONT_3x5`/`FONT_5x7`/`FONT_5x7_BLANK`/`FONT_MOON`, and the plot targets `facePlot`/`wallPlot`/`faceMaxPlot`/`wallMaxPlot`. Pass whole-pixel coordinates, because fractional ones plot nothing. Cube-face 5x7 text is drawn with `flipY` (see `drawGlyph5x7Face`'s comment for why).
+- **Trails**: fade the buffer with `trailFade(k, dt)` from `src/effects/trail.js`, never a fixed `*= k` per frame. That would make trail length depend on the frame rate.
+- **External APIs**: call `fetchWithTimeout` from `src/effects/net.js`, not bare `fetch`.
+- **Cube/wall pairs**: logic that doesn't depend on the target goes in an `xCommon.js` shared by both (see `datetimeCommon.js`, `random80sCommon.js`).
 - **Shared engines in `src/effects/_shared.js`**: the word-cascade text engine (`WC_FONT`, `wcInit`/`wcStep`/`wcDrawToFace`, `wcTagQA`) used by Jokes/Trivia/On This Day/Date & Time Words, and the gallery slideshow helpers. Reuse them rather than copying.
-- **External APIs**: throttle proactively, back off harder on 403/429, and surface the failing endpoint and status in the effect's status rather than a bare "error".
+- **External API behaviour**: throttle proactively, back off harder on 403/429, and surface the failing endpoint and status in the effect's status rather than a bare "error".
 
 ## Tests
 
