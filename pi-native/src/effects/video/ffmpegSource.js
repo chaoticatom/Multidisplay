@@ -59,7 +59,6 @@ class FfmpegSource {
     this.lastAttemptMs = 0;
     this.lastEnsureMs = 0;
     this.errored = false;
-    this._stoppedIntentionally = false;
     this._generation = 0; // see _launch()'s module comment on the stale-data race this guards against
     this._idleTimer = setInterval(() => this._checkIdle(), IDLE_CHECK_MS);
     if (this._idleTimer.unref) this._idleTimer.unref(); // never keep the process alive on its own
@@ -177,7 +176,7 @@ class FfmpegSource {
     // Some platforms deliver a missing-binary failure as an 'error' event
     // (ENOENT) rather than a thrown exception from spawn() itself - both
     // paths are covered.
-    proc.on('error', (err) => this._onSpawnFail(err));
+    proc.on('error', (err) => this._onSpawnFail(err, proc));
 
     if (proc.stdout) proc.stdout.on('data', (chunk) => { if (myGen === this._generation) this._onData(chunk); });
     if (proc.stderr) {
@@ -187,10 +186,15 @@ class FfmpegSource {
     }
 
     proc.on('exit', (code) => {
-      const wasIntentional = this._stoppedIntentionally;
-      this._stoppedIntentionally = false;
+      // kill() is asynchronous: a replaced process's exit can land after
+      // _launch() has already started its successor. It used to null
+      // this.proc regardless - orphaning the still-running successor and
+      // relaunching yet another one next tick (the same bug radio's
+      // ffmpegAudio.js had, heard there as BT-speaker flicker on station
+      // switch). A process that has been replaced or torn down owns
+      // nothing any more, so its exit is ignored.
+      if (proc !== this.proc) return;
       this.proc = null;
-      if (wasIntentional) return;
       if (code === 0) {
         this.errored = false;
         this.status = 'Playing (looping)';
@@ -202,7 +206,8 @@ class FfmpegSource {
     });
   }
 
-  _onSpawnFail(err) {
+  _onSpawnFail(err, proc) {
+    if (proc && proc !== this.proc) return; // late error from a replaced process
     this.proc = null;
     this.errored = true;
     if (err && err.code === 'ENOENT') {
@@ -248,7 +253,6 @@ class FfmpegSource {
 
   _teardown() {
     if (this.proc) {
-      this._stoppedIntentionally = true;
       try { this.proc.kill('SIGKILL'); } catch (e) { /* already dead */ }
       this.proc = null;
     }

@@ -10557,7 +10557,6 @@ var PiEngine = (() => {
           this.lastAttemptMs = 0;
           this.lastEnsureMs = 0;
           this.errored = false;
-          this._stoppedIntentionally = false;
           this._generation = 0;
           this._idleTimer = setInterval(() => this._checkIdle(), IDLE_CHECK_MS);
           if (this._idleTimer.unref) this._idleTimer.unref();
@@ -10626,7 +10625,7 @@ var PiEngine = (() => {
           this.proc = proc;
           this.status = "Starting\u2026";
           let stderrTail = "";
-          proc.on("error", (err) => this._onSpawnFail(err));
+          proc.on("error", (err) => this._onSpawnFail(err, proc));
           if (proc.stdout) proc.stdout.on("data", (chunk) => {
             if (myGen === this._generation) this._onData(chunk);
           });
@@ -10636,10 +10635,8 @@ var PiEngine = (() => {
             });
           }
           proc.on("exit", (code) => {
-            const wasIntentional = this._stoppedIntentionally;
-            this._stoppedIntentionally = false;
+            if (proc !== this.proc) return;
             this.proc = null;
-            if (wasIntentional) return;
             if (code === 0) {
               this.errored = false;
               this.status = "Playing (looping)";
@@ -10650,7 +10647,8 @@ var PiEngine = (() => {
             }
           });
         }
-        _onSpawnFail(err) {
+        _onSpawnFail(err, proc) {
+          if (proc && proc !== this.proc) return;
           this.proc = null;
           this.errored = true;
           if (err && err.code === "ENOENT") {
@@ -10690,7 +10688,6 @@ var PiEngine = (() => {
         }
         _teardown() {
           if (this.proc) {
-            this._stoppedIntentionally = true;
             try {
               this.proc.kill("SIGKILL");
             } catch (e) {

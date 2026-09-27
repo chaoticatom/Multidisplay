@@ -75,12 +75,25 @@ async function run() {
     assert.strictEqual(source.latestFrame, null, 'expected stop() to have permanently invalidated this process\'s data handler');
   });
 
+  await test('a late "exit" from a replaced process does not orphan or disturb its successor', () => {
+    const procs = [];
+    const source = new FfmpegSource(() => { const p = fakeProc(); procs.push(p); return p; });
+    source.ensure('http://x/old.jpg', 2, 2, 10);
+    source.ensure('http://x/new.jpg', 2, 2, 10);
+    const newProc = procs[1];
+    procs[0].emit('exit', null); // real kill() is async - old exit arrives after the switch
+    assert.strictEqual(source.proc, newProc, 'successor must stay the current process');
+    source.ensure('http://x/new.jpg', 2, 2, 10);
+    assert.strictEqual(procs.length, 2, 'no relaunch caused by the stale exit');
+  });
+
   if (process.exitCode) {
     console.log('\nFAILED');
   } else {
     console.log('\nAll ffmpegSourceStaleData tests passed');
   }
   process.exit(process.exitCode || 0);
+
 }
 
 run();
