@@ -72,9 +72,11 @@ await test('ensure() with no ffmpeg installed surfaces a clear status, never thr
 
 console.log('RadioAudio - ffmpeg present, paplay missing');
 await test('decode succeeds and updates band levels even when playback (paplay) is unavailable', () => {
-  // A 2048-sample stereo s16le frame of a 440Hz-ish tone, just needs to be
-  // non-silent so computeBands() produces non-zero energy somewhere.
-  const frameSamples = 2048;
+  // A stereo s16le tone - just needs to be non-silent so the analyser
+  // produces non-zero energy somewhere.
+  // Half a second: the analyser needs a full (bass) window of audio behind
+  // its play cursor before it produces a spectrum.
+  const frameSamples = 22050;
   const buf = Buffer.alloc(frameSamples * 4);
   for (let i = 0; i < frameSamples; i++) {
     const v = Math.round(Math.sin(i * 0.2) * 20000);
@@ -97,7 +99,7 @@ await test('decode succeeds and updates band levels even when playback (paplay) 
     for (let b = 0; b < BAND_COUNT; b++) assert.ok(Number.isFinite(audio.spec[b]) && Number.isFinite(audio.peak[b]));
     audio.close();
     resolve();
-  }, 30));
+  }, 150));
 });
 
 await test('ensure(falsy url) tears down and resets status - decode can be verified independently of playback', () => {
@@ -188,6 +190,55 @@ await test('fft() on a DC-only signal concentrates energy in bin 0, no throw', (
   const im = new Float32Array(n);
   assert.doesNotThrow(() => fft(re, im));
   assert.ok(Math.abs(re[0]) > Math.abs(re[10]));
+});
+
+const { F_MIN, F_MAX } = require('../src/effects/radio/fft');
+const { softCeil, computeLevels, createLevelState } = require('../src/effects/radio/levels');
+const tone = (f, amp, n = 8192) => { const s = new Float32Array(n); for (let i = 0; i < n; i++) s[i] = amp * Math.sin((2 * Math.PI * f * i) / 44100); return s; };
+const peakBand = (b) => { let mi = 0; for (let i = 1; i < b.length; i++) if (b[i] > b[mi]) mi = i; return mi; };
+const expectedBand = (f) => Math.round((BAND_COUNT * Math.log(f / F_MIN)) / Math.log(F_MAX / F_MIN));
+
+await test('a tone peaks in the log band for its frequency (30Hz-7kHz)', () => {
+  for (const f of [60, 120, 440, 1000, 5000]) {
+    const got = peakBand(computeBands(tone(f, 0.5), 44100));
+    assert.ok(Math.abs(got - expectedBand(f)) <= 3, `${f}Hz peaked at band ${got}, expected ~${expectedBand(f)}`);
+  }
+});
+
+await test('bass stays tight: a pure 60Hz tone lights well under a sixth of the bands', () => {
+  const b = computeBands(tone(60, 1), 44100);
+  const mx = Math.max(...b);
+  const lit = b.filter((v) => v > mx / 2).length;
+  assert.ok(lit < BAND_COUNT / 6, `60Hz lit ${lit} bands`);
+});
+
+await test('dB scale: a quiet tone (-40dB) still registers, silence is zero', () => {
+  assert.ok(Math.max(...computeBands(tone(1000, 0.01), 44100)) > 0.2);
+  assert.strictEqual(Math.max(...computeBands(new Float32Array(8192), 44100)), 0);
+});
+
+await test('softCeil is monotonic, identity below the knee, never reaches 1', () => {
+  assert.strictEqual(softCeil(0.5), 0.5);
+  let prev = 0;
+  for (let x = 0; x <= 5; x += 0.05) { const y = softCeil(x); assert.ok(y >= prev && y < 1); prev = y; }
+});
+
+await test('computeLevels: amp/peak arrays sized to the displayed bands, peak >= amp', () => {
+  const audio = { spec: new Float32Array(BAND_COUNT).fill(0.4), peak: new Float32Array(BAND_COUNT).fill(0.6) };
+  const st = computeLevels(createLevelState(), audio, { bands: 64, gain: 1, autoGain: false, fitToScreen: false }, 1 / 60);
+  assert.strictEqual(st.amp.length, 64);
+  for (let b = 0; b < 64; b++) assert.ok(st.peak[b] >= st.amp[b] && st.amp[b] > 0.39);
+});
+
+await test('ballistics: attack reaches a new level within a few frames, release is gradual', () => {
+  const ra = new RadioAudio(makeFakeSpawn(() => ({})));
+  const target = new Float32Array(BAND_COUNT).fill(0.8);
+  for (let i = 0; i < 4; i++) ra._applySpectrumTarget(target, 1 / 60);
+  assert.ok(ra.spec[10] > 0.75, `attack too slow: ${ra.spec[10]}`);
+  ra._applySpectrumTarget(new Float32Array(BAND_COUNT), 1 / 60);
+  assert.ok(ra.spec[10] > 0.6, 'release should not drop instantly');
+  assert.ok(ra.peak[10] >= ra.spec[10]);
+  ra.close();
 });
 
 console.log('spectrum render styles');

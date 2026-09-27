@@ -11074,7 +11074,10 @@ var PiEngine = (() => {
           const pulse = 0.5 + 0.5 * Math.sin(t * 1.8);
           if (S >= 16) {
             const k = 0.45 + 0.35 * pulse;
-            for (let f = 0; f < 4; f++) drawLinesCentered(FONT_3x5, ["LOAD A", "VIDEO"], S, S, facePlot(core, f, 0.6 * k, 0.3 * k, 0.75 * k), { scale: S >= 64 ? 2 : 1 });
+            for (let f = 0; f < 4; f++) {
+              const p = facePlot(core, f, 0.6 * k, 0.3 * k, 0.75 * k);
+              drawLinesCentered(FONT_3x5, ["LOAD A", "VIDEO"], S, S, (x, y) => p(x, S - 1 - y), { scale: S >= 64 ? 2 : 1 });
+            }
             return;
           }
           for (let f = 0; f < 4; f++) {
@@ -11102,6 +11105,12 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var BAND_COUNT = 256;
+      var WINDOW = 2048;
+      var F_MIN = 30;
+      var F_MAX = 7e3;
+      var DB_FLOOR = -72;
+      var DB_CEIL = -12;
+      var TILT_DB_PER_OCTAVE = 3.5;
       function fft(re, im) {
         const n = re.length;
         for (let i = 1, j = 0; i < n; i++) {
@@ -11120,16 +11129,17 @@ var PiEngine = (() => {
         for (let len = 2; len <= n; len <<= 1) {
           const ang = -2 * Math.PI / len;
           const wr = Math.cos(ang), wi = Math.sin(ang);
+          const halfLen = len >> 1;
           for (let i = 0; i < n; i += len) {
             let curWr = 1, curWi = 0;
-            for (let k = 0; k < len / 2; k++) {
-              const uRe = re[i + k], uIm = im[i + k];
-              const vRe = re[i + k + len / 2] * curWr - im[i + k + len / 2] * curWi;
-              const vIm = re[i + k + len / 2] * curWi + im[i + k + len / 2] * curWr;
-              re[i + k] = uRe + vRe;
-              im[i + k] = uIm + vIm;
-              re[i + k + len / 2] = uRe - vRe;
-              im[i + k + len / 2] = uIm - vIm;
+            for (let k = 0; k < halfLen; k++) {
+              const a = i + k, b = a + halfLen;
+              const vRe = re[b] * curWr - im[b] * curWi;
+              const vIm = re[b] * curWi + im[b] * curWr;
+              re[b] = re[a] - vRe;
+              im[b] = im[a] - vIm;
+              re[a] += vRe;
+              im[a] += vIm;
               const nWr = curWr * wr - curWi * wi;
               curWi = curWr * wi + curWi * wr;
               curWr = nWr;
@@ -11142,46 +11152,86 @@ var PiEngine = (() => {
         while (p < n) p <<= 1;
         return p;
       }
-      function computeBands(samples, sampleRate) {
-        const n = nextPow2(samples.length) * 2;
-        const re = new Float32Array(n);
-        const im = new Float32Array(n);
-        for (let i = 0; i < samples.length; i++) {
-          const w = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (samples.length - 1));
-          re[i] = samples[i] * w;
-        }
-        fft(re, im);
+      function makeStage(sampleRate, win) {
+        const n = nextPow2(win) * 2;
         const half = n >> 1;
-        const mag = new Float32Array(half);
-        let maxMag = 0;
-        for (let i = 0; i < half; i++) {
-          const m = Math.sqrt(re[i] * re[i] + im[i] * im[i]) / n;
-          mag[i] = m;
-          if (m > maxMag) maxMag = m;
+        const re = new Float32Array(n), im = new Float32Array(n);
+        const power = new Float32Array(half);
+        const hann = new Float32Array(win);
+        let hannSum = 0;
+        for (let i = 0; i < win; i++) {
+          hann[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (win - 1));
+          hannSum += hann[i];
         }
-        const bands = new Float32Array(BAND_COUNT);
-        const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(7e3 / (sampleRate / n))));
-        let lo = minBin;
-        for (let b = 0; b < BAND_COUNT; b++) {
-          const frac = (b + 1) / BAND_COUNT;
-          let hi = Math.round(minBin * Math.pow(maxBin / minBin, frac));
-          if (hi <= lo) hi = lo + 1;
-          hi = Math.min(hi, maxBin);
-          let sum = 0, count = 0;
-          for (let k = lo; k <= hi; k++) {
-            sum += mag[k];
-            count++;
+        const refPow = hannSum / 2 * (hannSum / 2);
+        function fill(ring, end) {
+          const mask = ring.length - 1, start = end - win;
+          for (let i = 0; i < win; i++) {
+            re[i] = ring[start + i & mask] * hann[i];
+            im[i] = 0;
           }
-          const raw = count > 0 ? sum / count : 0;
-          const norm = Math.min(1, raw / 0.05);
-          const freqBalance = 0.2 + Math.pow(frac, 1.4) * 1.9;
-          bands[b] = Math.min(1, norm * freqBalance);
-          lo = hi + 1;
-          if (lo > maxBin) lo = maxBin;
+          for (let i = win; i < n; i++) {
+            re[i] = 0;
+            im[i] = 0;
+          }
+          fft(re, im);
+          for (let i = 0; i < half; i++) power[i] = (re[i] * re[i] + im[i] * im[i]) / refPow;
         }
-        return bands;
+        return { win, half, binHz: sampleRate / n, power, fill };
       }
-      module.exports = { fft, computeBands, BAND_COUNT, nextPow2 };
+      var BASS_SPLIT_HZ = 250;
+      function createAnalyser(sampleRate, win = WINDOW) {
+        const short = makeStage(sampleRate, win);
+        const long = makeStage(sampleRate, win * 2);
+        const out = new Float32Array(BAND_COUNT);
+        const bStage = new Array(BAND_COUNT), bLo = new Float32Array(BAND_COUNT), bHi = new Float32Array(BAND_COUNT), bTilt = new Float32Array(BAND_COUNT);
+        const fMax = Math.min(F_MAX, sampleRate / 2 - short.binHz);
+        for (let b = 0; b < BAND_COUNT; b++) {
+          const f0 = F_MIN * Math.pow(fMax / F_MIN, b / BAND_COUNT);
+          const f1 = F_MIN * Math.pow(fMax / F_MIN, (b + 1) / BAND_COUNT);
+          const fc = Math.sqrt(f0 * f1);
+          const st = fc < BASS_SPLIT_HZ ? long : short;
+          bStage[b] = st;
+          bLo[b] = f0 / st.binHz;
+          bHi[b] = f1 / st.binHz;
+          bTilt[b] = TILT_DB_PER_OCTAVE * Math.log2(fc / 1e3);
+        }
+        const dbRange = DB_CEIL - DB_FLOOR;
+        function analyse(ring, end) {
+          short.fill(ring, end);
+          long.fill(ring, end);
+          for (let b = 0; b < BAND_COUNT; b++) {
+            const st = bStage[b], power = st.power, lo = bLo[b], hi = bHi[b];
+            let p;
+            if (hi - lo < 1) {
+              const c = (lo + hi) / 2, k = Math.floor(c), f = c - k;
+              p = power[k] * (1 - f) + power[Math.min(st.half - 1, k + 1)] * f;
+            } else {
+              p = 0;
+              const k1 = Math.min(st.half - 1, Math.ceil(hi));
+              for (let k = Math.floor(lo); k < k1; k++) if (power[k] > p) p = power[k];
+            }
+            const db = p > 1e-12 ? 10 * Math.log10(p) + bTilt[b] : -Infinity;
+            const v = (db - DB_FLOOR) / dbRange;
+            out[b] = v <= 0 ? 0 : v >= 1 ? 1 : v;
+          }
+          return out;
+        }
+        return { analyse, win: long.win, sampleRate };
+      }
+      var _cache = /* @__PURE__ */ new Map();
+      function computeBands(samples, sampleRate) {
+        const key = String(sampleRate);
+        let a = _cache.get(key);
+        if (!a) {
+          a = createAnalyser(sampleRate);
+          _cache.set(key, a);
+        }
+        const ring = new Float32Array(nextPow2(Math.max(a.win, samples.length)));
+        ring.set(samples);
+        return Float32Array.from(a.analyse(ring, samples.length));
+      }
+      module.exports = { fft, computeBands, createAnalyser, BAND_COUNT, WINDOW, nextPow2, F_MIN, F_MAX };
     }
   });
 
@@ -11245,23 +11295,35 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { spawn } = require_child_process();
-      var { computeBands, BAND_COUNT } = require_fft();
+      var { createAnalyser, BAND_COUNT } = require_fft();
       var { findPulseEnv } = require_pulseEnv();
       var RETRY_COOLDOWN_MS = 8e3;
       var IDLE_TIMEOUT_MS = 1e4;
       var IDLE_CHECK_MS = 3e3;
       var SAMPLE_RATE = 44100;
       var CHANNELS = 2;
-      var BYTES_PER_SAMPLE = 2;
-      var FRAME_SAMPLES = 2048;
-      var CHUNK_BYTES = FRAME_SAMPLES * CHANNELS * BYTES_PER_SAMPLE;
+      var ANALYSIS_HZ = 60;
+      var RING_SAMPLES = 1 << 16;
+      var PLAY_LAG_S = 0.12;
+      var STALL_MS = 400;
+      var ATTACK_RATE = 60;
+      var RELEASE_RATE = 7;
+      var PEAK_HOLD_S = 0.35;
+      var PEAK_GRAVITY = 3.2;
       var RadioAudio = class {
         constructor(spawnFn = spawn) {
           this._spawn = spawnFn;
           this.decodeProc = null;
           this.playProc = null;
           this.url = null;
-          this.pending = Buffer2.alloc(0);
+          this._ring = new Float32Array(RING_SAMPLES);
+          this._writePos = 0;
+          this._playPos = 0;
+          this._carry = null;
+          this._lastDataMs = 0;
+          this._analyser = createAnalyser(SAMPLE_RATE);
+          this._zeros = new Float32Array(BAND_COUNT);
+          this._analysisTimer = null;
           this.status = "Stopped";
           this.playbackStatus = "No playback attempted";
           this.lastAttemptMs = 0;
@@ -11271,7 +11333,7 @@ var PiEngine = (() => {
           this.spec = new Float32Array(BAND_COUNT);
           this.peak = new Float32Array(BAND_COUNT);
           this._peakVel = new Float32Array(BAND_COUNT);
-          this._lastChunkMs = 0;
+          this._peakHold = new Float32Array(BAND_COUNT);
           this._idleTimer = setInterval(() => this._checkIdle(), IDLE_CHECK_MS);
           if (this._idleTimer.unref) this._idleTimer.unref();
         }
@@ -11300,8 +11362,11 @@ var PiEngine = (() => {
         }
         _launch(url) {
           this.lastAttemptMs = Date.now();
-          this.pending = Buffer2.alloc(0);
-          this._lastChunkMs = Date.now();
+          this._ring.fill(0);
+          this._writePos = 0;
+          this._playPos = 0;
+          this._carry = null;
+          this._startAnalysisClock();
           this.spec.fill(0);
           this.peak.fill(0);
           this._peakVel.fill(0);
@@ -11385,6 +11450,7 @@ var PiEngine = (() => {
               this.status = "Stopped";
               if (!wasLoop) {
                 this._debugFinished = true;
+                this._stopAnalysisClock();
                 this.spec.fill(0);
                 this.peak.fill(0);
                 this._peakVel.fill(0);
@@ -11468,39 +11534,85 @@ var PiEngine = (() => {
             } catch (e) {
             }
           }
-          this.pending = this.pending.length ? Buffer2.concat([this.pending, chunk]) : Buffer2.from(chunk);
-          while (this.pending.length >= CHUNK_BYTES) {
-            const frame = this.pending.subarray(0, CHUNK_BYTES);
-            this.pending = this.pending.subarray(CHUNK_BYTES);
-            this._processFrame(frame);
+          let buf = chunk;
+          if (this._carry && this._carry.length) {
+            buf = Buffer2.concat([this._carry, chunk]);
+            this._carry = null;
+          }
+          const frames = buf.length / 4 | 0;
+          const ring = this._ring, mask = ring.length - 1;
+          let w = this._writePos;
+          for (let i = 0; i < frames; i++) {
+            ring[w & mask] = (buf.readInt16LE(i * 4) + buf.readInt16LE(i * 4 + 2)) / 65536;
+            w++;
+          }
+          this._writePos = w;
+          if (buf.length > frames * 4) this._carry = Buffer2.from(buf.subarray(frames * 4));
+          if (frames > 0) {
+            this._lastDataMs = performance.now();
             if (this.status === "Connecting\u2026") this.status = "Playing";
           }
         }
-        _processFrame(frameBuf) {
-          const now = Date.now();
-          const dt = Math.max(5e-3, Math.min(0.5, (now - this._lastChunkMs) / 1e3));
-          this._lastChunkMs = now;
-          const samples = new Float32Array(FRAME_SAMPLES);
-          for (let i = 0; i < FRAME_SAMPLES; i++) {
-            const l = frameBuf.readInt16LE(i * 4);
-            const r = frameBuf.readInt16LE(i * 4 + 2);
-            samples[i] = (l + r) / 2 / 32768;
+        // Clock-driven analysis (redone for smoothness). Previously each
+        // 2048-sample block was analysed the moment it arrived: only ~21 updates
+        // a second (bars moved in visible steps at a 60Hz render), and at the
+        // mercy of network bursts - a burst of blocks arriving together made the
+        // bars jump ahead of what you hear, then freeze. Now decoded audio goes
+        // into a ring buffer, and a steady ANALYSIS_HZ clock analyses the most
+        // recent window at a "play cursor" that advances in real time, kept a
+        // fixed PLAY_LAG_S behind the newest data (absorbing bursts). Result:
+        // 60 fresh spectra a second, evenly spaced, from a sliding window.
+        _startAnalysisClock() {
+          if (this._analysisTimer) return;
+          this._lastTickMs = performance.now();
+          this._analysisTimer = setInterval(() => this._analysisTick(), 1e3 / ANALYSIS_HZ);
+          if (this._analysisTimer.unref) this._analysisTimer.unref();
+        }
+        _stopAnalysisClock() {
+          if (this._analysisTimer) clearInterval(this._analysisTimer);
+          this._analysisTimer = null;
+        }
+        _analysisTick() {
+          const now = performance.now();
+          const dt = Math.max(1e-3, Math.min(0.1, (now - this._lastTickMs) / 1e3));
+          this._lastTickMs = now;
+          const win = this._analyser.win;
+          const w = this._writePos;
+          let target;
+          if (w < win || now - this._lastDataMs > STALL_MS) {
+            target = this._zeros;
+          } else {
+            const lag = PLAY_LAG_S * SAMPLE_RATE;
+            if (!(this._playPos > 0)) this._playPos = w - lag;
+            this._playPos += dt * SAMPLE_RATE;
+            this._playPos += (w - lag - this._playPos) * Math.min(1, dt * 2);
+            const lo = w - this._ring.length + win, hi = w;
+            if (this._playPos > hi) this._playPos = hi;
+            if (this._playPos < lo) this._playPos = lo;
+            if (this._playPos < win) {
+              target = this._zeros;
+            } else target = this._analyser.analyse(this._ring, Math.floor(this._playPos));
           }
-          const target = computeBands(samples, SAMPLE_RATE);
           this._lastTarget = target;
           this._applySpectrumTarget(target, dt);
         }
+        // Ballistics: near-instant attack so hits land on the beat, a smooth
+        // exponential release, and peak markers that hold briefly then fall
+        // with gravity - the classic analyser feel. (The old attack of dt*11
+        // added ~90ms of lag to every hit.)
         _applySpectrumTarget(target, dt) {
+          const attack = Math.min(1, dt * ATTACK_RATE), release = Math.min(1, dt * RELEASE_RATE);
           for (let b = 0; b < BAND_COUNT; b++) {
-            const t = target[b];
-            if (t > this.spec[b]) this.spec[b] += (t - this.spec[b]) * Math.min(1, dt * 11);
-            else this.spec[b] += (t - this.spec[b]) * Math.min(1, dt * 4.5);
-            if (this.spec[b] > this.peak[b]) {
+            const t = target[b], s = this.spec[b];
+            this.spec[b] = s + (t - s) * (t > s ? attack : release);
+            if (this.spec[b] >= this.peak[b]) {
               this.peak[b] = this.spec[b];
               this._peakVel[b] = 0;
-            } else {
-              this._peakVel[b] += dt * 1.2;
-              this.peak[b] = Math.max(0, this.peak[b] - this._peakVel[b] * dt);
+              this._peakHold[b] = PEAK_HOLD_S;
+            } else if (this._peakHold[b] > 0) this._peakHold[b] -= dt;
+            else {
+              this._peakVel[b] += dt * PEAK_GRAVITY;
+              this.peak[b] = Math.max(this.spec[b], this.peak[b] - this._peakVel[b] * dt);
             }
           }
         }
@@ -11550,6 +11662,7 @@ var PiEngine = (() => {
             this.decodeProc = null;
           }
           this._teardownPlayback();
+          this._stopAnalysisClock();
           this.spec.fill(0);
           this.peak.fill(0);
         }
@@ -11681,26 +11794,46 @@ var PiEngine = (() => {
         }
       }
       function auDrawPeakCap(core, face, u, y, tint) {
-        const glow = [0.55 + tint[0] * 0.45, 0.55 + tint[1] * 0.45, 0.55 + tint[2] * 0.45];
+        const glow = [0.3 + tint[0] * 0.8, 0.3 + tint[1] * 0.8, 0.3 + tint[2] * 0.8];
         auBloom(core, face, u, y, glow, 1);
-        auGlowAround(core, face, u, y, glow, 2, 0.35);
+        auGlowAround(core, face, u, y, tint, 1, 0.25);
+      }
+      var _polarLut = { S: 0, r: null, ang: null };
+      function polarLut(S) {
+        if (_polarLut.S !== S) {
+          const cc = (S - 1) / 2, maxR = cc * 1.08;
+          const r = new Float32Array(S * S), ang = new Float32Array(S * S);
+          for (let v = 0; v < S; v++) {
+            for (let u = 0; u < S; u++) {
+              const dx = u - cc, dz = v - cc;
+              r[v * S + u] = Math.hypot(dx, dz) / maxR;
+              ang[v * S + u] = Math.atan2(dz, dx) / (Math.PI * 2) + 0.5;
+            }
+          }
+          Object.assign(_polarLut, { S, r, ang });
+        }
+        return _polarLut;
       }
       function drawPolarFace(core, ctx, face) {
-        const S = core.SIZE, cc = (S - 1) / 2, maxR = cc * 1.08;
-        const bass = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
+        const S = core.SIZE, { r: R, ang: A } = polarLut(S);
+        const bands = ctx.bands, amps = ctx.ampArr, peaks = ctx.peakArr;
+        const bass = (amps[0] + amps[Math.min(1, bands - 1)] + amps[Math.min(2, bands - 1)]) / 3;
+        const rot = ctx.t * 0.03, flashR = bass * 0.22;
         for (let v = 0; v < S; v++) {
           for (let u = 0; u < S; u++) {
-            const dx = u - cc, dz = v - cc, r = Math.hypot(dx, dz) / maxR;
-            const ang = (Math.atan2(dz, dx) / (Math.PI * 2) + 0.5 + ctx.t * 0.03) % 1;
-            const b = Math.min(ctx.bands - 1, ang * ctx.bands | 0);
-            const amp = ctx.amp(b);
+            const i = v * S + u, r = R[i];
+            if (r < flashR) {
+              core.setFaceLED(face, u, v, 1, 1, 1);
+              continue;
+            }
+            const b = Math.min(bands - 1, (A[i] + rot) % 1 * bands | 0);
+            const amp = amps[b];
             if (r <= amp) {
-              const col = auColor(ctx.theme, b / (ctx.bands - 1), 1 - r / Math.max(0.01, amp), amp, ctx.t);
+              const col = auColor(ctx.theme, b / (bands - 1), 1 - r / Math.max(0.01, amp), amp, ctx.t);
               core.setFaceLED(face, u, v, col[0], col[1], col[2]);
-            } else if (Math.abs(r - ctx.peak(b)) < 0.045) {
+            } else if (Math.abs(r - peaks[b]) < 0.045) {
               core.setFaceLED(face, u, v, 0.8, 0.8, 0.85);
             }
-            if (r < bass * 0.22) core.setFaceLED(face, u, v, 1, 1, 1);
           }
         }
       }
@@ -11789,6 +11922,13 @@ var PiEngine = (() => {
           } else {
             const h = rawH + waveOff, hi = Math.max(0, Math.min(M, Math.round(h)));
             const frac = h - Math.floor(h);
+            if (amp > 0.05 && mode !== "striped") {
+              const hz = auColor(ctx.theme, fb, 0.6, amp, ctx.t), k = 0.05 * amp;
+              for (let y = hi + 1; y <= M; y++) {
+                const fall = k * (1 - (y - hi) / (M - hi + 1));
+                core.setFaceLED(face, u, y, hz[0] * fall, hz[1] * fall, hz[2] * fall);
+              }
+            }
             for (let y = 0; y <= hi; y++) {
               const fh = hi > 0 ? y / hi : 0;
               const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
@@ -11803,7 +11943,7 @@ var PiEngine = (() => {
             if (h > 0) {
               const tp = auColor(ctx.theme, fb, 1, amp, ctx.t);
               auBloom(core, face, u, hi, tp, 1.5);
-              auGlowAround(core, face, u, hi, tp, 3, 0.4);
+              auGlowAround(core, face, u, hi, tp, 2, 0.25);
             }
             auDrawPeakCap(core, face, u, Math.max(0, Math.min(M, Math.round(ctx.peak(b) * M + waveOff))), auColor(ctx.theme, fb, 1, amp, ctx.t));
           }
@@ -12231,6 +12371,10 @@ var PiEngine = (() => {
         return {};
       }
       function renderSpectrumStyle(core, ctx, style, state) {
+        if (!ctx.ampArr) {
+          ctx.ampArr = Float32Array.from({ length: ctx.bands }, (_, b) => ctx.amp(b));
+          ctx.peakArr = Float32Array.from({ length: ctx.bands }, (_, b) => ctx.peak(b));
+        }
         switch (style) {
           case "mirror":
             return drawBars(core, ctx, true);
@@ -12338,6 +12482,87 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/radio/levels.js
+  var require_levels = __commonJS({
+    "src/effects/radio/levels.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      function sample(arr, b, bands, total = arr.length) {
+        if (bands <= 1) return arr[total - 1];
+        const start = Math.floor(b * total / bands);
+        const end = b === bands - 1 ? total - 1 : Math.floor((b + 1) * total / bands) - 1;
+        let v = arr[start];
+        for (let i = start + 1; i <= end; i++) if (arr[i] > v) v = arr[i];
+        return v;
+      }
+      var KNEE = 0.85;
+      function softCeil(x) {
+        if (x <= KNEE) return x < 0 ? 0 : x;
+        return KNEE + (1 - KNEE) * (1 - Math.exp(-(x - KNEE) / (1 - KNEE)));
+      }
+      function createLevelState() {
+        return { autoGainMult: 1, levelSmoothed: 0, fitScale: 1, amp: new Float32Array(0), peak: new Float32Array(0), rawAmp: new Float32Array(0), rawPeak: new Float32Array(0) };
+      }
+      var AUTO_TARGET = 0.45;
+      function computeLevels(st, audio, opts, dt) {
+        const { bands, gain } = opts;
+        if (st.amp.length !== bands) {
+          st.amp = new Float32Array(bands);
+          st.peak = new Float32Array(bands);
+          st.rawAmp = new Float32Array(bands);
+          st.rawPeak = new Float32Array(bands);
+        }
+        const total = audio.spec.length;
+        let sum = 0;
+        for (let b = 0; b < bands; b++) {
+          st.rawAmp[b] = sample(audio.spec, b, bands, total);
+          st.rawPeak[b] = sample(audio.peak, b, bands, total);
+          sum += st.rawAmp[b];
+        }
+        st.levelSmoothed += (sum / bands - st.levelSmoothed) * Math.min(1, dt * 3);
+        if (opts.autoGain) {
+          if (st.levelSmoothed > 0.01) {
+            const desired = AUTO_TARGET / Math.max(0.05, st.levelSmoothed * gain);
+            st.autoGainMult += (desired - st.autoGainMult) * Math.min(1, dt * 0.2);
+            st.autoGainMult = Math.max(0.3, Math.min(10, st.autoGainMult));
+          }
+        } else {
+          st.autoGainMult = 1;
+        }
+        let g = gain * st.autoGainMult;
+        if (opts.fitToScreen) {
+          let mx = 0;
+          for (let b = 0; b < bands; b++) if (st.rawAmp[b] * g > mx) mx = st.rawAmp[b] * g;
+          const target = mx > 0.015 ? Math.min(3.5, 0.99 / mx) : st.fitScale;
+          st.fitScale += (target - st.fitScale) * Math.min(1, dt * 4);
+        } else {
+          st.fitScale = 1;
+        }
+        g *= st.fitScale;
+        for (let b = 0; b < bands; b++) {
+          st.rawAmp[b] = softCeil(st.rawAmp[b] * g);
+          st.rawPeak[b] = softCeil(st.rawPeak[b] * g);
+        }
+        for (let b = 0; b < bands; b++) {
+          let a = st.rawAmp[b], p = st.rawPeak[b];
+          if (b > 0) {
+            a = Math.max(a, st.rawAmp[b - 1] * 0.5);
+            p = Math.max(p, st.rawPeak[b - 1] * 0.5);
+          }
+          if (b < bands - 1) {
+            a = Math.max(a, st.rawAmp[b + 1] * 0.5);
+            p = Math.max(p, st.rawPeak[b + 1] * 0.5);
+          }
+          st.amp[b] = a;
+          st.peak[b] = Math.max(a, p);
+        }
+        return st;
+      }
+      module.exports = { sample, softCeil, createLevelState, computeLevels };
+    }
+  });
+
   // src/effects/radio/radio.js
   var require_radio = __commonJS({
     "src/effects/radio/radio.js"(exports, module) {
@@ -12350,6 +12575,7 @@ var PiEngine = (() => {
       var { CHAR_W } = require_font2();
       var { drawGlyph5x7Face, drawLinesCentered, FONT_3x5, facePlot } = require_text();
       var { searchStations } = require_search();
+      var { sample, createLevelState, computeLevels } = require_levels();
       var RADIO_STATIONS = [
         { name: "SomaFM Groove Salad", genre: "Ambient/Downtempo", url: "https://ice1.somafm.com/groovesalad-128-mp3" },
         { name: "SomaFM Drone Zone", genre: "Ambient", url: "https://ice1.somafm.com/dronezone-128-mp3" },
@@ -12378,9 +12604,7 @@ var PiEngine = (() => {
       var searchError = null;
       var searching = false;
       var lastQuery = "";
-      var autoGainMult = 1;
-      var lastLevelSmoothed = 0;
-      var fitScale = 1;
+      var levelState = createLevelState();
       function playStation(station) {
         if (!station || !station.url) return;
         currentStation = { name: station.name || "Unknown", genre: station.genre || "", url: station.url };
@@ -12412,14 +12636,6 @@ var PiEngine = (() => {
         searchError = error;
         searching = false;
       }
-      function sample(arr, b, bands) {
-        if (bands <= 1) return arr[BAND_COUNT - 1];
-        const start = Math.floor(b * BAND_COUNT / bands);
-        const end = b === bands - 1 ? BAND_COUNT - 1 : Math.floor((b + 1) * BAND_COUNT / bands) - 1;
-        let v = arr[start];
-        for (let i = start + 1; i <= end; i++) if (arr[i] > v) v = arr[i];
-        return v;
-      }
       function effectRadio(core, dt) {
         core.t += dt;
         const opts = core.effectOptions?.radio || {};
@@ -12436,46 +12652,16 @@ var PiEngine = (() => {
         audio.ensure(playing && currentStation ? currentStation.url : null);
         for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] = 0;
         if (spectrumOn) {
-          let overallLevel = 0;
-          for (let b = 0; b < bands; b++) overallLevel += sample(audio.spec, b, bands);
-          overallLevel /= bands;
-          lastLevelSmoothed += (overallLevel - lastLevelSmoothed) * Math.min(1, dt * 3);
-          if (autoGainOn) {
-            const target = 0.45;
-            if (lastLevelSmoothed > 0.01) {
-              const desired = target / Math.max(0.05, lastLevelSmoothed * autoGainMult);
-              autoGainMult += (desired - autoGainMult) * Math.min(1, dt * 0.2);
-              autoGainMult = Math.max(0.3, Math.min(10, autoGainMult));
-            }
-          } else {
-            autoGainMult = 1;
-          }
-          const totalGain = gain * autoGainMult;
-          if (fitToScreen) {
-            let mx = 0;
-            for (let b = 0; b < bands; b++) {
-              const v = sample(audio.spec, b, bands) * totalGain;
-              if (v > mx) mx = v;
-            }
-            const target = mx > 0.015 ? Math.min(3.5, 0.99 / mx) : fitScale;
-            fitScale += (target - fitScale) * 0.12;
-          } else {
-            fitScale = 1;
-          }
+          const lv = computeLevels(levelState, audio, { bands, gain, autoGain: autoGainOn, fitToScreen }, dt);
           if (scrollSpeed > 0) {
             spectrumState.scrollX = ((spectrumState.scrollX || 0) + dt * scrollSpeed * core.SIZE * 1.5 + 4 * core.SIZE) % (4 * core.SIZE);
           }
-          const rawAmp = (b) => Math.min(1, sample(audio.spec, b, bands) * totalGain * fitScale);
-          const rawPeak = (b) => Math.min(1, sample(audio.peak, b, bands) * totalGain * fitScale);
-          const bloom = (fn, b) => {
-            let v = fn(b);
-            if (b > 0) v = Math.max(v, fn(b - 1) * 0.5);
-            if (b < bands - 1) v = Math.max(v, fn(b + 1) * 0.5);
-            return v;
-          };
+          const ampArr = lv.amp, peakArr = lv.peak;
           const ctx = {
-            amp: (b) => bloom(rawAmp, b),
-            peak: (b) => bloom(rawPeak, b),
+            amp: (b) => ampArr[b],
+            peak: (b) => peakArr[b],
+            ampArr,
+            peakArr,
             bands,
             theme,
             barMode,
@@ -12488,8 +12674,13 @@ var PiEngine = (() => {
         if (!playing || !currentStation) {
           if (core.SIZE >= 16) {
             const sc = core.SIZE >= 64 ? 2 : 1;
-            drawLinesCentered(FONT_3x5, ["PICK A", "STATION"], core.SIZE, core.SIZE, facePlot(core, 0, 0.35, 0.5, 0.7), { scale: sc });
-            if (core.panelMode !== "2d") drawLinesCentered(FONT_3x5, ["PICK A", "STATION"], core.SIZE, core.SIZE, facePlot(core, 2, 0.35, 0.5, 0.7), { scale: sc });
+            const M = core.SIZE - 1;
+            const hint = (face) => {
+              const p = facePlot(core, face, 0.35, 0.5, 0.7);
+              return (x, y) => p(x, M - y);
+            };
+            drawLinesCentered(FONT_3x5, ["PICK A", "STATION"], core.SIZE, core.SIZE, hint(0), { scale: sc });
+            if (core.panelMode !== "2d") drawLinesCentered(FONT_3x5, ["PICK A", "STATION"], core.SIZE, core.SIZE, hint(2), { scale: sc });
           }
         }
         if (playing && currentStation) {
@@ -24441,9 +24632,9 @@ var PiEngine = (() => {
         }
       }
       function peakCapWall(core, x, y, tint) {
-        const glow = [0.55 + tint[0] * 0.45, 0.55 + tint[1] * 0.45, 0.55 + tint[2] * 0.45];
+        const glow = [0.3 + tint[0] * 0.8, 0.3 + tint[1] * 0.8, 0.3 + tint[2] * 0.8];
         blendWall(core, x, y, glow[0], glow[1], glow[2]);
-        glowAroundWall(core, x, y, glow, 2, 0.35);
+        glowAroundWall(core, x, y, tint, 1, 0.25);
       }
       function scrolledBand(c, cols, bands, scrollX) {
         const sc = (c + ((scrollX || 0) | 0) + cols) % cols;
@@ -24546,7 +24737,7 @@ var PiEngine = (() => {
             if (h > 0) {
               const tp = auColor(ctx.theme, fb, 1, amp, ctx.t);
               blendWall(core, c, hi, tp[0] * 1.5, tp[1] * 1.5, tp[2] * 1.5);
-              glowAroundWall(core, c, hi, tp, 3, 0.4);
+              glowAroundWall(core, c, hi, tp, 2, 0.25);
             }
             peakCapWall(core, c, Math.max(0, Math.min(M, Math.round(ctx.peak(b) * M + waveOff))), auColor(ctx.theme, fb, 1, amp, ctx.t));
           }
@@ -24936,20 +25127,11 @@ var PiEngine = (() => {
       var radio = require_radio();
       var { renderSpectrumStyleWall, createSpectrumWallState } = require_spectrumWall();
       var { CHAR_W } = require_font2();
+      var { createLevelState, computeLevels } = require_levels();
       var { drawString, drawMarquee, drawLinesCentered, FONT_3x5, FONT_5x7, wallPlot } = require_text();
       var spectrumWallState = createSpectrumWallState();
-      var autoGainMultW = 1;
-      var lastLevelSmoothedW = 0;
-      var fitScaleW = 1;
+      var levelStateW = createLevelState();
       var tickerScrollX = 0;
-      function sample(arr, b, bands, BAND_COUNT) {
-        if (bands <= 1) return arr[BAND_COUNT - 1];
-        const start = Math.floor(b * BAND_COUNT / bands);
-        const end = b === bands - 1 ? BAND_COUNT - 1 : Math.floor((b + 1) * BAND_COUNT / bands) - 1;
-        let v = arr[start];
-        for (let i = start + 1; i <= end; i++) if (arr[i] > v) v = arr[i];
-        return v;
-      }
       var TEXT_RGB = [0.6, 0.85, 1];
       function drawStaticLabelWall(core, text) {
         if (!text) return;
@@ -24979,49 +25161,18 @@ var PiEngine = (() => {
         const fitToScreen = !!opts.fitToScreen;
         const scrollSpeed = Number.isFinite(opts.scrollSpeed) ? opts.scrollSpeed : 0;
         const audio = radio.audio;
-        const BAND_COUNT = audio.spec.length;
         for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
         if (spectrumOn) {
-          let overallLevel = 0;
-          for (let b = 0; b < bands; b++) overallLevel += sample(audio.spec, b, bands, BAND_COUNT);
-          overallLevel /= bands;
-          lastLevelSmoothedW += (overallLevel - lastLevelSmoothedW) * Math.min(1, dt * 3);
-          if (autoGainOn) {
-            const target = 0.45;
-            if (lastLevelSmoothedW > 0.01) {
-              const desired = target / Math.max(0.05, lastLevelSmoothedW * autoGainMultW);
-              autoGainMultW += (desired - autoGainMultW) * Math.min(1, dt * 0.2);
-              autoGainMultW = Math.max(0.3, Math.min(10, autoGainMultW));
-            }
-          } else {
-            autoGainMultW = 1;
-          }
-          const totalGain = gain * autoGainMultW;
-          if (fitToScreen) {
-            let mx = 0;
-            for (let b = 0; b < bands; b++) {
-              const v = sample(audio.spec, b, bands, BAND_COUNT) * totalGain;
-              if (v > mx) mx = v;
-            }
-            const target = mx > 0.015 ? Math.min(3.5, 0.99 / mx) : fitScaleW;
-            fitScaleW += (target - fitScaleW) * 0.12;
-          } else {
-            fitScaleW = 1;
-          }
+          const lv = computeLevels(levelStateW, audio, { bands, gain, autoGain: autoGainOn, fitToScreen }, dt);
           if (scrollSpeed > 0) {
             spectrumWallState.scrollX = ((spectrumWallState.scrollX || 0) + dt * scrollSpeed * core.wallW * 0.375 + 4 * core.wallW) % (4 * core.wallW);
           }
-          const rawAmp = (b) => Math.min(1, sample(audio.spec, b, bands, BAND_COUNT) * totalGain * fitScaleW);
-          const rawPeak = (b) => Math.min(1, sample(audio.peak, b, bands, BAND_COUNT) * totalGain * fitScaleW);
-          const bloom = (fn, b) => {
-            let v = fn(b);
-            if (b > 0) v = Math.max(v, fn(b - 1) * 0.5);
-            if (b < bands - 1) v = Math.max(v, fn(b + 1) * 0.5);
-            return v;
-          };
+          const ampArr = lv.amp, peakArr = lv.peak;
           const ctx = {
-            amp: (b) => bloom(rawAmp, b),
-            peak: (b) => bloom(rawPeak, b),
+            amp: (b) => ampArr[b],
+            peak: (b) => peakArr[b],
+            ampArr,
+            peakArr,
             bands,
             theme,
             barMode,

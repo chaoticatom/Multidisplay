@@ -131,7 +131,11 @@ function effectVideo(core, dt) {
     // cube read as "broken"). Too small to be legible below 16x16.
     if (S >= 16) {
       const k = 0.45 + 0.35 * pulse;
-      for (let f = 0; f < 4; f++) drawLinesCentered(FONT_3x5, ['LOAD A', 'VIDEO'], S, S, facePlot(core, f, 0.6 * k, 0.3 * k, 0.75 * k), { scale: S >= 64 ? 2 : 1 });
+      // Flipped vertically: face rows run bottom-up (see text.js's drawGlyph5x7Face).
+      for (let f = 0; f < 4; f++) {
+        const p = facePlot(core, f, 0.6 * k, 0.3 * k, 0.75 * k);
+        drawLinesCentered(FONT_3x5, ['LOAD A', 'VIDEO'], S, S, (x, y) => p(x, S - 1 - y), { scale: S >= 64 ? 2 : 1 });
+      }
       return;
     }
     for (let f = 0; f < 4; f++) {

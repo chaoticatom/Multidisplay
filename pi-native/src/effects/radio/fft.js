@@ -1,18 +1,43 @@
-// Real PCM spectrum analysis - a small radix-2 Cooley-Tukey FFT plus a
-// log-spaced band aggregation step, mirroring effects-core.js's
-// readMicSpectrum() (log-spaced bins, finer resolution at the bass end,
-// a fixed treble-compensation curve) but driven by an actual decoded PCM
-// buffer instead of the Web Audio API's AnalyserNode. Doesn't need to be
-// broadcast-quality - this drives a 64-pixel LED visualizer, not audio
-// production, per the task brief - so a plain non-windowed radix-2 FFT
-// (input padded/truncated to the next power of two) is a deliberate,
-// documented simplification over a proper windowed/overlapped analyser.
+// Spectrum analysis for the radio visualizer: a radix-2 FFT plus a
+// log-spaced band mapping, returning BAND_COUNT levels in 0..1.
+//
+// Redone for quality and speed (a request to "redo the spectrum analyser,
+// correct any issues and make it look amazing and fast"). What changed and
+// why:
+//   - Levels are on a DECIBEL scale (DB_FLOOR..DB_CEIL mapped to 0..1).
+//     Linear magnitude against a fixed reference made quiet detail vanish
+//     and loud passages flatten against the top, leaving auto-gain to do
+//     all the work. dB is what real analysers show: every band moves.
+//   - A treble tilt (TILT_DB_PER_OCTAVE, pivoting at 1kHz) replaces the old
+//     hand-tuned bass-cut/treble-boost curve. Music's energy falls roughly
+//     3-4.5dB per octave, so this flattens typical music the same way.
+//   - Range 30Hz-7kHz. It used to start at FFT bin 1 (~10Hz, sub-audible
+//     rumble), wasting the leftmost bars. 7kHz is the ceiling asked for
+//     earlier ("move back to max 7khz"), kept.
+//   - Narrow bass bands (less than one FFT bin wide) interpolate the
+//     spectrum at their centre frequency instead of several bands
+//     collapsing onto the same bin (a blocky staircase at the left).
+//     Wider bands take their LOUDEST bin, not the mean, so treble
+//     transients aren't averaged away.
+//   - Everything is precomputed once per (window, sampleRate): the Hann
+//     window, twiddle factors, bit-reversal table and each band's bin
+//     range. analyse() allocates nothing, so it can run 60 times a second.
+//
+// The main window is WINDOW real samples (46ms at 44.1kHz; bass bands use
+// twice that, see BASS_SPLIT_HZ), zero-padded 2x -
+// the padding interpolates extra frequency bins so the densely packed top
+// bands each still get distinct bins (see git history for that report).
 'use strict';
 
-const BAND_COUNT = 256; // matches effects-core.js's AUDIO_BANDS - canonical resolution; spectrum.js re-samples this down for smaller displayed band counts
+const BAND_COUNT = 256; // canonical resolution; radio.js re-samples to the displayed band count
+const WINDOW = 2048;
+const F_MIN = 30;
+const F_MAX = 7000;
+const DB_FLOOR = -72; // at or below this -> 0
+const DB_CEIL = -12; // at or above this -> 1 (a full-scale sine is 0dB)
+const TILT_DB_PER_OCTAVE = 3.5;
 
-// In-place iterative radix-2 FFT. `re`/`im` are Float32Arrays of length n
-// (a power of two). Standard bit-reversal + butterfly implementation.
+// In-place iterative radix-2 FFT (kept exported: tests use it directly).
 function fft(re, im) {
   const n = re.length;
   for (let i = 1, j = 0; i < n; i++) {
@@ -24,14 +49,15 @@ function fft(re, im) {
   for (let len = 2; len <= n; len <<= 1) {
     const ang = (-2 * Math.PI) / len;
     const wr = Math.cos(ang), wi = Math.sin(ang);
+    const halfLen = len >> 1;
     for (let i = 0; i < n; i += len) {
       let curWr = 1, curWi = 0;
-      for (let k = 0; k < len / 2; k++) {
-        const uRe = re[i + k], uIm = im[i + k];
-        const vRe = re[i + k + len / 2] * curWr - im[i + k + len / 2] * curWi;
-        const vIm = re[i + k + len / 2] * curWi + im[i + k + len / 2] * curWr;
-        re[i + k] = uRe + vRe; im[i + k] = uIm + vIm;
-        re[i + k + len / 2] = uRe - vRe; im[i + k + len / 2] = uIm - vIm;
+      for (let k = 0; k < halfLen; k++) {
+        const a = i + k, b = a + halfLen;
+        const vRe = re[b] * curWr - im[b] * curWi;
+        const vIm = re[b] * curWi + im[b] * curWr;
+        re[b] = re[a] - vRe; im[b] = im[a] - vIm;
+        re[a] += vRe; im[a] += vIm;
         const nWr = curWr * wr - curWi * wi;
         curWi = curWr * wi + curWi * wr;
         curWr = nWr;
@@ -42,120 +68,97 @@ function fft(re, im) {
 
 function nextPow2(n) { let p = 1; while (p < n) p <<= 1; return p; }
 
-// samples: Float32Array of mono PCM in [-1,1]. Returns a Float32Array of
-// BAND_COUNT levels in [0,1], log-spaced across the audible range - the
-// industry-standard choice for music visualizers (comparable visual
-// weight per octave, rather than per Hz) - the same way effects-core.js's
-// readMicSpectrum() bins the AnalyserNode's frequency data, with the same
-// fixed treble-boost compensation curve. (A linear/even-Hz-per-bar
-// mapping was tried and reverted per a follow-up: "no make it industry
-// standard log" - what looked like the sweep "restarting" after ~10 bars
-// was actually the log spacing itself, not a bug: many low bands each
-// cover a narrow Hz range, so a constant-Hz/sec sweep blows through them
-// quickly before slowing down across the wider high bands - the band
-// index was moving monotonically the whole time, confirmed directly by
-// feeding synthetic tones at increasing frequencies through this exact
-// function.)
-function computeBands(samples, sampleRate) {
-  // *2 zero-padding (not just nextPow2(samples.length)) - a real report:
-  // even after capping the analysis range with deliberate headroom past
-  // 10kHz, the rightmost several bars stayed permanently dark/unreachable
-  // on a 64-bar display. Root cause was the FFT's own resolution, not the
-  // range: 2048 real samples only produces ~464 usable bins up to 10kHz,
-  // and 256 log-spaced canonical bands need MORE bins than that near the
-  // ceiling (each successive band's bin range widens exponentially) -
-  // several of the last bands ran out of distinct bins to cover and
-  // collapsed onto the exact same boundary bin. Zero-padding to double
-  // the FFT size is a standard technique for exactly this (interpolates
-  // twice the frequency bins from the same real audio, no added latency
-  // - `re`/`im` are already sized `n`, only the first samples.length
-  // entries hold real data either way). Verified directly: with this,
-  // capping the analysis range at a plain 10000Hz (no extra headroom
-  // needed at all) now reaches band 63 - the true last bar - cleanly.
-  const n = nextPow2(samples.length) * 2;
-  const re = new Float32Array(n);
-  const im = new Float32Array(n);
-  // Simple Hann window - cheap and meaningfully reduces spectral leakage
-  // for a non-overlapped single-shot FFT like this one.
-  for (let i = 0; i < samples.length; i++) {
-    const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (samples.length - 1));
-    re[i] = samples[i] * w;
-  }
-  fft(re, im);
-
+// One FFT "stage": a window length and everything precomputed for it.
+// fill() windows the `win` samples ending at ring index `end`, runs the
+// FFT and leaves the normalised power spectrum in stage.power (full-scale
+// sine = 1).
+function makeStage(sampleRate, win) {
+  const n = nextPow2(win) * 2; // 2x zero-padding for bin density
   const half = n >> 1;
-  const mag = new Float32Array(half);
-  let maxMag = 0;
-  for (let i = 0; i < half; i++) {
-    const m = Math.sqrt(re[i] * re[i] + im[i] * im[i]) / n;
-    mag[i] = m;
-    if (m > maxMag) maxMag = m;
+  const re = new Float32Array(n), im = new Float32Array(n);
+  const power = new Float32Array(half);
+  const hann = new Float32Array(win);
+  let hannSum = 0;
+  for (let i = 0; i < win; i++) { hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (win - 1)); hannSum += hann[i]; }
+  // A full-scale sine's peak bin magnitude is amplitude * sum(window) / 2.
+  const refPow = (hannSum / 2) * (hannSum / 2);
+  function fill(ring, end) {
+    const mask = ring.length - 1, start = end - win;
+    for (let i = 0; i < win; i++) { re[i] = ring[(start + i) & mask] * hann[i]; im[i] = 0; }
+    for (let i = win; i < n; i++) { re[i] = 0; im[i] = 0; }
+    fft(re, im);
+    for (let i = 0; i < half; i++) power[i] = (re[i] * re[i] + im[i] * im[i]) / refPow;
   }
-
-  const bands = new Float32Array(BAND_COUNT);
-  // maxBin capped to ~10kHz, not 80% of Nyquist (~17.6kHz at 44.1kHz) - a
-  // real report: "songs don't go to the high frequency that the sweep
-  // does [...] bars are not representing the sounds correctly". Real
-  // music rarely carries meaningful energy above ~8-10kHz (same reasoning
-  // that narrowed the debug sweep itself to 40Hz-10kHz - see radio.js's
-  // DEBUG_TONES), so the old 80%-of-Nyquist cutoff left the top third or
-  // so of the displayed bars almost always dark during real playback -
-  // not a bug in the analyser, just a mismatch between the display's
-  // range and where real content actually lives. Capping consistently at
-  // 10kHz makes the full bar width meaningful for real music instead of
-  // reserving space for content that's essentially never there.
-  //
-  // A 10kHz test tone used to plateau across 7 bars near the boundary
-  // (`hi = Math.min(hi, maxBin)` clamping the last several log-spaced
-  // bands to the same bin once their computed hi exceeded maxBin), which
-  // got "fixed" twice by adding headroom past 10kHz instead of fixing the
-  // actual bin-density shortage - first 12000 (fixed the plateau, but
-  // left ~6 bars completely unreachable by anything that tops out at
-  // 10kHz), then 10500 (fewer dead bars, but still some). The real fix
-  // was the *2 zero-padding above, which gives enough bin density that no
-  // headroom is needed at all - reverified directly: a 10000Hz tone now
-  // reaches band 63 (the true last bar) with a single clean peak.
-  // Lowered 10000 -> 7000 -> 6000 -> back to 7000 across three real,
-  // explicit requests ("do max of 7khz", then "do max 6khz", then "move
-  // back to max 7khz"), applying uniformly to real audio and the debug
-  // tools (DEBUG_TONES.sweep's own range narrowed/restored to match each
-  // time).
-  const minBin = 1, maxBin = Math.max(minBin + 1, Math.min(half - 1, Math.round(7000 / (sampleRate / n))));
-  let lo = minBin;
-  for (let b = 0; b < BAND_COUNT; b++) {
-    const frac = (b + 1) / BAND_COUNT;
-    let hi = Math.round(minBin * Math.pow(maxBin / minBin, frac));
-    if (hi <= lo) hi = lo + 1;
-    hi = Math.min(hi, maxBin);
-    let sum = 0, count = 0;
-    for (let k = lo; k <= hi; k++) { sum += mag[k]; count++; }
-    const raw = count > 0 ? sum / count : 0;
-    // Normalize against a fixed reference amplitude rather than the
-    // frame's own max (a per-frame max would make quiet passages look as
-    // "loud" as loud ones) - 0.05 is an empirically reasonable ceiling for
-    // Hann-windowed FFT bin magnitude of typical compressed-stream audio.
-    const norm = Math.min(1, raw / 0.05);
-    // A real report: "the first band is always so much higher than the
-    // rest" - real audio naturally has more raw FFT energy at low
-    // frequencies (spectral roll-off), and this curve only ever boosted
-    // the TREBLE end to compensate, never attenuated the bass end - so
-    // band 0 stayed pinned near its ceiling regardless of the treble
-    // boost applied further up. freqBalance now ramps from well below 1
-    // at the bass end up through 1 around the low-mid range to a treble
-    // boost at the top, instead of starting at ~1 (no correction at all)
-    // for band 0. A follow-up report ("first 5 bars need reducing a bit
-    // more so auto gain works better") - the previous linear ramp still
-    // left the first few bands too close to 1 (frac 0.016-0.078 only
-    // scaled to ~0.38-0.49). Using frac's exponent (1.4) instead of frac
-    // itself steepens the curve specifically near the bass end (band 0-5
-    // now scale to roughly 0.2-0.25) while barely changing the treble end
-    // (frac=1 is still 2.1 either way).
-    const freqBalance = 0.2 + Math.pow(frac, 1.4) * 1.9;
-    bands[b] = Math.min(1, norm * freqBalance);
-    lo = hi + 1;
-    if (lo > maxBin) lo = maxBin;
-  }
-  return bands;
+  return { win, half, binHz: sampleRate / n, power, fill };
 }
 
-module.exports = { fft, computeBands, BAND_COUNT, nextPow2 };
+// Below this, bands use the long window: a 46ms window can only resolve
+// ~21Hz, so on a log scale one bass note smeared across a quarter of the
+// display. The longer window resolves bass 2x finer; treble keeps the
+// short window so it stays snappy (bass notes are slow anyway).
+const BASS_SPLIT_HZ = 250;
+
+// Builds a reusable analyser. analyse(ring, end) reads the samples ending
+// just before index `end` of `ring` (a power-of-two-sized circular
+// Float32Array of mono samples in -1..1) and returns a
+// Float32Array(BAND_COUNT) that it reuses on every call.
+function createAnalyser(sampleRate, win = WINDOW) {
+  const short = makeStage(sampleRate, win);
+  const long = makeStage(sampleRate, win * 2);
+  const out = new Float32Array(BAND_COUNT);
+
+  // Per band: which stage, fractional bin range [lo, hi) in that stage,
+  // and its tilt in dB.
+  const bStage = new Array(BAND_COUNT), bLo = new Float32Array(BAND_COUNT), bHi = new Float32Array(BAND_COUNT), bTilt = new Float32Array(BAND_COUNT);
+  const fMax = Math.min(F_MAX, sampleRate / 2 - short.binHz);
+  for (let b = 0; b < BAND_COUNT; b++) {
+    const f0 = F_MIN * Math.pow(fMax / F_MIN, b / BAND_COUNT);
+    const f1 = F_MIN * Math.pow(fMax / F_MIN, (b + 1) / BAND_COUNT);
+    const fc = Math.sqrt(f0 * f1);
+    const st = fc < BASS_SPLIT_HZ ? long : short;
+    bStage[b] = st;
+    bLo[b] = f0 / st.binHz; bHi[b] = f1 / st.binHz;
+    bTilt[b] = TILT_DB_PER_OCTAVE * Math.log2(fc / 1000);
+  }
+  const dbRange = DB_CEIL - DB_FLOOR;
+
+  function analyse(ring, end) {
+    short.fill(ring, end);
+    long.fill(ring, end);
+    for (let b = 0; b < BAND_COUNT; b++) {
+      const st = bStage[b], power = st.power, lo = bLo[b], hi = bHi[b];
+      let p;
+      if (hi - lo < 1) {
+        // Narrower than one bin: interpolate at the band's centre.
+        const c = (lo + hi) / 2, k = Math.floor(c), f = c - k;
+        p = power[k] * (1 - f) + power[Math.min(st.half - 1, k + 1)] * f;
+      } else {
+        p = 0;
+        const k1 = Math.min(st.half - 1, Math.ceil(hi));
+        for (let k = Math.floor(lo); k < k1; k++) if (power[k] > p) p = power[k];
+      }
+      const db = p > 1e-12 ? 10 * Math.log10(p) + bTilt[b] : -Infinity;
+      const v = (db - DB_FLOOR) / dbRange;
+      out[b] = v <= 0 ? 0 : v >= 1 ? 1 : v;
+    }
+    return out;
+  }
+  // Samples the analyser needs in the ring behind `end`.
+  return { analyse, win: long.win, sampleRate };
+}
+
+// One-shot convenience wrapper (tests, and anything that has a plain
+// buffer rather than a ring): analyses the last WINDOW samples of
+// `samples`. Returns a fresh array.
+const _cache = new Map();
+function computeBands(samples, sampleRate) {
+  const key = String(sampleRate);
+  let a = _cache.get(key);
+  if (!a) { a = createAnalyser(sampleRate); _cache.set(key, a); }
+  // Short inputs are treated as preceded by silence.
+  const ring = new Float32Array(nextPow2(Math.max(a.win, samples.length)));
+  ring.set(samples);
+  return Float32Array.from(a.analyse(ring, samples.length));
+}
+
+module.exports = { fft, computeBands, createAnalyser, BAND_COUNT, WINDOW, nextPow2, F_MIN, F_MAX };

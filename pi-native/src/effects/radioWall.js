@@ -31,26 +31,12 @@
 const radio = require('./radio/radio');
 const { renderSpectrumStyleWall, createSpectrumWallState } = require('./radio/spectrumWall');
 const { CHAR_W } = require('./radio/font');
+const { createLevelState, computeLevels } = require('./radio/levels');
 const { drawString, drawMarquee, drawLinesCentered, FONT_3x5, FONT_5x7, wallPlot } = require('./text');
 
 const spectrumWallState = createSpectrumWallState();
-let autoGainMultW = 1;
-let lastLevelSmoothedW = 0;
-let fitScaleW = 1;
+const levelStateW = createLevelState(); // see ./radio/levels.js
 let tickerScrollX = 0;
-
-// See radio.js's sample() for the full story - this used to pick a
-// single nearest canonical index per displayed bar, which could skip
-// canonical bands (and their peaks) entirely; now takes the max across
-// the full contiguous range each displayed bar represents.
-function sample(arr, b, bands, BAND_COUNT) {
-  if (bands <= 1) return arr[BAND_COUNT - 1];
-  const start = Math.floor((b * BAND_COUNT) / bands);
-  const end = b === bands - 1 ? BAND_COUNT - 1 : Math.floor(((b + 1) * BAND_COUNT) / bands) - 1;
-  let v = arr[start];
-  for (let i = start + 1; i <= end; i++) if (arr[i] > v) v = arr[i];
-  return v;
-}
 
 // The 5x7 font on the wall canvas: UNflipped, glyph cell spanning rows
 // sv-6..sv (see text.js's drawGlyph5x7Face() for why cube faces differ).
@@ -99,65 +85,21 @@ function effectRadioWall(core, dt) {
   const scrollSpeed = Number.isFinite(opts.scrollSpeed) ? opts.scrollSpeed : 0;
 
   const audio = radio.audio;
-  const BAND_COUNT = audio.spec.length;
 
   for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
 
   if (spectrumOn) {
-    // See radio.js's effectRadio() for why this is an average, not the max,
-    // and why the target dropped from 0.55 accordingly - same real report
-    // (a persistently-loud bass band was crushing auto gain for every
-    // other band).
-    let overallLevel = 0;
-    for (let b = 0; b < bands; b++) overallLevel += sample(audio.spec, b, bands, BAND_COUNT);
-    overallLevel /= bands;
-    lastLevelSmoothedW += (overallLevel - lastLevelSmoothedW) * Math.min(1, dt * 3);
-    if (autoGainOn) {
-      const target = 0.45; // see radio.js's effectRadio() for why this was raised again
-      if (lastLevelSmoothedW > 0.01) {
-        const desired = target / Math.max(0.05, lastLevelSmoothedW * autoGainMultW);
-        // See radio.js's effectRadio() - adjustment cadence deliberately
-        // gradual (several seconds), separate from bar-motion smoothness.
-        autoGainMultW += (desired - autoGainMultW) * Math.min(1, dt * 0.2);
-        // See radio.js's effectRadio() - ceiling raised from 4 so auto gain
-        // alone can reach what previously needed the manual Gain slider
-        // stacked on top of an already-maxed-out multiplier.
-        autoGainMultW = Math.max(0.3, Math.min(10, autoGainMultW));
-      }
-    } else {
-      autoGainMultW = 1;
-    }
-    const totalGain = gain * autoGainMultW;
-
-    // Target 0.99, not 0.94 - same fix/root cause as radio.js's own
-    // Fit-to-Screen comment (a real report: bars capped below the true
-    // top, "flat lines on loud music").
-    if (fitToScreen) {
-      let mx = 0;
-      for (let b = 0; b < bands; b++) { const v = sample(audio.spec, b, bands, BAND_COUNT) * totalGain; if (v > mx) mx = v; }
-      const target = mx > 0.015 ? Math.min(3.5, 0.99 / mx) : fitScaleW;
-      fitScaleW += (target - fitScaleW) * 0.12;
-    } else {
-      fitScaleW = 1;
-    }
+    // Shared with the cube front-end - see ./radio/levels.js.
+    const lv = computeLevels(levelStateW, audio, { bands, gain, autoGain: autoGainOn, fitToScreen }, dt);
 
     if (scrollSpeed > 0) {
       spectrumWallState.scrollX = ((spectrumWallState.scrollX || 0) + dt * scrollSpeed * core.wallW * 0.375 + 4 * core.wallW) % (4 * core.wallW);
     }
-
-    // See radio.js's effectRadio() for why this blooms onto neighbouring
-    // bars (display-only, doesn't touch audio.spec/peak).
-    const rawAmp = (b) => Math.min(1, sample(audio.spec, b, bands, BAND_COUNT) * totalGain * fitScaleW);
-    const rawPeak = (b) => Math.min(1, sample(audio.peak, b, bands, BAND_COUNT) * totalGain * fitScaleW);
-    const bloom = (fn, b) => {
-      let v = fn(b);
-      if (b > 0) v = Math.max(v, fn(b - 1) * 0.5);
-      if (b < bands - 1) v = Math.max(v, fn(b + 1) * 0.5);
-      return v;
-    };
+    const ampArr = lv.amp, peakArr = lv.peak;
     const ctx = {
-      amp: (b) => bloom(rawAmp, b),
-      peak: (b) => bloom(rawPeak, b),
+      amp: (b) => ampArr[b],
+      peak: (b) => peakArr[b],
+      ampArr, peakArr,
       bands, theme, barMode, scrollX: spectrumWallState.scrollX || 0, t: core.t, dt,
     };
     renderSpectrumStyleWall(core, ctx, style, spectrumWallState);

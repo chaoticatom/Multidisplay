@@ -41,7 +41,7 @@
 'use strict';
 
 const { spawn } = require('child_process');
-const { computeBands, BAND_COUNT } = require('./fft');
+const { createAnalyser, BAND_COUNT } = require('./fft');
 const { findPulseEnv } = require('../../pulseEnv');
 
 const RETRY_COOLDOWN_MS = 8000;
@@ -50,8 +50,15 @@ const IDLE_CHECK_MS = 3000;
 const SAMPLE_RATE = 44100;
 const CHANNELS = 2;
 const BYTES_PER_SAMPLE = 2; // s16le
-const FRAME_SAMPLES = 2048; // samples per channel per FFT chunk (~46ms @ 44.1kHz)
-const CHUNK_BYTES = FRAME_SAMPLES * CHANNELS * BYTES_PER_SAMPLE;
+// Spectrum analysis clock + ballistics (see _analysisTick()/_applySpectrumTarget()).
+const ANALYSIS_HZ = 60;
+const RING_SAMPLES = 1 << 16; // ~1.5s of mono audio
+const PLAY_LAG_S = 0.12; // analyse this far behind the newest decoded audio
+const STALL_MS = 400; // no new audio for this long -> bars fall
+const ATTACK_RATE = 60; // per second; ~17ms to reach a new higher level
+const RELEASE_RATE = 7; // per second; ~140ms decay
+const PEAK_HOLD_S = 0.35;
+const PEAK_GRAVITY = 3.2; // peak marker fall acceleration (units/s^2)
 
 class RadioAudio {
   constructor(spawnFn = spawn) {
@@ -59,7 +66,14 @@ class RadioAudio {
     this.decodeProc = null;
     this.playProc = null;
     this.url = null;
-    this.pending = Buffer.alloc(0);
+    this._ring = new Float32Array(RING_SAMPLES);
+    this._writePos = 0;
+    this._playPos = 0;
+    this._carry = null;
+    this._lastDataMs = 0;
+    this._analyser = createAnalyser(SAMPLE_RATE);
+    this._zeros = new Float32Array(BAND_COUNT);
+    this._analysisTimer = null;
     this.status = 'Stopped';
     this.playbackStatus = 'No playback attempted';
     this.lastAttemptMs = 0;
@@ -73,7 +87,7 @@ class RadioAudio {
     this.spec = new Float32Array(BAND_COUNT);
     this.peak = new Float32Array(BAND_COUNT);
     this._peakVel = new Float32Array(BAND_COUNT);
-    this._lastChunkMs = 0;
+    this._peakHold = new Float32Array(BAND_COUNT);
 
     this._idleTimer = setInterval(() => this._checkIdle(), IDLE_CHECK_MS);
     if (this._idleTimer.unref) this._idleTimer.unref();
@@ -119,8 +133,11 @@ class RadioAudio {
 
   _launch(url) {
     this.lastAttemptMs = Date.now();
-    this.pending = Buffer.alloc(0);
-    this._lastChunkMs = Date.now();
+    this._ring.fill(0);
+    this._writePos = 0;
+    this._playPos = 0;
+    this._carry = null;
+    this._startAnalysisClock();
     // A real report: "if I stop the sweep and restart I get two peaks...
     // it should start again at the beginning" - spec/peak only got reset
     // on an EXPLICIT stop (ensure(null) -> _teardown()), never here on a
@@ -248,6 +265,7 @@ class RadioAudio {
           // finished drum/tone's bars just froze at their last value
           // forever instead of falling back to dark.
           this._debugFinished = true;
+          this._stopAnalysisClock();
           this.spec.fill(0);
           this.peak.fill(0);
           this._peakVel.fill(0);
@@ -366,63 +384,84 @@ class RadioAudio {
       try { this._playDrained = this.playProc.stdin.write(chunk); } catch (e) { /* handled via the stdin 'error' listener */ }
     }
 
-    this.pending = this.pending.length ? Buffer.concat([this.pending, chunk]) : Buffer.from(chunk);
-    while (this.pending.length >= CHUNK_BYTES) {
-      const frame = this.pending.subarray(0, CHUNK_BYTES);
-      this.pending = this.pending.subarray(CHUNK_BYTES);
-      this._processFrame(frame);
+    // Mono-sum into the analysis ring (the Bluetooth playback above stays
+    // true stereo - this only feeds the visualizer). An odd trailing byte
+    // or half-frame is carried over to the next chunk.
+    let buf = chunk;
+    if (this._carry && this._carry.length) { buf = Buffer.concat([this._carry, chunk]); this._carry = null; }
+    const frames = (buf.length / 4) | 0;
+    const ring = this._ring, mask = ring.length - 1;
+    let w = this._writePos;
+    for (let i = 0; i < frames; i++) {
+      ring[w & mask] = (buf.readInt16LE(i * 4) + buf.readInt16LE(i * 4 + 2)) / 65536;
+      w++;
+    }
+    this._writePos = w;
+    if (buf.length > frames * 4) this._carry = Buffer.from(buf.subarray(frames * 4));
+    if (frames > 0) {
+      this._lastDataMs = performance.now();
       if (this.status === 'Connecting…') this.status = 'Playing';
     }
   }
 
-  _processFrame(frameBuf) {
-    const now = Date.now();
-    const dt = Math.max(0.005, Math.min(0.5, (now - this._lastChunkMs) / 1000));
-    this._lastChunkMs = now;
+  // Clock-driven analysis (redone for smoothness). Previously each
+  // 2048-sample block was analysed the moment it arrived: only ~21 updates
+  // a second (bars moved in visible steps at a 60Hz render), and at the
+  // mercy of network bursts - a burst of blocks arriving together made the
+  // bars jump ahead of what you hear, then freeze. Now decoded audio goes
+  // into a ring buffer, and a steady ANALYSIS_HZ clock analyses the most
+  // recent window at a "play cursor" that advances in real time, kept a
+  // fixed PLAY_LAG_S behind the newest data (absorbing bursts). Result:
+  // 60 fresh spectra a second, evenly spaced, from a sliding window.
+  _startAnalysisClock() {
+    if (this._analysisTimer) return;
+    this._lastTickMs = performance.now();
+    this._analysisTimer = setInterval(() => this._analysisTick(), 1000 / ANALYSIS_HZ);
+    if (this._analysisTimer.unref) this._analysisTimer.unref();
+  }
 
-    // Was throttled to every other ~46ms audio frame (halving FFT CPU
-    // cost) back when this ran on the same thread/core as the LED render
-    // loop (a real report at the time: "bars going up and down but not
-    // smooth", traced to the render loop's own ~85% CPU baseline leaving
-    // no headroom for even timing here). RENDER_WORKER=1 now moves the
-    // render loop to its own thread - top -H on real hardware confirmed
-    // comfortable headroom on this (main) thread - so a follow-up report
-    // ("bars FPS need to increase by double") can just be answered by
-    // computing every frame again, doubling the actual update rate.
+  _stopAnalysisClock() {
+    if (this._analysisTimer) clearInterval(this._analysisTimer);
+    this._analysisTimer = null;
+  }
 
-    // Mono-sum the interleaved stereo s16le samples - see module comment /
-    // CLAUDE.md task note: full stereo separation isn't worth the added
-    // complexity for a 64px visualizer, mono-summed is an acceptable
-    // simplification. (Bluetooth playback above stays true stereo -
-    // this mono-sum only affects the spectrum data.)
-    const samples = new Float32Array(FRAME_SAMPLES);
-    for (let i = 0; i < FRAME_SAMPLES; i++) {
-      const l = frameBuf.readInt16LE(i * 4);
-      const r = frameBuf.readInt16LE(i * 4 + 2);
-      samples[i] = ((l + r) / 2) / 32768;
+  _analysisTick() {
+    const now = performance.now();
+    const dt = Math.max(0.001, Math.min(0.1, (now - this._lastTickMs) / 1000));
+    this._lastTickMs = now;
+    const win = this._analyser.win;
+    const w = this._writePos;
+    let target;
+    if (w < win || now - this._lastDataMs > STALL_MS) {
+      // Not enough audio yet, or the stream has stalled: let the bars fall
+      // rather than freezing on the last window.
+      target = this._zeros;
+    } else {
+      const lag = PLAY_LAG_S * SAMPLE_RATE;
+      if (!(this._playPos > 0)) this._playPos = w - lag;
+      this._playPos += dt * SAMPLE_RATE;
+      this._playPos += (w - lag - this._playPos) * Math.min(1, dt * 2); // drift back toward the target lag
+      const lo = w - this._ring.length + win, hi = w;
+      if (this._playPos > hi) this._playPos = hi;
+      if (this._playPos < lo) this._playPos = lo;
+      if (this._playPos < win) { target = this._zeros; } else target = this._analyser.analyse(this._ring, Math.floor(this._playPos));
     }
-
-    const target = computeBands(samples, SAMPLE_RATE);
     this._lastTarget = target;
     this._applySpectrumTarget(target, dt);
   }
 
+  // Ballistics: near-instant attack so hits land on the beat, a smooth
+  // exponential release, and peak markers that hold briefly then fall
+  // with gravity - the classic analyser feel. (The old attack of dt*11
+  // added ~90ms of lag to every hit.)
   _applySpectrumTarget(target, dt) {
-    // A real report: "bars go up and down but not smooth" (distinct from
-    // the earlier CPU-timing-choppiness fix above, which addressed uneven
-    // UPDATE TIMING - this is about the MOTION itself once updates arrive
-    // evenly). Slower attack/release time constants (dt*20/dt*7 ->
-    // dt*11/dt*4.5) trade a little responsiveness for visibly smoother
-    // interpolation between FFT frames, while staying fast enough to read
-    // as "in sync with the music" rather than lagging behind it - bass
-    // hits and beat transients (the fast-attack case) still land within
-    // ~1-2 render frames, just without the same abruptness.
+    const attack = Math.min(1, dt * ATTACK_RATE), release = Math.min(1, dt * RELEASE_RATE);
     for (let b = 0; b < BAND_COUNT; b++) {
-      const t = target[b];
-      if (t > this.spec[b]) this.spec[b] += (t - this.spec[b]) * Math.min(1, dt * 11);
-      else this.spec[b] += (t - this.spec[b]) * Math.min(1, dt * 4.5);
-      if (this.spec[b] > this.peak[b]) { this.peak[b] = this.spec[b]; this._peakVel[b] = 0; }
-      else { this._peakVel[b] += dt * 1.2; this.peak[b] = Math.max(0, this.peak[b] - this._peakVel[b] * dt); }
+      const t = target[b], s = this.spec[b];
+      this.spec[b] = s + (t - s) * (t > s ? attack : release);
+      if (this.spec[b] >= this.peak[b]) { this.peak[b] = this.spec[b]; this._peakVel[b] = 0; this._peakHold[b] = PEAK_HOLD_S; }
+      else if (this._peakHold[b] > 0) this._peakHold[b] -= dt;
+      else { this._peakVel[b] += dt * PEAK_GRAVITY; this.peak[b] = Math.max(this.spec[b], this.peak[b] - this._peakVel[b] * dt); }
     }
   }
 
@@ -474,6 +513,7 @@ class RadioAudio {
       this.decodeProc = null;
     }
     this._teardownPlayback();
+    this._stopAnalysisClock();
     this.spec.fill(0);
     this.peak.fill(0);
   }

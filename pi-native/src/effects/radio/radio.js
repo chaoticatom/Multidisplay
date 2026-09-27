@@ -23,6 +23,7 @@ const { drawTicker } = require('./ticker');
 const { CHAR_W } = require('./font');
 const { drawGlyph5x7Face, drawLinesCentered, FONT_3x5, facePlot } = require('../text');
 const { searchStations } = require('./search');
+const { sample, createLevelState, computeLevels } = require('./levels');
 
 // Featured stations - verbatim from effects-core.js's RADIO_STATIONS (real,
 // legal, public streams - see CLAUDE.md task note, no concerns here).
@@ -86,19 +87,8 @@ let searchError = null;
 let searching = false;
 let lastQuery = '';
 
-// ── Gain/Auto Gain/Fit-to-Screen — downstream amplitude shaping applied at
-// the presentation layer (ctx.amp/ctx.peak), NOT inside ffmpegAudio.js's
-// decode/FFT pipeline (out of scope for this pass - see CLAUDE.md task
-// note). This mirrors where the browser original applies the equivalent
-// logic: auAutoGainMult is computed in readMicSpectrum() (effects-core.js
-// ~153-163) as a slow-adapting multiplier separate from the manual Gain
-// slider, and auFitScale in auUpdateFitScale() (~95-101) rescales so the
-// loudest current band reaches near the top of the face - both applied
-// AFTER auSpec/auPeak already hold their smoothed decode-side values,
-// exactly where these apply here relative to audio.spec/audio.peak.
-let autoGainMult = 1;
-let lastLevelSmoothed = 0;
-let fitScale = 1;
+// Gain/auto-gain/fit-to-screen state for the display levels - see ./levels.js.
+const levelState = createLevelState();
 
 // station: {name, genre, url} - from RADIO_STATIONS or a search result,
 // same shape either way (matches the original's radioPlay() contract).
@@ -163,44 +153,6 @@ async function search(query) {
   searching = false;
 }
 
-// Re-samples the canonical 256-band log spectrum down to `bands` display
-// bands by even stride, so a smaller band count still sees the FULL
-// frequency range rather than just its low-frequency subset - see
-// ffmpegAudio.js's module comment for why this differs slightly from the
-// literal (arguably accidental) behaviour of the browser original's direct
-// auSpec[b] indexing.
-//
-// Endpoint-correct linear mapping - a real report ("the far right few bars
-// never move"). The old `floor(b*BAND_COUNT/bands)` never actually reaches
-// the true top of the underlying BAND_COUNT-sized array: for bands=64 (a
-// common display setting), the last displayed bar (b=63) mapped to index
-// floor(63*256/64)=252, never 253-255 - the rightmost few source bands
-// were simply never sampled by ANY displayed bar, so if those specific
-// top-of-spectrum bins happen to sit in a compressed stream's quiet/
-// rolled-off range, the last bar or two reads a near-static value and
-// looks like it "never moves". `b*(BAND_COUNT-1)/(bands-1)` instead
-// guarantees b=0 -> index 0 and b=bands-1 -> index BAND_COUNT-1 exactly,
-// so every source band is reachable by some displayed bar.
-// A real report: a manually-dialed 3120Hz (and separately 5000Hz/7000Hz)
-// tone showed almost nothing on the display despite genuinely strong
-// underlying energy. Root cause: this used to pick a SINGLE nearest
-// canonical index per displayed bar - for a common ratio like
-// BAND_COUNT=256 -> bands=64 (4 canonical bands per displayed bar), that
-// nearest-neighbor pick can SKIP canonical bands entirely (e.g. displayed
-// bars 56/57 landed on canonical indices 227/231, never touching 228-230
-// in between) - confirmed directly: canonical band 229 held the real
-// 5000Hz peak, and no displayed bar ever sampled it. Now takes the MAX
-// across the full contiguous range of canonical bands each displayed bar
-// actually represents, so no band's peak can fall through the gap.
-function sample(arr, b, bands) {
-  if (bands <= 1) return arr[BAND_COUNT - 1];
-  const start = Math.floor((b * BAND_COUNT) / bands);
-  const end = b === bands - 1 ? BAND_COUNT - 1 : Math.floor(((b + 1) * BAND_COUNT) / bands) - 1;
-  let v = arr[start];
-  for (let i = start + 1; i <= end; i++) if (arr[i] > v) v = arr[i];
-  return v;
-}
-
 function effectRadio(core, dt) {
   core.t += dt;
   const opts = core.effectOptions?.radio || {};
@@ -234,92 +186,20 @@ function effectRadio(core, dt) {
     // drove the auto-gain multiplier down, crushing every OTHER band even
     // though they weren't actually loud - average is what "overall
     // loudness" should mean for this purpose.
-    let overallLevel = 0;
-    for (let b = 0; b < bands; b++) overallLevel += sample(audio.spec, b, bands);
-    overallLevel /= bands;
-    lastLevelSmoothed += (overallLevel - lastLevelSmoothed) * Math.min(1, dt * 3);
-    if (autoGainOn) {
-      // Lowered from 0.55 alongside the max->average change above - an
-      // average across all bands is naturally much smaller than the single
-      // loudest band was, so the old max-calibrated target would now drive
-      // gain far too high. Raised again from 0.25 - a real report ("why do
-      // I also need to adjust the gain slider to get a good display") -
-      // 0.25 was hit accurately but that's simply not a visually "full"
-      // average level once most bands sit well below it; the goal here is
-      // for auto gain ALONE to fill the display without the manual slider
-      // needing anything on top.
-      const target = 0.45;
-      if (lastLevelSmoothed > 0.01) {
-        const desired = target / Math.max(0.05, lastLevelSmoothed * autoGainMult);
-        // Auto gain's own ADJUSTMENT CADENCE should be gradual (a real
-        // clarification: it should settle on a gain level over several
-        // seconds, not visibly change within about one) - this is
-        // deliberately separate from bar-motion smoothness, which is
-        // ffmpegAudio.js's _applySpectrumTarget() and stays as fast as
-        // possible, untouched by this. dt*0.2 reaches ~63% of the way to a
-        // new target in ~5s, ~95% in ~15s.
-        autoGainMult += (desired - autoGainMult) * Math.min(1, dt * 0.2);
-        // A real report: "even with auto gain, I need to set the gain
-        // slider to about 3" - the old ceiling of 4 was capping auto gain
-        // below what quiet streams/low-output stations actually need,
-        // forcing the manual Gain slider to make up the rest on top of an
-        // already-maxed-out auto multiplier. Raised so auto gain alone can
-        // reach what previously needed gain~3 stacked on top of it.
-        autoGainMult = Math.max(0.3, Math.min(10, autoGainMult));
-      }
-    } else {
-      autoGainMult = 1;
-    }
-    const totalGain = gain * autoGainMult;
-
-    // Fit to Screen - rescale bar-style displays each frame so the loudest
-    // current band reaches the top of the face, smoothed so it doesn't
-    // visibly pump on every transient.
-    //
-    // Target 0.99, not 0.94 - a real report ("bars should be able to
-    // reach to top of the display. most seem to be capped so looks like
-    // it flat lines on loud music"). The old 0.94 ceiling meant even the
-    // loudest band, with Fit to Screen doing exactly what it's supposed
-    // to, could never exceed 94% of the face height - reading as "capped,
-    // never quite reaches the top" precisely when the display should be
-    // showing its most dynamic, loudest moments. 0.99 leaves a hairline
-    // margin (avoids a peak cap/glow clipping right at the very edge
-    // pixel) while letting bars genuinely reach the top.
-    if (fitToScreen) {
-      let mx = 0;
-      for (let b = 0; b < bands; b++) { const v = sample(audio.spec, b, bands) * totalGain; if (v > mx) mx = v; }
-      const target = mx > 0.015 ? Math.min(3.5, 0.99 / mx) : fitScale;
-      fitScale += (target - fitScale) * 0.12;
-    } else {
-      fitScale = 1;
-    }
+    // Gain -> auto-gain -> fit-to-screen -> soft ceiling -> bloom, once per
+    // frame into arrays (see ./levels.js).
+    const lv = computeLevels(levelState, audio, { bands, gain, autoGain: autoGainOn, fitToScreen }, dt);
 
     // Scroll offset - advances only while Scroll Speed > 0, wraps every
     // 4*SIZE columns, matches effects-core.js's auRefreshCurrentSource().
     if (scrollSpeed > 0) {
       spectrumState.scrollX = ((spectrumState.scrollX || 0) + dt * scrollSpeed * core.SIZE * 1.5 + 4 * core.SIZE) % (4 * core.SIZE);
     }
-
-    // Display-only "bloom" onto each bar's immediate neighbours - a real
-    // report: manually dialing the debug frequency slider to a value that
-    // doesn't land exactly on one band's own center only lit that bar
-    // partially (the tone's energy genuinely splits across whichever
-    // band(s) are nearest, since bands are discrete Hz ranges) - "I need
-    // to see maybe the main bar and the 2 side bars extending up to show
-    // there is sound". Doesn't touch audio.spec/peak themselves (auto
-    // gain and everything else still sees the real, unbloomed values) -
-    // purely how amp()/peak() present a band to the renderer.
-    const rawAmp = (b) => Math.min(1, sample(audio.spec, b, bands) * totalGain * fitScale);
-    const rawPeak = (b) => Math.min(1, sample(audio.peak, b, bands) * totalGain * fitScale);
-    const bloom = (fn, b) => {
-      let v = fn(b);
-      if (b > 0) v = Math.max(v, fn(b - 1) * 0.5);
-      if (b < bands - 1) v = Math.max(v, fn(b + 1) * 0.5);
-      return v;
-    };
+    const ampArr = lv.amp, peakArr = lv.peak;
     const ctx = {
-      amp: (b) => bloom(rawAmp, b),
-      peak: (b) => bloom(rawPeak, b),
+      amp: (b) => ampArr[b],
+      peak: (b) => peakArr[b],
+      ampArr, peakArr,
       bands, theme, barMode, scrollX: spectrumState.scrollX || 0, t: core.t, dt,
     };
     renderSpectrumStyle(core, ctx, style, spectrumState);
@@ -330,8 +210,12 @@ function effectRadio(core, dt) {
     // it read as "broken" - the station list is in the web page).
     if (core.SIZE >= 16) {
       const sc = core.SIZE >= 64 ? 2 : 1;
-      drawLinesCentered(FONT_3x5, ['PICK A', 'STATION'], core.SIZE, core.SIZE, facePlot(core, 0, 0.35, 0.5, 0.7), { scale: sc });
-      if (core.panelMode !== '2d') drawLinesCentered(FONT_3x5, ['PICK A', 'STATION'], core.SIZE, core.SIZE, facePlot(core, 2, 0.35, 0.5, 0.7), { scale: sc });
+      // Face rows run bottom-up in the preview/panels (see text.js's
+      // drawGlyph5x7Face), so the whole text block is flipped vertically.
+      const M = core.SIZE - 1;
+      const hint = (face) => { const p = facePlot(core, face, 0.35, 0.5, 0.7); return (x, y) => p(x, M - y); };
+      drawLinesCentered(FONT_3x5, ['PICK A', 'STATION'], core.SIZE, core.SIZE, hint(0), { scale: sc });
+      if (core.panelMode !== '2d') drawLinesCentered(FONT_3x5, ['PICK A', 'STATION'], core.SIZE, core.SIZE, hint(2), { scale: sc });
     }
   }
 

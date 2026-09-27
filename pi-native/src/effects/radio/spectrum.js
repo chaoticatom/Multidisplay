@@ -102,30 +102,53 @@ function auGlowAround(core, face, u, y, col, spread, strength) {
 // Peak cap: a small glowing diamond instead of one flat white pixel -
 // bright core, soft halo, tinted faintly by the bar's own colour so it
 // doesn't look like a disconnected sticker on top.
+// Mostly the bar's own colour, lifted toward white: a whitish cap with a
+// 2-row grey halo read as a muddy grey smear above every bar once levels
+// moved to the dB scale (caps now sit close above the bars).
 function auDrawPeakCap(core, face, u, y, tint) {
-  const glow = [0.55 + tint[0] * 0.45, 0.55 + tint[1] * 0.45, 0.55 + tint[2] * 0.45];
+  const glow = [0.3 + tint[0] * 0.8, 0.3 + tint[1] * 0.8, 0.3 + tint[2] * 0.8];
   auBloom(core, face, u, y, glow, 1);
-  auGlowAround(core, face, u, y, glow, 2, 0.35);
+  auGlowAround(core, face, u, y, tint, 1, 0.25);
 }
 
 // Polar spectrum layout for top/bottom faces (angle = band, radius =
-// level), plus the faint peak arc and bass-hit centre flash.
+// level), plus the faint peak arc and bass-hit centre flash. Each pixel's
+// radius and angle only depend on the panel size, so they're computed once
+// per size (this used to run hypot+atan2 for every pixel of both faces on
+// every frame).
+const _polarLut = { S: 0, r: null, ang: null };
+function polarLut(S) {
+  if (_polarLut.S !== S) {
+    const cc = (S - 1) / 2, maxR = cc * 1.08;
+    const r = new Float32Array(S * S), ang = new Float32Array(S * S);
+    for (let v = 0; v < S; v++) {
+      for (let u = 0; u < S; u++) {
+        const dx = u - cc, dz = v - cc;
+        r[v * S + u] = Math.hypot(dx, dz) / maxR;
+        ang[v * S + u] = Math.atan2(dz, dx) / (Math.PI * 2) + 0.5;
+      }
+    }
+    Object.assign(_polarLut, { S, r, ang });
+  }
+  return _polarLut;
+}
 function drawPolarFace(core, ctx, face) {
-  const S = core.SIZE, cc = (S - 1) / 2, maxR = cc * 1.08;
-  const bass = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
+  const S = core.SIZE, { r: R, ang: A } = polarLut(S);
+  const bands = ctx.bands, amps = ctx.ampArr, peaks = ctx.peakArr;
+  const bass = (amps[0] + amps[Math.min(1, bands - 1)] + amps[Math.min(2, bands - 1)]) / 3;
+  const rot = ctx.t * 0.03, flashR = bass * 0.22;
   for (let v = 0; v < S; v++) {
     for (let u = 0; u < S; u++) {
-      const dx = u - cc, dz = v - cc, r = Math.hypot(dx, dz) / maxR;
-      const ang = (Math.atan2(dz, dx) / (Math.PI * 2) + 0.5 + ctx.t * 0.03) % 1;
-      const b = Math.min(ctx.bands - 1, (ang * ctx.bands) | 0);
-      const amp = ctx.amp(b);
+      const i = v * S + u, r = R[i];
+      if (r < flashR) { core.setFaceLED(face, u, v, 1, 1, 1); continue; }
+      const b = Math.min(bands - 1, (((A[i] + rot) % 1) * bands) | 0);
+      const amp = amps[b];
       if (r <= amp) {
-        const col = auColor(ctx.theme, b / (ctx.bands - 1), 1 - r / Math.max(0.01, amp), amp, ctx.t);
+        const col = auColor(ctx.theme, b / (bands - 1), 1 - r / Math.max(0.01, amp), amp, ctx.t);
         core.setFaceLED(face, u, v, col[0], col[1], col[2]);
-      } else if (Math.abs(r - ctx.peak(b)) < 0.045) {
+      } else if (Math.abs(r - peaks[b]) < 0.045) {
         core.setFaceLED(face, u, v, 0.8, 0.8, 0.85);
       }
-      if (r < bass * 0.22) core.setFaceLED(face, u, v, 1, 1, 1);
     }
   }
 }
@@ -230,6 +253,16 @@ function drawBars(core, ctx, mirror) {
       // solid, striped, wave
       const h = rawH + waveOff, hi = Math.max(0, Math.min(M, Math.round(h)));
       const frac = h - Math.floor(h);
+      // Faint haze in the unlit part of the column, brighter the louder
+      // the bar - reads as light spilling from the bar rather than a hard
+      // cut-out on black, and makes the whole face breathe with the music.
+      if (amp > 0.05 && mode !== 'striped') {
+        const hz = auColor(ctx.theme, fb, 0.6, amp, ctx.t), k = 0.05 * amp;
+        for (let y = hi + 1; y <= M; y++) {
+          const fall = k * (1 - (y - hi) / (M - hi + 1));
+          core.setFaceLED(face, u, y, hz[0] * fall, hz[1] * fall, hz[2] * fall);
+        }
+      }
       for (let y = 0; y <= hi; y++) {
         const fh = hi > 0 ? y / hi : 0;
         const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
@@ -244,7 +277,7 @@ function drawBars(core, ctx, mirror) {
       if (h > 0) {
         const tp = auColor(ctx.theme, fb, 1, amp, ctx.t);
         auBloom(core, face, u, hi, tp, 1.5);
-        auGlowAround(core, face, u, hi, tp, 3, 0.4);
+        auGlowAround(core, face, u, hi, tp, 2, 0.25);
       }
       auDrawPeakCap(core, face, u, Math.max(0, Math.min(M, Math.round(ctx.peak(b) * M + waveOff))), auColor(ctx.theme, fb, 1, amp, ctx.t));
     }
@@ -672,6 +705,12 @@ function createSpectrumState() {
 }
 
 function renderSpectrumStyle(core, ctx, style, state) {
+  // radio.js/radioWall.js pass precomputed ampArr/peakArr (see levels.js);
+  // callers that only provide amp()/peak() functions get them built here.
+  if (!ctx.ampArr) {
+    ctx.ampArr = Float32Array.from({ length: ctx.bands }, (_, b) => ctx.amp(b));
+    ctx.peakArr = Float32Array.from({ length: ctx.bands }, (_, b) => ctx.peak(b));
+  }
   switch (style) {
     case 'mirror': return drawBars(core, ctx, true);
     case 'dots': return drawDots(core, ctx);

@@ -46,10 +46,11 @@ function glowAroundWall(core, x, y, col, spread, strength) {
     blendWall(core, x, y - g, col[0] * fade, col[1] * fade, col[2] * fade);
   }
 }
+// Tinted cap, tight halo - see spectrum.js's auDrawPeakCap() for why.
 function peakCapWall(core, x, y, tint) {
-  const glow = [0.55 + tint[0] * 0.45, 0.55 + tint[1] * 0.45, 0.55 + tint[2] * 0.45];
+  const glow = [0.3 + tint[0] * 0.8, 0.3 + tint[1] * 0.8, 0.3 + tint[2] * 0.8];
   blendWall(core, x, y, glow[0], glow[1], glow[2]);
-  glowAroundWall(core, x, y, glow, 2, 0.35);
+  glowAroundWall(core, x, y, tint, 1, 0.25);
 }
 
 function scrolledBand(c, cols, bands, scrollX) {
@@ -158,7 +159,7 @@ function drawBarsWall(core, ctx, mirror) {
       if (h > 0) {
         const tp = auColor(ctx.theme, fb, 1, amp, ctx.t);
         blendWall(core, c, hi, tp[0] * 1.5, tp[1] * 1.5, tp[2] * 1.5);
-        glowAroundWall(core, c, hi, tp, 3, 0.4);
+        glowAroundWall(core, c, hi, tp, 2, 0.25);
       }
       peakCapWall(core, c, Math.max(0, Math.min(M, Math.round(ctx.peak(b) * M + waveOff))), auColor(ctx.theme, fb, 1, amp, ctx.t));
     }
