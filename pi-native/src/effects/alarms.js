@@ -41,6 +41,7 @@
 //     al-effect-rise-* markup, which was intentionally NOT copied into
 //     pi-native's alarm-modal for this reason).
 const { runOverlays } = require('./overlays');
+const { blitGlyph } = require('./text');
 
 const SIDE = [2, 0, 3, 1]; // east, south, west, north - panoramic side-face order, matches ui.js
 const AL_CHECK_INTERVAL = 2; // seconds, matches the browser's `if(alarmT>2)`
@@ -114,6 +115,23 @@ function drawBigMessage(core, message, brightVal, { shadow = true, mirrored = tr
   for (let fi = 0; fi < 4; fi++) {
     const face = SIDE[fi];
     const mir = mirrored && (face === 2 || face === 3);
+    // Glyph cells span rows lineV-7..lineV-1 with rows reversed (v runs
+    // upward on the side faces), columns reversed too on mirrored faces.
+    // Shadow: darken the 8 neighbours of every lit pixel.
+    const shadowPlot = (pu, pv) => {
+      for (let sy = -1; sy <= 1; sy++) for (let sx = -1; sx <= 1; sx++) {
+        if (sy === 0 && sx === 0) continue;
+        const fv = pv + sy, fu = pu + sx;
+        if (fu < 0 || fu >= S || fv < 0 || fv >= S) continue;
+        const idx = faceMap[face][fv * S + fu]; if (idx < 0) continue;
+        colBuf[idx * 3] *= 0.15; colBuf[idx * 3 + 1] *= 0.15; colBuf[idx * 3 + 2] *= 0.15;
+      }
+    };
+    const brightPlot = (pu, pv) => {
+      if (pu < 0 || pu >= S || pv < 0 || pv >= S) return;
+      const idx = faceMap[face][pv * S + pu]; if (idx < 0) return;
+      colBuf[idx * 3] = brightVal; colBuf[idx * 3 + 1] = brightVal; colBuf[idx * 3 + 2] = brightVal;
+    };
 
     if (shadow) {
       for (let li = 0; li < lines.length; li++) {
@@ -124,21 +142,7 @@ function drawBigMessage(core, message, brightVal, { shadow = true, mirrored = tr
         for (let ci = 0; ci < line.length; ci++) {
           const glyph = BIG_GLYPHS[line[ci]]; if (!glyph) continue;
           const charU = mir ? startU + (line.length - 1 - ci) * charW : startU + ci * charW;
-          for (let row = 0; row < 7; row++) {
-            const bits = glyph[row];
-            const pv = lineV - (row + 1);
-            for (let col = 0; col < 5; col++) {
-              if (!((bits >> (4 - col)) & 1)) continue;
-              const pu = mir ? charU + (4 - col) : charU + col;
-              for (let sy = -1; sy <= 1; sy++) for (let sx = -1; sx <= 1; sx++) {
-                if (sy === 0 && sx === 0) continue;
-                const fv = pv + sy, fu = pu + sx;
-                if (fu < 0 || fu >= S || fv < 0 || fv >= S) continue;
-                const idx = faceMap[face][fv * S + fu]; if (idx < 0) continue;
-                colBuf[idx * 3] *= 0.15; colBuf[idx * 3 + 1] *= 0.15; colBuf[idx * 3 + 2] *= 0.15;
-              }
-            }
-          }
+          blitGlyph(glyph, 5, 7, charU, lineV - 7, 1, shadowPlot, mir, true);
         }
       }
     }
@@ -151,18 +155,7 @@ function drawBigMessage(core, message, brightVal, { shadow = true, mirrored = tr
       for (let ci = 0; ci < line.length; ci++) {
         const glyph = BIG_GLYPHS[line[ci]]; if (!glyph) continue;
         const charU = mir ? startU + (line.length - 1 - ci) * charW : startU + ci * charW;
-        for (let row = 0; row < 7; row++) {
-          const bits = glyph[row];
-          const pv = lineV - (row + 1);
-          if (pv < 0 || pv >= S) continue;
-          for (let col = 0; col < 5; col++) {
-            if (!((bits >> (4 - col)) & 1)) continue;
-            const pu = mir ? charU + (4 - col) : charU + col;
-            if (pu < 0 || pu >= S) continue;
-            const idx = faceMap[face][pv * S + pu]; if (idx < 0) continue;
-            colBuf[idx * 3] = brightVal; colBuf[idx * 3 + 1] = brightVal; colBuf[idx * 3 + 2] = brightVal;
-          }
-        }
+        blitGlyph(glyph, 5, 7, charU, lineV - 7, 1, brightPlot, mir, true);
       }
     }
   }

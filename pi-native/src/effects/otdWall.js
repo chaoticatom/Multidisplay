@@ -21,7 +21,7 @@
 'use strict';
 
 const { wcInitWall, wcStepWall, wcDrawToFaceWall } = require('./_shared');
-const { PIXEL_FONT } = require('./weather/font');
+const { drawString, FONT_3x5, wallPlot } = require('./text');
 
 let otdEvents = [];
 let otdFetching = false;
@@ -72,25 +72,11 @@ function otdFetch() {
 
 // Compact top-left title strip - 3x5 PIXEL_FONT (same font weather's ticker
 // and apodWall.js's placeholder text use), anchored rather than centered.
-function glyph3x5Wall(core, W, H, ch, su, sv, r, g, b) {
-  const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()]; if (!rows) return 4;
-  for (let row = 0; row < 5; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 3; col++) {
-      if (!((bits >> (2 - col)) & 1)) continue;
-      const u = su + col, v = sv + row;
-      if (u < 0 || u >= W || v < 0 || v >= H) continue;
-      core.setWallPixel(u, v, r, g, b);
-    }
-  }
-  return 4;
-}
 function drawTitleCorner(core, W, H) {
   const now = new Date();
   const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   const label = `ON THIS DAY ${monthNames[now.getMonth()]} ${now.getDate()} - ${otdEvents.length} EVENTS`;
-  let u = 1;
-  for (const ch of label) { u += glyph3x5Wall(core, W, H, ch, u, 1, 0.48, 0.82, 1); if (u >= W) break; }
+  drawString(FONT_3x5, label, 1, 1, wallPlot(core, 0.48, 0.82, 1), { maxX: W });
 }
 
 function drawStarfield(core, W, H, tt) {

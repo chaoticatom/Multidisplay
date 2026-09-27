@@ -41,42 +41,9 @@ const FONT = {
   '!': [0x04, 0x04, 0x04, 0x04, 0x04, 0, 0x04], '?': [0x0E, 0x11, 0x01, 0x02, 0x04, 0, 0x04],
 };
 
-// Draws one glyph at (su,sv) [top-left corner] on `face` via
-// core.setFaceLED, tinted `rgb`. Returns CHAR_W (the horizontal advance),
-// same contract effects-core.js's wcDrawGlyph() has - so callers can just
-// do `u += drawGlyph(...)` in a loop.
-//
-// Column placement is plain/uncorrected (verified directly, no driver
-// transform involved: drawing with no compensation produces a correctly-
-// shaped, readable glyph - see git history for the left-right mirror saga
-// this settled). Row order, however, DOES need flipping: app.js's
-// drawPanel2dFrame() (the browser preview's own canvas renderer, entirely
-// separate from anything here) applies its own vertical flip
-// (`fv = size-1-v`) to correctly place general effect content and this
-// ticker's text block at the bottom of the panel - but that same per-
-// scanline flip also inverts each glyph's OWN internal row order as an
-// unavoidable side effect, independent of colBuf's content. A real report
-// with a full-window browser screenshot ("letter order is correct, but
-// needs flipping top to bottom") confirmed this directly. NOTE: this
-// compensates for the BROWSER PREVIEW's vertical flip specifically -
-// rgbMatrixDriver.js's _buildFaceBuffer() has no equivalent v-flip of its
-// own, so if the physical panel's text orientation regresses after this,
-// the fix belongs in the driver (matching the browser's convention),
-// not by reverting this.
-function drawGlyph(core, face, ch, su, sv, rgb) {
-  const rows = FONT[ch.toUpperCase()] || FONT['?'];
-  for (let ry = 0; ry < 7; ry++) {
-    const bits = rows[6 - ry];
-    const y = sv - (6 - ry); // draw upward from the baseline at sv
-    if (y < 0 || y >= core.SIZE) continue;
-    for (let rx = 0; rx < 5; rx++) {
-      if (!(bits & (1 << (4 - rx)))) continue;
-      const x = su + rx;
-      if (x < 0 || x >= core.SIZE) continue;
-      core.setFaceLED(face, x, y, rgb[0], rgb[1], rgb[2]);
-    }
-  }
-  return CHAR_W;
-}
+// Pure glyph DATA only - drawing lives in ../text.js (blitGlyph and
+// friends), shared with every other bitmap-text effect. See text.js's
+// drawGlyph5x7Face() for the cube-face variant of this font (rows flipped)
+// that used to live here as drawGlyph().
 
-module.exports = { FONT, CHAR_W, CHAR_H, drawGlyph };
+module.exports = { FONT, CHAR_W, CHAR_H };

@@ -23,7 +23,7 @@
 // _renderWallFrame() comment documents (gx = position within a chain, gy =
 // which of the 3 parallel outputs).
 const { FACE_LAYOUT, FACE_NAMES } = require('../panelConfig');
-const { PIXEL_FONT } = require('./weather/font');
+const { drawLinesCentered, FONT_3x5, wallPlot } = require('./text');
 const { drawLinesCentered3x5 } = require('./_shared');
 
 // Largest integer scale that still fits every line's width within `size`
@@ -47,47 +47,14 @@ function renderIdentifyCube(core, config) {
   }
 }
 
-// Own glyph writer (not drawLinesCentered3x5, which is setFaceLED/cube-only)
-// - plain top-down row-major addressing straight onto setWallPixel, same as
-// every other from-scratch wall-mode drawer in this codebase; no v-flip
-// needed since nothing here assumes a v-up convention to begin with (see
-// CLAUDE.md's "write-time v-flip" note - only effects PORTED from a v-up
-// source need that per-effect fix, this is native top-down text).
-function wallGlyph(core, ox, oy, ch, su, sv, scale, r, g, b) {
-  const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-  if (!rows) return 4 * scale;
-  for (let row = 0; row < 5; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 3; col++) {
-      if (!((bits >> (2 - col)) & 1)) continue;
-      for (let sy = 0; sy < scale; sy++) {
-        for (let sx = 0; sx < scale; sx++) {
-          core.setWallPixel(ox + su + col * scale + sx, oy + sv + row * scale + sy, r, g, b);
-        }
-      }
-    }
-  }
-  return 4 * scale;
-}
-function wallLineWidth(str, scale) { return str.length * 4 * scale - scale; }
-function wallLinesCentered(core, ox, oy, panelSize, lines, scale, r, g, b) {
-  const lineH = 6 * scale;
-  const totalH = lines.length * lineH;
-  let sv = Math.round((panelSize - totalH) / 2);
-  for (const line of lines) {
-    let su = Math.round((panelSize - wallLineWidth(line, scale)) / 2);
-    for (const ch of line) su += wallGlyph(core, ox, oy, ch, su, sv, scale, r, g, b);
-    sv += lineH;
-  }
-}
-
 function renderIdentifyWall(core, config) {
   if (!core.wallBuf) return;
   core.wallBuf.fill(0);
   const S = core.wallPanelSize;
   config.panels.forEach((p, idx) => {
     const lines = ['PANEL ' + (idx + 1), 'OUT ' + (p.gy + 1), 'POS ' + (p.gx + 1)];
-    wallLinesCentered(core, p.gx * S, p.gy * S, S, lines, pickScale(lines, S, 4), 0.2, 1, 0.4);
+    // Centered within this one panel's own S x S cell of the wall canvas.
+    drawLinesCentered(FONT_3x5, lines, S, S, wallPlot(core, 0.2, 1, 0.4), { scale: pickScale(lines, S, 4), ox: p.gx * S, oy: p.gy * S });
   });
 }
 

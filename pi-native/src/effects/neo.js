@@ -23,7 +23,7 @@
 // name").
 'use strict';
 
-const { PIXEL_FONT } = require('./weather/font');
+const { drawGlyph, drawString, FONT_3x5, faceMaxPlot } = require('./text');
 
 const nasaConfig = require('../nasaConfig');
 // Live-read (not a frozen constant) so a key entered via the UI takes
@@ -128,27 +128,10 @@ function neoFetch() {
   });
 }
 
-// ── 3x5 bitmap text helpers (same convention as iss.js's issGlyph/issText) ─
-function neoGlyph(core, face, ch, su, sv, tr, tg, tb) {
-  const { SIZE: S, faceMap, colBuf } = core;
-  const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()]; if (!rows) return 4;
-  for (let row = 0; row < 5; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 3; col++) {
-      if (!((bits >> (2 - col)) & 1)) continue;
-      const u = su + col, v = sv + (4 - row);
-      if (u < 0 || u >= S || v < 0 || v >= S) continue;
-      const idx = faceMap[face][v * S + u]; if (idx < 0) continue;
-      if (tr > colBuf[idx * 3]) colBuf[idx * 3] = tr;
-      if (tg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = tg;
-      if (tb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = tb;
-    }
-  }
-  return 4;
-}
+// ── 3x5 bitmap text helpers (same convention as iss.js's issText) ─
+// Glyph rows drawn flipped (`v = sv + (4 - row)`), brighten-only blend.
 function neoText(core, face, str, su, sv, tr, tg, tb) {
-  let u = su;
-  for (const ch of str) { u += neoGlyph(core, face, ch, u, sv, tr, tg, tb); if (u >= core.SIZE) break; }
+  drawString(FONT_3x5, str, su, sv, faceMaxPlot(core, face, tr, tg, tb), { flipY: true, maxX: core.SIZE });
 }
 function neoTextCentered(core, face, str, sv, tr, tg, tb) {
   const w = str.length * 4;
@@ -173,7 +156,7 @@ function neoBuildSegments(rgbFn) {
 }
 
 // Cube face-1 scrolling ticker (single risk-coloured line, like the
-// browser's neoApplyTickerToFace, just drawn with neoGlyph instead of a
+// browser's neoApplyTickerToFace, just drawn with the shared 3x5 glyph instead of a
 // pre-rendered canvas strip).
 function neoDrawTicker(core, face, dt) {
   const level = neoOverallRisk();
@@ -358,7 +341,7 @@ function neoDraw2D(core, dt, tt, level, riskRGB, pulse) {
     for (const ch of seg.str) {
       for (let tile = 0; tile < 2; tile++) {
         const u = charPos * charW - Math.floor(neo2dTickerX) + tile * totalW;
-        if (u + 3 >= 0 && u < S) neoGlyph(core, face, ch, u, sv, seg.r, seg.g, seg.b);
+        if (u + 3 >= 0 && u < S) drawGlyph(FONT_3x5, ch, u, sv, faceMaxPlot(core, face, seg.r, seg.g, seg.b), { flipY: true });
       }
       charPos++;
     }

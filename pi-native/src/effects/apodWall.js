@@ -22,8 +22,8 @@
 'use strict';
 
 const { Jimp } = require('jimp');
-const { drawGlyph, CHAR_W } = require('./radio/font');
-const { PIXEL_FONT } = require('./weather/font');
+const { CHAR_W } = require('./radio/font');
+const { drawLinesCentered: drawLinesCenteredText, drawMarquee, FONT_3x5, FONT_5x7, wallPlot } = require('./text');
 
 const nasaConfig = require('../nasaConfig');
 // Live-read (not a frozen constant) so a key entered via the UI takes
@@ -134,32 +134,8 @@ function applyImageToWall(core, W, H) {
 
 // Centered placeholder/error text (same 3x5 glyph approach apod.js's
 // drawLinesCentered uses, just against core.setWallPixel).
-function glyphWall(core, W, H, ch, su, sv, scale, r, g, b) {
-  const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-  if (!rows) return 4 * scale;
-  for (let row = 0; row < 5; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 3; col++) {
-      if (!((bits >> (2 - col)) & 1)) continue;
-      for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-        const u = su + col * scale + sx, v = sv + row * scale + sy;
-        if (u < 0 || u >= W || v < 0 || v >= H) continue;
-        core.setWallPixel(u, v, r, g, b);
-      }
-    }
-  }
-  return 4 * scale;
-}
-function textWidth3x5(str, scale) { return str.length * 4 * scale - scale; }
 function drawLinesCentered(core, W, H, lines, scale, r, g, b) {
-  const lineH = 6 * scale;
-  const totalH = lines.length * lineH;
-  let sv = Math.round((H - totalH) / 2);
-  for (const line of lines) {
-    let su = Math.round((W - textWidth3x5(line, scale)) / 2);
-    for (const ch of line) su += glyphWall(core, W, H, ch, su, sv, scale, r, g, b);
-    sv += lineH;
-  }
+  drawLinesCenteredText(FONT_3x5, lines, W, H, wallPlot(core, r, g, b), { scale });
 }
 
 function buildTicker() {
@@ -168,40 +144,14 @@ function buildTicker() {
     : '   ASTRONOMY PICTURE OF THE DAY   -   LOADING...   ';
 }
 
-// radio/font.js's drawGlyph is addressed through core.setFaceLED/core.SIZE -
-// same glyph bitmap (5x7, drawn upward from a baseline at sv), reimplemented
-// against core.setWallPixel/wallW/wallH instead.
-const { FONT: RADIO_GLYPHS } = require('./radio/font');
-function drawGlyphWall(core, W, H, ch, su, sv, rgb) {
-  const rows = RADIO_GLYPHS[ch.toUpperCase()] || RADIO_GLYPHS['?'];
-  for (let ry = 0; ry < 7; ry++) {
-    const bits = rows[ry];
-    const y = sv - (6 - ry);
-    if (y < 0 || y >= H) continue;
-    for (let rx = 0; rx < 5; rx++) {
-      if (!(bits & (1 << (4 - rx)))) continue;
-      const x = su + rx;
-      if (x < 0 || x >= W) continue;
-      core.setWallPixel(x, y, rgb[0], rgb[1], rgb[2]);
-    }
-  }
-  return CHAR_W;
-}
-
 function drawTicker(core, W, H, dt) {
   if (!tickerLabel) buildTicker();
   const textW = tickerLabel.length * CHAR_W;
   scrollX += dt * 14;
   if (scrollX > textW) scrollX -= textW;
   const sv = Math.round(H / 2) + 3;
-  const rgb = [1, 0.85, 0.48];
-  let u = -Math.floor(scrollX);
-  while (u < W) {
-    for (const ch of tickerLabel) {
-      u += drawGlyphWall(core, W, H, ch, u, sv, rgb);
-      if (u > W) break;
-    }
-  }
+  // The wall draws this font unflipped, glyph spanning rows sv-6..sv.
+  drawMarquee(FONT_5x7, tickerLabel, scrollX, sv - 6, W, wallPlot(core, 1, 0.85, 0.48));
 }
 
 function effectApodWall(core, dt) {

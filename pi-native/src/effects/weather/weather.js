@@ -42,7 +42,7 @@
 // range across many times of day and weather codes" (test/weather.test.js)
 // but not eyeballed against real output.
 const { wxSkyRGB, wxInitScene } = require('./state');
-const { PIXEL_FONT } = require('./font');
+const { drawString, FONT_3x5, faceMaxPlot } = require('../text');
 
 function effectWeather(core, dt, wxState, speedMult) {
   const is2d = core.panelMode === '2d';
@@ -220,26 +220,10 @@ function effectWeather(core, dt, wxState, speedMult) {
   const tempV = 10;
   const bldBase = horizV;
 
-  const WXF = PIXEL_FONT;
-
-  function wxGlyph(face, ch, su, sv, tr, tg, tb) {
-    const rows = WXF[ch] || WXF[ch.toUpperCase()]; if (!rows) return 4;
-    for (let row = 0; row < 5; row++) {
-      const bits = rows[row];
-      for (let col = 0; col < 3; col++) {
-        if (!((bits >> (2 - col)) & 1)) continue;
-        const u = su + col, v = sv + (4 - row);
-        if (u < 0 || u >= S || v < 0 || v >= S) continue;
-        const idx = faceMap[face][v * S + u]; if (idx < 0) continue;
-        if (tr > colBuf[idx * 3]) colBuf[idx * 3] = tr;
-        if (tg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = tg;
-        if (tb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = tb;
-      }
-    }
-    return 4;
-  }
+  // 3x5 text, glyph rows drawn flipped (`v = sv + (4 - row)`),
+  // brighten-only so it never darkens the scene behind it.
   function wxText(face, str, su, sv, tr, tg, tb) {
-    let u = su; for (const ch of str) { u += wxGlyph(face, ch, u, sv, tr, tg, tb); if (u >= S) break; }
+    drawString(FONT_3x5, str, su, sv, faceMaxPlot(core, face, tr, tg, tb), { flipY: true, maxX: S });
   }
 
   const txtR = isDawn || isDusk ? 0.9 : bldDay ? 0.8 : 0.6;
@@ -316,37 +300,15 @@ function effectWeather(core, dt, wxState, speedMult) {
       wxState.scrollOff = (wxState.scrollOff + dt * 20) % tileW;
       const off = Math.round(-wxState.scrollOff);
       for (let tile = off; tile < totalW; tile += tileW) {
-        let col = tile;
-        for (const ch of locStr) {
-          const rows = WXF[ch] || WXF[ch.toUpperCase()];
-          if (rows) {
-            for (let row = 0; row < 5; row++) {
-              const bits = rows[row];
-              for (let c = 0; c < 3; c++) {
-                if (!((bits >> (2 - c)) & 1)) continue;
-                const u = col + c, v = textV + (4 - row);
-                if (v < 0 || v >= S) continue;
-                if (u < 0 || u >= totalW) { /* skip off-screen */ }
-                else if (is2d) {
-                  const idx = faceMap[0][v * S + u];
-                  if (idx >= 0) {
-                    if (lr > colBuf[idx * 3]) colBuf[idx * 3] = lr;
-                    if (lg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = lg;
-                    if (lb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = lb;
-                  }
-                } else {
-                  const idx = creaturePx(u, v);
-                  if (idx >= 0) {
-                    if (lr > colBuf[idx * 3]) colBuf[idx * 3] = lr;
-                    if (lg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = lg;
-                    if (lb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = lb;
-                  }
-                }
-              }
-            }
-          }
-          col += 4;
-        }
+        // Panoramic scroll across the 4 side faces (or the one 2D panel).
+        drawString(FONT_3x5, locStr, tile, textV, (u, v) => {
+          if (v < 0 || v >= S || u < 0 || u >= totalW) return;
+          const idx = is2d ? faceMap[0][v * S + u] : creaturePx(u, v);
+          if (idx < 0) return;
+          if (lr > colBuf[idx * 3]) colBuf[idx * 3] = lr;
+          if (lg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = lg;
+          if (lb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = lb;
+        }, { flipY: true });
       }
     }
   }

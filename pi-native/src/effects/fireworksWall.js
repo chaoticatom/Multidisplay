@@ -34,7 +34,7 @@
 // horizontal band instead of the cube's 4-panel front→left→right→back
 // sequence.
 const { hsl } = require('../core');
-const { FW_FONT, FW_CHAR_W } = require('./_shared');
+const { FW_CHAR_W, fwDrawGlyphToBuffer: drawGlyphToBuffer } = require('./_shared');
 
 const fwRockets = [];
 const fwBursts = [];
@@ -268,20 +268,6 @@ function fwSyncUpdate(core, dt) {
 function glyphWidth(scale) { return FW_CHAR_W * scale; }
 function textPixelWidth(str, scale) { return str.length * glyphWidth(scale); }
 
-function drawGlyphToBuffer(buf, bw, bh, ch, ox, oy, scale) {
-  const rows = FW_FONT[ch] || FW_FONT[ch.toUpperCase()] || FW_FONT[' '];
-  for (let row = 0; row < 6; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 6; col++) {
-      if (!((bits >> (5 - col)) & 1)) continue;
-      for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-        const x = ox + col * scale + sx, y = oy + row * scale + sy;
-        if (x < 0 || x >= bw || y < 0 || y >= bh) continue;
-        buf[y * bw + x] = 255;
-      }
-    }
-  }
-}
 
 function buildFwText(core, msg) {
   if (!msg || !msg.trim()) { fwTextPixels = null; fwTextWidth = 0; fwTextH = 0; return; }

@@ -35,7 +35,8 @@
 'use strict';
 
 const { Jimp } = require('jimp');
-const { drawGlyph, CHAR_W } = require('./radio/font');
+const { CHAR_W } = require('./radio/font');
+const { drawMarquee, FONT_5x7, facePlot } = require('./text');
 
 const nasaConfig = require('../nasaConfig');
 // Live-read (not a frozen constant) so a key entered via the UI takes
@@ -158,39 +159,10 @@ function applyImageToFace(core, face) {
   }
 }
 
-// Centered placeholder/error text, 1-3 short lines, using the shared 3x5
-// PIXEL_FONT via a tiny local drawer (same approach coinflip.js/celestial.js
-// use) - not the 5x7 ticker font, which is sized for scrolling one line.
-const { PIXEL_FONT } = require('./weather/font');
-function drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b) {
-  const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-  if (!rows) return 4 * scale;
-  const S = core.SIZE;
-  for (let row = 0; row < 5; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 3; col++) {
-      if (!((bits >> (2 - col)) & 1)) continue;
-      for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-        const u = su + col * scale + sx, v = sv + row * scale + sy;
-        if (u < 0 || u >= S || v < 0 || v >= S) continue;
-        core.setFaceLED(face, u, v, r, g, b);
-      }
-    }
-  }
-  return 4 * scale;
-}
-function textWidth3x5(str, scale) { return str.length * 4 * scale - scale; }
-function drawLinesCentered(core, face, lines, scale, r, g, b) {
-  const S = core.SIZE;
-  const lineH = 6 * scale;
-  const totalH = lines.length * lineH;
-  let sv = Math.round((S - totalH) / 2);
-  for (const line of lines) {
-    let su = Math.round((S - textWidth3x5(line, scale)) / 2);
-    for (const ch of line) su += drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b);
-    sv += lineH;
-  }
-}
+// Centered placeholder/error text, 1-3 short lines, in the shared 3x5
+// PIXEL_FONT - not the 5x7 ticker font, which is sized for scrolling one
+// line.
+const { drawLinesCentered3x5: drawLinesCentered } = require('./_shared');
 
 // Builds the face-1 scrolling ticker label the first time apodData is
 // ready - equivalent to apodBuildTicker() but as a plain uppercase string
@@ -210,14 +182,8 @@ function drawTicker(core, face, dt) {
   if (scrollX > textW) scrollX -= textW;
   const S = core.SIZE;
   const sv = Math.round(S / 2) + 3; // vertically centered baseline, matching the source's full-face-height marquee
-  const rgb = [1, 0.85, 0.48];
-  let u = -Math.floor(scrollX);
-  while (u < S) {
-    for (const ch of tickerLabel) {
-      u += drawGlyph(core, face, ch, u, sv, rgb);
-      if (u > S) break;
-    }
-  }
+  // Cube faces draw this font row-flipped - see text.js's drawGlyph5x7Face().
+  drawMarquee(FONT_5x7, tickerLabel, scrollX, sv - 6, S, facePlot(core, face, 1, 0.85, 0.48), { flipY: true });
 }
 
 function apod(core, dt) {

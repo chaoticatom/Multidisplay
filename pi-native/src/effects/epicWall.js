@@ -20,38 +20,20 @@
 'use strict';
 
 const epic = require('./epic');
-const { FONT: RADIO_GLYPHS, CHAR_W } = require('./radio/font');
+const { CHAR_W } = require('./radio/font');
+const { drawMarquee, FONT_5x7, wallPlot } = require('./text');
 
 let scrollX = 0;
 
-function drawGlyphWall(core, W, H, ch, su, sv, rgb) {
-  const rows = RADIO_GLYPHS[ch.toUpperCase()] || RADIO_GLYPHS['?'];
-  for (let ry = 0; ry < 7; ry++) {
-    const bits = rows[ry];
-    const y = sv - (6 - ry);
-    if (y < 0 || y >= H) continue;
-    for (let rx = 0; rx < 5; rx++) {
-      if (!(bits & (1 << (4 - rx)))) continue;
-      const x = su + rx;
-      if (x < 0 || x >= W) continue;
-      core.setWallPixel(x, y, rgb[0], rgb[1], rgb[2]);
-    }
-  }
-  return CHAR_W;
-}
+// 5x7 marquee along the bottom of the wall (glyph spans rows sv-6..sv,
+// drawn unflipped - see text.js's drawGlyph5x7Face() for why cube faces
+// differ).
 function drawTickerWall(core, W, H, label, dt) {
   const textW = label.length * CHAR_W;
   scrollX += dt * 14;
   if (scrollX > textW) scrollX -= textW;
   const sv = H - 2;
-  const rgb = [0.6, 0.85, 1];
-  let u = -Math.floor(scrollX);
-  while (u < W) {
-    for (const ch of label) {
-      u += drawGlyphWall(core, W, H, ch, u, sv, rgb);
-      if (u > W) break;
-    }
-  }
+  drawMarquee(FONT_5x7, label, scrollX, sv - 6, W, wallPlot(core, 0.6, 0.85, 1));
 }
 
 // Orthographic globe projection - same math as epic.js's projectGlobe(),

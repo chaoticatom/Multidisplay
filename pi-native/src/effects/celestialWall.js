@@ -34,7 +34,7 @@
 // second time; the scratch buffer is reused across ticks (only
 // reallocated if wallW/wallH change).
 const { getMoonIllumination } = require('./weather/state');
-const { PIXEL_FONT } = require('./weather/font');
+const { drawString, FONT_MOON, wallMaxPlot } = require('./text');
 const { drawSaturn, drawPlanet } = require('./celestial/bodies');
 const drawSolarSystem = require('./celestial/solarsystem');
 
@@ -63,25 +63,11 @@ function moonInit() {
 
 function getMoonPhase() { return getMoonIllumination(new Date()).phase; }
 
-const MOON_FONT = { ...PIXEL_FONT, '%': [5, 1, 2, 4, 5] };
-// v is flipped (H-1-v) at the point of writing - see celestial.js's
-// moonGlyph module comment for the real report/root cause this fixes
-// (garbled moon-phase ticker text).
-function moonGlyphWall(core, W, H, ch, su, sv) {
-  const rows = MOON_FONT[ch.toUpperCase()]; if (!rows) return 4;
-  for (let row = 0; row < 5; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 3; col++) {
-      if (!((bits >> (2 - col)) & 1)) continue;
-      const u = su + col, v = H - 1 - (sv + (4 - row));
-      if (u < 0 || u >= W || v < 0 || v >= H) continue;
-      const o = (v * W + u) * 3;
-      core.wallBuf[o] = Math.max(core.wallBuf[o], 0.75);
-      core.wallBuf[o + 1] = Math.max(core.wallBuf[o + 1], 0.8);
-      core.wallBuf[o + 2] = Math.max(core.wallBuf[o + 2], 0.85);
-    }
-  }
-  return 4;
+// Moon-phase ticker text - see celestial.js's drawMoonText() for why the
+// glyph cell is placed at H-5-sv (v flipped at the point of writing).
+// Writes wallBuf directly (brighten-only), unoccupied cells included.
+function drawMoonTextWall(core, W, H, text, su, sv) {
+  drawString(FONT_MOON, text, su, H - 5 - sv, wallMaxPlot(core, 0.75, 0.8, 0.85));
 }
 
 let _moonScrollX = 0;
@@ -237,10 +223,7 @@ function effectCelestialWall(core, dt) {
   else _moonScrollX = 0;
   const textBaseV = 1;
   const scrollOff = needScroll ? Math.floor(W - _moonScrollX) : Math.floor((W - textW) / 2);
-  for (let ci = 0; ci < moonText.length; ci++) {
-    const cxx = scrollOff + ci * charW;
-    moonGlyphWall(core, W, H, moonText[ci], cxx, textBaseV);
-  }
+  drawMoonTextWall(core, W, H, moonText, scrollOff, textBaseV);
 }
 
 module.exports = effectCelestialWall;

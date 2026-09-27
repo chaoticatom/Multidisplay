@@ -25,6 +25,8 @@
 // by the 11 blob games and only reached by the "else" tail for the other
 // 3 (which is also skipped, in favour of just the border+label). That
 // generic fallback is what every one of the 14 games renders here.
+const { blitGlyph } = require('../text');
+
 function retroDrawTitle(buf, S, name, t) {
   const setP = (x, y, r, g, b) => {
     if (x < 0 || x >= S || y < 0 || y >= S) return;
@@ -61,14 +63,7 @@ function retroDrawTitle(buf, S, name, t) {
       const glyph = font[ch];
       if (!glyph) continue;
       const cx = x + ci * 6 * sc;
-      for (let row = 0; row < 7; row++) {
-        const bits = glyph[row];
-        for (let col = 0; col < 5; col++) {
-          if (bits & (0x10 >> col)) {
-            fillRect(cx + col * sc, y + row * sc, cx + col * sc + sc - 1, y + row * sc + sc - 1, r, g, b);
-          }
-        }
-      }
+      blitGlyph(glyph, 5, 7, cx, y, sc, (px, py) => setP(px, py, r, g, b));
     }
   };
 

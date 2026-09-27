@@ -22,7 +22,7 @@
 // celestial.js already use for on-face text - same visual language as every
 // other ported effect, not a new one. The flag image (a real photo, not
 // stylized) is decoded with jimp, same as cam.js/video.js's image pipeline.
-const { PIXEL_FONT } = require('./weather/font');
+const { drawString, FONT_3x5, facePlot } = require('./text');
 const { Jimp, ResizeStrategy } = require('jimp');
 
 // ── Live position state ─────────────────────────────────────────────────
@@ -243,24 +243,9 @@ function issDrawStation(core, face) {
 
 // ── Text - PIXEL_FONT bitmap glyphs (no DOM canvas server-side, see module
 // comment). Replaces the browser's canvas-rendered title card + ticker. ──
-function issGlyph(core, face, ch, su, sv, tr, tg, tb) {
-  const { SIZE: S, faceMap, colBuf } = core;
-  const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()]; if (!rows) return 4;
-  for (let row = 0; row < 5; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 3; col++) {
-      if (!((bits >> (2 - col)) & 1)) continue;
-      const u = su + col, v = sv + (4 - row);
-      if (u < 0 || u >= S || v < 0 || v >= S) continue;
-      const idx = faceMap[face][v * S + u]; if (idx < 0) continue;
-      colBuf[idx * 3] = tr; colBuf[idx * 3 + 1] = tg; colBuf[idx * 3 + 2] = tb;
-    }
-  }
-  return 4;
-}
+// Glyph rows drawn flipped (`v = sv + (4 - row)`), overwriting.
 function issText(core, face, str, su, sv, tr, tg, tb) {
-  let u = su;
-  for (const ch of str) { u += issGlyph(core, face, ch, u, sv, tr, tg, tb); if (u >= core.SIZE) break; }
+  drawString(FONT_3x5, str, su, sv, facePlot(core, face, tr, tg, tb), { flipY: true, maxX: core.SIZE });
 }
 function issTextCentered(core, face, str, sv, tr, tg, tb) {
   const w = str.length * 4;

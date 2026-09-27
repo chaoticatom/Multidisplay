@@ -271,45 +271,30 @@ async function loadImageForPixels(url, targetSize, opts) {
   return { pixels: out.bitmap.data, size: targetSize };
 }
 
-// Small centered-text placeholder drawer (3x5 PIXEL_FONT, same font weather
-// uses for its ticker) - shared by unsplash.js/artic.js for their "no
-// results yet" / "API ERROR" cards, same approach as apod.js's own local
-// drawLinesCentered/drawGlyph3x5 (kept separate there rather than
-// refactored onto this copy, to avoid touching a file outside this task's
-// scope).
-const { PIXEL_FONT } = require('./weather/font');
-// Plain, uncorrected glyph draw - see radio/font.js's drawGlyph() comment
-// for why: colBuf content should never bake in a driver-specific mirror.
+// Small centered-text placeholder drawer (3x5 PIXEL_FONT) - used by
+// unsplash.js/artic.js/apod.js for their "no results yet" / "API ERROR"
+// cards and by identify.js's cube-mode labels. Thin wrappers over ./text.js's shared 3x5 drawing (PIXEL_FONT), kept
+// under their long-standing names since several effects call them.
+// Drawn plain - colBuf content never bakes in a driver-specific mirror.
+const { drawGlyph: drawGlyphText, drawLinesCentered, textWidth, FONT_3x5, facePlot, wallPlot } = require('./text');
 function drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b) {
-  const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-  if (!rows) return 4 * scale;
-  const S = core.SIZE;
-  for (let row = 0; row < 5; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 3; col++) {
-      if (!((bits >> (2 - col)) & 1)) continue;
-      for (let sy = 0; sy < scale; sy++) {
-        for (let sx = 0; sx < scale; sx++) {
-          const u = su + col * scale + sx, v = sv + row * scale + sy;
-          if (u < 0 || u >= S || v < 0 || v >= S) continue;
-          core.setFaceLED(face, u, v, r, g, b);
-        }
-      }
-    }
-  }
-  return 4 * scale;
+  return drawGlyphText(FONT_3x5, ch, su, sv, facePlot(core, face, r, g, b), { scale });
 }
-function textWidth3x5(str, scale) { return str.length * 4 * scale - scale; }
+function textWidth3x5(str, scale) { return textWidth(FONT_3x5, str, scale); }
 function drawLinesCentered3x5(core, face, lines, scale, r, g, b) {
-  const S = core.SIZE;
-  const lineH = 6 * scale;
-  const totalH = lines.length * lineH;
-  let sv = Math.round((S - totalH) / 2);
-  for (const line of lines) {
-    let su = Math.round((S - textWidth3x5(line, scale)) / 2);
-    for (const ch of line) su += drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b);
-    sv += lineH;
-  }
+  drawLinesCentered(FONT_3x5, lines, core.SIZE, core.SIZE, facePlot(core, face, r, g, b), { scale });
+}
+
+// FW_FONT (6 columns wide, FW_CHAR_W advance; unknown chars fall back to
+// a space) rasterized into a plain intensity buffer (bw x bh, 255 = lit) -
+// fireworks.js/fireworksWall.js build their text-to-particles targets
+// from this.
+const FW_TEXT_FONT = { w: 6, h: 6, adv: FW_CHAR_W, get: (ch) => FW_FONT[ch] || FW_FONT[ch.toUpperCase()] || FW_FONT[' '] };
+function fwDrawGlyphToBuffer(buf, bw, bh, ch, ox, oy, scale) {
+  drawGlyphText(FW_TEXT_FONT, ch, ox, oy, (x, y) => {
+    if (x < 0 || x >= bw || y < 0 || y >= bh) return;
+    buf[y * bw + x] = 255;
+  }, { scale });
 }
 
 // ═══════════════════════════════════════════════════
@@ -344,21 +329,12 @@ function wcWordDelay(word) {
   const symbols = (word.match(/[^a-zA-Z0-9]/g) || []).length;
   return base + word.length * perChar + symbols * 0.08;
 }
+// WC_FONT as a ./text.js font descriptor. Glyph rows are drawn flipped
+// (`v = sv + (6 - row)`, i.e. origin sv with rows reversed) - faithful to
+// the original browser engine's v-up convention.
+const WC_TEXT_FONT = { w: 4, h: 7, adv: WC_CHAR_W, get: (ch) => WC_FONT[ch] || WC_FONT[ch.toUpperCase()] };
 function wcDrawGlyph(core, face, ch, su, sv, rgb) {
-  const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()];
-  if (!rows) return WC_CHAR_W;
-  const { SIZE, faceMap, colBuf } = core;
-  for (let row = 0; row < 7; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 4; col++) {
-      if (!((bits >> (3 - col)) & 1)) continue;
-      const u = su + col, v = sv + (6 - row);
-      if (u < 0 || u >= SIZE || v < 0 || v >= SIZE) continue;
-      const idx = faceMap[face][v * SIZE + u]; if (idx < 0) continue;
-      colBuf[idx * 3] = rgb[0]; colBuf[idx * 3 + 1] = rgb[1]; colBuf[idx * 3 + 2] = rgb[2];
-    }
-  }
-  return WC_CHAR_W;
+  return drawGlyphText(WC_TEXT_FONT, ch, su, sv, facePlot(core, face, rgb[0], rgb[1], rgb[2]), { flipY: true });
 }
 function wcInit(taggedWords) {
   const maxLines = Math.max(1, Math.floor(64 / WC_LINE_H)); // SIZE is fixed at 64 in this port's cube mode (see core.js) - matches the browser's SIZE-based cap in spirit
@@ -453,19 +429,7 @@ function wcStepWall(state, dt, wallW) {
   }
 }
 function wcDrawGlyphWall(core, ch, su, sv, rgb) {
-  const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()];
-  if (!rows) return WC_CHAR_W;
-  const { wallW: W, wallH: H } = core;
-  for (let row = 0; row < 7; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 4; col++) {
-      if (!((bits >> (3 - col)) & 1)) continue;
-      const u = su + col, v = sv + (6 - row);
-      if (u < 0 || u >= W || v < 0 || v >= H) continue;
-      core.setWallPixel(u, v, rgb[0], rgb[1], rgb[2]);
-    }
-  }
-  return WC_CHAR_W;
+  return drawGlyphText(WC_TEXT_FONT, ch, su, sv, wallPlot(core, rgb[0], rgb[1], rgb[2]), { flipY: true });
 }
 function wcDrawToFaceWall(core, state, topMarginRows) {
   const { wallW: W, wallH: H } = core;
@@ -511,7 +475,7 @@ function wcDecodeEntities(str) {
 }
 
 module.exports = {
-  cubePx, fwPx, tronMove, surfIdx, FW_FACES, FW_FONT, FW_CHAR_W, VID_FACE_ORDER, getLocalGravity,
+  cubePx, fwPx, tronMove, surfIdx, FW_FACES, FW_FONT, FW_CHAR_W, fwDrawGlyphToBuffer, VID_FACE_ORDER, getLocalGravity,
   galleryInitFaceState, gallerySlideshowStep, galleryApplyToFace, galleryApplyBlendToFace,
   galleryApplyToWall, galleryApplyBlendToWall,
   loadImageForPixels, drawLinesCentered3x5,

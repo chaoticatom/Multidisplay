@@ -12,7 +12,7 @@
 // This is deliberately a "draw once across the whole canvas" port, not a
 // spatial/particle adaptation - there's nothing to flatten, the cube
 // version was already just the same drawing done N times.
-const { PIXEL_FONT } = require('./weather/font');
+const { drawString, textWidth, FONT_3x5, wallPlot } = require('./text');
 
 let coinState = null; // {heads,tails,flipping,result,flipT,flipDur,angle,showResult}
 
@@ -30,30 +30,12 @@ function startFlip(s) {
 
 function lerp(a, b, t) { return a + (b - a) * t; }
 
-function drawGlyphWall(core, ch, su, sv, scale, r, g, b) {
-  const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-  if (!rows) return 4 * scale;
-  for (let row = 0; row < 5; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 3; col++) {
-      if (!((bits >> (2 - col)) & 1)) continue;
-      for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-        core.setWallPixel(su + col * scale + sx, sv + row * scale + sy, r, g, b);
-      }
-    }
-  }
-  return 4 * scale;
-}
-
-function textWidth(str, scale) { return str.length * 4 * scale - scale; }
-
 function drawTextWall(core, str, su, sv, scale, r, g, b) {
-  let u = su;
-  for (const ch of str) u += drawGlyphWall(core, ch, u, sv, scale, r, g, b);
+  drawString(FONT_3x5, str, su, sv, wallPlot(core, r, g, b), { scale });
 }
 
 function drawTextCenteredWall(core, str, cx, sv, scale, r, g, b) {
-  drawTextWall(core, str, Math.round(cx - textWidth(str, scale) / 2), sv, scale, r, g, b);
+  drawTextWall(core, str, Math.round(cx - textWidth(FONT_3x5, str, scale) / 2), sv, scale, r, g, b);
 }
 
 function stepCoin(s, dt) {

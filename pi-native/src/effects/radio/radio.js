@@ -20,7 +20,8 @@
 const { RadioAudio, BAND_COUNT } = require('./ffmpegAudio');
 const { renderSpectrumStyle, createSpectrumState } = require('./spectrum');
 const { drawTicker } = require('./ticker');
-const { drawGlyph, CHAR_W } = require('./font');
+const { CHAR_W } = require('./font');
+const { drawGlyph5x7Face } = require('../text');
 const { searchStations } = require('./search');
 
 // Featured stations - verbatim from effects-core.js's RADIO_STATIONS (real,
@@ -365,7 +366,7 @@ function drawStaticLabel(core, face, text, sv) {
   const textW = text.length * CHAR_W;
   let u = Math.round((core.SIZE - textW) / 2);
   const rgb = [0.6, 0.85, 1];
-  for (const ch of text) u += drawGlyph(core, face, ch, u, sv, rgb);
+  for (const ch of text) u += drawGlyph5x7Face(core, face, ch, u, sv, rgb);
 }
 
 // Polled every tick (see app.js's module comment on state.effectStatus)

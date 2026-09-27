@@ -28,7 +28,7 @@
 // both incorrectly assumed there was no city-picker at all and left it
 // hardcoded / deleted the panel markup as dead leftovers - it wasn't.
 const { getMoonIllumination } = require('../weather/state');
-const { PIXEL_FONT } = require('../weather/font');
+const { drawString, FONT_MOON, faceMaxPlot } = require('../text');
 const { drawSaturn, drawPlanet } = require('./bodies');
 const drawSolarSystem = require('./solarsystem');
 
@@ -66,39 +66,16 @@ function getMoonPhase() {
   return getMoonIllumination(new Date()).phase;
 }
 
-// Local extension of weather/font.js's shared PIXEL_FONT with the two
-// glyphs the moon-phase/label ticker needs that weather's ticker doesn't:
-// '%' and a digit-friendly '0'-'9' set (already in PIXEL_FONT) - matches
-// the browser's effectMoon() `this._mf` table exactly (that table is just
-// PIXEL_FONT's digits/letters/space plus '%', minus a couple of symbols
-// weather uses that moon never needed).
-const MOON_FONT = { ...PIXEL_FONT, '%': [5, 1, 2, 4, 5] };
-
-// v is flipped (S-1-v) at the point of writing - a real report ("celestial
-// is also reversed") traced to the moon-phase ticker text rendering
-// garbled (asymmetric letters broken, symmetric ones like X/I surviving by
-// coincidence - confirmed via a zoomed screenshot). This code is a
-// byte-for-byte faithful port of the original browser's effectMoon() (same
-// `v = sv + (4-row)`, same faceMap indexing) - not a porting mistake, but
-// weatherWall.js's identical PIXEL_FONT glyph pattern needed the exact
-// same kind of write-time flip to render correctly (see that file's
-// module comment), and applying it here was verified to fix this too.
-function moonGlyph(core, face, ch, su, sv) {
-  const rows = MOON_FONT[ch.toUpperCase()]; if (!rows) return 4;
-  const { colBuf, faceMap, SIZE: S } = core;
-  for (let row = 0; row < 5; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 3; col++) {
-      if (!((bits >> (2 - col)) & 1)) continue;
-      const u = su + col, v = S - 1 - (sv + (4 - row));
-      if (u < 0 || u >= S || v < 0 || v >= S) continue;
-      const idx = faceMap[face][v * S + u]; if (idx < 0) continue;
-      colBuf[idx * 3] = Math.max(colBuf[idx * 3], 0.75);
-      colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], 0.8);
-      colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], 0.85);
-    }
-  }
-  return 4;
+// Moon-phase ticker text: text.js's FONT_MOON (PIXEL_FONT plus '%'),
+// brighten-only in a fixed pale tint. Glyph cell spans rows S-5-sv..S-1-sv
+// - i.e. v is flipped (S-1-v) at the point of writing. A real report
+// ("celestial is also reversed") traced to this ticker rendering garbled
+// (asymmetric letters broken, symmetric ones like X/I surviving by
+// coincidence - confirmed via a zoomed screenshot); the original browser
+// code's unflipped `v = sv + (4-row)` needed the same write-time flip
+// weatherWall.js's identical glyph pattern did.
+function drawMoonText(core, face, text, su, sv) {
+  drawString(FONT_MOON, text, su, core.SIZE - 5 - sv, faceMaxPlot(core, face, 0.75, 0.8, 0.85));
 }
 
 // Per-effect-instance scroll state (mirrors the browser's this._moonScrollX,
@@ -252,10 +229,7 @@ function effectCelestial(core, dt) {
   const mFaces = is2D ? [0] : [0, 1, 2, 3];
   for (let fi = 0; fi < mFaces.length; fi++) {
     const face = mFaces[fi];
-    for (let ci = 0; ci < moonText.length; ci++) {
-      const cxx = scrollOff + ci * charW;
-      moonGlyph(core, face, moonText[ci], cxx, textBaseV);
-    }
+    drawMoonText(core, face, moonText, scrollOff, textBaseV);
   }
 }
 

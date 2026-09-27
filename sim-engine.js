@@ -971,13 +971,183 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/radio/font.js
+  var require_font2 = __commonJS({
+    "src/effects/radio/font.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var CHAR_W = 6;
+      var CHAR_H = 7;
+      var FONT = {
+        A: [14, 17, 17, 31, 17, 17, 17],
+        B: [30, 17, 17, 30, 17, 17, 30],
+        C: [15, 16, 16, 16, 16, 16, 15],
+        D: [30, 17, 17, 17, 17, 17, 30],
+        E: [31, 16, 16, 30, 16, 16, 31],
+        F: [31, 16, 16, 30, 16, 16, 16],
+        G: [15, 16, 16, 23, 17, 17, 15],
+        H: [17, 17, 17, 31, 17, 17, 17],
+        I: [14, 4, 4, 4, 4, 4, 14],
+        J: [1, 1, 1, 1, 17, 17, 14],
+        K: [17, 18, 20, 24, 20, 18, 17],
+        L: [16, 16, 16, 16, 16, 16, 31],
+        M: [17, 27, 21, 21, 17, 17, 17],
+        N: [17, 25, 21, 19, 17, 17, 17],
+        O: [14, 17, 17, 17, 17, 17, 14],
+        P: [30, 17, 17, 30, 16, 16, 16],
+        Q: [14, 17, 17, 17, 21, 18, 13],
+        R: [30, 17, 17, 30, 20, 18, 17],
+        S: [15, 16, 16, 14, 1, 1, 30],
+        T: [31, 4, 4, 4, 4, 4, 4],
+        U: [17, 17, 17, 17, 17, 17, 14],
+        V: [17, 17, 17, 17, 10, 10, 4],
+        W: [17, 17, 17, 21, 21, 27, 17],
+        X: [17, 17, 10, 4, 10, 17, 17],
+        Y: [17, 17, 10, 4, 4, 4, 4],
+        Z: [31, 1, 2, 4, 8, 16, 31],
+        "0": [14, 17, 19, 21, 25, 17, 14],
+        "1": [4, 12, 4, 4, 4, 4, 14],
+        "2": [14, 17, 1, 6, 8, 16, 31],
+        "3": [31, 2, 4, 2, 1, 17, 14],
+        "4": [2, 6, 10, 18, 31, 2, 2],
+        "5": [31, 16, 30, 1, 1, 17, 14],
+        "6": [6, 8, 16, 30, 17, 17, 14],
+        "7": [31, 1, 2, 4, 8, 8, 8],
+        "8": [14, 17, 17, 14, 17, 17, 14],
+        "9": [14, 17, 17, 15, 1, 2, 12],
+        " ": [0, 0, 0, 0, 0, 0, 0],
+        "-": [0, 0, 0, 31, 0, 0, 0],
+        ".": [0, 0, 0, 0, 0, 12, 12],
+        ",": [0, 0, 0, 0, 0, 12, 8],
+        ":": [0, 12, 12, 0, 12, 12, 0],
+        "/": [1, 2, 2, 4, 8, 8, 16],
+        "'": [12, 8, 0, 0, 0, 0, 0],
+        "&": [12, 18, 20, 8, 21, 18, 13],
+        "\u2022": [0, 0, 14, 14, 14, 0, 0],
+        "!": [4, 4, 4, 4, 4, 0, 4],
+        "?": [14, 17, 1, 2, 4, 0, 4]
+      };
+      module.exports = { FONT, CHAR_W, CHAR_H };
+    }
+  });
+
+  // src/effects/text.js
+  var require_text = __commonJS({
+    "src/effects/text.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      function blitGlyph(rows, w, h, x0, y0, scale, plot, flipX = false, flipY = false) {
+        for (let row = 0; row < h; row++) {
+          const bits = rows[row];
+          if (!bits) continue;
+          const cy = flipY ? h - 1 - row : row;
+          for (let col = 0; col < w; col++) {
+            if (!(bits >> w - 1 - col & 1)) continue;
+            const cx = flipX ? w - 1 - col : col;
+            for (let sy = 0; sy < scale; sy++) {
+              for (let sx = 0; sx < scale; sx++) plot(x0 + cx * scale + sx, y0 + cy * scale + sy);
+            }
+          }
+        }
+      }
+      var { PIXEL_FONT } = require_font();
+      var { FONT: RADIO_GLYPHS, CHAR_W: RADIO_CHAR_W } = require_font2();
+      var FONT_3x5 = { w: 3, h: 5, adv: 4, get: (ch) => PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()] };
+      var FONT_5x7 = { w: 5, h: 7, adv: RADIO_CHAR_W, get: (ch) => RADIO_GLYPHS[ch.toUpperCase()] || RADIO_GLYPHS["?"] };
+      var FONT_5x7_BLANK = { ...FONT_5x7, get: (ch) => RADIO_GLYPHS[ch.toUpperCase()] };
+      var MOON_GLYPHS = { ...PIXEL_FONT, "%": [5, 1, 2, 4, 5] };
+      var FONT_MOON = { w: 3, h: 5, adv: 4, get: (ch) => MOON_GLYPHS[ch.toUpperCase()] };
+      function drawGlyph(font, ch, x, y, plot, { scale = 1, flipX = false, flipY = false } = {}) {
+        const rows = font.get(ch);
+        if (rows) blitGlyph(rows, font.w, font.h, x, y, scale, plot, flipX, flipY);
+        return font.adv * scale;
+      }
+      function drawString(font, str, x, y, plot, { scale = 1, flipY = false, maxX = Infinity } = {}) {
+        let u = x;
+        for (const ch of str) {
+          u += drawGlyph(font, ch, u, y, plot, { scale, flipY });
+          if (u >= maxX) break;
+        }
+        return u;
+      }
+      function textWidth(font, str, scale = 1) {
+        return str.length * font.adv * scale - (font.adv - font.w) * scale;
+      }
+      function drawLinesCentered(font, lines, W, H, plot, { scale = 1, ox = 0, oy = 0 } = {}) {
+        const lineH = (font.h + 1) * scale;
+        let y = Math.round((H - lines.length * lineH) / 2);
+        for (const line of lines) {
+          const x = Math.round((W - textWidth(font, line, scale)) / 2);
+          drawString(font, line, ox + x, oy + y, plot, { scale });
+          y += lineH;
+        }
+      }
+      function drawMarquee(font, label, scrollX, y, W, plot, { flipY = false } = {}) {
+        if (!label) return;
+        let u = -Math.floor(scrollX);
+        while (u < W) {
+          for (const ch of label) {
+            u += drawGlyph(font, ch, u, y, plot, { flipY });
+            if (u > W) break;
+          }
+        }
+      }
+      function drawGlyph5x7Face(core, face, ch, su, sv, rgb) {
+        return drawGlyph(FONT_5x7, ch, su, sv - 6, facePlot(core, face, rgb[0], rgb[1], rgb[2]), { flipY: true });
+      }
+      var facePlot = (core, face, r, g, b) => (x, y) => core.setFaceLED(face, x, y, r, g, b);
+      var wallPlot = (core, r, g, b) => (x, y) => core.setWallPixel(x, y, r, g, b);
+      var faceMaxPlot = (core, face, r, g, b) => {
+        const { SIZE: S, faceMap, colBuf } = core;
+        return (x, y) => {
+          if (x < 0 || x >= S || y < 0 || y >= S) return;
+          const idx = faceMap[face][y * S + x];
+          if (idx < 0) return;
+          const o = idx * 3;
+          if (r > colBuf[o]) colBuf[o] = r;
+          if (g > colBuf[o + 1]) colBuf[o + 1] = g;
+          if (b > colBuf[o + 2]) colBuf[o + 2] = b;
+        };
+      };
+      var wallMaxPlot = (core, r, g, b) => {
+        const { wallW: W, wallH: H, wallBuf } = core;
+        return (x, y) => {
+          if (x < 0 || x >= W || y < 0 || y >= H) return;
+          const o = (y * W + x) * 3;
+          if (r > wallBuf[o]) wallBuf[o] = r;
+          if (g > wallBuf[o + 1]) wallBuf[o + 1] = g;
+          if (b > wallBuf[o + 2]) wallBuf[o + 2] = b;
+        };
+      };
+      module.exports = {
+        blitGlyph,
+        drawGlyph,
+        drawString,
+        textWidth,
+        drawLinesCentered,
+        drawMarquee,
+        drawGlyph5x7Face,
+        FONT_3x5,
+        FONT_5x7,
+        FONT_5x7_BLANK,
+        FONT_MOON,
+        facePlot,
+        wallPlot,
+        faceMaxPlot,
+        wallMaxPlot
+      };
+    }
+  });
+
   // src/effects/weather/weather.js
   var require_weather = __commonJS({
     "src/effects/weather/weather.js"(exports, module) {
       init_define_process_env();
       init_bufferGlobal();
       var { wxSkyRGB, wxInitScene } = require_state();
-      var { PIXEL_FONT } = require_font();
+      var { drawString, FONT_3x5, faceMaxPlot } = require_text();
       function effectWeather(core, dt, wxState, speedMult) {
         const is2d = core.panelMode === "2d";
         if (!wxState.skyline) {
@@ -1143,31 +1313,8 @@ var PiEngine = (() => {
         const textV = 3;
         const tempV = 10;
         const bldBase = horizV;
-        const WXF = PIXEL_FONT;
-        function wxGlyph(face, ch, su, sv, tr, tg, tb) {
-          const rows = WXF[ch] || WXF[ch.toUpperCase()];
-          if (!rows) return 4;
-          for (let row = 0; row < 5; row++) {
-            const bits = rows[row];
-            for (let col = 0; col < 3; col++) {
-              if (!(bits >> 2 - col & 1)) continue;
-              const u = su + col, v = sv + (4 - row);
-              if (u < 0 || u >= S || v < 0 || v >= S) continue;
-              const idx = faceMap[face][v * S + u];
-              if (idx < 0) continue;
-              if (tr > colBuf[idx * 3]) colBuf[idx * 3] = tr;
-              if (tg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = tg;
-              if (tb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = tb;
-            }
-          }
-          return 4;
-        }
         function wxText(face, str, su, sv, tr, tg, tb) {
-          let u = su;
-          for (const ch of str) {
-            u += wxGlyph(face, ch, u, sv, tr, tg, tb);
-            if (u >= S) break;
-          }
+          drawString(FONT_3x5, str, su, sv, faceMaxPlot(core, face, tr, tg, tb), { flipY: true, maxX: S });
         }
         const txtR = isDawn || isDusk ? 0.9 : bldDay ? 0.8 : 0.6;
         const txtG = isDawn || isDusk ? 0.55 : bldDay ? 0.8 : 0.65;
@@ -1257,37 +1404,14 @@ var PiEngine = (() => {
             wxState.scrollOff = (wxState.scrollOff + dt * 20) % tileW;
             const off = Math.round(-wxState.scrollOff);
             for (let tile = off; tile < totalW; tile += tileW) {
-              let col = tile;
-              for (const ch of locStr) {
-                const rows = WXF[ch] || WXF[ch.toUpperCase()];
-                if (rows) {
-                  for (let row = 0; row < 5; row++) {
-                    const bits = rows[row];
-                    for (let c = 0; c < 3; c++) {
-                      if (!(bits >> 2 - c & 1)) continue;
-                      const u = col + c, v = textV + (4 - row);
-                      if (v < 0 || v >= S) continue;
-                      if (u < 0 || u >= totalW) {
-                      } else if (is2d) {
-                        const idx = faceMap[0][v * S + u];
-                        if (idx >= 0) {
-                          if (lr > colBuf[idx * 3]) colBuf[idx * 3] = lr;
-                          if (lg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = lg;
-                          if (lb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = lb;
-                        }
-                      } else {
-                        const idx = creaturePx(u, v);
-                        if (idx >= 0) {
-                          if (lr > colBuf[idx * 3]) colBuf[idx * 3] = lr;
-                          if (lg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = lg;
-                          if (lb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = lb;
-                        }
-                      }
-                    }
-                  }
-                }
-                col += 4;
-              }
+              drawString(FONT_3x5, locStr, tile, textV, (u, v) => {
+                if (v < 0 || v >= S || u < 0 || u >= totalW) return;
+                const idx = is2d ? faceMap[0][v * S + u] : creaturePx(u, v);
+                if (idx < 0) return;
+                if (lr > colBuf[idx * 3]) colBuf[idx * 3] = lr;
+                if (lg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = lg;
+                if (lb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = lb;
+              }, { flipY: true });
             }
           }
         }
@@ -2660,39 +2784,16 @@ var PiEngine = (() => {
         }
         return { pixels: out.bitmap.data, size: targetSize };
       }
-      var { PIXEL_FONT } = require_font();
-      function drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b) {
-        const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-        if (!rows) return 4 * scale;
-        const S = core.SIZE;
-        for (let row = 0; row < 5; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 3; col++) {
-            if (!(bits >> 2 - col & 1)) continue;
-            for (let sy = 0; sy < scale; sy++) {
-              for (let sx = 0; sx < scale; sx++) {
-                const u = su + col * scale + sx, v = sv + row * scale + sy;
-                if (u < 0 || u >= S || v < 0 || v >= S) continue;
-                core.setFaceLED(face, u, v, r, g, b);
-              }
-            }
-          }
-        }
-        return 4 * scale;
-      }
-      function textWidth3x5(str, scale) {
-        return str.length * 4 * scale - scale;
-      }
+      var { drawGlyph: drawGlyphText, drawLinesCentered, textWidth, FONT_3x5, facePlot, wallPlot } = require_text();
       function drawLinesCentered3x5(core, face, lines, scale, r, g, b) {
-        const S = core.SIZE;
-        const lineH = 6 * scale;
-        const totalH = lines.length * lineH;
-        let sv = Math.round((S - totalH) / 2);
-        for (const line of lines) {
-          let su = Math.round((S - textWidth3x5(line, scale)) / 2);
-          for (const ch of line) su += drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b);
-          sv += lineH;
-        }
+        drawLinesCentered(FONT_3x5, lines, core.SIZE, core.SIZE, facePlot(core, face, r, g, b), { scale });
+      }
+      var FW_TEXT_FONT = { w: 6, h: 6, adv: FW_CHAR_W, get: (ch) => FW_FONT[ch] || FW_FONT[ch.toUpperCase()] || FW_FONT[" "] };
+      function fwDrawGlyphToBuffer(buf, bw, bh, ch, ox, oy, scale) {
+        drawGlyphText(FW_TEXT_FONT, ch, ox, oy, (x, y) => {
+          if (x < 0 || x >= bw || y < 0 || y >= bh) return;
+          buf[y * bw + x] = 255;
+        }, { scale });
       }
       var WC_FONT = {
         "0": [6, 9, 9, 9, 9, 9, 6],
@@ -2752,24 +2853,9 @@ var PiEngine = (() => {
         const symbols = (word.match(/[^a-zA-Z0-9]/g) || []).length;
         return base + word.length * perChar + symbols * 0.08;
       }
+      var WC_TEXT_FONT = { w: 4, h: 7, adv: WC_CHAR_W, get: (ch) => WC_FONT[ch] || WC_FONT[ch.toUpperCase()] };
       function wcDrawGlyph(core, face, ch, su, sv, rgb) {
-        const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()];
-        if (!rows) return WC_CHAR_W;
-        const { SIZE, faceMap, colBuf } = core;
-        for (let row = 0; row < 7; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 4; col++) {
-            if (!(bits >> 3 - col & 1)) continue;
-            const u = su + col, v = sv + (6 - row);
-            if (u < 0 || u >= SIZE || v < 0 || v >= SIZE) continue;
-            const idx = faceMap[face][v * SIZE + u];
-            if (idx < 0) continue;
-            colBuf[idx * 3] = rgb[0];
-            colBuf[idx * 3 + 1] = rgb[1];
-            colBuf[idx * 3 + 2] = rgb[2];
-          }
-        }
-        return WC_CHAR_W;
+        return drawGlyphText(WC_TEXT_FONT, ch, su, sv, facePlot(core, face, rgb[0], rgb[1], rgb[2]), { flipY: true });
       }
       function wcInit(taggedWords) {
         const maxLines = Math.max(1, Math.floor(64 / WC_LINE_H));
@@ -2872,19 +2958,7 @@ var PiEngine = (() => {
         }
       }
       function wcDrawGlyphWall(core, ch, su, sv, rgb) {
-        const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()];
-        if (!rows) return WC_CHAR_W;
-        const { wallW: W, wallH: H } = core;
-        for (let row = 0; row < 7; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 4; col++) {
-            if (!(bits >> 3 - col & 1)) continue;
-            const u = su + col, v = sv + (6 - row);
-            if (u < 0 || u >= W || v < 0 || v >= H) continue;
-            core.setWallPixel(u, v, rgb[0], rgb[1], rgb[2]);
-          }
-        }
-        return WC_CHAR_W;
+        return drawGlyphText(WC_TEXT_FONT, ch, su, sv, wallPlot(core, rgb[0], rgb[1], rgb[2]), { flipY: true });
       }
       function wcDrawToFaceWall(core, state, topMarginRows) {
         const { wallW: W, wallH: H } = core;
@@ -2952,6 +3026,7 @@ var PiEngine = (() => {
         FW_FACES,
         FW_FONT,
         FW_CHAR_W,
+        fwDrawGlyphToBuffer,
         VID_FACE_ORDER,
         getLocalGravity,
         galleryInitFaceState,
@@ -4278,7 +4353,7 @@ var PiEngine = (() => {
     "src/effects/coinflip.js"(exports, module) {
       init_define_process_env();
       init_bufferGlobal();
-      var { PIXEL_FONT } = require_font();
+      var { drawString, textWidth, FONT_3x5, facePlot } = require_text();
       var coinFaces = null;
       var coin2d = null;
       function newCoinState() {
@@ -4295,33 +4370,11 @@ var PiEngine = (() => {
       function lerp(a, b, t) {
         return a + (b - a) * t;
       }
-      function drawGlyph(core, face, ch, su, sv, scale, r, g, b) {
-        const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-        const S = core.SIZE;
-        if (rows) {
-          for (let row = 0; row < 5; row++) {
-            const bits = rows[row];
-            for (let col = 0; col < 3; col++) {
-              if (!(bits >> 2 - col & 1)) continue;
-              for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-                const u = su + col * scale + sx, v = sv + row * scale + sy;
-                if (u < 0 || u >= S || v < 0 || v >= S) continue;
-                core.setFaceLED(face, u, v, r, g, b);
-              }
-            }
-          }
-        }
-        return 4 * scale;
-      }
-      function textWidth(str, scale) {
-        return str.length * 4 * scale - scale;
-      }
       function drawText2(core, face, str, su, sv, scale, r, g, b) {
-        let u = su;
-        for (const ch of str) u += drawGlyph(core, face, ch, u, sv, scale, r, g, b);
+        drawString(FONT_3x5, str, su, sv, facePlot(core, face, r, g, b), { scale });
       }
       function drawTextCentered(core, face, str, cx, sv, scale, r, g, b) {
-        drawText2(core, face, str, Math.round(cx - textWidth(str, scale) / 2), sv, scale, r, g, b);
+        drawText2(core, face, str, Math.round(cx - textWidth(FONT_3x5, str, scale) / 2), sv, scale, r, g, b);
       }
       function drawCoinFace(core, face, s, t) {
         const S = core.SIZE;
@@ -9529,6 +9582,7 @@ var PiEngine = (() => {
     "src/effects/retro/title.js"(exports, module) {
       init_define_process_env();
       init_bufferGlobal();
+      var { blitGlyph } = require_text();
       function retroDrawTitle(buf, S, name, t) {
         const setP = (x, y, r, g, b) => {
           if (x < 0 || x >= S || y < 0 || y >= S) return;
@@ -9586,14 +9640,7 @@ var PiEngine = (() => {
             const glyph = font[ch];
             if (!glyph) continue;
             const cx = x + ci * 6 * sc;
-            for (let row = 0; row < 7; row++) {
-              const bits = glyph[row];
-              for (let col = 0; col < 5; col++) {
-                if (bits & 16 >> col) {
-                  fillRect(cx + col * sc, y + row * sc, cx + col * sc + sc - 1, y + row * sc + sc - 1, r, g, b);
-                }
-              }
-            }
+            blitGlyph(glyph, 5, 7, cx, y, sc, (px, py) => setP(px, py, r, g, b));
           }
         };
         const titles = {
@@ -10003,7 +10050,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
-      var { fwPx, FW_FONT, FW_CHAR_W } = require_shared();
+      var { fwPx, FW_CHAR_W, fwDrawGlyphToBuffer: drawGlyphToBuffer } = require_shared();
       var fwRockets = [];
       var fwBursts = [];
       var fwSpawnT = 0;
@@ -10285,20 +10332,6 @@ var PiEngine = (() => {
       }
       function textPixelWidth(str, scale) {
         return str.length * glyphWidth(scale);
-      }
-      function drawGlyphToBuffer(buf, bw, bh, ch, ox, oy, scale) {
-        const rows = FW_FONT[ch] || FW_FONT[ch.toUpperCase()] || FW_FONT[" "];
-        for (let row = 0; row < 6; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 6; col++) {
-            if (!(bits >> 5 - col & 1)) continue;
-            for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-              const x = ox + col * scale + sx, y = oy + row * scale + sy;
-              if (x < 0 || x >= bw || y < 0 || y >= bh) continue;
-              buf[y * bw + x] = 255;
-            }
-          }
-        }
       }
       function buildFwText(core, msg) {
         if (!msg || !msg.trim()) {
@@ -12112,89 +12145,14 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/radio/font.js
-  var require_font2 = __commonJS({
-    "src/effects/radio/font.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var CHAR_W = 6;
-      var CHAR_H = 7;
-      var FONT = {
-        A: [14, 17, 17, 31, 17, 17, 17],
-        B: [30, 17, 17, 30, 17, 17, 30],
-        C: [15, 16, 16, 16, 16, 16, 15],
-        D: [30, 17, 17, 17, 17, 17, 30],
-        E: [31, 16, 16, 30, 16, 16, 31],
-        F: [31, 16, 16, 30, 16, 16, 16],
-        G: [15, 16, 16, 23, 17, 17, 15],
-        H: [17, 17, 17, 31, 17, 17, 17],
-        I: [14, 4, 4, 4, 4, 4, 14],
-        J: [1, 1, 1, 1, 17, 17, 14],
-        K: [17, 18, 20, 24, 20, 18, 17],
-        L: [16, 16, 16, 16, 16, 16, 31],
-        M: [17, 27, 21, 21, 17, 17, 17],
-        N: [17, 25, 21, 19, 17, 17, 17],
-        O: [14, 17, 17, 17, 17, 17, 14],
-        P: [30, 17, 17, 30, 16, 16, 16],
-        Q: [14, 17, 17, 17, 21, 18, 13],
-        R: [30, 17, 17, 30, 20, 18, 17],
-        S: [15, 16, 16, 14, 1, 1, 30],
-        T: [31, 4, 4, 4, 4, 4, 4],
-        U: [17, 17, 17, 17, 17, 17, 14],
-        V: [17, 17, 17, 17, 10, 10, 4],
-        W: [17, 17, 17, 21, 21, 27, 17],
-        X: [17, 17, 10, 4, 10, 17, 17],
-        Y: [17, 17, 10, 4, 4, 4, 4],
-        Z: [31, 1, 2, 4, 8, 16, 31],
-        "0": [14, 17, 19, 21, 25, 17, 14],
-        "1": [4, 12, 4, 4, 4, 4, 14],
-        "2": [14, 17, 1, 6, 8, 16, 31],
-        "3": [31, 2, 4, 2, 1, 17, 14],
-        "4": [2, 6, 10, 18, 31, 2, 2],
-        "5": [31, 16, 30, 1, 1, 17, 14],
-        "6": [6, 8, 16, 30, 17, 17, 14],
-        "7": [31, 1, 2, 4, 8, 8, 8],
-        "8": [14, 17, 17, 14, 17, 17, 14],
-        "9": [14, 17, 17, 15, 1, 2, 12],
-        " ": [0, 0, 0, 0, 0, 0, 0],
-        "-": [0, 0, 0, 31, 0, 0, 0],
-        ".": [0, 0, 0, 0, 0, 12, 12],
-        ",": [0, 0, 0, 0, 0, 12, 8],
-        ":": [0, 12, 12, 0, 12, 12, 0],
-        "/": [1, 2, 2, 4, 8, 8, 16],
-        "'": [12, 8, 0, 0, 0, 0, 0],
-        "&": [12, 18, 20, 8, 21, 18, 13],
-        "\u2022": [0, 0, 14, 14, 14, 0, 0],
-        "!": [4, 4, 4, 4, 4, 0, 4],
-        "?": [14, 17, 1, 2, 4, 0, 4]
-      };
-      function drawGlyph(core, face, ch, su, sv, rgb) {
-        const rows = FONT[ch.toUpperCase()] || FONT["?"];
-        for (let ry = 0; ry < 7; ry++) {
-          const bits = rows[6 - ry];
-          const y = sv - (6 - ry);
-          if (y < 0 || y >= core.SIZE) continue;
-          for (let rx = 0; rx < 5; rx++) {
-            if (!(bits & 1 << 4 - rx)) continue;
-            const x = su + rx;
-            if (x < 0 || x >= core.SIZE) continue;
-            core.setFaceLED(face, x, y, rgb[0], rgb[1], rgb[2]);
-          }
-        }
-        return CHAR_W;
-      }
-      module.exports = { FONT, CHAR_W, CHAR_H, drawGlyph };
-    }
-  });
-
   // src/effects/radio/ticker.js
   var require_ticker = __commonJS({
     "src/effects/radio/ticker.js"(exports, module) {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { drawGlyph, CHAR_W } = require_font2();
+      var { CHAR_W } = require_font2();
+      var { drawMarquee, FONT_5x7, facePlot } = require_text();
       var scrollX = 0;
       function resetTicker() {
         scrollX = 0;
@@ -12205,15 +12163,7 @@ var PiEngine = (() => {
         scrollX += dt * 14;
         if (scrollX > textW) scrollX -= textW;
         const sv = 7;
-        const chars = Array.from(label);
-        let u = -Math.floor(scrollX);
-        const rgb = [0.6, 0.85, 1];
-        while (u < core.SIZE) {
-          for (const ch of chars) {
-            u += drawGlyph(core, face, ch, u, sv, rgb);
-            if (u > core.SIZE) break;
-          }
-        }
+        drawMarquee(FONT_5x7, label, scrollX, sv - 6, core.SIZE, facePlot(core, face, 0.6, 0.85, 1), { flipY: true });
       }
       module.exports = { drawTicker, resetTicker };
     }
@@ -12276,7 +12226,8 @@ var PiEngine = (() => {
       var { RadioAudio, BAND_COUNT } = require_ffmpegAudio();
       var { renderSpectrumStyle, createSpectrumState } = require_spectrum();
       var { drawTicker } = require_ticker();
-      var { drawGlyph, CHAR_W } = require_font2();
+      var { CHAR_W } = require_font2();
+      var { drawGlyph5x7Face } = require_text();
       var { searchStations } = require_search();
       var RADIO_STATIONS = [
         { name: "SomaFM Groove Salad", genre: "Ambient/Downtempo", url: "https://ice1.somafm.com/groovesalad-128-mp3" },
@@ -12436,7 +12387,7 @@ var PiEngine = (() => {
         const textW = text.length * CHAR_W;
         let u = Math.round((core.SIZE - textW) / 2);
         const rgb = [0.6, 0.85, 1];
-        for (const ch of text) u += drawGlyph(core, face, ch, u, sv, rgb);
+        for (const ch of text) u += drawGlyph5x7Face(core, face, ch, u, sv, rgb);
       }
       function getStatus() {
         return {
@@ -13380,7 +13331,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
-      var { FONT } = require_font2();
+      var { drawGlyph, drawString, FONT_5x7_BLANK, facePlot } = require_text();
       var dtBuf = null;
       var dtLastSec = -1;
       var dtScrollX = 0;
@@ -13461,25 +13412,8 @@ var PiEngine = (() => {
         return Math.max(1, h);
       }
       function fontDrawText(buf, S, text, cx, cy, scale) {
-        const advance = 6 * scale;
-        const w = text.length * advance;
-        let x0 = cx - w / 2;
-        for (let i = 0; i < text.length; i++) {
-          const ch = text[i].toUpperCase();
-          const rows = FONT[ch];
-          if (rows) {
-            for (let ry = 0; ry < 7; ry++) {
-              const bits = rows[ry];
-              for (let rx = 0; rx < 5; rx++) {
-                if (!(bits & 16 >> rx)) continue;
-                for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-                  setPx(buf, S, x0 + rx * scale + sx, cy + ry * scale + sy, 255);
-                }
-              }
-            }
-          }
-          x0 += advance;
-        }
+        const w = text.length * FONT_5x7_BLANK.adv * scale;
+        drawString(FONT_5x7_BLANK, text, cx - w / 2, cy, (x, y) => setPx(buf, S, x, y, 255), { scale });
       }
       function drawLine(buf, S, x1, y1, x2, y2, val, thickness) {
         const dx = x2 - x1, dy = y2 - y1;
@@ -13686,24 +13620,9 @@ var PiEngine = (() => {
       };
       var WC_CHAR_W = 5;
       var WC_LINE_H = 8;
+      var DT_WC_FONT = { w: 4, h: 7, adv: WC_CHAR_W, get: (ch) => WC_FONT[ch] || WC_FONT[ch.toUpperCase()] };
       function wcDrawGlyph(core, face, ch, su, sv, rgb, scale = 1) {
-        const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()];
-        const S = core.SIZE;
-        if (!rows) return WC_CHAR_W * scale;
-        for (let row = 0; row < 7; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 4; col++) {
-            if (!(bits >> 3 - col & 1)) continue;
-            for (let sy = 0; sy < scale; sy++) {
-              for (let sx = 0; sx < scale; sx++) {
-                const u = su + col * scale + sx, v = S - 1 - (sv + (6 - row) * scale + sy);
-                if (u < 0 || u >= S || v < 0 || v >= S) continue;
-                core.setFaceLED(face, u, v, rgb[0], rgb[1], rgb[2]);
-              }
-            }
-          }
-        }
-        return WC_CHAR_W * scale;
+        return drawGlyph(DT_WC_FONT, ch, su, core.SIZE - sv - 7 * scale, facePlot(core, face, rgb[0], rgb[1], rgb[2]), { scale });
       }
       var DT_WORDS_NUM = ["TWELVE", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN", "ELEVEN"];
       var DT_WORDS_ORDINAL = [
@@ -15110,7 +15029,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { getMoonIllumination } = require_state();
-      var { PIXEL_FONT } = require_font();
+      var { drawString, FONT_MOON, faceMaxPlot } = require_text();
       var { drawSaturn, drawPlanet } = require_bodies();
       var drawSolarSystem = require_solarsystem();
       var MOON_LAT_DEFAULT = 52.04;
@@ -15143,25 +15062,8 @@ var PiEngine = (() => {
       function getMoonPhase() {
         return getMoonIllumination(/* @__PURE__ */ new Date()).phase;
       }
-      var MOON_FONT = { ...PIXEL_FONT, "%": [5, 1, 2, 4, 5] };
-      function moonGlyph(core, face, ch, su, sv) {
-        const rows = MOON_FONT[ch.toUpperCase()];
-        if (!rows) return 4;
-        const { colBuf, faceMap, SIZE: S } = core;
-        for (let row = 0; row < 5; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 3; col++) {
-            if (!(bits >> 2 - col & 1)) continue;
-            const u = su + col, v = S - 1 - (sv + (4 - row));
-            if (u < 0 || u >= S || v < 0 || v >= S) continue;
-            const idx = faceMap[face][v * S + u];
-            if (idx < 0) continue;
-            colBuf[idx * 3] = Math.max(colBuf[idx * 3], 0.75);
-            colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], 0.8);
-            colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], 0.85);
-          }
-        }
-        return 4;
+      function drawMoonText(core, face, text, su, sv) {
+        drawString(FONT_MOON, text, su, core.SIZE - 5 - sv, faceMaxPlot(core, face, 0.75, 0.8, 0.85));
       }
       var _moonScrollX = 0;
       function effectCelestial(core, dt) {
@@ -15292,10 +15194,7 @@ var PiEngine = (() => {
         const mFaces = is2D ? [0] : [0, 1, 2, 3];
         for (let fi = 0; fi < mFaces.length; fi++) {
           const face = mFaces[fi];
-          for (let ci = 0; ci < moonText.length; ci++) {
-            const cxx = scrollOff + ci * charW;
-            moonGlyph(core, face, moonText[ci], cxx, textBaseV);
-          }
+          drawMoonText(core, face, moonText, scrollOff, textBaseV);
         }
       }
       module.exports = effectCelestial;
@@ -15307,7 +15206,7 @@ var PiEngine = (() => {
     "src/effects/iss.js"(exports, module) {
       init_define_process_env();
       init_bufferGlobal();
-      var { PIXEL_FONT } = require_font();
+      var { drawString, FONT_3x5, facePlot } = require_text();
       var { Jimp, ResizeStrategy } = (init_browser(), __toCommonJS(browser_exports));
       var issLat = 0;
       var issLon = 0;
@@ -15542,31 +15441,8 @@ var PiEngine = (() => {
         drawSeg(cx0 - S * 0.06, cy0 - S * 0.08, cx0 - S * 0.06, cy0 + S * 0.08, 0.9, 0.9, 0.9);
         drawSeg(cx0 + S * 0.06, cy0 - S * 0.08, cx0 + S * 0.06, cy0 + S * 0.08, 0.9, 0.9, 0.9);
       }
-      function issGlyph(core, face, ch, su, sv, tr, tg, tb) {
-        const { SIZE: S, faceMap, colBuf } = core;
-        const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-        if (!rows) return 4;
-        for (let row = 0; row < 5; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 3; col++) {
-            if (!(bits >> 2 - col & 1)) continue;
-            const u = su + col, v = sv + (4 - row);
-            if (u < 0 || u >= S || v < 0 || v >= S) continue;
-            const idx = faceMap[face][v * S + u];
-            if (idx < 0) continue;
-            colBuf[idx * 3] = tr;
-            colBuf[idx * 3 + 1] = tg;
-            colBuf[idx * 3 + 2] = tb;
-          }
-        }
-        return 4;
-      }
       function issText(core, face, str, su, sv, tr, tg, tb) {
-        let u = su;
-        for (const ch of str) {
-          u += issGlyph(core, face, ch, u, sv, tr, tg, tb);
-          if (u >= core.SIZE) break;
-        }
+        drawString(FONT_3x5, str, su, sv, facePlot(core, face, tr, tg, tb), { flipY: true, maxX: core.SIZE });
       }
       function issTextCentered(core, face, str, sv, tr, tg, tb) {
         const w = str.length * 4;
@@ -15717,7 +15593,8 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { Jimp } = (init_browser(), __toCommonJS(browser_exports));
-      var { drawGlyph, CHAR_W } = require_font2();
+      var { CHAR_W } = require_font2();
+      var { drawMarquee, FONT_5x7, facePlot } = require_text();
       var nasaConfig = require_nasaConfig();
       function NASA_API_KEY() {
         return nasaConfig.currentKey();
@@ -15838,38 +15715,7 @@ var PiEngine = (() => {
           }
         }
       }
-      var { PIXEL_FONT } = require_font();
-      function drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b) {
-        const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-        if (!rows) return 4 * scale;
-        const S = core.SIZE;
-        for (let row = 0; row < 5; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 3; col++) {
-            if (!(bits >> 2 - col & 1)) continue;
-            for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-              const u = su + col * scale + sx, v = sv + row * scale + sy;
-              if (u < 0 || u >= S || v < 0 || v >= S) continue;
-              core.setFaceLED(face, u, v, r, g, b);
-            }
-          }
-        }
-        return 4 * scale;
-      }
-      function textWidth3x5(str, scale) {
-        return str.length * 4 * scale - scale;
-      }
-      function drawLinesCentered(core, face, lines, scale, r, g, b) {
-        const S = core.SIZE;
-        const lineH = 6 * scale;
-        const totalH = lines.length * lineH;
-        let sv = Math.round((S - totalH) / 2);
-        for (const line of lines) {
-          let su = Math.round((S - textWidth3x5(line, scale)) / 2);
-          for (const ch of line) su += drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b);
-          sv += lineH;
-        }
-      }
+      var { drawLinesCentered3x5: drawLinesCentered } = require_shared();
       function buildTicker() {
         if (apodData) {
           tickerLabel = `   ${apodData.title}   -   ${apodData.explanation}   `.toUpperCase();
@@ -15884,14 +15730,7 @@ var PiEngine = (() => {
         if (scrollX > textW) scrollX -= textW;
         const S = core.SIZE;
         const sv = Math.round(S / 2) + 3;
-        const rgb = [1, 0.85, 0.48];
-        let u = -Math.floor(scrollX);
-        while (u < S) {
-          for (const ch of tickerLabel) {
-            u += drawGlyph(core, face, ch, u, sv, rgb);
-            if (u > S) break;
-          }
-        }
+        drawMarquee(FONT_5x7, tickerLabel, scrollX, sv - 6, S, facePlot(core, face, 1, 0.85, 0.48), { flipY: true });
       }
       function apod(core, dt) {
         t += dt;
@@ -16189,7 +16028,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { PIXEL_FONT } = require_font();
+      var { drawGlyph, drawString, FONT_3x5, faceMaxPlot } = require_text();
       var nasaConfig = require_nasaConfig();
       function NASA_API_KEY() {
         return nasaConfig.currentKey();
@@ -16286,31 +16125,8 @@ var PiEngine = (() => {
           neoFetching = false;
         });
       }
-      function neoGlyph(core, face, ch, su, sv, tr, tg, tb) {
-        const { SIZE: S, faceMap, colBuf } = core;
-        const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-        if (!rows) return 4;
-        for (let row = 0; row < 5; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 3; col++) {
-            if (!(bits >> 2 - col & 1)) continue;
-            const u = su + col, v = sv + (4 - row);
-            if (u < 0 || u >= S || v < 0 || v >= S) continue;
-            const idx = faceMap[face][v * S + u];
-            if (idx < 0) continue;
-            if (tr > colBuf[idx * 3]) colBuf[idx * 3] = tr;
-            if (tg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = tg;
-            if (tb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = tb;
-          }
-        }
-        return 4;
-      }
       function neoText(core, face, str, su, sv, tr, tg, tb) {
-        let u = su;
-        for (const ch of str) {
-          u += neoGlyph(core, face, ch, u, sv, tr, tg, tb);
-          if (u >= core.SIZE) break;
-        }
+        drawString(FONT_3x5, str, su, sv, faceMaxPlot(core, face, tr, tg, tb), { flipY: true, maxX: core.SIZE });
       }
       function neoTextCentered(core, face, str, sv, tr, tg, tb) {
         const w = str.length * 4;
@@ -16516,7 +16332,7 @@ var PiEngine = (() => {
           for (const ch of seg.str) {
             for (let tile = 0; tile < 2; tile++) {
               const u = charPos * charW - Math.floor(neo2dTickerX) + tile * totalW;
-              if (u + 3 >= 0 && u < S) neoGlyph(core, face, ch, u, sv, seg.r, seg.g, seg.b);
+              if (u + 3 >= 0 && u < S) drawGlyph(FONT_3x5, ch, u, sv, faceMaxPlot(core, face, seg.r, seg.g, seg.b), { flipY: true });
             }
             charPos++;
           }
@@ -16632,8 +16448,8 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { Jimp } = (init_browser(), __toCommonJS(browser_exports));
-      var { drawGlyph, CHAR_W } = require_font2();
-      var { PIXEL_FONT } = require_font();
+      var { CHAR_W } = require_font2();
+      var { drawLinesCentered: drawLinesCenteredText, drawMarquee, FONT_3x5, FONT_5x7, wallPlot } = require_text();
       var nasaConfig = require_nasaConfig();
       function NASA_API_KEY() {
         return nasaConfig.currentKey();
@@ -16752,53 +16568,11 @@ var PiEngine = (() => {
           }
         }
       }
-      function glyphWall(core, W, H, ch, su, sv, scale, r, g, b) {
-        const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-        if (!rows) return 4 * scale;
-        for (let row = 0; row < 5; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 3; col++) {
-            if (!(bits >> 2 - col & 1)) continue;
-            for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-              const u = su + col * scale + sx, v = sv + row * scale + sy;
-              if (u < 0 || u >= W || v < 0 || v >= H) continue;
-              core.setWallPixel(u, v, r, g, b);
-            }
-          }
-        }
-        return 4 * scale;
-      }
-      function textWidth3x5(str, scale) {
-        return str.length * 4 * scale - scale;
-      }
       function drawLinesCentered(core, W, H, lines, scale, r, g, b) {
-        const lineH = 6 * scale;
-        const totalH = lines.length * lineH;
-        let sv = Math.round((H - totalH) / 2);
-        for (const line of lines) {
-          let su = Math.round((W - textWidth3x5(line, scale)) / 2);
-          for (const ch of line) su += glyphWall(core, W, H, ch, su, sv, scale, r, g, b);
-          sv += lineH;
-        }
+        drawLinesCenteredText(FONT_3x5, lines, W, H, wallPlot(core, r, g, b), { scale });
       }
       function buildTicker() {
         tickerLabel = apodData ? `   ${apodData.title}   -   ${apodData.explanation}   `.toUpperCase() : "   ASTRONOMY PICTURE OF THE DAY   -   LOADING...   ";
-      }
-      var { FONT: RADIO_GLYPHS } = require_font2();
-      function drawGlyphWall(core, W, H, ch, su, sv, rgb) {
-        const rows = RADIO_GLYPHS[ch.toUpperCase()] || RADIO_GLYPHS["?"];
-        for (let ry = 0; ry < 7; ry++) {
-          const bits = rows[ry];
-          const y = sv - (6 - ry);
-          if (y < 0 || y >= H) continue;
-          for (let rx = 0; rx < 5; rx++) {
-            if (!(bits & 1 << 4 - rx)) continue;
-            const x = su + rx;
-            if (x < 0 || x >= W) continue;
-            core.setWallPixel(x, y, rgb[0], rgb[1], rgb[2]);
-          }
-        }
-        return CHAR_W;
       }
       function drawTicker(core, W, H, dt) {
         if (!tickerLabel) buildTicker();
@@ -16806,14 +16580,7 @@ var PiEngine = (() => {
         scrollX += dt * 14;
         if (scrollX > textW) scrollX -= textW;
         const sv = Math.round(H / 2) + 3;
-        const rgb = [1, 0.85, 0.48];
-        let u = -Math.floor(scrollX);
-        while (u < W) {
-          for (const ch of tickerLabel) {
-            u += drawGlyphWall(core, W, H, ch, u, sv, rgb);
-            if (u > W) break;
-          }
-        }
+        drawMarquee(FONT_5x7, tickerLabel, scrollX, sv - 6, W, wallPlot(core, 1, 0.85, 0.48));
       }
       function effectApodWall(core, dt) {
         const { wallW: W, wallH: H } = core;
@@ -16847,36 +16614,15 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var epic = require_epic();
-      var { FONT: RADIO_GLYPHS, CHAR_W } = require_font2();
+      var { CHAR_W } = require_font2();
+      var { drawMarquee, FONT_5x7, wallPlot } = require_text();
       var scrollX = 0;
-      function drawGlyphWall(core, W, H, ch, su, sv, rgb) {
-        const rows = RADIO_GLYPHS[ch.toUpperCase()] || RADIO_GLYPHS["?"];
-        for (let ry = 0; ry < 7; ry++) {
-          const bits = rows[ry];
-          const y = sv - (6 - ry);
-          if (y < 0 || y >= H) continue;
-          for (let rx = 0; rx < 5; rx++) {
-            if (!(bits & 1 << 4 - rx)) continue;
-            const x = su + rx;
-            if (x < 0 || x >= W) continue;
-            core.setWallPixel(x, y, rgb[0], rgb[1], rgb[2]);
-          }
-        }
-        return CHAR_W;
-      }
       function drawTickerWall(core, W, H, label, dt) {
         const textW = label.length * CHAR_W;
         scrollX += dt * 14;
         if (scrollX > textW) scrollX -= textW;
         const sv = H - 2;
-        const rgb = [0.6, 0.85, 1];
-        let u = -Math.floor(scrollX);
-        while (u < W) {
-          for (const ch of label) {
-            u += drawGlyphWall(core, W, H, ch, u, sv, rgb);
-            if (u > W) break;
-          }
-        }
+        drawMarquee(FONT_5x7, label, scrollX, sv - 6, W, wallPlot(core, 0.6, 0.85, 1));
       }
       function projectGlobeWall(core, W, H) {
         const cx0 = W / 2, cy0 = H / 2;
@@ -16950,37 +16696,16 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var iss = require_iss();
-      var { FONT: RADIO_GLYPHS, CHAR_W } = require_font2();
+      var { CHAR_W } = require_font2();
+      var { drawMarquee, FONT_5x7, wallPlot } = require_text();
       var scrollX = 0;
       var wallT = 0;
-      function drawGlyphWall(core, W, H, ch, su, sv, rgb) {
-        const rows = RADIO_GLYPHS[ch.toUpperCase()] || RADIO_GLYPHS["?"];
-        for (let ry = 0; ry < 7; ry++) {
-          const bits = rows[ry];
-          const y = sv - (6 - ry);
-          if (y < 0 || y >= H) continue;
-          for (let rx = 0; rx < 5; rx++) {
-            if (!(bits & 1 << 4 - rx)) continue;
-            const x = su + rx;
-            if (x < 0 || x >= W) continue;
-            core.setWallPixel(x, y, rgb[0], rgb[1], rgb[2]);
-          }
-        }
-        return CHAR_W;
-      }
       function drawTickerWall(core, W, H, label, dt) {
         const textW = label.length * CHAR_W;
         scrollX += dt * 16;
         if (scrollX > textW) scrollX -= textW;
         const sv = H - 2;
-        const rgb = [0.48, 0.87, 1];
-        let u = -Math.floor(scrollX);
-        while (u < W) {
-          for (const ch of label) {
-            u += drawGlyphWall(core, W, H, ch, u, sv, rgb);
-            if (u > W) break;
-          }
-        }
+        drawMarquee(FONT_5x7, label, scrollX, sv - 6, W, wallPlot(core, 0.48, 0.87, 1));
       }
       function lonToWindowU(lon, centerLon, W, lonWindowDeg) {
         let rel = centerLon + lonWindowDeg / 2 - lon;
@@ -17067,7 +16792,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { PIXEL_FONT } = require_font();
+      var { drawGlyph, drawString, FONT_3x5, wallMaxPlot } = require_text();
       var neo = require_neo();
       var NEO_REFRESH_SEC = 3600;
       var lastFetch = 0;
@@ -17086,29 +16811,8 @@ var PiEngine = (() => {
           neo.neoFetch();
         }
       }
-      function glyphWall(core, W, H, ch, su, sv, r, g, b) {
-        const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-        if (!rows) return 4;
-        for (let row = 0; row < 5; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 3; col++) {
-            if (!(bits >> 2 - col & 1)) continue;
-            const u = su + col, v = sv + (4 - row);
-            if (u < 0 || u >= W || v < 0 || v >= H) continue;
-            const o = (v * W + u) * 3;
-            if (r > core.wallBuf[o]) core.wallBuf[o] = r;
-            if (g > core.wallBuf[o + 1]) core.wallBuf[o + 1] = g;
-            if (b > core.wallBuf[o + 2]) core.wallBuf[o + 2] = b;
-          }
-        }
-        return 4;
-      }
       function textWall(core, W, H, str, su, sv, r, g, b) {
-        let u = su;
-        for (const ch of str) {
-          u += glyphWall(core, W, H, ch, u, sv, r, g, b);
-          if (u >= W) break;
-        }
+        drawString(FONT_3x5, str, su, sv, wallMaxPlot(core, r, g, b), { flipY: true, maxX: W });
       }
       function textPulsedWall(core, W, H, str, su, sv, rgb, pulse) {
         textWall(core, W, H, str, su, sv, rgb[0] * pulse, rgb[1] * pulse, rgb[2] * pulse);
@@ -17251,7 +16955,7 @@ var PiEngine = (() => {
           for (const ch of seg.str) {
             for (let tile = 0; tile < 2; tile++) {
               const u = charPos * charW - Math.floor(wallTickerX) + tile * totalW;
-              if (u + 3 >= 0 && u < W) glyphWall(core, W, H, ch, u, sv, seg.r, seg.g, seg.b);
+              if (u + 3 >= 0 && u < W) drawGlyph(FONT_3x5, ch, u, sv, wallMaxPlot(core, seg.r, seg.g, seg.b), { flipY: true });
             }
             charPos++;
           }
@@ -20494,7 +20198,7 @@ var PiEngine = (() => {
     "src/effects/coinflipWall.js"(exports, module) {
       init_define_process_env();
       init_bufferGlobal();
-      var { PIXEL_FONT } = require_font();
+      var { drawString, textWidth, FONT_3x5, wallPlot } = require_text();
       var coinState = null;
       function newCoinState() {
         const s = { heads: 0, tails: 0, flipping: false, result: "", flipT: 0, flipDur: 0, angle: 0, showResult: 0 };
@@ -20510,29 +20214,11 @@ var PiEngine = (() => {
       function lerp(a, b, t) {
         return a + (b - a) * t;
       }
-      function drawGlyphWall(core, ch, su, sv, scale, r, g, b) {
-        const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-        if (!rows) return 4 * scale;
-        for (let row = 0; row < 5; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 3; col++) {
-            if (!(bits >> 2 - col & 1)) continue;
-            for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-              core.setWallPixel(su + col * scale + sx, sv + row * scale + sy, r, g, b);
-            }
-          }
-        }
-        return 4 * scale;
-      }
-      function textWidth(str, scale) {
-        return str.length * 4 * scale - scale;
-      }
       function drawTextWall(core, str, su, sv, scale, r, g, b) {
-        let u = su;
-        for (const ch of str) u += drawGlyphWall(core, ch, u, sv, scale, r, g, b);
+        drawString(FONT_3x5, str, su, sv, wallPlot(core, r, g, b), { scale });
       }
       function drawTextCenteredWall(core, str, cx, sv, scale, r, g, b) {
-        drawTextWall(core, str, Math.round(cx - textWidth(str, scale) / 2), sv, scale, r, g, b);
+        drawTextWall(core, str, Math.round(cx - textWidth(FONT_3x5, str, scale) / 2), sv, scale, r, g, b);
       }
       function stepCoin(s, dt) {
         if (s.flipping) {
@@ -21154,7 +20840,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
-      var { FW_FONT, FW_CHAR_W } = require_shared();
+      var { FW_CHAR_W, fwDrawGlyphToBuffer: drawGlyphToBuffer } = require_shared();
       var fwRockets = [];
       var fwBursts = [];
       var fwSpawnT = 0;
@@ -21425,20 +21111,6 @@ var PiEngine = (() => {
       }
       function textPixelWidth(str, scale) {
         return str.length * glyphWidth(scale);
-      }
-      function drawGlyphToBuffer(buf, bw, bh, ch, ox, oy, scale) {
-        const rows = FW_FONT[ch] || FW_FONT[ch.toUpperCase()] || FW_FONT[" "];
-        for (let row = 0; row < 6; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 6; col++) {
-            if (!(bits >> 5 - col & 1)) continue;
-            for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-              const x = ox + col * scale + sx, y = oy + row * scale + sy;
-              if (x < 0 || x >= bw || y < 0 || y >= bh) continue;
-              buf[y * bw + x] = 255;
-            }
-          }
-        }
       }
       function buildFwText(core, msg) {
         if (!msg || !msg.trim()) {
@@ -22679,7 +22351,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { wxSkyRGB, wxMoonPhase } = require_state();
-      var { PIXEL_FONT } = require_font();
+      var { drawString, FONT_3x5 } = require_text();
       function effectWeatherWall(core, dt, wxState, speedMult) {
         const { wallW, wallH } = core;
         if (!wallW) return;
@@ -22809,26 +22481,8 @@ var PiEngine = (() => {
         const textV = 3;
         const tempV = 10;
         const bldBase = horizV;
-        const WXF = PIXEL_FONT;
-        function wxGlyph(ch, su, sv, tr, tg, tb) {
-          const rows = WXF[ch] || WXF[ch.toUpperCase()];
-          if (!rows) return 4;
-          for (let row = 0; row < 5; row++) {
-            const bits = rows[row];
-            for (let col = 0; col < 3; col++) {
-              if (!(bits >> 2 - col & 1)) continue;
-              const u = su + col, v = sv + (4 - row);
-              wb(u, v, tr, tg, tb);
-            }
-          }
-          return 4;
-        }
         function wxText(str, su, sv, tr, tg, tb) {
-          let u = su;
-          for (const ch of str) {
-            u += wxGlyph(ch, u, sv, tr, tg, tb);
-            if (u >= W) break;
-          }
+          drawString(FONT_3x5, str, su, sv, (u, v) => wb(u, v, tr, tg, tb), { flipY: true, maxX: W });
         }
         const txtR = isDawn || isDusk ? 0.9 : bldDay ? 0.8 : 0.6;
         const txtG = isDawn || isDusk ? 0.55 : bldDay ? 0.8 : 0.65;
@@ -22901,22 +22555,10 @@ var PiEngine = (() => {
             wxState.scrollOff = (wxState.scrollOff + dt * 20) % tileW;
             const off = Math.round(-wxState.scrollOff);
             for (let tile = off; tile < W; tile += tileW) {
-              let col = tile;
-              for (const ch of locStr) {
-                const rows = WXF[ch] || WXF[ch.toUpperCase()];
-                if (rows) {
-                  for (let row = 0; row < 5; row++) {
-                    const bits = rows[row];
-                    for (let c = 0; c < 3; c++) {
-                      if (!(bits >> 2 - c & 1)) continue;
-                      const u = col + c, v = textV + (4 - row);
-                      if (v < 0 || v >= H || u < 0 || u >= W) continue;
-                      blendLED(u, v, lr, lg, lb);
-                    }
-                  }
-                }
-                col += 4;
-              }
+              drawString(FONT_3x5, locStr, tile, textV, (u, v) => {
+                if (v < 0 || v >= H || u < 0 || u >= W) return;
+                blendLED(u, v, lr, lg, lb);
+              }, { flipY: true });
             }
           }
         }
@@ -23418,7 +23060,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
-      var { FONT } = require_font2();
+      var { drawGlyph, drawString, FONT_5x7_BLANK, wallPlot } = require_text();
       var dtBuf = null;
       var dtBufW = 0;
       var dtBufH = 0;
@@ -23502,25 +23144,8 @@ var PiEngine = (() => {
         return Math.max(1, h);
       }
       function fontDrawText(buf, W, H, text, cx, cy, scale) {
-        const advance = 6 * scale;
-        const w = text.length * advance;
-        let x0 = cx - w / 2;
-        for (let i = 0; i < text.length; i++) {
-          const ch = text[i].toUpperCase();
-          const rows = FONT[ch];
-          if (rows) {
-            for (let ry = 0; ry < 7; ry++) {
-              const bits = rows[ry];
-              for (let rx = 0; rx < 5; rx++) {
-                if (!(bits & 16 >> rx)) continue;
-                for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-                  setPx(buf, W, H, x0 + rx * scale + sx, cy + ry * scale + sy, 255);
-                }
-              }
-            }
-          }
-          x0 += advance;
-        }
+        const w = text.length * FONT_5x7_BLANK.adv * scale;
+        drawString(FONT_5x7_BLANK, text, cx - w / 2, cy, (x, y) => setPx(buf, W, H, x, y, 255), { scale });
       }
       function drawLine(buf, W, H, x1, y1, x2, y2, val, thickness) {
         const dx = x2 - x1, dy = y2 - y1;
@@ -23722,23 +23347,9 @@ var PiEngine = (() => {
       };
       var WC_CHAR_W = 5;
       var WC_LINE_H = 8;
+      var DT_WC_FONT = { w: 4, h: 7, adv: WC_CHAR_W, get: (ch) => WC_FONT[ch] || WC_FONT[ch.toUpperCase()] };
       function wcDrawGlyphWall(core, W, H, ch, su, sv, rgb, scale = 1) {
-        const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()];
-        if (!rows) return WC_CHAR_W * scale;
-        for (let row = 0; row < 7; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 4; col++) {
-            if (!(bits >> 3 - col & 1)) continue;
-            for (let sy = 0; sy < scale; sy++) {
-              for (let sx = 0; sx < scale; sx++) {
-                const u = su + col * scale + sx, v = H - 1 - (sv + (6 - row) * scale + sy);
-                if (u < 0 || u >= W || v < 0 || v >= H) continue;
-                core.setWallPixel(u, v, rgb[0], rgb[1], rgb[2]);
-              }
-            }
-          }
-        }
-        return WC_CHAR_W * scale;
+        return drawGlyph(DT_WC_FONT, ch, su, H - sv - 7 * scale, wallPlot(core, rgb[0], rgb[1], rgb[2]), { scale });
       }
       var DT_WORDS_NUM = ["TWELVE", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN", "ELEVEN"];
       var DT_WORDS_ORDINAL = [
@@ -23919,7 +23530,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { getMoonIllumination } = require_state();
-      var { PIXEL_FONT } = require_font();
+      var { drawString, FONT_MOON, wallMaxPlot } = require_text();
       var { drawSaturn, drawPlanet } = require_bodies();
       var drawSolarSystem = require_solarsystem();
       var MOON_LAT_DEFAULT = 52.04;
@@ -23951,23 +23562,8 @@ var PiEngine = (() => {
       function getMoonPhase() {
         return getMoonIllumination(/* @__PURE__ */ new Date()).phase;
       }
-      var MOON_FONT = { ...PIXEL_FONT, "%": [5, 1, 2, 4, 5] };
-      function moonGlyphWall(core, W, H, ch, su, sv) {
-        const rows = MOON_FONT[ch.toUpperCase()];
-        if (!rows) return 4;
-        for (let row = 0; row < 5; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 3; col++) {
-            if (!(bits >> 2 - col & 1)) continue;
-            const u = su + col, v = H - 1 - (sv + (4 - row));
-            if (u < 0 || u >= W || v < 0 || v >= H) continue;
-            const o = (v * W + u) * 3;
-            core.wallBuf[o] = Math.max(core.wallBuf[o], 0.75);
-            core.wallBuf[o + 1] = Math.max(core.wallBuf[o + 1], 0.8);
-            core.wallBuf[o + 2] = Math.max(core.wallBuf[o + 2], 0.85);
-          }
-        }
-        return 4;
+      function drawMoonTextWall(core, W, H, text, su, sv) {
+        drawString(FONT_MOON, text, su, H - 5 - sv, wallMaxPlot(core, 0.75, 0.8, 0.85));
       }
       var _moonScrollX = 0;
       var _fakeFaceMap = null;
@@ -24110,10 +23706,7 @@ var PiEngine = (() => {
         else _moonScrollX = 0;
         const textBaseV = 1;
         const scrollOff = needScroll ? Math.floor(W - _moonScrollX) : Math.floor((W - textW) / 2);
-        for (let ci = 0; ci < moonText.length; ci++) {
-          const cxx = scrollOff + ci * charW;
-          moonGlyphWall(core, W, H, moonText[ci], cxx, textBaseV);
-        }
+        drawMoonTextWall(core, W, H, moonText, scrollOff, textBaseV);
       }
       module.exports = effectCelestialWall;
     }
@@ -24838,7 +24431,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { wcInitWall, wcStepWall, wcDrawToFaceWall } = require_shared();
-      var { PIXEL_FONT } = require_font();
+      var { drawString, FONT_3x5, wallPlot } = require_text();
       var otdEvents = [];
       var otdFetching = false;
       var otdError = "";
@@ -24893,29 +24486,11 @@ var PiEngine = (() => {
           otdFetching = false;
         });
       }
-      function glyph3x5Wall(core, W, H, ch, su, sv, r, g, b) {
-        const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-        if (!rows) return 4;
-        for (let row = 0; row < 5; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 3; col++) {
-            if (!(bits >> 2 - col & 1)) continue;
-            const u = su + col, v = sv + row;
-            if (u < 0 || u >= W || v < 0 || v >= H) continue;
-            core.setWallPixel(u, v, r, g, b);
-          }
-        }
-        return 4;
-      }
       function drawTitleCorner(core, W, H) {
         const now = /* @__PURE__ */ new Date();
         const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
         const label = `ON THIS DAY ${monthNames[now.getMonth()]} ${now.getDate()} - ${otdEvents.length} EVENTS`;
-        let u = 1;
-        for (const ch of label) {
-          u += glyph3x5Wall(core, W, H, ch, u, 1, 0.48, 0.82, 1);
-          if (u >= W) break;
-        }
+        drawString(FONT_3x5, label, 1, 1, wallPlot(core, 0.48, 0.82, 1), { maxX: W });
       }
       function drawStarfield(core, W, H, tt) {
         for (let y = 0; y < H; y++) {
@@ -25592,7 +25167,8 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var radio = require_radio();
       var { renderSpectrumStyleWall, createSpectrumWallState } = require_spectrumWall();
-      var { FONT, CHAR_W } = require_font2();
+      var { CHAR_W } = require_font2();
+      var { drawString, drawMarquee, FONT_5x7, wallPlot } = require_text();
       var spectrumWallState = createSpectrumWallState();
       var autoGainMultW = 1;
       var lastLevelSmoothedW = 0;
@@ -25606,28 +25182,12 @@ var PiEngine = (() => {
         for (let i = start + 1; i <= end; i++) if (arr[i] > v) v = arr[i];
         return v;
       }
-      function glyphWall(core, ch, su, sv, rgb) {
-        const rows = FONT[ch.toUpperCase()] || FONT["?"];
-        for (let ry = 0; ry < 7; ry++) {
-          const bits = rows[ry];
-          const y = sv - (6 - ry);
-          if (y < 0 || y >= core.wallH) continue;
-          for (let rx = 0; rx < 5; rx++) {
-            if (!(bits & 1 << 4 - rx)) continue;
-            const x = su + rx;
-            if (x < 0 || x >= core.wallW) continue;
-            core.setWallPixel(x, y, rgb[0], rgb[1], rgb[2]);
-          }
-        }
-        return CHAR_W;
-      }
+      var TEXT_RGB = [0.6, 0.85, 1];
       function drawStaticLabelWall(core, text) {
         if (!text) return;
-        const textW = text.length * CHAR_W;
         const sv = core.wallH - 2;
-        let u = Math.round((core.wallW - textW) / 2);
-        const rgb = [0.6, 0.85, 1];
-        for (const ch of text) u += glyphWall(core, ch, u, sv, rgb);
+        const u = Math.round((core.wallW - text.length * CHAR_W) / 2);
+        drawString(FONT_5x7, text, u, sv - 6, wallPlot(core, ...TEXT_RGB));
       }
       function drawTickerWall(core, label, dt) {
         if (!label) return;
@@ -25635,14 +25195,7 @@ var PiEngine = (() => {
         tickerScrollX += dt * 14;
         if (tickerScrollX > textW) tickerScrollX -= textW;
         const sv = core.wallH - 2;
-        let u = -Math.floor(tickerScrollX);
-        const rgb = [0.6, 0.85, 1];
-        while (u < core.wallW) {
-          for (const ch of label) {
-            u += glyphWall(core, ch, u, sv, rgb);
-            if (u > core.wallW) break;
-          }
-        }
+        drawMarquee(FONT_5x7, label, tickerScrollX, sv - 6, core.wallW, wallPlot(core, ...TEXT_RGB));
       }
       function effectRadioWall(core, dt) {
         if (!core.wallW) return;
@@ -25982,6 +25535,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { runOverlays } = require_overlays();
+      var { blitGlyph } = require_text();
       var SIDE = [2, 0, 3, 1];
       var AL_CHECK_INTERVAL = 2;
       var BIG_GLYPHS = {
@@ -26061,6 +25615,26 @@ var PiEngine = (() => {
         for (let fi = 0; fi < 4; fi++) {
           const face = SIDE[fi];
           const mir = mirrored && (face === 2 || face === 3);
+          const shadowPlot = (pu, pv) => {
+            for (let sy = -1; sy <= 1; sy++) for (let sx = -1; sx <= 1; sx++) {
+              if (sy === 0 && sx === 0) continue;
+              const fv = pv + sy, fu = pu + sx;
+              if (fu < 0 || fu >= S || fv < 0 || fv >= S) continue;
+              const idx = faceMap[face][fv * S + fu];
+              if (idx < 0) continue;
+              colBuf[idx * 3] *= 0.15;
+              colBuf[idx * 3 + 1] *= 0.15;
+              colBuf[idx * 3 + 2] *= 0.15;
+            }
+          };
+          const brightPlot = (pu, pv) => {
+            if (pu < 0 || pu >= S || pv < 0 || pv >= S) return;
+            const idx = faceMap[face][pv * S + pu];
+            if (idx < 0) return;
+            colBuf[idx * 3] = brightVal;
+            colBuf[idx * 3 + 1] = brightVal;
+            colBuf[idx * 3 + 2] = brightVal;
+          };
           if (shadow) {
             for (let li = 0; li < lines.length; li++) {
               const line = lines[li];
@@ -26071,24 +25645,7 @@ var PiEngine = (() => {
                 const glyph = BIG_GLYPHS[line[ci]];
                 if (!glyph) continue;
                 const charU = mir ? startU + (line.length - 1 - ci) * charW : startU + ci * charW;
-                for (let row = 0; row < 7; row++) {
-                  const bits = glyph[row];
-                  const pv = lineV - (row + 1);
-                  for (let col = 0; col < 5; col++) {
-                    if (!(bits >> 4 - col & 1)) continue;
-                    const pu = mir ? charU + (4 - col) : charU + col;
-                    for (let sy = -1; sy <= 1; sy++) for (let sx = -1; sx <= 1; sx++) {
-                      if (sy === 0 && sx === 0) continue;
-                      const fv = pv + sy, fu = pu + sx;
-                      if (fu < 0 || fu >= S || fv < 0 || fv >= S) continue;
-                      const idx = faceMap[face][fv * S + fu];
-                      if (idx < 0) continue;
-                      colBuf[idx * 3] *= 0.15;
-                      colBuf[idx * 3 + 1] *= 0.15;
-                      colBuf[idx * 3 + 2] *= 0.15;
-                    }
-                  }
-                }
+                blitGlyph(glyph, 5, 7, charU, lineV - 7, 1, shadowPlot, mir, true);
               }
             }
           }
@@ -26101,21 +25658,7 @@ var PiEngine = (() => {
               const glyph = BIG_GLYPHS[line[ci]];
               if (!glyph) continue;
               const charU = mir ? startU + (line.length - 1 - ci) * charW : startU + ci * charW;
-              for (let row = 0; row < 7; row++) {
-                const bits = glyph[row];
-                const pv = lineV - (row + 1);
-                if (pv < 0 || pv >= S) continue;
-                for (let col = 0; col < 5; col++) {
-                  if (!(bits >> 4 - col & 1)) continue;
-                  const pu = mir ? charU + (4 - col) : charU + col;
-                  if (pu < 0 || pu >= S) continue;
-                  const idx = faceMap[face][pv * S + pu];
-                  if (idx < 0) continue;
-                  colBuf[idx * 3] = brightVal;
-                  colBuf[idx * 3 + 1] = brightVal;
-                  colBuf[idx * 3 + 2] = brightVal;
-                }
-              }
+              blitGlyph(glyph, 5, 7, charU, lineV - 7, 1, brightPlot, mir, true);
             }
           }
         }
@@ -26599,7 +26142,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { FACE_LAYOUT, FACE_NAMES } = require_panelConfig();
-      var { PIXEL_FONT } = require_font();
+      var { drawLinesCentered, FONT_3x5, wallPlot } = require_text();
       var { drawLinesCentered3x5 } = require_shared();
       function pickScale(lines, size, maxScale) {
         const longest = Math.max(...lines.map((l) => l.length));
@@ -26613,42 +26156,13 @@ var PiEngine = (() => {
           drawLinesCentered3x5(core, face, lines, pickScale(lines, core.SIZE, 4), 0.2, 1, 0.4);
         }
       }
-      function wallGlyph(core, ox, oy, ch, su, sv, scale, r, g, b) {
-        const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-        if (!rows) return 4 * scale;
-        for (let row = 0; row < 5; row++) {
-          const bits = rows[row];
-          for (let col = 0; col < 3; col++) {
-            if (!(bits >> 2 - col & 1)) continue;
-            for (let sy = 0; sy < scale; sy++) {
-              for (let sx = 0; sx < scale; sx++) {
-                core.setWallPixel(ox + su + col * scale + sx, oy + sv + row * scale + sy, r, g, b);
-              }
-            }
-          }
-        }
-        return 4 * scale;
-      }
-      function wallLineWidth(str, scale) {
-        return str.length * 4 * scale - scale;
-      }
-      function wallLinesCentered(core, ox, oy, panelSize, lines, scale, r, g, b) {
-        const lineH = 6 * scale;
-        const totalH = lines.length * lineH;
-        let sv = Math.round((panelSize - totalH) / 2);
-        for (const line of lines) {
-          let su = Math.round((panelSize - wallLineWidth(line, scale)) / 2);
-          for (const ch of line) su += wallGlyph(core, ox, oy, ch, su, sv, scale, r, g, b);
-          sv += lineH;
-        }
-      }
       function renderIdentifyWall(core, config) {
         if (!core.wallBuf) return;
         core.wallBuf.fill(0);
         const S = core.wallPanelSize;
         config.panels.forEach((p, idx) => {
           const lines = ["PANEL " + (idx + 1), "OUT " + (p.gy + 1), "POS " + (p.gx + 1)];
-          wallLinesCentered(core, p.gx * S, p.gy * S, S, lines, pickScale(lines, S, 4), 0.2, 1, 0.4);
+          drawLinesCentered(FONT_3x5, lines, S, S, wallPlot(core, 0.2, 1, 0.4), { scale: pickScale(lines, S, 4), ox: p.gx * S, oy: p.gy * S });
         });
       }
       function renderIdentify(core, config) {

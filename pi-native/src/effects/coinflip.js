@@ -19,7 +19,7 @@
 // otherwise every side face (0-3) gets its own independent flip cycle/tally
 // exactly like the original's 4-entry coinFaces array, the top face (4)
 // shows the aggregated H/T totals, and the bottom face (5) is left dark.
-const { PIXEL_FONT } = require('./weather/font');
+const { drawString, textWidth, FONT_3x5, facePlot } = require('./text');
 
 let coinFaces = null;      // 3D mode: per-face {heads,tails,flipping,result,flipT,flipDur,angle,showResult}
 let coin2d = null;         // 2D mode: single coin state (same shape)
@@ -38,34 +38,12 @@ function startFlip(s, durMin, durRange) {
 
 function lerp(a, b, t) { return a + (b - a) * t; }
 
-function drawGlyph(core, face, ch, su, sv, scale, r, g, b) {
-  const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()];
-  const S = core.SIZE;
-  if (rows) {
-    for (let row = 0; row < 5; row++) {
-      const bits = rows[row];
-      for (let col = 0; col < 3; col++) {
-        if (!((bits >> (2 - col)) & 1)) continue;
-        for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-          const u = su + col * scale + sx, v = sv + row * scale + sy;
-          if (u < 0 || u >= S || v < 0 || v >= S) continue;
-          core.setFaceLED(face, u, v, r, g, b);
-        }
-      }
-    }
-  }
-  return 4 * scale; // 3-wide glyph + 1 column spacing
-}
-
-function textWidth(str, scale) { return str.length * 4 * scale - scale; }
-
 function drawText(core, face, str, su, sv, scale, r, g, b) {
-  let u = su;
-  for (const ch of str) u += drawGlyph(core, face, ch, u, sv, scale, r, g, b);
+  drawString(FONT_3x5, str, su, sv, facePlot(core, face, r, g, b), { scale });
 }
 
 function drawTextCentered(core, face, str, cx, sv, scale, r, g, b) {
-  drawText(core, face, str, Math.round(cx - textWidth(str, scale) / 2), sv, scale, r, g, b);
+  drawText(core, face, str, Math.round(cx - textWidth(FONT_3x5, str, scale) / 2), sv, scale, r, g, b);
 }
 
 // Renders one coin state onto one face: shimmering background, squash-

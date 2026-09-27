@@ -46,7 +46,7 @@
 //     weather.js's own cube values exactly (a sun that grew with wall
 //     width would look wrong long before the ticker text would).
 const { wxSkyRGB, wxMoonPhase } = require('./state');
-const { PIXEL_FONT } = require('./font');
+const { drawString, FONT_3x5 } = require('../text');
 
 function effectWeatherWall(core, dt, wxState, speedMult) {
   const { wallW, wallH } = core;
@@ -218,22 +218,10 @@ function effectWeatherWall(core, dt, wxState, speedMult) {
   const tempV = 10;
   const bldBase = horizV;
 
-  const WXF = PIXEL_FONT;
-
-  function wxGlyph(ch, su, sv, tr, tg, tb) {
-    const rows = WXF[ch] || WXF[ch.toUpperCase()]; if (!rows) return 4;
-    for (let row = 0; row < 5; row++) {
-      const bits = rows[row];
-      for (let col = 0; col < 3; col++) {
-        if (!((bits >> (2 - col)) & 1)) continue;
-        const u = su + col, v = sv + (4 - row);
-        wb(u, v, tr, tg, tb);
-      }
-    }
-    return 4;
-  }
+  // 3x5 text, glyph rows drawn flipped (`v = sv + (4 - row)`), through
+  // wb() (bounds-checked, brighten-only, v-flipped to wallBuf rows).
   function wxText(str, su, sv, tr, tg, tb) {
-    let u = su; for (const ch of str) { u += wxGlyph(ch, u, sv, tr, tg, tb); if (u >= W) break; }
+    drawString(FONT_3x5, str, su, sv, (u, v) => wb(u, v, tr, tg, tb), { flipY: true, maxX: W });
   }
 
   const txtR = isDawn || isDusk ? 0.9 : bldDay ? 0.8 : 0.6;
@@ -302,22 +290,10 @@ function effectWeatherWall(core, dt, wxState, speedMult) {
       wxState.scrollOff = (wxState.scrollOff + dt * 20) % tileW;
       const off = Math.round(-wxState.scrollOff);
       for (let tile = off; tile < W; tile += tileW) {
-        let col = tile;
-        for (const ch of locStr) {
-          const rows = WXF[ch] || WXF[ch.toUpperCase()];
-          if (rows) {
-            for (let row = 0; row < 5; row++) {
-              const bits = rows[row];
-              for (let c = 0; c < 3; c++) {
-                if (!((bits >> (2 - c)) & 1)) continue;
-                const u = col + c, v = textV + (4 - row);
-                if (v < 0 || v >= H || u < 0 || u >= W) continue;
-                blendLED(u, v, lr, lg, lb);
-              }
-            }
-          }
-          col += 4;
-        }
+        drawString(FONT_3x5, locStr, tile, textV, (u, v) => {
+          if (v < 0 || v >= H || u < 0 || u >= W) return;
+          blendLED(u, v, lr, lg, lb);
+        }, { flipY: true });
       }
     }
   }

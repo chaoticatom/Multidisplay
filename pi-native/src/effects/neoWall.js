@@ -27,7 +27,7 @@
 // separate copy here - cheap non-network bookkeeping, not real duplication.
 'use strict';
 
-const { PIXEL_FONT } = require('./weather/font');
+const { drawGlyph, drawString, FONT_3x5, wallMaxPlot } = require('./text');
 const neo = require('./neo');
 
 const NEO_REFRESH_SEC = 3600;
@@ -50,27 +50,10 @@ function ensureFetch(core) {
   }
 }
 
-// ── 3x5 bitmap text helpers, same convention as weatherWall's wxGlyph but
-// addressed through core.setWallPixel instead of faceMap/colBuf. ─────────
-function glyphWall(core, W, H, ch, su, sv, r, g, b) {
-  const rows = PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()]; if (!rows) return 4;
-  for (let row = 0; row < 5; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 3; col++) {
-      if (!((bits >> (2 - col)) & 1)) continue;
-      const u = su + col, v = sv + (4 - row);
-      if (u < 0 || u >= W || v < 0 || v >= H) continue;
-      const o = (v * W + u) * 3;
-      if (r > core.wallBuf[o]) core.wallBuf[o] = r;
-      if (g > core.wallBuf[o + 1]) core.wallBuf[o + 1] = g;
-      if (b > core.wallBuf[o + 2]) core.wallBuf[o + 2] = b;
-    }
-  }
-  return 4;
-}
+// ── 3x5 bitmap text helpers: glyph rows drawn flipped (`v = sv + (4 -
+// row)`), brighten-only straight into wallBuf. ────────────────────────────
 function textWall(core, W, H, str, su, sv, r, g, b) {
-  let u = su;
-  for (const ch of str) { u += glyphWall(core, W, H, ch, u, sv, r, g, b); if (u >= W) break; }
+  drawString(FONT_3x5, str, su, sv, wallMaxPlot(core, r, g, b), { flipY: true, maxX: W });
 }
 function textPulsedWall(core, W, H, str, su, sv, rgb, pulse) {
   textWall(core, W, H, str, su, sv, rgb[0] * pulse, rgb[1] * pulse, rgb[2] * pulse);
@@ -221,7 +204,7 @@ function effectNeoWall(core, dt) {
     for (const ch of seg.str) {
       for (let tile = 0; tile < 2; tile++) {
         const u = charPos * charW - Math.floor(wallTickerX) + tile * totalW;
-        if (u + 3 >= 0 && u < W) glyphWall(core, W, H, ch, u, sv, seg.r, seg.g, seg.b);
+        if (u + 3 >= 0 && u < W) drawGlyph(FONT_3x5, ch, u, sv, wallMaxPlot(core, seg.r, seg.g, seg.b), { flipY: true });
       }
       charPos++;
     }

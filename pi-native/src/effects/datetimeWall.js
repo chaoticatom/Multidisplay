@@ -31,7 +31,7 @@
 // through core.setWallPixel(x,y,...) instead of core.setFaceLED(face,u,v,...)
 // and wrapping/staggering lines against wallW/wallH instead of SIZE.
 const { hsl } = require('../core');
-const { FONT } = require('./radio/font');
+const { drawGlyph, drawString, FONT_5x7_BLANK, wallPlot } = require('./text');
 
 let dtBuf = null, dtBufW = 0, dtBufH = 0, dtLastSec = -1, dtScrollX = 0;
 
@@ -111,25 +111,8 @@ function fitDigitHeight(str, idealH, maxW) {
 }
 
 function fontDrawText(buf, W, H, text, cx, cy, scale) {
-  const advance = 6 * scale;
-  const w = text.length * advance;
-  let x0 = cx - w / 2;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i].toUpperCase();
-    const rows = FONT[ch];
-    if (rows) {
-      for (let ry = 0; ry < 7; ry++) {
-        const bits = rows[ry];
-        for (let rx = 0; rx < 5; rx++) {
-          if (!(bits & (0x10 >> rx))) continue;
-          for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-            setPx(buf, W, H, x0 + rx * scale + sx, cy + ry * scale + sy, 255);
-          }
-        }
-      }
-    }
-    x0 += advance;
-  }
+  const w = text.length * FONT_5x7_BLANK.adv * scale;
+  drawString(FONT_5x7_BLANK, text, cx - w / 2, cy, (x, y) => setPx(buf, W, H, x, y, 255), { scale });
 }
 
 function drawLine(buf, W, H, x1, y1, x2, y2, val, thickness) {
@@ -345,23 +328,10 @@ const WC_CHAR_W = 5, WC_LINE_H = 8;
 // ("for the word clock, if space is available 1 or more displays, increase
 // font size to fit"): dtBuildWordClockWall picks the largest scale whose
 // wrapped text still fits the wall (see wcPickScale) before drawing.
+const DT_WC_FONT = { w: 4, h: 7, adv: WC_CHAR_W, get: (ch) => WC_FONT[ch] || WC_FONT[ch.toUpperCase()] };
 function wcDrawGlyphWall(core, W, H, ch, su, sv, rgb, scale = 1) {
-  const rows = WC_FONT[ch] || WC_FONT[ch.toUpperCase()];
-  if (!rows) return WC_CHAR_W * scale;
-  for (let row = 0; row < 7; row++) {
-    const bits = rows[row];
-    for (let col = 0; col < 4; col++) {
-      if (!((bits >> (3 - col)) & 1)) continue;
-      for (let sy = 0; sy < scale; sy++) {
-        for (let sx = 0; sx < scale; sx++) {
-          const u = su + col * scale + sx, v = H - 1 - (sv + (6 - row) * scale + sy);
-          if (u < 0 || u >= W || v < 0 || v >= H) continue;
-          core.setWallPixel(u, v, rgb[0], rgb[1], rgb[2]);
-        }
-      }
-    }
-  }
-  return WC_CHAR_W * scale;
+  // Cell spans rows H-sv-7*scale .. H-1-sv (the v flip described above).
+  return drawGlyph(DT_WC_FONT, ch, su, H - sv - 7 * scale, wallPlot(core, rgb[0], rgb[1], rgb[2]), { scale });
 }
 
 const DT_WORDS_NUM = ['TWELVE', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'ELEVEN'];

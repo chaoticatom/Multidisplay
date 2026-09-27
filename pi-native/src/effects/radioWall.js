@@ -30,7 +30,8 @@
 
 const radio = require('./radio/radio');
 const { renderSpectrumStyleWall, createSpectrumWallState } = require('./radio/spectrumWall');
-const { FONT, CHAR_W } = require('./radio/font');
+const { CHAR_W } = require('./radio/font');
+const { drawString, drawMarquee, FONT_5x7, wallPlot } = require('./text');
 
 const spectrumWallState = createSpectrumWallState();
 let autoGainMultW = 1;
@@ -51,36 +52,21 @@ function sample(arr, b, bands, BAND_COUNT) {
   return v;
 }
 
-// Plain, uncorrected glyph draw - see radio/font.js's drawGlyph() comment
-// for why: colBuf/wallBuf content should never bake in a driver-specific
+// The 5x7 font on the wall canvas: UNflipped, glyph cell spanning rows
+// sv-6..sv (see text.js's drawGlyph5x7Face() for why cube faces differ).
+// Text is drawn plain - wallBuf content never bakes in a driver-specific
 // mirror, since the (uncorrected) browser preview and the physical
 // driver's own separately-verified mirror step both read the same buffer.
-function glyphWall(core, ch, su, sv, rgb) {
-  const rows = FONT[ch.toUpperCase()] || FONT['?'];
-  for (let ry = 0; ry < 7; ry++) {
-    const bits = rows[ry];
-    const y = sv - (6 - ry);
-    if (y < 0 || y >= core.wallH) continue;
-    for (let rx = 0; rx < 5; rx++) {
-      if (!(bits & (1 << (4 - rx)))) continue;
-      const x = su + rx;
-      if (x < 0 || x >= core.wallW) continue;
-      core.setWallPixel(x, y, rgb[0], rgb[1], rgb[2]);
-    }
-  }
-  return CHAR_W;
-}
+const TEXT_RGB = [0.6, 0.85, 1];
 
 // Centered, non-scrolling text - see radio.js's effectRadio() for why
 // (the sweep's live Hz reading needs to stay fully visible, not march
 // past like the normal now-playing ticker).
 function drawStaticLabelWall(core, text) {
   if (!text) return;
-  const textW = text.length * CHAR_W;
   const sv = core.wallH - 2;
-  let u = Math.round((core.wallW - textW) / 2);
-  const rgb = [0.6, 0.85, 1];
-  for (const ch of text) u += glyphWall(core, ch, u, sv, rgb);
+  const u = Math.round((core.wallW - text.length * CHAR_W) / 2);
+  drawString(FONT_5x7, text, u, sv - 6, wallPlot(core, ...TEXT_RGB));
 }
 
 function drawTickerWall(core, label, dt) {
@@ -88,19 +74,12 @@ function drawTickerWall(core, label, dt) {
   const textW = label.length * CHAR_W;
   tickerScrollX += dt * 14;
   if (tickerScrollX > textW) tickerScrollX -= textW;
-  // sv = core.wallH - 2, not 1 - same fix/root cause as ticker.js's
-  // drawTicker(): glyphWall()'s `y = sv - (6-ry)` needs sv near the bottom
-  // edge (wallH-ish) in this top-down (row 0 = top) frame, not near 0 - see
-  // that file's own comment for the full explanation.
+  // Baseline sv = wallH - 2, not 1 - same fix/root cause as ticker.js's
+  // drawTicker(): the glyph spans sv-6..sv, so sv needs to sit near the
+  // bottom edge in this top-down (row 0 = top) frame - see that file's own
+  // comment for the full explanation.
   const sv = core.wallH - 2;
-  let u = -Math.floor(tickerScrollX);
-  const rgb = [0.6, 0.85, 1];
-  while (u < core.wallW) {
-    for (const ch of label) {
-      u += glyphWall(core, ch, u, sv, rgb);
-      if (u > core.wallW) break;
-    }
-  }
+  drawMarquee(FONT_5x7, label, tickerScrollX, sv - 6, core.wallW, wallPlot(core, ...TEXT_RGB));
 }
 
 function effectRadioWall(core, dt) {
