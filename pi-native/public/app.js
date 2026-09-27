@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.153';
+const APP_VERSION = '0.6.154';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2517,6 +2517,19 @@ function syncPanelButtons() {
     const mode = btn.dataset.mode === 'panel2d' ? '2d' : 'cube';
     btn.classList.toggle('active', currentState.panelMode === mode && (mode === '2d' || currentState.panelSize === size));
   });
+  document.body.dataset.mode = currentState.panelMode || 'cube';
+  const wallBtn = document.getElementById('wall-mode-btn');
+  if (wallBtn) wallBtn.classList.toggle('active', currentState.panelMode === 'wall');
+  // Header line under the title - was static "64³ · 24,576 surface LEDs"
+  // whatever mode was actually running.
+  const count = document.getElementById('led-count-label');
+  if (count) {
+    const n = currentState.panelSize || 64;
+    const panels = currentState.panelMode === 'wall' ? (currentState.panels || []).length || 1 : 1;
+    count.textContent = currentState.panelMode === '2d' ? `1 panel · ${n}×${n} · ${(n * n).toLocaleString()} LEDs`
+      : currentState.panelMode === 'wall' ? `Wall · ${panels} panel${panels === 1 ? '' : 's'} · ${(panels * n * n).toLocaleString()} LEDs`
+      : `${n}×${n} cube · ${(6 * n * n).toLocaleString()} surface LEDs`;
+  }
   const label = document.getElementById('cube-label');
   if (label) label.textContent = currentState.panelMode === '2d' ? '2D Panel' : `${currentState.panelSize}×${currentState.panelSize}`;
   // Displays "+" (multi-panel wall layout) only makes sense starting from
@@ -3244,6 +3257,12 @@ function updateWallLayoutButtonState() {
   const icon = btn.querySelector('.wall-layout-icon');
   if (icon) icon.textContent = _wallEditMode ? '✕' : '+';
   btn.title = _wallEditMode ? 'Exit layout editing' : 'Edit wall layout';
+  const hint = document.getElementById('wall-hint');
+  if (hint) {
+    const show = _wallEditMode && currentState.panelMode === 'wall';
+    hint.classList.toggle('show', show);
+    if (show) hint.style.left = (sidebarOverlapPx() + (window.innerWidth - sidebarOverlapPx()) / 2) + 'px';
+  }
 }
 
 // Turns layout editing off - the explicit "press again to exit" a real
@@ -3259,7 +3278,11 @@ function exitWallEditMode() {
 function wireWallToolbar() {
   const btn = document.getElementById('wall-layout-btn');
   if (!btn) return;
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', () => toggleWallEditing());
+  const modeBtn = document.getElementById('wall-mode-btn');
+  if (modeBtn) modeBtn.addEventListener('click', () => { if (!_wallEditMode) toggleWallEditing(); });
+
+  function toggleWallEditing() {
     if (currentState.panelMode !== 'wall') {
       // First-ever click: just switch into wall mode with the single
       // existing panel carried over - no addPanel yet, so the very next
@@ -3278,12 +3301,18 @@ function wireWallToolbar() {
     if (_wallEditMode) { exitWallEditMode(); return; }
     _wallEditMode = true;
     rebuildWallPreview();
-  });
+  }
 
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') exitWallEditMode(); });
   document.addEventListener('click', (e) => {
     if (!_wallEditMode) return;
-    if (e.target.closest('#wall-preview') || e.target.closest('#wall-toolbar')) return;
+    // composedPath() is captured when the click is dispatched: by the time
+    // this document-level listener runs, clicking a "+" has usually already
+    // rebuilt the preview (the sim delivers the new state synchronously),
+    // detaching the clicked cell - so e.target.closest() found nothing and
+    // every add closed the editor, as if you'd clicked outside it.
+    const inside = e.composedPath().some((el) => el && (el.id === 'wall-preview' || el.id === 'wall-toolbar' || el.id === 'wall-hint' || el.id === 'wall-mode-btn'));
+    if (inside) return;
     exitWallEditMode();
   });
 }
@@ -3402,9 +3431,7 @@ const wallPanelCanvases = {}; // panel index -> {canvas, ctx}
 // rather than sized as if a full 6-panel layout were always present.
 function wallCellSize(cols, rows) {
   const buf = 40;
-  const sidebar = document.getElementById('sidebar');
-  const sidebarW = (sidebar && !sidebar.classList.contains('hidden') && window.innerWidth > 768) ? sidebar.offsetWidth : 0;
-  const availW = window.innerWidth - sidebarW - buf * 2;
+  const availW = window.innerWidth - sidebarOverlapPx() - buf * 2;
   const availH = window.innerHeight - buf * 2;
   const cell = Math.min(availW / cols, availH / rows);
   return Math.max(60, Math.min(320, Math.floor(cell)));
@@ -3984,6 +4011,8 @@ function rebuildWallPreview() {
   const cellSize = wallCellSize(cols, rows);
   wallPreviewEl.style.width = (cols * cellSize) + 'px';
   wallPreviewEl.style.height = (rows * cellSize) + 'px';
+  // Centre in the space beside an open desktop sidebar (see fitPanel2dCanvas()).
+  wallPreviewEl.style.left = (sidebarOverlapPx() + (window.innerWidth - sidebarOverlapPx()) / 2) + 'px';
 
   for (const c of allCells) {
     const { gx, gy, filled, shiftX, shiftY } = c;

@@ -27,6 +27,7 @@
 const { FfmpegSource } = require('./video/ffmpegSource');
 const { browserFrameSource } = require('./video/browserFrameSource');
 const { applyBrightSat } = require('./video/render');
+const { drawLinesCentered, FONT_3x5, wallPlot } = require('./text');
 
 const DECODE_FPS = 10; // matches video.js - an LED wall has no use for real video frame rates
 
@@ -77,6 +78,8 @@ function effectVideoWall(core, dt) {
         core.setWallPixel(x, y, pulse * 0.12, pulse * 0.03, pulse * 0.15);
       }
     }
+    const scale = Math.max(1, Math.min(4, Math.floor(Math.min(wallW / 40, wallH / 24))));
+    drawLinesCentered(FONT_3x5, ['LOAD A VIDEO'], wallW, wallH, wallPlot(core, 0.75, 0.5, 0.9), { scale });
     return;
   }
 

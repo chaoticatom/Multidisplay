@@ -50,6 +50,7 @@
 const { FfmpegSource } = require('./video/ffmpegSource');
 const { browserFrameSource } = require('./video/browserFrameSource');
 const { buildComposite, projectToFaces } = require('./video/render');
+const { drawLinesCentered, FONT_3x5, facePlot } = require('./text');
 
 const DECODE_FPS = 10; // an LED wall has no use for real video frame rates; keeps ffmpeg CPU/pipe load sane on a Pi
 
@@ -126,6 +127,13 @@ function effectVideo(core, dt) {
     // placeholder as the browser's early-return branch.
     for (let i = 0; i < N; i++) core.setLED(i, 0, 0, 0);
     const pulse = 0.5 + 0.5 * Math.sin(t * 1.8);
+    // Say what's missing, not just a faint line (a review found the black
+    // cube read as "broken"). Too small to be legible below 16x16.
+    if (S >= 16) {
+      const k = 0.45 + 0.35 * pulse;
+      for (let f = 0; f < 4; f++) drawLinesCentered(FONT_3x5, ['LOAD A', 'VIDEO'], S, S, facePlot(core, f, 0.6 * k, 0.3 * k, 0.75 * k), { scale: S >= 64 ? 2 : 1 });
+      return;
+    }
     for (let f = 0; f < 4; f++) {
       for (let u = 0; u < S; u++) core.setFaceLED(f, u, S >> 1, pulse * 0.2, pulse * 0.05, pulse * 0.22);
       core.setFaceLED(f, S >> 1, (S >> 1) - 1, 0, pulse * 0.3, pulse * 0.35);

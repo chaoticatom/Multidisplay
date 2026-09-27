@@ -21,7 +21,7 @@ const { RadioAudio, RemoteAudio, BAND_COUNT } = require('./ffmpegAudio');
 const { renderSpectrumStyle, createSpectrumState } = require('./spectrum');
 const { drawTicker } = require('./ticker');
 const { CHAR_W } = require('./font');
-const { drawGlyph5x7Face } = require('../text');
+const { drawGlyph5x7Face, drawLinesCentered, FONT_3x5, facePlot } = require('../text');
 const { searchStations } = require('./search');
 
 // Featured stations - verbatim from effects-core.js's RADIO_STATIONS (real,
@@ -323,6 +323,16 @@ function effectRadio(core, dt) {
       bands, theme, barMode, scrollX: spectrumState.scrollX || 0, t: core.t, dt,
     };
     renderSpectrumStyle(core, ctx, style, spectrumState);
+  }
+
+  if (!playing || !currentStation) {
+    // Nothing selected yet: say so instead of a black cube (a review found
+    // it read as "broken" - the station list is in the web page).
+    if (core.SIZE >= 16) {
+      const sc = core.SIZE >= 64 ? 2 : 1;
+      drawLinesCentered(FONT_3x5, ['PICK A', 'STATION'], core.SIZE, core.SIZE, facePlot(core, 0, 0.35, 0.5, 0.7), { scale: sc });
+      if (core.panelMode !== '2d') drawLinesCentered(FONT_3x5, ['PICK A', 'STATION'], core.SIZE, core.SIZE, facePlot(core, 2, 0.35, 0.5, 0.7), { scale: sc });
+    }
   }
 
   if (playing && currentStation) {

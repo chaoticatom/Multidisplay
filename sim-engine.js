@@ -11033,6 +11033,7 @@ var PiEngine = (() => {
       var { FfmpegSource } = require_ffmpegSource();
       var { browserFrameSource } = require_browserFrameSource();
       var { buildComposite, projectToFaces } = require_render();
+      var { drawLinesCentered, FONT_3x5, facePlot } = require_text();
       var DECODE_FPS = 10;
       var source = new FfmpegSource();
       var vidScrollX = 0;
@@ -11071,6 +11072,11 @@ var PiEngine = (() => {
         if (!frame) {
           for (let i = 0; i < N; i++) core.setLED(i, 0, 0, 0);
           const pulse = 0.5 + 0.5 * Math.sin(t * 1.8);
+          if (S >= 16) {
+            const k = 0.45 + 0.35 * pulse;
+            for (let f = 0; f < 4; f++) drawLinesCentered(FONT_3x5, ["LOAD A", "VIDEO"], S, S, facePlot(core, f, 0.6 * k, 0.3 * k, 0.75 * k), { scale: S >= 64 ? 2 : 1 });
+            return;
+          }
           for (let f = 0; f < 4; f++) {
             for (let u = 0; u < S; u++) core.setFaceLED(f, u, S >> 1, pulse * 0.2, pulse * 0.05, pulse * 0.22);
             core.setFaceLED(f, S >> 1, (S >> 1) - 1, 0, pulse * 0.3, pulse * 0.35);
@@ -12342,7 +12348,7 @@ var PiEngine = (() => {
       var { renderSpectrumStyle, createSpectrumState } = require_spectrum();
       var { drawTicker } = require_ticker();
       var { CHAR_W } = require_font2();
-      var { drawGlyph5x7Face } = require_text();
+      var { drawGlyph5x7Face, drawLinesCentered, FONT_3x5, facePlot } = require_text();
       var { searchStations } = require_search();
       var RADIO_STATIONS = [
         { name: "SomaFM Groove Salad", genre: "Ambient/Downtempo", url: "https://ice1.somafm.com/groovesalad-128-mp3" },
@@ -12478,6 +12484,13 @@ var PiEngine = (() => {
             dt
           };
           renderSpectrumStyle(core, ctx, style, spectrumState);
+        }
+        if (!playing || !currentStation) {
+          if (core.SIZE >= 16) {
+            const sc = core.SIZE >= 64 ? 2 : 1;
+            drawLinesCentered(FONT_3x5, ["PICK A", "STATION"], core.SIZE, core.SIZE, facePlot(core, 0, 0.35, 0.5, 0.7), { scale: sc });
+            if (core.panelMode !== "2d") drawLinesCentered(FONT_3x5, ["PICK A", "STATION"], core.SIZE, core.SIZE, facePlot(core, 2, 0.35, 0.5, 0.7), { scale: sc });
+          }
         }
         if (playing && currentStation) {
           let genre = currentStation.genre;
@@ -18681,6 +18694,7 @@ var PiEngine = (() => {
       var { FfmpegSource } = require_ffmpegSource();
       var { browserFrameSource } = require_browserFrameSource();
       var { applyBrightSat } = require_render();
+      var { drawLinesCentered, FONT_3x5, wallPlot } = require_text();
       var DECODE_FPS = 10;
       var source = new FfmpegSource();
       var scrollX = 0;
@@ -18715,6 +18729,8 @@ var PiEngine = (() => {
               core.setWallPixel(x, y, pulse * 0.12, pulse * 0.03, pulse * 0.15);
             }
           }
+          const scale = Math.max(1, Math.min(4, Math.floor(Math.min(wallW / 40, wallH / 24))));
+          drawLinesCentered(FONT_3x5, ["LOAD A VIDEO"], wallW, wallH, wallPlot(core, 0.75, 0.5, 0.9), { scale });
           return;
         }
         if (scrollSpeed !== 0) scrollX = (scrollX + dt * scrollSpeed * wallW * 0.4 + wallW) % wallW;
@@ -24920,7 +24936,7 @@ var PiEngine = (() => {
       var radio = require_radio();
       var { renderSpectrumStyleWall, createSpectrumWallState } = require_spectrumWall();
       var { CHAR_W } = require_font2();
-      var { drawString, drawMarquee, FONT_5x7, wallPlot } = require_text();
+      var { drawString, drawMarquee, drawLinesCentered, FONT_3x5, FONT_5x7, wallPlot } = require_text();
       var spectrumWallState = createSpectrumWallState();
       var autoGainMultW = 1;
       var lastLevelSmoothedW = 0;
@@ -25016,6 +25032,10 @@ var PiEngine = (() => {
           renderSpectrumStyleWall(core, ctx, style, spectrumWallState);
         }
         const { playing, currentStation } = radio.getPlaybackState();
+        if (!playing || !currentStation) {
+          const scale = Math.max(1, Math.min(4, Math.floor(Math.min(core.wallW / 40, core.wallH / 24))));
+          drawLinesCentered(FONT_3x5, ["PICK A STATION"], core.wallW, core.wallH, wallPlot(core, 0.35, 0.5, 0.7), { scale });
+        }
         if (playing && currentStation) {
           let genre = currentStation.genre;
           if (currentStation.url.startsWith("debugloop:") && radio.audio.lastAttemptMs) {

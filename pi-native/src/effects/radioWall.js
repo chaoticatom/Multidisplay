@@ -31,7 +31,7 @@
 const radio = require('./radio/radio');
 const { renderSpectrumStyleWall, createSpectrumWallState } = require('./radio/spectrumWall');
 const { CHAR_W } = require('./radio/font');
-const { drawString, drawMarquee, FONT_5x7, wallPlot } = require('./text');
+const { drawString, drawMarquee, drawLinesCentered, FONT_3x5, FONT_5x7, wallPlot } = require('./text');
 
 const spectrumWallState = createSpectrumWallState();
 let autoGainMultW = 1;
@@ -164,6 +164,11 @@ function effectRadioWall(core, dt) {
   }
 
   const { playing, currentStation } = radio.getPlaybackState();
+  if (!playing || !currentStation) {
+    // Nothing selected yet - see radio.js's matching hint.
+    const scale = Math.max(1, Math.min(4, Math.floor(Math.min(core.wallW / 40, core.wallH / 24))));
+    drawLinesCentered(FONT_3x5, ['PICK A STATION'], core.wallW, core.wallH, wallPlot(core, 0.35, 0.5, 0.7), { scale });
+  }
   if (playing && currentStation) {
     // See radio.js's effectRadio() for why - live current-frequency
     // readout for the sweep specifically, computed from elapsed real
