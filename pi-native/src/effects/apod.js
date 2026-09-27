@@ -184,7 +184,7 @@ function drawTicker(core, face, dt) {
   const S = core.SIZE;
   const sv = Math.round(S / 2) + 3; // vertically centered baseline, matching the source's full-face-height marquee
   // Cube faces draw this font row-flipped - see text.js's drawGlyph5x7Face().
-  drawMarquee(FONT_5x7, tickerLabel, scrollX, sv - 6, S, facePlot(core, face, 1, 0.85, 0.48), { flipY: true });
+  drawMarquee(FONT_5x7, tickerLabel, scrollX, sv - 6, S, facePlot(core, face, 1, 0.85, 0.48), { flipY: true, outline: facePlot(core, face, 0, 0, 0) });
 }
 
 function apod(core, dt) {

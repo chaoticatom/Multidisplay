@@ -221,7 +221,11 @@ async function main() {
   // device indefinitely. Clean slate on every boot.
   bluetooth.resetPairability();
 
-  let lastMs = Date.now();
+  // performance.now(), not Date.now(): monotonic and sub-millisecond, so
+  // dt doesn't jitter by whole milliseconds (visible as judder in slow
+  // scrollers at 60Hz) or jump when the system clock is adjusted (NTP sync
+  // shortly after boot is routine on a Pi with no RTC).
+  let lastMs = performance.now();
 
   if (useRenderWorker) {
     // Ping-pong instead of a free-running setInterval: the next 'tick' is
@@ -234,18 +238,32 @@ async function main() {
     // authoritative-from-the-worker) is applied to `state` BEFORE the next
     // outgoing snapshot is built, so nothing the worker mutated ever gets
     // silently overwritten by a stale main-thread copy.
+    const STATE_RESEND_MS = 1000;
+    let sentStateVersion = -1, lastStateSendMs = -Infinity;
     const sendTick = () => {
-      const now = Date.now();
+      const now = performance.now();
       const dt = Math.min(0.1, (now - lastMs) / 1000) * state.speed;
       lastMs = now;
       core.speedMult = state.speed;
       // Structured-clone can't carry a function reference across the
       // thread boundary - strip onAlarmsChanged (main-thread-only, calls
       // back into `ws`) before sending.
-      const { onAlarmsChanged, ...serializableState } = state;
+      // Full state is only sent when something changed it (every incoming
+      // command and every broadcast bumps ws.stateVersion) - cloning
+      // the whole state (overlays, effect options, custom cube, alarms...)
+      // 60 times a second was pure garbage-collector churn. The worker keeps
+      // the last copy it got. A resend at least every STATE_RESEND_MS is a
+      // backstop for any mutation that doesn't broadcast.
+      let stateForWorker = null;
+      if (ws.stateVersion !== sentStateVersion || now - lastStateSendMs > STATE_RESEND_MS) {
+        const { onAlarmsChanged, ...serializableState } = state;
+        stateForWorker = serializableState;
+        sentStateVersion = ws.stateVersion;
+        lastStateSendMs = now;
+      }
       // The real radio decode/FFT runs HERE, not in the worker (see
       // ffmpegAudio.js's RemoteAudio) - ship its latest spectrum along.
-      renderWorker.postMessage({ type: 'tick', state: serializableState, dt, radioAudio: radio.audio.snapshot() });
+      renderWorker.postMessage({ type: 'tick', state: stateForWorker, dt, radioAudio: radio.audio.snapshot() });
     };
     // A real report ("station name never updates in the UI after picking
     // one") - set by the worker's 'stateChanged' message (see
@@ -276,12 +294,12 @@ async function main() {
       radioSeen = applyRemoteRequest(radio.audio, msg.radioAudio, radioSeen);
       ws.maybeStreamFrame(core, state.brightness);
       if (pendingBroadcast) { pendingBroadcast = false; ws._broadcast(ws._stateMsg()); }
-      setTimeout(sendTick, Math.max(0, 1000 / TICK_HZ - (Date.now() - lastMs)));
+      setTimeout(sendTick, Math.max(0, 1000 / TICK_HZ - (performance.now() - lastMs)));
     });
     sendTick();
   } else {
     setInterval(() => {
-      const now = Date.now();
+      const now = performance.now();
       const dt = Math.min(0.1, (now - lastMs) / 1000) * state.speed; // cap dt so a stall/GC pause can't produce a huge jump
       lastMs = now;
 

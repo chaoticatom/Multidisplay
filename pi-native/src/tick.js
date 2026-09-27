@@ -8,6 +8,34 @@
 // real behavior over time. Any future change to what a tick actually does
 // belongs HERE, not copy-pasted into app.js and the simulator separately.
 const { renderIdentify } = require('./effects/identify');
+// Crossfade between effects: switching used to hard-cut, often to a blank
+// first frame while the new effect warmed up. When state.effect changes,
+// the last displayed frame is kept and blended out over CROSSFADE_SECS on
+// top of the new effect's output. Only the effect itself is faded -
+// overlays/alarms run after and are unaffected. A buffer size change (panel
+// resize/mode switch) just cuts, since the old frame no longer lines up.
+const CROSSFADE_SECS = 0.4;
+
+function beginCrossfade(core, effect, buf) {
+  if (!buf) return;
+  if (core._xfEffect === undefined) { core._xfEffect = effect; return; } // first frame ever: nothing to fade from
+  if (core._xfEffect === effect) return;
+  core._xfEffect = effect;
+  if (!core._xfFrom || core._xfFrom.length !== buf.length) core._xfFrom = new Float32Array(buf.length);
+  core._xfFrom.set(buf);
+  core._xfT = 0;
+}
+
+function applyCrossfade(core, buf, dt) {
+  if (!buf || core._xfT === undefined || core._xfT >= CROSSFADE_SECS) return;
+  const from = core._xfFrom;
+  if (from.length !== buf.length) { core._xfT = CROSSFADE_SECS; return; }
+  core._xfT += Math.max(0, dt);
+  const a = Math.min(1, core._xfT / CROSSFADE_SECS); // weight of the NEW effect
+  const k = a * a * (3 - 2 * a); // smoothstep - eases in and out
+  for (let i = 0; i < buf.length; i++) buf[i] = from[i] + (buf[i] - from[i]) * k;
+}
+
 function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt) {
   core.panelMode = config.mode;
   core.effectOptions = state.effectOptions;
@@ -36,7 +64,10 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
 
     const alarmBlocking = cubeMode && alarms.isBlockingNormalEffect(state);
     const fn = config.mode === 'wall' ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
+    const buf = cubeMode ? core.colBuf : core.wallBuf;
+    beginCrossfade(core, state.effect, buf);
     if (fn && !alarmBlocking) fn(core, dt); // step 2
+    applyCrossfade(core, buf, dt);
   } else {
     core.colBuf.fill(0);
     if (core.wallBuf) core.wallBuf.fill(0);
@@ -50,4 +81,4 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
   }
 }
 
-module.exports = { tick };
+module.exports = { tick, CROSSFADE_SECS };

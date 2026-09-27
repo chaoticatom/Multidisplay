@@ -1064,7 +1064,8 @@ var PiEngine = (() => {
         if (rows) blitGlyph(rows, font.w, font.h, x, y, scale, plot, flipX, flipY);
         return font.adv * scale;
       }
-      function drawString(font, str, x, y, plot, { scale = 1, flipY = false, maxX = Infinity } = {}) {
+      function drawString(font, str, x, y, plot, { scale = 1, flipY = false, maxX = Infinity, outline = null } = {}) {
+        if (outline) drawString(font, str, x, y, outlineOf(outline), { scale, flipY, maxX });
         let u = x;
         for (const ch of str) {
           u += drawGlyph(font, ch, u, y, plot, { scale, flipY });
@@ -1084,8 +1085,9 @@ var PiEngine = (() => {
           y += lineH;
         }
       }
-      function drawMarquee(font, label, scrollX, y, W, plot, { flipY = false } = {}) {
+      function drawMarquee(font, label, scrollX, y, W, plot, { flipY = false, outline = null } = {}) {
         if (!label) return;
+        if (outline) drawMarquee(font, label, scrollX, y, W, outlineOf(outline), { flipY });
         let u = -Math.floor(scrollX);
         while (u < W) {
           for (const ch of label) {
@@ -1096,6 +1098,14 @@ var PiEngine = (() => {
       }
       function drawGlyph5x7Face(core, face, ch, su, sv, rgb) {
         return drawGlyph(FONT_5x7, ch, su, sv - 6, facePlot(core, face, rgb[0], rgb[1], rgb[2]), { flipY: true });
+      }
+      function outlineOf(plot) {
+        return (x, y) => {
+          plot(x - 1, y);
+          plot(x + 1, y);
+          plot(x, y - 1);
+          plot(x, y + 1);
+        };
       }
       var facePlot = (core, face, r, g, b) => (x, y) => core.setFaceLED(face, x, y, r, g, b);
       var wallPlot = (core, r, g, b) => (x, y) => core.setWallPixel(x, y, r, g, b);
@@ -1129,6 +1139,7 @@ var PiEngine = (() => {
         drawLinesCentered,
         drawMarquee,
         drawGlyph5x7Face,
+        outlineOf,
         FONT_3x5,
         FONT_5x7,
         FONT_5x7_BLANK,
@@ -12256,7 +12267,7 @@ var PiEngine = (() => {
         scrollX += dt * 14;
         if (scrollX > textW) scrollX -= textW;
         const sv = 7;
-        drawMarquee(FONT_5x7, label, scrollX, sv - 6, core.SIZE, facePlot(core, face, 0.6, 0.85, 1), { flipY: true });
+        drawMarquee(FONT_5x7, label, scrollX, sv - 6, core.SIZE, facePlot(core, face, 0.6, 0.85, 1), { flipY: true, outline: facePlot(core, face, 0, 0, 0) });
       }
       module.exports = { drawTicker, resetTicker };
     }
@@ -15888,7 +15899,7 @@ var PiEngine = (() => {
         if (scrollX > textW) scrollX -= textW;
         const S = core.SIZE;
         const sv = Math.round(S / 2) + 3;
-        drawMarquee(FONT_5x7, tickerLabel, scrollX, sv - 6, S, facePlot(core, face, 1, 0.85, 0.48), { flipY: true });
+        drawMarquee(FONT_5x7, tickerLabel, scrollX, sv - 6, S, facePlot(core, face, 1, 0.85, 0.48), { flipY: true, outline: facePlot(core, face, 0, 0, 0) });
       }
       function apod(core, dt) {
         t += dt;
@@ -16741,7 +16752,7 @@ var PiEngine = (() => {
         scrollX += dt * 14;
         if (scrollX > textW) scrollX -= textW;
         const sv = Math.round(H / 2) + 3;
-        drawMarquee(FONT_5x7, tickerLabel, scrollX, sv - 6, W, wallPlot(core, 1, 0.85, 0.48));
+        drawMarquee(FONT_5x7, tickerLabel, scrollX, sv - 6, W, wallPlot(core, 1, 0.85, 0.48), { outline: wallPlot(core, 0, 0, 0) });
       }
       function effectApodWall(core, dt) {
         const { wallW: W, wallH: H } = core;
@@ -16783,7 +16794,7 @@ var PiEngine = (() => {
         scrollX += dt * 14;
         if (scrollX > textW) scrollX -= textW;
         const sv = H - 2;
-        drawMarquee(FONT_5x7, label, scrollX, sv - 6, W, wallPlot(core, 0.6, 0.85, 1));
+        drawMarquee(FONT_5x7, label, scrollX, sv - 6, W, wallPlot(core, 0.6, 0.85, 1), { outline: wallPlot(core, 0, 0, 0) });
       }
       function projectGlobeWall(core, W, H) {
         const cx0 = W / 2, cy0 = H / 2;
@@ -16866,7 +16877,7 @@ var PiEngine = (() => {
         scrollX += dt * 16;
         if (scrollX > textW) scrollX -= textW;
         const sv = H - 2;
-        drawMarquee(FONT_5x7, label, scrollX, sv - 6, W, wallPlot(core, 0.48, 0.87, 1));
+        drawMarquee(FONT_5x7, label, scrollX, sv - 6, W, wallPlot(core, 0.48, 0.87, 1), { outline: wallPlot(core, 0, 0, 0) });
       }
       function lonToWindowU(lon, centerLon, W, lonWindowDeg) {
         let rel = centerLon + lonWindowDeg / 2 - lon;
@@ -25105,7 +25116,7 @@ var PiEngine = (() => {
         tickerScrollX += dt * 14;
         if (tickerScrollX > textW) tickerScrollX -= textW;
         const sv = core.wallH - 2;
-        drawMarquee(FONT_5x7, label, tickerScrollX, sv - 6, core.wallW, wallPlot(core, ...TEXT_RGB));
+        drawMarquee(FONT_5x7, label, tickerScrollX, sv - 6, core.wallW, wallPlot(core, ...TEXT_RGB), { outline: wallPlot(core, 0, 0, 0) });
       }
       function effectRadioWall(core, dt) {
         if (!core.wallW) return;
@@ -26090,6 +26101,31 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { renderIdentify } = require_identify();
+      var CROSSFADE_SECS = 0.4;
+      function beginCrossfade(core, effect, buf) {
+        if (!buf) return;
+        if (core._xfEffect === void 0) {
+          core._xfEffect = effect;
+          return;
+        }
+        if (core._xfEffect === effect) return;
+        core._xfEffect = effect;
+        if (!core._xfFrom || core._xfFrom.length !== buf.length) core._xfFrom = new Float32Array(buf.length);
+        core._xfFrom.set(buf);
+        core._xfT = 0;
+      }
+      function applyCrossfade(core, buf, dt) {
+        if (!buf || core._xfT === void 0 || core._xfT >= CROSSFADE_SECS) return;
+        const from = core._xfFrom;
+        if (from.length !== buf.length) {
+          core._xfT = CROSSFADE_SECS;
+          return;
+        }
+        core._xfT += Math.max(0, dt);
+        const a = Math.min(1, core._xfT / CROSSFADE_SECS);
+        const k = a * a * (3 - 2 * a);
+        for (let i = 0; i < buf.length; i++) buf[i] = from[i] + (buf[i] - from[i]) * k;
+      }
       function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt) {
         core.panelMode = config.mode;
         core.effectOptions = state.effectOptions;
@@ -26110,7 +26146,10 @@ var PiEngine = (() => {
           if (cubeMode) alarms.renderMainMessage(core, state);
           const alarmBlocking = cubeMode && alarms.isBlockingNormalEffect(state);
           const fn = config.mode === "wall" ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
+          const buf = cubeMode ? core.colBuf : core.wallBuf;
+          beginCrossfade(core, state.effect, buf);
           if (fn && !alarmBlocking) fn(core, dt);
+          applyCrossfade(core, buf, dt);
         } else {
           core.colBuf.fill(0);
           if (core.wallBuf) core.wallBuf.fill(0);
@@ -26121,7 +26160,7 @@ var PiEngine = (() => {
           alarms.renderPrePhase(core, dt, state, EFFECTS);
         }
       }
-      module.exports = { tick };
+      module.exports = { tick, CROSSFADE_SECS };
     }
   });
 

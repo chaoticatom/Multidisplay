@@ -79,7 +79,7 @@ function drawTickerWall(core, label, dt) {
   // bottom edge in this top-down (row 0 = top) frame - see that file's own
   // comment for the full explanation.
   const sv = core.wallH - 2;
-  drawMarquee(FONT_5x7, label, tickerScrollX, sv - 6, core.wallW, wallPlot(core, ...TEXT_RGB));
+  drawMarquee(FONT_5x7, label, tickerScrollX, sv - 6, core.wallW, wallPlot(core, ...TEXT_RGB), { outline: wallPlot(core, 0, 0, 0) });
 }
 
 function effectRadioWall(core, dt) {

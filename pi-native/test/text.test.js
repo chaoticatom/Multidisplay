@@ -111,4 +111,14 @@ test('drawMarquee tiles the label across the width and tolerates an empty label'
   drawMarquee(FONT_3x5, '', 0, 0, 20, c.plot); // must return, not spin forever
 });
 
+test('outline draws neighbours first, then the text on top', () => {
+  const order = [];
+  drawString(FONT_3x5, 'I', 10, 10, (x, y) => order.push(['t', x, y]), { outline: (x, y) => order.push(['o', x, y]) });
+  const firstText = order.findIndex((p) => p[0] === 't');
+  assert.ok(firstText > 0 && order.slice(firstText).every((p) => p[0] === 't'), 'all outline pixels come before any text pixel');
+  const text = new Set(order.filter((p) => p[0] === 't').map((p) => p[1] + ',' + p[2]));
+  const out = new Set(order.filter((p) => p[0] === 'o').map((p) => p[1] + ',' + p[2]));
+  for (const k of text) { const [x, y] = k.split(',').map(Number); assert.ok(out.has(`${x - 1},${y}`) && out.has(`${x + 1},${y}`)); }
+});
+
 console.log(process.exitCode ? 'Some text tests FAILED' : 'All text tests passed');

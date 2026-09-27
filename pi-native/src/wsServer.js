@@ -675,6 +675,10 @@ class WsServer {
     if (isBinary) { this._handleBinaryFrame(data); return; }
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
+    // Any command may change state (several - brightness, speed, face
+    // effects, alarms - don't broadcast), so every one bumps the version
+    // app.js checks before re-sending state to the render worker.
+    this.stateVersion = (this.stateVersion || 0) + 1;
     if (msg.cmd === 'setEffect' && EFFECTS[msg.effect]) {
       this.state.effect = msg.effect;
       this.state.blank = false; // selecting a new effect always un-blanks - see "clearAll" below
@@ -1120,8 +1124,14 @@ class WsServer {
   }
 
   _broadcast(obj) {
+    // Also bumped for every incoming command (see _handleMessage) - this
+    // covers async changes that land later (e.g. radio search results).
+    this.stateVersion = (this.stateVersion || 0) + 1;
     const s = JSON.stringify(obj);
-    for (const client of this.wss.clients) {
+    // this._clients, not this.wss.clients: the latter is only the plain-
+    // HTTP listener's set, so clients on the HTTPS page (:8082, needed for
+    // camera/screen capture) never received state broadcasts at all.
+    for (const client of this._clients) {
       if (client.readyState === WebSocket.OPEN) client.send(s);
     }
   }

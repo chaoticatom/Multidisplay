@@ -85,6 +85,7 @@ if (core.wallBuf) {
 }
 driver.renderFrame(core, 1.0);
 
+let workerState = null;
 parentPort.on('message', (msg) => {
   if (msg.type === 'config') {
     const newConfig = msg.config;
@@ -131,7 +132,12 @@ parentPort.on('message', (msg) => {
     return;
   }
   if (msg.type === 'tick') {
-    const { state, dt, radioAudio } = msg;
+    // app.js only sends state when it changed (see its sendTick()); keep
+    // the last copy, including anything tick() mutates on it (alarms etc.)
+    if (msg.state) workerState = msg.state;
+    const state = workerState;
+    if (!state) return;
+    const { dt, radioAudio } = msg;
     remoteAudio.applySnapshot(radioAudio);
     core.speedMult = state.speed;
     tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt);

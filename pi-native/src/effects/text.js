@@ -79,7 +79,8 @@ function drawGlyph(font, ch, x, y, plot, { scale = 1, flipX = false, flipY = fal
 // the pen position reaches it (the `u += glyph; if (u >= S) break;` idiom
 // several effects use to skip off-panel characters). Returns the final
 // pen position.
-function drawString(font, str, x, y, plot, { scale = 1, flipY = false, maxX = Infinity } = {}) {
+function drawString(font, str, x, y, plot, { scale = 1, flipY = false, maxX = Infinity, outline = null } = {}) {
+  if (outline) drawString(font, str, x, y, outlineOf(outline), { scale, flipY, maxX });
   let u = x;
   for (const ch of str) {
     u += drawGlyph(font, ch, u, y, plot, { scale, flipY });
@@ -110,8 +111,9 @@ function drawLinesCentered(font, lines, W, H, plot, { scale = 1, ox = 0, oy = 0 
 // Endless horizontal marquee: repeats `label` across width W, shifted left
 // by scrollX pixels. The caller owns scrollX (advance it and wrap it at
 // label.length * font.adv). y is the glyph cell's top edge.
-function drawMarquee(font, label, scrollX, y, W, plot, { flipY = false } = {}) {
+function drawMarquee(font, label, scrollX, y, W, plot, { flipY = false, outline = null } = {}) {
   if (!label) return; // an empty label would never advance the pen
+  if (outline) drawMarquee(font, label, scrollX, y, W, outlineOf(outline), { flipY });
   let u = -Math.floor(scrollX);
   while (u < W) {
     for (const ch of label) {
@@ -134,6 +136,16 @@ function drawMarquee(font, label, scrollX, y, W, plot, { flipY = false } = {}) {
 // the preview's convention), not in reverting this flip.
 function drawGlyph5x7Face(core, face, ch, su, sv, rgb) {
   return drawGlyph(FONT_5x7, ch, su, sv - 6, facePlot(core, face, rgb[0], rgb[1], rgb[2]), { flipY: true });
+}
+
+// Dark outline for text drawn over busy imagery (tickers over photos or
+// spectrum bars). Pass `outline: plotFn` to drawString/drawMarquee: the
+// whole string is first drawn through outlineOf(plotFn), which plots each
+// lit pixel's 4 neighbours, then the text itself on top - two passes, so
+// one glyph's outline can never cut into the previous glyph's strokes.
+// plotFn is typically a facePlot/wallPlot with a near-black colour.
+function outlineOf(plot) {
+  return (x, y) => { plot(x - 1, y); plot(x + 1, y); plot(x, y - 1); plot(x, y + 1); };
 }
 
 // ── Common plot targets ──────────────────────────────────────────────────
@@ -170,7 +182,7 @@ const wallMaxPlot = (core, r, g, b) => {
 
 module.exports = {
   blitGlyph, drawGlyph, drawString, textWidth, drawLinesCentered, drawMarquee,
-  drawGlyph5x7Face,
+  drawGlyph5x7Face, outlineOf,
   FONT_3x5, FONT_5x7, FONT_5x7_BLANK, FONT_MOON,
   facePlot, wallPlot, faceMaxPlot, wallMaxPlot,
 };

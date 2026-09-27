@@ -47,7 +47,7 @@ function drawTickerWall(core, W, H, label, dt) {
   scrollX += dt * 16;
   if (scrollX > textW) scrollX -= textW;
   const sv = H - 2;
-  drawMarquee(FONT_5x7, label, scrollX, sv - 6, W, wallPlot(core, 0.48, 0.87, 1));
+  drawMarquee(FONT_5x7, label, scrollX, sv - 6, W, wallPlot(core, 0.48, 0.87, 1), { outline: wallPlot(core, 0, 0, 0) });
 }
 
 // lon/lat -> wall-window u/v, widened to the wall's own aspect ratio - see

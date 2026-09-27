@@ -152,7 +152,7 @@ function drawTicker(core, W, H, dt) {
   if (scrollX > textW) scrollX -= textW;
   const sv = Math.round(H / 2) + 3;
   // The wall draws this font unflipped, glyph spanning rows sv-6..sv.
-  drawMarquee(FONT_5x7, tickerLabel, scrollX, sv - 6, W, wallPlot(core, 1, 0.85, 0.48));
+  drawMarquee(FONT_5x7, tickerLabel, scrollX, sv - 6, W, wallPlot(core, 1, 0.85, 0.48), { outline: wallPlot(core, 0, 0, 0) });
 }
 
 function effectApodWall(core, dt) {

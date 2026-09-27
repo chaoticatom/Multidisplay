@@ -42,7 +42,7 @@ function drawTicker(core, face, label, dt) {
   if (scrollX > textW) scrollX -= textW;
   const sv = 7;
   // Cube faces draw this font row-flipped - see text.js's drawGlyph5x7Face().
-  drawMarquee(FONT_5x7, label, scrollX, sv - 6, core.SIZE, facePlot(core, face, 0.6, 0.85, 1), { flipY: true });
+  drawMarquee(FONT_5x7, label, scrollX, sv - 6, core.SIZE, facePlot(core, face, 0.6, 0.85, 1), { flipY: true, outline: facePlot(core, face, 0, 0, 0) });
 }
 
 module.exports = { drawTicker, resetTicker };
