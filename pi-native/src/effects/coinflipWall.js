@@ -31,7 +31,7 @@ function startFlip(s) {
 function lerp(a, b, t) { return a + (b - a) * t; }
 
 function drawTextWall(core, str, su, sv, scale, r, g, b) {
-  drawString(FONT_3x5, str, su, sv, wallPlot(core, r, g, b), { scale });
+  drawString(FONT_3x5, str, su, Math.round(sv), wallPlot(core, r, g, b), { scale });
 }
 
 function drawTextCenteredWall(core, str, cx, sv, scale, r, g, b) {

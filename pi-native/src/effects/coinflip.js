@@ -39,7 +39,7 @@ function startFlip(s, durMin, durRange) {
 function lerp(a, b, t) { return a + (b - a) * t; }
 
 function drawText(core, face, str, su, sv, scale, r, g, b) {
-  drawString(FONT_3x5, str, su, sv, facePlot(core, face, r, g, b), { scale });
+  drawString(FONT_3x5, str, su, Math.round(sv), facePlot(core, face, r, g, b), { scale });
 }
 
 function drawTextCentered(core, face, str, cx, sv, scale, r, g, b) {
