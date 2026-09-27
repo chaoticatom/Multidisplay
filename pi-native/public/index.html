@@ -559,10 +559,25 @@ input[type=range]:focus-visible { outline: 2px solid #7aadff; outline-offset: 3p
 @media (pointer: coarse) {
   .effect-btn, .sub-head, .section-head, .size-btn, .opt-grid button, #sidebar button { min-height: 40px; }
   .opt-grid, .size-row { flex-wrap: wrap; }
-  input[type=range] { min-height: 28px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+/* Visual review fixes. */
+#bright-label { width: auto; margin-right: 10px; }
+.effect-filter-toggle { display: flex !important; text-transform: none !important; letter-spacing: normal !important; font-size: 13px !important; margin: 0 !important; }
+.effect-filter-toggle input { accent-color: #7aadff; width: 16px; height: 16px; margin: 0; }
+html body .ui-btn-danger { white-space: nowrap; letter-spacing: 0.5px; }
+/* has-panel effect buttons: the floated 20px arrow made them taller than
+   their neighbours with the label sitting at the top. */
+.effect-btn.has-panel { display: flex; align-items: center; justify-content: space-between; }
+.effect-btn .panel-arrow { float: none; line-height: 1; }
+/* While searching, sub-sections are forced open - point their chevrons open too. */
+#effects-body.filtering .sub-section.collapsed .chev { transform: none; }
+@media (max-width: 768px) {
+  /* On phones the floating ✕ (#menu-toggle) closes the full-screen menu and
+     sat on top of the header's ◀ collapse button - one control is enough. */
+  #sidebar-collapse-btn { display: none; }
 }
 /* Effect search/filter (see wireEffectFilter() in app.js). */
 .effect-filter-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
@@ -651,12 +666,9 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
        (this is now its only copy, not a duplicate). -->
   <div id="sidebar-brightness-bar" style="padding:8px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;background:rgba(80,120,255,0.07);">
     <div class="slider-row" style="margin-bottom:0;">
-      <!-- width:82px inline override, not the shared .slider-label 52px -
-           "BRIGHTNESS" is longer than every other .slider-label text in
-           the app (Speed/Spin/Bright), which is what 52px was actually
-           sized for (see that fix's own commit) - reusing it here would
-           just reopen the same overlap bug for this one label. -->
-      <span class="slider-label" style="width:82px;">Brightness</span>
+      <!-- #bright-label sizes to its text (see its CSS rule) - a fixed
+           82px still overlapped the slider at the larger mobile font. -->
+      <span class="slider-label" id="bright-label">Brightness</span>
       <input type="range" id="bright-slider" min="0.1" max="1.5" step="0.05" value="1.15">
     </div>
   </div>
@@ -1985,6 +1997,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.152"></script>
+<script src="app.js?v=0.6.153"></script>
 </body>
 </html>

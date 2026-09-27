@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.152';
+const APP_VERSION = '0.6.153';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -3549,6 +3549,12 @@ function resizeRenderer() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
+  // Centre the cube in the space beside an open desktop sidebar (same
+  // reasoning as fitPanel2dCanvas()): shift the rendered view left by half
+  // the sidebar's width, which moves the cube right by that much.
+  const left = sidebarOverlapPx();
+  if (left > 0 && typeof camera.setViewOffset === 'function') camera.setViewOffset(w, h, -left / 2, 0, w, h);
+  else if (typeof camera.clearViewOffset === 'function') camera.clearViewOffset();
   camera.updateProjectionMatrix();
   fitCubeCamera(); // no-ops outside cube mode
 }
@@ -3582,11 +3588,33 @@ function fitCubeCamera() {
 // Matches cube.js's fitPanel2d(): fit the fixed-resolution square canvas
 // into the viewport with a margin, via CSS size (the backing resolution
 // stays PANEL2D_OUT regardless).
+// Width of the desktop sidebar covering the left of the preview area (0
+// when it's collapsed, or on phones where the open menu is full-screen).
+function sidebarOverlapPx() {
+  const sb = document.getElementById('sidebar');
+  const r = sb ? sb.getBoundingClientRect() : null;
+  return r && r.right > 0 && r.width < window.innerWidth * 0.9 ? r.right : 0;
+}
+
 function fitPanel2dCanvas() {
   const buf = 20;
-  const size = Math.min(window.innerWidth - buf * 2, window.innerHeight - buf * 2);
+  // The preview area is full-window with the sidebar floating over its
+  // left edge, so centring on the whole window hid part of the panel under
+  // an open desktop sidebar and left a wide empty gap on the right. Fit and
+  // centre it in the space to the RIGHT of the sidebar instead. (On phones
+  // the open sidebar covers the whole screen, so this only matters on
+  // desktop.)
+  const left = sidebarOverlapPx();
+  const availW = window.innerWidth - left;
+  // Keep clear of the floating Layout toolbar in the top-right corner
+  // (reserved top and bottom, so the panel stays vertically centred).
+  const tb = document.getElementById('wall-toolbar');
+  const tbr = tb ? tb.getBoundingClientRect() : null;
+  const vReserve = tbr && tbr.height > 0 ? Math.max(buf, tbr.bottom + 8) : buf;
+  const size = Math.max(64, Math.min(availW - buf * 2, window.innerHeight - vReserve * 2));
   panel2dCanvas.style.width = size + 'px';
   panel2dCanvas.style.height = size + 'px';
+  panel2dCanvas.style.left = (left + availW / 2) + 'px';
 }
 
 // No textures here either: same custom-bundle constraint as the missing
