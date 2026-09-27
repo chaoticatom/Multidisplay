@@ -11,24 +11,14 @@ native rewrite.
 
 ## Version bumping
 
-The sidebar footer (`#app-version`) shows a version number, sourced from
-two places that must be bumped together on every change that ships:
-`public/app.js`'s `APP_VERSION` constant (what's actually displayed - it's
-a plain hardcoded string, not read from JSON at runtime, since there's no
-bundler wiring the two together) and `package.json`'s `"version"` field
-(kept in sync by hand as the canonical value `APP_VERSION` should match).
-Bump the patch/minor number for a normal change (e.g. `0.2.0` -> `0.2.1`),
-minor for a real feature, and re-run `node sim/deploy.js` afterward so the
-deployed GitHub Pages simulator's copy of `app.js` (at the repo root)
-picks up the new value too - see `sim/README.md`.
-
-Unlike the original browser app's `APP_VERSION` (see the root `CLAUDE.md`'s
-"Version Bumping" section), this isn't a cache-busting mechanism - pi-
-native's wsServer.js already sends `Cache-Control: no-store` on every
-response (see that file's module comment), so there's no stale-cache
-problem to solve. This version number exists purely so it's obvious at a
-glance (sidebar footer, tap to reload) which build is actually running -
-useful when checking whether the Pi has picked up a `git pull` yet.
+The sidebar footer (`#app-version`) shows the running version, so it's
+obvious at a glance whether the Pi has picked up a `git pull` yet. Run
+`npm run release` (patch bump) or `npm run release -- x.y.z` on every
+change that ships: `scripts/release.js` updates `package.json`'s
+`"version"`, `public/app.js`'s `APP_VERSION` and the `app.js?v=` query in
+`public/index.html` together, then re-runs `node sim/deploy.js` so the
+GitHub Pages simulator at the repo root picks it up too (commit those
+regenerated root files as well - see `sim/README.md`).
 
 ## Quick setup
 
