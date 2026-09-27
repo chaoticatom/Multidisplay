@@ -24,6 +24,7 @@
 'use strict';
 
 const unsplashConfig = require('../unsplashConfig');
+const { fetchWithTimeout } = require('./net');
 const {
   galleryInitFaceState, gallerySlideshowStep, galleryApplyToFace, galleryApplyBlendToFace,
   loadImageForPixels, drawLinesCentered3x5,
@@ -79,7 +80,7 @@ async function doFetch(core, apiKey, query) {
     const q = encodeURIComponent(query || 'nature');
     const url = `https://api.unsplash.com/photos/random?query=${q}&count=30&client_id=${apiKey}`;
     let r;
-    try { r = await fetch(url); }
+    try { r = await fetchWithTimeout(url); }
     catch (fe) { error = 'Network error — check connection'; throw fe; }
     if (r.status === 401) { error = 'Invalid API key'; throw new Error('401'); }
     if (r.status === 403) { error = 'Rate limited — 50 req/hr on free tier'; throw new Error('403'); }

@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.147';
+const APP_VERSION = '0.6.148';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1883,11 +1883,19 @@ const RADIO_STATIONS = [
   { name: 'SomaFM Boot Liquor', genre: 'Americana', url: 'https://ice1.somafm.com/bootliquor-128-mp3' },
 ];
 
+// Escapes text for interpolation into an innerHTML template - station
+// names/genres come from an external directory (radio-browser.info) and
+// timer names from any client on the LAN, so neither can be trusted as
+// markup.
+function escHtml(v) {
+  return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
 function radioStationRow(station, current) {
   const div = document.createElement('div');
   const isCurrent = current && current.url === station.url;
   div.style.cssText = `padding:6px 8px;margin-bottom:4px;border-radius:4px;cursor:pointer;font-size:11px;background:${isCurrent ? 'rgba(80,120,255,0.22)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isCurrent ? 'rgba(80,120,255,0.5)' : 'rgba(255,255,255,0.08)'};`;
-  div.innerHTML = `<div style="color:#dde;font-weight:600;">${isCurrent ? '▶ ' : ''}${station.name}</div>${station.genre ? `<div style="color:#8899bb;font-size:10px;">${station.genre}</div>` : ''}`;
+  div.innerHTML = `<div style="color:#dde;font-weight:600;">${isCurrent ? '▶ ' : ''}${escHtml(station.name)}</div>${station.genre ? `<div style="color:#8899bb;font-size:10px;">${escHtml(station.genre)}</div>` : ''}`;
   div.addEventListener('click', () => {
     send({ cmd: 'radioPlay', station });
     // Fired directly inside this click's own handler (a genuine user
@@ -2508,8 +2516,8 @@ function renderAlarmList() {
         <span style="position:absolute;top:2px;left:${on ? '13px' : '2px'};width:9px;height:9px;border-radius:50%;background:${on ? '#4d8' : '#668'};transition:all 0.2s;"></span>
       </span>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:16px;color:#dde;font-weight:700;letter-spacing:1px;">${h}:${m} <span style="font-size:11px;color:#8899bb;font-weight:600;">${repeatLabel}</span></div>
-        <div style="font-size:12px;color:#99aabb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${al.name || ''} <span style="font-size:10px;color:#7aadff;">${typeLabel}</span></div>
+        <div style="font-size:16px;color:#dde;font-weight:700;letter-spacing:1px;">${h}:${m} <span style="font-size:11px;color:#8899bb;font-weight:600;">${escHtml(repeatLabel)}</span></div>
+        <div style="font-size:12px;color:#99aabb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(al.name)} <span style="font-size:10px;color:#7aadff;">${typeLabel}</span></div>
       </div>
       <button class="al-edit-btn" style="padding:4px 10px;font-size:11px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;">✏</button>
       <button class="al-del-btn" style="padding:4px 10px;font-size:11px;background:rgba(255,60,60,0.08);border:1px solid rgba(255,60,60,0.2);color:#f88;border-radius:4px;cursor:pointer;">✕</button>`;

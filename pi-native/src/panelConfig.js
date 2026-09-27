@@ -11,6 +11,7 @@
 // freshly-connected remote browser's UI reflects whatever was last chosen
 // on the Pi, rather than defaulting to something stale.
 const fs = require('fs');
+const { atomicWriteJson } = require('./atomicWrite');
 const path = require('path');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'panel-config.json');
@@ -104,7 +105,7 @@ function load() {
 }
 
 function save(config) {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  atomicWriteJson(CONFIG_PATH, config);
 }
 
 module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };

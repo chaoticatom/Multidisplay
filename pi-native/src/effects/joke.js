@@ -16,6 +16,7 @@
 'use strict';
 
 const { wcInit, wcStep, wcDrawToFace, wcTagQA, drawLinesCentered3x5 } = require('./_shared');
+const { fetchWithTimeout } = require('./net');
 
 let jokeText = '';
 let jokeFetching = false;
@@ -36,7 +37,7 @@ function jokeFetch() {
   status.text = 'Fetching a joke…';
   (async () => {
     let r;
-    try { r = await fetch('https://icanhazdadjoke.com/', { headers: { Accept: 'application/json' } }); }
+    try { r = await fetchWithTimeout('https://icanhazdadjoke.com/', { headers: { Accept: 'application/json' } }); }
     catch (fe) { jokeError = 'Network error — check internet connection'; throw fe; }
     if (!r.ok) { jokeError = 'Joke API error ' + r.status; throw new Error(String(r.status)); }
     const d = await r.json();

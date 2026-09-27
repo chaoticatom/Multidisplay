@@ -11,6 +11,7 @@
 //
 // Data shape: { apiKey: string, query: string }
 const fs = require('fs');
+const { atomicWriteJson } = require('./atomicWrite');
 const path = require('path');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'unsplash-config.json');
@@ -35,7 +36,7 @@ function load() {
 }
 
 function save(config) {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  atomicWriteJson(CONFIG_PATH, config);
 }
 
 module.exports = { load, save, isValidConfig, DEFAULT_CONFIG, CONFIG_PATH };

@@ -14,6 +14,7 @@
 'use strict';
 
 const { wcInit, wcStep, wcDrawToFace, wcTagQA, wcDecodeEntities, drawLinesCentered3x5 } = require('./_shared');
+const { fetchWithTimeout } = require('./net');
 
 let triviaText = '';
 let triviaFetching = false;
@@ -34,7 +35,7 @@ function triviaFetch() {
   status.text = 'Fetching a question…';
   (async () => {
     let r;
-    try { r = await fetch('https://opentdb.com/api.php?amount=1&type=multiple'); }
+    try { r = await fetchWithTimeout('https://opentdb.com/api.php?amount=1&type=multiple'); }
     catch (fe) { triviaError = 'Network error — check internet connection'; throw fe; }
     if (!r.ok) { triviaError = 'Trivia API error ' + r.status; throw new Error(String(r.status)); }
     const d = await r.json();

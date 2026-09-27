@@ -8,6 +8,7 @@
 // startup (see src/app.js) to reconnect + re-select as audio output
 // without any manual re-pairing after a Pi reboot.
 const fs = require('fs');
+const { atomicWriteJson } = require('./atomicWrite');
 const path = require('path');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'bt-config.json');
@@ -29,7 +30,7 @@ function load() {
 }
 
 function save(config) {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  atomicWriteJson(CONFIG_PATH, config);
 }
 
 module.exports = { load, save, isValidMac, CONFIG_PATH };

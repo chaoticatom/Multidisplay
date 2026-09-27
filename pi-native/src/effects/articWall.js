@@ -7,6 +7,7 @@
 // differs (Met Museum's public keyless collection API vs Unsplash's keyed
 // one).
 'use strict';
+const { fetchWithTimeout } = require('./net');
 
 const {
   loadImageForPixels, galleryApplyToWall, galleryApplyBlendToWall,
@@ -55,7 +56,7 @@ async function doFetch(query) {
     const q = (query || '').trim() || 'painting';
     const searchUrl = `${MET_API}/search?hasImages=true&q=${encodeURIComponent(q)}`;
     let r;
-    try { r = await fetch(searchUrl); }
+    try { r = await fetchWithTimeout(searchUrl); }
     catch (fe) { error = 'Network error — check internet connection'; throw fe; }
     if (!r.ok) { error = 'Met API error ' + r.status; throw new Error(String(r.status)); }
     const searchJson = await r.json();
@@ -65,7 +66,7 @@ async function doFetch(query) {
     for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[ids[i], ids[j]] = [ids[j], ids[i]]; }
     const sample = ids.slice(0, 40);
     const details = await Promise.all(sample.map((id) =>
-      fetch(`${MET_API}/objects/${id}`).then((rr) => (rr.ok ? rr.json() : null)).catch(() => null)));
+      fetchWithTimeout(`${MET_API}/objects/${id}`).then((rr) => (rr.ok ? rr.json() : null)).catch(() => null)));
     const found = details.filter((d) => d && d.isPublicDomain && d.primaryImageSmall).map((d) => ({
       id: d.objectID, title: d.title || 'Untitled', artist: d.artistDisplayName || 'Unknown artist', imageUrl: d.primaryImageSmall,
     }));

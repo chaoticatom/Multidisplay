@@ -254,7 +254,7 @@ function galleryApplyBlendToWall(core, pixelsArr, sizesArr, idxA, idxB, alpha) {
 // would add complexity with no benefit here).
 async function loadImageForPixels(url, targetSize, opts) {
   const { Jimp } = require('jimp');
-  const resp = await fetch(url);
+  const resp = await fetchWithTimeout(url);
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   const buf = Buffer.from(await resp.arrayBuffer());
   const src = await Jimp.read(buf);
@@ -277,6 +277,7 @@ async function loadImageForPixels(url, targetSize, opts) {
 // under their long-standing names since several effects call them.
 // Drawn plain - colBuf content never bakes in a driver-specific mirror.
 const { drawGlyph: drawGlyphText, drawLinesCentered, textWidth, FONT_3x5, facePlot, wallPlot } = require('./text');
+const { fetchWithTimeout } = require('./net');
 function drawGlyph3x5(core, face, ch, su, sv, scale, r, g, b) {
   return drawGlyphText(FONT_3x5, ch, su, sv, facePlot(core, face, r, g, b), { scale });
 }

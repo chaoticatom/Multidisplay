@@ -228,6 +228,28 @@ const APP_JS = fs.readFileSync(path.join(PUBLIC_DIR, 'app.js'));           // wi
 // streams the exact bytes with no multipart boilerplate; the filename
 // travels via a query param instead of a form field.
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+// Largest legitimate WebSocket message is a browser-captured video frame
+// (at most WALL_MAX_PANELS 64x64 RGB panels, well under 1MB); the ws
+// default of 100MB would let any client make the Pi buffer a huge message.
+const WS_MAX_PAYLOAD = 8 * 1024 * 1024;
+
+// Cross-site request protection. The control server listens on every
+// interface with no login, so without this ANY web page open in a browser
+// on the same network could open a WebSocket to the Pi (or POST an upload)
+// and drive it - browsers don't apply same-origin rules to WebSocket
+// connections or simple form POSTs, they only report the Origin. Requests
+// with no Origin header (curl, scripts, non-browser tools) are allowed:
+// they aren't the cross-site-page threat this guards against.
+function isSameOrigin(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try {
+    return new URL(origin).host === req.headers.host;
+  } catch (e) {
+    return false;
+  }
+}
+
 const UPLOAD_MAX_BYTES = 500 * 1024 * 1024; // 500MB - generous for a phone-shot video, still bounded so a bad/huge upload can't fill the Pi's disk
 // Only one upload lives on disk at a time - each new upload deletes
 // whatever the previous one saved first, same "personal-use, don't grow
@@ -283,7 +305,7 @@ class WsServer {
     // GET request (see project discussion - this is exactly the confusion
     // that prompted building this page in the first place).
     this.http = http.createServer((req, res) => this._handleHttp(req, res));
-    this.wss = new WebSocket.Server({ server: this.http });
+    this.wss = new WebSocket.Server({ server: this.http, maxPayload: WS_MAX_PAYLOAD, verifyClient: ({ req }) => isSameOrigin(req) });
 
     // Tracks EVERY connected client across both the plain-HTTP and (if
     // available) HTTPS listeners as one set, so broadcast/preview-
@@ -313,7 +335,7 @@ class WsServer {
     const tlsFiles = ensureSelfSignedCert();
     if (tlsFiles) {
       this.https = https.createServer(tlsFiles, (req, res) => this._handleHttp(req, res));
-      this.wssHttps = new WebSocket.Server({ server: this.https });
+      this.wssHttps = new WebSocket.Server({ server: this.https, maxPayload: WS_MAX_PAYLOAD, verifyClient: ({ req }) => isSameOrigin(req) });
       this._wireConnection(this.wssHttps);
       this.https.listen(port + 1);
       console.log(`[app] HTTPS control page (needed for camera/screen capture) on :${port + 1} - self-signed, browsers will warn once`);
@@ -334,7 +356,11 @@ class WsServer {
   }
 
   _handleHttp(req, res) {
-    if (req.method === 'POST' && req.url.startsWith('/api/uploadVideo')) { this._handleUpload(req, res); return; }
+    if (req.method === 'POST' && req.url.startsWith('/api/uploadVideo')) {
+      if (!isSameOrigin(req)) { res.writeHead(403, { 'Content-Type': 'text/plain' }).end('Cross-origin upload refused'); return; }
+      this._handleUpload(req, res);
+      return;
+    }
     if (req.method !== 'GET') { res.writeHead(404).end(); return; }
     // No-cache on every response this route serves - a real report ("click
     // a button, nothing happens until I refresh the page") pointed at
@@ -1186,3 +1212,4 @@ class WsServer {
 }
 
 module.exports = WsServer;
+module.exports.isSameOrigin = isSameOrigin;

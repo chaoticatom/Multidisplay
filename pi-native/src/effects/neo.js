@@ -26,6 +26,7 @@
 const { drawGlyph, drawString, FONT_3x5, faceMaxPlot } = require('./text');
 
 const nasaConfig = require('../nasaConfig');
+const { fetchWithTimeout } = require('./net');
 // Live-read (not a frozen constant) so a key entered via the UI takes
 // effect on the next fetch without a restart - see nasaConfig.js's module
 // comment for the real report this fixes.
@@ -91,7 +92,7 @@ function neoFetch() {
 
   (async () => {
     let r;
-    try { r = await fetch(url); }
+    try { r = await fetchWithTimeout(url); }
     catch (fe) { throw new Error('NEO fetch failed — check internet connection'); }
     if (!r.ok) throw new Error('NASA API error: ' + r.status);
     const d = await r.json();

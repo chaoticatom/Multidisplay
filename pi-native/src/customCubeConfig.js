@@ -25,6 +25,7 @@
 //   { faces: [FaceConfig|null, ...6], library: [{name, faces:[FaceConfig|null, ...6]}, ...] }
 //   FaceConfig = { effect: string, overlayKeys: string[], opts: object }
 const fs = require('fs');
+const { atomicWriteJson } = require('./atomicWrite');
 const path = require('path');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'custom-cube-config.json');
@@ -76,7 +77,7 @@ function load() {
 }
 
 function save(config) {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  atomicWriteJson(CONFIG_PATH, config);
 }
 
 module.exports = {

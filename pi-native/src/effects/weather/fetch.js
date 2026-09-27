@@ -4,6 +4,7 @@
 // takes a plain city-name string instead of reading a DOM input element -
 // there's no city-search dropdown UI on this side (yet).
 const { calcMoonRiseSet, wxInitScene, WX_CODES } = require('./state');
+const { fetchWithTimeout } = require('../net');
 
 // wxState: object from createWxState(). size: core.SIZE, needed by
 // wxInitScene to size the skyline buffer.
@@ -13,7 +14,7 @@ async function fetchWeather(wxState, city, size) {
   try {
     const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&format=json`;
     let gr;
-    try { gr = await fetch(geoUrl); }
+    try { gr = await fetchWithTimeout(geoUrl); }
     catch (fe) { throw new Error('Network error - check internet connection'); }
     if (!gr.ok) throw new Error('Geocoding failed: ' + gr.status);
     const gd = await gr.json();
@@ -24,7 +25,7 @@ async function fetchWeather(wxState, city, size) {
 
     const wxUrl = `https://api.open-meteo.com/v1/forecast?latitude=${wxState.lat.toFixed(4)}&longitude=${wxState.lon.toFixed(4)}&current=temperature_2m,weather_code,wind_speed_10m&daily=sunrise,sunset,temperature_2m_max&timezone=auto&forecast_days=1`;
     let wr;
-    try { wr = await fetch(wxUrl); }
+    try { wr = await fetchWithTimeout(wxUrl); }
     catch (fe) { throw new Error('Weather fetch failed - check internet connection'); }
     if (!wr.ok) throw new Error('Weather API error: ' + wr.status);
     const wd = await wr.json();

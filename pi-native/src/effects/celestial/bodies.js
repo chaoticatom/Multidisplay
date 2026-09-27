@@ -12,6 +12,7 @@
 // `fetch`/`atob` Node 18+ already provides - no DOM needed, unlike the
 // browser's Image/canvas-based tickers elsewhere in this codebase.
 const EARTH_MAP_B64 = require('./earthMap');
+const { fetchWithTimeout } = require('../net');
 
 const _EARTH_W = 360, _EARTH_H = 180;
 let _earthMapBuf = null;
@@ -35,7 +36,7 @@ function _earthFetchClouds() {
   _cloudCache.ts = Date.now();
   const la = [], lo = [];
   for (const lat of _cloudLats) for (const lon of _cloudLons) { la.push(lat); lo.push(lon); }
-  fetch(`https://api.open-meteo.com/v1/forecast?latitude=${la.join(',')}&longitude=${lo.join(',')}&current=cloud_cover&forecast_days=1`)
+  fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${la.join(',')}&longitude=${lo.join(',')}&current=cloud_cover&forecast_days=1`)
     .then((r) => r.json()).then((d) => {
       if (!Array.isArray(d)) return;
       const g = new Float32Array(72);

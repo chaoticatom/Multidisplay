@@ -35,6 +35,7 @@
 'use strict';
 
 const { Jimp } = require('jimp');
+const { fetchWithTimeout } = require('./net');
 const { CHAR_W } = require('./radio/font');
 const { drawMarquee, FONT_5x7, facePlot } = require('./text');
 
@@ -94,7 +95,7 @@ function maybeFetch(core) {
     const url = `https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY()}`;
     let r;
     try {
-      r = await fetch(url);
+      r = await fetchWithTimeout(url);
     } catch (fe) {
       retryAfterMs = 5000;
       throw new Error('Network error — check connection');
@@ -119,7 +120,7 @@ function maybeFetch(core) {
     if (!imgUrl) return;
 
     const SIZE = core.SIZE;
-    const resp = await fetch(imgUrl);
+    const resp = await fetchWithTimeout(imgUrl);
     if (!resp.ok) throw new Error('Could not load image (HTTP ' + resp.status + ')');
     const buf = Buffer.from(await resp.arrayBuffer());
     const src = await Jimp.read(buf);

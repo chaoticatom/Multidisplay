@@ -13,6 +13,7 @@
 //
 // Data shape: { library: [{name, panels:[{gx,gy}, ...]}, ...] }
 const fs = require('fs');
+const { atomicWriteJson } = require('./atomicWrite');
 const path = require('path');
 const { isValidPanels } = require('./panelConfig');
 
@@ -42,7 +43,7 @@ function load() {
 }
 
 function save(config) {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  atomicWriteJson(CONFIG_PATH, config);
 }
 
 module.exports = { load, save, isValidLibraryEntry, isValidLibrary, DEFAULT_CONFIG, CONFIG_PATH };

@@ -15,6 +15,7 @@
 // yet, fall back to process.env.NASA_API_KEY || 'DEMO_KEY'" (each
 // effect's own existing fallback, unchanged).
 const fs = require('fs');
+const { atomicWriteJson } = require('./atomicWrite');
 const path = require('path');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'nasa-config.json');
@@ -36,7 +37,7 @@ function load() {
 }
 
 function save(config) {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  atomicWriteJson(CONFIG_PATH, config);
 }
 
 // The actual key any NASA-API effect should use: a saved key (via the UI)

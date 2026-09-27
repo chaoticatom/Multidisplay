@@ -24,6 +24,7 @@
 // stylized) is decoded with jimp, same as cam.js/video.js's image pipeline.
 const { drawString, FONT_3x5, facePlot } = require('./text');
 const { Jimp, ResizeStrategy } = require('jimp');
+const { fetchWithTimeout } = require('./net');
 
 // ── Live position state ─────────────────────────────────────────────────
 let issLat = 0, issLon = 0, issTimestamp = 0, issFetching = false, issLastFetch = 0, issError = '';
@@ -32,7 +33,7 @@ let issHasFix = false, issT = 0, issTrail = [];
 function issFetch() {
   if (issFetching) return;
   issFetching = true; issError = '';
-  fetch('https://api.wheretheiss.at/v1/satellites/25544')
+  fetchWithTimeout('https://api.wheretheiss.at/v1/satellites/25544')
     .then((r) => { if (!r.ok) throw new Error('ISS API error: ' + r.status); return r.json(); })
     .then((d) => {
       issLat = parseFloat(d.latitude);
@@ -65,7 +66,7 @@ function issUpdateCountryFlag() {
   issGeoLastFetch = now;
   issFlagFetching = true;
   const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${issLat}&longitude=${issLon}&localityLanguage=en`;
-  fetch(url)
+  fetchWithTimeout(url)
     .then((r) => { if (!r.ok) throw new Error('geocode HTTP ' + r.status); return r.json(); })
     .then((d) => {
       const cc = (d.countryCode || '').toUpperCase();
@@ -77,7 +78,7 @@ function issUpdateCountryFlag() {
           issFlagState = 'loading';
           const flagUrl = `https://flagcdn.com/w320/${cc.toLowerCase()}.png`;
           const S = 32; // small - it's only ever displayed at cube face resolution
-          fetch(flagUrl)
+          fetchWithTimeout(flagUrl)
             .then((r) => { if (!r.ok) throw new Error('flag HTTP ' + r.status); return r.arrayBuffer(); })
             .then((ab) => Jimp.read(Buffer.from(ab)))
             .then((img) => {

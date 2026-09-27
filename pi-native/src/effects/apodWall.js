@@ -26,6 +26,7 @@ const { CHAR_W } = require('./radio/font');
 const { drawLinesCentered: drawLinesCenteredText, drawMarquee, FONT_3x5, FONT_5x7, wallPlot } = require('./text');
 
 const nasaConfig = require('../nasaConfig');
+const { fetchWithTimeout } = require('./net');
 // Live-read (not a frozen constant) so a key entered via the UI takes
 // effect on the next fetch without a restart - see nasaConfig.js's module
 // comment for the real report this fixes.
@@ -78,7 +79,7 @@ function maybeFetch(core, W, H) {
   (async () => {
     const url = `https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY()}`;
     let r;
-    try { r = await fetch(url); }
+    try { r = await fetchWithTimeout(url); }
     catch (fe) { retryAfterMs = 5000; throw new Error('Network error — check connection'); }
     if (r.status === 429) { retryAfterMs = 60000; throw new Error('Rate limited — get a free key at api.nasa.gov'); }
     if (r.status === 503 || r.status === 502 || r.status === 504) { retryAfterMs = 5000; throw new Error('NASA servers down (' + r.status + ') — retrying…'); }
@@ -99,7 +100,7 @@ function maybeFetch(core, W, H) {
     status.text = apodData.title + (imgUrl ? ' — loading image…' : ' (no image)');
     if (!imgUrl) return;
 
-    const resp = await fetch(imgUrl);
+    const resp = await fetchWithTimeout(imgUrl);
     if (!resp.ok) throw new Error('Could not load image (HTTP ' + resp.status + ')');
     const buf = Buffer.from(await resp.arrayBuffer());
     const src = await Jimp.read(buf);

@@ -19,6 +19,7 @@
 // modes mid-run reuses stale cached pixels at the wrong resolution" bug).
 // Same `#cam-url`/`rate` option keys as cam.js (`core.effectOptions.cam`).
 const { Jimp, ResizeStrategy } = require('jimp');
+const { fetchWithTimeout } = require('./net');
 
 let camPixels = null;   // RGBA buffer, wallW*wallH*4, or null until first successful fetch
 let camPixelsW = 0, camPixelsH = 0; // resolution the buffer above was decoded at
@@ -40,7 +41,7 @@ function maybeFetch(core, url, rate, wallW, wallH) {
   const fetchUrl = url + sep + '_t=' + now;
 
   (async () => {
-    const resp = await fetch(fetchUrl);
+    const resp = await fetchWithTimeout(fetchUrl);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const buf = Buffer.from(await resp.arrayBuffer());
     const img = await Jimp.read(buf);

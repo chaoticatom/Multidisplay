@@ -19,6 +19,7 @@
 'use strict';
 
 const { wcInit, wcStep, wcDrawToFace, drawLinesCentered3x5 } = require('./_shared');
+const { fetchWithTimeout } = require('./net');
 
 let otdEvents = [];
 let otdFetching = false;
@@ -49,7 +50,7 @@ function otdFetch() {
   (async () => {
     const url = `https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`;
     let r;
-    try { r = await fetch(url, { headers: { Accept: 'application/json' } }); }
+    try { r = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } }); }
     catch (fe) { otdError = 'Network error — check internet connection'; throw fe; }
     if (!r.ok) { otdError = 'Wikipedia API error ' + r.status; throw new Error(String(r.status)); }
     const d = await r.json();

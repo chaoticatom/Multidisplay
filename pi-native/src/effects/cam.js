@@ -18,6 +18,7 @@
 // same "fire-and-forget maybeFetch, adapted for a configurable rate instead
 // of a fixed interval" pattern as weather.js's maybeFetch/lastAttemptMs.
 const { Jimp, ResizeStrategy } = require('jimp');
+const { fetchWithTimeout } = require('./net');
 
 let camPixels = null;   // Uint8ClampedArray-ish RGBA buffer, SIZE*SIZE*4, or null until first successful fetch
 let camPixelsSize = 0;  // SIZE the buffer above was decoded at, so a mid-run size change re-fetches at the new size
@@ -47,7 +48,7 @@ function maybeFetch(core, url, rate) {
   const fetchUrl = url + sep + '_t=' + now;
 
   (async () => {
-    const resp = await fetch(fetchUrl);
+    const resp = await fetchWithTimeout(fetchUrl);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const buf = Buffer.from(await resp.arrayBuffer());
     const img = await Jimp.read(buf);

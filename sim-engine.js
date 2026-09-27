@@ -2101,12 +2101,28 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/net.js
+  var require_net = __commonJS({
+    "src/effects/net.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var FETCH_TIMEOUT_MS = 15e3;
+      function fetchWithTimeout(url, opts = {}, timeoutMs = FETCH_TIMEOUT_MS) {
+        if (opts.signal) return globalThis.fetch(url, opts);
+        return globalThis.fetch(url, { ...opts, signal: AbortSignal.timeout(timeoutMs) });
+      }
+      module.exports = { fetchWithTimeout, FETCH_TIMEOUT_MS };
+    }
+  });
+
   // src/effects/weather/fetch.js
   var require_fetch = __commonJS({
     "src/effects/weather/fetch.js"(exports, module) {
       init_define_process_env();
       init_bufferGlobal();
       var { calcMoonRiseSet, wxInitScene, WX_CODES } = require_state();
+      var { fetchWithTimeout } = require_net();
       async function fetchWeather(wxState, city, size) {
         if (wxState.fetching) return false;
         wxState.fetching = true;
@@ -2114,7 +2130,7 @@ var PiEngine = (() => {
           const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&format=json`;
           let gr;
           try {
-            gr = await fetch(geoUrl);
+            gr = await fetchWithTimeout(geoUrl);
           } catch (fe) {
             throw new Error("Network error - check internet connection");
           }
@@ -2128,7 +2144,7 @@ var PiEngine = (() => {
           const wxUrl = `https://api.open-meteo.com/v1/forecast?latitude=${wxState.lat.toFixed(4)}&longitude=${wxState.lon.toFixed(4)}&current=temperature_2m,weather_code,wind_speed_10m&daily=sunrise,sunset,temperature_2m_max&timezone=auto&forecast_days=1`;
           let wr;
           try {
-            wr = await fetch(wxUrl);
+            wr = await fetchWithTimeout(wxUrl);
           } catch (fe) {
             throw new Error("Weather fetch failed - check internet connection");
           }
@@ -2768,7 +2784,7 @@ var PiEngine = (() => {
       }
       async function loadImageForPixels(url, targetSize, opts) {
         const { Jimp } = (init_browser(), __toCommonJS(browser_exports));
-        const resp = await fetch(url);
+        const resp = await fetchWithTimeout(url);
         if (!resp.ok) throw new Error("HTTP " + resp.status);
         const buf = Buffer2.from(await resp.arrayBuffer());
         const src = await Jimp.read(buf);
@@ -2785,6 +2801,7 @@ var PiEngine = (() => {
         return { pixels: out.bitmap.data, size: targetSize };
       }
       var { drawGlyph: drawGlyphText, drawLinesCentered, textWidth, FONT_3x5, facePlot, wallPlot } = require_text();
+      var { fetchWithTimeout } = require_net();
       function drawLinesCentered3x5(core, face, lines, scale, r, g, b) {
         drawLinesCentered(FONT_3x5, lines, core.SIZE, core.SIZE, facePlot(core, face, r, g, b), { scale });
       }
@@ -3925,6 +3942,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { Jimp, ResizeStrategy } = (init_browser(), __toCommonJS(browser_exports));
+      var { fetchWithTimeout } = require_net();
       var camPixels = null;
       var camPixelsSize = 0;
       var fetching = false;
@@ -3944,7 +3962,7 @@ var PiEngine = (() => {
         const sep = url.includes("?") ? "&" : "?";
         const fetchUrl = url + sep + "_t=" + now;
         (async () => {
-          const resp = await fetch(fetchUrl);
+          const resp = await fetchWithTimeout(fetchUrl);
           if (!resp.ok) throw new Error("HTTP " + resp.status);
           const buf = Buffer2.from(await resp.arrayBuffer());
           const img = await Jimp.read(buf);
@@ -14373,6 +14391,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var EARTH_MAP_B64 = require_earthMap();
+      var { fetchWithTimeout } = require_net();
       var _EARTH_W = 360;
       var _EARTH_H = 180;
       var _earthMapBuf = null;
@@ -14400,7 +14419,7 @@ var PiEngine = (() => {
           la.push(lat);
           lo.push(lon);
         }
-        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${la.join(",")}&longitude=${lo.join(",")}&current=cloud_cover&forecast_days=1`).then((r) => r.json()).then((d) => {
+        fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${la.join(",")}&longitude=${lo.join(",")}&current=cloud_cover&forecast_days=1`).then((r) => r.json()).then((d) => {
           if (!Array.isArray(d)) return;
           const g = new Float32Array(72);
           for (let i = 0; i < 72; i++) g[i] = (d[i]?.current?.cloud_cover ?? 50) / 100;
@@ -15291,6 +15310,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { drawString, FONT_3x5, facePlot } = require_text();
       var { Jimp, ResizeStrategy } = (init_browser(), __toCommonJS(browser_exports));
+      var { fetchWithTimeout } = require_net();
       var issLat = 0;
       var issLon = 0;
       var issTimestamp = 0;
@@ -15304,7 +15324,7 @@ var PiEngine = (() => {
         if (issFetching) return;
         issFetching = true;
         issError = "";
-        fetch("https://api.wheretheiss.at/v1/satellites/25544").then((r) => {
+        fetchWithTimeout("https://api.wheretheiss.at/v1/satellites/25544").then((r) => {
           if (!r.ok) throw new Error("ISS API error: " + r.status);
           return r.json();
         }).then((d) => {
@@ -15338,7 +15358,7 @@ var PiEngine = (() => {
         issGeoLastFetch = now;
         issFlagFetching = true;
         const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${issLat}&longitude=${issLon}&localityLanguage=en`;
-        fetch(url).then((r) => {
+        fetchWithTimeout(url).then((r) => {
           if (!r.ok) throw new Error("geocode HTTP " + r.status);
           return r.json();
         }).then((d) => {
@@ -15352,7 +15372,7 @@ var PiEngine = (() => {
               issFlagState = "loading";
               const flagUrl = `https://flagcdn.com/w320/${cc.toLowerCase()}.png`;
               const S = 32;
-              fetch(flagUrl).then((r) => {
+              fetchWithTimeout(flagUrl).then((r) => {
                 if (!r.ok) throw new Error("flag HTTP " + r.status);
                 return r.arrayBuffer();
               }).then((ab) => Jimp.read(Buffer2.from(ab))).then((img) => {
@@ -15635,12 +15655,37 @@ var PiEngine = (() => {
     }
   });
 
+  // src/atomicWrite.js
+  var require_atomicWrite = __commonJS({
+    "src/atomicWrite.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var fs = require_fs();
+      var path = require_path();
+      function atomicWriteJson(filePath, value) {
+        const tmp = path.join(path.dirname(filePath), "." + path.basename(filePath) + ".tmp");
+        const text = JSON.stringify(value, null, 2);
+        const fd = fs.openSync(tmp, "w");
+        try {
+          fs.writeSync(fd, text);
+          fs.fsyncSync(fd);
+        } finally {
+          fs.closeSync(fd);
+        }
+        fs.renameSync(tmp, filePath);
+      }
+      module.exports = { atomicWriteJson };
+    }
+  });
+
   // src/nasaConfig.js
   var require_nasaConfig = __commonJS({
     "src/nasaConfig.js"(exports, module) {
       init_define_process_env();
       init_bufferGlobal();
       var fs = require_fs();
+      var { atomicWriteJson } = require_atomicWrite();
       var path = require_path();
       var CONFIG_PATH = path.join(".", "..", "nasa-config.json");
       var DEFAULT_CONFIG = { apiKey: "" };
@@ -15658,7 +15703,7 @@ var PiEngine = (() => {
         }
       }
       function save(config) {
-        fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+        atomicWriteJson(CONFIG_PATH, config);
       }
       function currentKey() {
         const saved = load().apiKey.trim();
@@ -15676,6 +15721,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { Jimp } = (init_browser(), __toCommonJS(browser_exports));
+      var { fetchWithTimeout } = require_net();
       var { CHAR_W } = require_font2();
       var { drawMarquee, FONT_5x7, facePlot } = require_text();
       var nasaConfig = require_nasaConfig();
@@ -15731,7 +15777,7 @@ var PiEngine = (() => {
           const url = `https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY()}`;
           let r;
           try {
-            r = await fetch(url);
+            r = await fetchWithTimeout(url);
           } catch (fe) {
             retryAfterMs = 5e3;
             throw new Error("Network error \u2014 check connection");
@@ -15764,7 +15810,7 @@ var PiEngine = (() => {
           status.text = apodData.title + (imgUrl ? " \u2014 loading image\u2026" : " (no image)");
           if (!imgUrl) return;
           const SIZE = core.SIZE;
-          const resp = await fetch(imgUrl);
+          const resp = await fetchWithTimeout(imgUrl);
           if (!resp.ok) throw new Error("Could not load image (HTTP " + resp.status + ")");
           const buf = Buffer2.from(await resp.arrayBuffer());
           const src = await Jimp.read(buf);
@@ -15849,6 +15895,7 @@ var PiEngine = (() => {
       var { Jimp } = (init_browser(), __toCommonJS(browser_exports));
       var { drawTicker } = require_ticker();
       var nasaConfig = require_nasaConfig();
+      var { fetchWithTimeout } = require_net();
       function NASA_API_KEY() {
         return nasaConfig.currentKey();
       }
@@ -15901,7 +15948,7 @@ var PiEngine = (() => {
           const dateStr = dt.toISOString().slice(0, 10);
           const url = `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=MODIS_Terra_CorrectedReflectance_TrueColor&FORMAT=image/jpeg&WIDTH=${W}&HEIGHT=${H}&CRS=CRS:84&BBOX=-180,-90,180,90&TIME=${dateStr}`;
           try {
-            const resp = await fetch(url);
+            const resp = await fetchWithTimeout(url);
             if (!resp.ok) throw new Error("HTTP " + resp.status);
             const buf = Buffer2.from(await resp.arrayBuffer());
             const img = await Jimp.read(buf);
@@ -15986,7 +16033,7 @@ var PiEngine = (() => {
             const url = daysAgo === 0 ? `https://api.nasa.gov/EPIC/api/natural/images?api_key=${NASA_API_KEY()}` : `https://api.nasa.gov/EPIC/api/natural/date/${dateStr}?api_key=${NASA_API_KEY()}`;
             let r;
             try {
-              r = await fetch(url);
+              r = await fetchWithTimeout(url);
             } catch (fe) {
               throw new Error("Network error \u2014 check connection");
             }
@@ -16023,7 +16070,7 @@ var PiEngine = (() => {
           epicRetryAfter = 60;
           (async () => {
             try {
-              const resp = await fetch(epicData.url);
+              const resp = await fetchWithTimeout(epicData.url);
               if (!resp.ok) throw new Error("HTTP " + resp.status);
               const buf = Buffer2.from(await resp.arrayBuffer());
               const img = await Jimp.read(buf);
@@ -16113,6 +16160,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { drawGlyph, drawString, FONT_3x5, faceMaxPlot } = require_text();
       var nasaConfig = require_nasaConfig();
+      var { fetchWithTimeout } = require_net();
       function NASA_API_KEY() {
         return nasaConfig.currentKey();
       }
@@ -16170,7 +16218,7 @@ var PiEngine = (() => {
         (async () => {
           let r;
           try {
-            r = await fetch(url);
+            r = await fetchWithTimeout(url);
           } catch (fe) {
             throw new Error("NEO fetch failed \u2014 check internet connection");
           }
@@ -16534,6 +16582,7 @@ var PiEngine = (() => {
       var { CHAR_W } = require_font2();
       var { drawLinesCentered: drawLinesCenteredText, drawMarquee, FONT_3x5, FONT_5x7, wallPlot } = require_text();
       var nasaConfig = require_nasaConfig();
+      var { fetchWithTimeout } = require_net();
       function NASA_API_KEY() {
         return nasaConfig.currentKey();
       }
@@ -16587,7 +16636,7 @@ var PiEngine = (() => {
           const url = `https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY()}`;
           let r;
           try {
-            r = await fetch(url);
+            r = await fetchWithTimeout(url);
           } catch (fe) {
             retryAfterMs = 5e3;
             throw new Error("Network error \u2014 check connection");
@@ -16619,7 +16668,7 @@ var PiEngine = (() => {
           tickerLabel = "";
           status.text = apodData.title + (imgUrl ? " \u2014 loading image\u2026" : " (no image)");
           if (!imgUrl) return;
-          const resp = await fetch(imgUrl);
+          const resp = await fetchWithTimeout(imgUrl);
           if (!resp.ok) throw new Error("Could not load image (HTTP " + resp.status + ")");
           const buf = Buffer2.from(await resp.arrayBuffer());
           const src = await Jimp.read(buf);
@@ -17823,6 +17872,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var fs = require_fs();
+      var { atomicWriteJson } = require_atomicWrite();
       var path = require_path();
       var CONFIG_PATH = path.join(".", "..", "unsplash-config.json");
       var DEFAULT_CONFIG = { apiKey: "", query: "nature" };
@@ -17840,7 +17890,7 @@ var PiEngine = (() => {
         }
       }
       function save(config) {
-        fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+        atomicWriteJson(CONFIG_PATH, config);
       }
       module.exports = { load, save, isValidConfig, DEFAULT_CONFIG, CONFIG_PATH };
     }
@@ -17853,6 +17903,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var unsplashConfig = require_unsplashConfig();
+      var { fetchWithTimeout } = require_net();
       var {
         galleryInitFaceState,
         gallerySlideshowStep,
@@ -17910,7 +17961,7 @@ var PiEngine = (() => {
           const url = `https://api.unsplash.com/photos/random?query=${q}&count=30&client_id=${apiKey}`;
           let r;
           try {
-            r = await fetch(url);
+            r = await fetchWithTimeout(url);
           } catch (fe) {
             error = "Network error \u2014 check connection";
             throw fe;
@@ -18065,6 +18116,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
+      var { fetchWithTimeout } = require_net();
       var {
         galleryInitFaceState,
         gallerySlideshowStep,
@@ -18116,7 +18168,7 @@ var PiEngine = (() => {
           const searchUrl = `${MET_API}/search?hasImages=true&q=${encodeURIComponent(q)}`;
           let r;
           try {
-            r = await fetch(searchUrl);
+            r = await fetchWithTimeout(searchUrl);
           } catch (fe) {
             error = "Network error \u2014 check internet connection";
             throw fe;
@@ -18137,7 +18189,7 @@ var PiEngine = (() => {
             [ids[i], ids[j]] = [ids[j], ids[i]];
           }
           const sample = ids.slice(0, 40);
-          const details = await Promise.all(sample.map((id) => fetch(`${MET_API}/objects/${id}`).then((rr) => rr.ok ? rr.json() : null).catch(() => null)));
+          const details = await Promise.all(sample.map((id) => fetchWithTimeout(`${MET_API}/objects/${id}`).then((rr) => rr.ok ? rr.json() : null).catch(() => null)));
           const found = details.filter((d) => d && d.isPublicDomain && d.primaryImageSmall).map((d) => ({
             id: d.objectID,
             title: d.title || "Untitled",
@@ -18258,6 +18310,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { wcInit, wcStep, wcDrawToFace, wcTagQA, drawLinesCentered3x5 } = require_shared();
+      var { fetchWithTimeout } = require_net();
       var jokeText = "";
       var jokeFetching = false;
       var jokeError = "";
@@ -18277,7 +18330,7 @@ var PiEngine = (() => {
         (async () => {
           let r;
           try {
-            r = await fetch("https://icanhazdadjoke.com/", { headers: { Accept: "application/json" } });
+            r = await fetchWithTimeout("https://icanhazdadjoke.com/", { headers: { Accept: "application/json" } });
           } catch (fe) {
             jokeError = "Network error \u2014 check internet connection";
             throw fe;
@@ -18348,6 +18401,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { wcInit, wcStep, wcDrawToFace, wcTagQA, wcDecodeEntities, drawLinesCentered3x5 } = require_shared();
+      var { fetchWithTimeout } = require_net();
       var triviaText = "";
       var triviaFetching = false;
       var triviaError = "";
@@ -18367,7 +18421,7 @@ var PiEngine = (() => {
         (async () => {
           let r;
           try {
-            r = await fetch("https://opentdb.com/api.php?amount=1&type=multiple");
+            r = await fetchWithTimeout("https://opentdb.com/api.php?amount=1&type=multiple");
           } catch (fe) {
             triviaError = "Network error \u2014 check internet connection";
             throw fe;
@@ -18440,6 +18494,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { wcInit, wcStep, wcDrawToFace, drawLinesCentered3x5 } = require_shared();
+      var { fetchWithTimeout } = require_net();
       var otdEvents = [];
       var otdFetching = false;
       var otdError = "";
@@ -18468,7 +18523,7 @@ var PiEngine = (() => {
           const url = `https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`;
           let r;
           try {
-            r = await fetch(url, { headers: { Accept: "application/json" } });
+            r = await fetchWithTimeout(url, { headers: { Accept: "application/json" } });
           } catch (fe) {
             otdError = "Network error \u2014 check internet connection";
             throw fe;
@@ -22184,6 +22239,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { Jimp, ResizeStrategy } = (init_browser(), __toCommonJS(browser_exports));
+      var { fetchWithTimeout } = require_net();
       var camPixels = null;
       var camPixelsW = 0;
       var camPixelsH = 0;
@@ -22203,7 +22259,7 @@ var PiEngine = (() => {
         const sep = url.includes("?") ? "&" : "?";
         const fetchUrl = url + sep + "_t=" + now;
         (async () => {
-          const resp = await fetch(fetchUrl);
+          const resp = await fetchWithTimeout(fetchUrl);
           if (!resp.ok) throw new Error("HTTP " + resp.status);
           const buf = Buffer2.from(await resp.arrayBuffer());
           const img = await Jimp.read(buf);
@@ -23694,6 +23750,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var unsplashConfig = require_unsplashConfig();
+      var { fetchWithTimeout } = require_net();
       var {
         loadImageForPixels,
         galleryApplyToWall,
@@ -23742,7 +23799,7 @@ var PiEngine = (() => {
           const url = `https://api.unsplash.com/photos/random?query=${q}&count=30&client_id=${apiKey}`;
           let r;
           try {
-            r = await fetch(url);
+            r = await fetchWithTimeout(url);
           } catch (fe) {
             error = "Network error \u2014 check connection";
             throw fe;
@@ -23890,6 +23947,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
+      var { fetchWithTimeout } = require_net();
       var {
         loadImageForPixels,
         galleryApplyToWall,
@@ -23936,7 +23994,7 @@ var PiEngine = (() => {
           const searchUrl = `${MET_API}/search?hasImages=true&q=${encodeURIComponent(q)}`;
           let r;
           try {
-            r = await fetch(searchUrl);
+            r = await fetchWithTimeout(searchUrl);
           } catch (fe) {
             error = "Network error \u2014 check internet connection";
             throw fe;
@@ -23957,7 +24015,7 @@ var PiEngine = (() => {
             [ids[i], ids[j]] = [ids[j], ids[i]];
           }
           const sample = ids.slice(0, 40);
-          const details = await Promise.all(sample.map((id) => fetch(`${MET_API}/objects/${id}`).then((rr) => rr.ok ? rr.json() : null).catch(() => null)));
+          const details = await Promise.all(sample.map((id) => fetchWithTimeout(`${MET_API}/objects/${id}`).then((rr) => rr.ok ? rr.json() : null).catch(() => null)));
           const found = details.filter((d) => d && d.isPublicDomain && d.primaryImageSmall).map((d) => ({
             id: d.objectID,
             title: d.title || "Untitled",
@@ -24074,6 +24132,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { wcInitWall, wcStepWall, wcDrawToFaceWall, wcTagQA } = require_shared();
+      var { fetchWithTimeout } = require_net();
       var jokeText = "";
       var jokeFetching = false;
       var jokeError = "";
@@ -24093,7 +24152,7 @@ var PiEngine = (() => {
         (async () => {
           let r;
           try {
-            r = await fetch("https://icanhazdadjoke.com/", { headers: { Accept: "application/json" } });
+            r = await fetchWithTimeout("https://icanhazdadjoke.com/", { headers: { Accept: "application/json" } });
           } catch (fe) {
             jokeError = "Network error \u2014 check internet connection";
             throw fe;
@@ -24154,6 +24213,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { wcInitWall, wcStepWall, wcDrawToFaceWall, wcTagQA, wcDecodeEntities } = require_shared();
+      var { fetchWithTimeout } = require_net();
       var triviaText = "";
       var triviaFetching = false;
       var triviaError = "";
@@ -24173,7 +24233,7 @@ var PiEngine = (() => {
         (async () => {
           let r;
           try {
-            r = await fetch("https://opentdb.com/api.php?amount=1&type=multiple");
+            r = await fetchWithTimeout("https://opentdb.com/api.php?amount=1&type=multiple");
           } catch (fe) {
             triviaError = "Network error \u2014 check internet connection";
             throw fe;
@@ -24237,6 +24297,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { wcInitWall, wcStepWall, wcDrawToFaceWall } = require_shared();
       var { drawString, FONT_3x5, wallPlot } = require_text();
+      var { fetchWithTimeout } = require_net();
       var otdEvents = [];
       var otdFetching = false;
       var otdError = "";
@@ -24265,7 +24326,7 @@ var PiEngine = (() => {
           const url = `https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`;
           let r;
           try {
-            r = await fetch(url, { headers: { Accept: "application/json" } });
+            r = await fetchWithTimeout(url, { headers: { Accept: "application/json" } });
           } catch (fe) {
             otdError = "Network error \u2014 check internet connection";
             throw fe;
@@ -25877,6 +25938,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var fs = require_fs();
+      var { atomicWriteJson } = require_atomicWrite();
       var path = require_path();
       var CONFIG_PATH = path.join(".", "..", "panel-config.json");
       var VALID_SIZES = [8, 16, 64];
@@ -25935,7 +25997,7 @@ var PiEngine = (() => {
         }
       }
       function save(config) {
-        fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+        atomicWriteJson(CONFIG_PATH, config);
       }
       module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };
     }
@@ -26025,6 +26087,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var fs = require_fs();
+      var { atomicWriteJson } = require_atomicWrite();
       var path = require_path();
       var CONFIG_PATH = path.join(".", "..", "alarms.json");
       var REPEAT_MODES = ["once", "daily", "weekdays", "weekends", "weekly", "hourly"];
@@ -26050,7 +26113,7 @@ var PiEngine = (() => {
         }
       }
       function save(alarms) {
-        fs.writeFileSync(CONFIG_PATH, JSON.stringify(alarms, null, 2));
+        atomicWriteJson(CONFIG_PATH, alarms);
       }
       module.exports = { load, save, isValidAlarm, REPEAT_MODES, CONFIG_PATH };
     }
@@ -26062,6 +26125,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var fs = require_fs();
+      var { atomicWriteJson } = require_atomicWrite();
       var path = require_path();
       var CONFIG_PATH = path.join(".", "..", "custom-cube-config.json");
       var NUM_FACES = 6;
@@ -26098,7 +26162,7 @@ var PiEngine = (() => {
         }
       }
       function save(config) {
-        fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+        atomicWriteJson(CONFIG_PATH, config);
       }
       module.exports = {
         load,

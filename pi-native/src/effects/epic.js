@@ -31,6 +31,7 @@ const { Jimp } = require('jimp');
 const { drawTicker } = require('./radio/ticker');
 
 const nasaConfig = require('../nasaConfig');
+const { fetchWithTimeout } = require('./net');
 // Live-read (not a frozen constant) so a key entered via the UI takes
 // effect on the next fetch without a restart - see nasaConfig.js's module
 // comment for the real report this fixes.
@@ -86,7 +87,7 @@ async function fetchEq() {
     const dateStr = dt.toISOString().slice(0, 10);
     const url = `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=MODIS_Terra_CorrectedReflectance_TrueColor&FORMAT=image/jpeg&WIDTH=${W}&HEIGHT=${H}&CRS=CRS:84&BBOX=-180,-90,180,90&TIME=${dateStr}`;
     try {
-      const resp = await fetch(url);
+      const resp = await fetchWithTimeout(url);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const buf = Buffer.from(await resp.arrayBuffer());
       const img = await Jimp.read(buf);
@@ -172,7 +173,7 @@ async function fetchEpic() {
         ? `https://api.nasa.gov/EPIC/api/natural/images?api_key=${NASA_API_KEY()}`
         : `https://api.nasa.gov/EPIC/api/natural/date/${dateStr}?api_key=${NASA_API_KEY()}`;
       let r;
-      try { r = await fetch(url); } catch (fe) { throw new Error('Network error — check connection'); }
+      try { r = await fetchWithTimeout(url); } catch (fe) { throw new Error('Network error — check connection'); }
       if (r.status === 429) { epicRetryAfter = 60; throw new Error('Rate limited — set NASA_API_KEY env var'); }
       if (r.status === 503 || r.status === 502 || r.status === 504) { epicRetryAfter = 5; throw new Error('NASA servers down (' + r.status + ') — retrying…'); }
       if (r.ok) {
@@ -201,7 +202,7 @@ async function fetchEpic() {
     // loadImageForPixels callback structure).
     (async () => {
       try {
-        const resp = await fetch(epicData.url);
+        const resp = await fetchWithTimeout(epicData.url);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const buf = Buffer.from(await resp.arrayBuffer());
         const img = await Jimp.read(buf);

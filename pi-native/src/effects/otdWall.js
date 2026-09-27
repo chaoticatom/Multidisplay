@@ -22,6 +22,7 @@
 
 const { wcInitWall, wcStepWall, wcDrawToFaceWall } = require('./_shared');
 const { drawString, FONT_3x5, wallPlot } = require('./text');
+const { fetchWithTimeout } = require('./net');
 
 let otdEvents = [];
 let otdFetching = false;
@@ -52,7 +53,7 @@ function otdFetch() {
   (async () => {
     const url = `https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`;
     let r;
-    try { r = await fetch(url, { headers: { Accept: 'application/json' } }); }
+    try { r = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } }); }
     catch (fe) { otdError = 'Network error — check internet connection'; throw fe; }
     if (!r.ok) { otdError = 'Wikipedia API error ' + r.status; throw new Error(String(r.status)); }
     const d = await r.json();
