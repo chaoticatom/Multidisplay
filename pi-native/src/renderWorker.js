@@ -60,6 +60,7 @@ const alarms = require('./effects/alarms');
 const { tick } = require('./tick');
 const { loadDriver } = require('./loadDriver');
 const radio = require('./effects/radio');
+const remoteAudio = radio.useRemoteAudio(); // real decode/FFT runs on the main thread - see ffmpegAudio.js's RemoteAudio
 const { browserFrameSource } = require('./effects/video/browserFrameSource');
 
 let config = workerData.config;
@@ -130,7 +131,8 @@ parentPort.on('message', (msg) => {
     return;
   }
   if (msg.type === 'tick') {
-    const { state, dt } = msg;
+    const { state, dt, radioAudio } = msg;
+    remoteAudio.applySnapshot(radioAudio);
     core.speedMult = state.speed;
     tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt);
     // A real report ("nothing on physical/website display when I play
@@ -157,6 +159,7 @@ parentPort.on('message', (msg) => {
       alarms: state.alarms,
       blank: state.blank,
       effectStatus: state.effectStatus,
+      radioAudio: remoteAudio.request(),
     });
   }
 });

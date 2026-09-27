@@ -9,7 +9,7 @@
 const assert = require('assert');
 const { EventEmitter } = require('events');
 const { PassThrough } = require('stream');
-const { RadioAudio } = require('../src/effects/radio/ffmpegAudio');
+const { RadioAudio, RemoteAudio, applyRemoteRequest } = require('../src/effects/radio/ffmpegAudio');
 const { computeBands, fft, BAND_COUNT } = require('../src/effects/radio/fft');
 const { renderSpectrumStyle, createSpectrumState } = require('../src/effects/radio/spectrum');
 const { searchStations } = require('../src/effects/radio/search');
@@ -137,6 +137,34 @@ await test('switching station: the old process exiting late does not disturb the
     audio.close();
     resolve();
   }, 20));
+});
+
+await test('RemoteAudio relays ensure/clear to the real RadioAudio only when the render side asks', () => {
+  const calls = [];
+  const real = { ensure: (u) => calls.push(['ensure', u]), clearDebugFinished: () => calls.push(['clear']) };
+  const remote = new RemoteAudio();
+  let seen = { ensureCount: 0, clearCount: 0 };
+  seen = applyRemoteRequest(real, remote.request(), seen);
+  assert.deepStrictEqual(calls, [], 'nothing requested yet');
+  remote.clearDebugFinished();
+  remote.ensure('http://example.invalid/a');
+  seen = applyRemoteRequest(real, remote.request(), seen);
+  assert.deepStrictEqual(calls, [['clear'], ['ensure', 'http://example.invalid/a']]);
+  seen = applyRemoteRequest(real, remote.request(), seen);
+  assert.strictEqual(calls.length, 2, 'no new ensure() while the radio effect is not ticking - lets the idle timeout fire');
+  remote.ensure(null);
+  applyRemoteRequest(real, remote.request(), seen);
+  assert.deepStrictEqual(calls[2], ['ensure', null]);
+});
+
+await test('RemoteAudio serves the spectrum/status snapshot sent from the main thread', () => {
+  const real = new RadioAudio(makeFakeSpawn(() => ({})));
+  real.spec[5] = 0.7; real.peak[5] = 0.9; real.status = 'Playing';
+  const remote = new RemoteAudio();
+  remote.applySnapshot(structuredClone(real.snapshot()));
+  assert.ok(Math.abs(remote.spec[5] - 0.7) < 1e-6 && Math.abs(remote.peak[5] - 0.9) < 1e-6);
+  assert.strictEqual(remote.getStatus(), 'Playing');
+  real.close();
 });
 
 console.log('fft/computeBands');

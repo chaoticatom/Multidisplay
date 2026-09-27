@@ -429,6 +429,16 @@ class RadioAudio {
   getStatus() { return this.status; }
   getPlaybackStatus() { return this.playbackStatus; }
 
+  // Clears the "one-shot debug tone already finished" latch - called on
+  // every genuine new play request (see radio.js's playStation()).
+  clearDebugFinished() { this._debugFinished = false; }
+
+  // Plain, structured-clone-friendly copy of what the render side reads -
+  // see RemoteAudio below.
+  snapshot() {
+    return { spec: this.spec, peak: this.peak, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs };
+  }
+
   _checkIdle() {
     // A real report: "when on a single freq, the bars sometimes go off
     // and come back again". Root cause: ensure() only actually runs from
@@ -474,4 +484,55 @@ class RadioAudio {
   }
 }
 
-module.exports = { RadioAudio, BAND_COUNT: require('./fft').BAND_COUNT };
+// Stand-in for RadioAudio inside the RENDER_WORKER=1 render thread. A real
+// report: raising TICK_HZ from 30 to 60 made the spectrum bars move
+// visibly SLOWER on real hardware. The decode/FFT/playback pipeline used
+// to live on the render thread itself, and at 60Hz that thread is busy
+// back-to-back with tick() + the blocking panel push - ffmpeg's stdout
+// only got read in the brief gaps between frames, in large late batches,
+// so bar levels advanced in coarse steps. The real RadioAudio now runs on
+// the (mostly idle) main thread instead; this proxy just records what the
+// radio effect ASKS for (ensure()/clearDebugFinished(), sent back with
+// each frame reply via request()) and serves the spectrum/status the main
+// thread sends with each tick (applySnapshot()). ensureCount only
+// advances while the radio effect is actually ticking, so the main
+// thread's RadioAudio idle-timeout still fires exactly as before when
+// nothing is asking for audio any more.
+class RemoteAudio {
+  constructor() {
+    this.spec = new Float32Array(BAND_COUNT);
+    this.peak = new Float32Array(BAND_COUNT);
+    this.status = 'Stopped';
+    this.playbackStatus = 'No playback attempted';
+    this.lastAttemptMs = 0;
+    this.url = null;
+    this.ensureCount = 0;
+    this.clearCount = 0;
+  }
+  ensure(url) { this.url = url || null; this.ensureCount++; }
+  clearDebugFinished() { this.clearCount++; }
+  getStatus() { return this.status; }
+  getPlaybackStatus() { return this.playbackStatus; }
+  applySnapshot(snap) {
+    if (!snap) return;
+    if (snap.spec && snap.spec.length === BAND_COUNT) this.spec.set(snap.spec);
+    if (snap.peak && snap.peak.length === BAND_COUNT) this.peak.set(snap.peak);
+    this.status = snap.status;
+    this.playbackStatus = snap.playbackStatus;
+    this.lastAttemptMs = snap.lastAttemptMs;
+  }
+  request() { return { url: this.url, ensureCount: this.ensureCount, clearCount: this.clearCount }; }
+  close() {}
+}
+
+// Main-thread side of RemoteAudio: applies one frame reply's request() to
+// the real RadioAudio. Returns the new {ensureCount, clearCount} seen, to
+// pass back in as `seen` next time.
+function applyRemoteRequest(audio, req, seen) {
+  if (!req) return seen;
+  if (req.clearCount !== seen.clearCount) audio.clearDebugFinished();
+  if (req.ensureCount !== seen.ensureCount) audio.ensure(req.url);
+  return { ensureCount: req.ensureCount, clearCount: req.clearCount };
+}
+
+module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, BAND_COUNT: require('./fft').BAND_COUNT };

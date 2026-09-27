@@ -17,7 +17,7 @@
 // core.panelMode==='2d', matching the original's is2D check).
 'use strict';
 
-const { RadioAudio, BAND_COUNT } = require('./ffmpegAudio');
+const { RadioAudio, RemoteAudio, BAND_COUNT } = require('./ffmpegAudio');
 const { renderSpectrumStyle, createSpectrumState } = require('./spectrum');
 const { drawTicker } = require('./ticker');
 const { CHAR_W } = require('./font');
@@ -75,7 +75,7 @@ const DEBUG_TONES = {
 // throws "Undefined constant or missing '(' in ''" - both expressions
 // above use it correctly.)
 
-const audio = new RadioAudio();
+let audio = new RadioAudio(); // swapped for a RemoteAudio by useRemoteAudio() in the render worker
 const spectrumState = createSpectrumState();
 
 let playing = false;
@@ -111,7 +111,7 @@ function playStation(station) {
   // real station selection is unaffected - the flag only ever gets set
   // for a one-shot debug tone in the first place) - see that file's
   // ensure()/_debugFinished for the other half of this.
-  audio._debugFinished = false;
+  audio.clearDebugFinished();
 }
 
 // kind: 'sweep' | 'drum' | 'tone' - see DEBUG_TONES above. 'tone' is a
@@ -403,5 +403,15 @@ module.exports.setVolume = setVolume;
 module.exports.search = search;
 module.exports.RADIO_STATIONS = RADIO_STATIONS;
 module.exports.audio = audio;
+// RENDER_WORKER=1 only: called once by renderWorker.js so this thread's
+// radio renders from spectrum data the main thread's real RadioAudio sends
+// over, instead of decoding on the render thread (see RemoteAudio's
+// comment in ./ffmpegAudio.js).
+module.exports.useRemoteAudio = () => {
+  audio.close();
+  audio = new RemoteAudio();
+  module.exports.audio = audio;
+  return audio;
+};
 module.exports.getPlaybackState = getPlaybackState;
 module.exports.sample = sample;

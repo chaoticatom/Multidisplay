@@ -11443,6 +11443,16 @@ var PiEngine = (() => {
         getPlaybackStatus() {
           return this.playbackStatus;
         }
+        // Clears the "one-shot debug tone already finished" latch - called on
+        // every genuine new play request (see radio.js's playStation()).
+        clearDebugFinished() {
+          this._debugFinished = false;
+        }
+        // Plain, structured-clone-friendly copy of what the render side reads -
+        // see RemoteAudio below.
+        snapshot() {
+          return { spec: this.spec, peak: this.peak, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs };
+        }
         _checkIdle() {
           if (this.decodeProc && !this._isDebugSource && Date.now() - this.lastEnsureMs > IDLE_TIMEOUT_MS) {
             this._teardown();
@@ -11481,7 +11491,51 @@ var PiEngine = (() => {
           this._teardown();
         }
       };
-      module.exports = { RadioAudio, BAND_COUNT: require_fft().BAND_COUNT };
+      var RemoteAudio = class {
+        constructor() {
+          this.spec = new Float32Array(BAND_COUNT);
+          this.peak = new Float32Array(BAND_COUNT);
+          this.status = "Stopped";
+          this.playbackStatus = "No playback attempted";
+          this.lastAttemptMs = 0;
+          this.url = null;
+          this.ensureCount = 0;
+          this.clearCount = 0;
+        }
+        ensure(url) {
+          this.url = url || null;
+          this.ensureCount++;
+        }
+        clearDebugFinished() {
+          this.clearCount++;
+        }
+        getStatus() {
+          return this.status;
+        }
+        getPlaybackStatus() {
+          return this.playbackStatus;
+        }
+        applySnapshot(snap) {
+          if (!snap) return;
+          if (snap.spec && snap.spec.length === BAND_COUNT) this.spec.set(snap.spec);
+          if (snap.peak && snap.peak.length === BAND_COUNT) this.peak.set(snap.peak);
+          this.status = snap.status;
+          this.playbackStatus = snap.playbackStatus;
+          this.lastAttemptMs = snap.lastAttemptMs;
+        }
+        request() {
+          return { url: this.url, ensureCount: this.ensureCount, clearCount: this.clearCount };
+        }
+        close() {
+        }
+      };
+      function applyRemoteRequest(audio, req, seen) {
+        if (!req) return seen;
+        if (req.clearCount !== seen.clearCount) audio.clearDebugFinished();
+        if (req.ensureCount !== seen.ensureCount) audio.ensure(req.url);
+        return { ensureCount: req.ensureCount, clearCount: req.clearCount };
+      }
+      module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, BAND_COUNT: require_fft().BAND_COUNT };
     }
   });
 
@@ -12220,7 +12274,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { RadioAudio, BAND_COUNT } = require_ffmpegAudio();
+      var { RadioAudio, RemoteAudio, BAND_COUNT } = require_ffmpegAudio();
       var { renderSpectrumStyle, createSpectrumState } = require_spectrum();
       var { drawTicker } = require_ticker();
       var { CHAR_W } = require_font2();
@@ -12261,7 +12315,7 @@ var PiEngine = (() => {
         if (!station || !station.url) return;
         currentStation = { name: station.name || "Unknown", genre: station.genre || "", url: station.url };
         playing = true;
-        audio._debugFinished = false;
+        audio.clearDebugFinished();
       }
       function playDebugTone(kind, freq) {
         if (kind === "tone") {
@@ -12409,6 +12463,12 @@ var PiEngine = (() => {
       module.exports.search = search;
       module.exports.RADIO_STATIONS = RADIO_STATIONS;
       module.exports.audio = audio;
+      module.exports.useRemoteAudio = () => {
+        audio.close();
+        audio = new RemoteAudio();
+        module.exports.audio = audio;
+        return audio;
+      };
       module.exports.getPlaybackState = getPlaybackState;
       module.exports.sample = sample;
     }

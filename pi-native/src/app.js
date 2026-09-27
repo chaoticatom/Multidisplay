@@ -9,6 +9,8 @@ const { CubeCore } = require('./core');
 const { EFFECTS, WALL_EFFECTS } = require('./effects');
 const { OV_DEFAULTS, runOverlays } = require('./effects/overlays');
 const alarms = require('./effects/alarms');
+const radio = require('./effects/radio');
+const { applyRemoteRequest } = require('./effects/radio/ffmpegAudio');
 const { tick } = require('./tick');
 const WsServer = require('./wsServer');
 const panelConfig = require('./panelConfig');
@@ -23,13 +25,16 @@ const nasaConfig = require('./nasaConfig');
 const { Worker } = require('worker_threads');
 const path = require('path');
 
-// Raised to 60 per "increase the fps of the bars", reasoning the
-// RENDER_WORKER ping-pong loop below would self-throttle to whatever the
-// hardware can sustain with no downside either way - a real report
-// ("bar movement has slowed down now") contradicted that on actual
-// hardware, so reverted back to 30 rather than chase a theory the device
-// itself disagrees with.
-const TICK_HZ = 30; // effect-compute + panel-push rate; independent of the driver's own PWM refresh
+// 60 per "increase the fps of the bars". A first attempt at 60 made bar
+// movement SLOWER on real hardware ("bar movement has slowed down now"):
+// the radio decode/FFT shared the render worker's thread, and a render
+// loop running back-to-back starved it. That pipeline now runs on the
+// main thread (see ffmpegAudio.js's RemoteAudio), so 60 is back. If bars
+// ever regress again, drop this to 30 first to rule the rate out.
+const TICK_HZ = 60;
+// Without RENDER_WORKER=1 the radio decode still shares the render loop's
+// only thread - exactly the starvation above - so that path stays at 30.
+const SINGLE_THREAD_TICK_HZ = 30; // effect-compute + panel-push rate; independent of the driver's own PWM refresh
 const WS_PORT = 8081;
 
 // Solid amber fill, distinct from any real effect's likely palette - a
@@ -238,7 +243,9 @@ async function main() {
       // thread boundary - strip onAlarmsChanged (main-thread-only, calls
       // back into `ws`) before sending.
       const { onAlarmsChanged, ...serializableState } = state;
-      renderWorker.postMessage({ type: 'tick', state: serializableState, dt });
+      // The real radio decode/FFT runs HERE, not in the worker (see
+      // ffmpegAudio.js's RemoteAudio) - ship its latest spectrum along.
+      renderWorker.postMessage({ type: 'tick', state: serializableState, dt, radioAudio: radio.audio.snapshot() });
     };
     // A real report ("station name never updates in the UI after picking
     // one") - set by the worker's 'stateChanged' message (see
@@ -251,6 +258,7 @@ async function main() {
     // for the following frame guarantees the broadcast reflects the
     // command's actual outcome, not a stale pre-command snapshot.
     let pendingBroadcast = false;
+    let radioSeen = { ensureCount: 0, clearCount: 0 };
     renderWorker.on('message', (msg) => {
       if (msg.type === 'stateChanged') { pendingBroadcast = true; return; }
       if (msg.type !== 'frame') return;
@@ -265,6 +273,7 @@ async function main() {
       state.alarms = msg.alarms;
       state.blank = msg.blank;
       state.effectStatus = msg.effectStatus;
+      radioSeen = applyRemoteRequest(radio.audio, msg.radioAudio, radioSeen);
       ws.maybeStreamFrame(core, state.brightness);
       if (pendingBroadcast) { pendingBroadcast = false; ws._broadcast(ws._stateMsg()); }
       setTimeout(sendTick, Math.max(0, 1000 / TICK_HZ - (Date.now() - lastMs)));
@@ -308,7 +317,7 @@ async function main() {
       // have shown up yet - not worth relying on that staying true).
       driver.renderFrame(core, state.brightness);
       ws.maybeStreamFrame(core, state.brightness);
-    }, 1000 / TICK_HZ);
+    }, 1000 / SINGLE_THREAD_TICK_HZ);
   }
 
   process.on('SIGINT', () => {
