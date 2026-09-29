@@ -13,7 +13,7 @@ test('every handler is a function taking (ws, msg)', () => {
   assert.ok(Object.keys(COMMANDS).length >= 40);
 });
 test('prototype names and unknown commands are ignored, not dispatched', () => {
-  const fake = { state: {}, stateVersion: 0 };
+  const fake = { state: {}, stateVersion: 0, _clients: new Set([null]) }; // an authenticated (null) socket
   for (const cmd of ['__proto__', 'constructor', 'toString', 'noSuchCommand']) {
     assert.doesNotThrow(() => WsServer.prototype._handleMessage.call(fake, null, Buffer.from(JSON.stringify({ cmd })), false));
   }
