@@ -152,6 +152,7 @@ parentPort.on('message', (msg) => {
     const { dt, radioAudio } = msg;
     remoteAudio.applySnapshot(radioAudio);
     core.speedMult = state.speed;
+    const frameStart = performance.now();
     tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt);
     // A real report ("nothing on physical/website display when I play
     // internet radio") led here - radio keeps playing/searching regardless
@@ -165,6 +166,7 @@ parentPort.on('message', (msg) => {
     if (!state.effectStatus) state.effectStatus = {};
     state.effectStatus.radio = radio.getStatus();
     driver.renderFrame(core, state.brightness);
+    const renderMs = performance.now() - frameStart; // tick + panel push, for Diagnostics
     // Frames go back through SharedArrayBuffers instead of a fresh
     // .slice() copy per frame (which also had to be structured-cloned):
     // no per-frame allocation or garbage. A shared buffer is (re)created
@@ -177,6 +179,7 @@ parentPort.on('message', (msg) => {
       type: 'frame',
       colShared: col.fresh ? col.view : undefined,
       wallShared: wall && wall.fresh ? wall.view : undefined,
+      renderMs,
       colLen: core.colBuf.length,
       wallLen: core.wallBuf ? core.wallBuf.length : 0,
       activeAlarm: state.activeAlarm,

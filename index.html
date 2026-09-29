@@ -564,6 +564,12 @@ input[type=range]:focus-visible { outline: 2px solid #7aadff; outline-offset: 3p
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
 /* Visual review fixes. */
+.diag-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 6px 0; }
+.diag-table td { padding: 3px 4px; border-bottom: 1px solid rgba(80,120,255,0.12); color: #cdd6ee; }
+.diag-table td:first-child { color: #9aa3b8; width: 45%; }
+.diag-table td.warn { color: #fc6; }
+.diag-log { font: 11px/1.45 monospace; color: #cdd6ee; max-height: 180px; overflow: auto; white-space: pre-wrap; background: rgba(0,0,0,0.25); padding: 6px; border-radius: 4px; }
+.diag-log .error { color: #f88; } .diag-log .warn { color: #fc6; }
 body[data-mode="2d"] .cube-only, body[data-mode="wall"] .cube-only { display: none !important; }
 /* Sliders outside .slider-row (radio volume/tone, camera FPS, video...)
    fell back to the browser's default blue control - give them the app's look. */
@@ -1779,6 +1785,16 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
           </div>
           <button id="reset-view-btn" class="util-btn cube-only">⟲ Reset View</button>
           <button id="fullscreen-btn" class="util-btn">⛶ Fullscreen</button>
+    </div>
+  </div>
+  <div class="sidebar-section collapsed">
+    <button class="section-head">◈ Diagnostics <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div class="ui-note">Live status from the Pi, updated every second. Use Copy to paste it into a bug report.</div>
+      <table id="diag-table" class="diag-table" aria-live="off"><tbody><tr><td>Waiting for the Pi…</td></tr></tbody></table>
+      <div class="ui-label-accent" style="margin-top:10px;">Recent warnings &amp; errors</div>
+      <div id="diag-log" class="diag-log">None</div>
+      <button id="diag-copy-btn" class="ui-btn-primary" style="margin-top:8px;">Copy report</button>
     </div>
   </div>
   <div class="sidebar-section collapsed">

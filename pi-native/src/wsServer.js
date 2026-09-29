@@ -766,6 +766,13 @@ class WsServer {
     }
   }
 
+  // Sends to every authenticated client WITHOUT counting as a state change
+  // (unlike _broadcast) - for periodic data like diagnostics.
+  sendAll(obj) {
+    const s = JSON.stringify(obj);
+    for (const client of this._clients) if (client.readyState === WebSocket.OPEN) client.send(s);
+  }
+
   get hasClients() {
     return this._clients.size > 0;
   }

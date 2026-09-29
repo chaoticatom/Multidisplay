@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.158';
+const APP_VERSION = '0.6.159';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -194,6 +194,7 @@ function answerAuth(failed) {
 }
 
 function handleTextMessage(msg) {
+  if (msg.cmd === 'diag') { renderDiag(msg); return; }
   if (msg.cmd === 'authRequired') { answerAuth(false); return; }
   if (msg.cmd === 'authFailed') { rememberPin(''); answerAuth(true); return; }
   if (msg.cmd === 'authOk') return;
@@ -363,6 +364,42 @@ function labelUnlabelledControls() {
       if (p.classList.contains('effect-panel')) break;
     }
     if (text) el.setAttribute('aria-label', text.replace(/\s+/g, ' ').slice(0, 60));
+  });
+}
+
+// Diagnostics section (see src/diagnostics.js on the Pi).
+let _lastDiag = null;
+function renderDiag(d) {
+  _lastDiag = d;
+  const tb = document.querySelector('#diag-table tbody');
+  if (!tb || tb.closest('.sidebar-section')?.classList.contains('collapsed')) return; // don't touch the DOM while hidden
+  const fmtUp = (s) => `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m ${s % 60}s`;
+  const rows = [
+    ['Version', d.version], ['Mode', d.mode], ['Render thread', d.renderThread],
+    ['Frame rate', `${d.fps} fps`, d.fps < 25], ['Render time', d.renderMsAvg == null ? '-' : `${d.renderMsAvg} ms avg, ${d.renderMsMax} ms max`, d.renderMsMax > 30],
+    ['CPU (all threads)', `${d.cpuPct}%`, d.cpuPct > 150], ['Load (1 min)', d.load1], ['Memory', `${d.rssMB} MB (heap ${d.heapMB} MB)`],
+    ['Temperature', d.tempC == null ? 'n/a' : `${d.tempC.toFixed(1)} °C`, d.tempC > 75], ['Uptime', fmtUp(d.uptimeS)],
+    ['Radio', d.radio], ['Radio output', d.radioPlayback],
+  ];
+  tb.replaceChildren(...rows.map(([k, v, warn]) => {
+    const tr = document.createElement('tr');
+    const a = document.createElement('td'); a.textContent = k;
+    const b = document.createElement('td'); b.textContent = v == null ? '-' : String(v); if (warn) b.className = 'warn';
+    tr.append(a, b); return tr;
+  }));
+  const log = document.getElementById('diag-log');
+  if (log) {
+    if (!d.log.length) log.textContent = 'None';
+    else log.replaceChildren(...d.log.slice().reverse().map((e) => { const div = document.createElement('div'); div.className = e.level; div.textContent = `${e.t} ${e.msg}`; return div; }));
+  }
+}
+function wireDiagnostics() {
+  document.getElementById('diag-copy-btn')?.addEventListener('click', async () => {
+    if (!_lastDiag) return;
+    const text = JSON.stringify({ ...(_lastDiag), page: APP_VERSION, userAgent: navigator.userAgent }, null, 2);
+    try { await navigator.clipboard.writeText(text); document.getElementById('diag-copy-btn').textContent = 'Copied ✓'; }
+    catch (e) { window.prompt('Copy this report:', text); }
+    setTimeout(() => { const b = document.getElementById('diag-copy-btn'); if (b) b.textContent = 'Copy report'; }, 1500);
   });
 }
 
@@ -4246,6 +4283,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadEffectNames();
   wireEffectFilter();
   wirePinControls();
+  wireDiagnostics();
   labelUnlabelledControls();
   connect();
   try {

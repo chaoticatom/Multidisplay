@@ -10,6 +10,7 @@ const { EFFECTS, WALL_EFFECTS } = require('./effects');
 const { OV_DEFAULTS, runOverlays } = require('./effects/overlays');
 const alarms = require('./effects/alarms');
 const radio = require('./effects/radio');
+const { createDiagnostics } = require('./diagnostics');
 const { applyRemoteRequest } = require('./effects/radio/ffmpegAudio');
 const { tick } = require('./tick');
 const WsServer = require('./wsServer');
@@ -73,6 +74,7 @@ function renderBootScreen(core, driver) {
 const { loadDriver } = require('./loadDriver');
 
 async function main() {
+  const diag = createDiagnostics(); // first, so it captures startup warnings too
   const config = panelConfig.load();
   const panelCount = config.mode === 'wall' ? config.panels.length : (config.mode === '2d' ? 1 : 6);
   console.log(`[app] panel config: size=${config.size} mode=${config.mode} (${panelCount} panel(s))`);
@@ -225,6 +227,19 @@ async function main() {
   // dt doesn't jitter by whole milliseconds (visible as judder in slow
   // scrollers at 60Hz) or jump when the system clock is adjusted (NTP sync
   // shortly after boot is routine on a Pi with no RTC).
+  // Diagnostics section of the control page - see ./diagnostics.js.
+  const pkgVersion = require('../package.json').version;
+  setInterval(() => {
+    if (!ws.hasClients) { diag.snapshot(); return; }
+    ws.sendAll({ cmd: 'diag', ...diag.snapshot({
+      version: pkgVersion,
+      renderThread: useRenderWorker ? 'worker' : 'main',
+      mode: `${config.mode} ${config.size}px`,
+      radio: radio.audio.getStatus(),
+      radioPlayback: radio.audio.getPlaybackStatus(),
+    }) });
+  }, 1000).unref();
+
   let lastMs = performance.now();
 
   if (useRenderWorker) {
@@ -296,6 +311,7 @@ async function main() {
       state.alarms = msg.alarms;
       state.blank = msg.blank;
       state.effectStatus = msg.effectStatus;
+      diag.recordFrame(msg.renderMs);
       radioSeen = applyRemoteRequest(radio.audio, msg.radioAudio, radioSeen);
       ws.maybeStreamFrame(core, state.brightness);
       if (pendingBroadcast) { pendingBroadcast = false; ws._broadcast(ws._stateMsg()); }
@@ -329,6 +345,7 @@ async function main() {
       // the control page's option panel to display, since it has no other
       // way to see what a Pi-side-only fetch actually did - also computed
       // inside tick().
+      const frameStart = performance.now();
       tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt);
 
       // Brightness is applied at push time, not baked into core.colBuf -
@@ -339,6 +356,7 @@ async function main() {
       // effects ported so far happen to do a full rewrite, so it wouldn't
       // have shown up yet - not worth relying on that staying true).
       driver.renderFrame(core, state.brightness);
+      diag.recordFrame(performance.now() - frameStart);
       ws.maybeStreamFrame(core, state.brightness);
     }, 1000 / SINGLE_THREAD_TICK_HZ);
   }
