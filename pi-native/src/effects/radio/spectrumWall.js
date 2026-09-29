@@ -29,6 +29,7 @@
 const { hsl } = require('../../core');
 const { auColor } = require('./spectrum');
 const { trailFade } = require('../trail');
+const { vuLevels, drawMeter } = require('./vuMeter');
 
 function blendWall(core, x, y, r, g, b) {
   if (x < 0 || x >= core.wallW || y < 0 || y >= core.wallH) return;
@@ -270,17 +271,15 @@ function drawWaveformWall(core, ctx) {
   }
 }
 
+// Stereo VU meter across the wall: left meter on the left half, right on
+// the right (see ./vuMeter.js).
 function drawVUWall(core, ctx) {
-  const W = core.wallW, H = core.wallH, M = H - 1;
-  let lvl = 0;
-  for (let b = 0; b < Math.min(8, ctx.bands); b++) lvl += ctx.amp(b);
-  lvl = Math.min(1, lvl / 4);
-  const rows = Math.round(lvl * M);
-  for (let y = 0; y <= rows; y++) {
-    const fy = y / M;
-    const col = fy < 0.6 ? hsl(0.33, 1, 0.28 + fy * 0.15) : fy < 0.85 ? hsl(0.12, 1, 0.4) : hsl(0.0, 1, 0.42);
-    for (let x = 0; x < W; x++) core.setWallPixel(x, y, col[0], col[1], col[2]);
-  }
+  const W = core.wallW, H = core.wallH;
+  const [l, r, lp, rp] = vuLevels(ctx);
+  const plot = (x, y, cr, cg, cb) => core.setWallPixel(x, y, cr, cg, cb);
+  const gap = Math.max(2, Math.round(W * 0.04)), m0 = Math.round(W * 0.06), m1 = W - 1 - m0, mid = (W - 1) / 2;
+  drawMeter(plot, m0, Math.floor(mid - gap / 2), H, l, lp);
+  drawMeter(plot, Math.ceil(mid + gap / 2), m1, H, r, rp);
 }
 
 function drawTunnelWall(core, ctx) {

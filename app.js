@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.159';
+const APP_VERSION = '0.6.160';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -218,6 +218,7 @@ function handleTextMessage(msg) {
     syncEffectButtons();
     syncPanelButtons();
     syncPinStatus();
+    syncMusicReact();
     syncSliders();
     syncRainPanel();
     syncLightspeedPanel();
@@ -401,6 +402,19 @@ function wireDiagnostics() {
     catch (e) { window.prompt('Copy this report:', text); }
     setTimeout(() => { const b = document.getElementById('diag-copy-btn'); if (b) b.textContent = 'Copy report'; }, 1500);
   });
+}
+
+function wireMusicReact() {
+  const chk = document.getElementById('music-react-chk'), amt = document.getElementById('music-react-amt'), val = document.getElementById('music-react-val');
+  chk?.addEventListener('change', () => send({ cmd: 'setMusicReact', on: chk.checked }));
+  amt?.addEventListener('input', () => { if (val) val.textContent = Math.round(amt.value * 100) + '%'; send({ cmd: 'setMusicReact', amount: Number(amt.value) }); });
+}
+function syncMusicReact() {
+  const m = currentState.musicReact || { on: false, amount: 0.6 };
+  const chk = document.getElementById('music-react-chk'), amt = document.getElementById('music-react-amt'), val = document.getElementById('music-react-val');
+  if (chk && document.activeElement !== chk) chk.checked = !!m.on;
+  if (amt && document.activeElement !== amt) { amt.value = m.amount; if (val) val.textContent = Math.round(m.amount * 100) + '%'; }
+  const row = document.getElementById('music-react-row'); if (row) row.style.opacity = m.on ? '1' : '0.45';
 }
 
 function wirePinControls() {
@@ -4283,6 +4297,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadEffectNames();
   wireEffectFilter();
   wirePinControls();
+  wireMusicReact();
   wireDiagnostics();
   labelUnlabelledControls();
   connect();

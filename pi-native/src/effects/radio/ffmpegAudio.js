@@ -52,6 +52,8 @@ const CHANNELS = 2;
 const BYTES_PER_SAMPLE = 2; // s16le
 // Spectrum analysis clock + ballistics (see _analysisTick()/_applySpectrumTarget()).
 const ANALYSIS_HZ = 60;
+const WINDOW_VU = 2048; // ~46ms
+const VU_DB_FLOOR = -42;
 const RING_SAMPLES = 1 << 16; // ~1.5s of mono audio
 // How far behind the newest decoded audio to analyse. Audio reaches your
 // ears later than ffmpeg decodes it (pipe + PulseAudio + Bluetooth, which
@@ -72,6 +74,13 @@ class RadioAudio {
     this.playProc = null;
     this.url = null;
     this._ring = new Float32Array(RING_SAMPLES);
+    // Separate left/right rings feed the stereo VU levels (this.vu).
+    this._ringL = new Float32Array(RING_SAMPLES);
+    this._ringR = new Float32Array(RING_SAMPLES);
+    // [left, right, leftPeak, rightPeak], 0..1 on a dB scale.
+    this.vu = new Float32Array(4);
+    this._vuHold = new Float32Array(2);
+    this._vuVel = new Float32Array(2);
     this._writePos = 0;
     this._playPos = 0;
     this._carry = null;
@@ -139,7 +148,7 @@ class RadioAudio {
 
   _launch(url) {
     this.lastAttemptMs = Date.now();
-    this._ring.fill(0);
+    this._ring.fill(0); this._ringL.fill(0); this._ringR.fill(0); this.vu.fill(0);
     this._writePos = 0;
     this._playPos = 0;
     this._carry = null;
@@ -398,8 +407,11 @@ class RadioAudio {
     const frames = (buf.length / 4) | 0;
     const ring = this._ring, mask = ring.length - 1;
     let w = this._writePos;
+    const ringL = this._ringL, ringR = this._ringR;
     for (let i = 0; i < frames; i++) {
-      ring[w & mask] = (buf.readInt16LE(i * 4) + buf.readInt16LE(i * 4 + 2)) / 65536;
+      const l = buf.readInt16LE(i * 4) / 32768, r = buf.readInt16LE(i * 4 + 2) / 32768;
+      ringL[w & mask] = l; ringR[w & mask] = r;
+      ring[w & mask] = (l + r) / 2;
       w++;
     }
     this._writePos = w;
@@ -454,6 +466,30 @@ class RadioAudio {
     }
     this._lastTarget = target;
     this._applySpectrumTarget(target, dt);
+    this._updateVu(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
+  }
+
+  // Stereo VU: RMS of each channel over the analysis window, on a dB scale
+  // (VU_DB_FLOOR..0dB full-scale sine -> 0..1), with meter ballistics - a
+  // quick rise, slow fall, and peak markers that hold then drop.
+  _updateVu(end, dt) {
+    const win = WINDOW_VU, mask = this._ring.length - 1;
+    for (let ch = 0; ch < 2; ch++) {
+      let target = 0;
+      if (end >= win) {
+        const ring = ch === 0 ? this._ringL : this._ringR;
+        let sum = 0;
+        for (let i = end - win; i < end; i++) { const v = ring[i & mask]; sum += v * v; }
+        const rms = Math.sqrt(sum / win);
+        const db = rms > 1e-6 ? 20 * Math.log10(rms * Math.SQRT2) : -Infinity;
+        target = Math.max(0, Math.min(1, (db - VU_DB_FLOOR) / -VU_DB_FLOOR));
+      }
+      const cur = this.vu[ch];
+      this.vu[ch] = cur + (target - cur) * Math.min(1, dt * (target > cur ? 30 : 3.5));
+      if (this.vu[ch] >= this.vu[ch + 2]) { this.vu[ch + 2] = this.vu[ch]; this._vuHold[ch] = 0.8; this._vuVel[ch] = 0; }
+      else if (this._vuHold[ch] > 0) this._vuHold[ch] -= dt;
+      else { this._vuVel[ch] += dt * 1.5; this.vu[ch + 2] = Math.max(this.vu[ch], this.vu[ch + 2] - this._vuVel[ch] * dt); }
+    }
   }
 
   // Ballistics: near-instant attack so hits land on the beat, a smooth
@@ -488,7 +524,7 @@ class RadioAudio {
   // Plain, structured-clone-friendly copy of what the render side reads -
   // see RemoteAudio below.
   snapshot() {
-    return { spec: this.spec, peak: this.peak, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs };
+    return { spec: this.spec, peak: this.peak, vu: this.vu, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs };
   }
 
   _checkIdle() {
@@ -529,6 +565,7 @@ class RadioAudio {
     this._stopAnalysisClock();
     this.spec.fill(0);
     this.peak.fill(0);
+    this.vu.fill(0);
   }
 
   close() {
@@ -555,6 +592,7 @@ class RemoteAudio {
   constructor() {
     this.spec = new Float32Array(BAND_COUNT);
     this.peak = new Float32Array(BAND_COUNT);
+    this.vu = new Float32Array(4);
     this.status = 'Stopped';
     this.playbackStatus = 'No playback attempted';
     this.lastAttemptMs = 0;
@@ -571,6 +609,7 @@ class RemoteAudio {
     if (!snap) return;
     if (snap.spec && snap.spec.length === BAND_COUNT) this.spec.set(snap.spec);
     if (snap.peak && snap.peak.length === BAND_COUNT) this.peak.set(snap.peak);
+    if (snap.vu && snap.vu.length === 4) this.vu.set(snap.vu);
     this.status = snap.status;
     this.playbackStatus = snap.playbackStatus;
     this.lastAttemptMs = snap.lastAttemptMs;

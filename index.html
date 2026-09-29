@@ -1771,6 +1771,12 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
           <label class="check-row cube-only"><input type="checkbox" id="auto-rotate-chk" checked>AUTO-ROTATE</label>
           <label class="check-row cube-only"><input type="checkbox" id="rotate-y-only">Y-AXIS ONLY</label>
           <label class="check-row cube-only"><input type="checkbox" id="face-labels-chk">FACE LABELS</label>
+          <label class="check-row" title="Every effect speeds up with the bass and pulses with the music while a radio station is playing"><input type="checkbox" id="music-react-chk">REACT TO MUSIC</label>
+          <div class="slider-row" id="music-react-row">
+            <span class="slider-label">Amount</span>
+            <input type="range" id="music-react-amt" min="0" max="1" step="0.05" value="0.6" aria-label="React to music amount">
+            <span class="slider-val" id="music-react-val">60%</span>
+          </div>
           <label class="check-row"><input type="checkbox" id="gyro-chk">GYROSCOPE GRAVITY</label>
           <div id="gyro-status" style="font-size:12px;color:#9aa3b8;margin:-4px 0 8px;">Tilt device to steer sand/balls</div>
           <div class="slider-row cube-only">

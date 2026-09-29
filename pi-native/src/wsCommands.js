@@ -24,6 +24,14 @@ const COMMANDS = {
   // Sets (or, with an empty pin, clears) the control PIN. Only reachable by
   // an already-authenticated client. Everyone else connected stays
   // connected; new connections will need the PIN.
+  // "React to music" (see effects/audioFeatures.js): {on?, amount? 0..1}.
+  setMusicReact(ws, msg) {
+    const cur = this.state.musicReact || { on: false, amount: 0.6 };
+    const amount = Number.isFinite(Number(msg.amount)) ? Math.max(0, Math.min(1, Number(msg.amount))) : cur.amount;
+    this.state.musicReact = { on: msg.on === undefined ? cur.on : !!msg.on, amount };
+    this._broadcast(this._stateMsg());
+  },
+
   setControlPin(ws, msg) {
     try {
       this.pinCfg = pinConfig.setPin(msg.pin || '');

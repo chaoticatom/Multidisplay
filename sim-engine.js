@@ -11304,6 +11304,8 @@ var PiEngine = (() => {
       var SAMPLE_RATE = 44100;
       var CHANNELS = 2;
       var ANALYSIS_HZ = 60;
+      var WINDOW_VU = 2048;
+      var VU_DB_FLOOR = -42;
       var RING_SAMPLES = 1 << 16;
       var DEFAULT_SYNC_MS = 150;
       var MAX_SYNC_MS = 800;
@@ -11319,6 +11321,11 @@ var PiEngine = (() => {
           this.playProc = null;
           this.url = null;
           this._ring = new Float32Array(RING_SAMPLES);
+          this._ringL = new Float32Array(RING_SAMPLES);
+          this._ringR = new Float32Array(RING_SAMPLES);
+          this.vu = new Float32Array(4);
+          this._vuHold = new Float32Array(2);
+          this._vuVel = new Float32Array(2);
           this._writePos = 0;
           this._playPos = 0;
           this._carry = null;
@@ -11366,6 +11373,9 @@ var PiEngine = (() => {
         _launch(url) {
           this.lastAttemptMs = Date.now();
           this._ring.fill(0);
+          this._ringL.fill(0);
+          this._ringR.fill(0);
+          this.vu.fill(0);
           this._writePos = 0;
           this._playPos = 0;
           this._carry = null;
@@ -11545,8 +11555,12 @@ var PiEngine = (() => {
           const frames = buf.length / 4 | 0;
           const ring = this._ring, mask = ring.length - 1;
           let w = this._writePos;
+          const ringL = this._ringL, ringR = this._ringR;
           for (let i = 0; i < frames; i++) {
-            ring[w & mask] = (buf.readInt16LE(i * 4) + buf.readInt16LE(i * 4 + 2)) / 65536;
+            const l = buf.readInt16LE(i * 4) / 32768, r = buf.readInt16LE(i * 4 + 2) / 32768;
+            ringL[w & mask] = l;
+            ringR[w & mask] = r;
+            ring[w & mask] = (l + r) / 2;
             w++;
           }
           this._writePos = w;
@@ -11598,6 +11612,38 @@ var PiEngine = (() => {
           }
           this._lastTarget = target;
           this._applySpectrumTarget(target, dt);
+          this._updateVu(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
+        }
+        // Stereo VU: RMS of each channel over the analysis window, on a dB scale
+        // (VU_DB_FLOOR..0dB full-scale sine -> 0..1), with meter ballistics - a
+        // quick rise, slow fall, and peak markers that hold then drop.
+        _updateVu(end, dt) {
+          const win = WINDOW_VU, mask = this._ring.length - 1;
+          for (let ch = 0; ch < 2; ch++) {
+            let target = 0;
+            if (end >= win) {
+              const ring = ch === 0 ? this._ringL : this._ringR;
+              let sum = 0;
+              for (let i = end - win; i < end; i++) {
+                const v = ring[i & mask];
+                sum += v * v;
+              }
+              const rms = Math.sqrt(sum / win);
+              const db = rms > 1e-6 ? 20 * Math.log10(rms * Math.SQRT2) : -Infinity;
+              target = Math.max(0, Math.min(1, (db - VU_DB_FLOOR) / -VU_DB_FLOOR));
+            }
+            const cur = this.vu[ch];
+            this.vu[ch] = cur + (target - cur) * Math.min(1, dt * (target > cur ? 30 : 3.5));
+            if (this.vu[ch] >= this.vu[ch + 2]) {
+              this.vu[ch + 2] = this.vu[ch];
+              this._vuHold[ch] = 0.8;
+              this._vuVel[ch] = 0;
+            } else if (this._vuHold[ch] > 0) this._vuHold[ch] -= dt;
+            else {
+              this._vuVel[ch] += dt * 1.5;
+              this.vu[ch + 2] = Math.max(this.vu[ch], this.vu[ch + 2] - this._vuVel[ch] * dt);
+            }
+          }
         }
         // Ballistics: near-instant attack so hits land on the beat, a smooth
         // exponential release, and peak markers that hold briefly then fall
@@ -11639,7 +11685,7 @@ var PiEngine = (() => {
         // Plain, structured-clone-friendly copy of what the render side reads -
         // see RemoteAudio below.
         snapshot() {
-          return { spec: this.spec, peak: this.peak, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs };
+          return { spec: this.spec, peak: this.peak, vu: this.vu, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs };
         }
         _checkIdle() {
           if (this.decodeProc && !this._isDebugSource && Date.now() - this.lastEnsureMs > IDLE_TIMEOUT_MS) {
@@ -11674,6 +11720,7 @@ var PiEngine = (() => {
           this._stopAnalysisClock();
           this.spec.fill(0);
           this.peak.fill(0);
+          this.vu.fill(0);
         }
         close() {
           clearInterval(this._idleTimer);
@@ -11684,6 +11731,7 @@ var PiEngine = (() => {
         constructor() {
           this.spec = new Float32Array(BAND_COUNT);
           this.peak = new Float32Array(BAND_COUNT);
+          this.vu = new Float32Array(4);
           this.status = "Stopped";
           this.playbackStatus = "No playback attempted";
           this.lastAttemptMs = 0;
@@ -11711,6 +11759,7 @@ var PiEngine = (() => {
           if (!snap) return;
           if (snap.spec && snap.spec.length === BAND_COUNT) this.spec.set(snap.spec);
           if (snap.peak && snap.peak.length === BAND_COUNT) this.peak.set(snap.peak);
+          if (snap.vu && snap.vu.length === 4) this.vu.set(snap.vu);
           this.status = snap.status;
           this.playbackStatus = snap.playbackStatus;
           this.lastAttemptMs = snap.lastAttemptMs;
@@ -11732,6 +11781,41 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/radio/vuMeter.js
+  var require_vuMeter = __commonJS({
+    "src/effects/radio/vuMeter.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      function vuLevels(ctx) {
+        if (ctx.vu && ctx.vu.length === 4) return ctx.vu;
+        let lvl = 0;
+        for (let b = 0; b < Math.min(8, ctx.bands); b++) lvl += ctx.amp(b);
+        lvl = Math.min(1, lvl / 4);
+        return [lvl, lvl, lvl, lvl];
+      }
+      function segColour(frac) {
+        return frac < 0.6 ? hsl(0.33, 1, 0.42) : frac < 0.85 ? hsl(0.13, 1, 0.45) : hsl(0, 1, 0.45);
+      }
+      function drawMeter(plot, x0, x1, H, level, peak) {
+        const seg = H >= 32 ? 4 : H >= 16 ? 3 : 2;
+        const nSeg = Math.floor(H / seg);
+        const lit = Math.round(level * nSeg), pk = Math.min(nSeg - 1, Math.round(peak * nSeg) - 1);
+        for (let s = 0; s < nSeg; s++) {
+          const frac = (s + 0.5) / nSeg;
+          const c = segColour(frac);
+          const k = s < lit ? 1 : s === pk && peak > 0.02 ? 0.9 : 0.07;
+          for (let dy = 0; dy < seg - 1; dy++) {
+            const y = s * seg + dy;
+            for (let x = x0; x <= x1; x++) plot(x, y, c[0] * k, c[1] * k, c[2] * k);
+          }
+        }
+      }
+      module.exports = { vuLevels, drawMeter, segColour };
+    }
+  });
+
   // src/effects/radio/spectrum.js
   var require_spectrum = __commonJS({
     "src/effects/radio/spectrum.js"(exports, module) {
@@ -11740,6 +11824,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl } = require_core();
       var { trailFade } = require_trail();
+      var { vuLevels, drawMeter, segColour } = require_vuMeter();
       function auColor(theme, fb, fh, amp, t) {
         switch (theme) {
           case 1:
@@ -12112,27 +12197,24 @@ var PiEngine = (() => {
         drawPolarFace(core, ctx, 5);
       }
       function drawVU(core, ctx) {
-        const S = core.SIZE, M = S - 1;
-        let lvl = 0;
-        for (let b = 0; b < Math.min(8, ctx.bands); b++) lvl += ctx.amp(b);
-        lvl = Math.min(1, lvl / 4);
-        const u0 = Math.round(S * 0.18), u1 = Math.round(S * 0.82);
-        const faces = [0, 2, 1, 3];
-        const rows = Math.round(lvl * M);
+        const S = core.SIZE;
+        const [l, r, lp, rp] = vuLevels(ctx);
+        const faces = core.panelMode === "2d" ? [0] : [0, 2, 1, 3];
+        const gap = Math.max(1, Math.round(S * 0.06)), m0 = Math.round(S * 0.12), m1 = S - 1 - m0, mid = (S - 1) / 2;
         for (const face of faces) {
-          for (let y = 0; y <= rows; y++) {
-            const fy = y / M;
-            const col = fy < 0.6 ? hsl(0.33, 1, 0.28 + fy * 0.15) : fy < 0.85 ? hsl(0.12, 1, 0.4) : hsl(0, 1, 0.42);
-            for (let u = u0; u <= u1; u++) core.setFaceLED(face, u, y, col[0], col[1], col[2]);
-          }
+          const plot = (x, y, cr, cg, cb) => core.setFaceLED(face, x, y, cr, cg, cb);
+          drawMeter(plot, m0, Math.floor(mid - gap / 2), S, l, lp);
+          drawMeter(plot, Math.ceil(mid + gap / 2), m1, S, r, rp);
         }
+        if (core.panelMode === "2d") return;
         const cc = (S - 1) / 2;
         for (let face = 4; face <= 5; face++) {
           for (let v = 0; v < S; v++) {
             for (let u = 0; u < S; u++) {
-              const r = Math.hypot(u - cc, v - cc) / (cc * 1.05);
-              if (r <= lvl) {
-                const col = r < 0.6 ? hsl(0.33, 1, 0.25 + r * 0.2) : r < 0.85 ? hsl(0.12, 1, 0.4) : hsl(0, 1, 0.42);
+              const rr = Math.hypot(u - cc, v - cc) / (cc * 1.05);
+              const lvl = u < cc ? l : r;
+              if (rr <= lvl) {
+                const col = segColour(rr);
                 core.setFaceLED(face, u, v, col[0], col[1], col[2]);
               }
             }
@@ -12637,6 +12719,9 @@ var PiEngine = (() => {
         playing = false;
         audio.ensure(null);
       }
+      function keepAlive() {
+        audio.ensure(playing && currentStation ? currentStation.url : null);
+      }
       function setVolume(v) {
         const n = Number(v);
         if (Number.isFinite(n)) volume = Math.max(0, Math.min(1, n));
@@ -12676,6 +12761,8 @@ var PiEngine = (() => {
             peak: (b) => peakArr[b],
             ampArr,
             peakArr,
+            vu: audio.vu,
+            // vu: stereo [left, right, leftPeak, rightPeak]
             bands,
             theme,
             barMode,
@@ -12741,6 +12828,7 @@ var PiEngine = (() => {
       module.exports.playDebugTone = playDebugTone;
       module.exports.DEBUG_TONES = DEBUG_TONES;
       module.exports.stopStation = stopStation;
+      module.exports.keepAlive = keepAlive;
       module.exports.setVolume = setVolume;
       module.exports.search = search;
       module.exports.RADIO_STATIONS = RADIO_STATIONS;
@@ -24685,6 +24773,7 @@ var PiEngine = (() => {
       var { hsl } = require_core();
       var { auColor } = require_spectrum();
       var { trailFade } = require_trail();
+      var { vuLevels, drawMeter } = require_vuMeter();
       function blendWall(core, x, y, r, g, b) {
         if (x < 0 || x >= core.wallW || y < 0 || y >= core.wallH) return;
         const gx = x / core.wallPanelSize | 0, gy = y / core.wallPanelSize | 0;
@@ -24921,16 +25010,12 @@ var PiEngine = (() => {
         }
       }
       function drawVUWall(core, ctx) {
-        const W = core.wallW, H = core.wallH, M = H - 1;
-        let lvl = 0;
-        for (let b = 0; b < Math.min(8, ctx.bands); b++) lvl += ctx.amp(b);
-        lvl = Math.min(1, lvl / 4);
-        const rows = Math.round(lvl * M);
-        for (let y = 0; y <= rows; y++) {
-          const fy = y / M;
-          const col = fy < 0.6 ? hsl(0.33, 1, 0.28 + fy * 0.15) : fy < 0.85 ? hsl(0.12, 1, 0.4) : hsl(0, 1, 0.42);
-          for (let x = 0; x < W; x++) core.setWallPixel(x, y, col[0], col[1], col[2]);
-        }
+        const W = core.wallW, H = core.wallH;
+        const [l, r, lp, rp] = vuLevels(ctx);
+        const plot = (x, y, cr, cg, cb) => core.setWallPixel(x, y, cr, cg, cb);
+        const gap = Math.max(2, Math.round(W * 0.04)), m0 = Math.round(W * 0.06), m1 = W - 1 - m0, mid = (W - 1) / 2;
+        drawMeter(plot, m0, Math.floor(mid - gap / 2), H, l, lp);
+        drawMeter(plot, Math.ceil(mid + gap / 2), m1, H, r, rp);
       }
       function drawTunnelWall(core, ctx) {
         const W = core.wallW, H = core.wallH;
@@ -25243,6 +25328,8 @@ var PiEngine = (() => {
             peak: (b) => peakArr[b],
             ampArr,
             peakArr,
+            vu: audio.vu,
+            // vu: stereo [left, right, leftPeak, rightPeak]
             bands,
             theme,
             barMode,
@@ -26167,12 +26254,69 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/audioFeatures.js
+  var require_audioFeatures = __commonJS({
+    "src/effects/audioFeatures.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { F_MIN, F_MAX, BAND_COUNT } = require_fft();
+      var bandFor = (hz) => Math.max(0, Math.min(BAND_COUNT - 1, Math.round(BAND_COUNT * Math.log(hz / F_MIN) / Math.log(F_MAX / F_MIN))));
+      var BASS_END = bandFor(150);
+      var MID_END = bandFor(2e3);
+      function mean(arr, a, b) {
+        let s = 0;
+        for (let i = a; i < b; i++) s += arr[i];
+        return b > a ? s / (b - a) : 0;
+      }
+      function createFeatureState() {
+        return { level: 0, bass: 0, mid: 0, treble: 0, beat: 0, active: false, bassSlow: 0, sinceBeat: 1 };
+      }
+      function updateFeatures(st, spec, dt) {
+        if (!spec) spec = null;
+        const bass = spec ? mean(spec, 0, BASS_END) : 0;
+        const mid = spec ? mean(spec, BASS_END, MID_END) : 0;
+        const treble = spec ? mean(spec, MID_END, BAND_COUNT) : 0;
+        st.bass = bass;
+        st.mid = mid;
+        st.treble = treble;
+        st.level = (bass * 1.2 + mid + treble * 0.8) / 3;
+        const wasActive = st.active;
+        st.active = st.level > 0.02;
+        if (st.active && !wasActive) st.bassSlow = bass;
+        st.sinceBeat += dt;
+        if (st.active && bass > 0.25 && bass > st.bassSlow * 1.25 && st.sinceBeat > 0.22) {
+          st.beat = 1;
+          st.sinceBeat = 0;
+        } else {
+          st.beat *= Math.exp(-dt * 7);
+        }
+        st.bassSlow += (bass - st.bassSlow) * Math.min(1, dt * 2.5);
+        return st;
+      }
+      function reactDt(f, dt, amount) {
+        if (!f.active || amount <= 0) return dt;
+        return dt * (1 + amount * (f.bass * 1.2 + f.beat * 0.8));
+      }
+      function pulseBuffer(f, buf, amount) {
+        if (!f.active || amount <= 0 || !buf) return;
+        const k = Math.max(0.2, Math.min(1.6, 1 - 0.45 * amount + amount * (0.45 * Math.min(1, f.level * 1.4) + 0.35 * f.beat)));
+        if (Math.abs(k - 1) < 5e-3) return;
+        for (let i = 0; i < buf.length; i++) buf[i] *= k;
+      }
+      module.exports = { createFeatureState, updateFeatures, reactDt, pulseBuffer, BASS_END, MID_END };
+    }
+  });
+
   // src/tick.js
   var require_tick = __commonJS({
     "src/tick.js"(exports, module) {
       init_define_process_env();
       init_bufferGlobal();
       var { renderIdentify } = require_identify();
+      var radio = require_radio2();
+      var { createFeatureState, updateFeatures, reactDt, pulseBuffer } = require_audioFeatures();
+      var musicFeatures = createFeatureState();
       var CROSSFADE_SECS = 0.4;
       function beginCrossfade(core, effect, buf) {
         if (!buf) return;
@@ -26219,8 +26363,12 @@ var PiEngine = (() => {
           const alarmBlocking = cubeMode && alarms.isBlockingNormalEffect(state);
           const fn = config.mode === "wall" ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
           const buf = cubeMode ? core.colBuf : core.wallBuf;
+          if (state.effect !== "radio" && typeof radio.keepAlive === "function") radio.keepAlive();
+          core.audio = updateFeatures(musicFeatures, radio.audio && radio.audio.spec, dt);
+          const react = state.musicReact && state.musicReact.on && state.effect !== "radio" ? Math.max(0, Math.min(1, Number(state.musicReact.amount) || 0.6)) : 0;
           beginCrossfade(core, state.effect, buf);
-          if (fn && !alarmBlocking) fn(core, dt);
+          if (fn && !alarmBlocking) fn(core, reactDt(core.audio, dt, react));
+          pulseBuffer(core.audio, buf, react);
           applyCrossfade(core, buf, dt);
         } else {
           core.colBuf.fill(0);

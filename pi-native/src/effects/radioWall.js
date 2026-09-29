@@ -99,7 +99,7 @@ function effectRadioWall(core, dt) {
     const ctx = {
       amp: (b) => ampArr[b],
       peak: (b) => peakArr[b],
-      ampArr, peakArr,
+      ampArr, peakArr, vu: audio.vu, // vu: stereo [left, right, leftPeak, rightPeak]
       bands, theme, barMode, scrollX: spectrumWallState.scrollX || 0, t: core.t, dt,
     };
     renderSpectrumStyleWall(core, ctx, style, spectrumWallState);

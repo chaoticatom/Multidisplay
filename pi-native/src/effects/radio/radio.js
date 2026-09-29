@@ -136,6 +136,15 @@ function stopStation() {
   audio.ensure(null);
 }
 
+// Called by tick.js every frame while radio ISN'T the selected effect, so
+// a playing station keeps going in the background. Without this nothing
+// called audio.ensure() once you switched away, and the analyser's 10s
+// idle timeout stopped the stream - "background" radio cut out 10 seconds
+// after changing effect.
+function keepAlive() {
+  audio.ensure(playing && currentStation ? currentStation.url : null);
+}
+
 function setVolume(v) {
   const n = Number(v);
   if (Number.isFinite(n)) volume = Math.max(0, Math.min(1, n));
@@ -200,7 +209,7 @@ function effectRadio(core, dt) {
     const ctx = {
       amp: (b) => ampArr[b],
       peak: (b) => peakArr[b],
-      ampArr, peakArr,
+      ampArr, peakArr, vu: audio.vu, // vu: stereo [left, right, leftPeak, rightPeak]
       bands, theme, barMode, scrollX: spectrumState.scrollX || 0, t: core.t, dt,
     };
     renderSpectrumStyle(core, ctx, style, spectrumState);
@@ -294,6 +303,7 @@ module.exports.playStation = playStation;
 module.exports.playDebugTone = playDebugTone;
 module.exports.DEBUG_TONES = DEBUG_TONES;
 module.exports.stopStation = stopStation;
+module.exports.keepAlive = keepAlive;
 module.exports.setVolume = setVolume;
 module.exports.search = search;
 module.exports.RADIO_STATIONS = RADIO_STATIONS;

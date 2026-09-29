@@ -146,6 +146,7 @@ async function main() {
   // broadcasts directly after each one (see its _persistCustomCube()).
   const state = {
     effect: 'wave', brightness: 1.0, speed: 1.0, overlays: JSON.parse(JSON.stringify(OV_DEFAULTS)),
+    musicReact: { on: false, amount: 0.6 }, // see effects/audioFeatures.js
     alarms: alarmConfig.load(), activeAlarm: null,
     customCube: customCubeConfig.load(),
     // Named wall-mode panel-grid layouts (see wallLayoutConfig.js's module

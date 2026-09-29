@@ -604,6 +604,7 @@ class WsServer {
       effect: this.state.effect, brightness: this.state.brightness, speed: this.state.speed,
       controlPinSet: pinConfig.isPinSet(this.pinCfg),
       blank: !!this.state.blank,
+      musicReact: this.state.musicReact || { on: false, amount: 0.6 },
       panelSize: this.config.size, panelMode: this.config.mode, panels: this.config.panels,
       effectOptions: this.state.effectOptions, effectStatus: this.state.effectStatus,
       overlays: this.state.overlays,

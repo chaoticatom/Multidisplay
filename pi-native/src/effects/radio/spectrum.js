@@ -31,6 +31,7 @@
 
 const { hsl } = require('../../core');
 const { trailFade } = require('../trail');
+const { vuLevels, drawMeter, segColour } = require('./vuMeter');
 
 // Same 7 colour themes as auColor() in effects-core.js.
 function auColor(theme, fb, fh, amp, t) {
@@ -437,28 +438,27 @@ function drawRadial(core, ctx, state) {
 // VU meter: mono (see module comment - no independent stereo channel data
 // in the mono-summed FFT pipeline) - both left/right meters read the same
 // overall bass-weighted level.
+// Stereo VU meter: left and right meters side by side on every side face,
+// and left/right half-discs on the top/bottom faces (see ./vuMeter.js).
 function drawVU(core, ctx) {
-  const S = core.SIZE, M = S - 1;
-  let lvl = 0;
-  for (let b = 0; b < Math.min(8, ctx.bands); b++) lvl += ctx.amp(b);
-  lvl = Math.min(1, lvl / 4);
-  const u0 = Math.round(S * 0.18), u1 = Math.round(S * 0.82);
-  const faces = [0, 2, 1, 3];
-  const rows = Math.round(lvl * M);
+  const S = core.SIZE;
+  const [l, r, lp, rp] = vuLevels(ctx);
+  const faces = core.panelMode === '2d' ? [0] : [0, 2, 1, 3];
+  const gap = Math.max(1, Math.round(S * 0.06)), m0 = Math.round(S * 0.12), m1 = S - 1 - m0, mid = (S - 1) / 2;
   for (const face of faces) {
-    for (let y = 0; y <= rows; y++) {
-      const fy = y / M;
-      const col = fy < 0.6 ? hsl(0.33, 1, 0.28 + fy * 0.15) : fy < 0.85 ? hsl(0.12, 1, 0.4) : hsl(0.0, 1, 0.42);
-      for (let u = u0; u <= u1; u++) core.setFaceLED(face, u, y, col[0], col[1], col[2]);
-    }
+    const plot = (x, y, cr, cg, cb) => core.setFaceLED(face, x, y, cr, cg, cb);
+    drawMeter(plot, m0, Math.floor(mid - gap / 2), S, l, lp);
+    drawMeter(plot, Math.ceil(mid + gap / 2), m1, S, r, rp);
   }
+  if (core.panelMode === '2d') return;
   const cc = (S - 1) / 2;
   for (let face = 4; face <= 5; face++) {
     for (let v = 0; v < S; v++) {
       for (let u = 0; u < S; u++) {
-        const r = Math.hypot(u - cc, v - cc) / (cc * 1.05);
-        if (r <= lvl) {
-          const col = r < 0.6 ? hsl(0.33, 1, 0.25 + r * 0.2) : r < 0.85 ? hsl(0.12, 1, 0.4) : hsl(0, 1, 0.42);
+        const rr = Math.hypot(u - cc, v - cc) / (cc * 1.05);
+        const lvl = u < cc ? l : r;
+        if (rr <= lvl) {
+          const col = segColour(rr);
           core.setFaceLED(face, u, v, col[0], col[1], col[2]);
         }
       }
