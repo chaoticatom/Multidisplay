@@ -16,3 +16,4 @@ tls-cert.pem
 # root simulator's own build.sh output - only these intermediates aren't.
 public/sim-engine.js
 public/effects.json
+security-config.json

@@ -207,6 +207,7 @@ const { spawn } = require('child_process');
 const { browserFrameSource } = require('./effects/video/browserFrameSource');
 const crypto = require('crypto');
 const { COMMANDS } = require('./wsCommands');
+const pinConfig = require('./pinConfig');
 
 const PREVIEW_FPS = 20; // matches the ESP32 firmware's streamFrameToCube() throttle
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -313,6 +314,7 @@ class WsServer {
     // streaming code doesn't need to know or care which transport any
     // given client came in on - see _wireConnection() below.
     this._clients = new Set();
+    this.pinCfg = pinConfig.load();
     this._wireConnection(this.wss);
 
     this.http.listen(port);
@@ -348,8 +350,15 @@ class WsServer {
   _wireConnection(wss) {
     wss.on('connection', (ws) => {
       console.log('[WS] client connected');
-      this._clients.add(ws);
-      ws.send(JSON.stringify(this._stateMsg()));
+      // With a control PIN set, the socket only joins _clients (and so only
+      // receives state/preview and may send commands) after sending it -
+      // see _handleAuth().
+      if (pinConfig.isPinSet(this.pinCfg)) {
+        ws.send(JSON.stringify({ cmd: 'authRequired' }));
+      } else {
+        this._clients.add(ws);
+        ws.send(JSON.stringify(this._stateMsg()));
+      }
       ws.on('message', (data, isBinary) => this._handleMessage(ws, data, isBinary));
       ws.on('close', () => { this._clients.delete(ws); console.log('[WS] client disconnected'); });
       ws.on('error', (err) => console.warn('[WS] client error:', err.message));
@@ -359,6 +368,7 @@ class WsServer {
   _handleHttp(req, res) {
     if (req.method === 'POST' && req.url.startsWith('/api/uploadVideo')) {
       if (!isSameOrigin(req)) { res.writeHead(403, { 'Content-Type': 'text/plain' }).end('Cross-origin upload refused'); return; }
+      if (!pinConfig.verifyPin(this.pinCfg, req.headers['x-control-pin'])) { res.writeHead(401, { 'Content-Type': 'text/plain' }).end('Control PIN required'); return; }
       this._handleUpload(req, res);
       return;
     }
@@ -592,6 +602,7 @@ class WsServer {
     return {
       cmd: 'state',
       effect: this.state.effect, brightness: this.state.brightness, speed: this.state.speed,
+      controlPinSet: pinConfig.isPinSet(this.pinCfg),
       blank: !!this.state.blank,
       panelSize: this.config.size, panelMode: this.config.mode, panels: this.config.panels,
       effectOptions: this.state.effectOptions, effectStatus: this.state.effectStatus,
@@ -672,10 +683,30 @@ class WsServer {
     this._broadcast(this._stateMsg());
   }
 
+  // Unauthenticated socket (a PIN is set): only {cmd:'auth', pin} is
+  // accepted. Five wrong tries close the connection, and each failure is
+  // answered after a short delay, to make guessing slow.
+  _handleAuth(ws, msg) {
+    if (!msg || msg.cmd !== 'auth') { ws.send(JSON.stringify({ cmd: 'authRequired' })); return; }
+    if (pinConfig.verifyPin(this.pinCfg, msg.pin)) {
+      this._clients.add(ws);
+      ws.send(JSON.stringify({ cmd: 'authOk' }));
+      ws.send(JSON.stringify(this._stateMsg()));
+      return;
+    }
+    ws._authFails = (ws._authFails || 0) + 1;
+    setTimeout(() => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ cmd: 'authFailed' }));
+      if (ws._authFails >= 5) ws.close(4003, 'Too many wrong PINs');
+    }, 800);
+  }
+
   _handleMessage(ws, data, isBinary) {
-    if (isBinary) { this._handleBinaryFrame(data); return; }
+    if (isBinary) { if (this._clients.has(ws)) this._handleBinaryFrame(data); return; }
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
+    if (!this._clients.has(ws)) { this._handleAuth(ws, msg); return; }
     // Any command may change state (several - brightness, speed, face
     // effects, alarms - don't broadcast), so every one bumps the version
     // app.js checks before re-sending state to the render worker.

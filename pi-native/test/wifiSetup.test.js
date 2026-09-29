@@ -90,15 +90,32 @@ async function run() {
   await test('rejects a missing ssid', async () => {
     await assert.rejects(() => wifiSetup.connectToNetwork(undefined, 'pw', makeFakeNmcli()));
   });
-  await test('includes the password when given', async () => {
-    const runFn = makeFakeNmcli();
-    await wifiSetup.connectToNetwork('HomeWifi', 'hunter2', runFn);
-    assert.deepStrictEqual(runFn.calls[0], ['nmcli', 'device', 'wifi', 'connect', 'HomeWifi', 'password', 'hunter2']);
+  const fakeFs = () => { const files = {}; return { files, writeFileSync: (p, d, o) => { files[p] = { d, mode: o && o.mode }; }, chmodSync: (p, m) => { files[p].mode = m; } }; };
+  const failingFs = { writeFileSync: () => { throw new Error('EACCES'); }, chmodSync: () => {} };
+
+  await test('writes a 0600 keyfile and never puts the password on a command line', async () => {
+    const runFn = makeFakeNmcli(), fs = fakeFs();
+    await wifiSetup.connectToNetwork('HomeWifi', 'hunter2', runFn, fs);
+    const [path] = Object.keys(fs.files);
+    assert.ok(path.endsWith('multidisplay-wifi.nmconnection'));
+    assert.strictEqual(fs.files[path].mode, 0o600);
+    assert.match(fs.files[path].d, /\nssid=HomeWifi\n/);
+    assert.match(fs.files[path].d, /\npsk=hunter2\n/);
+    for (const call of runFn.calls) assert.ok(!call.includes('hunter2'), 'password leaked into argv: ' + call.join(' '));
+    assert.deepStrictEqual(runFn.calls.at(-1), ['nmcli', 'connection', 'up', 'id', 'multidisplay-wifi']);
   });
-  await test('omits the password for an open network', async () => {
+  await test('an open network gets no security section', async () => {
+    const runFn = makeFakeNmcli(), fs = fakeFs();
+    await wifiSetup.connectToNetwork('OpenWifi', '', runFn, fs);
+    assert.ok(!/wifi-security/.test(Object.values(fs.files)[0].d));
+  });
+  await test('falls back to nmcli device wifi connect if the keyfile route fails', async () => {
     const runFn = makeFakeNmcli();
-    await wifiSetup.connectToNetwork('OpenWifi', '', runFn);
-    assert.deepStrictEqual(runFn.calls[0], ['nmcli', 'device', 'wifi', 'connect', 'OpenWifi']);
+    await wifiSetup.connectToNetwork('HomeWifi', 'hunter2', runFn, failingFs);
+    assert.deepStrictEqual(runFn.calls.at(-1), ['nmcli', 'device', 'wifi', 'connect', 'HomeWifi', 'password', 'hunter2']);
+  });
+  await test('keyfile values escape backslashes and edge spaces', async () => {
+    assert.strictEqual(wifiSetup.keyfileEscape(' a\\b '), '\\sa\\\\b\\s');
   });
 
   console.log('captive portal HTTP server (real Node http server, no hardware needed)');

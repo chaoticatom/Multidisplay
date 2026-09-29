@@ -53,7 +53,12 @@ const BYTES_PER_SAMPLE = 2; // s16le
 // Spectrum analysis clock + ballistics (see _analysisTick()/_applySpectrumTarget()).
 const ANALYSIS_HZ = 60;
 const RING_SAMPLES = 1 << 16; // ~1.5s of mono audio
-const PLAY_LAG_S = 0.12; // analyse this far behind the newest decoded audio
+// How far behind the newest decoded audio to analyse. Audio reaches your
+// ears later than ffmpeg decodes it (pipe + PulseAudio + Bluetooth, which
+// varies a lot by speaker), so this is adjustable from the radio panel's
+// "Speaker sync" slider (setSyncMs()) to line the bars up with the sound.
+const DEFAULT_SYNC_MS = 150;
+const MAX_SYNC_MS = 800;
 const STALL_MS = 400; // no new audio for this long -> bars fall
 const ATTACK_RATE = 60; // per second; ~17ms to reach a new higher level
 const RELEASE_RATE = 7; // per second; ~140ms decay
@@ -74,6 +79,7 @@ class RadioAudio {
     this._analyser = createAnalyser(SAMPLE_RATE);
     this._zeros = new Float32Array(BAND_COUNT);
     this._analysisTimer = null;
+    this._syncS = DEFAULT_SYNC_MS / 1000;
     this.status = 'Stopped';
     this.playbackStatus = 'No playback attempted';
     this.lastAttemptMs = 0;
@@ -411,7 +417,7 @@ class RadioAudio {
   // bars jump ahead of what you hear, then freeze. Now decoded audio goes
   // into a ring buffer, and a steady ANALYSIS_HZ clock analyses the most
   // recent window at a "play cursor" that advances in real time, kept a
-  // fixed PLAY_LAG_S behind the newest data (absorbing bursts). Result:
+  // fixed sync delay behind the newest data (absorbing bursts). Result:
   // 60 fresh spectra a second, evenly spaced, from a sliding window.
   _startAnalysisClock() {
     if (this._analysisTimer) return;
@@ -437,7 +443,7 @@ class RadioAudio {
       // rather than freezing on the last window.
       target = this._zeros;
     } else {
-      const lag = PLAY_LAG_S * SAMPLE_RATE;
+      const lag = this._syncS * SAMPLE_RATE;
       if (!(this._playPos > 0)) this._playPos = w - lag;
       this._playPos += dt * SAMPLE_RATE;
       this._playPos += (w - lag - this._playPos) * Math.min(1, dt * 2); // drift back toward the target lag
@@ -467,6 +473,13 @@ class RadioAudio {
 
   getStatus() { return this.status; }
   getPlaybackStatus() { return this.playbackStatus; }
+
+  // Speaker sync delay (see DEFAULT_SYNC_MS). Clamped so the analysis
+  // window always stays inside the ring buffer.
+  setSyncMs(ms) {
+    const v = Number.isFinite(ms) ? Math.max(0, Math.min(MAX_SYNC_MS, ms)) : DEFAULT_SYNC_MS;
+    this._syncS = v / 1000;
+  }
 
   // Clears the "one-shot debug tone already finished" latch - called on
   // every genuine new play request (see radio.js's playStation()).
@@ -550,6 +563,7 @@ class RemoteAudio {
     this.clearCount = 0;
   }
   ensure(url) { this.url = url || null; this.ensureCount++; }
+  setSyncMs(ms) { this.syncMs = ms; }
   clearDebugFinished() { this.clearCount++; }
   getStatus() { return this.status; }
   getPlaybackStatus() { return this.playbackStatus; }
@@ -561,7 +575,7 @@ class RemoteAudio {
     this.playbackStatus = snap.playbackStatus;
     this.lastAttemptMs = snap.lastAttemptMs;
   }
-  request() { return { url: this.url, ensureCount: this.ensureCount, clearCount: this.clearCount }; }
+  request() { return { url: this.url, ensureCount: this.ensureCount, clearCount: this.clearCount, syncMs: this.syncMs }; }
   close() {}
 }
 
@@ -570,6 +584,7 @@ class RemoteAudio {
 // pass back in as `seen` next time.
 function applyRemoteRequest(audio, req, seen) {
   if (!req) return seen;
+  if (audio.setSyncMs) audio.setSyncMs(req.syncMs);
   if (req.clearCount !== seen.clearCount) audio.clearDebugFinished();
   if (req.ensureCount !== seen.ensureCount) audio.ensure(req.url);
   return { ensureCount: req.ensureCount, clearCount: req.clearCount };

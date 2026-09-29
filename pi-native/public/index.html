@@ -1233,6 +1233,11 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
           <input type="range" class="au-gain-el" min="0.2" max="8" step="0.1" value="2" style="flex:1;">
           <span class="slider-val au-gain-val-el">2.0×</span>
         </div>
+        <div class="ov-row-label" style="margin-top:8px;" title="Delays the bars to line up with what you hear - Bluetooth speakers play audio late">Speaker sync</div>
+        <div class="slider-row">
+          <input type="range" class="au-sync-el" min="0" max="800" step="10" value="150" style="flex:1;" aria-label="Speaker sync delay">
+          <span class="slider-val au-sync-val-el" style="width:52px;">150ms</span>
+        </div>
         <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
         <div class="slider-row">
           <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
@@ -1639,6 +1644,11 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
           <input type="range" class="au-gain-el" min="0.2" max="8" step="0.1" value="2" style="flex:1;">
           <span class="slider-val au-gain-val-el">2.0×</span>
         </div>
+        <div class="ov-row-label" style="margin-top:8px;" title="Delays the bars to line up with what you hear - Bluetooth speakers play audio late">Speaker sync</div>
+        <div class="slider-row">
+          <input type="range" class="au-sync-el" min="0" max="800" step="10" value="150" style="flex:1;" aria-label="Speaker sync delay">
+          <span class="slider-val au-sync-val-el" style="width:52px;">150ms</span>
+        </div>
         <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
         <div class="slider-row">
           <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
@@ -1790,6 +1800,13 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
   <div class="sidebar-section collapsed">
     <button class="section-head">◈ Setup <span class="chev">▾</span></button>
     <div class="section-body">
+      <div class="ui-label-accent">🔒 Control PIN</div>
+      <div class="ui-note" id="pin-status">No PIN - anyone on your network can use this page.</div>
+      <div style="display:flex;gap:6px;margin-bottom:14px;">
+        <input id="pin-input" type="password" inputmode="numeric" autocomplete="new-password" placeholder="New PIN (4+ digits)" aria-label="New control PIN" class="ui-input">
+        <button id="pin-save-btn" class="ui-btn-small" style="flex:0 0 auto;padding:5px 10px;">Set</button>
+        <button id="pin-clear-btn" class="ui-btn-small" style="flex:0 0 auto;padding:5px 10px;">Remove</button>
+      </div>
       <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">🔊 Bluetooth Speaker (Pi only)</div>
       <!-- Paired devices - its own section/list, separate from scan
            results below. A real report: the device list "seems unreliable
@@ -2023,6 +2040,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.155"></script>
+<script src="app.js?v=0.6.156"></script>
 </body>
 </html>

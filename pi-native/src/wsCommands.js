@@ -18,8 +18,22 @@ const bluetooth = require('./bluetooth');
 const alarmsEngine = require('./effects/alarms');
 const radio = require('./effects/radio');
 const { browserFrameSource } = require('./effects/video/browserFrameSource');
+const pinConfig = require('./pinConfig');
 
 const COMMANDS = {
+  // Sets (or, with an empty pin, clears) the control PIN. Only reachable by
+  // an already-authenticated client. Everyone else connected stays
+  // connected; new connections will need the PIN.
+  setControlPin(ws, msg) {
+    try {
+      this.pinCfg = pinConfig.setPin(msg.pin || '');
+      ws.send(JSON.stringify({ cmd: 'controlPinResult', ok: true, set: pinConfig.isPinSet(this.pinCfg) }));
+    } catch (err) {
+      ws.send(JSON.stringify({ cmd: 'controlPinResult', ok: false, error: err.message }));
+    }
+    this._broadcast(this._stateMsg());
+  },
+
   setEffect(ws, msg) {
     if (!(EFFECTS[msg.effect])) return;
     this.state.effect = msg.effect;

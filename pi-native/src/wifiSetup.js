@@ -80,8 +80,46 @@ function validateWifiInput(ssid, password) {
   }
 }
 
-async function connectToNetwork(ssid, password, runFn = run) {
+// NetworkManager keyfile values: backslash and leading/trailing spaces
+// must be escaped (GKeyFile rules); control characters are already
+// rejected by validateWifiInput().
+function keyfileEscape(v) {
+  return String(v).replace(/\\/g, '\\\\').replace(/^ /, '\\s').replace(/ $/, '\\s');
+}
+
+const NM_CONNECTIONS_DIR = '/etc/NetworkManager/system-connections';
+const KEYFILE_CON_NAME = 'multidisplay-wifi';
+
+// Writes a root-only (0600) NetworkManager keyfile for the network and
+// brings it up. The obvious `nmcli device wifi connect SSID password X`
+// puts the password on a command line, where any local user can read it
+// (ps, /proc/PID/cmdline) while nmcli runs. A keyfile never exposes it,
+// and NetworkManager stores it for reconnecting after a reboot.
+async function connectViaKeyfile(ssid, password, runFn, fsApi) {
+  const file = `${NM_CONNECTIONS_DIR}/${KEYFILE_CON_NAME}.nmconnection`;
+  const lines = [
+    '[connection]', `id=${KEYFILE_CON_NAME}`, 'type=wifi', 'interface-name=wlan0', 'autoconnect=true', '',
+    '[wifi]', 'mode=infrastructure', `ssid=${keyfileEscape(ssid)}`, '',
+  ];
+  if (password) lines.push('[wifi-security]', 'key-mgmt=wpa-psk', `psk=${keyfileEscape(password)}`, '');
+  lines.push('[ipv4]', 'method=auto', '', '[ipv6]', 'method=auto', '');
+  fsApi.writeFileSync(file, lines.join('\n'), { mode: 0o600 });
+  fsApi.chmodSync(file, 0o600); // mode only applies when the file is created
+  await runFn('nmcli', ['connection', 'reload']);
+  await runFn('nmcli', ['connection', 'up', 'id', KEYFILE_CON_NAME]);
+}
+
+async function connectToNetwork(ssid, password, runFn = run, fsApi = require('fs')) {
   validateWifiInput(ssid, password);
+  try {
+    await connectViaKeyfile(ssid, password, runFn, fsApi);
+    return;
+  } catch (err) {
+    // Anything unexpected (no NetworkManager keyfile directory, not root,
+    // an nmcli that behaves differently): fall back to the original
+    // one-liner rather than leave the Pi unable to join WiFi at all.
+    console.warn('[wifiSetup] keyfile connect failed, falling back to nmcli connect:', err.message);
+  }
   const args = password
     ? ['device', 'wifi', 'connect', ssid, 'password', password]
     : ['device', 'wifi', 'connect', ssid];
@@ -221,6 +259,7 @@ async function ensureWifiConnected({ runFn = run, log = console.log } = {}) {
 }
 
 module.exports = {
+  keyfileEscape,
   validateWifiInput,
   AP_SSID, AP_PASSWORD, AP_CON_NAME, AP_GATEWAY_IP, PORTAL_PORT,
   isConnected, startAccessPoint, stopAccessPoint, connectToNetwork,

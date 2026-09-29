@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.155';
+const APP_VERSION = '0.6.156';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -182,7 +182,27 @@ function setConnStatus(status) {
 }
 
 let _lastStateJson = '';
+// Control PIN (see src/pinConfig.js). Remembered per browser; asked for
+// when the Pi says one is needed or the stored one is wrong.
+function storedPin() { try { return localStorage.getItem('controlPin') || ''; } catch (e) { return ''; } }
+function rememberPin(p) { try { if (p) localStorage.setItem('controlPin', p); else localStorage.removeItem('controlPin'); } catch (e) { /* storage unavailable */ } }
+function answerAuth(failed) {
+  let pin = failed ? '' : storedPin();
+  if (!pin) pin = window.prompt(failed ? 'Wrong PIN - enter the control PIN:' : 'This display is PIN-protected. Enter the control PIN:') || '';
+  rememberPin(pin);
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ cmd: 'auth', pin }));
+}
+
 function handleTextMessage(msg) {
+  if (msg.cmd === 'authRequired') { answerAuth(false); return; }
+  if (msg.cmd === 'authFailed') { rememberPin(''); answerAuth(true); return; }
+  if (msg.cmd === 'authOk') return;
+  if (msg.cmd === 'controlPinResult') {
+    if (!msg.ok) alert(msg.error);
+    else rememberPin(msg.set ? (document.getElementById('pin-input')?.dataset.pending || '') : '');
+    const inp = document.getElementById('pin-input'); if (inp) { inp.value = ''; delete inp.dataset.pending; }
+    return;
+  }
   if (msg.cmd === 'state') {
     // Every command triggers a state broadcast, and each one re-runs ~40
     // panel sync functions (several rebuild whole lists). An identical
@@ -196,6 +216,7 @@ function handleTextMessage(msg) {
     currentState = msg;
     syncEffectButtons();
     syncPanelButtons();
+    syncPinStatus();
     syncSliders();
     syncRainPanel();
     syncLightspeedPanel();
@@ -343,6 +364,23 @@ function labelUnlabelledControls() {
     }
     if (text) el.setAttribute('aria-label', text.replace(/\s+/g, ' ').slice(0, 60));
   });
+}
+
+function wirePinControls() {
+  const inp = document.getElementById('pin-input');
+  document.getElementById('pin-save-btn')?.addEventListener('click', () => {
+    const pin = (inp?.value || '').trim();
+    if (!/^[0-9A-Za-z]{4,32}$/.test(pin)) { alert('PIN must be 4-32 letters or digits'); return; }
+    inp.dataset.pending = pin;
+    send({ cmd: 'setControlPin', pin });
+  });
+  document.getElementById('pin-clear-btn')?.addEventListener('click', () => {
+    if (confirm('Remove the control PIN? Anyone on your network will be able to use this page.')) send({ cmd: 'setControlPin', pin: '' });
+  });
+}
+function syncPinStatus() {
+  const el = document.getElementById('pin-status');
+  if (el) el.textContent = currentState.controlPinSet ? 'PIN set - new browsers must enter it.' : 'No PIN - anyone on your network can use this page.';
 }
 
 function wireEffectFilter() {
@@ -1734,7 +1772,7 @@ function uploadVideoFile(file, statusEl) {
   if (!file) return;
   stopBrowserCapture(); // an upload supersedes any live camera/screen capture in progress
   if (statusEl) statusEl.textContent = 'Uploading ' + file.name + '…';
-  fetch('/api/uploadVideo?name=' + encodeURIComponent(file.name), { method: 'POST', body: file })
+  fetch('/api/uploadVideo?name=' + encodeURIComponent(file.name), { method: 'POST', body: file, headers: { 'X-Control-Pin': storedPin() } })
     .then((r) => r.json())
     .then((d) => {
       if (!d.ok) throw new Error(d.error || 'Upload failed');
@@ -2334,6 +2372,11 @@ function wireRadioPanel() {
     if (gainVal) gainVal.textContent = Number(gainSlider.value).toFixed(1) + '×';
     setEffectOption('radio', 'gain', Number(gainSlider.value));
   });
+  const syncSlider = panel.querySelector('.au-sync-el'), syncVal = panel.querySelector('.au-sync-val-el');
+  if (syncSlider) syncSlider.addEventListener('input', () => {
+    if (syncVal) syncVal.textContent = syncSlider.value + 'ms';
+    setEffectOption('radio', 'syncMs', Number(syncSlider.value));
+  });
   const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
   if (scrollSlider) scrollSlider.addEventListener('input', () => {
     if (scrollVal) scrollVal.textContent = scrollSlider.value;
@@ -2403,6 +2446,8 @@ function syncRadioPanel() {
   if (autoGainChk && document.activeElement !== autoGainChk) autoGainChk.checked = opts.autoGain !== false;
   const gainSlider = panel.querySelector('.au-gain-el'), gainVal = panel.querySelector('.au-gain-val-el');
   if (gainSlider && document.activeElement !== gainSlider) { gainSlider.value = opts.gain ?? 2; if (gainVal) gainVal.textContent = Number(gainSlider.value).toFixed(1) + '×'; }
+  const syncSlider = panel.querySelector('.au-sync-el'), syncVal = panel.querySelector('.au-sync-val-el');
+  if (syncSlider && document.activeElement !== syncSlider) { syncSlider.value = opts.syncMs ?? 150; if (syncVal) syncVal.textContent = syncSlider.value + 'ms'; }
   const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
   if (scrollSlider && document.activeElement !== scrollSlider) { scrollSlider.value = opts.scrollSpeed ?? 0; if (scrollVal) scrollVal.textContent = scrollSlider.value; }
 }
@@ -4200,6 +4245,7 @@ document.addEventListener('DOMContentLoaded', () => {
   greyOutUnsupported();
   loadEffectNames();
   wireEffectFilter();
+  wirePinControls();
   labelUnlabelledControls();
   connect();
   try {

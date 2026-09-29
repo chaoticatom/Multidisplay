@@ -11304,7 +11304,8 @@ var PiEngine = (() => {
       var CHANNELS = 2;
       var ANALYSIS_HZ = 60;
       var RING_SAMPLES = 1 << 16;
-      var PLAY_LAG_S = 0.12;
+      var DEFAULT_SYNC_MS = 150;
+      var MAX_SYNC_MS = 800;
       var STALL_MS = 400;
       var ATTACK_RATE = 60;
       var RELEASE_RATE = 7;
@@ -11324,6 +11325,7 @@ var PiEngine = (() => {
           this._analyser = createAnalyser(SAMPLE_RATE);
           this._zeros = new Float32Array(BAND_COUNT);
           this._analysisTimer = null;
+          this._syncS = DEFAULT_SYNC_MS / 1e3;
           this.status = "Stopped";
           this.playbackStatus = "No playback attempted";
           this.lastAttemptMs = 0;
@@ -11560,7 +11562,7 @@ var PiEngine = (() => {
         // bars jump ahead of what you hear, then freeze. Now decoded audio goes
         // into a ring buffer, and a steady ANALYSIS_HZ clock analyses the most
         // recent window at a "play cursor" that advances in real time, kept a
-        // fixed PLAY_LAG_S behind the newest data (absorbing bursts). Result:
+        // fixed sync delay behind the newest data (absorbing bursts). Result:
         // 60 fresh spectra a second, evenly spaced, from a sliding window.
         _startAnalysisClock() {
           if (this._analysisTimer) return;
@@ -11582,7 +11584,7 @@ var PiEngine = (() => {
           if (w < win || now - this._lastDataMs > STALL_MS) {
             target = this._zeros;
           } else {
-            const lag = PLAY_LAG_S * SAMPLE_RATE;
+            const lag = this._syncS * SAMPLE_RATE;
             if (!(this._playPos > 0)) this._playPos = w - lag;
             this._playPos += dt * SAMPLE_RATE;
             this._playPos += (w - lag - this._playPos) * Math.min(1, dt * 2);
@@ -11621,6 +11623,12 @@ var PiEngine = (() => {
         }
         getPlaybackStatus() {
           return this.playbackStatus;
+        }
+        // Speaker sync delay (see DEFAULT_SYNC_MS). Clamped so the analysis
+        // window always stays inside the ring buffer.
+        setSyncMs(ms) {
+          const v = Number.isFinite(ms) ? Math.max(0, Math.min(MAX_SYNC_MS, ms)) : DEFAULT_SYNC_MS;
+          this._syncS = v / 1e3;
         }
         // Clears the "one-shot debug tone already finished" latch - called on
         // every genuine new play request (see radio.js's playStation()).
@@ -11686,6 +11694,9 @@ var PiEngine = (() => {
           this.url = url || null;
           this.ensureCount++;
         }
+        setSyncMs(ms) {
+          this.syncMs = ms;
+        }
         clearDebugFinished() {
           this.clearCount++;
         }
@@ -11704,13 +11715,14 @@ var PiEngine = (() => {
           this.lastAttemptMs = snap.lastAttemptMs;
         }
         request() {
-          return { url: this.url, ensureCount: this.ensureCount, clearCount: this.clearCount };
+          return { url: this.url, ensureCount: this.ensureCount, clearCount: this.clearCount, syncMs: this.syncMs };
         }
         close() {
         }
       };
       function applyRemoteRequest(audio, req, seen) {
         if (!req) return seen;
+        if (audio.setSyncMs) audio.setSyncMs(req.syncMs);
         if (req.clearCount !== seen.clearCount) audio.clearDebugFinished();
         if (req.ensureCount !== seen.ensureCount) audio.ensure(req.url);
         return { ensureCount: req.ensureCount, clearCount: req.clearCount };
@@ -12649,6 +12661,7 @@ var PiEngine = (() => {
         const fitToScreen = !!opts.fitToScreen;
         const scrollSpeed = Number.isFinite(opts.scrollSpeed) ? opts.scrollSpeed : 0;
         if (Number.isFinite(opts.volume)) setVolume(opts.volume);
+        audio.setSyncMs(opts.syncMs);
         audio.ensure(playing && currentStation ? currentStation.url : null);
         for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] = 0;
         if (spectrumOn) {
