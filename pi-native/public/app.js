@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.163';
+const APP_VERSION = '0.6.164';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -309,6 +309,10 @@ async function loadEffectNames() {
           setEffectOption('video', 'url', '');
         }
         send({ cmd: 'setEffect', effect: key });
+        // Its options (e.g. Internet Radio's station list) live on the Now
+        // tab - go there, or tapping an effect with options seemed to do
+        // nothing (a real report: "nothing happens when I click internet radio").
+        if (panel || btn.closest('.sub-section')?.querySelector('.art-shared-panel')) setTab('now');
         // Immediate feedback: the 'active' highlight only moves once the
         // Pi's state echo arrives, which can take a visible moment on a
         // busy Pi - mark this button pending until then (cleared in
