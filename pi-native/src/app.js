@@ -175,6 +175,12 @@ async function main() {
     effectOptions: { weather: { city: weatherConfig.load().city } },
   };
   state.onAlarmsChanged = () => { alarmConfig.save(state.alarms); ws._broadcast(ws._stateMsg()); };
+  // What the panel driver's wiring depends on (see the restart in the
+  // config-change handler below).
+  const driverLayoutKey = (c) => c.mode === 'wall' ? `wall:${(c.panels || []).map((p) => p.gx + ',' + p.gy).sort().join(';')}` : c.mode;
+  const startLayoutKey = driverLayoutKey(config);
+  const RESTART_DELAY_MS = 4000, RESTART_EXIT_CODE = 75;
+  let restartTimer = null;
   const ws = new WsServer(WS_PORT, state, config, (newConfig) => {
     // Size changes apply live - CubeCore.resize() just rebuilds faceMap/
     // colBuf, cheap and safe (mockDriver and rgbMatrixDriver both just
@@ -202,11 +208,22 @@ async function main() {
     // driver pushes to only after a process restart.
     if (useRenderWorker) {
       // The worker owns the real driver - relay the same config change so
-      // its own core/driver stay in sync (it logs the same hardware-mode
-      // warning itself, see renderWorker.js).
+      // its own core/driver stay in sync.
       renderWorker.postMessage({ type: 'config', config: newConfig });
-    } else if (driverKind === 'hardware') {
-      console.warn('[app] panel mode changed to', newConfig.mode, '- restart the process to apply this to the physical panel driver (rgbMatrixDriver.js\'s panel topology is fixed at startup)');
+    }
+    // Real panels: the driver's wiring layout is fixed at startup, so a
+    // change that needs different wiring (mode, or a wall's panel grid)
+    // used to leave the driver pushing a stale buffer - the physical
+    // display froze on the last frame (a real report: switching to Panel
+    // 2D froze the panel). Restart instead, so the driver comes back up
+    // with the new layout (the setting is already saved). systemd's
+    // Restart=on-failure brings the service straight back and the page
+    // reconnects on its own. Debounced so a burst of layout edits (adding
+    // several wall panels) costs one restart, not one per click.
+    if (driverKind === 'hardware' && driverLayoutKey(newConfig) !== startLayoutKey) {
+      clearTimeout(restartTimer);
+      console.warn(`[app] panel layout changed (${startLayoutKey} -> ${driverLayoutKey(newConfig)}) - restarting in ${RESTART_DELAY_MS / 1000}s to apply it to the panels`);
+      restartTimer = setTimeout(() => { console.warn('[app] restarting to apply the new panel layout'); process.exit(RESTART_EXIT_CODE); }, RESTART_DELAY_MS);
     }
   }, useRenderWorker ? (cmd, payload) => renderWorker.postMessage({ type: 'effectCommand', cmd, payload }) : null);
   console.log(`[app] control/preview WS server listening on :${WS_PORT}`);
