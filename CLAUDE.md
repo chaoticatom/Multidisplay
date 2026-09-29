@@ -62,7 +62,11 @@ app.js (main thread)                         renderWorker.js (RENDER_WORKER=1)
 - **Text**: always use `src/effects/text.js`, never a hand-rolled glyph loop. It provides `blitGlyph`, `drawGlyph`/`drawString`/`textWidth`/`drawLinesCentered`/`drawMarquee`, the fonts `FONT_3x5`/`FONT_5x7`/`FONT_5x7_BLANK`/`FONT_MOON`, and the plot targets `facePlot`/`wallPlot`/`faceMaxPlot`/`wallMaxPlot`. Pass whole-pixel coordinates, because fractional ones plot nothing. Cube-face 5x7 text is drawn with `flipY` (see `drawGlyph5x7Face`'s comment for why).
 - **Trails**: fade the buffer with `trailFade(k, dt)` from `src/effects/trail.js`, never a fixed `*= k` per frame. That would make trail length depend on the frame rate.
 - **External APIs**: call `fetchWithTimeout` from `src/effects/net.js`, not bare `fetch`.
-- **Cube/wall pairs**: logic that doesn't depend on the target goes in an `xCommon.js` shared by both (see `datetimeCommon.js`, `random80sCommon.js`).
+- **One definition for cube and wall** where possible:
+  - **Colour-field effects** (plasma, wave, tide, prism, depth rings, gradient wash, aurora, nebula) use `defineFieldEffect({ speed, frame?, pixel(p, ctx) })` from `src/effects/surface.js`. The module exports the cube effect with `.wall` attached, and `index.js` registers `x.wall` for wall mode. `p.flat` is true on a wall, for effects that need a different stand-in for the missing z axis.
+  - **Fetched text cards** (jokes, trivia) use `defineTextCardEffect` from `src/effects/textCard.js`. There is one fetch and one status for both modes.
+  - **Other pairs:** put target-independent logic in an `xCommon.js` (see `datetimeCommon.js`, `random80sCommon.js`), or one module exporting `.wall` (see `otd.js`).
+- **Music**: every effect gets live `core.audio` (`bass`/`mid`/`treble`/`level`/`beat`, see `src/effects/audioFeatures.js`) while a station plays. `tick.js` also keeps a playing station alive in the background.
 - **Shared engines in `src/effects/_shared.js`**: the word-cascade text engine (`WC_FONT`, `wcInit`/`wcStep`/`wcDrawToFace`, `wcTagQA`) used by Jokes/Trivia/On This Day/Date & Time Words, and the gallery slideshow helpers. Reuse them rather than copying.
 - **External API behaviour**: throttle proactively, back off harder on 403/429, and surface the failing endpoint and status in the effect's status rather than a bare "error".
 

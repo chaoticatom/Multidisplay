@@ -8,9 +8,9 @@
 // copies of the same 64x64 frame.
 const assert = require('assert');
 const { CubeCore } = require('../src/core');
-const effectDepthRingsWall = require('../src/effects/depthRingsWall');
-const effectPrismWall = require('../src/effects/prismWall');
-const effectTideWall = require('../src/effects/tideWall');
+const effectDepthRingsWall = require('../src/effects/depthRings').wall;
+const effectPrismWall = require('../src/effects/prism').wall;
+const effectTideWall = require('../src/effects/tide').wall;
 const effectStrobeWall = require('../src/effects/strobeWall');
 
 function test(name, fn) {

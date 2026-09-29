@@ -213,17 +213,68 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/surface.js
+  var require_surface = __commonJS({
+    "src/effects/surface.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      function defineFieldEffect({ speed = 1, frame, pixel }) {
+        const p = { x: 0, y: 0, z: 0, i: 0, flat: false };
+        const ctx = { t: 0, dt: 0, count: 0, flat: false, core: null };
+        function cube(core, dt) {
+          core.t += dt * speed;
+          const { N, surfX, surfY, surfZ } = core;
+          Object.assign(ctx, { t: core.t, dt, count: N, flat: false, core });
+          p.flat = false;
+          if (frame) frame(ctx);
+          for (let i = 0; i < N; i++) {
+            p.x = surfX[i];
+            p.y = surfY[i];
+            p.z = surfZ[i];
+            p.i = i;
+            const c = pixel(p, ctx);
+            core.setLED(i, c[0], c[1], c[2]);
+          }
+        }
+        function wall(core, dt) {
+          core.t += dt * speed;
+          const { wallW, wallH } = core;
+          if (!wallW) return;
+          Object.assign(ctx, { t: core.t, dt, count: wallW * wallH, flat: true, core });
+          p.flat = true;
+          if (frame) frame(ctx);
+          for (let yy = 0; yy < wallH; yy++) {
+            const y = yy / wallH;
+            for (let xx = 0; xx < wallW; xx++) {
+              p.x = xx / wallW;
+              p.y = y;
+              p.z = y;
+              p.i = yy * wallW + xx;
+              const c = pixel(p, ctx);
+              core.setWallPixel(xx, yy, c[0], c[1], c[2]);
+            }
+          }
+        }
+        cube.wall = wall;
+        return cube;
+      }
+      module.exports = { defineFieldEffect };
+    }
+  });
+
   // src/effects/wave.js
   var require_wave = __commonJS({
     "src/effects/wave.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
-      function effectWave(core, dt) {
-        core.t += dt * 1.1;
-        const { N, surfX, surfY, surfZ, t } = core;
-        for (let i = 0; i < N; i++) {
-          const x = surfX[i], y = surfY[i], z = surfZ[i];
+      var { defineFieldEffect } = require_surface();
+      module.exports = defineFieldEffect({
+        speed: 1.1,
+        pixel(p, { t }) {
+          const { x, y, z } = p;
           const w1 = Math.sin((x + z) * 6.2 + t) * Math.cos(y * 4.5 - t * 0.8);
           const w2 = Math.sin((x - z) * 4.8 + t * 1.4) * Math.sin(y * 5.2 + t * 0.6);
           const w3 = Math.sin((x * 0.7 + y * 0.9 + z * 0.5) * 7 + t * 0.9);
@@ -235,32 +286,30 @@ var PiEngine = (() => {
           r = Math.min(1, r + spark * 0.9);
           g = Math.min(1, g + spark * 0.9);
           b = Math.min(1, b + spark * 0.9);
-          core.setLED(i, r, g, b);
+          return [r, g, b];
         }
-      }
-      module.exports = effectWave;
+      });
     }
   });
 
   // src/effects/gradientWash.js
   var require_gradientWash = __commonJS({
     "src/effects/gradientWash.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
       var { hsl, lerp } = require_core();
-      function effectGradientWash(core, dt) {
-        core.t += dt * 0.4;
-        const { N, surfX, surfY, surfZ, t } = core;
-        for (let i = 0; i < N; i++) {
-          const x = surfX[i], y = surfY[i], z = surfZ[i];
+      var { defineFieldEffect } = require_surface();
+      module.exports = defineFieldEffect({
+        speed: 0.4,
+        pixel(p, { t }) {
+          const { x, y, z } = p;
           const wave = Math.sin(x * Math.PI * 2 + t) * 0.5 + 0.5;
           const bright = lerp(0.22, 0.72, wave);
-          const hue = (x * 0.4 + y * 0.3 + z * 0.3 + t * 0.08) % 1;
-          const [r, g, b] = hsl(hue, 1, bright);
-          core.setLED(i, r, g, b);
+          const hue = (p.flat ? x * 0.6 + y * 0.3 + t * 0.08 : x * 0.4 + y * 0.3 + z * 0.3 + t * 0.08) % 1;
+          return hsl(hue, 1, bright);
         }
-      }
-      module.exports = effectGradientWash;
+      });
     }
   });
 
@@ -2536,25 +2585,26 @@ var PiEngine = (() => {
   // src/effects/plasma.js
   var require_plasma = __commonJS({
     "src/effects/plasma.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
-      function effectPlasma(core, dt) {
-        core.t += dt * 0.75;
-        const { N, surfX, surfY, surfZ, t } = core;
-        for (let i = 0; i < N; i++) {
-          const x = surfX[i], y = surfY[i], z = surfZ[i];
-          const cx = x - 0.5, cy = y - 0.5, cz = z - 0.5, dist = Math.sqrt(cx * cx + cy * cy + cz * cz);
+      var { defineFieldEffect } = require_surface();
+      module.exports = defineFieldEffect({
+        speed: 0.75,
+        pixel(p, { t }) {
+          const { x, y, z } = p;
+          const cx = x - 0.5, cy = y - 0.5, cz = z - 0.5;
+          const dist = p.flat ? Math.sqrt(cx * cx + cy * cy) : Math.sqrt(cx * cx + cy * cy + cz * cz);
           const v = Math.sin(x * 7.1 + t) + Math.sin(y * 6.3 + t * 1.3) + Math.sin(z * 7.5 + t * 0.9) + Math.sin((x + y + z) * 4.2 + t * 0.5) + Math.sin(dist * 11 + t * 1.6) * 0.6;
           const bright = Math.pow(Math.sin(v * 1.3) * 0.5 + 0.5, 1.2) * 0.75;
           const hue = ((v * 0.12 + t * 0.04) % 1 + 1) % 1;
           const sat = 0.85 + Math.sin(t * 0.7 + dist * 3) * 0.15;
           const [r, g, b] = hsl(hue, sat, bright);
           const peak = Math.max(0, bright - 0.55) * 2;
-          core.setLED(i, Math.min(1, r + peak * 0.3), g, Math.min(1, b + peak * 0.15));
+          return [Math.min(1, r + peak * 0.3), g, Math.min(1, b + peak * 0.15)];
         }
-      }
-      module.exports = effectPlasma;
+      });
     }
   });
 
@@ -3533,19 +3583,25 @@ var PiEngine = (() => {
   // src/effects/aurora.js
   var require_aurora = __commonJS({
     "src/effects/aurora.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
       var { hsl, lerp, sm } = require_core();
-      var auroraStar = null;
-      function effectAurora(core, dt) {
-        core.t += dt * 0.35;
-        const { N, surfX, surfY, surfZ, t } = core;
-        if (!auroraStar || auroraStar.length !== N) {
-          auroraStar = new Float32Array(N);
-          for (let i = 0; i < N; i++) auroraStar[i] = Math.random() < 0.014 ? Math.random() : 0;
-        }
-        for (let i = 0; i < N; i++) {
-          const x = surfX[i], y = surfY[i], z = surfZ[i];
+      var { defineFieldEffect } = require_surface();
+      var stars = { cube: null, wall: null };
+      module.exports = defineFieldEffect({
+        speed: 0.35,
+        frame(ctx) {
+          const key = ctx.flat ? "wall" : "cube";
+          if (!stars[key] || stars[key].length !== ctx.count) {
+            stars[key] = new Float32Array(ctx.count);
+            for (let i = 0; i < ctx.count; i++) stars[key][i] = Math.random() < 0.014 ? Math.random() : 0;
+          }
+          ctx.stars = stars[key];
+        },
+        pixel(p, ctx) {
+          const { t } = ctx;
+          const x = p.x, y = p.flat ? 1 - p.y : p.y, z = p.flat ? 0 : p.z;
           const c1 = Math.sin(x * Math.PI * 3.5 + t * 0.65) * Math.sin(z * Math.PI * 2.8 + t * 0.42);
           const c2 = Math.sin(x * Math.PI * 2.2 - t * 0.38) * Math.cos(z * Math.PI * 1.9 + t * 0.55) * 0.6;
           const curtain = c1 + c2;
@@ -3556,36 +3612,41 @@ var PiEngine = (() => {
             const sat = 0.9 + Math.sin(t * 0.8 + x * 2) * 0.1;
             const [r, g, b] = hsl(hue, sat, bright);
             const [r2, g2, b2] = hsl(hue + 0.45, sat, bright * 0.4 * Math.max(0, c2));
-            core.setLED(i, Math.min(1, r + r2), Math.min(1, g + g2), Math.min(1, b + b2));
-          } else {
-            const s = auroraStar[i];
-            if (s > 0) {
-              const tw = 0.5 + 0.5 * Math.sin(t * 2.3 + s * 12.7);
-              core.setLED(i, tw * 0.55, tw * 0.55, tw * 0.65);
-            } else core.setLED(i, 0, 0, 0);
+            return [Math.min(1, r + r2), Math.min(1, g + g2), Math.min(1, b + b2)];
           }
+          const s = ctx.stars[p.i];
+          if (s > 0) {
+            const tw = 0.5 + 0.5 * Math.sin(t * 2.3 + s * 12.7);
+            return [tw * 0.55, tw * 0.55, tw * 0.65];
+          }
+          return [0, 0, 0];
         }
-      }
-      module.exports = effectAurora;
+      });
     }
   });
 
   // src/effects/nebula.js
   var require_nebula = __commonJS({
     "src/effects/nebula.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
       var { hsl, lerp, sm } = require_core();
-      var nebStars = null;
-      function effectNebula(core, dt) {
-        core.t += dt * 0.28;
-        const { N, surfX, surfY, surfZ, t } = core;
-        if (!nebStars || nebStars.length !== N) {
-          nebStars = [];
-          for (let i = 0; i < N; i++) nebStars.push({ last: -1, next: Math.random() * 8, bright: 0 });
-        }
-        for (let i = 0; i < N; i++) {
-          const x = surfX[i], y = surfY[i], z = surfZ[i];
+      var { defineFieldEffect } = require_surface();
+      var stars = { cube: null, wall: null };
+      module.exports = defineFieldEffect({
+        speed: 0.28,
+        frame(ctx) {
+          const key = ctx.flat ? "wall" : "cube";
+          if (!stars[key] || stars[key].length !== ctx.count) {
+            stars[key] = [];
+            for (let i = 0; i < ctx.count; i++) stars[key].push({ last: -1, next: Math.random() * 8, bright: 0 });
+          }
+          ctx.stars = stars[key];
+        },
+        pixel(p, ctx) {
+          const { t, dt } = ctx;
+          const x = p.x, y = p.y, z = p.flat ? 0 : p.z;
           let d = 0;
           d += Math.sin(x * 5.3 + t * 0.52) * Math.cos(y * 4.9 + t * 0.31) * 0.5;
           d += Math.sin(z * 6.5 - t * 0.42) * Math.sin(x * 3.4 + t * 0.21) * 0.38;
@@ -3596,7 +3657,7 @@ var PiEngine = (() => {
           const hue = lerp(0.6, 0.04, sm(0.18, 0.88, d)) + Math.sin(t * 0.08) * 0.05;
           const [r, g, b] = hsl(hue, 0.85 + d * 0.15, bright);
           const coreBoost = Math.max(0, d - 0.75) * 3.5;
-          const ns = nebStars[i];
+          const ns = ctx.stars[p.i];
           ns.next -= dt;
           let sr = 0, sg = 0, sb = 0;
           if (ns.next <= 0) {
@@ -3611,10 +3672,9 @@ var PiEngine = (() => {
             sg = sc;
             sb = sc + 0.2;
           }
-          core.setLED(i, Math.min(1, r + coreBoost * 0.4 + sr), Math.min(1, g + coreBoost * 0.3 + sg), Math.min(1, b + coreBoost * 0.2 + sb));
+          return [Math.min(1, r + coreBoost * 0.4 + sr), Math.min(1, g + coreBoost * 0.3 + sg), Math.min(1, b + coreBoost * 0.2 + sb)];
         }
-      }
-      module.exports = effectNebula;
+      });
     }
   });
 
@@ -3940,32 +4000,6 @@ var PiEngine = (() => {
         }
       }
       module.exports = effectLightspeed;
-    }
-  });
-
-  // src/effects/gradientWashWall.js
-  var require_gradientWashWall = __commonJS({
-    "src/effects/gradientWashWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl, lerp } = require_core();
-      function effectGradientWashWall(core, dt) {
-        core.t += dt * 0.4;
-        const { wallW, wallH, t } = core;
-        if (!wallW) return;
-        for (let y = 0; y < wallH; y++) {
-          const ny = y / wallH;
-          for (let x = 0; x < wallW; x++) {
-            const nx = x / wallW;
-            const wave = Math.sin(nx * Math.PI * 2 + t) * 0.5 + 0.5;
-            const bright = lerp(0.22, 0.72, wave);
-            const hue = (nx * 0.6 + ny * 0.3 + t * 0.08) % 1;
-            const [r, g, b] = hsl(hue, 1, bright);
-            core.setWallPixel(x, y, r, g, b);
-          }
-        }
-      }
-      module.exports = effectGradientWashWall;
     }
   });
 
@@ -13674,46 +13708,47 @@ var PiEngine = (() => {
   // src/effects/depthRings.js
   var require_depthRings = __commonJS({
     "src/effects/depthRings.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
-      function effectDepthRings(core, dt) {
-        core.t += dt * 0.75;
-        const { N, surfX, surfY, surfZ, t } = core;
-        for (let i = 0; i < N; i++) {
-          const dx = surfX[i] - 0.5, dy = surfY[i] - 0.5, dz = surfZ[i] - 0.5;
-          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) * 2;
+      var { defineFieldEffect } = require_surface();
+      module.exports = defineFieldEffect({
+        speed: 0.75,
+        pixel(p, { t }) {
+          const dx = p.x - 0.5, dy = p.y - 0.5, dz = p.z - 0.5;
+          const dist = p.flat ? Math.sqrt(dx * dx + dy * dy) * 2 : Math.sqrt(dx * dx + dy * dy + dz * dz) * 2;
           const ang = Math.atan2(dy, dx);
           const twist = ang * 1.6 + dist * 2.5;
           const ring = Math.sin(dist * Math.PI * 9 - t * 2.4 + twist);
           const ring2 = Math.sin(dist * Math.PI * 4.5 + t * 1.1 + ang);
           const bright = ((ring * 0.6 + ring2 * 0.4) * 0.5 + 0.5) * (1 - dist * 0.42) * 0.88;
           const hue = (dist * 0.65 + ang / (Math.PI * 2) * 0.3 + t * 0.055) % 1;
-          core.setLED(i, ...hsl(hue, 1, Math.max(0, bright)));
+          return hsl(hue, 1, Math.max(0, bright));
         }
-      }
-      module.exports = effectDepthRings;
+      });
     }
   });
 
   // src/effects/prism.js
   var require_prism = __commonJS({
     "src/effects/prism.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
       var { hsl, sm } = require_core();
-      function effectPrism(core, dt) {
-        core.t += dt * 0.55;
-        const { N, surfX, surfY, surfZ, t } = core;
-        const beamAng = t * 0.6, beamW = 0.18;
-        for (let i = 0; i < N; i++) {
-          const x = surfX[i], y = surfY[i], z = surfZ[i];
-          const diag = (x + y + z) / 3;
-          const cross = Math.abs(x - z);
+      var { defineFieldEffect } = require_surface();
+      module.exports = defineFieldEffect({
+        speed: 0.55,
+        pixel(p, { t }) {
+          const { x, y, z } = p;
+          const beamAng = t * 0.6, beamW = 0.18;
+          const diag = p.flat ? (x + y) / 2 : (x + y + z) / 3;
+          const cross = p.flat ? 0 : Math.abs(x - z);
           const base = 0.28 + Math.sin(diag * Math.PI * 5.5 + t) * 0.28;
           const hue = (diag * 0.92 + t * 0.065) % 1;
           let [r, g, b] = hsl(hue, 0.78 + sm(0, 1, cross) * 0.22, Math.max(0, base));
-          const bDist = Math.abs((x - 0.5) * Math.cos(beamAng) + (z - 0.5) * Math.sin(beamAng));
+          const bDist = p.flat ? Math.abs((x - 0.5) * Math.cos(beamAng)) : Math.abs((x - 0.5) * Math.cos(beamAng) + (z - 0.5) * Math.sin(beamAng));
           const beam = Math.max(0, 1 - bDist / beamW) * 0.8;
           if (beam > 0) {
             const dispHue = (hue + bDist * 1.5) % 1;
@@ -13722,33 +13757,31 @@ var PiEngine = (() => {
             g = Math.min(1, g + dg * beam + beam * 0.3);
             b = Math.min(1, b + db * beam + beam * 0.3);
           }
-          core.setLED(i, r, g, b);
+          return [r, g, b];
         }
-      }
-      module.exports = effectPrism;
+      });
     }
   });
 
   // src/effects/tide.js
   var require_tide = __commonJS({
     "src/effects/tide.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
       var { hsl, lerp } = require_core();
-      function effectTide(core, dt) {
-        core.t += dt * 0.6;
-        const { N, surfX, surfY, surfZ, t } = core;
-        for (let i = 0; i < N; i++) {
-          const x = surfX[i], y = surfY[i], z = surfZ[i];
+      var { defineFieldEffect } = require_surface();
+      module.exports = defineFieldEffect({
+        speed: 0.6,
+        pixel(p, { t }) {
+          const { x, y, z } = p;
           const w1 = Math.sin(x * Math.PI * 2 + t * 0.8) * 0.5 + 0.5;
           const w2 = Math.sin(z * Math.PI * 2 - t * 0.6) * 0.5 + 0.5;
           const w3 = Math.sin(y * Math.PI * 1.5 + t * 0.4) * 0.5 + 0.5;
           const blend = (w1 + w2 + w3) / 3;
-          const [r, g, b] = hsl((x * 0.3 + z * 0.3 + blend * 0.25 + t * 0.04) % 1, 0.95, lerp(0.18, 0.72, blend));
-          core.setLED(i, r, g, b);
+          return hsl((x * 0.3 + z * 0.3 + blend * 0.25 + t * 0.04) % 1, 0.95, lerp(0.18, 0.72, blend));
         }
-      }
-      module.exports = effectTide;
+      });
     }
   });
 
@@ -18716,94 +18749,135 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/textCard.js
+  var require_textCard = __commonJS({
+    "src/effects/textCard.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { wcInit, wcStep, wcDrawToFace, wcInitWall, wcStepWall, wcDrawToFaceWall, wcTagQA, drawLinesCentered3x5 } = require_shared();
+      var { drawLinesCentered, FONT_3x5, wallPlot } = require_text();
+      function tfOpts(core) {
+        const o = core.effectOptions?.triviaFacts || {};
+        return { autoOn: o.autoOn !== false, holdSecs: Number(o.holdSecs) > 0 ? Number(o.holdSecs) : 5 };
+      }
+      function defineTextCardEffect({ name, fetchingText, loadingWord, fetchText }) {
+        let text = "", fetching = false, error = "";
+        let lastRefreshToken = null;
+        const status = { text: "Not fetched yet" };
+        const modes = { cube: { t: 0, cascade: null, forText: "" }, wall: { t: 0, cascade: null, forText: "" } };
+        function doFetch() {
+          if (fetching) return;
+          fetching = true;
+          error = "";
+          status.text = fetchingText;
+          fetchText().then((got) => {
+            text = got;
+            status.text = "Got one!";
+          }).catch((err) => {
+            error = err && err.message ? err.message : "Error";
+            status.text = "\u2715 " + error;
+            if (define_process_env_default[name.toUpperCase() + "_DEBUG"]) console.error(`[${name}] fetch error:`, err);
+          }).finally(() => {
+            fetching = false;
+          });
+        }
+        function update(core) {
+          const refreshToken = core.effectOptions?.[name]?.refreshRequestedAt;
+          if (refreshToken != null && refreshToken !== lastRefreshToken) {
+            lastRefreshToken = refreshToken;
+            doFetch();
+          }
+          if (!text && !fetching) doFetch();
+        }
+        function maybeAdvance(core, cascade) {
+          const { autoOn, holdSecs } = tfOpts(core);
+          if (cascade.done && autoOn && cascade.holdTimer > holdSecs && !fetching) doFetch();
+        }
+        function cube(core, dt) {
+          const m = modes.cube;
+          m.t += dt;
+          update(core);
+          for (let i = 0; i < core.N; i++) core.setLED(i, 0, 0, 0);
+          const is2D = core.panelMode === "2d";
+          const faces = is2D ? [0] : [0, 1, 2, 3, 4, 5];
+          if (!text) {
+            const dots = ".".repeat(1 + Math.floor(m.t) % 3);
+            for (const f of faces) drawLinesCentered3x5(core, f, ["LOADING", loadingWord + dots], 2, 0.9, 0.75, 0.2);
+            return;
+          }
+          if (error) {
+            for (const f of faces) drawLinesCentered3x5(core, f, ["API", "ERROR"], 2, 1, 0.25, 0.25);
+            return;
+          }
+          if (m.forText !== text) {
+            m.cascade = wcInit(wcTagQA(text));
+            m.forText = text;
+          }
+          wcStep(m.cascade, dt);
+          wcDrawToFace(core, m.cascade, is2D ? 0 : 1);
+          maybeAdvance(core, m.cascade);
+        }
+        function wall(core, dt) {
+          const { wallW, wallH } = core;
+          if (!wallW) return;
+          const m = modes.wall;
+          m.t += dt;
+          update(core);
+          for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
+          const scale = Math.max(1, Math.min(4, Math.floor(Math.min(wallW / 32, wallH / 16))));
+          if (!text) {
+            const dots = ".".repeat(1 + Math.floor(m.t) % 3);
+            drawLinesCentered(FONT_3x5, ["LOADING", loadingWord + dots], wallW, wallH, wallPlot(core, 0.9, 0.75, 0.2), { scale });
+            return;
+          }
+          if (error) {
+            drawLinesCentered(FONT_3x5, ["API", "ERROR"], wallW, wallH, wallPlot(core, 1, 0.25, 0.25), { scale });
+            return;
+          }
+          if (m.forText !== text) {
+            m.cascade = wcInitWall(wcTagQA(text), wallH);
+            m.forText = text;
+          }
+          wcStepWall(m.cascade, dt, wallW);
+          wcDrawToFaceWall(core, m.cascade);
+          maybeAdvance(core, m.cascade);
+        }
+        cube.wall = wall;
+        cube.getStatus = () => ({ text: status.text, fetching, error: error || null });
+        wall.getStatus = cube.getStatus;
+        return cube;
+      }
+      module.exports = { defineTextCardEffect, tfOpts };
+    }
+  });
+
   // src/effects/joke.js
   var require_joke = __commonJS({
     "src/effects/joke.js"(exports, module) {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { wcInit, wcStep, wcDrawToFace, wcTagQA, drawLinesCentered3x5 } = require_shared();
       var { fetchWithTimeout } = require_net();
-      var jokeText = "";
-      var jokeFetching = false;
-      var jokeError = "";
-      var t = 0;
-      var cascade = null;
-      var cascadeForText = "";
-      var lastRefreshToken = null;
-      var status = { text: "Not fetched yet" };
-      function getStatus() {
-        return { text: status.text, fetching: jokeFetching, error: jokeError || null };
-      }
-      function jokeFetch() {
-        if (jokeFetching) return;
-        jokeFetching = true;
-        jokeError = "";
-        status.text = "Fetching a joke\u2026";
-        (async () => {
+      var { defineTextCardEffect } = require_textCard();
+      module.exports = defineTextCardEffect({
+        name: "joke",
+        fetchingText: "Fetching a joke\u2026",
+        loadingWord: "JOKE",
+        async fetchText() {
           let r;
           try {
             r = await fetchWithTimeout("https://icanhazdadjoke.com/", { headers: { Accept: "application/json" } });
           } catch (fe) {
-            jokeError = "Network error \u2014 check internet connection";
-            throw fe;
+            throw new Error("Network error \u2014 check internet connection");
           }
-          if (!r.ok) {
-            jokeError = "Joke API error " + r.status;
-            throw new Error(String(r.status));
-          }
+          if (!r.ok) throw new Error("Joke API error " + r.status);
           const d = await r.json();
           const text = (d.joke || "").trim();
-          if (!text) {
-            jokeError = "Empty response";
-            throw new Error("empty");
-          }
-          jokeText = text;
-          status.text = "Got one!";
-        })().catch((err) => {
-          status.text = "\u2715 " + jokeError;
-          if (define_process_env_default.JOKE_DEBUG) console.error("[joke] fetch error:", err);
-        }).finally(() => {
-          jokeFetching = false;
-        });
-      }
-      function tfOpts(core) {
-        const o = core.effectOptions?.triviaFacts || {};
-        return { autoOn: o.autoOn !== false, holdSecs: Number(o.holdSecs) > 0 ? Number(o.holdSecs) : 5 };
-      }
-      function effectJoke(core, dt) {
-        t += dt;
-        const refreshToken = core.effectOptions?.joke?.refreshRequestedAt;
-        if (refreshToken != null && refreshToken !== lastRefreshToken) {
-          lastRefreshToken = refreshToken;
-          jokeFetch();
+          if (!text) throw new Error("Empty response");
+          return text;
         }
-        if (!jokeText && !jokeFetching) jokeFetch();
-        const { N } = core;
-        for (let i = 0; i < N; i++) core.setLED(i, 0, 0, 0);
-        const is2D = core.panelMode === "2d";
-        const faces = is2D ? [0] : [0, 1, 2, 3, 4, 5];
-        if (!jokeText) {
-          const dots = ".".repeat(1 + Math.floor(t) % 3);
-          for (const f of faces) drawLinesCentered3x5(core, f, ["LOADING", "JOKE" + dots], 2, 0.9, 0.75, 0.2);
-          return;
-        }
-        if (jokeError) {
-          for (const f of faces) drawLinesCentered3x5(core, f, ["API", "ERROR"], 2, 1, 0.25, 0.25);
-          return;
-        }
-        if (cascadeForText !== jokeText) {
-          cascade = wcInit(wcTagQA(jokeText));
-          cascadeForText = jokeText;
-        }
-        wcStep(cascade, dt);
-        const targetFace = is2D ? 0 : 1;
-        wcDrawToFace(core, cascade, targetFace);
-        const { autoOn, holdSecs } = tfOpts(core);
-        if (cascade.done && autoOn && cascade.holdTimer > holdSecs && !jokeFetching) jokeFetch();
-      }
-      module.exports = effectJoke;
-      module.exports.getStatus = getStatus;
+      });
     }
   });
 
@@ -18813,90 +18887,29 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { wcInit, wcStep, wcDrawToFace, wcTagQA, wcDecodeEntities, drawLinesCentered3x5 } = require_shared();
+      var { wcDecodeEntities } = require_shared();
       var { fetchWithTimeout } = require_net();
-      var triviaText = "";
-      var triviaFetching = false;
-      var triviaError = "";
-      var t = 0;
-      var cascade = null;
-      var cascadeForText = "";
-      var lastRefreshToken = null;
-      var status = { text: "Not fetched yet" };
-      function getStatus() {
-        return { text: status.text, fetching: triviaFetching, error: triviaError || null };
-      }
-      function triviaFetch() {
-        if (triviaFetching) return;
-        triviaFetching = true;
-        triviaError = "";
-        status.text = "Fetching a question\u2026";
-        (async () => {
+      var { defineTextCardEffect } = require_textCard();
+      module.exports = defineTextCardEffect({
+        name: "trivia",
+        fetchingText: "Fetching a question\u2026",
+        loadingWord: "TRIVIA",
+        async fetchText() {
           let r;
           try {
             r = await fetchWithTimeout("https://opentdb.com/api.php?amount=1&type=multiple");
           } catch (fe) {
-            triviaError = "Network error \u2014 check internet connection";
-            throw fe;
+            throw new Error("Network error \u2014 check internet connection");
           }
-          if (!r.ok) {
-            triviaError = "Trivia API error " + r.status;
-            throw new Error(String(r.status));
-          }
+          if (!r.ok) throw new Error("Trivia API error " + r.status);
           const d = await r.json();
           const q = (d.results || [])[0];
-          if (!q) {
-            triviaError = "No question returned";
-            throw new Error("empty");
-          }
+          if (!q) throw new Error("No question returned");
           const question = wcDecodeEntities(q.question || "").trim();
           const answer = wcDecodeEntities(q.correct_answer || "").trim();
-          triviaText = (question.endsWith("?") ? question : question + "?") + " " + answer;
-          status.text = "Got one!";
-        })().catch((err) => {
-          status.text = "\u2715 " + triviaError;
-          if (define_process_env_default.TRIVIA_DEBUG) console.error("[trivia] fetch error:", err);
-        }).finally(() => {
-          triviaFetching = false;
-        });
-      }
-      function tfOpts(core) {
-        const o = core.effectOptions?.triviaFacts || {};
-        return { autoOn: o.autoOn !== false, holdSecs: Number(o.holdSecs) > 0 ? Number(o.holdSecs) : 5 };
-      }
-      function effectTrivia(core, dt) {
-        t += dt;
-        const refreshToken = core.effectOptions?.trivia?.refreshRequestedAt;
-        if (refreshToken != null && refreshToken !== lastRefreshToken) {
-          lastRefreshToken = refreshToken;
-          triviaFetch();
+          return (question.endsWith("?") ? question : question + "?") + " " + answer;
         }
-        if (!triviaText && !triviaFetching) triviaFetch();
-        const { N } = core;
-        for (let i = 0; i < N; i++) core.setLED(i, 0, 0, 0);
-        const is2D = core.panelMode === "2d";
-        const faces = is2D ? [0] : [0, 1, 2, 3, 4, 5];
-        if (!triviaText) {
-          const dots = ".".repeat(1 + Math.floor(t) % 3);
-          for (const f of faces) drawLinesCentered3x5(core, f, ["LOADING", "TRIVIA" + dots], 2, 0.9, 0.75, 0.2);
-          return;
-        }
-        if (triviaError) {
-          for (const f of faces) drawLinesCentered3x5(core, f, ["API", "ERROR"], 2, 1, 0.25, 0.25);
-          return;
-        }
-        if (cascadeForText !== triviaText) {
-          cascade = wcInit(wcTagQA(triviaText));
-          cascadeForText = triviaText;
-        }
-        wcStep(cascade, dt);
-        const targetFace = is2D ? 0 : 1;
-        wcDrawToFace(core, cascade, targetFace);
-        const { autoOn, holdSecs } = tfOpts(core);
-        if (cascade.done && autoOn && cascade.holdTimer > holdSecs && !triviaFetching) triviaFetch();
-      }
-      module.exports = effectTrivia;
-      module.exports.getStatus = getStatus;
+      });
     }
   });
 
@@ -18906,17 +18919,15 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { wcInit, wcStep, wcDrawToFace, drawLinesCentered3x5 } = require_shared();
+      var { wcInit, wcStep, wcDrawToFace, wcInitWall, wcStepWall, wcDrawToFaceWall, drawLinesCentered3x5 } = require_shared();
+      var { drawString, drawLinesCentered, FONT_3x5, wallPlot } = require_text();
       var { fetchWithTimeout } = require_net();
       var otdEvents = [];
       var otdFetching = false;
       var otdError = "";
-      var t = 0;
       var otdFetchedFor = "";
-      var otdIdx = 0;
-      var cascade = null;
-      var cascadeForKey = "";
       var lastRefreshToken = null;
+      var modes = { cube: { t: 0, idx: 0, cascade: null, forKey: "" }, wall: { t: 0, idx: 0, cascade: null, forKey: "" } };
       var status = { text: "Not fetched yet" };
       function getStatus() {
         return { text: status.text, fetching: otdFetching, error: otdError || null, count: otdEvents.length };
@@ -18953,7 +18964,8 @@ var PiEngine = (() => {
           }
           otdEvents = events.slice(0, 20);
           otdFetchedFor = key;
-          otdIdx = 0;
+          modes.cube.idx = 0;
+          modes.wall.idx = 0;
           status.text = otdEvents.length + " events for today";
         })().catch((err) => {
           status.text = "\u2715 " + otdError;
@@ -18988,8 +19000,7 @@ var PiEngine = (() => {
           }
         }
       }
-      function effectOnThisDay(core, dt) {
-        t += dt;
+      function update(core) {
         const refreshToken = core.effectOptions?.otd?.refreshRequestedAt;
         if (refreshToken != null && refreshToken !== lastRefreshToken) {
           lastRefreshToken = refreshToken;
@@ -18997,12 +19008,23 @@ var PiEngine = (() => {
         }
         const { key } = todayKey();
         if ((!otdEvents.length || otdFetchedFor !== key) && !otdFetching) otdFetch();
+      }
+      function eventWords(ev) {
+        return [
+          { w: `${ev.year}:`, color: [1, 0.8, 0.27] },
+          ...ev.text.split(/\s+/).filter(Boolean).map((w) => ({ w, color: [0.48, 0.82, 1] }))
+        ];
+      }
+      function effectOnThisDay(core, dt) {
+        const m = modes.cube;
+        m.t += dt;
+        update(core);
         const { N } = core;
         for (let i = 0; i < N; i++) core.setLED(i, 0, 0, 0);
         const is2D = core.panelMode === "2d";
         const faces = is2D ? [0] : [0, 1, 2, 3, 4, 5];
         if (!otdEvents.length) {
-          const dots = ".".repeat(1 + Math.floor(t) % 3);
+          const dots = ".".repeat(1 + Math.floor(m.t) % 3);
           for (const f of faces) drawLinesCentered3x5(core, f, ["ON THIS", "DAY" + dots], 2, 0.3, 0.65, 0.95);
           return;
         }
@@ -19010,28 +19032,73 @@ var PiEngine = (() => {
           for (const f of faces) drawLinesCentered3x5(core, f, ["API", "ERROR"], 2, 1, 0.25, 0.25);
           return;
         }
-        if (otdIdx >= otdEvents.length) otdIdx = 0;
-        const curEvent = otdEvents[otdIdx];
-        const wrapKey = otdIdx + "|" + otdEvents.length;
-        if (cascadeForKey !== wrapKey) {
-          const tagged = [
-            { w: `${curEvent.year}:`, color: [1, 0.8, 0.27] },
-            ...curEvent.text.split(/\s+/).filter(Boolean).map((w) => ({ w, color: [0.48, 0.82, 1] }))
-          ];
-          cascade = wcInit(tagged);
-          cascadeForKey = wrapKey;
+        if (m.idx >= otdEvents.length) m.idx = 0;
+        const wrapKey = m.idx + "|" + otdEvents.length;
+        if (m.forKey !== wrapKey) {
+          m.cascade = wcInit(eventWords(otdEvents[m.idx]));
+          m.forKey = wrapKey;
         }
-        wcStep(cascade, dt);
-        const targetFace = is2D ? 0 : 1;
-        wcDrawToFace(core, cascade, targetFace);
-        if (cascade.done && cascade.holdTimer > 2.5) otdIdx = (otdIdx + 1) % otdEvents.length;
+        wcStep(m.cascade, dt);
+        wcDrawToFace(core, m.cascade, is2D ? 0 : 1);
+        if (m.cascade.done && m.cascade.holdTimer > 2.5) m.idx = (m.idx + 1) % otdEvents.length;
         if (is2D) return;
         drawTitleCard(core);
         const tt = Date.now() * 1e-3;
         drawStarfield(core, tt);
       }
+      function drawTitleCorner(core, W, H) {
+        const now = /* @__PURE__ */ new Date();
+        const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+        const label = `ON THIS DAY ${monthNames[now.getMonth()]} ${now.getDate()} - ${otdEvents.length} EVENTS`;
+        drawString(FONT_3x5, label, 1, 1, wallPlot(core, 0.48, 0.82, 1), { maxX: W });
+      }
+      function drawStarfieldWall(core, W, H, tt) {
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const i = y * W + x;
+            const seed = (i * 2654435761 >>> 0) / 4294967296;
+            if (seed < 0.012) {
+              const twinkle = 0.3 + 0.7 * Math.abs(Math.sin(tt * 1.4 + seed * 60));
+              const br = seed * 30 * twinkle;
+              core.setWallPixel(x, y, br, br, br * 1.1);
+            }
+          }
+        }
+      }
+      function effectOnThisDayWall(core, dt) {
+        const { wallW: W, wallH: H } = core;
+        if (!W) return;
+        const m = modes.wall;
+        m.t += dt;
+        update(core);
+        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
+        const scale = Math.max(1, Math.min(4, Math.floor(Math.min(W / 32, H / 16))));
+        if (!otdEvents.length) {
+          const dots = ".".repeat(1 + Math.floor(m.t) % 3);
+          drawLinesCentered(FONT_3x5, ["ON THIS", "DAY" + dots], W, H, wallPlot(core, 0.3, 0.65, 0.95), { scale });
+          return;
+        }
+        if (otdError) {
+          drawLinesCentered(FONT_3x5, ["API", "ERROR"], W, H, wallPlot(core, 1, 0.25, 0.25), { scale });
+          return;
+        }
+        const tt = Date.now() * 1e-3;
+        drawStarfieldWall(core, W, H, tt);
+        drawTitleCorner(core, W, H);
+        if (m.idx >= otdEvents.length) m.idx = 0;
+        const wrapKey = m.idx + "|" + otdEvents.length;
+        if (m.forKey !== wrapKey) {
+          m.cascade = wcInitWall(eventWords(otdEvents[m.idx]), H);
+          m.forKey = wrapKey;
+        }
+        wcStepWall(m.cascade, dt, W);
+        wcDrawToFaceWall(core, m.cascade, 8);
+        if (m.cascade.done && m.cascade.holdTimer > 2.5) m.idx = (m.idx + 1) % otdEvents.length;
+      }
       module.exports = effectOnThisDay;
       module.exports.getStatus = getStatus;
+      module.exports.wall = effectOnThisDayWall;
+      effectOnThisDayWall.getStatus = getStatus;
     }
   });
 
@@ -19096,100 +19163,6 @@ var PiEngine = (() => {
       module.exports = effectVideoWall;
       module.exports.getStatus = getStatus;
       module.exports.stop = () => source.stop();
-    }
-  });
-
-  // src/effects/depthRingsWall.js
-  var require_depthRingsWall = __commonJS({
-    "src/effects/depthRingsWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      function effectDepthRingsWall(core, dt) {
-        core.t += dt * 0.75;
-        const { wallW, wallH, t } = core;
-        if (!wallW) return;
-        for (let y = 0; y < wallH; y++) {
-          const ny = y / wallH - 0.5;
-          for (let x = 0; x < wallW; x++) {
-            const nx = x / wallW - 0.5;
-            const dist = Math.sqrt(nx * nx + ny * ny) * 2;
-            const ang = Math.atan2(ny, nx);
-            const twist = ang * 1.6 + dist * 2.5;
-            const ring = Math.sin(dist * Math.PI * 9 - t * 2.4 + twist);
-            const ring2 = Math.sin(dist * Math.PI * 4.5 + t * 1.1 + ang);
-            const bright = ((ring * 0.6 + ring2 * 0.4) * 0.5 + 0.5) * (1 - dist * 0.42) * 0.88;
-            const hue = (dist * 0.65 + ang / (Math.PI * 2) * 0.3 + t * 0.055) % 1;
-            const [r, g, b] = hsl(hue, 1, Math.max(0, bright));
-            core.setWallPixel(x, y, r, g, b);
-          }
-        }
-      }
-      module.exports = effectDepthRingsWall;
-    }
-  });
-
-  // src/effects/prismWall.js
-  var require_prismWall = __commonJS({
-    "src/effects/prismWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl, sm } = require_core();
-      function effectPrismWall(core, dt) {
-        core.t += dt * 0.55;
-        const { wallW, wallH, t } = core;
-        if (!wallW) return;
-        const beamAng = t * 0.6, beamW = 0.18;
-        for (let yy = 0; yy < wallH; yy++) {
-          const y = yy / wallH;
-          for (let xx = 0; xx < wallW; xx++) {
-            const x = xx / wallW;
-            const diagFull = (x + y) / 2;
-            const cross = 0;
-            const base = 0.28 + Math.sin(diagFull * Math.PI * 5.5 + t) * 0.28;
-            const hue = (diagFull * 0.92 + t * 0.065) % 1;
-            let [r, g, b] = hsl(hue, 0.78 + sm(0, 1, cross) * 0.22, Math.max(0, base));
-            const bDist = Math.abs((x - 0.5) * Math.cos(beamAng));
-            const beam = Math.max(0, 1 - bDist / beamW) * 0.8;
-            if (beam > 0) {
-              const dispHue = (hue + bDist * 1.5) % 1;
-              const [dr, dg, db] = hsl(dispHue, 1, beam * 0.9);
-              r = Math.min(1, r + dr * beam + beam * 0.3);
-              g = Math.min(1, g + dg * beam + beam * 0.3);
-              b = Math.min(1, b + db * beam + beam * 0.3);
-            }
-            core.setWallPixel(xx, yy, r, g, b);
-          }
-        }
-      }
-      module.exports = effectPrismWall;
-    }
-  });
-
-  // src/effects/tideWall.js
-  var require_tideWall = __commonJS({
-    "src/effects/tideWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl, lerp } = require_core();
-      function effectTideWall(core, dt) {
-        core.t += dt * 0.6;
-        const { wallW, wallH, t } = core;
-        if (!wallW) return;
-        for (let yy = 0; yy < wallH; yy++) {
-          const y = yy / wallH;
-          for (let xx = 0; xx < wallW; xx++) {
-            const x = xx / wallW;
-            const w1 = Math.sin(x * Math.PI * 2 + t * 0.8) * 0.5 + 0.5;
-            const w2 = Math.sin(y * Math.PI * 2 - t * 0.6) * 0.5 + 0.5;
-            const w3 = Math.sin(y * Math.PI * 1.5 + t * 0.4) * 0.5 + 0.5;
-            const blend = (w1 + w2 + w3) / 3;
-            const [r, g, b] = hsl((x * 0.3 + y * 0.3 + blend * 0.25 + t * 0.04) % 1, 0.95, lerp(0.18, 0.72, blend));
-            core.setWallPixel(xx, yy, r, g, b);
-          }
-        }
-      }
-      module.exports = effectTideWall;
     }
   });
 
@@ -19296,170 +19269,6 @@ var PiEngine = (() => {
         }
       }
       module.exports = effectStrobeWall;
-    }
-  });
-
-  // src/effects/waveWall.js
-  var require_waveWall = __commonJS({
-    "src/effects/waveWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      function effectWaveWall(core, dt) {
-        core.t += dt * 1.1;
-        const { wallW, wallH, t } = core;
-        if (!wallW) return;
-        for (let yy = 0; yy < wallH; yy++) {
-          const y = yy / wallH;
-          for (let xx = 0; xx < wallW; xx++) {
-            const x = xx / wallW;
-            const z = y;
-            const w1 = Math.sin((x + z) * 6.2 + t) * Math.cos(y * 4.5 - t * 0.8);
-            const w2 = Math.sin((x - z) * 4.8 + t * 1.4) * Math.sin(y * 5.2 + t * 0.6);
-            const w3 = Math.sin((x * 0.7 + y * 0.9 + z * 0.5) * 7 + t * 0.9);
-            const w = (w1 + w2 + w3) / 3;
-            const bright = w * 0.5 + 0.5;
-            const hue = (x * 0.35 + y * 0.25 + z * 0.35 + t * 0.045) % 1;
-            let [r, g, b] = hsl(hue, 1, bright * 0.72);
-            const spark = Math.max(0, (w1 + w2 + w3 - 2.2) / 0.8);
-            r = Math.min(1, r + spark * 0.9);
-            g = Math.min(1, g + spark * 0.9);
-            b = Math.min(1, b + spark * 0.9);
-            core.setWallPixel(xx, yy, r, g, b);
-          }
-        }
-      }
-      module.exports = effectWaveWall;
-    }
-  });
-
-  // src/effects/plasmaWall.js
-  var require_plasmaWall = __commonJS({
-    "src/effects/plasmaWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      function effectPlasmaWall(core, dt) {
-        core.t += dt * 0.75;
-        const { wallW, wallH, t } = core;
-        if (!wallW) return;
-        for (let yy = 0; yy < wallH; yy++) {
-          const y = yy / wallH;
-          for (let xx = 0; xx < wallW; xx++) {
-            const x = xx / wallW;
-            const z = y;
-            const cx = x - 0.5, cy = y - 0.5, dist = Math.sqrt(cx * cx + cy * cy);
-            const v = Math.sin(x * 7.1 + t) + Math.sin(y * 6.3 + t * 1.3) + Math.sin(z * 7.5 + t * 0.9) + Math.sin((x + y + z) * 4.2 + t * 0.5) + Math.sin(dist * 11 + t * 1.6) * 0.6;
-            const bright = Math.pow(Math.sin(v * 1.3) * 0.5 + 0.5, 1.2) * 0.75;
-            const hue = ((v * 0.12 + t * 0.04) % 1 + 1) % 1;
-            const sat = 0.85 + Math.sin(t * 0.7 + dist * 3) * 0.15;
-            const [r, g, b] = hsl(hue, sat, bright);
-            const peak = Math.max(0, bright - 0.55) * 2;
-            core.setWallPixel(xx, yy, Math.min(1, r + peak * 0.3), g, Math.min(1, b + peak * 0.15));
-          }
-        }
-      }
-      module.exports = effectPlasmaWall;
-    }
-  });
-
-  // src/effects/auroraWall.js
-  var require_auroraWall = __commonJS({
-    "src/effects/auroraWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl, lerp, sm } = require_core();
-      var auroraWallStar = null;
-      function effectAuroraWall(core, dt) {
-        core.t += dt * 0.35;
-        const { wallW, wallH, t } = core;
-        if (!wallW) return;
-        const wn = wallW * wallH;
-        if (!auroraWallStar || auroraWallStar.length !== wn) {
-          auroraWallStar = new Float32Array(wn);
-          for (let i = 0; i < wn; i++) auroraWallStar[i] = Math.random() < 0.014 ? Math.random() : 0;
-        }
-        for (let yy = 0; yy < wallH; yy++) {
-          const y = 1 - yy / wallH;
-          for (let xx = 0; xx < wallW; xx++) {
-            const x = xx / wallW;
-            const c1 = Math.sin(x * Math.PI * 3.5 + t * 0.65) * Math.sin(t * 0.42);
-            const c2 = Math.sin(x * Math.PI * 2.2 - t * 0.38) * Math.cos(t * 0.55) * 0.6;
-            const curtain = c1 + c2;
-            const fade = Math.pow(Math.max(0, y), 0.45);
-            const bright = Math.max(0, curtain) * fade * 0.88;
-            const idx = yy * wallW + xx;
-            if (bright > 0.02) {
-              const hue = lerp(0.3, 0.82, sm(0, 1, x + Math.sin(t * 0.28) * 0.25)) + Math.sin(t * 0.1) * 0.04;
-              const sat = 0.9 + Math.sin(t * 0.8 + x * 2) * 0.1;
-              const [r, g, b] = hsl(hue, sat, bright);
-              const [r2, g2, b2] = hsl(hue + 0.45, sat, bright * 0.4 * Math.max(0, c2));
-              core.setWallPixel(xx, yy, Math.min(1, r + r2), Math.min(1, g + g2), Math.min(1, b + b2));
-            } else {
-              const s = auroraWallStar[idx];
-              if (s > 0) {
-                const tw = 0.5 + 0.5 * Math.sin(t * 2.3 + s * 12.7);
-                core.setWallPixel(xx, yy, tw * 0.55, tw * 0.55, tw * 0.65);
-              } else core.setWallPixel(xx, yy, 0, 0, 0);
-            }
-          }
-        }
-      }
-      module.exports = effectAuroraWall;
-    }
-  });
-
-  // src/effects/nebulaWall.js
-  var require_nebulaWall = __commonJS({
-    "src/effects/nebulaWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl, lerp, sm } = require_core();
-      var nebWallStars = null;
-      function effectNebulaWall(core, dt) {
-        core.t += dt * 0.28;
-        const { wallW, wallH, t } = core;
-        if (!wallW) return;
-        const wn = wallW * wallH;
-        if (!nebWallStars || nebWallStars.length !== wn) {
-          nebWallStars = [];
-          for (let i = 0; i < wn; i++) nebWallStars.push({ last: -1, next: Math.random() * 8, bright: 0 });
-        }
-        for (let yy = 0; yy < wallH; yy++) {
-          const y = yy / wallH;
-          for (let xx = 0; xx < wallW; xx++) {
-            const x = xx / wallW;
-            let d = 0;
-            d += Math.sin(x * 5.3 + t * 0.52) * Math.cos(y * 4.9 + t * 0.31) * 0.5;
-            d += Math.sin(-t * 0.42) * Math.sin(x * 3.4 + t * 0.21) * 0.38;
-            d += Math.cos((x + y) * 4.2 + t * 0.58) * 0.28;
-            d += Math.sin(x * 8.8 + y * 6.1 - t * 0.35) * 0.15;
-            d = d * 0.48 + 0.52;
-            const bright = Math.pow(Math.max(0, d - 0.08), 1.4) * 0.92;
-            const hue = lerp(0.6, 0.04, sm(0.18, 0.88, d)) + Math.sin(t * 0.08) * 0.05;
-            const [r, g, b] = hsl(hue, 0.85 + d * 0.15, bright);
-            const coreBoost = Math.max(0, d - 0.75) * 3.5;
-            const idx = yy * wallW + xx;
-            const ns = nebWallStars[idx];
-            ns.next -= dt;
-            let sr = 0, sg = 0, sb = 0;
-            if (ns.next <= 0) {
-              ns.bright = 0.6 + Math.random() * 0.4;
-              ns.next = 4 + Math.random() * 12;
-              ns.last = t;
-            }
-            if (ns.bright > 0) {
-              ns.bright = Math.max(0, ns.bright - dt * 1.2);
-              const sc = ns.bright;
-              sr = sc;
-              sg = sc;
-              sb = sc + 0.2;
-            }
-            core.setWallPixel(xx, yy, Math.min(1, r + coreBoost * 0.4 + sr), Math.min(1, g + coreBoost * 0.3 + sg), Math.min(1, b + coreBoost * 0.2 + sb));
-          }
-        }
-      }
-      module.exports = effectNebulaWall;
     }
   });
 
@@ -24373,288 +24182,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/jokeWall.js
-  var require_jokeWall = __commonJS({
-    "src/effects/jokeWall.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { wcInitWall, wcStepWall, wcDrawToFaceWall, wcTagQA } = require_shared();
-      var { fetchWithTimeout } = require_net();
-      var jokeText = "";
-      var jokeFetching = false;
-      var jokeError = "";
-      var t = 0;
-      var cascade = null;
-      var cascadeForText = "";
-      var lastRefreshToken = null;
-      var status = { text: "Not fetched yet" };
-      function getStatus() {
-        return { text: status.text, fetching: jokeFetching, error: jokeError || null };
-      }
-      function jokeFetch() {
-        if (jokeFetching) return;
-        jokeFetching = true;
-        jokeError = "";
-        status.text = "Fetching a joke\u2026";
-        (async () => {
-          let r;
-          try {
-            r = await fetchWithTimeout("https://icanhazdadjoke.com/", { headers: { Accept: "application/json" } });
-          } catch (fe) {
-            jokeError = "Network error \u2014 check internet connection";
-            throw fe;
-          }
-          if (!r.ok) {
-            jokeError = "Joke API error " + r.status;
-            throw new Error(String(r.status));
-          }
-          const d = await r.json();
-          const text = (d.joke || "").trim();
-          if (!text) {
-            jokeError = "Empty response";
-            throw new Error("empty");
-          }
-          jokeText = text;
-          status.text = "Got one!";
-        })().catch((err) => {
-          status.text = "\u2715 " + jokeError;
-          if (define_process_env_default.JOKE_DEBUG) console.error("[jokeWall] fetch error:", err);
-        }).finally(() => {
-          jokeFetching = false;
-        });
-      }
-      function tfOpts(core) {
-        const o = core.effectOptions?.triviaFacts || {};
-        return { autoOn: o.autoOn !== false, holdSecs: Number(o.holdSecs) > 0 ? Number(o.holdSecs) : 5 };
-      }
-      function effectJokeWall(core, dt) {
-        const { wallW, wallH } = core;
-        if (!wallW) return;
-        t += dt;
-        const refreshToken = core.effectOptions?.joke?.refreshRequestedAt;
-        if (refreshToken != null && refreshToken !== lastRefreshToken) {
-          lastRefreshToken = refreshToken;
-          jokeFetch();
-        }
-        if (!jokeText && !jokeFetching) jokeFetch();
-        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
-        if (!jokeText || jokeError) return;
-        if (cascadeForText !== jokeText) {
-          cascade = wcInitWall(wcTagQA(jokeText), wallH);
-          cascadeForText = jokeText;
-        }
-        wcStepWall(cascade, dt, wallW);
-        wcDrawToFaceWall(core, cascade);
-        const { autoOn, holdSecs } = tfOpts(core);
-        if (cascade.done && autoOn && cascade.holdTimer > holdSecs && !jokeFetching) jokeFetch();
-      }
-      module.exports = effectJokeWall;
-      module.exports.getStatus = getStatus;
-    }
-  });
-
-  // src/effects/triviaWall.js
-  var require_triviaWall = __commonJS({
-    "src/effects/triviaWall.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { wcInitWall, wcStepWall, wcDrawToFaceWall, wcTagQA, wcDecodeEntities } = require_shared();
-      var { fetchWithTimeout } = require_net();
-      var triviaText = "";
-      var triviaFetching = false;
-      var triviaError = "";
-      var t = 0;
-      var cascade = null;
-      var cascadeForText = "";
-      var lastRefreshToken = null;
-      var status = { text: "Not fetched yet" };
-      function getStatus() {
-        return { text: status.text, fetching: triviaFetching, error: triviaError || null };
-      }
-      function triviaFetch() {
-        if (triviaFetching) return;
-        triviaFetching = true;
-        triviaError = "";
-        status.text = "Fetching a question\u2026";
-        (async () => {
-          let r;
-          try {
-            r = await fetchWithTimeout("https://opentdb.com/api.php?amount=1&type=multiple");
-          } catch (fe) {
-            triviaError = "Network error \u2014 check internet connection";
-            throw fe;
-          }
-          if (!r.ok) {
-            triviaError = "Trivia API error " + r.status;
-            throw new Error(String(r.status));
-          }
-          const d = await r.json();
-          const q = (d.results || [])[0];
-          if (!q) {
-            triviaError = "No question returned";
-            throw new Error("empty");
-          }
-          const question = wcDecodeEntities(q.question || "").trim();
-          const answer = wcDecodeEntities(q.correct_answer || "").trim();
-          triviaText = (question.endsWith("?") ? question : question + "?") + " " + answer;
-          status.text = "Got one!";
-        })().catch((err) => {
-          status.text = "\u2715 " + triviaError;
-          if (define_process_env_default.TRIVIA_DEBUG) console.error("[triviaWall] fetch error:", err);
-        }).finally(() => {
-          triviaFetching = false;
-        });
-      }
-      function tfOpts(core) {
-        const o = core.effectOptions?.triviaFacts || {};
-        return { autoOn: o.autoOn !== false, holdSecs: Number(o.holdSecs) > 0 ? Number(o.holdSecs) : 5 };
-      }
-      function effectTriviaWall(core, dt) {
-        const { wallW, wallH } = core;
-        if (!wallW) return;
-        t += dt;
-        const refreshToken = core.effectOptions?.trivia?.refreshRequestedAt;
-        if (refreshToken != null && refreshToken !== lastRefreshToken) {
-          lastRefreshToken = refreshToken;
-          triviaFetch();
-        }
-        if (!triviaText && !triviaFetching) triviaFetch();
-        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
-        if (!triviaText || triviaError) return;
-        if (cascadeForText !== triviaText) {
-          cascade = wcInitWall(wcTagQA(triviaText), wallH);
-          cascadeForText = triviaText;
-        }
-        wcStepWall(cascade, dt, wallW);
-        wcDrawToFaceWall(core, cascade);
-        const { autoOn, holdSecs } = tfOpts(core);
-        if (cascade.done && autoOn && cascade.holdTimer > holdSecs && !triviaFetching) triviaFetch();
-      }
-      module.exports = effectTriviaWall;
-      module.exports.getStatus = getStatus;
-    }
-  });
-
-  // src/effects/otdWall.js
-  var require_otdWall = __commonJS({
-    "src/effects/otdWall.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { wcInitWall, wcStepWall, wcDrawToFaceWall } = require_shared();
-      var { drawString, FONT_3x5, wallPlot } = require_text();
-      var { fetchWithTimeout } = require_net();
-      var otdEvents = [];
-      var otdFetching = false;
-      var otdError = "";
-      var t = 0;
-      var otdFetchedFor = "";
-      var otdIdx = 0;
-      var cascade = null;
-      var cascadeForKey = "";
-      var lastRefreshToken = null;
-      var status = { text: "Not fetched yet" };
-      function getStatus() {
-        return { text: status.text, fetching: otdFetching, error: otdError || null, count: otdEvents.length };
-      }
-      function todayKey() {
-        const now = /* @__PURE__ */ new Date();
-        const mm = String(now.getMonth() + 1).padStart(2, "0"), dd = String(now.getDate()).padStart(2, "0");
-        return { mm, dd, key: mm + "-" + dd };
-      }
-      function otdFetch() {
-        if (otdFetching) return;
-        otdFetching = true;
-        otdError = "";
-        status.text = "Fetching today in history\u2026";
-        const { mm, dd, key } = todayKey();
-        (async () => {
-          const url = `https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`;
-          let r;
-          try {
-            r = await fetchWithTimeout(url, { headers: { Accept: "application/json" } });
-          } catch (fe) {
-            otdError = "Network error \u2014 check internet connection";
-            throw fe;
-          }
-          if (!r.ok) {
-            otdError = "Wikipedia API error " + r.status;
-            throw new Error(String(r.status));
-          }
-          const d = await r.json();
-          const events = (d.events || []).filter((e) => e.text).sort((a, b) => (b.year || 0) - (a.year || 0));
-          if (!events.length) {
-            otdError = "No events found";
-            throw new Error("empty");
-          }
-          otdEvents = events.slice(0, 20);
-          otdFetchedFor = key;
-          otdIdx = 0;
-          status.text = otdEvents.length + " events for today";
-        })().catch((err) => {
-          status.text = "\u2715 " + otdError;
-          if (define_process_env_default.OTD_DEBUG) console.error("[otdWall] fetch error:", err);
-        }).finally(() => {
-          otdFetching = false;
-        });
-      }
-      function drawTitleCorner(core, W, H) {
-        const now = /* @__PURE__ */ new Date();
-        const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-        const label = `ON THIS DAY ${monthNames[now.getMonth()]} ${now.getDate()} - ${otdEvents.length} EVENTS`;
-        drawString(FONT_3x5, label, 1, 1, wallPlot(core, 0.48, 0.82, 1), { maxX: W });
-      }
-      function drawStarfield(core, W, H, tt) {
-        for (let y = 0; y < H; y++) {
-          for (let x = 0; x < W; x++) {
-            const i = y * W + x;
-            const seed = (i * 2654435761 >>> 0) / 4294967296;
-            if (seed < 0.012) {
-              const twinkle = 0.3 + 0.7 * Math.abs(Math.sin(tt * 1.4 + seed * 60));
-              const br = seed * 30 * twinkle;
-              core.setWallPixel(x, y, br, br, br * 1.1);
-            }
-          }
-        }
-      }
-      function effectOnThisDayWall(core, dt) {
-        const { wallW: W, wallH: H } = core;
-        if (!W) return;
-        t += dt;
-        const refreshToken = core.effectOptions?.otd?.refreshRequestedAt;
-        if (refreshToken != null && refreshToken !== lastRefreshToken) {
-          lastRefreshToken = refreshToken;
-          otdFetch();
-        }
-        const { key } = todayKey();
-        if ((!otdEvents.length || otdFetchedFor !== key) && !otdFetching) otdFetch();
-        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
-        if (!otdEvents.length || otdError) return;
-        const tt = Date.now() * 1e-3;
-        drawStarfield(core, W, H, tt);
-        drawTitleCorner(core, W, H);
-        if (otdIdx >= otdEvents.length) otdIdx = 0;
-        const curEvent = otdEvents[otdIdx];
-        const wrapKey = otdIdx + "|" + otdEvents.length;
-        if (cascadeForKey !== wrapKey) {
-          const tagged = [
-            { w: `${curEvent.year}:`, color: [1, 0.8, 0.27] },
-            ...curEvent.text.split(/\s+/).filter(Boolean).map((w) => ({ w, color: [0.48, 0.82, 1] }))
-          ];
-          cascade = wcInitWall(tagged, H);
-          cascadeForKey = wrapKey;
-        }
-        wcStepWall(cascade, dt, W);
-        wcDrawToFaceWall(core, cascade, 8);
-        if (cascade.done && cascade.holdTimer > 2.5) otdIdx = (otdIdx + 1) % otdEvents.length;
-      }
-      module.exports = effectOnThisDayWall;
-      module.exports.getStatus = getStatus;
-    }
-  });
-
   // src/effects/retroWall.js
   var require_retroWall = __commonJS({
     "src/effects/retroWall.js"(exports, module) {
@@ -25383,7 +24910,7 @@ var PiEngine = (() => {
       var warp = require_warp();
       var lightning = require_lightning();
       var lightspeed = require_lightspeed();
-      var gradientWashWall = require_gradientWashWall();
+      var gradientWashWall = gradientWash.wall;
       var cam = require_cam();
       var maze = require_maze();
       var coinflip = require_coinflip();
@@ -25421,14 +24948,14 @@ var PiEngine = (() => {
       var trivia = require_trivia();
       var otd = require_otd();
       var videoWall = require_videoWall();
-      var depthRingsWall = require_depthRingsWall();
-      var prismWall = require_prismWall();
-      var tideWall = require_tideWall();
+      var depthRingsWall = depthRings.wall;
+      var prismWall = prism.wall;
+      var tideWall = tide.wall;
       var strobeWall = require_strobeWall();
-      var waveWall = require_waveWall();
-      var plasmaWall = require_plasmaWall();
-      var auroraWall = require_auroraWall();
-      var nebulaWall = require_nebulaWall();
+      var waveWall = wave.wall;
+      var plasmaWall = plasma.wall;
+      var auroraWall = aurora.wall;
+      var nebulaWall = nebula.wall;
       var warpWall = require_warpWall();
       var rainWall = require_rainWall();
       var dnaWall = require_dnaWall();
@@ -25454,9 +24981,9 @@ var PiEngine = (() => {
       var ghostWall = require_ghostWall();
       var unsplashWall = require_unsplashWall();
       var articWall = require_articWall();
-      var jokeWall = require_jokeWall();
-      var triviaWall = require_triviaWall();
-      var otdWall = require_otdWall();
+      var jokeWall = joke.wall;
+      var triviaWall = trivia.wall;
+      var otdWall = otd.wall;
       var retroWall = require_retroWall();
       var radioWall = require_radioWall();
       var WALL_EFFECTS = {

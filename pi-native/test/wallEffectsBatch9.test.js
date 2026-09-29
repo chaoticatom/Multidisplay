@@ -21,9 +21,9 @@ const { CubeCore } = require('../src/core');
 const { Jimp } = require('jimp');
 const effectUnsplashWall = require('../src/effects/unsplashWall');
 const effectArticWall = require('../src/effects/articWall');
-const effectJokeWall = require('../src/effects/jokeWall');
-const effectTriviaWall = require('../src/effects/triviaWall');
-const effectOtdWall = require('../src/effects/otdWall');
+const effectJokeWall = require('../src/effects/joke').wall;
+const effectTriviaWall = require('../src/effects/trivia').wall;
+const effectOtdWall = require('../src/effects/otd').wall;
 const unsplashConfig = require('../src/unsplashConfig');
 
 function test(name, fn) {

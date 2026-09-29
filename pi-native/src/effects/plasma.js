@@ -1,12 +1,29 @@
 // Ported verbatim (math unchanged) from effects-motion.js's effectPlasma().
-const { hsl } = require('../core');
+//
+// One definition for cube and wall (see ./surface.js). Wall notes:
+//   Wall-mode counterpart to plasma.js - same idea as gradientWashWall.js vs
+//   gradientWash.js. x/y/z flattened to unshifted x=x/wallW, y=y/wallH (same
+//   convention as prismWall.js/tideWall.js, matching plasma.js's own
+//   unshifted x/y/z). `dist` (used for both the central radial ripple term
+//   and the saturation shimmer) drops its z component and becomes a plain
+//   2D radial distance from the wall's center, same spirit as
+//   depthRingsWall.js's dist. The lone term that read z on its own
+//   (`sin(z*7.5+t*0.9)`) is re-derived from y instead, following tideWall's
+//   precedent, rather than dropped outright - keeps five interfering wave
+//   terms instead of quietly collapsing to four.
+'use strict';
 
-function effectPlasma(core, dt) {
-  core.t += dt * 0.75;
-  const { N, surfX, surfY, surfZ, t } = core;
-  for (let i = 0; i < N; i++) {
-    const x = surfX[i], y = surfY[i], z = surfZ[i];
-    const cx = x - 0.5, cy = y - 0.5, cz = z - 0.5, dist = Math.sqrt(cx * cx + cy * cy + cz * cz);
+const { hsl } = require('../core');
+const { defineFieldEffect } = require('./surface');
+
+module.exports = defineFieldEffect({
+  speed: 0.75,
+  pixel(p, { t }) {
+    const { x, y, z } = p;
+    // Distance from centre: 3D on the cube; on a flat wall only x/y (the
+    // wall's z stand-in is y, which would double-count it here).
+    const cx = x - 0.5, cy = y - 0.5, cz = z - 0.5;
+    const dist = p.flat ? Math.sqrt(cx * cx + cy * cy) : Math.sqrt(cx * cx + cy * cy + cz * cz);
     const v = Math.sin(x * 7.1 + t)
             + Math.sin(y * 6.3 + t * 1.3)
             + Math.sin(z * 7.5 + t * 0.9)
@@ -18,8 +35,6 @@ function effectPlasma(core, dt) {
     const [r, g, b] = hsl(hue, sat, bright);
     // chromatic split on bright peaks
     const peak = Math.max(0, bright - 0.55) * 2;
-    core.setLED(i, Math.min(1, r + peak * 0.3), g, Math.min(1, b + peak * 0.15));
-  }
-}
-
-module.exports = effectPlasma;
+    return [Math.min(1, r + peak * 0.3), g, Math.min(1, b + peak * 0.15)];
+  },
+});

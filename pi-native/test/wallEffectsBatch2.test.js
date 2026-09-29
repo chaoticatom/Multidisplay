@@ -8,10 +8,10 @@
 // copies of the same 64x64 frame.
 const assert = require('assert');
 const { CubeCore } = require('../src/core');
-const effectWaveWall = require('../src/effects/waveWall');
-const effectPlasmaWall = require('../src/effects/plasmaWall');
-const effectAuroraWall = require('../src/effects/auroraWall');
-const effectNebulaWall = require('../src/effects/nebulaWall');
+const effectWaveWall = require('../src/effects/wave').wall;
+const effectPlasmaWall = require('../src/effects/plasma').wall;
+const effectAuroraWall = require('../src/effects/aurora').wall;
+const effectNebulaWall = require('../src/effects/nebula').wall;
 const effectWarpWall = require('../src/effects/warpWall');
 const effectRainWall = require('../src/effects/rainWall');
 
