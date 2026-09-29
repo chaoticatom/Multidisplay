@@ -42,7 +42,7 @@
 // mode from the browser source) is a documented, permanent scope boundary,
 // NOT ported - see alarmEngine.js's module comment for why.
 const fs = require('fs');
-const { atomicWriteJson } = require('./atomicWrite');
+const { readSectionJson, writeSection } = require('./settingsStore'); // CONFIG_PATH is now only the pre-settings.json legacy file, imported once
 const path = require('path');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'alarms.json');
@@ -62,7 +62,7 @@ function isValidAlarm(al) {
 
 function load() {
   try {
-    const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+    const raw = readSectionJson('alarms', CONFIG_PATH);
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) throw new Error('invalid stored alarms');
     return parsed.filter(isValidAlarm);
@@ -75,7 +75,7 @@ function load() {
 }
 
 function save(alarms) {
-  atomicWriteJson(CONFIG_PATH, alarms);
+  writeSection('alarms', alarms);
 }
 
 module.exports = { load, save, isValidAlarm, REPEAT_MODES, CONFIG_PATH };

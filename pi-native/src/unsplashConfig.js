@@ -11,7 +11,7 @@
 //
 // Data shape: { apiKey: string, query: string }
 const fs = require('fs');
-const { atomicWriteJson } = require('./atomicWrite');
+const { readSectionJson, writeSection } = require('./settingsStore'); // CONFIG_PATH is now only the pre-settings.json legacy file, imported once
 const path = require('path');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'unsplash-config.json');
@@ -23,7 +23,7 @@ function isValidConfig(c) {
 
 function load() {
   try {
-    const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+    const raw = readSectionJson('unsplash', CONFIG_PATH);
     const parsed = JSON.parse(raw);
     if (!isValidConfig(parsed)) throw new Error('invalid stored unsplash config');
     return parsed;
@@ -36,7 +36,7 @@ function load() {
 }
 
 function save(config) {
-  atomicWriteJson(CONFIG_PATH, config);
+  writeSection('unsplash', config);
 }
 
 module.exports = { load, save, isValidConfig, DEFAULT_CONFIG, CONFIG_PATH };

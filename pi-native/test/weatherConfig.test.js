@@ -25,7 +25,13 @@ function test(name, fn) {
   );
 }
 
+// Each case also gets a fresh, empty settings store (settings.json), so a
+// city saved by one case can't leak into the next.
+const settingsStore = require('../src/settingsStore');
+const os = require('os');
+const path = require('path');
 function withRealConfigFile(fn) {
+  settingsStore._setStorePath(path.join(os.tmpdir(), `weather-settings-${process.pid}-${Date.now()}-${Math.random()}.json`));
   const hadFile = fs.existsSync(weatherConfig.CONFIG_PATH);
   const original = hadFile ? fs.readFileSync(weatherConfig.CONFIG_PATH, 'utf8') : null;
   try {

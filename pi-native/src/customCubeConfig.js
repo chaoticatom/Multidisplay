@@ -25,7 +25,7 @@
 //   { faces: [FaceConfig|null, ...6], library: [{name, faces:[FaceConfig|null, ...6]}, ...] }
 //   FaceConfig = { effect: string, overlayKeys: string[], opts: object }
 const fs = require('fs');
-const { atomicWriteJson } = require('./atomicWrite');
+const { readSectionJson, writeSection } = require('./settingsStore'); // CONFIG_PATH is now only the pre-settings.json legacy file, imported once
 const path = require('path');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'custom-cube-config.json');
@@ -63,7 +63,7 @@ const DEFAULT_CONFIG = { faces: emptyFaces(), library: [] };
 
 function load() {
   try {
-    const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+    const raw = readSectionJson('customCube', CONFIG_PATH);
     const parsed = JSON.parse(raw);
     const faces = isValidFaces(parsed.faces) ? parsed.faces : emptyFaces();
     const library = isValidLibrary(parsed.library) ? parsed.library : [];
@@ -77,7 +77,7 @@ function load() {
 }
 
 function save(config) {
-  atomicWriteJson(CONFIG_PATH, config);
+  writeSection('customCube', config);
 }
 
 module.exports = {

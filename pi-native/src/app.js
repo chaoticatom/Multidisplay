@@ -276,6 +276,7 @@ async function main() {
     // for the following frame guarantees the broadcast reflects the
     // command's actual outcome, not a stale pre-command snapshot.
     let pendingBroadcast = false;
+    let sharedCol = null, sharedWall = null;
     let radioSeen = { ensureCount: 0, clearCount: 0 };
     renderWorker.on('message', (msg) => {
       if (msg.type === 'stateChanged') { pendingBroadcast = true; return; }
@@ -285,8 +286,12 @@ async function main() {
       // the worker sent for a single frame - skip applying a mismatched
       // one rather than letting TypedArray#set throw (self-heals on the
       // very next frame once both sides agree on size again).
-      if (msg.colBuf.length === core.colBuf.length) core.colBuf.set(msg.colBuf);
-      if (msg.wallBuf && core.wallBuf && msg.wallBuf.length === core.wallBuf.length) core.wallBuf.set(msg.wallBuf);
+      // Shared frame buffers (see renderWorker.js's sharedView()): kept
+      // from the frame that introduced them, read in place every frame.
+      if (msg.colShared) sharedCol = msg.colShared;
+      if (msg.wallShared) sharedWall = msg.wallShared;
+      if (sharedCol && msg.colLen === core.colBuf.length && sharedCol.length === core.colBuf.length) core.colBuf.set(sharedCol);
+      if (sharedWall && core.wallBuf && msg.wallLen === core.wallBuf.length && sharedWall.length === core.wallBuf.length) core.wallBuf.set(sharedWall);
       state.activeAlarm = msg.activeAlarm;
       state.alarms = msg.alarms;
       state.blank = msg.blank;

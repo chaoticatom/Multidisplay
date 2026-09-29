@@ -13,7 +13,7 @@
 //
 // Data shape: { library: [{name, panels:[{gx,gy}, ...]}, ...] }
 const fs = require('fs');
-const { atomicWriteJson } = require('./atomicWrite');
+const { readSectionJson, writeSection } = require('./settingsStore'); // CONFIG_PATH is now only the pre-settings.json legacy file, imported once
 const path = require('path');
 const { isValidPanels } = require('./panelConfig');
 
@@ -31,7 +31,7 @@ const DEFAULT_CONFIG = { library: [] };
 
 function load() {
   try {
-    const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+    const raw = readSectionJson('wallLayouts', CONFIG_PATH);
     const parsed = JSON.parse(raw);
     const library = isValidLibrary(parsed.library) ? parsed.library : [];
     return { library };
@@ -43,7 +43,7 @@ function load() {
 }
 
 function save(config) {
-  atomicWriteJson(CONFIG_PATH, config);
+  writeSection('wallLayouts', config);
 }
 
 module.exports = { load, save, isValidLibraryEntry, isValidLibrary, DEFAULT_CONFIG, CONFIG_PATH };

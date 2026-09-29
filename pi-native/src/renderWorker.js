@@ -86,6 +86,18 @@ if (core.wallBuf) {
 driver.renderFrame(core, 1.0);
 
 let workerState = null;
+const shared = { col: null, wall: null };
+// Copies `src` into this slot's shared view (reallocating on size change);
+// returns { view, fresh } where fresh means app.js hasn't seen this view yet.
+function sharedView(slot, src) {
+  let fresh = false;
+  if (!shared[slot] || shared[slot].length !== src.length) {
+    shared[slot] = new Float32Array(new SharedArrayBuffer(src.length * 4));
+    fresh = true;
+  }
+  shared[slot].set(src);
+  return { view: shared[slot], fresh };
+}
 parentPort.on('message', (msg) => {
   if (msg.type === 'config') {
     const newConfig = msg.config;
@@ -153,14 +165,20 @@ parentPort.on('message', (msg) => {
     if (!state.effectStatus) state.effectStatus = {};
     state.effectStatus.radio = radio.getStatus();
     driver.renderFrame(core, state.brightness);
+    // Frames go back through SharedArrayBuffers instead of a fresh
+    // .slice() copy per frame (which also had to be structured-cloned):
+    // no per-frame allocation or garbage. A shared buffer is (re)created
+    // and sent along only when its size changes; the ping-pong protocol
+    // (app.js reads it before sending the next tick) means the two
+    // threads never touch it at the same time.
+    const col = sharedView('col', core.colBuf);
+    const wall = core.wallBuf ? sharedView('wall', core.wallBuf) : null;
     parentPort.postMessage({
       type: 'frame',
-      // .slice() copies (not transfers) - state/core stay valid here for
-      // the next tick; the small fixed copy cost (a few hundred KB at
-      // most) is negligible next to what moving this whole computation
-      // off the main thread saves it.
-      colBuf: core.colBuf.slice(),
-      wallBuf: core.wallBuf ? core.wallBuf.slice() : null,
+      colShared: col.fresh ? col.view : undefined,
+      wallShared: wall && wall.fresh ? wall.view : undefined,
+      colLen: core.colBuf.length,
+      wallLen: core.wallBuf ? core.wallBuf.length : 0,
       activeAlarm: state.activeAlarm,
       alarms: state.alarms,
       blank: state.blank,

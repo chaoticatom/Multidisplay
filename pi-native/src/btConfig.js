@@ -8,7 +8,7 @@
 // startup (see src/app.js) to reconnect + re-select as audio output
 // without any manual re-pairing after a Pi reboot.
 const fs = require('fs');
-const { atomicWriteJson } = require('./atomicWrite');
+const { readSectionJson, writeSection } = require('./settingsStore'); // CONFIG_PATH is now only the pre-settings.json legacy file, imported once
 const path = require('path');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'bt-config.json');
@@ -19,7 +19,7 @@ function isValidMac(mac) {
 
 function load() {
   try {
-    const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+    const raw = readSectionJson('bluetooth', CONFIG_PATH);
     const parsed = JSON.parse(raw);
     return { lastSpeakerMac: isValidMac(parsed.lastSpeakerMac) ? parsed.lastSpeakerMac : null };
   } catch (err) {
@@ -30,7 +30,7 @@ function load() {
 }
 
 function save(config) {
-  atomicWriteJson(CONFIG_PATH, config);
+  writeSection('bluetooth', config);
 }
 
 module.exports = { load, save, isValidMac, CONFIG_PATH };

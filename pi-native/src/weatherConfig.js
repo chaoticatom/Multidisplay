@@ -16,7 +16,7 @@
 // Data shape: { city: string } - empty string means "nothing picked yet,
 // use weather.js's own DEFAULT_CITY fallback".
 const fs = require('fs');
-const { atomicWriteJson } = require('./atomicWrite');
+const { readSectionJson, writeSection } = require('./settingsStore'); // CONFIG_PATH is now only the pre-settings.json legacy file, imported once
 const path = require('path');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'weather-config.json');
@@ -28,7 +28,7 @@ function isValidConfig(c) {
 
 function load() {
   try {
-    const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+    const raw = readSectionJson('weather', CONFIG_PATH);
     const parsed = JSON.parse(raw);
     if (!isValidConfig(parsed)) throw new Error('invalid stored weather config');
     return parsed;
@@ -41,7 +41,7 @@ function load() {
 }
 
 function save(config) {
-  atomicWriteJson(CONFIG_PATH, config);
+  writeSection('weather', config);
 }
 
 module.exports = { load, save, isValidConfig, DEFAULT_CONFIG, CONFIG_PATH };

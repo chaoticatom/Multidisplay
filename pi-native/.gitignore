@@ -17,3 +17,5 @@ tls-cert.pem
 public/sim-engine.js
 public/effects.json
 security-config.json
+settings.json
+settings.json.corrupt-*

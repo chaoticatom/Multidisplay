@@ -15948,13 +15948,69 @@ var PiEngine = (() => {
     }
   });
 
+  // src/settingsStore.js
+  var require_settingsStore = __commonJS({
+    "src/settingsStore.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var fs = require_fs();
+      var path = require_path();
+      var { atomicWriteJson } = require_atomicWrite();
+      var STORE_VERSION = 1;
+      var storePath = path.join(".", "..", "settings.json");
+      function readStore() {
+        let raw;
+        try {
+          raw = fs.readFileSync(storePath, "utf8");
+        } catch (e) {
+          return { version: STORE_VERSION, sections: {} };
+        }
+        try {
+          const s = JSON.parse(raw);
+          if (s && typeof s === "object" && s.sections && typeof s.sections === "object") return s;
+          throw new Error("not a settings store");
+        } catch (e) {
+          const aside = `${storePath}.corrupt-${Date.now()}`;
+          try {
+            fs.renameSync(storePath, aside);
+          } catch (e2) {
+          }
+          console.warn(`[settings] ${storePath} was unreadable (${e.message}) - moved to ${aside}, starting fresh`);
+          return { version: STORE_VERSION, sections: {} };
+        }
+      }
+      function readSectionJson(name, legacyPath) {
+        const store = readStore();
+        if (Object.prototype.hasOwnProperty.call(store.sections, name)) return JSON.stringify(store.sections[name]);
+        const legacy = legacyPath && fs.existsSync(legacyPath) ? fs.readFileSync(legacyPath, "utf8") : null;
+        if (legacy === null) throw new Error(`no ${name} settings yet`);
+        const value = JSON.parse(legacy);
+        store.sections[name] = value;
+        store.version = STORE_VERSION;
+        atomicWriteJson(storePath, store);
+        return legacy;
+      }
+      function writeSection(name, value) {
+        const store = readStore();
+        store.sections[name] = value;
+        store.version = STORE_VERSION;
+        atomicWriteJson(storePath, store);
+      }
+      function _setStorePath(p) {
+        storePath = p;
+      }
+      module.exports = { readSectionJson, writeSection, _setStorePath };
+    }
+  });
+
   // src/nasaConfig.js
   var require_nasaConfig = __commonJS({
     "src/nasaConfig.js"(exports, module) {
       init_define_process_env();
       init_bufferGlobal();
       var fs = require_fs();
-      var { atomicWriteJson } = require_atomicWrite();
+      var { readSectionJson, writeSection } = require_settingsStore();
       var path = require_path();
       var CONFIG_PATH = path.join(".", "..", "nasa-config.json");
       var DEFAULT_CONFIG = { apiKey: "" };
@@ -15963,7 +16019,7 @@ var PiEngine = (() => {
       }
       function load() {
         try {
-          const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+          const raw = readSectionJson("nasa", CONFIG_PATH);
           const parsed = JSON.parse(raw);
           if (!isValidConfig(parsed)) throw new Error("invalid stored nasa config");
           return parsed;
@@ -15972,7 +16028,7 @@ var PiEngine = (() => {
         }
       }
       function save(config) {
-        atomicWriteJson(CONFIG_PATH, config);
+        writeSection("nasa", config);
       }
       function currentKey() {
         const saved = load().apiKey.trim();
@@ -18141,7 +18197,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var fs = require_fs();
-      var { atomicWriteJson } = require_atomicWrite();
+      var { readSectionJson, writeSection } = require_settingsStore();
       var path = require_path();
       var CONFIG_PATH = path.join(".", "..", "unsplash-config.json");
       var DEFAULT_CONFIG = { apiKey: "", query: "nature" };
@@ -18150,7 +18206,7 @@ var PiEngine = (() => {
       }
       function load() {
         try {
-          const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+          const raw = readSectionJson("unsplash", CONFIG_PATH);
           const parsed = JSON.parse(raw);
           if (!isValidConfig(parsed)) throw new Error("invalid stored unsplash config");
           return parsed;
@@ -18159,7 +18215,7 @@ var PiEngine = (() => {
         }
       }
       function save(config) {
-        atomicWriteJson(CONFIG_PATH, config);
+        writeSection("unsplash", config);
       }
       module.exports = { load, save, isValidConfig, DEFAULT_CONFIG, CONFIG_PATH };
     }
@@ -26009,7 +26065,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var fs = require_fs();
-      var { atomicWriteJson } = require_atomicWrite();
+      var { readSectionJson, writeSection } = require_settingsStore();
       var path = require_path();
       var CONFIG_PATH = path.join(".", "..", "panel-config.json");
       var VALID_SIZES = [8, 16, 64];
@@ -26056,7 +26112,7 @@ var PiEngine = (() => {
       }
       function load() {
         try {
-          const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+          const raw = readSectionJson("panel", CONFIG_PATH);
           const parsed = JSON.parse(raw);
           if (!VALID_SIZES.includes(parsed.size) || !VALID_MODES.includes(parsed.mode)) {
             throw new Error("invalid stored config");
@@ -26068,7 +26124,7 @@ var PiEngine = (() => {
         }
       }
       function save(config) {
-        atomicWriteJson(CONFIG_PATH, config);
+        writeSection("panel", config);
       }
       module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };
     }
@@ -26186,7 +26242,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var fs = require_fs();
-      var { atomicWriteJson } = require_atomicWrite();
+      var { readSectionJson, writeSection } = require_settingsStore();
       var path = require_path();
       var CONFIG_PATH = path.join(".", "..", "alarms.json");
       var REPEAT_MODES = ["once", "daily", "weekdays", "weekends", "weekly", "hourly"];
@@ -26203,7 +26259,7 @@ var PiEngine = (() => {
       }
       function load() {
         try {
-          const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+          const raw = readSectionJson("alarms", CONFIG_PATH);
           const parsed = JSON.parse(raw);
           if (!Array.isArray(parsed)) throw new Error("invalid stored alarms");
           return parsed.filter(isValidAlarm);
@@ -26212,7 +26268,7 @@ var PiEngine = (() => {
         }
       }
       function save(alarms) {
-        atomicWriteJson(CONFIG_PATH, alarms);
+        writeSection("alarms", alarms);
       }
       module.exports = { load, save, isValidAlarm, REPEAT_MODES, CONFIG_PATH };
     }
@@ -26224,7 +26280,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var fs = require_fs();
-      var { atomicWriteJson } = require_atomicWrite();
+      var { readSectionJson, writeSection } = require_settingsStore();
       var path = require_path();
       var CONFIG_PATH = path.join(".", "..", "custom-cube-config.json");
       var NUM_FACES = 6;
@@ -26251,7 +26307,7 @@ var PiEngine = (() => {
       var DEFAULT_CONFIG = { faces: emptyFaces(), library: [] };
       function load() {
         try {
-          const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+          const raw = readSectionJson("customCube", CONFIG_PATH);
           const parsed = JSON.parse(raw);
           const faces = isValidFaces(parsed.faces) ? parsed.faces : emptyFaces();
           const library = isValidLibrary(parsed.library) ? parsed.library : [];
@@ -26261,7 +26317,7 @@ var PiEngine = (() => {
         }
       }
       function save(config) {
-        atomicWriteJson(CONFIG_PATH, config);
+        writeSection("customCube", config);
       }
       module.exports = {
         load,

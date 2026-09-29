@@ -11,7 +11,7 @@
 // freshly-connected remote browser's UI reflects whatever was last chosen
 // on the Pi, rather than defaulting to something stale.
 const fs = require('fs');
-const { atomicWriteJson } = require('./atomicWrite');
+const { readSectionJson, writeSection } = require('./settingsStore'); // CONFIG_PATH is now only the pre-settings.json legacy file, imported once
 const path = require('path');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'panel-config.json');
@@ -90,7 +90,7 @@ function isValidPanels(panels) {
 
 function load() {
   try {
-    const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+    const raw = readSectionJson('panel', CONFIG_PATH);
     const parsed = JSON.parse(raw);
     if (!VALID_SIZES.includes(parsed.size) || !VALID_MODES.includes(parsed.mode)) {
       throw new Error('invalid stored config');
@@ -105,7 +105,7 @@ function load() {
 }
 
 function save(config) {
-  atomicWriteJson(CONFIG_PATH, config);
+  writeSection('panel', config);
 }
 
 module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };
