@@ -48,7 +48,13 @@
     blank: false,
     identifyPanels: false,
     wallLayouts: [],
+    musicReact: { on: false, amount: 0.6 },
+    scenes: loadSimScenes(),
   };
+  // Scenes persist in this browser's localStorage (the real Pi keeps them
+  // in settings.json).
+  function loadSimScenes() { try { return JSON.parse(localStorage.getItem('simScenes') || '[]'); } catch (e) { return []; } }
+  function saveSimScenes() { try { localStorage.setItem('simScenes', JSON.stringify(state.scenes)); } catch (e) { /* storage unavailable */ } }
 
   const listeners = { text: [], frame: [] };
   function emitText(msg) { for (const cb of listeners.text) cb(msg); }
@@ -63,6 +69,8 @@
       effectOptions: state.effectOptions, effectStatus: state.effectStatus, blank: state.blank,
       identifyPanels: !!state.identifyPanels,
       wallLayouts: state.wallLayouts || [],
+      musicReact: state.musicReact,
+      scenes: state.scenes.map((sc) => ({ name: sc.name, effect: sc.effect })),
       effectNames: E.EFFECT_NAMES,
       simulator: true,
     };
@@ -75,6 +83,32 @@
   // save/load) is not handled here and silently no-ops, matching how
   // app.js already greys those controls out in sim mode.
   function applyCommand(msg) {
+    if (msg.cmd === 'setMusicReact') {
+      const cur = state.musicReact;
+      state.musicReact = { on: msg.on === undefined ? cur.on : !!msg.on, amount: Number.isFinite(Number(msg.amount)) ? Math.max(0, Math.min(1, Number(msg.amount))) : cur.amount };
+      emitText(stateMsg());
+      return;
+    }
+    if (msg.cmd === 'saveScene') {
+      const name = typeof msg.name === 'string' ? msg.name.trim().slice(0, 40) : '';
+      if (!name) return;
+      state.scenes = state.scenes.filter((sc) => sc.name !== name).concat([E.scenes.capture(state, name)]);
+      saveSimScenes();
+      emitText(stateMsg());
+      return;
+    }
+    if (msg.cmd === 'applyScene') {
+      const sc = state.scenes.find((x) => x.name === msg.name);
+      if (sc && (E.EFFECTS[sc.effect] || E.WALL_EFFECTS[sc.effect])) E.scenes.apply(state, sc);
+      emitText(stateMsg());
+      return;
+    }
+    if (msg.cmd === 'deleteScene') {
+      state.scenes = state.scenes.filter((sc) => sc.name !== msg.name);
+      saveSimScenes();
+      emitText(stateMsg());
+      return;
+    }
     if (msg.cmd === 'setEffect') {
       if (!E.EFFECTS[msg.effect] && !E.WALL_EFFECTS[msg.effect]) return;
       state.effect = msg.effect;
@@ -402,6 +436,7 @@
     lastMs = now;
     core.t = (core.t || 0);
     E.tick(core, state, config, E.EFFECTS, E.WALL_EFFECTS, E.alarms, E.runOverlays, dt);
+    if (state.appliedChanges) { delete state.appliedChanges; emitText(stateMsg()); } // a timer changed the display
     if (now - lastFrameMs >= 1000 / PREVIEW_FPS) {
       lastFrameMs = now;
       if (config.mode === 'wall') encodeWallFrames(); else encodeCubeFrames();
