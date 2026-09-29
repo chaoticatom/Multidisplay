@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.164';
+const APP_VERSION = '0.6.165';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -3632,7 +3632,9 @@ function wallCellSize(cols, rows) {
   const availW = window.innerWidth - sidebarOverlapPx() - buf * 2;
   const availH = sheetTopPx() - buf * 2;
   const cell = Math.min(availW / cols, availH / rows);
-  return Math.max(60, Math.min(320, Math.floor(cell)));
+  // Up to 900px per panel (was 320): a one- or two-panel wall looked tiny
+  // in the middle of a large screen.
+  return Math.max(60, Math.min(900, Math.floor(cell)));
 }
 
 // Whether the WebGL cube preview is actually usable this session - a real
