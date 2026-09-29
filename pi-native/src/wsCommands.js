@@ -19,6 +19,7 @@ const alarmsEngine = require('./effects/alarms');
 const radio = require('./effects/radio');
 const { browserFrameSource } = require('./effects/video/browserFrameSource');
 const pinConfig = require('./pinConfig');
+const scenes = require('./scenes');
 
 const COMMANDS = {
   // Sets (or, with an empty pin, clears) the control PIN. Only reachable by
@@ -29,6 +30,34 @@ const COMMANDS = {
     const cur = this.state.musicReact || { on: false, amount: 0.6 };
     const amount = Number.isFinite(Number(msg.amount)) ? Math.max(0, Math.min(1, Number(msg.amount))) : cur.amount;
     this.state.musicReact = { on: msg.on === undefined ? cur.on : !!msg.on, amount };
+    this._broadcast(this._stateMsg());
+  },
+
+  // Scenes (see ../scenes.js): save the current display under a name,
+  // recall one, or delete one.
+  saveScene(ws, msg) {
+    const name = typeof msg.name === 'string' ? msg.name.trim().slice(0, 40) : '';
+    if (!name) return;
+    const list = (this.state.scenes || []).filter((sc) => sc.name !== name);
+    if (list.length >= scenes.MAX_SCENES) return;
+    list.push(scenes.capture(this.state, name));
+    this.state.scenes = list;
+    scenes.save(list);
+    this._broadcast(this._stateMsg());
+  },
+
+  applyScene(ws, msg) {
+    const scene = (this.state.scenes || []).find((sc) => sc.name === msg.name);
+    if (!scene || !EFFECTS[scene.effect]) return;
+    if (this.state.effect === 'video' && scene.effect !== 'video') COMMANDS.stopVideoSource.call(this, ws, {});
+    scenes.apply(this.state, scene);
+    this._broadcast(this._stateMsg());
+  },
+
+  deleteScene(ws, msg) {
+    const list = (this.state.scenes || []).filter((sc) => sc.name !== msg.name);
+    this.state.scenes = list;
+    scenes.save(list);
     this._broadcast(this._stateMsg());
   },
 

@@ -6,9 +6,10 @@ const { tick } = require('../src/tick');
 const panelConfig = require('../src/panelConfig');
 const { isValidAlarm } = require('../src/alarmConfig');
 const customCubeConfig = require('../src/customCubeConfig');
+const scenes = require('../src/scenes');
 
 module.exports = {
   CubeCore, hsl, lerp, sm, EFFECTS, WALL_EFFECTS, EFFECT_NAMES,
   OV_DEFAULTS, runOverlays, OVERLAY_KEYS, alarms, tick, panelConfig, isValidAlarm,
-  customCubeConfig,
+  customCubeConfig, scenes,
 };

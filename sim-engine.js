@@ -25136,11 +25136,72 @@ var PiEngine = (() => {
     }
   });
 
+  // src/scenes.js
+  var require_scenes = __commonJS({
+    "src/scenes.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { readSectionJson, writeSection } = require_settingsStore();
+      var MAX_SCENES = 50;
+      var clone = (v) => v === void 0 ? void 0 : JSON.parse(JSON.stringify(v));
+      function load() {
+        try {
+          const list = JSON.parse(readSectionJson("scenes"));
+          return Array.isArray(list) ? list.filter(isValidScene) : [];
+        } catch (e) {
+          return [];
+        }
+      }
+      function save(list) {
+        writeSection("scenes", list);
+      }
+      function isValidScene(s) {
+        return s && typeof s.name === "string" && s.name.trim() && s.name.length <= 40 && typeof s.effect === "string";
+      }
+      function capture(state, name) {
+        const effect = state.effect;
+        return {
+          name: String(name).trim().slice(0, 40),
+          effect,
+          options: clone((state.effectOptions || {})[effect]) || {},
+          overlays: clone(state.overlays),
+          brightness: state.brightness,
+          speed: state.speed,
+          musicReact: clone(state.musicReact)
+        };
+      }
+      function apply(state, scene) {
+        state.effect = scene.effect;
+        state.effectOptions = { ...state.effectOptions || {}, [scene.effect]: clone(scene.options) || {} };
+        if (scene.overlays) state.overlays = clone(scene.overlays);
+        if (Number.isFinite(scene.brightness)) state.brightness = scene.brightness;
+        if (Number.isFinite(scene.speed)) state.speed = scene.speed;
+        if (scene.musicReact) state.musicReact = clone(scene.musicReact);
+        state.blank = false;
+        return changedFields(state);
+      }
+      function changedFields(state) {
+        return {
+          effect: state.effect,
+          effectOptions: clone(state.effectOptions),
+          overlays: clone(state.overlays),
+          brightness: state.brightness,
+          speed: state.speed,
+          musicReact: clone(state.musicReact),
+          blank: !!state.blank
+        };
+      }
+      module.exports = { load, save, capture, apply, changedFields, isValidScene, MAX_SCENES };
+    }
+  });
+
   // src/effects/alarms.js
   var require_alarms = __commonJS({
     "src/effects/alarms.js"(exports, module) {
       init_define_process_env();
       init_bufferGlobal();
+      var scenes = require_scenes();
       var { runOverlays } = require_overlays();
       var { blitGlyph } = require_text();
       var SIDE = [2, 0, 3, 1];
@@ -25555,14 +25616,19 @@ var PiEngine = (() => {
         const hasPreEffect = al.prealarm?.enabled && al.prealarm?.giantSun;
         const durationMs = hasPreEffect ? 10 * 60 * 1e3 : 1 * 60 * 1e3;
         state.activeAlarm = { al, phase: "main", startMs: fireMs, endMs: fireMs + durationMs, dismissed: false };
-        if (al.triggerType === "playlist") {
-        } else if (al.effect && al.effect !== "" && (state.effectsRegistry && state.effectsRegistry[al.effect])) {
-          state.effect = al.effect;
+        const scene = al.triggerType === "scene" && Array.isArray(state.scenes) ? state.scenes.find((sc) => sc.name === al.scene) : null;
+        if (scene) {
+          scenes.apply(state, scene);
+        } else {
+          if (al.effect && al.effect !== "" && (state.effectsRegistry && state.effectsRegistry[al.effect])) {
+            state.effect = al.effect;
+          }
+          if (al.overlayKeys && al.overlayKeys.length && state.overlays) {
+            for (const k of al.overlayKeys) if (state.overlays[k]) state.overlays[k].on = true;
+          }
+          state.brightness = 1;
         }
-        if (al.overlayKeys && al.overlayKeys.length && state.overlays) {
-          for (const k of al.overlayKeys) if (state.overlays[k]) state.overlays[k].on = true;
-        }
-        state.brightness = 1;
+        state.appliedChanges = scenes.changedFields(state);
         if (al.repeat === "once") al.enabled = false;
         if (state.onAlarmsChanged) state.onAlarmsChanged();
       }
@@ -26021,6 +26087,7 @@ var PiEngine = (() => {
       var panelConfig = require_panelConfig();
       var { isValidAlarm } = require_alarmConfig();
       var customCubeConfig = require_customCubeConfig();
+      var scenes = require_scenes();
       module.exports = {
         CubeCore,
         hsl,
@@ -26036,7 +26103,8 @@ var PiEngine = (() => {
         tick,
         panelConfig,
         isValidAlarm,
-        customCubeConfig
+        customCubeConfig,
+        scenes
       };
     }
   });

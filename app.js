@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.162';
+const APP_VERSION = '0.6.163';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -219,6 +219,8 @@ function handleTextMessage(msg) {
     syncPanelButtons();
     syncPinStatus();
     syncMusicReact();
+    placeActivePanels();
+    renderScenes();
     syncSliders();
     syncRainPanel();
     syncLightspeedPanel();
@@ -432,6 +434,108 @@ function wirePinControls() {
 function syncPinStatus() {
   const el = document.getElementById('pin-status');
   if (el) el.textContent = currentState.controlPinSet ? 'PIN set - new browsers must enter it.' : 'No PIN - anyone on your network can use this page.';
+}
+
+// ── Tabs: Now / Effects / Overlays / Timers / Settings ─────────────────
+// Each sidebar section belongs to one tab (by its heading); only the active
+// tab's sections show, open. The chosen tab is remembered per browser.
+const TAB_OF_SECTION = [
+  ['Effects', 'effects'], ['Face Editor', 'effects'], ['Overlays', 'overlays'], ['Timers', 'timers'],
+  ['Display', 'settings'], ['Setup', 'settings'], ['Diagnostics', 'settings'],
+];
+function wireTabs() {
+  const sections = [...document.querySelectorAll('#sidebar-scroll > .sidebar-section')];
+  for (const sec of sections) {
+    if (sec.dataset.tab) continue;
+    const head = sec.querySelector(':scope > .section-head')?.textContent || '';
+    const hit = TAB_OF_SECTION.find(([t]) => head.includes(t));
+    sec.dataset.tab = hit ? hit[1] : 'settings';
+  }
+  // Tabs with a single section drop its accordion header and keep it open.
+  const counts = {};
+  for (const sec of sections) counts[sec.dataset.tab] = (counts[sec.dataset.tab] || 0) + 1;
+  for (const sec of sections) if (counts[sec.dataset.tab] === 1) { sec.classList.add('tab-solo'); sec.classList.remove('collapsed'); }
+  document.querySelectorAll('#tab-bar [data-tab]').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  let tab = 'now';
+  try { tab = localStorage.getItem('tab') || 'now'; } catch (e) { /* storage unavailable */ }
+  setTab(tab);
+}
+function setTab(tab) {
+  if (!document.querySelector(`#tab-bar [data-tab="${tab}"]`)) tab = 'now';
+  document.body.dataset.tab = tab;
+  document.querySelectorAll('#tab-bar [data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  document.querySelectorAll('#sidebar-scroll > .sidebar-section').forEach((sec) => sec.classList.toggle('tab-active', sec.dataset.tab === tab));
+  document.getElementById('sidebar-scroll')?.scrollTo(0, 0);
+  // The Effects tab opens with the effect list expanded.
+  if (tab === 'effects') document.getElementById('effects-body')?.closest('.sidebar-section')?.classList.remove('collapsed');
+  try { localStorage.setItem('tab', tab); } catch (e) { /* storage unavailable */ }
+}
+
+// ── Now tab: the running effect's own options panel (plus any shared
+// panel of its submenu, e.g. the Art slideshow controls) is moved here
+// while that effect runs, and put back where it came from afterwards. ──
+const _nowMoved = []; // [{ el, marker }]
+function placeActivePanels() {
+  const host = document.getElementById('now-options');
+  if (!host) return;
+  const key = currentState.effect;
+  const nameEl = document.getElementById('now-effect-name');
+  const btn = key && document.querySelector(`.effect-btn[data-effect="${CSS.escape(key)}"]`);
+  if (nameEl) nameEl.textContent = currentState.blank ? 'Nothing (cleared)' : btn ? btn.textContent.replace(/[◈▸▶]/g, '').trim() : (key || '…');
+  const want = [];
+  const panel = key && document.getElementById('panel-' + key);
+  if (panel) want.push(panel);
+  const shared = btn && btn.closest('.sub-section')?.querySelector('.art-shared-panel');
+  if (shared) want.push(shared);
+  if (want.length === _nowMoved.length && want.every((el, i) => _nowMoved[i].el === el)) return;
+  // Put back whatever is there now.
+  while (_nowMoved.length) { const { el, marker } = _nowMoved.pop(); marker.replaceWith(el); }
+  for (const el of want) {
+    const marker = document.createComment('now-tab placeholder');
+    el.replaceWith(marker);
+    host.appendChild(el);
+    _nowMoved.push({ el, marker });
+  }
+  const none = document.getElementById('now-no-options');
+  if (none) none.style.display = want.length ? 'none' : '';
+}
+
+// ── Scenes ──
+function renderScenes() {
+  const box = document.getElementById('scene-chips');
+  if (!box) return;
+  const list = currentState.scenes || [];
+  if (!list.length) { box.textContent = 'No scenes yet.'; box.className = 'scene-chips ui-note'; return; }
+  box.className = 'scene-chips';
+  box.replaceChildren(...list.map((sc) => {
+    const chip = document.createElement('span');
+    chip.className = 'scene-chip' + (sc.effect === currentState.effect ? '' : '');
+    const go = document.createElement('button'); go.textContent = sc.name; go.title = 'Show this scene';
+    go.addEventListener('click', () => send({ cmd: 'applyScene', name: sc.name }));
+    const del = document.createElement('button'); del.className = 'scene-del'; del.textContent = '×'; del.setAttribute('aria-label', 'Delete scene ' + sc.name);
+    del.addEventListener('click', () => { if (confirm(`Delete scene "${sc.name}"?`)) send({ cmd: 'deleteScene', name: sc.name }); });
+    chip.append(go, del);
+    return chip;
+  }));
+  // Timer editor's scene picker.
+  const sel = document.getElementById('al-scene-select');
+  if (sel) {
+    const cur = sel.value;
+    sel.replaceChildren(...list.map((sc) => { const o = document.createElement('option'); o.value = sc.name; o.textContent = sc.name; return o; }));
+    if (cur) sel.value = cur;
+  }
+}
+function wireScenes() {
+  const inp = document.getElementById('scene-name-input');
+  const save = () => {
+    const name = (inp?.value || '').trim();
+    if (!name) { inp?.focus(); return; }
+    if ((currentState.scenes || []).some((sc) => sc.name === name) && !confirm(`Replace scene "${name}"?`)) return;
+    send({ cmd: 'saveScene', name });
+    inp.value = '';
+  };
+  document.getElementById('scene-save-btn')?.addEventListener('click', save);
+  inp?.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
 }
 
 function wireEffectFilter() {
@@ -2812,12 +2916,16 @@ function populateEffectSelect(sel, selected) {
 }
 
 function alarmSetTriggerType(type) {
-  const eff = type === 'effect';
-  document.getElementById('al-type-effect')?.classList.toggle('active', eff);
-  document.getElementById('al-type-playlist')?.classList.toggle('active', !eff);
-  const effRow = document.getElementById('al-effect-row'), plRow = document.getElementById('al-playlist-row');
-  if (effRow) effRow.style.display = eff ? '' : 'none';
-  if (plRow) plRow.style.display = eff ? 'none' : '';
+  const scene = type === 'scene';
+  for (const [id, on] of [['al-type-effect', !scene], ['al-type-scene', scene]]) {
+    const b = document.getElementById(id); if (!b) continue;
+    b.classList.toggle('active', on);
+    b.style.background = on ? 'rgba(80,120,255,0.2)' : 'rgba(30,40,80,0.4)';
+    b.style.borderColor = on ? 'rgba(80,120,255,0.5)' : 'rgba(80,120,255,0.2)';
+  }
+  const effRow = document.getElementById('al-effect-row'), sceneRow = document.getElementById('al-scene-row');
+  if (effRow) effRow.style.display = scene ? 'none' : '';
+  if (sceneRow) sceneRow.style.display = scene ? '' : 'none';
 }
 
 function openAlarmEditor(id) {
@@ -2857,7 +2965,10 @@ function openAlarmEditor(id) {
   });
   document.getElementById('al-days-row').style.display = d.repeat === 'weekly' ? '' : 'none';
 
-  alarmSetTriggerType(d.triggerType || 'effect');
+  renderScenes();
+  const sceneSel = document.getElementById('al-scene-select');
+  if (sceneSel && d.scene) sceneSel.value = d.scene;
+  alarmSetTriggerType(d.triggerType === 'scene' ? 'scene' : 'effect');
   populateEffectSelect(document.getElementById('al-effect'), d.effect);
   buildOverlayCheckboxes(document.getElementById('al-overlays'), d.overlayKeys);
   populateEffectSelect(document.getElementById('al-wd-effect'), d.prealarm?.wdEffectKey || currentState.effect);
@@ -2873,7 +2984,7 @@ function closeAlarmEditor() {
 }
 
 function readAlarmFromModal() {
-  const triggerType = 'effect'; // playlist triggers were never ported; scenes will cover this
+  const triggerType = document.getElementById('al-type-scene')?.classList.contains('active') ? 'scene' : 'effect';
   const repeat = document.getElementById('al-repeat').value;
   const days = repeat === 'weekly' ? Array.from(document.querySelectorAll('.al-day-btn.active')).map((b) => +b.dataset.d) : [];
   const isWd = document.getElementById('al-wind-down').value === '1';
@@ -2886,7 +2997,7 @@ function readAlarmFromModal() {
     triggerType,
     effect: document.getElementById('al-effect').value || '',
     overlayKeys: readCheckedOverlayKeys(document.getElementById('al-overlays')),
-    playlistName: '',
+    scene: document.getElementById('al-scene-select')?.value || '',
     message: document.getElementById('al-message').value || '',
     prealarm: {
       enabled: !isWd && document.getElementById('al-sunrise-chk').checked,
@@ -2904,6 +3015,7 @@ function readAlarmFromModal() {
 
 function wireAlarmModal() {
   document.getElementById('al-type-effect')?.addEventListener('click', () => alarmSetTriggerType('effect'));
+  document.getElementById('al-type-scene')?.addEventListener('click', () => alarmSetTriggerType('scene'));
   // Playlist trigger type is a permanent scope boundary (see this file's
   // module comment + effects/alarms.js) - the button is disabled in
   // index.html so this click handler never fires from it, kept out
@@ -3514,7 +3626,7 @@ const wallPanelCanvases = {}; // panel index -> {canvas, ctx}
 function wallCellSize(cols, rows) {
   const buf = 40;
   const availW = window.innerWidth - sidebarOverlapPx() - buf * 2;
-  const availH = window.innerHeight - buf * 2;
+  const availH = sheetTopPx() - buf * 2;
   const cell = Math.min(availW / cols, availH / rows);
   return Math.max(60, Math.min(320, Math.floor(cell)));
 }
@@ -3587,6 +3699,10 @@ function initScene() {
     // which is self-lit.
   }
   window.addEventListener('resize', resizeRenderer);
+  // The sidebar / phone bottom sheet animates open and closed; re-fit the
+  // preview once it has settled (measuring mid-animation centred the
+  // preview on the whole screen, half-hidden behind the sheet).
+  document.getElementById('sidebar')?.addEventListener('transitionend', (e) => { if (e.target.id === 'sidebar') resizeRenderer(); });
   resizeRenderer();
   rebuildScene(); // shows #webgl-fallback instead of a Three.js scene if !webglOK and currently in cube mode
   if (webglOK) { wireCubeDrag(); buildFaceLabels(); animate(); }
@@ -3662,7 +3778,8 @@ function resizeRenderer() {
   // reasoning as fitPanel2dCanvas()): shift the rendered view left by half
   // the sidebar's width, which moves the cube right by that much.
   const left = sidebarOverlapPx();
-  if (left > 0 && typeof camera.setViewOffset === 'function') camera.setViewOffset(w, h, -left / 2, 0, w, h);
+  const sheetGap = h - sheetTopPx(); // phones: keep the cube above the controls sheet
+  if ((left > 0 || sheetGap > 0) && typeof camera.setViewOffset === 'function') camera.setViewOffset(w, h, -left / 2, sheetGap / 2, w, h);
   else if (typeof camera.clearViewOffset === 'function') camera.clearViewOffset();
   camera.updateProjectionMatrix();
   fitCubeCamera(); // no-ops outside cube mode
@@ -3699,6 +3816,15 @@ function fitCubeCamera() {
 // stays PANEL2D_OUT regardless).
 // Width of the desktop sidebar covering the left of the preview area (0
 // when it's collapsed, or on phones where the open menu is full-screen).
+// Phones: top edge of the controls bottom sheet (the preview centres in
+// the space above it); the full window height when it's closed or on a
+// desktop layout.
+function sheetTopPx() {
+  const sb = document.getElementById('sidebar');
+  const r = sb ? sb.getBoundingClientRect() : null;
+  return r && r.width >= window.innerWidth * 0.9 && r.top > 0 && r.top < window.innerHeight - 4 ? r.top : window.innerHeight;
+}
+
 function sidebarOverlapPx() {
   const sb = document.getElementById('sidebar');
   const r = sb ? sb.getBoundingClientRect() : null;
@@ -3720,7 +3846,9 @@ function fitPanel2dCanvas() {
   const tb = document.getElementById('wall-toolbar');
   const tbr = tb ? tb.getBoundingClientRect() : null;
   const vReserve = tbr && tbr.height > 0 ? Math.max(buf, tbr.bottom + 8) : buf;
-  const size = Math.max(64, Math.min(availW - buf * 2, window.innerHeight - vReserve * 2));
+  const availH = sheetTopPx();
+  const size = Math.max(64, Math.min(availW - buf * 2, availH - vReserve * 2));
+  panel2dCanvas.style.top = (availH / 2) + 'px';
   panel2dCanvas.style.width = size + 'px';
   panel2dCanvas.style.height = size + 'px';
   panel2dCanvas.style.left = (left + availW / 2) + 'px';
@@ -4095,6 +4223,7 @@ function rebuildWallPreview() {
   wallPreviewEl.style.height = (rows * cellSize) + 'px';
   // Centre in the space beside an open desktop sidebar (see fitPanel2dCanvas()).
   wallPreviewEl.style.left = (sidebarOverlapPx() + (window.innerWidth - sidebarOverlapPx()) / 2) + 'px';
+  wallPreviewEl.style.top = (sheetTopPx() / 2) + 'px';
 
   for (const c of allCells) {
     const { gx, gy, filled, shiftX, shiftY } = c;
@@ -4284,6 +4413,8 @@ document.addEventListener('DOMContentLoaded', () => {
   wireEffectFilter();
   wirePinControls();
   wireMusicReact();
+  wireScenes();
+  wireTabs();
   wireDiagnostics();
   labelUnlabelledControls();
   connect();

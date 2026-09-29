@@ -564,6 +564,41 @@ input[type=range]:focus-visible { outline: 2px solid #7aadff; outline-offset: 3p
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
 /* Visual review fixes. */
+/* ── Phone: controls as a bottom sheet under the live preview (was a
+   full-screen slide-in that hid the display entirely). ── */
+@media (max-width: 768px) {
+  #sidebar { top: auto; bottom: 0; height: 62vh; height: 62dvh; transform: translateY(105%);
+             border-radius: 16px 16px 0 0; border-top: 1px solid rgba(80,120,255,0.35); box-shadow: 0 -10px 30px rgba(0,0,0,0.6); }
+  #sidebar.open { transform: translateY(0); }
+  #sidebar-header { position: relative; padding: 16px 16px 8px; border-radius: 16px 16px 0 0; }
+  #sidebar-header::before { content: ''; position: absolute; top: 6px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: rgba(160,190,255,0.35); }
+  #led-count-label, #active-effect-label { display: none; }
+  #menu-toggle { top: 10px; right: 12px; width: 34px; height: 34px; font-size: 16px; }
+  #sidebar-brightness-bar, #fx-toggle-bar { padding-top: 4px !important; padding-bottom: 4px !important; }
+}
+/* ── Tabs (see wireTabs() in app.js) ── */
+#tab-bar { display: flex; gap: 2px; padding: 6px 8px 0; border-bottom: 1px solid rgba(80,120,255,0.2); flex-shrink: 0; }
+#tab-bar button { flex: 1; padding: 8px 2px; font-size: 12px; font-weight: 600; letter-spacing: 0.3px; color: #9aa3b8; background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; }
+#tab-bar button[aria-selected="true"] { color: #cfe0ff; border-bottom-color: #7aadff; }
+#sidebar-scroll > .sidebar-section:not(.tab-active) { display: none; }
+body:not([data-tab="settings"]) #sidebar-size-bar { display: none; }
+/* In a tab, a lone section doesn't need its accordion header. */
+#sidebar-scroll > .sidebar-section.tab-solo > .section-head { display: none; }
+/* ── Now tab ── */
+.now-kicker { font-size: 11px; color: #9aa3b8; text-transform: uppercase; letter-spacing: 1px; }
+.now-effect { font-size: 20px; font-weight: 700; color: #e6eeff; margin: 2px 0 10px; }
+.now-options .effect-panel { display: block !important; margin: 0; border: 1px solid rgba(80,120,255,0.18); border-radius: 8px; }
+.scene-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.scene-chip { display: inline-flex; align-items: center; border: 1px solid rgba(80,120,255,0.4); border-radius: 999px; background: rgba(80,120,255,0.12); overflow: hidden; }
+.scene-chip button { background: none; border: none; color: #cfe0ff; font-size: 13px; padding: 6px 10px; cursor: pointer; }
+.scene-chip button.scene-del { color: #9aa3b8; padding: 6px 8px 6px 2px; }
+.scene-chip.active { background: rgba(80,120,255,0.35); border-color: #7aadff; }
+/* ── Effect tiles: a 2-column grid instead of a long list; options live in the Now tab. ── */
+#effects-body .sub-body { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#effects-body .sub-body > :not(.effect-btn) { grid-column: 1 / -1; }
+#effects-body .effect-btn { margin: 0 !important; min-height: 44px; display: flex; align-items: center; text-align: left; line-height: 1.2; }
+#effects-body .effect-btn .panel-arrow { display: none; }
+#effects-body .effect-panel { display: none !important; }
 .diag-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 6px 0; }
 .diag-table td { padding: 3px 4px; border-bottom: 1px solid rgba(80,120,255,0.12); color: #cdd6ee; }
 .diag-table td:first-child { color: #9aa3b8; width: 45%; }
@@ -717,7 +752,37 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
   </div>
 
 
+  <nav id="tab-bar" role="tablist" aria-label="Control sections">
+    <button role="tab" data-tab="now">Now</button>
+    <button role="tab" data-tab="effects">Effects</button>
+    <button role="tab" data-tab="overlays">Overlays</button>
+    <button role="tab" data-tab="timers">Timers</button>
+    <button role="tab" data-tab="settings">Settings</button>
+  </nav>
   <div id="sidebar-scroll">
+  <div class="sidebar-section" id="now-section" data-tab="now">
+    <div class="section-body">
+      <div class="now-kicker">Now showing</div>
+      <div id="now-effect-name" class="now-effect">…</div>
+      <div id="now-options" class="now-options"></div>
+      <div id="now-no-options" class="ui-note">This effect has no options.</div>
+      <div class="ui-label-accent" style="margin-top:14px;">Scenes</div>
+      <div class="ui-note">Save what's showing (effect, its options, overlays, brightness) and bring it back with one tap. Timers can start a scene too.</div>
+      <div id="scene-chips" class="scene-chips"></div>
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <input id="scene-name-input" class="ui-input" type="text" maxlength="40" placeholder="Save current as…" aria-label="Scene name">
+        <button id="scene-save-btn" class="ui-btn-small" style="flex:0 0 auto;padding:5px 12px;">Save</button>
+      </div>
+      <div id="now-music" style="margin-top:14px;">
+          <label class="check-row" title="Every effect speeds up with the bass and pulses with the music while a radio station is playing"><input type="checkbox" id="music-react-chk">REACT TO MUSIC</label>
+          <div class="slider-row" id="music-react-row">
+            <span class="slider-label">Amount</span>
+            <input type="range" id="music-react-amt" min="0" max="1" step="0.05" value="0.6" aria-label="React to music amount">
+            <span class="slider-val" id="music-react-val">60%</span>
+          </div>
+      </div>
+    </div>
+  </div>
 
   <div class="sidebar-section collapsed">
     <button class="section-head" style="color:rgba(180,220,255,0.95);">◈ Effects <span class="chev">▾</span></button>
@@ -1615,12 +1680,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
           <label class="check-row cube-only"><input type="checkbox" id="auto-rotate-chk" checked>AUTO-ROTATE</label>
           <label class="check-row cube-only"><input type="checkbox" id="rotate-y-only">Y-AXIS ONLY</label>
           <label class="check-row cube-only"><input type="checkbox" id="face-labels-chk">FACE LABELS</label>
-          <label class="check-row" title="Every effect speeds up with the bass and pulses with the music while a radio station is playing"><input type="checkbox" id="music-react-chk">REACT TO MUSIC</label>
-          <div class="slider-row" id="music-react-row">
-            <span class="slider-label">Amount</span>
-            <input type="range" id="music-react-amt" min="0" max="1" step="0.05" value="0.6" aria-label="React to music amount">
-            <span class="slider-val" id="music-react-val">60%</span>
-          </div>
           <label class="check-row"><input type="checkbox" id="gyro-chk">GYROSCOPE GRAVITY</label>
           <div id="gyro-status" style="font-size:12px;color:#9aa3b8;margin:-4px 0 8px;">Tilt device to steer sand/balls</div>
           <div class="slider-row cube-only">
@@ -1762,8 +1821,14 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
       <label class="ui-subhead">TRIGGER</label>
       <div style="display:flex;gap:6px;margin:4px 0 10px;">
         <button id="al-type-effect" class="al-type-btn active" style="flex:1;padding:8px;background:rgba(80,120,255,0.2);border:1px solid rgba(80,120,255,0.5);color:#7aadff;border-radius:4px;cursor:pointer;font-size:13px;font-weight:700;">⚡ EFFECT</button>
+        <button id="al-type-scene" class="al-type-btn" style="flex:1;padding:8px;background:rgba(30,40,80,0.4);border:1px solid rgba(80,120,255,0.2);color:#7aadff;border-radius:4px;cursor:pointer;font-size:13px;font-weight:700;">🎬 SCENE</button>
       </div>
 
+      <div id="al-scene-row" style="display:none;">
+        <label class="ui-subhead">SCENE</label>
+        <select id="al-scene-select" aria-label="Scene to start" style="width:100%;margin:5px 0 8px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;"></select>
+        <div class="ui-note">Starts the saved scene: its effect, options, overlays and brightness. Save scenes on the Now tab.</div>
+      </div>
       <div id="al-effect-row">
         <label class="ui-subhead">EFFECT</label>
         <select id="al-effect" style="width:100%;margin:5px 0 8px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;"></select>

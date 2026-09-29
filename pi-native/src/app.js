@@ -11,6 +11,7 @@ const { OV_DEFAULTS, runOverlays } = require('./effects/overlays');
 const alarms = require('./effects/alarms');
 const radio = require('./effects/radio');
 const { createDiagnostics } = require('./diagnostics');
+const scenes = require('./scenes');
 const { applyRemoteRequest } = require('./effects/radio/ffmpegAudio');
 const { tick } = require('./tick');
 const WsServer = require('./wsServer');
@@ -147,6 +148,7 @@ async function main() {
   const state = {
     effect: 'wave', brightness: 1.0, speed: 1.0, overlays: JSON.parse(JSON.stringify(OV_DEFAULTS)),
     musicReact: { on: false, amount: 0.6 }, // see effects/audioFeatures.js
+    scenes: scenes.load(), // see ./scenes.js
     alarms: alarmConfig.load(), activeAlarm: null,
     customCube: customCubeConfig.load(),
     // Named wall-mode panel-grid layouts (see wallLayoutConfig.js's module
@@ -313,6 +315,9 @@ async function main() {
       state.blank = msg.blank;
       state.effectStatus = msg.effectStatus;
       diag.recordFrame(msg.renderMs);
+      // A timer fired on the render thread and changed what's displayed:
+      // adopt it here too, or the next state hand-off would revert it.
+      if (msg.applied) { Object.assign(state, msg.applied); ws._broadcast(ws._stateMsg()); }
       radioSeen = applyRemoteRequest(radio.audio, msg.radioAudio, radioSeen);
       ws.maybeStreamFrame(core, state.brightness);
       if (pendingBroadcast) { pendingBroadcast = false; ws._broadcast(ws._stateMsg()); }
@@ -348,6 +353,7 @@ async function main() {
       // inside tick().
       const frameStart = performance.now();
       tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt);
+      if (state.appliedChanges) { delete state.appliedChanges; ws._broadcast(ws._stateMsg()); } // a timer changed the display
 
       // Brightness is applied at push time, not baked into core.colBuf -
       // matches the browser's non-destructive approach (mesh.material.color.

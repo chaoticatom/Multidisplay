@@ -187,6 +187,8 @@ parentPort.on('message', (msg) => {
       blank: state.blank,
       effectStatus: state.effectStatus,
       radioAudio: remoteAudio.request(),
+      applied: state.appliedChanges, // set when a timer fired (see alarms.js alarmFire)
     });
+    delete state.appliedChanges;
   }
 });

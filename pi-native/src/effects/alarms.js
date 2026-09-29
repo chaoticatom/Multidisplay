@@ -40,6 +40,7 @@
 //     pi-native's timer editor actually offers (see index.html's
 //     al-effect-rise-* markup, which was intentionally NOT copied into
 //     pi-native's alarm-modal for this reason).
+const scenes = require('../scenes');
 const { runOverlays } = require('./overlays');
 const { blitGlyph } = require('./text');
 
@@ -440,17 +441,22 @@ function alarmFire(state, al, now) {
   const durationMs = hasPreEffect ? 10 * 60 * 1000 : 1 * 60 * 1000;
   state.activeAlarm = { al, phase: 'main', startMs: fireMs, endMs: fireMs + durationMs, dismissed: false };
 
-  if (al.triggerType === 'playlist') {
-    // No playlist engine in pi-native - see module comment. Falls through
-    // to "no effect selected" behaviour (message on whatever's already on
-    // screen), same as the browser's own else-branch for that case.
-  } else if (al.effect && al.effect !== '' && (state.effectsRegistry && state.effectsRegistry[al.effect])) {
-    state.effect = al.effect;
+  const scene = al.triggerType === 'scene' && Array.isArray(state.scenes) ? state.scenes.find((sc) => sc.name === al.scene) : null;
+  if (scene) {
+    scenes.apply(state, scene); // effect, options, overlays, brightness... as saved
+  } else {
+    if (al.effect && al.effect !== '' && (state.effectsRegistry && state.effectsRegistry[al.effect])) {
+      state.effect = al.effect;
+    }
+    if (al.overlayKeys && al.overlayKeys.length && state.overlays) {
+      for (const k of al.overlayKeys) if (state.overlays[k]) state.overlays[k].on = true;
+    }
+    state.brightness = 1;
   }
-  if (al.overlayKeys && al.overlayKeys.length && state.overlays) {
-    for (const k of al.overlayKeys) if (state.overlays[k]) state.overlays[k].on = true;
-  }
-  state.brightness = 1;
+  // Under RENDER_WORKER this runs on the render thread: report what changed
+  // so app.js updates the main thread's state (and the page). Without this
+  // the main thread's next state hand-off reverted the timer's effect.
+  state.appliedChanges = scenes.changedFields(state);
   if (al.repeat === 'once') al.enabled = false;
   if (state.onAlarmsChanged) state.onAlarmsChanged();
 }
