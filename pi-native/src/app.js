@@ -418,6 +418,16 @@ async function main() {
     }, 1000 / SINGLE_THREAD_TICK_HZ);
   }
 
+  // Whenever the app exits (a restart to apply a panel layout, the Restart
+  // button, systemctl stop), kill the radio's ffmpeg/paplay helpers.
+  // Otherwise they could outlive the app: the old stream kept playing
+  // while the restarted app's new stream - the one feeding the spectrum -
+  // wasn't (a real report: after adding a panel, sound but flat bars).
+  // 'exit' handlers must be synchronous; RadioAudio's teardown is (SIGKILL).
+  process.on('exit', () => { try { radio.audio.close(); } catch (e) { /* already gone */ } });
+  // systemctl stop / reboot: save what's showing first (see ./sessionState.js).
+  process.on('SIGTERM', () => { try { if (ws.saveSession) ws.saveSession(); } catch (e) { /* best effort */ } process.exit(0); });
+
   process.on('SIGINT', () => {
     console.log('\n[app] shutting down');
     if (renderWorker) renderWorker.terminate(); else driver.close();
