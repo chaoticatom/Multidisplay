@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.166';
+const APP_VERSION = '0.6.167';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -195,6 +195,7 @@ function answerAuth(failed) {
 
 function handleTextMessage(msg) {
   if (msg.cmd === 'diag') { renderDiag(msg); return; }
+  if (msg.cmd === 'systemNotice') { const el = document.getElementById('conn-status'); if (el) { el.dataset.status = 'reconnecting'; el.textContent = msg.text; } return; }
   if (msg.cmd === 'authRequired') { answerAuth(false); return; }
   if (msg.cmd === 'authFailed') { rememberPin(''); answerAuth(true); return; }
   if (msg.cmd === 'authOk') return;
@@ -421,6 +422,15 @@ function syncMusicReact() {
   if (chk && document.activeElement !== chk) chk.checked = !!m.on;
   if (amt && document.activeElement !== amt) { amt.value = m.amount; if (val) val.textContent = Math.round(m.amount * 100) + '%'; }
   const row = document.getElementById('music-react-row'); if (row) row.style.opacity = m.on ? '1' : '0.45';
+}
+
+function wireRestartButtons() {
+  document.getElementById('restart-app-btn')?.addEventListener('click', () => {
+    if (confirm('Restart the display app? The panels go dark for a few seconds.')) send({ cmd: 'restartApp' });
+  });
+  document.getElementById('reboot-pi-btn')?.addEventListener('click', () => {
+    if (confirm('Reboot the Raspberry Pi? It takes about a minute to come back.')) send({ cmd: 'rebootPi' });
+  });
 }
 
 function wirePinControls() {
@@ -4418,6 +4428,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadEffectNames();
   wireEffectFilter();
   wirePinControls();
+  wireRestartButtons();
   wireMusicReact();
   wireScenes();
   wireTabs();

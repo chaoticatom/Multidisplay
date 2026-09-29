@@ -20,6 +20,7 @@ const radio = require('./effects/radio');
 const { browserFrameSource } = require('./effects/video/browserFrameSource');
 const pinConfig = require('./pinConfig');
 const scenes = require('./scenes');
+const { spawn } = require('child_process');
 
 const COMMANDS = {
   // Sets (or, with an empty pin, clears) the control PIN. Only reachable by
@@ -59,6 +60,27 @@ const COMMANDS = {
     this.state.scenes = list;
     scenes.save(list);
     this._broadcast(this._stateMsg());
+  },
+
+  // Settings > Setup buttons. Both save the session first (see
+  // ../sessionState.js) so the display comes back as it was.
+  // Restart just this app - systemd's Restart=on-failure brings it back
+  // in a few seconds (quicker than a reboot).
+  restartApp(ws) {
+    if (this.saveSession) this.saveSession();
+    this._broadcast({ cmd: 'systemNotice', text: 'Restarting the display app…' });
+    setTimeout(() => process.exit(75), 400);
+  },
+
+  // Reboot the whole Pi (the app runs as root).
+  rebootPi(ws) {
+    if (this.saveSession) this.saveSession();
+    this._broadcast({ cmd: 'systemNotice', text: 'Rebooting the Pi - back in about a minute…' });
+    setTimeout(() => {
+      const p = spawn('systemctl', ['reboot'], { stdio: 'ignore', detached: true });
+      p.on('error', (err) => console.error('[app] reboot failed:', err.message));
+      p.unref();
+    }, 400);
   },
 
   setControlPin(ws, msg) {

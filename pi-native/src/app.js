@@ -12,6 +12,7 @@ const alarms = require('./effects/alarms');
 const radio = require('./effects/radio');
 const { createDiagnostics } = require('./diagnostics');
 const scenes = require('./scenes');
+const sessionState = require('./sessionState');
 const { applyRemoteRequest } = require('./effects/radio/ffmpegAudio');
 const { tick } = require('./tick');
 const WsServer = require('./wsServer');
@@ -174,6 +175,9 @@ async function main() {
     // special needed for "never picked one yet".
     effectOptions: { weather: { city: weatherConfig.load().city } },
   };
+  // Pick up where the display left off before the last restart (see
+  // ./sessionState.js); the radio station resumes once the render side is up.
+  const resumeStation = sessionState.restore(state, EFFECTS);
   state.onAlarmsChanged = () => { alarmConfig.save(state.alarms); ws._broadcast(ws._stateMsg()); };
   // What the panel driver's wiring depends on (see the restart in the
   // config-change handler below).
@@ -223,7 +227,7 @@ async function main() {
     if (driverKind === 'hardware' && driverLayoutKey(newConfig) !== startLayoutKey) {
       clearTimeout(restartTimer);
       console.warn(`[app] panel layout changed (${startLayoutKey} -> ${driverLayoutKey(newConfig)}) - restarting in ${RESTART_DELAY_MS / 1000}s to apply it to the panels`);
-      restartTimer = setTimeout(() => { console.warn('[app] restarting to apply the new panel layout'); process.exit(RESTART_EXIT_CODE); }, RESTART_DELAY_MS);
+      restartTimer = setTimeout(() => { console.warn('[app] restarting to apply the new panel layout'); saveSession(); process.exit(RESTART_EXIT_CODE); }, RESTART_DELAY_MS);
     }
   }, useRenderWorker ? (cmd, payload) => renderWorker.postMessage({ type: 'effectCommand', cmd, payload }) : null);
   console.log(`[app] control/preview WS server listening on :${WS_PORT}`);
@@ -259,6 +263,24 @@ async function main() {
       radioPlayback: radio.audio.getPlaybackStatus(),
     }) });
   }, 1000).unref();
+
+  // Keep the saved session current (see ./sessionState.js): checked every
+  // 2s, written only when a command changed state or the radio started/
+  // stopped - cheap, and a power cut loses at most a couple of seconds.
+  const radioStatusNow = () => (useRenderWorker ? state.effectStatus && state.effectStatus.radio : radio.getStatus());
+  const radioKey = () => { const r = radioStatusNow(); return r && r.playing && r.station ? r.station.url : ''; };
+  let savedVersion = null, savedRadio = null;
+  function saveSession() {
+    sessionState.save(state, radioStatusNow());
+    savedVersion = ws.stateVersion; savedRadio = radioKey();
+  }
+  ws.saveSession = saveSession; // used by the restart/reboot commands
+  setInterval(() => { if (ws.stateVersion !== savedVersion || radioKey() !== savedRadio) saveSession(); }, 2000).unref();
+  if (resumeStation) {
+    console.log('[session] resuming radio station:', resumeStation.name);
+    if (useRenderWorker) renderWorker.postMessage({ type: 'effectCommand', cmd: 'radioPlay', payload: { station: resumeStation } });
+    else radio.playStation(resumeStation);
+  }
 
   let lastMs = performance.now();
 
@@ -312,6 +334,7 @@ async function main() {
     // command's actual outcome, not a stale pre-command snapshot.
     let pendingBroadcast = false;
     let sharedCol = null, sharedWall = null;
+    let renderEmaMs = 0; // smoothed render time per frame, for the adaptive frame rate below
     let radioSeen = { ensureCount: 0, clearCount: 0 };
     renderWorker.on('message', (msg) => {
       if (msg.type === 'stateChanged') { pendingBroadcast = true; return; }
@@ -338,7 +361,17 @@ async function main() {
       radioSeen = applyRemoteRequest(radio.audio, msg.radioAudio, radioSeen);
       ws.maybeStreamFrame(core, state.brightness);
       if (pendingBroadcast) { pendingBroadcast = false; ws._broadcast(ws._stateMsg()); }
-      setTimeout(sendTick, Math.max(0, 1000 / TICK_HZ - (performance.now() - lastMs)));
+      // Adaptive frame rate: keep the render thread at most ~70% busy.
+      // A heavy effect on several panels could take ~14ms of the 16.7ms a
+      // 60fps frame allows (seen in Diagnostics on a 3-panel wall), leaving
+      // no headroom - the next spike (spectrum, overlays) dropped frames
+      // unevenly. Instead, stretch the frame interval so there's always
+      // slack: 60fps when cheap, easing down (never below 20fps) when not.
+      // Effects are time-based, so they don't slow down, just update a
+      // little less often.
+      if (Number.isFinite(msg.renderMs)) renderEmaMs += (msg.renderMs - renderEmaMs) * 0.05;
+      const intervalMs = Math.min(1000 / 20, Math.max(1000 / TICK_HZ, renderEmaMs / 0.7));
+      setTimeout(sendTick, Math.max(0, intervalMs - (performance.now() - lastMs)));
     });
     sendTick();
   } else {

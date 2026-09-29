@@ -1699,6 +1699,12 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
   <div class="sidebar-section collapsed">
     <button class="section-head">◈ Setup <span class="chev">▾</span></button>
     <div class="section-body">
+      <div class="ui-label-accent">⟳ Restart</div>
+      <div class="ui-note">Restart the display app (a few seconds), or reboot the whole Pi (about a minute). What's showing comes back either way.</div>
+      <div style="display:flex;gap:6px;margin-bottom:14px;">
+        <button id="restart-app-btn" class="ui-btn-primary" style="flex:1;margin:0;">Restart app</button>
+        <button id="reboot-pi-btn" class="ui-btn-danger" style="flex:1;">Reboot Pi</button>
+      </div>
       <div class="ui-label-accent">🔒 Control PIN</div>
       <div class="ui-note" id="pin-status">No PIN - anyone on your network can use this page.</div>
       <div style="display:flex;gap:6px;margin-bottom:14px;">
