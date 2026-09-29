@@ -15,6 +15,8 @@
 // favour of a plain procedural green card-table felt background - see the
 // comment at that block below. Everything else (card dealing, scoring,
 // HUD) is untouched.
+const { drawString, FONT_5x7 } = require('../text');
+
 function drawRetroGame(game, dt, buf, S){
   const _setP0=(x,y,r,g,b)=>{
     if(x<0||x>=S||y<0||y>=S) return;
@@ -2631,7 +2633,7 @@ function drawRetroGame(game, dt, buf, S){
         if(Math.floor(p.gameOverT*3)%2){
           const goText='GAMEOVER';
           const gtx=Math.floor((S-goText.length*6)/2), gty=Math.floor(S/2)-3;
-          drawText(goText,gtx,gty,1,0.95,0.15,0.15);
+          drawString(FONT_5x7, goText, gtx, gty, (x, y) => setP(x, y, 0.95, 0.15, 0.15)); // was an undefined drawText() - threw on every GAME OVER flash
         }
       }
     }

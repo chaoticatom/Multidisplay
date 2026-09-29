@@ -4421,11 +4421,11 @@ var PiEngine = (() => {
       function lerp(a, b, t) {
         return a + (b - a) * t;
       }
-      function drawText2(core, face, str, su, sv, scale, r, g, b) {
+      function drawText(core, face, str, su, sv, scale, r, g, b) {
         drawString(FONT_3x5, str, su, Math.round(sv), facePlot(core, face, r, g, b), { scale });
       }
       function drawTextCentered(core, face, str, cx, sv, scale, r, g, b) {
-        drawText2(core, face, str, Math.round(cx - textWidth(FONT_3x5, str, scale) / 2), sv, scale, r, g, b);
+        drawText(core, face, str, Math.round(cx - textWidth(FONT_3x5, str, scale) / 2), sv, scale, r, g, b);
       }
       function drawCoinFace(core, face, s, t) {
         const S = core.SIZE;
@@ -4486,7 +4486,7 @@ var PiEngine = (() => {
         if (!s.flipping) {
           const sc = Math.max(1, Math.round(R / 6));
           const gw = 3 * sc, gh = 5 * sc;
-          drawText2(core, face, s.result, Math.round(cx - gw / 2), Math.round(cy - gh / 2), sc, 1, 1, 1);
+          drawText(core, face, s.result, Math.round(cx - gw / 2), Math.round(cy - gh / 2), sc, 1, 1, 1);
         }
         const tsc = Math.max(1, Math.round(S / 32));
         drawTextCentered(core, face, "H" + s.heads, S * 0.28, S * 0.82, tsc, 1, 0.8, 0.27);
@@ -5842,6 +5842,7 @@ var PiEngine = (() => {
     "src/effects/retro/games.js"(exports, module) {
       init_define_process_env();
       init_bufferGlobal();
+      var { drawString, FONT_5x7 } = require_text();
       function drawRetroGame(game, dt, buf, S) {
         const _setP0 = (x, y, r, g, b) => {
           if (x < 0 || x >= S || y < 0 || y >= S) return;
@@ -9190,7 +9191,7 @@ var PiEngine = (() => {
               if (Math.floor(p.gameOverT * 3) % 2) {
                 const goText = "GAMEOVER";
                 const gtx = Math.floor((S - goText.length * 6) / 2), gty = Math.floor(S / 2) - 3;
-                drawText(goText, gtx, gty, 1, 0.95, 0.15, 0.15);
+                drawString(FONT_5x7, goText, gtx, gty, (x, y) => setP(x, y, 0.95, 0.15, 0.15));
               }
             }
           }
@@ -9695,7 +9696,7 @@ var PiEngine = (() => {
           "-": [0, 0, 0, 31, 0, 0, 0],
           " ": [0, 0, 0, 0, 0, 0, 0]
         };
-        const drawText2 = (text, x, y, sc, r, g, b) => {
+        const drawText = (text, x, y, sc, r, g, b) => {
           for (let ci = 0; ci < text.length; ci++) {
             const ch = text[ci];
             if (ch === " ") continue;
@@ -9794,7 +9795,7 @@ var PiEngine = (() => {
           setP(33, textY + charH + 6, 1, 0, 0);
           fillRect(31, textY + charH + 7, 32, textY + charH + 8, 0, 0, 0);
         }
-        drawText2(label, startX, textY, scale, cr, cg, cb);
+        drawText(label, startX, textY, scale, cr, cg, cb);
         const flashOn = Math.sin(t * 6) > 0;
         if (flashOn) fillRect(Math.floor(S * 0.2), 4, Math.floor(S * 0.8), 5, cr * 0.6, cg * 0.6, cb * 0.6);
       }
