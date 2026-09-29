@@ -1564,109 +1564,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
       </div>
     </div>
 
-    <div class="ov-item" id="ovi-radio">
-      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="radio"><span class="ov-slider"></span></span><span class="ov-name">📻 Internet Radio (audio only)</span></label>
-      <div class="ov-body">
-        <div class="ui-note-spaced">Plays as background audio underneath any effect — no visual change on the cube. Turning this off stops playback. Same station list/controls as the Internet Radio effect panel; both stay in sync.</div>
-        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
-          <button class="radio-stop-btn-el" style="flex:0 0 auto;padding:6px 12px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.25);color:#f88;border-radius:4px;cursor:pointer;font-size:11px;">■ Stop</button>
-          <span class="ov-label" style="flex:0 0 auto;">Vol</span>
-          <input class="radio-vol-el" type="range" min="0" max="1" step="0.05" value="0.8" style="flex:1;">
-        </div>
-        <div class="radio-status-el" style="font-size:11px;color:#9aa3b8;text-align:center;margin-bottom:10px;">Pick a station</div>
 
-        <div style="display:flex;gap:6px;margin-bottom:10px;">
-          <button class="radio-debug-sweep-btn-el ui-btn-purple">🎚 Sweep Test</button>
-          <button class="radio-debug-drum-btn-el ui-btn-purple">🥁 Drum Test</button>
-        </div>
-
-        <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Directory search (thousands of stations)</div>
-        <div style="display:flex;gap:6px;margin-bottom:6px;">
-          <input class="radio-search-input-el" type="text" placeholder="Name, genre or city…" style="flex:1;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:6px 8px;font-size:11px;box-sizing:border-box;">
-          <button class="radio-search-btn-el" style="flex:0 0 auto;padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Search</button>
-        </div>
-        <button class="radio-browse-top-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.1);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Browse Top 60 Worldwide</button>
-        <div class="radio-search-status-el ui-note"></div>
-        <div class="radio-search-results-el" style="max-height:260px;overflow-y:auto;margin-bottom:10px;"></div>
-
-        <div style="font-size:11px;font-weight:700;color:#e8c250;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Featured</div>
-        <div class="radio-station-list-el" style="margin-bottom:8px;"></div>
-      </div>
-    </div>
-
-    <div class="ov-item" id="ovi-spectrum">
-      <label class="ov-hdr"><span class="ov-toggle"><input type="checkbox" class="ov-chk" data-ov="spectrum"><span class="ov-slider"></span></span><span class="ov-name">🎚️ Spectrum Analyser</span></label>
-      <div class="ov-body">
-        <div class="ui-note-spaced">Blends audio-reactive bars on top of whatever effect is currently running, from the mic, a connected phone, or Internet Radio.</div>
-        <div class="ov-row-label">Bands</div>
-        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-          <button class="spectrum-bands-btn" data-bands="8">8</button>
-          <button class="spectrum-bands-btn" data-bands="16">16</button>
-          <button class="spectrum-bands-btn" data-bands="32">32</button>
-          <button class="spectrum-bands-btn active" data-bands="64">64</button>
-          <button class="spectrum-bands-btn" data-bands="128">128</button>
-          <button class="spectrum-bands-btn" data-bands="256">256</button>
-        </div>
-        <div class="ov-row-label">Style</div>
-        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-          <button class="au-style-btn active" data-austyle="bars">Bars</button>
-          <button class="au-style-btn" data-austyle="mirror">Mirror</button>
-          <button class="au-style-btn" data-austyle="dots">Dots</button>
-          <button class="au-style-btn" data-austyle="blocks">Blocks</button>
-          <button class="au-style-btn" data-austyle="outline">Outline</button>
-          <button class="au-style-btn" data-austyle="radial">Radial</button>
-          <button class="au-style-btn" data-austyle="vu">VU</button>
-          <button class="au-style-btn" data-austyle="waterfall">Waterfall</button>
-          <button class="au-style-btn" data-austyle="waveform">Waveform</button>
-          <button class="au-style-btn" data-austyle="tunnel">Tunnel</button>
-          <button class="au-style-btn" data-austyle="storm">Storm</button>
-          <button class="au-style-btn" data-austyle="plasma">Plasma</button>
-          <button class="au-style-btn" data-austyle="rings">Rings</button>
-          <button class="au-style-btn" data-austyle="fire">Fire</button>
-        </div>
-        <div class="ov-row-label">Colour Theme</div>
-        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-          <button class="au-theme-btn" data-autheme="0">Rainbow</button>
-          <button class="au-theme-btn" data-autheme="1">Fire</button>
-          <button class="au-theme-btn" data-autheme="2">Ocean</button>
-          <button class="au-theme-btn" data-autheme="3">Neon</button>
-          <button class="au-theme-btn" data-autheme="4">Matrix</button>
-          <button class="au-theme-btn active" data-autheme="5">Pastel</button>
-          <button class="au-theme-btn" data-autheme="6">VU Meter</button>
-        </div>
-        <div class="ov-row-label">Bar Mode</div>
-        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-          <button class="au-barmode-btn active" data-barmode="solid">Solid</button>
-          <button class="au-barmode-btn" data-barmode="striped">Striped</button>
-          <button class="au-barmode-btn" data-barmode="center">Center</button>
-          <button class="au-barmode-btn" data-barmode="falling">Falling</button>
-          <button class="au-barmode-btn" data-barmode="stacked">Stacked</button>
-          <button class="au-barmode-btn" data-barmode="wave">Wave</button>
-        </div>
-        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="sp-fit-screen-el">FIT TO SCREEN</label>
-        <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="au-autogain-el" checked>AUTO GAIN</label>
-        <div class="ov-row-label">Gain</div>
-        <div class="slider-row">
-          <input type="range" class="au-gain-el" min="0.2" max="8" step="0.1" value="2" style="flex:1;">
-          <span class="slider-val au-gain-val-el">2.0×</span>
-        </div>
-        <div class="ov-row-label" style="margin-top:8px;" title="Delays the bars to line up with what you hear - Bluetooth speakers play audio late">Speaker sync</div>
-        <div class="slider-row">
-          <input type="range" class="au-sync-el" min="0" max="800" step="10" value="150" style="flex:1;" aria-label="Speaker sync delay">
-          <span class="slider-val au-sync-val-el" style="width:52px;">150ms</span>
-        </div>
-        <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
-        <div class="slider-row">
-          <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
-          <span class="slider-val au-scroll-speed-val-el">0</span>
-        </div>
-        <div class="ov-row-label" style="margin-top:8px;">Sound Source</div>
-        <button class="mic-btn-el" style="margin-top:4px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">🎤 START MIC</button>
-        <div class="mic-status-el" style="font-size:11px;color:#9aa3b8;margin-top:4px;text-align:center;"></div>
-        <button class="phone-audio-btn-el" style="margin-top:6px;width:100%;padding:6px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">📱 Use Phone (Bluetooth)</button>
-        <div class="phone-audio-status-el" style="font-size:11px;color:#9aa3b8;margin-top:4px;text-align:center;"></div>
-      </div>
-    </div>
 
     </div>
   </div>
@@ -1676,61 +1574,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 
 
 
-  <div class="sidebar-section collapsed">
-    <button class="section-head">◈ Playlist <span class="chev">▾</span></button>
-    <div class="section-body">
-          <div style="display:flex;gap:4px;margin-bottom:8px;">
-            <button id="pl-play-btn" class="util-btn" style="flex:2;margin:0;">▶ Play</button>
-            <button id="pl-stop-btn" class="util-btn" style="flex:0 0 38px;margin:0;padding:7px 4px;">■</button>
-            <button id="pl-skip-btn" class="util-btn" style="flex:0 0 38px;margin:0;padding:7px 4px;">⏭</button>
-          </div>
-          <div id="pl-info" style="font-size:12px;color:#7aadff;text-align:center;margin-bottom:5px;">15 items ready</div>
-          <div style="height:5px;background:rgba(80,120,255,0.15);border-radius:3px;margin-bottom:8px;overflow:hidden;">
-            <div id="pl-progress-inner" style="height:100%;width:0%;background:linear-gradient(90deg,#4af,#9fd);border-radius:3px;transition:width 0.25s linear;"></div>
-          </div>
-          <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" id="pl-loop" checked>LOOP PLAYLIST</label>
-          <label class="check-row" style="margin-bottom:6px;"><input type="checkbox" id="pl-transitions" checked>SMOOTH TRANSITIONS</label>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-left:22px;">
-            <select id="pl-trans-type" style="flex:1;padding:5px 8px;background:rgba(12,18,40,0.9);border:1px solid rgba(80,120,255,0.3);color:#bbd;border-radius:5px;font-size:12px;">
-              <option value="random">Random</option>
-              <option value="crossfade">Crossfade</option>
-              <option value="flash">Flash</option>
-              <option value="implode">Implode</option>
-            </select>
-          </div>
-          <div style="font-size:11px;color:#7aadff;margin-bottom:4px;letter-spacing:1px;font-weight:600;">SAVED PLAYLISTS</div>
-          <div style="display:flex;gap:4px;margin-bottom:8px;">
-            <select id="pl-saved-select" style="flex:1;padding:6px 8px;background:rgba(12,18,40,0.9);border:1px solid rgba(80,120,255,0.3);color:#bbd;border-radius:5px;font-size:12px;"><option value="">— choose —</option></select>
-            <button id="pl-saved-load" class="util-btn" style="margin:0;padding:6px 10px;">Load</button>
-            <button id="pl-saved-del" class="util-btn" style="margin:0;padding:6px 10px;color:#f88;border-color:rgba(200,40,40,0.3);">✕</button>
-          </div>
-          <button id="pl-new-btn" class="util-btn">+ New Playlist</button>
-          <button id="pl-edit-btn" class="util-btn">✏ Edit / Save Playlist</button>
-          <button id="pl-reset-btn" class="util-btn">↺ Reset to Demo</button>
-    </div>
-  </div>
 
-  <div class="sidebar-section collapsed" id="custom-faces-section">
-    <button class="section-head">◈ Custom Faces <span class="chev">▾</span></button>
-    <div class="section-body">
-      <div style="font-size:12px;color:#9ab;margin-bottom:10px;line-height:1.5;">Draw custom graphics for each cube face. Save designs by name and load them onto the cube.</div>
-      <button id="cg-open-btn" class="util-btn" style="width:100%;margin-bottom:10px;">🎨 DRAW / EDIT FACES</button>
-      <div class="ui-label-accent">SAVE DESIGN</div>
-      <div style="display:flex;gap:5px;margin-bottom:10px;">
-        <input class="ui-input" id="cg-name-input" type="text" placeholder="Design name…" maxlength="40"
-         >
-        <button id="cg-save-named-btn" style="padding:6px 10px;font-size:12px;background:rgba(60,220,120,0.1);border:1px solid rgba(60,220,120,0.3);color:#6e8;border-radius:5px;cursor:pointer;font-weight:700;">💾</button>
-      </div>
-      <div class="ui-label-accent">LOAD DESIGN</div>
-      <div style="display:flex;gap:5px;margin-bottom:6px;">
-        <select class="ui-input" id="cg-load-select">
-          <option value="">— choose design —</option>
-        </select>
-        <button id="cg-apply-btn" style="padding:6px 10px;font-size:12px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:5px;cursor:pointer;font-weight:700;">↓</button>
-        <button id="cg-del-btn" style="padding:6px 10px;font-size:12px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.2);color:#f88;border-radius:5px;cursor:pointer;font-weight:700;">✕</button>
-      </div>
-    </div>
-  </div>
 
   <div class="sidebar-section collapsed" id="panel-editor-section">
     <button class="section-head">◈ Face Editor <span class="chev">▾</span></button>
@@ -1804,22 +1648,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     </div>
   </div>
   <div class="sidebar-section collapsed">
-    <button class="section-head">◈ Firmware Update <span class="chev">▾</span></button>
-    <div class="section-body">
-      <div style="font-size:11px;color:#9aa3b8;margin-bottom:8px;line-height:1.4;">Upload this page to ESP32 via OTA. Enter the ESP32 IP address below.</div>
-      <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">
-        <span style="font-size:11px;color:#9aa3b8;letter-spacing:1px;white-space:nowrap;">IP</span>
-        <input type="text" id="esp32-ip" placeholder="192.168.x.x" value="192.168.4.1"
-          style="flex:1;padding:6px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(80,120,255,0.3);color:#bbd;border-radius:5px;font-size:12px;">
-      </div>
-      <button onclick="esp32Upload()"
-        style="width:100%;padding:7px;background:rgba(80,120,255,0.18);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:1px;">
-        ↑ UPLOAD FIRMWARE
-      </button>
-      <div id="esp32-status" style="font-size:11px;color:#9aa3b8;margin-top:6px;text-align:center;line-height:1.4;"></div>
-    </div>
-  </div>
-  <div class="sidebar-section collapsed">
     <button class="section-head">◈ Setup <span class="chev">▾</span></button>
     <div class="section-body">
       <div class="ui-label-accent">🔒 Control PIN</div>
@@ -1875,9 +1703,8 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 <!-- Timer editor modal, copied verbatim from the browser app's index.html
      (alarm-modal, lines ~1653-1799 there) - see public/app.js's
      wireAlarmModal()/openAlarmEditor() for the JS driving these #al-*
-     fields. al-playlist-row/al-type-playlist stay in the markup (matching
-     the browser 1:1) but are permanently disabled - see app.js's module
-     comment on the playlist-trigger-type scope boundary. -->
+     fields. Timers trigger an effect; the never-ported playlist trigger
+     was removed. -->
 <div id="alarm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:2000;overflow-y:auto;padding:16px;">
   <div style="max-width:380px;margin:0 auto;background:#0b1024;border:1px solid rgba(80,120,255,0.4);border-radius:10px;padding:18px;">
     <div style="font-size:16px;color:#7aadff;font-weight:700;letter-spacing:1px;margin-bottom:16px;" id="alarm-modal-title">TIMER EDITOR</div>
@@ -1935,9 +1762,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
       <label class="ui-subhead">TRIGGER</label>
       <div style="display:flex;gap:6px;margin:4px 0 10px;">
         <button id="al-type-effect" class="al-type-btn active" style="flex:1;padding:8px;background:rgba(80,120,255,0.2);border:1px solid rgba(80,120,255,0.5);color:#7aadff;border-radius:4px;cursor:pointer;font-size:13px;font-weight:700;">⚡ EFFECT</button>
-        <button id="al-type-playlist" class="al-type-btn" style="flex:1;padding:8px;background:rgba(30,40,80,0.4);border:1px solid rgba(80,120,255,0.2);color:#9aa3b8;border-radius:4px;cursor:not-allowed;font-size:13px;font-weight:700;opacity:0.4;" disabled title="Playlists aren't ported to pi-native - see app.js's module comment.">▶ PLAYLIST</button>
       </div>
-      <div style="font-size:11px;color:#9aa3b8;margin:-6px 0 10px;">Playlist timers aren't available on the Pi yet - a timer can start one effect.</div>
 
       <div id="al-effect-row">
         <label class="ui-subhead">EFFECT</label>
@@ -1946,10 +1771,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
         <div id="al-overlays" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:4px 0 8px;"></div>
       </div>
 
-      <div id="al-playlist-row" style="display:none;">
-        <label class="ui-subhead">PLAYLIST</label>
-        <select id="al-playlist" disabled style="width:100%;margin:5px 0 8px;padding:8px 10px;background:#0a1020;border:1px solid rgba(80,120,255,0.3);color:#cde;font-size:13px;border-radius:5px;"><option value="">— none —</option></select>
-      </div>
 
       <!-- Pre-alarm: wake up -->
       <div style="margin-top:4px;padding-top:8px;border-top:1px solid rgba(80,120,255,0.1);">
@@ -2062,6 +1883,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.160"></script>
+<script src="app.js?v=0.6.161"></script>
 </body>
 </html>

@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.160';
+const APP_VERSION = '0.6.161';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -50,7 +50,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube']);
+const WIRED_OPTION_PANELS = new Set(['epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube']);
 // Shared "Art" submenu prev/next/slideshow/letterbox/speed controls
 // (#art-slideshow-chk/#art-letterbox-chk/#art-speed/#art-prev-btn/
 // #art-next-btn) drive whichever of Unsplash/Art Gallery is the currently
@@ -2873,7 +2873,7 @@ function closeAlarmEditor() {
 }
 
 function readAlarmFromModal() {
-  const triggerType = document.getElementById('al-type-playlist').classList.contains('active') ? 'playlist' : 'effect';
+  const triggerType = 'effect'; // playlist triggers were never ported; scenes will cover this
   const repeat = document.getElementById('al-repeat').value;
   const days = repeat === 'weekly' ? Array.from(document.querySelectorAll('.al-day-btn.active')).map((b) => +b.dataset.d) : [];
   const isWd = document.getElementById('al-wind-down').value === '1';
@@ -3086,24 +3086,10 @@ function wireSidebarMenu() {
 // assignment UI).
 // ---------------------------------------------------------------------
 function greyOutUnsupported() {
-  const bySelector = [
-    '#custom-faces-section',
-  ];
-  bySelector.forEach((sel) => markUnsupported(document.querySelector(sel)));
-
-  // Radio and Spectrum are the two overlays deliberately NOT ported (see
-  // src/effects/overlays.js's module comment: radio is an audio-only no-op
-  // in the browser too, spectrum needs an audio-input pipeline pi-native
-  // doesn't have) - grey out just those two items rather than the whole
-  // Overlays section, which is otherwise fully wired (see wireOverlaysPanel).
-  markUnsupported(document.getElementById('ovi-radio'), 'Audio playback has no equivalent here - not ported.');
-  markUnsupported(document.getElementById('ovi-spectrum'), 'No audio-input pipeline in pi-native - not ported.');
-
-  // Firmware Update has no id - match by its header text.
-  document.querySelectorAll('.sidebar-section').forEach((section) => {
-    const head = section.querySelector('.section-head');
-    if (head && head.textContent.includes('Firmware Update')) markUnsupported(section);
-  });
+  // Everything that used to be greyed out here (ESP32 firmware update,
+  // Custom Faces drawing, Playlist, the radio/spectrum overlays) has been
+  // removed from the page rather than shown disabled. Kept as the single
+  // place to grey out anything that's temporarily unavailable.
 }
 
 function markUnsupported(el, message) {
