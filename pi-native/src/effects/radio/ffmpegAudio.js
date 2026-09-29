@@ -510,6 +510,17 @@ class RadioAudio {
   getStatus() { return this.status; }
   getPlaybackStatus() { return this.playbackStatus; }
 
+  // Re-opens the playback process so it attaches to PulseAudio's CURRENT
+  // default output. A playback stream stays on whatever output was default
+  // when it started, so a station resumed at startup (before the Bluetooth
+  // speaker reconnected) kept playing to the Pi's own output even after
+  // the speaker became the default. Called when the audio output changes.
+  restartPlayback() {
+    if (!this.decodeProc) return;
+    this._teardownPlayback();
+    this._launchPlayback();
+  }
+
   // Speaker sync delay (see DEFAULT_SYNC_MS). Clamped so the analysis
   // window always stays inside the ring buffer.
   setSyncMs(ms) {

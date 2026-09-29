@@ -168,6 +168,12 @@ async function scanDevices(durationMs = 6000) {
 
 const btConfig = require('./btConfig');
 
+// Called whenever a speaker becomes the audio output (setAsAudioOutput
+// succeeded) - app.js uses it to move the radio's playback onto it (see
+// RadioAudio.restartPlayback()).
+const outputChangedListeners = [];
+function onAudioOutputChanged(cb) { outputChangedListeners.push(cb); }
+
 // Selects an already-paired/connected speaker's PulseAudio sink as the
 // system default output - the actual mechanism behind "pass the audio to
 // the BT device" (both pairDevice()'s automatic call right after
@@ -221,6 +227,7 @@ async function setAsAudioOutput(mac, waitMs = 0) {
   // selection came from pairDevice(), the manual "Set as Output" button,
   // or a future auto-reconnect.
   btConfig.save({ lastSpeakerMac: mac });
+  for (const cb of outputChangedListeners) { try { cb(mac); } catch (e) { console.warn('[bluetooth] output-changed listener failed:', e.message); } }
   return { set: true, log: sinksOut + '\n' + setOut };
 }
 
@@ -479,6 +486,7 @@ async function routePhoneAudio() {
 }
 
 module.exports = {
+  onAudioOutputChanged,
   MAC_RE, parseDeviceLines, scanDevices, pairDevice, listPaired, makeDiscoverable, routePhoneAudio,
   setAsAudioOutput, autoReconnectLastSpeaker, forgetDevice, resetPairability,
 };

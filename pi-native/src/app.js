@@ -237,6 +237,9 @@ async function main() {
   // background for up to ~30s (see bluetooth.js's autoReconnectLastSpeaker())
   // without blocking the boot screen/effect engine/WS server from coming
   // up immediately.
+  // A speaker became the audio output (auto-reconnect or picked on the
+  // page): move the radio's playback onto it - see restartPlayback().
+  bluetooth.onAudioOutputChanged(() => { if (radio.audio.restartPlayback) radio.audio.restartPlayback(); });
   bluetooth.autoReconnectLastSpeaker().catch((err) => console.warn('[bluetooth] auto-reconnect failed:', err.message));
   // A real report: "it keeps adding devices to my paired device list but
   // I have never paired with them" - `pairable`/`discoverable` have no
