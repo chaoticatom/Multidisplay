@@ -181,7 +181,15 @@ async function main() {
   state.onAlarmsChanged = () => { alarmConfig.save(state.alarms); ws._broadcast(ws._stateMsg()); };
   // What the panel driver's wiring depends on (see the restart in the
   // config-change handler below).
-  const driverLayoutKey = (c) => c.mode === 'wall' ? `wall:${(c.panels || []).map((p) => p.gx + ',' + p.gy).sort().join(';')}` : c.mode;
+  // Only the WIRING matters: cube (2x3 chains) vs a flat grid of
+  // columns x rows. 'Panel 2D' and a one-panel wall are both 1x1, so
+  // switching between them (clicking Layout) no longer restarts; moving
+  // panels within the same grid doesn't either.
+  const driverLayoutKey = (c) => {
+    if (c.mode === 'cube') return 'cube';
+    const ps = c.mode === 'wall' && Array.isArray(c.panels) && c.panels.length ? c.panels : [{ gx: 0, gy: 0 }];
+    return `flat:${Math.max(...ps.map((p) => p.gx)) + 1}x${Math.max(...ps.map((p) => p.gy)) + 1}`;
+  };
   const startLayoutKey = driverLayoutKey(config);
   const RESTART_DELAY_MS = 4000, RESTART_EXIT_CODE = 75;
   let restartTimer = null;

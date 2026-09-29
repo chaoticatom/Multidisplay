@@ -122,7 +122,15 @@ class RgbMatrixDriver {
   }
 
   renderFrame(core, brightness = 1.0) {
-    if (this.mode === 'wall') { this._renderWallFrame(core, brightness); return; }
+    // Which drawing path to use comes from the CURRENT panel mode, not the
+    // one at startup: a flat panel's wiring is the same whether it's shown
+    // as 'Panel 2D' or as a one-panel wall, so switching between those
+    // (e.g. clicking Layout) needs no restart. app.js only restarts the
+    // app when the wiring itself changes (cube vs flat, or the wall grid
+    // growing) - see driverLayoutKey there.
+    const want = core.panelMode || this.mode;
+    this._curMode = this.mode === 'cube' ? 'cube' : want === 'wall' && core.wallBuf ? 'wall' : '2d';
+    if (this._curMode === 'wall') { this._renderWallFrame(core, brightness); return; }
 
     const SIZE = core.SIZE;
     if (SIZE !== 64) {
@@ -132,7 +140,7 @@ class RgbMatrixDriver {
       // meaningful here.
       throw new Error(`rgbMatrixDriver is hardcoded for 64x64 faces (matrixOptions rows/cols), got SIZE=${SIZE}`);
     }
-    const faceCount = this.mode === '2d' ? 1 : 6;
+    const faceCount = this._curMode === '2d' ? 1 : 6;
     for (let face = 0; face < faceCount; face++) {
       // '2d' mode's matrixOptions topology (above) is a FIXED chainLength:1,
       // parallel:1 - i.e. a 64x64 canvas, exactly one panel, always at
@@ -144,7 +152,7 @@ class RgbMatrixDriver {
       // off-canvas, so drawBuffer() silently had nowhere valid to put the
       // pixels. Cube mode still needs FACE_LAYOUT (6 real chain/pos slots);
       // 2d mode's one panel is never wired via that table at all.
-      const layout = this.mode === '2d' ? { chain: 0, pos: 0 } : FACE_LAYOUT[face];
+      const layout = this._curMode === '2d' ? { chain: 0, pos: 0 } : FACE_LAYOUT[face];
       const buf = this._buildFaceBuffer(core, face, brightness);
       this.matrix.drawBuffer(buf, SIZE, SIZE, layout.pos * SIZE, layout.chain * SIZE);
     }
@@ -221,7 +229,7 @@ class RgbMatrixDriver {
     const buf = this._faceBufCache;
     const faceMap = core.faceMap[face];
     const colBuf = core.colBuf;
-    const mirror = this.mode === '2d';
+    const mirror = this._curMode === '2d';
     // Per-face physical-mount correction (rotate180/rotateCW90/rotateCCW90/
     // flipH/flipV, see FACE_LAYOUT's module comment) - independent of the
     // '2d' mirror above and of faceMap's own baked-in mirror for faces
@@ -232,7 +240,7 @@ class RgbMatrixDriver {
     // compute (su,sv) directly from the untransformed (u,v) - not
     // composable with mirror/the other flags (never both true at once in
     // practice: mirror only applies in '2d' mode, where layout is null).
-    const layout = this.mode === '2d' ? null : FACE_LAYOUT[face];
+    const layout = this._curMode === '2d' ? null : FACE_LAYOUT[face];
     for (let v = 0; v < SIZE; v++) {
       for (let u = 0; u < SIZE; u++) {
         let su = mirror ? SIZE - 1 - u : u;
