@@ -230,6 +230,7 @@ const COMMANDS = {
     panels.push(placed);
     this.config.mode = 'wall';
     this.config.panels = panels;
+    Object.assign(this.config, panelConfig.normalizeFlat(this.config));
     panelConfig.save(this.config);
     if (this.onConfigChange) this.onConfigChange(this.config);
     this._broadcast(this._stateMsg());
@@ -242,6 +243,7 @@ const COMMANDS = {
     const panels = this.config.panels.filter((p) => !(p.gx === msg.gx && p.gy === msg.gy));
     if (panels.length === this.config.panels.length) return; // no matching panel
     this.config.panels = panels;
+    Object.assign(this.config, panelConfig.normalizeFlat(this.config));
     panelConfig.save(this.config);
     if (this.onConfigChange) this.onConfigChange(this.config);
     this._broadcast(this._stateMsg());
@@ -254,6 +256,7 @@ const COMMANDS = {
     // core.initWall()/the driver.
     if (this.config.mode !== 'wall' || !panelConfig.isValidPanels(msg.panels)) return;
     this.config.panels = msg.panels;
+    Object.assign(this.config, panelConfig.normalizeFlat(this.config));
     panelConfig.save(this.config);
     if (this.onConfigChange) this.onConfigChange(this.config);
     this._broadcast(this._stateMsg());

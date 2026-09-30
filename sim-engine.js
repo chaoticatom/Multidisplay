@@ -25816,6 +25816,10 @@ var PiEngine = (() => {
       }
       function normalizeFlat(config) {
         if (config && config.mode === "2d") return { ...config, mode: "wall", panels: [{ gx: 0, gy: 0 }] };
+        if (config && config.mode === "wall" && Array.isArray(config.panels) && config.panels.length) {
+          const mx = Math.min(...config.panels.map((p) => p.gx)), my = Math.min(...config.panels.map((p) => p.gy));
+          if (mx || my) return { ...config, panels: config.panels.map((p) => ({ gx: p.gx - mx, gy: p.gy - my })) };
+        }
         return config;
       }
       function load() {

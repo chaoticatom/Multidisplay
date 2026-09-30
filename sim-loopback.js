@@ -169,10 +169,12 @@
     } else if (msg.cmd === 'removePanel') {
       config.panels = config.panels.filter((p) => !(p.gx === msg.gx && p.gy === msg.gy));
       if (!config.panels.length) config.panels = [{ gx: 0, gy: 0 }];
+      Object.assign(config, E.panelConfig.normalizeFlat(config));
       core.initWall(config.panels, config.size);
     } else if (msg.cmd === 'setPanelPositions') {
       if (E.panelConfig.isValidPanels(msg.panels)) {
         config.panels = msg.panels;
+        Object.assign(config, E.panelConfig.normalizeFlat(config));
         core.initWall(config.panels, config.size);
       }
     } else if (msg.cmd === 'radioPlay') {

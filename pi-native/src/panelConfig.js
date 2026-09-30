@@ -94,6 +94,14 @@ function isValidPanels(panels) {
 // versions of effects, whether there's one panel or several.
 function normalizeFlat(config) {
   if (config && config.mode === '2d') return { ...config, mode: 'wall', panels: [{ gx: 0, gy: 0 }] };
+  // Shift the layout so it starts at the top-left cell. The hardware chain
+  // always starts there: removing the first panel used to leave e.g. one
+  // panel at (0,2), which the driver drew on a chain position with no
+  // panel attached - a blank physical display.
+  if (config && config.mode === 'wall' && Array.isArray(config.panels) && config.panels.length) {
+    const mx = Math.min(...config.panels.map((p) => p.gx)), my = Math.min(...config.panels.map((p) => p.gy));
+    if (mx || my) return { ...config, panels: config.panels.map((p) => ({ gx: p.gx - mx, gy: p.gy - my })) };
+  }
   return config;
 }
 
