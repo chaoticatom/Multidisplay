@@ -14,6 +14,7 @@
 const { LedMatrix, GpioMapping, RuntimeFlag } = require('rpi-led-matrix');
 const { FACE_LAYOUT } = require('../panelConfig');
 const { writePixel } = require('./pixel');
+const PANEL = 64; // physical panel width/height in pixels
 
 // ---------------------------------------------------------------------------
 // PHYSICAL LAYOUT - MUST BE CALIBRATED FOR YOUR ACTUAL WIRING.
@@ -166,11 +167,12 @@ class RgbMatrixDriver {
   // grid coordinate instead of cube face index.
   _renderWallFrame(core, brightness) {
     if (!core.wallBuf) return; // initWall() hasn't run yet
-    const S = core.wallPanelSize;
-    if (S !== 64) throw new Error(`rgbMatrixDriver is hardcoded for 64x64 panels, got wallPanelSize=${S}`);
+    // The physical panels are always 64x64. A smaller logical size (8/16,
+    // chosen in the UI) is scaled up to fill each panel - it used to throw,
+    // which killed the render worker at startup with a saved 8x8 setting.
     for (const p of core.wallPanels) {
       const buf = this._buildWallPanelBuffer(core, p, brightness);
-      this.matrix.drawBuffer(buf, S, S, p.gx * S, p.gy * S);
+      this.matrix.drawBuffer(buf, PANEL, PANEL, p.gx * PANEL, p.gy * PANEL);
     }
     this.matrix.sync();
   }
@@ -201,11 +203,12 @@ class RgbMatrixDriver {
     const S = core.wallPanelSize, wallW = core.wallW, wallBuf = core.wallBuf;
     const buf = this._faceBufCache;
     const ox = panel.gx * S, oy = panel.gy * S;
-    for (let v = 0; v < S; v++) {
-      for (let u = 0; u < S; u++) {
-        const srcX = wallW - 1 - (ox + u);
-        const c = ((oy + v) * wallW + srcX) * 3;
-        const o = (v * S + u) * 3;
+    for (let v = 0; v < PANEL; v++) {
+      const sv = Math.floor((v * S) / PANEL);
+      for (let u = 0; u < PANEL; u++) {
+        const srcX = wallW - 1 - (ox + Math.floor((u * S) / PANEL));
+        const c = ((oy + sv) * wallW + srcX) * 3;
+        const o = (v * PANEL + u) * 3;
         writePixel(buf, o, wallBuf[c], wallBuf[c + 1], wallBuf[c + 2], brightness);
       }
     }
