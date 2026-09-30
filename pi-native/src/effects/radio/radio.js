@@ -136,12 +136,13 @@ function stopStation() {
   audio.ensure(null);
 }
 
-// Called by tick.js every frame while radio ISN'T the selected effect, so
-// a playing station keeps going in the background. Without this nothing
+// Called by tick.js every frame (whatever effect or mode is showing), so a
+// playing station starts and keeps going. Without this nothing
 // called audio.ensure() once you switched away, and the analyser's 10s
 // idle timeout stopped the stream - "background" radio cut out 10 seconds
 // after changing effect.
-function keepAlive() {
+function keepAlive(opts) {
+  if (opts) audio.setSyncMs(opts.syncMs);
   audio.ensure(playing && currentStation ? currentStation.url : null);
 }
 

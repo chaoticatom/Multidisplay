@@ -12768,7 +12768,8 @@ var PiEngine = (() => {
         playing = false;
         audio.ensure(null);
       }
-      function keepAlive() {
+      function keepAlive(opts) {
+        if (opts) audio.setSyncMs(opts.syncMs);
         audio.ensure(playing && currentStation ? currentStation.url : null);
       }
       function setVolume(v) {
@@ -25971,7 +25972,7 @@ var PiEngine = (() => {
           const alarmBlocking = cubeMode && alarms.isBlockingNormalEffect(state);
           const fn = config.mode === "wall" ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
           const buf = cubeMode ? core.colBuf : core.wallBuf;
-          if (state.effect !== "radio" && typeof radio.keepAlive === "function") radio.keepAlive();
+          if (typeof radio.keepAlive === "function") radio.keepAlive(state.effectOptions && state.effectOptions.radio);
           core.audio = updateFeatures(musicFeatures, radio.audio && radio.audio.spec, dt);
           const react = state.musicReact && state.musicReact.on && state.effect !== "radio" ? Math.max(0, Math.min(1, Number(state.musicReact.amount) || 0.6)) : 0;
           beginCrossfade(core, state.effect, buf);

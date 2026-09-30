@@ -73,7 +73,11 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
     // on, effects also speed up with the bass and the frame breathes /
     // flashes with the level and beats (not applied to the radio's own
     // spectrum, which is already the music).
-    if (state.effect !== 'radio' && typeof radio.keepAlive === 'function') radio.keepAlive();
+    // Every frame, in every mode - including when Internet Radio itself is
+    // showing: its WALL version only draws and never started the stream, so
+    // in wall mode the Pi played nothing (a real report: radio + spectrum
+    // worked on one 2D panel, then went flat once in wall mode).
+    if (typeof radio.keepAlive === 'function') radio.keepAlive(state.effectOptions && state.effectOptions.radio);
     core.audio = updateFeatures(musicFeatures, radio.audio && radio.audio.spec, dt);
     const react = state.musicReact && state.musicReact.on && state.effect !== 'radio' ? Math.max(0, Math.min(1, Number(state.musicReact.amount) || 0.6)) : 0;
     beginCrossfade(core, state.effect, buf);
