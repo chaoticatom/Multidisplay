@@ -34,13 +34,13 @@ try {
   assert.strictEqual(draws[0].w, 64);
   assert.strictEqual(draws[0].h, 64);
   assert.ok(draws[0].buf[(63 * 64 + 63) * 3] > 0, 'bottom-right pixel lit (scaled up)');
-  // 180-degree rotation: the canvas's top-left pixel lands bottom-right.
+  // Vertical flip: the canvas's top-right pixel lands bottom-right.
   draws.length = 0;
   core.wallBuf.fill(0);
-  core.wallBuf[(0 * core.wallW + (core.wallW - 1)) * 3] = 1; // top-left after the existing horizontal mirror
+  core.wallBuf[(0 * core.wallW + 0) * 3] = 1; // top-left, mirrored to the right by the existing horizontal mirror
   d.renderFrame(core, 1);
-  assert.ok(draws[0].buf[(63 * 64 + 63) * 3] > 0, 'rotated 180: shows at bottom-right');
-  assert.strictEqual(draws[0].buf[0], 0, 'rotated 180: top-left dark');
+  assert.ok(draws[0].buf[(63 * 64 + 63) * 3] > 0, 'flipped: shows at bottom-right');
+  assert.strictEqual(draws[0].buf[0], 0, 'flipped: top-left dark');
   console.log('  ok - 8x8 flat layout scales up to the 64x64 panel');
 } catch (e) {
   console.error('  FAIL -', e.message);
