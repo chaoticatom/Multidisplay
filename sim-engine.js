@@ -1461,7 +1461,7 @@ var PiEngine = (() => {
           } else {
             const sep = Math.max(S / 2 | 0, 16);
             const tileW = textW + sep;
-            wxState.scrollOff = (wxState.scrollOff + dt * 20) % tileW;
+            wxState.scrollOff = (wxState.scrollOff + dt * 8) % tileW;
             const off = Math.round(-wxState.scrollOff);
             for (let tile = off; tile < totalW; tile += tileW) {
               drawString(FONT_3x5, locStr, tile, textV, (u, v) => {
@@ -22762,7 +22762,7 @@ var PiEngine = (() => {
           } else {
             const sep = Math.max(W / 2 | 0, 16);
             const tileW = textW + sep;
-            wxState.scrollOff = (wxState.scrollOff + dt * 20) % tileW;
+            wxState.scrollOff = (wxState.scrollOff + dt * 8) % tileW;
             const off = Math.round(-wxState.scrollOff);
             for (let tile = off; tile < W; tile += tileW) {
               drawString(FONT_3x5, locStr, tile, textV, (u, v) => {

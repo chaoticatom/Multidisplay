@@ -208,7 +208,9 @@ class RgbMatrixDriver {
       for (let u = 0; u < PANEL; u++) {
         const srcX = wallW - 1 - (ox + Math.floor((u * S) / PANEL));
         const c = ((oy + sv) * wallW + srcX) * 3;
-        const o = (v * PANEL + u) * 3;
+        // Rotated 180 degrees per panel: a real report after 2D was merged
+        // into Flat ("all effects now need to rotate 180 degrees").
+        const o = ((PANEL - 1 - v) * PANEL + (PANEL - 1 - u)) * 3;
         writePixel(buf, o, wallBuf[c], wallBuf[c + 1], wallBuf[c + 2], brightness);
       }
     }
