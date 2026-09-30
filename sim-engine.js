@@ -11507,6 +11507,10 @@ var PiEngine = (() => {
             this.errored = true;
             const lastLine = stderrTail.trim().split("\n").filter(Boolean).pop();
             this.status = "Error \u2014 ffmpeg exited (" + (lastLine || `code ${code}`) + ")";
+            if (this.status !== this._lastLoggedStatus) {
+              this._lastLoggedStatus = this.status;
+              console.warn(`[radio] stream failed (${url}): ${lastLine || "code " + code}`);
+            }
           });
           this._launchPlayback();
         }
@@ -11552,6 +11556,7 @@ var PiEngine = (() => {
             if (code !== 0 && code !== null) {
               const lastLine = stderrTail.trim().split("\n").filter(Boolean).pop();
               this.playbackStatus = "Playback stopped \u2014 " + (lastLine || `paplay exited (code ${code})`);
+              console.warn("[radio] " + this.playbackStatus);
             }
           });
         }

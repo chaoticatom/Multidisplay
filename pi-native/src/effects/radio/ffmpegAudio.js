@@ -290,6 +290,10 @@ class RadioAudio {
       this.errored = true; // any exit while a station is still selected is a failure - streams don't have a "clean EOF" in normal use
       const lastLine = stderrTail.trim().split('\n').filter(Boolean).pop();
       this.status = 'Error — ffmpeg exited (' + (lastLine || `code ${code}`) + ')';
+      // Also to the log (and so Diagnostics' "Recent warnings & errors"):
+      // a station that fails otherwise retries silently every few seconds,
+      // which looked like 'Bluetooth has no output'. Once per distinct error.
+      if (this.status !== this._lastLoggedStatus) { this._lastLoggedStatus = this.status; console.warn(`[radio] stream failed (${url}): ${lastLine || 'code ' + code}`); }
     });
 
     this._launchPlayback();
@@ -363,6 +367,7 @@ class RadioAudio {
       if (code !== 0 && code !== null) {
         const lastLine = stderrTail.trim().split('\n').filter(Boolean).pop();
         this.playbackStatus = 'Playback stopped — ' + (lastLine || `paplay exited (code ${code})`);
+        console.warn('[radio] ' + this.playbackStatus);
       }
     });
   }
