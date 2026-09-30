@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.174';
+const APP_VERSION = '0.6.175';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -4264,7 +4264,7 @@ function rebuildWallPreview() {
 
     if (filled) {
       const canvas = document.createElement('canvas');
-      canvas.width = 256; canvas.height = 256; // fixed backing resolution per panel, same spirit as PANEL2D_OUT
+      canvas.width = PANEL2D_OUT; canvas.height = PANEL2D_OUT; // was 256: at 64x64 that is 4px per LED, too few for the round dots to read as round once scaled up
       canvas.style.width = '100%'; canvas.style.height = '100%'; canvas.style.position = 'static';
       // Only draggable while layout editing is on - a real report: "don't
       // go to edit mode when tapping on the display. the button must be
@@ -4328,7 +4328,7 @@ function rebuildWallPreview() {
 // this preview-only flip was simply wrong, not a deliberate orientation
 // choice to preserve.
 function drawWallPanelFrame(ctx, bytes) {
-  drawLedGrid(ctx, bytes, currentState.panelSize, 256, false);
+  drawLedGrid(ctx, bytes, currentState.panelSize, PANEL2D_OUT, false);
 }
 
 // 2D/wall frames are kept (latest per panel) and drawn once per display
