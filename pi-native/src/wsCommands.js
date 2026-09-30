@@ -201,6 +201,7 @@ const COMMANDS = {
     }
     this.config.size = size;
     this.config.mode = mode;
+    Object.assign(this.config, panelConfig.normalizeFlat(this.config)); // '2d' = one-panel wall
     panelConfig.save(this.config);
     if (this.onConfigChange) this.onConfigChange(this.config);
     this._broadcast(this._stateMsg());

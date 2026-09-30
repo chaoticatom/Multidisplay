@@ -191,7 +191,7 @@ async function main() {
     return `flat:${Math.max(...ps.map((p) => p.gx)) + 1}x${Math.max(...ps.map((p) => p.gy)) + 1}`;
   };
   const startLayoutKey = driverLayoutKey(config);
-  const RESTART_DELAY_MS = 4000, RESTART_EXIT_CODE = 75;
+  const RESTART_DELAY_MS = 2000, RESTART_EXIT_CODE = 75; // 2s: long enough to batch a couple of quick layout edits, short enough to feel like one blip
   let restartTimer = null;
   const ws = new WsServer(WS_PORT, state, config, (newConfig) => {
     // Size changes apply live - CubeCore.resize() just rebuilds faceMap/
@@ -235,6 +235,7 @@ async function main() {
     if (driverKind === 'hardware' && driverLayoutKey(newConfig) !== startLayoutKey) {
       clearTimeout(restartTimer);
       console.warn(`[app] panel layout changed (${startLayoutKey} -> ${driverLayoutKey(newConfig)}) - restarting in ${RESTART_DELAY_MS / 1000}s to apply it to the panels`);
+      ws.sendAll({ cmd: 'systemNotice', text: 'Applying new panel layout - back in a few seconds…' });
       restartTimer = setTimeout(() => { console.warn('[app] restarting to apply the new panel layout'); saveSession(); process.exit(RESTART_EXIT_CODE); }, RESTART_DELAY_MS);
     }
   }, useRenderWorker ? (cmd, payload) => renderWorker.postMessage({ type: 'effectCommand', cmd, payload }) : null);

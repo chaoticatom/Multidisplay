@@ -25806,6 +25806,10 @@ var PiEngine = (() => {
         }
         return true;
       }
+      function normalizeFlat(config) {
+        if (config && config.mode === "2d") return { ...config, mode: "wall", panels: [{ gx: 0, gy: 0 }] };
+        return config;
+      }
       function load() {
         try {
           const raw = readSectionJson("panel", CONFIG_PATH);
@@ -25814,15 +25818,15 @@ var PiEngine = (() => {
             throw new Error("invalid stored config");
           }
           if (!isValidPanels(parsed.panels)) parsed.panels = [...DEFAULT_CONFIG.panels];
-          return parsed;
+          return normalizeFlat(parsed);
         } catch (err) {
-          return { ...DEFAULT_CONFIG, panels: [...DEFAULT_CONFIG.panels] };
+          return normalizeFlat({ ...DEFAULT_CONFIG, panels: [...DEFAULT_CONFIG.panels] });
         }
       }
       function save(config) {
         writeSection("panel", config);
       }
-      module.exports = { load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };
+      module.exports = { normalizeFlat, load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };
     }
   });
 

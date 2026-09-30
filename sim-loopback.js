@@ -147,6 +147,7 @@
       // here previously - msg.panels was silently ignored, so any caller
       // that switches into wall mode with more than the default single
       // panel lost everything but that one panel.
+      if (config.mode === '2d') Object.assign(config, E.panelConfig.normalizeFlat(config)); // '2d' = one-panel wall
       if (config.mode === 'wall' && msg.panels !== undefined && E.panelConfig.isValidPanels(msg.panels)) {
         config.panels = msg.panels;
       }

@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.172';
+const APP_VERSION = '0.6.173';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2729,7 +2729,8 @@ function syncPanelButtons() {
   document.querySelectorAll('.size-btn[data-size]').forEach((btn) => {
     const size = Number(btn.dataset.size);
     const mode = btn.dataset.mode === 'panel2d' ? '2d' : 'cube';
-    btn.classList.toggle('active', currentState.panelMode === mode && (mode === '2d' || currentState.panelSize === size));
+    const flat = currentState.panelMode === 'wall' || currentState.panelMode === '2d';
+    btn.classList.toggle('active', mode === '2d' ? flat : currentState.panelMode === 'cube' && currentState.panelSize === size);
   });
   document.body.dataset.mode = currentState.panelMode || 'cube';
   const wallBtn = document.getElementById('wall-mode-btn');
@@ -2741,7 +2742,7 @@ function syncPanelButtons() {
     const n = currentState.panelSize || 64;
     const panels = currentState.panelMode === 'wall' ? (currentState.panels || []).length || 1 : 1;
     count.textContent = currentState.panelMode === '2d' ? `1 panel · ${n}×${n} · ${(n * n).toLocaleString()} LEDs`
-      : currentState.panelMode === 'wall' ? `Wall · ${panels} panel${panels === 1 ? '' : 's'} · ${(panels * n * n).toLocaleString()} LEDs`
+      : currentState.panelMode === 'wall' ? `Flat · ${panels} panel${panels === 1 ? '' : 's'} · ${(panels * n * n).toLocaleString()} LEDs`
       : `${n}×${n} cube · ${(6 * n * n).toLocaleString()} surface LEDs`;
   }
   const label = document.getElementById('cube-label');
