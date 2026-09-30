@@ -32,6 +32,7 @@ const { trailFade } = require('../trail');
 const { vuLevels, drawMeter } = require('./vuMeter');
 
 function blendWall(core, x, y, r, g, b) {
+  if (core._yUp) y = core.wallH - 1 - y;
   if (x < 0 || x >= core.wallW || y < 0 || y >= core.wallH) return;
   const gx = (x / core.wallPanelSize) | 0, gy = (y / core.wallPanelSize) | 0;
   if (!core._wallOccupied[gy * core.wallCols + gx]) return;
@@ -483,7 +484,20 @@ function drawWaterfallWall(core, ctx, state) {
 
 function createSpectrumWallState() { return {}; }
 
+// These styles draw with y=0 at the BOTTOM (bars grow upward from 0), but
+// the wall canvas - text, every other wall effect, the panels - has y=0 at
+// the top, so on a real panel the bars hung down from the top under
+// correctly-oriented text. Drawing through a y-flipped view of core fixes
+// every style in one place.
+function yUpView(core) {
+  const view = Object.create(core);
+  view._yUp = true;
+  view.setWallPixel = (x, y, r, g, b) => core.setWallPixel(x, core.wallH - 1 - y, r, g, b);
+  return view;
+}
+
 function renderSpectrumStyleWall(core, ctx, style, state) {
+  core = yUpView(core);
   switch (style) {
     case 'mirror': return drawBarsWall(core, ctx, true);
     case 'dots': return drawDotsWall(core, ctx);

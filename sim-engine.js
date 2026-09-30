@@ -24318,6 +24318,7 @@ var PiEngine = (() => {
       var { trailFade } = require_trail();
       var { vuLevels, drawMeter } = require_vuMeter();
       function blendWall(core, x, y, r, g, b) {
+        if (core._yUp) y = core.wallH - 1 - y;
         if (x < 0 || x >= core.wallW || y < 0 || y >= core.wallH) return;
         const gx = x / core.wallPanelSize | 0, gy = y / core.wallPanelSize | 0;
         if (!core._wallOccupied[gy * core.wallCols + gx]) return;
@@ -24780,7 +24781,14 @@ var PiEngine = (() => {
       function createSpectrumWallState() {
         return {};
       }
+      function yUpView(core) {
+        const view = Object.create(core);
+        view._yUp = true;
+        view.setWallPixel = (x, y, r, g, b) => core.setWallPixel(x, core.wallH - 1 - y, r, g, b);
+        return view;
+      }
       function renderSpectrumStyleWall(core, ctx, style, state) {
+        core = yUpView(core);
         switch (style) {
           case "mirror":
             return drawBarsWall(core, ctx, true);
