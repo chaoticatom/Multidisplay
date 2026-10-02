@@ -735,6 +735,9 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 .size-row .size-btn { border-radius: 8px; }
 .size-row .size-btn.active { background: var(--c-card-hi); border-color: var(--c-acc); color: var(--c-txt); }
 .ui-btn-primary, .ui-btn-danger, .util-btn { border-radius: 8px !important; }
+#effects-body { padding-top: 4px; }
+.sidebar-section:has(> #effects-body) > .section-head { display: none; }
+.sidebar-section:has(> #effects-body) { }
 </style>
 </head>
 <body>
@@ -798,23 +801,26 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
       <div id="now-effect-name" class="now-effect">…</div>
       <div id="now-options" class="now-options"></div>
       <div id="now-no-options" class="ui-note">This effect has no options.</div>
+      <div class="slider-row">
+            <span class="slider-label">Effect speed</span>
+            <input type="range" id="speed-slider" min="0.1" max="3" step="0.05" value="1">
+            <span class="slider-val" id="speed-val">1.0x</span>
+          </div>
       <div class="ui-label-accent" style="margin-top:14px;">Scenes</div>
-      <div class="ui-note">Save what's showing (effect, its options, overlays, brightness) and bring it back with one tap. Timers can start a scene too.</div>
       <div id="scene-chips" class="scene-chips"></div>
       <div style="display:flex;gap:6px;margin-top:8px;">
-        <input id="scene-name-input" class="ui-input" type="text" maxlength="40" placeholder="Save current as…" aria-label="Scene name">
+        <input id="scene-name-input" class="ui-input" type="text" maxlength="40" placeholder="Save what's showing as a scene…" aria-label="Scene name">
         <button id="scene-save-btn" class="ui-btn-small" style="flex:0 0 auto;padding:5px 12px;">Save</button>
       </div>
       
     </div>
   </div>
 
-  <div class="sidebar-section collapsed">
+  <div class="sidebar-section">
     <button class="section-head" style="color:rgba(180,220,255,0.95);">◈ Effects <span class="chev">▾</span></button>
     <div class="section-body" id="effects-body">
     <div class="effect-filter-row">
       <input type="search" id="effect-filter" placeholder="Search effects…" aria-label="Search effects" autocomplete="off">
-      <label class="effect-filter-toggle"><input type="checkbox" id="show-unported-chk"> Show unavailable</label>
     </div>
 
     <div class="sub-section collapsed">
@@ -1351,22 +1357,17 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
         <span id="coin-speed-val" style="font-size:11px;color:#9cd;width:32px;">1x</span>
       </div>
     </div>
-    <button class="effect-btn has-panel" data-effect="random">◈ Random <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-random">
-      <div style="display:flex;gap:6px;">
-        <button class="effect-btn" data-effect="random" style="flex:1;margin:0;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;">◈ Random 1</button>
-        <button class="effect-btn" data-effect="random80s" style="flex:1;margin:0;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;">◈ Random 2</button>
-      </div>
-    </div>
+    <button class="effect-btn" data-effect="random">◈ Random</button>
+    <button class="effect-btn" data-effect="random80s">◈ Random 80s</button>
 
     </div>
     </div>
     <div class="sub-section collapsed">
-    <button class="sub-head">Scenes &amp; Lighting <span class="chev">▾</span></button>
+    <button class="sub-head">Fun <span class="chev">▾</span></button>
     <div class="sub-body">
     <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
     <button class="effect-btn" data-effect="easter_egg">◈ Easter Egg</button>
-    <button class="effect-btn has-panel" data-effect="custom_cube">◈ Custom Cube <span class="panel-arrow">▸</span></button>
+    <button class="effect-btn has-panel cube-only" data-effect="custom_cube">◈ Custom Cube <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-custom_cube">
       <div class="ov-row-label">Saved Cubes</div>
       <select id="cc-select" style="width:100%;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;border-radius:4px;margin-bottom:8px;">
@@ -1385,7 +1386,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <button class="section-head">◈ Music <span class="chev">▾</span></button>
     <div class="section-body">
       <div class="ui-label-accent">📻 Radio</div>
-      <div class="ui-note">Pick a station - it keeps playing whatever effect is showing. Choose <b>Internet Radio</b> under Play to see its spectrum on the display.</div>
+      <div class="ui-note">Keeps playing under any effect. Show its spectrum with <b>Internet Radio</b> under Play.</div>
       <div class="effect-panel open" id="panel-radio">
       <!-- radioPlay always plays server-side (paplay -> whatever PulseAudio
            sink is currently default - a paired Bluetooth speaker, or the
@@ -1407,25 +1408,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
       </div>
       <div class="radio-status-el" style="font-size:11px;color:#9aa3b8;text-align:center;margin-bottom:10px;">Pick a station</div>
 
-      <!-- Debug mode: two synthetic test tones (generated by ffmpeg locally,
-           no real stream needed - see radio.js's DEBUG_TONES) for visually
-           verifying the spectrum analyser reacts correctly across the whole
-           range, without depending on a real station's actual content. -->
-      <div style="display:flex;gap:6px;margin-bottom:8px;">
-        <button class="radio-debug-sweep-btn-el ui-btn-purple">🎚 Sweep Test</button>
-        <button class="radio-debug-drum-btn-el ui-btn-purple">🥁 Drum Test</button>
-      </div>
-      <!-- Manual single-frequency debug tone - a real follow-up ("add a
-           scroll bar to the sweep test so I can select the freq") for
-           dialing to one exact frequency and watching precisely which band
-           lights up, instead of only the automatic sweep. -->
-      <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
-        <span class="ov-label" style="flex:0 0 auto;font-size:11px;">Tone</span>
-        <input class="radio-debug-freq-el" type="range" min="40" max="7000" step="10" value="440" style="flex:1;">
-        <span class="radio-debug-freq-val-el" style="flex:0 0 auto;font-size:11px;color:#b89aff;min-width:52px;text-align:right;">440 Hz</span>
-      </div>
-
-      <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Directory search (thousands of stations)</div>
+      <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Find a station</div>
       <div style="display:flex;gap:6px;margin-bottom:6px;">
         <input class="radio-search-input-el" type="text" placeholder="Name, genre or city…" style="flex:1;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:6px 8px;font-size:11px;box-sizing:border-box;">
         <button class="radio-search-btn-el" style="flex:0 0 auto;padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Search</button>
@@ -1550,7 +1533,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
   <div class="sidebar-section collapsed" data-section="overlays">
     <button class="section-head" style="color:rgba(180,220,255,0.95);">◈ Overlays <span class="chev">▾</span></button>
     <div class="section-body">
-      <div style="font-size:11px;color:#556;margin-bottom:10px;line-height:1.5;">Layer effects over any mode. Multiple active at once.</div>
 
       <!-- Overlay-only dimmer (#ov-global-bright, sends
            {cmd:'setOverlayGlobalBright'}) - only scales the DELTA these
@@ -1562,7 +1544,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
            brightness") traced to exactly that mix-up: with no overlay
            on, this control has nothing to dim and looks completely dead. -->
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:rgba(80,120,255,0.07);border:1px solid rgba(80,120,255,0.18);border-radius:6px;">
-        <span style="font-size:11px;letter-spacing:1px;color:#7aadff;flex-shrink:0;">OVERLAY DIM</span>
+        <span style="font-size:11px;letter-spacing:1px;color:#7aadff;flex-shrink:0;">OVERLAY STRENGTH</span>
         <input type="range" id="ov-global-bright" min="0.05" max="1" step="0.05" value="1" style="flex:1;">
         <span id="ov-global-bright-val" style="font-size:11px;color:#aac;width:30px;text-align:right;">100%</span>
       </div>
@@ -1695,7 +1677,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 
 
 
-  <div class="sidebar-section collapsed" id="panel-editor-section">
+  <div class="sidebar-section collapsed cube-only" id="panel-editor-section">
     <button class="section-head">◈ Draw on a Face <span class="chev">▾</span></button>
     <div class="section-body">
       <div style="font-size:12px;color:#9ab;margin-bottom:10px;line-height:1.5;">Assign an effect to each face. Click CLEAR to blank the cube, then build your layout. Save as a named cube and load it via the <b style="color:#7aadff">Custom Cube</b> effect.</div>
@@ -1732,7 +1714,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <div class="section-body">
 <div id="sidebar-size-bar" style="margin-bottom:12px;">
     <div style="font-size:11px;color:#7af;margin-bottom:5px;text-transform:uppercase;letter-spacing:1px;">Display type</div>
-    <div class="ui-note" style="margin-bottom:6px;">Cube (pick its resolution) or Flat panels. Changing this restarts the display for a few seconds.</div>
+    
     <div class="size-row">
       <button class="size-btn" data-size="8">Cube 8</button>
       <button class="size-btn" data-size="16">Cube 16</button>
@@ -1754,11 +1736,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
             <input type="range" id="rotspeed-slider" min="0" max="4" step="0.1" value="1">
             <span class="slider-val" id="rotspeed-val">1.0x</span>
           </div>
-          <div class="slider-row">
-            <span class="slider-label">Speed</span>
-            <input type="range" id="speed-slider" min="0.1" max="3" step="0.05" value="1">
-            <span class="slider-val" id="speed-val">1.0x</span>
-          </div>
+          
           <button id="reset-view-btn" class="util-btn cube-only">⟲ Reset View</button>
           <button id="fullscreen-btn" class="util-btn">⛶ Fullscreen</button>
     </div>
@@ -1780,18 +1758,37 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
         <button id="pin-save-btn" class="ui-btn-small" style="flex:0 0 auto;padding:5px 10px;">Set</button>
         <button id="pin-clear-btn" class="ui-btn-small" style="flex:0 0 auto;padding:5px 10px;">Remove</button>
       </div>
-      </div>
-  </div>
-  <div class="sidebar-section collapsed">
-    <button class="section-head">◈ Health <span class="chev">▾</span></button>
-    <div class="section-body">
+      
+      <div class="ui-label-accent" style="margin-top:14px;">🩺 Health</div>
       <div class="ui-note">Live status from the Pi, updated every second. Use Copy to paste it into a bug report.</div>
       <table id="diag-table" class="diag-table" aria-live="off"><tbody><tr><td>Waiting for the Pi…</td></tr></tbody></table>
       <div class="ui-label-accent" style="margin-top:10px;">Recent warnings &amp; errors</div>
       <div id="diag-log" class="diag-log">None</div>
       <button id="diag-copy-btn" class="ui-btn-primary" style="margin-top:8px;">Copy report</button>
-    </div>
+      <div class="ui-label-accent" style="margin-top:14px;">Spectrum test tones</div>
+      <!-- Debug mode: two synthetic test tones (generated by ffmpeg locally,
+           no real stream needed - see radio.js's DEBUG_TONES) for visually
+           verifying the spectrum analyser reacts correctly across the whole
+           range, without depending on a real station's actual content. -->
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <button class="radio-debug-sweep-btn-el ui-btn-purple">🎚 Sweep Test</button>
+        <button class="radio-debug-drum-btn-el ui-btn-purple">🥁 Drum Test</button>
+      </div>
+      <!-- Manual single-frequency debug tone - a real follow-up ("add a
+           scroll bar to the sweep test so I can select the freq") for
+           dialing to one exact frequency and watching precisely which band
+           lights up, instead of only the automatic sweep. -->
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
+        <span class="ov-label" style="flex:0 0 auto;font-size:11px;">Tone</span>
+        <input class="radio-debug-freq-el" type="range" min="40" max="7000" step="10" value="440" style="flex:1;">
+        <span class="radio-debug-freq-val-el" style="flex:0 0 auto;font-size:11px;color:#b89aff;min-width:52px;text-align:right;">440 Hz</span>
+      </div>
+
+      
+    
   </div>
+  </div>
+  
 
 
 

@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.181';
+const APP_VERSION = '0.6.182';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -469,7 +469,7 @@ function syncPinStatus() {
 // tab's sections show, open. The chosen tab is remembered per browser.
 const TAB_OF_SECTION = [
   ['Effects', 'play'], ['Draw on a Face', 'play'], ['Music', 'music'], ['Overlays', 'schedule'], ['Timers', 'schedule'],
-  ['Display', 'setup'], ['System', 'setup'], ['Health', 'setup'],
+  ['Display', 'setup'], ['System', 'setup'],
 ];
 // Tab names before the Play/Music/Schedule/Setup redesign, so a browser
 // that remembered one lands somewhere sensible.
@@ -2522,8 +2522,8 @@ function wireRadioPanel() {
       radioBrowserPlay({ url: '/api/debugTone?kind=' + kind + (freq != null ? '&freq=' + freq : ''), loop: kind === 'sweep' });
     }
   };
-  panel.querySelectorAll('.radio-debug-sweep-btn-el').forEach((btn) => btn.addEventListener('click', () => playDebugTone('sweep')));
-  panel.querySelectorAll('.radio-debug-drum-btn-el').forEach((btn) => btn.addEventListener('click', () => playDebugTone('drum')));
+  document.querySelectorAll('.radio-debug-sweep-btn-el').forEach((btn) => btn.addEventListener('click', () => playDebugTone('sweep')));
+  document.querySelectorAll('.radio-debug-drum-btn-el').forEach((btn) => btn.addEventListener('click', () => playDebugTone('drum')));
   // Frequency slider - a real follow-up ("add a scroll bar to the sweep
   // test so I can select the freq"), then ("the freq needs to change as I
   // scroll" - shortened from an initial 300ms debounce to 80ms so it
@@ -2532,7 +2532,7 @@ function wireRadioPanel() {
   // restarts the debug ffmpeg process and firing on literally every
   // pixel of drag would thrash it badly.
   let debugFreqDebounce = null;
-  panel.querySelectorAll('.radio-debug-freq-el').forEach((sl) => {
+  document.querySelectorAll('.radio-debug-freq-el').forEach((sl) => {
     const valEl = panel.querySelector('.radio-debug-freq-val-el');
     sl.addEventListener('input', () => {
       if (valEl) valEl.textContent = sl.value + ' Hz';
