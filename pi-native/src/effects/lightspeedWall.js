@@ -40,7 +40,7 @@ function effectLightspeedWall(core, dt) {
   if (!wallW) return; // core.initWall() hasn't run yet (wall mode not active)
   const opts = core.effectOptions?.lightspeed || {};
   const lsSpeed = opts.speed ?? 8, lsTrail = opts.trail ?? 32, lsSize = opts.size ?? 1;
-  const lsColour = opts.colour ?? 'multi', lsCount = opts.count ?? 3, lsNudge = opts.nudge ?? 0;
+  const lsColour = opts.colour ?? 'multi', lsCount = opts.count ?? 8, lsNudge = opts.nudge ?? 0;
   if (!lsWallRacers.length || lsWallRacers.length !== lsCount) resetLightspeedWall(core, lsCount);
   for (let i = 0; i < wallBuf.length; i++) wallBuf[i] = 0;
 

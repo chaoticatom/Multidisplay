@@ -50,10 +50,9 @@ function ensureFetch(core) {
   }
 }
 
-// ── 3x5 bitmap text helpers: glyph rows drawn flipped (`v = sv + (4 -
-// row)`), brighten-only straight into wallBuf. ────────────────────────────
+// brighten-only straight into wallBuf. ───────────────────────────────────────
 function textWall(core, W, H, str, su, sv, r, g, b) {
-  drawString(FONT_3x5, str, su, sv, wallMaxPlot(core, r, g, b), { flipY: true, maxX: W });
+  drawString(FONT_3x5, str, su, sv, wallMaxPlot(core, r, g, b), { maxX: W }); // the wall counts y down: no flip
 }
 function textPulsedWall(core, W, H, str, su, sv, rgb, pulse) {
   textWall(core, W, H, str, su, sv, rgb[0] * pulse, rgb[1] * pulse, rgb[2] * pulse);
@@ -204,7 +203,7 @@ function effectNeoWall(core, dt) {
     for (const ch of seg.str) {
       for (let tile = 0; tile < 2; tile++) {
         const u = charPos * charW - Math.floor(wallTickerX) + tile * totalW;
-        if (u + 3 >= 0 && u < W) drawGlyph(FONT_3x5, ch, u, sv, wallMaxPlot(core, seg.r, seg.g, seg.b), { flipY: true });
+        if (u + 3 >= 0 && u < W) drawGlyph(FONT_3x5, ch, u, sv, wallMaxPlot(core, seg.r, seg.g, seg.b));
       }
       charPos++;
     }
@@ -213,7 +212,7 @@ function effectNeoWall(core, dt) {
   // Top-right pulsing risk label.
   const labelStr = level === 'red' ? 'DANGER' : level === 'yellow' ? 'WATCH' : 'CLEAR';
   const labelW = labelStr.length * 4;
-  textPulsedWall(core, W, H, labelStr, W - 1 - labelW, Math.round(H * 0.06), riskRGB, pulse);
+  textPulsedWall(core, W, H, labelStr, W - 1 - labelW, 11, riskRGB, pulse); // below the ticker band
 }
 
 module.exports = effectNeoWall;

@@ -22,6 +22,7 @@ const pinConfig = require('./pinConfig');
 const scenes = require('./scenes');
 const ai = require('./ai');
 const aiConfig = require('./aiConfig');
+const prefs = require('./prefs');
 const { spawn } = require('child_process');
 
 const COMMANDS = {
@@ -98,6 +99,7 @@ const COMMANDS = {
   setEffect(ws, msg) {
     if (!(EFFECTS[msg.effect])) return;
     this.state.effect = msg.effect;
+    this._playlistSince = Date.now(); // a manual pick restarts the playlist timer
     this.state.blank = false; // selecting a new effect always un-blanks - see "clearAll" below
     this._broadcast(this._stateMsg());
   },
@@ -575,6 +577,30 @@ const COMMANDS = {
     if (typeof msg.apiKey !== 'string') return;
     this.state.nasaConfig = { apiKey: msg.apiKey.trim() };
     nasaConfig.save(this.state.nasaConfig);
+    this._broadcast(this._stateMsg());
+  },
+
+  // Favourites (star on an effect tile): {effect}. Toggles.
+  toggleFavourite(ws, msg) {
+    if (!EFFECTS[msg.effect]) return;
+    const p = this.state.prefs || (this.state.prefs = prefs.load());
+    const i = p.favourites.indexOf(msg.effect);
+    if (i >= 0) p.favourites.splice(i, 1); else p.favourites.push(msg.effect);
+    this.state.prefs = prefs.save(p);
+    this._broadcast(this._stateMsg());
+  },
+
+  // Playlist: {on, minutes} - cycles through the favourites (see
+  // WsServer._playlistTick). Night dimming: {on, from, to, level}.
+  setPlaylist(ws, msg) {
+    const p = this.state.prefs || prefs.load();
+    this.state.prefs = prefs.save({ ...p, playlist: { ...p.playlist, ...msg, cmd: undefined } });
+    this._playlistSince = Date.now();
+    this._broadcast(this._stateMsg());
+  },
+  setNightDim(ws, msg) {
+    const p = this.state.prefs || prefs.load();
+    this.state.prefs = prefs.save({ ...p, nightDim: { ...p.nightDim, ...msg, cmd: undefined } });
     this._broadcast(this._stateMsg());
   },
 

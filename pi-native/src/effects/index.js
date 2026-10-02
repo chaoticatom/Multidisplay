@@ -8,6 +8,15 @@
 // longer list of effects still to port from effects-*.js).
 const wave = require('./wave');
 const aiArt = require('./aiArt');
+const ambientWeather = require('./ambientWeather');
+const pixelPet = require('./pixelPet');
+const snake = require('./snake');
+const nowPlaying = require('./nowPlaying');
+const messageBoard = require('./messageBoard');
+const wordClock = require('./wordClock');
+const starfield = require('./starfield');
+const fluidInk = require('./fluidInk');
+const lavaLamp = require('./lavaLamp');
 const gradientWash = require('./gradientWash');
 const weather = require('./weather');
 const easterEgg = require('./easterEgg');
@@ -110,6 +119,15 @@ const radioWall = require('./radioWall');
 // WALL_EFFECTS entry yet - see the sidebar's per-effect greying for how
 // this is surfaced to the user.
 const WALL_EFFECTS = {
+  ambient_weather: ambientWeather.wall,
+  pixel_pet: pixelPet.wall,
+  snake: snake.wall,
+  now_playing: nowPlaying.wall,
+  message: messageBoard.wall,
+  word_clock: wordClock.wall,
+  starfield: starfield.wall,
+  fluid_ink: fluidInk.wall,
+  lava_lamp: lavaLamp.wall,
   ai_art: aiArt.wall,
   gradient_wash: gradientWashWall,
   video: videoWall,
@@ -158,6 +176,15 @@ const WALL_EFFECTS = {
 };
 
 const EFFECTS = {
+  ambient_weather: ambientWeather,
+  pixel_pet: pixelPet,
+  snake: snake,
+  now_playing: nowPlaying,
+  message: messageBoard,
+  word_clock: wordClock,
+  starfield: starfield,
+  fluid_ink: fluidInk,
+  lava_lamp: lavaLamp,
   ai_art: aiArt,
   wave,
   gradient_wash: gradientWash,
@@ -213,6 +240,15 @@ const EFFECTS = {
 };
 
 const EFFECT_NAMES = {
+  ambient_weather: 'Ambient Weather',
+  pixel_pet: 'Pixel Pet',
+  snake: 'Snake',
+  now_playing: 'Now Playing',
+  message: 'Message Board',
+  word_clock: 'Word Clock',
+  starfield: 'Starfield',
+  fluid_ink: 'Fluid Ink',
+  lava_lamp: 'Lava Lamp',
   ai_art: 'AI Art',
   wave: 'Wave Cascade',
   gradient_wash: 'Rainbow Wash',

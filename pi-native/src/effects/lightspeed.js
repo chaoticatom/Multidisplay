@@ -74,7 +74,7 @@ function effectLightspeed(core, dt) {
   const { N, SIZE, colBuf, faceMap } = core;
   const opts = core.effectOptions?.lightspeed || {};
   const lsSpeed = opts.speed ?? 8, lsTrail = opts.trail ?? 32, lsSize = opts.size ?? 1;
-  const lsColour = opts.colour ?? 'multi', lsCount = opts.count ?? 3, lsNudge = opts.nudge ?? 0;
+  const lsColour = opts.colour ?? 'multi', lsCount = opts.count ?? 8, lsNudge = opts.nudge ?? 0;
   if (!lsRacers.length || !faceMap) resetLightspeed(core, lsCount);
   for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
   const S = SIZE;

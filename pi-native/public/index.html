@@ -904,6 +904,19 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 #sidebar .cx-ask input { background: none !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
 .cx-ask.thinking .cx-spark { animation-duration: .6s; box-shadow: 0 0 16px var(--cx1); }
 #sidebar [hidden] { display: none !important; }
+.cx-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; color: #dfe7ff; font-size: 13px; flex-wrap: wrap; }
+.cx-row select { width: auto !important; padding: 6px 8px !important; }
+.cx-row .cx-switch { margin-left: auto; }
+.cx-pad { display: grid; grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(3, 56px); gap: 6px; justify-content: center; margin: 10px 0; }
+.cx-pad button { border-radius: 16px; border: none; font-size: 20px; color: #fff; background: rgba(255,255,255,.08); box-shadow: 0 0 0 1px rgba(255,255,255,.14); cursor: pointer; touch-action: manipulation; }
+.cx-pad button:active { background: var(--cx1); transform: scale(.94); }
+.cx-pad [data-snake="up"] { grid-column: 2; grid-row: 1; } .cx-pad [data-snake="left"] { grid-column: 1; grid-row: 2; } .cx-pad [data-snake="right"] { grid-column: 3; grid-row: 2; } .cx-pad [data-snake="down"] { grid-column: 2; grid-row: 3; }
+.cx-star::before { content: "★"; }
+.cx-star { position: absolute; top: 4px; right: 5px; z-index: 2; font-size: 15px; line-height: 1; color: rgba(255,255,255,.45); text-shadow: 0 1px 4px #000; padding: 2px; cursor: pointer; }
+.effect-btn.fav .cx-star { color: #ffd23d; }
+#effects-body.only-favs .effect-btn:not(.fav) { display: none !important; }
+#effects-body.only-favs .sub-section:not(:has(.effect-btn.fav)) { display: none !important; }
+#effects-body.only-favs .sub-section.chip-hidden:has(.effect-btn.fav) { display: block !important; }
 </style>
 </head>
 <body>
@@ -981,6 +994,8 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
           </div>
       <div class="ui-label-accent" style="margin-top:14px;">Scenes</div>
       <div id="scene-chips" class="scene-chips"></div>
+      <div class="cx-row" id="playlist-row"><span>🔁 Cycle ★ every</span><select id="playlist-min" class="ui-input" aria-label="Minutes"><option value="1">1 min</option><option value="2">2 min</option><option value="5" selected>5 min</option><option value="10">10 min</option><option value="30">30 min</option></select><button class="cx-switch" id="playlist-sw" aria-label="Playlist on/off"></button></div>
+      <div class="ui-note" id="playlist-note"></div>
       <div style="display:flex;gap:6px;margin-top:8px;">
         <input id="scene-name-input" class="ui-input" type="text" maxlength="40" placeholder="Save what's showing as a scene…" aria-label="Scene name">
         <button id="scene-save-btn" class="ui-btn-small" style="flex:0 0 auto;padding:5px 12px;">Save</button>
@@ -999,6 +1014,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <div class="sub-section collapsed">
     <button class="sub-head">Motion &amp; Particles <span class="chev">▾</span></button>
     <div class="sub-body">
+    <button class="effect-btn" data-effect="starfield">◈ Starfield</button>
     <button class="effect-btn active" data-effect="wave">◈ Wave Cascade</button>
     <button class="effect-btn has-panel" data-effect="rain">◈ Colour Rain <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-rain">
@@ -1051,8 +1067,8 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
       </div>
       <div class="ov-row-label" style="margin-top:8px;">Objects</div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <input type="range" id="ls-count" min="1" max="12" step="1" value="3" style="flex:1;">
-        <span id="ls-count-val" style="font-size:11px;color:#9cd;width:28px;">3</span>
+        <input type="range" id="ls-count" min="1" max="12" step="1" value="8" style="flex:1;">
+        <span id="ls-count-val" style="font-size:11px;color:#9cd;width:28px;">8</span>
       </div>
       <div class="ov-row-label" style="margin-top:8px;">Colour</div>
       <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);">
@@ -1135,6 +1151,8 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <div class="sub-section collapsed">
     <button class="sub-head">Colour &amp; Gradients <span class="chev">▾</span></button>
     <div class="sub-body">
+    <button class="effect-btn" data-effect="lava_lamp">◈ Lava Lamp</button>
+    <button class="effect-btn" data-effect="fluid_ink">◈ Fluid Ink</button>
     <button class="effect-btn" data-effect="gradient_wash">◈ Rainbow Wash</button>
     <button class="effect-btn" data-effect="depth_rings">◈ Depth Rings</button>
     <button class="effect-btn" data-effect="prism">◈ Prism Sweep</button>
@@ -1145,6 +1163,8 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <div class="sub-section collapsed">
     <button class="sub-head">Live Data <span class="chev">▾</span></button>
     <div class="sub-body">
+    <button class="effect-btn" data-effect="word_clock">◈ Word Clock</button>
+    <button class="effect-btn" data-effect="ambient_weather">◈ Ambient Weather</button>
     <button class="effect-btn has-panel" data-effect="weather">◈ Weather <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-weather">
       <div style="display:flex;gap:5px;margin-bottom:8px;">
@@ -1399,6 +1419,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <div class="sub-section collapsed">
     <button class="sub-head">Audio &amp; Media <span class="chev">▾</span></button>
     <div class="sub-body">
+    <button class="effect-btn" data-effect="now_playing">◈ Now Playing</button>
     <button class="effect-btn has-panel" data-effect="radio">◈ Internet Radio <span class="panel-arrow">▸</span></button>
     
     <button class="effect-btn has-panel" data-effect="video">◈ Video Display <span class="panel-arrow">▸</span></button>
@@ -1451,6 +1472,11 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <div class="sub-section collapsed">
     <button class="sub-head">Games &amp; Chance <span class="chev">▾</span></button>
     <div class="sub-body">
+    <button class="effect-btn has-panel" data-effect="snake">◈ Snake <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-snake">
+      <div class="ui-note">Steer from here - it plays itself after 8 s without a tap.</div>
+      <div class="cx-pad"><button data-snake="up" aria-label="Up">▲</button><button data-snake="left" aria-label="Left">◀</button><button data-snake="right" aria-label="Right">▶</button><button data-snake="down" aria-label="Down">▼</button></div>
+    </div>
     <button class="effect-btn has-panel" data-effect="maze">◈ Maze Runner <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-maze">
       <div class="slider-row">
@@ -1538,6 +1564,18 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <div class="sub-section collapsed">
     <button class="sub-head">Fun <span class="chev">▾</span></button>
     <div class="sub-body">
+    <button class="effect-btn has-panel" data-effect="message">◈ Message Board <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-message">
+      <div style="display:flex;gap:6px;"><input id="msg-text" class="ui-input" type="text" maxlength="120" placeholder="Type a message…" aria-label="Message" style="flex:1;min-width:0;"><button id="msg-send" class="ui-btn-small" style="flex:0 0 auto;">Show</button></div>
+      <div class="ov-row-label" style="margin-top:8px;">Style</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(4,1fr);"><button class="msg-style active" data-style="neon">Neon</button><button class="msg-style" data-style="rainbow">Rainbow</button><button class="msg-style" data-style="retro">Retro</button><button class="msg-style" data-style="fire">Fire</button></div>
+      <div class="slider-row" style="margin-top:8px;"><span class="slider-label">Speed</span><input type="range" id="msg-speed" min="0.3" max="3" step="0.1" value="1"><span class="slider-val" id="msg-speed-val">1.0x</span></div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="pixel_pet">◈ Pixel Pet <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-pixel_pet">
+      <div class="ui-note">It wanders by day, dances to music and sleeps at night.</div>
+      <button id="pet-poke" class="ui-btn-primary" style="width:100%;">💗 Pet it</button>
+    </div>
     <button class="effect-btn" data-effect="ai_art">◈ AI Art</button>
     <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
     <button class="effect-btn" data-effect="easter_egg">◈ Easter Egg</button>
@@ -1902,6 +1940,9 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <button id="setup-layout-btn" class="ui-btn-primary flat-only" style="margin:8px 0 0;width:100%;">▦ Edit panel layout (add / move / remove panels)</button>
     <button id="identify-panels-btn" title="Label every physical panel with its own identity (face/index + which HAT output and chain position it's wired to) - use this while wiring up multiple panels, in any shape, to see which physical board is which." style="width:100%;margin-top:6px;padding:8px;font-size:11px;letter-spacing:0.5px;background:rgba(80,120,255,0.08);border:1px solid rgba(80,120,255,0.25);color:#9ab;border-radius:6px;cursor:pointer;">🔢 Show panel numbers</button>
   </div>
+      <div class="ui-label-accent" style="margin-top:10px;">🌙 Night dimming</div>
+      <div class="cx-row"><span>Dim from</span><select id="night-from" class="ui-input" aria-label="Dim from"></select><span>to</span><select id="night-to" class="ui-input" aria-label="Dim until"></select><button class="cx-switch" id="night-sw" aria-label="Night dimming on/off"></button></div>
+      <div class="slider-row"><span class="slider-label">Night level</span><input type="range" id="night-level" min="0.05" max="1" step="0.05" value="0.3"><span class="slider-val" id="night-level-val">30%</span></div>
       <div class="ui-label-accent" style="margin-top:4px;">Preview & motion</div>
           <!-- Preview-only cube controls: hidden outside cube mode (body[data-mode], set in syncPanelButtons()). -->
           <label class="check-row cube-only"><input type="checkbox" id="auto-rotate-chk" checked>AUTO-ROTATE</label>
@@ -2182,6 +2223,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.187"></script>
+<script src="app.js?v=0.6.189"></script>
 </body>
 </html>

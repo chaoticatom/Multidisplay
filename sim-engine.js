@@ -367,24 +367,350 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/gradientWash.js
-  var require_gradientWash = __commonJS({
-    "src/effects/gradientWash.js"(exports, module) {
+  // src/effects/weather/font.js
+  var require_font = __commonJS({
+    "src/effects/weather/font.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var PIXEL_FONT = {
+        "0": [7, 5, 5, 5, 7],
+        "1": [6, 2, 2, 2, 7],
+        "2": [7, 1, 7, 4, 7],
+        "3": [7, 1, 3, 1, 7],
+        "4": [5, 5, 7, 1, 1],
+        "5": [7, 4, 6, 1, 7],
+        "6": [7, 4, 7, 5, 7],
+        "7": [7, 1, 2, 2, 2],
+        "8": [7, 5, 7, 5, 7],
+        "9": [7, 5, 7, 1, 7],
+        "\xB0": [6, 6, 0, 0, 0],
+        "C": [3, 4, 4, 4, 3],
+        "-": [0, 0, 7, 0, 0],
+        " ": [0, 0, 0, 0, 0],
+        "+": [0, 2, 7, 2, 0],
+        ":": [0, 2, 0, 2, 0],
+        "A": [2, 5, 7, 5, 5],
+        "B": [6, 5, 6, 5, 6],
+        "D": [6, 5, 5, 5, 6],
+        "E": [7, 4, 6, 4, 7],
+        "F": [7, 4, 6, 4, 4],
+        "G": [3, 4, 7, 5, 3],
+        "H": [5, 5, 7, 5, 5],
+        "I": [7, 2, 2, 2, 7],
+        "J": [1, 1, 1, 5, 2],
+        "K": [5, 6, 4, 6, 5],
+        "L": [4, 4, 4, 4, 7],
+        "M": [7, 7, 5, 5, 5],
+        "N": [7, 5, 5, 5, 5],
+        "O": [7, 5, 5, 5, 7],
+        "P": [6, 5, 6, 4, 4],
+        "Q": [7, 5, 5, 7, 1],
+        "R": [6, 5, 6, 5, 5],
+        "S": [3, 4, 2, 1, 6],
+        "T": [7, 2, 2, 2, 2],
+        "U": [5, 5, 5, 5, 7],
+        "V": [5, 5, 5, 5, 2],
+        "W": [5, 5, 5, 7, 5],
+        "X": [5, 5, 2, 5, 5],
+        "Y": [5, 5, 2, 2, 2],
+        "Z": [7, 1, 2, 4, 7],
+        ",": [0, 0, 0, 2, 4],
+        ".": [0, 0, 0, 0, 2],
+        "/": [1, 1, 2, 4, 4],
+        "a": [0, 6, 5, 7, 5],
+        "b": [4, 6, 5, 5, 6],
+        "c": [0, 3, 4, 4, 3],
+        "d": [1, 3, 5, 5, 3],
+        "e": [0, 7, 5, 6, 3],
+        "g": [0, 3, 5, 3, 7],
+        "h": [4, 6, 5, 5, 5],
+        "i": [2, 0, 2, 2, 2],
+        "k": [4, 5, 6, 6, 5],
+        "l": [6, 2, 2, 2, 7],
+        "m": [0, 7, 7, 5, 5],
+        "n": [0, 6, 5, 5, 5],
+        "o": [0, 7, 5, 5, 7],
+        "p": [0, 6, 5, 6, 4],
+        "r": [0, 3, 5, 4, 4],
+        "s": [0, 3, 6, 1, 6],
+        "t": [4, 7, 4, 4, 3],
+        "u": [0, 5, 5, 5, 3],
+        "v": [0, 5, 5, 5, 2],
+        "w": [0, 5, 5, 7, 5],
+        "x": [0, 5, 2, 5, 5],
+        "y": [0, 5, 3, 1, 6],
+        "z": [0, 7, 2, 4, 7]
+      };
+      module.exports = { PIXEL_FONT };
+    }
+  });
+
+  // src/effects/radio/font.js
+  var require_font2 = __commonJS({
+    "src/effects/radio/font.js"(exports, module) {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { hsl, lerp } = require_core();
-      var { defineFieldEffect } = require_surface();
-      module.exports = defineFieldEffect({
-        speed: 0.4,
-        pixel(p, { t }) {
-          const { x, y, z } = p;
-          const wave = Math.sin(x * Math.PI * 2 + t) * 0.5 + 0.5;
-          const bright = lerp(0.22, 0.72, wave);
-          const hue = (p.flat ? x * 0.6 + y * 0.3 + t * 0.08 : x * 0.4 + y * 0.3 + z * 0.3 + t * 0.08) % 1;
-          return hsl(hue, 1, bright);
+      var CHAR_W = 6;
+      var CHAR_H = 7;
+      var FONT = {
+        A: [14, 17, 17, 31, 17, 17, 17],
+        B: [30, 17, 17, 30, 17, 17, 30],
+        C: [15, 16, 16, 16, 16, 16, 15],
+        D: [30, 17, 17, 17, 17, 17, 30],
+        E: [31, 16, 16, 30, 16, 16, 31],
+        F: [31, 16, 16, 30, 16, 16, 16],
+        G: [15, 16, 16, 23, 17, 17, 15],
+        H: [17, 17, 17, 31, 17, 17, 17],
+        I: [14, 4, 4, 4, 4, 4, 14],
+        J: [1, 1, 1, 1, 17, 17, 14],
+        K: [17, 18, 20, 24, 20, 18, 17],
+        L: [16, 16, 16, 16, 16, 16, 31],
+        M: [17, 27, 21, 21, 17, 17, 17],
+        N: [17, 25, 21, 19, 17, 17, 17],
+        O: [14, 17, 17, 17, 17, 17, 14],
+        P: [30, 17, 17, 30, 16, 16, 16],
+        Q: [14, 17, 17, 17, 21, 18, 13],
+        R: [30, 17, 17, 30, 20, 18, 17],
+        S: [15, 16, 16, 14, 1, 1, 30],
+        T: [31, 4, 4, 4, 4, 4, 4],
+        U: [17, 17, 17, 17, 17, 17, 14],
+        V: [17, 17, 17, 17, 10, 10, 4],
+        W: [17, 17, 17, 21, 21, 27, 17],
+        X: [17, 17, 10, 4, 10, 17, 17],
+        Y: [17, 17, 10, 4, 4, 4, 4],
+        Z: [31, 1, 2, 4, 8, 16, 31],
+        "0": [14, 17, 19, 21, 25, 17, 14],
+        "1": [4, 12, 4, 4, 4, 4, 14],
+        "2": [14, 17, 1, 6, 8, 16, 31],
+        "3": [31, 2, 4, 2, 1, 17, 14],
+        "4": [2, 6, 10, 18, 31, 2, 2],
+        "5": [31, 16, 30, 1, 1, 17, 14],
+        "6": [6, 8, 16, 30, 17, 17, 14],
+        "7": [31, 1, 2, 4, 8, 8, 8],
+        "8": [14, 17, 17, 14, 17, 17, 14],
+        "9": [14, 17, 17, 15, 1, 2, 12],
+        " ": [0, 0, 0, 0, 0, 0, 0],
+        "-": [0, 0, 0, 31, 0, 0, 0],
+        ".": [0, 0, 0, 0, 0, 12, 12],
+        ",": [0, 0, 0, 0, 0, 12, 8],
+        ":": [0, 12, 12, 0, 12, 12, 0],
+        "/": [1, 2, 2, 4, 8, 8, 16],
+        "'": [12, 8, 0, 0, 0, 0, 0],
+        "&": [12, 18, 20, 8, 21, 18, 13],
+        "\u2022": [0, 0, 14, 14, 14, 0, 0],
+        "!": [4, 4, 4, 4, 4, 0, 4],
+        "?": [14, 17, 1, 2, 4, 0, 4]
+      };
+      module.exports = { FONT, CHAR_W, CHAR_H };
+    }
+  });
+
+  // src/effects/text.js
+  var require_text = __commonJS({
+    "src/effects/text.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      function blitGlyph(rows, w, h, x0, y0, scale, plot, flipX = false, flipY = false) {
+        for (let row = 0; row < h; row++) {
+          const bits = rows[row];
+          if (!bits) continue;
+          const cy = flipY ? h - 1 - row : row;
+          for (let col = 0; col < w; col++) {
+            if (!(bits >> w - 1 - col & 1)) continue;
+            const cx = flipX ? w - 1 - col : col;
+            for (let sy = 0; sy < scale; sy++) {
+              for (let sx = 0; sx < scale; sx++) plot(x0 + cx * scale + sx, y0 + cy * scale + sy);
+            }
+          }
         }
-      });
+      }
+      var { PIXEL_FONT } = require_font();
+      var { FONT: RADIO_GLYPHS, CHAR_W: RADIO_CHAR_W } = require_font2();
+      var FONT_3x5 = { w: 3, h: 5, adv: 4, get: (ch) => PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()] };
+      var FONT_5x7 = { w: 5, h: 7, adv: RADIO_CHAR_W, get: (ch) => RADIO_GLYPHS[ch.toUpperCase()] || RADIO_GLYPHS["?"] };
+      var FONT_5x7_BLANK = { ...FONT_5x7, get: (ch) => RADIO_GLYPHS[ch.toUpperCase()] };
+      var MOON_GLYPHS = { ...PIXEL_FONT, "%": [5, 1, 2, 4, 5] };
+      var FONT_MOON = { w: 3, h: 5, adv: 4, get: (ch) => MOON_GLYPHS[ch.toUpperCase()] };
+      function drawGlyph(font, ch, x, y, plot, { scale = 1, flipX = false, flipY = false } = {}) {
+        const rows = font.get(ch);
+        if (rows) blitGlyph(rows, font.w, font.h, x, y, scale, plot, flipX, flipY);
+        return font.adv * scale;
+      }
+      function drawString(font, str, x, y, plot, { scale = 1, flipY = false, maxX = Infinity, outline = null } = {}) {
+        if (outline) drawString(font, str, x, y, outlineOf(outline), { scale, flipY, maxX });
+        let u = x;
+        for (const ch of str) {
+          u += drawGlyph(font, ch, u, y, plot, { scale, flipY });
+          if (u >= maxX) break;
+        }
+        return u;
+      }
+      function textWidth(font, str, scale = 1) {
+        return str.length * font.adv * scale - (font.adv - font.w) * scale;
+      }
+      function drawLinesCentered(font, lines, W, H, plot, { scale = 1, ox = 0, oy = 0 } = {}) {
+        const lineH = (font.h + 1) * scale;
+        let y = Math.round((H - lines.length * lineH) / 2);
+        for (const line of lines) {
+          const x = Math.round((W - textWidth(font, line, scale)) / 2);
+          drawString(font, line, ox + x, oy + y, plot, { scale });
+          y += lineH;
+        }
+      }
+      function drawMarquee(font, label, scrollX, y, W, plot, { flipY = false, outline = null } = {}) {
+        if (!label) return;
+        if (outline) drawMarquee(font, label, scrollX, y, W, outlineOf(outline), { flipY });
+        let u = -Math.floor(scrollX);
+        while (u < W) {
+          for (const ch of label) {
+            u += drawGlyph(font, ch, u, y, plot, { flipY });
+            if (u > W) break;
+          }
+        }
+      }
+      function drawGlyph5x7Face(core, face, ch, su, sv, rgb) {
+        return drawGlyph(FONT_5x7, ch, su, sv - 6, facePlot(core, face, rgb[0], rgb[1], rgb[2]), { flipY: true });
+      }
+      function outlineOf(plot) {
+        return (x, y) => {
+          plot(x - 1, y);
+          plot(x + 1, y);
+          plot(x, y - 1);
+          plot(x, y + 1);
+        };
+      }
+      var facePlot = (core, face, r, g, b) => (x, y) => core.setFaceLED(face, x, y, r, g, b);
+      var wallPlot = (core, r, g, b) => (x, y) => core.setWallPixel(x, y, r, g, b);
+      var faceMaxPlot = (core, face, r, g, b) => {
+        const { SIZE: S, faceMap, colBuf } = core;
+        return (x, y) => {
+          if (x < 0 || x >= S || y < 0 || y >= S) return;
+          const idx = faceMap[face][y * S + x];
+          if (idx < 0) return;
+          const o = idx * 3;
+          if (r > colBuf[o]) colBuf[o] = r;
+          if (g > colBuf[o + 1]) colBuf[o + 1] = g;
+          if (b > colBuf[o + 2]) colBuf[o + 2] = b;
+        };
+      };
+      var wallMaxPlot = (core, r, g, b) => {
+        const { wallW: W, wallH: H, wallBuf } = core;
+        return (x, y) => {
+          if (x < 0 || x >= W || y < 0 || y >= H) return;
+          const o = (y * W + x) * 3;
+          if (r > wallBuf[o]) wallBuf[o] = r;
+          if (g > wallBuf[o + 1]) wallBuf[o + 1] = g;
+          if (b > wallBuf[o + 2]) wallBuf[o + 2] = b;
+        };
+      };
+      module.exports = {
+        blitGlyph,
+        drawGlyph,
+        drawString,
+        textWidth,
+        drawLinesCentered,
+        drawMarquee,
+        drawGlyph5x7Face,
+        outlineOf,
+        FONT_3x5,
+        FONT_5x7,
+        FONT_5x7_BLANK,
+        FONT_MOON,
+        facePlot,
+        wallPlot,
+        faceMaxPlot,
+        wallMaxPlot
+      };
+      function wallHint(core, lines, rgb = [0.25, 0.55, 0.9]) {
+        core.wallBuf.fill(0);
+        const scale = Math.max(1, Math.floor(Math.min(core.wallW, core.wallH) / 48));
+        drawLinesCentered(FONT_3x5, lines, core.wallW, core.wallH, wallPlot(core, rgb[0], rgb[1], rgb[2]), { scale });
+      }
+      module.exports.wallHint = wallHint;
+    }
+  });
+
+  // src/effects/canvas.js
+  var require_canvas = __commonJS({
+    "src/effects/canvas.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var SIDE = [0, 2, 1, 3];
+      function defineCanvasEffect({ panorama = false, speed = 1, render, caps }) {
+        const ctx = { t: 0, dt: 0, core: null };
+        function cube(core, dt) {
+          core.t += dt * speed;
+          Object.assign(ctx, { t: core.t, dt, core });
+          const S = core.SIZE, W = panorama ? S * 4 : S;
+          const toFace = (x, y) => {
+            if (x < 0 || y < 0 || y >= S || x >= W) return null;
+            return [panorama ? SIDE[x / S | 0] : -1, x % S, S - 1 - y];
+          };
+          const c = {
+            W,
+            H: S,
+            set(x, y, r, g, b) {
+              x = Math.round(x);
+              y = Math.round(y);
+              const f = toFace(x, y);
+              if (!f) return;
+              if (f[0] >= 0) core.setFaceLED(f[0], f[1], f[2], r, g, b);
+              else for (const face of SIDE) core.setFaceLED(face, f[1], f[2], r, g, b);
+            },
+            add(x, y, r, g, b) {
+              x = Math.round(x);
+              y = Math.round(y);
+              const f = toFace(x, y);
+              if (!f) return;
+              for (const face of f[0] >= 0 ? [f[0]] : SIDE) {
+                const i = core.faceMap[face][f[2] * S + f[1]];
+                if (i < 0) continue;
+                const o = i * 3, buf = core.colBuf;
+                buf[o] = Math.min(1, buf[o] + r);
+                buf[o + 1] = Math.min(1, buf[o + 1] + g);
+                buf[o + 2] = Math.min(1, buf[o + 2] + b);
+              }
+            },
+            clear() {
+              core.colBuf.fill(0);
+            }
+          };
+          render(c, ctx);
+          if (caps) {
+            caps(core, 4, core.t);
+            caps(core, 5, core.t);
+          }
+        }
+        cube.wall = function wall(core, dt) {
+          core.t += dt * speed;
+          if (!core.wallW) return;
+          Object.assign(ctx, { t: core.t, dt, core });
+          const W = core.wallW, H = core.wallH, buf = core.wallBuf;
+          const c = {
+            W,
+            H,
+            set(x, y, r, g, b) {
+              core.setWallPixel(Math.round(x), Math.round(y), r, g, b);
+            },
+            add(x, y, r, g, b) {
+              x = Math.round(x);
+              y = Math.round(y);
+              if (x < 0 || y < 0 || x >= W || y >= H) return;
+              const o = (y * W + x) * 3;
+              core.setWallPixel(x, y, Math.min(1, buf[o] + r), Math.min(1, buf[o + 1] + g), Math.min(1, buf[o + 2] + b));
+            },
+            clear() {
+              buf.fill(0);
+            }
+          };
+          render(c, ctx);
+        };
+        return cube;
+      }
+      module.exports = { defineCanvasEffect };
     }
   });
 
@@ -1017,262 +1343,2579 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/weather/font.js
-  var require_font = __commonJS({
-    "src/effects/weather/font.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var PIXEL_FONT = {
-        "0": [7, 5, 5, 5, 7],
-        "1": [6, 2, 2, 2, 7],
-        "2": [7, 1, 7, 4, 7],
-        "3": [7, 1, 3, 1, 7],
-        "4": [5, 5, 7, 1, 1],
-        "5": [7, 4, 6, 1, 7],
-        "6": [7, 4, 7, 5, 7],
-        "7": [7, 1, 2, 2, 2],
-        "8": [7, 5, 7, 5, 7],
-        "9": [7, 5, 7, 1, 7],
-        "\xB0": [6, 6, 0, 0, 0],
-        "C": [3, 4, 4, 4, 3],
-        "-": [0, 0, 7, 0, 0],
-        " ": [0, 0, 0, 0, 0],
-        "+": [0, 2, 7, 2, 0],
-        ":": [0, 2, 0, 2, 0],
-        "A": [2, 5, 7, 5, 5],
-        "B": [6, 5, 6, 5, 6],
-        "D": [6, 5, 5, 5, 6],
-        "E": [7, 4, 6, 4, 7],
-        "F": [7, 4, 6, 4, 4],
-        "G": [3, 4, 7, 5, 3],
-        "H": [5, 5, 7, 5, 5],
-        "I": [7, 2, 2, 2, 7],
-        "J": [1, 1, 1, 5, 2],
-        "K": [5, 6, 4, 6, 5],
-        "L": [4, 4, 4, 4, 7],
-        "M": [7, 7, 5, 5, 5],
-        "N": [7, 5, 5, 5, 5],
-        "O": [7, 5, 5, 5, 7],
-        "P": [6, 5, 6, 4, 4],
-        "Q": [7, 5, 5, 7, 1],
-        "R": [6, 5, 6, 5, 5],
-        "S": [3, 4, 2, 1, 6],
-        "T": [7, 2, 2, 2, 2],
-        "U": [5, 5, 5, 5, 7],
-        "V": [5, 5, 5, 5, 2],
-        "W": [5, 5, 5, 7, 5],
-        "X": [5, 5, 2, 5, 5],
-        "Y": [5, 5, 2, 2, 2],
-        "Z": [7, 1, 2, 4, 7],
-        ",": [0, 0, 0, 2, 4],
-        ".": [0, 0, 0, 0, 2],
-        "/": [1, 1, 2, 4, 4],
-        "a": [0, 6, 5, 7, 5],
-        "b": [4, 6, 5, 5, 6],
-        "c": [0, 3, 4, 4, 3],
-        "d": [1, 3, 5, 5, 3],
-        "e": [0, 7, 5, 6, 3],
-        "g": [0, 3, 5, 3, 7],
-        "h": [4, 6, 5, 5, 5],
-        "i": [2, 0, 2, 2, 2],
-        "k": [4, 5, 6, 6, 5],
-        "l": [6, 2, 2, 2, 7],
-        "m": [0, 7, 7, 5, 5],
-        "n": [0, 6, 5, 5, 5],
-        "o": [0, 7, 5, 5, 7],
-        "p": [0, 6, 5, 6, 4],
-        "r": [0, 3, 5, 4, 4],
-        "s": [0, 3, 6, 1, 6],
-        "t": [4, 7, 4, 4, 3],
-        "u": [0, 5, 5, 5, 3],
-        "v": [0, 5, 5, 5, 2],
-        "w": [0, 5, 5, 7, 5],
-        "x": [0, 5, 2, 5, 5],
-        "y": [0, 5, 3, 1, 6],
-        "z": [0, 7, 2, 4, 7]
-      };
-      module.exports = { PIXEL_FONT };
-    }
-  });
-
-  // src/effects/radio/font.js
-  var require_font2 = __commonJS({
-    "src/effects/radio/font.js"(exports, module) {
+  // src/effects/net.js
+  var require_net = __commonJS({
+    "src/effects/net.js"(exports, module) {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var CHAR_W = 6;
-      var CHAR_H = 7;
-      var FONT = {
-        A: [14, 17, 17, 31, 17, 17, 17],
-        B: [30, 17, 17, 30, 17, 17, 30],
-        C: [15, 16, 16, 16, 16, 16, 15],
-        D: [30, 17, 17, 17, 17, 17, 30],
-        E: [31, 16, 16, 30, 16, 16, 31],
-        F: [31, 16, 16, 30, 16, 16, 16],
-        G: [15, 16, 16, 23, 17, 17, 15],
-        H: [17, 17, 17, 31, 17, 17, 17],
-        I: [14, 4, 4, 4, 4, 4, 14],
-        J: [1, 1, 1, 1, 17, 17, 14],
-        K: [17, 18, 20, 24, 20, 18, 17],
-        L: [16, 16, 16, 16, 16, 16, 31],
-        M: [17, 27, 21, 21, 17, 17, 17],
-        N: [17, 25, 21, 19, 17, 17, 17],
-        O: [14, 17, 17, 17, 17, 17, 14],
-        P: [30, 17, 17, 30, 16, 16, 16],
-        Q: [14, 17, 17, 17, 21, 18, 13],
-        R: [30, 17, 17, 30, 20, 18, 17],
-        S: [15, 16, 16, 14, 1, 1, 30],
-        T: [31, 4, 4, 4, 4, 4, 4],
-        U: [17, 17, 17, 17, 17, 17, 14],
-        V: [17, 17, 17, 17, 10, 10, 4],
-        W: [17, 17, 17, 21, 21, 27, 17],
-        X: [17, 17, 10, 4, 10, 17, 17],
-        Y: [17, 17, 10, 4, 4, 4, 4],
-        Z: [31, 1, 2, 4, 8, 16, 31],
-        "0": [14, 17, 19, 21, 25, 17, 14],
-        "1": [4, 12, 4, 4, 4, 4, 14],
-        "2": [14, 17, 1, 6, 8, 16, 31],
-        "3": [31, 2, 4, 2, 1, 17, 14],
-        "4": [2, 6, 10, 18, 31, 2, 2],
-        "5": [31, 16, 30, 1, 1, 17, 14],
-        "6": [6, 8, 16, 30, 17, 17, 14],
-        "7": [31, 1, 2, 4, 8, 8, 8],
-        "8": [14, 17, 17, 14, 17, 17, 14],
-        "9": [14, 17, 17, 15, 1, 2, 12],
-        " ": [0, 0, 0, 0, 0, 0, 0],
-        "-": [0, 0, 0, 31, 0, 0, 0],
-        ".": [0, 0, 0, 0, 0, 12, 12],
-        ",": [0, 0, 0, 0, 0, 12, 8],
-        ":": [0, 12, 12, 0, 12, 12, 0],
-        "/": [1, 2, 2, 4, 8, 8, 16],
-        "'": [12, 8, 0, 0, 0, 0, 0],
-        "&": [12, 18, 20, 8, 21, 18, 13],
-        "\u2022": [0, 0, 14, 14, 14, 0, 0],
-        "!": [4, 4, 4, 4, 4, 0, 4],
-        "?": [14, 17, 1, 2, 4, 0, 4]
-      };
-      module.exports = { FONT, CHAR_W, CHAR_H };
+      var FETCH_TIMEOUT_MS = 15e3;
+      function fetchWithTimeout(url, opts = {}, timeoutMs = FETCH_TIMEOUT_MS) {
+        if (opts.signal) return globalThis.fetch(url, opts);
+        return globalThis.fetch(url, { ...opts, signal: AbortSignal.timeout(timeoutMs) });
+      }
+      module.exports = { fetchWithTimeout, FETCH_TIMEOUT_MS };
     }
   });
 
-  // src/effects/text.js
-  var require_text = __commonJS({
-    "src/effects/text.js"(exports, module) {
+  // src/effects/weather/fetch.js
+  var require_fetch = __commonJS({
+    "src/effects/weather/fetch.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var { calcMoonRiseSet, wxInitScene, WX_CODES } = require_state();
+      var { fetchWithTimeout } = require_net();
+      async function fetchWeather(wxState, city, size) {
+        if (wxState.fetching) return false;
+        wxState.fetching = true;
+        try {
+          const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&format=json`;
+          let gr;
+          try {
+            gr = await fetchWithTimeout(geoUrl);
+          } catch (fe) {
+            throw new Error("Network error - check internet connection");
+          }
+          if (!gr.ok) throw new Error("Geocoding failed: " + gr.status);
+          const gd = await gr.json();
+          if (!gd.results?.length) throw new Error(`City "${city}" not found`);
+          const loc = gd.results[0];
+          wxState.lat = loc.latitude;
+          wxState.lon = loc.longitude;
+          wxState.cityDisplay = loc.country ? `${loc.name}, ${loc.country}` : loc.name;
+          const wxUrl = `https://api.open-meteo.com/v1/forecast?latitude=${wxState.lat.toFixed(4)}&longitude=${wxState.lon.toFixed(4)}&current=temperature_2m,weather_code,wind_speed_10m&daily=sunrise,sunset,temperature_2m_max&timezone=auto&forecast_days=1`;
+          let wr;
+          try {
+            wr = await fetchWithTimeout(wxUrl);
+          } catch (fe) {
+            throw new Error("Weather fetch failed - check internet connection");
+          }
+          if (!wr.ok) throw new Error("Weather API error: " + wr.status);
+          const wd = await wr.json();
+          wxState.code = wd.current?.weather_code || 0;
+          wxState.temp = Math.round(wd.current?.temperature_2m || 20);
+          wxState.tempMax = Math.round(wd.daily?.temperature_2m_max?.[0] || wxState.temp);
+          wxState.tzOffset = wd.utc_offset_seconds || 0;
+          const pt = (s) => {
+            const p = (s || "").split("T")[1] || "00:00";
+            const [h, m] = p.split(":").map(Number);
+            return h * 3600 + m * 60;
+          };
+          wxState.sunriseS = pt(wd.daily?.sunrise?.[0]) || 21600;
+          wxState.sunsetS = pt(wd.daily?.sunset?.[0]) || 72e3;
+          wxState.desc = WX_CODES[wxState.code] || "Unknown";
+          const moonRS = calcMoonRiseSet(wxState.lat, wxState.lon, wxState.tzOffset);
+          wxState.moonriseS = moonRS.rise;
+          wxState.moonsetS = moonRS.set;
+          wxInitScene(wxState.code, wxState, size);
+          wxState.lastFetch = Date.now() / 1e3;
+          wxState.error = null;
+          return true;
+        } catch (e) {
+          console.warn("[weather] fetch error:", e.message);
+          wxState.error = e.message;
+          return false;
+        } finally {
+          wxState.fetching = false;
+        }
+      }
+      module.exports = { fetchWeather };
+    }
+  });
+
+  // src/effects/ambientWeather.js
+  var require_ambientWeather = __commonJS({
+    "src/effects/ambientWeather.js"(exports, module) {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      function blitGlyph(rows, w, h, x0, y0, scale, plot, flipX = false, flipY = false) {
-        for (let row = 0; row < h; row++) {
-          const bits = rows[row];
-          if (!bits) continue;
-          const cy = flipY ? h - 1 - row : row;
-          for (let col = 0; col < w; col++) {
-            if (!(bits >> w - 1 - col & 1)) continue;
-            const cx = flipX ? w - 1 - col : col;
-            for (let sy = 0; sy < scale; sy++) {
-              for (let sx = 0; sx < scale; sx++) plot(x0 + cx * scale + sx, y0 + cy * scale + sy);
+      var { hsl } = require_core();
+      var { FONT_3x5, drawString, textWidth } = require_text();
+      var { defineCanvasEffect } = require_canvas();
+      var { createWxState } = require_state();
+      var { fetchWeather } = require_fetch();
+      var REFRESH_MS = 15 * 60 * 1e3;
+      var wx = null;
+      var lastFetch = 0;
+      var lastCity = null;
+      var flash = 0;
+      var drops = [];
+      function kind(code) {
+        if (code >= 95) return "storm";
+        if (code >= 71 && code <= 77 || code === 85 || code === 86) return "snow";
+        if (code >= 51 && code <= 67 || code >= 80 && code <= 82) return "rain";
+        if (code === 45 || code === 48) return "fog";
+        if (code >= 2) return "cloud";
+        return "clear";
+      }
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt, core }) {
+          if (!wx) wx = createWxState();
+          const city = core.effectOptions && core.effectOptions.weather && core.effectOptions.weather.city || "London";
+          if (city !== lastCity || Date.now() - lastFetch > REFRESH_MS) {
+            lastCity = city;
+            lastFetch = Date.now();
+            fetchWeather(wx, city, core.SIZE).catch(() => {
+            });
+          }
+          const k = kind(wx.code || 0);
+          const now = /* @__PURE__ */ new Date(), secs = now.getHours() * 3600 + now.getMinutes() * 60;
+          const day = secs > (wx.sunriseS || 21600) && secs < (wx.sunsetS || 72e3);
+          const top = day ? k === "clear" ? [0.1, 0.3, 0.75] : [0.25, 0.3, 0.38] : [0.01, 0.02, 0.07];
+          const bot = day ? k === "clear" ? [0.5, 0.65, 0.9] : [0.4, 0.42, 0.48] : [0.04, 0.05, 0.14];
+          flash = Math.max(0, flash - dt * 3);
+          if (k === "storm" && Math.random() < dt * 0.4) flash = 1;
+          for (let y = 0; y < c.H; y++) {
+            const f = y / c.H;
+            for (let x = 0; x < c.W; x++) {
+              let r = top[0] + (bot[0] - top[0]) * f, g = top[1] + (bot[1] - top[1]) * f, b = top[2] + (bot[2] - top[2]) * f;
+              if (k === "cloud" || k === "storm" || k === "rain") {
+                const n = Math.sin(x * 0.11 + t * 0.15) + Math.sin(x * 0.05 - t * 0.08 + y * 0.09) + Math.sin(y * 0.2 + x * 0.03);
+                const cl = Math.max(0, n - 0.5) * (1 - f) * 0.35;
+                r += cl;
+                g += cl;
+                b += cl;
+              }
+              if (k === "fog") {
+                const h = 0.3 + 0.15 * Math.sin(x * 0.08 + t * 0.2 + y * 0.05);
+                r += h;
+                g += h;
+                b += h;
+              }
+              r += flash * 0.8;
+              g += flash * 0.8;
+              b += flash;
+              c.set(x, y, Math.min(1, r * 0.85), Math.min(1, g * 0.85), Math.min(1, b * 0.85));
+            }
+          }
+          if (k === "clear") {
+            const sx = c.W * 0.72, sy = c.H * 0.3, R = Math.min(c.W, c.H) * (day ? 0.12 : 0.09);
+            const col = day ? [1, 0.85, 0.4] : [0.85, 0.88, 1];
+            for (let y = 0; y < c.H; y++) for (let x = 0; x < c.W; x++) {
+              const d = Math.hypot(x - sx, y - sy), v = d < R ? 1 : Math.max(0, 1 - (d - R) / (R * 2.5)) * 0.4;
+              if (v > 0) c.add(x, y, col[0] * v, col[1] * v, col[2] * v);
+            }
+            if (!day) for (let i = 0; i < 25; i++) {
+              const x = i * 53 % c.W, y = i * 31 % (c.H * 0.7);
+              if (Math.sin(t * 1.5 + i * 2) > -0.2) c.add(x, y, 0.6, 0.6, 0.7);
+            }
+          }
+          if (k === "rain" || k === "storm" || k === "snow") {
+            const want = Math.round(c.W * (k === "snow" ? 0.6 : 0.9));
+            while (drops.length < want) drops.push({ x: Math.random() * c.W, y: Math.random() * c.H, v: 0.6 + Math.random() * 0.6 });
+            drops.length = want;
+            for (const d of drops) {
+              if (k === "snow") {
+                d.y += dt * 9 * d.v;
+                d.x += Math.sin(t + d.v * 10) * dt * 3;
+                c.add(d.x, d.y, 0.9, 0.9, 1);
+              } else {
+                d.y += dt * 70 * d.v;
+                d.x -= dt * 8;
+                for (let i = 0; i < 3; i++) c.add(d.x + i * 0.3, d.y - i, 0.3, 0.4, 0.6);
+              }
+              if (d.y > c.H) {
+                d.y = -2;
+                d.x = Math.random() * c.W;
+              }
+              if (d.x < 0) d.x += c.W;
+            }
+          }
+          if (Number.isFinite(wx.temp)) {
+            const s = wx.temp + "\xB0";
+            drawString(FONT_3x5, s.replace("\xB0", ""), c.W - textWidth(FONT_3x5, s.replace("\xB0", "")) - 3, 2, (x, y) => c.set(x, y, 1, 1, 1));
+            c.set(c.W - 2, 2, 1, 1, 1);
+          }
+        }
+      });
+    }
+  });
+
+  // src/effects/pixelPet.js
+  var require_pixelPet = __commonJS({
+    "src/effects/pixelPet.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      var { FONT_3x5, drawString } = require_text();
+      var { defineCanvasEffect } = require_canvas();
+      var SPRITE = [
+        "...111111...",
+        "..11111111..",
+        ".1131111311.",
+        ".1131111311.",
+        "111111111111",
+        "141122221141",
+        "111222222111",
+        ".1122222211.",
+        "..11111111..",
+        "..55....55.."
+      ];
+      var pet = { x: 0.5, vx: 0.08, jump: 0, lastPoke: -1, hearts: [], blink: 0 };
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt, core }) {
+          const hour = (/* @__PURE__ */ new Date()).getHours();
+          const night = hour >= 22 || hour < 7;
+          const dancing = !night && core.audio && core.audio.level > 0.08;
+          const o = core.effectOptions && core.effectOptions.pixel_pet || {};
+          if (o.poke !== void 0 && o.poke !== pet.lastPoke) {
+            if (pet.lastPoke !== -1) {
+              pet.jump = 1;
+              for (let i = 0; i < 4; i++) pet.hearts.push({ x: pet.x * c.W + (i - 1.5) * 4, y: c.H * 0.5, life: 1 });
+            }
+            pet.lastPoke = o.poke;
+          }
+          const sky = night ? [0.01, 0.01, 0.05] : hour < 9 || hour > 18 ? [0.25, 0.1, 0.18] : [0.08, 0.18, 0.35];
+          const groundY = Math.round(c.H * 0.8);
+          for (let y = 0; y < c.H; y++) for (let x = 0; x < c.W; x++) {
+            if (y >= groundY) {
+              const k = (x + y) % 3 ? 0.12 : 0.18;
+              c.set(x, y, k * 0.3, k, k * 0.25);
+              continue;
+            }
+            const f = y / groundY;
+            c.set(x, y, sky[0] * (0.5 + f), sky[1] * (0.5 + f), sky[2] * (0.6 + f * 0.6));
+          }
+          if (night) for (let i = 0; i < 12; i++) {
+            const sx = i * 37 % c.W, sy = i * 23 % (groundY - 4);
+            if (Math.sin(t * 2 + i) > 0) c.set(sx, sy, 0.7, 0.7, 0.8);
+          }
+          if (!night && !dancing) {
+            pet.x += pet.vx * dt;
+            if (pet.x > 0.8 || pet.x < 0.2) pet.vx = -pet.vx;
+          }
+          pet.jump = Math.max(0, pet.jump - dt * 1.6);
+          const scale = Math.max(1, Math.floor(Math.min(c.W, c.H) / 32));
+          const sw = 12 * scale, sh = 10 * scale;
+          let bob = dancing ? Math.abs(Math.sin(t * 8)) * 3 * scale : Math.sin(t * 2) * 0.6 * scale;
+          bob += Math.sin(pet.jump * Math.PI) * 10 * scale;
+          const px = Math.round(pet.x * c.W - sw / 2), py = Math.round(groundY - sh - bob + (night ? 2 * scale : 0));
+          pet.blink = t % 4 < 0.15;
+          const body = hsl(dancing ? t * 0.3 % 1 : 0.08, 0.85, 0.55);
+          const flip = pet.vx < 0;
+          SPRITE.forEach((row, ry) => {
+            for (let rx = 0; rx < 12; rx++) {
+              const ch = row[flip ? 11 - rx : rx];
+              if (ch === ".") continue;
+              let col = body;
+              if (ch === "2") col = [1, 0.85, 0.6];
+              else if (ch === "3") col = night || pet.blink ? body : [0.05, 0.05, 0.1];
+              else if (ch === "4") col = [1, 0.45, 0.55];
+              else if (ch === "5") col = [body[0] * 0.6, body[1] * 0.6, body[2] * 0.6];
+              if (ch === "3" && (night || pet.blink) && ry === 3) col = [0.05, 0.05, 0.1];
+              for (let i = 0; i < scale; i++) for (let j = 0; j < scale; j++) c.set(px + rx * scale + i, py + ry * scale + j, col[0], col[1], col[2]);
+            }
+          });
+          if (night) drawString(FONT_3x5, "Z", px + sw + 2, py - 6 - t * 4 % 6, (x, y) => c.add(x, y, 0.5, 0.6, 0.9));
+          pet.hearts = pet.hearts.filter((h) => (h.life -= dt * 0.7) > 0);
+          for (const h of pet.hearts) {
+            h.y -= dt * 14;
+            for (const [dx, dy] of [[0, 0], [2, 0], [-1, -1], [1, -1], [3, -1], [0, 1], [1, 2], [2, 1]]) c.add(h.x + dx, h.y + dy - 1, h.life, h.life * 0.2, h.life * 0.4);
+          }
+        }
+      });
+    }
+  });
+
+  // src/effects/snake.js
+  var require_snake = __commonJS({
+    "src/effects/snake.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      var { FONT_3x5, drawString, textWidth } = require_text();
+      var { defineCanvasEffect } = require_canvas();
+      var CELL = 4;
+      var DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+      var g = { cols: 0, rows: 0, body: [], dir: [1, 0], food: null, acc: 0, lastPress: -1, manualUntil: 0, dead: 0, best: 0, now: 0 };
+      function reset(cols, rows) {
+        g.cols = cols;
+        g.rows = rows;
+        const y = rows >> 1;
+        g.body = [[4, y], [3, y], [2, y]];
+        g.dir = [1, 0];
+        g.dead = 0;
+        placeFood();
+      }
+      function placeFood() {
+        for (let i = 0; i < 500; i++) {
+          const f = [Math.floor(Math.random() * g.cols), Math.floor(Math.random() * g.rows)];
+          if (!g.body.some((b) => b[0] === f[0] && b[1] === f[1])) {
+            g.food = f;
+            return;
+          }
+        }
+      }
+      var blocked = (x, y) => x < 0 || y < 0 || x >= g.cols || y >= g.rows || g.body.slice(0, -1).some((b) => b[0] === x && b[1] === y);
+      function autopilot() {
+        const [hx, hy] = g.body[0];
+        const opts = Object.values(DIRS).filter(([dx, dy]) => !(dx === -g.dir[0] && dy === -g.dir[1]) && !blocked(hx + dx, hy + dy));
+        if (!opts.length) return;
+        opts.sort((a, b) => Math.abs(hx + a[0] - g.food[0]) + Math.abs(hy + a[1] - g.food[1]) - (Math.abs(hx + b[0] - g.food[0]) + Math.abs(hy + b[1] - g.food[1])));
+        g.dir = opts[0];
+      }
+      function step() {
+        if (g.dead > 0) {
+          g.dead -= 1;
+          if (g.dead === 0) reset(g.cols, g.rows);
+          return;
+        }
+        if (g.now > g.manualUntil) autopilot();
+        const nx = g.body[0][0] + g.dir[0], ny = g.body[0][1] + g.dir[1];
+        if (blocked(nx, ny)) {
+          g.best = Math.max(g.best, g.body.length - 3);
+          g.dead = 12;
+          return;
+        }
+        g.body.unshift([nx, ny]);
+        if (nx === g.food[0] && ny === g.food[1]) placeFood();
+        else g.body.pop();
+      }
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt, core }) {
+          const cols = Math.floor(c.W / CELL), rows = Math.floor(c.H / CELL);
+          if (cols !== g.cols || rows !== g.rows || !g.body.length) reset(cols, rows);
+          g.now = t;
+          const o = core.effectOptions && core.effectOptions.snake || {};
+          if (o.press !== void 0 && o.press !== g.lastPress) {
+            if (g.lastPress !== -1 && DIRS[o.dir]) {
+              const d = DIRS[o.dir];
+              if (!(d[0] === -g.dir[0] && d[1] === -g.dir[1])) g.dir = d;
+              g.manualUntil = t + 8;
+            }
+            g.lastPress = o.press;
+          }
+          g.acc += dt;
+          const every = Math.max(0.05, 0.13 - g.body.length * 15e-4);
+          while (g.acc > every) {
+            g.acc -= every;
+            step();
+          }
+          c.clear();
+          const ox = Math.floor((c.W - cols * CELL) / 2), oy = Math.floor((c.H - rows * CELL) / 2);
+          for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if ((x + y) % 2) for (let i = 0; i < CELL; i++) for (let j = 0; j < CELL; j++) c.set(ox + x * CELL + i, oy + y * CELL + j, 0.02, 0.025, 0.04);
+          const cell = (x, y, r, gr, b, inset = 0) => {
+            for (let i = inset; i < CELL - inset; i++) for (let j = inset; j < CELL - inset; j++) c.set(ox + x * CELL + i, oy + y * CELL + j, r, gr, b);
+          };
+          const pulse = 0.6 + 0.4 * Math.sin(t * 8);
+          if (g.food) cell(g.food[0], g.food[1], 1 * pulse, 0.2 * pulse, 0.35 * pulse);
+          const flash = g.dead > 0 && g.dead % 2;
+          g.body.forEach(([x, y], i) => {
+            const [r, gr, b] = flash ? [1, 0.2, 0.2] : hsl(0.33 + i * 0.012, 0.9, i === 0 ? 0.6 : 0.45 - Math.min(0.2, i * 4e-3));
+            cell(x, y, r, gr, b, i === 0 ? 0 : 0.5 > 1 ? 1 : 0);
+          });
+          const score = String(g.body.length - 3);
+          drawString(FONT_3x5, score, c.W - textWidth(FONT_3x5, score) - 1, 1, (x, y) => c.add(x, y, 0.5, 0.5, 0.6));
+        }
+      });
+    }
+  });
+
+  // sim/shims/child_process.js
+  var require_child_process = __commonJS({
+    "sim/shims/child_process.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      function spawn() {
+        throw new Error("video playback (ffmpeg) is not available in the browser simulator");
+      }
+      module.exports = { spawn };
+    }
+  });
+
+  // src/effects/radio/fft.js
+  var require_fft = __commonJS({
+    "src/effects/radio/fft.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var BAND_COUNT = 256;
+      var WINDOW = 2048;
+      var F_MIN = 30;
+      var F_MAX = 7e3;
+      var DB_FLOOR = -72;
+      var DB_CEIL = -12;
+      var TILT_DB_PER_OCTAVE = 3.5;
+      function fft(re, im) {
+        const n = re.length;
+        for (let i = 1, j = 0; i < n; i++) {
+          let bit = n >> 1;
+          for (; j & bit; bit >>= 1) j ^= bit;
+          j ^= bit;
+          if (i < j) {
+            const tr = re[i];
+            re[i] = re[j];
+            re[j] = tr;
+            const ti = im[i];
+            im[i] = im[j];
+            im[j] = ti;
+          }
+        }
+        for (let len = 2; len <= n; len <<= 1) {
+          const ang = -2 * Math.PI / len;
+          const wr = Math.cos(ang), wi = Math.sin(ang);
+          const halfLen = len >> 1;
+          for (let i = 0; i < n; i += len) {
+            let curWr = 1, curWi = 0;
+            for (let k = 0; k < halfLen; k++) {
+              const a = i + k, b = a + halfLen;
+              const vRe = re[b] * curWr - im[b] * curWi;
+              const vIm = re[b] * curWi + im[b] * curWr;
+              re[b] = re[a] - vRe;
+              im[b] = im[a] - vIm;
+              re[a] += vRe;
+              im[a] += vIm;
+              const nWr = curWr * wr - curWi * wi;
+              curWi = curWr * wi + curWi * wr;
+              curWr = nWr;
             }
           }
         }
       }
-      var { PIXEL_FONT } = require_font();
-      var { FONT: RADIO_GLYPHS, CHAR_W: RADIO_CHAR_W } = require_font2();
-      var FONT_3x5 = { w: 3, h: 5, adv: 4, get: (ch) => PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()] };
-      var FONT_5x7 = { w: 5, h: 7, adv: RADIO_CHAR_W, get: (ch) => RADIO_GLYPHS[ch.toUpperCase()] || RADIO_GLYPHS["?"] };
-      var FONT_5x7_BLANK = { ...FONT_5x7, get: (ch) => RADIO_GLYPHS[ch.toUpperCase()] };
-      var MOON_GLYPHS = { ...PIXEL_FONT, "%": [5, 1, 2, 4, 5] };
-      var FONT_MOON = { w: 3, h: 5, adv: 4, get: (ch) => MOON_GLYPHS[ch.toUpperCase()] };
-      function drawGlyph(font, ch, x, y, plot, { scale = 1, flipX = false, flipY = false } = {}) {
-        const rows = font.get(ch);
-        if (rows) blitGlyph(rows, font.w, font.h, x, y, scale, plot, flipX, flipY);
-        return font.adv * scale;
+      function nextPow2(n) {
+        let p = 1;
+        while (p < n) p <<= 1;
+        return p;
       }
-      function drawString(font, str, x, y, plot, { scale = 1, flipY = false, maxX = Infinity, outline = null } = {}) {
-        if (outline) drawString(font, str, x, y, outlineOf(outline), { scale, flipY, maxX });
-        let u = x;
-        for (const ch of str) {
-          u += drawGlyph(font, ch, u, y, plot, { scale, flipY });
-          if (u >= maxX) break;
+      function makeStage(sampleRate, win) {
+        const n = nextPow2(win) * 2;
+        const half = n >> 1;
+        const re = new Float32Array(n), im = new Float32Array(n);
+        const power = new Float32Array(half);
+        const hann = new Float32Array(win);
+        let hannSum = 0;
+        for (let i = 0; i < win; i++) {
+          hann[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (win - 1));
+          hannSum += hann[i];
         }
-        return u;
-      }
-      function textWidth(font, str, scale = 1) {
-        return str.length * font.adv * scale - (font.adv - font.w) * scale;
-      }
-      function drawLinesCentered(font, lines, W, H, plot, { scale = 1, ox = 0, oy = 0 } = {}) {
-        const lineH = (font.h + 1) * scale;
-        let y = Math.round((H - lines.length * lineH) / 2);
-        for (const line of lines) {
-          const x = Math.round((W - textWidth(font, line, scale)) / 2);
-          drawString(font, line, ox + x, oy + y, plot, { scale });
-          y += lineH;
+        const refPow = hannSum / 2 * (hannSum / 2);
+        function fill(ring, end) {
+          const mask = ring.length - 1, start = end - win;
+          for (let i = 0; i < win; i++) {
+            re[i] = ring[start + i & mask] * hann[i];
+            im[i] = 0;
+          }
+          for (let i = win; i < n; i++) {
+            re[i] = 0;
+            im[i] = 0;
+          }
+          fft(re, im);
+          for (let i = 0; i < half; i++) power[i] = (re[i] * re[i] + im[i] * im[i]) / refPow;
         }
+        return { win, half, binHz: sampleRate / n, power, fill };
       }
-      function drawMarquee(font, label, scrollX, y, W, plot, { flipY = false, outline = null } = {}) {
-        if (!label) return;
-        if (outline) drawMarquee(font, label, scrollX, y, W, outlineOf(outline), { flipY });
-        let u = -Math.floor(scrollX);
-        while (u < W) {
-          for (const ch of label) {
-            u += drawGlyph(font, ch, u, y, plot, { flipY });
-            if (u > W) break;
+      var BASS_SPLIT_HZ = 250;
+      function createAnalyser(sampleRate, win = WINDOW) {
+        const short = makeStage(sampleRate, win);
+        const long = makeStage(sampleRate, win * 2);
+        const out = new Float32Array(BAND_COUNT);
+        const bStage = new Array(BAND_COUNT), bLo = new Float32Array(BAND_COUNT), bHi = new Float32Array(BAND_COUNT), bTilt = new Float32Array(BAND_COUNT);
+        const fMax = Math.min(F_MAX, sampleRate / 2 - short.binHz);
+        for (let b = 0; b < BAND_COUNT; b++) {
+          const f0 = F_MIN * Math.pow(fMax / F_MIN, b / BAND_COUNT);
+          const f1 = F_MIN * Math.pow(fMax / F_MIN, (b + 1) / BAND_COUNT);
+          const fc = Math.sqrt(f0 * f1);
+          const st = fc < BASS_SPLIT_HZ ? long : short;
+          bStage[b] = st;
+          bLo[b] = f0 / st.binHz;
+          bHi[b] = f1 / st.binHz;
+          bTilt[b] = TILT_DB_PER_OCTAVE * Math.log2(fc / 1e3);
+        }
+        const dbRange = DB_CEIL - DB_FLOOR;
+        function analyse(ring, end) {
+          short.fill(ring, end);
+          long.fill(ring, end);
+          for (let b = 0; b < BAND_COUNT; b++) {
+            const st = bStage[b], power = st.power, lo = bLo[b], hi = bHi[b];
+            let p;
+            if (hi - lo < 1) {
+              const c = (lo + hi) / 2, k = Math.floor(c), f = c - k;
+              p = power[k] * (1 - f) + power[Math.min(st.half - 1, k + 1)] * f;
+            } else {
+              p = 0;
+              const k1 = Math.min(st.half - 1, Math.ceil(hi));
+              for (let k = Math.floor(lo); k < k1; k++) if (power[k] > p) p = power[k];
+            }
+            const db = p > 1e-12 ? 10 * Math.log10(p) + bTilt[b] : -Infinity;
+            const v = (db - DB_FLOOR) / dbRange;
+            out[b] = v <= 0 ? 0 : v >= 1 ? 1 : v;
+          }
+          return out;
+        }
+        return { analyse, win: long.win, sampleRate };
+      }
+      var _cache = /* @__PURE__ */ new Map();
+      function computeBands(samples, sampleRate) {
+        const key = String(sampleRate);
+        let a = _cache.get(key);
+        if (!a) {
+          a = createAnalyser(sampleRate);
+          _cache.set(key, a);
+        }
+        const ring = new Float32Array(nextPow2(Math.max(a.win, samples.length)));
+        ring.set(samples);
+        return Float32Array.from(a.analyse(ring, samples.length));
+      }
+      module.exports = { fft, computeBands, createAnalyser, BAND_COUNT, WINDOW, nextPow2, F_MIN, F_MAX };
+    }
+  });
+
+  // src/effects/easterEgg/img1.bin
+  var require_img1 = __commonJS({
+    "src/effects/easterEgg/img1.bin"(exports, module) {
+      module.exports = "0tnftMngvc7gvM3gssritcviv9DfwdHgt83j4ubk9u/f5ODS3NvQ1tfL1dXKz9LIy83Dx8i9w8W5w8S3wsS3w8S4zc3D1NTK2NfJ3tvK6OPQ7+nU8erX8OnY6+XX5uPX5eLX4uDV4d7V4d7V4d7V4N3W4N3W4N3W393W393W39zV3dvU3drT29rS2trS2dnR2tfQ2NXN2NXM2NXM2NXM1dLJ1NHI09DH09DH0s/G0s/G0c7F0M3Ez8zDz8zDzsvCsMXcu83d8e7k7uzjsMbdrsXe2t3busrboLvavcbM1NHBxsi8xci9xsi+x8rAxcm/xce8w8a7w8W4w8W4wsS3xMe709XM1tjQ19jQztDFy8u/yci6ysa31tC+39fE4NrM4d3S4d7T4d7V4d7V4d7V4N3U4N3W4N3W4N3W4N3W39zV3tvU3tvU3drT3NnS29nS2tfQ2dbP2dbP2dbO2NXN1tPK1dLJ1NHI09DH09DH0s/G0c7F0c7Fz8zDz8zDzsvCy9XbpLzVsMTXr8TYorvXpLzXsMTYorfMjqnFt8LFzM7Eys3Eys3EyczDyMvCxsnAxci8xMa7w8W6wsS5wcO3xce81NXN19jQ2drS3N3V7O3m6uzj1NbMy8zAy8a1zsWy1s/A3NjN3tzR4N3T4N3U4N3U4N3U4N3V4N3W4d7X4N3W3tvU3tvU3dvT3NrT3NnS2tfQ2dbP2dbP2dbP2NXN1tPK1dLJ1NHI1NHI09DH0s/G0c7F0M3Ez8zDzsvCzcrB4+Ha1tfR0tTQ1dbT3dvV3NrUuLe0tbaxwMO9ycvDzdHHzM/Gy87FyczDyMvCxsnAxce8w8a6wsS5wsS5wcO3ycrB3N3U3N3U2dvR2drS7e7n9fbv8vTw4ufj2dvQw7+yxbys0cq83djM4d3R4t7U6OXb5ePa4d7W4N3W4N3W39zV39zV3tvU3drT3trT3drT29jR29jR3drT2dbP19TL1tPK1dLJ1NHJ1NHI09DH0s/G0c7F0M3Ez8zDzsvCzMnA7e3l7e3l7e3l7+zk6eXdlpGIWFRJsrWq0tXNztLKztHIzM/Gy87Fys3DyMvCxsnAxMi9w8a6wsS4wcO4wcO3nJ6Vjo+Hpqib4uPX1NXK7e7n9PXu8fTw3uPg4ubg3+HYl4+Bf25eg3BfaFhMTUA6c2hhsKie3tvS4+HZ4N3W39zV39zV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h391w7+2zcrDysfAyca/yca+yMW9x8S7xMG4xMG4w8C3xMG4SklFS0pGTEtHUE9LTUtHR0ZCS0pGS0hESEZCRkVBR0VCSEZCSERBQkA9QkA8Qj86Pz46koFu8M2q69C079S87cy148Sv5May3rmd2rWU0qmGwJNwqX5cmnBTmGxNfFI3hFg7oG5LtINc5cep8Nq/69G3372d06eCwpRrs4Ncn21NhFk/e1hCa004KRYMHxEJJBMLPiwkrqmhr6uhpKCW0M3FzMnCysfAyca/yMW+yMW9xsO6w8C3xMG4w8C3xMG4UVBMUU9MS0hFQT06Pjw4Q0E+REE+RUM/SEdDRkNAREA9RUM/RUM/R0VCR0RBREE9RUI/jn1r8Myq5can68+07tC179O76s634L+i17COyp15tYhmnHJUj2hOiGBGcksxjGFAqHpStoZbx5x05cmq4sOi1K6KxZZvrn1VmGlGgFY6bkszdFU/hGdQUj0tKxkOTTMgYkk4w721zcnDxcK5zcrCy8jByse/yMW/yMW+x8S7xcK5w8C3w8C3xMG4xMG4VFJPSUZDQT06Pjs4QDw5Qz88REE9R0NASkdDSEVBQ0A9QT87QkE9SUZCSUZCSUVBSUZEl4V08Myp4r6b4b+f5seq58Wn48Ol27mZzaN/t4lmm29PimFGf1lAZ0Ipglk7rH9Zu45lxJduwZJlvo9lzaN/x5pysYFYl2dFf1M4bkkxa0w2fF9JjXRcVT0qVjkjc082iGhRx8K6z83GzcrDzMnBy8jByca/yMW+yMW9xsO7xMG4wr+2w8C3xMG4w8C3SEdDTEtHRkNARkM/Qj47Qz88RUI+R0RBR0RBSUZCREM/RkVBR0VCS0hFSUZCSEVBRUNAlYZ38dK058eo5sap2K6M1q2K0qiDxZdxs4FdmmhGgVE0c0kvb0kvkmpLvpRuyZ93yJ1zzKF4y590s4FWoG1HpHNOmWhFgVU5b0cvZkMsb084bE86UzokUTMdbkowgltAm3tl0MzFz8zFzMnCy8jBysfAyca/yMW+x8S9xsO6wr+2wr+2w8C3xMG4w8C3QUA8Tk1JTUxIT01KR0RBRUNARUM/RURASEZCS0lFSUhET05LTk1LTEtHTEhFRkM/Q0E9kIN18tS36c2y6c2z0J98mmE/yZt1y512v49qs4VisYprv5x/0rGT3r2e37yc2LGO0qiC0KiBzaJ7t4phmWtGil49glk7dVE2bk0zdVU6eFc+PyUVPyYSWDghfVc7imJFoody0s/JzsvEzMnCy8jByca/yMW+x8S9x8S9xMG5wb60wb61w8C3w8C3w8C3REM/RURAU1FNTUlGSEZCSEdDSkhESkhETEpHS0lFVVRQVFNQUVBMTUxITUpFSkdCSEVAuqWQ786w48Gh4rydz597iVIww5t57cqn7Muq79K08de979W77tS768+15MOn27WV0qqGz6eCyaB4tYhhmW5LiWJDhV9BhmBDg2BEgFxAY0UvMBwOOyIRb000mXFRlmxNr5qI0tDKzcrDy8jBysfAyMW+yMW+x8S9xcK7wr+2wb61wr+2w7+3wr+2wr+2RURARkNAUU9MVFFOTUlGTUtHUU5KTUtHTUxJVVRQTUxIU1JOUlBMT01JS0lERUM+XldO5suw6Mam2q+I06V8volfgkopv5Zz78up7Mqq7tO38Na97tS77tS769C25MWp2raV0KeDzaKAx5x3sYVgl21NimRHhF9ChF9Dg15CfVg7UjopKhkLWTkjonRRq3tXmG1Ou62g0M/Iy8jByca/ysfAyMW+xsO8xcK8xMG5wr+2wr+2wr+2wb61wb61wb61RkVBT0xJTUxHWFZSUExITUtHTk1JTkxITUxJUE9MTEtHTUtHVFBMS0lEREM+QUE9koJx9di84b2a1Kd8xJFlomdAnWpH58Oe7s6t7cyt7c+z7dO57NG27NC46s6z4sGj1q+MyqB7xpt4xpt2r4NglGtMiGRHhmFEhF5CglxAelM3QjEiQyoYonJPu4lhqXlXkGdMuKudzszGysfAyMW+x8S9xsO8xcK7xMG6w8C4wb61wL21wL21wL21wL20wL20RURAS0pGT05KUE9LUU9LTElGT0xJTEhFS0lFSUZDTUlGT0pHTEhFS0hDSUdCUUxG07mh79C02rGJyZltsHZNp29K4LqX8NCx7M2u68yu68yv68yw682x6cyw5cap3LeWzqR+wJJuwJRwxpp0rYBbkWdIh2JFhF9Cg11AgVo9cUkwPicZkWVEyZpyv45on3JTjWdNua2hy8nCx8S9xsO8xcK7xMG6xMG6w8C5wr+4v7y1v7y1wL21wL22wL21v7yzTEpGTEhFSkdES0pGW1pWTkxITkpHSkdESkdES0hFUExJTkpGSEVBSEVBQ0E9fXBi8tW55MKgz590snVLqGxH3raT8NCx7Myu6Mak6Meo6suu7M2x7M6y6Mqt4r+g16+Lw5ZusIFdxZt2zKB5q35YjWRFhV9Dgls/gVk9gFc7Yzwmb0YuyZhv0aN9uohkmm5QknJawry0xsO8xMG6xMG6xMG6w8C5wr+4wb63wL22v7y1v7y1vru0vruzvbqxvbqxWlhUWVZTUU9LTUpHWFdTUlBMTUtHTkxITUpGT0xJUExJTEhFSEVAQkA7REM+uKSQ8tW52a+ItnpOomM82q+M7Mio7cuv6can47+c48Gf6Man7Myw682x58iq37uZz6V9rX9ZlWdHzaaF0qiDqnxWjWNEhFxAgVc7f1U5ek80ZTsktIZi2a6IzqB7r39dlGpNnoZ0xMC6wr23wb22wb23wb63wL23v7y1vru0vbqzvbqzvLmyu7iwu7ivu7ivu7ivWFdTXl1YY2JeWFZSV1ZSWVdUVVNPU09MUU1KUk5LUU1KTEhFS0hDQkA7W1ZN5s2168utyJJnmloxz6F968al6cio5cGh476b37iU3raS47+e6cir6cms5MGh2rKLx5pvn3JMlGpK3bqZ0qiArH1XjWNDgVc7f1I4fU81c0QrgFE227CL3LWRxZVvp3lXjWhOraGWvbm0vLexu7awvLexvLiyu7iwurawurewurewubavuLWst7Sst7Sst7Srt7SrWllVWVlVXVxYYF9bZGNfWllVXl1ZXFpWVVJPT0tIS0dESUVBSUZBQD45n4589dm+2rGMo2Q4uolj6cSi6sip5cGh3bOM2KuD16qC2KyF37aU47+g476f3rSS06Z+wpJor39WvJBm1KuCwpNpn29Kg1c5fE81e0wyfEowajgepnhY6MGg1KiBuohjmGxOmX9qrKefpaCZqKOdrKehr6qksKymsa2msq6osq6osq+osq+nsa6msa6msa6nsa6lsa6laGdib21odnRwfHt2iIaBiIeBiIaBjoyGmJaQmpiTnZqVn5uWpKGcrqih48mw68utvIVZo2tE4ruY6sms5sSn2KuFzJltyZZqzZ1z0aR72ayI3LOQ3LOQ1qqFyptzvYxjs4JauYlfuolfqnhQjF07ek4xdUgud0ctdkQmZzgbz6aF47mYyJZvqXlXj2lPy8K229jQxMG4qKSal5OKm5aOoJyUo5+XpaGZp6SbqKScqKWdqKWdqKWdqKWeqaaeqKWd4+Da5+Xe6eji7Orj7uvl7+3m8O3n8O7n8O7o8e/p8vDp8/Dq8vDq8eXX7c+y3LWPoGQ7z6WC6MWk6Mqu3riVyZdsuYVat4JXxJFnzJ100qN91aeC1KaAzp92wpBotoRcsoFZsX5WqXROlWJAfk8xdEcscUMpc0ImaTgbjF9B5b+d06R+uYhjlmhLq5OB5ePb4+DX4+DX3tvSw7+1l5OJjop/k4+El5OImpaMnZmPnpqQn5uSn5uSoZ2ToZ2UoJyT7Oni6+jh6+jh6+jh6+jh6ufg6ufg6+jh7Oni7Oni7erj7erj6+ri7NW+6MSjwo5ip3JM6sWk6ceq5sSm16yFxJJmtoJXq3ZPs35XxpVtzp53z595zJtzx5Zuuohfr31VrHlSp3NNm2ZDh1Y2ekswdEUsb0Anaz0iazwhzKWF3rWQw49pq3lXlW1T08zB4+HZ4d7W4d7V39zT3tvSx8O5j4uAioZ7i4h9jYp+kIyBko6DlJCFlZGHl5OIl5OIl5SJ7evk7erj7erj7erj7Oni7Oni7Ojh6+jh7Oni6ebf4+DX3drR4dTG782y47ybo2hAuo5s782t68uu5sKk1qiCxJNqtoVcqXVQo29LtYFbxZNryplxyJduwZBntIFYq3VOpW9JnWlEkFs6g1Iye0ovdEQqckMpbTwiqn9h6sSk0KB5vIliqHdVtpuI4uDY3drQ3drR3dnQ29jP2dXN0c7GmZWKh4N4iYV6iIR5iIR5iYV6ioZ7jIh9jYl+jop/joyA8vLs8O/o7u3m7ezl7Ozk7Ovk7Orj7Orj6+ni3tnQ1c/F1c3B6c217Mqq3raSgUsrxp6A78+07dC258Sm2rCNy5x2uohhqnhTmmdHmmdGsn1YwY1mwoxkuYNarXVNpm1Gn2hCk146h1Q0g1I1gFI5hFhAi2BJlm5X6MWn5r+ey5pyv4tmrHxeyLmt29nQ2tbO2dXO1tPL09DJzsvEsq+miod7h4N4h4R5h4R4h4N4hYF2hIB1hIB1hYF2hIJ2hIJ2/v78/Pz6+vr29/fz9fXv8/Ls8fHq8PDp7+/n7uzk5+LZ59K88da86MurzZtxc0Akx56B78607c+36Mar3bOSz6F6wZBotoVepXVVj2RMmnFawph9zaeNyqiPxqeRxaqXw6ycxbGjxrWqybuxz8S71czG2tLN48q17syt3rORy5dyvIZiq4Rt0c3G0tDI0M3GzcrDxsO8trOsk5CJhoR5hIJ2hoJ3hYJ3hYJ3hYF2g4B0gn5zgX1ygHxxfXpufHlu///////////////////////+/v79/v38/f37+/r28d7N68206M+27NW7y5x1ekIltIls7cmt7c+36s635su05M+85tfK6d/V6eLb6+ji6Ofj6unm7Oro7Orn6+zo6+vn8O/s9PLv8fHs8fDr7uvn7eTa68607cqq5b+ez514wItopnVWoYl6wb24vLmyraqjnJmTko+Hg392W1lQaGZfg4F2hIB1g4B0g390g390gn5zgHxxf3twfnpvenhseHZq6url8PDr9fXx+Pn2/Pz5/////////////vz48+DQ6suz3raa27ib8NvE3beYc0IpoIFv9uPU+PLs+/v3/f78/f/9/P37/P37+/369/j09fTw8O7q7+zo7uzn7urm6+Xg49vU1s3Hy7+3uqaZ0rqo7Mut7Mmq5sGh16eBu4Rgnm5QjWZNfFlDiX90g4F4ZWFaTEhDbGpihIF1gn9zZ2ZegH93g4B0g390gn5zgn5zgX1ygHxxf3pvfHlueXdrd3Vp2tfS2dbR19XQ2dfS1dPOiomFtbKt3t7a59/V8NnG1K+WpHpjzreo5tfH7dzL5dvT+/z7/v//9vXy8u3n9Ozj9/Dp9e/n7uTZ3cy9u6ORq5B+l3dlm3xrp4p6qYt6lnhofVpIh15HnWlLwZV47M6y7Mqt4biY16iEypZxp3NTkWVKjGZOeFZBdm1jeXZva2ZfU01HbWxleHZtf31yhoR+hoR8hIB1g4B0gn90gn9zgX1ygHxxf3twe3lteXdrd3Vp29jT2tfS2dXR19TPzsrGU1BRcm1lv7y3y8S87dfEtYVrbUs90tLL2djS8/Tw7OfgqZuSsJF+0qyT4L2j58eu58qv4L6f0qiDu4pjnmtHiFY1eUcqcDshZjQbRSkcc005s39c0Jp05LiY57yi68is4LST0Z55zp16t4RhlWZKk2hPg11DdVdDenVsfntzb2tiT0dAfHpxbW1kfXx0goB4gX90hYJ3g4B1gn90gn90gX1zf7xxfnpve3hteHZqdnRo0c7K1tTP2dfS2tfS0c7JeHZ0e3Nrwb+4zMfA5s28xJN6XjIhdlxRtK2l0si+xJaAb0MxsoNl3bCQ4r2h5MSo48Sm3bqY0KaAu4tlnm1Kh1U2e0ksd0IlajUaRSESt4Zl4rqb6MWu1KKK2ayR3K+PzZd006F9uoRgqHVTk2RIlmlPeVM7dVxKe3dwfXlxdXNpZmFag4F5fHlxfHlvg4B2h4R5hYN4hIF2g4B1gn9zgX1zf3tyfXlwendsd3VpdXNnraqjraumq6qmvbq2w8C8YV1djIaJxcK+0M3Gz8K40rOhvo10jVdCmXBfu7Kqy7+4tqefsIlw2KuL3rib5MOo5MWp3LqZzqWAuYhjnGpHhVM0eEUpdD8iYS8VXjcm2auK5sCk0J+CyZp9zp56u4Vl0aKCtoFgxJNvh1tBoXJXmW1ScUs1hnNmm5mUm5mTi4qCeXZugH51hYJ5iIV8h4R7hoN6hoN6hIF3g391gX5zf3tyfnpxe3dveHZrdnRodHJmzsvFvbmzo5+bmpeVn56fraywsbCzwL/BycjHy8nHzMnGzMG5y7esuJyOu7GrxMO/w8K+v6OSz6GA2rGS4b+i5MWo376d0amEvY9poG9LiFY1ekcocj0gVScRZ0Iw4LOS4bmX6sipxZZ1rnte1KuLkWFGxaGKqXxdQyUYupJ5iGBGb0w1hnpvkI+Gi4h/ZmNcUkxFh4V8iYZ9iYV8h4R7hoN6hYJ4g391gn50gHxzf3tyfXlwe3dueHZsd3RpdnRo2NXQ2dbR2tfS29jTysfCVVNQd3Jtr66rsrGwsK+vtLOyt7a2ubi6r7GylZSUgHt7dnJxeW1nv5N21quK3LiZ4sGj4L+g1bCLwZRwpHVRiVc3eUYnbjwcTCEMZEMz4baS5b6hwZBvnW5V1bSXi1s9pId1w51/aUIrYz8tv5p/elQ6cFA6gHhshIJ3h4R7b2xmV1FLh4N7h4N6hoJ5hYF4hIB3g392gX10gHxzgHx0gHxzfnpxfHhvendueXZreHVr1tPO1dLN1dLN19TPysbAPTo2dm9nzcvG1NHM0s/KzszHzMrFycfDxsTAwcC8vLu2trWxsLGuwamXzqB/2LGQ3ryd3ryd1bCMw5dyqHlWjVs6fEkqcD0dSyAMXT4w4baT2LGUwZJy2LKVkmJEqoNswpyCdUwzdEgwpXhjrIVtcEw0cVdEgHxzgn91hIF4dnNtW1ZQhIF4hIF4hIB3hIB3hYF4hYF4g392gn51gn51gn51gHxzfXlwfHhvendseXZt1NHL1NHM1NHM1tPOycW/My8qdm9lzMvG09LM0dDL0c/K0tDL0c/K0dDL0tHM0tHM0dDL0dHMzcnCxp+D06eF2rWS2rWS06yIw5d0roBbmGVCgk8uckAgUyYOXjws3bKN4ryZ6dC6roNnxZ2AyaqXhlc7mWdFj19BmWxXiGZSbko0dGJSf3x0gX10gn92fnx3YFxVh4N6h4N6h4N6iIR7iIR6iIR7h4N6hYF5hYF3hYF3g351gHxzf3tyfXlwe3hv1dLL1NHM1NHM1tPOy8jCOzcyc2xj0M7J1dTO09HM0tDL0c/K0M7Jz87Jz87Jzs3IzczHzMvGzMzIx7aoyZx81quJ1q6K0KaDxJh1tYZin21Kh1Iycj4fVScPZj8s3rSQ5MOi4MCh376h37iTv5Bps35Xo3BNkGNGfFQ8ck84bk46bmldcXRqdHNqeXZth4aAZWFag392gn51g392hYF4hYF4hoJ5hoJ5hYF4hYF4hYF3g392gHxzf3tyfnpxfXlw1NHM1NHM1dLN1tPOzMnEQTw4cWph0M7I09HM0c/K0M3IzszHzcrFzMnEy8jDycfCyMXAxcK9xMG9xMK9wqGJz6J/06mGzqJ9xJZyuYllonBMhlIybz0fVCcOdksz4buW5MKl5siu5ces2bKOxJVsrnxWmWtLh15EeFQ+cE45a1NAZWheaGxiam1jbW9mioqDa2dhe3hueHZsendtfHhvfnpxf3tyf3tygHxzgHxzf3txf3txfHlwe3huendtenZt";
+    }
+  });
+
+  // src/effects/easterEgg/img2.bin
+  var require_img2 = __commonJS({
+    "src/effects/easterEgg/img2.bin"(exports, module) {
+      module.exports = "v8PC2N/enKOYj5eKX2ZUjpaIv8a/2d3Y2ODgucTAuMK8r7mzlKGVwMnI5+jo6enp6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6enp5unor7avtL2urr2spratvMnH5Ofn6Ojo6Ojo6Ojo6Ojo6Ojo6ejo6Ojp6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6eno6enp6unp7ezt6+vq6ejo5+bnzNDI0Mmu4dm2qrKNcn9Nam1EippDhpczY3RAjZl2WWNA3N3d////////7/X0gIVsn6WZkpiOpKmaxc+99vr38vj3ytTPt8O56/Hv8ff3/P7+////////////////////////////////3+fjiJGHkpuKj52TtsXD1+jq7fj4////////////////////////////////////////////////////////////////////+Pv61+He6fHw////9uLs6tfd6MXD5sWw38K01r68mnKDzbS54cXI0bq2zLq1a29O29vb////////+vr54uXf6O3s4eXh2+Dd3OHX7fLu////////6PDu1N3Y9Pn37fPv/////////////f7+/////////////v7/vMfAZHBfWWVbi5uZ6fX2/////v///////////////////v//09rX1NrU4OTe+fv5+fj2/v38////////6e7r4erozdjTxNHMzNrXgY57fIqBnqysy9fc+fn///n/5+XppK2ci4xxkYVmlq58sMqb0MKzw7iaeoBE29vb////////////////+/38/f7+5+3r/f7//Pz79PXz////+/39/f//4+ro5uzl///+/P383+bkrLaxv8jD+Pv6////////09zWWWRYVGBbw9LR+f///P//8vf21t3WtL+yvMW2w8q7ztG/p6mVwMGs1cmw38WnvZ+JnoN4yLu18O7nuLuskZWJfod+c31zj5yWg4lwg4JifX9erq1p2dyQ2OKe4+zG2+nWkax9b4hXi6NIoMFQiKdRiplUe31M29vc/v/9/v79/////////////P399Pf28fX0+/v15+ze/v//////////6O3q6+/q////5ezq3ubl6/Dvtr66sry49fj47fDtu8C3Z2xldYJ86fX04u3ujpqXeod/gIhtfIVbeIBUqaJ+5Nu4+vHN4cCWxpp107KLzKd/onlcmG1Y0LOd2bCSuY9yrJaEiYyKi41nu7I5vbgsp7AzpbQwo7YhjrA8k7htq8d/5/PYmrF5VW4ndJNQb4NMf4tfh4Zi19jU/v799Pfy+vz5////////+v328vXu7PLu/v76+frx+/v5/////////P7+/P79/v///P39////////+v38ydDPoqagiIuDbHBnfYR+Xmtcg5CFeYWDbXl0ZHJjbnpni451s6iA69am9eCy0Kl+u41kxKB7p4JomnFXkWdKjmhQkXJjimFTfE8/nGxTqot1kIx6f4ptcIBqcIB2cYF6bXxzYnVphJuQzuLV4fHonb97rMWVt8mvhpdlcnFfa2dc1dfR/f77/f749fnv6vDX6/LX5e7P1N686u/l/////////////////////////////////////v79////////////zNLQjZaSe4J7bXBmh42HaHNvn6qo2+TklZ2MfYNvrKOA7suV89+x27yRnm5PjmBFbEI0WzgyVTcxXDszTC4oQiYfTy4lWTgwgFZHlmVMqYl2kIuJZW90cHuAipSbdH2FbHV7bHiAlqOi7fXy9v3+9P3/2ufiiJ1/Y2FVREA3ysu2+fnx0di6x9aUs8Zptcpwn7hbvs6U5OjX8PPj7PLg1+K05+3T7vTi6u7Y1tu+0dW7zNK5ztHFwr2sq6ubwMS+6u/v8vf5ys/Ok5GL0trd09ziyNDSoKaaeoBmlo9s4LqE6r6Kyp1xjV5GcEY1dkk5cEQ3YTwyVzUrUDAoVzUudEo6hVI8gFE7cUg4fUw4kmROoZCCdnt7dn+FlJybi5aGh5J2maNcqrhx3erX9f//9P7/7vj7ssWvdHdXRkE6maF86evToaqBdIo+jK0wja8vbo4ihKBIssGWla5ijqtNgJ04gJ8/pbhrmKZbfpNChJdRoatux8ayq6udg4mAipKNlqCf1t3ev8PDrbGwztTTv8G0gINrZWhHkYtj48SQ77p/uH5UazspVTMrcD8woV1AsG9PrWpKtm5MpGBElVc8kVI1nFo7oWRBgEw0bUEzekg1nnVdjYyIpKN9rrhkqcJsnLhypLxWpsRzz+HB1efW3Ozh6vT/5vH6qq6SYFQ7o6uKrbaM0dW6oa2AfZNEh6JCaoQwYXs1cIs8dZcwb48tdYpKeYxUlaRkip1GtMF6vcWNu76DxMShr7Khr7ew1Nratbm4q62o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0IZd0Ihk0Ixuz5B61p2K2Zl8ynlSyn1W3LOezoVhynZLxnRIyHZJyXdKyHdKxXVIxndMzX5Uy3xQzHhL0HpL3INP6IpV65p3oJZbdZMSfokjhZgvocNputyVxd2y4+3as89bssFMvKNRnnxQZY4yepM3rLJKm65KZLyRit+51bCF97GD/saV/tGi/tCf8biR87WW8aiA7p9u6Zlk55di5ZZh5JRf45Nf24tZxnRGu25FvXVMqlszw3JE1YZZ04hg0Ihky4hozY520ZaC1JV8zoVjyX5Xx3lP1p+B1Zp7xXRKw3JHwm5Cv2s/v2tAwnJGyntQ0oNZ14ti3I5m5JZr8qJz+652/7Z45qxug5Ule4kod48hmLsvrrtjwriE1taPnsFhha4krbNwj3lld48pl7A2s8FMl79qZtKwrdCm6aB1+raD/smW/tOm+8KJ9qRp+650/bR8/raB+rF98aRy5pho4JBh2IhbzHdMw21Ex3NKxXJKqVowsWE5y4BWy4NgyoZlyolrzo9y1Y9w1Yxs0Ylmy4NbxXlPzYlj0pZ3xHRLxXhNyXpNyHdLxndLyHlNzHxR1IVc3Y5l4pNk65tq9qd0/ryI/8+d+7+Jh3w/YGonc4otpKo/sZZWvqyEtqhoqMVxpsBFvseXnqhSZmg0bHY1k5FCbreMf+K7y7CF8aNz/byE/suZ/sqW/Ld7/ryD/7+J/7yJ/bWG86d555Vo4Ilf2oNaznxPvX4/v505mJEejWgtqFMutmhDwHdVxHxdx4Niy4lo0oxr1Yto0otn0IdjyoNcwHROyoxs2a2Ux3pQzYBU1IZX14pY2otZ2IhW1YNT2Ida4I9h6JZm7Zxm9KJr/bV9/sqW/8aQo5JDZnUrZX4igpk4rJJrop9Vr7JLxtFRqMA7qZdsl55VZWMzcX49ZnZSYs2qotyx56Fz96x5/r6I/smV/8KK/8KL/8OO/7qI+6p+8Ztz449m1opYwIhPrZUzd4cYcHk1go9MdnUkmGQ1t2hKvHFUvXVYw3lcxX5fyYNfz4hhz4plzYpry4dmx4BZwHVNx4Rh4LaczoNW1YhW4JRf6Zxn7aFq7qJp7qFn3YxY345c55hj6ptk8aFp/LJ5/seQ/8eRrIpIcYQffJYli4xDcpE+p785r8NQq55Yqp9yycahnalqa3oxfpM0a6JvcuO7vsWT9aNw/rJ+/7+M/8KQ97qF67R20JlnvIZVqX5Mim04hH8qjZotc480ZIobUHAgbGk8mmhGtmlNwnRVwnhZw3paw3paxHpYx3tUy4BU0IhezY5tzI1wyoVlxnxVxHZJyX9S5Lmb2I9j2ItW5Zph86hu/Ld7/r6B/r1/zH1L0XxK4pJd6Zlj8aFp+7J5/sWN/8WMnoBDVnETdoM+tMJNeaEom6w/mKxBl7w7prJmtcBXlqs2YHUkbXg3Z8Cchei5cpBCl4g7s6VDz8NNyb9ElZc1l6o6V3MTTFgZZ3EgVGUaVmwXYHEdbIgeV3cncVUyrlxEwnBPz4Re0IZdz4NXzoFSzH5PzH1MzX5M0YVX0I1lzY5wzIlqyIBYwndQvW1CvWo61ZZu0YdX04hS3pJa7aJm+rd5/8aG/MGDt2I3xGk82YZV55Zi8qNr/LN6/sWM/8CGrp8/h5krd4s0f5Y6mLM9kZs7ssFhrc1IkaQxsbdYkJ5KVGQqbZJVbeG5gMqXbn8tlaM8iJUve5kgiqI1boItlKM2iaMhaX4icYYhpbg8u9JDrMQvfaEVeWwrym1S1H1Z35Jn4pdp4JBa3ItU2IhS1YRP0oNN0oNP04ZVz4Zaz4tnzodgy4JXxn1TwHRJt2g8tWY5uWk4yXpE2Y5V5Jph86tv/71/761xoEgkwWI01HxL5pRg9KRs/bR7/8OM/rl/nZo4m6I0o6pY2eGjosFHn6ZDpb1Jp7dcsKmIl5B2enlLRFUnYal4efLEZpVkaGMugYYzdYgpXHIpeowqgJY4scY4u9M/prxDiKQugJYpm7QujaIva5kXsZQ+5pJ06KKA66aB6aN55p1t4pdj35Jc35lq4qiH2pZvzH9UyoFU1o1f1I1h0opez4lbx4FWtW9MqFo4rFs0vWw+2ItW6KFr8qpv/7p94ZlhjjcZv1su1HVE55Bb9aRt/rZ//8OM8690dX8feooljp0jl6wtj6QyfIMvma0yra1TmpRQgY5fQVY0RVYtYMedhO6/UW8/Z2s2bmk+Z3g3aXU3XHAxh58/xd42u9gwlawqh5wqhJgma3g4ZnAvZXY5m4xE7qF57KmD6aZ/7aV47aN16KFy5Z5u4Jtv1ZFszoRbyX9WyoVZ2plr36eE3Zt22ZZuyIRhtWxMr2BDumRK0XpQ4ZJg8614+rZ+/8GIyoRThEATvlQo0XBA5Y9c96Vw/rmC/8OM5qVrZ28ieIMehJAtcocol6M6na47qbpPnJs6g5JDY3lHY2w7TnFRaOa3eMibVWIylKdFe44/gppHhZtIfZpGbIQpr8Y6mrglcYkmXGkifIwkXmkrPz8XUlEmUlwkoHdL4JVs5pds5JZo5Zhm3pFf0oVSw3ZEyH1O04pW0oxbyodb2p5447GV2Z191ph3zYxrwXhax3ZW5ZJw9aV3+7uJ/cSY/sqZ/8yYq4hNjWkkwFAm0W0/6JBd+KZx/bqD/8GIzpReaHUoboEZhIxCjZtDmaE7ssE4ucNGbn83cpIskqkrb3cwW554cPHAgbt6YGsofYs5Znw9bIhAZXwxp7pHpcc2na45bYErZ30pg5U7i59eRVIrZnFQkJ5tTFYsOUQXXlUptpBqzIdftWtAu3BDyoZd1JBm1Y9i0Y5j15t1zoxgxoVb0pFp1ZZv1ZRu05Fq0YZf3o1i9qp7/c+j/OC8/d66/+C47b+RZlsxc0YcxVQn1G4+7ZNf/Kp1/ruE/7uBs4lOTGEUT2Iab343hpxhg4FEi5Qsprw0qrNzoKxipbFRbm45ULuTgfK/faJKcH0sXWUwXnpAlqtHnalGe4o6YHcuY3FBhpVfiJlnr8uGjKpxi590tcKXaIUfT2YYSlkVTFghsquByY9rvXRH2p1247GU2JNs0o1k16KE2KGC05Bk0Y5gyYpix4ddzohf1Y9k4JZq76R0+7uJ/dKn/d+6/+G64cCWalwzOkEchVUxylkt1nBA8JRg/a54/ruD/7N2m4tETV0eXWMtZm0leYRFkZxEjYU7j5o4kagxlKhKb35Abm1BTMKXhOGobYwpVWskTlopZHM2aHYxcXw1WWgwWmcwT1YqbHo4hZ1arcJkorlzd4o3SEknTF4kUGgrcokip7B9++jZ1Jl20Y1h4bCS26B91pFm1JNt1Zx40ZFpz4xf25Vk7reQ56yC25Zf25Zi45xr8ax5+8OS/Myi/82i77iGV0slOUMddHs5s39PzV802HE+8JJb/a94/7mA+a9vfH41VWMZjpE5YGUsZXQwhYI3oZVrgJJXdI4wZHs/RVIfW2kuYM2kfMOAXHcbUWAhRk4qQE8hXXQvYWUsaG0tcn00QUwfcYVAjaZCsclQn7NRZ3ctVVoud35EaXxbW21A4d3M78Ss0pVs0pFk26F82Jhw1pdu05dv0pZu05Nn05Bg25dk7rWN+r+L/b57/MWK/MSM+8KH/MOQ/sWT57SIg2tMOSoWQ04pdH45un1Iz2I82G888ZFX/rB1/7V81JpdU1kfiI4shYo0XWY3YGstfH0+orOBZXVQSl8wZ3k7eIYvX2sneNKpcZRYV2YnZXQxbng2c48+j7VXX3szcXs3YG4tZIkzVWo9gJ5kcoxIc4E1ZXc+WWU0dHlHe4hVs7iy+vDz0JV5yolg0JBm1ply1Zdv0ZNq0pNq1JZt15Vk25Zh35ph6KJr9bN5+sCA+sqR/siP+8eQ+Myo/tGozrqlNTIaNzEYKC8SSFUkvpFkzGVG02k78JBX/q90/692xKtMfIYtXmsiUmMpQUAgjZRnvcmkRVQ1U2I3WnEodYUwkJs8dXY0fcWaYX8/d41Ng5dYcYQ/cYk3a4g9gIs8dH89Y4A1jbxNSVwubn5BcXs6a2EobHgjO0UbSU0buL6T//7/8u77zqOYyYhg0ZJq1pdv05Noz49gz49j05Jl3Ztp5qVz4p1j4pxg7Khq971/+MSN8bqI6sGj9uPd8uronJSHICQPLTITTVchc35S7u/o3aSP0mQ08ItQ/qpt96txamgqSFweUmIkUl8rTEsncXpihY1hbHIzX3E3XnA6ZXU3e4I+YGspY55zRFIhW2Uyc4NIfo5KlqNElZw9eng2W2g5X3ZGaIQ7XnVDREUnPTwZQT0eTF4hR1kmlZyB9vT36uX16eb73cvVyI1q0JRu0pJp0ZBmz5Fmzo1j1ZBj5ql98LmT6ap44p1k4Z9r5bGL6ciy8uTf+/j5/fr49eXopqGKQEoOUl8ruLSc9Obd6ryp34hc74hN+6Bi/7F006BgRlcWQVEcTkshRkwgVmU4WWUyUmAmeIU2s7hHmKJHi59Hr7xMa4QtTWtESU0gREcfQ0wkZ281ZmsyU1cmVms0W3RFVW46U2YxY3c3RkQhNjohNUIhNEAmmJ+V/Pv/6ODz49Ts5eH16OT20qudyIZbzIpgwX1VyItmzo9m25hp67GI77iV251z1aSJ5s/H8+7v/f7//v39+/Ds+Ojl8N7kkIx2cGMvvIhn0Hxc0nRH4Xc+85BQ/Ktt/7l79rBybWYyO0kZSVMpUVExSEceTVYnSlQhR10ig481yM5JwMNRucRgiqRcXXBCOkobWWswU10vb4Q1QkseLzMWXHozT1orNDcdSlwyXXVGbX9ITFEnUFY6ZWJXubSx/Pv97er649ft8Mbr5dTu6Of56ODszJuExIBVtnVPv39Xzopg2Zdq3Z153rCe6NPT8+rz9/L6+/f7+Ono9t/Y9uTg4czPupiduIh9um1NxmY61HA56ohK96Zo/bp+/7x92JxheV4zS00lSEckLioWNC0SLykRMC4TQ0AfOD0djo86p61HgY5OcHxIZ3pGTVoxUl41Zms+a28+fZIxcoElTHAoTXUpLDYXKjAXYHE0Wm0ySl0zVWsolJ50mJt74ujl9PT/5uL14dzw5s3p8cbu6Nfx6+j55t7tyZ2LvH1XuXdQvn5c16Sd78jc9uX69O388+z38+vx6drf59PZ3cjN0r3ArYN+sGdLx25D1HhB5Y9R9aZo+7yD/8CD5KBjmXg/eIcyUGUkPEQZWGEza281ZHZEQk0tNzAacGwzY2o4S0srPj4aPEIfP0cbVV4vXGI1Slc2NC4YVWAxaIg/UWMwVnUmKjoVISgTPEkoU2Q6TVkvYmgvgYcoqqlz0rq78rfJ693y5eH24t3x4Nrv48/q58jl4M3p4Nz03czftnJmx3xcyIhw1qOm2rfB28bR2cra3tTi0cXUyLrIt6CtpYKHtod7vXJL2H5J6pNZ9Kxv+r+J/7p86Z1djl0yNC8URlYjdJYvg5Qvo6w0paxGpK5BYnFAW25VpqRG1dlToaVIVlIudmszYl4uUEwhXl4rWmQ2UV0vPUclR1guSVgqWGs4fJFEQlMjMUEgWGc9QUwtVGlDd4ZQfXI8wres+2mE+A8r7Vx059rv2sDW1snc2tLl2s/h08PV0brN2LXPz46bwIiHsnRnvXhbw4NlxYNnwYNrwYt2s4J2qntxsnpmyIVj6KuI7KZv97Z9+7p9/LJw8aVgr3o7WUwyGiQQLTUYdXQygJRCh5c+qq43pKA+iZdFf49CmKNSpa5Wub8+uLlPzNVU0tJXSEkiOUAfSE0kOkEbQEspSlAuTFk3P1QwPE0qa201YXcxMEMcP1EnP0whR1MoTVgpTVQxwnuG+zNP+hcv7Qgg5Wl96tHo3LfS0LnMyLLAxJ2iyoF2q2Rhj1lehF5riFpcr3FfxIVnx4Zkzoln1Y9p2I9o3pNs8Kd7+buJ+8mZ+7x/+rBw+7iA7cSchYRLN0AiKSkhKC8aKTEYP0UfZ24ybGw4dW0+bGg1fX4/YXVGjZxHl5tDsqJHztxNxM5Xlp5GXmIrXV05XF4sQD8ZXndKRlIkLSUTKSoXRVczS1wvaX06ZHE9S1giS08qSlg0QlcmPU0gy4Fi90NM+RQu8gUd5gAS4l5w6Mzg4bnU1q/GxqGmyoNwxH1qvHxqxYFs35h75J585J555qF455506J1z7J9x7qJx86x2+LmA+rmB+L6U+d/L/unsvnl6RFIlOkIxR1M4TVw/N0UkVGY0RFEkWlkuU2UuXFgyS00pTVUsY3RDeHo9k4VKZ3Q1V2IpfIEylJo8pKNLyb9PnJJCU2k0R1MkOjkgTlk0SF42PUwqXntGVGZBOEAeTlc0Tl86O1Iia2xC6KB745V15V1P6xwj7QQX6AEW4EFT6cLW5MTe2avFz42Cy4BiwndYwnVS7Jpu7J1v7KBw8KNu651n6Jxl66Br7at+9L6a+suz+dzT+fL098jS/FVt0ikwWV02RlMuOkUkYm1JOkklQEklVVMqQEwrPkkhT0ojZnU2Znk7Xmo4fXhUZHxYWnBDbX07fokyjZFIm4tNrq9NjJNHUFgsR1IpTmI7U2s/QVAsIigVSFQxPUopOkUkXWsoVFwjTV8wjHlN6JRw45Vx3ZNt24dh3V9G4TAs3QcS2Bgn5Y+g5cvh48HR3amz1JGZwHppxXRQ4Y5f759s55136JyI7J2P87Kt+MbL++Dn/PP4+enr9aOo90VT/i5B3Tg7RUIrKy0fHyEUTEo7UFMyWVs5Z2tOR1M3U14wU2AvmqdIrLRNaWgzbmlCaXdEgodDfIE9cHA2mZdQhoI/W2cpaG08R0opXWhCZXtQP00tMTYdHiESQU8qRVQrMTkaS1IlOz8cLDsdhmNG6pFr4o9p341l3Yxh3JBk3Y1i3HRSyjUnwgYJ0S8624iX5srX583i58/g4cHG477E6cja5cjo5sTs7cnl9djm+eHq+MHK9YCM9IKF9oOD+UpV/y5D4C02PScZJxsXIBsQUU1CNzUnU1o1cX9In55FqaxKk6I5mKI9f4k8WGEqWGMuVlw3ZWk2kpQ8jJBAqrJLfYU2Tl4jTlQjOkkwXHJNSVk2WmQ9LisaMCoZQksuN0MnEhQIMT0cPksiEhkKhVxB7JBo5Ith4Ile3ope345i4o9j5JNm4I1jv10/sBYMwA0S24eM1ExW3E5e3Wd233CD3nKJ3HSJ4HWJ63WG82Fx9DtN+Bsv+CY39mds9IKD9klV/ik/4yk2QTEeMSsaLzIYP0IwLTMaODoeTVoojpNGwLtQq7RKe4dEf4pPcoc/Z3o6V2M3XWk0hpE5lJ1EXmAsZWUraGstZWIsN0kpPU4rMjwbWmoqHycSMDwfMj0jLTceICcSISkQGiEMGiMJo3tM7Y1k5ope4oZb5Yle5Yxg441g5Yxf4IZazXFJu2FDtEo7v0A9twMJvQABxQAB0wAF1wAK1AAL2QAM4AAK5wAN7wQZ9RUq+Bsu8zhF7lVe9EFP/j5HzlhJR0syLS0cNDobZWxOZXFAVF8tQU0gaW5Cjn5PkIpUeoFOcXxDc4VJTV8vU2YuWnIscXs5o6tSgXVAgXdCZmU/NDcaPkgtQU4uNUghWGwrdo47QVQqJysUJSsUHB0QDA0GN0IdR1UdmXJK7oxh54dZ5IZY6Ipa64xe54td5IdY3HxPy2pDynldul0/tF9JfBgQcgcGuRoWyyEg0iUm1jM22SQq3Bsj4Rwi6ygt7kRG9EZD9V9S85N4+KB5/qZuu4NWR1AyJy0ZLi4gOT8nV2A+Ymw9U10sa2tHYFs9Q0soT1g1jo9IlpROYWYyWGcwZW01ralWvsBUxshTmptGaYBHNT8jRFg1UmQ6Q1EqZnUtTF8pLTcbMjwcOEIhKywUGB0LNDUbSlMrm3JN8Itd54VU44JR54dV7I5b7I1b5IVT1XJFzHFLyG1Lu1U0umxSbDcmbjIeu2hHwHRSw3pYwnxbw3dWxHdU0IFY3Y1f551r9652/LuC/MGJ/bqB/61yuYtsR0s3OD0mNTklRUc1dndnSEkucXpFc3tVXmhCWF05YmNMa2Q5npBMkIFBZ2I1a2w3b2w4eYRMboBRXGM7UlQtPT0fWnFBVGs8RFAmWl4tN0IkLC8aHyMUKi4bOUEjQUsiJywPDxYMil5C8YtZ6IRT5oFP6YRR7otZ7YtZ5INR0nBDzHJPyGtKuVIvplAyg0YzrFUzwW9MxHVSxXhSwHdUwnZSy3xV2ohc5ZVj8KFu+a13/LiE/LmE/bB6/qlyln9jPUUvPEQuPEItREkvXWFGNDMfWV48d4JRg4tZh4xggYZgWFE6TVI5NT0cQEQjX2M0SVkxKC8VPUUgamg5W2U7PEklP0spRFMoVlsuU2EzRFsyTV4/WGNEMzsiPkUmPEMeIisUGywPflo47olY6YJQ64FO7YNP8YdU7ohU4n5M0m1CyGA4wlczt04smEgtlUoyvWE7xHJNxnNOxHVPw3ROx3RM1X5R4Ytb7Jlk9aRs+7B6/LiF+7eC/65155llX11FTVRFRk47TFA4SkgzW1s+PkYpT1c2cXdTZW1Jfn9ZjZRjT1czN0UhVGQrTFUtRUwvWmk9R1IxNDwbVFo1XmVCP0gnQU8qVWo1V2U1RFMuS140Rlg1ICYVFxoMPkccO0IcLTYcFR4NZUYs7YdX6n9Q6X1K7IFL7oZQ7pRk43xL0Wc/xl02vVUvrkwqgTkjmkcrwWdBxnFIx3NLxXRMyHNKy3RG24JP6ZBc8Zxm+Khx/LF7/rN9/a93/6xzn3BGKC4YJigZLzgfSkozYFxMUVVETlg+Z29YbnNWSEs1SU00VVgxbmo8WGQzWWYzSFEpX2RGXGY9XWw8T1QyYmJCQzoiTEQnQ1gtWWo7Z3hNLjQdIiYTUFs5FRcNKS4TQU4jJCsTJy0SFiANVkAp64dX6n9Q6ntI7n5H7YBI7YZT43dJ0GI6wVQttEwpoksujU86qk8uxGpCyHBGx3FIxW9Gy3JG1nhH4oZS75Vg96Bo/Kly/q55/q92/6tu7ppjTEEoQ0QrR00qOj4iSEgsr62jbW9bRk40e4Jqb3VSX185YmhHXWQ5Wlw2Wlg6UlYxN0cfPk0jUlw3U1YwbmA/npJ1wrSZZF06HB8QKy8ZcYthVGdCFRoNKCoUQEclUmQ4TGUzTFk0EhUKHisOXlMv64dZ635Q63pK7n5I7H5H6n9K3XBBy1s0vVIsrUgnjDsicywWuVs1xW1CyHFGyHFGx25DznFC3XxI5ohT8ZZe+aBm/atx/axy/axx/6NkkF86Li8hPD0pPUEoTFEvUk4xtaiVYGVHTFQyYmlIZGdITlMvW2JCUVY2R0QsY1I7XFM5OzodTlQuQkouUmA2XGI2TFAnnpJwppV4NyweOCsbQkEwRUYrMDAWNzEaXWdBQlktUGU2YX1APkkeP1IkZGg/4IVW7oBR7XxL8H9K74BJ6nxG2ms8xlgwulArpkUkhjQZlkIlu182xW1CyG9FyG1DyWtA1XVC4H9I6IdQ8JVd+qRp/atv/axw/6twvntQMzEdNTkkMDQaNDQiS1IyXmM9XFw+aGdLhIJmaWtObHNSUVsyX2M7Vlw7SD4rZVk8hnZZQzYhUU4uMTkdXWc8Yl89eWxVZlw9oYhxOjUcRj4gOSsaQzwhPkYnWWVES1cyJzMXPEokRVkpWWcsN0EfLDUYxXVK74RT7XpJ8ntH8n5I6npH2Wo9xlYvtk0qoUQlljwfunVdvmI8xm1Dx2xDx2g/y2o92HZB4oFI7YlP9Zld+6Vp/ahq/qpq8JxlXEMwNCoaPDUfNzAfOTkjXFxBaWo+UlY3T1Q1qaSMq6qUUlw1VkwzVEUyU1M0UEIrQzEhRTgjOzogPTYhRD8hbFk4VU41fHFSpY9tj3hfKSEUPC8bQ0smVWE3SUotKS4aPDsbHB4OHiUTQVclOkEZKzUSIisPsmlC84RT63lJ8YNQ9YVP7nlG2GU6xlQttUooo0Mko0IiomNLxWg/ynBFyWpAyGc90G0+3ndA6YRI8o5Q+phY/6Jg/6Ri/qFghGEzPjwmPzkmNjAbMCkaPi8dVEs2aGk5aGdDWlg9fndehYdnUFAyXFE/OzUiPj8mTEgpOi0fOy8ccWdFQ0IrOj0fXFgsVU4wS0UsbmRBX1M/Jx4SNi8eLi4YLSUYEw0JFA8JGRUKJB8QPEswRFMpGhwMGSENHioRkVU33XpO1W9F23JI33RG2nBCxlw2tE0qo0Mklj4hl0Ikh0QotF04t2Y/tF03tlw2vWM3ym061nlE3oNK5I1T55FV6ZFUunZCQEcgT0oxLzUeMT0bKigYOzEhR0UsYWY2PjkgUEY5fHZoUFA3OzMiVEg3SkMxPzgmOTQgNzsiHhsOSD4qW081NDcaUFQpUU0qPzYkSEIpQzgp";
+    }
+  });
+
+  // sim/shims/fs.js
+  var require_fs = __commonJS({
+    "sim/shims/fs.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var img1B64 = require_img1();
+      var img2B64 = require_img2();
+      function b64ToBytes(b64) {
+        const bin = window.atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes;
+      }
+      var img1Bin = null;
+      var img2Bin = null;
+      function readFileSync(p, encoding) {
+        if (/img1\.bin$/.test(p)) return img1Bin || (img1Bin = b64ToBytes(img1B64));
+        if (/img2\.bin$/.test(p)) return img2Bin || (img2Bin = b64ToBytes(img2B64));
+        const v = window.localStorage.getItem("simfs:" + p);
+        if (v === null) {
+          const e = new Error("ENOENT: " + p);
+          e.code = "ENOENT";
+          throw e;
+        }
+        if (encoding) return v;
+        return new Uint8Array(JSON.parse(v));
+      }
+      function writeFileSync(p, data) {
+        window.localStorage.setItem("simfs:" + p, typeof data === "string" ? data : JSON.stringify(Array.from(data)));
+      }
+      function existsSync(p) {
+        return window.localStorage.getItem("simfs:" + p) !== null;
+      }
+      function unlinkSync(p) {
+        window.localStorage.removeItem("simfs:" + p);
+      }
+      module.exports = { readFileSync, writeFileSync, existsSync, unlinkSync };
+    }
+  });
+
+  // src/pulseEnv.js
+  var require_pulseEnv = __commonJS({
+    "src/pulseEnv.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var fs = require_fs();
+      var _pulseEnvCache = null;
+      function findPulseEnv() {
+        if (_pulseEnvCache) return { env: _pulseEnvCache };
+        const debug = [];
+        const runUser = "/run/user";
+        let entries;
+        try {
+          entries = fs.readdirSync(runUser);
+          debug.push(`readdirSync(${runUser}) -> [${entries.join(", ")}]`);
+        } catch (err) {
+          debug.push(`readdirSync(${runUser}) threw: ${err.code || ""} ${err.message}`);
+          return { debug };
+        }
+        for (const uid of entries) {
+          const sock = `${runUser}/${uid}/pulse/native`;
+          let exists;
+          try {
+            exists = fs.existsSync(sock);
+          } catch (err) {
+            exists = false;
+            debug.push(`existsSync(${sock}) threw: ${err.message}`);
+          }
+          debug.push(`existsSync(${sock}) -> ${exists}`);
+          if (!exists) continue;
+          let home = null;
+          try {
+            const passwd = fs.readFileSync("/etc/passwd", "utf8");
+            for (const line of passwd.split("\n")) {
+              const fields = line.split(":");
+              if (fields[2] === uid) {
+                home = fields[5] || null;
+                break;
+              }
+            }
+            debug.push(`home for uid ${uid} -> ${home}`);
+          } catch (err) {
+            debug.push(`readFileSync(/etc/passwd) threw: ${err.message}`);
+          }
+          _pulseEnvCache = { PULSE_SERVER: "unix:" + sock, XDG_RUNTIME_DIR: `${runUser}/${uid}`, ...home ? { HOME: home } : {} };
+          return { env: _pulseEnvCache };
+        }
+        return { debug };
+      }
+      module.exports = { findPulseEnv };
+    }
+  });
+
+  // src/effects/radio/ffmpegAudio.js
+  var require_ffmpegAudio = __commonJS({
+    "src/effects/radio/ffmpegAudio.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { spawn } = require_child_process();
+      var { createAnalyser, BAND_COUNT } = require_fft();
+      var { findPulseEnv } = require_pulseEnv();
+      var RETRY_COOLDOWN_MS = 8e3;
+      var IDLE_TIMEOUT_MS = 1e4;
+      var IDLE_CHECK_MS = 3e3;
+      var SAMPLE_RATE = 44100;
+      var CHANNELS = 2;
+      var ANALYSIS_HZ = 60;
+      var WINDOW_VU = 2048;
+      var VU_DB_FLOOR = -42;
+      var RING_SAMPLES = 1 << 16;
+      var DEFAULT_SYNC_MS = 150;
+      var MAX_SYNC_MS = 800;
+      var STALL_MS = 400;
+      var ATTACK_RATE = 60;
+      var RELEASE_RATE = 7;
+      var PEAK_HOLD_S = 0.35;
+      var PEAK_GRAVITY = 3.2;
+      var RadioAudio = class {
+        constructor(spawnFn = spawn) {
+          this._spawn = spawnFn;
+          this.decodeProc = null;
+          this.playProc = null;
+          this.url = null;
+          this._ring = new Float32Array(RING_SAMPLES);
+          this._ringL = new Float32Array(RING_SAMPLES);
+          this._ringR = new Float32Array(RING_SAMPLES);
+          this.vu = new Float32Array(4);
+          this._vuHold = new Float32Array(2);
+          this._vuVel = new Float32Array(2);
+          this._writePos = 0;
+          this._playPos = 0;
+          this._carry = null;
+          this._lastDataMs = 0;
+          this._analyser = createAnalyser(SAMPLE_RATE);
+          this._zeros = new Float32Array(BAND_COUNT);
+          this._analysisTimer = null;
+          this._syncS = DEFAULT_SYNC_MS / 1e3;
+          this.status = "Stopped";
+          this.playbackStatus = "No playback attempted";
+          this.lastAttemptMs = 0;
+          this.lastEnsureMs = 0;
+          this.errored = false;
+          this._debugFinished = false;
+          this.spec = new Float32Array(BAND_COUNT);
+          this.peak = new Float32Array(BAND_COUNT);
+          this._peakVel = new Float32Array(BAND_COUNT);
+          this._peakHold = new Float32Array(BAND_COUNT);
+          this._idleTimer = setInterval(() => this._checkIdle(), IDLE_CHECK_MS);
+          if (this._idleTimer.unref) this._idleTimer.unref();
+        }
+        // Call every tick the radio effect is active and a station is selected.
+        // Empty/falsy url tears everything down.
+        ensure(url) {
+          this.lastEnsureMs = Date.now();
+          if (!url) {
+            this._teardown();
+            this.url = null;
+            this.status = "Stopped";
+            this.playbackStatus = "No playback attempted";
+            return;
+          }
+          if (this.decodeProc && this.url === url) return;
+          if (this.url !== url) {
+            this._teardown();
+            this.url = url;
+            this.errored = false;
+            this._launch(url);
+            return;
+          }
+          if (this._debugFinished) return;
+          if (this.errored && Date.now() - this.lastAttemptMs < RETRY_COOLDOWN_MS) return;
+          this._launch(url);
+        }
+        _launch(url) {
+          this.lastAttemptMs = Date.now();
+          this._ring.fill(0);
+          this._ringL.fill(0);
+          this._ringR.fill(0);
+          this.vu.fill(0);
+          this._writePos = 0;
+          this._playPos = 0;
+          this._carry = null;
+          this._startAnalysisClock();
+          this.spec.fill(0);
+          this.peak.fill(0);
+          this._peakVel.fill(0);
+          const isDebug = url.startsWith("debug:") || url.startsWith("debugloop:");
+          const isLoop = url.startsWith("debugloop:");
+          this._isDebugSource = isDebug;
+          this._isDebugLoop = isLoop;
+          const lavfiSpec = isDebug ? url.slice(isLoop ? "debugloop:".length : "debug:".length) : null;
+          let proc;
+          try {
+            proc = this._spawn("ffmpeg", isDebug ? [
+              "-loglevel",
+              "error",
+              // A real report: "the BT speaker goes quickly from mid-low to
+              // mid-high in 1 second [...] the bars seem to follow the BT
+              // speaker more" - a synthetic lavfi source (unlike a real network
+              // stream, which is naturally paced by how fast bytes arrive over
+              // the network) gets generated as fast as the CPU allows, not in
+              // real time - ffmpeg would render the whole 60s sweep in a
+              // fraction of a second. That flooded _onData() far faster than
+              // paplay could drain its stdin, and the backpressure fix earlier
+              // in this session (which DROPS data rather than buffering it
+              // without bound) discarded most of the sweep, leaving only a
+              // fast, jumbled fragment for both playback AND the FFT/bars (fed
+              // from the same decode stream) to follow. `-re` makes ffmpeg
+              // read/generate the input at its own native frame rate, pacing
+              // the whole pipeline to real time - the same way a real stream's
+              // network delivery already does.
+              "-re",
+              "-f",
+              "lavfi",
+              "-i",
+              lavfiSpec,
+              "-vn",
+              "-f",
+              "s16le",
+              "-acodec",
+              "pcm_s16le",
+              "-ar",
+              String(SAMPLE_RATE),
+              "-ac",
+              String(CHANNELS),
+              "pipe:1"
+            ] : [
+              "-loglevel",
+              "error",
+              "-i",
+              url,
+              "-vn",
+              "-f",
+              "s16le",
+              "-acodec",
+              "pcm_s16le",
+              "-ar",
+              String(SAMPLE_RATE),
+              "-ac",
+              String(CHANNELS),
+              "pipe:1"
+            ], { stdio: ["ignore", "pipe", "pipe"] });
+          } catch (err) {
+            this._onSpawnFail(err);
+            return;
+          }
+          this.decodeProc = proc;
+          this.status = "Connecting\u2026";
+          let stderrTail = "";
+          proc.on("error", (err) => this._onSpawnFail(err, proc));
+          if (proc.stderr) proc.stderr.on("data", (d) => {
+            stderrTail = (stderrTail + d.toString()).slice(-4e3);
+          });
+          if (proc.stdout) proc.stdout.on("data", (chunk) => {
+            if (proc === this.decodeProc) this._onData(chunk);
+          });
+          proc.on("exit", (code) => {
+            if (proc !== this.decodeProc) return;
+            const wasDebug = this._isDebugSource;
+            const wasLoop = this._isDebugLoop;
+            this.decodeProc = null;
+            this._teardownPlayback();
+            if (wasDebug && code === 0) {
+              this.status = "Stopped";
+              if (!wasLoop) {
+                this._debugFinished = true;
+                this._stopAnalysisClock();
+                this.spec.fill(0);
+                this.peak.fill(0);
+                this._peakVel.fill(0);
+              }
+              return;
+            }
+            this.errored = true;
+            const lastLine = stderrTail.trim().split("\n").filter(Boolean).pop();
+            this.status = "Error \u2014 ffmpeg exited (" + (lastLine || `code ${code}`) + ")";
+            if (this.status !== this._lastLoggedStatus) {
+              this._lastLoggedStatus = this.status;
+              console.warn(`[radio] stream failed (${url}): ${lastLine || "code " + code}`);
+            }
+          });
+          this._launchPlayback();
+        }
+        // Second process: reads the SAME PCM chunks this._onData() also feeds to
+        // the FFT (see _onData below) and plays them out via PulseAudio's
+        // `paplay --raw`, which uses whatever sink is currently default - the
+        // sink bluetooth.js's routePhoneAudio()/the Setup panel's pairing flow
+        // already arranges to be the paired Bluetooth speaker. Deliberately does
+        // NOT hunt for a bluez_sink itself and pass --device - PulseAudio's
+        // default-sink concept is exactly what "already paired via Setup" means
+        // in this project, so respecting it (rather than second-guessing it) is
+        // the simplest correct choice.
+        _launchPlayback() {
+          let proc;
+          try {
+            const pulseResult = findPulseEnv();
+            const env = pulseResult.env ? { ...define_process_env_default, ...pulseResult.env } : define_process_env_default;
+            const args = ["--raw", "--format=s16le", "--rate=" + SAMPLE_RATE, "--channels=" + CHANNELS];
+            if (pulseResult.env) args.unshift("--server=" + pulseResult.env.PULSE_SERVER);
+            proc = this._spawn("paplay", args, { stdio: ["pipe", "ignore", "pipe"], env });
+          } catch (err) {
+            this._onPlaybackFail(err);
+            return;
+          }
+          this.playProc = proc;
+          this.playbackStatus = "Starting playback\u2026";
+          let stderrTail = "";
+          proc.on("error", (err) => this._onPlaybackFail(err, proc));
+          if (proc.stderr) proc.stderr.on("data", (d) => {
+            stderrTail = (stderrTail + d.toString()).slice(-2e3);
+          });
+          if (proc.stdin) proc.stdin.on("error", () => {
+          });
+          this._playDrained = true;
+          if (proc.stdin) {
+            proc.stdin.on("drain", () => {
+              this._playDrained = true;
+            });
+          }
+          proc.on("exit", (code) => {
+            if (this.playProc !== proc) return;
+            this.playProc = null;
+            if (code !== 0 && code !== null) {
+              const lastLine = stderrTail.trim().split("\n").filter(Boolean).pop();
+              this.playbackStatus = "Playback stopped \u2014 " + (lastLine || `paplay exited (code ${code})`);
+              console.warn("[radio] " + this.playbackStatus);
+            }
+          });
+        }
+        _onPlaybackFail(err, proc) {
+          if (proc && proc !== this.playProc) return;
+          this.playProc = null;
+          if (err && err.code === "ENOENT") {
+            this.playbackStatus = "paplay not found \u2014 install with: sudo apt install pulseaudio-utils";
+          } else {
+            this.playbackStatus = "No audio output \u2014 " + (err && err.message || "failed to start paplay") + " (visualizer still works)";
+          }
+        }
+        _onSpawnFail(err, proc) {
+          if (proc && proc !== this.decodeProc) return;
+          this.decodeProc = null;
+          this.errored = true;
+          if (err && err.code === "ENOENT") {
+            this.status = "ffmpeg not found \u2014 install with: sudo apt install ffmpeg";
+          } else {
+            this.status = "Error \u2014 " + (err && err.message || "failed to start ffmpeg");
+          }
+        }
+        _onData(chunk) {
+          if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && this._playDrained) {
+            try {
+              this._playDrained = this.playProc.stdin.write(chunk);
+            } catch (e) {
+            }
+          }
+          let buf = chunk;
+          if (this._carry && this._carry.length) {
+            buf = Buffer2.concat([this._carry, chunk]);
+            this._carry = null;
+          }
+          const frames = buf.length / 4 | 0;
+          const ring = this._ring, mask = ring.length - 1;
+          let w = this._writePos;
+          const ringL = this._ringL, ringR = this._ringR;
+          for (let i = 0; i < frames; i++) {
+            const l = buf.readInt16LE(i * 4) / 32768, r = buf.readInt16LE(i * 4 + 2) / 32768;
+            ringL[w & mask] = l;
+            ringR[w & mask] = r;
+            ring[w & mask] = (l + r) / 2;
+            w++;
+          }
+          this._writePos = w;
+          if (buf.length > frames * 4) this._carry = Buffer2.from(buf.subarray(frames * 4));
+          if (frames > 0) {
+            this._lastDataMs = performance.now();
+            if (this.status === "Connecting\u2026") this.status = "Playing";
+          }
+        }
+        // Clock-driven analysis (redone for smoothness). Previously each
+        // 2048-sample block was analysed the moment it arrived: only ~21 updates
+        // a second (bars moved in visible steps at a 60Hz render), and at the
+        // mercy of network bursts - a burst of blocks arriving together made the
+        // bars jump ahead of what you hear, then freeze. Now decoded audio goes
+        // into a ring buffer, and a steady ANALYSIS_HZ clock analyses the most
+        // recent window at a "play cursor" that advances in real time, kept a
+        // fixed sync delay behind the newest data (absorbing bursts). Result:
+        // 60 fresh spectra a second, evenly spaced, from a sliding window.
+        _startAnalysisClock() {
+          if (this._analysisTimer) return;
+          this._lastTickMs = performance.now();
+          this._analysisTimer = setInterval(() => this._analysisTick(), 1e3 / ANALYSIS_HZ);
+          if (this._analysisTimer.unref) this._analysisTimer.unref();
+        }
+        _stopAnalysisClock() {
+          if (this._analysisTimer) clearInterval(this._analysisTimer);
+          this._analysisTimer = null;
+        }
+        _analysisTick() {
+          const now = performance.now();
+          const dt = Math.max(1e-3, Math.min(0.1, (now - this._lastTickMs) / 1e3));
+          this._lastTickMs = now;
+          const win = this._analyser.win;
+          const w = this._writePos;
+          let target;
+          if (w < win || now - this._lastDataMs > STALL_MS) {
+            target = this._zeros;
+          } else {
+            const lag = this._syncS * SAMPLE_RATE;
+            if (!(this._playPos > 0)) this._playPos = w - lag;
+            this._playPos += dt * SAMPLE_RATE;
+            this._playPos += (w - lag - this._playPos) * Math.min(1, dt * 2);
+            const lo = w - this._ring.length + win, hi = w;
+            if (this._playPos > hi) this._playPos = hi;
+            if (this._playPos < lo) this._playPos = lo;
+            if (this._playPos < win) {
+              target = this._zeros;
+            } else target = this._analyser.analyse(this._ring, Math.floor(this._playPos));
+          }
+          this._lastTarget = target;
+          this._applySpectrumTarget(target, dt);
+          this._updateVu(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
+        }
+        // Stereo VU: RMS of each channel over the analysis window, on a dB scale
+        // (VU_DB_FLOOR..0dB full-scale sine -> 0..1), with meter ballistics - a
+        // quick rise, slow fall, and peak markers that hold then drop.
+        _updateVu(end, dt) {
+          const win = WINDOW_VU, mask = this._ring.length - 1;
+          for (let ch = 0; ch < 2; ch++) {
+            let target = 0;
+            if (end >= win) {
+              const ring = ch === 0 ? this._ringL : this._ringR;
+              let sum = 0;
+              for (let i = end - win; i < end; i++) {
+                const v = ring[i & mask];
+                sum += v * v;
+              }
+              const rms = Math.sqrt(sum / win);
+              const db = rms > 1e-6 ? 20 * Math.log10(rms * Math.SQRT2) : -Infinity;
+              target = Math.max(0, Math.min(1, (db - VU_DB_FLOOR) / -VU_DB_FLOOR));
+            }
+            const cur = this.vu[ch];
+            this.vu[ch] = cur + (target - cur) * Math.min(1, dt * (target > cur ? 30 : 3.5));
+            if (this.vu[ch] >= this.vu[ch + 2]) {
+              this.vu[ch + 2] = this.vu[ch];
+              this._vuHold[ch] = 0.8;
+              this._vuVel[ch] = 0;
+            } else if (this._vuHold[ch] > 0) this._vuHold[ch] -= dt;
+            else {
+              this._vuVel[ch] += dt * 1.5;
+              this.vu[ch + 2] = Math.max(this.vu[ch], this.vu[ch + 2] - this._vuVel[ch] * dt);
+            }
+          }
+        }
+        // Ballistics: near-instant attack so hits land on the beat, a smooth
+        // exponential release, and peak markers that hold briefly then fall
+        // with gravity - the classic analyser feel. (The old attack of dt*11
+        // added ~90ms of lag to every hit.)
+        _applySpectrumTarget(target, dt) {
+          const attack = Math.min(1, dt * ATTACK_RATE), release = Math.min(1, dt * RELEASE_RATE);
+          for (let b = 0; b < BAND_COUNT; b++) {
+            const t = target[b], s = this.spec[b];
+            this.spec[b] = s + (t - s) * (t > s ? attack : release);
+            if (this.spec[b] >= this.peak[b]) {
+              this.peak[b] = this.spec[b];
+              this._peakVel[b] = 0;
+              this._peakHold[b] = PEAK_HOLD_S;
+            } else if (this._peakHold[b] > 0) this._peakHold[b] -= dt;
+            else {
+              this._peakVel[b] += dt * PEAK_GRAVITY;
+              this.peak[b] = Math.max(this.spec[b], this.peak[b] - this._peakVel[b] * dt);
+            }
+          }
+        }
+        getStatus() {
+          return this.status;
+        }
+        getPlaybackStatus() {
+          return this.playbackStatus;
+        }
+        // Re-opens the playback process so it attaches to PulseAudio's CURRENT
+        // default output. A playback stream stays on whatever output was default
+        // when it started, so a station resumed at startup (before the Bluetooth
+        // speaker reconnected) kept playing to the Pi's own output even after
+        // the speaker became the default. Called when the audio output changes.
+        restartPlayback() {
+          if (!this.decodeProc) return;
+          this._teardownPlayback();
+          this._launchPlayback();
+        }
+        // Speaker sync delay (see DEFAULT_SYNC_MS). Clamped so the analysis
+        // window always stays inside the ring buffer.
+        setSyncMs(ms) {
+          const v = Number.isFinite(ms) ? Math.max(0, Math.min(MAX_SYNC_MS, ms)) : DEFAULT_SYNC_MS;
+          this._syncS = v / 1e3;
+        }
+        // Clears the "one-shot debug tone already finished" latch - called on
+        // every genuine new play request (see radio.js's playStation()).
+        clearDebugFinished() {
+          this._debugFinished = false;
+        }
+        // Plain, structured-clone-friendly copy of what the render side reads -
+        // see RemoteAudio below.
+        snapshot() {
+          return { spec: this.spec, peak: this.peak, vu: this.vu, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs };
+        }
+        _checkIdle() {
+          if (this.decodeProc && !this._isDebugSource && Date.now() - this.lastEnsureMs > IDLE_TIMEOUT_MS) {
+            this._teardown();
+            this.url = null;
+            this.status = "Stopped";
+            this.playbackStatus = "No playback attempted";
+          }
+        }
+        _teardownPlayback() {
+          if (this.playProc) {
+            try {
+              this.playProc.stdin && this.playProc.stdin.end();
+            } catch (e) {
+            }
+            try {
+              this.playProc.kill("SIGKILL");
+            } catch (e) {
+            }
+            this.playProc = null;
+          }
+        }
+        _teardown() {
+          if (this.decodeProc) {
+            try {
+              this.decodeProc.kill("SIGKILL");
+            } catch (e) {
+            }
+            this.decodeProc = null;
+          }
+          this._teardownPlayback();
+          this._stopAnalysisClock();
+          this.spec.fill(0);
+          this.peak.fill(0);
+          this.vu.fill(0);
+        }
+        close() {
+          clearInterval(this._idleTimer);
+          this._teardown();
+        }
+      };
+      var RemoteAudio = class {
+        constructor() {
+          this.spec = new Float32Array(BAND_COUNT);
+          this.peak = new Float32Array(BAND_COUNT);
+          this.vu = new Float32Array(4);
+          this.status = "Stopped";
+          this.playbackStatus = "No playback attempted";
+          this.lastAttemptMs = 0;
+          this.url = null;
+          this.ensureCount = 0;
+          this.clearCount = 0;
+        }
+        ensure(url) {
+          this.url = url || null;
+          this.ensureCount++;
+        }
+        setSyncMs(ms) {
+          this.syncMs = ms;
+        }
+        clearDebugFinished() {
+          this.clearCount++;
+        }
+        getStatus() {
+          return this.status;
+        }
+        getPlaybackStatus() {
+          return this.playbackStatus;
+        }
+        applySnapshot(snap) {
+          if (!snap) return;
+          if (snap.spec && snap.spec.length === BAND_COUNT) this.spec.set(snap.spec);
+          if (snap.peak && snap.peak.length === BAND_COUNT) this.peak.set(snap.peak);
+          if (snap.vu && snap.vu.length === 4) this.vu.set(snap.vu);
+          this.status = snap.status;
+          this.playbackStatus = snap.playbackStatus;
+          this.lastAttemptMs = snap.lastAttemptMs;
+        }
+        request() {
+          return { url: this.url, ensureCount: this.ensureCount, clearCount: this.clearCount, syncMs: this.syncMs };
+        }
+        close() {
+        }
+      };
+      function applyRemoteRequest(audio, req, seen) {
+        if (!req) return seen;
+        if (audio.setSyncMs) audio.setSyncMs(req.syncMs);
+        if (req.clearCount !== seen.clearCount) audio.clearDebugFinished();
+        if (req.ensureCount !== seen.ensureCount) audio.ensure(req.url);
+        return { ensureCount: req.ensureCount, clearCount: req.clearCount };
+      }
+      module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, BAND_COUNT: require_fft().BAND_COUNT };
+    }
+  });
+
+  // src/effects/trail.js
+  var require_trail = __commonJS({
+    "src/effects/trail.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var TUNED_HZ = 30;
+      function trailFade(k, dt) {
+        return Math.pow(k, dt * TUNED_HZ);
+      }
+      module.exports = { trailFade, TUNED_HZ };
+    }
+  });
+
+  // src/effects/radio/vuMeter.js
+  var require_vuMeter = __commonJS({
+    "src/effects/radio/vuMeter.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      function vuLevels(ctx) {
+        if (ctx.vu && ctx.vu.length === 4) return ctx.vu;
+        let lvl = 0;
+        for (let b = 0; b < Math.min(8, ctx.bands); b++) lvl += ctx.amp(b);
+        lvl = Math.min(1, lvl / 4);
+        return [lvl, lvl, lvl, lvl];
+      }
+      function segColour(frac) {
+        return frac < 0.6 ? hsl(0.33, 1, 0.42) : frac < 0.85 ? hsl(0.13, 1, 0.45) : hsl(0, 1, 0.45);
+      }
+      function drawMeter(plot, x0, x1, H, level, peak) {
+        const seg = H >= 32 ? 4 : H >= 16 ? 3 : 2;
+        const nSeg = Math.floor(H / seg);
+        const lit = Math.round(level * nSeg), pk = Math.min(nSeg - 1, Math.round(peak * nSeg) - 1);
+        for (let s = 0; s < nSeg; s++) {
+          const frac = (s + 0.5) / nSeg;
+          const c = segColour(frac);
+          const k = s < lit ? 1 : s === pk && peak > 0.02 ? 0.9 : 0.07;
+          for (let dy = 0; dy < seg - 1; dy++) {
+            const y = s * seg + dy;
+            for (let x = x0; x <= x1; x++) plot(x, y, c[0] * k, c[1] * k, c[2] * k);
           }
         }
       }
-      function drawGlyph5x7Face(core, face, ch, su, sv, rgb) {
-        return drawGlyph(FONT_5x7, ch, su, sv - 6, facePlot(core, face, rgb[0], rgb[1], rgb[2]), { flipY: true });
+      module.exports = { vuLevels, drawMeter, segColour };
+    }
+  });
+
+  // src/effects/radio/spectrum.js
+  var require_spectrum = __commonJS({
+    "src/effects/radio/spectrum.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      var { trailFade } = require_trail();
+      var { vuLevels, drawMeter, segColour } = require_vuMeter();
+      function auColor(theme, fb, fh, amp, t) {
+        switch (theme) {
+          case 1:
+            return hsl(0.02 + fh * 0.12, 1, 0.16 + fh * 0.42 + amp * 0.08);
+          // Fire
+          case 2:
+            return hsl(0.62 - fh * 0.14, 0.95, 0.16 + fh * 0.4 + amp * 0.08);
+          // Ocean
+          case 3:
+            return hsl((fb * 256 | 0) % 2 ? 0.86 : 0.5, 1, 0.22 + fh * 0.35 + amp * 0.1);
+          // Neon
+          case 4:
+            return hsl(0.34, 1, 0.1 + fh * 0.5 + amp * 0.06);
+          // Matrix
+          case 5:
+            return hsl(fb * 0.85 + t * 0.05, 0.55, 0.35 + fh * 0.35 + amp * 0.08);
+          // Pastel
+          case 6: {
+            const yellowAt = 0.75;
+            const hue = fh < yellowAt ? 0.34 - (0.34 - 0.15) * (fh / yellowAt) : 0.15 - 0.15 * ((fh - yellowAt) / (1 - yellowAt));
+            const light = Math.min(0.72, 0.2 + fh * 0.34 + amp * 0.18);
+            return hsl(hue, 1, light);
+          }
+          default:
+            return hsl(fb * 0.85, 1, 0.18 + fh * 0.38 + amp * 0.1);
+        }
       }
-      function outlineOf(plot) {
-        return (x, y) => {
-          plot(x - 1, y);
-          plot(x + 1, y);
-          plot(x, y - 1);
-          plot(x, y + 1);
+      function sideCol(core, c) {
+        const S = core.SIZE, q = (c / S | 0) % 4, u = (c % S + S) % S;
+        if (q === 0) return [0, u];
+        if (q === 1) return [2, u];
+        if (q === 2) return [1, u];
+        return [3, u];
+      }
+      function scrolledBand(c, cols, bands, scrollX) {
+        const sc = (c + ((scrollX || 0) | 0) + cols) % cols;
+        return Math.min(bands - 1, sc * bands / cols | 0);
+      }
+      function auBloom(core, face, u, y, col, coreAmt) {
+        const S = core.SIZE;
+        if (y < 0 || y >= S || u < 0 || u >= S) return;
+        const idx = core.faceMap[face][y * S + u];
+        if (idx < 0) return;
+        const c0 = Math.min(1, col[0] * coreAmt), c1 = Math.min(1, col[1] * coreAmt), c2 = Math.min(1, col[2] * coreAmt);
+        const cb = core.colBuf, o = idx * 3;
+        cb[o] = Math.max(cb[o], c0);
+        cb[o + 1] = Math.max(cb[o + 1], c1);
+        cb[o + 2] = Math.max(cb[o + 2], c2);
+      }
+      function auGlowAround(core, face, u, y, col, spread, strength) {
+        const S = core.SIZE, cb = core.colBuf;
+        for (let g = 1; g <= spread; g++) {
+          const fade = strength * (1 - g / (spread + 1));
+          for (const dy of [g, -g]) {
+            const yy = y + dy;
+            if (yy < 0 || yy >= S) continue;
+            const idx = core.faceMap[face][yy * S + u];
+            if (idx < 0) continue;
+            const r = col[0] * fade, g2 = col[1] * fade, b = col[2] * fade;
+            const o = idx * 3;
+            if (r > cb[o]) cb[o] = r;
+            if (g2 > cb[o + 1]) cb[o + 1] = g2;
+            if (b > cb[o + 2]) cb[o + 2] = b;
+          }
+        }
+      }
+      function auDrawPeakCap(core, face, u, y, tint) {
+        const glow = [0.3 + tint[0] * 0.8, 0.3 + tint[1] * 0.8, 0.3 + tint[2] * 0.8];
+        auBloom(core, face, u, y, glow, 1);
+        auGlowAround(core, face, u, y, tint, 1, 0.25);
+      }
+      var _polarLut = { S: 0, r: null, ang: null };
+      function polarLut(S) {
+        if (_polarLut.S !== S) {
+          const cc = (S - 1) / 2, maxR = cc * 1.08;
+          const r = new Float32Array(S * S), ang = new Float32Array(S * S);
+          for (let v = 0; v < S; v++) {
+            for (let u = 0; u < S; u++) {
+              const dx = u - cc, dz = v - cc;
+              r[v * S + u] = Math.hypot(dx, dz) / maxR;
+              ang[v * S + u] = Math.atan2(dz, dx) / (Math.PI * 2) + 0.5;
+            }
+          }
+          Object.assign(_polarLut, { S, r, ang });
+        }
+        return _polarLut;
+      }
+      function drawPolarFace(core, ctx, face) {
+        const S = core.SIZE, { r: R, ang: A } = polarLut(S);
+        const bands = ctx.bands, amps = ctx.ampArr, peaks = ctx.peakArr;
+        const bass = (amps[0] + amps[Math.min(1, bands - 1)] + amps[Math.min(2, bands - 1)]) / 3;
+        const rot = ctx.t * 0.03, flashR = bass * 0.22;
+        for (let v = 0; v < S; v++) {
+          for (let u = 0; u < S; u++) {
+            const i = v * S + u, r = R[i];
+            if (r < flashR) {
+              core.setFaceLED(face, u, v, 1, 1, 1);
+              continue;
+            }
+            const b = Math.min(bands - 1, (A[i] + rot) % 1 * bands | 0);
+            const amp = amps[b];
+            if (r <= amp) {
+              const col = auColor(ctx.theme, b / (bands - 1), 1 - r / Math.max(0.01, amp), amp, ctx.t);
+              core.setFaceLED(face, u, v, col[0], col[1], col[2]);
+            } else if (Math.abs(r - peaks[b]) < 0.045) {
+              core.setFaceLED(face, u, v, 0.8, 0.8, 0.85);
+            }
+          }
+        }
+      }
+      function drawBars(core, ctx, mirror) {
+        const S = core.SIZE, M = S - 1, mode = ctx.barMode || "solid";
+        const AB = ctx.bands;
+        const cols = core.panelMode === "2d" ? S : 4 * S;
+        const barW = Math.round(cols / AB);
+        for (let c = 0; c < cols; c++) {
+          if (S > 8 && barW > 1 && c % barW === barW - 1) continue;
+          const b = scrolledBand(c, cols, AB, ctx.scrollX);
+          const amp = ctx.amp(b), fb = b / (AB - 1);
+          const [face, u] = sideCol(core, c);
+          if (mirror) {
+            const mid = (S - 1) / 2, half = amp > 0 ? Math.max(0.5, amp * S * 0.5) : 0;
+            for (let y = 0; y < S; y++) {
+              const d = Math.abs(y - mid);
+              if (d <= half) {
+                const fh = half > 0 ? 1 - d / half : 0;
+                const edgeSoft = Math.min(1, (half - d + 1) * 0.6);
+                const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
+                if (mode === "striped" && y & 1) core.setFaceLED(face, u, y, col[0] * 0.15, col[1] * 0.15, col[2] * 0.15);
+                else core.setFaceLED(face, u, y, col[0] * edgeSoft, col[1] * edgeSoft, col[2] * edgeSoft);
+              }
+            }
+            const pk = ctx.peak(b) * S * 0.5;
+            const tint = auColor(ctx.theme, fb, 1, amp, ctx.t);
+            auDrawPeakCap(core, face, u, Math.min(M, Math.round(mid + pk)), tint);
+            auDrawPeakCap(core, face, u, Math.max(0, Math.round(mid - pk)), tint);
+            continue;
+          }
+          const waveOff = mode === "wave" ? Math.sin(c * 0.15 + ctx.t * 3) * M * 0.15 : 0;
+          const rawH = amp * M;
+          if (mode === "falling") {
+            const hi = Math.min(M, Math.round(rawH));
+            for (let y = 0; y <= hi; y++) {
+              const fy = M - y;
+              const fh = hi > 0 ? y / hi : 0;
+              const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
+              core.setFaceLED(face, u, fy, col[0], col[1], col[2]);
+            }
+            if (rawH > 0) {
+              const tp = auColor(ctx.theme, fb, 1, amp, ctx.t);
+              const tipY = Math.max(0, M - hi);
+              auBloom(core, face, u, tipY, tp, 1.5);
+              auGlowAround(core, face, u, tipY, tp, 2, 0.3);
+            }
+            auDrawPeakCap(core, face, u, Math.max(0, M - Math.round(ctx.peak(b) * M)), auColor(ctx.theme, fb, 1, amp, ctx.t));
+          } else if (mode === "center") {
+            const mid = (S - 1) / 2, half = rawH * 0.5;
+            for (let y = 0; y < S; y++) {
+              const d = Math.abs(y - mid);
+              if (d <= half) {
+                const fh = half > 0 ? 1 - d / half : 0;
+                const edgeSoft = Math.min(1, (half - d + 1) * 0.6);
+                const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
+                core.setFaceLED(face, u, y, col[0] * edgeSoft, col[1] * edgeSoft, col[2] * edgeSoft);
+              }
+            }
+            const pk = ctx.peak(b) * M * 0.5;
+            const tint = auColor(ctx.theme, fb, 1, amp, ctx.t);
+            auDrawPeakCap(core, face, u, Math.min(M, Math.round(mid + pk)), tint);
+            auDrawPeakCap(core, face, u, Math.max(0, Math.round(mid - pk)), tint);
+          } else if (mode === "stacked") {
+            const SEG = 4;
+            const segs = Math.round(rawH / SEG);
+            for (let s = 0; s < segs; s++) {
+              const yBase = s * SEG;
+              const fh = segs > 0 ? s / segs : 0;
+              const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
+              for (let dy = 0; dy < SEG - 1; dy++) {
+                const y = yBase + dy;
+                if (y > M) break;
+                const cellFrac = dy / (SEG - 2 || 1);
+                const bevel = 0.55 + 0.45 * Math.sin(cellFrac * Math.PI);
+                core.setFaceLED(face, u, y, col[0] * bevel, col[1] * bevel, col[2] * bevel);
+              }
+            }
+            const pkSeg = Math.round(ctx.peak(b) * M / SEG);
+            const tint = auColor(ctx.theme, fb, 1, amp, ctx.t);
+            for (let dy = 0; dy < SEG - 1; dy++) {
+              const y = pkSeg * SEG + dy;
+              if (y > M) break;
+              auBloom(core, face, u, y, tint, 1.3);
+            }
+          } else {
+            const h = rawH + waveOff, hi = Math.max(0, Math.min(M, Math.round(h)));
+            const frac = h - Math.floor(h);
+            if (amp > 0.05 && mode !== "striped") {
+              const hz = auColor(ctx.theme, fb, 0.6, amp, ctx.t), k = 0.05 * amp;
+              for (let y = hi + 1; y <= M; y++) {
+                const fall = k * (1 - (y - hi) / (M - hi + 1));
+                core.setFaceLED(face, u, y, hz[0] * fall, hz[1] * fall, hz[2] * fall);
+              }
+            }
+            for (let y = 0; y <= hi; y++) {
+              const fh = hi > 0 ? y / hi : 0;
+              const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
+              if (mode === "striped" && y & 1) {
+                core.setFaceLED(face, u, y, col[0] * 0.15, col[1] * 0.15, col[2] * 0.15);
+              } else {
+                const isTip = y === hi;
+                const bright = isTip ? Math.max(0.35, frac) : 1;
+                core.setFaceLED(face, u, y, col[0] * bright, col[1] * bright, col[2] * bright);
+              }
+            }
+            if (h > 0) {
+              const tp = auColor(ctx.theme, fb, 1, amp, ctx.t);
+              auBloom(core, face, u, hi, tp, 1.5);
+              auGlowAround(core, face, u, hi, tp, 2, 0.25);
+            }
+            auDrawPeakCap(core, face, u, Math.max(0, Math.min(M, Math.round(ctx.peak(b) * M + waveOff))), auColor(ctx.theme, fb, 1, amp, ctx.t));
+          }
+        }
+        drawPolarFace(core, ctx, 4);
+        drawPolarFace(core, ctx, 5);
+      }
+      function drawDots(core, ctx) {
+        const S = core.SIZE, M = S - 1;
+        const cols = core.panelMode === "2d" ? S : 4 * S;
+        for (let c = 0; c < cols; c++) {
+          const b = scrolledBand(c, cols, ctx.bands, ctx.scrollX);
+          const amp = ctx.amp(b), fb = b / (ctx.bands - 1);
+          const [face, u] = sideCol(core, c);
+          const h = amp * M;
+          const ly = Math.min(M, Math.round(h));
+          const spacing = Math.max(2, 3 - Math.round(amp * 1.4));
+          for (let y = 0; y <= ly; y += spacing) {
+            const fh = ly > 0 ? y / ly : 0;
+            const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
+            const isLead = y + spacing > ly;
+            const fade = isLead ? 1 : 0.35 + 0.45 * fh;
+            core.setFaceLED(face, u, y, col[0] * fade, col[1] * fade, col[2] * fade);
+            if (isLead) {
+              auBloom(core, face, u, y, col, 1.3);
+              auGlowAround(core, face, u, y, col, 2, 0.4);
+            }
+          }
+          const peakY = Math.min(M, Math.round(ctx.peak(b) * M));
+          auDrawPeakCap(core, face, u, peakY, auColor(ctx.theme, fb, 1, amp, ctx.t));
+        }
+        drawPolarFace(core, ctx, 4);
+        drawPolarFace(core, ctx, 5);
+      }
+      function drawBlocks(core, ctx) {
+        const S = core.SIZE, BLOCK = 4;
+        const cols = core.panelMode === "2d" ? S : 4 * S;
+        const bandW = Math.max(1, Math.floor(cols / ctx.bands));
+        const dcMax = bandW > 1 ? bandW - 1 : 1;
+        for (let b = 0; b < ctx.bands; b++) {
+          const amp = ctx.amp(b), fb = b / (ctx.bands - 1);
+          const blocks = Math.round(amp * (S / BLOCK));
+          for (let blk = 0; blk < blocks; blk++) {
+            const fh = blocks > 0 ? blk / blocks : 0;
+            const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
+            const isTopBlock = blk === blocks - 1;
+            const yBase = blk * BLOCK;
+            for (let dy = 0; dy < BLOCK - 1; dy++) {
+              const y = yBase + dy;
+              if (y >= S) break;
+              const cellFrac = dy / (BLOCK - 2 || 1);
+              const bevel = 0.6 + 0.4 * Math.sin(cellFrac * Math.PI);
+              for (let dc = 0; dc < dcMax; dc++) {
+                const c = b * bandW + dc;
+                if (c >= cols) break;
+                const [face, u] = sideCol(core, c);
+                core.setFaceLED(face, u, y, col[0] * bevel, col[1] * bevel, col[2] * bevel);
+              }
+            }
+            if (isTopBlock) {
+              for (let dc = 0; dc < dcMax; dc++) {
+                const c = b * bandW + dc;
+                if (c >= cols) break;
+                const [face, u] = sideCol(core, c);
+                auGlowAround(core, face, u, yBase + 1, col, 2, 0.3);
+              }
+            }
+          }
+          const pkBlk = Math.round(ctx.peak(b) * (S / BLOCK));
+          const pkY = pkBlk * BLOCK;
+          const tint = auColor(ctx.theme, fb, 1, amp, ctx.t);
+          for (let dy = 0; dy < BLOCK - 1; dy++) {
+            const y = pkY + dy;
+            if (y >= S) break;
+            for (let dc = 0; dc < dcMax; dc++) {
+              const c = b * bandW + dc;
+              if (c >= cols) break;
+              const [face, u] = sideCol(core, c);
+              auBloom(core, face, u, y, tint, 1.3);
+            }
+          }
+        }
+        drawPolarFace(core, ctx, 4);
+        drawPolarFace(core, ctx, 5);
+      }
+      function drawOutline(core, ctx) {
+        const S = core.SIZE, M = S - 1;
+        const cols = core.panelMode === "2d" ? S : 4 * S;
+        const pts = new Float32Array(cols);
+        for (let c = 0; c < cols; c++) {
+          const b = scrolledBand(c, cols, ctx.bands, ctx.scrollX);
+          pts[c] = ctx.amp(b) * M;
+        }
+        for (let c = 0; c < cols; c++) {
+          const b = scrolledBand(c, cols, ctx.bands, ctx.scrollX);
+          const fb = b / (ctx.bands - 1), amp = ctx.amp(b);
+          const [face, u] = sideCol(core, c);
+          const yHere = pts[c], yNext = pts[(c + 1) % cols];
+          const y0 = Math.round(yHere);
+          const col = auColor(ctx.theme, fb, 1, amp, ctx.t);
+          for (let y = 0; y < y0; y++) {
+            const fh = y0 > 0 ? y / y0 : 0;
+            const fillCol = auColor(ctx.theme, fb, fh, amp, ctx.t);
+            core.setFaceLED(face, u, y, fillCol[0] * 0.12, fillCol[1] * 0.12, fillCol[2] * 0.12);
+          }
+          const steps = Math.max(1, Math.abs(Math.round(yNext - yHere)));
+          for (let s = 0; s <= steps; s++) {
+            const yy = Math.round(yHere + (yNext - yHere) * (s / steps));
+            if (yy < 0 || yy > M) continue;
+            core.setFaceLED(face, u, yy, Math.min(1, col[0] * 1.3), Math.min(1, col[1] * 1.3), Math.min(1, col[2] * 1.3));
+          }
+          auGlowAround(core, face, u, y0, col, 3, 0.45);
+          auDrawPeakCap(core, face, u, Math.min(M, Math.round(ctx.peak(b) * M)), col);
+        }
+        drawPolarFace(core, ctx, 4);
+        drawPolarFace(core, ctx, 5);
+      }
+      function drawRadial(core, ctx, state) {
+        const S = core.SIZE, cc = (S - 1) / 2;
+        const bass = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
+        if (!state.radialRings) state.radialRings = [];
+        if (state.radialPrevBass === void 0) state.radialPrevBass = 0;
+        if (bass > 0.5 && state.radialPrevBass <= 0.5 && state.radialRings.length < 12) state.radialRings.push({ r: 0, hue: Math.random() });
+        state.radialPrevBass = bass;
+        for (const ring of state.radialRings) ring.r += ctx.dt * S * 0.85;
+        for (let k = state.radialRings.length - 1; k >= 0; k--) if (state.radialRings[k].r > S * 0.95) state.radialRings.splice(k, 1);
+        for (let f = 0; f < 4; f++) {
+          const face = [0, 2, 1, 3][f];
+          for (let v = 0; v < S; v++) {
+            for (let u = 0; u < S; u++) {
+              const r = Math.hypot(u - cc, v - cc);
+              const b = Math.min(ctx.bands - 1, (u / (S - 1) * 0.25 + f * 0.25) * ctx.bands | 0);
+              const bandAmp = ctx.amp(b);
+              const amp = bandAmp * 0.28;
+              const bg = auColor(ctx.theme, b / (ctx.bands - 1), v / (S - 1), bandAmp, ctx.t);
+              let rr = bg[0] * amp, gg = bg[1] * amp, bb = bg[2] * amp;
+              for (const ring of state.radialRings) {
+                const dd = r - ring.r;
+                const w = dd >= 0 ? 1.2 : 2.4;
+                if (Math.abs(dd) < w) {
+                  const inten = (1 - Math.abs(dd) / w) * (1 - ring.r / (S * 0.95));
+                  const c = hsl(ring.hue, 1, 0.55);
+                  if (c[0] * inten > rr) rr = c[0] * inten;
+                  if (c[1] * inten > gg) gg = c[1] * inten;
+                  if (c[2] * inten > bb) bb = c[2] * inten;
+                }
+              }
+              core.setFaceLED(face, u, v, rr, gg, bb);
+            }
+          }
+        }
+        drawPolarFace(core, ctx, 4);
+        drawPolarFace(core, ctx, 5);
+      }
+      function drawVU(core, ctx) {
+        const S = core.SIZE;
+        const [l, r, lp, rp] = vuLevels(ctx);
+        const faces = core.panelMode === "2d" ? [0] : [0, 2, 1, 3];
+        const gap = Math.max(1, Math.round(S * 0.06)), m0 = Math.round(S * 0.12), m1 = S - 1 - m0, mid = (S - 1) / 2;
+        for (const face of faces) {
+          const plot = (x, y, cr, cg, cb) => core.setFaceLED(face, x, y, cr, cg, cb);
+          drawMeter(plot, m0, Math.floor(mid - gap / 2), S, l, lp);
+          drawMeter(plot, Math.ceil(mid + gap / 2), m1, S, r, rp);
+        }
+        if (core.panelMode === "2d") return;
+        const cc = (S - 1) / 2;
+        for (let face = 4; face <= 5; face++) {
+          for (let v = 0; v < S; v++) {
+            for (let u = 0; u < S; u++) {
+              const rr = Math.hypot(u - cc, v - cc) / (cc * 1.05);
+              const lvl = u < cc ? l : r;
+              if (rr <= lvl) {
+                const col = segColour(rr);
+                core.setFaceLED(face, u, v, col[0], col[1], col[2]);
+              }
+            }
+          }
+        }
+      }
+      function drawWaterfall(core, ctx, state) {
+        const S = core.SIZE, cols = 4 * S;
+        if (!state.wfBuf || state.wfBuf.length !== S * ctx.bands) {
+          state.wfBuf = new Float32Array(S * ctx.bands);
+          state.wfPos = 0;
+          state.wfTimer = 0;
+        }
+        state.wfTimer += ctx.dt;
+        if (state.wfTimer > 1 / 30) {
+          state.wfTimer = 0;
+          for (let b = 0; b < ctx.bands; b++) state.wfBuf[state.wfPos * ctx.bands + b] = ctx.amp(b);
+          state.wfPos = (state.wfPos + 1) % S;
+        }
+        for (let row = 0; row < S; row++) {
+          const hist = (state.wfPos - 1 - row + S) % S;
+          const age = row / S;
+          const fade = Math.pow(1 - age * 0.72, 1.3);
+          for (let c = 0; c < cols; c++) {
+            const b = scrolledBand(c, cols, ctx.bands, ctx.scrollX);
+            const amp = state.wfBuf[hist * ctx.bands + b];
+            if (amp < 0.035) continue;
+            const [face, u] = sideCol(core, c);
+            const bright = amp * fade;
+            const col = auColor(ctx.theme, b / (ctx.bands - 1), amp, amp, ctx.t);
+            core.setFaceLED(face, u, S - 1 - row, col[0] * bright * 1.4, col[1] * bright * 1.4, col[2] * bright * 1.4);
+            if (row === 0 && amp > 0.3) auBloom(core, face, u, S - 1 - row, col, 1.2);
+          }
+        }
+        drawPolarFace(core, ctx, 4);
+        drawPolarFace(core, ctx, 5);
+      }
+      function drawWaveform(core, ctx) {
+        const S = core.SIZE, M = S - 1, cols = 4 * S, mid = M / 2;
+        const fade = trailFade(0.8, ctx.dt);
+        for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] *= fade;
+        for (let c = 0; c < cols; c++) {
+          const sc = (c + ((ctx.scrollX || 0) | 0) + cols) % cols;
+          const b = scrolledBand(sc, cols, ctx.bands, ctx.scrollX);
+          const amp = ctx.amp(b) * Math.sin(sc * 0.35);
+          const y = Math.round(mid - amp * mid * 0.9);
+          const fy = Math.max(0, Math.min(M, y));
+          const [face, u] = sideCol(core, c);
+          const hue = (sc / cols + ctx.t * 0.04) % 1;
+          const col = hsl(hue, 1, 0.9);
+          core.setFaceLED(face, u, fy, col[0], col[1], col[2]);
+          for (let dy = 1; dy <= 5; dy++) {
+            const gl = (1 - dy / 6) * 0.42;
+            core.setFaceLED(face, u, fy + dy, col[0] * gl, col[1] * gl, col[2] * gl);
+            core.setFaceLED(face, u, fy - dy, col[0] * gl, col[1] * gl, col[2] * gl);
+          }
+        }
+        drawPolarFace(core, ctx, 4);
+        drawPolarFace(core, ctx, 5);
+      }
+      function drawTunnel(core, ctx) {
+        const S = core.SIZE;
+        const bass = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
+        for (let f = 0; f < 6; f++) {
+          for (let v = 0; v < S; v++) {
+            for (let u = 0; u < S; u++) {
+              const du = Math.abs(u - (S - 1) / 2) / (S / 2);
+              const dv = Math.abs(v - (S - 1) / 2) / (S / 2);
+              const ring = Math.max(du, dv);
+              const scrollFrac = ctx.scrollX ? ctx.scrollX / (4 * S) * 2 : 0;
+              const animated = (ring + ctx.t * 0.45 * (1 + bass * 0.5) + scrollFrac) % 1;
+              const b = Math.min(ctx.bands - 1, animated * ctx.bands | 0);
+              const amp = ctx.amp(b);
+              if (amp < 0.04) {
+                const col2 = auColor(ctx.theme, b / (ctx.bands - 1), 1 - ring, 0.06, ctx.t);
+                core.setFaceLED(f, u, v, col2[0] * 0.05, col2[1] * 0.05, col2[2] * 0.05);
+                continue;
+              }
+              const bright = amp * (1 - ring * 0.35) * 0.92;
+              const col = auColor(ctx.theme, b / (ctx.bands - 1), 1 - ring, amp, ctx.t);
+              core.setFaceLED(f, u, v, col[0] * bright, col[1] * bright, col[2] * bright);
+            }
+          }
+        }
+        if (bass > 0.55) {
+          const cc = (S - 1) / 2, coreR = 1 + bass * 1.5;
+          for (let f = 0; f < 6; f++) {
+            for (let dv = -coreR; dv <= coreR; dv++) {
+              for (let du = -coreR; du <= coreR; du++) {
+                const d = Math.hypot(du, dv);
+                if (d > coreR) continue;
+                const u = Math.round(cc + du), v = Math.round(cc + dv);
+                if (u < 0 || u >= S || v < 0 || v >= S) continue;
+                auBloom(core, f, u, v, [1, 1, 1], (1 - d / coreR) * (bass - 0.55) * 2.2);
+              }
+            }
+          }
+        }
+      }
+      function drawStorm(core, ctx, state) {
+        const S = core.SIZE, cols = 4 * S;
+        const fade = trailFade(0.72, ctx.dt);
+        for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] *= fade;
+        const bass = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
+        if (!state.flashes) state.flashes = [];
+        if (bass > 0.52 && Math.random() < bass * ctx.dt * 18 && state.flashes.length < 12) {
+          state.flashes.push({ face: Math.random() * 4 | 0, u: Math.random() * S | 0, v: Math.random() * S | 0, life: 1, hue: 0.58 + Math.random() * 0.16, size: Math.max(2, bass * S * 0.14 | 0) });
+        }
+        for (let c = 0; c < cols; c++) {
+          const b = scrolledBand(c, cols, ctx.bands, ctx.scrollX);
+          const raw = ctx.amp(b), amp = raw * 0.4;
+          if (amp < 0.03) continue;
+          const [face, u] = sideCol(core, c);
+          const col = auColor(ctx.theme, b / (ctx.bands - 1), 1, raw, ctx.t);
+          for (let y = 0; y < Math.round(amp * (S - 1)); y++) core.setFaceLED(face, u, y, col[0] * amp, col[1] * amp, col[2] * amp);
+        }
+        for (let k = state.flashes.length - 1; k >= 0; k--) {
+          const fl = state.flashes[k];
+          fl.life -= ctx.dt * 3.5;
+          if (fl.life <= 0) {
+            state.flashes.splice(k, 1);
+            continue;
+          }
+          const R = Math.ceil(fl.size * fl.life);
+          for (let dv = -R; dv <= R; dv++) {
+            for (let du = -R; du <= R; du++) {
+              const d2 = du * du + dv * dv;
+              if (d2 > R * R) continue;
+              const jag = 0.75 + 0.25 * Math.sin(du * 2.7 + dv * 3.1 + fl.life * 20);
+              const bright = fl.life * (1 - Math.sqrt(d2) / R) * 0.95 * jag;
+              const col = hsl(fl.hue, 0.5 + fl.life * 0.5, bright);
+              core.setFaceLED(fl.face, fl.u + du, fl.v + dv, col[0], col[1], col[2]);
+            }
+          }
+          if (fl.life > 0.7) auBloom(core, fl.face, fl.u, fl.v, [1, 1, 1], (fl.life - 0.7) / 0.3);
+        }
+        drawPolarFace(core, ctx, 4);
+        drawPolarFace(core, ctx, 5);
+      }
+      function drawPlasma(core, ctx) {
+        let energy = 0;
+        for (let i = 0; i < Math.min(32, ctx.bands); i++) energy += ctx.amp(i);
+        energy /= Math.min(32, ctx.bands);
+        const bass = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
+        const hueShift = ctx.t * 0.12 * (1 + bass * 3);
+        const { surfX, surfY, surfZ, N } = core;
+        for (let i = 0; i < N; i++) {
+          const x = surfX[i], y = surfY[i], z = surfZ[i];
+          const p1 = Math.sin(x * 4.5 + ctx.t * 1.3) + Math.sin(y * 3.8 - ctx.t * 0.9);
+          const p2 = Math.sin(z * 5.1 + ctx.t * 0.7) + Math.sin((x + y) * 2.9 + ctx.t * 1.1);
+          const p3 = Math.sin((x - z) * 3.3 + ctx.t * 1.5) + Math.cos((y + z) * 4.1 - ctx.t * 0.6);
+          const plasma = (p1 + p2 + p3) / 6 + 0.5;
+          const intensity = plasma * (0.15 + energy * 0.85);
+          const hue = (plasma * 0.5 + hueShift + x * 0.1 + z * 0.1) % 1;
+          const [r, g, b] = hsl((hue + 1) % 1, 1, Math.min(1, intensity * 0.9));
+          core.setLED(i, r, g, b);
+        }
+      }
+      function drawRings(core, ctx, state) {
+        if (!state.rings) state.rings = [];
+        if (state.ringTimer === void 0) state.ringTimer = 0;
+        state.ringTimer += ctx.dt;
+        const bassHit = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
+        if (bassHit > 0.35 && state.ringTimer > 0.2 && state.rings.length < 12) {
+          state.ringTimer = 0;
+          state.rings.push({ face: Math.floor(Math.random() * 6), cx: Math.random() * core.SIZE, cy: Math.random() * core.SIZE, radius: 0, hue: Math.random(), bright: 1 });
+        }
+        const S = core.SIZE;
+        for (let ri = state.rings.length - 1; ri >= 0; ri--) {
+          const ring = state.rings[ri];
+          ring.radius += ctx.dt * S * 1.2;
+          ring.bright -= ctx.dt * 0.7;
+          if (ring.bright <= 0) {
+            state.rings.splice(ri, 1);
+            continue;
+          }
+          const w = 3;
+          const rMax = Math.ceil(ring.radius + w);
+          const uMin = Math.max(0, Math.floor(ring.cx - rMax)), uMax = Math.min(S - 1, Math.ceil(ring.cx + rMax));
+          const vMin = Math.max(0, Math.floor(ring.cy - rMax)), vMax = Math.min(S - 1, Math.ceil(ring.cy + rMax));
+          const [cr, cg, cb] = hsl(ring.hue, 1, ring.bright * 0.9);
+          for (let v = vMin; v <= vMax; v++) {
+            for (let u = uMin; u <= uMax; u++) {
+              const d = Math.abs(Math.hypot(u - ring.cx, v - ring.cy) - ring.radius);
+              if (d < w) {
+                const a = Math.max(1 - d / (w * 0.4), (1 - d / w) * 0.5);
+                core.setFaceLED(ring.face, u, v, cr * a, cg * a, cb * a);
+              }
+            }
+          }
+        }
+      }
+      function drawFire(core, ctx) {
+        const S = core.SIZE, M = S - 1;
+        const sides = [2, 0, 3, 1];
+        for (const face of sides) {
+          const colW = S / ctx.bands;
+          for (let b = 0; b < ctx.bands; b++) {
+            const spec = ctx.amp(b);
+            if (spec < 0.02) continue;
+            const h = Math.round(spec * M);
+            const colStart = Math.floor(b * colW), colEnd = Math.min(S, Math.floor((b + 1) * colW));
+            for (let u = colStart; u < colEnd; u++) {
+              for (let v = 0; v < h; v++) {
+                const frac = v / h;
+                const flicker = 0.85 + 0.15 * Math.sin(u * 7.3 + ctx.t * 12 + v * 3.1);
+                let rr, gg, bb;
+                if (frac < 0.3) {
+                  rr = 1;
+                  gg = 0.95;
+                  bb = 0.4 * (1 - frac / 0.3);
+                } else if (frac < 0.7) {
+                  const mf = (frac - 0.3) / 0.4;
+                  rr = 1;
+                  gg = 0.95 - mf * 0.6;
+                  bb = 0;
+                } else {
+                  const tf = (frac - 0.7) / 0.3;
+                  rr = 1 - tf * 0.5;
+                  gg = 0.35 - tf * 0.3;
+                  bb = 0;
+                }
+                const bright = flicker * (1 - frac * 0.3);
+                core.setFaceLED(face, u, v, Math.min(1, rr * bright), Math.min(1, gg * bright), Math.min(1, bb * bright));
+              }
+            }
+            if (h > M * 0.5) {
+              const tipU = Math.floor((colStart + colEnd - 1) / 2);
+              auBloom(core, face, tipU, Math.min(M, h), [1, 0.98, 0.85], 0.9);
+            }
+          }
+        }
+        const glow = (ctx.amp(0) + ctx.amp(1)) * 0.12;
+        if (glow > 0.02) {
+          const S2 = core.SIZE;
+          for (let v = 0; v < S2; v++) {
+            for (let u = 0; u < S2; u++) {
+              const idx = core.faceMap[4][v * S2 + u];
+              if (idx >= 0) {
+                const o = idx * 3;
+                if (glow > core.colBuf[o]) core.colBuf[o] = glow;
+                if (glow * 0.3 > core.colBuf[o + 1]) core.colBuf[o + 1] = glow * 0.3;
+              }
+            }
+          }
+        }
+      }
+      function createSpectrumState() {
+        return {};
+      }
+      function renderSpectrumStyle(core, ctx, style, state) {
+        if (!ctx.ampArr) {
+          ctx.ampArr = Float32Array.from({ length: ctx.bands }, (_, b) => ctx.amp(b));
+          ctx.peakArr = Float32Array.from({ length: ctx.bands }, (_, b) => ctx.peak(b));
+        }
+        switch (style) {
+          case "mirror":
+            return drawBars(core, ctx, true);
+          case "dots":
+            return drawDots(core, ctx);
+          case "blocks":
+            return drawBlocks(core, ctx);
+          case "outline":
+            return drawOutline(core, ctx);
+          case "radial":
+            return drawRadial(core, ctx, state);
+          case "vu":
+            return drawVU(core, ctx);
+          case "waterfall":
+            return drawWaterfall(core, ctx, state);
+          case "waveform":
+            return drawWaveform(core, ctx);
+          case "tunnel":
+            return drawTunnel(core, ctx);
+          case "storm":
+            return drawStorm(core, ctx, state);
+          case "plasma":
+            return drawPlasma(core, ctx);
+          case "rings":
+            return drawRings(core, ctx, state);
+          case "fire":
+            return drawFire(core, ctx);
+          default:
+            return drawBars(core, ctx, false);
+        }
+      }
+      module.exports = { renderSpectrumStyle, createSpectrumState, auColor, auBloom, auGlowAround, auDrawPeakCap };
+    }
+  });
+
+  // src/effects/radio/ticker.js
+  var require_ticker = __commonJS({
+    "src/effects/radio/ticker.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { CHAR_W } = require_font2();
+      var { drawMarquee, FONT_5x7, facePlot } = require_text();
+      var scrollX = 0;
+      function resetTicker() {
+        scrollX = 0;
+      }
+      function drawTicker(core, face, label, dt) {
+        if (!label) return;
+        const textW = label.length * CHAR_W;
+        scrollX += dt * 14;
+        if (scrollX > textW) scrollX -= textW;
+        const sv = 7;
+        drawMarquee(FONT_5x7, label, scrollX, sv - 6, core.SIZE, facePlot(core, face, 0.6, 0.85, 1), { flipY: true, outline: facePlot(core, face, 0, 0, 0) });
+      }
+      module.exports = { drawTicker, resetTicker };
+    }
+  });
+
+  // src/effects/radio/search.js
+  var require_search = __commonJS({
+    "src/effects/radio/search.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var RADIO_BROWSER_MIRRORS = ["https://de1.api.radio-browser.info", "https://nl1.api.radio-browser.info"];
+      var FETCH_TIMEOUT_MS = 8e3;
+      async function fetchWithTimeout(url) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+        try {
+          return await fetch(url, { signal: controller.signal });
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      async function radioBrowserFetch(path) {
+        let lastErr = null;
+        for (const base of RADIO_BROWSER_MIRRORS) {
+          try {
+            const r = await fetchWithTimeout(base + path);
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return await r.json();
+          } catch (e) {
+            lastErr = e;
+          }
+        }
+        throw lastErr || new Error("all mirrors failed");
+      }
+      async function searchStations(query) {
+        try {
+          const path = query ? "/json/stations/search?name=" + encodeURIComponent(query) + "&limit=60&hidebroken=true&order=clickcount&reverse=true" : "/json/stations/topclick/60?hidebroken=true";
+          const data = await radioBrowserFetch(path);
+          const results = (data || []).filter((s) => s.url_resolved || s.url).map((s) => ({
+            name: s.name || "Unnamed station",
+            genre: (s.tags || "").split(",").slice(0, 2).join(", ") || s.country || "",
+            url: s.url_resolved || s.url
+          }));
+          return { results, error: null };
+        } catch (e) {
+          return { results: [], error: "Directory unreachable \u2014 try again, or use the featured list below" };
+        }
+      }
+      module.exports = { searchStations, RADIO_BROWSER_MIRRORS };
+    }
+  });
+
+  // src/effects/radio/levels.js
+  var require_levels = __commonJS({
+    "src/effects/radio/levels.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      function sample(arr, b, bands, total = arr.length) {
+        if (bands <= 1) return arr[total - 1];
+        const start = Math.floor(b * total / bands);
+        const end = b === bands - 1 ? total - 1 : Math.floor((b + 1) * total / bands) - 1;
+        let v = arr[start];
+        for (let i = start + 1; i <= end; i++) if (arr[i] > v) v = arr[i];
+        return v;
+      }
+      var KNEE = 0.85;
+      function softCeil(x) {
+        if (x <= KNEE) return x < 0 ? 0 : x;
+        return KNEE + (1 - KNEE) * (1 - Math.exp(-(x - KNEE) / (1 - KNEE)));
+      }
+      function createLevelState() {
+        return { autoGainMult: 1, levelSmoothed: 0, fitScale: 1, amp: new Float32Array(0), peak: new Float32Array(0), rawAmp: new Float32Array(0), rawPeak: new Float32Array(0) };
+      }
+      var AUTO_TARGET = 0.45;
+      function computeLevels(st, audio, opts, dt) {
+        const { bands, gain } = opts;
+        if (st.amp.length !== bands) {
+          st.amp = new Float32Array(bands);
+          st.peak = new Float32Array(bands);
+          st.rawAmp = new Float32Array(bands);
+          st.rawPeak = new Float32Array(bands);
+        }
+        const total = audio.spec.length;
+        let sum = 0;
+        for (let b = 0; b < bands; b++) {
+          st.rawAmp[b] = sample(audio.spec, b, bands, total);
+          st.rawPeak[b] = sample(audio.peak, b, bands, total);
+          sum += st.rawAmp[b];
+        }
+        st.levelSmoothed += (sum / bands - st.levelSmoothed) * Math.min(1, dt * 3);
+        if (opts.autoGain) {
+          if (st.levelSmoothed > 0.01) {
+            const desired = AUTO_TARGET / Math.max(0.05, st.levelSmoothed * gain);
+            st.autoGainMult += (desired - st.autoGainMult) * Math.min(1, dt * 0.2);
+            st.autoGainMult = Math.max(0.3, Math.min(10, st.autoGainMult));
+          }
+        } else {
+          st.autoGainMult = 1;
+        }
+        let g = gain * st.autoGainMult;
+        if (opts.fitToScreen) {
+          let mx = 0;
+          for (let b = 0; b < bands; b++) if (st.rawAmp[b] * g > mx) mx = st.rawAmp[b] * g;
+          const target = mx > 0.015 ? Math.min(3.5, 0.99 / mx) : st.fitScale;
+          st.fitScale += (target - st.fitScale) * Math.min(1, dt * 4);
+        } else {
+          st.fitScale = 1;
+        }
+        g *= st.fitScale;
+        for (let b = 0; b < bands; b++) {
+          st.rawAmp[b] = softCeil(st.rawAmp[b] * g);
+          st.rawPeak[b] = softCeil(st.rawPeak[b] * g);
+        }
+        for (let b = 0; b < bands; b++) {
+          let a = st.rawAmp[b], p = st.rawPeak[b];
+          if (b > 0) {
+            a = Math.max(a, st.rawAmp[b - 1] * 0.5);
+            p = Math.max(p, st.rawPeak[b - 1] * 0.5);
+          }
+          if (b < bands - 1) {
+            a = Math.max(a, st.rawAmp[b + 1] * 0.5);
+            p = Math.max(p, st.rawPeak[b + 1] * 0.5);
+          }
+          st.amp[b] = a;
+          st.peak[b] = Math.max(a, p);
+        }
+        return st;
+      }
+      module.exports = { sample, softCeil, createLevelState, computeLevels };
+    }
+  });
+
+  // src/effects/radio/radio.js
+  var require_radio = __commonJS({
+    "src/effects/radio/radio.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { RadioAudio, RemoteAudio, BAND_COUNT } = require_ffmpegAudio();
+      var { renderSpectrumStyle, createSpectrumState } = require_spectrum();
+      var { drawTicker } = require_ticker();
+      var { CHAR_W } = require_font2();
+      var { drawGlyph5x7Face, drawLinesCentered, FONT_3x5, facePlot } = require_text();
+      var { searchStations } = require_search();
+      var { sample, createLevelState, computeLevels } = require_levels();
+      var RADIO_STATIONS = [
+        { name: "SomaFM Groove Salad", genre: "Ambient/Downtempo", url: "https://ice1.somafm.com/groovesalad-128-mp3" },
+        { name: "SomaFM Drone Zone", genre: "Ambient", url: "https://ice1.somafm.com/dronezone-128-mp3" },
+        { name: "SomaFM Space Station", genre: "Space Music", url: "https://ice1.somafm.com/spacestation-128-mp3" },
+        { name: "SomaFM Beat Blender", genre: "Electronica", url: "https://ice1.somafm.com/beatblender-128-mp3" },
+        { name: "SomaFM Indie Pop Rocks", genre: "Indie Pop", url: "https://ice1.somafm.com/indiepop-128-mp3" },
+        { name: "SomaFM Lush", genre: "Mellow Vocals", url: "https://ice1.somafm.com/lush-128-mp3" },
+        { name: "SomaFM Secret Agent", genre: "Spy Lounge", url: "https://ice1.somafm.com/secretagent-128-mp3" },
+        { name: "SomaFM Boot Liquor", genre: "Americana", url: "https://ice1.somafm.com/bootliquor-128-mp3" }
+      ];
+      var DEBUG_TONES = {
+        // debugloop: (not debug:) - a real follow-up ("the sweep should go
+        // from 40 to 10khz and back to 40hz again and so forth") - the sweep
+        // is meant to keep repeating indefinitely, unlike drum/tone which
+        // should play once and stop. See ffmpegAudio.js's ensure()/
+        // _debugFinished for how the two prefixes are told apart.
+        sweep: { name: "Debug: Sweep", genre: "40Hz-7kHz over 45s", url: "debugloop:aevalsrc=sin(2*PI*(40*t+6960*t*t/90)):s=44100:d=45" },
+        drum: { name: "Debug: Drum Hit", genre: "Deep kick", url: "debug:aevalsrc=sin(2*PI*(50+70*exp(-25*t))*t)*exp(-4*t):s=44100:d=3" }
+      };
+      var audio = new RadioAudio();
+      var spectrumState = createSpectrumState();
+      var playing = false;
+      var currentStation = null;
+      var volume = 0.8;
+      var searchResults = [];
+      var searchError = null;
+      var searching = false;
+      var lastQuery = "";
+      var levelState = createLevelState();
+      function playStation(station) {
+        if (!station || !station.url) return;
+        currentStation = { name: station.name || "Unknown", genre: station.genre || "", url: station.url };
+        playing = true;
+        audio.clearDebugFinished();
+      }
+      function playDebugTone(kind, freq) {
+        if (kind === "tone") {
+          const f = Math.max(40, Math.min(7e3, Math.round(Number(freq)) || 440));
+          playStation({ name: "Debug: Tone", genre: f + " Hz", url: "debug:aevalsrc=sin(2*PI*" + f + "*t):s=44100:d=30" });
+          return;
+        }
+        const tone = DEBUG_TONES[kind];
+        if (tone) playStation(tone);
+      }
+      function stopStation() {
+        playing = false;
+        audio.ensure(null);
+      }
+      function keepAlive(opts) {
+        if (opts) audio.setSyncMs(opts.syncMs);
+        audio.ensure(playing && currentStation ? currentStation.url : null);
+      }
+      function setVolume(v) {
+        const n = Number(v);
+        if (Number.isFinite(n)) volume = Math.max(0, Math.min(1, n));
+      }
+      async function search(query) {
+        lastQuery = query || "";
+        searching = true;
+        const { results, error } = await searchStations(lastQuery);
+        searchResults = results;
+        searchError = error;
+        searching = false;
+      }
+      function effectRadio(core, dt) {
+        core.t += dt;
+        const opts = core.effectOptions?.radio || {};
+        const spectrumOn = !!opts.spectrumOn;
+        const bands = [8, 16, 32, 64, 128, 256].includes(opts.bands) ? opts.bands : 64;
+        const theme = Number.isFinite(opts.theme) ? opts.theme : 5;
+        const style = opts.style || "glow";
+        const barMode = opts.barMode || "solid";
+        const gain = Number.isFinite(opts.gain) ? opts.gain : 2;
+        const autoGainOn = opts.autoGain !== false;
+        const fitToScreen = !!opts.fitToScreen;
+        const scrollSpeed = Number.isFinite(opts.scrollSpeed) ? opts.scrollSpeed : 0;
+        if (Number.isFinite(opts.volume)) setVolume(opts.volume);
+        audio.setSyncMs(opts.syncMs);
+        audio.ensure(playing && currentStation ? currentStation.url : null);
+        for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] = 0;
+        if (spectrumOn) {
+          const lv = computeLevels(levelState, audio, { bands, gain, autoGain: autoGainOn, fitToScreen }, dt);
+          if (scrollSpeed > 0) {
+            spectrumState.scrollX = ((spectrumState.scrollX || 0) + dt * scrollSpeed * core.SIZE * 1.5 + 4 * core.SIZE) % (4 * core.SIZE);
+          }
+          const ampArr = lv.amp, peakArr = lv.peak;
+          const ctx = {
+            amp: (b) => ampArr[b],
+            peak: (b) => peakArr[b],
+            ampArr,
+            peakArr,
+            vu: audio.vu,
+            // vu: stereo [left, right, leftPeak, rightPeak]
+            bands,
+            theme,
+            barMode,
+            scrollX: spectrumState.scrollX || 0,
+            t: core.t,
+            dt
+          };
+          renderSpectrumStyle(core, ctx, style, spectrumState);
+        }
+        if (!playing || !currentStation) {
+          if (core.SIZE >= 16) {
+            const sc = core.SIZE >= 64 ? 2 : 1;
+            const M = core.SIZE - 1;
+            const hint = (face) => {
+              const p = facePlot(core, face, 0.35, 0.5, 0.7);
+              return (x, y) => p(x, M - y);
+            };
+            drawLinesCentered(FONT_3x5, ["PICK A", "STATION"], core.SIZE, core.SIZE, hint(0), { scale: sc });
+            if (core.panelMode !== "2d") drawLinesCentered(FONT_3x5, ["PICK A", "STATION"], core.SIZE, core.SIZE, hint(2), { scale: sc });
+          }
+        }
+        if (playing && currentStation) {
+          let genre = currentStation.genre;
+          if (currentStation.url.startsWith("debugloop:") && audio.lastAttemptMs) {
+            const elapsed = (Date.now() - audio.lastAttemptMs) / 1e3;
+            const sweepSecs = 45, f0 = 40, f1 = 7e3;
+            const hz = Math.round(f0 + (f1 - f0) * (elapsed % sweepSecs / sweepSecs));
+            genre = hz + " Hz";
+          }
+          if (currentStation.url.startsWith("debugloop:")) {
+            drawStaticLabel(core, 0, genre, 7);
+            if (core.panelMode !== "2d") drawStaticLabel(core, 2, genre, 7);
+          } else {
+            const label = currentStation.name + (genre ? "  \u2022  " + genre : "") + "    ";
+            drawTicker(core, 0, label, dt);
+            if (core.panelMode !== "2d") drawTicker(core, 2, label, dt);
+          }
+        }
+      }
+      function drawStaticLabel(core, face, text, sv) {
+        if (!text) return;
+        const textW = text.length * CHAR_W;
+        let u = Math.round((core.SIZE - textW) / 2);
+        const rgb = [0.6, 0.85, 1];
+        for (const ch of text) u += drawGlyph5x7Face(core, face, ch, u, sv, rgb);
+      }
+      function getStatus() {
+        return {
+          status: audio.getStatus(),
+          playbackStatus: audio.getPlaybackStatus(),
+          playing,
+          station: currentStation,
+          volume,
+          search: { query: lastQuery, results: searchResults, error: searchError, searching }
         };
       }
-      var facePlot = (core, face, r, g, b) => (x, y) => core.setFaceLED(face, x, y, r, g, b);
-      var wallPlot = (core, r, g, b) => (x, y) => core.setWallPixel(x, y, r, g, b);
-      var faceMaxPlot = (core, face, r, g, b) => {
-        const { SIZE: S, faceMap, colBuf } = core;
-        return (x, y) => {
-          if (x < 0 || x >= S || y < 0 || y >= S) return;
-          const idx = faceMap[face][y * S + x];
-          if (idx < 0) return;
-          const o = idx * 3;
-          if (r > colBuf[o]) colBuf[o] = r;
-          if (g > colBuf[o + 1]) colBuf[o + 1] = g;
-          if (b > colBuf[o + 2]) colBuf[o + 2] = b;
-        };
+      function getPlaybackState() {
+        return { playing, currentStation };
+      }
+      module.exports = effectRadio;
+      module.exports.getStatus = getStatus;
+      module.exports.playStation = playStation;
+      module.exports.playDebugTone = playDebugTone;
+      module.exports.DEBUG_TONES = DEBUG_TONES;
+      module.exports.stopStation = stopStation;
+      module.exports.keepAlive = keepAlive;
+      module.exports.setVolume = setVolume;
+      module.exports.search = search;
+      module.exports.RADIO_STATIONS = RADIO_STATIONS;
+      module.exports.audio = audio;
+      module.exports.useRemoteAudio = () => {
+        audio.close();
+        audio = new RemoteAudio();
+        module.exports.audio = audio;
+        return audio;
       };
-      var wallMaxPlot = (core, r, g, b) => {
-        const { wallW: W, wallH: H, wallBuf } = core;
-        return (x, y) => {
-          if (x < 0 || x >= W || y < 0 || y >= H) return;
-          const o = (y * W + x) * 3;
-          if (r > wallBuf[o]) wallBuf[o] = r;
-          if (g > wallBuf[o + 1]) wallBuf[o + 1] = g;
-          if (b > wallBuf[o + 2]) wallBuf[o + 2] = b;
-        };
+      module.exports.getPlaybackState = getPlaybackState;
+      module.exports.sample = sample;
+    }
+  });
+
+  // src/effects/radio.js
+  var require_radio2 = __commonJS({
+    "src/effects/radio.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      module.exports = require_radio();
+    }
+  });
+
+  // src/effects/nowPlaying.js
+  var require_nowPlaying = __commonJS({
+    "src/effects/nowPlaying.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      var { FONT_3x5, drawGlyph, textWidth } = require_text();
+      var { defineCanvasEffect } = require_canvas();
+      var radio = require_radio2();
+      var spin = 0;
+      var scroll = 0;
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt, core }) {
+          c.clear();
+          const st = radio.getStatus();
+          const playing = st.playing && st.station;
+          const bass = core.audio && core.audio.bass ? core.audio.bass : 0;
+          const spec = radio.audio && radio.audio.spec;
+          const S = Math.min(c.W, c.H), cx = c.W / 2, cy = S * 0.42, R = S * 0.24;
+          spin += dt * (playing ? 1.6 : 0.2);
+          const hue = 0.75 + 0.1 * Math.sin(t * 0.1);
+          for (let y = 0; y < c.H; y++) {
+            for (let x = 0; x < c.W; x++) {
+              const dx = x - cx, dy = y - cy, d = Math.sqrt(dx * dx + dy * dy);
+              if (d < R) {
+                if (d < R * 0.3) {
+                  const [r, g, b] = hsl(hue, 0.8, d < R * 0.07 ? 0.05 : 0.5);
+                  c.set(x, y, r, g, b);
+                  continue;
+                }
+                const groove = 0.07 + 0.05 * ((d | 0) % 2);
+                const shine = Math.max(0, Math.cos(Math.atan2(dy, dx) * 2 - spin)) * 0.12;
+                c.set(x, y, groove + shine, groove + shine, groove + shine * 1.2);
+              } else {
+                const glow = Math.max(0, 1 - (d - R) / (R * (0.5 + bass))) * (0.25 + bass * 0.5);
+                const [r, g, b] = hsl(hue, 0.9, 0.5);
+                c.set(x, y, r * glow * 0.6, g * glow * 0.6, b * glow * 0.6);
+              }
+            }
+          }
+          if (spec && playing) {
+            const bars = 48;
+            for (let i = 0; i < bars; i++) {
+              const a = i / bars * Math.PI * 2 - Math.PI / 2;
+              const v = spec[Math.floor(Math.abs(i - bars / 2) / (bars / 2) * (spec.length - 1) * 0.8)] || 0;
+              const len = R * (0.15 + v * 0.7);
+              const [r, g, b] = hsl(hue + i / bars * 0.4, 0.95, 0.55);
+              for (let k = 0; k < len; k += 0.7) c.set(cx + Math.cos(a) * (R + 2 + k), cy + Math.sin(a) * (R + 2 + k), r, g, b);
+            }
+          }
+          const label = playing ? (st.station.name.replace(/^[\s-]+/, "") + (st.station.genre ? " \xB7 " + st.station.genre : "")).toUpperCase() : "PICK A STATION";
+          const scale = Math.max(1, Math.floor(c.H / 40));
+          const y0 = Math.round(c.H - 8 * scale);
+          const w = textWidth(FONT_3x5, label + "   ", scale) + FONT_3x5.adv * scale;
+          const fits = textWidth(FONT_3x5, label, scale) <= c.W - 2;
+          scroll = fits ? 0 : (scroll + dt * 14 * scale) % w;
+          const startX = fits ? Math.round((c.W - textWidth(FONT_3x5, label, scale)) / 2) : -Math.floor(scroll);
+          for (let start = startX; start < c.W; start += fits ? Infinity : w) {
+            let x = start;
+            for (const ch of label + (fits ? "" : "   ")) {
+              if (x > c.W) break;
+              x += drawGlyph(FONT_3x5, ch, x, y0, (px, py) => c.set(px, py, 0.95, 0.95, 1), { scale });
+            }
+          }
+        }
+      });
+    }
+  });
+
+  // src/effects/messageBoard.js
+  var require_messageBoard = __commonJS({
+    "src/effects/messageBoard.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      var { FONT_5x7, drawGlyph } = require_text();
+      var { defineCanvasEffect } = require_canvas();
+      var scroll = 0;
+      function colourFor(style, x, y, t, H) {
+        if (style === "rainbow") return hsl(x * 6e-3 - t * 0.15, 0.95, 0.55);
+        if (style === "retro") return [1, 0.62, 0.1];
+        if (style === "fire") {
+          const f = y / H;
+          return [1, 0.25 + 0.6 * (1 - f), 0.05 * (1 - f)];
+        }
+        return hsl(0.86 + 0.05 * Math.sin(t * 2), 1, 0.6);
+      }
+      module.exports = defineCanvasEffect({
+        panorama: true,
+        render(c, { t, dt, core }) {
+          const o = core.effectOptions && core.effectOptions.message || {};
+          const text = (typeof o.text === "string" && o.text.trim() ? o.text.trim() : "HELLO!").toUpperCase().slice(0, 120) + "   ";
+          const style = o.style || "neon", speed = Math.max(0.3, Math.min(3, Number(o.speed) || 1));
+          const scale = Math.max(1, Math.floor(c.H / 20));
+          const gh = 7 * scale, top = Math.round((c.H - gh) / 2);
+          const adv = FONT_5x7.adv * scale, tileW = text.length * adv;
+          scroll = (scroll + dt * 22 * scale * speed) % tileW;
+          for (let y = 0; y < c.H; y++) {
+            const bg = style === "retro" ? y % 2 ? 0 : 0.03 : 0.025;
+            for (let x = 0; x < c.W; x++) c.set(x, y, bg * 0.6, bg * 0.5, bg);
+          }
+          const glow = style === "neon" || style === "rainbow";
+          for (let start = -Math.floor(scroll); start < c.W; start += tileW) {
+            let x = start;
+            for (const ch of text) {
+              if (x > c.W) break;
+              if (x + adv >= 0) {
+                drawGlyph(FONT_5x7, ch, x, top, (px, py) => {
+                  const [r, g, b] = colourFor(style, px, py - top, t, gh);
+                  c.set(px, py, r, g, b);
+                  if (glow) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) c.add(px + dx * scale, py + dy * scale, r * 0.12, g * 0.12, b * 0.12);
+                }, { scale });
+              }
+              x += adv;
+            }
+          }
+        }
+      });
+    }
+  });
+
+  // src/effects/wordClock.js
+  var require_wordClock = __commonJS({
+    "src/effects/wordClock.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      var { FONT_3x5, drawGlyph } = require_text();
+      var { defineCanvasEffect } = require_canvas();
+      var GRID = ["ITLISASAMPM", "ACQUARTERDC", "TWENTYFIVEX", "HALFSTENFTO", "PASTERUNINE", "ONESIXTHREE", "FOURFIVETWO", "EIGHTELEVEN", "SEVENTWELVE", "TENSEOCLOCK"];
+      var W = {
+        IT: [0, 0, 2],
+        IS: [0, 3, 2],
+        A: [1, 0, 1],
+        QUARTER: [1, 2, 7],
+        TWENTY: [2, 0, 6],
+        FIVE_M: [2, 6, 4],
+        HALF: [3, 0, 4],
+        TEN_M: [3, 5, 3],
+        TO: [3, 9, 2],
+        PAST: [4, 0, 4],
+        H9: [4, 7, 4],
+        H1: [5, 0, 3],
+        H6: [5, 3, 3],
+        H3: [5, 6, 5],
+        H4: [6, 0, 4],
+        H5: [6, 4, 4],
+        H2: [6, 8, 3],
+        H8: [7, 0, 5],
+        H11: [7, 5, 6],
+        H7: [8, 0, 5],
+        H12: [8, 5, 6],
+        H10: [9, 0, 3],
+        OCLOCK: [9, 5, 6]
       };
-      module.exports = {
-        blitGlyph,
-        drawGlyph,
-        drawString,
-        textWidth,
-        drawLinesCentered,
-        drawMarquee,
-        drawGlyph5x7Face,
-        outlineOf,
-        FONT_3x5,
-        FONT_5x7,
-        FONT_5x7_BLANK,
-        FONT_MOON,
-        facePlot,
-        wallPlot,
-        faceMaxPlot,
-        wallMaxPlot
+      function litWords(date) {
+        const m5 = Math.floor(date.getMinutes() / 5) * 5;
+        let h = date.getHours() % 12;
+        const words = ["IT", "IS"];
+        const mins = m5 > 30 ? 60 - m5 : m5;
+        if (mins === 5) words.push("FIVE_M");
+        else if (mins === 10) words.push("TEN_M");
+        else if (mins === 15) words.push("A", "QUARTER");
+        else if (mins === 20) words.push("TWENTY");
+        else if (mins === 25) words.push("TWENTY", "FIVE_M");
+        else if (mins === 30) words.push("HALF");
+        if (m5 === 0) words.push("OCLOCK");
+        else words.push(m5 > 30 ? "TO" : "PAST");
+        if (m5 > 30) h = (h + 1) % 12;
+        words.push("H" + (h === 0 ? 12 : h));
+        return words;
+      }
+      module.exports = defineCanvasEffect({
+        render(c, { t }) {
+          c.clear();
+          const on = /* @__PURE__ */ new Set();
+          for (const w of litWords(/* @__PURE__ */ new Date())) {
+            const [r, col, n] = W[w];
+            for (let i = 0; i < n; i++) on.add(r * 11 + col + i);
+          }
+          const scale = Math.max(1, Math.floor(Math.min(c.W / 44, c.H / 60)));
+          const ox = Math.round((c.W - 44 * scale) / 2) + scale, oy = Math.round((c.H - 60 * scale) / 2) + scale;
+          for (let r = 0; r < 10; r++) {
+            for (let col = 0; col < 11; col++) {
+              const lit = on.has(r * 11 + col);
+              const [cr, cg, cb] = lit ? hsl(t * 0.03 + col * 0.02 + r * 0.03, 0.85, 0.55) : [0.05, 0.05, 0.07];
+              drawGlyph(FONT_3x5, GRID[r][col], ox + col * 4 * scale, oy + r * 6 * scale, (x, y) => c.set(x, y, cr, cg, cb), { scale });
+            }
+          }
+        }
+      });
+      module.exports.litWords = litWords;
+    }
+  });
+
+  // src/effects/starfield.js
+  var require_starfield = __commonJS({
+    "src/effects/starfield.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      var { defineFieldEffect } = require_surface();
+      var hash = (a, b) => {
+        const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+        return s - Math.floor(s);
       };
+      var travel = 0;
+      module.exports = defineFieldEffect({
+        speed: 1,
+        frame({ core, dt }) {
+          const lvl = core.audio && core.audio.level ? core.audio.level : 0;
+          travel += dt * (0.12 + lvl * 0.5);
+        },
+        pixel(p, { t, core }) {
+          let ang, rad;
+          if (p.flat) {
+            const asp = core.wallW / core.wallH, dx = (p.x - 0.5) * asp, dy = p.y - 0.5;
+            ang = Math.atan2(dy, dx);
+            rad = Math.sqrt(dx * dx + dy * dy) * 1.6;
+          } else {
+            const dx = p.x - 0.5, dy = p.y - 0.5, dz = p.z - 0.5, l = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+            ang = Math.atan2(dz / l, dx / l);
+            rad = Math.acos(Math.max(-1, Math.min(1, dy / l))) / Math.PI * 1.6;
+          }
+          let r = 0, g = 0, b = 0;
+          const bg = hsl(0.66 + 0.08 * Math.sin(ang * 2 + t * 0.05), 0.7, 0.03 + 0.03 * Math.max(0, Math.sin(ang * 3 + rad * 4 - t * 0.1)));
+          r += bg[0];
+          g += bg[1];
+          b += bg[2];
+          for (let layer = 0; layer < 3; layer++) {
+            const spokes = 70 + layer * 40;
+            const cell = Math.floor((ang / (Math.PI * 2) + 0.5) * spokes);
+            const seed = hash(cell, layer);
+            const z = (seed + travel * (0.6 + layer * 0.4)) % 1;
+            const starR = z * z * 1.6;
+            const width = 0.02 + z * 0.08;
+            const d = Math.abs(rad - starR);
+            if (d < width && hash(cell, layer + 9) > 0.35) {
+              const cAng = ((cell + 0.5) / spokes - 0.5) * Math.PI * 2;
+              const across = Math.abs((ang - cAng + Math.PI) % (Math.PI * 2) - Math.PI) * rad * spokes / 6;
+              const v = (1 - d / width) * Math.max(0, 1 - across) * Math.min(1, z * 2.2);
+              const tint = hash(cell, layer + 3);
+              r += v * (0.8 + tint * 0.2);
+              g += v * 0.85;
+              b += v * (1 - tint * 0.2 + 0.15);
+            }
+          }
+          return [Math.min(1, r), Math.min(1, g), Math.min(1, b)];
+        }
+      });
+    }
+  });
+
+  // src/effects/fluidInk.js
+  var require_fluidInk = __commonJS({
+    "src/effects/fluidInk.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      var { defineFieldEffect } = require_surface();
+      var PALETTE = [[0.02, 0.02, 0.1], [0.05, 0.25, 0.6], [0.1, 0.8, 0.9], [0.95, 0.95, 1], [0.85, 0.2, 0.75]];
+      function ink(v) {
+        const x = Math.max(0, Math.min(0.9999, v)) * (PALETTE.length - 1), i = Math.floor(x), f = x - i;
+        const a = PALETTE[i], b = PALETTE[i + 1];
+        return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+      }
+      var wave = (x, y, z, t) => Math.sin(x * 3.1 + t) * Math.cos(y * 2.7 - t * 0.8) + Math.sin((x + z) * 2.3 + t * 0.6) * 0.6 + Math.cos((y - z) * 3.7 - t * 0.4) * 0.4;
+      var stir = 0;
+      module.exports = defineFieldEffect({
+        speed: 0.4,
+        frame({ core, dt }) {
+          const bass = core.audio && core.audio.bass ? core.audio.bass : 0;
+          stir += (bass - stir) * Math.min(1, dt * 4);
+        },
+        pixel(p, { t }) {
+          const k = 1.25, x = p.x * k, y = p.y * k, z = (p.flat ? 0.3 : p.z) * k;
+          const w = 0.9 + stir * 1.2;
+          const qx = wave(x, y, z, t), qy = wave(y + 5.2, z + 1.3, x, t * 1.1);
+          const rx = wave(x + w * qx, y + w * qy, z, t * 0.7 + 1.7), ry = wave(y + w * qy + 8.3, z, x + w * qx, t * 0.9);
+          const v = wave(x + w * rx, y + w * ry, z + 0.5, t * 0.5);
+          const c = ink(0.42 + 0.2 * v + 0.1 * rx);
+          const flare = stir * 0.25 * Math.max(0, ry);
+          const tint = hsl(0.55 + 0.1 * Math.sin(t * 0.07), 0.9, 0.5);
+          return [c[0] + tint[0] * flare, c[1] + tint[1] * flare, c[2] + tint[2] * flare];
+        }
+      });
+    }
+  });
+
+  // src/effects/lavaLamp.js
+  var require_lavaLamp = __commonJS({
+    "src/effects/lavaLamp.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      var { defineFieldEffect } = require_surface();
+      var N = 6;
+      var balls = Array.from({ length: N }, (_, i) => ({ x: 0, y: 0, z: 0, r: 0, s: 0.37 + i * 0.13, o: i * 1.7 }));
+      module.exports = defineFieldEffect({
+        speed: 0.35,
+        frame({ t, core, flat }) {
+          const bass = core.audio && core.audio.bass ? core.audio.bass : 0;
+          for (const b of balls) {
+            b.x = 0.5 + 0.34 * Math.sin(t * b.s + b.o);
+            b.y = 0.5 + 0.38 * Math.sin(t * b.s * 0.71 + b.o * 2.1);
+            b.z = flat ? 0.5 : 0.5 + 0.34 * Math.cos(t * b.s * 0.53 + b.o * 0.6);
+            b.r = (0.085 + 0.02 * Math.sin(t * 1.3 + b.o)) * (1 + bass * 0.6);
+          }
+        },
+        pixel(p, { t }) {
+          let f = 0;
+          for (const b of balls) {
+            const dx = p.x - b.x, dy = p.y - b.y, dz = p.flat ? 0 : p.z - b.z;
+            f += b.r * b.r / (dx * dx + dy * dy + dz * dz + 1e-4);
+          }
+          const hue = 0.93 + 0.12 * Math.sin(t * 0.05) + Math.min(0.15, f * 0.02);
+          if (f > 1) {
+            const core = Math.min(1, (f - 1) * 0.6);
+            return hsl(hue, 1, 0.42 + core * 0.18);
+          }
+          const glow = Math.pow(f, 3) * 0.35;
+          const bg = hsl(hue + 0.55, 0.8, 0.04 + p.y * 0.03);
+          const c = hsl(hue, 1, 0.5);
+          return [bg[0] + c[0] * glow, bg[1] + c[1] * glow, bg[2] + c[2] * glow];
+        }
+      });
+    }
+  });
+
+  // src/effects/gradientWash.js
+  var require_gradientWash = __commonJS({
+    "src/effects/gradientWash.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl, lerp } = require_core();
+      var { defineFieldEffect } = require_surface();
+      module.exports = defineFieldEffect({
+        speed: 0.4,
+        pixel(p, { t }) {
+          const { x, y, z } = p;
+          const wave = Math.sin(x * Math.PI * 2 + t) * 0.5 + 0.5;
+          const bright = lerp(0.22, 0.72, wave);
+          const hue = (p.flat ? x * 0.6 + y * 0.3 + t * 0.08 : x * 0.4 + y * 0.3 + z * 0.3 + t * 0.08) % 1;
+          return hsl(hue, 1, bright);
+        }
+      });
     }
   });
 
@@ -2236,86 +4879,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/net.js
-  var require_net = __commonJS({
-    "src/effects/net.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var FETCH_TIMEOUT_MS = 15e3;
-      function fetchWithTimeout(url, opts = {}, timeoutMs = FETCH_TIMEOUT_MS) {
-        if (opts.signal) return globalThis.fetch(url, opts);
-        return globalThis.fetch(url, { ...opts, signal: AbortSignal.timeout(timeoutMs) });
-      }
-      module.exports = { fetchWithTimeout, FETCH_TIMEOUT_MS };
-    }
-  });
-
-  // src/effects/weather/fetch.js
-  var require_fetch = __commonJS({
-    "src/effects/weather/fetch.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { calcMoonRiseSet, wxInitScene, WX_CODES } = require_state();
-      var { fetchWithTimeout } = require_net();
-      async function fetchWeather(wxState, city, size) {
-        if (wxState.fetching) return false;
-        wxState.fetching = true;
-        try {
-          const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&format=json`;
-          let gr;
-          try {
-            gr = await fetchWithTimeout(geoUrl);
-          } catch (fe) {
-            throw new Error("Network error - check internet connection");
-          }
-          if (!gr.ok) throw new Error("Geocoding failed: " + gr.status);
-          const gd = await gr.json();
-          if (!gd.results?.length) throw new Error(`City "${city}" not found`);
-          const loc = gd.results[0];
-          wxState.lat = loc.latitude;
-          wxState.lon = loc.longitude;
-          wxState.cityDisplay = loc.country ? `${loc.name}, ${loc.country}` : loc.name;
-          const wxUrl = `https://api.open-meteo.com/v1/forecast?latitude=${wxState.lat.toFixed(4)}&longitude=${wxState.lon.toFixed(4)}&current=temperature_2m,weather_code,wind_speed_10m&daily=sunrise,sunset,temperature_2m_max&timezone=auto&forecast_days=1`;
-          let wr;
-          try {
-            wr = await fetchWithTimeout(wxUrl);
-          } catch (fe) {
-            throw new Error("Weather fetch failed - check internet connection");
-          }
-          if (!wr.ok) throw new Error("Weather API error: " + wr.status);
-          const wd = await wr.json();
-          wxState.code = wd.current?.weather_code || 0;
-          wxState.temp = Math.round(wd.current?.temperature_2m || 20);
-          wxState.tempMax = Math.round(wd.daily?.temperature_2m_max?.[0] || wxState.temp);
-          wxState.tzOffset = wd.utc_offset_seconds || 0;
-          const pt = (s) => {
-            const p = (s || "").split("T")[1] || "00:00";
-            const [h, m] = p.split(":").map(Number);
-            return h * 3600 + m * 60;
-          };
-          wxState.sunriseS = pt(wd.daily?.sunrise?.[0]) || 21600;
-          wxState.sunsetS = pt(wd.daily?.sunset?.[0]) || 72e3;
-          wxState.desc = WX_CODES[wxState.code] || "Unknown";
-          const moonRS = calcMoonRiseSet(wxState.lat, wxState.lon, wxState.tzOffset);
-          wxState.moonriseS = moonRS.rise;
-          wxState.moonsetS = moonRS.set;
-          wxInitScene(wxState.code, wxState, size);
-          wxState.lastFetch = Date.now() / 1e3;
-          wxState.error = null;
-          return true;
-        } catch (e) {
-          console.warn("[weather] fetch error:", e.message);
-          wxState.error = e.message;
-          return false;
-        } finally {
-          wxState.fetching = false;
-        }
-      }
-      module.exports = { fetchWeather };
-    }
-  });
-
   // src/effects/weather.js
   var require_weather2 = __commonJS({
     "src/effects/weather.js"(exports, module) {
@@ -2359,60 +4922,6 @@ var PiEngine = (() => {
       }
       module.exports = weather;
       module.exports.getStatus = getStatus;
-    }
-  });
-
-  // src/effects/easterEgg/img1.bin
-  var require_img1 = __commonJS({
-    "src/effects/easterEgg/img1.bin"(exports, module) {
-      module.exports = "0tnftMngvc7gvM3gssritcviv9DfwdHgt83j4ubk9u/f5ODS3NvQ1tfL1dXKz9LIy83Dx8i9w8W5w8S3wsS3w8S4zc3D1NTK2NfJ3tvK6OPQ7+nU8erX8OnY6+XX5uPX5eLX4uDV4d7V4d7V4d7V4N3W4N3W4N3W393W393W39zV3dvU3drT29rS2trS2dnR2tfQ2NXN2NXM2NXM2NXM1dLJ1NHI09DH09DH0s/G0s/G0c7F0M3Ez8zDz8zDzsvCsMXcu83d8e7k7uzjsMbdrsXe2t3busrboLvavcbM1NHBxsi8xci9xsi+x8rAxcm/xce8w8a7w8W4w8W4wsS3xMe709XM1tjQ19jQztDFy8u/yci6ysa31tC+39fE4NrM4d3S4d7T4d7V4d7V4d7V4N3U4N3W4N3W4N3W4N3W39zV3tvU3tvU3drT3NnS29nS2tfQ2dbP2dbP2dbO2NXN1tPK1dLJ1NHI09DH09DH0s/G0c7F0c7Fz8zDz8zDzsvCy9XbpLzVsMTXr8TYorvXpLzXsMTYorfMjqnFt8LFzM7Eys3Eys3EyczDyMvCxsnAxci8xMa7w8W6wsS5wcO3xce81NXN19jQ2drS3N3V7O3m6uzj1NbMy8zAy8a1zsWy1s/A3NjN3tzR4N3T4N3U4N3U4N3U4N3V4N3W4d7X4N3W3tvU3tvU3dvT3NrT3NnS2tfQ2dbP2dbP2dbP2NXN1tPK1dLJ1NHI1NHI09DH0s/G0c7F0M3Ez8zDzsvCzcrB4+Ha1tfR0tTQ1dbT3dvV3NrUuLe0tbaxwMO9ycvDzdHHzM/Gy87FyczDyMvCxsnAxce8w8a6wsS5wsS5wcO3ycrB3N3U3N3U2dvR2drS7e7n9fbv8vTw4ufj2dvQw7+yxbys0cq83djM4d3R4t7U6OXb5ePa4d7W4N3W4N3W39zV39zV3tvU3drT3trT3drT29jR29jR3drT2dbP19TL1tPK1dLJ1NHJ1NHI09DH0s/G0c7F0M3Ez8zDzsvCzMnA7e3l7e3l7e3l7+zk6eXdlpGIWFRJsrWq0tXNztLKztHIzM/Gy87Fys3DyMvCxsnAxMi9w8a6wsS4wcO4wcO3nJ6Vjo+Hpqib4uPX1NXK7e7n9PXu8fTw3uPg4ubg3+HYl4+Bf25eg3BfaFhMTUA6c2hhsKie3tvS4+HZ4N3W39zV39zV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h391w7+2zcrDysfAyca/yca+yMW9x8S7xMG4xMG4w8C3xMG4SklFS0pGTEtHUE9LTUtHR0ZCS0pGS0hESEZCRkVBR0VCSEZCSERBQkA9QkA8Qj86Pz46koFu8M2q69C079S87cy148Sv5May3rmd2rWU0qmGwJNwqX5cmnBTmGxNfFI3hFg7oG5LtINc5cep8Nq/69G3372d06eCwpRrs4Ncn21NhFk/e1hCa004KRYMHxEJJBMLPiwkrqmhr6uhpKCW0M3FzMnCysfAyca/yMW+yMW9xsO6w8C3xMG4w8C3xMG4UVBMUU9MS0hFQT06Pjw4Q0E+REE+RUM/SEdDRkNAREA9RUM/RUM/R0VCR0RBREE9RUI/jn1r8Myq5can68+07tC179O76s634L+i17COyp15tYhmnHJUj2hOiGBGcksxjGFAqHpStoZbx5x05cmq4sOi1K6KxZZvrn1VmGlGgFY6bkszdFU/hGdQUj0tKxkOTTMgYkk4w721zcnDxcK5zcrCy8jByse/yMW/yMW+x8S7xcK5w8C3w8C3xMG4xMG4VFJPSUZDQT06Pjs4QDw5Qz88REE9R0NASkdDSEVBQ0A9QT87QkE9SUZCSUZCSUVBSUZEl4V08Myp4r6b4b+f5seq58Wn48Ol27mZzaN/t4lmm29PimFGf1lAZ0Ipglk7rH9Zu45lxJduwZJlvo9lzaN/x5pysYFYl2dFf1M4bkkxa0w2fF9JjXRcVT0qVjkjc082iGhRx8K6z83GzcrDzMnBy8jByca/yMW+yMW9xsO7xMG4wr+2w8C3xMG4w8C3SEdDTEtHRkNARkM/Qj47Qz88RUI+R0RBR0RBSUZCREM/RkVBR0VCS0hFSUZCSEVBRUNAlYZ38dK058eo5sap2K6M1q2K0qiDxZdxs4FdmmhGgVE0c0kvb0kvkmpLvpRuyZ93yJ1zzKF4y590s4FWoG1HpHNOmWhFgVU5b0cvZkMsb084bE86UzokUTMdbkowgltAm3tl0MzFz8zFzMnCy8jBysfAyca/yMW+x8S9xsO6wr+2wr+2w8C3xMG4w8C3QUA8Tk1JTUxIT01KR0RBRUNARUM/RURASEZCS0lFSUhET05LTk1LTEtHTEhFRkM/Q0E9kIN18tS36c2y6c2z0J98mmE/yZt1y512v49qs4VisYprv5x/0rGT3r2e37yc2LGO0qiC0KiBzaJ7t4phmWtGil49glk7dVE2bk0zdVU6eFc+PyUVPyYSWDghfVc7imJFoody0s/JzsvEzMnCy8jByca/yMW+x8S9x8S9xMG5wb60wb61w8C3w8C3w8C3REM/RURAU1FNTUlGSEZCSEdDSkhESkhETEpHS0lFVVRQVFNQUVBMTUxITUpFSkdCSEVAuqWQ786w48Gh4rydz597iVIww5t57cqn7Muq79K08de979W77tS768+15MOn27WV0qqGz6eCyaB4tYhhmW5LiWJDhV9BhmBDg2BEgFxAY0UvMBwOOyIRb000mXFRlmxNr5qI0tDKzcrDy8jBysfAyMW+yMW+x8S9xcK7wr+2wb61wr+2w7+3wr+2wr+2RURARkNAUU9MVFFOTUlGTUtHUU5KTUtHTUxJVVRQTUxIU1JOUlBMT01JS0lERUM+XldO5suw6Mam2q+I06V8volfgkopv5Zz78up7Mqq7tO38Na97tS77tS769C25MWp2raV0KeDzaKAx5x3sYVgl21NimRHhF9ChF9Dg15CfVg7UjopKhkLWTkjonRRq3tXmG1Ou62g0M/Iy8jByca/ysfAyMW+xsO8xcK8xMG5wr+2wr+2wr+2wb61wb61wb61RkVBT0xJTUxHWFZSUExITUtHTk1JTkxITUxJUE9MTEtHTUtHVFBMS0lEREM+QUE9koJx9di84b2a1Kd8xJFlomdAnWpH58Oe7s6t7cyt7c+z7dO57NG27NC46s6z4sGj1q+MyqB7xpt4xpt2r4NglGtMiGRHhmFEhF5CglxAelM3QjEiQyoYonJPu4lhqXlXkGdMuKudzszGysfAyMW+x8S9xsO8xcK7xMG6w8C4wb61wL21wL21wL21wL20wL20RURAS0pGT05KUE9LUU9LTElGT0xJTEhFS0lFSUZDTUlGT0pHTEhFS0hDSUdCUUxG07mh79C02rGJyZltsHZNp29K4LqX8NCx7M2u68yu68yv68yw682x6cyw5cap3LeWzqR+wJJuwJRwxpp0rYBbkWdIh2JFhF9Cg11AgVo9cUkwPicZkWVEyZpyv45on3JTjWdNua2hy8nCx8S9xsO8xcK7xMG6xMG6w8C5wr+4v7y1v7y1wL21wL22wL21v7yzTEpGTEhFSkdES0pGW1pWTkxITkpHSkdESkdES0hFUExJTkpGSEVBSEVBQ0E9fXBi8tW55MKgz590snVLqGxH3raT8NCx7Myu6Mak6Meo6suu7M2x7M6y6Mqt4r+g16+Lw5ZusIFdxZt2zKB5q35YjWRFhV9Dgls/gVk9gFc7Yzwmb0YuyZhv0aN9uohkmm5QknJawry0xsO8xMG6xMG6xMG6w8C5wr+4wb63wL22v7y1v7y1vru0vruzvbqxvbqxWlhUWVZTUU9LTUpHWFdTUlBMTUtHTkxITUpGT0xJUExJTEhFSEVAQkA7REM+uKSQ8tW52a+ItnpOomM82q+M7Mio7cuv6can47+c48Gf6Man7Myw682x58iq37uZz6V9rX9ZlWdHzaaF0qiDqnxWjWNEhFxAgVc7f1U5ek80ZTsktIZi2a6IzqB7r39dlGpNnoZ0xMC6wr23wb22wb23wb63wL23v7y1vru0vbqzvbqzvLmyu7iwu7ivu7ivu7ivWFdTXl1YY2JeWFZSV1ZSWVdUVVNPU09MUU1KUk5LUU1KTEhFS0hDQkA7W1ZN5s2168utyJJnmloxz6F968al6cio5cGh476b37iU3raS47+e6cir6cms5MGh2rKLx5pvn3JMlGpK3bqZ0qiArH1XjWNDgVc7f1I4fU81c0QrgFE227CL3LWRxZVvp3lXjWhOraGWvbm0vLexu7awvLexvLiyu7iwurawurewurewubavuLWst7Sst7Sst7Srt7SrWllVWVlVXVxYYF9bZGNfWllVXl1ZXFpWVVJPT0tIS0dESUVBSUZBQD45n4589dm+2rGMo2Q4uolj6cSi6sip5cGh3bOM2KuD16qC2KyF37aU47+g476f3rSS06Z+wpJor39WvJBm1KuCwpNpn29Kg1c5fE81e0wyfEowajgepnhY6MGg1KiBuohjmGxOmX9qrKefpaCZqKOdrKehr6qksKymsa2msq6osq6osq+osq+nsa6msa6msa6nsa6lsa6laGdib21odnRwfHt2iIaBiIeBiIaBjoyGmJaQmpiTnZqVn5uWpKGcrqih48mw68utvIVZo2tE4ruY6sms5sSn2KuFzJltyZZqzZ1z0aR72ayI3LOQ3LOQ1qqFyptzvYxjs4JauYlfuolfqnhQjF07ek4xdUgud0ctdkQmZzgbz6aF47mYyJZvqXlXj2lPy8K229jQxMG4qKSal5OKm5aOoJyUo5+XpaGZp6SbqKScqKWdqKWdqKWdqKWeqaaeqKWd4+Da5+Xe6eji7Orj7uvl7+3m8O3n8O7n8O7o8e/p8vDp8/Dq8vDq8eXX7c+y3LWPoGQ7z6WC6MWk6Mqu3riVyZdsuYVat4JXxJFnzJ100qN91aeC1KaAzp92wpBotoRcsoFZsX5WqXROlWJAfk8xdEcscUMpc0ImaTgbjF9B5b+d06R+uYhjlmhLq5OB5ePb4+DX4+DX3tvSw7+1l5OJjop/k4+El5OImpaMnZmPnpqQn5uSn5uSoZ2ToZ2UoJyT7Oni6+jh6+jh6+jh6+jh6ufg6ufg6+jh7Oni7Oni7erj7erj6+ri7NW+6MSjwo5ip3JM6sWk6ceq5sSm16yFxJJmtoJXq3ZPs35XxpVtzp53z595zJtzx5Zuuohfr31VrHlSp3NNm2ZDh1Y2ekswdEUsb0Anaz0iazwhzKWF3rWQw49pq3lXlW1T08zB4+HZ4d7W4d7V39zT3tvSx8O5j4uAioZ7i4h9jYp+kIyBko6DlJCFlZGHl5OIl5OIl5SJ7evk7erj7erj7erj7Oni7Oni7Ojh6+jh7Oni6ebf4+DX3drR4dTG782y47ybo2hAuo5s782t68uu5sKk1qiCxJNqtoVcqXVQo29LtYFbxZNryplxyJduwZBntIFYq3VOpW9JnWlEkFs6g1Iye0ovdEQqckMpbTwiqn9h6sSk0KB5vIliqHdVtpuI4uDY3drQ3drR3dnQ29jP2dXN0c7GmZWKh4N4iYV6iIR5iIR5iYV6ioZ7jIh9jYl+jop/joyA8vLs8O/o7u3m7ezl7Ozk7Ovk7Orj7Orj6+ni3tnQ1c/F1c3B6c217Mqq3raSgUsrxp6A78+07dC258Sm2rCNy5x2uohhqnhTmmdHmmdGsn1YwY1mwoxkuYNarXVNpm1Gn2hCk146h1Q0g1I1gFI5hFhAi2BJlm5X6MWn5r+ey5pyv4tmrHxeyLmt29nQ2tbO2dXO1tPL09DJzsvEsq+miod7h4N4h4R5h4R4h4N4hYF2hIB1hIB1hYF2hIJ2hIJ2/v78/Pz6+vr29/fz9fXv8/Ls8fHq8PDp7+/n7uzk5+LZ59K88da86MurzZtxc0Akx56B78607c+36Mar3bOSz6F6wZBotoVepXVVj2RMmnFawph9zaeNyqiPxqeRxaqXw6ycxbGjxrWqybuxz8S71czG2tLN48q17syt3rORy5dyvIZiq4Rt0c3G0tDI0M3GzcrDxsO8trOsk5CJhoR5hIJ2hoJ3hYJ3hYJ3hYF2g4B0gn5zgX1ygHxxfXpufHlu///////////////////////+/v79/v38/f37+/r28d7N68206M+27NW7y5x1ekIltIls7cmt7c+36s635su05M+85tfK6d/V6eLb6+ji6Ofj6unm7Oro7Orn6+zo6+vn8O/s9PLv8fHs8fDr7uvn7eTa68607cqq5b+ez514wItopnVWoYl6wb24vLmyraqjnJmTko+Hg392W1lQaGZfg4F2hIB1g4B0g390g390gn5zgHxxf3twfnpvenhseHZq6url8PDr9fXx+Pn2/Pz5/////////////vz48+DQ6suz3raa27ib8NvE3beYc0IpoIFv9uPU+PLs+/v3/f78/f/9/P37/P37+/369/j09fTw8O7q7+zo7uzn7urm6+Xg49vU1s3Hy7+3uqaZ0rqo7Mut7Mmq5sGh16eBu4Rgnm5QjWZNfFlDiX90g4F4ZWFaTEhDbGpihIF1gn9zZ2ZegH93g4B0g390gn5zgn5zgX1ygHxxf3pvfHlueXdrd3Vp2tfS2dbR19XQ2dfS1dPOiomFtbKt3t7a59/V8NnG1K+WpHpjzreo5tfH7dzL5dvT+/z7/v//9vXy8u3n9Ozj9/Dp9e/n7uTZ3cy9u6ORq5B+l3dlm3xrp4p6qYt6lnhofVpIh15HnWlLwZV47M6y7Mqt4biY16iEypZxp3NTkWVKjGZOeFZBdm1jeXZva2ZfU01HbWxleHZtf31yhoR+hoR8hIB1g4B0gn90gn9zgX1ygHxxf3twe3lteXdrd3Vp29jT2tfS2dXR19TPzsrGU1BRcm1lv7y3y8S87dfEtYVrbUs90tLL2djS8/Tw7OfgqZuSsJF+0qyT4L2j58eu58qv4L6f0qiDu4pjnmtHiFY1eUcqcDshZjQbRSkcc005s39c0Jp05LiY57yi68is4LST0Z55zp16t4RhlWZKk2hPg11DdVdDenVsfntzb2tiT0dAfHpxbW1kfXx0goB4gX90hYJ3g4B1gn90gn90gX1zf7xxfnpve3hteHZqdnRo0c7K1tTP2dfS2tfS0c7JeHZ0e3Nrwb+4zMfA5s28xJN6XjIhdlxRtK2l0si+xJaAb0MxsoNl3bCQ4r2h5MSo48Sm3bqY0KaAu4tlnm1Kh1U2e0ksd0IlajUaRSESt4Zl4rqb6MWu1KKK2ayR3K+PzZd006F9uoRgqHVTk2RIlmlPeVM7dVxKe3dwfXlxdXNpZmFag4F5fHlxfHlvg4B2h4R5hYN4hIF2g4B1gn9zgX1zf3tyfXlwendsd3VpdXNnraqjraumq6qmvbq2w8C8YV1djIaJxcK+0M3Gz8K40rOhvo10jVdCmXBfu7Kqy7+4tqefsIlw2KuL3rib5MOo5MWp3LqZzqWAuYhjnGpHhVM0eEUpdD8iYS8VXjcm2auK5sCk0J+CyZp9zp56u4Vl0aKCtoFgxJNvh1tBoXJXmW1ScUs1hnNmm5mUm5mTi4qCeXZugH51hYJ5iIV8h4R7hoN6hoN6hIF3g391gX5zf3tyfnpxe3dveHZrdnRodHJmzsvFvbmzo5+bmpeVn56fraywsbCzwL/BycjHy8nHzMnGzMG5y7esuJyOu7GrxMO/w8K+v6OSz6GA2rGS4b+i5MWo376d0amEvY9poG9LiFY1ekcocj0gVScRZ0Iw4LOS4bmX6sipxZZ1rnte1KuLkWFGxaGKqXxdQyUYupJ5iGBGb0w1hnpvkI+Gi4h/ZmNcUkxFh4V8iYZ9iYV8h4R7hoN6hYJ4g391gn50gHxzf3tyfXlwe3dueHZsd3RpdnRo2NXQ2dbR2tfS29jTysfCVVNQd3Jtr66rsrGwsK+vtLOyt7a2ubi6r7GylZSUgHt7dnJxeW1nv5N21quK3LiZ4sGj4L+g1bCLwZRwpHVRiVc3eUYnbjwcTCEMZEMz4baS5b6hwZBvnW5V1bSXi1s9pId1w51/aUIrYz8tv5p/elQ6cFA6gHhshIJ3h4R7b2xmV1FLh4N7h4N6hoJ5hYF4hIB3g392gX10gHxzgHx0gHxzfnpxfHhvendueXZreHVr1tPO1dLN1dLN19TPysbAPTo2dm9nzcvG1NHM0s/KzszHzMrFycfDxsTAwcC8vLu2trWxsLGuwamXzqB/2LGQ3ryd3ryd1bCMw5dyqHlWjVs6fEkqcD0dSyAMXT4w4baT2LGUwZJy2LKVkmJEqoNswpyCdUwzdEgwpXhjrIVtcEw0cVdEgHxzgn91hIF4dnNtW1ZQhIF4hIF4hIB3hIB3hYF4hYF4g392gn51gn51gn51gHxzfXlwfHhvendseXZt1NHL1NHM1NHM1tPOycW/My8qdm9lzMvG09LM0dDL0c/K0tDL0c/K0dDL0tHM0tHM0dDL0dHMzcnCxp+D06eF2rWS2rWS06yIw5d0roBbmGVCgk8uckAgUyYOXjws3bKN4ryZ6dC6roNnxZ2AyaqXhlc7mWdFj19BmWxXiGZSbko0dGJSf3x0gX10gn92fnx3YFxVh4N6h4N6h4N6iIR7iIR6iIR7h4N6hYF5hYF3hYF3g351gHxzf3tyfXlwe3hv1dLL1NHM1NHM1tPOy8jCOzcyc2xj0M7J1dTO09HM0tDL0c/K0M7Jz87Jz87Jzs3IzczHzMvGzMzIx7aoyZx81quJ1q6K0KaDxJh1tYZin21Kh1Iycj4fVScPZj8s3rSQ5MOi4MCh376h37iTv5Bps35Xo3BNkGNGfFQ8ck84bk46bmldcXRqdHNqeXZth4aAZWFag392gn51g392hYF4hYF4hoJ5hoJ5hYF4hYF4hYF3g392gHxzf3tyfnpxfXlw1NHM1NHM1dLN1tPOzMnEQTw4cWph0M7I09HM0c/K0M3IzszHzcrFzMnEy8jDycfCyMXAxcK9xMG9xMK9wqGJz6J/06mGzqJ9xJZyuYllonBMhlIybz0fVCcOdksz4buW5MKl5siu5ces2bKOxJVsrnxWmWtLh15EeFQ+cE45a1NAZWheaGxiam1jbW9mioqDa2dhe3hueHZsendtfHhvfnpxf3tyf3tygHxzgHxzf3txf3txfHlwe3huendtenZt";
-    }
-  });
-
-  // src/effects/easterEgg/img2.bin
-  var require_img2 = __commonJS({
-    "src/effects/easterEgg/img2.bin"(exports, module) {
-      module.exports = "v8PC2N/enKOYj5eKX2ZUjpaIv8a/2d3Y2ODgucTAuMK8r7mzlKGVwMnI5+jo6enp6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6enp5unor7avtL2urr2spratvMnH5Ofn6Ojo6Ojo6Ojo6Ojo6Ojo6ejo6Ojp6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6eno6enp6unp7ezt6+vq6ejo5+bnzNDI0Mmu4dm2qrKNcn9Nam1EippDhpczY3RAjZl2WWNA3N3d////////7/X0gIVsn6WZkpiOpKmaxc+99vr38vj3ytTPt8O56/Hv8ff3/P7+////////////////////////////////3+fjiJGHkpuKj52TtsXD1+jq7fj4////////////////////////////////////////////////////////////////////+Pv61+He6fHw////9uLs6tfd6MXD5sWw38K01r68mnKDzbS54cXI0bq2zLq1a29O29vb////////+vr54uXf6O3s4eXh2+Dd3OHX7fLu////////6PDu1N3Y9Pn37fPv/////////////f7+/////////////v7/vMfAZHBfWWVbi5uZ6fX2/////v///////////////////v//09rX1NrU4OTe+fv5+fj2/v38////////6e7r4erozdjTxNHMzNrXgY57fIqBnqysy9fc+fn///n/5+XppK2ci4xxkYVmlq58sMqb0MKzw7iaeoBE29vb////////////////+/38/f7+5+3r/f7//Pz79PXz////+/39/f//4+ro5uzl///+/P383+bkrLaxv8jD+Pv6////////09zWWWRYVGBbw9LR+f///P//8vf21t3WtL+yvMW2w8q7ztG/p6mVwMGs1cmw38WnvZ+JnoN4yLu18O7nuLuskZWJfod+c31zj5yWg4lwg4JifX9erq1p2dyQ2OKe4+zG2+nWkax9b4hXi6NIoMFQiKdRiplUe31M29vc/v/9/v79/////////////P399Pf28fX0+/v15+ze/v//////////6O3q6+/q////5ezq3ubl6/Dvtr66sry49fj47fDtu8C3Z2xldYJ86fX04u3ujpqXeod/gIhtfIVbeIBUqaJ+5Nu4+vHN4cCWxpp107KLzKd/onlcmG1Y0LOd2bCSuY9yrJaEiYyKi41nu7I5vbgsp7AzpbQwo7YhjrA8k7htq8d/5/PYmrF5VW4ndJNQb4NMf4tfh4Zi19jU/v799Pfy+vz5////////+v328vXu7PLu/v76+frx+/v5/////////P7+/P79/v///P39////////+v38ydDPoqagiIuDbHBnfYR+Xmtcg5CFeYWDbXl0ZHJjbnpni451s6iA69am9eCy0Kl+u41kxKB7p4JomnFXkWdKjmhQkXJjimFTfE8/nGxTqot1kIx6f4ptcIBqcIB2cYF6bXxzYnVphJuQzuLV4fHonb97rMWVt8mvhpdlcnFfa2dc1dfR/f77/f749fnv6vDX6/LX5e7P1N686u/l/////////////////////////////////////v79////////////zNLQjZaSe4J7bXBmh42HaHNvn6qo2+TklZ2MfYNvrKOA7suV89+x27yRnm5PjmBFbEI0WzgyVTcxXDszTC4oQiYfTy4lWTgwgFZHlmVMqYl2kIuJZW90cHuAipSbdH2FbHV7bHiAlqOi7fXy9v3+9P3/2ufiiJ1/Y2FVREA3ysu2+fnx0di6x9aUs8Zptcpwn7hbvs6U5OjX8PPj7PLg1+K05+3T7vTi6u7Y1tu+0dW7zNK5ztHFwr2sq6ubwMS+6u/v8vf5ys/Ok5GL0trd09ziyNDSoKaaeoBmlo9s4LqE6r6Kyp1xjV5GcEY1dkk5cEQ3YTwyVzUrUDAoVzUudEo6hVI8gFE7cUg4fUw4kmROoZCCdnt7dn+FlJybi5aGh5J2maNcqrhx3erX9f//9P7/7vj7ssWvdHdXRkE6maF86evToaqBdIo+jK0wja8vbo4ihKBIssGWla5ijqtNgJ04gJ8/pbhrmKZbfpNChJdRoatux8ayq6udg4mAipKNlqCf1t3ev8PDrbGwztTTv8G0gINrZWhHkYtj48SQ77p/uH5UazspVTMrcD8woV1AsG9PrWpKtm5MpGBElVc8kVI1nFo7oWRBgEw0bUEzekg1nnVdjYyIpKN9rrhkqcJsnLhypLxWpsRzz+HB1efW3Ozh6vT/5vH6qq6SYFQ7o6uKrbaM0dW6oa2AfZNEh6JCaoQwYXs1cIs8dZcwb48tdYpKeYxUlaRkip1GtMF6vcWNu76DxMShr7Khr7ew1Nratbm4q62o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0IZd0Ihk0Ixuz5B61p2K2Zl8ynlSyn1W3LOezoVhynZLxnRIyHZJyXdKyHdKxXVIxndMzX5Uy3xQzHhL0HpL3INP6IpV65p3oJZbdZMSfokjhZgvocNputyVxd2y4+3as89bssFMvKNRnnxQZY4yepM3rLJKm65KZLyRit+51bCF97GD/saV/tGi/tCf8biR87WW8aiA7p9u6Zlk55di5ZZh5JRf45Nf24tZxnRGu25FvXVMqlszw3JE1YZZ04hg0Ihky4hozY520ZaC1JV8zoVjyX5Xx3lP1p+B1Zp7xXRKw3JHwm5Cv2s/v2tAwnJGyntQ0oNZ14ti3I5m5JZr8qJz+652/7Z45qxug5Ule4kod48hmLsvrrtjwriE1taPnsFhha4krbNwj3lld48pl7A2s8FMl79qZtKwrdCm6aB1+raD/smW/tOm+8KJ9qRp+650/bR8/raB+rF98aRy5pho4JBh2IhbzHdMw21Ex3NKxXJKqVowsWE5y4BWy4NgyoZlyolrzo9y1Y9w1Yxs0Ylmy4NbxXlPzYlj0pZ3xHRLxXhNyXpNyHdLxndLyHlNzHxR1IVc3Y5l4pNk65tq9qd0/ryI/8+d+7+Jh3w/YGonc4otpKo/sZZWvqyEtqhoqMVxpsBFvseXnqhSZmg0bHY1k5FCbreMf+K7y7CF8aNz/byE/suZ/sqW/Ld7/ryD/7+J/7yJ/bWG86d555Vo4Ilf2oNaznxPvX4/v505mJEejWgtqFMutmhDwHdVxHxdx4Niy4lo0oxr1Yto0otn0IdjyoNcwHROyoxs2a2Ux3pQzYBU1IZX14pY2otZ2IhW1YNT2Ida4I9h6JZm7Zxm9KJr/bV9/sqW/8aQo5JDZnUrZX4igpk4rJJrop9Vr7JLxtFRqMA7qZdsl55VZWMzcX49ZnZSYs2qotyx56Fz96x5/r6I/smV/8KK/8KL/8OO/7qI+6p+8Ztz449m1opYwIhPrZUzd4cYcHk1go9MdnUkmGQ1t2hKvHFUvXVYw3lcxX5fyYNfz4hhz4plzYpry4dmx4BZwHVNx4Rh4LaczoNW1YhW4JRf6Zxn7aFq7qJp7qFn3YxY345c55hj6ptk8aFp/LJ5/seQ/8eRrIpIcYQffJYli4xDcpE+p785r8NQq55Yqp9yycahnalqa3oxfpM0a6JvcuO7vsWT9aNw/rJ+/7+M/8KQ97qF67R20JlnvIZVqX5Mim04hH8qjZotc480ZIobUHAgbGk8mmhGtmlNwnRVwnhZw3paw3paxHpYx3tUy4BU0IhezY5tzI1wyoVlxnxVxHZJyX9S5Lmb2I9j2ItW5Zph86hu/Ld7/r6B/r1/zH1L0XxK4pJd6Zlj8aFp+7J5/sWN/8WMnoBDVnETdoM+tMJNeaEom6w/mKxBl7w7prJmtcBXlqs2YHUkbXg3Z8Cchei5cpBCl4g7s6VDz8NNyb9ElZc1l6o6V3MTTFgZZ3EgVGUaVmwXYHEdbIgeV3cncVUyrlxEwnBPz4Re0IZdz4NXzoFSzH5PzH1MzX5M0YVX0I1lzY5wzIlqyIBYwndQvW1CvWo61ZZu0YdX04hS3pJa7aJm+rd5/8aG/MGDt2I3xGk82YZV55Zi8qNr/LN6/sWM/8CGrp8/h5krd4s0f5Y6mLM9kZs7ssFhrc1IkaQxsbdYkJ5KVGQqbZJVbeG5gMqXbn8tlaM8iJUve5kgiqI1boItlKM2iaMhaX4icYYhpbg8u9JDrMQvfaEVeWwrym1S1H1Z35Jn4pdp4JBa3ItU2IhS1YRP0oNN0oNP04ZVz4Zaz4tnzodgy4JXxn1TwHRJt2g8tWY5uWk4yXpE2Y5V5Jph86tv/71/761xoEgkwWI01HxL5pRg9KRs/bR7/8OM/rl/nZo4m6I0o6pY2eGjosFHn6ZDpb1Jp7dcsKmIl5B2enlLRFUnYal4efLEZpVkaGMugYYzdYgpXHIpeowqgJY4scY4u9M/prxDiKQugJYpm7QujaIva5kXsZQ+5pJ06KKA66aB6aN55p1t4pdj35Jc35lq4qiH2pZvzH9UyoFU1o1f1I1h0opez4lbx4FWtW9MqFo4rFs0vWw+2ItW6KFr8qpv/7p94ZlhjjcZv1su1HVE55Bb9aRt/rZ//8OM8690dX8feooljp0jl6wtj6QyfIMvma0yra1TmpRQgY5fQVY0RVYtYMedhO6/UW8/Z2s2bmk+Z3g3aXU3XHAxh58/xd42u9gwlawqh5wqhJgma3g4ZnAvZXY5m4xE7qF57KmD6aZ/7aV47aN16KFy5Z5u4Jtv1ZFszoRbyX9WyoVZ2plr36eE3Zt22ZZuyIRhtWxMr2BDumRK0XpQ4ZJg8614+rZ+/8GIyoRThEATvlQo0XBA5Y9c96Vw/rmC/8OM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";
-    }
-  });
-
-  // sim/shims/fs.js
-  var require_fs = __commonJS({
-    "sim/shims/fs.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var img1B64 = require_img1();
-      var img2B64 = require_img2();
-      function b64ToBytes(b64) {
-        const bin = window.atob(b64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        return bytes;
-      }
-      var img1Bin = null;
-      var img2Bin = null;
-      function readFileSync(p, encoding) {
-        if (/img1\.bin$/.test(p)) return img1Bin || (img1Bin = b64ToBytes(img1B64));
-        if (/img2\.bin$/.test(p)) return img2Bin || (img2Bin = b64ToBytes(img2B64));
-        const v = window.localStorage.getItem("simfs:" + p);
-        if (v === null) {
-          const e = new Error("ENOENT: " + p);
-          e.code = "ENOENT";
-          throw e;
-        }
-        if (encoding) return v;
-        return new Uint8Array(JSON.parse(v));
-      }
-      function writeFileSync(p, data) {
-        window.localStorage.setItem("simfs:" + p, typeof data === "string" ? data : JSON.stringify(Array.from(data)));
-      }
-      function existsSync(p) {
-        return window.localStorage.getItem("simfs:" + p) !== null;
-      }
-      function unlinkSync(p) {
-        window.localStorage.removeItem("simfs:" + p);
-      }
-      module.exports = { readFileSync, writeFileSync, existsSync, unlinkSync };
     }
   });
 
@@ -2467,20 +4976,6 @@ var PiEngine = (() => {
         }
       }
       module.exports = easterEgg;
-    }
-  });
-
-  // src/effects/trail.js
-  var require_trail = __commonJS({
-    "src/effects/trail.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var TUNED_HZ = 30;
-      function trailFade(k, dt) {
-        return Math.pow(k, dt * TUNED_HZ);
-      }
-      module.exports = { trailFade, TUNED_HZ };
     }
   });
 
@@ -3815,6 +6310,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { trailFade } = require_trail();
       var { tronMove } = require_shared();
       var lightningBolts = [];
       var lightningT = 0;
@@ -3861,17 +6357,18 @@ var PiEngine = (() => {
         lightningT += dt * speedMult;
         lightningStormT += dt * speedMult;
         const { N, SIZE, colBuf } = core;
+        const fade = trailFade(0.82, dt);
         const pulse = 0.03 + 0.02 * Math.sin(lightningStormT * 0.7);
         for (let i = 0; i < N; i++) {
-          colBuf[i * 3] = Math.max(colBuf[i * 3] * 0.82, pulse * 0.18);
-          colBuf[i * 3 + 1] = Math.max(colBuf[i * 3 + 1] * 0.82, pulse * 0.22);
-          colBuf[i * 3 + 2] = Math.max(colBuf[i * 3 + 2] * 0.82, pulse * 0.65);
+          colBuf[i * 3] = Math.max(colBuf[i * 3] * fade, pulse * 0.18);
+          colBuf[i * 3 + 1] = Math.max(colBuf[i * 3 + 1] * fade, pulse * 0.22);
+          colBuf[i * 3 + 2] = Math.max(colBuf[i * 3 + 2] * fade, pulse * 0.65);
         }
         if (lightningThunder > 0.01) {
           for (let i = 0; i < N; i++) {
-            colBuf[i * 3] = Math.min(1, colBuf[i * 3] + lightningThunder * 0.85);
-            colBuf[i * 3 + 1] = Math.min(1, colBuf[i * 3 + 1] + lightningThunder * 0.9);
-            colBuf[i * 3 + 2] = Math.min(1, colBuf[i * 3 + 2] + lightningThunder);
+            colBuf[i * 3] = Math.min(1, colBuf[i * 3] + lightningThunder * 0.3);
+            colBuf[i * 3 + 1] = Math.min(1, colBuf[i * 3 + 1] + lightningThunder * 0.33);
+            colBuf[i * 3 + 2] = Math.min(1, colBuf[i * 3 + 2] + lightningThunder * 0.4);
           }
           lightningThunder = Math.max(0, lightningThunder - dt * 8);
         }
@@ -3996,7 +6493,7 @@ var PiEngine = (() => {
         const { N, SIZE, colBuf, faceMap } = core;
         const opts = core.effectOptions?.lightspeed || {};
         const lsSpeed = opts.speed ?? 8, lsTrail = opts.trail ?? 32, lsSize = opts.size ?? 1;
-        const lsColour = opts.colour ?? "multi", lsCount = opts.count ?? 3, lsNudge = opts.nudge ?? 0;
+        const lsColour = opts.colour ?? "multi", lsCount = opts.count ?? 8, lsNudge = opts.nudge ?? 0;
         if (!lsRacers.length || !faceMap) resetLightspeed(core, lsCount);
         for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
         const S = SIZE;
@@ -10695,18 +13192,6 @@ var PiEngine = (() => {
     }
   });
 
-  // sim/shims/child_process.js
-  var require_child_process = __commonJS({
-    "sim/shims/child_process.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      function spawn() {
-        throw new Error("video playback (ffmpeg) is not available in the browser simulator");
-      }
-      module.exports = { spawn };
-    }
-  });
-
   // src/effects/video/ffmpegSource.js
   var require_ffmpegSource = __commonJS({
     "src/effects/video/ffmpegSource.js"(exports, module) {
@@ -11208,1776 +13693,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/radio/fft.js
-  var require_fft = __commonJS({
-    "src/effects/radio/fft.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var BAND_COUNT = 256;
-      var WINDOW = 2048;
-      var F_MIN = 30;
-      var F_MAX = 7e3;
-      var DB_FLOOR = -72;
-      var DB_CEIL = -12;
-      var TILT_DB_PER_OCTAVE = 3.5;
-      function fft(re, im) {
-        const n = re.length;
-        for (let i = 1, j = 0; i < n; i++) {
-          let bit = n >> 1;
-          for (; j & bit; bit >>= 1) j ^= bit;
-          j ^= bit;
-          if (i < j) {
-            const tr = re[i];
-            re[i] = re[j];
-            re[j] = tr;
-            const ti = im[i];
-            im[i] = im[j];
-            im[j] = ti;
-          }
-        }
-        for (let len = 2; len <= n; len <<= 1) {
-          const ang = -2 * Math.PI / len;
-          const wr = Math.cos(ang), wi = Math.sin(ang);
-          const halfLen = len >> 1;
-          for (let i = 0; i < n; i += len) {
-            let curWr = 1, curWi = 0;
-            for (let k = 0; k < halfLen; k++) {
-              const a = i + k, b = a + halfLen;
-              const vRe = re[b] * curWr - im[b] * curWi;
-              const vIm = re[b] * curWi + im[b] * curWr;
-              re[b] = re[a] - vRe;
-              im[b] = im[a] - vIm;
-              re[a] += vRe;
-              im[a] += vIm;
-              const nWr = curWr * wr - curWi * wi;
-              curWi = curWr * wi + curWi * wr;
-              curWr = nWr;
-            }
-          }
-        }
-      }
-      function nextPow2(n) {
-        let p = 1;
-        while (p < n) p <<= 1;
-        return p;
-      }
-      function makeStage(sampleRate, win) {
-        const n = nextPow2(win) * 2;
-        const half = n >> 1;
-        const re = new Float32Array(n), im = new Float32Array(n);
-        const power = new Float32Array(half);
-        const hann = new Float32Array(win);
-        let hannSum = 0;
-        for (let i = 0; i < win; i++) {
-          hann[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (win - 1));
-          hannSum += hann[i];
-        }
-        const refPow = hannSum / 2 * (hannSum / 2);
-        function fill(ring, end) {
-          const mask = ring.length - 1, start = end - win;
-          for (let i = 0; i < win; i++) {
-            re[i] = ring[start + i & mask] * hann[i];
-            im[i] = 0;
-          }
-          for (let i = win; i < n; i++) {
-            re[i] = 0;
-            im[i] = 0;
-          }
-          fft(re, im);
-          for (let i = 0; i < half; i++) power[i] = (re[i] * re[i] + im[i] * im[i]) / refPow;
-        }
-        return { win, half, binHz: sampleRate / n, power, fill };
-      }
-      var BASS_SPLIT_HZ = 250;
-      function createAnalyser(sampleRate, win = WINDOW) {
-        const short = makeStage(sampleRate, win);
-        const long = makeStage(sampleRate, win * 2);
-        const out = new Float32Array(BAND_COUNT);
-        const bStage = new Array(BAND_COUNT), bLo = new Float32Array(BAND_COUNT), bHi = new Float32Array(BAND_COUNT), bTilt = new Float32Array(BAND_COUNT);
-        const fMax = Math.min(F_MAX, sampleRate / 2 - short.binHz);
-        for (let b = 0; b < BAND_COUNT; b++) {
-          const f0 = F_MIN * Math.pow(fMax / F_MIN, b / BAND_COUNT);
-          const f1 = F_MIN * Math.pow(fMax / F_MIN, (b + 1) / BAND_COUNT);
-          const fc = Math.sqrt(f0 * f1);
-          const st = fc < BASS_SPLIT_HZ ? long : short;
-          bStage[b] = st;
-          bLo[b] = f0 / st.binHz;
-          bHi[b] = f1 / st.binHz;
-          bTilt[b] = TILT_DB_PER_OCTAVE * Math.log2(fc / 1e3);
-        }
-        const dbRange = DB_CEIL - DB_FLOOR;
-        function analyse(ring, end) {
-          short.fill(ring, end);
-          long.fill(ring, end);
-          for (let b = 0; b < BAND_COUNT; b++) {
-            const st = bStage[b], power = st.power, lo = bLo[b], hi = bHi[b];
-            let p;
-            if (hi - lo < 1) {
-              const c = (lo + hi) / 2, k = Math.floor(c), f = c - k;
-              p = power[k] * (1 - f) + power[Math.min(st.half - 1, k + 1)] * f;
-            } else {
-              p = 0;
-              const k1 = Math.min(st.half - 1, Math.ceil(hi));
-              for (let k = Math.floor(lo); k < k1; k++) if (power[k] > p) p = power[k];
-            }
-            const db = p > 1e-12 ? 10 * Math.log10(p) + bTilt[b] : -Infinity;
-            const v = (db - DB_FLOOR) / dbRange;
-            out[b] = v <= 0 ? 0 : v >= 1 ? 1 : v;
-          }
-          return out;
-        }
-        return { analyse, win: long.win, sampleRate };
-      }
-      var _cache = /* @__PURE__ */ new Map();
-      function computeBands(samples, sampleRate) {
-        const key = String(sampleRate);
-        let a = _cache.get(key);
-        if (!a) {
-          a = createAnalyser(sampleRate);
-          _cache.set(key, a);
-        }
-        const ring = new Float32Array(nextPow2(Math.max(a.win, samples.length)));
-        ring.set(samples);
-        return Float32Array.from(a.analyse(ring, samples.length));
-      }
-      module.exports = { fft, computeBands, createAnalyser, BAND_COUNT, WINDOW, nextPow2, F_MIN, F_MAX };
-    }
-  });
-
-  // src/pulseEnv.js
-  var require_pulseEnv = __commonJS({
-    "src/pulseEnv.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var fs = require_fs();
-      var _pulseEnvCache = null;
-      function findPulseEnv() {
-        if (_pulseEnvCache) return { env: _pulseEnvCache };
-        const debug = [];
-        const runUser = "/run/user";
-        let entries;
-        try {
-          entries = fs.readdirSync(runUser);
-          debug.push(`readdirSync(${runUser}) -> [${entries.join(", ")}]`);
-        } catch (err) {
-          debug.push(`readdirSync(${runUser}) threw: ${err.code || ""} ${err.message}`);
-          return { debug };
-        }
-        for (const uid of entries) {
-          const sock = `${runUser}/${uid}/pulse/native`;
-          let exists;
-          try {
-            exists = fs.existsSync(sock);
-          } catch (err) {
-            exists = false;
-            debug.push(`existsSync(${sock}) threw: ${err.message}`);
-          }
-          debug.push(`existsSync(${sock}) -> ${exists}`);
-          if (!exists) continue;
-          let home = null;
-          try {
-            const passwd = fs.readFileSync("/etc/passwd", "utf8");
-            for (const line of passwd.split("\n")) {
-              const fields = line.split(":");
-              if (fields[2] === uid) {
-                home = fields[5] || null;
-                break;
-              }
-            }
-            debug.push(`home for uid ${uid} -> ${home}`);
-          } catch (err) {
-            debug.push(`readFileSync(/etc/passwd) threw: ${err.message}`);
-          }
-          _pulseEnvCache = { PULSE_SERVER: "unix:" + sock, XDG_RUNTIME_DIR: `${runUser}/${uid}`, ...home ? { HOME: home } : {} };
-          return { env: _pulseEnvCache };
-        }
-        return { debug };
-      }
-      module.exports = { findPulseEnv };
-    }
-  });
-
-  // src/effects/radio/ffmpegAudio.js
-  var require_ffmpegAudio = __commonJS({
-    "src/effects/radio/ffmpegAudio.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { spawn } = require_child_process();
-      var { createAnalyser, BAND_COUNT } = require_fft();
-      var { findPulseEnv } = require_pulseEnv();
-      var RETRY_COOLDOWN_MS = 8e3;
-      var IDLE_TIMEOUT_MS = 1e4;
-      var IDLE_CHECK_MS = 3e3;
-      var SAMPLE_RATE = 44100;
-      var CHANNELS = 2;
-      var ANALYSIS_HZ = 60;
-      var WINDOW_VU = 2048;
-      var VU_DB_FLOOR = -42;
-      var RING_SAMPLES = 1 << 16;
-      var DEFAULT_SYNC_MS = 150;
-      var MAX_SYNC_MS = 800;
-      var STALL_MS = 400;
-      var ATTACK_RATE = 60;
-      var RELEASE_RATE = 7;
-      var PEAK_HOLD_S = 0.35;
-      var PEAK_GRAVITY = 3.2;
-      var RadioAudio = class {
-        constructor(spawnFn = spawn) {
-          this._spawn = spawnFn;
-          this.decodeProc = null;
-          this.playProc = null;
-          this.url = null;
-          this._ring = new Float32Array(RING_SAMPLES);
-          this._ringL = new Float32Array(RING_SAMPLES);
-          this._ringR = new Float32Array(RING_SAMPLES);
-          this.vu = new Float32Array(4);
-          this._vuHold = new Float32Array(2);
-          this._vuVel = new Float32Array(2);
-          this._writePos = 0;
-          this._playPos = 0;
-          this._carry = null;
-          this._lastDataMs = 0;
-          this._analyser = createAnalyser(SAMPLE_RATE);
-          this._zeros = new Float32Array(BAND_COUNT);
-          this._analysisTimer = null;
-          this._syncS = DEFAULT_SYNC_MS / 1e3;
-          this.status = "Stopped";
-          this.playbackStatus = "No playback attempted";
-          this.lastAttemptMs = 0;
-          this.lastEnsureMs = 0;
-          this.errored = false;
-          this._debugFinished = false;
-          this.spec = new Float32Array(BAND_COUNT);
-          this.peak = new Float32Array(BAND_COUNT);
-          this._peakVel = new Float32Array(BAND_COUNT);
-          this._peakHold = new Float32Array(BAND_COUNT);
-          this._idleTimer = setInterval(() => this._checkIdle(), IDLE_CHECK_MS);
-          if (this._idleTimer.unref) this._idleTimer.unref();
-        }
-        // Call every tick the radio effect is active and a station is selected.
-        // Empty/falsy url tears everything down.
-        ensure(url) {
-          this.lastEnsureMs = Date.now();
-          if (!url) {
-            this._teardown();
-            this.url = null;
-            this.status = "Stopped";
-            this.playbackStatus = "No playback attempted";
-            return;
-          }
-          if (this.decodeProc && this.url === url) return;
-          if (this.url !== url) {
-            this._teardown();
-            this.url = url;
-            this.errored = false;
-            this._launch(url);
-            return;
-          }
-          if (this._debugFinished) return;
-          if (this.errored && Date.now() - this.lastAttemptMs < RETRY_COOLDOWN_MS) return;
-          this._launch(url);
-        }
-        _launch(url) {
-          this.lastAttemptMs = Date.now();
-          this._ring.fill(0);
-          this._ringL.fill(0);
-          this._ringR.fill(0);
-          this.vu.fill(0);
-          this._writePos = 0;
-          this._playPos = 0;
-          this._carry = null;
-          this._startAnalysisClock();
-          this.spec.fill(0);
-          this.peak.fill(0);
-          this._peakVel.fill(0);
-          const isDebug = url.startsWith("debug:") || url.startsWith("debugloop:");
-          const isLoop = url.startsWith("debugloop:");
-          this._isDebugSource = isDebug;
-          this._isDebugLoop = isLoop;
-          const lavfiSpec = isDebug ? url.slice(isLoop ? "debugloop:".length : "debug:".length) : null;
-          let proc;
-          try {
-            proc = this._spawn("ffmpeg", isDebug ? [
-              "-loglevel",
-              "error",
-              // A real report: "the BT speaker goes quickly from mid-low to
-              // mid-high in 1 second [...] the bars seem to follow the BT
-              // speaker more" - a synthetic lavfi source (unlike a real network
-              // stream, which is naturally paced by how fast bytes arrive over
-              // the network) gets generated as fast as the CPU allows, not in
-              // real time - ffmpeg would render the whole 60s sweep in a
-              // fraction of a second. That flooded _onData() far faster than
-              // paplay could drain its stdin, and the backpressure fix earlier
-              // in this session (which DROPS data rather than buffering it
-              // without bound) discarded most of the sweep, leaving only a
-              // fast, jumbled fragment for both playback AND the FFT/bars (fed
-              // from the same decode stream) to follow. `-re` makes ffmpeg
-              // read/generate the input at its own native frame rate, pacing
-              // the whole pipeline to real time - the same way a real stream's
-              // network delivery already does.
-              "-re",
-              "-f",
-              "lavfi",
-              "-i",
-              lavfiSpec,
-              "-vn",
-              "-f",
-              "s16le",
-              "-acodec",
-              "pcm_s16le",
-              "-ar",
-              String(SAMPLE_RATE),
-              "-ac",
-              String(CHANNELS),
-              "pipe:1"
-            ] : [
-              "-loglevel",
-              "error",
-              "-i",
-              url,
-              "-vn",
-              "-f",
-              "s16le",
-              "-acodec",
-              "pcm_s16le",
-              "-ar",
-              String(SAMPLE_RATE),
-              "-ac",
-              String(CHANNELS),
-              "pipe:1"
-            ], { stdio: ["ignore", "pipe", "pipe"] });
-          } catch (err) {
-            this._onSpawnFail(err);
-            return;
-          }
-          this.decodeProc = proc;
-          this.status = "Connecting\u2026";
-          let stderrTail = "";
-          proc.on("error", (err) => this._onSpawnFail(err, proc));
-          if (proc.stderr) proc.stderr.on("data", (d) => {
-            stderrTail = (stderrTail + d.toString()).slice(-4e3);
-          });
-          if (proc.stdout) proc.stdout.on("data", (chunk) => {
-            if (proc === this.decodeProc) this._onData(chunk);
-          });
-          proc.on("exit", (code) => {
-            if (proc !== this.decodeProc) return;
-            const wasDebug = this._isDebugSource;
-            const wasLoop = this._isDebugLoop;
-            this.decodeProc = null;
-            this._teardownPlayback();
-            if (wasDebug && code === 0) {
-              this.status = "Stopped";
-              if (!wasLoop) {
-                this._debugFinished = true;
-                this._stopAnalysisClock();
-                this.spec.fill(0);
-                this.peak.fill(0);
-                this._peakVel.fill(0);
-              }
-              return;
-            }
-            this.errored = true;
-            const lastLine = stderrTail.trim().split("\n").filter(Boolean).pop();
-            this.status = "Error \u2014 ffmpeg exited (" + (lastLine || `code ${code}`) + ")";
-            if (this.status !== this._lastLoggedStatus) {
-              this._lastLoggedStatus = this.status;
-              console.warn(`[radio] stream failed (${url}): ${lastLine || "code " + code}`);
-            }
-          });
-          this._launchPlayback();
-        }
-        // Second process: reads the SAME PCM chunks this._onData() also feeds to
-        // the FFT (see _onData below) and plays them out via PulseAudio's
-        // `paplay --raw`, which uses whatever sink is currently default - the
-        // sink bluetooth.js's routePhoneAudio()/the Setup panel's pairing flow
-        // already arranges to be the paired Bluetooth speaker. Deliberately does
-        // NOT hunt for a bluez_sink itself and pass --device - PulseAudio's
-        // default-sink concept is exactly what "already paired via Setup" means
-        // in this project, so respecting it (rather than second-guessing it) is
-        // the simplest correct choice.
-        _launchPlayback() {
-          let proc;
-          try {
-            const pulseResult = findPulseEnv();
-            const env = pulseResult.env ? { ...define_process_env_default, ...pulseResult.env } : define_process_env_default;
-            const args = ["--raw", "--format=s16le", "--rate=" + SAMPLE_RATE, "--channels=" + CHANNELS];
-            if (pulseResult.env) args.unshift("--server=" + pulseResult.env.PULSE_SERVER);
-            proc = this._spawn("paplay", args, { stdio: ["pipe", "ignore", "pipe"], env });
-          } catch (err) {
-            this._onPlaybackFail(err);
-            return;
-          }
-          this.playProc = proc;
-          this.playbackStatus = "Starting playback\u2026";
-          let stderrTail = "";
-          proc.on("error", (err) => this._onPlaybackFail(err, proc));
-          if (proc.stderr) proc.stderr.on("data", (d) => {
-            stderrTail = (stderrTail + d.toString()).slice(-2e3);
-          });
-          if (proc.stdin) proc.stdin.on("error", () => {
-          });
-          this._playDrained = true;
-          if (proc.stdin) {
-            proc.stdin.on("drain", () => {
-              this._playDrained = true;
-            });
-          }
-          proc.on("exit", (code) => {
-            if (this.playProc !== proc) return;
-            this.playProc = null;
-            if (code !== 0 && code !== null) {
-              const lastLine = stderrTail.trim().split("\n").filter(Boolean).pop();
-              this.playbackStatus = "Playback stopped \u2014 " + (lastLine || `paplay exited (code ${code})`);
-              console.warn("[radio] " + this.playbackStatus);
-            }
-          });
-        }
-        _onPlaybackFail(err, proc) {
-          if (proc && proc !== this.playProc) return;
-          this.playProc = null;
-          if (err && err.code === "ENOENT") {
-            this.playbackStatus = "paplay not found \u2014 install with: sudo apt install pulseaudio-utils";
-          } else {
-            this.playbackStatus = "No audio output \u2014 " + (err && err.message || "failed to start paplay") + " (visualizer still works)";
-          }
-        }
-        _onSpawnFail(err, proc) {
-          if (proc && proc !== this.decodeProc) return;
-          this.decodeProc = null;
-          this.errored = true;
-          if (err && err.code === "ENOENT") {
-            this.status = "ffmpeg not found \u2014 install with: sudo apt install ffmpeg";
-          } else {
-            this.status = "Error \u2014 " + (err && err.message || "failed to start ffmpeg");
-          }
-        }
-        _onData(chunk) {
-          if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && this._playDrained) {
-            try {
-              this._playDrained = this.playProc.stdin.write(chunk);
-            } catch (e) {
-            }
-          }
-          let buf = chunk;
-          if (this._carry && this._carry.length) {
-            buf = Buffer2.concat([this._carry, chunk]);
-            this._carry = null;
-          }
-          const frames = buf.length / 4 | 0;
-          const ring = this._ring, mask = ring.length - 1;
-          let w = this._writePos;
-          const ringL = this._ringL, ringR = this._ringR;
-          for (let i = 0; i < frames; i++) {
-            const l = buf.readInt16LE(i * 4) / 32768, r = buf.readInt16LE(i * 4 + 2) / 32768;
-            ringL[w & mask] = l;
-            ringR[w & mask] = r;
-            ring[w & mask] = (l + r) / 2;
-            w++;
-          }
-          this._writePos = w;
-          if (buf.length > frames * 4) this._carry = Buffer2.from(buf.subarray(frames * 4));
-          if (frames > 0) {
-            this._lastDataMs = performance.now();
-            if (this.status === "Connecting\u2026") this.status = "Playing";
-          }
-        }
-        // Clock-driven analysis (redone for smoothness). Previously each
-        // 2048-sample block was analysed the moment it arrived: only ~21 updates
-        // a second (bars moved in visible steps at a 60Hz render), and at the
-        // mercy of network bursts - a burst of blocks arriving together made the
-        // bars jump ahead of what you hear, then freeze. Now decoded audio goes
-        // into a ring buffer, and a steady ANALYSIS_HZ clock analyses the most
-        // recent window at a "play cursor" that advances in real time, kept a
-        // fixed sync delay behind the newest data (absorbing bursts). Result:
-        // 60 fresh spectra a second, evenly spaced, from a sliding window.
-        _startAnalysisClock() {
-          if (this._analysisTimer) return;
-          this._lastTickMs = performance.now();
-          this._analysisTimer = setInterval(() => this._analysisTick(), 1e3 / ANALYSIS_HZ);
-          if (this._analysisTimer.unref) this._analysisTimer.unref();
-        }
-        _stopAnalysisClock() {
-          if (this._analysisTimer) clearInterval(this._analysisTimer);
-          this._analysisTimer = null;
-        }
-        _analysisTick() {
-          const now = performance.now();
-          const dt = Math.max(1e-3, Math.min(0.1, (now - this._lastTickMs) / 1e3));
-          this._lastTickMs = now;
-          const win = this._analyser.win;
-          const w = this._writePos;
-          let target;
-          if (w < win || now - this._lastDataMs > STALL_MS) {
-            target = this._zeros;
-          } else {
-            const lag = this._syncS * SAMPLE_RATE;
-            if (!(this._playPos > 0)) this._playPos = w - lag;
-            this._playPos += dt * SAMPLE_RATE;
-            this._playPos += (w - lag - this._playPos) * Math.min(1, dt * 2);
-            const lo = w - this._ring.length + win, hi = w;
-            if (this._playPos > hi) this._playPos = hi;
-            if (this._playPos < lo) this._playPos = lo;
-            if (this._playPos < win) {
-              target = this._zeros;
-            } else target = this._analyser.analyse(this._ring, Math.floor(this._playPos));
-          }
-          this._lastTarget = target;
-          this._applySpectrumTarget(target, dt);
-          this._updateVu(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
-        }
-        // Stereo VU: RMS of each channel over the analysis window, on a dB scale
-        // (VU_DB_FLOOR..0dB full-scale sine -> 0..1), with meter ballistics - a
-        // quick rise, slow fall, and peak markers that hold then drop.
-        _updateVu(end, dt) {
-          const win = WINDOW_VU, mask = this._ring.length - 1;
-          for (let ch = 0; ch < 2; ch++) {
-            let target = 0;
-            if (end >= win) {
-              const ring = ch === 0 ? this._ringL : this._ringR;
-              let sum = 0;
-              for (let i = end - win; i < end; i++) {
-                const v = ring[i & mask];
-                sum += v * v;
-              }
-              const rms = Math.sqrt(sum / win);
-              const db = rms > 1e-6 ? 20 * Math.log10(rms * Math.SQRT2) : -Infinity;
-              target = Math.max(0, Math.min(1, (db - VU_DB_FLOOR) / -VU_DB_FLOOR));
-            }
-            const cur = this.vu[ch];
-            this.vu[ch] = cur + (target - cur) * Math.min(1, dt * (target > cur ? 30 : 3.5));
-            if (this.vu[ch] >= this.vu[ch + 2]) {
-              this.vu[ch + 2] = this.vu[ch];
-              this._vuHold[ch] = 0.8;
-              this._vuVel[ch] = 0;
-            } else if (this._vuHold[ch] > 0) this._vuHold[ch] -= dt;
-            else {
-              this._vuVel[ch] += dt * 1.5;
-              this.vu[ch + 2] = Math.max(this.vu[ch], this.vu[ch + 2] - this._vuVel[ch] * dt);
-            }
-          }
-        }
-        // Ballistics: near-instant attack so hits land on the beat, a smooth
-        // exponential release, and peak markers that hold briefly then fall
-        // with gravity - the classic analyser feel. (The old attack of dt*11
-        // added ~90ms of lag to every hit.)
-        _applySpectrumTarget(target, dt) {
-          const attack = Math.min(1, dt * ATTACK_RATE), release = Math.min(1, dt * RELEASE_RATE);
-          for (let b = 0; b < BAND_COUNT; b++) {
-            const t = target[b], s = this.spec[b];
-            this.spec[b] = s + (t - s) * (t > s ? attack : release);
-            if (this.spec[b] >= this.peak[b]) {
-              this.peak[b] = this.spec[b];
-              this._peakVel[b] = 0;
-              this._peakHold[b] = PEAK_HOLD_S;
-            } else if (this._peakHold[b] > 0) this._peakHold[b] -= dt;
-            else {
-              this._peakVel[b] += dt * PEAK_GRAVITY;
-              this.peak[b] = Math.max(this.spec[b], this.peak[b] - this._peakVel[b] * dt);
-            }
-          }
-        }
-        getStatus() {
-          return this.status;
-        }
-        getPlaybackStatus() {
-          return this.playbackStatus;
-        }
-        // Re-opens the playback process so it attaches to PulseAudio's CURRENT
-        // default output. A playback stream stays on whatever output was default
-        // when it started, so a station resumed at startup (before the Bluetooth
-        // speaker reconnected) kept playing to the Pi's own output even after
-        // the speaker became the default. Called when the audio output changes.
-        restartPlayback() {
-          if (!this.decodeProc) return;
-          this._teardownPlayback();
-          this._launchPlayback();
-        }
-        // Speaker sync delay (see DEFAULT_SYNC_MS). Clamped so the analysis
-        // window always stays inside the ring buffer.
-        setSyncMs(ms) {
-          const v = Number.isFinite(ms) ? Math.max(0, Math.min(MAX_SYNC_MS, ms)) : DEFAULT_SYNC_MS;
-          this._syncS = v / 1e3;
-        }
-        // Clears the "one-shot debug tone already finished" latch - called on
-        // every genuine new play request (see radio.js's playStation()).
-        clearDebugFinished() {
-          this._debugFinished = false;
-        }
-        // Plain, structured-clone-friendly copy of what the render side reads -
-        // see RemoteAudio below.
-        snapshot() {
-          return { spec: this.spec, peak: this.peak, vu: this.vu, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs };
-        }
-        _checkIdle() {
-          if (this.decodeProc && !this._isDebugSource && Date.now() - this.lastEnsureMs > IDLE_TIMEOUT_MS) {
-            this._teardown();
-            this.url = null;
-            this.status = "Stopped";
-            this.playbackStatus = "No playback attempted";
-          }
-        }
-        _teardownPlayback() {
-          if (this.playProc) {
-            try {
-              this.playProc.stdin && this.playProc.stdin.end();
-            } catch (e) {
-            }
-            try {
-              this.playProc.kill("SIGKILL");
-            } catch (e) {
-            }
-            this.playProc = null;
-          }
-        }
-        _teardown() {
-          if (this.decodeProc) {
-            try {
-              this.decodeProc.kill("SIGKILL");
-            } catch (e) {
-            }
-            this.decodeProc = null;
-          }
-          this._teardownPlayback();
-          this._stopAnalysisClock();
-          this.spec.fill(0);
-          this.peak.fill(0);
-          this.vu.fill(0);
-        }
-        close() {
-          clearInterval(this._idleTimer);
-          this._teardown();
-        }
-      };
-      var RemoteAudio = class {
-        constructor() {
-          this.spec = new Float32Array(BAND_COUNT);
-          this.peak = new Float32Array(BAND_COUNT);
-          this.vu = new Float32Array(4);
-          this.status = "Stopped";
-          this.playbackStatus = "No playback attempted";
-          this.lastAttemptMs = 0;
-          this.url = null;
-          this.ensureCount = 0;
-          this.clearCount = 0;
-        }
-        ensure(url) {
-          this.url = url || null;
-          this.ensureCount++;
-        }
-        setSyncMs(ms) {
-          this.syncMs = ms;
-        }
-        clearDebugFinished() {
-          this.clearCount++;
-        }
-        getStatus() {
-          return this.status;
-        }
-        getPlaybackStatus() {
-          return this.playbackStatus;
-        }
-        applySnapshot(snap) {
-          if (!snap) return;
-          if (snap.spec && snap.spec.length === BAND_COUNT) this.spec.set(snap.spec);
-          if (snap.peak && snap.peak.length === BAND_COUNT) this.peak.set(snap.peak);
-          if (snap.vu && snap.vu.length === 4) this.vu.set(snap.vu);
-          this.status = snap.status;
-          this.playbackStatus = snap.playbackStatus;
-          this.lastAttemptMs = snap.lastAttemptMs;
-        }
-        request() {
-          return { url: this.url, ensureCount: this.ensureCount, clearCount: this.clearCount, syncMs: this.syncMs };
-        }
-        close() {
-        }
-      };
-      function applyRemoteRequest(audio, req, seen) {
-        if (!req) return seen;
-        if (audio.setSyncMs) audio.setSyncMs(req.syncMs);
-        if (req.clearCount !== seen.clearCount) audio.clearDebugFinished();
-        if (req.ensureCount !== seen.ensureCount) audio.ensure(req.url);
-        return { ensureCount: req.ensureCount, clearCount: req.clearCount };
-      }
-      module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, BAND_COUNT: require_fft().BAND_COUNT };
-    }
-  });
-
-  // src/effects/radio/vuMeter.js
-  var require_vuMeter = __commonJS({
-    "src/effects/radio/vuMeter.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      function vuLevels(ctx) {
-        if (ctx.vu && ctx.vu.length === 4) return ctx.vu;
-        let lvl = 0;
-        for (let b = 0; b < Math.min(8, ctx.bands); b++) lvl += ctx.amp(b);
-        lvl = Math.min(1, lvl / 4);
-        return [lvl, lvl, lvl, lvl];
-      }
-      function segColour(frac) {
-        return frac < 0.6 ? hsl(0.33, 1, 0.42) : frac < 0.85 ? hsl(0.13, 1, 0.45) : hsl(0, 1, 0.45);
-      }
-      function drawMeter(plot, x0, x1, H, level, peak) {
-        const seg = H >= 32 ? 4 : H >= 16 ? 3 : 2;
-        const nSeg = Math.floor(H / seg);
-        const lit = Math.round(level * nSeg), pk = Math.min(nSeg - 1, Math.round(peak * nSeg) - 1);
-        for (let s = 0; s < nSeg; s++) {
-          const frac = (s + 0.5) / nSeg;
-          const c = segColour(frac);
-          const k = s < lit ? 1 : s === pk && peak > 0.02 ? 0.9 : 0.07;
-          for (let dy = 0; dy < seg - 1; dy++) {
-            const y = s * seg + dy;
-            for (let x = x0; x <= x1; x++) plot(x, y, c[0] * k, c[1] * k, c[2] * k);
-          }
-        }
-      }
-      module.exports = { vuLevels, drawMeter, segColour };
-    }
-  });
-
-  // src/effects/radio/spectrum.js
-  var require_spectrum = __commonJS({
-    "src/effects/radio/spectrum.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var { trailFade } = require_trail();
-      var { vuLevels, drawMeter, segColour } = require_vuMeter();
-      function auColor(theme, fb, fh, amp, t) {
-        switch (theme) {
-          case 1:
-            return hsl(0.02 + fh * 0.12, 1, 0.16 + fh * 0.42 + amp * 0.08);
-          // Fire
-          case 2:
-            return hsl(0.62 - fh * 0.14, 0.95, 0.16 + fh * 0.4 + amp * 0.08);
-          // Ocean
-          case 3:
-            return hsl((fb * 256 | 0) % 2 ? 0.86 : 0.5, 1, 0.22 + fh * 0.35 + amp * 0.1);
-          // Neon
-          case 4:
-            return hsl(0.34, 1, 0.1 + fh * 0.5 + amp * 0.06);
-          // Matrix
-          case 5:
-            return hsl(fb * 0.85 + t * 0.05, 0.55, 0.35 + fh * 0.35 + amp * 0.08);
-          // Pastel
-          case 6: {
-            const yellowAt = 0.75;
-            const hue = fh < yellowAt ? 0.34 - (0.34 - 0.15) * (fh / yellowAt) : 0.15 - 0.15 * ((fh - yellowAt) / (1 - yellowAt));
-            const light = Math.min(0.72, 0.2 + fh * 0.34 + amp * 0.18);
-            return hsl(hue, 1, light);
-          }
-          default:
-            return hsl(fb * 0.85, 1, 0.18 + fh * 0.38 + amp * 0.1);
-        }
-      }
-      function sideCol(core, c) {
-        const S = core.SIZE, q = (c / S | 0) % 4, u = (c % S + S) % S;
-        if (q === 0) return [0, u];
-        if (q === 1) return [2, u];
-        if (q === 2) return [1, u];
-        return [3, u];
-      }
-      function scrolledBand(c, cols, bands, scrollX) {
-        const sc = (c + ((scrollX || 0) | 0) + cols) % cols;
-        return Math.min(bands - 1, sc * bands / cols | 0);
-      }
-      function auBloom(core, face, u, y, col, coreAmt) {
-        const S = core.SIZE;
-        if (y < 0 || y >= S || u < 0 || u >= S) return;
-        const idx = core.faceMap[face][y * S + u];
-        if (idx < 0) return;
-        const c0 = Math.min(1, col[0] * coreAmt), c1 = Math.min(1, col[1] * coreAmt), c2 = Math.min(1, col[2] * coreAmt);
-        const cb = core.colBuf, o = idx * 3;
-        cb[o] = Math.max(cb[o], c0);
-        cb[o + 1] = Math.max(cb[o + 1], c1);
-        cb[o + 2] = Math.max(cb[o + 2], c2);
-      }
-      function auGlowAround(core, face, u, y, col, spread, strength) {
-        const S = core.SIZE, cb = core.colBuf;
-        for (let g = 1; g <= spread; g++) {
-          const fade = strength * (1 - g / (spread + 1));
-          for (const dy of [g, -g]) {
-            const yy = y + dy;
-            if (yy < 0 || yy >= S) continue;
-            const idx = core.faceMap[face][yy * S + u];
-            if (idx < 0) continue;
-            const r = col[0] * fade, g2 = col[1] * fade, b = col[2] * fade;
-            const o = idx * 3;
-            if (r > cb[o]) cb[o] = r;
-            if (g2 > cb[o + 1]) cb[o + 1] = g2;
-            if (b > cb[o + 2]) cb[o + 2] = b;
-          }
-        }
-      }
-      function auDrawPeakCap(core, face, u, y, tint) {
-        const glow = [0.3 + tint[0] * 0.8, 0.3 + tint[1] * 0.8, 0.3 + tint[2] * 0.8];
-        auBloom(core, face, u, y, glow, 1);
-        auGlowAround(core, face, u, y, tint, 1, 0.25);
-      }
-      var _polarLut = { S: 0, r: null, ang: null };
-      function polarLut(S) {
-        if (_polarLut.S !== S) {
-          const cc = (S - 1) / 2, maxR = cc * 1.08;
-          const r = new Float32Array(S * S), ang = new Float32Array(S * S);
-          for (let v = 0; v < S; v++) {
-            for (let u = 0; u < S; u++) {
-              const dx = u - cc, dz = v - cc;
-              r[v * S + u] = Math.hypot(dx, dz) / maxR;
-              ang[v * S + u] = Math.atan2(dz, dx) / (Math.PI * 2) + 0.5;
-            }
-          }
-          Object.assign(_polarLut, { S, r, ang });
-        }
-        return _polarLut;
-      }
-      function drawPolarFace(core, ctx, face) {
-        const S = core.SIZE, { r: R, ang: A } = polarLut(S);
-        const bands = ctx.bands, amps = ctx.ampArr, peaks = ctx.peakArr;
-        const bass = (amps[0] + amps[Math.min(1, bands - 1)] + amps[Math.min(2, bands - 1)]) / 3;
-        const rot = ctx.t * 0.03, flashR = bass * 0.22;
-        for (let v = 0; v < S; v++) {
-          for (let u = 0; u < S; u++) {
-            const i = v * S + u, r = R[i];
-            if (r < flashR) {
-              core.setFaceLED(face, u, v, 1, 1, 1);
-              continue;
-            }
-            const b = Math.min(bands - 1, (A[i] + rot) % 1 * bands | 0);
-            const amp = amps[b];
-            if (r <= amp) {
-              const col = auColor(ctx.theme, b / (bands - 1), 1 - r / Math.max(0.01, amp), amp, ctx.t);
-              core.setFaceLED(face, u, v, col[0], col[1], col[2]);
-            } else if (Math.abs(r - peaks[b]) < 0.045) {
-              core.setFaceLED(face, u, v, 0.8, 0.8, 0.85);
-            }
-          }
-        }
-      }
-      function drawBars(core, ctx, mirror) {
-        const S = core.SIZE, M = S - 1, mode = ctx.barMode || "solid";
-        const AB = ctx.bands;
-        const cols = core.panelMode === "2d" ? S : 4 * S;
-        const barW = Math.round(cols / AB);
-        for (let c = 0; c < cols; c++) {
-          if (S > 8 && barW > 1 && c % barW === barW - 1) continue;
-          const b = scrolledBand(c, cols, AB, ctx.scrollX);
-          const amp = ctx.amp(b), fb = b / (AB - 1);
-          const [face, u] = sideCol(core, c);
-          if (mirror) {
-            const mid = (S - 1) / 2, half = amp > 0 ? Math.max(0.5, amp * S * 0.5) : 0;
-            for (let y = 0; y < S; y++) {
-              const d = Math.abs(y - mid);
-              if (d <= half) {
-                const fh = half > 0 ? 1 - d / half : 0;
-                const edgeSoft = Math.min(1, (half - d + 1) * 0.6);
-                const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
-                if (mode === "striped" && y & 1) core.setFaceLED(face, u, y, col[0] * 0.15, col[1] * 0.15, col[2] * 0.15);
-                else core.setFaceLED(face, u, y, col[0] * edgeSoft, col[1] * edgeSoft, col[2] * edgeSoft);
-              }
-            }
-            const pk = ctx.peak(b) * S * 0.5;
-            const tint = auColor(ctx.theme, fb, 1, amp, ctx.t);
-            auDrawPeakCap(core, face, u, Math.min(M, Math.round(mid + pk)), tint);
-            auDrawPeakCap(core, face, u, Math.max(0, Math.round(mid - pk)), tint);
-            continue;
-          }
-          const waveOff = mode === "wave" ? Math.sin(c * 0.15 + ctx.t * 3) * M * 0.15 : 0;
-          const rawH = amp * M;
-          if (mode === "falling") {
-            const hi = Math.min(M, Math.round(rawH));
-            for (let y = 0; y <= hi; y++) {
-              const fy = M - y;
-              const fh = hi > 0 ? y / hi : 0;
-              const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
-              core.setFaceLED(face, u, fy, col[0], col[1], col[2]);
-            }
-            if (rawH > 0) {
-              const tp = auColor(ctx.theme, fb, 1, amp, ctx.t);
-              const tipY = Math.max(0, M - hi);
-              auBloom(core, face, u, tipY, tp, 1.5);
-              auGlowAround(core, face, u, tipY, tp, 2, 0.3);
-            }
-            auDrawPeakCap(core, face, u, Math.max(0, M - Math.round(ctx.peak(b) * M)), auColor(ctx.theme, fb, 1, amp, ctx.t));
-          } else if (mode === "center") {
-            const mid = (S - 1) / 2, half = rawH * 0.5;
-            for (let y = 0; y < S; y++) {
-              const d = Math.abs(y - mid);
-              if (d <= half) {
-                const fh = half > 0 ? 1 - d / half : 0;
-                const edgeSoft = Math.min(1, (half - d + 1) * 0.6);
-                const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
-                core.setFaceLED(face, u, y, col[0] * edgeSoft, col[1] * edgeSoft, col[2] * edgeSoft);
-              }
-            }
-            const pk = ctx.peak(b) * M * 0.5;
-            const tint = auColor(ctx.theme, fb, 1, amp, ctx.t);
-            auDrawPeakCap(core, face, u, Math.min(M, Math.round(mid + pk)), tint);
-            auDrawPeakCap(core, face, u, Math.max(0, Math.round(mid - pk)), tint);
-          } else if (mode === "stacked") {
-            const SEG = 4;
-            const segs = Math.round(rawH / SEG);
-            for (let s = 0; s < segs; s++) {
-              const yBase = s * SEG;
-              const fh = segs > 0 ? s / segs : 0;
-              const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
-              for (let dy = 0; dy < SEG - 1; dy++) {
-                const y = yBase + dy;
-                if (y > M) break;
-                const cellFrac = dy / (SEG - 2 || 1);
-                const bevel = 0.55 + 0.45 * Math.sin(cellFrac * Math.PI);
-                core.setFaceLED(face, u, y, col[0] * bevel, col[1] * bevel, col[2] * bevel);
-              }
-            }
-            const pkSeg = Math.round(ctx.peak(b) * M / SEG);
-            const tint = auColor(ctx.theme, fb, 1, amp, ctx.t);
-            for (let dy = 0; dy < SEG - 1; dy++) {
-              const y = pkSeg * SEG + dy;
-              if (y > M) break;
-              auBloom(core, face, u, y, tint, 1.3);
-            }
-          } else {
-            const h = rawH + waveOff, hi = Math.max(0, Math.min(M, Math.round(h)));
-            const frac = h - Math.floor(h);
-            if (amp > 0.05 && mode !== "striped") {
-              const hz = auColor(ctx.theme, fb, 0.6, amp, ctx.t), k = 0.05 * amp;
-              for (let y = hi + 1; y <= M; y++) {
-                const fall = k * (1 - (y - hi) / (M - hi + 1));
-                core.setFaceLED(face, u, y, hz[0] * fall, hz[1] * fall, hz[2] * fall);
-              }
-            }
-            for (let y = 0; y <= hi; y++) {
-              const fh = hi > 0 ? y / hi : 0;
-              const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
-              if (mode === "striped" && y & 1) {
-                core.setFaceLED(face, u, y, col[0] * 0.15, col[1] * 0.15, col[2] * 0.15);
-              } else {
-                const isTip = y === hi;
-                const bright = isTip ? Math.max(0.35, frac) : 1;
-                core.setFaceLED(face, u, y, col[0] * bright, col[1] * bright, col[2] * bright);
-              }
-            }
-            if (h > 0) {
-              const tp = auColor(ctx.theme, fb, 1, amp, ctx.t);
-              auBloom(core, face, u, hi, tp, 1.5);
-              auGlowAround(core, face, u, hi, tp, 2, 0.25);
-            }
-            auDrawPeakCap(core, face, u, Math.max(0, Math.min(M, Math.round(ctx.peak(b) * M + waveOff))), auColor(ctx.theme, fb, 1, amp, ctx.t));
-          }
-        }
-        drawPolarFace(core, ctx, 4);
-        drawPolarFace(core, ctx, 5);
-      }
-      function drawDots(core, ctx) {
-        const S = core.SIZE, M = S - 1;
-        const cols = core.panelMode === "2d" ? S : 4 * S;
-        for (let c = 0; c < cols; c++) {
-          const b = scrolledBand(c, cols, ctx.bands, ctx.scrollX);
-          const amp = ctx.amp(b), fb = b / (ctx.bands - 1);
-          const [face, u] = sideCol(core, c);
-          const h = amp * M;
-          const ly = Math.min(M, Math.round(h));
-          const spacing = Math.max(2, 3 - Math.round(amp * 1.4));
-          for (let y = 0; y <= ly; y += spacing) {
-            const fh = ly > 0 ? y / ly : 0;
-            const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
-            const isLead = y + spacing > ly;
-            const fade = isLead ? 1 : 0.35 + 0.45 * fh;
-            core.setFaceLED(face, u, y, col[0] * fade, col[1] * fade, col[2] * fade);
-            if (isLead) {
-              auBloom(core, face, u, y, col, 1.3);
-              auGlowAround(core, face, u, y, col, 2, 0.4);
-            }
-          }
-          const peakY = Math.min(M, Math.round(ctx.peak(b) * M));
-          auDrawPeakCap(core, face, u, peakY, auColor(ctx.theme, fb, 1, amp, ctx.t));
-        }
-        drawPolarFace(core, ctx, 4);
-        drawPolarFace(core, ctx, 5);
-      }
-      function drawBlocks(core, ctx) {
-        const S = core.SIZE, BLOCK = 4;
-        const cols = core.panelMode === "2d" ? S : 4 * S;
-        const bandW = Math.max(1, Math.floor(cols / ctx.bands));
-        const dcMax = bandW > 1 ? bandW - 1 : 1;
-        for (let b = 0; b < ctx.bands; b++) {
-          const amp = ctx.amp(b), fb = b / (ctx.bands - 1);
-          const blocks = Math.round(amp * (S / BLOCK));
-          for (let blk = 0; blk < blocks; blk++) {
-            const fh = blocks > 0 ? blk / blocks : 0;
-            const col = auColor(ctx.theme, fb, fh, amp, ctx.t);
-            const isTopBlock = blk === blocks - 1;
-            const yBase = blk * BLOCK;
-            for (let dy = 0; dy < BLOCK - 1; dy++) {
-              const y = yBase + dy;
-              if (y >= S) break;
-              const cellFrac = dy / (BLOCK - 2 || 1);
-              const bevel = 0.6 + 0.4 * Math.sin(cellFrac * Math.PI);
-              for (let dc = 0; dc < dcMax; dc++) {
-                const c = b * bandW + dc;
-                if (c >= cols) break;
-                const [face, u] = sideCol(core, c);
-                core.setFaceLED(face, u, y, col[0] * bevel, col[1] * bevel, col[2] * bevel);
-              }
-            }
-            if (isTopBlock) {
-              for (let dc = 0; dc < dcMax; dc++) {
-                const c = b * bandW + dc;
-                if (c >= cols) break;
-                const [face, u] = sideCol(core, c);
-                auGlowAround(core, face, u, yBase + 1, col, 2, 0.3);
-              }
-            }
-          }
-          const pkBlk = Math.round(ctx.peak(b) * (S / BLOCK));
-          const pkY = pkBlk * BLOCK;
-          const tint = auColor(ctx.theme, fb, 1, amp, ctx.t);
-          for (let dy = 0; dy < BLOCK - 1; dy++) {
-            const y = pkY + dy;
-            if (y >= S) break;
-            for (let dc = 0; dc < dcMax; dc++) {
-              const c = b * bandW + dc;
-              if (c >= cols) break;
-              const [face, u] = sideCol(core, c);
-              auBloom(core, face, u, y, tint, 1.3);
-            }
-          }
-        }
-        drawPolarFace(core, ctx, 4);
-        drawPolarFace(core, ctx, 5);
-      }
-      function drawOutline(core, ctx) {
-        const S = core.SIZE, M = S - 1;
-        const cols = core.panelMode === "2d" ? S : 4 * S;
-        const pts = new Float32Array(cols);
-        for (let c = 0; c < cols; c++) {
-          const b = scrolledBand(c, cols, ctx.bands, ctx.scrollX);
-          pts[c] = ctx.amp(b) * M;
-        }
-        for (let c = 0; c < cols; c++) {
-          const b = scrolledBand(c, cols, ctx.bands, ctx.scrollX);
-          const fb = b / (ctx.bands - 1), amp = ctx.amp(b);
-          const [face, u] = sideCol(core, c);
-          const yHere = pts[c], yNext = pts[(c + 1) % cols];
-          const y0 = Math.round(yHere);
-          const col = auColor(ctx.theme, fb, 1, amp, ctx.t);
-          for (let y = 0; y < y0; y++) {
-            const fh = y0 > 0 ? y / y0 : 0;
-            const fillCol = auColor(ctx.theme, fb, fh, amp, ctx.t);
-            core.setFaceLED(face, u, y, fillCol[0] * 0.12, fillCol[1] * 0.12, fillCol[2] * 0.12);
-          }
-          const steps = Math.max(1, Math.abs(Math.round(yNext - yHere)));
-          for (let s = 0; s <= steps; s++) {
-            const yy = Math.round(yHere + (yNext - yHere) * (s / steps));
-            if (yy < 0 || yy > M) continue;
-            core.setFaceLED(face, u, yy, Math.min(1, col[0] * 1.3), Math.min(1, col[1] * 1.3), Math.min(1, col[2] * 1.3));
-          }
-          auGlowAround(core, face, u, y0, col, 3, 0.45);
-          auDrawPeakCap(core, face, u, Math.min(M, Math.round(ctx.peak(b) * M)), col);
-        }
-        drawPolarFace(core, ctx, 4);
-        drawPolarFace(core, ctx, 5);
-      }
-      function drawRadial(core, ctx, state) {
-        const S = core.SIZE, cc = (S - 1) / 2;
-        const bass = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
-        if (!state.radialRings) state.radialRings = [];
-        if (state.radialPrevBass === void 0) state.radialPrevBass = 0;
-        if (bass > 0.5 && state.radialPrevBass <= 0.5 && state.radialRings.length < 12) state.radialRings.push({ r: 0, hue: Math.random() });
-        state.radialPrevBass = bass;
-        for (const ring of state.radialRings) ring.r += ctx.dt * S * 0.85;
-        for (let k = state.radialRings.length - 1; k >= 0; k--) if (state.radialRings[k].r > S * 0.95) state.radialRings.splice(k, 1);
-        for (let f = 0; f < 4; f++) {
-          const face = [0, 2, 1, 3][f];
-          for (let v = 0; v < S; v++) {
-            for (let u = 0; u < S; u++) {
-              const r = Math.hypot(u - cc, v - cc);
-              const b = Math.min(ctx.bands - 1, (u / (S - 1) * 0.25 + f * 0.25) * ctx.bands | 0);
-              const bandAmp = ctx.amp(b);
-              const amp = bandAmp * 0.28;
-              const bg = auColor(ctx.theme, b / (ctx.bands - 1), v / (S - 1), bandAmp, ctx.t);
-              let rr = bg[0] * amp, gg = bg[1] * amp, bb = bg[2] * amp;
-              for (const ring of state.radialRings) {
-                const dd = r - ring.r;
-                const w = dd >= 0 ? 1.2 : 2.4;
-                if (Math.abs(dd) < w) {
-                  const inten = (1 - Math.abs(dd) / w) * (1 - ring.r / (S * 0.95));
-                  const c = hsl(ring.hue, 1, 0.55);
-                  if (c[0] * inten > rr) rr = c[0] * inten;
-                  if (c[1] * inten > gg) gg = c[1] * inten;
-                  if (c[2] * inten > bb) bb = c[2] * inten;
-                }
-              }
-              core.setFaceLED(face, u, v, rr, gg, bb);
-            }
-          }
-        }
-        drawPolarFace(core, ctx, 4);
-        drawPolarFace(core, ctx, 5);
-      }
-      function drawVU(core, ctx) {
-        const S = core.SIZE;
-        const [l, r, lp, rp] = vuLevels(ctx);
-        const faces = core.panelMode === "2d" ? [0] : [0, 2, 1, 3];
-        const gap = Math.max(1, Math.round(S * 0.06)), m0 = Math.round(S * 0.12), m1 = S - 1 - m0, mid = (S - 1) / 2;
-        for (const face of faces) {
-          const plot = (x, y, cr, cg, cb) => core.setFaceLED(face, x, y, cr, cg, cb);
-          drawMeter(plot, m0, Math.floor(mid - gap / 2), S, l, lp);
-          drawMeter(plot, Math.ceil(mid + gap / 2), m1, S, r, rp);
-        }
-        if (core.panelMode === "2d") return;
-        const cc = (S - 1) / 2;
-        for (let face = 4; face <= 5; face++) {
-          for (let v = 0; v < S; v++) {
-            for (let u = 0; u < S; u++) {
-              const rr = Math.hypot(u - cc, v - cc) / (cc * 1.05);
-              const lvl = u < cc ? l : r;
-              if (rr <= lvl) {
-                const col = segColour(rr);
-                core.setFaceLED(face, u, v, col[0], col[1], col[2]);
-              }
-            }
-          }
-        }
-      }
-      function drawWaterfall(core, ctx, state) {
-        const S = core.SIZE, cols = 4 * S;
-        if (!state.wfBuf || state.wfBuf.length !== S * ctx.bands) {
-          state.wfBuf = new Float32Array(S * ctx.bands);
-          state.wfPos = 0;
-          state.wfTimer = 0;
-        }
-        state.wfTimer += ctx.dt;
-        if (state.wfTimer > 1 / 30) {
-          state.wfTimer = 0;
-          for (let b = 0; b < ctx.bands; b++) state.wfBuf[state.wfPos * ctx.bands + b] = ctx.amp(b);
-          state.wfPos = (state.wfPos + 1) % S;
-        }
-        for (let row = 0; row < S; row++) {
-          const hist = (state.wfPos - 1 - row + S) % S;
-          const age = row / S;
-          const fade = Math.pow(1 - age * 0.72, 1.3);
-          for (let c = 0; c < cols; c++) {
-            const b = scrolledBand(c, cols, ctx.bands, ctx.scrollX);
-            const amp = state.wfBuf[hist * ctx.bands + b];
-            if (amp < 0.035) continue;
-            const [face, u] = sideCol(core, c);
-            const bright = amp * fade;
-            const col = auColor(ctx.theme, b / (ctx.bands - 1), amp, amp, ctx.t);
-            core.setFaceLED(face, u, S - 1 - row, col[0] * bright * 1.4, col[1] * bright * 1.4, col[2] * bright * 1.4);
-            if (row === 0 && amp > 0.3) auBloom(core, face, u, S - 1 - row, col, 1.2);
-          }
-        }
-        drawPolarFace(core, ctx, 4);
-        drawPolarFace(core, ctx, 5);
-      }
-      function drawWaveform(core, ctx) {
-        const S = core.SIZE, M = S - 1, cols = 4 * S, mid = M / 2;
-        const fade = trailFade(0.8, ctx.dt);
-        for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] *= fade;
-        for (let c = 0; c < cols; c++) {
-          const sc = (c + ((ctx.scrollX || 0) | 0) + cols) % cols;
-          const b = scrolledBand(sc, cols, ctx.bands, ctx.scrollX);
-          const amp = ctx.amp(b) * Math.sin(sc * 0.35);
-          const y = Math.round(mid - amp * mid * 0.9);
-          const fy = Math.max(0, Math.min(M, y));
-          const [face, u] = sideCol(core, c);
-          const hue = (sc / cols + ctx.t * 0.04) % 1;
-          const col = hsl(hue, 1, 0.9);
-          core.setFaceLED(face, u, fy, col[0], col[1], col[2]);
-          for (let dy = 1; dy <= 5; dy++) {
-            const gl = (1 - dy / 6) * 0.42;
-            core.setFaceLED(face, u, fy + dy, col[0] * gl, col[1] * gl, col[2] * gl);
-            core.setFaceLED(face, u, fy - dy, col[0] * gl, col[1] * gl, col[2] * gl);
-          }
-        }
-        drawPolarFace(core, ctx, 4);
-        drawPolarFace(core, ctx, 5);
-      }
-      function drawTunnel(core, ctx) {
-        const S = core.SIZE;
-        const bass = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
-        for (let f = 0; f < 6; f++) {
-          for (let v = 0; v < S; v++) {
-            for (let u = 0; u < S; u++) {
-              const du = Math.abs(u - (S - 1) / 2) / (S / 2);
-              const dv = Math.abs(v - (S - 1) / 2) / (S / 2);
-              const ring = Math.max(du, dv);
-              const scrollFrac = ctx.scrollX ? ctx.scrollX / (4 * S) * 2 : 0;
-              const animated = (ring + ctx.t * 0.45 * (1 + bass * 0.5) + scrollFrac) % 1;
-              const b = Math.min(ctx.bands - 1, animated * ctx.bands | 0);
-              const amp = ctx.amp(b);
-              if (amp < 0.04) {
-                const col2 = auColor(ctx.theme, b / (ctx.bands - 1), 1 - ring, 0.06, ctx.t);
-                core.setFaceLED(f, u, v, col2[0] * 0.05, col2[1] * 0.05, col2[2] * 0.05);
-                continue;
-              }
-              const bright = amp * (1 - ring * 0.35) * 0.92;
-              const col = auColor(ctx.theme, b / (ctx.bands - 1), 1 - ring, amp, ctx.t);
-              core.setFaceLED(f, u, v, col[0] * bright, col[1] * bright, col[2] * bright);
-            }
-          }
-        }
-        if (bass > 0.55) {
-          const cc = (S - 1) / 2, coreR = 1 + bass * 1.5;
-          for (let f = 0; f < 6; f++) {
-            for (let dv = -coreR; dv <= coreR; dv++) {
-              for (let du = -coreR; du <= coreR; du++) {
-                const d = Math.hypot(du, dv);
-                if (d > coreR) continue;
-                const u = Math.round(cc + du), v = Math.round(cc + dv);
-                if (u < 0 || u >= S || v < 0 || v >= S) continue;
-                auBloom(core, f, u, v, [1, 1, 1], (1 - d / coreR) * (bass - 0.55) * 2.2);
-              }
-            }
-          }
-        }
-      }
-      function drawStorm(core, ctx, state) {
-        const S = core.SIZE, cols = 4 * S;
-        const fade = trailFade(0.72, ctx.dt);
-        for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] *= fade;
-        const bass = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
-        if (!state.flashes) state.flashes = [];
-        if (bass > 0.52 && Math.random() < bass * ctx.dt * 18 && state.flashes.length < 12) {
-          state.flashes.push({ face: Math.random() * 4 | 0, u: Math.random() * S | 0, v: Math.random() * S | 0, life: 1, hue: 0.58 + Math.random() * 0.16, size: Math.max(2, bass * S * 0.14 | 0) });
-        }
-        for (let c = 0; c < cols; c++) {
-          const b = scrolledBand(c, cols, ctx.bands, ctx.scrollX);
-          const raw = ctx.amp(b), amp = raw * 0.4;
-          if (amp < 0.03) continue;
-          const [face, u] = sideCol(core, c);
-          const col = auColor(ctx.theme, b / (ctx.bands - 1), 1, raw, ctx.t);
-          for (let y = 0; y < Math.round(amp * (S - 1)); y++) core.setFaceLED(face, u, y, col[0] * amp, col[1] * amp, col[2] * amp);
-        }
-        for (let k = state.flashes.length - 1; k >= 0; k--) {
-          const fl = state.flashes[k];
-          fl.life -= ctx.dt * 3.5;
-          if (fl.life <= 0) {
-            state.flashes.splice(k, 1);
-            continue;
-          }
-          const R = Math.ceil(fl.size * fl.life);
-          for (let dv = -R; dv <= R; dv++) {
-            for (let du = -R; du <= R; du++) {
-              const d2 = du * du + dv * dv;
-              if (d2 > R * R) continue;
-              const jag = 0.75 + 0.25 * Math.sin(du * 2.7 + dv * 3.1 + fl.life * 20);
-              const bright = fl.life * (1 - Math.sqrt(d2) / R) * 0.95 * jag;
-              const col = hsl(fl.hue, 0.5 + fl.life * 0.5, bright);
-              core.setFaceLED(fl.face, fl.u + du, fl.v + dv, col[0], col[1], col[2]);
-            }
-          }
-          if (fl.life > 0.7) auBloom(core, fl.face, fl.u, fl.v, [1, 1, 1], (fl.life - 0.7) / 0.3);
-        }
-        drawPolarFace(core, ctx, 4);
-        drawPolarFace(core, ctx, 5);
-      }
-      function drawPlasma(core, ctx) {
-        let energy = 0;
-        for (let i = 0; i < Math.min(32, ctx.bands); i++) energy += ctx.amp(i);
-        energy /= Math.min(32, ctx.bands);
-        const bass = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
-        const hueShift = ctx.t * 0.12 * (1 + bass * 3);
-        const { surfX, surfY, surfZ, N } = core;
-        for (let i = 0; i < N; i++) {
-          const x = surfX[i], y = surfY[i], z = surfZ[i];
-          const p1 = Math.sin(x * 4.5 + ctx.t * 1.3) + Math.sin(y * 3.8 - ctx.t * 0.9);
-          const p2 = Math.sin(z * 5.1 + ctx.t * 0.7) + Math.sin((x + y) * 2.9 + ctx.t * 1.1);
-          const p3 = Math.sin((x - z) * 3.3 + ctx.t * 1.5) + Math.cos((y + z) * 4.1 - ctx.t * 0.6);
-          const plasma = (p1 + p2 + p3) / 6 + 0.5;
-          const intensity = plasma * (0.15 + energy * 0.85);
-          const hue = (plasma * 0.5 + hueShift + x * 0.1 + z * 0.1) % 1;
-          const [r, g, b] = hsl((hue + 1) % 1, 1, Math.min(1, intensity * 0.9));
-          core.setLED(i, r, g, b);
-        }
-      }
-      function drawRings(core, ctx, state) {
-        if (!state.rings) state.rings = [];
-        if (state.ringTimer === void 0) state.ringTimer = 0;
-        state.ringTimer += ctx.dt;
-        const bassHit = (ctx.amp(0) + ctx.amp(1) + ctx.amp(2)) / 3;
-        if (bassHit > 0.35 && state.ringTimer > 0.2 && state.rings.length < 12) {
-          state.ringTimer = 0;
-          state.rings.push({ face: Math.floor(Math.random() * 6), cx: Math.random() * core.SIZE, cy: Math.random() * core.SIZE, radius: 0, hue: Math.random(), bright: 1 });
-        }
-        const S = core.SIZE;
-        for (let ri = state.rings.length - 1; ri >= 0; ri--) {
-          const ring = state.rings[ri];
-          ring.radius += ctx.dt * S * 1.2;
-          ring.bright -= ctx.dt * 0.7;
-          if (ring.bright <= 0) {
-            state.rings.splice(ri, 1);
-            continue;
-          }
-          const w = 3;
-          const rMax = Math.ceil(ring.radius + w);
-          const uMin = Math.max(0, Math.floor(ring.cx - rMax)), uMax = Math.min(S - 1, Math.ceil(ring.cx + rMax));
-          const vMin = Math.max(0, Math.floor(ring.cy - rMax)), vMax = Math.min(S - 1, Math.ceil(ring.cy + rMax));
-          const [cr, cg, cb] = hsl(ring.hue, 1, ring.bright * 0.9);
-          for (let v = vMin; v <= vMax; v++) {
-            for (let u = uMin; u <= uMax; u++) {
-              const d = Math.abs(Math.hypot(u - ring.cx, v - ring.cy) - ring.radius);
-              if (d < w) {
-                const a = Math.max(1 - d / (w * 0.4), (1 - d / w) * 0.5);
-                core.setFaceLED(ring.face, u, v, cr * a, cg * a, cb * a);
-              }
-            }
-          }
-        }
-      }
-      function drawFire(core, ctx) {
-        const S = core.SIZE, M = S - 1;
-        const sides = [2, 0, 3, 1];
-        for (const face of sides) {
-          const colW = S / ctx.bands;
-          for (let b = 0; b < ctx.bands; b++) {
-            const spec = ctx.amp(b);
-            if (spec < 0.02) continue;
-            const h = Math.round(spec * M);
-            const colStart = Math.floor(b * colW), colEnd = Math.min(S, Math.floor((b + 1) * colW));
-            for (let u = colStart; u < colEnd; u++) {
-              for (let v = 0; v < h; v++) {
-                const frac = v / h;
-                const flicker = 0.85 + 0.15 * Math.sin(u * 7.3 + ctx.t * 12 + v * 3.1);
-                let rr, gg, bb;
-                if (frac < 0.3) {
-                  rr = 1;
-                  gg = 0.95;
-                  bb = 0.4 * (1 - frac / 0.3);
-                } else if (frac < 0.7) {
-                  const mf = (frac - 0.3) / 0.4;
-                  rr = 1;
-                  gg = 0.95 - mf * 0.6;
-                  bb = 0;
-                } else {
-                  const tf = (frac - 0.7) / 0.3;
-                  rr = 1 - tf * 0.5;
-                  gg = 0.35 - tf * 0.3;
-                  bb = 0;
-                }
-                const bright = flicker * (1 - frac * 0.3);
-                core.setFaceLED(face, u, v, Math.min(1, rr * bright), Math.min(1, gg * bright), Math.min(1, bb * bright));
-              }
-            }
-            if (h > M * 0.5) {
-              const tipU = Math.floor((colStart + colEnd - 1) / 2);
-              auBloom(core, face, tipU, Math.min(M, h), [1, 0.98, 0.85], 0.9);
-            }
-          }
-        }
-        const glow = (ctx.amp(0) + ctx.amp(1)) * 0.12;
-        if (glow > 0.02) {
-          const S2 = core.SIZE;
-          for (let v = 0; v < S2; v++) {
-            for (let u = 0; u < S2; u++) {
-              const idx = core.faceMap[4][v * S2 + u];
-              if (idx >= 0) {
-                const o = idx * 3;
-                if (glow > core.colBuf[o]) core.colBuf[o] = glow;
-                if (glow * 0.3 > core.colBuf[o + 1]) core.colBuf[o + 1] = glow * 0.3;
-              }
-            }
-          }
-        }
-      }
-      function createSpectrumState() {
-        return {};
-      }
-      function renderSpectrumStyle(core, ctx, style, state) {
-        if (!ctx.ampArr) {
-          ctx.ampArr = Float32Array.from({ length: ctx.bands }, (_, b) => ctx.amp(b));
-          ctx.peakArr = Float32Array.from({ length: ctx.bands }, (_, b) => ctx.peak(b));
-        }
-        switch (style) {
-          case "mirror":
-            return drawBars(core, ctx, true);
-          case "dots":
-            return drawDots(core, ctx);
-          case "blocks":
-            return drawBlocks(core, ctx);
-          case "outline":
-            return drawOutline(core, ctx);
-          case "radial":
-            return drawRadial(core, ctx, state);
-          case "vu":
-            return drawVU(core, ctx);
-          case "waterfall":
-            return drawWaterfall(core, ctx, state);
-          case "waveform":
-            return drawWaveform(core, ctx);
-          case "tunnel":
-            return drawTunnel(core, ctx);
-          case "storm":
-            return drawStorm(core, ctx, state);
-          case "plasma":
-            return drawPlasma(core, ctx);
-          case "rings":
-            return drawRings(core, ctx, state);
-          case "fire":
-            return drawFire(core, ctx);
-          default:
-            return drawBars(core, ctx, false);
-        }
-      }
-      module.exports = { renderSpectrumStyle, createSpectrumState, auColor, auBloom, auGlowAround, auDrawPeakCap };
-    }
-  });
-
-  // src/effects/radio/ticker.js
-  var require_ticker = __commonJS({
-    "src/effects/radio/ticker.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { CHAR_W } = require_font2();
-      var { drawMarquee, FONT_5x7, facePlot } = require_text();
-      var scrollX = 0;
-      function resetTicker() {
-        scrollX = 0;
-      }
-      function drawTicker(core, face, label, dt) {
-        if (!label) return;
-        const textW = label.length * CHAR_W;
-        scrollX += dt * 14;
-        if (scrollX > textW) scrollX -= textW;
-        const sv = 7;
-        drawMarquee(FONT_5x7, label, scrollX, sv - 6, core.SIZE, facePlot(core, face, 0.6, 0.85, 1), { flipY: true, outline: facePlot(core, face, 0, 0, 0) });
-      }
-      module.exports = { drawTicker, resetTicker };
-    }
-  });
-
-  // src/effects/radio/search.js
-  var require_search = __commonJS({
-    "src/effects/radio/search.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var RADIO_BROWSER_MIRRORS = ["https://de1.api.radio-browser.info", "https://nl1.api.radio-browser.info"];
-      var FETCH_TIMEOUT_MS = 8e3;
-      async function fetchWithTimeout(url) {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-        try {
-          return await fetch(url, { signal: controller.signal });
-        } finally {
-          clearTimeout(timer);
-        }
-      }
-      async function radioBrowserFetch(path) {
-        let lastErr = null;
-        for (const base of RADIO_BROWSER_MIRRORS) {
-          try {
-            const r = await fetchWithTimeout(base + path);
-            if (!r.ok) throw new Error("HTTP " + r.status);
-            return await r.json();
-          } catch (e) {
-            lastErr = e;
-          }
-        }
-        throw lastErr || new Error("all mirrors failed");
-      }
-      async function searchStations(query) {
-        try {
-          const path = query ? "/json/stations/search?name=" + encodeURIComponent(query) + "&limit=60&hidebroken=true&order=clickcount&reverse=true" : "/json/stations/topclick/60?hidebroken=true";
-          const data = await radioBrowserFetch(path);
-          const results = (data || []).filter((s) => s.url_resolved || s.url).map((s) => ({
-            name: s.name || "Unnamed station",
-            genre: (s.tags || "").split(",").slice(0, 2).join(", ") || s.country || "",
-            url: s.url_resolved || s.url
-          }));
-          return { results, error: null };
-        } catch (e) {
-          return { results: [], error: "Directory unreachable \u2014 try again, or use the featured list below" };
-        }
-      }
-      module.exports = { searchStations, RADIO_BROWSER_MIRRORS };
-    }
-  });
-
-  // src/effects/radio/levels.js
-  var require_levels = __commonJS({
-    "src/effects/radio/levels.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      function sample(arr, b, bands, total = arr.length) {
-        if (bands <= 1) return arr[total - 1];
-        const start = Math.floor(b * total / bands);
-        const end = b === bands - 1 ? total - 1 : Math.floor((b + 1) * total / bands) - 1;
-        let v = arr[start];
-        for (let i = start + 1; i <= end; i++) if (arr[i] > v) v = arr[i];
-        return v;
-      }
-      var KNEE = 0.85;
-      function softCeil(x) {
-        if (x <= KNEE) return x < 0 ? 0 : x;
-        return KNEE + (1 - KNEE) * (1 - Math.exp(-(x - KNEE) / (1 - KNEE)));
-      }
-      function createLevelState() {
-        return { autoGainMult: 1, levelSmoothed: 0, fitScale: 1, amp: new Float32Array(0), peak: new Float32Array(0), rawAmp: new Float32Array(0), rawPeak: new Float32Array(0) };
-      }
-      var AUTO_TARGET = 0.45;
-      function computeLevels(st, audio, opts, dt) {
-        const { bands, gain } = opts;
-        if (st.amp.length !== bands) {
-          st.amp = new Float32Array(bands);
-          st.peak = new Float32Array(bands);
-          st.rawAmp = new Float32Array(bands);
-          st.rawPeak = new Float32Array(bands);
-        }
-        const total = audio.spec.length;
-        let sum = 0;
-        for (let b = 0; b < bands; b++) {
-          st.rawAmp[b] = sample(audio.spec, b, bands, total);
-          st.rawPeak[b] = sample(audio.peak, b, bands, total);
-          sum += st.rawAmp[b];
-        }
-        st.levelSmoothed += (sum / bands - st.levelSmoothed) * Math.min(1, dt * 3);
-        if (opts.autoGain) {
-          if (st.levelSmoothed > 0.01) {
-            const desired = AUTO_TARGET / Math.max(0.05, st.levelSmoothed * gain);
-            st.autoGainMult += (desired - st.autoGainMult) * Math.min(1, dt * 0.2);
-            st.autoGainMult = Math.max(0.3, Math.min(10, st.autoGainMult));
-          }
-        } else {
-          st.autoGainMult = 1;
-        }
-        let g = gain * st.autoGainMult;
-        if (opts.fitToScreen) {
-          let mx = 0;
-          for (let b = 0; b < bands; b++) if (st.rawAmp[b] * g > mx) mx = st.rawAmp[b] * g;
-          const target = mx > 0.015 ? Math.min(3.5, 0.99 / mx) : st.fitScale;
-          st.fitScale += (target - st.fitScale) * Math.min(1, dt * 4);
-        } else {
-          st.fitScale = 1;
-        }
-        g *= st.fitScale;
-        for (let b = 0; b < bands; b++) {
-          st.rawAmp[b] = softCeil(st.rawAmp[b] * g);
-          st.rawPeak[b] = softCeil(st.rawPeak[b] * g);
-        }
-        for (let b = 0; b < bands; b++) {
-          let a = st.rawAmp[b], p = st.rawPeak[b];
-          if (b > 0) {
-            a = Math.max(a, st.rawAmp[b - 1] * 0.5);
-            p = Math.max(p, st.rawPeak[b - 1] * 0.5);
-          }
-          if (b < bands - 1) {
-            a = Math.max(a, st.rawAmp[b + 1] * 0.5);
-            p = Math.max(p, st.rawPeak[b + 1] * 0.5);
-          }
-          st.amp[b] = a;
-          st.peak[b] = Math.max(a, p);
-        }
-        return st;
-      }
-      module.exports = { sample, softCeil, createLevelState, computeLevels };
-    }
-  });
-
-  // src/effects/radio/radio.js
-  var require_radio = __commonJS({
-    "src/effects/radio/radio.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { RadioAudio, RemoteAudio, BAND_COUNT } = require_ffmpegAudio();
-      var { renderSpectrumStyle, createSpectrumState } = require_spectrum();
-      var { drawTicker } = require_ticker();
-      var { CHAR_W } = require_font2();
-      var { drawGlyph5x7Face, drawLinesCentered, FONT_3x5, facePlot } = require_text();
-      var { searchStations } = require_search();
-      var { sample, createLevelState, computeLevels } = require_levels();
-      var RADIO_STATIONS = [
-        { name: "SomaFM Groove Salad", genre: "Ambient/Downtempo", url: "https://ice1.somafm.com/groovesalad-128-mp3" },
-        { name: "SomaFM Drone Zone", genre: "Ambient", url: "https://ice1.somafm.com/dronezone-128-mp3" },
-        { name: "SomaFM Space Station", genre: "Space Music", url: "https://ice1.somafm.com/spacestation-128-mp3" },
-        { name: "SomaFM Beat Blender", genre: "Electronica", url: "https://ice1.somafm.com/beatblender-128-mp3" },
-        { name: "SomaFM Indie Pop Rocks", genre: "Indie Pop", url: "https://ice1.somafm.com/indiepop-128-mp3" },
-        { name: "SomaFM Lush", genre: "Mellow Vocals", url: "https://ice1.somafm.com/lush-128-mp3" },
-        { name: "SomaFM Secret Agent", genre: "Spy Lounge", url: "https://ice1.somafm.com/secretagent-128-mp3" },
-        { name: "SomaFM Boot Liquor", genre: "Americana", url: "https://ice1.somafm.com/bootliquor-128-mp3" }
-      ];
-      var DEBUG_TONES = {
-        // debugloop: (not debug:) - a real follow-up ("the sweep should go
-        // from 40 to 10khz and back to 40hz again and so forth") - the sweep
-        // is meant to keep repeating indefinitely, unlike drum/tone which
-        // should play once and stop. See ffmpegAudio.js's ensure()/
-        // _debugFinished for how the two prefixes are told apart.
-        sweep: { name: "Debug: Sweep", genre: "40Hz-7kHz over 45s", url: "debugloop:aevalsrc=sin(2*PI*(40*t+6960*t*t/90)):s=44100:d=45" },
-        drum: { name: "Debug: Drum Hit", genre: "Deep kick", url: "debug:aevalsrc=sin(2*PI*(50+70*exp(-25*t))*t)*exp(-4*t):s=44100:d=3" }
-      };
-      var audio = new RadioAudio();
-      var spectrumState = createSpectrumState();
-      var playing = false;
-      var currentStation = null;
-      var volume = 0.8;
-      var searchResults = [];
-      var searchError = null;
-      var searching = false;
-      var lastQuery = "";
-      var levelState = createLevelState();
-      function playStation(station) {
-        if (!station || !station.url) return;
-        currentStation = { name: station.name || "Unknown", genre: station.genre || "", url: station.url };
-        playing = true;
-        audio.clearDebugFinished();
-      }
-      function playDebugTone(kind, freq) {
-        if (kind === "tone") {
-          const f = Math.max(40, Math.min(7e3, Math.round(Number(freq)) || 440));
-          playStation({ name: "Debug: Tone", genre: f + " Hz", url: "debug:aevalsrc=sin(2*PI*" + f + "*t):s=44100:d=30" });
-          return;
-        }
-        const tone = DEBUG_TONES[kind];
-        if (tone) playStation(tone);
-      }
-      function stopStation() {
-        playing = false;
-        audio.ensure(null);
-      }
-      function keepAlive(opts) {
-        if (opts) audio.setSyncMs(opts.syncMs);
-        audio.ensure(playing && currentStation ? currentStation.url : null);
-      }
-      function setVolume(v) {
-        const n = Number(v);
-        if (Number.isFinite(n)) volume = Math.max(0, Math.min(1, n));
-      }
-      async function search(query) {
-        lastQuery = query || "";
-        searching = true;
-        const { results, error } = await searchStations(lastQuery);
-        searchResults = results;
-        searchError = error;
-        searching = false;
-      }
-      function effectRadio(core, dt) {
-        core.t += dt;
-        const opts = core.effectOptions?.radio || {};
-        const spectrumOn = !!opts.spectrumOn;
-        const bands = [8, 16, 32, 64, 128, 256].includes(opts.bands) ? opts.bands : 64;
-        const theme = Number.isFinite(opts.theme) ? opts.theme : 5;
-        const style = opts.style || "glow";
-        const barMode = opts.barMode || "solid";
-        const gain = Number.isFinite(opts.gain) ? opts.gain : 2;
-        const autoGainOn = opts.autoGain !== false;
-        const fitToScreen = !!opts.fitToScreen;
-        const scrollSpeed = Number.isFinite(opts.scrollSpeed) ? opts.scrollSpeed : 0;
-        if (Number.isFinite(opts.volume)) setVolume(opts.volume);
-        audio.setSyncMs(opts.syncMs);
-        audio.ensure(playing && currentStation ? currentStation.url : null);
-        for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] = 0;
-        if (spectrumOn) {
-          const lv = computeLevels(levelState, audio, { bands, gain, autoGain: autoGainOn, fitToScreen }, dt);
-          if (scrollSpeed > 0) {
-            spectrumState.scrollX = ((spectrumState.scrollX || 0) + dt * scrollSpeed * core.SIZE * 1.5 + 4 * core.SIZE) % (4 * core.SIZE);
-          }
-          const ampArr = lv.amp, peakArr = lv.peak;
-          const ctx = {
-            amp: (b) => ampArr[b],
-            peak: (b) => peakArr[b],
-            ampArr,
-            peakArr,
-            vu: audio.vu,
-            // vu: stereo [left, right, leftPeak, rightPeak]
-            bands,
-            theme,
-            barMode,
-            scrollX: spectrumState.scrollX || 0,
-            t: core.t,
-            dt
-          };
-          renderSpectrumStyle(core, ctx, style, spectrumState);
-        }
-        if (!playing || !currentStation) {
-          if (core.SIZE >= 16) {
-            const sc = core.SIZE >= 64 ? 2 : 1;
-            const M = core.SIZE - 1;
-            const hint = (face) => {
-              const p = facePlot(core, face, 0.35, 0.5, 0.7);
-              return (x, y) => p(x, M - y);
-            };
-            drawLinesCentered(FONT_3x5, ["PICK A", "STATION"], core.SIZE, core.SIZE, hint(0), { scale: sc });
-            if (core.panelMode !== "2d") drawLinesCentered(FONT_3x5, ["PICK A", "STATION"], core.SIZE, core.SIZE, hint(2), { scale: sc });
-          }
-        }
-        if (playing && currentStation) {
-          let genre = currentStation.genre;
-          if (currentStation.url.startsWith("debugloop:") && audio.lastAttemptMs) {
-            const elapsed = (Date.now() - audio.lastAttemptMs) / 1e3;
-            const sweepSecs = 45, f0 = 40, f1 = 7e3;
-            const hz = Math.round(f0 + (f1 - f0) * (elapsed % sweepSecs / sweepSecs));
-            genre = hz + " Hz";
-          }
-          if (currentStation.url.startsWith("debugloop:")) {
-            drawStaticLabel(core, 0, genre, 7);
-            if (core.panelMode !== "2d") drawStaticLabel(core, 2, genre, 7);
-          } else {
-            const label = currentStation.name + (genre ? "  \u2022  " + genre : "") + "    ";
-            drawTicker(core, 0, label, dt);
-            if (core.panelMode !== "2d") drawTicker(core, 2, label, dt);
-          }
-        }
-      }
-      function drawStaticLabel(core, face, text, sv) {
-        if (!text) return;
-        const textW = text.length * CHAR_W;
-        let u = Math.round((core.SIZE - textW) / 2);
-        const rgb = [0.6, 0.85, 1];
-        for (const ch of text) u += drawGlyph5x7Face(core, face, ch, u, sv, rgb);
-      }
-      function getStatus() {
-        return {
-          status: audio.getStatus(),
-          playbackStatus: audio.getPlaybackStatus(),
-          playing,
-          station: currentStation,
-          volume,
-          search: { query: lastQuery, results: searchResults, error: searchError, searching }
-        };
-      }
-      function getPlaybackState() {
-        return { playing, currentStation };
-      }
-      module.exports = effectRadio;
-      module.exports.getStatus = getStatus;
-      module.exports.playStation = playStation;
-      module.exports.playDebugTone = playDebugTone;
-      module.exports.DEBUG_TONES = DEBUG_TONES;
-      module.exports.stopStation = stopStation;
-      module.exports.keepAlive = keepAlive;
-      module.exports.setVolume = setVolume;
-      module.exports.search = search;
-      module.exports.RADIO_STATIONS = RADIO_STATIONS;
-      module.exports.audio = audio;
-      module.exports.useRemoteAudio = () => {
-        audio.close();
-        audio = new RemoteAudio();
-        module.exports.audio = audio;
-        return audio;
-      };
-      module.exports.getPlaybackState = getPlaybackState;
-      module.exports.sample = sample;
-    }
-  });
-
-  // src/effects/radio.js
-  var require_radio2 = __commonJS({
-    "src/effects/radio.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      module.exports = require_radio();
-    }
-  });
-
   // src/effects/strobe.js
   var require_strobe = __commonJS({
     "src/effects/strobe.js"(exports, module) {
@@ -13002,6 +13717,11 @@ var PiEngine = (() => {
           strobeOn = !strobeOn;
           strobePhase = (strobePhase + 1) % 2;
           strobeBeat++;
+        }
+        if (opts.sync !== false && core.audio && core.audio.active) {
+          const on = core.audio.beat > 0.45;
+          if (on && !strobeOn) strobeBeat++;
+          strobeOn = on;
         }
         for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
         if (!strobeOn) return;
@@ -13751,8 +14471,10 @@ var PiEngine = (() => {
         fluidT2 += dt;
         const grav = getLocalGravity();
         const gl = Math.sqrt(grav.x * grav.x + grav.y * grav.y + grav.z * grav.z) || 1;
-        const gx = grav.x / gl, gy = grav.y / gl, gz = grav.z / gl;
-        const SPEED = 28, DAMP = 0.96, GRAV_STR = 14;
+        let gx = grav.x / gl, gy = grav.y / gl, gz = grav.z / gl;
+        const slosh = Math.sin(fluidT2 * 0.45) * 0.55;
+        [gx, gy] = [gx * Math.cos(slosh) - gy * Math.sin(slosh), gx * Math.sin(slosh) + gy * Math.cos(slosh)];
+        const SPEED = 28, DAMP = 0.96;
         const newH = new Float32Array(N);
         for (let i = 0; i < N; i++) {
           const x = gridX[i], y = gridY[i], z = gridZ[i];
@@ -13767,7 +14489,7 @@ var PiEngine = (() => {
           if (cnt) {
             const avg = lap / cnt;
             const slope = gx * (surfX[i] - 0.5) + gy * (surfY[i] - 0.5) + gz * (surfZ[i] - 0.5);
-            fluidV[i] = (fluidV[i] + dt * (SPEED * (avg - fluidH[i]) - GRAV_STR * slope)) * DAMP;
+            fluidV[i] = (fluidV[i] + dt * (SPEED * (avg - fluidH[i]) + 4 * (-slope * 0.9 - fluidH[i]))) * DAMP;
           }
           newH[i] = Math.max(-1, Math.min(1, fluidH[i] + fluidV[i] * dt));
         }
@@ -17481,7 +18203,7 @@ var PiEngine = (() => {
         }
       }
       function textWall(core, W, H, str, su, sv, r, g, b) {
-        drawString(FONT_3x5, str, su, sv, wallMaxPlot(core, r, g, b), { flipY: true, maxX: W });
+        drawString(FONT_3x5, str, su, sv, wallMaxPlot(core, r, g, b), { maxX: W });
       }
       function textPulsedWall(core, W, H, str, su, sv, rgb, pulse) {
         textWall(core, W, H, str, su, sv, rgb[0] * pulse, rgb[1] * pulse, rgb[2] * pulse);
@@ -17624,14 +18346,14 @@ var PiEngine = (() => {
           for (const ch of seg.str) {
             for (let tile = 0; tile < 2; tile++) {
               const u = charPos * charW - Math.floor(wallTickerX) + tile * totalW;
-              if (u + 3 >= 0 && u < W) drawGlyph(FONT_3x5, ch, u, sv, wallMaxPlot(core, seg.r, seg.g, seg.b), { flipY: true });
+              if (u + 3 >= 0 && u < W) drawGlyph(FONT_3x5, ch, u, sv, wallMaxPlot(core, seg.r, seg.g, seg.b));
             }
             charPos++;
           }
         }
         const labelStr = level === "red" ? "DANGER" : level === "yellow" ? "WATCH" : "CLEAR";
         const labelW = labelStr.length * 4;
-        textPulsedWall(core, W, H, labelStr, W - 1 - labelW, Math.round(H * 0.06), riskRGB, pulse);
+        textPulsedWall(core, W, H, labelStr, W - 1 - labelW, 11, riskRGB, pulse);
       }
       module.exports = effectNeoWall;
       module.exports.getStatus = neo.getStatus;
@@ -19283,6 +20005,11 @@ var PiEngine = (() => {
           strobePhase = (strobePhase + 1) % 2;
           strobeBeat++;
         }
+        if (opts.sync !== false && core.audio && core.audio.active) {
+          const on = core.audio.beat > 0.45;
+          if (on && !strobeOn) strobeBeat++;
+          strobeOn = on;
+        }
         for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
         if (!strobeOn) return;
         const COLMAP = { white: [1, 1, 1], red: [1, 0.05, 0.05], green: [0.05, 1, 0.05], blue: [0.1, 0.2, 1], cyan: [0.1, 1, 1] };
@@ -19613,6 +20340,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { trailFade } = require_trail();
       var wallBolts = [];
       var wallLightningT = 0;
       var wallStormT = 0;
@@ -19654,18 +20382,19 @@ var PiEngine = (() => {
         const speedMult = core.speedMult || 1;
         wallLightningT += dt * speedMult;
         wallStormT += dt * speedMult;
+        const fade = trailFade(0.82, dt);
         const pulse = 0.03 + 0.02 * Math.sin(wallStormT * 0.7);
         const nPixels = wallW * wallH;
         for (let i = 0; i < nPixels; i++) {
-          wallBuf[i * 3] = Math.max(wallBuf[i * 3] * 0.82, pulse * 0.18);
-          wallBuf[i * 3 + 1] = Math.max(wallBuf[i * 3 + 1] * 0.82, pulse * 0.22);
-          wallBuf[i * 3 + 2] = Math.max(wallBuf[i * 3 + 2] * 0.82, pulse * 0.65);
+          wallBuf[i * 3] = Math.max(wallBuf[i * 3] * fade, pulse * 0.18);
+          wallBuf[i * 3 + 1] = Math.max(wallBuf[i * 3 + 1] * fade, pulse * 0.22);
+          wallBuf[i * 3 + 2] = Math.max(wallBuf[i * 3 + 2] * fade, pulse * 0.65);
         }
         if (wallThunder > 0.01) {
           for (let i = 0; i < nPixels; i++) {
-            wallBuf[i * 3] = Math.min(1, wallBuf[i * 3] + wallThunder * 0.85);
-            wallBuf[i * 3 + 1] = Math.min(1, wallBuf[i * 3 + 1] + wallThunder * 0.9);
-            wallBuf[i * 3 + 2] = Math.min(1, wallBuf[i * 3 + 2] + wallThunder);
+            wallBuf[i * 3] = Math.min(1, wallBuf[i * 3] + wallThunder * 0.3);
+            wallBuf[i * 3 + 1] = Math.min(1, wallBuf[i * 3 + 1] + wallThunder * 0.33);
+            wallBuf[i * 3 + 2] = Math.min(1, wallBuf[i * 3 + 2] + wallThunder * 0.4);
           }
           wallThunder = Math.max(0, wallThunder - dt * 8);
         }
@@ -19750,7 +20479,7 @@ var PiEngine = (() => {
         if (!wallW) return;
         const opts = core.effectOptions?.lightspeed || {};
         const lsSpeed = opts.speed ?? 8, lsTrail = opts.trail ?? 32, lsSize = opts.size ?? 1;
-        const lsColour = opts.colour ?? "multi", lsCount = opts.count ?? 3, lsNudge = opts.nudge ?? 0;
+        const lsColour = opts.colour ?? "multi", lsCount = opts.count ?? 8, lsNudge = opts.nudge ?? 0;
         if (!lsWallRacers.length || lsWallRacers.length !== lsCount) resetLightspeedWall(core, lsCount);
         for (let i = 0; i < wallBuf.length; i++) wallBuf[i] = 0;
         const dim = Math.max(wallW, wallH);
@@ -20555,8 +21284,10 @@ var PiEngine = (() => {
         wFluidT2 += dt;
         const grav = getLocalGravity();
         const gl = Math.sqrt(grav.x * grav.x + grav.y * grav.y + grav.z * grav.z) || 1;
-        const gx = grav.x / gl, gy = grav.y / gl;
-        const SPEED = 28, DAMP = 0.96, GRAV_STR = 14;
+        let gx = grav.x / gl, gy = grav.y / gl;
+        const slosh = Math.sin(wFluidT2 * 0.45) * 0.55;
+        [gx, gy] = [gx * Math.cos(slosh) - gy * Math.sin(slosh), gx * Math.sin(slosh) + gy * Math.cos(slosh)];
+        const SPEED = 28, DAMP = 0.96;
         const newH = new Float32Array(n);
         for (let y = 0; y < wallH; y++) {
           for (let x = 0; x < wallW; x++) {
@@ -20581,7 +21312,7 @@ var PiEngine = (() => {
             if (cnt) {
               const avg = lap / cnt;
               const slope = gx * (x / (wallW - 1) - 0.5) + gy * (y / (wallH - 1) - 0.5);
-              wFluidV[i] = (wFluidV[i] + dt * (SPEED * (avg - wFluidH[i]) - GRAV_STR * slope)) * DAMP;
+              wFluidV[i] = (wFluidV[i] + dt * (SPEED * (avg - wFluidH[i]) + 4 * (-slope * 0.9 - wFluidH[i]))) * DAMP;
             }
             newH[i] = Math.max(-1, Math.min(1, wFluidH[i] + wFluidV[i] * dt));
           }
@@ -22386,6 +23117,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { Jimp, ResizeStrategy } = (init_browser(), __toCommonJS(browser_exports));
       var { fetchWithTimeout } = require_net();
+      var { wallHint } = require_text();
       var camPixels = null;
       var camPixelsW = 0;
       var camPixelsH = 0;
@@ -22429,7 +23161,7 @@ var PiEngine = (() => {
         const rate = opts.rate ?? 5;
         maybeFetch(core, url, rate, wallW, wallH);
         if (!camPixels || camPixelsW !== wallW || camPixelsH !== wallH) {
-          for (let y = 0; y < wallH; y++) for (let x = 0; x < wallW; x++) core.setWallPixel(x, y, 0, 0, 0);
+          wallHint(core, url ? ["CONNECTING", ".".repeat(1 + (Date.now() / 1e3 | 0) % 3)] : ["ADD A CAMERA", "ON THE PHONE"]);
           return;
         }
         for (let y = 0; y < wallH; y++) {
@@ -23897,6 +24629,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
+      var { wallHint } = require_text();
       var unsplashConfig = require_unsplashConfig();
       var { fetchWithTimeout } = require_net();
       var {
@@ -24051,7 +24784,10 @@ var PiEngine = (() => {
         t += dt;
         for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
         maybeFetch(core);
-        if (!photos.length) return;
+        if (!photos.length) {
+          wallHint(core, unsplashConfig.load().apiKey ? ["UNSPLASH", ".".repeat(1 + (Date.now() / 1e3 | 0) % 3)] : ["ENTER", "API KEY"]);
+          return;
+        }
         const opts = core.effectOptions?.unsplash || {};
         const slideshowOn = opts.slideshowOn !== false;
         const n = photos.length;
@@ -24095,6 +24831,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
+      var { wallHint } = require_text();
       var { fetchWithTimeout } = require_net();
       var {
         loadImageForPixels,
@@ -24235,7 +24972,10 @@ var PiEngine = (() => {
         t += dt;
         for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
         maybeFetch(core);
-        if (!works.length) return;
+        if (!works.length) {
+          wallHint(core, ["ART GALLERY", ".".repeat(1 + (Date.now() / 1e3 | 0) % 3)]);
+          return;
+        }
         const opts = core.effectOptions?.artic || {};
         const slideshowOn = opts.slideshowOn !== false;
         const n = works.length;
@@ -25023,6 +25763,15 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var wave = require_wave();
       var aiArt = require_aiArt();
+      var ambientWeather = require_ambientWeather();
+      var pixelPet = require_pixelPet();
+      var snake = require_snake();
+      var nowPlaying = require_nowPlaying();
+      var messageBoard = require_messageBoard();
+      var wordClock = require_wordClock();
+      var starfield = require_starfield();
+      var fluidInk = require_fluidInk();
+      var lavaLamp = require_lavaLamp();
       var gradientWash = require_gradientWash();
       var weather = require_weather2();
       var easterEgg = require_easterEgg();
@@ -25112,6 +25861,15 @@ var PiEngine = (() => {
       var retroWall = require_retroWall();
       var radioWall = require_radioWall();
       var WALL_EFFECTS = {
+        ambient_weather: ambientWeather.wall,
+        pixel_pet: pixelPet.wall,
+        snake: snake.wall,
+        now_playing: nowPlaying.wall,
+        message: messageBoard.wall,
+        word_clock: wordClock.wall,
+        starfield: starfield.wall,
+        fluid_ink: fluidInk.wall,
+        lava_lamp: lavaLamp.wall,
         ai_art: aiArt.wall,
         gradient_wash: gradientWashWall,
         video: videoWall,
@@ -25159,6 +25917,15 @@ var PiEngine = (() => {
         radio: radioWall
       };
       var EFFECTS = {
+        ambient_weather: ambientWeather,
+        pixel_pet: pixelPet,
+        snake,
+        now_playing: nowPlaying,
+        message: messageBoard,
+        word_clock: wordClock,
+        starfield,
+        fluid_ink: fluidInk,
+        lava_lamp: lavaLamp,
         ai_art: aiArt,
         wave,
         gradient_wash: gradientWash,
@@ -25213,6 +25980,15 @@ var PiEngine = (() => {
         custom_cube: customCube
       };
       var EFFECT_NAMES = {
+        ambient_weather: "Ambient Weather",
+        pixel_pet: "Pixel Pet",
+        snake: "Snake",
+        now_playing: "Now Playing",
+        message: "Message Board",
+        word_clock: "Word Clock",
+        starfield: "Starfield",
+        fluid_ink: "Fluid Ink",
+        lava_lamp: "Lava Lamp",
         ai_art: "AI Art",
         wave: "Wave Cascade",
         gradient_wash: "Rainbow Wash",

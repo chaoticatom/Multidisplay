@@ -7,6 +7,7 @@
 // differs (Met Museum's public keyless collection API vs Unsplash's keyed
 // one).
 'use strict';
+const { wallHint } = require('./text');
 const { fetchWithTimeout } = require('./net');
 
 const {
@@ -121,7 +122,7 @@ function effectArticWall(core, dt) {
 
   maybeFetch(core);
 
-  if (!works.length) return; // blank canvas while waiting, same idle gap unsplashWall.js leaves
+  if (!works.length) { wallHint(core, ['ART GALLERY', '.'.repeat(1 + (Date.now() / 1000 | 0) % 3)]); return; }
 
   const opts = core.effectOptions?.artic || {};
   const slideshowOn = opts.slideshowOn !== false;

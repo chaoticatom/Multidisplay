@@ -11,6 +11,7 @@
 // wallW/wallH/wallBuf via core.setWallPixel instead of SIZE/N/colBuf via
 // core.setFaceLED.
 const { hsl } = require('../core');
+const { trailFade } = require('./trail');
 
 let wallBolts = [], wallLightningT = 0, wallStormT = 0, wallThunder = 0;
 const DIRS4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -55,20 +56,23 @@ function effectLightningWall(core, dt) {
   wallStormT += dt * speedMult;
 
   // Dark electric storm background — deep blue-purple base
+  // Frame-rate-independent fade (see trail.js); the sky flash is kept soft
+  // so the bolts stay the bright part.
+  const fade = trailFade(0.82, dt);
   const pulse = 0.03 + 0.02 * Math.sin(wallStormT * 0.7);
   const nPixels = wallW * wallH;
   for (let i = 0; i < nPixels; i++) {
-    wallBuf[i * 3] = Math.max(wallBuf[i * 3] * 0.82, pulse * 0.18);
-    wallBuf[i * 3 + 1] = Math.max(wallBuf[i * 3 + 1] * 0.82, pulse * 0.22);
-    wallBuf[i * 3 + 2] = Math.max(wallBuf[i * 3 + 2] * 0.82, pulse * 0.65);
+    wallBuf[i * 3] = Math.max(wallBuf[i * 3] * fade, pulse * 0.18);
+    wallBuf[i * 3 + 1] = Math.max(wallBuf[i * 3 + 1] * fade, pulse * 0.22);
+    wallBuf[i * 3 + 2] = Math.max(wallBuf[i * 3 + 2] * fade, pulse * 0.65);
   }
 
   // Thunder flash — whole canvas white bloom
   if (wallThunder > 0.01) {
     for (let i = 0; i < nPixels; i++) {
-      wallBuf[i * 3] = Math.min(1, wallBuf[i * 3] + wallThunder * 0.85);
-      wallBuf[i * 3 + 1] = Math.min(1, wallBuf[i * 3 + 1] + wallThunder * 0.90);
-      wallBuf[i * 3 + 2] = Math.min(1, wallBuf[i * 3 + 2] + wallThunder);
+      wallBuf[i * 3] = Math.min(1, wallBuf[i * 3] + wallThunder * 0.3);
+      wallBuf[i * 3 + 1] = Math.min(1, wallBuf[i * 3 + 1] + wallThunder * 0.33);
+      wallBuf[i * 3 + 2] = Math.min(1, wallBuf[i * 3 + 2] + wallThunder * 0.4);
     }
     wallThunder = Math.max(0, wallThunder - dt * 8);
   }

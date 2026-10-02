@@ -165,12 +165,12 @@ async function main() {
   });
 
   // ── cam ──
-  await test('camWall no URL configured: stays black across several ticks, never throws', () => {
+  await test('camWall no URL configured: shows a setup hint (not a black screen), never throws', () => {
     const core = makeWallCore();
     core.effectOptions = { cam: {} };
     for (let i = 0; i < 10; i++) effectCamWall(core, 1 / 30);
     assertFiniteThroughout(core);
-    assert.ok(core.wallBuf.every((v) => v === 0), 'expected all-black wallBuf before any successful fetch');
+    assert.ok(core.wallBuf.some((v) => v > 0), 'expected the "add a camera" hint to be drawn');
   });
 
   await test('camWall does nothing (no throw) before initWall()', () => {
@@ -203,7 +203,7 @@ async function main() {
     core.effectOptions = { cam: { url: `http://127.0.0.1:${port}/snap`, rate: 15 } };
     effectCamWall(core, 1 / 30);
     // wait for the async fetch/decode/resize to land
-    for (let i = 0; i < 50 && !core.wallBuf.some((v) => v > 0); i++) {
+    for (let i = 0; i < 50 && !(core.wallBuf[1] > 0.5); i++) { // until the green image lands (the setup hint shows meanwhile)
       await new Promise((r) => setTimeout(r, 20));
       effectCamWall(core, 1 / 30);
     }

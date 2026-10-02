@@ -303,6 +303,8 @@ class WsServer {
     this.onConfigChange = onConfigChange;
     this.effectCommandRelay = effectCommandRelay;
     this._lastFrameMs = 0;
+    this._playlistSince = Date.now();
+    setInterval(() => this._playlistTick(), 5000).unref();
 
     // One HTTP server handles both the control page (GET /, GET
     // /effects.json) and the WebSocket upgrade, on the same port - so
@@ -605,6 +607,19 @@ class WsServer {
     else browserFrameSource.setFrame(payload, w, h, kind);
   }
 
+  // Playlist: every N minutes, move on to the next favourite. Waits while
+  // the display is off or a timer is running.
+  _playlistTick() {
+    const p = this.state.prefs;
+    if (!p || !p.playlist || !p.playlist.on || this.state.blank || this.state.activeAlarm) return;
+    const favs = p.favourites.filter((k) => EFFECTS[k]);
+    if (favs.length < 2 || Date.now() - this._playlistSince < p.playlist.minutes * 60000) return;
+    this._playlistSince = Date.now();
+    const next = favs[(favs.indexOf(this.state.effect) + 1) % favs.length];
+    this.state.effect = next;
+    this._broadcast(this._stateMsg());
+  }
+
   _stateMsg() {
     return {
       cmd: 'state',
@@ -623,6 +638,7 @@ class WsServer {
       identifyPanels: !!this.state.identifyPanels,
       wallLayouts: this.state.wallLayouts || [],
       ai: aiConfig.publicView(),
+      prefs: this.state.prefs,
     };
   }
 

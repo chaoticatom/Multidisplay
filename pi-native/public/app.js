@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.187';
+const APP_VERSION = '0.6.189';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -50,7 +50,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube']);
+const WIRED_OPTION_PANELS = new Set(['message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube']);
 // Shared "Art" submenu prev/next/slideshow/letterbox/speed controls
 // (#art-slideshow-chk/#art-letterbox-chk/#art-speed/#art-prev-btn/
 // #art-next-btn) drive whichever of Unsplash/Art Gallery is the currently
@@ -488,7 +488,8 @@ function wireEffectChips() {
   row.className = 'effect-chips';
   const names = groups.map((g) => g.querySelector(':scope > .sub-head').textContent.replace(/[▾▸◈]/g, '').trim());
   const choose = (i) => {
-    row.querySelectorAll('button').forEach((b, j) => b.setAttribute('aria-pressed', String(j === i + 1)));
+    body.classList.toggle('only-favs', i === -2);
+    row.querySelectorAll('button').forEach((b, j) => b.setAttribute('aria-pressed', String(i === -2 ? j === 0 : j === i + 2)));
     groups.forEach((g, j) => {
       g.classList.toggle('chip-hidden', i >= 0 && j !== i);
       if (i < 0 || j === i) g.classList.remove('collapsed');
@@ -496,17 +497,17 @@ function wireEffectChips() {
     body.classList.toggle('chips-all', i < 0);
     try { localStorage.setItem('fxChip', String(i)); } catch (e) { /* storage unavailable */ }
   };
-  ['All', ...names].forEach((n, k) => {
+  ['★', 'All', ...names].forEach((n, k) => {
     const b = document.createElement('button');
     b.type = 'button'; b.textContent = n.replace(/ &.*$/, '');
-    b.title = n;
-    b.addEventListener('click', () => choose(k - 1));
+    b.title = k === 0 ? 'Favourites' : n;
+    b.addEventListener('click', () => choose(k - 2));
     row.appendChild(b);
   });
   filterRow.after(row);
   let saved = -1;
   try { saved = Number(localStorage.getItem('fxChip') ?? -1); } catch (e) { /* storage unavailable */ }
-  choose(saved >= -1 && saved < groups.length ? saved : -1);
+  choose(saved >= -2 && saved < groups.length ? saved : -1);
 }
 
 const OVERLAY_DESC = {
@@ -850,7 +851,7 @@ function syncLightspeedPanel() {
   const trail = panel.querySelector('#ls-trail'), trailVal = panel.querySelector('#ls-trail-val');
   if (trail && document.activeElement !== trail) { trail.value = opts.trail ?? 32; if (trailVal) trailVal.textContent = trail.value; }
   const count = panel.querySelector('#ls-count'), countVal = panel.querySelector('#ls-count-val');
-  if (count && document.activeElement !== count) { count.value = opts.count ?? 3; if (countVal) countVal.textContent = count.value; }
+  if (count && document.activeElement !== count) { count.value = opts.count ?? 8; if (countVal) countVal.textContent = count.value; }
   panel.querySelectorAll('[data-ls-size]').forEach((b) => b.classList.toggle('active', Number(b.dataset.lsSize) === (opts.size ?? 1)));
   panel.querySelectorAll('[data-ls-nudge]').forEach((b) => b.classList.toggle('active', Number(b.dataset.lsNudge) === (opts.nudge ?? 0)));
   panel.querySelectorAll('[data-ls-col]').forEach((b) => b.classList.toggle('active', b.dataset.lsCol === (opts.colour || 'multi')));
@@ -1279,7 +1280,7 @@ function syncBallsPanel() {
   const crossFaces = opts.crossFaces ?? true;
   panel.querySelectorAll('[data-ballmode]').forEach((b) => b.classList.toggle('active', (b.dataset.ballmode === 'cross') === crossFaces));
   const count = panel.querySelector('#ball-count'), countVal = panel.querySelector('#ball-count-val');
-  if (count && document.activeElement !== count) { count.value = opts.count ?? 3; if (countVal) countVal.textContent = count.value; }
+  if (count && document.activeElement !== count) { count.value = opts.count ?? 8; if (countVal) countVal.textContent = count.value; }
 }
 
 // ---------------------------------------------------------------------
@@ -4698,6 +4699,7 @@ async function cxWireTiles() {
     const label = document.createElement('span'); label.className = 'cx-tile-name';
     label.textContent = btn.textContent.replace(/[◈▸]/g, '').trim();
     btn.replaceChildren(cv, label); btn.classList.add('cx-tile');
+    cxAddStar(btn);
     tiles.push({ cv, ctx: cv.getContext('2d'), raw, img: new ImageData(S, S), btn });
   });
   let f = 0;
@@ -4715,6 +4717,69 @@ async function cxWireTiles() {
   };
   draw();
   setInterval(() => { if (!document.hidden && document.body.dataset.tab === 'play') draw(); }, 125);
+}
+
+// ── Favourites: a star on every tile.
+function cxAddStar(btn) {
+  if (btn.querySelector('.cx-star')) return;
+  const st = document.createElement('span');
+  st.className = 'cx-star'; st.setAttribute('role', 'button'); st.title = 'Favourite'; // the ★ is CSS content, so it never leaks into the tile's name
+  st.addEventListener('click', (e) => { e.stopPropagation(); send({ cmd: 'toggleFavourite', effect: btn.dataset.effect }); });
+  btn.appendChild(st);
+}
+function cxSyncFavs() {
+  const favs = new Set(currentState.prefs?.favourites || []);
+  document.querySelectorAll('#effects-body .effect-btn[data-effect]').forEach((b) => b.classList.toggle('fav', favs.has(b.dataset.effect)));
+  const p = currentState.prefs?.playlist;
+  const sw = document.getElementById('playlist-sw'), sel = document.getElementById('playlist-min'), note = document.getElementById('playlist-note');
+  if (p && sw) {
+    sw.classList.toggle('on', !!p.on);
+    if (document.activeElement !== sel) sel.value = String(p.minutes);
+    note.textContent = p.on && favs.size < 2 ? 'Star at least two effects (★ on the tiles) for the playlist to cycle.' : '';
+  }
+  const n = currentState.prefs?.nightDim, nsw = document.getElementById('night-sw');
+  if (n && nsw) {
+    nsw.classList.toggle('on', !!n.on);
+    const f = document.getElementById('night-from'), t = document.getElementById('night-to'), l = document.getElementById('night-level');
+    if (document.activeElement !== f) f.value = String(n.from);
+    if (document.activeElement !== t) t.value = String(n.to);
+    if (document.activeElement !== l) { l.value = n.level; document.getElementById('night-level-val').textContent = Math.round(n.level * 100) + '%'; }
+  }
+}
+function cxWirePrefs() {
+  document.querySelectorAll('#effects-body .effect-btn[data-effect]').forEach(cxAddStar);
+  document.getElementById('playlist-sw')?.addEventListener('click', () => send({ cmd: 'setPlaylist', on: !currentState.prefs?.playlist?.on }));
+  document.getElementById('playlist-min')?.addEventListener('change', (e) => send({ cmd: 'setPlaylist', minutes: Number(e.target.value) }));
+  const hours = [...Array(24).keys()].map((h) => new Option(String(h).padStart(2, '0') + ':00', String(h)));
+  document.getElementById('night-from')?.replaceChildren(...hours.map((o) => o.cloneNode(true)));
+  document.getElementById('night-to')?.replaceChildren(...hours.map((o) => o.cloneNode(true)));
+  document.getElementById('night-sw')?.addEventListener('click', () => send({ cmd: 'setNightDim', on: !currentState.prefs?.nightDim?.on }));
+  document.getElementById('night-from')?.addEventListener('change', (e) => send({ cmd: 'setNightDim', from: Number(e.target.value) }));
+  document.getElementById('night-to')?.addEventListener('change', (e) => send({ cmd: 'setNightDim', to: Number(e.target.value) }));
+  const lvl = document.getElementById('night-level');
+  lvl?.addEventListener('input', () => { document.getElementById('night-level-val').textContent = Math.round(lvl.value * 100) + '%'; });
+  lvl?.addEventListener('change', () => send({ cmd: 'setNightDim', level: Number(lvl.value) }));
+  // Message Board, Snake, Pixel Pet option panels.
+  const msgText = document.getElementById('msg-text');
+  const showMsg = () => { setEffectOption('message', 'text', msgText.value); if (currentState.effect !== 'message') send({ cmd: 'setEffect', effect: 'message' }); };
+  document.getElementById('msg-send')?.addEventListener('click', showMsg);
+  msgText?.addEventListener('keydown', (e) => { if (e.key === 'Enter') showMsg(); });
+  document.querySelectorAll('.msg-style').forEach((b) => b.addEventListener('click', () => setEffectOption('message', 'style', b.dataset.style)));
+  const ms = document.getElementById('msg-speed');
+  ms?.addEventListener('input', () => { document.getElementById('msg-speed-val').textContent = Number(ms.value).toFixed(1) + 'x'; });
+  ms?.addEventListener('change', () => setEffectOption('message', 'speed', Number(ms.value)));
+  document.querySelectorAll('[data-snake]').forEach((b) => b.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    setEffectOption('snake', 'dir', b.dataset.snake);
+    setEffectOption('snake', 'press', Date.now());
+  }));
+  document.getElementById('pet-poke')?.addEventListener('click', () => setEffectOption('pixel_pet', 'poke', Date.now()));
+}
+function cxSyncOptionPanels() {
+  const o = currentState.effectOptions?.message || {};
+  document.querySelectorAll('.msg-style').forEach((b) => b.classList.toggle('active', b.dataset.style === (o.style || 'neon')));
+  const t = document.getElementById('msg-text');
+  if (t && document.activeElement !== t && typeof o.text === 'string') t.value = o.text;
 }
 
 // ── Ask: type what you want ("calm blue", "party", "fire"...).
@@ -4845,12 +4910,13 @@ function cxSyncHeroLabel() {
   const st = currentState.effectStatus?.radio;
   sub.textContent = st && st.playing && st.station ? '♫ ' + st.station.name.replace(/^[\s-]+/, '') : '';
 }
-function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); requestAnimationFrame(cxMoveBlob); }
+function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncFavs(); cxSyncOptionPanels(); requestAnimationFrame(cxMoveBlob); }
 
 function cxInit() {
   cxWireHero();
   cxWireAsk();
   cxWireAiSetup();
+  cxWirePrefs();
   cxWireTiles();
   document.querySelectorAll('#tab-bar [data-tab]').forEach((b) => b.addEventListener('click', () => requestAnimationFrame(cxMoveBlob)));
   window.addEventListener('resize', cxMoveBlob);

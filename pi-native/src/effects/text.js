@@ -186,3 +186,12 @@ module.exports = {
   FONT_3x5, FONT_5x7, FONT_5x7_BLANK, FONT_MOON,
   facePlot, wallPlot, faceMaxPlot, wallMaxPlot,
 };
+
+// A short dim hint centred on the whole wall (e.g. "ADD API KEY") for
+// effects that would otherwise sit black until they're set up.
+function wallHint(core, lines, rgb = [0.25, 0.55, 0.9]) {
+  core.wallBuf.fill(0);
+  const scale = Math.max(1, Math.floor(Math.min(core.wallW, core.wallH) / 48));
+  drawLinesCentered(FONT_3x5, lines, core.wallW, core.wallH, wallPlot(core, rgb[0], rgb[1], rgb[2]), { scale });
+}
+module.exports.wallHint = wallHint;

@@ -26,9 +26,14 @@ function effectFluid(core, dt) {
   fluidT2 += dt;
   const grav = getLocalGravity();
   const gl = Math.sqrt(grav.x * grav.x + grav.y * grav.y + grav.z * grav.z) || 1;
-  const gx = grav.x / gl, gy = grav.y / gl, gz = grav.z / gl;
+  let gx = grav.x / gl, gy = grav.y / gl, gz = grav.z / gl;
 
-  const SPEED = 28, DAMP = 0.96, GRAV_STR = 14;
+  // The surface settles to a tilted plane (it used to be pushed by a
+  // constant force, which pinned every cell at full height - a flat white
+  // block) and sloshes gently from side to side on its own.
+  const slosh = Math.sin(fluidT2 * 0.45) * 0.55;
+  [gx, gy] = [gx * Math.cos(slosh) - gy * Math.sin(slosh), gx * Math.sin(slosh) + gy * Math.cos(slosh)];
+  const SPEED = 28, DAMP = 0.96;
   const newH = new Float32Array(N);
   for (let i = 0; i < N; i++) {
     const x = gridX[i], y = gridY[i], z = gridZ[i];
@@ -40,7 +45,7 @@ function effectFluid(core, dt) {
     if (cnt) {
       const avg = lap / cnt;
       const slope = (gx * (surfX[i] - 0.5) + gy * (surfY[i] - 0.5) + gz * (surfZ[i] - 0.5));
-      fluidV[i] = (fluidV[i] + dt * (SPEED * (avg - fluidH[i]) - GRAV_STR * slope)) * DAMP;
+      fluidV[i] = (fluidV[i] + dt * (SPEED * (avg - fluidH[i]) + 4 * (-slope * 0.9 - fluidH[i]))) * DAMP;
     }
     newH[i] = Math.max(-1, Math.min(1, fluidH[i] + fluidV[i] * dt));
   }

@@ -20,6 +20,7 @@
 // _shared.js) stretch the decoded SxS photo to fill the wall, in place of
 // the cube version's per-face galleryApplyToFace/galleryApplyBlendToFace.
 'use strict';
+const { wallHint } = require('./text');
 
 const unsplashConfig = require('../unsplashConfig');
 const { fetchWithTimeout } = require('./net');
@@ -142,7 +143,7 @@ function effectUnsplashWall(core, dt) {
 
   maybeFetch(core);
 
-  if (!photos.length) return; // blank canvas while waiting - same "no placeholder text yet" gap camWall.js leaves for its equivalent idle state
+  if (!photos.length) { wallHint(core, unsplashConfig.load().apiKey ? ['UNSPLASH', '.'.repeat(1 + (Date.now() / 1000 | 0) % 3)] : ['ENTER', 'API KEY']); return; }
 
   const opts = core.effectOptions?.unsplash || {};
   const slideshowOn = opts.slideshowOn !== false;

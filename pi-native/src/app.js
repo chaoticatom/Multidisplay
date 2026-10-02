@@ -12,6 +12,7 @@ const alarms = require('./effects/alarms');
 const radio = require('./effects/radio');
 const { createDiagnostics } = require('./diagnostics');
 const scenes = require('./scenes');
+const prefs = require('./prefs');
 const sessionState = require('./sessionState');
 const { applyRemoteRequest } = require('./effects/radio/ffmpegAudio');
 const { tick } = require('./tick');
@@ -150,6 +151,7 @@ async function main() {
     effect: 'wave', brightness: 1.0, speed: 1.0, overlays: JSON.parse(JSON.stringify(OV_DEFAULTS)),
     musicReact: { on: false, amount: 0.6 }, // see effects/audioFeatures.js
     scenes: scenes.load(), // see ./scenes.js
+    prefs: prefs.load(), // favourites, playlist, night dimming - see ./prefs.js
     alarms: alarmConfig.load(), activeAlarm: null,
     customCube: customCubeConfig.load(),
     // Named wall-mode panel-grid layouts (see wallLayoutConfig.js's module
@@ -424,7 +426,7 @@ async function main() {
       // additive updates instead of rewriting every LED every frame (all
       // effects ported so far happen to do a full rewrite, so it wouldn't
       // have shown up yet - not worth relying on that staying true).
-      driver.renderFrame(core, state.brightness);
+      driver.renderFrame(core, state.brightness * prefs.nightFactor(state.prefs));
       diag.recordFrame(performance.now() - frameStart);
       ws.maybeStreamFrame(core, state.brightness);
     }, 1000 / SINGLE_THREAD_TICK_HZ);

@@ -22,6 +22,13 @@ function effectStrobe(core, dt) {
   const period = 1 / Math.max(0.2, speed);
   strobeT += dt;
   if (strobeT >= period) { strobeT %= period; strobeOn = !strobeOn; strobePhase = (strobePhase + 1) % 2; strobeBeat++; }
+  // With music playing, flash on the beat instead of the fixed rate (each
+  // kick a new colour in Multi); Speed still applies when it's quiet.
+  if (opts.sync !== false && core.audio && core.audio.active) {
+    const on = core.audio.beat > 0.45;
+    if (on && !strobeOn) strobeBeat++;
+    strobeOn = on;
+  }
 
   for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
   if (!strobeOn) return;

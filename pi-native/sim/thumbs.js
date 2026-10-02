@@ -34,7 +34,7 @@ const { CubeCore } = require(path.join(root, 'src/core'));
 const { WALL_EFFECTS } = require(path.join(root, 'src/effects'));
 
 const S = 16, FRAMES = 12, WARM = 20, STEP = 4;
-const OPTS = { radio: { radio: { spectrumOn: true } }, datetime: { datetime: { mode: 'time' } } };
+const OPTS = { radio: { radio: { spectrumOn: true } }, datetime: { datetime: { mode: 'time' } }, message: { message: { text: 'HELLO', style: 'rainbow' } } };
 
 (async () => {
   const out = {};

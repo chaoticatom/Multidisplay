@@ -20,6 +20,7 @@
 // Same `#cam-url`/`rate` option keys as cam.js (`core.effectOptions.cam`).
 const { Jimp, ResizeStrategy } = require('jimp');
 const { fetchWithTimeout } = require('./net');
+const { wallHint } = require('./text');
 
 let camPixels = null;   // RGBA buffer, wallW*wallH*4, or null until first successful fetch
 let camPixelsW = 0, camPixelsH = 0; // resolution the buffer above was decoded at
@@ -67,7 +68,7 @@ function effectCamWall(core, dt) {
   maybeFetch(core, url, rate, wallW, wallH);
 
   if (!camPixels || camPixelsW !== wallW || camPixelsH !== wallH) {
-    for (let y = 0; y < wallH; y++) for (let x = 0; x < wallW; x++) core.setWallPixel(x, y, 0, 0, 0);
+    wallHint(core, url ? ['CONNECTING', '.'.repeat(1 + (Date.now() / 1000 | 0) % 3)] : ['ADD A CAMERA', 'ON THE PHONE']);
     return;
   }
 

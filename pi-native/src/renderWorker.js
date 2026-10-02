@@ -54,6 +54,7 @@
 
 const { parentPort, workerData } = require('worker_threads');
 const { CubeCore } = require('./core');
+const prefs = require('./prefs');
 const { EFFECTS, WALL_EFFECTS } = require('./effects');
 const { runOverlays } = require('./effects/overlays');
 const alarms = require('./effects/alarms');
@@ -165,7 +166,7 @@ parentPort.on('message', (msg) => {
     // a dead copy under RENDER_WORKER=1 (see this worker's module comment).
     if (!state.effectStatus) state.effectStatus = {};
     state.effectStatus.radio = radio.getStatus();
-    driver.renderFrame(core, state.brightness);
+    driver.renderFrame(core, state.brightness * prefs.nightFactor(state.prefs));
     const renderMs = performance.now() - frameStart; // tick + panel push, for Diagnostics
     // Frames go back through SharedArrayBuffers instead of a fresh
     // .slice() copy per frame (which also had to be structured-cloned):

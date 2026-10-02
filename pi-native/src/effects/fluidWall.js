@@ -46,9 +46,14 @@ function effectFluidWall(core, dt) {
   wFluidT2 += dt;
   const grav = getLocalGravity();
   const gl = Math.sqrt(grav.x * grav.x + grav.y * grav.y + grav.z * grav.z) || 1;
-  const gx = grav.x / gl, gy = grav.y / gl; // gz has no flat-canvas axis to project onto - see module comment
+  let gx = grav.x / gl, gy = grav.y / gl; // gz has no flat-canvas axis to project onto - see module comment
 
-  const SPEED = 28, DAMP = 0.96, GRAV_STR = 14;
+  // The surface settles to a tilted plane (it used to be pushed by a
+  // constant force, which pinned every cell at full height - a flat white
+  // block) and sloshes gently from side to side on its own.
+  const slosh = Math.sin(wFluidT2 * 0.45) * 0.55;
+  [gx, gy] = [gx * Math.cos(slosh) - gy * Math.sin(slosh), gx * Math.sin(slosh) + gy * Math.cos(slosh)];
+  const SPEED = 28, DAMP = 0.96;
   const newH = new Float32Array(n);
   for (let y = 0; y < wallH; y++) {
     for (let x = 0; x < wallW; x++) {
@@ -61,7 +66,7 @@ function effectFluidWall(core, dt) {
       if (cnt) {
         const avg = lap / cnt;
         const slope = gx * (x / (wallW - 1) - 0.5) + gy * (y / (wallH - 1) - 0.5);
-        wFluidV[i] = (wFluidV[i] + dt * (SPEED * (avg - wFluidH[i]) - GRAV_STR * slope)) * DAMP;
+        wFluidV[i] = (wFluidV[i] + dt * (SPEED * (avg - wFluidH[i]) + 4 * (-slope * 0.9 - wFluidH[i]))) * DAMP;
       }
       newH[i] = Math.max(-1, Math.min(1, wFluidH[i] + wFluidV[i] * dt));
     }

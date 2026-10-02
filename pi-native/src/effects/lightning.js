@@ -9,6 +9,7 @@
 // set by app.js from the live speed slider value; ported faithfully rather
 // than "fixed", to keep pacing identical to the browser version.
 const { hsl } = require('../core');
+const { trailFade } = require('./trail');
 const { tronMove } = require('./_shared');
 
 let lightningBolts = [], lightningT = 0, lightningStormT = 0, lightningThunder = 0;
@@ -56,19 +57,22 @@ function effectLightning(core, dt) {
   const { N, SIZE, colBuf } = core;
 
   // Dark electric storm background — deep blue-purple base
+  // Frame-rate-independent fade (see trail.js); the sky flash is kept soft
+  // so the bolts stay the bright part.
+  const fade = trailFade(0.82, dt);
   const pulse = 0.03 + 0.02 * Math.sin(lightningStormT * 0.7);
   for (let i = 0; i < N; i++) {
-    colBuf[i * 3] = Math.max(colBuf[i * 3] * 0.82, pulse * 0.18);
-    colBuf[i * 3 + 1] = Math.max(colBuf[i * 3 + 1] * 0.82, pulse * 0.22);
-    colBuf[i * 3 + 2] = Math.max(colBuf[i * 3 + 2] * 0.82, pulse * 0.65);
+    colBuf[i * 3] = Math.max(colBuf[i * 3] * fade, pulse * 0.18);
+    colBuf[i * 3 + 1] = Math.max(colBuf[i * 3 + 1] * fade, pulse * 0.22);
+    colBuf[i * 3 + 2] = Math.max(colBuf[i * 3 + 2] * fade, pulse * 0.65);
   }
 
   // Thunder flash — whole cube white bloom
   if (lightningThunder > 0.01) {
     for (let i = 0; i < N; i++) {
-      colBuf[i * 3] = Math.min(1, colBuf[i * 3] + lightningThunder * 0.85);
-      colBuf[i * 3 + 1] = Math.min(1, colBuf[i * 3 + 1] + lightningThunder * 0.90);
-      colBuf[i * 3 + 2] = Math.min(1, colBuf[i * 3 + 2] + lightningThunder);
+      colBuf[i * 3] = Math.min(1, colBuf[i * 3] + lightningThunder * 0.3);
+      colBuf[i * 3 + 1] = Math.min(1, colBuf[i * 3 + 1] + lightningThunder * 0.33);
+      colBuf[i * 3 + 2] = Math.min(1, colBuf[i * 3 + 2] + lightningThunder * 0.4);
     }
     lightningThunder = Math.max(0, lightningThunder - dt * 8);
   }
