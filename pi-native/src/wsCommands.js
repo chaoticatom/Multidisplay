@@ -20,6 +20,8 @@ const radio = require('./effects/radio');
 const { browserFrameSource } = require('./effects/video/browserFrameSource');
 const pinConfig = require('./pinConfig');
 const scenes = require('./scenes');
+const ai = require('./ai');
+const aiConfig = require('./aiConfig');
 const { spawn } = require('child_process');
 
 const COMMANDS = {
@@ -574,6 +576,43 @@ const COMMANDS = {
     this.state.nasaConfig = { apiKey: msg.apiKey.trim() };
     nasaConfig.save(this.state.nasaConfig);
     this._broadcast(this._stateMsg());
+  },
+
+  // AI assistant settings (Setup > AI). The key is stored on the Pi only.
+  setAiConfig(ws, msg) {
+    aiConfig.save(msg || {});
+    this._broadcast(this._stateMsg());
+  },
+
+  // The Ask bar: {text}. Asks the configured AI service (see src/ai.js) and
+  // applies the validated actions; replies to the asking client only with
+  // {cmd:'aiResult', say | error | off}. One request at a time.
+  aiAsk(ws, msg) {
+    const reply = (o) => { try { ws.send(JSON.stringify({ cmd: 'aiResult', ...o })); } catch (e) { /* client gone */ } };
+    const text = typeof msg.text === 'string' ? msg.text.trim() : '';
+    if (!text) return;
+    if (this._aiBusy) { reply({ error: 'Still thinking about the last request…' }); return; }
+    this._aiBusy = true;
+    ai.ask(text, { effect: this.state.effect, mode: this.config.mode }).then((res) => {
+      if (res.off) { reply({ off: true }); return; }
+      for (const a of res.actions) {
+        if (a.type === 'effect') COMMANDS.setEffect.call(this, ws, { effect: a.key });
+        else if (a.type === 'overlay') COMMANDS.setOverlay.call(this, ws, { key: a.key, enabled: a.on });
+        else if (a.type === 'brightness') COMMANDS.setBrightness.call(this, ws, { value: a.value });
+        else if (a.type === 'speed') COMMANDS.setSpeed.call(this, ws, { value: a.value });
+        else if (a.type === 'option') COMMANDS.setEffectOption.call(this, ws, { effect: a.effect, key: a.key, value: a.value });
+        else if (a.type === 'off') COMMANDS.clearAll.call(this, ws, {});
+        else if (a.type === 'art') {
+          COMMANDS.setEffectOption.call(this, ws, { effect: 'ai_art', key: 'art', value: a.art });
+          COMMANDS.setEffect.call(this, ws, { effect: 'ai_art' });
+        }
+      }
+      this._broadcast(this._stateMsg());
+      reply({ say: res.say || (res.actions.length ? 'Done.' : "I couldn't find a way to show that."), actions: res.actions.length });
+    }).catch((err) => {
+      console.warn('[ai] request failed:', err.message);
+      reply({ error: err.message });
+    }).finally(() => { this._aiBusy = false; });
   },
 
   radioSearch(ws, msg) {

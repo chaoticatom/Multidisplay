@@ -207,6 +207,7 @@ const { spawn } = require('child_process');
 const { browserFrameSource } = require('./effects/video/browserFrameSource');
 const crypto = require('crypto');
 const { COMMANDS } = require('./wsCommands');
+const aiConfig = require('./aiConfig');
 const pinConfig = require('./pinConfig');
 
 const PREVIEW_FPS = 20; // matches the ESP32 firmware's streamFrameToCube() throttle
@@ -621,6 +622,7 @@ class WsServer {
       nasaConfig: this.state.nasaConfig,
       identifyPanels: !!this.state.identifyPanels,
       wallLayouts: this.state.wallLayouts || [],
+      ai: aiConfig.publicView(),
     };
   }
 

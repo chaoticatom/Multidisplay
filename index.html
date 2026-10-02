@@ -902,6 +902,8 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 #now-no-options { display: none !important; }
 #now-options:empty { display: none; }
 #sidebar .cx-ask input { background: none !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
+.cx-ask.thinking .cx-spark { animation-duration: .6s; box-shadow: 0 0 16px var(--cx1); }
+#sidebar [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -1536,6 +1538,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <div class="sub-section collapsed">
     <button class="sub-head">Fun <span class="chev">▾</span></button>
     <div class="sub-body">
+    <button class="effect-btn" data-effect="ai_art">◈ AI Art</button>
     <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
     <button class="effect-btn" data-effect="easter_egg">◈ Easter Egg</button>
     <button class="effect-btn has-panel cube-only" data-effect="custom_cube">◈ Custom Cube <span class="panel-arrow">▸</span></button>
@@ -1917,6 +1920,18 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     </div>
   </div>
   
+  <div class="sidebar-section collapsed">
+    <button class="section-head">◈ AI assistant <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div class="ui-note">Type anything in the Ask bar - “a calm sunset with stars”, “draw a pixel cat” - and the AI sets up the display or draws it.</div>
+      <select id="ai-provider" class="ui-input" aria-label="AI service" style="width:100%;margin:6px 0;"></select>
+      <div class="ui-note" id="ai-help"></div>
+      <div id="ai-key-row" style="display:flex;gap:6px;margin:6px 0;"><input id="ai-key" class="ui-input" type="password" autocomplete="off" placeholder="Paste your API key" aria-label="API key" style="flex:1;min-width:0;"><button id="ai-clear-btn" class="ui-btn-small" style="flex:0 0 auto;" hidden>Remove</button></div>
+      <div id="ai-url-row" style="margin:6px 0;"><input id="ai-url" class="ui-input" type="url" placeholder="http://192.168.1.10:11434" aria-label="Ollama address" style="width:100%;"></div>
+      <div id="ai-model-row" style="margin:6px 0;"><input id="ai-model" class="ui-input" type="text" placeholder="Model (leave as suggested)" aria-label="Model" style="width:100%;"></div>
+      <button id="ai-save-btn" class="ui-btn-primary" style="width:100%;margin-top:6px;">Save</button>
+    </div>
+  </div>
   <div class="sidebar-section collapsed">
     <button class="section-head">◈ System <span class="chev">▾</span></button>
     <div class="section-body">

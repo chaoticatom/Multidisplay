@@ -7,6 +7,7 @@
 // full feature parity - see the project's pending task list for the much
 // longer list of effects still to port from effects-*.js).
 const wave = require('./wave');
+const aiArt = require('./aiArt');
 const gradientWash = require('./gradientWash');
 const weather = require('./weather');
 const easterEgg = require('./easterEgg');
@@ -109,6 +110,7 @@ const radioWall = require('./radioWall');
 // WALL_EFFECTS entry yet - see the sidebar's per-effect greying for how
 // this is surfaced to the user.
 const WALL_EFFECTS = {
+  ai_art: aiArt.wall,
   gradient_wash: gradientWashWall,
   video: videoWall,
   depth_rings: depthRingsWall,
@@ -156,6 +158,7 @@ const WALL_EFFECTS = {
 };
 
 const EFFECTS = {
+  ai_art: aiArt,
   wave,
   gradient_wash: gradientWash,
   weather,
@@ -210,6 +213,7 @@ const EFFECTS = {
 };
 
 const EFFECT_NAMES = {
+  ai_art: 'AI Art',
   wave: 'Wave Cascade',
   gradient_wash: 'Rainbow Wash',
   weather: 'Weather',

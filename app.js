@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.185';
+const APP_VERSION = '0.6.186';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -199,6 +199,7 @@ function handleTextMessage(msg) {
   if (msg.cmd === 'authRequired') { answerAuth(false); return; }
   if (msg.cmd === 'authFailed') { rememberPin(''); answerAuth(true); return; }
   if (msg.cmd === 'authOk') return;
+  if (msg.cmd === 'aiResult') { cxAiResult(msg); return; }
   if (msg.cmd === 'controlPinResult') {
     if (!msg.ok) alert(msg.error);
     else rememberPin(msg.set ? (document.getElementById('pin-input')?.dataset.pending || '') : '');
@@ -470,7 +471,7 @@ function syncPinStatus() {
 // tab's sections show, open. The chosen tab is remembered per browser.
 const TAB_OF_SECTION = [
   ['Effects', 'play'], ['Draw on a Face', 'play'], ['Music', 'music'], ['Overlays', 'schedule'], ['Timers', 'schedule'],
-  ['Display', 'setup'], ['System', 'setup'],
+  ['Display', 'setup'], ['AI assistant', 'setup'], ['System', 'setup'],
 ];
 // Tab names before the Play/Music/Schedule/Setup redesign, so a browser
 // that remembered one lands somewhere sensible.
@@ -4723,7 +4724,9 @@ const CX_ASK = [
   [/rain/, 'rain'], [/rainbow|colou?r/, 'gradient_wash'], [/time|clock/, 'datetime'], [/weather/, 'weather'],
   [/moon|planet/, 'moon'], [/joke|funny|laugh/, 'joke'], [/trivia|quiz/, 'trivia'], [/game|tron|bike/, 'tron'],
   [/maze/, 'maze'], [/sand/, 'sand'], [/ball/, 'balls'], [/dice/, 'dice'], [/coin/, 'coinflip'], [/plasma|psych/, 'plasma'],
-  [/surprise|random|anything/, 'random'], [/photo|art|picture/, 'artic'], [/iss|station/, 'iss'],
+  [/surprise|random|anything/, 'random'], [/sunset|sunrise|orange|warm glow/, 'prism'], [/wave|water|flow/, 'wave'],
+  [/laser|grid|cyber|neon/, 'sphere'], [/dna|science|helix/, 'dna'], [/warp|hyper|fast/, 'warp'], [/storm|thunder/, 'lightning'],
+  [/ghost|spooky|halloween/, 'ghost'], [/firework|celebrat|new year|birthday/, 'fireworks'], [/retro|80s|arcade/, 'random80s'], [/earth|globe/, 'epic'], [/photo|art|picture/, 'artic'], [/iss|station/, 'iss'],
 ];
 function cxAsk(q) {
   q = q.toLowerCase().trim();
@@ -4736,11 +4739,68 @@ function cxAsk(q) {
   if (key === 'radio') setTab('music');
   cxToast('✨ ' + cxEffectName(key));
 }
+// With an AI service set up (Setup > AI), the Ask bar goes to the Pi's AI
+// assistant (src/ai.js); otherwise, or if it's switched off, the built-in
+// keywords above answer instantly.
+function cxAiOn() { return currentState.ai && currentState.ai.provider && currentState.ai.provider !== 'off'; }
+function cxSubmit(text) {
+  text = (text || '').trim();
+  if (!text) return;
+  if (!cxAiOn()) { cxAsk(text); return; }
+  document.querySelector('.cx-ask')?.classList.add('thinking');
+  cxToast('✨ Thinking…');
+  clearTimeout(cxSubmit._t);
+  cxSubmit._t = setTimeout(() => cxAiResult({ error: 'No answer from the AI - try again' }), 130000);
+  send({ cmd: 'aiAsk', text });
+}
+function cxAiResult(msg) {
+  clearTimeout(cxSubmit._t);
+  document.querySelector('.cx-ask')?.classList.remove('thinking');
+  if (msg.off) { cxToast('AI is off - using built-in words'); return; }
+  if (msg.error) { cxToast('⚠ ' + msg.error); return; }
+  cxToast('✨ ' + (msg.say || 'Done'));
+}
 function cxWireAsk() {
   const inp = document.getElementById('cx-ask');
   if (!inp) return;
-  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { cxAsk(inp.value); inp.value = ''; inp.blur(); } });
-  document.querySelectorAll('#cx-ask-chips button').forEach((b) => b.addEventListener('click', () => cxAsk(b.textContent)));
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { cxSubmit(inp.value); inp.value = ''; inp.blur(); } });
+  document.querySelectorAll('#cx-ask-chips button').forEach((b) => b.addEventListener('click', () => cxSubmit(b.textContent)));
+}
+
+// ── Setup > AI assistant
+function cxWireAiSetup() {
+  const prov = document.getElementById('ai-provider');
+  if (!prov) return;
+  document.getElementById('ai-save-btn')?.addEventListener('click', () => {
+    const key = document.getElementById('ai-key');
+    send({ cmd: 'setAiConfig', provider: prov.value, key: key.value, model: document.getElementById('ai-model').value, url: document.getElementById('ai-url').value });
+    key.value = '';
+    cxToast('AI settings saved');
+  });
+  document.getElementById('ai-clear-btn')?.addEventListener('click', () => { if (confirm('Remove the saved AI key?')) send({ cmd: 'setAiConfig', clearKey: true }); });
+  prov.addEventListener('change', () => cxSyncAiSetup(prov.value));
+}
+const AI_HELP = {
+  off: 'The Ask bar uses built-in words only (calm, party, night sky…). No internet needed.',
+  gemini: 'Free key from aistudio.google.com → Get API key. Free-tier prompts may be used by Google to improve its models.',
+  groq: 'Free key from console.groq.com → API Keys. Fast, with daily limits.',
+  ollama: 'Free and private: install Ollama on a computer on your network, run “ollama pull llama3.2”, and enter its address.',
+};
+function cxSyncAiSetup(pick) {
+  const a = currentState.ai, prov = document.getElementById('ai-provider');
+  if (!a || !prov) return;
+  if (!prov.options.length) prov.replaceChildren(...Object.entries(a.providers).map(([k, v]) => new Option(v, k)));
+  if (!pick && document.activeElement !== prov) prov.value = a.provider;
+  const p = pick || prov.value;
+  document.getElementById('ai-key-row').hidden = !(p === 'gemini' || p === 'groq');
+  document.getElementById('ai-url-row').hidden = p !== 'ollama';
+  document.getElementById('ai-model-row').hidden = p === 'off';
+  const model = document.getElementById('ai-model'), url = document.getElementById('ai-url');
+  if (document.activeElement !== model && !pick) model.value = a.model || '';
+  if (document.activeElement !== url && !pick) url.value = a.url || '';
+  document.getElementById('ai-help').textContent = AI_HELP[p] || '';
+  document.getElementById('ai-key').placeholder = a.keySet && p === a.provider ? 'Key saved ✓ (type to replace)' : 'Paste your API key';
+  document.getElementById('ai-clear-btn').hidden = !a.keySet;
 }
 
 // ── Time ring: every timer as a dot on a 24-hour clock face.
@@ -4785,11 +4845,12 @@ function cxSyncHeroLabel() {
   const st = currentState.effectStatus?.radio;
   sub.textContent = st && st.playing && st.station ? '♫ ' + st.station.name.replace(/^[\s-]+/, '') : '';
 }
-function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); requestAnimationFrame(cxMoveBlob); }
+function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); requestAnimationFrame(cxMoveBlob); }
 
 function cxInit() {
   cxWireHero();
   cxWireAsk();
+  cxWireAiSetup();
   cxWireTiles();
   document.querySelectorAll('#tab-bar [data-tab]').forEach((b) => b.addEventListener('click', () => requestAnimationFrame(cxMoveBlob)));
   window.addEventListener('resize', cxMoveBlob);
