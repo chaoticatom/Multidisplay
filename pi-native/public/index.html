@@ -581,7 +581,6 @@ input[type=range]:focus-visible { outline: 2px solid #7aadff; outline-offset: 3p
 #tab-bar button { flex: 1; padding: 8px 2px; font-size: 12px; font-weight: 600; letter-spacing: 0.3px; color: #9aa3b8; background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; }
 #tab-bar button[aria-selected="true"] { color: #cfe0ff; border-bottom-color: #7aadff; }
 #sidebar-scroll > .sidebar-section:not(.tab-active) { display: none; }
-body:not([data-tab="settings"]) #sidebar-size-bar { display: none; }
 /* In a tab, a lone section doesn't need its accordion header. */
 #sidebar-scroll > .sidebar-section.tab-solo > .section-head { display: none; }
 /* ── Now tab ── */
@@ -725,6 +724,9 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 .ov-item.ov-on { border-color: var(--c-line-hi); background: var(--c-card-hi); }
 .ov-hdr { font-size: 13.5px !important; padding: 10px 12px !important; color: var(--c-txt) !important; letter-spacing: 0 !important; }
 .ov-name { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.ov-hdr, .ov-name, .ov-desc { text-transform: none !important; }
+#effects-body .sub-section:not(.collapsed) > .sub-body, #effects-body.chips-all .sub-section > .sub-body { display: grid !important; grid-template-columns: 1fr 1fr; gap: 6px; }
+#effects-body .sub-body > :not(.effect-btn) { grid-column: 1 / -1; }
 .ov-desc { font-size: 11.5px; color: var(--c-dim); font-weight: 400; }
 .ov-hdr .ov-toggle { order: 2; margin-left: auto; }
 .ov-body { background: rgba(0,0,0,0.18); }
@@ -1735,7 +1737,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
       <button class="size-btn" data-size="8">Cube 8</button>
       <button class="size-btn" data-size="16">Cube 16</button>
       <button class="size-btn" data-size="64">Cube 64</button>
-      <button class="size-btn" data-size="64" data-mode="panel2d" id="panel2d-btn" title="Flat panels - one, or several side by side (add more with Layout)" style="font-size:11px;">Flat</button>
+      <button class="size-btn" data-size="64" data-mode="panel2d" id="panel2d-btn" title="Flat panels - one, or several side by side (add more with Layout)">Flat</button>
     </div>
     <button id="setup-layout-btn" class="ui-btn-primary flat-only" style="margin:8px 0 0;width:100%;">▦ Edit panel layout (add / move / remove panels)</button>
     <button id="identify-panels-btn" title="Label every physical panel with its own identity (face/index + which HAT output and chain position it's wired to) - use this while wiring up multiple panels, in any shape, to see which physical board is which." style="width:100%;margin-top:6px;padding:8px;font-size:11px;letter-spacing:0.5px;background:rgba(80,120,255,0.08);border:1px solid rgba(80,120,255,0.25);color:#9ab;border-radius:6px;cursor:pointer;">🔢 Show panel numbers</button>

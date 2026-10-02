@@ -552,6 +552,9 @@ function setTab(tab) {
   document.querySelectorAll('#sidebar-scroll > .sidebar-section').forEach((sec) => sec.classList.toggle('tab-active', sec.dataset.tab === tab));
   document.getElementById('sidebar-scroll')?.scrollTo(0, 0);
   // The Effects tab opens with the effect list expanded.
+  // Open the tab's first section if all of them are folded, so a tab never looks empty.
+  const secs = [...document.querySelectorAll('#sidebar-scroll > .sidebar-section.tab-active')];
+  if (secs.length && secs.every((x) => x.classList.contains('collapsed'))) secs[0].classList.remove('collapsed');
   if (tab === 'play') document.getElementById('effects-body')?.closest('.sidebar-section')?.classList.remove('collapsed');
   try { localStorage.setItem('tab', tab); } catch (e) { /* storage unavailable */ }
 }
