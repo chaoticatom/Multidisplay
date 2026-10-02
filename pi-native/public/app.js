@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.184';
+const APP_VERSION = '0.6.185';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -4598,7 +4598,10 @@ function cxWireHero() {
     }
     if (mode === 'x') hero.style.setProperty('--swipe', String(Math.max(-1, Math.min(1, dx / 120))));
   });
+  const hint = document.getElementById('cx-hero-hint');
+  try { if (localStorage.getItem('heroUsed')) hint?.classList.add('gone'); } catch (e) { /* storage unavailable */ }
   const end = () => {
+    if (mode) { hint?.classList.add('gone'); try { localStorage.setItem('heroUsed', '1'); } catch (e) { /* storage unavailable */ } }
     if (mode === 'x' && Math.abs(dx) > 60) {
       const order = cxEffectOrder(), i = order.indexOf(currentState.effect);
       const next = order[(i + (dx < 0 ? 1 : -1) + order.length) % order.length];
@@ -4775,7 +4778,14 @@ function cxSyncMusic() {
   document.getElementById('stop-sound-btn')?.classList.toggle('cx-quiet', !playing);
 }
 
-function cxOnState() { cxSyncMusic(); cxRenderRing(); requestAnimationFrame(cxMoveBlob); }
+function cxSyncHeroLabel() {
+  const n = document.getElementById('cx-hero-name'), sub = document.getElementById('cx-hero-sub');
+  if (!n) return;
+  n.textContent = currentState.blank ? 'Off' : cxEffectName(currentState.effect);
+  const st = currentState.effectStatus?.radio;
+  sub.textContent = st && st.playing && st.station ? '♫ ' + st.station.name.replace(/^[\s-]+/, '') : '';
+}
+function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); requestAnimationFrame(cxMoveBlob); }
 
 function cxInit() {
   cxWireHero();

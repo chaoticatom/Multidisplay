@@ -881,6 +881,27 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 .bt-paired-list-el > div, .bt-device-list-el > div { border-radius: 12px !important; background: rgba(255,255,255,.04) !important; border: 1px solid rgba(255,255,255,.08) !important; margin-bottom: 6px !important; padding: 8px 10px !important; }
 .diag-table td { padding: 6px 4px !important; border-bottom: 1px solid rgba(255,255,255,.06) !important; }
 .diag-log { border-radius: 12px !important; background: rgba(255,255,255,.04) !important; }
+
+/* ════ v0.6.185 unclutter ════ */
+#led-count-label, #active-effect-label { display: none !important; }
+#sidebar-header { padding: 10px 14px 4px !important; }
+#sidebar-header h1 { font-size: 15px !important; margin: 0 !important; }
+#sidebar-header #conn-status { font-size: 10px; }
+#sidebar-brightness-bar { background: none !important; border: none !important; padding: 2px 12px 4px !important; }
+#sidebar-brightness-bar .slider-row { gap: 10px; align-items: center; }
+#bright-label { width: auto !important; font-size: 16px !important; }
+.cx-round { width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; border: none; cursor: pointer; font-size: 16px; color: #fff; background: rgba(255,255,255,.08); box-shadow: 0 0 0 1px rgba(255,255,255,.12); transition: transform .2s cubic-bezier(.2,1.6,.4,1); }
+.cx-round:active { transform: scale(.9); }
+.cx-round-off { background: rgba(255,90,90,.15); box-shadow: 0 0 0 1px rgba(255,90,90,.35); }
+.cx-round.cx-quiet { display: none; }
+.cx-hero-lbl { position: absolute; left: 12px; bottom: 8px; right: 12px; display: grid; pointer-events: none; text-shadow: 0 2px 10px #000, 0 0 2px #000; }
+.cx-hero-lbl b { color: #fff; font-size: 18px; font-weight: 800; letter-spacing: -.3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-hero-lbl small { color: rgba(238,242,255,.8); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-hero-hint { top: 8px; bottom: auto !important; }
+.cx-hero-hint.gone { display: none; }
+#now-no-options { display: none !important; }
+#now-options:empty { display: none; }
+#sidebar .cx-ask input { background: none !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
 </style>
 </head>
 <body>
@@ -900,7 +921,8 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
   <div id="cx-hero" title="Swipe sideways: next effect · drag up/down: brightness">
     <canvas id="cx-hero-canvas" width="640" height="320"></canvas>
     <div id="cx-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="6"/><circle id="cx-arc" cx="50" cy="50" r="44" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-dasharray="276" stroke-dashoffset="80" transform="rotate(-90 50 50)"/></svg><b id="cx-pct">70%</b></div>
-    <span class="cx-hero-hint">‹ swipe › · drag ↕ brightness</span>
+    <div class="cx-hero-lbl"><b id="cx-hero-name"></b><small id="cx-hero-sub"></small></div>
+    <span class="cx-hero-hint" id="cx-hero-hint">‹ swipe › · drag ↕ brightness</span>
   </div>
 
   
@@ -925,15 +947,14 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <div class="slider-row" style="margin-bottom:0;">
       <!-- #bright-label sizes to its text (see its CSS rule) - a fixed
            82px still overlapped the slider at the larger mobile font. -->
-      <span class="slider-label" id="bright-label">Brightness</span>
-      <input type="range" id="bright-slider" min="0.1" max="1.5" step="0.05" value="1.15">
+      <span class="slider-label" id="bright-label" aria-hidden="true">☀</span>
+      <input type="range" id="bright-slider" min="0.1" max="1.5" step="0.05" value="1.15" aria-label="Brightness">
+      <button class="cx-round" id="stop-sound-btn" title="Stop sound" aria-label="Stop sound">🔇</button>
+      <button class="cx-round cx-round-off" id="clear-all-btn" title="All off" aria-label="All off">⏻</button>
     </div>
   </div>
 
-  <div id="fx-toggle-bar" style="padding:6px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;display:flex;gap:6px;">
-    <button class="ui-btn-danger" id="clear-all-btn">⏻ All off</button>
-    <button class="ui-btn-danger" id="stop-sound-btn">🔇 Stop Sound</button>
-  </div>
+  
 
 
   <nav id="tab-bar" role="tablist" aria-label="Control sections">
@@ -947,9 +968,8 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
   <div class="sidebar-section" id="now-section" data-tab="play">
     <div class="section-body">
       <div class="cx-ask"><span class="cx-spark"></span><input id="cx-ask" type="text" placeholder="Ask: “calm”, “party”, “night sky”…" aria-label="Ask for an effect" autocomplete="off"></div>
-      <div id="cx-ask-chips" class="cx-chips"><button type="button">calm</button><button type="button">party</button><button type="button">night sky</button><button type="button">music</button><button type="button">surprise me</button></div>
-      <div class="now-kicker">Now showing</div>
-      <div id="now-effect-name" class="now-effect">…</div>
+      <div id="cx-ask-chips" class="cx-chips"><button type="button">calm</button><button type="button">party</button><button type="button">night sky</button><button type="button">surprise me</button></div>
+      <div id="now-effect-name" hidden></div>
       <div id="now-options" class="now-options"></div>
       <div id="now-no-options" class="ui-note">This effect has no options.</div>
       <div class="slider-row">
@@ -2147,6 +2167,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.184"></script>
+<script src="app.js?v=0.6.185"></script>
 </body>
 </html>
