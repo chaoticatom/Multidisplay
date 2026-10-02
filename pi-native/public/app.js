@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.183';
+const APP_VERSION = '0.6.184';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -315,7 +315,7 @@ async function loadEffectNames() {
         // tab - go there, or tapping an effect with options seemed to do
         // nothing (a real report: "nothing happens when I click internet radio").
         if (key === 'radio') setTab('music');
-        else if (panel || btn.closest('.sub-section')?.querySelector('.art-shared-panel')) { setTab('play'); document.getElementById('sidebar-scroll')?.scrollTo(0, 0); }
+        else if (panel) { setTab('play'); document.getElementById('sidebar-scroll')?.scrollTo(0, 0); }
         // Immediate feedback: the 'active' highlight only moves once the
         // Pi's state echo arrives, which can take a visible moment on a
         // busy Pi - mark this button pending until then (cleared in
@@ -574,7 +574,8 @@ function placeActivePanels() {
   const want = [];
   const panel = key && document.getElementById('panel-' + key);
   if (panel && !panel.closest('#music-section')) want.push(panel); // the radio lives on the Music tab
-  const shared = btn && btn.closest('.sub-section')?.querySelector('.art-shared-panel');
+  // Slideshow/letterbox controls only belong to the picture galleries.
+  const shared = btn && ['apod', 'unsplash', 'artic'].includes(key) && btn.closest('.sub-section')?.querySelector('.art-shared-panel');
   if (shared) want.push(shared);
   if (want.length === _nowMoved.length && want.every((el, i) => _nowMoved[i].el === el)) return;
   // Put back whatever is there now.
@@ -1510,7 +1511,7 @@ function buildFaceSubOptionRow(f, spec, opts) {
 function buildFaceCard(f) {
   const cfg = ccFaces()[f];
   const div = document.createElement('div');
-  div.style.cssText = 'margin-bottom:12px;padding:10px;background:rgba(20,30,60,0.5);border-radius:6px;border:1px solid rgba(80,120,255,0.2);';
+  div.className = 'cx-face-card'; div.id = 'cx-face-' + f;
 
   const label = document.createElement('div');
   label.style.cssText = 'font-size:13px;letter-spacing:1px;color:#7aadff;margin-bottom:8px;font-weight:bold;';
@@ -1579,6 +1580,22 @@ function syncPanelEditor() {
   const el = document.getElementById('pe-faces');
   if (!el || !effectNames || !Object.keys(effectNames).length) return;
   el.innerHTML = '';
+  // An unfolded cube: tap a face to jump to its settings.
+  const net = document.createElement('div');
+  net.className = 'cx-net';
+  const POS = { 4: [2, 1], 3: [1, 2], 0: [2, 2], 2: [3, 2], 1: [4, 2], 5: [2, 3] }; // face -> [col,row]
+  for (let f = 0; f < 6; f += 1) {
+    const cfg = ccFaces()[f], b = document.createElement('button');
+    b.type = 'button'; b.className = 'cx-net-face' + (cfg && cfg.effect ? ' set' : '');
+    b.style.gridColumn = POS[f][0]; b.style.gridRow = POS[f][1];
+    const thumb = cfg && cfg.effect && document.querySelector(`.effect-btn[data-effect="${CSS.escape(cfg.effect)}"] .cx-thumb`);
+    if (thumb) { const cv = document.createElement('canvas'); cv.width = cv.height = thumb.width; cv.getContext('2d').drawImage(thumb, 0, 0); b.appendChild(cv); }
+    const t = document.createElement('span'); t.textContent = CC_FACE_NAMES[f] + (cfg && cfg.effect ? '\n' + (effectNames[cfg.effect] || cfg.effect) : '');
+    b.appendChild(t);
+    b.addEventListener('click', () => { const c = document.getElementById('cx-face-' + f); c?.scrollIntoView({ behavior: 'smooth', block: 'center' }); c?.classList.add('flash'); setTimeout(() => c?.classList.remove('flash'), 900); });
+    net.appendChild(b);
+  }
+  el.appendChild(net);
   for (let f = 0; f < 6; f += 1) el.appendChild(buildFaceCard(f));
 }
 
@@ -2321,8 +2338,8 @@ function escHtml(v) {
 function radioStationRow(station, current) {
   const div = document.createElement('div');
   const isCurrent = current && current.url === station.url;
-  div.style.cssText = `padding:6px 8px;margin-bottom:4px;border-radius:4px;cursor:pointer;font-size:11px;background:${isCurrent ? 'rgba(80,120,255,0.22)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isCurrent ? 'rgba(80,120,255,0.5)' : 'rgba(255,255,255,0.08)'};`;
-  div.innerHTML = `<div style="color:#dde;font-weight:600;">${isCurrent ? '▶ ' : ''}${escHtml(station.name)}</div>${station.genre ? `<div style="color:#8899bb;font-size:11px;">${escHtml(station.genre)}</div>` : ''}`;
+  div.className = 'cx-station' + (isCurrent ? ' on' : '');
+  div.innerHTML = `<span class="cx-station-play">${isCurrent ? '❚❚' : '▶'}</span><span class="cx-station-txt"><b>${escHtml(station.name)}</b>${station.genre ? `<small>${escHtml(station.genre)}</small>` : ''}</span>${isCurrent ? '<span class="cx-eq"><i></i><i></i><i></i></span>' : ''}`;
   div.addEventListener('click', () => {
     send({ cmd: 'radioPlay', station });
     // Fired directly inside this click's own handler (a genuine user
@@ -2969,21 +2986,13 @@ function renderAlarmList() {
     const h = String(al.hour).padStart(2, '0'), m = String(al.minute).padStart(2, '0');
     const repeatLabel = { once: 'Once', daily: 'Daily', weekdays: 'Weekdays', weekends: 'Weekends', weekly: (al.days || []).map((d) => AL_DAYS[d]).join(','), hourly: 'Hourly' }[al.repeat] || al.repeat;
     const isWd = !!al.prealarm?.windDown;
-    const typeLabel = isWd ? 'Wind Down' : 'Alarm';
-    const on = al.enabled;
     const div = document.createElement('div');
-    div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:5px;background:rgba(20,30,60,0.5);border-radius:6px;border:1px solid rgba(80,120,255,0.18);';
-    div.innerHTML = `
-      <span class="al-tog" style="display:inline-block;width:28px;height:15px;border-radius:8px;position:relative;cursor:pointer;flex-shrink:0;background:${on ? 'rgba(80,200,120,0.6)' : 'rgba(60,70,100,0.8)'};border:1px solid ${on ? 'rgba(80,200,120,0.8)' : 'rgba(80,120,255,0.3)'};transition:all 0.2s;">
-        <span style="position:absolute;top:2px;left:${on ? '13px' : '2px'};width:9px;height:9px;border-radius:50%;background:${on ? '#4d8' : '#668'};transition:all 0.2s;"></span>
-      </span>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:16px;color:#dde;font-weight:700;letter-spacing:1px;">${h}:${m} <span style="font-size:11px;color:#8899bb;font-weight:600;">${escHtml(repeatLabel)}</span></div>
-        <div style="font-size:12px;color:#99aabb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(al.name)} <span style="font-size:11px;color:#7aadff;">${typeLabel}</span></div>
-      </div>
-      <button class="al-edit-btn" style="padding:4px 10px;font-size:11px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;">✏</button>
-      <button class="al-del-btn" style="padding:4px 10px;font-size:11px;background:rgba(255,60,60,0.08);border:1px solid rgba(255,60,60,0.2);color:#f88;border-radius:4px;cursor:pointer;">✕</button>`;
-    div.querySelector('.al-tog').addEventListener('click', () => send({ cmd: 'setAlarmEnabled', id: al.id, enabled: !al.enabled }));
+    div.className = 'cx-timer' + (al.enabled ? ' on' : '');
+    div.innerHTML = `<div class="cx-timer-main"><b>${h}:${m}</b><span>${escHtml(al.name || 'Timer')}</span><small>${isWd ? '🌙 Wind down' : '⏰ Alarm'} · ${escHtml(String(repeatLabel || ''))}</small></div>
+      <button class="cx-switch${al.enabled ? ' on' : ''}" aria-label="Timer on/off"></button>
+      <button class="cx-icon-btn al-edit-btn" aria-label="Edit timer">✎</button>
+      <button class="cx-icon-btn cx-danger al-del-btn" aria-label="Delete timer">✕</button>`;
+    div.querySelector('.cx-switch').addEventListener('click', () => send({ cmd: 'setAlarmEnabled', id: al.id, enabled: !al.enabled }));
     div.querySelector('.al-edit-btn').addEventListener('click', () => openAlarmEditor(al.id));
     div.querySelector('.al-del-btn').addEventListener('click', () => { if (confirm('Delete timer?')) send({ cmd: 'deleteAlarm', id: al.id }); });
     el.appendChild(div);

@@ -814,6 +814,73 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 .cx-ico-flat i { border: 1.5px solid var(--cx1); border-radius: 2px; background: rgba(122,168,255,.08); }
 .size-btn.active { box-shadow: 0 0 0 1.5px var(--cx1), 0 0 22px -6px var(--cx1) !important; }
 @media (prefers-reduced-motion: reduce) { #sidebar::before, .cx-spark, .cx-vinyl, .cx-ico-cube { animation: none !important; } }
+
+/* ════ v0.6.184: one look for every panel (overrides older inline styles) ════ */
+#sidebar input[type="text"], #sidebar input[type="number"], #sidebar input[type="password"], #sidebar input[type="search"], #sidebar input[type="url"], #sidebar select, #sidebar textarea,
+#alarm-modal input[type="text"], #alarm-modal input[type="number"], #alarm-modal select, #alarm-modal textarea {
+  background: rgba(255,255,255,.05) !important; border: 1px solid rgba(255,255,255,.12) !important; border-radius: 12px !important;
+  color: #eef2ff !important; padding: 9px 12px !important; font-size: 14px !important; outline: none; transition: box-shadow .2s, border-color .2s; }
+#sidebar input:focus, #sidebar select:focus, #alarm-modal input:focus, #alarm-modal select:focus { border-color: var(--cx1) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--cx1) 25%, transparent); }
+#sidebar select option, #alarm-modal select option { background: #0c0f1c; color: #eef2ff; }
+#sidebar button[style]:not(.effect-btn):not(.size-btn), #alarm-modal button[style], .opt-grid button, #sidebar .ui-btn-small, #sidebar .ui-btn-purple, #sidebar .util-btn {
+  background: rgba(255,255,255,.06) !important; border: 1px solid rgba(255,255,255,.12) !important; color: #dfe7ff !important;
+  border-radius: 12px !important; padding: 9px 12px !important; font-size: 13px !important; letter-spacing: .2px !important; font-weight: 600 !important;
+  transition: transform .2s cubic-bezier(.2,1.6,.4,1), background .2s, box-shadow .2s; cursor: pointer; }
+#sidebar button[style]:not(.effect-btn):not(.size-btn):active, #alarm-modal button[style]:active, .opt-grid button:active { transform: scale(.95); }
+#sidebar button[style*="255,80,80"], #sidebar button[style*="255,60,60"], #alarm-modal button[style*="255,80,80"], #alarm-modal button[style*="255,60,60"] { color: #ff9a9a !important; background: rgba(255,90,90,.08) !important; border-color: rgba(255,90,90,.25) !important; }
+#sidebar button[style*="60,220,120"], #alarm-modal button[style*="60,220,120"], #alarm-modal button[style*="80,220,120"] { color: #7ef0a8 !important; background: rgba(90,230,140,.08) !important; border-color: rgba(90,230,140,.28) !important; }
+.opt-grid { gap: 6px !important; }
+.opt-grid button.active, #sidebar .ui-btn-small.active, .spectrum-bands-btn.active, .au-style-btn.active, .au-theme-btn.active { background: linear-gradient(135deg, color-mix(in srgb, var(--cx1) 45%, transparent), color-mix(in srgb, var(--cx2) 45%, transparent)) !important; border-color: var(--cx1) !important; color: #fff !important; box-shadow: 0 6px 18px -8px var(--cx1); }
+#sidebar [style*="rgba(20,30,60"], #sidebar [style*="rgba(0,0,0,0.2)"], #sidebar .effect-panel > div[style*="background"] { background: rgba(255,255,255,.04) !important; border: 1px solid rgba(255,255,255,.08) !important; border-radius: 14px !important; }
+.ov-row-label, .ui-subhead-lg, #sidebar .ui-label-accent, #alarm-modal label.ui-subhead-lg { color: rgba(238,242,255,.6) !important; font-size: 11px !important; letter-spacing: 1.2px !important; text-transform: uppercase; font-weight: 600 !important; }
+#sidebar .ui-note, #sidebar .ui-note-spaced { color: rgba(238,242,255,.55) !important; font-size: 12.5px !important; }
+#sidebar .check-row { color: #dfe7ff !important; letter-spacing: .3px !important; text-transform: none !important; font-size: 13.5px !important; }
+#sidebar .slider-label { text-transform: none !important; letter-spacing: 0 !important; font-size: 13px !important; color: #dfe7ff !important; }
+#sidebar input[type="range"] { accent-color: var(--cx1); }
+/* radio stations */
+.cx-station { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 6px; border-radius: 14px; cursor: pointer;
+  background: rgba(255,255,255,.04); box-shadow: 0 0 0 1px rgba(255,255,255,.07); transition: transform .25s cubic-bezier(.2,1.6,.4,1), background .2s; }
+.cx-station:hover { background: rgba(255,255,255,.08); } .cx-station:active { transform: scale(.98); }
+.cx-station.on { background: linear-gradient(135deg, color-mix(in srgb, var(--cx1) 30%, transparent), color-mix(in srgb, var(--cx2) 22%, transparent)); box-shadow: 0 0 0 1px var(--cx1); }
+.cx-station-play { width: 32px; height: 32px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; font-size: 11px; color: #fff; background: rgba(255,255,255,.1); }
+.cx-station.on .cx-station-play { background: var(--cx1); }
+.cx-station-txt { flex: 1; min-width: 0; } .cx-station-txt b { display: block; color: #eef2ff; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-station-txt small { color: rgba(238,242,255,.5); font-size: 12px; }
+.cx-eq { display: flex; gap: 2px; align-items: flex-end; height: 16px; } .cx-eq i { width: 3px; background: #fff; border-radius: 2px; animation: cx-eq .8s ease-in-out infinite alternate; }
+.cx-eq i:nth-child(2) { animation-delay: -.3s; } .cx-eq i:nth-child(3) { animation-delay: -.6s; }
+@keyframes cx-eq { from { height: 3px; } to { height: 16px; } }
+/* timers */
+.cx-timer { display: flex; align-items: center; gap: 8px; padding: 12px 12px 12px 16px; margin-bottom: 8px; border-radius: 18px; background: rgba(255,255,255,.04); box-shadow: 0 0 0 1px rgba(255,255,255,.08); opacity: .6; transition: opacity .3s; }
+.cx-timer.on { opacity: 1; box-shadow: 0 0 0 1px color-mix(in srgb, var(--cx1) 60%, transparent); }
+.cx-timer-main { flex: 1; min-width: 0; display: grid; } .cx-timer-main b { font-size: 26px; color: #fff; font-weight: 700; letter-spacing: -.5px; line-height: 1.1; }
+.cx-timer-main span { color: #eef2ff; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .cx-timer-main small { color: rgba(238,242,255,.5); font-size: 11.5px; }
+.cx-switch { width: 46px; height: 28px; border-radius: 14px; border: none; background: rgba(255,255,255,.14); position: relative; cursor: pointer; flex-shrink: 0; transition: background .3s; }
+.cx-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: transform .35s cubic-bezier(.2,1.6,.4,1); }
+.cx-switch.on { background: linear-gradient(135deg, var(--cx1), var(--cx2)); } .cx-switch.on::after { transform: translateX(18px); }
+.cx-icon-btn { width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(255,255,255,.07); color: #dfe7ff; cursor: pointer; flex-shrink: 0; font-size: 14px; }
+.cx-icon-btn.cx-danger { color: #ff9a9a; }
+#alarm-add-btn { border-radius: 16px !important; padding: 12px !important; background: linear-gradient(135deg, color-mix(in srgb, var(--cx1) 35%, transparent), color-mix(in srgb, var(--cx2) 30%, transparent)) !important; border: none !important; color: #fff !important; }
+/* timer editor: a bottom sheet */
+#alarm-modal { background: rgba(3,4,10,.6) !important; backdrop-filter: blur(10px); padding: 0 !important; }
+#alarm-modal > div { max-width: 460px !important; margin: 8vh auto 0 !important; border-radius: 28px 28px 0 0 !important; min-height: 92vh; padding: 22px 20px 40px !important;
+  background: linear-gradient(#10142a, #0a0c18) !important; border: none !important; box-shadow: 0 -20px 60px -20px var(--cx1), 0 0 0 1px rgba(255,255,255,.08) !important; animation: cx-sheet .45s cubic-bezier(.2,1,.3,1); }
+@keyframes cx-sheet { from { transform: translateY(40%); opacity: 0; } }
+#alarm-modal > div::before { content: ""; display: block; width: 44px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.25); margin: -8px auto 14px; }
+#alarm-modal-title { color: #fff !important; font-size: 20px !important; letter-spacing: 0 !important; }
+#alarm-modal #al-hour, #alarm-modal #al-min { font-size: 40px !important; text-align: center; font-weight: 700 !important; padding: 12px !important; }
+/* draw on a face */
+.cx-net { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, auto); gap: 4px; margin: 4px 0 14px; }
+.cx-net-face { position: relative; aspect-ratio: 1; border-radius: 10px; border: 1px dashed rgba(255,255,255,.2); background: rgba(255,255,255,.03); color: #dfe7ff; font-size: 9.5px; padding: 3px; overflow: hidden; cursor: pointer; white-space: pre-line; line-height: 1.15; }
+.cx-net-face.set { border: 1px solid var(--cx1); }
+.cx-net-face canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .85; }
+.cx-net-face span { position: relative; z-index: 1; text-shadow: 0 1px 4px #000; }
+.cx-face-card { margin-bottom: 10px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.04); box-shadow: 0 0 0 1px rgba(255,255,255,.08); transition: box-shadow .3s; }
+.cx-face-card.flash { box-shadow: 0 0 0 2px var(--cx1), 0 0 30px -6px var(--cx1); }
+.cx-face-card > div:first-child { color: #fff !important; letter-spacing: 0 !important; font-size: 14px !important; }
+/* bluetooth + diagnostics */
+.bt-paired-list-el > div, .bt-device-list-el > div { border-radius: 12px !important; background: rgba(255,255,255,.04) !important; border: 1px solid rgba(255,255,255,.08) !important; margin-bottom: 6px !important; padding: 8px 10px !important; }
+.diag-table td { padding: 6px 4px !important; border-bottom: 1px solid rgba(255,255,255,.06) !important; }
+.diag-log { border-radius: 12px !important; background: rgba(255,255,255,.04) !important; }
 </style>
 </head>
 <body>
@@ -1774,7 +1841,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
   <div class="sidebar-section collapsed cube-only" id="panel-editor-section">
     <button class="section-head">◈ Draw on a Face <span class="chev">▾</span></button>
     <div class="section-body">
-      <div style="font-size:12px;color:#9ab;margin-bottom:10px;line-height:1.5;">Assign an effect to each face. Click CLEAR to blank the cube, then build your layout. Save as a named cube and load it via the <b style="color:#7aadff">Custom Cube</b> effect.</div>
+      <div style="font-size:12px;color:#9ab;margin-bottom:10px;line-height:1.5;">Tap a face to give it its own effect. Save the result to bring it back later.<b style="color:#7aadff">Custom Cube</b> effect.</div>
       <div style="display:flex;gap:6px;margin-bottom:10px;">
         <button id="pe-clear-btn" style="flex:1;padding:7px 6px;font-size:12px;letter-spacing:.5px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.2);color:#f88;border-radius:5px;cursor:pointer;font-weight:700;">✕ CLEAR ALL FACES</button>
       </div>
