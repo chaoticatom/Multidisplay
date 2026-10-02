@@ -3126,8 +3126,8 @@ var PiEngine = (() => {
           if (state.idx >= state.words.length) state.done = true;
         }
       }
-      function wcDrawGlyphWall(core, ch, su, sv, rgb) {
-        return drawGlyphText(WC_TEXT_FONT, ch, su, sv, wallPlot(core, rgb[0], rgb[1], rgb[2]), { flipY: true });
+      function wcDrawGlyphWall(core, ch, su, top, rgb) {
+        return drawGlyphText(WC_TEXT_FONT, ch, su, top, wallPlot(core, rgb[0], rgb[1], rgb[2]));
       }
       function wcDrawToFaceWall(core, state, topMarginRows) {
         const { wallW: W, wallH: H } = core;
@@ -3135,8 +3135,8 @@ var PiEngine = (() => {
         const visible = allLines.slice(-state.maxLines);
         const topMargin = topMarginRows == null ? 1 : topMarginRows;
         visible.forEach((line, i) => {
-          const sv = H - 1 - topMargin - 6 - i * WC_LINE_H;
-          if (sv + 6 < 0) return;
+          const sv = topMargin + i * WC_LINE_H;
+          if (sv >= H) return;
           const lineW = line.reduce((a, t) => a + t.w.length * WC_CHAR_W, 0) + Math.max(0, line.length - 1) * WC_CHAR_W;
           let su = Math.round((W - lineW) / 2);
           line.forEach((tw) => {
