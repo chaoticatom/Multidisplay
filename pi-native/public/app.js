@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.182';
+const APP_VERSION = '0.6.183';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -216,6 +216,7 @@ function handleTextMessage(msg) {
     const modeChanged = msg.panelMode !== currentState.panelMode || msg.panelSize !== currentState.panelSize
       || JSON.stringify(msg.panels) !== JSON.stringify(currentState.panels);
     currentState = msg;
+    cxOnState();
     syncEffectButtons();
     syncPanelButtons();
     syncPinStatus();
@@ -2681,7 +2682,7 @@ function syncRadioPanel() {
   if (spectrumChk && document.activeElement !== spectrumChk) spectrumChk.checked = spectrumOn;
   if (spectrumOptions) spectrumOptions.style.display = spectrumOn ? '' : 'none';
   panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.bands) === (opts.bands ?? 64)));
-  panel.querySelectorAll('.au-style-btn[data-austyle]').forEach((btn) => btn.classList.toggle('active', btn.dataset.austyle === (opts.style || 'bars')));
+  panel.querySelectorAll('.au-style-btn[data-austyle]').forEach((btn) => btn.classList.toggle('active', btn.dataset.austyle === (opts.style || 'glow')));
   panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 5)));
   panel.querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => btn.classList.toggle('active', btn.dataset.barmode === (opts.barMode || 'solid')));
 
@@ -3611,7 +3612,7 @@ function wireWallToolbar() {
     // rebuilt the preview (the sim delivers the new state synchronously),
     // detaching the clicked cell - so e.target.closest() found nothing and
     // every add closed the editor, as if you'd clicked outside it.
-    const inside = e.composedPath().some((el) => el && (el.id === 'wall-preview' || el.id === 'wall-toolbar' || el.id === 'wall-hint' || el.id === 'wall-mode-btn'));
+    const inside = e.composedPath().some((el) => el && (el.id === 'wall-preview' || el.id === 'wall-toolbar' || el.id === 'wall-hint' || el.id === 'wall-mode-btn' || el.id === 'setup-layout-btn'));
     if (inside) return;
     exitWallEditMode();
   });
@@ -4449,6 +4450,7 @@ function flushPanelFrames() {
 function handleFrame(buf) {
   const bytes = new Uint8Array(buf);
   const face = bytes[0];
+  cxNoteFrame(face, bytes);
   if (currentState.panelMode === '2d' || currentState.panelMode === 'wall') {
     pendingPanelFrames.set(face, bytes);
     return;
@@ -4474,6 +4476,7 @@ function handleFrame(buf) {
 // created, so every click's send() no-op'd on `ws && ws.readyState===OPEN`.
 document.addEventListener('DOMContentLoaded', () => {
   wireCollapsibles();
+  try { cxInit(); } catch (e) { console.error('cxInit', e); }
   wireSidebarMenu();
   wireVersionDisplay();
   wirePanelButtons();
@@ -4534,3 +4537,252 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (window.MULTIDISPLAY_SIM) window.__simLoopback.start();
 });
+
+// =====================================================================
+// v0.6.183 look: live preview "remote", colour-matched glow, liquid dock,
+// live effect tiles, Ask bar, 24-hour timer ring, now-playing card.
+// Everything here is presentation - commands go through the same send()
+// calls as the rest of the page.
+// =====================================================================
+const _cxFaces = {}; // cube mode: face -> latest frame bytes, for the hero strip
+const _cxFaceCanvases = [];
+let _cxHero = null, _cxHeroCtx = null, _cxSample = null, _cxBeat = 0, _cxLum = 0;
+
+function cxNoteFrame(face, bytes) { if (currentState.panelMode === 'cube') _cxFaces[face] = bytes; }
+
+function cxEffectOrder() {
+  return [...document.querySelectorAll('#effects-body .effect-btn[data-effect]')]
+    .filter((b) => !b.disabled && b.offsetParent !== null).map((b) => b.dataset.effect)
+    .filter((k, i, a) => a.indexOf(k) === i);
+}
+function cxEffectName(key) {
+  const b = document.querySelector(`.effect-btn[data-effect="${CSS.escape(key || '')}"]`);
+  return b ? b.textContent.replace(/[◈▸▶]/g, '').trim() : (key || '');
+}
+function cxToast(text) {
+  let t = document.getElementById('cx-toast');
+  if (!t) { t = document.createElement('div'); t.id = 'cx-toast'; document.body.appendChild(t); }
+  t.textContent = text; t.classList.add('on');
+  clearTimeout(cxToast._t); cxToast._t = setTimeout(() => t.classList.remove('on'), 1600);
+}
+
+// ── Hero: a live copy of the display at the top of the menu, and a remote:
+// swipe sideways for the next/previous effect, drag up/down for brightness.
+function cxWireHero() {
+  _cxHero = document.getElementById('cx-hero-canvas');
+  if (!_cxHero) return;
+  _cxHeroCtx = _cxHero.getContext('2d');
+  _cxSample = document.createElement('canvas'); _cxSample.width = _cxSample.height = 6;
+  const hero = document.getElementById('cx-hero');
+  const ring = document.getElementById('cx-ring'), arc = document.getElementById('cx-arc'), pct = document.getElementById('cx-pct');
+  let sx = null, sy = 0, sb = 1, mode = null, dx = 0;
+  hero.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; sb = currentState.brightness ?? 1; mode = null; dx = 0; hero.setPointerCapture(e.pointerId); });
+  hero.addEventListener('pointermove', (e) => {
+    if (sx == null) return;
+    dx = e.clientX - sx; const dy = e.clientY - sy;
+    if (!mode && Math.hypot(dx, dy) > 12) mode = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    if (mode === 'y') {
+      const v = Math.max(0.1, Math.min(1.5, sb - dy / 160));
+      ring.classList.add('show'); arc.style.strokeDashoffset = String(276 * (1 - v / 1.5)); pct.textContent = Math.round(v / 1.5 * 100) + '%';
+      clearTimeout(cxWireHero._t); cxWireHero._t = setTimeout(() => send({ cmd: 'setBrightness', value: v }), 40);
+      const sl = document.getElementById('bright-slider'); if (sl) sl.value = v;
+    }
+    if (mode === 'x') hero.style.setProperty('--swipe', String(Math.max(-1, Math.min(1, dx / 120))));
+  });
+  const end = () => {
+    if (mode === 'x' && Math.abs(dx) > 60) {
+      const order = cxEffectOrder(), i = order.indexOf(currentState.effect);
+      const next = order[(i + (dx < 0 ? 1 : -1) + order.length) % order.length];
+      if (next) { send({ cmd: 'setEffect', effect: next }); cxToast('▶ ' + cxEffectName(next)); }
+    }
+    sx = null; ring.classList.remove('show'); hero.style.setProperty('--swipe', '0');
+  };
+  hero.addEventListener('pointerup', end); hero.addEventListener('pointercancel', end);
+  (function heroLoop() {
+    requestAnimationFrame(heroLoop);
+    if (heroLoop.n = (heroLoop.n || 0) + 1, heroLoop.n % 2) return; // ~30 fps is plenty
+    cxDrawHero();
+  })();
+}
+function cxHeroAspect() {
+  if (currentState.panelMode === 'cube') return [4, 1];
+  if (currentState.panelMode !== 'wall') return [1, 1];
+  const p = currentState.panels || [{ gx: 0, gy: 0 }];
+  return [Math.max(1, ...p.map((q) => q.gx + 1)), Math.max(1, ...p.map((q) => q.gy + 1))];
+}
+function cxDrawHero() {
+  const [ac, ar] = cxHeroAspect(), want = Math.round(480 * ar / ac);
+  if (_cxHero.width !== 480 || _cxHero.height !== want) { _cxHero.width = 480; _cxHero.height = want; _cxHero.style.aspectRatio = `${ac} / ${ar}`; }
+  const c = _cxHeroCtx, W = _cxHero.width, H = _cxHero.height;
+  c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+  if (currentState.panelMode === 'cube') {
+    const order = [0, 2, 1, 3], size = currentState.panelSize || 64, cell = W / 4;
+    order.forEach((f, k) => {
+      const bytes = _cxFaces[f]; if (!bytes) return;
+      if (!_cxFaceCanvases[k]) { const cv = document.createElement('canvas'); cv.width = cv.height = 160; _cxFaceCanvases[k] = cv; }
+      const cv = _cxFaceCanvases[k];
+      drawLedGrid(cv.getContext('2d'), bytes, size, 160, true);
+      c.drawImage(cv, k * cell + 2, (H - cell) / 2 + 2, cell - 4, cell - 4);
+    });
+  } else if (currentState.panelMode === '2d') {
+    if (panel2dCanvas) { const sz = Math.min(W, H); c.drawImage(panel2dCanvas, (W - sz) / 2, (H - sz) / 2, sz, sz); }
+  } else {
+    const panels = currentState.panels || [{ gx: 0, gy: 0 }];
+    const cols = Math.max(1, ...panels.map((p) => p.gx + 1)), rows = Math.max(1, ...panels.map((p) => p.gy + 1));
+    const cell = Math.min(W / cols, H / rows), ox = (W - cell * cols) / 2, oy = (H - cell * rows) / 2;
+    panels.forEach((p, i) => {
+      const ctx = wallPanelCanvases[i];
+      if (ctx) c.drawImage(ctx.canvas, ox + p.gx * cell + 1, oy + p.gy * cell + 1, cell - 2, cell - 2);
+    });
+  }
+  cxColourSync();
+}
+
+// ── Colour sync: the menu's glow and accents follow what the panel shows.
+function cxColourSync() {
+  if ((cxColourSync.n = (cxColourSync.n || 0) + 1) % 4) return;
+  const s = _cxSample.getContext('2d', { willReadFrequently: true });
+  s.drawImage(_cxHero, 0, 0, 6, 6);
+  const d = s.getImageData(0, 0, 6, 6).data;
+  let r = 0, g = 0, b = 0, best = -1, br = 0, bg = 0, bb = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    r += d[i]; g += d[i + 1]; b += d[i + 2];
+    const sat = Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]);
+    if (sat > best) { best = sat; br = d[i]; bg = d[i + 1]; bb = d[i + 2]; }
+  }
+  const n = d.length / 4, lift = (v) => Math.round(Math.min(255, v * 1.6 + 40));
+  const root = document.documentElement.style;
+  // A dark or grey picture keeps the default blue/violet instead of turning the page grey.
+  if (best > 40) {
+    root.setProperty('--cx1', `rgb(${lift(r / n)},${lift(g / n)},${lift(b / n)})`);
+    root.setProperty('--cx2', `rgb(${lift(br)},${lift(bg)},${lift(bb)})`);
+  } else { root.removeProperty('--cx1'); root.removeProperty('--cx2'); }
+  // Beat: a jump in brightness while a station plays pulses the menu edge.
+  const lum = (r + g + b) / n / 765;
+  const playing = !!currentState.effectStatus?.radio?.playing;
+  if (playing && lum > _cxLum * 1.18 + 0.01) _cxBeat = 1; else _cxBeat *= 0.75;
+  _cxLum += (lum - _cxLum) * 0.2;
+  root.setProperty('--cx-beat', playing ? _cxBeat.toFixed(2) : '0');
+}
+
+// ── Liquid dock: one gradient blob slides between the four tabs.
+function cxMoveBlob() {
+  const blob = document.getElementById('cx-blob');
+  const on = document.querySelector('#tab-bar [aria-selected="true"]');
+  if (blob && on) { blob.style.left = on.offsetLeft + 'px'; blob.style.width = on.offsetWidth + 'px'; }
+}
+
+// ── Live tiles: every effect tile plays a tiny loop of itself.
+async function cxWireTiles() {
+  let data;
+  try { data = await (await fetch('thumbs.json')).json(); } catch (e) { return; }
+  const S = data.size, F = data.frames, tiles = [];
+  document.querySelectorAll('#effects-body .effect-btn[data-effect]').forEach((btn) => {
+    const b64 = data.fx[btn.dataset.effect];
+    if (!b64 || btn.querySelector('.cx-thumb')) return;
+    const raw = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+    const cv = document.createElement('canvas'); cv.width = cv.height = S; cv.className = 'cx-thumb';
+    const label = document.createElement('span'); label.className = 'cx-tile-name';
+    label.textContent = btn.textContent.replace(/[◈▸]/g, '').trim();
+    btn.replaceChildren(cv, label); btn.classList.add('cx-tile');
+    tiles.push({ cv, ctx: cv.getContext('2d'), raw, img: new ImageData(S, S), btn });
+  });
+  let f = 0;
+  const vis = new Set();
+  const io = new IntersectionObserver((es) => es.forEach((e) => (e.isIntersecting ? vis.add(e.target) : vis.delete(e.target))));
+  tiles.forEach((t) => io.observe(t.cv));
+  const draw = () => {
+    for (const t of tiles) {
+      if (!vis.has(t.cv) && f > 0) continue;
+      const off = (f % F) * S * S * 3, px = t.img.data;
+      for (let i = 0; i < S * S; i++) { px[i * 4] = t.raw[off + i * 3]; px[i * 4 + 1] = t.raw[off + i * 3 + 1]; px[i * 4 + 2] = t.raw[off + i * 3 + 2]; px[i * 4 + 3] = 255; }
+      t.ctx.putImageData(t.img, 0, 0);
+    }
+    f++;
+  };
+  draw();
+  setInterval(() => { if (!document.hidden && document.body.dataset.tab === 'play') draw(); }, 125);
+}
+
+// ── Ask: type what you want ("calm blue", "party", "fire"...).
+const CX_ASK = [
+  [/calm|chill|relax|blue|ocean|sea/, 'tide'], [/aurora|northern|green/, 'aurora'], [/party|dance|disco/, 'strobe'],
+  [/music|radio|beat|song/, 'radio'], [/fire|warm|cosy|cozy|flame/, 'fireworks'], [/night|sky|space|star|galax/, 'nebula'],
+  [/rain/, 'rain'], [/rainbow|colou?r/, 'gradient_wash'], [/time|clock/, 'datetime'], [/weather/, 'weather'],
+  [/moon|planet/, 'moon'], [/joke|funny|laugh/, 'joke'], [/trivia|quiz/, 'trivia'], [/game|tron|bike/, 'tron'],
+  [/maze/, 'maze'], [/sand/, 'sand'], [/ball/, 'balls'], [/dice/, 'dice'], [/coin/, 'coinflip'], [/plasma|psych/, 'plasma'],
+  [/surprise|random|anything/, 'random'], [/photo|art|picture/, 'artic'], [/iss|station/, 'iss'],
+];
+function cxAsk(q) {
+  q = q.toLowerCase().trim();
+  if (!q) return;
+  if (/^(off|stop|dark|sleep)/.test(q)) { document.getElementById('clear-all-btn')?.click(); return; }
+  let key = CX_ASK.find(([re]) => re.test(q))?.[1];
+  if (!key) key = cxEffectOrder().find((k) => cxEffectName(k).toLowerCase().includes(q) || k.includes(q));
+  if (!key) { cxToast('Try “calm”, “party”, “night sky” or an effect name'); return; }
+  send({ cmd: 'setEffect', effect: key });
+  if (key === 'radio') setTab('music');
+  cxToast('✨ ' + cxEffectName(key));
+}
+function cxWireAsk() {
+  const inp = document.getElementById('cx-ask');
+  if (!inp) return;
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { cxAsk(inp.value); inp.value = ''; inp.blur(); } });
+  document.querySelectorAll('#cx-ask-chips button').forEach((b) => b.addEventListener('click', () => cxAsk(b.textContent)));
+}
+
+// ── Time ring: every timer as a dot on a 24-hour clock face.
+function cxRenderRing() {
+  const svg = document.getElementById('cx-ring-svg');
+  if (!svg) return;
+  const now = new Date(), hh = now.getHours() + now.getMinutes() / 60;
+  const pt = (h, r) => { const a = h / 24 * Math.PI * 2 - Math.PI / 2; return [50 + r * Math.cos(a), 50 + r * Math.sin(a)]; };
+  let out = '<circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/>';
+  for (let h = 0; h < 24; h += 6) { const [x, y] = pt(h, 30); out += `<text x="${x}" y="${y + 1.5}" font-size="4" text-anchor="middle" fill="rgba(238,242,255,.45)">${h}</text>`; }
+  const alarms = (currentState.alarms || []).filter((a) => a.enabled);
+  let next = null, best = 99;
+  for (const al of alarms) {
+    const h = al.hour + al.minute / 60, [x, y] = pt(h, 40);
+    out += `<circle cx="${x}" cy="${y}" r="3.2" fill="var(--cx2)" stroke="#fff" stroke-width=".6"/>`;
+    const until = (h - hh + 24) % 24;
+    if (until < best) { best = until; next = al; }
+  }
+  const [hx, hy] = pt(hh, 40);
+  out += `<circle cx="${hx}" cy="${hy}" r="2.2" fill="#fff"/>`;
+  svg.innerHTML = out;
+  const t = document.getElementById('cx-ring-time'), n = document.getElementById('cx-ring-next');
+  if (t) t.textContent = now.toTimeString().slice(0, 5);
+  if (n) n.textContent = next ? `next: ${next.name || 'timer'} ${String(next.hour).padStart(2, '0')}:${String(next.minute).padStart(2, '0')}` : 'no timers on';
+}
+
+// ── Now playing card on the Music tab.
+function cxSyncMusic() {
+  const st = currentState.effectStatus?.radio, card = document.getElementById('cx-np');
+  if (!card) return;
+  const playing = !!(st && st.playing && st.station);
+  card.classList.toggle('playing', playing);
+  document.getElementById('cx-np-name').textContent = playing ? st.station.name.replace(/^[\s-]+/, '') : 'Nothing playing';
+  document.getElementById('cx-np-sub').textContent = playing ? (st.station.genre || 'Radio') : 'Pick a station below';
+  document.getElementById('stop-sound-btn')?.classList.toggle('cx-quiet', !playing);
+}
+
+function cxOnState() { cxSyncMusic(); cxRenderRing(); requestAnimationFrame(cxMoveBlob); }
+
+function cxInit() {
+  cxWireHero();
+  cxWireAsk();
+  cxWireTiles();
+  document.querySelectorAll('#tab-bar [data-tab]').forEach((b) => b.addEventListener('click', () => requestAnimationFrame(cxMoveBlob)));
+  window.addEventListener('resize', cxMoveBlob);
+  setInterval(cxRenderRing, 30000);
+  // Display type cards: a spinning cube and a flat-panel outline on the buttons.
+  document.querySelectorAll('.size-btn[data-size]').forEach((b) => {
+    if (b.querySelector('.cx-ico')) return;
+    const i = document.createElement('span');
+    i.className = 'cx-ico ' + (b.dataset.mode === 'panel2d' ? 'cx-ico-flat' : 'cx-ico-cube');
+    i.innerHTML = b.dataset.mode === 'panel2d' ? '<i></i><i></i>' : '<i></i><i></i><i></i><i></i><i></i><i></i>';
+    b.prepend(i);
+  });
+  cxOnState();
+  setTimeout(cxMoveBlob, 300);
+}

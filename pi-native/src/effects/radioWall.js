@@ -77,7 +77,7 @@ function effectRadioWall(core, dt) {
   // See radio.js's effectRadio() for the default changes (auto gain ON,
   // gain 2.0x, theme Pastel).
   const theme = Number.isFinite(opts.theme) ? opts.theme : 5;
-  const style = opts.style || 'bars';
+  const style = opts.style || 'glow';
   const barMode = opts.barMode || 'solid';
   const gain = Number.isFinite(opts.gain) ? opts.gain : 2;
   const autoGainOn = opts.autoGain !== false;

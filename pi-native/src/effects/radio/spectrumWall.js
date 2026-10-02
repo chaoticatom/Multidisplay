@@ -482,6 +482,33 @@ function drawWaterfallWall(core, ctx, state) {
   }
 }
 
+// "Glow": the default since v0.6.183 - chunky bars (about 16 per panel)
+// with a rainbow sweep across the width, brighter towards the tips, a
+// soft halo above each bar and a floating peak cap.
+function drawGlowWall(core, ctx) {
+  const W = core.wallW, H = core.wallH, M = H - 1;
+  const per = Math.max(1, Math.round(core.wallPanelSize / 4));
+  const count = Math.max(1, Math.min(ctx.bands, Math.round(W / per)));
+  const bw = W / count;
+  for (let k = 0; k < count; k++) {
+    const b = scrolledBand(Math.floor(k * ctx.bands / count), ctx.bands, ctx.bands, ctx.scrollX);
+    const amp = ctx.amp(b), fb = k / Math.max(1, count - 1);
+    const x0 = Math.round(k * bw), x1 = Math.max(x0, Math.round((k + 1) * bw) - 2);
+    const top = Math.round(amp * M);
+    const base = hsl(0.78 - fb * 0.78 + ctx.t * 0.02, 0.95, 0.5);
+    for (let y = 0; y <= top; y++) {
+      const f = 0.35 + 0.65 * (top > 0 ? y / top : 1);
+      for (let x = x0; x <= x1; x++) core.setWallPixel(x, y, base[0] * f, base[1] * f, base[2] * f);
+    }
+    for (let g = 1; g <= 3; g++) {
+      const a = 0.22 / g;
+      for (let x = x0; x <= x1; x++) blendWall(core, x, top + g, base[0] * a, base[1] * a, base[2] * a);
+    }
+    const pk = Math.min(M, Math.round(ctx.peak(b) * M) + 1);
+    for (let x = x0; x <= x1; x++) blendWall(core, x, pk, 0.6 + base[0] * 0.4, 0.6 + base[1] * 0.4, 0.6 + base[2] * 0.4);
+  }
+}
+
 function createSpectrumWallState() { return {}; }
 
 // These styles draw with y=0 at the BOTTOM (bars grow upward from 0), but
@@ -499,6 +526,7 @@ function yUpView(core) {
 function renderSpectrumStyleWall(core, ctx, style, state) {
   core = yUpView(core);
   switch (style) {
+    case 'glow': return drawGlowWall(core, ctx);
     case 'mirror': return drawBarsWall(core, ctx, true);
     case 'dots': return drawDotsWall(core, ctx);
     case 'blocks': return drawBlocksWall(core, ctx);

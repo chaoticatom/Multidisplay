@@ -213,7 +213,10 @@ const PREVIEW_FPS = 20; // matches the ESP32 firmware's streamFrameToCube() thro
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const INDEX_HTML = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'));   // read once at startup, not per-request
 const THREE_JS = fs.readFileSync(path.join(PUBLIC_DIR, 'three.min.js'));   // served for the sidebar/3D-preview page's <script src>, same pattern as INDEX_HTML
-const APP_JS = fs.readFileSync(path.join(PUBLIC_DIR, 'app.js'));           // wires the copied sidebar markup to pi-native's WS protocol
+const APP_JS = fs.readFileSync(path.join(PUBLIC_DIR, 'app.js'));
+// Live effect-tile animations (built by sim/thumbs.js at release time).
+let THUMBS_JSON = null;
+try { THUMBS_JSON = fs.readFileSync(path.join(PUBLIC_DIR, 'thumbs.json')); } catch (e) { /* tiles fall back to plain buttons */ }           // wires the copied sidebar markup to pi-native's WS protocol
 
 // Local-file upload for Video Display, restoring the browser original's
 // "pick a file from your computer/phone" flow that a headless Pi has no
@@ -405,6 +408,9 @@ class WsServer {
     } else if (urlPath === '/three.min.js') {
       res.writeHead(200, { 'Content-Type': 'application/javascript', ...noCacheHeaders });
       res.end(THREE_JS);
+    } else if (urlPath === '/thumbs.json' && THUMBS_JSON) {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=3600' });
+      res.end(THUMBS_JSON);
     } else if (urlPath === '/app.js') {
       res.writeHead(200, { 'Content-Type': 'application/javascript', ...noCacheHeaders });
       res.end(APP_JS);

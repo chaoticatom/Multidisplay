@@ -172,7 +172,7 @@ function effectRadio(core, dt) {
   // Pastel (5, not VU Meter/6) - see index.html/app.js for the matching
   // UI-side defaults (checkbox/slider initial state + sync fallback).
   const theme = Number.isFinite(opts.theme) ? opts.theme : 5;
-  const style = opts.style || 'bars';
+  const style = opts.style || 'glow'; // 'glow' is drawn as Bars on the cube faces
   const barMode = opts.barMode || 'solid';
   const gain = Number.isFinite(opts.gain) ? opts.gain : 2;
   const autoGainOn = opts.autoGain !== false;

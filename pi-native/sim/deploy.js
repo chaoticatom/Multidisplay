@@ -34,7 +34,8 @@ fs.writeFileSync(path.join(PUBLIC, 'effects.json'), JSON.stringify(EFFECT_NAMES)
 console.log('[deploy] wrote public/effects.json (' + Object.keys(EFFECT_NAMES).length + ' effects)');
 
 fs.mkdirSync(DEPLOY, { recursive: true });
-const COPY_FILES = ['app.js', 'three.min.js', 'sim-loopback.js', 'sim-engine.js', 'effects.json'];
+execFileSync(process.execPath, [path.join(__dirname, 'thumbs.js')], { stdio: 'inherit' });
+const COPY_FILES = ['app.js', 'three.min.js', 'sim-loopback.js', 'sim-engine.js', 'effects.json', 'thumbs.json'];
 for (const f of COPY_FILES) {
   fs.copyFileSync(path.join(PUBLIC, f), path.join(DEPLOY, f));
 }

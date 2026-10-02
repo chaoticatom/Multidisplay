@@ -738,6 +738,82 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 #effects-body { padding-top: 4px; }
 .sidebar-section:has(> #effects-body) > .section-head { display: none; }
 .sidebar-section:has(> #effects-body) { }
+
+/* ════ v0.6.183: living colour, hero remote, liquid dock, live tiles ════ */
+:root { --cx1: #5b7cff; --cx2: #b45bff; --cx-beat: 0; }
+#sidebar { background: #06070d !important; isolation: isolate; }
+#sidebar::before { content: ""; position: absolute; inset: -20%; z-index: -1; pointer-events: none;
+  background: radial-gradient(closest-side, var(--cx1), transparent 70%) 10% 0%/80% 45% no-repeat,
+              radial-gradient(closest-side, var(--cx2), transparent 70%) 100% 60%/80% 50% no-repeat;
+  filter: blur(50px); opacity: .32; transition: background 1s; animation: cx-drift 16s ease-in-out infinite alternate; }
+@keyframes cx-drift { to { transform: translate(4%, -3%) rotate(6deg); } }
+#sidebar::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 5;
+  box-shadow: inset 0 0 calc(10px + var(--cx-beat) * 40px) calc(var(--cx-beat) * 6px) var(--cx1); transition: box-shadow .12s; }
+#cx-hero { position: relative; margin: 6px 10px 4px; border-radius: 18px; overflow: hidden; background: #000; touch-action: none; cursor: grab; flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.1), 0 14px 40px -12px var(--cx1); transform: translateX(calc(var(--swipe, 0) * 18px)); transition: box-shadow 1s; }
+#cx-hero canvas { display: block; height: auto; max-width: 100%; max-height: 24vh; width: auto; margin: 0 auto; }
+#cx-hero { display: flex; justify-content: center; }
+.cx-hero-hint { position: absolute; right: 10px; bottom: 6px; font-size: 10px; color: rgba(238,242,255,.55); pointer-events: none; }
+#cx-ring { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; transition: opacity .2s; pointer-events: none; background: rgba(0,0,0,.35); }
+#cx-ring.show { opacity: 1; }
+#cx-ring svg { height: 80%; filter: drop-shadow(0 0 10px var(--cx1)); grid-area: 1/1; }
+#cx-ring b { grid-area: 1/1; font-size: 22px; color: #fff; }
+#cx-toast { position: fixed; left: 50%; top: 18px; z-index: 9999; transform: translate(-50%, -20px); opacity: 0; padding: 8px 16px; border-radius: 14px;
+  background: rgba(10,12,22,.85); backdrop-filter: blur(12px); color: #eef2ff; font-size: 14px; box-shadow: 0 0 0 1px var(--cx1), 0 10px 30px -8px var(--cx1);
+  transition: all .35s cubic-bezier(.2,1.4,.4,1); pointer-events: none; }
+#cx-toast.on { opacity: 1; transform: translate(-50%, 0); }
+/* liquid dock */
+#tab-bar { position: relative; margin: 6px 10px; padding: 5px !important; border-radius: 22px; border: none !important;
+  background: rgba(20,22,36,.6); backdrop-filter: blur(20px) saturate(1.5); box-shadow: 0 0 0 1px rgba(255,255,255,.08); }
+#tab-bar button { position: relative; z-index: 1; border-radius: 17px !important; background: none !important; box-shadow: none !important; transition: color .3s; }
+#tab-bar button[aria-selected="true"] { color: #fff !important; }
+#cx-blob { position: absolute; top: 5px; bottom: 5px; left: 5px; width: 0; border-radius: 17px; z-index: 0;
+  background: linear-gradient(135deg, var(--cx1), var(--cx2)); box-shadow: 0 6px 22px -6px var(--cx1);
+  transition: left .5s cubic-bezier(.3,1.5,.4,1), width .5s cubic-bezier(.3,1.5,.4,1), background 1s; }
+/* ask */
+.cx-ask { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; background: rgba(255,255,255,.05); box-shadow: 0 0 0 1px rgba(255,255,255,.1); margin-bottom: 8px; }
+.cx-ask:focus-within { box-shadow: 0 0 0 1.5px var(--cx1), 0 0 24px -6px var(--cx1); }
+.cx-ask input { flex: 1; min-width: 0; background: none; border: none; outline: none; color: #eef2ff; font: inherit; font-size: 15px; }
+.cx-spark { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; background: conic-gradient(var(--cx1), var(--cx2), #ff7ab6, var(--cx1)); animation: cx-spin 4s linear infinite; }
+@keyframes cx-spin { to { transform: rotate(1turn); } }
+.cx-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.cx-chips button { border: none; border-radius: 999px; padding: 6px 12px; font-size: 12.5px; color: #eef2ff; background: rgba(255,255,255,.06); box-shadow: 0 0 0 1px rgba(255,255,255,.1); cursor: pointer; transition: transform .25s cubic-bezier(.2,1.6,.4,1); }
+.cx-chips button:active { transform: scale(.92); }
+/* live tiles */
+#effects-body .effect-btn.cx-tile { position: relative; overflow: hidden; flex-direction: column; justify-content: flex-end; align-items: stretch; min-height: 74px !important; padding: 0 !important; border-radius: 14px !important;
+  transition: transform .35s cubic-bezier(.2,1.6,.4,1), box-shadow .3s; }
+#effects-body .effect-btn.cx-tile .cx-thumb { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: auto; filter: saturate(1.25); }
+#effects-body .effect-btn.cx-tile { color: #fff; text-shadow: 0 1px 6px #000; font-weight: 600; }
+#effects-body .effect-btn.cx-tile::after { content: ""; position: absolute; inset: 40% 0 0; background: linear-gradient(transparent, rgba(0,0,0,.85)); }
+#effects-body .effect-btn.cx-tile .cx-tile-name { position: relative; z-index: 1; padding: 0 8px 6px; text-align: left; }
+#effects-body .effect-btn.cx-tile { font-size: 12px !important; }
+#effects-body .effect-btn.cx-tile { padding-bottom: 6px !important; }
+#effects-body .effect-btn.cx-tile.active { transform: translateY(-3px) scale(1.03); box-shadow: 0 0 0 2px #fff, 0 10px 26px -8px var(--cx1) !important; }
+/* now playing */
+#cx-np { display: flex; gap: 12px; align-items: center; padding: 12px; border-radius: 18px; margin-bottom: 12px; background: rgba(255,255,255,.05); box-shadow: 0 0 0 1px rgba(255,255,255,.1); }
+#cx-np b { display: block; font-size: 15px; color: #eef2ff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 210px; }
+#cx-np small { color: rgba(238,242,255,.55); }
+.cx-vinyl { width: 54px; height: 54px; flex-shrink: 0; border-radius: 50%; background: radial-gradient(circle, var(--cx2) 0 14%, #000 15% 18%, transparent 19%), repeating-radial-gradient(circle, #222 0 2px, #111 2px 4px);
+  box-shadow: 0 0 0 2px var(--cx1), 0 0 22px var(--cx1); animation: cx-spin 3s linear infinite; animation-play-state: paused; }
+#cx-np.playing .cx-vinyl { animation-play-state: running; }
+#stop-sound-btn.cx-quiet { opacity: .4; }
+/* time ring */
+#cx-ring-wrap { position: relative; width: 210px; height: 210px; margin: 0 auto 12px; }
+#cx-ring-svg { width: 100%; height: 100%; }
+.cx-ring-ctr { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.cx-ring-ctr b { font-size: 30px; color: #eef2ff; } .cx-ring-ctr small { color: rgba(238,242,255,.55); font-size: 11px; }
+/* display type icons */
+.size-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px !important; }
+.cx-ico { display: block; position: relative; }
+.cx-ico-cube { width: 22px; height: 22px; transform-style: preserve-3d; animation: cx-rot 7s linear infinite; }
+.cx-ico-cube i { position: absolute; inset: 0; border: 1.5px solid var(--cx1); background: rgba(122,168,255,.08); }
+.cx-ico-cube i:nth-child(1){transform:translateZ(11px)} .cx-ico-cube i:nth-child(2){transform:rotateY(90deg) translateZ(11px)} .cx-ico-cube i:nth-child(3){transform:rotateX(90deg) translateZ(11px)}
+.cx-ico-cube i:nth-child(4){transform:rotateY(180deg) translateZ(11px)} .cx-ico-cube i:nth-child(5){transform:rotateY(-90deg) translateZ(11px)} .cx-ico-cube i:nth-child(6){transform:rotateX(-90deg) translateZ(11px)}
+@keyframes cx-rot { to { transform: rotateX(360deg) rotateY(360deg); } }
+.cx-ico-flat { width: 30px; height: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.cx-ico-flat i { border: 1.5px solid var(--cx1); border-radius: 2px; background: rgba(122,168,255,.08); }
+.size-btn.active { box-shadow: 0 0 0 1.5px var(--cx1), 0 0 22px -6px var(--cx1) !important; }
+@media (prefers-reduced-motion: reduce) { #sidebar::before, .cx-spark, .cx-vinyl, .cx-ico-cube { animation: none !important; } }
 </style>
 </head>
 <body>
@@ -753,6 +829,11 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
       <span id="conn-status" data-status="connecting" role="status" aria-live="polite">Connecting…</span>
     </div>
     <button id="sidebar-collapse-btn" title="Collapse menu">◀</button>
+  </div>
+  <div id="cx-hero" title="Swipe sideways: next effect · drag up/down: brightness">
+    <canvas id="cx-hero-canvas" width="640" height="320"></canvas>
+    <div id="cx-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="6"/><circle id="cx-arc" cx="50" cy="50" r="44" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-dasharray="276" stroke-dashoffset="80" transform="rotate(-90 50 50)"/></svg><b id="cx-pct">70%</b></div>
+    <span class="cx-hero-hint">‹ swipe › · drag ↕ brightness</span>
   </div>
 
   
@@ -789,14 +870,17 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 
 
   <nav id="tab-bar" role="tablist" aria-label="Control sections">
+    <div id="cx-blob" aria-hidden="true"></div>
     <button role="tab" data-tab="play">▶ Play</button>
     <button role="tab" data-tab="music">♫ Music</button>
-    <button role="tab" data-tab="schedule">⏰ Schedule</button>
+    <button role="tab" data-tab="schedule">◷ Time</button>
     <button role="tab" data-tab="setup">⚙ Setup</button>
   </nav>
   <div id="sidebar-scroll">
   <div class="sidebar-section" id="now-section" data-tab="play">
     <div class="section-body">
+      <div class="cx-ask"><span class="cx-spark"></span><input id="cx-ask" type="text" placeholder="Ask: “calm”, “party”, “night sky”…" aria-label="Ask for an effect" autocomplete="off"></div>
+      <div id="cx-ask-chips" class="cx-chips"><button type="button">calm</button><button type="button">party</button><button type="button">night sky</button><button type="button">music</button><button type="button">surprise me</button></div>
       <div class="now-kicker">Now showing</div>
       <div id="now-effect-name" class="now-effect">…</div>
       <div id="now-options" class="now-options"></div>
@@ -1385,6 +1469,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
   <div class="sidebar-section" id="music-section" data-tab="music">
     <button class="section-head">◈ Music <span class="chev">▾</span></button>
     <div class="section-body">
+      <div id="cx-np"><div class="cx-vinyl"></div><div><b id="cx-np-name">Nothing playing</b><small id="cx-np-sub">Pick a station below</small></div></div>
       <div class="ui-label-accent">📻 Radio</div>
       <div class="ui-note">Keeps playing under any effect. Show its spectrum with <b>Internet Radio</b> under Play.</div>
       <div class="effect-panel open" id="panel-radio">
@@ -1436,7 +1521,8 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
         </div>
         <div class="ov-row-label">Style</div>
         <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-          <button class="au-style-btn active" data-austyle="bars">Bars</button>
+          <button class="au-style-btn active" data-austyle="glow">✨ Glow</button>
+          <button class="au-style-btn" data-austyle="bars">Classic bars</button>
           <button class="au-style-btn" data-austyle="mirror">Mirror</button>
           <button class="au-style-btn" data-austyle="dots">Dots</button>
           <button class="au-style-btn" data-austyle="blocks">Blocks</button>
@@ -1528,6 +1614,14 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
       <button class="bt-route-phone-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Route Phone Audio to Speaker</button>
       <div class="bt-phone-status-el" style="font-size:11px;color:#9aa3b8;">Not set up yet</div>
     
+    </div>
+  </div>
+  <div class="sidebar-section collapsed" id="alarm-section">
+    <button class="section-head">◈ Timers <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div id="cx-ring-wrap"><svg id="cx-ring-svg" viewBox="0 0 100 100"></svg><div class="cx-ring-ctr"><b id="cx-ring-time">--:--</b><small id="cx-ring-next"></small></div></div>
+      <div id="alarm-list-ui" style="margin-bottom:8px;"></div>
+      <button id="alarm-add-btn" style="width:100%;padding:8px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.35);color:#7aadff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.5px;">+ ADD TIMER</button>
     </div>
   </div>
   <div class="sidebar-section collapsed" data-section="overlays">
@@ -1702,13 +1796,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     </div>
   </div>
   <!-- ── Timers Section ── -->
-  <div class="sidebar-section collapsed" id="alarm-section">
-    <button class="section-head">◈ Timers <span class="chev">▾</span></button>
-    <div class="section-body">
-      <div id="alarm-list-ui" style="margin-bottom:8px;"></div>
-      <button id="alarm-add-btn" style="width:100%;padding:8px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.35);color:#7aadff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.5px;">+ ADD TIMER</button>
-    </div>
-  </div>
+  
   <div class="sidebar-section collapsed">
     <button class="section-head">◈ Display <span class="chev">▾</span></button>
     <div class="section-body">
