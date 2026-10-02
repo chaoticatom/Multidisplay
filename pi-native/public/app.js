@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.180';
+const APP_VERSION = '0.6.181';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -349,11 +349,24 @@ async function loadEffectNames() {
 // Shows the running effect under the page title, so it's visible without
 // scrolling the long effects list to find the highlighted button.
 function updateActiveEffectLabel() {
+  // Now-playing pills under the title: the effect showing and the radio
+  // station playing - each jumps to the tab that controls it.
   const el = document.getElementById('active-effect-label');
   if (!el) return;
   const btn = document.querySelector(`.effect-btn[data-effect="${CSS.escape(currentState.effect || '')}"]`);
-  const name = btn ? btn.textContent.replace(/[◈▸]/g, '').trim() : currentState.effect;
-  el.textContent = currentState.blank ? 'Now: (cleared)' : (name ? 'Now: ' + name : '');
+  const name = currentState.blank ? 'Off' : (btn ? btn.textContent.replace(/[◈▸]/g, '').trim() : currentState.effect) || '';
+  const st = currentState.effectStatus?.radio;
+  const station = st && st.playing && st.station ? st.station.name.replace(/^[\s-]+/, '') : '';
+  const key = name + '|' + station;
+  if (el.dataset.key === key) return;
+  el.dataset.key = key;
+  const pill = (text, tab, cls) => {
+    const b = document.createElement('button');
+    b.className = 'now-pill ' + cls; b.textContent = text; b.title = text;
+    b.addEventListener('click', () => setTab(tab));
+    return b;
+  };
+  el.replaceChildren(...[name && pill('▶ ' + name, 'play', 'now-pill-fx'), station && pill('♫ ' + station, 'music', 'now-pill-radio')].filter(Boolean));
 }
 
 // Effects search box + "Show unavailable" toggle. While a query is typed,
@@ -461,7 +474,60 @@ const TAB_OF_SECTION = [
 // Tab names before the Play/Music/Schedule/Setup redesign, so a browser
 // that remembered one lands somewhere sensible.
 const OLD_TABS = { now: 'play', effects: 'play', overlays: 'schedule', timers: 'schedule', settings: 'setup' };
+// ── Effect categories: a chip row above the effect tiles replaces opening
+// and closing each group. "All" shows every group, labelled. ──
+function wireEffectChips() {
+  const body = document.getElementById('effects-body');
+  const filterRow = body?.querySelector('.effect-filter-row');
+  if (!body || !filterRow || document.getElementById('effect-chips')) return;
+  const groups = [...body.querySelectorAll(':scope > .sub-section')].filter((g) => g.querySelector(':scope > .sub-head'));
+  const row = document.createElement('div');
+  row.id = 'effect-chips';
+  row.className = 'effect-chips';
+  const names = groups.map((g) => g.querySelector(':scope > .sub-head').textContent.replace(/[▾▸◈]/g, '').trim());
+  const choose = (i) => {
+    row.querySelectorAll('button').forEach((b, j) => b.setAttribute('aria-pressed', String(j === i + 1)));
+    groups.forEach((g, j) => {
+      g.classList.toggle('chip-hidden', i >= 0 && j !== i);
+      if (i < 0 || j === i) g.classList.remove('collapsed');
+    });
+    body.classList.toggle('chips-all', i < 0);
+    try { localStorage.setItem('fxChip', String(i)); } catch (e) { /* storage unavailable */ }
+  };
+  ['All', ...names].forEach((n, k) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = n.replace(/ &.*$/, '');
+    b.title = n;
+    b.addEventListener('click', () => choose(k - 1));
+    row.appendChild(b);
+  });
+  filterRow.after(row);
+  let saved = -1;
+  try { saved = Number(localStorage.getItem('fxChip') ?? -1); } catch (e) { /* storage unavailable */ }
+  choose(saved >= -1 && saved < groups.length ? saved : -1);
+}
+
+const OVERLAY_DESC = {
+  stars: 'Little stars twinkle on top', snow: 'Snowflakes drift down', meteors: 'Shooting stars streak across',
+  edgeglow: 'A glowing rim around the edges', fire: 'Flames along the bottom edge', sparkle: 'Glitter falls like rain',
+  colorwave: 'A colour wash sweeps across', pulse: 'Everything gently breathes', scanline: 'A retro scan line rolls past',
+  vignette: 'Darkens the edges', glitch: 'Random digital glitches', mist: 'A soft rainbow haze',
+  lightning: 'Occasional lightning flashes', spectrum: 'Music bars over any effect',
+};
+function addOverlayDescriptions() {
+  document.querySelectorAll('.ov-item').forEach((item) => {
+    const key = item.querySelector('.ov-chk')?.dataset.ov;
+    const name = item.querySelector('.ov-name');
+    if (!key || !name || !OVERLAY_DESC[key] || name.querySelector('.ov-desc')) return;
+    const d = document.createElement('span');
+    d.className = 'ov-desc'; d.textContent = OVERLAY_DESC[key];
+    name.appendChild(d);
+  });
+}
+
 function wireTabs() {
+  wireEffectChips();
+  addOverlayDescriptions();
   const sections = [...document.querySelectorAll('#sidebar-scroll > .sidebar-section')];
   for (const sec of sections) {
     if (sec.dataset.tab) continue;
@@ -2573,6 +2639,7 @@ function renderSearchResults(el, results, current) {
 }
 
 function syncRadioPanel() {
+  updateActiveEffectLabel();
   const panel = document.getElementById('panel-radio');
   if (!panel) return;
   const status = currentState.effectStatus?.radio;

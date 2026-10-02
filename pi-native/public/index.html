@@ -692,6 +692,47 @@ html body .ui-btn-primary { width:100%; padding:6px 12px; margin-bottom:8px; bac
 html body .ui-btn-purple { flex:1; padding:6px 8px; background:rgba(140,100,255,0.1); border:1px solid rgba(140,100,255,0.3); color:#b89aff; border-radius:4px; cursor:pointer; font-size:11px; }
 html body .ui-input { flex:1; padding:6px 8px; background:#0a1020; border:1px solid rgba(80,120,255,0.35); color:#ccd; font-size:12px; border-radius:4px; }
 html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rgba(80,120,255,0.12); border:1px solid rgba(80,120,255,0.3); color:#7aadff; border-radius:4px; cursor:pointer; }
+
+/* ════ v2 look: one consistent card/tile/chip style across every tab ════ */
+#sidebar { --c-bg:#0c1020; --c-card:rgba(255,255,255,0.035); --c-card-hi:rgba(122,173,255,0.16); --c-line:rgba(122,173,255,0.16); --c-line-hi:rgba(122,173,255,0.55); --c-txt:#dbe6ff; --c-dim:#8e9ab6; --c-acc:#7aadff; --c-ok:#6fe39a; --radius:10px; }
+#sidebar-header h1 { font-size: 17px; letter-spacing: 0.3px; }
+#active-effect-label { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0 4px; min-height: 0; }
+.now-pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--c-line); background: var(--c-card-hi); color: var(--c-txt); cursor: pointer; }
+.now-pill-radio { max-width: 190px; background: rgba(111,227,154,0.12); border-color: rgba(111,227,154,0.35); }
+#tab-bar { gap: 4px; padding: 8px 8px; border-bottom: 1px solid var(--c-line); }
+#tab-bar button { border: none; border-radius: 8px; padding: 8px 2px; font-size: 12.5px; color: var(--c-dim); }
+#tab-bar button[aria-selected="true"] { background: var(--c-card-hi); color: var(--c-txt); box-shadow: inset 0 0 0 1px var(--c-line-hi); }
+#sidebar-scroll > .sidebar-section { margin: 10px 10px 0; border: 1px solid var(--c-line); border-radius: var(--radius); background: var(--c-card); overflow: hidden; }
+#sidebar-scroll > .sidebar-section > .section-head { font-size: 13px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--c-acc) !important; }
+#sidebar-scroll > .sidebar-section.tab-solo { border: none; background: none; }
+.ui-label-accent { color: var(--c-acc); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin: 12px 0 6px; }
+.now-effect { font-size: 20px; font-weight: 700; }
+/* Effect chips + tiles */
+.effect-chips { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+.effect-chips::-webkit-scrollbar { display: none; }
+.effect-chips button { flex: 0 0 auto; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--c-line); background: var(--c-card); color: var(--c-dim); font-size: 12px; cursor: pointer; }
+.effect-chips button[aria-pressed="true"] { background: var(--c-card-hi); border-color: var(--c-line-hi); color: var(--c-txt); }
+#effects-body:not(.filtering) .sub-section.chip-hidden { display: none; }
+#effects-body:not(.chips-all):not(.filtering) .sub-section > .sub-head { display: none; }
+#effects-body.chips-all .sub-section > .sub-head { pointer-events: none; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--c-dim); background: none; border: none; padding: 10px 2px 4px; }
+#effects-body.chips-all .sub-section > .sub-head .chev { display: none; }
+#effects-body .sub-section { border: none; background: none; margin: 0; }
+#effects-body .effect-btn { border-radius: 8px; border: 1px solid var(--c-line); background: var(--c-card); color: var(--c-txt); font-size: 12.5px; padding: 8px 10px; }
+#effects-body .effect-btn:hover { border-color: var(--c-line-hi); }
+#effects-body .effect-btn.active { background: var(--c-card-hi); border-color: var(--c-acc); box-shadow: 0 0 0 1px var(--c-acc) inset; }
+/* Overlay cards */
+.ov-item { border-radius: var(--radius); border-color: var(--c-line); background: var(--c-card); margin-bottom: 8px; }
+.ov-item.ov-on { border-color: var(--c-line-hi); background: var(--c-card-hi); }
+.ov-hdr { font-size: 13.5px !important; padding: 10px 12px !important; color: var(--c-txt) !important; letter-spacing: 0 !important; }
+.ov-name { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.ov-desc { font-size: 11.5px; color: var(--c-dim); font-weight: 400; }
+.ov-hdr .ov-toggle { order: 2; margin-left: auto; }
+.ov-body { background: rgba(0,0,0,0.18); }
+/* Music + Setup rows */
+#music-section .section-body > div[style*="text-transform:uppercase"] { color: var(--c-acc) !important; letter-spacing: 1px !important; margin-top: 14px; }
+.size-row .size-btn { border-radius: 8px; }
+.size-row .size-btn.active { background: var(--c-card-hi); border-color: var(--c-acc); color: var(--c-txt); }
+.ui-btn-primary, .ui-btn-danger, .util-btn { border-radius: 8px !important; }
 </style>
 </head>
 <body>
@@ -1952,6 +1993,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.180"></script>
+<script src="app.js?v=0.6.181"></script>
 </body>
 </html>
