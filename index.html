@@ -594,8 +594,6 @@ body:not([data-tab="settings"]) #sidebar-size-bar { display: none; }
 .scene-chip button.scene-del { color: #9aa3b8; padding: 6px 8px 6px 2px; }
 .scene-chip.active { background: rgba(80,120,255,0.35); border-color: #7aadff; }
 /* ── Effect tiles: a 2-column grid instead of a long list; options live in the Now tab. ── */
-#effects-body .sub-body { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-#effects-body .sub-body > :not(.effect-btn) { grid-column: 1 / -1; }
 #effects-body .effect-btn { margin: 0 !important; min-height: 44px; display: flex; align-items: center; text-align: left; line-height: 1.2; }
 #effects-body .effect-btn .panel-arrow { display: none; }
 #effects-body .effect-panel { display: none !important; }
@@ -606,6 +604,8 @@ body:not([data-tab="settings"]) #sidebar-size-bar { display: none; }
 .diag-log { font: 11px/1.45 monospace; color: #cdd6ee; max-height: 180px; overflow: auto; white-space: pre-wrap; background: rgba(0,0,0,0.25); padding: 6px; border-radius: 4px; }
 .diag-log .error { color: #f88; } .diag-log .warn { color: #fc6; }
 body[data-mode="2d"] .cube-only, body[data-mode="wall"] .cube-only { display: none !important; }
+body:not([data-mode="2d"]):not([data-mode="wall"]) .flat-only { display: none !important; }
+#music-section .effect-panel { display: block !important; padding: 0; border: none; }
 /* Sliders outside .slider-row (radio volume/tone, camera FPS, video...)
    fell back to the browser's default blue control - give them the app's look. */
 #sidebar input[type="range"]:not(.slider-row input), #alarm-modal input[type="range"] {
@@ -709,16 +709,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <button id="sidebar-collapse-btn" title="Collapse menu">◀</button>
   </div>
 
-  <div id="sidebar-size-bar" style="padding:8px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;">
-    <div style="font-size:11px;color:#7af;margin-bottom:5px;text-transform:uppercase;letter-spacing:1px;">Display</div>
-    <div class="size-row">
-      <button class="size-btn" data-size="8">8×8</button>
-      <button class="size-btn" data-size="16">16×16</button>
-      <button class="size-btn" data-size="64">64×64</button>
-      <button class="size-btn" data-size="64" data-mode="panel2d" id="panel2d-btn" title="Flat panels - one, or several side by side (add more with Layout)" style="font-size:11px;">Flat</button>
-    </div>
-    <button id="identify-panels-btn" title="Label every physical panel with its own identity (face/index + which HAT output and chain position it's wired to) - use this while wiring up multiple panels, in any shape, to see which physical board is which." style="width:100%;margin-top:6px;padding:8px;font-size:11px;letter-spacing:0.5px;background:rgba(80,120,255,0.08);border:1px solid rgba(80,120,255,0.25);color:#9ab;border-radius:6px;cursor:pointer;">🔍 IDENTIFY PANELS</button>
-  </div>
+  
 
   <!-- Master brightness (#bright-slider - see wireSliders()/syncSliders()
        in app.js, sends {cmd:'setBrightness'}, actually scales what the
@@ -746,20 +737,19 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
   </div>
 
   <div id="fx-toggle-bar" style="padding:6px 10px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;display:flex;gap:6px;">
-    <button class="ui-btn-danger" id="clear-all-btn">✕ Clear All</button>
+    <button class="ui-btn-danger" id="clear-all-btn">⏻ All off</button>
     <button class="ui-btn-danger" id="stop-sound-btn">🔇 Stop Sound</button>
   </div>
 
 
   <nav id="tab-bar" role="tablist" aria-label="Control sections">
-    <button role="tab" data-tab="now">Now</button>
-    <button role="tab" data-tab="effects">Effects</button>
-    <button role="tab" data-tab="overlays">Overlays</button>
-    <button role="tab" data-tab="timers">Timers</button>
-    <button role="tab" data-tab="settings">Settings</button>
+    <button role="tab" data-tab="play">▶ Play</button>
+    <button role="tab" data-tab="music">♫ Music</button>
+    <button role="tab" data-tab="schedule">⏰ Schedule</button>
+    <button role="tab" data-tab="setup">⚙ Setup</button>
   </nav>
   <div id="sidebar-scroll">
-  <div class="sidebar-section" id="now-section" data-tab="now">
+  <div class="sidebar-section" id="now-section" data-tab="play">
     <div class="section-body">
       <div class="now-kicker">Now showing</div>
       <div id="now-effect-name" class="now-effect">…</div>
@@ -772,14 +762,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
         <input id="scene-name-input" class="ui-input" type="text" maxlength="40" placeholder="Save current as…" aria-label="Scene name">
         <button id="scene-save-btn" class="ui-btn-small" style="flex:0 0 auto;padding:5px 12px;">Save</button>
       </div>
-      <div id="now-music" style="margin-top:14px;">
-          <label class="check-row" title="Every effect speeds up with the bass and pulses with the music while a radio station is playing"><input type="checkbox" id="music-react-chk">REACT TO MUSIC</label>
-          <div class="slider-row" id="music-react-row">
-            <span class="slider-label">Amount</span>
-            <input type="range" id="music-react-amt" min="0" max="1" step="0.05" value="0.6" aria-label="React to music amount">
-            <span class="slider-val" id="music-react-val">60%</span>
-          </div>
-      </div>
+      
     </div>
   </div>
 
@@ -1195,7 +1178,172 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <button class="sub-head">Audio &amp; Media <span class="chev">▾</span></button>
     <div class="sub-body">
     <button class="effect-btn has-panel" data-effect="radio">◈ Internet Radio <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-radio">
+    
+    <button class="effect-btn has-panel" data-effect="video">◈ Video Display <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-video">
+      <div style="font-size:11px;color:#99a;line-height:1.5;margin-bottom:8px;">Maps video/image to the 4 side panels. YouTube: open in another tab then use Screen Capture.</div>
+      <div id="vid-status" style="font-size:11px;color:#9aa3b8;margin-bottom:6px;text-align:center;">No source loaded</div>
+      <div style="display:flex;gap:5px;margin-bottom:8px;">
+        <button class="ui-btn-small" id="vid-file-btn">📁 Video</button>
+        <button class="ui-btn-small" id="img-file-btn">🖼 Image</button>
+        <button class="ui-btn-small" id="vid-screen-btn">🖥 Screen</button>
+        <button class="ui-btn-small" id="vid-cam-btn">📷 Cam</button>
+      </div>
+      <button id="vid-stop-btn" class="ui-btn-danger" style="width:100%;margin-top:6px;padding:6px;font-size:12px;">■ Stop video</button>
+      <input type="file" id="vid-file-input" accept="video/*" style="display:none;">
+      <input type="file" id="img-file-input" accept="image/*" style="display:none;">
+      <!-- Pi-native addition: the file/screen/webcam buttons above have no
+           server-side equivalent (no browser, no local file picker) - this
+           app decodes a real video from a URL via ffmpeg instead. See
+           src/effects/video.js's module comment. -->
+      <label class="ov-label" style="display:block;margin:8px 0;">Or play a video link
+        <input id="vid-url" type="text" style="width:100%;margin-top:4px;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:5px 7px;font-size:11px;box-sizing:border-box" placeholder="https://example.com/video.mp4">
+      </label>
+      <button id="vid-load-btn" style="width:100%;padding:6px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">▶ Load</button>
+      <div class="ov-row-label">Video brightness</div>
+      <div class="slider-row"><input type="range" id="vid-bright" min="0.1" max="2" step="0.05" value="1" style="flex:1;"><span class="slider-val" id="vid-bright-val">1×</span></div>
+      <div class="ov-row-label" style="margin-top:6px;">Video saturation</div>
+      <div class="slider-row"><input type="range" id="vid-sat" min="0" max="3" step="0.1" value="1" style="flex:1;"><span class="slider-val" id="vid-sat-val">1×</span></div>
+      <div class="ov-row-label" style="margin-top:6px;">Scroll Speed</div>
+      <div class="slider-row"><input type="range" id="vid-scroll" min="-5" max="5" step="0.5" value="0" style="flex:1;"><span class="slider-val" id="vid-scroll-val">0</span></div>
+      <div class="ov-row-label" style="margin-top:6px;">Mode</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(2,1fr);">
+        <button class="vid-layout-btn active" data-layout="panorama">Panorama</button>
+        <button class="vid-layout-btn" data-layout="mirror">Mirror</button>
+        <button class="vid-layout-btn" data-layout="tile">Tile</button>
+        <button class="vid-layout-btn" data-layout="perspective">Perspective</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:6px;">Fit</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(2,1fr);">
+        <button class="vid-fit-btn active" data-fit="stretch">Stretch</button>
+        <button class="vid-fit-btn" data-fit="contain">Native Ratio</button>
+      </div>
+
+    </div>
+
+    
+
+
+    </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head">Games &amp; Chance <span class="chev">▾</span></button>
+    <div class="sub-body">
+    <button class="effect-btn has-panel" data-effect="maze">◈ Maze Runner <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-maze">
+      <div class="slider-row">
+        <span class="slider-label">Runners</span>
+        <input type="range" id="mz-runners" min="1" max="6" step="1" value="3">
+        <span class="slider-val" id="mz-runners-val">3</span>
+      </div>
+      <button id="new-maze-btn" style="margin-top:6px;width:100%;padding:5px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">⟳ NEW MAZE</button>
+    </div>
+    <button class="effect-btn has-panel" data-effect="tron">◈ Tron Bikes <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-tron">
+      <div class="slider-row">
+        <span class="slider-label">Bikes</span>
+        <input type="range" id="tron-count" min="2" max="8" step="1" value="4">
+        <span class="slider-val" id="tron-count-val">4</span>
+      </div>
+      <div class="slider-row" style="margin-top:4px;">
+        <span class="slider-label">Speed</span>
+        <input type="range" id="tron-speed" min="0.5" max="3" step="0.1" value="1">
+        <span class="slider-val" id="tron-speed-val">1×</span>
+      </div>
+      <label class="check-row" style="margin-top:6px;"><input type="checkbox" id="tron-straight-check">STRAIGHT LINES</label>
+      <label class="check-row" style="margin-top:4px;"><input type="checkbox" id="tron-border-check">BORDER WALLS (2D)</label>
+      <button id="new-tron-btn" style="margin-top:6px;width:100%;padding:5px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">⟳ NEW GAME</button>
+    </div>
+    <button class="effect-btn has-panel" data-effect="retro">◈ Retro <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-retro" style="overflow:visible;">
+      <div class="ov-row-label">Game</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;">
+        <button class="retro-game-btn active" data-retrogame="-1">Auto</button>
+        <button class="retro-game-btn" data-retrogame="0">Jet Pac</button>
+        <button class="retro-game-btn" data-retrogame="1">Manic Miner</button>
+        <button class="retro-game-btn" data-retrogame="2">OutRun</button>
+        <button class="retro-game-btn" data-retrogame="3">Invaders</button>
+        <button class="retro-game-btn" data-retrogame="4">Jet Set Willy</button>
+        <button class="retro-game-btn" data-retrogame="5">Deathchase</button>
+        <button class="retro-game-btn" data-retrogame="6">R-Type</button>
+        <button class="retro-game-btn" data-retrogame="7">Wolfenstein 3D</button>
+        <button class="retro-game-btn" data-retrogame="8">Quake 2</button>
+        <button class="retro-game-btn" data-retrogame="9">Sam Fox SP</button>
+        <button class="retro-game-btn" data-retrogame="10">Tamagotchi</button>
+        <button class="retro-game-btn" data-retrogame="11">Atic Atac</button>
+        <button class="retro-game-btn" data-retrogame="12">Donkey Kong</button>
+        <button class="retro-game-btn" data-retrogame="13">Pac-Man</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Auto Rotation Games</div>
+      <div id="retro-auto-checks" style="display:flex;flex-wrap:wrap;gap:2px 8px;font-size:11px;">
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="0" checked> Jet Pac</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="1" checked> Manic Miner</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="2" checked> OutRun</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="3" checked> Invaders</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="4" checked> JSW</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="5" checked> Deathchase</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="6" checked> R-Type</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="7" checked> Wolf 3D</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="8" checked> Quake 2</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="9"> Sam Fox</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="10" checked> Tamagotchi</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="11" checked> Atic Atac</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="12" checked> Donkey Kong</label>
+        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="13" checked> Pac-Man</label>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Rotate: <span id="retro-rotate-val">8</span>s</div>
+      <input type="range" id="retro-rotate-slider" min="3" max="120" value="8" style="width:100%;cursor:pointer;">
+      <button id="retro-show-btn" style="margin-top:8px;width:100%;padding:8px;background:rgba(80,200,120,0.25);border:1px solid rgba(80,200,120,0.5);border-radius:6px;color:#9fd;font-size:13px;cursor:pointer;">▶ Show</button>
+    </div>
+    <button class="effect-btn has-panel" data-effect="coinflip">◈ Coin Flip <span class="panel-arrow">▸</span></button>
+    <button class="effect-btn has-panel" data-effect="dice">◈ Dice Roll <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-dice">
+      <button id="dice-roll-btn" style="width:100%;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;margin-bottom:8px;">🎲 ROLL DICE</button>
+      <label class="check-row"><input type="checkbox" id="dice-auto-check">AUTO ROLL (every 4s)</label>
+    </div>
+    <div class="effect-panel" id="panel-coinflip">
+      <div class="ov-row-label">Flip Speed</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="coin-speed" min="0.5" max="5" step="0.5" value="1" style="flex:1;">
+        <span id="coin-speed-val" style="font-size:11px;color:#9cd;width:32px;">1x</span>
+      </div>
+    </div>
+    <button class="effect-btn has-panel" data-effect="random">◈ Random <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-random">
+      <div style="display:flex;gap:6px;">
+        <button class="effect-btn" data-effect="random" style="flex:1;margin:0;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;">◈ Random 1</button>
+        <button class="effect-btn" data-effect="random80s" style="flex:1;margin:0;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;">◈ Random 2</button>
+      </div>
+    </div>
+
+    </div>
+    </div>
+    <div class="sub-section collapsed">
+    <button class="sub-head">Scenes &amp; Lighting <span class="chev">▾</span></button>
+    <div class="sub-body">
+    <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
+    <button class="effect-btn" data-effect="easter_egg">◈ Easter Egg</button>
+    <button class="effect-btn has-panel" data-effect="custom_cube">◈ Custom Cube <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-custom_cube">
+      <div class="ov-row-label">Saved Cubes</div>
+      <select id="cc-select" style="width:100%;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;border-radius:4px;margin-bottom:8px;">
+        <option value="">— choose a saved cube —</option>
+      </select>
+      <button id="cc-load-btn" style="width:100%;padding:7px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:1px;">▶ LOAD</button>
+      <div id="cc-active" style="font-size:11px;color:#6e8;margin-top:8px;text-align:center;"></div>
+    </div>
+
+    </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="sidebar-section" id="music-section" data-tab="music">
+    <button class="section-head">◈ Music <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div class="ui-label-accent">📻 Radio</div>
+      <div class="ui-note">Pick a station - it keeps playing whatever effect is showing. Choose <b>Internet Radio</b> under Play to see its spectrum on the display.</div>
+      <div class="effect-panel open" id="panel-radio">
       <!-- radioPlay always plays server-side (paplay -> whatever PulseAudio
            sink is currently default - a paired Bluetooth speaker, or the
            Pi's own local output). A real report: "internet radio does not
@@ -1316,172 +1464,46 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
         </div>
       </div>
     </div>
-    <button class="effect-btn has-panel" data-effect="video">◈ Video Display <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-video">
-      <div style="font-size:11px;color:#99a;line-height:1.5;margin-bottom:8px;">Maps video/image to the 4 side panels. YouTube: open in another tab then use Screen Capture.</div>
-      <div id="vid-status" style="font-size:11px;color:#9aa3b8;margin-bottom:6px;text-align:center;">No source loaded</div>
-      <div style="display:flex;gap:5px;margin-bottom:8px;">
-        <button class="ui-btn-small" id="vid-file-btn">📁 Video</button>
-        <button class="ui-btn-small" id="img-file-btn">🖼 Image</button>
-        <button class="ui-btn-small" id="vid-screen-btn">🖥 Screen</button>
-        <button class="ui-btn-small" id="vid-cam-btn">📷 Cam</button>
+      <div class="ui-label-accent" style="margin-top:14px;">✨ Effects react to music</div>
+      <div id="now-music" style="margin-top:14px;">
+          <label class="check-row" title="Every effect speeds up with the bass and pulses with the music while a radio station is playing"><input type="checkbox" id="music-react-chk">REACT TO MUSIC</label>
+          <div class="slider-row" id="music-react-row">
+            <span class="slider-label">Amount</span>
+            <input type="range" id="music-react-amt" min="0" max="1" step="0.05" value="0.6" aria-label="React to music amount">
+            <span class="slider-val" id="music-react-val">60%</span>
+          </div>
       </div>
-      <button id="vid-stop-btn" class="ui-btn-danger" style="width:100%;margin-top:6px;padding:6px;font-size:12px;">■ Stop video</button>
-      <input type="file" id="vid-file-input" accept="video/*" style="display:none;">
-      <input type="file" id="img-file-input" accept="image/*" style="display:none;">
-      <!-- Pi-native addition: the file/screen/webcam buttons above have no
-           server-side equivalent (no browser, no local file picker) - this
-           app decodes a real video from a URL via ffmpeg instead. See
-           src/effects/video.js's module comment. -->
-      <label class="ov-label" style="display:block;margin:8px 0;">Or play a video link
-        <input id="vid-url" type="text" style="width:100%;margin-top:4px;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:5px 7px;font-size:11px;box-sizing:border-box" placeholder="https://example.com/video.mp4">
-      </label>
-      <button id="vid-load-btn" style="width:100%;padding:6px;margin-bottom:8px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">▶ Load</button>
-      <div class="ov-row-label">Video brightness</div>
-      <div class="slider-row"><input type="range" id="vid-bright" min="0.1" max="2" step="0.05" value="1" style="flex:1;"><span class="slider-val" id="vid-bright-val">1×</span></div>
-      <div class="ov-row-label" style="margin-top:6px;">Video saturation</div>
-      <div class="slider-row"><input type="range" id="vid-sat" min="0" max="3" step="0.1" value="1" style="flex:1;"><span class="slider-val" id="vid-sat-val">1×</span></div>
-      <div class="ov-row-label" style="margin-top:6px;">Scroll Speed</div>
-      <div class="slider-row"><input type="range" id="vid-scroll" min="-5" max="5" step="0.5" value="0" style="flex:1;"><span class="slider-val" id="vid-scroll-val">0</span></div>
-      <div class="ov-row-label" style="margin-top:6px;">Mode</div>
-      <div class="opt-grid" style="grid-template-columns:repeat(2,1fr);">
-        <button class="vid-layout-btn active" data-layout="panorama">Panorama</button>
-        <button class="vid-layout-btn" data-layout="mirror">Mirror</button>
-        <button class="vid-layout-btn" data-layout="tile">Tile</button>
-        <button class="vid-layout-btn" data-layout="perspective">Perspective</button>
+      <div style="margin-top:14px;"></div>
+      <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">🔊 Pi speaker (Bluetooth)</div>
+      <!-- Paired devices - its own section/list, separate from scan
+           results below. A real report: the device list "seems unreliable
+           now, sometimes finds devices then refreshes to 0 then tries
+           again" - the auto-refresh status poll (added for the "is my
+           speaker still connected" indicator) and a live scan both used
+           to render into the SAME list element, so the background poll
+           (paired devices only, often 0-1 of them) kept stomping whatever
+           scan results were currently showing and vice versa. Fully
+           separate elements now: this one only ever shows
+           btStatusResult, the scan list below only ever shows
+           btScanResult - neither can clobber the other. -->
+      <div style="font-size:11px;color:#9ab;margin-bottom:4px;">Paired devices</div>
+      <div class="bt-paired-status-el" style="font-size:11px;color:#9aa3b8;margin-bottom:4px;">Not checked yet</div>
+      <div class="bt-paired-list-el" style="max-height:120px;overflow-y:auto;margin-bottom:10px;"></div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <button class="bt-scan-btn-el" style="flex:1;padding:6px 10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Scan for Speakers</button>
+        <button class="bt-refresh-btn-el" style="flex:0 0 auto;padding:6px 10px;background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.4);color:#ccc;border-radius:4px;cursor:pointer;font-size:11px;">↻</button>
       </div>
-      <div class="ov-row-label" style="margin-top:6px;">Fit</div>
-      <div class="opt-grid" style="grid-template-columns:repeat(2,1fr);">
-        <button class="vid-fit-btn active" data-fit="stretch">Stretch</button>
-        <button class="vid-fit-btn" data-fit="contain">Native Ratio</button>
-      </div>
+      <div class="bt-status-el ui-note">Not checked yet</div>
+      <div class="bt-device-list-el" style="max-height:180px;overflow-y:auto;margin-bottom:14px;"></div>
 
-    </div>
-
-    <div class="sub-section collapsed">
-      <button class="sub-head sub-head-boxed">◈ Bluetooth <span class="panel-arrow">▸</span></button>
-      <div class="sub-body">
-        <div class="ui-note-spaced">Accept an incoming Bluetooth audio connection from a phone so it can play through the cube. Handled directly by this app via <code>bluetoothctl</code>/PulseAudio on the Raspberry Pi (see <code>src/bluetooth.js</code>) — no separate service to run. Not available on your laptop or GitHub Pages.</div>
-        <button class="bt-discoverable-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Accept Bluetooth Audio Connection</button>
-        <div class="bt-phone-status-el" style="font-size:11px;color:#9aa3b8;">Not set up yet</div>
-      </div>
-    </div>
-
-
-    </div>
-    </div>
-    <div class="sub-section collapsed">
-    <button class="sub-head">Games &amp; Chance <span class="chev">▾</span></button>
-    <div class="sub-body">
-    <button class="effect-btn has-panel" data-effect="maze">◈ Maze Runner <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-maze">
-      <div class="slider-row">
-        <span class="slider-label">Runners</span>
-        <input type="range" id="mz-runners" min="1" max="6" step="1" value="3">
-        <span class="slider-val" id="mz-runners-val">3</span>
-      </div>
-      <button id="new-maze-btn" style="margin-top:6px;width:100%;padding:5px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">⟳ NEW MAZE</button>
-    </div>
-    <button class="effect-btn has-panel" data-effect="tron">◈ Tron Bikes <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-tron">
-      <div class="slider-row">
-        <span class="slider-label">Bikes</span>
-        <input type="range" id="tron-count" min="2" max="8" step="1" value="4">
-        <span class="slider-val" id="tron-count-val">4</span>
-      </div>
-      <div class="slider-row" style="margin-top:4px;">
-        <span class="slider-label">Speed</span>
-        <input type="range" id="tron-speed" min="0.5" max="3" step="0.1" value="1">
-        <span class="slider-val" id="tron-speed-val">1×</span>
-      </div>
-      <label class="check-row" style="margin-top:6px;"><input type="checkbox" id="tron-straight-check">STRAIGHT LINES</label>
-      <label class="check-row" style="margin-top:4px;"><input type="checkbox" id="tron-border-check">BORDER WALLS (2D)</label>
-      <button id="new-tron-btn" style="margin-top:6px;width:100%;padding:5px;background:rgba(80,120,255,0.12);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;letter-spacing:1px;">⟳ NEW GAME</button>
-    </div>
-    <button class="effect-btn has-panel" data-effect="retro">◈ Retro <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-retro" style="overflow:visible;">
-      <div class="ov-row-label">Game</div>
-      <div style="display:flex;flex-wrap:wrap;gap:4px;">
-        <button class="retro-game-btn active" data-retrogame="-1">Auto</button>
-        <button class="retro-game-btn" data-retrogame="0">Jet Pac</button>
-        <button class="retro-game-btn" data-retrogame="1">Manic Miner</button>
-        <button class="retro-game-btn" data-retrogame="2">OutRun</button>
-        <button class="retro-game-btn" data-retrogame="3">Invaders</button>
-        <button class="retro-game-btn" data-retrogame="4">Jet Set Willy</button>
-        <button class="retro-game-btn" data-retrogame="5">Deathchase</button>
-        <button class="retro-game-btn" data-retrogame="6">R-Type</button>
-        <button class="retro-game-btn" data-retrogame="7">Wolfenstein 3D</button>
-        <button class="retro-game-btn" data-retrogame="8">Quake 2</button>
-        <button class="retro-game-btn" data-retrogame="9">Sam Fox SP</button>
-        <button class="retro-game-btn" data-retrogame="10">Tamagotchi</button>
-        <button class="retro-game-btn" data-retrogame="11">Atic Atac</button>
-        <button class="retro-game-btn" data-retrogame="12">Donkey Kong</button>
-        <button class="retro-game-btn" data-retrogame="13">Pac-Man</button>
-      </div>
-      <div class="ov-row-label" style="margin-top:8px;">Auto Rotation Games</div>
-      <div id="retro-auto-checks" style="display:flex;flex-wrap:wrap;gap:2px 8px;font-size:11px;">
-        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="0" checked> Jet Pac</label>
-        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="1" checked> Manic Miner</label>
-        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="2" checked> OutRun</label>
-        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="3" checked> Invaders</label>
-        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="4" checked> JSW</label>
-        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="5" checked> Deathchase</label>
-        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="6" checked> R-Type</label>
-        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="7" checked> Wolf 3D</label>
-        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="8" checked> Quake 2</label>
-        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="9"> Sam Fox</label>
-        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="10" checked> Tamagotchi</label>
-        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="11" checked> Atic Atac</label>
-        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="12" checked> Donkey Kong</label>
-        <label class="ui-check-label"><input type="checkbox" class="retro-auto-chk" data-idx="13" checked> Pac-Man</label>
-      </div>
-      <div class="ov-row-label" style="margin-top:8px;">Rotate: <span id="retro-rotate-val">8</span>s</div>
-      <input type="range" id="retro-rotate-slider" min="3" max="120" value="8" style="width:100%;cursor:pointer;">
-      <button id="retro-show-btn" style="margin-top:8px;width:100%;padding:8px;background:rgba(80,200,120,0.25);border:1px solid rgba(80,200,120,0.5);border-radius:6px;color:#9fd;font-size:13px;cursor:pointer;">▶ Show</button>
-    </div>
-    <button class="effect-btn has-panel" data-effect="coinflip">◈ Coin Flip <span class="panel-arrow">▸</span></button>
-    <button class="effect-btn has-panel" data-effect="dice">◈ Dice Roll <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-dice">
-      <button id="dice-roll-btn" style="width:100%;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;margin-bottom:8px;">🎲 ROLL DICE</button>
-      <label class="check-row"><input type="checkbox" id="dice-auto-check">AUTO ROLL (every 4s)</label>
-    </div>
-    <div class="effect-panel" id="panel-coinflip">
-      <div class="ov-row-label">Flip Speed</div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <input type="range" id="coin-speed" min="0.5" max="5" step="0.5" value="1" style="flex:1;">
-        <span id="coin-speed-val" style="font-size:11px;color:#9cd;width:32px;">1x</span>
-      </div>
-    </div>
-    <button class="effect-btn has-panel" data-effect="random">◈ Random <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-random">
-      <div style="display:flex;gap:6px;">
-        <button class="effect-btn" data-effect="random" style="flex:1;margin:0;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;">◈ Random 1</button>
-        <button class="effect-btn" data-effect="random80s" style="flex:1;margin:0;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;">◈ Random 2</button>
-      </div>
-    </div>
-
-    </div>
-    </div>
-    <div class="sub-section collapsed">
-    <button class="sub-head">Scenes &amp; Lighting <span class="chev">▾</span></button>
-    <div class="sub-body">
-    <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
-    <button class="effect-btn" data-effect="easter_egg">◈ Easter Egg</button>
-    <button class="effect-btn has-panel" data-effect="custom_cube">◈ Custom Cube <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-custom_cube">
-      <div class="ov-row-label">Saved Cubes</div>
-      <select id="cc-select" style="width:100%;padding:6px 8px;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;border-radius:4px;margin-bottom:8px;">
-        <option value="">— choose a saved cube —</option>
-      </select>
-      <button id="cc-load-btn" style="width:100%;padding:7px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:1px;">▶ LOAD</button>
-      <div id="cc-active" style="font-size:11px;color:#6e8;margin-top:8px;text-align:center;"></div>
-    </div>
-
-    </div>
-    </div>
+      <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">📱 Play from a phone</div>
+      <div class="ui-note-spaced">Play a phone's music through the cube's Spectrum Analyser <i>and</i> the Bluetooth speaker above, at the same time. Pair the speaker first, then: make the Pi discoverable → connect from the phone's Bluetooth settings → start playing music → route the audio. See <code>pi/README.md</code> for the full walkthrough.</div>
+      <button class="bt-discoverable-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Make Cube Discoverable (pair phone)</button>
+      <button class="bt-route-phone-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Route Phone Audio to Speaker</button>
+      <div class="bt-phone-status-el" style="font-size:11px;color:#9aa3b8;">Not set up yet</div>
+    
     </div>
   </div>
-
   <div class="sidebar-section collapsed" data-section="overlays">
     <button class="section-head" style="color:rgba(180,220,255,0.95);">◈ Overlays <span class="chev">▾</span></button>
     <div class="section-body">
@@ -1631,7 +1653,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 
 
   <div class="sidebar-section collapsed" id="panel-editor-section">
-    <button class="section-head">◈ Face Editor <span class="chev">▾</span></button>
+    <button class="section-head">◈ Draw on a Face <span class="chev">▾</span></button>
     <div class="section-body">
       <div style="font-size:12px;color:#9ab;margin-bottom:10px;line-height:1.5;">Assign an effect to each face. Click CLEAR to blank the cube, then build your layout. Save as a named cube and load it via the <b style="color:#7aadff">Custom Cube</b> effect.</div>
       <div style="display:flex;gap:6px;margin-bottom:10px;">
@@ -1665,6 +1687,19 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
   <div class="sidebar-section collapsed">
     <button class="section-head">◈ Display <span class="chev">▾</span></button>
     <div class="section-body">
+<div id="sidebar-size-bar" style="margin-bottom:12px;">
+    <div style="font-size:11px;color:#7af;margin-bottom:5px;text-transform:uppercase;letter-spacing:1px;">Display type</div>
+    <div class="ui-note" style="margin-bottom:6px;">Cube (pick its resolution) or Flat panels. Changing this restarts the display for a few seconds.</div>
+    <div class="size-row">
+      <button class="size-btn" data-size="8">Cube 8</button>
+      <button class="size-btn" data-size="16">Cube 16</button>
+      <button class="size-btn" data-size="64">Cube 64</button>
+      <button class="size-btn" data-size="64" data-mode="panel2d" id="panel2d-btn" title="Flat panels - one, or several side by side (add more with Layout)" style="font-size:11px;">Flat</button>
+    </div>
+    <button id="setup-layout-btn" class="ui-btn-primary flat-only" style="margin:8px 0 0;width:100%;">▦ Edit panel layout (add / move / remove panels)</button>
+    <button id="identify-panels-btn" title="Label every physical panel with its own identity (face/index + which HAT output and chain position it's wired to) - use this while wiring up multiple panels, in any shape, to see which physical board is which." style="width:100%;margin-top:6px;padding:8px;font-size:11px;letter-spacing:0.5px;background:rgba(80,120,255,0.08);border:1px solid rgba(80,120,255,0.25);color:#9ab;border-radius:6px;cursor:pointer;">🔢 Show panel numbers</button>
+  </div>
+      <div class="ui-label-accent" style="margin-top:4px;">Preview & motion</div>
           <!-- Preview-only cube controls: hidden outside cube mode (body[data-mode], set in syncPanelButtons()). -->
           <label class="check-row cube-only"><input type="checkbox" id="auto-rotate-chk" checked>AUTO-ROTATE</label>
           <label class="check-row cube-only"><input type="checkbox" id="rotate-y-only">Y-AXIS ONLY</label>
@@ -1685,18 +1720,9 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
           <button id="fullscreen-btn" class="util-btn">⛶ Fullscreen</button>
     </div>
   </div>
+  
   <div class="sidebar-section collapsed">
-    <button class="section-head">◈ Diagnostics <span class="chev">▾</span></button>
-    <div class="section-body">
-      <div class="ui-note">Live status from the Pi, updated every second. Use Copy to paste it into a bug report.</div>
-      <table id="diag-table" class="diag-table" aria-live="off"><tbody><tr><td>Waiting for the Pi…</td></tr></tbody></table>
-      <div class="ui-label-accent" style="margin-top:10px;">Recent warnings &amp; errors</div>
-      <div id="diag-log" class="diag-log">None</div>
-      <button id="diag-copy-btn" class="ui-btn-primary" style="margin-top:8px;">Copy report</button>
-    </div>
-  </div>
-  <div class="sidebar-section collapsed">
-    <button class="section-head">◈ Setup <span class="chev">▾</span></button>
+    <button class="section-head">◈ System <span class="chev">▾</span></button>
     <div class="section-body">
       <div class="ui-label-accent">⟳ Restart</div>
       <div class="ui-note">Restart the display app (a few seconds), or reboot the whole Pi (about a minute). What's showing comes back either way.</div>
@@ -1711,33 +1737,16 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
         <button id="pin-save-btn" class="ui-btn-small" style="flex:0 0 auto;padding:5px 10px;">Set</button>
         <button id="pin-clear-btn" class="ui-btn-small" style="flex:0 0 auto;padding:5px 10px;">Remove</button>
       </div>
-      <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">🔊 Bluetooth Speaker (Pi only)</div>
-      <!-- Paired devices - its own section/list, separate from scan
-           results below. A real report: the device list "seems unreliable
-           now, sometimes finds devices then refreshes to 0 then tries
-           again" - the auto-refresh status poll (added for the "is my
-           speaker still connected" indicator) and a live scan both used
-           to render into the SAME list element, so the background poll
-           (paired devices only, often 0-1 of them) kept stomping whatever
-           scan results were currently showing and vice versa. Fully
-           separate elements now: this one only ever shows
-           btStatusResult, the scan list below only ever shows
-           btScanResult - neither can clobber the other. -->
-      <div style="font-size:11px;color:#9ab;margin-bottom:4px;">Paired devices</div>
-      <div class="bt-paired-status-el" style="font-size:11px;color:#9aa3b8;margin-bottom:4px;">Not checked yet</div>
-      <div class="bt-paired-list-el" style="max-height:120px;overflow-y:auto;margin-bottom:10px;"></div>
-      <div style="display:flex;gap:6px;margin-bottom:6px;">
-        <button class="bt-scan-btn-el" style="flex:1;padding:6px 10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Scan for Speakers</button>
-        <button class="bt-refresh-btn-el" style="flex:0 0 auto;padding:6px 10px;background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.4);color:#ccc;border-radius:4px;cursor:pointer;font-size:11px;">↻</button>
       </div>
-      <div class="bt-status-el ui-note">Not checked yet</div>
-      <div class="bt-device-list-el" style="max-height:180px;overflow-y:auto;margin-bottom:14px;"></div>
-
-      <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">📱 Phone Audio Input (Pi only)</div>
-      <div class="ui-note-spaced">Play a phone's music through the cube's Spectrum Analyser <i>and</i> the Bluetooth speaker above, at the same time. Pair the speaker first, then: make the Pi discoverable → connect from the phone's Bluetooth settings → start playing music → route the audio. See <code>pi/README.md</code> for the full walkthrough.</div>
-      <button class="bt-discoverable-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Make Cube Discoverable (pair phone)</button>
-      <button class="bt-route-phone-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Route Phone Audio to Speaker</button>
-      <div class="bt-phone-status-el" style="font-size:11px;color:#9aa3b8;">Not set up yet</div>
+  </div>
+  <div class="sidebar-section collapsed">
+    <button class="section-head">◈ Health <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div class="ui-note">Live status from the Pi, updated every second. Use Copy to paste it into a bug report.</div>
+      <table id="diag-table" class="diag-table" aria-live="off"><tbody><tr><td>Waiting for the Pi…</td></tr></tbody></table>
+      <div class="ui-label-accent" style="margin-top:10px;">Recent warnings &amp; errors</div>
+      <div id="diag-log" class="diag-log">None</div>
+      <button id="diag-copy-btn" class="ui-btn-primary" style="margin-top:8px;">Copy report</button>
     </div>
   </div>
 

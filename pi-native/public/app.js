@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.179';
+const APP_VERSION = '0.6.180';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -313,7 +313,8 @@ async function loadEffectNames() {
         // Its options (e.g. Internet Radio's station list) live on the Now
         // tab - go there, or tapping an effect with options seemed to do
         // nothing (a real report: "nothing happens when I click internet radio").
-        if (panel || btn.closest('.sub-section')?.querySelector('.art-shared-panel')) setTab('now');
+        if (key === 'radio') setTab('music');
+        else if (panel || btn.closest('.sub-section')?.querySelector('.art-shared-panel')) { setTab('play'); document.getElementById('sidebar-scroll')?.scrollTo(0, 0); }
         // Immediate feedback: the 'active' highlight only moves once the
         // Pi's state echo arrives, which can take a visible moment on a
         // busy Pi - mark this button pending until then (cleared in
@@ -454,34 +455,38 @@ function syncPinStatus() {
 // Each sidebar section belongs to one tab (by its heading); only the active
 // tab's sections show, open. The chosen tab is remembered per browser.
 const TAB_OF_SECTION = [
-  ['Effects', 'effects'], ['Face Editor', 'effects'], ['Overlays', 'overlays'], ['Timers', 'timers'],
-  ['Display', 'settings'], ['Setup', 'settings'], ['Diagnostics', 'settings'],
+  ['Effects', 'play'], ['Draw on a Face', 'play'], ['Music', 'music'], ['Overlays', 'schedule'], ['Timers', 'schedule'],
+  ['Display', 'setup'], ['System', 'setup'], ['Health', 'setup'],
 ];
+// Tab names before the Play/Music/Schedule/Setup redesign, so a browser
+// that remembered one lands somewhere sensible.
+const OLD_TABS = { now: 'play', effects: 'play', overlays: 'schedule', timers: 'schedule', settings: 'setup' };
 function wireTabs() {
   const sections = [...document.querySelectorAll('#sidebar-scroll > .sidebar-section')];
   for (const sec of sections) {
     if (sec.dataset.tab) continue;
     const head = sec.querySelector(':scope > .section-head')?.textContent || '';
     const hit = TAB_OF_SECTION.find(([t]) => head.includes(t));
-    sec.dataset.tab = hit ? hit[1] : 'settings';
+    sec.dataset.tab = hit ? hit[1] : 'setup';
   }
   // Tabs with a single section drop its accordion header and keep it open.
   const counts = {};
   for (const sec of sections) counts[sec.dataset.tab] = (counts[sec.dataset.tab] || 0) + 1;
   for (const sec of sections) if (counts[sec.dataset.tab] === 1) { sec.classList.add('tab-solo'); sec.classList.remove('collapsed'); }
   document.querySelectorAll('#tab-bar [data-tab]').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
-  let tab = 'now';
-  try { tab = localStorage.getItem('tab') || 'now'; } catch (e) { /* storage unavailable */ }
+  let tab = 'play';
+  try { tab = localStorage.getItem('tab') || 'play'; } catch (e) { /* storage unavailable */ }
   setTab(tab);
 }
 function setTab(tab) {
-  if (!document.querySelector(`#tab-bar [data-tab="${tab}"]`)) tab = 'now';
+  tab = OLD_TABS[tab] || tab;
+  if (!document.querySelector(`#tab-bar [data-tab="${tab}"]`)) tab = 'play';
   document.body.dataset.tab = tab;
   document.querySelectorAll('#tab-bar [data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   document.querySelectorAll('#sidebar-scroll > .sidebar-section').forEach((sec) => sec.classList.toggle('tab-active', sec.dataset.tab === tab));
   document.getElementById('sidebar-scroll')?.scrollTo(0, 0);
   // The Effects tab opens with the effect list expanded.
-  if (tab === 'effects') document.getElementById('effects-body')?.closest('.sidebar-section')?.classList.remove('collapsed');
+  if (tab === 'play') document.getElementById('effects-body')?.closest('.sidebar-section')?.classList.remove('collapsed');
   try { localStorage.setItem('tab', tab); } catch (e) { /* storage unavailable */ }
 }
 
@@ -498,7 +503,7 @@ function placeActivePanels() {
   if (nameEl) nameEl.textContent = currentState.blank ? 'Nothing (cleared)' : btn ? btn.textContent.replace(/[◈▸▶]/g, '').trim() : (key || '…');
   const want = [];
   const panel = key && document.getElementById('panel-' + key);
-  if (panel) want.push(panel);
+  if (panel && !panel.closest('#music-section')) want.push(panel); // the radio lives on the Music tab
   const shared = btn && btn.closest('.sub-section')?.querySelector('.art-shared-panel');
   if (shared) want.push(shared);
   if (want.length === _nowMoved.length && want.every((el, i) => _nowMoved[i].el === el)) return;
@@ -511,7 +516,10 @@ function placeActivePanels() {
     _nowMoved.push({ el, marker });
   }
   const none = document.getElementById('now-no-options');
-  if (none) none.style.display = want.length ? 'none' : '';
+  if (none) {
+    none.style.display = want.length ? 'none' : '';
+    none.textContent = panel && !want.includes(panel) ? 'Station, volume and spectrum settings are on the Music tab.' : 'This effect has no options.';
+  }
 }
 
 // ── Scenes ──
@@ -2720,7 +2728,20 @@ function wirePanelButtons() {
   document.querySelectorAll('.size-btn[data-size]').forEach((btn) => {
     const size = Number(btn.dataset.size);
     const mode = btn.dataset.mode === 'panel2d' ? '2d' : 'cube';
-    btn.addEventListener('click', () => send({ cmd: 'setPanelConfig', size, mode }));
+    btn.addEventListener('click', () => {
+      const flatNow = currentState.panelMode === 'wall' || currentState.panelMode === '2d';
+      const same = mode === '2d' ? flatNow : (!flatNow && currentState.panelSize === size);
+      if (same) return;
+      // Switching display type or cube resolution restarts the Pi's panel
+      // driver (see app.js on the Pi) - say so before it happens.
+      if (!confirm('This restarts the display for a few seconds to apply the change. Continue?')) return;
+      send({ cmd: 'setPanelConfig', size, mode });
+    });
+  });
+  // Setup > Display: "Edit panel layout" opens the layout editor on the preview.
+  document.getElementById('setup-layout-btn')?.addEventListener('click', () => {
+    document.getElementById('wall-layout-btn')?.click();
+    if (window.innerWidth < 760) document.getElementById('menu-toggle')?.click();
   });
   syncPanelButtons();
 }
