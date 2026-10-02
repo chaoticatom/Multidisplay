@@ -19,19 +19,19 @@ const path = require('path');
 const { atomicWriteJson } = require('./atomicWrite');
 
 const STORE_VERSION = 1;
-let storePath = path.join(__dirname, '..', 'settings.json');
+let storePath_ = path.join(__dirname, '..', 'settings.json');
 
 function readStore() {
   let raw;
-  try { raw = fs.readFileSync(storePath, 'utf8'); } catch (e) { return { version: STORE_VERSION, sections: {} }; }
+  try { raw = fs.readFileSync(storePath_, 'utf8'); } catch (e) { return { version: STORE_VERSION, sections: {} }; }
   try {
     const s = JSON.parse(raw);
     if (s && typeof s === 'object' && s.sections && typeof s.sections === 'object') return s;
     throw new Error('not a settings store');
   } catch (e) {
-    const aside = `${storePath}.corrupt-${Date.now()}`;
-    try { fs.renameSync(storePath, aside); } catch (e2) { /* nothing to move */ }
-    console.warn(`[settings] ${storePath} was unreadable (${e.message}) - moved to ${aside}, starting fresh`);
+    const aside = `${storePath_}.corrupt-${Date.now()}`;
+    try { fs.renameSync(storePath_, aside); } catch (e2) { /* nothing to move */ }
+    console.warn(`[settings] ${storePath_} was unreadable (${e.message}) - moved to ${aside}, starting fresh`);
     return { version: STORE_VERSION, sections: {} };
   }
 }
@@ -48,7 +48,7 @@ function readSectionJson(name, legacyPath) {
   const value = JSON.parse(legacy); // a corrupt legacy file throws -> defaults, as before
   store.sections[name] = value;
   store.version = STORE_VERSION;
-  atomicWriteJson(storePath, store);
+  atomicWriteJson(storePath_, store);
   return legacy;
 }
 
@@ -56,10 +56,14 @@ function writeSection(name, value) {
   const store = readStore();
   store.sections[name] = value;
   store.version = STORE_VERSION;
-  atomicWriteJson(storePath, store);
+  atomicWriteJson(storePath_, store);
 }
 
-// Tests only: point the store somewhere temporary.
-function _setStorePath(p) { storePath = p; }
+// Backup/restore (see httpApi.js).
+function storePath() { return storePath_; }
+function replaceStore(data) { atomicWriteJson(storePath_, { version: STORE_VERSION, ...data }); }
 
-module.exports = { readSectionJson, writeSection, _setStorePath };
+// Tests only: point the store somewhere temporary.
+function _setStorePath(p) { storePath_ = p; }
+
+module.exports = { readSectionJson, writeSection, storePath, replaceStore, _setStorePath };

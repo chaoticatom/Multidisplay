@@ -8,6 +8,7 @@
 // longer list of effects still to port from effects-*.js).
 const wave = require('./wave');
 const aiArt = require('./aiArt');
+const myPhotos = require('./myPhotos');
 const ambientWeather = require('./ambientWeather');
 const pixelPet = require('./pixelPet');
 const snake = require('./snake');
@@ -119,6 +120,7 @@ const radioWall = require('./radioWall');
 // WALL_EFFECTS entry yet - see the sidebar's per-effect greying for how
 // this is surfaced to the user.
 const WALL_EFFECTS = {
+  my_photos: myPhotos.wall,
   ambient_weather: ambientWeather.wall,
   pixel_pet: pixelPet.wall,
   snake: snake.wall,
@@ -176,6 +178,7 @@ const WALL_EFFECTS = {
 };
 
 const EFFECTS = {
+  my_photos: myPhotos,
   ambient_weather: ambientWeather,
   pixel_pet: pixelPet,
   snake: snake,
@@ -240,6 +243,7 @@ const EFFECTS = {
 };
 
 const EFFECT_NAMES = {
+  my_photos: 'My Photos',
   ambient_weather: 'Ambient Weather',
   pixel_pet: 'Pixel Pet',
   snake: 'Snake',

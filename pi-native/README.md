@@ -286,6 +286,16 @@ overwrites it naturally. Verified via a spawned-process test
 (`test/bootScreen.test.js`) that it renders strictly before the WS server
 starts listening.
 
+## Protecting the SD card
+
+A Pi that loses power while writing can corrupt its SD card - this happened once already (git's files and `package.json` were left empty). To make it unlikely:
+
+- **Back up** from the control page: Setup > System > Backup > *Download backup*. After a fresh install, *Restore…* puts every setting back (layouts, timers, scenes, favourites, keys; not the PIN).
+- **Use a good power supply** (the official 5V/3A one for a Pi 4). Undervoltage is the usual cause of corruption; `vcgencmd get_throttled` shows `0x0` when power has always been fine.
+- **Never pull the power during `git pull` or `npm ci`.** Use Setup > System > Reboot Pi, or `sudo shutdown -h now`.
+- The app now saves its "what's showing" state every 30 seconds at most (it was every 2), and settings are written atomically, so a power cut can't leave a half-written file.
+- **Optional read-only mode** (strongest protection): `sudo raspi-config` > Performance Options > Overlay File System > enable. The card is then never written; settings changed from the page last until the next reboot. Turn it off again the same way before updating with `git pull`.
+
 ## Running on real hardware
 
 ```bash

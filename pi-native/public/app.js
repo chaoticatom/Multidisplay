@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.189';
+const APP_VERSION = '0.6.191';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -50,7 +50,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube']);
+const WIRED_OPTION_PANELS = new Set(['my_photos', 'message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube']);
 // Shared "Art" submenu prev/next/slideshow/letterbox/speed controls
 // (#art-slideshow-chk/#art-letterbox-chk/#art-speed/#art-prev-btn/
 // #art-next-btn) drive whichever of Unsplash/Art Gallery is the currently
@@ -4782,6 +4782,90 @@ function cxSyncOptionPanels() {
   if (t && document.activeElement !== t && typeof o.text === 'string') t.value = o.text;
 }
 
+// ── Voice: speak into the Ask bar (the phone's own speech recognition;
+// browsers only allow the microphone on the https:// address).
+function cxWireVoice() {
+  const mic = document.getElementById('cx-mic');
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!mic) return;
+  mic.addEventListener('click', () => {
+    if (!SR) { cxToast('Voice isn\u2019t supported in this browser'); return; }
+    if (!window.isSecureContext) { cxToast('Voice needs the https:// address (port 8082)'); return; }
+    const rec = new SR(); rec.lang = navigator.language || 'en-GB'; rec.interimResults = false; rec.maxAlternatives = 1;
+    const box = document.querySelector('.cx-ask');
+    box.classList.add('listening'); cxToast('🎤 Listening…');
+    rec.onresult = (e) => { const t = e.results[0][0].transcript; document.getElementById('cx-ask').value = t; cxSubmit(t); };
+    rec.onerror = (e) => cxToast('Voice: ' + (e.error === 'not-allowed' ? 'microphone blocked' : e.error));
+    rec.onend = () => box.classList.remove('listening');
+    rec.start();
+  });
+}
+
+// ── Backup, notifications, My Photos
+function cxWireExtras() {
+  const pinHdr = () => ({ 'X-Control-Pin': storedPin() });
+  document.getElementById('backup-btn')?.addEventListener('click', async () => {
+    try {
+      const r = await fetch('/api/backup', { headers: pinHdr() });
+      if (!r.ok) throw new Error((await r.json()).error || r.status);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(await r.blob());
+      a.download = `multidisplay-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      cxToast('💾 Backup downloaded');
+    } catch (e) { cxToast('Backup failed: ' + e.message); }
+  });
+  document.getElementById('restore-input')?.addEventListener('change', async (e) => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f || !confirm('Replace ALL settings on the Pi with this backup? The display restarts.')) return;
+    try {
+      const r = await fetch('/api/restore', { method: 'POST', body: f, headers: pinHdr() });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      cxToast('Restored - restarting…');
+    } catch (err) { cxToast('Restore failed: ' + err.message); }
+  });
+  const url = () => document.getElementById('notify-url')?.value || '';
+  document.getElementById('notify-copy')?.addEventListener('click', () => { navigator.clipboard?.writeText(url()).then(() => cxToast('Link copied'), () => { document.getElementById('notify-url').select(); }); });
+  document.getElementById('notify-test')?.addEventListener('click', () => fetch(url().replace('Hello', 'Hello from the phone')).then(() => cxToast('Sent')));
+  document.getElementById('notify-new')?.addEventListener('click', () => { if (confirm('Make a new link? The old one stops working.')) send({ cmd: 'newNotifyToken' }); });
+  document.getElementById('photo-input')?.addEventListener('change', async (e) => {
+    const files = [...e.target.files]; e.target.value = '';
+    const st = document.getElementById('photo-status');
+    let done = 0;
+    for (const f of files) {
+      st.textContent = `Uploading ${done + 1} of ${files.length}…`;
+      try {
+        const r = await fetch('/api/uploadPhoto?name=' + encodeURIComponent(f.name), { method: 'POST', body: f, headers: pinHdr() });
+        const j = await r.json(); if (!j.ok) throw new Error(j.error);
+        done++;
+      } catch (err) { st.textContent = `${f.name}: ${err.message}`; return; }
+    }
+    st.textContent = `Added ${done} photo${done === 1 ? '' : 's'}.`;
+    if (currentState.effect !== 'my_photos') send({ cmd: 'setEffect', effect: 'my_photos' });
+  });
+  const secs = document.getElementById('photo-secs');
+  secs?.addEventListener('input', () => { document.getElementById('photo-secs-val').textContent = secs.value + 's'; });
+  secs?.addEventListener('change', () => setEffectOption('my_photos', 'secs', Number(secs.value)));
+}
+let _cxNoticeSeen = null;
+function cxSyncExtras() {
+  const u = document.getElementById('notify-url');
+  if (u && currentState.notifyToken) u.value = `${location.protocol}//${location.host}/api/notify?token=${currentState.notifyToken}&text=Hello`;
+  const list = document.getElementById('photo-list');
+  if (list) {
+    const photos = currentState.photos || [];
+    list.replaceChildren(...photos.map((n, i) => {
+      const chip = document.createElement('span'); chip.textContent = `Photo ${i + 1}`;
+      const del = document.createElement('button'); del.textContent = '✕'; del.setAttribute('aria-label', `Delete photo ${i + 1}`);
+      del.addEventListener('click', () => { if (confirm('Delete this photo?')) send({ cmd: 'deletePhoto', name: n }); });
+      chip.appendChild(del); return chip;
+    }));
+  }
+  const n = currentState.notice;
+  if (n && n.until !== _cxNoticeSeen) { _cxNoticeSeen = n.until; cxToast('🔔 ' + n.text); }
+}
+
 // ── Ask: type what you want ("calm blue", "party", "fire"...).
 const CX_ASK = [
   [/calm|chill|relax|blue|ocean|sea/, 'tide'], [/aurora|northern|green/, 'aurora'], [/party|dance|disco/, 'strobe'],
@@ -4910,13 +4994,15 @@ function cxSyncHeroLabel() {
   const st = currentState.effectStatus?.radio;
   sub.textContent = st && st.playing && st.station ? '♫ ' + st.station.name.replace(/^[\s-]+/, '') : '';
 }
-function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncFavs(); cxSyncOptionPanels(); requestAnimationFrame(cxMoveBlob); }
+function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncFavs(); cxSyncOptionPanels(); cxSyncExtras(); requestAnimationFrame(cxMoveBlob); }
 
 function cxInit() {
   cxWireHero();
   cxWireAsk();
   cxWireAiSetup();
   cxWirePrefs();
+  cxWireVoice();
+  cxWireExtras();
   cxWireTiles();
   document.querySelectorAll('#tab-bar [data-tab]').forEach((b) => b.addEventListener('click', () => requestAnimationFrame(cxMoveBlob)));
   window.addEventListener('resize', cxMoveBlob);

@@ -23,6 +23,7 @@ const scenes = require('./scenes');
 const ai = require('./ai');
 const aiConfig = require('./aiConfig');
 const prefs = require('./prefs');
+const httpApi = require('./httpApi');
 const { spawn } = require('child_process');
 
 const COMMANDS = {
@@ -601,6 +602,21 @@ const COMMANDS = {
   setNightDim(ws, msg) {
     const p = this.state.prefs || prefs.load();
     this.state.prefs = prefs.save({ ...p, nightDim: { ...p.nightDim, ...msg, cmd: undefined } });
+    this._broadcast(this._stateMsg());
+  },
+
+  // My Photos: {name} removes one uploaded photo.
+  deletePhoto(ws, msg) {
+    if (typeof msg.name === 'string' && httpApi.deletePhoto(msg.name)) this._broadcast(this._stateMsg());
+  },
+  // Notifications: a fresh secret for the /api/notify link (the old one stops working).
+  newNotifyToken() {
+    httpApi.newNotifyToken();
+    this._broadcast(this._stateMsg());
+  },
+  // Clears a notification banner early.
+  clearNotice() {
+    this.state.notice = null;
     this._broadcast(this._stateMsg());
   },
 

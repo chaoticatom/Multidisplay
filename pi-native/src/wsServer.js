@@ -208,6 +208,7 @@ const { browserFrameSource } = require('./effects/video/browserFrameSource');
 const crypto = require('crypto');
 const { COMMANDS } = require('./wsCommands');
 const aiConfig = require('./aiConfig');
+const httpApi = require('./httpApi');
 const pinConfig = require('./pinConfig');
 
 const PREVIEW_FPS = 20; // matches the ESP32 firmware's streamFrameToCube() throttle
@@ -372,6 +373,8 @@ class WsServer {
   }
 
   _handleHttp(req, res) {
+    const authCode = (r) => (!isSameOrigin(r) ? 403 : !pinConfig.verifyPin(this.pinCfg, r.headers['x-control-pin']) ? 401 : 0);
+    if (httpApi.handle(this, req, res, authCode)) return;
     if (req.method === 'POST' && req.url.startsWith('/api/uploadVideo')) {
       if (!isSameOrigin(req)) { res.writeHead(403, { 'Content-Type': 'text/plain' }).end('Cross-origin upload refused'); return; }
       if (!pinConfig.verifyPin(this.pinCfg, req.headers['x-control-pin'])) { res.writeHead(401, { 'Content-Type': 'text/plain' }).end('Control PIN required'); return; }
@@ -639,6 +642,9 @@ class WsServer {
       wallLayouts: this.state.wallLayouts || [],
       ai: aiConfig.publicView(),
       prefs: this.state.prefs,
+      photos: httpApi.listPhotos(),
+      notifyToken: httpApi.notifyToken(),
+      notice: this.state.notice && this.state.notice.until > Date.now() ? this.state.notice : null,
     };
   }
 

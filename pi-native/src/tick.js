@@ -8,6 +8,7 @@
 // real behavior over time. Any future change to what a tick actually does
 // belongs HERE, not copy-pasted into app.js and the simulator separately.
 const { renderIdentify } = require('./effects/identify');
+const { renderNotice } = require('./effects/notice');
 const radio = require('./effects/radio');
 const { createFeatureState, updateFeatures, reactDt, pulseBuffer } = require('./effects/audioFeatures');
 const musicFeatures = createFeatureState();
@@ -95,6 +96,7 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
     alarms.applyDonePhase(core, state); // step 4
     alarms.renderPrePhase(core, dt, state, EFFECTS); // step 5 - overwrites colBuf, matches browser order exactly
   }
+  renderNotice(core, state, config.mode, dt); // a /api/notify banner sits on top of everything
 }
 
 module.exports = { tick, CROSSFADE_SECS };

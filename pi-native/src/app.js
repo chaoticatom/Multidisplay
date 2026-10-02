@@ -289,7 +289,7 @@ async function main() {
     savedVersion = ws.stateVersion; savedRadio = radioKey();
   }
   ws.saveSession = saveSession; // used by the restart/reboot commands
-  setInterval(() => { if (ws.stateVersion !== savedVersion || radioKey() !== savedRadio) saveSession(); }, 2000).unref();
+  setInterval(() => { if (ws.stateVersion !== savedVersion || radioKey() !== savedRadio) saveSession(); }, 30000).unref(); // 30 s, not 2 s: far fewer SD-card writes; a planned restart or shutdown saves immediately anyway
   if (resumeStation) {
     console.log('[session] resuming radio station:', resumeStation.name);
     if (useRenderWorker) renderWorker.postMessage({ type: 'effectCommand', cmd: 'radioPlay', payload: { station: resumeStation } });
