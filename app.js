@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.216';
+const APP_VERSION = '0.6.217';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -209,6 +209,7 @@ function handleTextMessage(msg) {
     const inp = document.getElementById('pin-input'); if (inp) { inp.value = ''; delete inp.dataset.pending; }
     return;
   }
+  if (msg.cmd === 'state' && ws && !ws._pvSent) { ws._pvSent = true; if (cxPreviewOff()) cxApplyPreviewOff(true); }
   if (msg.cmd === 'state') {
     // Every command triggers a state broadcast, and each one re-runs ~40
     // panel sync functions (several rebuild whole lists). An identical
@@ -2903,7 +2904,28 @@ function wireClearAllButton() {
   if (btn) btn.addEventListener('click', () => send({ cmd: 'clearAll' }));
 }
 
+// 💡 LED panels off (shared, on the Pi) and 👁 preview off (this device
+// only, remembered here and re-sent after every reconnect).
+function cxPreviewOff() { try { return localStorage.getItem('cxPreviewOff') === '1'; } catch (e) { return false; } }
+function cxApplyPreviewOff(off) {
+  document.body.classList.toggle('cx-preview-off', off);
+  try { localStorage.setItem('cxPreviewOff', off ? '1' : ''); } catch (e) { /* storage blocked */ }
+  send({ cmd: 'setPreviewOff', on: off });
+  const b = document.getElementById('preview-off-btn');
+  if (b) { b.classList.toggle('cx-muted', off); b.textContent = off ? '🙈' : '👁'; b.title = off ? 'Show the preview again' : 'Hide the preview on this device'; }
+}
+document.getElementById('preview-off-btn')?.addEventListener('click', () => cxApplyPreviewOff(!document.body.classList.contains('cx-preview-off')));
+document.getElementById('panels-off-btn')?.addEventListener('click', () => send({ cmd: 'setPanelsOff', on: !currentState.panelsOff }));
+function syncPanelsOffButton() {
+  const b = document.getElementById('panels-off-btn');
+  if (!b) return;
+  const off = !!currentState.panelsOff;
+  b.classList.toggle('cx-muted', off);
+  b.title = off ? 'Turn the LED panels back on' : 'LED panels off (preview and music keep going)';
+}
+
 function syncClearAllButton() {
+  syncPanelsOffButton();
   const btn = document.getElementById('clear-all-btn');
   if (btn) btn.classList.toggle('active', !!currentState.blank);
 }
@@ -4490,6 +4512,7 @@ function flushPanelFrames() {
 })();
 
 function handleFrame(buf) {
+  if (document.body.classList.contains('cx-preview-off')) return;
   const bytes = new Uint8Array(buf);
   const face = bytes[0];
   cxNoteFrame(face, bytes);

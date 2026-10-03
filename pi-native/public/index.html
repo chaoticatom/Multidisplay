@@ -805,6 +805,8 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 .cx-vinyl { width: 54px; height: 54px; flex-shrink: 0; border-radius: 50%; background: radial-gradient(circle, var(--cx2) 0 14%, #000 15% 18%, transparent 19%), repeating-radial-gradient(circle, #222 0 2px, #111 2px 4px);
   box-shadow: 0 0 0 2px var(--cx1), 0 0 22px var(--cx1); animation: cx-spin 3s linear infinite; animation-play-state: paused; }
 #cx-np.playing .cx-vinyl { animation-play-state: running; }
+body.cx-preview-off #c, body.cx-preview-off #panel2d-canvas, body.cx-preview-off #wall-preview, body.cx-preview-off #cx-hero-canvas { visibility: hidden; }
+#panels-off-btn.cx-muted, #preview-off-btn.cx-muted { opacity: 1; }
 #stop-sound-btn.cx-quiet { opacity: .4; }
 /* time ring */
 #cx-ring-wrap { position: relative; width: 210px; height: 210px; margin: 0 auto 12px; }
@@ -1027,6 +1029,8 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
            82px still overlapped the slider at the larger mobile font. -->
       <span class="slider-label" id="bright-label" aria-hidden="true">☀</span>
       <input type="range" id="bright-slider" min="0.1" max="1.5" step="0.05" value="1.15" aria-label="Brightness">
+      <button class="cx-round" id="panels-off-btn" title="LED panels off (preview and music keep going)" aria-label="LED panels off">💡</button>
+      <button class="cx-round" id="preview-off-btn" title="Hide the preview on this device" aria-label="Hide the preview">👁</button>
       <button class="cx-round" id="stop-sound-btn" title="Mute" aria-label="Mute">🔊</button>
       <button class="cx-round cx-round-off" id="clear-all-btn" title="Display off (music keeps playing)" aria-label="Display off, music keeps playing"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
     </div>
@@ -2333,6 +2337,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.216"></script>
+<script src="app.js?v=0.6.217"></script>
 </body>
 </html>

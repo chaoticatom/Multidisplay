@@ -637,6 +637,7 @@ class WsServer {
       effect: this.state.effect, brightness: this.state.brightness, speed: this.state.speed,
       controlPinSet: pinConfig.isPinSet(this.pinCfg),
       blank: !!this.state.blank,
+      panelsOff: !!this.state.panelsOff,
       musicReact: this.state.musicReact || { on: false, amount: 0.6 },
       scenes: (this.state.scenes || []).map((sc) => ({ name: sc.name, effect: sc.effect })),
       panelSize: this.config.size, panelMode: this.config.mode, panels: this.config.panels,
@@ -851,7 +852,7 @@ class WsServer {
         }
       }
       for (const client of this._clients) {
-        if (client.readyState === WebSocket.OPEN) client.send(buf);
+        if (client.readyState === WebSocket.OPEN && !client.previewOff) client.send(buf);
       }
     }
   }
@@ -888,7 +889,7 @@ class WsServer {
         }
       }
       for (const client of this._clients) {
-        if (client.readyState === WebSocket.OPEN) client.send(buf);
+        if (client.readyState === WebSocket.OPEN && !client.previewOff) client.send(buf);
       }
     });
   }

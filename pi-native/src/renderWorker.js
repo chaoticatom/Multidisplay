@@ -166,7 +166,7 @@ parentPort.on('message', (msg) => {
     // a dead copy under RENDER_WORKER=1 (see this worker's module comment).
     if (!state.effectStatus) state.effectStatus = {};
     state.effectStatus.radio = radio.getStatus();
-    driver.renderFrame(core, state.brightness * prefs.nightFactor(state.prefs));
+    driver.renderFrame(core, state.panelsOff ? 0 : state.brightness * prefs.nightFactor(state.prefs));
     const renderMs = performance.now() - frameStart; // tick + panel push, for Diagnostics
     // Frames go back through SharedArrayBuffers instead of a fresh
     // .slice() copy per frame (which also had to be structured-cloned):

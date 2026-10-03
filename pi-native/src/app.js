@@ -426,7 +426,7 @@ async function main() {
       // additive updates instead of rewriting every LED every frame (all
       // effects ported so far happen to do a full rewrite, so it wouldn't
       // have shown up yet - not worth relying on that staying true).
-      driver.renderFrame(core, state.brightness * prefs.nightFactor(state.prefs));
+      driver.renderFrame(core, state.panelsOff ? 0 : state.brightness * prefs.nightFactor(state.prefs));
       diag.recordFrame(performance.now() - frameStart);
       ws.maybeStreamFrame(core, state.brightness);
     }, 1000 / SINGLE_THREAD_TICK_HZ);

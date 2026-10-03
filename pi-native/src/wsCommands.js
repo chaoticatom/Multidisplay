@@ -125,6 +125,18 @@ const COMMANDS = {
     this._broadcast(this._stateMsg());
   },
 
+  // {on}: turns the LED panels dark while the effect, the web preview and
+  // the music all keep running.
+  setPanelsOff(ws, msg) {
+    this.state.panelsOff = !!msg.on;
+    this._broadcast(this._stateMsg());
+  },
+  // {on}: this browser stops receiving preview frames (saves phone battery
+  // and Pi work); per connection, nothing else changes.
+  setPreviewOff(ws, msg) {
+    ws.previewOff = !!msg.on;
+  },
+
   setIdentifyPanels(ws, msg) {
     // "Identify Panels" - a wiring-calibration toggle, not an effect (see
     // tick.js/identify.js). Labels each physical panel with its own
