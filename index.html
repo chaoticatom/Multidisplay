@@ -751,10 +751,8 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 #sidebar::before { content: ""; position: absolute; inset: -20%; z-index: -1; pointer-events: none;
   background: radial-gradient(closest-side, var(--cx1), transparent 70%) 10% 0%/80% 45% no-repeat,
               radial-gradient(closest-side, var(--cx2), transparent 70%) 100% 60%/80% 50% no-repeat;
-  filter: blur(50px); opacity: .32; transition: background 1s; animation: cx-drift 16s ease-in-out infinite alternate; }
+  filter: blur(50px); opacity: .32; animation: cx-drift 16s ease-in-out infinite alternate; }
 @keyframes cx-drift { to { transform: translate(4%, -3%) rotate(6deg); } }
-#sidebar::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 5;
-  box-shadow: inset 0 0 calc(10px + var(--cx-beat) * 40px) calc(var(--cx-beat) * 6px) var(--cx1); transition: box-shadow .12s; }
 #cx-hero { position: relative; margin: 6px 10px 4px; border-radius: 18px; overflow: hidden; background: #000; touch-action: none; cursor: grab; flex-shrink: 0;
   box-shadow: 0 0 0 1px rgba(255,255,255,.1), 0 14px 40px -12px var(--cx1); transform: translateX(calc(var(--swipe, 0) * 18px)); transition: box-shadow 1s; }
 #cx-hero canvas { display: block; height: auto; max-width: 100%; max-height: 24vh; width: auto; margin: 0 auto; }

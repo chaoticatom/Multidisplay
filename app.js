@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.194';
+const APP_VERSION = '0.6.195';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -4557,7 +4557,8 @@ document.addEventListener('DOMContentLoaded', () => {
 // =====================================================================
 const _cxFaces = {}; // cube mode: face -> latest frame bytes, for the hero strip
 const _cxFaceCanvases = [];
-let _cxHero = null, _cxHeroCtx = null, _cxSample = null, _cxBeat = 0, _cxLum = 0;
+let _cxHero = null, _cxHeroCtx = null, _cxSample = null;
+const _cxC1 = [91, 124, 255], _cxC2 = [180, 91, 255];
 
 function cxNoteFrame(face, bytes) { if (currentState.panelMode === 'cube') _cxFaces[face] = bytes; }
 
@@ -4664,19 +4665,16 @@ function cxColourSync() {
     const sat = Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]);
     if (sat > best) { best = sat; br = d[i]; bg = d[i + 1]; bb = d[i + 2]; }
   }
-  const n = d.length / 4, lift = (v) => Math.round(Math.min(255, v * 1.6 + 40));
+  const n = d.length / 4, lift = (v) => Math.min(255, v * 1.6 + 40);
+  // Drift slowly towards the display's colours (a quick snap made the page
+  // glow flash with every change in the effect). A dark or grey picture
+  // drifts back to the default blue/violet.
+  const t1 = best > 40 ? [lift(r / n), lift(g / n), lift(b / n)] : [91, 124, 255];
+  const t2 = best > 40 ? [lift(br), lift(bg), lift(bb)] : [180, 91, 255];
+  for (let k = 0; k < 3; k++) { _cxC1[k] += (t1[k] - _cxC1[k]) * 0.06; _cxC2[k] += (t2[k] - _cxC2[k]) * 0.06; }
   const root = document.documentElement.style;
-  // A dark or grey picture keeps the default blue/violet instead of turning the page grey.
-  if (best > 40) {
-    root.setProperty('--cx1', `rgb(${lift(r / n)},${lift(g / n)},${lift(b / n)})`);
-    root.setProperty('--cx2', `rgb(${lift(br)},${lift(bg)},${lift(bb)})`);
-  } else { root.removeProperty('--cx1'); root.removeProperty('--cx2'); }
-  // Beat: a jump in brightness while a station plays pulses the menu edge.
-  const lum = (r + g + b) / n / 765;
-  const playing = !!currentState.effectStatus?.radio?.playing;
-  if (playing && lum > _cxLum * 1.18 + 0.01) _cxBeat = 1; else _cxBeat *= 0.75;
-  _cxLum += (lum - _cxLum) * 0.2;
-  root.setProperty('--cx-beat', playing ? _cxBeat.toFixed(2) : '0');
+  root.setProperty('--cx1', `rgb(${_cxC1.map(Math.round).join(',')})`);
+  root.setProperty('--cx2', `rgb(${_cxC2.map(Math.round).join(',')})`);
 }
 
 // ── Liquid dock: one gradient blob slides between the four tabs.
