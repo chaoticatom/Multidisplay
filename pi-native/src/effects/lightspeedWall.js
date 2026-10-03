@@ -13,6 +13,7 @@
 // nudge/count/colour) as the cube version, so the sidebar's Light Speed
 // panel controls both without needing separate wall-specific options.
 const { hsl } = require('../core');
+const { tempo } = require('./audioFeatures');
 
 let lsWallRacers = [];
 let lsWallT = 0;
@@ -35,6 +36,7 @@ function resetLightspeedWall(core, lsCount) {
 }
 
 function effectLightspeedWall(core, dt) {
+  dt *= tempo(core); // moves to the music: faster with the bass, a burst on each kick
   lsWallT += dt;
   const { wallW, wallH, wallBuf } = core;
   if (!wallW) return; // core.initWall() hasn't run yet (wall mode not active)

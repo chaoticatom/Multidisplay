@@ -8,6 +8,7 @@
 // than live-adding/removing racers mid-run - ui.js's #ls-count listener
 // doesn't call resetLightspeed() either, it just mutates the count.
 const { hsl } = require('../core');
+const { tempo } = require('./audioFeatures');
 
 let lsRacers = [];
 let lsT = 0;
@@ -70,6 +71,7 @@ function resetLightspeed(core, lsCount) {
 }
 
 function effectLightspeed(core, dt) {
+  dt *= tempo(core); // moves to the music: faster with the bass, a burst on each kick
   lsT += dt;
   const { N, SIZE, colBuf, faceMap } = core;
   const opts = core.effectOptions?.lightspeed || {};

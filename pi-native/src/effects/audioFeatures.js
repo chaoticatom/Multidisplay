@@ -67,4 +67,13 @@ function pulseBuffer(f, buf, amount) {
   for (let i = 0; i < buf.length; i++) buf[i] *= k;
 }
 
-module.exports = { createFeatureState, updateFeatures, reactDt, pulseBuffer, BASS_END, MID_END };
+// For effects that react to music themselves: true on the one tick a beat
+// is detected, and the current features (or zeros when nothing plays).
+const SILENT = { level: 0, bass: 0, mid: 0, treble: 0, beat: 0, active: false };
+function kick(core) { return !!(core.audio && core.audio.active && core.audio.beat === 1); }
+// Time multiplier for effects that move "to the music": faster with the
+// bass, a burst on each kick, exactly 1 in silence.
+function tempo(core) { const m = core.audio && core.audio.active ? core.audio : null; return m ? 1 + m.bass * 0.8 + m.beat * 0.6 : 1; }
+function music(core) { return core.audio && core.audio.active ? core.audio : SILENT; }
+
+module.exports = { createFeatureState, updateFeatures, reactDt, pulseBuffer, kick, music, tempo, BASS_END, MID_END };

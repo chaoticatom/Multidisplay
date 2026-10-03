@@ -1,5 +1,6 @@
 // Ported verbatim (math unchanged) from effects-motion.js's effectWarp().
 const { hsl } = require('../core');
+const { tempo } = require('./audioFeatures');
 const { trailFade } = require('./trail');
 
 let warpStars = [];
@@ -15,6 +16,7 @@ function resetWarp(core) {
 }
 
 function effectWarp(core, dt) {
+  dt *= tempo(core); // moves to the music: faster with the bass, a burst on each kick
   core.t += dt;
   const { SIZE, N, colBuf } = core;
   if (!warpStars.length) resetWarp(core);

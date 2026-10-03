@@ -7,6 +7,7 @@
 const { hsl } = require('../core');
 const { FONT_3x5, drawGlyph } = require('./text');
 const { defineCanvasEffect } = require('./canvas');
+const { music } = require('./audioFeatures');
 
 const GRID = ['ITLISASAMPM', 'ACQUARTERDC', 'TWENTYFIVEX', 'HALFSTENFTO', 'PASTERUNINE', 'ONESIXTHREE', 'FOURFIVETWO', 'EIGHTELEVEN', 'SEVENTWELVE', 'TENSEOCLOCK'];
 const W = {
@@ -28,8 +29,9 @@ function litWords(date) {
 }
 
 module.exports = defineCanvasEffect({
-  render(c, { t }) {
+  render(c, { t, core }) {
     c.clear();
+    const beat = music(core).beat; // lit words glow on the beat
     const on = new Set();
     for (const w of litWords(new Date())) { const [r, col, n] = W[w]; for (let i = 0; i < n; i++) on.add(r * 11 + col + i); }
     // Letters spread evenly over the whole canvas (11 columns x 10 rows), so
@@ -39,7 +41,7 @@ module.exports = defineCanvasEffect({
     for (let r = 0; r < 10; r++) {
       for (let col = 0; col < 11; col++) {
         const lit = on.has(r * 11 + col);
-        const [cr, cg, cb] = lit ? hsl(t * 0.03 + col * 0.02 + r * 0.03, 0.85, 0.55) : [0.05, 0.05, 0.07];
+        const [cr, cg, cb] = lit ? hsl(t * 0.03 + col * 0.02 + r * 0.03, 0.85, 0.55 + beat * 0.25) : [0.05, 0.05, 0.07];
         const x = Math.round(col * cw + (cw - 3 * scale) / 2), y = Math.round(r * ch + (ch - 5 * scale) / 2);
         drawGlyph(FONT_3x5, GRID[r][col], x, y, (px, py) => c.set(px, py, cr, cg, cb), { scale });
       }

@@ -12,6 +12,7 @@
 // core.setFaceLED.
 const { hsl } = require('../core');
 const { trailFade } = require('./trail');
+const { kick, music } = require('./audioFeatures');
 
 let strikeBranches = 0;
 let wallBolts = [], wallLightningT = 0, wallStormT = 0, wallThunder = 0;
@@ -86,6 +87,8 @@ function effectLightningWall(core, dt) {
   // Strikes — random intervals roughly around the speed setting
   const baseRate = 0.8 / Math.max(0.1, speedMult);
   const rate = baseRate * (0.3 + Math.random() * 1.4);
+  // Music: a strike on every kick, an extra bolt on loud passages.
+  if (kick(core)) { spawnStrikeWall(core); if (music(core).level > 0.4) spawnStrikeWall(core); wallLightningT = 0; }
   if (wallLightningT > rate) {
     wallLightningT = 0; spawnStrikeWall(core);
     if (Math.random() < 0.4) setTimeout(() => spawnStrikeWall(core), 70);

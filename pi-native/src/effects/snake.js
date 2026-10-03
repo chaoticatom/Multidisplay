@@ -7,6 +7,7 @@
 const { hsl } = require('../core');
 const { FONT_3x5, drawString, textWidth } = require('./text');
 const { defineCanvasEffect } = require('./canvas');
+const { tempo } = require('./audioFeatures');
 
 const CELL = 4;
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
@@ -55,7 +56,7 @@ module.exports = defineCanvasEffect({
       }
       g.lastPress = o.press;
     }
-    g.acc += dt;
+    g.acc += dt * tempo(core); // to the music
     const every = Math.max(0.05, 0.13 - g.body.length * 0.0015);
     while (g.acc > every) { g.acc -= every; step(); }
     c.clear();

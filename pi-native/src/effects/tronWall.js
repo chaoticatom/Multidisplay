@@ -30,6 +30,7 @@
 // null means "wall/edge, illegal move", handled by callers exactly like an
 // occupied-trail cell.
 const { hsl } = require('../core');
+const { tempo } = require('./audioFeatures');
 
 const TRON_HUES = [0.57, 0.08, 0.92, 0.33, 0.70, 0.15, 0.50, 0.02];
 const TRON_GRIDS = [[0.01, 0.06, 0.12], [0.01, 0.06, 0.01], [0.06, 0.01, 0.06], [0.04, 0.04, 0.04]];
@@ -365,6 +366,7 @@ function tronRenderScoreOnLEDs(core, dt) {
 }
 
 function effectTronWall(core, dt) {
+  dt *= tempo(core); // moves to the music: faster with the bass, a burst on each kick
   const { wallW, wallH } = core;
   if (!wallW) return; // core.initWall() hasn't run yet (wall mode not active)
   const N = wallW * wallH;

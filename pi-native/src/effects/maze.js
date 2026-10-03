@@ -18,6 +18,7 @@
 // wiring - so the tick loop can detect "the user clicked New Maze" without
 // a dedicated one-shot WS command).
 const { hsl } = require('../core');
+const { tempo } = require('./audioFeatures');
 const { surfIdx } = require('./_shared');
 
 let mazeOpen = null, mazeVisited = null, mazeRunners = [], mazeBFS = [];
@@ -284,6 +285,7 @@ function mazeMark(core, i, r, g, b) {
 }
 
 function effectMaze(core, dt) {
+  dt *= tempo(core); // moves to the music: faster with the bass, a burst on each kick
   const { N, colBuf } = core;
   const rebuildToken = core.effectOptions?.maze?.newMaze;
   const needsRebuild = !mazeOpen || mazeOpen.length !== N || (rebuildToken !== undefined && rebuildToken !== lastRebuildToken);

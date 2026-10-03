@@ -5,6 +5,7 @@ const { readSectionJson, writeSection } = require('./settingsStore');
 
 const DEFAULT = {
   favourites: [],
+  stations: [], // favourite radio stations: [{ name, genre, url }]
   playlist: { on: false, minutes: 5 },
   nightDim: { on: false, from: 22, to: 7, level: 0.3 },
   look: { on: true, bloom: 0.65, vibrance: 0.35, smooth: 0, depth: 0.5, palette: 'auto' },
@@ -13,6 +14,10 @@ const DEFAULT = {
 function clean(p) {
   const out = JSON.parse(JSON.stringify(DEFAULT));
   if (p && Array.isArray(p.favourites)) out.favourites = p.favourites.filter((k) => typeof k === 'string').slice(0, 60);
+  if (p && Array.isArray(p.stations)) {
+    out.stations = p.stations.filter((x) => x && typeof x.url === 'string' && /^https?:\/\//.test(x.url))
+      .slice(0, 50).map((x) => ({ name: String(x.name || 'Station').slice(0, 80), genre: String(x.genre || '').slice(0, 60), url: x.url.slice(0, 500) }));
+  }
   if (p && p.playlist) {
     out.playlist.on = !!p.playlist.on;
     const m = Number(p.playlist.minutes);

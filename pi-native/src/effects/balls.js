@@ -27,6 +27,7 @@
 // `ballCrossFaces=true` module default. ballsPerFace ->
 // core.effectOptions.balls.count (the "Balls per face" slider), default 3.
 const { getLocalGravity } = require('./_shared');
+const { tempo } = require('./audioFeatures');
 
 let balls = [], ballFlashes = [];
 let ballPrevGx = 0, ballPrevGy = -1, ballPrevGz = 0;
@@ -143,6 +144,7 @@ function resetBalls(core) {
 }
 
 function effectBouncingBalls(core, dt) {
+  dt *= tempo(core); // moves to the music: faster with the bass, a burst on each kick
   core.t += dt;
   const { N, SIZE: S, faceMap, colBuf } = core;
   const panel2dMode = core.panelMode === '2d';

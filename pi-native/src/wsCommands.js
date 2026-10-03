@@ -591,6 +591,17 @@ const COMMANDS = {
     this._broadcast(this._stateMsg());
   },
 
+  // Favourite radio stations: {station: {name, genre, url}}. Toggles.
+  toggleStationFav(ws, msg) {
+    const st = msg.station;
+    if (!st || typeof st.url !== 'string') return;
+    const p = this.state.prefs || prefs.load();
+    const list = p.stations.filter((x) => x.url !== st.url);
+    if (list.length === p.stations.length) list.unshift({ name: st.name, genre: st.genre, url: st.url });
+    this.state.prefs = prefs.save({ ...p, stations: list });
+    this._broadcast(this._stateMsg());
+  },
+
   // Playlist: {on, minutes} - cycles through the favourites (see
   // WsServer._playlistTick). Night dimming: {on, from, to, level}.
   setPlaylist(ws, msg) {

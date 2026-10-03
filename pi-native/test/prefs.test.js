@@ -12,3 +12,7 @@ ok('eases in before it starts', () => { const v = prefs.nightFactor(p, at(21, 45
 ok('eases out before it ends', () => { const v = prefs.nightFactor(p, at(6, 45)); assert.ok(v < 1 && v > 0.3, String(v)); });
 ok('off means 1', () => assert.strictEqual(prefs.nightFactor(prefs.clean({}), at(2)), 1));
 ok('cleans bad values', () => { const c = prefs.clean({ favourites: [1, 'aurora'], playlist: { minutes: 9999 }, nightDim: { from: 30, level: 5 } }); assert.deepStrictEqual(c.favourites, ['aurora']); assert.strictEqual(c.playlist.minutes, 120); assert.strictEqual(c.nightDim.from, 22); assert.strictEqual(c.nightDim.level, 1); });
+ok('favourite stations keep only http(s) URLs', () => {
+  const c = prefs.clean({ stations: [{ name: 'A', url: 'https://a/s' }, { name: 'B', url: 'javascript:alert(1)' }, null] });
+  assert.deepStrictEqual(c.stations, [{ name: 'A', genre: '', url: 'https://a/s' }]);
+});

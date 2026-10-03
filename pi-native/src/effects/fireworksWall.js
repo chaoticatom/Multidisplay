@@ -1,3 +1,4 @@
+const { kick, music } = require('./audioFeatures');
 // Wall-mode counterpart to fireworks.js. Same three modes and same
 // documented mode-handling split as the cube version (see that file's
 // module comment for the general "ported vs re-implemented" reasoning) -
@@ -349,6 +350,11 @@ function effectFireworksWall(core, dt) {
   // ad-lib random/mic launch loop, not 'sync's fixed choreography.
   const maxConcurrent = Math.max(1, Math.min(10, Math.round(opts.quantity) || 6));
   while (fwActiveExpiry.length && fwActiveExpiry[0] <= core.t) fwActiveExpiry.shift();
+  // Music: a rocket on every kick (two on loud passages).
+  if (mode !== 'sync' && kick(core)) {
+    const n = music(core).level > 0.35 ? 2 : 1;
+    for (let k = 0; k < n && fwActiveExpiry.length < maxConcurrent + 4; k++) { fwLaunch(core); fwActiveExpiry.push(core.t + FW_LIFETIME_EST); }
+  }
   if (mode === 'random' || mode === 'mic') {
     // 'mic' has no audio-input pipeline here (see module comment) - falls
     // back to the same launch cadence as 'random'.

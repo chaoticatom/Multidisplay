@@ -4,6 +4,7 @@
 // (see wsServer.js's setEffectOption / app.js), matching the browser's
 // plain `rainStyle` module variable set by ui.js's rain-style-btn clicks.
 const { hsl } = require('../core');
+const { tempo } = require('./audioFeatures');
 const { trailFade } = require('./trail');
 
 let rainDrops = [];
@@ -40,6 +41,7 @@ function initMatrixStreams(SIZE) {
 }
 
 function effectRainMatrix(core, dt) {
+  dt *= tempo(core); // moves to the music: faster with the bass, a burst on each kick
   const { SIZE, faceMap, colBuf } = core;
   if (!matrixStreams || matrixStreams.length === 0 || matrixStreams[0].length !== SIZE) initMatrixStreams(SIZE);
 

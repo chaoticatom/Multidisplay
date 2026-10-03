@@ -33,6 +33,7 @@
 // 64x64 face rather than hardcoded to `count*2`, keeping ball density
 // roughly constant regardless of how many panels are placed.
 const { getLocalGravity } = require('./_shared');
+const { tempo } = require('./audioFeatures');
 
 let wBalls = [];
 let _resetKey = null;
@@ -68,6 +69,7 @@ function resetWBalls(core) {
 }
 
 function effectBouncingBallsWall(core, dt) {
+  dt *= tempo(core); // moves to the music: faster with the bass, a burst on each kick
   core.t += dt;
   const { wallW, wallH, wallBuf } = core;
   if (!wallW) return; // core.initWall() hasn't run yet (wall mode not active)

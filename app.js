@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.199';
+const APP_VERSION = '0.6.200';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2341,7 +2341,12 @@ function radioStationRow(station, current) {
   const div = document.createElement('div');
   const isCurrent = current && current.url === station.url;
   div.className = 'cx-station' + (isCurrent ? ' on' : '');
-  div.innerHTML = `<span class="cx-station-play">${isCurrent ? '❚❚' : '▶'}</span><span class="cx-station-txt"><b>${escHtml(station.name)}</b>${station.genre ? `<small>${escHtml(station.genre)}</small>` : ''}</span>${isCurrent ? '<span class="cx-eq"><i></i><i></i><i></i></span>' : ''}`;
+  const fav = (currentState.prefs?.stations || []).some((x) => x.url === station.url);
+  div.innerHTML = `<span class="cx-station-play">${isCurrent ? '❚❚' : '▶'}</span><span class="cx-station-txt"><b>${escHtml(station.name)}</b>${station.genre ? `<small>${escHtml(station.genre)}</small>` : ''}</span>${isCurrent ? '<span class="cx-eq"><i></i><i></i><i></i></span>' : ''}<span class="cx-station-fav${fav ? ' on' : ''}" role="button" title="${fav ? 'Remove from My stations' : 'Add to My stations'}">★</span>`;
+  div.querySelector('.cx-station-fav').addEventListener('click', (e) => {
+    e.stopPropagation();
+    send({ cmd: 'toggleStationFav', station: { name: station.name, genre: station.genre || '', url: station.url } });
+  });
   div.addEventListener('click', () => {
     send({ cmd: 'radioPlay', station });
     // Fired directly inside this click's own handler (a genuine user
@@ -2689,10 +2694,19 @@ function syncRadioPanel() {
   const resultsEl = panel.querySelector('.radio-search-results-el');
   if (resultsEl && search) renderSearchResults(resultsEl, search.results, current);
 
+  // Re-render when the playing station or the favourites change (stars).
+  const favs = currentState.prefs?.stations || [];
+  const listKey = (current?.url || '') + '|' + favs.map((x) => x.url).join(',');
   const featuredEl = panel.querySelector('.radio-station-list-el');
-  if (featuredEl && featuredEl.dataset.lastCurrent !== (current?.url || '')) {
-    featuredEl.dataset.lastCurrent = current?.url || '';
+  if (featuredEl && featuredEl.dataset.lastCurrent !== listKey) {
+    featuredEl.dataset.lastCurrent = listKey;
     renderFeaturedList(featuredEl, current);
+    const favEl = panel.querySelector('.radio-fav-list-el');
+    if (favEl) {
+      favEl.replaceChildren(...favs.map((st) => radioStationRow(st, current)));
+      if (!favs.length) favEl.innerHTML = '<div class="ui-note">Tap ★ on any station to keep it here.</div>';
+    }
+    if (resultsEl && search) renderSearchResults(resultsEl, search.results, current);
   }
 
   const spectrumChk = panel.querySelector('.ov-chk[data-ov="spectrum"]');

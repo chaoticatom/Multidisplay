@@ -25,6 +25,7 @@
 // milliseconds - nothing like the O(board) flood-fill cost that forced
 // tron's non-allocating rewrite. No cap is needed or applied.
 const { hsl } = require('../core');
+const { tempo } = require('./audioFeatures');
 
 let mazeOpen = null, mazeVisited = null, mazeRunners = [], mazeBFS = [];
 let mazeState = 'run', mazeStateT = 0, mazeWinner = -1;
@@ -280,6 +281,7 @@ function mazeMark(core, i, r, g, b) {
 }
 
 function effectMazeWall(core, dt) {
+  dt *= tempo(core); // moves to the music: faster with the bass, a burst on each kick
   const { wallW, wallH } = core;
   if (!wallW) return; // core.initWall() hasn't run yet (wall mode not active)
   const N = wallW * wallH;

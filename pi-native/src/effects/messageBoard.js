@@ -5,6 +5,7 @@
 const { hsl } = require('../core');
 const { FONT_5x7, drawGlyph } = require('./text');
 const { defineCanvasEffect } = require('./canvas');
+const { music } = require('./audioFeatures');
 
 let scroll = 0;
 
@@ -37,7 +38,8 @@ module.exports = defineCanvasEffect({
         if (x > c.W) break;
         if (x + adv >= 0) {
           drawGlyph(FONT_5x7, ch, x, top, (px, py) => {
-            const [r, g, b] = colourFor(style, px, py - top, t, gh);
+            const [r0, g0, b0] = colourFor(style, px, py - top, t, gh), k = 1 + music(core).beat * 0.5; // pulses on the beat
+            const r = Math.min(1, r0 * k), g = Math.min(1, g0 * k), b = Math.min(1, b0 * k);
             c.set(px, py, r, g, b);
             if (glow) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) c.add(px + dx * scale, py + dy * scale, r * 0.12, g * 0.12, b * 0.12);
           }, { scale });

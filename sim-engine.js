@@ -219,6 +219,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
+      var tempoField = (core) => core.audio && core.audio.active ? 1 + core.audio.bass * 0.5 : 1;
       var axisCache = /* @__PURE__ */ new Map();
       function axis(n) {
         let a = axisCache.get(n);
@@ -253,7 +254,7 @@ var PiEngine = (() => {
         }
         const ctx = { t: 0, dt: 0, count: 0, flat: false, core: null };
         function cube(core, dt) {
-          core.t += dt * speed;
+          core.t += dt * speed * tempoField(core);
           const { N, surfX, surfY, surfZ } = core;
           Object.assign(ctx, { t: core.t, dt, count: N, flat: false, core });
           p.flat = false;
@@ -307,7 +308,7 @@ var PiEngine = (() => {
           }
         }
         function wall(core, dt) {
-          core.t += dt * speed;
+          core.t += dt * speed * tempoField(core);
           const { wallW, wallH } = core;
           if (!wallW) return;
           Object.assign(ctx, { t: core.t, dt, count: wallW * wallH, flat: true, core });
@@ -1879,113 +1880,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/snake.js
-  var require_snake = __commonJS({
-    "src/effects/snake.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var { FONT_3x5, drawString, textWidth } = require_text();
-      var { defineCanvasEffect } = require_canvas();
-      var CELL = 4;
-      var DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
-      var g = { cols: 0, rows: 0, body: [], dir: [1, 0], food: null, acc: 0, lastPress: -1, manualUntil: 0, dead: 0, best: 0, now: 0 };
-      function reset(cols, rows) {
-        g.cols = cols;
-        g.rows = rows;
-        const y = rows >> 1;
-        g.body = [[4, y], [3, y], [2, y]];
-        g.dir = [1, 0];
-        g.dead = 0;
-        placeFood();
-      }
-      function placeFood() {
-        for (let i = 0; i < 500; i++) {
-          const f = [Math.floor(Math.random() * g.cols), Math.floor(Math.random() * g.rows)];
-          if (!g.body.some((b) => b[0] === f[0] && b[1] === f[1])) {
-            g.food = f;
-            return;
-          }
-        }
-      }
-      var blocked = (x, y) => x < 0 || y < 0 || x >= g.cols || y >= g.rows || g.body.slice(0, -1).some((b) => b[0] === x && b[1] === y);
-      function autopilot() {
-        const [hx, hy] = g.body[0];
-        const opts = Object.values(DIRS).filter(([dx, dy]) => !(dx === -g.dir[0] && dy === -g.dir[1]) && !blocked(hx + dx, hy + dy));
-        if (!opts.length) return;
-        opts.sort((a, b) => Math.abs(hx + a[0] - g.food[0]) + Math.abs(hy + a[1] - g.food[1]) - (Math.abs(hx + b[0] - g.food[0]) + Math.abs(hy + b[1] - g.food[1])));
-        g.dir = opts[0];
-      }
-      function step() {
-        if (g.dead > 0) {
-          g.dead -= 1;
-          if (g.dead === 0) reset(g.cols, g.rows);
-          return;
-        }
-        if (g.now > g.manualUntil) autopilot();
-        const nx = g.body[0][0] + g.dir[0], ny = g.body[0][1] + g.dir[1];
-        if (blocked(nx, ny)) {
-          g.best = Math.max(g.best, g.body.length - 3);
-          g.dead = 12;
-          return;
-        }
-        g.body.unshift([nx, ny]);
-        if (nx === g.food[0] && ny === g.food[1]) placeFood();
-        else g.body.pop();
-      }
-      module.exports = defineCanvasEffect({
-        render(c, { t, dt, core }) {
-          const cols = Math.floor(c.W / CELL), rows = Math.floor(c.H / CELL);
-          if (cols !== g.cols || rows !== g.rows || !g.body.length) reset(cols, rows);
-          g.now = t;
-          const o = core.effectOptions && core.effectOptions.snake || {};
-          if (o.press !== void 0 && o.press !== g.lastPress) {
-            if (g.lastPress !== -1 && DIRS[o.dir]) {
-              const d = DIRS[o.dir];
-              if (!(d[0] === -g.dir[0] && d[1] === -g.dir[1])) g.dir = d;
-              g.manualUntil = t + 8;
-            }
-            g.lastPress = o.press;
-          }
-          g.acc += dt;
-          const every = Math.max(0.05, 0.13 - g.body.length * 15e-4);
-          while (g.acc > every) {
-            g.acc -= every;
-            step();
-          }
-          c.clear();
-          const ox = Math.floor((c.W - cols * CELL) / 2), oy = Math.floor((c.H - rows * CELL) / 2);
-          for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if ((x + y) % 2) for (let i = 0; i < CELL; i++) for (let j = 0; j < CELL; j++) c.set(ox + x * CELL + i, oy + y * CELL + j, 0.02, 0.025, 0.04);
-          const cell = (x, y, r, gr, b, inset = 0) => {
-            for (let i = inset; i < CELL - inset; i++) for (let j = inset; j < CELL - inset; j++) c.set(ox + x * CELL + i, oy + y * CELL + j, r, gr, b);
-          };
-          const pulse = 0.6 + 0.4 * Math.sin(t * 8);
-          if (g.food) cell(g.food[0], g.food[1], 1 * pulse, 0.2 * pulse, 0.35 * pulse);
-          const flash = g.dead > 0 && g.dead % 2;
-          g.body.forEach(([x, y], i) => {
-            const [r, gr, b] = flash ? [1, 0.2, 0.2] : hsl(0.33 + i * 0.012, 0.9, i === 0 ? 0.6 : 0.45 - Math.min(0.2, i * 4e-3));
-            cell(x, y, r, gr, b, i === 0 ? 0 : 0.5 > 1 ? 1 : 0);
-          });
-          const score = String(g.body.length - 3);
-          drawString(FONT_3x5, score, c.W - textWidth(FONT_3x5, score) - 1, 1, (x, y) => c.add(x, y, 0.5, 0.5, 0.6));
-        }
-      });
-    }
-  });
-
-  // sim/shims/child_process.js
-  var require_child_process = __commonJS({
-    "sim/shims/child_process.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      function spawn() {
-        throw new Error("video playback (ffmpeg) is not available in the browser simulator");
-      }
-      module.exports = { spawn };
-    }
-  });
-
   // src/effects/radio/fft.js
   var require_fft = __commonJS({
     "src/effects/radio/fft.js"(exports, module) {
@@ -2120,6 +2014,179 @@ var PiEngine = (() => {
         return Float32Array.from(a.analyse(ring, samples.length));
       }
       module.exports = { fft, computeBands, createAnalyser, BAND_COUNT, WINDOW, nextPow2, F_MIN, F_MAX };
+    }
+  });
+
+  // src/effects/audioFeatures.js
+  var require_audioFeatures = __commonJS({
+    "src/effects/audioFeatures.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { F_MIN, F_MAX, BAND_COUNT } = require_fft();
+      var bandFor = (hz) => Math.max(0, Math.min(BAND_COUNT - 1, Math.round(BAND_COUNT * Math.log(hz / F_MIN) / Math.log(F_MAX / F_MIN))));
+      var BASS_END = bandFor(150);
+      var MID_END = bandFor(2e3);
+      function mean(arr, a, b) {
+        let s = 0;
+        for (let i = a; i < b; i++) s += arr[i];
+        return b > a ? s / (b - a) : 0;
+      }
+      function createFeatureState() {
+        return { level: 0, bass: 0, mid: 0, treble: 0, beat: 0, active: false, bassSlow: 0, sinceBeat: 1 };
+      }
+      function updateFeatures(st, spec, dt) {
+        if (!spec) spec = null;
+        const bass = spec ? mean(spec, 0, BASS_END) : 0;
+        const mid = spec ? mean(spec, BASS_END, MID_END) : 0;
+        const treble = spec ? mean(spec, MID_END, BAND_COUNT) : 0;
+        st.bass = bass;
+        st.mid = mid;
+        st.treble = treble;
+        st.level = (bass * 1.2 + mid + treble * 0.8) / 3;
+        const wasActive = st.active;
+        st.active = st.level > 0.02;
+        if (st.active && !wasActive) st.bassSlow = bass;
+        st.sinceBeat += dt;
+        if (st.active && bass > 0.25 && bass > st.bassSlow * 1.25 && st.sinceBeat > 0.22) {
+          st.beat = 1;
+          st.sinceBeat = 0;
+        } else {
+          st.beat *= Math.exp(-dt * 7);
+        }
+        st.bassSlow += (bass - st.bassSlow) * Math.min(1, dt * 2.5);
+        return st;
+      }
+      function reactDt(f, dt, amount) {
+        if (!f.active || amount <= 0) return dt;
+        return dt * (1 + amount * (f.bass * 1.2 + f.beat * 0.8));
+      }
+      function pulseBuffer(f, buf, amount) {
+        if (!f.active || amount <= 0 || !buf) return;
+        const k = Math.max(0.2, Math.min(1.6, 1 - 0.45 * amount + amount * (0.45 * Math.min(1, f.level * 1.4) + 0.35 * f.beat)));
+        if (Math.abs(k - 1) < 5e-3) return;
+        for (let i = 0; i < buf.length; i++) buf[i] *= k;
+      }
+      var SILENT = { level: 0, bass: 0, mid: 0, treble: 0, beat: 0, active: false };
+      function kick(core) {
+        return !!(core.audio && core.audio.active && core.audio.beat === 1);
+      }
+      function tempo(core) {
+        const m = core.audio && core.audio.active ? core.audio : null;
+        return m ? 1 + m.bass * 0.8 + m.beat * 0.6 : 1;
+      }
+      function music(core) {
+        return core.audio && core.audio.active ? core.audio : SILENT;
+      }
+      module.exports = { createFeatureState, updateFeatures, reactDt, pulseBuffer, kick, music, tempo, BASS_END, MID_END };
+    }
+  });
+
+  // src/effects/snake.js
+  var require_snake = __commonJS({
+    "src/effects/snake.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      var { FONT_3x5, drawString, textWidth } = require_text();
+      var { defineCanvasEffect } = require_canvas();
+      var { tempo } = require_audioFeatures();
+      var CELL = 4;
+      var DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+      var g = { cols: 0, rows: 0, body: [], dir: [1, 0], food: null, acc: 0, lastPress: -1, manualUntil: 0, dead: 0, best: 0, now: 0 };
+      function reset(cols, rows) {
+        g.cols = cols;
+        g.rows = rows;
+        const y = rows >> 1;
+        g.body = [[4, y], [3, y], [2, y]];
+        g.dir = [1, 0];
+        g.dead = 0;
+        placeFood();
+      }
+      function placeFood() {
+        for (let i = 0; i < 500; i++) {
+          const f = [Math.floor(Math.random() * g.cols), Math.floor(Math.random() * g.rows)];
+          if (!g.body.some((b) => b[0] === f[0] && b[1] === f[1])) {
+            g.food = f;
+            return;
+          }
+        }
+      }
+      var blocked = (x, y) => x < 0 || y < 0 || x >= g.cols || y >= g.rows || g.body.slice(0, -1).some((b) => b[0] === x && b[1] === y);
+      function autopilot() {
+        const [hx, hy] = g.body[0];
+        const opts = Object.values(DIRS).filter(([dx, dy]) => !(dx === -g.dir[0] && dy === -g.dir[1]) && !blocked(hx + dx, hy + dy));
+        if (!opts.length) return;
+        opts.sort((a, b) => Math.abs(hx + a[0] - g.food[0]) + Math.abs(hy + a[1] - g.food[1]) - (Math.abs(hx + b[0] - g.food[0]) + Math.abs(hy + b[1] - g.food[1])));
+        g.dir = opts[0];
+      }
+      function step() {
+        if (g.dead > 0) {
+          g.dead -= 1;
+          if (g.dead === 0) reset(g.cols, g.rows);
+          return;
+        }
+        if (g.now > g.manualUntil) autopilot();
+        const nx = g.body[0][0] + g.dir[0], ny = g.body[0][1] + g.dir[1];
+        if (blocked(nx, ny)) {
+          g.best = Math.max(g.best, g.body.length - 3);
+          g.dead = 12;
+          return;
+        }
+        g.body.unshift([nx, ny]);
+        if (nx === g.food[0] && ny === g.food[1]) placeFood();
+        else g.body.pop();
+      }
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt, core }) {
+          const cols = Math.floor(c.W / CELL), rows = Math.floor(c.H / CELL);
+          if (cols !== g.cols || rows !== g.rows || !g.body.length) reset(cols, rows);
+          g.now = t;
+          const o = core.effectOptions && core.effectOptions.snake || {};
+          if (o.press !== void 0 && o.press !== g.lastPress) {
+            if (g.lastPress !== -1 && DIRS[o.dir]) {
+              const d = DIRS[o.dir];
+              if (!(d[0] === -g.dir[0] && d[1] === -g.dir[1])) g.dir = d;
+              g.manualUntil = t + 8;
+            }
+            g.lastPress = o.press;
+          }
+          g.acc += dt * tempo(core);
+          const every = Math.max(0.05, 0.13 - g.body.length * 15e-4);
+          while (g.acc > every) {
+            g.acc -= every;
+            step();
+          }
+          c.clear();
+          const ox = Math.floor((c.W - cols * CELL) / 2), oy = Math.floor((c.H - rows * CELL) / 2);
+          for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if ((x + y) % 2) for (let i = 0; i < CELL; i++) for (let j = 0; j < CELL; j++) c.set(ox + x * CELL + i, oy + y * CELL + j, 0.02, 0.025, 0.04);
+          const cell = (x, y, r, gr, b, inset = 0) => {
+            for (let i = inset; i < CELL - inset; i++) for (let j = inset; j < CELL - inset; j++) c.set(ox + x * CELL + i, oy + y * CELL + j, r, gr, b);
+          };
+          const pulse = 0.6 + 0.4 * Math.sin(t * 8);
+          if (g.food) cell(g.food[0], g.food[1], 1 * pulse, 0.2 * pulse, 0.35 * pulse);
+          const flash = g.dead > 0 && g.dead % 2;
+          g.body.forEach(([x, y], i) => {
+            const [r, gr, b] = flash ? [1, 0.2, 0.2] : hsl(0.33 + i * 0.012, 0.9, i === 0 ? 0.6 : 0.45 - Math.min(0.2, i * 4e-3));
+            cell(x, y, r, gr, b, i === 0 ? 0 : 0.5 > 1 ? 1 : 0);
+          });
+          const score = String(g.body.length - 3);
+          drawString(FONT_3x5, score, c.W - textWidth(FONT_3x5, score) - 1, 1, (x, y) => c.add(x, y, 0.5, 0.5, 0.6));
+        }
+      });
+    }
+  });
+
+  // sim/shims/child_process.js
+  var require_child_process = __commonJS({
+    "sim/shims/child_process.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      function spawn() {
+        throw new Error("video playback (ffmpeg) is not available in the browser simulator");
+      }
+      module.exports = { spawn };
     }
   });
 
@@ -3849,6 +3916,7 @@ var PiEngine = (() => {
       var { hsl } = require_core();
       var { FONT_5x7, drawGlyph } = require_text();
       var { defineCanvasEffect } = require_canvas();
+      var { music } = require_audioFeatures();
       var scroll = 0;
       function colourFor(style, x, y, t, H) {
         if (style === "rainbow") return hsl(x * 6e-3 - t * 0.15, 0.95, 0.55);
@@ -3880,7 +3948,8 @@ var PiEngine = (() => {
               if (x > c.W) break;
               if (x + adv >= 0) {
                 drawGlyph(FONT_5x7, ch, x, top, (px, py) => {
-                  const [r, g, b] = colourFor(style, px, py - top, t, gh);
+                  const [r0, g0, b0] = colourFor(style, px, py - top, t, gh), k = 1 + music(core).beat * 0.5;
+                  const r = Math.min(1, r0 * k), g = Math.min(1, g0 * k), b = Math.min(1, b0 * k);
                   c.set(px, py, r, g, b);
                   if (glow) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) c.add(px + dx * scale, py + dy * scale, r * 0.12, g * 0.12, b * 0.12);
                 }, { scale });
@@ -3902,6 +3971,7 @@ var PiEngine = (() => {
       var { hsl } = require_core();
       var { FONT_3x5, drawGlyph } = require_text();
       var { defineCanvasEffect } = require_canvas();
+      var { music } = require_audioFeatures();
       var GRID = ["ITLISASAMPM", "ACQUARTERDC", "TWENTYFIVEX", "HALFSTENFTO", "PASTERUNINE", "ONESIXTHREE", "FOURFIVETWO", "EIGHTELEVEN", "SEVENTWELVE", "TENSEOCLOCK"];
       var W = {
         IT: [0, 0, 2],
@@ -3946,8 +4016,9 @@ var PiEngine = (() => {
         return words;
       }
       module.exports = defineCanvasEffect({
-        render(c, { t }) {
+        render(c, { t, core }) {
           c.clear();
+          const beat = music(core).beat;
           const on = /* @__PURE__ */ new Set();
           for (const w of litWords(/* @__PURE__ */ new Date())) {
             const [r, col, n] = W[w];
@@ -3958,7 +4029,7 @@ var PiEngine = (() => {
           for (let r = 0; r < 10; r++) {
             for (let col = 0; col < 11; col++) {
               const lit = on.has(r * 11 + col);
-              const [cr, cg, cb] = lit ? hsl(t * 0.03 + col * 0.02 + r * 0.03, 0.85, 0.55) : [0.05, 0.05, 0.07];
+              const [cr, cg, cb] = lit ? hsl(t * 0.03 + col * 0.02 + r * 0.03, 0.85, 0.55 + beat * 0.25) : [0.05, 0.05, 0.07];
               const x = Math.round(col * cw + (cw - 3 * scale) / 2), y = Math.round(r * ch + (ch - 5 * scale) / 2);
               drawGlyph(FONT_3x5, GRID[r][col], x, y, (px, py) => c.set(px, py, cr, cg, cb), { scale });
             }
@@ -5205,6 +5276,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { tempo } = require_audioFeatures();
       var { trailFade } = require_trail();
       var rainDrops = [];
       function resetRain(core) {
@@ -5240,6 +5312,7 @@ var PiEngine = (() => {
         }
       }
       function effectRainMatrix(core, dt) {
+        dt *= tempo(core);
         const { SIZE, faceMap, colBuf } = core;
         if (!matrixStreams || matrixStreams.length === 0 || matrixStreams[0].length !== SIZE) initMatrixStreams(SIZE);
         for (let face = 0; face < 4; face++) {
@@ -6481,6 +6554,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { tempo } = require_audioFeatures();
       var { trailFade } = require_trail();
       var warpStars = [];
       function resetWarp(core) {
@@ -6493,6 +6567,7 @@ var PiEngine = (() => {
         }
       }
       function effectWarp(core, dt) {
+        dt *= tempo(core);
         core.t += dt;
         const { SIZE, N, colBuf } = core;
         if (!warpStars.length) resetWarp(core);
@@ -6540,6 +6615,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl } = require_core();
       var { trailFade } = require_trail();
+      var { kick, music } = require_audioFeatures();
       var { tronMove } = require_shared();
       var lightningBolts = [];
       var lightningT = 0;
@@ -6603,6 +6679,11 @@ var PiEngine = (() => {
         }
         const baseRate = 0.8 / Math.max(0.1, speedMult);
         const rate = baseRate * (0.3 + Math.random() * 1.4);
+        if (kick(core)) {
+          spawnStrike(core);
+          if (music(core).level > 0.4) spawnStrike(core);
+          lightningT = 0;
+        }
         if (lightningT > rate) {
           lightningT = 0;
           spawnStrike(core);
@@ -6664,6 +6745,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { tempo } = require_audioFeatures();
       var lsRacers = [];
       var lsT = 0;
       function lsTransfer(face, u, v, du, dv, S) {
@@ -6726,6 +6808,7 @@ var PiEngine = (() => {
         }
       }
       function effectLightspeed(core, dt) {
+        dt *= tempo(core);
         lsT += dt;
         const { N, SIZE, colBuf, faceMap } = core;
         const opts = core.effectOptions?.lightspeed || {};
@@ -6883,6 +6966,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { tempo } = require_audioFeatures();
       var { surfIdx } = require_shared();
       var mazeOpen = null;
       var mazeVisited = null;
@@ -7163,6 +7247,7 @@ var PiEngine = (() => {
         }
       }
       function effectMaze(core, dt) {
+        dt *= tempo(core);
         const { N, colBuf } = core;
         const rebuildToken = core.effectOptions?.maze?.newMaze;
         const needsRebuild = !mazeOpen || mazeOpen.length !== N || rebuildToken !== void 0 && rebuildToken !== lastRebuildToken;
@@ -7999,6 +8084,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl, TOTAL_SPAN } = require_core();
+      var { tempo } = require_audioFeatures();
       var { tronMove } = require_shared();
       var TRON_HUES = [0.57, 0.08, 0.92, 0.33, 0.7, 0.15, 0.5, 0.02];
       var TRON_GRIDS = [[0.01, 0.06, 0.12], [0.01, 0.06, 0.01], [0.06, 0.01, 0.06], [0.04, 0.04, 0.04]];
@@ -8530,6 +8616,7 @@ var PiEngine = (() => {
         }
       }
       function effectTron(core, dt) {
+        dt *= tempo(core);
         const { N, colBuf } = core;
         const opts = core.effectOptions?.tron || {};
         const is2d = core.panelMode === "2d";
@@ -12989,6 +13076,7 @@ var PiEngine = (() => {
     "src/effects/fireworks.js"(exports, module) {
       init_define_process_env();
       init_bufferGlobal();
+      var { kick, music } = require_audioFeatures();
       var { hsl } = require_core();
       var { fwPx, FW_CHAR_W, fwDrawGlyphToBuffer: drawGlyphToBuffer } = require_shared();
       var { trailFade } = require_trail();
@@ -13350,6 +13438,13 @@ var PiEngine = (() => {
           if (fwActiveExpiry.length >= maxConcurrent) return;
           fwLaunch(core, panel2dMode);
           fwActiveExpiry.push(core.t + FW_LIFETIME_EST);
+        }
+        if (mode !== "sync" && kick(core)) {
+          const n = music(core).level > 0.35 ? 2 : 1;
+          for (let k = 0; k < n && fwActiveExpiry.length < maxConcurrent + 4; k++) {
+            fwLaunch(core, panel2dMode);
+            fwActiveExpiry.push(core.t + FW_LIFETIME_EST);
+          }
         }
         if (mode === "random") {
           fwSpawnT += dt;
@@ -14143,6 +14238,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { getLocalGravity } = require_shared();
+      var { tempo } = require_audioFeatures();
       var balls = [];
       var ballFlashes = [];
       var ballPrevGx = 0;
@@ -14337,6 +14433,7 @@ var PiEngine = (() => {
         }
       }
       function effectBouncingBalls(core, dt) {
+        dt *= tempo(core);
         core.t += dt;
         const { N, SIZE: S, faceMap, colBuf } = core;
         const panel2dMode = core.panelMode === "2d";
@@ -20390,6 +20487,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { tempo } = require_audioFeatures();
       var { trailFade } = require_trail();
       var warpWallStars = [];
       function resetWarpWall(core) {
@@ -20410,6 +20508,7 @@ var PiEngine = (() => {
         }
       }
       function effectWarpWall(core, dt) {
+        dt *= tempo(core);
         core.t += dt;
         const { wallW, wallH, wallBuf } = core;
         if (!wallW) return;
@@ -20453,6 +20552,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { tempo } = require_audioFeatures();
       var { trailFade } = require_trail();
       var wallDrops = [];
       function resetWallRain(core) {
@@ -20485,6 +20585,7 @@ var PiEngine = (() => {
         }
       }
       function effectRainMatrixWall(core, dt) {
+        dt *= tempo(core);
         const { wallW, wallH } = core;
         if (!wallMatrixStreams || wallMatrixStreams.length !== wallW) initWallMatrixStreams(core);
         for (let u = 0; u < wallW; u++) {
@@ -20635,6 +20736,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl } = require_core();
       var { trailFade } = require_trail();
+      var { kick, music } = require_audioFeatures();
       var strikeBranches = 0;
       var wallBolts = [];
       var wallLightningT = 0;
@@ -20697,6 +20799,11 @@ var PiEngine = (() => {
         }
         const baseRate = 0.8 / Math.max(0.1, speedMult);
         const rate = baseRate * (0.3 + Math.random() * 1.4);
+        if (kick(core)) {
+          spawnStrikeWall(core);
+          if (music(core).level > 0.4) spawnStrikeWall(core);
+          wallLightningT = 0;
+        }
         if (wallLightningT > rate) {
           wallLightningT = 0;
           spawnStrikeWall(core);
@@ -20754,6 +20861,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { tempo } = require_audioFeatures();
       var lsWallRacers = [];
       var lsWallT = 0;
       function resetLightspeedWall(core, lsCount) {
@@ -20775,6 +20883,7 @@ var PiEngine = (() => {
         }
       }
       function effectLightspeedWall(core, dt) {
+        dt *= tempo(core);
         lsWallT += dt;
         const { wallW, wallH, wallBuf } = core;
         if (!wallW) return;
@@ -21174,6 +21283,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { getLocalGravity } = require_shared();
+      var { tempo } = require_audioFeatures();
       var wBalls = [];
       var _resetKey = null;
       var COLORS = [
@@ -21217,6 +21327,7 @@ var PiEngine = (() => {
         }
       }
       function effectBouncingBallsWall(core, dt) {
+        dt *= tempo(core);
         core.t += dt;
         const { wallW, wallH, wallBuf } = core;
         if (!wallW) return;
@@ -22149,6 +22260,7 @@ var PiEngine = (() => {
     "src/effects/fireworksWall.js"(exports, module) {
       init_define_process_env();
       init_bufferGlobal();
+      var { kick, music } = require_audioFeatures();
       var { hsl } = require_core();
       var { FW_CHAR_W, fwDrawGlyphToBuffer: drawGlyphToBuffer } = require_shared();
       var { trailFade } = require_trail();
@@ -22490,6 +22602,13 @@ var PiEngine = (() => {
         for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= fade;
         const maxConcurrent = Math.max(1, Math.min(10, Math.round(opts.quantity) || 6));
         while (fwActiveExpiry.length && fwActiveExpiry[0] <= core.t) fwActiveExpiry.shift();
+        if (mode !== "sync" && kick(core)) {
+          const n = music(core).level > 0.35 ? 2 : 1;
+          for (let k = 0; k < n && fwActiveExpiry.length < maxConcurrent + 4; k++) {
+            fwLaunch(core);
+            fwActiveExpiry.push(core.t + FW_LIFETIME_EST);
+          }
+        }
         if (mode === "random" || mode === "mic") {
           fwSpawnT += dt;
           if (fwSpawnT > 0.4) {
@@ -22554,6 +22673,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { tempo } = require_audioFeatures();
       var mazeOpen = null;
       var mazeVisited = null;
       var mazeRunners = [];
@@ -22804,6 +22924,7 @@ var PiEngine = (() => {
         }
       }
       function effectMazeWall(core, dt) {
+        dt *= tempo(core);
         const { wallW, wallH } = core;
         if (!wallW) return;
         const N = wallW * wallH;
@@ -22900,6 +23021,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
+      var { tempo } = require_audioFeatures();
       var TRON_HUES = [0.57, 0.08, 0.92, 0.33, 0.7, 0.15, 0.5, 0.02];
       var TRON_GRIDS = [[0.01, 0.06, 0.12], [0.01, 0.06, 0.01], [0.06, 0.01, 0.06], [0.04, 0.04, 0.04]];
       var _mv = { x: 0, y: 0 };
@@ -23227,6 +23349,7 @@ var PiEngine = (() => {
         }
       }
       function effectTronWall(core, dt) {
+        dt *= tempo(core);
         const { wallW, wallH } = core;
         if (!wallW) return;
         const N = wallW * wallH;
@@ -27338,60 +27461,6 @@ var PiEngine = (() => {
         } else prevCube = null;
       }
       module.exports = { applyPostFx, restorePostFx, processImage, PALETTES };
-    }
-  });
-
-  // src/effects/audioFeatures.js
-  var require_audioFeatures = __commonJS({
-    "src/effects/audioFeatures.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { F_MIN, F_MAX, BAND_COUNT } = require_fft();
-      var bandFor = (hz) => Math.max(0, Math.min(BAND_COUNT - 1, Math.round(BAND_COUNT * Math.log(hz / F_MIN) / Math.log(F_MAX / F_MIN))));
-      var BASS_END = bandFor(150);
-      var MID_END = bandFor(2e3);
-      function mean(arr, a, b) {
-        let s = 0;
-        for (let i = a; i < b; i++) s += arr[i];
-        return b > a ? s / (b - a) : 0;
-      }
-      function createFeatureState() {
-        return { level: 0, bass: 0, mid: 0, treble: 0, beat: 0, active: false, bassSlow: 0, sinceBeat: 1 };
-      }
-      function updateFeatures(st, spec, dt) {
-        if (!spec) spec = null;
-        const bass = spec ? mean(spec, 0, BASS_END) : 0;
-        const mid = spec ? mean(spec, BASS_END, MID_END) : 0;
-        const treble = spec ? mean(spec, MID_END, BAND_COUNT) : 0;
-        st.bass = bass;
-        st.mid = mid;
-        st.treble = treble;
-        st.level = (bass * 1.2 + mid + treble * 0.8) / 3;
-        const wasActive = st.active;
-        st.active = st.level > 0.02;
-        if (st.active && !wasActive) st.bassSlow = bass;
-        st.sinceBeat += dt;
-        if (st.active && bass > 0.25 && bass > st.bassSlow * 1.25 && st.sinceBeat > 0.22) {
-          st.beat = 1;
-          st.sinceBeat = 0;
-        } else {
-          st.beat *= Math.exp(-dt * 7);
-        }
-        st.bassSlow += (bass - st.bassSlow) * Math.min(1, dt * 2.5);
-        return st;
-      }
-      function reactDt(f, dt, amount) {
-        if (!f.active || amount <= 0) return dt;
-        return dt * (1 + amount * (f.bass * 1.2 + f.beat * 0.8));
-      }
-      function pulseBuffer(f, buf, amount) {
-        if (!f.active || amount <= 0 || !buf) return;
-        const k = Math.max(0.2, Math.min(1.6, 1 - 0.45 * amount + amount * (0.45 * Math.min(1, f.level * 1.4) + 0.35 * f.beat)));
-        if (Math.abs(k - 1) < 5e-3) return;
-        for (let i = 0; i < buf.length; i++) buf[i] *= k;
-      }
-      module.exports = { createFeatureState, updateFeatures, reactDt, pulseBuffer, BASS_END, MID_END };
     }
   });
 

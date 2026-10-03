@@ -10,6 +10,7 @@
 // drift with distance, 3x3 glow kernel) is unchanged, just re-expressed
 // in wallW/wallH/wallBuf instead of SIZE/N/colBuf.
 const { hsl } = require('../core');
+const { tempo } = require('./audioFeatures');
 const { trailFade } = require('./trail');
 
 let warpWallStars = [];
@@ -29,6 +30,7 @@ function resetWarpWall(core) {
 }
 
 function effectWarpWall(core, dt) {
+  dt *= tempo(core); // moves to the music: faster with the bass, a burst on each kick
   core.t += dt;
   const { wallW, wallH, wallBuf } = core;
   if (!wallW) return; // core.initWall() hasn't run yet (wall mode not active)

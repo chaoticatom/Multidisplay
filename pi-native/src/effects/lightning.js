@@ -10,6 +10,7 @@
 // than "fixed", to keep pacing identical to the browser version.
 const { hsl } = require('../core');
 const { trailFade } = require('./trail');
+const { kick, music } = require('./audioFeatures');
 const { tronMove } = require('./_shared');
 
 let lightningBolts = [], lightningT = 0, lightningStormT = 0, lightningThunder = 0;
@@ -80,6 +81,8 @@ function effectLightning(core, dt) {
   // Strikes — random intervals roughly around the speed setting
   const baseRate = 0.8 / Math.max(0.1, speedMult);
   const rate = baseRate * (0.3 + Math.random() * 1.4);
+  // Music: a strike on every kick, an extra bolt on loud passages.
+  if (kick(core)) { spawnStrike(core); if (music(core).level > 0.4) spawnStrike(core); lightningT = 0; }
   if (lightningT > rate) {
     lightningT = 0; spawnStrike(core);
     if (Math.random() < 0.4) setTimeout(() => spawnStrike(core), 70);

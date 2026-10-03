@@ -28,6 +28,9 @@
 // as .wall - index.js registers both.
 'use strict';
 
+// Colour fields drift a little faster with the bass while music plays.
+const tempoField = (core) => (core.audio && core.audio.active ? 1 + core.audio.bass * 0.5 : 1);
+
 // Sample positions (every 2nd index, always including the last) for one
 // axis of length n, and per index the two samples to blend and the weight.
 const axisCache = new Map();
@@ -65,7 +68,7 @@ function defineFieldEffect({ speed = 1, frame, pixel, smooth = false, detail = n
   const ctx = { t: 0, dt: 0, count: 0, flat: false, core: null };
 
   function cube(core, dt) {
-    core.t += dt * speed;
+    core.t += dt * speed * tempoField(core);
     const { N, surfX, surfY, surfZ } = core;
     Object.assign(ctx, { t: core.t, dt, count: N, flat: false, core });
     p.flat = false;
@@ -103,7 +106,7 @@ function defineFieldEffect({ speed = 1, frame, pixel, smooth = false, detail = n
   }
 
   function wall(core, dt) {
-    core.t += dt * speed;
+    core.t += dt * speed * tempoField(core);
     const { wallW, wallH } = core;
     if (!wallW) return; // core.initWall() hasn't run yet (wall mode not active)
     Object.assign(ctx, { t: core.t, dt, count: wallW * wallH, flat: true, core });

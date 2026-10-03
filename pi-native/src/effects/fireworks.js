@@ -1,3 +1,4 @@
+const { kick, music } = require('./audioFeatures');
 // Ported from effects-physics.js's "FIREWORKS" section (fwSet/fwLaunch/
 // fwBurst/FW_PALETTES/fwSync*/fwMic*/effectFireworks, lines ~6-398) plus
 // effects-core.js's cubePx()/fwPx()/buildFwText() that it depends on.
@@ -419,6 +420,12 @@ function effectFireworks(core, dt) {
     if (fwActiveExpiry.length >= maxConcurrent) return;
     fwLaunch(core, panel2dMode);
     fwActiveExpiry.push(core.t + FW_LIFETIME_EST);
+  }
+  // Music: a rocket on every kick (two on loud passages), on top of the
+  // normal show - allowed a few past the usual limit.
+  if (mode !== 'sync' && kick(core)) {
+    const n = music(core).level > 0.35 ? 2 : 1;
+    for (let k = 0; k < n && fwActiveExpiry.length < maxConcurrent + 4; k++) { fwLaunch(core, panel2dMode); fwActiveExpiry.push(core.t + FW_LIFETIME_EST); }
   }
 
   if (mode === 'random') {

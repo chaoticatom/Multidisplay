@@ -36,6 +36,7 @@
 // engine. tronRenderScoreOnLEDs() (the actual on-cube score boxes drawn
 // into colBuf) is ported in full, since that part is real pixel output.
 const { hsl, TOTAL_SPAN } = require('../core');
+const { tempo } = require('./audioFeatures');
 const { tronMove } = require('./_shared');
 
 const TRON_HUES = [0.57, 0.08, 0.92, 0.33, 0.70, 0.15, 0.50, 0.02];
@@ -511,6 +512,7 @@ function tronRenderScoreOnLEDs(core, dt) {
 }
 
 function effectTron(core, dt) {
+  dt *= tempo(core); // moves to the music: faster with the bass, a burst on each kick
   const { N, colBuf } = core;
   const opts = core.effectOptions?.tron || {};
   const is2d = core.panelMode === '2d';

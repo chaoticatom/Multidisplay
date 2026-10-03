@@ -944,6 +944,8 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 .cx-pal::-webkit-scrollbar { display: none; }
 .cx-pal button { flex: 0 0 auto; border: none; border-radius: 999px; padding: 6px 11px; font-size: 12px; font-weight: 600; color: #fff; cursor: pointer; text-shadow: 0 1px 3px rgba(0,0,0,.6); box-shadow: 0 0 0 1px rgba(255,255,255,.15); }
 .cx-pal button[aria-pressed="true"] { box-shadow: 0 0 0 2px #fff, 0 0 14px -2px var(--cx1); }
+.cx-station-fav { flex-shrink: 0; font-size: 18px; color: rgba(255,255,255,.35); padding: 2px 4px; cursor: pointer; }
+.cx-station-fav.on { color: #ffd23d; }
 </style>
 </head>
 <body>
@@ -1667,6 +1669,8 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
       <div class="radio-search-status-el ui-note"></div>
       <div class="radio-search-results-el" style="max-height:260px;overflow-y:auto;margin-bottom:10px;"></div>
 
+      <div class="ui-label-accent" id="radio-fav-head" style="color:#ffd23d !important;">★ My stations</div>
+      <div class="radio-fav-list-el" style="margin-bottom:12px;"></div>
       <div style="font-size:11px;font-weight:700;color:#e8c250;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Featured</div>
       <div class="radio-station-list-el" style="margin-bottom:8px;"></div>
 
@@ -2273,6 +2277,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.199"></script>
+<script src="app.js?v=0.6.200"></script>
 </body>
 </html>

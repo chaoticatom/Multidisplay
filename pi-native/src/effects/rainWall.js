@@ -17,6 +17,7 @@
 // "Colour"/"Matrix" sidebar toggle the cube version already has - no new
 // UI needed.
 const { hsl } = require('../core');
+const { tempo } = require('./audioFeatures');
 const { trailFade } = require('./trail');
 
 let wallDrops = [];
@@ -49,6 +50,7 @@ function initWallMatrixStreams(core) {
 }
 
 function effectRainMatrixWall(core, dt) {
+  dt *= tempo(core); // moves to the music: faster with the bass, a burst on each kick
   const { wallW, wallH } = core;
   if (!wallMatrixStreams || wallMatrixStreams.length !== wallW) initWallMatrixStreams(core);
 
