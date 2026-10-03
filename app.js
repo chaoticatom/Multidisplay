@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.195';
+const APP_VERSION = '0.6.196';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -316,7 +316,7 @@ async function loadEffectNames() {
         // tab - go there, or tapping an effect with options seemed to do
         // nothing (a real report: "nothing happens when I click internet radio").
         if (key === 'radio') setTab('music');
-        else if (panel) { setTab('play'); document.getElementById('sidebar-scroll')?.scrollTo(0, 0); }
+        else if (panel) { setTab('play'); setTimeout(cxShowOptions, 60); }
         // Immediate feedback: the 'active' highlight only moves once the
         // Pi's state echo arrives, which can take a visible moment on a
         // busy Pi - mark this button pending until then (cleared in
@@ -4613,6 +4613,8 @@ function cxWireHero() {
     sx = null; ring.classList.remove('show'); hero.style.setProperty('--swipe', '0');
   };
   hero.addEventListener('pointerup', end); hero.addEventListener('pointercancel', end);
+  document.getElementById('cx-opts-btn')?.addEventListener('click', (e) => { e.stopPropagation(); cxShowOptions(); });
+  document.getElementById('cx-opts-btn')?.addEventListener('pointerdown', (e) => e.stopPropagation());
   (function heroLoop() {
     requestAnimationFrame(heroLoop);
     if (heroLoop.n = (heroLoop.n || 0) + 1, heroLoop.n % 2) return; // ~30 fps is plenty
@@ -4715,6 +4717,15 @@ async function cxWireTiles() {
   };
   draw();
   setInterval(() => { if (!document.hidden && document.body.dataset.tab === 'play') draw(); }, 125);
+}
+
+// Jump to the running effect's options (top of Play) and flash them.
+function cxShowOptions() {
+  setTab('play');
+  const host = document.getElementById('now-options');
+  if (!host || !host.children.length) { cxToast('This effect has no settings'); return; }
+  host.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  host.classList.remove('cx-flash'); void host.offsetWidth; host.classList.add('cx-flash');
 }
 
 // ── Favourites: a star on every tile.
@@ -5003,6 +5014,8 @@ function cxSyncHeroLabel() {
   const n = document.getElementById('cx-hero-name'), sub = document.getElementById('cx-hero-sub');
   if (!n) return;
   n.textContent = currentState.blank ? 'Off' : cxEffectName(currentState.effect);
+  const ob = document.getElementById('cx-opts-btn');
+  if (ob) ob.hidden = !document.getElementById('panel-' + (currentState.effect || ''));
   const st = currentState.effectStatus?.radio;
   sub.textContent = st && st.playing && st.station ? '♫ ' + st.station.name.replace(/^[\s-]+/, '') : '';
 }

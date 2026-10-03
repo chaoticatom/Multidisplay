@@ -898,7 +898,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 .cx-round:active { transform: scale(.9); }
 .cx-round-off { background: rgba(255,90,90,.15); box-shadow: 0 0 0 1px rgba(255,90,90,.35); }
 .cx-round.cx-quiet { display: none; }
-.cx-hero-lbl { position: absolute; left: 12px; bottom: 8px; right: 12px; display: grid; pointer-events: none; text-shadow: 0 2px 10px #000, 0 0 2px #000; }
+.cx-hero-lbl { position: absolute; left: 12px; bottom: 8px; right: 100px; display: grid; pointer-events: none; text-shadow: 0 2px 10px #000, 0 0 2px #000; }
 .cx-hero-lbl b { color: #fff; font-size: 18px; font-weight: 800; letter-spacing: -.3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cx-hero-lbl small { color: rgba(238,242,255,.8); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cx-hero-hint { top: 8px; bottom: auto !important; }
@@ -930,6 +930,12 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 .cx-photo-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
 .cx-photo-list span { font-size: 11px; padding: 4px 8px; border-radius: 999px; background: rgba(255,255,255,.07); color: #dfe7ff; }
 .cx-photo-list button { border: none; background: none; color: #ff9a9a; cursor: pointer; padding: 0 0 0 4px; }
+.cx-opts-btn { position: absolute; right: 8px; bottom: 8px; z-index: 3; border: none; border-radius: 999px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; color: #fff; cursor: pointer;
+  background: rgba(10,12,22,.65); backdrop-filter: blur(8px); box-shadow: 0 0 0 1px rgba(255,255,255,.25); }
+#cx-hero .cx-opts-btn[hidden] { display: none; }
+#now-options.cx-flash { animation: cx-flash 1.2s ease-out; border-radius: 14px; }
+@keyframes cx-flash { 0%, 40% { box-shadow: 0 0 0 2px var(--cx1), 0 0 30px -4px var(--cx1); } 100% { box-shadow: none; } }
+#effects-body .art-shared-panel { display: none !important; }
 </style>
 </head>
 <body>
@@ -950,6 +956,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <canvas id="cx-hero-canvas" width="640" height="320"></canvas>
     <div id="cx-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="6"/><circle id="cx-arc" cx="50" cy="50" r="44" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-dasharray="276" stroke-dashoffset="80" transform="rotate(-90 50 50)"/></svg><b id="cx-pct">70%</b></div>
     <div class="cx-hero-lbl"><b id="cx-hero-name"></b><small id="cx-hero-sub"></small></div>
+    <button type="button" id="cx-opts-btn" class="cx-opts-btn" title="Settings for this effect">⚙ Options</button>
     <span class="cx-hero-hint" id="cx-hero-hint">‹ swipe › · drag ↕ brightness</span>
   </div>
 
@@ -2255,6 +2262,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.195"></script>
+<script src="app.js?v=0.6.196"></script>
 </body>
 </html>
