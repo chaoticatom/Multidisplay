@@ -32,13 +32,16 @@ module.exports = defineCanvasEffect({
     c.clear();
     const on = new Set();
     for (const w of litWords(new Date())) { const [r, col, n] = W[w]; for (let i = 0; i < n; i++) on.add(r * 11 + col + i); }
-    const scale = Math.max(1, Math.floor(Math.min(c.W / 44, c.H / 60)));
-    const ox = Math.round((c.W - 44 * scale) / 2) + scale, oy = Math.round((c.H - 60 * scale) / 2) + scale;
+    // Letters spread evenly over the whole canvas (11 columns x 10 rows), so
+    // the grid fills a square panel instead of a narrow block in the middle.
+    const cw = c.W / 11, ch = c.H / 10;
+    const scale = Math.max(1, Math.floor(Math.min(cw / 4, ch / 6)));
     for (let r = 0; r < 10; r++) {
       for (let col = 0; col < 11; col++) {
         const lit = on.has(r * 11 + col);
         const [cr, cg, cb] = lit ? hsl(t * 0.03 + col * 0.02 + r * 0.03, 0.85, 0.55) : [0.05, 0.05, 0.07];
-        drawGlyph(FONT_3x5, GRID[r][col], ox + col * 4 * scale, oy + r * 6 * scale, (x, y) => c.set(x, y, cr, cg, cb), { scale });
+        const x = Math.round(col * cw + (cw - 3 * scale) / 2), y = Math.round(r * ch + (ch - 5 * scale) / 2);
+        drawGlyph(FONT_3x5, GRID[r][col], x, y, (px, py) => c.set(px, py, cr, cg, cb), { scale });
       }
     }
   },
