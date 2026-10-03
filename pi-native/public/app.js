@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.214';
+const APP_VERSION = '0.6.215';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -96,7 +96,10 @@ function connect() {
   const wsScheme = location.protocol === 'https:' ? 'wss' : 'ws';
   clearTimeout(reconnectTimer);
   setConnStatus(reconnectAttempts ? 'reconnecting' : 'connecting');
-  const sock = new WebSocket(`${wsScheme}://${location.hostname}:${location.port || 8081}`);
+  // No port in the address means the default one (443 for https, set up with
+  // HTTPS_PORT); only a plain-http page with no port falls back to 8081.
+  const wsHost = location.port || wsScheme === 'wss' ? location.host : location.hostname + ':8081';
+  const sock = new WebSocket(`${wsScheme}://${wsHost}`);
   ws = sock;
   ws.binaryType = 'arraybuffer';
   ws.onmessage = (ev) => {
