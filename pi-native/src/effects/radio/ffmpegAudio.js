@@ -50,6 +50,10 @@ const IDLE_CHECK_MS = 3000;
 const SAMPLE_RATE = 44100;
 const CHANNELS = 2;
 const BYTES_PER_SAMPLE = 2; // s16le
+// Waveform (oscilloscope) snapshot: WAVE_N points covering WAVE_SPAN samples
+// (~23 ms at 44.1 kHz - a few cycles of a bass note), starting at a rising
+// zero crossing so the trace stands still instead of jittering.
+const WAVE_N = 256, WAVE_SPAN = 1024;
 // Spectrum analysis clock + ballistics (see _analysisTick()/_applySpectrumTarget()).
 const ANALYSIS_HZ = 60;
 const WINDOW_VU = 2048; // ~46ms
@@ -70,6 +74,8 @@ const PEAK_GRAVITY = 3.2; // peak marker fall acceleration (units/s^2)
 class RadioAudio {
   constructor(spawnFn = spawn) {
     this._gain = 1; // speaker volume - see setVolume()
+    this.wave = new Float32Array(WAVE_N); // the actual sound wave, for the Waveform style (see _updateWave)
+    this._wavePeak = 0.1;
     this._spawn = spawnFn;
     this.decodeProc = null;
     this.playProc = null;
@@ -474,6 +480,29 @@ class RadioAudio {
     this._lastTarget = target;
     this._applySpectrumTarget(target, dt);
     this._updateVu(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
+    this._updateWave(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
+  }
+
+  _updateWave(end, dt) {
+    const wave = this.wave;
+    if (end < WAVE_SPAN * 3) { for (let i = 0; i < WAVE_N; i++) wave[i] *= Math.max(0, 1 - dt * 6); return; }
+    const ring = this._ring, mask = ring.length - 1;
+    // Trigger: the last rising zero crossing that still leaves a full span.
+    let start = end - WAVE_SPAN;
+    for (let i = end - WAVE_SPAN; i > end - WAVE_SPAN * 3; i--) {
+      if (ring[(i - 1) & mask] < 0 && ring[i & mask] >= 0) { start = i; break; }
+    }
+    let pk = 0;
+    for (let i = 0; i < WAVE_SPAN; i++) { const v = Math.abs(ring[(start + i) & mask]); if (v > pk) pk = v; }
+    // Slow auto-gain so quiet and loud music both fill the screen.
+    this._wavePeak += (Math.max(0.02, pk) - this._wavePeak) * Math.min(1, dt * (pk > this._wavePeak ? 8 : 1.2));
+    const step = WAVE_SPAN / WAVE_N, g = 1 / this._wavePeak;
+    for (let k = 0; k < WAVE_N; k++) {
+      const a = start + Math.floor(k * step);
+      let sum = 0;
+      for (let j = 0; j < step; j++) sum += ring[(a + j) & mask];
+      wave[k] = Math.max(-1, Math.min(1, (sum / step) * g));
+    }
   }
 
   // Stereo VU: RMS of each channel over the analysis window, on a dB scale
@@ -551,7 +580,7 @@ class RadioAudio {
   // Plain, structured-clone-friendly copy of what the render side reads -
   // see RemoteAudio below.
   snapshot() {
-    return { spec: this.spec, peak: this.peak, vu: this.vu, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs };
+    return { spec: this.spec, peak: this.peak, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs };
   }
 
   _checkIdle() {
@@ -627,6 +656,7 @@ class RemoteAudio {
     this.spec = new Float32Array(BAND_COUNT);
     this.peak = new Float32Array(BAND_COUNT);
     this.vu = new Float32Array(4);
+    this.wave = new Float32Array(WAVE_N);
     this.status = 'Stopped';
     this.playbackStatus = 'No playback attempted';
     this.lastAttemptMs = 0;
@@ -645,6 +675,7 @@ class RemoteAudio {
     if (snap.spec && snap.spec.length === BAND_COUNT) this.spec.set(snap.spec);
     if (snap.peak && snap.peak.length === BAND_COUNT) this.peak.set(snap.peak);
     if (snap.vu && snap.vu.length === 4) this.vu.set(snap.vu);
+    if (snap.wave && snap.wave.length === WAVE_N) this.wave.set(snap.wave);
     this.status = snap.status;
     this.playbackStatus = snap.playbackStatus;
     this.lastAttemptMs = snap.lastAttemptMs;

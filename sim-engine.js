@@ -2257,6 +2257,8 @@ var PiEngine = (() => {
       var IDLE_CHECK_MS = 3e3;
       var SAMPLE_RATE = 44100;
       var CHANNELS = 2;
+      var WAVE_N = 256;
+      var WAVE_SPAN = 1024;
       var ANALYSIS_HZ = 60;
       var WINDOW_VU = 2048;
       var VU_DB_FLOOR = -42;
@@ -2271,6 +2273,8 @@ var PiEngine = (() => {
       var RadioAudio = class {
         constructor(spawnFn = spawn) {
           this._gain = 1;
+          this.wave = new Float32Array(WAVE_N);
+          this._wavePeak = 0.1;
           this._spawn = spawnFn;
           this.decodeProc = null;
           this.playProc = null;
@@ -2574,6 +2578,35 @@ var PiEngine = (() => {
           this._lastTarget = target;
           this._applySpectrumTarget(target, dt);
           this._updateVu(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
+          this._updateWave(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
+        }
+        _updateWave(end, dt) {
+          const wave = this.wave;
+          if (end < WAVE_SPAN * 3) {
+            for (let i = 0; i < WAVE_N; i++) wave[i] *= Math.max(0, 1 - dt * 6);
+            return;
+          }
+          const ring = this._ring, mask = ring.length - 1;
+          let start = end - WAVE_SPAN;
+          for (let i = end - WAVE_SPAN; i > end - WAVE_SPAN * 3; i--) {
+            if (ring[i - 1 & mask] < 0 && ring[i & mask] >= 0) {
+              start = i;
+              break;
+            }
+          }
+          let pk = 0;
+          for (let i = 0; i < WAVE_SPAN; i++) {
+            const v = Math.abs(ring[start + i & mask]);
+            if (v > pk) pk = v;
+          }
+          this._wavePeak += (Math.max(0.02, pk) - this._wavePeak) * Math.min(1, dt * (pk > this._wavePeak ? 8 : 1.2));
+          const step = WAVE_SPAN / WAVE_N, g = 1 / this._wavePeak;
+          for (let k = 0; k < WAVE_N; k++) {
+            const a = start + Math.floor(k * step);
+            let sum = 0;
+            for (let j = 0; j < step; j++) sum += ring[a + j & mask];
+            wave[k] = Math.max(-1, Math.min(1, sum / step * g));
+          }
         }
         // Stereo VU: RMS of each channel over the analysis window, on a dB scale
         // (VU_DB_FLOOR..0dB full-scale sine -> 0..1), with meter ballistics - a
@@ -2664,7 +2697,7 @@ var PiEngine = (() => {
         // Plain, structured-clone-friendly copy of what the render side reads -
         // see RemoteAudio below.
         snapshot() {
-          return { spec: this.spec, peak: this.peak, vu: this.vu, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs };
+          return { spec: this.spec, peak: this.peak, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs };
         }
         _checkIdle() {
           if (this.decodeProc && !this._isDebugSource && Date.now() - this.lastEnsureMs > IDLE_TIMEOUT_MS) {
@@ -2716,6 +2749,7 @@ var PiEngine = (() => {
           this.spec = new Float32Array(BAND_COUNT);
           this.peak = new Float32Array(BAND_COUNT);
           this.vu = new Float32Array(4);
+          this.wave = new Float32Array(WAVE_N);
           this.status = "Stopped";
           this.playbackStatus = "No playback attempted";
           this.lastAttemptMs = 0;
@@ -2747,6 +2781,7 @@ var PiEngine = (() => {
           if (snap.spec && snap.spec.length === BAND_COUNT) this.spec.set(snap.spec);
           if (snap.peak && snap.peak.length === BAND_COUNT) this.peak.set(snap.peak);
           if (snap.vu && snap.vu.length === 4) this.vu.set(snap.vu);
+          if (snap.wave && snap.wave.length === WAVE_N) this.wave.set(snap.wave);
           this.status = snap.status;
           this.playbackStatus = snap.playbackStatus;
           this.lastAttemptMs = snap.lastAttemptMs;
@@ -2780,6 +2815,50 @@ var PiEngine = (() => {
         return Math.pow(k, dt * TUNED_HZ);
       }
       module.exports = { trailFade, TUNED_HZ };
+    }
+  });
+
+  // src/effects/radio/scope.js
+  var require_scope = __commonJS({
+    "src/effects/radio/scope.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      function drawScope(c, wave, t) {
+        const { W, H } = c, mid = (H - 1) / 2, amp = (H - 1) * 0.45;
+        const gx = Math.max(4, Math.round(W / 8)), gy = Math.max(4, Math.round(H / 4));
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const onGrid = x % gx === 0 && y % 2 === 0 || y % gy === 0 && x % 2 === 0 || Math.round(mid) === y && x % 4 === 0;
+          if (onGrid) lift(c, x, y, 0.02, 0.06, 0.04);
+        }
+        if (!wave) return;
+        const N = wave.length;
+        let prev = null;
+        for (let x = 0; x < W; x++) {
+          const f = x * (N - 1) / Math.max(1, W - 1), i = Math.floor(f), fr = f - i;
+          const v = i + 1 < N ? wave[i] + (wave[i + 1] - wave[i]) * fr : wave[N - 1];
+          const y = mid + v * amp;
+          const [r, g, b] = hsl(0.52 + Math.min(1, Math.abs(v)) * 0.38 + Math.sin(t * 0.2) * 0.03, 1, 0.55);
+          const y0 = prev === null ? y : prev, lo = Math.round(Math.min(y0, y)), hi = Math.round(Math.max(y0, y));
+          for (let yy = lo; yy <= hi; yy++) {
+            lift(c, x, yy, Math.min(1, r * 0.6 + 0.45), Math.min(1, g * 0.6 + 0.45), Math.min(1, b * 0.6 + 0.45));
+            for (let d = 1; d <= 3; d++) {
+              const k = [0, 0.45, 0.18, 0.07][d];
+              lift(c, x, yy + d, r * k, g * k, b * k);
+              lift(c, x, yy - d, r * k, g * k, b * k);
+            }
+          }
+          prev = y;
+        }
+      }
+      function lift(c, x, y, r, g, b) {
+        if (x < 0 || y < 0 || x >= c.W || y >= c.H) return;
+        const o = c.get(x, y);
+        if (!o) return;
+        c.set(x, y, Math.max(o[0], r), Math.max(o[1], g), Math.max(o[2], b));
+      }
+      module.exports = { drawScope };
     }
   });
 
@@ -2826,6 +2905,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl } = require_core();
       var { trailFade } = require_trail();
+      var { drawScope } = require_scope();
       var { vuLevels, drawMeter, segColour } = require_vuMeter();
       function auColor(theme, fb, fh, amp, t) {
         switch (theme) {
@@ -3255,25 +3335,24 @@ var PiEngine = (() => {
         drawPolarFace(core, ctx, 5);
       }
       function drawWaveform(core, ctx) {
-        const S = core.SIZE, M = S - 1, cols = 4 * S, mid = M / 2;
-        const fade = trailFade(0.8, ctx.dt);
+        const S = core.SIZE, fade = trailFade(0.55, ctx.dt);
         for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] *= fade;
-        for (let c = 0; c < cols; c++) {
-          const sc = (c + ((ctx.scrollX || 0) | 0) + cols) % cols;
-          const b = scrolledBand(sc, cols, ctx.bands, ctx.scrollX);
-          const amp = ctx.amp(b) * Math.sin(sc * 0.35);
-          const y = Math.round(mid - amp * mid * 0.9);
-          const fy = Math.max(0, Math.min(M, y));
-          const [face, u] = sideCol(core, c);
-          const hue = (sc / cols + ctx.t * 0.04) % 1;
-          const col = hsl(hue, 1, 0.9);
-          core.setFaceLED(face, u, fy, col[0], col[1], col[2]);
-          for (let dy = 1; dy <= 5; dy++) {
-            const gl = (1 - dy / 6) * 0.42;
-            core.setFaceLED(face, u, fy + dy, col[0] * gl, col[1] * gl, col[2] * gl);
-            core.setFaceLED(face, u, fy - dy, col[0] * gl, col[1] * gl, col[2] * gl);
+        const led = (x, y) => {
+          const [face, u] = sideCol(core, x);
+          return core.faceMap[face][y * S + u];
+        };
+        drawScope({
+          W: 4 * S,
+          H: S,
+          get: (x, y) => {
+            const i = led(x, y);
+            return i < 0 ? null : [core.colBuf[i * 3], core.colBuf[i * 3 + 1], core.colBuf[i * 3 + 2]];
+          },
+          set: (x, y, r, g, b) => {
+            const [face, u] = sideCol(core, x);
+            core.setFaceLED(face, u, y, r, g, b);
           }
-        }
+        }, ctx.wave, ctx.t);
         drawPolarFace(core, ctx, 4);
         drawPolarFace(core, ctx, 5);
       }
@@ -3773,7 +3852,8 @@ var PiEngine = (() => {
             ampArr,
             peakArr,
             vu: audio.vu,
-            // vu: stereo [left, right, leftPeak, rightPeak]
+            wave: audio.wave,
+            // vu: stereo [left, right, leftPeak, rightPeak]; wave: the sound wave
             bands,
             theme,
             barMode,
@@ -25571,6 +25651,7 @@ var PiEngine = (() => {
       var { auColor } = require_spectrum();
       var { trailFade } = require_trail();
       var { vuLevels, drawMeter } = require_vuMeter();
+      var { drawScope } = require_scope();
       function blendWall(core, x, y, r, g, b) {
         if (core._yUp) y = core.wallH - 1 - y;
         if (x < 0 || x >= core.wallW || y < 0 || y >= core.wallH) return;
@@ -25788,24 +25869,18 @@ var PiEngine = (() => {
         }
       }
       function drawWaveformWall(core, ctx) {
-        const W = core.wallW, H = core.wallH, M = H - 1, mid = M / 2;
-        const fade = trailFade(0.8, ctx.dt);
+        const fade = trailFade(0.55, ctx.dt);
         for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= fade;
-        for (let c = 0; c < W; c++) {
-          const sc = (c + ((ctx.scrollX || 0) | 0) + W) % W;
-          const b = scrolledBand(sc, W, ctx.bands, ctx.scrollX);
-          const amp = ctx.amp(b) * Math.sin(sc * 0.35);
-          const y = Math.round(mid - amp * mid * 0.9);
-          const fy = Math.max(0, Math.min(M, y));
-          const hue = (sc / W + ctx.t * 0.04) % 1;
-          const col = hsl(hue, 1, 0.9);
-          core.setWallPixel(c, fy, col[0], col[1], col[2]);
-          for (let dy = 1; dy <= 5; dy++) {
-            const gl = (1 - dy / 6) * 0.42;
-            core.setWallPixel(c, fy + dy, col[0] * gl, col[1] * gl, col[2] * gl);
-            core.setWallPixel(c, fy - dy, col[0] * gl, col[1] * gl, col[2] * gl);
-          }
-        }
+        const W = core.wallW, H = core.wallH, buf = core.wallBuf;
+        drawScope({
+          W,
+          H,
+          get: (x, y) => {
+            const o = ((H - 1 - y) * W + x) * 3;
+            return [buf[o], buf[o + 1], buf[o + 2]];
+          },
+          set: (x, y, r, g, b) => core.setWallPixel(x, y, r, g, b)
+        }, ctx.wave, ctx.t);
       }
       function drawVUWall(core, ctx) {
         const W = core.wallW, H = core.wallH;
@@ -26159,7 +26234,8 @@ var PiEngine = (() => {
             ampArr,
             peakArr,
             vu: audio.vu,
-            // vu: stereo [left, right, leftPeak, rightPeak]
+            wave: audio.wave,
+            // vu: stereo [left, right, leftPeak, rightPeak]; wave: the sound wave
             bands,
             theme,
             barMode,

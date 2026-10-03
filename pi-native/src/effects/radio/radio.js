@@ -211,7 +211,7 @@ function effectRadio(core, dt) {
     const ctx = {
       amp: (b) => ampArr[b],
       peak: (b) => peakArr[b],
-      ampArr, peakArr, vu: audio.vu, // vu: stereo [left, right, leftPeak, rightPeak]
+      ampArr, peakArr, vu: audio.vu, wave: audio.wave, // vu: stereo [left, right, leftPeak, rightPeak]; wave: the sound wave
       bands, theme, barMode, scrollX: spectrumState.scrollX || 0, t: core.t, dt,
     };
     renderSpectrumStyle(core, ctx, style, spectrumState);

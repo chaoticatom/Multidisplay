@@ -31,6 +31,7 @@
 
 const { hsl } = require('../../core');
 const { trailFade } = require('../trail');
+const { drawScope } = require('./scope');
 const { vuLevels, drawMeter, segColour } = require('./vuMeter');
 
 // Same 7 colour themes as auColor() in effects-core.js.
@@ -495,29 +496,16 @@ function drawWaterfall(core, ctx, state) {
 }
 
 function drawWaveform(core, ctx) {
-  const S = core.SIZE, M = S - 1, cols = 4 * S, mid = M / 2;
-  const fade = trailFade(0.80, ctx.dt); // was a fixed *= 0.80 per frame - see trail.js
+  // The real sound wave, wrapped round the four side faces (see ./scope.js),
+  // with the polar view on top and bottom as before.
+  const S = core.SIZE, fade = trailFade(0.55, ctx.dt);
   for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] *= fade;
-  for (let c = 0; c < cols; c++) {
-    // NB: this pre-offsets its own column by scrollX AND THEN calls
-    // scrolledBand() (which folds scrollX in again) - a literal
-    // reproduction of the browser original's drawWaveformStyle(), not a
-    // simplification, per the "exact copy" brief.
-    const sc = (c + ((ctx.scrollX || 0) | 0) + cols) % cols;
-    const b = scrolledBand(sc, cols, ctx.bands, ctx.scrollX);
-    const amp = ctx.amp(b) * Math.sin(sc * 0.35);
-    const y = Math.round(mid - amp * mid * 0.9);
-    const fy = Math.max(0, Math.min(M, y));
-    const [face, u] = sideCol(core, c);
-    const hue = (sc / cols + ctx.t * 0.04) % 1;
-    const col = hsl(hue, 1, 0.9);
-    core.setFaceLED(face, u, fy, col[0], col[1], col[2]);
-    for (let dy = 1; dy <= 5; dy++) {
-      const gl = (1 - dy / 6) * 0.42;
-      core.setFaceLED(face, u, fy + dy, col[0] * gl, col[1] * gl, col[2] * gl);
-      core.setFaceLED(face, u, fy - dy, col[0] * gl, col[1] * gl, col[2] * gl);
-    }
-  }
+  const led = (x, y) => { const [face, u] = sideCol(core, x); return core.faceMap[face][y * S + u]; };
+  drawScope({
+    W: 4 * S, H: S,
+    get: (x, y) => { const i = led(x, y); return i < 0 ? null : [core.colBuf[i * 3], core.colBuf[i * 3 + 1], core.colBuf[i * 3 + 2]]; },
+    set: (x, y, r, g, b) => { const [face, u] = sideCol(core, x); core.setFaceLED(face, u, y, r, g, b); },
+  }, ctx.wave, ctx.t);
   drawPolarFace(core, ctx, 4); drawPolarFace(core, ctx, 5);
 }
 

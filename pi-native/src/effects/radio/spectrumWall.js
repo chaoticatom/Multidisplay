@@ -30,6 +30,7 @@ const { hsl } = require('../../core');
 const { auColor } = require('./spectrum');
 const { trailFade } = require('../trail');
 const { vuLevels, drawMeter } = require('./vuMeter');
+const { drawScope } = require('./scope');
 
 function blendWall(core, x, y, r, g, b) {
   if (core._yUp) y = core.wallH - 1 - y;
@@ -252,24 +253,16 @@ function drawOutlineWall(core, ctx) {
 }
 
 function drawWaveformWall(core, ctx) {
-  const W = core.wallW, H = core.wallH, M = H - 1, mid = M / 2;
-  const fade = trailFade(0.80, ctx.dt); // was a fixed *= 0.80 per frame - see trail.js
+  // Phosphor persistence: the previous traces fade quickly behind the new one.
+  const fade = trailFade(0.55, ctx.dt);
   for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= fade;
-  for (let c = 0; c < W; c++) {
-    const sc = (c + ((ctx.scrollX || 0) | 0) + W) % W;
-    const b = scrolledBand(sc, W, ctx.bands, ctx.scrollX);
-    const amp = ctx.amp(b) * Math.sin(sc * 0.35);
-    const y = Math.round(mid - amp * mid * 0.9);
-    const fy = Math.max(0, Math.min(M, y));
-    const hue = (sc / W + ctx.t * 0.04) % 1;
-    const col = hsl(hue, 1, 0.9);
-    core.setWallPixel(c, fy, col[0], col[1], col[2]);
-    for (let dy = 1; dy <= 5; dy++) {
-      const gl = (1 - dy / 6) * 0.42;
-      core.setWallPixel(c, fy + dy, col[0] * gl, col[1] * gl, col[2] * gl);
-      core.setWallPixel(c, fy - dy, col[0] * gl, col[1] * gl, col[2] * gl);
-    }
-  }
+  const W = core.wallW, H = core.wallH, buf = core.wallBuf;
+  // core here is the y-up view (see yUpView below), so set() goes through it.
+  drawScope({
+    W, H,
+    get: (x, y) => { const o = ((H - 1 - y) * W + x) * 3; return [buf[o], buf[o + 1], buf[o + 2]]; },
+    set: (x, y, r, g, b) => core.setWallPixel(x, y, r, g, b),
+  }, ctx.wave, ctx.t);
 }
 
 // Stereo VU meter across the wall: left meter on the left half, right on
