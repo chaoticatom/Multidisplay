@@ -58,6 +58,7 @@ const prefs = require('./prefs');
 const { EFFECTS, WALL_EFFECTS } = require('./effects');
 const { runOverlays } = require('./effects/overlays');
 const alarms = require('./effects/alarms');
+let workerVersion = null;
 const { tick } = require('./tick');
 const { loadDriver } = require('./loadDriver');
 const radio = require('./effects/radio');
@@ -147,7 +148,7 @@ parentPort.on('message', (msg) => {
   if (msg.type === 'tick') {
     // app.js only sends state when it changed (see its sendTick()); keep
     // the last copy, including anything tick() mutates on it (alarms etc.)
-    if (msg.state) workerState = msg.state;
+    if (msg.state) { workerState = msg.state; workerVersion = msg.version; }
     const state = workerState;
     if (!state) return;
     const { dt, radioAudio } = msg;
@@ -185,6 +186,7 @@ parentPort.on('message', (msg) => {
       wallLen: core.wallBuf ? core.wallBuf.length : 0,
       activeAlarm: state.activeAlarm,
       alarms: state.alarms,
+      version: workerVersion, // which main-thread state this frame was computed from
       blank: state.blank,
       effectStatus: state.effectStatus,
       radioAudio: remoteAudio.request(),

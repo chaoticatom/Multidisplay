@@ -26073,7 +26073,7 @@ var PiEngine = (() => {
           const dateKey = now.toDateString();
           if (al.repeat === "hourly") {
             const fireKey = dateKey + "_" + h + "_" + m;
-            if (m === al.minute && s < 3 && al._lastFireKey !== fireKey) {
+            if (m === al.minute && al._lastFireKey !== fireKey) {
               al._lastFireKey = fireKey;
               alarmFire(state, al, now);
               break;
@@ -26094,7 +26094,7 @@ var PiEngine = (() => {
             state.activeAlarm = { al, phase: "pre", startMs: now.getTime(), preMs, dismissed: false };
             break;
           }
-          if (h === al.hour && m === al.minute && s < 3 && al._lastFireKey !== dateKey) {
+          if (h === al.hour && m === al.minute && al._lastFireKey !== dateKey) {
             al._lastFireKey = dateKey;
             alarmFire(state, al, now);
             break;
@@ -26106,10 +26106,19 @@ var PiEngine = (() => {
         const hasPreEffect = al.prealarm?.enabled && al.prealarm?.giantSun;
         const durationMs = hasPreEffect ? 10 * 60 * 1e3 : 1 * 60 * 1e3;
         state.activeAlarm = { al, phase: "main", startMs: fireMs, endMs: fireMs + durationMs, dismissed: false };
+        if (al.triggerType === "off") {
+          state.activeAlarm = null;
+          state.blank = true;
+          state.appliedChanges = scenes.changedFields(state);
+          if (al.repeat === "once") al.enabled = false;
+          if (state.onAlarmsChanged) state.onAlarmsChanged();
+          return;
+        }
         const scene = al.triggerType === "scene" && Array.isArray(state.scenes) ? state.scenes.find((sc) => sc.name === al.scene) : null;
         if (scene) {
           scenes.apply(state, scene);
         } else {
+          state.blank = false;
           if (al.effect && al.effect !== "" && (state.effectsRegistry && state.effectsRegistry[al.effect])) {
             state.effect = al.effect;
           }
@@ -26732,7 +26741,7 @@ var PiEngine = (() => {
         if (!Number.isInteger(al.minute) || al.minute < 0 || al.minute > 59) return false;
         if (!REPEAT_MODES.includes(al.repeat)) return false;
         if (al.days !== void 0 && (!Array.isArray(al.days) || al.days.some((d) => !Number.isInteger(d) || d < 0 || d > 6))) return false;
-        if (al.triggerType !== void 0 && al.triggerType !== "effect" && al.triggerType !== "playlist") return false;
+        if (al.triggerType !== void 0 && !["effect", "playlist", "scene", "off"].includes(al.triggerType)) return false;
         if (al.overlayKeys !== void 0 && !Array.isArray(al.overlayKeys)) return false;
         return true;
       }

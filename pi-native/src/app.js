@@ -334,7 +334,7 @@ async function main() {
       }
       // The real radio decode/FFT runs HERE, not in the worker (see
       // ffmpegAudio.js's RemoteAudio) - ship its latest spectrum along.
-      renderWorker.postMessage({ type: 'tick', state: stateForWorker, dt, radioAudio: radio.audio.snapshot() });
+      renderWorker.postMessage({ type: 'tick', state: stateForWorker, version: sentStateVersion, dt, radioAudio: radio.audio.snapshot() });
     };
     // A real report ("station name never updates in the UI after picking
     // one") - set by the worker's 'stateChanged' message (see
@@ -364,14 +364,20 @@ async function main() {
       if (msg.wallShared) sharedWall = msg.wallShared;
       if (sharedCol && msg.colLen === core.colBuf.length && sharedCol.length === core.colBuf.length) core.colBuf.set(sharedCol);
       if (sharedWall && core.wallBuf && msg.wallLen === core.wallBuf.length && sharedWall.length === core.wallBuf.length) core.wallBuf.set(sharedWall);
-      state.activeAlarm = msg.activeAlarm;
-      state.alarms = msg.alarms;
-      state.blank = msg.blank;
+      // Only adopt the worker's copy of timer/blank state when it was
+      // computed from the latest state we sent. Otherwise a frame already in
+      // flight overwrote a change made a moment ago (a real report: "timers
+      // don't save" - a new timer vanished on the next frame).
+      if (msg.version === ws.stateVersion) {
+        state.activeAlarm = msg.activeAlarm;
+        state.alarms = msg.alarms;
+        state.blank = msg.blank;
+      }
       state.effectStatus = msg.effectStatus;
       diag.recordFrame(msg.renderMs);
       // A timer fired on the render thread and changed what's displayed:
       // adopt it here too, or the next state hand-off would revert it.
-      if (msg.applied) { Object.assign(state, msg.applied); ws._broadcast(ws._stateMsg()); }
+      if (msg.applied) { Object.assign(state, msg.applied); if (msg.alarms) { state.alarms = msg.alarms; state.activeAlarm = msg.activeAlarm; alarmConfig.save(state.alarms); } ws._broadcast(ws._stateMsg()); }
       radioSeen = applyRemoteRequest(radio.audio, msg.radioAudio, radioSeen);
       ws.maybeStreamFrame(core, state.brightness);
       if (pendingBroadcast) { pendingBroadcast = false; ws._broadcast(ws._stateMsg()); }

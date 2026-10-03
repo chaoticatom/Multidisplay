@@ -405,7 +405,7 @@ function alarmCheck(state, now) {
     const dateKey = now.toDateString();
     if (al.repeat === 'hourly') {
       const fireKey = dateKey + '_' + h + '_' + m;
-      if (m === al.minute && s < 3 && al._lastFireKey !== fireKey) { al._lastFireKey = fireKey; alarmFire(state, al, now); break; }
+      if (m === al.minute && al._lastFireKey !== fireKey) { al._lastFireKey = fireKey; alarmFire(state, al, now); break; }
       continue;
     }
 
@@ -425,7 +425,7 @@ function alarmCheck(state, now) {
       state.activeAlarm = { al, phase: 'pre', startMs: now.getTime(), preMs, dismissed: false };
       break;
     }
-    if (h === al.hour && m === al.minute && s < 3 && al._lastFireKey !== dateKey) {
+    if (h === al.hour && m === al.minute && al._lastFireKey !== dateKey) {
       al._lastFireKey = dateKey;
       alarmFire(state, al, now);
       break;
@@ -441,10 +441,20 @@ function alarmFire(state, al, now) {
   const durationMs = hasPreEffect ? 10 * 60 * 1000 : 1 * 60 * 1000;
   state.activeAlarm = { al, phase: 'main', startMs: fireMs, endMs: fireMs + durationMs, dismissed: false };
 
+  if (al.triggerType === 'off') {
+    // "Turn off" timer: blank the display (music keeps playing), no message.
+    state.activeAlarm = null;
+    state.blank = true;
+    state.appliedChanges = scenes.changedFields(state);
+    if (al.repeat === 'once') al.enabled = false;
+    if (state.onAlarmsChanged) state.onAlarmsChanged();
+    return;
+  }
   const scene = al.triggerType === 'scene' && Array.isArray(state.scenes) ? state.scenes.find((sc) => sc.name === al.scene) : null;
   if (scene) {
     scenes.apply(state, scene); // effect, options, overlays, brightness... as saved
   } else {
+    state.blank = false;
     if (al.effect && al.effect !== '' && (state.effectsRegistry && state.effectsRegistry[al.effect])) {
       state.effect = al.effect;
     }

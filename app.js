@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.217';
+const APP_VERSION = '0.6.219';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -620,13 +620,6 @@ function renderScenes() {
     chip.append(go, del);
     return chip;
   }));
-  // Timer editor's scene picker.
-  const sel = document.getElementById('al-scene-select');
-  if (sel) {
-    const cur = sel.value;
-    sel.replaceChildren(...list.map((sc) => { const o = document.createElement('option'); o.value = sc.name; o.textContent = sc.name; return o; }));
-    if (cur) sel.value = cur;
-  }
 }
 function wireScenes() {
   const inp = document.getElementById('scene-name-input');
@@ -3017,218 +3010,234 @@ function syncSliders() {
 }
 
 // ---------------------------------------------------------------------
-// Timers ("alarms") - #alarm-section's list + #alarm-modal's editor.
-// Mirrors the browser's own function breakdown (alarmBuildList()/
-// alarmOpenEditor()/alarmSetTriggerType()/alarmUpdateSunriseTog() in
-// ui.js), but list rendering here builds real DOM client-side from
-// currentState.alarms/activeAlarm (the WS "state" broadcast) instead of
-// the browser's own local `alarms` array - see effects/alarms.js's module
-// comment on the server for the full data model and the effectRise/
-// wxRise/playlist scope boundaries this editor deliberately doesn't expose
-// UI for (index.html's alarm-modal was trimmed to match: no playlist
-// picker beyond a disabled placeholder, no Effect-Rise sub-panel).
-const AL_DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-const OV_NAMES = { stars: '✨ Stars', snow: '❄️ Snow', meteors: '☄️ Meteors', edgeglow: '🔆 Edge Glow', fire: '🔥 Fire', sparkle: '💫 Sparkle', colorwave: '🌊 Color Wave', pulse: '💡 Pulse', scanline: '📡 Scan Line', vignette: '🌑 Vignette', glitch: '📺 Glitch', mist: '🌫️ Mist', lightning: '⚡ Lightning' };
-let alarmEditId = null;
+// Timers ("alarms"): the list on the Time tab and the editor sheet
+// (#alarm-modal). The server owns the list (state.alarms, see
+// src/alarmConfig.js for the stored shape); this maps it to four simple
+// kinds:
+//   wake     - optional sunrise, then an effect/scene (+ message)
+//   start    - switch to an effect/scene at the time
+//   winddown - fade from full to dark over N minutes (prealarm.windDown)
+//   off      - blank the display (triggerType 'off'; music keeps playing)
+const TM_DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const TM_KIND_LABEL = { wake: '⏰ Wake up', start: '▶ Switch on', winddown: '🌙 Wind down', off: '⏻ Turn off' };
+const TM_REPEAT_DAYS = { daily: [0, 1, 2, 3, 4, 5, 6], weekdays: [1, 2, 3, 4, 5], weekends: [0, 6], once: [] };
+let tmEdit = null; // { id|null, kind, days:Set, sunrise, wd, repeatHourly }
+
+function tmKindOf(al) {
+  if (TM_KIND_LABEL[al.kind]) return al.kind;
+  if (al.triggerType === 'off') return 'off';
+  if (al.prealarm?.windDown) return 'winddown';
+  if (al.prealarm?.enabled || al.message) return 'wake';
+  return 'start';
+}
+function tmDaysOf(al) {
+  if (al.repeat === 'weekly') return al.days || [];
+  return TM_REPEAT_DAYS[al.repeat] || TM_REPEAT_DAYS.daily;
+}
+// Days → the stored repeat mode.
+function tmRepeatFor(days) {
+  const key = [...days].sort().join(',');
+  for (const r of ['daily', 'weekdays', 'weekends']) if (TM_REPEAT_DAYS[r].join(',') === key) return { repeat: r, days: [] };
+  if (!days.size) return { repeat: 'once', days: [] };
+  return { repeat: 'weekly', days: [...days].sort() };
+}
+function tmRepeatLabel(al) {
+  if (al.repeat === 'hourly') return 'Every hour';
+  const r = { once: 'Once', daily: 'Every day', weekdays: 'Weekdays', weekends: 'Weekends' }[al.repeat];
+  if (r) return r;
+  return [1, 2, 3, 4, 5, 6, 0].filter((d) => (al.days || []).includes(d)).map((d) => TM_DAY_NAMES[d]).join(' ') || 'Never';
+}
+// When an alarm next runs (Date), or null if it never will.
+function tmNextRun(al, from = new Date()) {
+  if (al.repeat === 'hourly') {
+    const d = new Date(from); d.setSeconds(0, 0); d.setMinutes(al.minute);
+    if (d <= from) d.setHours(d.getHours() + 1);
+    return d;
+  }
+  const days = al.repeat === 'once' ? [0, 1, 2, 3, 4, 5, 6] : tmDaysOf(al);
+  if (!days.length) return null;
+  for (let i = 0; i < 8; i++) {
+    const d = new Date(from); d.setDate(d.getDate() + i); d.setHours(al.hour, al.minute, 0, 0);
+    if (d > from && days.includes(d.getDay())) return d;
+  }
+  return null;
+}
+function tmUntil(d) {
+  if (!d) return '';
+  const mins = Math.round((d - Date.now()) / 60000);
+  if (mins < 60) return `in ${Math.max(1, mins)} min`;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  if (h < 24) return `in ${h} h${m ? ' ' + m + ' min' : ''}`;
+  return 'on ' + TM_DAY_NAMES[d.getDay()];
+}
+function tmHHMM(al) { return String(al.hour).padStart(2, '0') + ':' + String(al.minute).padStart(2, '0'); }
+function tmWhat(al) {
+  if (al.triggerType === 'scene') return 'Scene: ' + (al.scene || '?');
+  if (al.effect) return effectNames?.[al.effect] || al.effect;
+  return '';
+}
 
 function renderAlarmList() {
   const el = document.getElementById('alarm-list-ui');
   if (!el) return;
-  const alarms = currentState.alarms || [];
-  if (!alarms.length) { el.innerHTML = '<div style="font-size:12px;color:#9aa3b8;text-align:center;padding:10px 0;">No timers set</div>'; return; }
-  el.innerHTML = '';
-  alarms.forEach((al) => {
-    const h = String(al.hour).padStart(2, '0'), m = String(al.minute).padStart(2, '0');
-    const repeatLabel = { once: 'Once', daily: 'Daily', weekdays: 'Weekdays', weekends: 'Weekends', weekly: (al.days || []).map((d) => AL_DAYS[d]).join(','), hourly: 'Hourly' }[al.repeat] || al.repeat;
-    const isWd = !!al.prealarm?.windDown;
+  const alarms = (currentState.alarms || []).slice().sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute));
+  if (!alarms.length) { el.innerHTML = '<div class="tm-empty">No timers yet. Tap one below to add it.</div>'; return; }
+  el.replaceChildren(...alarms.map((al) => {
+    const kind = tmKindOf(al);
+    const what = kind === 'winddown' ? `fades over ${al.prealarm?.wdMinutes || 15} min` : kind === 'off' ? 'display off' : tmWhat(al);
+    const next = al.enabled ? tmUntil(tmNextRun(al)) : 'off';
     const div = document.createElement('div');
     div.className = 'cx-timer' + (al.enabled ? ' on' : '');
-    div.innerHTML = `<div class="cx-timer-main"><b>${h}:${m}</b><span>${escHtml(al.name || 'Timer')}</span><small>${isWd ? '🌙 Wind down' : '⏰ Alarm'} · ${escHtml(String(repeatLabel || ''))}</small></div>
-      <button class="cx-switch${al.enabled ? ' on' : ''}" aria-label="Timer on/off"></button>
-      <button class="cx-icon-btn al-edit-btn" aria-label="Edit timer">✎</button>
-      <button class="cx-icon-btn cx-danger al-del-btn" aria-label="Delete timer">✕</button>`;
-    div.querySelector('.cx-switch').addEventListener('click', () => send({ cmd: 'setAlarmEnabled', id: al.id, enabled: !al.enabled }));
-    div.querySelector('.al-edit-btn').addEventListener('click', () => openAlarmEditor(al.id));
-    div.querySelector('.al-del-btn').addEventListener('click', () => { if (confirm('Delete timer?')) send({ cmd: 'deleteAlarm', id: al.id }); });
-    el.appendChild(div);
-  });
+    div.innerHTML = `<div class="cx-timer-main"><b></b><span></span><small></small></div><button type="button" class="cx-switch${al.enabled ? ' on' : ''}" aria-label="Timer on or off"></button>`;
+    div.querySelector('b').textContent = tmHHMM(al);
+    div.querySelector('span').textContent = (al.name || TM_KIND_LABEL[kind]) + (what ? ' · ' + what : '');
+    div.querySelector('small').textContent = tmRepeatLabel(al) + (next ? ' · ' + next : '');
+    div.querySelector('.cx-switch').addEventListener('click', (e) => { e.stopPropagation(); send({ cmd: 'setAlarmEnabled', id: al.id, enabled: !al.enabled }); });
+    div.addEventListener('click', () => openAlarmEditor(al.id));
+    return div;
+  }));
 }
 
 function wireAlarmSection() {
   document.getElementById('alarm-add-btn')?.addEventListener('click', () => openAlarmEditor(null));
+  document.querySelectorAll('[data-quick]').forEach((b) => b.addEventListener('click', () => openAlarmEditor(null, b.dataset.quick)));
 }
 
-function buildOverlayCheckboxes(container, checkedKeys) {
-  container.innerHTML = '';
-  Object.keys(OV_NAMES).forEach((ov) => {
-    const lbl = document.createElement('label');
-    lbl.style.cssText = 'font-size:12px;color:#99b;display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 0;';
-    const tog = document.createElement('span'); tog.className = 'ov-toggle'; tog.style.marginLeft = '0';
-    const chk = document.createElement('input'); chk.type = 'checkbox'; chk.value = ov;
-    chk.checked = (checkedKeys || []).includes(ov);
-    const slider = document.createElement('span'); slider.className = 'ov-slider';
-    tog.appendChild(chk); tog.appendChild(slider);
-    lbl.appendChild(tog); lbl.appendChild(document.createTextNode(OV_NAMES[ov]));
-    container.appendChild(lbl);
-  });
+function tmFillShow(sel, al) {
+  const scenes = currentState.scenes || [];
+  const opt = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; return o; };
+  const groups = [];
+  if (scenes.length) { const g = document.createElement('optgroup'); g.label = 'Scenes'; g.append(...scenes.map((sc) => opt('scene:' + sc.name, sc.name))); groups.push(g); }
+  const g = document.createElement('optgroup'); g.label = 'Effects';
+  g.append(...Object.entries(effectNames || {}).filter(([k]) => k !== 'custom_cube' && k !== 'easter_egg')
+    .sort((a, b) => a[1].localeCompare(b[1])).map(([k, v]) => opt('effect:' + k, v)));
+  groups.push(g);
+  sel.replaceChildren(opt('', 'Keep what is showing'), ...groups);
+  sel.value = al.triggerType === 'scene' && al.scene ? 'scene:' + al.scene : al.effect ? 'effect:' + al.effect : '';
+  if (sel.selectedIndex < 0) sel.value = '';
 }
 
-function readCheckedOverlayKeys(container) {
-  return Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map((c) => c.value);
+function tmSetChip(groupEl, attr, value) {
+  groupEl.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset[attr] === String(value)));
 }
 
-function populateEffectSelect(sel, selected) {
-  sel.innerHTML = '<option value="">─ None (no effect) ─</option>';
-  Object.entries(effectNames || {}).filter(([k]) => k !== 'custom_cube').forEach(([k, v]) => {
-    const o = document.createElement('option'); o.value = k; o.textContent = v;
-    if (k === selected) o.selected = true;
-    sel.appendChild(o);
-  });
+function tmSync() {
+  const e = tmEdit;
+  document.querySelectorAll('.tm-kind').forEach((b) => { const on = b.dataset.kind === e.kind; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+  const show = (id, on) => { const el = document.getElementById(id); if (el) el.hidden = !on; };
+  show('tm-show-row', e.kind === 'wake' || e.kind === 'start');
+  show('tm-sunrise-row', e.kind === 'wake');
+  show('tm-msg-row', e.kind === 'wake' || e.kind === 'start');
+  show('tm-wd-row', e.kind === 'winddown');
+  tmSetChip(document.getElementById('tm-sunrise'), 'v', e.sunrise);
+  tmSetChip(document.getElementById('tm-wd'), 'v', e.wd);
+  const rep = e.repeatHourly ? 'hourly' : tmRepeatFor(e.days).repeat;
+  tmSetChip(document.getElementById('tm-repeat'), 'r', rep);
+  document.querySelectorAll('#tm-days button').forEach((b) => b.classList.toggle('on', e.days.has(+b.dataset.d)));
+  document.getElementById('tm-name').placeholder = TM_KIND_LABEL[e.kind].replace(/^\S+\s/, '');
+  // Summary: "Weekdays at 07:30 · next in 9 h 12 min"
+  const al = tmRead();
+  const next = tmNextRun(al);
+  const start = e.kind === 'wake' && e.sunrise ? ` (sunrise from ${tmHHMM({ hour: Math.floor(((al.hour * 60 + al.minute - e.sunrise) + 1440) % 1440 / 60), minute: ((al.hour * 60 + al.minute - e.sunrise) + 1440) % 60 })})` : '';
+  document.getElementById('tm-summary').textContent = next ? `${tmRepeatLabel(al)} at ${tmHHMM(al)}${start} · next ${tmUntil(next)}` : 'Pick at least one day';
 }
 
-function alarmSetTriggerType(type) {
-  const scene = type === 'scene';
-  for (const [id, on] of [['al-type-effect', !scene], ['al-type-scene', scene]]) {
-    const b = document.getElementById(id); if (!b) continue;
-    b.classList.toggle('active', on);
-    b.style.background = on ? 'rgba(80,120,255,0.2)' : 'rgba(30,40,80,0.4)';
-    b.style.borderColor = on ? 'rgba(80,120,255,0.5)' : 'rgba(80,120,255,0.2)';
-  }
-  const effRow = document.getElementById('al-effect-row'), sceneRow = document.getElementById('al-scene-row');
-  if (effRow) effRow.style.display = scene ? 'none' : '';
-  if (sceneRow) sceneRow.style.display = scene ? '' : 'none';
-}
-
-function openAlarmEditor(id) {
-  alarmEditId = id;
+function openAlarmEditor(id, quickKind) {
   const al = id ? (currentState.alarms || []).find((a) => a.id === id) : null;
-  const d = al || {
-    name: 'Morning Timer', enabled: true, hour: 7, minute: 30, repeat: 'daily', days: [1, 2, 3, 4, 5],
-    triggerType: 'effect', effect: 'wave', overlayKeys: [], message: 'Good Morning! 🌅', prealarm: { enabled: false, preMinutes: 15, startBright: 5 },
+  const kind = al ? tmKindOf(al) : quickKind || 'wake';
+  const defaults = { wake: [7, 0], start: [18, 0], winddown: [22, 30], off: [23, 30] }[kind];
+  const src = al || { hour: defaults[0], minute: defaults[1], repeat: kind === 'wake' ? 'weekdays' : 'daily', effect: '', message: '' };
+  tmEdit = {
+    id: al ? al.id : null, kind,
+    days: new Set(src.repeat === 'once' ? [] : tmDaysOf(src)),
+    repeatHourly: src.repeat === 'hourly',
+    sunrise: al?.prealarm?.enabled ? al.prealarm.preMinutes || 15 : (al ? 0 : 15),
+    wd: al?.prealarm?.wdMinutes || 15,
   };
-
-  document.getElementById('al-name').value = d.name || '';
-  document.getElementById('al-hour').value = d.hour;
-  document.getElementById('al-min').value = String(d.minute).padStart(2, '0');
-  document.getElementById('al-repeat').value = d.repeat || 'daily';
-  document.getElementById('al-message').value = d.message || '';
-  document.getElementById('al-pre-mins').value = d.prealarm?.preMinutes || 15;
-  document.getElementById('al-dim-start').value = d.prealarm?.startBright || 5;
-  document.getElementById('al-dim-val').textContent = (d.prealarm?.startBright || 5) + '%';
-
-  const isWd = !!d.prealarm?.windDown;
-  document.getElementById('al-alarm-on').value = isWd ? '0' : '1';
-  document.getElementById('al-alarm-opts').style.display = isWd ? 'none' : '';
-  document.getElementById('al-alarm-arrow').style.transform = isWd ? '' : 'rotate(90deg)';
-  document.getElementById('al-wind-down').value = isWd ? '1' : '0';
-  document.getElementById('al-wd-use-effect').checked = !!d.prealarm?.wdUseEffect;
-  const wdMinsEl = document.getElementById('al-wd-mins');
-  if (wdMinsEl) wdMinsEl.value = d.prealarm?.wdMinutes || 15;
-  document.getElementById('al-wd-opts').style.display = isWd ? '' : 'none';
-  document.getElementById('al-wd-arrow').style.transform = isWd ? 'rotate(90deg)' : '';
-  document.getElementById('al-sunrise-chk').checked = !!d.prealarm?.enabled;
-  document.getElementById('al-sunrise-opts').style.display = d.prealarm?.enabled ? 'block' : 'none';
-  document.getElementById('al-giant-sun-chk').checked = !!d.prealarm?.giantSun;
-
-  document.querySelectorAll('.al-day-btn').forEach((b) => {
-    const dd = +b.dataset.d;
-    b.classList.toggle('active', (d.days || []).includes(dd));
-  });
-  document.getElementById('al-days-row').style.display = d.repeat === 'weekly' ? '' : 'none';
-
-  renderScenes();
-  const sceneSel = document.getElementById('al-scene-select');
-  if (sceneSel && d.scene) sceneSel.value = d.scene;
-  alarmSetTriggerType(d.triggerType === 'scene' ? 'scene' : 'effect');
-  populateEffectSelect(document.getElementById('al-effect'), d.effect);
-  buildOverlayCheckboxes(document.getElementById('al-overlays'), d.overlayKeys);
-  populateEffectSelect(document.getElementById('al-wd-effect'), d.prealarm?.wdEffectKey || currentState.effect);
-  buildOverlayCheckboxes(document.getElementById('al-wd-overlays'), d.prealarm?.wdOverlayKeys);
-  document.getElementById('al-wd-effect-section').style.display = d.prealarm?.wdUseEffect ? '' : 'none';
-
-  document.getElementById('alarm-modal-title').textContent = id ? 'EDIT TIMER' : 'ADD TIMER';
-  document.getElementById('alarm-modal').style.display = 'block';
+  document.getElementById('tm-title').textContent = al ? 'Edit timer' : 'New timer';
+  document.getElementById('tm-time').value = tmHHMM(src);
+  document.getElementById('tm-name').value = al?.name || '';
+  document.getElementById('tm-message').value = src.message || '';
+  document.getElementById('tm-giant-sun').checked = !!al?.prealarm?.giantSun;
+  document.getElementById('tm-wd-effect').checked = al ? !!al.prealarm?.wdUseEffect : true;
+  tmFillShow(document.getElementById('tm-show'), src);
+  document.getElementById('tm-delete').hidden = !al;
+  document.getElementById('alarm-modal').hidden = false;
+  tmSync();
 }
 
 function closeAlarmEditor() {
-  document.getElementById('alarm-modal').style.display = 'none';
+  document.getElementById('alarm-modal').hidden = true;
+  tmEdit = null;
 }
 
-function readAlarmFromModal() {
-  const triggerType = document.getElementById('al-type-scene')?.classList.contains('active') ? 'scene' : 'effect';
-  const repeat = document.getElementById('al-repeat').value;
-  const days = repeat === 'weekly' ? Array.from(document.querySelectorAll('.al-day-btn.active')).map((b) => +b.dataset.d) : [];
-  const isWd = document.getElementById('al-wind-down').value === '1';
+// The editor's current values as a stored alarm object.
+function tmRead() {
+  const e = tmEdit;
+  const [hh, mm] = (document.getElementById('tm-time').value || '07:00').split(':').map((n) => parseInt(n, 10) || 0);
+  const show = document.getElementById('tm-show').value;
+  const isScene = show.startsWith('scene:');
+  const rep = e.repeatHourly ? { repeat: 'hourly', days: [] } : tmRepeatFor(e.days);
+  const old = e.id ? (currentState.alarms || []).find((a) => a.id === e.id) : null;
+  const usesShow = e.kind === 'wake' || e.kind === 'start';
   return {
-    name: document.getElementById('al-name').value || 'Timer',
-    enabled: true,
-    hour: Math.max(0, Math.min(23, parseInt(document.getElementById('al-hour').value, 10) || 0)),
-    minute: Math.max(0, Math.min(59, parseInt(document.getElementById('al-min').value, 10) || 0)),
-    repeat, days,
-    triggerType,
-    effect: document.getElementById('al-effect').value || '',
-    overlayKeys: readCheckedOverlayKeys(document.getElementById('al-overlays')),
-    scene: document.getElementById('al-scene-select')?.value || '',
-    message: document.getElementById('al-message').value || '',
+    kind: e.kind,
+    name: document.getElementById('tm-name').value.trim(),
+    enabled: true, // saving a timer switches it on
+    hour: Math.min(23, Math.max(0, hh)), minute: Math.min(59, Math.max(0, mm)),
+    repeat: rep.repeat, days: rep.days,
+    triggerType: e.kind === 'off' ? 'off' : usesShow && isScene ? 'scene' : 'effect',
+    scene: usesShow && isScene ? show.slice(6) : '',
+    effect: usesShow && show.startsWith('effect:') ? show.slice(7) : '',
+    overlayKeys: old?.overlayKeys || [],
+    message: usesShow ? document.getElementById('tm-message').value.trim() : '',
     prealarm: {
-      enabled: !isWd && document.getElementById('al-sunrise-chk').checked,
-      preMinutes: parseInt(document.getElementById('al-pre-mins').value, 10) || 15,
-      startBright: parseInt(document.getElementById('al-dim-start').value, 10) || 5,
-      giantSun: document.getElementById('al-giant-sun-chk').checked,
-      windDown: isWd,
-      wdMinutes: parseInt(document.getElementById('al-wd-mins').value, 10) || 15,
-      wdUseEffect: document.getElementById('al-wd-use-effect').checked,
-      wdEffectKey: document.getElementById('al-wd-effect').value || '',
-      wdOverlayKeys: readCheckedOverlayKeys(document.getElementById('al-wd-overlays')),
+      enabled: e.kind === 'wake' && e.sunrise > 0,
+      preMinutes: e.sunrise || 15,
+      startBright: old?.prealarm?.startBright || 5,
+      giantSun: e.kind === 'wake' && document.getElementById('tm-giant-sun').checked,
+      windDown: e.kind === 'winddown',
+      wdMinutes: e.wd,
+      wdUseEffect: e.kind === 'winddown' && document.getElementById('tm-wd-effect').checked,
+      wdEffectKey: '', // '' = whatever is showing when it starts
+      wdOverlayKeys: [],
     },
   };
 }
 
 function wireAlarmModal() {
-  document.getElementById('al-type-effect')?.addEventListener('click', () => alarmSetTriggerType('effect'));
-  document.getElementById('al-type-scene')?.addEventListener('click', () => alarmSetTriggerType('scene'));
-  // Playlist trigger type is a permanent scope boundary (see this file's
-  // module comment + effects/alarms.js) - the button is disabled in
-  // index.html so this click handler never fires from it, kept out
-  // entirely rather than wired to a dead end.
-  document.getElementById('al-repeat')?.addEventListener('change', (e) => {
-    document.getElementById('al-days-row').style.display = e.target.value === 'weekly' ? '' : 'none';
+  const modal = document.getElementById('alarm-modal');
+  if (!modal) return;
+  document.querySelectorAll('.tm-kind').forEach((b) => b.addEventListener('click', () => { tmEdit.kind = b.dataset.kind; tmSync(); }));
+  document.querySelectorAll('#tm-sunrise button').forEach((b) => b.addEventListener('click', () => { tmEdit.sunrise = +b.dataset.v; tmSync(); }));
+  document.querySelectorAll('#tm-wd button').forEach((b) => b.addEventListener('click', () => { tmEdit.wd = +b.dataset.v; tmSync(); }));
+  document.querySelectorAll('#tm-repeat button').forEach((b) => b.addEventListener('click', () => {
+    tmEdit.repeatHourly = false;
+    tmEdit.days = new Set(TM_REPEAT_DAYS[b.dataset.r]);
+    tmSync();
+  }));
+  document.querySelectorAll('#tm-days button').forEach((b) => b.addEventListener('click', () => {
+    tmEdit.repeatHourly = false;
+    const d = +b.dataset.d;
+    if (tmEdit.days.has(d)) tmEdit.days.delete(d); else tmEdit.days.add(d);
+    tmSync();
+  }));
+  document.getElementById('tm-time').addEventListener('input', tmSync);
+  document.getElementById('tm-show').addEventListener('change', tmSync);
+  document.getElementById('tm-close').addEventListener('click', closeAlarmEditor);
+  modal.addEventListener('click', (e) => { if (e.target === modal) closeAlarmEditor(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) closeAlarmEditor(); });
+  document.getElementById('tm-delete').addEventListener('click', () => {
+    if (tmEdit?.id && confirm('Delete this timer?')) { send({ cmd: 'deleteAlarm', id: tmEdit.id }); cxToast('Timer deleted'); closeAlarmEditor(); }
   });
-  document.querySelectorAll('.al-day-btn').forEach((b) => b.addEventListener('click', () => b.classList.toggle('active')));
-  document.getElementById('al-dim-start')?.addEventListener('input', (e) => {
-    document.getElementById('al-dim-val').textContent = e.target.value + '%';
-  });
-  document.getElementById('al-sunrise-chk')?.addEventListener('change', (e) => {
-    document.getElementById('al-sunrise-opts').style.display = e.target.checked ? 'block' : 'none';
-  });
-  document.getElementById('al-alarm-hdr')?.addEventListener('click', () => {
-    const on = document.getElementById('al-alarm-on').value === '1';
-    document.getElementById('al-alarm-on').value = on ? '0' : '1';
-    document.getElementById('al-wind-down').value = on ? '1' : '0';
-    document.getElementById('al-alarm-opts').style.display = on ? 'none' : '';
-    document.getElementById('al-alarm-arrow').style.transform = on ? '' : 'rotate(90deg)';
-    document.getElementById('al-wd-opts').style.display = on ? '' : 'none';
-    document.getElementById('al-wd-arrow').style.transform = on ? 'rotate(90deg)' : '';
-  });
-  document.getElementById('al-wd-hdr')?.addEventListener('click', () => {
-    const on = document.getElementById('al-wind-down').value === '1';
-    document.getElementById('al-wind-down').value = on ? '0' : '1';
-    document.getElementById('al-alarm-on').value = on ? '1' : '0';
-    document.getElementById('al-wd-opts').style.display = on ? 'none' : '';
-    document.getElementById('al-wd-arrow').style.transform = on ? '' : 'rotate(90deg)';
-    document.getElementById('al-alarm-opts').style.display = on ? '' : 'none';
-    document.getElementById('al-alarm-arrow').style.transform = on ? 'rotate(90deg)' : '';
-  });
-  document.getElementById('al-wd-use-effect')?.addEventListener('change', (e) => {
-    document.getElementById('al-wd-effect-section').style.display = e.target.checked ? '' : 'none';
-  });
-  document.getElementById('al-save-btn')?.addEventListener('click', () => {
-    const alarm = readAlarmFromModal();
-    if (alarmEditId) send({ cmd: 'updateAlarm', id: alarmEditId, alarm });
+  document.getElementById('tm-save').addEventListener('click', () => {
+    const alarm = tmRead();
+    if (tmEdit.id) send({ cmd: 'updateAlarm', id: tmEdit.id, alarm });
     else send({ cmd: 'addAlarm', alarm });
+    const next = tmNextRun(alarm);
+    cxToast(`Timer saved · ${next ? 'next ' + tmUntil(next) : 'runs once'}`);
     closeAlarmEditor();
   });
-  document.getElementById('al-cancel-btn')?.addEventListener('click', closeAlarmEditor);
 }
 
 // ---------------------------------------------------------------------
@@ -5236,19 +5245,19 @@ function cxRenderRing() {
   let out = '<circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/>';
   for (let h = 0; h < 24; h += 6) { const [x, y] = pt(h, 30); out += `<text x="${x}" y="${y + 1.5}" font-size="4" text-anchor="middle" fill="rgba(238,242,255,.45)">${h}</text>`; }
   const alarms = (currentState.alarms || []).filter((a) => a.enabled);
-  let next = null, best = 99;
+  let next = null, best = Infinity;
   for (const al of alarms) {
     const h = al.hour + al.minute / 60, [x, y] = pt(h, 40);
     out += `<circle cx="${x}" cy="${y}" r="3.2" fill="var(--cx2)" stroke="#fff" stroke-width=".6"/>`;
-    const until = (h - hh + 24) % 24;
-    if (until < best) { best = until; next = al; }
+    const t = tmNextRun(al, now);
+    if (t && t - now < best) { best = t - now; next = al; }
   }
   const [hx, hy] = pt(hh, 40);
   out += `<circle cx="${hx}" cy="${hy}" r="2.2" fill="#fff"/>`;
   svg.innerHTML = out;
   const t = document.getElementById('cx-ring-time'), n = document.getElementById('cx-ring-next');
   if (t) t.textContent = now.toTimeString().slice(0, 5);
-  if (n) n.textContent = next ? `next: ${next.name || 'timer'} ${String(next.hour).padStart(2, '0')}:${String(next.minute).padStart(2, '0')}` : 'no timers on';
+  if (n) n.textContent = next ? `next: ${next.name || TM_KIND_LABEL[tmKindOf(next)]} ${tmUntil(tmNextRun(next, now))}` : 'no timers on';
 }
 
 // ── Now playing card on the Music tab.

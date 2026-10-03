@@ -55,7 +55,7 @@ function isValidAlarm(al) {
   if (!Number.isInteger(al.minute) || al.minute < 0 || al.minute > 59) return false;
   if (!REPEAT_MODES.includes(al.repeat)) return false;
   if (al.days !== undefined && (!Array.isArray(al.days) || al.days.some((d) => !Number.isInteger(d) || d < 0 || d > 6))) return false;
-  if (al.triggerType !== undefined && al.triggerType !== 'effect' && al.triggerType !== 'playlist') return false;
+  if (al.triggerType !== undefined && !['effect', 'playlist', 'scene', 'off'].includes(al.triggerType)) return false;
   if (al.overlayKeys !== undefined && !Array.isArray(al.overlayKeys)) return false;
   return true;
 }

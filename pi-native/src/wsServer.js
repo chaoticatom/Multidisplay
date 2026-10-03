@@ -669,12 +669,13 @@ class WsServer {
     if (!raw || typeof raw !== 'object') return null;
     const al = {
       id,
-      name: typeof raw.name === 'string' ? raw.name : '',
+      name: typeof raw.name === 'string' ? raw.name.slice(0, 60) : '',
+      kind: ['wake', 'start', 'winddown', 'off'].includes(raw.kind) ? raw.kind : '',
       enabled: !!raw.enabled,
       hour: Number(raw.hour), minute: Number(raw.minute),
       repeat: raw.repeat,
       days: Array.isArray(raw.days) ? raw.days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6) : [],
-      triggerType: raw.triggerType === 'scene' ? 'scene' : 'effect',
+      triggerType: ['scene', 'off'].includes(raw.triggerType) ? raw.triggerType : 'effect',
       scene: typeof raw.scene === 'string' ? raw.scene.slice(0, 40) : '',
       effect: typeof raw.effect === 'string' ? raw.effect : '',
       overlayKeys: Array.isArray(raw.overlayKeys) ? raw.overlayKeys.filter((k) => OVERLAY_KEYS.includes(k)) : [],
