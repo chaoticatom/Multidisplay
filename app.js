@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.196';
+const APP_VERSION = '0.6.197';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -5000,11 +5000,25 @@ function cxRenderRing() {
 }
 
 // ── Now playing card on the Music tab.
+// Spectrum settings only show while Internet Radio is the effect on screen,
+// so changing one (or tapping Show spectrum) switches the display to it.
+function cxShowSpectrum() {
+  if (currentState.effect !== 'radio') { send({ cmd: 'setEffect', effect: 'radio' }); cxToast('📊 Showing the spectrum'); }
+  if (!(currentState.effectOptions?.radio?.spectrumOn)) setEffectOption('radio', 'spectrumOn', true);
+}
+function cxWireSpectrumShortcut() {
+  document.getElementById('cx-show-spectrum')?.addEventListener('click', cxShowSpectrum);
+  document.querySelectorAll('#panel-radio .spectrum-bands-btn, #panel-radio .au-style-btn, #panel-radio .au-theme-btn').forEach((b) => b.addEventListener('click', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
+  document.querySelector('#panel-radio .ov-chk[data-ov="spectrum"]')?.addEventListener('change', (e) => { if (e.target.checked && currentState.effect !== 'radio') cxShowSpectrum(); });
+}
+
 function cxSyncMusic() {
   const st = currentState.effectStatus?.radio, card = document.getElementById('cx-np');
   if (!card) return;
   const playing = !!(st && st.playing && st.station);
   card.classList.toggle('playing', playing);
+  const sb = document.getElementById('cx-show-spectrum');
+  if (sb) sb.hidden = currentState.effect === 'radio';
   document.getElementById('cx-np-name').textContent = playing ? st.station.name.replace(/^[\s-]+/, '') : 'Nothing playing';
   document.getElementById('cx-np-sub').textContent = playing ? (st.station.genre || 'Radio') : 'Pick a station below';
   document.getElementById('stop-sound-btn')?.classList.toggle('cx-quiet', !playing);
@@ -5027,6 +5041,7 @@ function cxInit() {
   cxWireAiSetup();
   cxWirePrefs();
   cxWireVoice();
+  cxWireSpectrumShortcut();
   cxWireExtras();
   cxWireTiles();
   document.querySelectorAll('#tab-bar [data-tab]').forEach((b) => b.addEventListener('click', () => requestAnimationFrame(cxMoveBlob)));
