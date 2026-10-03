@@ -154,4 +154,24 @@ function r2Pal(p, tv) {
   return [r < 0 ? 0 : r > 1 ? 1 : r, g < 0 ? 0 : g > 1 ? 1 : g, b < 0 ? 0 : b > 1 ? 1 : b];
 }
 
-module.exports = { r2rnd, R2_CHARS, r2GenParams, r2lerp, r2MorphParams, r2Pal };
+// Per-frame lookup tables so the per-pixel loop avoids pow()/cos() and the
+// palette's array allocation: everything after the wave sum depends only
+// on a 0..1 value. TN+1 entries, sampled by rounding (1/1024 steps - finer
+// than the LEDs' 8-bit output can show).
+const TN = 1024;
+const _sharp = new Float32Array(TN + 1), _col = new Float32Array((TN + 1) * 3), _wave = new Float64Array(16);
+function r2FrameTables(p, tOff) {
+  for (let i = 0; i <= TN; i++) _sharp[i] = Math.pow(i / TN, p.sharpness);
+  for (let i = 0; i <= TN; i++) {
+    const val = i / TN, L = Math.pow(val, p.contrast) * p.bright;
+    const c = r2Pal(p, val * p.hueScale + tOff * p.hueDrift);
+    _col[i * 3] = L < 0.015 ? -1 : c[0] * L; _col[i * 3 + 1] = c[1] * L; _col[i * 3 + 2] = c[2] * L;
+  }
+  for (let w = 0; w < 4; w++) {
+    const W = p.waves[w];
+    _wave[w * 4] = W.ax * W.freq; _wave[w * 4 + 1] = W.ay * W.freq; _wave[w * 4 + 2] = W.az * W.freq; _wave[w * 4 + 3] = tOff * W.speed + W.phase;
+  }
+  return { sharp: _sharp, col: _col, wave: _wave, amp: p.waves.map((W) => W.amp), TN };
+}
+
+module.exports = { r2rnd, R2_CHARS, r2GenParams, r2lerp, r2MorphParams, r2Pal, r2FrameTables };

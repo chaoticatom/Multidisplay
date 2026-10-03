@@ -27,15 +27,19 @@ function effectWarp(core, dt) {
     // brightness ramps with distance from center (speed illusion)
     const dist = Math.sqrt((wx - 0.5) ** 2 + (wy - 0.5) ** 2 + (wz - 0.5) ** 2) * 2;
     const bright = dist * 0.75 * Math.min(1, s.life * 3);
-    // project star onto each face
-    const faces = [[0, wx, wy], [1, wx, wy], [2, wz, wy], [3, wz, wy], [4, wx, wz], [5, wx, wz]];
-    for (const [f, fu, fv] of faces) {
+    // Project the star onto each face: one colour for the centre, one for
+    // the glow ring (worked out once per star - it was 54 hsl() calls and
+    // 7 small arrays per star per frame).
+    const core1 = bright * 0.85, glow1 = bright * 0.25 * 0.85;
+    if (core1 < 0.01) continue;
+    const cc = hsl(s.hue + dist * 0.15, 0.8, core1);
+    const gc = glow1 >= 0.01 ? hsl(s.hue + dist * 0.15, 0.8, glow1) : null;
+    for (let f = 0; f < 6; f++) {
+      const fu = f < 2 ? wx : f < 4 ? wz : wx, fv = f < 4 ? wy : wz;
       const pu = (fu * SIZE) | 0, pv = (fv * SIZE) | 0;
       for (let sx = -1; sx <= 1; sx++) for (let sy = -1; sy <= 1; sy++) {
-        const gl = bright * (sx === 0 && sy === 0 ? 1 : 0.25) * 0.85;
-        if (gl < 0.01) continue;
-        const [r, g, b] = hsl(s.hue + dist * 0.15, 0.8, gl);
-        core.setFaceLED(f, pu + sx, pv + sy, r, g, b);
+        const c = sx === 0 && sy === 0 ? cc : gc;
+        if (c) core.setFaceLED(f, pu + sx, pv + sy, c[0], c[1], c[2]);
       }
     }
   }

@@ -3877,22 +3877,40 @@ var PiEngine = (() => {
         return s - Math.floor(s);
       };
       var travel = 0;
+      var LAYERS = [0, 1, 2].map((layer) => {
+        const spokes = 70 + layer * 40;
+        const t = (k) => Float32Array.from({ length: spokes }, (_, c) => hash(c, layer + k));
+        return { spokes, seed: t(0), show: t(9), tint: t(3) };
+      });
+      var geoKey = "";
+      var geoAng = null;
+      var geoRad = null;
       module.exports = defineFieldEffect({
         speed: 1,
-        frame({ core, dt }) {
+        frame({ core, dt, count, flat }) {
+          const key = `${flat}|${count}|${core.wallW}x${core.wallH}`;
+          if (geoKey !== key) {
+            geoKey = key;
+            geoAng = new Float32Array(count);
+            geoRad = new Float32Array(count).fill(-1);
+          }
           const lvl = core.audio && core.audio.level ? core.audio.level : 0;
           travel += dt * (0.12 + lvl * 0.5);
         },
         pixel(p, { t, core }) {
-          let ang, rad;
-          if (p.flat) {
-            const asp = core.wallW / core.wallH, dx = (p.x - 0.5) * asp, dy = p.y - 0.5;
-            ang = Math.atan2(dy, dx);
-            rad = Math.sqrt(dx * dx + dy * dy) * 1.6;
-          } else {
-            const dx = p.x - 0.5, dy = p.y - 0.5, dz = p.z - 0.5, l = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
-            ang = Math.atan2(dz / l, dx / l);
-            rad = Math.acos(Math.max(-1, Math.min(1, dy / l))) / Math.PI * 1.6;
+          let ang = geoAng[p.i], rad = geoRad[p.i];
+          if (rad < 0) {
+            if (p.flat) {
+              const asp = core.wallW / core.wallH, dx = (p.x - 0.5) * asp, dy = p.y - 0.5;
+              ang = Math.atan2(dy, dx);
+              rad = Math.sqrt(dx * dx + dy * dy) * 1.6;
+            } else {
+              const dx = p.x - 0.5, dy = p.y - 0.5, dz = p.z - 0.5, l = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+              ang = Math.atan2(dz / l, dx / l);
+              rad = Math.acos(Math.max(-1, Math.min(1, dy / l))) / Math.PI * 1.6;
+            }
+            geoAng[p.i] = ang;
+            geoRad[p.i] = rad;
           }
           let r = 0, g = 0, b = 0;
           const bg = hsl(0.66 + 0.08 * Math.sin(ang * 2 + t * 0.05), 0.7, 0.03 + 0.03 * Math.max(0, Math.sin(ang * 3 + rad * 4 - t * 0.1)));
@@ -3900,18 +3918,18 @@ var PiEngine = (() => {
           g += bg[1];
           b += bg[2];
           for (let layer = 0; layer < 3; layer++) {
-            const spokes = 70 + layer * 40;
-            const cell = Math.floor((ang / (Math.PI * 2) + 0.5) * spokes);
-            const seed = hash(cell, layer);
+            const L = LAYERS[layer], spokes = L.spokes;
+            const cell = Math.min(spokes - 1, Math.floor((ang / (Math.PI * 2) + 0.5) * spokes));
+            const seed = L.seed[cell];
             const z = (seed + travel * (0.6 + layer * 0.4)) % 1;
             const starR = z * z * 1.6;
             const width = 0.02 + z * 0.08;
             const d = Math.abs(rad - starR);
-            if (d < width && hash(cell, layer + 9) > 0.35) {
+            if (d < width && L.show[cell] > 0.35) {
               const cAng = ((cell + 0.5) / spokes - 0.5) * Math.PI * 2;
               const across = Math.abs((ang - cAng + Math.PI) % (Math.PI * 2) - Math.PI) * rad * spokes / 6;
               const v = (1 - d / width) * Math.max(0, 1 - across) * Math.min(1, z * 2.2);
-              const tint = hash(cell, layer + 3);
+              const tint = L.tint[cell];
               r += v * (0.8 + tint * 0.2);
               g += v * 0.85;
               b += v * (1 - tint * 0.2 + 0.15);
@@ -3949,7 +3967,7 @@ var PiEngine = (() => {
           const k = 1.25, x = p.x * k, y = p.y * k, z = (p.flat ? 0.3 : p.z) * k;
           const w = 0.9 + stir * 1.2;
           const qx = wave(x, y, z, t), qy = wave(y + 5.2, z + 1.3, x, t * 1.1);
-          const rx = wave(x + w * qx, y + w * qy, z, t * 0.7 + 1.7), ry = wave(y + w * qy + 8.3, z, x + w * qx, t * 0.9);
+          const rx = wave(x + w * qx, y + w * qy, z, t * 0.7 + 1.7), ry = qy * 0.6 + qx * 0.4;
           const v = wave(x + w * rx, y + w * ry, z + 0.5, t * 0.5);
           const c = ink(0.42 + 0.2 * v + 0.1 * rx);
           const flare = stir * 0.25 * Math.max(0, ry);
@@ -6370,14 +6388,16 @@ var PiEngine = (() => {
           }
           const dist = Math.sqrt((wx - 0.5) ** 2 + (wy - 0.5) ** 2 + (wz - 0.5) ** 2) * 2;
           const bright = dist * 0.75 * Math.min(1, s.life * 3);
-          const faces = [[0, wx, wy], [1, wx, wy], [2, wz, wy], [3, wz, wy], [4, wx, wz], [5, wx, wz]];
-          for (const [f, fu, fv] of faces) {
+          const core1 = bright * 0.85, glow1 = bright * 0.25 * 0.85;
+          if (core1 < 0.01) continue;
+          const cc = hsl(s.hue + dist * 0.15, 0.8, core1);
+          const gc = glow1 >= 0.01 ? hsl(s.hue + dist * 0.15, 0.8, glow1) : null;
+          for (let f = 0; f < 6; f++) {
+            const fu = f < 2 ? wx : f < 4 ? wz : wx, fv = f < 4 ? wy : wz;
             const pu = fu * SIZE | 0, pv = fv * SIZE | 0;
             for (let sx = -1; sx <= 1; sx++) for (let sy = -1; sy <= 1; sy++) {
-              const gl = bright * (sx === 0 && sy === 0 ? 1 : 0.25) * 0.85;
-              if (gl < 0.01) continue;
-              const [r, g, b] = hsl(s.hue + dist * 0.15, 0.8, gl);
-              core.setFaceLED(f, pu + sx, pv + sy, r, g, b);
+              const c = sx === 0 && sy === 0 ? cc : gc;
+              if (c) core.setFaceLED(f, pu + sx, pv + sy, c[0], c[1], c[2]);
             }
           }
         }
@@ -6471,23 +6491,31 @@ var PiEngine = (() => {
           }
           const bright = Math.pow(Math.max(0, bolt.life), 0.6);
           const isMain = !bolt.branch;
+          const core_ = bright * (isMain ? 1 : 0.55);
+          const [hr, hg, hb] = hsl(bolt.hue, 0.65, core_ * 0.8);
+          const wr = isMain ? Math.min(1, hr + core_ * 0.5) : hr;
+          const wg = isMain ? Math.min(1, hg + core_ * 0.6) : hg;
+          const wb = isMain ? Math.min(1, hb + core_ * 0.7) : hb;
+          const gr = isMain ? 2 : 1, glow = [];
+          for (let gv = -gr; gv <= gr; gv++) for (let gu = -gr; gu <= gr; gu++) {
+            if (gu === 0 && gv === 0) continue;
+            const gd = Math.sqrt(gu * gu + gv * gv);
+            if (gd > gr + 0.5) continue;
+            glow.push([gu, gv, hsl(bolt.hue, 1, bright * 0.45 / (gd + 0.6) * (isMain ? 0.7 : 0.35))]);
+          }
+          const lift = (face, u, v, r, g, b) => {
+            if (u < 0 || u >= SIZE || v < 0 || v >= SIZE) return;
+            const i = core.faceMap[face][v * SIZE + u];
+            if (i < 0) return;
+            const o = i * 3, buf = core.colBuf;
+            if (r > buf[o]) buf[o] = r;
+            if (g > buf[o + 1]) buf[o + 1] = g;
+            if (b > buf[o + 2]) buf[o + 2] = b;
+          };
           for (const [face, u, v] of bolt.pts) {
             if (u < 0 || u >= SIZE || v < 0 || v >= SIZE) continue;
-            const core_ = bright * (isMain ? 1 : 0.55);
-            const [hr, hg, hb] = hsl(bolt.hue, 0.65, core_ * 0.8);
-            const wr = isMain ? Math.min(1, hr + core_ * 0.5) : hr;
-            const wg = isMain ? Math.min(1, hg + core_ * 0.6) : hg;
-            const wb = isMain ? Math.min(1, hb + core_ * 0.7) : hb;
-            core.setFaceLED(face, u, v, wr, wg, wb);
-            const gr = isMain ? 2 : 1;
-            for (let gv = -gr; gv <= gr; gv++) for (let gu = -gr; gu <= gr; gu++) {
-              if (gu === 0 && gv === 0) continue;
-              const gd = Math.sqrt(gu * gu + gv * gv);
-              if (gd > gr + 0.5) continue;
-              const gb = bright * 0.45 / (gd + 0.6) * (isMain ? 0.7 : 0.35);
-              const [gr2, gg2, gb2] = hsl(bolt.hue, 1, gb);
-              core.setFaceLED(face, u + gu, v + gv, gr2, gg2, gb2);
-            }
+            lift(face, u, v, wr, wg, wb);
+            for (const [gu, gv, c] of glow) lift(face, u + gu, v + gv, c[0], c[1], c[2]);
           }
         }
         const sparks = Math.floor(dt * 25 * (1 + lightningThunder * 6));
@@ -7733,7 +7761,29 @@ var PiEngine = (() => {
         let b = p.palA[2] + p.palB[2] * Math.cos(TAU * (p.palC[2] * tv + p.palD[2]));
         return [r < 0 ? 0 : r > 1 ? 1 : r, g < 0 ? 0 : g > 1 ? 1 : g, b < 0 ? 0 : b > 1 ? 1 : b];
       }
-      module.exports = { r2rnd, R2_CHARS, r2GenParams, r2lerp, r2MorphParams, r2Pal };
+      var TN = 1024;
+      var _sharp = new Float32Array(TN + 1);
+      var _col = new Float32Array((TN + 1) * 3);
+      var _wave = new Float64Array(16);
+      function r2FrameTables(p, tOff) {
+        for (let i = 0; i <= TN; i++) _sharp[i] = Math.pow(i / TN, p.sharpness);
+        for (let i = 0; i <= TN; i++) {
+          const val = i / TN, L = Math.pow(val, p.contrast) * p.bright;
+          const c = r2Pal(p, val * p.hueScale + tOff * p.hueDrift);
+          _col[i * 3] = L < 0.015 ? -1 : c[0] * L;
+          _col[i * 3 + 1] = c[1] * L;
+          _col[i * 3 + 2] = c[2] * L;
+        }
+        for (let w = 0; w < 4; w++) {
+          const W = p.waves[w];
+          _wave[w * 4] = W.ax * W.freq;
+          _wave[w * 4 + 1] = W.ay * W.freq;
+          _wave[w * 4 + 2] = W.az * W.freq;
+          _wave[w * 4 + 3] = tOff * W.speed + W.phase;
+        }
+        return { sharp: _sharp, col: _col, wave: _wave, amp: p.waves.map((W) => W.amp), TN };
+      }
+      module.exports = { r2rnd, R2_CHARS, r2GenParams, r2lerp, r2MorphParams, r2Pal, r2FrameTables };
     }
   });
 
@@ -7748,7 +7798,7 @@ var PiEngine = (() => {
       var r2MorphDur = 12;
       var r2From = null;
       var r2To = null;
-      var { r2rnd, R2_CHARS, r2GenParams, r2lerp, r2MorphParams, r2Pal } = require_random80sCommon();
+      var { r2rnd, R2_CHARS, r2GenParams, r2lerp, r2MorphParams, r2FrameTables } = require_random80sCommon();
       function r2NewTarget() {
         r2From = r2To || r2GenParams();
         r2To = r2GenParams();
@@ -7767,6 +7817,7 @@ var PiEngine = (() => {
         const tOff = r2T;
         const spinA = p.spin * tOff;
         const cosS = Math.cos(spinA), sinS = Math.sin(spinA);
+        const tb = r2FrameTables(p, tOff);
         for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
         for (let i = 0; i < N; i++) {
           let x = surfX[i] - 0.5, y = surfY[i] - 0.5, z = surfZ[i] - 0.5;
@@ -7786,17 +7837,14 @@ var PiEngine = (() => {
             y += Math.cos(x * p.warp.fx + z * p.warp.fz * 0.7 - tOff * p.warp.sx) * p.warp.amt;
             z += Math.sin(x * p.warp.fx * 0.8 + y * p.warp.fy * 0.6 + tOff * p.warp.sy * 0.5) * p.warp.amt * 0.7;
           }
-          let raw2 = 0;
-          for (let w = 0; w < 4; w++) {
-            const W = p.waves[w];
-            raw2 += Math.sin(x * W.ax * W.freq + y * W.ay * W.freq + z * W.az * W.freq + tOff * W.speed + W.phase) * W.amp;
-          }
+          const WV = tb.wave, WA = tb.amp;
+          let raw2 = Math.sin(x * WV[0] + y * WV[1] + z * WV[2] + WV[3]) * WA[0] + Math.sin(x * WV[4] + y * WV[5] + z * WV[6] + WV[7]) * WA[1] + Math.sin(x * WV[8] + y * WV[9] + z * WV[10] + WV[11]) * WA[2] + Math.sin(x * WV[12] + y * WV[13] + z * WV[14] + WV[15]) * WA[3];
           raw2 = raw2 * 0.5 + 0.5;
-          let val = Math.pow(raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2, p.sharpness);
+          let val = tb.sharp[Math.round((raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2) * tb.TN)];
           if (p.threshold > 0.01) {
             val = val > p.threshold ? (val - p.threshold) / (1 - p.threshold) : 0;
             if (p.edgeGlow > 0.01 && val <= 0) {
-              const shaped = Math.pow(raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2, p.sharpness);
+              const shaped = tb.sharp[Math.round((raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2) * tb.TN)];
               const dist = p.threshold - shaped;
               if (dist < p.edgeGlow * 0.5 && dist > 0) {
                 val = (1 - dist / (p.edgeGlow * 0.5)) * p.edgeGlow * 0.5;
@@ -7806,13 +7854,11 @@ var PiEngine = (() => {
           const rad = Math.sqrt(x * x + y * y + z * z);
           if (p.glow > 0) val += p.glow * Math.max(0, 1 - rad * 2.5);
           val = val < 0 ? 0 : val > 1 ? 1 : val;
-          const L = Math.pow(val, p.contrast) * p.bright;
-          if (L < 0.015) continue;
-          const hc = val * p.hueScale + tOff * p.hueDrift;
-          const col = r2Pal(p, hc);
-          colBuf[i * 3] = col[0] * L;
-          colBuf[i * 3 + 1] = col[1] * L;
-          colBuf[i * 3 + 2] = col[2] * L;
+          const ci = Math.round(val * tb.TN) * 3, C = tb.col;
+          if (C[ci] < 0) continue;
+          colBuf[i * 3] = C[ci];
+          colBuf[i * 3 + 1] = C[ci + 1];
+          colBuf[i * 3 + 2] = C[ci + 2];
         }
       }
       module.exports = effectRandom80s;
@@ -7962,6 +8008,8 @@ var PiEngine = (() => {
       var tronBikeCount = 4;
       var tronWinner = -1;
       var tronGridTheme = 0;
+      var tronStamp = 0;
+      var tronNbr = null;
       var tronVisited = null;
       var tronBFSQueue = null;
       var tronDeaths = null;
@@ -7983,38 +8031,32 @@ var PiEngine = (() => {
       var TRON_BFS_DIRS_U = [1, -1, 0, 0];
       var TRON_BFS_DIRS_V = [0, 0, 1, -1];
       function tronFloodFill(core, face, u, v, du, dv) {
-        if (!tronVisited) return 0;
-        const SIZE = core.SIZE, N = core.N, faceMap = core.faceMap;
+        if (!tronVisited || !tronNbr) return 0;
+        const SIZE = core.SIZE, N = core.N;
         const start = tronMoveFast(core, face, u, v, du, dv);
-        const nf = start.face, nu = start.u, nv = start.v;
-        const startIdx = faceMap[nf][nv * SIZE + nu];
+        const startIdx = core.faceMap[start.face][start.v * SIZE + start.u];
         if (startIdx < 0 || tronTrail[startIdx] > 0) return 0;
-        const CAP = Math.min(N, SIZE * SIZE);
-        const dirty = [];
-        const Q = tronBFSQueue;
-        tronVisited[startIdx] = 1;
-        dirty.push(startIdx);
-        Q[0] = nf;
-        Q[1] = nu;
-        Q[2] = nv;
-        let qi = 0, qe = 3, count = 1;
-        while (qi < qe && count < CAP) {
-          const cf = Q[qi++], cu = Q[qi++], cv = Q[qi++];
-          for (let d = 0; d < 4; d++) {
-            const m = tronMoveFast(core, cf, cu, cv, TRON_BFS_DIRS_U[d], TRON_BFS_DIRS_V[d]);
-            const idx = faceMap[m.face][m.v * SIZE + m.u];
-            if (idx < 0 || tronTrail[idx] > 0 || tronVisited[idx]) continue;
-            tronVisited[idx] = 1;
-            dirty.push(idx);
-            Q[qe++] = m.face;
-            Q[qe++] = m.u;
-            Q[qe++] = m.v;
-            count++;
-            if (count >= CAP) break;
+        const CAP = Math.min(N, SIZE * SIZE >> 2);
+        if (++tronStamp > 4294967280) {
+          tronVisited.fill(0);
+          tronStamp = 1;
+        }
+        const stamp = tronStamp, Q = tronBFSQueue, nbr = tronNbr, trail = tronTrail, seen = tronVisited;
+        seen[startIdx] = stamp;
+        Q[0] = startIdx;
+        let qi = 0, qe = 1;
+        while (qi < qe && qe < CAP) {
+          const base = Q[qi++] * 8;
+          for (let d = 0; d < 8; d++) {
+            const j = nbr[base + d];
+            if (j < 0) break;
+            if (trail[j] > 0 || seen[j] === stamp) continue;
+            seen[j] = stamp;
+            Q[qe++] = j;
+            if (qe >= CAP) break;
           }
         }
-        for (const idx of dirty) tronVisited[idx] = 0;
-        return count;
+        return qe;
       }
       function tronDecide(core, bk, is2d, borderWalls) {
         const SIZE = core.SIZE, faceMap = core.faceMap;
@@ -8174,8 +8216,27 @@ var PiEngine = (() => {
           tronScoreFill = new Array(tronBikeCount).fill(tronMaxFill);
         }
         tronTrail = new Uint8Array(N);
-        tronVisited = new Uint8Array(N);
-        tronBFSQueue = new Int16Array(N * 3 * 3);
+        tronVisited = new Uint32Array(N);
+        tronStamp = 0;
+        tronBFSQueue = new Int32Array(N);
+        tronNbr = new Int32Array(N * 8).fill(-1);
+        for (let f = 0; f < 6; f++) for (let v = 0; v < SIZE; v++) for (let u = 0; u < SIZE; u++) {
+          const i = faceMap[f][v * SIZE + u];
+          if (i < 0) continue;
+          for (let d = 0; d < 4; d++) {
+            const m = tronMoveFast(core, f, u, v, TRON_BFS_DIRS_U[d], TRON_BFS_DIRS_V[d]);
+            const j = faceMap[m.face][m.v * SIZE + m.u];
+            if (j < 0 || j === i) continue;
+            for (let k = 0; k < 8; k++) {
+              const s = i * 8 + k;
+              if (tronNbr[s] === j) break;
+              if (tronNbr[s] < 0) {
+                tronNbr[s] = j;
+                break;
+              }
+            }
+          }
+        }
         const sz = tronScoreZone(core);
         for (let v = Math.max(0, sz.v0); v <= Math.min(SIZE - 1, sz.v1); v++) {
           for (let u = Math.max(0, sz.u0); u <= Math.min(SIZE - 1, sz.u1); u++) {
@@ -14264,6 +14325,9 @@ var PiEngine = (() => {
       var sandNeighbours = null;
       var sandNeighboursN = -1;
       var sandLevelT = 0;
+      var sandHeights = null;
+      var sandGKey = "";
+      var sandSettled = false;
       function buildSandNeighbours(core) {
         const { N, gridX, gridY, gridZ, faceMap, SIZE } = core;
         sandNeighbours = new Array(N);
@@ -14290,6 +14354,7 @@ var PiEngine = (() => {
         sandNeighboursN = N;
       }
       function resetSand(core) {
+        sandSettled = false;
         const { N, faceMap, SIZE } = core;
         if (!N || !faceMap) return;
         buildSandNeighbours(core);
@@ -14335,12 +14400,19 @@ var PiEngine = (() => {
           gy = -rawG.y / gLen;
           gz = -rawG.z / gLen;
         }
-        function gravHeight(i) {
-          return gridX[i] * gx + gridY[i] * gy + gridZ[i] * gz;
+        const gKey = `${gx.toFixed(3)},${gy.toFixed(3)},${gz.toFixed(3)}`;
+        if (!sandHeights || sandHeights.length !== N || sandGKey !== gKey) {
+          sandHeights = new Float32Array(N);
+          for (let i = 0; i < N; i++) sandHeights[i] = gridX[i] * gx + gridY[i] * gy + gridZ[i] * gz;
+          sandGKey = gKey;
+          sandSettled = false;
         }
+        const H = sandHeights;
+        const gravHeight = (i) => H[i];
         const occ = new Uint8Array(N);
         for (const i of sand) occ[i] = 1;
-        const PASSES = 3;
+        const before = sandSettled ? null : sand.slice();
+        const PASSES = sandSettled ? 0 : 3;
         for (let pass = 0; pass < PASSES; pass++) {
           for (let i = sand.length - 1; i > 0; i--) {
             const j = Math.random() * (i + 1) | 0;
@@ -14396,7 +14468,7 @@ var PiEngine = (() => {
           }
         }
         sandLevelT = (sandLevelT || 0) + 1;
-        if (sandLevelT % 6 === 0) {
+        if (!sandSettled && sandLevelT % 6 === 0) {
           for (let i = sand.length - 1; i > 0; i--) {
             const j = Math.random() * (i + 1) | 0;
             const tmp = sand[i];
@@ -14425,6 +14497,10 @@ var PiEngine = (() => {
               sand[gi] = levelIdx;
             }
           }
+        }
+        if (before && sandLevelT % 6 === 0) {
+          const a = before.slice().sort(), b = sand.slice().sort();
+          sandSettled = a.every((v, k) => v === b[k]);
         }
         for (let gi = 0; gi < sand.length; gi++) {
           const i = sand[gi];
@@ -20429,6 +20505,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl } = require_core();
       var { trailFade } = require_trail();
+      var strikeBranches = 0;
       var wallBolts = [];
       var wallLightningT = 0;
       var wallStormT = 0;
@@ -20444,7 +20521,8 @@ var PiEngine = (() => {
           cx = Math.max(0, Math.min(wallW - 1, cx + dx + px * jag));
           cy = Math.max(0, Math.min(wallH - 1, cy + dy + py * jag));
           pts.push([cx, cy]);
-          if (depth > 0 && Math.random() < 0.4) {
+          if (depth > 0 && strikeBranches < 14 && Math.random() < 0.4) {
+            strikeBranches++;
             const bd = DIRS4[Math.floor(Math.random() * 4)];
             const sub = boltJagWall(core, cx, cy, bd[0], bd[1], Math.max(2, steps >> 1), depth - 1);
             wallBolts.push({ pts: sub, life: 1, decay: 7 + Math.random() * 5, branch: true, hue: 0.62 + Math.random() * 0.1 });
@@ -20460,6 +20538,7 @@ var PiEngine = (() => {
         const len = Math.floor(Math.max(wallW, wallH) * 0.5 + Math.random() * Math.max(wallW, wallH) * 1);
         const hc = Math.random();
         const hue = hc < 0.35 ? 0 : hc < 0.6 ? 0.62 : hc < 0.78 ? 0.75 : 0.08;
+        strikeBranches = 0;
         const pts = boltJagWall(core, sx, sy, dir[0], dir[1], len, 2);
         wallBolts.push({ pts, life: 1, decay: 3.5 + Math.random() * 3, branch: false, hue, width: 2 });
         wallThunder = Math.max(wallThunder, 0.65 + Math.random() * 0.35);
@@ -20503,23 +20582,27 @@ var PiEngine = (() => {
           }
           const bright = Math.pow(Math.max(0, bolt.life), 0.6);
           const isMain = !bolt.branch;
+          const coreB = bright * (isMain ? 1 : 0.55);
+          const [hr, hg, hb] = hsl(bolt.hue, 0.65, coreB * 0.8);
+          const wr = isMain ? Math.min(1, hr + coreB * 0.5) : hr;
+          const wg = isMain ? Math.min(1, hg + coreB * 0.6) : hg;
+          const wb = isMain ? Math.min(1, hb + coreB * 0.7) : hb;
+          const gr = isMain ? 2 : 1, glow = [];
+          for (let gv = -gr; gv <= gr; gv++) for (let gu = -gr; gu <= gr; gu++) {
+            if (gu === 0 && gv === 0) continue;
+            const gd = Math.sqrt(gu * gu + gv * gv);
+            if (gd > gr + 0.5) continue;
+            glow.push([gu, gv, hsl(bolt.hue, 1, bright * 0.45 / (gd + 0.6) * (isMain ? 0.7 : 0.35))]);
+          }
+          const lift = (x, y, r, g, b) => {
+            if (x < 0 || x >= wallW || y < 0 || y >= wallH) return;
+            const o = (y * wallW + x) * 3;
+            core.setWallPixel(x, y, Math.max(wallBuf[o], r), Math.max(wallBuf[o + 1], g), Math.max(wallBuf[o + 2], b));
+          };
           for (const [x, y] of bolt.pts) {
             if (x < 0 || x >= wallW || y < 0 || y >= wallH) continue;
-            const coreB = bright * (isMain ? 1 : 0.55);
-            const [hr, hg, hb] = hsl(bolt.hue, 0.65, coreB * 0.8);
-            const wr = isMain ? Math.min(1, hr + coreB * 0.5) : hr;
-            const wg = isMain ? Math.min(1, hg + coreB * 0.6) : hg;
-            const wb = isMain ? Math.min(1, hb + coreB * 0.7) : hb;
-            core.setWallPixel(x, y, wr, wg, wb);
-            const gr = isMain ? 2 : 1;
-            for (let gv = -gr; gv <= gr; gv++) for (let gu = -gr; gu <= gr; gu++) {
-              if (gu === 0 && gv === 0) continue;
-              const gd = Math.sqrt(gu * gu + gv * gv);
-              if (gd > gr + 0.5) continue;
-              const gb = bright * 0.45 / (gd + 0.6) * (isMain ? 0.7 : 0.35);
-              const [gr2, gg2, gb2] = hsl(bolt.hue, 1, gb);
-              core.setWallPixel(x + gu, y + gv, gr2, gg2, gb2);
-            }
+            lift(x, y, wr, wg, wb);
+            for (const [gu, gv, c] of glow) lift(x + gu, y + gv, c[0], c[1], c[2]);
           }
         }
         const sparks = Math.floor(dt * 25 * (1 + wallThunder * 6));
@@ -21862,7 +21945,7 @@ var PiEngine = (() => {
       var r2MorphDur = 12;
       var r2From = null;
       var r2To = null;
-      var { r2rnd, R2_CHARS, r2GenParams, r2lerp, r2MorphParams, r2Pal } = require_random80sCommon();
+      var { r2rnd, R2_CHARS, r2GenParams, r2lerp, r2MorphParams, r2FrameTables } = require_random80sCommon();
       function r2NewTarget() {
         r2From = r2To || r2GenParams();
         r2To = r2GenParams();
@@ -21882,6 +21965,7 @@ var PiEngine = (() => {
         const tOff = r2T;
         const spinA = p.spin * tOff;
         const cosS = Math.cos(spinA), sinS = Math.sin(spinA);
+        const tb = r2FrameTables(p, tOff);
         const zBase = Math.sin(tOff * 0.05) * 0.15;
         core.wallBuf.fill(0);
         for (let v = 0; v < wallH; v++) {
@@ -21903,17 +21987,14 @@ var PiEngine = (() => {
               y += Math.cos(x * p.warp.fx + z * p.warp.fz * 0.7 - tOff * p.warp.sx) * p.warp.amt;
               z += Math.sin(x * p.warp.fx * 0.8 + y * p.warp.fy * 0.6 + tOff * p.warp.sy * 0.5) * p.warp.amt * 0.7;
             }
-            let raw2 = 0;
-            for (let w = 0; w < 4; w++) {
-              const W = p.waves[w];
-              raw2 += Math.sin(x * W.ax * W.freq + y * W.ay * W.freq + z * W.az * W.freq + tOff * W.speed + W.phase) * W.amp;
-            }
+            const WV = tb.wave, WA = tb.amp;
+            let raw2 = Math.sin(x * WV[0] + y * WV[1] + z * WV[2] + WV[3]) * WA[0] + Math.sin(x * WV[4] + y * WV[5] + z * WV[6] + WV[7]) * WA[1] + Math.sin(x * WV[8] + y * WV[9] + z * WV[10] + WV[11]) * WA[2] + Math.sin(x * WV[12] + y * WV[13] + z * WV[14] + WV[15]) * WA[3];
             raw2 = raw2 * 0.5 + 0.5;
-            let val = Math.pow(raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2, p.sharpness);
+            let val = tb.sharp[Math.round((raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2) * tb.TN)];
             if (p.threshold > 0.01) {
               val = val > p.threshold ? (val - p.threshold) / (1 - p.threshold) : 0;
               if (p.edgeGlow > 0.01 && val <= 0) {
-                const shaped = Math.pow(raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2, p.sharpness);
+                const shaped = tb.sharp[Math.round((raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2) * tb.TN)];
                 const dist = p.threshold - shaped;
                 if (dist < p.edgeGlow * 0.5 && dist > 0) {
                   val = (1 - dist / (p.edgeGlow * 0.5)) * p.edgeGlow * 0.5;
@@ -21923,11 +22004,9 @@ var PiEngine = (() => {
             const rad = Math.sqrt(x * x + y * y + z * z);
             if (p.glow > 0) val += p.glow * Math.max(0, 1 - rad * 2.5);
             val = val < 0 ? 0 : val > 1 ? 1 : val;
-            const L = Math.pow(val, p.contrast) * p.bright;
-            if (L < 0.015) continue;
-            const hc = val * p.hueScale + tOff * p.hueDrift;
-            const col = r2Pal(p, hc);
-            core.setWallPixel(u, v, col[0] * L, col[1] * L, col[2] * L);
+            const ci = Math.round(val * tb.TN) * 3, C = tb.col;
+            if (C[ci] < 0) continue;
+            core.setWallPixel(u, v, C[ci], C[ci + 1], C[ci + 2]);
           }
         }
       }
@@ -22710,6 +22789,7 @@ var PiEngine = (() => {
       var tronBikeCount = 4;
       var tronWinner = -1;
       var tronGridTheme = 0;
+      var tronStamp = 0;
       var tronVisited = null;
       var tronBFSQueue = null;
       var tronDeaths = null;
@@ -22728,43 +22808,33 @@ var PiEngine = (() => {
         const totalH = 2 + tronBikeCount * (boxH + gap);
         return { u0: startU - 2, v0: 0, u1: wallW - 1, v1: totalH };
       }
-      var TRON_BFS_DIRS_U = [1, -1, 0, 0];
-      var TRON_BFS_DIRS_V = [0, 0, 1, -1];
       function tronFloodFill(core, x, y, du, dv) {
         if (!tronVisited) return 0;
         const { wallW, wallH } = core;
-        const N = wallW * wallH;
-        const start = tronMoveFastWall(core, x, y, du, dv);
-        if (!start) return 0;
-        const nx = start.x, ny = start.y;
+        const nx = x + du, ny = y + dv;
+        if (nx < 0 || nx >= wallW || ny < 0 || ny >= wallH) return 0;
         const startIdx = ny * wallW + nx;
         if (tronTrail[startIdx] > 0) return 0;
-        const panelCells = core.wallPanelSize * core.wallPanelSize;
-        const CAP = Math.min(N, panelCells);
-        const dirty = [];
-        const Q = tronBFSQueue;
-        tronVisited[startIdx] = 1;
-        dirty.push(startIdx);
-        Q[0] = nx;
-        Q[1] = ny;
-        let qi = 0, qe = 2, count = 1;
-        while (qi < qe && count < CAP) {
-          const cx = Q[qi++], cy = Q[qi++];
+        const CAP = Math.min(wallW * wallH, core.wallPanelSize * core.wallPanelSize >> 2);
+        if (++tronStamp > 4294967280) {
+          tronVisited.fill(0);
+          tronStamp = 1;
+        }
+        const stamp = tronStamp, Q = tronBFSQueue, trail = tronTrail, seen = tronVisited, W = wallW, N = wallW * wallH;
+        seen[startIdx] = stamp;
+        Q[0] = startIdx;
+        let qi = 0, qe = 1;
+        while (qi < qe && qe < CAP) {
+          const i = Q[qi++], cx = i % W;
           for (let d = 0; d < 4; d++) {
-            const m = tronMoveFastWall(core, cx, cy, TRON_BFS_DIRS_U[d], TRON_BFS_DIRS_V[d]);
-            if (!m) continue;
-            const idx = m.y * wallW + m.x;
-            if (tronTrail[idx] > 0 || tronVisited[idx]) continue;
-            tronVisited[idx] = 1;
-            dirty.push(idx);
-            Q[qe++] = m.x;
-            Q[qe++] = m.y;
-            count++;
-            if (count >= CAP) break;
+            const j = d === 0 ? cx + 1 < W ? i + 1 : -1 : d === 1 ? cx > 0 ? i - 1 : -1 : d === 2 ? i + W < N ? i + W : -1 : i - W;
+            if (j < 0 || trail[j] > 0 || seen[j] === stamp) continue;
+            seen[j] = stamp;
+            Q[qe++] = j;
+            if (qe >= CAP) break;
           }
         }
-        for (const idx of dirty) tronVisited[idx] = 0;
-        return count;
+        return qe;
       }
       function tronDecide(core, bk) {
         const { wallW, wallH } = core;
@@ -22914,8 +22984,9 @@ var PiEngine = (() => {
           tronScoreFill = new Array(tronBikeCount).fill(tronMaxFill);
         }
         tronTrail = new Uint8Array(N);
-        tronVisited = new Uint8Array(N);
-        tronBFSQueue = new Int16Array(N * 2);
+        tronVisited = new Uint32Array(N);
+        tronStamp = 0;
+        tronBFSQueue = new Int32Array(N);
         tronGridKey = `${wallW}|${wallH}`;
         const sz = tronScoreZone(core);
         for (let v = Math.max(0, sz.v0); v <= Math.min(wallH - 1, sz.v1); v++) {

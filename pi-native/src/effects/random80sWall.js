@@ -21,7 +21,7 @@ const { hsl } = require('../core');
 let r2T = 0, r2MorphT = 0, r2MorphDur = 12;
 let r2From = null, r2To = null;
 
-const { r2rnd, R2_CHARS, r2GenParams, r2lerp, r2MorphParams, r2Pal } = require('./random80sCommon');
+const { r2rnd, R2_CHARS, r2GenParams, r2lerp, r2MorphParams, r2FrameTables } = require('./random80sCommon');
 
 function r2NewTarget() {
   r2From = r2To || r2GenParams();
@@ -45,6 +45,7 @@ function effectRandom80sWall(core, dt) {
   const tOff = r2T;
   const spinA = p.spin * tOff;
   const cosS = Math.cos(spinA), sinS = Math.sin(spinA);
+  const tb = r2FrameTables(p, tOff); // per-frame tables, see random80sCommon.js
   // See module comment: z is not a fixed 0 but a slow drift, so the wall's
   // flat cross-section still moves through the 3D noise field over time.
   const zBase = Math.sin(tOff * 0.05) * 0.15;
@@ -68,19 +69,17 @@ function effectRandom80sWall(core, dt) {
         y += Math.cos(x * p.warp.fx + z * p.warp.fz * 0.7 - tOff * p.warp.sx) * p.warp.amt;
         z += Math.sin(x * p.warp.fx * 0.8 + y * p.warp.fy * 0.6 + tOff * p.warp.sy * 0.5) * p.warp.amt * 0.7;
       }
-      let raw2 = 0;
-      for (let w = 0; w < 4; w++) {
-        const W = p.waves[w];
-        raw2 += Math.sin(x * W.ax * W.freq + y * W.ay * W.freq + z * W.az * W.freq + tOff * W.speed + W.phase) * W.amp;
-      }
+      const WV = tb.wave, WA = tb.amp;
+      let raw2 = Math.sin(x * WV[0] + y * WV[1] + z * WV[2] + WV[3]) * WA[0] + Math.sin(x * WV[4] + y * WV[5] + z * WV[6] + WV[7]) * WA[1]
+        + Math.sin(x * WV[8] + y * WV[9] + z * WV[10] + WV[11]) * WA[2] + Math.sin(x * WV[12] + y * WV[13] + z * WV[14] + WV[15]) * WA[3];
       raw2 = raw2 * 0.5 + 0.5;
 
-      let val = Math.pow(raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2, p.sharpness);
+      let val = tb.sharp[Math.round((raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2) * tb.TN)];
 
       if (p.threshold > 0.01) {
         val = val > p.threshold ? (val - p.threshold) / (1 - p.threshold) : 0;
         if (p.edgeGlow > 0.01 && val <= 0) {
-          const shaped = Math.pow(raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2, p.sharpness);
+          const shaped = tb.sharp[Math.round((raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2) * tb.TN)];
           const dist = p.threshold - shaped;
           if (dist < p.edgeGlow * 0.5 && dist > 0) {
             val = (1 - dist / (p.edgeGlow * 0.5)) * p.edgeGlow * 0.5;
@@ -91,11 +90,9 @@ function effectRandom80sWall(core, dt) {
       const rad = Math.sqrt(x * x + y * y + z * z);
       if (p.glow > 0) val += p.glow * Math.max(0, 1 - rad * 2.5);
       val = val < 0 ? 0 : val > 1 ? 1 : val;
-      const L = Math.pow(val, p.contrast) * p.bright;
-      if (L < 0.015) continue;
-      const hc = val * p.hueScale + tOff * p.hueDrift;
-      const col = r2Pal(p, hc);
-      core.setWallPixel(u, v, col[0] * L, col[1] * L, col[2] * L);
+      const ci = Math.round(val * tb.TN) * 3, C = tb.col;
+      if (C[ci] < 0) continue; // too dark to show
+      core.setWallPixel(u, v, C[ci], C[ci + 1], C[ci + 2]);
     }
   }
 }

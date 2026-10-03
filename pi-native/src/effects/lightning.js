@@ -93,22 +93,29 @@ function effectLightning(core, dt) {
     if (bolt.life <= 0) { lightningBolts.splice(k, 1); continue; }
     const bright = Math.pow(Math.max(0, bolt.life), 0.6);
     const isMain = !bolt.branch;
+    // Colours per bolt per frame (not per point), drawn brighten-only so a
+    // bolt's glow never leaves dark smudges on a just-flashed sky.
+    const core_ = bright * (isMain ? 1.0 : 0.55);
+    const [hr, hg, hb] = hsl(bolt.hue, 0.65, core_ * 0.8);
+    const wr = isMain ? Math.min(1, hr + core_ * 0.5) : hr;
+    const wg = isMain ? Math.min(1, hg + core_ * 0.6) : hg;
+    const wb = isMain ? Math.min(1, hb + core_ * 0.7) : hb;
+    const gr = isMain ? 2 : 1, glow = [];
+    for (let gv = -gr; gv <= gr; gv++) for (let gu = -gr; gu <= gr; gu++) {
+      if (gu === 0 && gv === 0) continue;
+      const gd = Math.sqrt(gu * gu + gv * gv); if (gd > gr + 0.5) continue;
+      glow.push([gu, gv, hsl(bolt.hue, 1, bright * 0.45 / (gd + 0.6) * (isMain ? 0.7 : 0.35))]);
+    }
+    const lift = (face, u, v, r, g, b) => {
+      if (u < 0 || u >= SIZE || v < 0 || v >= SIZE) return;
+      const i = core.faceMap[face][v * SIZE + u]; if (i < 0) return;
+      const o = i * 3, buf = core.colBuf;
+      if (r > buf[o]) buf[o] = r; if (g > buf[o + 1]) buf[o + 1] = g; if (b > buf[o + 2]) buf[o + 2] = b;
+    };
     for (const [face, u, v] of bolt.pts) {
       if (u < 0 || u >= SIZE || v < 0 || v >= SIZE) continue;
-      const core_ = bright * (isMain ? 1.0 : 0.55);
-      const [hr, hg, hb] = hsl(bolt.hue, 0.65, core_ * 0.8);
-      const wr = isMain ? Math.min(1, hr + core_ * 0.5) : hr;
-      const wg = isMain ? Math.min(1, hg + core_ * 0.6) : hg;
-      const wb = isMain ? Math.min(1, hb + core_ * 0.7) : hb;
-      core.setFaceLED(face, u, v, wr, wg, wb);
-      const gr = isMain ? 2 : 1;
-      for (let gv = -gr; gv <= gr; gv++) for (let gu = -gr; gu <= gr; gu++) {
-        if (gu === 0 && gv === 0) continue;
-        const gd = Math.sqrt(gu * gu + gv * gv); if (gd > gr + 0.5) continue;
-        const gb = bright * 0.45 / (gd + 0.6) * (isMain ? 0.7 : 0.35);
-        const [gr2, gg2, gb2] = hsl(bolt.hue, 1, gb);
-        core.setFaceLED(face, u + gu, v + gv, gr2, gg2, gb2);
-      }
+      lift(face, u, v, wr, wg, wb);
+      for (const [gu, gv, c] of glow) lift(face, u + gu, v + gv, c[0], c[1], c[2]);
     }
   }
 

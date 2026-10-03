@@ -90,6 +90,7 @@ function tronMoveFast(core, face, u, v, du, dv) {
 
 let tronTrail = null, tronBikes = [], tronExplosions = [], tronState = 'run', tronStateT = 0;
 let tronBikeCount = 4, tronWinner = -1, tronGridTheme = 0;
+let tronStamp = 0, tronNbr = null;
 let tronVisited = null;   // reusable buffer - allocated once per initTron
 let tronBFSQueue = null;
 let tronDeaths = null;    // death count per bike (index matches bike slot)
@@ -118,41 +119,36 @@ function tronScoreZone(core) {
 const TRON_BFS_DIRS_U = [1, -1, 0, 0];
 const TRON_BFS_DIRS_V = [0, 0, 1, -1];
 
+// Reachable free cells from the cell one step (du,dv) away, capped at a
+// quarter face - only "open" vs "cramped" matters to tronDecide(). It walks
+// a neighbour table built once in initTron() (tronNbr: up to 8 LED indices
+// per LED - 8 for edge LEDs shared by two faces - across face edges exactly
+// as tronMoveFast() goes) and marks visits
+// with a per-call stamp instead of clearing, so the search does no function
+// calls or allocation per cell - this ran 3 times per bike per step and was
+// what made many fast bikes stutter.
 function tronFloodFill(core, face, u, v, du, dv) {
-  if (!tronVisited) return 0;
-  const SIZE = core.SIZE, N = core.N, faceMap = core.faceMap;
+  if (!tronVisited || !tronNbr) return 0;
+  const SIZE = core.SIZE, N = core.N;
   const start = tronMoveFast(core, face, u, v, du, dv);
-  const nf = start.face, nu = start.u, nv = start.v;
-  const startIdx = faceMap[nf][nv * SIZE + nu];
+  const startIdx = core.faceMap[start.face][start.v * SIZE + start.u];
   if (startIdx < 0 || tronTrail[startIdx] > 0) return 0;
-
-  // Capped well below the full board size - this only needs to tell "wide
-  // open" apart from "cramped", not measure exact reachable area, and the
-  // full-board cap (browser's Math.min(N,SIZE*SIZE*3)) made this BFS the
-  // single most expensive thing in the tick loop on real (especially Pi-
-  // class) hardware. All candidates are scored with the same cap, so the
-  // relative comparisons tronDecide() actually uses are unaffected.
-  const CAP = Math.min(N, SIZE * SIZE);
-  const dirty = [];
-  const Q = tronBFSQueue;
-  tronVisited[startIdx] = 1; dirty.push(startIdx);
-  Q[0] = nf; Q[1] = nu; Q[2] = nv;
-  let qi = 0, qe = 3, count = 1;
-
-  while (qi < qe && count < CAP) {
-    const cf = Q[qi++], cu = Q[qi++], cv = Q[qi++];
-    for (let d = 0; d < 4; d++) {
-      const m = tronMoveFast(core, cf, cu, cv, TRON_BFS_DIRS_U[d], TRON_BFS_DIRS_V[d]);
-      const idx = faceMap[m.face][m.v * SIZE + m.u];
-      if (idx < 0 || tronTrail[idx] > 0 || tronVisited[idx]) continue;
-      tronVisited[idx] = 1; dirty.push(idx);
-      Q[qe++] = m.face; Q[qe++] = m.u; Q[qe++] = m.v;
-      count++;
-      if (count >= CAP) break;
+  const CAP = Math.min(N, (SIZE * SIZE) >> 2); // a quarter face: plenty to tell open from cramped
+  if (++tronStamp > 0xfffffff0) { tronVisited.fill(0); tronStamp = 1; }
+  const stamp = tronStamp, Q = tronBFSQueue, nbr = tronNbr, trail = tronTrail, seen = tronVisited;
+  seen[startIdx] = stamp; Q[0] = startIdx;
+  let qi = 0, qe = 1;
+  while (qi < qe && qe < CAP) {
+    const base = Q[qi++] * 8;
+    for (let d = 0; d < 8; d++) {
+      const j = nbr[base + d];
+      if (j < 0) break;
+      if (trail[j] > 0 || seen[j] === stamp) continue;
+      seen[j] = stamp; Q[qe++] = j;
+      if (qe >= CAP) break;
     }
   }
-  for (const idx of dirty) tronVisited[idx] = 0;
-  return count;
+  return qe;
 }
 
 function tronDecide(core, bk, is2d, borderWalls) {
@@ -338,8 +334,21 @@ function initTron(core, is2d, borderWalls) {
     tronScoreFill = new Array(tronBikeCount).fill(tronMaxFill);
   }
   tronTrail = new Uint8Array(N);
-  tronVisited = new Uint8Array(N);
-  tronBFSQueue = new Int16Array(N * 3 * 3);
+  tronVisited = new Uint32Array(N); tronStamp = 0;
+  tronBFSQueue = new Int32Array(N);
+  // Up to 8 neighbours per LED: an edge LED belongs to two faces, and gets
+  // the neighbours from both.
+  tronNbr = new Int32Array(N * 8).fill(-1);
+  for (let f = 0; f < 6; f++) for (let v = 0; v < SIZE; v++) for (let u = 0; u < SIZE; u++) {
+    const i = faceMap[f][v * SIZE + u];
+    if (i < 0) continue;
+    for (let d = 0; d < 4; d++) {
+      const m = tronMoveFast(core, f, u, v, TRON_BFS_DIRS_U[d], TRON_BFS_DIRS_V[d]);
+      const j = faceMap[m.face][m.v * SIZE + m.u];
+      if (j < 0 || j === i) continue;
+      for (let k = 0; k < 8; k++) { const s = i * 8 + k; if (tronNbr[s] === j) break; if (tronNbr[s] < 0) { tronNbr[s] = j; break; } }
+    }
+  }
   // Mark scoreboard zone as wall on face 0
   const sz = tronScoreZone(core);
   for (let v = Math.max(0, sz.v0); v <= Math.min(SIZE - 1, sz.v1); v++) {

@@ -18,6 +18,8 @@ let sandNeighbours = null;
 let sandNeighboursN = -1;
 let sandLevelT = 0;
 
+let sandHeights = null, sandGKey = '', sandSettled = false;
+
 function buildSandNeighbours(core) {
   const { N, gridX, gridY, gridZ, faceMap, SIZE } = core;
   sandNeighbours = new Array(N);
@@ -45,6 +47,7 @@ function buildSandNeighbours(core) {
 }
 
 function resetSand(core) {
+  sandSettled = false;
   const { N, faceMap, SIZE } = core;
   if (!N || !faceMap) return;
   buildSandNeighbours(core);
@@ -86,14 +89,24 @@ function effectGravitySand(core, dt) {
     gx = -rawG.x / gLen; gy = -rawG.y / gLen; gz = -rawG.z / gLen;
   }
 
-  function gravHeight(i) {
-    return gridX[i] * gx + gridY[i] * gy + gridZ[i] * gz;
+  // Heights along gravity, recomputed only when gravity changes. Once a
+  // frame moves no grain at all, the pile has settled and the (expensive)
+  // simulation is skipped until gravity changes or the sand resets - before
+  // this it re-searched every resting grain's neighbourhood 3 times a frame.
+  const gKey = `${gx.toFixed(3)},${gy.toFixed(3)},${gz.toFixed(3)}`;
+  if (!sandHeights || sandHeights.length !== N || sandGKey !== gKey) {
+    sandHeights = new Float32Array(N);
+    for (let i = 0; i < N; i++) sandHeights[i] = gridX[i] * gx + gridY[i] * gy + gridZ[i] * gz;
+    sandGKey = gKey; sandSettled = false;
   }
+  const H = sandHeights;
+  const gravHeight = (i) => H[i];
 
   const occ = new Uint8Array(N);
   for (const i of sand) occ[i] = 1;
+  const before = sandSettled ? null : sand.slice();
 
-  const PASSES = 3;
+  const PASSES = sandSettled ? 0 : 3;
   for (let pass = 0; pass < PASSES; pass++) {
     for (let i = sand.length - 1; i > 0; i--) {
       const j = (Math.random() * (i + 1)) | 0;
@@ -141,7 +154,7 @@ function effectGravitySand(core, dt) {
   }
 
   sandLevelT = (sandLevelT || 0) + 1;
-  if (sandLevelT % 6 === 0) {
+  if (!sandSettled && sandLevelT % 6 === 0) {
     for (let i = sand.length - 1; i > 0; i--) {
       const j = (Math.random() * (i + 1)) | 0;
       const tmp = sand[i]; sand[i] = sand[j]; sand[j] = tmp;
@@ -163,6 +176,12 @@ function effectGravitySand(core, dt) {
         occ[idx] = 0; occ[levelIdx] = 1; sand[gi] = levelIdx;
       }
     }
+  }
+
+  if (before && sandLevelT % 6 === 0) {
+    // Settled when a whole frame (including a levelling pass) moved nothing.
+    const a = before.slice().sort(), b = sand.slice().sort();
+    sandSettled = a.every((v, k) => v === b[k]);
   }
 
   for (let gi = 0; gi < sand.length; gi++) {

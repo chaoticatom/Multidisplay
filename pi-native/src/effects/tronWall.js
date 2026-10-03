@@ -47,6 +47,7 @@ function tronMoveFastWall(core, x, y, du, dv) {
 
 let tronTrail = null, tronBikes = [], tronExplosions = [], tronState = 'run', tronStateT = 0;
 let tronBikeCount = 4, tronWinner = -1, tronGridTheme = 0;
+let tronStamp = 0;
 let tronVisited = null;   // reusable buffer - allocated once per initTronWall
 let tronBFSQueue = null;
 let tronDeaths = null;    // death count per bike (index matches bike slot)
@@ -69,48 +70,34 @@ function tronScoreZone(core) {
 const TRON_BFS_DIRS_U = [1, -1, 0, 0];
 const TRON_BFS_DIRS_V = [0, 0, 1, -1];
 
+// Reachable free cells from the cell one step (du,dv) away, capped at a
+// quarter panel (only "open" vs "cramped" matters - and a fixed cap keeps a
+// big wall from costing more). Neighbours come straight from index maths
+// and visits are marked with a per-call stamp instead of clearing, so the
+// search does no function calls or allocation per cell - it runs 3 times
+// per bike per step and was what made many fast bikes stutter.
 function tronFloodFill(core, x, y, du, dv) {
   if (!tronVisited) return 0;
   const { wallW, wallH } = core;
-  const N = wallW * wallH;
-  const start = tronMoveFastWall(core, x, y, du, dv);
-  if (!start) return 0;
-  const nx = start.x, ny = start.y;
+  const nx = x + du, ny = y + dv;
+  if (nx < 0 || nx >= wallW || ny < 0 || ny >= wallH) return 0;
   const startIdx = ny * wallW + nx;
   if (tronTrail[startIdx] > 0) return 0;
-
-  // Capped well below the full canvas size, same rationale as tron.js's
-  // cube-side cap (`Math.min(N, SIZE*SIZE)` there): this only needs to
-  // distinguish "wide open" from "cramped", not measure exact reachable
-  // area. tron.js's cap is a FIXED absolute pixel count (one panel's
-  // worth, SIZE*SIZE) regardless of how many faces/panels exist, so this
-  // uses the same fixed budget - one panel's worth of cells
-  // (wallPanelSize^2) - rather than scaling with wallW*wallH, otherwise a
-  // bigger wall (more panels) would silently defeat the whole point of
-  // capping by making CAP >= N again.
-  const panelCells = core.wallPanelSize * core.wallPanelSize;
-  const CAP = Math.min(N, panelCells);
-  const dirty = [];
-  const Q = tronBFSQueue;
-  tronVisited[startIdx] = 1; dirty.push(startIdx);
-  Q[0] = nx; Q[1] = ny;
-  let qi = 0, qe = 2, count = 1;
-
-  while (qi < qe && count < CAP) {
-    const cx = Q[qi++], cy = Q[qi++];
+  const CAP = Math.min(wallW * wallH, (core.wallPanelSize * core.wallPanelSize) >> 2); // a quarter panel: plenty to tell open from cramped
+  if (++tronStamp > 0xfffffff0) { tronVisited.fill(0); tronStamp = 1; }
+  const stamp = tronStamp, Q = tronBFSQueue, trail = tronTrail, seen = tronVisited, W = wallW, N = wallW * wallH;
+  seen[startIdx] = stamp; Q[0] = startIdx;
+  let qi = 0, qe = 1;
+  while (qi < qe && qe < CAP) {
+    const i = Q[qi++], cx = i % W;
     for (let d = 0; d < 4; d++) {
-      const m = tronMoveFastWall(core, cx, cy, TRON_BFS_DIRS_U[d], TRON_BFS_DIRS_V[d]);
-      if (!m) continue;
-      const idx = m.y * wallW + m.x;
-      if (tronTrail[idx] > 0 || tronVisited[idx]) continue;
-      tronVisited[idx] = 1; dirty.push(idx);
-      Q[qe++] = m.x; Q[qe++] = m.y;
-      count++;
-      if (count >= CAP) break;
+      const j = d === 0 ? (cx + 1 < W ? i + 1 : -1) : d === 1 ? (cx > 0 ? i - 1 : -1) : d === 2 ? (i + W < N ? i + W : -1) : i - W;
+      if (j < 0 || trail[j] > 0 || seen[j] === stamp) continue;
+      seen[j] = stamp; Q[qe++] = j;
+      if (qe >= CAP) break;
     }
   }
-  for (const idx of dirty) tronVisited[idx] = 0;
-  return count;
+  return qe;
 }
 
 function tronDecide(core, bk) {
@@ -253,8 +240,8 @@ function initTronWall(core) {
     tronScoreFill = new Array(tronBikeCount).fill(tronMaxFill);
   }
   tronTrail = new Uint8Array(N);
-  tronVisited = new Uint8Array(N);
-  tronBFSQueue = new Int16Array(N * 2);
+  tronVisited = new Uint32Array(N); tronStamp = 0;
+  tronBFSQueue = new Int32Array(N);
   tronGridKey = `${wallW}|${wallH}`;
 
   // Mark scoreboard zone as wall

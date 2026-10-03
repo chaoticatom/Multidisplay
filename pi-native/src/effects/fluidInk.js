@@ -23,8 +23,9 @@ module.exports = defineFieldEffect({
   pixel(p, { t }) {
     const k = 1.25, x = p.x * k, y = p.y * k, z = (p.flat ? 0.3 : p.z) * k;
     const w = 0.9 + stir * 1.2;
+    // Two levels of warping (a third cost 40% more for little visible gain).
     const qx = wave(x, y, z, t), qy = wave(y + 5.2, z + 1.3, x, t * 1.1);
-    const rx = wave(x + w * qx, y + w * qy, z, t * 0.7 + 1.7), ry = wave(y + w * qy + 8.3, z, x + w * qx, t * 0.9);
+    const rx = wave(x + w * qx, y + w * qy, z, t * 0.7 + 1.7), ry = qy * 0.6 + qx * 0.4;
     const v = wave(x + w * rx, y + w * ry, z + 0.5, t * 0.5);
     const c = ink(0.42 + 0.2 * v + 0.1 * rx);
     const flare = stir * 0.25 * Math.max(0, ry);

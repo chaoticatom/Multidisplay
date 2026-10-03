@@ -13,6 +13,7 @@
 const { hsl } = require('../core');
 const { trailFade } = require('./trail');
 
+let strikeBranches = 0;
 let wallBolts = [], wallLightningT = 0, wallStormT = 0, wallThunder = 0;
 const DIRS4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
@@ -26,7 +27,11 @@ function boltJagWall(core, x, y, dx, dy, steps, depth) {
     cx = Math.max(0, Math.min(wallW - 1, cx + dx + px * jag));
     cy = Math.max(0, Math.min(wallH - 1, cy + dy + py * jag));
     pts.push([cx, cy]);
-    if (depth > 0 && Math.random() < 0.4) {
+    // Branches are capped per strike: on a big wall the length scales with
+    // the wall, and uncapped branches-of-branches reached hundreds of
+    // thousands of points per strike (32 ms a frame for 6 panels).
+    if (depth > 0 && strikeBranches < 14 && Math.random() < 0.4) {
+      strikeBranches++;
       const bd = DIRS4[Math.floor(Math.random() * 4)];
       const sub = boltJagWall(core, cx, cy, bd[0], bd[1], Math.max(2, steps >> 1), depth - 1);
       wallBolts.push({ pts: sub, life: 1, decay: 7 + Math.random() * 5, branch: true, hue: 0.62 + Math.random() * 0.1 });
@@ -43,6 +48,7 @@ function spawnStrikeWall(core) {
   const len = Math.floor(Math.max(wallW, wallH) * 0.5 + Math.random() * Math.max(wallW, wallH) * 1.0);
   const hc = Math.random();
   const hue = hc < 0.35 ? 0 : hc < 0.6 ? 0.62 : hc < 0.78 ? 0.75 : 0.08;
+  strikeBranches = 0;
   const pts = boltJagWall(core, sx, sy, dir[0], dir[1], len, 2);
   wallBolts.push({ pts, life: 1, decay: 3.5 + Math.random() * 3, branch: false, hue, width: 2 });
   wallThunder = Math.max(wallThunder, 0.65 + Math.random() * 0.35);
@@ -93,22 +99,30 @@ function effectLightningWall(core, dt) {
     if (bolt.life <= 0) { wallBolts.splice(k, 1); continue; }
     const bright = Math.pow(Math.max(0, bolt.life), 0.6);
     const isMain = !bolt.branch;
+    // Colours depend only on the bolt and the glow offset, so work them out
+    // once per bolt per frame rather than per point.
+    const coreB = bright * (isMain ? 1.0 : 0.55);
+    const [hr, hg, hb] = hsl(bolt.hue, 0.65, coreB * 0.8);
+    const wr = isMain ? Math.min(1, hr + coreB * 0.5) : hr;
+    const wg = isMain ? Math.min(1, hg + coreB * 0.6) : hg;
+    const wb = isMain ? Math.min(1, hb + coreB * 0.7) : hb;
+    const gr = isMain ? 2 : 1, glow = [];
+    for (let gv = -gr; gv <= gr; gv++) for (let gu = -gr; gu <= gr; gu++) {
+      if (gu === 0 && gv === 0) continue;
+      const gd = Math.sqrt(gu * gu + gv * gv); if (gd > gr + 0.5) continue;
+      glow.push([gu, gv, hsl(bolt.hue, 1, bright * 0.45 / (gd + 0.6) * (isMain ? 0.7 : 0.35))]);
+    }
+    // Brighten-only: overwriting left dark smudges where a bolt's dimmer
+    // glow landed on the sky just after a thunder flash.
+    const lift = (x, y, r, g, b) => {
+      if (x < 0 || x >= wallW || y < 0 || y >= wallH) return;
+      const o = (y * wallW + x) * 3;
+      core.setWallPixel(x, y, Math.max(wallBuf[o], r), Math.max(wallBuf[o + 1], g), Math.max(wallBuf[o + 2], b));
+    };
     for (const [x, y] of bolt.pts) {
       if (x < 0 || x >= wallW || y < 0 || y >= wallH) continue;
-      const coreB = bright * (isMain ? 1.0 : 0.55);
-      const [hr, hg, hb] = hsl(bolt.hue, 0.65, coreB * 0.8);
-      const wr = isMain ? Math.min(1, hr + coreB * 0.5) : hr;
-      const wg = isMain ? Math.min(1, hg + coreB * 0.6) : hg;
-      const wb = isMain ? Math.min(1, hb + coreB * 0.7) : hb;
-      core.setWallPixel(x, y, wr, wg, wb);
-      const gr = isMain ? 2 : 1;
-      for (let gv = -gr; gv <= gr; gv++) for (let gu = -gr; gu <= gr; gu++) {
-        if (gu === 0 && gv === 0) continue;
-        const gd = Math.sqrt(gu * gu + gv * gv); if (gd > gr + 0.5) continue;
-        const gb = bright * 0.45 / (gd + 0.6) * (isMain ? 0.7 : 0.35);
-        const [gr2, gg2, gb2] = hsl(bolt.hue, 1, gb);
-        core.setWallPixel(x + gu, y + gv, gr2, gg2, gb2);
-      }
+      lift(x, y, wr, wg, wb);
+      for (const [gu, gv, c] of glow) lift(x + gu, y + gv, c[0], c[1], c[2]);
     }
   }
 
