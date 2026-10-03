@@ -25679,7 +25679,8 @@ var PiEngine = (() => {
           brightness: state.brightness,
           speed: state.speed,
           musicReact: clone(state.musicReact),
-          blank: !!state.blank
+          blank: !!state.blank,
+          panelsOff: !!state.panelsOff
         };
       }
       module.exports = { load, save, capture, apply, changedFields, isValidScene, MAX_SCENES };
@@ -26092,6 +26093,7 @@ var PiEngine = (() => {
           const preStart = alMs - preMs;
           if (al.prealarm?.enabled && dayMs >= preStart && dayMs < alMs) {
             state.activeAlarm = { al, phase: "pre", startMs: now.getTime(), preMs, dismissed: false };
+            wakeDisplay(state);
             break;
           }
           if (h === al.hour && m === al.minute && al._lastFireKey !== dateKey) {
@@ -26100,6 +26102,13 @@ var PiEngine = (() => {
             break;
           }
         }
+      }
+      function wakeDisplay(state) {
+        if (!state.blank && !state.panelsOff) return;
+        state.blank = false;
+        state.panelsOff = false;
+        state.appliedChanges = scenes.changedFields(state);
+        if (state.onAlarmsChanged) state.onAlarmsChanged();
       }
       function alarmFire(state, al, now) {
         const fireMs = now ? now.getTime() : Date.now();
@@ -26114,11 +26123,11 @@ var PiEngine = (() => {
           if (state.onAlarmsChanged) state.onAlarmsChanged();
           return;
         }
+        wakeDisplay(state);
         const scene = al.triggerType === "scene" && Array.isArray(state.scenes) ? state.scenes.find((sc) => sc.name === al.scene) : null;
         if (scene) {
           scenes.apply(state, scene);
         } else {
-          state.blank = false;
           if (al.effect && al.effect !== "" && (state.effectsRegistry && state.effectsRegistry[al.effect])) {
             state.effect = al.effect;
           }

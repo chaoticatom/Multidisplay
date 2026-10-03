@@ -54,7 +54,7 @@ function apply(state, scene) {
 function changedFields(state) {
   return {
     effect: state.effect, effectOptions: clone(state.effectOptions), overlays: clone(state.overlays),
-    brightness: state.brightness, speed: state.speed, musicReact: clone(state.musicReact), blank: !!state.blank,
+    brightness: state.brightness, speed: state.speed, musicReact: clone(state.musicReact), blank: !!state.blank, panelsOff: !!state.panelsOff,
   };
 }
 

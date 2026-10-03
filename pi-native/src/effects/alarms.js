@@ -423,6 +423,7 @@ function alarmCheck(state, now) {
 
     if (al.prealarm?.enabled && dayMs >= preStart && dayMs < alMs) {
       state.activeAlarm = { al, phase: 'pre', startMs: now.getTime(), preMs, dismissed: false };
+      wakeDisplay(state); // the sunrise must be visible even if the display was switched off
       break;
     }
     if (h === al.hour && m === al.minute && al._lastFireKey !== dateKey) {
@@ -431,6 +432,17 @@ function alarmCheck(state, now) {
       break;
     }
   }
+}
+
+// A wake-up or switch-on timer turns the display back on: clears both
+// "⏻ All off" (blank) and "💡 Panels off", and reports the change so the
+// main thread and the page pick it up.
+function wakeDisplay(state) {
+  if (!state.blank && !state.panelsOff) return;
+  state.blank = false;
+  state.panelsOff = false;
+  state.appliedChanges = scenes.changedFields(state);
+  if (state.onAlarmsChanged) state.onAlarmsChanged();
 }
 
 function alarmFire(state, al, now) {
@@ -450,11 +462,11 @@ function alarmFire(state, al, now) {
     if (state.onAlarmsChanged) state.onAlarmsChanged();
     return;
   }
+  wakeDisplay(state);
   const scene = al.triggerType === 'scene' && Array.isArray(state.scenes) ? state.scenes.find((sc) => sc.name === al.scene) : null;
   if (scene) {
     scenes.apply(state, scene); // effect, options, overlays, brightness... as saved
   } else {
-    state.blank = false;
     if (al.effect && al.effect !== '' && (state.effectsRegistry && state.effectsRegistry[al.effect])) {
       state.effect = al.effect;
     }

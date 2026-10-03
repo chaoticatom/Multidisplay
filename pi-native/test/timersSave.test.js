@@ -34,4 +34,17 @@ t('render worker frames carry the state version they were computed from', () => 
   assert.ok(/version: workerVersion/.test(w));
   assert.ok(/msg\.version === ws\.stateVersion/.test(a), 'main thread must ignore stale timer state from in-flight frames');
 });
+t('wake-up timer turns a blanked display back on (All off and Panels off)', () => {
+  const state = { alarms: [{ ...base, triggerType: 'effect', effect: 'plasma' }], activeAlarm: null, effect: 'wave', overlays: {}, blank: true, panelsOff: true, effectsRegistry: { plasma() {} } };
+  alarms.alarmCheck(state, new Date(2026, 9, 3, 7, 30, 5));
+  assert.strictEqual(state.blank, false);
+  assert.strictEqual(state.panelsOff, false);
+  assert.strictEqual(state.appliedChanges.panelsOff, false, 'the main thread must hear about it');
+});
+t('sunrise starts on a blanked display', () => {
+  const state = { alarms: [{ ...base, triggerType: 'effect', effect: 'plasma', prealarm: { enabled: true, preMinutes: 15 } }], activeAlarm: null, effect: 'wave', overlays: {}, blank: true, effectsRegistry: { plasma() {} } };
+  alarms.alarmCheck(state, new Date(2026, 9, 3, 7, 20, 0));
+  assert.strictEqual(state.activeAlarm.phase, 'pre');
+  assert.strictEqual(state.blank, false);
+});
 if (failed) process.exitCode = 1;
