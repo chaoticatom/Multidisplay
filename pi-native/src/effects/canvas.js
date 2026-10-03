@@ -1,6 +1,6 @@
 // defineCanvasEffect(): write an effect once against a plain 2D canvas
 // (x right, y DOWN, like the wall) and run it on both display types.
-//   render(c, ctx): c = { W, H, set(x,y,r,g,b), add(x,y,r,g,b), clear() };
+//   render(c, ctx): c = { W, H, set(x,y,r,g,b), add(x,y,r,g,b), get(x,y), clear() };
 //   ctx = { t, dt, core }.
 // Cube: `panorama: true` gives one canvas 4 faces wide, wrapped round the
 // side faces (Front, Right, Back, Left - same order as the weather strip);
@@ -39,6 +39,12 @@ function defineCanvasEffect({ panorama = false, speed = 1, render, caps }) {
         }
       },
       clear() { core.colBuf.fill(0); },
+      get(x, y) {
+        x = Math.round(x); y = Math.round(y);
+        const f = toFace(x, y); if (!f) return null;
+        const i = core.faceMap[f[0] >= 0 ? f[0] : SIDE[0]][f[2] * S + f[1]];
+        return i < 0 ? null : [core.colBuf[i * 3], core.colBuf[i * 3 + 1], core.colBuf[i * 3 + 2]];
+      },
     };
     render(c, ctx);
     if (caps) { caps(core, 4, core.t); caps(core, 5, core.t); }
@@ -58,6 +64,11 @@ function defineCanvasEffect({ panorama = false, speed = 1, render, caps }) {
         core.setWallPixel(x, y, Math.min(1, buf[o] + r), Math.min(1, buf[o + 1] + g), Math.min(1, buf[o + 2] + b));
       },
       clear() { buf.fill(0); },
+      get(x, y) {
+        x = Math.round(x); y = Math.round(y);
+        if (x < 0 || y < 0 || x >= W || y >= H) return null;
+        const o = (y * W + x) * 3; return [buf[o], buf[o + 1], buf[o + 2]];
+      },
     };
     render(c, ctx);
   };

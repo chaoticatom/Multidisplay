@@ -12,6 +12,7 @@
 const { hsl } = require('../core');
 const { FONT_3x5, FONT_5x7, drawGlyph, textWidth } = require('./text');
 const { defineCanvasEffect } = require('./canvas');
+const stroke = require('./strokeFont');
 const { renderWords } = require('./wordClock');
 
 const LEGACY = { time: 'neon', both: 'neon', full: 'neon', date: 'minimal', analogue: 'analogue', words: 'words' };
@@ -81,10 +82,13 @@ function neon(c, opts, t) {
       rect(c, (c.W - bw) / 2 + i, by, 1, barH, on ? col : ghost);
     }
   }
-  if (opts.date) {
-    const s = dateLine(d), sc = Math.max(1, Math.floor(dateH / 6));
-    drawCentred(c, FONT_3x5, s, c.H - dateH + Math.round((dateH - 5 * sc) / 2), sc, [col[0] * 0.75, col[1] * 0.75, col[2] * 0.75]);
-  }
+  if (opts.date) smoothCentred(c, dateLine(d), c.H - dateH + 1, dateH - 2, [col[0] * 0.75, col[1] * 0.75, col[2] * 0.75]);
+}
+// Text centred across the canvas: smooth vector strokes when it's big
+// enough to show curves (cap height >= 9 px), the crisp pixel font below.
+function smoothCentred(c, s, y, h, col) {
+  if (h < 9) { const sc = Math.max(1, Math.floor(h / 5)); return drawCentred(c, FONT_3x5, s, y + Math.round((h - 5 * sc) / 2), sc, col); }
+  stroke.drawText(c, s, Math.round((c.W - stroke.textWidth(s, h)) / 2), y, h, col);
 }
 function drawCentred(c, font, s, y, scale, col) {
   let x = Math.round((c.W - textWidth(font, s, scale)) / 2);
@@ -113,13 +117,18 @@ function flip(c, opts, t) {
     rect(c, x, y, cw, ch, card);
     for (let k = 0; k < cw; k++) c.set(x + k, mid, edge[0], edge[1], edge[2]);
     const glyph = (chr, clipTop, clipBot, squash) => {
-      const gw = 5 * sc, gh = 7 * sc, gx = x + Math.round((cw - gw) / 2), gy = y + Math.round((ch - gh) / 2);
-      drawGlyph(FONT_5x7, chr, gx, gy, (px, py) => {
-        let yy = py;
-        if (squash !== 1) yy = Math.round(mid + (py - mid) * squash);
-        if (yy < clipTop || yy > clipBot) return;
-        c.set(px, yy, col[0], col[1], col[2]);
-      }, { scale: sc });
+      const gh = Math.round(ch * 0.66), gx = x + Math.round((cw - stroke.textWidth(chr, gh)) / 2), gy = y + Math.round((ch - gh) / 2);
+      if (gh < 9) { // too small for curves: pixel font
+        const gw = 5 * sc, gh2 = 7 * sc, bx = x + Math.round((cw - gw) / 2), by = y + Math.round((ch - gh2) / 2);
+        drawGlyph(FONT_5x7, chr, bx, by, (px, py) => { const yy = squash !== 1 ? Math.round(mid + (py - mid) * squash) : py; if (yy >= clipTop && yy <= clipBot) c.set(px, yy, col[0], col[1], col[2]); }, { scale: sc });
+        return;
+      }
+      // The flap: draw through a view that squashes towards the card's middle and clips to one half.
+      const view = {
+        get: (px, py) => { const yy = squash !== 1 ? Math.round(mid + (py - mid) * squash) : py; return yy < clipTop || yy > clipBot ? null : c.get(px, yy); },
+        set: (px, py, r, g, b) => { const yy = squash !== 1 ? Math.round(mid + (py - mid) * squash) : py; if (yy >= clipTop && yy <= clipBot) c.set(px, yy, r, g, b); },
+      };
+      stroke.drawText(view, chr, gx, gy, gh, col);
     };
     if (!changing) glyph(text[i], y, y + ch, 1);
     else {
@@ -132,10 +141,7 @@ function flip(c, opts, t) {
     }
     x += cw + gap + (i % 2 === 1 ? groupGap : 0);
   }
-  if (opts.date) {
-    const s2 = dateLine(d), s3 = Math.max(1, Math.floor(dateH / 6));
-    drawCentred(c, FONT_3x5, s2, c.H - dateH + Math.round((dateH - 5 * s3) / 2), s3, [col[0] * 0.7, col[1] * 0.7, col[2] * 0.7]);
-  }
+  if (opts.date) smoothCentred(c, dateLine(d), c.H - dateH + 1, dateH - 2, [col[0] * 0.7, col[1] * 0.7, col[2] * 0.7]);
 }
 
 // ── Analogue ──
@@ -169,8 +175,7 @@ function analogue(c, opts, t) {
     c.set(x, y, Math.min(1, r), Math.min(1, g), Math.min(1, b));
   }
   if (opts.date && R > 20) {
-    const s = String(d.getDate()), sc = Math.max(1, Math.floor(R / 26));
-    drawCentred(c, FONT_3x5, s, Math.round(cy + R * 0.35), sc, [col[0] * 0.8, col[1] * 0.8, col[2] * 0.8]);
+    smoothCentred(c, String(d.getDate()), Math.round(cy + R * 0.3), Math.max(5, Math.round(R * 0.22)), [col[0] * 0.8, col[1] * 0.8, col[2] * 0.8]);
   }
 }
 
@@ -178,13 +183,19 @@ function analogue(c, opts, t) {
 function minimal(c, opts, t) {
   const { d, hh, mm, ss, ms } = parts(opts);
   const col = tint(opts, t);
-  const timeStr = hh + (ms < 500 ? ':' : ' ') + mm;
-  const sc = Math.max(1, Math.floor(Math.min((c.W - 4) / textWidth(FONT_5x7, timeStr), (c.H * 0.5) / 7)));
-  const th = 7 * sc, dateSc = Math.max(1, Math.floor(sc / 2));
-  const block = th + (opts.date ? 4 + 5 * dateSc : 0);
+  const timeStr = hh + ':' + mm;
+  // Biggest smooth time that fits, the date at a third of its height.
+  let th = Math.floor(c.H * (opts.date ? 0.42 : 0.6));
+  while (th > 6 && stroke.textWidth(timeStr, th) > c.W - 6) th--;
+  const dh = Math.max(5, Math.round(th * 0.36));
+  const block = th + (opts.date ? Math.round(th * 0.3) + dh : 0);
   const y0 = Math.round((c.H - block) / 2);
-  drawCentred(c, FONT_5x7, timeStr, y0, sc, col);
-  if (opts.date) drawCentred(c, FONT_3x5, dateLine(d), y0 + th + 4, dateSc, [0.7, 0.72, 0.8]);
+  smoothCentred(c, timeStr, y0, th, col);
+  if (ms >= 500) { // blink: dim the colon by redrawing it dark
+    const cx0 = Math.round((c.W - stroke.textWidth(timeStr, th)) / 2) + stroke.textWidth(hh, th) + th / 6 * 1.2;
+    for (let yy = y0; yy < y0 + th + 2; yy++) for (let xx = Math.floor(cx0 - th / 8); xx <= cx0 + th / 4; xx++) { const o = c.get(xx, yy); if (o) c.set(xx, yy, o[0] * 0.15, o[1] * 0.15, o[2] * 0.15); }
+  }
+  if (opts.date) smoothCentred(c, dateLine(d), y0 + th + Math.round(th * 0.3), dh, [0.7, 0.72, 0.8]);
   if (opts.seconds) {
     // Seconds as a dot travelling round the panel's edge.
     const per = 2 * (c.W + c.H) - 4, pos = ((Number(ss) + ms / 1000) / 60) * per;

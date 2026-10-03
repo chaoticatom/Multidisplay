@@ -582,6 +582,14 @@ var PiEngine = (() => {
             },
             clear() {
               core.colBuf.fill(0);
+            },
+            get(x, y) {
+              x = Math.round(x);
+              y = Math.round(y);
+              const f = toFace(x, y);
+              if (!f) return null;
+              const i = core.faceMap[f[0] >= 0 ? f[0] : SIDE[0]][f[2] * S + f[1]];
+              return i < 0 ? null : [core.colBuf[i * 3], core.colBuf[i * 3 + 1], core.colBuf[i * 3 + 2]];
             }
           };
           render(c, ctx);
@@ -610,6 +618,13 @@ var PiEngine = (() => {
             },
             clear() {
               buf.fill(0);
+            },
+            get(x, y) {
+              x = Math.round(x);
+              y = Math.round(y);
+              if (x < 0 || y < 0 || x >= W || y >= H) return null;
+              const o = (y * W + x) * 3;
+              return [buf[o], buf[o + 1], buf[o + 2]];
             }
           };
           render(c, ctx);
@@ -15092,6 +15107,95 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/strokeFont.js
+  var require_strokeFont = __commonJS({
+    "src/effects/strokeFont.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      function arc(cx, cy, rx, ry, a0, a1, steps = 14) {
+        const pts = [];
+        for (let i = 0; i <= steps; i++) {
+          const a = (a0 + (a1 - a0) * (i / steps)) * Math.PI / 180;
+          pts.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]);
+        }
+        return pts;
+      }
+      var ell = (cx, cy, rx, ry) => arc(cx, cy, rx, ry, 0, 360, 24);
+      var G = {
+        0: [ell(2, 3, 2, 3)],
+        1: [[[0.9, 1.1], [2, 0], [2, 6]], [[0.9, 6], [3.1, 6]]],
+        2: [[...arc(2, 1.6, 2, 1.6, -180, 30), [0, 6], [4, 6]]],
+        3: [arc(2, 1.5, 1.9, 1.5, -160, 90), arc(2, 4.5, 2, 1.5, -90, 160)],
+        4: [[[3, 6], [3, 0], [0, 4.2], [4, 4.2]]],
+        5: [[[3.8, 0], [0.4, 0], [0.2, 2.9]], arc(2, 4.2, 2, 1.8, -138, 150)],
+        6: [arc(2, 3.2, 2, 2.9, -55, -180), arc(2, 4.3, 2, 1.7, 180, 540, 24)],
+        7: [[[0, 0], [4, 0], [1.5, 6]]],
+        8: [ell(2, 1.5, 1.7, 1.5), ell(2, 4.5, 2, 1.5)],
+        9: [ell(2, 1.7, 2, 1.7), [[4, 1.7], [3.7, 4], [2.6, 6]]],
+        ":": [[[0.5, 1.8], [0.5, 1.81]], [[0.5, 4.2], [0.5, 4.21]]],
+        A: [[[0, 6], [2, 0], [4, 6]], [[0.7, 4], [3.3, 4]]],
+        B: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.5, 1.4, 1.5, -90, 90), [0, 3]], [[0, 3], [2.7, 3], ...arc(2.7, 4.5, 1.3, 1.5, -90, 90), [0, 6]]],
+        C: [arc(2.2, 3, 2.1, 3, -45, -315)],
+        D: [[[1.8, 0], [0, 0], [0, 6], [1.8, 6], ...arc(1.8, 3, 2.2, 3, 90, -90)]],
+        E: [[[4, 0], [0, 0], [0, 6], [4, 6]], [[0, 3], [3, 3]]],
+        F: [[[4, 0], [0, 0], [0, 6]], [[0, 3], [3, 3]]],
+        G: [[...arc(2.2, 3, 2.1, 3, -40, -320), [4.2, 3.3], [2.4, 3.3]]],
+        H: [[[0, 0], [0, 6]], [[4, 0], [4, 6]], [[0, 3], [4, 3]]],
+        I: [[[2, 0], [2, 6]], [[1, 0], [3, 0]], [[1, 6], [3, 6]]],
+        J: [[[4, 0], ...arc(2, 4.4, 2, 1.6, 0, 180)]],
+        K: [[[0, 0], [0, 6]], [[4, 0], [0, 3.6]], [[1.3, 2.5], [4, 6]]],
+        L: [[[0, 0], [0, 6], [4, 6]]],
+        M: [[[0, 6], [0, 0], [2, 3.6], [4, 0], [4, 6]]],
+        N: [[[0, 6], [0, 0], [4, 6], [4, 0]]],
+        O: [ell(2, 3, 2, 3)],
+        P: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.6, 1.4, 1.6, -90, 90), [0, 3.2]]],
+        R: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.6, 1.4, 1.6, -90, 90), [0, 3.2]], [[2, 3.2], [4, 6]]],
+        S: [[...arc(2, 1.5, 2, 1.5, -20, -270), ...arc(2, 4.5, 2, 1.5, -90, 160)]],
+        T: [[[0, 0], [4, 0]], [[2, 0], [2, 6]]],
+        U: [[[0, 0], ...arc(2, 4.2, 2, 1.8, 180, 0), [4, 0]]],
+        V: [[[0, 0], [2, 6], [4, 0]]],
+        W: [[[0, 0], [1, 6], [2, 2.5], [3, 6], [4, 0]]],
+        Y: [[[0, 0], [2, 3], [4, 0]], [[2, 3], [2, 6]]]
+      };
+      var ADV = { ":": 1.6, " ": 3 };
+      var advance = (ch) => ADV[ch] ?? 5.2;
+      function textWidth(text, h) {
+        const k = h / 6;
+        let w = 0;
+        for (const ch of text) w += advance(ch) * k;
+        return w - 1.2 * k;
+      }
+      function drawText(c, text, x, y, h, col, weight = Math.max(1.2, h / 7)) {
+        const k = h / 6, r = weight / 2;
+        for (const ch of String(text).toUpperCase()) {
+          const strokes = G[ch];
+          if (strokes) {
+            const segs = [];
+            for (const st of strokes) for (let i = 0; i + 1 < st.length; i++) segs.push([x + st[i][0] * k, y + st[i][1] * k, x + st[i + 1][0] * k, y + st[i + 1][1] * k]);
+            const x0 = Math.floor(x - r - 1), x1 = Math.ceil(x + 4.4 * k + r + 1), y0 = Math.floor(y - r - 1), y1 = Math.ceil(y + 6 * k + r + 1);
+            for (let py = y0; py <= y1; py++) for (let px = x0; px <= x1; px++) {
+              let d = Infinity;
+              for (const [ax, ay, bx, by] of segs) {
+                const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+                const t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
+                const e = Math.hypot(px - ax - dx * t, py - ay - dy * t);
+                if (e < d) d = e;
+              }
+              const cover = Math.max(0, Math.min(1, r + 0.5 - d));
+              if (cover <= 0) continue;
+              const o = c.get(px, py);
+              if (!o) continue;
+              c.set(px, py, Math.max(o[0], col[0] * cover), Math.max(o[1], col[1] * cover), Math.max(o[2], col[2] * cover));
+            }
+          }
+          x += advance(ch) * k;
+        }
+      }
+      module.exports = { drawText, textWidth };
+    }
+  });
+
   // src/effects/clock.js
   var require_clock = __commonJS({
     "src/effects/clock.js"(exports, module) {
@@ -15101,6 +15205,7 @@ var PiEngine = (() => {
       var { hsl } = require_core();
       var { FONT_3x5, FONT_5x7, drawGlyph, textWidth } = require_text();
       var { defineCanvasEffect } = require_canvas();
+      var stroke = require_strokeFont();
       var { renderWords } = require_wordClock();
       var LEGACY = { time: "neon", both: "neon", full: "neon", date: "minimal", analogue: "analogue", words: "words" };
       var COLOURS = { cyan: [0.2, 0.85, 1], amber: [1, 0.62, 0.12], pink: [1, 0.3, 0.7], green: [0.35, 1, 0.45], white: [0.95, 0.95, 1] };
@@ -15175,10 +15280,14 @@ var PiEngine = (() => {
             rect(c, (c.W - bw) / 2 + i, by, 1, barH, on ? col : ghost);
           }
         }
-        if (opts.date) {
-          const s = dateLine(d), sc = Math.max(1, Math.floor(dateH / 6));
-          drawCentred(c, FONT_3x5, s, c.H - dateH + Math.round((dateH - 5 * sc) / 2), sc, [col[0] * 0.75, col[1] * 0.75, col[2] * 0.75]);
+        if (opts.date) smoothCentred(c, dateLine(d), c.H - dateH + 1, dateH - 2, [col[0] * 0.75, col[1] * 0.75, col[2] * 0.75]);
+      }
+      function smoothCentred(c, s, y, h, col) {
+        if (h < 9) {
+          const sc = Math.max(1, Math.floor(h / 5));
+          return drawCentred(c, FONT_3x5, s, y + Math.round((h - 5 * sc) / 2), sc, col);
         }
+        stroke.drawText(c, s, Math.round((c.W - stroke.textWidth(s, h)) / 2), y, h, col);
       }
       function drawCentred(c, font, s, y, scale, col) {
         let x = Math.round((c.W - textWidth(font, s, scale)) / 2);
@@ -15208,13 +15317,26 @@ var PiEngine = (() => {
           rect(c, x, y, cw, ch, card);
           for (let k = 0; k < cw; k++) c.set(x + k, mid, edge[0], edge[1], edge[2]);
           const glyph = (chr, clipTop, clipBot, squash) => {
-            const gw = 5 * sc, gh = 7 * sc, gx = x + Math.round((cw - gw) / 2), gy = y + Math.round((ch - gh) / 2);
-            drawGlyph(FONT_5x7, chr, gx, gy, (px, py) => {
-              let yy = py;
-              if (squash !== 1) yy = Math.round(mid + (py - mid) * squash);
-              if (yy < clipTop || yy > clipBot) return;
-              c.set(px, yy, col[0], col[1], col[2]);
-            }, { scale: sc });
+            const gh = Math.round(ch * 0.66), gx = x + Math.round((cw - stroke.textWidth(chr, gh)) / 2), gy = y + Math.round((ch - gh) / 2);
+            if (gh < 9) {
+              const gw = 5 * sc, gh2 = 7 * sc, bx = x + Math.round((cw - gw) / 2), by = y + Math.round((ch - gh2) / 2);
+              drawGlyph(FONT_5x7, chr, bx, by, (px, py) => {
+                const yy = squash !== 1 ? Math.round(mid + (py - mid) * squash) : py;
+                if (yy >= clipTop && yy <= clipBot) c.set(px, yy, col[0], col[1], col[2]);
+              }, { scale: sc });
+              return;
+            }
+            const view = {
+              get: (px, py) => {
+                const yy = squash !== 1 ? Math.round(mid + (py - mid) * squash) : py;
+                return yy < clipTop || yy > clipBot ? null : c.get(px, yy);
+              },
+              set: (px, py, r, g, b) => {
+                const yy = squash !== 1 ? Math.round(mid + (py - mid) * squash) : py;
+                if (yy >= clipTop && yy <= clipBot) c.set(px, yy, r, g, b);
+              }
+            };
+            stroke.drawText(view, chr, gx, gy, gh, col);
           };
           if (!changing) glyph(text[i], y, y + ch, 1);
           else {
@@ -15225,10 +15347,7 @@ var PiEngine = (() => {
           }
           x += cw + gap + (i % 2 === 1 ? groupGap : 0);
         }
-        if (opts.date) {
-          const s2 = dateLine(d), s3 = Math.max(1, Math.floor(dateH / 6));
-          drawCentred(c, FONT_3x5, s2, c.H - dateH + Math.round((dateH - 5 * s3) / 2), s3, [col[0] * 0.7, col[1] * 0.7, col[2] * 0.7]);
-        }
+        if (opts.date) smoothCentred(c, dateLine(d), c.H - dateH + 1, dateH - 2, [col[0] * 0.7, col[1] * 0.7, col[2] * 0.7]);
       }
       function analogue(c, opts, t) {
         const { d, ms } = parts(opts);
@@ -15281,20 +15400,27 @@ var PiEngine = (() => {
           c.set(x, y, Math.min(1, r), Math.min(1, g), Math.min(1, b));
         }
         if (opts.date && R > 20) {
-          const s = String(d.getDate()), sc = Math.max(1, Math.floor(R / 26));
-          drawCentred(c, FONT_3x5, s, Math.round(cy + R * 0.35), sc, [col[0] * 0.8, col[1] * 0.8, col[2] * 0.8]);
+          smoothCentred(c, String(d.getDate()), Math.round(cy + R * 0.3), Math.max(5, Math.round(R * 0.22)), [col[0] * 0.8, col[1] * 0.8, col[2] * 0.8]);
         }
       }
       function minimal(c, opts, t) {
         const { d, hh, mm, ss, ms } = parts(opts);
         const col = tint(opts, t);
-        const timeStr = hh + (ms < 500 ? ":" : " ") + mm;
-        const sc = Math.max(1, Math.floor(Math.min((c.W - 4) / textWidth(FONT_5x7, timeStr), c.H * 0.5 / 7)));
-        const th = 7 * sc, dateSc = Math.max(1, Math.floor(sc / 2));
-        const block = th + (opts.date ? 4 + 5 * dateSc : 0);
+        const timeStr = hh + ":" + mm;
+        let th = Math.floor(c.H * (opts.date ? 0.42 : 0.6));
+        while (th > 6 && stroke.textWidth(timeStr, th) > c.W - 6) th--;
+        const dh = Math.max(5, Math.round(th * 0.36));
+        const block = th + (opts.date ? Math.round(th * 0.3) + dh : 0);
         const y0 = Math.round((c.H - block) / 2);
-        drawCentred(c, FONT_5x7, timeStr, y0, sc, col);
-        if (opts.date) drawCentred(c, FONT_3x5, dateLine(d), y0 + th + 4, dateSc, [0.7, 0.72, 0.8]);
+        smoothCentred(c, timeStr, y0, th, col);
+        if (ms >= 500) {
+          const cx0 = Math.round((c.W - stroke.textWidth(timeStr, th)) / 2) + stroke.textWidth(hh, th) + th / 6 * 1.2;
+          for (let yy = y0; yy < y0 + th + 2; yy++) for (let xx = Math.floor(cx0 - th / 8); xx <= cx0 + th / 4; xx++) {
+            const o = c.get(xx, yy);
+            if (o) c.set(xx, yy, o[0] * 0.15, o[1] * 0.15, o[2] * 0.15);
+          }
+        }
+        if (opts.date) smoothCentred(c, dateLine(d), y0 + th + Math.round(th * 0.3), dh, [0.7, 0.72, 0.8]);
         if (opts.seconds) {
           const per = 2 * (c.W + c.H) - 4, pos = (Number(ss) + ms / 1e3) / 60 * per;
           for (let k = 0; k < per; k += 1) {
