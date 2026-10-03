@@ -4421,15 +4421,23 @@ var PiEngine = (() => {
           }
         },
         pixel(p, { t }) {
-          let f = 0;
+          let f = 0, gx = 0, gy = 0;
           for (const b of balls) {
             const dx = p.x - b.x, dy = p.y - b.y, dz = p.flat ? 0 : p.z - b.z;
-            f += b.r * b.r / (dx * dx + dy * dy + dz * dz + 1e-4);
+            const d2 = dx * dx + dy * dy + dz * dz + 1e-4, k = b.r * b.r / d2;
+            f += k;
+            gx += -2 * k * dx / d2;
+            gy += -2 * k * dy / d2;
           }
-          const hue = 0.93 + 0.12 * Math.sin(t * 0.05) + Math.min(0.15, f * 0.02);
+          const hue = 0.93 + 0.12 * Math.sin(t * 0.05) + Math.min(0.05, f * 0.01);
           if (f > 1) {
-            const core = Math.min(1, (f - 1) * 0.6);
-            return hsl(hue, 1, 0.42 + core * 0.18);
+            const s = 0.9 / (f * f), nx = -gx * s, ny = -gy * s, nl = Math.hypot(nx, ny, 1);
+            const lam = Math.max(0, (-nx * 0.5 - ny * 0.6 + 0.62) / nl);
+            const spec = Math.pow(Math.max(0, (-nx * 0.35 - ny * 0.45 + 0.82) / nl), 30) * 0.8;
+            const rim = Math.max(0, 1 - (f - 1) * 2) * 0.08;
+            const base = hsl(hue, 1, 0.12 + 0.5 * lam + rim);
+            const under = Math.max(0, p.y - 0.4) * 0.25;
+            return [Math.min(1, base[0] + spec + under), Math.min(1, base[1] + spec * 0.9 + under * 0.4), Math.min(1, base[2] + spec * 0.8)];
           }
           const glow = Math.pow(f, 3) * 0.35;
           const bg = hsl(hue + 0.55, 0.8, 0.04 + p.y * 0.03);
@@ -7569,187 +7577,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/coinflip.js
-  var require_coinflip = __commonJS({
-    "src/effects/coinflip.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { drawString, textWidth, FONT_3x5, facePlot } = require_text();
-      var coinFaces = null;
-      var coin2d = null;
-      function newCoinState() {
-        const s = { heads: 0, tails: 0, flipping: false, result: "", flipT: 0, flipDur: 0, angle: 0, showResult: 0 };
-        startFlip(s, 1, 1);
-        return s;
-      }
-      function startFlip(s, durMin, durRange) {
-        s.flipping = true;
-        s.flipT = 0;
-        s.flipDur = durMin + Math.random() * durRange;
-        s.result = Math.random() < 0.5 ? "H" : "T";
-      }
-      function lerp(a, b, t) {
-        return a + (b - a) * t;
-      }
-      function drawText(core, face, str, su, sv, scale, r, g, b) {
-        drawString(FONT_3x5, str, su, Math.round(sv), facePlot(core, face, r, g, b), { scale });
-      }
-      function drawTextCentered(core, face, str, cx, sv, scale, r, g, b) {
-        drawText(core, face, str, Math.round(cx - textWidth(FONT_3x5, str, scale) / 2), sv, scale, r, g, b);
-      }
-      function drawCoinFace(core, face, s, t) {
-        const S = core.SIZE;
-        const headsWinning = s.heads >= s.tails;
-        const cx = S * 0.5, cy = S * 0.4, R = S * 0.3;
-        const scaleX = s.flipping ? Math.cos(s.angle) : 1;
-        const absSx = Math.max(0.05, Math.abs(scaleX));
-        for (let v = 0; v < S; v++) {
-          for (let u = 0; u < S; u++) {
-            const dx = (u - cx) / (R * absSx), dy = (v - cy) / R;
-            const rad2 = dx * dx + dy * dy;
-            let r, g, b;
-            if (rad2 <= 1) {
-              const rad = Math.sqrt(rad2);
-              if (s.flipping) {
-                r = lerp(0.87, 0.53, rad);
-                g = lerp(0.67, 0.4, rad);
-                b = lerp(0.2, 0.07, rad);
-              } else {
-                const isH = s.result === "H";
-                if (isH) {
-                  r = lerp(0.93, 0.53, rad);
-                  g = lerp(0.73, 0.4, rad);
-                  b = lerp(0.2, 0.07, rad);
-                } else {
-                  r = lerp(0.47, 0.2, rad);
-                  g = lerp(0.53, 0.27, rad);
-                  b = lerp(0.8, 0.47, rad);
-                }
-                if (rad > 0.82) {
-                  if (isH) {
-                    r = 1;
-                    g = 0.87;
-                    b = 0.33;
-                  } else {
-                    r = 0.67;
-                    g = 0.73;
-                    b = 1;
-                  }
-                }
-              }
-            } else {
-              const shimmer = Math.sin(t * 2 + u * 0.08 + v * 0.1) * 0.5 + 0.5;
-              const bl = shimmer * 0.22;
-              if (headsWinning) {
-                r = bl * 1.1;
-                g = bl * 0.85;
-                b = bl * 0.3;
-              } else {
-                r = bl * 0.6;
-                g = bl * 0.7;
-                b = bl * 1.1;
-              }
-            }
-            core.setFaceLED(face, u, v, r, g, b);
-          }
-        }
-        if (!s.flipping) {
-          const sc = Math.max(1, Math.round(R / 6));
-          const gw = 3 * sc, gh = 5 * sc;
-          drawText(core, face, s.result, Math.round(cx - gw / 2), Math.round(cy - gh / 2), sc, 1, 1, 1);
-        }
-        const tsc = Math.max(1, Math.round(S / 32));
-        drawTextCentered(core, face, "H" + s.heads, S * 0.28, S * 0.82, tsc, 1, 0.8, 0.27);
-        drawTextCentered(core, face, "T" + s.tails, S * 0.72, S * 0.82, tsc, 0.6, 0.73, 1);
-      }
-      function drawCoinTop(core, face, t) {
-        const S = core.SIZE;
-        let totalH = 0, totalT = 0;
-        for (const cf of coinFaces) {
-          totalH += cf.heads;
-          totalT += cf.tails;
-        }
-        const headsWinning = totalH >= totalT;
-        for (let v = 0; v < S; v++) {
-          for (let u = 0; u < S; u++) {
-            const shimmer = Math.sin(t * 3 + u * 0.1 + v * 0.08) * 0.5 + 0.5;
-            const bl = shimmer * 0.2;
-            let r, g, b;
-            if (headsWinning) {
-              r = bl * 1.1;
-              g = bl * 0.85;
-              b = bl * 0.3;
-            } else {
-              r = bl * 0.6;
-              g = bl * 0.7;
-              b = bl * 1.1;
-            }
-            core.setFaceLED(face, u, v, r, g, b);
-          }
-        }
-        const sc = Math.max(1, Math.round(S / 24));
-        drawTextCentered(core, face, "TOTAL", S * 0.5, S * 0.08, Math.max(1, sc - 1), 1, 1, 1);
-        drawTextCentered(core, face, "H" + totalH, S * 0.28, S * 0.42, sc, 1, 0.8, 0.27);
-        drawTextCentered(core, face, "T" + totalT, S * 0.72, S * 0.42, sc, 0.6, 0.73, 1);
-        const pulse = 0.4 + 0.6 * Math.abs(Math.sin(t * 3));
-        const br = headsWinning ? 0.86 * pulse : 0.47 * pulse;
-        const bg = headsWinning ? 0.67 * pulse : 0.55 * pulse;
-        const bb = headsWinning ? 0.16 * pulse : 0.86 * pulse;
-        const bw = Math.max(1, Math.round(S / 32));
-        for (let u = 0; u < S; u++) {
-          for (let k = 0; k < bw; k++) {
-            core.setFaceLED(face, u, k, br, bg, bb);
-            core.setFaceLED(face, u, S - 1 - k, br, bg, bb);
-          }
-        }
-        for (let v = 0; v < S; v++) {
-          for (let k = 0; k < bw; k++) {
-            core.setFaceLED(face, k, v, br, bg, bb);
-            core.setFaceLED(face, S - 1 - k, v, br, bg, bb);
-          }
-        }
-      }
-      function stepCoin(s, dt, cs) {
-        if (s.flipping) {
-          s.flipT += dt * cs;
-          s.angle += dt * cs * 12;
-          if (s.flipT >= s.flipDur) {
-            s.flipping = false;
-            if (s.result === "H") s.heads++;
-            else s.tails++;
-            s.showResult = 2;
-            s.angle = 0;
-          }
-        } else {
-          s.showResult -= dt * cs;
-          if (s.showResult <= 0) startFlip(s, 1, 1);
-        }
-      }
-      function effectCoinFlip(core, dt) {
-        core.t += dt;
-        const t = core.t;
-        const opts = core.effectOptions?.coinflip || {};
-        const cs = opts.speed ?? 1;
-        const is3D = core.panelMode !== "2d";
-        for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
-        if (is3D) {
-          if (!coinFaces) coinFaces = [0, 1, 2, 3].map(() => newCoinState());
-          for (let f = 0; f < 4; f++) {
-            const cf = coinFaces[f];
-            stepCoin(cf, dt, cs);
-            drawCoinFace(core, f, cf, t + f * 1.7);
-          }
-          drawCoinTop(core, 4, t);
-        } else {
-          if (!coin2d) coin2d = newCoinState();
-          stepCoin(coin2d, dt, cs);
-          drawCoinFace(core, 0, coin2d, t);
-        }
-      }
-      module.exports = effectCoinFlip;
-    }
-  });
-
   // src/effects/strokeFont.js
   var require_strokeFont = __commonJS({
     "src/effects/strokeFont.js"(exports, module) {
@@ -7849,6 +7676,181 @@ var PiEngine = (() => {
         }
       }
       module.exports = { drawText, textWidth };
+    }
+  });
+
+  // src/effects/coinflip.js
+  var require_coinflip = __commonJS({
+    "src/effects/coinflip.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { defineCanvasEffect } = require_canvas();
+      var stroke = require_strokeFont();
+      var { FONT_3x5, FONT_5x7, drawString, textWidth } = require_text();
+      var TOSS_S = 1.5;
+      var WOBBLE_S = 0.9;
+      var SHOW_S = 2.4;
+      var HALF_T = 0.085;
+      var VIEW_TILT = 0.62;
+      var st = { phase: "toss", t0: null, result: "H", heads: 0, tails: 0, turns: 0 };
+      var LIGHT = (() => {
+        const l = [-0.5, -0.6, 0.65], n = Math.hypot(...l);
+        return l.map((v) => v / n);
+      })();
+      var METAL = { H: { base: [1, 0.76, 0.28], dark: [0.55, 0.36, 0.08] }, T: { base: [0.82, 0.85, 0.9], dark: [0.42, 0.45, 0.52] } };
+      var MASK = {};
+      for (const ch of ["H", "T"]) {
+        const g = FONT_5x7.get(ch), m = [];
+        for (let y = 0; y < 7; y++) for (let x = 0; x < 7; x++) m.push(x >= 1 && x <= 5 && g[y] >> 5 - x & 1 ? 1 : 0);
+        MASK[ch] = m;
+      }
+      var maskAt = (ch, u, v) => {
+        const gx = Math.floor((u / 0.95 + 0.5) * 7), gy = Math.floor((v / 0.95 + 0.5) * 7);
+        return gx < 0 || gy < 0 || gx > 6 || gy > 6 ? 0 : MASK[ch][gy * 7 + gx];
+      };
+      function newToss(t) {
+        st.phase = "toss";
+        st.t0 = t;
+        st.result = Math.random() < 0.5 ? "H" : "T";
+        st.turns = 4 + Math.floor(Math.random() * 3);
+      }
+      function orient(a, w) {
+        const ca = Math.cos(a), sa = Math.sin(a), cw = Math.cos(w), sw = Math.sin(w), cv = Math.cos(VIEW_TILT), sv = Math.sin(VIEW_TILT);
+        const A = [1, 0, 0, 0, ca, -sa, 0, sa, ca], W = [cw, 0, sw, 0, 1, 0, -sw, 0, cw], V = [1, 0, 0, 0, cv, -sv, 0, sv, cv];
+        const mul = (p, q) => {
+          const r = [];
+          for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) r.push(p[i * 3] * q[j] + p[i * 3 + 1] * q[3 + j] + p[i * 3 + 2] * q[6 + j]);
+          return r;
+        };
+        return mul(V, mul(W, A));
+      }
+      function drawCoin(c, cx, cy, R, M, up) {
+        const down = up === "H" ? "T" : "H";
+        const reach = Math.ceil(R * 1.15) + 1;
+        for (let y = Math.floor(cy - reach); y <= cy + reach; y++) for (let x = Math.floor(cx - reach); x <= cx + reach; x++) {
+          let ar = 0, ag = 0, ab = 0, cov = 0;
+          for (let sy = 0; sy < 2; sy++) for (let sx = 0; sx < 2; sx++) {
+            const wx = (x + 0.25 + sx * 0.5 - cx) / R, wy = (y + 0.25 + sy * 0.5 - cy) / R;
+            const o = [M[0] * wx + M[3] * wy + M[6] * 3, M[1] * wx + M[4] * wy + M[7] * 3, M[2] * wx + M[5] * wy + M[8] * 3];
+            const d = [-M[6], -M[7], -M[8]];
+            let tz1 = -Infinity, tz2 = Infinity, capSign = 0;
+            if (Math.abs(d[2]) > 1e-9) {
+              let a = (-HALF_T - o[2]) / d[2], b2 = (HALF_T - o[2]) / d[2];
+              capSign = a < b2 ? -1 : 1;
+              tz1 = Math.min(a, b2);
+              tz2 = Math.max(a, b2);
+            } else if (Math.abs(o[2]) > HALF_T) continue;
+            const A = d[0] * d[0] + d[1] * d[1], B = 2 * (o[0] * d[0] + o[1] * d[1]), C = o[0] * o[0] + o[1] * o[1] - 1;
+            let ts1 = -Infinity, ts2 = Infinity;
+            if (A > 1e-9) {
+              const disc = B * B - 4 * A * C;
+              if (disc < 0) continue;
+              const q = Math.sqrt(disc);
+              ts1 = (-B - q) / (2 * A);
+              ts2 = (-B + q) / (2 * A);
+            } else if (C > 0) continue;
+            const tn = Math.max(tz1, ts1), tf = Math.min(tz2, ts2);
+            if (tn > tf) continue;
+            const hp = [o[0] + d[0] * tn, o[1] + d[1] * tn, o[2] + d[2] * tn];
+            let nl, r, g, b;
+            if (tz1 >= ts1) {
+              const back = capSign < 0, face = back ? down : up, met = METAL[face];
+              const u = hp[0], v = back ? -hp[1] : hp[1];
+              const rr = Math.hypot(u, v);
+              nl = [0, 0, back ? -1 : 1];
+              let tint = 1;
+              if (rr > 0.84) {
+                const k2 = (rr - 0.84) / 0.16;
+                tint = 1.15 - k2 * 0.35;
+              } else if (rr > 0.78) tint = 0.7;
+              else {
+                const m = maskAt(face, u * 1.05, v * 1.05), sh2 = maskAt(face, u * 1.05 - 0.12, v * 1.05 - 0.12);
+                tint = m ? 1.22 : sh2 ? 0.68 : 0.92 + 0.08 * Math.sin(rr * 30);
+              }
+              r = met.base[0] * tint;
+              g = met.base[1] * tint;
+              b = met.base[2] * tint;
+            } else {
+              const ang = Math.atan2(hp[1], hp[0]);
+              const ridge = 0.75 + 0.25 * Math.sin(ang * 60);
+              const met = METAL[up];
+              nl = [hp[0], hp[1], 0];
+              r = met.dark[0] * ridge * 1.3;
+              g = met.dark[1] * ridge * 1.3;
+              b = met.dark[2] * ridge * 1.3;
+            }
+            const nw = [M[0] * nl[0] + M[1] * nl[1] + M[2] * nl[2], M[3] * nl[0] + M[4] * nl[1] + M[5] * nl[2], M[6] * nl[0] + M[7] * nl[1] + M[8] * nl[2]];
+            const lam = Math.max(0, nw[0] * LIGHT[0] + nw[1] * LIGHT[1] + nw[2] * LIGHT[2]);
+            const refZ = 2 * lam * nw[2] - LIGHT[2];
+            const spec = Math.pow(Math.max(0, refZ), 14) * 0.9;
+            const sh = 0.45 + 0.7 * lam;
+            ar += Math.min(1, r * sh + spec);
+            ag += Math.min(1, g * sh + spec * 0.95);
+            ab += Math.min(1, b * sh + spec * 0.85);
+            cov++;
+          }
+          if (!cov) continue;
+          const o2 = c.get(x, y);
+          if (!o2) continue;
+          const k = cov / 4;
+          c.set(x, y, o2[0] * (1 - k) + ar / cov * k, o2[1] * (1 - k) + ag / cov * k, o2[2] * (1 - k) + ab / cov * k);
+        }
+      }
+      module.exports = defineCanvasEffect({
+        render(c, { t, core }) {
+          const o = core.effectOptions && core.effectOptions.coinflip || {};
+          const sp = Math.max(0.25, Number(o.speed) || 1);
+          if (st.t0 === null) newToss(t);
+          let e = (t - st.t0) * sp;
+          if (st.phase === "toss" && e > TOSS_S) {
+            st.phase = "wobble";
+          }
+          if (st.phase === "wobble" && e > TOSS_S + WOBBLE_S) {
+            st.phase = "show";
+            if (st.result === "H") st.heads++;
+            else st.tails++;
+          }
+          if (st.phase === "show" && e > TOSS_S + WOBBLE_S + SHOW_S) {
+            newToss(t);
+            e = 0;
+          }
+          for (let y = 0; y < c.H; y++) for (let x = 0; x < c.W; x++) {
+            const v = Math.max(0, 1 - Math.hypot((x - c.W / 2) / c.W, (y - c.H * 0.55) / c.H) * 1.6);
+            c.set(x, y, 0.015 + v * 0.06, 0.02 + v * 0.07, 0.04 + v * 0.1);
+          }
+          const tallyH = Math.max(6, Math.round(c.H * 0.14));
+          const R0 = Math.min(c.W, c.H - tallyH) * 0.3;
+          const cx = c.W / 2, rest = (c.H - tallyH) * 0.55;
+          const endA = st.result === "H" ? 0 : Math.PI;
+          let a = endA, w = 0, lift = 0;
+          if (st.phase === "toss") {
+            const p = e / TOSS_S;
+            a = endA + (1 - p) * st.turns * Math.PI * 2;
+            lift = 4 * p * (1 - p);
+          } else if (st.phase === "wobble") {
+            const p = (e - TOSS_S) / WOBBLE_S;
+            w = Math.sin(p * Math.PI * 5) * 0.35 * (1 - p) * (1 - p);
+            lift = Math.abs(Math.sin(p * Math.PI * 2)) * 0.08 * (1 - p);
+          }
+          const R = R0 * (1 + lift * 0.45), cy = rest - lift * (c.H - tallyH) * 0.32;
+          const sR = R0 * (1 - lift * 0.35);
+          for (let y = Math.floor(rest + R0 * 0.25 - sR); y <= rest + R0 * 0.25 + sR; y++) for (let x = Math.floor(cx - sR * 1.1); x <= cx + sR * 1.1; x++) {
+            const dd = Math.hypot((x - cx) / (sR * 1.05), (y - rest - R0 * 0.25) / (sR * 0.55)), k = Math.max(0, 1 - dd * dd) * 0.6 * (1 - lift * 0.6), px = c.get(x, y);
+            if (px && k > 0) c.set(x, y, px[0] * (1 - k), px[1] * (1 - k), px[2] * (1 - k));
+          }
+          drawCoin(c, cx, cy, R, orient(a, w), "H");
+          if (st.phase === "show") {
+            const word = st.result === "H" ? "HEADS" : "TAILS", col = st.result === "H" ? [1, 0.8, 0.3] : [0.75, 0.82, 1];
+            const h = Math.max(7, Math.round(c.H * 0.13));
+            if (h >= 9) stroke.drawText(c, word, Math.round((c.W - stroke.textWidth(word, h)) / 2), 2, h, col);
+            else drawString(FONT_5x7, word, Math.round((c.W - textWidth(FONT_5x7, word)) / 2), 2, (x, y) => c.set(x, y, col[0], col[1], col[2]));
+          }
+          const tally = `H ${st.heads}  T ${st.tails}`, ty = c.H - FONT_3x5.h - 2;
+          drawString(FONT_3x5, tally, Math.round((c.W - textWidth(FONT_3x5, tally)) / 2), ty, (x, y) => c.set(x, y, 0.75, 0.78, 0.85));
+        }
+      });
+      module.exports.getStatus = () => ({ heads: st.heads, tails: st.tails, last: st.result });
     }
   });
 
@@ -14610,304 +14612,116 @@ var PiEngine = (() => {
   // src/effects/balls.js
   var require_balls = __commonJS({
     "src/effects/balls.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { getLocalGravity } = require_shared();
-      var { tempo } = require_audioFeatures();
-      var balls = [];
-      var ballFlashes = [];
-      var ballPrevGx = 0;
-      var ballPrevGy = -1;
-      var ballPrevGz = 0;
-      var _resetKey = null;
-      var BALL_CW = [0, 2, 1, 3];
-      var BALL_CWI = { 0: 0, 1: 2, 2: 1, 3: 3 };
-      function ballCrossCheck(b, S) {
-        const M = S - 1;
-        if (b.face <= 3 && (b.u < 0 || b.u >= S)) {
-          const su = BALL_CWI[b.face] * S + b.u;
-          const total = S * 4;
-          const w = (su % total + total) % total;
-          const nqi = w / S | 0;
-          b.face = BALL_CW[nqi];
-          b.u = w - nqi * S;
-        }
-        if (b.face <= 3 && b.v >= S) {
-          const ov = b.v - S, ou = b.u, od = b.du, od2 = b.dv;
-          switch (b.face) {
-            case 0:
-              b.u = ou;
-              b.v = M - ov;
-              b.du = od;
-              b.dv = -od2;
-              break;
-            case 1:
-              b.u = M - ou;
-              b.v = ov;
-              b.du = -od;
-              b.dv = od2;
-              break;
-            case 2:
-              b.u = M - ov;
-              b.v = M - ou;
-              b.du = -od2;
-              b.dv = -od;
-              break;
-            case 3:
-              b.u = ov;
-              b.v = ou;
-              b.du = od2;
-              b.dv = od;
-              break;
-          }
-          b.face = 4;
-        } else if (b.face <= 3 && b.v < 0) {
-          const ov = -b.v, ou = b.u, od = b.du, od2 = b.dv;
-          switch (b.face) {
-            case 0:
-              b.u = ou;
-              b.v = M - ov;
-              b.du = od;
-              b.dv = od2;
-              break;
-            case 1:
-              b.u = M - ou;
-              b.v = ov;
-              b.du = -od;
-              b.dv = -od2;
-              break;
-            case 2:
-              b.u = M - ov;
-              b.v = M - ou;
-              b.du = od2;
-              b.dv = -od;
-              break;
-            case 3:
-              b.u = ov;
-              b.v = ou;
-              b.du = -od2;
-              b.dv = od;
-              break;
-          }
-          b.face = 5;
-        }
-        if (b.face === 4) {
-          const ou = b.u, ov2 = b.v, od = b.du, od2 = b.dv;
-          if (b.u < 0) {
-            const ov = -ou;
-            b.face = 3;
-            b.u = ov2;
-            b.v = M - ov;
-            b.du = od2;
-            b.dv = od;
-          } else if (b.u >= S) {
-            const ov = ou - S;
-            b.face = 2;
-            b.u = M - ov2;
-            b.v = M - ov;
-            b.du = -od2;
-            b.dv = -od;
-          } else if (b.v < 0) {
-            const ov = -ov2;
-            b.face = 1;
-            b.u = M - ou;
-            b.v = M - ov;
-            b.du = -od;
-            b.dv = od2;
-          } else if (b.v >= S) {
-            const ov = ov2 - S;
-            b.face = 0;
-            b.u = ou;
-            b.v = M - ov;
-            b.du = od;
-            b.dv = -od2;
-          }
-        }
-        if (b.face === 5) {
-          const ou = b.u, ov2 = b.v, od = b.du, od2 = b.dv;
-          if (b.u < 0) {
-            const ov = -ou;
-            b.face = 3;
-            b.u = ov2;
-            b.v = ov;
-            b.du = od2;
-            b.dv = -od;
-          } else if (b.u >= S) {
-            const ov = ou - S;
-            b.face = 2;
-            b.u = M - ov2;
-            b.v = ov;
-            b.du = -od2;
-            b.dv = od;
-          } else if (b.v < 0) {
-            const ov = -ov2;
-            b.face = 1;
-            b.u = M - ou;
-            b.v = ov;
-            b.du = -od;
-            b.dv = -od2;
-          } else if (b.v >= S) {
-            const ov = ov2 - S;
-            b.face = 0;
-            b.u = ou;
-            b.v = ov;
-            b.du = od;
-            b.dv = od2;
-          }
-        }
+      var { defineCanvasEffect } = require_canvas();
+      var { hsl } = require_core();
+      var st = { balls: [], n: 0 };
+      var LIGHT = (() => {
+        const l = [-0.5, -0.65, 0.6], n = Math.hypot(...l);
+        return l.map((v) => v / n);
+      })();
+      function spawn(n) {
+        st.n = n;
+        st.balls = Array.from({ length: n }, (_, i) => ({
+          x: 0.15 + Math.random() * 0.7,
+          y: 0.1 + Math.random() * 0.4,
+          vx: (Math.random() - 0.5) * 0.9,
+          vy: 0,
+          r: 0.07 + Math.random() * 0.05,
+          hue: (i / n + Math.random() * 0.1) % 1,
+          squash: 0
+        }));
       }
-      function ballPixel(core, face, pu, pv, S) {
-        if (pu >= 0 && pu < S && pv >= 0 && pv < S) return core.faceMap[face][pv * S + pu];
-        const tmp = { face, u: pu, v: pv, du: 0, dv: 0 };
-        ballCrossCheck(tmp, S);
-        const ru = Math.round(tmp.u), rv = Math.round(tmp.v);
-        if (ru >= 0 && ru < S && rv >= 0 && rv < S) return core.faceMap[tmp.face][rv * S + ru];
-        return -1;
-      }
-      function resetBalls(core) {
-        const S = core.SIZE, panel2dMode = core.panelMode === "2d";
-        const ballsPerFace = core.effectOptions?.balls?.count ?? 3;
-        balls = [];
-        ballFlashes = [];
-        const COLORS = [
-          [1, 0.15, 0.15],
-          [0.15, 1, 0.15],
-          [0.2, 0.4, 1],
-          [1, 1, 0.1],
-          [1, 0.4, 0],
-          [0.9, 0.15, 0.9],
-          [0, 0.9, 0.9],
-          [1, 0.6, 0.7],
-          [0.5, 1, 0.3],
-          [1, 0.5, 0.1],
-          [0.3, 0.5, 1],
-          [0.8, 0.2, 0.5]
-        ];
-        let ci = 0;
-        const faceList = panel2dMode ? [0] : [0, 1, 2, 3, 4, 5];
-        for (const f of faceList) {
-          const count = panel2dMode ? ballsPerFace * 2 : ballsPerFace;
-          for (let k = 0; k < count; k++) {
-            const R = 3 + Math.floor(Math.random() * 3);
-            const ang = Math.random() * Math.PI * 2;
-            const spd = S * (0.3 + Math.random() * 0.4);
-            const c = COLORS[ci % COLORS.length];
-            ci++;
-            balls.push({
-              face: f,
-              u: R + 1 + Math.random() * (S - 2 * R - 2),
-              v: R + 1 + Math.random() * (S - 2 * R - 2),
-              du: Math.cos(ang) * spd,
-              dv: Math.sin(ang) * spd,
-              r: R,
-              cr: c[0],
-              cg: c[1],
-              cb: c[2]
-            });
-          }
-        }
-      }
-      function effectBouncingBalls(core, dt) {
-        dt *= tempo(core);
-        core.t += dt;
-        const { N, SIZE: S, faceMap, colBuf } = core;
-        const panel2dMode = core.panelMode === "2d";
-        const ballCrossFaces = core.effectOptions?.balls?.crossFaces ?? true;
-        const ballsPerFace = core.effectOptions?.balls?.count ?? 3;
-        const resetKey = `${panel2dMode}|${S}|${ballCrossFaces}|${ballsPerFace}`;
-        if (!balls.length || _resetKey !== resetKey) {
-          _resetKey = resetKey;
-          resetBalls(core);
-        }
-        for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
-        const S1 = S - 1;
-        const rawG = getLocalGravity();
-        const gLen = Math.sqrt(rawG.x * rawG.x + rawG.y * rawG.y + rawG.z * rawG.z) || 1;
-        const gx = rawG.x / gLen, gy = rawG.y / gLen, gz = rawG.z / gLen;
-        const dgx = gx - ballPrevGx, dgy = gy - ballPrevGy, dgz = gz - ballPrevGz;
-        ballPrevGx = gx;
-        ballPrevGy = gy;
-        ballPrevGz = gz;
-        const rotChange = Math.sqrt(dgx * dgx + dgy * dgy + dgz * dgz);
-        const FU = [[1, 0, 0], [1, 0, 0], [0, 0, 1], [0, 0, 1], [1, 0, 0], [1, 0, 0]];
-        const FV = [[0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 0, 1], [0, 0, 1]];
-        for (const b of balls) {
-          const fu = FU[b.face], fv = FV[b.face];
-          const gu = gx * fu[0] + gy * fu[1] + gz * fu[2];
-          const gv = gx * fv[0] + gy * fv[1] + gz * fv[2];
-          if (rotChange > 5e-3) {
-            const nudge = S * 8 * rotChange;
-            b.du += gu * nudge;
-            b.dv += gv * nudge;
-          }
-          b.u += b.du * dt;
-          b.v += b.dv * dt;
-          if (!panel2dMode && ballCrossFaces) {
-            ballCrossCheck(b, S);
-          }
-          const R = b.r;
-          if (panel2dMode || !ballCrossFaces) {
-            if (b.u < R) {
-              b.u = R;
-              b.du = Math.abs(b.du);
+      module.exports = defineCanvasEffect({
+        render(c, { dt, core }) {
+          const n = Math.max(1, Math.min(8, Number(core.effectOptions?.balls?.count) || 5));
+          if (n !== st.n) spawn(n);
+          const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
+          const step = Math.min(0.05, dt);
+          const asp = c.W / c.H, floor = 0.92;
+          for (const b of st.balls) {
+            b.vy += 1.6 * step;
+            b.x += b.vx * step;
+            b.y += b.vy * step;
+            if (b.y + b.r > floor) {
+              b.y = floor - b.r;
+              b.squash = Math.min(0.35, Math.abs(b.vy) * 0.25);
+              b.vy = -Math.max(Math.abs(b.vy) * 0.86, 0.9 + beat * 0.8);
             }
-            if (b.u > S1 - R) {
-              b.u = S1 - R;
-              b.du = -Math.abs(b.du);
+            if (b.x - b.r < 0.02) {
+              b.x = 0.02 + b.r;
+              b.vx = Math.abs(b.vx);
             }
-            if (b.v < R) {
-              b.v = R;
-              b.dv = Math.abs(b.dv);
+            if (b.x + b.r > asp * 0.98) {
+              b.x = asp * 0.98 - b.r;
+              b.vx = -Math.abs(b.vx);
             }
-            if (b.v > S1 - R) {
-              b.v = S1 - R;
-              b.dv = -Math.abs(b.dv);
-            }
+            b.squash = Math.max(0, b.squash - step * 2.5);
           }
-          const cross = !panel2dMode && ballCrossFaces;
-          const u0 = Math.floor(b.u - R - 1), u1 = Math.ceil(b.u + R + 1), v0 = Math.floor(b.v - R - 1), v1 = Math.ceil(b.v + R + 1);
-          for (let pv = v0; pv <= v1; pv++) {
-            for (let pu = u0; pu <= u1; pu++) {
-              const dd = Math.hypot(pu - b.u, pv - b.v);
-              const cover = Math.min(1, R + 0.5 - dd);
-              if (cover <= 0) continue;
-              const idx = cross ? ballPixel(core, b.face, pu, pv, S) : pu < 0 || pu >= S || pv < 0 || pv >= S ? -1 : faceMap[b.face][pv * S + pu];
-              if (idx < 0) continue;
-              const dist = Math.min(1, dd / R);
-              const shade = (1 - dist * 0.55) * (dist > 0.75 ? 0.75 : 1) * cover;
-              const br = b.cr * shade, bg = b.cg * shade, bb = b.cb * shade;
-              colBuf[idx * 3] = Math.max(colBuf[idx * 3], br);
-              colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], bg);
-              colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], bb);
-            }
-          }
-        }
-        for (let i = 0; i < balls.length; i++) {
-          for (let j = i + 1; j < balls.length; j++) {
-            const a = balls[i], b2 = balls[j];
-            if (a.face !== b2.face) continue;
-            const dx = b2.u - a.u, dy = b2.v - a.v;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            const minD = a.r + b2.r;
-            if (dist < minD && dist > 0.1) {
-              const nx = dx / dist, ny = dy / dist;
-              const overlap = (minD - dist) * 0.5;
-              a.u -= nx * overlap;
-              a.v -= ny * overlap;
-              b2.u += nx * overlap;
-              b2.v += ny * overlap;
-              const relV = (b2.du - a.du) * nx + (b2.dv - a.dv) * ny;
-              if (relV < 0) {
-                a.du += relV * nx * 0.5;
-                a.dv += relV * ny * 0.5;
-                b2.du -= relV * nx * 0.5;
-                b2.dv -= relV * ny * 0.5;
+          for (let i = 0; i < st.balls.length; i++) for (let j = i + 1; j < st.balls.length; j++) {
+            const a = st.balls[i], b = st.balls[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), m = a.r + b.r;
+            if (d > 0 && d < m) {
+              const nx = dx / d, ny = dy / d, push = (m - d) / 2;
+              a.x -= nx * push;
+              a.y -= ny * push;
+              b.x += nx * push;
+              b.y += ny * push;
+              const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+              if (rel < 0) {
+                a.vx += rel * nx;
+                a.vy += rel * ny;
+                b.vx -= rel * nx;
+                b.vy -= rel * ny;
               }
             }
           }
+          const H = c.H;
+          const fy = floor * H;
+          for (let y = 0; y < c.H; y++) for (let x = 0; x < c.W; x++) {
+            if (y < fy) {
+              const v = 0.02 + y / fy * 0.05;
+              c.set(x, y, v * 0.6, v * 0.7, v);
+            } else {
+              const v = 0.09 - (y - fy) / (H - fy + 1) * 0.04;
+              c.set(x, y, v * 0.7, v * 0.75, v * 0.9);
+            }
+          }
+          for (const b of st.balls) {
+            const h = Math.max(0, floor - (b.y + b.r)), sx = b.x * H, sr = b.r * H * (1.1 - Math.min(0.6, h)), k0 = 0.6 * (1 - Math.min(0.85, h * 1.4));
+            for (let y = Math.floor(fy - 2); y <= fy + 3; y++) for (let x = Math.floor(sx - sr * 1.3); x <= sx + sr * 1.3; x++) {
+              const dd = Math.hypot((x - sx) / (sr * 1.2), (y - fy - 0.5) / Math.max(1, sr * 0.3)), k = Math.max(0, 1 - dd * dd) * k0, o = c.get(x, y);
+              if (o && k > 0) c.set(x, y, o[0] * (1 - k), o[1] * (1 - k), o[2] * (1 - k));
+            }
+          }
+          for (const b of [...st.balls].sort((p, q) => p.r - q.r)) {
+            const cx = b.x * H, cy = b.y * H, R = b.r * H, sq = b.squash;
+            const rx = R * (1 + sq * 0.5), ry = R * (1 - sq * 0.4), oy = cy + R * sq * 0.4;
+            const col = hsl(b.hue, 0.85, 0.5);
+            for (let y = Math.floor(oy - ry - 1); y <= oy + ry + 1; y++) for (let x = Math.floor(cx - rx - 1); x <= cx + rx + 1; x++) {
+              let ar = 0, ag = 0, ab = 0, cov = 0;
+              for (let s = 0; s < 4; s++) {
+                const u = (x + 0.25 + (s & 1) * 0.5 - cx) / rx, v = (y + 0.25 + (s >> 1) * 0.5 - oy) / ry, d2 = u * u + v * v;
+                if (d2 > 1) continue;
+                const z = Math.sqrt(1 - d2), lam = Math.max(0, u * LIGHT[0] + v * LIGHT[1] + z * LIGHT[2]);
+                const refl = 2 * lam * z - LIGHT[2], spec = Math.pow(Math.max(0, refl), 24) * 0.95;
+                const rim = Math.pow(1 - z, 3) * 0.35;
+                const sh = 0.18 + 0.85 * lam;
+                ar += Math.min(1, col[0] * sh + spec + rim * col[0]);
+                ag += Math.min(1, col[1] * sh + spec + rim * col[1]);
+                ab += Math.min(1, col[2] * sh + spec + rim * col[2]);
+                cov++;
+              }
+              if (!cov) continue;
+              const o = c.get(x, y);
+              if (!o) continue;
+              const k = cov / 4;
+              c.set(x, y, o[0] * (1 - k) + ar / cov * k, o[1] * (1 - k) + ag / cov * k, o[2] * (1 - k) + ab / cov * k);
+            }
+          }
         }
-      }
-      module.exports = effectBouncingBalls;
+      });
     }
   });
 
@@ -15288,11 +15102,11 @@ var PiEngine = (() => {
           const dx = p.x - 0.5, dy = p.y - 0.5, dz = p.z - 0.5;
           const dist = p.flat ? Math.sqrt(dx * dx + dy * dy) * 2 : Math.sqrt(dx * dx + dy * dy + dz * dz) * 2;
           const ang = Math.atan2(dy, dx);
-          const twist = ang * 1.6 + dist * 2.5;
+          const twist = ang * 2 + dist * 2.5;
           const ring = Math.sin(dist * Math.PI * 9 - t * 2.4 + twist);
           const ring2 = Math.sin(dist * Math.PI * 4.5 + t * 1.1 + ang);
           const bright = ((ring * 0.6 + ring2 * 0.4) * 0.5 + 0.5) * (1 - dist * 0.42) * 0.88;
-          const hue = (dist * 0.65 + ang / (Math.PI * 2) * 0.3 + t * 0.055) % 1;
+          const hue = ((dist * 0.65 + Math.sin(ang) * 0.08 + t * 0.055) % 1 + 1) % 1;
           return hsl(hue, 1, Math.max(0, bright));
         }
       });
@@ -21076,135 +20890,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/ballsWall.js
-  var require_ballsWall = __commonJS({
-    "src/effects/ballsWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { getLocalGravity } = require_shared();
-      var { tempo } = require_audioFeatures();
-      var wBalls = [];
-      var _resetKey = null;
-      var COLORS = [
-        [1, 0.15, 0.15],
-        [0.15, 1, 0.15],
-        [0.2, 0.4, 1],
-        [1, 1, 0.1],
-        [1, 0.4, 0],
-        [0.9, 0.15, 0.9],
-        [0, 0.9, 0.9],
-        [1, 0.6, 0.7],
-        [0.5, 1, 0.3],
-        [1, 0.5, 0.1],
-        [0.3, 0.5, 1],
-        [0.8, 0.2, 0.5]
-      ];
-      function resetWBalls(core) {
-        const { wallW, wallH } = core;
-        const ballsPerFace = core.effectOptions?.balls?.count ?? 3;
-        const refArea = 64 * 64;
-        const total = Math.max(2, Math.round(ballsPerFace * 2 * (wallW * wallH) / refArea));
-        const S = Math.min(wallW, wallH);
-        wBalls = [];
-        let ci = 0;
-        for (let k = 0; k < total; k++) {
-          const R = 3 + Math.floor(Math.random() * 3);
-          const ang = Math.random() * Math.PI * 2;
-          const spd = S * (0.3 + Math.random() * 0.4);
-          const c = COLORS[ci % COLORS.length];
-          ci++;
-          wBalls.push({
-            x: R + 1 + Math.random() * (wallW - 2 * R - 2),
-            y: R + 1 + Math.random() * (wallH - 2 * R - 2),
-            dx: Math.cos(ang) * spd,
-            dy: Math.sin(ang) * spd,
-            r: R,
-            cr: c[0],
-            cg: c[1],
-            cb: c[2]
-          });
-        }
-      }
-      function effectBouncingBallsWall(core, dt) {
-        dt *= tempo(core);
-        core.t += dt;
-        const { wallW, wallH, wallBuf } = core;
-        if (!wallW) return;
-        const ballsPerFace = core.effectOptions?.balls?.count ?? 3;
-        const resetKey = `${wallW}|${wallH}|${ballsPerFace}`;
-        if (!wBalls.length || _resetKey !== resetKey) {
-          _resetKey = resetKey;
-          resetWBalls(core);
-        }
-        wallBuf.fill(0);
-        getLocalGravity();
-        const W1 = wallW - 1, H1 = wallH - 1;
-        for (const b of wBalls) {
-          b.x += b.dx * dt;
-          b.y += b.dy * dt;
-          const R = b.r;
-          if (b.x < R) {
-            b.x = R;
-            b.dx = Math.abs(b.dx);
-          }
-          if (b.x > W1 - R) {
-            b.x = W1 - R;
-            b.dx = -Math.abs(b.dx);
-          }
-          if (b.y < R) {
-            b.y = R;
-            b.dy = Math.abs(b.dy);
-          }
-          if (b.y > H1 - R) {
-            b.y = H1 - R;
-            b.dy = -Math.abs(b.dy);
-          }
-          const x0 = Math.floor(b.x - R - 1), x1 = Math.ceil(b.x + R + 1), y0 = Math.floor(b.y - R - 1), y1 = Math.ceil(b.y + R + 1);
-          for (let py = y0; py <= y1; py++) {
-            if (py < 0 || py >= wallH) continue;
-            for (let px = x0; px <= x1; px++) {
-              if (px < 0 || px >= wallW) continue;
-              const dd = Math.hypot(px - b.x, py - b.y);
-              const cover = Math.min(1, R + 0.5 - dd);
-              if (cover <= 0) continue;
-              const dist = Math.min(1, dd / R);
-              const shade = (1 - dist * 0.55) * (dist > 0.75 ? 0.75 : 1) * cover;
-              const br = b.cr * shade, bg = b.cg * shade, bb = b.cb * shade;
-              const o = (py * wallW + px) * 3;
-              if (br > wallBuf[o]) wallBuf[o] = br;
-              if (bg > wallBuf[o + 1]) wallBuf[o + 1] = bg;
-              if (bb > wallBuf[o + 2]) wallBuf[o + 2] = bb;
-            }
-          }
-        }
-        for (let i = 0; i < wBalls.length; i++) {
-          for (let j = i + 1; j < wBalls.length; j++) {
-            const a = wBalls[i], b2 = wBalls[j];
-            const dx = b2.x - a.x, dy = b2.y - a.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            const minD = a.r + b2.r;
-            if (dist < minD && dist > 0.1) {
-              const nx = dx / dist, ny = dy / dist;
-              const overlap = (minD - dist) * 0.5;
-              a.x -= nx * overlap;
-              a.y -= ny * overlap;
-              b2.x += nx * overlap;
-              b2.y += ny * overlap;
-              const relV = (b2.dx - a.dx) * nx + (b2.dy - a.dy) * ny;
-              if (relV < 0) {
-                a.dx += relV * nx * 0.5;
-                a.dy += relV * ny * 0.5;
-                b2.dx -= relV * nx * 0.5;
-                b2.dy -= relV * ny * 0.5;
-              }
-            }
-          }
-        }
-      }
-      module.exports = effectBouncingBallsWall;
-    }
-  });
-
   // src/effects/sandWall.js
   var require_sandWall = __commonJS({
     "src/effects/sandWall.js"(exports, module) {
@@ -21391,8 +21076,11 @@ var PiEngine = (() => {
       var wLifeAge = null;
       var wLifeGenT = 0;
       var wLifeKey = null;
+      var CELL = 2;
+      var gridOf = (core) => ({ wallW: Math.max(4, Math.floor(core.wallW / CELL)), wallH: Math.max(4, Math.floor(core.wallH / CELL)) });
+      var BEVEL = [1.6, 1, 1, 0.4];
       function initWLife(core) {
-        const { wallW, wallH } = core;
+        const { wallW, wallH } = gridOf(core);
         const n = wallW * wallH;
         wLifeGrid = new Uint8Array(n);
         wLifeNext = new Uint8Array(n);
@@ -21401,7 +21089,7 @@ var PiEngine = (() => {
         wLifeKey = `${wallW}|${wallH}`;
       }
       function stepWLife(core) {
-        const { wallW, wallH } = core;
+        const { wallW, wallH } = gridOf(core);
         for (let y = 0; y < wallH; y++) {
           for (let x = 0; x < wallW; x++) {
             const i = y * wallW + x;
@@ -21426,9 +21114,9 @@ var PiEngine = (() => {
         wLifeNext = tmp;
       }
       function effectLifeWall(core, dt) {
-        const { wallW, wallH, wallBuf } = core;
         core.t += dt;
-        if (!wallW) return;
+        if (!core.wallW) return;
+        const { wallW, wallH } = gridOf(core);
         const t = core.t;
         const n = wallW * wallH;
         if (!wLifeGrid || wLifeKey !== `${wallW}|${wallH}`) initWLife(core);
@@ -21441,27 +21129,30 @@ var PiEngine = (() => {
         for (let i = 0; i < n; i++) pop += wLifeGrid[i];
         if (pop < n * 8e-3 || pop > n * 0.88) initWLife(core);
         for (let i = 0; i < n; i++) {
-          const o = i * 3;
+          let r, g, b, gem = false;
           if (wLifeGrid[i]) {
             const age = wLifeAge[i] / 255;
             const hue = age < 0.33 ? lerp(0.5, 0.62, age * 3) : age < 0.66 ? lerp(0.62, 0.75, (age - 0.33) * 3) : lerp(0.75, 0.13, (age - 0.66) * 3);
-            const bright = 0.5 + age * 0.45;
+            const bright = 0.45 + age * 0.35;
             const sat = 1 - age * 0.15;
-            const [r, g, b] = hsl(hue, sat, bright);
+            [r, g, b] = hsl(hue, sat, bright);
             const pulse = age > 0.5 ? 0.06 * Math.sin(t * 3 + i * 0.1) : 0;
-            wallBuf[o] = Math.min(1, r + pulse);
-            wallBuf[o + 1] = Math.min(1, g + pulse);
-            wallBuf[o + 2] = Math.min(1, b + pulse);
+            r += pulse;
+            g += pulse;
+            b += pulse;
+            gem = true;
           } else if (wLifeAge[i] > 0) {
             const fade = wLifeAge[i] / 255;
-            const [r, g, b] = hsl(0.06, 1, fade * 0.5);
-            wallBuf[o] = r;
-            wallBuf[o + 1] = g;
-            wallBuf[o + 2] = b;
+            [r, g, b] = hsl(0.06, 1, fade * 0.35);
           } else {
-            wallBuf[o] = 0;
-            wallBuf[o + 1] = 0;
-            wallBuf[o + 2] = 0.01;
+            r = 0;
+            g = 0;
+            b = 0.012;
+          }
+          const cx = i % wallW * CELL, cy = Math.floor(i / wallW) * CELL;
+          for (let k = 0; k < 4; k++) {
+            const sh = gem ? BEVEL[k] : 1;
+            core.setWallPixel(cx + (k & 1), cy + (k >> 1), Math.min(1, r * sh), Math.min(1, g * sh), Math.min(1, b * sh));
           }
         }
       }
@@ -21594,127 +21285,6 @@ var PiEngine = (() => {
         }
       }
       module.exports = effectEasterEggWall;
-    }
-  });
-
-  // src/effects/coinflipWall.js
-  var require_coinflipWall = __commonJS({
-    "src/effects/coinflipWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { drawString, textWidth, FONT_3x5, wallPlot } = require_text();
-      var coinState = null;
-      function newCoinState() {
-        const s = { heads: 0, tails: 0, flipping: false, result: "", flipT: 0, flipDur: 0, angle: 0, showResult: 0 };
-        startFlip(s);
-        return s;
-      }
-      function startFlip(s) {
-        s.flipping = true;
-        s.flipT = 0;
-        s.flipDur = 1 + Math.random() * 1;
-        s.result = Math.random() < 0.5 ? "H" : "T";
-      }
-      function lerp(a, b, t) {
-        return a + (b - a) * t;
-      }
-      function drawTextWall(core, str, su, sv, scale, r, g, b) {
-        drawString(FONT_3x5, str, su, Math.round(sv), wallPlot(core, r, g, b), { scale });
-      }
-      function drawTextCenteredWall(core, str, cx, sv, scale, r, g, b) {
-        drawTextWall(core, str, Math.round(cx - textWidth(FONT_3x5, str, scale) / 2), sv, scale, r, g, b);
-      }
-      function stepCoin(s, dt) {
-        if (s.flipping) {
-          s.flipT += dt;
-          s.angle += dt * 12;
-          if (s.flipT >= s.flipDur) {
-            s.flipping = false;
-            if (s.result === "H") s.heads++;
-            else s.tails++;
-            s.showResult = 2;
-            s.angle = 0;
-          }
-        } else {
-          s.showResult -= dt;
-          if (s.showResult <= 0) startFlip(s);
-        }
-      }
-      function effectCoinFlipWall(core, dt) {
-        const { wallW, wallH } = core;
-        if (!wallW) return;
-        core.t += dt;
-        const t = core.t;
-        const opts = core.effectOptions?.coinflip || {};
-        const cs = opts.speed ?? 1;
-        if (!coinState) coinState = newCoinState();
-        stepCoin(coinState, dt * cs);
-        const s = coinState;
-        const headsWinning = s.heads >= s.tails;
-        const dim = Math.min(wallW, wallH);
-        const cx = wallW * 0.5, cy = wallH * 0.4, R = dim * 0.3;
-        const scaleX = s.flipping ? Math.cos(s.angle) : 1;
-        const absSx = Math.max(0.05, Math.abs(scaleX));
-        for (let v = 0; v < wallH; v++) {
-          for (let u = 0; u < wallW; u++) {
-            const dx = (u - cx) / (R * absSx), dy = (v - cy) / R;
-            const rad2 = dx * dx + dy * dy;
-            let r, g, b;
-            if (rad2 <= 1) {
-              const rad = Math.sqrt(rad2);
-              if (s.flipping) {
-                r = lerp(0.87, 0.53, rad);
-                g = lerp(0.67, 0.4, rad);
-                b = lerp(0.2, 0.07, rad);
-              } else {
-                const isH = s.result === "H";
-                if (isH) {
-                  r = lerp(0.93, 0.53, rad);
-                  g = lerp(0.73, 0.4, rad);
-                  b = lerp(0.2, 0.07, rad);
-                } else {
-                  r = lerp(0.47, 0.2, rad);
-                  g = lerp(0.53, 0.27, rad);
-                  b = lerp(0.8, 0.47, rad);
-                }
-                if (rad > 0.82) {
-                  if (isH) {
-                    r = 1;
-                    g = 0.87;
-                    b = 0.33;
-                  } else {
-                    r = 0.67;
-                    g = 0.73;
-                    b = 1;
-                  }
-                }
-              }
-            } else {
-              const shimmer = Math.sin(t * 2 + u * 0.08 + v * 0.1) * 0.5 + 0.5;
-              const bl = shimmer * 0.22;
-              if (headsWinning) {
-                r = bl * 1.1;
-                g = bl * 0.85;
-                b = bl * 0.3;
-              } else {
-                r = bl * 0.6;
-                g = bl * 0.7;
-                b = bl * 1.1;
-              }
-            }
-            core.setWallPixel(u, v, r, g, b);
-          }
-        }
-        if (!s.flipping) {
-          const sc = Math.max(1, Math.round(R / 6));
-          const gw = 3 * sc, gh = 5 * sc;
-          drawTextWall(core, s.result, Math.round(cx - gw / 2), Math.round(cy - gh / 2), sc, 1, 1, 1);
-        }
-        const tsc = Math.max(1, Math.round(dim / 32));
-        drawTextCenteredWall(core, "H" + s.heads, wallW * 0.5 - dim * 0.2, wallH * 0.82, tsc, 1, 0.8, 0.27);
-        drawTextCenteredWall(core, "T" + s.tails, wallW * 0.5 + dim * 0.2, wallH * 0.82, tsc, 0.6, 0.73, 1);
-      }
-      module.exports = effectCoinFlipWall;
     }
   });
 
@@ -25555,12 +25125,12 @@ var PiEngine = (() => {
       var lightningWall = require_lightningWall();
       var lightspeedWall = require_lightspeedWall();
       var sphereWall = require_sphereWall();
-      var ballsWall = require_ballsWall();
+      var ballsWall = balls.wall;
       var sandWall = require_sandWall();
       var lifeWall = require_lifeWall();
       var fluidWall = require_fluidWall();
       var easterEggWall = require_easterEggWall();
-      var coinflipWall = require_coinflipWall();
+      var coinflipWall = coinflip.wall;
       var diceWall = dice.wall;
       var randomWall = require_randomWall();
       var random80sWall = require_random80sWall();

@@ -22,15 +22,23 @@ module.exports = defineFieldEffect({
     }
   },
   pixel(p, { t }) {
-    let f = 0;
+    let f = 0, gx = 0, gy = 0;
     for (const b of balls) {
       const dx = p.x - b.x, dy = p.y - b.y, dz = p.flat ? 0 : p.z - b.z;
-      f += (b.r * b.r) / (dx * dx + dy * dy + dz * dz + 1e-4);
+      const d2 = dx * dx + dy * dy + dz * dz + 1e-4, k = (b.r * b.r) / d2;
+      f += k; gx += -2 * k * dx / d2; gy += -2 * k * dy / d2;
     }
-    const hue = 0.93 + 0.12 * Math.sin(t * 0.05) + Math.min(0.15, f * 0.02);
+    const hue = 0.93 + 0.12 * Math.sin(t * 0.05) + Math.min(0.05, f * 0.01);
     if (f > 1) {
-      const core = Math.min(1, (f - 1) * 0.6);
-      return hsl(hue, 1, 0.42 + core * 0.18);
+      // Glossy wax: treat the field as height and light it from the top-left,
+      // with a hot glow from the lamp's base and a sharp highlight.
+      const s = 0.9 / (f * f), nx = -gx * s, ny = -gy * s, nl = Math.hypot(nx, ny, 1); // height 1 - 1/f: rounded, flat on top
+      const lam = Math.max(0, (-nx * 0.5 - ny * 0.6 + 0.62) / nl);
+      const spec = Math.pow(Math.max(0, (-nx * 0.35 - ny * 0.45 + 0.82) / nl), 30) * 0.8;
+      const rim = Math.max(0, 1 - (f - 1) * 2) * 0.08; // edges glow, light passing through wax
+      const base = hsl(hue, 1, 0.12 + 0.5 * lam + rim);
+      const under = Math.max(0, p.y - 0.4) * 0.25; // warm light from below
+      return [Math.min(1, base[0] + spec + under), Math.min(1, base[1] + spec * 0.9 + under * 0.4), Math.min(1, base[2] + spec * 0.8)];
     }
     const glow = Math.pow(f, 3) * 0.35; // soft halo outside the blob edge
     const bg = hsl(hue + 0.55, 0.8, 0.04 + p.y * 0.03);

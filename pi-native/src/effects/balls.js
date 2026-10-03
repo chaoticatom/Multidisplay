@@ -1,245 +1,86 @@
-// Ported verbatim (math unchanged) from effects-physics.js's
-// resetBalls()/ballCrossCheck()/ballPixel()/effectBouncingBalls() -
-// "Bouncing Balls". Balls live in face-local (u,v) coords and cross faces
-// via ballCrossCheck()'s own geometric CW-strip/edge tables (BALL_CW/
-// BALL_CWI) - this is a distinct, hand-rolled cross-face-wrap scheme from
-// _shared.js's tronMove()/cubePx(), not a reuse of either, verified by
-// reading both: tronMove operates on a single (face,u,v,du,dv) step and is
-// built for Tron's grid-walk turning logic, while ballCrossCheck mutates a
-// ball's face/u/v/du/dv in place to handle sub-pixel float positions and
-// the different edge-transfer geometry a bouncing ball needs (velocity
-// reflection across a shared cube edge, not just relabelling which face a
-// discrete step landed on). Kept as its own local implementation, matching
-// the source file's clear intent (comment: "Velocity is transformed
-// between faces by projecting world-space velocity onto the new face's
-// u/v axes - geometrically correct wrapping").
-//
-// panel2dMode -> core.panelMode==='2d' (see maze.js's module comment for
-// the same threading convention). gyroEnabled/getLocalGravity's gyro
-// branch has no equivalent here (headless Pi, no orbit-drag preview) - see
-// _shared.js's getLocalGravity() module comment; effectively this always
-// takes the "!gyroEnabled" rotChange-nudge path with a static gravity
-// vector, so rotChange is always 0 and the nudge branch never fires - balls
-// simply orbit/bounce under their own initial velocity plus face-to-face
-// wrap, same behaviour as an idle (non-gyro, non-dragged) browser cube.
-// ballCrossFaces -> core.effectOptions.balls.crossFaces (the "Cross Faces"/
-// "Own Face" mode buttons), default true, matching the browser's
-// `ballCrossFaces=true` module default. ballsPerFace ->
-// core.effectOptions.balls.count (the "Balls per face" slider), default 3.
-const { getLocalGravity } = require('./_shared');
-const { tempo } = require('./audioFeatures');
+// Bouncing Balls: glossy 3D spheres in a dark box. They fall under gravity,
+// bounce off the floor and walls (squashing a little on impact) and knock
+// into each other, each lit from the top-left with a sharp highlight, a
+// coloured rim and a soft shadow on the floor that tightens as it lands.
+// Bigger bounces with the music. Same on every cube side face; fills a flat
+// panel. Option: effectOptions.balls.count (1-8).
+'use strict';
+const { defineCanvasEffect } = require('./canvas');
+const { hsl } = require('../core');
 
-let balls = [], ballFlashes = [];
-let ballPrevGx = 0, ballPrevGy = -1, ballPrevGz = 0;
-let _resetKey = null; // tracks (panelMode, SIZE, crossFaces, count) so option changes trigger a reset
+const st = { balls: [], n: 0 };
+const LIGHT = (() => { const l = [-0.5, -0.65, 0.6], n = Math.hypot(...l); return l.map((v) => v / n); })();
 
-const BALL_CW = [0, 2, 1, 3];
-const BALL_CWI = { 0: 0, 1: 2, 2: 1, 3: 3 };
-
-function ballCrossCheck(b, S) {
-  const M = S - 1;
-
-  if (b.face <= 3 && (b.u < 0 || b.u >= S)) {
-    const su = BALL_CWI[b.face] * S + b.u;
-    const total = S * 4;
-    const w = ((su % total) + total) % total;
-    const nqi = (w / S) | 0;
-    b.face = BALL_CW[nqi];
-    b.u = w - nqi * S;
-  }
-
-  if (b.face <= 3 && b.v >= S) {
-    const ov = b.v - S, ou = b.u, od = b.du, od2 = b.dv;
-    switch (b.face) {
-      case 0: b.u = ou; b.v = M - ov; b.du = od; b.dv = -od2; break;
-      case 1: b.u = M - ou; b.v = ov; b.du = -od; b.dv = od2; break;
-      case 2: b.u = M - ov; b.v = M - ou; b.du = -od2; b.dv = -od; break;
-      case 3: b.u = ov; b.v = ou; b.du = od2; b.dv = od; break;
-    }
-    b.face = 4;
-  } else if (b.face <= 3 && b.v < 0) {
-    const ov = -b.v, ou = b.u, od = b.du, od2 = b.dv;
-    switch (b.face) {
-      case 0: b.u = ou; b.v = M - ov; b.du = od; b.dv = od2; break;
-      case 1: b.u = M - ou; b.v = ov; b.du = -od; b.dv = -od2; break;
-      case 2: b.u = M - ov; b.v = M - ou; b.du = od2; b.dv = -od; break;
-      case 3: b.u = ov; b.v = ou; b.du = -od2; b.dv = od; break;
-    }
-    b.face = 5;
-  }
-
-  if (b.face === 4) {
-    const ou = b.u, ov2 = b.v, od = b.du, od2 = b.dv;
-    if (b.u < 0) {
-      const ov = -ou;
-      b.face = 3; b.u = ov2; b.v = M - ov; b.du = od2; b.dv = od;
-    } else if (b.u >= S) {
-      const ov = ou - S;
-      b.face = 2; b.u = M - ov2; b.v = M - ov; b.du = -od2; b.dv = -od;
-    } else if (b.v < 0) {
-      const ov = -ov2;
-      b.face = 1; b.u = M - ou; b.v = M - ov; b.du = -od; b.dv = od2;
-    } else if (b.v >= S) {
-      const ov = ov2 - S;
-      b.face = 0; b.u = ou; b.v = M - ov; b.du = od; b.dv = -od2;
-    }
-  }
-
-  if (b.face === 5) {
-    const ou = b.u, ov2 = b.v, od = b.du, od2 = b.dv;
-    if (b.u < 0) {
-      const ov = -ou;
-      b.face = 3; b.u = ov2; b.v = ov; b.du = od2; b.dv = -od;
-    } else if (b.u >= S) {
-      const ov = ou - S;
-      b.face = 2; b.u = M - ov2; b.v = ov; b.du = -od2; b.dv = od;
-    } else if (b.v < 0) {
-      const ov = -ov2;
-      b.face = 1; b.u = M - ou; b.v = ov; b.du = -od; b.dv = -od2;
-    } else if (b.v >= S) {
-      const ov = ov2 - S;
-      b.face = 0; b.u = ou; b.v = ov; b.du = od; b.dv = od2;
-    }
-  }
+function spawn(n) {
+  st.n = n;
+  st.balls = Array.from({ length: n }, (_, i) => ({
+    x: 0.15 + Math.random() * 0.7, y: 0.1 + Math.random() * 0.4,
+    vx: (Math.random() - 0.5) * 0.9, vy: 0,
+    r: 0.07 + Math.random() * 0.05, hue: (i / n + Math.random() * 0.1) % 1, squash: 0,
+  }));
 }
 
-function ballPixel(core, face, pu, pv, S) {
-  if (pu >= 0 && pu < S && pv >= 0 && pv < S) return core.faceMap[face][pv * S + pu];
-  const tmp = { face, u: pu, v: pv, du: 0, dv: 0 };
-  ballCrossCheck(tmp, S);
-  const ru = Math.round(tmp.u), rv = Math.round(tmp.v);
-  if (ru >= 0 && ru < S && rv >= 0 && rv < S) return core.faceMap[tmp.face][rv * S + ru];
-  return -1;
-}
-
-function resetBalls(core) {
-  const S = core.SIZE, panel2dMode = core.panelMode === '2d';
-  const ballsPerFace = core.effectOptions?.balls?.count ?? 3;
-  balls = []; ballFlashes = [];
-  const COLORS = [
-    [1, 0.15, 0.15], [0.15, 1, 0.15], [0.2, 0.4, 1], [1, 1, 0.1],
-    [1, 0.4, 0], [0.9, 0.15, 0.9], [0, 0.9, 0.9], [1, 0.6, 0.7],
-    [0.5, 1, 0.3], [1, 0.5, 0.1], [0.3, 0.5, 1], [0.8, 0.2, 0.5],
-  ];
-  let ci = 0;
-  const faceList = panel2dMode ? [0] : [0, 1, 2, 3, 4, 5];
-  for (const f of faceList) {
-    const count = panel2dMode ? ballsPerFace * 2 : ballsPerFace;
-    for (let k = 0; k < count; k++) {
-      const R = 3 + Math.floor(Math.random() * 3);
-      const ang = Math.random() * Math.PI * 2;
-      const spd = S * (0.3 + Math.random() * 0.4);
-      const c = COLORS[ci % COLORS.length]; ci++;
-      balls.push({
-        face: f,
-        u: R + 1 + Math.random() * (S - 2 * R - 2),
-        v: R + 1 + Math.random() * (S - 2 * R - 2),
-        du: Math.cos(ang) * spd,
-        dv: Math.sin(ang) * spd,
-        r: R,
-        cr: c[0], cg: c[1], cb: c[2],
-      });
+module.exports = defineCanvasEffect({
+  render(c, { dt, core }) {
+    const n = Math.max(1, Math.min(8, Number(core.effectOptions?.balls?.count) || 5));
+    if (n !== st.n) spawn(n);
+    const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
+    const step = Math.min(0.05, dt);
+    const asp = c.W / c.H, floor = 0.92;
+    // Physics in units of the canvas height (x spans 0..asp).
+    for (const b of st.balls) {
+      b.vy += 1.6 * step;
+      b.x += b.vx * step; b.y += b.vy * step;
+      if (b.y + b.r > floor) { b.y = floor - b.r; b.squash = Math.min(0.35, Math.abs(b.vy) * 0.25); b.vy = -Math.max(Math.abs(b.vy) * 0.86, 0.9 + beat * 0.8); }
+      if (b.x - b.r < 0.02) { b.x = 0.02 + b.r; b.vx = Math.abs(b.vx); }
+      if (b.x + b.r > asp * 0.98) { b.x = asp * 0.98 - b.r; b.vx = -Math.abs(b.vx); }
+      b.squash = Math.max(0, b.squash - step * 2.5);
     }
-  }
-}
-
-function effectBouncingBalls(core, dt) {
-  dt *= tempo(core); // moves to the music: faster with the bass, a burst on each kick
-  core.t += dt;
-  const { N, SIZE: S, faceMap, colBuf } = core;
-  const panel2dMode = core.panelMode === '2d';
-  const ballCrossFaces = core.effectOptions?.balls?.crossFaces ?? true;
-  const ballsPerFace = core.effectOptions?.balls?.count ?? 3;
-
-  const resetKey = `${panel2dMode}|${S}|${ballCrossFaces}|${ballsPerFace}`;
-  if (!balls.length || _resetKey !== resetKey) { _resetKey = resetKey; resetBalls(core); }
-
-  for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
-
-  const S1 = S - 1;
-
-  // No gyro/orbit-drag preview here (see _shared.js's getLocalGravity()
-  // module comment) - rawG is always the fixed down vector, so rotChange
-  // stays 0 and the nudge branch below never fires. Kept structurally
-  // identical to the browser so a future orientation source only needs to
-  // plug into getLocalGravity(), not this function.
-  const rawG = getLocalGravity();
-  const gLen = Math.sqrt(rawG.x * rawG.x + rawG.y * rawG.y + rawG.z * rawG.z) || 1;
-  const gx = rawG.x / gLen, gy = rawG.y / gLen, gz = rawG.z / gLen;
-  const dgx = gx - ballPrevGx, dgy = gy - ballPrevGy, dgz = gz - ballPrevGz;
-  ballPrevGx = gx; ballPrevGy = gy; ballPrevGz = gz;
-  const rotChange = Math.sqrt(dgx * dgx + dgy * dgy + dgz * dgz);
-
-  const FU = [[1, 0, 0], [1, 0, 0], [0, 0, 1], [0, 0, 1], [1, 0, 0], [1, 0, 0]];
-  const FV = [[0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 0, 1], [0, 0, 1]];
-
-  for (const b of balls) {
-    const fu = FU[b.face], fv = FV[b.face];
-    const gu = gx * fu[0] + gy * fu[1] + gz * fu[2];
-    const gv = gx * fv[0] + gy * fv[1] + gz * fv[2];
-    if (rotChange > 0.005) {
-      const nudge = S * 8 * rotChange;
-      b.du += gu * nudge;
-      b.dv += gv * nudge;
-    }
-
-    b.u += b.du * dt;
-    b.v += b.dv * dt;
-
-    if (!panel2dMode && ballCrossFaces) {
-      ballCrossCheck(b, S);
-    }
-
-    const R = b.r;
-    if (panel2dMode || !ballCrossFaces) {
-      if (b.u < R) { b.u = R; b.du = Math.abs(b.du); }
-      if (b.u > S1 - R) { b.u = S1 - R; b.du = -Math.abs(b.du); }
-      if (b.v < R) { b.v = R; b.dv = Math.abs(b.dv); }
-      if (b.v > S1 - R) { b.v = S1 - R; b.dv = -Math.abs(b.dv); }
-    }
-
-    // Exact (sub-pixel) centre with an anti-aliased rim - glides instead of
-    // stepping a whole pixel at a time.
-    const cross = !panel2dMode && ballCrossFaces;
-    const u0 = Math.floor(b.u - R - 1), u1 = Math.ceil(b.u + R + 1), v0 = Math.floor(b.v - R - 1), v1 = Math.ceil(b.v + R + 1);
-    for (let pv = v0; pv <= v1; pv++) {
-      for (let pu = u0; pu <= u1; pu++) {
-        const dd = Math.hypot(pu - b.u, pv - b.v);
-        const cover = Math.min(1, R + 0.5 - dd);
-        if (cover <= 0) continue;
-        const idx = cross ? ballPixel(core, b.face, pu, pv, S)
-          : (pu < 0 || pu >= S || pv < 0 || pv >= S) ? -1 : faceMap[b.face][pv * S + pu];
-        if (idx < 0) continue;
-        const dist = Math.min(1, dd / R);
-        const shade = (1.0 - dist * 0.55) * (dist > 0.75 ? 0.75 : 1.0) * cover;
-        const br = b.cr * shade, bg = b.cg * shade, bb = b.cb * shade;
-        colBuf[idx * 3] = Math.max(colBuf[idx * 3], br);
-        colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], bg);
-        colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], bb);
+    for (let i = 0; i < st.balls.length; i++) for (let j = i + 1; j < st.balls.length; j++) {
+      const a = st.balls[i], b = st.balls[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), m = a.r + b.r;
+      if (d > 0 && d < m) {
+        const nx = dx / d, ny = dy / d, push = (m - d) / 2;
+        a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push;
+        const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+        if (rel < 0) { a.vx += rel * nx; a.vy += rel * ny; b.vx -= rel * nx; b.vy -= rel * ny; }
       }
     }
-  }
-
-  for (let i = 0; i < balls.length; i++) {
-    for (let j = i + 1; j < balls.length; j++) {
-      const a = balls[i], b2 = balls[j];
-      if (a.face !== b2.face) continue;
-      const dx = b2.u - a.u, dy = b2.v - a.v;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const minD = a.r + b2.r;
-      if (dist < minD && dist > 0.1) {
-        const nx = dx / dist, ny = dy / dist;
-        const overlap = (minD - dist) * 0.5;
-        a.u -= nx * overlap; a.v -= ny * overlap;
-        b2.u += nx * overlap; b2.v += ny * overlap;
-        const relV = (b2.du - a.du) * nx + (b2.dv - a.dv) * ny;
-        if (relV < 0) {
-          a.du += relV * nx * 0.5; a.dv += relV * ny * 0.5;
-          b2.du -= relV * nx * 0.5; b2.dv -= relV * ny * 0.5;
+    const H = c.H;
+    // Box: dark back wall fading down to a lit floor.
+    const fy = floor * H;
+    for (let y = 0; y < c.H; y++) for (let x = 0; x < c.W; x++) {
+      if (y < fy) { const v = 0.02 + (y / fy) * 0.05; c.set(x, y, v * 0.6, v * 0.7, v); }
+      else { const v = 0.09 - (y - fy) / (H - fy + 1) * 0.04; c.set(x, y, v * 0.7, v * 0.75, v * 0.9); }
+    }
+    // Shadows on the floor.
+    for (const b of st.balls) {
+      const h = Math.max(0, floor - (b.y + b.r)), sx = b.x * H, sr = b.r * H * (1.1 - Math.min(0.6, h)), k0 = 0.6 * (1 - Math.min(0.85, h * 1.4));
+      for (let y = Math.floor(fy - 2); y <= fy + 3; y++) for (let x = Math.floor(sx - sr * 1.3); x <= sx + sr * 1.3; x++) {
+        const dd = Math.hypot((x - sx) / (sr * 1.2), (y - fy - 0.5) / Math.max(1, sr * 0.3)), k = Math.max(0, 1 - dd * dd) * k0, o = c.get(x, y);
+        if (o && k > 0) c.set(x, y, o[0] * (1 - k), o[1] * (1 - k), o[2] * (1 - k));
+      }
+    }
+    // Spheres, back to front by size.
+    for (const b of [...st.balls].sort((p, q) => p.r - q.r)) {
+      const cx = b.x * H, cy = b.y * H, R = b.r * H, sq = b.squash;
+      const rx = R * (1 + sq * 0.5), ry = R * (1 - sq * 0.4), oy = cy + R * sq * 0.4;
+      const col = hsl(b.hue, 0.85, 0.5);
+      for (let y = Math.floor(oy - ry - 1); y <= oy + ry + 1; y++) for (let x = Math.floor(cx - rx - 1); x <= cx + rx + 1; x++) {
+        let ar = 0, ag = 0, ab = 0, cov = 0;
+        for (let s = 0; s < 4; s++) {
+          const u = (x + 0.25 + (s & 1) * 0.5 - cx) / rx, v = (y + 0.25 + (s >> 1) * 0.5 - oy) / ry, d2 = u * u + v * v;
+          if (d2 > 1) continue;
+          const z = Math.sqrt(1 - d2), lam = Math.max(0, u * LIGHT[0] + v * LIGHT[1] + z * LIGHT[2]);
+          const refl = 2 * lam * z - LIGHT[2], spec = Math.pow(Math.max(0, refl), 24) * 0.95;
+          const rim = Math.pow(1 - z, 3) * 0.35; // light wrapping round the edge
+          const sh = 0.18 + 0.85 * lam;
+          ar += Math.min(1, col[0] * sh + spec + rim * col[0]); ag += Math.min(1, col[1] * sh + spec + rim * col[1]); ab += Math.min(1, col[2] * sh + spec + rim * col[2]); cov++;
         }
+        if (!cov) continue;
+        const o = c.get(x, y); if (!o) continue;
+        const k = cov / 4;
+        c.set(x, y, o[0] * (1 - k) + (ar / cov) * k, o[1] * (1 - k) + (ag / cov) * k, o[2] * (1 - k) + (ab / cov) * k);
       }
     }
-  }
-}
-
-module.exports = effectBouncingBalls;
+  },
+});

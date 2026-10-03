@@ -26,8 +26,14 @@ const { hsl, lerp } = require('../core');
 let wLifeGrid = null, wLifeNext = null, wLifeAge = null, wLifeGenT = 0;
 let wLifeKey = null;
 
+// Cells are 2x2 pixels, drawn as little bevelled gems (lit top-left), so
+// the colony reads as 3D beads rather than single flat pixels.
+const CELL = 2;
+const gridOf = (core) => ({ wallW: Math.max(4, Math.floor(core.wallW / CELL)), wallH: Math.max(4, Math.floor(core.wallH / CELL)) });
+const BEVEL = [1.6, 1.0, 1.0, 0.4]; // top-left, top-right, bottom-left, bottom-right
+
 function initWLife(core) {
-  const { wallW, wallH } = core;
+  const { wallW, wallH } = gridOf(core);
   const n = wallW * wallH;
   wLifeGrid = new Uint8Array(n); wLifeNext = new Uint8Array(n); wLifeAge = new Uint8Array(n);
   for (let i = 0; i < n; i++) wLifeGrid[i] = Math.random() < 0.35 ? 1 : 0;
@@ -35,7 +41,7 @@ function initWLife(core) {
 }
 
 function stepWLife(core) {
-  const { wallW, wallH } = core;
+  const { wallW, wallH } = gridOf(core);
   for (let y = 0; y < wallH; y++) {
     for (let x = 0; x < wallW; x++) {
       const i = y * wallW + x;
@@ -59,9 +65,9 @@ function stepWLife(core) {
 }
 
 function effectLifeWall(core, dt) {
-  const { wallW, wallH, wallBuf } = core;
   core.t += dt;
-  if (!wallW) return; // core.initWall() hasn't run yet (wall mode not active)
+  if (!core.wallW) return; // core.initWall() hasn't run yet (wall mode not active)
+  const { wallW, wallH } = gridOf(core);
   const t = core.t;
   const n = wallW * wallH;
   if (!wLifeGrid || wLifeKey !== `${wallW}|${wallH}`) initWLife(core);
@@ -71,7 +77,7 @@ function effectLifeWall(core, dt) {
   if (pop < n * 0.008 || pop > n * 0.88) initWLife(core);
 
   for (let i = 0; i < n; i++) {
-    const o = i * 3;
+    let r, g, b, gem = false;
     if (wLifeGrid[i]) {
       const age = wLifeAge[i] / 255;
       const hue = age < 0.33
@@ -79,17 +85,19 @@ function effectLifeWall(core, dt) {
         : age < 0.66
         ? lerp(0.62, 0.75, (age - 0.33) * 3)
         : lerp(0.75, 0.13, (age - 0.66) * 3);
-      const bright = 0.5 + age * 0.45;
+      const bright = 0.45 + age * 0.35;
       const sat = 1 - age * 0.15;
-      const [r, g, b] = hsl(hue, sat, bright);
+      [r, g, b] = hsl(hue, sat, bright);
       const pulse = age > 0.5 ? 0.06 * Math.sin(t * 3 + i * 0.1) : 0;
-      wallBuf[o] = Math.min(1, r + pulse); wallBuf[o + 1] = Math.min(1, g + pulse); wallBuf[o + 2] = Math.min(1, b + pulse);
+      r += pulse; g += pulse; b += pulse; gem = true;
     } else if (wLifeAge[i] > 0) {
       const fade = wLifeAge[i] / 255;
-      const [r, g, b] = hsl(0.06, 1, fade * 0.5);
-      wallBuf[o] = r; wallBuf[o + 1] = g; wallBuf[o + 2] = b;
-    } else {
-      wallBuf[o] = 0; wallBuf[o + 1] = 0; wallBuf[o + 2] = 0.01;
+      [r, g, b] = hsl(0.06, 1, fade * 0.35); // a dying ember
+    } else { r = 0; g = 0; b = 0.012; }
+    const cx = (i % wallW) * CELL, cy = Math.floor(i / wallW) * CELL;
+    for (let k = 0; k < 4; k++) {
+      const sh = gem ? BEVEL[k] : 1;
+      core.setWallPixel(cx + (k & 1), cy + (k >> 1), Math.min(1, r * sh), Math.min(1, g * sh), Math.min(1, b * sh));
     }
   }
 }

@@ -22,11 +22,11 @@ module.exports = defineFieldEffect({
     // 3D distance from the cube's centre; plain 2D on a flat wall.
     const dist = p.flat ? Math.sqrt(dx * dx + dy * dy) * 2 : Math.sqrt(dx * dx + dy * dy + dz * dz) * 2;
     const ang = Math.atan2(dy, dx);
-    const twist = ang * 1.6 + dist * 2.5;
+    const twist = ang * 2 + dist * 2.5; // whole multiple of the angle: no seam where it wraps
     const ring = Math.sin(dist * Math.PI * 9 - t * 2.4 + twist);
     const ring2 = Math.sin(dist * Math.PI * 4.5 + t * 1.1 + ang);
     const bright = ((ring * 0.6 + ring2 * 0.4) * 0.5 + 0.5) * (1 - dist * 0.42) * 0.88;
-    const hue = (dist * 0.65 + ang / (Math.PI * 2) * 0.3 + t * 0.055) % 1;
+    const hue = ((dist * 0.65 + Math.sin(ang) * 0.08 + t * 0.055) % 1 + 1) % 1;
     return hsl(hue, 1, Math.max(0, bright));
   },
 });

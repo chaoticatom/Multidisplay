@@ -18,7 +18,7 @@
 const assert = require('assert');
 const { CubeCore } = require('../src/core');
 const effectEasterEggWall = require('../src/effects/easterEggWall');
-const effectCoinFlipWall = require('../src/effects/coinflipWall');
+const effectCoinFlipWall = require('../src/effects/coinflipWallOld') // the old renderer, kept for reference;
 const effectDiceWall = require('../src/effects/diceWall');
 const effectRandomWall = require('../src/effects/randomWall');
 const effectRandom80sWall = require('../src/effects/random80sWall');
