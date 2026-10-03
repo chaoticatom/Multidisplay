@@ -897,7 +897,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 .cx-round { width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; border: none; cursor: pointer; font-size: 16px; color: #fff; background: rgba(255,255,255,.08); box-shadow: 0 0 0 1px rgba(255,255,255,.12); transition: transform .2s cubic-bezier(.2,1.6,.4,1); }
 .cx-round:active { transform: scale(.9); }
 .cx-round-off { background: rgba(255,90,90,.15); box-shadow: 0 0 0 1px rgba(255,90,90,.35); }
-.cx-round.cx-quiet { display: none; }
+.cx-round.cx-quiet { opacity: .45; }
 .cx-hero-lbl { position: absolute; left: 12px; bottom: 8px; right: 100px; display: grid; pointer-events: none; text-shadow: 0 2px 10px #000, 0 0 2px #000; }
 .cx-hero-lbl b { color: #fff; font-size: 18px; font-weight: 800; letter-spacing: -.3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cx-hero-lbl small { color: rgba(238,242,255,.8); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -936,6 +936,14 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 #now-options.cx-flash { animation: cx-flash 1.2s ease-out; border-radius: 14px; }
 @keyframes cx-flash { 0%, 40% { box-shadow: 0 0 0 2px var(--cx1), 0 0 30px -4px var(--cx1); } 100% { box-shadow: none; } }
 #effects-body .art-shared-panel { display: none !important; }
+#panel-radio .radio-search-input-el { min-width: 0; flex: 1 1 0 !important; }
+#panel-radio .radio-search-btn-el { flex: 0 0 auto !important; }
+.cx-pal-row { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; }
+.cx-pal-label { font-size: 13px; color: #dfe7ff; flex-shrink: 0; }
+.cx-pal { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
+.cx-pal::-webkit-scrollbar { display: none; }
+.cx-pal button { flex: 0 0 auto; border: none; border-radius: 999px; padding: 6px 11px; font-size: 12px; font-weight: 600; color: #fff; cursor: pointer; text-shadow: 0 1px 3px rgba(0,0,0,.6); box-shadow: 0 0 0 1px rgba(255,255,255,.15); }
+.cx-pal button[aria-pressed="true"] { box-shadow: 0 0 0 2px #fff, 0 0 14px -2px var(--cx1); }
 </style>
 </head>
 <body>
@@ -1012,6 +1020,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
             <input type="range" id="speed-slider" min="0.1" max="3" step="0.05" value="1">
             <span class="slider-val" id="speed-val">1.0x</span>
           </div>
+      <div class="cx-pal-row"><span class="cx-pal-label">🎨 Colours</span><div id="cx-pal" class="cx-pal"></div></div>
       <div class="ui-label-accent" style="margin-top:14px;">Scenes</div>
       <div id="scene-chips" class="scene-chips"></div>
       <div class="cx-row" id="playlist-row"><span>🔁 Cycle ★ every</span><select id="playlist-min" class="ui-input" aria-label="Minutes"><option value="1">1 min</option><option value="2">2 min</option><option value="5" selected>5 min</option><option value="10">10 min</option><option value="30">30 min</option></select><button class="cx-switch" id="playlist-sw" aria-label="Playlist on/off"></button></div>
@@ -1972,6 +1981,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
       <div class="cx-row"><span>Glow, richer colour and smoothing on every effect</span><button class="cx-switch" id="look-sw" aria-label="Next-gen look on/off"></button></div>
       <div class="slider-row"><span class="slider-label">Glow</span><input type="range" id="look-bloom" min="0" max="1" step="0.05" value="0.65"><span class="slider-val" id="look-bloom-val">65%</span></div>
       <div class="slider-row"><span class="slider-label">Colour</span><input type="range" id="look-vibrance" min="0" max="1" step="0.05" value="0.35"><span class="slider-val" id="look-vibrance-val">35%</span></div>
+      <div class="slider-row cube-only"><span class="slider-label">Depth</span><input type="range" id="look-depth" min="0" max="1" step="0.05" value="0.5"><span class="slider-val" id="look-depth-val">50%</span></div>
       <div class="slider-row"><span class="slider-label">Smooth motion</span><input type="range" id="look-smooth" min="0" max="1" step="0.05" value="0"><span class="slider-val" id="look-smooth-val">0%</span></div>
       <div class="ui-label-accent" style="margin-top:10px;">🌙 Night dimming</div>
       <div class="cx-row"><span>Dim from</span><select id="night-from" class="ui-input" aria-label="Dim from"></select><span>to</span><select id="night-to" class="ui-input" aria-label="Dim until"></select><button class="cx-switch" id="night-sw" aria-label="Night dimming on/off"></button></div>
@@ -2263,6 +2273,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.197"></script>
+<script src="app.js?v=0.6.198"></script>
 </body>
 </html>

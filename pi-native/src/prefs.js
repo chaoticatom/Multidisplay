@@ -7,7 +7,7 @@ const DEFAULT = {
   favourites: [],
   playlist: { on: false, minutes: 5 },
   nightDim: { on: false, from: 22, to: 7, level: 0.3 },
-  look: { on: true, bloom: 0.65, vibrance: 0.35, smooth: 0 },
+  look: { on: true, bloom: 0.65, vibrance: 0.35, smooth: 0, depth: 0.5, palette: 'auto' },
 };
 
 function clean(p) {
@@ -26,7 +26,8 @@ function clean(p) {
   }
   if (p && p.look) {
     out.look.on = p.look.on !== false;
-    for (const k of ['bloom', 'vibrance', 'smooth']) { const v = Number(p.look[k]); if (Number.isFinite(v)) out.look[k] = Math.max(0, Math.min(1, v)); }
+    if (typeof p.look.palette === 'string' && /^[a-z]{1,20}$/.test(p.look.palette)) out.look.palette = p.look.palette;
+    for (const k of ['bloom', 'vibrance', 'smooth', 'depth']) { const v = Number(p.look[k]); if (Number.isFinite(v)) out.look[k] = Math.max(0, Math.min(1, v)); }
   }
   return out;
 }

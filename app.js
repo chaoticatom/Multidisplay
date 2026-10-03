@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.197';
+const APP_VERSION = '0.6.198';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -4728,6 +4728,32 @@ function cxShowOptions() {
   host.classList.remove('cx-flash'); void host.offsetWidth; host.classList.add('cx-flash');
 }
 
+// ── Colour palettes (applied to every effect by the Pi's finishing pass).
+const CX_PALETTES = {
+  auto: ['Original', 'linear-gradient(90deg,#ff3d3d,#ffd23d,#3dff7a,#3dbbff,#b23dff)'],
+  sunset: ['Sunset', 'linear-gradient(90deg,#3b0a4d,#a3216b,#ff4e5c,#ff9b3d,#ffe08a)'],
+  ocean: ['Ocean', 'linear-gradient(90deg,#03124a,#0b4fa3,#14a8d6,#5fe6e0)'],
+  neon: ['Neon', 'linear-gradient(90deg,#ff00a8,#8a00ff,#00c8ff,#00ffa3)'],
+  ember: ['Ember', 'linear-gradient(90deg,#3d0700,#a01d00,#ff4d00,#ffab1a)'],
+  aurora: ['Aurora', 'linear-gradient(90deg,#003d2a,#00b377,#30f0c8,#7c5cff,#e86bff)'],
+  forest: ['Forest', 'linear-gradient(90deg,#0b2a10,#2e7d32,#8bc34a,#d4e157)'],
+  candy: ['Candy', 'linear-gradient(90deg,#ff5fa2,#b388ff,#82b1ff,#80ffea)'],
+  ice: ['Ice', 'linear-gradient(90deg,#0a1a3a,#2a5ab8,#7ab8ff,#cfe8ff)'],
+};
+function cxWirePalettes() {
+  const box = document.getElementById('cx-pal');
+  if (!box) return;
+  box.replaceChildren(...Object.entries(CX_PALETTES).map(([k, [name, bg]]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = name; b.dataset.pal = k; b.style.background = bg;
+    b.addEventListener('click', () => send({ cmd: 'setLook', palette: k, on: true }));
+    return b;
+  }));
+}
+function cxSyncPalettes() {
+  const cur = currentState.prefs?.look?.palette || 'auto';
+  document.querySelectorAll('#cx-pal button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.pal === cur)));
+}
+
 // ── Favourites: a star on every tile.
 function cxAddStar(btn) {
   if (btn.querySelector('.cx-star')) return;
@@ -4749,9 +4775,9 @@ function cxSyncFavs() {
   const look = currentState.prefs?.look, lsw = document.getElementById('look-sw');
   if (look && lsw) {
     lsw.classList.toggle('on', look.on !== false);
-    for (const k of ['bloom', 'vibrance', 'smooth']) {
+    for (const k of ['bloom', 'vibrance', 'smooth', 'depth']) {
       const el = document.getElementById('look-' + k);
-      if (el && document.activeElement !== el) { el.value = look[k]; document.getElementById('look-' + k + '-val').textContent = Math.round(look[k] * 100) + '%'; }
+      if (el && look[k] !== undefined && document.activeElement !== el) { el.value = look[k]; document.getElementById('look-' + k + '-val').textContent = Math.round(look[k] * 100) + '%'; }
     }
   }
   const n = currentState.prefs?.nightDim, nsw = document.getElementById('night-sw');
@@ -4771,7 +4797,7 @@ function cxWirePrefs() {
   document.getElementById('night-from')?.replaceChildren(...hours.map((o) => o.cloneNode(true)));
   document.getElementById('night-to')?.replaceChildren(...hours.map((o) => o.cloneNode(true)));
   document.getElementById('look-sw')?.addEventListener('click', () => send({ cmd: 'setLook', on: currentState.prefs?.look?.on === false }));
-  for (const k of ['bloom', 'vibrance', 'smooth']) {
+  for (const k of ['bloom', 'vibrance', 'smooth', 'depth']) {
     const el = document.getElementById('look-' + k);
     el?.addEventListener('input', () => { document.getElementById('look-' + k + '-val').textContent = Math.round(el.value * 100) + '%'; });
     el?.addEventListener('change', () => send({ cmd: 'setLook', [k]: Number(el.value) }));
@@ -4904,6 +4930,13 @@ function cxAsk(q) {
   q = q.toLowerCase().trim();
   if (!q) return;
   if (/^(off|stop|dark|sleep)/.test(q)) { document.getElementById('clear-all-btn')?.click(); return; }
+  const palWord = [[/warm|cosy|cozy|orange/, 'ember'], [/sunset|dusk/, 'sunset'], [/cool|cold|blue|ocean|sea/, 'ocean'], [/ice|frost|winter/, 'ice'],
+    [/neon|vivid|cyber/, 'neon'], [/green|forest|nature/, 'forest'], [/pastel|candy|soft|pink/, 'candy'], [/aurora/, 'aurora'], [/normal|original|default|rainbow/, 'auto']]
+    .find(([re]) => re.test(q));
+  if (palWord && /colou?r|make it|warmer|cooler|palette|tone|more|less|normal|original/.test(q)) {
+    send({ cmd: 'setLook', palette: palWord[1], on: true });
+    cxToast('🎨 ' + CX_PALETTES[palWord[1]][0] + ' colours'); return;
+  }
   let key = CX_ASK.find(([re]) => re.test(q))?.[1];
   if (!key) key = cxEffectOrder().find((k) => cxEffectName(k).toLowerCase().includes(q) || k.includes(q));
   if (!key) { cxToast('Try “calm”, “party”, “night sky” or an effect name'); return; }
@@ -5002,12 +5035,22 @@ function cxRenderRing() {
 // ── Now playing card on the Music tab.
 // Spectrum settings only show while Internet Radio is the effect on screen,
 // so changing one (or tapping Show spectrum) switches the display to it.
+let _cxBeforeSpectrum = null;
 function cxShowSpectrum() {
-  if (currentState.effect !== 'radio') { send({ cmd: 'setEffect', effect: 'radio' }); cxToast('📊 Showing the spectrum'); }
+  if (currentState.effect !== 'radio') { _cxBeforeSpectrum = currentState.effect; send({ cmd: 'setEffect', effect: 'radio' }); cxToast('📊 Showing the spectrum'); }
   if (!(currentState.effectOptions?.radio?.spectrumOn)) setEffectOption('radio', 'spectrumOn', true);
 }
+// The button is a toggle: while the spectrum shows, it goes back to the
+// effect that was on before (or just switches the spectrum bars off).
+function cxToggleSpectrum() {
+  if (currentState.effect === 'radio' && currentState.effectOptions?.radio?.spectrumOn) {
+    if (_cxBeforeSpectrum && _cxBeforeSpectrum !== 'radio') { send({ cmd: 'setEffect', effect: _cxBeforeSpectrum }); cxToast('Back to ' + cxEffectName(_cxBeforeSpectrum)); }
+    else setEffectOption('radio', 'spectrumOn', false);
+    _cxBeforeSpectrum = null;
+  } else cxShowSpectrum();
+}
 function cxWireSpectrumShortcut() {
-  document.getElementById('cx-show-spectrum')?.addEventListener('click', cxShowSpectrum);
+  document.getElementById('cx-show-spectrum')?.addEventListener('click', cxToggleSpectrum);
   document.querySelectorAll('#panel-radio .spectrum-bands-btn, #panel-radio .au-style-btn, #panel-radio .au-theme-btn').forEach((b) => b.addEventListener('click', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
   document.querySelector('#panel-radio .ov-chk[data-ov="spectrum"]')?.addEventListener('change', (e) => { if (e.target.checked && currentState.effect !== 'radio') cxShowSpectrum(); });
 }
@@ -5018,7 +5061,11 @@ function cxSyncMusic() {
   const playing = !!(st && st.playing && st.station);
   card.classList.toggle('playing', playing);
   const sb = document.getElementById('cx-show-spectrum');
-  if (sb) sb.hidden = currentState.effect === 'radio';
+  if (sb) {
+    const on = currentState.effect === 'radio' && !!currentState.effectOptions?.radio?.spectrumOn;
+    sb.textContent = on ? '📊 Hide the spectrum' : '📊 Show the spectrum on the display';
+    sb.classList.toggle('active', on);
+  }
   document.getElementById('cx-np-name').textContent = playing ? st.station.name.replace(/^[\s-]+/, '') : 'Nothing playing';
   document.getElementById('cx-np-sub').textContent = playing ? (st.station.genre || 'Radio') : 'Pick a station below';
   document.getElementById('stop-sound-btn')?.classList.toggle('cx-quiet', !playing);
@@ -5033,13 +5080,14 @@ function cxSyncHeroLabel() {
   const st = currentState.effectStatus?.radio;
   sub.textContent = st && st.playing && st.station ? '♫ ' + st.station.name.replace(/^[\s-]+/, '') : '';
 }
-function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncFavs(); cxSyncOptionPanels(); cxSyncExtras(); requestAnimationFrame(cxMoveBlob); }
+function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncFavs(); cxSyncPalettes(); cxSyncOptionPanels(); cxSyncExtras(); requestAnimationFrame(cxMoveBlob); }
 
 function cxInit() {
   cxWireHero();
   cxWireAsk();
   cxWireAiSetup();
   cxWirePrefs();
+  cxWirePalettes();
   cxWireVoice();
   cxWireSpectrumShortcut();
   cxWireExtras();

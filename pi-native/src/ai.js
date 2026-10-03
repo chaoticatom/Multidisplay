@@ -22,6 +22,7 @@ Actions (use as few as needed, max 6):
 - {"type":"brightness","value":0.1-1.5}
 - {"type":"speed","value":0.2-3}
 - {"type":"option","effect":"<effect key>","key":"<name>","value":<string|number|boolean>}  e.g. weather city, datetime mode (time|date|both|words|analogue), radio style (glow|bars|mirror|dots|waterfall|fire)
+- {"type":"palette","name":"auto|sunset|ocean|neon|ember|aurora|forest|candy|ice"}  recolour every effect (auto = its own colours)
 - {"type":"off"}  blank the display
 - {"type":"art","w":<4-32>,"h":<4-32>,"palette":["#rrggbb", up to 16],"frames":[[<h strings of w chars>], up to 8 frames],"fps":<1-12>}
   Pixel art drawn on the display. Each char is a palette index in hex (0-f) or "." for off. Use art when asked to draw, show a picture, icon, character, message, or something no effect covers. Keep it bold and simple; 16x16 is a good size. Animate with 2-4 frames when it helps.
@@ -97,7 +98,8 @@ function cleanReply(reply) {
     else if (a.type === 'speed' && Number.isFinite(Number(a.value))) out.push({ type: 'speed', value: Math.max(0.2, Math.min(3, Number(a.value))) });
     else if (a.type === 'option' && EFFECT_NAMES[a.effect] && typeof a.key === 'string' && /^[a-zA-Z]{1,30}$/.test(a.key) && ['string', 'number', 'boolean'].includes(typeof a.value)) {
       out.push({ type: 'option', effect: a.effect, key: a.key, value: typeof a.value === 'string' ? a.value.slice(0, 100) : a.value });
-    } else if (a.type === 'off') out.push({ type: 'off' });
+    } else if (a.type === 'palette' && ['auto', 'sunset', 'ocean', 'neon', 'ember', 'aurora', 'forest', 'candy', 'ice'].includes(a.name)) out.push({ type: 'palette', name: a.name });
+    else if (a.type === 'off') out.push({ type: 'off' });
     else if (a.type === 'art') { try { out.push({ type: 'art', art: cleanArt(a) }); } catch (e) { /* skip bad art */ } }
   }
   return { say: typeof reply.say === 'string' ? reply.say.slice(0, 200) : '', actions: out };

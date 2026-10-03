@@ -87,12 +87,15 @@ function effectLightspeedWall(core, dt) {
       const frac = (i + 1) / tl;
       const bright = Math.pow(frac, 1.3);
       let rr, rg, rb;
-      if (lsColour === 'multi') [rr, rg, rb] = hsl((r.hue + frac * 0.1 + lsWallT * 0.04) % 1, 1, bright);
+      // Saturated colour that deepens along the tail (lightness capped at
+      // 0.55 so it stays coloured), white-hot only right at the head.
+      const lum = 0.55 * bright + (frac > 0.9 ? (frac - 0.9) * 4 : 0);
+      if (lsColour === 'multi') [rr, rg, rb] = hsl((r.hue + frac * 0.1 + lsWallT * 0.04) % 1, 1, lum);
       else {
         const hmap = { white: null, cyan: 0.52, red: 0.02, green: 0.33, gold: 0.13 };
         const h = hmap[lsColour];
         if (!h) { rr = bright; rg = bright; rb = bright; }
-        else[rr, rg, rb] = hsl(h, 1, bright);
+        else[rr, rg, rb] = hsl(h, 1, lum);
       }
       if (i === tl - 1) { rr = 1; rg = 1; rb = 1; }
       const R = lsSize - 1;

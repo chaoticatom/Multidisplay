@@ -15,6 +15,68 @@
 
 const THRESH = 0.55; // brightness above which a pixel starts to bloom
 
+// Colour palettes: any effect's colours are re-mapped onto these designed
+// gradients (by hue, keeping brightness; whites and greys stay neutral).
+const PALETTES = {
+  sunset: ['#3b0a4d', '#a3216b', '#ff4e5c', '#ff9b3d', '#ffe08a'],
+  ocean: ['#03124a', '#0b4fa3', '#14a8d6', '#5fe6e0', '#d8fff6'],
+  neon: ['#ff00a8', '#8a00ff', '#00c8ff', '#00ffa3', '#fff200'],
+  ember: ['#3d0700', '#a01d00', '#ff4d00', '#ffab1a', '#fff0b8'],
+  aurora: ['#003d2a', '#00b377', '#30f0c8', '#7c5cff', '#e86bff'],
+  forest: ['#0b2a10', '#2e7d32', '#8bc34a', '#d4e157', '#fff59d'],
+  candy: ['#ff5fa2', '#ffa3d1', '#b388ff', '#82b1ff', '#80ffea'],
+  ice: ['#0a1a3a', '#2a5ab8', '#7ab8ff', '#cfe8ff', '#ffffff'],
+};
+const PAL_RGB = {};
+for (const [k, list] of Object.entries(PALETTES)) {
+  PAL_RGB[k] = list.map((h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; });
+}
+// 256-entry lookup per palette, mirrored so the hue circle wraps smoothly.
+const PAL_LUT = {};
+for (const [k, stops] of Object.entries(PAL_RGB)) {
+  const lut = new Float32Array(256 * 3);
+  for (let i = 0; i < 256; i++) {
+    const t = 1 - Math.abs((i / 255) * 2 - 1), x = t * (stops.length - 1), a = Math.min(stops.length - 2, Math.floor(x)), f = x - a;
+    for (let c = 0; c < 3; c++) lut[i * 3 + c] = stops[a][c] + (stops[a + 1][c] - stops[a][c]) * f;
+  }
+  PAL_LUT[k] = lut;
+}
+function gradePalette(buf, n, name) {
+  const lut = PAL_LUT[name]; if (!lut) return;
+  for (let o = 0; o < n * 3; o += 3) {
+    const r = buf[o], g = buf[o + 1], b = buf[o + 2], mx = Math.max(r, g, b);
+    if (mx < 0.01) continue;
+    const mn = Math.min(r, g, b), d = mx - mn, sat = d / mx;
+    if (sat < 0.05) continue;
+    let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    h = (h / 6 + 1) % 1;
+    const i = Math.round(h * 255) * 3;
+    // Palette colour at the pixel's brightness, blended by its saturation.
+    const pr = lut[i] * mx, pg = lut[i + 1] * mx, pb = lut[i + 2] * mx, grey = mx * (1 - sat);
+    buf[o] = pr * sat + grey; buf[o + 1] = pg * sat + grey; buf[o + 2] = pb * sat + grey;
+  }
+}
+
+// Cube depth: soft light from above-front so the faces read as a solid
+// object (top brightest, bottom darkest), plus a gentle darkening towards
+// each face's edges. Per-LED factors, cached per cube size.
+let depthKey = '', depthF = null;
+function depthFactors(core) {
+  const key = core.N + '|' + core.SIZE;
+  if (depthKey === key) return depthF;
+  depthKey = key; depthF = new Float32Array(core.N).fill(1);
+  const L = [0.35, 0.8, 0.48], ll = Math.hypot(...L);
+  for (let i = 0; i < core.N; i++) {
+    const p = [core.surfX[i] - 0.5, core.surfY[i] - 0.5, core.surfZ[i] - 0.5];
+    const ax = [Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2])], k = ax.indexOf(Math.max(...ax));
+    const n = [0, 0, 0]; n[k] = Math.sign(p[k]);
+    const diffuse = Math.max(0, (n[0] * L[0] + n[1] * L[1] + n[2] * L[2]) / ll);
+    const others = [0, 1, 2].filter((j) => j !== k), edge = Math.max(ax[others[0]], ax[others[1]]) * 2; // 0 centre .. 1 edge
+    depthF[i] = (0.62 + 0.38 * diffuse) * (1 - 0.18 * Math.pow(edge, 4));
+  }
+  return depthF;
+}
+
 // Scratch buffers, grown on demand.
 let src = new Float32Array(0), img = new Float32Array(0), half = new Float32Array(0), tmp = new Float32Array(0), prevWall = null, prevCube = null;
 const grow = (a, n) => (a.length >= n ? a : new Float32Array(n));
@@ -110,6 +172,7 @@ function applyPostFx(core, mode, look) {
   const bloom = look.bloom ?? 0.65, vib = look.vibrance ?? 0.35, sm = look.smooth ?? 0;
   if (mode === 'wall') {
     if (!core.wallBuf) return;
+    if (look.palette && look.palette !== 'auto') gradePalette(core.wallBuf, core.wallW * core.wallH, look.palette);
     processImage(core.wallBuf, core.wallW, core.wallH, bloom, vib);
     if (sm > 0.01) { if (!prevWall || prevWall.length !== core.wallBuf.length) prevWall = Float32Array.from(core.wallBuf); smoothInto(core.wallBuf, prevWall, sm); } else prevWall = null;
     return;
@@ -119,6 +182,7 @@ function applyPostFx(core, mode, look) {
   // Faces read from an untouched copy: an edge LED belongs to two faces and
   // would otherwise be processed (glow added) twice.
   src = grow(src, buf.length); src.set(buf);
+  if (look.palette && look.palette !== 'auto') { gradePalette(buf, core.N, look.palette); src.set(buf); }
   const faces = mode === '2d' ? [0] : [0, 1, 2, 3, 4, 5];
   for (const f of faces) {
     const map = core.faceMap[f];
@@ -126,7 +190,12 @@ function applyPostFx(core, mode, look) {
     processImage(img, S, S, bloom, vib);
     for (let j = 0; j < S * S; j++) { const i = map[j]; if (i < 0) continue; const o = j * 3; buf[i * 3] = img[o]; buf[i * 3 + 1] = img[o + 1]; buf[i * 3 + 2] = img[o + 2]; }
   }
+  const depth = mode === 'cube' ? (look.depth ?? 0.5) : 0;
+  if (depth > 0.01) {
+    const F = depthFactors(core);
+    for (let i = 0; i < core.N; i++) { const f = 1 - depth * (1 - F[i]); buf[i * 3] *= f; buf[i * 3 + 1] *= f; buf[i * 3 + 2] *= f; }
+  }
   if (sm > 0.01) { if (!prevCube || prevCube.length !== buf.length) prevCube = Float32Array.from(buf); smoothInto(buf, prevCube, sm); } else prevCube = null;
 }
 
-module.exports = { applyPostFx, restorePostFx, processImage };
+module.exports = { applyPostFx, restorePostFx, processImage, PALETTES };

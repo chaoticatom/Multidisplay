@@ -196,21 +196,21 @@ function effectBouncingBalls(core, dt) {
       if (b.v > S1 - R) { b.v = S1 - R; b.dv = -Math.abs(b.dv); }
     }
 
-    const cu = Math.round(b.u), cv = Math.round(b.v);
-    const R2 = R * R;
+    // Exact (sub-pixel) centre with an anti-aliased rim - glides instead of
+    // stepping a whole pixel at a time.
     const cross = !panel2dMode && ballCrossFaces;
-    for (let dv = -R; dv <= R; dv++) {
-      for (let du = -R; du <= R; du++) {
-        const d2 = du * du + dv * dv;
-        if (d2 > R2) continue;
-        const pu = cu + du, pv = cv + dv;
+    const u0 = Math.floor(b.u - R - 1), u1 = Math.ceil(b.u + R + 1), v0 = Math.floor(b.v - R - 1), v1 = Math.ceil(b.v + R + 1);
+    for (let pv = v0; pv <= v1; pv++) {
+      for (let pu = u0; pu <= u1; pu++) {
+        const dd = Math.hypot(pu - b.u, pv - b.v);
+        const cover = Math.min(1, R + 0.5 - dd);
+        if (cover <= 0) continue;
         const idx = cross ? ballPixel(core, b.face, pu, pv, S)
           : (pu < 0 || pu >= S || pv < 0 || pv >= S) ? -1 : faceMap[b.face][pv * S + pu];
         if (idx < 0) continue;
-        const dist = Math.sqrt(d2) / R;
-        const shade = 1.0 - dist * 0.55;
-        const edge2 = dist > 0.75 ? 0.5 : 1.0;
-        const br = b.cr * shade * edge2, bg = b.cg * shade * edge2, bb = b.cb * shade * edge2;
+        const dist = Math.min(1, dd / R);
+        const shade = (1.0 - dist * 0.55) * (dist > 0.75 ? 0.75 : 1.0) * cover;
+        const br = b.cr * shade, bg = b.cg * shade, bb = b.cb * shade;
         colBuf[idx * 3] = Math.max(colBuf[idx * 3], br);
         colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], bg);
         colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], bb);

@@ -6779,7 +6779,8 @@ var PiEngine = (() => {
             const frac = (i + 1) / tl;
             const bright = Math.pow(frac, 1.3);
             let rr, rg, rb;
-            if (lsColour === "multi") [rr, rg, rb] = hsl((r.hue + frac * 0.1 + lsT * 0.04) % 1, 1, bright);
+            const lum = 0.55 * bright + (frac > 0.9 ? (frac - 0.9) * 4 : 0);
+            if (lsColour === "multi") [rr, rg, rb] = hsl((r.hue + frac * 0.1 + lsT * 0.04) % 1, 1, lum);
             else {
               const hmap = { white: null, cyan: 0.52, red: 0.02, green: 0.33, gold: 0.13 };
               const h = hmap[lsColour];
@@ -6787,7 +6788,7 @@ var PiEngine = (() => {
                 rr = bright;
                 rg = bright;
                 rb = bright;
-              } else [rr, rg, rb] = hsl(h, 1, bright);
+              } else [rr, rg, rb] = hsl(h, 1, lum);
             }
             if (i === tl - 1) {
               rr = 1;
@@ -14390,20 +14391,18 @@ var PiEngine = (() => {
               b.dv = -Math.abs(b.dv);
             }
           }
-          const cu = Math.round(b.u), cv = Math.round(b.v);
-          const R2 = R * R;
           const cross = !panel2dMode && ballCrossFaces;
-          for (let dv = -R; dv <= R; dv++) {
-            for (let du = -R; du <= R; du++) {
-              const d2 = du * du + dv * dv;
-              if (d2 > R2) continue;
-              const pu = cu + du, pv = cv + dv;
+          const u0 = Math.floor(b.u - R - 1), u1 = Math.ceil(b.u + R + 1), v0 = Math.floor(b.v - R - 1), v1 = Math.ceil(b.v + R + 1);
+          for (let pv = v0; pv <= v1; pv++) {
+            for (let pu = u0; pu <= u1; pu++) {
+              const dd = Math.hypot(pu - b.u, pv - b.v);
+              const cover = Math.min(1, R + 0.5 - dd);
+              if (cover <= 0) continue;
               const idx = cross ? ballPixel(core, b.face, pu, pv, S) : pu < 0 || pu >= S || pv < 0 || pv >= S ? -1 : faceMap[b.face][pv * S + pu];
               if (idx < 0) continue;
-              const dist = Math.sqrt(d2) / R;
-              const shade = 1 - dist * 0.55;
-              const edge2 = dist > 0.75 ? 0.5 : 1;
-              const br = b.cr * shade * edge2, bg = b.cg * shade * edge2, bb = b.cb * shade * edge2;
+              const dist = Math.min(1, dd / R);
+              const shade = (1 - dist * 0.55) * (dist > 0.75 ? 0.75 : 1) * cover;
+              const br = b.cr * shade, bg = b.cg * shade, bb = b.cb * shade;
               colBuf[idx * 3] = Math.max(colBuf[idx * 3], br);
               colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], bg);
               colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], bb);
@@ -20823,7 +20822,8 @@ var PiEngine = (() => {
             const frac = (i + 1) / tl;
             const bright = Math.pow(frac, 1.3);
             let rr, rg, rb;
-            if (lsColour === "multi") [rr, rg, rb] = hsl((r.hue + frac * 0.1 + lsWallT * 0.04) % 1, 1, bright);
+            const lum = 0.55 * bright + (frac > 0.9 ? (frac - 0.9) * 4 : 0);
+            if (lsColour === "multi") [rr, rg, rb] = hsl((r.hue + frac * 0.1 + lsWallT * 0.04) % 1, 1, lum);
             else {
               const hmap = { white: null, cyan: 0.52, red: 0.02, green: 0.33, gold: 0.13 };
               const h = hmap[lsColour];
@@ -20831,7 +20831,7 @@ var PiEngine = (() => {
                 rr = bright;
                 rg = bright;
                 rb = bright;
-              } else [rr, rg, rb] = hsl(h, 1, bright);
+              } else [rr, rg, rb] = hsl(h, 1, lum);
             }
             if (i === tl - 1) {
               rr = 1;
@@ -21248,18 +21248,17 @@ var PiEngine = (() => {
             b.y = H1 - R;
             b.dy = -Math.abs(b.dy);
           }
-          const cx = Math.round(b.x), cy = Math.round(b.y);
-          const R2 = R * R;
-          for (let dvy = -R; dvy <= R; dvy++) {
-            for (let dvx = -R; dvx <= R; dvx++) {
-              const d2 = dvx * dvx + dvy * dvy;
-              if (d2 > R2) continue;
-              const px = cx + dvx, py = cy + dvy;
-              if (px < 0 || px >= wallW || py < 0 || py >= wallH) continue;
-              const dist = Math.sqrt(d2) / R;
-              const shade = 1 - dist * 0.55;
-              const edge2 = dist > 0.75 ? 0.5 : 1;
-              const br = b.cr * shade * edge2, bg = b.cg * shade * edge2, bb = b.cb * shade * edge2;
+          const x0 = Math.floor(b.x - R - 1), x1 = Math.ceil(b.x + R + 1), y0 = Math.floor(b.y - R - 1), y1 = Math.ceil(b.y + R + 1);
+          for (let py = y0; py <= y1; py++) {
+            if (py < 0 || py >= wallH) continue;
+            for (let px = x0; px <= x1; px++) {
+              if (px < 0 || px >= wallW) continue;
+              const dd = Math.hypot(px - b.x, py - b.y);
+              const cover = Math.min(1, R + 0.5 - dd);
+              if (cover <= 0) continue;
+              const dist = Math.min(1, dd / R);
+              const shade = (1 - dist * 0.55) * (dist > 0.75 ? 0.75 : 1) * cover;
+              const br = b.cr * shade, bg = b.cg * shade, bb = b.cb * shade;
               const o = (py * wallW + px) * 3;
               if (br > wallBuf[o]) wallBuf[o] = br;
               if (bg > wallBuf[o + 1]) wallBuf[o + 1] = bg;
@@ -27113,6 +27112,68 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var THRESH = 0.55;
+      var PALETTES = {
+        sunset: ["#3b0a4d", "#a3216b", "#ff4e5c", "#ff9b3d", "#ffe08a"],
+        ocean: ["#03124a", "#0b4fa3", "#14a8d6", "#5fe6e0", "#d8fff6"],
+        neon: ["#ff00a8", "#8a00ff", "#00c8ff", "#00ffa3", "#fff200"],
+        ember: ["#3d0700", "#a01d00", "#ff4d00", "#ffab1a", "#fff0b8"],
+        aurora: ["#003d2a", "#00b377", "#30f0c8", "#7c5cff", "#e86bff"],
+        forest: ["#0b2a10", "#2e7d32", "#8bc34a", "#d4e157", "#fff59d"],
+        candy: ["#ff5fa2", "#ffa3d1", "#b388ff", "#82b1ff", "#80ffea"],
+        ice: ["#0a1a3a", "#2a5ab8", "#7ab8ff", "#cfe8ff", "#ffffff"]
+      };
+      var PAL_RGB = {};
+      for (const [k, list] of Object.entries(PALETTES)) {
+        PAL_RGB[k] = list.map((h) => {
+          const n = parseInt(h.slice(1), 16);
+          return [(n >> 16) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
+        });
+      }
+      var PAL_LUT = {};
+      for (const [k, stops] of Object.entries(PAL_RGB)) {
+        const lut = new Float32Array(256 * 3);
+        for (let i = 0; i < 256; i++) {
+          const t = 1 - Math.abs(i / 255 * 2 - 1), x = t * (stops.length - 1), a = Math.min(stops.length - 2, Math.floor(x)), f = x - a;
+          for (let c = 0; c < 3; c++) lut[i * 3 + c] = stops[a][c] + (stops[a + 1][c] - stops[a][c]) * f;
+        }
+        PAL_LUT[k] = lut;
+      }
+      function gradePalette(buf, n, name) {
+        const lut = PAL_LUT[name];
+        if (!lut) return;
+        for (let o = 0; o < n * 3; o += 3) {
+          const r = buf[o], g = buf[o + 1], b = buf[o + 2], mx = Math.max(r, g, b);
+          if (mx < 0.01) continue;
+          const mn = Math.min(r, g, b), d = mx - mn, sat = d / mx;
+          if (sat < 0.05) continue;
+          let h = mx === r ? (g - b) / d % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+          h = (h / 6 + 1) % 1;
+          const i = Math.round(h * 255) * 3;
+          const pr = lut[i] * mx, pg = lut[i + 1] * mx, pb = lut[i + 2] * mx, grey = mx * (1 - sat);
+          buf[o] = pr * sat + grey;
+          buf[o + 1] = pg * sat + grey;
+          buf[o + 2] = pb * sat + grey;
+        }
+      }
+      var depthKey = "";
+      var depthF = null;
+      function depthFactors(core) {
+        const key = core.N + "|" + core.SIZE;
+        if (depthKey === key) return depthF;
+        depthKey = key;
+        depthF = new Float32Array(core.N).fill(1);
+        const L = [0.35, 0.8, 0.48], ll = Math.hypot(...L);
+        for (let i = 0; i < core.N; i++) {
+          const p = [core.surfX[i] - 0.5, core.surfY[i] - 0.5, core.surfZ[i] - 0.5];
+          const ax = [Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2])], k = ax.indexOf(Math.max(...ax));
+          const n = [0, 0, 0];
+          n[k] = Math.sign(p[k]);
+          const diffuse = Math.max(0, (n[0] * L[0] + n[1] * L[1] + n[2] * L[2]) / ll);
+          const others = [0, 1, 2].filter((j) => j !== k), edge = Math.max(ax[others[0]], ax[others[1]]) * 2;
+          depthF[i] = (0.62 + 0.38 * diffuse) * (1 - 0.18 * Math.pow(edge, 4));
+        }
+        return depthF;
+      }
       var src = new Float32Array(0);
       var img = new Float32Array(0);
       var half = new Float32Array(0);
@@ -27221,6 +27282,7 @@ var PiEngine = (() => {
         const bloom = look.bloom ?? 0.65, vib = look.vibrance ?? 0.35, sm = look.smooth ?? 0;
         if (mode === "wall") {
           if (!core.wallBuf) return;
+          if (look.palette && look.palette !== "auto") gradePalette(core.wallBuf, core.wallW * core.wallH, look.palette);
           processImage(core.wallBuf, core.wallW, core.wallH, bloom, vib);
           if (sm > 0.01) {
             if (!prevWall || prevWall.length !== core.wallBuf.length) prevWall = Float32Array.from(core.wallBuf);
@@ -27232,6 +27294,10 @@ var PiEngine = (() => {
         img = grow(img, S * S * 3);
         src = grow(src, buf.length);
         src.set(buf);
+        if (look.palette && look.palette !== "auto") {
+          gradePalette(buf, core.N, look.palette);
+          src.set(buf);
+        }
         const faces = mode === "2d" ? [0] : [0, 1, 2, 3, 4, 5];
         for (const f of faces) {
           const map = core.faceMap[f];
@@ -27255,12 +27321,22 @@ var PiEngine = (() => {
             buf[i * 3 + 2] = img[o + 2];
           }
         }
+        const depth = mode === "cube" ? look.depth ?? 0.5 : 0;
+        if (depth > 0.01) {
+          const F = depthFactors(core);
+          for (let i = 0; i < core.N; i++) {
+            const f = 1 - depth * (1 - F[i]);
+            buf[i * 3] *= f;
+            buf[i * 3 + 1] *= f;
+            buf[i * 3 + 2] *= f;
+          }
+        }
         if (sm > 0.01) {
           if (!prevCube || prevCube.length !== buf.length) prevCube = Float32Array.from(buf);
           smoothInto(buf, prevCube, sm);
         } else prevCube = null;
       }
-      module.exports = { applyPostFx, restorePostFx, processImage };
+      module.exports = { applyPostFx, restorePostFx, processImage, PALETTES };
     }
   });
 

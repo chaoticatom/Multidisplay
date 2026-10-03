@@ -649,6 +649,7 @@ const COMMANDS = {
         else if (a.type === 'brightness') COMMANDS.setBrightness.call(this, ws, { value: a.value });
         else if (a.type === 'speed') COMMANDS.setSpeed.call(this, ws, { value: a.value });
         else if (a.type === 'option') COMMANDS.setEffectOption.call(this, ws, { effect: a.effect, key: a.key, value: a.value });
+        else if (a.type === 'palette') COMMANDS.setLook.call(this, ws, { palette: a.name, on: true });
         else if (a.type === 'off') COMMANDS.clearAll.call(this, ws, {});
         else if (a.type === 'art') {
           COMMANDS.setEffectOption.call(this, ws, { effect: 'ai_art', key: 'art', value: a.art });

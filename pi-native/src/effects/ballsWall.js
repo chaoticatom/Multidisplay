@@ -97,18 +97,19 @@ function effectBouncingBallsWall(core, dt) {
     if (b.y < R) { b.y = R; b.dy = Math.abs(b.dy); }
     if (b.y > H1 - R) { b.y = H1 - R; b.dy = -Math.abs(b.dy); }
 
-    const cx = Math.round(b.x), cy = Math.round(b.y);
-    const R2 = R * R;
-    for (let dvy = -R; dvy <= R; dvy++) {
-      for (let dvx = -R; dvx <= R; dvx++) {
-        const d2 = dvx * dvx + dvy * dvy;
-        if (d2 > R2) continue;
-        const px = cx + dvx, py = cy + dvy;
-        if (px < 0 || px >= wallW || py < 0 || py >= wallH) continue;
-        const dist = Math.sqrt(d2) / R;
-        const shade = 1.0 - dist * 0.55;
-        const edge2 = dist > 0.75 ? 0.5 : 1.0;
-        const br = b.cr * shade * edge2, bg = b.cg * shade * edge2, bb = b.cb * shade * edge2;
+    // Drawn from the ball's exact (sub-pixel) centre with an anti-aliased
+    // rim, so it glides smoothly instead of stepping a whole pixel at a time.
+    const x0 = Math.floor(b.x - R - 1), x1 = Math.ceil(b.x + R + 1), y0 = Math.floor(b.y - R - 1), y1 = Math.ceil(b.y + R + 1);
+    for (let py = y0; py <= y1; py++) {
+      if (py < 0 || py >= wallH) continue;
+      for (let px = x0; px <= x1; px++) {
+        if (px < 0 || px >= wallW) continue;
+        const dd = Math.hypot(px - b.x, py - b.y);
+        const cover = Math.min(1, R + 0.5 - dd);
+        if (cover <= 0) continue;
+        const dist = Math.min(1, dd / R);
+        const shade = (1.0 - dist * 0.55) * (dist > 0.75 ? 0.75 : 1.0) * cover;
+        const br = b.cr * shade, bg = b.cg * shade, bb = b.cb * shade;
         const o = (py * wallW + px) * 3;
         if (br > wallBuf[o]) wallBuf[o] = br;
         if (bg > wallBuf[o + 1]) wallBuf[o + 1] = bg;
