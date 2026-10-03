@@ -48,3 +48,41 @@ t('sunrise starts on a blanked display', () => {
   assert.strictEqual(state.blank, false);
 });
 if (failed) process.exitCode = 1;
+
+// Flat panel / wall: the sunrise draws, then the timer fires; a finished
+// wind-down switches the display off and frees the timer slot.
+{
+  const { CubeCore } = require('../src/core');
+  const { tick } = require('../src/tick');
+  const { EFFECTS, WALL_EFFECTS } = require('../src/effects');
+  const { runOverlays, OV_DEFAULTS } = require('../src/effects/overlays');
+  const mk = () => { const c = new CubeCore(64); c.initWall([{ gx: 0, gy: 0 }], 64); return c; };
+  const wallState = (al) => ({ effect: 'plasma', overlays: JSON.parse(JSON.stringify(OV_DEFAULTS)), effectOptions: {}, brightness: 0.8, speed: 1, alarms: [al], activeAlarm: null });
+  const cfg = { mode: 'wall', size: 64 };
+  try {
+    const core = mk();
+    const al = { ...base, triggerType: 'effect', effect: 'aurora', message: 'Hello', prealarm: { enabled: true, preMinutes: 15, startBright: 5 } };
+    const st = wallState(al);
+    alarms.alarmCheck(st, new Date(2026, 9, 3, 7, 20, 0));
+    st.activeAlarm.startMs = Date.now() - 7.5 * 60000; // halfway through the sunrise
+    tick(core, st, cfg, EFFECTS, WALL_EFFECTS, alarms, runOverlays, 1 / 60);
+    let lit = 0; for (let i = 0; i < core.wallBuf.length; i += 3) if (core.wallBuf[i] > 0.2) lit++;
+    assert.ok(lit > 100, 'sunrise should light the wall: ' + lit);
+    st.activeAlarm.startMs = Date.now() - 16 * 60000; // past the end
+    tick(core, st, cfg, EFFECTS, WALL_EFFECTS, alarms, runOverlays, 1 / 60);
+    assert.strictEqual(st.effect, 'aurora', 'the wake-up effect must start after the sunrise on a wall');
+    assert.strictEqual(st.activeAlarm.phase, 'main');
+    console.log('  ok - wall sunrise draws and then fires the timer');
+
+    const wd = { ...base, id: 'w', triggerType: 'effect', prealarm: { windDown: true, wdMinutes: 15 } };
+    const st2 = wallState(wd);
+    alarms.alarmCheck(st2, new Date(2026, 9, 3, 7, 31, 0));
+    assert.strictEqual(st2.activeAlarm.phase, 'pre');
+    st2.activeAlarm.startMs = Date.now() - 16 * 60000;
+    tick(mk(), st2, cfg, EFFECTS, WALL_EFFECTS, alarms, runOverlays, 1 / 60);
+    assert.strictEqual(st2.activeAlarm, null, 'a finished wind-down must free the timer slot');
+    assert.strictEqual(st2.blank, true);
+    assert.strictEqual(st2.brightness, 0.8, 'brightness comes back for next time');
+    console.log('  ok - finished wind-down turns the display off and frees the slot');
+  } catch (e) { console.error('  FAIL -', e.message); process.exitCode = 1; }
+}

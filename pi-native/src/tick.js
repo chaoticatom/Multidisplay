@@ -63,15 +63,17 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
     state.effectStatus[state.effect] = activeFn.getStatus();
   }
 
-  alarms.tickCheck(state, dt, EFFECTS);
   const cubeMode = config.mode !== 'wall';
+  alarms.tickCheck(state, dt, cubeMode ? EFFECTS : WALL_EFFECTS);
   // Keep a playing station alive in every mode - and while the display is
   // off (Clear All), so the screen can be dark with the music still on.
   if (typeof radio.keepAlive === 'function') radio.keepAlive(state.effectOptions && state.effectOptions.radio);
   if (!state.blank) {
     if (cubeMode) alarms.renderMainMessage(core, state); // step 1
 
-    const alarmBlocking = cubeMode && alarms.isBlockingNormalEffect(state);
+    // On a wall only the sunrise / wind-down blocks the effect; at the alarm
+    // itself the new effect runs with the message drawn on top (below).
+    const alarmBlocking = cubeMode ? alarms.isBlockingNormalEffect(state) : !!(state.activeAlarm && !state.activeAlarm.dismissed && state.activeAlarm.phase === 'pre');
     const fn = config.mode === 'wall' ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
     const buf = cubeMode ? core.colBuf : core.wallBuf;
     // Music: keep a playing station alive in the background, and give
@@ -100,6 +102,11 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
   if (cubeMode) {
     alarms.applyDonePhase(core, state); // step 4
     alarms.renderPrePhase(core, dt, state, EFFECTS); // step 5 - overwrites colBuf, matches browser order exactly
+  } else {
+    // Flat panel / wall: same timer phases, drawn on the wall canvas.
+    if (!state.blank) alarms.renderMainMessage(core, state, true);
+    alarms.applyDonePhase(core, state, true);
+    alarms.renderPrePhase(core, dt, state, WALL_EFFECTS, true);
   }
   renderNotice(core, state, config.mode, dt); // a /api/notify banner sits on top of everything
 }

@@ -64,3 +64,15 @@ function fakeSpawn(stdout, code = 0, enoent = false) {
     delete process.env.YT_COOKIE_FILE;
   }).catch((e) => { console.error(e); process.exitCode = 1; });
 }
+
+// Separate video + audio streams: both URLs come back, so the sound plays.
+(async () => {
+  const yt = require('../src/youtube');
+  const { EventEmitter } = require('events');
+  const spawn = () => { const p = new EventEmitter(); p.stdout = new EventEmitter(); p.stderr = new EventEmitter(); p.kill = () => {}; setImmediate(() => { p.stdout.emit('data', 'https://v.googlevideo.com/video\nhttps://a.googlevideo.com/audio\n'); p.emit('close', 0); }); return p; };
+  try {
+    const st = await yt.resolveStreams('abcDEF12345', spawn);
+    require('assert').deepStrictEqual(st, { video: 'https://v.googlevideo.com/video', audio: 'https://a.googlevideo.com/audio' });
+    console.log('  ok - separate audio stream is used for the sound');
+  } catch (e) { console.error('  FAIL -', e.message); process.exitCode = 1; }
+})();

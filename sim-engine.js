@@ -2287,16 +2287,16 @@ var PiEngine = (() => {
           duration: Number(e.duration) || 0
         }));
       }
-      async function resolve(id, spawn = realSpawn) {
+      async function resolveStreams(id, spawn = realSpawn) {
         if (!/^[\w-]{6,20}$/.test(String(id || ""))) throw new Error("bad video id");
-        const base = ["-f", "best[height<=360][vcodec!=none][acodec!=none]/best[height<=480]/best", "-g", "--no-warnings"];
+        const base = ["-f", "best[height<=360][vcodec!=none][acodec!=none]/bv*[height<=480]+ba/best", "-g", "--no-warnings"];
         const attempts = [[], ["--extractor-args", "youtube:player_client=tv,ios"], ["--extractor-args", "youtube:player_client=android,web_safari"]];
         let lastErr = null;
         for (const extra of attempts) {
           try {
             const out = await run([...cookieArgs(), ...base, ...extra, `https://www.youtube.com/watch?v=${id}`], spawn, 4e4);
-            const url = out.trim().split("\n")[0];
-            if (/^https?:\/\//.test(url)) return url;
+            const urls = out.trim().split("\n").map((l) => l.trim()).filter((l) => /^https?:\/\//.test(l));
+            if (urls.length) return { video: urls[0], audio: urls[1] || urls[0] };
             lastErr = new Error("no playable stream found");
           } catch (e) {
             if (/not installed/.test(e.message)) throw e;
@@ -2304,6 +2304,9 @@ var PiEngine = (() => {
           }
         }
         throw new Error(`${lastErr.message.replace(/^\[youtube\]\s*[\w-]+:\s*/, "")} - update yt-dlp on the Pi: sudo pip3 install -U yt-dlp --break-system-packages`);
+      }
+      async function resolve(id, spawn = realSpawn) {
+        return (await resolveStreams(id, spawn)).video;
       }
       function inputOptions(url) {
         const m = /#mdss=(\d+(?:\.\d+)?)$/.exec(url || "");
@@ -2313,7 +2316,7 @@ var PiEngine = (() => {
         if (m && Number(m[1]) > 0) opts.push("-ss", m[1]);
         return { url: plain, opts };
       }
-      module.exports = { inputOptions, signedIn, saveCookies, signOut, COOKIE_FILE, search, resolve };
+      module.exports = { resolveStreams, inputOptions, signedIn, saveCookies, signOut, COOKIE_FILE, search, resolve };
     }
   });
 
@@ -7858,44 +7861,121 @@ var PiEngine = (() => {
       var { defineCanvasEffect } = require_canvas();
       var stroke = require_strokeFont();
       var { FONT_3x5, drawGlyph, textWidth } = require_text();
-      var ROLL_S = 1.3;
+      var ROLL_S = 2.4;
       var AUTO_S = 4;
       var COLOURS = { ivory: [[0.95, 0.93, 0.86], [0.08, 0.08, 0.1]], red: [[0.85, 0.12, 0.15], [1, 1, 1]], black: [[0.12, 0.12, 0.14], [1, 1, 1]], blue: [[0.15, 0.35, 0.9], [1, 1, 1]] };
       var PIPS = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]], 5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]] };
       var st = { dice: [], t0: -10, lastToken: void 0, lastAuto: 0 };
       var roll = () => 1 + Math.floor(Math.random() * 6);
+      var mul = (a, b) => {
+        const r = new Array(9);
+        for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) r[i * 3 + j] = a[i * 3] * b[j] + a[i * 3 + 1] * b[3 + j] + a[i * 3 + 2] * b[6 + j];
+        return r;
+      };
+      var rotX = (t) => {
+        const c = Math.cos(t), s = Math.sin(t);
+        return [1, 0, 0, 0, c, -s, 0, s, c];
+      };
+      var rotY = (t) => {
+        const c = Math.cos(t), s = Math.sin(t);
+        return [c, 0, s, 0, 1, 0, -s, 0, c];
+      };
+      var rotZ = (t) => {
+        const c = Math.cos(t), s = Math.sin(t);
+        return [c, -s, 0, s, c, 0, 0, 0, 1];
+      };
+      function rotAxis([x, y, z], t) {
+        const c = Math.cos(t), s = Math.sin(t), k = 1 - c;
+        return [c + x * x * k, x * y * k - z * s, x * z * k + y * s, y * x * k + z * s, c + y * y * k, y * z * k - x * s, z * x * k - y * s, z * y * k + x * s, c + z * z * k];
+      }
+      var FACE_UP = { 1: [1, 0, 0, 0, 1, 0, 0, 0, 1], 6: rotX(Math.PI), 2: rotY(-Math.PI / 2), 5: rotY(Math.PI / 2), 3: rotX(Math.PI / 2), 4: rotX(-Math.PI / 2) };
+      function faceOf(axis, sign) {
+        return axis === 2 ? sign > 0 ? 1 : 6 : axis === 0 ? sign > 0 ? 2 : 5 : sign > 0 ? 3 : 4;
+      }
+      var LIGHT = (() => {
+        const l = [-0.45, -0.55, 0.7], n = Math.hypot(...l);
+        return l.map((v) => v / n);
+      })();
       function startRoll(n, t) {
         st.t0 = t;
-        st.dice = Array.from({ length: n }, (_, i) => ({ value: roll(), spin: (Math.random() < 0.5 ? -1 : 1) * (5 + Math.random() * 6), delay: i * 0.08, face: roll() }));
+        st.dice = Array.from({ length: n }, (_, i) => {
+          const ax = [Math.random() - 0.5, Math.random() - 0.5, (Math.random() - 0.5) * 0.4], al = Math.hypot(...ax) || 1;
+          const value = roll();
+          return { value, axis: ax.map((v) => v / al), turns: (2.5 + Math.random() * 2) * Math.PI * 2, rest: mul(rotZ((Math.random() - 0.5) * 0.9), FACE_UP[value]), delay: i * 0.12, from: Math.random() < 0.5 ? -1 : 1, drift: (Math.random() - 0.5) * 0.5 };
+        });
       }
-      function drawDie(c, cx, cy, size, ang, value, col, pipCol) {
-        const half = size / 2, rad = size * 0.18, ca = Math.cos(-ang), sa = Math.sin(-ang);
-        const reach = half * 1.45 + 2;
-        for (let y = Math.floor(cy - reach); y <= cy + reach + 3; y++) for (let x = Math.floor(cx - reach); x <= cx + reach + 3; x++) {
-          const sx = x - cx - size * 0.08, sy = y - cy - size * 0.1, d = Math.hypot(sx, sy);
-          const k = Math.max(0, 1 - d / (half * 1.35)) * 0.55, o = c.get(x, y);
-          if (o && k > 0) c.set(x, y, o[0] * (1 - k), o[1] * (1 - k), o[2] * (1 - k));
-        }
+      function drawDie3D(c, cx, cy, h, M, col, pipCol) {
+        const reach = Math.ceil(h * 1.75) + 1;
         for (let y = Math.floor(cy - reach); y <= cy + reach; y++) for (let x = Math.floor(cx - reach); x <= cx + reach; x++) {
-          const dx = x - cx, dy = y - cy, lx = dx * ca - dy * sa, ly = dx * sa + dy * ca;
-          const qx = Math.abs(lx) - (half - rad), qy = Math.abs(ly) - (half - rad);
-          const sd = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - rad;
-          const cover = Math.max(0, Math.min(1, 0.5 - sd));
-          if (cover <= 0) continue;
-          const light = 0.82 + 0.25 * (-(lx + ly) / size) + (sd > -size * 0.08 ? -0.12 : 0.05);
-          let r = col[0] * light, g = col[1] * light, b = col[2] * light;
-          for (const [px, py] of PIPS[value]) {
-            const pd = Math.hypot(lx - px * size * 0.26, ly - py * size * 0.26), pr = size * 0.095;
-            const pc = Math.max(0, Math.min(1, pr + 0.5 - pd));
-            if (pc > 0) {
-              r = r * (1 - pc) + pipCol[0] * pc;
-              g = g * (1 - pc) + pipCol[1] * pc;
-              b = b * (1 - pc) + pipCol[2] * pc;
+          let ar = 0, ag = 0, ab = 0, cov = 0;
+          for (let sy = 0; sy < 2; sy++) for (let sx = 0; sx < 2; sx++) {
+            const wx = (x + 0.25 + sx * 0.5 - cx) / h, wy = (y + 0.25 + sy * 0.5 - cy) / h;
+            const ox = M[0] * wx + M[3] * wy + M[6] * 3, oy = M[1] * wx + M[4] * wy + M[7] * 3, oz = M[2] * wx + M[5] * wy + M[8] * 3;
+            const dx = -M[6], dy = -M[7], dz = -M[8];
+            let tn = -Infinity, tf = Infinity, axis = -1, sign = 0;
+            const o = [ox, oy, oz], d = [dx, dy, dz];
+            let miss = false;
+            for (let k2 = 0; k2 < 3; k2++) {
+              if (Math.abs(d[k2]) < 1e-9) {
+                if (Math.abs(o[k2]) > 1) {
+                  miss = true;
+                  break;
+                }
+                continue;
+              }
+              let t1 = (-1 - o[k2]) / d[k2], t2 = (1 - o[k2]) / d[k2];
+              let s1 = -1;
+              if (t1 > t2) {
+                const tmp = t1;
+                t1 = t2;
+                t2 = tmp;
+                s1 = 1;
+              }
+              if (t1 > tn) {
+                tn = t1;
+                axis = k2;
+                sign = s1;
+              }
+              if (t2 < tf) tf = t2;
             }
+            if (miss || tn > tf || axis < 0) continue;
+            const hp = [o[0] + d[0] * tn, o[1] + d[1] * tn, o[2] + d[2] * tn];
+            const u = hp[(axis + 1) % 3], v = hp[(axis + 2) % 3];
+            const nl = [0, 0, 0];
+            nl[axis] = sign;
+            const nw = [M[0] * nl[0] + M[1] * nl[1] + M[2] * nl[2], M[3] * nl[0] + M[4] * nl[1] + M[5] * nl[2], M[6] * nl[0] + M[7] * nl[1] + M[8] * nl[2]];
+            const lam = Math.max(0, nw[0] * LIGHT[0] + nw[1] * LIGHT[1] + nw[2] * LIGHT[2]);
+            const spec = Math.pow(Math.max(0, nw[2] * 0.6 + lam * 0.4), 18) * 0.35;
+            const edge = Math.min(1 - Math.abs(u), 1 - Math.abs(v));
+            const bevel = edge < 0.1 ? 0.75 + edge * 2.5 : 1;
+            let r = col[0], g = col[1], b = col[2];
+            for (const [px, py] of PIPS[faceOf(axis, sign)]) {
+              const pd = Math.hypot(u - px * 0.5, v - py * 0.5);
+              if (pd < 0.19) {
+                const k2 = Math.min(1, (0.19 - pd) / 0.05);
+                r += (pipCol[0] - r) * k2;
+                g += (pipCol[1] - g) * k2;
+                b += (pipCol[2] - b) * k2;
+              }
+            }
+            const sh = (0.3 + 0.8 * lam) * bevel;
+            ar += Math.min(1, r * sh + spec);
+            ag += Math.min(1, g * sh + spec);
+            ab += Math.min(1, b * sh + spec);
+            cov++;
           }
-          const o = c.get(x, y);
-          if (!o) continue;
-          c.set(x, y, o[0] * (1 - cover) + Math.min(1, r) * cover, o[1] * (1 - cover) + Math.min(1, g) * cover, o[2] * (1 - cover) + Math.min(1, b) * cover);
+          if (!cov) continue;
+          const o2 = c.get(x, y);
+          if (!o2) continue;
+          const k = cov / 4;
+          c.set(x, y, o2[0] * (1 - k) + ar / cov * k, o2[1] * (1 - k) + ag / cov * k, o2[2] * (1 - k) + ab / cov * k);
+        }
+      }
+      function drawShadow(c, cx, cy, rad, strength) {
+        const R = Math.ceil(rad * 1.6);
+        for (let y = Math.floor(cy - R); y <= cy + R; y++) for (let x = Math.floor(cx - R); x <= cx + R; x++) {
+          const d = Math.hypot(x - cx, y - cy) / rad, k = Math.max(0, 1 - d * d) * strength, o = c.get(x, y);
+          if (o && k > 0) c.set(x, y, o[0] * (1 - k), o[1] * (1 - k), o[2] * (1 - k));
         }
       }
       module.exports = defineCanvasEffect({
@@ -7915,23 +7995,22 @@ var PiEngine = (() => {
             c.set(x, y, 0.02 + n2, (0.16 + n2) * v + 0.02, (0.07 + n2) * v);
           }
           const totalH = n > 1 ? Math.max(5, Math.round(c.H * 0.16)) : 0;
-          const size = Math.min((c.W - 6) / (n * 1.35), (c.H - totalH - 6) * 0.62);
+          const size = Math.min((c.W - 6) / (n * 1.55), (c.H - totalH - 6) * 0.55);
           const elapsed = t - st.t0;
           let settled = true;
-          st.dice.forEach((d, i) => {
+          const ease = (p) => 1 - Math.pow(1 - p, 3);
+          const placed = st.dice.map((d, i) => {
             const e = Math.max(0, elapsed - d.delay), p = Math.min(1, e / ROLL_S);
             if (p < 1) settled = false;
-            const hop = Math.abs(Math.sin(p * Math.PI * 3.5)) * (1 - p) * size * 0.7;
-            const ang = d.spin * (1 - p) * (1 - p) * 0.6;
-            if (p < 0.85 && Math.floor(e * 14) !== d.lastFlick) {
-              d.lastFlick = Math.floor(e * 14);
-              d.face = roll();
-            }
-            const face = p < 0.85 ? d.face : d.value;
-            const slot = (i + 0.5) / n, cx = c.W * slot + (1 - p) * Math.sin(e * 7 + i) * size * 0.25;
-            const cy = (c.H - totalH) / 2 - hop;
-            drawDie(c, cx, cy, size * (1 + (1 - p) * 0.08), ang, face, col, pipCol);
+            const restX = c.W * (i + 0.5) / n, restY = (c.H - totalH) / 2;
+            const cx = restX + d.from * (1 - ease(p)) * c.W * 0.55;
+            const cy = restY + d.drift * (1 - ease(p)) * c.H * 0.5;
+            const hop = Math.abs(Math.sin(Math.sqrt(p) * Math.PI * 3)) * Math.pow(1 - p, 1.4);
+            const M = mul(d.rest, rotAxis(d.axis, d.turns * Math.pow(1 - p, 2.2)));
+            return { cx, cy, hop, M, h: size / 2 * (1 + hop * 0.3) };
           });
+          for (const q of placed) drawShadow(c, q.cx + q.hop * size * 0.35, q.cy + q.hop * size * 0.45, size * 0.62, 0.55 * (1 - q.hop * 0.5));
+          for (const q of placed) drawDie3D(c, q.cx, q.cy - q.hop * size * 0.15, q.h * 0.82, q.M, col, pipCol);
           if (n > 1 && settled) {
             const s = "TOTAL " + st.dice.reduce((a, d) => a + d.value, 0), y = c.H - totalH;
             if (totalH >= 9) stroke.drawText(c, s, Math.round((c.W - stroke.textWidth(s, totalH - 2)) / 2), y, totalH - 2, [0.95, 0.85, 0.4]);
@@ -15558,7 +15637,32 @@ var PiEngine = (() => {
         const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
         return t * t * (3 - 2 * t);
       };
-      var st = { blink: 0, nextBlink: 3, lunge: 0, nextLunge: 9, look: [0, 0], lookTo: [0, 0], nextLook: 1 };
+      var st = { blink: 0, nextBlink: 3, lunge: 0, nextLunge: 9, look: [0, 0], lookTo: [0, 0], nextLook: 1, cycle: -1, f: null };
+      var pick = (a) => a[Math.floor(Math.random() * a.length)];
+      var rnd = (a, b) => a + Math.random() * (b - a);
+      function newFace() {
+        return {
+          width: rnd(0.25, 0.34),
+          length: rnd(0.38, 0.46),
+          hollow: rnd(0.02, 0.08),
+          eyeGap: rnd(0.09, 0.13),
+          eyeY: rnd(-0.13, -0.07),
+          eyeW: rnd(0.07, 0.1),
+          eyeH: rnd(0.055, 0.085),
+          lopsided: rnd(-0.02, 0.02),
+          eyeCol: pick([[1.1, 0.12, 0.05], [1.1, 0.12, 0.05], [0.2, 1, 0.25], [0.9, 0.95, 1], [0.3, 0.55, 1.1], [1, 0.6, 0.05]]),
+          skin: pick([[0.82, 0.9, 0.88], [0.9, 0.88, 0.8], [0.7, 0.85, 0.95], [0.85, 0.8, 0.9]]),
+          tilt: rnd(-0.12, 0.12),
+          offX: rnd(-0.06, 0.06),
+          mouth: pick(["scream", "grin", "gape", "stitched"]),
+          mouthW: rnd(0.09, 0.15),
+          mouthY: rnd(0.19, 0.25),
+          teeth: Math.round(rnd(5, 9)),
+          toothLen: rnd(0.25, 0.45),
+          crooked: rnd(-0.04, 0.04),
+          veins: Math.random() < 0.6
+        };
+      }
       module.exports = defineCanvasEffect({
         render(c, { t, dt }) {
           if ((st.nextBlink -= dt) <= 0) {
@@ -15579,6 +15683,12 @@ var PiEngine = (() => {
           st.lunge = Math.max(0, st.lunge - dt * 1.4);
           const lunge = Math.sin(Math.min(1, st.lunge) * Math.PI) * (st.lunge > 0 ? 1 : 0);
           const depth = 0.5 - 0.5 * Math.cos(t / 12 * Math.PI * 2);
+          const cyc = Math.floor(t / 12);
+          if (cyc !== st.cycle || !st.f) {
+            st.cycle = cyc;
+            st.f = newFace();
+          }
+          const F = st.f;
           const emerge = sm(0, 0.35, depth);
           const scale = (0.45 + depth * 0.8) * (1 + lunge * 0.35), glitch = lunge > 0.5 ? (Math.random() - 0.5) * 0.06 : 0;
           const flicker = 0.85 + 0.15 * Math.sin(t * 23) * Math.sin(t * 7.3) + (Math.random() < 0.02 ? -0.4 : 0);
@@ -15586,34 +15696,39 @@ var PiEngine = (() => {
           const S = Math.min(c.W, c.H), ox = (c.W - S) / 2, oy = (c.H - S) / 2;
           const eyeOpen = st.blink > 0 ? Math.abs(st.blink - 0.09) / 0.09 : 1;
           for (let py = 0; py < c.H; py++) for (let px = 0; px < c.W; px++) {
-            let x = ((px - ox) / S - 0.5) / scale + glitch * (py % 3 === 0 ? 1 : 0), y = ((py - oy) / S - 0.45) / scale;
+            let x0 = ((px - ox) / S - 0.5 - F.offX) / scale + glitch * (py % 3 === 0 ? 1 : 0), y0 = ((py - oy) / S - 0.45) / scale;
             const sway = Math.sin(t * 0.7) * 0.012;
-            x -= sway;
+            x0 -= sway;
+            const ca = Math.cos(F.tilt), sa = Math.sin(F.tilt);
+            const x = x0 * ca - y0 * sa, y = x0 * sa + y0 * ca;
             const fog = noise(px * 0.08 + t * 0.4, py * 0.08 - t * 0.15) * noise(px * 0.03 - t * 0.1, py * 0.05);
-            let r = 0.02 + fog * 0.08, g = 0.03 + fog * 0.1, b = 0.04 + fog * 0.12;
-            const hx = x / (0.3 - 0.05 * sm(0.05, 0.25, y)), hy = (y + 0.02) / 0.42;
+            const wisp = Math.max(0, fog - 0.35) * 0.12;
+            let r = wisp * 0.6, g = wisp * 0.75, b = wisp;
+            const hx = x / (F.width - F.hollow * sm(0.05, 0.25, y)), hy = (y + 0.02) / F.length;
             const head = 1 - Math.hypot(hx, hy);
             if (head > -0.05) {
               const skin = sm(-0.05, 0.25, head);
               const shade = 0.55 + 0.45 * (0.5 - y) - 0.25 * Math.max(0, Math.abs(x) - 0.12) * 4;
               const tone = (0.62 + breathe * 0.08) * shade * flicker;
-              let fr = tone * 0.82, fg = tone * 0.9, fb = tone * 0.88;
+              let fr = tone * F.skin[0], fg = tone * F.skin[1], fb = tone * F.skin[2];
               const cheek = Math.exp(-(((Math.abs(x) - 0.17) / 0.06) ** 2) - ((y - 0.08) / 0.1) ** 2);
               fr *= 1 - cheek * 0.55;
               fg *= 1 - cheek * 0.55;
               fb *= 1 - cheek * 0.5;
               for (const sx of [-1, 1]) {
-                const ex = (x - sx * 0.11) / 0.085, ey = (y + 0.1) / 0.07;
-                const sock = Math.exp(-(ex * ex + ey * ey) * 1.3);
+                const eyY = F.eyeY + sx * F.lopsided;
+                const ex = (x - sx * F.eyeGap) / F.eyeW, ey = (y - eyY) / F.eyeH;
+                const sock = Math.min(1, Math.exp(-(ex * ex + ey * ey) * 0.7) * 1.15);
                 fr *= 1 - sock * 0.95;
                 fg *= 1 - sock * 0.95;
                 fb *= 1 - sock * 0.92;
-                const pxp = (x - sx * 0.11 - st.look[0]) / 0.028, pyp = (y + 0.1 - st.look[1]) / (0.028 * Math.max(0.05, eyeOpen));
-                const pupil = Math.exp(-(pxp * pxp + pyp * pyp)), halo = Math.exp(-(pxp * pxp + pyp * pyp) / 6) * 0.35;
+                const pxp = (x - sx * F.eyeGap - st.look[0]) / 0.028, pyp = (y - eyY - st.look[1]) / (0.028 * Math.max(0.05, eyeOpen));
+                const pupil = Math.exp(-(pxp * pxp + pyp * pyp)), halo = Math.exp(-(pxp * pxp + pyp * pyp) / 4) * 0.22;
                 const glow = (pupil + halo) * (0.75 + 0.25 * breathe) * eyeOpen;
-                fr += glow * 1.1;
-                fg += glow * 0.12 + pupil * 0.25 * eyeOpen;
-                fb += glow * 0.05;
+                const E = F.eyeCol, core = pupil * 0.3 * eyeOpen;
+                fr += glow * E[0] + core;
+                fg += glow * E[1] + core;
+                fb += glow * E[2] + core;
               }
               for (const sx of [-1, 1]) {
                 const nx = (x - sx * 0.022) / 0.014, ny = (y - 0.06) / 0.035;
@@ -15622,26 +15737,47 @@ var PiEngine = (() => {
                 fg *= 1 - n * 0.8;
                 fb *= 1 - n * 0.8;
               }
-              const open = 0.055 + breathe * 0.02 + lunge * 0.06;
-              const mx = x / 0.13, my = (y - 0.22) / open;
-              if (mx * mx + my * my < 1) {
-                const inside = 1 - (mx * mx + my * my);
-                let mr = 0.04 * inside, mg = 0, mb = 0.01;
-                const tooth = Math.abs((x / 0.026 % 1 + 1) % 1 - 0.5) * 2;
-                const fromTop = (y - (0.22 - open * Math.sqrt(Math.max(0, 1 - mx * mx)))) / open;
-                const fromBot = (0.22 + open * Math.sqrt(Math.max(0, 1 - mx * mx)) - y) / open;
-                if (fromTop < 0.35 * (1 - tooth) || fromBot < 0.3 * (1 - tooth)) {
-                  const tt = 0.55 * flicker;
-                  mr = tt * 0.9;
-                  mg = tt * 0.85;
-                  mb = tt * 0.7;
+              const open = (F.mouth === "scream" ? 0.075 : F.mouth === "grin" ? 0.035 : F.mouth === "stitched" ? 0.012 : 0.05) + breathe * 0.015 + lunge * 0.06;
+              const mw = F.mouth === "scream" ? F.mouthW * 0.7 : F.mouth === "grin" ? F.mouthW * 1.35 : F.mouthW;
+              const curve = F.mouth === "grin" ? -1.6 * x * x : 0;
+              const mcy = F.mouthY + curve + F.crooked * x / mw;
+              const mx = x / mw, my = (y - mcy) / open, md = mx * mx + my * my;
+              if (md < 1.35) {
+                const rim = sm(1.35, 1, md) * 0.6;
+                fr *= 1 - rim;
+                fg *= 1 - rim;
+                fb *= 1 - rim;
+              }
+              if (md < 1) {
+                const halfH = open * Math.sqrt(Math.max(0, 1 - mx * mx));
+                const depthIn = 1 - md;
+                let mr = 0.05 * (1 - depthIn), mg = 0, mb = 8e-3;
+                if (F.mouth === "stitched") {
+                  const k = (mx * 0.5 + 0.5) * F.teeth % 1;
+                  if (k < 0.3) {
+                    mr = 0.5 * flicker;
+                    mg = 0.45 * flicker;
+                    mb = 0.38 * flicker;
+                  }
+                } else {
+                  const k = (mx * 0.5 + 0.5) * F.teeth, ti = Math.floor(k), u = k - ti;
+                  const shape = 1 - Math.abs(u - 0.5) * 2;
+                  const gap = u < 0.12 || u > 0.88;
+                  const len = F.toothLen * (0.75 + 0.25 * hash(ti, st.cycle)) * shape;
+                  const fromTop = (y - (mcy - halfH)) / (2 * halfH), fromBot = (mcy + halfH - y) / (2 * halfH);
+                  if (!gap && (fromTop < len || fromBot < len * 0.7)) {
+                    const tt = (0.62 - 0.25 * Math.min(fromTop, fromBot) / Math.max(0.01, len)) * flicker;
+                    mr = tt * 0.92;
+                    mg = tt * 0.86;
+                    mb = tt * 0.68;
+                  }
                 }
                 fr = mr;
                 fg = mg;
                 fb = mb;
               }
               const vein = Math.abs(Math.sin(x * 40 + Math.sin(y * 30) * 2) * Math.sin(y * 25 + x * 10));
-              if (y < -0.18 && vein > 0.97) {
+              if (F.veins && y < -0.18 && vein > 0.97) {
                 fr *= 0.6;
                 fg *= 0.55;
                 fb *= 0.6;
@@ -15651,10 +15787,10 @@ var PiEngine = (() => {
               g = g * (1 - vis) + fg * vis;
               b = b * (1 - vis) + fb * vis;
             }
-            const mist = noise(px * 0.05 - t * 0.3, py * 0.06 + t * 0.1) * (sm(0.3, 1, py / c.H) * 0.25 + (1 - depth) * 0.25);
-            r += mist * 0.5;
-            g += mist * 0.6;
-            b += mist * 0.7;
+            const mist = noise(px * 0.05 - t * 0.3, py * 0.06 + t * 0.1) * (sm(0.5, 1, py / c.H) * 0.08 + (1 - depth) * 0.12);
+            r += mist * 0.4;
+            g += mist * 0.5;
+            b += mist * 0.6;
             if (lunge > 0.3 && Math.random() < 0.08 * lunge) {
               const n = Math.random() * 0.6;
               r += n;
@@ -25687,6 +25823,110 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/alarmsWall.js
+  var require_alarmsWall = __commonJS({
+    "src/effects/alarmsWall.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { drawString, textWidth, FONT_3x5, FONT_5x7, wallPlot } = require_text();
+      var mix = (a, b, t) => a + (b - a) * t;
+      var mix3 = (a, b, t) => [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)];
+      var smooth = (t) => t * t * (3 - 2 * t);
+      var NIGHT_TOP = [0.01, 0.01, 0.05];
+      var DAY_TOP = [0.16, 0.36, 0.8];
+      var NIGHT_LOW = [0.05, 0.02, 0.08];
+      var DAWN_LOW = [0.9, 0.3, 0.08];
+      var DAY_LOW = [1, 0.78, 0.5];
+      function clear(core) {
+        if (core.wallBuf) core.wallBuf.fill(0);
+      }
+      function sunrise(core, p, startPct = 5, giant = false) {
+        const W = core.wallW, H = core.wallH;
+        if (!W || !H) return;
+        p = Math.max(0, Math.min(1, p));
+        const lowCol = p < 0.5 ? mix3(NIGHT_LOW, DAWN_LOW, smooth(p * 2)) : mix3(DAWN_LOW, DAY_LOW, smooth(p * 2 - 1));
+        const topCol = mix3(NIGHT_TOP, DAY_TOP, smooth(Math.max(0, p * 1.3 - 0.3)));
+        const R = Math.min(W, H) * (giant ? 0.42 : 0.15) * (1 + 0.15 * p);
+        const cx = W / 2, cy = H + R - p * (H * 0.55 + R);
+        const sunCol = mix3([1, 0.35, 0.05], [1, 0.95, 0.75], smooth(p));
+        const starFade = Math.max(0, 1 - p * 2.5);
+        const floor = 0;
+        for (let y = 0; y < H; y++) {
+          const v = y / (H - 1 || 1);
+          const sky = mix3(topCol, lowCol, Math.pow(v, 1.6 - p * 0.6));
+          for (let x = 0; x < W; x++) {
+            const d = Math.hypot(x - cx, y - cy);
+            let r = sky[0], g = sky[1], b = sky[2];
+            const glow = Math.max(0, 1 - d / (R * 3.2));
+            const gl = glow * glow * (0.55 + 0.45 * p);
+            r += sunCol[0] * gl;
+            g += sunCol[1] * gl * 0.8;
+            b += sunCol[2] * gl * 0.5;
+            if (d < R) {
+              const e = Math.min(1, (R - d) / 1.5);
+              r = mix(r, sunCol[0], e);
+              g = mix(g, sunCol[1], e);
+              b = mix(b, sunCol[2], e);
+            }
+            if (starFade > 0 && v < 0.6) {
+              const h = (x * 73856093 ^ y * 19349663) >>> 0;
+              if (h % 97 === 0) {
+                const tw = starFade * (0.5 + 0.5 * Math.sin(Date.now() / 600 + h));
+                r += tw * 0.6;
+                g += tw * 0.6;
+                b += tw * 0.7;
+              }
+            }
+            core.setWallPixel(x, y, Math.min(1, r + floor), Math.min(1, g + floor), Math.min(1, b + floor));
+          }
+        }
+      }
+      function countdown(core, str) {
+        const W = core.wallW, H = core.wallH;
+        if (!W || !H) return;
+        const x = Math.round((W - textWidth(FONT_3x5, str)) / 2), y = H - FONT_3x5.h - 2;
+        drawString(FONT_3x5, str, x + 1, y + 1, wallPlot(core, 0, 0, 0));
+        drawString(FONT_3x5, str, x, y, wallPlot(core, 0.85, 0.85, 0.9));
+      }
+      function wrap(font, text, maxW, scale) {
+        const words = text.split(/\s+/).filter(Boolean);
+        const lines = [];
+        let cur = "";
+        for (const w of words) {
+          const t = cur ? cur + " " + w : w;
+          if (textWidth(font, t, scale) <= maxW || !cur) cur = t;
+          else {
+            lines.push(cur);
+            cur = w;
+          }
+        }
+        if (cur) lines.push(cur);
+        return lines;
+      }
+      function message(core, text, level = 1) {
+        const W = core.wallW, H = core.wallH;
+        if (!W || !H || !text) return;
+        const clean = String(text).normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^\w\s!.,?:'-]/g, "").trim();
+        if (!clean) return;
+        let scale = 2, lines = wrap(FONT_5x7, clean, W - 4, 2);
+        if (lines.length * 8 * 2 > H - 10 || lines.some((l) => textWidth(FONT_5x7, l, 2) > W - 2)) {
+          scale = 1;
+          lines = wrap(FONT_5x7, clean, W - 2, 1);
+        }
+        const lineH = (FONT_5x7.h + 2) * scale;
+        let y = Math.round((H - lines.length * lineH) / 2);
+        const c = Math.max(0, Math.min(1, level));
+        for (const line of lines) {
+          const x = Math.round((W - textWidth(FONT_5x7, line, scale)) / 2);
+          drawString(FONT_5x7, line, x, y, wallPlot(core, c, c * 0.55, c * 0.12), { scale, outline: wallPlot(core, 0.04, 0.01, 0) });
+          y += lineH;
+        }
+      }
+      module.exports = { sunrise, countdown, message, clear, wrap };
+    }
+  });
+
   // src/effects/alarms.js
   var require_alarms = __commonJS({
     "src/effects/alarms.js"(exports, module) {
@@ -25695,6 +25935,7 @@ var PiEngine = (() => {
       var scenes = require_scenes();
       var { runOverlays } = require_overlays();
       var { blitGlyph } = require_text();
+      var wallFx = require_alarmsWall();
       var SIDE = [2, 0, 3, 1];
       var AL_CHECK_INTERVAL = 2;
       var BIG_GLYPHS = {
@@ -26084,7 +26325,7 @@ var PiEngine = (() => {
           if (al.prealarm?.windDown) {
             const wdMs = (al.prealarm.wdMinutes || 15) * 6e4;
             if (dayMs >= alMs && dayMs < alMs + wdMs) {
-              state.activeAlarm = { al, phase: "pre", startMs: now.getTime() - (dayMs - alMs), preMs: wdMs, dismissed: false };
+              state.activeAlarm = { al, phase: "pre", startMs: now.getTime() - (dayMs - alMs), preMs: wdMs, dismissed: false, prevBright: state.brightness };
               break;
             }
             continue;
@@ -26153,7 +26394,7 @@ var PiEngine = (() => {
         if (!a || a.dismissed) return false;
         return a.phase === "pre" || a.phase === "main";
       }
-      function renderMainMessage(core, state) {
+      function renderMainMessage(core, state, wall = false) {
         const a = state.activeAlarm;
         if (!a || a.phase !== "main" || a.dismissed) return;
         const mainElapsed = (Date.now() - a.startMs) / 1e3;
@@ -26163,17 +26404,24 @@ var PiEngine = (() => {
           state.activeAlarm = null;
           return;
         }
+        const pulseW = 0.7 + 0.3 * Math.sin(mainElapsed * 4);
+        if (wall) {
+          if (a.al.prealarm?.giantSun) wallFx.sunrise(core, 1, 100, true);
+          if (a.al.message) wallFx.message(core, a.al.message, pulseW);
+          return;
+        }
         if (a.al.prealarm?.giantSun) renderGiantSun(core, 1, 100);
         const pulse = 0.7 + 0.3 * Math.sin(mainElapsed * 4);
         drawBigMessage(core, a.al.message || "Good Morning", pulse, { shadow: true, mirrored: true });
       }
-      function applyDonePhase(core, state) {
+      function applyDonePhase(core, state, wall = false) {
         const a = state.activeAlarm;
         if (!a || a.phase !== "done") return;
-        for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
+        if (wall) wallFx.clear(core);
+        else for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
         state.brightness = 0;
       }
-      function renderPrePhase(core, dt, state, EFFECTS) {
+      function renderPrePhase(core, dt, state, EFFECTS, wall = false) {
         const a = state.activeAlarm;
         if (!a || a.phase !== "pre" || a.dismissed) return;
         const elapsed = Date.now() - a.startMs;
@@ -26184,9 +26432,14 @@ var PiEngine = (() => {
         state.brightness = windDown ? Math.max(0, 1 - Math.pow(rawProgress, 1.5)) : Math.max(startBright / 100, Math.pow(progress, 1.5));
         if (rawProgress >= 1) {
           if (windDown) {
-            for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
-            state.brightness = 0;
-            a.phase = "done";
+            if (wall) wallFx.clear(core);
+            else for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
+            state.blank = true;
+            state.brightness = Number.isFinite(a.prevBright) && a.prevBright > 0 ? a.prevBright : 1;
+            state.activeAlarm = null;
+            state.appliedChanges = scenes.changedFields(state);
+            if (a.al.repeat === "once") a.al.enabled = false;
+            if (state.onAlarmsChanged) state.onAlarmsChanged();
           } else {
             a.phase = "main";
             a.justTriggered = true;
@@ -26198,11 +26451,12 @@ var PiEngine = (() => {
         if (windDown && a.al.prealarm?.wdUseEffect) {
           const wdEf = a.al.prealarm.wdEffectKey || state.effect;
           if (EFFECTS[wdEf]) {
-            for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
+            if (wall) wallFx.clear(core);
+            else for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
             EFFECTS[wdEf](core, dt);
           }
           const wdOvKeys = a.al.prealarm.wdOverlayKeys || [];
-          if (wdOvKeys.length && state.overlays) {
+          if (!wall && wdOvKeys.length && state.overlays) {
             const save = {};
             for (const k of wdOvKeys) if (state.overlays[k]) {
               save[k] = state.overlays[k].on;
@@ -26211,6 +26465,8 @@ var PiEngine = (() => {
             runOverlays(core, dt, state.overlays);
             for (const k of Object.keys(save)) state.overlays[k].on = save[k];
           }
+        } else if (wall) {
+          wallFx.sunrise(core, progress, startBright, !!a.al.prealarm?.giantSun);
         } else if (a.al.prealarm?.giantSun) {
           renderGiantSun(core, progress, startBright);
         } else {
@@ -26219,6 +26475,11 @@ var PiEngine = (() => {
         const remaining = Math.max(0, Math.ceil((a.preMs - elapsed) / 1e3));
         const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
         const ss = String(remaining % 60).padStart(2, "0");
+        if (wall) {
+          if (remaining > 0 && !windDown) wallFx.countdown(core, mm + ":" + ss);
+          if (windDown && a.al.message) wallFx.message(core, a.al.message, 1);
+          return;
+        }
         if (remaining > 0) renderCountdown(core, mm + ":" + ss, windDown ? [] : void 0);
         if (windDown && a.al.message) {
           drawBigMessage(core, a.al.message, 1, { shadow: false, mirrored: false });
@@ -26703,12 +26964,12 @@ var PiEngine = (() => {
           if (!state.effectStatus) state.effectStatus = {};
           state.effectStatus[state.effect] = activeFn.getStatus();
         }
-        alarms.tickCheck(state, dt, EFFECTS);
         const cubeMode = config.mode !== "wall";
+        alarms.tickCheck(state, dt, cubeMode ? EFFECTS : WALL_EFFECTS);
         if (typeof radio.keepAlive === "function") radio.keepAlive(state.effectOptions && state.effectOptions.radio);
         if (!state.blank) {
           if (cubeMode) alarms.renderMainMessage(core, state);
-          const alarmBlocking = cubeMode && alarms.isBlockingNormalEffect(state);
+          const alarmBlocking = cubeMode ? alarms.isBlockingNormalEffect(state) : !!(state.activeAlarm && !state.activeAlarm.dismissed && state.activeAlarm.phase === "pre");
           const fn = config.mode === "wall" ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
           const buf = cubeMode ? core.colBuf : core.wallBuf;
           core.audio = updateFeatures(musicFeatures, radio.audio && radio.audio.spec, dt);
@@ -26726,6 +26987,10 @@ var PiEngine = (() => {
         if (cubeMode) {
           alarms.applyDonePhase(core, state);
           alarms.renderPrePhase(core, dt, state, EFFECTS);
+        } else {
+          if (!state.blank) alarms.renderMainMessage(core, state, true);
+          alarms.applyDonePhase(core, state, true);
+          alarms.renderPrePhase(core, dt, state, WALL_EFFECTS, true);
         }
         renderNotice(core, state, config.mode, dt);
       }

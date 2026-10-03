@@ -664,8 +664,9 @@ const COMMANDS = {
     const duration = Number(msg.duration) > 0 ? Number(msg.duration) : 0;
     this.state.yt = { ...(this.state.yt || {}), playing: { id, title, duration, loading: true }, error: '' };
     this._broadcast(this._stateMsg());
-    youtube.resolve(id).then((url) => {
-      this._ytStreamUrl = url;
+    youtube.resolveStreams(id).then((st) => {
+      this._ytStreamUrl = st.video;
+      this._ytAudioUrl = st.audio;
       COMMANDS._ytStart.call(this, ws, title, 0);
       this.state.yt = { ...this.state.yt, playing: { id, title, duration, start: 0, startedAt: Date.now(), loading: false } };
     }).catch((e) => { this.state.yt = { ...this.state.yt, playing: null, error: e.message }; })
@@ -692,11 +693,13 @@ const COMMANDS = {
   // Video on the panels plus the same stream as a radio station, so the sound
   // plays on the Pi's speaker and through "Play in this browser".
   _ytStart(ws, title, seconds) {
-    const url = this._ytStreamUrl + '#mdss=' + Math.round(seconds);
+    const at = '#mdss=' + Math.round(seconds);
+    const url = this._ytStreamUrl + at;
+    const audioUrl = (this._ytAudioUrl || this._ytStreamUrl) + at;
     COMMANDS.setEffectOption.call(this, ws, { effect: 'video', key: 'source', value: 'url' });
     COMMANDS.setEffectOption.call(this, ws, { effect: 'video', key: 'url', value: url });
     if (this.state.effect !== 'video') COMMANDS.setEffect.call(this, ws, { effect: 'video' });
-    COMMANDS.radioPlay.call(this, ws, { station: { name: title || 'YouTube', genre: 'YouTube', url } });
+    COMMANDS.radioPlay.call(this, ws, { station: { name: title || 'YouTube', genre: 'YouTube', url: audioUrl } });
   },
 
   // My Photos: {name} removes one uploaded photo.

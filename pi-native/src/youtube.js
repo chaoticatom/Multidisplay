@@ -51,20 +51,23 @@ async function search(query, spawn = realSpawn) {
   }));
 }
 
-async function resolve(id, spawn = realSpawn) {
+// {video, audio} stream URLs. Prefers one small file with both; when YouTube
+// only offers separate streams (common now), the video-only stream used to
+// play silently - so ask for best video + best audio and use both.
+async function resolveStreams(id, spawn = realSpawn) {
   if (!/^[\w-]{6,20}$/.test(String(id || ''))) throw new Error('bad video id');
   // A small single-file stream is plenty for LED panels and easy on the Pi.
   // YouTube often blocks the default web client ("The page needs to be
   // reloaded", "Sign in to confirm..."), so on failure retry as the TV /
   // iOS / Android clients before giving up.
-  const base = ['-f', 'best[height<=360][vcodec!=none][acodec!=none]/best[height<=480]/best', '-g', '--no-warnings'];
+  const base = ['-f', 'best[height<=360][vcodec!=none][acodec!=none]/bv*[height<=480]+ba/best', '-g', '--no-warnings'];
   const attempts = [[], ['--extractor-args', 'youtube:player_client=tv,ios'], ['--extractor-args', 'youtube:player_client=android,web_safari']];
   let lastErr = null;
   for (const extra of attempts) {
     try {
       const out = await run([...cookieArgs(), ...base, ...extra, `https://www.youtube.com/watch?v=${id}`], spawn, 40000);
-      const url = out.trim().split('\n')[0];
-      if (/^https?:\/\//.test(url)) return url;
+      const urls = out.trim().split('\n').map((l) => l.trim()).filter((l) => /^https?:\/\//.test(l));
+      if (urls.length) return { video: urls[0], audio: urls[1] || urls[0] };
       lastErr = new Error('no playable stream found');
     } catch (e) {
       if (/not installed/.test(e.message)) throw e;
@@ -73,6 +76,8 @@ async function resolve(id, spawn = realSpawn) {
   }
   throw new Error(`${lastErr.message.replace(/^\[youtube\]\s*[\w-]+:\s*/, '')} - update yt-dlp on the Pi: sudo pip3 install -U yt-dlp --break-system-packages`);
 }
+
+async function resolve(id, spawn = realSpawn) { return (await resolveStreams(id, spawn)).video; }
 
 // A start offset rides on the stream URL as a '#mdss=SECONDS' suffix, so a
 // seek changes the URL and both the video and audio pipelines relaunch on
@@ -88,4 +93,4 @@ function inputOptions(url) {
   return { url: plain, opts };
 }
 
-module.exports = { inputOptions, signedIn, saveCookies, signOut, COOKIE_FILE, search, resolve };
+module.exports = { resolveStreams, inputOptions, signedIn, saveCookies, signOut, COOKIE_FILE, search, resolve };

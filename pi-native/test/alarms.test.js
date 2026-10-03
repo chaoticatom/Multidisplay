@@ -187,7 +187,7 @@ test('renderPrePhase (giant sun): 100+ ticks, no NaN/throw', () => {
   }
 });
 
-test('renderPrePhase (wind-down, plain and wdUseEffect): 100+ ticks, no NaN/throw, ends in phase "done"', () => {
+test('renderPrePhase (wind-down, plain and wdUseEffect): 100+ ticks, no NaN/throw, ends with the display off', () => {
   const core = new CubeCore(16);
   const al = baseAlarm({ prealarm: { windDown: true, wdMinutes: 10, wdUseEffect: true, wdEffectKey: 'wave', wdOverlayKeys: ['stars'] } });
   const state = freshState({ alarms: [al] });
@@ -199,11 +199,11 @@ test('renderPrePhase (wind-down, plain and wdUseEffect): 100+ ticks, no NaN/thro
     alarms.renderPrePhase(core, 1 / 30, state, EFFECTS);
     assert.ok(!hasNaN(core.colBuf), `NaN in colBuf at tick ${i}`);
   }
-  // Force completion and confirm the "done" transition blanks the frame.
+  // Force completion: the display switches off and the timer slot frees up.
   state.activeAlarm.startMs = Date.now() - preMs - 1000;
   alarms.renderPrePhase(core, 1 / 30, state, EFFECTS);
-  assert.strictEqual(state.activeAlarm.phase, 'done');
-  assert.strictEqual(state.brightness, 0);
+  assert.strictEqual(state.activeAlarm, null);
+  assert.strictEqual(state.blank, true);
 });
 
 test('renderGiantSun/renderAlarmSunrise: full 0..1 progress sweep directly, no NaN/throw', () => {

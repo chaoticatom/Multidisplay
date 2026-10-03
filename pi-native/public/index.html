@@ -16,7 +16,7 @@
   body { background: #000; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; color: #eee; }
 
   #sidebar {
-    width: 300px; min-width: 300px; height: 100vh; height: 100dvh; align-self: stretch;
+    width: 360px; min-width: 360px; height: 100vh; height: 100dvh; align-self: stretch;
     background: #0a0a14;
     border-right: 1px solid rgba(80,120,255,0.2);
     display: flex; flex-direction: column; z-index: 10;
@@ -1009,6 +1009,15 @@ body.cx-preview-off #c, body.cx-preview-off #panel2d-canvas, body.cx-preview-off
 .tm-danger { background: rgba(255,90,90,.12); color: #ff9a9a; box-shadow: 0 0 0 1px rgba(255,90,90,.3); }
 .tm-danger[hidden] { display: none; }
 #yt-seek[hidden] { display: none !important; }
+#yt-seek { margin: 10px 0; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.04); box-shadow: 0 0 0 1px rgba(255,255,255,.08); }
+#yt-seek-bar, #yt-volume { width: 100%; margin: 0; }
+.yt-seek-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0 12px; }
+.yt-skip { flex: 0 0 auto; padding: 8px 14px; border: none; border-radius: 999px; background: rgba(255,255,255,.08); box-shadow: 0 0 0 1px rgba(255,255,255,.12); color: #eef2ff; font-size: 13px; font-weight: 600; cursor: pointer; }
+#yt-seek-time { font-size: 15px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+.yt-vol-row { display: flex; align-items: center; gap: 10px; }
+.yt-vol-row b { min-width: 40px; text-align: right; font-size: 13px; color: #eef2ff; }
+.yt-sound { margin-top: 8px; font-size: 12px; color: rgba(238,242,255,.6); }
+#yt-status { font-size: 13px; color: #eef2ff; line-height: 1.4; }
 .yt-results { display: grid; gap: 6px; margin: 6px 0; max-height: 320px; overflow-y: auto; }
 .yt-item { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.04); box-shadow: 0 0 0 1px rgba(255,255,255,.07); cursor: pointer; }
 .yt-item:hover { background: rgba(255,255,255,.08); }
@@ -1536,11 +1545,19 @@ body.cx-preview-off #c, body.cx-preview-off #panel2d-canvas, body.cx-preview-off
       <div class="ov-row-label">▶ YouTube</div>
       <div style="display:flex;gap:6px;"><input id="yt-query" class="ui-input" type="search" placeholder="Search YouTube…" aria-label="Search YouTube" style="flex:1;min-width:0;"><button id="yt-search-btn" class="ui-btn-small" style="flex:0 0 auto;">Search</button><button id="yt-favs-btn" class="ui-btn-small" style="flex:0 0 auto;" title="Show favourites">★</button></div>
       <div class="ui-note" id="yt-status"></div>
-      <div id="yt-seek" hidden style="display:flex;gap:6px;align-items:center;margin:6px 0;">
-        <button class="ui-btn-small" data-ytskip="-10" style="flex:0 0 auto;" aria-label="Back 10 seconds">⏪ 10</button>
-        <input id="yt-seek-bar" type="range" min="0" max="600" step="1" value="0" style="flex:1;min-width:0;" aria-label="Video position">
-        <button class="ui-btn-small" data-ytskip="10" style="flex:0 0 auto;" aria-label="Forward 10 seconds">10 ⏩</button>
-        <span id="yt-seek-time" style="font-size:11.5px;opacity:.7;min-width:72px;text-align:right;"></span>
+      <div id="yt-seek" hidden>
+        <input id="yt-seek-bar" type="range" min="0" max="600" step="1" value="0" aria-label="Video position">
+        <div class="yt-seek-row">
+          <button type="button" class="yt-skip" data-ytskip="-10" aria-label="Back 10 seconds">⏪ 10 s</button>
+          <span id="yt-seek-time"></span>
+          <button type="button" class="yt-skip" data-ytskip="10" aria-label="Forward 10 seconds">10 s ⏩</button>
+        </div>
+        <div class="yt-vol-row">
+          <span aria-hidden="true">🔊</span>
+          <input id="yt-volume" type="range" min="0" max="1" step="0.05" value="0.8" aria-label="Volume">
+          <b id="yt-volume-val">80%</b>
+        </div>
+        <div id="yt-sound" class="yt-sound"></div>
       </div>
       <div id="yt-results" class="yt-results"></div>
       <details class="ui-note" style="margin-top:6px;"><summary>YouTube account (Premium) · <span id="yt-account">Not signed in</span></summary>
@@ -2300,6 +2317,6 @@ body.cx-preview-off #c, body.cx-preview-off #panel2d-canvas, body.cx-preview-off
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.220"></script>
+<script src="app.js?v=0.6.221"></script>
 </body>
 </html>

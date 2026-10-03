@@ -43,6 +43,7 @@
 const scenes = require('../scenes');
 const { runOverlays } = require('./overlays');
 const { blitGlyph } = require('./text');
+const wallFx = require('./alarmsWall');
 
 const SIDE = [2, 0, 3, 1]; // east, south, west, north - panoramic side-face order, matches ui.js
 const AL_CHECK_INTERVAL = 2; // seconds, matches the browser's `if(alarmT>2)`
@@ -412,7 +413,7 @@ function alarmCheck(state, now) {
     if (al.prealarm?.windDown) {
       const wdMs = (al.prealarm.wdMinutes || 15) * 60000;
       if (dayMs >= alMs && dayMs < alMs + wdMs) {
-        state.activeAlarm = { al, phase: 'pre', startMs: now.getTime() - (dayMs - alMs), preMs: wdMs, dismissed: false };
+        state.activeAlarm = { al, phase: 'pre', startMs: now.getTime() - (dayMs - alMs), preMs: wdMs, dismissed: false, prevBright: state.brightness };
         break;
       }
       continue;
@@ -505,7 +506,7 @@ function isBlockingNormalEffect(state) {
 
 // Step 1 in the per-tick order (see module comment): main-phase message
 // render + auto-dismiss. Called BEFORE the normal effect/overlay pipeline.
-function renderMainMessage(core, state) {
+function renderMainMessage(core, state, wall = false) {
   const a = state.activeAlarm;
   if (!a || a.phase !== 'main' || a.dismissed) return;
   const mainElapsed = (Date.now() - a.startMs) / 1000;
@@ -513,6 +514,14 @@ function renderMainMessage(core, state) {
   if (mainElapsed > durationS) {
     a.dismissed = true;
     state.activeAlarm = null;
+    return;
+  }
+  const pulseW = 0.7 + 0.3 * Math.sin(mainElapsed * 4);
+  if (wall) {
+    // Flat panel: the effect keeps running underneath (see tick.js); a
+    // giant-sun wake-up keeps the full sun, and the message sits on top.
+    if (a.al.prealarm?.giantSun) wallFx.sunrise(core, 1, 100, true);
+    if (a.al.message) wallFx.message(core, a.al.message, pulseW);
     return;
   }
   if (a.al.prealarm?.giantSun) renderGiantSun(core, 1.0, 100);
@@ -527,17 +536,18 @@ function renderMainMessage(core, state) {
 
 // Step 4: forces a blank frame + zero brightness once a wind-down alarm's
 // countdown has fully elapsed (phase 'done'). Called AFTER runOverlays().
-function applyDonePhase(core, state) {
+function applyDonePhase(core, state, wall = false) {
   const a = state.activeAlarm;
   if (!a || a.phase !== 'done') return;
-  for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
+  if (wall) wallFx.clear(core);
+  else for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
   state.brightness = 0;
 }
 
 // Step 5: pre-alarm/wind-down ramp + sunrise rendering. Called LAST -
 // overwrites whatever the normal-effect/overlay pipeline just produced,
 // matching the browser exactly (see module comment).
-function renderPrePhase(core, dt, state, EFFECTS) {
+function renderPrePhase(core, dt, state, EFFECTS, wall = false) {
   const a = state.activeAlarm;
   if (!a || a.phase !== 'pre' || a.dismissed) return;
   const elapsed = Date.now() - a.startMs;
@@ -550,9 +560,18 @@ function renderPrePhase(core, dt, state, EFFECTS) {
 
   if (rawProgress >= 1) {
     if (windDown) {
-      for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
-      state.brightness = 0;
-      a.phase = 'done';
+      if (wall) wallFx.clear(core);
+      else for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
+      // Finished: leave the display switched off (like ⏻, music keeps
+      // playing) with the old brightness back, and free the timer slot -
+      // a 'done' timer used to block every later timer, including the
+      // next morning's wake-up.
+      state.blank = true;
+      state.brightness = Number.isFinite(a.prevBright) && a.prevBright > 0 ? a.prevBright : 1;
+      state.activeAlarm = null;
+      state.appliedChanges = scenes.changedFields(state);
+      if (a.al.repeat === 'once') a.al.enabled = false;
+      if (state.onAlarmsChanged) state.onAlarmsChanged();
     } else {
       a.phase = 'main'; a.justTriggered = true;
       alarmFire(state, a.al, new Date());
@@ -564,16 +583,19 @@ function renderPrePhase(core, dt, state, EFFECTS) {
   if (windDown && a.al.prealarm?.wdUseEffect) {
     const wdEf = a.al.prealarm.wdEffectKey || state.effect;
     if (EFFECTS[wdEf]) {
-      for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
+      if (wall) wallFx.clear(core);
+      else for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
       EFFECTS[wdEf](core, dt);
     }
     const wdOvKeys = a.al.prealarm.wdOverlayKeys || [];
-    if (wdOvKeys.length && state.overlays) {
+    if (!wall && wdOvKeys.length && state.overlays) {
       const save = {};
       for (const k of wdOvKeys) if (state.overlays[k]) { save[k] = state.overlays[k].on; state.overlays[k].on = true; }
       runOverlays(core, dt, state.overlays);
       for (const k of Object.keys(save)) state.overlays[k].on = save[k];
     }
+  } else if (wall) {
+    wallFx.sunrise(core, progress, startBright, !!a.al.prealarm?.giantSun);
   } else if (a.al.prealarm?.giantSun) {
     renderGiantSun(core, progress, startBright);
   } else {
@@ -585,6 +607,11 @@ function renderPrePhase(core, dt, state, EFFECTS) {
   const remaining = Math.max(0, Math.ceil((a.preMs - elapsed) / 1000));
   const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
   const ss = String(remaining % 60).padStart(2, '0');
+  if (wall) {
+    if (remaining > 0 && !windDown) wallFx.countdown(core, mm + ':' + ss);
+    if (windDown && a.al.message) wallFx.message(core, a.al.message, 1);
+    return;
+  }
   if (remaining > 0) renderCountdown(core, mm + ':' + ss, windDown ? [] : undefined);
 
   if (windDown && a.al.message) {
