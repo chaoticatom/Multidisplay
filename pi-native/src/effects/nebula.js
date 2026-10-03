@@ -22,6 +22,7 @@ const { defineFieldEffect } = require('./surface');
 const stars = { cube: null, wall: null };
 
 module.exports = defineFieldEffect({
+  smooth: true, // slowly varying cloud; stars are added per pixel in detail()
   speed: 0.28,
   frame(ctx) {
     const key = ctx.flat ? 'wall' : 'cube';
@@ -32,7 +33,7 @@ module.exports = defineFieldEffect({
     ctx.stars = stars[key];
   },
   pixel(p, ctx) {
-    const { t, dt } = ctx;
+    const { t } = ctx;
     // A flat wall has no depth: z = 0 (its terms keep moving in time only).
     const x = p.x, y = p.y, z = p.flat ? 0 : p.z;
     let d = 0;
@@ -45,10 +46,15 @@ module.exports = defineFieldEffect({
     const hue = lerp(0.60, 0.04, sm(0.18, 0.88, d)) + Math.sin(t * 0.08) * 0.05;
     const [r, g, b] = hsl(hue, 0.85 + d * 0.15, bright);
     const coreBoost = Math.max(0, d - 0.75) * 3.5;
+    return [r + coreBoost * 0.4, g + coreBoost * 0.3, b + coreBoost * 0.2];
+  },
+  // Twinkling stars, per pixel on top of the (blended) cloud colour.
+  detail(p, ctx, c) {
+    const { t, dt } = ctx;
     const ns = ctx.stars[p.i]; ns.next -= dt;
     let sr = 0, sg = 0, sb = 0;
     if (ns.next <= 0) { ns.bright = 0.6 + Math.random() * 0.4; ns.next = 4 + Math.random() * 12; ns.last = t; }
     if (ns.bright > 0) { ns.bright = Math.max(0, ns.bright - dt * 1.2); const sc = ns.bright; sr = sc; sg = sc; sb = sc + 0.2; }
-    return [Math.min(1, r + coreBoost * 0.4 + sr), Math.min(1, g + coreBoost * 0.3 + sg), Math.min(1, b + coreBoost * 0.2 + sb)];
+    return [Math.min(1, c[0] + sr), Math.min(1, c[1] + sg), Math.min(1, c[2] + sb)];
   },
 });

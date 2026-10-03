@@ -30,6 +30,7 @@ const { defineFieldEffect } = require('./surface');
 const stars = { cube: null, wall: null };
 
 module.exports = defineFieldEffect({
+  smooth: true, // slowly varying curtains; stars are added per pixel in detail()
   speed: 0.35,
   frame(ctx) {
     const key = ctx.flat ? 'wall' : 'cube';
@@ -56,8 +57,13 @@ module.exports = defineFieldEffect({
       const [r2, g2, b2] = hsl(hue + 0.45, sat, bright * 0.4 * Math.max(0, c2));
       return [Math.min(1, r + r2), Math.min(1, g + g2), Math.min(1, b + b2)];
     }
-    const s = ctx.stars[p.i];
-    if (s > 0) { const tw = 0.5 + 0.5 * Math.sin(t * 2.3 + s * 12.7); return [tw * 0.55, tw * 0.55, tw * 0.65]; }
     return [0, 0, 0];
+  },
+  // Stars twinkle in the dark sky between the curtains (per pixel, on top
+  // of the blended curtain colour).
+  detail(p, ctx, c) {
+    const s = ctx.stars[p.i];
+    if (s > 0 && c[0] + c[1] + c[2] < 0.06) { const tw = 0.5 + 0.5 * Math.sin(ctx.t * 2.3 + s * 12.7); return [tw * 0.55, tw * 0.55, tw * 0.65]; }
+    return c;
   },
 });

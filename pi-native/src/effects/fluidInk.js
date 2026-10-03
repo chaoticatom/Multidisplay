@@ -15,6 +15,7 @@ const wave = (x, y, z, t) => Math.sin(x * 3.1 + t) * Math.cos(y * 2.7 - t * 0.8)
 let stir = 0;
 
 module.exports = defineFieldEffect({
+  smooth: true, // slowly varying field: see surface.js
   speed: 0.4,
   frame({ core, dt }) {
     const bass = core.audio && core.audio.bass ? core.audio.bass : 0;

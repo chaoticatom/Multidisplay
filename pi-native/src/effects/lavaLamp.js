@@ -10,6 +10,7 @@ const N = 6;
 const balls = Array.from({ length: N }, (_, i) => ({ x: 0, y: 0, z: 0, r: 0, s: 0.37 + i * 0.13, o: i * 1.7 }));
 
 module.exports = defineFieldEffect({
+  smooth: true, // slowly varying field: see surface.js
   speed: 0.35,
   frame({ t, core, flat }) {
     const bass = core.audio && core.audio.bass ? core.audio.bass : 0;

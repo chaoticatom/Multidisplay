@@ -16,6 +16,7 @@ const { hsl, sm } = require('../core');
 const { defineFieldEffect } = require('./surface');
 
 module.exports = defineFieldEffect({
+  smooth: true, // slowly varying field: see surface.js
   speed: 0.55,
   pixel(p, { t }) {
     const { x, y, z } = p;

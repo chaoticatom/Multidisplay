@@ -28,6 +28,7 @@ const { hsl } = require('../core');
 const { defineFieldEffect } = require('./surface');
 
 module.exports = defineFieldEffect({
+  smooth: true, // slowly varying field: see surface.js
   speed: 1.1,
   pixel(p, { t }) {
     const { x, y, z } = p; // on a wall z = y

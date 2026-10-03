@@ -188,19 +188,19 @@ var PiEngine = (() => {
           this.wallBuf[o + 2] = b;
         }
       };
+      function hueChannel(p, q, t) {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 0.5) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+      }
       function hsl(h, s, l) {
         h = (h % 1 + 1) % 1;
         if (s === 0) return [l, l, l];
         const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
-        const hf = (p2, q2, t) => {
-          if (t < 0) t += 1;
-          if (t > 1) t -= 1;
-          if (t < 1 / 6) return p2 + (q2 - p2) * 6 * t;
-          if (t < 0.5) return q2;
-          if (t < 2 / 3) return p2 + (q2 - p2) * (2 / 3 - t) * 6;
-          return p2;
-        };
-        return [hf(p, q, h + 1 / 3), hf(p, q, h), hf(p, q, h - 1 / 3)];
+        return [hueChannel(p, q, h + 1 / 3), hueChannel(p, q, h), hueChannel(p, q, h - 1 / 3)];
       }
       function lerp(a, b, t) {
         return a + (b - a) * t;
@@ -219,8 +219,38 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      function defineFieldEffect({ speed = 1, frame, pixel }) {
+      var axisCache = /* @__PURE__ */ new Map();
+      function axis(n) {
+        let a = axisCache.get(n);
+        if (a) return a;
+        const pos = [];
+        for (let k = 0; k < n; k += 2) pos.push(k);
+        if (pos[pos.length - 1] !== n - 1) pos.push(n - 1);
+        const s0 = new Int32Array(n), s1 = new Int32Array(n), w = new Float32Array(n);
+        for (let x = 0, k = 0; x < n; x++) {
+          while (k + 1 < pos.length - 1 && pos[k + 1] <= x) k++;
+          const a0 = pos[k], a1 = pos[Math.min(k + 1, pos.length - 1)];
+          s0[x] = k;
+          s1[x] = Math.min(k + 1, pos.length - 1);
+          w[x] = a1 === a0 ? 0 : (x - a0) / (a1 - a0);
+        }
+        a = { pos, s0, s1, w };
+        axisCache.set(n, a);
+        return a;
+      }
+      function defineFieldEffect({ speed = 1, frame, pixel, smooth = false, detail = null }) {
         const p = { x: 0, y: 0, z: 0, i: 0, flat: false };
+        let samples = new Float32Array(64 * 64 * 3);
+        const out = [0, 0, 0];
+        function blend(K, a0, a1, wu, b0, b1, wv) {
+          const o00 = (b0 * K + a0) * 3, o10 = (b0 * K + a1) * 3, o01 = (b1 * K + a0) * 3, o11 = (b1 * K + a1) * 3;
+          for (let ch = 0; ch < 3; ch++) {
+            const top = samples[o00 + ch] + (samples[o10 + ch] - samples[o00 + ch]) * wu;
+            const bot = samples[o01 + ch] + (samples[o11 + ch] - samples[o01 + ch]) * wu;
+            out[ch] = top + (bot - top) * wv;
+          }
+          return out;
+        }
         const ctx = { t: 0, dt: 0, count: 0, flat: false, core: null };
         function cube(core, dt) {
           core.t += dt * speed;
@@ -228,13 +258,52 @@ var PiEngine = (() => {
           Object.assign(ctx, { t: core.t, dt, count: N, flat: false, core });
           p.flat = false;
           if (frame) frame(ctx);
-          for (let i = 0; i < N; i++) {
-            p.x = surfX[i];
-            p.y = surfY[i];
-            p.z = surfZ[i];
-            p.i = i;
-            const c = pixel(p, ctx);
-            core.setLED(i, c[0], c[1], c[2]);
+          if (!smooth) {
+            for (let i = 0; i < N; i++) {
+              p.x = surfX[i];
+              p.y = surfY[i];
+              p.z = surfZ[i];
+              p.i = i;
+              const c = detail ? detail(p, ctx, pixel(p, ctx)) : pixel(p, ctx);
+              core.setLED(i, c[0], c[1], c[2]);
+            }
+            return;
+          }
+          const S = core.SIZE, ax = axis(S), K = ax.pos.length;
+          if (samples.length < K * K * 3) samples = new Float32Array(K * K * 3);
+          for (let f = 0; f < 6; f++) {
+            const map = core.faceMap[f];
+            for (let a = 0; a < K; a++) for (let b = 0; b < K; b++) {
+              const i = map[ax.pos[b] * S + ax.pos[a]], o = (b * K + a) * 3;
+              if (i < 0) {
+                samples[o] = samples[o + 1] = samples[o + 2] = 0;
+                continue;
+              }
+              p.x = surfX[i];
+              p.y = surfY[i];
+              p.z = surfZ[i];
+              p.i = i;
+              const c = pixel(p, ctx);
+              samples[o] = c[0];
+              samples[o + 1] = c[1];
+              samples[o + 2] = c[2];
+            }
+            for (let v = 0; v < S; v++) {
+              const b0 = ax.s0[v], b1 = ax.s1[v], wv = ax.w[v];
+              for (let u = 0; u < S; u++) {
+                const i = map[v * S + u];
+                if (i < 0) continue;
+                const c = blend(K, ax.s0[u], ax.s1[u], ax.w[u], b0, b1, wv);
+                if (detail) {
+                  p.x = surfX[i];
+                  p.y = surfY[i];
+                  p.z = surfZ[i];
+                  p.i = i;
+                  const d = detail(p, ctx, c);
+                  core.setLED(i, d[0], d[1], d[2]);
+                } else core.setLED(i, c[0], c[1], c[2]);
+              }
+            }
           }
         }
         function wall(core, dt) {
@@ -244,14 +313,47 @@ var PiEngine = (() => {
           Object.assign(ctx, { t: core.t, dt, count: wallW * wallH, flat: true, core });
           p.flat = true;
           if (frame) frame(ctx);
-          for (let yy = 0; yy < wallH; yy++) {
-            const y = yy / wallH;
-            for (let xx = 0; xx < wallW; xx++) {
+          if (!smooth) {
+            for (let yy = 0; yy < wallH; yy++) {
+              const y = yy / wallH;
+              for (let xx = 0; xx < wallW; xx++) {
+                p.x = xx / wallW;
+                p.y = y;
+                p.z = y;
+                p.i = yy * wallW + xx;
+                const c = detail ? detail(p, ctx, pixel(p, ctx)) : pixel(p, ctx);
+                core.setWallPixel(xx, yy, c[0], c[1], c[2]);
+              }
+            }
+            return;
+          }
+          const axX = axis(wallW), axY = axis(wallH), KX = axX.pos.length, KY = axY.pos.length;
+          if (samples.length < KX * KY * 3) samples = new Float32Array(KX * KY * 3);
+          for (let b = 0; b < KY; b++) {
+            const yy = axY.pos[b];
+            for (let a = 0; a < KX; a++) {
+              const xx = axX.pos[a];
               p.x = xx / wallW;
-              p.y = y;
-              p.z = y;
+              p.y = yy / wallH;
+              p.z = p.y;
               p.i = yy * wallW + xx;
-              const c = pixel(p, ctx);
+              const c = pixel(p, ctx), o = (b * KX + a) * 3;
+              samples[o] = c[0];
+              samples[o + 1] = c[1];
+              samples[o + 2] = c[2];
+            }
+          }
+          for (let yy = 0; yy < wallH; yy++) {
+            const b0 = axY.s0[yy], b1 = axY.s1[yy], wv = axY.w[yy];
+            for (let xx = 0; xx < wallW; xx++) {
+              let c = blend(KX, axX.s0[xx], axX.s1[xx], axX.w[xx], b0, b1, wv);
+              if (detail) {
+                p.x = xx / wallW;
+                p.y = yy / wallH;
+                p.z = p.y;
+                p.i = yy * wallW + xx;
+                c = detail(p, ctx, c);
+              }
               core.setWallPixel(xx, yy, c[0], c[1], c[2]);
             }
           }
@@ -272,6 +374,8 @@ var PiEngine = (() => {
       var { hsl } = require_core();
       var { defineFieldEffect } = require_surface();
       module.exports = defineFieldEffect({
+        smooth: true,
+        // slowly varying field: see surface.js
         speed: 1.1,
         pixel(p, { t }) {
           const { x, y, z } = p;
@@ -3958,6 +4062,8 @@ var PiEngine = (() => {
       var wave = (x, y, z, t) => Math.sin(x * 3.1 + t) * Math.cos(y * 2.7 - t * 0.8) + Math.sin((x + z) * 2.3 + t * 0.6) * 0.6 + Math.cos((y - z) * 3.7 - t * 0.4) * 0.4;
       var stir = 0;
       module.exports = defineFieldEffect({
+        smooth: true,
+        // slowly varying field: see surface.js
         speed: 0.4,
         frame({ core, dt }) {
           const bass = core.audio && core.audio.bass ? core.audio.bass : 0;
@@ -3989,6 +4095,8 @@ var PiEngine = (() => {
       var N = 6;
       var balls = Array.from({ length: N }, (_, i) => ({ x: 0, y: 0, z: 0, r: 0, s: 0.37 + i * 0.13, o: i * 1.7 }));
       module.exports = defineFieldEffect({
+        smooth: true,
+        // slowly varying field: see surface.js
         speed: 0.35,
         frame({ t, core, flat }) {
           const bass = core.audio && core.audio.bass ? core.audio.bass : 0;
@@ -4028,6 +4136,8 @@ var PiEngine = (() => {
       var { hsl, lerp } = require_core();
       var { defineFieldEffect } = require_surface();
       module.exports = defineFieldEffect({
+        smooth: true,
+        // slowly varying field: see surface.js
         speed: 0.4,
         pixel(p, { t }) {
           const { x, y, z } = p;
@@ -5270,6 +5380,8 @@ var PiEngine = (() => {
       var { hsl } = require_core();
       var { defineFieldEffect } = require_surface();
       module.exports = defineFieldEffect({
+        smooth: true,
+        // slowly varying field: see surface.js
         speed: 0.75,
         pixel(p, { t }) {
           const { x, y, z } = p;
@@ -6260,6 +6372,8 @@ var PiEngine = (() => {
       var { defineFieldEffect } = require_surface();
       var stars = { cube: null, wall: null };
       module.exports = defineFieldEffect({
+        smooth: true,
+        // slowly varying curtains; stars are added per pixel in detail()
         speed: 0.35,
         frame(ctx) {
           const key = ctx.flat ? "wall" : "cube";
@@ -6284,12 +6398,17 @@ var PiEngine = (() => {
             const [r2, g2, b2] = hsl(hue + 0.45, sat, bright * 0.4 * Math.max(0, c2));
             return [Math.min(1, r + r2), Math.min(1, g + g2), Math.min(1, b + b2)];
           }
+          return [0, 0, 0];
+        },
+        // Stars twinkle in the dark sky between the curtains (per pixel, on top
+        // of the blended curtain colour).
+        detail(p, ctx, c) {
           const s = ctx.stars[p.i];
-          if (s > 0) {
-            const tw = 0.5 + 0.5 * Math.sin(t * 2.3 + s * 12.7);
+          if (s > 0 && c[0] + c[1] + c[2] < 0.06) {
+            const tw = 0.5 + 0.5 * Math.sin(ctx.t * 2.3 + s * 12.7);
             return [tw * 0.55, tw * 0.55, tw * 0.65];
           }
-          return [0, 0, 0];
+          return c;
         }
       });
     }
@@ -6305,6 +6424,8 @@ var PiEngine = (() => {
       var { defineFieldEffect } = require_surface();
       var stars = { cube: null, wall: null };
       module.exports = defineFieldEffect({
+        smooth: true,
+        // slowly varying cloud; stars are added per pixel in detail()
         speed: 0.28,
         frame(ctx) {
           const key = ctx.flat ? "wall" : "cube";
@@ -6315,7 +6436,7 @@ var PiEngine = (() => {
           ctx.stars = stars[key];
         },
         pixel(p, ctx) {
-          const { t, dt } = ctx;
+          const { t } = ctx;
           const x = p.x, y = p.y, z = p.flat ? 0 : p.z;
           let d = 0;
           d += Math.sin(x * 5.3 + t * 0.52) * Math.cos(y * 4.9 + t * 0.31) * 0.5;
@@ -6327,6 +6448,11 @@ var PiEngine = (() => {
           const hue = lerp(0.6, 0.04, sm(0.18, 0.88, d)) + Math.sin(t * 0.08) * 0.05;
           const [r, g, b] = hsl(hue, 0.85 + d * 0.15, bright);
           const coreBoost = Math.max(0, d - 0.75) * 3.5;
+          return [r + coreBoost * 0.4, g + coreBoost * 0.3, b + coreBoost * 0.2];
+        },
+        // Twinkling stars, per pixel on top of the (blended) cloud colour.
+        detail(p, ctx, c) {
+          const { t, dt } = ctx;
           const ns = ctx.stars[p.i];
           ns.next -= dt;
           let sr = 0, sg = 0, sb = 0;
@@ -6342,7 +6468,7 @@ var PiEngine = (() => {
             sg = sc;
             sb = sc + 0.2;
           }
-          return [Math.min(1, r + coreBoost * 0.4 + sr), Math.min(1, g + coreBoost * 0.3 + sg), Math.min(1, b + coreBoost * 0.2 + sb)];
+          return [Math.min(1, c[0] + sr), Math.min(1, c[1] + sg), Math.min(1, c[2] + sb)];
         }
       });
     }
@@ -14710,6 +14836,8 @@ var PiEngine = (() => {
       var { hsl, sm } = require_core();
       var { defineFieldEffect } = require_surface();
       module.exports = defineFieldEffect({
+        smooth: true,
+        // slowly varying field: see surface.js
         speed: 0.55,
         pixel(p, { t }) {
           const { x, y, z } = p;
@@ -14743,6 +14871,8 @@ var PiEngine = (() => {
       var { hsl, lerp } = require_core();
       var { defineFieldEffect } = require_surface();
       module.exports = defineFieldEffect({
+        smooth: true,
+        // slowly varying field: see surface.js
         speed: 0.6,
         pixel(p, { t }) {
           const { x, y, z } = p;
