@@ -2,7 +2,8 @@
 // hollow eye sockets with glowing red pupils that wander and blink, a
 // skull-like nose cavity, a stretched gaping mouth with jagged teeth, a
 // slow sickly breathing glow, flicker, and now and then a sudden lurch
-// towards you with a static glitch. Same face on every cube side face;
+// towards you with a static glitch. It slowly emerges out of the screen
+// and sinks back into the fog on a ~12 s loop. Same face on every cube side face;
 // fills a flat panel. (Drawn upright - the old one came out upside down.)
 'use strict';
 const { defineCanvasEffect } = require('./canvas');
@@ -26,7 +27,11 @@ module.exports = defineCanvasEffect({
     if ((st.nextLunge -= dt) <= 0) { st.lunge = 1; st.nextLunge = 10 + Math.random() * 12; }
     st.lunge = Math.max(0, st.lunge - dt * 1.4);
     const lunge = Math.sin(Math.min(1, st.lunge) * Math.PI) * (st.lunge > 0 ? 1 : 0);
-    const scale = 1 + lunge * 0.35, glitch = lunge > 0.5 ? (Math.random() - 0.5) * 0.06 : 0;
+    // Emerge cycle: the face slowly pushes out of the screen towards you,
+    // then sinks back into the fog (about 12 s per cycle).
+    const depth = 0.5 - 0.5 * Math.cos((t / 12) * Math.PI * 2); // 0 far .. 1 close
+    const emerge = sm(0, 0.35, depth);
+    const scale = (0.45 + depth * 0.8) * (1 + lunge * 0.35), glitch = lunge > 0.5 ? (Math.random() - 0.5) * 0.06 : 0;
     const flicker = 0.85 + 0.15 * Math.sin(t * 23) * Math.sin(t * 7.3) + (Math.random() < 0.02 ? -0.4 : 0);
     const breathe = 0.5 + 0.5 * Math.sin(t * 1.1);
     const S = Math.min(c.W, c.H), ox = (c.W - S) / 2, oy = (c.H - S) / 2;
@@ -82,10 +87,12 @@ module.exports = defineCanvasEffect({
         // Cracks / veins across the forehead.
         const vein = Math.abs(Math.sin(x * 40 + Math.sin(y * 30) * 2) * Math.sin(y * 25 + x * 10));
         if (y < -0.18 && vein > 0.97) { fr *= 0.6; fg *= 0.55; fb *= 0.6; }
-        r = r * (1 - skin) + fr * skin; g = g * (1 - skin) + fg * skin; b = b * (1 - skin) + fb * skin;
+        const vis = skin * emerge; // far away it's faint, as if behind the glass
+        r = r * (1 - vis) + fr * vis; g = g * (1 - vis) + fg * vis; b = b * (1 - vis) + fb * vis;
       }
       // Fog drifting in front, thicker towards the bottom.
-      const mist = noise(px * 0.05 - t * 0.3, py * 0.06 + t * 0.1) * sm(0.3, 1, py / c.H) * 0.25;
+      // ...thicker in front of the face while it's far away.
+      const mist = noise(px * 0.05 - t * 0.3, py * 0.06 + t * 0.1) * (sm(0.3, 1, py / c.H) * 0.25 + (1 - depth) * 0.25);
       r += mist * 0.5; g += mist * 0.6; b += mist * 0.7;
       // Static on a lunge.
       if (lunge > 0.3 && Math.random() < 0.08 * lunge) { const n = Math.random() * 0.6; r += n; g += n; b += n; }
