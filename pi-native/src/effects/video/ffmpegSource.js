@@ -38,6 +38,7 @@
 // tears the process down after IDLE_TIMEOUT_MS of nobody calling
 // ensure() - equivalent in effect, self-contained here.
 'use strict';
+const youtube = require('../../youtube');
 
 const { spawn } = require('child_process');
 
@@ -140,7 +141,12 @@ class FfmpegSource {
     // contents - simple and sufficient, since this only needs to
     // distinguish "still image" from "real video", not validate the file.
     const isStillImage = /\.(jpe?g|png|gif|bmp|webp|tiff?)(\.part)?$/i.test(url);
-    const inputArgs = isStillImage ? ['-loop', '1', '-i', url] : ['-i', url];
+    // Not a still: -re reads at real-time speed (a downloaded file such as a
+    // YouTube stream otherwise decodes far faster than it plays, and only the
+    // latest frame is kept, so the video raced along), plus any seek offset.
+    const yt = youtube.inputOptions(url);
+    const reOpt = yt.opts.includes('-re') ? [] : ['-re'];
+    const inputArgs = isStillImage ? ['-loop', '1', '-i', url] : [...reOpt, ...yt.opts, '-i', yt.url];
 
     // 'contain': scale DOWN preserving the source's own aspect ratio
     // (force_original_aspect_ratio=decrease - never upscales past w×h

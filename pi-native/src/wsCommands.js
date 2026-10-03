@@ -603,6 +603,17 @@ const COMMANDS = {
     this._broadcast(this._stateMsg());
   },
 
+  // {video: {id, title, channel, duration}} adds or removes a YouTube favourite.
+  toggleVideoFav(ws, msg) {
+    const v = msg.video;
+    if (!v || typeof v.id !== 'string') return;
+    const p = this.state.prefs || prefs.load();
+    const list = p.videos.filter((x) => x.id !== v.id);
+    if (list.length === p.videos.length) list.unshift(v);
+    this.state.prefs = prefs.save({ ...p, videos: list });
+    this._broadcast(this._stateMsg());
+  },
+
   // Playlist: {on, minutes} - cycles through the favourites (see
   // WsServer._playlistTick). Night dimming: {on, from, to, level}.
   setPlaylist(ws, msg) {
@@ -638,15 +649,42 @@ const COMMANDS = {
   ytPlay(ws, msg) {
     const id = typeof msg.id === 'string' ? msg.id : '';
     const title = typeof msg.title === 'string' ? msg.title.slice(0, 120) : '';
-    this.state.yt = { ...(this.state.yt || {}), playing: { id, title, loading: true }, error: '' };
+    const duration = Number(msg.duration) > 0 ? Number(msg.duration) : 0;
+    this.state.yt = { ...(this.state.yt || {}), playing: { id, title, duration, loading: true }, error: '' };
     this._broadcast(this._stateMsg());
     youtube.resolve(id).then((url) => {
-      COMMANDS.setEffectOption.call(this, ws, { effect: 'video', key: 'source', value: 'url' });
-      COMMANDS.setEffectOption.call(this, ws, { effect: 'video', key: 'url', value: url });
-      COMMANDS.setEffect.call(this, ws, { effect: 'video' });
-      this.state.yt = { ...this.state.yt, playing: { id, title, loading: false } };
+      this._ytStreamUrl = url;
+      COMMANDS._ytStart.call(this, ws, title, 0);
+      this.state.yt = { ...this.state.yt, playing: { id, title, duration, start: 0, startedAt: Date.now(), loading: false } };
     }).catch((e) => { this.state.yt = { ...this.state.yt, playing: null, error: e.message }; })
       .finally(() => this._broadcast(this._stateMsg()));
+  },
+  // ytCookies {text}: signs YouTube in with an uploaded cookies.txt; {text:''} signs out.
+  ytCookies(ws, msg) {
+    try {
+      if (msg.text) youtube.saveCookies(msg.text); else youtube.signOut();
+      this.state.yt = { ...(this.state.yt || {}), error: '' };
+    } catch (e) { this.state.yt = { ...(this.state.yt || {}), error: e.message }; }
+    this._broadcast(this._stateMsg());
+  },
+  // ytSeek {seconds}: restarts the current YouTube video (picture and sound) there.
+  ytSeek(ws, msg) {
+    const p = this.state.yt && this.state.yt.playing;
+    if (!p || !this._ytStreamUrl) return;
+    let t = Math.max(0, Number(msg.seconds) || 0);
+    if (p.duration) t = Math.min(t, Math.max(0, p.duration - 1));
+    COMMANDS._ytStart.call(this, ws, p.title, t);
+    this.state.yt = { ...this.state.yt, playing: { ...p, start: t, startedAt: Date.now() } };
+    this._broadcast(this._stateMsg());
+  },
+  // Video on the panels plus the same stream as a radio station, so the sound
+  // plays on the Pi's speaker and through "Play in this browser".
+  _ytStart(ws, title, seconds) {
+    const url = this._ytStreamUrl + '#mdss=' + Math.round(seconds);
+    COMMANDS.setEffectOption.call(this, ws, { effect: 'video', key: 'source', value: 'url' });
+    COMMANDS.setEffectOption.call(this, ws, { effect: 'video', key: 'url', value: url });
+    if (this.state.effect !== 'video') COMMANDS.setEffect.call(this, ws, { effect: 'video' });
+    COMMANDS.radioPlay.call(this, ws, { station: { name: title || 'YouTube', genre: 'YouTube', url } });
   },
 
   // My Photos: {name} removes one uploaded photo.

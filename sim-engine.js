@@ -2205,6 +2205,118 @@ var PiEngine = (() => {
     }
   });
 
+  // src/youtube.js
+  var require_youtube = __commonJS({
+    "src/youtube.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { spawn: realSpawn } = require_child_process();
+      var fs = require_fs();
+      var path = require_path();
+      var COOKIE_FILE = define_process_env_default.YT_COOKIE_FILE || path.join(".", "..", "youtube-cookies.txt");
+      function cookieArgs() {
+        return fs.existsSync(COOKIE_FILE) ? ["--cookies", COOKIE_FILE] : [];
+      }
+      function signedIn() {
+        return fs.existsSync(COOKIE_FILE);
+      }
+      function saveCookies(text) {
+        const t = String(text || "");
+        if (!/youtube\.com/.test(t) || !/\t/.test(t)) throw new Error("That is not a cookies.txt with YouTube cookies");
+        const tmp = COOKIE_FILE + ".tmp";
+        fs.writeFileSync(tmp, t, { mode: 384 });
+        fs.renameSync(tmp, COOKIE_FILE);
+      }
+      function signOut() {
+        try {
+          fs.unlinkSync(COOKIE_FILE);
+        } catch (e) {
+        }
+      }
+      function run(args, spawn, timeoutMs) {
+        return new Promise((resolve2, reject) => {
+          let out = "", err = "", done = false;
+          let p;
+          try {
+            p = spawn("yt-dlp", args, { stdio: ["ignore", "pipe", "pipe"] });
+          } catch (e) {
+            reject(e);
+            return;
+          }
+          const timer = setTimeout(() => {
+            if (!done) {
+              done = true;
+              try {
+                p.kill();
+              } catch (e) {
+              }
+              reject(new Error("YouTube took too long to answer"));
+            }
+          }, timeoutMs);
+          p.stdout.on("data", (d) => {
+            out += d;
+          });
+          p.stderr.on("data", (d) => {
+            err += d;
+          });
+          p.on("error", (e) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            reject(e.code === "ENOENT" ? new Error("yt-dlp is not installed on the Pi - run: sudo apt install yt-dlp") : e);
+          });
+          p.on("close", (code) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            if (code === 0) resolve2(out);
+            else reject(new Error((err.trim().split("\n").pop() || `yt-dlp exited (${code})`).replace(/^ERROR:\s*/, "").slice(0, 160)));
+          });
+        });
+      }
+      async function search(query, spawn = realSpawn) {
+        const q = String(query || "").trim().slice(0, 100);
+        if (!q) return [];
+        const out = await run([...cookieArgs(), "--flat-playlist", "-J", "--no-warnings", `ytsearch12:${q}`], spawn, 3e4);
+        const data = JSON.parse(out);
+        return (data.entries || []).filter((e) => e && /^[\w-]{6,20}$/.test(e.id || "")).map((e) => ({
+          id: e.id,
+          title: String(e.title || "Video").slice(0, 120),
+          channel: String(e.channel || e.uploader || "").slice(0, 60),
+          duration: Number(e.duration) || 0
+        }));
+      }
+      async function resolve(id, spawn = realSpawn) {
+        if (!/^[\w-]{6,20}$/.test(String(id || ""))) throw new Error("bad video id");
+        const base = ["-f", "best[height<=360][vcodec!=none][acodec!=none]/best[height<=480]/best", "-g", "--no-warnings"];
+        const attempts = [[], ["--extractor-args", "youtube:player_client=tv,ios"], ["--extractor-args", "youtube:player_client=android,web_safari"]];
+        let lastErr = null;
+        for (const extra of attempts) {
+          try {
+            const out = await run([...cookieArgs(), ...base, ...extra, `https://www.youtube.com/watch?v=${id}`], spawn, 4e4);
+            const url = out.trim().split("\n")[0];
+            if (/^https?:\/\//.test(url)) return url;
+            lastErr = new Error("no playable stream found");
+          } catch (e) {
+            if (/not installed/.test(e.message)) throw e;
+            lastErr = e;
+          }
+        }
+        throw new Error(`${lastErr.message.replace(/^\[youtube\]\s*[\w-]+:\s*/, "")} - update yt-dlp on the Pi: sudo pip3 install -U yt-dlp --break-system-packages`);
+      }
+      function inputOptions(url) {
+        const m = /#mdss=(\d+(?:\.\d+)?)$/.exec(url || "");
+        const plain = m ? url.slice(0, m.index) : url;
+        const opts = [];
+        if (/googlevideo\.com|#mdss=/.test(url || "")) opts.push("-re");
+        if (m && Number(m[1]) > 0) opts.push("-ss", m[1]);
+        return { url: plain, opts };
+      }
+      module.exports = { inputOptions, signedIn, saveCookies, signOut, COOKIE_FILE, search, resolve };
+    }
+  });
+
   // src/pulseEnv.js
   var require_pulseEnv = __commonJS({
     "src/pulseEnv.js"(exports, module) {
@@ -2264,6 +2376,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
+      var youtube = require_youtube();
       var { spawn } = require_child_process();
       var { createAnalyser, BAND_COUNT } = require_fft();
       var { findPulseEnv } = require_pulseEnv();
@@ -2400,8 +2513,9 @@ var PiEngine = (() => {
             ] : [
               "-loglevel",
               "error",
+              ...youtube.inputOptions(url).opts,
               "-i",
-              url,
+              youtube.inputOptions(url).url,
               "-vn",
               "-f",
               "s16le",
@@ -13743,6 +13857,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
+      var youtube = require_youtube();
       var { spawn } = require_child_process();
       var RETRY_COOLDOWN_MS = 8e3;
       var IDLE_TIMEOUT_MS = 1e4;
@@ -13803,7 +13918,9 @@ var PiEngine = (() => {
           this.latestFrame = null;
           const myGen = ++this._generation;
           const isStillImage = /\.(jpe?g|png|gif|bmp|webp|tiff?)(\.part)?$/i.test(url);
-          const inputArgs = isStillImage ? ["-loop", "1", "-i", url] : ["-i", url];
+          const yt = youtube.inputOptions(url);
+          const reOpt = yt.opts.includes("-re") ? [] : ["-re"];
+          const inputArgs = isStillImage ? ["-loop", "1", "-i", url] : [...reOpt, ...yt.opts, "-i", yt.url];
           const scaleFilter = fit === "contain" ? `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black` : `scale=${w}:${h}`;
           let proc;
           try {

@@ -965,12 +965,15 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
   #tab-bar button { padding: 7px 2px !important; font-size: 13px !important; }
   #sidebar-brightness-bar { padding: 0 12px 2px !important; }
 }
+#yt-seek[hidden] { display: none !important; }
 .yt-results { display: grid; gap: 6px; margin: 6px 0; max-height: 320px; overflow-y: auto; }
 .yt-item { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.04); box-shadow: 0 0 0 1px rgba(255,255,255,.07); cursor: pointer; }
 .yt-item:hover { background: rgba(255,255,255,.08); }
 .yt-item.on { box-shadow: 0 0 0 1px var(--cx1); background: color-mix(in srgb, var(--cx1) 20%, transparent); }
 .yt-item b { display: block; font-size: 13px; color: #eef2ff; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .yt-item small { color: rgba(238,242,255,.5); font-size: 11.5px; }
+.yt-fav { flex-shrink: 0; background: none; border: 0; color: rgba(238,242,255,.45); font-size: 20px; cursor: pointer; padding: 2px 4px; }
+.yt-fav.on { color: #ffd34d; }
 .yt-play { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; background: #ff2d3d; color: #fff; font-size: 11px; }
 </style>
 </head>
@@ -1486,9 +1489,19 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <button class="effect-btn has-panel" data-effect="video">◈ Video Display <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-video">
       <div class="ov-row-label">▶ YouTube</div>
-      <div style="display:flex;gap:6px;"><input id="yt-query" class="ui-input" type="search" placeholder="Search YouTube…" aria-label="Search YouTube" style="flex:1;min-width:0;"><button id="yt-search-btn" class="ui-btn-small" style="flex:0 0 auto;">Search</button></div>
+      <div style="display:flex;gap:6px;"><input id="yt-query" class="ui-input" type="search" placeholder="Search YouTube…" aria-label="Search YouTube" style="flex:1;min-width:0;"><button id="yt-search-btn" class="ui-btn-small" style="flex:0 0 auto;">Search</button><button id="yt-favs-btn" class="ui-btn-small" style="flex:0 0 auto;" title="Show favourites">★</button></div>
       <div class="ui-note" id="yt-status"></div>
+      <div id="yt-seek" hidden style="display:flex;gap:6px;align-items:center;margin:6px 0;">
+        <button class="ui-btn-small" data-ytskip="-10" style="flex:0 0 auto;" aria-label="Back 10 seconds">⏪ 10</button>
+        <input id="yt-seek-bar" type="range" min="0" max="600" step="1" value="0" style="flex:1;min-width:0;" aria-label="Video position">
+        <button class="ui-btn-small" data-ytskip="10" style="flex:0 0 auto;" aria-label="Forward 10 seconds">10 ⏩</button>
+        <span id="yt-seek-time" style="font-size:11.5px;opacity:.7;min-width:72px;text-align:right;"></span>
+      </div>
       <div id="yt-results" class="yt-results"></div>
+      <details class="ui-note" style="margin-top:6px;"><summary>YouTube account (Premium) · <span id="yt-account">Not signed in</span></summary>
+        <p>YouTube doesn't allow apps to sign in with a password. Instead, sign in to YouTube in Chrome or Firefox on your PC, export your cookies with the “Get cookies.txt LOCALLY” extension while on youtube.com, and upload the file here. Premium, members-only and age-restricted videos then play as you. The file stays on the Pi only.</p>
+        <div style="display:flex;gap:6px;"><label class="ui-btn-small" style="flex:1;text-align:center;cursor:pointer;">Upload cookies.txt<input id="yt-cookie-file" type="file" accept=".txt,text/plain" hidden></label><button id="yt-signout" class="ui-btn-small" hidden>Sign out</button></div>
+      </details>
       <div class="ov-row-label" style="margin-top:10px;">Other sources</div>
       <div id="vid-status" style="font-size:11px;color:#9aa3b8;margin-bottom:6px;text-align:center;">No source loaded</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
@@ -2317,6 +2330,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.213"></script>
+<script src="app.js?v=0.6.214"></script>
 </body>
 </html>

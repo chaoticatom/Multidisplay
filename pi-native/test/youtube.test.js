@@ -34,3 +34,33 @@ function fakeSpawn(stdout, code = 0, enoent = false) {
   try { const u = await require('../src/youtube').resolve('abcDEF12345', spawn); require('assert').strictEqual(u, 'https://x/v.mp4'); console.log('  ok - retries with another client after a block'); }
   catch (e) { console.error('  FAIL - retry', e.message); process.exitCode = 1; }
 })();
+
+// Seek offset and real-time pacing ride on the stream URL.
+{
+  const { inputOptions } = require('../src/youtube');
+  const a = inputOptions('https://r1.googlevideo.com/v?x=1#mdss=95');
+  assert.deepStrictEqual(a, { url: 'https://r1.googlevideo.com/v?x=1', opts: ['-re', '-ss', '95'] });
+  assert.deepStrictEqual(inputOptions('http://radio.example/stream'), { url: 'http://radio.example/stream', opts: [] });
+  assert.deepStrictEqual(inputOptions('https://r1.googlevideo.com/v#mdss=0').opts, ['-re']);
+}
+
+// Signing in with a cookies.txt passes --cookies to yt-dlp.
+{
+  const os = require('os'), fs = require('fs'), path = require('path');
+  const f = path.join(os.tmpdir(), 'ytc-' + process.pid + '.txt');
+  process.env.YT_COOKIE_FILE = f;
+  delete require.cache[require.resolve('../src/youtube')];
+  const yt = require('../src/youtube');
+  assert.throws(() => yt.saveCookies('hello'));
+  yt.saveCookies('.youtube.com\tTRUE\t/\tTRUE\t0\tSID\tabc\n');
+  assert.strictEqual(yt.signedIn(), true);
+  let seen = null;
+  const { EventEmitter } = require('events');
+  const fake = (cmd, args) => { seen = args; const p = new EventEmitter(); p.stdout = new EventEmitter(); p.stderr = new EventEmitter(); p.kill = () => {}; setImmediate(() => { p.stdout.emit('data', '{"entries":[]}'); p.emit('close', 0); }); return p; };
+  yt.search('x', fake).then(() => {
+    assert.deepStrictEqual(seen.slice(0, 2), ['--cookies', f]);
+    yt.signOut();
+    assert.strictEqual(yt.signedIn(), false);
+    delete process.env.YT_COOKIE_FILE;
+  }).catch((e) => { console.error(e); process.exitCode = 1; });
+}

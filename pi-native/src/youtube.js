@@ -5,6 +5,24 @@
 // tests.
 'use strict';
 const { spawn: realSpawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+// Signing in: YouTube no longer lets tools log in with a password, so the
+// account comes from browser cookies (a Netscape cookies.txt exported from a
+// signed-in browser, uploaded in the Video panel). Premium/age-restricted/
+// members videos then play as that account.
+const COOKIE_FILE = process.env.YT_COOKIE_FILE || path.join(__dirname, '..', 'youtube-cookies.txt');
+function cookieArgs() { return fs.existsSync(COOKIE_FILE) ? ['--cookies', COOKIE_FILE] : []; }
+function signedIn() { return fs.existsSync(COOKIE_FILE); }
+function saveCookies(text) {
+  const t = String(text || '');
+  if (!/youtube\.com/.test(t) || !/\t/.test(t)) throw new Error('That is not a cookies.txt with YouTube cookies');
+  const tmp = COOKIE_FILE + '.tmp';
+  fs.writeFileSync(tmp, t, { mode: 0o600 });
+  fs.renameSync(tmp, COOKIE_FILE);
+}
+function signOut() { try { fs.unlinkSync(COOKIE_FILE); } catch (e) { /* not signed in */ } }
 
 function run(args, spawn, timeoutMs) {
   return new Promise((resolve, reject) => {
@@ -25,7 +43,7 @@ function run(args, spawn, timeoutMs) {
 async function search(query, spawn = realSpawn) {
   const q = String(query || '').trim().slice(0, 100);
   if (!q) return [];
-  const out = await run(['--flat-playlist', '-J', '--no-warnings', `ytsearch12:${q}`], spawn, 30000);
+  const out = await run([...cookieArgs(), '--flat-playlist', '-J', '--no-warnings', `ytsearch12:${q}`], spawn, 30000);
   const data = JSON.parse(out);
   return (data.entries || []).filter((e) => e && /^[\w-]{6,20}$/.test(e.id || '')).map((e) => ({
     id: e.id, title: String(e.title || 'Video').slice(0, 120), channel: String(e.channel || e.uploader || '').slice(0, 60),
@@ -44,7 +62,7 @@ async function resolve(id, spawn = realSpawn) {
   let lastErr = null;
   for (const extra of attempts) {
     try {
-      const out = await run([...base, ...extra, `https://www.youtube.com/watch?v=${id}`], spawn, 40000);
+      const out = await run([...cookieArgs(), ...base, ...extra, `https://www.youtube.com/watch?v=${id}`], spawn, 40000);
       const url = out.trim().split('\n')[0];
       if (/^https?:\/\//.test(url)) return url;
       lastErr = new Error('no playable stream found');
@@ -56,4 +74,18 @@ async function resolve(id, spawn = realSpawn) {
   throw new Error(`${lastErr.message.replace(/^\[youtube\]\s*[\w-]+:\s*/, '')} - update yt-dlp on the Pi: sudo pip3 install -U yt-dlp --break-system-packages`);
 }
 
-module.exports = { search, resolve };
+// A start offset rides on the stream URL as a '#mdss=SECONDS' suffix, so a
+// seek changes the URL and both the video and audio pipelines relaunch on
+// their own. Returns the plain URL plus the ffmpeg input options for it:
+// -ss to start there, and -re for downloaded (non-live) YouTube streams,
+// which ffmpeg would otherwise decode as fast as it can.
+function inputOptions(url) {
+  const m = /#mdss=(\d+(?:\.\d+)?)$/.exec(url || '');
+  const plain = m ? url.slice(0, m.index) : url;
+  const opts = [];
+  if (/googlevideo\.com|#mdss=/.test(url || '')) opts.push('-re');
+  if (m && Number(m[1]) > 0) opts.push('-ss', m[1]);
+  return { url: plain, opts };
+}
+
+module.exports = { inputOptions, signedIn, saveCookies, signOut, COOKIE_FILE, search, resolve };

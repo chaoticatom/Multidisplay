@@ -39,6 +39,7 @@
 // testable/usable in environments with no real speaker, same spirit as
 // this project already holds video.js to for a missing ffmpeg.
 'use strict';
+const youtube = require('../../youtube');
 
 const { spawn } = require('child_process');
 const { createAnalyser, BAND_COUNT } = require('./fft');
@@ -230,7 +231,8 @@ class RadioAudio {
         'pipe:1',
       ] : [
         '-loglevel', 'error',
-        '-i', url,
+        ...youtube.inputOptions(url).opts,
+        '-i', youtube.inputOptions(url).url,
         '-vn',
         '-f', 's16le',
         '-acodec', 'pcm_s16le',

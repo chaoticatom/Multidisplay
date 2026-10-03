@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.213';
+const APP_VERSION = '0.6.214';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2427,7 +2427,9 @@ function radioBrowserPlay(station) {
   // request, so it doesn't matter that the WAV itself has a Cache-
   // Control: no-store response.
   el.loop = !!station.loop;
-  if (el.src !== station.url) el.src = station.url;
+  // A YouTube start offset ('#mdss=N', see src/youtube.js) becomes a media fragment.
+  const src = station.url.replace(/#mdss=(\d+(?:\.\d+)?)$/, '#t=$1');
+  if (el.src !== src) el.src = src;
   el.play().catch(() => { /* autoplay blocked or stream unreachable - #radio-status-el already shows the Pi-side status regardless */ });
   if (!_raRunning) { _raRunning = true; _raLastMs = 0; requestAnimationFrame(radioAnalyserTick); }
 }
@@ -4876,22 +4878,70 @@ function cxSyncYouTube() {
   cxSyncAiArtNote();
   const yt = currentState.yt, list = document.getElementById('yt-results'), st = document.getElementById('yt-status');
   if (!list || !st) return;
-  const key = JSON.stringify([yt?.results?.map((r) => r.id), yt?.playing?.id]);
-  st.textContent = !yt ? 'Search, then tap a video to play it on the display.' : yt.searching ? 'Searching…'
+  const favs = currentState.prefs?.videos || [];
+  const showFavs = !yt?.results?.length || !!document.getElementById('yt-favs-btn')?.classList.contains('active');
+  const rows = showFavs ? favs : yt.results;
+  const key = JSON.stringify([rows.map((r) => r.id), yt?.playing?.id, favs.map((r) => r.id), showFavs]);
+  st.textContent = !yt?.query && !yt?.playing && !yt?.error ? (favs.length ? '★ Your favourite videos. Search for more.' : 'Search, then tap a video to play it on the display.') : yt.searching ? 'Searching…'
     : yt.playing?.loading ? 'Loading “' + yt.playing.title + '”…' : yt.error || (yt.playing ? '▶ ' + yt.playing.title : '');
+  cxSyncYtSeek();
+  const acct = document.getElementById('yt-account');
+  if (acct) acct.textContent = yt?.signedIn ? '✓ Signed in to YouTube' : 'Not signed in';
+  const out = document.getElementById('yt-signout'); if (out) out.hidden = !yt?.signedIn;
   if (list.dataset.key === key) return;
   list.dataset.key = key;
   const mmss = (s) => (s ? Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0') : '');
-  list.replaceChildren(...(yt?.results || []).map((r) => {
+  list.replaceChildren(...rows.map((r) => {
     const row = document.createElement('div');
-    row.className = 'yt-item' + (yt.playing?.id === r.id ? ' on' : '');
-    row.innerHTML = `<span class="yt-play">▶</span><span style="flex:1;min-width:0"><b></b><small></small></span>`;
+    const fav = favs.some((f) => f.id === r.id);
+    row.className = 'yt-item' + (yt?.playing?.id === r.id ? ' on' : '');
+    row.innerHTML = `<span class="yt-play">▶</span><span style="flex:1;min-width:0"><b></b><small></small></span><button class="yt-fav" aria-label="Favourite"></button>`;
     row.querySelector('b').textContent = r.title;
     row.querySelector('small').textContent = [r.channel, mmss(r.duration)].filter(Boolean).join(' · ');
-    row.addEventListener('click', () => send({ cmd: 'ytPlay', id: r.id, title: r.title }));
+    const star = row.querySelector('.yt-fav');
+    star.textContent = fav ? '★' : '☆';
+    star.classList.toggle('on', fav);
+    star.addEventListener('click', (e) => { e.stopPropagation(); send({ cmd: 'toggleVideoFav', video: { id: r.id, title: r.title, channel: r.channel || '', duration: r.duration || 0 } }); });
+    row.addEventListener('click', () => send({ cmd: 'ytPlay', id: r.id, title: r.title, duration: r.duration }));
     return row;
   }));
 }
+
+// YouTube position bar + ±10 s: the position is estimated from when the
+// server last (re)started the stream; a seek restarts picture and sound there.
+let _ytSeekDragging = false;
+function cxYtPos() {
+  const p = currentState.yt?.playing;
+  if (!p || p.loading || !p.startedAt) return 0;
+  const t = (p.start || 0) + (Date.now() - p.startedAt) / 1000;
+  return p.duration ? Math.min(t, p.duration) : t;
+}
+function cxYtClock(s) { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function cxSyncYtSeek() {
+  const box = document.getElementById('yt-seek'), p = currentState.yt?.playing;
+  if (!box) return;
+  box.hidden = !p || p.loading;
+  if (box.hidden) return;
+  const bar = document.getElementById('yt-seek-bar'), t = cxYtPos();
+  bar.max = String(p.duration || Math.max(600, Math.ceil(t) + 60));
+  if (!_ytSeekDragging) bar.value = String(t);
+  document.getElementById('yt-seek-time').textContent = cxYtClock(_ytSeekDragging ? Number(bar.value) : t) + (p.duration ? ' / ' + cxYtClock(p.duration) : '');
+}
+function cxWireYtSeek() {
+  const bar = document.getElementById('yt-seek-bar');
+  if (!bar) return;
+  bar.addEventListener('input', () => { _ytSeekDragging = true; cxSyncYtSeek(); });
+  bar.addEventListener('change', () => { _ytSeekDragging = false; send({ cmd: 'ytSeek', seconds: Number(bar.value) }); });
+  document.querySelectorAll('[data-ytskip]').forEach((b) => b.addEventListener('click', () => send({ cmd: 'ytSeek', seconds: cxYtPos() + Number(b.dataset.ytskip) })));
+  setInterval(cxSyncYtSeek, 500);
+}
+cxWireYtSeek();
+document.getElementById('yt-cookie-file')?.addEventListener('change', (e) => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  f.text().then((text) => send({ cmd: 'ytCookies', text })); e.target.value = '';
+});
+document.getElementById('yt-signout')?.addEventListener('click', () => send({ cmd: 'ytCookies', text: '' }));
+document.getElementById('yt-favs-btn')?.addEventListener('click', (e) => { e.currentTarget.classList.toggle('active'); cxSyncYouTube(); });
 
 // AI Art's own prompt box: asks the AI to draw (same path as the Ask bar).
 function cxWireAiArt() {

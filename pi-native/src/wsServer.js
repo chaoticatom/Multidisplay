@@ -189,6 +189,7 @@ const WebSocket = require('ws');
 const http = require('http');
 const https = require('https');
 const { ensureSelfSignedCert } = require('./tls');
+const youtube = require('./youtube');
 const fs = require('fs');
 const path = require('path');
 const { EFFECTS, EFFECT_NAMES, WALL_EFFECTS } = require('./effects');
@@ -650,7 +651,7 @@ class WsServer {
       ai: aiConfig.publicView(),
       prefs: this.state.prefs,
       photos: httpApi.listPhotos(),
-      yt: this.state.yt || null,
+      yt: { ...(this.state.yt || {}), signedIn: youtube.signedIn() },
       notifyToken: httpApi.notifyToken(),
       notice: this.state.notice && this.state.notice.until > Date.now() ? this.state.notice : null,
     };
