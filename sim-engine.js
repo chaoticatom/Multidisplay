@@ -397,147 +397,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/aiArt.js
-  var require_aiArt = __commonJS({
-    "src/effects/aiArt.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var DEFAULT_ART = {
-        w: 8,
-        h: 8,
-        fps: 2,
-        palette: ["#ff3d7f", "#ffd23d"],
-        frames: [
-          ["........", ".00..00.", "00000000", "00000000", ".000000.", "..0000..", "...00...", "........"],
-          ["........", ".11..11.", "11111111", "11111111", ".111111.", "..1111..", "...11...", "........"]
-        ]
-      };
-      function parseColour(hex) {
-        const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
-        if (!m) return [0, 0, 0];
-        const n = parseInt(m[1], 16);
-        return [(n >> 16) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
-      }
-      var cache = { src: null, pal: [] };
-      function current(core) {
-        const art = core.effectOptions && core.effectOptions.ai_art && core.effectOptions.ai_art.art || DEFAULT_ART;
-        if (cache.src !== art) {
-          cache.src = art;
-          cache.pal = (art.palette || []).map(parseColour);
-        }
-        const n = art.frames.length;
-        const f = n > 1 ? Math.floor(core.t * (art.fps || 4)) % n : 0;
-        return { art, rows: art.frames[f], pal: cache.pal };
-      }
-      function pixel(rows, pal, x, y) {
-        const ch = (rows[y] || "")[x];
-        if (!ch || ch === ".") return null;
-        return pal[parseInt(ch, 16)] || null;
-      }
-      function aiArt(core, dt) {
-        core.t += dt;
-        const { art, rows, pal } = current(core);
-        const S = core.SIZE;
-        for (let face = 0; face < 6; face++) {
-          for (let v = 0; v < S; v++) {
-            const y = Math.floor((S - 1 - v) * art.h / S);
-            for (let u = 0; u < S; u++) {
-              const c = pixel(rows, pal, Math.floor(u * art.w / S), y);
-              if (c) core.setFaceLED(face, u, v, c[0], c[1], c[2]);
-              else core.setFaceLED(face, u, v, 0, 0, 0);
-            }
-          }
-        }
-      }
-      aiArt.wall = function aiArtWall(core, dt) {
-        core.t += dt;
-        if (!core.wallW) return;
-        const { art, rows, pal } = current(core);
-        const W = core.wallW, H = core.wallH;
-        const scale = Math.min(W / art.w, H / art.h);
-        const ox = (W - art.w * scale) / 2, oy = (H - art.h * scale) / 2;
-        for (let y = 0; y < H; y++) {
-          const ay = Math.floor((y - oy) / scale);
-          for (let x = 0; x < W; x++) {
-            const ax = Math.floor((x - ox) / scale);
-            const c = ax >= 0 && ay >= 0 && ax < art.w && ay < art.h ? pixel(rows, pal, ax, ay) : null;
-            if (c) core.setWallPixel(x, y, c[0], c[1], c[2]);
-            else core.setWallPixel(x, y, 0, 0, 0);
-          }
-        }
-      };
-      module.exports = aiArt;
-      module.exports.DEFAULT_ART = DEFAULT_ART;
-    }
-  });
-
-  // src/effects/easterEgg/img1.bin
-  var require_img1 = __commonJS({
-    "src/effects/easterEgg/img1.bin"(exports, module) {
-      module.exports = "0tnftMngvc7gvM3gssritcviv9DfwdHgt83j4ubk9u/f5ODS3NvQ1tfL1dXKz9LIy83Dx8i9w8W5w8S3wsS3w8S4zc3D1NTK2NfJ3tvK6OPQ7+nU8erX8OnY6+XX5uPX5eLX4uDV4d7V4d7V4d7V4N3W4N3W4N3W393W393W39zV3dvU3drT29rS2trS2dnR2tfQ2NXN2NXM2NXM2NXM1dLJ1NHI09DH09DH0s/G0s/G0c7F0M3Ez8zDz8zDzsvCsMXcu83d8e7k7uzjsMbdrsXe2t3busrboLvavcbM1NHBxsi8xci9xsi+x8rAxcm/xce8w8a7w8W4w8W4wsS3xMe709XM1tjQ19jQztDFy8u/yci6ysa31tC+39fE4NrM4d3S4d7T4d7V4d7V4d7V4N3U4N3W4N3W4N3W4N3W39zV3tvU3tvU3drT3NnS29nS2tfQ2dbP2dbP2dbO2NXN1tPK1dLJ1NHI09DH09DH0s/G0c7F0c7Fz8zDz8zDzsvCy9XbpLzVsMTXr8TYorvXpLzXsMTYorfMjqnFt8LFzM7Eys3Eys3EyczDyMvCxsnAxci8xMa7w8W6wsS5wcO3xce81NXN19jQ2drS3N3V7O3m6uzj1NbMy8zAy8a1zsWy1s/A3NjN3tzR4N3T4N3U4N3U4N3U4N3V4N3W4d7X4N3W3tvU3tvU3dvT3NrT3NnS2tfQ2dbP2dbP2dbP2NXN1tPK1dLJ1NHI1NHI09DH0s/G0c7F0M3Ez8zDzsvCzcrB4+Ha1tfR0tTQ1dbT3dvV3NrUuLe0tbaxwMO9ycvDzdHHzM/Gy87FyczDyMvCxsnAxce8w8a6wsS5wsS5wcO3ycrB3N3U3N3U2dvR2drS7e7n9fbv8vTw4ufj2dvQw7+yxbys0cq83djM4d3R4t7U6OXb5ePa4d7W4N3W4N3W39zV39zV3tvU3drT3trT3drT29jR29jR3drT2dbP19TL1tPK1dLJ1NHJ1NHI09DH0s/G0c7F0M3Ez8zDzsvCzMnA7e3l7e3l7e3l7+zk6eXdlpGIWFRJsrWq0tXNztLKztHIzM/Gy87Fys3DyMvCxsnAxMi9w8a6wsS4wcO4wcO3nJ6Vjo+Hpqib4uPX1NXK7e7n9PXu8fTw3uPg4ubg3+HYl4+Bf25eg3BfaFhMTUA6c2hhsKie3tvS4+HZ4N3W39zV39zV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h391w7+2zcrDysfAyca/yca+yMW9x8S7xMG4xMG4w8C3xMG4SklFS0pGTEtHUE9LTUtHR0ZCS0pGS0hESEZCRkVBR0VCSEZCSERBQkA9QkA8Qj86Pz46koFu8M2q69C079S87cy148Sv5May3rmd2rWU0qmGwJNwqX5cmnBTmGxNfFI3hFg7oG5LtINc5cep8Nq/69G3372d06eCwpRrs4Ncn21NhFk/e1hCa004KRYMHxEJJBMLPiwkrqmhr6uhpKCW0M3FzMnCysfAyca/yMW+yMW9xsO6w8C3xMG4w8C3xMG4UVBMUU9MS0hFQT06Pjw4Q0E+REE+RUM/SEdDRkNAREA9RUM/RUM/R0VCR0RBREE9RUI/jn1r8Myq5can68+07tC179O76s634L+i17COyp15tYhmnHJUj2hOiGBGcksxjGFAqHpStoZbx5x05cmq4sOi1K6KxZZvrn1VmGlGgFY6bkszdFU/hGdQUj0tKxkOTTMgYkk4w721zcnDxcK5zcrCy8jByse/yMW/yMW+x8S7xcK5w8C3w8C3xMG4xMG4VFJPSUZDQT06Pjs4QDw5Qz88REE9R0NASkdDSEVBQ0A9QT87QkE9SUZCSUZCSUVBSUZEl4V08Myp4r6b4b+f5seq58Wn48Ol27mZzaN/t4lmm29PimFGf1lAZ0Ipglk7rH9Zu45lxJduwZJlvo9lzaN/x5pysYFYl2dFf1M4bkkxa0w2fF9JjXRcVT0qVjkjc082iGhRx8K6z83GzcrDzMnBy8jByca/yMW+yMW9xsO7xMG4wr+2w8C3xMG4w8C3SEdDTEtHRkNARkM/Qj47Qz88RUI+R0RBR0RBSUZCREM/RkVBR0VCS0hFSUZCSEVBRUNAlYZ38dK058eo5sap2K6M1q2K0qiDxZdxs4FdmmhGgVE0c0kvb0kvkmpLvpRuyZ93yJ1zzKF4y590s4FWoG1HpHNOmWhFgVU5b0cvZkMsb084bE86UzokUTMdbkowgltAm3tl0MzFz8zFzMnCy8jBysfAyca/yMW+x8S9xsO6wr+2wr+2w8C3xMG4w8C3QUA8Tk1JTUxIT01KR0RBRUNARUM/RURASEZCS0lFSUhET05LTk1LTEtHTEhFRkM/Q0E9kIN18tS36c2y6c2z0J98mmE/yZt1y512v49qs4VisYprv5x/0rGT3r2e37yc2LGO0qiC0KiBzaJ7t4phmWtGil49glk7dVE2bk0zdVU6eFc+PyUVPyYSWDghfVc7imJFoody0s/JzsvEzMnCy8jByca/yMW+x8S9x8S9xMG5wb60wb61w8C3w8C3w8C3REM/RURAU1FNTUlGSEZCSEdDSkhESkhETEpHS0lFVVRQVFNQUVBMTUxITUpFSkdCSEVAuqWQ786w48Gh4rydz597iVIww5t57cqn7Muq79K08de979W77tS768+15MOn27WV0qqGz6eCyaB4tYhhmW5LiWJDhV9BhmBDg2BEgFxAY0UvMBwOOyIRb000mXFRlmxNr5qI0tDKzcrDy8jBysfAyMW+yMW+x8S9xcK7wr+2wb61wr+2w7+3wr+2wr+2RURARkNAUU9MVFFOTUlGTUtHUU5KTUtHTUxJVVRQTUxIU1JOUlBMT01JS0lERUM+XldO5suw6Mam2q+I06V8volfgkopv5Zz78up7Mqq7tO38Na97tS77tS769C25MWp2raV0KeDzaKAx5x3sYVgl21NimRHhF9ChF9Dg15CfVg7UjopKhkLWTkjonRRq3tXmG1Ou62g0M/Iy8jByca/ysfAyMW+xsO8xcK8xMG5wr+2wr+2wr+2wb61wb61wb61RkVBT0xJTUxHWFZSUExITUtHTk1JTkxITUxJUE9MTEtHTUtHVFBMS0lEREM+QUE9koJx9di84b2a1Kd8xJFlomdAnWpH58Oe7s6t7cyt7c+z7dO57NG27NC46s6z4sGj1q+MyqB7xpt4xpt2r4NglGtMiGRHhmFEhF5CglxAelM3QjEiQyoYonJPu4lhqXlXkGdMuKudzszGysfAyMW+x8S9xsO8xcK7xMG6w8C4wb61wL21wL21wL21wL20wL20RURAS0pGT05KUE9LUU9LTElGT0xJTEhFS0lFSUZDTUlGT0pHTEhFS0hDSUdCUUxG07mh79C02rGJyZltsHZNp29K4LqX8NCx7M2u68yu68yv68yw682x6cyw5cap3LeWzqR+wJJuwJRwxpp0rYBbkWdIh2JFhF9Cg11AgVo9cUkwPicZkWVEyZpyv45on3JTjWdNua2hy8nCx8S9xsO8xcK7xMG6xMG6w8C5wr+4v7y1v7y1wL21wL22wL21v7yzTEpGTEhFSkdES0pGW1pWTkxITkpHSkdESkdES0hFUExJTkpGSEVBSEVBQ0E9fXBi8tW55MKgz590snVLqGxH3raT8NCx7Myu6Mak6Meo6suu7M2x7M6y6Mqt4r+g16+Lw5ZusIFdxZt2zKB5q35YjWRFhV9Dgls/gVk9gFc7Yzwmb0YuyZhv0aN9uohkmm5QknJawry0xsO8xMG6xMG6xMG6w8C5wr+4wb63wL22v7y1v7y1vru0vruzvbqxvbqxWlhUWVZTUU9LTUpHWFdTUlBMTUtHTkxITUpGT0xJUExJTEhFSEVAQkA7REM+uKSQ8tW52a+ItnpOomM82q+M7Mio7cuv6can47+c48Gf6Man7Myw682x58iq37uZz6V9rX9ZlWdHzaaF0qiDqnxWjWNEhFxAgVc7f1U5ek80ZTsktIZi2a6IzqB7r39dlGpNnoZ0xMC6wr23wb22wb23wb63wL23v7y1vru0vbqzvbqzvLmyu7iwu7ivu7ivu7ivWFdTXl1YY2JeWFZSV1ZSWVdUVVNPU09MUU1KUk5LUU1KTEhFS0hDQkA7W1ZN5s2168utyJJnmloxz6F968al6cio5cGh476b37iU3raS47+e6cir6cms5MGh2rKLx5pvn3JMlGpK3bqZ0qiArH1XjWNDgVc7f1I4fU81c0QrgFE227CL3LWRxZVvp3lXjWhOraGWvbm0vLexu7awvLexvLiyu7iwurawurewurewubavuLWst7Sst7Sst7Srt7SrWllVWVlVXVxYYF9bZGNfWllVXl1ZXFpWVVJPT0tIS0dESUVBSUZBQD45n4589dm+2rGMo2Q4uolj6cSi6sip5cGh3bOM2KuD16qC2KyF37aU47+g476f3rSS06Z+wpJor39WvJBm1KuCwpNpn29Kg1c5fE81e0wyfEowajgepnhY6MGg1KiBuohjmGxOmX9qrKefpaCZqKOdrKehr6qksKymsa2msq6osq6osq+osq+nsa6msa6msa6nsa6lsa6laGdib21odnRwfHt2iIaBiIeBiIaBjoyGmJaQmpiTnZqVn5uWpKGcrqih48mw68utvIVZo2tE4ruY6sms5sSn2KuFzJltyZZqzZ1z0aR72ayI3LOQ3LOQ1qqFyptzvYxjs4JauYlfuolfqnhQjF07ek4xdUgud0ctdkQmZzgbz6aF47mYyJZvqXlXj2lPy8K229jQxMG4qKSal5OKm5aOoJyUo5+XpaGZp6SbqKScqKWdqKWdqKWdqKWeqaaeqKWd4+Da5+Xe6eji7Orj7uvl7+3m8O3n8O7n8O7o8e/p8vDp8/Dq8vDq8eXX7c+y3LWPoGQ7z6WC6MWk6Mqu3riVyZdsuYVat4JXxJFnzJ100qN91aeC1KaAzp92wpBotoRcsoFZsX5WqXROlWJAfk8xdEcscUMpc0ImaTgbjF9B5b+d06R+uYhjlmhLq5OB5ePb4+DX4+DX3tvSw7+1l5OJjop/k4+El5OImpaMnZmPnpqQn5uSn5uSoZ2ToZ2UoJyT7Oni6+jh6+jh6+jh6+jh6ufg6ufg6+jh7Oni7Oni7erj7erj6+ri7NW+6MSjwo5ip3JM6sWk6ceq5sSm16yFxJJmtoJXq3ZPs35XxpVtzp53z595zJtzx5Zuuohfr31VrHlSp3NNm2ZDh1Y2ekswdEUsb0Anaz0iazwhzKWF3rWQw49pq3lXlW1T08zB4+HZ4d7W4d7V39zT3tvSx8O5j4uAioZ7i4h9jYp+kIyBko6DlJCFlZGHl5OIl5OIl5SJ7evk7erj7erj7erj7Oni7Oni7Ojh6+jh7Oni6ebf4+DX3drR4dTG782y47ybo2hAuo5s782t68uu5sKk1qiCxJNqtoVcqXVQo29LtYFbxZNryplxyJduwZBntIFYq3VOpW9JnWlEkFs6g1Iye0ovdEQqckMpbTwiqn9h6sSk0KB5vIliqHdVtpuI4uDY3drQ3drR3dnQ29jP2dXN0c7GmZWKh4N4iYV6iIR5iIR5iYV6ioZ7jIh9jYl+jop/joyA8vLs8O/o7u3m7ezl7Ozk7Ovk7Orj7Orj6+ni3tnQ1c/F1c3B6c217Mqq3raSgUsrxp6A78+07dC258Sm2rCNy5x2uohhqnhTmmdHmmdGsn1YwY1mwoxkuYNarXVNpm1Gn2hCk146h1Q0g1I1gFI5hFhAi2BJlm5X6MWn5r+ey5pyv4tmrHxeyLmt29nQ2tbO2dXO1tPL09DJzsvEsq+miod7h4N4h4R5h4R4h4N4hYF2hIB1hIB1hYF2hIJ2hIJ2/v78/Pz6+vr29/fz9fXv8/Ls8fHq8PDp7+/n7uzk5+LZ59K88da86MurzZtxc0Akx56B78607c+36Mar3bOSz6F6wZBotoVepXVVj2RMmnFawph9zaeNyqiPxqeRxaqXw6ycxbGjxrWqybuxz8S71czG2tLN48q17syt3rORy5dyvIZiq4Rt0c3G0tDI0M3GzcrDxsO8trOsk5CJhoR5hIJ2hoJ3hYJ3hYJ3hYF2g4B0gn5zgX1ygHxxfXpufHlu///////////////////////+/v79/v38/f37+/r28d7N68206M+27NW7y5x1ekIltIls7cmt7c+36s635su05M+85tfK6d/V6eLb6+ji6Ofj6unm7Oro7Orn6+zo6+vn8O/s9PLv8fHs8fDr7uvn7eTa68607cqq5b+ez514wItopnVWoYl6wb24vLmyraqjnJmTko+Hg392W1lQaGZfg4F2hIB1g4B0g390g390gn5zgHxxf3twfnpvenhseHZq6url8PDr9fXx+Pn2/Pz5/////////////vz48+DQ6suz3raa27ib8NvE3beYc0IpoIFv9uPU+PLs+/v3/f78/f/9/P37/P37+/369/j09fTw8O7q7+zo7uzn7urm6+Xg49vU1s3Hy7+3uqaZ0rqo7Mut7Mmq5sGh16eBu4Rgnm5QjWZNfFlDiX90g4F4ZWFaTEhDbGpihIF1gn9zZ2ZegH93g4B0g390gn5zgn5zgX1ygHxxf3pvfHlueXdrd3Vp2tfS2dbR19XQ2dfS1dPOiomFtbKt3t7a59/V8NnG1K+WpHpjzreo5tfH7dzL5dvT+/z7/v//9vXy8u3n9Ozj9/Dp9e/n7uTZ3cy9u6ORq5B+l3dlm3xrp4p6qYt6lnhofVpIh15HnWlLwZV47M6y7Mqt4biY16iEypZxp3NTkWVKjGZOeFZBdm1jeXZva2ZfU01HbWxleHZtf31yhoR+hoR8hIB1g4B0gn90gn9zgX1ygHxxf3twe3lteXdrd3Vp29jT2tfS2dXR19TPzsrGU1BRcm1lv7y3y8S87dfEtYVrbUs90tLL2djS8/Tw7OfgqZuSsJF+0qyT4L2j58eu58qv4L6f0qiDu4pjnmtHiFY1eUcqcDshZjQbRSkcc005s39c0Jp05LiY57yi68is4LST0Z55zp16t4RhlWZKk2hPg11DdVdDenVsfntzb2tiT0dAfHpxbW1kfXx0goB4gX90hYJ3g4B1gn90gn90gX1zf7xxfnpve3hteHZqdnRo0c7K1tTP2dfS2tfS0c7JeHZ0e3Nrwb+4zMfA5s28xJN6XjIhdlxRtK2l0si+xJaAb0MxsoNl3bCQ4r2h5MSo48Sm3bqY0KaAu4tlnm1Kh1U2e0ksd0IlajUaRSESt4Zl4rqb6MWu1KKK2ayR3K+PzZd006F9uoRgqHVTk2RIlmlPeVM7dVxKe3dwfXlxdXNpZmFag4F5fHlxfHlvg4B2h4R5hYN4hIF2g4B1gn9zgX1zf3tyfXlwendsd3VpdXNnraqjraumq6qmvbq2w8C8YV1djIaJxcK+0M3Gz8K40rOhvo10jVdCmXBfu7Kqy7+4tqefsIlw2KuL3rib5MOo5MWp3LqZzqWAuYhjnGpHhVM0eEUpdD8iYS8VXjcm2auK5sCk0J+CyZp9zp56u4Vl0aKCtoFgxJNvh1tBoXJXmW1ScUs1hnNmm5mUm5mTi4qCeXZugH51hYJ5iIV8h4R7hoN6hoN6hIF3g391gX5zf3tyfnpxe3dveHZrdnRodHJmzsvFvbmzo5+bmpeVn56fraywsbCzwL/BycjHy8nHzMnGzMG5y7esuJyOu7GrxMO/w8K+v6OSz6GA2rGS4b+i5MWo376d0amEvY9poG9LiFY1ekcocj0gVScRZ0Iw4LOS4bmX6sipxZZ1rnte1KuLkWFGxaGKqXxdQyUYupJ5iGBGb0w1hnpvkI+Gi4h/ZmNcUkxFh4V8iYZ9iYV8h4R7hoN6hYJ4g391gn50gHxzf3tyfXlwe3dueHZsd3RpdnRo2NXQ2dbR2tfS29jTysfCVVNQd3Jtr66rsrGwsK+vtLOyt7a2ubi6r7GylZSUgHt7dnJxeW1nv5N21quK3LiZ4sGj4L+g1bCLwZRwpHVRiVc3eUYnbjwcTCEMZEMz4baS5b6hwZBvnW5V1bSXi1s9pId1w51/aUIrYz8tv5p/elQ6cFA6gHhshIJ3h4R7b2xmV1FLh4N7h4N6hoJ5hYF4hIB3g392gX10gHxzgHx0gHxzfnpxfHhvendueXZreHVr1tPO1dLN1dLN19TPysbAPTo2dm9nzcvG1NHM0s/KzszHzMrFycfDxsTAwcC8vLu2trWxsLGuwamXzqB/2LGQ3ryd3ryd1bCMw5dyqHlWjVs6fEkqcD0dSyAMXT4w4baT2LGUwZJy2LKVkmJEqoNswpyCdUwzdEgwpXhjrIVtcEw0cVdEgHxzgn91hIF4dnNtW1ZQhIF4hIF4hIB3hIB3hYF4hYF4g392gn51gn51gn51gHxzfXlwfHhvendseXZt1NHL1NHM1NHM1tPOycW/My8qdm9lzMvG09LM0dDL0c/K0tDL0c/K0dDL0tHM0tHM0dDL0dHMzcnCxp+D06eF2rWS2rWS06yIw5d0roBbmGVCgk8uckAgUyYOXjws3bKN4ryZ6dC6roNnxZ2AyaqXhlc7mWdFj19BmWxXiGZSbko0dGJSf3x0gX10gn92fnx3YFxVh4N6h4N6h4N6iIR7iIR6iIR7h4N6hYF5hYF3hYF3g351gHxzf3tyfXlwe3hv1dLL1NHM1NHM1tPOy8jCOzcyc2xj0M7J1dTO09HM0tDL0c/K0M7Jz87Jz87Jzs3IzczHzMvGzMzIx7aoyZx81quJ1q6K0KaDxJh1tYZin21Kh1Iycj4fVScPZj8s3rSQ5MOi4MCh376h37iTv5Bps35Xo3BNkGNGfFQ8ck84bk46bmldcXRqdHNqeXZth4aAZWFag392gn51g392hYF4hYF4hoJ5hoJ5hYF4hYF4hYF3g392gHxzf3tyfnpxfXlw1NHM1NHM1dLN1tPOzMnEQTw4cWph0M7I09HM0c/K0M3IzszHzcrFzMnEy8jDycfCyMXAxcK9xMG9xMK9wqGJz6J/06mGzqJ9xJZyuYllonBMhlIybz0fVCcOdksz4buW5MKl5siu5ces2bKOxJVsrnxWmWtLh15EeFQ+cE45a1NAZWheaGxiam1jbW9mioqDa2dhe3hueHZsendtfHhvfnpxf3tyf3tygHxzgHxzf3txf3txfHlwe3huendtenZt";
-    }
-  });
-
-  // src/effects/easterEgg/img2.bin
-  var require_img2 = __commonJS({
-    "src/effects/easterEgg/img2.bin"(exports, module) {
-      module.exports = "v8PC2N/enKOYj5eKX2ZUjpaIv8a/2d3Y2ODgucTAuMK8r7mzlKGVwMnI5+jo6enp6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6enp5unor7avtL2urr2spratvMnH5Ofn6Ojo6Ojo6Ojo6Ojo6Ojo6ejo6Ojp6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6eno6enp6unp7ezt6+vq6ejo5+bnzNDI0Mmu4dm2qrKNcn9Nam1EippDhpczY3RAjZl2WWNA3N3d////////7/X0gIVsn6WZkpiOpKmaxc+99vr38vj3ytTPt8O56/Hv8ff3/P7+////////////////////////////////3+fjiJGHkpuKj52TtsXD1+jq7fj4////////////////////////////////////////////////////////////////////+Pv61+He6fHw////9uLs6tfd6MXD5sWw38K01r68mnKDzbS54cXI0bq2zLq1a29O29vb////////+vr54uXf6O3s4eXh2+Dd3OHX7fLu////////6PDu1N3Y9Pn37fPv/////////////f7+/////////////v7/vMfAZHBfWWVbi5uZ6fX2/////v///////////////////v//09rX1NrU4OTe+fv5+fj2/v38////////6e7r4erozdjTxNHMzNrXgY57fIqBnqysy9fc+fn///n/5+XppK2ci4xxkYVmlq58sMqb0MKzw7iaeoBE29vb////////////////+/38/f7+5+3r/f7//Pz79PXz////+/39/f//4+ro5uzl///+/P383+bkrLaxv8jD+Pv6////////09zWWWRYVGBbw9LR+f///P//8vf21t3WtL+yvMW2w8q7ztG/p6mVwMGs1cmw38WnvZ+JnoN4yLu18O7nuLuskZWJfod+c31zj5yWg4lwg4JifX9erq1p2dyQ2OKe4+zG2+nWkax9b4hXi6NIoMFQiKdRiplUe31M29vc/v/9/v79/////////////P399Pf28fX0+/v15+ze/v//////////6O3q6+/q////5ezq3ubl6/Dvtr66sry49fj47fDtu8C3Z2xldYJ86fX04u3ujpqXeod/gIhtfIVbeIBUqaJ+5Nu4+vHN4cCWxpp107KLzKd/onlcmG1Y0LOd2bCSuY9yrJaEiYyKi41nu7I5vbgsp7AzpbQwo7YhjrA8k7htq8d/5/PYmrF5VW4ndJNQb4NMf4tfh4Zi19jU/v799Pfy+vz5////////+v328vXu7PLu/v76+frx+/v5/////////P7+/P79/v///P39////////+v38ydDPoqagiIuDbHBnfYR+Xmtcg5CFeYWDbXl0ZHJjbnpni451s6iA69am9eCy0Kl+u41kxKB7p4JomnFXkWdKjmhQkXJjimFTfE8/nGxTqot1kIx6f4ptcIBqcIB2cYF6bXxzYnVphJuQzuLV4fHonb97rMWVt8mvhpdlcnFfa2dc1dfR/f77/f749fnv6vDX6/LX5e7P1N686u/l/////////////////////////////////////v79////////////zNLQjZaSe4J7bXBmh42HaHNvn6qo2+TklZ2MfYNvrKOA7suV89+x27yRnm5PjmBFbEI0WzgyVTcxXDszTC4oQiYfTy4lWTgwgFZHlmVMqYl2kIuJZW90cHuAipSbdH2FbHV7bHiAlqOi7fXy9v3+9P3/2ufiiJ1/Y2FVREA3ysu2+fnx0di6x9aUs8Zptcpwn7hbvs6U5OjX8PPj7PLg1+K05+3T7vTi6u7Y1tu+0dW7zNK5ztHFwr2sq6ubwMS+6u/v8vf5ys/Ok5GL0trd09ziyNDSoKaaeoBmlo9s4LqE6r6Kyp1xjV5GcEY1dkk5cEQ3YTwyVzUrUDAoVzUudEo6hVI8gFE7cUg4fUw4kmROoZCCdnt7dn+FlJybi5aGh5J2maNcqrhx3erX9f//9P7/7vj7ssWvdHdXRkE6maF86evToaqBdIo+jK0wja8vbo4ihKBIssGWla5ijqtNgJ04gJ8/pbhrmKZbfpNChJdRoatux8ayq6udg4mAipKNlqCf1t3ev8PDrbGwztTTv8G0gINrZWhHkYtj48SQ77p/uH5UazspVTMrcD8woV1AsG9PrWpKtm5MpGBElVc8kVI1nFo7oWRBgEw0bUEzekg1nnVdjYyIpKN9rrhkqcJsnLhypLxWpsRzz+HB1efW3Ozh6vT/5vH6qq6SYFQ7o6uKrbaM0dW6oa2AfZNEh6JCaoQwYXs1cIs8dZcwb48tdYpKeYxUlaRkip1GtMF6vcWNu76DxMShr7Khr7ew1Nratbm4q62o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0IZd0Ihk0Ixuz5B61p2K2Zl8ynlSyn1W3LOezoVhynZLxnRIyHZJyXdKyHdKxXVIxndMzX5Uy3xQzHhL0HpL3INP6IpV65p3oJZbdZMSfokjhZgvocNputyVxd2y4+3as89bssFMvKNRnnxQZY4yepM3rLJKm65KZLyRit+51bCF97GD/saV/tGi/tCf8biR87WW8aiA7p9u6Zlk55di5ZZh5JRf45Nf24tZxnRGu25FvXVMqlszw3JE1YZZ04hg0Ihky4hozY520ZaC1JV8zoVjyX5Xx3lP1p+B1Zp7xXRKw3JHwm5Cv2s/v2tAwnJGyntQ0oNZ14ti3I5m5JZr8qJz+652/7Z45qxug5Ule4kod48hmLsvrrtjwriE1taPnsFhha4krbNwj3lld48pl7A2s8FMl79qZtKwrdCm6aB1+raD/smW/tOm+8KJ9qRp+650/bR8/raB+rF98aRy5pho4JBh2IhbzHdMw21Ex3NKxXJKqVowsWE5y4BWy4NgyoZlyolrzo9y1Y9w1Yxs0Ylmy4NbxXlPzYlj0pZ3xHRLxXhNyXpNyHdLxndLyHlNzHxR1IVc3Y5l4pNk65tq9qd0/ryI/8+d+7+Jh3w/YGonc4otpKo/sZZWvqyEtqhoqMVxpsBFvseXnqhSZmg0bHY1k5FCbreMf+K7y7CF8aNz/byE/suZ/sqW/Ld7/ryD/7+J/7yJ/bWG86d555Vo4Ilf2oNaznxPvX4/v505mJEejWgtqFMutmhDwHdVxHxdx4Niy4lo0oxr1Yto0otn0IdjyoNcwHROyoxs2a2Ux3pQzYBU1IZX14pY2otZ2IhW1YNT2Ida4I9h6JZm7Zxm9KJr/bV9/sqW/8aQo5JDZnUrZX4igpk4rJJrop9Vr7JLxtFRqMA7qZdsl55VZWMzcX49ZnZSYs2qotyx56Fz96x5/r6I/smV/8KK/8KL/8OO/7qI+6p+8Ztz449m1opYwIhPrZUzd4cYcHk1go9MdnUkmGQ1t2hKvHFUvXVYw3lcxX5fyYNfz4hhz4plzYpry4dmx4BZwHVNx4Rh4LaczoNW1YhW4JRf6Zxn7aFq7qJp7qFn3YxY345c55hj6ptk8aFp/LJ5/seQ/8eRrIpIcYQffJYli4xDcpE+p785r8NQq55Yqp9yycahnalqa3oxfpM0a6JvcuO7vsWT9aNw/rJ+/7+M/8KQ97qF67R20JlnvIZVqX5Mim04hH8qjZotc480ZIobUHAgbGk8mmhGtmlNwnRVwnhZw3paw3paxHpYx3tUy4BU0IhezY5tzI1wyoVlxnxVxHZJyX9S5Lmb2I9j2ItW5Zph86hu/Ld7/r6B/r1/zH1L0XxK4pJd6Zlj8aFp+7J5/sWN/8WMnoBDVnETdoM+tMJNeaEom6w/mKxBl7w7prJmtcBXlqs2YHUkbXg3Z8Cchei5cpBCl4g7s6VDz8NNyb9ElZc1l6o6V3MTTFgZZ3EgVGUaVmwXYHEdbIgeV3cncVUyrlxEwnBPz4Re0IZdz4NXzoFSzH5PzH1MzX5M0YVX0I1lzY5wzIlqyIBYwndQvW1CvWo61ZZu0YdX04hS3pJa7aJm+rd5/8aG/MGDt2I3xGk82YZV55Zi8qNr/LN6/sWM/8CGrp8/h5krd4s0f5Y6mLM9kZs7ssFhrc1IkaQxsbdYkJ5KVGQqbZJVbeG5gMqXbn8tlaM8iJUve5kgiqI1boItlKM2iaMhaX4icYYhpbg8u9JDrMQvfaEVeWwrym1S1H1Z35Jn4pdp4JBa3ItU2IhS1YRP0oNN0oNP04ZVz4Zaz4tnzodgy4JXxn1TwHRJt2g8tWY5uWk4yXpE2Y5V5Jph86tv/71/761xoEgkwWI01HxL5pRg9KRs/bR7/8OM/rl/nZo4m6I0o6pY2eGjosFHn6ZDpb1Jp7dcsKmIl5B2enlLRFUnYal4efLEZpVkaGMugYYzdYgpXHIpeowqgJY4scY4u9M/prxDiKQugJYpm7QujaIva5kXsZQ+5pJ06KKA66aB6aN55p1t4pdj35Jc35lq4qiH2pZvzH9UyoFU1o1f1I1h0opez4lbx4FWtW9MqFo4rFs0vWw+2ItW6KFr8qpv/7p94ZlhjjcZv1su1HVE55Bb9aRt/rZ//8OM8690dX8feooljp0jl6wtj6QyfIMvma0yra1TmpRQgY5fQVY0RVYtYMedhO6/UW8/Z2s2bmk+Z3g3aXU3XHAxh58/xd42u9gwlawqh5wqhJgma3g4ZnAvZXY5m4xE7qF57KmD6aZ/7aV47aN16KFy5Z5u4Jtv1ZFszoRbyX9WyoVZ2plr36eE3Zt22ZZuyIRhtWxMr2BDumRK0XpQ4ZJg8614+rZ+/8GIyoRThEATvlQo0XBA5Y9c96Vw/rmC/8OM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";
-    }
-  });
-
-  // sim/shims/fs.js
-  var require_fs = __commonJS({
-    "sim/shims/fs.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var img1B64 = require_img1();
-      var img2B64 = require_img2();
-      function b64ToBytes(b64) {
-        const bin = window.atob(b64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        return bytes;
-      }
-      var img1Bin = null;
-      var img2Bin = null;
-      function readFileSync(p, encoding) {
-        if (/img1\.bin$/.test(p)) return img1Bin || (img1Bin = b64ToBytes(img1B64));
-        if (/img2\.bin$/.test(p)) return img2Bin || (img2Bin = b64ToBytes(img2B64));
-        const v = window.localStorage.getItem("simfs:" + p);
-        if (v === null) {
-          const e = new Error("ENOENT: " + p);
-          e.code = "ENOENT";
-          throw e;
-        }
-        if (encoding) return v;
-        return new Uint8Array(JSON.parse(v));
-      }
-      function writeFileSync(p, data) {
-        window.localStorage.setItem("simfs:" + p, typeof data === "string" ? data : JSON.stringify(Array.from(data)));
-      }
-      function existsSync(p) {
-        return window.localStorage.getItem("simfs:" + p) !== null;
-      }
-      function unlinkSync(p) {
-        window.localStorage.removeItem("simfs:" + p);
-      }
-      module.exports = { readFileSync, writeFileSync, existsSync, unlinkSync };
-    }
-  });
-
-  // sim/shims/path.js
-  var require_path = __commonJS({
-    "sim/shims/path.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      function join(...parts) {
-        return parts.filter(Boolean).join("/").replace(/\/+/g, "/");
-      }
-      module.exports = { join };
-    }
-  });
-
   // src/effects/canvas.js
   var require_canvas = __commonJS({
     "src/effects/canvas.js"(exports, module) {
@@ -632,6 +491,164 @@ var PiEngine = (() => {
         return cube;
       }
       module.exports = { defineCanvasEffect };
+    }
+  });
+
+  // src/effects/aiArt.js
+  var require_aiArt = __commonJS({
+    "src/effects/aiArt.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { defineCanvasEffect } = require_canvas();
+      var DEFAULT_ART = {
+        w: 16,
+        h: 16,
+        fps: 2.2,
+        palette: ["#5a0a1e", "#b0123c", "#ff2d64", "#ff8fb0", "#ffffff"],
+        frames: [
+          ["................", "................", "...1111..1111...", "..122221122221..", ".12333222222221.", ".12342222222221.", ".12322222222221.", ".12222222222221.", "..122222222221..", "...1222222221...", "....12222221....", ".....122221.....", "......1221......", ".......11.......", "................", "................"],
+          ["................", "................", "...0000..0000...", "..022220022220..", ".02222222222220.", ".02232222222220.", ".02222222222220.", ".02222222222220.", "..022222222220..", "...0222222220...", "....02222220....", ".....022220.....", "......0220......", ".......00.......", "................", "................"]
+        ]
+      };
+      function parseColour(hex) {
+        const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+        if (!m) return [0, 0, 0];
+        const n = parseInt(m[1], 16);
+        return [(n >> 16) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
+      }
+      var cache = { src: null, pal: [], avg: [0.3, 0.1, 0.3] };
+      function current(core) {
+        const art = core.effectOptions && core.effectOptions.ai_art && core.effectOptions.ai_art.art || DEFAULT_ART;
+        if (cache.src !== art) {
+          cache.src = art;
+          cache.pal = (art.palette || []).map(parseColour);
+          let r = 0, g = 0, b = 0, n2 = 0;
+          for (const row of art.frames[0] || []) for (const ch of row) {
+            const c = ch !== "." && cache.pal[parseInt(ch, 16)];
+            if (c) {
+              r += c[0];
+              g += c[1];
+              b += c[2];
+              n2++;
+            }
+          }
+          cache.avg = n2 ? [r / n2, g / n2, b / n2] : [0.3, 0.1, 0.3];
+        }
+        const n = art.frames.length;
+        const f = n > 1 ? Math.floor(core.t * (art.fps || 4)) % n : 0;
+        return { art, rows: art.frames[f], pal: cache.pal, avg: cache.avg };
+      }
+      function pixel(rows, pal, x, y) {
+        const ch = (rows[y] || "")[x];
+        if (!ch || ch === ".") return null;
+        return pal[parseInt(ch, 16)] || null;
+      }
+      module.exports = defineCanvasEffect({
+        render(c, { t, core }) {
+          const { art, rows, pal, avg } = current(core);
+          const W = c.W, H = c.H;
+          const scale = Math.max(1, Math.floor(Math.min((W - 4) / art.w, (H - 6) / art.h)));
+          const aw = art.w * scale, ah = art.h * scale;
+          const bob = scale >= 3 ? Math.round(Math.sin(t * 1.4) * 1.2) : 0;
+          const ox = Math.floor((W - aw) / 2), oy = Math.floor((H - ah) / 2) + bob - 1;
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const d = Math.hypot((x - W / 2) / W, (y - H / 2) / H);
+            const gl = Math.max(0, 0.55 - d) * (0.28 + 0.07 * Math.sin(t * 0.8));
+            c.set(x, y, 0.01 + avg[0] * gl, 0.01 + avg[1] * gl, 0.02 + avg[2] * gl);
+          }
+          const so = Math.max(1, Math.round(scale * 0.6)) + Math.max(0, -bob);
+          for (let ay = 0; ay < art.h; ay++) for (let ax = 0; ax < art.w; ax++) {
+            if (!pixel(rows, pal, ax, ay)) continue;
+            for (let j = 0; j < scale; j++) for (let i = 0; i < scale; i++) {
+              const x = ox + ax * scale + i + so, y = oy + ay * scale + j + so, o = c.get(x, y);
+              if (o) c.set(x, y, o[0] * 0.35, o[1] * 0.35, o[2] * 0.35);
+            }
+          }
+          for (let ay = 0; ay < art.h; ay++) for (let ax = 0; ax < art.w; ax++) {
+            const col = pixel(rows, pal, ax, ay);
+            if (!col) continue;
+            for (let j = 0; j < scale; j++) for (let i = 0; i < scale; i++) {
+              let sh = 1;
+              if (scale >= 2) {
+                const edgeW = Math.max(1, Math.floor(scale / 3));
+                if (j < edgeW && !pixel(rows, pal, ax, ay - 1)) sh = 1.3;
+                else if (i < edgeW && !pixel(rows, pal, ax - 1, ay)) sh = 1.18;
+                else if (j >= scale - edgeW && !pixel(rows, pal, ax, ay + 1)) sh = 0.6;
+                else if (i >= scale - edgeW && !pixel(rows, pal, ax + 1, ay)) sh = 0.72;
+              }
+              c.set(ox + ax * scale + i, oy + ay * scale + j, Math.min(1, col[0] * sh), Math.min(1, col[1] * sh), Math.min(1, col[2] * sh));
+            }
+          }
+        }
+      });
+      module.exports.DEFAULT_ART = DEFAULT_ART;
+    }
+  });
+
+  // src/effects/easterEgg/img1.bin
+  var require_img1 = __commonJS({
+    "src/effects/easterEgg/img1.bin"(exports, module) {
+      module.exports = "0tnftMngvc7gvM3gssritcviv9DfwdHgt83j4ubk9u/f5ODS3NvQ1tfL1dXKz9LIy83Dx8i9w8W5w8S3wsS3w8S4zc3D1NTK2NfJ3tvK6OPQ7+nU8erX8OnY6+XX5uPX5eLX4uDV4d7V4d7V4d7V4N3W4N3W4N3W393W393W39zV3dvU3drT29rS2trS2dnR2tfQ2NXN2NXM2NXM2NXM1dLJ1NHI09DH09DH0s/G0s/G0c7F0M3Ez8zDz8zDzsvCsMXcu83d8e7k7uzjsMbdrsXe2t3busrboLvavcbM1NHBxsi8xci9xsi+x8rAxcm/xce8w8a7w8W4w8W4wsS3xMe709XM1tjQ19jQztDFy8u/yci6ysa31tC+39fE4NrM4d3S4d7T4d7V4d7V4d7V4N3U4N3W4N3W4N3W4N3W39zV3tvU3tvU3drT3NnS29nS2tfQ2dbP2dbP2dbO2NXN1tPK1dLJ1NHI09DH09DH0s/G0c7F0c7Fz8zDz8zDzsvCy9XbpLzVsMTXr8TYorvXpLzXsMTYorfMjqnFt8LFzM7Eys3Eys3EyczDyMvCxsnAxci8xMa7w8W6wsS5wcO3xce81NXN19jQ2drS3N3V7O3m6uzj1NbMy8zAy8a1zsWy1s/A3NjN3tzR4N3T4N3U4N3U4N3U4N3V4N3W4d7X4N3W3tvU3tvU3dvT3NrT3NnS2tfQ2dbP2dbP2dbP2NXN1tPK1dLJ1NHI1NHI09DH0s/G0c7F0M3Ez8zDzsvCzcrB4+Ha1tfR0tTQ1dbT3dvV3NrUuLe0tbaxwMO9ycvDzdHHzM/Gy87FyczDyMvCxsnAxce8w8a6wsS5wsS5wcO3ycrB3N3U3N3U2dvR2drS7e7n9fbv8vTw4ufj2dvQw7+yxbys0cq83djM4d3R4t7U6OXb5ePa4d7W4N3W4N3W39zV39zV3tvU3drT3trT3drT29jR29jR3drT2dbP19TL1tPK1dLJ1NHJ1NHI09DH0s/G0c7F0M3Ez8zDzsvCzMnA7e3l7e3l7e3l7+zk6eXdlpGIWFRJsrWq0tXNztLKztHIzM/Gy87Fys3DyMvCxsnAxMi9w8a6wsS4wcO4wcO3nJ6Vjo+Hpqib4uPX1NXK7e7n9PXu8fTw3uPg4ubg3+HYl4+Bf25eg3BfaFhMTUA6c2hhsKie3tvS4+HZ4N3W39zV39zV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h391w7+2zcrDysfAyca/yca+yMW9x8S7xMG4xMG4w8C3xMG4SklFS0pGTEtHUE9LTUtHR0ZCS0pGS0hESEZCRkVBR0VCSEZCSERBQkA9QkA8Qj86Pz46koFu8M2q69C079S87cy148Sv5May3rmd2rWU0qmGwJNwqX5cmnBTmGxNfFI3hFg7oG5LtINc5cep8Nq/69G3372d06eCwpRrs4Ncn21NhFk/e1hCa004KRYMHxEJJBMLPiwkrqmhr6uhpKCW0M3FzMnCysfAyca/yMW+yMW9xsO6w8C3xMG4w8C3xMG4UVBMUU9MS0hFQT06Pjw4Q0E+REE+RUM/SEdDRkNAREA9RUM/RUM/R0VCR0RBREE9RUI/jn1r8Myq5can68+07tC179O76s634L+i17COyp15tYhmnHJUj2hOiGBGcksxjGFAqHpStoZbx5x05cmq4sOi1K6KxZZvrn1VmGlGgFY6bkszdFU/hGdQUj0tKxkOTTMgYkk4w721zcnDxcK5zcrCy8jByse/yMW/yMW+x8S7xcK5w8C3w8C3xMG4xMG4VFJPSUZDQT06Pjs4QDw5Qz88REE9R0NASkdDSEVBQ0A9QT87QkE9SUZCSUZCSUVBSUZEl4V08Myp4r6b4b+f5seq58Wn48Ol27mZzaN/t4lmm29PimFGf1lAZ0Ipglk7rH9Zu45lxJduwZJlvo9lzaN/x5pysYFYl2dFf1M4bkkxa0w2fF9JjXRcVT0qVjkjc082iGhRx8K6z83GzcrDzMnBy8jByca/yMW+yMW9xsO7xMG4wr+2w8C3xMG4w8C3SEdDTEtHRkNARkM/Qj47Qz88RUI+R0RBR0RBSUZCREM/RkVBR0VCS0hFSUZCSEVBRUNAlYZ38dK058eo5sap2K6M1q2K0qiDxZdxs4FdmmhGgVE0c0kvb0kvkmpLvpRuyZ93yJ1zzKF4y590s4FWoG1HpHNOmWhFgVU5b0cvZkMsb084bE86UzokUTMdbkowgltAm3tl0MzFz8zFzMnCy8jBysfAyca/yMW+x8S9xsO6wr+2wr+2w8C3xMG4w8C3QUA8Tk1JTUxIT01KR0RBRUNARUM/RURASEZCS0lFSUhET05LTk1LTEtHTEhFRkM/Q0E9kIN18tS36c2y6c2z0J98mmE/yZt1y512v49qs4VisYprv5x/0rGT3r2e37yc2LGO0qiC0KiBzaJ7t4phmWtGil49glk7dVE2bk0zdVU6eFc+PyUVPyYSWDghfVc7imJFoody0s/JzsvEzMnCy8jByca/yMW+x8S9x8S9xMG5wb60wb61w8C3w8C3w8C3REM/RURAU1FNTUlGSEZCSEdDSkhESkhETEpHS0lFVVRQVFNQUVBMTUxITUpFSkdCSEVAuqWQ786w48Gh4rydz597iVIww5t57cqn7Muq79K08de979W77tS768+15MOn27WV0qqGz6eCyaB4tYhhmW5LiWJDhV9BhmBDg2BEgFxAY0UvMBwOOyIRb000mXFRlmxNr5qI0tDKzcrDy8jBysfAyMW+yMW+x8S9xcK7wr+2wb61wr+2w7+3wr+2wr+2RURARkNAUU9MVFFOTUlGTUtHUU5KTUtHTUxJVVRQTUxIU1JOUlBMT01JS0lERUM+XldO5suw6Mam2q+I06V8volfgkopv5Zz78up7Mqq7tO38Na97tS77tS769C25MWp2raV0KeDzaKAx5x3sYVgl21NimRHhF9ChF9Dg15CfVg7UjopKhkLWTkjonRRq3tXmG1Ou62g0M/Iy8jByca/ysfAyMW+xsO8xcK8xMG5wr+2wr+2wr+2wb61wb61wb61RkVBT0xJTUxHWFZSUExITUtHTk1JTkxITUxJUE9MTEtHTUtHVFBMS0lEREM+QUE9koJx9di84b2a1Kd8xJFlomdAnWpH58Oe7s6t7cyt7c+z7dO57NG27NC46s6z4sGj1q+MyqB7xpt4xpt2r4NglGtMiGRHhmFEhF5CglxAelM3QjEiQyoYonJPu4lhqXlXkGdMuKudzszGysfAyMW+x8S9xsO8xcK7xMG6w8C4wb61wL21wL21wL21wL20wL20RURAS0pGT05KUE9LUU9LTElGT0xJTEhFS0lFSUZDTUlGT0pHTEhFS0hDSUdCUUxG07mh79C02rGJyZltsHZNp29K4LqX8NCx7M2u68yu68yv68yw682x6cyw5cap3LeWzqR+wJJuwJRwxpp0rYBbkWdIh2JFhF9Cg11AgVo9cUkwPicZkWVEyZpyv45on3JTjWdNua2hy8nCx8S9xsO8xcK7xMG6xMG6w8C5wr+4v7y1v7y1wL21wL22wL21v7yzTEpGTEhFSkdES0pGW1pWTkxITkpHSkdESkdES0hFUExJTkpGSEVBSEVBQ0E9fXBi8tW55MKgz590snVLqGxH3raT8NCx7Myu6Mak6Meo6suu7M2x7M6y6Mqt4r+g16+Lw5ZusIFdxZt2zKB5q35YjWRFhV9Dgls/gVk9gFc7Yzwmb0YuyZhv0aN9uohkmm5QknJawry0xsO8xMG6xMG6xMG6w8C5wr+4wb63wL22v7y1v7y1vru0vruzvbqxvbqxWlhUWVZTUU9LTUpHWFdTUlBMTUtHTkxITUpGT0xJUExJTEhFSEVAQkA7REM+uKSQ8tW52a+ItnpOomM82q+M7Mio7cuv6can47+c48Gf6Man7Myw682x58iq37uZz6V9rX9ZlWdHzaaF0qiDqnxWjWNEhFxAgVc7f1U5ek80ZTsktIZi2a6IzqB7r39dlGpNnoZ0xMC6wr23wb22wb23wb63wL23v7y1vru0vbqzvbqzvLmyu7iwu7ivu7ivu7ivWFdTXl1YY2JeWFZSV1ZSWVdUVVNPU09MUU1KUk5LUU1KTEhFS0hDQkA7W1ZN5s2168utyJJnmloxz6F968al6cio5cGh476b37iU3raS47+e6cir6cms5MGh2rKLx5pvn3JMlGpK3bqZ0qiArH1XjWNDgVc7f1I4fU81c0QrgFE227CL3LWRxZVvp3lXjWhOraGWvbm0vLexu7awvLexvLiyu7iwurawurewurewubavuLWst7Sst7Sst7Srt7SrWllVWVlVXVxYYF9bZGNfWllVXl1ZXFpWVVJPT0tIS0dESUVBSUZBQD45n4589dm+2rGMo2Q4uolj6cSi6sip5cGh3bOM2KuD16qC2KyF37aU47+g476f3rSS06Z+wpJor39WvJBm1KuCwpNpn29Kg1c5fE81e0wyfEowajgepnhY6MGg1KiBuohjmGxOmX9qrKefpaCZqKOdrKehr6qksKymsa2msq6osq6osq+osq+nsa6msa6msa6nsa6lsa6laGdib21odnRwfHt2iIaBiIeBiIaBjoyGmJaQmpiTnZqVn5uWpKGcrqih48mw68utvIVZo2tE4ruY6sms5sSn2KuFzJltyZZqzZ1z0aR72ayI3LOQ3LOQ1qqFyptzvYxjs4JauYlfuolfqnhQjF07ek4xdUgud0ctdkQmZzgbz6aF47mYyJZvqXlXj2lPy8K229jQxMG4qKSal5OKm5aOoJyUo5+XpaGZp6SbqKScqKWdqKWdqKWdqKWeqaaeqKWd4+Da5+Xe6eji7Orj7uvl7+3m8O3n8O7n8O7o8e/p8vDp8/Dq8vDq8eXX7c+y3LWPoGQ7z6WC6MWk6Mqu3riVyZdsuYVat4JXxJFnzJ100qN91aeC1KaAzp92wpBotoRcsoFZsX5WqXROlWJAfk8xdEcscUMpc0ImaTgbjF9B5b+d06R+uYhjlmhLq5OB5ePb4+DX4+DX3tvSw7+1l5OJjop/k4+El5OImpaMnZmPnpqQn5uSn5uSoZ2ToZ2UoJyT7Oni6+jh6+jh6+jh6+jh6ufg6ufg6+jh7Oni7Oni7erj7erj6+ri7NW+6MSjwo5ip3JM6sWk6ceq5sSm16yFxJJmtoJXq3ZPs35XxpVtzp53z595zJtzx5Zuuohfr31VrHlSp3NNm2ZDh1Y2ekswdEUsb0Anaz0iazwhzKWF3rWQw49pq3lXlW1T08zB4+HZ4d7W4d7V39zT3tvSx8O5j4uAioZ7i4h9jYp+kIyBko6DlJCFlZGHl5OIl5OIl5SJ7evk7erj7erj7erj7Oni7Oni7Ojh6+jh7Oni6ebf4+DX3drR4dTG782y47ybo2hAuo5s782t68uu5sKk1qiCxJNqtoVcqXVQo29LtYFbxZNryplxyJduwZBntIFYq3VOpW9JnWlEkFs6g1Iye0ovdEQqckMpbTwiqn9h6sSk0KB5vIliqHdVtpuI4uDY3drQ3drR3dnQ29jP2dXN0c7GmZWKh4N4iYV6iIR5iIR5iYV6ioZ7jIh9jYl+jop/joyA8vLs8O/o7u3m7ezl7Ozk7Ovk7Orj7Orj6+ni3tnQ1c/F1c3B6c217Mqq3raSgUsrxp6A78+07dC258Sm2rCNy5x2uohhqnhTmmdHmmdGsn1YwY1mwoxkuYNarXVNpm1Gn2hCk146h1Q0g1I1gFI5hFhAi2BJlm5X6MWn5r+ey5pyv4tmrHxeyLmt29nQ2tbO2dXO1tPL09DJzsvEsq+miod7h4N4h4R5h4R4h4N4hYF2hIB1hIB1hYF2hIJ2hIJ2/v78/Pz6+vr29/fz9fXv8/Ls8fHq8PDp7+/n7uzk5+LZ59K88da86MurzZtxc0Akx56B78607c+36Mar3bOSz6F6wZBotoVepXVVj2RMmnFawph9zaeNyqiPxqeRxaqXw6ycxbGjxrWqybuxz8S71czG2tLN48q17syt3rORy5dyvIZiq4Rt0c3G0tDI0M3GzcrDxsO8trOsk5CJhoR5hIJ2hoJ3hYJ3hYJ3hYF2g4B0gn5zgX1ygHxxfXpufHlu///////////////////////+/v79/v38/f37+/r28d7N68206M+27NW7y5x1ekIltIls7cmt7c+36s635su05M+85tfK6d/V6eLb6+ji6Ofj6unm7Oro7Orn6+zo6+vn8O/s9PLv8fHs8fDr7uvn7eTa68607cqq5b+ez514wItopnVWoYl6wb24vLmyraqjnJmTko+Hg392W1lQaGZfg4F2hIB1g4B0g390g390gn5zgHxxf3twfnpvenhseHZq6url8PDr9fXx+Pn2/Pz5/////////////vz48+DQ6suz3raa27ib8NvE3beYc0IpoIFv9uPU+PLs+/v3/f78/f/9/P37/P37+/369/j09fTw8O7q7+zo7uzn7urm6+Xg49vU1s3Hy7+3uqaZ0rqo7Mut7Mmq5sGh16eBu4Rgnm5QjWZNfFlDiX90g4F4ZWFaTEhDbGpihIF1gn9zZ2ZegH93g4B0g390gn5zgn5zgX1ygHxxf3pvfHlueXdrd3Vp2tfS2dbR19XQ2dfS1dPOiomFtbKt3t7a59/V8NnG1K+WpHpjzreo5tfH7dzL5dvT+/z7/v//9vXy8u3n9Ozj9/Dp9e/n7uTZ3cy9u6ORq5B+l3dlm3xrp4p6qYt6lnhofVpIh15HnWlLwZV47M6y7Mqt4biY16iEypZxp3NTkWVKjGZOeFZBdm1jeXZva2ZfU01HbWxleHZtf31yhoR+hoR8hIB1g4B0gn90gn9zgX1ygHxxf3twe3lteXdrd3Vp29jT2tfS2dXR19TPzsrGU1BRcm1lv7y3y8S87dfEtYVrbUs90tLL2djS8/Tw7OfgqZuSsJF+0qyT4L2j58eu58qv4L6f0qiDu4pjnmtHiFY1eUcqcDshZjQbRSkcc005s39c0Jp05LiY57yi68is4LST0Z55zp16t4RhlWZKk2hPg11DdVdDenVsfntzb2tiT0dAfHpxbW1kfXx0goB4gX90hYJ3g4B1gn90gn90gX1zf7xxfnpve3hteHZqdnRo0c7K1tTP2dfS2tfS0c7JeHZ0e3Nrwb+4zMfA5s28xJN6XjIhdlxRtK2l0si+xJaAb0MxsoNl3bCQ4r2h5MSo48Sm3bqY0KaAu4tlnm1Kh1U2e0ksd0IlajUaRSESt4Zl4rqb6MWu1KKK2ayR3K+PzZd006F9uoRgqHVTk2RIlmlPeVM7dVxKe3dwfXlxdXNpZmFag4F5fHlxfHlvg4B2h4R5hYN4hIF2g4B1gn9zgX1zf3tyfXlwendsd3VpdXNnraqjraumq6qmvbq2w8C8YV1djIaJxcK+0M3Gz8K40rOhvo10jVdCmXBfu7Kqy7+4tqefsIlw2KuL3rib5MOo5MWp3LqZzqWAuYhjnGpHhVM0eEUpdD8iYS8VXjcm2auK5sCk0J+CyZp9zp56u4Vl0aKCtoFgxJNvh1tBoXJXmW1ScUs1hnNmm5mUm5mTi4qCeXZugH51hYJ5iIV8h4R7hoN6hoN6hIF3g391gX5zf3tyfnpxe3dveHZrdnRodHJmzsvFvbmzo5+bmpeVn56fraywsbCzwL/BycjHy8nHzMnGzMG5y7esuJyOu7GrxMO/w8K+v6OSz6GA2rGS4b+i5MWo376d0amEvY9poG9LiFY1ekcocj0gVScRZ0Iw4LOS4bmX6sipxZZ1rnte1KuLkWFGxaGKqXxdQyUYupJ5iGBGb0w1hnpvkI+Gi4h/ZmNcUkxFh4V8iYZ9iYV8h4R7hoN6hYJ4g391gn50gHxzf3tyfXlwe3dueHZsd3RpdnRo2NXQ2dbR2tfS29jTysfCVVNQd3Jtr66rsrGwsK+vtLOyt7a2ubi6r7GylZSUgHt7dnJxeW1nv5N21quK3LiZ4sGj4L+g1bCLwZRwpHVRiVc3eUYnbjwcTCEMZEMz4baS5b6hwZBvnW5V1bSXi1s9pId1w51/aUIrYz8tv5p/elQ6cFA6gHhshIJ3h4R7b2xmV1FLh4N7h4N6hoJ5hYF4hIB3g392gX10gHxzgHx0gHxzfnpxfHhvendueXZreHVr1tPO1dLN1dLN19TPysbAPTo2dm9nzcvG1NHM0s/KzszHzMrFycfDxsTAwcC8vLu2trWxsLGuwamXzqB/2LGQ3ryd3ryd1bCMw5dyqHlWjVs6fEkqcD0dSyAMXT4w4baT2LGUwZJy2LKVkmJEqoNswpyCdUwzdEgwpXhjrIVtcEw0cVdEgHxzgn91hIF4dnNtW1ZQhIF4hIF4hIB3hIB3hYF4hYF4g392gn51gn51gn51gHxzfXlwfHhvendseXZt1NHL1NHM1NHM1tPOycW/My8qdm9lzMvG09LM0dDL0c/K0tDL0c/K0dDL0tHM0tHM0dDL0dHMzcnCxp+D06eF2rWS2rWS06yIw5d0roBbmGVCgk8uckAgUyYOXjws3bKN4ryZ6dC6roNnxZ2AyaqXhlc7mWdFj19BmWxXiGZSbko0dGJSf3x0gX10gn92fnx3YFxVh4N6h4N6h4N6iIR7iIR6iIR7h4N6hYF5hYF3hYF3g351gHxzf3tyfXlwe3hv1dLL1NHM1NHM1tPOy8jCOzcyc2xj0M7J1dTO09HM0tDL0c/K0M7Jz87Jz87Jzs3IzczHzMvGzMzIx7aoyZx81quJ1q6K0KaDxJh1tYZin21Kh1Iycj4fVScPZj8s3rSQ5MOi4MCh376h37iTv5Bps35Xo3BNkGNGfFQ8ck84bk46bmldcXRqdHNqeXZth4aAZWFag392gn51g392hYF4hYF4hoJ5hoJ5hYF4hYF4hYF3g392gHxzf3tyfnpxfXlw1NHM1NHM1dLN1tPOzMnEQTw4cWph0M7I09HM0c/K0M3IzszHzcrFzMnEy8jDycfCyMXAxcK9xMG9xMK9wqGJz6J/06mGzqJ9xJZyuYllonBMhlIybz0fVCcOdksz4buW5MKl5siu5ces2bKOxJVsrnxWmWtLh15EeFQ+cE45a1NAZWheaGxiam1jbW9mioqDa2dhe3hueHZsendtfHhvfnpxf3tyf3tygHxzgHxzf3txf3txfHlwe3huendtenZt";
+    }
+  });
+
+  // src/effects/easterEgg/img2.bin
+  var require_img2 = __commonJS({
+    "src/effects/easterEgg/img2.bin"(exports, module) {
+      module.exports = "v8PC2N/enKOYj5eKX2ZUjpaIv8a/2d3Y2ODgucTAuMK8r7mzlKGVwMnI5+jo6enp6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6enp5unor7avtL2urr2spratvMnH5Ofn6Ojo6Ojo6Ojo6Ojo6Ojo6ejo6Ojp6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6eno6enp6unp7ezt6+vq6ejo5+bnzNDI0Mmu4dm2qrKNcn9Nam1EippDhpczY3RAjZl2WWNA3N3d////////7/X0gIVsn6WZkpiOpKmaxc+99vr38vj3ytTPt8O56/Hv8ff3/P7+////////////////////////////////3+fjiJGHkpuKj52TtsXD1+jq7fj4////////////////////////////////////////////////////////////////////+Pv61+He6fHw////9uLs6tfd6MXD5sWw38K01r68mnKDzbS54cXI0bq2zLq1a29O29vb////////+vr54uXf6O3s4eXh2+Dd3OHX7fLu////////6PDu1N3Y9Pn37fPv/////////////f7+/////////////v7/vMfAZHBfWWVbi5uZ6fX2/////v///////////////////v//09rX1NrU4OTe+fv5+fj2/v38////////6e7r4erozdjTxNHMzNrXgY57fIqBnqysy9fc+fn///n/5+XppK2ci4xxkYVmlq58sMqb0MKzw7iaeoBE29vb////////////////+/38/f7+5+3r/f7//Pz79PXz////+/39/f//4+ro5uzl///+/P383+bkrLaxv8jD+Pv6////////09zWWWRYVGBbw9LR+f///P//8vf21t3WtL+yvMW2w8q7ztG/p6mVwMGs1cmw38WnvZ+JnoN4yLu18O7nuLuskZWJfod+c31zj5yWg4lwg4JifX9erq1p2dyQ2OKe4+zG2+nWkax9b4hXi6NIoMFQiKdRiplUe31M29vc/v/9/v79/////////////P399Pf28fX0+/v15+ze/v//////////6O3q6+/q////5ezq3ubl6/Dvtr66sry49fj47fDtu8C3Z2xldYJ86fX04u3ujpqXeod/gIhtfIVbeIBUqaJ+5Nu4+vHN4cCWxpp107KLzKd/onlcmG1Y0LOd2bCSuY9yrJaEiYyKi41nu7I5vbgsp7AzpbQwo7YhjrA8k7htq8d/5/PYmrF5VW4ndJNQb4NMf4tfh4Zi19jU/v799Pfy+vz5////////+v328vXu7PLu/v76+frx+/v5/////////P7+/P79/v///P39////////+v38ydDPoqagiIuDbHBnfYR+Xmtcg5CFeYWDbXl0ZHJjbnpni451s6iA69am9eCy0Kl+u41kxKB7p4JomnFXkWdKjmhQkXJjimFTfE8/nGxTqot1kIx6f4ptcIBqcIB2cYF6bXxzYnVphJuQzuLV4fHonb97rMWVt8mvhpdlcnFfa2dc1dfR/f77/f749fnv6vDX6/LX5e7P1N686u/l/////////////////////////////////////v79////////////zNLQjZaSe4J7bXBmh42HaHNvn6qo2+TklZ2MfYNvrKOA7suV89+x27yRnm5PjmBFbEI0WzgyVTcxXDszTC4oQiYfTy4lWTgwgFZHlmVMqYl2kIuJZW90cHuAipSbdH2FbHV7bHiAlqOi7fXy9v3+9P3/2ufiiJ1/Y2FVREA3ysu2+fnx0di6x9aUs8Zptcpwn7hbvs6U5OjX8PPj7PLg1+K05+3T7vTi6u7Y1tu+0dW7zNK5ztHFwr2sq6ubwMS+6u/v8vf5ys/Ok5GL0trd09ziyNDSoKaaeoBmlo9s4LqE6r6Kyp1xjV5GcEY1dkk5cEQ3YTwyVzUrUDAoVzUudEo6hVI8gFE7cUg4fUw4kmROoZCCdnt7dn+FlJybi5aGh5J2maNcqrhx3erX9f//9P7/7vj7ssWvdHdXRkE6maF86evToaqBdIo+jK0wja8vbo4ihKBIssGWla5ijqtNgJ04gJ8/pbhrmKZbfpNChJdRoatux8ayq6udg4mAipKNlqCf1t3ev8PDrbGwztTTv8G0gINrZWhHkYtj48SQ77p/uH5UazspVTMrcD8woV1AsG9PrWpKtm5MpGBElVc8kVI1nFo7oWRBgEw0bUEzekg1nnVdjYyIpKN9rrhkqcJsnLhypLxWpsRzz+HB1efW3Ozh6vT/5vH6qq6SYFQ7o6uKrbaM0dW6oa2AfZNEh6JCaoQwYXs1cIs8dZcwb48tdYpKeYxUlaRkip1GtMF6vcWNu76DxMShr7Khr7ew1Nratbm4q62o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0IZd0Ihk0Ixuz5B61p2K2Zl8ynlSyn1W3LOezoVhynZLxnRIyHZJyXdKyHdKxXVIxndMzX5Uy3xQzHhL0HpL3INP6IpV65p3oJZbdZMSfokjhZgvocNputyVxd2y4+3as89bssFMvKNRnnxQZY4yepM3rLJKm65KZLyRit+51bCF97GD/saV/tGi/tCf8biR87WW8aiA7p9u6Zlk55di5ZZh5JRf45Nf24tZxnRGu25FvXVMqlszw3JE1YZZ04hg0Ihky4hozY520ZaC1JV8zoVjyX5Xx3lP1p+B1Zp7xXRKw3JHwm5Cv2s/v2tAwnJGyntQ0oNZ14ti3I5m5JZr8qJz+652/7Z45qxug5Ule4kod48hmLsvrrtjwriE1taPnsFhha4krbNwj3lld48pl7A2s8FMl79qZtKwrdCm6aB1+raD/smW/tOm+8KJ9qRp+650/bR8/raB+rF98aRy5pho4JBh2IhbzHdMw21Ex3NKxXJKqVowsWE5y4BWy4NgyoZlyolrzo9y1Y9w1Yxs0Ylmy4NbxXlPzYlj0pZ3xHRLxXhNyXpNyHdLxndLyHlNzHxR1IVc3Y5l4pNk65tq9qd0/ryI/8+d+7+Jh3w/YGonc4otpKo/sZZWvqyEtqhoqMVxpsBFvseXnqhSZmg0bHY1k5FCbreMf+K7y7CF8aNz/byE/suZ/sqW/Ld7/ryD/7+J/7yJ/bWG86d555Vo4Ilf2oNaznxPvX4/v505mJEejWgtqFMutmhDwHdVxHxdx4Niy4lo0oxr1Yto0otn0IdjyoNcwHROyoxs2a2Ux3pQzYBU1IZX14pY2otZ2IhW1YNT2Ida4I9h6JZm7Zxm9KJr/bV9/sqW/8aQo5JDZnUrZX4igpk4rJJrop9Vr7JLxtFRqMA7qZdsl55VZWMzcX49ZnZSYs2qotyx56Fz96x5/r6I/smV/8KK/8KL/8OO/7qI+6p+8Ztz449m1opYwIhPrZUzd4cYcHk1go9MdnUkmGQ1t2hKvHFUvXVYw3lcxX5fyYNfz4hhz4plzYpry4dmx4BZwHVNx4Rh4LaczoNW1YhW4JRf6Zxn7aFq7qJp7qFn3YxY345c55hj6ptk8aFp/LJ5/seQ/8eRrIpIcYQffJYli4xDcpE+p785r8NQq55Yqp9yycahnalqa3oxfpM0a6JvcuO7vsWT9aNw/rJ+/7+M/8KQ97qF67R20JlnvIZVqX5Mim04hH8qjZotc480ZIobUHAgbGk8mmhGtmlNwnRVwnhZw3paw3paxHpYx3tUy4BU0IhezY5tzI1wyoVlxnxVxHZJyX9S5Lmb2I9j2ItW5Zph86hu/Ld7/r6B/r1/zH1L0XxK4pJd6Zlj8aFp+7J5/sWN/8WMnoBDVnETdoM+tMJNeaEom6w/mKxBl7w7prJmtcBXlqs2YHUkbXg3Z8Cchei5cpBCl4g7s6VDz8NNyb9ElZc1l6o6V3MTTFgZZ3EgVGUaVmwXYHEdbIgeV3cncVUyrlxEwnBPz4Re0IZdz4NXzoFSzH5PzH1MzX5M0YVX0I1lzY5wzIlqyIBYwndQvW1CvWo61ZZu0YdX04hS3pJa7aJm+rd5/8aG/MGDt2I3xGk82YZV55Zi8qNr/LN6/sWM/8CGrp8/h5krd4s0f5Y6mLM9kZs7ssFhrc1IkaQxsbdYkJ5KVGQqbZJVbeG5gMqXbn8tlaM8iJUve5kgiqI1boItlKM2iaMhaX4icYYhpbg8u9JDrMQvfaEVeWwrym1S1H1Z35Jn4pdp4JBa3ItU2IhS1YRP0oNN0oNP04ZVz4Zaz4tnzodgy4JXxn1TwHRJt2g8tWY5uWk4yXpE2Y5V5Jph86tv/71/761xoEgkwWI01HxL5pRg9KRs/bR7/8OM/rl/nZo4m6I0o6pY2eGjosFHn6ZDpb1Jp7dcsKmIl5B2enlLRFUnYal4efLEZpVkaGMugYYzdYgpXHIpeowqgJY4scY4u9M/prxDiKQugJYpm7QujaIva5kXsZQ+5pJ06KKA66aB6aN55p1t4pdj35Jc35lq4qiH2pZvzH9UyoFU1o1f1I1h0opez4lbx4FWtW9MqFo4rFs0vWw+2ItW6KFr8qpv/7p94ZlhjjcZv1su1HVE55Bb9aRt/rZ//8OM8690dX8feooljp0jl6wtj6QyfIMvma0yra1TmpRQgY5fQVY0RVYtYMedhO6/UW8/Z2s2bmk+Z3g3aXU3XHAxh58/xd42u9gwlawqh5wqhJgma3g4ZnAvZXY5m4xE7qF57KmD6aZ/7aV47aN16KFy5Z5u4Jtv1ZFszoRbyX9WyoVZ2plr36eE3Zt22ZZuyIRhtWxMr2BDumRK0XpQ4ZJg8614+rZ+/8GIyoRThEATvlQo0XBA5Y9c96Vw/rmC/8OM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";
+    }
+  });
+
+  // sim/shims/fs.js
+  var require_fs = __commonJS({
+    "sim/shims/fs.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var img1B64 = require_img1();
+      var img2B64 = require_img2();
+      function b64ToBytes(b64) {
+        const bin = window.atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes;
+      }
+      var img1Bin = null;
+      var img2Bin = null;
+      function readFileSync(p, encoding) {
+        if (/img1\.bin$/.test(p)) return img1Bin || (img1Bin = b64ToBytes(img1B64));
+        if (/img2\.bin$/.test(p)) return img2Bin || (img2Bin = b64ToBytes(img2B64));
+        const v = window.localStorage.getItem("simfs:" + p);
+        if (v === null) {
+          const e = new Error("ENOENT: " + p);
+          e.code = "ENOENT";
+          throw e;
+        }
+        if (encoding) return v;
+        return new Uint8Array(JSON.parse(v));
+      }
+      function writeFileSync(p, data) {
+        window.localStorage.setItem("simfs:" + p, typeof data === "string" ? data : JSON.stringify(Array.from(data)));
+      }
+      function existsSync(p) {
+        return window.localStorage.getItem("simfs:" + p) !== null;
+      }
+      function unlinkSync(p) {
+        window.localStorage.removeItem("simfs:" + p);
+      }
+      module.exports = { readFileSync, writeFileSync, existsSync, unlinkSync };
+    }
+  });
+
+  // sim/shims/path.js
+  var require_path = __commonJS({
+    "sim/shims/path.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      function join(...parts) {
+        return parts.filter(Boolean).join("/").replace(/\/+/g, "/");
+      }
+      module.exports = { join };
     }
   });
 
@@ -5722,6 +5739,707 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/laserGrid.js
+  var require_laserGrid = __commonJS({
+    "src/effects/laserGrid.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { defineCanvasEffect } = require_canvas();
+      var THEMES = [
+        { grid: [1, 0.15, 0.85], sunTop: [1, 0.85, 0.2], sunBot: [1, 0.1, 0.55], sky: [0.25, 0.02, 0.3], mtn: [0.08, 0, 0.16], laser: [0.2, 0.9, 1] },
+        { grid: [0.1, 0.9, 1], sunTop: [1, 0.6, 0.1], sunBot: [0.9, 0.1, 0.4], sky: [0.05, 0.05, 0.3], mtn: [0.02, 0.02, 0.12], laser: [1, 0.3, 0.8] },
+        { grid: [0.2, 1, 0.4], sunTop: [0.8, 1, 0.3], sunBot: [0.1, 0.6, 0.9], sky: [0, 0.12, 0.2], mtn: [0, 0.05, 0.08], laser: [1, 0.9, 0.2] }
+      ];
+      var mix = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+      var hash = (x) => {
+        const s = Math.sin(x * 127.1) * 43758.5453;
+        return s - Math.floor(s);
+      };
+      module.exports = defineCanvasEffect({
+        render(c, { t, core }) {
+          const W = c.W, H = c.H, hz = Math.round(H * 0.55);
+          const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
+          const tt = t / 20, i0 = Math.floor(tt) % THEMES.length, k = tt % 1 < 0.85 ? 0 : (tt % 1 - 0.85) / 0.15;
+          const A = THEMES[i0], B = THEMES[(i0 + 1) % THEMES.length];
+          const T = {};
+          for (const key of Object.keys(A)) T[key] = mix(A[key], B[key], k);
+          for (let y = 0; y < hz; y++) {
+            const v = y / hz;
+            for (let x = 0; x < W; x++) {
+              let [r, g, b] = mix([5e-3, 0, 0.02], T.sky, v * v);
+              if (v < 0.6 && hash(x * 31 + y * 977) > 0.985) {
+                const tw = 0.4 + 0.6 * Math.abs(Math.sin(t * 2 + x * y));
+                r += tw * 0.7;
+                g += tw * 0.7;
+                b += tw * 0.8;
+              }
+              c.set(x, y, r, g, b);
+            }
+          }
+          const sR = Math.min(W, H) * 0.24, sx = W / 2, sy = hz - sR * 0.35 + Math.sin(t * 0.2) * 1.5;
+          for (let y = Math.floor(sy - sR - 3); y < hz; y++) for (let x = Math.floor(sx - sR - 3); x <= sx + sR + 3; x++) {
+            const d = Math.hypot(x - sx, y - sy), o = c.get(x, y);
+            if (!o) continue;
+            if (d < sR) {
+              const v = (y - (sy - sR)) / (2 * sR);
+              const stripeH = Math.max(1, sR * 0.12 * v), period = sR * 0.28;
+              const cut = v > 0.5 && ((y - sy + t * 4) % period + period) % period < stripeH;
+              if (!cut) {
+                const [r, g, b] = mix(T.sunTop, T.sunBot, v);
+                c.set(x, y, r, g, b);
+              }
+            } else if (d < sR + 4) {
+              const gl = (1 - (d - sR) / 4) * 0.35;
+              c.set(x, y, o[0] + T.sunBot[0] * gl, o[1] + T.sunBot[1] * gl, o[2] + T.sunBot[2] * gl);
+            }
+          }
+          for (let L = 0; L < 3; L++) {
+            const ang = Math.sin(t * (0.4 + L * 0.17) + L * 2) * 0.9, ox = W * (0.2 + L * 0.3);
+            for (let s = 0; s < hz * 1.3; s += 0.5) {
+              const x = ox + Math.sin(ang) * s, y = hz - Math.cos(ang) * s;
+              if (y < 0) break;
+              const f = 0.35 * (1 - s / (hz * 1.3));
+              c.add(x, y, T.laser[0] * f, T.laser[1] * f, T.laser[2] * f);
+            }
+          }
+          for (const [layer, hgt, col, edge] of [[0, 0.32, mix(T.mtn, T.sky, 0.35), 0.25], [1, 0.2, T.mtn, 0.5]]) {
+            for (let x = 0; x < W; x++) {
+              const u = x / W * 6 + layer * 10;
+              const h = (Math.abs(Math.sin(u * 0.9)) * 0.6 + Math.abs(Math.sin(u * 2.3 + 1)) * 0.3 + hash(Math.floor(u * 4)) * 0.1) * hz * hgt;
+              const top = Math.round(hz - h);
+              for (let y = top; y < hz; y++) c.set(x, y, col[0], col[1], col[2]);
+              c.add(x, top, T.grid[0] * edge, T.grid[1] * edge, T.grid[2] * edge);
+            }
+          }
+          const camH = 1, scroll = t * 2.2, pulse = 1 + beat * 0.6;
+          for (let y = hz; y < H; y++) {
+            const dy = (y - hz + 0.5) / (H - hz), z = camH / dy;
+            const fog = Math.min(1, dy * 2.2) ** 1.5;
+            const zTop = camH / Math.max(1e-3, (y - hz) / (H - hz)), zBot = camH / ((y - hz + 1) / (H - hz));
+            const onRow = Math.floor(zTop + scroll) !== Math.floor(zBot + scroll) ? 1 : 0;
+            for (let x = 0; x < W; x++) {
+              const wx = (x - W / 2 + 0.5) / (W / 2) * z * 1.2;
+              const xLine = Math.abs((wx % 1 + 1) % 1 - 0.5) * 2;
+              const onZ = onRow * Math.min(1, 0.7 / Math.max(1, zTop - zBot));
+              const onX = Math.max(0, (xLine - (1 - 0.06 * z)) / (0.06 * z));
+              const line = Math.min(1, Math.max(onZ, onX)) * fog * pulse;
+              const base = 0.02 + 0.06 * (1 - dy);
+              c.set(x, y, Math.min(1, base * T.sky[0] * 4 + T.grid[0] * line), Math.min(1, base * T.sky[1] * 4 + T.grid[1] * line), Math.min(1, base * T.sky[2] * 4 + T.grid[2] * line));
+            }
+          }
+          for (let x = 0; x < W; x++) c.add(x, hz, T.grid[0] * 0.5, T.grid[1] * 0.5, T.grid[2] * 0.5);
+        }
+      });
+    }
+  });
+
+  // src/effects/dna.js
+  var require_dna = __commonJS({
+    "src/effects/dna.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      var { trailFade } = require_trail();
+      function effectDNA(core, dt) {
+        core.t += dt * 0.55;
+        const { SIZE, colBuf, N, faceMap, t } = core;
+        const fade = trailFade(0.82, dt);
+        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
+        const STRANDS = 2;
+        const RADIUS = SIZE * 0.36;
+        const TURNS = 4;
+        for (let face = 0; face < 4; face++) {
+          const faceHue = face * 0.25;
+          for (let y = 0; y < SIZE; y++) {
+            const progress = y / SIZE;
+            for (let s = 0; s < STRANDS; s++) {
+              const ang = progress * Math.PI * 2 * TURNS + t * 1.4 + s * Math.PI;
+              const uc = SIZE / 2 + Math.cos(ang) * RADIUS;
+              const ui = Math.round(uc);
+              if (ui < 0 || ui >= SIZE) continue;
+              const hue = (faceHue + progress * 0.5 + t * 0.06 + s * 0.5) % 1;
+              const bright = 0.95;
+              const [r, g, b] = hsl(hue, 1, bright);
+              core.setFaceLED(face, ui, y, r, g, b);
+              for (let d = 1; d <= 3; d++) {
+                const fade2 = Math.pow(1 - d / 4, 2) * 0.7;
+                const [rg, gg, bg] = hsl(hue, 0.9, fade2);
+                core.setFaceLED(face, ui - d, y, rg, gg, bg);
+                core.setFaceLED(face, ui + d, y, rg, gg, bg);
+              }
+            }
+            if (y % 3 === 0) {
+              const ang0 = progress * Math.PI * 2 * TURNS + t * 1.4;
+              const u0 = SIZE / 2 + Math.cos(ang0) * RADIUS;
+              const u1 = SIZE / 2 + Math.cos(ang0 + Math.PI) * RADIUS;
+              const uMin = Math.round(Math.min(u0, u1));
+              const uMax = Math.round(Math.max(u0, u1));
+              const rungHue = (faceHue + progress * 0.5 + t * 0.06 + 0.5) % 1;
+              for (let u = uMin; u <= uMax; u++) {
+                if (u < 0 || u >= SIZE) continue;
+                const frac = (u - uMin) / Math.max(1, uMax - uMin);
+                const bright = Math.sin(frac * Math.PI) * 0.8;
+                const [rr, gr, br] = hsl(rungHue, 1, bright);
+                core.setFaceLED(face, u, y, rr, gr, br);
+              }
+            }
+          }
+          for (let y = 0; y < SIZE; y++) {
+            const pulse = 0.3 + 0.3 * Math.sin(t * 2 + face + y * 0.1);
+            const [re, ge, be] = hsl((faceHue + t * 0.05) % 1, 1, pulse);
+            core.setFaceLED(face, 0, y, re, ge, be);
+            core.setFaceLED(face, SIZE - 1, y, re, ge, be);
+          }
+        }
+        const cx2 = SIZE / 2, cy2 = SIZE / 2;
+        for (let v = 0; v < SIZE; v++) {
+          for (let u = 0; u < SIZE; u++) {
+            const dx = u - cx2, dy = v - cy2;
+            const rad = Math.sqrt(dx * dx + dy * dy);
+            const ang2 = Math.atan2(dy, dx);
+            for (let s = 0; s < STRANDS; s++) {
+              const armAng = ang2 - t * 1.4 - s * Math.PI;
+              const targetRad = RADIUS * (0.5 + 0.5 * Math.sin(armAng * TURNS * 2));
+              const dist = Math.abs(rad - targetRad);
+              if (dist < SIZE * 0.08) {
+                const bright = Math.pow(1 - dist / (SIZE * 0.08), 2) * 0.9;
+                const hue = (ang2 / (Math.PI * 2) + t * 0.08 + s * 0.5) % 1;
+                const [r, g, b] = hsl((hue + 1) % 1, 1, bright);
+                const idx = faceMap[4][v * SIZE + u];
+                if (idx >= 0) {
+                  colBuf[idx * 3] = Math.max(colBuf[idx * 3], r);
+                  colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], g);
+                  colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], b);
+                }
+              }
+            }
+            if (rad < SIZE * 0.06) {
+              const bright = (1 - rad / (SIZE * 0.06)) * 0.8;
+              const [r, g, b] = hsl(t * 0.1 % 1, 0.5, bright);
+              const idx = faceMap[4][v * SIZE + u];
+              if (idx >= 0) {
+                colBuf[idx * 3] = Math.max(colBuf[idx * 3], r);
+                colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], g);
+                colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], b);
+              }
+            }
+          }
+        }
+      }
+      module.exports = effectDNA;
+    }
+  });
+
+  // src/effects/aurora.js
+  var require_aurora = __commonJS({
+    "src/effects/aurora.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl, lerp, sm } = require_core();
+      var { defineFieldEffect } = require_surface();
+      var stars = { cube: null, wall: null };
+      module.exports = defineFieldEffect({
+        smooth: true,
+        // slowly varying curtains; stars are added per pixel in detail()
+        speed: 0.35,
+        frame(ctx) {
+          const key = ctx.flat ? "wall" : "cube";
+          if (!stars[key] || stars[key].length !== ctx.count) {
+            stars[key] = new Float32Array(ctx.count);
+            for (let i = 0; i < ctx.count; i++) stars[key][i] = Math.random() < 0.014 ? Math.random() : 0;
+          }
+          ctx.stars = stars[key];
+        },
+        pixel(p, ctx) {
+          const { t } = ctx;
+          const x = p.x, y = p.flat ? 1 - p.y : p.y, z = p.flat ? 0 : p.z;
+          const c1 = Math.sin(x * Math.PI * 3.5 + t * 0.65) * Math.sin(z * Math.PI * 2.8 + t * 0.42);
+          const c2 = Math.sin(x * Math.PI * 2.2 - t * 0.38) * Math.cos(z * Math.PI * 1.9 + t * 0.55) * 0.6;
+          const curtain = c1 + c2;
+          const fade = Math.pow(Math.max(0, y), 0.45);
+          const bright = Math.max(0, curtain) * fade * 0.88;
+          if (bright > 0.02) {
+            const hue = lerp(0.3, 0.82, sm(0, 1, x + Math.sin(t * 0.28) * 0.25)) + Math.sin(t * 0.1) * 0.04;
+            const sat = 0.9 + Math.sin(t * 0.8 + x * 2) * 0.1;
+            const [r, g, b] = hsl(hue, sat, bright);
+            const [r2, g2, b2] = hsl(hue + 0.45, sat, bright * 0.4 * Math.max(0, c2));
+            return [Math.min(1, r + r2), Math.min(1, g + g2), Math.min(1, b + b2)];
+          }
+          return [0, 0, 0];
+        },
+        // Stars twinkle in the dark sky between the curtains (per pixel, on top
+        // of the blended curtain colour).
+        detail(p, ctx, c) {
+          const s = ctx.stars[p.i];
+          if (s > 0 && c[0] + c[1] + c[2] < 0.06) {
+            const tw = 0.5 + 0.5 * Math.sin(ctx.t * 2.3 + s * 12.7);
+            return [tw * 0.55, tw * 0.55, tw * 0.65];
+          }
+          return c;
+        }
+      });
+    }
+  });
+
+  // src/effects/nebula.js
+  var require_nebula = __commonJS({
+    "src/effects/nebula.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl, lerp, sm } = require_core();
+      var { defineFieldEffect } = require_surface();
+      var stars = { cube: null, wall: null };
+      module.exports = defineFieldEffect({
+        smooth: true,
+        // slowly varying cloud; stars are added per pixel in detail()
+        speed: 0.28,
+        frame(ctx) {
+          const key = ctx.flat ? "wall" : "cube";
+          if (!stars[key] || stars[key].length !== ctx.count) {
+            stars[key] = [];
+            for (let i = 0; i < ctx.count; i++) stars[key].push({ last: -1, next: Math.random() * 8, bright: 0 });
+          }
+          ctx.stars = stars[key];
+        },
+        pixel(p, ctx) {
+          const { t } = ctx;
+          const x = p.x, y = p.y, z = p.flat ? 0 : p.z;
+          let d = 0;
+          d += Math.sin(x * 5.3 + t * 0.52) * Math.cos(y * 4.9 + t * 0.31) * 0.5;
+          d += Math.sin(z * 6.5 - t * 0.42) * Math.sin(x * 3.4 + t * 0.21) * 0.38;
+          d += Math.cos((x + y + z) * 4.2 + t * 0.58) * 0.28;
+          d += Math.sin(x * 8.8 + y * 6.1 - t * 0.35) * 0.15;
+          d = d * 0.48 + 0.52;
+          const bright = Math.pow(Math.max(0, d - 0.08), 1.4) * 0.92;
+          const hue = lerp(0.6, 0.04, sm(0.18, 0.88, d)) + Math.sin(t * 0.08) * 0.05;
+          const [r, g, b] = hsl(hue, 0.85 + d * 0.15, bright);
+          const coreBoost = Math.max(0, d - 0.75) * 3.5;
+          return [r + coreBoost * 0.4, g + coreBoost * 0.3, b + coreBoost * 0.2];
+        },
+        // Twinkling stars, per pixel on top of the (blended) cloud colour.
+        detail(p, ctx, c) {
+          const { t, dt } = ctx;
+          const ns = ctx.stars[p.i];
+          ns.next -= dt;
+          let sr = 0, sg = 0, sb = 0;
+          if (ns.next <= 0) {
+            ns.bright = 0.6 + Math.random() * 0.4;
+            ns.next = 4 + Math.random() * 12;
+            ns.last = t;
+          }
+          if (ns.bright > 0) {
+            ns.bright = Math.max(0, ns.bright - dt * 1.2);
+            const sc = ns.bright;
+            sr = sc;
+            sg = sc;
+            sb = sc + 0.2;
+          }
+          return [Math.min(1, c[0] + sr), Math.min(1, c[1] + sg), Math.min(1, c[2] + sb)];
+        }
+      });
+    }
+  });
+
+  // src/effects/warp.js
+  var require_warp = __commonJS({
+    "src/effects/warp.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      var { tempo } = require_audioFeatures();
+      var { trailFade } = require_trail();
+      var warpStars = [];
+      function resetWarp(core) {
+        warpStars = [];
+        const N = core.N;
+        for (let i = 0; i < Math.max(120, N * 0.12) | 0; i++) {
+          const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+          const sp = 0.08 + Math.random() * 0.35;
+          warpStars.push({ x: 0.5, y: 0.5, z: 0.5, ox: Math.sin(ph) * Math.cos(th) * 1e-3, oy: Math.sin(ph) * Math.sin(th) * 1e-3, oz: Math.cos(ph) * 1e-3, sp, hue: Math.random() * 0.2 + 0.55, life: Math.random() });
+        }
+      }
+      function effectWarp(core, dt) {
+        dt *= tempo(core);
+        core.t += dt;
+        const { SIZE, N, colBuf } = core;
+        if (!warpStars.length) resetWarp(core);
+        const fade = trailFade(0.78, dt);
+        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
+        for (const s of warpStars) {
+          s.life += dt;
+          s.x += s.ox * s.sp * SIZE * dt * 60;
+          s.y += s.oy * s.sp * SIZE * dt * 60;
+          s.z += s.oz * s.sp * SIZE * dt * 60;
+          const wx = s.x, wy = s.y, wz = s.z;
+          if (wx < 0 || wx > 1 || wy < 0 || wy > 1 || wz < 0 || wz > 1) {
+            s.x = 0.5;
+            s.y = 0.5;
+            s.z = 0.5;
+            s.sp = 0.08 + Math.random() * 0.35;
+            s.life = 0;
+            s.hue = Math.random() * 0.2 + 0.55;
+            continue;
+          }
+          const dist = Math.sqrt((wx - 0.5) ** 2 + (wy - 0.5) ** 2 + (wz - 0.5) ** 2) * 2;
+          const bright = dist * 0.75 * Math.min(1, s.life * 3);
+          const core1 = bright * 0.85, glow1 = bright * 0.25 * 0.85;
+          if (core1 < 0.01) continue;
+          const cc = hsl(s.hue + dist * 0.15, 0.8, core1);
+          const gc = glow1 >= 0.01 ? hsl(s.hue + dist * 0.15, 0.8, glow1) : null;
+          for (let f = 0; f < 6; f++) {
+            const fu = f < 2 ? wx : f < 4 ? wz : wx, fv = f < 4 ? wy : wz;
+            const pu = fu * SIZE | 0, pv = fv * SIZE | 0;
+            for (let sx = -1; sx <= 1; sx++) for (let sy = -1; sy <= 1; sy++) {
+              const c = sx === 0 && sy === 0 ? cc : gc;
+              if (c) core.setFaceLED(f, pu + sx, pv + sy, c[0], c[1], c[2]);
+            }
+          }
+        }
+      }
+      module.exports = effectWarp;
+    }
+  });
+
+  // src/effects/lightningStorm.js
+  var require_lightningStorm = __commonJS({
+    "src/effects/lightningStorm.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { defineCanvasEffect } = require_canvas();
+      var hash = (x, y) => {
+        const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+        return s - Math.floor(s);
+      };
+      function noise(x, y) {
+        const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+        const a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+        return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+      }
+      var fbm = (x, y) => noise(x, y) * 0.55 + noise(x * 2.1, y * 2.1) * 0.3 + noise(x * 4.3, y * 4.3) * 0.15;
+      var st = { bolts: [], flash: 0, next: 0.4, drops: [], W: 0, H: 0, strikeX: 0.5, flicker: 0 };
+      function makeBolt(W, H) {
+        const segs = [];
+        const x0 = W * (0.15 + Math.random() * 0.7), base = H * 0.3, ground = H - 1;
+        function grow(x, y, ang, len, width, depth) {
+          while (y < ground && len > 0) {
+            const step = 2 + Math.random() * 2.5;
+            const a = ang + (Math.random() - 0.5) * 1.1;
+            const nx = x + Math.sin(a) * step, ny = y + Math.cos(a) * step;
+            segs.push([x, y, nx, ny, width]);
+            if (depth < 2 && Math.random() < 0.13) grow(nx, ny, a + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.5), len * 0.4, width * 0.55, depth + 1);
+            x = nx;
+            y = ny;
+            len -= step;
+            ang = ang * 0.8;
+          }
+        }
+        grow(x0, base, (Math.random() - 0.5) * 0.4, H * 2, 1, 0);
+        return { segs, life: 1, x: x0 };
+      }
+      function line(c, x0, y0, x1, y1, w, I) {
+        const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 2) + 1;
+        for (let i = 0; i <= n; i++) {
+          const x = x0 + (x1 - x0) * i / n, y = y0 + (y1 - y0) * i / n;
+          c.add(x, y, 0.85 * I, 0.9 * I, 1 * I);
+          if (w > 0.6) {
+            const g = 0.25 * I * w;
+            c.add(x - 1, y, g * 0.6, g * 0.6, g);
+            c.add(x + 1, y, g * 0.6, g * 0.6, g);
+          }
+        }
+      }
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt, core }) {
+          const W = c.W, H = c.H;
+          if (st.W !== W || st.H !== H) {
+            st.W = W;
+            st.H = H;
+            st.drops = Array.from({ length: Math.round(W * H / 40) }, () => ({ x: Math.random() * W, y: Math.random() * H, s: 0.6 + Math.random() * 0.6 }));
+          }
+          const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
+          if ((st.next -= dt) <= 0 || beat > 0.8 && st.flash < 0.2 && Math.random() < 0.3) {
+            const b = makeBolt(W, H);
+            st.bolts.push(b);
+            st.strikeX = b.x / W;
+            st.flash = 1;
+            st.flicker = Math.random() < 0.5 ? 0.18 : 0;
+            st.next = 2 + Math.random() * 5;
+          }
+          st.flash = Math.max(0, st.flash - dt * 1.4);
+          if (st.flicker > 0) {
+            st.flicker -= dt;
+            if (st.flicker <= 0) st.flash = Math.max(st.flash, 0.7);
+          }
+          const fl = st.flash * st.flash;
+          const cloudBase = H * 0.42;
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const v = y / H;
+            const n = fbm(x * 0.06 + t * 0.12, y * 0.09 - t * 0.03), n2 = fbm(x * 0.03 - t * 0.05 + 7, y * 0.05 + 3);
+            const dens = Math.max(0, Math.min(1, (n * 0.7 + n2 * 0.6 - 0.35) * 2.2 * (1 - Math.max(0, (y - cloudBase) / (H * 0.25)))));
+            const near = Math.exp(-(((x / W - st.strikeX) / 0.35) ** 2));
+            const lit = fl * (0.25 + 0.75 * near) * (0.4 + dens * 0.9);
+            let r = 0.01 + v * 0.015, g = 0.012 + v * 0.02, b = 0.03 + v * 0.03;
+            r += dens * 0.1;
+            g += dens * 0.11;
+            b += dens * 0.15;
+            r += lit * 0.75;
+            g += lit * 0.8;
+            b += lit * 1;
+            if (y > H - 3) {
+              const k = fl * 0.3;
+              r = 0.01 + k * 0.4;
+              g = 0.015 + k * 0.45;
+              b = 0.02 + k * 0.5;
+            }
+            c.set(x, y, Math.min(1, r), Math.min(1, g), Math.min(1, b));
+          }
+          const rb = 0.12 + fl * 0.4;
+          for (const d of st.drops) {
+            d.y += dt * H * 1.6 * d.s;
+            d.x += dt * W * 0.25 * d.s;
+            if (d.y > H) {
+              d.y -= H;
+              d.x = Math.random() * W;
+            }
+            if (d.x > W) d.x -= W;
+            for (let k = 0; k < 3; k++) c.add(d.x - k * 0.3, d.y - k, rb * 0.6 * (1 - k / 3), rb * 0.7 * (1 - k / 3), rb * (1 - k / 3));
+          }
+          for (const b of st.bolts) {
+            const I = Math.min(1, b.life * 1.6);
+            for (const [x0, y0, x1, y1, w] of b.segs) line(c, x0, y0, x1, y1, w, I * (0.45 + 0.55 * w));
+            b.life -= dt * 2.2;
+          }
+          st.bolts = st.bolts.filter((b) => b.life > 0);
+        }
+      });
+    }
+  });
+
+  // src/effects/lightspeed.js
+  var require_lightspeed = __commonJS({
+    "src/effects/lightspeed.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      var { tempo } = require_audioFeatures();
+      var lsRacers = [];
+      var lsT = 0;
+      function lsTransfer(face, u, v, du, dv, S) {
+        const S1 = S - 1;
+        let r;
+        if (u < 0) {
+          if (face === 0) r = [3, S1, v, du, dv];
+          else if (face === 1) r = [3, 0, v, -du, dv];
+          else if (face === 2) r = [1, S1, v, du, dv];
+          else if (face === 3) r = [1, 0, v, -du, dv];
+          else if (face === 4) r = [3, v, S1, dv, du];
+          else r = [3, v, 0, dv, -du];
+        } else if (u >= S) {
+          if (face === 0) r = [2, S1, v, -du, dv];
+          else if (face === 1) r = [2, 0, v, du, dv];
+          else if (face === 2) r = [0, S1, v, -du, dv];
+          else if (face === 3) r = [0, 0, v, du, dv];
+          else if (face === 4) r = [2, v, S1, dv, -du];
+          else r = [2, v, 0, dv, du];
+        } else if (v < 0) {
+          if (face === 0) r = [5, u, S1, du, dv];
+          else if (face === 1) r = [5, u, 0, du, -dv];
+          else if (face === 2) r = [5, S1, u, dv, du];
+          else if (face === 3) r = [5, 0, u, -dv, du];
+          else if (face === 4) r = [1, u, S1, du, dv];
+          else r = [1, u, 0, du, -dv];
+        } else {
+          if (face === 0) r = [4, u, S1, du, -dv];
+          else if (face === 1) r = [4, u, 0, du, dv];
+          else if (face === 2) r = [4, S1, u, -dv, du];
+          else if (face === 3) r = [4, 0, u, dv, du];
+          else if (face === 4) r = [0, u, S1, du, -dv];
+          else r = [0, u, 0, du, dv];
+        }
+        r[1] = Math.max(1, Math.min(S - 2, r[1]));
+        r[2] = Math.max(1, Math.min(S - 2, r[2]));
+        const spd = Math.sqrt(r[3] * r[3] + r[4] * r[4]) || 1;
+        r[3] /= spd;
+        r[4] /= spd;
+        return r;
+      }
+      function resetLightspeed(core, lsCount) {
+        lsRacers = [];
+        const S = core.SIZE;
+        for (let k = 0; k < lsCount; k++) {
+          const face = k % 6;
+          const u = S * 0.25 + Math.random() * S * 0.5;
+          const v = S * 0.25 + Math.random() * S * 0.5;
+          lsRacers.push({
+            face,
+            u,
+            v,
+            du: 1,
+            dv: 0,
+            hue: k / lsCount,
+            trail: [],
+            nudgeCountdown: 3 + Math.random() * 4,
+            nudgeT: 3 + Math.random() * 5
+          });
+        }
+      }
+      function effectLightspeed(core, dt) {
+        dt *= tempo(core);
+        lsT += dt;
+        const { N, SIZE, colBuf, faceMap } = core;
+        const opts = core.effectOptions?.lightspeed || {};
+        const lsSpeed = opts.speed ?? 8, lsTrail = opts.trail ?? 32, lsSize = opts.size ?? 1;
+        const lsColour = opts.colour ?? "multi", lsCount = opts.count ?? 8, lsNudge = opts.nudge ?? 0;
+        if (!lsRacers.length || !faceMap) resetLightspeed(core, lsCount);
+        for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
+        const S = SIZE;
+        const pps = Math.pow(lsSpeed, 1.6) * SIZE * 0.8;
+        const dist = pps * dt;
+        const subSteps = Math.min(Math.max(1, Math.ceil(dist)), 400);
+        const d = dist / subSteps;
+        for (const r of lsRacers) {
+          r.nudgeCountdown -= dt;
+          if (r.nudgeCountdown <= 0) {
+            r.nudgeCountdown = r.nudgeT * (0.8 + Math.random() * 3);
+            if (lsNudge > 0) {
+              const a = (Math.random() - 0.5) * 2 * (lsNudge * Math.PI / 180);
+              const c = Math.cos(a), s_ = Math.sin(a);
+              const od = r.du, ov = r.dv;
+              r.du = od * c - ov * s_;
+              r.dv = od * s_ + ov * c;
+              const l = Math.sqrt(r.du * r.du + r.dv * r.dv) || 1;
+              r.du /= l;
+              r.dv /= l;
+            }
+          }
+          for (let ss = 0; ss < subSteps; ss++) {
+            r.u += r.du * d;
+            r.v += r.dv * d;
+            if (r.u < 0 || r.u >= S || r.v < 0 || r.v >= S) {
+              const res = lsTransfer(r.face, r.u, r.v, r.du, r.dv, S);
+              r.face = res[0];
+              r.u = Math.max(1e-3, Math.min(S - 1e-3, res[1]));
+              r.v = Math.max(1e-3, Math.min(S - 1e-3, res[2]));
+              r.du = res[3];
+              r.dv = res[4];
+              const l = Math.sqrt(r.du * r.du + r.dv * r.dv) || 1;
+              r.du /= l;
+              r.dv /= l;
+            }
+            const pu = Math.round(r.u), pv = Math.round(r.v);
+            if (pu >= 0 && pu < S && pv >= 0 && pv < S && faceMap[r.face][pv * S + pu] >= 0) {
+              r.trail.push({ face: r.face, u: pu, v: pv });
+              if (r.trail.length > lsTrail) r.trail.shift();
+            }
+          }
+          r.hue = (r.hue + dt * 0.04) % 1;
+          const tl = r.trail.length;
+          for (let i = 0; i < tl; i++) {
+            const { face, u, v } = r.trail[i];
+            const frac = (i + 1) / tl;
+            const bright = Math.pow(frac, 1.3);
+            let rr, rg, rb;
+            const lum = 0.55 * bright + (frac > 0.9 ? (frac - 0.9) * 4 : 0);
+            if (lsColour === "multi") [rr, rg, rb] = hsl((r.hue + frac * 0.1 + lsT * 0.04) % 1, 1, lum);
+            else {
+              const hmap = { white: null, cyan: 0.52, red: 0.02, green: 0.33, gold: 0.13 };
+              const h = hmap[lsColour];
+              if (!h) {
+                rr = bright;
+                rg = bright;
+                rb = bright;
+              } else [rr, rg, rb] = hsl(h, 1, lum);
+            }
+            if (i === tl - 1) {
+              rr = 1;
+              rg = 1;
+              rb = 1;
+            }
+            const R = lsSize - 1;
+            for (let dv2 = -R; dv2 <= R; dv2++) for (let du2 = -R; du2 <= R; du2++) {
+              const nu = u + du2, nv = v + dv2;
+              if (nu < 0 || nu >= S || nv < 0 || nv >= S) continue;
+              const idx = faceMap[face][nv * S + nu];
+              if (idx < 0) continue;
+              if (rr > colBuf[idx * 3]) colBuf[idx * 3] = rr;
+              if (rg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = rg;
+              if (rb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = rb;
+            }
+          }
+        }
+      }
+      module.exports = effectLightspeed;
+    }
+  });
+
+  // src/effects/cam.js
+  var require_cam = __commonJS({
+    "src/effects/cam.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var { Jimp, ResizeStrategy } = (init_browser(), __toCommonJS(browser_exports));
+      var { fetchWithTimeout } = require_net();
+      var camPixels = null;
+      var camPixelsSize = 0;
+      var fetching = false;
+      var lastAttemptMs = -Infinity;
+      var status = { text: "Idle" };
+      function getStatus() {
+        return status.text;
+      }
+      function maybeFetch(core, url, rate) {
+        if (!url || fetching) return;
+        const now = Date.now();
+        const interval = 1 / rate * 1e3;
+        if (now - lastAttemptMs < interval) return;
+        lastAttemptMs = now;
+        fetching = true;
+        const SIZE = core.SIZE;
+        const sep = url.includes("?") ? "&" : "?";
+        const fetchUrl = url + sep + "_t=" + now;
+        (async () => {
+          const resp = await fetchWithTimeout(fetchUrl);
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          const buf = Buffer2.from(await resp.arrayBuffer());
+          const img = await Jimp.read(buf);
+          img.resize({ w: SIZE, h: SIZE, mode: ResizeStrategy.NEAREST_NEIGHBOR });
+          camPixels = img.bitmap.data;
+          camPixelsSize = SIZE;
+          status.text = "Live \u2022 " + (rate | 0) + " fps";
+        })().catch((err) => {
+          status.text = "Error \u2014 " + (err.message || "fetch failed");
+          if (define_process_env_default.CAM_DEBUG) console.error("[cam] fetch failed:", err);
+        }).finally(() => {
+          fetching = false;
+        });
+      }
+      function effectCam(core, dt) {
+        const opts = core.effectOptions?.cam || {};
+        const url = (opts.url || "").trim();
+        const rate = opts.rate ?? 5;
+        maybeFetch(core, url, rate);
+        const { N, SIZE } = core;
+        if (!camPixels || camPixelsSize !== SIZE) {
+          for (let i = 0; i < N; i++) core.setLED(i, 0, 0, 0);
+          return;
+        }
+        for (let v = 0; v < SIZE; v++) {
+          for (let u = 0; u < SIZE; u++) {
+            const pi = (v * SIZE + u) * 4;
+            const r = camPixels[pi] / 255, g = camPixels[pi + 1] / 255, b = camPixels[pi + 2] / 255;
+            for (let f = 0; f < 6; f++) core.setFaceLED(f, u, SIZE - 1 - v, r, g, b);
+          }
+        }
+      }
+      module.exports = effectCam;
+      module.exports.getStatus = getStatus;
+    }
+  });
+
   // src/effects/_shared.js
   var require_shared = __commonJS({
     "src/effects/_shared.js"(exports, module) {
@@ -6251,961 +6969,6 @@ var PiEngine = (() => {
         wcDrawGlyphWall,
         wcDrawToFaceWall
       };
-    }
-  });
-
-  // src/effects/sphere.js
-  var require_sphere = __commonJS({
-    "src/effects/sphere.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { cubePx } = require_shared();
-      var { trailFade } = require_trail();
-      var _lgScanT = 0;
-      var _lgBaseAngle = 0;
-      var _lgState = "expand";
-      var _lgStateT = 0;
-      var _lgSpinTarget = 0;
-      var _lgFlatT = -1;
-      var _lgPulseT = -1;
-      var _lgColSweepT = -1;
-      var _lgWaveT = -1;
-      var _lgDblScanT = -1;
-      var _lgCollapsePhase = 0;
-      var _lgRoutineIdx = 0;
-      var sphT = 0;
-      function effectSphere(core, dt) {
-        core.t += dt;
-        sphT += dt;
-        const { SIZE: S, N, colBuf } = core;
-        const fade = trailFade(0.75, dt);
-        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
-        const time = sphT;
-        const cx = (S - 1) / 2, cy = (S - 1) / 2;
-        const nRays = 6;
-        const nHLines = 8;
-        const hp = time * 0.15;
-        const flicker = 0.92 + 0.08 * Math.sin(time * 47.3) * Math.sin(time * 31.7);
-        let hpOff = 0;
-        if (_lgColSweepT >= 0) {
-          _lgColSweepT += dt;
-          const sweepDur = 4;
-          if (_lgColSweepT >= sweepDur) _lgColSweepT = -1;
-          else hpOff = _lgColSweepT * 2.5;
-        }
-        const hpFinal = hp + hpOff;
-        let pulseMul = 1;
-        if (_lgPulseT >= 0) {
-          _lgPulseT += dt;
-          const pulseDur = 5;
-          if (_lgPulseT >= pulseDur) _lgPulseT = -1;
-          else pulseMul = 0.4 + 0.6 * Math.abs(Math.sin(_lgPulseT * Math.PI * 2.5));
-        }
-        const cR = (0.15 + 0.85 * Math.max(0, Math.sin(hpFinal))) * flicker * pulseMul;
-        const cG = (0.3 + 0.7 * Math.max(0, Math.sin(hpFinal + 2.094))) * flicker * pulseMul;
-        const cB = (0.1 + 0.9 * Math.max(0, Math.sin(hpFinal + 4.189))) * flicker * pulseMul;
-        let waveOffset = 0;
-        if (_lgWaveT >= 0) {
-          _lgWaveT += dt;
-          const waveDur = 5;
-          if (_lgWaveT >= waveDur) _lgWaveT = -1;
-          else waveOffset = _lgWaveT;
-        }
-        _lgStateT += dt;
-        const expandDur = 2, scanPeriod = 3, spinDur = 1.5;
-        const collapseDur = 1.2, reExpandDur = 1.5;
-        let expandEase = 1, scanV = cy, spinAngle = _lgBaseAngle;
-        let scanV2 = -1;
-        if (_lgState === "expand") {
-          const p = Math.min(_lgStateT / expandDur, 1);
-          expandEase = p * p;
-          _lgScanT += dt;
-          const sp = _lgScanT % scanPeriod / scanPeriod;
-          const raw = sp < 0.5 ? sp * 2 : 2 - sp * 2;
-          scanV = cy + (raw - 0.5) * 2 * expandEase * (S - 1) / 2;
-          scanV = Math.max(0, Math.min(S - 1, scanV));
-          if (p >= 1) {
-            _lgState = "scan";
-            _lgStateT = 0;
-          }
-        }
-        if (_lgState === "scan") {
-          _lgScanT += dt;
-          const sp = _lgScanT % scanPeriod / scanPeriod;
-          const raw = sp < 0.5 ? sp * 2 : 2 - sp * 2;
-          scanV = cy + (raw - 0.5) * 2 * (S - 1) / 2;
-          scanV = Math.max(0, Math.min(S - 1, scanV));
-          if (_lgDblScanT >= 0) {
-            _lgDblScanT += dt;
-            const dblDur = 6;
-            if (_lgDblScanT >= dblDur) _lgDblScanT = -1;
-            else {
-              const sp2 = (_lgScanT + scanPeriod / 2) % scanPeriod / scanPeriod;
-              const raw2 = sp2 < 0.5 ? sp2 * 2 : 2 - sp2 * 2;
-              scanV2 = cy + (raw2 - 0.5) * 2 * (S - 1) / 2;
-              scanV2 = Math.max(0, Math.min(S - 1, scanV2));
-            }
-          }
-          if (_lgStateT > 6 && Math.abs(scanV - cy) < 2) {
-            const routines = ["spin", "collapse", "dblscan", "pulse", "colsweep", "wave", "flat", "spin"];
-            const pick = routines[_lgRoutineIdx % routines.length];
-            _lgRoutineIdx++;
-            if (pick === "spin") {
-              _lgState = "spin";
-              _lgStateT = 0;
-              _lgSpinTarget = (_lgScanT * 7 | 0) % 3 === 0 ? Math.PI / 2 : Math.PI * 2;
-              scanV = cy;
-            } else if (pick === "collapse") {
-              _lgState = "collapse";
-              _lgStateT = 0;
-              _lgCollapsePhase = 0;
-            } else if (pick === "dblscan") {
-              _lgDblScanT = 0;
-              _lgStateT = 0;
-            } else if (pick === "pulse") {
-              _lgPulseT = 0;
-              _lgStateT = 0;
-            } else if (pick === "colsweep") {
-              _lgColSweepT = 0;
-              _lgStateT = 0;
-            } else if (pick === "wave") {
-              _lgWaveT = 0;
-              _lgStateT = 0;
-            } else if (pick === "flat") {
-              _lgFlatT = 0;
-              _lgStateT = 0;
-            }
-          }
-        }
-        if (_lgState === "spin") {
-          scanV = cy;
-          const p = Math.min(_lgStateT / spinDur, 1);
-          const ease = p < 0.5 ? 2 * p * p : 1 - 2 * (1 - p) * (1 - p);
-          spinAngle = _lgBaseAngle + ease * _lgSpinTarget;
-          if (p >= 1) {
-            _lgBaseAngle = _lgBaseAngle + _lgSpinTarget;
-            while (_lgBaseAngle > Math.PI * 2) _lgBaseAngle -= Math.PI * 2;
-            _lgState = "scan";
-            _lgStateT = 0;
-          }
-        }
-        if (_lgState === "collapse") {
-          _lgScanT += dt;
-          const sp = _lgScanT % scanPeriod / scanPeriod;
-          const raw = sp < 0.5 ? sp * 2 : 2 - sp * 2;
-          if (_lgCollapsePhase === 0) {
-            const p = Math.min(_lgStateT / collapseDur, 1);
-            expandEase = 1 - p * p;
-            scanV = cy + (raw - 0.5) * 2 * expandEase * (S - 1) / 2;
-            scanV = Math.max(0, Math.min(S - 1, scanV));
-            if (p >= 1) {
-              _lgCollapsePhase = 1;
-              _lgStateT = 0;
-            }
-          } else {
-            const p = Math.min(_lgStateT / reExpandDur, 1);
-            expandEase = p * p;
-            scanV = cy + (raw - 0.5) * 2 * expandEase * (S - 1) / 2;
-            scanV = Math.max(0, Math.min(S - 1, scanV));
-            if (p >= 1) {
-              _lgState = "scan";
-              _lgStateT = 0;
-            }
-          }
-        }
-        const flatSweepDur = 2, flatHoldDur = 2.5, flatFadeDur = 1.5;
-        const flatTotalDur = flatSweepDur + flatHoldDur + flatFadeDur;
-        if (_lgFlatT >= 0) {
-          _lgFlatT += dt;
-          if (_lgFlatT >= flatTotalDur) _lgFlatT = -1;
-        }
-        const cosA = Math.cos(spinAngle), sinA = Math.sin(spinAngle);
-        const T = S * 4, M = S - 1;
-        const ccx = Math.round(S / 2);
-        let _lgIsVert = false;
-        function setPx3d(col, v, r, g, b) {
-          if (_lgIsVert) {
-            const c = (col % T + T) % T;
-            const qi = c / S | 0;
-            const fu = c % S;
-            if (v >= 0 && v < S && (qi === 1 || qi === 3)) return;
-            if (v < 0 && v >= -S) v = -(M - (-v - 1)) - 1;
-            if (v >= 2 * S || v < -S) {
-              col = 2 * S + (M - fu);
-              v = v >= 2 * S ? 3 * S - 1 - v : -v - S - 1;
-              if (v < 0 || v >= S) return;
-              const idx2 = cubePx(core, col, v);
-              if (idx2 < 0) return;
-              colBuf[idx2 * 3] = Math.max(colBuf[idx2 * 3], r);
-              colBuf[idx2 * 3 + 1] = Math.max(colBuf[idx2 * 3 + 1], g);
-              colBuf[idx2 * 3 + 2] = Math.max(colBuf[idx2 * 3 + 2], b);
-              return;
-            }
-          }
-          const idx = cubePx(core, col, v);
-          if (idx < 0) return;
-          colBuf[idx * 3] = Math.max(colBuf[idx * 3], r);
-          colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], g);
-          colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], b);
-        }
-        function drawLine3d(x0, y0, x1, y1, bright) {
-          const ldx = x1 - x0, ldy = y1 - y0;
-          const ls = Math.max(Math.abs(ldx), Math.abs(ldy), 1) | 0;
-          for (let i = 0; i <= ls; i++) {
-            const ft = i / ls;
-            const u = Math.round(x0 + ldx * ft), v = Math.round(y0 + ldy * ft);
-            if (v < -2 * S || v >= 3 * S) continue;
-            setPx3d(u, v, cR * bright, cG * bright, cB * bright);
-          }
-        }
-        const absS = Math.abs(sinA), absC = Math.abs(cosA);
-        _lgIsVert = absS > absC;
-        const scanFrac = (scanV - cy) / ((S - 1) / 2);
-        const scanCU3d = _lgIsVert ? ccx + scanFrac * ((S - 1) / 2) : ccx;
-        const scanCV3d = _lgIsVert ? cy : scanV;
-        const barHalfU = cosA * (T / 2);
-        const barHalfV = sinA * (S * 2.5);
-        const sl3U0 = scanCU3d + barHalfU, sl3V0 = scanCV3d + barHalfV;
-        const sl3U1 = scanCU3d - barHalfU, sl3V1 = scanCV3d - barHalfV;
-        const slB3 = 0.9 * expandEase;
-        const normU3 = -sinA, normV3 = cosA;
-        drawLine3d(sl3U0, sl3V0, sl3U1, sl3V1, slB3);
-        for (let dv = -3; dv <= 3; dv++) {
-          if (dv === 0) continue;
-          const gb = (1 - Math.abs(dv) / 4) * 0.18 * expandEase;
-          drawLine3d(sl3U0 + normU3 * dv, sl3V0 + normV3 * dv, sl3U1 + normU3 * dv, sl3V1 + normV3 * dv, gb);
-        }
-        if (scanV2 >= 0) {
-          const sf2 = (scanV2 - cy) / ((S - 1) / 2);
-          const sCU2 = _lgIsVert ? ccx + sf2 * ((S - 1) / 2) : ccx;
-          const sCV2 = _lgIsVert ? cy : scanV2;
-          const s2U0 = sCU2 + barHalfU, s2V0 = sCV2 + barHalfV;
-          const s2U1 = sCU2 - barHalfU, s2V1 = sCV2 - barHalfV;
-          drawLine3d(s2U0, s2V0, s2U1, s2V1, slB3 * 0.7);
-          for (let dv = -2; dv <= 2; dv++) {
-            if (dv === 0) continue;
-            const gb = (1 - Math.abs(dv) / 3) * 0.12 * expandEase;
-            drawLine3d(s2U0 + normU3 * dv, s2V0 + normV3 * dv, s2U1 + normU3 * dv, s2V1 + normV3 * dv, gb);
-          }
-        }
-        const nRays3d = 6;
-        for (let ri = 0; ri < nRays3d; ri++) {
-          const frac = ri / (nRays3d - 1);
-          const tU = sl3U0 + (sl3U1 - sl3U0) * frac;
-          const tV = sl3V0 + (sl3V1 - sl3V0) * frac;
-          const endU = ccx + (tU - ccx) * expandEase;
-          const endV = cy + (tV - cy) * expandEase;
-          const dx = endU - ccx, dy = endV - cy;
-          const steps = Math.max(Math.abs(dx), Math.abs(dy), 1) | 0;
-          if (steps < 2) continue;
-          for (let s = 0; s <= steps; s++) {
-            const ft = s / steps;
-            const u = Math.round(ccx + dx * ft);
-            const v = Math.round(cy + dy * ft);
-            const b = 0.2 + 0.6 * ft;
-            setPx3d(u, v, cR * b, cG * b, cB * b);
-          }
-        }
-        if (expandEase > 0.3) {
-          const gridB3 = 0.25 * (expandEase - 0.3) / 0.7;
-          for (let hi = 1; hi <= nHLines; hi++) {
-            const frac = hi / (nHLines + 1);
-            let pFrac = frac * frac;
-            if (waveOffset > 0) {
-              const wAmp = 0.15 * Math.sin(waveOffset * 3 - hi * 0.8);
-              pFrac = Math.max(0.01, Math.min(0.99, pFrac + wAmp));
-            }
-            for (let ri = 0; ri < nRays3d - 1; ri++) {
-              const fA = ri / (nRays3d - 1), fB = (ri + 1) / (nRays3d - 1);
-              const aU = sl3U0 + (sl3U1 - sl3U0) * fA, aV = sl3V0 + (sl3V1 - sl3V0) * fA;
-              const bU = sl3U0 + (sl3U1 - sl3U0) * fB, bV = sl3V0 + (sl3V1 - sl3V0) * fB;
-              const eaU = ccx + (aU - ccx) * expandEase, eaV = cy + (aV - cy) * expandEase;
-              const ebU = ccx + (bU - ccx) * expandEase, ebV = cy + (bV - cy) * expandEase;
-              const guA = ccx + (eaU - ccx) * pFrac, gvA = cy + (eaV - cy) * pFrac;
-              const guB = ccx + (ebU - ccx) * pFrac, gvB = cy + (ebV - cy) * pFrac;
-              drawLine3d(guA, gvA, guB, gvB, gridB3);
-            }
-          }
-        }
-        for (let dv = -2; dv <= 2; dv++) for (let du = -2; du <= 2; du++) {
-          const v = Math.round(cy) + dv;
-          if (v < 0 || v >= S) continue;
-          const r = Math.sqrt(du * du + dv * dv);
-          const b = Math.max(0, 1 - r / 2.5) * 0.7;
-          setPx3d(ccx + du, v, b, b * 0.95, b);
-        }
-        for (let ri = 0; ri < nRays3d; ri++) {
-          const frac = ri / (nRays3d - 1);
-          const tU = sl3U0 + (sl3U1 - sl3U0) * frac;
-          const tV = sl3V0 + (sl3V1 - sl3V0) * frac;
-          const eu = Math.round(ccx + (tU - ccx) * expandEase);
-          const ev = Math.round(cy + (tV - cy) * expandEase);
-          for (let ddv = -1; ddv <= 1; ddv++) for (let ddu = -1; ddu <= 1; ddu++) {
-            const v = ev + ddv;
-            if (v < -2 * S || v >= 3 * S) continue;
-            const r = Math.sqrt(ddu * ddu + ddv * ddv);
-            const b = Math.max(0, 1 - r / 1.5) * 0.8 * expandEase;
-            setPx3d(eu + ddu, v, cR * b, cG * b, cB * b);
-          }
-        }
-        if (_lgFlatT >= 0 && _lgFlatT < flatTotalDur) {
-          const gridSpacing = Math.round(S / 8);
-          let flatAlpha = 0, reach = 0;
-          if (_lgFlatT < flatSweepDur) {
-            reach = _lgFlatT / flatSweepDur;
-            flatAlpha = 0.4;
-          } else if (_lgFlatT < flatSweepDur + flatHoldDur) {
-            reach = 1;
-            flatAlpha = 0.4;
-          } else {
-            reach = 1;
-            flatAlpha = 0.4 * (1 - (_lgFlatT - flatSweepDur - flatHoldDur) / flatFadeDur);
-          }
-          const maxDist = Math.round(reach * (S / 2));
-          for (let gi = 1; gi < S / gridSpacing; gi++) {
-            const gv = gi * gridSpacing;
-            if (gv >= S) continue;
-            if (Math.abs(gv - Math.round(cy)) > maxDist) continue;
-            for (let col = 0; col < T; col++) setPx3d(col, gv, cR * flatAlpha, cG * flatAlpha, cB * flatAlpha);
-          }
-          for (let gi = 0; gi < T / gridSpacing; gi++) {
-            const gu = gi * gridSpacing;
-            for (let v = 0; v < S; v++) {
-              if (Math.abs(v - Math.round(cy)) > maxDist) continue;
-              setPx3d(gu, v, cR * flatAlpha, cG * flatAlpha, cB * flatAlpha);
-            }
-          }
-          if (_lgFlatT < flatSweepDur) {
-            const sw1 = Math.round(cy - maxDist), sw2 = Math.round(cy + maxDist);
-            for (let col = 0; col < T; col++) {
-              if (sw1 >= 0 && sw1 < S) setPx3d(col, sw1, cR * 0.8, cG * 0.8, cB * 0.8);
-              if (sw2 >= 0 && sw2 < S) setPx3d(col, sw2, cR * 0.8, cG * 0.8, cB * 0.8);
-            }
-          }
-        }
-      }
-      module.exports = effectSphere;
-    }
-  });
-
-  // src/effects/dna.js
-  var require_dna = __commonJS({
-    "src/effects/dna.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var { trailFade } = require_trail();
-      function effectDNA(core, dt) {
-        core.t += dt * 0.55;
-        const { SIZE, colBuf, N, faceMap, t } = core;
-        const fade = trailFade(0.82, dt);
-        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
-        const STRANDS = 2;
-        const RADIUS = SIZE * 0.36;
-        const TURNS = 4;
-        for (let face = 0; face < 4; face++) {
-          const faceHue = face * 0.25;
-          for (let y = 0; y < SIZE; y++) {
-            const progress = y / SIZE;
-            for (let s = 0; s < STRANDS; s++) {
-              const ang = progress * Math.PI * 2 * TURNS + t * 1.4 + s * Math.PI;
-              const uc = SIZE / 2 + Math.cos(ang) * RADIUS;
-              const ui = Math.round(uc);
-              if (ui < 0 || ui >= SIZE) continue;
-              const hue = (faceHue + progress * 0.5 + t * 0.06 + s * 0.5) % 1;
-              const bright = 0.95;
-              const [r, g, b] = hsl(hue, 1, bright);
-              core.setFaceLED(face, ui, y, r, g, b);
-              for (let d = 1; d <= 3; d++) {
-                const fade2 = Math.pow(1 - d / 4, 2) * 0.7;
-                const [rg, gg, bg] = hsl(hue, 0.9, fade2);
-                core.setFaceLED(face, ui - d, y, rg, gg, bg);
-                core.setFaceLED(face, ui + d, y, rg, gg, bg);
-              }
-            }
-            if (y % 3 === 0) {
-              const ang0 = progress * Math.PI * 2 * TURNS + t * 1.4;
-              const u0 = SIZE / 2 + Math.cos(ang0) * RADIUS;
-              const u1 = SIZE / 2 + Math.cos(ang0 + Math.PI) * RADIUS;
-              const uMin = Math.round(Math.min(u0, u1));
-              const uMax = Math.round(Math.max(u0, u1));
-              const rungHue = (faceHue + progress * 0.5 + t * 0.06 + 0.5) % 1;
-              for (let u = uMin; u <= uMax; u++) {
-                if (u < 0 || u >= SIZE) continue;
-                const frac = (u - uMin) / Math.max(1, uMax - uMin);
-                const bright = Math.sin(frac * Math.PI) * 0.8;
-                const [rr, gr, br] = hsl(rungHue, 1, bright);
-                core.setFaceLED(face, u, y, rr, gr, br);
-              }
-            }
-          }
-          for (let y = 0; y < SIZE; y++) {
-            const pulse = 0.3 + 0.3 * Math.sin(t * 2 + face + y * 0.1);
-            const [re, ge, be] = hsl((faceHue + t * 0.05) % 1, 1, pulse);
-            core.setFaceLED(face, 0, y, re, ge, be);
-            core.setFaceLED(face, SIZE - 1, y, re, ge, be);
-          }
-        }
-        const cx2 = SIZE / 2, cy2 = SIZE / 2;
-        for (let v = 0; v < SIZE; v++) {
-          for (let u = 0; u < SIZE; u++) {
-            const dx = u - cx2, dy = v - cy2;
-            const rad = Math.sqrt(dx * dx + dy * dy);
-            const ang2 = Math.atan2(dy, dx);
-            for (let s = 0; s < STRANDS; s++) {
-              const armAng = ang2 - t * 1.4 - s * Math.PI;
-              const targetRad = RADIUS * (0.5 + 0.5 * Math.sin(armAng * TURNS * 2));
-              const dist = Math.abs(rad - targetRad);
-              if (dist < SIZE * 0.08) {
-                const bright = Math.pow(1 - dist / (SIZE * 0.08), 2) * 0.9;
-                const hue = (ang2 / (Math.PI * 2) + t * 0.08 + s * 0.5) % 1;
-                const [r, g, b] = hsl((hue + 1) % 1, 1, bright);
-                const idx = faceMap[4][v * SIZE + u];
-                if (idx >= 0) {
-                  colBuf[idx * 3] = Math.max(colBuf[idx * 3], r);
-                  colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], g);
-                  colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], b);
-                }
-              }
-            }
-            if (rad < SIZE * 0.06) {
-              const bright = (1 - rad / (SIZE * 0.06)) * 0.8;
-              const [r, g, b] = hsl(t * 0.1 % 1, 0.5, bright);
-              const idx = faceMap[4][v * SIZE + u];
-              if (idx >= 0) {
-                colBuf[idx * 3] = Math.max(colBuf[idx * 3], r);
-                colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], g);
-                colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], b);
-              }
-            }
-          }
-        }
-      }
-      module.exports = effectDNA;
-    }
-  });
-
-  // src/effects/aurora.js
-  var require_aurora = __commonJS({
-    "src/effects/aurora.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl, lerp, sm } = require_core();
-      var { defineFieldEffect } = require_surface();
-      var stars = { cube: null, wall: null };
-      module.exports = defineFieldEffect({
-        smooth: true,
-        // slowly varying curtains; stars are added per pixel in detail()
-        speed: 0.35,
-        frame(ctx) {
-          const key = ctx.flat ? "wall" : "cube";
-          if (!stars[key] || stars[key].length !== ctx.count) {
-            stars[key] = new Float32Array(ctx.count);
-            for (let i = 0; i < ctx.count; i++) stars[key][i] = Math.random() < 0.014 ? Math.random() : 0;
-          }
-          ctx.stars = stars[key];
-        },
-        pixel(p, ctx) {
-          const { t } = ctx;
-          const x = p.x, y = p.flat ? 1 - p.y : p.y, z = p.flat ? 0 : p.z;
-          const c1 = Math.sin(x * Math.PI * 3.5 + t * 0.65) * Math.sin(z * Math.PI * 2.8 + t * 0.42);
-          const c2 = Math.sin(x * Math.PI * 2.2 - t * 0.38) * Math.cos(z * Math.PI * 1.9 + t * 0.55) * 0.6;
-          const curtain = c1 + c2;
-          const fade = Math.pow(Math.max(0, y), 0.45);
-          const bright = Math.max(0, curtain) * fade * 0.88;
-          if (bright > 0.02) {
-            const hue = lerp(0.3, 0.82, sm(0, 1, x + Math.sin(t * 0.28) * 0.25)) + Math.sin(t * 0.1) * 0.04;
-            const sat = 0.9 + Math.sin(t * 0.8 + x * 2) * 0.1;
-            const [r, g, b] = hsl(hue, sat, bright);
-            const [r2, g2, b2] = hsl(hue + 0.45, sat, bright * 0.4 * Math.max(0, c2));
-            return [Math.min(1, r + r2), Math.min(1, g + g2), Math.min(1, b + b2)];
-          }
-          return [0, 0, 0];
-        },
-        // Stars twinkle in the dark sky between the curtains (per pixel, on top
-        // of the blended curtain colour).
-        detail(p, ctx, c) {
-          const s = ctx.stars[p.i];
-          if (s > 0 && c[0] + c[1] + c[2] < 0.06) {
-            const tw = 0.5 + 0.5 * Math.sin(ctx.t * 2.3 + s * 12.7);
-            return [tw * 0.55, tw * 0.55, tw * 0.65];
-          }
-          return c;
-        }
-      });
-    }
-  });
-
-  // src/effects/nebula.js
-  var require_nebula = __commonJS({
-    "src/effects/nebula.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl, lerp, sm } = require_core();
-      var { defineFieldEffect } = require_surface();
-      var stars = { cube: null, wall: null };
-      module.exports = defineFieldEffect({
-        smooth: true,
-        // slowly varying cloud; stars are added per pixel in detail()
-        speed: 0.28,
-        frame(ctx) {
-          const key = ctx.flat ? "wall" : "cube";
-          if (!stars[key] || stars[key].length !== ctx.count) {
-            stars[key] = [];
-            for (let i = 0; i < ctx.count; i++) stars[key].push({ last: -1, next: Math.random() * 8, bright: 0 });
-          }
-          ctx.stars = stars[key];
-        },
-        pixel(p, ctx) {
-          const { t } = ctx;
-          const x = p.x, y = p.y, z = p.flat ? 0 : p.z;
-          let d = 0;
-          d += Math.sin(x * 5.3 + t * 0.52) * Math.cos(y * 4.9 + t * 0.31) * 0.5;
-          d += Math.sin(z * 6.5 - t * 0.42) * Math.sin(x * 3.4 + t * 0.21) * 0.38;
-          d += Math.cos((x + y + z) * 4.2 + t * 0.58) * 0.28;
-          d += Math.sin(x * 8.8 + y * 6.1 - t * 0.35) * 0.15;
-          d = d * 0.48 + 0.52;
-          const bright = Math.pow(Math.max(0, d - 0.08), 1.4) * 0.92;
-          const hue = lerp(0.6, 0.04, sm(0.18, 0.88, d)) + Math.sin(t * 0.08) * 0.05;
-          const [r, g, b] = hsl(hue, 0.85 + d * 0.15, bright);
-          const coreBoost = Math.max(0, d - 0.75) * 3.5;
-          return [r + coreBoost * 0.4, g + coreBoost * 0.3, b + coreBoost * 0.2];
-        },
-        // Twinkling stars, per pixel on top of the (blended) cloud colour.
-        detail(p, ctx, c) {
-          const { t, dt } = ctx;
-          const ns = ctx.stars[p.i];
-          ns.next -= dt;
-          let sr = 0, sg = 0, sb = 0;
-          if (ns.next <= 0) {
-            ns.bright = 0.6 + Math.random() * 0.4;
-            ns.next = 4 + Math.random() * 12;
-            ns.last = t;
-          }
-          if (ns.bright > 0) {
-            ns.bright = Math.max(0, ns.bright - dt * 1.2);
-            const sc = ns.bright;
-            sr = sc;
-            sg = sc;
-            sb = sc + 0.2;
-          }
-          return [Math.min(1, c[0] + sr), Math.min(1, c[1] + sg), Math.min(1, c[2] + sb)];
-        }
-      });
-    }
-  });
-
-  // src/effects/warp.js
-  var require_warp = __commonJS({
-    "src/effects/warp.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var { tempo } = require_audioFeatures();
-      var { trailFade } = require_trail();
-      var warpStars = [];
-      function resetWarp(core) {
-        warpStars = [];
-        const N = core.N;
-        for (let i = 0; i < Math.max(120, N * 0.12) | 0; i++) {
-          const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
-          const sp = 0.08 + Math.random() * 0.35;
-          warpStars.push({ x: 0.5, y: 0.5, z: 0.5, ox: Math.sin(ph) * Math.cos(th) * 1e-3, oy: Math.sin(ph) * Math.sin(th) * 1e-3, oz: Math.cos(ph) * 1e-3, sp, hue: Math.random() * 0.2 + 0.55, life: Math.random() });
-        }
-      }
-      function effectWarp(core, dt) {
-        dt *= tempo(core);
-        core.t += dt;
-        const { SIZE, N, colBuf } = core;
-        if (!warpStars.length) resetWarp(core);
-        const fade = trailFade(0.78, dt);
-        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
-        for (const s of warpStars) {
-          s.life += dt;
-          s.x += s.ox * s.sp * SIZE * dt * 60;
-          s.y += s.oy * s.sp * SIZE * dt * 60;
-          s.z += s.oz * s.sp * SIZE * dt * 60;
-          const wx = s.x, wy = s.y, wz = s.z;
-          if (wx < 0 || wx > 1 || wy < 0 || wy > 1 || wz < 0 || wz > 1) {
-            s.x = 0.5;
-            s.y = 0.5;
-            s.z = 0.5;
-            s.sp = 0.08 + Math.random() * 0.35;
-            s.life = 0;
-            s.hue = Math.random() * 0.2 + 0.55;
-            continue;
-          }
-          const dist = Math.sqrt((wx - 0.5) ** 2 + (wy - 0.5) ** 2 + (wz - 0.5) ** 2) * 2;
-          const bright = dist * 0.75 * Math.min(1, s.life * 3);
-          const core1 = bright * 0.85, glow1 = bright * 0.25 * 0.85;
-          if (core1 < 0.01) continue;
-          const cc = hsl(s.hue + dist * 0.15, 0.8, core1);
-          const gc = glow1 >= 0.01 ? hsl(s.hue + dist * 0.15, 0.8, glow1) : null;
-          for (let f = 0; f < 6; f++) {
-            const fu = f < 2 ? wx : f < 4 ? wz : wx, fv = f < 4 ? wy : wz;
-            const pu = fu * SIZE | 0, pv = fv * SIZE | 0;
-            for (let sx = -1; sx <= 1; sx++) for (let sy = -1; sy <= 1; sy++) {
-              const c = sx === 0 && sy === 0 ? cc : gc;
-              if (c) core.setFaceLED(f, pu + sx, pv + sy, c[0], c[1], c[2]);
-            }
-          }
-        }
-      }
-      module.exports = effectWarp;
-    }
-  });
-
-  // src/effects/lightning.js
-  var require_lightning = __commonJS({
-    "src/effects/lightning.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var { trailFade } = require_trail();
-      var { kick, music } = require_audioFeatures();
-      var { tronMove } = require_shared();
-      var lightningBolts = [];
-      var lightningT = 0;
-      var lightningStormT = 0;
-      var lightningThunder = 0;
-      var DIRS4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-      function boltJag(core, face, u, v, du, dv, steps, depth) {
-        const SIZE = core.SIZE;
-        const pts = [[face, u, v]];
-        let cf = face, cu = u, cv = v;
-        const pu = -dv, pv = du;
-        for (let i = 0; i < steps; i++) {
-          const jag = Math.round((Math.random() - 0.5) * 5);
-          const nu2 = Math.max(0, Math.min(SIZE - 1, cu + du + pu * jag));
-          const nv2 = Math.max(0, Math.min(SIZE - 1, cv + dv + pv * jag));
-          const res = tronMove(core, cf, nu2, nv2, du || 1, dv || 1);
-          cf = res[0];
-          cu = res[1];
-          cv = res[2];
-          pts.push([cf, cu, cv]);
-          if (depth > 0 && Math.random() < 0.4) {
-            const bd = DIRS4[Math.floor(Math.random() * 4)];
-            const sub = boltJag(core, cf, cu, cv, bd[0], bd[1], Math.max(2, steps >> 1), depth - 1);
-            lightningBolts.push({ pts: sub, life: 1, decay: 7 + Math.random() * 5, branch: true, hue: 0.62 + Math.random() * 0.1 });
-          }
-        }
-        return pts;
-      }
-      function spawnStrike(core) {
-        const SIZE = core.SIZE;
-        const face = Math.floor(Math.random() * 6);
-        const su = 4 + Math.floor(Math.random() * (SIZE - 8));
-        const sv = 4 + Math.floor(Math.random() * (SIZE - 8));
-        const dir = DIRS4[Math.floor(Math.random() * 4)];
-        const len = Math.floor(SIZE * 0.5 + Math.random() * SIZE * 1);
-        const hc = Math.random();
-        const hue = hc < 0.35 ? 0 : hc < 0.6 ? 0.62 : hc < 0.78 ? 0.75 : 0.08;
-        const pts = boltJag(core, face, su, sv, dir[0], dir[1], len, 2);
-        lightningBolts.push({ pts, life: 1, decay: 3.5 + Math.random() * 3, branch: false, hue, width: 2 });
-        lightningThunder = Math.max(lightningThunder, 0.65 + Math.random() * 0.35);
-      }
-      function effectLightning(core, dt) {
-        const speedMult = core.speedMult || 1;
-        lightningT += dt * speedMult;
-        lightningStormT += dt * speedMult;
-        const { N, SIZE, colBuf } = core;
-        const fade = trailFade(0.82, dt);
-        const pulse = 0.03 + 0.02 * Math.sin(lightningStormT * 0.7);
-        for (let i = 0; i < N; i++) {
-          colBuf[i * 3] = Math.max(colBuf[i * 3] * fade, pulse * 0.18);
-          colBuf[i * 3 + 1] = Math.max(colBuf[i * 3 + 1] * fade, pulse * 0.22);
-          colBuf[i * 3 + 2] = Math.max(colBuf[i * 3 + 2] * fade, pulse * 0.65);
-        }
-        if (lightningThunder > 0.01) {
-          for (let i = 0; i < N; i++) {
-            colBuf[i * 3] = Math.min(1, colBuf[i * 3] + lightningThunder * 0.3);
-            colBuf[i * 3 + 1] = Math.min(1, colBuf[i * 3 + 1] + lightningThunder * 0.33);
-            colBuf[i * 3 + 2] = Math.min(1, colBuf[i * 3 + 2] + lightningThunder * 0.4);
-          }
-          lightningThunder = Math.max(0, lightningThunder - dt * 8);
-        }
-        const baseRate = 0.8 / Math.max(0.1, speedMult);
-        const rate = baseRate * (0.3 + Math.random() * 1.4);
-        if (kick(core)) {
-          spawnStrike(core);
-          if (music(core).level > 0.4) spawnStrike(core);
-          lightningT = 0;
-        }
-        if (lightningT > rate) {
-          lightningT = 0;
-          spawnStrike(core);
-          if (Math.random() < 0.4) setTimeout(() => spawnStrike(core), 70);
-          if (Math.random() < 0.2) setTimeout(() => spawnStrike(core), 140);
-        }
-        for (let k = lightningBolts.length - 1; k >= 0; k--) {
-          const bolt = lightningBolts[k];
-          bolt.life -= dt * bolt.decay;
-          if (bolt.life <= 0) {
-            lightningBolts.splice(k, 1);
-            continue;
-          }
-          const bright = Math.pow(Math.max(0, bolt.life), 0.6);
-          const isMain = !bolt.branch;
-          const core_ = bright * (isMain ? 1 : 0.55);
-          const [hr, hg, hb] = hsl(bolt.hue, 0.65, core_ * 0.8);
-          const wr = isMain ? Math.min(1, hr + core_ * 0.5) : hr;
-          const wg = isMain ? Math.min(1, hg + core_ * 0.6) : hg;
-          const wb = isMain ? Math.min(1, hb + core_ * 0.7) : hb;
-          const gr = isMain ? 2 : 1, glow = [];
-          for (let gv = -gr; gv <= gr; gv++) for (let gu = -gr; gu <= gr; gu++) {
-            if (gu === 0 && gv === 0) continue;
-            const gd = Math.sqrt(gu * gu + gv * gv);
-            if (gd > gr + 0.5) continue;
-            glow.push([gu, gv, hsl(bolt.hue, 1, bright * 0.45 / (gd + 0.6) * (isMain ? 0.7 : 0.35))]);
-          }
-          const lift = (face, u, v, r, g, b) => {
-            if (u < 0 || u >= SIZE || v < 0 || v >= SIZE) return;
-            const i = core.faceMap[face][v * SIZE + u];
-            if (i < 0) return;
-            const o = i * 3, buf = core.colBuf;
-            if (r > buf[o]) buf[o] = r;
-            if (g > buf[o + 1]) buf[o + 1] = g;
-            if (b > buf[o + 2]) buf[o + 2] = b;
-          };
-          for (const [face, u, v] of bolt.pts) {
-            if (u < 0 || u >= SIZE || v < 0 || v >= SIZE) continue;
-            lift(face, u, v, wr, wg, wb);
-            for (const [gu, gv, c] of glow) lift(face, u + gu, v + gv, c[0], c[1], c[2]);
-          }
-        }
-        const sparks = Math.floor(dt * 25 * (1 + lightningThunder * 6));
-        for (let s = 0; s < sparks; s++) {
-          const i = Math.random() * N | 0;
-          const sp = 0.03 + Math.random() * 0.1;
-          colBuf[i * 3] = Math.min(1, colBuf[i * 3] + sp * 0.25);
-          colBuf[i * 3 + 1] = Math.min(1, colBuf[i * 3 + 1] + sp * 0.3);
-          colBuf[i * 3 + 2] = Math.min(1, colBuf[i * 3 + 2] + sp);
-        }
-      }
-      module.exports = effectLightning;
-    }
-  });
-
-  // src/effects/lightspeed.js
-  var require_lightspeed = __commonJS({
-    "src/effects/lightspeed.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var { tempo } = require_audioFeatures();
-      var lsRacers = [];
-      var lsT = 0;
-      function lsTransfer(face, u, v, du, dv, S) {
-        const S1 = S - 1;
-        let r;
-        if (u < 0) {
-          if (face === 0) r = [3, S1, v, du, dv];
-          else if (face === 1) r = [3, 0, v, -du, dv];
-          else if (face === 2) r = [1, S1, v, du, dv];
-          else if (face === 3) r = [1, 0, v, -du, dv];
-          else if (face === 4) r = [3, v, S1, dv, du];
-          else r = [3, v, 0, dv, -du];
-        } else if (u >= S) {
-          if (face === 0) r = [2, S1, v, -du, dv];
-          else if (face === 1) r = [2, 0, v, du, dv];
-          else if (face === 2) r = [0, S1, v, -du, dv];
-          else if (face === 3) r = [0, 0, v, du, dv];
-          else if (face === 4) r = [2, v, S1, dv, -du];
-          else r = [2, v, 0, dv, du];
-        } else if (v < 0) {
-          if (face === 0) r = [5, u, S1, du, dv];
-          else if (face === 1) r = [5, u, 0, du, -dv];
-          else if (face === 2) r = [5, S1, u, dv, du];
-          else if (face === 3) r = [5, 0, u, -dv, du];
-          else if (face === 4) r = [1, u, S1, du, dv];
-          else r = [1, u, 0, du, -dv];
-        } else {
-          if (face === 0) r = [4, u, S1, du, -dv];
-          else if (face === 1) r = [4, u, 0, du, dv];
-          else if (face === 2) r = [4, S1, u, -dv, du];
-          else if (face === 3) r = [4, 0, u, dv, du];
-          else if (face === 4) r = [0, u, S1, du, -dv];
-          else r = [0, u, 0, du, dv];
-        }
-        r[1] = Math.max(1, Math.min(S - 2, r[1]));
-        r[2] = Math.max(1, Math.min(S - 2, r[2]));
-        const spd = Math.sqrt(r[3] * r[3] + r[4] * r[4]) || 1;
-        r[3] /= spd;
-        r[4] /= spd;
-        return r;
-      }
-      function resetLightspeed(core, lsCount) {
-        lsRacers = [];
-        const S = core.SIZE;
-        for (let k = 0; k < lsCount; k++) {
-          const face = k % 6;
-          const u = S * 0.25 + Math.random() * S * 0.5;
-          const v = S * 0.25 + Math.random() * S * 0.5;
-          lsRacers.push({
-            face,
-            u,
-            v,
-            du: 1,
-            dv: 0,
-            hue: k / lsCount,
-            trail: [],
-            nudgeCountdown: 3 + Math.random() * 4,
-            nudgeT: 3 + Math.random() * 5
-          });
-        }
-      }
-      function effectLightspeed(core, dt) {
-        dt *= tempo(core);
-        lsT += dt;
-        const { N, SIZE, colBuf, faceMap } = core;
-        const opts = core.effectOptions?.lightspeed || {};
-        const lsSpeed = opts.speed ?? 8, lsTrail = opts.trail ?? 32, lsSize = opts.size ?? 1;
-        const lsColour = opts.colour ?? "multi", lsCount = opts.count ?? 8, lsNudge = opts.nudge ?? 0;
-        if (!lsRacers.length || !faceMap) resetLightspeed(core, lsCount);
-        for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
-        const S = SIZE;
-        const pps = Math.pow(lsSpeed, 1.6) * SIZE * 0.8;
-        const dist = pps * dt;
-        const subSteps = Math.min(Math.max(1, Math.ceil(dist)), 400);
-        const d = dist / subSteps;
-        for (const r of lsRacers) {
-          r.nudgeCountdown -= dt;
-          if (r.nudgeCountdown <= 0) {
-            r.nudgeCountdown = r.nudgeT * (0.8 + Math.random() * 3);
-            if (lsNudge > 0) {
-              const a = (Math.random() - 0.5) * 2 * (lsNudge * Math.PI / 180);
-              const c = Math.cos(a), s_ = Math.sin(a);
-              const od = r.du, ov = r.dv;
-              r.du = od * c - ov * s_;
-              r.dv = od * s_ + ov * c;
-              const l = Math.sqrt(r.du * r.du + r.dv * r.dv) || 1;
-              r.du /= l;
-              r.dv /= l;
-            }
-          }
-          for (let ss = 0; ss < subSteps; ss++) {
-            r.u += r.du * d;
-            r.v += r.dv * d;
-            if (r.u < 0 || r.u >= S || r.v < 0 || r.v >= S) {
-              const res = lsTransfer(r.face, r.u, r.v, r.du, r.dv, S);
-              r.face = res[0];
-              r.u = Math.max(1e-3, Math.min(S - 1e-3, res[1]));
-              r.v = Math.max(1e-3, Math.min(S - 1e-3, res[2]));
-              r.du = res[3];
-              r.dv = res[4];
-              const l = Math.sqrt(r.du * r.du + r.dv * r.dv) || 1;
-              r.du /= l;
-              r.dv /= l;
-            }
-            const pu = Math.round(r.u), pv = Math.round(r.v);
-            if (pu >= 0 && pu < S && pv >= 0 && pv < S && faceMap[r.face][pv * S + pu] >= 0) {
-              r.trail.push({ face: r.face, u: pu, v: pv });
-              if (r.trail.length > lsTrail) r.trail.shift();
-            }
-          }
-          r.hue = (r.hue + dt * 0.04) % 1;
-          const tl = r.trail.length;
-          for (let i = 0; i < tl; i++) {
-            const { face, u, v } = r.trail[i];
-            const frac = (i + 1) / tl;
-            const bright = Math.pow(frac, 1.3);
-            let rr, rg, rb;
-            const lum = 0.55 * bright + (frac > 0.9 ? (frac - 0.9) * 4 : 0);
-            if (lsColour === "multi") [rr, rg, rb] = hsl((r.hue + frac * 0.1 + lsT * 0.04) % 1, 1, lum);
-            else {
-              const hmap = { white: null, cyan: 0.52, red: 0.02, green: 0.33, gold: 0.13 };
-              const h = hmap[lsColour];
-              if (!h) {
-                rr = bright;
-                rg = bright;
-                rb = bright;
-              } else [rr, rg, rb] = hsl(h, 1, lum);
-            }
-            if (i === tl - 1) {
-              rr = 1;
-              rg = 1;
-              rb = 1;
-            }
-            const R = lsSize - 1;
-            for (let dv2 = -R; dv2 <= R; dv2++) for (let du2 = -R; du2 <= R; du2++) {
-              const nu = u + du2, nv = v + dv2;
-              if (nu < 0 || nu >= S || nv < 0 || nv >= S) continue;
-              const idx = faceMap[face][nv * S + nu];
-              if (idx < 0) continue;
-              if (rr > colBuf[idx * 3]) colBuf[idx * 3] = rr;
-              if (rg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = rg;
-              if (rb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = rb;
-            }
-          }
-        }
-      }
-      module.exports = effectLightspeed;
-    }
-  });
-
-  // src/effects/cam.js
-  var require_cam = __commonJS({
-    "src/effects/cam.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { Jimp, ResizeStrategy } = (init_browser(), __toCommonJS(browser_exports));
-      var { fetchWithTimeout } = require_net();
-      var camPixels = null;
-      var camPixelsSize = 0;
-      var fetching = false;
-      var lastAttemptMs = -Infinity;
-      var status = { text: "Idle" };
-      function getStatus() {
-        return status.text;
-      }
-      function maybeFetch(core, url, rate) {
-        if (!url || fetching) return;
-        const now = Date.now();
-        const interval = 1 / rate * 1e3;
-        if (now - lastAttemptMs < interval) return;
-        lastAttemptMs = now;
-        fetching = true;
-        const SIZE = core.SIZE;
-        const sep = url.includes("?") ? "&" : "?";
-        const fetchUrl = url + sep + "_t=" + now;
-        (async () => {
-          const resp = await fetchWithTimeout(fetchUrl);
-          if (!resp.ok) throw new Error("HTTP " + resp.status);
-          const buf = Buffer2.from(await resp.arrayBuffer());
-          const img = await Jimp.read(buf);
-          img.resize({ w: SIZE, h: SIZE, mode: ResizeStrategy.NEAREST_NEIGHBOR });
-          camPixels = img.bitmap.data;
-          camPixelsSize = SIZE;
-          status.text = "Live \u2022 " + (rate | 0) + " fps";
-        })().catch((err) => {
-          status.text = "Error \u2014 " + (err.message || "fetch failed");
-          if (define_process_env_default.CAM_DEBUG) console.error("[cam] fetch failed:", err);
-        }).finally(() => {
-          fetching = false;
-        });
-      }
-      function effectCam(core, dt) {
-        const opts = core.effectOptions?.cam || {};
-        const url = (opts.url || "").trim();
-        const rate = opts.rate ?? 5;
-        maybeFetch(core, url, rate);
-        const { N, SIZE } = core;
-        if (!camPixels || camPixelsSize !== SIZE) {
-          for (let i = 0; i < N; i++) core.setLED(i, 0, 0, 0);
-          return;
-        }
-        for (let v = 0; v < SIZE; v++) {
-          for (let u = 0; u < SIZE; u++) {
-            const pi = (v * SIZE + u) * 4;
-            const r = camPixels[pi] / 255, g = camPixels[pi + 1] / 255, b = camPixels[pi + 2] / 255;
-            for (let f = 0; f < 6; f++) core.setFaceLED(f, u, SIZE - 1 - v, r, g, b);
-          }
-        }
-      }
-      module.exports = effectCam;
-      module.exports.getStatus = getStatus;
     }
   });
 
@@ -14725,206 +14488,118 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/sand.js
-  var require_sand = __commonJS({
-    "src/effects/sand.js"(exports, module) {
+  // src/effects/gravitySand.js
+  var require_gravitySand = __commonJS({
+    "src/effects/gravitySand.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
+      var { defineCanvasEffect } = require_canvas();
       var { hsl } = require_core();
-      var { getLocalGravity } = require_shared();
-      var sand = [];
-      var sandHues = null;
-      var sandNeighbours = null;
-      var sandNeighboursN = -1;
-      var sandLevelT = 0;
-      var sandHeights = null;
-      var sandGKey = "";
-      var sandSettled = false;
-      function buildSandNeighbours(core) {
-        const { N, gridX, gridY, gridZ, faceMap, SIZE } = core;
-        sandNeighbours = new Array(N);
-        const S = SIZE, S1 = S - 1;
-        const dirs = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
-        for (let i = 0; i < N; i++) {
-          const x = gridX[i], y = gridY[i], z = gridZ[i];
-          const nb = [];
-          for (const [dx, dy, dz] of dirs) {
-            const nx = x + dx, ny = y + dy, nz = z + dz;
-            if (nx < 0 || nx >= S || ny < 0 || ny >= S || nz < 0 || nz >= S) continue;
-            if (nx !== 0 && nx !== S1 && ny !== 0 && ny !== S1 && nz !== 0 && nz !== S1) continue;
-            let found = -1;
-            if (nz === S1 && found < 0) found = faceMap[0][ny * S + nx];
-            if (nz === 0 && found < 0) found = faceMap[1][ny * S + (S1 - nx)];
-            if (nx === S1 && found < 0) found = faceMap[2][ny * S + (S1 - nz)];
-            if (nx === 0 && found < 0) found = faceMap[3][ny * S + nz];
-            if (ny === S1 && found < 0) found = faceMap[4][nz * S + nx];
-            if (ny === 0 && found < 0) found = faceMap[5][nz * S + nx];
-            if (found >= 0) nb.push(found);
-          }
-          sandNeighbours[i] = nb;
-        }
-        sandNeighboursN = N;
+      var st = { W: 0, H: 0, g: null, col: null, phase: "pour", hue: Math.random(), spout: 0.5, dir: 1, acc: 0, drainT: 0 };
+      function reset(W, H) {
+        st.W = W;
+        st.H = H;
+        st.g = new Uint8Array(W * H);
+        st.col = new Float32Array(W * H * 3);
+        st.phase = "pour";
+        st.hue = Math.random();
+        st.drainT = 0;
       }
-      function resetSand(core) {
-        sandSettled = false;
-        const { N, faceMap, SIZE } = core;
-        if (!N || !faceMap) return;
-        buildSandNeighbours(core);
-        const panel2dMode = core.panelMode === "2d";
-        const pool = [];
-        if (panel2dMode) {
-          const S = SIZE;
-          for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) {
-            const idx = faceMap[0][v * S + u];
-            if (idx >= 0) pool.push(idx);
-          }
-        } else {
-          for (let i = 0; i < N; i++) pool.push(i);
-        }
-        const target = Math.floor(pool.length / 3);
-        const indices = new Int32Array(pool);
-        for (let i = indices.length - 1; i > 0; i--) {
-          const j = Math.random() * (i + 1) | 0;
-          const tmp = indices[i];
-          indices[i] = indices[j];
-          indices[j] = tmp;
-        }
-        sandHues = new Float32Array(N);
-        for (let i = 0; i < N; i++) sandHues[i] = 0.04 + Math.random() * 0.1;
-        sand = Array.from(indices.subarray(0, target));
-      }
-      function effectGravitySand(core, dt) {
-        const { N, gridX, gridY, gridZ, colBuf } = core;
-        const panel2dMode = core.panelMode === "2d";
-        core.t += dt;
-        for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
-        if (!sandNeighbours || sandNeighboursN !== N) buildSandNeighbours(core);
-        if (!sand.length || sandHues?.length !== N) resetSand(core);
-        let gx, gy, gz;
-        if (panel2dMode) {
-          gx = 0;
-          gy = 1;
-          gz = 0;
-        } else {
-          const rawG = getLocalGravity();
-          const gLen = Math.sqrt(rawG.x * rawG.x + rawG.y * rawG.y + rawG.z * rawG.z) || 1;
-          gx = -rawG.x / gLen;
-          gy = -rawG.y / gLen;
-          gz = -rawG.z / gLen;
-        }
-        const gKey = `${gx.toFixed(3)},${gy.toFixed(3)},${gz.toFixed(3)}`;
-        if (!sandHeights || sandHeights.length !== N || sandGKey !== gKey) {
-          sandHeights = new Float32Array(N);
-          for (let i = 0; i < N; i++) sandHeights[i] = gridX[i] * gx + gridY[i] * gy + gridZ[i] * gz;
-          sandGKey = gKey;
-          sandSettled = false;
-        }
-        const H = sandHeights;
-        const gravHeight = (i) => H[i];
-        const occ = new Uint8Array(N);
-        for (const i of sand) occ[i] = 1;
-        const before = sandSettled ? null : sand.slice();
-        const PASSES = sandSettled ? 0 : 3;
-        for (let pass = 0; pass < PASSES; pass++) {
-          for (let i = sand.length - 1; i > 0; i--) {
-            const j = Math.random() * (i + 1) | 0;
-            const tmp = sand[i];
-            sand[i] = sand[j];
-            sand[j] = tmp;
-          }
-          for (let gi = 0; gi < sand.length; gi++) {
-            const idx = sand[gi];
-            const h0 = gravHeight(idx);
-            const nb = sandNeighbours[idx];
-            let bestIdx = -1, bestH = h0 - 1e-3;
-            for (const n of nb) {
-              if (occ[n]) continue;
-              const hn = gravHeight(n);
-              if (hn < bestH) {
-                bestH = hn;
-                bestIdx = n;
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt }) {
+          const W = c.W, H = c.H;
+          if (st.W !== W || st.H !== H || !st.g) reset(W, H);
+          const { g, col } = st;
+          if (st.phase === "pour") {
+            st.spout += st.dir * dt * 0.18;
+            if (st.spout > 0.85 || st.spout < 0.15) st.dir *= -1;
+            const sx = Math.round(st.spout * (W - 1));
+            st.acc += dt * W * 2.2;
+            for (; st.acc >= 1; st.acc--) {
+              const x = Math.max(0, Math.min(W - 1, sx + Math.round((Math.random() - 0.5) * 2)));
+              if (!g[x]) {
+                g[x] = 1;
+                const band = Math.floor(t / 4) * 0.13 + st.hue;
+                const [r, gg, b] = hsl((band + (Math.random() - 0.5) * 0.03) % 1, 0.75, 0.42 + Math.random() * 0.14);
+                col[x * 3] = r;
+                col[x * 3 + 1] = gg;
+                col[x * 3 + 2] = b;
               }
             }
-            if (bestIdx >= 0) {
-              occ[idx] = 0;
-              occ[bestIdx] = 1;
-              sand[gi] = bestIdx;
-            } else {
-              let slideIdx = -1, slideScore = Infinity;
-              for (const n of nb) {
-                if (occ[n]) continue;
-                const hn = gravHeight(n);
-                if (hn > h0 + 1.5) continue;
-                let lowestFromN = hn;
-                for (const nn of sandNeighbours[n]) {
-                  if (occ[nn] && nn !== idx) continue;
-                  const hnn = gravHeight(nn);
-                  if (hnn < lowestFromN) lowestFromN = hnn;
-                  for (const nnn of sandNeighbours[nn]) {
-                    if (occ[nnn] && nnn !== idx && nnn !== n) continue;
-                    const hnnn = gravHeight(nnn);
-                    if (hnnn < lowestFromN) lowestFromN = hnnn;
+          }
+          const steps = Math.max(1, Math.round(dt * 90));
+          const holeL = Math.floor(W * 0.4), holeR = Math.ceil(W * 0.6);
+          for (let s = 0; s < steps; s++) {
+            for (let y = H - 1; y >= 0; y--) {
+              const ltr = y + s & 1;
+              for (let i = 0; i < W; i++) {
+                const x = ltr ? i : W - 1 - i, p = y * W + x;
+                if (!g[p]) continue;
+                if (y === H - 1) {
+                  if (st.phase === "drain" && x >= holeL && x < holeR) g[p] = 0;
+                  continue;
+                }
+                const move = (q) => {
+                  g[q] = 1;
+                  g[p] = 0;
+                  col[q * 3] = col[p * 3];
+                  col[q * 3 + 1] = col[p * 3 + 1];
+                  col[q * 3 + 2] = col[p * 3 + 2];
+                };
+                const below = p + W;
+                if (!g[below]) {
+                  move(below);
+                  continue;
+                }
+                const d1 = Math.random() < 0.5 ? -1 : 1;
+                for (const d of [d1, -d1]) {
+                  const nx = x + d;
+                  if (nx >= 0 && nx < W && !g[below + d] && !g[p + d]) {
+                    move(below + d);
+                    break;
                   }
                 }
-                if (lowestFromN < slideScore) {
-                  slideScore = lowestFromN;
-                  slideIdx = n;
-                }
-              }
-              if (slideIdx >= 0 && slideScore < h0 - 0.5) {
-                occ[idx] = 0;
-                occ[slideIdx] = 1;
-                sand[gi] = slideIdx;
               }
             }
           }
-        }
-        sandLevelT = (sandLevelT || 0) + 1;
-        if (!sandSettled && sandLevelT % 6 === 0) {
-          for (let i = sand.length - 1; i > 0; i--) {
-            const j = Math.random() * (i + 1) | 0;
-            const tmp = sand[i];
-            sand[i] = sand[j];
-            sand[j] = tmp;
+          let n = 0;
+          for (let i = 0; i < g.length; i++) n += g[i];
+          if (st.phase === "pour" && n > W * H * 0.55) {
+            st.phase = "drain";
+            st.drainT = 0;
           }
-          for (let gi = 0; gi < sand.length; gi++) {
-            const idx = sand[gi];
-            const h0 = gravHeight(idx);
-            const nb = sandNeighbours[idx];
-            let occupied = 0;
-            for (const n of nb) if (occ[n]) occupied++;
-            if (occupied < 2) continue;
-            let levelIdx = -1, levelH = h0 - 0.25;
-            for (const n of nb) {
-              if (occ[n]) continue;
-              const hn = gravHeight(n);
-              if (hn < levelH) {
-                levelH = hn;
-                levelIdx = n;
-              }
-            }
-            if (levelIdx >= 0) {
-              occ[idx] = 0;
-              occ[levelIdx] = 1;
-              sand[gi] = levelIdx;
+          if (st.phase === "drain") {
+            st.drainT += dt;
+            if (n === 0 || st.drainT > 25) {
+              st.phase = "pour";
+              st.hue = Math.random();
             }
           }
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const p = y * W + x;
+            if (!g[p]) {
+              const v = 0.015 + y / H * 0.02;
+              c.set(x, y, v * 0.8, v * 0.8, v * 1.1);
+              continue;
+            }
+            let depth = 0;
+            for (let k = 1; k <= 4 && y - k >= 0 && g[p - k * W]; k++) depth++;
+            const top = depth === 0, sideL = x > 0 && !g[p - 1], sideR = x < W - 1 && !g[p + 1];
+            let sh = 1 - depth * 0.13;
+            if (top) sh = 1.35;
+            else if (sideL) sh += 0.12;
+            else if (sideR) sh -= 0.12;
+            const grit = 0.92 + 0.16 * ((x * 13 + y * 7) % 5) / 4;
+            c.set(x, y, Math.min(1, col[p * 3] * sh * grit), Math.min(1, col[p * 3 + 1] * sh * grit), Math.min(1, col[p * 3 + 2] * sh * grit));
+          }
+          if (st.phase === "pour") {
+            const sx = Math.round(st.spout * (W - 1));
+            c.set(sx, 0, 0.9, 0.85, 0.7);
+            c.set(sx, 1, 0.6, 0.55, 0.45);
+          }
         }
-        if (before && sandLevelT % 6 === 0) {
-          const a = before.slice().sort(), b = sand.slice().sort();
-          sandSettled = a.every((v, k) => v === b[k]);
-        }
-        for (let gi = 0; gi < sand.length; gi++) {
-          const i = sand[gi];
-          const hue = sandHues ? sandHues[gi] : 0.07;
-          const bright = 0.45 + Math.random() * 0.2;
-          const [r, g, b] = hsl(hue, 0.82, bright);
-          colBuf[i * 3] = r;
-          colBuf[i * 3 + 1] = g;
-          colBuf[i * 3 + 2] = b;
-        }
-      }
-      module.exports = effectGravitySand;
+      });
     }
   });
 
@@ -20342,132 +20017,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/lightningWall.js
-  var require_lightningWall = __commonJS({
-    "src/effects/lightningWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var { trailFade } = require_trail();
-      var { kick, music } = require_audioFeatures();
-      var strikeBranches = 0;
-      var wallBolts = [];
-      var wallLightningT = 0;
-      var wallStormT = 0;
-      var wallThunder = 0;
-      var DIRS4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-      function boltJagWall(core, x, y, dx, dy, steps, depth) {
-        const { wallW, wallH } = core;
-        const pts = [[x, y]];
-        let cx = x, cy = y;
-        const px = -dy, py = dx;
-        for (let i = 0; i < steps; i++) {
-          const jag = Math.round((Math.random() - 0.5) * 5);
-          cx = Math.max(0, Math.min(wallW - 1, cx + dx + px * jag));
-          cy = Math.max(0, Math.min(wallH - 1, cy + dy + py * jag));
-          pts.push([cx, cy]);
-          if (depth > 0 && strikeBranches < 14 && Math.random() < 0.4) {
-            strikeBranches++;
-            const bd = DIRS4[Math.floor(Math.random() * 4)];
-            const sub = boltJagWall(core, cx, cy, bd[0], bd[1], Math.max(2, steps >> 1), depth - 1);
-            wallBolts.push({ pts: sub, life: 1, decay: 7 + Math.random() * 5, branch: true, hue: 0.62 + Math.random() * 0.1 });
-          }
-        }
-        return pts;
-      }
-      function spawnStrikeWall(core) {
-        const { wallW, wallH } = core;
-        const sx = 4 + Math.floor(Math.random() * Math.max(1, wallW - 8));
-        const sy = 4 + Math.floor(Math.random() * Math.max(1, wallH - 8));
-        const dir = DIRS4[Math.floor(Math.random() * 4)];
-        const len = Math.floor(Math.max(wallW, wallH) * 0.5 + Math.random() * Math.max(wallW, wallH) * 1);
-        const hc = Math.random();
-        const hue = hc < 0.35 ? 0 : hc < 0.6 ? 0.62 : hc < 0.78 ? 0.75 : 0.08;
-        strikeBranches = 0;
-        const pts = boltJagWall(core, sx, sy, dir[0], dir[1], len, 2);
-        wallBolts.push({ pts, life: 1, decay: 3.5 + Math.random() * 3, branch: false, hue, width: 2 });
-        wallThunder = Math.max(wallThunder, 0.65 + Math.random() * 0.35);
-      }
-      function effectLightningWall(core, dt) {
-        const { wallW, wallH, wallBuf } = core;
-        if (!wallW) return;
-        const speedMult = core.speedMult || 1;
-        wallLightningT += dt * speedMult;
-        wallStormT += dt * speedMult;
-        const fade = trailFade(0.82, dt);
-        const pulse = 0.03 + 0.02 * Math.sin(wallStormT * 0.7);
-        const nPixels = wallW * wallH;
-        for (let i = 0; i < nPixels; i++) {
-          wallBuf[i * 3] = Math.max(wallBuf[i * 3] * fade, pulse * 0.18);
-          wallBuf[i * 3 + 1] = Math.max(wallBuf[i * 3 + 1] * fade, pulse * 0.22);
-          wallBuf[i * 3 + 2] = Math.max(wallBuf[i * 3 + 2] * fade, pulse * 0.65);
-        }
-        if (wallThunder > 0.01) {
-          for (let i = 0; i < nPixels; i++) {
-            wallBuf[i * 3] = Math.min(1, wallBuf[i * 3] + wallThunder * 0.3);
-            wallBuf[i * 3 + 1] = Math.min(1, wallBuf[i * 3 + 1] + wallThunder * 0.33);
-            wallBuf[i * 3 + 2] = Math.min(1, wallBuf[i * 3 + 2] + wallThunder * 0.4);
-          }
-          wallThunder = Math.max(0, wallThunder - dt * 8);
-        }
-        const baseRate = 0.8 / Math.max(0.1, speedMult);
-        const rate = baseRate * (0.3 + Math.random() * 1.4);
-        if (kick(core)) {
-          spawnStrikeWall(core);
-          if (music(core).level > 0.4) spawnStrikeWall(core);
-          wallLightningT = 0;
-        }
-        if (wallLightningT > rate) {
-          wallLightningT = 0;
-          spawnStrikeWall(core);
-          if (Math.random() < 0.4) setTimeout(() => spawnStrikeWall(core), 70);
-          if (Math.random() < 0.2) setTimeout(() => spawnStrikeWall(core), 140);
-        }
-        for (let k = wallBolts.length - 1; k >= 0; k--) {
-          const bolt = wallBolts[k];
-          bolt.life -= dt * bolt.decay;
-          if (bolt.life <= 0) {
-            wallBolts.splice(k, 1);
-            continue;
-          }
-          const bright = Math.pow(Math.max(0, bolt.life), 0.6);
-          const isMain = !bolt.branch;
-          const coreB = bright * (isMain ? 1 : 0.55);
-          const [hr, hg, hb] = hsl(bolt.hue, 0.65, coreB * 0.8);
-          const wr = isMain ? Math.min(1, hr + coreB * 0.5) : hr;
-          const wg = isMain ? Math.min(1, hg + coreB * 0.6) : hg;
-          const wb = isMain ? Math.min(1, hb + coreB * 0.7) : hb;
-          const gr = isMain ? 2 : 1, glow = [];
-          for (let gv = -gr; gv <= gr; gv++) for (let gu = -gr; gu <= gr; gu++) {
-            if (gu === 0 && gv === 0) continue;
-            const gd = Math.sqrt(gu * gu + gv * gv);
-            if (gd > gr + 0.5) continue;
-            glow.push([gu, gv, hsl(bolt.hue, 1, bright * 0.45 / (gd + 0.6) * (isMain ? 0.7 : 0.35))]);
-          }
-          const lift = (x, y, r, g, b) => {
-            if (x < 0 || x >= wallW || y < 0 || y >= wallH) return;
-            const o = (y * wallW + x) * 3;
-            core.setWallPixel(x, y, Math.max(wallBuf[o], r), Math.max(wallBuf[o + 1], g), Math.max(wallBuf[o + 2], b));
-          };
-          for (const [x, y] of bolt.pts) {
-            if (x < 0 || x >= wallW || y < 0 || y >= wallH) continue;
-            lift(x, y, wr, wg, wb);
-            for (const [gu, gv, c] of glow) lift(x + gu, y + gv, c[0], c[1], c[2]);
-          }
-        }
-        const sparks = Math.floor(dt * 25 * (1 + wallThunder * 6));
-        for (let s = 0; s < sparks; s++) {
-          const i = Math.random() * nPixels | 0;
-          const sp = 0.03 + Math.random() * 0.1;
-          wallBuf[i * 3] = Math.min(1, wallBuf[i * 3] + sp * 0.25);
-          wallBuf[i * 3 + 1] = Math.min(1, wallBuf[i * 3 + 1] + sp * 0.3);
-          wallBuf[i * 3 + 2] = Math.min(1, wallBuf[i * 3 + 2] + sp);
-        }
-      }
-      module.exports = effectLightningWall;
-    }
-  });
-
   // src/effects/lightspeedWall.js
   var require_lightspeedWall = __commonJS({
     "src/effects/lightspeedWall.js"(exports, module) {
@@ -20576,492 +20125,6 @@ var PiEngine = (() => {
         }
       }
       module.exports = effectLightspeedWall;
-    }
-  });
-
-  // src/effects/sphereWall.js
-  var require_sphereWall = __commonJS({
-    "src/effects/sphereWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var { trailFade } = require_trail();
-      var _lgwScanT = 0;
-      var _lgwBaseAngle = 0;
-      var _lgwState = "expand";
-      var _lgwStateT = 0;
-      var _lgwSpinTarget = 0;
-      var _lgwFlatT = -1;
-      var _lgwPulseT = -1;
-      var _lgwColSweepT = -1;
-      var _lgwWaveT = -1;
-      var _lgwDblScanT = -1;
-      var _lgwCollapsePhase = 0;
-      var _lgwRoutineIdx = 0;
-      var sphWallT = 0;
-      function effectSphereWall(core, dt) {
-        core.t += dt;
-        sphWallT += dt;
-        const { wallW, wallH, wallBuf } = core;
-        if (!wallW) return;
-        const fade = trailFade(0.75, dt);
-        for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= fade;
-        const time = sphWallT;
-        const cx = (wallW - 1) / 2, cy = (wallH - 1) / 2;
-        const S = Math.min(wallW, wallH);
-        const nHLines = 8;
-        const hp = time * 0.15;
-        const flicker = 0.92 + 0.08 * Math.sin(time * 47.3) * Math.sin(time * 31.7);
-        let hpOff = 0;
-        if (_lgwColSweepT >= 0) {
-          _lgwColSweepT += dt;
-          const sweepDur = 4;
-          if (_lgwColSweepT >= sweepDur) _lgwColSweepT = -1;
-          else hpOff = _lgwColSweepT * 2.5;
-        }
-        const hpFinal = hp + hpOff;
-        let pulseMul = 1;
-        if (_lgwPulseT >= 0) {
-          _lgwPulseT += dt;
-          const pulseDur = 5;
-          if (_lgwPulseT >= pulseDur) _lgwPulseT = -1;
-          else pulseMul = 0.4 + 0.6 * Math.abs(Math.sin(_lgwPulseT * Math.PI * 2.5));
-        }
-        const cR = (0.15 + 0.85 * Math.max(0, Math.sin(hpFinal))) * flicker * pulseMul;
-        const cG = (0.3 + 0.7 * Math.max(0, Math.sin(hpFinal + 2.094))) * flicker * pulseMul;
-        const cB = (0.1 + 0.9 * Math.max(0, Math.sin(hpFinal + 4.189))) * flicker * pulseMul;
-        let waveOffset = 0;
-        if (_lgwWaveT >= 0) {
-          _lgwWaveT += dt;
-          const waveDur = 5;
-          if (_lgwWaveT >= waveDur) _lgwWaveT = -1;
-          else waveOffset = _lgwWaveT;
-        }
-        _lgwStateT += dt;
-        const expandDur = 2, scanPeriod = 3, spinDur = 1.5;
-        const collapseDur = 1.2, reExpandDur = 1.5;
-        let expandEase = 1, scanV = cy, spinAngle = _lgwBaseAngle;
-        let scanV2 = -1;
-        if (_lgwState === "expand") {
-          const p = Math.min(_lgwStateT / expandDur, 1);
-          expandEase = p * p;
-          _lgwScanT += dt;
-          const sp = _lgwScanT % scanPeriod / scanPeriod;
-          const raw = sp < 0.5 ? sp * 2 : 2 - sp * 2;
-          scanV = cy + (raw - 0.5) * 2 * expandEase * (S - 1) / 2;
-          scanV = Math.max(0, Math.min(wallH - 1, scanV));
-          if (p >= 1) {
-            _lgwState = "scan";
-            _lgwStateT = 0;
-          }
-        }
-        if (_lgwState === "scan") {
-          _lgwScanT += dt;
-          const sp = _lgwScanT % scanPeriod / scanPeriod;
-          const raw = sp < 0.5 ? sp * 2 : 2 - sp * 2;
-          scanV = cy + (raw - 0.5) * 2 * (S - 1) / 2;
-          scanV = Math.max(0, Math.min(wallH - 1, scanV));
-          if (_lgwDblScanT >= 0) {
-            _lgwDblScanT += dt;
-            const dblDur = 6;
-            if (_lgwDblScanT >= dblDur) _lgwDblScanT = -1;
-            else {
-              const sp2 = (_lgwScanT + scanPeriod / 2) % scanPeriod / scanPeriod;
-              const raw2 = sp2 < 0.5 ? sp2 * 2 : 2 - sp2 * 2;
-              scanV2 = cy + (raw2 - 0.5) * 2 * (S - 1) / 2;
-              scanV2 = Math.max(0, Math.min(wallH - 1, scanV2));
-            }
-          }
-          if (_lgwStateT > 6 && Math.abs(scanV - cy) < 2) {
-            const routines = ["spin", "collapse", "dblscan", "pulse", "colsweep", "wave", "flat", "spin"];
-            const pick = routines[_lgwRoutineIdx % routines.length];
-            _lgwRoutineIdx++;
-            if (pick === "spin") {
-              _lgwState = "spin";
-              _lgwStateT = 0;
-              _lgwSpinTarget = (_lgwScanT * 7 | 0) % 3 === 0 ? Math.PI / 2 : Math.PI * 2;
-              scanV = cy;
-            } else if (pick === "collapse") {
-              _lgwState = "collapse";
-              _lgwStateT = 0;
-              _lgwCollapsePhase = 0;
-            } else if (pick === "dblscan") {
-              _lgwDblScanT = 0;
-              _lgwStateT = 0;
-            } else if (pick === "pulse") {
-              _lgwPulseT = 0;
-              _lgwStateT = 0;
-            } else if (pick === "colsweep") {
-              _lgwColSweepT = 0;
-              _lgwStateT = 0;
-            } else if (pick === "wave") {
-              _lgwWaveT = 0;
-              _lgwStateT = 0;
-            } else if (pick === "flat") {
-              _lgwFlatT = 0;
-              _lgwStateT = 0;
-            }
-          }
-        }
-        if (_lgwState === "spin") {
-          scanV = cy;
-          const p = Math.min(_lgwStateT / spinDur, 1);
-          const ease = p < 0.5 ? 2 * p * p : 1 - 2 * (1 - p) * (1 - p);
-          spinAngle = _lgwBaseAngle + ease * _lgwSpinTarget;
-          if (p >= 1) {
-            _lgwBaseAngle = _lgwBaseAngle + _lgwSpinTarget;
-            while (_lgwBaseAngle > Math.PI * 2) _lgwBaseAngle -= Math.PI * 2;
-            _lgwState = "scan";
-            _lgwStateT = 0;
-          }
-        }
-        if (_lgwState === "collapse") {
-          _lgwScanT += dt;
-          const sp = _lgwScanT % scanPeriod / scanPeriod;
-          const raw = sp < 0.5 ? sp * 2 : 2 - sp * 2;
-          if (_lgwCollapsePhase === 0) {
-            const p = Math.min(_lgwStateT / collapseDur, 1);
-            expandEase = 1 - p * p;
-            scanV = cy + (raw - 0.5) * 2 * expandEase * (S - 1) / 2;
-            scanV = Math.max(0, Math.min(wallH - 1, scanV));
-            if (p >= 1) {
-              _lgwCollapsePhase = 1;
-              _lgwStateT = 0;
-            }
-          } else {
-            const p = Math.min(_lgwStateT / reExpandDur, 1);
-            expandEase = p * p;
-            scanV = cy + (raw - 0.5) * 2 * expandEase * (S - 1) / 2;
-            scanV = Math.max(0, Math.min(wallH - 1, scanV));
-            if (p >= 1) {
-              _lgwState = "scan";
-              _lgwStateT = 0;
-            }
-          }
-        }
-        const flatSweepDur = 2, flatHoldDur = 2.5, flatFadeDur = 1.5;
-        const flatTotalDur = flatSweepDur + flatHoldDur + flatFadeDur;
-        if (_lgwFlatT >= 0) {
-          _lgwFlatT += dt;
-          if (_lgwFlatT >= flatTotalDur) _lgwFlatT = -1;
-        }
-        const cosA = Math.cos(spinAngle), sinA = Math.sin(spinAngle);
-        const ccx = cx;
-        function setPx2d(x, y, r, g, b) {
-          if (x < 0 || x >= wallW || y < 0 || y >= wallH) return;
-          const xi = Math.round(x), yi = Math.round(y);
-          if (xi < 0 || xi >= wallW || yi < 0 || yi >= wallH) return;
-          const o = (yi * wallW + xi) * 3;
-          if (r > wallBuf[o]) wallBuf[o] = r;
-          if (g > wallBuf[o + 1]) wallBuf[o + 1] = g;
-          if (b > wallBuf[o + 2]) wallBuf[o + 2] = b;
-        }
-        function drawLine2d(x0, y0, x1, y1, bright) {
-          const ldx = x1 - x0, ldy = y1 - y0;
-          const ls = Math.max(Math.abs(ldx), Math.abs(ldy), 1) | 0;
-          for (let i = 0; i <= ls; i++) {
-            const ft = i / ls;
-            const x = x0 + ldx * ft, y = y0 + ldy * ft;
-            setPx2d(x, y, cR * bright, cG * bright, cB * bright);
-          }
-        }
-        const barHalfU = cosA * (wallW / 2);
-        const barHalfV = sinA * (wallH / 2);
-        const scanCU = ccx;
-        const scanCV = scanV;
-        const sl0U = scanCU + barHalfU, sl0V = scanCV + barHalfV;
-        const sl1U = scanCU - barHalfU, sl1V = scanCV - barHalfV;
-        const slB = 0.9 * expandEase;
-        const normU = -sinA, normV = cosA;
-        drawLine2d(sl0U, sl0V, sl1U, sl1V, slB);
-        for (let dv = -3; dv <= 3; dv++) {
-          if (dv === 0) continue;
-          const gb = (1 - Math.abs(dv) / 4) * 0.18 * expandEase;
-          drawLine2d(sl0U + normU * dv, sl0V + normV * dv, sl1U + normU * dv, sl1V + normV * dv, gb);
-        }
-        if (scanV2 >= 0) {
-          const s2CV = scanV2;
-          const s2U0 = ccx + barHalfU, s2V0 = s2CV + barHalfV;
-          const s2U1 = ccx - barHalfU, s2V1 = s2CV - barHalfV;
-          drawLine2d(s2U0, s2V0, s2U1, s2V1, slB * 0.7);
-          for (let dv = -2; dv <= 2; dv++) {
-            if (dv === 0) continue;
-            const gb = (1 - Math.abs(dv) / 3) * 0.12 * expandEase;
-            drawLine2d(s2U0 + normU * dv, s2V0 + normV * dv, s2U1 + normU * dv, s2V1 + normV * dv, gb);
-          }
-        }
-        const nRays = 6;
-        for (let ri = 0; ri < nRays; ri++) {
-          const frac = ri / (nRays - 1);
-          const tU = sl0U + (sl1U - sl0U) * frac;
-          const tV = sl0V + (sl1V - sl0V) * frac;
-          const endU = ccx + (tU - ccx) * expandEase;
-          const endV = cy + (tV - cy) * expandEase;
-          const dx = endU - ccx, dy = endV - cy;
-          const steps = Math.max(Math.abs(dx), Math.abs(dy), 1) | 0;
-          if (steps < 2) continue;
-          for (let s = 0; s <= steps; s++) {
-            const ft = s / steps;
-            const x = ccx + dx * ft;
-            const y = cy + dy * ft;
-            const b = 0.2 + 0.6 * ft;
-            setPx2d(x, y, cR * b, cG * b, cB * b);
-          }
-        }
-        if (expandEase > 0.3) {
-          const gridB = 0.25 * (expandEase - 0.3) / 0.7;
-          for (let hi = 1; hi <= nHLines; hi++) {
-            const frac = hi / (nHLines + 1);
-            let pFrac = frac * frac;
-            if (waveOffset > 0) {
-              const wAmp = 0.15 * Math.sin(waveOffset * 3 - hi * 0.8);
-              pFrac = Math.max(0.01, Math.min(0.99, pFrac + wAmp));
-            }
-            for (let ri = 0; ri < nRays - 1; ri++) {
-              const fA = ri / (nRays - 1), fB = (ri + 1) / (nRays - 1);
-              const aU = sl0U + (sl1U - sl0U) * fA, aV = sl0V + (sl1V - sl0V) * fA;
-              const bU = sl0U + (sl1U - sl0U) * fB, bV = sl0V + (sl1V - sl0V) * fB;
-              const eaU = ccx + (aU - ccx) * expandEase, eaV = cy + (aV - cy) * expandEase;
-              const ebU = ccx + (bU - ccx) * expandEase, ebV = cy + (bV - cy) * expandEase;
-              const guA = ccx + (eaU - ccx) * pFrac, gvA = cy + (eaV - cy) * pFrac;
-              const guB = ccx + (ebU - ccx) * pFrac, gvB = cy + (ebV - cy) * pFrac;
-              drawLine2d(guA, gvA, guB, gvB, gridB);
-            }
-          }
-        }
-        for (let dv = -2; dv <= 2; dv++) for (let du = -2; du <= 2; du++) {
-          const y = Math.round(cy) + dv;
-          if (y < 0 || y >= wallH) continue;
-          const r = Math.sqrt(du * du + dv * dv);
-          const b = Math.max(0, 1 - r / 2.5) * 0.7;
-          setPx2d(ccx + du, y, b, b * 0.95, b);
-        }
-        for (let ri = 0; ri < nRays; ri++) {
-          const frac = ri / (nRays - 1);
-          const tU = sl0U + (sl1U - sl0U) * frac;
-          const tV = sl0V + (sl1V - sl0V) * frac;
-          const eu = Math.round(ccx + (tU - ccx) * expandEase);
-          const ev = Math.round(cy + (tV - cy) * expandEase);
-          for (let ddv = -1; ddv <= 1; ddv++) for (let ddu = -1; ddu <= 1; ddu++) {
-            const y = ev + ddv;
-            if (y < 0 || y >= wallH) continue;
-            const r = Math.sqrt(ddu * ddu + ddv * ddv);
-            const b = Math.max(0, 1 - r / 1.5) * 0.8 * expandEase;
-            setPx2d(eu + ddu, y, cR * b, cG * b, cB * b);
-          }
-        }
-        if (_lgwFlatT >= 0 && _lgwFlatT < flatTotalDur) {
-          const gridSpacing = Math.max(1, Math.round(S / 8));
-          let flatAlpha = 0, reach = 0;
-          if (_lgwFlatT < flatSweepDur) {
-            reach = _lgwFlatT / flatSweepDur;
-            flatAlpha = 0.4;
-          } else if (_lgwFlatT < flatSweepDur + flatHoldDur) {
-            reach = 1;
-            flatAlpha = 0.4;
-          } else {
-            reach = 1;
-            flatAlpha = 0.4 * (1 - (_lgwFlatT - flatSweepDur - flatHoldDur) / flatFadeDur);
-          }
-          const maxDist = Math.round(reach * (S / 2));
-          for (let gi = 1; gi < wallH / gridSpacing; gi++) {
-            const gv = gi * gridSpacing;
-            if (gv >= wallH) continue;
-            if (Math.abs(gv - Math.round(cy)) > maxDist) continue;
-            for (let x = 0; x < wallW; x++) setPx2d(x, gv, cR * flatAlpha, cG * flatAlpha, cB * flatAlpha);
-          }
-          for (let gi = 0; gi < wallW / gridSpacing; gi++) {
-            const gu = gi * gridSpacing;
-            for (let y = 0; y < wallH; y++) {
-              if (Math.abs(y - Math.round(cy)) > maxDist) continue;
-              setPx2d(gu, y, cR * flatAlpha, cG * flatAlpha, cB * flatAlpha);
-            }
-          }
-          if (_lgwFlatT < flatSweepDur) {
-            const sw1 = Math.round(cy - maxDist), sw2 = Math.round(cy + maxDist);
-            for (let x = 0; x < wallW; x++) {
-              if (sw1 >= 0 && sw1 < wallH) setPx2d(x, sw1, cR * 0.8, cG * 0.8, cB * 0.8);
-              if (sw2 >= 0 && sw2 < wallH) setPx2d(x, sw2, cR * 0.8, cG * 0.8, cB * 0.8);
-            }
-          }
-        }
-      }
-      module.exports = effectSphereWall;
-    }
-  });
-
-  // src/effects/sandWall.js
-  var require_sandWall = __commonJS({
-    "src/effects/sandWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var wSand = [];
-      var wSandHues = null;
-      var wSandNb = null;
-      var wSandNbKey = null;
-      var wSandLevelT = 0;
-      function occupied(core, x, y) {
-        if (!core._wallOccupied) return true;
-        const gx = x / core.wallPanelSize | 0, gy = y / core.wallPanelSize | 0;
-        return !!core._wallOccupied[gy * core.wallCols + gx];
-      }
-      function buildWSandNeighbours(core) {
-        const { wallW, wallH } = core;
-        const n = wallW * wallH;
-        wSandNb = new Int32Array(n * 4).fill(-1);
-        for (let y = 0; y < wallH; y++) {
-          for (let x = 0; x < wallW; x++) {
-            if (!occupied(core, x, y)) continue;
-            const i = y * wallW + x;
-            let k = 0;
-            if (x + 1 < wallW && occupied(core, x + 1, y)) wSandNb[i * 4 + k++] = i + 1;
-            if (x - 1 >= 0 && occupied(core, x - 1, y)) wSandNb[i * 4 + k++] = i - 1;
-            if (y + 1 < wallH && occupied(core, x, y + 1)) wSandNb[i * 4 + k++] = i + wallW;
-            if (y - 1 >= 0 && occupied(core, x, y - 1)) wSandNb[i * 4 + k++] = i - wallW;
-          }
-        }
-        wSandNbKey = `${wallW}|${wallH}`;
-      }
-      function resetWSand(core) {
-        const { wallW, wallH } = core;
-        const n = wallW * wallH;
-        if (!wSandNb || wSandNbKey !== `${wallW}|${wallH}`) buildWSandNeighbours(core);
-        const pool = [];
-        for (let y = 0; y < wallH; y++) for (let x = 0; x < wallW; x++) {
-          if (occupied(core, x, y)) pool.push(y * wallW + x);
-        }
-        const target = Math.floor(pool.length / 3);
-        const indices = new Int32Array(pool);
-        for (let i = indices.length - 1; i > 0; i--) {
-          const j = Math.random() * (i + 1) | 0;
-          const tmp = indices[i];
-          indices[i] = indices[j];
-          indices[j] = tmp;
-        }
-        wSandHues = new Float32Array(n);
-        for (let i = 0; i < n; i++) wSandHues[i] = 0.04 + Math.random() * 0.1;
-        wSand = Array.from(indices.subarray(0, target));
-      }
-      function effectGravitySandWall(core, dt) {
-        const { wallW, wallH, wallBuf } = core;
-        core.t += dt;
-        if (!wallW) return;
-        wallBuf.fill(0);
-        const n = wallW * wallH;
-        if (!wSandNb || wSandNbKey !== `${wallW}|${wallH}`) buildWSandNeighbours(core);
-        if (!wSand.length || wSandHues?.length !== n) resetWSand(core);
-        function gravHeight(i) {
-          return -(i / wallW | 0);
-        }
-        const occ = new Uint8Array(n);
-        for (const i of wSand) occ[i] = 1;
-        function nbOf(i) {
-          const base = i * 4, out = [];
-          for (let k = 0; k < 4; k++) {
-            const v = wSandNb[base + k];
-            if (v >= 0) out.push(v);
-          }
-          return out;
-        }
-        const PASSES = 3;
-        for (let pass = 0; pass < PASSES; pass++) {
-          for (let i = wSand.length - 1; i > 0; i--) {
-            const j = Math.random() * (i + 1) | 0;
-            const tmp = wSand[i];
-            wSand[i] = wSand[j];
-            wSand[j] = tmp;
-          }
-          for (let gi = 0; gi < wSand.length; gi++) {
-            const idx = wSand[gi];
-            const h0 = gravHeight(idx);
-            const nb = nbOf(idx);
-            let bestIdx = -1, bestH = h0 - 1e-3;
-            for (const nIdx of nb) {
-              if (occ[nIdx]) continue;
-              const hn = gravHeight(nIdx);
-              if (hn < bestH) {
-                bestH = hn;
-                bestIdx = nIdx;
-              }
-            }
-            if (bestIdx >= 0) {
-              occ[idx] = 0;
-              occ[bestIdx] = 1;
-              wSand[gi] = bestIdx;
-            } else {
-              let slideIdx = -1, slideScore = Infinity;
-              for (const nIdx of nb) {
-                if (occ[nIdx]) continue;
-                const hn = gravHeight(nIdx);
-                if (hn > h0 + 1.5) continue;
-                let lowestFromN = hn;
-                for (const nn of nbOf(nIdx)) {
-                  if (occ[nn] && nn !== idx) continue;
-                  const hnn = gravHeight(nn);
-                  if (hnn < lowestFromN) lowestFromN = hnn;
-                  for (const nnn of nbOf(nn)) {
-                    if (occ[nnn] && nnn !== idx && nnn !== nIdx) continue;
-                    const hnnn = gravHeight(nnn);
-                    if (hnnn < lowestFromN) lowestFromN = hnnn;
-                  }
-                }
-                if (lowestFromN < slideScore) {
-                  slideScore = lowestFromN;
-                  slideIdx = nIdx;
-                }
-              }
-              if (slideIdx >= 0 && slideScore < h0 - 0.5) {
-                occ[idx] = 0;
-                occ[slideIdx] = 1;
-                wSand[gi] = slideIdx;
-              }
-            }
-          }
-        }
-        wSandLevelT = (wSandLevelT || 0) + 1;
-        if (wSandLevelT % 6 === 0) {
-          for (let i = wSand.length - 1; i > 0; i--) {
-            const j = Math.random() * (i + 1) | 0;
-            const tmp = wSand[i];
-            wSand[i] = wSand[j];
-            wSand[j] = tmp;
-          }
-          for (let gi = 0; gi < wSand.length; gi++) {
-            const idx = wSand[gi];
-            const h0 = gravHeight(idx);
-            const nb = nbOf(idx);
-            let occupied2 = 0;
-            for (const nIdx of nb) if (occ[nIdx]) occupied2++;
-            if (occupied2 < 2) continue;
-            let levelIdx = -1, levelH = h0 - 0.25;
-            for (const nIdx of nb) {
-              if (occ[nIdx]) continue;
-              const hn = gravHeight(nIdx);
-              if (hn < levelH) {
-                levelH = hn;
-                levelIdx = nIdx;
-              }
-            }
-            if (levelIdx >= 0) {
-              occ[idx] = 0;
-              occ[levelIdx] = 1;
-              wSand[gi] = levelIdx;
-            }
-          }
-        }
-        for (let gi = 0; gi < wSand.length; gi++) {
-          const i = wSand[gi];
-          const hue = wSandHues ? wSandHues[gi] : 0.07;
-          const bright = 0.45 + Math.random() * 0.2;
-          const [r, g, b] = hsl(hue, 0.82, bright);
-          const o = i * 3;
-          wallBuf[o] = r;
-          wallBuf[o + 1] = g;
-          wallBuf[o + 2] = b;
-        }
-      }
-      module.exports = effectGravitySandWall;
     }
   });
 
@@ -25067,12 +24130,12 @@ var PiEngine = (() => {
       var easterEgg = require_easterEgg();
       var rain = require_rain();
       var plasma = require_plasma();
-      var sphere = require_sphere();
+      var sphere = require_laserGrid();
       var dna = require_dna();
       var aurora = require_aurora();
       var nebula = require_nebula();
       var warp = require_warp();
-      var lightning = require_lightning();
+      var lightning = require_lightningStorm();
       var lightspeed = require_lightspeed();
       var gradientWashWall = gradientWash.wall;
       var cam = require_cam();
@@ -25088,7 +24151,7 @@ var PiEngine = (() => {
       var radio = require_radio2();
       var strobe = require_strobe();
       var balls = require_balls();
-      var sand = require_sand();
+      var sand = require_gravitySand();
       var life = require_life();
       var fluid = require_fluid();
       var depthRings = require_depthRings();
@@ -25122,11 +24185,11 @@ var PiEngine = (() => {
       var warpWall = require_warpWall();
       var rainWall = require_rainWall();
       var dnaWall = require_dnaWall();
-      var lightningWall = require_lightningWall();
+      var lightningWall = lightning.wall;
       var lightspeedWall = require_lightspeedWall();
-      var sphereWall = require_sphereWall();
+      var sphereWall = sphere.wall;
       var ballsWall = balls.wall;
-      var sandWall = require_sandWall();
+      var sandWall = sand.wall;
       var lifeWall = require_lifeWall();
       var fluidWall = require_fluidWall();
       var easterEggWall = require_easterEggWall();
