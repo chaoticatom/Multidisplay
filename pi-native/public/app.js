@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.210';
+const APP_VERSION = '0.6.211';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -4716,7 +4716,8 @@ function cxMoveBlob() {
 // ── Live tiles: every effect tile plays a tiny loop of itself.
 async function cxWireTiles() {
   let data;
-  try { data = await (await fetch('thumbs.json')).json(); } catch (e) { return; }
+  // Versioned URL: a new release never shows previews cached from an older one.
+  try { data = await (await fetch('thumbs.json?v=' + APP_VERSION)).json(); } catch (e) { return; }
   const S = data.size, F = data.frames, tiles = [];
   document.querySelectorAll('#effects-body .effect-btn[data-effect]').forEach((btn) => {
     const b64 = data.fx[btn.dataset.effect];

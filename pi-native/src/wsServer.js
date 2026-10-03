@@ -415,7 +415,7 @@ class WsServer {
       res.writeHead(200, { 'Content-Type': 'application/javascript', ...noCacheHeaders });
       res.end(THREE_JS);
     } else if (urlPath === '/thumbs.json' && THUMBS_JSON) {
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=3600' });
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' }); // revalidate: the page asks with ?v=<version>
       res.end(THUMBS_JSON);
     } else if (urlPath === '/app.js') {
       res.writeHead(200, { 'Content-Type': 'application/javascript', ...noCacheHeaders });
