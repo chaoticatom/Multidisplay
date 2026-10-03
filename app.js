@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.200';
+const APP_VERSION = '0.6.201';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -4629,6 +4629,7 @@ function cxWireHero() {
   hero.addEventListener('pointerup', end); hero.addEventListener('pointercancel', end);
   document.getElementById('cx-opts-btn')?.addEventListener('click', (e) => { e.stopPropagation(); cxShowOptions(); });
   document.getElementById('cx-opts-btn')?.addEventListener('pointerdown', (e) => e.stopPropagation());
+  document.getElementById('cx-mini-opts')?.addEventListener('click', () => cxShowOptions());
   (function heroLoop() {
     requestAnimationFrame(heroLoop);
     if (heroLoop.n = (heroLoop.n || 0) + 1, heroLoop.n % 2) return; // ~30 fps is plenty
@@ -5089,8 +5090,11 @@ function cxSyncHeroLabel() {
   const n = document.getElementById('cx-hero-name'), sub = document.getElementById('cx-hero-sub');
   if (!n) return;
   n.textContent = currentState.blank ? 'Off' : cxEffectName(currentState.effect);
-  const ob = document.getElementById('cx-opts-btn');
-  if (ob) ob.hidden = !document.getElementById('panel-' + (currentState.effect || ''));
+  const hasOpts = !!document.getElementById('panel-' + (currentState.effect || ''));
+  const ob = document.getElementById('cx-opts-btn'), mb = document.getElementById('cx-mini-opts'), mn = document.getElementById('cx-mini-name');
+  if (ob) ob.hidden = !hasOpts;
+  if (mb) mb.hidden = !hasOpts;
+  if (mn) mn.textContent = currentState.blank ? 'Off' : cxEffectName(currentState.effect);
   const st = currentState.effectStatus?.radio;
   sub.textContent = st && st.playing && st.station ? '♫ ' + st.station.name.replace(/^[\s-]+/, '') : '';
 }
