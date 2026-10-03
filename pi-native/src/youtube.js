@@ -36,10 +36,24 @@ async function search(query, spawn = realSpawn) {
 async function resolve(id, spawn = realSpawn) {
   if (!/^[\w-]{6,20}$/.test(String(id || ''))) throw new Error('bad video id');
   // A small single-file stream is plenty for LED panels and easy on the Pi.
-  const out = await run(['-f', 'best[height<=360][vcodec!=none][acodec!=none]/best[height<=480]/best', '-g', '--no-warnings', `https://www.youtube.com/watch?v=${id}`], spawn, 40000);
-  const url = out.trim().split('\n')[0];
-  if (!/^https?:\/\//.test(url)) throw new Error('no playable stream found');
-  return url;
+  // YouTube often blocks the default web client ("The page needs to be
+  // reloaded", "Sign in to confirm..."), so on failure retry as the TV /
+  // iOS / Android clients before giving up.
+  const base = ['-f', 'best[height<=360][vcodec!=none][acodec!=none]/best[height<=480]/best', '-g', '--no-warnings'];
+  const attempts = [[], ['--extractor-args', 'youtube:player_client=tv,ios'], ['--extractor-args', 'youtube:player_client=android,web_safari']];
+  let lastErr = null;
+  for (const extra of attempts) {
+    try {
+      const out = await run([...base, ...extra, `https://www.youtube.com/watch?v=${id}`], spawn, 40000);
+      const url = out.trim().split('\n')[0];
+      if (/^https?:\/\//.test(url)) return url;
+      lastErr = new Error('no playable stream found');
+    } catch (e) {
+      if (/not installed/.test(e.message)) throw e;
+      lastErr = e;
+    }
+  }
+  throw new Error(`${lastErr.message.replace(/^\[youtube\]\s*[\w-]+:\s*/, '')} - update yt-dlp on the Pi: sudo pip3 install -U yt-dlp --break-system-packages`);
 }
 
 module.exports = { search, resolve };

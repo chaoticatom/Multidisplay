@@ -25,3 +25,12 @@ function fakeSpawn(stdout, code = 0, enoent = false) {
   });
   await check('rejects a malformed id', async () => { await assert.rejects(yt.resolve('../../etc', fakeSpawn('')), /bad video id/); });
 })();
+// A blocked first attempt is retried with other YouTube clients.
+(async () => {
+  let calls = 0;
+  const { EventEmitter } = require('events');
+  const spawn = () => { calls++; const p = new EventEmitter(); p.stdout = new EventEmitter(); p.stderr = new EventEmitter(); p.kill = () => {};
+    setImmediate(() => { if (calls < 2) { p.stderr.emit('data', 'ERROR: [youtube] abc: The page needs to be reloaded.'); p.emit('close', 1); } else { p.stdout.emit('data', 'https://x/v.mp4'); p.emit('close', 0); } }); return p; };
+  try { const u = await require('../src/youtube').resolve('abcDEF12345', spawn); require('assert').strictEqual(u, 'https://x/v.mp4'); console.log('  ok - retries with another client after a block'); }
+  catch (e) { console.error('  FAIL - retry', e.message); process.exitCode = 1; }
+})();
