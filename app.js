@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.215';
+const APP_VERSION = '0.6.216';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -4762,10 +4762,34 @@ function cxScrollMenuTo(el, where = 'start') {
 }
 
 // Jump to the running effect's options (top of Play) and flash them.
+// Phones: the menu is a bottom sheet over the preview. Tapping its handle (or
+// swiping up/down on the header) switches between half and almost full
+// height; opening an effect's Options goes full so the settings fit.
+function cxSheetFull(on) {
+  const sb = document.getElementById('sidebar');
+  if (!sb || !window.matchMedia('(max-width: 768px)').matches) return;
+  sb.classList.toggle('cx-full', on === undefined ? !sb.classList.contains('cx-full') : on);
+  try { localStorage.setItem('cxSheetFull', sb.classList.contains('cx-full') ? '1' : ''); } catch (e) { /* storage blocked */ }
+}
+(function cxWireSheet() {
+  const hd = document.getElementById('sidebar-header');
+  if (!hd) return;
+  try { if (localStorage.getItem('cxSheetFull')) cxSheetFull(true); } catch (e) { /* storage blocked */ }
+  let y0 = null;
+  hd.addEventListener('click', (e) => { if (!e.target.closest('button,a,input')) cxSheetFull(); });
+  hd.addEventListener('touchstart', (e) => { y0 = e.touches[0].clientY; }, { passive: true });
+  hd.addEventListener('touchend', (e) => {
+    if (y0 == null) return;
+    const dy = e.changedTouches[0].clientY - y0; y0 = null;
+    if (Math.abs(dy) > 30) { cxSheetFull(dy < 0); e.preventDefault(); }
+  });
+})();
+
 function cxShowOptions() {
   setTab('play');
   const host = document.getElementById('now-options');
   if (!host || !host.children.length) { cxToast('This effect has no settings'); return; }
+  cxSheetFull(true);
   cxScrollMenuTo(host, 'start');
   host.classList.remove('cx-flash'); void host.offsetWidth; host.classList.add('cx-flash');
 }

@@ -21,6 +21,13 @@ try {
   for (let i = 0; i < 3; i++) tick(core, state, { mode: 'wall', size: 64 }, EFFECTS, WALL_EFFECTS, alarms, runOverlays, 1 / 60);
   assert.ok(calls.includes('http://example.invalid/stream'), 'wall-mode radio must ask for the station: ' + JSON.stringify(calls));
   console.log('  ok - wall mode showing Internet Radio starts the stream');
+  // Display off (Clear All / power button) must keep the sound playing.
+  calls.length = 0;
+  const off = { effect: 'plasma', blank: true, overlays: JSON.parse(JSON.stringify(OV_DEFAULTS)), effectOptions: {}, brightness: 1, speed: 1, alarms: [] };
+  const cube = new CubeCore(8);
+  for (let i = 0; i < 3; i++) tick(cube, off, { mode: 'cube', size: 8 }, EFFECTS, WALL_EFFECTS, alarms, runOverlays, 1 / 60);
+  assert.ok(calls.includes('http://example.invalid/stream'), 'a blank display must keep the station alive: ' + JSON.stringify(calls));
+  console.log('  ok - blank display keeps the station playing');
   console.log('All radioWallStart tests passed');
 } catch (err) {
   console.error('  FAIL -', err.message);

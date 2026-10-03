@@ -26687,12 +26687,12 @@ var PiEngine = (() => {
         }
         alarms.tickCheck(state, dt, EFFECTS);
         const cubeMode = config.mode !== "wall";
+        if (typeof radio.keepAlive === "function") radio.keepAlive(state.effectOptions && state.effectOptions.radio);
         if (!state.blank) {
           if (cubeMode) alarms.renderMainMessage(core, state);
           const alarmBlocking = cubeMode && alarms.isBlockingNormalEffect(state);
           const fn = config.mode === "wall" ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
           const buf = cubeMode ? core.colBuf : core.wallBuf;
-          if (typeof radio.keepAlive === "function") radio.keepAlive(state.effectOptions && state.effectOptions.radio);
           core.audio = updateFeatures(musicFeatures, radio.audio && radio.audio.spec, dt);
           const react = state.musicReact && state.musicReact.on && state.effect !== "radio" ? Math.max(0, Math.min(1, Number(state.musicReact.amount) || 0.6)) : 0;
           beginCrossfade(core, state.effect, buf);

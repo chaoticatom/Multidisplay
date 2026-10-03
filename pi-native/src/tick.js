@@ -65,6 +65,9 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
 
   alarms.tickCheck(state, dt, EFFECTS);
   const cubeMode = config.mode !== 'wall';
+  // Keep a playing station alive in every mode - and while the display is
+  // off (Clear All), so the screen can be dark with the music still on.
+  if (typeof radio.keepAlive === 'function') radio.keepAlive(state.effectOptions && state.effectOptions.radio);
   if (!state.blank) {
     if (cubeMode) alarms.renderMainMessage(core, state); // step 1
 
@@ -80,7 +83,6 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
     // showing: its WALL version only draws and never started the stream, so
     // in wall mode the Pi played nothing (a real report: radio + spectrum
     // worked on one 2D panel, then went flat once in wall mode).
-    if (typeof radio.keepAlive === 'function') radio.keepAlive(state.effectOptions && state.effectOptions.radio);
     core.audio = updateFeatures(musicFeatures, radio.audio && radio.audio.spec, dt);
     const react = state.musicReact && state.musicReact.on && state.effect !== 'radio' ? Math.max(0, Math.min(1, Number(state.musicReact.amount) || 0.6)) : 0;
     beginCrossfade(core, state.effect, buf);
