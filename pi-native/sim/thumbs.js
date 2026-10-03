@@ -38,7 +38,10 @@ const OPTS = { radio: { radio: { spectrumOn: true } }, datetime: { datetime: { m
 
 (async () => {
   const out = {};
+  // No moving tile preview for these (the tile just shows the name).
+  const NO_PREVIEW = new Set(['easter_egg']);
   for (const [key, fn] of Object.entries(WALL_EFFECTS)) {
+    if (NO_PREVIEW.has(key)) continue;
     seed = 4242;
     const core = new CubeCore(64);
     core.initWall([{ gx: 0, gy: 0 }], 64);

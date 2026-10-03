@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.208';
+const APP_VERSION = '0.6.209';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -50,7 +50,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['my_photos', 'message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube']);
+const WIRED_OPTION_PANELS = new Set(['ai_art', 'my_photos', 'message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube']);
 // Shared "Art" submenu prev/next/slideshow/letterbox/speed controls
 // (#art-slideshow-chk/#art-letterbox-chk/#art-speed/#art-prev-btn/
 // #art-next-btn) drive whichever of Unsplash/Art Gallery is the currently
@@ -305,6 +305,7 @@ async function loadEffectNames() {
         // on top of stopping any live browser camera/screen capture here
         // and resetting the stored url so Video Display starts fresh
         // rather than trying to resume the old source if reselected.
+        const wasRunning = currentState.effect === key && !currentState.blank;
         if (currentState.effect === 'video' && key !== 'video') {
           stopBrowserCapture();
           send({ cmd: 'stopVideoSource' });
@@ -316,7 +317,10 @@ async function loadEffectNames() {
         // tab - go there, or tapping an effect with options seemed to do
         // nothing (a real report: "nothing happens when I click internet radio").
         if (key === 'radio') setTab('music');
-        else if (panel) { setTab('play'); setTimeout(cxShowOptions, 60); }
+        // Settings open only when tapping the effect that's already running (or
+        // via ⚙ Options) - jumping up on every pick meant scrolling back down
+        // to the tiles each time.
+        else if (panel && wasRunning) { setTab('play'); setTimeout(cxShowOptions, 60); }
         // Immediate feedback: the 'active' highlight only moves once the
         // Pi's state echo arrives, which can take a visible moment on a
         // busy Pi - mark this button pending until then (cleared in
@@ -4856,7 +4860,58 @@ function cxWirePrefs() {
   }));
   document.getElementById('pet-poke')?.addEventListener('click', () => setEffectOption('pixel_pet', 'poke', Date.now()));
 }
+// ── YouTube search for Video Display (the Pi searches and streams with yt-dlp).
+function cxWireYouTube() {
+  const q = document.getElementById('yt-query');
+  const go = () => { const v = (q?.value || '').trim(); if (v) send({ cmd: 'ytSearch', query: v }); };
+  document.getElementById('yt-search-btn')?.addEventListener('click', go);
+  q?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { go(); q.blur(); } });
+}
+function cxSyncAiArtNote() {
+  const n = document.getElementById('aiart-note');
+  if (n) n.textContent = cxAiOn() ? '' : 'Needs an AI service - Setup → AI assistant (free options there).';
+}
+function cxSyncYouTube() {
+  cxSyncAiArtNote();
+  const yt = currentState.yt, list = document.getElementById('yt-results'), st = document.getElementById('yt-status');
+  if (!list || !st) return;
+  const key = JSON.stringify([yt?.results?.map((r) => r.id), yt?.playing?.id]);
+  st.textContent = !yt ? 'Search, then tap a video to play it on the display.' : yt.searching ? 'Searching…'
+    : yt.playing?.loading ? 'Loading “' + yt.playing.title + '”…' : yt.error || (yt.playing ? '▶ ' + yt.playing.title : '');
+  if (list.dataset.key === key) return;
+  list.dataset.key = key;
+  const mmss = (s) => (s ? Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0') : '');
+  list.replaceChildren(...(yt?.results || []).map((r) => {
+    const row = document.createElement('div');
+    row.className = 'yt-item' + (yt.playing?.id === r.id ? ' on' : '');
+    row.innerHTML = `<span class="yt-play">▶</span><span style="flex:1;min-width:0"><b></b><small></small></span>`;
+    row.querySelector('b').textContent = r.title;
+    row.querySelector('small').textContent = [r.channel, mmss(r.duration)].filter(Boolean).join(' · ');
+    row.addEventListener('click', () => send({ cmd: 'ytPlay', id: r.id, title: r.title }));
+    return row;
+  }));
+}
+
+// AI Art's own prompt box: asks the AI to draw (same path as the Ask bar).
+function cxWireAiArt() {
+  const inp = document.getElementById('aiart-input');
+  const go = () => {
+    const v = (inp?.value || '').trim(); if (!v) return;
+    if (!cxAiOn()) { cxToast('Set up an AI service first: Setup → AI assistant'); return; }
+    cxSubmit('draw pixel art of ' + v); inp.value = '';
+  };
+  document.getElementById('aiart-go')?.addEventListener('click', go);
+  inp?.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+}
+
+function cxWireDice() {
+  document.querySelectorAll('[data-dicecount]').forEach((b) => b.addEventListener('click', () => setEffectOption('dice', 'count', Number(b.dataset.dicecount))));
+  document.querySelectorAll('[data-dicecol]').forEach((b) => b.addEventListener('click', () => setEffectOption('dice', 'colour', b.dataset.dicecol)));
+}
 function cxSyncOptionPanels() {
+  const dc = currentState.effectOptions?.dice || {};
+  document.querySelectorAll('[data-dicecount]').forEach((b) => b.classList.toggle('active', Number(b.dataset.dicecount) === (Number(dc.count) || 2)));
+  document.querySelectorAll('[data-dicecol]').forEach((b) => b.classList.toggle('active', b.dataset.dicecol === (dc.colour || 'ivory')));
   const o = currentState.effectOptions?.message || {};
   document.querySelectorAll('.msg-style').forEach((b) => b.classList.toggle('active', b.dataset.style === (o.style || 'neon')));
   const t = document.getElementById('msg-text');
@@ -5152,7 +5207,7 @@ function cxSyncHeroLabel() {
   const st = currentState.effectStatus?.radio;
   sub.textContent = st && st.playing && st.station ? '♫ ' + st.station.name.replace(/^[\s-]+/, '') : '';
 }
-function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncFavs(); cxSyncPalettes(); cxSyncOptionPanels(); cxSyncExtras(); requestAnimationFrame(cxMoveBlob); }
+function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncFavs(); cxSyncPalettes(); cxSyncOptionPanels(); cxSyncYouTube(); cxSyncExtras(); requestAnimationFrame(cxMoveBlob); }
 
 function cxInit() {
   cxWireHero();
@@ -5160,6 +5215,9 @@ function cxInit() {
   cxWireAiSetup();
   cxWirePrefs();
   cxWirePalettes();
+  cxWireDice();
+  cxWireYouTube();
+  cxWireAiArt();
   cxWireVoice();
   cxWireSpectrumShortcut();
   cxWireExtras();

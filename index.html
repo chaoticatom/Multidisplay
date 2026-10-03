@@ -965,6 +965,13 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
   #tab-bar button { padding: 7px 2px !important; font-size: 13px !important; }
   #sidebar-brightness-bar { padding: 0 12px 2px !important; }
 }
+.yt-results { display: grid; gap: 6px; margin: 6px 0; max-height: 320px; overflow-y: auto; }
+.yt-item { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.04); box-shadow: 0 0 0 1px rgba(255,255,255,.07); cursor: pointer; }
+.yt-item:hover { background: rgba(255,255,255,.08); }
+.yt-item.on { box-shadow: 0 0 0 1px var(--cx1); background: color-mix(in srgb, var(--cx1) 20%, transparent); }
+.yt-item b { display: block; font-size: 13px; color: #eef2ff; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.yt-item small { color: rgba(238,242,255,.5); font-size: 11.5px; }
+.yt-play { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; background: #ff2d3d; color: #fff; font-size: 11px; }
 </style>
 </head>
 <body>
@@ -1478,9 +1485,13 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     
     <button class="effect-btn has-panel" data-effect="video">◈ Video Display <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-video">
-      <div style="font-size:11px;color:#99a;line-height:1.5;margin-bottom:8px;">Maps video/image to the 4 side panels. YouTube: open in another tab then use Screen Capture.</div>
+      <div class="ov-row-label">▶ YouTube</div>
+      <div style="display:flex;gap:6px;"><input id="yt-query" class="ui-input" type="search" placeholder="Search YouTube…" aria-label="Search YouTube" style="flex:1;min-width:0;"><button id="yt-search-btn" class="ui-btn-small" style="flex:0 0 auto;">Search</button></div>
+      <div class="ui-note" id="yt-status"></div>
+      <div id="yt-results" class="yt-results"></div>
+      <div class="ov-row-label" style="margin-top:10px;">Other sources</div>
       <div id="vid-status" style="font-size:11px;color:#9aa3b8;margin-bottom:6px;text-align:center;">No source loaded</div>
-      <div style="display:flex;gap:5px;margin-bottom:8px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
         <button class="ui-btn-small" id="vid-file-btn">📁 Video</button>
         <button class="ui-btn-small" id="img-file-btn">🖼 Image</button>
         <button class="ui-btn-small" id="vid-screen-btn">🖥 Screen</button>
@@ -1601,7 +1612,11 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <button class="effect-btn has-panel" data-effect="dice">◈ Dice Roll <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-dice">
       <button id="dice-roll-btn" style="width:100%;padding:10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;margin-bottom:8px;">🎲 ROLL DICE</button>
-      <label class="check-row"><input type="checkbox" id="dice-auto-check">AUTO ROLL (every 4s)</label>
+      <label class="check-row"><input type="checkbox" id="dice-auto-check">Auto roll (every 4 s)</label>
+      <div class="ov-row-label">Dice</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);"><button data-dicecount="1">1</button><button data-dicecount="2">2</button><button data-dicecount="3">3</button></div>
+      <div class="ov-row-label">Colour</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(4,1fr);"><button data-dicecol="ivory">Ivory</button><button data-dicecol="red">Red</button><button data-dicecol="black">Black</button><button data-dicecol="blue">Blue</button></div>
     </div>
     <div class="effect-panel" id="panel-coinflip">
       <div class="ov-row-label">Flip Speed</div>
@@ -1630,7 +1645,12 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
       <div class="ui-note">It wanders by day, dances to music and sleeps at night.</div>
       <button id="pet-poke" class="ui-btn-primary" style="width:100%;">💗 Pet it</button>
     </div>
-    <button class="effect-btn" data-effect="ai_art">◈ AI Art</button>
+    <button class="effect-btn has-panel" data-effect="ai_art">◈ AI Art <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-ai_art">
+      <div class="ui-note">Describe a picture and the AI draws it on the display - e.g. “a pixel cat waving”, “a rocket”, “a smiling sun”.</div>
+      <div style="display:flex;gap:6px;"><input id="aiart-input" class="ui-input" type="text" maxlength="200" placeholder="Describe a picture…" aria-label="Describe a picture" style="flex:1;min-width:0;"><button id="aiart-go" class="ui-btn-small" style="flex:0 0 auto;">Draw</button></div>
+      <div class="ui-note" id="aiart-note"></div>
+    </div>
     <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
     <button class="effect-btn" data-effect="easter_egg">◈ Easter Egg</button>
     <button class="effect-btn has-panel cube-only" data-effect="custom_cube">◈ Custom Cube <span class="panel-arrow">▸</span></button>

@@ -34,7 +34,7 @@ const gradientWashWall = gradientWash.wall; // one definition for both modes (se
 const cam = require('./cam');
 const maze = require('./maze');
 const coinflip = require('./coinflip');
-const dice = require('./dice');
+const dice = require('./diceRoll'); // Dice Roll (old dice*.js kept for reference)
 const random = require('./random');
 const random80s = require('./random80s');
 const tron = require('./tron');
@@ -51,16 +51,15 @@ const depthRings = require('./depthRings');
 const prism = require('./prism');
 const tide = require('./tide');
 const datetime = require('./clock'); // Time & Date - all styles, incl. Words (old datetime*.js kept for reference)
-const ghost = require('./ghost');
+const ghost = require('./ghostFace'); // Ghost Face (old ghost*.js kept for reference)
 const moon = require('./celestial/celestial');
 const iss = require('./iss');
 const apod = require('./apod');
 const epic = require('./epic');
-const neo = require('./neo');
+const neoRadar = require('./neoRadar'); // Near-Earth Objects (neo.js fetches the data)
 const apodWall = require('./apodWall');
 const epicWall = require('./epicWall');
 const issWall = require('./issWall');
-const neoWall = require('./neoWall');
 const customCube = require('./customCube');
 const unsplash = require('./unsplash');
 const artic = require('./artic');
@@ -88,7 +87,7 @@ const lifeWall = require('./lifeWall');
 const fluidWall = require('./fluidWall');
 const easterEggWall = require('./easterEggWall');
 const coinflipWall = require('./coinflipWall');
-const diceWall = require('./diceWall');
+const diceWall = dice.wall;
 const randomWall = require('./randomWall');
 const random80sWall = require('./random80sWall');
 const fireworksWall = require('./fireworksWall');
@@ -98,7 +97,7 @@ const camWall = require('./camWall');
 const weatherWall = require('./weatherWall');
 const datetimeWall = datetime.wall;
 const celestialWall = require('./celestialWall');
-const ghostWall = require('./ghostWall');
+const ghostWall = ghost.wall;
 const unsplashWall = require('./unsplashWall');
 const articWall = require('./articWall');
 const jokeWall = joke.wall; // shares one fetch with cube mode (see ./textCard.js)
@@ -167,7 +166,7 @@ const WALL_EFFECTS = {
   apod: apodWall,
   epic: epicWall,
   iss: issWall,
-  neo: neoWall,
+  neo: neoRadar.wall,
   unsplash: unsplashWall,
   artic: articWall,
   joke: jokeWall,
@@ -227,7 +226,7 @@ const EFFECTS = {
   epic,
   apod,
   iss,
-  neo,
+  neo: neoRadar,
   unsplash,
   artic,
   joke,

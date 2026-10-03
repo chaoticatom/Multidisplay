@@ -24,6 +24,7 @@ const ai = require('./ai');
 const aiConfig = require('./aiConfig');
 const prefs = require('./prefs');
 const httpApi = require('./httpApi');
+const youtube = require('./youtube');
 const { spawn } = require('child_process');
 
 const COMMANDS = {
@@ -620,6 +621,32 @@ const COMMANDS = {
     const p = this.state.prefs || prefs.load();
     this.state.prefs = prefs.save({ ...p, nightDim: { ...p.nightDim, ...msg, cmd: undefined } });
     this._broadcast(this._stateMsg());
+  },
+
+  // YouTube for Video Display (src/youtube.js, needs yt-dlp on the Pi).
+  // ytSearch {query} fills state.yt.results; ytPlay {id, title} resolves the
+  // stream and plays it as the video link.
+  ytSearch(ws, msg) {
+    const query = typeof msg.query === 'string' ? msg.query.trim() : '';
+    if (!query) return;
+    this.state.yt = { query, searching: true, results: (this.state.yt && this.state.yt.results) || [], error: '' };
+    this._broadcast(this._stateMsg());
+    youtube.search(query).then((results) => { this.state.yt = { query, searching: false, results, error: results.length ? '' : 'No videos found' }; })
+      .catch((e) => { this.state.yt = { query, searching: false, results: [], error: e.message }; })
+      .finally(() => this._broadcast(this._stateMsg()));
+  },
+  ytPlay(ws, msg) {
+    const id = typeof msg.id === 'string' ? msg.id : '';
+    const title = typeof msg.title === 'string' ? msg.title.slice(0, 120) : '';
+    this.state.yt = { ...(this.state.yt || {}), playing: { id, title, loading: true }, error: '' };
+    this._broadcast(this._stateMsg());
+    youtube.resolve(id).then((url) => {
+      COMMANDS.setEffectOption.call(this, ws, { effect: 'video', key: 'source', value: 'url' });
+      COMMANDS.setEffectOption.call(this, ws, { effect: 'video', key: 'url', value: url });
+      COMMANDS.setEffect.call(this, ws, { effect: 'video' });
+      this.state.yt = { ...this.state.yt, playing: { id, title, loading: false } };
+    }).catch((e) => { this.state.yt = { ...this.state.yt, playing: null, error: e.message }; })
+      .finally(() => this._broadcast(this._stateMsg()));
   },
 
   // My Photos: {name} removes one uploaded photo.

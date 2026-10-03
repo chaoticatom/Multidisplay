@@ -7633,147 +7633,202 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/dice.js
-  var require_dice = __commonJS({
-    "src/effects/dice.js"(exports, module) {
+  // src/effects/strokeFont.js
+  var require_strokeFont = __commonJS({
+    "src/effects/strokeFont.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var diceValues = [1, 2, 3, 4, 5, 6];
-      var diceRolling = false;
-      var diceRollT = 0;
-      var diceRollDur = 0;
-      var diceResult = 1;
-      var diceShowT = 0;
-      var diceAutoTimer = 0;
-      var diceGlowT = 0;
-      var lastRollToken = null;
-      var DOT_PATTERNS = {
-        1: [[0.5, 0.5]],
-        2: [[0.2, 0.2], [0.8, 0.8]],
-        3: [[0.2, 0.2], [0.5, 0.5], [0.8, 0.8]],
-        4: [[0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]],
-        5: [[0.2, 0.2], [0.8, 0.2], [0.5, 0.5], [0.2, 0.8], [0.8, 0.8]],
-        6: [[0.2, 0.2], [0.8, 0.2], [0.2, 0.5], [0.8, 0.5], [0.2, 0.8], [0.8, 0.8]]
+      function arc(cx, cy, rx, ry, a0, a1, steps = 14) {
+        const pts = [];
+        for (let i = 0; i <= steps; i++) {
+          const a = (a0 + (a1 - a0) * (i / steps)) * Math.PI / 180;
+          pts.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]);
+        }
+        return pts;
+      }
+      var ell = (cx, cy, rx, ry) => arc(cx, cy, rx, ry, 0, 360, 24);
+      var G = {
+        0: [ell(2, 3, 2, 3)],
+        1: [[[0.9, 1.1], [2, 0], [2, 6]], [[0.9, 6], [3.1, 6]]],
+        2: [[...arc(2, 1.6, 2, 1.6, -180, 30), [0, 6], [4, 6]]],
+        3: [arc(2, 1.5, 1.9, 1.5, -160, 90), arc(2, 4.5, 2, 1.5, -90, 160)],
+        4: [[[3, 6], [3, 0], [0, 4.2], [4, 4.2]]],
+        5: [[[3.8, 0], [0.4, 0], [0.2, 2.9]], arc(2, 4.2, 2, 1.8, -138, 150)],
+        6: [arc(2, 3.2, 2, 2.9, -55, -180), arc(2, 4.3, 2, 1.7, 180, 540, 24)],
+        7: [[[0, 0], [4, 0], [1.5, 6]]],
+        8: [ell(2, 1.5, 1.7, 1.5), ell(2, 4.5, 2, 1.5)],
+        9: [ell(2, 1.7, 2, 1.7), [[4, 1.7], [3.7, 4], [2.6, 6]]],
+        ":": [[[0.5, 1.8], [0.5, 1.81]], [[0.5, 4.2], [0.5, 4.21]]],
+        ".": [[[0.5, 5.8], [0.5, 5.81]]],
+        ",": [[[0.6, 5.6], [0.2, 6.6]]],
+        "/": [[[3.6, 0], [0.4, 6]]],
+        "-": [[[0.6, 3.2], [3.4, 3.2]]],
+        "+": [[[0.6, 3.2], [3.4, 3.2]], [[2, 1.8], [2, 4.6]]],
+        "'": [[[1, 0], [1, 1.4]]],
+        "%": [[[3.8, 0], [0.2, 6]], ell(0.9, 1, 0.7, 0.9), ell(3.1, 5, 0.7, 0.9)],
+        "!": [[[1, 0], [1, 4]], [[1, 5.8], [1, 5.81]]],
+        "?": [[...arc(2, 1.5, 1.8, 1.5, -170, 90), [2, 4]], [[2, 5.8], [2, 5.81]]],
+        "&": [[[4, 6], [0.6, 2], ...arc(1.6, 1.2, 1, 1.2, 180, 360), [0.4, 4.2], ...arc(1.7, 4.8, 1.3, 1.2, 180, 60), [3.8, 3.2]]],
+        A: [[[0, 6], [2, 0], [4, 6]], [[0.7, 4], [3.3, 4]]],
+        B: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.5, 1.4, 1.5, -90, 90), [0, 3]], [[0, 3], [2.7, 3], ...arc(2.7, 4.5, 1.3, 1.5, -90, 90), [0, 6]]],
+        C: [arc(2.2, 3, 2.1, 3, -45, -315)],
+        D: [[[1.8, 0], [0, 0], [0, 6], [1.8, 6], ...arc(1.8, 3, 2.2, 3, 90, -90)]],
+        E: [[[4, 0], [0, 0], [0, 6], [4, 6]], [[0, 3], [3, 3]]],
+        F: [[[4, 0], [0, 0], [0, 6]], [[0, 3], [3, 3]]],
+        G: [[...arc(2.2, 3, 2.1, 3, -40, -320), [4.2, 3.3], [2.4, 3.3]]],
+        H: [[[0, 0], [0, 6]], [[4, 0], [4, 6]], [[0, 3], [4, 3]]],
+        I: [[[2, 0], [2, 6]], [[1, 0], [3, 0]], [[1, 6], [3, 6]]],
+        J: [[[4, 0], ...arc(2, 4.4, 2, 1.6, 0, 180)]],
+        K: [[[0, 0], [0, 6]], [[4, 0], [0, 3.6]], [[1.3, 2.5], [4, 6]]],
+        L: [[[0, 0], [0, 6], [4, 6]]],
+        M: [[[0, 6], [0, 0], [2, 3.6], [4, 0], [4, 6]]],
+        N: [[[0, 6], [0, 0], [4, 6], [4, 0]]],
+        O: [ell(2, 3, 2, 3)],
+        P: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.6, 1.4, 1.6, -90, 90), [0, 3.2]]],
+        R: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.6, 1.4, 1.6, -90, 90), [0, 3.2]], [[2, 3.2], [4, 6]]],
+        S: [[...arc(2, 1.5, 2, 1.5, -20, -270), ...arc(2, 4.5, 2, 1.5, -90, 160)]],
+        T: [[[0, 0], [4, 0]], [[2, 0], [2, 6]]],
+        U: [[[0, 0], ...arc(2, 4.2, 2, 1.8, 180, 0), [4, 0]]],
+        V: [[[0, 0], [2, 6], [4, 0]]],
+        W: [[[0, 0], [1, 6], [2, 2.5], [3, 6], [4, 0]]],
+        Y: [[[0, 0], [2, 3], [4, 0]], [[2, 3], [2, 6]]],
+        Q: [ell(2, 3, 2, 3), [[2.6, 4.4], [4.2, 6.2]]],
+        X: [[[0, 0], [4, 6]], [[4, 0], [0, 6]]],
+        Z: [[[0, 0], [4, 0], [0, 6], [4, 6]]]
       };
-      function diceStartRoll() {
-        diceRolling = true;
-        diceRollT = 0;
-        diceRollDur = 1.5 + Math.random() * 0.5;
-        diceResult = 1 + Math.floor(Math.random() * 6);
+      var ADV = { ":": 1.6, ".": 1.6, ",": 1.6, "'": 2, "!": 2.2, " ": 3 };
+      var advance = (ch) => ADV[ch] ?? 5.2;
+      function textWidth(text, h) {
+        const k = h / 6;
+        let w = 0;
+        for (const ch of text) w += advance(ch) * k;
+        return w - 1.2 * k;
       }
-      function drawDieFace(core, face, val, isResult, glow) {
-        const S = core.SIZE;
-        const half = S * 0.45;
-        const cx = S * 0.5, cy = S * 0.5;
-        const border = S * 0.045;
-        const dotR = S * 0.09;
-        const dots = DOT_PATTERNS[val] || DOT_PATTERNS[1];
-        const inner = S * 0.72;
-        const ox = cx - inner / 2, oy = cy - inner / 2;
-        const bgOut = isResult ? 0.06 + glow * 0.1 : 0.03;
-        for (let v = 0; v < S; v++) {
-          for (let u = 0; u < S; u++) {
-            const dx = Math.abs(u - cx), dy = Math.abs(v - cy);
-            let r, g, b;
-            if (dx <= half && dy <= half) {
-              const edge = Math.max(dx, dy);
-              if (edge > half - border) {
-                if (isResult) {
-                  r = 0.4 + glow * 0.6;
-                  g = 0.7 + glow * 0.3;
-                  b = 1;
-                } else {
-                  r = 0.7;
-                  g = 0.7;
-                  b = 0.78;
-                }
-              } else {
-                r = isResult ? 0.94 : 0.9;
-                g = isResult ? 0.94 : 0.9;
-                b = isResult ? 0.96 : 0.93;
+      function drawText(c, text, x, y, h, col, weight = Math.max(1.2, h / 7)) {
+        const k = h / 6, r = weight / 2;
+        for (const ch of String(text).toUpperCase()) {
+          const strokes = G[ch];
+          if (strokes) {
+            const segs = [];
+            for (const st of strokes) for (let i = 0; i + 1 < st.length; i++) segs.push([x + st[i][0] * k, y + st[i][1] * k, x + st[i + 1][0] * k, y + st[i + 1][1] * k]);
+            const x0 = Math.floor(x - r - 1), x1 = Math.ceil(x + 4.4 * k + r + 1), y0 = Math.floor(y - r - 1), y1 = Math.ceil(y + 6 * k + r + 1);
+            for (let py = y0; py <= y1; py++) for (let px = x0; px <= x1; px++) {
+              let d = Infinity;
+              for (const [ax, ay, bx, by] of segs) {
+                const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+                const t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
+                const e = Math.hypot(px - ax - dx * t, py - ay - dy * t);
+                if (e < d) d = e;
               }
-            } else {
-              r = bgOut * 0.9;
-              g = bgOut;
-              b = bgOut * 1.3;
-            }
-            core.setFaceLED(face, u, v, r, g, b);
-          }
-        }
-        const dotCol = isResult ? [0.1, 0.1, 0.16] : [0.13, 0.13, 0.2];
-        for (const [fx, fy] of dots) {
-          const px = ox + fx * inner, py = oy + fy * inner;
-          const r0 = Math.ceil(dotR);
-          for (let dv = -r0; dv <= r0; dv++) for (let du = -r0; du <= r0; du++) {
-            if (du * du + dv * dv > dotR * dotR) continue;
-            const u = Math.round(px + du), v = Math.round(py + dv);
-            if (u < 0 || u >= S || v < 0 || v >= S) continue;
-            core.setFaceLED(face, u, v, dotCol[0], dotCol[1], dotCol[2]);
-          }
-        }
-      }
-      function drawDieRolling(core, face, t) {
-        const S = core.SIZE;
-        const flash = Math.abs(Math.sin(t * 12));
-        const hue = t * 200 % 360;
-        const bg = 0.05 + flash * 0.12;
-        for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) core.setFaceLED(face, u, v, bg * 0.7, bg * 0.6, bg);
-        const randomVal = 1 + Math.floor(t * 11 % 6);
-        drawDieFace(core, face, randomVal, false, 0);
-      }
-      function effectDice(core, dt) {
-        core.t += dt;
-        const t = core.t;
-        const opts = core.effectOptions?.dice || {};
-        const rollToken = opts.rollToken;
-        const autoRoll = !!opts.autoRoll;
-        if (!diceRolling && rollToken !== void 0 && rollToken !== lastRollToken) {
-          lastRollToken = rollToken;
-          diceStartRoll();
-        }
-        const is3D = core.panelMode !== "2d";
-        if (autoRoll && !diceRolling) {
-          diceAutoTimer += dt;
-          if (diceAutoTimer >= 4) {
-            diceAutoTimer = 0;
-            diceStartRoll();
-          }
-        }
-        if (diceRolling) {
-          diceRollT += dt;
-          if (diceRollT >= diceRollDur) {
-            diceRolling = false;
-            const shuffled = [1, 2, 3, 4, 5, 6].filter((v) => v !== diceResult);
-            for (let i = shuffled.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-            }
-            diceValues = [shuffled[0], shuffled[1], shuffled[2], shuffled[3], diceResult, shuffled[4]];
-            diceGlowT = 3;
-            diceShowT = 0;
-          }
-        }
-        if (!diceRolling && diceGlowT > 0) diceGlowT -= dt;
-        if (!diceRolling) diceShowT += dt;
-        for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
-        if (is3D) {
-          for (let f = 0; f < 6; f++) {
-            if (diceRolling) {
-              drawDieRolling(core, f, t + f * 0.7);
-            } else {
-              const isTop = f === 4;
-              const glow = isTop ? Math.max(0, diceGlowT / 3) : 0;
-              drawDieFace(core, f, diceValues[f], isTop, glow);
+              const cover = Math.max(0, Math.min(1, r + 0.5 - d));
+              if (cover <= 0) continue;
+              const o = c.get(px, py);
+              if (!o) continue;
+              c.set(px, py, Math.max(o[0], col[0] * cover), Math.max(o[1], col[1] * cover), Math.max(o[2], col[2] * cover));
             }
           }
-        } else if (diceRolling) {
-          drawDieRolling(core, 0, t);
-        } else {
-          const glow = Math.max(0, diceGlowT / 3);
-          drawDieFace(core, 0, diceResult, true, glow);
+          x += advance(ch) * k;
         }
       }
-      module.exports = effectDice;
+      module.exports = { drawText, textWidth };
+    }
+  });
+
+  // src/effects/diceRoll.js
+  var require_diceRoll = __commonJS({
+    "src/effects/diceRoll.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { defineCanvasEffect } = require_canvas();
+      var stroke = require_strokeFont();
+      var { FONT_3x5, drawGlyph, textWidth } = require_text();
+      var ROLL_S = 1.3;
+      var AUTO_S = 4;
+      var COLOURS = { ivory: [[0.95, 0.93, 0.86], [0.08, 0.08, 0.1]], red: [[0.85, 0.12, 0.15], [1, 1, 1]], black: [[0.12, 0.12, 0.14], [1, 1, 1]], blue: [[0.15, 0.35, 0.9], [1, 1, 1]] };
+      var PIPS = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]], 5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]] };
+      var st = { dice: [], t0: -10, lastToken: void 0, lastAuto: 0 };
+      var roll = () => 1 + Math.floor(Math.random() * 6);
+      function startRoll(n, t) {
+        st.t0 = t;
+        st.dice = Array.from({ length: n }, (_, i) => ({ value: roll(), spin: (Math.random() < 0.5 ? -1 : 1) * (5 + Math.random() * 6), delay: i * 0.08, face: roll() }));
+      }
+      function drawDie(c, cx, cy, size, ang, value, col, pipCol) {
+        const half = size / 2, rad = size * 0.18, ca = Math.cos(-ang), sa = Math.sin(-ang);
+        const reach = half * 1.45 + 2;
+        for (let y = Math.floor(cy - reach); y <= cy + reach + 3; y++) for (let x = Math.floor(cx - reach); x <= cx + reach + 3; x++) {
+          const sx = x - cx - size * 0.08, sy = y - cy - size * 0.1, d = Math.hypot(sx, sy);
+          const k = Math.max(0, 1 - d / (half * 1.35)) * 0.55, o = c.get(x, y);
+          if (o && k > 0) c.set(x, y, o[0] * (1 - k), o[1] * (1 - k), o[2] * (1 - k));
+        }
+        for (let y = Math.floor(cy - reach); y <= cy + reach; y++) for (let x = Math.floor(cx - reach); x <= cx + reach; x++) {
+          const dx = x - cx, dy = y - cy, lx = dx * ca - dy * sa, ly = dx * sa + dy * ca;
+          const qx = Math.abs(lx) - (half - rad), qy = Math.abs(ly) - (half - rad);
+          const sd = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - rad;
+          const cover = Math.max(0, Math.min(1, 0.5 - sd));
+          if (cover <= 0) continue;
+          const light = 0.82 + 0.25 * (-(lx + ly) / size) + (sd > -size * 0.08 ? -0.12 : 0.05);
+          let r = col[0] * light, g = col[1] * light, b = col[2] * light;
+          for (const [px, py] of PIPS[value]) {
+            const pd = Math.hypot(lx - px * size * 0.26, ly - py * size * 0.26), pr = size * 0.095;
+            const pc = Math.max(0, Math.min(1, pr + 0.5 - pd));
+            if (pc > 0) {
+              r = r * (1 - pc) + pipCol[0] * pc;
+              g = g * (1 - pc) + pipCol[1] * pc;
+              b = b * (1 - pc) + pipCol[2] * pc;
+            }
+          }
+          const o = c.get(x, y);
+          if (!o) continue;
+          c.set(x, y, o[0] * (1 - cover) + Math.min(1, r) * cover, o[1] * (1 - cover) + Math.min(1, g) * cover, o[2] * (1 - cover) + Math.min(1, b) * cover);
+        }
+      }
+      module.exports = defineCanvasEffect({
+        render(c, { t, core }) {
+          const o = core.effectOptions && core.effectOptions.dice || {};
+          const n = Math.max(1, Math.min(3, Number(o.count) || 2));
+          if (!st.dice.length || st.dice.length !== n) startRoll(n, t);
+          if (o.rollToken !== void 0 && o.rollToken !== st.lastToken) {
+            if (st.lastToken !== void 0) startRoll(n, t);
+            st.lastToken = o.rollToken;
+          }
+          if (o.autoRoll && t - st.t0 > AUTO_S + ROLL_S) startRoll(n, t);
+          const [col, pipCol] = COLOURS[o.colour] || COLOURS.ivory;
+          for (let y = 0; y < c.H; y++) for (let x = 0; x < c.W; x++) {
+            const v = 1 - Math.hypot((x - c.W / 2) / c.W, (y - c.H / 2) / c.H) * 1.1;
+            const n2 = (x * 7 + y * 13) % 5 * 4e-3;
+            c.set(x, y, 0.02 + n2, (0.16 + n2) * v + 0.02, (0.07 + n2) * v);
+          }
+          const totalH = n > 1 ? Math.max(5, Math.round(c.H * 0.16)) : 0;
+          const size = Math.min((c.W - 6) / (n * 1.35), (c.H - totalH - 6) * 0.62);
+          const elapsed = t - st.t0;
+          let settled = true;
+          st.dice.forEach((d, i) => {
+            const e = Math.max(0, elapsed - d.delay), p = Math.min(1, e / ROLL_S);
+            if (p < 1) settled = false;
+            const hop = Math.abs(Math.sin(p * Math.PI * 3.5)) * (1 - p) * size * 0.7;
+            const ang = d.spin * (1 - p) * (1 - p) * 0.6;
+            if (p < 0.85 && Math.floor(e * 14) !== d.lastFlick) {
+              d.lastFlick = Math.floor(e * 14);
+              d.face = roll();
+            }
+            const face = p < 0.85 ? d.face : d.value;
+            const slot = (i + 0.5) / n, cx = c.W * slot + (1 - p) * Math.sin(e * 7 + i) * size * 0.25;
+            const cy = (c.H - totalH) / 2 - hop;
+            drawDie(c, cx, cy, size * (1 + (1 - p) * 0.08), ang, face, col, pipCol);
+          });
+          if (n > 1 && settled) {
+            const s = "TOTAL " + st.dice.reduce((a, d) => a + d.value, 0), y = c.H - totalH;
+            if (totalH >= 9) stroke.drawText(c, s, Math.round((c.W - stroke.textWidth(s, totalH - 2)) / 2), y, totalH - 2, [0.95, 0.85, 0.4]);
+            else {
+              let x = Math.round((c.W - textWidth(FONT_3x5, s)) / 2);
+              for (const ch of s) x += drawGlyph(FONT_3x5, ch, x, y, (px, py) => c.set(px, py, 0.95, 0.85, 0.4));
+            }
+          }
+        }
+      });
+      module.exports.getStatus = () => st.dice.length ? { values: st.dice.map((d) => d.value) } : null;
     }
   });
 
@@ -15107,95 +15162,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/strokeFont.js
-  var require_strokeFont = __commonJS({
-    "src/effects/strokeFont.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      function arc(cx, cy, rx, ry, a0, a1, steps = 14) {
-        const pts = [];
-        for (let i = 0; i <= steps; i++) {
-          const a = (a0 + (a1 - a0) * (i / steps)) * Math.PI / 180;
-          pts.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]);
-        }
-        return pts;
-      }
-      var ell = (cx, cy, rx, ry) => arc(cx, cy, rx, ry, 0, 360, 24);
-      var G = {
-        0: [ell(2, 3, 2, 3)],
-        1: [[[0.9, 1.1], [2, 0], [2, 6]], [[0.9, 6], [3.1, 6]]],
-        2: [[...arc(2, 1.6, 2, 1.6, -180, 30), [0, 6], [4, 6]]],
-        3: [arc(2, 1.5, 1.9, 1.5, -160, 90), arc(2, 4.5, 2, 1.5, -90, 160)],
-        4: [[[3, 6], [3, 0], [0, 4.2], [4, 4.2]]],
-        5: [[[3.8, 0], [0.4, 0], [0.2, 2.9]], arc(2, 4.2, 2, 1.8, -138, 150)],
-        6: [arc(2, 3.2, 2, 2.9, -55, -180), arc(2, 4.3, 2, 1.7, 180, 540, 24)],
-        7: [[[0, 0], [4, 0], [1.5, 6]]],
-        8: [ell(2, 1.5, 1.7, 1.5), ell(2, 4.5, 2, 1.5)],
-        9: [ell(2, 1.7, 2, 1.7), [[4, 1.7], [3.7, 4], [2.6, 6]]],
-        ":": [[[0.5, 1.8], [0.5, 1.81]], [[0.5, 4.2], [0.5, 4.21]]],
-        A: [[[0, 6], [2, 0], [4, 6]], [[0.7, 4], [3.3, 4]]],
-        B: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.5, 1.4, 1.5, -90, 90), [0, 3]], [[0, 3], [2.7, 3], ...arc(2.7, 4.5, 1.3, 1.5, -90, 90), [0, 6]]],
-        C: [arc(2.2, 3, 2.1, 3, -45, -315)],
-        D: [[[1.8, 0], [0, 0], [0, 6], [1.8, 6], ...arc(1.8, 3, 2.2, 3, 90, -90)]],
-        E: [[[4, 0], [0, 0], [0, 6], [4, 6]], [[0, 3], [3, 3]]],
-        F: [[[4, 0], [0, 0], [0, 6]], [[0, 3], [3, 3]]],
-        G: [[...arc(2.2, 3, 2.1, 3, -40, -320), [4.2, 3.3], [2.4, 3.3]]],
-        H: [[[0, 0], [0, 6]], [[4, 0], [4, 6]], [[0, 3], [4, 3]]],
-        I: [[[2, 0], [2, 6]], [[1, 0], [3, 0]], [[1, 6], [3, 6]]],
-        J: [[[4, 0], ...arc(2, 4.4, 2, 1.6, 0, 180)]],
-        K: [[[0, 0], [0, 6]], [[4, 0], [0, 3.6]], [[1.3, 2.5], [4, 6]]],
-        L: [[[0, 0], [0, 6], [4, 6]]],
-        M: [[[0, 6], [0, 0], [2, 3.6], [4, 0], [4, 6]]],
-        N: [[[0, 6], [0, 0], [4, 6], [4, 0]]],
-        O: [ell(2, 3, 2, 3)],
-        P: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.6, 1.4, 1.6, -90, 90), [0, 3.2]]],
-        R: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.6, 1.4, 1.6, -90, 90), [0, 3.2]], [[2, 3.2], [4, 6]]],
-        S: [[...arc(2, 1.5, 2, 1.5, -20, -270), ...arc(2, 4.5, 2, 1.5, -90, 160)]],
-        T: [[[0, 0], [4, 0]], [[2, 0], [2, 6]]],
-        U: [[[0, 0], ...arc(2, 4.2, 2, 1.8, 180, 0), [4, 0]]],
-        V: [[[0, 0], [2, 6], [4, 0]]],
-        W: [[[0, 0], [1, 6], [2, 2.5], [3, 6], [4, 0]]],
-        Y: [[[0, 0], [2, 3], [4, 0]], [[2, 3], [2, 6]]]
-      };
-      var ADV = { ":": 1.6, " ": 3 };
-      var advance = (ch) => ADV[ch] ?? 5.2;
-      function textWidth(text, h) {
-        const k = h / 6;
-        let w = 0;
-        for (const ch of text) w += advance(ch) * k;
-        return w - 1.2 * k;
-      }
-      function drawText(c, text, x, y, h, col, weight = Math.max(1.2, h / 7)) {
-        const k = h / 6, r = weight / 2;
-        for (const ch of String(text).toUpperCase()) {
-          const strokes = G[ch];
-          if (strokes) {
-            const segs = [];
-            for (const st of strokes) for (let i = 0; i + 1 < st.length; i++) segs.push([x + st[i][0] * k, y + st[i][1] * k, x + st[i + 1][0] * k, y + st[i + 1][1] * k]);
-            const x0 = Math.floor(x - r - 1), x1 = Math.ceil(x + 4.4 * k + r + 1), y0 = Math.floor(y - r - 1), y1 = Math.ceil(y + 6 * k + r + 1);
-            for (let py = y0; py <= y1; py++) for (let px = x0; px <= x1; px++) {
-              let d = Infinity;
-              for (const [ax, ay, bx, by] of segs) {
-                const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
-                const t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
-                const e = Math.hypot(px - ax - dx * t, py - ay - dy * t);
-                if (e < d) d = e;
-              }
-              const cover = Math.max(0, Math.min(1, r + 0.5 - d));
-              if (cover <= 0) continue;
-              const o = c.get(px, py);
-              if (!o) continue;
-              c.set(px, py, Math.max(o[0], col[0] * cover), Math.max(o[1], col[1] * cover), Math.max(o[2], col[2] * cover));
-            }
-          }
-          x += advance(ch) * k;
-        }
-      }
-      module.exports = { drawText, textWidth };
-    }
-  });
-
   // src/effects/clock.js
   var require_clock = __commonJS({
     "src/effects/clock.js"(exports, module) {
@@ -15455,462 +15421,130 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/ghost/render.js
-  var require_render2 = __commonJS({
-    "src/effects/ghost/render.js"(exports, module) {
+  // src/effects/ghostFace.js
+  var require_ghostFace = __commonJS({
+    "src/effects/ghostFace.js"(exports, module) {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var R = 256;
-      function hsl(h, s, l) {
-        h = (h % 1 + 1) % 1;
-        const a = s * Math.min(l, 1 - l);
-        const f = (n) => {
-          const k = (n + h * 12) % 12;
-          return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
-        };
-        return [f(0), f(8), f(4)];
+      var { defineCanvasEffect } = require_canvas();
+      var hash = (x, y) => {
+        const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+        return s - Math.floor(s);
+      };
+      function noise(x, y) {
+        const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+        const a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+        return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
       }
-      function sampleStops(stops, t) {
-        if (t <= stops[0][0]) return stops[0];
-        const last = stops[stops.length - 1];
-        if (t >= last[0]) return last;
-        for (let i = 0; i < stops.length - 1; i++) {
-          const a = stops[i], b = stops[i + 1];
-          if (t >= a[0] && t <= b[0]) {
-            const span = b[0] - a[0];
-            const f = span > 1e-9 ? (t - a[0]) / span : 0;
-            return [
-              t,
-              a[1] + (b[1] - a[1]) * f,
-              a[2] + (b[2] - a[2]) * f,
-              a[3] + (b[3] - a[3]) * f,
-              a[4] + (b[4] - a[4]) * f
-            ];
+      var sm = (e0, e1, x) => {
+        const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+        return t * t * (3 - 2 * t);
+      };
+      var st = { blink: 0, nextBlink: 3, lunge: 0, nextLunge: 9, look: [0, 0], lookTo: [0, 0], nextLook: 1 };
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt }) {
+          if ((st.nextBlink -= dt) <= 0) {
+            st.blink = 0.18;
+            st.nextBlink = 2 + Math.random() * 4;
           }
-        }
-        return last;
-      }
-      function makeBuffer() {
-        return new Uint8ClampedArray(R * R * 4);
-      }
-      function blendPixel(buf, pi, r, g, b, a) {
-        if (a <= 0) return;
-        const dstA = buf[pi + 3] / 255;
-        const outA = a + dstA * (1 - a);
-        if (outA <= 1e-6) {
-          buf[pi] = 0;
-          buf[pi + 1] = 0;
-          buf[pi + 2] = 0;
-          buf[pi + 3] = 0;
-          return;
-        }
-        const dr = buf[pi], dg = buf[pi + 1], db = buf[pi + 2];
-        buf[pi] = (r * a + dr * dstA * (1 - a)) / outA;
-        buf[pi + 1] = (g * a + dg * dstA * (1 - a)) / outA;
-        buf[pi + 2] = (b * a + db * dstA * (1 - a)) / outA;
-        buf[pi + 3] = outA * 255;
-      }
-      function fillEllipse(buf, cx, cy, rx, ry, rgba, clip) {
-        const [r, g, b, a] = rgba;
-        const x0 = Math.max(0, Math.floor(cx - rx)), x1 = Math.min(R - 1, Math.ceil(cx + rx));
-        const y0 = Math.max(0, Math.floor(cy - ry)), y1 = Math.min(R - 1, Math.ceil(cy + ry));
-        for (let y = y0; y <= y1; y++) {
-          for (let x = x0; x <= x1; x++) {
-            const dx = (x - cx) / rx, dy = (y - cy) / ry;
-            if (dx * dx + dy * dy > 1) continue;
-            if (clip && !clip(x, y)) continue;
-            blendPixel(buf, (y * R + x) * 4, r, g, b, a);
+          st.blink = Math.max(0, st.blink - dt);
+          if ((st.nextLook -= dt) <= 0) {
+            st.lookTo = [(Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.03];
+            st.nextLook = 0.8 + Math.random() * 2.5;
           }
-        }
-      }
-      function fillRadialGradient(buf, cx, cy, r0, r1, stops, opts) {
-        opts = opts || {};
-        const rx = opts.rx || r1, ry = opts.ry || r1;
-        const boxX0 = Math.max(0, Math.floor(cx - rx)), boxX1 = Math.min(R - 1, Math.ceil(cx + rx));
-        const boxY0 = Math.max(0, Math.floor(cy - ry)), boxY1 = Math.min(R - 1, Math.ceil(cy + ry));
-        const clip = opts.clip;
-        for (let y = boxY0; y <= boxY1; y++) {
-          for (let x = boxX0; x <= boxX1; x++) {
-            const nx = (x - cx) / rx, ny = (y - cy) / ry;
-            const dist = Math.sqrt(nx * nx + ny * ny) * r1;
-            if (dist > r1) continue;
-            if (clip && !clip(x, y)) continue;
-            const t = r1 > r0 ? Math.max(0, Math.min(1, (dist - r0) / (r1 - r0))) : dist <= r0 ? 0 : 1;
-            const [, sr, sg, sb, sa] = sampleStops(stops, t);
-            blendPixel(buf, (y * R + x) * 4, sr, sg, sb, sa);
+          st.look[0] += (st.lookTo[0] - st.look[0]) * Math.min(1, dt * 8);
+          st.look[1] += (st.lookTo[1] - st.look[1]) * Math.min(1, dt * 8);
+          if ((st.nextLunge -= dt) <= 0) {
+            st.lunge = 1;
+            st.nextLunge = 10 + Math.random() * 12;
           }
-        }
-      }
-      function fillLinearGradientV(buf, x0, y0, x1, y1, gy0, gy1, stops, clip) {
-        const bx0 = Math.max(0, Math.floor(x0)), bx1 = Math.min(R - 1, Math.ceil(x1));
-        const by0 = Math.max(0, Math.floor(y0)), by1 = Math.min(R - 1, Math.ceil(y1));
-        for (let y = by0; y <= by1; y++) {
-          const t = gy1 > gy0 ? Math.max(0, Math.min(1, (y - gy0) / (gy1 - gy0))) : 0;
-          const [, sr, sg, sb, sa] = sampleStops(stops, t);
-          for (let x = bx0; x <= bx1; x++) {
-            if (clip && !clip(x, y)) continue;
-            blendPixel(buf, (y * R + x) * 4, sr, sg, sb, sa);
-          }
-        }
-      }
-      function fillRect(buf, x0, y0, x1, y1, rgba, clip) {
-        const [r, g, b, a] = rgba;
-        const bx0 = Math.max(0, Math.floor(x0)), bx1 = Math.min(R - 1, Math.ceil(x1));
-        const by0 = Math.max(0, Math.floor(y0)), by1 = Math.min(R - 1, Math.ceil(y1));
-        for (let y = by0; y <= by1; y++) {
-          for (let x = bx0; x <= bx1; x++) {
-            if (clip && !clip(x, y)) continue;
-            blendPixel(buf, (y * R + x) * 4, r, g, b, a);
-          }
-        }
-      }
-      function strokeQuadratic(buf, x0, y0, cx, cy, x1, y1, lineWidth, rgba, steps) {
-        steps = steps || 24;
-        const radius = lineWidth / 2;
-        for (let i = 0; i <= steps; i++) {
-          const t = i / steps;
-          const mt = 1 - t;
-          const px = mt * mt * x0 + 2 * mt * t * cx + t * t * x1;
-          const py = mt * mt * y0 + 2 * mt * t * cy + t * t * y1;
-          fillEllipse(buf, px, py, radius, radius, rgba);
-        }
-      }
-      function renderGhostFace(eyeOpen, mouthOpen, hasHorns, hueShift, personality) {
-        const buf = makeBuffer();
-        const cx = R / 2, cy = R * 0.52;
-        const fw = R * 0.34, fh = R * 0.44;
-        const p = personality || {};
-        const eRX = fw * (p.eyeRX || 0.2);
-        const eRY = fh * (p.eyeRY || 0.15);
-        const eSpread = fw * (p.eyeSpread || 0.44);
-        const cheekD = p.cheekDepth || 0.48;
-        const browA = p.browAngle || 0;
-        const baseH = (0.33 + (hueShift || 0) * 0.15 + 1) % 1;
-        function ghostCol(lightness, alpha) {
-          const [r, g, b] = hsl(baseH, 0.85, lightness);
-          return [r * 255, g * 255, b * 255, alpha];
-        }
-        const clipFace = (x, y) => {
-          const dx = (x - cx) / (fw * 1.3), dy = (y - cy) / (fh * 1.2);
-          return dx * dx + dy * dy <= 1;
-        };
-        fillRadialGradient(buf, cx, cy - fh * 0.1, fw * 0.05, fw * 1.3, [
-          [0, ...ghostCol(0.72, 0.97)],
-          [0.4, ...ghostCol(0.5, 0.9)],
-          [0.75, ...ghostCol(0.28, 0.75)],
-          [1, ...ghostCol(0.1, 0)]
-        ], { rx: fw * 1.3, ry: fw * 1.3, clip: clipFace });
-        fillLinearGradientV(
-          buf,
-          cx - fw * 1.3,
-          cy - fh * 1.3,
-          cx + fw * 1.3,
-          cy - fh * 0.1,
-          cy - fh * 0.7,
-          cy - fh * 0.1,
-          [[0, 0, 0, 0, 0.38], [1, 0, 0, 0, 0]],
-          clipFace
-        );
-        const browY = cy - fh * 0.38;
-        const browRGBA = ghostCol(0.08, 0.85);
-        const browLW = fw * 0.065;
-        [[cx - eSpread, browY + browA * fh, -1], [cx + eSpread, browY - browA * fh, 1]].forEach(([bx, by, dir]) => {
-          strokeQuadratic(
-            buf,
-            bx - fw * 0.22,
-            by + browA * fh * dir * 0.3,
-            bx,
-            by,
-            bx + fw * 0.22,
-            by - browA * fh * dir * 0.3,
-            browLW,
-            browRGBA,
-            24
-          );
-        });
-        const eyeY = cy - fh * 0.14;
-        [[cx - eSpread, eyeY], [cx + eSpread, eyeY]].forEach(([ex, ey]) => {
-          fillRadialGradient(buf, ex, ey, 0, eRX * 1.5, [
-            [0, 0, 0, 0, 0.95],
-            [0.6, 0, 8, 3, 0.65],
-            [1, 0, 0, 0, 0]
-          ], { rx: eRX * 1.5, ry: eRY * 1.5 });
-          if (eyeOpen > 0.5) {
-            fillRadialGradient(buf, ex, ey, 0, eRX * 0.56, [
-              [0, 255, 255, 220, 0.98],
-              [0.25, ...ghostCol(0.65, 0.95)],
-              [0.75, ...ghostCol(0.35, 0.8)],
-              [1, 0, 0, 0, 0]
-            ], { rx: eRX * 0.56, ry: eRY * 0.56 });
-            fillEllipse(buf, ex, ey, eRX * 0.24, eRY * 0.24, [0, 0, 0, 0.97]);
-            fillEllipse(buf, ex - eRX * 0.2, ey - eRY * 0.25, eRX * 0.09, eRY * 0.09, [255, 255, 255, 0.92]);
-            fillEllipse(buf, ex + eRX * 0.15, ey + eRY * 0.1, eRX * 0.05, eRY * 0.05, [255, 255, 255, 0.55]);
-          } else {
-            const lidRGBA = ghostCol(0.06, 0.9);
-            strokeQuadratic(buf, ex - eRX * 1.2, ey, ex, ey + eRY * 0.7, ex + eRX * 1.2, ey, eRY * 0.6, lidRGBA, 24);
-          }
-        });
-        const noseY = cy + fh * 0.12;
-        fillRadialGradient(buf, cx, noseY, 0, fw * 0.18, [
-          [0, 0, 0, 0, 0.72],
-          [1, 0, 0, 0, 0]
-        ], { rx: fw * 0.18 * 0.6, ry: fw * 0.18 });
-        [[cx - fw * 0.11, noseY + fh * 0.05], [cx + fw * 0.11, noseY + fh * 0.05]].forEach(([nx, ny]) => {
-          fillEllipse(buf, nx, ny, fw * 0.07, fh * 0.055, [0, 0, 0, 0.8]);
-        });
-        const mouthY = cy + fh * 0.4;
-        const mouthW = fw * 0.56, mouthH = fh * 0.23 * Math.max(0.1, mouthOpen);
-        fillEllipse(buf, cx, mouthY, mouthW * 1.08, Math.max(3, mouthH * 1.15), ghostCol(0.18, 0.9));
-        fillEllipse(buf, cx, mouthY, mouthW, Math.max(2, mouthH), [0, 0, 0, 0.97]);
-        if (mouthOpen > 0.2) {
-          const tw = mouthW * 0.36, th = mouthH * 0.55;
-          const upperRGBA = ghostCol(0.88, 0.85);
-          for (let i = 0; i < 5; i++) {
-            const tx = cx - mouthW * 0.72 + mouthW * 0.36 * i + mouthW * 0.18;
-            fillRect(buf, tx - tw * 0.38, mouthY - mouthH * 0.88, tx - tw * 0.38 + tw * 0.7, mouthY - mouthH * 0.88 + th, upperRGBA);
-          }
-          const lowerRGBA = ghostCol(0.75, 0.72);
-          for (let i = 0; i < 4; i++) {
-            const tx = cx - mouthW * 0.54 + mouthW * 0.36 * i + mouthW * 0.09;
-            fillRect(buf, tx - tw * 0.3, mouthY + mouthH * 0.08, tx - tw * 0.3 + tw * 0.56, mouthY + mouthH * 0.08 + th * 0.7, lowerRGBA);
-          }
-        }
-        [[cx - fw * 0.7, cy + fh * 0.1], [cx + fw * 0.7, cy + fh * 0.1]].forEach(([hx, hy]) => {
-          fillRadialGradient(buf, hx, hy, 0, fw * 0.3, [
-            [0, 0, 0, 0, Math.min(0.75, cheekD)],
-            [1, 0, 0, 0, 0]
-          ], { rx: fw * 0.3, ry: fw * 0.3 });
-        });
-        for (let i = 0; i < 60; i++) {
-          const px = cx + (Math.random() - 0.5) * fw * 2.2;
-          const py = cy + (Math.random() - 0.5) * fh * 2;
-          if (!clipFace(px, py)) continue;
-          const rad = 0.8 + Math.random() * 1.5;
-          const dot = Math.random() < 0.5 ? [0, 0, 0, 0.06] : [255, 255, 255, 0.06];
-          fillEllipse(buf, px, py, rad, rad, dot);
-        }
-        {
-          const stops = [[0, 0, 0, 0, 0], [0.8, 0, 0, 0, 0], [1, 0, 0, 0, 1]];
-          const r0 = fw * 0.65, r1 = fw * 1.55;
-          for (let y = 0; y < R; y++) {
-            for (let x = 0; x < R; x++) {
-              const pi = (y * R + x) * 4;
-              if (buf[pi + 3] === 0) continue;
-              const dx = x - cx, dy = y - cy;
-              const dist = Math.sqrt(dx * dx + dy * dy);
-              const t = r1 > r0 ? Math.max(0, Math.min(1, (dist - r0) / (r1 - r0))) : dist <= r0 ? 0 : 1;
-              const gradA = sampleStops(stops, t)[4];
-              if (gradA <= 0) continue;
-              buf[pi + 3] = buf[pi + 3] * (1 - gradA);
-            }
-          }
-        }
-        return buf;
-      }
-      module.exports = { renderGhostFace, R };
-    }
-  });
-
-  // src/effects/ghost/ghost.js
-  var require_ghost = __commonJS({
-    "src/effects/ghost/ghost.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { renderGhostFace, R } = require_render2();
-      var { trailFade } = require_trail();
-      var ghostT = 0;
-      var ghostFace = 0;
-      var ghostState = "hidden";
-      var ghostStateT = 0;
-      var ghostNextFace = 1;
-      var ghostReveal = 0;
-      var ghostAlpha = 0;
-      var ghostBlinkT = 0;
-      var ghostEyeOpen = 1;
-      var ghostPosX = 0;
-      var ghostPosY = 0;
-      var ghostMouthOpen = 0.7;
-      var ghostMouthT = 0;
-      var ghostHueShift = 0;
-      var ghostPixelsOpen = null;
-      var ghostPixelsClosed = null;
-      var ghostPixels = null;
-      var ghostEyeRX = 0.2;
-      var ghostEyeRY = 0.15;
-      var ghostEyeSpread = 0.44;
-      var ghostCheekDepth = 0.48;
-      var ghostBrowAngle = 0;
-      var ghostDistCache = null;
-      var ghostCanvasU = null;
-      var ghostCanvasV = null;
-      var ghostCacheSize = 0;
-      function personality() {
-        return { eyeRX: ghostEyeRX, eyeRY: ghostEyeRY, eyeSpread: ghostEyeSpread, cheekDepth: ghostCheekDepth, browAngle: ghostBrowAngle };
-      }
-      function buildGhostCache(core, cx, cy) {
-        const S = core.SIZE;
-        if (ghostCacheSize === S && ghostDistCache) return;
-        ghostCacheSize = S;
-        const ledScale = S * 0.72;
-        ghostDistCache = new Float32Array(S * S);
-        ghostCanvasU = new Int16Array(S * S);
-        ghostCanvasV = new Int16Array(S * S);
-        for (let v = 0; v < S; v++) {
-          for (let u = 0; u < S; u++) {
-            const du = u - cx, dv = v - cy;
-            ghostDistCache[v * S + u] = Math.sqrt(du * du + dv * dv);
-            ghostCanvasU[v * S + u] = Math.round(((u - cx) / ledScale + 0.5) * R);
-            ghostCanvasV[v * S + u] = Math.round(((cy - v) / ledScale + 0.5) * R);
-          }
-        }
-      }
-      function ghostPaintFace(core, face, cx, cy, revealFrac, alpha, hueShift) {
-        if (alpha < 0.01) return;
-        if (ghostEyeOpen > 0.5) {
-          if (!ghostPixelsOpen) ghostPixelsOpen = renderGhostFace(1, ghostMouthOpen, false, ghostHueShift, personality());
-          ghostPixels = ghostPixelsOpen;
-        } else {
-          if (!ghostPixelsClosed) ghostPixelsClosed = renderGhostFace(0, ghostMouthOpen, false, ghostHueShift, personality());
-          ghostPixels = ghostPixelsClosed;
-        }
-        if (!ghostPixels) return;
-        buildGhostCache(core, cx, cy);
-        const S = core.SIZE, faceMap = core.faceMap, colBuf = core.colBuf;
-        const maxRadius = S * 0.78;
-        const revealRadius = revealFrac * maxRadius;
-        const edgeBand = maxRadius * 0.15;
-        const hCos = Math.cos(hueShift || 0);
-        const hSin = Math.sin(hueShift || 0);
-        for (let v = 0; v < S; v++) {
-          for (let u = 0; u < S; u++) {
-            const pi2 = v * S + u;
-            const dist = ghostDistCache[pi2];
-            if (dist > revealRadius) continue;
-            const ci = ghostCanvasU[pi2], cv = ghostCanvasV[pi2];
-            if (ci < 0 || ci >= R || cv < 0 || cv >= R) continue;
-            const pi = (cv * R + ci) * 4;
-            const pa = ghostPixels[pi + 3] / 255;
-            if (pa < 0.02) continue;
-            const edgeFade = dist > revealRadius - edgeBand ? (revealRadius - dist) / edgeBand : 1;
-            const brightness = pa * alpha * edgeFade;
-            const rr = ghostPixels[pi] / 255 * brightness;
-            const gg = ghostPixels[pi + 1] / 255 * brightness;
-            const bb = ghostPixels[pi + 2] / 255 * brightness;
-            const cr = rr * hCos - gg * hSin * 0.3;
-            const cg = gg + rr * hSin * 0.15;
-            const idx = faceMap[face][v * S + u];
-            if (idx >= 0) {
-              colBuf[idx * 3] = Math.max(colBuf[idx * 3], Math.max(0, cr) * 0.5);
-              colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], cg);
-              colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], bb * 0.4);
-            }
-          }
-        }
-      }
-      function effectGhost(core, dt) {
-        const { N, SIZE, colBuf, faceMap } = core;
-        ghostT += dt;
-        ghostStateT += dt;
-        const fade = trailFade(0.86, dt);
-        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
-        if (ghostState === "present") {
-          ghostBlinkT += dt;
-          if (ghostBlinkT > 2.5 + Math.random() * 4 && ghostEyeOpen === 1) {
-            ghostEyeOpen = 0;
-            ghostBlinkT = 0;
-            if (!ghostPixelsClosed) ghostPixelsClosed = renderGhostFace(0, ghostMouthOpen, false, ghostHueShift, personality());
-          } else if (ghostBlinkT > 0.12 && ghostEyeOpen === 0) {
-            ghostEyeOpen = 1;
-            ghostBlinkT = 0;
-            if (!ghostPixelsOpen) ghostPixelsOpen = renderGhostFace(1, ghostMouthOpen, false, ghostHueShift, personality());
-          }
-          ghostMouthT += dt;
-          if (ghostMouthT > 1.5 + Math.random() * 2.5) {
-            ghostMouthOpen = 0.4 + Math.random() * 0.6;
-            ghostMouthT = 0;
-            ghostPixelsOpen = null;
-            ghostPixelsClosed = null;
-          }
-        }
-        if (ghostState === "hidden") {
-          if (ghostStateT > 1 + Math.random() * 2) {
-            ghostState = "emerging";
-            ghostStateT = 0;
-            ghostReveal = 0;
-            ghostFace = ghostNextFace;
-            ghostPosX = SIZE * 0.5;
-            ghostPosY = SIZE * 0.5;
-            ghostEyeOpen = 1;
-            ghostMouthOpen = 0.3 + Math.random() * 0.7;
-            ghostEyeRX = 0.16 + Math.random() * 0.08;
-            ghostEyeRY = 0.1 + Math.random() * 0.07;
-            ghostEyeSpread = 0.38 + Math.random() * 0.14;
-            ghostCheekDepth = 0.3 + Math.random() * 0.5;
-            ghostBrowAngle = (Math.random() - 0.5) * 0.4;
-            ghostPixelsOpen = null;
-            ghostPixelsClosed = null;
-            ghostPixels = null;
-            ghostHueShift = (Math.random() - 0.5) * 1;
-          }
-        } else if (ghostState === "emerging") {
-          const p = Math.min(1, ghostStateT / 2.2);
-          ghostReveal = p * p * (3 - 2 * p);
-          ghostAlpha = 0.6 + ghostReveal * 0.3;
-          if (ghostStateT > 2.2) {
-            ghostState = "present";
-            ghostStateT = 0;
-            ghostReveal = 1;
-          }
-        } else if (ghostState === "present") {
-          ghostReveal = 1;
-          ghostAlpha = 0.82 + 0.12 * Math.sin(ghostT * 1.8);
-          if (ghostStateT > 3 + Math.random() * 3) {
-            ghostState = "retreating";
-            ghostStateT = 0;
-          }
-        } else if (ghostState === "retreating") {
-          const p = Math.min(1, ghostStateT / 2);
-          ghostReveal = 1 - p * p * (3 - 2 * p);
-          ghostAlpha = (1 - p) * 0.88;
-          if (ghostStateT > 2) {
-            ghostState = "hidden";
-            ghostStateT = 0;
-            ghostReveal = 0;
-            ghostAlpha = 0;
-            ghostPixels = null;
-            ghostPixelsOpen = null;
-            ghostPixelsClosed = null;
-            const others = [0, 1, 2, 3].filter((f) => f !== ghostFace);
-            ghostNextFace = others[Math.floor(Math.random() * others.length)];
-          }
-        }
-        if (ghostReveal > 0.01) {
-          ghostPaintFace(core, ghostFace, ghostPosX, ghostPosY, ghostReveal, ghostAlpha, ghostHueShift);
-          if (ghostReveal > 0.5) {
-            for (let f = 0; f < 6; f++) {
-              if (f === ghostFace) continue;
-              for (let j = 0; j < SIZE * SIZE; j++) {
-                const idx = faceMap[f][j];
-                if (idx >= 0 && Math.random() < 2e-3 * ghostReveal) {
-                  colBuf[idx * 3 + 1] = Math.min(1, colBuf[idx * 3 + 1] + ghostReveal * 0.1 * (0.3 + Math.random() * 0.4));
-                }
+          st.lunge = Math.max(0, st.lunge - dt * 1.4);
+          const lunge = Math.sin(Math.min(1, st.lunge) * Math.PI) * (st.lunge > 0 ? 1 : 0);
+          const scale = 1 + lunge * 0.35, glitch = lunge > 0.5 ? (Math.random() - 0.5) * 0.06 : 0;
+          const flicker = 0.85 + 0.15 * Math.sin(t * 23) * Math.sin(t * 7.3) + (Math.random() < 0.02 ? -0.4 : 0);
+          const breathe = 0.5 + 0.5 * Math.sin(t * 1.1);
+          const S = Math.min(c.W, c.H), ox = (c.W - S) / 2, oy = (c.H - S) / 2;
+          const eyeOpen = st.blink > 0 ? Math.abs(st.blink - 0.09) / 0.09 : 1;
+          for (let py = 0; py < c.H; py++) for (let px = 0; px < c.W; px++) {
+            let x = ((px - ox) / S - 0.5) / scale + glitch * (py % 3 === 0 ? 1 : 0), y = ((py - oy) / S - 0.45) / scale;
+            const sway = Math.sin(t * 0.7) * 0.012;
+            x -= sway;
+            const fog = noise(px * 0.08 + t * 0.4, py * 0.08 - t * 0.15) * noise(px * 0.03 - t * 0.1, py * 0.05);
+            let r = 0.02 + fog * 0.08, g = 0.03 + fog * 0.1, b = 0.04 + fog * 0.12;
+            const hx = x / (0.3 - 0.05 * sm(0.05, 0.25, y)), hy = (y + 0.02) / 0.42;
+            const head = 1 - Math.hypot(hx, hy);
+            if (head > -0.05) {
+              const skin = sm(-0.05, 0.25, head);
+              const shade = 0.55 + 0.45 * (0.5 - y) - 0.25 * Math.max(0, Math.abs(x) - 0.12) * 4;
+              const tone = (0.62 + breathe * 0.08) * shade * flicker;
+              let fr = tone * 0.82, fg = tone * 0.9, fb = tone * 0.88;
+              const cheek = Math.exp(-(((Math.abs(x) - 0.17) / 0.06) ** 2) - ((y - 0.08) / 0.1) ** 2);
+              fr *= 1 - cheek * 0.55;
+              fg *= 1 - cheek * 0.55;
+              fb *= 1 - cheek * 0.5;
+              for (const sx of [-1, 1]) {
+                const ex = (x - sx * 0.11) / 0.085, ey = (y + 0.1) / 0.07;
+                const sock = Math.exp(-(ex * ex + ey * ey) * 1.3);
+                fr *= 1 - sock * 0.95;
+                fg *= 1 - sock * 0.95;
+                fb *= 1 - sock * 0.92;
+                const pxp = (x - sx * 0.11 - st.look[0]) / 0.028, pyp = (y + 0.1 - st.look[1]) / (0.028 * Math.max(0.05, eyeOpen));
+                const pupil = Math.exp(-(pxp * pxp + pyp * pyp)), halo = Math.exp(-(pxp * pxp + pyp * pyp) / 6) * 0.35;
+                const glow = (pupil + halo) * (0.75 + 0.25 * breathe) * eyeOpen;
+                fr += glow * 1.1;
+                fg += glow * 0.12 + pupil * 0.25 * eyeOpen;
+                fb += glow * 0.05;
               }
+              for (const sx of [-1, 1]) {
+                const nx = (x - sx * 0.022) / 0.014, ny = (y - 0.06) / 0.035;
+                const n = Math.exp(-(nx * nx + ny * ny));
+                fr *= 1 - n * 0.8;
+                fg *= 1 - n * 0.8;
+                fb *= 1 - n * 0.8;
+              }
+              const open = 0.055 + breathe * 0.02 + lunge * 0.06;
+              const mx = x / 0.13, my = (y - 0.22) / open;
+              if (mx * mx + my * my < 1) {
+                const inside = 1 - (mx * mx + my * my);
+                let mr = 0.04 * inside, mg = 0, mb = 0.01;
+                const tooth = Math.abs((x / 0.026 % 1 + 1) % 1 - 0.5) * 2;
+                const fromTop = (y - (0.22 - open * Math.sqrt(Math.max(0, 1 - mx * mx)))) / open;
+                const fromBot = (0.22 + open * Math.sqrt(Math.max(0, 1 - mx * mx)) - y) / open;
+                if (fromTop < 0.35 * (1 - tooth) || fromBot < 0.3 * (1 - tooth)) {
+                  const tt = 0.55 * flicker;
+                  mr = tt * 0.9;
+                  mg = tt * 0.85;
+                  mb = tt * 0.7;
+                }
+                fr = mr;
+                fg = mg;
+                fb = mb;
+              }
+              const vein = Math.abs(Math.sin(x * 40 + Math.sin(y * 30) * 2) * Math.sin(y * 25 + x * 10));
+              if (y < -0.18 && vein > 0.97) {
+                fr *= 0.6;
+                fg *= 0.55;
+                fb *= 0.6;
+              }
+              r = r * (1 - skin) + fr * skin;
+              g = g * (1 - skin) + fg * skin;
+              b = b * (1 - skin) + fb * skin;
             }
+            const mist = noise(px * 0.05 - t * 0.3, py * 0.06 + t * 0.1) * sm(0.3, 1, py / c.H) * 0.25;
+            r += mist * 0.5;
+            g += mist * 0.6;
+            b += mist * 0.7;
+            if (lunge > 0.3 && Math.random() < 0.08 * lunge) {
+              const n = Math.random() * 0.6;
+              r += n;
+              g += n;
+              b += n;
+            }
+            c.set(px, py, Math.min(1, r), Math.min(1, g), Math.min(1, b));
           }
         }
-      }
-      module.exports = effectGhost;
-    }
-  });
-
-  // src/effects/ghost.js
-  var require_ghost2 = __commonJS({
-    "src/effects/ghost.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      module.exports = require_ghost();
+      });
     }
   });
 
@@ -18172,6 +17806,148 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/neoRadar.js
+  var require_neoRadar = __commonJS({
+    "src/effects/neoRadar.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { FONT_3x5, drawGlyph, textWidth } = require_text();
+      var { defineCanvasEffect } = require_canvas();
+      var stroke = require_strokeFont();
+      var neo = require_neo();
+      var REFRESH_S = 3600;
+      var CARD_S = 5;
+      var lastFetch = 0;
+      var lastRefreshOpt = null;
+      var scrollX = 0;
+      var RISK = { red: [1, 0.25, 0.25], yellow: [1, 0.72, 0.15], green: [0.3, 1, 0.5] };
+      var hash = (s) => {
+        let h = 2166136261;
+        for (const ch of s) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+        return (h >>> 0) / 4294967296;
+      };
+      var DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+      function ensureFetch(core) {
+        const opts = core.effectOptions && core.effectOptions.neo || {};
+        if (opts.refreshRequestedAt && opts.refreshRequestedAt !== lastRefreshOpt) {
+          lastRefreshOpt = opts.refreshRequestedAt;
+          lastFetch = 0;
+        }
+        if ((!neo.getObjects().length || Date.now() / 1e3 - lastFetch > REFRESH_S) && Date.now() / 1e3 - lastFetch > 60) {
+          lastFetch = Date.now() / 1e3;
+          neo.neoFetch();
+        }
+      }
+      function lift(c, x, y, r, g, b) {
+        const o = c.get(x, y);
+        if (!o) return;
+        c.set(x, y, Math.min(1, Math.max(o[0], r)), Math.min(1, Math.max(o[1], g)), Math.min(1, Math.max(o[2], b)));
+      }
+      function text(c, s, x, y, h, col) {
+        if (h >= 9) return stroke.drawText(c, s, x, y, h, col);
+        const sc = Math.max(1, Math.floor(h / 5));
+        for (const ch of s) x += drawGlyph(FONT_3x5, ch, x, y, (px, py) => lift(c, px, py, col[0], col[1], col[2]), { scale: sc });
+      }
+      var textW = (s, h) => h >= 9 ? stroke.textWidth(s, h) : textWidth(FONT_3x5, s, Math.max(1, Math.floor(h / 5)));
+      function radar(c, cx, cy, R, objs, t) {
+        for (let i = 0; i < 40; i++) {
+          const x = Math.round(cx + (hash("x" + i) - 0.5) * R * 2.2), y = Math.round(cy + (hash("y" + i) - 0.5) * R * 2.2);
+          const tw = 0.15 + 0.1 * Math.sin(t * 2 + i);
+          lift(c, x, y, tw, tw, tw * 1.2);
+        }
+        const rOf = (ld) => R * Math.min(1, Math.log10(1 + Math.max(0.05, ld)) / Math.log10(51));
+        for (const [ld, k, dash] of [[1, 0.35, true], [10, 0.12, false], [50, 0.1, false]]) {
+          const r = rOf(ld), n = Math.max(24, Math.round(r * 7));
+          for (let i = 0; i < n; i++) {
+            if (dash && i % 3 === 2) continue;
+            const a = i / n * Math.PI * 2;
+            lift(c, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 0.25 * k * 2, 0.45 * k * 2, k * 2);
+          }
+        }
+        const moonA = t * 0.08, mr = rOf(1);
+        lift(c, Math.round(cx + Math.cos(moonA) * mr), Math.round(cy + Math.sin(moonA) * mr), 0.8, 0.8, 0.75);
+        const er = Math.max(1.5, R * 0.1);
+        for (let y = Math.floor(cy - er * 2); y <= cy + er * 2; y++) for (let x = Math.floor(cx - er * 2); x <= cx + er * 2; x++) {
+          const d = Math.hypot(x - cx, y - cy);
+          if (d <= er) {
+            const land = Math.sin(x * 1.3 + t * 0.4) * Math.cos(y * 1.1) > 0.25, k = 1 - d / er * 0.5;
+            lift(c, x, y, (land ? 0.2 : 0.05) * k, (land ? 0.75 : 0.35) * k, (land ? 0.3 : 1) * k);
+          } else if (d < er * 2) {
+            const g = (1 - (d - er) / er) * 0.35;
+            lift(c, x, y, g * 0.3, g * 0.6, g);
+          }
+        }
+        const list = objs.slice(0, 12).reverse();
+        list.forEach((o, idx) => {
+          const closest = idx === list.length - 1;
+          const ang = hash(o.name) * Math.PI * 2, r = rOf(o.missLD);
+          const phase = (t * (0.03 + hash(o.name + "v") * 0.04) + hash(o.name + "p")) % 1 * 2 - 1;
+          const span = R * 0.9;
+          const px = cx + Math.cos(ang) * r - Math.sin(ang) * phase * span, py = cy + Math.sin(ang) * r + Math.cos(ang) * phase * span;
+          const col = RISK[neo.neoRisk(o)] || RISK.green;
+          for (let k = 1; k <= 8; k++) {
+            const tx = px + Math.sin(ang) * k * 1.2, ty = py - Math.cos(ang) * k * 1.2, f = 0.3 * (1 - k / 9);
+            lift(c, Math.round(tx), Math.round(ty), col[0] * f, col[1] * f, col[2] * f);
+          }
+          const size = Math.max(0.8, Math.min(2.6, Math.log10(Math.max(10, o.diaM)) - 0.6)) * (R / 30);
+          for (let y = Math.floor(py - size - 1); y <= py + size + 1; y++) for (let x = Math.floor(px - size - 1); x <= px + size + 1; x++) {
+            const cover = Math.max(0, Math.min(1, size + 0.5 - Math.hypot(x - px, y - py)));
+            if (cover > 0) lift(c, x, y, col[0] * cover, col[1] * cover, col[2] * cover);
+          }
+          if (closest) {
+            const rr = size + 2 + (Math.sin(t * 4) * 0.5 + 0.5) * 2, n = Math.round(rr * 7);
+            for (let i = 0; i < n; i++) {
+              const a = i / n * Math.PI * 2;
+              lift(c, Math.round(px + Math.cos(a) * rr), Math.round(py + Math.sin(a) * rr), 1, 1, 1);
+            }
+          }
+        });
+      }
+      function card(c, x0, y0, w, h, o, total, idx, t) {
+        const col = RISK[neo.neoRisk(o)] || RISK.green;
+        const lineH = Math.max(5, Math.min(Math.round(h / 4.2), Math.round(w / 7)));
+        const name = o.name.toUpperCase(), nameW = textW(name, lineH);
+        const nx = nameW <= w ? x0 + Math.round((w - nameW) / 2) : x0 - Math.floor(scrollX % (nameW + w)) + w;
+        const clip = { get: (x, y2) => x < x0 || x >= x0 + w ? null : c.get(x, y2), set: (x, y2, r, g, b) => {
+          if (x >= x0 && x < x0 + w) c.set(x, y2, r, g, b);
+        } };
+        text(clip, name, nx, y0, lineH, [0.95, 0.95, 1]);
+        const day = o.date ? DAYS[(/* @__PURE__ */ new Date(o.date + "T12:00:00")).getDay()] : "";
+        const rows = [[`${o.missLD.toFixed(1)} LD`, col], [`${o.diaM} M  ${o.velKmS.toFixed(0)} KM/S`, [0.75, 0.8, 0.9]], [`${day}  ${idx + 1}/${total}`, [0.5, 0.55, 0.65]]];
+        let y = y0 + lineH + Math.max(2, Math.round(lineH * 0.45));
+        rows.forEach(([s, cc], i) => {
+          let hh = i === 0 ? lineH : Math.max(5, Math.round(lineH * 0.7));
+          while (hh > 5 && textW(s, hh) > w) hh--;
+          const sw = textW(s, hh);
+          if (y + hh <= y0 + h + 1) text(c, s, x0 + Math.round((w - Math.min(w, sw)) / 2), y, hh, cc);
+          y += hh + Math.max(2, Math.round(hh * 0.4));
+        });
+      }
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt, core }) {
+          ensureFetch(core);
+          c.clear();
+          const objs = neo.getObjects();
+          const wide = c.W >= c.H * 1.4;
+          const rs = wide ? Math.min(c.H, c.W * 0.55) : Math.min(c.W, Math.round(c.H * 0.62));
+          radar(c, (wide ? rs : c.W) / 2, rs / 2, rs / 2 - 1, objs, t);
+          if (!objs.length) {
+            const st = neo.getStatus(), msg = st && st.error ? "NO DATA" : "FETCHING";
+            const h = Math.max(5, Math.round((wide ? c.H : c.H - rs) / 4));
+            text(c, msg, Math.round(((wide ? c.W + rs : c.W) - textW(msg, h)) / 2) - (wide ? 0 : 0), wide ? Math.round(c.H / 2 - h / 2) : rs + 2, h, [0.5, 0.6, 0.8]);
+            return;
+          }
+          scrollX += dt * 10;
+          const idx = Math.floor(t / CARD_S) % objs.length;
+          if (wide) card(c, rs + 2, Math.round(c.H * 0.12), c.W - rs - 4, Math.round(c.H * 0.8), objs[idx], objs.length, idx, t);
+          else card(c, 1, rs + 1, c.W - 2, c.H - rs - 2, objs[idx], objs.length, idx, t);
+        }
+      });
+      module.exports.getStatus = neo.getStatus;
+    }
+  });
+
   // src/effects/apodWall.js
   var require_apodWall = __commonJS({
     "src/effects/apodWall.js"(exports, module) {
@@ -18515,189 +18291,6 @@ var PiEngine = (() => {
       }
       module.exports = effectIssWall;
       module.exports.getStatus = iss.getStatus;
-    }
-  });
-
-  // src/effects/neoWall.js
-  var require_neoWall = __commonJS({
-    "src/effects/neoWall.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { drawGlyph, drawString, FONT_3x5, wallMaxPlot } = require_text();
-      var neo = require_neo();
-      var NEO_REFRESH_SEC = 3600;
-      var lastFetch = 0;
-      var lastRefreshOpt = null;
-      var wallT = 0;
-      var wallTickerX = 0;
-      function ensureFetch(core) {
-        const opts = core.effectOptions?.neo || {};
-        if (opts.refreshRequestedAt && opts.refreshRequestedAt !== lastRefreshOpt) {
-          lastRefreshOpt = opts.refreshRequestedAt;
-          lastFetch = 0;
-        }
-        const objs = neo.getObjects();
-        if (!objs.length && Date.now() / 1e3 - lastFetch > NEO_REFRESH_SEC) {
-          lastFetch = Date.now() / 1e3;
-          neo.neoFetch();
-        }
-      }
-      function textWall(core, W, H, str, su, sv, r, g, b) {
-        drawString(FONT_3x5, str, su, sv, wallMaxPlot(core, r, g, b), { maxX: W });
-      }
-      function textPulsedWall(core, W, H, str, su, sv, rgb, pulse) {
-        textWall(core, W, H, str, su, sv, rgb[0] * pulse, rgb[1] * pulse, rgb[2] * pulse);
-      }
-      function effectNeoWall(core, dt) {
-        const { wallW: W, wallH: H } = core;
-        if (!W) return;
-        wallT += dt;
-        ensureFetch(core);
-        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
-        const tt = Date.now() * 1e-3;
-        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-          const i = y * W + x;
-          const seed = (i * 2654435761 >>> 0) / 4294967296;
-          if (seed < 0.014) {
-            const twinkle = 0.3 + 0.7 * Math.abs(Math.sin(tt * 1.4 + seed * 60));
-            const br = seed * 36 * twinkle;
-            core.setWallPixel(x, y, br, br, br * 1.1);
-          }
-        }
-        const level = neo.neoOverallRisk();
-        const riskRGB = neo.neoRiskRGB(level);
-        const pulse = 0.55 + 0.45 * Math.sin(wallT * (level === "red" ? 6 : level === "yellow" ? 3 : 1.4));
-        const ecx = Math.round(W * -0.14), ecy = Math.round(H * 0.5);
-        const earthRad = Math.round(H * 0.55);
-        const atmRad = earthRad + Math.round(H * 0.07);
-        const maxLD = 60;
-        const xOrigin = ecx + earthRad + Math.round(W * 0.01);
-        const xMax = W - 2;
-        for (let ring = 10; ring <= maxLD; ring += 10) {
-          const rxi = Math.round(ring / maxLD * (xMax - xOrigin) + xOrigin);
-          if (rxi < 0 || rxi >= W) continue;
-          for (let v = 0; v < H; v++) {
-            if (Math.floor(v / 3) % 2 === 0) core.setWallPixel(rxi, v, 0.04, 0.04, 0.02);
-          }
-        }
-        for (let v = 0; v < H; v++) {
-          for (let u = 0; u < W; u++) {
-            const dx = u - ecx, dy = v - ecy, d = Math.sqrt(dx * dx + dy * dy);
-            const yOut = H - 1 - v;
-            if (d < atmRad && d >= earthRad) {
-              const t2 = 1 - (d - earthRad) / (atmRad - earthRad);
-              const atm = t2 * t2 * 0.35;
-              const o = (yOut * W + u) * 3;
-              core.wallBuf[o] = Math.max(core.wallBuf[o], atm * 0.3);
-              core.wallBuf[o + 1] = Math.max(core.wallBuf[o + 1], atm * 0.6);
-              core.wallBuf[o + 2] = Math.max(core.wallBuf[o + 2], atm);
-              continue;
-            }
-            if (d >= earthRad) continue;
-            const nx = dx / earthRad, ny = dy / earthRad;
-            const nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
-            const lit = Math.max(0.02, Math.min(1, (nx * 0.35 + ny * -0.25 + nz * 0.9) * 1.1));
-            const lon = Math.atan2(ny, nx) + tt * 0.04;
-            const lat = Math.asin(Math.max(-1, Math.min(1, nz)));
-            const land = Math.sin(lon * 3.1 + 1.2) * Math.cos(lat * 2.8 + 0.5) > 0.18 || Math.sin(lon * 5.3 - 0.7) * Math.cos(lat * 4.1 + 1.1) > 0.35 || Math.sin(lon * 1.9 + 2.5) * Math.cos(lat * 6.2 - 0.8) > 0.45;
-            const ice = Math.abs(nz) > 0.82;
-            let r, g, b;
-            if (ice) {
-              r = 0.82;
-              g = 0.88;
-              b = 0.92;
-            } else if (land) {
-              r = 0.12;
-              g = 0.38 + Math.sin(lon * 7) * 0.06;
-              b = 0.08;
-            } else {
-              r = 0.04;
-              g = 0.15;
-              b = 0.55 + Math.sin(lat * 4) * 0.1;
-            }
-            core.setWallPixel(u, yOut, r * lit, g * lit, b * lit);
-          }
-        }
-        const objs = neo.getObjects().slice(0, 12);
-        const charW = 4;
-        const segments = neo.neoBuildSegments(neo.neo2dRiskRGB);
-        const totalTickerChars = segments.reduce((s, seg) => s + seg.str.length, 0);
-        const totalW = totalTickerChars * charW + W;
-        wallTickerX = (wallTickerX + dt * 22) % totalW;
-        const targetPx = (Math.floor(wallTickerX) + Math.floor(W * 0.5)) % totalW;
-        let activeIdx = -1, cp = 0;
-        for (const seg of segments) {
-          const segPx = cp * charW;
-          if (targetPx >= segPx && targetPx < segPx + seg.str.length * charW) {
-            if (seg.neoIdx >= 0) activeIdx = seg.neoIdx;
-            break;
-          }
-          cp += seg.str.length;
-        }
-        objs.forEach((o, oi) => {
-          const risk = neo.neoRisk(o);
-          const rgb = neo.neo2dRiskRGB(risk);
-          const ld = Math.min(o.missLD, maxLD);
-          const px = Math.round(xOrigin + ld / maxLD * (xMax - xOrigin));
-          const rows = Math.min(objs.length, 10);
-          const ySpacing = Math.round(H * 0.82 / rows);
-          const py = Math.round(H * 0.09 + oi * ySpacing + ySpacing * 0.5);
-          const diaFrac = Math.min(1, Math.max(0, (o.diaM || 50) / 500));
-          const baseRad = o.hazardous ? 2 + Math.round(diaFrac * 2) : 1 + Math.round(diaFrac * 1.5);
-          const isActive = oi === activeIdx;
-          const flashPulse = 0.5 + 0.5 * Math.sin(wallT * 10);
-          const blink = risk === "red" ? 0.5 + 0.5 * Math.sin(wallT * 8 + oi) : risk === "yellow" ? 0.7 + 0.3 * Math.sin(wallT * 3 + oi) : 1;
-          const rad = isActive ? baseRad + 1 : baseRad;
-          for (let dv = -rad; dv <= rad; dv++) {
-            for (let du = -rad; du <= rad; du++) {
-              const dist2 = du * du + dv * dv;
-              if (dist2 > rad * rad + 0.5) continue;
-              const pu = px + du, pv = py + dv;
-              if (pu < 0 || pu >= W || pv < 0 || pv >= H) continue;
-              if (isActive && dist2 > (baseRad - 0.5) * (baseRad - 0.5)) {
-                core.setWallPixel(pu, H - 1 - pv, flashPulse, flashPulse, flashPulse);
-              } else {
-                core.setWallPixel(pu, H - 1 - pv, rgb[0] * blink, rgb[1] * blink, rgb[2] * blink);
-              }
-            }
-          }
-          if (px > xOrigin) {
-            const steps = px - Math.round(xOrigin);
-            for (let s = 2; s < steps; s++) {
-              const lu = Math.round(xOrigin) + s, lv = H - 1 - py;
-              if (lu < 0 || lu >= W || lv < 0 || lv >= H) continue;
-              const dim = isActive ? 0.12 : 0.05;
-              const o2 = (lv * W + lu) * 3;
-              core.wallBuf[o2] = Math.max(core.wallBuf[o2], rgb[0] * dim);
-              core.wallBuf[o2 + 1] = Math.max(core.wallBuf[o2 + 1], rgb[1] * dim);
-              core.wallBuf[o2 + 2] = Math.max(core.wallBuf[o2 + 2], rgb[2] * dim);
-            }
-          }
-        });
-        for (let fv = 0; fv < 8; fv++) for (let fu = 0; fu < W; fu++) {
-          const o = (fv * W + fu) * 3;
-          core.wallBuf[o] *= 0.12;
-          core.wallBuf[o + 1] *= 0.12;
-          core.wallBuf[o + 2] *= 0.12;
-        }
-        const sv = 3;
-        let charPos = 0;
-        for (const seg of segments) {
-          for (const ch of seg.str) {
-            for (let tile = 0; tile < 2; tile++) {
-              const u = charPos * charW - Math.floor(wallTickerX) + tile * totalW;
-              if (u + 3 >= 0 && u < W) drawGlyph(FONT_3x5, ch, u, sv, wallMaxPlot(core, seg.r, seg.g, seg.b));
-            }
-            charPos++;
-          }
-        }
-        const labelStr = level === "red" ? "DANGER" : level === "yellow" ? "WATCH" : "CLEAR";
-        const labelW = labelStr.length * 4;
-        textPulsedWall(core, W, H, labelStr, W - 1 - labelW, 11, riskRGB, pulse);
-      }
-      module.exports = effectNeoWall;
-      module.exports.getStatus = neo.getStatus;
     }
   });
 
@@ -21869,132 +21462,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/diceWall.js
-  var require_diceWall = __commonJS({
-    "src/effects/diceWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var diceRolling = false;
-      var diceRollT = 0;
-      var diceRollDur = 0;
-      var diceResult = 1;
-      var diceShowT = 0;
-      var diceAutoTimer = 0;
-      var diceGlowT = 0;
-      var lastRollToken = null;
-      var DOT_PATTERNS = {
-        1: [[0.5, 0.5]],
-        2: [[0.2, 0.2], [0.8, 0.8]],
-        3: [[0.2, 0.2], [0.5, 0.5], [0.8, 0.8]],
-        4: [[0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]],
-        5: [[0.2, 0.2], [0.8, 0.2], [0.5, 0.5], [0.2, 0.8], [0.8, 0.8]],
-        6: [[0.2, 0.2], [0.8, 0.2], [0.2, 0.5], [0.8, 0.5], [0.2, 0.8], [0.8, 0.8]]
-      };
-      function diceStartRoll() {
-        diceRolling = true;
-        diceRollT = 0;
-        diceRollDur = 1.5 + Math.random() * 0.5;
-        diceResult = 1 + Math.floor(Math.random() * 6);
-      }
-      function drawDieFaceWall(core, val, isResult, glow) {
-        const { wallW, wallH } = core;
-        const dim = Math.min(wallW, wallH);
-        const half = dim * 0.45;
-        const cx = wallW * 0.5, cy = wallH * 0.5;
-        const border = dim * 0.045;
-        const dotR = dim * 0.09;
-        const dots = DOT_PATTERNS[val] || DOT_PATTERNS[1];
-        const inner = dim * 0.72;
-        const ox = cx - inner / 2, oy = cy - inner / 2;
-        const bgOut = isResult ? 0.06 + glow * 0.1 : 0.03;
-        for (let v = 0; v < wallH; v++) {
-          for (let u = 0; u < wallW; u++) {
-            const dx = Math.abs(u - cx), dy = Math.abs(v - cy);
-            let r, g, b;
-            if (dx <= half && dy <= half) {
-              const edge = Math.max(dx, dy);
-              if (edge > half - border) {
-                if (isResult) {
-                  r = 0.4 + glow * 0.6;
-                  g = 0.7 + glow * 0.3;
-                  b = 1;
-                } else {
-                  r = 0.7;
-                  g = 0.7;
-                  b = 0.78;
-                }
-              } else {
-                r = isResult ? 0.94 : 0.9;
-                g = isResult ? 0.94 : 0.9;
-                b = isResult ? 0.96 : 0.93;
-              }
-            } else {
-              r = bgOut * 0.9;
-              g = bgOut;
-              b = bgOut * 1.3;
-            }
-            core.setWallPixel(u, v, r, g, b);
-          }
-        }
-        const dotCol = isResult ? [0.1, 0.1, 0.16] : [0.13, 0.13, 0.2];
-        for (const [fx, fy] of dots) {
-          const px = ox + fx * inner, py = oy + fy * inner;
-          const r0 = Math.ceil(dotR);
-          for (let dv = -r0; dv <= r0; dv++) for (let du = -r0; du <= r0; du++) {
-            if (du * du + dv * dv > dotR * dotR) continue;
-            const u = Math.round(px + du), v = Math.round(py + dv);
-            core.setWallPixel(u, v, dotCol[0], dotCol[1], dotCol[2]);
-          }
-        }
-      }
-      function drawDieRollingWall(core, t) {
-        const { wallW, wallH } = core;
-        const flash = Math.abs(Math.sin(t * 12));
-        const bg = 0.05 + flash * 0.12;
-        for (let v = 0; v < wallH; v++) for (let u = 0; u < wallW; u++) core.setWallPixel(u, v, bg * 0.7, bg * 0.6, bg);
-        const randomVal = 1 + Math.floor(t * 11 % 6);
-        drawDieFaceWall(core, randomVal, false, 0);
-      }
-      function effectDiceWall(core, dt) {
-        const { wallW } = core;
-        if (!wallW) return;
-        core.t += dt;
-        const t = core.t;
-        const opts = core.effectOptions?.dice || {};
-        const rollToken = opts.rollToken;
-        const autoRoll = !!opts.autoRoll;
-        if (!diceRolling && rollToken !== void 0 && rollToken !== lastRollToken) {
-          lastRollToken = rollToken;
-          diceStartRoll();
-        }
-        if (autoRoll && !diceRolling) {
-          diceAutoTimer += dt;
-          if (diceAutoTimer >= 4) {
-            diceAutoTimer = 0;
-            diceStartRoll();
-          }
-        }
-        if (diceRolling) {
-          diceRollT += dt;
-          if (diceRollT >= diceRollDur) {
-            diceRolling = false;
-            diceGlowT = 3;
-            diceShowT = 0;
-          }
-        }
-        if (!diceRolling && diceGlowT > 0) diceGlowT -= dt;
-        if (!diceRolling) diceShowT += dt;
-        if (diceRolling) {
-          drawDieRollingWall(core, t);
-        } else {
-          const glow = Math.max(0, diceGlowT / 3);
-          drawDieFaceWall(core, diceResult, true, glow);
-        }
-      }
-      module.exports = effectDiceWall;
-    }
-  });
-
   // src/effects/randomWall.js
   var require_randomWall = __commonJS({
     "src/effects/randomWall.js"(exports, module) {
@@ -24621,178 +24088,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/ghostWall.js
-  var require_ghostWall = __commonJS({
-    "src/effects/ghostWall.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { renderGhostFace, R } = require_render2();
-      var { trailFade } = require_trail();
-      var ghostT = 0;
-      var ghostState = "hidden";
-      var ghostStateT = 0;
-      var ghostReveal = 0;
-      var ghostAlpha = 0;
-      var ghostBlinkT = 0;
-      var ghostEyeOpen = 1;
-      var ghostMouthOpen = 0.7;
-      var ghostMouthT = 0;
-      var ghostHueShift = 0;
-      var ghostPixelsOpen = null;
-      var ghostPixelsClosed = null;
-      var ghostPixels = null;
-      var ghostEyeRX = 0.2;
-      var ghostEyeRY = 0.15;
-      var ghostEyeSpread = 0.44;
-      var ghostCheekDepth = 0.48;
-      var ghostBrowAngle = 0;
-      var ghostDistCache = null;
-      var ghostCanvasU = null;
-      var ghostCanvasV = null;
-      var ghostCacheW = 0;
-      var ghostCacheH = 0;
-      function personality() {
-        return { eyeRX: ghostEyeRX, eyeRY: ghostEyeRY, eyeSpread: ghostEyeSpread, cheekDepth: ghostCheekDepth, browAngle: ghostBrowAngle };
-      }
-      function buildGhostCache(W, H, cx, cy) {
-        if (ghostCacheW === W && ghostCacheH === H && ghostDistCache) return;
-        ghostCacheW = W;
-        ghostCacheH = H;
-        const ledScale = Math.min(W, H) * 0.72;
-        ghostDistCache = new Float32Array(W * H);
-        ghostCanvasU = new Int16Array(W * H);
-        ghostCanvasV = new Int16Array(W * H);
-        for (let v = 0; v < H; v++) {
-          for (let u = 0; u < W; u++) {
-            const du = u - cx, dv = v - cy;
-            ghostDistCache[v * W + u] = Math.sqrt(du * du + dv * dv);
-            ghostCanvasU[v * W + u] = Math.round(((u - cx) / ledScale + 0.5) * R);
-            ghostCanvasV[v * W + u] = Math.round(((cy - v) / ledScale + 0.5) * R);
-          }
-        }
-      }
-      function ghostPaintWall(core, W, H, cx, cy, revealFrac, alpha, hueShift) {
-        if (alpha < 0.01) return;
-        if (ghostEyeOpen > 0.5) {
-          if (!ghostPixelsOpen) ghostPixelsOpen = renderGhostFace(1, ghostMouthOpen, false, ghostHueShift, personality());
-          ghostPixels = ghostPixelsOpen;
-        } else {
-          if (!ghostPixelsClosed) ghostPixelsClosed = renderGhostFace(0, ghostMouthOpen, false, ghostHueShift, personality());
-          ghostPixels = ghostPixelsClosed;
-        }
-        if (!ghostPixels) return;
-        buildGhostCache(W, H, cx, cy);
-        const maxRadius = Math.min(W, H) * 0.78;
-        const revealRadius = revealFrac * maxRadius;
-        const edgeBand = maxRadius * 0.15;
-        const hCos = Math.cos(hueShift || 0);
-        const hSin = Math.sin(hueShift || 0);
-        for (let v = 0; v < H; v++) {
-          for (let u = 0; u < W; u++) {
-            const pi2 = v * W + u;
-            const dist = ghostDistCache[pi2];
-            if (dist > revealRadius) continue;
-            const ci = ghostCanvasU[pi2], cv = ghostCanvasV[pi2];
-            if (ci < 0 || ci >= R || cv < 0 || cv >= R) continue;
-            const pi = (cv * R + ci) * 4;
-            const pa = ghostPixels[pi + 3] / 255;
-            if (pa < 0.02) continue;
-            const edgeFade = dist > revealRadius - edgeBand ? (revealRadius - dist) / edgeBand : 1;
-            const brightness = pa * alpha * edgeFade;
-            const rr = ghostPixels[pi] / 255 * brightness;
-            const gg = ghostPixels[pi + 1] / 255 * brightness;
-            const bb = ghostPixels[pi + 2] / 255 * brightness;
-            const cr = rr * hCos - gg * hSin * 0.3;
-            const cg = gg + rr * hSin * 0.15;
-            const o = (v * W + u) * 3;
-            core.wallBuf[o] = Math.max(core.wallBuf[o], Math.max(0, cr) * 0.5);
-            core.wallBuf[o + 1] = Math.max(core.wallBuf[o + 1], cg);
-            core.wallBuf[o + 2] = Math.max(core.wallBuf[o + 2], bb * 0.4);
-          }
-        }
-      }
-      function effectGhostWall(core, dt) {
-        const { wallW: W, wallH: H } = core;
-        if (!W) return;
-        ghostT += dt;
-        ghostStateT += dt;
-        const fade = trailFade(0.86, dt);
-        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= fade;
-        if (ghostState === "present") {
-          ghostBlinkT += dt;
-          if (ghostBlinkT > 2.5 + Math.random() * 4 && ghostEyeOpen === 1) {
-            ghostEyeOpen = 0;
-            ghostBlinkT = 0;
-            if (!ghostPixelsClosed) ghostPixelsClosed = renderGhostFace(0, ghostMouthOpen, false, ghostHueShift, personality());
-          } else if (ghostBlinkT > 0.12 && ghostEyeOpen === 0) {
-            ghostEyeOpen = 1;
-            ghostBlinkT = 0;
-            if (!ghostPixelsOpen) ghostPixelsOpen = renderGhostFace(1, ghostMouthOpen, false, ghostHueShift, personality());
-          }
-          ghostMouthT += dt;
-          if (ghostMouthT > 1.5 + Math.random() * 2.5) {
-            ghostMouthOpen = 0.4 + Math.random() * 0.6;
-            ghostMouthT = 0;
-            ghostPixelsOpen = null;
-            ghostPixelsClosed = null;
-          }
-        }
-        if (ghostState === "hidden") {
-          if (ghostStateT > 1 + Math.random() * 2) {
-            ghostState = "emerging";
-            ghostStateT = 0;
-            ghostReveal = 0;
-            ghostEyeOpen = 1;
-            ghostMouthOpen = 0.3 + Math.random() * 0.7;
-            ghostEyeRX = 0.16 + Math.random() * 0.08;
-            ghostEyeRY = 0.1 + Math.random() * 0.07;
-            ghostEyeSpread = 0.38 + Math.random() * 0.14;
-            ghostCheekDepth = 0.3 + Math.random() * 0.5;
-            ghostBrowAngle = (Math.random() - 0.5) * 0.4;
-            ghostPixelsOpen = null;
-            ghostPixelsClosed = null;
-            ghostPixels = null;
-            ghostHueShift = (Math.random() - 0.5) * 1;
-          }
-        } else if (ghostState === "emerging") {
-          const p = Math.min(1, ghostStateT / 2.2);
-          ghostReveal = p * p * (3 - 2 * p);
-          ghostAlpha = 0.6 + ghostReveal * 0.3;
-          if (ghostStateT > 2.2) {
-            ghostState = "present";
-            ghostStateT = 0;
-            ghostReveal = 1;
-          }
-        } else if (ghostState === "present") {
-          ghostReveal = 1;
-          ghostAlpha = 0.82 + 0.12 * Math.sin(ghostT * 1.8);
-          if (ghostStateT > 3 + Math.random() * 3) {
-            ghostState = "retreating";
-            ghostStateT = 0;
-          }
-        } else if (ghostState === "retreating") {
-          const p = Math.min(1, ghostStateT / 2);
-          ghostReveal = 1 - p * p * (3 - 2 * p);
-          ghostAlpha = (1 - p) * 0.88;
-          if (ghostStateT > 2) {
-            ghostState = "hidden";
-            ghostStateT = 0;
-            ghostReveal = 0;
-            ghostAlpha = 0;
-            ghostPixels = null;
-            ghostPixelsOpen = null;
-            ghostPixelsClosed = null;
-          }
-        }
-        if (ghostReveal > 0.01) {
-          ghostPaintWall(core, W, H, W / 2, H / 2, ghostReveal, ghostAlpha, ghostHueShift);
-        }
-      }
-      module.exports = effectGhostWall;
-    }
-  });
-
   // src/effects/unsplashWall.js
   var require_unsplashWall = __commonJS({
     "src/effects/unsplashWall.js"(exports, module) {
@@ -25957,7 +25252,7 @@ var PiEngine = (() => {
       var cam = require_cam();
       var maze = require_maze();
       var coinflip = require_coinflip();
-      var dice = require_dice();
+      var dice = require_diceRoll();
       var random = require_random();
       var random80s = require_random80s();
       var tron = require_tron();
@@ -25974,16 +25269,15 @@ var PiEngine = (() => {
       var prism = require_prism();
       var tide = require_tide();
       var datetime = require_clock();
-      var ghost = require_ghost2();
+      var ghost = require_ghostFace();
       var moon = require_celestial();
       var iss = require_iss();
       var apod = require_apod();
       var epic = require_epic();
-      var neo = require_neo();
+      var neoRadar = require_neoRadar();
       var apodWall = require_apodWall();
       var epicWall = require_epicWall();
       var issWall = require_issWall();
-      var neoWall = require_neoWall();
       var customCube = require_customCube();
       var unsplash = require_unsplash();
       var artic = require_artic();
@@ -26011,7 +25305,7 @@ var PiEngine = (() => {
       var fluidWall = require_fluidWall();
       var easterEggWall = require_easterEggWall();
       var coinflipWall = require_coinflipWall();
-      var diceWall = require_diceWall();
+      var diceWall = dice.wall;
       var randomWall = require_randomWall();
       var random80sWall = require_random80sWall();
       var fireworksWall = require_fireworksWall();
@@ -26021,7 +25315,7 @@ var PiEngine = (() => {
       var weatherWall = require_weatherWall2();
       var datetimeWall = datetime.wall;
       var celestialWall = require_celestialWall();
-      var ghostWall = require_ghostWall();
+      var ghostWall = ghost.wall;
       var unsplashWall = require_unsplashWall();
       var articWall = require_articWall();
       var jokeWall = joke.wall;
@@ -26077,7 +25371,7 @@ var PiEngine = (() => {
         apod: apodWall,
         epic: epicWall,
         iss: issWall,
-        neo: neoWall,
+        neo: neoRadar.wall,
         unsplash: unsplashWall,
         artic: articWall,
         joke: jokeWall,
@@ -26136,7 +25430,7 @@ var PiEngine = (() => {
         epic,
         apod,
         iss,
-        neo,
+        neo: neoRadar,
         unsplash,
         artic,
         joke,

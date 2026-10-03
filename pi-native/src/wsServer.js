@@ -643,6 +643,7 @@ class WsServer {
       ai: aiConfig.publicView(),
       prefs: this.state.prefs,
       photos: httpApi.listPhotos(),
+      yt: this.state.yt || null,
       notifyToken: httpApi.notifyToken(),
       notice: this.state.notice && this.state.notice.until > Date.now() ? this.state.notice : null,
     };
