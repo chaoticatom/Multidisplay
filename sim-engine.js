@@ -2262,9 +2262,9 @@ var PiEngine = (() => {
       var ANALYSIS_HZ = 60;
       var WINDOW_VU = 2048;
       var VU_DB_FLOOR = -42;
-      var RING_SAMPLES = 1 << 16;
+      var RING_SAMPLES = 1 << 18;
       var DEFAULT_SYNC_MS = 150;
-      var MAX_SYNC_MS = 800;
+      var MAX_SYNC_MS = 3e3;
       var STALL_MS = 400;
       var ATTACK_RATE = 60;
       var RELEASE_RATE = 7;
@@ -3844,6 +3844,8 @@ var PiEngine = (() => {
           const lv = computeLevels(levelState, audio, { bands, gain, autoGain: autoGainOn, fitToScreen }, dt);
           if (scrollSpeed > 0) {
             spectrumState.scrollX = ((spectrumState.scrollX || 0) + dt * scrollSpeed * core.SIZE * 1.5 + 4 * core.SIZE) % (4 * core.SIZE);
+          } else {
+            spectrumState.scrollX = 0;
           }
           const ampArr = lv.amp, peakArr = lv.peak;
           const ctx = {
@@ -4122,28 +4124,28 @@ var PiEngine = (() => {
         words.push("H" + (h === 0 ? 12 : h));
         return words;
       }
-      module.exports = defineCanvasEffect({
-        render(c, { t, core }) {
-          c.clear();
-          const beat = music(core).beat;
-          const on = /* @__PURE__ */ new Set();
-          for (const w of litWords(/* @__PURE__ */ new Date())) {
-            const [r, col, n] = W[w];
-            for (let i = 0; i < n; i++) on.add(r * 11 + col + i);
-          }
-          const cw = c.W / 11, ch = c.H / 10;
-          const scale = Math.max(1, Math.floor(Math.min(cw / 4, ch / 6)));
-          for (let r = 0; r < 10; r++) {
-            for (let col = 0; col < 11; col++) {
-              const lit = on.has(r * 11 + col);
-              const [cr, cg, cb] = lit ? hsl(t * 0.03 + col * 0.02 + r * 0.03, 0.85, 0.55 + beat * 0.25) : [0.05, 0.05, 0.07];
-              const x = Math.round(col * cw + (cw - 3 * scale) / 2), y = Math.round(r * ch + (ch - 5 * scale) / 2);
-              drawGlyph(FONT_3x5, GRID[r][col], x, y, (px, py) => c.set(px, py, cr, cg, cb), { scale });
-            }
+      function renderWords(c, { t, core }, tint) {
+        c.clear();
+        const beat = music(core).beat;
+        const on = /* @__PURE__ */ new Set();
+        for (const w of litWords(/* @__PURE__ */ new Date())) {
+          const [r, col, n] = W[w];
+          for (let i = 0; i < n; i++) on.add(r * 11 + col + i);
+        }
+        const cw = c.W / 11, ch = c.H / 10;
+        const scale = Math.max(1, Math.floor(Math.min(cw / 4, ch / 6)));
+        for (let r = 0; r < 10; r++) {
+          for (let col = 0; col < 11; col++) {
+            const lit = on.has(r * 11 + col);
+            const [cr, cg, cb] = lit ? tint ? [Math.min(1, tint[0] * (1 + beat * 0.4)), Math.min(1, tint[1] * (1 + beat * 0.4)), Math.min(1, tint[2] * (1 + beat * 0.4))] : hsl(t * 0.03 + col * 0.02 + r * 0.03, 0.85, 0.55 + beat * 0.25) : [0.05, 0.05, 0.07];
+            const x = Math.round(col * cw + (cw - 3 * scale) / 2), y = Math.round(r * ch + (ch - 5 * scale) / 2);
+            drawGlyph(FONT_3x5, GRID[r][col], x, y, (px, py) => c.set(px, py, cr, cg, cb), { scale });
           }
         }
-      });
+      }
+      module.exports = defineCanvasEffect({ render: (c, ctx) => renderWords(c, ctx, null) });
       module.exports.litWords = litWords;
+      module.exports.renderWords = renderWords;
     }
   });
 
@@ -15090,525 +15092,227 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/datetimeCommon.js
-  var require_datetimeCommon = __commonJS({
-    "src/effects/datetimeCommon.js"(exports, module) {
+  // src/effects/clock.js
+  var require_clock = __commonJS({
+    "src/effects/clock.js"(exports, module) {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { drawString, FONT_5x7_BLANK } = require_text();
-      var { WC_CHAR_W } = require_shared();
-      function setPx(buf, W, H, x, y, v) {
-        x = Math.round(x);
-        y = Math.round(y);
-        if (x < 0 || x >= W || y < 0 || y >= H) return;
-        const i = y * W + x;
-        if (v > buf[i]) buf[i] = v;
-      }
-      var SEG = {
-        "0": "abcdef",
-        "1": "bc",
-        "2": "abged",
-        "3": "abgcd",
-        "4": "fgbc",
-        "5": "afgcd",
-        "6": "afgecd",
-        "7": "abc",
-        "8": "abcdefg",
-        "9": "abcdfg"
-      };
-      function fillRect(buf, W, H, x0, y0, x1, y1, v) {
-        const xs = Math.floor(x0), xe = Math.ceil(x1), ys = Math.floor(y0), ye = Math.ceil(y1);
-        for (let y = ys; y < ye; y++) {
-          const covY = Math.min(y + 1, y1) - Math.max(y, y0);
-          if (covY <= 0) continue;
-          for (let x = xs; x < xe; x++) {
-            const covX = Math.min(x + 1, x1) - Math.max(x, x0);
-            if (covX <= 0) continue;
-            setPx(buf, W, H, x, y, v * covX * covY);
-          }
-        }
-      }
-      function drawSegDigit(buf, W, H, x, y, w, h, ch, val) {
-        const segs = SEG[ch] || "";
-        if (!segs) return;
-        const has = (s) => segs.includes(s);
-        const t = Math.max(1, Math.round(w * 0.24));
-        const midY = y + h / 2;
-        if (has("a")) fillRect(buf, W, H, x + t, y, x + w - t, y + t, val);
-        if (has("g")) fillRect(buf, W, H, x + t, midY - t / 2, x + w - t, midY + t / 2, val);
-        if (has("d")) fillRect(buf, W, H, x + t, y + h - t, x + w - t, y + h, val);
-        if (has("f")) fillRect(buf, W, H, x, y, x + t, midY + t / 2, val);
-        if (has("b")) fillRect(buf, W, H, x + w - t, y, x + w, midY + t / 2, val);
-        if (has("e")) fillRect(buf, W, H, x, midY - t / 2, x + t, y + h, val);
-        if (has("c")) fillRect(buf, W, H, x + w - t, midY - t / 2, x + w, y + h, val);
-      }
-      function drawSegColon(buf, W, H, x, y, w, h, val) {
-        const t = Math.max(1, Math.round(w * 0.55));
-        const cx = x + w / 2 - t / 2;
-        fillRect(buf, W, H, cx, y + h * 0.26, cx + t, y + h * 0.26 + t, val);
-        fillRect(buf, W, H, cx, y + h * 0.64, cx + t, y + h * 0.64 + t, val);
-      }
-      function drawSegString(buf, W, H, str, cx, topY, digitW, digitH, gap, val) {
-        const colonW = digitW * 0.42;
-        let total = 0;
-        for (const ch of str) total += (ch === ":" ? colonW : digitW) + gap;
-        total -= gap;
-        let x = cx - total / 2;
-        for (const ch of str) {
-          const w = ch === ":" ? colonW : digitW;
-          if (ch === ":") drawSegColon(buf, W, H, x, topY, w, digitH, val);
-          else drawSegDigit(buf, W, H, x, topY, w, digitH, ch, val);
-          x += w + gap;
-        }
-        return total;
-      }
-      function fitDigitHeight(str, idealH, maxW) {
-        const widthAt = (h2) => {
-          const dW = h2 * 0.56, gap = dW * 0.3, colonW = dW * 0.42;
-          let total = 0;
-          for (const ch of str) total += (ch === ":" ? colonW : dW) + gap;
-          return total - gap;
-        };
-        if (widthAt(idealH) <= maxW) return idealH;
-        let h = idealH * (maxW / widthAt(idealH));
-        while (widthAt(h) > maxW && h > 1) h -= 0.5;
-        return Math.max(1, h);
-      }
-      function fontDrawText(buf, W, H, text, cx, cy, scale) {
-        const w = text.length * FONT_5x7_BLANK.adv * scale;
-        drawString(FONT_5x7_BLANK, text, cx - w / 2, cy, (x, y) => setPx(buf, W, H, x, y, 255), { scale });
-      }
-      function drawLine(buf, W, H, x1, y1, x2, y2, val, thickness) {
-        const dx = x2 - x1, dy = y2 - y1;
-        const steps = Math.max(1, Math.round(Math.max(Math.abs(dx), Math.abs(dy))));
-        for (let s = 0; s <= steps; s++) {
-          const x = x1 + dx * s / steps, y = y1 + dy * s / steps;
-          for (let ox = -((thickness - 1) / 2); ox <= (thickness - 1) / 2; ox++)
-            for (let oy = -((thickness - 1) / 2); oy <= (thickness - 1) / 2; oy++)
-              setPx(buf, W, H, x + ox, y + oy, val);
-        }
-      }
-      function dtDrawAnalogue(buf, W, H, now) {
-        const cx = W / 2, cy = H / 2, half = Math.min(W, H) * 0.42;
-        drawLine(buf, W, H, cx - half, cy - half, cx + half, cy - half, 130, 1);
-        drawLine(buf, W, H, cx - half, cy + half, cx + half, cy + half, 130, 1);
-        drawLine(buf, W, H, cx - half, cy - half, cx - half, cy + half, 130, 1);
-        drawLine(buf, W, H, cx + half, cy - half, cx + half, cy + half, 130, 1);
-        for (let i = 0; i < 12; i++) {
-          const a = i * Math.PI / 6 - Math.PI / 2;
-          const isCardinal = i % 3 === 0;
-          const r = isCardinal ? half : half * 0.92;
-          setPx(buf, W, H, cx + Math.cos(a) * r, cy + Math.sin(a) * r, isCardinal ? 255 : 150);
-        }
-        const h = now.getHours() % 12, m = now.getMinutes(), s = now.getSeconds();
-        const ha = (h + m / 60) * Math.PI / 6 - Math.PI / 2;
-        const ma = (m + s / 60) * Math.PI / 30 - Math.PI / 2;
-        const sa = s * Math.PI / 30 - Math.PI / 2;
-        drawLine(buf, W, H, cx, cy, cx + Math.cos(ha) * half * 0.5, cy + Math.sin(ha) * half * 0.5, 255, 3);
-        drawLine(buf, W, H, cx, cy, cx + Math.cos(ma) * half * 0.75, cy + Math.sin(ma) * half * 0.75, 220, 2);
-        drawLine(buf, W, H, cx, cy, cx + Math.cos(sa) * half * 0.85, cy + Math.sin(sa) * half * 0.85, 200, 1);
-        setPx(buf, W, H, cx, cy, 255);
-      }
-      function fitScale(availW, text, maxScale, widthFrac = 0.94) {
-        const fit = Math.floor(availW * widthFrac / (text.length * 6));
-        return Math.max(1, Math.min(maxScale, fit));
-      }
-      function dtGlow(buf, W, H) {
-        const src = buf.slice();
-        const NB = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-        for (let y = 0; y < H; y++) {
-          for (let x = 0; x < W; x++) {
-            const v = src[y * W + x];
-            if (v < 60) continue;
-            const g = v * 0.4;
-            for (const [dx, dy] of NB) {
-              const nx = x + dx, ny = y + dy;
-              if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
-              const i = ny * W + nx;
-              if (g > buf[i]) buf[i] = g;
-            }
-          }
-        }
-      }
-      function dtLayoutStack(buf, W, H, lines) {
-        const gap = Math.max(1, H * 0.04);
-        const resolved = lines.map((ln) => {
-          if (ln.type === "seg") return { ...ln, h: fitDigitHeight(ln.str, H * ln.idealHFrac, W * 0.94) };
-          return { ...ln, h: 7 * ln.scale };
-        });
-        let totalH = resolved.reduce((a, l) => a + l.h, 0) + gap * (resolved.length - 1);
-        let stackGap = gap;
-        if (totalH > H * 0.98) {
-          const k = H * 0.98 / totalH;
-          for (const ln of resolved) {
-            if (ln.type === "text") ln.scale = Math.max(0.5, ln.scale * k);
-            ln.h *= k;
-          }
-          stackGap = gap * k;
-          totalH = resolved.reduce((a, l) => a + l.h, 0) + stackGap * (resolved.length - 1);
-        }
-        let y = (H - totalH) / 2;
-        for (const ln of resolved) {
-          if (ln.type === "seg") {
-            const digitW = ln.h * 0.56, dgap = digitW * 0.3;
-            drawSegString(buf, W, H, ln.str, W / 2, y, digitW, ln.h, dgap, 255);
-          } else {
-            fontDrawText(buf, W, H, ln.str, W / 2, y, ln.scale);
-          }
-          y += ln.h + stackGap;
-        }
-      }
-      var DT_DAYS = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
-      var DT_MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-      var DT_SS = 3;
-      var DT_WORDS_NUM = ["TWELVE", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN", "ELEVEN"];
-      var DT_WORDS_ORDINAL = [
-        "FIRST",
-        "SECOND",
-        "THIRD",
-        "FOURTH",
-        "FIFTH",
-        "SIXTH",
-        "SEVENTH",
-        "EIGHTH",
-        "NINTH",
-        "TENTH",
-        "ELEVENTH",
-        "TWELFTH",
-        "THIRTEENTH",
-        "FOURTEENTH",
-        "FIFTEENTH",
-        "SIXTEENTH",
-        "SEVENTEENTH",
-        "EIGHTEENTH",
-        "NINETEENTH",
-        "TWENTIETH",
-        "TWENTY FIRST",
-        "TWENTY SECOND",
-        "TWENTY THIRD",
-        "TWENTY FOURTH",
-        "TWENTY FIFTH",
-        "TWENTY SIXTH",
-        "TWENTY SEVENTH",
-        "TWENTY EIGHTH",
-        "TWENTY NINTH",
-        "THIRTIETH",
-        "THIRTY FIRST"
-      ];
-      var DT_WORDS_DAY = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
-      var DT_WORDS_MONTH = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
-      var DT_WORDS_ONES = ["", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE"];
-      var DT_WORDS_TEENS = ["TEN", "ELEVEN", "TWELVE", "THIRTEEN", "FOURTEEN", "FIFTEEN", "SIXTEEN", "SEVENTEEN", "EIGHTEEN", "NINETEEN"];
-      var DT_WORDS_TENS = ["", "TEN", "TWENTY", "THIRTY", "FORTY", "FIFTY"];
-      function dtNumberWord(n) {
-        if (n < 10) return DT_WORDS_ONES[n];
-        if (n < 20) return DT_WORDS_TEENS[n - 10];
-        const tens = Math.floor(n / 10), ones = n % 10;
-        return DT_WORDS_TENS[tens] + (ones ? " " + DT_WORDS_ONES[ones] : "");
-      }
-      function dtWordsForTime(h24, m) {
-        const hourOffset = m > 30 ? 1 : 0;
-        const h = (h24 + hourOffset) % 24;
-        let h12 = h % 12;
-        if (h12 === 0) h12 = 12;
-        const hourWord = DT_WORDS_NUM[h12 % 12];
-        const AMBER = [1, 0.8, 0.27], WHITE = [1, 1, 1];
-        const tokens = [];
-        const pushMinutes = (n) => {
-          dtNumberWord(n).split(" ").forEach((w) => tokens.push({ t: w, c: AMBER }));
-          tokens.push({ t: n === 1 ? "MINUTE" : "MINUTES", c: AMBER });
-        };
-        if (m === 0) {
-          tokens.push({ t: hourWord, c: WHITE }, { t: "O'CLOCK", c: WHITE });
-        } else if (m === 15) {
-          tokens.push({ t: "QUARTER", c: AMBER }, { t: "PAST", c: WHITE }, { t: hourWord, c: WHITE });
-        } else if (m === 30) {
-          tokens.push({ t: "HALF", c: AMBER }, { t: "PAST", c: WHITE }, { t: hourWord, c: WHITE });
-        } else if (m === 45) {
-          tokens.push({ t: "QUARTER", c: AMBER }, { t: "TO", c: WHITE }, { t: hourWord, c: WHITE });
-        } else if (m < 30) {
-          pushMinutes(m);
-          tokens.push({ t: "PAST", c: WHITE }, { t: hourWord, c: WHITE });
-        } else {
-          pushMinutes(60 - m);
-          tokens.push({ t: "TO", c: WHITE }, { t: hourWord, c: WHITE });
-        }
-        return tokens;
-      }
-      function dtWordsForDate(now) {
-        const BLUE = [0.48, 0.82, 1], AMBER = [1, 0.8, 0.27];
-        const tokens = [{ t: DT_WORDS_DAY[now.getDay()], c: BLUE }, { t: "THE", c: BLUE }];
-        DT_WORDS_ORDINAL[now.getDate() - 1].split(" ").forEach((w) => tokens.push({ t: w, c: AMBER }));
-        tokens.push({ t: "OF", c: BLUE }, { t: DT_WORDS_MONTH[now.getMonth()], c: BLUE });
-        return tokens;
-      }
-      function dtWrapTokens(tokens, maxW, scale = 1) {
-        const lines = [];
-        let cur = [], curW = 0;
-        const charW = WC_CHAR_W * scale;
-        tokens.forEach((tok) => {
-          const w = tok.t.length * charW;
-          const addW = (cur.length ? charW : 0) + w;
-          if (curW + addW > maxW && cur.length) {
-            lines.push(cur);
-            cur = [tok];
-            curW = w;
-          } else {
-            cur.push(tok);
-            curW += addW;
-          }
-        });
-        if (cur.length) lines.push(cur);
-        return lines;
-      }
-      var DT_STAGGER_FRACS = [0.04, 0.5, 0.8, 0.15, 0.6, 0.3, 0.75];
-      module.exports = {
-        setPx,
-        SEG,
-        fillRect,
-        drawSegDigit,
-        drawSegColon,
-        drawSegString,
-        fitDigitHeight,
-        fontDrawText,
-        drawLine,
-        dtDrawAnalogue,
-        fitScale,
-        dtGlow,
-        dtLayoutStack,
-        DT_DAYS,
-        DT_MONTHS,
-        DT_SS,
-        DT_WORDS_NUM,
-        DT_WORDS_ORDINAL,
-        DT_WORDS_DAY,
-        DT_WORDS_MONTH,
-        DT_WORDS_ONES,
-        DT_WORDS_TEENS,
-        DT_WORDS_TENS,
-        dtNumberWord,
-        dtWordsForTime,
-        dtWordsForDate,
-        dtWrapTokens,
-        DT_STAGGER_FRACS
-      };
-    }
-  });
-
-  // src/effects/datetime.js
-  var require_datetime = __commonJS({
-    "src/effects/datetime.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
       var { hsl } = require_core();
-      var { drawGlyph, facePlot } = require_text();
-      var dtBuf = null;
-      var dtLastSec = -1;
-      var dtScrollX = 0;
-      var {
-        setPx,
-        SEG,
-        fillRect,
-        drawSegDigit,
-        drawSegColon,
-        drawSegString,
-        fitDigitHeight,
-        fontDrawText,
-        drawLine,
-        dtDrawAnalogue,
-        fitScale,
-        dtGlow,
-        dtLayoutStack,
-        DT_DAYS,
-        DT_MONTHS,
-        DT_SS,
-        DT_WORDS_NUM,
-        DT_WORDS_ORDINAL,
-        DT_WORDS_DAY,
-        DT_WORDS_MONTH,
-        DT_WORDS_ONES,
-        DT_WORDS_TEENS,
-        DT_WORDS_TENS,
-        dtNumberWord,
-        dtWordsForTime,
-        dtWordsForDate,
-        dtWrapTokens,
-        DT_STAGGER_FRACS
-      } = require_datetimeCommon();
-      function dtRenderBuf(core, now, mode) {
-        const S = core.SIZE;
-        if (!dtBuf || dtBuf.length !== S * S) dtBuf = new Uint8Array(S * S);
-        else dtBuf.fill(0);
-        if (mode === "analogue") {
-          dtDrawAnalogue(dtBuf, S, S, now);
-          return;
+      var { FONT_3x5, FONT_5x7, drawGlyph, textWidth } = require_text();
+      var { defineCanvasEffect } = require_canvas();
+      var { renderWords } = require_wordClock();
+      var LEGACY = { time: "neon", both: "neon", full: "neon", date: "minimal", analogue: "analogue", words: "words" };
+      var COLOURS = { cyan: [0.2, 0.85, 1], amber: [1, 0.62, 0.12], pink: [1, 0.3, 0.7], green: [0.35, 1, 0.45], white: [0.95, 0.95, 1] };
+      var DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+      var MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+      function options(core) {
+        const o = core.effectOptions && core.effectOptions.datetime || {};
+        return {
+          style: ["neon", "flip", "analogue", "words", "minimal"].includes(o.style) ? o.style : LEGACY[o.mode] || "neon",
+          h24: o.h24 !== false,
+          seconds: o.seconds !== false,
+          date: o.date !== false,
+          colour: o.colour || "auto"
+        };
+      }
+      function tint(opts, t, shift = 0) {
+        return COLOURS[opts.colour] || hsl(0.55 + Math.sin(t * 0.05) * 0.12 + shift, 0.9, 0.55);
+      }
+      var pad = (n) => String(n).padStart(2, "0");
+      function parts(opts) {
+        const d = /* @__PURE__ */ new Date();
+        let h = d.getHours();
+        if (!opts.h24) h = h % 12 || 12;
+        return { d, hh: opts.h24 ? pad(h) : String(h), mm: pad(d.getMinutes()), ss: pad(d.getSeconds()), ms: d.getMilliseconds() };
+      }
+      var dateLine = (d) => `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+      var SEG = { 0: "abcdef", 1: "bc", 2: "abdeg", 3: "abcdg", 4: "bcfg", 5: "acdfg", 6: "acdefg", 7: "abc", 8: "abcdefg", 9: "abcdfg" };
+      function rect(c, x0, y0, w, h, col) {
+        for (let y = Math.round(y0); y < Math.round(y0 + h); y++) for (let x = Math.round(x0); x < Math.round(x0 + w); x++) c.set(x, y, col[0], col[1], col[2]);
+      }
+      function seg7(c, ch, x, y, w, h, th, on, off) {
+        const lit = SEG[ch] || "", hh = (h - th) / 2;
+        const S = {
+          a: [x + th, y, w - 2 * th, th],
+          d: [x + th, y + h - th, w - 2 * th, th],
+          g: [x + th, y + hh, w - 2 * th, th],
+          f: [x, y + th, th, hh - th / 2],
+          b: [x + w - th, y + th, th, hh - th / 2],
+          e: [x, y + hh + th, th, hh - th / 2],
+          c: [x + w - th, y + hh + th, th, hh - th / 2]
+        };
+        for (const k of "abcdefg") {
+          const r = S[k];
+          rect(c, r[0], r[1], r[2], r[3], lit.includes(k) ? on : off);
         }
-        const hh = String(now.getHours()).padStart(2, "0");
-        const mm = String(now.getMinutes()).padStart(2, "0");
-        const ss = String(now.getSeconds()).padStart(2, "0");
-        const dayStr = DT_DAYS[now.getDay()];
-        const dateStr = now.getDate() + " " + DT_MONTHS[now.getMonth()];
-        const timeStr = hh + ":" + mm;
-        const secStr = ":" + ss;
-        const bigS = S * DT_SS;
-        const bigBuf = new Uint8Array(bigS * bigS);
-        const daySc = fitScale(bigS, dayStr, Math.max(1, Math.round(bigS / 16)));
-        const dateSc = fitScale(bigS, dateStr, Math.max(1, Math.round(bigS / 14)));
-        const secSc = fitScale(bigS, secStr, Math.max(1, Math.round(bigS / 10)));
-        if (mode === "date") {
-          dtLayoutStack(bigBuf, bigS, bigS, [
-            { type: "text", str: dayStr, scale: daySc },
-            { type: "text", str: dateStr, scale: dateSc }
-          ]);
-        } else if (mode === "both") {
-          dtLayoutStack(bigBuf, bigS, bigS, [
-            { type: "seg", str: timeStr, idealHFrac: 0.36 },
-            { type: "text", str: dayStr, scale: daySc },
-            { type: "text", str: dateStr, scale: dateSc }
-          ]);
-        } else if (mode === "full") {
-          dtLayoutStack(bigBuf, bigS, bigS, [
-            { type: "seg", str: timeStr, idealHFrac: 0.3 },
-            { type: "text", str: secStr, scale: secSc },
-            { type: "text", str: dayStr, scale: daySc },
-            { type: "text", str: dateStr, scale: dateSc }
-          ]);
-        } else {
-          dtLayoutStack(bigBuf, bigS, bigS, [
-            { type: "seg", str: timeStr, idealHFrac: 0.46 },
-            { type: "text", str: secStr, scale: secSc }
-          ]);
+      }
+      function neon(c, opts, t) {
+        const { d, hh, mm, ss, ms } = parts(opts);
+        const col = tint(opts, t), ghost = [col[0] * 0.07, col[1] * 0.07, col[2] * 0.07];
+        const digits = (hh.length === 1 ? " " + hh : hh) + mm;
+        const dateH = opts.date ? Math.max(6, Math.round(c.H * 0.14)) : 0;
+        const barH = opts.seconds ? Math.max(2, Math.round(c.H * 0.05)) : 0;
+        const availH = c.H - dateH - barH - 6;
+        const dw = Math.min((c.W - 10) / 4.6, availH * 0.55), dh = Math.min(availH, dw * 1.8), th = Math.max(1, Math.round(dw / 5));
+        const gap = dw * 0.18, colonW = dw * 0.5, total = 4 * dw + 3 * gap + colonW;
+        let x = (c.W - total) / 2;
+        const y = (c.H - dh - dateH - barH) / 2;
+        for (let i = 0; i < 4; i++) {
+          if (digits[i] !== " ") seg7(c, digits[i], x, y, dw, dh, th, col, ghost);
+          x += dw + gap;
+          if (i === 1) {
+            const blink = ms < 500 ? col : ghost, r = Math.max(1, th);
+            rect(c, x + colonW / 2 - r / 2 - gap / 2, y + dh * 0.3, r, r, blink);
+            rect(c, x + colonW / 2 - r / 2 - gap / 2, y + dh * 0.66, r, r, blink);
+            x += colonW;
+          }
         }
-        for (let y = 0; y < S; y++) {
-          const by0 = y * DT_SS;
-          for (let x = 0; x < S; x++) {
-            const bx0 = x * DT_SS;
-            let sum = 0;
-            for (let sy = 0; sy < DT_SS; sy++) {
-              const row = (by0 + sy) * bigS;
-              for (let sx = 0; sx < DT_SS; sx++) sum += bigBuf[row + bx0 + sx];
+        if (opts.seconds) {
+          const by = Math.round(y + dh + 3), frac = (Number(ss) + ms / 1e3) / 60, bw = total;
+          for (let i = 0; i < bw; i++) {
+            const on = i / bw <= frac;
+            rect(c, (c.W - bw) / 2 + i, by, 1, barH, on ? col : ghost);
+          }
+        }
+        if (opts.date) {
+          const s = dateLine(d), sc = Math.max(1, Math.floor(dateH / 6));
+          drawCentred(c, FONT_3x5, s, c.H - dateH + Math.round((dateH - 5 * sc) / 2), sc, [col[0] * 0.75, col[1] * 0.75, col[2] * 0.75]);
+        }
+      }
+      function drawCentred(c, font, s, y, scale, col) {
+        let x = Math.round((c.W - textWidth(font, s, scale)) / 2);
+        for (const ch of s) x += drawGlyph(font, ch, x, y, (px, py) => c.set(px, py, col[0], col[1], col[2]), { scale });
+      }
+      var flipState = { shown: "", from: "", t0: 0 };
+      function flip(c, opts, t) {
+        const { d, hh, mm, ss } = parts(opts);
+        const text = pad(hh) + mm + (opts.seconds && c.W >= 128 ? ss : "");
+        const n = text.length;
+        if (text !== flipState.shown) {
+          flipState.from = flipState.shown || text;
+          flipState.shown = text;
+          flipState.t0 = t;
+        }
+        const p = Math.min(1, (t - flipState.t0) / 0.45);
+        const col = tint(opts, t), card = [0.07, 0.07, 0.09], edge = [0.18, 0.18, 0.22];
+        const dateH = opts.date ? Math.max(6, Math.round(c.H * 0.14)) : 0;
+        const gap = Math.max(1, Math.round(c.W / 64)), groupGap = gap * 3;
+        const cw = Math.floor((c.W - 4 - (n - 1) * gap - (n / 2 - 1) * groupGap) / n);
+        const ch = Math.min(Math.round(cw * 1.5), c.H - dateH - 6);
+        const sc = Math.max(1, Math.floor(Math.min(cw / 6, ch / 8)));
+        let x = Math.round((c.W - (n * cw + (n - 1) * gap + (n / 2 - 1) * groupGap)) / 2);
+        const y = Math.round((c.H - ch - dateH) / 2), mid = y + Math.floor(ch / 2);
+        for (let i = 0; i < n; i++) {
+          const changing = flipState.from[i] !== text[i] && p < 1;
+          rect(c, x, y, cw, ch, card);
+          for (let k = 0; k < cw; k++) c.set(x + k, mid, edge[0], edge[1], edge[2]);
+          const glyph = (chr, clipTop, clipBot, squash) => {
+            const gw = 5 * sc, gh = 7 * sc, gx = x + Math.round((cw - gw) / 2), gy = y + Math.round((ch - gh) / 2);
+            drawGlyph(FONT_5x7, chr, gx, gy, (px, py) => {
+              let yy = py;
+              if (squash !== 1) yy = Math.round(mid + (py - mid) * squash);
+              if (yy < clipTop || yy > clipBot) return;
+              c.set(px, yy, col[0], col[1], col[2]);
+            }, { scale: sc });
+          };
+          if (!changing) glyph(text[i], y, y + ch, 1);
+          else {
+            glyph(text[i], y, mid - 1, 1);
+            glyph(flipState.from[i], mid + 1, y + ch, 1);
+            if (p < 0.5) glyph(flipState.from[i], y, mid - 1, 1 - p * 2);
+            else glyph(text[i], mid + 1, y + ch, (p - 0.5) * 2);
+          }
+          x += cw + gap + (i % 2 === 1 ? groupGap : 0);
+        }
+        if (opts.date) {
+          const s2 = dateLine(d), s3 = Math.max(1, Math.floor(dateH / 6));
+          drawCentred(c, FONT_3x5, s2, c.H - dateH + Math.round((dateH - 5 * s3) / 2), s3, [col[0] * 0.7, col[1] * 0.7, col[2] * 0.7]);
+        }
+      }
+      function analogue(c, opts, t) {
+        const { d, ms } = parts(opts);
+        const col = tint(opts, t), cx = (c.W - 1) / 2, cy = (c.H - 1) / 2, R = Math.min(c.W, c.H) / 2 - 1;
+        const sec = d.getSeconds() + ms / 1e3, min = d.getMinutes() + sec / 60, hr = d.getHours() % 12 + min / 60;
+        const hands = [
+          { a: hr / 12, len: R * 0.5, w: Math.max(1.2, R * 0.09), col },
+          { a: min / 60, len: R * 0.8, w: Math.max(1, R * 0.06), col: [Math.min(1, col[0] * 0.6 + 0.4), Math.min(1, col[1] * 0.6 + 0.4), Math.min(1, col[2] * 0.6 + 0.4)] }
+        ];
+        if (opts.seconds) hands.push({ a: sec / 60, len: R * 0.9, w: 0.7, col: [1, 0.25, 0.3] });
+        for (let y = 0; y < c.H; y++) for (let x = 0; x < c.W; x++) {
+          const dx = x - cx, dy = y - cy, dist = Math.hypot(dx, dy);
+          let r = 0, g = 0, b = 0;
+          if (dist <= R) {
+            const f = 0.03 * (1 - dist / R);
+            r += col[0] * f;
+            g += col[1] * f;
+            b += col[2] * f;
+          }
+          const rim = Math.max(0, 1 - Math.abs(dist - R) * 1.4) * 0.5;
+          r += col[0] * rim;
+          g += col[1] * rim;
+          b += col[2] * rim;
+          const ang = (Math.atan2(dx, -dy) / (Math.PI * 2) + 1) % 1;
+          const tick12 = Math.abs((ang * 12 + 0.5) % 1 - 0.5), tick60 = Math.abs((ang * 60 + 0.5) % 1 - 0.5);
+          if (dist > R * 0.8 && dist < R - 1 && tick12 * dist * Math.PI * 2 / 12 < 0.9) {
+            r = Math.max(r, 0.9);
+            g = Math.max(g, 0.9);
+            b = Math.max(b, 0.95);
+          } else if (dist > R * 0.88 && dist < R - 1 && tick60 * dist * Math.PI * 2 / 60 < 0.45) {
+            r += 0.12;
+            g += 0.12;
+            b += 0.14;
+          }
+          for (const h of hands) {
+            const ex = Math.sin(h.a * Math.PI * 2) * h.len, ey = -Math.cos(h.a * Math.PI * 2) * h.len;
+            const tt = Math.max(-0.12, Math.min(1, (dx * ex + dy * ey) / (h.len * h.len)));
+            const dd = Math.hypot(dx - ex * tt, dy - ey * tt), cover = Math.max(0, Math.min(1, h.w - dd + 0.5));
+            if (cover > 0) {
+              r = r * (1 - cover) + h.col[0] * cover;
+              g = g * (1 - cover) + h.col[1] * cover;
+              b = b * (1 - cover) + h.col[2] * cover;
             }
-            dtBuf[y * S + x] = sum / (DT_SS * DT_SS);
           }
+          if (dist < Math.max(1.2, R * 0.07)) {
+            r = 1;
+            g = 1;
+            b = 1;
+          }
+          c.set(x, y, Math.min(1, r), Math.min(1, g), Math.min(1, b));
         }
-        dtGlow(dtBuf, S, S);
-      }
-      function paintFace(core, face, flip, srcOffsetLEDs, hue) {
-        const S = core.SIZE, faceMap = core.faceMap, colBuf = core.colBuf;
-        for (let v = 0; v < S; v++) {
-          const lv = S - 1 - v;
-          const row = v * S;
-          for (let u = 0; u < S; u++) {
-            const ledU = flip ? S - 1 - u : u;
-            const srcPx = Math.floor(ledU + srcOffsetLEDs);
-            const cx = (srcPx % S + S) % S;
-            const pv = dtBuf[row + cx] / 255;
-            if (pv < 0.04) continue;
-            const idx = faceMap[face][lv * S + u];
-            if (idx < 0) continue;
-            const [r, g, b] = hsl(hue, 1, 0.12 + pv * 0.5);
-            colBuf[idx * 3] = r;
-            colBuf[idx * 3 + 1] = g;
-            colBuf[idx * 3 + 2] = b;
-          }
+        if (opts.date && R > 20) {
+          const s = String(d.getDate()), sc = Math.max(1, Math.floor(R / 26));
+          drawCentred(c, FONT_3x5, s, Math.round(cy + R * 0.35), sc, [col[0] * 0.8, col[1] * 0.8, col[2] * 0.8]);
         }
       }
-      var { WC_FONT, WC_CHAR_W, WC_LINE_H } = require_shared();
-      var DT_WC_FONT = { w: 4, h: 7, adv: WC_CHAR_W, get: (ch) => WC_FONT[ch] || WC_FONT[ch.toUpperCase()] };
-      function wcDrawGlyph(core, face, ch, su, sv, rgb, scale = 1) {
-        return drawGlyph(DT_WC_FONT, ch, su, core.SIZE - sv - 7 * scale, facePlot(core, face, rgb[0], rgb[1], rgb[2]), { scale });
-      }
-      function dtDrawWordLines(core, face, lines, startRow, scale = 1) {
-        const S = core.SIZE;
-        const charW = WC_CHAR_W * scale, lineH = WC_LINE_H * scale;
-        let row = startRow;
-        lines.forEach((line) => {
-          const lineW = line.reduce((a, t) => a + t.t.length * charW, 0) + Math.max(0, line.length - 1) * charW;
-          const margin = Math.max(0, S - lineW);
-          const sv = S - 1 - 1 - 6 * scale - row * lineH;
-          if (sv + 6 * scale < 0) {
-            row++;
-            return;
-          }
-          let su = Math.round(margin * DT_STAGGER_FRACS[row % DT_STAGGER_FRACS.length]);
-          line.forEach((tok) => {
-            let u = su;
-            for (const ch of tok.t) u += wcDrawGlyph(core, face, ch, u, sv, tok.c, scale);
-            su += tok.t.length * charW + charW;
-          });
-          row++;
-        });
-        return row;
-      }
-      function wcPickScale(S, timeTokens, dateTokens) {
-        for (let s = 4; s >= 1; s--) {
-          const tLines = dtWrapTokens(timeTokens, S, s);
-          const dLines = dtWrapTokens(dateTokens, S, s);
-          const rows = tLines.length + 1 + dLines.length;
-          if (rows * WC_LINE_H * s <= S) return s;
-        }
-        return 1;
-      }
-      function dtBuildWordClockToFace(core, face, now) {
-        const S = core.SIZE;
-        const timeTok = dtWordsForTime(now.getHours(), now.getMinutes());
-        const dateTok = dtWordsForDate(now);
-        const scale = wcPickScale(S, timeTok, dateTok);
-        let row = 0;
-        row = dtDrawWordLines(core, face, dtWrapTokens(timeTok, S, scale), row, scale);
-        row += 1;
-        row = dtDrawWordLines(core, face, dtWrapTokens(dateTok, S, scale), row, scale);
-      }
-      var DT_PANEL_SEQ = [3, 0, 2, 1];
-      var DT_NEEDS_FLIP = [false, false, true, true];
-      function effectDateTime(core, dt) {
-        core.t += dt * 0.8;
-        const t = core.t;
-        const { N, SIZE: S, colBuf } = core;
-        const now = /* @__PURE__ */ new Date();
-        const sec = now.getSeconds();
-        const opts = core.effectOptions?.datetime || {};
-        const mode = opts.mode || "time";
-        if (mode === "words") {
-          for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
-          dtBuildWordClockToFace(core, 0, now);
-          return;
-        }
-        if (mode === "analogue" || sec !== dtLastSec || !dtBuf || dtBuf.length !== S * S) {
-          dtLastSec = sec;
-          dtRenderBuf(core, now, mode);
-        }
-        for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
-        const is2D = core.panelMode === "2d";
-        const allPanels = !is2D && !!opts.allPanels;
-        const scrollOn = !!opts.scroll;
-        const speed = Number(opts.scrollSpeed ?? 1);
-        if (scrollOn && speed !== 0) dtScrollX = (dtScrollX + dt * speed * S * 0.5 + 4 * S) % (4 * S);
-        if (is2D) {
-          if (scrollOn) {
-            const hue = (dtScrollX / (4 * S) * 0.8 + t * 0.09) % 1;
-            paintFace(core, 0, false, dtScrollX, hue);
-          } else {
-            paintFace(core, 0, false, 0, t * 0.09 % 1);
-          }
-        } else if (!allPanels && !scrollOn) {
-          paintFace(core, 0, false, 0, t * 0.09 % 1);
-        } else if (allPanels && !scrollOn) {
-          for (let pi = 0; pi < 4; pi++) {
-            const hue = (pi / 4 * 0.8 + t * 0.09) % 1;
-            paintFace(core, DT_PANEL_SEQ[pi], DT_NEEDS_FLIP[pi], 0, hue);
-          }
-        } else {
-          for (let pi = 0; pi < 4; pi++) {
-            const faceStart = pi * S;
-            const srcOffsetLEDs = dtScrollX - faceStart;
-            const hue = (dtScrollX / (4 * S) * 0.8 + t * 0.09) % 1;
-            paintFace(core, DT_PANEL_SEQ[pi], DT_NEEDS_FLIP[pi], srcOffsetLEDs, hue);
+      function minimal(c, opts, t) {
+        const { d, hh, mm, ss, ms } = parts(opts);
+        const col = tint(opts, t);
+        const timeStr = hh + (ms < 500 ? ":" : " ") + mm;
+        const sc = Math.max(1, Math.floor(Math.min((c.W - 4) / textWidth(FONT_5x7, timeStr), c.H * 0.5 / 7)));
+        const th = 7 * sc, dateSc = Math.max(1, Math.floor(sc / 2));
+        const block = th + (opts.date ? 4 + 5 * dateSc : 0);
+        const y0 = Math.round((c.H - block) / 2);
+        drawCentred(c, FONT_5x7, timeStr, y0, sc, col);
+        if (opts.date) drawCentred(c, FONT_3x5, dateLine(d), y0 + th + 4, dateSc, [0.7, 0.72, 0.8]);
+        if (opts.seconds) {
+          const per = 2 * (c.W + c.H) - 4, pos = (Number(ss) + ms / 1e3) / 60 * per;
+          for (let k = 0; k < per; k += 1) {
+            const [x, y] = k < c.W ? [k, 0] : k < c.W + c.H - 1 ? [c.W - 1, k - c.W + 1] : k < 2 * c.W + c.H - 2 ? [c.W - 1 - (k - c.W - c.H + 2), c.H - 1] : [0, c.H - 1 - (k - 2 * c.W - c.H + 3)];
+            const behind = pos - k, v = k <= pos ? 0.12 + Math.max(0, 1 - behind / 6) * 0.88 : 0.03;
+            c.set(x, y, col[0] * v, col[1] * v, col[2] * v);
           }
         }
       }
-      module.exports = effectDateTime;
+      module.exports = defineCanvasEffect({
+        render(c, ctx) {
+          const opts = options(ctx.core);
+          c.clear();
+          if (opts.style === "words") return renderWords(c, ctx, COLOURS[opts.colour] || null);
+          ({ neon, flip, analogue, minimal })[opts.style](c, opts, ctx.t);
+        }
+      });
+      module.exports.getStatus = () => null;
     }
   });
 
@@ -24590,198 +24294,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/datetimeWall.js
-  var require_datetimeWall = __commonJS({
-    "src/effects/datetimeWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var { drawGlyph, wallPlot } = require_text();
-      var dtBuf = null;
-      var dtBufW = 0;
-      var dtBufH = 0;
-      var dtLastSec = -1;
-      var dtScrollX = 0;
-      var {
-        setPx,
-        SEG,
-        fillRect,
-        drawSegDigit,
-        drawSegColon,
-        drawSegString,
-        fitDigitHeight,
-        fontDrawText,
-        drawLine,
-        dtDrawAnalogue,
-        fitScale,
-        dtGlow,
-        dtLayoutStack,
-        DT_DAYS,
-        DT_MONTHS,
-        DT_SS,
-        DT_WORDS_NUM,
-        DT_WORDS_ORDINAL,
-        DT_WORDS_DAY,
-        DT_WORDS_MONTH,
-        DT_WORDS_ONES,
-        DT_WORDS_TEENS,
-        DT_WORDS_TENS,
-        dtNumberWord,
-        dtWordsForTime,
-        dtWordsForDate,
-        dtWrapTokens,
-        DT_STAGGER_FRACS
-      } = require_datetimeCommon();
-      function dtRenderBuf(core, W, H, now, mode) {
-        if (!dtBuf || dtBufW !== W || dtBufH !== H) {
-          dtBuf = new Uint8Array(W * H);
-          dtBufW = W;
-          dtBufH = H;
-        } else dtBuf.fill(0);
-        if (mode === "analogue") {
-          dtDrawAnalogue(dtBuf, W, H, now);
-          return;
-        }
-        const hh = String(now.getHours()).padStart(2, "0");
-        const mm = String(now.getMinutes()).padStart(2, "0");
-        const ss = String(now.getSeconds()).padStart(2, "0");
-        const dayStr = DT_DAYS[now.getDay()];
-        const dateStr = now.getDate() + " " + DT_MONTHS[now.getMonth()];
-        const timeStr = hh + ":" + mm;
-        const secStr = ":" + ss;
-        const bigW = W * DT_SS, bigH = H * DT_SS, bigM = Math.min(bigW, bigH);
-        const bigBuf = new Uint8Array(bigW * bigH);
-        const daySc = fitScale(bigW, dayStr, Math.max(1, Math.round(bigM / 16)));
-        const dateSc = fitScale(bigW, dateStr, Math.max(1, Math.round(bigM / 14)));
-        const secSc = fitScale(bigW, secStr, Math.max(1, Math.round(bigM / 10)));
-        if (mode === "date") {
-          dtLayoutStack(bigBuf, bigW, bigH, [
-            { type: "text", str: dayStr, scale: daySc },
-            { type: "text", str: dateStr, scale: dateSc }
-          ]);
-        } else if (mode === "both") {
-          dtLayoutStack(bigBuf, bigW, bigH, [
-            { type: "seg", str: timeStr, idealHFrac: 0.36 },
-            { type: "text", str: dayStr, scale: daySc },
-            { type: "text", str: dateStr, scale: dateSc }
-          ]);
-        } else if (mode === "full") {
-          dtLayoutStack(bigBuf, bigW, bigH, [
-            { type: "seg", str: timeStr, idealHFrac: 0.3 },
-            { type: "text", str: secStr, scale: secSc },
-            { type: "text", str: dayStr, scale: daySc },
-            { type: "text", str: dateStr, scale: dateSc }
-          ]);
-        } else {
-          dtLayoutStack(bigBuf, bigW, bigH, [
-            { type: "seg", str: timeStr, idealHFrac: 0.46 },
-            { type: "text", str: secStr, scale: secSc }
-          ]);
-        }
-        for (let y = 0; y < H; y++) {
-          const by0 = y * DT_SS;
-          for (let x = 0; x < W; x++) {
-            const bx0 = x * DT_SS;
-            let sum = 0;
-            for (let sy = 0; sy < DT_SS; sy++) {
-              const row = (by0 + sy) * bigW;
-              for (let sx = 0; sx < DT_SS; sx++) sum += bigBuf[row + bx0 + sx];
-            }
-            dtBuf[y * W + x] = sum / (DT_SS * DT_SS);
-          }
-        }
-        dtGlow(dtBuf, W, H);
-      }
-      function paintWall(core, W, H, srcOffsetPx, hue) {
-        for (let v = 0; v < H; v++) {
-          const row = v * W;
-          for (let u = 0; u < W; u++) {
-            const srcPx = Math.floor(u + srcOffsetPx);
-            const cx = (srcPx % W + W) % W;
-            const pv = dtBuf[row + cx] / 255;
-            if (pv < 0.04) continue;
-            const [r, g, b] = hsl(hue, 1, 0.12 + pv * 0.5);
-            core.setWallPixel(u, v, r, g, b);
-          }
-        }
-      }
-      var { WC_FONT, WC_CHAR_W, WC_LINE_H } = require_shared();
-      var DT_WC_FONT = { w: 4, h: 7, adv: WC_CHAR_W, get: (ch) => WC_FONT[ch] || WC_FONT[ch.toUpperCase()] };
-      function wcDrawGlyphWall(core, W, H, ch, su, sv, rgb, scale = 1) {
-        return drawGlyph(DT_WC_FONT, ch, su, H - sv - 7 * scale, wallPlot(core, rgb[0], rgb[1], rgb[2]), { scale });
-      }
-      function dtDrawWordLines(core, W, H, lines, startRow, scale = 1) {
-        const charW = WC_CHAR_W * scale, lineH = WC_LINE_H * scale;
-        let row = startRow;
-        lines.forEach((line) => {
-          const lineW = line.reduce((a, t) => a + t.t.length * charW, 0) + Math.max(0, line.length - 1) * charW;
-          const margin = Math.max(0, W - lineW);
-          const sv = H - 1 - 1 - 6 * scale - row * lineH;
-          if (sv + 6 * scale < 0) {
-            row++;
-            return;
-          }
-          let su = Math.round(margin * DT_STAGGER_FRACS[row % DT_STAGGER_FRACS.length]);
-          line.forEach((tok) => {
-            let u = su;
-            for (const ch of tok.t) u += wcDrawGlyphWall(core, W, H, ch, u, sv, tok.c, scale);
-            su += tok.t.length * charW + charW;
-          });
-          row++;
-        });
-        return row;
-      }
-      function wcPickScale(W, H, timeTokens, dateTokens) {
-        for (let s = 4; s >= 1; s--) {
-          const tLines = dtWrapTokens(timeTokens, W, s);
-          const dLines = dtWrapTokens(dateTokens, W, s);
-          const rows = tLines.length + 1 + dLines.length;
-          if (rows * WC_LINE_H * s <= H) return s;
-        }
-        return 1;
-      }
-      function dtBuildWordClockWall(core, W, H, now) {
-        const timeTok = dtWordsForTime(now.getHours(), now.getMinutes());
-        const dateTok = dtWordsForDate(now);
-        const scale = wcPickScale(W, H, timeTok, dateTok);
-        let row = 0;
-        row = dtDrawWordLines(core, W, H, dtWrapTokens(timeTok, W, scale), row, scale);
-        row += 1;
-        row = dtDrawWordLines(core, W, H, dtWrapTokens(dateTok, W, scale), row, scale);
-      }
-      function effectDateTimeWall(core, dt) {
-        const { wallW: W, wallH: H } = core;
-        if (!W) return;
-        core.t += dt * 0.8;
-        const t = core.t;
-        const now = /* @__PURE__ */ new Date();
-        const sec = now.getSeconds();
-        const opts = core.effectOptions?.datetime || {};
-        const mode = opts.mode || "time";
-        if (mode === "words") {
-          for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
-          dtBuildWordClockWall(core, W, H, now);
-          return;
-        }
-        if (mode === "analogue" || sec !== dtLastSec || !dtBuf || dtBufW !== W || dtBufH !== H) {
-          dtLastSec = sec;
-          dtRenderBuf(core, W, H, now, mode);
-        }
-        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
-        const scrollOn = !!opts.scroll;
-        const speed = Number(opts.scrollSpeed ?? 1);
-        if (scrollOn && speed !== 0) dtScrollX = (dtScrollX + dt * speed * W * 0.5 + 4 * W) % (4 * W);
-        if (scrollOn) {
-          const hue = (dtScrollX / (4 * W) * 0.8 + t * 0.09) % 1;
-          paintWall(core, W, H, dtScrollX, hue);
-        } else {
-          paintWall(core, W, H, 0, t * 0.09 % 1);
-        }
-      }
-      module.exports = effectDateTimeWall;
-    }
-  });
-
   // src/effects/celestialWall.js
   var require_celestialWall = __commonJS({
     "src/effects/celestialWall.js"(exports, module) {
@@ -26226,6 +25738,8 @@ var PiEngine = (() => {
           const lv = computeLevels(levelStateW, audio, { bands, gain, autoGain: autoGainOn, fitToScreen }, dt);
           if (scrollSpeed > 0) {
             spectrumWallState.scrollX = ((spectrumWallState.scrollX || 0) + dt * scrollSpeed * core.wallW * 0.375 + 4 * core.wallW) % (4 * core.wallW);
+          } else {
+            spectrumWallState.scrollX = 0;
           }
           const ampArr = lv.amp, peakArr = lv.peak;
           const ctx = {
@@ -26320,7 +25834,7 @@ var PiEngine = (() => {
       var depthRings = require_depthRings();
       var prism = require_prism();
       var tide = require_tide();
-      var datetime = require_datetime();
+      var datetime = require_clock();
       var ghost = require_ghost2();
       var moon = require_celestial();
       var iss = require_iss();
@@ -26366,7 +25880,7 @@ var PiEngine = (() => {
       var tronWall = require_tronWall();
       var camWall = require_camWall();
       var weatherWall = require_weatherWall2();
-      var datetimeWall = require_datetimeWall();
+      var datetimeWall = datetime.wall;
       var celestialWall = require_celestialWall();
       var ghostWall = require_ghostWall();
       var unsplashWall = require_unsplashWall();

@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.205';
+const APP_VERSION = '0.6.206';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1116,38 +1116,22 @@ function syncTronPanel() {
 function wireDatetimePanel() {
   const panel = document.getElementById('panel-datetime');
   if (!panel) return;
-  const allPanels = panel.querySelector('#dt-allpanels-check');
-  if (allPanels) allPanels.addEventListener('change', () => setEffectOption('datetime', 'allPanels', allPanels.checked));
-  const scroll = panel.querySelector('#dt-scroll-check');
-  if (scroll) scroll.addEventListener('change', () => setEffectOption('datetime', 'scroll', scroll.checked));
-  const speed = panel.querySelector('#dt-scroll-speed'), speedVal = panel.querySelector('#dt-scroll-speed-val');
-  if (speed) speed.addEventListener('input', () => {
-    if (speedVal) speedVal.textContent = speed.value;
-    setEffectOption('datetime', 'scrollSpeed', Number(speed.value));
-  });
-  panel.querySelectorAll('[data-dtmode]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      panel.querySelectorAll('[data-dtmode]').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      setEffectOption('datetime', 'mode', btn.dataset.dtmode);
-    });
-  });
+  panel.querySelectorAll('[data-dtstyle]').forEach((b) => b.addEventListener('click', () => setEffectOption('datetime', 'style', b.dataset.dtstyle)));
+  panel.querySelectorAll('[data-dtcol]').forEach((b) => b.addEventListener('click', () => setEffectOption('datetime', 'colour', b.dataset.dtcol)));
+  panel.querySelectorAll('[data-dtflag]').forEach((b) => b.addEventListener('click', () => {
+    const k = b.dataset.dtflag; setEffectOption('datetime', k, (currentState.effectOptions?.datetime || {})[k] === false);
+  }));
 }
 
 function syncDatetimePanel() {
   const panel = document.getElementById('panel-datetime');
   if (!panel) return;
-  const opts = currentState.effectOptions?.datetime || {};
-  const allPanels = panel.querySelector('#dt-allpanels-check');
-  if (allPanels && document.activeElement !== allPanels) allPanels.checked = !!opts.allPanels;
-  const scroll = panel.querySelector('#dt-scroll-check');
-  if (scroll && document.activeElement !== scroll) scroll.checked = !!opts.scroll;
-  const speed = panel.querySelector('#dt-scroll-speed'), speedVal = panel.querySelector('#dt-scroll-speed-val');
-  if (speed && document.activeElement !== speed) { speed.value = opts.scrollSpeed ?? 1; if (speedVal) speedVal.textContent = speed.value; }
-  const mode = opts.mode || 'time';
-  panel.querySelectorAll('[data-dtmode]').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.dtmode === mode);
-  });
+  const o = currentState.effectOptions?.datetime || {};
+  const legacy = { time: 'neon', both: 'neon', full: 'neon', date: 'minimal', analogue: 'analogue', words: 'words' };
+  const style = o.style || legacy[o.mode] || 'neon';
+  panel.querySelectorAll('[data-dtstyle]').forEach((b) => b.classList.toggle('active', b.dataset.dtstyle === style));
+  panel.querySelectorAll('[data-dtcol]').forEach((b) => b.classList.toggle('active', b.dataset.dtcol === (o.colour || 'auto')));
+  panel.querySelectorAll('[data-dtflag]').forEach((b) => b.classList.toggle('on', o[b.dataset.dtflag] !== false));
 }
 
 // ---------------------------------------------------------------------
@@ -2604,7 +2588,12 @@ function wireRadioPanel() {
   // harmless setOverlay for a key wsServer.js doesn't recognise, see that
   // function's comment) - this listener does the real work.
   const spectrumChk = panel.querySelector('.ov-chk[data-ov="spectrum"]');
-  if (spectrumChk) spectrumChk.addEventListener('change', () => setEffectOption('radio', 'spectrumOn', spectrumChk.checked));
+  // The switch shows whether the spectrum is ON SCREEN: turning it on
+  // brings the spectrum up, turning it off goes back to the previous effect.
+  if (spectrumChk) spectrumChk.addEventListener('change', () => {
+    const showing = currentState.effect === 'radio' && !!currentState.effectOptions?.radio?.spectrumOn;
+    if (spectrumChk.checked !== showing) cxToggleSpectrum();
+  });
 
   panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -2712,7 +2701,7 @@ function syncRadioPanel() {
   const spectrumChk = panel.querySelector('.ov-chk[data-ov="spectrum"]');
   const spectrumOptions = panel.querySelector('.ov-options-el[data-ov="spectrum"]');
   const spectrumOn = !!opts.spectrumOn;
-  if (spectrumChk && document.activeElement !== spectrumChk) spectrumChk.checked = spectrumOn;
+  if (spectrumChk) spectrumChk.checked = spectrumOn && currentState.effect === 'radio';
   if (spectrumOptions) spectrumOptions.style.display = spectrumOn ? '' : 'none';
   panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.bands) === (opts.bands ?? 64)));
   panel.querySelectorAll('.au-style-btn[data-austyle]').forEach((btn) => btn.classList.toggle('active', btn.dataset.austyle === (opts.style || 'glow')));
@@ -5126,7 +5115,6 @@ function cxToggleSpectrum() {
 function cxWireSpectrumShortcut() {
   document.getElementById('cx-show-spectrum')?.addEventListener('click', cxToggleSpectrum);
   document.querySelectorAll('#panel-radio .spectrum-bands-btn, #panel-radio .au-style-btn, #panel-radio .au-theme-btn').forEach((b) => b.addEventListener('click', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
-  document.querySelector('#panel-radio .ov-chk[data-ov="spectrum"]')?.addEventListener('change', (e) => { if (e.target.checked && currentState.effect !== 'radio') cxShowSpectrum(); });
 }
 
 function cxSyncMusic() {

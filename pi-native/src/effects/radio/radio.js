@@ -206,6 +206,9 @@ function effectRadio(core, dt) {
     // 4*SIZE columns, matches effects-core.js's auRefreshCurrentSource().
     if (scrollSpeed > 0) {
       spectrumState.scrollX = ((spectrumState.scrollX || 0) + dt * scrollSpeed * core.SIZE * 1.5 + 4 * core.SIZE) % (4 * core.SIZE);
+    } else {
+      // Scroll off again: back to the normal, unshifted position.
+      spectrumState.scrollX = 0;
     }
     const ampArr = lv.amp, peakArr = lv.peak;
     const ctx = {

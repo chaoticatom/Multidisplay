@@ -28,8 +28,7 @@ function litWords(date) {
   return words;
 }
 
-module.exports = defineCanvasEffect({
-  render(c, { t, core }) {
+function renderWords(c, { t, core }, tint) {
     c.clear();
     const beat = music(core).beat; // lit words glow on the beat
     const on = new Set();
@@ -41,11 +40,13 @@ module.exports = defineCanvasEffect({
     for (let r = 0; r < 10; r++) {
       for (let col = 0; col < 11; col++) {
         const lit = on.has(r * 11 + col);
-        const [cr, cg, cb] = lit ? hsl(t * 0.03 + col * 0.02 + r * 0.03, 0.85, 0.55 + beat * 0.25) : [0.05, 0.05, 0.07];
+        const [cr, cg, cb] = lit ? (tint ? [Math.min(1, tint[0] * (1 + beat * 0.4)), Math.min(1, tint[1] * (1 + beat * 0.4)), Math.min(1, tint[2] * (1 + beat * 0.4))] : hsl(t * 0.03 + col * 0.02 + r * 0.03, 0.85, 0.55 + beat * 0.25)) : [0.05, 0.05, 0.07];
         const x = Math.round(col * cw + (cw - 3 * scale) / 2), y = Math.round(r * ch + (ch - 5 * scale) / 2);
         drawGlyph(FONT_3x5, GRID[r][col], x, y, (px, py) => c.set(px, py, cr, cg, cb), { scale });
       }
     }
-  },
-});
+}
+
+module.exports = defineCanvasEffect({ render: (c, ctx) => renderWords(c, ctx, null) });
 module.exports.litWords = litWords;
+module.exports.renderWords = renderWords;

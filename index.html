@@ -749,10 +749,11 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
 /* ════ v0.6.183: living colour, hero remote, liquid dock, live tiles ════ */
 :root { --cx1: #5b7cff; --cx2: #b45bff; --cx-beat: 0; }
 #sidebar { background: #06070d !important; isolation: isolate; }
-#sidebar::before { content: ""; position: absolute; inset: -20%; z-index: -1; pointer-events: none;
+@media (min-width: 769px) { #sidebar { position: relative; } } /* anchors the glow below to the sidebar, not the page (phones: it's fixed already) */
+#sidebar::before { content: ""; position: absolute; inset: 0; overflow: hidden; z-index: -1; pointer-events: none;
   background: radial-gradient(closest-side, var(--cx1), transparent 70%) 10% 0%/80% 45% no-repeat,
               radial-gradient(closest-side, var(--cx2), transparent 70%) 100% 60%/80% 50% no-repeat;
-  filter: blur(50px); opacity: .32; animation: cx-drift 16s ease-in-out infinite alternate; }
+  filter: blur(50px); opacity: .16; animation: cx-drift 16s ease-in-out infinite alternate; }
 @keyframes cx-drift { to { transform: translate(4%, -3%) rotate(6deg); } }
 #cx-hero { position: relative; margin: 6px 10px 4px; border-radius: 18px; overflow: hidden; background: #000; touch-action: none; cursor: grab; flex-shrink: 0;
   box-shadow: 0 0 0 1px rgba(255,255,255,.1), 0 14px 40px -12px var(--cx1); transform: translateX(calc(var(--swipe, 0) * 18px)); transition: box-shadow 1s; }
@@ -1213,7 +1214,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <div class="sub-section collapsed">
     <button class="sub-head">Live Data <span class="chev">▾</span></button>
     <div class="sub-body">
-    <button class="effect-btn" data-effect="word_clock">◈ Word Clock</button>
     <button class="effect-btn" data-effect="ambient_weather">◈ Ambient Weather</button>
     <button class="effect-btn has-panel" data-effect="weather">◈ Weather <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-weather">
@@ -1295,21 +1295,18 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     </div>
     <button class="effect-btn has-panel" data-effect="datetime">◈ Time &amp; Date <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-datetime">
-      <label class="check-row" style="margin-bottom:6px;"><input type="checkbox" id="dt-allpanels-check">ALL PANELS</label>
-      <label class="check-row"><input type="checkbox" id="dt-scroll-check">SCROLL</label>
-      <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
-      <div class="slider-row">
-        <input type="range" id="dt-scroll-speed" min="-5" max="5" step="0.5" value="1" style="flex:1;">
-        <span class="slider-val" id="dt-scroll-speed-val">1</span>
+      <div class="ov-row-label">Style</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);">
+        <button data-dtstyle="neon">Neon</button><button data-dtstyle="flip">Flip</button><button data-dtstyle="analogue">Analogue</button>
+        <button data-dtstyle="words">Words</button><button data-dtstyle="minimal">Minimal</button>
       </div>
-      <div class="ov-row-label" style="margin-top:8px;">Mode</div>
-      <div class="opt-grid">
-        <button class="strobe-mode-btn active" data-dtmode="time">Time</button>
-        <button class="strobe-mode-btn" data-dtmode="date">Date</button>
-        <button class="strobe-mode-btn" data-dtmode="both">Both</button>
-        <button class="strobe-mode-btn" data-dtmode="full">Full</button>
-        <button class="strobe-mode-btn" data-dtmode="analogue">Analogue</button>
-        <button class="strobe-mode-btn" data-dtmode="words">Words</button>
+      <div class="cx-row"><span>24-hour</span><button class="cx-switch" data-dtflag="h24" aria-label="24-hour"></button></div>
+      <div class="cx-row"><span>Seconds</span><button class="cx-switch" data-dtflag="seconds" aria-label="Seconds"></button></div>
+      <div class="cx-row"><span>Date</span><button class="cx-switch" data-dtflag="date" aria-label="Date"></button></div>
+      <div class="ov-row-label">Colour</div>
+      <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);">
+        <button data-dtcol="auto">Auto</button><button data-dtcol="cyan">Cyan</button><button data-dtcol="amber">Amber</button>
+        <button data-dtcol="pink">Pink</button><button data-dtcol="green">Green</button><button data-dtcol="white">White</button>
       </div>
     </div>
     <button class="effect-btn has-panel" data-effect="neo">◈ Near-Earth Objects <span class="panel-arrow">▸</span></button>
@@ -1754,7 +1751,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
         </div>
         <div class="ov-row-label" style="margin-top:8px;" title="Delays the bars to line up with what you hear - Bluetooth speakers play audio late">Speaker sync</div>
         <div class="slider-row">
-          <input type="range" class="au-sync-el" min="0" max="800" step="10" value="150" style="flex:1;" aria-label="Speaker sync delay">
+          <input type="range" class="au-sync-el" min="0" max="3000" step="25" value="150" style="flex:1;" aria-label="Speaker sync delay">
           <span class="slider-val au-sync-val-el" style="width:52px;">150ms</span>
         </div>
         <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>

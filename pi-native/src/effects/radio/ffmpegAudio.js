@@ -58,13 +58,13 @@ const WAVE_N = 256, WAVE_SPAN = 1024;
 const ANALYSIS_HZ = 60;
 const WINDOW_VU = 2048; // ~46ms
 const VU_DB_FLOOR = -42;
-const RING_SAMPLES = 1 << 16; // ~1.5s of mono audio
+const RING_SAMPLES = 1 << 18; // ~5.9s of audio - room for up to 3s of speaker sync
 // How far behind the newest decoded audio to analyse. Audio reaches your
 // ears later than ffmpeg decodes it (pipe + PulseAudio + Bluetooth, which
 // varies a lot by speaker), so this is adjustable from the radio panel's
 // "Speaker sync" slider (setSyncMs()) to line the bars up with the sound.
 const DEFAULT_SYNC_MS = 150;
-const MAX_SYNC_MS = 800;
+const MAX_SYNC_MS = 3000; // some Bluetooth speakers lag well over a second
 const STALL_MS = 400; // no new audio for this long -> bars fall
 const ATTACK_RATE = 60; // per second; ~17ms to reach a new higher level
 const RELEASE_RATE = 7; // per second; ~140ms decay

@@ -94,6 +94,12 @@ function effectRadioWall(core, dt) {
 
     if (scrollSpeed > 0) {
       spectrumWallState.scrollX = ((spectrumWallState.scrollX || 0) + dt * scrollSpeed * core.wallW * 0.375 + 4 * core.wallW) % (4 * core.wallW);
+    } else {
+
+      // Scroll off again: back to the normal, unshifted position.
+
+      spectrumWallState.scrollX = 0;
+
     }
     const ampArr = lv.amp, peakArr = lv.peak;
     const ctx = {
