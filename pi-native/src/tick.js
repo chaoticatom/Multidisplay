@@ -9,6 +9,7 @@
 // belongs HERE, not copy-pasted into app.js and the simulator separately.
 const { renderIdentify } = require('./effects/identify');
 const { renderNotice } = require('./effects/notice');
+const { applyPostFx, restorePostFx } = require('./effects/postfx');
 const radio = require('./effects/radio');
 const { createFeatureState, updateFeatures, reactDt, pulseBuffer } = require('./effects/audioFeatures');
 const musicFeatures = createFeatureState();
@@ -41,6 +42,7 @@ function applyCrossfade(core, buf, dt) {
 }
 
 function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt) {
+  restorePostFx(); // undo last frame's display-only finishing pass before drawing on it
   core.panelMode = config.mode;
   core.effectOptions = state.effectOptions;
   core.customCubeFaces = state.customCube && state.customCube.faces;
@@ -91,6 +93,7 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
   }
 
   if (config.mode !== 'wall') runOverlays(core, dt, state.overlays); // step 3
+  if (!state.blank) applyPostFx(core, config.mode, state.prefs && state.prefs.look); // bloom/vibrance/smoothing - see postfx.js
 
   if (cubeMode) {
     alarms.applyDonePhase(core, state); // step 4

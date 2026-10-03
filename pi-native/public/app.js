@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.193';
+const APP_VERSION = '0.6.194';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -4737,6 +4737,14 @@ function cxSyncFavs() {
     if (document.activeElement !== sel) sel.value = String(p.minutes);
     note.textContent = p.on && favs.size < 2 ? 'Star at least two effects (★ on the tiles) for the playlist to cycle.' : '';
   }
+  const look = currentState.prefs?.look, lsw = document.getElementById('look-sw');
+  if (look && lsw) {
+    lsw.classList.toggle('on', look.on !== false);
+    for (const k of ['bloom', 'vibrance', 'smooth']) {
+      const el = document.getElementById('look-' + k);
+      if (el && document.activeElement !== el) { el.value = look[k]; document.getElementById('look-' + k + '-val').textContent = Math.round(look[k] * 100) + '%'; }
+    }
+  }
   const n = currentState.prefs?.nightDim, nsw = document.getElementById('night-sw');
   if (n && nsw) {
     nsw.classList.toggle('on', !!n.on);
@@ -4753,6 +4761,12 @@ function cxWirePrefs() {
   const hours = [...Array(24).keys()].map((h) => new Option(String(h).padStart(2, '0') + ':00', String(h)));
   document.getElementById('night-from')?.replaceChildren(...hours.map((o) => o.cloneNode(true)));
   document.getElementById('night-to')?.replaceChildren(...hours.map((o) => o.cloneNode(true)));
+  document.getElementById('look-sw')?.addEventListener('click', () => send({ cmd: 'setLook', on: currentState.prefs?.look?.on === false }));
+  for (const k of ['bloom', 'vibrance', 'smooth']) {
+    const el = document.getElementById('look-' + k);
+    el?.addEventListener('input', () => { document.getElementById('look-' + k + '-val').textContent = Math.round(el.value * 100) + '%'; });
+    el?.addEventListener('change', () => send({ cmd: 'setLook', [k]: Number(el.value) }));
+  }
   document.getElementById('night-sw')?.addEventListener('click', () => send({ cmd: 'setNightDim', on: !currentState.prefs?.nightDim?.on }));
   document.getElementById('night-from')?.addEventListener('change', (e) => send({ cmd: 'setNightDim', from: Number(e.target.value) }));
   document.getElementById('night-to')?.addEventListener('change', (e) => send({ cmd: 'setNightDim', to: Number(e.target.value) }));

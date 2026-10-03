@@ -599,6 +599,12 @@ const COMMANDS = {
     this._playlistSince = Date.now();
     this._broadcast(this._stateMsg());
   },
+  // Next-gen look (postfx.js): {on, bloom, vibrance, smooth}.
+  setLook(ws, msg) {
+    const p = this.state.prefs || prefs.load();
+    this.state.prefs = prefs.save({ ...p, look: { ...p.look, ...msg, cmd: undefined } });
+    this._broadcast(this._stateMsg());
+  },
   setNightDim(ws, msg) {
     const p = this.state.prefs || prefs.load();
     this.state.prefs = prefs.save({ ...p, nightDim: { ...p.nightDim, ...msg, cmd: undefined } });

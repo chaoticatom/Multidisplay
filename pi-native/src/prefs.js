@@ -7,6 +7,7 @@ const DEFAULT = {
   favourites: [],
   playlist: { on: false, minutes: 5 },
   nightDim: { on: false, from: 22, to: 7, level: 0.3 },
+  look: { on: true, bloom: 0.65, vibrance: 0.35, smooth: 0 },
 };
 
 function clean(p) {
@@ -22,6 +23,10 @@ function clean(p) {
     for (const k of ['from', 'to']) { const h = Number(p.nightDim[k]); if (Number.isInteger(h) && h >= 0 && h < 24) out.nightDim[k] = h; }
     const l = Number(p.nightDim.level);
     if (Number.isFinite(l)) out.nightDim.level = Math.max(0.05, Math.min(1, l));
+  }
+  if (p && p.look) {
+    out.look.on = p.look.on !== false;
+    for (const k of ['bloom', 'vibrance', 'smooth']) { const v = Number(p.look[k]); if (Number.isFinite(v)) out.look[k] = Math.max(0, Math.min(1, v)); }
   }
   return out;
 }

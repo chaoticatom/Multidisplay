@@ -1962,6 +1962,11 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <button id="setup-layout-btn" class="ui-btn-primary flat-only" style="margin:8px 0 0;width:100%;">▦ Edit panel layout (add / move / remove panels)</button>
     <button id="identify-panels-btn" title="Label every physical panel with its own identity (face/index + which HAT output and chain position it's wired to) - use this while wiring up multiple panels, in any shape, to see which physical board is which." style="width:100%;margin-top:6px;padding:8px;font-size:11px;letter-spacing:0.5px;background:rgba(80,120,255,0.08);border:1px solid rgba(80,120,255,0.25);color:#9ab;border-radius:6px;cursor:pointer;">🔢 Show panel numbers</button>
   </div>
+      <div class="ui-label-accent" style="margin-top:10px;">✨ Next-gen look</div>
+      <div class="cx-row"><span>Glow, richer colour and smoothing on every effect</span><button class="cx-switch" id="look-sw" aria-label="Next-gen look on/off"></button></div>
+      <div class="slider-row"><span class="slider-label">Glow</span><input type="range" id="look-bloom" min="0" max="1" step="0.05" value="0.65"><span class="slider-val" id="look-bloom-val">65%</span></div>
+      <div class="slider-row"><span class="slider-label">Colour</span><input type="range" id="look-vibrance" min="0" max="1" step="0.05" value="0.35"><span class="slider-val" id="look-vibrance-val">35%</span></div>
+      <div class="slider-row"><span class="slider-label">Smooth motion</span><input type="range" id="look-smooth" min="0" max="1" step="0.05" value="0"><span class="slider-val" id="look-smooth-val">0%</span></div>
       <div class="ui-label-accent" style="margin-top:10px;">🌙 Night dimming</div>
       <div class="cx-row"><span>Dim from</span><select id="night-from" class="ui-input" aria-label="Dim from"></select><span>to</span><select id="night-to" class="ui-input" aria-label="Dim until"></select><button class="cx-switch" id="night-sw" aria-label="Night dimming on/off"></button></div>
       <div class="slider-row"><span class="slider-label">Night level</span><input type="range" id="night-level" min="0.05" max="1" step="0.05" value="0.3"><span class="slider-val" id="night-level-val">30%</span></div>
@@ -2252,6 +2257,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.193"></script>
+<script src="app.js?v=0.6.194"></script>
 </body>
 </html>
