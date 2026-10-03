@@ -168,7 +168,7 @@ function effectRadio(core, dt) {
   core.t += dt;
   const opts = core.effectOptions?.radio || {};
   const spectrumOn = !!opts.spectrumOn;
-  const bands = [8, 16, 32, 64, 128, 256].includes(opts.bands) ? opts.bands : 64;
+  const bands = [8, 16, 32, 64, 128, 256, 384].includes(opts.bands) ? opts.bands : 64;
   // Defaults changed per a real request: auto gain ON, gain 2.0x, theme
   // Pastel (5, not VU Meter/6) - see index.html/app.js for the matching
   // UI-side defaults (checkbox/slider initial state + sync fallback).

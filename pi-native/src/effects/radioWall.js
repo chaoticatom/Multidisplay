@@ -73,7 +73,7 @@ function effectRadioWall(core, dt) {
   core.t += dt;
   const opts = core.effectOptions?.radio || {};
   const spectrumOn = !!opts.spectrumOn;
-  const bands = [8, 16, 32, 64, 128, 256].includes(opts.bands) ? opts.bands : 64;
+  const bands = [8, 16, 32, 64, 128, 256, 384].includes(opts.bands) ? opts.bands : 64;
   // See radio.js's effectRadio() for the default changes (auto gain ON,
   // gain 2.0x, theme Pastel).
   const theme = Number.isFinite(opts.theme) ? opts.theme : 5;

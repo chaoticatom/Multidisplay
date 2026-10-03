@@ -13,6 +13,12 @@
 // radio.js's history for the reports behind this).
 function sample(arr, b, bands, total = arr.length) {
   if (bands <= 1) return arr[total - 1];
+  // More bars than measured bands (e.g. 384 across a 6-panel wall): blend
+  // the two nearest bands so neighbouring bars change smoothly.
+  if (bands > total) {
+    const x = (b * (total - 1)) / (bands - 1), i = Math.floor(x), f = x - i;
+    return i + 1 < total ? arr[i] + (arr[i + 1] - arr[i]) * f : arr[total - 1];
+  }
   const start = Math.floor((b * total) / bands);
   const end = b === bands - 1 ? total - 1 : Math.floor(((b + 1) * total) / bands) - 1;
   let v = arr[start];

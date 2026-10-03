@@ -3587,6 +3587,10 @@ var PiEngine = (() => {
       init_bufferGlobal();
       function sample(arr, b, bands, total = arr.length) {
         if (bands <= 1) return arr[total - 1];
+        if (bands > total) {
+          const x = b * (total - 1) / (bands - 1), i = Math.floor(x), f = x - i;
+          return i + 1 < total ? arr[i] + (arr[i + 1] - arr[i]) * f : arr[total - 1];
+        }
         const start = Math.floor(b * total / bands);
         const end = b === bands - 1 ? total - 1 : Math.floor((b + 1) * total / bands) - 1;
         let v = arr[start];
@@ -3745,7 +3749,7 @@ var PiEngine = (() => {
         core.t += dt;
         const opts = core.effectOptions?.radio || {};
         const spectrumOn = !!opts.spectrumOn;
-        const bands = [8, 16, 32, 64, 128, 256].includes(opts.bands) ? opts.bands : 64;
+        const bands = [8, 16, 32, 64, 128, 256, 384].includes(opts.bands) ? opts.bands : 64;
         const theme = Number.isFinite(opts.theme) ? opts.theme : 5;
         const style = opts.style || "glow";
         const barMode = opts.barMode || "solid";
@@ -26133,7 +26137,7 @@ var PiEngine = (() => {
         core.t += dt;
         const opts = core.effectOptions?.radio || {};
         const spectrumOn = !!opts.spectrumOn;
-        const bands = [8, 16, 32, 64, 128, 256].includes(opts.bands) ? opts.bands : 64;
+        const bands = [8, 16, 32, 64, 128, 256, 384].includes(opts.bands) ? opts.bands : 64;
         const theme = Number.isFinite(opts.theme) ? opts.theme : 5;
         const style = opts.style || "glow";
         const barMode = opts.barMode || "solid";
