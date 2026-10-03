@@ -32,22 +32,38 @@ function deletePhoto(name) {
 }
 
 const icons = {};
-async function icon(size) {
-  if (icons[size]) return icons[size];
+
+const SW_JS = `const OFFLINE = '<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Multidisplay</title>'
+  + '<body style="margin:0;height:100vh;display:grid;place-items:center;background:#06070d;color:#dfe7ff;font:16px system-ui;text-align:center">'
+  + '<div><div style="font-size:48px">\\u{1F4A1}</div><h2>Can\\u2019t reach the display</h2><p>Check the Pi is on and your phone is on the same Wi-Fi.</p>'
+  + '<button onclick="location.reload()" style="padding:12px 22px;border-radius:14px;border:0;background:#5b7cff;color:#fff;font-size:16px">Try again</button></div>';
+self.addEventListener('install', (e) => self.skipWaiting());
+self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener('fetch', (e) => {
+  if (e.request.mode !== 'navigate') return;
+  e.respondWith(fetch(e.request).catch(() => new Response(OFFLINE, { headers: { 'Content-Type': 'text/html' } })));
+});
+`;
+async function icon(size, maskable = false) {
+  const key = size + (maskable ? 'm' : '');
+  if (icons[key]) return icons[key];
   const { Jimp } = require('jimp');
   const img = new Jimp({ width: size, height: size, color: 0x07091aff });
   // An LED grid: rounded dots in a violet-to-cyan sweep.
-  const n = 8, cell = size / n, r = cell * 0.36;
+  // Maskable icons keep the art inside the central safe zone (phones crop
+  // them to circles/squircles).
+  const pad = maskable ? size * 0.14 : 0;
+  const n = 8, cell = (size - pad * 2) / n, r = cell * 0.36;
   for (let gy = 0; gy < n; gy++) for (let gx = 0; gx < n; gx++) {
     const t = (gx + gy) / (2 * n - 2);
     const col = [Math.round(180 * (1 - t) + 40 * t), Math.round(80 * (1 - t) + 220 * t), 255];
-    const cx = (gx + 0.5) * cell, cy = (gy + 0.5) * cell;
+    const cx = pad + (gx + 0.5) * cell, cy = pad + (gy + 0.5) * cell;
     for (let y = Math.floor(cy - r); y <= cy + r; y++) for (let x = Math.floor(cx - r); x <= cx + r; x++) {
       if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r) img.setPixelColor(((col[0] << 24) | (col[1] << 16) | (col[2] << 8) | 255) >>> 0, x, y);
     }
   }
-  icons[size] = await img.getBuffer('image/png');
-  return icons[size];
+  icons[key] = await img.getBuffer('image/png');
+  return icons[key];
 }
 
 function readBody(req, max) {
@@ -67,15 +83,28 @@ function handle(server, req, res, auth) {
   if (req.method === 'GET' && p === '/manifest.json') {
     res.writeHead(200, { 'Content-Type': 'application/manifest+json' });
     res.end(JSON.stringify({
-      name: 'LED Multidisplay', short_name: 'Multidisplay', start_url: '/', display: 'standalone',
+      id: '/', name: 'LED Multidisplay', short_name: 'Multidisplay', description: 'Control your LED cube and panels',
+      start_url: '/', scope: '/', display: 'standalone', orientation: 'portrait',
       background_color: '#06070d', theme_color: '#06070d',
-      icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }],
+      icons: [
+        { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
     }));
     return true;
   }
-  const im = /^\/(?:icon-(192|512)|apple-touch-icon)\.png$/.exec(p);
+  // Service worker: needed for "Install app". It only adds an offline page
+  // (shown when the Pi can't be reached) - everything else always comes
+  // fresh from the Pi, as the page is designed to.
+  if (req.method === 'GET' && p === '/sw.js') {
+    res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-store', 'Service-Worker-Allowed': '/' });
+    res.end(SW_JS);
+    return true;
+  }
+  const im = /^\/(?:icon-(192|512)|icon-maskable-(512)|apple-touch-icon)\.png$/.exec(p);
   if (req.method === 'GET' && im) {
-    icon(Number(im[1] || 180)).then((buf) => { res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=86400' }); res.end(buf); })
+    icon(Number(im[1] || im[2] || 180), !!im[2]).then((buf) => { res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=86400' }); res.end(buf); })
       .catch(() => { res.writeHead(500).end(); });
     return true;
   }

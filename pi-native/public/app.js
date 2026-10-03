@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.201';
+const APP_VERSION = '0.6.202';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2921,9 +2921,28 @@ function syncClearAllButton() {
 // tears down. The existing Radio panel Stop button already calls
 // radioBrowserStop() alongside its WS send for exactly this reason (see
 // its own click handler) - this button needs the same pairing.
+// The speaker button mutes/unmutes (the station keeps playing; Stop on the
+// Music tab still stops it). Muting sets the volume to 0 and remembers the
+// level to come back to.
+function radioMuted() { return Number(currentState.effectOptions?.radio?.volume ?? 0.8) === 0; }
 function wireStopSoundButton() {
   const btn = document.getElementById('stop-sound-btn');
-  if (btn) btn.addEventListener('click', () => { send({ cmd: 'stopAllSound' }); radioBrowserStop(); });
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const el = document.getElementById('radio-browser-audio');
+    let v;
+    if (radioMuted()) {
+      try { v = Number(localStorage.getItem('unmuteVol')) || 0.8; } catch (e) { v = 0.8; }
+      cxToast('🔊 Sound on');
+    } else {
+      const cur = Number(currentState.effectOptions?.radio?.volume ?? 0.8);
+      try { localStorage.setItem('unmuteVol', String(cur || 0.8)); } catch (e) { /* storage unavailable */ }
+      v = 0;
+      cxToast('🔇 Muted');
+    }
+    setEffectOption('radio', 'volume', v);
+    if (el) el.volume = v;
+  });
 }
 
 // ---------------------------------------------------------------------
@@ -4865,6 +4884,37 @@ function cxWireVoice() {
   });
 }
 
+// ── Install as an app (PWA). Browsers only offer "Install" on a secure
+// (https or allowed) address; the service worker (/sw.js) adds an offline
+// page. iPhone installs via Safari's Share menu without either.
+let _cxInstallEvt = null;
+function cxWirePwa() {
+  if ('serviceWorker' in navigator && window.isSecureContext && !window.MULTIDISPLAY_SIM) navigator.serviceWorker.register('sw.js').catch(() => {});
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); _cxInstallEvt = e; cxSyncPwa(); });
+  window.addEventListener('appinstalled', () => { _cxInstallEvt = null; cxToast('📲 Installed'); cxSyncPwa(); });
+  document.getElementById('pwa-install-btn')?.addEventListener('click', async () => {
+    if (_cxInstallEvt) { _cxInstallEvt.prompt(); await _cxInstallEvt.userChoice.catch(() => {}); _cxInstallEvt = null; cxSyncPwa(); return; }
+    document.getElementById('pwa-help').hidden = false;
+    document.getElementById('pwa-help').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+  cxSyncPwa();
+}
+function cxSyncPwa() {
+  const btn = document.getElementById('pwa-install-btn'), help = document.getElementById('pwa-help');
+  if (!btn || !help) return;
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  if (standalone) { btn.hidden = true; help.textContent = '✅ Running as an installed app.'; return; }
+  btn.hidden = false;
+  btn.textContent = _cxInstallEvt ? '📲 Install as an app' : '📲 How to install as an app';
+  const here = location.origin;
+  help.innerHTML = ios
+    ? 'In <b>Safari</b>: tap <b>Share</b> (square with arrow) → <b>Add to Home Screen</b>. It opens full-screen like an app.'
+    : _cxInstallEvt ? 'Tap the button - your browser will ask to install it.'
+      : `Your browser only installs apps from a secure address. Once, in <b>Chrome</b>: open <b>chrome://flags/#unsafely-treat-insecure-origin-as-secure</b>, enable it, add <b>${here}</b>, tap <b>Relaunch</b>. Then come back here and tap the button (or ⋮ → <b>Install app</b>).`;
+  help.hidden = !_cxInstallEvt && !ios ? help.hidden : false;
+}
+
 // ── Backup, notifications, My Photos
 function cxWireExtras() {
   const pinHdr = () => ({ 'X-Control-Pin': storedPin() });
@@ -5083,7 +5133,14 @@ function cxSyncMusic() {
   }
   document.getElementById('cx-np-name').textContent = playing ? st.station.name.replace(/^[\s-]+/, '') : 'Nothing playing';
   document.getElementById('cx-np-sub').textContent = playing ? (st.station.genre || 'Radio') : 'Pick a station below';
-  document.getElementById('stop-sound-btn')?.classList.toggle('cx-quiet', !playing);
+  const mb = document.getElementById('stop-sound-btn');
+  if (mb) {
+    const muted = radioMuted();
+    mb.textContent = muted ? '🔇' : '🔊';
+    mb.title = muted ? 'Unmute' : 'Mute'; mb.setAttribute('aria-label', mb.title);
+    mb.classList.toggle('cx-quiet', !playing && !muted);
+    mb.classList.toggle('cx-muted', muted);
+  }
 }
 
 function cxSyncHeroLabel() {
@@ -5109,6 +5166,7 @@ function cxInit() {
   cxWireVoice();
   cxWireSpectrumShortcut();
   cxWireExtras();
+  cxWirePwa();
   cxWireTiles();
   document.querySelectorAll('#tab-bar [data-tab]').forEach((b) => b.addEventListener('click', () => requestAnimationFrame(cxMoveBlob)));
   window.addEventListener('resize', cxMoveBlob);
