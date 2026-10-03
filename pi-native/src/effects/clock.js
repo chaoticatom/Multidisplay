@@ -149,11 +149,14 @@ function analogue(c, opts, t) {
   const { d, ms } = parts(opts);
   const col = tint(opts, t), cx = (c.W - 1) / 2, cy = (c.H - 1) / 2, R = Math.min(c.W, c.H) / 2 - 1;
   const sec = d.getSeconds() + ms / 1000, min = d.getMinutes() + sec / 60, hr = (d.getHours() % 12) + min / 60;
+  // Hour and minute hands: slim, tapering to a point, with a dark outline
+  // and a lighter centre line; the seconds hand stays a thin red needle.
+  const light = (k) => [Math.min(1, col[0] * (1 - k) + k), Math.min(1, col[1] * (1 - k) + k), Math.min(1, col[2] * (1 - k) + k)];
   const hands = [
-    { a: hr / 12, len: R * 0.5, w: Math.max(1.2, R * 0.09), col },
-    { a: min / 60, len: R * 0.8, w: Math.max(1, R * 0.06), col: [Math.min(1, col[0] * 0.6 + 0.4), Math.min(1, col[1] * 0.6 + 0.4), Math.min(1, col[2] * 0.6 + 0.4)] },
+    { a: hr / 12, len: R * 0.52, w: Math.max(1.3, R * 0.075), tip: 0.3, col, outline: true },
+    { a: min / 60, len: R * 0.82, w: Math.max(1.1, R * 0.055), tip: 0.25, col: light(0.45), outline: true },
   ];
-  if (opts.seconds) hands.push({ a: sec / 60, len: R * 0.9, w: 0.7, col: [1, 0.25, 0.3] });
+  if (opts.seconds) hands.push({ a: sec / 60, len: R * 0.9, w: 0.7, tip: 1, col: [1, 0.25, 0.3] });
   for (let y = 0; y < c.H; y++) for (let x = 0; x < c.W; x++) {
     const dx = x - cx, dy = y - cy, dist = Math.hypot(dx, dy);
     let r = 0, g = 0, b = 0;
@@ -168,8 +171,18 @@ function analogue(c, opts, t) {
     for (const h of hands) {
       const ex = Math.sin(h.a * Math.PI * 2) * h.len, ey = -Math.cos(h.a * Math.PI * 2) * h.len;
       const tt = Math.max(-0.12, Math.min(1, (dx * ex + dy * ey) / (h.len * h.len)));
-      const dd = Math.hypot(dx - ex * tt, dy - ey * tt), cover = Math.max(0, Math.min(1, h.w - dd + 0.5));
-      if (cover > 0) { r = r * (1 - cover) + h.col[0] * cover; g = g * (1 - cover) + h.col[1] * cover; b = b * (1 - cover) + h.col[2] * cover; }
+      const dd = Math.hypot(dx - ex * tt, dy - ey * tt);
+      const w = h.w * (tt < 0 ? 0.8 : 1 - (1 - h.tip) * tt); // tapers towards the tip
+      if (h.outline) { // a dark rim keeps the hands crisp against the dial and each other
+        const rim = Math.max(0, Math.min(1, w + 1.3 - dd));
+        if (rim > 0) { r *= 1 - rim * 0.85; g *= 1 - rim * 0.85; b *= 1 - rim * 0.85; }
+      }
+      const cover = Math.max(0, Math.min(1, w - dd + 0.5));
+      if (cover > 0) {
+        const hi = h.outline ? Math.max(0, 1 - dd / Math.max(0.6, w * 0.5)) * 0.35 : 0; // lighter centre line
+        const cr = Math.min(1, h.col[0] + hi), cg = Math.min(1, h.col[1] + hi), cb = Math.min(1, h.col[2] + hi);
+        r = r * (1 - cover) + cr * cover; g = g * (1 - cover) + cg * cover; b = b * (1 - cover) + cb * cover;
+      }
     }
     if (dist < Math.max(1.2, R * 0.07)) { r = 1; g = 1; b = 1; }
     c.set(x, y, Math.min(1, r), Math.min(1, g), Math.min(1, b));
