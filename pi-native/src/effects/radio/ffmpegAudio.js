@@ -69,6 +69,7 @@ const PEAK_GRAVITY = 3.2; // peak marker fall acceleration (units/s^2)
 
 class RadioAudio {
   constructor(spawnFn = spawn) {
+    this._gain = 1; // speaker volume - see setVolume()
     this._spawn = spawnFn;
     this.decodeProc = null;
     this.playProc = null;
@@ -401,7 +402,8 @@ class RadioAudio {
     // listener in _launchPlayback()) instead of writing regardless and
     // letting Node's internal buffer grow without bound.
     if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && this._playDrained) {
-      try { this._playDrained = this.playProc.stdin.write(chunk); } catch (e) { /* handled via the stdin 'error' listener */ }
+      const out = this._gain < 0.999 ? scalePcm(chunk, this._gain) : chunk;
+      try { this._playDrained = this.playProc.stdin.write(out); } catch (e) { /* handled via the stdin 'error' listener */ }
     }
 
     // Mono-sum into the analysis ring (the Bluetooth playback above stays
@@ -526,6 +528,15 @@ class RadioAudio {
     this._launchPlayback();
   }
 
+  // Speaker volume (the Volume slider / mute button), 0..1. Applied to the
+  // PCM on its way to paplay, so it works on any output (Bluetooth too) and
+  // never touches the copy the spectrum analyses. The slider's default (0.8)
+  // plays at full level, as before volume was wired up.
+  setVolume(v) {
+    const n = Number(v);
+    this._gain = Number.isFinite(n) ? Math.max(0, Math.min(1, n / 0.8)) : 1;
+  }
+
   // Speaker sync delay (see DEFAULT_SYNC_MS). Clamped so the analysis
   // window always stays inside the ring buffer.
   setSyncMs(ms) {
@@ -604,6 +615,13 @@ class RadioAudio {
 // advances while the radio effect is actually ticking, so the main
 // thread's RadioAudio idle-timeout still fires exactly as before when
 // nothing is asking for audio any more.
+// A volume-scaled copy of an s16le PCM chunk.
+function scalePcm(chunk, gain) {
+  const out = Buffer.allocUnsafe(chunk.length - (chunk.length & 1));
+  for (let i = 0; i < out.length; i += 2) out.writeInt16LE(Math.round(chunk.readInt16LE(i) * gain), i);
+  return out;
+}
+
 class RemoteAudio {
   constructor() {
     this.spec = new Float32Array(BAND_COUNT);
@@ -618,6 +636,7 @@ class RemoteAudio {
   }
   ensure(url) { this.url = url || null; this.ensureCount++; }
   setSyncMs(ms) { this.syncMs = ms; }
+  setVolume(v) { this.volume = v; }
   clearDebugFinished() { this.clearCount++; }
   getStatus() { return this.status; }
   getPlaybackStatus() { return this.playbackStatus; }
@@ -630,7 +649,7 @@ class RemoteAudio {
     this.playbackStatus = snap.playbackStatus;
     this.lastAttemptMs = snap.lastAttemptMs;
   }
-  request() { return { url: this.url, ensureCount: this.ensureCount, clearCount: this.clearCount, syncMs: this.syncMs }; }
+  request() { return { url: this.url, ensureCount: this.ensureCount, clearCount: this.clearCount, syncMs: this.syncMs, volume: this.volume }; }
   close() {}
 }
 
@@ -640,9 +659,10 @@ class RemoteAudio {
 function applyRemoteRequest(audio, req, seen) {
   if (!req) return seen;
   if (audio.setSyncMs) audio.setSyncMs(req.syncMs);
+  if (audio.setVolume && req.volume !== undefined) audio.setVolume(req.volume);
   if (req.clearCount !== seen.clearCount) audio.clearDebugFinished();
   if (req.ensureCount !== seen.ensureCount) audio.ensure(req.url);
   return { ensureCount: req.ensureCount, clearCount: req.clearCount };
 }
 
-module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, BAND_COUNT: require('./fft').BAND_COUNT };
+module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, BAND_COUNT: require('./fft').BAND_COUNT, __scale: scalePcm };

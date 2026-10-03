@@ -12,6 +12,7 @@
 <title>Multidisplay</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { height: 100%; overflow: hidden; } /* the page itself never scrolls - only the menu list does */
   body { background: #000; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; color: #eee; }
 
   #sidebar {
@@ -1084,7 +1085,7 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
     <div class="effect-panel" id="panel-lightspeed">
       <div class="ov-row-label">Speed</div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <input type="range" id="ls-speed" min="1" max="20" step="0.5" value="8" style="flex:1;">
+        <input type="range" id="ls-speed" min="1" max="60" step="0.5" value="8" style="flex:1;">
         <span id="ls-speed-val" style="font-size:11px;color:#9cd;width:32px;">8</span>
       </div>
       <div class="ov-row-label" style="margin-top:8px;">Trail Length</div>
@@ -2298,6 +2299,6 @@ html body .ui-btn-small { flex:1; padding:5px 3px; font-size:11px; background:rg
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.202"></script>
+<script src="app.js?v=0.6.203"></script>
 </body>
 </html>

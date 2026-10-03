@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.202';
+const APP_VERSION = '0.6.203';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1594,7 +1594,7 @@ function syncPanelEditor() {
     if (thumb) { const cv = document.createElement('canvas'); cv.width = cv.height = thumb.width; cv.getContext('2d').drawImage(thumb, 0, 0); b.appendChild(cv); }
     const t = document.createElement('span'); t.textContent = CC_FACE_NAMES[f] + (cfg && cfg.effect ? '\n' + (effectNames[cfg.effect] || cfg.effect) : '');
     b.appendChild(t);
-    b.addEventListener('click', () => { const c = document.getElementById('cx-face-' + f); c?.scrollIntoView({ behavior: 'smooth', block: 'center' }); c?.classList.add('flash'); setTimeout(() => c?.classList.remove('flash'), 900); });
+    b.addEventListener('click', () => { const c = document.getElementById('cx-face-' + f); cxScrollMenuTo(c, 'center'); c?.classList.add('flash'); setTimeout(() => c?.classList.remove('flash'), 900); });
     net.appendChild(b);
   }
   el.appendChild(net);
@@ -4753,12 +4753,21 @@ async function cxWireTiles() {
   setInterval(() => { if (!document.hidden && document.body.dataset.tab === 'play') draw(); }, 125);
 }
 
+// Scroll only the menu's own list to an element. (scrollIntoView also
+// scrolled the whole page, shifting the sidebar up and leaving a gap below.)
+function cxScrollMenuTo(el, where = 'start') {
+  const sc = document.getElementById('sidebar-scroll');
+  if (!el || !sc) return;
+  const top = el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
+  sc.scrollTo({ top: where === 'center' ? top - sc.clientHeight / 2 + el.offsetHeight / 2 : top - 6, behavior: 'smooth' });
+}
+
 // Jump to the running effect's options (top of Play) and flash them.
 function cxShowOptions() {
   setTab('play');
   const host = document.getElementById('now-options');
   if (!host || !host.children.length) { cxToast('This effect has no settings'); return; }
-  host.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  cxScrollMenuTo(host, 'start');
   host.classList.remove('cx-flash'); void host.offsetWidth; host.classList.add('cx-flash');
 }
 
@@ -4895,7 +4904,7 @@ function cxWirePwa() {
   document.getElementById('pwa-install-btn')?.addEventListener('click', async () => {
     if (_cxInstallEvt) { _cxInstallEvt.prompt(); await _cxInstallEvt.userChoice.catch(() => {}); _cxInstallEvt = null; cxSyncPwa(); return; }
     document.getElementById('pwa-help').hidden = false;
-    document.getElementById('pwa-help').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    cxScrollMenuTo(document.getElementById('pwa-help'), 'center');
   });
   cxSyncPwa();
 }

@@ -2270,6 +2270,7 @@ var PiEngine = (() => {
       var PEAK_GRAVITY = 3.2;
       var RadioAudio = class {
         constructor(spawnFn = spawn) {
+          this._gain = 1;
           this._spawn = spawnFn;
           this.decodeProc = null;
           this.playProc = null;
@@ -2501,8 +2502,9 @@ var PiEngine = (() => {
         }
         _onData(chunk) {
           if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && this._playDrained) {
+            const out = this._gain < 0.999 ? scalePcm(chunk, this._gain) : chunk;
             try {
-              this._playDrained = this.playProc.stdin.write(chunk);
+              this._playDrained = this.playProc.stdin.write(out);
             } catch (e) {
             }
           }
@@ -2640,6 +2642,14 @@ var PiEngine = (() => {
           this._teardownPlayback();
           this._launchPlayback();
         }
+        // Speaker volume (the Volume slider / mute button), 0..1. Applied to the
+        // PCM on its way to paplay, so it works on any output (Bluetooth too) and
+        // never touches the copy the spectrum analyses. The slider's default (0.8)
+        // plays at full level, as before volume was wired up.
+        setVolume(v) {
+          const n = Number(v);
+          this._gain = Number.isFinite(n) ? Math.max(0, Math.min(1, n / 0.8)) : 1;
+        }
         // Speaker sync delay (see DEFAULT_SYNC_MS). Clamped so the analysis
         // window always stays inside the ring buffer.
         setSyncMs(ms) {
@@ -2696,6 +2706,11 @@ var PiEngine = (() => {
           this._teardown();
         }
       };
+      function scalePcm(chunk, gain) {
+        const out = Buffer2.allocUnsafe(chunk.length - (chunk.length & 1));
+        for (let i = 0; i < out.length; i += 2) out.writeInt16LE(Math.round(chunk.readInt16LE(i) * gain), i);
+        return out;
+      }
       var RemoteAudio = class {
         constructor() {
           this.spec = new Float32Array(BAND_COUNT);
@@ -2714,6 +2729,9 @@ var PiEngine = (() => {
         }
         setSyncMs(ms) {
           this.syncMs = ms;
+        }
+        setVolume(v) {
+          this.volume = v;
         }
         clearDebugFinished() {
           this.clearCount++;
@@ -2734,7 +2752,7 @@ var PiEngine = (() => {
           this.lastAttemptMs = snap.lastAttemptMs;
         }
         request() {
-          return { url: this.url, ensureCount: this.ensureCount, clearCount: this.clearCount, syncMs: this.syncMs };
+          return { url: this.url, ensureCount: this.ensureCount, clearCount: this.clearCount, syncMs: this.syncMs, volume: this.volume };
         }
         close() {
         }
@@ -2742,11 +2760,12 @@ var PiEngine = (() => {
       function applyRemoteRequest(audio, req, seen) {
         if (!req) return seen;
         if (audio.setSyncMs) audio.setSyncMs(req.syncMs);
+        if (audio.setVolume && req.volume !== void 0) audio.setVolume(req.volume);
         if (req.clearCount !== seen.clearCount) audio.clearDebugFinished();
         if (req.ensureCount !== seen.ensureCount) audio.ensure(req.url);
         return { ensureCount: req.ensureCount, clearCount: req.clearCount };
       }
-      module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, BAND_COUNT: require_fft().BAND_COUNT };
+      module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, BAND_COUNT: require_fft().BAND_COUNT, __scale: scalePcm };
     }
   });
 
@@ -3703,12 +3722,16 @@ var PiEngine = (() => {
         audio.ensure(null);
       }
       function keepAlive(opts) {
-        if (opts) audio.setSyncMs(opts.syncMs);
+        if (opts) {
+          audio.setSyncMs(opts.syncMs);
+          if (Number.isFinite(Number(opts.volume))) setVolume(opts.volume);
+        }
         audio.ensure(playing && currentStation ? currentStation.url : null);
       }
       function setVolume(v) {
         const n = Number(v);
         if (Number.isFinite(n)) volume = Math.max(0, Math.min(1, n));
+        if (audio.setVolume) audio.setVolume(volume);
       }
       async function search(query) {
         lastQuery = query || "";

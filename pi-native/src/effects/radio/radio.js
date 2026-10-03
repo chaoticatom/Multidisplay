@@ -142,13 +142,14 @@ function stopStation() {
 // idle timeout stopped the stream - "background" radio cut out 10 seconds
 // after changing effect.
 function keepAlive(opts) {
-  if (opts) audio.setSyncMs(opts.syncMs);
+  if (opts) { audio.setSyncMs(opts.syncMs); if (Number.isFinite(Number(opts.volume))) setVolume(opts.volume); }
   audio.ensure(playing && currentStation ? currentStation.url : null);
 }
 
 function setVolume(v) {
   const n = Number(v);
   if (Number.isFinite(n)) volume = Math.max(0, Math.min(1, n));
+  if (audio.setVolume) audio.setVolume(volume); // reaches the speaker (see ffmpegAudio.js)
 }
 
 // Fire-and-forget, mirrors weather.js's maybeFetch() shape - the caller
