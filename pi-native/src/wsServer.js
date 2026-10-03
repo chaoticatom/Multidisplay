@@ -344,11 +344,18 @@ class WsServer {
     // cert generation fails for any reason - see tls.js.
     const tlsFiles = ensureSelfSignedCert();
     if (tlsFiles) {
-      this.https = https.createServer(tlsFiles, (req, res) => this._handleHttp(req, res));
-      this.wssHttps = new WebSocket.Server({ server: this.https, maxPayload: WS_MAX_PAYLOAD, verifyClient: ({ req }) => isSameOrigin(req) });
-      this._wireConnection(this.wssHttps);
-      this.https.listen(port + 1);
-      console.log(`[app] HTTPS control page (needed for camera/screen capture) on :${port + 1} - self-signed, browsers will warn once`);
+      // HTTPS_PORT (environment) picks the secure port(s), e.g. "443" for a
+      // plain https://name address, or "8082,443" for both. Default: port+1.
+      const ports = String(process.env.HTTPS_PORT || port + 1).split(',').map((p) => parseInt(p, 10)).filter((p) => p > 0 && p < 65536);
+      this.httpsServers = ports.map((p) => {
+        const srv = https.createServer(tlsFiles, (req, res) => this._handleHttp(req, res));
+        this._wireConnection(new WebSocket.Server({ server: srv, maxPayload: WS_MAX_PAYLOAD, verifyClient: ({ req }) => isSameOrigin(req) }));
+        srv.on('error', (e) => console.warn(`[app] HTTPS on :${p} failed: ${e.message}`));
+        srv.listen(p);
+        console.log(`[app] HTTPS control page (needed for camera/screen capture) on :${p}`);
+        return srv;
+      });
+      this.https = this.httpsServers[0] || null;
     } else {
       this.https = null;
     }
@@ -888,7 +895,7 @@ class WsServer {
   close() {
     this.wss.close();
     this.http.close();
-    if (this.https) { this.wssHttps.close(); this.https.close(); }
+    for (const srv of this.httpsServers || []) srv.close();
   }
 }
 
