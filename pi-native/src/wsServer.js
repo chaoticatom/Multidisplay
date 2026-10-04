@@ -639,6 +639,9 @@ class WsServer {
     if (!p || this.state.activeAlarm) return;
     const now = require('./localTime').wallClock(p.tz); // the user's local time
     const st = this.state.autoStatus || (this.state.autoStatus = {});
+    // The Pi's view of the time, shown under Timers so a wrong clock or zone is easy to spot.
+    const clock = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    if (st.clock !== clock) { st.clock = clock; st.tz = p.tz || 'Pi clock'; this._broadcast(this._stateMsg()); }
     const show = (effect) => {
       if (!EFFECTS[effect] || this.state.effect === effect) return false;
       this.state.effect = effect; this.state.blank = false; this._playlistSince = Date.now();

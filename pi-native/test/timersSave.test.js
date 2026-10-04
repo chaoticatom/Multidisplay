@@ -131,3 +131,20 @@ if (failed) process.exitCode = 1;
   } catch (e) { console.error('  FAIL -', e.message); process.exitCode = 1; }
   finally { radio.setFade = realFade; radio.playStation = realPlay; radio.stopStation = realStop; }
 }
+
+// A timer left 'showing' while the display was off must not block later ones.
+{
+  try {
+    const stale = { al: { id: 'old', prealarm: {} }, phase: 'main', startMs: Date.now() - 20 * 60000, endMs: Date.now() - 10 * 60000, dismissed: false };
+    const al = { ...base, id: 'new', triggerType: 'effect', effect: 'plasma' };
+    const state = { alarms: [al], activeAlarm: stale, effect: 'wave', overlays: {}, blank: true, effectsRegistry: { plasma() {} } };
+    state._alarmT = 5; // make tickCheck run its check now
+    const realNow = Date; // tickCheck uses the real clock; call alarmCheck after clearing
+    alarms.tickCheck(state, 0, { plasma() {} });
+    assert.strictEqual(state.activeAlarm === stale, false, 'the stale timer is cleared');
+    alarms.alarmCheck(state, new Date(2026, 9, 3, 7, 30, 5));
+    assert.strictEqual(state.effect, 'plasma');
+    assert.strictEqual(state.blank, false);
+    console.log('  ok - a stuck earlier timer no longer blocks the next one');
+  } catch (e) { console.error('  FAIL -', e.message); process.exitCode = 1; }
+}

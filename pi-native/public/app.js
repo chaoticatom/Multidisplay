@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.251';
+const APP_VERSION = '0.6.252';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -5044,8 +5044,17 @@ function syncTimezone() {
   let tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { /* old browser */ }
   if (tz && currentState.prefs && currentState.prefs.tz !== tz && !syncTimezone.sent) { syncTimezone.sent = true; send({ cmd: 'setTimezone', tz }); setTimeout(() => { syncTimezone.sent = false; }, 10000); }
 }
+setInterval(() => { try { renderAlarmList(); } catch (e) { /* not ready yet */ } }, 30000); // keep 'in 3 min' current
+function syncPiClock() {
+  const el = document.getElementById('pi-clock'), st = currentState.autoStatus || {};
+  if (!el) return;
+  const mine = new Date().toTimeString().slice(0, 5);
+  el.textContent = st.clock ? `Timers run on the Pi's clock: ${st.clock} (${st.tz})` + (st.clock !== mine ? ` - this device says ${mine}` : '') : '';
+  el.style.color = st.clock && st.clock !== mine ? '#ff9a9a' : '';
+}
 function syncAccessChecks() {
   syncParty();
+  syncPiClock();
   syncTimezone();
   syncAlarmPreview();
   syncSfx();

@@ -25780,6 +25780,8 @@ var PiEngine = (() => {
       }
       function tickCheck(state, dt, EFFECTS) {
         state.effectsRegistry = EFFECTS;
+        const a = state.activeAlarm;
+        if (a && (a.dismissed || a.phase === "main" && a.endMs && Date.now() > a.endMs || a.startMs && Date.now() - a.startMs > 3 * 36e5 || a.phase === "done")) state.activeAlarm = null;
         state._alarmT = (state._alarmT || 0) + dt;
         if (state._alarmT > AL_CHECK_INTERVAL) {
           state._alarmT = 0;

@@ -514,6 +514,13 @@ function alarmFire(state, al, now, active) {
 // about alarms).
 function tickCheck(state, dt, EFFECTS) {
   state.effectsRegistry = EFFECTS;
+  // A timer's message phase used to end only while the display was drawing,
+  // so switching the display off during it left that timer 'running' for
+  // ever - and a running timer blocks every later one (a real report:
+  // "nothing happened" at the set time). End it on the clock instead, and
+  // drop anything left over that is clearly stale.
+  const a = state.activeAlarm;
+  if (a && (a.dismissed || (a.phase === 'main' && a.endMs && Date.now() > a.endMs) || (a.startMs && Date.now() - a.startMs > 3 * 3600000) || a.phase === 'done')) state.activeAlarm = null;
   state._alarmT = (state._alarmT || 0) + dt;
   if (state._alarmT > AL_CHECK_INTERVAL) {
     state._alarmT = 0;
