@@ -152,6 +152,33 @@ function effectLightspeed(core, dt) {
       }
     }
   }
+  finishGlowCube(core);
+}
+
+// Same finishing pass as the flat-panel version: a soft neon glow around
+// the trails over a dark grid backdrop, applied face by face.
+let gA = null, gB = null, gC = null;
+function finishGlowCube(core) {
+  const { SIZE: S, faceMap, colBuf } = core, n = S * S * 3, R = 2;
+  if (!gA || gA.length !== n) { gA = new Float32Array(n); gB = new Float32Array(n); gC = new Float32Array(n); }
+  for (let f = 0; f < 6; f++) {
+    const map = faceMap[f];
+    for (let i = 0; i < S * S; i++) { const idx = map[i]; for (let ch = 0; ch < 3; ch++) gC[i * 3 + ch] = idx < 0 ? 0 : colBuf[idx * 3 + ch]; }
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) for (let ch = 0; ch < 3; ch++) {
+      let sum = 0; for (let k = -R; k <= R; k++) { const xx = x + k; if (xx >= 0 && xx < S) sum += gC[(y * S + xx) * 3 + ch]; }
+      gA[(y * S + x) * 3 + ch] = sum / (2 * R + 1);
+    }
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) for (let ch = 0; ch < 3; ch++) {
+      let sum = 0; for (let k = -R; k <= R; k++) { const yy = y + k; if (yy >= 0 && yy < S) sum += gA[(yy * S + x) * 3 + ch]; }
+      gB[(y * S + x) * 3 + ch] = sum / (2 * R + 1);
+    }
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const idx = map[y * S + x]; if (idx < 0) continue;
+      const o = (y * S + x) * 3, grid = (x % 8 === 0 || y % 8 === 0) ? 0.025 : 0;
+      const bg = [0.006 + grid * 0.5, 0.008 + grid * 0.8, 0.02 + grid * 1.6];
+      for (let ch = 0; ch < 3; ch++) colBuf[idx * 3 + ch] = Math.min(1, Math.max(bg[ch], gC[o + ch]) + gB[o + ch] * 1.6);
+    }
+  }
 }
 
 module.exports = effectLightspeed;
