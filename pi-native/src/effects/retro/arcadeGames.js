@@ -309,4 +309,5 @@ function donkeykong(s, T, dt, t, inp) {
   return s.score;
 }
 
-module.exports = { 0: jetpac, 1: manic, 4: jsw, 5: deathchase, 6: rtype, 7: wolf3d, 8: quake2, 9: samfox, 10: tamagotchi, 11: aticatac, 12: donkeykong };
+const fps = require('./fps'); // the full raycaster versions of Wolfenstein 3D and Quake 2
+module.exports = { 0: jetpac, 1: manic, 4: jsw, 5: deathchase, 6: rtype, 7: fps.wolf3d, 8: fps.quake2, 9: samfox, 10: tamagotchi, 11: aticatac, 12: donkeykong };
