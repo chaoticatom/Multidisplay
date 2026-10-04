@@ -1195,6 +1195,10 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   <div id="sidebar-scroll">
   <div class="sidebar-section" id="now-section" data-tab="play">
     <div class="section-body">
+      <div style="display:flex;gap:8px;margin:0 0 10px;">
+        <button type="button" id="draw-open" class="ui-btn-primary" style="flex:1;margin:0;">🎨 Draw</button>
+        <button type="button" id="note-open" class="ui-btn-primary" style="flex:1;margin:0;">💌 Message</button>
+      </div>
       <div class="cx-ask"><span class="cx-spark"></span><button type="button" id="cx-mic" class="cx-mic" aria-label="Speak">🎤</button><input id="cx-ask" type="text" placeholder="Ask: “calm”, “party”, “night sky”…" aria-label="Ask for an effect" autocomplete="off"></div>
       <div id="cx-ask-chips" class="cx-chips"><button type="button">calm</button><button type="button">party</button><button type="button">night sky</button><button type="button">surprise me</button></div>
       <div id="party-box" class="party-box">
@@ -2437,6 +2441,42 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 <!-- Timer editor (see public/app.js's "Timers" section). One sheet: pick a
      time, what happens, and which days; the summary line says when it runs
      next. -->
+<div id="draw-modal" class="tm-modal" hidden role="dialog" aria-modal="true" aria-labelledby="draw-title">
+  <div class="tm-sheet">
+    <div class="tm-top"><b id="draw-title">🎨 Draw on the display</b><button type="button" class="tm-x" id="draw-close" aria-label="Close">✕</button></div>
+    <canvas id="draw-canvas" width="64" height="64" style="display:block;width:100%;max-width:420px;margin:0 auto;image-rendering:pixelated;background:#000;border-radius:10px;touch-action:none;border:1px solid rgba(255,255,255,.15);"></canvas>
+    <div id="draw-colours" class="tm-chips" style="margin-top:10px;flex-wrap:wrap;"></div>
+    <div class="tm-chips" id="draw-sizes" style="margin-top:8px;">
+      <button type="button" data-size="1" class="on">• Fine</button><button type="button" data-size="2">● Medium</button><button type="button" data-size="4">⬤ Thick</button><button type="button" data-size="0">🧽 Eraser</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button type="button" id="draw-undo" class="ui-btn" style="flex:1;">↶ Undo</button>
+      <button type="button" id="draw-clear" class="ui-btn" style="flex:1;">🗑 Clear</button>
+      <button type="button" id="draw-save" class="ui-btn-primary" style="flex:1;">💾 Save</button>
+    </div>
+    <label class="check-row" style="margin-top:10px;"><input type="checkbox" id="draw-slideshow"> Slideshow of saved drawings when not drawing</label>
+    <div id="draw-gallery" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px;"></div>
+  </div>
+</div>
+<div id="note-modal" class="tm-modal" hidden role="dialog" aria-modal="true" aria-labelledby="note-title">
+  <div class="tm-sheet">
+    <div class="tm-top"><b id="note-title">💌 Send a message</b><button type="button" class="tm-x" id="note-close" aria-label="Close">✕</button></div>
+    <textarea id="note-text" rows="3" maxlength="120" placeholder="Dinner is ready!" style="width:100%;box-sizing:border-box;"></textarea>
+    <div class="ui-note" id="note-count" style="text-align:right;margin:2px 0 0;">0 / 120</div>
+    <div class="ov-row-label">Note colour</div>
+    <div class="tm-chips" id="note-colours">
+      <button type="button" data-c="#ffd23d" class="on">🟨 Yellow</button><button type="button" data-c="#ff7eb6">🩷 Pink</button><button type="button" data-c="#7ee0ff">🩵 Blue</button><button type="button" data-c="#8dff8a">🟩 Green</button>
+    </div>
+    <div class="ov-row-label">Show for</div>
+    <div class="tm-chips" id="note-secs">
+      <button type="button" data-s="30" class="on">30 s</button><button type="button" data-s="120">2 min</button><button type="button" data-s="600">10 min</button><button type="button" data-s="3600">1 hour</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button type="button" id="note-clear" class="ui-btn" style="flex:1;">Take it down</button>
+      <button type="button" id="note-send" class="ui-btn-primary" style="flex:2;">Send 💌</button>
+    </div>
+  </div>
+</div>
 <div id="alarm-modal" class="tm-modal" hidden role="dialog" aria-modal="true" aria-labelledby="tm-title">
   <div class="tm-sheet">
     <div class="tm-top"><b id="tm-title">New timer</b><button type="button" class="tm-x" id="tm-close" aria-label="Close">✕</button></div>
@@ -2558,6 +2598,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.268"></script>
+<script src="app.js?v=0.6.269"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 node_modules/
 panel-config.json
 alarms.json
+drawings.json
 custom-cube-config.json
 unsplash-config.json
 nasa-config.json

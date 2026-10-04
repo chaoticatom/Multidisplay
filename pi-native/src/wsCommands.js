@@ -16,6 +16,8 @@ const weatherConfig = require('./weatherConfig');
 const wallLayoutConfig = require('./wallLayoutConfig');
 const bluetooth = require('./bluetooth');
 const btConfig = require('./btConfig');
+const { atomicWriteJson } = require('./atomicWrite');
+function readDrawings() { try { const j = JSON.parse(require('fs').readFileSync(EFFECTS.draw.FILE, 'utf8')); return Array.isArray(j) ? j : []; } catch (e) { return []; } }
 const alarmsEngine = require('./effects/alarms');
 const radio = require('./effects/radio');
 const { browserFrameSource } = require('./effects/video/browserFrameSource');
@@ -817,6 +819,39 @@ const COMMANDS = {
   // Notifications: a fresh secret for the /api/notify link (the old one stops working).
   newNotifyToken() {
     httpApi.newNotifyToken();
+    this._broadcast(this._stateMsg());
+  },
+  // Draw (see effects/drawPad.js): brush dabs / the whole picture / clear,
+  // relayed to the copy of the effect that renders.
+  drawOps(ws, msg) {
+    const payload = { w: msg.w, h: msg.h, clear: !!msg.clear, image: typeof msg.image === 'string' ? msg.image : undefined, ops: Array.isArray(msg.ops) ? msg.ops : undefined };
+    if (this.effectCommandRelay) this.effectCommandRelay('drawOps', payload);
+    else EFFECTS.draw.applyOps(payload);
+  },
+  // Saved drawings for the slideshow, newest first, up to 30.
+  saveDrawing(ws, msg) {
+    const w = msg.w | 0, h = msg.h | 0;
+    if (w < 1 || h < 1 || w * h > 384 * 384 || typeof msg.image !== 'string' || Buffer.from(msg.image, 'base64').length !== w * h * 3) return;
+    const list = readDrawings();
+    list.unshift({ name: String(msg.name || '').slice(0, 40) || new Date().toLocaleString(), w, h, image: msg.image, at: Date.now() });
+    atomicWriteJson(EFFECTS.draw.FILE, list.slice(0, 30));
+    this._replyBt(ws, 'drawListResult', async () => ({ list: readDrawings() }));
+  },
+  drawList(ws) {
+    this._replyBt(ws, 'drawListResult', async () => ({ list: readDrawings() }));
+  },
+  deleteDrawing(ws, msg) {
+    const list = readDrawings();
+    if (Number.isInteger(msg.index) && msg.index >= 0 && msg.index < list.length) { list.splice(msg.index, 1); atomicWriteJson(EFFECTS.draw.FILE, list); }
+    this._replyBt(ws, 'drawListResult', async () => ({ list: readDrawings() }));
+  },
+  // A message from the phone shown as a note on the display (see effects/notice.js).
+  sendNote(ws, msg) {
+    const text = String(msg.text || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    if (!text) return;
+    const secs = Math.max(5, Math.min(3600, Number(msg.secs) || 30));
+    const color = /^#[0-9a-f]{6}$/i.test(msg.color || '') ? msg.color : '#ffd23d';
+    this.state.notice = { text, color, until: Date.now() + secs * 1000, style: 'note', from: String(msg.from || '').slice(0, 20) };
     this._broadcast(this._stateMsg());
   },
   // Clears a notification banner early.

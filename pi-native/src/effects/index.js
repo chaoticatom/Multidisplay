@@ -14,6 +14,7 @@ const pixelPet = require('./pixelPet');
 const snake = require('./snake');
 const nowPlaying = require('./nowPlaying');
 const messageBoard = require('./messageBoard');
+const drawPad = require('./drawPad');
 const wordClock = require('./wordClock');
 const starfield = require('./starfield');
 const fluidInk = require('./fluidInk');
@@ -130,6 +131,7 @@ const WALL_EFFECTS = {
   snake: snake.wall,
   now_playing: nowPlaying.wall,
   message: messageBoard.wall,
+  draw: drawPad.wall,
   word_clock: wordClock.wall,
   countdown: countdown.wall,
   starfield: starfield.wall,
@@ -189,6 +191,7 @@ const EFFECTS = {
   snake: snake,
   now_playing: nowPlaying,
   message: messageBoard,
+  draw: drawPad,
   word_clock: wordClock,
   countdown,
   starfield: starfield,
@@ -255,6 +258,7 @@ const EFFECT_NAMES = {
   snake: 'Snake',
   now_playing: 'Now Playing',
   message: 'Message Board',
+  draw: 'Draw',
   word_clock: 'Word Clock',
   countdown: 'Countdown',
   starfield: 'Starfield',

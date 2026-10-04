@@ -140,6 +140,8 @@ parentPort.on('message', (msg) => {
       if (typeof EFFECTS.video?.stop === 'function') EFFECTS.video.stop();
       if (typeof WALL_EFFECTS.video?.stop === 'function') WALL_EFFECTS.video.stop();
       browserFrameSource.clear();
+    } else if (cmd === 'drawOps') {
+      EFFECTS.draw.applyOps(payload);
     } else if (cmd === 'videoFrame') {
       browserFrameSource.setFrame(payload.payload, payload.w, payload.h, payload.kind);
     }

@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.268';
+const APP_VERSION = '0.6.269';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -281,7 +281,7 @@ function handleTextMessage(msg) {
     // canvas visibility, WebGL scene teardown, etc) below.
     if (!modeChanged) rebuildWallPreview();
     if (modeChanged) rebuildScene();
-  } else if (msg.cmd && msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
+  } else if (msg.cmd && (msg.cmd.startsWith('bt') || msg.cmd === 'updateResult' || msg.cmd === 'drawListResult') && msg.cmd.endsWith('Result')) {
     handleBtResult(msg);
   }
 }
@@ -3006,6 +3006,136 @@ function syncClearAllButton() {
 // Music tab still stops it). Muting sets the volume to 0 and remembers the
 // level to come back to.
 function radioMuted() { return Number(currentState.effectOptions?.radio?.volume ?? 0.8) === 0; }
+// ---------------------------------------------------------------------
+// 🎨 Draw: finger-paint on a canvas the size of the display; strokes go
+// to the Pi as they're drawn (see src/effects/drawPad.js). The picture is
+// kept on this phone too, so reopening carries on where you left off.
+// ---------------------------------------------------------------------
+const DRAW_COLOURS = ['#ffffff', '#ff3b3b', '#ff9f1c', '#ffe14d', '#4dff6a', '#2ee6d6', '#3b8bff', '#a64dff', '#ff5ec4', '#8b5a2b'];
+let drawState = null;
+function drawDims() {
+  const S = currentState.panelSize || 64;
+  if (currentState.panelMode !== 'wall' || !Array.isArray(currentState.panels) || !currentState.panels.length) return [S, S];
+  const gx = Math.max(...currentState.panels.map((p) => p.gx)) + 1, gy = Math.max(...currentState.panels.map((p) => p.gy)) + 1;
+  return [gx * S, gy * S];
+}
+function b64Bytes(bytes) { let s = ''; for (let i = 0; i < bytes.length; i += 8192) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192)); return btoa(s); }
+function bytesB64(b64) { const s = atob(b64), out = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; }
+function wireDraw() {
+  const modal = document.getElementById('draw-modal'), cv = document.getElementById('draw-canvas');
+  if (!modal || !cv) return;
+  const ctx2 = cv.getContext('2d');
+  const st = drawState = { w: 64, h: 64, pix: null, colour: 0xffffff, size: 1, undo: [], ops: [], last: null, timer: null };
+  const key = () => 'drawPad_' + st.w + 'x' + st.h;
+  const paint = () => {
+    const img = ctx2.createImageData(st.w, st.h);
+    for (let i = 0, j = 0; i < st.pix.length; i += 3, j += 4) { img.data[j] = st.pix[i]; img.data[j + 1] = st.pix[i + 1]; img.data[j + 2] = st.pix[i + 2]; img.data[j + 3] = 255; }
+    ctx2.putImageData(img, 0, 0);
+  };
+  const store = () => { try { localStorage.setItem(key(), b64Bytes(st.pix)); } catch (e) { /* storage full or blocked */ } };
+  const sendImage = () => send({ cmd: 'drawOps', w: st.w, h: st.h, image: b64Bytes(st.pix) });
+  const flush = () => { st.timer = null; if (!st.ops.length) return; send({ cmd: 'drawOps', w: st.w, h: st.h, ops: st.ops.splice(0) }); store(); };
+  const dab = (x, y) => {
+    const s = st.size || 1, col = st.size ? st.colour : 0, x0 = Math.round(x - (s - 1) / 2), y0 = Math.round(y - (s - 1) / 2);
+    for (let yy = y0; yy < y0 + s; yy++) for (let xx = x0; xx < x0 + s; xx++) {
+      if (xx < 0 || yy < 0 || xx >= st.w || yy >= st.h) continue;
+      const i = (yy * st.w + xx) * 3; st.pix[i] = col >> 16; st.pix[i + 1] = (col >> 8) & 255; st.pix[i + 2] = col & 255;
+    }
+    st.ops.push([Math.round(x), Math.round(y), col, s]);
+    if (!st.timer) st.timer = setTimeout(flush, 40);
+  };
+  const at = (e) => { const r = cv.getBoundingClientRect(); return [Math.floor((e.clientX - r.left) / r.width * st.w), Math.floor((e.clientY - r.top) / r.height * st.h)]; };
+  cv.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); cv.setPointerCapture(e.pointerId);
+    st.undo.push(st.pix.slice()); if (st.undo.length > 20) st.undo.shift();
+    st.last = at(e); dab(...st.last); paint();
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (!st.last) return;
+    const [x, y] = at(e), [lx, ly] = st.last, n = Math.max(Math.abs(x - lx), Math.abs(y - ly));
+    for (let k = 1; k <= n; k++) dab(lx + (x - lx) * k / n, ly + (y - ly) * k / n);
+    st.last = [x, y]; paint();
+  });
+  const up = () => { st.last = null; };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  const colours = document.getElementById('draw-colours');
+  colours.replaceChildren(...DRAW_COLOURS.map((c, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = i === 0 ? 'on' : '';
+    b.style.cssText = 'width:30px;height:30px;padding:0;border-radius:50%;background:' + c + ';';
+    b.setAttribute('aria-label', 'Colour ' + c);
+    b.addEventListener('click', () => { st.colour = parseInt(c.slice(1), 16); if (!st.size) st.size = 1; colours.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); syncSizes(); });
+    return b;
+  }));
+  const syncSizes = () => document.querySelectorAll('#draw-sizes button').forEach((x) => x.classList.toggle('on', Number(x.dataset.size) === st.size));
+  document.querySelectorAll('#draw-sizes button').forEach((b) => b.addEventListener('click', () => { st.size = Number(b.dataset.size); syncSizes(); }));
+  document.getElementById('draw-undo').addEventListener('click', () => { const prev = st.undo.pop(); if (!prev) return; st.pix = prev; paint(); store(); sendImage(); });
+  document.getElementById('draw-clear').addEventListener('click', () => { st.undo.push(st.pix.slice()); st.pix.fill(0); paint(); store(); send({ cmd: 'drawOps', w: st.w, h: st.h, clear: true }); });
+  document.getElementById('draw-save').addEventListener('click', () => { send({ cmd: 'saveDrawing', w: st.w, h: st.h, image: b64Bytes(st.pix) }); cxToast('💾 Saved to the display'); });
+  const slide = document.getElementById('draw-slideshow');
+  slide.addEventListener('change', () => { try { localStorage.setItem('drawSlideshow', slide.checked ? '1' : ''); } catch (e) { /* blocked */ } });
+  const close = () => {
+    modal.hidden = true; flush();
+    setEffectOption('draw', 'slideshow', slide.checked); // slideshow only while you're not drawing
+  };
+  document.getElementById('draw-close').addEventListener('click', close);
+  document.getElementById('draw-open').addEventListener('click', () => {
+    [st.w, st.h] = drawDims();
+    cv.width = st.w; cv.height = st.h;
+    st.pix = new Uint8Array(st.w * st.h * 3);
+    try { const saved = localStorage.getItem(key()); if (saved) { const b = bytesB64(saved); if (b.length === st.pix.length) st.pix.set(b); } } catch (e) { /* blocked */ }
+    try { slide.checked = !!localStorage.getItem('drawSlideshow'); } catch (e) { /* blocked */ }
+    st.undo = []; paint();
+    modal.hidden = false;
+    setEffectOption('draw', 'slideshow', false);
+    send({ cmd: 'setEffect', effect: 'draw' });
+    sendImage();
+    send({ cmd: 'drawList' });
+  });
+}
+function renderDrawGallery(list) {
+  const g = document.getElementById('draw-gallery'); if (!g || !drawState) return;
+  g.replaceChildren(...(list || []).map((d, i) => {
+    const wrapEl = document.createElement('div'); wrapEl.style.cssText = 'position:relative;';
+    const c = document.createElement('canvas'); c.width = d.w; c.height = d.h;
+    c.style.cssText = 'width:100%;image-rendering:pixelated;border-radius:6px;background:#000;cursor:pointer;';
+    const px = bytesB64(d.image), cx = c.getContext('2d'), img = cx.createImageData(d.w, d.h);
+    for (let k = 0, j = 0; k < px.length; k += 3, j += 4) { img.data[j] = px[k]; img.data[j + 1] = px[k + 1]; img.data[j + 2] = px[k + 2]; img.data[j + 3] = 255; }
+    cx.putImageData(img, 0, 0);
+    c.title = 'Load ' + d.name;
+    c.addEventListener('click', () => {
+      if (d.w !== drawState.w || d.h !== drawState.h) { cxToast('That drawing is a different size'); return; }
+      drawState.undo.push(drawState.pix.slice()); drawState.pix = px;
+      document.getElementById('draw-canvas').getContext('2d').putImageData(img, 0, 0);
+      send({ cmd: 'drawOps', w: d.w, h: d.h, image: d.image });
+    });
+    const x = document.createElement('button'); x.type = 'button'; x.textContent = '✕'; x.setAttribute('aria-label', 'Delete drawing');
+    x.style.cssText = 'position:absolute;top:-4px;right:-4px;width:20px;height:20px;padding:0;border-radius:50%;font-size:10px;';
+    x.addEventListener('click', () => send({ cmd: 'deleteDrawing', index: i }));
+    wrapEl.append(c, x);
+    return wrapEl;
+  }));
+}
+
+// 💌 Message: a note that drops onto the display (see src/effects/notice.js).
+function wireNote() {
+  const modal = document.getElementById('note-modal'); if (!modal) return;
+  const text = document.getElementById('note-text');
+  let colour = '#ffd23d', secs = 30;
+  const chips = (id, fn) => document.querySelectorAll('#' + id + ' button').forEach((b) => b.addEventListener('click', () => { document.querySelectorAll('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); fn(b); }));
+  chips('note-colours', (b) => { colour = b.dataset.c; });
+  chips('note-secs', (b) => { secs = Number(b.dataset.s); });
+  text.addEventListener('input', () => { document.getElementById('note-count').textContent = text.value.length + ' / 120'; });
+  document.getElementById('note-open').addEventListener('click', () => { modal.hidden = false; setTimeout(() => text.focus(), 50); });
+  document.getElementById('note-close').addEventListener('click', () => { modal.hidden = true; });
+  document.getElementById('note-send').addEventListener('click', () => {
+    if (!text.value.trim()) { text.focus(); return; }
+    send({ cmd: 'sendNote', text: text.value, color: colour, secs });
+    cxToast('💌 Sent to the display'); modal.hidden = true; text.value = '';
+    document.getElementById('note-count').textContent = '0 / 120';
+  });
+  document.getElementById('note-clear').addEventListener('click', () => { send({ cmd: 'clearNotice' }); cxToast('Message taken down'); });
+}
+
 // Setup -> Software update: shows whether the Pi is behind GitHub, and
 // updates + restarts it (see src/selfUpdate.js). The Setup tab gets a dot
 // while an update is waiting.
@@ -3767,6 +3897,8 @@ function handleBtResult(msg) {
   }
   if (msg.cmd === 'btScanResult') {
     renderBtScanResults(msg.devices, statusEl, listEl);
+  } else if (msg.cmd === 'drawListResult') {
+    renderDrawGallery(msg.list);
   } else if (msg.cmd === 'updateResult') {
     const log = document.getElementById('update-log'); if (log) { log.hidden = false; log.textContent = msg.log || msg.error || ''; }
     if (msg.updated) { document.getElementById('update-status').textContent = '✅ Updated - restarting. This page reloads in 20 s.'; setTimeout(() => location.reload(), 20000); }
@@ -4802,6 +4934,8 @@ document.addEventListener('DOMContentLoaded', () => {
   wireClearAllButton();
   wireStopSoundButton();
   wireUpdate();
+  wireDraw();
+  wireNote();
   wireIdentifyPanelsButton();
   wireRainPanel();
   wireLightspeedPanel();
