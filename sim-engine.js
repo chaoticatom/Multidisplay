@@ -19274,48 +19274,51 @@ var PiEngine = (() => {
         render(c, { t, dt, core }) {
           iss.ensureFetch(core);
           const S = iss.getState(), W = c.W, H = c.H, barH = 7, mapH = H - barH;
-          const X = (lon2) => (lon2 + 180) / 360 * W, Y = (lat2) => (90 - lat2) / 180 * mapH;
+          const lonSpan = Math.min(360, W * 1.6), latSpan = Math.min(180, lonSpan * mapH / W);
+          const cLon = S.issHasFix ? S.issLon : 0, cLat = S.issHasFix ? Math.max(-90 + latSpan / 2, Math.min(90 - latSpan / 2, S.issLat)) : 0;
+          const wrap = (d) => (d + 540) % 360 - 180;
+          const X = (lon2) => W / 2 + wrap(lon2 - cLon) / lonSpan * W, Y = (lat2) => mapH / 2 - (lat2 - cLat) / latSpan * mapH;
           const sun = subsolar(/* @__PURE__ */ new Date()), sd = sun.lat * D2R;
           for (let y = 0; y < mapH; y++) {
-            const lat2 = 90 - (y + 0.5) / mapH * 180, la = lat2 * D2R;
+            const lat2 = cLat + (0.5 - (y + 0.5) / mapH) * latSpan, la = lat2 * D2R;
             for (let x = 0; x < W; x++) {
-              const lon2 = (x + 0.5) / W * 360 - 180;
+              const lon2 = wrap(cLon + ((x + 0.5) / W - 0.5) * lonSpan);
               const cosz = Math.sin(la) * Math.sin(sd) + Math.cos(la) * Math.cos(sd) * Math.cos((lon2 - sun.lon) * D2R);
-              const day = Math.max(0, Math.min(1, (cosz + 0.08) / 0.16));
+              const day = 0.25 + 0.75 * Math.max(0, Math.min(1, (cosz + 0.08) / 0.16));
               const land = iss.issIsLand((lon2 + 180) / 360, (90 - lat2) / 180), ice = Math.abs(lat2) > 66;
               let dr, dg, db, nr, ng, nb;
               if (land) {
                 if (ice) {
-                  dr = 0.75;
-                  dg = 0.8;
-                  db = 0.85;
+                  dr = 0.85;
+                  dg = 0.9;
+                  db = 0.95;
                 } else {
                   const dry = Math.max(0, 1 - Math.abs(Math.abs(lat2) - 23) / 15);
-                  dr = 0.12 + dry * 0.35;
-                  dg = 0.42 + dry * 0.1;
-                  db = 0.1;
+                  dr = 0.15 + dry * 0.5;
+                  dg = 0.65 + dry * 0.1;
+                  db = 0.12;
                 }
-                nr = 0.03;
-                ng = 0.05;
-                nb = 0.05;
-                if (!ice && hash(x, y) > 0.93) {
-                  const tw2 = 0.5 + 0.5 * Math.sin(t * 2 + x * y);
-                  nr += 0.6 * tw2;
-                  ng += 0.45 * tw2;
-                  nb += 0.12 * tw2;
+                nr = 0.1;
+                ng = 0.2;
+                nb = 0.12;
+                if (!ice && hash(Math.round(lon2 * 2), Math.round(lat2 * 2)) > 0.975) {
+                  nr += 0.7;
+                  ng += 0.55;
+                  nb += 0.15;
                 }
               } else {
-                dr = 0.04;
-                dg = 0.18;
-                db = 0.5;
-                nr = 0.01;
-                ng = 0.025;
-                nb = 0.09;
+                dr = 0.05;
+                dg = 0.28;
+                db = 0.8;
+                nr = 0.02;
+                ng = 0.07;
+                nb = 0.28;
               }
               c.set(x, y, nr + (dr - nr) * day, ng + (dg - ng) * day, nb + (db - nb) * day);
             }
           }
           for (const lat2 of [0, 23.4, -23.4]) for (let x = 0; x < W; x += 2) {
+            if (Y(lat2) < 0 || Y(lat2) >= mapH) continue;
             const p = c.get(x, Y(lat2));
             if (p) c.set(x, Y(lat2), p[0] + 0.05, p[1] + 0.05, p[2] + 0.08);
           }
@@ -19326,12 +19329,14 @@ var PiEngine = (() => {
           }
           const lat = S.issLat, lon = S.issLon;
           let prev = null;
-          for (let s = -45 * 60; s <= 95 * 60; s += 20) {
+          for (let s = -45 * 60; s <= 95 * 60; s += 8) {
             const [la, lo] = trackAt(lat, lon, S.issAscending, s), x = X(lo), y = Y(la);
             if (prev && Math.abs(prev[0] - x) < W / 2) {
               const future = s > 0, dash = Math.floor(s / 120) % 2 === 0;
-              if (!future) c.add(x, y, 0.25, 0.2, 0.08);
-              else if (dash) c.add(x, y, 0.9, 0.75, 0.2);
+              if (x >= 0 && x < W && y >= 0 && y < mapH) {
+                if (!future) c.set(x, y, 0.9, 0.45, 0.1);
+                else if (dash || W < 96) c.set(x, y, 1, 0.95, 0.3);
+              }
             }
             prev = [x, y];
           }
@@ -19339,18 +19344,22 @@ var PiEngine = (() => {
           for (let a = 0; a < 64; a++) {
             const ang = a / 64 * Math.PI * 2, la = lat + Math.sin(ang) * R, lo = lon + Math.cos(ang) * R * stretch;
             const x = X((lo + 540) % 360 - 180), y = Y(Math.max(-89, Math.min(89, la)));
-            if (a % 2 === 0) c.add(x, y, 0.15, 0.35, 0.45);
+            if (a % 2 === 0) c.add(x, y, 0.25, 0.5, 0.6);
           }
           const sx = Math.round(X(lon)), sy = Math.round(Y(lat)), lit = S.issVis !== "eclipsed", pulse = 0.6 + 0.4 * Math.sin(t * 5);
           const body = lit ? [1, 1, 1] : [0.5, 0.75, 1];
-          for (let k = -3; k <= 3; k++) if (Math.abs(k) >= 2) c.set(sx + k, sy, 0.3, 0.55, 1);
-          c.set(sx - 1, sy, ...body);
-          c.set(sx, sy, ...body);
-          c.set(sx + 1, sy, ...body);
-          c.set(sx, sy - 1, ...body);
-          c.set(sx, sy + 1, ...body);
-          for (const [dx, dy] of [[-2, -2], [2, -2], [-2, 2], [2, 2]]) c.add(sx + dx, sy + dy, 0.4 * pulse, 0.35 * pulse, 0.1 * pulse);
-          for (let y = mapH; y < H; y++) for (let x = 0; x < W; x++) c.set(x, y, 0.02, 0.02, 0.05);
+          const rr = 4 + pulse * 2;
+          for (let a = 0; a < 32; a++) {
+            const ang = a / 32 * Math.PI * 2;
+            c.set(sx + Math.cos(ang) * rr, sy + Math.sin(ang) * rr, 1, 0.25 * pulse, 0.2 * pulse);
+          }
+          for (let k = -4; k <= 4; k++) if (Math.abs(k) >= 2) {
+            c.set(sx + k, sy - 1, 0.35, 0.6, 1);
+            c.set(sx + k, sy, 0.35, 0.6, 1);
+            c.set(sx + k, sy + 1, 0.35, 0.6, 1);
+          }
+          for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) c.set(sx + i, sy + j, ...body);
+          for (let y = mapH; y < H; y++) for (let x = 0; x < W; x++) c.set(x, y, 0.05, 0.05, 0.14);
           let tx0 = 1;
           if (S.issFlagPixels && S.issFlagSize && S.issCountryCode) {
             const IS = S.issFlagSize;
@@ -19361,10 +19370,10 @@ var PiEngine = (() => {
             tx0 = 11;
           }
           const over = S.issCountryName ? S.issCountryName.toUpperCase() : "OCEAN";
-          const label = `ISS OVER ${over}   ALT ${Math.round(S.issAlt)} KM   ${Math.round(S.issVel).toLocaleString("en-GB")} KM/H   ${lit ? "IN SUNLIGHT" : "IN EARTH'S SHADOW"}   LAT ${lat.toFixed(1)} LON ${lon.toFixed(1)}      `;
+          const label = `OVER ${over}   ${Math.round(S.issAlt)} KM UP   ${Math.round(S.issVel).toLocaleString("en-GB")} KM/H   ${lit ? "SUNLIT" : "IN SHADOW"}      `;
           scroll += dt * 14;
           const tw = W - tx0;
-          drawMarquee(FONT_3x5, label, scroll % (textWidth(FONT_3x5, label) + 4), mapH + 1, tw, (x, y) => c.set(tx0 + x, y, 0.85, 0.85, 0.95));
+          drawMarquee(FONT_3x5, label, scroll % (textWidth(FONT_3x5, label) + 4), mapH + 1, tw, (x, y) => c.set(tx0 + x, y, 1, 1, 1));
         }
       });
     }
