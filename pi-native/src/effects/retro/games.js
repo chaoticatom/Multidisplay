@@ -9,14 +9,11 @@
 // (retro.js's effectRetro() calls into ./title.js for that state instead,
 // before ever calling this function).
 //
-// One deliberate content change: the original samfox ('Sam Fox SP') block
-// decoded an embedded base64 photo (SF_GAMEBG_B64 - an actual photo, not
-// procedural art) as its background via atob(). That's dropped here in
-// favour of a plain procedural green card-table felt background - see the
-// comment at that block below. Everything else (card dealing, scoring,
-// HUD) is untouched.
+// The samfox ('Sam Fox SP') block draws the original photo background
+// (./samfoxBg.js).
 const { drawString, FONT_5x7 } = require('../text');
 
+let sfBg=null; // Sam Fox SP background, decoded on first use
 function drawRetroGame(game, dt, buf, S){
   const _setP0=(x,y,r,g,b)=>{
     if(x<0||x>=S||y<0||y>=S) return;
@@ -1859,12 +1856,12 @@ function drawRetroGame(game, dt, buf, S){
     const flipT=2.5;
     const cardTopY=hudH+2;
 
-    // Procedural green card-table felt background (the original decoded an
-    // embedded photo here via atob(SF_GAMEBG_B64) - dropped, see module
-    // comment at the top of this file).
+    // The photo background, as in the original (see ./samfoxBg.js),
+    // decoded once and drawn bottom-up like the rest of this renderer.
+    if(!sfBg){ const raw=Buffer.from(require('./samfoxBg'),'base64'); sfBg=new Float32Array(raw.length); for(let i=0;i<raw.length;i++) sfBg[i]=raw[i]/255; }
     for(let y=0;y<S;y++) for(let x=0;x<S;x++){
-      const felt=0.12+0.03*Math.sin(x*0.4+y*0.3);
-      setP(x,y,0,felt,felt*0.35);
+      const i=((S-1-y)*64+Math.min(63,x))*3;
+      setP(x,y,sfBg[i]||0,sfBg[i+1]||0,sfBg[i+2]||0);
     }
 
     // 3 smaller cards over the body area
