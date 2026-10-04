@@ -77,8 +77,11 @@ function invaders(s, T, dt, t, inp = {}) {
 }
 
 // ── Pac-Man: an outlined maze, chomping, ghosts that chase, power pills ──
-const MAZE = ['################################', '#..............##..............#', '#.####.#######.##.#######.####.#', '#o####.#######.##.#######.####o#', '#..............................#', '#.####.##.###########.##.####..#', '#......##......##.....##.......#', '######.#####.######.#####.######', '#............#....#............#', '#.####.#####.#....#.#####.####.#', '#o..##.......######.......##..o#', '###.##.##.############.##.##.###', '#......##.....##.....##........#', '#.##########.####.##########.###', '#..............................#', '################################'];
-const open = (x, y) => MAZE[y] && MAZE[y][x] && MAZE[y][x] !== '#';
+const MAZE = ['################################', '#..............##..............#', '#.####.#######.##.#######.####.#', '#o####.#######.##.#######.####o#', '#..............................#', '#.####.##.###########.##.####..#', '#......##.............##.......#', '######.#####.##..##.#####.######', '#............#....#............#', '#.####.#####.#....#.#####.####.#', '#o..##.......######.......##..o#', '###.##.##.############.##.##.###', '#......##.....##.....##........#', '#.##########.####.##########.###', '#..............................#', '################################'];
+// A square maze for single panels (16 x 14 cells), so the game fills a 64x64 screen.
+const MAZE_SQ = ['################', '#o.....##.....o#', '#.##.#.##.#.##.#', '#..............#', '#.##.######.##.#', '#....#....#....#', '####.#.##.#.####', '#......##......#', '#.###.####.###.#', '#...#......#...#', '###.#.####.#.###', '#..............#', '#o####.##.####o#', '################'];
+let M = MAZE; // the maze in use (set per frame from the screen's shape)
+const open = (x, y) => M[y] && M[y][x] && M[y][x] !== '#';
 function stepMover(m, smart, tx, ty) {
   const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => open(m.x + dx, m.y + dy) && !(dx === -m.dx && dy === -m.dy));
   const ch = dirs.length ? dirs : [[-m.dx, -m.dy]];
@@ -87,7 +90,14 @@ function stepMover(m, smart, tx, ty) {
   m.dx = best[0]; m.dy = best[1]; m.x += m.dx; m.y += m.dy;
 }
 function pacman(s, T, dt, t, inp = {}) {
-  if (!s.dots) { s.dots = MAZE.map((r) => [...r].map((c) => (c === '.' ? 1 : c === 'o' ? 2 : 0))); s.x = 1; s.y = 4; s.dx = 1; s.dy = 0; s.t = 0; s.power = 0; s.score = s.score || 0; s.ghosts = [[1, 0.2, 0.2], [1, 0.6, 0.9], [0.3, 1, 1], [1, 0.7, 0.2]].map((col, i) => ({ x: 14 + i, y: 8, col, dx: i % 2 ? 1 : -1, dy: 0 })); }
+  const square = T.W / (T.H - 8) < 1.6, want = square ? MAZE_SQ : MAZE;
+  if (s.maze !== want) { s.maze = want; s.dots = null; }
+  M = want;
+  if (!s.dots) {
+    s.dots = M.map((r) => [...r].map((c) => (c === '.' ? 1 : c === 'o' ? 2 : 0))); s.x = 1; s.y = 3; s.dx = 1; s.dy = 0; s.t = 0; s.power = 0; s.score = s.score || 0;
+    const gx = square ? 6 : 14, gy = square ? 5 : 8;
+    s.ghosts = [[1, 0.2, 0.2], [1, 0.6, 0.9], [0.3, 1, 1], [1, 0.7, 0.2]].map((col, i) => ({ x: gx + i, y: gy, col, dx: i % 2 ? 1 : -1, dy: 0 }));
+  }
   s.t += dt;
   if (s.t > 0.14) {
     s.t = 0;
@@ -102,8 +112,9 @@ function pacman(s, T, dt, t, inp = {}) {
     if (!s.dots) return s.score;
   }
   s.power -= dt;
-  const C = Math.max(2, Math.floor(Math.min(T.W / 32, T.H / 16))), ox = Math.floor((T.W - 32 * C) / 2), oy = Math.floor((T.H - 16 * C) / 2);
-  MAZE.forEach((r, y) => [...r].forEach((c, x) => {
+  const cols = M[0].length, rows = M.length;
+  const C = Math.max(2, Math.floor(Math.min(T.W / cols, (T.H - 8) / rows))), ox = Math.floor((T.W - cols * C) / 2), oy = 8 + Math.floor((T.H - 8 - rows * C) / 2);
+  M.forEach((r, y) => [...r].forEach((c, x) => {
     const X = ox + x * C, Y = oy + y * C;
     if (c === '#') {
       T.rect(X, Y, C, C, [0.02, 0.02, 0.22]);
@@ -188,7 +199,9 @@ module.exports = defineCanvasEffect({
       const fn = NEW_GAMES[st.cur];
       if (fn) {
         const s = st.fresh[st.cur] || (st.fresh[st.cur] = {});
-        st.score = fn(s, T, dt, t, inp) || 0;
+        // Games run at two-thirds speed: closer to the originals' pace on the panels.
+        const gdt = dt * 0.65;
+        st.score = fn(s, T, gdt, (st.gameClock = (st.gameClock || 0) + gdt), inp) || 0;
       } else {
         // A classic: its 64x64 picture in the middle, cabinet side panels around it.
         const S = 64, game = st.old[st.cur]; game.t += dt;
@@ -202,13 +215,13 @@ module.exports = defineCanvasEffect({
         }
       }
       st.hi = Math.max(st.hi, Math.round(st.score));
-      if (hud && fn) { T.rect(0, 0, W, 7, [0, 0, 0]); T.text('1UP ' + String(Math.round(st.score)).padStart(5, '0'), 1, 1, [1, 0.3, 0.3]); const hs = 'HI ' + String(st.hi).padStart(5, '0'); T.text(hs, W - textWidth(FONT_3x5, hs) - 1, 1, [1, 1, 1]); }
+      if (hud && fn) { T.rect(0, 0, W, 7, [0, 0, 0]); T.text((W >= 100 ? '1UP ' : '') + String(Math.round(st.score)).padStart(5, '0'), 1, 1, [1, 0.3, 0.3]); const hs = 'HI ' + String(st.hi).padStart(5, '0'); T.text(hs, W - textWidth(FONT_3x5, hs) - 1, 1, [1, 1, 1]); }
       // The game's splash screen for its first two seconds, centred.
       if (st.phaseT < 2) {
         const S = 64; st.small.fill(0); retroDrawTitle(st.small, S, GAME_KEYS[st.cur], t);
         T.rect(0, 0, W, H, [0, 0, 0]);
         const ox = Math.floor((W - S) / 2), oy = Math.floor((H - S) / 2);
-        for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) { const i = ((S - 1 - v) * S + u) * 3; T.set(ox + u, oy + v, st.small[i], st.small[i + 1], st.small[i + 2]); }
+        for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) { const i = (v * S + u) * 3; T.set(ox + u, oy + v, st.small[i], st.small[i + 1], st.small[i + 2]); } // the pictures are stored top row first
       }
       // Switch-on effect.
       if (st.phaseT < 0.6 && o.trans !== 'cut') {

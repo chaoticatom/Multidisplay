@@ -118,10 +118,11 @@ function deathchase(s, T, dt, t, inp) {
   for (let y = TOP; y < hz; y++) for (let x = 0; x < W; x++) T.set(x, y, 0.05, 0.05 + (y - TOP) / hz * 0.1, 0.15);
   for (let y = hz; y < H; y++) for (let x = 0; x < W; x++) { const p = (y - hz) / (H - hz); T.set(x, y, 0.05, 0.25 + p * 0.25, 0.05); }
   const proj = (x, z) => [W / 2 + (x - s.bx) / z * W * 0.25, hz + (1 / z) * (H - hz) * 0.18];
-  [...s.trees].sort((a, b) => b.z - a.z).forEach((tr) => {
-    const [px, py] = proj(tr.x, tr.z), h = Math.min(H, (H - hz) * 0.6 / tr.z), w = Math.max(1, 2.5 / tr.z);
+  [...s.trees].filter((tr) => tr.z > 0.12).sort((a, b) => b.z - a.z).forEach((tr) => {
+    // Sized to the screen and capped, so a tree right beside you never swallows the view.
+    const k = W / 128, [px, py] = proj(tr.x, tr.z), h = Math.min(H * 0.8, (H - hz) * 0.6 / tr.z), w = Math.max(1, Math.min(W / 8, 2.5 * k / tr.z));
     T.rect(px - w / 2, py - h, w, h, [0.35 * (1 - tr.z * 0.6), 0.2 * (1 - tr.z * 0.6), 0.08]);
-    disc(T, px, py - h, Math.max(1, Math.round(w * 1.6)), [0.05, 0.4 * (1 - tr.z * 0.5), 0.08]);
+    disc(T, px, py - h, Math.max(1, Math.min(Math.round(W / 6), Math.round(w * 1.6))), [0.05, 0.4 * (1 - tr.z * 0.5), 0.08]);
   });
   const [ex, ey] = proj(s.enemy.x, s.enemy.z), es = Math.max(1, Math.round(1.5 / s.enemy.z));
   T.rect(ex - es, ey - es * 2, es * 2, es * 2, [0.9, 0.2, 0.2]);
@@ -215,20 +216,23 @@ function samfox(s, T, dt, t) {
   if (!sfImg) { const raw = Buffer.from(samfoxBg, 'base64'); sfImg = new Float32Array(raw.length); for (let i = 0; i < raw.length; i++) sfImg[i] = raw[i] / 255; }
   if (!s.init) Object.assign(s, { init: 1, round: -1, score: 0 });
   const round = Math.floor(t / 8); if (round !== s.round) { if (s.round >= 0 && T.sfx) T.sfx('blip'); s.round = round; s.cards = Array.from({ length: 5 }, () => ({ v: Math.floor(Math.random() * 13), s: Math.floor(Math.random() * 4) })); s.score += 50; }
-  const showPhoto = W >= 96, tableX = showPhoto ? 64 : 0, tw = W - tableX;
-  if (showPhoto) for (let y = 0; y < Math.min(64, H); y++) for (let x = 0; x < 64; x++) { const i = (y * 64 + x) * 3; T.set(x, y + H - 64, sfImg[i], sfImg[i + 1], sfImg[i + 2]); }
-  for (let y = TOP; y < H; y++) for (let x = tableX; x < W; x++) { const f = 0.14 + 0.03 * Math.sin(x * 0.4 + y * 0.3); T.set(x, y, 0, f, f * 0.35); }
+  // Wide wall: photo on the left, the table beside it. Single panel: the
+  // photo is the whole background and the cards sit over it, as in the original.
+  const side = W >= 96, tableX = side ? 64 : 0, tw = W - tableX;
+  for (let y = 0; y < Math.min(64, H); y++) for (let x = 0; x < 64; x++) { const i = (y * 64 + x) * 3; T.set(x + (side ? 0 : Math.floor((W - 64) / 2)), y + H - 64, sfImg[i], sfImg[i + 1], sfImg[i + 2]); }
+  if (side) for (let y = TOP; y < H; y++) for (let x = tableX; x < W; x++) { const f = 0.14 + 0.03 * Math.sin(x * 0.4 + y * 0.3); T.set(x, y, 0, f, f * 0.35); }
   const cw = Math.max(7, Math.min(11, Math.floor((tw - 6) / 5.6))), ch = Math.round(cw * 1.4), gap = Math.max(1, Math.floor((tw - 5 * cw) / 6));
   const VAL = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
   s.cards.forEach((c, i) => {
     const dealt = (t % 8) > i * 0.35;
     if (!dealt) return;
-    const x = tableX + gap + i * (cw + gap), y = Math.round(TOP + (H - TOP - ch) / 2), red = c.s < 2;
+    const x = tableX + gap + i * (cw + gap), y = side ? Math.round(TOP + (H - TOP - ch) / 2) : H - ch - 2, red = c.s < 2;
+    T.rect(x - 1, y - 1, cw + 2, ch + 2, [0.1, 0.1, 0.1]);
     T.rect(x, y, cw, ch, [0.97, 0.97, 0.95]);
     T.text(VAL[c.v], x + 1, y + 1, red ? [0.85, 0.1, 0.1] : [0.05, 0.05, 0.1]);
     T.sprite(SUITS[c.s], x + Math.floor((cw - 5) / 2), y + ch - 7, red ? [0.85, 0.1, 0.1] : [0.05, 0.05, 0.1]);
   });
-  for (let k = 0; k < 4; k++) disc(T, tableX + 6 + k * 5, H - 4, 2, [[0.9, 0.1, 0.1], [0.1, 0.3, 0.9], [0.1, 0.7, 0.2], [0.9, 0.9, 0.9]][k]);
+  if (side) for (let k = 0; k < 4; k++) disc(T, tableX + 6 + k * 5, H - 4, 2, [[0.9, 0.1, 0.1], [0.1, 0.3, 0.9], [0.1, 0.7, 0.2], [0.9, 0.9, 0.9]][k]);
   return s.score;
 }
 

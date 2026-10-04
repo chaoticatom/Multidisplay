@@ -13903,10 +13903,10 @@ var PiEngine = (() => {
           T.set(x, y, 0.05, 0.25 + p * 0.25, 0.05);
         }
         const proj = (x, z) => [W / 2 + (x - s.bx) / z * W * 0.25, hz + 1 / z * (H - hz) * 0.18];
-        [...s.trees].sort((a, b) => b.z - a.z).forEach((tr) => {
-          const [px, py] = proj(tr.x, tr.z), h = Math.min(H, (H - hz) * 0.6 / tr.z), w = Math.max(1, 2.5 / tr.z);
+        [...s.trees].filter((tr) => tr.z > 0.12).sort((a, b) => b.z - a.z).forEach((tr) => {
+          const k = W / 128, [px, py] = proj(tr.x, tr.z), h = Math.min(H * 0.8, (H - hz) * 0.6 / tr.z), w = Math.max(1, Math.min(W / 8, 2.5 * k / tr.z));
           T.rect(px - w / 2, py - h, w, h, [0.35 * (1 - tr.z * 0.6), 0.2 * (1 - tr.z * 0.6), 0.08]);
-          disc(T, px, py - h, Math.max(1, Math.round(w * 1.6)), [0.05, 0.4 * (1 - tr.z * 0.5), 0.08]);
+          disc(T, px, py - h, Math.max(1, Math.min(Math.round(W / 6), Math.round(w * 1.6))), [0.05, 0.4 * (1 - tr.z * 0.5), 0.08]);
         });
         const [ex, ey] = proj(s.enemy.x, s.enemy.z), es = Math.max(1, Math.round(1.5 / s.enemy.z));
         T.rect(ex - es, ey - es * 2, es * 2, es * 2, [0.9, 0.2, 0.2]);
@@ -14003,12 +14003,12 @@ var PiEngine = (() => {
           s.cards = Array.from({ length: 5 }, () => ({ v: Math.floor(Math.random() * 13), s: Math.floor(Math.random() * 4) }));
           s.score += 50;
         }
-        const showPhoto = W >= 96, tableX = showPhoto ? 64 : 0, tw = W - tableX;
-        if (showPhoto) for (let y = 0; y < Math.min(64, H); y++) for (let x = 0; x < 64; x++) {
+        const side = W >= 96, tableX = side ? 64 : 0, tw = W - tableX;
+        for (let y = 0; y < Math.min(64, H); y++) for (let x = 0; x < 64; x++) {
           const i = (y * 64 + x) * 3;
-          T.set(x, y + H - 64, sfImg[i], sfImg[i + 1], sfImg[i + 2]);
+          T.set(x + (side ? 0 : Math.floor((W - 64) / 2)), y + H - 64, sfImg[i], sfImg[i + 1], sfImg[i + 2]);
         }
-        for (let y = TOP; y < H; y++) for (let x = tableX; x < W; x++) {
+        if (side) for (let y = TOP; y < H; y++) for (let x = tableX; x < W; x++) {
           const f = 0.14 + 0.03 * Math.sin(x * 0.4 + y * 0.3);
           T.set(x, y, 0, f, f * 0.35);
         }
@@ -14017,12 +14017,13 @@ var PiEngine = (() => {
         s.cards.forEach((c, i) => {
           const dealt = t % 8 > i * 0.35;
           if (!dealt) return;
-          const x = tableX + gap + i * (cw + gap), y = Math.round(TOP + (H - TOP - ch) / 2), red = c.s < 2;
+          const x = tableX + gap + i * (cw + gap), y = side ? Math.round(TOP + (H - TOP - ch) / 2) : H - ch - 2, red = c.s < 2;
+          T.rect(x - 1, y - 1, cw + 2, ch + 2, [0.1, 0.1, 0.1]);
           T.rect(x, y, cw, ch, [0.97, 0.97, 0.95]);
           T.text(VAL[c.v], x + 1, y + 1, red ? [0.85, 0.1, 0.1] : [0.05, 0.05, 0.1]);
           T.sprite(SUITS[c.s], x + Math.floor((cw - 5) / 2), y + ch - 7, red ? [0.85, 0.1, 0.1] : [0.05, 0.05, 0.1]);
         });
-        for (let k = 0; k < 4; k++) disc(T, tableX + 6 + k * 5, H - 4, 2, [[0.9, 0.1, 0.1], [0.1, 0.3, 0.9], [0.1, 0.7, 0.2], [0.9, 0.9, 0.9]][k]);
+        if (side) for (let k = 0; k < 4; k++) disc(T, tableX + 6 + k * 5, H - 4, 2, [[0.9, 0.1, 0.1], [0.1, 0.3, 0.9], [0.1, 0.7, 0.2], [0.9, 0.9, 0.9]][k]);
         return s.score;
       }
       function tamagotchi(s, T, dt, t) {
@@ -14317,8 +14318,10 @@ var PiEngine = (() => {
         for (const b of s.bombs) T.set(b.x + (b.y | 0) % 2, b.y, 1, 0.8, 0.2);
         return s.score;
       }
-      var MAZE = ["################################", "#..............##..............#", "#.####.#######.##.#######.####.#", "#o####.#######.##.#######.####o#", "#..............................#", "#.####.##.###########.##.####..#", "#......##......##.....##.......#", "######.#####.######.#####.######", "#............#....#............#", "#.####.#####.#....#.#####.####.#", "#o..##.......######.......##..o#", "###.##.##.############.##.##.###", "#......##.....##.....##........#", "#.##########.####.##########.###", "#..............................#", "################################"];
-      var open = (x, y) => MAZE[y] && MAZE[y][x] && MAZE[y][x] !== "#";
+      var MAZE = ["################################", "#..............##..............#", "#.####.#######.##.#######.####.#", "#o####.#######.##.#######.####o#", "#..............................#", "#.####.##.###########.##.####..#", "#......##.............##.......#", "######.#####.##..##.#####.######", "#............#....#............#", "#.####.#####.#....#.#####.####.#", "#o..##.......######.......##..o#", "###.##.##.############.##.##.###", "#......##.....##.....##........#", "#.##########.####.##########.###", "#..............................#", "################################"];
+      var MAZE_SQ = ["################", "#o.....##.....o#", "#.##.#.##.#.##.#", "#..............#", "#.##.######.##.#", "#....#....#....#", "####.#.##.#.####", "#......##......#", "#.###.####.###.#", "#...#......#...#", "###.#.####.#.###", "#..............#", "#o####.##.####o#", "################"];
+      var M = MAZE;
+      var open = (x, y) => M[y] && M[y][x] && M[y][x] !== "#";
       function stepMover(m, smart, tx, ty) {
         const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => open(m.x + dx, m.y + dy) && !(dx === -m.dx && dy === -m.dy));
         const ch = dirs.length ? dirs : [[-m.dx, -m.dy]];
@@ -14339,16 +14342,23 @@ var PiEngine = (() => {
         m.y += m.dy;
       }
       function pacman(s, T, dt, t, inp = {}) {
+        const square = T.W / (T.H - 8) < 1.6, want = square ? MAZE_SQ : MAZE;
+        if (s.maze !== want) {
+          s.maze = want;
+          s.dots = null;
+        }
+        M = want;
         if (!s.dots) {
-          s.dots = MAZE.map((r) => [...r].map((c) => c === "." ? 1 : c === "o" ? 2 : 0));
+          s.dots = M.map((r) => [...r].map((c) => c === "." ? 1 : c === "o" ? 2 : 0));
           s.x = 1;
-          s.y = 4;
+          s.y = 3;
           s.dx = 1;
           s.dy = 0;
           s.t = 0;
           s.power = 0;
           s.score = s.score || 0;
-          s.ghosts = [[1, 0.2, 0.2], [1, 0.6, 0.9], [0.3, 1, 1], [1, 0.7, 0.2]].map((col, i) => ({ x: 14 + i, y: 8, col, dx: i % 2 ? 1 : -1, dy: 0 }));
+          const gx = square ? 6 : 14, gy = square ? 5 : 8;
+          s.ghosts = [[1, 0.2, 0.2], [1, 0.6, 0.9], [0.3, 1, 1], [1, 0.7, 0.2]].map((col, i) => ({ x: gx + i, y: gy, col, dx: i % 2 ? 1 : -1, dy: 0 }));
         }
         s.t += dt;
         if (s.t > 0.14) {
@@ -14390,8 +14400,9 @@ var PiEngine = (() => {
           if (!s.dots) return s.score;
         }
         s.power -= dt;
-        const C = Math.max(2, Math.floor(Math.min(T.W / 32, T.H / 16))), ox = Math.floor((T.W - 32 * C) / 2), oy = Math.floor((T.H - 16 * C) / 2);
-        MAZE.forEach((r, y) => [...r].forEach((c, x) => {
+        const cols = M[0].length, rows = M.length;
+        const C = Math.max(2, Math.floor(Math.min(T.W / cols, (T.H - 8) / rows))), ox = Math.floor((T.W - cols * C) / 2), oy = 8 + Math.floor((T.H - 8 - rows * C) / 2);
+        M.forEach((r, y) => [...r].forEach((c, x) => {
           const X = ox + x * C, Y = oy + y * C;
           if (c === "#") {
             T.rect(X, Y, C, C, [0.02, 0.02, 0.22]);
@@ -14535,7 +14546,8 @@ var PiEngine = (() => {
             const fn = NEW_GAMES[st.cur];
             if (fn) {
               const s = st.fresh[st.cur] || (st.fresh[st.cur] = {});
-              st.score = fn(s, T, dt, t, inp) || 0;
+              const gdt = dt * 0.65;
+              st.score = fn(s, T, gdt, st.gameClock = (st.gameClock || 0) + gdt, inp) || 0;
             } else {
               const S = 64, game = st.old[st.cur];
               game.t += dt;
@@ -14563,7 +14575,7 @@ var PiEngine = (() => {
             st.hi = Math.max(st.hi, Math.round(st.score));
             if (hud && fn) {
               T.rect(0, 0, W, 7, [0, 0, 0]);
-              T.text("1UP " + String(Math.round(st.score)).padStart(5, "0"), 1, 1, [1, 0.3, 0.3]);
+              T.text((W >= 100 ? "1UP " : "") + String(Math.round(st.score)).padStart(5, "0"), 1, 1, [1, 0.3, 0.3]);
               const hs = "HI " + String(st.hi).padStart(5, "0");
               T.text(hs, W - textWidth(FONT_3x5, hs) - 1, 1, [1, 1, 1]);
             }
@@ -14574,7 +14586,7 @@ var PiEngine = (() => {
               T.rect(0, 0, W, H, [0, 0, 0]);
               const ox = Math.floor((W - S) / 2), oy = Math.floor((H - S) / 2);
               for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) {
-                const i = ((S - 1 - v) * S + u) * 3;
+                const i = (v * S + u) * 3;
                 T.set(ox + u, oy + v, st.small[i], st.small[i + 1], st.small[i + 2]);
               }
             }
