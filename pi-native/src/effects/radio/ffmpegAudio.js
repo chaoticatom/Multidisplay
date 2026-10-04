@@ -130,6 +130,7 @@ class RadioAudio {
     if (this.decodeProc && this.url === url) return;
 
     if (this.url !== url) {
+      console.log('[radio] starting ' + url); // in the service log, to check a timer's station starts
       this._teardown();
       this.url = url;
       this.errored = false;

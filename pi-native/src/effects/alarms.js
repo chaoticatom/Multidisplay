@@ -447,7 +447,7 @@ function applyRadio(al, active) {
   if (!r || !r.action || r.action === 'none') return;
   const radio = require('./radio');
   if (r.action === 'stop') radio.stopStation();
-  else if (r.action === 'start' && r.station && r.station.url && !(active && active.radioStarted)) radio.playStation(r.station);
+  else if (r.action === 'start' && r.station && r.station.url && !(active && active.radioStarted)) { console.log('[timer] starting radio: ' + r.station.name); radio.playStation(r.station); }
   if (radio.setFade) radio.setFade(1);
 }
 // During a sunrise or a wind-down the radio fades with the light: it starts
@@ -457,7 +457,7 @@ function radioFade(a, level) {
   const r = a.al.radio;
   if (!r || r.action === 'none' || !r.action) return;
   const radio = require('./radio');
-  if (r.action === 'start' && !a.radioStarted && r.station && r.station.url) { radio.playStation(r.station); a.radioStarted = true; }
+  if (r.action === 'start' && !a.radioStarted && r.station && r.station.url) { console.log('[timer] starting radio: ' + r.station.name); radio.playStation(r.station); a.radioStarted = true; }
   if (radio.setFade) radio.setFade(Math.max(0.03, level));
 }
 
@@ -477,6 +477,7 @@ function alarmFire(state, al, now, active) {
   const durationMs = 1 * 60 * 1000; // the message shows for a minute (the giant sun used to hold the screen for 10)
   state.activeAlarm = { al, phase: 'main', startMs: fireMs, endMs: fireMs + durationMs, dismissed: false };
 
+  console.log('[timer] fired ' + (al.name || al.hour + ':' + al.minute) + ', radio: ' + ((al.radio && al.radio.action) || 'none'));
   applyRadio(al, active);
   if (al.triggerType === 'off') {
     // "Turn off" timer: blank the display (music keeps playing), no message.

@@ -2520,6 +2520,7 @@ var PiEngine = (() => {
           }
           if (this.decodeProc && this.url === url) return;
           if (this.url !== url) {
+            console.log("[radio] starting " + url);
             this._teardown();
             this.url = url;
             this.errored = false;
@@ -25727,7 +25728,10 @@ var PiEngine = (() => {
         if (!r || !r.action || r.action === "none") return;
         const radio = require_radio2();
         if (r.action === "stop") radio.stopStation();
-        else if (r.action === "start" && r.station && r.station.url && !(active && active.radioStarted)) radio.playStation(r.station);
+        else if (r.action === "start" && r.station && r.station.url && !(active && active.radioStarted)) {
+          console.log("[timer] starting radio: " + r.station.name);
+          radio.playStation(r.station);
+        }
         if (radio.setFade) radio.setFade(1);
       }
       function radioFade(a, level) {
@@ -25735,6 +25739,7 @@ var PiEngine = (() => {
         if (!r || r.action === "none" || !r.action) return;
         const radio = require_radio2();
         if (r.action === "start" && !a.radioStarted && r.station && r.station.url) {
+          console.log("[timer] starting radio: " + r.station.name);
           radio.playStation(r.station);
           a.radioStarted = true;
         }
@@ -25751,6 +25756,7 @@ var PiEngine = (() => {
         const fireMs = now ? now.getTime() : Date.now();
         const durationMs = 1 * 60 * 1e3;
         state.activeAlarm = { al, phase: "main", startMs: fireMs, endMs: fireMs + durationMs, dismissed: false };
+        console.log("[timer] fired " + (al.name || al.hour + ":" + al.minute) + ", radio: " + (al.radio && al.radio.action || "none"));
         applyRadio(al, active);
         if (al.triggerType === "off") {
           state.activeAlarm = null;
