@@ -146,10 +146,15 @@ function keepAlive(opts) {
   audio.ensure(playing && currentStation ? currentStation.url : null);
 }
 
+// A timer fade (0..1) on top of the chosen volume: a wake-up timer brings
+// the radio in quietly and raises it with the sunrise; a wind-down lowers it.
+let fade = 1;
+function setFade(f) { const n = Number(f); fade = Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 1; setVolume(volume); }
+
 function setVolume(v) {
   const n = Number(v);
   if (Number.isFinite(n)) volume = Math.max(0, Math.min(1, n));
-  if (audio.setVolume) audio.setVolume(volume); // reaches the speaker (see ffmpegAudio.js)
+  if (audio.setVolume) audio.setVolume(volume * fade); // reaches the speaker (see ffmpegAudio.js)
 }
 
 // Fire-and-forget, mirrors weather.js's maybeFetch() shape - the caller
@@ -310,6 +315,7 @@ module.exports.DEBUG_TONES = DEBUG_TONES;
 module.exports.stopStation = stopStation;
 module.exports.keepAlive = keepAlive;
 module.exports.setVolume = setVolume;
+module.exports.setFade = setFade;
 module.exports.search = search;
 module.exports.RADIO_STATIONS = RADIO_STATIONS;
 module.exports.audio = audio;

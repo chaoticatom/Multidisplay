@@ -4013,10 +4013,16 @@ var PiEngine = (() => {
         }
         audio.ensure(playing && currentStation ? currentStation.url : null);
       }
+      var fade = 1;
+      function setFade(f) {
+        const n = Number(f);
+        fade = Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 1;
+        setVolume(volume);
+      }
       function setVolume(v) {
         const n = Number(v);
         if (Number.isFinite(n)) volume = Math.max(0, Math.min(1, n));
-        if (audio.setVolume) audio.setVolume(volume);
+        if (audio.setVolume) audio.setVolume(volume * fade);
       }
       async function search(query) {
         lastQuery = query || "";
@@ -4125,6 +4131,7 @@ var PiEngine = (() => {
       module.exports.stopStation = stopStation;
       module.exports.keepAlive = keepAlive;
       module.exports.setVolume = setVolume;
+      module.exports.setFade = setFade;
       module.exports.search = search;
       module.exports.RADIO_STATIONS = RADIO_STATIONS;
       module.exports.audio = audio;
@@ -25680,12 +25687,23 @@ var PiEngine = (() => {
           }
         }
       }
-      function applyRadio(al) {
+      function applyRadio(al, active) {
         const r = al && al.radio;
         if (!r || !r.action || r.action === "none") return;
         const radio = require_radio2();
         if (r.action === "stop") radio.stopStation();
-        else if (r.action === "start" && r.station && r.station.url) radio.playStation(r.station);
+        else if (r.action === "start" && r.station && r.station.url && !(active && active.radioStarted)) radio.playStation(r.station);
+        if (radio.setFade) radio.setFade(1);
+      }
+      function radioFade(a, level) {
+        const r = a.al.radio;
+        if (!r || r.action === "none" || !r.action) return;
+        const radio = require_radio2();
+        if (r.action === "start" && !a.radioStarted && r.station && r.station.url) {
+          radio.playStation(r.station);
+          a.radioStarted = true;
+        }
+        if (radio.setFade) radio.setFade(Math.max(0.03, level));
       }
       function wakeDisplay(state) {
         if (!state.blank && !state.panelsOff) return;
@@ -25694,12 +25712,12 @@ var PiEngine = (() => {
         state.appliedChanges = scenes.changedFields(state);
         if (state.onAlarmsChanged) state.onAlarmsChanged();
       }
-      function alarmFire(state, al, now) {
+      function alarmFire(state, al, now, active) {
         const fireMs = now ? now.getTime() : Date.now();
         const hasPreEffect = al.prealarm?.enabled && al.prealarm?.giantSun;
         const durationMs = hasPreEffect ? 10 * 60 * 1e3 : 1 * 60 * 1e3;
         state.activeAlarm = { al, phase: "main", startMs: fireMs, endMs: fireMs + durationMs, dismissed: false };
-        applyRadio(al);
+        applyRadio(al, active);
         if (al.triggerType === "off") {
           state.activeAlarm = null;
           state.blank = true;
@@ -25774,12 +25792,17 @@ var PiEngine = (() => {
         const progress = windDown ? 1 - rawProgress : rawProgress;
         const startBright = a.al.prealarm?.startBright || 5;
         state.brightness = windDown ? Math.max(0, 1 - Math.pow(rawProgress, 1.5)) : Math.max(startBright / 100, Math.pow(progress, 1.5));
+        radioFade(a, windDown ? 1 - rawProgress : rawProgress);
         if (rawProgress >= 1) {
           if (windDown) {
             if (wall) wallFx.clear(core);
             else for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
             state.blank = true;
-            applyRadio(a.al);
+            if (a.al.radio && (a.al.radio.action === "stop" || a.al.radio.action === "start")) {
+              const radio = require_radio2();
+              radio.stopStation();
+              if (radio.setFade) radio.setFade(1);
+            }
             state.brightness = Number.isFinite(a.prevBright) && a.prevBright > 0 ? a.prevBright : 1;
             state.activeAlarm = null;
             state.appliedChanges = scenes.changedFields(state);
@@ -25788,7 +25811,7 @@ var PiEngine = (() => {
           } else {
             a.phase = "main";
             a.justTriggered = true;
-            alarmFire(state, a.al, /* @__PURE__ */ new Date());
+            alarmFire(state, a.al, /* @__PURE__ */ new Date(), a);
             state.brightness = 1;
           }
           return;
@@ -25834,6 +25857,8 @@ var PiEngine = (() => {
         if (state.activeAlarm) {
           state.activeAlarm.dismissed = true;
           state.activeAlarm = null;
+          const radio = require_radio2();
+          if (radio.setFade) radio.setFade(1);
         }
       }
       module.exports = {

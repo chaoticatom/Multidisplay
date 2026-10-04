@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.248';
+const APP_VERSION = '0.6.249';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -3203,6 +3203,9 @@ function tmSync() {
   tmSetChip(document.getElementById('tm-wd'), 'v', e.wd);
   tmSetChip(document.getElementById('tm-radio'), 'ra', e.radio);
   document.getElementById('tm-station-row').hidden = e.radio !== 'start';
+  // Say how the radio fades with the light.
+  const rn = document.getElementById('tm-radio-note');
+  if (rn) rn.textContent = e.radio === 'none' ? '' : e.kind === 'wake' && e.sunrise > 0 && e.radio === 'start' ? `Starts quietly when the sunrise begins and rises to your volume by ${tmHHMM(tmRead())}.` : e.kind === 'winddown' ? 'Fades out with the light, then stops.' : '';
   const rep = e.repeatHourly ? 'hourly' : tmRepeatFor(e.days).repeat;
   tmSetChip(document.getElementById('tm-repeat'), 'r', rep);
   document.querySelectorAll('#tm-days button').forEach((b) => b.classList.toggle('on', e.days.has(+b.dataset.d)));

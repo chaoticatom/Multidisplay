@@ -438,12 +438,23 @@ function alarmCheck(state, now) {
 // A timer's radio choice: { action: 'start', station: {name, url, genre} }
 // plays that station, { action: 'stop' } stops the radio. Runs on whichever
 // thread renders (the render worker owns the playing radio, see tick.js).
-function applyRadio(al) {
+function applyRadio(al, active) {
   const r = al && al.radio;
   if (!r || !r.action || r.action === 'none') return;
   const radio = require('./radio');
   if (r.action === 'stop') radio.stopStation();
-  else if (r.action === 'start' && r.station && r.station.url) radio.playStation(r.station);
+  else if (r.action === 'start' && r.station && r.station.url && !(active && active.radioStarted)) radio.playStation(r.station);
+  if (radio.setFade) radio.setFade(1);
+}
+// During a sunrise or a wind-down the radio fades with the light: it starts
+// quietly at the beginning of the sunrise and rises to the normal volume by
+// the alarm; a wind-down lowers it to silence (and then stops it).
+function radioFade(a, level) {
+  const r = a.al.radio;
+  if (!r || r.action === 'none' || !r.action) return;
+  const radio = require('./radio');
+  if (r.action === 'start' && !a.radioStarted && r.station && r.station.url) { radio.playStation(r.station); a.radioStarted = true; }
+  if (radio.setFade) radio.setFade(Math.max(0.03, level));
 }
 
 // A wake-up or switch-on timer turns the display back on: clears both
@@ -457,7 +468,7 @@ function wakeDisplay(state) {
   if (state.onAlarmsChanged) state.onAlarmsChanged();
 }
 
-function alarmFire(state, al, now) {
+function alarmFire(state, al, now, active) {
   const fireMs = now ? now.getTime() : Date.now();
   // effectRise ("giantSun||effectRise" in the browser) is scoped down to
   // just giantSun here - see module comment.
@@ -465,7 +476,7 @@ function alarmFire(state, al, now) {
   const durationMs = hasPreEffect ? 10 * 60 * 1000 : 1 * 60 * 1000;
   state.activeAlarm = { al, phase: 'main', startMs: fireMs, endMs: fireMs + durationMs, dismissed: false };
 
-  applyRadio(al);
+  applyRadio(al, active);
   if (al.triggerType === 'off') {
     // "Turn off" timer: blank the display (music keeps playing), no message.
     state.activeAlarm = null;
@@ -569,6 +580,7 @@ function renderPrePhase(core, dt, state, EFFECTS, wall = false) {
   const startBright = a.al.prealarm?.startBright || 5;
 
   state.brightness = windDown ? Math.max(0, 1 - Math.pow(rawProgress, 1.5)) : Math.max(startBright / 100, Math.pow(progress, 1.5));
+  radioFade(a, windDown ? 1 - rawProgress : rawProgress);
 
   if (rawProgress >= 1) {
     if (windDown) {
@@ -579,7 +591,9 @@ function renderPrePhase(core, dt, state, EFFECTS, wall = false) {
       // a 'done' timer used to block every later timer, including the
       // next morning's wake-up.
       state.blank = true;
-      applyRadio(a.al); // e.g. stop the radio when the wind-down ends
+      // The radio has faded to silence with the light: stop it (sleep music
+      // started by this timer included), then reset the fade.
+      if (a.al.radio && (a.al.radio.action === 'stop' || a.al.radio.action === 'start')) { const radio = require('./radio'); radio.stopStation(); if (radio.setFade) radio.setFade(1); }
       state.brightness = Number.isFinite(a.prevBright) && a.prevBright > 0 ? a.prevBright : 1;
       state.activeAlarm = null;
       state.appliedChanges = scenes.changedFields(state);
@@ -587,7 +601,7 @@ function renderPrePhase(core, dt, state, EFFECTS, wall = false) {
       if (state.onAlarmsChanged) state.onAlarmsChanged();
     } else {
       a.phase = 'main'; a.justTriggered = true;
-      alarmFire(state, a.al, new Date());
+      alarmFire(state, a.al, new Date(), a);
       state.brightness = 1.0;
     }
     return;
@@ -636,7 +650,7 @@ function renderPrePhase(core, dt, state, EFFECTS, wall = false) {
 // same effect as toggling the firing alarm off in the browser's list UI
 // (alarmBuildList()'s '.al-tog' handler sets activeAlarm.dismissed=true).
 function dismissActive(state) {
-  if (state.activeAlarm) { state.activeAlarm.dismissed = true; state.activeAlarm = null; }
+  if (state.activeAlarm) { state.activeAlarm.dismissed = true; state.activeAlarm = null; const radio = require('./radio'); if (radio.setFade) radio.setFade(1); }
 }
 
 module.exports = {

@@ -105,3 +105,29 @@ if (failed) process.exitCode = 1;
   } catch (e) { console.error('  FAIL -', e.message); process.exitCode = 1; }
   finally { radio.playStation = realPlay; radio.stopStation = realStop; }
 }
+
+// The radio fades in with a sunrise and out with a wind-down.
+{
+  const radio = require('../src/effects/radio');
+  const fades = [], plays = [];
+  const realFade = radio.setFade, realPlay = radio.playStation, realStop = radio.stopStation;
+  radio.setFade = (f) => fades.push(f); radio.playStation = (st) => plays.push(st.name); radio.stopStation = () => plays.push('stop');
+  try {
+    const { CubeCore } = require('../src/core');
+    const core = new CubeCore(8);
+    const st = { name: 'Wake FM', url: 'http://example.invalid/w' };
+    const al = { ...base, id: 'f1', triggerType: 'effect', effect: '', radio: { action: 'start', station: st }, prealarm: { enabled: true, preMinutes: 10, startBright: 5 } };
+    const state = { alarms: [al], activeAlarm: null, effect: 'wave', overlays: {}, effectsRegistry: {} };
+    alarms.alarmCheck(state, new Date(2026, 9, 3, 7, 25, 0)); // halfway through the sunrise
+    state.activeAlarm.startMs = Date.now() - 5 * 60000;
+    alarms.renderPrePhase(core, 1 / 30, state, {});
+    assert.deepStrictEqual(plays, ['Wake FM'], 'the station starts with the sunrise');
+    assert.ok(fades[fades.length - 1] > 0.4 && fades[fades.length - 1] < 0.6, 'about half volume halfway: ' + fades[fades.length - 1]);
+    state.activeAlarm.startMs = Date.now() - 11 * 60000;
+    alarms.renderPrePhase(core, 1 / 30, state, {});
+    assert.deepStrictEqual(plays, ['Wake FM'], 'not started twice at the alarm');
+    assert.strictEqual(fades[fades.length - 1], 1, 'full volume at the alarm');
+    console.log('  ok - radio fades in with the sunrise');
+  } catch (e) { console.error('  FAIL -', e.message); process.exitCode = 1; }
+  finally { radio.setFade = realFade; radio.playStation = realPlay; radio.stopStation = realStop; }
+}
