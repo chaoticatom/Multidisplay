@@ -41,7 +41,7 @@
 'use strict';
 const youtube = require('../../youtube');
 
-const { spawn } = require('child_process');
+const { spawn, execFile } = require('child_process');
 const { createAnalyser, BAND_COUNT } = require('./fft');
 const { findPulseEnv } = require('../../pulseEnv');
 
@@ -66,6 +66,21 @@ const RING_SAMPLES = 1 << 18; // ~5.9s of audio - room for up to 3s of speaker s
 // "Speaker sync" slider (setSyncMs()) to line the bars up with the sound.
 const DEFAULT_SYNC_MS = 150;
 const MAX_SYNC_MS = 3000; // some Bluetooth speakers lag well over a second
+const AUTO_SYNC_EVERY_MS = 9000; // Auto speaker sync: how often the delay is measured
+
+// Auto speaker sync: how late our stream is heard, from `pactl list
+// sink-inputs` - the sound server's own buffer plus the output's latency
+// (a Bluetooth speaker adds its codec and radio delay here). Finds the
+// paplay stream; null if it isn't there or reports nothing.
+function parseStreamLatencyMs(text) {
+  for (const block of String(text || '').split(/\n(?=Sink Input #)/)) {
+    if (!/application\.(name|process\.binary) = "paplay"/.test(block)) continue;
+    const buf = /Buffer Latency:\s*(\d+)\s*usec/.exec(block), sink = /Sink Latency:\s*(\d+)\s*usec/.exec(block);
+    const us = (buf ? Number(buf[1]) : 0) + (sink ? Number(sink[1]) : 0);
+    return us > 0 ? Math.round(us / 1000) : null;
+  }
+  return null;
+}
 const STALL_MS = 400; // no new audio for this long -> bars fall
 const STALL_RESTART_MS = 15000; // no audio at all for this long -> reconnect the stream (see _checkIdle)
 const PLAY_RETRY_MS = 10000; // playback (paplay) died -> start it again at most this often
@@ -75,7 +90,10 @@ const PEAK_HOLD_S = 0.35;
 const PEAK_GRAVITY = 3.2; // peak marker fall acceleration (units/s^2)
 
 class RadioAudio {
-  constructor(spawnFn = spawn) {
+  constructor(spawnFn = spawn, execFn = execFile) {
+    this._execFn = execFn; // pactl, for Auto speaker sync
+    this._syncAuto = false;
+    this.autoSyncMs = null;
     this._gain = 1; // speaker volume - see setVolume()
     this.wave = new Float32Array(WAVE_N); // the actual sound wave, for the Waveform style (see _updateWave)
     this._wavePeak = 0.1;
@@ -574,6 +592,10 @@ class RadioAudio {
   // Speaker sync delay (see DEFAULT_SYNC_MS). Clamped so the analysis
   // window always stays inside the ring buffer.
   setSyncMs(ms) {
+    // 'auto': follow the delay measured from the sound server (see
+    // _measureLatency); until the first reading, the usual default.
+    if (ms === 'auto') { this._syncAuto = true; this._syncS = (this.autoSyncMs !== null ? this.autoSyncMs : DEFAULT_SYNC_MS) / 1000; return; }
+    this._syncAuto = false;
     const v = Number.isFinite(ms) ? Math.max(0, Math.min(MAX_SYNC_MS, ms)) : DEFAULT_SYNC_MS;
     this._syncS = v / 1000;
   }
@@ -585,10 +607,31 @@ class RadioAudio {
   // Plain, structured-clone-friendly copy of what the render side reads -
   // see RemoteAudio below.
   snapshot() {
-    return { spec: this.spec, peak: this.peak, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs };
+    return { spec: this.spec, peak: this.peak, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
+  }
+
+  // Auto speaker sync: ask the sound server how late our stream plays, and
+  // ease the bars' delay towards it (readings jitter a little).
+  _measureLatency() {
+    if (!this.playProc || this._measuring) return;
+    this._measuring = true;
+    const pulse = findPulseEnv();
+    const env = pulse.env ? { ...process.env, ...pulse.env } : process.env;
+    const args = pulse.env ? ['--server=' + pulse.env.PULSE_SERVER, 'list', 'sink-inputs'] : ['list', 'sink-inputs'];
+    try {
+      this._execFn('pactl', args, { env, timeout: 4000 }, (err, out) => {
+        this._measuring = false;
+        const ms = err ? null : parseStreamLatencyMs(out);
+        if (ms === null) return;
+        const clamped = Math.min(MAX_SYNC_MS, ms);
+        this.autoSyncMs = this.autoSyncMs === null ? clamped : Math.round(this.autoSyncMs * 0.6 + clamped * 0.4);
+        if (this._syncAuto) this._syncS = this.autoSyncMs / 1000;
+      });
+    } catch (e) { this._measuring = false; }
   }
 
   _checkIdle() {
+    if (this._syncAuto && this.playProc && Date.now() - (this._measuredAt || 0) > AUTO_SYNC_EVERY_MS) { this._measuredAt = Date.now(); this._measureLatency(); }
     // A real report: "when on a single freq, the bars sometimes go off
     // and come back again". Root cause: ensure() only actually runs from
     // effectRadio()'s own tick, which only fires while radio is the
@@ -703,6 +746,7 @@ class RemoteAudio {
     this.status = snap.status;
     this.playbackStatus = snap.playbackStatus;
     this.lastAttemptMs = snap.lastAttemptMs;
+    this.autoSyncMs = snap.autoSyncMs === undefined ? null : snap.autoSyncMs;
   }
   request() { return { url: this.url, ensureCount: this.ensureCount, clearCount: this.clearCount, syncMs: this.syncMs, volume: this.volume }; }
   close() {}
@@ -720,4 +764,4 @@ function applyRemoteRequest(audio, req, seen) {
   return { ensureCount: req.ensureCount, clearCount: req.clearCount };
 }
 
-module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, BAND_COUNT: require('./fft').BAND_COUNT, __scale: scalePcm };
+module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, parseStreamLatencyMs, BAND_COUNT: require('./fft').BAND_COUNT, __scale: scalePcm };

@@ -154,7 +154,7 @@ function pollTitle() {
 }
 
 function keepAlive(opts) {
-  if (opts) { audio.setSyncMs(opts.syncMs); if (Number.isFinite(Number(opts.volume))) setVolume(opts.volume); }
+  if (opts) { audio.setSyncMs(opts.syncAuto ? 'auto' : opts.syncMs); if (Number.isFinite(Number(opts.volume))) setVolume(opts.volume); }
   audio.ensure(playing && currentStation ? currentStation.url : null);
   pollTitle();
 }
@@ -199,7 +199,7 @@ function effectRadio(core, dt) {
   const scrollSpeed = Number.isFinite(opts.scrollSpeed) ? opts.scrollSpeed : 0;
   if (Number.isFinite(opts.volume)) setVolume(opts.volume);
 
-  audio.setSyncMs(opts.syncMs);
+  audio.setSyncMs(opts.syncAuto ? 'auto' : opts.syncMs);
   audio.ensure(playing && currentStation ? currentStation.url : null);
 
   for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] = 0;
@@ -306,6 +306,7 @@ function getStatus() {
     playing,
     station: currentStation,
     title: songTitle, // the song now playing, when the station sends it
+    autoSyncMs: audio.autoSyncMs === undefined ? null : audio.autoSyncMs, // measured speaker delay (Auto sync)
     volume,
     search: { query: lastQuery, results: searchResults, error: searchError, searching },
   };

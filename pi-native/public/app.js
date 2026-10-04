@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.271';
+const APP_VERSION = '0.6.272';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2702,6 +2702,11 @@ function wireRadioPanel() {
     if (syncVal) syncVal.textContent = syncSlider.value + 'ms';
     setEffectOption('radio', 'syncMs', Number(syncSlider.value));
   });
+  const syncAuto = panel.querySelector('.au-sync-auto-el');
+  if (syncAuto) syncAuto.addEventListener('change', () => {
+    if (syncSlider) syncSlider.disabled = syncAuto.checked;
+    setEffectOption('radio', 'syncAuto', syncAuto.checked);
+  });
   const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
   if (scrollSlider) scrollSlider.addEventListener('input', () => {
     if (scrollVal) scrollVal.textContent = scrollSlider.value;
@@ -2786,7 +2791,15 @@ function syncRadioPanel() {
   const gainSlider = panel.querySelector('.au-gain-el'), gainVal = panel.querySelector('.au-gain-val-el');
   if (gainSlider && document.activeElement !== gainSlider) { gainSlider.value = opts.gain ?? 2; if (gainVal) gainVal.textContent = Number(gainSlider.value).toFixed(1) + '×'; }
   const syncSlider = panel.querySelector('.au-sync-el'), syncVal = panel.querySelector('.au-sync-val-el');
-  if (syncSlider && document.activeElement !== syncSlider) { syncSlider.value = opts.syncMs ?? 150; if (syncVal) syncVal.textContent = syncSlider.value + 'ms'; }
+  const syncAutoEl = panel.querySelector('.au-sync-auto-el'), autoOn = !!opts.syncAuto;
+  if (syncAutoEl) syncAutoEl.checked = autoOn;
+  if (syncSlider) syncSlider.disabled = autoOn;
+  if (autoOn) {
+    // Auto speaker sync: show what the Pi measured (see ffmpegAudio.js _measureLatency).
+    const m = currentState.effectStatus?.radio?.autoSyncMs;
+    if (syncVal) syncVal.textContent = Number.isFinite(m) ? m + 'ms' : 'auto';
+    if (syncSlider && Number.isFinite(m)) syncSlider.value = m;
+  } else if (syncSlider && document.activeElement !== syncSlider) { syncSlider.value = opts.syncMs ?? 150; if (syncVal) syncVal.textContent = syncSlider.value + 'ms'; }
   const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
   if (scrollSlider && document.activeElement !== scrollSlider) { scrollSlider.value = opts.scrollSpeed ?? 0; if (scrollVal) scrollVal.textContent = scrollSlider.value; }
 }
