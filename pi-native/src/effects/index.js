@@ -36,7 +36,7 @@ const maze = require('./maze');
 const coinflip = require('./coinflip');
 const dice = require('./diceRoll'); // Dice Roll (old dice*.js kept for reference)
 const random = require('./random');
-const random80s = require('./random80s');
+const random80s = require('./random80sScenes'); // old random80s*.js kept for reference
 const tron = require('./tron');
 const retro = require('./retro');
 const fireworks = require('./fireworks');
@@ -89,7 +89,7 @@ const easterEggWall = require('./easterEggWall');
 const coinflipWall = coinflip.wall;
 const diceWall = dice.wall;
 const randomWall = require('./randomWall');
-const random80sWall = require('./random80sWall');
+const random80sWall = random80s.wall;
 const fireworksWall = require('./fireworksWall');
 const mazeWall = require('./mazeWall');
 const tronWall = require('./tronWall');
@@ -272,7 +272,7 @@ const EFFECT_NAMES = {
   coinflip: 'Coin Flip',
   dice: 'Dice Roll',
   random: 'Random 1',
-  random80s: 'Random 2',
+  random80s: 'Random 80s',
   fireworks: 'Fireworks',
   retro: 'Retro',
   video: 'Video Display',

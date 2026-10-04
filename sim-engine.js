@@ -7854,294 +7854,253 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/random80sCommon.js
-  var require_random80sCommon = __commonJS({
-    "src/effects/random80sCommon.js"(exports, module) {
+  // src/effects/random80sScenes.js
+  var require_random80sScenes = __commonJS({
+    "src/effects/random80sScenes.js"(exports, module) {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      function r2rnd(a, b) {
-        return a + Math.random() * (b - a);
-      }
-      var R2_CHARS = ["plasma", "laser", "laser", "rings", "grid", "grid", "bars", "nebula", "kaleid", "tunnel", "storm"];
-      function r2GenParams() {
-        const char = R2_CHARS[Math.floor(Math.random() * R2_CHARS.length)];
-        const waves = [];
-        for (let i = 0; i < 4; i++) {
-          let ax = r2rnd(-3, 3), ay = r2rnd(-3, 3), az = r2rnd(-3, 3);
-          let freq = r2rnd(3, 18), amp = r2rnd(0.15, 0.5);
-          if (char === "laser") {
-            const axis = Math.floor(Math.random() * 3);
-            ax = axis === 0 ? r2rnd(1, 2.5) * (Math.random() < 0.5 ? -1 : 1) : r2rnd(-0.15, 0.15);
-            ay = axis === 1 ? r2rnd(1, 2.5) * (Math.random() < 0.5 ? -1 : 1) : r2rnd(-0.15, 0.15);
-            az = axis === 2 ? r2rnd(1, 2.5) * (Math.random() < 0.5 ? -1 : 1) : r2rnd(-0.15, 0.15);
-            freq = r2rnd(5, 14);
-            amp = r2rnd(0.5, 0.8);
-          } else if (char === "bars") {
-            ay = i < 2 ? r2rnd(0.8, 2) : r2rnd(-0.2, 0.2);
-            ax = i < 2 ? r2rnd(-0.2, 0.2) : r2rnd(0.8, 2);
-            az = r2rnd(-0.3, 0.3);
-            freq = r2rnd(5, 15);
-          } else if (char === "rings") {
-            ax = r2rnd(-2, 2);
-            ay = r2rnd(-0.3, 0.3);
-            az = r2rnd(-2, 2);
-            freq = r2rnd(10, 30);
-            amp = r2rnd(0.2, 0.45);
-          } else if (char === "tunnel") {
-            ax = r2rnd(1, 3);
-            az = r2rnd(1, 3);
-            ay = r2rnd(-0.5, 0.5);
-            freq = r2rnd(6, 20);
-          } else if (char === "grid") {
-            const pick = i % 3;
-            ax = pick === 0 ? r2rnd(1, 2) : r2rnd(-0.1, 0.1);
-            ay = pick === 1 ? r2rnd(1, 2) : r2rnd(-0.1, 0.1);
-            az = pick === 2 ? r2rnd(1, 2) : r2rnd(-0.1, 0.1);
-            freq = r2rnd(6, 14);
-          }
-          waves.push({ ax, ay, az, freq, speed: r2rnd(-2.5, 2.5), phase: r2rnd(0, 6.28), amp });
-        }
-        let sharpness = 1, threshold = 0, edgeGlow = 0;
-        if (char === "laser") {
-          sharpness = r2rnd(2, 5);
-          threshold = r2rnd(0.25, 0.5);
-          edgeGlow = r2rnd(0.4, 0.8);
-        } else if (char === "grid") {
-          sharpness = r2rnd(2, 4);
-          threshold = r2rnd(0.2, 0.45);
-          edgeGlow = r2rnd(0.2, 0.5);
-        } else if (char === "bars") {
-          sharpness = r2rnd(2, 6);
-          threshold = r2rnd(0.2, 0.5);
-        } else if (char === "rings") {
-          sharpness = r2rnd(2, 5);
-          threshold = r2rnd(0.1, 0.4);
-          edgeGlow = r2rnd(0.2, 0.5);
-        } else if (char === "storm") {
-          sharpness = r2rnd(0.4, 0.8);
-          threshold = 0;
-        } else if (char === "tunnel") {
-          sharpness = r2rnd(1.5, 4);
-          threshold = r2rnd(0.1, 0.3);
-          edgeGlow = r2rnd(0.1, 0.3);
-        } else {
-          sharpness = r2rnd(0.6, 1.8);
-          threshold = r2rnd(0, 0.15);
-          edgeGlow = r2rnd(0, 0.2);
-        }
-        const warp = {
-          amt: char === "storm" ? r2rnd(0.12, 0.3) : char === "nebula" ? r2rnd(0.08, 0.25) : r2rnd(0, 0.18),
-          fx: r2rnd(3, 10),
-          fy: r2rnd(3, 10),
-          fz: r2rnd(3, 10),
-          sx: r2rnd(-1.5, 1.5),
-          sy: r2rnd(-1.5, 1.5)
-        };
-        const kaleid = char === "kaleid" ? 3 + Math.floor(Math.random() * 6) : Math.random() < 0.2 ? 2 + Math.floor(Math.random() * 5) : 0;
-        let palA, palB, palC, palD;
-        const palType = Math.random();
-        if (char === "laser" || char === "grid" || palType < 0.35) {
-          const neons = [
-            { a: [0.5, 0.1, 0.1], b: [0.5, 0.1, 0.1], d: [0, 0.1, 0.2] },
-            { a: [0.1, 0.5, 0.1], b: [0.1, 0.5, 0.1], d: [0.2, 0, 0.1] },
-            { a: [0.1, 0.1, 0.5], b: [0.1, 0.2, 0.5], d: [0.1, 0.2, 0] },
-            { a: [0.5, 0.1, 0.5], b: [0.5, 0.15, 0.5], d: [0, 0.3, 0.1] },
-            { a: [0.1, 0.5, 0.5], b: [0.15, 0.5, 0.5], d: [0.2, 0, 0.1] },
-            { a: [0.5, 0.4, 0.1], b: [0.5, 0.3, 0.1], d: [0, 0.15, 0.3] },
-            { a: [0.5, 0.2, 0.4], b: [0.4, 0.15, 0.5], d: [0.1, 0.25, 0] }
-          ];
-          const n = neons[Math.floor(Math.random() * neons.length)];
-          palA = n.a;
-          palB = n.b;
-          palD = n.d;
-          palC = [r2rnd(0.5, 1.5), r2rnd(0.5, 1.5), r2rnd(0.5, 1.5)];
-        } else if (palType < 0.6) {
-          palA = [r2rnd(0.3, 0.6), r2rnd(0.3, 0.6), r2rnd(0.3, 0.6)];
-          const bv2 = r2rnd(0.35, 0.55);
-          palB = [bv2, bv2 * r2rnd(0.8, 1.2), bv2 * r2rnd(0.8, 1.2)];
-          palC = [r2rnd(0.8, 2), r2rnd(0.8, 2), r2rnd(0.8, 2)];
-          palD = [r2rnd(0, 1), r2rnd(0, 1), r2rnd(0, 1)];
-        } else {
-          palA = [r2rnd(0.4, 0.65), r2rnd(0.4, 0.65), r2rnd(0.4, 0.65)];
-          const bv3 = r2rnd(0.3, 0.5);
-          palB = [bv3, bv3 * r2rnd(0.85, 1.15), bv3 * r2rnd(0.85, 1.15)];
-          const cf2 = r2rnd(0.5, 1.8);
-          palC = [cf2, cf2, cf2];
-          palD = [r2rnd(0, 1), r2rnd(0, 1), r2rnd(0, 1)];
-        }
-        return {
-          waves,
-          warp,
-          kaleid,
-          palA,
-          palB,
-          palC,
-          palD,
-          hueScale: r2rnd(0.3, 1.5),
-          hueDrift: r2rnd(-0.08, 0.08),
-          contrast: char === "laser" || char === "grid" ? r2rnd(0.6, 1.2) : r2rnd(0.8, 2.2),
-          bright: char === "laser" || char === "grid" ? r2rnd(0.9, 1) : r2rnd(0.7, 1),
-          glow: char === "laser" || char === "rings" || char === "grid" ? r2rnd(0.08, 0.3) : r2rnd(0, 0.15),
-          spin: r2rnd(-0.3, 0.3),
-          sharpness,
-          threshold,
-          edgeGlow
-        };
-      }
-      function r2lerp(a, b, t) {
-        return a + (b - a) * t;
-      }
-      function r2MorphParams(A, B, t) {
-        if (!A) return B;
-        if (!B) return A;
-        const waves = [];
-        for (let i = 0; i < 4; i++) {
-          const a = A.waves[i], b = B.waves[i];
-          waves.push({
-            ax: r2lerp(a.ax, b.ax, t),
-            ay: r2lerp(a.ay, b.ay, t),
-            az: r2lerp(a.az, b.az, t),
-            freq: r2lerp(a.freq, b.freq, t),
-            speed: r2lerp(a.speed, b.speed, t),
-            phase: r2lerp(a.phase, b.phase, t),
-            amp: r2lerp(a.amp, b.amp, t)
-          });
-        }
-        return {
-          waves,
-          warp: {
-            amt: r2lerp(A.warp.amt, B.warp.amt, t),
-            fx: r2lerp(A.warp.fx, B.warp.fx, t),
-            fy: r2lerp(A.warp.fy, B.warp.fy, t),
-            fz: r2lerp(A.warp.fz, B.warp.fz, t),
-            sx: r2lerp(A.warp.sx, B.warp.sx, t),
-            sy: r2lerp(A.warp.sy, B.warp.sy, t)
-          },
-          kaleid: Math.round(r2lerp(A.kaleid, B.kaleid, t)),
-          palA: [r2lerp(A.palA[0], B.palA[0], t), r2lerp(A.palA[1], B.palA[1], t), r2lerp(A.palA[2], B.palA[2], t)],
-          palB: [r2lerp(A.palB[0], B.palB[0], t), r2lerp(A.palB[1], B.palB[1], t), r2lerp(A.palB[2], B.palB[2], t)],
-          palC: [r2lerp(A.palC[0], B.palC[0], t), r2lerp(A.palC[1], B.palC[1], t), r2lerp(A.palC[2], B.palC[2], t)],
-          palD: [r2lerp(A.palD[0], B.palD[0], t), r2lerp(A.palD[1], B.palD[1], t), r2lerp(A.palD[2], B.palD[2], t)],
-          hueScale: r2lerp(A.hueScale, B.hueScale, t),
-          hueDrift: r2lerp(A.hueDrift, B.hueDrift, t),
-          contrast: r2lerp(A.contrast, B.contrast, t),
-          bright: r2lerp(A.bright, B.bright, t),
-          glow: r2lerp(A.glow, B.glow, t),
-          spin: r2lerp(A.spin, B.spin, t),
-          sharpness: r2lerp(A.sharpness, B.sharpness, t),
-          threshold: r2lerp(A.threshold, B.threshold, t),
-          edgeGlow: r2lerp(A.edgeGlow, B.edgeGlow, t)
-        };
-      }
-      function r2Pal(p, tv) {
-        const TAU = 6.2831853;
-        let r = p.palA[0] + p.palB[0] * Math.cos(TAU * (p.palC[0] * tv + p.palD[0]));
-        let g = p.palA[1] + p.palB[1] * Math.cos(TAU * (p.palC[1] * tv + p.palD[1]));
-        let b = p.palA[2] + p.palB[2] * Math.cos(TAU * (p.palC[2] * tv + p.palD[2]));
-        return [r < 0 ? 0 : r > 1 ? 1 : r, g < 0 ? 0 : g > 1 ? 1 : g, b < 0 ? 0 : b > 1 ? 1 : b];
-      }
-      var TN = 1024;
-      var _sharp = new Float32Array(TN + 1);
-      var _col = new Float32Array((TN + 1) * 3);
-      var _wave = new Float64Array(16);
-      function r2FrameTables(p, tOff) {
-        for (let i = 0; i <= TN; i++) _sharp[i] = Math.pow(i / TN, p.sharpness);
-        for (let i = 0; i <= TN; i++) {
-          const val = i / TN, L = Math.pow(val, p.contrast) * p.bright;
-          const c = r2Pal(p, val * p.hueScale + tOff * p.hueDrift);
-          _col[i * 3] = L < 0.015 ? -1 : c[0] * L;
-          _col[i * 3 + 1] = c[1] * L;
-          _col[i * 3 + 2] = c[2] * L;
-        }
-        for (let w = 0; w < 4; w++) {
-          const W = p.waves[w];
-          _wave[w * 4] = W.ax * W.freq;
-          _wave[w * 4 + 1] = W.ay * W.freq;
-          _wave[w * 4 + 2] = W.az * W.freq;
-          _wave[w * 4 + 3] = tOff * W.speed + W.phase;
-        }
-        return { sharp: _sharp, col: _col, wave: _wave, amp: p.waves.map((W) => W.amp), TN };
-      }
-      module.exports = { r2rnd, R2_CHARS, r2GenParams, r2lerp, r2MorphParams, r2Pal, r2FrameTables };
-    }
-  });
-
-  // src/effects/random80s.js
-  var require_random80s = __commonJS({
-    "src/effects/random80s.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
+      var { defineCanvasEffect } = require_canvas();
       var { hsl } = require_core();
-      var r2T = 0;
-      var r2MorphT = 0;
-      var r2MorphDur = 12;
-      var r2From = null;
-      var r2To = null;
-      var { r2rnd, R2_CHARS, r2GenParams, r2lerp, r2MorphParams, r2FrameTables } = require_random80sCommon();
-      function r2NewTarget() {
-        r2From = r2To || r2GenParams();
-        r2To = r2GenParams();
-        r2MorphT = 0;
-        r2MorphDur = 10 + Math.random() * 10;
+      var stroke = require_strokeFont();
+      var { FONT_3x5, drawString, textWidth } = require_text();
+      var SCENE_S = 14;
+      var FADE_S = 1.2;
+      var NAMES = ["wireframe", "memphis", "cassette", "neon", "blocks", "vhs"];
+      var st = { order: [], idx: 0, t0: 0, prev: null, cur: null, buf: null, prevBuf: null, blocks: null, word: "RAD" };
+      var hash = (x) => {
+        const s = Math.sin(x * 127.1) * 43758.5453;
+        return s - Math.floor(s);
+      };
+      function shuffle() {
+        st.order = NAMES.slice().sort(() => Math.random() - 0.5);
+        st.idx = 0;
       }
-      function effectRandom80s(core, dt) {
-        const { N, colBuf, surfX, surfY, surfZ } = core;
-        core.t += dt;
-        r2T += dt;
-        r2MorphT += dt;
-        if (r2MorphT >= r2MorphDur || !r2To) r2NewTarget();
-        const raw = Math.min(1, r2MorphT / r2MorphDur);
-        const mt = raw * raw * (3 - 2 * raw);
-        const p = r2MorphParams(r2From, r2To, mt);
-        const tOff = r2T;
-        const spinA = p.spin * tOff;
-        const cosS = Math.cos(spinA), sinS = Math.sin(spinA);
-        const tb = r2FrameTables(p, tOff);
-        for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
-        for (let i = 0; i < N; i++) {
-          let x = surfX[i] - 0.5, y = surfY[i] - 0.5, z = surfZ[i] - 0.5;
-          const rx = x * cosS - z * sinS, rz = x * sinS + z * cosS;
-          x = rx;
-          z = rz;
-          if (p.kaleid) {
-            const ang = Math.atan2(z, x);
-            const seg = 6.2832 / p.kaleid;
-            const fa = Math.abs((ang % seg + seg) % seg - seg * 0.5);
-            const rr = Math.sqrt(x * x + z * z);
-            x = Math.cos(fa) * rr;
-            z = Math.sin(fa) * rr;
+      function line(c, x0, y0, x1, y1, r, g, b) {
+        const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0)) + 1;
+        for (let i = 0; i <= n; i++) c.add(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, r, g, b);
+      }
+      var SHAPES = {
+        cube: { v: [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]], e: [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]] },
+        pyramid: { v: [[-1, 1, -1], [1, 1, -1], [1, 1, 1], [-1, 1, 1], [0, -1.2, 0]], e: [[0, 1], [1, 2], [2, 3], [3, 0], [0, 4], [1, 4], [2, 4], [3, 4]] }
+      };
+      function wireframe(c, t) {
+        const { W, H } = c;
+        for (let k = 0; k < 40; k++) {
+          const a = hash(k) * 6.283, d = (hash(k + 9) + t * 0.15) % 1, x = W / 2 + Math.cos(a) * d * W * 0.7, y = H / 2 + Math.sin(a) * d * H * 0.7;
+          c.add(x, y, d * 0.6, d * 0.6, d * 0.7);
+        }
+        const shapes = W > H * 1.5 ? [["cube", W * 0.3], ["pyramid", W * 0.7]] : [[Math.floor(t / 7) % 2 ? "pyramid" : "cube", W / 2]];
+        for (const [name, cx] of shapes) {
+          const sh = SHAPES[name], S = Math.min(W, H) * 0.22, ay = t * 0.9, ax = t * 0.6;
+          const P = sh.v.map(([x, y, z]) => {
+            let X = x * Math.cos(ay) + z * Math.sin(ay), Z = -x * Math.sin(ay) + z * Math.cos(ay);
+            let Y = y * Math.cos(ax) - Z * Math.sin(ax);
+            Z = y * Math.sin(ax) + Z * Math.cos(ax);
+            const f = 3 / (Z + 4);
+            return [cx + X * S * f, H / 2 + Y * S * f];
+          });
+          for (const [a, b] of sh.e) line(c, P[a][0], P[a][1], P[b][0], P[b][1], 0.2, 1, 0.35);
+        }
+        for (let x = 0; x < W; x += 2) c.add(x, H - 2, 0.05, 0.4, 0.1);
+      }
+      function memphis(c, t) {
+        const { W, H } = c;
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) c.set(x, y, 0.98, 0.9, 0.82);
+        const ink = [[1, 0.35, 0.55], [0.2, 0.8, 0.85], [1, 0.85, 0.2], [0.45, 0.35, 0.9], [0.1, 0.1, 0.15]];
+        const scroll = t * 4;
+        for (let k = 0; k < 14; k++) {
+          const col = ink[k % ink.length], x0 = ((hash(k) * W * 1.4 - scroll * (0.5 + hash(k + 3))) % (W * 1.4) + W * 1.4) % (W * 1.4) - W * 0.2, y0 = hash(k + 5) * H;
+          const kind = k % 4, s = 3 + hash(k + 7) * 5;
+          if (kind === 0) for (let i = 0; i < 14; i++) c.set(x0 + i, y0 + Math.sin(i * 0.9 + t) * 2, ...col);
+          else if (kind === 1) for (let i = 0; i < 12; i++) c.set(x0 + i, y0 + (i % 4 < 2 ? i % 2 : 1 - i % 2) * 3, ...col);
+          else if (kind === 2) for (let j = -s; j <= s; j++) for (let i = -s; i <= s; i++) {
+            if (Math.abs(i) + Math.abs(j) * 0 <= s - Math.abs(j) && j >= -s / 2) c.set(x0 + i, y0 + j, ...col);
           }
-          if (p.warp.amt > 5e-3) {
-            x += Math.sin(y * p.warp.fy + z * p.warp.fz + tOff * p.warp.sy) * p.warp.amt;
-            y += Math.cos(x * p.warp.fx + z * p.warp.fz * 0.7 - tOff * p.warp.sx) * p.warp.amt;
-            z += Math.sin(x * p.warp.fx * 0.8 + y * p.warp.fy * 0.6 + tOff * p.warp.sy * 0.5) * p.warp.amt * 0.7;
-          }
-          const WV = tb.wave, WA = tb.amp;
-          let raw2 = Math.sin(x * WV[0] + y * WV[1] + z * WV[2] + WV[3]) * WA[0] + Math.sin(x * WV[4] + y * WV[5] + z * WV[6] + WV[7]) * WA[1] + Math.sin(x * WV[8] + y * WV[9] + z * WV[10] + WV[11]) * WA[2] + Math.sin(x * WV[12] + y * WV[13] + z * WV[14] + WV[15]) * WA[3];
-          raw2 = raw2 * 0.5 + 0.5;
-          let val = tb.sharp[Math.round((raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2) * tb.TN)];
-          if (p.threshold > 0.01) {
-            val = val > p.threshold ? (val - p.threshold) / (1 - p.threshold) : 0;
-            if (p.edgeGlow > 0.01 && val <= 0) {
-              const shaped = tb.sharp[Math.round((raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2) * tb.TN)];
-              const dist = p.threshold - shaped;
-              if (dist < p.edgeGlow * 0.5 && dist > 0) {
-                val = (1 - dist / (p.edgeGlow * 0.5)) * p.edgeGlow * 0.5;
-              }
+          else for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) c.set(x0 + i * 3, y0 + j * 3, ...col);
+        }
+      }
+      function cassette(c, t) {
+        const { W, H } = c, S = Math.min(W, H);
+        const bw = Math.min(W - 4, S * 1.5), bh = bw * 0.62, x0 = (W - bw) / 2, y0 = (H - bh) / 2;
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) c.set(x, y, 0.06, 0.02, 0.08);
+        for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+          const edge = x < 1 || y < 1 || x >= bw - 1 || y >= bh - 1;
+          const label = y > bh * 0.1 && y < bh * 0.62 && x > bw * 0.08 && x < bw * 0.92;
+          const stripe = label && (y < bh * 0.2 ? [1, 0.4, 0.6] : y < bh * 0.27 ? [1, 0.7, 0.3] : [0.95, 0.93, 0.85]);
+          const col = edge ? [0.5, 0.5, 0.55] : stripe || [0.15, 0.15, 0.18];
+          c.set(x0 + x, y0 + y, ...col);
+        }
+        const wy = y0 + bh * 0.42, R = bh * 0.14;
+        for (let x = bw * 0.28; x < bw * 0.72; x++) for (let y = -R * 1.1; y < R * 1.1; y++) c.set(x0 + x, wy + y, 0.08, 0.06, 0.05);
+        const unwind = t % 20 / 20;
+        for (const [fx, wound] of [[0.36, 1 - unwind], [0.64, unwind]]) {
+          const cx = x0 + bw * fx, rr = R * (0.45 + wound * 0.55);
+          for (let j = -R; j <= R; j++) for (let i = -R; i <= R; i++) {
+            const d = Math.hypot(i, j);
+            if (d <= rr && d > R * 0.42) c.set(cx + i, wy + j, 0.35, 0.2, 0.1);
+            if (d <= R * 0.42) {
+              const a = Math.atan2(j, i) + t * 4;
+              c.set(cx + i, wy + j, ...Math.cos(a * 6) > 0.3 ? [0.9, 0.9, 0.9] : [0.4, 0.4, 0.42]);
             }
           }
-          const rad = Math.sqrt(x * x + y * y + z * z);
-          if (p.glow > 0) val += p.glow * Math.max(0, 1 - rad * 2.5);
-          val = val < 0 ? 0 : val > 1 ? 1 : val;
-          const ci = Math.round(val * tb.TN) * 3, C = tb.col;
-          if (C[ci] < 0) continue;
-          colBuf[i * 3] = C[ci];
-          colBuf[i * 3 + 1] = C[ci + 1];
-          colBuf[i * 3 + 2] = C[ci + 2];
         }
+        drawString(FONT_3x5, "MIX 85", Math.round(x0 + bw * 0.12), Math.round(y0 + bh * 0.13), (x, y) => c.set(x, y, 0.1, 0.1, 0.2));
       }
-      module.exports = effectRandom80s;
+      var WORDS = ["RAD", "1985", "TOTALLY", "NEON", "ARCADE", "AWESOME"];
+      function neon(c, t) {
+        const { W, H } = c;
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const brick = y % 6 === 0 || (x + Math.floor(y / 6) % 2 * 5) % 10 === 0 ? 0.012 : 0.03;
+          c.set(x, y, brick * 1.2, brick * 0.6, brick * 0.8);
+        }
+        const word = st.word;
+        let h = Math.min(H * 0.42, (W - 6) / (word.length * 0.95)), w = stroke.textWidth(word, h);
+        if (w > W - 4) {
+          h *= (W - 4) / w;
+          w = stroke.textWidth(word, h);
+        }
+        const flick = Math.sin(t * 37) > 0.97 || t % 6 > 5.6 && Math.sin(t * 80) > 0 ? 0.25 : 1;
+        const x0 = Math.round((W - w) / 2), y0 = Math.round(H * 0.5 - h / 2);
+        for (const [dx, dy, k] of [[-1, 0, 0.25], [1, 0, 0.25], [0, -1, 0.25], [0, 1, 0.25]]) stroke.drawText({ W, H, set: (x, y, r, g, b) => c.add(x, y, r, g, b), add: c.add, get: c.get }, word, x0 + dx, y0 + dy, h, [1 * k * flick, 0.15 * k * flick, 0.6 * k * flick]);
+        stroke.drawText(c, word, x0, y0, h, [1 * flick, 0.35 * flick, 0.8 * flick]);
+        const sub = "OPEN", sx = Math.round((W - textWidth(FONT_3x5, sub)) / 2);
+        drawString(FONT_3x5, sub, sx, Math.min(H - 6, y0 + Math.round(h) + 3), (x, y) => c.set(x, y, 0.2, 0.9 * (0.6 + 0.4 * Math.sin(t * 3)), 1));
+      }
+      var PIECES = [[[0, 0], [1, 0], [2, 0], [3, 0]], [[0, 0], [1, 0], [0, 1], [1, 1]], [[0, 0], [1, 0], [2, 0], [1, 1]], [[0, 0], [1, 0], [1, 1], [2, 1]], [[1, 0], [2, 0], [0, 1], [1, 1]], [[0, 0], [0, 1], [1, 1], [2, 1]], [[2, 0], [0, 1], [1, 1], [2, 1]]];
+      var PCOL = [[0.2, 0.9, 1], [1, 0.9, 0.2], [0.75, 0.3, 1], [0.3, 1, 0.4], [1, 0.3, 0.3], [0.3, 0.45, 1], [1, 0.6, 0.15]];
+      function blocks(c, t, dt) {
+        const { W, H } = c, B = 4, cols = Math.floor(W / B), rows = Math.floor(H / B);
+        let s = st.blocks;
+        if (!s || s.cols !== cols || s.rows !== rows) s = st.blocks = { cols, rows, g: new Array(cols * rows).fill(-1), p: null, acc: 0 };
+        const fits = (p, ox, oy) => p.cells.every(([x, y]) => {
+          const X = x + ox, Y = y + oy;
+          return X >= 0 && X < cols && Y < rows && (Y < 0 || s.g[Y * cols + X] < 0);
+        });
+        if (!s.p) {
+          const k = Math.floor(Math.random() * 7);
+          s.p = { cells: PIECES[k], k, x: Math.floor(Math.random() * (cols - 3)), y: -2 };
+          if (!fits(s.p, s.p.x, s.p.y + 1)) s.g.fill(-1);
+        }
+        s.acc += dt;
+        while (s.acc > 0.12) {
+          s.acc -= 0.12;
+          if (fits(s.p, s.p.x, s.p.y + 1)) s.p.y++;
+          else {
+            s.p.cells.forEach(([x, y]) => {
+              if (y + s.p.y >= 0) s.g[(y + s.p.y) * cols + x + s.p.x] = s.p.k;
+            });
+            for (let y = rows - 1; y >= 0; y--) if (s.g.slice(y * cols, y * cols + cols).every((v) => v >= 0)) {
+              s.g.splice(y * cols, cols);
+              s.g.unshift(...new Array(cols).fill(-1));
+              y++;
+            }
+            s.p = null;
+            break;
+          }
+        }
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) c.set(x, y, 0.02, 0.02, 0.05);
+        const cell = (X, Y, k) => {
+          const col = PCOL[k];
+          for (let j = 0; j < B; j++) for (let i = 0; i < B; i++) {
+            const sh = i === 0 || j === 0 ? 1.3 : i === B - 1 || j === B - 1 ? 0.55 : 1;
+            c.set(X * B + i, Y * B + j, Math.min(1, col[0] * sh), Math.min(1, col[1] * sh), Math.min(1, col[2] * sh));
+          }
+        };
+        for (let i = 0; i < s.g.length; i++) if (s.g[i] >= 0) cell(i % cols, Math.floor(i / cols), s.g[i]);
+        if (s.p) s.p.cells.forEach(([x, y]) => {
+          if (y + s.p.y >= 0) cell(x + s.p.x, y + s.p.y, s.p.k);
+        });
+      }
+      function vhs(c, t) {
+        const { W, H } = c;
+        const bars = [[0.75, 0.75, 0.75], [0.75, 0.75, 0], [0, 0.75, 0.75], [0, 0.75, 0], [0.75, 0, 0.75], [0.75, 0, 0], [0, 0, 0.75]];
+        const glitchY = t * 23 % H, glitchOn = Math.sin(t * 1.7) > 0.6;
+        for (let y = 0; y < H; y++) {
+          const shift = glitchOn && Math.abs(y - glitchY) < 3 ? Math.round((hash(Math.floor(t * 30) + y) - 0.5) * 8) : 0;
+          const scan = y % 2 ? 0.75 : 1;
+          for (let x = 0; x < W; x++) {
+            const bx = Math.max(0, Math.min(W - 1, x + shift)), col = bars[Math.floor(bx / W * 7)];
+            const colL = bars[Math.floor(Math.max(0, bx - 1) / W * 7)];
+            const noise = (hash(x * 13 + y * 7 + Math.floor(t * 24)) - 0.5) * 0.12;
+            c.set(x, y, Math.max(0, (colL[0] + noise) * scan), Math.max(0, (col[1] + noise) * scan), Math.max(0, (col[2] + noise) * scan));
+          }
+        }
+        const osd = Math.floor(t * 1.5) % 2 ? "PLAY >" : "PLAY";
+        for (let y = 1; y < 8; y++) for (let x = 1; x < textWidth(FONT_3x5, "PLAY >") + 3; x++) c.set(x, y, 0, 0, 0);
+        drawString(FONT_3x5, osd, 2, 2, (x, y) => c.set(x, y, 1, 1, 1));
+        const clock = "00:" + String(Math.floor(t % 60)).padStart(2, "0");
+        drawString(FONT_3x5, clock, W - textWidth(FONT_3x5, clock) - 2, H - 7, (x, y) => c.set(x, y, 1, 1, 1));
+      }
+      var SCENES = { wireframe, memphis, cassette, neon, blocks, vhs };
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt }) {
+          const W = c.W, H = c.H, n = W * H * 3;
+          if (!st.buf || st.buf.length !== n) {
+            st.buf = new Float32Array(n);
+            st.prevBuf = new Float32Array(n);
+            shuffle();
+            st.t0 = t;
+            st.cur = st.order[0];
+          }
+          if (t - st.t0 > SCENE_S) {
+            st.prev = st.cur;
+            st.idx++;
+            if (st.idx >= st.order.length) shuffle();
+            st.cur = st.order[st.idx];
+            st.t0 = t;
+            st.word = WORDS[Math.floor(Math.random() * WORDS.length)];
+          }
+          const target = (b) => ({
+            W,
+            H,
+            set(x, y, r, g, bb) {
+              x = Math.round(x);
+              y = Math.round(y);
+              if (x < 0 || y < 0 || x >= W || y >= H) return;
+              const o = (y * W + x) * 3;
+              b[o] = r;
+              b[o + 1] = g;
+              b[o + 2] = bb;
+            },
+            add(x, y, r, g, bb) {
+              x = Math.round(x);
+              y = Math.round(y);
+              if (x < 0 || y < 0 || x >= W || y >= H) return;
+              const o = (y * W + x) * 3;
+              b[o] += r;
+              b[o + 1] += g;
+              b[o + 2] += bb;
+            },
+            get(x, y) {
+              x = Math.round(x);
+              y = Math.round(y);
+              if (x < 0 || y < 0 || x >= W || y >= H) return null;
+              const o = (y * W + x) * 3;
+              return [b[o], b[o + 1], b[o + 2]];
+            }
+          });
+          const local = t - st.t0;
+          st.buf.fill(0);
+          SCENES[st.cur](target(st.buf), t, dt);
+          const fade = st.prev && local < FADE_S ? local / FADE_S : 1;
+          if (fade < 1) {
+            st.prevBuf.fill(0);
+            SCENES[st.prev](target(st.prevBuf), t, 0);
+          }
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const o = (y * W + x) * 3;
+            let r = st.buf[o], g = st.buf[o + 1], b = st.buf[o + 2];
+            if (fade < 1) {
+              r = r * fade + st.prevBuf[o] * (1 - fade);
+              g = g * fade + st.prevBuf[o + 1] * (1 - fade);
+              b = b * fade + st.prevBuf[o + 2] * (1 - fade);
+            }
+            c.set(x, y, Math.min(1, r), Math.min(1, g), Math.min(1, b));
+          }
+        }
+      });
+      module.exports.getStatus = () => ({ scene: st.cur });
     }
   });
 
@@ -20163,86 +20122,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/random80sWall.js
-  var require_random80sWall = __commonJS({
-    "src/effects/random80sWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var r2T = 0;
-      var r2MorphT = 0;
-      var r2MorphDur = 12;
-      var r2From = null;
-      var r2To = null;
-      var { r2rnd, R2_CHARS, r2GenParams, r2lerp, r2MorphParams, r2FrameTables } = require_random80sCommon();
-      function r2NewTarget() {
-        r2From = r2To || r2GenParams();
-        r2To = r2GenParams();
-        r2MorphT = 0;
-        r2MorphDur = 10 + Math.random() * 10;
-      }
-      function effectRandom80sWall(core, dt) {
-        const { wallW, wallH } = core;
-        if (!wallW) return;
-        core.t += dt;
-        r2T += dt;
-        r2MorphT += dt;
-        if (r2MorphT >= r2MorphDur || !r2To) r2NewTarget();
-        const raw = Math.min(1, r2MorphT / r2MorphDur);
-        const mt = raw * raw * (3 - 2 * raw);
-        const p = r2MorphParams(r2From, r2To, mt);
-        const tOff = r2T;
-        const spinA = p.spin * tOff;
-        const cosS = Math.cos(spinA), sinS = Math.sin(spinA);
-        const tb = r2FrameTables(p, tOff);
-        const zBase = Math.sin(tOff * 0.05) * 0.15;
-        core.wallBuf.fill(0);
-        for (let v = 0; v < wallH; v++) {
-          for (let u = 0; u < wallW; u++) {
-            let x = u / wallW - 0.5, y = v / wallH - 0.5, z = zBase;
-            const rx = x * cosS - z * sinS, rz = x * sinS + z * cosS;
-            x = rx;
-            z = rz;
-            if (p.kaleid) {
-              const ang = Math.atan2(z, x);
-              const seg = 6.2832 / p.kaleid;
-              const fa = Math.abs((ang % seg + seg) % seg - seg * 0.5);
-              const rr = Math.sqrt(x * x + z * z);
-              x = Math.cos(fa) * rr;
-              z = Math.sin(fa) * rr;
-            }
-            if (p.warp.amt > 5e-3) {
-              x += Math.sin(y * p.warp.fy + z * p.warp.fz + tOff * p.warp.sy) * p.warp.amt;
-              y += Math.cos(x * p.warp.fx + z * p.warp.fz * 0.7 - tOff * p.warp.sx) * p.warp.amt;
-              z += Math.sin(x * p.warp.fx * 0.8 + y * p.warp.fy * 0.6 + tOff * p.warp.sy * 0.5) * p.warp.amt * 0.7;
-            }
-            const WV = tb.wave, WA = tb.amp;
-            let raw2 = Math.sin(x * WV[0] + y * WV[1] + z * WV[2] + WV[3]) * WA[0] + Math.sin(x * WV[4] + y * WV[5] + z * WV[6] + WV[7]) * WA[1] + Math.sin(x * WV[8] + y * WV[9] + z * WV[10] + WV[11]) * WA[2] + Math.sin(x * WV[12] + y * WV[13] + z * WV[14] + WV[15]) * WA[3];
-            raw2 = raw2 * 0.5 + 0.5;
-            let val = tb.sharp[Math.round((raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2) * tb.TN)];
-            if (p.threshold > 0.01) {
-              val = val > p.threshold ? (val - p.threshold) / (1 - p.threshold) : 0;
-              if (p.edgeGlow > 0.01 && val <= 0) {
-                const shaped = tb.sharp[Math.round((raw2 < 0 ? 0 : raw2 > 1 ? 1 : raw2) * tb.TN)];
-                const dist = p.threshold - shaped;
-                if (dist < p.edgeGlow * 0.5 && dist > 0) {
-                  val = (1 - dist / (p.edgeGlow * 0.5)) * p.edgeGlow * 0.5;
-                }
-              }
-            }
-            const rad = Math.sqrt(x * x + y * y + z * z);
-            if (p.glow > 0) val += p.glow * Math.max(0, 1 - rad * 2.5);
-            val = val < 0 ? 0 : val > 1 ? 1 : val;
-            const ci = Math.round(val * tb.TN) * 3, C = tb.col;
-            if (C[ci] < 0) continue;
-            core.setWallPixel(u, v, C[ci], C[ci + 1], C[ci + 2]);
-          }
-        }
-      }
-      module.exports = effectRandom80sWall;
-    }
-  });
-
   // src/effects/fireworksWall.js
   var require_fireworksWall = __commonJS({
     "src/effects/fireworksWall.js"(exports, module) {
@@ -23825,7 +23704,7 @@ var PiEngine = (() => {
       var coinflip = require_coinflip();
       var dice = require_diceRoll();
       var random = require_random();
-      var random80s = require_random80s();
+      var random80s = require_random80sScenes();
       var tron = require_tron();
       var retro = require_retro();
       var fireworks = require_fireworks();
@@ -23878,7 +23757,7 @@ var PiEngine = (() => {
       var coinflipWall = coinflip.wall;
       var diceWall = dice.wall;
       var randomWall = require_randomWall();
-      var random80sWall = require_random80sWall();
+      var random80sWall = random80s.wall;
       var fireworksWall = require_fireworksWall();
       var mazeWall = require_mazeWall();
       var tronWall = require_tronWall();
@@ -24046,7 +23925,7 @@ var PiEngine = (() => {
         coinflip: "Coin Flip",
         dice: "Dice Roll",
         random: "Random 1",
-        random80s: "Random 2",
+        random80s: "Random 80s",
         fireworks: "Fireworks",
         retro: "Retro",
         video: "Video Display",
