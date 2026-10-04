@@ -994,6 +994,9 @@ body.guest .party-box { display: none; }
 #panels-off-btn::after, #preview-off-btn::after, #clear-all-btn::after, #stop-sound-btn::after { content: 'ON'; position: absolute; left: 50%; bottom: -13px; transform: translateX(-50%); font: 700 9px/1 system-ui, sans-serif; letter-spacing: .6px; color: #7ef0a8; pointer-events: none; }
 #panels-off-btn.is-off, #preview-off-btn.is-off, #clear-all-btn.is-off { background: #ff3355 !important; color: #fff; box-shadow: 0 0 0 2px #fff, 0 0 16px 2px rgba(255,51,85,.8) !important; animation: off-pulse 1.6s ease-in-out infinite; }
 #panels-off-btn.is-off::after, #preview-off-btn.is-off::after, #clear-all-btn.is-off::after, #stop-sound-btn.snd-off::after { content: 'OFF'; color: #ff6680; }
+#tab-bar .tab-badge { display:inline-block; width:8px; height:8px; margin-left:5px; border-radius:50%; background:#ff4d6a; vertical-align:top; }
+#tab-bar .tab-badge[hidden] { display:none; }
+#spk-warn[hidden] { display:none !important; }
 @keyframes off-pulse { 50% { box-shadow: 0 0 0 2px #fff, 0 0 6px 1px rgba(255,51,85,.5); } }
 @media (prefers-reduced-motion: reduce) { #panels-off-btn.is-off, #preview-off-btn.is-off, #clear-all-btn.is-off { animation: none; } }
 #sidebar-brightness-bar { padding-bottom: 16px !important; position: relative; z-index: 2; } /* room for the ON/OFF labels */
@@ -1186,7 +1189,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
     <button role="tab" data-tab="play">▶ Play</button>
     <button role="tab" data-tab="music">♫ Music</button>
     <button role="tab" data-tab="schedule">◷ Timer</button>
-    <button role="tab" data-tab="setup">⚙ Setup</button>
+    <button role="tab" data-tab="setup">⚙ Setup<span id="setup-badge" class="tab-badge" hidden></span></button>
   </nav>
   <div id="guest-bar">Guest view: pick an effect or scene.<button type="button" id="guest-pin-btn">Enter PIN</button></div>
   <div id="sidebar-scroll">
@@ -1937,6 +1940,10 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
     <button class="section-head">◈ Music <span class="chev">▾</span></button>
     <div class="section-body">
       <div id="cx-np"><div class="cx-vinyl"></div><div><b id="cx-np-name">Nothing playing</b><small id="cx-np-sub">Pick a station below</small></div></div>
+      <div id="spk-warn" hidden style="display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:8px 10px;border-radius:12px;background:rgba(255,70,90,.15);border:1px solid rgba(255,90,110,.5);font-size:12px;">
+        <span style="flex:1;" id="spk-warn-text">🔇 The speaker is not connected</span>
+        <button type="button" id="spk-reconnect-btn" class="ui-btn-primary" style="margin:0;padding:6px 12px;">Reconnect</button>
+      </div>
       <button type="button" id="cx-show-spectrum" class="ui-btn-primary" style="width:100%;margin:0 0 12px;">📊 Show the spectrum on the display</button>
       <div class="ui-label-accent">📻 Radio</div>
       <div class="ui-note">Keeps playing under any effect. Show its spectrum with <b>Internet Radio</b> under Play.</div>
@@ -2368,6 +2375,13 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="ui-label-accent" style="margin-top:14px;">📲 App</div>
       <button id="pwa-install-btn" class="ui-btn-primary" style="width:100%;margin:0;">Install as an app</button>
       <div class="ui-note" id="pwa-help" style="margin-top:6px;"></div>
+      <div class="ui-label-accent" style="margin-top:14px;" id="update-head">⬆ Software update</div>
+      <div class="ui-note" id="update-status">Not checked yet.</div>
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <button type="button" id="update-check-btn" class="ui-btn" style="flex:1;">Check now</button>
+        <button type="button" id="update-run-btn" class="ui-btn-primary" style="flex:1;" disabled>Update now</button>
+      </div>
+      <pre id="update-log" hidden style="white-space:pre-wrap;font-size:10px;max-height:160px;overflow:auto;margin:6px 0 0;opacity:.8;"></pre>
       <div class="ui-label-accent" style="margin-top:14px;">💾 Backup</div>
       <div class="ui-note">Saves every setting - layouts, timers, scenes, favourites, keys - to a file on this phone. Restore it after a new SD card.</div>
       <div style="display:flex;gap:6px;"><button id="backup-btn" class="ui-btn-primary" style="flex:1;margin:0;">Download backup</button><label class="ui-btn-small cx-file-btn" style="flex:1;text-align:center;">Restore…<input id="restore-input" type="file" accept="application/json,.json" hidden></label></div>
@@ -2544,6 +2558,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.266"></script>
+<script src="app.js?v=0.6.267"></script>
 </body>
 </html>

@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.266';
+const APP_VERSION = '0.6.267';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -228,6 +228,7 @@ function handleTextMessage(msg) {
       || JSON.stringify(msg.panels) !== JSON.stringify(currentState.panels);
     currentState = msg;
     cxOnState();
+    syncUpdateStatus();
     syncEffectButtons();
     syncPanelButtons();
     syncPinStatus();
@@ -3005,6 +3006,43 @@ function syncClearAllButton() {
 // Music tab still stops it). Muting sets the volume to 0 and remembers the
 // level to come back to.
 function radioMuted() { return Number(currentState.effectOptions?.radio?.volume ?? 0.8) === 0; }
+// Setup -> Software update: shows whether the Pi is behind GitHub, and
+// updates + restarts it (see src/selfUpdate.js). The Setup tab gets a dot
+// while an update is waiting.
+function syncUpdateStatus() {
+  const u = currentState.update, el = document.getElementById('update-status'); if (!el) return;
+  const run = document.getElementById('update-run-btn'), badge = document.getElementById('setup-badge');
+  const behind = u && u.behind > 0;
+  if (badge) badge.hidden = !behind;
+  if (run) run.disabled = !behind || (u && u.updating);
+  if (!u || !u.checkedAt) { el.textContent = 'Not checked yet - the Pi looks a minute after starting, then every 6 hours.'; return; }
+  const when = new Date(u.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (u.updating) el.textContent = 'Updating…';
+  else if (u.error) el.textContent = '⚠ ' + u.error + ' (checked ' + when + ')';
+  else if (behind) el.textContent = '🆕 ' + u.behind + ' update' + (u.behind > 1 ? 's' : '') + ' available - latest: ' + u.latest;
+  else el.textContent = '✅ Up to date (' + APP_VERSION + ', checked ' + when + ')';
+}
+function wireUpdate() {
+  document.getElementById('update-check-btn')?.addEventListener('click', () => { document.getElementById('update-status').textContent = 'Checking GitHub…'; send({ cmd: 'checkUpdate' }); });
+  document.getElementById('update-run-btn')?.addEventListener('click', (e) => {
+    e.target.disabled = true;
+    document.getElementById('update-status').textContent = 'Updating… the display restarts when it is done.';
+    send({ cmd: 'runUpdate' });
+  });
+  document.getElementById('spk-reconnect-btn')?.addEventListener('click', (e) => {
+    e.target.disabled = true; e.target.textContent = 'Connecting…';
+    send({ cmd: 'btReconnect' });
+  });
+}
+// Music tab: warn when the usual speaker has dropped or isn't the output.
+function renderSpeakerWarning(devices, lastMac) {
+  const box = document.getElementById('spk-warn'); if (!box) return;
+  const d = lastMac && (devices || []).find((x) => x.mac === lastMac);
+  const ok = !lastMac || (d && d.connected && d.isDefaultOutput);
+  box.hidden = ok;
+  if (!ok) document.getElementById('spk-warn-text').textContent = d && d.connected ? '🔈 ' + (d.name || 'The speaker') + ' is connected but not playing the sound' : '🔇 ' + ((d && d.name) || 'The speaker') + ' is not connected';
+}
+
 function wireStopSoundButton() {
   const btn = document.getElementById('stop-sound-btn');
   if (!btn) return;
@@ -3729,7 +3767,16 @@ function handleBtResult(msg) {
   }
   if (msg.cmd === 'btScanResult') {
     renderBtScanResults(msg.devices, statusEl, listEl);
+  } else if (msg.cmd === 'updateResult') {
+    const log = document.getElementById('update-log'); if (log) { log.hidden = false; log.textContent = msg.log || msg.error || ''; }
+    if (msg.updated) { document.getElementById('update-status').textContent = '✅ Updated - restarting. This page reloads in 20 s.'; setTimeout(() => location.reload(), 20000); }
+    else document.getElementById('update-status').textContent = '⚠ The update did not finish - see the details below.';
+  } else if (msg.cmd === 'btReconnectResult') {
+    const b = document.getElementById('spk-reconnect-btn'); if (b) { b.disabled = false; b.textContent = 'Reconnect'; }
+    cxToast(msg.set ? '🔊 Speaker connected' : '⚠ Could not connect the speaker - is it switched on?');
+    send({ cmd: 'btStatus' });
   } else if (msg.cmd === 'btStatusResult') {
+    renderSpeakerWarning(msg.devices, msg.lastSpeakerMac);
     btPairedCache = msg.devices || []; // also the timer editor's sound-output list
     renderBtPairedList(msg.devices, pairedStatusEl, pairedListEl);
   } else if (msg.cmd === 'btPairResult') {
@@ -4754,6 +4801,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireWallLayoutSaveDropdown();
   wireClearAllButton();
   wireStopSoundButton();
+  wireUpdate();
   wireIdentifyPanelsButton();
   wireRainPanel();
   wireLightspeedPanel();

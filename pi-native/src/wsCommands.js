@@ -15,6 +15,7 @@ const nasaConfig = require('./nasaConfig');
 const weatherConfig = require('./weatherConfig');
 const wallLayoutConfig = require('./wallLayoutConfig');
 const bluetooth = require('./bluetooth');
+const btConfig = require('./btConfig');
 const alarmsEngine = require('./effects/alarms');
 const radio = require('./effects/radio');
 const { browserFrameSource } = require('./effects/video/browserFrameSource');
@@ -502,7 +503,39 @@ const COMMANDS = {
   },
 
   btStatus(ws, msg) {
-    this._replyBt(ws, 'btStatusResult', async () => ({ devices: await bluetooth.listPaired() }));
+    // lastSpeakerMac: the speaker the music should be on, so the Music tab
+    // can warn when it has dropped (see app.js renderSpeakerWarning).
+    this._replyBt(ws, 'btStatusResult', async () => ({ devices: await bluetooth.listPaired(), lastSpeakerMac: btConfig.load().lastSpeakerMac }));
+  },
+
+  // Music tab -> Reconnect: connect the usual speaker again and make it the output.
+  btReconnect(ws, msg) {
+    this._replyBt(ws, 'btReconnectResult', async () => {
+      const mac = btConfig.load().lastSpeakerMac;
+      if (!mac) return { set: false, log: 'No speaker has been paired yet.' };
+      return bluetooth.useOutput(mac);
+    });
+  },
+
+  // Setup -> Check for updates / Update now (see selfUpdate.js).
+  checkUpdate(ws, msg) {
+    this.updater.check().then(() => this._broadcast(this._stateMsg())).catch((err) => console.warn('[update] check failed:', err.message));
+  },
+  runUpdate(ws, msg) {
+    this._replyBt(ws, 'updateResult', async () => {
+      const r = await this.updater.update();
+      this._broadcast(this._stateMsg());
+      if (r.ok) {
+        console.log('[update] updated - restarting');
+        // Restart through systemd; if that isn't available, exit with an
+        // error code so Restart=on-failure brings the new version up.
+        setTimeout(() => {
+          try { require('child_process').spawn('systemctl', ['restart', 'multidisplay-pi'], { detached: true, stdio: 'ignore' }).unref(); } catch (e) { /* not under systemd */ }
+          setTimeout(() => process.exit(1), 5000);
+        }, 1500);
+      }
+      return { updated: r.ok, log: r.log };
+    });
   },
 
   btSetOutput(ws, msg) {

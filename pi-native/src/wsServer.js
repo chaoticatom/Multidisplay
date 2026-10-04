@@ -214,6 +214,7 @@ const { COMMANDS } = require('./wsCommands');
 const aiConfig = require('./aiConfig');
 const httpApi = require('./httpApi');
 const pinConfig = require('./pinConfig');
+const { createUpdater } = require('./selfUpdate');
 
 const PREVIEW_FPS = 20; // matches the ESP32 firmware's streamFrameToCube() throttle
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -304,6 +305,7 @@ class WsServer {
   // and unchanged.
   constructor(port, state, config, onConfigChange, effectCommandRelay = null) {
     this.state = state;
+    this.updater = createUpdater(); // Setup -> Update (see selfUpdate.js)
     this.config = config;
     this.onConfigChange = onConfigChange;
     this.effectCommandRelay = effectCommandRelay;
@@ -730,6 +732,7 @@ class WsServer {
       panelsOff: !!this.state.panelsOff,
       autoStatus: this.state.autoStatus || {},
       backup: this.state.backup || null,
+      update: this.updater ? { ...this.updater.status } : null,
       party: this.state.party ? { endsAt: this.state.party.endsAt, text: this.state.party.text } : null,
       musicReact: this.state.musicReact || { on: false, amount: 0.6 },
       scenes: (this.state.scenes || []).map((sc) => ({ name: sc.name, effect: sc.effect })),

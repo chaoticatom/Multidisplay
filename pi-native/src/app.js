@@ -269,6 +269,11 @@ async function main() {
   // up immediately.
   // A speaker became the audio output (auto-reconnect or picked on the
   // page): move the radio's playback onto it - see restartPlayback().
+  // Look for a newer version on GitHub a minute after start, then every 6 h
+  // (shown on the Setup tab; see selfUpdate.js).
+  const checkForUpdate = () => ws.updater.check().then(() => ws._broadcast(ws._stateMsg())).catch((err) => console.warn('[update] check failed:', err.message));
+  setTimeout(checkForUpdate, 60000).unref();
+  setInterval(checkForUpdate, 6 * 3600000).unref();
   bluetooth.onAudioOutputChanged(() => { if (radio.audio.restartPlayback) radio.audio.restartPlayback(); });
   bluetooth.autoReconnectLastSpeaker().catch((err) => console.warn('[bluetooth] auto-reconnect failed:', err.message));
   // A real report: "it keeps adding devices to my paired device list but
