@@ -29,6 +29,7 @@ const { fetchWithTimeout } = require('./net');
 // ── Live position state ─────────────────────────────────────────────────
 let issLat = 0, issLon = 0, issTimestamp = 0, issFetching = false, issLastFetch = 0, issError = '';
 let issHasFix = false, issT = 0, issTrail = [];
+let issAlt = 0, issVel = 0, issVis = '', issPrevLat = null, issAscending = true;
 
 function issFetch() {
   if (issFetching) return;
@@ -36,7 +37,10 @@ function issFetch() {
   fetchWithTimeout('https://api.wheretheiss.at/v1/satellites/25544')
     .then((r) => { if (!r.ok) throw new Error('ISS API error: ' + r.status); return r.json(); })
     .then((d) => {
+      issPrevLat = issHasFix ? issLat : null;
       issLat = parseFloat(d.latitude);
+      if (issPrevLat !== null && issLat !== issPrevLat) issAscending = issLat > issPrevLat;
+      issAlt = parseFloat(d.altitude) || 0; issVel = parseFloat(d.velocity) || 0; issVis = d.visibility || '';
       issLon = parseFloat(d.longitude);
       issTimestamp = d.timestamp || Math.floor(Date.now() / 1000);
       issHasFix = true;
@@ -378,5 +382,5 @@ module.exports.issIsLand = issIsLand;
 module.exports.getState = () => ({
   issLat, issLon, issHasFix, issTrail, issT,
   issFlagPixels, issFlagSize, issFlagState,
-  issCountryCode,
+  issCountryCode, issCountryName, issAlt, issVel, issVis, issAscending, issError,
 });

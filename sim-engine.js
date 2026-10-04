@@ -17255,6 +17255,11 @@ var PiEngine = (() => {
       var issHasFix = false;
       var issT = 0;
       var issTrail = [];
+      var issAlt = 0;
+      var issVel = 0;
+      var issVis = "";
+      var issPrevLat = null;
+      var issAscending = true;
       function issFetch() {
         if (issFetching) return;
         issFetching = true;
@@ -17263,7 +17268,12 @@ var PiEngine = (() => {
           if (!r.ok) throw new Error("ISS API error: " + r.status);
           return r.json();
         }).then((d) => {
+          issPrevLat = issHasFix ? issLat : null;
           issLat = parseFloat(d.latitude);
+          if (issPrevLat !== null && issLat !== issPrevLat) issAscending = issLat > issPrevLat;
+          issAlt = parseFloat(d.altitude) || 0;
+          issVel = parseFloat(d.velocity) || 0;
+          issVis = d.visibility || "";
           issLon = parseFloat(d.longitude);
           issTimestamp = d.timestamp || Math.floor(Date.now() / 1e3);
           issHasFix = true;
@@ -17585,7 +17595,13 @@ var PiEngine = (() => {
         issFlagPixels,
         issFlagSize,
         issFlagState,
-        issCountryCode
+        issCountryCode,
+        issCountryName,
+        issAlt,
+        issVel,
+        issVis,
+        issAscending,
+        issError
       });
     }
   });
@@ -18960,100 +18976,137 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/issWall.js
-  var require_issWall = __commonJS({
-    "src/effects/issWall.js"(exports, module) {
+  // src/effects/issMap.js
+  var require_issMap = __commonJS({
+    "src/effects/issMap.js"(exports, module) {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
+      var { defineCanvasEffect } = require_canvas();
       var iss = require_iss();
-      var { CHAR_W } = require_font2();
-      var { drawMarquee, FONT_5x7, wallPlot } = require_text();
-      var scrollX = 0;
-      var wallT = 0;
-      function drawTickerWall(core, W, H, label, dt) {
-        const textW = label.length * CHAR_W;
-        scrollX += dt * 16;
-        if (scrollX > textW) scrollX -= textW;
-        const sv = H - 2;
-        drawMarquee(FONT_5x7, label, scrollX, sv - 6, W, wallPlot(core, 0.48, 0.87, 1), { outline: wallPlot(core, 0, 0, 0) });
+      var { FONT_3x5, drawMarquee, drawString, textWidth } = require_text();
+      var INC = 51.64 * Math.PI / 180;
+      var PERIOD = 92.68 * 60;
+      var EARTH_RATE = 360 / 86164;
+      var D2R = Math.PI / 180;
+      var hash = (x, y) => {
+        const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+        return s - Math.floor(s);
+      };
+      var scroll = 0;
+      function subsolar(now) {
+        const start = Date.UTC(now.getUTCFullYear(), 0, 0), doy = (now - start) / 864e5;
+        const dec = -23.44 * Math.cos(2 * Math.PI / 365 * (doy + 10));
+        const hours = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+        return { lat: dec, lon: (12 - hours) * 15 };
       }
-      function lonToWindowU(lon, centerLon, W, lonWindowDeg) {
-        let rel = centerLon + lonWindowDeg / 2 - lon;
-        rel = (rel % 360 + 360) % 360;
-        if (rel < 0 || rel >= lonWindowDeg) return -1;
-        return Math.min(W - 1, Math.floor(rel / lonWindowDeg * W));
+      function trackAt(lat, lon, ascending, dt) {
+        let u = Math.asin(Math.max(-1, Math.min(1, Math.sin(lat * D2R) / Math.sin(INC))));
+        if (!ascending) u = Math.PI - u;
+        const node = lon - Math.atan2(Math.cos(INC) * Math.sin(u), Math.cos(u)) / D2R;
+        const u2 = u + 2 * Math.PI * dt / PERIOD;
+        const lat2 = Math.asin(Math.sin(INC) * Math.sin(u2)) / D2R;
+        let lon2 = node + Math.atan2(Math.cos(INC) * Math.sin(u2), Math.cos(u2)) / D2R - EARTH_RATE * dt;
+        lon2 = (lon2 + 540) % 360 - 180;
+        return [lat2, lon2];
       }
-      function latToV(lat, H) {
-        return Math.min(H - 1, Math.max(0, Math.round((90 - lat) / 180 * H)));
-      }
-      var mapCache = null;
-      var mapCacheKey = null;
-      function buildMapWall(W, H, centerLon, lonWindowDeg) {
-        const rounded = Math.round(centerLon / 5) * 5;
-        const key = `${W}x${H}@${rounded}`;
-        if (mapCache && mapCacheKey === key) return mapCache;
-        const data = new Float32Array(W * H * 3);
-        for (let v = 0; v < H; v++) {
-          const latFrac = v / H;
-          for (let u = 0; u < W; u++) {
-            let lonDeg = rounded + lonWindowDeg / 2 - u / W * lonWindowDeg;
-            lonDeg = ((lonDeg + 180) % 360 + 360) % 360 - 180;
-            const lonFrac = (lonDeg + 180) / 360;
-            const land = iss.issIsLand(lonFrac, latFrac);
-            const o = (v * W + u) * 3;
-            if (land) {
-              data[o] = 14 / 255;
-              data[o + 1] = 92 / 255;
-              data[o + 2] = 30 / 255;
-            } else {
-              data[o] = 10 / 255;
-              data[o + 1] = 38 / 255;
-              data[o + 2] = 110 / 255;
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt, core }) {
+          iss.ensureFetch(core);
+          const S = iss.getState(), W = c.W, H = c.H, barH = 7, mapH = H - barH;
+          const X = (lon2) => (lon2 + 180) / 360 * W, Y = (lat2) => (90 - lat2) / 180 * mapH;
+          const sun = subsolar(/* @__PURE__ */ new Date()), sd = sun.lat * D2R;
+          for (let y = 0; y < mapH; y++) {
+            const lat2 = 90 - (y + 0.5) / mapH * 180, la = lat2 * D2R;
+            for (let x = 0; x < W; x++) {
+              const lon2 = (x + 0.5) / W * 360 - 180;
+              const cosz = Math.sin(la) * Math.sin(sd) + Math.cos(la) * Math.cos(sd) * Math.cos((lon2 - sun.lon) * D2R);
+              const day = Math.max(0, Math.min(1, (cosz + 0.08) / 0.16));
+              const land = iss.issIsLand((lon2 + 180) / 360, (90 - lat2) / 180), ice = Math.abs(lat2) > 66;
+              let dr, dg, db, nr, ng, nb;
+              if (land) {
+                if (ice) {
+                  dr = 0.75;
+                  dg = 0.8;
+                  db = 0.85;
+                } else {
+                  const dry = Math.max(0, 1 - Math.abs(Math.abs(lat2) - 23) / 15);
+                  dr = 0.12 + dry * 0.35;
+                  dg = 0.42 + dry * 0.1;
+                  db = 0.1;
+                }
+                nr = 0.03;
+                ng = 0.05;
+                nb = 0.05;
+                if (!ice && hash(x, y) > 0.93) {
+                  const tw2 = 0.5 + 0.5 * Math.sin(t * 2 + x * y);
+                  nr += 0.6 * tw2;
+                  ng += 0.45 * tw2;
+                  nb += 0.12 * tw2;
+                }
+              } else {
+                dr = 0.04;
+                dg = 0.18;
+                db = 0.5;
+                nr = 0.01;
+                ng = 0.025;
+                nb = 0.09;
+              }
+              c.set(x, y, nr + (dr - nr) * day, ng + (dg - ng) * day, nb + (db - nb) * day);
             }
           }
-        }
-        mapCache = data;
-        mapCacheKey = key;
-        return data;
-      }
-      function effectIssWall(core, dt) {
-        const { wallW: W, wallH: H } = core;
-        if (!W) return;
-        wallT += dt;
-        iss.ensureFetch(core);
-        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
-        const st = iss.getState();
-        const lonWindowDeg = Math.min(360, 180 * (W / H));
-        const centerLon = st.issHasFix ? st.issLon : 0;
-        const data = buildMapWall(W, H, centerLon, lonWindowDeg);
-        const roundedCenter = Math.round(centerLon / 5) * 5;
-        for (let i = 0; i < W * H; i++) {
-          const o = i * 3;
-          core.setWallPixel(i % W, i / W | 0, data[o], data[o + 1], data[o + 2]);
-        }
-        st.issTrail.forEach((p, pi) => {
-          const u = lonToWindowU(p.lon, roundedCenter, W, lonWindowDeg);
-          if (u < 0) return;
-          const v = latToV(p.lat, H);
-          const age = pi / Math.max(1, st.issTrail.length - 1);
-          core.setWallPixel(u, v, 0.5 * age, 0.7 * age, 1 * age);
-        });
-        if (st.issHasFix) {
-          const u = lonToWindowU(st.issLon, roundedCenter, W, lonWindowDeg);
-          const v = latToV(st.issLat, H);
-          const blink = 0.6 + 0.4 * Math.sin(st.issT * 5);
-          if (u >= 0) for (let dv = -1; dv <= 1; dv++) for (let du = -1; du <= 1; du++) {
-            const uu = u + du, vv = v + dv;
-            if (uu < 0 || uu >= W || vv < 0 || vv >= H) continue;
-            core.setWallPixel(uu, vv, 1 * blink, 1 * blink, 0.95 * blink);
+          for (const lat2 of [0, 23.4, -23.4]) for (let x = 0; x < W; x += 2) {
+            const p = c.get(x, Y(lat2));
+            if (p) c.set(x, Y(lat2), p[0] + 0.05, p[1] + 0.05, p[2] + 0.08);
           }
+          if (!S.issHasFix) {
+            const msg = S.issError ? "NO SIGNAL" : "FINDING ISS";
+            drawString(FONT_3x5, msg, Math.round((W - textWidth(FONT_3x5, msg)) / 2), Math.round(mapH / 2) - 2, (x, y) => c.set(x, y, 1, 1, 1));
+            return;
+          }
+          const lat = S.issLat, lon = S.issLon;
+          let prev = null;
+          for (let s = -45 * 60; s <= 95 * 60; s += 20) {
+            const [la, lo] = trackAt(lat, lon, S.issAscending, s), x = X(lo), y = Y(la);
+            if (prev && Math.abs(prev[0] - x) < W / 2) {
+              const future = s > 0, dash = Math.floor(s / 120) % 2 === 0;
+              if (!future) c.add(x, y, 0.25, 0.2, 0.08);
+              else if (dash) c.add(x, y, 0.9, 0.75, 0.2);
+            }
+            prev = [x, y];
+          }
+          const R = 20, stretch = 1 / Math.max(0.3, Math.cos(lat * D2R));
+          for (let a = 0; a < 64; a++) {
+            const ang = a / 64 * Math.PI * 2, la = lat + Math.sin(ang) * R, lo = lon + Math.cos(ang) * R * stretch;
+            const x = X((lo + 540) % 360 - 180), y = Y(Math.max(-89, Math.min(89, la)));
+            if (a % 2 === 0) c.add(x, y, 0.15, 0.35, 0.45);
+          }
+          const sx = Math.round(X(lon)), sy = Math.round(Y(lat)), lit = S.issVis !== "eclipsed", pulse = 0.6 + 0.4 * Math.sin(t * 5);
+          const body = lit ? [1, 1, 1] : [0.5, 0.75, 1];
+          for (let k = -3; k <= 3; k++) if (Math.abs(k) >= 2) c.set(sx + k, sy, 0.3, 0.55, 1);
+          c.set(sx - 1, sy, ...body);
+          c.set(sx, sy, ...body);
+          c.set(sx + 1, sy, ...body);
+          c.set(sx, sy - 1, ...body);
+          c.set(sx, sy + 1, ...body);
+          for (const [dx, dy] of [[-2, -2], [2, -2], [-2, 2], [2, 2]]) c.add(sx + dx, sy + dy, 0.4 * pulse, 0.35 * pulse, 0.1 * pulse);
+          for (let y = mapH; y < H; y++) for (let x = 0; x < W; x++) c.set(x, y, 0.02, 0.02, 0.05);
+          let tx0 = 1;
+          if (S.issFlagPixels && S.issFlagSize && S.issCountryCode) {
+            const IS = S.issFlagSize;
+            for (let y = 0; y < 5; y++) for (let x = 0; x < 8; x++) {
+              const pi = (Math.floor(y / 5 * IS) * IS + Math.floor(x / 8 * IS)) * 4;
+              c.set(1 + x, mapH + 1 + y, S.issFlagPixels[pi] / 255, S.issFlagPixels[pi + 1] / 255, S.issFlagPixels[pi + 2] / 255);
+            }
+            tx0 = 11;
+          }
+          const over = S.issCountryName ? S.issCountryName.toUpperCase() : "OCEAN";
+          const label = `ISS OVER ${over}   ALT ${Math.round(S.issAlt)} KM   ${Math.round(S.issVel).toLocaleString("en-GB")} KM/H   ${lit ? "IN SUNLIGHT" : "IN EARTH'S SHADOW"}   LAT ${lat.toFixed(1)} LON ${lon.toFixed(1)}      `;
+          scroll += dt * 14;
+          const tw = W - tx0;
+          drawMarquee(FONT_3x5, label, scroll % (textWidth(FONT_3x5, label) + 4), mapH + 1, tw, (x, y) => c.set(tx0 + x, y, 0.85, 0.85, 0.95));
         }
-        const label = st.issHasFix ? `ISS LIVE  LAT ${st.issLat.toFixed(1)} LON ${st.issLon.toFixed(1)}  ALT ~408KM  ${st.issCountryCode ? "OVER " + st.issCountryCode : "OVER OCEAN"}` : "ISS TRACKER  ACQUIRING SIGNAL...";
-        drawTickerWall(core, W, H, "   " + label + "   ", dt);
-      }
-      module.exports = effectIssWall;
-      module.exports.getStatus = iss.getStatus;
+      });
     }
   });
 
@@ -24281,7 +24334,7 @@ var PiEngine = (() => {
       var neoRadar = require_neoRadar();
       var apodWall = require_apodWall();
       var epicWall = require_epicWall();
-      var issWall = require_issWall();
+      var issWall = require_issMap().wall;
       var customCube = require_customCube();
       var unsplash = require_unsplash();
       var artic = require_artic();
