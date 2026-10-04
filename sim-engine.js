@@ -25881,11 +25881,11 @@ var PiEngine = (() => {
         const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
         const ss = String(remaining % 60).padStart(2, "0");
         if (wall) {
-          if (remaining > 0 && !windDown) wallFx.countdown(core, mm + ":" + ss);
+          if (remaining > 0) wallFx.countdown(core, mm + ":" + ss);
           if (windDown && a.al.message) wallFx.message(core, a.al.message, 1);
           return;
         }
-        if (remaining > 0) renderCountdown(core, mm + ":" + ss, windDown ? [] : void 0);
+        if (remaining > 0) renderCountdown(core, mm + ":" + ss);
         if (windDown && a.al.message) {
           drawBigMessage(core, a.al.message, 1, { shadow: false, mirrored: false });
         }

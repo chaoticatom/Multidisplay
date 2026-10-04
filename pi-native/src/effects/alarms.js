@@ -642,11 +642,11 @@ function renderPrePhase(core, dt, state, EFFECTS, wall = false) {
   const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
   const ss = String(remaining % 60).padStart(2, '0');
   if (wall) {
-    if (remaining > 0 && !windDown) wallFx.countdown(core, mm + ':' + ss);
+    if (remaining > 0) wallFx.countdown(core, mm + ':' + ss); // wake: time to the alarm; wind-down: time until the display goes dark
     if (windDown && a.al.message) wallFx.message(core, a.al.message, 1);
     return;
   }
-  if (remaining > 0) renderCountdown(core, mm + ':' + ss, windDown ? [] : undefined);
+  if (remaining > 0) renderCountdown(core, mm + ':' + ss); // a wind-down counts down to dark too
 
   if (windDown && a.al.message) {
     drawBigMessage(core, a.al.message, 1.0, { shadow: false, mirrored: false });
