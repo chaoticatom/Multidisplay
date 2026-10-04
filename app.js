@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.233';
+const APP_VERSION = '0.6.234';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1023,6 +1023,11 @@ function syncMazePanel() {
 // ---------------------------------------------------------------------
 const RETRO_DEFAULT_AUTO_GAMES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13]; // Sam Fox (9) excluded by default
 function wireRetroPanel() {
+  document.querySelectorAll('#panel-retro .strobe-mode-btn[data-retroopt]').forEach((btn) => btn.addEventListener('click', () => {
+    const key = btn.dataset.retroopt, raw = btn.dataset.v, value = raw === 'true' ? true : raw === 'false' ? false : raw;
+    document.querySelectorAll(`#panel-retro .strobe-mode-btn[data-retroopt="${key}"]`).forEach((b) => b.classList.toggle('active', b === btn));
+    setEffectOption('retro', key, value);
+  }));
   const panel = document.getElementById('panel-retro');
   if (!panel) return;
 
@@ -1053,6 +1058,8 @@ function wireRetroPanel() {
 }
 
 function syncRetroPanel() {
+  const ro = currentState.effectOptions?.retro || {}, RD = { screen: 'crt', hud: true, attract: true, trans: 'crt' };
+  document.querySelectorAll('#panel-retro .strobe-mode-btn[data-retroopt]').forEach((b) => b.classList.toggle('active', String(ro[b.dataset.retroopt] ?? RD[b.dataset.retroopt]) === b.dataset.v));
   const panel = document.getElementById('panel-retro');
   if (!panel) return;
   const opts = currentState.effectOptions?.retro || {};

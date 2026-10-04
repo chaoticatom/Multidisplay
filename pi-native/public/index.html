@@ -1805,6 +1805,29 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       </div>
       <div class="ov-row-label" style="margin-top:8px;">Rotate: <span id="retro-rotate-val">8</span>s</div>
       <input type="range" id="retro-rotate-slider" min="3" max="120" value="8" style="width:100%;cursor:pointer;">
+      <div class="ov-row-label" style="margin-top:8px;">Screen style <small style="opacity:.6;text-transform:none;letter-spacing:0">(flat panels)</small></div>
+      <div class="opt-grid" style="margin-bottom:4px;">
+        <button class="strobe-mode-btn active" data-retroopt="screen" data-v="crt">Arcade CRT</button>
+        <button class="strobe-mode-btn" data-retroopt="screen" data-v="clean">Clean</button>
+        <button class="strobe-mode-btn" data-retroopt="screen" data-v="lcd">Game Boy</button>
+        <button class="strobe-mode-btn" data-retroopt="screen" data-v="zx">ZX Spectrum</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Score display <small style="opacity:.6;text-transform:none;letter-spacing:0">(flat panels)</small></div>
+      <div class="opt-grid" style="margin-bottom:4px;">
+        <button class="strobe-mode-btn active" data-retroopt="hud" data-v="true">Show</button>
+        <button class="strobe-mode-btn" data-retroopt="hud" data-v="false">Hide</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Between games <small style="opacity:.6;text-transform:none;letter-spacing:0">(flat panels)</small></div>
+      <div class="opt-grid" style="margin-bottom:4px;">
+        <button class="strobe-mode-btn active" data-retroopt="attract" data-v="true">Insert coin + high scores</button>
+        <button class="strobe-mode-btn" data-retroopt="attract" data-v="false">Straight on</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Switch-on effect <small style="opacity:.6;text-transform:none;letter-spacing:0">(flat panels)</small></div>
+      <div class="opt-grid" style="margin-bottom:4px;">
+        <button class="strobe-mode-btn active" data-retroopt="trans" data-v="crt">CRT power-on</button>
+        <button class="strobe-mode-btn" data-retroopt="trans" data-v="wipe">Wipe</button>
+        <button class="strobe-mode-btn" data-retroopt="trans" data-v="cut">Cut</button>
+      </div>
       <button id="retro-show-btn" style="margin-top:8px;width:100%;padding:8px;background:rgba(80,200,120,0.25);border:1px solid rgba(80,200,120,0.5);border-radius:6px;color:#9fd;font-size:13px;cursor:pointer;">▶ Show</button>
     </div>
     <button class="effect-btn has-panel" data-effect="coinflip">◈ Coin Flip <span class="panel-arrow">▸</span></button>
@@ -2450,6 +2473,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.233"></script>
+<script src="app.js?v=0.6.234"></script>
 </body>
 </html>

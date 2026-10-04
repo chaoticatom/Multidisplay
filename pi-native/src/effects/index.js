@@ -104,7 +104,7 @@ const articWall = require('./articWall');
 const jokeWall = joke.wall; // shares one fetch with cube mode (see ./textCard.js)
 const triviaWall = trivia.wall; // shares one fetch with cube mode (see ./textCard.js)
 const otdWall = otd.wall; // shares one fetch with cube mode
-const retroWall = require('./retroWall');
+const retroWall = require('./retroArcade').wall; // the cube keeps retro.js (a different game on each face)
 const radioWall = require('./radioWall');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see
