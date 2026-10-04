@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.261';
+const APP_VERSION = '0.6.262';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -3159,6 +3159,17 @@ function wireAlarmSection() {
 }
 
 // Stations for a "Start a station" timer: your starred ones, plus whatever is playing now.
+let btPairedCache = [];
+// Where a timer's radio plays: the output in use at the time, the Pi's own
+// output, or one of the paired speakers (connected when the timer starts).
+function tmFillOutputs() {
+  const sel = document.getElementById('tm-output'); if (!sel || !tmEdit) return;
+  const opts = [['', '🔈 Sound: current output'], ['local', '🔈 Sound: Pi output (no Bluetooth)'], ...btPairedCache.map((d) => [d.mac, '🔊 Sound: ' + (d.name || d.mac)])];
+  if (tmEdit.output && !opts.some(([v]) => v === tmEdit.output)) opts.push([tmEdit.output, '🔊 Sound: ' + tmEdit.output]);
+  sel.replaceChildren(...opts.map(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; return o; }));
+  sel.value = tmEdit.output || '';
+}
+
 function tmFillStations() {
   const sel = document.getElementById('tm-station'); if (!sel || !tmEdit) return;
   const list = [...(currentState.prefs?.stations || [])];
@@ -3233,9 +3244,10 @@ function openAlarmEditor(id, quickKind) {
     repeatHourly: src.repeat === 'hourly',
     sunrise: al?.prealarm?.enabled ? al.prealarm.preMinutes || 15 : (al ? 0 : 15),
     wd: al?.prealarm?.wdMinutes || 15,
-    radio: al?.radio?.action || 'none', station: al?.radio?.station || null,
+    radio: al?.radio?.action || 'none', station: al?.radio?.station || null, output: al?.radio?.output || '',
   };
   tmFillStations();
+  tmFillOutputs();
   document.getElementById('tm-title').textContent = al ? 'Edit timer' : 'New timer';
   document.getElementById('tm-time').value = tmHHMM(src);
   document.getElementById('tm-name').value = al?.name || '';
@@ -3264,7 +3276,7 @@ function tmRead() {
   const usesShow = e.kind === 'wake' || e.kind === 'start';
   return {
     kind: e.kind,
-    radio: { action: e.radio, station: e.radio === 'start' ? e.station : null },
+    radio: { action: e.radio, station: e.radio === 'start' ? e.station : null, output: e.radio === 'start' ? e.output || '' : '' },
     name: document.getElementById('tm-name').value.trim(),
     enabled: true, // saving a timer switches it on
     hour: Math.min(23, Math.max(0, hh)), minute: Math.min(59, Math.max(0, mm)),
@@ -3297,6 +3309,7 @@ function wireAlarmModal() {
   document.getElementById('tm-wd-custom')?.addEventListener('input', (ev) => { const n = Math.round(Number(ev.target.value)); if (n >= 1 && n <= 180) { tmEdit.wd = n; tmSync(); } });
   document.getElementById('tm-sun-custom')?.addEventListener('input', (ev) => { const n = Math.round(Number(ev.target.value)); if (n >= 1 && n <= 120) { tmEdit.sunrise = n; tmSync(); } });
   document.querySelectorAll('#tm-radio button').forEach((b) => b.addEventListener('click', () => { tmEdit.radio = b.dataset.ra; tmFillStations(); tmSync(); }));
+  document.getElementById('tm-output').addEventListener('change', (e) => { tmEdit.output = e.target.value; });
   document.getElementById('tm-station').addEventListener('change', (e) => { const l = e.target._list || []; tmEdit.station = l[Number(e.target.value)] || null; if (tmEdit.station) delete tmEdit.station.nowPlaying; });
   document.querySelectorAll('#tm-repeat button').forEach((b) => b.addEventListener('click', () => {
     tmEdit.repeatHourly = false;
@@ -3704,6 +3717,7 @@ function handleBtResult(msg) {
   if (msg.cmd === 'btScanResult') {
     renderBtScanResults(msg.devices, statusEl, listEl);
   } else if (msg.cmd === 'btStatusResult') {
+    btPairedCache = msg.devices || []; // also the timer editor's sound-output list
     renderBtPairedList(msg.devices, pairedStatusEl, pairedListEl);
   } else if (msg.cmd === 'btPairResult') {
     // A real report: "says it's pairing but nothing ever happens" - this

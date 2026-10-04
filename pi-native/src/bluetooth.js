@@ -485,8 +485,25 @@ async function routePhoneAudio() {
   return { ok: true, log };
 }
 
+// A timer's chosen output: 'local' = the Pi's own (non-Bluetooth) output,
+// or a paired speaker's MAC, connected first if it has dropped its link.
+// Playback restarts on the new output via the onAudioOutputChanged hook.
+async function useOutput(target) {
+  if (target === 'local') {
+    const sinks = await run('pactl', ['list', 'short', 'sinks']);
+    const line = sinks.split('\n').find((l) => l.trim() && !/bluez/i.test(l));
+    if (!line) return { set: false, log: 'No non-Bluetooth output found:\n' + sinks };
+    const out = await run('pactl', ['set-default-sink', line.split(/\s+/)[1]]);
+    for (const cb of outputChangedListeners) { try { cb(null); } catch (e) { console.warn('[bluetooth] output-changed listener failed:', e.message); } }
+    return { set: true, log: out };
+  }
+  if (!MAC_RE.test(target)) return { set: false, log: 'Not a speaker address: ' + target };
+  try { await bluetoothctl([`connect ${target}`], 4000); } catch (e) { /* may already be connected */ }
+  return setAsAudioOutput(target, 800);
+}
+
 module.exports = {
-  onAudioOutputChanged,
+  onAudioOutputChanged, useOutput,
   MAC_RE, parseDeviceLines, scanDevices, pairDevice, listPaired, makeDiscoverable, routePhoneAudio,
   setAsAudioOutput, autoReconnectLastSpeaker, forgetDevice, resetPairability,
 };

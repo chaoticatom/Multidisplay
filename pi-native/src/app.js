@@ -56,6 +56,22 @@ const WS_PORT = 8081;
 // turn away, effectively instant today) naturally supersedes it - nothing
 // needs to explicitly "turn it off".
 const BOOT_COLOR = [0.35, 0.18, 0.0];
+// A timer can choose where its radio plays (a speaker, or the Pi's own
+// output): switch to it once when the timer starts. Runs here, on the main
+// thread, which owns the real playback.
+let timerOutputKey = null;
+function routeTimerAudio(a) {
+  const out = a && !a.dismissed && a.al && a.al.radio && a.al.radio.action === 'start' && a.al.radio.output;
+  if (!out) return;
+  const now = new Date(), key = a.al.id + '|' + now.toDateString() + '|' + now.getHours();
+  if (timerOutputKey === key) return;
+  timerOutputKey = key;
+  console.log('[timer] sound output -> ' + out);
+  bluetooth.useOutput(out)
+    .then((r) => console.log('[timer] sound output ' + (r.set ? 'set' : 'NOT set: ' + r.log)))
+    .catch((err) => console.warn('[timer] sound output failed:', err.message));
+}
+
 function renderBootScreen(core, driver) {
   for (let i = 0; i < core.colBuf.length; i += 3) {
     core.colBuf[i] = BOOT_COLOR[0];
@@ -382,6 +398,7 @@ async function main() {
       // A timer fired on the render thread and changed what's displayed:
       // adopt it here too, or the next state hand-off would revert it.
       if (msg.applied) { Object.assign(state, msg.applied); if (msg.alarms) { state.alarms = msg.alarms; state.activeAlarm = msg.activeAlarm; alarmConfig.save(state.alarms); } ws._broadcast(ws._stateMsg()); }
+      routeTimerAudio(msg.activeAlarm);
       radioSeen = applyRemoteRequest(radio.audio, msg.radioAudio, radioSeen);
       ws.maybeStreamFrame(core, Number.isFinite(msg.brightness) ? msg.brightness : state.brightness); // the worker's brightness, so a sunrise brightens the preview too
       if (pendingBroadcast) { pendingBroadcast = false; ws._broadcast(ws._stateMsg()); }
@@ -429,6 +446,7 @@ async function main() {
       tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt);
       if (core.sfx && core.sfx.length) playSfx(state, core.sfx.splice(0));
       if (state.appliedChanges) { delete state.appliedChanges; ws._broadcast(ws._stateMsg()); } // a timer changed the display
+      routeTimerAudio(state.activeAlarm);
 
       // Brightness is applied at push time, not baked into core.colBuf -
       // matches the browser's non-destructive approach (mesh.material.color.

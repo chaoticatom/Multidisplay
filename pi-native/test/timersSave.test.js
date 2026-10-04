@@ -27,6 +27,15 @@ t('turn-off timer blanks the display', () => {
   assert.strictEqual(state.blank, true);
   assert.strictEqual(state.activeAlarm, null);
 });
+t('a timer keeps its chosen sound output', () => {
+  const WsServer = require('../src/wsServer');
+  const st = { name: 'X', url: 'https://x/stream' };
+  const keep = (output) => WsServer.prototype._sanitizeAlarm.call({}, { ...base, triggerType: 'effect', radio: { action: 'start', station: st, output } }, 'a').radio.output;
+  assert.strictEqual(keep('AA:BB:CC:DD:EE:FF'), 'AA:BB:CC:DD:EE:FF');
+  assert.strictEqual(keep('local'), 'local');
+  assert.strictEqual(keep('; rm -rf /'), '');
+  assert.strictEqual(keep(undefined), '');
+});
 t('render worker frames carry the state version they were computed from', () => {
   const fs = require('fs');
   const w = fs.readFileSync(require.resolve('../src/renderWorker.js'), 'utf8');

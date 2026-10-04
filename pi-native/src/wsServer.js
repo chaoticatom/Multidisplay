@@ -768,6 +768,7 @@ class WsServer {
         action: raw.radio.action,
         station: raw.radio.action === 'start' && raw.radio.station && /^https?:\/\//.test(String(raw.radio.station.url || ''))
           ? { name: String(raw.radio.station.name || 'Radio').slice(0, 80), genre: String(raw.radio.station.genre || '').slice(0, 60), url: String(raw.radio.station.url).slice(0, 500) } : null,
+        output: raw.radio.output === 'local' || /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i.test(String(raw.radio.output || '')) ? String(raw.radio.output) : '',
       } : { action: 'none' },
       enabled: !!raw.enabled,
       hour: Number(raw.hour), minute: Number(raw.minute),
