@@ -86,3 +86,22 @@ if (failed) process.exitCode = 1;
     console.log('  ok - finished wind-down turns the display off and frees the slot');
   } catch (e) { console.error('  FAIL -', e.message); process.exitCode = 1; }
 }
+
+// A timer can start a chosen station or stop the radio.
+{
+  const radio = require('../src/effects/radio');
+  const calls = [];
+  const realPlay = radio.playStation, realStop = radio.stopStation;
+  radio.playStation = (st) => calls.push(['play', st.name]);
+  radio.stopStation = () => calls.push(['stop']);
+  try {
+    const st = { name: 'Jazz FM', url: 'http://example.invalid/jazz' };
+    const a1 = { alarms: [{ ...base, id: 'r1', triggerType: 'effect', effect: '', radio: { action: 'start', station: st } }], activeAlarm: null, effect: 'wave', overlays: {}, effectsRegistry: {} };
+    alarms.alarmCheck(a1, new Date(2026, 9, 3, 7, 30, 5));
+    const a2 = { alarms: [{ ...base, id: 'r2', triggerType: 'off', radio: { action: 'stop' } }], activeAlarm: null, effect: 'wave', overlays: {}, effectsRegistry: {} };
+    alarms.alarmCheck(a2, new Date(2026, 9, 4, 7, 30, 5));
+    assert.deepStrictEqual(calls, [['play', 'Jazz FM'], ['stop']]);
+    console.log('  ok - timers start a chosen station and stop the radio');
+  } catch (e) { console.error('  FAIL -', e.message); process.exitCode = 1; }
+  finally { radio.playStation = realPlay; radio.stopStation = realStop; }
+}

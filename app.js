@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.247';
+const APP_VERSION = '0.6.248';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -3145,7 +3145,8 @@ function renderAlarmList() {
     div.innerHTML = `<div class="cx-timer-main"><b></b><span></span><small></small></div><button type="button" class="cx-switch${al.enabled ? ' on' : ''}" aria-label="Timer on or off"></button>`;
     div.querySelector('b').textContent = tmHHMM(al);
     div.querySelector('span').textContent = (al.name || TM_KIND_LABEL[kind]) + (what ? ' · ' + what : '');
-    div.querySelector('small').textContent = tmRepeatLabel(al) + (next ? ' · ' + next : '');
+    const radioTxt = al.radio?.action === 'start' ? ' · 📻 ' + (al.radio.station?.name || 'radio') : al.radio?.action === 'stop' ? ' · 📻 off' : '';
+    div.querySelector('small').textContent = tmRepeatLabel(al) + (next ? ' · ' + next : '') + radioTxt;
     div.querySelector('.cx-switch').addEventListener('click', (e) => { e.stopPropagation(); send({ cmd: 'setAlarmEnabled', id: al.id, enabled: !al.enabled }); });
     div.addEventListener('click', () => openAlarmEditor(al.id));
     return div;
@@ -3155,6 +3156,21 @@ function renderAlarmList() {
 function wireAlarmSection() {
   document.getElementById('alarm-add-btn')?.addEventListener('click', () => openAlarmEditor(null));
   document.querySelectorAll('[data-quick]').forEach((b) => b.addEventListener('click', () => openAlarmEditor(null, b.dataset.quick)));
+}
+
+// Stations for a "Start a station" timer: your starred ones, plus whatever is playing now.
+function tmFillStations() {
+  const sel = document.getElementById('tm-station'); if (!sel || !tmEdit) return;
+  const list = [...(currentState.prefs?.stations || [])];
+  const now = currentState.effectStatus?.radio?.station;
+  if (now && now.url && !list.some((x) => x.url === now.url)) list.unshift({ ...now, nowPlaying: true });
+  if (tmEdit.station && tmEdit.station.url && !list.some((x) => x.url === tmEdit.station.url)) list.unshift(tmEdit.station);
+  sel.replaceChildren(...list.map((st, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = (st.nowPlaying ? '▶ ' : '★ ') + (st.name || 'Station'); return o; }));
+  sel._list = list;
+  const idx = tmEdit.station ? list.findIndex((x) => x.url === tmEdit.station.url) : 0;
+  sel.value = String(Math.max(0, idx));
+  if (!tmEdit.station && list[0]) tmEdit.station = list[0];
+  document.getElementById('tm-station-note').textContent = list.length ? 'Star more stations on the Music tab to choose them here.' : 'No stations yet: play or star one on the Music tab first.';
 }
 
 function tmFillShow(sel, al) {
@@ -3185,6 +3201,8 @@ function tmSync() {
   show('tm-wd-row', e.kind === 'winddown');
   tmSetChip(document.getElementById('tm-sunrise'), 'v', e.sunrise);
   tmSetChip(document.getElementById('tm-wd'), 'v', e.wd);
+  tmSetChip(document.getElementById('tm-radio'), 'ra', e.radio);
+  document.getElementById('tm-station-row').hidden = e.radio !== 'start';
   const rep = e.repeatHourly ? 'hourly' : tmRepeatFor(e.days).repeat;
   tmSetChip(document.getElementById('tm-repeat'), 'r', rep);
   document.querySelectorAll('#tm-days button').forEach((b) => b.classList.toggle('on', e.days.has(+b.dataset.d)));
@@ -3207,7 +3225,9 @@ function openAlarmEditor(id, quickKind) {
     repeatHourly: src.repeat === 'hourly',
     sunrise: al?.prealarm?.enabled ? al.prealarm.preMinutes || 15 : (al ? 0 : 15),
     wd: al?.prealarm?.wdMinutes || 15,
+    radio: al?.radio?.action || 'none', station: al?.radio?.station || null,
   };
+  tmFillStations();
   document.getElementById('tm-title').textContent = al ? 'Edit timer' : 'New timer';
   document.getElementById('tm-time').value = tmHHMM(src);
   document.getElementById('tm-name').value = al?.name || '';
@@ -3236,6 +3256,7 @@ function tmRead() {
   const usesShow = e.kind === 'wake' || e.kind === 'start';
   return {
     kind: e.kind,
+    radio: { action: e.radio, station: e.radio === 'start' ? e.station : null },
     name: document.getElementById('tm-name').value.trim(),
     enabled: true, // saving a timer switches it on
     hour: Math.min(23, Math.max(0, hh)), minute: Math.min(59, Math.max(0, mm)),
@@ -3265,6 +3286,8 @@ function wireAlarmModal() {
   document.querySelectorAll('.tm-kind').forEach((b) => b.addEventListener('click', () => { tmEdit.kind = b.dataset.kind; tmSync(); }));
   document.querySelectorAll('#tm-sunrise button').forEach((b) => b.addEventListener('click', () => { tmEdit.sunrise = +b.dataset.v; tmSync(); }));
   document.querySelectorAll('#tm-wd button').forEach((b) => b.addEventListener('click', () => { tmEdit.wd = +b.dataset.v; tmSync(); }));
+  document.querySelectorAll('#tm-radio button').forEach((b) => b.addEventListener('click', () => { tmEdit.radio = b.dataset.ra; tmFillStations(); tmSync(); }));
+  document.getElementById('tm-station').addEventListener('change', (e) => { const l = e.target._list || []; tmEdit.station = l[Number(e.target.value)] || null; if (tmEdit.station) delete tmEdit.station.nowPlaying; });
   document.querySelectorAll('#tm-repeat button').forEach((b) => b.addEventListener('click', () => {
     tmEdit.repeatHourly = false;
     tmEdit.days = new Set(TM_REPEAT_DAYS[b.dataset.r]);

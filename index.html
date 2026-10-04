@@ -2441,6 +2441,13 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <label class="tm-check"><input type="checkbox" id="tm-wd-effect"> Keep the current effect while it fades</label>
     </div>
 
+    <div class="tm-label">Radio</div>
+    <div class="tm-chips" id="tm-radio">
+      <button type="button" data-ra="none">Leave it</button><button type="button" data-ra="start">Start a station</button><button type="button" data-ra="stop">Stop the radio</button>
+    </div>
+    <div id="tm-station-row" hidden style="margin-top:8px;"><select id="tm-station" class="tm-select" aria-label="Station"></select>
+      <div id="tm-station-note" class="ui-note" style="margin:4px 0 0"></div></div>
+
     <div class="tm-label">Repeat</div>
     <div class="tm-chips" id="tm-repeat">
       <button type="button" data-r="once">Once</button><button type="button" data-r="daily">Every day</button><button type="button" data-r="weekdays">Weekdays</button><button type="button" data-r="weekends">Weekends</button>

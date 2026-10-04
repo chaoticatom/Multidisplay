@@ -25680,6 +25680,13 @@ var PiEngine = (() => {
           }
         }
       }
+      function applyRadio(al) {
+        const r = al && al.radio;
+        if (!r || !r.action || r.action === "none") return;
+        const radio = require_radio2();
+        if (r.action === "stop") radio.stopStation();
+        else if (r.action === "start" && r.station && r.station.url) radio.playStation(r.station);
+      }
       function wakeDisplay(state) {
         if (!state.blank && !state.panelsOff) return;
         state.blank = false;
@@ -25692,6 +25699,7 @@ var PiEngine = (() => {
         const hasPreEffect = al.prealarm?.enabled && al.prealarm?.giantSun;
         const durationMs = hasPreEffect ? 10 * 60 * 1e3 : 1 * 60 * 1e3;
         state.activeAlarm = { al, phase: "main", startMs: fireMs, endMs: fireMs + durationMs, dismissed: false };
+        applyRadio(al);
         if (al.triggerType === "off") {
           state.activeAlarm = null;
           state.blank = true;
@@ -25771,6 +25779,7 @@ var PiEngine = (() => {
             if (wall) wallFx.clear(core);
             else for (let i = 0; i < core.N * 3; i++) core.colBuf[i] = 0;
             state.blank = true;
+            applyRadio(a.al);
             state.brightness = Number.isFinite(a.prevBright) && a.prevBright > 0 ? a.prevBright : 1;
             state.activeAlarm = null;
             state.appliedChanges = scenes.changedFields(state);

@@ -761,6 +761,11 @@ class WsServer {
       id,
       name: typeof raw.name === 'string' ? raw.name.slice(0, 60) : '',
       kind: ['wake', 'start', 'winddown', 'off'].includes(raw.kind) ? raw.kind : '',
+      radio: raw.radio && ['start', 'stop'].includes(raw.radio.action) ? {
+        action: raw.radio.action,
+        station: raw.radio.action === 'start' && raw.radio.station && /^https?:\/\//.test(String(raw.radio.station.url || ''))
+          ? { name: String(raw.radio.station.name || 'Radio').slice(0, 80), genre: String(raw.radio.station.genre || '').slice(0, 60), url: String(raw.radio.station.url).slice(0, 500) } : null,
+      } : { action: 'none' },
       enabled: !!raw.enabled,
       hour: Number(raw.hour), minute: Number(raw.minute),
       repeat: raw.repeat,

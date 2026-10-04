@@ -435,6 +435,17 @@ function alarmCheck(state, now) {
   }
 }
 
+// A timer's radio choice: { action: 'start', station: {name, url, genre} }
+// plays that station, { action: 'stop' } stops the radio. Runs on whichever
+// thread renders (the render worker owns the playing radio, see tick.js).
+function applyRadio(al) {
+  const r = al && al.radio;
+  if (!r || !r.action || r.action === 'none') return;
+  const radio = require('./radio');
+  if (r.action === 'stop') radio.stopStation();
+  else if (r.action === 'start' && r.station && r.station.url) radio.playStation(r.station);
+}
+
 // A wake-up or switch-on timer turns the display back on: clears both
 // "⏻ All off" (blank) and "💡 Panels off", and reports the change so the
 // main thread and the page pick it up.
@@ -454,6 +465,7 @@ function alarmFire(state, al, now) {
   const durationMs = hasPreEffect ? 10 * 60 * 1000 : 1 * 60 * 1000;
   state.activeAlarm = { al, phase: 'main', startMs: fireMs, endMs: fireMs + durationMs, dismissed: false };
 
+  applyRadio(al);
   if (al.triggerType === 'off') {
     // "Turn off" timer: blank the display (music keeps playing), no message.
     state.activeAlarm = null;
@@ -567,6 +579,7 @@ function renderPrePhase(core, dt, state, EFFECTS, wall = false) {
       // a 'done' timer used to block every later timer, including the
       // next morning's wake-up.
       state.blank = true;
+      applyRadio(a.al); // e.g. stop the radio when the wind-down ends
       state.brightness = Number.isFinite(a.prevBright) && a.prevBright > 0 ? a.prevBright : 1;
       state.activeAlarm = null;
       state.appliedChanges = scenes.changedFields(state);
