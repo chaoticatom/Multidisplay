@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.256';
+const APP_VERSION = '0.6.257';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -3196,7 +3196,7 @@ function tmSync() {
   document.querySelectorAll('.tm-kind').forEach((b) => { const on = b.dataset.kind === e.kind; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.hidden = !on; };
   show('tm-show-row', e.kind === 'wake' || e.kind === 'start');
-  show('tm-sunrise-row', e.kind === 'wake');
+  show('tm-sunrise-row', e.kind === 'wake' || e.kind === 'start'); // a switch-on timer can fade up too
   show('tm-msg-row', e.kind === 'wake' || e.kind === 'start');
   show('tm-wd-row', e.kind === 'winddown');
   tmSetChip(document.getElementById('tm-sunrise'), 'v', e.sunrise);
@@ -3275,10 +3275,10 @@ function tmRead() {
     overlayKeys: old?.overlayKeys || [],
     message: usesShow ? document.getElementById('tm-message').value.trim() : '',
     prealarm: {
-      enabled: e.kind === 'wake' && e.sunrise > 0,
+      enabled: (e.kind === 'wake' || e.kind === 'start') && e.sunrise > 0,
       preMinutes: e.sunrise || 15,
       startBright: old?.prealarm?.startBright || 5,
-      giantSun: e.kind === 'wake' && document.getElementById('tm-giant-sun').checked,
+      giantSun: (e.kind === 'wake' || e.kind === 'start') && document.getElementById('tm-giant-sun').checked,
       windDown: e.kind === 'winddown',
       wdMinutes: e.wd,
       wdUseEffect: e.kind === 'winddown' && document.getElementById('tm-wd-effect').checked,

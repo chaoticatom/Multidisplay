@@ -423,7 +423,11 @@ function alarmCheck(state, now) {
     const preStart = alMs - preMs;
 
     if (al.prealarm?.enabled && dayMs >= preStart && dayMs < alMs) {
-      state.activeAlarm = { al, phase: 'pre', startMs: now.getTime(), preMs, dismissed: false };
+      // Anchored to the alarm time (like the wind-down above), so the sunrise
+      // ends exactly when the timer goes off. It used to run its full length
+      // from whenever it was first noticed, so a timer set a few minutes
+      // ahead fired late and looked as if it never triggered.
+      state.activeAlarm = { al, phase: 'pre', startMs: now.getTime() - (dayMs - preStart), preMs, dismissed: false };
       wakeDisplay(state); // the sunrise must be visible even if the display was switched off
       break;
     }

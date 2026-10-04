@@ -14,13 +14,14 @@ function run(alarm, frames) {
   return new Promise((resolve) => {
     const w = new Worker(path.join(__dirname, '..', 'src', 'renderWorker.js'), { workerData: { config: { size: 64, mode: 'wall', panels: [{ gx: 0, gy: 0 }] } } });
     const state = { effect: 'plasma', overlays: JSON.parse(JSON.stringify(OV_DEFAULTS)), effectOptions: {}, brightness: 0.8, speed: 1, alarms: [alarm], activeAlarm: null, blank: true, panelsOff: false, prefs: { tz: 'Europe/London' } };
-    let n = 0, applied = null, phases = [];
+    let n = 0, applied = null, phases = [], startMs = null;
     w.on('message', (msg) => {
       if (msg.type !== 'frame') return;
       n++;
       if (msg.applied) applied = msg.applied;
       phases.push(msg.activeAlarm && msg.activeAlarm.phase);
-      if (n >= frames) { w.terminate(); resolve({ applied, phases }); return; }
+      if (msg.activeAlarm && msg.activeAlarm.phase === 'pre') startMs = msg.activeAlarm.startMs;
+      if (n >= frames) { w.terminate(); resolve({ applied, phases, startMs }); return; }
       // Every 30 frames (~1 s at 30 fps) a fresh copy of the main thread's state, as app.js does.
       w.postMessage({ type: 'tick', state: n % 30 === 0 ? JSON.parse(JSON.stringify(state)) : null, dt: 1 / 30, radioAudio: null, version: n });
     });
@@ -44,5 +45,11 @@ function run(alarm, frames) {
     const pre = r2.phases.filter((p) => p === 'pre').length;
     assert.ok(pre > 120, 'the sunrise keeps running across re-sends (pre frames: ' + pre + ')');
     console.log('  ok - a sunrise keeps running across re-sends');
+
+    // A 5-minute sunrise for a timer 1-2 minutes away has 3-4 minutes already
+    // behind it: it must end at the timer, not 5 minutes from now.
+    const behind = Date.now() - r2.startMs;
+    assert.ok(behind > 175000 && behind < 250000, 'the sunrise is anchored to the timer (started ' + Math.round(behind / 1000) + ' s ago)');
+    console.log('  ok - a sunrise ends at the timer time, however late it starts');
   } catch (e) { console.error('  FAIL -', e.message); process.exitCode = 1; }
 })();

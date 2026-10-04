@@ -25711,7 +25711,7 @@ var PiEngine = (() => {
           const preMs = (al.prealarm?.enabled ? al.prealarm.preMinutes || 15 : 0) * 6e4;
           const preStart = alMs - preMs;
           if (al.prealarm?.enabled && dayMs >= preStart && dayMs < alMs) {
-            state.activeAlarm = { al, phase: "pre", startMs: now.getTime(), preMs, dismissed: false };
+            state.activeAlarm = { al, phase: "pre", startMs: now.getTime() - (dayMs - preStart), preMs, dismissed: false };
             wakeDisplay(state);
             break;
           }
