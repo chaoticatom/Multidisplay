@@ -1831,6 +1831,13 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
         <button class="ui-btn-small" data-retropad="left" aria-label="Left">◀</button><button class="ui-btn-small" data-retropad="fire" aria-label="Fire">●</button><button class="ui-btn-small" data-retropad="right" aria-label="Right">▶</button>
         <span></span><button class="ui-btn-small" data-retropad="down" aria-label="Down">▼</button><span></span>
       </div>
+      <div class="ov-row-label" style="margin-top:8px;">🔊 Sound effects <small style="opacity:.6;text-transform:none;letter-spacing:0">(through the speaker; also the Party horn)</small></div>
+      <div class="opt-grid" style="margin-bottom:4px;">
+        <button class="strobe-mode-btn" data-sfx="on">On</button>
+        <button class="strobe-mode-btn" data-sfx="off">Off</button>
+        <button class="strobe-mode-btn" data-sfx="test">▶ Test</button>
+      </div>
+      <div class="slider-row"><span class="slider-label">Volume</span><input type="range" id="sfx-vol" min="0" max="1" step="0.05" value="0.6"><span class="slider-val" id="sfx-vol-val">60%</span></div>
       <div class="ov-row-label" style="margin-top:8px;">Screen style</div>
       <div class="opt-grid" style="margin-bottom:4px;">
         <button class="strobe-mode-btn active" data-retroopt="screen" data-v="crt">Arcade CRT</button>

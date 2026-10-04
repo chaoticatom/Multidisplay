@@ -14,6 +14,7 @@ const DEFAULT = {
   dayPlan: { on: false, starts: { morning: 6, day: 10, evening: 18, night: 23 }, effects: { morning: [], day: [], evening: [], night: [] }, brightness: { morning: null, day: null, evening: null, night: null } }, // brightness null = leave as it is
   weatherMode: { on: false },
   access: { localNoPin: true, guests: false }, // see src/access.js
+  sfx: { on: true, volume: 0.6 }, // sound effects through the speaker (src/sfx.js)
   celebrations: { newYear: true, dates: [] }, // dates: [{ month, day, hour, minute, text }]
 };
 
@@ -56,6 +57,7 @@ function clean(p) {
     }
   }
   if (p && p.weatherMode) out.weatherMode.on = !!p.weatherMode.on;
+  if (p && p.sfx) { out.sfx.on = p.sfx.on !== false; const v = Number(p.sfx.volume); if (Number.isFinite(v)) out.sfx.volume = Math.max(0, Math.min(1, v)); }
   if (p && p.access) { out.access.localNoPin = p.access.localNoPin !== false; out.access.guests = !!p.access.guests; }
   if (p && p.celebrations) {
     out.celebrations.newYear = p.celebrations.newYear !== false;

@@ -189,6 +189,7 @@ parentPort.on('message', (msg) => {
       version: workerVersion, // which main-thread state this frame was computed from
       blank: state.blank,
       effectStatus: state.effectStatus,
+      sfx: core.sfx && core.sfx.length ? core.sfx.splice(0) : undefined, // sound effects to play (see src/sfx.js)
       radioAudio: remoteAudio.request(),
       applied: state.appliedChanges, // set when a timer fired (see alarms.js alarmFire)
     });

@@ -30,12 +30,12 @@ function jetpac(s, T, dt, t, inp) {
   s.x = Math.max(2, Math.min(W - 6, s.x)); s.y = Math.max(TOP + 2, Math.min(ground - 8, s.y)); if (ax) s.face = ax;
   if (s.phase === 'build') {
     if (!s.carry && s.part && Math.abs(s.x - s.part.x) < 4 && Math.abs(s.y - s.part.y) < 8) s.carry = true;
-    if (s.carry && Math.abs(s.x - rx) < 4) { s.carry = false; s.part = null; s.parts++; s.score += 100; if (s.parts >= 3) { s.phase = 'launch'; s.launchY = 0; } }
+    if (s.carry && Math.abs(s.x - rx) < 4) { s.carry = false; s.part = null; s.parts++; s.score += 100; T.sfx && T.sfx('coin'); if (s.parts >= 3) { s.phase = 'launch'; s.launchY = 0; } }
   } else { s.launchY += dt * 18; if (s.launchY > H) { Object.assign(s, { parts: 0, phase: 'build', launchY: 0 }); s.score += 500; } }
   if (Math.random() < dt * 1.2 && s.aliens.length < 5) s.aliens.push({ x: Math.random() < 0.5 ? -4 : W + 4, y: rnd(TOP + 4, ground - 10), vx: 0, c: hsl(Math.random(), 1, 0.6) });
   for (const a of s.aliens) { a.vx = a.x < W / 2 ? 18 : -18; a.x += a.vx * dt; a.y += Math.sin(t * 3 + a.x) * 0.3; }
-  if (Math.random() < dt * 3) s.lasers.push({ x: s.x + 3, y: s.y + 3, dir: s.face, life: 0.4 });
-  for (const l of s.lasers) { l.life -= dt; l.x += l.dir * 120 * dt; for (const a of s.aliens) if (Math.abs(a.x - l.x) < 4 && Math.abs(a.y - l.y) < 4) { a.dead = true; s.score += 25; } }
+  if (Math.random() < dt * 3) { s.lasers.push({ x: s.x + 3, y: s.y + 3, dir: s.face, life: 0.4 }); T.sfx && T.sfx('laser'); }
+  for (const l of s.lasers) { l.life -= dt; l.x += l.dir * 120 * dt; for (const a of s.aliens) if (Math.abs(a.x - l.x) < 4 && Math.abs(a.y - l.y) < 4) { a.dead = true; s.score += 25; T.sfx && T.sfx('boom'); } }
   s.lasers = s.lasers.filter((l) => l.life > 0); s.aliens = s.aliens.filter((a) => !a.dead && a.x > -8 && a.x < W + 8);
   // Draw: starry sky, yellow ground, green ledges.
   for (let k = 0; k < 30; k++) T.set((k * 37) % W, TOP + (k * 53) % (H - TOP - 6), 0.4, 0.4, 0.5);
@@ -62,11 +62,11 @@ function manic(s, T, dt, t, inp) {
   const dx = steer(inp, want ? Math.sign(want.x - s.x) : s.dir);
   if (dx) s.dir = dx; s.x += dx * 22 * dt;
   const wantJump = inp.manual ? inp.dir === 'up' : want && want.y < s.y - 4 && Math.random() < dt * 3;
-  if (s.on && wantJump) { s.vy = -55; s.on = false; }
+  if (s.on && wantJump) { s.vy = -55; s.on = false; T.sfx && T.sfx('jump'); }
   s.vy += 140 * dt; s.y += s.vy * dt; s.on = false;
   for (const [px, py, pw] of plats) if (s.vy >= 0 && s.x + 3 > px && s.x < px + pw && s.y + 6 >= py && s.y + 6 <= py + 4) { s.y = py - 6; s.vy = 0; s.on = true; }
   if (s.x < 1 || s.x > W - 5) { s.dir *= -1; s.x = Math.max(1, Math.min(W - 5, s.x)); }
-  for (const k of s.keys) if (!k.got && Math.abs(k.x - s.x - 2) < 4 && Math.abs(k.y - s.y) < 6) { k.got = true; s.score += 100; }
+  for (const k of s.keys) if (!k.got && Math.abs(k.x - s.x - 2) < 4 && Math.abs(k.y - s.y) < 6) { k.got = true; s.score += 100; T.sfx && T.sfx('coin'); }
   s.robot += s.rdir * 14 * dt; if (s.robot < W * 0.55 || s.robot > W * 0.92) s.rdir *= -1;
   s.air -= dt * 0.025; if (s.air <= 0 || s.keys.every((k) => k.got)) { s.init = 0; s.score += 200; }
   T.rect(0, TOP, W, H - TOP, [0, 0, 0.2]);
@@ -114,7 +114,7 @@ function deathchase(s, T, dt, t, inp) {
   const auto = Math.sin(t * 0.6) * 0.7 - s.bx;
   s.bx += steer(inp, Math.sign(auto) * 0.6) * dt * 1.2; s.bx = Math.max(-1.2, Math.min(1.2, s.bx));
   for (const tr of s.trees) { tr.z -= dt * 0.5; if (tr.z < 0.05) { tr.z = 1; tr.x = rnd(-1.5, 1.5); } }
-  s.enemy.z -= dt * 0.12; s.enemy.x += Math.sin(t * 2) * dt * 0.4; if (s.enemy.z < 0.15) { s.enemy = { x: rnd(-0.8, 0.8), z: 1 }; s.score += 300; s.flash = 0.2; }
+  s.enemy.z -= dt * 0.12; s.enemy.x += Math.sin(t * 2) * dt * 0.4; if (s.enemy.z < 0.15) { s.enemy = { x: rnd(-0.8, 0.8), z: 1 }; s.score += 300; s.flash = 0.2; T.sfx && T.sfx('boom'); }
   for (let y = TOP; y < hz; y++) for (let x = 0; x < W; x++) T.set(x, y, 0.05, 0.05 + (y - TOP) / hz * 0.1, 0.15);
   for (let y = hz; y < H; y++) for (let x = 0; x < W; x++) { const p = (y - hz) / (H - hz); T.set(x, y, 0.05, 0.25 + p * 0.25, 0.05); }
   const proj = (x, z) => [W / 2 + (x - s.bx) / z * W * 0.25, hz + (1 / z) * (H - hz) * 0.18];
@@ -143,9 +143,9 @@ function rtype(s, T, dt, t, inp) {
   s.y = Math.max(TOP + 8, Math.min(H - 10, s.y + dy * 30 * dt));
   if (Math.random() < dt * 1.5) s.en.push({ x: W + 4, y0: rnd(TOP + 12, H - 12), ph: Math.random() * 6, c: hsl(Math.random(), 1, 0.55) });
   for (const e of s.en) { e.x -= 22 * dt; e.y = e.y0 + Math.sin(t * 3 + e.ph) * 6; }
-  s.charge += dt; if (s.charge > 2.5) { s.charge = 0; s.beam = 0.3; }
+  s.charge += dt; if (s.charge > 2.5) { s.charge = 0; s.beam = 0.3; T.sfx && T.sfx('laser'); }
   if (Math.random() < dt * 5) s.shots.push({ x: 18, y: s.y });
-  for (const b of s.shots) { b.x += 90 * dt; for (const e of s.en) if (Math.abs(e.x - b.x) < 4 && Math.abs(e.y - b.y) < 4) { e.dead = true; b.dead = true; s.booms.push({ x: e.x, y: e.y, t: 0.3 }); s.score += 50; } }
+  for (const b of s.shots) { b.x += 90 * dt; for (const e of s.en) if (Math.abs(e.x - b.x) < 4 && Math.abs(e.y - b.y) < 4) { e.dead = true; b.dead = true; s.booms.push({ x: e.x, y: e.y, t: 0.3 }); s.score += 50; T.sfx && T.sfx('boom'); } }
   if (s.beam > 0) { s.beam -= dt; for (const e of s.en) if (Math.abs(e.y - s.y) < 4) { e.dead = true; s.booms.push({ x: e.x, y: e.y, t: 0.3 }); s.score += 50; } }
   s.shots = s.shots.filter((b) => !b.dead && b.x < W); s.en = s.en.filter((e) => !e.dead && e.x > -6);
   for (let k = 0; k < 40; k++) { const x = ((k * 53 - s.sx * (1 + k % 3)) % W + W) % W; T.set(x, TOP + (k * 29) % (H - TOP), 0.3, 0.3, 0.4); }
@@ -171,7 +171,7 @@ function raycast(s, T, dt, t, inp, look) {
   const fwd = inp.manual ? (inp.dir === 'up' ? 1 : inp.dir === 'down' ? -1 : 0) : 1;
   const nx = s.x + Math.cos(s.a) * dt * 1.1 * fwd, ny = s.y + Math.sin(s.a) * dt * 1.1 * fwd;
   if (!wall(nx, s.y)) s.x = nx; if (!wall(s.x, ny)) s.y = ny;
-  if (Math.random() < dt * 0.8 || (inp.manual && inp.fire)) { s.fire = 0.15; s.score += 100; }
+  if (Math.random() < dt * 0.8 || (inp.manual && inp.fire)) { s.fire = 0.15; s.score += 100; T.sfx && T.sfx('boom'); }
   const viewH = H - TOP, fov = 1.0;
   for (let x = 0; x < W; x++) {
     const ra = s.a + (x / W - 0.5) * fov, dx = Math.cos(ra), dy = Math.sin(ra);
@@ -214,7 +214,7 @@ function samfox(s, T, dt, t) {
   const { W, H } = T;
   if (!sfImg) { const raw = Buffer.from(samfoxBg, 'base64'); sfImg = new Float32Array(raw.length); for (let i = 0; i < raw.length; i++) sfImg[i] = raw[i] / 255; }
   if (!s.init) Object.assign(s, { init: 1, round: -1, score: 0 });
-  const round = Math.floor(t / 8); if (round !== s.round) { s.round = round; s.cards = Array.from({ length: 5 }, () => ({ v: Math.floor(Math.random() * 13), s: Math.floor(Math.random() * 4) })); s.score += 50; }
+  const round = Math.floor(t / 8); if (round !== s.round) { if (s.round >= 0 && T.sfx) T.sfx('blip'); s.round = round; s.cards = Array.from({ length: 5 }, () => ({ v: Math.floor(Math.random() * 13), s: Math.floor(Math.random() * 4) })); s.score += 50; }
   const showPhoto = W >= 96, tableX = showPhoto ? 64 : 0, tw = W - tableX;
   if (showPhoto) for (let y = 0; y < Math.min(64, H); y++) for (let x = 0; x < 64; x++) { const i = (y * 64 + x) * 3; T.set(x, y + H - 64, sfImg[i], sfImg[i + 1], sfImg[i + 2]); }
   for (let y = TOP; y < H; y++) for (let x = tableX; x < W; x++) { const f = 0.14 + 0.03 * Math.sin(x * 0.4 + y * 0.3); T.set(x, y, 0, f, f * 0.35); }
@@ -261,7 +261,7 @@ function aticatac(s, T, dt, t, inp) {
   const tgt = s.food;
   let mx = inp.manual ? (inp.dir === 'left' ? -1 : inp.dir === 'right' ? 1 : 0) : Math.sign(tgt.x - s.x), my = inp.manual ? (inp.dir === 'up' ? -1 : inp.dir === 'down' ? 1 : 0) : Math.sign(tgt.y - s.y);
   s.x = Math.max(x0 + 3, Math.min(x0 + rw - 6, s.x + mx * 22 * dt)); s.y = Math.max(y0 + 3, Math.min(y0 + rh - 6, s.y + my * 22 * dt));
-  if (Math.abs(s.x - tgt.x) < 4 && Math.abs(s.y - tgt.y) < 4) { s.food = null; s.score += 150; s.energy = Math.min(1, s.energy + 0.3); }
+  if (Math.abs(s.x - tgt.x) < 4 && Math.abs(s.y - tgt.y) < 4) { s.food = null; s.score += 150; s.energy = Math.min(1, s.energy + 0.3); T.sfx && T.sfx('coin'); }
   for (const m of s.mons) { m.x += Math.sign(s.x - m.x) * 8 * dt + Math.sin(t * 4 + m.y) * 0.3; m.y += Math.sign(s.y - m.y) * 8 * dt; if (Math.abs(m.x - s.x) < 3 && Math.abs(m.y - s.y) < 3) { m.dead = true; s.energy -= 0.1; s.score += 50; } }
   s.mons = s.mons.filter((m) => !m.dead); if (s.energy <= 0) s.init = 0;
   const wallC = hsl((s.room * 0.17) % 1, 0.7, 0.45);
@@ -293,7 +293,7 @@ function donkeykong(s, T, dt, t, inp) {
   for (const b of s.barrels) {
     if (b.fall > 0) { b.fall += dt * 2; if (b.fall >= 1) { b.fall = 0; b.k--; } }
     else { b.x += (b.k % 2 ? 1 : -1) * 28 * dt * -1; if ((b.k % 2 === 0 && b.x < 4) || (b.k % 2 === 1 && b.x > W - 6)) b.fall = 0.01; }
-    if (b.k === s.lvl && !s.climb && Math.abs(b.x - s.x) < 4 && !s.jump) s.jump = 0.5;
+    if (b.k === s.lvl && !s.climb && Math.abs(b.x - s.x) < 4 && !s.jump) { s.jump = 0.5; T.sfx && T.sfx('jump'); }
   }
   s.barrels = s.barrels.filter((b) => b.k >= 0);
   if (s.jump > 0) { s.jump -= dt; if (s.jump <= 0) s.score += 100; }

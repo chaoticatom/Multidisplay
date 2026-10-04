@@ -71,6 +71,7 @@ var PiEngine = (() => {
         constructor(size = 64) {
           this.SIZE = size;
           this.N = 0;
+          this.sfx = [];
           this.gridX = null;
           this.gridY = null;
           this.gridZ = null;
@@ -13396,6 +13397,7 @@ var PiEngine = (() => {
             s.part = null;
             s.parts++;
             s.score += 100;
+            T.sfx && T.sfx("coin");
             if (s.parts >= 3) {
               s.phase = "launch";
               s.launchY = 0;
@@ -13414,13 +13416,17 @@ var PiEngine = (() => {
           a.x += a.vx * dt;
           a.y += Math.sin(t * 3 + a.x) * 0.3;
         }
-        if (Math.random() < dt * 3) s.lasers.push({ x: s.x + 3, y: s.y + 3, dir: s.face, life: 0.4 });
+        if (Math.random() < dt * 3) {
+          s.lasers.push({ x: s.x + 3, y: s.y + 3, dir: s.face, life: 0.4 });
+          T.sfx && T.sfx("laser");
+        }
         for (const l of s.lasers) {
           l.life -= dt;
           l.x += l.dir * 120 * dt;
           for (const a of s.aliens) if (Math.abs(a.x - l.x) < 4 && Math.abs(a.y - l.y) < 4) {
             a.dead = true;
             s.score += 25;
+            T.sfx && T.sfx("boom");
           }
         }
         s.lasers = s.lasers.filter((l) => l.life > 0);
@@ -13454,6 +13460,7 @@ var PiEngine = (() => {
         if (s.on && wantJump) {
           s.vy = -55;
           s.on = false;
+          T.sfx && T.sfx("jump");
         }
         s.vy += 140 * dt;
         s.y += s.vy * dt;
@@ -13470,6 +13477,7 @@ var PiEngine = (() => {
         for (const k of s.keys) if (!k.got && Math.abs(k.x - s.x - 2) < 4 && Math.abs(k.y - s.y) < 6) {
           k.got = true;
           s.score += 100;
+          T.sfx && T.sfx("coin");
         }
         s.robot += s.rdir * 14 * dt;
         if (s.robot < W * 0.55 || s.robot > W * 0.92) s.rdir *= -1;
@@ -13546,6 +13554,7 @@ var PiEngine = (() => {
           s.enemy = { x: rnd(-0.8, 0.8), z: 1 };
           s.score += 300;
           s.flash = 0.2;
+          T.sfx && T.sfx("boom");
         }
         for (let y = TOP; y < hz; y++) for (let x = 0; x < W; x++) T.set(x, y, 0.05, 0.05 + (y - TOP) / hz * 0.1, 0.15);
         for (let y = hz; y < H; y++) for (let x = 0; x < W; x++) {
@@ -13588,6 +13597,7 @@ var PiEngine = (() => {
         if (s.charge > 2.5) {
           s.charge = 0;
           s.beam = 0.3;
+          T.sfx && T.sfx("laser");
         }
         if (Math.random() < dt * 5) s.shots.push({ x: 18, y: s.y });
         for (const b of s.shots) {
@@ -13597,6 +13607,7 @@ var PiEngine = (() => {
             b.dead = true;
             s.booms.push({ x: e.x, y: e.y, t: 0.3 });
             s.score += 50;
+            T.sfx && T.sfx("boom");
           }
         }
         if (s.beam > 0) {
@@ -13648,6 +13659,7 @@ var PiEngine = (() => {
         if (Math.random() < dt * 0.8 || inp.manual && inp.fire) {
           s.fire = 0.15;
           s.score += 100;
+          T.sfx && T.sfx("boom");
         }
         const viewH = H - TOP, fov = 1;
         for (let x = 0; x < W; x++) {
@@ -13727,6 +13739,7 @@ var PiEngine = (() => {
         if (!s.init) Object.assign(s, { init: 1, round: -1, score: 0 });
         const round = Math.floor(t / 8);
         if (round !== s.round) {
+          if (s.round >= 0 && T.sfx) T.sfx("blip");
           s.round = round;
           s.cards = Array.from({ length: 5 }, () => ({ v: Math.floor(Math.random() * 13), s: Math.floor(Math.random() * 4) }));
           s.score += 50;
@@ -13804,6 +13817,7 @@ var PiEngine = (() => {
           s.food = null;
           s.score += 150;
           s.energy = Math.min(1, s.energy + 0.3);
+          T.sfx && T.sfx("coin");
         }
         for (const m of s.mons) {
           m.x += Math.sign(s.x - m.x) * 8 * dt + Math.sin(t * 4 + m.y) * 0.3;
@@ -13873,7 +13887,10 @@ var PiEngine = (() => {
             b.x += (b.k % 2 ? 1 : -1) * 28 * dt * -1;
             if (b.k % 2 === 0 && b.x < 4 || b.k % 2 === 1 && b.x > W - 6) b.fall = 0.01;
           }
-          if (b.k === s.lvl && !s.climb && Math.abs(b.x - s.x) < 4 && !s.jump) s.jump = 0.5;
+          if (b.k === s.lvl && !s.climb && Math.abs(b.x - s.x) < 4 && !s.jump) {
+            s.jump = 0.5;
+            T.sfx && T.sfx("jump");
+          }
         }
         s.barrels = s.barrels.filter((b) => b.k >= 0);
         if (s.jump > 0) {
@@ -13994,7 +14011,10 @@ var PiEngine = (() => {
         }));
         if (inp.manual) s.px = Math.max(3, Math.min(W - 4, s.px + (inp.dir === "left" ? -1 : inp.dir === "right" ? 1 : 0) * 50 * dt));
         else if (tx !== null) s.px += Math.sign(tx - s.px) * Math.min(Math.abs(tx - s.px), 40 * dt);
-        if ((inp.manual ? inp.fire || inp.dir === "up" : Math.random() < dt * 2.5) && s.shots.length < 2) s.shots.push({ x: s.px, y: H - 10 });
+        if ((inp.manual ? inp.fire || inp.dir === "up" : Math.random() < dt * 2.5) && s.shots.length < 2) {
+          s.shots.push({ x: s.px, y: H - 10 });
+          T.sfx && T.sfx("laser");
+        }
         if (Math.random() < dt * 1.6) {
           const live = [];
           s.alive.forEach((row, j) => row.forEach((a, i) => a && live.push([i, j])));
@@ -14012,6 +14032,7 @@ var PiEngine = (() => {
               b.dead = true;
               s.booms.push({ x: ax, y: ay, t: 0.3 });
               s.score += [40, 30, 20, 10][j];
+              T.sfx && T.sfx("boom");
             }
           }));
         }
@@ -14098,7 +14119,10 @@ var PiEngine = (() => {
           const d = s.dots[s.y][s.x];
           if (d) {
             s.score += d === 2 ? 50 : 10;
-            if (d === 2) s.power = 6;
+            if (d === 2) {
+              s.power = 6;
+              T.sfx && T.sfx("coin");
+            } else if (T.sfx) T.sfx("waka");
             s.dots[s.y][s.x] = 0;
           }
           for (const g of s.ghosts) stepMover(g, s.power <= 0, s.x, s.y);
@@ -14190,6 +14214,9 @@ var PiEngine = (() => {
           }
           const o = core.effectOptions && core.effectOptions.retro || {};
           const T = target(st.buf, W, H), t = st.clock = (st.clock || 0) + dt;
+          T.sfx = (name) => {
+            if (core.sfx) core.sfx.push(name);
+          };
           st.buf.fill(0);
           if (o.press !== void 0 && o.press !== st.lastPress) {
             if (st.lastPress !== void 0) {
@@ -14221,6 +14248,7 @@ var PiEngine = (() => {
             if (st.phase === "play" && st.phaseT > rotate) {
               st.phase = attract ? "coin" : "next";
               st.phaseT = 0;
+              if (attract) T.sfx("coin");
             }
             if (st.phase === "coin" && st.phaseT > 2.5) {
               st.phase = "scores";
@@ -14231,6 +14259,7 @@ var PiEngine = (() => {
               st.phase = "play";
               st.phaseT = 0;
               st.score = 0;
+              T.sfx("start");
             }
           }
           if (st.phase === "coin") {
@@ -14408,6 +14437,7 @@ var PiEngine = (() => {
             const star = (vx, vy, extra) => st.stars.push(Object.assign({ x: r.x, y: r.y, vx, vy, life: 1, decay: 0.55 + Math.random() * 0.3, col, trail: 0, drag: 0.985, g: 9 * sz, twinkle: 0 }, extra));
             st.flash = 1;
             st.flashX = r.x / W;
+            if (o.partySfx && core.sfx) core.sfx.push("boom");
             const n = Math.round(60 * Math.min(2, sz));
             switch (r.type) {
               case "peony":

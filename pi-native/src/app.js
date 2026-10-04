@@ -9,6 +9,9 @@ const { CubeCore } = require('./core');
 const { EFFECTS, WALL_EFFECTS } = require('./effects');
 const { OV_DEFAULTS, runOverlays } = require('./effects/overlays');
 const alarms = require('./effects/alarms');
+const sfx = require('./sfx');
+// Plays the sound effects effects asked for, when Sound effects is on (Retro panel).
+function playSfx(state, names) { const o = state.prefs && state.prefs.sfx; if (!o || !o.on || !names) return; for (const n of names.slice(0, 4)) sfx.play(n, o.volume); }
 const radio = require('./effects/radio');
 const { createDiagnostics } = require('./diagnostics');
 const scenes = require('./scenes');
@@ -375,6 +378,7 @@ async function main() {
       }
       state.effectStatus = msg.effectStatus;
       diag.recordFrame(msg.renderMs);
+      playSfx(state, msg.sfx);
       // A timer fired on the render thread and changed what's displayed:
       // adopt it here too, or the next state hand-off would revert it.
       if (msg.applied) { Object.assign(state, msg.applied); if (msg.alarms) { state.alarms = msg.alarms; state.activeAlarm = msg.activeAlarm; alarmConfig.save(state.alarms); } ws._broadcast(ws._stateMsg()); }
@@ -423,6 +427,7 @@ async function main() {
       // inside tick().
       const frameStart = performance.now();
       tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt);
+      if (core.sfx && core.sfx.length) playSfx(state, core.sfx.splice(0));
       if (state.appliedChanges) { delete state.appliedChanges; ws._broadcast(ws._stateMsg()); } // a timer changed the display
 
       // Brightness is applied at push time, not baked into core.colBuf -

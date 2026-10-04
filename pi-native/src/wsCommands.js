@@ -635,7 +635,16 @@ const COMMANDS = {
     if (!this.state.party) this._beforeParty = { effect: this.state.effect, blank: !!this.state.blank, musicReact: JSON.parse(JSON.stringify(this.state.musicReact || { on: false, amount: 0.6 })) };
     this.state.party = { endsAt: Date.now() + min * 60000, text: typeof msg.text === 'string' ? msg.text.toUpperCase().slice(0, 24) : '', step: -1 };
     this._partyAt = 0;
+    const fx = (this.state.prefs || {}).sfx; if (fx && fx.on) require('./sfx').play('horn', fx.volume);
     this._playlistTick();
+    this._broadcast(this._stateMsg());
+  },
+
+  // Sound effects: {on?, volume?}; {test: true} plays a sample.
+  setSfx(ws, msg) {
+    const p = this.state.prefs || prefs.load();
+    this.state.prefs = prefs.save({ ...p, sfx: { on: msg.on === undefined ? p.sfx.on : !!msg.on, volume: msg.volume === undefined ? p.sfx.volume : Number(msg.volume) } });
+    if (msg.test) require('./sfx').play('coin', this.state.prefs.sfx.volume);
     this._broadcast(this._stateMsg());
   },
 

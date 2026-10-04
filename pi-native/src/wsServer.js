@@ -650,6 +650,7 @@ class WsServer {
       const party = this.state.party;
       if (Date.now() >= party.endsAt) {
         const b = this._beforeParty || {}; this.state.party = null; this._beforeParty = null;
+        if (this.state.effectOptions.fireworks) this.state.effectOptions = { ...this.state.effectOptions, fireworks: { ...this.state.effectOptions.fireworks, partySfx: false } };
         if (b.effect) show(b.effect); this.state.blank = !!b.blank; if (b.musicReact) this.state.musicReact = b.musicReact;
         this._broadcast(this._stateMsg());
         return;
@@ -658,7 +659,7 @@ class WsServer {
         this._partyAt = Date.now(); party.step++;
         const lively = ['sphere', 'warp', 'lightning', 'lava_lamp', 'dna', 'random80s'];
         const next = party.step % 2 === 0 ? 'fireworks' : lively[(party.step >> 1) % lively.length];
-        if (next === 'fireworks') this.state.effectOptions = { ...this.state.effectOptions, fireworks: { ...(this.state.effectOptions.fireworks || {}), textOn: !!party.text, text: party.text, finaleToken: Date.now() } };
+        if (next === 'fireworks') this.state.effectOptions = { ...this.state.effectOptions, fireworks: { ...(this.state.effectOptions.fireworks || {}), textOn: !!party.text, text: party.text, finaleToken: Date.now(), partySfx: true } };
         this.state.musicReact = { ...(this.state.musicReact || {}), on: true, amount: Math.max(0.7, (this.state.musicReact && this.state.musicReact.amount) || 0) };
         show(next); this.state.blank = false;
         this._broadcast(this._stateMsg());

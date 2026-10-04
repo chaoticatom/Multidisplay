@@ -17,6 +17,7 @@ class CubeCore {
   constructor(size = 64) {
     this.SIZE = size;
     this.N = 0;
+    this.sfx = []; // sound effect names queued by effects (see src/sfx.js)
     this.gridX = null; this.gridY = null; this.gridZ = null;
     this.surfX = null; this.surfY = null; this.surfZ = null;
     this.faceMap = null;       // faceMap[face] : Int32Array(SIZE*SIZE), value = LED index or -1

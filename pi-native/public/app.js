@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.237';
+const APP_VERSION = '0.6.238';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1022,6 +1022,20 @@ function syncMazePanel() {
 // comment for the exact meaning of each.
 // ---------------------------------------------------------------------
 const RETRO_DEFAULT_AUTO_GAMES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13]; // Sam Fox (9) excluded by default
+// 🔊 Sound effects (Retro panel): on/off, volume, test.
+document.querySelectorAll('[data-sfx]').forEach((b) => b.addEventListener('click', () => {
+  const v = b.dataset.sfx;
+  send(v === 'test' ? { cmd: 'setSfx', test: true } : { cmd: 'setSfx', on: v === 'on' });
+}));
+document.getElementById('sfx-vol')?.addEventListener('change', (e) => send({ cmd: 'setSfx', volume: Number(e.target.value), test: true }));
+document.getElementById('sfx-vol')?.addEventListener('input', (e) => { document.getElementById('sfx-vol-val').textContent = Math.round(e.target.value * 100) + '%'; });
+function syncSfx() {
+  const f = currentState.prefs?.sfx || { on: true, volume: 0.6 };
+  document.querySelectorAll('[data-sfx="on"]').forEach((b) => b.classList.toggle('active', !!f.on));
+  document.querySelectorAll('[data-sfx="off"]').forEach((b) => b.classList.toggle('active', !f.on));
+  const vol = document.getElementById('sfx-vol');
+  if (vol && document.activeElement !== vol) { vol.value = f.volume; document.getElementById('sfx-vol-val').textContent = Math.round(f.volume * 100) + '%'; }
+}
 let _retroPress = 0;
 function wireRetroPanel() {
   // Arrow pad: same idea as Snake's (dir + a press counter so repeats register).
@@ -4991,6 +5005,7 @@ function syncAutoBackup() {
 }
 function syncAccessChecks() {
   syncParty();
+  syncSfx();
   syncAutoBackup();
   syncCountdownPanel();
   const a = currentState.prefs?.access || { localNoPin: true, guests: false };

@@ -74,6 +74,7 @@ module.exports = defineCanvasEffect({
       const sz = opt.size, col = r.col, col2 = PAL[opt.palette]();
       const star = (vx, vy, extra) => st.stars.push(Object.assign({ x: r.x, y: r.y, vx, vy, life: 1, decay: 0.55 + Math.random() * 0.3, col, trail: 0, drag: 0.985, g: 9 * sz, twinkle: 0 }, extra));
       st.flash = 1; st.flashX = r.x / W;
+      if (o.partySfx && core.sfx) core.sfx.push('boom'); // bangs during Party mode
       const n = Math.round(60 * Math.min(2, sz));
       switch (r.type) {
         case 'peony': for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, v = (14 + Math.random() * 6) * sz; star(Math.cos(a) * v, Math.sin(a) * v); } break;

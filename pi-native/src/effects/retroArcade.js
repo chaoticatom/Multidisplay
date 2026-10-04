@@ -58,9 +58,9 @@ function invaders(s, T, dt, t, inp = {}) {
   let tx = null; s.alive.forEach((row) => row.forEach((a, i) => { if (a) tx = s.x + i * 11 + 4; }));
   if (inp.manual) s.px = Math.max(3, Math.min(W - 4, s.px + (inp.dir === 'left' ? -1 : inp.dir === 'right' ? 1 : 0) * 50 * dt));
   else if (tx !== null) s.px += Math.sign(tx - s.px) * Math.min(Math.abs(tx - s.px), 40 * dt);
-  if ((inp.manual ? inp.fire || inp.dir === 'up' : Math.random() < dt * 2.5) && s.shots.length < 2) s.shots.push({ x: s.px, y: H - 10 });
+  if ((inp.manual ? inp.fire || inp.dir === 'up' : Math.random() < dt * 2.5) && s.shots.length < 2) { s.shots.push({ x: s.px, y: H - 10 }); T.sfx && T.sfx('laser'); }
   if (Math.random() < dt * 1.6) { const live = []; s.alive.forEach((row, j) => row.forEach((a, i) => a && live.push([i, j]))); if (live.length) { const [i, j] = live[Math.floor(Math.random() * live.length)]; s.bombs.push({ x: s.x + i * 11 + 4, y: s.y + j * 9 + 8 }); } }
-  for (const b of s.shots) { b.y -= 70 * dt; s.alive.forEach((row, j) => row.forEach((a, i) => { const ax = s.x + i * 11, ay = s.y + j * 9; if (a && b.x >= ax && b.x < ax + 8 && b.y >= ay && b.y < ay + 8) { row[i] = false; b.dead = true; s.booms.push({ x: ax, y: ay, t: 0.3 }); s.score += [40, 30, 20, 10][j]; } })); }
+  for (const b of s.shots) { b.y -= 70 * dt; s.alive.forEach((row, j) => row.forEach((a, i) => { const ax = s.x + i * 11, ay = s.y + j * 9; if (a && b.x >= ax && b.x < ax + 8 && b.y >= ay && b.y < ay + 8) { row[i] = false; b.dead = true; s.booms.push({ x: ax, y: ay, t: 0.3 }); s.score += [40, 30, 20, 10][j]; T.sfx && T.sfx('boom'); } })); }
   s.shots = s.shots.filter((b) => !b.dead && b.y > top);
   for (const b of s.bombs) b.y += 30 * dt; s.bombs = s.bombs.filter((b) => b.y < H - 4);
   if (!s.alive.some((r) => r.some(Boolean)) || s.y > H - 30) s.alive = null;
@@ -96,7 +96,7 @@ function pacman(s, T, dt, t, inp = {}) {
     if (PD && open(s.x + PD[0], s.y + PD[1])) { s.dx = PD[0]; s.dy = PD[1]; s.x += s.dx; s.y += s.dy; }
     else if (inp.manual) { if (open(s.x + s.dx, s.y + s.dy)) { s.x += s.dx; s.y += s.dy; } }
     else stepMover(s, true, tx, ty);
-    const d = s.dots[s.y][s.x]; if (d) { s.score += d === 2 ? 50 : 10; if (d === 2) s.power = 6; s.dots[s.y][s.x] = 0; }
+    const d = s.dots[s.y][s.x]; if (d) { s.score += d === 2 ? 50 : 10; if (d === 2) { s.power = 6; T.sfx && T.sfx('coin'); } else if (T.sfx) T.sfx('waka'); s.dots[s.y][s.x] = 0; }
     for (const g of s.ghosts) stepMover(g, s.power <= 0, s.x, s.y);
     if (!s.dots.some((r) => r.some(Boolean))) s.dots = null;
     if (!s.dots) return s.score;
@@ -158,6 +158,7 @@ module.exports = defineCanvasEffect({
     if (st.W !== W || st.H !== H) { st.W = W; st.H = H; st.buf = new Float32Array(W * H * 3); }
     const o = (core.effectOptions && core.effectOptions.retro) || {};
     const T = target(st.buf, W, H), t = (st.clock = (st.clock || 0) + dt);
+    T.sfx = (name) => { if (core.sfx) core.sfx.push(name); };
     st.buf.fill(0);
     // Phone controls (the arrow pad in the Retro options): taps bump o.press;
     // a game is in manual mode for 8 s after the last tap.
@@ -171,9 +172,9 @@ module.exports = defineCanvasEffect({
     if (sel >= 0) { if (st.cur !== sel) { st.cur = sel; st.phase = 'play'; st.phaseT = 0; st.score = 0; } }
     else {
       if (st.cur < 0 || !pool.includes(st.cur)) { st.cur = pool[0]; st.phase = 'play'; st.phaseT = 0; }
-      if (st.phase === 'play' && st.phaseT > rotate) { st.phase = attract ? 'coin' : 'next'; st.phaseT = 0; }
+      if (st.phase === 'play' && st.phaseT > rotate) { st.phase = attract ? 'coin' : 'next'; st.phaseT = 0; if (attract) T.sfx('coin'); }
       if (st.phase === 'coin' && st.phaseT > 2.5) { st.phase = 'scores'; st.phaseT = 0; }
-      if ((st.phase === 'scores' && st.phaseT > 3) || st.phase === 'next') { st.cur = pool[(pool.indexOf(st.cur) + 1) % pool.length]; st.phase = 'play'; st.phaseT = 0; st.score = 0; }
+      if ((st.phase === 'scores' && st.phaseT > 3) || st.phase === 'next') { st.cur = pool[(pool.indexOf(st.cur) + 1) % pool.length]; st.phase = 'play'; st.phaseT = 0; st.score = 0; T.sfx('start'); }
     }
     if (st.phase === 'coin') {
       T.ctext('INSERT COIN', Math.round(H / 2) - 8, Math.sin(t * 6) > 0 ? [1, 0.85, 0.2] : [0.4, 0.3, 0.05]);
