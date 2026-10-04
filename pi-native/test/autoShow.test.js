@@ -67,3 +67,34 @@ t('each part of the day can set the brightness as it begins', () => {
   assert.strictEqual(prefs.clean({ dayPlan: { brightness: { day: null } } }).dayPlan.brightness.day, null);
 });
 if (failed) process.exitCode = 1;
+
+// A real report: picking the spectrum switched itself back after a couple of
+// seconds - "match the weather" (and the day plan) forced their effect on
+// every 5 s tick. Now they switch only when the weather / part of the day
+// changes, and a choice made by hand stays in between.
+t('weather mode switches on a weather change, then leaves a manual pick alone', () => {
+  const WsServer = require('../src/wsServer');
+  const p = prefs.clean({ weatherMode: { on: true } });
+  const fake = { state: { prefs: p, effect: 'plasma', effectOptions: {}, blank: false }, _broadcast() {}, _stateMsg() { return {}; }, _playlistSince: 0, _wx: { code: 2, isDay: false }, _wxAt: Date.now() };
+  WsServer.prototype._playlistTick.call(fake);
+  assert.strictEqual(fake.state.effect, 'nebula');
+  fake.state.effect = 'radio'; // picked by hand
+  WsServer.prototype._playlistTick.call(fake);
+  WsServer.prototype._playlistTick.call(fake);
+  assert.strictEqual(fake.state.effect, 'radio', 'the manual pick stays');
+  fake._wx = { code: 2, isDay: true }; // the weather's effect changes
+  WsServer.prototype._playlistTick.call(fake);
+  assert.strictEqual(fake.state.effect, 'tide');
+});
+t('day plan leaves a manual pick alone within the same part of the day', () => {
+  const WsServer = require('../src/wsServer');
+  const part = auto.partAt(null, new Date());
+  const p = prefs.clean({ dayPlan: { on: true, effects: { [part]: ['starfield', 'aurora'] } } });
+  const fake = { state: { prefs: p, effect: 'plasma', effectOptions: {}, blank: false }, _broadcast() {}, _stateMsg() { return {}; }, _playlistSince: 0 };
+  WsServer.prototype._playlistTick.call(fake);
+  assert.strictEqual(fake.state.effect, 'starfield');
+  fake.state.effect = 'radio';
+  WsServer.prototype._playlistTick.call(fake);
+  assert.strictEqual(fake.state.effect, 'radio');
+});
+if (failed) process.exitCode = 1;

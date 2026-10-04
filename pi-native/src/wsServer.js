@@ -700,14 +700,20 @@ class WsServer {
           .finally(() => { this._wxBusy = false; this._broadcast(this._stateMsg()); });
       }
       if (!city) st.weather = { error: 'Set your town in the Weather effect first' };
-      if (this._wx && show(autoShow.effectForWeather(this._wx.code, !this._wx.isDay))) this._broadcast(this._stateMsg());
+      // Switch only when the weather's effect changes, so something picked
+      // by hand stays until the weather turns (it used to be forced back
+      // every 5 s - a real report: the spectrum switched itself off).
+      const wxEffect = this._wx ? autoShow.effectForWeather(this._wx.code, !this._wx.isDay) : null;
+      if (wxEffect && wxEffect !== this._wxShown) { this._wxShown = wxEffect; if (show(wxEffect)) this._broadcast(this._stateMsg()); }
       return;
     }
+    this._wxShown = null;
     // 3. Playlist, using the current part of the day's effects when the day plan is on.
     let list = p.favourites;
     if (p.dayPlan && p.dayPlan.on) {
       const part = autoShow.partAt(p.dayPlan.starts, now);
-      if (part !== st.part) {
+      const partChanged = part !== st.part;
+      if (partChanged) {
         st.part = part; this._playlistSince = 0;
         // Each part of the day can set its own brightness as it begins.
         const b = p.dayPlan.brightness && p.dayPlan.brightness[part];
@@ -715,7 +721,9 @@ class WsServer {
       }
       const own = (p.dayPlan.effects[part] || []).filter((k) => EFFECTS[k]);
       if (own.length) list = own;
-      if (own.length && !own.includes(this.state.effect)) { if (show(own[0])) this._broadcast(this._stateMsg()); return; }
+      // A new part of the day starts on its own effects; within it, an effect
+      // picked by hand stays (the playlist moves on after its usual minutes).
+      if (partChanged && own.length && !own.includes(this.state.effect)) { if (show(own[0])) this._broadcast(this._stateMsg()); return; }
     } else st.part = '';
     if (!p.playlist || !p.playlist.on) return;
     const favs = list.filter((k) => EFFECTS[k]);
