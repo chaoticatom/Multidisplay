@@ -46,11 +46,12 @@ module.exports = defineCanvasEffect({
       }
     }
     const H = c.H;
-    // Box: dark back wall fading down to a lit floor.
+    // Box: near-black back wall fading down to a dim floor (darker on request -
+    // on the panels the old levels read as a bright khaki backdrop).
     const fy = floor * H;
     for (let y = 0; y < c.H; y++) for (let x = 0; x < c.W; x++) {
-      if (y < fy) { const v = 0.02 + (y / fy) * 0.05; c.set(x, y, v * 0.6, v * 0.7, v); }
-      else { const v = 0.09 - (y - fy) / (H - fy + 1) * 0.04; c.set(x, y, v * 0.7, v * 0.75, v * 0.9); }
+      if (y < fy) { const v = 0.004 + (y / fy) * 0.016; c.set(x, y, v * 0.6, v * 0.7, v); }
+      else { const v = 0.03 - (y - fy) / (H - fy + 1) * 0.012; c.set(x, y, v * 0.7, v * 0.75, v * 0.9); }
     }
     // Shadows on the floor.
     for (const b of st.balls) {

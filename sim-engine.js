@@ -15919,10 +15919,10 @@ var PiEngine = (() => {
           const fy = floor * H;
           for (let y = 0; y < c.H; y++) for (let x = 0; x < c.W; x++) {
             if (y < fy) {
-              const v = 0.02 + y / fy * 0.05;
+              const v = 4e-3 + y / fy * 0.016;
               c.set(x, y, v * 0.6, v * 0.7, v);
             } else {
-              const v = 0.09 - (y - fy) / (H - fy + 1) * 0.04;
+              const v = 0.03 - (y - fy) / (H - fy + 1) * 0.012;
               c.set(x, y, v * 0.7, v * 0.75, v * 0.9);
             }
           }
