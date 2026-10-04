@@ -642,6 +642,13 @@ function renderPrePhase(core, dt, state, EFFECTS, wall = false) {
     renderAlarmSunrise(core, progress, startBright);
   }
 
+  // A dull red pixel in the corner: the start of a sunrise is nearly black,
+  // so this shows a wake-up is under way.
+  if (!windDown) {
+    if (wall) core.setWallPixel(core.wallW - 1, core.wallH - 1, 0.6, 0, 0);
+    else core.setFaceLED(0, core.SIZE - 1, 0, 0.6, 0, 0);
+  }
+
   const remaining = Math.max(0, Math.ceil((a.preMs - elapsed) / 1000));
   const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
   const ss = String(remaining % 60).padStart(2, '0');

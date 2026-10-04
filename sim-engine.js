@@ -25877,6 +25877,10 @@ var PiEngine = (() => {
         } else {
           renderAlarmSunrise(core, progress, startBright);
         }
+        if (!windDown) {
+          if (wall) core.setWallPixel(core.wallW - 1, core.wallH - 1, 0.6, 0, 0);
+          else core.setFaceLED(0, core.SIZE - 1, 0, 0.6, 0, 0);
+        }
         const remaining = Math.max(0, Math.ceil((a.preMs - elapsed) / 1e3));
         const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
         const ss = String(remaining % 60).padStart(2, "0");
