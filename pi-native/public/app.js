@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.245';
+const APP_VERSION = '0.6.246';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2975,17 +2975,7 @@ function syncClearAllButton() {
   const btn = document.getElementById('clear-all-btn'), blank = !!currentState.blank, panels = !!currentState.panelsOff;
   if (btn) { btn.classList.toggle('active', blank); btn.classList.toggle('is-off', blank); btn.title = blank ? 'Display is OFF - tap an effect or Turn on' : 'Display off (music keeps playing)'; }
   document.getElementById('panels-off-btn')?.classList.toggle('is-off', panels);
-  // Banner across the top while the display or the panels are off.
-  const ban = document.getElementById('off-banner');
-  if (ban) {
-    ban.hidden = !blank && !panels;
-    document.getElementById('off-banner-text').textContent = blank && panels ? '⏻ Display and LED panels are off' : blank ? '⏻ The display is off' : '💡 The LED panels are off';
-  }
 }
-document.getElementById('off-banner-on')?.addEventListener('click', () => {
-  if (currentState.panelsOff) send({ cmd: 'setPanelsOff', on: false });
-  if (currentState.blank) send({ cmd: 'setEffect', effect: currentState.effect || 'plasma' });
-});
 
 // "🔇 Stop Sound" - next to Clear All. Radio plays in the background
 // regardless of which effect is selected/displayed, so Clear All blanking

@@ -136,8 +136,10 @@ function effectCelestialWall(core, dt) {
   if (body === 'moon') {
     // Centered on the FULL wall, radius pinned to the shorter axis so the
     // disc stays circular - see module comment.
-    const moonRad = Math.round(Math.min(W, H) * 0.42) - 1;
-    const cx = Math.round(W / 2), cy = Math.round(H / 2) + 4;
+    // As big as fits above the label strip (the bottom 8 rows), never over it.
+    const areaH = H - 8;
+    const moonRad = Math.floor(Math.min(W, areaH) / 2) - 1;
+    const cx = Math.round(W / 2), cy = Math.floor(areaH / 2);
 
     const frac = mi0.fraction;
     const waxing = phase < 0.5;

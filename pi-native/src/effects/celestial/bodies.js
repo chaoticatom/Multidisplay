@@ -60,7 +60,7 @@ function _earthCloudAt(lonD, latD) {
 
 function drawSaturn(core, faces, W, H, tt) {
   const { colBuf, faceMap } = core;
-  const textTop = 7, topLimit = H - 3;
+  const textTop = 8, topLimit = H - 1; // fill up to the top edge, stop above the label
   const cy = Math.round((textTop + topLimit) / 2);
   const cx = W / 2;
   const halfW = cx - 2;
@@ -193,8 +193,8 @@ function drawSaturn(core, faces, W, H, tt) {
 
 function drawPlanet(core, body, faces, W, H, tt) {
   const { colBuf, faceMap } = core;
-  const textTop = 7;
-  const topLimit = H - 3;
+  const textTop = 8;
+  const topLimit = H - 1; // fill up to the top edge, stop above the label
   const cy = Math.round((textTop + topLimit) / 2);
   const cx = W / 2;
   const halfH = Math.min(cy - textTop, topLimit - cy);

@@ -574,7 +574,7 @@ input[type=range]:focus-visible { outline: 2px solid #7aadff; outline-offset: 3p
 /* ── Phone: controls as a bottom sheet under the live preview (was a
    full-screen slide-in that hid the display entirely). ── */
 @media (max-width: 768px) {
-  #sidebar { top: auto; bottom: 0; height: 62vh; height: 62dvh; transform: translateY(105%);
+  #sidebar { top: auto; bottom: 0; height: 70vh; height: 70dvh; transform: translateY(105%);
              border-radius: 16px 16px 0 0; border-top: 1px solid rgba(80,120,255,0.35); box-shadow: 0 -10px 30px rgba(0,0,0,0.6); }
   #sidebar.open { transform: translateY(0); }
   #sidebar.cx-full { height: 92vh; height: 92dvh; }
@@ -997,9 +997,6 @@ body.guest .party-box { display: none; }
 @keyframes off-pulse { 50% { box-shadow: 0 0 0 2px #fff, 0 0 6px 1px rgba(255,51,85,.5); } }
 @media (prefers-reduced-motion: reduce) { #panels-off-btn.is-off, #preview-off-btn.is-off, #clear-all-btn.is-off { animation: none; } }
 #sidebar-brightness-bar { padding-bottom: 16px !important; position: relative; z-index: 2; } /* room for the ON/OFF labels */
-#off-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 14px; background: linear-gradient(90deg, #b3002d, #ff3355); color: #fff; font-size: 14px; font-weight: 600; flex-shrink: 0; }
-#off-banner[hidden] { display: none; }
-#off-banner button { border: none; border-radius: 999px; padding: 6px 14px; background: #fff; color: #b3002d; font-weight: 700; cursor: pointer; }
 /* ── Favourites strip and scene tiles ── */
 #fav-strip { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 10px; margin-bottom: 6px; scrollbar-width: thin; flex-wrap: nowrap; align-items: stretch; }
 #fav-strip[hidden] { display: none; }
@@ -1166,7 +1163,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
        where "which overlay intensity does this control" is unambiguous;
        the old #bright-slider row in the Display section was removed
        (this is now its only copy, not a duplicate). -->
-  <div id="off-banner" hidden role="status"><span id="off-banner-text">⏻ The display is off</span><button type="button" id="off-banner-on">Turn on</button></div>
   <div id="sidebar-brightness-bar" style="padding:8px 10px 16px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;background:rgba(80,120,255,0.07);">
     <div class="slider-row" style="margin-bottom:0;">
       <!-- #bright-label sizes to its text (see its CSS rule) - a fixed

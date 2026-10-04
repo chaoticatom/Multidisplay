@@ -16884,7 +16884,7 @@ var PiEngine = (() => {
       }
       function drawSaturn(core, faces, W, H, tt) {
         const { colBuf, faceMap } = core;
-        const textTop = 7, topLimit = H - 3;
+        const textTop = 8, topLimit = H - 1;
         const cy = Math.round((textTop + topLimit) / 2);
         const cx = W / 2;
         const halfW = cx - 2;
@@ -17044,8 +17044,8 @@ var PiEngine = (() => {
       }
       function drawPlanet(core, body, faces, W, H, tt) {
         const { colBuf, faceMap } = core;
-        const textTop = 7;
-        const topLimit = H - 3;
+        const textTop = 8;
+        const topLimit = H - 1;
         const cy = Math.round((textTop + topLimit) / 2);
         const cx = W / 2;
         const halfH = Math.min(cy - textTop, topLimit - cy);
@@ -23674,8 +23674,9 @@ var PiEngine = (() => {
         }
         const mi0 = getMoonIllumination(/* @__PURE__ */ new Date());
         if (body === "moon") {
-          const moonRad = Math.round(Math.min(W, H) * 0.42) - 1;
-          const cx = Math.round(W / 2), cy = Math.round(H / 2) + 4;
+          const areaH = H - 8;
+          const moonRad = Math.floor(Math.min(W, areaH) / 2) - 1;
+          const cx = Math.round(W / 2), cy = Math.floor(areaH / 2);
           const frac = mi0.fraction;
           const waxing = phase < 0.5;
           const termPos = frac * 2 - 1;
