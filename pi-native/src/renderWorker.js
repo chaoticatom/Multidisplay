@@ -202,6 +202,7 @@ parentPort.on('message', (msg) => {
       alarms: state.alarms,
       version: workerVersion, // which main-thread state this frame was computed from
       blank: state.blank,
+      brightness: state.brightness, // a sunrise/wind-down changes it here; the preview follows (see app.js)
       effectStatus: state.effectStatus,
       sfx: core.sfx && core.sfx.length ? core.sfx.splice(0) : undefined, // sound effects to play (see src/sfx.js)
       radioAudio: remoteAudio.request(),

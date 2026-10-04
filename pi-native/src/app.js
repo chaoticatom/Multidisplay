@@ -383,7 +383,7 @@ async function main() {
       // adopt it here too, or the next state hand-off would revert it.
       if (msg.applied) { Object.assign(state, msg.applied); if (msg.alarms) { state.alarms = msg.alarms; state.activeAlarm = msg.activeAlarm; alarmConfig.save(state.alarms); } ws._broadcast(ws._stateMsg()); }
       radioSeen = applyRemoteRequest(radio.audio, msg.radioAudio, radioSeen);
-      ws.maybeStreamFrame(core, state.brightness);
+      ws.maybeStreamFrame(core, Number.isFinite(msg.brightness) ? msg.brightness : state.brightness); // the worker's brightness, so a sunrise brightens the preview too
       if (pendingBroadcast) { pendingBroadcast = false; ws._broadcast(ws._stateMsg()); }
       // Adaptive frame rate: keep the render thread at most ~70% busy.
       // A heavy effect on several panels could take ~14ms of the 16.7ms a
