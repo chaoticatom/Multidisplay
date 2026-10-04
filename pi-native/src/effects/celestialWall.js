@@ -90,7 +90,9 @@ function getFakeCore(core, W, H) {
 function blitFakeToWall(core, W, H) {
   for (let i = 0; i < W * H; i++) {
     const o = i * 3;
-    const x = i % W, y = (i / W) | 0;
+    // The body renderers count rows upwards (as cube faces do), so flip them:
+    // otherwise the Earth was upside down and its countries unrecognisable.
+    const x = i % W, y = H - 1 - ((i / W) | 0);
     core.setWallPixel(x, y, _fakeColBuf[o], _fakeColBuf[o + 1], _fakeColBuf[o + 2]);
   }
 }
@@ -225,6 +227,8 @@ function effectCelestialWall(core, dt) {
   else _moonScrollX = 0;
   const textBaseV = 1;
   const scrollOff = needScroll ? Math.floor(W - _moonScrollX) : Math.floor((W - textW) / 2);
+  // Keep the label strip clear, so a glow (the Sun's corona) never sits behind the text.
+  for (let y = H - 8; y < H; y++) for (let x = 0; x < W; x++) core.setWallPixel(x, y, 0, 0, 0);
   drawMoonTextWall(core, W, H, moonText, scrollOff, textBaseV);
 }
 

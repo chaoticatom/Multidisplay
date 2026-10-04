@@ -16850,6 +16850,18 @@ var PiEngine = (() => {
       var _cloudLats = [-75, -45, -15, 15, 45, 75];
       var _cloudLons = [-165, -135, -105, -75, -45, -15, 15, 45, 75, 105, 135, 165];
       var _cloudCache = { grid: null, ts: 0 };
+      function _vn(x, y) {
+        const h = (a2, b2) => {
+          const q = Math.sin(a2 * 127.1 + b2 * 311.7) * 43758.5453;
+          return q - Math.floor(q);
+        };
+        const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+        const a = h(xi, yi), b = h(xi + 1, yi), c = h(xi, yi + 1), d = h(xi + 1, yi + 1);
+        return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+      }
+      var _fbm = (x, y) => _vn(x, y) * 0.5 + _vn(x * 2.1, y * 2.1) * 0.27 + _vn(x * 4.3, y * 4.3) * 0.15 + _vn(x * 8.7, y * 8.7) * 0.08;
+      var _DESERTS = [[-17, 35, 15, 32], [35, 60, 13, 32], [90, 120, 37, 48], [115, 150, -32, -18], [-118, -103, 25, 37], [15, 26, -28, -19], [-71, -68, -27, -18], [-71, -64, -50, -40], [52, 70, 25, 40]];
+      var _isDesert = (lo, la) => _DESERTS.some(([a, b, c, d]) => lo >= a && lo <= b && la >= c && la <= d);
       function _earthFetchClouds() {
         if (Date.now() - _cloudCache.ts < 18e5 && _cloudCache.grid) return;
         _cloudCache.ts = Date.now();
@@ -17135,63 +17147,68 @@ var PiEngine = (() => {
               const eLatD = eLat * 180 / Math.PI, eLonD = eLon * 180 / Math.PI;
               const eAbsLat = Math.abs(eLatD);
               const eLand = _earthIsLand(eLonD, eLatD);
+              const tex = _fbm(eLonD * 0.08 + 50, eLatD * 0.08 + 20);
               if (eLand) {
-                if (eAbsLat > 72) {
-                  pr = 0.82;
-                  pg = 0.86;
-                  pb = 0.9;
-                } else if (eAbsLat > 58) {
-                  pr = 0.28;
-                  pg = 0.38;
-                  pb = 0.22;
-                } else if (eAbsLat < 28 && (eLonD > -18 && eLonD < 42 && eLatD > 15 || eLonD > 42 && eLonD < 62 && eLatD > 14 && eLatD < 32 || eLonD > 118 && eLonD < 152 && eLatD < -14 && eLatD > -32)) {
-                  pr = 0.72;
-                  pg = 0.58;
-                  pb = 0.32;
-                } else if (eAbsLat < 18) {
-                  pr = 0.1;
-                  pg = 0.36;
-                  pb = 0.08;
+                const greenland = eLatD > 60 && eLonD > -60 && eLonD < -18;
+                if (eLatD < -62 || eAbsLat > 78 || greenland) {
+                  const k = 0.88 + tex * 0.12;
+                  pr = 0.86 * k;
+                  pg = 0.9 * k;
+                  pb = 0.95 * k;
+                } else if (_isDesert(eLonD, eLatD)) {
+                  const k = 0.8 + tex * 0.4;
+                  pr = 0.78 * k;
+                  pg = 0.6 * k;
+                  pb = 0.36 * k;
+                } else if (eAbsLat > 60) {
+                  const k = 0.75 + tex * 0.5;
+                  pr = 0.36 * k;
+                  pg = 0.4 * k;
+                  pb = 0.3 * k;
+                } else if (eAbsLat < 15) {
+                  const k = 0.7 + tex * 0.5;
+                  pr = 0.07 * k;
+                  pg = 0.32 * k;
+                  pb = 0.08 * k;
                 } else {
-                  pr = 0.2;
-                  pg = 0.42;
-                  pb = 0.14;
+                  const k = 0.75 + tex * 0.5;
+                  const dry = Math.max(0, 1 - Math.abs(eAbsLat - 30) / 12) * 0.5;
+                  pr = (0.18 + dry * 0.35) * k;
+                  pg = (0.4 + dry * 0.05) * k;
+                  pb = (0.13 + dry * 0.05) * k;
                 }
-                pr += noise * 0.8;
-                pg += noise * 0.8;
-                pb += noise * 0.5;
-                const elev = Math.sin(eLon * 5 + eLat * 7) * 0.5 + Math.sin(eLon * 11 - eLat * 9) * 0.3;
-                if (elev > 0.3) {
-                  const ef = (elev - 0.3) * 0.08;
-                  pr += ef;
-                  pg += ef * 0.7;
-                  pb += ef * 0.5;
+                if (tex > 0.68) {
+                  const m = (tex - 0.68) * 1.2;
+                  pr += m * 0.5;
+                  pg += m * 0.4;
+                  pb += m * 0.35;
                 }
               } else {
-                pr = 0.04;
-                pg = 0.08;
-                pb = 0.32;
-                const wd = (Math.sin(eLon * 7 + eLat * 5) * 0.5 + 0.5) * 0.06;
-                pr += wd * 0.1;
-                pg += wd * 0.3;
-                pb += wd;
+                const coast = _earthIsLand(eLonD + 2, eLatD) || _earthIsLand(eLonD - 2, eLatD) || _earthIsLand(eLonD, eLatD + 2) || _earthIsLand(eLonD, eLatD - 2);
+                pr = 0.02;
+                pg = coast ? 0.18 : 0.08;
+                pb = coast ? 0.42 : 0.3;
+                pg += tex * 0.03;
+                pb += tex * 0.05;
+                const glint = Math.pow(Math.max(0, dx * -0.35 + dy * -0.35 + nz * 0.87), 160) * 0.35;
+                pr += glint;
+                pg += glint;
+                pb += glint * 0.9;
               }
               let cc = _earthCloudAt(eLonD, eLatD);
-              const cn1 = Math.sin(rdx * 9 + tdy * 7 + tt * 0.3) * 0.5 + 0.5;
-              const cn2 = Math.sin(rdx * 16 - tdy * 11 + tt * 0.15) * 0.5 + 0.5;
-              const cn3 = Math.sin((rdx + tdy) * 6 - tt * 0.2) * 0.5 + 0.5;
-              if (cc < 0) cc = cn1 * 0.4 + cn2 * 0.25 + cn3 * 0.15;
-              else cc = cc * 0.6 + (cn1 * 0.3 + cn2 * 0.2) * 0.4;
-              if (cc > 0.25) {
-                const cf = Math.min(0.85, (cc - 0.25) * 1.2);
-                pr = pr * (1 - cf) + 0.92 * cf;
-                pg = pg * (1 - cf) + 0.94 * cf;
-                pb = pb * (1 - cf) + 0.97 * cf;
+              const swirlX = eLonD * 0.05 + _fbm(eLonD * 0.03, eLatD * 0.05) * 1.5 + tt * 0.01, swirlY = eLatD * 0.07;
+              const natural = _fbm(swirlX, swirlY) * (0.75 + 0.25 * Math.exp(-((eAbsLat - 50) ** 2) / 200) + 0.2 * Math.exp(-(eLatD ** 2) / 60));
+              cc = cc < 0 ? natural : cc * 0.7 + natural * 0.3;
+              if (cc > 0.52) {
+                const cf = Math.min(0.92, (cc - 0.52) * 2.6);
+                pr = pr * (1 - cf) + 0.95 * cf;
+                pg = pg * (1 - cf) + 0.96 * cf;
+                pb = pb * (1 - cf) + 0.98 * cf;
               }
-              const atm = (1 - nz) * (1 - nz) * 0.3;
+              const atm = Math.pow(1 - nz, 2.2) * 0.55;
               pr += atm * 0.25;
-              pg += atm * 0.45;
-              pb += atm * 0.9;
+              pg += atm * 0.5;
+              pb += atm * 1;
             } else if (body === "mars") {
               pr = 0.75 + noise;
               pg = 0.35 + noise * 0.7;
@@ -23637,7 +23654,7 @@ var PiEngine = (() => {
       function blitFakeToWall(core, W, H) {
         for (let i = 0; i < W * H; i++) {
           const o = i * 3;
-          const x = i % W, y = i / W | 0;
+          const x = i % W, y = H - 1 - (i / W | 0);
           core.setWallPixel(x, y, _fakeColBuf[o], _fakeColBuf[o + 1], _fakeColBuf[o + 2]);
         }
       }
@@ -23758,6 +23775,7 @@ var PiEngine = (() => {
         else _moonScrollX = 0;
         const textBaseV = 1;
         const scrollOff = needScroll ? Math.floor(W - _moonScrollX) : Math.floor((W - textW) / 2);
+        for (let y = H - 8; y < H; y++) for (let x = 0; x < W; x++) core.setWallPixel(x, y, 0, 0, 0);
         drawMoonTextWall(core, W, H, moonText, scrollOff, textBaseV);
       }
       module.exports = effectCelestialWall;
