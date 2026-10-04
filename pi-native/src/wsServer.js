@@ -192,6 +192,7 @@ const { ensureSelfSignedCert } = require('./tls');
 const youtube = require('./youtube');
 const autoShow = require('./autoShow');
 const access = require('./access');
+const autoBackup = require('./autoBackup');
 const fs = require('fs');
 const path = require('path');
 const { EFFECTS, EFFECT_NAMES, WALL_EFFECTS } = require('./effects');
@@ -309,6 +310,9 @@ class WsServer {
     this._lastFrameMs = 0;
     this._playlistSince = Date.now();
     setInterval(() => this._playlistTick(), 5000).unref();
+    // Weekly settings backup (see src/autoBackup.js): at start-up, then hourly.
+    this.state.backup = autoBackup.maybeBackup();
+    setInterval(() => { const before = JSON.stringify(this.state.backup); this.state.backup = autoBackup.maybeBackup(); if (JSON.stringify(this.state.backup) !== before) this._broadcast(this._stateMsg()); }, 3600000).unref();
 
     // One HTTP server handles both the control page (GET /, GET
     // /effects.json) and the WebSocket upgrade, on the same port - so
@@ -640,6 +644,27 @@ class WsServer {
       this.state.effect = effect; this.state.blank = false; this._playlistSince = Date.now();
       return true;
     };
+    // 0. Party mode: a lively effect every 90 s (fireworks with the message
+    // first and every other turn), music reaction on; back to before at the end.
+    if (this.state.party) {
+      const party = this.state.party;
+      if (Date.now() >= party.endsAt) {
+        const b = this._beforeParty || {}; this.state.party = null; this._beforeParty = null;
+        if (b.effect) show(b.effect); this.state.blank = !!b.blank; if (b.musicReact) this.state.musicReact = b.musicReact;
+        this._broadcast(this._stateMsg());
+        return;
+      }
+      if (Date.now() - (this._partyAt || 0) > 90000) {
+        this._partyAt = Date.now(); party.step++;
+        const lively = ['sphere', 'warp', 'lightning', 'lava_lamp', 'dna', 'random80s'];
+        const next = party.step % 2 === 0 ? 'fireworks' : lively[(party.step >> 1) % lively.length];
+        if (next === 'fireworks') this.state.effectOptions = { ...this.state.effectOptions, fireworks: { ...(this.state.effectOptions.fireworks || {}), textOn: !!party.text, text: party.text, finaleToken: Date.now() } };
+        this.state.musicReact = { ...(this.state.musicReact || {}), on: true, amount: Math.max(0.7, (this.state.musicReact && this.state.musicReact.amount) || 0) };
+        show(next); this.state.blank = false;
+        this._broadcast(this._stateMsg());
+      }
+      return;
+    }
     // 1. Celebrations.
     const cel = autoShow.celebrationAt(p.celebrations, now);
     if (cel && this._celebrationKey !== cel.key) {
@@ -700,6 +725,8 @@ class WsServer {
       blank: !!this.state.blank,
       panelsOff: !!this.state.panelsOff,
       autoStatus: this.state.autoStatus || {},
+      backup: this.state.backup || null,
+      party: this.state.party ? { endsAt: this.state.party.endsAt, text: this.state.party.text } : null,
       musicReact: this.state.musicReact || { on: false, amount: 0.6 },
       scenes: (this.state.scenes || []).map((sc) => ({ name: sc.name, effect: sc.effect })),
       panelSize: this.config.size, panelMode: this.config.mode, panels: this.config.panels,

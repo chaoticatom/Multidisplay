@@ -39,7 +39,11 @@ const dice = require('./diceRoll'); // Dice Roll
 const random = require('./random');
 const random80s = require('./random80sScenes');
 const tron = require('./tron');
-const retro = require('./retro');
+const retroFaces = require('./retro'); // the classic cube layout: a different game on each face
+const retroArcade = require('./retroArcade');
+// Cube Retro: the arcade show on every face, or (option cubeLayout 'faces') the classic layout.
+const retro = (core, dt) => ((core.effectOptions && core.effectOptions.retro && core.effectOptions.retro.cubeLayout === 'faces') ? retroFaces : retroArcade)(core, dt);
+retro.getStatus = () => (retroArcade.getStatus ? retroArcade.getStatus() : null);
 const fireworks = require('./fireworksShow');
 const video = require('./video');
 const radio = require('./radio');
@@ -104,7 +108,7 @@ const articWall = require('./articWall');
 const jokeWall = joke.wall; // shares one fetch with cube mode (see ./textCard.js)
 const triviaWall = trivia.wall; // shares one fetch with cube mode (see ./textCard.js)
 const otdWall = otd.wall; // shares one fetch with cube mode
-const retroWall = require('./retroArcade').wall; // the cube keeps retro.js (a different game on each face)
+const retroWall = retroArcade.wall;
 const radioWall = require('./radioWall');
 
 // Wall-mode ('wall' panelConfig - a stitched grid of N flat panels, see

@@ -981,6 +981,14 @@ body.cx-preview-off #c, body.cx-preview-off #panel2d-canvas, body.cx-preview-off
   .fav-tile, .scene-go { width: 92px; }
   .ui-btn-small, .strobe-mode-btn { min-height: 40px; }
 }
+.retro-pad { display: grid; grid-template-columns: repeat(3, 56px); gap: 6px; justify-content: center; margin-bottom: 6px; }
+.retro-pad button { min-height: 48px; font-size: 18px !important; }
+.party-box { margin: 8px 0; }
+.party-btn { width: 100%; padding: 10px; border: none; border-radius: 14px; background: linear-gradient(135deg, #ff3d7f, #ffb03d, #3dd6ff); color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; }
+.party-form, .party-on { display: grid; gap: 6px; }
+.party-form[hidden], .party-on[hidden], .party-idle[hidden] { display: none; }
+.party-on { grid-template-columns: 1fr auto; align-items: center; padding: 8px 12px; border-radius: 14px; background: rgba(255,61,127,.15); color: #fff; font-size: 13px; }
+body.guest .party-box { display: none; }
 /* ── Favourites strip and scene tiles ── */
 #fav-strip { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 10px; margin-bottom: 6px; scrollbar-width: thin; flex-wrap: nowrap; align-items: stretch; }
 #fav-strip[hidden] { display: none; }
@@ -1176,6 +1184,12 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
     <div class="section-body">
       <div class="cx-ask"><span class="cx-spark"></span><button type="button" id="cx-mic" class="cx-mic" aria-label="Speak">🎤</button><input id="cx-ask" type="text" placeholder="Ask: “calm”, “party”, “night sky”…" aria-label="Ask for an effect" autocomplete="off"></div>
       <div id="cx-ask-chips" class="cx-chips"><button type="button">calm</button><button type="button">party</button><button type="button">night sky</button><button type="button">surprise me</button></div>
+      <div id="party-box" class="party-box">
+        <div class="party-idle"><button type="button" id="party-open" class="party-btn">🎉 Party mode</button></div>
+        <div class="party-form" hidden><input type="text" id="party-text" class="ui-input" maxlength="24" placeholder="Message (optional)" aria-label="Party message">
+          <div class="as-row"><select id="party-min" class="ui-input" aria-label="How long"><option value="15">15 min</option><option value="30" selected>30 min</option><option value="60">1 hour</option><option value="120">2 hours</option></select><button type="button" id="party-go" class="ui-btn-small">Start</button></div></div>
+        <div class="party-on" hidden><span id="party-status"></span><button type="button" id="party-stop" class="ui-btn-small">Stop</button></div>
+      </div>
       <div id="now-effect-name" hidden></div>
       <div id="now-options" class="now-options"></div>
       <div id="now-no-options" class="ui-note">This effect has no options.</div>
@@ -1805,24 +1819,36 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       </div>
       <div class="ov-row-label" style="margin-top:8px;">Rotate: <span id="retro-rotate-val">8</span>s</div>
       <input type="range" id="retro-rotate-slider" min="3" max="120" value="8" style="width:100%;cursor:pointer;">
-      <div class="ov-row-label" style="margin-top:8px;">Screen style <small style="opacity:.6;text-transform:none;letter-spacing:0">(flat panels)</small></div>
+      <div class="ov-row-label" style="margin-top:8px;">On the cube</div>
+      <div class="opt-grid" style="margin-bottom:4px;">
+        <button class="strobe-mode-btn active" data-retroopt="cubeLayout" data-v="arcade">Arcade show on every face</button>
+        <button class="strobe-mode-btn" data-retroopt="cubeLayout" data-v="faces">A different game per face</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Controls</div>
+      <div class="ui-note" style="margin:0 0 6px">Tap to take over the game for 8 seconds; it plays itself again after that.</div>
+      <div class="retro-pad">
+        <span></span><button class="ui-btn-small" data-retropad="up" aria-label="Up">▲</button><span></span>
+        <button class="ui-btn-small" data-retropad="left" aria-label="Left">◀</button><button class="ui-btn-small" data-retropad="fire" aria-label="Fire">●</button><button class="ui-btn-small" data-retropad="right" aria-label="Right">▶</button>
+        <span></span><button class="ui-btn-small" data-retropad="down" aria-label="Down">▼</button><span></span>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Screen style</div>
       <div class="opt-grid" style="margin-bottom:4px;">
         <button class="strobe-mode-btn active" data-retroopt="screen" data-v="crt">Arcade CRT</button>
         <button class="strobe-mode-btn" data-retroopt="screen" data-v="clean">Clean</button>
         <button class="strobe-mode-btn" data-retroopt="screen" data-v="lcd">Game Boy</button>
         <button class="strobe-mode-btn" data-retroopt="screen" data-v="zx">ZX Spectrum</button>
       </div>
-      <div class="ov-row-label" style="margin-top:8px;">Score display <small style="opacity:.6;text-transform:none;letter-spacing:0">(flat panels)</small></div>
+      <div class="ov-row-label" style="margin-top:8px;">Score display</div>
       <div class="opt-grid" style="margin-bottom:4px;">
         <button class="strobe-mode-btn active" data-retroopt="hud" data-v="true">Show</button>
         <button class="strobe-mode-btn" data-retroopt="hud" data-v="false">Hide</button>
       </div>
-      <div class="ov-row-label" style="margin-top:8px;">Between games <small style="opacity:.6;text-transform:none;letter-spacing:0">(flat panels)</small></div>
+      <div class="ov-row-label" style="margin-top:8px;">Between games</div>
       <div class="opt-grid" style="margin-bottom:4px;">
         <button class="strobe-mode-btn active" data-retroopt="attract" data-v="true">Insert coin + high scores</button>
         <button class="strobe-mode-btn" data-retroopt="attract" data-v="false">Straight on</button>
       </div>
-      <div class="ov-row-label" style="margin-top:8px;">Switch-on effect <small style="opacity:.6;text-transform:none;letter-spacing:0">(flat panels)</small></div>
+      <div class="ov-row-label" style="margin-top:8px;">Switch-on effect</div>
       <div class="opt-grid" style="margin-bottom:4px;">
         <button class="strobe-mode-btn active" data-retroopt="trans" data-v="crt">CRT power-on</button>
         <button class="strobe-mode-btn" data-retroopt="trans" data-v="wipe">Wipe</button>
@@ -2312,6 +2338,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="ui-label-accent" style="margin-top:14px;">💾 Backup</div>
       <div class="ui-note">Saves every setting - layouts, timers, scenes, favourites, keys - to a file on this phone. Restore it after a new SD card.</div>
       <div style="display:flex;gap:6px;"><button id="backup-btn" class="ui-btn-primary" style="flex:1;margin:0;">Download backup</button><label class="ui-btn-small cx-file-btn" style="flex:1;text-align:center;">Restore…<input id="restore-input" type="file" accept="application/json,.json" hidden></label></div>
+      <div class="as-row" style="margin-top:6px;"><span id="autobackup-status" class="ui-note" style="flex:1;margin:0;"></span><button id="autobackup-now" class="ui-btn-small" style="flex:0 0 auto;">Back up now</button></div>
       <div class="ui-label-accent" style="margin-top:14px;">🔔 Notifications</div>
       <div class="ui-note">Open this link (from Home Assistant, IFTTT, a shortcut…) to flash a message across the display. Add <b>&amp;secs=</b> and <b>&amp;color=</b> to change how long and the colour.</div>
       <input id="notify-url" class="ui-input" type="text" readonly aria-label="Notification link" style="width:100%;font-size:11px !important;">
@@ -2473,6 +2500,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.236"></script>
+<script src="app.js?v=0.6.237"></script>
 </body>
 </html>

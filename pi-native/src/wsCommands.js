@@ -626,6 +626,25 @@ const COMMANDS = {
     this._broadcast(this._stateMsg());
   },
 
+  // Party mode: {minutes, text} starts a show (fireworks with the message,
+  // other lively effects in between, everything reacting to the music);
+  // {minutes: 0} stops it. See _playlistTick.
+  startParty(ws, msg) {
+    const min = Math.max(0, Math.min(240, Number(msg.minutes) || 0));
+    if (!min) { if (this.state.party) this.state.party.endsAt = 0; this._playlistTick(); this._broadcast(this._stateMsg()); return; }
+    if (!this.state.party) this._beforeParty = { effect: this.state.effect, blank: !!this.state.blank, musicReact: JSON.parse(JSON.stringify(this.state.musicReact || { on: false, amount: 0.6 })) };
+    this.state.party = { endsAt: Date.now() + min * 60000, text: typeof msg.text === 'string' ? msg.text.toUpperCase().slice(0, 24) : '', step: -1 };
+    this._partyAt = 0;
+    this._playlistTick();
+    this._broadcast(this._stateMsg());
+  },
+
+  // Setup > Backup: make a backup copy now.
+  backupNow() {
+    this.state.backup = require('./autoBackup').backupNow();
+    this._broadcast(this._stateMsg());
+  },
+
   // Who needs the PIN: {localNoPin, guests} (see src/access.js).
   setAccess(ws, msg) {
     const p = this.state.prefs || prefs.load();

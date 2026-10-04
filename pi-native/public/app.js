@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.236';
+const APP_VERSION = '0.6.237';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1022,7 +1022,13 @@ function syncMazePanel() {
 // comment for the exact meaning of each.
 // ---------------------------------------------------------------------
 const RETRO_DEFAULT_AUTO_GAMES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13]; // Sam Fox (9) excluded by default
+let _retroPress = 0;
 function wireRetroPanel() {
+  // Arrow pad: same idea as Snake's (dir + a press counter so repeats register).
+  document.querySelectorAll('#panel-retro [data-retropad]').forEach((b) => b.addEventListener('click', () => {
+    setEffectOption('retro', 'dir', b.dataset.retropad);
+    setEffectOption('retro', 'press', ++_retroPress + Date.now() % 100000);
+  }));
   document.querySelectorAll('#panel-retro .strobe-mode-btn[data-retroopt]').forEach((btn) => btn.addEventListener('click', () => {
     const key = btn.dataset.retroopt, raw = btn.dataset.v, value = raw === 'true' ? true : raw === 'false' ? false : raw;
     document.querySelectorAll(`#panel-retro .strobe-mode-btn[data-retroopt="${key}"]`).forEach((b) => b.classList.toggle('active', b === btn));
@@ -1058,7 +1064,7 @@ function wireRetroPanel() {
 }
 
 function syncRetroPanel() {
-  const ro = currentState.effectOptions?.retro || {}, RD = { screen: 'crt', hud: true, attract: true, trans: 'crt' };
+  const ro = currentState.effectOptions?.retro || {}, RD = { screen: 'crt', hud: true, attract: true, trans: 'crt', cubeLayout: 'arcade' };
   document.querySelectorAll('#panel-retro .strobe-mode-btn[data-retroopt]').forEach((b) => b.classList.toggle('active', String(ro[b.dataset.retroopt] ?? RD[b.dataset.retroopt]) === b.dataset.v));
   const panel = document.getElementById('panel-retro');
   if (!panel) return;
@@ -4961,7 +4967,31 @@ function syncCountdownPanel() {
   const o = currentState.effectOptions?.countdown || {};
   for (const [id, k] of [['cd-target', 'target'], ['cd-label', 'label']]) { const el = document.getElementById(id); if (el && document.activeElement !== el && o[k] !== undefined) el.value = o[k]; }
 }
+// 🎉 Party mode (Play tab).
+document.getElementById('party-open')?.addEventListener('click', () => { document.querySelector('#party-box .party-form').hidden = false; document.querySelector('#party-box .party-idle').hidden = true; document.getElementById('party-text')?.focus(); });
+document.getElementById('party-go')?.addEventListener('click', () => {
+  send({ cmd: 'startParty', minutes: Number(document.getElementById('party-min').value), text: document.getElementById('party-text').value.trim() });
+  cxToast('🎉 Party on!');
+});
+document.getElementById('party-stop')?.addEventListener('click', () => send({ cmd: 'startParty', minutes: 0 }));
+function syncParty() {
+  const box = document.getElementById('party-box'); if (!box) return;
+  const p = currentState.party, on = !!(p && p.endsAt > Date.now());
+  box.querySelector('.party-on').hidden = !on;
+  if (on) { box.querySelector('.party-form').hidden = true; box.querySelector('.party-idle').hidden = true; document.getElementById('party-status').textContent = '🎉 Party on until ' + new Date(p.endsAt).toTimeString().slice(0, 5); }
+  else if (box.querySelector('.party-form').hidden) box.querySelector('.party-idle').hidden = false;
+}
+// Weekly automatic backup status (Setup > System).
+document.getElementById('autobackup-now')?.addEventListener('click', () => { send({ cmd: 'backupNow' }); cxToast('Backing up…'); });
+function syncAutoBackup() {
+  const el = document.getElementById('autobackup-status'), b = currentState.backup; if (!el || !b) return;
+  el.textContent = b.error ? '⚠ The last automatic backup failed: ' + b.error
+    : b.lastAt ? `Automatic weekly backup: last on ${new Date(b.lastAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} (${b.count} kept on the Pi)` : 'Automatic weekly backup: the first one runs once there are settings to save.';
+  el.style.color = b.error ? '#ff9a9a' : '';
+}
 function syncAccessChecks() {
+  syncParty();
+  syncAutoBackup();
   syncCountdownPanel();
   const a = currentState.prefs?.access || { localNoPin: true, guests: false };
   const l = document.getElementById('acc-local'), g = document.getElementById('acc-guests');

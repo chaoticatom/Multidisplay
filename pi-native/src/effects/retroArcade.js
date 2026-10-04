@@ -50,14 +50,15 @@ function target(buf, W, H) {
 // ── Invaders: animated aliens, shields, explosions, a player that aims ──
 const INV_A = [['..x..x..', '...xx...', '..xxxx..', '.xx.xx.x', 'xxxxxxxx', 'x.xxxx.x', 'x.x..x.x', '..x..x..'], ['..x..x..', 'x..xx..x', 'x.xxxx.x', 'xxx.xxxx', 'xxxxxxxx', '.xxxxxx.', '..x..x..', '.x....x.']];
 const INV_B = [['...xx...', '..xxxx..', '.xxxxxx.', 'xx.xx.xx', 'xxxxxxxx', '..x..x..', '.x.xx.x.', 'x.x..x.x'], ['...xx...', '..xxxx..', '.xxxxxx.', 'xx.xx.xx', 'xxxxxxxx', '.x.xx.x.', 'x......x', '.x....x.']];
-function invaders(s, T, dt) {
+function invaders(s, T, dt, t, inp = {}) {
   const { W, H } = T, cols = Math.max(4, Math.min(8, Math.floor((W - 8) / 11))), top = 9;
   if (!s.alive || s.cols !== cols) { s.cols = cols; s.alive = Array.from({ length: 4 }, () => Array(cols).fill(true)); s.x = 4; s.y = top; s.dir = 1; s.t = 0; s.frame = 0; s.shots = []; s.bombs = []; s.booms = []; s.px = W / 2; s.score = s.score || 0; }
   s.t += dt;
   if (s.t > 0.45) { s.t = 0; s.frame ^= 1; s.x += s.dir * 2; if (s.x > W - cols * 11 - 2 || s.x < 2) { s.dir *= -1; s.y += 2; } }
   let tx = null; s.alive.forEach((row) => row.forEach((a, i) => { if (a) tx = s.x + i * 11 + 4; }));
-  if (tx !== null) s.px += Math.sign(tx - s.px) * Math.min(Math.abs(tx - s.px), 40 * dt);
-  if (Math.random() < dt * 2.5 && s.shots.length < 2) s.shots.push({ x: s.px, y: H - 10 });
+  if (inp.manual) s.px = Math.max(3, Math.min(W - 4, s.px + (inp.dir === 'left' ? -1 : inp.dir === 'right' ? 1 : 0) * 50 * dt));
+  else if (tx !== null) s.px += Math.sign(tx - s.px) * Math.min(Math.abs(tx - s.px), 40 * dt);
+  if ((inp.manual ? inp.fire || inp.dir === 'up' : Math.random() < dt * 2.5) && s.shots.length < 2) s.shots.push({ x: s.px, y: H - 10 });
   if (Math.random() < dt * 1.6) { const live = []; s.alive.forEach((row, j) => row.forEach((a, i) => a && live.push([i, j]))); if (live.length) { const [i, j] = live[Math.floor(Math.random() * live.length)]; s.bombs.push({ x: s.x + i * 11 + 4, y: s.y + j * 9 + 8 }); } }
   for (const b of s.shots) { b.y -= 70 * dt; s.alive.forEach((row, j) => row.forEach((a, i) => { const ax = s.x + i * 11, ay = s.y + j * 9; if (a && b.x >= ax && b.x < ax + 8 && b.y >= ay && b.y < ay + 8) { row[i] = false; b.dead = true; s.booms.push({ x: ax, y: ay, t: 0.3 }); s.score += [40, 30, 20, 10][j]; } })); }
   s.shots = s.shots.filter((b) => !b.dead && b.y > top);
@@ -85,13 +86,16 @@ function stepMover(m, smart, tx, ty) {
   if (smart) { let bd = 1e9; for (const d of ch) { const dd = Math.hypot(m.x + d[0] - tx, m.y + d[1] - ty); if (dd < bd && Math.random() > 0.15) { bd = dd; best = d; } } }
   m.dx = best[0]; m.dy = best[1]; m.x += m.dx; m.y += m.dy;
 }
-function pacman(s, T, dt, t) {
+function pacman(s, T, dt, t, inp = {}) {
   if (!s.dots) { s.dots = MAZE.map((r) => [...r].map((c) => (c === '.' ? 1 : c === 'o' ? 2 : 0))); s.x = 1; s.y = 4; s.dx = 1; s.dy = 0; s.t = 0; s.power = 0; s.score = s.score || 0; s.ghosts = [[1, 0.2, 0.2], [1, 0.6, 0.9], [0.3, 1, 1], [1, 0.7, 0.2]].map((col, i) => ({ x: 14 + i, y: 8, col, dx: i % 2 ? 1 : -1, dy: 0 })); }
   s.t += dt;
   if (s.t > 0.14) {
     s.t = 0;
     let tx = s.x, ty = s.y, bd = 1e9; s.dots.forEach((r, y) => r.forEach((d, x) => { if (d) { const dd = Math.abs(x - s.x) + Math.abs(y - s.y); if (dd < bd) { bd = dd; tx = x; ty = y; } } }));
-    stepMover(s, true, tx, ty);
+    const PD = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[inp.manual ? inp.dir : ''];
+    if (PD && open(s.x + PD[0], s.y + PD[1])) { s.dx = PD[0]; s.dy = PD[1]; s.x += s.dx; s.y += s.dy; }
+    else if (inp.manual) { if (open(s.x + s.dx, s.y + s.dy)) { s.x += s.dx; s.y += s.dy; } }
+    else stepMover(s, true, tx, ty);
     const d = s.dots[s.y][s.x]; if (d) { s.score += d === 2 ? 50 : 10; if (d === 2) s.power = 6; s.dots[s.y][s.x] = 0; }
     for (const g of s.ghosts) stepMover(g, s.power <= 0, s.x, s.y);
     if (!s.dots.some((r) => r.some(Boolean))) s.dots = null;
@@ -118,7 +122,7 @@ function pacman(s, T, dt, t) {
 }
 
 // ── OutRun: a pseudo-3D road with curves, kerbs, palms, sunset, the Ferrari ──
-function outrun(s, T, dt, t) {
+function outrun(s, T, dt, t, inp = {}) {
   const { W, H } = T;
   s.speed = Math.min(1, (s.speed || 0) + dt * 0.3); s.z = (s.z || 0) + dt * 40 * (0.5 + s.speed); s.score = (s.score || 0) + dt * 120;
   const hz = Math.round(H * 0.34);
@@ -126,7 +130,8 @@ function outrun(s, T, dt, t) {
   const sunX = W * 0.75, sunR = Math.min(8, H * 0.13);
   for (let j = -sunR; j <= sunR; j++) for (let i = -sunR; i <= sunR; i++) if (i * i + j * j < sunR * sunR && hz - 4 + j < hz) T.set(sunX + i, hz - 4 + j, 1, 0.75 - j * 0.02, 0.3);
   for (let x = 0; x < W; x++) { const h = 3 + Math.abs(Math.sin(x * 0.11 + 2)) * 5; for (let y = hz - h; y < hz; y++) T.set(x, y, 0.15, 0.1, 0.3); }
-  const curve = Math.sin(s.z * 0.004) * 1.4, sway = Math.sin(t * 0.7) * W * 0.08;
+  s.steer = inp.manual ? Math.max(-1, Math.min(1, (s.steer || 0) + (inp.dir === 'left' ? -1 : inp.dir === 'right' ? 1 : 0) * dt * 2)) : Math.sin(t * 0.7);
+  const curve = Math.sin(s.z * 0.004) * 1.4, sway = s.steer * W * 0.08;
   for (let y = hz; y < H; y++) {
     const p = (y - hz) / (H - hz), z = 1 / (p + 0.02), seg = Math.floor(s.z * 0.05 + z * 2), stripe = seg % 2;
     const cx = W / 2 + curve * (1 - p) * (1 - p) * W * 0.47 - sway * p, roadW = 3 + p * W * 0.55, rumble = roadW * 0.12;
@@ -143,7 +148,7 @@ function outrun(s, T, dt, t) {
   T.sprite(['....xxxxxx....', '..xxwwwwwwxx..', '.xxxxxxxxxxxx.', 'xxrrxxxxxxrrxx', 'bb..........bb'], W / 2 - 7, H - 9, (ch) => (ch === 'w' ? [0.6, 0.85, 1] : ch === 'r' ? [1, 0.9, 0.2] : ch === 'b' ? [0.1, 0.1, 0.1] : [0.95, 0.1, 0.12]));
   return Math.round(s.score);
 }
-const NEW_GAMES = { 2: outrun, 3: invaders, 13: pacman };
+const NEW_GAMES = { ...require('./retro/arcadeGames'), 2: outrun, 3: invaders, 13: pacman };
 
 const st = { W: 0, H: 0, buf: null, small: new Float32Array(64 * 64 * 3), old: OLD_STATE(), fresh: {}, cur: -1, phase: 'play', phaseT: 0, gameT: 0, hi: 12500, score: 0, poolPos: 0 };
 
@@ -154,6 +159,11 @@ module.exports = defineCanvasEffect({
     const o = (core.effectOptions && core.effectOptions.retro) || {};
     const T = target(st.buf, W, H), t = (st.clock = (st.clock || 0) + dt);
     st.buf.fill(0);
+    // Phone controls (the arrow pad in the Retro options): taps bump o.press;
+    // a game is in manual mode for 8 s after the last tap.
+    if (o.press !== undefined && o.press !== st.lastPress) { if (st.lastPress !== undefined) { st.manualUntil = t + 8; st.dir = o.dir; st.fireUntil = o.dir === 'fire' ? t + 0.3 : st.fireUntil; } st.lastPress = o.press; }
+    const manual = t < (st.manualUntil || 0);
+    const inp = { dir: manual && st.dir !== 'fire' ? st.dir : null, fire: t < (st.fireUntil || 0), manual };
     const sel = Number.isInteger(o.selectedGame) ? o.selectedGame : -1;
     const pool = Array.isArray(o.autoGames) && o.autoGames.length ? o.autoGames : DEFAULT_AUTO;
     const rotate = Math.max(4, Number(o.rotate) || 8), attract = o.attract !== false, hud = o.hud !== false;
@@ -177,7 +187,7 @@ module.exports = defineCanvasEffect({
       const fn = NEW_GAMES[st.cur];
       if (fn) {
         const s = st.fresh[st.cur] || (st.fresh[st.cur] = {});
-        st.score = fn(s, T, dt, t) || 0;
+        st.score = fn(s, T, dt, t, inp) || 0;
       } else {
         // A classic: its 64x64 picture in the middle, cabinet side panels around it.
         const S = 64, game = st.old[st.cur]; game.t += dt;
