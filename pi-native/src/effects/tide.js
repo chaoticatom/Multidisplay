@@ -15,15 +15,24 @@
 const { hsl, lerp } = require('../core');
 const { defineFieldEffect } = require('./surface');
 
+const { lit } = require('./shade');
+
+function blendAt(x, y, z, t) {
+  const w1 = Math.sin(x * Math.PI * 2 + t * 0.8) * 0.5 + 0.5;
+  const w2 = Math.sin(z * Math.PI * 2 - t * 0.6) * 0.5 + 0.5;
+  const w3 = Math.sin(y * Math.PI * 1.5 + t * 0.4) * 0.5 + 0.5;
+  return (w1 + w2 + w3) / 3;
+}
+
+// Tide: slow swells of colour lit like rolling satin.
 module.exports = defineFieldEffect({
   smooth: true, // slowly varying field: see surface.js
   speed: 0.6,
   pixel(p, { t }) {
     const { x, y, z } = p; // on a wall z = y
-    const w1 = Math.sin(x * Math.PI * 2 + t * 0.8) * 0.5 + 0.5;
-    const w2 = Math.sin(z * Math.PI * 2 - t * 0.6) * 0.5 + 0.5;
-    const w3 = Math.sin(y * Math.PI * 1.5 + t * 0.4) * 0.5 + 0.5;
-    const blend = (w1 + w2 + w3) / 3;
-    return hsl((x * 0.3 + z * 0.3 + blend * 0.25 + t * 0.04) % 1, 0.95, lerp(0.18, 0.72, blend));
+    const e = 0.01, blend = blendAt(x, y, z, t);
+    const dhx = (blendAt(x + e, y, z, t) - blend) / e, dhy = (blendAt(x, y + e, z + (p.flat ? e : 0), t) - blend) / e;
+    const col = hsl((x * 0.3 + z * 0.3 + blend * 0.25 + t * 0.04) % 1, 0.95, lerp(0.25, 0.6, blend));
+    return lit(col, dhx, dhy, { bump: 0.8, gloss: 18, shine: 0.45, ambient: 0.35 });
   },
 });

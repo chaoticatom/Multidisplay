@@ -366,6 +366,28 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/shade.js
+  var require_shade = __commonJS({
+    "src/effects/shade.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var L = (() => {
+        const v = [-0.45, -0.55, 0.7], n = Math.hypot(...v);
+        return v.map((a) => a / n);
+      })();
+      function lit(col, dhx, dhy, { bump = 1, gloss = 30, shine = 0.6, ambient = 0.35 } = {}) {
+        const nx = -dhx * bump, ny = -dhy * bump, nl = Math.hypot(nx, ny, 1);
+        const lam = Math.max(0, (nx * L[0] + ny * L[1] + L[2]) / nl);
+        const hx = L[0], hy = L[1], hz = L[2] + 1, hl = Math.hypot(hx, hy, hz);
+        const spec = Math.pow(Math.max(0, (nx * hx + ny * hy + hz) / (nl * hl)), gloss) * shine;
+        const k = ambient + (1 - ambient) * lam;
+        return [Math.min(1, col[0] * k + spec), Math.min(1, col[1] * k + spec), Math.min(1, col[2] * k + spec)];
+      }
+      module.exports = { lit };
+    }
+  });
+
   // src/effects/wave.js
   var require_wave = __commonJS({
     "src/effects/wave.js"(exports, module) {
@@ -374,24 +396,23 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl } = require_core();
       var { defineFieldEffect } = require_surface();
+      var { lit } = require_shade();
+      function height(x, y, z, t) {
+        const w1 = Math.sin((x + z) * 6.2 + t) * Math.cos(y * 4.5 - t * 0.8);
+        const w2 = Math.sin((x - z) * 4.8 + t * 1.4) * Math.sin(y * 5.2 + t * 0.6);
+        const w3 = Math.sin((x * 0.7 + y * 0.9 + z * 0.5) * 7 + t * 0.9);
+        return (w1 + w2 + w3) / 3;
+      }
       module.exports = defineFieldEffect({
         smooth: true,
         // slowly varying field: see surface.js
         speed: 1.1,
         pixel(p, { t }) {
           const { x, y, z } = p;
-          const w1 = Math.sin((x + z) * 6.2 + t) * Math.cos(y * 4.5 - t * 0.8);
-          const w2 = Math.sin((x - z) * 4.8 + t * 1.4) * Math.sin(y * 5.2 + t * 0.6);
-          const w3 = Math.sin((x * 0.7 + y * 0.9 + z * 0.5) * 7 + t * 0.9);
-          const w = (w1 + w2 + w3) / 3;
-          const bright = w * 0.5 + 0.5;
+          const e = 0.01, w = height(x, y, z, t);
+          const dhx = (height(x + e, y, z, t) - w) / e, dhy = (height(x, y + e, z, t) - w) / e;
           const hue = (x * 0.35 + y * 0.25 + z * 0.35 + t * 0.045) % 1;
-          let [r, g, b] = hsl(hue, 1, bright * 0.72);
-          const spark = Math.max(0, (w1 + w2 + w3 - 2.2) / 0.8);
-          r = Math.min(1, r + spark * 0.9);
-          g = Math.min(1, g + spark * 0.9);
-          b = Math.min(1, b + spark * 0.9);
-          return [r, g, b];
+          return lit(hsl(hue, 1, 0.3 + w * 0.15), dhx, dhy, { bump: 0.09, gloss: 40, shine: 0.75, ambient: 0.3 });
         }
       });
     }
@@ -2192,17 +2213,48 @@ var PiEngine = (() => {
           }
           c.clear();
           const ox = Math.floor((c.W - cols * CELL) / 2), oy = Math.floor((c.H - rows * CELL) / 2);
-          for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if ((x + y) % 2) for (let i = 0; i < CELL; i++) for (let j = 0; j < CELL; j++) c.set(ox + x * CELL + i, oy + y * CELL + j, 0.02, 0.025, 0.04);
-          const cell = (x, y, r, gr, b, inset = 0) => {
-            for (let i = inset; i < CELL - inset; i++) for (let j = inset; j < CELL - inset; j++) c.set(ox + x * CELL + i, oy + y * CELL + j, r, gr, b);
+          for (let y = 0; y < rows * CELL; y++) for (let x = 0; x < cols * CELL; x++) {
+            const chk = (Math.floor(x / CELL) + Math.floor(y / CELL)) % 2 ? 0.012 : 0;
+            const v = 1 - Math.hypot(x / (cols * CELL) - 0.5, y / (rows * CELL) - 0.5) * 0.9;
+            c.set(ox + x, oy + y, (0.01 + chk) * v, (0.02 + chk * 1.4) * v, (0.03 + chk * 1.8) * v);
+          }
+          const blob = (px, py, rad, col, gloss) => {
+            for (let j = Math.floor(py - rad - 1); j <= py + rad + 1; j++) for (let i = Math.floor(px - rad - 1); i <= px + rad + 1; i++) {
+              const u = (i + 0.5 - px) / rad, v = (j + 0.5 - py) / rad, d2 = u * u + v * v;
+              if (d2 > 1) continue;
+              const z = Math.sqrt(1 - d2), lam = Math.max(0, -u * 0.5 - v * 0.6 + z * 0.62);
+              const spec = Math.pow(Math.max(0, 2 * lam * z - 0.62), 16) * gloss;
+              const sh = 0.3 + 0.85 * lam;
+              c.set(i, j, Math.min(1, col[0] * sh + spec), Math.min(1, col[1] * sh + spec), Math.min(1, col[2] * sh + spec));
+            }
           };
-          const pulse = 0.6 + 0.4 * Math.sin(t * 8);
-          if (g.food) cell(g.food[0], g.food[1], 1 * pulse, 0.2 * pulse, 0.35 * pulse);
+          const centre = (x, y) => [ox + x * CELL + CELL / 2, oy + y * CELL + CELL / 2];
+          if (g.food) {
+            const [fx, fy] = centre(g.food[0], g.food[1]), bob = Math.sin(t * 5) * 0.4;
+            blob(fx, fy + bob, CELL * 0.62, [1, 0.12, 0.15], 0.9);
+            c.set(Math.round(fx), Math.round(fy + bob - CELL * 0.65), 0.2, 0.85, 0.25);
+          }
           const flash = g.dead > 0 && g.dead % 2;
-          g.body.forEach(([x, y], i) => {
-            const [r, gr, b] = flash ? [1, 0.2, 0.2] : hsl(0.33 + i * 0.012, 0.9, i === 0 ? 0.6 : 0.45 - Math.min(0.2, i * 4e-3));
-            cell(x, y, r, gr, b, i === 0 ? 0 : 0.5 > 1 ? 1 : 0);
-          });
+          for (let i = g.body.length - 1; i >= 0; i--) {
+            const [x, y] = g.body[i], [px, py] = centre(x, y);
+            const col = flash ? [1, 0.2, 0.2] : hsl(0.33 + i * 0.01, 0.85, 0.48);
+            const rad = CELL * (i === 0 ? 0.62 : 0.55 - Math.min(0.15, i * 4e-3));
+            if (i > 0) {
+              const [nx, ny] = g.body[i - 1];
+              if (Math.abs(nx - x) + Math.abs(ny - y) === 1) {
+                const [qx, qy] = centre(nx, ny);
+                blob((px + qx) / 2, (py + qy) / 2, rad * 0.95, col, 0.35);
+              }
+            }
+            blob(px, py, rad, col, i === 0 ? 0.7 : 0.4);
+          }
+          if (g.body.length) {
+            const [hx, hy] = centre(g.body[0][0], g.body[0][1]), [dx, dy] = g.dir;
+            for (const s of [-1, 1]) {
+              const ex = Math.round(hx + dx * 0.8 - dy * s * 1), ey = Math.round(hy + dy * 0.8 + dx * s * 1);
+              c.set(ex, ey, 1, 1, 1);
+            }
+          }
           const score = String(g.body.length - 3);
           drawString(FONT_3x5, score, c.W - textWidth(FONT_3x5, score) - 1, 1, (x, y) => c.add(x, y, 0.5, 0.5, 0.6));
         }
@@ -4473,16 +4525,21 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl, lerp } = require_core();
       var { defineFieldEffect } = require_surface();
+      var { lit } = require_shade();
+      function fold(x, y, t) {
+        return Math.sin(x * Math.PI * 2 + t) * 0.5 + Math.sin(x * 16 + y * 5 + t * 1.3) * 0.12 + Math.sin(y * 11 - t * 0.7 + x * 3) * 0.08;
+      }
       module.exports = defineFieldEffect({
         smooth: true,
         // slowly varying field: see surface.js
         speed: 0.4,
         pixel(p, { t }) {
           const { x, y, z } = p;
-          const wave = Math.sin(x * Math.PI * 2 + t) * 0.5 + 0.5;
-          const bright = lerp(0.22, 0.72, wave);
+          const u = p.flat ? x : (x + z) / 2, e = 0.01, h = fold(u, y, t);
+          const dhx = (fold(u + e, y, t) - h) / e, dhy = (fold(u, y + e, t) - h) / e;
+          const bright = lerp(0.3, 0.6, h * 0.5 + 0.5);
           const hue = (p.flat ? x * 0.6 + y * 0.3 + t * 0.08 : x * 0.4 + y * 0.3 + z * 0.3 + t * 0.08) % 1;
-          return hsl(hue, 1, bright);
+          return lit(hsl(hue, 1, bright), dhx, dhy, { bump: 0.35, gloss: 24, shine: 0.55, ambient: 0.3 });
         }
       });
     }
@@ -14568,71 +14625,70 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/fluid.js
-  var require_fluid = __commonJS({
-    "src/effects/fluid.js"(exports, module) {
+  // src/effects/rippleTank.js
+  var require_rippleTank = __commonJS({
+    "src/effects/rippleTank.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
+      var { defineCanvasEffect } = require_canvas();
       var { hsl } = require_core();
-      var { surfIdx, getLocalGravity } = require_shared();
-      var fluidH = null;
-      var fluidV = null;
-      var fluidT2 = 0;
-      function resetFluid(core) {
-        fluidH = new Float32Array(core.N);
-        fluidV = new Float32Array(core.N);
+      var { lit } = require_shade();
+      var st = { W: 0, H: 0, a: null, b: null, acc: 0, drop: 0.3 };
+      var hash = (x, y) => {
+        const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+        return s - Math.floor(s);
+      };
+      function floor(x, y, t) {
+        const sc = 0.11, gx = x * sc, gy = y * sc, ix = Math.floor(gx), iy = Math.floor(gy);
+        let best = 9, id = 0;
+        for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+          const cx = ix + i + hash(ix + i, iy + j), cy = iy + j + hash(iy + j, ix + i), d = Math.hypot(gx - cx, gy - cy);
+          if (d < best) {
+            best = d;
+            id = (ix + i) * 31 + (iy + j) * 17;
+          }
+        }
+        const hue = (hash(id, 3) * 0.25 + 0.45 + t * 0.01) % 1;
+        return hsl(hue, 0.55, 0.12 + 0.28 * Math.max(0, 1 - best * 1.6));
       }
-      function effectFluid(core, dt) {
-        const { N, gridX, gridY, gridZ, surfX, surfY, surfZ, colBuf } = core;
-        core.t += dt;
-        if (!fluidH || fluidH.length !== N) resetFluid(core);
-        fluidT2 += dt;
-        const grav = getLocalGravity();
-        const gl = Math.sqrt(grav.x * grav.x + grav.y * grav.y + grav.z * grav.z) || 1;
-        let gx = grav.x / gl, gy = grav.y / gl, gz = grav.z / gl;
-        const slosh = Math.sin(fluidT2 * 0.45) * 0.55;
-        [gx, gy] = [gx * Math.cos(slosh) - gy * Math.sin(slosh), gx * Math.sin(slosh) + gy * Math.cos(slosh)];
-        const SPEED = 28, DAMP = 0.96;
-        const newH = new Float32Array(N);
-        for (let i = 0; i < N; i++) {
-          const x = gridX[i], y = gridY[i], z = gridZ[i];
-          let lap = 0, cnt = 0;
-          for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) {
-            const j = surfIdx(core, x + dx, y + dy, z + dz);
-            if (j >= 0) {
-              lap += fluidH[j];
-              cnt++;
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt, core }) {
+          const W = c.W, H = c.H;
+          if (st.W !== W || st.H !== H) {
+            st.W = W;
+            st.H = H;
+            st.a = new Float32Array(W * H);
+            st.b = new Float32Array(W * H);
+          }
+          const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
+          if ((st.drop -= dt) <= 0 || beat > 0.8 && Math.random() < 0.25) {
+            st.drop = 0.4 + Math.random() * 1.2;
+            const x0 = 2 + Math.floor(Math.random() * (W - 4)), y0 = 2 + Math.floor(Math.random() * (H - 4));
+            for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) st.a[(y0 + j) * W + x0 + i] -= i || j ? 2.5 : 5;
+          }
+          st.acc += dt;
+          while (st.acc > 1 / 60) {
+            st.acc -= 1 / 60;
+            const { a, b } = st;
+            for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+              const p = y * W + x;
+              b[p] = ((a[p - 1] + a[p + 1] + a[p - W] + a[p + W]) * 0.5 - b[p]) * 0.985;
             }
+            st.a = b;
+            st.b = a;
           }
-          if (cnt) {
-            const avg = lap / cnt;
-            const slope = gx * (surfX[i] - 0.5) + gy * (surfY[i] - 0.5) + gz * (surfZ[i] - 0.5);
-            fluidV[i] = (fluidV[i] + dt * (SPEED * (avg - fluidH[i]) + 4 * (-slope * 0.9 - fluidH[i]))) * DAMP;
+          const h = st.a;
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const p = y * W + x;
+            const dhx = x > 0 && x < W - 1 ? (h[p + 1] - h[p - 1]) * 0.5 : 0, dhy = y > 0 && y < H - 1 ? (h[p + W] - h[p - W]) * 0.5 : 0;
+            const col = floor(x + dhx * 5, y + dhy * 5, t);
+            const deep = [col[0] * 0.85, col[1] * 0.95 + 0.02, col[2] + 0.05];
+            const out = lit(deep, dhx, dhy, { bump: 1.6, gloss: 40, shine: 0.9, ambient: 0.75 });
+            c.set(x, y, out[0], out[1], out[2]);
           }
-          newH[i] = Math.max(-1, Math.min(1, fluidH[i] + fluidV[i] * dt));
         }
-        for (let i = 0; i < N; i++) fluidH[i] = newH[i];
-        if (Math.random() < dt * 1.5) {
-          const i = Math.random() * N | 0;
-          fluidH[i] += 0.8 + Math.random() * 0.6;
-        }
-        for (let i = 0; i < N; i++) {
-          const h = fluidH[i];
-          const abs = Math.abs(h);
-          if (abs < 0.03) {
-            core.setLED(i, 0, 0, 0.02);
-            continue;
-          }
-          const posPhase = (surfX[i] + surfY[i] + surfZ[i]) * 2.1 + fluidT2 * 0.15;
-          const hue = (h > 0 ? 0.55 + abs * 0.15 + Math.sin(posPhase) * 0.08 : 0.02 + abs * 0.12 + Math.sin(posPhase) * 0.06) % 1;
-          const sat = 0.85 + abs * 0.15;
-          const bright = Math.pow(abs, 0.5) * 0.9;
-          const [r, g, b] = hsl(hue, sat, bright);
-          const glint = Math.max(0, abs - 0.75) * 4;
-          core.setLED(i, Math.min(1, r + glint * 0.7), Math.min(1, g + glint * 0.8), Math.min(1, b + glint));
-        }
-      }
-      module.exports = effectFluid;
+      });
     }
   });
 
@@ -14669,11 +14725,64 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl, sm } = require_core();
       var { defineFieldEffect } = require_surface();
+      var TRI = [[0.5, 0.26], [0.27, 0.72], [0.73, 0.72]];
+      function side(px, py, a, b) {
+        return (b[0] - a[0]) * (py - a[1]) - (b[1] - a[1]) * (px - a[0]);
+      }
+      function segDist(px, py, ax, ay, bx, by) {
+        const vx = bx - ax, vy = by - ay, k = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy)));
+        return Math.hypot(px - ax - vx * k, py - ay - vy * k);
+      }
+      function flatPrism(x, y, t) {
+        const by = 0.47 + 0.12 * Math.sin(t * 0.5);
+        const inX = 0.395 - (by - 0.47) * 0.45, inY = by;
+        const outX = 0.6, outY = 0.5 + (by - 0.47) * 0.6;
+        const inside = side(x, y, TRI[0], TRI[1]) <= 0 && side(x, y, TRI[1], TRI[2]) <= 0 && side(x, y, TRI[2], TRI[0]) <= 0;
+        let r = 0.01 + y * 0.02, g = 0.01 + y * 0.02, b = 0.03 + y * 0.04;
+        const dIn = segDist(x, y, 0, by - 0.06, inX, inY);
+        if (dIn < 0.03) {
+          const k = 1 - dIn / 0.03;
+          r += k * 0.95;
+          g += k * 0.95;
+          b += k * 0.95;
+        }
+        if (inside) {
+          r += 0.03;
+          g += 0.05;
+          b += 0.09;
+          const dMid = segDist(x, y, inX, inY, outX, outY);
+          if (dMid < 0.025) {
+            const k = (1 - dMid / 0.025) * 0.8;
+            r += k;
+            g += k;
+            b += k;
+          }
+        } else if (x > outX - 0.02) {
+          const ang = Math.atan2(y - outY, x - outX), a0 = 0.05 + (by - 0.47) * 1.2, spread = 0.42;
+          const f = (ang - (a0 - spread / 2)) / spread;
+          if (f >= 0 && f <= 1) {
+            const dist = Math.hypot(x - outX, y - outY), edge = Math.min(1, Math.min(f, 1 - f) * 12);
+            const [cr, cg, cb] = hsl(f * 0.78, 1, 0.5), k = edge * (0.95 - dist * 0.6);
+            r += cr * k;
+            g += cg * k;
+            b += cb * k;
+          }
+        }
+        const e = Math.min(segDist(x, y, ...TRI[0], ...TRI[1]), segDist(x, y, ...TRI[1], ...TRI[2]), segDist(x, y, ...TRI[2], ...TRI[0]));
+        if (e < 0.012) {
+          const k = (1 - e / 0.012) * 0.55;
+          r += k * 0.7;
+          g += k * 0.85;
+          b += k;
+        }
+        return [Math.min(1, r), Math.min(1, g), Math.min(1, b)];
+      }
       module.exports = defineFieldEffect({
         smooth: true,
         // slowly varying field: see surface.js
         speed: 0.55,
         pixel(p, { t }) {
+          if (p.flat) return flatPrism(p.x, p.y, t);
           const { x, y, z } = p;
           const beamAng = t * 0.6, beamW = 0.18;
           const diag = p.flat ? (x + y) / 2 : (x + y + z) / 3;
@@ -14704,17 +14813,23 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl, lerp } = require_core();
       var { defineFieldEffect } = require_surface();
+      var { lit } = require_shade();
+      function blendAt(x, y, z, t) {
+        const w1 = Math.sin(x * Math.PI * 2 + t * 0.8) * 0.5 + 0.5;
+        const w2 = Math.sin(z * Math.PI * 2 - t * 0.6) * 0.5 + 0.5;
+        const w3 = Math.sin(y * Math.PI * 1.5 + t * 0.4) * 0.5 + 0.5;
+        return (w1 + w2 + w3) / 3;
+      }
       module.exports = defineFieldEffect({
         smooth: true,
         // slowly varying field: see surface.js
         speed: 0.6,
         pixel(p, { t }) {
           const { x, y, z } = p;
-          const w1 = Math.sin(x * Math.PI * 2 + t * 0.8) * 0.5 + 0.5;
-          const w2 = Math.sin(z * Math.PI * 2 - t * 0.6) * 0.5 + 0.5;
-          const w3 = Math.sin(y * Math.PI * 1.5 + t * 0.4) * 0.5 + 0.5;
-          const blend = (w1 + w2 + w3) / 3;
-          return hsl((x * 0.3 + z * 0.3 + blend * 0.25 + t * 0.04) % 1, 0.95, lerp(0.18, 0.72, blend));
+          const e = 0.01, blend = blendAt(x, y, z, t);
+          const dhx = (blendAt(x + e, y, z, t) - blend) / e, dhy = (blendAt(x, y + e, z + (p.flat ? e : 0), t) - blend) / e;
+          const col = hsl((x * 0.3 + z * 0.3 + blend * 0.25 + t * 0.04) % 1, 0.95, lerp(0.25, 0.6, blend));
+          return lit(col, dhx, dhy, { bump: 0.8, gloss: 18, shine: 0.45, ambient: 0.35 });
         }
       });
     }
@@ -19881,97 +19996,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/fluidWall.js
-  var require_fluidWall = __commonJS({
-    "src/effects/fluidWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var { getLocalGravity } = require_shared();
-      var wFluidH = null;
-      var wFluidV = null;
-      var wFluidT2 = 0;
-      var wFluidKey = null;
-      function resetWFluid(core) {
-        const { wallW, wallH } = core;
-        wFluidH = new Float32Array(wallW * wallH);
-        wFluidV = new Float32Array(wallW * wallH);
-        wFluidKey = `${wallW}|${wallH}`;
-      }
-      function effectFluidWall(core, dt) {
-        const { wallW, wallH, wallBuf } = core;
-        core.t += dt;
-        if (!wallW) return;
-        const n = wallW * wallH;
-        if (!wFluidH || wFluidKey !== `${wallW}|${wallH}`) resetWFluid(core);
-        wFluidT2 += dt;
-        const grav = getLocalGravity();
-        const gl = Math.sqrt(grav.x * grav.x + grav.y * grav.y + grav.z * grav.z) || 1;
-        let gx = grav.x / gl, gy = grav.y / gl;
-        const slosh = Math.sin(wFluidT2 * 0.45) * 0.55;
-        [gx, gy] = [gx * Math.cos(slosh) - gy * Math.sin(slosh), gx * Math.sin(slosh) + gy * Math.cos(slosh)];
-        const SPEED = 28, DAMP = 0.96;
-        const newH = new Float32Array(n);
-        for (let y = 0; y < wallH; y++) {
-          for (let x = 0; x < wallW; x++) {
-            const i = y * wallW + x;
-            let lap = 0, cnt = 0;
-            if (x + 1 < wallW) {
-              lap += wFluidH[i + 1];
-              cnt++;
-            }
-            if (x - 1 >= 0) {
-              lap += wFluidH[i - 1];
-              cnt++;
-            }
-            if (y + 1 < wallH) {
-              lap += wFluidH[i + wallW];
-              cnt++;
-            }
-            if (y - 1 >= 0) {
-              lap += wFluidH[i - wallW];
-              cnt++;
-            }
-            if (cnt) {
-              const avg = lap / cnt;
-              const slope = gx * (x / (wallW - 1) - 0.5) + gy * (y / (wallH - 1) - 0.5);
-              wFluidV[i] = (wFluidV[i] + dt * (SPEED * (avg - wFluidH[i]) + 4 * (-slope * 0.9 - wFluidH[i]))) * DAMP;
-            }
-            newH[i] = Math.max(-1, Math.min(1, wFluidH[i] + wFluidV[i] * dt));
-          }
-        }
-        for (let i = 0; i < n; i++) wFluidH[i] = newH[i];
-        if (Math.random() < dt * 1.5) {
-          const i = Math.random() * n | 0;
-          wFluidH[i] += 0.8 + Math.random() * 0.6;
-        }
-        for (let y = 0; y < wallH; y++) {
-          for (let x = 0; x < wallW; x++) {
-            const i = y * wallW + x, o = i * 3;
-            const h = wFluidH[i];
-            const abs = Math.abs(h);
-            if (abs < 0.03) {
-              wallBuf[o] = 0;
-              wallBuf[o + 1] = 0;
-              wallBuf[o + 2] = 0.02;
-              continue;
-            }
-            const posPhase = (x / wallW + y / wallH) * 2.1 + wFluidT2 * 0.15;
-            const hue = (h > 0 ? 0.55 + abs * 0.15 + Math.sin(posPhase) * 0.08 : 0.02 + abs * 0.12 + Math.sin(posPhase) * 0.06) % 1;
-            const sat = 0.85 + abs * 0.15;
-            const bright = Math.pow(abs, 0.5) * 0.9;
-            const [r, g, b] = hsl(hue, sat, bright);
-            const glint = Math.max(0, abs - 0.75) * 4;
-            wallBuf[o] = Math.min(1, r + glint * 0.7);
-            wallBuf[o + 1] = Math.min(1, g + glint * 0.8);
-            wallBuf[o + 2] = Math.min(1, b + glint);
-          }
-        }
-      }
-      module.exports = effectFluidWall;
-    }
-  });
-
   // src/effects/easterEggWall.js
   var require_easterEggWall = __commonJS({
     "src/effects/easterEggWall.js"(exports, module) {
@@ -23811,7 +23835,7 @@ var PiEngine = (() => {
       var balls = require_balls();
       var sand = require_gravitySand();
       var life = require_life();
-      var fluid = require_fluid();
+      var fluid = require_rippleTank();
       var depthRings = require_depthRings();
       var prism = require_prism();
       var tide = require_tide();
@@ -23849,7 +23873,7 @@ var PiEngine = (() => {
       var ballsWall = balls.wall;
       var sandWall = sand.wall;
       var lifeWall = require_lifeWall();
-      var fluidWall = require_fluidWall();
+      var fluidWall = fluid.wall;
       var easterEggWall = require_easterEggWall();
       var coinflipWall = coinflip.wall;
       var diceWall = dice.wall;

@@ -27,20 +27,26 @@
 const { hsl } = require('../core');
 const { defineFieldEffect } = require('./surface');
 
+const { lit } = require('./shade');
+
+// The ripple height at a point (the same three interfering waves as before).
+function height(x, y, z, t) {
+  const w1 = Math.sin((x + z) * 6.2 + t) * Math.cos(y * 4.5 - t * 0.8);
+  const w2 = Math.sin((x - z) * 4.8 + t * 1.4) * Math.sin(y * 5.2 + t * 0.6);
+  const w3 = Math.sin((x * 0.7 + y * 0.9 + z * 0.5) * 7 + t * 0.9);
+  return (w1 + w2 + w3) / 3;
+}
+
+// Wave: rainbow liquid. The interfering ripples are lit as a glossy surface
+// - highlights slide over the crests and the troughs sink into shadow.
 module.exports = defineFieldEffect({
   smooth: true, // slowly varying field: see surface.js
   speed: 1.1,
   pixel(p, { t }) {
     const { x, y, z } = p; // on a wall z = y
-    const w1 = Math.sin((x + z) * 6.2 + t) * Math.cos(y * 4.5 - t * 0.8);
-    const w2 = Math.sin((x - z) * 4.8 + t * 1.4) * Math.sin(y * 5.2 + t * 0.6);
-    const w3 = Math.sin((x * 0.7 + y * 0.9 + z * 0.5) * 7 + t * 0.9);
-    const w = (w1 + w2 + w3) / 3;
-    const bright = w * 0.5 + 0.5;
+    const e = 0.01, w = height(x, y, z, t);
+    const dhx = (height(x + e, y, z, t) - w) / e, dhy = (height(x, y + e, z, t) - w) / e;
     const hue = (x * 0.35 + y * 0.25 + z * 0.35 + t * 0.045) % 1;
-    let [r, g, b] = hsl(hue, 1, bright * 0.72);
-    const spark = Math.max(0, (w1 + w2 + w3 - 2.2) / 0.8);
-    r = Math.min(1, r + spark * 0.9); g = Math.min(1, g + spark * 0.9); b = Math.min(1, b + spark * 0.9);
-    return [r, g, b];
+    return lit(hsl(hue, 1, 0.3 + w * 0.15), dhx, dhy, { bump: 0.09, gloss: 40, shine: 0.75, ambient: 0.3 });
   },
 });
