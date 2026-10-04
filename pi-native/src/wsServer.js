@@ -190,6 +190,7 @@ const http = require('http');
 const https = require('https');
 const { ensureSelfSignedCert } = require('./tls');
 const youtube = require('./youtube');
+const autoShow = require('./autoShow');
 const fs = require('fs');
 const path = require('path');
 const { EFFECTS, EFFECT_NAMES, WALL_EFFECTS } = require('./effects');
@@ -620,15 +621,63 @@ class WsServer {
 
   // Playlist: every N minutes, move on to the next favourite. Waits while
   // the display is off or a timer is running.
+  // Every 5 s: celebrations, then weather, then the (day-plan) playlist -
+  // see src/autoShow.js for the rules.
   _playlistTick() {
     const p = this.state.prefs;
-    if (!p || !p.playlist || !p.playlist.on || this.state.blank || this.state.activeAlarm) return;
-    const favs = p.favourites.filter((k) => EFFECTS[k]);
+    if (!p || this.state.activeAlarm) return;
+    const now = new Date();
+    const st = this.state.autoStatus || (this.state.autoStatus = {});
+    const show = (effect) => {
+      if (!EFFECTS[effect] || this.state.effect === effect) return false;
+      this.state.effect = effect; this.state.blank = false; this._playlistSince = Date.now();
+      return true;
+    };
+    // 1. Celebrations.
+    const cel = autoShow.celebrationAt(p.celebrations, now);
+    if (cel && this._celebrationKey !== cel.key) {
+      this._celebrationKey = cel.key;
+      this._beforeCelebration = { effect: this.state.effect, blank: !!this.state.blank };
+      const fw = { ...(this.state.effectOptions.fireworks || {}), textOn: !!cel.text, text: cel.text, finaleToken: Date.now() };
+      this.state.effectOptions = { ...this.state.effectOptions, fireworks: fw };
+      show('fireworks'); this.state.blank = false;
+      st.celebration = cel.text || 'Fireworks';
+      this._broadcast(this._stateMsg());
+      return;
+    }
+    if (cel) return; // keep the celebration on screen
+    if (this._beforeCelebration) {
+      const b = this._beforeCelebration; this._beforeCelebration = null; st.celebration = '';
+      if (this.state.effect === 'fireworks') { show(b.effect); this.state.blank = b.blank; this._broadcast(this._stateMsg()); }
+      return;
+    }
+    if (this.state.blank) return;
+    // 2. Match the weather (refreshed every 15 minutes).
+    if (p.weatherMode && p.weatherMode.on) {
+      const city = (weatherConfig.load() || {}).city;
+      if (city && !this._wxBusy && Date.now() - (this._wxAt || 0) > 15 * 60000) {
+        this._wxBusy = true; this._wxAt = Date.now();
+        autoShow.fetchWeatherCode(city).then((w) => { this._wx = w; st.weather = { place: w.place, words: autoShow.WEATHER_WORDS(w.code), effect: autoShow.effectForWeather(w.code, !w.isDay), error: '' }; })
+          .catch((e) => { st.weather = { error: e.message }; })
+          .finally(() => { this._wxBusy = false; this._broadcast(this._stateMsg()); });
+      }
+      if (!city) st.weather = { error: 'Set your town in the Weather effect first' };
+      if (this._wx && show(autoShow.effectForWeather(this._wx.code, !this._wx.isDay))) this._broadcast(this._stateMsg());
+      return;
+    }
+    // 3. Playlist, using the current part of the day's effects when the day plan is on.
+    let list = p.favourites;
+    if (p.dayPlan && p.dayPlan.on) {
+      const part = autoShow.partAt(p.dayPlan.starts, now);
+      if (part !== st.part) { st.part = part; this._playlistSince = 0; }
+      const own = (p.dayPlan.effects[part] || []).filter((k) => EFFECTS[k]);
+      if (own.length) list = own;
+      if (own.length && !own.includes(this.state.effect)) { if (show(own[0])) this._broadcast(this._stateMsg()); return; }
+    } else st.part = '';
+    if (!p.playlist || !p.playlist.on) return;
+    const favs = list.filter((k) => EFFECTS[k]);
     if (favs.length < 2 || Date.now() - this._playlistSince < p.playlist.minutes * 60000) return;
-    this._playlistSince = Date.now();
-    const next = favs[(favs.indexOf(this.state.effect) + 1) % favs.length];
-    this.state.effect = next;
-    this._broadcast(this._stateMsg());
+    if (show(favs[(favs.indexOf(this.state.effect) + 1) % favs.length])) this._broadcast(this._stateMsg());
   }
 
   _stateMsg() {
@@ -638,6 +687,7 @@ class WsServer {
       controlPinSet: pinConfig.isPinSet(this.pinCfg),
       blank: !!this.state.blank,
       panelsOff: !!this.state.panelsOff,
+      autoStatus: this.state.autoStatus || {},
       musicReact: this.state.musicReact || { on: false, amount: 0.6 },
       scenes: (this.state.scenes || []).map((sc) => ({ name: sc.name, effect: sc.effect })),
       panelSize: this.config.size, panelMode: this.config.mode, panels: this.config.panels,

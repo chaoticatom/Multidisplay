@@ -626,6 +626,16 @@ const COMMANDS = {
     this._broadcast(this._stateMsg());
   },
 
+  // Automatic show settings: {dayPlan?, weatherMode?, celebrations?}
+  // (see src/autoShow.js). Each given part replaces the stored one.
+  setAutoShow(ws, msg) {
+    const p = this.state.prefs || prefs.load(), next = { ...p };
+    for (const k of ['dayPlan', 'weatherMode', 'celebrations']) if (msg[k] && typeof msg[k] === 'object') next[k] = msg[k];
+    this.state.prefs = prefs.save(next);
+    if (msg.weatherMode) this._wxAt = 0; // fetch straight away
+    this._broadcast(this._stateMsg());
+  },
+
   // Playlist: {on, minutes} - cycles through the favourites (see
   // WsServer._playlistTick). Night dimming: {on, from, to, level}.
   setPlaylist(ws, msg) {

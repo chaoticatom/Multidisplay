@@ -5651,7 +5651,7 @@ var PiEngine = (() => {
       function matrixRain(c, dt) {
         const W = c.W, H = c.H, cw = 4, ch = 6, ncol = Math.floor(W / cw);
         if (st.cols.length !== ncol) {
-          st.cols = Array.from({ length: ncol }, () => ({ y: -Math.random() * H, speed: 8 + Math.random() * 18, len: 4 + Math.floor(Math.random() * 8), glyphs: Array.from({ length: Math.ceil(H / ch) + 1 }, () => GLYPHS[Math.floor(Math.random() * GLYPHS.length)]) }));
+          st.cols = Array.from({ length: ncol }, () => ({ y: Math.random() * H * 1.6 - H * 0.6, speed: 8 + Math.random() * 18, len: 4 + Math.floor(Math.random() * 8), glyphs: Array.from({ length: Math.ceil(H / ch) + 1 }, () => GLYPHS[Math.floor(Math.random() * GLYPHS.length)]) }));
         }
         for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) c.set(x, y, 0, 0.012, 4e-3);
         st.cols.forEach((col, i) => {
@@ -6005,6 +6005,7 @@ var PiEngine = (() => {
       var { defineCanvasEffect } = require_canvas();
       var { hsl } = require_core();
       var st = { z: 0 };
+      var LUT = Array.from({ length: 256 }, (_, i) => hsl(i / 256, 0.9, 0.5));
       module.exports = defineCanvasEffect({
         render(c, { t, dt, core }) {
           const W = c.W, H = c.H, S = Math.min(W, H);
@@ -6022,7 +6023,7 @@ var PiEngine = (() => {
             const rib = Math.pow(Math.max(0, Math.cos(v * Math.PI * 2)), 10) * 0.45;
             const fog = Math.min(1, r * 3.2);
             const hue = (u * 0.02 + t * 0.03) % 1;
-            const [cr, cg, cb] = hsl(hue, 0.9, 0.5);
+            const [cr, cg, cb] = LUT[Math.floor((hue % 1 + 1) % 1 * 256) & 255];
             const panel = 0.08 + 0.05 * Math.cos(v * Math.PI * 2) * Math.cos(u * Math.PI);
             let k = (panel + ring * 0.9 + rib) * fog;
             const core0 = Math.exp(-r * r * 140) * 0.9;
@@ -6106,10 +6107,17 @@ var PiEngine = (() => {
           }
           const fl = st.flash * st.flash;
           const cloudBase = H * 0.42;
+          const GW = (W >> 1) + 2, GH = (H >> 1) + 2;
+          if (!st.dens || st.dens.length !== GW * GH) st.dens = new Float32Array(GW * GH);
+          for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
+            const x = gx * 2, y = gy * 2;
+            const n = fbm(x * 0.06 + t * 0.12, y * 0.09 - t * 0.03), n2 = fbm(x * 0.03 - t * 0.05 + 7, y * 0.05 + 3);
+            st.dens[gy * GW + gx] = Math.max(0, Math.min(1, (n * 0.7 + n2 * 0.6 - 0.35) * 2.2 * (1 - Math.max(0, (y - cloudBase) / (H * 0.25)))));
+          }
           for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
             const v = y / H;
-            const n = fbm(x * 0.06 + t * 0.12, y * 0.09 - t * 0.03), n2 = fbm(x * 0.03 - t * 0.05 + 7, y * 0.05 + 3);
-            const dens = Math.max(0, Math.min(1, (n * 0.7 + n2 * 0.6 - 0.35) * 2.2 * (1 - Math.max(0, (y - cloudBase) / (H * 0.25)))));
+            const gx = x >> 1, gy = y >> 1, fx = (x & 1) * 0.5, fy = (y & 1) * 0.5, D = st.dens, k0 = gy * GW + gx;
+            const dens = (D[k0] * (1 - fx) + D[k0 + 1] * fx) * (1 - fy) + (D[k0 + GW] * (1 - fx) + D[k0 + GW + 1] * fx) * fy;
             const near = Math.exp(-(((x / W - st.strikeX) / 0.35) ** 2));
             const lit = fl * (0.25 + 0.75 * near) * (0.4 + dens * 0.9);
             let r = 0.01 + v * 0.015, g = 0.012 + v * 0.02, b = 0.03 + v * 0.03;
@@ -6299,6 +6307,48 @@ var PiEngine = (() => {
               if (rg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = rg;
               if (rb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = rb;
             }
+          }
+        }
+        finishGlowCube(core);
+      }
+      var gA = null;
+      var gB = null;
+      var gC = null;
+      function finishGlowCube(core) {
+        const { SIZE: S, faceMap, colBuf } = core, n = S * S * 3, R = 2;
+        if (!gA || gA.length !== n) {
+          gA = new Float32Array(n);
+          gB = new Float32Array(n);
+          gC = new Float32Array(n);
+        }
+        for (let f = 0; f < 6; f++) {
+          const map = faceMap[f];
+          for (let i = 0; i < S * S; i++) {
+            const idx = map[i];
+            for (let ch = 0; ch < 3; ch++) gC[i * 3 + ch] = idx < 0 ? 0 : colBuf[idx * 3 + ch];
+          }
+          for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) for (let ch = 0; ch < 3; ch++) {
+            let sum = 0;
+            for (let k = -R; k <= R; k++) {
+              const xx = x + k;
+              if (xx >= 0 && xx < S) sum += gC[(y * S + xx) * 3 + ch];
+            }
+            gA[(y * S + x) * 3 + ch] = sum / (2 * R + 1);
+          }
+          for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) for (let ch = 0; ch < 3; ch++) {
+            let sum = 0;
+            for (let k = -R; k <= R; k++) {
+              const yy = y + k;
+              if (yy >= 0 && yy < S) sum += gA[(yy * S + x) * 3 + ch];
+            }
+            gB[(y * S + x) * 3 + ch] = sum / (2 * R + 1);
+          }
+          for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+            const idx = map[y * S + x];
+            if (idx < 0) continue;
+            const o = (y * S + x) * 3, grid = x % 8 === 0 || y % 8 === 0 ? 0.025 : 0;
+            const bg = [6e-3 + grid * 0.5, 8e-3 + grid * 0.8, 0.02 + grid * 1.6];
+            for (let ch = 0; ch < 3; ch++) colBuf[idx * 3 + ch] = Math.min(1, Math.max(bg[ch], gC[o + ch]) + gB[o + ch] * 1.6);
           }
         }
       }
@@ -7603,8 +7653,11 @@ var PiEngine = (() => {
         const reach = Math.ceil(h * 1.75) + 1;
         for (let y = Math.floor(cy - reach); y <= cy + reach; y++) for (let x = Math.floor(cx - reach); x <= cx + reach; x++) {
           let ar = 0, ag = 0, ab = 0, cov = 0;
-          for (let sy = 0; sy < 2; sy++) for (let sx = 0; sx < 2; sx++) {
-            const wx = (x + 0.25 + sx * 0.5 - cx) / h, wy = (y + 0.25 + sy * 0.5 - cy) / h;
+          const interior = Math.hypot(x + 0.5 - cx, y + 0.5 - cy) < h - 1.5;
+          const ns = interior ? 1 : 2;
+          for (let sy = 0; sy < ns; sy++) for (let sx = 0; sx < ns; sx++) {
+            const off = interior ? 0.5 : 0.25;
+            const wx = (x + off + sx * 0.5 - cx) / h, wy = (y + off + sy * 0.5 - cy) / h;
             const ox = M[0] * wx + M[3] * wy + M[6] * 3, oy = M[1] * wx + M[4] * wy + M[7] * 3, oz = M[2] * wx + M[5] * wy + M[8] * 3;
             const dx = -M[6], dy = -M[7], dz = -M[8];
             let tn = -Infinity, tf = Infinity, axis = -1, sign = 0;
@@ -7662,7 +7715,7 @@ var PiEngine = (() => {
           if (!cov) continue;
           const o2 = c.get(x, y);
           if (!o2) continue;
-          const k = cov / 4;
+          const k = cov / (ns * ns);
           c.set(x, y, o2[0] * (1 - k) + ar / cov * k, o2[1] * (1 - k) + ag / cov * k, o2[2] * (1 - k) + ab / cov * k);
         }
       }
@@ -7962,8 +8015,49 @@ var PiEngine = (() => {
         }
         const flick = Math.sin(t * 37) > 0.97 || t % 6 > 5.6 && Math.sin(t * 80) > 0 ? 0.25 : 1;
         const x0 = Math.round((W - w) / 2), y0 = Math.round(H * 0.5 - h / 2);
-        for (const [dx, dy, k] of [[-1, 0, 0.25], [1, 0, 0.25], [0, -1, 0.25], [0, 1, 0.25]]) stroke.drawText({ W, H, set: (x, y, r, g, b) => c.add(x, y, r, g, b), add: c.add, get: c.get }, word, x0 + dx, y0 + dy, h, [1 * k * flick, 0.15 * k * flick, 0.6 * k * flick]);
-        stroke.drawText(c, word, x0, y0, h, [1 * flick, 0.35 * flick, 0.8 * flick]);
+        const key = word + "|" + W + "|" + H;
+        if (!st.neonCache || st.neonCache.key !== key) {
+          const img2 = new Float32Array(W * H * 3);
+          const tgt = {
+            W,
+            H,
+            set(x, y, r, g, b) {
+              x = Math.round(x);
+              y = Math.round(y);
+              if (x < 0 || y < 0 || x >= W || y >= H) return;
+              const o = (y * W + x) * 3;
+              img2[o] = Math.max(img2[o], r);
+              img2[o + 1] = Math.max(img2[o + 1], g);
+              img2[o + 2] = Math.max(img2[o + 2], b);
+            },
+            add(x, y, r, g, b) {
+              x = Math.round(x);
+              y = Math.round(y);
+              if (x < 0 || y < 0 || x >= W || y >= H) return;
+              const o = (y * W + x) * 3;
+              img2[o] += r;
+              img2[o + 1] += g;
+              img2[o + 2] += b;
+            },
+            get(x, y) {
+              x = Math.round(x);
+              y = Math.round(y);
+              if (x < 0 || y < 0 || x >= W || y >= H) return null;
+              const o = (y * W + x) * 3;
+              return [img2[o], img2[o + 1], img2[o + 2]];
+            }
+          };
+          const glow = { ...tgt, set: tgt.add };
+          for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) stroke.drawText(glow, word, x0 + dx, y0 + dy, h, [0.25, 0.04, 0.15]);
+          stroke.drawText(tgt, word, x0, y0, h, [1, 0.35, 0.8]);
+          st.neonCache = { key, img: img2 };
+        }
+        const img = st.neonCache.img;
+        for (let i = 0, n = W * H; i < n; i++) {
+          const o = i * 3;
+          if (!img[o] && !img[o + 1] && !img[o + 2]) continue;
+          c.add(i % W, Math.floor(i / W), img[o] * flick, img[o + 1] * flick, img[o + 2] * flick);
+        }
         const sub = "OPEN", sx = Math.round((W - textWidth(FONT_3x5, sub)) / 2);
         drawString(FONT_3x5, sub, sx, Math.min(H - 6, y0 + Math.round(h) + 3), (x, y) => c.set(x, y, 0.2, 0.9 * (0.6 + 0.4 * Math.sin(t * 3)), 1));
       }
@@ -13120,10 +13214,13 @@ var PiEngine = (() => {
         crackle: ["crackle", "crossette"]
       };
       var RATE = [2.6, 2.2, 1.8, 1.5, 1.2, 1, 0.8, 0.6, 0.45, 0.32];
-      var st = { W: 0, H: 0, buf: null, smoke: null, rockets: [], stars: [], flash: 0, flashX: 0.5, next: 0.2, finaleT: 0, finaleLeft: 0, textT: 6, wasBeat: 0 };
+      var newState = () => ({ lastFinale: void 0, W: 0, H: 0, buf: null, smoke: null, rockets: [], stars: [], flash: 0, flashX: 0.5, next: 0.2, finaleT: 0, finaleLeft: 0, textT: 6, wasBeat: 0 });
+      var lastState = newState();
       module.exports = defineCanvasEffect({
         render(c, { t, dt, core }) {
           const W = c.W, H = c.H, o = core.effectOptions && core.effectOptions.fireworks || {};
+          const st = core._fireworks || (core._fireworks = newState());
+          lastState = st;
           if (st.W !== W || st.H !== H) {
             st.W = W;
             st.H = H;
@@ -13249,7 +13346,8 @@ var PiEngine = (() => {
           st.wasBeat = beat;
           if (opt.mode === "mic") {
             if (bigBeat) launch();
-          } else if ((st.next -= dt) <= 0) {
+          } else if (bigBeat && st.rockets.length < 3) launch();
+          else if ((st.next -= dt) <= 0) {
             if (opt.mode === "sync") {
               const types = STYLE_TYPES[opt.style], type = types[Math.floor(Math.random() * types.length)], k = 2 + Math.floor(Math.random() * 3);
               for (let i = 0; i < k; i++) launch(type, W * (i + 0.5) / k);
@@ -13258,6 +13356,10 @@ var PiEngine = (() => {
               launch();
               st.next = opt.rate * (0.5 + Math.random());
             }
+          }
+          if (o.finaleToken !== void 0 && o.finaleToken !== st.lastFinale) {
+            if (st.lastFinale !== void 0 || Date.now() - o.finaleToken < 6e4) st.finaleLeft = 30;
+            st.lastFinale = o.finaleToken;
           }
           if (opt.finale === "2") {
             st.finaleT += dt;
@@ -13377,7 +13479,7 @@ var PiEngine = (() => {
           }
         }
       });
-      module.exports.getStatus = () => ({ rockets: st.rockets.length, stars: st.stars.length });
+      module.exports.getStatus = () => ({ rockets: lastState.rockets.length, stars: lastState.stars.length });
     }
   });
 
@@ -14390,7 +14492,7 @@ var PiEngine = (() => {
       var { defineCanvasEffect } = require_canvas();
       var { hsl } = require_core();
       var { lit } = require_shade();
-      var st = { W: 0, H: 0, a: null, b: null, acc: 0, drop: 0.3 };
+      var st = { W: 0, H: 0, a: null, b: null, acc: 0, drop: 0.3, floorImg: null, pad: 8 };
       var hash = (x, y) => {
         const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
         return s - Math.floor(s);
@@ -14416,6 +14518,14 @@ var PiEngine = (() => {
             st.H = H;
             st.a = new Float32Array(W * H);
             st.b = new Float32Array(W * H);
+            const P = st.pad, FW = W + 2 * P, FH = H + 2 * P;
+            st.floorImg = new Float32Array(FW * FH * 3);
+            for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+              const c0 = floor(x - P, y - P, 0), o = (y * FW + x) * 3;
+              st.floorImg[o] = c0[0];
+              st.floorImg[o + 1] = c0[1];
+              st.floorImg[o + 2] = c0[2];
+            }
           }
           const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
           if ((st.drop -= dt) <= 0 || beat > 0.8 && Math.random() < 0.25) {
@@ -14438,7 +14548,9 @@ var PiEngine = (() => {
           for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
             const p = y * W + x;
             const dhx = x > 0 && x < W - 1 ? (h[p + 1] - h[p - 1]) * 0.5 : 0, dhy = y > 0 && y < H - 1 ? (h[p + W] - h[p - W]) * 0.5 : 0;
-            const col = floor(x + dhx * 5, y + dhy * 5, t);
+            const P = st.pad, FW = W + 2 * P;
+            const fx = Math.max(0, Math.min(FW - 1, Math.round(x + P + dhx * 5))), fy = Math.max(0, Math.min(H + 2 * P - 1, Math.round(y + P + dhy * 5)));
+            const fo = (fy * FW + fx) * 3, col = [st.floorImg[fo], st.floorImg[fo + 1], st.floorImg[fo + 2]];
             const deep = [col[0] * 0.85, col[1] * 0.95 + 0.02, col[2] + 0.05];
             const out = lit(deep, dhx, dhy, { bump: 1.6, gloss: 40, shine: 0.9, ambient: 0.75 });
             c.set(x, y, out[0], out[1], out[2]);
@@ -14479,7 +14591,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { hsl, sm } = require_core();
+      var { hsl } = require_core();
       var { defineFieldEffect } = require_surface();
       var TRI = [[0.5, 0.26], [0.27, 0.72], [0.73, 0.72]];
       function side(px, py, a, b) {
@@ -14539,23 +14651,10 @@ var PiEngine = (() => {
         speed: 0.55,
         pixel(p, { t }) {
           if (p.flat) return flatPrism(p.x, p.y, t);
-          const { x, y, z } = p;
-          const beamAng = t * 0.6, beamW = 0.18;
-          const diag = p.flat ? (x + y) / 2 : (x + y + z) / 3;
-          const cross = p.flat ? 0 : Math.abs(x - z);
-          const base = 0.28 + Math.sin(diag * Math.PI * 5.5 + t) * 0.28;
-          const hue = (diag * 0.92 + t * 0.065) % 1;
-          let [r, g, b] = hsl(hue, 0.78 + sm(0, 1, cross) * 0.22, Math.max(0, base));
-          const bDist = p.flat ? Math.abs((x - 0.5) * Math.cos(beamAng)) : Math.abs((x - 0.5) * Math.cos(beamAng) + (z - 0.5) * Math.sin(beamAng));
-          const beam = Math.max(0, 1 - bDist / beamW) * 0.8;
-          if (beam > 0) {
-            const dispHue = (hue + bDist * 1.5) % 1;
-            const [dr, dg, db] = hsl(dispHue, 1, beam * 0.9);
-            r = Math.min(1, r + dr * beam + beam * 0.3);
-            g = Math.min(1, g + dg * beam + beam * 0.3);
-            b = Math.min(1, b + db * beam + beam * 0.3);
-          }
-          return [r, g, b];
+          const ex = Math.min(p.x, 1 - p.x), ey = Math.min(p.y, 1 - p.y), ez = Math.min(p.z, 1 - p.z);
+          if (ez <= ex && ez <= ey) return flatPrism(p.x, 1 - p.y, t);
+          if (ex <= ey) return flatPrism(p.z, 1 - p.y, t);
+          return flatPrism(p.x, p.z, t);
         }
       });
     }

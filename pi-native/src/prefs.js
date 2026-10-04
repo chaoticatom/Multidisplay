@@ -10,6 +10,10 @@ const DEFAULT = {
   playlist: { on: false, minutes: 5 },
   nightDim: { on: false, from: 22, to: 7, level: 0.3 },
   look: { on: true, bloom: 0.65, vibrance: 0.35, smooth: 0, depth: 0.5, palette: 'auto' },
+  // Automatic show (see src/autoShow.js).
+  dayPlan: { on: false, starts: { morning: 6, day: 10, evening: 18, night: 23 }, effects: { morning: [], day: [], evening: [], night: [] } },
+  weatherMode: { on: false },
+  celebrations: { newYear: true, dates: [] }, // dates: [{ month, day, hour, minute, text }]
 };
 
 function clean(p) {
@@ -38,6 +42,25 @@ function clean(p) {
     out.look.on = p.look.on !== false;
     if (typeof p.look.palette === 'string' && /^[a-z]{1,20}$/.test(p.look.palette)) out.look.palette = p.look.palette;
     for (const k of ['bloom', 'vibrance', 'smooth', 'depth']) { const v = Number(p.look[k]); if (Number.isFinite(v)) out.look[k] = Math.max(0, Math.min(1, v)); }
+  }
+  if (p && p.dayPlan) {
+    out.dayPlan.on = !!p.dayPlan.on;
+    for (const part of ['morning', 'day', 'evening', 'night']) {
+      const h = Number(p.dayPlan.starts && p.dayPlan.starts[part]);
+      if (Number.isInteger(h) && h >= 0 && h < 24) out.dayPlan.starts[part] = h;
+      const list = p.dayPlan.effects && p.dayPlan.effects[part];
+      if (Array.isArray(list)) out.dayPlan.effects[part] = list.filter((k) => typeof k === 'string' && /^[a-z0-9_]{1,30}$/.test(k)).slice(0, 20);
+    }
+  }
+  if (p && p.weatherMode) out.weatherMode.on = !!p.weatherMode.on;
+  if (p && p.celebrations) {
+    out.celebrations.newYear = p.celebrations.newYear !== false;
+    if (Array.isArray(p.celebrations.dates)) {
+      out.celebrations.dates = p.celebrations.dates.map((d) => ({
+        month: Number(d && d.month), day: Number(d && d.day), hour: Number(d && d.hour) || 0, minute: Number(d && d.minute) || 0,
+        text: String((d && d.text) || '').slice(0, 24),
+      })).filter((d) => d.month >= 1 && d.month <= 12 && d.day >= 1 && d.day <= 31 && d.hour >= 0 && d.hour < 24 && d.minute >= 0 && d.minute < 60).slice(0, 30);
+    }
   }
   return out;
 }

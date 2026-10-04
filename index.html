@@ -971,6 +971,20 @@ body.cx-preview-off #c, body.cx-preview-off #panel2d-canvas, body.cx-preview-off
   #sidebar-brightness-bar { padding: 0 12px 2px !important; }
 }
 /* ── Timers (list + editor sheet) ── */
+.as-block { margin: 12px 0; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.04); box-shadow: 0 0 0 1px rgba(255,255,255,.08); display: grid; gap: 8px; }
+.as-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.as-head b { font-size: 14px; color: #eef2ff; } .as-head small { display: block; font-size: 12px; color: rgba(238,242,255,.55); font-weight: 400; }
+.as-part { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.06); }
+.as-part-top { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #eef2ff; }
+.as-part-top select { width: auto !important; padding: 4px 8px !important; }
+.as-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.as-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--cx1) 22%, transparent); color: #eef2ff; font-size: 12px; }
+.as-chip button { border: none; background: none; color: rgba(238,242,255,.7); cursor: pointer; font-size: 13px; padding: 0 2px; }
+.as-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.as-row input, .as-row select { flex: 1 1 90px; min-width: 0; }
+.as-status { font-size: 12.5px; color: color-mix(in srgb, var(--cx1) 70%, #fff); }
+.as-date { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; color: #eef2ff; padding: 6px 0; border-top: 1px solid rgba(255,255,255,.06); }
+.as-date button { border: none; background: rgba(255,90,90,.12); color: #ff9a9a; border-radius: 8px; padding: 4px 8px; cursor: pointer; }
 .tm-quick { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 4px 0 8px; }
 .tm-quick button { padding: 10px 6px; border-radius: 14px; border: none; background: rgba(255,255,255,.05); box-shadow: 0 0 0 1px rgba(255,255,255,.09); color: #eef2ff; font-size: 13px; cursor: pointer; }
 .cx-timer { cursor: pointer; }
@@ -1943,6 +1957,13 @@ body.cx-preview-off #c, body.cx-preview-off #panel2d-canvas, body.cx-preview-off
       <div id="alarm-list-ui"></div>
       <div class="tm-quick"><button type="button" data-quick="wake">⏰ Wake up</button><button type="button" data-quick="start">▶ Switch on</button><button type="button" data-quick="winddown">🌙 Wind down</button><button type="button" data-quick="off">⏻ Turn off</button></div>
       <button id="alarm-add-btn" type="button" style="width:100%;">+ New timer</button>
+    </div>
+  </div>
+  <div class="sidebar-section collapsed" id="auto-section">
+    <button class="section-head">◈ Auto show <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div class="ui-note">Let the display choose for itself. Celebrations come first, then the weather, then your day plan.</div>
+      <div id="auto-show-ui"></div>
     </div>
   </div>
   <div class="sidebar-section collapsed" data-section="overlays">

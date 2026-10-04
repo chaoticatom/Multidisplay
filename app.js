@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.227';
+const APP_VERSION = '0.6.229';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -261,6 +261,7 @@ function handleTextMessage(msg) {
     syncCustomCubeLibrarySelects();
     syncCustomCubeEffectPanel();
     renderAlarmList();
+    cxRenderAutoShow();
     syncClearAllButton();
     syncIdentifyPanelsButton();
     renderWallLayoutList();
@@ -478,7 +479,7 @@ function syncPinStatus() {
 // Each sidebar section belongs to one tab (by its heading); only the active
 // tab's sections show, open. The chosen tab is remembered per browser.
 const TAB_OF_SECTION = [
-  ['Effects', 'play'], ['Draw on a Face', 'play'], ['Music', 'music'], ['Overlays', 'schedule'], ['Timers', 'schedule'],
+  ['Effects', 'play'], ['Draw on a Face', 'play'], ['Music', 'music'], ['Overlays', 'schedule'], ['Timers', 'schedule'], ['Auto show', 'schedule'],
   ['Display', 'setup'], ['AI assistant', 'setup'], ['System', 'setup'],
 ];
 // Tab names before the Play/Music/Schedule/Setup redesign, so a browser
@@ -3251,6 +3252,81 @@ function wireAlarmModal() {
     const next = tmNextRun(alarm);
     cxToast(`Timer saved · ${next ? 'next ' + tmUntil(next) : 'runs once'}`);
     closeAlarmEditor();
+  });
+}
+
+// ---------------------------------------------------------------------
+// Auto show (#auto-section): day plan, match the weather, celebrations.
+// Settings live in prefs on the Pi (src/prefs.js, src/autoShow.js); every
+// change sends the whole part with {cmd:'setAutoShow'}.
+const AS_PARTS = [['morning', '🌅 Morning'], ['day', '☀ Day'], ['evening', '🌆 Evening'], ['night', '🌙 Night']];
+const AS_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function asPrefs() {
+  const p = currentState.prefs || {};
+  return {
+    dayPlan: p.dayPlan || { on: false, starts: { morning: 6, day: 10, evening: 18, night: 23 }, effects: { morning: [], day: [], evening: [], night: [] } },
+    weatherMode: p.weatherMode || { on: false },
+    celebrations: p.celebrations || { newYear: true, dates: [] },
+  };
+}
+function asSend(part, value) { send({ cmd: 'setAutoShow', [part]: value }); }
+function cxRenderAutoShow() {
+  const host = document.getElementById('auto-show-ui');
+  if (!host) return;
+  const P = asPrefs(), st = currentState.autoStatus || {};
+  const key = JSON.stringify([P, st, Object.keys(effectNames || {}).length]);
+  if (host.dataset.key === key || host.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
+  host.dataset.key = key;
+  const names = Object.entries(effectNames || {}).filter(([k]) => !['custom_cube', 'easter_egg', 'cam', 'screen', 'video'].includes(k)).sort((a, b) => a[1].localeCompare(b[1]));
+  const hourOpts = (sel) => Array.from({ length: 24 }, (_, h) => `<option value="${h}"${h === sel ? ' selected' : ''}>${String(h).padStart(2, '0')}:00</option>`).join('');
+  const sw = (id, on) => `<button type="button" class="cx-switch${on ? ' on' : ''}" id="${id}" aria-label="On or off"></button>`;
+  const dp = P.dayPlan;
+  let html = `<div class="as-block"><div class="as-head"><b>Day plan<small>Different effects for each part of the day.${st.part ? ' Now: ' + st.part + '.' : ''}</small></b>${sw('as-dp-on', dp.on)}</div>`;
+  if (dp.on) {
+    for (const [part, label] of AS_PARTS) {
+      const list = dp.effects[part] || [];
+      html += `<div class="as-part" data-part="${part}"><div class="as-part-top"><span style="flex:1">${label}</span>from <select class="as-start" aria-label="${label} starts at">${hourOpts(dp.starts[part])}</select></div>
+        <div class="as-chips">${list.map((k) => `<span class="as-chip">${escHtml(effectNames[k] || k)}<button type="button" data-rm="${k}" aria-label="Remove">✕</button></span>`).join('') || '<span class="ui-note" style="margin:0">Your favourites</span>'}</div>
+        <select class="as-add" aria-label="Add an effect to ${label}"><option value="">+ Add effect…</option>${names.map(([k, v]) => `<option value="${k}">${escHtml(v)}</option>`).join('')}</select></div>`;
+    }
+    html += '<div class="ui-note" style="margin:0">With two or more effects in a part, turn on the playlist (Play tab) to cycle through them.</div>';
+  }
+  html += '</div>';
+  const w = st.weather || {};
+  html += `<div class="as-block"><div class="as-head"><b>Match the weather<small>Thunder, rain, snow, fog, clouds or a clear night pick a matching effect. Uses the town set in the Weather effect.</small></b>${sw('as-wx-on', P.weatherMode.on)}</div>`;
+  if (P.weatherMode.on) html += `<div class="as-status">${w.error ? '⚠ ' + escHtml(w.error) : w.words ? `Now: ${escHtml(w.words)} in ${escHtml(w.place || '')} → ${escHtml(effectNames[w.effect] || w.effect)}` : 'Checking the weather…'}</div>`;
+  html += '</div>';
+  const cel = P.celebrations;
+  html += `<div class="as-block"><div class="as-head"><b>Celebrations<small>Fireworks with your message for 15 minutes, then back to what was on.${st.celebration ? ' Now: ' + escHtml(st.celebration) : ''}</small></b></div>
+    <div class="as-head"><span style="font-size:13px;color:#eef2ff">🎆 New Year at midnight</span>${sw('as-ny-on', cel.newYear)}</div>`;
+  for (let i = 0; i < cel.dates.length; i++) {
+    const d = cel.dates[i];
+    html += `<div class="as-date"><span>${d.day} ${AS_MONTHS[d.month - 1]} · ${String(d.hour).padStart(2, '0')}:${String(d.minute).padStart(2, '0')} · ${escHtml(d.text || 'Fireworks')}</span><button type="button" data-delcel="${i}">Remove</button></div>`;
+  }
+  html += `<div class="as-row"><input type="date" id="as-cel-date" aria-label="Date"><input type="time" id="as-cel-time" value="08:00" aria-label="Time"></div>
+    <div class="as-row"><input type="text" id="as-cel-text" maxlength="24" placeholder="HAPPY BIRTHDAY SAM" aria-label="Message"><button type="button" class="ui-btn-small" id="as-cel-add">Add</button></div></div>`;
+  host.innerHTML = html;
+  // Wiring.
+  host.querySelector('#as-dp-on').addEventListener('click', () => asSend('dayPlan', { ...dp, on: !dp.on }));
+  host.querySelectorAll('.as-part').forEach((row) => {
+    const part = row.dataset.part;
+    row.querySelector('.as-start').addEventListener('change', (e) => asSend('dayPlan', { ...dp, starts: { ...dp.starts, [part]: Number(e.target.value) } }));
+    row.querySelector('.as-add').addEventListener('change', (e) => {
+      const k = e.target.value; if (!k) return;
+      const list = (dp.effects[part] || []).filter((x) => x !== k).concat(k);
+      asSend('dayPlan', { ...dp, effects: { ...dp.effects, [part]: list } });
+    });
+    row.querySelectorAll('[data-rm]').forEach((b) => b.addEventListener('click', () => asSend('dayPlan', { ...dp, effects: { ...dp.effects, [part]: (dp.effects[part] || []).filter((x) => x !== b.dataset.rm) } })));
+  });
+  host.querySelector('#as-wx-on').addEventListener('click', () => asSend('weatherMode', { on: !P.weatherMode.on }));
+  host.querySelector('#as-ny-on').addEventListener('click', () => asSend('celebrations', { ...cel, newYear: !cel.newYear }));
+  host.querySelectorAll('[data-delcel]').forEach((b) => b.addEventListener('click', () => asSend('celebrations', { ...cel, dates: cel.dates.filter((_, i) => i !== Number(b.dataset.delcel)) })));
+  host.querySelector('#as-cel-add').addEventListener('click', () => {
+    const dv = host.querySelector('#as-cel-date').value, tv = host.querySelector('#as-cel-time').value || '08:00', text = host.querySelector('#as-cel-text').value.trim().toUpperCase();
+    if (!dv) { cxToast('Pick a date first'); return; }
+    const [, mo, da] = dv.split('-').map(Number), [hh, mi] = tv.split(':').map(Number);
+    asSend('celebrations', { ...cel, dates: cel.dates.concat({ month: mo, day: da, hour: hh, minute: mi, text }) });
+    cxToast('Celebration added · every year on ' + da + ' ' + AS_MONTHS[mo - 1]);
   });
 }
 

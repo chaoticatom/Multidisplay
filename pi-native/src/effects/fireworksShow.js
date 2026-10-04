@@ -36,7 +36,7 @@ const STYLE_TYPES = {
 const RATE = [2.6, 2.2, 1.8, 1.5, 1.2, 1.0, 0.8, 0.6, 0.45, 0.32]; // quantity 1..10 -> seconds between launches
 
 // Show state lives on each display's core, so two displays never share a sky.
-const newState = () => ({ W: 0, H: 0, buf: null, smoke: null, rockets: [], stars: [], flash: 0, flashX: 0.5, next: 0.2, finaleT: 0, finaleLeft: 0, textT: 6, wasBeat: 0 });
+const newState = () => ({ lastFinale: undefined, W: 0, H: 0, buf: null, smoke: null, rockets: [], stars: [], flash: 0, flashX: 0.5, next: 0.2, finaleT: 0, finaleLeft: 0, textT: 6, wasBeat: 0 });
 let lastState = newState();
 
 module.exports = defineCanvasEffect({
@@ -115,6 +115,8 @@ module.exports = defineCanvasEffect({
         st.next = opt.rate * 2.2;
       } else { launch(); st.next = opt.rate * (0.5 + Math.random()); }
     }
+    // A celebration (src/autoShow.js) bumps finaleToken to start a finale now.
+    if (o.finaleToken !== undefined && o.finaleToken !== st.lastFinale) { if (st.lastFinale !== undefined || Date.now() - o.finaleToken < 60000) st.finaleLeft = 30; st.lastFinale = o.finaleToken; }
     if (opt.finale === '2') { st.finaleT += dt; if (st.finaleT > 120) { st.finaleT = 0; st.finaleLeft = 22; } }
     if (opt.finale === 'beat' && bigBeat && beat > 0.95 && st.finaleLeft <= 0 && Math.random() < 0.15) st.finaleLeft = 18;
     if (st.finaleLeft > 0 && Math.random() < dt * 14) { launch(); st.finaleLeft--; }
