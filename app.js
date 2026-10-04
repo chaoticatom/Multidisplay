@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.249';
+const APP_VERSION = '0.6.250';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -5031,8 +5031,17 @@ function syncAutoBackup() {
     : b.lastAt ? `Automatic weekly backup: last on ${new Date(b.lastAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} (${b.count} kept on the Pi)` : 'Automatic weekly backup: the first one runs once there are settings to save.';
   el.style.color = b.error ? '#ff9a9a' : '';
 }
+// When a timer starts (sunrise, wind-down or the alarm itself), a browser
+// that had hidden its preview shows it again, so you can see what's happening.
+let _cxAlarmSeen = null;
+function syncAlarmPreview() {
+  const a = currentState.activeAlarm, id = a && !a.dismissed ? (a.al && a.al.id) + ':' + a.phase : null;
+  if (id && id !== _cxAlarmSeen && document.body.classList.contains('cx-preview-off')) { cxApplyPreviewOff(false); cxToast('⏰ Timer started - preview back on'); }
+  _cxAlarmSeen = id;
+}
 function syncAccessChecks() {
   syncParty();
+  syncAlarmPreview();
   syncSfx();
   syncAutoBackup();
   syncCountdownPanel();
