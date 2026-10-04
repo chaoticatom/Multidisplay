@@ -148,7 +148,21 @@ parentPort.on('message', (msg) => {
   if (msg.type === 'tick') {
     // app.js only sends state when it changed (see its sendTick()); keep
     // the last copy, including anything tick() mutates on it (alarms etc.)
-    if (msg.state) { workerState = msg.state; workerVersion = msg.version; }
+    if (msg.state) {
+      // The main thread re-sends its state every second. Its copy lags the
+      // timer progress made here, so carry that over: the 2 s check clock,
+      // which timers already fired this minute, and a running sunrise /
+      // wind-down - unless the user cancelled it (alarmCancel changes).
+      // Without this, timers never fired on the Pi (a real report).
+      const prev = workerState;
+      workerState = msg.state; workerVersion = msg.version;
+      if (prev) {
+        workerState._alarmT = prev._alarmT;
+        const fired = new Map((prev.alarms || []).map((a) => [a.id, a._lastFireKey]));
+        for (const a of workerState.alarms || []) if (!a._lastFireKey && fired.get(a.id)) a._lastFireKey = fired.get(a.id);
+        if (!workerState.activeAlarm && prev.activeAlarm && workerState.alarmCancel === prev.alarmCancel) workerState.activeAlarm = prev.activeAlarm;
+      }
+    }
     const state = workerState;
     if (!state) return;
     const { dt, radioAudio } = msg;

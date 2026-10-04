@@ -325,6 +325,7 @@ const COMMANDS = {
     // in-flight state referencing the pre-edit alarm object shouldn't
     // keep rendering.
     if (this.state.activeAlarm && this.state.activeAlarm.al.id === msg.id) this.state.activeAlarm = null;
+    this.state.alarmCancel = Date.now(); // tells the render thread a running timer was stopped on purpose
     this._persistAlarms();
   },
 
@@ -334,6 +335,7 @@ const COMMANDS = {
     this.state.alarms = this.state.alarms.filter((a) => a.id !== msg.id);
     if (this.state.alarms.length === before) return; // no matching alarm
     if (this.state.activeAlarm && this.state.activeAlarm.al.id === msg.id) this.state.activeAlarm = null;
+    this.state.alarmCancel = Date.now(); // tells the render thread a running timer was stopped on purpose
     this._persistAlarms();
   },
 
@@ -342,12 +344,13 @@ const COMMANDS = {
     const al = this.state.alarms.find((a) => a.id === msg.id);
     if (!al) return;
     al.enabled = !!msg.enabled;
-    if (!al.enabled && this.state.activeAlarm && this.state.activeAlarm.al.id === msg.id) this.state.activeAlarm = null;
+    if (!al.enabled && this.state.activeAlarm && this.state.activeAlarm.al.id === msg.id) { this.state.activeAlarm = null; this.state.alarmCancel = Date.now(); }
     this._persistAlarms();
   },
 
   dismissAlarm(ws, msg) {
     alarmsEngine.dismissActive(this.state);
+    this.state.alarmCancel = Date.now();
     this._broadcast(this._stateMsg());
   },
 
