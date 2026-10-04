@@ -18,6 +18,7 @@ const wordClock = require('./wordClock');
 const starfield = require('./starfield');
 const fluidInk = require('./fluidInk');
 const lavaLamp = require('./lavaLamp');
+const countdown = require('./countdown');
 const gradientWash = require('./gradientWash');
 const weather = require('./weather');
 const easterEgg = require('./easterEgg');
@@ -126,6 +127,7 @@ const WALL_EFFECTS = {
   now_playing: nowPlaying.wall,
   message: messageBoard.wall,
   word_clock: wordClock.wall,
+  countdown: countdown.wall,
   starfield: starfield.wall,
   fluid_ink: fluidInk.wall,
   lava_lamp: lavaLamp.wall,
@@ -184,6 +186,7 @@ const EFFECTS = {
   now_playing: nowPlaying,
   message: messageBoard,
   word_clock: wordClock,
+  countdown,
   starfield: starfield,
   fluid_ink: fluidInk,
   lava_lamp: lavaLamp,
@@ -249,6 +252,7 @@ const EFFECT_NAMES = {
   now_playing: 'Now Playing',
   message: 'Message Board',
   word_clock: 'Word Clock',
+  countdown: 'Countdown',
   starfield: 'Starfield',
   fluid_ink: 'Fluid Ink',
   lava_lamp: 'Lava Lamp',

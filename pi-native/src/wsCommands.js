@@ -35,7 +35,7 @@ const COMMANDS = {
   setMusicReact(ws, msg) {
     const cur = this.state.musicReact || { on: false, amount: 0.6 };
     const amount = Number.isFinite(Number(msg.amount)) ? Math.max(0, Math.min(1, Number(msg.amount))) : cur.amount;
-    this.state.musicReact = { on: msg.on === undefined ? cur.on : !!msg.on, amount };
+    this.state.musicReact = { on: msg.on === undefined ? cur.on : !!msg.on, amount, perEffect: cur.perEffect || {} };
     this._broadcast(this._stateMsg());
   },
 
@@ -623,6 +623,26 @@ const COMMANDS = {
     const list = p.videos.filter((x) => x.id !== v.id);
     if (list.length === p.videos.length) list.unshift(v);
     this.state.prefs = prefs.save({ ...p, videos: list });
+    this._broadcast(this._stateMsg());
+  },
+
+  // Who needs the PIN: {localNoPin, guests} (see src/access.js).
+  setAccess(ws, msg) {
+    const p = this.state.prefs || prefs.load();
+    this.state.prefs = prefs.save({ ...p, access: { localNoPin: msg.localNoPin !== false, guests: !!msg.guests } });
+    this._broadcast(this._stateMsg());
+  },
+
+  // {effect, amount}: how much this one effect reacts to music (0 = not at
+  // all, null = follow the global setting).
+  setMusicReactFor(ws, msg) {
+    if (typeof msg.effect !== 'string' || !EFFECTS[msg.effect]) return;
+    const cur = this.state.musicReact || { on: false, amount: 0.6 };
+    const per = { ...(cur.perEffect || {}) };
+    const a = Number(msg.amount);
+    if (msg.amount === null || msg.amount === undefined || !Number.isFinite(a)) delete per[msg.effect];
+    else per[msg.effect] = Math.max(0, Math.min(1, a));
+    this.state.musicReact = { ...cur, perEffect: per };
     this._broadcast(this._stateMsg());
   },
 

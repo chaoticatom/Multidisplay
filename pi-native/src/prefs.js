@@ -13,6 +13,7 @@ const DEFAULT = {
   // Automatic show (see src/autoShow.js).
   dayPlan: { on: false, starts: { morning: 6, day: 10, evening: 18, night: 23 }, effects: { morning: [], day: [], evening: [], night: [] }, brightness: { morning: null, day: null, evening: null, night: null } }, // brightness null = leave as it is
   weatherMode: { on: false },
+  access: { localNoPin: true, guests: false }, // see src/access.js
   celebrations: { newYear: true, dates: [] }, // dates: [{ month, day, hour, minute, text }]
 };
 
@@ -55,6 +56,7 @@ function clean(p) {
     }
   }
   if (p && p.weatherMode) out.weatherMode.on = !!p.weatherMode.on;
+  if (p && p.access) { out.access.localNoPin = p.access.localNoPin !== false; out.access.guests = !!p.access.guests; }
   if (p && p.celebrations) {
     out.celebrations.newYear = p.celebrations.newYear !== false;
     if (Array.isArray(p.celebrations.dates)) {

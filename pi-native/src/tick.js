@@ -86,7 +86,9 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
     // in wall mode the Pi played nothing (a real report: radio + spectrum
     // worked on one 2D panel, then went flat once in wall mode).
     core.audio = updateFeatures(musicFeatures, radio.audio && radio.audio.spec, dt);
-    const react = state.musicReact && state.musicReact.on && state.effect !== 'radio' ? Math.max(0, Math.min(1, Number(state.musicReact.amount) || 0.6)) : 0;
+    // An effect's own setting (perEffect, from its options sheet) wins over the global one; 0 turns it off.
+    const mr = state.musicReact, own = mr && mr.perEffect ? mr.perEffect[state.effect] : undefined;
+    const react = state.effect === 'radio' || !mr ? 0 : own !== undefined && own !== null ? Math.max(0, Math.min(1, Number(own) || 0)) : mr.on ? Math.max(0, Math.min(1, Number(mr.amount) || 0.6)) : 0;
     beginCrossfade(core, state.effect, buf);
     if (fn && !alarmBlocking) fn(core, reactDt(core.audio, dt, react)); // step 2
     pulseBuffer(core.audio, buf, react);

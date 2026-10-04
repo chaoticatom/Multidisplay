@@ -4517,6 +4517,190 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/strokeFont.js
+  var require_strokeFont = __commonJS({
+    "src/effects/strokeFont.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      function arc(cx, cy, rx, ry, a0, a1, steps = 14) {
+        const pts = [];
+        for (let i = 0; i <= steps; i++) {
+          const a = (a0 + (a1 - a0) * (i / steps)) * Math.PI / 180;
+          pts.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]);
+        }
+        return pts;
+      }
+      var ell = (cx, cy, rx, ry) => arc(cx, cy, rx, ry, 0, 360, 24);
+      var G = {
+        0: [ell(2, 3, 2, 3)],
+        1: [[[0.9, 1.1], [2, 0], [2, 6]], [[0.9, 6], [3.1, 6]]],
+        2: [[...arc(2, 1.6, 2, 1.6, -180, 30), [0, 6], [4, 6]]],
+        3: [arc(2, 1.5, 1.9, 1.5, -160, 90), arc(2, 4.5, 2, 1.5, -90, 160)],
+        4: [[[3, 6], [3, 0], [0, 4.2], [4, 4.2]]],
+        5: [[[3.8, 0], [0.4, 0], [0.2, 2.9]], arc(2, 4.2, 2, 1.8, -138, 150)],
+        6: [arc(2, 3.2, 2, 2.9, -55, -180), arc(2, 4.3, 2, 1.7, 180, 540, 24)],
+        7: [[[0, 0], [4, 0], [1.5, 6]]],
+        8: [ell(2, 1.5, 1.7, 1.5), ell(2, 4.5, 2, 1.5)],
+        9: [ell(2, 1.7, 2, 1.7), [[4, 1.7], [3.7, 4], [2.6, 6]]],
+        ":": [[[0.5, 1.8], [0.5, 1.81]], [[0.5, 4.2], [0.5, 4.21]]],
+        ".": [[[0.5, 5.8], [0.5, 5.81]]],
+        ",": [[[0.6, 5.6], [0.2, 6.6]]],
+        "/": [[[3.6, 0], [0.4, 6]]],
+        "-": [[[0.6, 3.2], [3.4, 3.2]]],
+        "+": [[[0.6, 3.2], [3.4, 3.2]], [[2, 1.8], [2, 4.6]]],
+        "'": [[[1, 0], [1, 1.4]]],
+        "%": [[[3.8, 0], [0.2, 6]], ell(0.9, 1, 0.7, 0.9), ell(3.1, 5, 0.7, 0.9)],
+        "!": [[[1, 0], [1, 4]], [[1, 5.8], [1, 5.81]]],
+        "?": [[...arc(2, 1.5, 1.8, 1.5, -170, 90), [2, 4]], [[2, 5.8], [2, 5.81]]],
+        "&": [[[4, 6], [0.6, 2], ...arc(1.6, 1.2, 1, 1.2, 180, 360), [0.4, 4.2], ...arc(1.7, 4.8, 1.3, 1.2, 180, 60), [3.8, 3.2]]],
+        A: [[[0, 6], [2, 0], [4, 6]], [[0.7, 4], [3.3, 4]]],
+        B: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.5, 1.4, 1.5, -90, 90), [0, 3]], [[0, 3], [2.7, 3], ...arc(2.7, 4.5, 1.3, 1.5, -90, 90), [0, 6]]],
+        C: [arc(2.2, 3, 2.1, 3, -45, -315)],
+        D: [[[1.8, 0], [0, 0], [0, 6], [1.8, 6], ...arc(1.8, 3, 2.2, 3, 90, -90)]],
+        E: [[[4, 0], [0, 0], [0, 6], [4, 6]], [[0, 3], [3, 3]]],
+        F: [[[4, 0], [0, 0], [0, 6]], [[0, 3], [3, 3]]],
+        G: [[...arc(2.2, 3, 2.1, 3, -40, -320), [4.2, 3.3], [2.4, 3.3]]],
+        H: [[[0, 0], [0, 6]], [[4, 0], [4, 6]], [[0, 3], [4, 3]]],
+        I: [[[2, 0], [2, 6]], [[1, 0], [3, 0]], [[1, 6], [3, 6]]],
+        J: [[[4, 0], ...arc(2, 4.4, 2, 1.6, 0, 180)]],
+        K: [[[0, 0], [0, 6]], [[4, 0], [0, 3.6]], [[1.3, 2.5], [4, 6]]],
+        L: [[[0, 0], [0, 6], [4, 6]]],
+        M: [[[0, 6], [0, 0], [2, 3.6], [4, 0], [4, 6]]],
+        N: [[[0, 6], [0, 0], [4, 6], [4, 0]]],
+        O: [ell(2, 3, 2, 3)],
+        P: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.6, 1.4, 1.6, -90, 90), [0, 3.2]]],
+        R: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.6, 1.4, 1.6, -90, 90), [0, 3.2]], [[2, 3.2], [4, 6]]],
+        S: [[...arc(2, 1.5, 2, 1.5, -20, -270), ...arc(2, 4.5, 2, 1.5, -90, 160)]],
+        T: [[[0, 0], [4, 0]], [[2, 0], [2, 6]]],
+        U: [[[0, 0], ...arc(2, 4.2, 2, 1.8, 180, 0), [4, 0]]],
+        V: [[[0, 0], [2, 6], [4, 0]]],
+        W: [[[0, 0], [1, 6], [2, 2.5], [3, 6], [4, 0]]],
+        Y: [[[0, 0], [2, 3], [4, 0]], [[2, 3], [2, 6]]],
+        Q: [ell(2, 3, 2, 3), [[2.6, 4.4], [4.2, 6.2]]],
+        X: [[[0, 0], [4, 6]], [[4, 0], [0, 6]]],
+        Z: [[[0, 0], [4, 0], [0, 6], [4, 6]]]
+      };
+      var ADV = { ":": 1.6, ".": 1.6, ",": 1.6, "'": 2, "!": 2.2, " ": 3 };
+      var advance = (ch) => ADV[ch] ?? 5.2;
+      function textWidth(text, h) {
+        const k = h / 6;
+        let w = 0;
+        for (const ch of text) w += advance(ch) * k;
+        return w - 1.2 * k;
+      }
+      function drawText(c, text, x, y, h, col, weight = Math.max(1.2, h / 7)) {
+        const k = h / 6, r = weight / 2;
+        for (const ch of String(text).toUpperCase()) {
+          const strokes = G[ch];
+          if (strokes) {
+            const segs = [];
+            for (const st of strokes) for (let i = 0; i + 1 < st.length; i++) segs.push([x + st[i][0] * k, y + st[i][1] * k, x + st[i + 1][0] * k, y + st[i + 1][1] * k]);
+            const x0 = Math.floor(x - r - 1), x1 = Math.ceil(x + 4.4 * k + r + 1), y0 = Math.floor(y - r - 1), y1 = Math.ceil(y + 6 * k + r + 1);
+            for (let py = y0; py <= y1; py++) for (let px = x0; px <= x1; px++) {
+              let d = Infinity;
+              for (const [ax, ay, bx, by] of segs) {
+                const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+                const t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
+                const e = Math.hypot(px - ax - dx * t, py - ay - dy * t);
+                if (e < d) d = e;
+              }
+              const cover = Math.max(0, Math.min(1, r + 0.5 - d));
+              if (cover <= 0) continue;
+              const o = c.get(px, py);
+              if (!o) continue;
+              c.set(px, py, Math.max(o[0], col[0] * cover), Math.max(o[1], col[1] * cover), Math.max(o[2], col[2] * cover));
+            }
+          }
+          x += advance(ch) * k;
+        }
+      }
+      module.exports = { drawText, textWidth };
+    }
+  });
+
+  // src/effects/countdown.js
+  var require_countdown = __commonJS({
+    "src/effects/countdown.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { defineCanvasEffect } = require_canvas();
+      var { hsl } = require_core();
+      var stroke = require_strokeFont();
+      var { FONT_3x5, FONT_5x7, drawString, textWidth } = require_text();
+      var st = { confetti: [] };
+      var pad = (n) => String(n).padStart(2, "0");
+      function centred(c, font, text, y, col) {
+        drawString(font, text, Math.round((c.W - textWidth(font, text)) / 2), y, (x, yy) => c.set(x, yy, col[0], col[1], col[2]));
+      }
+      function big(c, text, y, h, col) {
+        let w = stroke.textWidth(text, h);
+        if (w > c.W - 4) {
+          h *= (c.W - 4) / w;
+          w = stroke.textWidth(text, h);
+        }
+        stroke.drawText(c, text, Math.round((c.W - w) / 2), y, h, col);
+        return h;
+      }
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt, core }) {
+          const o = core.effectOptions && core.effectOptions.countdown || {};
+          const W = c.W, H = c.H;
+          const target = o.target ? new Date(o.target) : null;
+          const label = String(o.label || "COUNTDOWN").toUpperCase().slice(0, 16);
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) c.set(x, y, 0.01 + y / H * 0.03, 0.01, 0.04 + y / H * 0.04);
+          if (!target || isNaN(target)) {
+            centred(c, FONT_3x5, "SET A DATE", Math.round(H / 2) - 6, [0.8, 0.8, 0.9]);
+            centred(c, FONT_3x5, "IN OPTIONS", Math.round(H / 2) + 2, [0.5, 0.5, 0.6]);
+            return;
+          }
+          const left = Math.round((target - Date.now()) / 1e3);
+          const titleCol = hsl(t * 0.03 % 1, 0.8, 0.65);
+          centred(c, FONT_3x5, label, 2, titleCol);
+          if (left > 0) {
+            const d = Math.floor(left / 86400), h = Math.floor(left % 86400 / 3600), m = Math.floor(left % 3600 / 60), s = left % 60;
+            const glow = 0.85 + 0.15 * Math.sin(t * 2);
+            if (d > 0) {
+              const bh = Math.max(9, Math.round(H * 0.34));
+              big(c, String(d), Math.round(H * 0.18), bh, [glow, glow * 0.85, 0.4]);
+              centred(c, FONT_3x5, d === 1 ? "DAY" : "DAYS", Math.round(H * 0.18 + bh + 2), [0.7, 0.7, 0.8]);
+              centred(c, FONT_5x7, `${pad(h)}:${pad(m)}:${pad(s)}`, H - 10, [0.5, 0.85, 1]);
+            } else {
+              const bh = Math.max(9, Math.round(H * 0.3));
+              big(c, h > 0 ? `${h}:${pad(m)}` : `${m}:${pad(s)}`, Math.round(H / 2 - bh / 2), bh, [glow, 0.6 * glow, 0.3]);
+              if (h > 0) centred(c, FONT_3x5, pad(s), Math.round(H / 2 + bh / 2 + 3), [0.6, 0.6, 0.7]);
+              const frac = 1 - left / 86400, n = 48, R = Math.min(W, H) * 0.46;
+              for (let i = 0; i < n; i++) {
+                const a = i / n * Math.PI * 2 - Math.PI / 2, lit = i / n < frac;
+                const col = lit ? hsl(i / n * 0.15, 1, 0.55) : [0.06, 0.06, 0.1];
+                c.set(W / 2 + Math.cos(a) * R * (W / Math.min(W, H)) * 0.95, H / 2 + Math.sin(a) * R, col[0], col[1], col[2]);
+              }
+            }
+            st.confetti.length = 0;
+            return;
+          }
+          if (left > -600) {
+            if (st.confetti.length < W * 1.2) for (let k = 0; k < 4; k++) st.confetti.push({ x: Math.random() * W, y: -2, vy: 8 + Math.random() * 14, vx: (Math.random() - 0.5) * 6, col: hsl(Math.random(), 1, 0.6) });
+            for (const p of st.confetti) {
+              p.x += p.vx * dt;
+              p.y += p.vy * dt;
+              if (p.y > H) {
+                p.y = -2;
+                p.x = Math.random() * W;
+              }
+              c.set(p.x, p.y, p.col[0], p.col[1], p.col[2]);
+            }
+            const pulse = 0.7 + 0.3 * Math.sin(t * 6);
+            big(c, "IT'S TIME", Math.round(H * 0.38), Math.max(9, Math.round(H * 0.22)), [pulse, pulse * 0.8, 0.3]);
+          } else {
+            centred(c, FONT_5x7, "DONE", Math.round(H / 2) - 3, [0.6, 0.6, 0.7]);
+          }
+        }
+      });
+    }
+  });
+
   // src/effects/gradientWash.js
   var require_gradientWash = __commonJS({
     "src/effects/gradientWash.js"(exports, module) {
@@ -7317,108 +7501,6 @@ var PiEngine = (() => {
         }
       }
       module.exports = effectMaze;
-    }
-  });
-
-  // src/effects/strokeFont.js
-  var require_strokeFont = __commonJS({
-    "src/effects/strokeFont.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      function arc(cx, cy, rx, ry, a0, a1, steps = 14) {
-        const pts = [];
-        for (let i = 0; i <= steps; i++) {
-          const a = (a0 + (a1 - a0) * (i / steps)) * Math.PI / 180;
-          pts.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]);
-        }
-        return pts;
-      }
-      var ell = (cx, cy, rx, ry) => arc(cx, cy, rx, ry, 0, 360, 24);
-      var G = {
-        0: [ell(2, 3, 2, 3)],
-        1: [[[0.9, 1.1], [2, 0], [2, 6]], [[0.9, 6], [3.1, 6]]],
-        2: [[...arc(2, 1.6, 2, 1.6, -180, 30), [0, 6], [4, 6]]],
-        3: [arc(2, 1.5, 1.9, 1.5, -160, 90), arc(2, 4.5, 2, 1.5, -90, 160)],
-        4: [[[3, 6], [3, 0], [0, 4.2], [4, 4.2]]],
-        5: [[[3.8, 0], [0.4, 0], [0.2, 2.9]], arc(2, 4.2, 2, 1.8, -138, 150)],
-        6: [arc(2, 3.2, 2, 2.9, -55, -180), arc(2, 4.3, 2, 1.7, 180, 540, 24)],
-        7: [[[0, 0], [4, 0], [1.5, 6]]],
-        8: [ell(2, 1.5, 1.7, 1.5), ell(2, 4.5, 2, 1.5)],
-        9: [ell(2, 1.7, 2, 1.7), [[4, 1.7], [3.7, 4], [2.6, 6]]],
-        ":": [[[0.5, 1.8], [0.5, 1.81]], [[0.5, 4.2], [0.5, 4.21]]],
-        ".": [[[0.5, 5.8], [0.5, 5.81]]],
-        ",": [[[0.6, 5.6], [0.2, 6.6]]],
-        "/": [[[3.6, 0], [0.4, 6]]],
-        "-": [[[0.6, 3.2], [3.4, 3.2]]],
-        "+": [[[0.6, 3.2], [3.4, 3.2]], [[2, 1.8], [2, 4.6]]],
-        "'": [[[1, 0], [1, 1.4]]],
-        "%": [[[3.8, 0], [0.2, 6]], ell(0.9, 1, 0.7, 0.9), ell(3.1, 5, 0.7, 0.9)],
-        "!": [[[1, 0], [1, 4]], [[1, 5.8], [1, 5.81]]],
-        "?": [[...arc(2, 1.5, 1.8, 1.5, -170, 90), [2, 4]], [[2, 5.8], [2, 5.81]]],
-        "&": [[[4, 6], [0.6, 2], ...arc(1.6, 1.2, 1, 1.2, 180, 360), [0.4, 4.2], ...arc(1.7, 4.8, 1.3, 1.2, 180, 60), [3.8, 3.2]]],
-        A: [[[0, 6], [2, 0], [4, 6]], [[0.7, 4], [3.3, 4]]],
-        B: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.5, 1.4, 1.5, -90, 90), [0, 3]], [[0, 3], [2.7, 3], ...arc(2.7, 4.5, 1.3, 1.5, -90, 90), [0, 6]]],
-        C: [arc(2.2, 3, 2.1, 3, -45, -315)],
-        D: [[[1.8, 0], [0, 0], [0, 6], [1.8, 6], ...arc(1.8, 3, 2.2, 3, 90, -90)]],
-        E: [[[4, 0], [0, 0], [0, 6], [4, 6]], [[0, 3], [3, 3]]],
-        F: [[[4, 0], [0, 0], [0, 6]], [[0, 3], [3, 3]]],
-        G: [[...arc(2.2, 3, 2.1, 3, -40, -320), [4.2, 3.3], [2.4, 3.3]]],
-        H: [[[0, 0], [0, 6]], [[4, 0], [4, 6]], [[0, 3], [4, 3]]],
-        I: [[[2, 0], [2, 6]], [[1, 0], [3, 0]], [[1, 6], [3, 6]]],
-        J: [[[4, 0], ...arc(2, 4.4, 2, 1.6, 0, 180)]],
-        K: [[[0, 0], [0, 6]], [[4, 0], [0, 3.6]], [[1.3, 2.5], [4, 6]]],
-        L: [[[0, 0], [0, 6], [4, 6]]],
-        M: [[[0, 6], [0, 0], [2, 3.6], [4, 0], [4, 6]]],
-        N: [[[0, 6], [0, 0], [4, 6], [4, 0]]],
-        O: [ell(2, 3, 2, 3)],
-        P: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.6, 1.4, 1.6, -90, 90), [0, 3.2]]],
-        R: [[[0, 6], [0, 0], [2.6, 0], ...arc(2.6, 1.6, 1.4, 1.6, -90, 90), [0, 3.2]], [[2, 3.2], [4, 6]]],
-        S: [[...arc(2, 1.5, 2, 1.5, -20, -270), ...arc(2, 4.5, 2, 1.5, -90, 160)]],
-        T: [[[0, 0], [4, 0]], [[2, 0], [2, 6]]],
-        U: [[[0, 0], ...arc(2, 4.2, 2, 1.8, 180, 0), [4, 0]]],
-        V: [[[0, 0], [2, 6], [4, 0]]],
-        W: [[[0, 0], [1, 6], [2, 2.5], [3, 6], [4, 0]]],
-        Y: [[[0, 0], [2, 3], [4, 0]], [[2, 3], [2, 6]]],
-        Q: [ell(2, 3, 2, 3), [[2.6, 4.4], [4.2, 6.2]]],
-        X: [[[0, 0], [4, 6]], [[4, 0], [0, 6]]],
-        Z: [[[0, 0], [4, 0], [0, 6], [4, 6]]]
-      };
-      var ADV = { ":": 1.6, ".": 1.6, ",": 1.6, "'": 2, "!": 2.2, " ": 3 };
-      var advance = (ch) => ADV[ch] ?? 5.2;
-      function textWidth(text, h) {
-        const k = h / 6;
-        let w = 0;
-        for (const ch of text) w += advance(ch) * k;
-        return w - 1.2 * k;
-      }
-      function drawText(c, text, x, y, h, col, weight = Math.max(1.2, h / 7)) {
-        const k = h / 6, r = weight / 2;
-        for (const ch of String(text).toUpperCase()) {
-          const strokes = G[ch];
-          if (strokes) {
-            const segs = [];
-            for (const st of strokes) for (let i = 0; i + 1 < st.length; i++) segs.push([x + st[i][0] * k, y + st[i][1] * k, x + st[i + 1][0] * k, y + st[i + 1][1] * k]);
-            const x0 = Math.floor(x - r - 1), x1 = Math.ceil(x + 4.4 * k + r + 1), y0 = Math.floor(y - r - 1), y1 = Math.ceil(y + 6 * k + r + 1);
-            for (let py = y0; py <= y1; py++) for (let px = x0; px <= x1; px++) {
-              let d = Infinity;
-              for (const [ax, ay, bx, by] of segs) {
-                const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
-                const t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
-                const e = Math.hypot(px - ax - dx * t, py - ay - dy * t);
-                if (e < d) d = e;
-              }
-              const cover = Math.max(0, Math.min(1, r + 0.5 - d));
-              if (cover <= 0) continue;
-              const o = c.get(px, py);
-              if (!o) continue;
-              c.set(px, py, Math.max(o[0], col[0] * cover), Math.max(o[1], col[1] * cover), Math.max(o[2], col[2] * cover));
-            }
-          }
-          x += advance(ch) * k;
-        }
-      }
-      module.exports = { drawText, textWidth };
     }
   });
 
@@ -23170,6 +23252,7 @@ var PiEngine = (() => {
       var starfield = require_starfield();
       var fluidInk = require_fluidInk();
       var lavaLamp = require_lavaLamp();
+      var countdown = require_countdown();
       var gradientWash = require_gradientWash();
       var weather = require_weather2();
       var easterEgg = require_easterEgg();
@@ -23265,6 +23348,7 @@ var PiEngine = (() => {
         now_playing: nowPlaying.wall,
         message: messageBoard.wall,
         word_clock: wordClock.wall,
+        countdown: countdown.wall,
         starfield: starfield.wall,
         fluid_ink: fluidInk.wall,
         lava_lamp: lavaLamp.wall,
@@ -23322,6 +23406,7 @@ var PiEngine = (() => {
         now_playing: nowPlaying,
         message: messageBoard,
         word_clock: wordClock,
+        countdown,
         starfield,
         fluid_ink: fluidInk,
         lava_lamp: lavaLamp,
@@ -23386,6 +23471,7 @@ var PiEngine = (() => {
         now_playing: "Now Playing",
         message: "Message Board",
         word_clock: "Word Clock",
+        countdown: "Countdown",
         starfield: "Starfield",
         fluid_ink: "Fluid Ink",
         lava_lamp: "Lava Lamp",
@@ -24651,7 +24737,8 @@ var PiEngine = (() => {
           const fn = config.mode === "wall" ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
           const buf = cubeMode ? core.colBuf : core.wallBuf;
           core.audio = updateFeatures(musicFeatures, radio.audio && radio.audio.spec, dt);
-          const react = state.musicReact && state.musicReact.on && state.effect !== "radio" ? Math.max(0, Math.min(1, Number(state.musicReact.amount) || 0.6)) : 0;
+          const mr = state.musicReact, own = mr && mr.perEffect ? mr.perEffect[state.effect] : void 0;
+          const react = state.effect === "radio" || !mr ? 0 : own !== void 0 && own !== null ? Math.max(0, Math.min(1, Number(own) || 0)) : mr.on ? Math.max(0, Math.min(1, Number(mr.amount) || 0.6)) : 0;
           beginCrossfade(core, state.effect, buf);
           if (fn && !alarmBlocking) fn(core, reactDt(core.audio, dt, react));
           pulseBuffer(core.audio, buf, react);

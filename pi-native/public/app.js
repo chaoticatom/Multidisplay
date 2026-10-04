@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.231';
+const APP_VERSION = '0.6.233';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -50,7 +50,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['ai_art', 'my_photos', 'message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube']);
+const WIRED_OPTION_PANELS = new Set(['countdown', 'ai_art', 'my_photos', 'message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube']);
 // Shared "Art" submenu prev/next/slideshow/letterbox/speed controls
 // (#art-slideshow-chk/#art-letterbox-chk/#art-speed/#art-prev-btn/
 // #art-next-btn) drive whichever of Unsplash/Art Gallery is the currently
@@ -202,6 +202,12 @@ function handleTextMessage(msg) {
   if (msg.cmd === 'authRequired') { answerAuth(false); return; }
   if (msg.cmd === 'authFailed') { rememberPin(''); answerAuth(true); return; }
   if (msg.cmd === 'authOk') return;
+  if (msg.cmd === 'role') {
+    document.body.classList.toggle('guest', msg.role === 'guest');
+    // A device that already knows the PIN goes straight to full control.
+    if (msg.role === 'guest') { closeFxSheet(); if (storedPin() && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ cmd: 'auth', pin: storedPin() })); }
+    return;
+  }
   if (msg.cmd === 'aiResult') { cxAiResult(msg); return; }
   if (msg.cmd === 'controlPinResult') {
     if (!msg.ok) alert(msg.error);
@@ -263,6 +269,7 @@ function handleTextMessage(msg) {
     renderAlarmList();
     cxRenderAutoShow();
     fxSheetSync();
+    syncAccessChecks();
     syncClearAllButton();
     syncIdentifyPanelsButton();
     renderWallLayoutList();
@@ -611,16 +618,18 @@ function renderScenes() {
   if (!box) return;
   const list = currentState.scenes || [];
   if (!list.length) { box.textContent = 'No scenes yet.'; box.className = 'scene-chips ui-note'; return; }
-  box.className = 'scene-chips';
+  box.className = 'scene-chips scene-tiles';
   box.replaceChildren(...list.map((sc) => {
-    const chip = document.createElement('span');
-    chip.className = 'scene-chip' + (sc.effect === currentState.effect ? '' : '');
-    const go = document.createElement('button'); go.textContent = sc.name; go.title = 'Show this scene';
-    go.addEventListener('click', () => send({ cmd: 'applyScene', name: sc.name }));
-    const del = document.createElement('button'); del.className = 'scene-del'; del.textContent = '×'; del.setAttribute('aria-label', 'Delete scene ' + sc.name);
+    const tile = document.createElement('div');
+    tile.className = 'scene-tile';
+    const go = document.createElement('button'); go.type = 'button'; go.className = 'scene-go'; go.title = 'Show this scene';
+    const name = document.createElement('span'); name.textContent = sc.name;
+    go.append(cxStillThumb(sc.effect), name);
+    go.addEventListener('click', () => { send({ cmd: 'applyScene', name: sc.name }); cxToast('Scene: ' + sc.name); });
+    const del = document.createElement('button'); del.type = 'button'; del.className = 'scene-del'; del.textContent = '✕'; del.setAttribute('aria-label', 'Delete scene ' + sc.name);
     del.addEventListener('click', () => { if (confirm(`Delete scene "${sc.name}"?`)) send({ cmd: 'deleteScene', name: sc.name }); });
-    chip.append(go, del);
-    return chip;
+    tile.append(go, del);
+    return tile;
   }));
 }
 function wireScenes() {
@@ -4846,11 +4855,27 @@ function cxMoveBlob() {
   if (blob && on) { blob.style.left = on.offsetLeft + 'px'; blob.style.width = on.offsetWidth + 'px'; }
 }
 
+// A still preview of an effect (its thumbnail's middle frame), for the
+// favourites strip and scene tiles.
+let _cxThumbData = null;
+function cxStillThumb(key) {
+  const d = _cxThumbData, b64 = d && d.fx[key];
+  const cv = document.createElement('canvas'); cv.className = 'cx-mini-thumb';
+  if (!b64) { cv.width = cv.height = 1; return cv; }
+  const S = d.size, raw = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)), off = Math.floor(d.frames / 2) * S * S * 3;
+  cv.width = cv.height = S;
+  const img = new ImageData(S, S);
+  for (let i = 0; i < S * S; i++) { img.data[i * 4] = raw[off + i * 3]; img.data[i * 4 + 1] = raw[off + i * 3 + 1]; img.data[i * 4 + 2] = raw[off + i * 3 + 2]; img.data[i * 4 + 3] = 255; }
+  cv.getContext('2d').putImageData(img, 0, 0);
+  return cv;
+}
+
 // ── Live tiles: every effect tile plays a tiny loop of itself.
 async function cxWireTiles() {
   let data;
   // Versioned URL: a new release never shows previews cached from an older one.
   try { data = await (await fetch('thumbs.json?v=' + APP_VERSION)).json(); } catch (e) { return; }
+  _cxThumbData = data; renderScenes(); cxSyncFavs();
   const S = data.size, F = data.frames, tiles = [];
   document.querySelectorAll('#effects-body .effect-btn[data-effect]').forEach((btn) => {
     const b64 = data.fx[btn.dataset.effect];
@@ -4917,7 +4942,24 @@ function cxSheetFull(on) {
 // shown in a full-height sheet over the menu (‹ Effects closes it, back to
 // the same spot in the list; ◀ ▶ step through the effects with the sheet
 // still open).
-function cxShowOptions() { openFxSheet(); }
+function cxShowOptions() { if (!document.body.classList.contains('guest')) openFxSheet(); }
+document.getElementById('guest-pin-btn')?.addEventListener('click', () => answerAuth(false));
+// Setup > Control PIN: who has to enter it.
+['acc-local', 'acc-guests'].forEach((id) => document.getElementById(id)?.addEventListener('change', () => {
+  send({ cmd: 'setAccess', localNoPin: document.getElementById('acc-local').checked, guests: document.getElementById('acc-guests').checked });
+}));
+// Countdown options.
+['cd-target', 'cd-label'].forEach((id) => document.getElementById(id)?.addEventListener('change', (e) => setEffectOption('countdown', id === 'cd-target' ? 'target' : 'label', e.target.value)));
+function syncCountdownPanel() {
+  const o = currentState.effectOptions?.countdown || {};
+  for (const [id, k] of [['cd-target', 'target'], ['cd-label', 'label']]) { const el = document.getElementById(id); if (el && document.activeElement !== el && o[k] !== undefined) el.value = o[k]; }
+}
+function syncAccessChecks() {
+  syncCountdownPanel();
+  const a = currentState.prefs?.access || { localNoPin: true, guests: false };
+  const l = document.getElementById('acc-local'), g = document.getElementById('acc-guests');
+  if (l) l.checked = a.localNoPin !== false; if (g) g.checked = !!a.guests;
+}
 const _fxMoved = []; // [{ el, marker }]
 function fxEffectList() {
   return [...document.querySelectorAll('#effects-body .effect-btn[data-effect]')].map((b) => b.dataset.effect)
@@ -4926,6 +4968,20 @@ function fxEffectList() {
 function fxSheetSync() {
   const sheet = document.getElementById('fx-sheet');
   if (!sheet || sheet.hidden) return;
+  // 🎵 Music reaction for this effect, at the top of the sheet.
+  const bodyEl = document.getElementById('fx-body');
+  let mr = document.getElementById('fx-music');
+  if (!mr) {
+    mr = document.createElement('div'); mr.id = 'fx-music';
+    mr.innerHTML = '<div class="ov-row-label">🎵 Reacts to music</div><div class="opt-grid">' +
+      [['', 'Like the rest'], ['0', 'Off'], ['0.3', 'A little'], ['0.6', 'Medium'], ['1', 'A lot']].map(([v, t]) => `<button type="button" class="strobe-mode-btn" data-mr="${v}">${t}</button>`).join('') + '</div>';
+    mr.querySelectorAll('[data-mr]').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setMusicReactFor', effect: currentState.effect, amount: b.dataset.mr === '' ? null : Number(b.dataset.mr) })));
+    bodyEl.prepend(mr);
+  }
+  const own = currentState.musicReact?.perEffect?.[currentState.effect];
+  const curV = own === undefined || own === null ? '' : String(own);
+  mr.querySelectorAll('[data-mr]').forEach((b) => b.classList.toggle('active', b.dataset.mr === curV));
+  mr.hidden = currentState.effect === 'radio';
   document.getElementById('fx-name').textContent = cxEffectName(currentState.effect);
   const body = document.getElementById('fx-body'), host = document.getElementById('now-options');
   let none = body.querySelector('.fx-none');
@@ -5017,6 +5073,25 @@ function cxAddStar(btn) {
 }
 function cxSyncFavs() {
   const favs = new Set(currentState.prefs?.favourites || []);
+  // ★ Favourites strip at the top of the effect list: one tap, no scrolling.
+  const body = document.getElementById('effects-body');
+  if (body) {
+    let strip = document.getElementById('fav-strip');
+    if (!strip) { strip = document.createElement('div'); strip.id = 'fav-strip'; body.prepend(strip); }
+    const list = (currentState.prefs?.favourites || []).filter((k) => effectNames?.[k]);
+    const key = JSON.stringify([list, currentState.effect, !!_cxThumbData]);
+    if (strip.dataset.key !== key) {
+      strip.dataset.key = key;
+      strip.hidden = !list.length;
+      strip.replaceChildren(Object.assign(document.createElement('div'), { className: 'fav-strip-title', textContent: '★ Favourites' }), ...list.map((k) => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'fav-tile' + (k === currentState.effect ? ' on' : '');
+        const n = document.createElement('span'); n.textContent = effectNames[k];
+        b.append(cxStillThumb(k), n);
+        b.addEventListener('click', () => document.querySelector(`#effects-body .effect-btn[data-effect="${CSS.escape(k)}"]`)?.click());
+        return b;
+      }));
+    }
+  }
   document.querySelectorAll('#effects-body .effect-btn[data-effect]').forEach((b) => b.classList.toggle('fav', favs.has(b.dataset.effect)));
   const p = currentState.prefs?.playlist;
   const sw = document.getElementById('playlist-sw'), sel = document.getElementById('playlist-min'), note = document.getElementById('playlist-note');

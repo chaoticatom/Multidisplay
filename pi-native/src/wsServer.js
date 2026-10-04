@@ -191,6 +191,7 @@ const https = require('https');
 const { ensureSelfSignedCert } = require('./tls');
 const youtube = require('./youtube');
 const autoShow = require('./autoShow');
+const access = require('./access');
 const fs = require('fs');
 const path = require('path');
 const { EFFECTS, EFFECT_NAMES, WALL_EFFECTS } = require('./effects');
@@ -364,16 +365,20 @@ class WsServer {
   }
 
   _wireConnection(wss) {
-    wss.on('connection', (ws) => {
+    wss.on('connection', (ws, req) => {
       console.log('[WS] client connected');
       // With a control PIN set, the socket only joins _clients (and so only
       // receives state/preview and may send commands) after sending it -
-      // see _handleAuth().
-      if (pinConfig.isPinSet(this.pinCfg)) {
+      // see _handleAuth() - unless src/access.js lets it in as a home-network
+      // admin or an internet guest.
+      const role = access.decide({ pinSet: pinConfig.isPinSet(this.pinCfg), remote: access.isRemote(req), access: (this.state.prefs || {}).access });
+      if (role === 'auth') {
         ws.send(JSON.stringify({ cmd: 'authRequired' }));
       } else {
+        ws.role = role;
         this._clients.add(ws);
         ws.send(JSON.stringify(this._stateMsg()));
+        if (role === 'guest') ws.send(JSON.stringify({ cmd: 'role', role })); // admin is the page's default
       }
       ws.on('message', (data, isBinary) => this._handleMessage(ws, data, isBinary));
       ws.on('close', () => { this._clients.delete(ws); console.log('[WS] client disconnected'); });
@@ -382,7 +387,9 @@ class WsServer {
   }
 
   _handleHttp(req, res) {
-    const authCode = (r) => (!isSameOrigin(r) ? 403 : !pinConfig.verifyPin(this.pinCfg, r.headers['x-control-pin']) ? 401 : 0);
+    const authCode = (r) => (!isSameOrigin(r) ? 403
+      : access.decide({ pinSet: pinConfig.isPinSet(this.pinCfg), remote: access.isRemote(r), access: (this.state.prefs || {}).access }) === 'admin' ? 0
+      : !pinConfig.verifyPin(this.pinCfg, r.headers['x-control-pin']) ? 401 : 0);
     if (httpApi.handle(this, req, res, authCode)) return;
     if (req.method === 'POST' && req.url.startsWith('/api/uploadVideo')) {
       if (!isSameOrigin(req)) { res.writeHead(403, { 'Content-Type': 'text/plain' }).end('Cross-origin upload refused'); return; }
@@ -788,8 +795,10 @@ class WsServer {
   _handleAuth(ws, msg) {
     if (!msg || msg.cmd !== 'auth') { ws.send(JSON.stringify({ cmd: 'authRequired' })); return; }
     if (pinConfig.verifyPin(this.pinCfg, msg.pin)) {
+      ws.role = 'admin';
       this._clients.add(ws);
       ws.send(JSON.stringify({ cmd: 'authOk' }));
+      if (ws._wasGuest) ws.send(JSON.stringify({ cmd: 'role', role: 'admin' }));
       ws.send(JSON.stringify(this._stateMsg()));
       return;
     }
@@ -806,6 +815,11 @@ class WsServer {
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
     if (!this._clients.has(ws)) { this._handleAuth(ws, msg); return; }
+    // Guests: the PIN upgrades them; otherwise only a few commands work.
+    if (ws && ws.role === 'guest') {
+      if (msg.cmd === 'auth') { ws._wasGuest = true; this._clients.delete(ws); this._handleAuth(ws, msg); if (!this._clients.has(ws)) this._clients.add(ws); return; }
+      if (!access.GUEST_CMDS.has(msg.cmd)) return;
+    }
     // Any command may change state (several - brightness, speed, face
     // effects, alarms - don't broadcast), so every one bumps the version
     // app.js checks before re-sending state to the render worker.
@@ -886,6 +900,8 @@ class WsServer {
     const now = Date.now();
     if (now - this._lastFrameMs < 1000 / PREVIEW_FPS) return;
     this._lastFrameMs = now;
+    this._frameN = (this._frameN || 0) + 1;
+    this._guestFrame = this._frameN % 4 === 0; // guests get a lighter 5 fps preview
 
     if (this.config.mode === 'wall') { this._streamWallFrames(core, brightness); return; }
 
@@ -908,7 +924,7 @@ class WsServer {
         }
       }
       for (const client of this._clients) {
-        if (client.readyState === WebSocket.OPEN && !client.previewOff) client.send(buf);
+        if (client.readyState === WebSocket.OPEN && !client.previewOff && (client.role !== 'guest' || this._guestFrame)) client.send(buf);
       }
     }
   }
@@ -945,7 +961,7 @@ class WsServer {
         }
       }
       for (const client of this._clients) {
-        if (client.readyState === WebSocket.OPEN && !client.previewOff) client.send(buf);
+        if (client.readyState === WebSocket.OPEN && !client.previewOff && (client.role !== 'guest' || this._guestFrame)) client.send(buf);
       }
     });
   }
