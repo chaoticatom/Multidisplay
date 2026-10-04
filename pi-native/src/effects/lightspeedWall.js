@@ -113,6 +113,31 @@ function effectLightspeedWall(core, dt) {
       }
     }
   }
+  finishGlow(core);
+}
+
+// Finishing pass: a soft neon glow around every trail (two box blurs of the
+// trails, added back), over a dark backdrop with a faint grid, so the
+// racers read as light streaks rather than thin pixel lines.
+let glowA = null, glowB = null;
+function finishGlow(core) {
+  const { wallW: W, wallH: H, wallBuf: buf } = core, n = W * H * 3;
+  if (!glowA || glowA.length !== n) { glowA = new Float32Array(n); glowB = new Float32Array(n); }
+  const R = 2;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) for (let ch = 0; ch < 3; ch++) {
+    let sum = 0; for (let k = -R; k <= R; k++) { const xx = x + k; if (xx >= 0 && xx < W) sum += buf[(y * W + xx) * 3 + ch]; }
+    glowA[(y * W + x) * 3 + ch] = sum / (2 * R + 1);
+  }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) for (let ch = 0; ch < 3; ch++) {
+    let sum = 0; for (let k = -R; k <= R; k++) { const yy = y + k; if (yy >= 0 && yy < H) sum += glowA[(yy * W + x) * 3 + ch]; }
+    glowB[(y * W + x) * 3 + ch] = sum / (2 * R + 1);
+  }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const o = (y * W + x) * 3;
+    const grid = (x % 8 === 0 || y % 8 === 0) ? 0.025 : 0;
+    const bg = [0.006 + grid * 0.5, 0.008 + grid * 0.8, 0.02 + grid * 1.6];
+    for (let ch = 0; ch < 3; ch++) buf[o + ch] = Math.min(1, Math.max(bg[ch], buf[o + ch]) + glowB[o + ch] * 1.6);
+  }
 }
 
 module.exports = effectLightspeedWall;

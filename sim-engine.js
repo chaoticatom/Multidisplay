@@ -5536,178 +5536,94 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/rain.js
-  var require_rain = __commonJS({
-    "src/effects/rain.js"(exports, module) {
+  // src/effects/neonRain.js
+  var require_neonRain = __commonJS({
+    "src/effects/neonRain.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
+      var { defineCanvasEffect } = require_canvas();
       var { hsl } = require_core();
-      var { tempo } = require_audioFeatures();
-      var { trailFade } = require_trail();
-      var rainDrops = [];
-      function resetRain(core) {
-        const SIZE = core.SIZE;
-        rainDrops = [];
-        const nDrops = Math.max(16, SIZE * 2.5) | 0;
-        for (let face = 0; face < 4; face++)
-          for (let d = 0; d < nDrops; d++) {
-            rainDrops.push({
-              face,
-              col: Math.random() * SIZE | 0,
-              y: Math.random() * SIZE,
-              speed: 0.35 + Math.random() * 0.9,
-              hue: Math.random(),
-              len: 5 + Math.random() * SIZE * 0.22,
-              bright: 0.7 + Math.random() * 0.3,
-              wide: Math.random() < 0.15
-            });
-          }
+      var { FONT_3x5 } = require_text();
+      var st = { W: 0, H: 0, drops: [], splashes: [], cols: [] };
+      var GLYPHS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter((ch) => FONT_3x5.get(ch));
+      function newDrop(W, H, anywhere) {
+        const z = Math.random();
+        return { x: Math.random() * W, y: anywhere ? Math.random() * H : -Math.random() * H * 0.5, z, hue: Math.random() };
       }
-      var matrixStreams = null;
-      function initMatrixStreams(SIZE) {
-        matrixStreams = [];
-        for (let face = 0; face < 4; face++) {
-          matrixStreams[face] = [];
-          for (let u = 0; u < SIZE; u++) {
-            matrixStreams[face][u] = {
-              head: SIZE - 1 + Math.floor(Math.random() * SIZE * 1.5),
-              speed: 0.4 + Math.random() * 0.7,
-              len: Math.floor(SIZE * 0.25 + Math.random() * SIZE * 0.45)
-            };
+      function colourRain(c, dt, t) {
+        const W = c.W, H = c.H, floor = Math.round(H * 0.82);
+        if (st.drops.length !== Math.round(W * 1.4)) st.drops = Array.from({ length: Math.round(W * 1.4) }, () => newDrop(W, H, true));
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          if (y < floor) {
+            const v = 0.01 + y / floor * 0.03;
+            c.set(x, y, v * 0.5, v * 0.6, v * 1.2);
+          } else {
+            const v = 0.025 + (y - floor) / (H - floor) * 0.02;
+            c.set(x, y, v * 0.6, v * 0.7, v * 1.1);
           }
         }
-      }
-      function effectRainMatrix(core, dt) {
-        dt *= tempo(core);
-        const { SIZE, faceMap, colBuf } = core;
-        if (!matrixStreams || matrixStreams.length === 0 || matrixStreams[0].length !== SIZE) initMatrixStreams(SIZE);
-        for (let face = 0; face < 4; face++) {
-          for (let u = 0; u < SIZE; u++) {
-            const stream = matrixStreams[face][u];
-            stream.head -= stream.speed * dt * SIZE;
-            if (stream.head + stream.len < 0) {
-              stream.head = SIZE - 1 + Math.floor(Math.random() * SIZE * 0.8);
-              stream.speed = 0.4 + Math.random() * 0.7;
-              stream.len = Math.floor(SIZE * 0.25 + Math.random() * SIZE * 0.45);
-            }
-            const headV = Math.floor(stream.head);
-            for (let v = 0; v < SIZE; v++) {
-              const dist = v - headV;
-              if (dist < 0 || dist > stream.len) continue;
-              const idx = faceMap[face][v * SIZE + u];
-              if (idx < 0) continue;
-              const isHead = dist === 0;
-              if (isHead) {
-                colBuf[idx * 3] = 0.7;
-                colBuf[idx * 3 + 1] = 1;
-                colBuf[idx * 3 + 2] = 0.7;
-              } else {
-                const frac = 1 - dist / stream.len;
-                const bright = Math.pow(frac, 1.8) * 0.9;
-                const flicker = 0.7 + Math.random() * 0.3;
-                colBuf[idx * 3] = Math.max(colBuf[idx * 3], bright * 0.05);
-                colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], bright * flicker);
-                colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], bright * 0.05);
-              }
-            }
+        for (const s of st.splashes) {
+          s.r += dt * (6 + s.z * 10);
+          s.life -= dt * 2.2;
+          const col = hsl(s.hue, 1, 0.55), a = Math.max(0, s.life) * (0.4 + s.z * 0.6);
+          for (let k = 0; k < 24; k++) {
+            const ang = k / 24 * Math.PI * 2;
+            c.add(s.x + Math.cos(ang) * s.r, s.y + Math.sin(ang) * s.r * 0.3, col[0] * a, col[1] * a, col[2] * a);
           }
         }
-        if (!matrixStreams[6]) {
-          matrixStreams[6] = [];
-          for (let u = 0; u < SIZE; u++) {
-            matrixStreams[6][u] = {
-              head: SIZE - 1 + Math.floor(Math.random() * SIZE * 1.5),
-              speed: 0.35 + Math.random() * 0.6,
-              len: Math.floor(SIZE * 0.2 + Math.random() * SIZE * 0.4)
-            };
+        st.splashes = st.splashes.filter((s) => s.life > 0);
+        for (const d of st.drops) {
+          const speed = H * (0.5 + d.z * 1.6), len = 2 + d.z * 7, bright = 0.25 + d.z * 0.85;
+          d.y += speed * dt;
+          const landY = floor + d.z * (H - floor - 1);
+          if (d.y >= landY) {
+            st.splashes.push({ x: d.x, y: landY, r: 0.5, life: 1, z: d.z, hue: d.hue });
+            Object.assign(d, newDrop(W, H, false));
+            continue;
           }
-        }
-        for (let u = 0; u < SIZE; u++) {
-          const stream = matrixStreams[6][u];
-          stream.head -= stream.speed * dt * SIZE;
-          if (stream.head + stream.len < 0) {
-            stream.head = SIZE - 1 + Math.floor(Math.random() * SIZE * 0.8);
-            stream.speed = 0.35 + Math.random() * 0.6;
-            stream.len = Math.floor(SIZE * 0.2 + Math.random() * SIZE * 0.4);
-          }
-          const headV = Math.floor(stream.head);
-          for (let v = 0; v < SIZE; v++) {
-            const dist = v - headV;
-            if (dist < 0 || dist > stream.len) continue;
-            const idx = faceMap[4][v * SIZE + u];
-            if (idx < 0) continue;
-            const isHead = dist === 0;
-            if (isHead) {
-              colBuf[idx * 3] = 0.7;
-              colBuf[idx * 3 + 1] = 1;
-              colBuf[idx * 3 + 2] = 0.7;
-            } else {
-              const frac = 1 - dist / stream.len;
-              const bright = Math.pow(frac, 1.8) * 0.85;
-              const flicker = 0.7 + Math.random() * 0.3;
-              colBuf[idx * 3] = Math.max(colBuf[idx * 3], bright * 0.05);
-              colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], bright * flicker);
-              colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], bright * 0.05);
-            }
+          const col = hsl((d.hue + t * 0.02) % 1, 1, 0.6);
+          for (let k = 0; k < len; k++) {
+            const a = bright * (1 - k / len);
+            c.add(d.x, d.y - k, col[0] * a, col[1] * a, col[2] * a);
+            const ry = 2 * landY - (d.y - k);
+            if (ry < H && ry > landY && (ry | 0) & 1) c.add(d.x, ry, col[0] * a * 0.25, col[1] * a * 0.25, col[2] * a * 0.25);
           }
         }
       }
-      function effectRain(core, dt) {
-        core.t += dt;
-        const { N, SIZE, colBuf } = core;
-        const fade = trailFade(0.78, dt);
-        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
-        const style = core.effectOptions?.rain?.style || "colour";
-        if (style === "matrix") {
-          effectRainMatrix(core, dt);
-          return;
+      function matrixRain(c, dt) {
+        const W = c.W, H = c.H, cw = 4, ch = 6, ncol = Math.floor(W / cw);
+        if (st.cols.length !== ncol) {
+          st.cols = Array.from({ length: ncol }, () => ({ y: -Math.random() * H, speed: 8 + Math.random() * 18, len: 4 + Math.floor(Math.random() * 8), glyphs: Array.from({ length: Math.ceil(H / ch) + 1 }, () => GLYPHS[Math.floor(Math.random() * GLYPHS.length)]) }));
         }
-        if (!rainDrops.length || rainDrops[0]._size !== SIZE) {
-          resetRain(core);
-          rainDrops.forEach((d) => {
-            d._size = SIZE;
-          });
-        }
-        for (const d of rainDrops) {
-          d.y -= d.speed * dt * (SIZE * 0.48);
-          if (d.y < -d.len) {
-            d.y = SIZE + d.len;
-            d.col = Math.random() * SIZE | 0;
-            d.hue = Math.random();
-            d.wide = Math.random() < 0.15;
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) c.set(x, y, 0, 0.012, 4e-3);
+        st.cols.forEach((col, i) => {
+          col.y += col.speed * dt;
+          const head = Math.floor(col.y / ch);
+          if ((head - col.len) * ch > H) {
+            col.y = -Math.random() * H * 0.5;
+            col.speed = 8 + Math.random() * 18;
+            col.len = 4 + Math.floor(Math.random() * 8);
           }
-          for (let k = 0; k < d.len; k++) {
-            const vy = Math.round(d.y + k);
-            if (vy < 0 || vy >= SIZE) continue;
-            const fade2 = Math.pow(1 - k / d.len, 1.2) * d.bright;
-            const h = (d.hue + k / d.len * 0.15) % 1;
-            const [r, g, b] = hsl(h, 1, fade2 * 0.95);
-            core.setFaceLED(d.face, d.col, vy, r, g, b);
-            if (d.wide) {
-              core.setFaceLED(d.face, d.col - 1, vy, r * 0.5, g * 0.5, b * 0.5);
-              core.setFaceLED(d.face, d.col + 1, vy, r * 0.5, g * 0.5, b * 0.5);
-            }
-            if (vy === 0 && k < 4) {
-              const sp = fade2 * 0.8;
-              for (let s = -4; s <= 4; s++) {
-                const sf = Math.max(0, 1 - Math.abs(s) / 4) * sp * 0.5;
-                core.setFaceLED(d.face, d.col + s, 0, ...hsl(h, 1, sf));
-              }
+          if (Math.random() < dt * 6) col.glyphs[Math.floor(Math.random() * col.glyphs.length)] = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+          for (let k = 0; k <= col.len; k++) {
+            const row = head - k;
+            if (row < 0 || row * ch > H) continue;
+            const rows = FONT_3x5.get(col.glyphs[row % col.glyphs.length]);
+            const isHead = k === 0, a = isHead ? 1 : Math.pow(1 - k / (col.len + 1), 1.4);
+            const r = isHead ? 0.85 : 0.05 * a, g = isHead ? 1 : 0.95 * a, b = isHead ? 0.85 : 0.25 * a;
+            for (let gy = 0; gy < 5; gy++) for (let gx = 0; gx < 3; gx++) {
+              if (rows[gy] >> 2 - gx & 1) c.set(i * cw + gx, row * ch + gy, r, g, b);
             }
           }
-          const [rh, gh, bh] = hsl(d.hue, 0.3, d.bright * 1);
-          core.setFaceLED(d.face, d.col, Math.round(d.y), rh, gh, bh);
-        }
-        if (Math.random() < dt * 0.8) {
-          const face = Math.random() * 4 | 0, col = Math.random() * SIZE | 0, hue = Math.random();
-          for (let y = 0; y < SIZE; y++) {
-            const b2 = Math.pow(Math.random(), 1.5) * 0.85;
-            const [r, g, b] = hsl((hue + y / SIZE * 0.3) % 1, 0.9, b2);
-            core.setFaceLED(face, col, y, r, g, b);
-          }
-        }
+        });
       }
-      module.exports = effectRain;
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt, core }) {
+          if ((core.effectOptions?.rain?.style || "colour") === "matrix") matrixRain(c, dt);
+          else colourRain(c, dt, t);
+        }
+      });
     }
   });
 
@@ -5834,100 +5750,80 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/dna.js
-  var require_dna = __commonJS({
-    "src/effects/dna.js"(exports, module) {
+  // src/effects/dnaHelix.js
+  var require_dnaHelix = __commonJS({
+    "src/effects/dnaHelix.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { hsl } = require_core();
-      var { trailFade } = require_trail();
-      function effectDNA(core, dt) {
-        core.t += dt * 0.55;
-        const { SIZE, colBuf, N, faceMap, t } = core;
-        const fade = trailFade(0.82, dt);
-        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
-        const STRANDS = 2;
-        const RADIUS = SIZE * 0.36;
-        const TURNS = 4;
-        for (let face = 0; face < 4; face++) {
-          const faceHue = face * 0.25;
-          for (let y = 0; y < SIZE; y++) {
-            const progress = y / SIZE;
-            for (let s = 0; s < STRANDS; s++) {
-              const ang = progress * Math.PI * 2 * TURNS + t * 1.4 + s * Math.PI;
-              const uc = SIZE / 2 + Math.cos(ang) * RADIUS;
-              const ui = Math.round(uc);
-              if (ui < 0 || ui >= SIZE) continue;
-              const hue = (faceHue + progress * 0.5 + t * 0.06 + s * 0.5) % 1;
-              const bright = 0.95;
-              const [r, g, b] = hsl(hue, 1, bright);
-              core.setFaceLED(face, ui, y, r, g, b);
-              for (let d = 1; d <= 3; d++) {
-                const fade2 = Math.pow(1 - d / 4, 2) * 0.7;
-                const [rg, gg, bg] = hsl(hue, 0.9, fade2);
-                core.setFaceLED(face, ui - d, y, rg, gg, bg);
-                core.setFaceLED(face, ui + d, y, rg, gg, bg);
-              }
-            }
-            if (y % 3 === 0) {
-              const ang0 = progress * Math.PI * 2 * TURNS + t * 1.4;
-              const u0 = SIZE / 2 + Math.cos(ang0) * RADIUS;
-              const u1 = SIZE / 2 + Math.cos(ang0 + Math.PI) * RADIUS;
-              const uMin = Math.round(Math.min(u0, u1));
-              const uMax = Math.round(Math.max(u0, u1));
-              const rungHue = (faceHue + progress * 0.5 + t * 0.06 + 0.5) % 1;
-              for (let u = uMin; u <= uMax; u++) {
-                if (u < 0 || u >= SIZE) continue;
-                const frac = (u - uMin) / Math.max(1, uMax - uMin);
-                const bright = Math.sin(frac * Math.PI) * 0.8;
-                const [rr, gr, br] = hsl(rungHue, 1, bright);
-                core.setFaceLED(face, u, y, rr, gr, br);
-              }
-            }
-          }
-          for (let y = 0; y < SIZE; y++) {
-            const pulse = 0.3 + 0.3 * Math.sin(t * 2 + face + y * 0.1);
-            const [re, ge, be] = hsl((faceHue + t * 0.05) % 1, 1, pulse);
-            core.setFaceLED(face, 0, y, re, ge, be);
-            core.setFaceLED(face, SIZE - 1, y, re, ge, be);
-          }
-        }
-        const cx2 = SIZE / 2, cy2 = SIZE / 2;
-        for (let v = 0; v < SIZE; v++) {
-          for (let u = 0; u < SIZE; u++) {
-            const dx = u - cx2, dy = v - cy2;
-            const rad = Math.sqrt(dx * dx + dy * dy);
-            const ang2 = Math.atan2(dy, dx);
-            for (let s = 0; s < STRANDS; s++) {
-              const armAng = ang2 - t * 1.4 - s * Math.PI;
-              const targetRad = RADIUS * (0.5 + 0.5 * Math.sin(armAng * TURNS * 2));
-              const dist = Math.abs(rad - targetRad);
-              if (dist < SIZE * 0.08) {
-                const bright = Math.pow(1 - dist / (SIZE * 0.08), 2) * 0.9;
-                const hue = (ang2 / (Math.PI * 2) + t * 0.08 + s * 0.5) % 1;
-                const [r, g, b] = hsl((hue + 1) % 1, 1, bright);
-                const idx = faceMap[4][v * SIZE + u];
-                if (idx >= 0) {
-                  colBuf[idx * 3] = Math.max(colBuf[idx * 3], r);
-                  colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], g);
-                  colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], b);
-                }
-              }
-            }
-            if (rad < SIZE * 0.06) {
-              const bright = (1 - rad / (SIZE * 0.06)) * 0.8;
-              const [r, g, b] = hsl(t * 0.1 % 1, 0.5, bright);
-              const idx = faceMap[4][v * SIZE + u];
-              if (idx >= 0) {
-                colBuf[idx * 3] = Math.max(colBuf[idx * 3], r);
-                colBuf[idx * 3 + 1] = Math.max(colBuf[idx * 3 + 1], g);
-                colBuf[idx * 3 + 2] = Math.max(colBuf[idx * 3 + 2], b);
-              }
-            }
-          }
+      var { defineCanvasEffect } = require_canvas();
+      var PAIRS = [[[0.2, 0.6, 1], [1, 0.75, 0.15]], [[1, 0.25, 0.35], [0.3, 0.95, 0.45]]];
+      var STRAND = [[0.85, 0.35, 1], [0.25, 0.85, 1]];
+      var LIGHT = (() => {
+        const l = [-0.5, -0.6, 0.62], n = Math.hypot(...l);
+        return l.map((v) => v / n);
+      })();
+      var hash = (i) => {
+        const s = Math.sin(i * 91.7) * 43758.5453;
+        return s - Math.floor(s);
+      };
+      function bead(c, x, y, R, col, fog) {
+        for (let j = Math.floor(y - R - 1); j <= y + R + 1; j++) for (let i = Math.floor(x - R - 1); i <= x + R + 1; i++) {
+          const u = (i + 0.5 - x) / R, v = (j + 0.5 - y) / R, d2 = u * u + v * v;
+          if (d2 > 1) continue;
+          const z = Math.sqrt(1 - d2), lam = Math.max(0, u * LIGHT[0] + v * LIGHT[1] + z * LIGHT[2]);
+          const spec = Math.pow(Math.max(0, 2 * lam * z - LIGHT[2]), 20) * 0.8;
+          const sh = (0.25 + 0.85 * lam) * fog, edge = Math.min(1, (1 - d2) * R * 0.8);
+          const o = c.get(i, j);
+          if (!o) continue;
+          c.set(i, j, o[0] * (1 - edge) + Math.min(1, col[0] * sh + spec * fog) * edge, o[1] * (1 - edge) + Math.min(1, col[1] * sh + spec * fog) * edge, o[2] * (1 - edge) + Math.min(1, col[2] * sh + spec * fog) * edge);
         }
       }
-      module.exports = effectDNA;
+      module.exports = defineCanvasEffect({
+        render(c, { t, core }) {
+          const W = c.W, H = c.H, S = Math.min(W, H);
+          const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const v = Math.max(0, 1 - Math.abs(x - W / 2) / (W * 0.6));
+            c.set(x, y, 5e-3 + v * 0.015, 0.01 + v * 0.025, 0.03 + v * 0.05);
+          }
+          for (let k = 0; k < 30; k++) {
+            const px = hash(k) * W, py = ((hash(k + 50) * H - t * (2 + hash(k + 9) * 4)) % H + H) % H, b = 0.08 + hash(k + 3) * 0.12;
+            c.add(px, py, b * 0.5, b * 0.7, b);
+          }
+          const radius = S * 0.26 * (1 + beat * 0.1), turn = t * 0.9, steps = Math.round(H / 2.6);
+          const items = [];
+          for (let s = -1; s <= steps + 1; s++) {
+            const y = s / steps * H + Math.sin(t * 0.6) * 1.5;
+            const a = s * 0.42 + turn, tilt = Math.sin(t * 0.3) * 0.25;
+            for (let strand = 0; strand < 2; strand++) {
+              const ang = a + strand * Math.PI;
+              const z = Math.sin(ang);
+              const x = W / 2 + Math.cos(ang) * radius + (y - H / 2) * tilt;
+              items.push({ kind: "bead", x, y, z, strand, s });
+            }
+            if (s % 2 === 0) items.push({ kind: "rung", s, y, a, tilt });
+          }
+          const keyZ = (it) => it.kind === "bead" ? it.z : 0;
+          items.sort((p, q) => keyZ(p) - keyZ(q));
+          for (const it of items) {
+            if (it.kind === "rung") {
+              const pair = PAIRS[Math.floor(hash(it.s) * 2)], flip = hash(it.s + 7) < 0.5;
+              const x1 = W / 2 + Math.cos(it.a) * radius + (it.y - H / 2) * it.tilt, x2 = W / 2 + Math.cos(it.a + Math.PI) * radius + (it.y - H / 2) * it.tilt;
+              const n = Math.ceil(Math.abs(x2 - x1)) + 1;
+              for (let k = 0; k <= n; k++) {
+                const f = k / n, x = x1 + (x2 - x1) * f, z = Math.sin(it.a) * (1 - 2 * f);
+                const col = f < 0.5 !== flip ? pair[0] : pair[1], fog = 0.35 + 0.4 * (z + 1) / 2;
+                c.set(x, it.y, col[0] * fog, col[1] * fog, col[2] * fog);
+                c.set(x, it.y + 1, col[0] * fog * 0.5, col[1] * fog * 0.5, col[2] * fog * 0.5);
+              }
+            } else {
+              const fog = 0.4 + 0.6 * (it.z + 1) / 2, R = S * (0.035 + 0.025 * (it.z + 1) / 2);
+              bead(c, it.x, it.y, R, STRAND[it.strand], fog);
+            }
+          }
+        }
+      });
     }
   });
 
@@ -6043,63 +5939,40 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/warp.js
-  var require_warp = __commonJS({
-    "src/effects/warp.js"(exports, module) {
+  // src/effects/warpTunnel.js
+  var require_warpTunnel = __commonJS({
+    "src/effects/warpTunnel.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
+      var { defineCanvasEffect } = require_canvas();
       var { hsl } = require_core();
-      var { tempo } = require_audioFeatures();
-      var { trailFade } = require_trail();
-      var warpStars = [];
-      function resetWarp(core) {
-        warpStars = [];
-        const N = core.N;
-        for (let i = 0; i < Math.max(120, N * 0.12) | 0; i++) {
-          const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
-          const sp = 0.08 + Math.random() * 0.35;
-          warpStars.push({ x: 0.5, y: 0.5, z: 0.5, ox: Math.sin(ph) * Math.cos(th) * 1e-3, oy: Math.sin(ph) * Math.sin(th) * 1e-3, oz: Math.cos(ph) * 1e-3, sp, hue: Math.random() * 0.2 + 0.55, life: Math.random() });
-        }
-      }
-      function effectWarp(core, dt) {
-        dt *= tempo(core);
-        core.t += dt;
-        const { SIZE, N, colBuf } = core;
-        if (!warpStars.length) resetWarp(core);
-        const fade = trailFade(0.78, dt);
-        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
-        for (const s of warpStars) {
-          s.life += dt;
-          s.x += s.ox * s.sp * SIZE * dt * 60;
-          s.y += s.oy * s.sp * SIZE * dt * 60;
-          s.z += s.oz * s.sp * SIZE * dt * 60;
-          const wx = s.x, wy = s.y, wz = s.z;
-          if (wx < 0 || wx > 1 || wy < 0 || wy > 1 || wz < 0 || wz > 1) {
-            s.x = 0.5;
-            s.y = 0.5;
-            s.z = 0.5;
-            s.sp = 0.08 + Math.random() * 0.35;
-            s.life = 0;
-            s.hue = Math.random() * 0.2 + 0.55;
-            continue;
-          }
-          const dist = Math.sqrt((wx - 0.5) ** 2 + (wy - 0.5) ** 2 + (wz - 0.5) ** 2) * 2;
-          const bright = dist * 0.75 * Math.min(1, s.life * 3);
-          const core1 = bright * 0.85, glow1 = bright * 0.25 * 0.85;
-          if (core1 < 0.01) continue;
-          const cc = hsl(s.hue + dist * 0.15, 0.8, core1);
-          const gc = glow1 >= 0.01 ? hsl(s.hue + dist * 0.15, 0.8, glow1) : null;
-          for (let f = 0; f < 6; f++) {
-            const fu = f < 2 ? wx : f < 4 ? wz : wx, fv = f < 4 ? wy : wz;
-            const pu = fu * SIZE | 0, pv = fv * SIZE | 0;
-            for (let sx = -1; sx <= 1; sx++) for (let sy = -1; sy <= 1; sy++) {
-              const c = sx === 0 && sy === 0 ? cc : gc;
-              if (c) core.setFaceLED(f, pu + sx, pv + sy, c[0], c[1], c[2]);
-            }
+      var st = { z: 0 };
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt, core }) {
+          const W = c.W, H = c.H, S = Math.min(W, H);
+          const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
+          st.z += dt * (2.2 + beat * 3);
+          const cx = W / 2 + Math.sin(t * 0.5) * S * 0.12, cy = H / 2 + Math.cos(t * 0.37) * S * 0.1;
+          const twist = t * 0.3;
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const dx = (x + 0.5 - cx) / S, dy = (y + 0.5 - cy) / S;
+            const r = Math.hypot(dx, dy) + 1e-4;
+            const depth = 0.32 / r;
+            const ang = Math.atan2(dy, dx) / Math.PI;
+            const u = (depth + st.z) * 3, v = ang * 6 + twist + depth * 0.5;
+            const ring = Math.pow(Math.max(0, Math.cos(u * Math.PI * 2)), 6);
+            const rib = Math.pow(Math.max(0, Math.cos(v * Math.PI * 2)), 10) * 0.45;
+            const fog = Math.min(1, r * 3.2);
+            const hue = (u * 0.02 + t * 0.03) % 1;
+            const [cr, cg, cb] = hsl(hue, 0.9, 0.5);
+            const panel = 0.08 + 0.05 * Math.cos(v * Math.PI * 2) * Math.cos(u * Math.PI);
+            let k = (panel + ring * 0.9 + rib) * fog;
+            const core0 = Math.exp(-r * r * 140) * 0.9;
+            c.set(x, y, Math.min(1, cr * k + core0), Math.min(1, cg * k + core0 * 0.95), Math.min(1, cb * k + core0));
           }
         }
-      }
-      module.exports = effectWarp;
+      });
     }
   });
 
@@ -19769,254 +19642,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/warpWall.js
-  var require_warpWall = __commonJS({
-    "src/effects/warpWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var { tempo } = require_audioFeatures();
-      var { trailFade } = require_trail();
-      var warpWallStars = [];
-      function resetWarpWall(core) {
-        warpWallStars = [];
-        const n = Math.max(120, core.wallW * core.wallH / 400 | 0);
-        for (let i = 0; i < n; i++) {
-          const th = Math.random() * Math.PI * 2;
-          const sp = 0.08 + Math.random() * 0.35;
-          warpWallStars.push({
-            x: 0.5,
-            y: 0.5,
-            ox: Math.cos(th) * 1e-3,
-            oy: Math.sin(th) * 1e-3,
-            sp,
-            hue: Math.random() * 0.2 + 0.55,
-            life: Math.random()
-          });
-        }
-      }
-      function effectWarpWall(core, dt) {
-        dt *= tempo(core);
-        core.t += dt;
-        const { wallW, wallH, wallBuf } = core;
-        if (!wallW) return;
-        if (!warpWallStars.length) resetWarpWall(core);
-        const fade = trailFade(0.78, dt);
-        for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= fade;
-        const dim = Math.max(wallW, wallH);
-        for (const s of warpWallStars) {
-          s.life += dt;
-          s.x += s.ox * s.sp * dim * dt * 60;
-          s.y += s.oy * s.sp * dim * dt * 60;
-          if (s.x < 0 || s.x > 1 || s.y < 0 || s.y > 1) {
-            const th = Math.random() * Math.PI * 2;
-            s.x = 0.5;
-            s.y = 0.5;
-            s.ox = Math.cos(th) * 1e-3;
-            s.oy = Math.sin(th) * 1e-3;
-            s.sp = 0.08 + Math.random() * 0.35;
-            s.life = 0;
-            s.hue = Math.random() * 0.2 + 0.55;
-            continue;
-          }
-          const dist = Math.sqrt((s.x - 0.5) ** 2 + (s.y - 0.5) ** 2) * 2;
-          const bright = dist * 0.75 * Math.min(1, s.life * 3);
-          const px = s.x * wallW | 0, py = s.y * wallH | 0;
-          for (let sx = -1; sx <= 1; sx++) for (let sy = -1; sy <= 1; sy++) {
-            const gl = bright * (sx === 0 && sy === 0 ? 1 : 0.25) * 0.85;
-            if (gl < 0.01) continue;
-            const [r, g, b] = hsl(s.hue + dist * 0.15, 0.8, gl);
-            core.setWallPixel(px + sx, py + sy, r, g, b);
-          }
-        }
-      }
-      module.exports = effectWarpWall;
-    }
-  });
-
-  // src/effects/rainWall.js
-  var require_rainWall = __commonJS({
-    "src/effects/rainWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var { tempo } = require_audioFeatures();
-      var { trailFade } = require_trail();
-      var wallDrops = [];
-      function resetWallRain(core) {
-        const { wallW, wallH } = core;
-        wallDrops = [];
-        const nDrops = Math.max(24, wallW * 0.35) | 0;
-        for (let d = 0; d < nDrops; d++) {
-          wallDrops.push({
-            col: Math.random() * wallW | 0,
-            y: Math.random() * wallH - wallH,
-            // stagger initial fall so it doesn't all start at once
-            speed: 0.35 + Math.random() * 0.9,
-            hue: Math.random(),
-            len: 5 + Math.random() * wallH * 0.22,
-            bright: 0.7 + Math.random() * 0.3,
-            wide: Math.random() < 0.15
-          });
-        }
-      }
-      var wallMatrixStreams = null;
-      function initWallMatrixStreams(core) {
-        const { wallW, wallH } = core;
-        wallMatrixStreams = [];
-        for (let u = 0; u < wallW; u++) {
-          wallMatrixStreams[u] = {
-            head: -Math.floor(Math.random() * wallH * 1.5),
-            speed: 0.4 + Math.random() * 0.7,
-            len: Math.floor(wallH * 0.25 + Math.random() * wallH * 0.45)
-          };
-        }
-      }
-      function effectRainMatrixWall(core, dt) {
-        dt *= tempo(core);
-        const { wallW, wallH } = core;
-        if (!wallMatrixStreams || wallMatrixStreams.length !== wallW) initWallMatrixStreams(core);
-        for (let u = 0; u < wallW; u++) {
-          const stream = wallMatrixStreams[u];
-          stream.head += stream.speed * dt * wallH;
-          if (stream.head - stream.len > wallH) {
-            stream.head = -Math.floor(Math.random() * wallH * 0.8);
-            stream.speed = 0.4 + Math.random() * 0.7;
-            stream.len = Math.floor(wallH * 0.25 + Math.random() * wallH * 0.45);
-          }
-          const headV = Math.floor(stream.head);
-          for (let v = 0; v < wallH; v++) {
-            const dist = headV - v;
-            if (dist < 0 || dist > stream.len) continue;
-            const isHead = dist === 0;
-            if (isHead) {
-              core.setWallPixel(u, v, 0.7, 1, 0.7);
-            } else {
-              const frac = 1 - dist / stream.len;
-              const bright = Math.pow(frac, 1.8) * 0.9;
-              const flicker = 0.7 + Math.random() * 0.3;
-              core.setWallPixel(u, v, bright * 0.05, bright * flicker, bright * 0.05);
-            }
-          }
-        }
-      }
-      function effectRainWall(core, dt) {
-        core.t += dt;
-        const { wallW, wallH, wallBuf } = core;
-        if (!wallW) return;
-        const fade = trailFade(0.78, dt);
-        for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= fade;
-        const style = core.effectOptions?.rain?.style || "colour";
-        if (style === "matrix") {
-          effectRainMatrixWall(core, dt);
-          return;
-        }
-        if (!wallDrops.length || wallDrops[0]._w !== wallW || wallDrops[0]._h !== wallH) {
-          resetWallRain(core);
-          wallDrops.forEach((d) => {
-            d._w = wallW;
-            d._h = wallH;
-          });
-        }
-        for (const d of wallDrops) {
-          d.y += d.speed * dt * (wallH * 0.48);
-          if (d.y > wallH + d.len) {
-            d.y = -d.len;
-            d.col = Math.random() * wallW | 0;
-            d.hue = Math.random();
-            d.wide = Math.random() < 0.15;
-          }
-          for (let k = 0; k < d.len; k++) {
-            const vy = Math.round(d.y - k);
-            if (vy < 0 || vy >= wallH) continue;
-            const fade2 = Math.pow(1 - k / d.len, 1.2) * d.bright;
-            const h = (d.hue + k / d.len * 0.15) % 1;
-            const [r, g, b] = hsl(h, 1, fade2 * 0.95);
-            core.setWallPixel(d.col, vy, r, g, b);
-            if (d.wide) {
-              core.setWallPixel(d.col - 1, vy, r * 0.5, g * 0.5, b * 0.5);
-              core.setWallPixel(d.col + 1, vy, r * 0.5, g * 0.5, b * 0.5);
-            }
-            if (vy === wallH - 1 && k < 4) {
-              const sp = fade2 * 0.8;
-              for (let s = -4; s <= 4; s++) {
-                const sf = Math.max(0, 1 - Math.abs(s) / 4) * sp * 0.5;
-                const [sr, sg, sb] = hsl(h, 1, sf);
-                core.setWallPixel(d.col + s, wallH - 1, sr, sg, sb);
-              }
-            }
-          }
-          const [rh, gh, bh] = hsl(d.hue, 0.3, d.bright * 1);
-          core.setWallPixel(d.col, Math.round(d.y), rh, gh, bh);
-        }
-        if (Math.random() < dt * 0.8) {
-          const col = Math.random() * wallW | 0, hue = Math.random();
-          for (let y = 0; y < wallH; y++) {
-            const b2 = Math.pow(Math.random(), 1.5) * 0.85;
-            const [r, g, b] = hsl((hue + y / wallH * 0.3) % 1, 0.9, b2);
-            core.setWallPixel(col, y, r, g, b);
-          }
-        }
-      }
-      module.exports = effectRainWall;
-    }
-  });
-
-  // src/effects/dnaWall.js
-  var require_dnaWall = __commonJS({
-    "src/effects/dnaWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var { trailFade } = require_trail();
-      function effectDNAWall(core, dt) {
-        core.t += dt * 0.55;
-        const { wallW, wallH, wallBuf, t, SIZE } = core;
-        if (!wallW) return;
-        const fade = trailFade(0.82, dt);
-        for (let i = 0; i < wallBuf.length; i++) wallBuf[i] *= fade;
-        const STRANDS = 2;
-        const RADIUS = wallH * 0.36;
-        const cy = wallH / 2;
-        const TURNS = 4 * (wallW / SIZE);
-        for (let x = 0; x < wallW; x++) {
-          const progress = x / wallW;
-          for (let s = 0; s < STRANDS; s++) {
-            const ang = progress * Math.PI * 2 * TURNS + t * 1.4 + s * Math.PI;
-            const vc = cy + Math.cos(ang) * RADIUS;
-            const vi = Math.round(vc);
-            if (vi < 0 || vi >= wallH) continue;
-            const hue = (progress * 0.5 + t * 0.06 + s * 0.5) % 1;
-            const [r, g, b] = hsl(hue, 1, 0.95);
-            core.setWallPixel(x, vi, r, g, b);
-            for (let d = 1; d <= 3; d++) {
-              const fade2 = Math.pow(1 - d / 4, 2) * 0.7;
-              const [rg, gg, bg] = hsl(hue, 0.9, fade2);
-              core.setWallPixel(x, vi - d, rg, gg, bg);
-              core.setWallPixel(x, vi + d, rg, gg, bg);
-            }
-          }
-          if (x % 3 === 0) {
-            const ang0 = progress * Math.PI * 2 * TURNS + t * 1.4;
-            const v0 = cy + Math.cos(ang0) * RADIUS;
-            const v1 = cy + Math.cos(ang0 + Math.PI) * RADIUS;
-            const vMin = Math.round(Math.min(v0, v1));
-            const vMax = Math.round(Math.max(v0, v1));
-            const rungHue = (progress * 0.5 + t * 0.06 + 0.5) % 1;
-            for (let v = vMin; v <= vMax; v++) {
-              if (v < 0 || v >= wallH) continue;
-              const frac = (v - vMin) / Math.max(1, vMax - vMin);
-              const bright = Math.sin(frac * Math.PI) * 0.8;
-              const [rr, gr, br] = hsl(rungHue, 1, bright);
-              core.setWallPixel(x, v, rr, gr, br);
-            }
-          }
-        }
-      }
-      module.exports = effectDNAWall;
-    }
-  });
-
   // src/effects/lightspeedWall.js
   var require_lightspeedWall = __commonJS({
     "src/effects/lightspeedWall.js"(exports, module) {
@@ -20122,6 +19747,39 @@ var PiEngine = (() => {
               if (rb > wallBuf[o + 2]) wallBuf[o + 2] = rb;
             }
           }
+        }
+        finishGlow(core);
+      }
+      var glowA = null;
+      var glowB = null;
+      function finishGlow(core) {
+        const { wallW: W, wallH: H, wallBuf: buf } = core, n = W * H * 3;
+        if (!glowA || glowA.length !== n) {
+          glowA = new Float32Array(n);
+          glowB = new Float32Array(n);
+        }
+        const R = 2;
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) for (let ch = 0; ch < 3; ch++) {
+          let sum = 0;
+          for (let k = -R; k <= R; k++) {
+            const xx = x + k;
+            if (xx >= 0 && xx < W) sum += buf[(y * W + xx) * 3 + ch];
+          }
+          glowA[(y * W + x) * 3 + ch] = sum / (2 * R + 1);
+        }
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) for (let ch = 0; ch < 3; ch++) {
+          let sum = 0;
+          for (let k = -R; k <= R; k++) {
+            const yy = y + k;
+            if (yy >= 0 && yy < H) sum += glowA[(yy * W + x) * 3 + ch];
+          }
+          glowB[(y * W + x) * 3 + ch] = sum / (2 * R + 1);
+        }
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const o = (y * W + x) * 3;
+          const grid = x % 8 === 0 || y % 8 === 0 ? 0.025 : 0;
+          const bg = [6e-3 + grid * 0.5, 8e-3 + grid * 0.8, 0.02 + grid * 1.6];
+          for (let ch = 0; ch < 3; ch++) buf[o + ch] = Math.min(1, Math.max(bg[ch], buf[o + ch]) + glowB[o + ch] * 1.6);
         }
       }
       module.exports = effectLightspeedWall;
@@ -24128,13 +23786,13 @@ var PiEngine = (() => {
       var gradientWash = require_gradientWash();
       var weather = require_weather2();
       var easterEgg = require_easterEgg();
-      var rain = require_rain();
+      var rain = require_neonRain();
       var plasma = require_plasma();
       var sphere = require_laserGrid();
-      var dna = require_dna();
+      var dna = require_dnaHelix();
       var aurora = require_aurora();
       var nebula = require_nebula();
-      var warp = require_warp();
+      var warp = require_warpTunnel();
       var lightning = require_lightningStorm();
       var lightspeed = require_lightspeed();
       var gradientWashWall = gradientWash.wall;
@@ -24182,9 +23840,9 @@ var PiEngine = (() => {
       var plasmaWall = plasma.wall;
       var auroraWall = aurora.wall;
       var nebulaWall = nebula.wall;
-      var warpWall = require_warpWall();
-      var rainWall = require_rainWall();
-      var dnaWall = require_dnaWall();
+      var warpWall = warp.wall;
+      var rainWall = rain.wall;
+      var dnaWall = dna.wall;
       var lightningWall = lightning.wall;
       var lightspeedWall = require_lightspeedWall();
       var sphereWall = sphere.wall;
