@@ -1230,7 +1230,46 @@ body.cx-preview-off #c, body.cx-preview-off #panel2d-canvas, body.cx-preview-off
         <input type="range" id="fw-quantity" min="1" max="10" step="1" value="6" style="flex:1;">
         <span class="slider-val" id="fw-quantity-val">6</span>
       </div>
-      <label class="check-row"><input type="checkbox" id="fw-text-on"> Show text on cube</label>
+      <div class="ov-row-label" style="margin-top:8px;">Show style</div>
+      <div class="opt-grid" style="margin-bottom:4px;">
+        <button class="strobe-mode-btn active" data-fwopt="style" data-v="mixed">Mixed</button>
+        <button class="strobe-mode-btn" data-fwopt="style" data-v="classic">Classic</button>
+        <button class="strobe-mode-btn" data-fwopt="style" data-v="willow">Willow</button>
+        <button class="strobe-mode-btn" data-fwopt="style" data-v="shapes">Shapes</button>
+        <button class="strobe-mode-btn" data-fwopt="style" data-v="crackle">Crackle</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Colours</div>
+      <div class="opt-grid" style="margin-bottom:4px;">
+        <button class="strobe-mode-btn active" data-fwopt="palette" data-v="rainbow">Rainbow</button>
+        <button class="strobe-mode-btn" data-fwopt="palette" data-v="gold">Gold &amp; silver</button>
+        <button class="strobe-mode-btn" data-fwopt="palette" data-v="rwb">Red white blue</button>
+        <button class="strobe-mode-btn" data-fwopt="palette" data-v="neon">Neon</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Backdrop</div>
+      <div class="opt-grid" style="margin-bottom:4px;">
+        <button class="strobe-mode-btn active" data-fwopt="backdrop" data-v="water">Over water</button>
+        <button class="strobe-mode-btn" data-fwopt="backdrop" data-v="city">City</button>
+        <button class="strobe-mode-btn" data-fwopt="backdrop" data-v="sky">Open sky</button>
+        <button class="strobe-mode-btn" data-fwopt="backdrop" data-v="none">Black</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Burst size</div>
+      <div class="opt-grid" style="margin-bottom:4px;">
+        <button class="strobe-mode-btn" data-fwopt="size" data-v="1">Small</button>
+        <button class="strobe-mode-btn active" data-fwopt="size" data-v="2">Large</button>
+        <button class="strobe-mode-btn" data-fwopt="size" data-v="3">Huge</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Grand finale</div>
+      <div class="opt-grid" style="margin-bottom:4px;">
+        <button class="strobe-mode-btn" data-fwopt="finale" data-v="off">Off</button>
+        <button class="strobe-mode-btn active" data-fwopt="finale" data-v="2">Every 2 min</button>
+        <button class="strobe-mode-btn" data-fwopt="finale" data-v="beat">On a big beat</button>
+      </div>
+      <div class="ov-row-label" style="margin-top:8px;">Smoke &amp; glow</div>
+      <div class="opt-grid" style="margin-bottom:4px;">
+        <button class="strobe-mode-btn active" data-fwopt="smoke" data-v="true">On</button>
+        <button class="strobe-mode-btn" data-fwopt="smoke" data-v="false">Off</button>
+      </div>
+      <label class="check-row"><input type="checkbox" id="fw-text-on"> Spell text in sparks</label>
       <input type="text" id="fw-text-input" placeholder="Enter message…" maxlength="80"
         style="width:100%;margin-top:6px;padding:5px 8px;background:#111;border:1px solid #444;color:#eee;border-radius:4px;font-size:12px;">
     </div>
@@ -2317,6 +2356,6 @@ body.cx-preview-off #c, body.cx-preview-off #panel2d-canvas, body.cx-preview-off
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.226"></script>
+<script src="app.js?v=0.6.227"></script>
 </body>
 </html>

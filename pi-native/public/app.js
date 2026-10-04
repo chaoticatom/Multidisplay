@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.226';
+const APP_VERSION = '0.6.227';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1667,6 +1667,15 @@ function wireFireworksPanel() {
     if (quantityVal) quantityVal.textContent = quantity.value;
     setEffectOption('fireworks', 'quantity', Number(quantity.value));
   });
+  // Show style, colours, backdrop, size, finale, smoke: one handler for all.
+  panel.querySelectorAll('.strobe-mode-btn[data-fwopt]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.fwopt, raw = btn.dataset.v;
+      const value = raw === 'true' ? true : raw === 'false' ? false : key === 'size' ? Number(raw) : raw;
+      panel.querySelectorAll(`.strobe-mode-btn[data-fwopt="${key}"]`).forEach((b) => b.classList.toggle('active', b === btn));
+      setEffectOption('fireworks', key, value);
+    });
+  });
   const textOn = panel.querySelector('#fw-text-on');
   if (textOn) textOn.addEventListener('change', () => setEffectOption('fireworks', 'textOn', textOn.checked));
   const textInput = panel.querySelector('#fw-text-input');
@@ -1678,6 +1687,11 @@ function syncFireworksPanel() {
   if (!panel) return;
   const opts = currentState.effectOptions?.fireworks || {};
   const mode = opts.mode || 'random';
+  const FW_DEFAULTS = { style: 'mixed', palette: 'rainbow', backdrop: 'water', size: 2, finale: '2', smoke: true };
+  panel.querySelectorAll('.strobe-mode-btn[data-fwopt]').forEach((btn) => {
+    const key = btn.dataset.fwopt, cur = opts[key] ?? FW_DEFAULTS[key];
+    btn.classList.toggle('active', String(cur) === btn.dataset.v);
+  });
   panel.querySelectorAll('.strobe-mode-btn[data-fwmode]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.fwmode === mode);
   });

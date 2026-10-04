@@ -13097,490 +13097,287 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/fireworks.js
-  var require_fireworks = __commonJS({
-    "src/effects/fireworks.js"(exports, module) {
+  // src/effects/fireworksShow.js
+  var require_fireworksShow = __commonJS({
+    "src/effects/fireworksShow.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { kick, music } = require_audioFeatures();
+      var { defineCanvasEffect } = require_canvas();
       var { hsl } = require_core();
-      var { fwPx, FW_CHAR_W, fwDrawGlyphToBuffer: drawGlyphToBuffer } = require_shared();
-      var { trailFade } = require_trail();
-      var fwRockets = [];
-      var fwBursts = [];
-      var fwSpawnT = 0;
-      var FW_PALETTES = [
-        [0, 0.03],
-        // reds
-        [0.08, 0.14],
-        // golds/amber
-        [0.55, 0.65],
-        // blues
-        [0.3, 0.38],
-        // greens
-        [0.78, 0.88],
-        // purples/pinks
-        [0, 1]
-        // rainbow
-      ];
-      var fwSyncQueue = [];
-      var fwSyncWait = 0;
-      var fwSyncAct = 0;
-      var fwSyncForceType = -1;
-      var fwSyncForceMono = false;
-      var fwTextOn = false;
-      var fwScrollX = 0;
-      var fwTextPixels = null;
-      var fwTextWidth = 0;
-      var fwTextH = 0;
-      var fwTextBuiltFor = null;
-      var FW_LIFETIME_EST = 2.5;
-      var fwActiveExpiry = [];
-      function fwSet(core, idx, r, g, b) {
-        if (idx < 0) return;
-        const c = core.colBuf, o = idx * 3;
-        c[o] = Math.max(c[o], r);
-        c[o + 1] = Math.max(c[o + 1], g);
-        c[o + 2] = Math.max(c[o + 2], b);
-      }
-      function fwLaunch(core, panel2dMode) {
-        const SIZE = core.SIZE;
-        const totalCols = panel2dMode ? SIZE : SIZE * 4;
-        const sc = Math.random() * totalCols;
-        fwRockets.push({
-          col: sc,
-          v: 0,
-          vy: SIZE * (0.88 + Math.random() * 0.45),
-          vc: (Math.random() - 0.5) * SIZE * 0.3,
-          hue: Math.random(),
-          hue2: Math.random(),
-          trail: []
-        });
-      }
-      function fwBurst(core, col, v, hue, hue2) {
-        const SIZE = core.SIZE;
-        const mono = fwSyncForceMono ? true : Math.random() > 0.5;
-        const type = fwSyncForceType >= 0 ? fwSyncForceType : Math.random();
-        const sizeMul = 0.5 + Math.random() * 1;
-        function addParticle(c, y, vc, vy, h, decay, bright) {
-          fwBursts.push({ col: c, v: y, vc, vy, hue: h, life: 1, decay, bright });
-        }
-        if (type < 0.25) {
-          const n = 30 + Math.floor(Math.random() * 50);
-          const spd = SIZE * (0.25 + Math.random() * 0.35) * sizeMul;
-          for (let i = 0; i < n; i++) {
-            const a = i / n * Math.PI * 2 + Math.random() * 0.3;
-            const r = spd * (0.4 + Math.random() * 0.6);
-            const h = mono ? hue : (i % 3 === 0 ? hue2 : hue + Math.random() * 0.1) % 1;
-            addParticle(col, v, Math.cos(a) * r, Math.sin(a) * r * (0.5 + Math.random()), h, 8e-3 + Math.random() * 8e-3, 0.85 + Math.random() * 0.15);
+      var { FONT_5x7 } = require_text();
+      var PAL = {
+        rainbow: () => hsl(Math.random(), 1, 0.6),
+        gold: () => Math.random() < 0.6 ? [1, 0.75, 0.3] : [0.9, 0.92, 1],
+        rwb: () => [[1, 0.15, 0.2], [1, 1, 1], [0.25, 0.4, 1]][Math.floor(Math.random() * 3)],
+        neon: () => [[1, 0.1, 0.8], [0.1, 1, 0.9], [0.6, 1, 0.1], [1, 0.9, 0.1]][Math.floor(Math.random() * 4)]
+      };
+      var STYLE_TYPES = {
+        mixed: ["peony", "chrys", "willow", "ring", "heart", "palm", "crossette", "crackle"],
+        classic: ["peony", "chrys"],
+        willow: ["willow", "palm"],
+        shapes: ["ring", "heart", "star"],
+        crackle: ["crackle", "crossette"]
+      };
+      var RATE = [2.6, 2.2, 1.8, 1.5, 1.2, 1, 0.8, 0.6, 0.45, 0.32];
+      var st = { W: 0, H: 0, buf: null, smoke: null, rockets: [], stars: [], flash: 0, flashX: 0.5, next: 0.2, finaleT: 0, finaleLeft: 0, textT: 6, wasBeat: 0 };
+      module.exports = defineCanvasEffect({
+        render(c, { t, dt, core }) {
+          const W = c.W, H = c.H, o = core.effectOptions && core.effectOptions.fireworks || {};
+          if (st.W !== W || st.H !== H) {
+            st.W = W;
+            st.H = H;
+            st.buf = new Float32Array(W * H * 3);
+            st.smoke = new Float32Array(W * H);
+            st.rockets = [];
+            st.stars = [];
           }
-        } else if (type < 0.42) {
-          const n = 70 + Math.floor(Math.random() * 40);
-          const spd = SIZE * (0.35 + Math.random() * 0.3) * sizeMul;
-          for (let i = 0; i < n; i++) {
-            const a = i / n * Math.PI * 2 + Math.random() * 0.15;
-            const r = spd * (0.5 + Math.random() * 0.5);
-            addParticle(col, v, Math.cos(a) * r, Math.sin(a) * r * 0.8, mono ? hue : (hue + i * 3e-3) % 1, 4e-3 + Math.random() * 4e-3, 0.9);
-          }
-        } else if (type < 0.56) {
-          const n = 40 + Math.floor(Math.random() * 30);
-          const spd = SIZE * (0.2 + Math.random() * 0.25) * sizeMul;
-          const wHue = mono ? hue : 0.12 + Math.random() * 0.08;
-          for (let i = 0; i < n; i++) {
-            const a = i / n * Math.PI * 2 + Math.random() * 0.2;
-            const r = spd * (0.4 + Math.random() * 0.6);
-            addParticle(col, v, Math.cos(a) * r, Math.sin(a) * r * 0.3, wHue, 3e-3 + Math.random() * 3e-3, 0.8);
-          }
-        } else if (type < 0.73) {
-          const n = 35 + Math.floor(Math.random() * 25);
-          const spd = SIZE * (0.3 + Math.random() * 0.3) * sizeMul;
-          for (let i = 0; i < n; i++) {
-            const a = i / n * Math.PI * 2 + Math.random() * 0.2;
-            const spread = (0.3 + Math.random() * 0.5) * spd;
-            addParticle(col, v, Math.cos(a) * spread, spd * (0.6 + Math.random() * 0.4), mono ? hue : 0.08 + Math.random() * 0.06, 5e-3 + Math.random() * 5e-3, 0.85);
-          }
-        } else if (type < 0.88) {
-          const offsets = [-SIZE * 0.12, SIZE * 0.12, 0, 0];
-          const voffs = [0, 0, -SIZE * 0.12, SIZE * 0.12];
-          for (let d = 0; d < 4; d++) {
-            const sc = col + offsets[d], sv = v + voffs[d];
-            const n2 = 15 + Math.floor(Math.random() * 10);
-            const spd2 = SIZE * (0.15 + Math.random() * 0.2) * sizeMul;
-            for (let i = 0; i < n2; i++) {
-              const a = i / n2 * Math.PI * 2 + Math.random() * 0.3;
-              const r = spd2 * (0.4 + Math.random() * 0.6);
-              addParticle(sc, sv, Math.cos(a) * r + offsets[d] * 2, Math.sin(a) * r * 0.5 + voffs[d] * 2, mono ? hue : (hue2 + Math.random() * 0.1) % 1, 0.01 + Math.random() * 8e-3, 0.9);
-            }
-          }
-        } else {
-          const n = 20 + Math.floor(Math.random() * 20);
-          const spd = SIZE * (0.25 + Math.random() * 0.3) * sizeMul;
-          for (let i = 0; i < n; i++) {
-            const a = Math.random() * Math.PI * 2;
-            const r = spd * (0.5 + Math.random() * 0.5);
-            addParticle(col, v, Math.cos(a) * r, Math.sin(a) * r * 0.6, 0.13 + Math.random() * 0.04, 0.015 + Math.random() * 0.015, 1);
-          }
-        }
-      }
-      function fwPal() {
-        return FW_PALETTES[Math.floor(Math.random() * FW_PALETTES.length)];
-      }
-      function fwHue(pal) {
-        return pal[0] + Math.random() * (pal[1] - pal[0]);
-      }
-      function fwSyncRocket(col, vy, vc, hue, hue2, delay) {
-        if (delay > 0) {
-          fwSyncQueue.push({ col, vy, vc, hue, hue2, delay });
-        } else {
-          fwRockets.push({ col, v: 0, vy, vc, hue, hue2, trail: [] });
-        }
-      }
-      function fwFan(core, center, pal, count, spread) {
-        const SIZE = core.SIZE;
-        const n = count || 7 + Math.floor(Math.random() * 5);
-        const sp = spread || SIZE * 0.07;
-        const hue = fwHue(pal);
-        for (let i = 0; i < n; i++) {
-          const off = i - (n - 1) / 2;
-          const d = i * 20;
-          fwSyncRocket(center + off * sp * 0.3, SIZE * (0.92 + Math.random() * 0.15), off * sp * 0.8, hue, (hue + 0.15) % 1, d);
-        }
-      }
-      function fwVolley(core, faceIdx, pal, count) {
-        const SIZE = core.SIZE;
-        const base = faceIdx * SIZE;
-        const n = count || 4 + Math.floor(Math.random() * 3);
-        const hue = fwHue(pal);
-        for (let i = 0; i < n; i++) {
-          const sc = base + SIZE * 0.15 + Math.random() * SIZE * 0.7;
-          fwSyncRocket(sc, SIZE * (0.88 + Math.random() * 0.2), (Math.random() - 0.5) * SIZE * 0.1, hue, (hue + 0.2 + Math.random() * 0.1) % 1, i * 30);
-        }
-      }
-      function fwCascade(core, pal, dir) {
-        const SIZE = core.SIZE;
-        const total = SIZE * 4;
-        const n = 8 + Math.floor(Math.random() * 4);
-        const hue = fwHue(pal);
-        for (let i = 0; i < n; i++) {
-          const idx = dir > 0 ? i : n - 1 - i;
-          const sc = total / n * idx + SIZE * 0.1 + Math.random() * SIZE * 0.15;
-          fwSyncRocket(sc, SIZE * (0.82 + Math.random() * 0.2), 0, (hue + i * 0.02) % 1, (hue + 0.4) % 1, i * 40);
-        }
-      }
-      function fwSymmetry(core, pal) {
-        const SIZE = core.SIZE;
-        const hue = fwHue(pal);
-        const pairs = [[0, 2], [1, 3]];
-        const pair = pairs[Math.floor(Math.random() * 2)];
-        for (let i = 0; i < 3; i++) {
-          const off = SIZE * 0.2 + Math.random() * SIZE * 0.6;
-          const vy = SIZE * (0.88 + Math.random() * 0.3);
-          const h = (hue + i * 0.06) % 1;
-          fwSyncRocket(pair[0] * SIZE + off, vy, 0, h, (h + 0.3) % 1, i * 50);
-          fwSyncRocket(pair[1] * SIZE + off, vy, 0, h, (h + 0.3) % 1, i * 50);
-        }
-      }
-      function fwWaterfall(core, pal) {
-        const SIZE = core.SIZE;
-        const total = SIZE * 4;
-        const hue = fwHue(pal);
-        for (let i = 0; i < 16; i++) {
-          const sc = Math.random() * total;
-          fwSyncRocket(sc, SIZE * (0.62 + Math.random() * 0.15), (Math.random() - 0.5) * SIZE * 0.05, (hue + Math.random() * 0.08) % 1, hue, i * 15);
-        }
-      }
-      function fwFinale(core) {
-        const SIZE = core.SIZE;
-        const total = SIZE * 4;
-        const pal1 = fwPal(), pal2 = fwPal();
-        for (let i = 0; i < 20; i++) {
-          const sc = Math.random() * total;
-          const pal = i % 2 === 0 ? pal1 : pal2;
-          const hue = fwHue(pal);
-          fwSyncRocket(sc, SIZE * (0.72 + Math.random() * 0.3), (Math.random() - 0.5) * SIZE * 0.2, hue, (hue + 0.4) % 1, i * 25 + Math.random() * 15);
-        }
-      }
-      function buildSyncActs(core) {
-        return [
-          () => {
-            const pal = fwPal();
-            for (let f = 0; f < 4; f++) setTimeout(() => fwFan(core, f * core.SIZE + core.SIZE / 2, pal), f * 400);
-            return 3.5;
-          },
-          () => {
-            const p1 = fwPal(), p2 = fwPal();
-            fwVolley(core, 0, p1, 5);
-            setTimeout(() => fwVolley(core, 2, p2, 5), 300);
-            setTimeout(() => fwVolley(core, 1, p1, 5), 600);
-            setTimeout(() => fwVolley(core, 3, p2, 5), 900);
-            return 3.5;
-          },
-          () => {
-            const pal = fwPal();
-            fwCascade(core, pal, 1);
-            setTimeout(() => fwCascade(core, pal, -1), 1400);
-            return 4;
-          },
-          () => {
-            const pal = fwPal();
-            fwSymmetry(core, pal);
-            setTimeout(() => {
-              const p2 = fwPal();
-              fwSymmetry(core, p2);
-            }, 800);
-            setTimeout(() => {
-              const p3 = fwPal();
-              fwSymmetry(core, p3);
-            }, 1600);
-            return 4;
-          },
-          () => {
-            const pal = fwPal();
-            for (let i = 0; i < 5; i++) setTimeout(() => fwFan(core, Math.random() * core.SIZE * 4, pal, 5 + Math.floor(Math.random() * 4), core.SIZE * 0.06), i * 400);
-            return 4;
-          },
-          () => {
-            const pal = fwPal();
-            fwWaterfall(core, pal);
-            setTimeout(() => fwWaterfall(core, fwPal()), 1e3);
-            return 3.5;
-          },
-          () => {
-            fwFinale(core);
-            setTimeout(() => fwFinale(core), 1e3);
-            return 5;
-          }
-        ];
-      }
-      var fwSyncActsCache = null;
-      var fwSyncActsCore = null;
-      function fwSyncUpdate(core, dt) {
-        if (fwSyncActsCore !== core) {
-          fwSyncActsCache = buildSyncActs(core);
-          fwSyncActsCore = core;
-        }
-        for (let k = fwSyncQueue.length - 1; k >= 0; k--) {
-          fwSyncQueue[k].delay -= dt * 1e3;
-          if (fwSyncQueue[k].delay <= 0) {
-            const q = fwSyncQueue[k];
-            fwRockets.push({ col: q.col, v: 0, vy: q.vy, vc: q.vc, hue: q.hue, hue2: q.hue2, trail: [] });
-            fwSyncQueue.splice(k, 1);
-          }
-        }
-        fwSyncWait -= dt;
-        if (fwSyncWait <= 0) {
-          const unified = Math.random() < 0.5;
-          if (unified) {
-            fwSyncForceMono = true;
-            fwSyncForceType = [0.1, 0.3, 0.5, 0.65, 0.8, 0.95][Math.floor(Math.random() * 6)];
-          } else {
-            fwSyncForceMono = false;
-            fwSyncForceType = -1;
-          }
-          const act = fwSyncActsCache[fwSyncAct % fwSyncActsCache.length];
-          fwSyncWait = act();
-          fwSyncAct++;
-        }
-      }
-      function glyphWidth(scale) {
-        return FW_CHAR_W * scale;
-      }
-      function textPixelWidth(str, scale) {
-        return str.length * glyphWidth(scale);
-      }
-      function buildFwText(core, msg) {
-        if (!msg || !msg.trim()) {
-          fwTextPixels = null;
-          fwTextWidth = 0;
-          fwTextH = 0;
-          return;
-        }
-        const SIZE = core.SIZE;
-        const maxH = Math.round(SIZE * 0.33);
-        const scale = 1;
-        const glyphH = scale * 6;
-        const yOff = Math.floor((maxH - glyphH) / 2);
-        const padText = msg.trim() + "   ";
-        const oneW = Math.max(1, textPixelWidth(padText, scale));
-        const totalW = oneW * Math.max(1, Math.ceil(4 * SIZE / oneW));
-        const pixels = new Uint8Array(totalW * maxH);
-        let x = 0;
-        while (x < totalW) {
-          let cx = x;
-          for (const ch of padText) {
-            drawGlyphToBuffer(pixels, totalW, maxH, ch, cx, yOff, scale);
-            cx += glyphWidth(scale);
-          }
-          x += oneW;
-        }
-        fwTextPixels = pixels;
-        fwTextWidth = totalW;
-        fwTextH = maxH;
-        fwScrollX = 0;
-      }
-      function drawTextOverlay(core, dt) {
-        if (!fwTextOn || !fwTextPixels || fwTextWidth <= 0) return;
-        const SIZE = core.SIZE, faceMap = core.faceMap, t = core.t;
-        fwScrollX = (fwScrollX + dt * SIZE * 0.22) % fwTextWidth;
-        const textRows = fwTextH;
-        const panelSeq = [3, 0, 2, 1];
-        for (let pi = 0; pi < 4; pi++) {
-          const face = panelSeq[pi];
-          const segStart = pi * SIZE;
-          for (let v = 0; v < textRows; v++) {
-            const lv = SIZE - 1 - v;
-            if (lv < 0 || lv >= SIZE) continue;
-            for (let u = 0; u < SIZE; u++) {
-              const stripX = ((segStart + u + (fwScrollX | 0)) % fwTextWidth + fwTextWidth) % fwTextWidth;
-              const pv = fwTextPixels[v * fwTextWidth + stripX] / 255;
-              if (pv < 0.04) continue;
-              const hue = (stripX / fwTextWidth + t * 0.04) % 1;
-              const [r, g, b] = hsl(hue, 1, pv * 0.95);
-              const idx = faceMap[face][lv * SIZE + u];
-              if (idx >= 0) core.setLED(idx, r, g, b);
-            }
-          }
-        }
-      }
-      function effectFireworks(core, dt) {
-        core.t += dt;
-        const { N, SIZE, colBuf, faceMap } = core;
-        const panel2dMode = core.panelMode === "2d";
-        const opts = core.effectOptions?.fireworks || {};
-        const mode = opts.mode === "sync" || opts.mode === "mic" ? opts.mode : "random";
-        fwTextOn = !!opts.textOn;
-        const wantText = opts.text || "";
-        if (fwTextOn && wantText && fwTextBuiltFor !== wantText) {
-          buildFwText(core, wantText);
-          fwTextBuiltFor = wantText;
-        } else if (!wantText) {
-          fwTextBuiltFor = null;
-        }
-        const fade = trailFade(0.8, dt);
-        for (let i = 0; i < N * 3; i++) colBuf[i] *= fade;
-        const maxConcurrent = Math.max(1, Math.min(10, Math.round(opts.quantity) || 6));
-        while (fwActiveExpiry.length && fwActiveExpiry[0] <= core.t) fwActiveExpiry.shift();
-        function fwLaunchIfRoom() {
-          if (fwActiveExpiry.length >= maxConcurrent) return;
-          fwLaunch(core, panel2dMode);
-          fwActiveExpiry.push(core.t + FW_LIFETIME_EST);
-        }
-        if (mode !== "sync" && kick(core)) {
-          const n = music(core).level > 0.35 ? 2 : 1;
-          for (let k = 0; k < n && fwActiveExpiry.length < maxConcurrent + 4; k++) {
-            fwLaunch(core, panel2dMode);
-            fwActiveExpiry.push(core.t + FW_LIFETIME_EST);
-          }
-        }
-        if (mode === "random") {
-          fwSpawnT += dt;
-          if (fwSpawnT > 0.4) {
-            fwLaunchIfRoom();
-            fwSpawnT = 0;
-          }
-        } else if (mode === "sync") {
-          fwSyncUpdate(core, dt);
-        } else if (mode === "mic") {
-          fwSpawnT += dt;
-          if (fwSpawnT > 0.4) {
-            fwLaunchIfRoom();
-            fwSpawnT = 0;
-          }
-        }
-        const totalCols = panel2dMode ? SIZE : SIZE * 4;
-        const G = SIZE * 0.06;
-        void totalCols;
-        for (let k = fwRockets.length - 1; k >= 0; k--) {
-          const r = fwRockets[k];
-          r.vy -= SIZE * 0.85 * dt;
-          r.v += r.vy * dt;
-          r.col += r.vc * dt;
-          r.trail.push({ col: r.col, v: r.v });
-          if (r.trail.length > 20) r.trail.shift();
-          for (let ti = 0; ti < r.trail.length; ti++) {
-            const tp = r.trail[ti];
-            const fade2 = ti / r.trail.length;
-            const [rh, gh, bh] = hsl(r.hue, 1, fade2 * 0.95);
-            const iv = Math.max(0, Math.min(SIZE - 1, Math.round(tp.v)));
-            if (panel2dMode) {
-              const ic = Math.round(tp.col);
-              if (ic >= 0 && ic < SIZE) {
-                const idx = faceMap[0][iv * SIZE + ic];
-                if (idx >= 0) fwSet(core, idx, rh, gh, bh);
+          const opt = {
+            mode: ["sync", "mic"].includes(o.mode) ? o.mode : "random",
+            rate: RATE[Math.max(1, Math.min(10, Math.round(o.quantity) || 6)) - 1],
+            style: STYLE_TYPES[o.style] ? o.style : "mixed",
+            palette: PAL[o.palette] ? o.palette : "rainbow",
+            backdrop: ["water", "city", "sky", "none"].includes(o.backdrop) ? o.backdrop : "water",
+            size: [0, 0.7, 1, 1.35][Math.max(1, Math.min(3, Math.round(o.size) || 2))] * (Math.min(W, H) / 64),
+            finale: ["off", "2", "beat"].includes(String(o.finale)) ? String(o.finale) : "2",
+            smoke: o.smoke !== false,
+            text: o.textOn && o.text ? String(o.text).toUpperCase().slice(0, 12) : ""
+          };
+          const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
+          const horizon = opt.backdrop === "water" ? Math.round(H * 0.72) : H;
+          const { buf, smoke } = st;
+          const add = (x, y, r, g, b) => {
+            x = Math.round(x);
+            y = Math.round(y);
+            if (x < 0 || y < 0 || x >= W || y >= H) return;
+            const i = (y * W + x) * 3;
+            buf[i] += r;
+            buf[i + 1] += g;
+            buf[i + 2] += b;
+          };
+          const launch = (type, at) => {
+            const types = STYLE_TYPES[opt.style];
+            type = type || types[Math.floor(Math.random() * types.length)];
+            const tx = at !== void 0 ? at : W * (0.15 + Math.random() * 0.7), ty = horizon * (0.18 + Math.random() * 0.3);
+            st.rockets.push({ x: tx + (Math.random() - 0.5) * 6, y: horizon, tx, ty, vy: -(horizon - ty) * 1.9, type, col: PAL[opt.palette]() });
+          };
+          const burst = (r) => {
+            const sz = opt.size, col = r.col, col2 = PAL[opt.palette]();
+            const star = (vx, vy, extra) => st.stars.push(Object.assign({ x: r.x, y: r.y, vx, vy, life: 1, decay: 0.55 + Math.random() * 0.3, col, trail: 0, drag: 0.985, g: 9 * sz, twinkle: 0 }, extra));
+            st.flash = 1;
+            st.flashX = r.x / W;
+            const n = Math.round(60 * Math.min(2, sz));
+            switch (r.type) {
+              case "peony":
+                for (let i = 0; i < n; i++) {
+                  const a = Math.random() * 6.283, v = (14 + Math.random() * 6) * sz;
+                  star(Math.cos(a) * v, Math.sin(a) * v);
+                }
+                break;
+              case "chrys":
+                for (let i = 0; i < n; i++) {
+                  const a = Math.random() * 6.283, v = (15 + Math.random() * 5) * sz;
+                  star(Math.cos(a) * v, Math.sin(a) * v, { trail: 1, col: i % 3 ? col : col2 });
+                }
+                break;
+              case "willow":
+                for (let i = 0; i < n; i++) {
+                  const a = Math.random() * 6.283, v = (9 + Math.random() * 5) * sz;
+                  star(Math.cos(a) * v, Math.sin(a) * v, { col: [1, 0.72, 0.28], trail: 1, decay: 0.28, drag: 0.97, g: 7 * sz });
+                }
+                break;
+              case "ring": {
+                const tilt = 0.45 + 0.4 * Math.random();
+                for (let i = 0; i < n * 0.7; i++) {
+                  const a = i / (n * 0.7) * 6.283, v = 16 * sz;
+                  star(Math.cos(a) * v, Math.sin(a) * v * tilt, { decay: 0.7 });
+                }
+                break;
               }
+              case "heart":
+                for (let i = 0; i < n; i++) {
+                  const a = i / n * 6.283, hx = 16 * Math.pow(Math.sin(a), 3), hy = -(13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a));
+                  star(hx * sz, hy * sz, { col: [1, 0.25, 0.45], decay: 0.65, g: 4 * sz });
+                }
+                break;
+              case "star":
+                for (let i = 0; i < n; i++) {
+                  const a = i / n * 6.283, k = 0.55 + 0.45 * Math.cos(5 * a);
+                  star(Math.cos(a) * 18 * k * sz, Math.sin(a) * 18 * k * sz, { decay: 0.65, g: 4 * sz });
+                }
+                break;
+              case "palm":
+                for (let i = 0; i < 9; i++) {
+                  const a = -Math.PI / 2 + (i - 4) * 0.42;
+                  for (let k = 0; k < 6; k++) star(Math.cos(a) * (16 + k * 1.5) * sz, Math.sin(a) * (16 + k * 1.5) * sz, { col: [1, 0.8, 0.4], trail: 1, decay: 0.4, g: 12 * sz });
+                }
+                break;
+              case "crossette":
+                for (let i = 0; i < 12; i++) {
+                  const a = i / 12 * 6.283, v = 14 * sz;
+                  star(Math.cos(a) * v, Math.sin(a) * v, { split: 0.55, decay: 0.8 });
+                }
+                break;
+              case "crackle":
+                for (let i = 0; i < n; i++) {
+                  const a = Math.random() * 6.283, v = (10 + Math.random() * 10) * sz;
+                  star(Math.cos(a) * v, Math.sin(a) * v, { col: [1, 0.95, 0.85], twinkle: 1, decay: 0.7 });
+                }
+                break;
+              case "text": {
+                const word = opt.text || "WOW", pitch = Math.max(1, Math.min(3, Math.floor((W - 4) / (word.length * 6))));
+                const total = word.length * 6 * pitch;
+                [...word].forEach((ch, k) => {
+                  const rows = FONT_5x7.get(ch) || [], lc = PAL[opt.palette]();
+                  rows.forEach((bits, yy) => {
+                    for (let xx = 0; xx < 5; xx++) if (bits >> 4 - xx & 1) {
+                      const px = W / 2 - total / 2 + (k * 6 + xx) * pitch, py = r.y + (yy - 3) * pitch;
+                      st.stars.push({ x: r.x, y: r.y, vx: (px - r.x) * 10.8, vy: (py - r.y) * 10.8, life: 1.25, decay: 0.4, col: lc, trail: 0, drag: 0.82, g: 0.6, twinkle: 0 });
+                    }
+                  });
+                });
+                break;
+              }
+            }
+            if (opt.smoke) for (let i = 0; i < 30; i++) {
+              const a = Math.random() * 6.283, d = Math.random() * 10 * sz;
+              const x = Math.round(r.x + Math.cos(a) * d), y = Math.round(r.y + Math.sin(a) * d);
+              if (x >= 0 && y >= 0 && x < W && y < H) smoke[y * W + x] = Math.min(1, smoke[y * W + x] + 0.5);
+            }
+          };
+          const bigBeat = beat > 0.8 && st.wasBeat <= 0.8;
+          st.wasBeat = beat;
+          if (opt.mode === "mic") {
+            if (bigBeat) launch();
+          } else if ((st.next -= dt) <= 0) {
+            if (opt.mode === "sync") {
+              const types = STYLE_TYPES[opt.style], type = types[Math.floor(Math.random() * types.length)], k = 2 + Math.floor(Math.random() * 3);
+              for (let i = 0; i < k; i++) launch(type, W * (i + 0.5) / k);
+              st.next = opt.rate * 2.2;
             } else {
-              const idx = fwPx(core, Math.round(tp.col), iv);
-              if (idx >= 0) fwSet(core, idx, rh, gh, bh);
+              launch();
+              st.next = opt.rate * (0.5 + Math.random());
             }
           }
-          if (r.vy <= 0 || r.v >= SIZE - 1) {
-            fwBurst(core, r.col, r.v, r.hue, r.hue2);
-            fwRockets.splice(k, 1);
+          if (opt.finale === "2") {
+            st.finaleT += dt;
+            if (st.finaleT > 120) {
+              st.finaleT = 0;
+              st.finaleLeft = 22;
+            }
+          }
+          if (opt.finale === "beat" && bigBeat && beat > 0.95 && st.finaleLeft <= 0 && Math.random() < 0.15) st.finaleLeft = 18;
+          if (st.finaleLeft > 0 && Math.random() < dt * 14) {
+            launch();
+            st.finaleLeft--;
+          }
+          if (opt.text && (st.textT -= dt) <= 0) {
+            st.textT = 14;
+            launch("text", W / 2);
+          }
+          for (const r of st.rockets) {
+            r.y += r.vy * dt;
+            r.vy *= Math.pow(0.35, dt);
+            r.x += (r.tx - r.x) * dt * 2;
+            if (r.y <= r.ty + 1 || r.vy > -4) {
+              r.done = true;
+              burst(r);
+            }
+          }
+          st.rockets = st.rockets.filter((r) => !r.done);
+          const born = [];
+          for (const p of st.stars) {
+            p.vx *= Math.pow(p.drag, dt * 60);
+            p.vy = p.vy * Math.pow(p.drag, dt * 60) + p.g * dt;
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.life -= dt * p.decay;
+            if (p.split && p.life < p.split) {
+              p.split = 0;
+              for (let k = 0; k < 4; k++) {
+                const a = k * 1.571 + 0.785;
+                born.push({ x: p.x, y: p.y, vx: Math.cos(a) * 8 * opt.size, vy: Math.sin(a) * 8 * opt.size, life: 0.6, decay: 1, col: [1, 0.9, 0.6], trail: 0, drag: 0.97, g: 8, twinkle: 0 });
+              }
+            }
+          }
+          st.stars = st.stars.filter((p) => p.life > 0 && p.y < H + 4).concat(born);
+          if (st.stars.length > 2500) st.stars.splice(0, st.stars.length - 2500);
+          st.flash = Math.max(0, st.flash - dt * 3);
+          const fl = st.flash * st.flash, bd = opt.backdrop;
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const i = (y * W + x) * 3, v = y / H;
+            let r = 0, g = 0, b = 0;
+            if (bd !== "none") {
+              r = 4e-3 + v * 0.02;
+              g = 6e-3 + v * 0.02;
+              b = 0.02 + v * 0.05;
+            }
+            const near = Math.exp(-(((x / W - st.flashX) / 0.4) ** 2)), lift = fl * (0.05 + 0.18 * near) * (bd === "none" ? 0.3 : 1);
+            r += lift * 0.9;
+            g += lift * 0.8;
+            b += lift;
+            const sm = smoke[y * W + x];
+            if (sm > 0) {
+              r += sm * (0.05 + fl * 0.4);
+              g += sm * (0.05 + fl * 0.35);
+              b += sm * (0.07 + fl * 0.4);
+            }
+            buf[i] = r;
+            buf[i + 1] = g;
+            buf[i + 2] = b;
+          }
+          const keep = Math.pow(0.6, dt);
+          for (let i = 0; i < smoke.length; i++) smoke[i] *= keep;
+          for (const r of st.rockets) for (let k = 0; k < 5; k++) add(r.x + (Math.random() - 0.5), r.y + k * 1.4, 0.9 * (1 - k / 5), 0.6 * (1 - k / 5), 0.3 * (1 - k / 5));
+          for (const p of st.stars) {
+            const L = Math.max(0, Math.min(1, p.life)), warm = 1 - L;
+            let k = Math.min(1, L * 1.6);
+            if (p.twinkle && Math.random() < 0.45) k *= 0.1;
+            const cr = p.col[0] * (1 - warm * 0.2) + warm * 0.3, cg = p.col[1] * (1 - warm * 0.5), cb = p.col[2] * (1 - warm * 0.7);
+            add(p.x, p.y, cr * k, cg * k, cb * k);
+            if (p.trail) for (let q = 1; q < 4; q++) add(p.x - p.vx * 0.02 * q, p.y - p.vy * 0.02 * q, cr * k * 0.35 / q, cg * k * 0.35 / q, cb * k * 0.35 / q);
+          }
+          if (bd === "city") {
+            for (let x = 0; x < W; x++) {
+              const hh = Math.sin(x * 0.9) * 43758.5453 % 1, bh = (6 + (hh < 0 ? hh + 1 : hh) * 12 * (0.5 + 0.5 * Math.sin(x * 0.17))) * H / 64;
+              for (let y = Math.round(H - bh); y < H; y++) {
+                const i = (y * W + x) * 3, lit = fl * 0.12;
+                buf[i] = 0.01 + lit;
+                buf[i + 1] = 0.01 + lit;
+                buf[i + 2] = 0.025 + lit * 1.2;
+                if ((x * 7 + y * 13) % 23 === 0) {
+                  buf[i] += 0.5;
+                  buf[i + 1] += 0.4;
+                  buf[i + 2] += 0.1;
+                }
+              }
+            }
+          }
+          if (bd === "water") {
+            for (let y = horizon; y < H; y++) {
+              const d = y - horizon, sy = Math.round(horizon - 1 - d * 1.15);
+              for (let x = 0; x < W; x++) {
+                const i = (y * W + x) * 3, sx = Math.round(x + Math.sin(y * 1.3 + t * 3) * (1 + d * 0.08));
+                let r = 4e-3, g = 0.01, b = 0.03 + d * 2e-3;
+                if (sy >= 0 && sx >= 0 && sx < W) {
+                  const q = (sy * W + sx) * 3, k = 0.45 * (1 - d / (H - horizon + 4));
+                  r += buf[q] * k;
+                  g += buf[q + 1] * k;
+                  b += buf[q + 2] * k;
+                }
+                buf[i] = r;
+                buf[i + 1] = g;
+                buf[i + 2] = b;
+              }
+            }
+          }
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const i = (y * W + x) * 3;
+            c.set(x, y, Math.min(1, buf[i]), Math.min(1, buf[i + 1]), Math.min(1, buf[i + 2]));
           }
         }
-        for (let k = fwBursts.length - 1; k >= 0; k--) {
-          const b = fwBursts[k];
-          b.col += b.vc * dt;
-          b.v += b.vy * dt;
-          b.vy -= G * dt;
-          b.life -= b.decay;
-          if (b.life <= 0) {
-            fwBursts.splice(k, 1);
-            continue;
-          }
-          const iv = Math.round(b.v);
-          if (iv < 0) {
-            fwBursts.splice(k, 1);
-            continue;
-          }
-          const [rh, gh, bh] = hsl(b.hue, 1, b.life * (b.bright || 0.9));
-          if (panel2dMode) {
-            if (iv >= SIZE) {
-              fwBursts.splice(k, 1);
-              continue;
-            }
-            const ic = Math.round(b.col);
-            if (ic < 0 || ic >= SIZE) {
-              fwBursts.splice(k, 1);
-              continue;
-            }
-            const idx = faceMap[0][iv * SIZE + ic];
-            if (idx >= 0) fwSet(core, idx, rh, gh, bh);
-          } else if (iv < SIZE) {
-            const idx = fwPx(core, Math.round(b.col), iv);
-            if (idx >= 0) fwSet(core, idx, rh, gh, bh);
-          } else {
-            const ov = iv - SIZE;
-            if (ov >= SIZE) {
-              fwBursts.splice(k, 1);
-              continue;
-            }
-            const S = SIZE, total = S * 4;
-            const c = (Math.round(b.col) % total + total) % total;
-            const qi = c / S | 0, fu = c % S;
-            let tu, tv;
-            if (qi === 0) {
-              tu = fu;
-              tv = S - 1 - ov;
-            } else if (qi === 1) {
-              tu = S - 1 - ov;
-              tv = S - 1 - fu;
-            } else if (qi === 2) {
-              tu = S - 1 - fu;
-              tv = ov;
-            } else {
-              tu = ov;
-              tv = fu;
-            }
-            if (tu >= 0 && tu < S && tv >= 0 && tv < S) {
-              const idx = faceMap[4][tv * S + tu];
-              if (idx >= 0) fwSet(core, idx, rh, gh, bh);
-            }
-          }
-        }
-        drawTextOverlay(core, dt);
-      }
-      module.exports = effectFireworks;
+      });
+      module.exports.getStatus = () => ({ rockets: st.rockets.length, stars: st.stars.length });
     }
   });
 
@@ -20122,418 +19919,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/fireworksWall.js
-  var require_fireworksWall = __commonJS({
-    "src/effects/fireworksWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { kick, music } = require_audioFeatures();
-      var { hsl } = require_core();
-      var { FW_CHAR_W, fwDrawGlyphToBuffer: drawGlyphToBuffer } = require_shared();
-      var { trailFade } = require_trail();
-      var fwRockets = [];
-      var fwBursts = [];
-      var fwSpawnT = 0;
-      var FW_LIFETIME_EST = 2.5;
-      var fwActiveExpiry = [];
-      var FW_PALETTES = [
-        [0, 0.03],
-        [0.08, 0.14],
-        [0.55, 0.65],
-        [0.3, 0.38],
-        [0.78, 0.88],
-        [0, 1]
-      ];
-      var fwSyncQueue = [];
-      var fwSyncWait = 0;
-      var fwSyncAct = 0;
-      var fwSyncForceType = -1;
-      var fwSyncForceMono = false;
-      var fwTextOn = false;
-      var fwScrollX = 0;
-      var fwTextPixels = null;
-      var fwTextWidth = 0;
-      var fwTextH = 0;
-      var fwTextBuiltFor = null;
-      function fwSet(core, x, y, r, g, b) {
-        const o = (y * core.wallW + x) * 3;
-        const c = core.wallBuf;
-        const cr = Math.max(c[o] || 0, r), cg = Math.max(c[o + 1] || 0, g), cb = Math.max(c[o + 2] || 0, b);
-        core.setWallPixel(x, y, cr, cg, cb);
-      }
-      function fwLaunch(core) {
-        const dimV = core.wallH;
-        const sc = Math.random() * core.wallW;
-        fwRockets.push({
-          col: sc,
-          v: 0,
-          vy: dimV * (0.88 + Math.random() * 0.45),
-          vc: (Math.random() - 0.5) * dimV * 0.3,
-          hue: Math.random(),
-          hue2: Math.random(),
-          trail: []
-        });
-      }
-      function fwBurst(core, col, v, hue, hue2) {
-        const dimV = core.wallH;
-        const mono = fwSyncForceMono ? true : Math.random() > 0.5;
-        const type = fwSyncForceType >= 0 ? fwSyncForceType : Math.random();
-        const sizeMul = 0.5 + Math.random() * 1;
-        function addParticle(c, y, vc, vy, h, decay, bright) {
-          fwBursts.push({ col: c, v: y, vc, vy, hue: h, life: 1, decay, bright });
-        }
-        if (type < 0.25) {
-          const n = 30 + Math.floor(Math.random() * 50);
-          const spd = dimV * (0.25 + Math.random() * 0.35) * sizeMul;
-          for (let i = 0; i < n; i++) {
-            const a = i / n * Math.PI * 2 + Math.random() * 0.3;
-            const r = spd * (0.4 + Math.random() * 0.6);
-            const h = mono ? hue : (i % 3 === 0 ? hue2 : hue + Math.random() * 0.1) % 1;
-            addParticle(col, v, Math.cos(a) * r, Math.sin(a) * r * (0.5 + Math.random()), h, 8e-3 + Math.random() * 8e-3, 0.85 + Math.random() * 0.15);
-          }
-        } else if (type < 0.42) {
-          const n = 70 + Math.floor(Math.random() * 40);
-          const spd = dimV * (0.35 + Math.random() * 0.3) * sizeMul;
-          for (let i = 0; i < n; i++) {
-            const a = i / n * Math.PI * 2 + Math.random() * 0.15;
-            const r = spd * (0.5 + Math.random() * 0.5);
-            addParticle(col, v, Math.cos(a) * r, Math.sin(a) * r * 0.8, mono ? hue : (hue + i * 3e-3) % 1, 4e-3 + Math.random() * 4e-3, 0.9);
-          }
-        } else if (type < 0.56) {
-          const n = 40 + Math.floor(Math.random() * 30);
-          const spd = dimV * (0.2 + Math.random() * 0.25) * sizeMul;
-          const wHue = mono ? hue : 0.12 + Math.random() * 0.08;
-          for (let i = 0; i < n; i++) {
-            const a = i / n * Math.PI * 2 + Math.random() * 0.2;
-            const r = spd * (0.4 + Math.random() * 0.6);
-            addParticle(col, v, Math.cos(a) * r, Math.sin(a) * r * 0.3, wHue, 3e-3 + Math.random() * 3e-3, 0.8);
-          }
-        } else if (type < 0.73) {
-          const n = 35 + Math.floor(Math.random() * 25);
-          const spd = dimV * (0.3 + Math.random() * 0.3) * sizeMul;
-          for (let i = 0; i < n; i++) {
-            const a = i / n * Math.PI * 2 + Math.random() * 0.2;
-            const spread = (0.3 + Math.random() * 0.5) * spd;
-            addParticle(col, v, Math.cos(a) * spread, spd * (0.6 + Math.random() * 0.4), mono ? hue : 0.08 + Math.random() * 0.06, 5e-3 + Math.random() * 5e-3, 0.85);
-          }
-        } else if (type < 0.88) {
-          const offsets = [-dimV * 0.12, dimV * 0.12, 0, 0];
-          const voffs = [0, 0, -dimV * 0.12, dimV * 0.12];
-          for (let d = 0; d < 4; d++) {
-            const sc = col + offsets[d], sv = v + voffs[d];
-            const n2 = 15 + Math.floor(Math.random() * 10);
-            const spd2 = dimV * (0.15 + Math.random() * 0.2) * sizeMul;
-            for (let i = 0; i < n2; i++) {
-              const a = i / n2 * Math.PI * 2 + Math.random() * 0.3;
-              const r = spd2 * (0.4 + Math.random() * 0.6);
-              addParticle(sc, sv, Math.cos(a) * r + offsets[d] * 2, Math.sin(a) * r * 0.5 + voffs[d] * 2, mono ? hue : (hue2 + Math.random() * 0.1) % 1, 0.01 + Math.random() * 8e-3, 0.9);
-            }
-          }
-        } else {
-          const n = 20 + Math.floor(Math.random() * 20);
-          const spd = dimV * (0.25 + Math.random() * 0.3) * sizeMul;
-          for (let i = 0; i < n; i++) {
-            const a = Math.random() * Math.PI * 2;
-            const r = spd * (0.5 + Math.random() * 0.5);
-            addParticle(col, v, Math.cos(a) * r, Math.sin(a) * r * 0.6, 0.13 + Math.random() * 0.04, 0.015 + Math.random() * 0.015, 1);
-          }
-        }
-      }
-      function fwPal() {
-        return FW_PALETTES[Math.floor(Math.random() * FW_PALETTES.length)];
-      }
-      function fwHue(pal) {
-        return pal[0] + Math.random() * (pal[1] - pal[0]);
-      }
-      function fwSyncRocket(core, col, vy, vc, hue, hue2, delay) {
-        if (delay > 0) {
-          fwSyncQueue.push({ col, vy, vc, hue, hue2, delay });
-        } else {
-          fwRockets.push({ col, v: 0, vy, vc, hue, hue2, trail: [] });
-        }
-      }
-      function fwFan(core, center, pal, count, spread) {
-        const dimV = core.wallH;
-        const n = count || 7 + Math.floor(Math.random() * 5);
-        const sp = spread || dimV * 0.07;
-        const hue = fwHue(pal);
-        for (let i = 0; i < n; i++) {
-          const off = i - (n - 1) / 2;
-          const d = i * 20;
-          fwSyncRocket(core, center + off * sp * 0.3, dimV * (0.92 + Math.random() * 0.15), off * sp * 0.8, hue, (hue + 0.15) % 1, d);
-        }
-      }
-      function fwVolley(core, slot, pal, count) {
-        const dimV = core.wallH, quarterW = core.wallW / 4;
-        const base = slot * quarterW;
-        const n = count || 4 + Math.floor(Math.random() * 3);
-        const hue = fwHue(pal);
-        for (let i = 0; i < n; i++) {
-          const sc = base + quarterW * 0.15 + Math.random() * quarterW * 0.7;
-          fwSyncRocket(core, sc, dimV * (0.88 + Math.random() * 0.2), (Math.random() - 0.5) * dimV * 0.1, hue, (hue + 0.2 + Math.random() * 0.1) % 1, i * 30);
-        }
-      }
-      function fwCascade(core, pal, dir) {
-        const dimV = core.wallH, total = core.wallW;
-        const n = 8 + Math.floor(Math.random() * 4);
-        const hue = fwHue(pal);
-        for (let i = 0; i < n; i++) {
-          const idx = dir > 0 ? i : n - 1 - i;
-          const sc = total / n * idx + total * 0.02 + Math.random() * total * 0.04;
-          fwSyncRocket(core, sc, dimV * (0.82 + Math.random() * 0.2), 0, (hue + i * 0.02) % 1, (hue + 0.4) % 1, i * 40);
-        }
-      }
-      function fwSymmetry(core, pal) {
-        const dimV = core.wallH, quarterW = core.wallW / 4;
-        const hue = fwHue(pal);
-        const pairs = [[0, 2], [1, 3]];
-        const pair = pairs[Math.floor(Math.random() * 2)];
-        for (let i = 0; i < 3; i++) {
-          const off = quarterW * 0.2 + Math.random() * quarterW * 0.6;
-          const vy = dimV * (0.88 + Math.random() * 0.3);
-          const h = (hue + i * 0.06) % 1;
-          fwSyncRocket(core, pair[0] * quarterW + off, vy, 0, h, (h + 0.3) % 1, i * 50);
-          fwSyncRocket(core, pair[1] * quarterW + off, vy, 0, h, (h + 0.3) % 1, i * 50);
-        }
-      }
-      function fwWaterfall(core, pal) {
-        const dimV = core.wallH, total = core.wallW;
-        const hue = fwHue(pal);
-        for (let i = 0; i < 16; i++) {
-          const sc = Math.random() * total;
-          fwSyncRocket(core, sc, dimV * (0.62 + Math.random() * 0.15), (Math.random() - 0.5) * dimV * 0.05, (hue + Math.random() * 0.08) % 1, hue, i * 15);
-        }
-      }
-      function fwFinale(core) {
-        const dimV = core.wallH, total = core.wallW;
-        const pal1 = fwPal(), pal2 = fwPal();
-        for (let i = 0; i < 20; i++) {
-          const sc = Math.random() * total;
-          const pal = i % 2 === 0 ? pal1 : pal2;
-          const hue = fwHue(pal);
-          fwSyncRocket(core, sc, dimV * (0.72 + Math.random() * 0.3), (Math.random() - 0.5) * dimV * 0.2, hue, (hue + 0.4) % 1, i * 25 + Math.random() * 15);
-        }
-      }
-      function buildSyncActs(core) {
-        return [
-          () => {
-            const pal = fwPal();
-            for (let s = 0; s < 4; s++) setTimeout(() => fwFan(core, s * core.wallW / 4 + core.wallW / 8, pal), s * 400);
-            return 3.5;
-          },
-          () => {
-            const p1 = fwPal(), p2 = fwPal();
-            fwVolley(core, 0, p1, 5);
-            setTimeout(() => fwVolley(core, 2, p2, 5), 300);
-            setTimeout(() => fwVolley(core, 1, p1, 5), 600);
-            setTimeout(() => fwVolley(core, 3, p2, 5), 900);
-            return 3.5;
-          },
-          () => {
-            const pal = fwPal();
-            fwCascade(core, pal, 1);
-            setTimeout(() => fwCascade(core, pal, -1), 1400);
-            return 4;
-          },
-          () => {
-            const pal = fwPal();
-            fwSymmetry(core, pal);
-            setTimeout(() => {
-              const p2 = fwPal();
-              fwSymmetry(core, p2);
-            }, 800);
-            setTimeout(() => {
-              const p3 = fwPal();
-              fwSymmetry(core, p3);
-            }, 1600);
-            return 4;
-          },
-          () => {
-            const pal = fwPal();
-            for (let i = 0; i < 5; i++) setTimeout(() => fwFan(core, Math.random() * core.wallW, pal, 5 + Math.floor(Math.random() * 4), core.wallH * 0.06), i * 400);
-            return 4;
-          },
-          () => {
-            const pal = fwPal();
-            fwWaterfall(core, pal);
-            setTimeout(() => fwWaterfall(core, fwPal()), 1e3);
-            return 3.5;
-          },
-          () => {
-            fwFinale(core);
-            setTimeout(() => fwFinale(core), 1e3);
-            return 5;
-          }
-        ];
-      }
-      var fwSyncActsCache = null;
-      var fwSyncActsCore = null;
-      function fwSyncUpdate(core, dt) {
-        if (fwSyncActsCore !== core) {
-          fwSyncActsCache = buildSyncActs(core);
-          fwSyncActsCore = core;
-        }
-        for (let k = fwSyncQueue.length - 1; k >= 0; k--) {
-          fwSyncQueue[k].delay -= dt * 1e3;
-          if (fwSyncQueue[k].delay <= 0) {
-            const q = fwSyncQueue[k];
-            fwRockets.push({ col: q.col, v: 0, vy: q.vy, vc: q.vc, hue: q.hue, hue2: q.hue2, trail: [] });
-            fwSyncQueue.splice(k, 1);
-          }
-        }
-        fwSyncWait -= dt;
-        if (fwSyncWait <= 0) {
-          const unified = Math.random() < 0.5;
-          if (unified) {
-            fwSyncForceMono = true;
-            fwSyncForceType = [0.1, 0.3, 0.5, 0.65, 0.8, 0.95][Math.floor(Math.random() * 6)];
-          } else {
-            fwSyncForceMono = false;
-            fwSyncForceType = -1;
-          }
-          const act = fwSyncActsCache[fwSyncAct % fwSyncActsCache.length];
-          fwSyncWait = act();
-          fwSyncAct++;
-        }
-      }
-      function glyphWidth(scale) {
-        return FW_CHAR_W * scale;
-      }
-      function textPixelWidth(str, scale) {
-        return str.length * glyphWidth(scale);
-      }
-      function buildFwText(core, msg) {
-        if (!msg || !msg.trim()) {
-          fwTextPixels = null;
-          fwTextWidth = 0;
-          fwTextH = 0;
-          return;
-        }
-        const wallH = core.wallH;
-        const maxH = Math.round(wallH * 0.33);
-        const scale = 1;
-        const glyphH = scale * 6;
-        const yOff = Math.floor((maxH - glyphH) / 2);
-        const padText = msg.trim() + "   ";
-        const oneW = Math.max(1, textPixelWidth(padText, scale));
-        const totalW = oneW * Math.max(1, Math.ceil(core.wallW / oneW));
-        const pixels = new Uint8Array(totalW * maxH);
-        let x = 0;
-        while (x < totalW) {
-          let cx = x;
-          for (const ch of padText) {
-            drawGlyphToBuffer(pixels, totalW, maxH, ch, cx, yOff, scale);
-            cx += glyphWidth(scale);
-          }
-          x += oneW;
-        }
-        fwTextPixels = pixels;
-        fwTextWidth = totalW;
-        fwTextH = maxH;
-        fwScrollX = 0;
-      }
-      function drawTextOverlay(core, dt) {
-        if (!fwTextOn || !fwTextPixels || fwTextWidth <= 0) return;
-        const { wallW, wallH, t } = core;
-        fwScrollX = (fwScrollX + dt * wallW * 0.11) % fwTextWidth;
-        const textRows = fwTextH;
-        const rowBase = Math.round(wallH * 0.5 - textRows / 2);
-        for (let v = 0; v < textRows; v++) {
-          const wy = rowBase + v;
-          if (wy < 0 || wy >= wallH) continue;
-          for (let u = 0; u < wallW; u++) {
-            const stripX = ((u + (fwScrollX | 0)) % fwTextWidth + fwTextWidth) % fwTextWidth;
-            const pv = fwTextPixels[v * fwTextWidth + stripX] / 255;
-            if (pv < 0.04) continue;
-            const hue = (stripX / fwTextWidth + t * 0.04) % 1;
-            const [r, g, b] = hsl(hue, 1, pv * 0.95);
-            core.setWallPixel(u, wy, r, g, b);
-          }
-        }
-      }
-      function effectFireworksWall(core, dt) {
-        const { wallW, wallH } = core;
-        if (!wallW) return;
-        core.t += dt;
-        const opts = core.effectOptions?.fireworks || {};
-        const mode = opts.mode === "sync" || opts.mode === "mic" ? opts.mode : "random";
-        fwTextOn = !!opts.textOn;
-        const wantText = opts.text || "";
-        if (fwTextOn && wantText && fwTextBuiltFor !== wantText) {
-          buildFwText(core, wantText);
-          fwTextBuiltFor = wantText;
-        } else if (!wantText) {
-          fwTextBuiltFor = null;
-        }
-        const fade = trailFade(0.8, dt);
-        for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] *= fade;
-        const maxConcurrent = Math.max(1, Math.min(10, Math.round(opts.quantity) || 6));
-        while (fwActiveExpiry.length && fwActiveExpiry[0] <= core.t) fwActiveExpiry.shift();
-        if (mode !== "sync" && kick(core)) {
-          const n = music(core).level > 0.35 ? 2 : 1;
-          for (let k = 0; k < n && fwActiveExpiry.length < maxConcurrent + 4; k++) {
-            fwLaunch(core);
-            fwActiveExpiry.push(core.t + FW_LIFETIME_EST);
-          }
-        }
-        if (mode === "random" || mode === "mic") {
-          fwSpawnT += dt;
-          if (fwSpawnT > 0.4) {
-            if (fwActiveExpiry.length < maxConcurrent) {
-              fwLaunch(core);
-              fwActiveExpiry.push(core.t + FW_LIFETIME_EST);
-            }
-            fwSpawnT = 0;
-          }
-        } else if (mode === "sync") {
-          fwSyncUpdate(core, dt);
-        }
-        const G = wallH * 0.06;
-        for (let k = fwRockets.length - 1; k >= 0; k--) {
-          const r = fwRockets[k];
-          r.vy -= wallH * 0.85 * dt;
-          r.v += r.vy * dt;
-          r.col += r.vc * dt;
-          r.trail.push({ col: r.col, v: r.v });
-          if (r.trail.length > 20) r.trail.shift();
-          for (let ti = 0; ti < r.trail.length; ti++) {
-            const tp = r.trail[ti];
-            const fade2 = ti / r.trail.length;
-            const [rh, gh, bh] = hsl(r.hue, 1, fade2 * 0.95);
-            const ix = Math.round(tp.col);
-            const wy = wallH - 1 - Math.max(0, Math.min(wallH - 1, Math.round(tp.v)));
-            if (ix >= 0 && ix < wallW) fwSet(core, ix, wy, rh, gh, bh);
-          }
-          if (r.vy <= 0 || r.v >= wallH - 1) {
-            fwBurst(core, r.col, r.v, r.hue, r.hue2);
-            fwRockets.splice(k, 1);
-          }
-        }
-        for (let k = fwBursts.length - 1; k >= 0; k--) {
-          const b = fwBursts[k];
-          b.col += b.vc * dt;
-          b.v += b.vy * dt;
-          b.vy -= G * dt;
-          b.life -= b.decay;
-          if (b.life <= 0) {
-            fwBursts.splice(k, 1);
-            continue;
-          }
-          const ix = Math.round(b.col);
-          const iv = Math.round(b.v);
-          if (iv < 0 || iv >= wallH || ix < 0 || ix >= wallW) {
-            fwBursts.splice(k, 1);
-            continue;
-          }
-          const [rh, gh, bh] = hsl(b.hue, 1, b.life * (b.bright || 0.9));
-          fwSet(core, ix, wallH - 1 - iv, rh, gh, bh);
-        }
-        drawTextOverlay(core, dt);
-      }
-      module.exports = effectFireworksWall;
-    }
-  });
-
   // src/effects/mazeWall.js
   var require_mazeWall = __commonJS({
     "src/effects/mazeWall.js"(exports, module) {
@@ -23707,7 +23092,7 @@ var PiEngine = (() => {
       var random80s = require_random80sScenes();
       var tron = require_tron();
       var retro = require_retro();
-      var fireworks = require_fireworks();
+      var fireworks = require_fireworksShow();
       var video = require_video();
       var radio = require_radio2();
       var strobe = require_strobe();
@@ -23758,7 +23143,7 @@ var PiEngine = (() => {
       var diceWall = dice.wall;
       var randomWall = require_randomWall();
       var random80sWall = random80s.wall;
-      var fireworksWall = require_fireworksWall();
+      var fireworksWall = fireworks.wall;
       var mazeWall = require_mazeWall();
       var tronWall = require_tronWall();
       var camWall = require_camWall();
