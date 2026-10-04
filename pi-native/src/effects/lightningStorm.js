@@ -64,10 +64,19 @@ module.exports = defineCanvasEffect({
     const fl = st.flash * st.flash;
     // Sky and clouds.
     const cloudBase = H * 0.42;
+    // Cloud density on a half-resolution grid (the clouds are soft anyway),
+    // interpolated per pixel - fbm is the costly part.
+    const GW = (W >> 1) + 2, GH = (H >> 1) + 2;
+    if (!st.dens || st.dens.length !== GW * GH) st.dens = new Float32Array(GW * GH);
+    for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
+      const x = gx * 2, y = gy * 2;
+      const n = fbm(x * 0.06 + t * 0.12, y * 0.09 - t * 0.03), n2 = fbm(x * 0.03 - t * 0.05 + 7, y * 0.05 + 3);
+      st.dens[gy * GW + gx] = Math.max(0, Math.min(1, (n * 0.7 + n2 * 0.6 - 0.35) * 2.2 * (1 - Math.max(0, (y - cloudBase) / (H * 0.25)))));
+    }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const v = y / H;
-      const n = fbm(x * 0.06 + t * 0.12, y * 0.09 - t * 0.03), n2 = fbm(x * 0.03 - t * 0.05 + 7, y * 0.05 + 3);
-      const dens = Math.max(0, Math.min(1, (n * 0.7 + n2 * 0.6 - 0.35) * 2.2 * (1 - Math.max(0, (y - cloudBase) / (H * 0.25)))));
+      const gx = x >> 1, gy = y >> 1, fx = (x & 1) * 0.5, fy = (y & 1) * 0.5, D = st.dens, k0 = gy * GW + gx;
+      const dens = (D[k0] * (1 - fx) + D[k0 + 1] * fx) * (1 - fy) + (D[k0 + GW] * (1 - fx) + D[k0 + GW + 1] * fx) * fy;
       // Light from the strike: brightest in the clouds near the bolt.
       const near = Math.exp(-(((x / W - st.strikeX) / 0.35) ** 2));
       const lit = fl * (0.25 + 0.75 * near) * (0.4 + dens * 0.9);

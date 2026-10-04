@@ -100,9 +100,24 @@ function neon(c, t) {
   if (w > W - 4) { h *= (W - 4) / w; w = stroke.textWidth(word, h); }
   const flick = Math.sin(t * 37) > 0.97 || (t % 6 > 5.6 && Math.sin(t * 80) > 0) ? 0.25 : 1;
   const x0 = Math.round((W - w) / 2), y0 = Math.round(H * 0.5 - h / 2);
-  // Glow layers then the bright tube.
-  for (const [dx, dy, k] of [[-1, 0, 0.25], [1, 0, 0.25], [0, -1, 0.25], [0, 1, 0.25]]) stroke.drawText({ W, H, set: (x, y, r, g, b) => c.add(x, y, r, g, b), add: c.add, get: c.get }, word, x0 + dx, y0 + dy, h, [1 * k * flick, 0.15 * k * flick, 0.6 * k * flick]);
-  stroke.drawText(c, word, x0, y0, h, [1 * flick, 0.35 * flick, 0.8 * flick]);
+  // The stroke font is costly, so the sign (glow + tube) is drawn once per
+  // word into a cached image and only blitted with the flicker each frame.
+  const key = word + '|' + W + '|' + H;
+  if (!st.neonCache || st.neonCache.key !== key) {
+    const img = new Float32Array(W * H * 3);
+    const tgt = { W, H, set(x, y, r, g, b) { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= W || y >= H) return; const o = (y * W + x) * 3; img[o] = Math.max(img[o], r); img[o + 1] = Math.max(img[o + 1], g); img[o + 2] = Math.max(img[o + 2], b); },
+      add(x, y, r, g, b) { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= W || y >= H) return; const o = (y * W + x) * 3; img[o] += r; img[o + 1] += g; img[o + 2] += b; },
+      get(x, y) { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= W || y >= H) return null; const o = (y * W + x) * 3; return [img[o], img[o + 1], img[o + 2]]; } };
+    const glow = { ...tgt, set: tgt.add };
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) stroke.drawText(glow, word, x0 + dx, y0 + dy, h, [0.25, 0.04, 0.15]);
+    stroke.drawText(tgt, word, x0, y0, h, [1, 0.35, 0.8]);
+    st.neonCache = { key, img };
+  }
+  const img = st.neonCache.img;
+  for (let i = 0, n = W * H; i < n; i++) {
+    const o = i * 3; if (!img[o] && !img[o + 1] && !img[o + 2]) continue;
+    c.add(i % W, Math.floor(i / W), img[o] * flick, img[o + 1] * flick, img[o + 2] * flick);
+  }
   const sub = 'OPEN', sx = Math.round((W - textWidth(FONT_3x5, sub)) / 2);
   drawString(FONT_3x5, sub, sx, Math.min(H - 6, y0 + Math.round(h) + 3), (x, y) => c.set(x, y, 0.2, 0.9 * (0.6 + 0.4 * Math.sin(t * 3)), 1));
 }

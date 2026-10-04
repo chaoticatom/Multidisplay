@@ -18,11 +18,11 @@
 const assert = require('assert');
 const { CubeCore } = require('../src/core');
 const effectEasterEggWall = require('../src/effects/easterEggWall');
-const effectCoinFlipWall = require('../src/effects/coinflipWallOld') // the old renderer, kept for reference;
-const effectDiceWall = require('../src/effects/diceWall');
+const effectCoinFlipWall = require('../src/effects').WALL_EFFECTS.coinflip;
+const effectDiceWall = require('../src/effects').WALL_EFFECTS.dice;
 const effectRandomWall = require('../src/effects/randomWall');
-const effectRandom80sWall = require('../src/effects/random80sWall');
-const effectFireworksWall = require('../src/effects/fireworksWall');
+const effectRandom80sWall = require('../src/effects').WALL_EFFECTS.random80s;
+const effectFireworksWall = require('../src/effects').WALL_EFFECTS.fireworks;
 
 function test(name, fn) {
   return Promise.resolve().then(fn).then(

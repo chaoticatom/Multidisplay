@@ -9,7 +9,7 @@ const { defineCanvasEffect } = require('./canvas');
 const { hsl } = require('../core');
 const { lit } = require('./shade');
 
-const st = { W: 0, H: 0, a: null, b: null, acc: 0, drop: 0.3 };
+const st = { W: 0, H: 0, a: null, b: null, acc: 0, drop: 0.3, floorImg: null, pad: 8 };
 const hash = (x, y) => { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); };
 
 // Pebble floor: cells of rounded stones in muted colours.
@@ -27,7 +27,14 @@ function floor(x, y, t) {
 module.exports = defineCanvasEffect({
   render(c, { t, dt, core }) {
     const W = c.W, H = c.H;
-    if (st.W !== W || st.H !== H) { st.W = W; st.H = H; st.a = new Float32Array(W * H); st.b = new Float32Array(W * H); }
+    if (st.W !== W || st.H !== H) {
+      st.W = W; st.H = H; st.a = new Float32Array(W * H); st.b = new Float32Array(W * H);
+      // The pebble floor doesn't change: draw it once (with a margin for the
+      // refraction offset) and just look it up per pixel.
+      const P = st.pad, FW = W + 2 * P, FH = H + 2 * P;
+      st.floorImg = new Float32Array(FW * FH * 3);
+      for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) { const c0 = floor(x - P, y - P, 0), o = (y * FW + x) * 3; st.floorImg[o] = c0[0]; st.floorImg[o + 1] = c0[1]; st.floorImg[o + 2] = c0[2]; }
+    }
     const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
     if ((st.drop -= dt) <= 0 || (beat > 0.8 && Math.random() < 0.25)) {
       st.drop = 0.4 + Math.random() * 1.2;
@@ -50,7 +57,9 @@ module.exports = defineCanvasEffect({
       const p = y * W + x;
       const dhx = (x > 0 && x < W - 1) ? (h[p + 1] - h[p - 1]) * 0.5 : 0, dhy = (y > 0 && y < H - 1) ? (h[p + W] - h[p - W]) * 0.5 : 0;
       // Refraction: look at the floor through the slope of the water.
-      const col = floor(x + dhx * 5, y + dhy * 5, t);
+      const P = st.pad, FW = W + 2 * P;
+      const fx = Math.max(0, Math.min(FW - 1, Math.round(x + P + dhx * 5))), fy = Math.max(0, Math.min(H + 2 * P - 1, Math.round(y + P + dhy * 5)));
+      const fo = (fy * FW + fx) * 3, col = [st.floorImg[fo], st.floorImg[fo + 1], st.floorImg[fo + 2]];
       const deep = [col[0] * 0.85, col[1] * 0.95 + 0.02, col[2] + 0.05];
       const out = lit(deep, dhx, dhy, { bump: 1.6, gloss: 40, shine: 0.9, ambient: 0.75 });
       c.set(x, y, out[0], out[1], out[2]);

@@ -46,9 +46,14 @@ function drawDie3D(c, cx, cy, h, M, col, pipCol) {
   const reach = Math.ceil(h * 1.75) + 1;
   for (let y = Math.floor(cy - reach); y <= cy + reach; y++) for (let x = Math.floor(cx - reach); x <= cx + reach; x++) {
     let ar = 0, ag = 0, ab = 0, cov = 0;
-    for (let sy = 0; sy < 2; sy++) for (let sx = 0; sx < 2; sx++) {
+    // Inside the cube's inscribed circle every sample hits: one is enough.
+    // Only edge pixels get the 2x2 supersampling.
+    const interior = Math.hypot(x + 0.5 - cx, y + 0.5 - cy) < h - 1.5;
+    const ns = interior ? 1 : 2;
+    for (let sy = 0; sy < ns; sy++) for (let sx = 0; sx < ns; sx++) {
       // World ray: origin above the table at this sample, looking down -z.
-      const wx = (x + 0.25 + sx * 0.5 - cx) / h, wy = (y + 0.25 + sy * 0.5 - cy) / h;
+      const off = interior ? 0.5 : 0.25;
+      const wx = (x + off + sx * 0.5 - cx) / h, wy = (y + off + sy * 0.5 - cy) / h;
       // Into local space (M is a rotation, so its transpose inverts it).
       const ox = M[0] * wx + M[3] * wy + M[6] * 3, oy = M[1] * wx + M[4] * wy + M[7] * 3, oz = M[2] * wx + M[5] * wy + M[8] * 3;
       const dx = -M[6], dy = -M[7], dz = -M[8];
@@ -83,7 +88,7 @@ function drawDie3D(c, cx, cy, h, M, col, pipCol) {
     }
     if (!cov) continue;
     const o2 = c.get(x, y); if (!o2) continue;
-    const k = cov / 4;
+    const k = cov / (ns * ns);
     c.set(x, y, o2[0] * (1 - k) + (ar / cov) * k, o2[1] * (1 - k) + (ag / cov) * k, o2[2] * (1 - k) + (ab / cov) * k);
   }
 }

@@ -35,11 +35,15 @@ const STYLE_TYPES = {
 };
 const RATE = [2.6, 2.2, 1.8, 1.5, 1.2, 1.0, 0.8, 0.6, 0.45, 0.32]; // quantity 1..10 -> seconds between launches
 
-const st = { W: 0, H: 0, buf: null, smoke: null, rockets: [], stars: [], flash: 0, flashX: 0.5, next: 0.2, finaleT: 0, finaleLeft: 0, textT: 6, wasBeat: 0 };
+// Show state lives on each display's core, so two displays never share a sky.
+const newState = () => ({ W: 0, H: 0, buf: null, smoke: null, rockets: [], stars: [], flash: 0, flashX: 0.5, next: 0.2, finaleT: 0, finaleLeft: 0, textT: 6, wasBeat: 0 });
+let lastState = newState();
 
 module.exports = defineCanvasEffect({
   render(c, { t, dt, core }) {
     const W = c.W, H = c.H, o = (core.effectOptions && core.effectOptions.fireworks) || {};
+    const st = core._fireworks || (core._fireworks = newState());
+    lastState = st;
     if (st.W !== W || st.H !== H) { st.W = W; st.H = H; st.buf = new Float32Array(W * H * 3); st.smoke = new Float32Array(W * H); st.rockets = []; st.stars = []; }
     const opt = {
       mode: ['sync', 'mic'].includes(o.mode) ? o.mode : 'random',
@@ -103,6 +107,7 @@ module.exports = defineCanvasEffect({
     // Launching.
     const bigBeat = beat > 0.8 && st.wasBeat <= 0.8; st.wasBeat = beat;
     if (opt.mode === 'mic') { if (bigBeat) launch(); }
+    else if (bigBeat && st.rockets.length < 3) launch(); // a kick in the music fires one straight away
     else if ((st.next -= dt) <= 0) {
       if (opt.mode === 'sync') { // a salvo: matching shells across the sky
         const types = STYLE_TYPES[opt.style], type = types[Math.floor(Math.random() * types.length)], k = 2 + Math.floor(Math.random() * 3);
@@ -176,4 +181,4 @@ module.exports = defineCanvasEffect({
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 3; c.set(x, y, Math.min(1, buf[i]), Math.min(1, buf[i + 1]), Math.min(1, buf[i + 2])); }
   },
 });
-module.exports.getStatus = () => ({ rockets: st.rockets.length, stars: st.stars.length });
+module.exports.getStatus = () => ({ rockets: lastState.rockets.length, stars: lastState.stars.length });

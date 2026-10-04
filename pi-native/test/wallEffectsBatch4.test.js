@@ -14,10 +14,10 @@
 // simulation itself (the thing worth catching here).
 const assert = require('assert');
 const { CubeCore } = require('../src/core');
-const effectBallsWall = require('../src/effects/ballsWallOld') // the old renderer, kept for reference;
-const effectSandWall = require('../src/effects/sandWall');
+const effectBallsWall = require('../src/effects').WALL_EFFECTS.balls;
+const effectSandWall = require('../src/effects').WALL_EFFECTS.sand;
 const effectLifeWall = require('../src/effects/lifeWall');
-const effectFluidWall = require('../src/effects/fluidWall');
+const effectFluidWall = require('../src/effects').WALL_EFFECTS.fluid;
 
 function test(name, fn) {
   return Promise.resolve().then(fn).then(

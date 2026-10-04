@@ -17,9 +17,9 @@
 const assert = require('assert');
 const { CubeCore } = require('../src/core');
 const effectWeatherWall = require('../src/effects/weatherWall');
-const effectDateTimeWall = require('../src/effects/datetimeWall');
+const effectDateTimeWall = require('../src/effects').WALL_EFFECTS.datetime;
 const effectCelestialWall = require('../src/effects/celestialWall');
-const effectGhostWall = require('../src/effects/ghostWall');
+const effectGhostWall = require('../src/effects').WALL_EFFECTS.ghost;
 const { createWxState } = require('../src/effects/weather/state');
 const effectWeatherWallCore = require('../src/effects/weather/weatherWall');
 

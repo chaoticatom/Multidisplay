@@ -21,7 +21,7 @@ const { CubeCore } = require('../src/core');
 const effectApodWall = require('../src/effects/apodWall');
 const effectEpicWall = require('../src/effects/epicWall');
 const effectIssWall = require('../src/effects/issWall');
-const effectNeoWall = require('../src/effects/neoWall');
+const effectNeoWall = require('../src/effects').WALL_EFFECTS.neo;
 
 function test(name, fn) {
   return Promise.resolve().then(fn).then(
@@ -219,7 +219,7 @@ async function main() {
     // stay entirely inside the first 64px.
     const { left, right } = halfSums(core);
     assert.ok(left > 0 && right > 0, `expected both halves lit (Earth left, radar/ticker spanning full width), got left=${left} right=${right}`);
-    const status = effectNeoWall.getStatus();
+    const status = require('../src/effects/neoRadar').getStatus(); // status lives on the module, not on .wall
     assert.ok(status.count >= 1, `expected at least 1 tracked object, got ${status.count}`);
   });
 

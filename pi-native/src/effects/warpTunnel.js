@@ -9,6 +9,8 @@ const { defineCanvasEffect } = require('./canvas');
 const { hsl } = require('../core');
 
 const st = { z: 0 };
+// Hue lookup table: hsl() per pixel was a large share of the frame.
+const LUT = Array.from({ length: 256 }, (_, i) => hsl(i / 256, 0.9, 0.5));
 
 module.exports = defineCanvasEffect({
   render(c, { t, dt, core }) {
@@ -28,7 +30,7 @@ module.exports = defineCanvasEffect({
       const rib = Math.pow(Math.max(0, Math.cos(v * Math.PI * 2)), 10) * 0.45;
       const fog = Math.min(1, r * 3.2); // far = dim
       const hue = (u * 0.02 + t * 0.03) % 1;
-      const [cr, cg, cb] = hsl(hue, 0.9, 0.5);
+      const [cr, cg, cb] = LUT[Math.floor(((hue % 1) + 1) % 1 * 256) & 255];
       const panel = 0.08 + 0.05 * Math.cos(v * Math.PI * 2) * Math.cos(u * Math.PI); // faint panelling between ribs
       let k = (panel + ring * 0.9 + rib) * fog;
       // The bright light at the end of the tunnel.

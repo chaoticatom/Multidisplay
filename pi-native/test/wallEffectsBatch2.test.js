@@ -12,8 +12,8 @@ const effectWaveWall = require('../src/effects/wave').wall;
 const effectPlasmaWall = require('../src/effects/plasma').wall;
 const effectAuroraWall = require('../src/effects/aurora').wall;
 const effectNebulaWall = require('../src/effects/nebula').wall;
-const effectWarpWall = require('../src/effects/warpWall');
-const effectRainWall = require('../src/effects/rainWall');
+const effectWarpWall = require('../src/effects').WALL_EFFECTS.warp;
+const effectRainWall = require('../src/effects').WALL_EFFECTS.rain;
 
 function test(name, fn) {
   return Promise.resolve().then(fn).then(

@@ -11,10 +11,10 @@
 // risking a flaky low-tick-count check.
 const assert = require('assert');
 const { CubeCore } = require('../src/core');
-const effectDNAWall = require('../src/effects/dnaWall');
-const effectLightningWall = require('../src/effects/lightningWall');
+const effectDNAWall = require('../src/effects').WALL_EFFECTS.dna;
+const effectLightningWall = require('../src/effects').WALL_EFFECTS.lightning;
 const effectLightspeedWall = require('../src/effects/lightspeedWall');
-const effectSphereWall = require('../src/effects/sphereWall');
+const effectSphereWall = require('../src/effects').WALL_EFFECTS.sphere;
 
 function test(name, fn) {
   return Promise.resolve().then(fn).then(

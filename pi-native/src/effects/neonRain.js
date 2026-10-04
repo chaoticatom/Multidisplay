@@ -60,7 +60,7 @@ function colourRain(c, dt, t) {
 function matrixRain(c, dt) {
   const W = c.W, H = c.H, cw = 4, ch = 6, ncol = Math.floor(W / cw);
   if (st.cols.length !== ncol) {
-    st.cols = Array.from({ length: ncol }, () => ({ y: -Math.random() * H, speed: 8 + Math.random() * 18, len: 4 + Math.floor(Math.random() * 8), glyphs: Array.from({ length: Math.ceil(H / ch) + 1 }, () => GLYPHS[Math.floor(Math.random() * GLYPHS.length)]) }));
+    st.cols = Array.from({ length: ncol }, () => ({ y: Math.random() * H * 1.6 - H * 0.6 /* already mid-fall when it starts */, speed: 8 + Math.random() * 18, len: 4 + Math.floor(Math.random() * 8), glyphs: Array.from({ length: Math.ceil(H / ch) + 1 }, () => GLYPHS[Math.floor(Math.random() * GLYPHS.length)]) }));
   }
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) c.set(x, y, 0, 0.012, 0.004);
   st.cols.forEach((col, i) => {

@@ -5,7 +5,7 @@ const assert = require('assert');
 global.setTimeout = () => ({ unref() {} });
 const { CubeCore } = require('../src/core');
 const { tempo, kick } = require('../src/effects/audioFeatures');
-const fireworksWall = require('../src/effects/fireworksWall');
+const fireworksWall = require('../src/effects').WALL_EFFECTS.fireworks;
 function ok(name, fn) { try { fn(); console.log('  ok -', name); } catch (e) { console.error('  FAIL -', name, e.message); process.exitCode = 1; } }
 const wall = () => { const c = new CubeCore(64); c.initWall([{ gx: 0, gy: 0 }], 64); c.effectOptions = {}; c.t = 0; return c; };
 ok('tempo is 1 with no music', () => { assert.strictEqual(tempo({ audio: null }), 1); assert.strictEqual(tempo({ audio: { active: false, bass: 1, beat: 1 } }), 1); });
