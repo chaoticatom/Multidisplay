@@ -637,7 +637,7 @@ class WsServer {
   _playlistTick() {
     const p = this.state.prefs;
     if (!p || this.state.activeAlarm) return;
-    const now = new Date();
+    const now = require('./localTime').wallClock(p.tz); // the user's local time
     const st = this.state.autoStatus || (this.state.autoStatus = {});
     const show = (effect) => {
       if (!EFFECTS[effect] || this.state.effect === effect) return false;

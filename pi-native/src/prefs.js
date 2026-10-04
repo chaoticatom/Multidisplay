@@ -15,6 +15,7 @@ const DEFAULT = {
   weatherMode: { on: false },
   access: { localNoPin: true, guests: false }, // see src/access.js
   sfx: { on: true, volume: 0.6 }, // sound effects through the speaker (src/sfx.js)
+  tz: '', // the user's time zone, from their browser (see src/localTime.js)
   celebrations: { newYear: true, dates: [] }, // dates: [{ month, day, hour, minute, text }]
 };
 
@@ -57,6 +58,7 @@ function clean(p) {
     }
   }
   if (p && p.weatherMode) out.weatherMode.on = !!p.weatherMode.on;
+  if (p && typeof p.tz === 'string' && require('./localTime').isZone(p.tz)) out.tz = p.tz;
   if (p && p.sfx) { out.sfx.on = p.sfx.on !== false; const v = Number(p.sfx.volume); if (Number.isFinite(v)) out.sfx.volume = Math.max(0, Math.min(1, v)); }
   if (p && p.access) { out.access.localNoPin = p.access.localNoPin !== false; out.access.guests = !!p.access.guests; }
   if (p && p.celebrations) {
@@ -78,7 +80,7 @@ function save(p) { const c = clean(p); writeSection('prefs', c); return c; }
 
 // Brightness multiplier for the current time: `level` inside the night
 // window (which may wrap past midnight), easing over 30 minutes at each end.
-function nightFactor(prefs, date = new Date()) {
+function nightFactor(prefs, date = require('./localTime').wallClock(prefs && prefs.tz)) {
   const n = prefs && prefs.nightDim;
   if (!n || !n.on || n.from === n.to) return 1;
   const h = date.getHours() + date.getMinutes() / 60;

@@ -25270,6 +25270,41 @@ var PiEngine = (() => {
     }
   });
 
+  // src/localTime.js
+  var require_localTime = __commonJS({
+    "src/localTime.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      function isZone(tz) {
+        if (typeof tz !== "string" || !tz || tz.length > 64) return false;
+        try {
+          new Intl.DateTimeFormat("en-GB", { timeZone: tz });
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }
+      var fmtCache = /* @__PURE__ */ new Map();
+      function wallClock(tz, real = /* @__PURE__ */ new Date()) {
+        if (!isZone(tz)) return real;
+        let fmt = fmtCache.get(tz);
+        if (!fmt) {
+          fmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", hourCycle: "h23" });
+          fmtCache.set(tz, fmt);
+        }
+        const p = {};
+        for (const part of fmt.formatToParts(real)) p[part.type] = Number(part.value);
+        const wall = new Date(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second, real.getMilliseconds());
+        const t = real.getTime();
+        wall.getTime = () => t;
+        wall.valueOf = () => t;
+        return wall;
+      }
+      module.exports = { wallClock, isZone };
+    }
+  });
+
   // src/effects/alarms.js
   var require_alarms = __commonJS({
     "src/effects/alarms.js"(exports, module) {
@@ -25748,7 +25783,7 @@ var PiEngine = (() => {
         state._alarmT = (state._alarmT || 0) + dt;
         if (state._alarmT > AL_CHECK_INTERVAL) {
           state._alarmT = 0;
-          alarmCheck(state, /* @__PURE__ */ new Date());
+          alarmCheck(state, require_localTime().wallClock(state.prefs && state.prefs.tz));
         }
       }
       function isBlockingNormalEffect(state) {

@@ -640,6 +640,14 @@ const COMMANDS = {
     this._broadcast(this._stateMsg());
   },
 
+  // {tz}: the browser's time zone, so timers follow the user's clock.
+  setTimezone(ws, msg) {
+    const p = this.state.prefs || prefs.load();
+    if (!require('./localTime').isZone(msg.tz) || p.tz === msg.tz) return;
+    this.state.prefs = prefs.save({ ...p, tz: msg.tz });
+    this._broadcast(this._stateMsg());
+  },
+
   // Sound effects: {on?, volume?}; {test: true} plays a sample.
   setSfx(ws, msg) {
     const p = this.state.prefs || prefs.load();

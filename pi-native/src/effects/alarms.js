@@ -517,7 +517,7 @@ function tickCheck(state, dt, EFFECTS) {
   state._alarmT = (state._alarmT || 0) + dt;
   if (state._alarmT > AL_CHECK_INTERVAL) {
     state._alarmT = 0;
-    alarmCheck(state, new Date());
+    alarmCheck(state, require('../localTime').wallClock(state.prefs && state.prefs.tz)); // the user's local time
   }
 }
 

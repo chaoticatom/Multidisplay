@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.250';
+const APP_VERSION = '0.6.251';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -5039,8 +5039,14 @@ function syncAlarmPreview() {
   if (id && id !== _cxAlarmSeen && document.body.classList.contains('cx-preview-off')) { cxApplyPreviewOff(false); cxToast('⏰ Timer started - preview back on'); }
   _cxAlarmSeen = id;
 }
+// Tell the Pi this browser's time zone (timers run on the user's clock).
+function syncTimezone() {
+  let tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { /* old browser */ }
+  if (tz && currentState.prefs && currentState.prefs.tz !== tz && !syncTimezone.sent) { syncTimezone.sent = true; send({ cmd: 'setTimezone', tz }); setTimeout(() => { syncTimezone.sent = false; }, 10000); }
+}
 function syncAccessChecks() {
   syncParty();
+  syncTimezone();
   syncAlarmPreview();
   syncSfx();
   syncAutoBackup();
