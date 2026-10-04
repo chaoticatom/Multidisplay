@@ -67,6 +67,8 @@ const RING_SAMPLES = 1 << 18; // ~5.9s of audio - room for up to 3s of speaker s
 const DEFAULT_SYNC_MS = 150;
 const MAX_SYNC_MS = 3000; // some Bluetooth speakers lag well over a second
 const STALL_MS = 400; // no new audio for this long -> bars fall
+const STALL_RESTART_MS = 15000; // no audio at all for this long -> reconnect the stream (see _checkIdle)
+const PLAY_RETRY_MS = 10000; // playback (paplay) died -> start it again at most this often
 const ATTACK_RATE = 60; // per second; ~17ms to reach a new higher level
 const RELEASE_RATE = 7; // per second; ~140ms decay
 const PEAK_HOLD_S = 0.35;
@@ -604,6 +606,25 @@ class RadioAudio {
       this.url = null;
       this.status = 'Stopped';
       this.playbackStatus = 'No playback attempted';
+      return;
+    }
+    // Self-heal (on request: overnight the radio could go quiet and stay
+    // quiet). A stream that is still connected but has sent no audio for
+    // 15 s is reconnected; playback that died (the speaker dropped, the
+    // sound server restarted) is started again.
+    if (!this.decodeProc || this._isDebugSource) return;
+    if (Date.now() - this.lastAttemptMs > STALL_RESTART_MS && performance.now() - this._lastDataMs > STALL_RESTART_MS) {
+      console.warn('[radio] stream stalled - reconnecting');
+      const url = this.url;
+      this._teardown();
+      this.errored = false;
+      this._launch(url);
+      return;
+    }
+    if (!this.playProc && !/not found/.test(this.playbackStatus) && Date.now() - (this._playRetryMs || 0) > PLAY_RETRY_MS) {
+      this._playRetryMs = Date.now();
+      console.warn('[radio] playback stopped - starting it again');
+      this._launchPlayback();
     }
   }
 

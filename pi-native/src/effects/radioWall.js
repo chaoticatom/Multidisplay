@@ -115,7 +115,7 @@ function effectRadioWall(core, dt) {
     else renderSpectrumV2Wall(core, ctx, opts.scene || 'auto', v2State);
   }
 
-  const { playing, currentStation } = radio.getPlaybackState();
+  const { playing, currentStation, title } = radio.getPlaybackState();
   if (!playing || !currentStation) {
     // Nothing selected yet - see radio.js's matching hint.
     const scale = Math.max(1, Math.min(4, Math.floor(Math.min(core.wallW / 40, core.wallH / 24))));
@@ -137,7 +137,7 @@ function effectRadioWall(core, dt) {
     if (currentStation.url.startsWith('debugloop:')) {
       drawStaticLabelWall(core, genre);
     } else {
-      const label = currentStation.name + (genre ? '  •  ' + genre : '') + '    ';
+      const label = currentStation.name + (title ? '  -  ' + title : genre ? '  •  ' + genre : '') + '    '; // the song when the station sends it
       drawTickerWall(core, label, dt);
     }
   }

@@ -274,6 +274,22 @@ async function main() {
   const checkForUpdate = () => ws.updater.check().then(() => ws._broadcast(ws._stateMsg())).catch((err) => console.warn('[update] check failed:', err.message));
   setTimeout(checkForUpdate, 60000).unref();
   setInterval(checkForUpdate, 6 * 3600000).unref();
+  // Self-heal: while music plays, check once a minute that the usual
+  // speaker is still connected and is the output; reconnect it if not (at
+  // most every 2 minutes, so a speaker that's switched off isn't hammered).
+  let lastSpeakerFix = 0;
+  setInterval(async () => {
+    try {
+      if (!radio.audio.decodeProc || Date.now() - lastSpeakerFix < 120000) return;
+      const mac = require('./btConfig').load().lastSpeakerMac;
+      if (!mac) return;
+      const d = (await bluetooth.listPaired()).find((x) => x.mac === mac);
+      if (d && d.connected && d.isDefaultOutput) return;
+      lastSpeakerFix = Date.now();
+      const r = await bluetooth.useOutput(mac);
+      console.warn('[radio] speaker had dropped - ' + (r.set ? 'reconnected' : 'could not reconnect (is it switched on?)'));
+    } catch (err) { console.warn('[radio] speaker check failed:', err.message); }
+  }, 60000).unref();
   bluetooth.onAudioOutputChanged(() => { if (radio.audio.restartPlayback) radio.audio.restartPlayback(); });
   bluetooth.autoReconnectLastSpeaker().catch((err) => console.warn('[bluetooth] auto-reconnect failed:', err.message));
   // A real report: "it keeps adding devices to my paired device list but

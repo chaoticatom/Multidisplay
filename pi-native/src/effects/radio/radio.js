@@ -141,9 +141,22 @@ function stopStation() {
 // called audio.ensure() once you switched away, and the analyser's 10s
 // idle timeout stopped the stream - "background" radio cut out 10 seconds
 // after changing effect.
+// The song now playing (see ./icyTitle.js), checked every 20 s while a
+// station plays; '' when the station doesn't say.
+const { fetchTitle } = require('./icyTitle');
+let songTitle = '', titleUrl = null, titleAt = 0, titleBusy = false;
+function pollTitle() {
+  const url = playing && currentStation && /^https?:\/\//.test(currentStation.url) ? currentStation.url : null;
+  if (url !== titleUrl) { titleUrl = url; songTitle = ''; titleAt = 0; }
+  if (!url || titleBusy || Date.now() - titleAt < 20000) return;
+  titleBusy = true; titleAt = Date.now();
+  fetchTitle(url).then((t) => { if (url === titleUrl) songTitle = t || ''; }).catch(() => {}).finally(() => { titleBusy = false; });
+}
+
 function keepAlive(opts) {
   if (opts) { audio.setSyncMs(opts.syncMs); if (Number.isFinite(Number(opts.volume))) setVolume(opts.volume); }
   audio.ensure(playing && currentStation ? currentStation.url : null);
+  pollTitle();
 }
 
 // A timer fade (0..1) on top of the chosen volume: a wake-up timer brings
@@ -265,7 +278,7 @@ function effectRadio(core, dt) {
       drawStaticLabel(core, 0, genre, 7);
       if (core.panelMode !== '2d') drawStaticLabel(core, 2, genre, 7);
     } else {
-      const label = currentStation.name + (genre ? '  •  ' + genre : '') + '    ';
+      const label = currentStation.name + (songTitle ? '  -  ' + songTitle : genre ? '  •  ' + genre : '') + '    ';
       drawTicker(core, 0, label, dt);
       if (core.panelMode !== '2d') drawTicker(core, 2, label, dt);
     }
@@ -292,6 +305,7 @@ function getStatus() {
     playbackStatus: audio.getPlaybackStatus(),
     playing,
     station: currentStation,
+    title: songTitle, // the song now playing, when the station sends it
     volume,
     search: { query: lastQuery, results: searchResults, error: searchError, searching },
   };
@@ -304,7 +318,7 @@ function getStatus() {
 // referenced in neoWall.js's module comment - one underlying resource,
 // two rendering front-ends (cube-face and wall).
 function getPlaybackState() {
-  return { playing, currentStation };
+  return { playing, currentStation, title: songTitle };
 }
 
 module.exports = effectRadio;

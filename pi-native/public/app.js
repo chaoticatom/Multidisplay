@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.267';
+const APP_VERSION = '0.6.268';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -5728,7 +5728,7 @@ function cxSyncMusic() {
     sb.classList.toggle('active', on);
   }
   document.getElementById('cx-np-name').textContent = playing ? st.station.name.replace(/^[\s-]+/, '') : 'Nothing playing';
-  document.getElementById('cx-np-sub').textContent = playing ? (st.station.genre || 'Radio') : 'Pick a station below';
+  document.getElementById('cx-np-sub').textContent = playing ? (st.title ? '♪ ' + st.title : st.station.genre || 'Radio') : 'Pick a station below';
   const mb = document.getElementById('stop-sound-btn');
   if (mb) {
     const muted = radioMuted();
