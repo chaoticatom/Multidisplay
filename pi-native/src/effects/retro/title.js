@@ -4,30 +4,13 @@
 // bitmasks) and drawText()/border/label/per-game-icon layout are all plain
 // drawing-primitive code and are ported verbatim.
 //
-// DROPPED, deliberately: the original had two categories of embedded raster
-// image data that this port does not reproduce -
-//   1. For 11 of the 14 games (deathchase, jetpac, manic, outrun, jsw,
-//      rtype, wolf3d, quake2, invaders, samfox, pacman) the original
-//      short-circuited straight past all the procedural code below with an
-//      `if(name==='X'){ ...atob(X_SPLASH_B64)... return; }` block that
-//      decoded an embedded base64 raster (very likely a captured
-//      screenshot/box-art image of the real commercial game of that name)
-//      and blitted it pixel-for-pixel as the splash screen.
-//   2. For 3 more (tamagotchi, aticatac, donkeykong) the fallback path
-//      itself had a branch that painted a plain background and then a
-//      pixel-exact logo via a flat `[x,y,r,g,b,x,y,r,g,b,...]` coordinate
-//      array (`_TL`/`_AA`/`_DK`) - same category of "reproduce a raster
-//      image", just not base64-encoded.
-// Both categories are skipped entirely here. Every one of the 14 games
-// already had a fully-procedural fallback title card (border + auto-scaled
-// bitmap-font game name + a small per-game procedural icon for several of
-// them) sitting right below those branches in the original source, unused
-// by the 11 blob games and only reached by the "else" tail for the other
-// 3 (which is also skipped, in favour of just the border+label). That
-// generic fallback is what every one of the 14 games renders here.
+// The original splash pictures and logos are drawn first when a game has
+// one (see ./splashImages.js); the procedural card below is the fallback.
 const { blitGlyph } = require('../text');
+const { drawSplashImage } = require('./splashImages');
 
 function retroDrawTitle(buf, S, name, t) {
+  if (drawSplashImage(buf, S, name)) return;
   const setP = (x, y, r, g, b) => {
     if (x < 0 || x >= S || y < 0 || y >= S) return;
     const i = (y * S + x) * 3; buf[i] = r; buf[i + 1] = g; buf[i + 2] = b;

@@ -12,6 +12,8 @@
 'use strict';
 const { defineCanvasEffect } = require('./canvas');
 const { drawRetroGame } = require('./retro/games');
+const { retroDrawTitle } = require('./retro/title');
+const GAME_KEYS = ['jetpac', 'manic', 'outrun', 'invaders', 'jsw', 'deathchase', 'rtype', 'wolf3d', 'quake2', 'samfox', 'tamagotchi', 'aticatac', 'donkeykong', 'pacman'];
 const { FONT_3x5, drawString, textWidth } = require('./text');
 
 const NAMES = ['JET PAC', 'MANIC MINER', 'OUTRUN', 'INVADERS', 'JET SET WILLY', 'DEATHCHASE', 'R-TYPE', 'WOLFENSTEIN 3D', 'QUAKE 2', 'SAM FOX SP', 'TAMAGOTCHI', 'ATIC ATAC', 'DONKEY KONG', 'PAC-MAN'];
@@ -190,7 +192,13 @@ module.exports = defineCanvasEffect({
       }
       st.hi = Math.max(st.hi, Math.round(st.score));
       if (hud && fn) { T.rect(0, 0, W, 7, [0, 0, 0]); T.text('1UP ' + String(Math.round(st.score)).padStart(5, '0'), 1, 1, [1, 0.3, 0.3]); const hs = 'HI ' + String(st.hi).padStart(5, '0'); T.text(hs, W - textWidth(FONT_3x5, hs) - 1, 1, [1, 1, 1]); }
-      if (st.phaseT < 1.6) { T.rect(0, Math.round(H / 2) - 6, W, 11, [0, 0, 0]); T.ctext(NAMES[st.cur], Math.round(H / 2) - 3, [1, 0.85, 0.2]); }
+      // The game's splash screen for its first two seconds, centred.
+      if (st.phaseT < 2) {
+        const S = 64; st.small.fill(0); retroDrawTitle(st.small, S, GAME_KEYS[st.cur], t);
+        T.rect(0, 0, W, H, [0, 0, 0]);
+        const ox = Math.floor((W - S) / 2), oy = Math.floor((H - S) / 2);
+        for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) { const i = ((S - 1 - v) * S + u) * 3; T.set(ox + u, oy + v, st.small[i], st.small[i + 1], st.small[i + 2]); }
+      }
       // Switch-on effect.
       if (st.phaseT < 0.6 && o.trans !== 'cut') {
         const k = st.phaseT / 0.6;
