@@ -781,11 +781,11 @@ class WsServer {
       message: typeof raw.message === 'string' ? raw.message : '',
       prealarm: raw.prealarm && typeof raw.prealarm === 'object' ? {
         enabled: !!raw.prealarm.enabled,
-        preMinutes: Number(raw.prealarm.preMinutes) || 15,
+        preMinutes: Math.max(1, Math.min(180, Math.round(Number(raw.prealarm.preMinutes) || 15))),
         startBright: Number(raw.prealarm.startBright) || 5,
         giantSun: !!raw.prealarm.giantSun,
         windDown: !!raw.prealarm.windDown,
-        wdMinutes: Number(raw.prealarm.wdMinutes) || 15,
+        wdMinutes: Math.max(1, Math.min(180, Math.round(Number(raw.prealarm.wdMinutes) || 15))),
         wdUseEffect: !!raw.prealarm.wdUseEffect,
         wdEffectKey: typeof raw.prealarm.wdEffectKey === 'string' ? raw.prealarm.wdEffectKey : '',
         wdOverlayKeys: Array.isArray(raw.prealarm.wdOverlayKeys) ? raw.prealarm.wdOverlayKeys.filter((k) => OVERLAY_KEYS.includes(k)) : [],

@@ -1081,6 +1081,8 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .tm-days button.on { background: var(--cx1); color: #fff; box-shadow: none; }
 .tm-select, .tm-input { width: 100%; box-sizing: border-box; padding: 11px 12px; font-size: 15px; color: #eef2ff; background: rgba(255,255,255,.05); border: none; border-radius: 14px; box-shadow: 0 0 0 1px rgba(255,255,255,.1); }
 .tm-select option, .tm-select optgroup { background: #0c0f1c; color: #eef2ff; }
+.tm-custom { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: rgba(238,242,255,.8); }
+.tm-custom input { width: 72px !important; padding: 6px 8px !important; text-align: center; }
 .tm-check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: rgba(238,242,255,.8); cursor: pointer; }
 .tm-check input { width: 18px; height: 18px; accent-color: var(--cx1); }
 .tm-actions { display: flex; gap: 8px; margin-top: 26px; }
@@ -2431,14 +2433,16 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="tm-chips" id="tm-sunrise" data-group="sunrise">
         <button type="button" data-v="0">None</button><button type="button" data-v="1">1 min</button><button type="button" data-v="5">5 min</button><button type="button" data-v="15">15 min</button><button type="button" data-v="30">30 min</button>
       </div>
+      <label class="tm-custom">Or exactly <input type="number" id="tm-sun-custom" min="1" max="120" inputmode="numeric" aria-label="Sunrise length in minutes"> minutes</label>
       <label class="tm-check"><input type="checkbox" id="tm-giant-sun"> Big sun rising</label>
     </div>
 
     <div id="tm-wd-row">
       <div class="tm-label">Fade over</div>
       <div class="tm-chips" id="tm-wd" data-group="wd">
-        <button type="button" data-v="5">5 min</button><button type="button" data-v="15">15 min</button><button type="button" data-v="30">30 min</button><button type="button" data-v="60">1 hour</button>
+        <button type="button" data-v="1">1 min</button><button type="button" data-v="5">5 min</button><button type="button" data-v="15">15 min</button><button type="button" data-v="30">30 min</button><button type="button" data-v="60">1 hour</button>
       </div>
+      <label class="tm-custom">Or exactly <input type="number" id="tm-wd-custom" min="1" max="180" inputmode="numeric" aria-label="Fade length in minutes"> minutes</label>
       <label class="tm-check"><input type="checkbox" id="tm-wd-effect"> Keep the current effect while it fades</label>
     </div>
 
@@ -2524,6 +2528,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.254"></script>
+<script src="app.js?v=0.6.255"></script>
 </body>
 </html>

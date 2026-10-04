@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.254';
+const APP_VERSION = '0.6.255';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -3201,6 +3201,11 @@ function tmSync() {
   show('tm-wd-row', e.kind === 'winddown');
   tmSetChip(document.getElementById('tm-sunrise'), 'v', e.sunrise);
   tmSetChip(document.getElementById('tm-wd'), 'v', e.wd);
+  // Custom minutes boxes show the value when it isn't one of the chips.
+  for (const [id, v, chips] of [['tm-sun-custom', e.sunrise, [0, 1, 5, 15, 30]], ['tm-wd-custom', e.wd, [1, 5, 15, 30, 60]]]) {
+    const el = document.getElementById(id);
+    if (el && document.activeElement !== el) el.value = chips.includes(v) ? '' : String(v);
+  }
   tmSetChip(document.getElementById('tm-radio'), 'ra', e.radio);
   document.getElementById('tm-station-row').hidden = e.radio !== 'start';
   // Say how the radio fades with the light.
@@ -3289,6 +3294,8 @@ function wireAlarmModal() {
   document.querySelectorAll('.tm-kind').forEach((b) => b.addEventListener('click', () => { tmEdit.kind = b.dataset.kind; tmSync(); }));
   document.querySelectorAll('#tm-sunrise button').forEach((b) => b.addEventListener('click', () => { tmEdit.sunrise = +b.dataset.v; tmSync(); }));
   document.querySelectorAll('#tm-wd button').forEach((b) => b.addEventListener('click', () => { tmEdit.wd = +b.dataset.v; tmSync(); }));
+  document.getElementById('tm-wd-custom')?.addEventListener('input', (ev) => { const n = Math.round(Number(ev.target.value)); if (n >= 1 && n <= 180) { tmEdit.wd = n; tmSync(); } });
+  document.getElementById('tm-sun-custom')?.addEventListener('input', (ev) => { const n = Math.round(Number(ev.target.value)); if (n >= 1 && n <= 120) { tmEdit.sunrise = n; tmSync(); } });
   document.querySelectorAll('#tm-radio button').forEach((b) => b.addEventListener('click', () => { tmEdit.radio = b.dataset.ra; tmFillStations(); tmSync(); }));
   document.getElementById('tm-station').addEventListener('change', (e) => { const l = e.target._list || []; tmEdit.station = l[Number(e.target.value)] || null; if (tmEdit.station) delete tmEdit.station.nowPlaying; });
   document.querySelectorAll('#tm-repeat button').forEach((b) => b.addEventListener('click', () => {
