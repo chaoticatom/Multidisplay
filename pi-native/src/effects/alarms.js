@@ -474,10 +474,7 @@ function wakeDisplay(state) {
 
 function alarmFire(state, al, now, active) {
   const fireMs = now ? now.getTime() : Date.now();
-  // effectRise ("giantSun||effectRise" in the browser) is scoped down to
-  // just giantSun here - see module comment.
-  const hasPreEffect = al.prealarm?.enabled && al.prealarm?.giantSun;
-  const durationMs = hasPreEffect ? 10 * 60 * 1000 : 1 * 60 * 1000;
+  const durationMs = 1 * 60 * 1000; // the message shows for a minute (the giant sun used to hold the screen for 10)
   state.activeAlarm = { al, phase: 'main', startMs: fireMs, endMs: fireMs + durationMs, dismissed: false };
 
   applyRadio(al, active);
@@ -554,7 +551,8 @@ function renderMainMessage(core, state, wall = false) {
   if (wall) {
     // Flat panel: the effect keeps running underneath (see tick.js); a
     // giant-sun wake-up keeps the full sun, and the message sits on top.
-    if (a.al.prealarm?.giantSun) wallFx.sunrise(core, 1, 100, true);
+    // No sun after the countdown: the chosen effect takes over at once (the
+    // sun used to stay for 10 minutes, hiding it - a real report).
     if (a.al.message) wallFx.message(core, a.al.message, pulseW);
     return;
   }

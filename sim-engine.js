@@ -25749,8 +25749,7 @@ var PiEngine = (() => {
       }
       function alarmFire(state, al, now, active) {
         const fireMs = now ? now.getTime() : Date.now();
-        const hasPreEffect = al.prealarm?.enabled && al.prealarm?.giantSun;
-        const durationMs = hasPreEffect ? 10 * 60 * 1e3 : 1 * 60 * 1e3;
+        const durationMs = 1 * 60 * 1e3;
         state.activeAlarm = { al, phase: "main", startMs: fireMs, endMs: fireMs + durationMs, dismissed: false };
         applyRadio(al, active);
         if (al.triggerType === "off") {
@@ -25805,7 +25804,6 @@ var PiEngine = (() => {
         }
         const pulseW = 0.7 + 0.3 * Math.sin(mainElapsed * 4);
         if (wall) {
-          if (a.al.prealarm?.giantSun) wallFx.sunrise(core, 1, 100, true);
           if (a.al.message) wallFx.message(core, a.al.message, pulseW);
           return;
         }
