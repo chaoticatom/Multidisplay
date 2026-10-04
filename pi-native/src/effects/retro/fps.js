@@ -173,6 +173,12 @@ function play(kind, s, T, dt, t, inp) {
   if (Math.random() < dt * 0.15) s.health = Math.max(15, s.health - 5);
   s.face = Math.floor(t * 1.5) % 3;
 
+  // Looking up and down (Quake only): the horizon moves, as Quake's software
+  // renderer did. It glances up at the ceiling and down at the floor now and
+  // then, and tilts down towards an enemy it's shooting at.
+  const pitchTo = kind === 'quake' ? (target ? viewH * 0.08 : Math.sin(t * 0.35) * viewH * 0.22 + Math.sin(t * 1.1) * viewH * 0.04) : 0;
+  s.pitch = (s.pitch || 0) + (pitchTo - (s.pitch || 0)) * Math.min(1, dt * 3);
+  const horizon = view0 + viewH / 2 + s.pitch;
   // ── Walls (DDA per column) ──
   const fov = 0.66, dirX = Math.cos(s.a), dirY = Math.sin(s.a), plX = -dirY * fov, plY = dirX * fov;
   const zbuf = new Float32Array(W);
@@ -186,7 +192,7 @@ function play(kind, s, T, dt, t, inp) {
     for (let k = 0; k < 64 && !cell; k++) { if (sdx < sdy) { sdx += ddx; mx += stepX; side = 0; } else { sdy += ddy; my += stepY; side = 1; } cell = solid(map, mx, my); }
     const dist = side === 0 ? sdx - ddx : sdy - ddy;
     zbuf[x] = dist;
-    const lineH = viewH / Math.max(0.05, dist), y0 = view0 + (viewH - lineH) / 2;
+    const lineH = viewH / Math.max(0.05, dist), y0 = horizon - lineH / 2;
     let wallX = side === 0 ? s.y + dist * ry : s.x + dist * rx; wallX -= Math.floor(wallX);
     const tex = L.tex[cell] || L.tex[Object.keys(L.tex)[0]];
     for (let y = view0; y < view0 + viewH; y++) {
@@ -198,7 +204,7 @@ function play(kind, s, T, dt, t, inp) {
         if (L.fog) { const f = clamp(1 - dist / L.fog); c = [c[0] * f, c[1] * f, c[2] * f]; }
       } else {
         // Floor and ceiling: flat for Wolfenstein, cast and textured for Quake.
-        const rowDist = viewH / Math.max(0.5, Math.abs(2 * (y - view0) - viewH));
+        const rowDist = viewH / Math.max(0.5, Math.abs(2 * (y - horizon)));
         const fx = s.x + rowDist * rx, fy = s.y + rowDist * ry;
         c = y < y0 ? L.ceil(fx, fy) : L.floor(fx, fy);
         if (L.fog) { const f = clamp(1 - rowDist / L.fog); c = [c[0] * f, c[1] * f, c[2] * f]; }
@@ -215,7 +221,7 @@ function play(kind, s, T, dt, t, inp) {
     if (ty <= 0.1) continue;
     const scrX = (W / 2) * (1 + tx / ty), size = Math.abs(viewH / ty);
     const rows = e.dead ? L.dead : L.sprite[Math.floor(t * 4) % 2], sw = rows[0].length, sh = rows.length;
-    const pw = size * sw / sh, x0 = scrX - pw / 2, y0 = view0 + (viewH - size) / 2;
+    const pw = size * sw / sh, x0 = scrX - pw / 2, y0 = horizon - size / 2;
     for (let px = Math.max(0, Math.floor(x0)); px < Math.min(W, x0 + pw); px++) {
       if (ty >= zbuf[px]) continue;
       const u = Math.floor((px - x0) / pw * sw);
@@ -236,7 +242,8 @@ function play(kind, s, T, dt, t, inp) {
     T.rect(gx - 2, gy - 7 + bob, 5, 3, [0.35, 0.35, 0.38]); // slide
     T.rect(gx - 3, gy - 4 + bob, 7, 4, [0.95, 0.72, 0.55]); // hand
   } else {
-    T.set(gx, view0 + Math.floor(viewH / 2), 1, 1, 1); T.set(gx - 2, view0 + Math.floor(viewH / 2), 0.8, 0.8, 0.8); T.set(gx + 2, view0 + Math.floor(viewH / 2), 0.8, 0.8, 0.8); // crosshair
+    const chY = view0 + Math.floor(viewH / 2); // the crosshair stays centred while the view tilts
+    T.set(gx, chY, 1, 1, 1); T.set(gx - 2, chY, 0.8, 0.8, 0.8); T.set(gx + 2, chY, 0.8, 0.8, 0.8);
     T.rect(gx + 2, gy - 8 + bob, 6, 8, [0.32, 0.3, 0.27]); T.rect(gx + 3, gy - 10 + bob, 3, 3, [0.25, 0.24, 0.22]);
     T.set(gx + 4, gy - 10 + bob, 1, 0.75, 0.2);
     if (s.fire > 0) for (let k = 0; k < 5; k++) T.set(gx + 4 + (k % 2), gy - 12 - k, 1, 0.8 - k * 0.12, 0.2);

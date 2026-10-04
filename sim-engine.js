@@ -13566,6 +13566,9 @@ var PiEngine = (() => {
         }
         if (Math.random() < dt * 0.15) s.health = Math.max(15, s.health - 5);
         s.face = Math.floor(t * 1.5) % 3;
+        const pitchTo = kind === "quake" ? target ? viewH * 0.08 : Math.sin(t * 0.35) * viewH * 0.22 + Math.sin(t * 1.1) * viewH * 0.04 : 0;
+        s.pitch = (s.pitch || 0) + (pitchTo - (s.pitch || 0)) * Math.min(1, dt * 3);
+        const horizon = view0 + viewH / 2 + s.pitch;
         const fov = 0.66, dirX = Math.cos(s.a), dirY = Math.sin(s.a), plX = -dirY * fov, plY = dirX * fov;
         const zbuf = new Float32Array(W);
         for (let x = 0; x < W; x++) {
@@ -13589,7 +13592,7 @@ var PiEngine = (() => {
           }
           const dist = side === 0 ? sdx - ddx : sdy - ddy;
           zbuf[x] = dist;
-          const lineH = viewH / Math.max(0.05, dist), y0 = view0 + (viewH - lineH) / 2;
+          const lineH = viewH / Math.max(0.05, dist), y0 = horizon - lineH / 2;
           let wallX = side === 0 ? s.y + dist * ry : s.x + dist * rx;
           wallX -= Math.floor(wallX);
           const tex = L.tex[cell] || L.tex[Object.keys(L.tex)[0]];
@@ -13604,7 +13607,7 @@ var PiEngine = (() => {
                 c = [c[0] * f, c[1] * f, c[2] * f];
               }
             } else {
-              const rowDist = viewH / Math.max(0.5, Math.abs(2 * (y - view0) - viewH));
+              const rowDist = viewH / Math.max(0.5, Math.abs(2 * (y - horizon)));
               const fx = s.x + rowDist * rx, fy = s.y + rowDist * ry;
               c = y < y0 ? L.ceil(fx, fy) : L.floor(fx, fy);
               if (L.fog) {
@@ -13623,7 +13626,7 @@ var PiEngine = (() => {
           if (ty <= 0.1) continue;
           const scrX = W / 2 * (1 + tx / ty), size = Math.abs(viewH / ty);
           const rows = e.dead ? L.dead : L.sprite[Math.floor(t * 4) % 2], sw = rows[0].length, sh = rows.length;
-          const pw = size * sw / sh, x0 = scrX - pw / 2, y0 = view0 + (viewH - size) / 2;
+          const pw = size * sw / sh, x0 = scrX - pw / 2, y0 = horizon - size / 2;
           for (let px = Math.max(0, Math.floor(x0)); px < Math.min(W, x0 + pw); px++) {
             if (ty >= zbuf[px]) continue;
             const u = Math.floor((px - x0) / pw * sw);
@@ -13648,9 +13651,10 @@ var PiEngine = (() => {
           T.rect(gx - 2, gy - 7 + bob, 5, 3, [0.35, 0.35, 0.38]);
           T.rect(gx - 3, gy - 4 + bob, 7, 4, [0.95, 0.72, 0.55]);
         } else {
-          T.set(gx, view0 + Math.floor(viewH / 2), 1, 1, 1);
-          T.set(gx - 2, view0 + Math.floor(viewH / 2), 0.8, 0.8, 0.8);
-          T.set(gx + 2, view0 + Math.floor(viewH / 2), 0.8, 0.8, 0.8);
+          const chY = view0 + Math.floor(viewH / 2);
+          T.set(gx, chY, 1, 1, 1);
+          T.set(gx - 2, chY, 0.8, 0.8, 0.8);
+          T.set(gx + 2, chY, 0.8, 0.8, 0.8);
           T.rect(gx + 2, gy - 8 + bob, 6, 8, [0.32, 0.3, 0.27]);
           T.rect(gx + 3, gy - 10 + bob, 3, 3, [0.25, 0.24, 0.22]);
           T.set(gx + 4, gy - 10 + bob, 1, 0.75, 0.2);
@@ -14186,6 +14190,348 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/retro/pacman.js
+  var require_pacman = __commonJS({
+    "src/effects/retro/pacman.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var SQUARE = [
+        "################",
+        "#o.....##.....o#",
+        "#.##.#.##.#.##.#",
+        "#..............#",
+        "#.##.##--##.##.#",
+        "#....#HHHH#....#",
+        "####.######.####",
+        "#......##......#",
+        "#.###.####.###.#",
+        "#...#......#...#",
+        "###.#.####.#.###",
+        "#..............#",
+        "#o####.##.####o#",
+        "################"
+      ];
+      var WIDE = [
+        "################################",
+        "#..............##..............#",
+        "#.####.#######.##.#######.####.#",
+        "#o####.#######.##.#######.####o#",
+        "#..............................#",
+        "#.####.##.###########.##.####..#",
+        "#......##.............##.......#",
+        "######.#####.##--##.#####.######",
+        "#............#HHHH#............#",
+        "#.####.#####.#HHHH#.#####.####.#",
+        "#o..##.......######.......##..o#",
+        "###.##.##.############.##.##.###",
+        "#......##.....##.....##........#",
+        "#.##########.####.##########.###",
+        "#..............................#",
+        "################################"
+      ];
+      var COLOURS = [[1, 0.15, 0.15], [1, 0.6, 0.85], [0.3, 1, 1], [1, 0.65, 0.2]];
+      var DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      var FRIGHT_S = 7;
+      var SPEED = { pac: 4.2, ghost: 3.8, fright: 2.4, eyes: 9, house: 2 };
+      function setup(s, maze) {
+        s.maze = maze;
+        s.w = maze[0].length;
+        s.h = maze.length;
+        s.dots = maze.map((r) => [...r].map((c) => c === "." ? 1 : c === "o" ? 2 : 0));
+        s.left = s.dots.flat().filter(Boolean).length;
+        s.door = [];
+        s.inside = [];
+        maze.forEach((r, y) => [...r].forEach((c, x) => {
+          if (c === "-") s.door.push([x, y]);
+          if (c === "H") s.inside.push([x, y]);
+        }));
+        s.doorOut = [s.door[0][0], s.door[0][1] - 1];
+        s.pacStart = maze === SQUARE ? [7, 11] : [15, 14];
+        s.corners = [[s.w - 2, 1], [1, 1], [s.w - 2, s.h - 2], [1, s.h - 2]];
+      }
+      function resetActors(s) {
+        s.pac = { x: s.pacStart[0], y: s.pacStart[1], dx: -1, dy: 0, p: 0, want: null };
+        s.ghosts = COLOURS.map((col, i) => {
+          const [hx, hy] = s.inside[Math.min(s.inside.length - 1, i % s.inside.length)];
+          return { i, col, x: hx, y: hy, dx: 0, dy: -1, p: 0, mode: "house", wait: 1.5 + i * 3.5 };
+        });
+        s.fright = 0;
+        s.chain = 0;
+        s.dying = 0;
+        s.modeT = 0;
+      }
+      var cell = (s, x, y) => s.maze[y] && s.maze[y][x] || "#";
+      function walkable(s, x, y, who) {
+        const c = cell(s, x, y);
+        if (c === "#") return false;
+        if (c === "-" || c === "H") return who.mode === "leave" || who.mode === "eyes" || who.mode === "house";
+        return true;
+      }
+      function bfsDir(s, x, y, who, goal, avoidReverse) {
+        const q = [[x, y, -1]], seen = /* @__PURE__ */ new Set([x + "," + y]);
+        while (q.length) {
+          const [cx, cy, first] = q.shift();
+          if (first >= 0 && goal(cx, cy)) return first;
+          for (let d = 0; d < 4; d++) {
+            const nx = cx + DIRS[d][0], ny = cy + DIRS[d][1];
+            if (first < 0 && avoidReverse && DIRS[d][0] === -who.dx && DIRS[d][1] === -who.dy && (who.dx || who.dy)) continue;
+            if (!walkable(s, nx, ny, who) || seen.has(nx + "," + ny)) continue;
+            seen.add(nx + "," + ny);
+            q.push([nx, ny, first < 0 ? d : first]);
+          }
+        }
+        return -1;
+      }
+      function towards(s, g, tx, ty) {
+        let best = -1, bd = Infinity;
+        for (let d = 0; d < 4; d++) {
+          const [dx, dy] = DIRS[d];
+          if (dx === -g.dx && dy === -g.dy && (g.dx || g.dy)) continue;
+          if (!walkable(s, g.x + dx, g.y + dy, g)) continue;
+          const dd = (g.x + dx - tx) ** 2 + (g.y + dy - ty) ** 2;
+          if (dd < bd) {
+            bd = dd;
+            best = d;
+          }
+        }
+        if (best < 0) {
+          for (let d = 0; d < 4; d++) if (walkable(s, g.x + DIRS[d][0], g.y + DIRS[d][1], g)) {
+            best = d;
+            break;
+          }
+        }
+        return best;
+      }
+      function ghostTarget(s, g) {
+        const P = s.pac;
+        if (g.mode === "eyes") return s.inside[0];
+        if (g.mode === "leave") return s.doorOut;
+        if (g.mode === "scatter") return s.corners[g.i];
+        if (g.i === 0) return [P.x, P.y];
+        if (g.i === 1) return [P.x + P.dx * 4, P.y + P.dy * 4];
+        if (g.i === 2) {
+          const b = s.ghosts[0];
+          const ax = P.x + P.dx * 2, ay = P.y + P.dy * 2;
+          return [2 * ax - b.x, 2 * ay - b.y];
+        }
+        return (g.x - P.x) ** 2 + (g.y - P.y) ** 2 > 36 ? [P.x, P.y] : s.corners[3];
+      }
+      function stepActor(s, a, speed, dt, onCell) {
+        a.p += speed * dt;
+        while (a.p >= 1) {
+          a.p -= 1;
+          a.x += a.dx;
+          a.y += a.dy;
+          onCell(a);
+        }
+      }
+      function pacman(s, T, dt, t, inp) {
+        const square = T.W / (T.H - 8) < 1.6, maze = square ? SQUARE : WIDE;
+        if (s.maze !== maze || !s.ghosts) {
+          setup(s, maze);
+          resetActors(s);
+          s.score = s.score || 0;
+          s.lives = 3;
+        }
+        const P = s.pac, sfx = (n) => T.sfx && T.sfx(n);
+        s.modeT += dt;
+        const chaseMode = s.modeT % 24 > 6 ? "chase" : "scatter";
+        if (s.fright > 0) {
+          s.fright -= dt;
+          if (s.fright <= 0) {
+            s.chain = 0;
+            for (const g of s.ghosts) if (g.mode === "fright") g.mode = chaseMode;
+          }
+        }
+        if (s.dying > 0) {
+          s.dying -= dt;
+          if (s.dying <= 0) {
+            s.lives--;
+            if (s.lives <= 0) {
+              setup(s, maze);
+              s.score = 0;
+              s.lives = 3;
+            }
+            resetActors(s);
+          }
+        } else {
+          const PD = { left: 1, right: 0, up: 3, down: 2 };
+          if (inp.manual && PD[inp.dir] !== void 0) P.want = PD[inp.dir];
+          const pacOnCell = (a) => {
+            const d = s.dots[a.y] && s.dots[a.y][a.x];
+            if (d) {
+              s.dots[a.y][a.x] = 0;
+              s.left--;
+              s.score += d === 2 ? 50 : 10;
+              if (d === 2) {
+                s.fright = FRIGHT_S;
+                s.chain = 0;
+                for (const g of s.ghosts) if (g.mode === "chase" || g.mode === "scatter") {
+                  g.mode = "fright";
+                  g.dx = -g.dx;
+                  g.dy = -g.dy;
+                }
+                sfx("coin");
+              } else sfx("waka");
+              if (s.left <= 0) {
+                setup(s, maze);
+                resetActors(s);
+                sfx("start");
+              }
+            }
+            let d2 = -1;
+            if (inp.manual) d2 = P.want !== null && walkable(s, a.x + DIRS[P.want][0], a.y + DIRS[P.want][1], a) ? P.want : DIRS.findIndex(([dx, dy]) => dx === a.dx && dy === a.dy);
+            else {
+              const danger = s.ghosts.filter((g) => (g.mode === "chase" || g.mode === "scatter") && Math.abs(g.x - a.x) + Math.abs(g.y - a.y) < 4);
+              const prey = s.ghosts.filter((g) => g.mode === "fright" && Math.abs(g.x - a.x) + Math.abs(g.y - a.y) < 8);
+              if (prey.length) d2 = bfsDir(s, a.x, a.y, a, (x, y) => prey.some((g) => g.x === x && g.y === y));
+              else if (danger.length) {
+                let bd = -1;
+                for (let d3 = 0; d3 < 4; d3++) {
+                  const nx = a.x + DIRS[d3][0], ny = a.y + DIRS[d3][1];
+                  if (!walkable(s, nx, ny, a)) continue;
+                  const dist = Math.min(...danger.map((g) => Math.abs(g.x - nx) + Math.abs(g.y - ny)));
+                  if (dist > bd) {
+                    bd = dist;
+                    d2 = d3;
+                  }
+                }
+              } else d2 = bfsDir(s, a.x, a.y, a, (x, y) => s.dots[y] && s.dots[y][x] > 0);
+            }
+            if (d2 >= 0 && walkable(s, a.x + DIRS[d2][0], a.y + DIRS[d2][1], a)) {
+              a.dx = DIRS[d2][0];
+              a.dy = DIRS[d2][1];
+            } else if (!walkable(s, a.x + a.dx, a.y + a.dy, a)) {
+              a.dx = 0;
+              a.dy = 0;
+            }
+          };
+          if (!P.dx && !P.dy) pacOnCell(P);
+          stepActor(s, P, SPEED.pac, dt, pacOnCell);
+          for (const g of s.ghosts) {
+            if (g.mode === "house") {
+              g.wait -= dt;
+              g.bob = Math.sin(t * 6 + g.i) * 0.3;
+              if (g.wait <= 0) {
+                g.mode = "leave";
+                g.p = 0;
+              }
+              continue;
+            }
+            const speed = g.mode === "eyes" ? SPEED.eyes : g.mode === "fright" ? SPEED.fright : g.mode === "leave" ? SPEED.house : SPEED.ghost;
+            const onCell = (a) => {
+              if (a.mode === "leave" && a.x === s.doorOut[0] && a.y === s.doorOut[1]) a.mode = s.fright > 0 ? "fright" : chaseMode;
+              if (a.mode === "eyes" && cell(s, a.x, a.y) === "H") {
+                a.mode = "house";
+                a.wait = 1.5;
+                a.dx = 0;
+                a.dy = -1;
+                a.p = 0;
+                return;
+              }
+              if (a.mode === "chase" || a.mode === "scatter") a.mode = chaseMode;
+              let d;
+              if (a.mode === "fright") {
+                let bd = -1;
+                d = -1;
+                for (let k = 0; k < 4; k++) {
+                  const [dx, dy] = DIRS[k];
+                  if (dx === -a.dx && dy === -a.dy) continue;
+                  if (!walkable(s, a.x + dx, a.y + dy, a)) continue;
+                  const dist = (a.x + dx - P.x) ** 2 + (a.y + dy - P.y) ** 2 + Math.random() * 4;
+                  if (dist > bd) {
+                    bd = dist;
+                    d = k;
+                  }
+                }
+                if (d < 0) d = towards(s, a, P.x, P.y);
+              } else if (a.mode === "eyes" || a.mode === "leave") {
+                const goal = a.mode === "eyes" ? (x, y) => cell(s, x, y) === "H" : (x, y) => x === s.doorOut[0] && y === s.doorOut[1];
+                d = bfsDir(s, a.x, a.y, a, goal, false);
+              } else {
+                const [tx, ty] = ghostTarget(s, a);
+                d = towards(s, a, tx, ty);
+              }
+              if (d >= 0) {
+                a.dx = DIRS[d][0];
+                a.dy = DIRS[d][1];
+              } else {
+                a.dx = -a.dx;
+                a.dy = -a.dy;
+              }
+            };
+            if (g.p === 0 && (!g.dx && !g.dy || !walkable(s, g.x + g.dx, g.y + g.dy, g))) onCell(g);
+            stepActor(s, g, speed, dt, onCell);
+          }
+          const px = P.x + P.dx * P.p, py = P.y + P.dy * P.p;
+          for (const g of s.ghosts) {
+            if (g.mode === "house" || g.mode === "eyes" || g.mode === "leave") continue;
+            const gx = g.x + g.dx * g.p, gy = g.y + g.dy * g.p;
+            if (Math.abs(gx - px) + Math.abs(gy - py) < 0.7) {
+              if (g.mode === "fright") {
+                g.mode = "eyes";
+                s.chain++;
+                s.score += 100 * Math.pow(2, s.chain);
+                sfx("boom");
+              } else {
+                s.dying = 1.2;
+                sfx("boom");
+                break;
+              }
+            }
+          }
+        }
+        const C = Math.max(2, Math.floor(Math.min(T.W / s.w, (T.H - 8) / s.h))), ox = Math.floor((T.W - s.w * C) / 2), oy = 8 + Math.floor((T.H - 8 - s.h * C) / 2);
+        const isWall = (x, y) => cell(s, x, y) === "#";
+        s.maze.forEach((r, y) => [...r].forEach((c, x) => {
+          const X = ox + x * C, Y = oy + y * C;
+          if (c === "#") {
+            T.rect(X, Y, C, C, [0.02, 0.02, 0.2]);
+            for (let k = 0; k < C; k++) {
+              if (!isWall(x, y - 1)) T.set(X + k, Y, 0.2, 0.3, 1);
+              if (!isWall(x, y + 1)) T.set(X + k, Y + C - 1, 0.2, 0.3, 1);
+              if (!isWall(x - 1, y)) T.set(X, Y + k, 0.2, 0.3, 1);
+              if (!isWall(x + 1, y)) T.set(X + C - 1, Y + k, 0.2, 0.3, 1);
+            }
+          } else if (c === "-") T.rect(X, Y + Math.floor(C / 2), C, 1, [1, 0.7, 0.8]);
+          const d = s.dots[y][x];
+          if (d === 1) T.set(X + (C >> 1), Y + (C >> 1), 1, 0.8, 0.7);
+          if (d === 2 && Math.sin(t * 8) > 0) T.rect(X + (C > 3 ? 1 : 0), Y + (C > 3 ? 1 : 0), Math.max(1, C - 2), Math.max(1, C - 2), [1, 0.8, 0.7]);
+        }));
+        const pR = (C * 0.6 + 0.4) * (s.dying > 0 ? s.dying / 1.2 : 1), pcx = ox + (P.x + P.dx * P.p) * C + C / 2, pcy = oy + (P.y + P.dy * P.p) * C + C / 2;
+        const mouth = s.dying > 0 ? (1 - s.dying / 1.2) * 3 : Math.abs(Math.sin(t * 14)), ang = Math.atan2(P.dy || 0, P.dx || -1);
+        for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) {
+          if (i * i + j * j > pR * pR) continue;
+          let a = Math.atan2(j, i) - ang;
+          a = Math.atan2(Math.sin(a), Math.cos(a));
+          if (Math.abs(a) < mouth * 0.8 && (i || j)) continue;
+          T.set(pcx + i - 0.5, pcy + j - 0.5, 1, 0.9, 0.1);
+        }
+        for (const g of s.ghosts) {
+          const gx = ox + (g.x + g.dx * g.p) * C, gy = oy + (g.y + g.dy * g.p + (g.mode === "house" ? g.bob || 0 : 0)) * C - (C >= 4 ? 1 : 0);
+          const flashing = g.mode === "fright" && s.fright < 2 && Math.sin(t * 16) > 0;
+          const body = g.mode === "fright" ? flashing ? [1, 1, 1] : [0.15, 0.25, 1] : g.col;
+          if (C >= 4) {
+            const look = g.dx > 0 ? 1 : g.dx < 0 ? -1 : 0;
+            if (g.mode !== "eyes") T.sprite([".xxx.", "xxxxx", "xxxxx", "xxxxx", "x.x.x"], gx - 0.5, gy, body);
+            const eye = g.mode === "fright" ? [1, 0.8, 0.8] : [1, 1, 1];
+            T.set(gx + 0.5 + look, gy + 1, eye[0], eye[1], eye[2]);
+            T.set(gx + 2.5 + look, gy + 1, eye[0], eye[1], eye[2]);
+            if (g.mode !== "fright") {
+              T.set(gx + 0.5 + look + (look > 0 ? 0 : 0), gy + 2, 0.1, 0.2, 0.9);
+              T.set(gx + 2.5 + look, gy + 2, 0.1, 0.2, 0.9);
+            }
+          } else if (g.mode !== "eyes") T.rect(gx, gy, C, C, body);
+          else T.set(gx + 1, gy + 1, 1, 1, 1);
+        }
+        for (let k = 0; k < s.lives - 1; k++) T.rect(ox + 1 + k * 4, T.H - 2, 2, 2, [1, 0.9, 0.1]);
+        return s.score;
+      }
+      module.exports = { pacman, SQUARE, WIDE };
+    }
+  });
+
   // src/effects/retroArcade.js
   var require_retroArcade = __commonJS({
     "src/effects/retroArcade.js"(exports, module) {
@@ -14318,120 +14664,6 @@ var PiEngine = (() => {
         for (const b of s.bombs) T.set(b.x + (b.y | 0) % 2, b.y, 1, 0.8, 0.2);
         return s.score;
       }
-      var MAZE = ["################################", "#..............##..............#", "#.####.#######.##.#######.####.#", "#o####.#######.##.#######.####o#", "#..............................#", "#.####.##.###########.##.####..#", "#......##.............##.......#", "######.#####.##..##.#####.######", "#............#....#............#", "#.####.#####.#....#.#####.####.#", "#o..##.......######.......##..o#", "###.##.##.############.##.##.###", "#......##.....##.....##........#", "#.##########.####.##########.###", "#..............................#", "################################"];
-      var MAZE_SQ = ["################", "#o.....##.....o#", "#.##.#.##.#.##.#", "#..............#", "#.##.######.##.#", "#....#....#....#", "####.#.##.#.####", "#......##......#", "#.###.####.###.#", "#...#......#...#", "###.#.####.#.###", "#..............#", "#o####.##.####o#", "################"];
-      var M = MAZE;
-      var open = (x, y) => M[y] && M[y][x] && M[y][x] !== "#";
-      function stepMover(m, smart, tx, ty) {
-        const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => open(m.x + dx, m.y + dy) && !(dx === -m.dx && dy === -m.dy));
-        const ch = dirs.length ? dirs : [[-m.dx, -m.dy]];
-        let best = ch[Math.floor(Math.random() * ch.length)];
-        if (smart) {
-          let bd = 1e9;
-          for (const d of ch) {
-            const dd = Math.hypot(m.x + d[0] - tx, m.y + d[1] - ty);
-            if (dd < bd && Math.random() > 0.15) {
-              bd = dd;
-              best = d;
-            }
-          }
-        }
-        m.dx = best[0];
-        m.dy = best[1];
-        m.x += m.dx;
-        m.y += m.dy;
-      }
-      function pacman(s, T, dt, t, inp = {}) {
-        const square = T.W / (T.H - 8) < 1.6, want = square ? MAZE_SQ : MAZE;
-        if (s.maze !== want) {
-          s.maze = want;
-          s.dots = null;
-        }
-        M = want;
-        if (!s.dots) {
-          s.dots = M.map((r) => [...r].map((c) => c === "." ? 1 : c === "o" ? 2 : 0));
-          s.x = 1;
-          s.y = 3;
-          s.dx = 1;
-          s.dy = 0;
-          s.t = 0;
-          s.power = 0;
-          s.score = s.score || 0;
-          const gx = square ? 6 : 14, gy = square ? 5 : 8;
-          s.ghosts = [[1, 0.2, 0.2], [1, 0.6, 0.9], [0.3, 1, 1], [1, 0.7, 0.2]].map((col, i) => ({ x: gx + i, y: gy, col, dx: i % 2 ? 1 : -1, dy: 0 }));
-        }
-        s.t += dt;
-        if (s.t > 0.14) {
-          s.t = 0;
-          let tx = s.x, ty = s.y, bd = 1e9;
-          s.dots.forEach((r, y) => r.forEach((d2, x) => {
-            if (d2) {
-              const dd = Math.abs(x - s.x) + Math.abs(y - s.y);
-              if (dd < bd) {
-                bd = dd;
-                tx = x;
-                ty = y;
-              }
-            }
-          }));
-          const PD = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[inp.manual ? inp.dir : ""];
-          if (PD && open(s.x + PD[0], s.y + PD[1])) {
-            s.dx = PD[0];
-            s.dy = PD[1];
-            s.x += s.dx;
-            s.y += s.dy;
-          } else if (inp.manual) {
-            if (open(s.x + s.dx, s.y + s.dy)) {
-              s.x += s.dx;
-              s.y += s.dy;
-            }
-          } else stepMover(s, true, tx, ty);
-          const d = s.dots[s.y][s.x];
-          if (d) {
-            s.score += d === 2 ? 50 : 10;
-            if (d === 2) {
-              s.power = 6;
-              T.sfx && T.sfx("coin");
-            } else if (T.sfx) T.sfx("waka");
-            s.dots[s.y][s.x] = 0;
-          }
-          for (const g of s.ghosts) stepMover(g, s.power <= 0, s.x, s.y);
-          if (!s.dots.some((r) => r.some(Boolean))) s.dots = null;
-          if (!s.dots) return s.score;
-        }
-        s.power -= dt;
-        const cols = M[0].length, rows = M.length;
-        const C = Math.max(2, Math.floor(Math.min(T.W / cols, (T.H - 8) / rows))), ox = Math.floor((T.W - cols * C) / 2), oy = 8 + Math.floor((T.H - 8 - rows * C) / 2);
-        M.forEach((r, y) => [...r].forEach((c, x) => {
-          const X = ox + x * C, Y = oy + y * C;
-          if (c === "#") {
-            T.rect(X, Y, C, C, [0.02, 0.02, 0.22]);
-            for (let k = 0; k < C; k++) {
-              if (open(x, y - 1)) T.set(X + k, Y, 0.2, 0.3, 1);
-              if (open(x, y + 1)) T.set(X + k, Y + C - 1, 0.2, 0.3, 1);
-              if (open(x - 1, y)) T.set(X, Y + k, 0.2, 0.3, 1);
-              if (open(x + 1, y)) T.set(X + C - 1, Y + k, 0.2, 0.3, 1);
-            }
-          }
-          const d = s.dots[y][x];
-          if (d === 1) T.set(X + (C >> 1), Y + (C >> 1), 1, 0.8, 0.7);
-          if (d === 2 && Math.sin(t * 8) > 0) T.rect(X + 1, Y + 1, Math.max(1, C - 2), Math.max(1, C - 2), [1, 0.8, 0.7]);
-        }));
-        const mouth = Math.abs(Math.sin(t * 14)), ang = Math.atan2(s.dy, s.dx), R = C * 0.6 + 0.4, cx = ox + s.x * C + C / 2, cy = oy + s.y * C + C / 2;
-        for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) {
-          if (i * i + j * j > R * R) continue;
-          let a = Math.atan2(j, i) - ang;
-          a = Math.atan2(Math.sin(a), Math.cos(a));
-          if (Math.abs(a) < mouth * 0.8 && (i || j)) continue;
-          T.set(cx + i - 0.5, cy + j - 0.5, 1, 0.9, 0.1);
-        }
-        for (const g of s.ghosts) {
-          const col = s.power > 0 ? s.power < 2 && Math.sin(t * 16) > 0 ? [1, 1, 1] : [0.2, 0.3, 1] : g.col;
-          if (C >= 4) T.sprite([".xxx.", "xxxxx", "xwxwx", "xxxxx", "x.x.x"], ox + g.x * C - 0.5, oy + g.y * C - 1, (ch) => ch === "w" ? [1, 1, 1] : col);
-          else T.rect(ox + g.x * C, oy + g.y * C, C, C, col);
-        }
-        return s.score;
-      }
       function outrun(s, T, dt, t, inp = {}) {
         const { W, H } = T;
         s.speed = Math.min(1, (s.speed || 0) + dt * 0.3);
@@ -14473,7 +14705,7 @@ var PiEngine = (() => {
         T.sprite(["....xxxxxx....", "..xxwwwwwwxx..", ".xxxxxxxxxxxx.", "xxrrxxxxxxrrxx", "bb..........bb"], W / 2 - 7, H - 9, (ch) => ch === "w" ? [0.6, 0.85, 1] : ch === "r" ? [1, 0.9, 0.2] : ch === "b" ? [0.1, 0.1, 0.1] : [0.95, 0.1, 0.12]);
         return Math.round(s.score);
       }
-      var NEW_GAMES = { ...require_arcadeGames(), 2: outrun, 3: invaders, 13: pacman };
+      var NEW_GAMES = { ...require_arcadeGames(), 2: outrun, 3: invaders, 13: require_pacman().pacman };
       var st = { W: 0, H: 0, buf: null, small: new Float32Array(64 * 64 * 3), old: OLD_STATE(), fresh: {}, cur: -1, phase: "play", phaseT: 0, gameT: 0, hi: 12500, score: 0, poolPos: 0 };
       module.exports = defineCanvasEffect({
         render(c, { dt, core }) {
@@ -14546,7 +14778,7 @@ var PiEngine = (() => {
             const fn = NEW_GAMES[st.cur];
             if (fn) {
               const s = st.fresh[st.cur] || (st.fresh[st.cur] = {});
-              const gdt = dt * 0.65;
+              const gdt = dt * 0.45;
               st.score = fn(s, T, gdt, st.gameClock = (st.gameClock || 0) + gdt, inp) || 0;
             } else {
               const S = 64, game = st.old[st.cur];

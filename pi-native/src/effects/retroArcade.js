@@ -159,7 +159,7 @@ function outrun(s, T, dt, t, inp = {}) {
   T.sprite(['....xxxxxx....', '..xxwwwwwwxx..', '.xxxxxxxxxxxx.', 'xxrrxxxxxxrrxx', 'bb..........bb'], W / 2 - 7, H - 9, (ch) => (ch === 'w' ? [0.6, 0.85, 1] : ch === 'r' ? [1, 0.9, 0.2] : ch === 'b' ? [0.1, 0.1, 0.1] : [0.95, 0.1, 0.12]));
   return Math.round(s.score);
 }
-const NEW_GAMES = { ...require('./retro/arcadeGames'), 2: outrun, 3: invaders, 13: pacman };
+const NEW_GAMES = { ...require('./retro/arcadeGames'), 2: outrun, 3: invaders, 13: require('./retro/pacman').pacman }; // arcade-rules Pac-Man
 
 const st = { W: 0, H: 0, buf: null, small: new Float32Array(64 * 64 * 3), old: OLD_STATE(), fresh: {}, cur: -1, phase: 'play', phaseT: 0, gameT: 0, hi: 12500, score: 0, poolPos: 0 };
 
@@ -199,8 +199,8 @@ module.exports = defineCanvasEffect({
       const fn = NEW_GAMES[st.cur];
       if (fn) {
         const s = st.fresh[st.cur] || (st.fresh[st.cur] = {});
-        // Games run at two-thirds speed: closer to the originals' pace on the panels.
-        const gdt = dt * 0.65;
+        // Games run at a bit under half speed: closer to the originals' pace on the panels.
+        const gdt = dt * 0.45;
         st.score = fn(s, T, gdt, (st.gameClock = (st.gameClock || 0) + gdt), inp) || 0;
       } else {
         // A classic: its 64x64 picture in the middle, cabinet side panels around it.
