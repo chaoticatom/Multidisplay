@@ -40,6 +40,17 @@ t('a message note is drawn over the display', () => {
   const [r, g] = px(c, 32, 30);
   assert.ok(r > 60 && g > 50, 'yellow paper in the middle of the display');
 });
+t('the note stays put when the state is re-sent each second', () => {
+  // The render worker gets a fresh copy of the state every second; the note
+  // used to treat each copy as new and drop in from the top again.
+  const c = wall();
+  const notice = { text: 'Stay', color: '#ffd23d', until: Date.now() + 30000, style: 'note' };
+  const topRow = () => { for (let y = 0; y < 64; y++) if (px(c, 20, y)[0] > 60) return y; return -1; };
+  for (let i = 0; i < 60; i++) { c.wallBuf.fill(0); renderNotice(c, { notice: i % 30 === 0 ? { ...notice } : notice }, 'wall', 1 / 30); }
+  const settled = topRow();
+  c.wallBuf.fill(0); renderNotice(c, { notice: { ...notice } }, 'wall', 1 / 30);
+  assert.ok(settled > 0 && Math.abs(topRow() - settled) <= 2, 'still in place after a re-send (' + settled + ' -> ' + topRow() + ')');
+});
 t('sendNote stores a note for the display', () => {
   const COMMANDS = require('../src/wsCommands');
   const fake = { state: {}, _broadcast() {}, _stateMsg() { return {}; } };

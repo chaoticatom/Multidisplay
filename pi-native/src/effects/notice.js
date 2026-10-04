@@ -20,7 +20,10 @@ const banner = defineCanvasEffect({
   speed: 0,
   render(c, { dt, core }) {
     const n = core._notice;
-    if (shown !== n) { shown = n; scroll = -c.W; }
+    // Compare by content: the render worker gets a fresh copy of the state
+    // every second, so the object itself changes even for the same notice.
+    const k = n.text + '|' + n.until;
+    if (shown !== k) { shown = k; scroll = -c.W; }
     const scale = Math.max(1, Math.floor(c.H / 24));
     const band = 11 * scale, top = Math.round((c.H - band) / 2);
     const [r, g, b] = colour(n.color);
@@ -56,7 +59,8 @@ const note = defineCanvasEffect({
   speed: 0,
   render(c, { dt, core }) {
     const n = core._notice;
-    if (noteFor !== n) { noteFor = n; noteT = 0; }
+    const k = n.text + '|' + n.until; // by content - see the banner above
+    if (noteFor !== k) { noteFor = k; noteT = 0; }
     noteT += dt;
     const left = (n.until - Date.now()) / 1000;
     // Pick the font that fits: 5x7 for short notes, 3x5 for longer ones.
