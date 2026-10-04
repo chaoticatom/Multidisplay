@@ -30,6 +30,8 @@
 
 const radio = require('./radio/radio');
 const { renderSpectrumStyleWall, createSpectrumWallState } = require('./radio/spectrumWall');
+const { renderSpectrumV2Wall, createV2State } = require('./radio/spectrumV2Wall');
+const v2State = createV2State();
 const { CHAR_W } = require('./radio/font');
 const { createLevelState, computeLevels } = require('./radio/levels');
 const { drawString, drawMarquee, drawLinesCentered, FONT_3x5, FONT_5x7, wallPlot } = require('./text');
@@ -108,7 +110,9 @@ function effectRadioWall(core, dt) {
       ampArr, peakArr, vu: audio.vu, wave: audio.wave, // vu: stereo [left, right, leftPeak, rightPeak]; wave: the sound wave
       bands, theme, barMode, scrollX: spectrumWallState.scrollX || 0, t: core.t, dt,
     };
-    renderSpectrumStyleWall(core, ctx, style, spectrumWallState);
+    // Version 2 (the default) is the animated scenes; version 1 keeps the classic styles.
+    if (opts.version === 1) renderSpectrumStyleWall(core, ctx, style, spectrumWallState);
+    else renderSpectrumV2Wall(core, ctx, opts.scene || 'auto', v2State);
   }
 
   const { playing, currentStation } = radio.getPlaybackState();

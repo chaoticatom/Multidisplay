@@ -122,6 +122,11 @@ const COMMANDS = {
       this.state.overlays[key].on = false;
     }
     this.state.blank = true;
+    // Switching off stops the music too (on request); 💡 Panels off is the
+    // way to darken the panels and keep listening.
+    if (this.effectCommandRelay) this.effectCommandRelay('radioStop', {});
+    else radio.stopStation();
+    this._refreshRadioStatus();
     this._broadcast(this._stateMsg());
   },
 

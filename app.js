@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.263';
+const APP_VERSION = '0.6.264';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2664,6 +2664,15 @@ function wireRadioPanel() {
       setEffectOption('radio', 'style', btn.dataset.austyle);
     });
   });
+  panel.querySelectorAll('.au-ver-btn[data-auver]').forEach((btn) => btn.addEventListener('click', () => {
+    panel.querySelectorAll('.au-ver-btn').forEach((b) => b.classList.toggle('active', b === btn));
+    document.getElementById('au-v2-row').hidden = btn.dataset.auver !== '2';
+    setEffectOption('radio', 'version', Number(btn.dataset.auver));
+  }));
+  panel.querySelectorAll('.au-scene-btn[data-auscene]').forEach((btn) => btn.addEventListener('click', () => {
+    panel.querySelectorAll('.au-scene-btn').forEach((b) => b.classList.toggle('active', b === btn));
+    setEffectOption('radio', 'scene', btn.dataset.auscene);
+  }));
   panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => {
     btn.addEventListener('click', () => {
       panel.querySelectorAll('.au-theme-btn').forEach((b) => b.classList.remove('active'));
@@ -2760,6 +2769,10 @@ function syncRadioPanel() {
   if (spectrumOptions) spectrumOptions.style.display = spectrumOn ? '' : 'none';
   panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.bands) === (opts.bands ?? 64)));
   panel.querySelectorAll('.au-style-btn[data-austyle]').forEach((btn) => btn.classList.toggle('active', btn.dataset.austyle === (opts.style || 'glow')));
+  const auVer = opts.version === 1 ? '1' : '2';
+  panel.querySelectorAll('.au-ver-btn').forEach((b) => b.classList.toggle('active', b.dataset.auver === auVer));
+  const v2Row = document.getElementById('au-v2-row'); if (v2Row) v2Row.hidden = auVer !== '2';
+  panel.querySelectorAll('.au-scene-btn').forEach((b) => b.classList.toggle('active', b.dataset.auscene === (opts.scene || 'auto')));
   panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 5)));
   panel.querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => btn.classList.toggle('active', btn.dataset.barmode === (opts.barMode || 'solid')));
 
@@ -2973,7 +2986,7 @@ function syncPanelsOffButton() {
 function syncClearAllButton() {
   syncPanelsOffButton();
   const btn = document.getElementById('clear-all-btn'), blank = !!currentState.blank, panels = !!currentState.panelsOff;
-  if (btn) { btn.classList.toggle('active', blank); btn.classList.toggle('is-off', blank); btn.title = blank ? 'Display is OFF - tap an effect or Turn on' : 'Display off (music keeps playing)'; }
+  if (btn) { btn.classList.toggle('active', blank); btn.classList.toggle('is-off', blank); btn.title = blank ? 'Display is OFF - tap an effect or Turn on' : 'Off (display and music)'; }
   document.getElementById('panels-off-btn')?.classList.toggle('is-off', panels);
 }
 
@@ -5652,7 +5665,7 @@ function cxToggleSpectrum() {
 }
 function cxWireSpectrumShortcut() {
   document.getElementById('cx-show-spectrum')?.addEventListener('click', cxToggleSpectrum);
-  document.querySelectorAll('#panel-radio .spectrum-bands-btn, #panel-radio .au-style-btn, #panel-radio .au-theme-btn').forEach((b) => b.addEventListener('click', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
+  document.querySelectorAll('#panel-radio .spectrum-bands-btn, #panel-radio .au-style-btn, #panel-radio .au-theme-btn, #panel-radio .au-scene-btn, #panel-radio .au-ver-btn').forEach((b) => b.addEventListener('click', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
 }
 
 function cxSyncMusic() {
@@ -5675,6 +5688,7 @@ function cxSyncMusic() {
     mb.title = muted ? 'Unmute' : 'Mute'; mb.setAttribute('aria-label', mb.title);
     mb.classList.toggle('cx-quiet', !playing && !muted);
     mb.classList.toggle('cx-muted', muted);
+    mb.classList.toggle('snd-off', muted || !playing); // the ON/OFF label under it, like the other buttons
   }
 }
 
