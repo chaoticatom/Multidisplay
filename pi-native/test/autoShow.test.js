@@ -53,3 +53,17 @@ t('day plan shows the current part\'s first effect', () => {
   assert.strictEqual(fake.state.effect, 'starfield');
 });
 if (failed) process.exitCode = 1;
+
+t('each part of the day can set the brightness as it begins', () => {
+  const WsServer = require('../src/wsServer');
+  const part = auto.partAt(null, new Date());
+  const p = prefs.clean({ dayPlan: { on: true, effects: { [part]: ['starfield'] }, brightness: { [part]: 0.25 } } });
+  const fake = { state: { prefs: p, effect: 'plasma', effectOptions: {}, blank: false, brightness: 0.9 }, _broadcast() {}, _stateMsg() { return {}; }, _playlistSince: 0 };
+  WsServer.prototype._playlistTick.call(fake);
+  assert.strictEqual(fake.state.brightness, 0.25);
+  fake.state.brightness = 0.6; // the user changes it by hand within the same part
+  WsServer.prototype._playlistTick.call(fake);
+  assert.strictEqual(fake.state.brightness, 0.6, 'only applied when the part begins, not every tick');
+  assert.strictEqual(prefs.clean({ dayPlan: { brightness: { day: null } } }).dayPlan.brightness.day, null);
+});
+if (failed) process.exitCode = 1;

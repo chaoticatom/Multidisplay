@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.229';
+const APP_VERSION = '0.6.231';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -262,6 +262,7 @@ function handleTextMessage(msg) {
     syncCustomCubeEffectPanel();
     renderAlarmList();
     cxRenderAutoShow();
+    fxSheetSync();
     syncClearAllButton();
     syncIdentifyPanelsButton();
     renderWallLayoutList();
@@ -3285,7 +3286,11 @@ function cxRenderAutoShow() {
   if (dp.on) {
     for (const [part, label] of AS_PARTS) {
       const list = dp.effects[part] || [];
+      const br = dp.brightness ? dp.brightness[part] : null;
+      const brOpts = [['', 'Keep'], ['0.05', '5%'], ['0.1', '10%'], ['0.25', '25%'], ['0.5', '50%'], ['0.75', '75%'], ['1', '100%']]
+        .map(([v, t]) => `<option value="${v}"${(br === null || br === undefined ? '' : String(br)) === v ? ' selected' : ''}>${t}</option>`).join('');
       html += `<div class="as-part" data-part="${part}"><div class="as-part-top"><span style="flex:1">${label}</span>from <select class="as-start" aria-label="${label} starts at">${hourOpts(dp.starts[part])}</select></div>
+        <div class="as-part-top"><span style="flex:1">☀ Brightness</span><select class="as-bright" aria-label="${label} brightness">${brOpts}</select></div>
         <div class="as-chips">${list.map((k) => `<span class="as-chip">${escHtml(effectNames[k] || k)}<button type="button" data-rm="${k}" aria-label="Remove">✕</button></span>`).join('') || '<span class="ui-note" style="margin:0">Your favourites</span>'}</div>
         <select class="as-add" aria-label="Add an effect to ${label}"><option value="">+ Add effect…</option>${names.map(([k, v]) => `<option value="${k}">${escHtml(v)}</option>`).join('')}</select></div>`;
     }
@@ -3311,6 +3316,7 @@ function cxRenderAutoShow() {
   host.querySelectorAll('.as-part').forEach((row) => {
     const part = row.dataset.part;
     row.querySelector('.as-start').addEventListener('change', (e) => asSend('dayPlan', { ...dp, starts: { ...dp.starts, [part]: Number(e.target.value) } }));
+    row.querySelector('.as-bright').addEventListener('change', (e) => asSend('dayPlan', { ...dp, brightness: { ...(dp.brightness || {}), [part]: e.target.value === '' ? null : Number(e.target.value) } }));
     row.querySelector('.as-add').addEventListener('change', (e) => {
       const k = e.target.value; if (!k) return;
       const list = (dp.effects[part] || []).filter((x) => x !== k).concat(k);
@@ -4907,14 +4913,73 @@ function cxSheetFull(on) {
   });
 })();
 
-function cxShowOptions() {
-  setTab('play');
-  const host = document.getElementById('now-options');
-  if (!host || !host.children.length) { cxToast('This effect has no settings'); return; }
-  cxSheetFull(true);
-  cxScrollMenuTo(host, 'start');
-  host.classList.remove('cx-flash'); void host.offsetWidth; host.classList.add('cx-flash');
+// ⚙ Options opens the effect options sheet: the running effect's panel is
+// shown in a full-height sheet over the menu (‹ Effects closes it, back to
+// the same spot in the list; ◀ ▶ step through the effects with the sheet
+// still open).
+function cxShowOptions() { openFxSheet(); }
+const _fxMoved = []; // [{ el, marker }]
+function fxEffectList() {
+  return [...document.querySelectorAll('#effects-body .effect-btn[data-effect]')].map((b) => b.dataset.effect)
+    .filter((k, i, a) => a.indexOf(k) === i && !['custom_cube', 'easter_egg'].includes(k));
 }
+function fxSheetSync() {
+  const sheet = document.getElementById('fx-sheet');
+  if (!sheet || sheet.hidden) return;
+  document.getElementById('fx-name').textContent = cxEffectName(currentState.effect);
+  const body = document.getElementById('fx-body'), host = document.getElementById('now-options');
+  let none = body.querySelector('.fx-none');
+  const empty = !host || !host.children.length;
+  if (empty && !none) { none = document.createElement('div'); none.className = 'fx-none'; body.appendChild(none); }
+  if (none) { none.hidden = !empty; none.textContent = currentState.effect === 'radio' ? 'Internet Radio\'s options are on the Music tab.' : 'This effect has no options. Use ◀ ▶ to try the next one.'; }
+}
+function openFxSheet() {
+  const sheet = document.getElementById('fx-sheet'), body = document.getElementById('fx-body');
+  if (!sheet || !body) return;
+  setTab('play');
+  placeActivePanels();
+  if (sheet.hidden) {
+    // Move the options (and the speed/colour controls) into the sheet; markers put them back on close.
+    for (const id of ['now-options']) {
+      const el = document.getElementById(id); if (!el) continue;
+      const marker = document.createComment('fx-sheet placeholder');
+      el.replaceWith(marker); body.appendChild(el); _fxMoved.push({ el, marker });
+    }
+    sheet.hidden = false;
+  }
+  document.body.classList.add('fx-open');
+  cxSheetFull(true);
+  fxSheetSync();
+  document.getElementById('fx-body').scrollTop = 0;
+  document.getElementById('fx-back')?.focus({ preventScroll: true });
+}
+function closeFxSheet() {
+  const sheet = document.getElementById('fx-sheet');
+  if (!sheet || sheet.hidden) return;
+  while (_fxMoved.length) { const { el, marker } = _fxMoved.pop(); marker.replaceWith(el); }
+  sheet.hidden = true;
+  document.body.classList.remove('fx-open');
+  // Back to the running effect's tile, where the user was.
+  const tile = document.querySelector(`#effects-body .effect-btn[data-effect="${CSS.escape(currentState.effect || '')}"]`);
+  if (tile) { const r = tile.getBoundingClientRect(), sc = document.getElementById('sidebar-scroll').getBoundingClientRect(); if (r.top < sc.top || r.bottom > sc.bottom) cxScrollMenuTo(tile, 'center'); }
+}
+function fxStep(dir) {
+  const list = fxEffectList(); if (!list.length) return;
+  const i = list.indexOf(currentState.effect);
+  const next = list[((i < 0 ? 0 : i + dir) + list.length) % list.length];
+  document.querySelector(`#effects-body .effect-btn[data-effect="${CSS.escape(next)}"]`)?.click();
+  setTimeout(openFxSheet, 80); // the tile's own handler may switch tab; keep the sheet showing
+}
+document.getElementById('fx-back')?.addEventListener('click', closeFxSheet);
+document.getElementById('fx-prev')?.addEventListener('click', () => fxStep(-1));
+document.getElementById('fx-next')?.addEventListener('click', () => fxStep(1));
+document.addEventListener('keydown', (e) => {
+  const sheet = document.getElementById('fx-sheet');
+  if (!sheet || sheet.hidden || e.target.matches('input, textarea, select')) return;
+  if (e.key === 'Escape') closeFxSheet();
+  else if (e.key === 'ArrowLeft') fxStep(-1);
+  else if (e.key === 'ArrowRight') fxStep(1);
+});
 
 // ── Colour palettes (applied to every effect by the Pi's finishing pass).
 const CX_PALETTES = {

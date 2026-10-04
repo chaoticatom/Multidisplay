@@ -11,7 +11,7 @@ const DEFAULT = {
   nightDim: { on: false, from: 22, to: 7, level: 0.3 },
   look: { on: true, bloom: 0.65, vibrance: 0.35, smooth: 0, depth: 0.5, palette: 'auto' },
   // Automatic show (see src/autoShow.js).
-  dayPlan: { on: false, starts: { morning: 6, day: 10, evening: 18, night: 23 }, effects: { morning: [], day: [], evening: [], night: [] } },
+  dayPlan: { on: false, starts: { morning: 6, day: 10, evening: 18, night: 23 }, effects: { morning: [], day: [], evening: [], night: [] }, brightness: { morning: null, day: null, evening: null, night: null } }, // brightness null = leave as it is
   weatherMode: { on: false },
   celebrations: { newYear: true, dates: [] }, // dates: [{ month, day, hour, minute, text }]
 };
@@ -50,6 +50,8 @@ function clean(p) {
       if (Number.isInteger(h) && h >= 0 && h < 24) out.dayPlan.starts[part] = h;
       const list = p.dayPlan.effects && p.dayPlan.effects[part];
       if (Array.isArray(list)) out.dayPlan.effects[part] = list.filter((k) => typeof k === 'string' && /^[a-z0-9_]{1,30}$/.test(k)).slice(0, 20);
+      const b = p.dayPlan.brightness && p.dayPlan.brightness[part];
+      out.dayPlan.brightness[part] = b === null || b === undefined || b === '' || !Number.isFinite(Number(b)) ? null : Math.max(0.02, Math.min(1, Number(b)));
     }
   }
   if (p && p.weatherMode) out.weatherMode.on = !!p.weatherMode.on;

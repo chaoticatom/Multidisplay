@@ -633,6 +633,7 @@ const COMMANDS = {
     for (const k of ['dayPlan', 'weatherMode', 'celebrations']) if (msg[k] && typeof msg[k] === 'object') next[k] = msg[k];
     this.state.prefs = prefs.save(next);
     if (msg.weatherMode) this._wxAt = 0; // fetch straight away
+    if (msg.dayPlan && this.state.autoStatus) this.state.autoStatus.part = ''; // re-apply the current part (its brightness too)
     this._broadcast(this._stateMsg());
   },
 

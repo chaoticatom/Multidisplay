@@ -669,7 +669,12 @@ class WsServer {
     let list = p.favourites;
     if (p.dayPlan && p.dayPlan.on) {
       const part = autoShow.partAt(p.dayPlan.starts, now);
-      if (part !== st.part) { st.part = part; this._playlistSince = 0; }
+      if (part !== st.part) {
+        st.part = part; this._playlistSince = 0;
+        // Each part of the day can set its own brightness as it begins.
+        const b = p.dayPlan.brightness && p.dayPlan.brightness[part];
+        if (b !== null && b !== undefined) { this.state.brightness = b; this._broadcast(this._stateMsg()); }
+      }
       const own = (p.dayPlan.effects[part] || []).filter((k) => EFFECTS[k]);
       if (own.length) list = own;
       if (own.length && !own.includes(this.state.effect)) { if (show(own[0])) this._broadcast(this._stateMsg()); return; }
