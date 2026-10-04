@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.240';
+const APP_VERSION = '0.6.242';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2946,7 +2946,8 @@ function syncIdentifyPanelsButton() {
 // "✕ Clear All" - see wsServer.js's "clearAll" command comment.
 function wireClearAllButton() {
   const btn = document.getElementById('clear-all-btn');
-  if (btn) btn.addEventListener('click', () => send({ cmd: 'clearAll' }));
+  // A toggle: off, and tapping again turns the display back on.
+  if (btn) btn.addEventListener('click', () => send(currentState.blank ? { cmd: 'setEffect', effect: currentState.effect || 'plasma' } : { cmd: 'clearAll' }));
 }
 
 // 💡 LED panels off (shared, on the Pi) and 👁 preview off (this device
@@ -2957,7 +2958,7 @@ function cxApplyPreviewOff(off) {
   try { localStorage.setItem('cxPreviewOff', off ? '1' : ''); } catch (e) { /* storage blocked */ }
   send({ cmd: 'setPreviewOff', on: off });
   const b = document.getElementById('preview-off-btn');
-  if (b) { b.classList.toggle('cx-muted', off); b.textContent = off ? '🙈' : '👁'; b.title = off ? 'Show the preview again' : 'Hide the preview on this device'; }
+  if (b) { b.classList.toggle('cx-muted', off); b.classList.toggle('is-off', off); b.textContent = off ? '🙈' : '👁'; b.title = off ? 'Preview is OFF on this device - tap to show it' : 'Hide the preview on this device'; }
 }
 document.getElementById('preview-off-btn')?.addEventListener('click', () => cxApplyPreviewOff(!document.body.classList.contains('cx-preview-off')));
 document.getElementById('panels-off-btn')?.addEventListener('click', () => send({ cmd: 'setPanelsOff', on: !currentState.panelsOff }));
@@ -2971,9 +2972,20 @@ function syncPanelsOffButton() {
 
 function syncClearAllButton() {
   syncPanelsOffButton();
-  const btn = document.getElementById('clear-all-btn');
-  if (btn) btn.classList.toggle('active', !!currentState.blank);
+  const btn = document.getElementById('clear-all-btn'), blank = !!currentState.blank, panels = !!currentState.panelsOff;
+  if (btn) { btn.classList.toggle('active', blank); btn.classList.toggle('is-off', blank); btn.title = blank ? 'Display is OFF - tap an effect or Turn on' : 'Display off (music keeps playing)'; }
+  document.getElementById('panels-off-btn')?.classList.toggle('is-off', panels);
+  // Banner across the top while the display or the panels are off.
+  const ban = document.getElementById('off-banner');
+  if (ban) {
+    ban.hidden = !blank && !panels;
+    document.getElementById('off-banner-text').textContent = blank && panels ? '⏻ Display and LED panels are off' : blank ? '⏻ The display is off' : '💡 The LED panels are off';
+  }
 }
+document.getElementById('off-banner-on')?.addEventListener('click', () => {
+  if (currentState.panelsOff) send({ cmd: 'setPanelsOff', on: false });
+  if (currentState.blank) send({ cmd: 'setEffect', effect: currentState.effect || 'plasma' });
+});
 
 // "🔇 Stop Sound" - next to Clear All. Radio plays in the background
 // regardless of which effect is selected/displayed, so Clear All blanking
