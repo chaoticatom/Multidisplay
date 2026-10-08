@@ -519,6 +519,11 @@ const COMMANDS = {
     });
   },
 
+  // Synced phone playback on/off for this page (see wsServer.js sendAudio).
+  audioSub(ws, msg) { ws._audio = !!msg.on; },
+  // Clock sync for it: the page measures the round trip and the Pi's clock.
+  clockPing(ws, msg) { if (ws.readyState === 1) ws.send(JSON.stringify({ cmd: 'clockPong', c: msg.c, s: Date.now() })); },
+
   // Setup -> Check for updates / Update now (see selfUpdate.js).
   checkUpdate(ws, msg) {
     this.updater.check().then(() => this._broadcast(this._stateMsg())).catch((err) => console.warn('[update] check failed:', err.message));

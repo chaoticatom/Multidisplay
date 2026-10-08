@@ -430,6 +430,10 @@ class RadioAudio {
     // pipe is still backed up from a previous write (see the 'drain'
     // listener in _launchPlayback()) instead of writing regardless and
     // letting Node's internal buffer grow without bound.
+    // A copy for phones playing along (see wsServer.js sendAudio), stamped
+    // with when the speaker will play it: now plus the speaker delay the bars
+    // already use (Auto sync's measurement, or the slider).
+    if (this.onPcm) { try { this.onPcm(chunk, Date.now() + this._syncS * 1000); } catch (e) { /* never block playback */ } }
     if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && this._playDrained) {
       const out = this._gain < 0.999 ? scalePcm(chunk, this._gain) : chunk;
       try { this._playDrained = this.playProc.stdin.write(out); } catch (e) { /* handled via the stdin 'error' listener */ }

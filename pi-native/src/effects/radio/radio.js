@@ -154,7 +154,7 @@ function pollTitle() {
 }
 
 function keepAlive(opts) {
-  if (opts) { audio.setSyncMs(opts.syncAuto ? 'auto' : opts.syncMs); if (Number.isFinite(Number(opts.volume))) setVolume(opts.volume); }
+  if (opts) { audio.setSyncMs(opts.syncAuto !== false ? 'auto' : opts.syncMs); if (Number.isFinite(Number(opts.volume))) setVolume(opts.volume); }
   audio.ensure(playing && currentStation ? currentStation.url : null);
   pollTitle();
 }
@@ -199,7 +199,7 @@ function effectRadio(core, dt) {
   const scrollSpeed = Number.isFinite(opts.scrollSpeed) ? opts.scrollSpeed : 0;
   if (Number.isFinite(opts.volume)) setVolume(opts.volume);
 
-  audio.setSyncMs(opts.syncAuto ? 'auto' : opts.syncMs);
+  audio.setSyncMs(opts.syncAuto !== false ? 'auto' : opts.syncMs);
   audio.ensure(playing && currentStation ? currentStation.url : null);
 
   for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] = 0;

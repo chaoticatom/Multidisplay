@@ -392,6 +392,25 @@ class WsServer {
     });
   }
 
+  // Synced phone playback: the PCM the Pi is sending to its speaker, for
+  // pages that asked for it (cmd audioSub), stamped with the Pi time the
+  // speaker plays it. Packet: 'MDAUDIO1', float64 time (ms), then 16-bit
+  // stereo at 22050 Hz (every other frame of the 44.1 kHz decode).
+  sendAudio(chunk, playAtMs) {
+    let any = false;
+    for (const c of this._clients) if (c._audio && c.readyState === WebSocket.OPEN) { any = true; break; }
+    if (!any) return;
+    const frames = Math.floor(chunk.length / 4), out = Buffer.allocUnsafe(16 + Math.ceil(frames / 2) * 4);
+    out.write('MDAUDIO1', 0, 'ascii'); out.writeDoubleLE(playAtMs, 8);
+    let o = 16;
+    for (let f = 0; f < frames; f += 2) { chunk.copy(out, o, f * 4, f * 4 + 4); o += 4; }
+    const pkt = out.subarray(0, o);
+    for (const c of this._clients) {
+      // A phone that can't keep up is skipped rather than buffered for ever.
+      if (c._audio && c.readyState === WebSocket.OPEN && c.bufferedAmount < 512 * 1024) c.send(pkt);
+    }
+  }
+
   _handleHttp(req, res) {
     const authCode = (r) => (!isSameOrigin(r) ? 403
       : access.decide({ pinSet: pinConfig.isPinSet(this.pinCfg), remote: access.isRemote(r), access: (this.state.prefs || {}).access }) === 'admin' ? 0

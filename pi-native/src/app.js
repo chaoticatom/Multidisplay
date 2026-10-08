@@ -290,6 +290,7 @@ async function main() {
       console.warn('[radio] speaker had dropped - ' + (r.set ? 'reconnected' : 'could not reconnect (is it switched on?)'));
     } catch (err) { console.warn('[radio] speaker check failed:', err.message); }
   }, 60000).unref();
+  radio.audio.onPcm = (chunk, at) => ws.sendAudio(chunk, at); // phones playing along in sync
   bluetooth.onAudioOutputChanged(() => { if (radio.audio.restartPlayback) radio.audio.restartPlayback(); });
   bluetooth.autoReconnectLastSpeaker().catch((err) => console.warn('[bluetooth] auto-reconnect failed:', err.message));
   // A real report: "it keeps adding devices to my paired device list but

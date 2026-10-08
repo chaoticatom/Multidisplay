@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.275';
+const APP_VERSION = '0.6.276';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -104,7 +104,7 @@ function connect() {
   ws.binaryType = 'arraybuffer';
   ws.onmessage = (ev) => {
     lastMessageMs = Date.now();
-    if (typeof ev.data !== 'string') { handleFrame(ev.data); return; }
+    if (typeof ev.data !== 'string') { if (isAudioPacket(ev.data)) handleSyncAudio(ev.data); else handleFrame(ev.data); return; }
     // One malformed message must not take down the handler for the rest
     // of the session.
     let msg;
@@ -127,6 +127,7 @@ function connect() {
     // than silently lost (the btStatus drop described above was exactly
     // that failure).
     wsReady = false; // flushed once the Pi lets us in - see flushPending()
+    if (syncAudio.on) { send({ cmd: 'audioSub', on: true }); syncAudio.next = 0; } // a new connection: ask for the audio again
     send({ cmd: 'btStatus' });
   };
   // onclose fires after onerror too - a single guarded scheduler means an
@@ -213,6 +214,7 @@ function handleTextMessage(msg) {
   if (msg.cmd === 'systemNotice') { const el = document.getElementById('conn-status'); if (el) { el.dataset.status = 'reconnecting'; el.textContent = msg.text; } return; }
   if (msg.cmd === 'authRequired') { answerAuth(false); return; }
   if (msg.cmd === 'authFailed') { rememberPin(''); answerAuth(true); return; }
+  if (msg.cmd === 'clockPong') { syncClockPong(msg); return; }
   if (msg.cmd === 'authOk') { wsReady = true; flushPending(); return; }
   if (msg.cmd === 'role') {
     document.body.classList.toggle('guest', msg.role === 'guest');
@@ -2427,6 +2429,76 @@ function radioStationRow(station, current) {
 // that's just "the browser renders it", the same way an <img src> from
 // another domain works with no CORS setup on that domain's part.
 // ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
+// Synced phone playback. Playing the station's own stream here started at
+// a different moment from the Pi's and buffered differently, so the phone
+// ran behind the Bluetooth speaker (a real report). Instead the Pi sends
+// the PCM it gives its speaker, each piece stamped with the Pi time the
+// speaker plays it (see src/wsServer.js sendAudio). We keep an estimate of
+// the Pi's clock and schedule each piece for that moment, less this
+// device's own output delay - so phone, speaker and visuals line up.
+// ---------------------------------------------------------------------
+const syncAudio = { on: false, ctx: null, gain: null, next: 0, offset: 0, samples: [], timer: null, late: 0, extra: 0 };
+function isAudioPacket(buf) {
+  if (!(buf instanceof ArrayBuffer) || buf.byteLength < 20) return false;
+  const b = new Uint8Array(buf, 0, 8);
+  return b[0] === 77 && b[1] === 68 && b[2] === 65 && b[3] === 85 && b[4] === 68 && b[5] === 73 && b[6] === 79 && b[7] === 49; // 'MDAUDIO1'
+}
+function syncAudioStart() {
+  try {
+    syncAudio.ctx = syncAudio.ctx || new (window.AudioContext || window.webkitAudioContext)();
+    if (syncAudio.ctx.state === 'suspended') syncAudio.ctx.resume();
+    if (!syncAudio.gain) { syncAudio.gain = syncAudio.ctx.createGain(); syncAudio.gain.connect(syncAudio.ctx.destination); }
+  } catch (e) { return; }
+  syncAudio.on = true; syncAudio.next = 0; syncAudio.samples = []; syncAudio.extra = 0; syncAudio.late = 0;
+  send({ cmd: 'audioSub', on: true });
+  // Clock pings: quickly at first, then every few seconds.
+  let n = 0;
+  clearInterval(syncAudio.timer);
+  syncAudio.timer = setInterval(() => { if (++n > 6 && n % 6) return; send({ cmd: 'clockPing', c: Date.now() }); }, 500);
+}
+function syncAudioStop() {
+  if (!syncAudio.on) return;
+  syncAudio.on = false;
+  clearInterval(syncAudio.timer);
+  send({ cmd: 'audioSub', on: false });
+}
+// The Pi's clock: from the replies with the shortest round trip (the most
+// accurate), over the last dozen.
+function syncClockPong(msg) {
+  const now = Date.now(), rtt = now - msg.c;
+  if (!(rtt >= 0 && rtt < 5000)) return;
+  syncAudio.samples.push({ rtt, offset: msg.s - (msg.c + rtt / 2) });
+  if (syncAudio.samples.length > 12) syncAudio.samples.shift();
+  syncAudio.offset = syncAudio.samples.reduce((a, b) => (b.rtt < a.rtt ? b : a)).offset;
+}
+function handleSyncAudio(buf) {
+  const a = syncAudio;
+  if (!a.on || !a.ctx || !a.samples.length) return;
+  const dv = new DataView(buf), playAt = dv.getFloat64(8, true), frames = (buf.byteLength - 16) >> 2;
+  if (frames < 1) return;
+  const ab = a.ctx.createBuffer(2, frames, 22050), L = ab.getChannelData(0), R = ab.getChannelData(1);
+  for (let i = 0, o = 16; i < frames; i++, o += 4) { L[i] = dv.getInt16(o, true) / 32768; R[i] = dv.getInt16(o + 2, true) / 32768; }
+  // Volume follows the radio's volume (0.8 = full, as on the Pi) and the mute button.
+  const vol = Number(currentState.effectOptions?.radio?.volume ?? 0.8);
+  a.gain.gain.value = Math.max(0, Math.min(1.25, vol / 0.8));
+  const outDelay = (a.ctx.outputLatency || 0) + (a.ctx.baseLatency || 0);
+  const when = a.ctx.currentTime + (playAt - a.offset - Date.now()) / 1000 - outDelay + a.extra;
+  if (when < a.ctx.currentTime + 0.01) {
+    // Arrived too late: skip it and re-lock on the next. If that keeps
+    // happening (a slow connection), add a little delay rather than go silent.
+    a.next = 0;
+    if (++a.late > 4) { a.late = 0; a.extra = Math.min(1, a.extra + 0.05); }
+    return;
+  }
+  a.late = 0;
+  // Back to back with the previous piece when it's close, so there are no clicks.
+  const start = a.next && Math.abs(when - a.next) < 0.04 ? a.next : when;
+  const src = a.ctx.createBufferSource();
+  src.buffer = ab; src.connect(a.gain); src.start(start);
+  a.next = start + ab.duration;
+}
+
 const RADIO_BROWSER_PLAY_KEY = 'multidisplay-radio-browser-play';
 function radioBrowserPlaybackWanted() {
   try { return localStorage.getItem(RADIO_BROWSER_PLAY_KEY) !== '0'; } catch (err) { return true; } // default ON
@@ -2472,6 +2544,7 @@ function radioEnsureGraph() {
 }
 function radioBrowserPlay(station) {
   if (!radioBrowserPlaybackWanted() || !station || !station.url) return;
+  if (!window.MULTIDISPLAY_SIM) { syncAudioStart(); return; } // on the Pi: play the Pi's own audio, in step with the speaker
   const el = document.getElementById('radio-browser-audio');
   if (!el) return;
   radioEnsureGraph();
@@ -2497,6 +2570,7 @@ function radioBrowserPlay(station) {
   if (!_raRunning) { _raRunning = true; _raLastMs = 0; requestAnimationFrame(radioAnalyserTick); }
 }
 function radioBrowserStop() {
+  if (!window.MULTIDISPLAY_SIM) syncAudioStop();
   const el = document.getElementById('radio-browser-audio');
   if (!el) return;
   el.pause();
@@ -2720,9 +2794,25 @@ function wireRadioPanel() {
   });
 }
 
+// Featured stations as a dropdown (a long list of rows was too much); picking
+// one plays it straight away, like tapping a row.
 function renderFeaturedList(el, current) {
-  el.innerHTML = '';
-  RADIO_STATIONS.forEach((s) => el.appendChild(radioStationRow(s, current)));
+  let sel = el.querySelector('select');
+  if (!sel) {
+    sel = document.createElement('select');
+    sel.className = 'tm-select'; sel.style.width = '100%'; sel.setAttribute('aria-label', 'Featured stations');
+    sel.addEventListener('change', () => {
+      const station = RADIO_STATIONS[Number(sel.value)];
+      if (!station) return;
+      send({ cmd: 'radioPlay', station });
+      radioBrowserPlay(station); // in this same tap, so phone audio may start
+    });
+    el.replaceChildren(sel);
+  }
+  const idx = current ? RADIO_STATIONS.findIndex((x) => x.url === current.url) : -1;
+  const pick = document.createElement('option'); pick.value = ''; pick.textContent = '▶ Pick a featured station…';
+  sel.replaceChildren(pick, ...RADIO_STATIONS.map((st, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = (i === idx ? '♪ ' : '') + st.name + (st.genre ? ' - ' + st.genre : ''); return o; }));
+  if (document.activeElement !== sel) sel.value = idx >= 0 ? String(idx) : '';
 }
 
 function renderSearchResults(el, results, current) {
@@ -2798,7 +2888,7 @@ function syncRadioPanel() {
   const gainSlider = panel.querySelector('.au-gain-el'), gainVal = panel.querySelector('.au-gain-val-el');
   if (gainSlider && document.activeElement !== gainSlider) { gainSlider.value = opts.gain ?? 2; if (gainVal) gainVal.textContent = Number(gainSlider.value).toFixed(1) + '×'; }
   const syncSlider = panel.querySelector('.au-sync-el'), syncVal = panel.querySelector('.au-sync-val-el');
-  const syncAutoEl = panel.querySelector('.au-sync-auto-el'), autoOn = !!opts.syncAuto;
+  const syncAutoEl = panel.querySelector('.au-sync-auto-el'), autoOn = opts.syncAuto !== false; // Auto sync is the default
   if (syncAutoEl) syncAutoEl.checked = autoOn;
   if (syncSlider) syncSlider.disabled = autoOn;
   if (autoOn) {
