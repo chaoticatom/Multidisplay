@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.272';
+const APP_VERSION = '0.6.273';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -126,8 +126,7 @@ function connect() {
     // Anything clicked while disconnected is sent now, in order, rather
     // than silently lost (the btStatus drop described above was exactly
     // that failure).
-    const queued = pendingSends.splice(0);
-    for (const m of queued) sock.send(m);
+    wsReady = false; // flushed once the Pi lets us in - see flushPending()
     send({ cmd: 'btStatus' });
   };
   // onclose fires after onerror too - a single guarded scheduler means an
@@ -154,7 +153,7 @@ function scheduleReconnect() {
 // reconnect instead of sitting on a dead socket indefinitely.
 const STALE_MS = 10000;
 setInterval(() => {
-  if (window.MULTIDISPLAY_SIM || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (window.MULTIDISPLAY_SIM || !ws || ws.readyState !== WebSocket.OPEN || !wsReady) return; // nothing streams before the PIN
   if (document.visibilityState === 'visible' && Date.now() - lastMessageMs > STALE_MS) ws.close();
 }, 3000);
 document.addEventListener('visibilitychange', () => {
@@ -165,10 +164,18 @@ document.addEventListener('visibilitychange', () => {
 // reconnect - see ws.onopen.
 const pendingSends = [];
 const MAX_PENDING_SENDS = 50;
+// wsReady: the Pi has let this page in (sent its state, or accepted the
+// PIN). Until then commands wait in the queue - sent earlier, the Pi took
+// each as an un-PINned request and asked for the PIN again.
+let wsReady = false;
+function flushPending() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  for (const m of pendingSends.splice(0)) ws.send(m);
+}
 function send(obj) {
   if (window.MULTIDISPLAY_SIM) { window.__simLoopback.send(obj); return; }
   const data = JSON.stringify(obj);
-  if (ws && ws.readyState === WebSocket.OPEN) { ws.send(data); return; }
+  if (ws && ws.readyState === WebSocket.OPEN && wsReady) { ws.send(data); return; }
   if (pendingSends.length >= MAX_PENDING_SENDS) pendingSends.shift();
   pendingSends.push(data);
 }
@@ -189,11 +196,16 @@ let _lastStateJson = '';
 // when the Pi says one is needed or the stored one is wrong.
 function storedPin() { try { return localStorage.getItem('controlPin') || ''; } catch (e) { return ''; } }
 function rememberPin(p) { try { if (p) localStorage.setItem('controlPin', p); else localStorage.removeItem('controlPin'); } catch (e) { /* storage unavailable */ } }
+let authAsking = false;
 function answerAuth(failed) {
-  let pin = failed ? '' : storedPin();
-  if (!pin) pin = window.prompt(failed ? 'Wrong PIN - enter the control PIN:' : 'This display is PIN-protected. Enter the control PIN:') || '';
-  rememberPin(pin);
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ cmd: 'auth', pin }));
+  if (authAsking) return; // one PIN box at a time
+  authAsking = true;
+  try {
+    let pin = failed ? '' : storedPin();
+    if (!pin) pin = window.prompt(failed ? 'Wrong PIN - enter the control PIN:' : 'This display is PIN-protected. Enter the control PIN:') || '';
+    rememberPin(pin);
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ cmd: 'auth', pin }));
+  } finally { authAsking = false; }
 }
 
 function handleTextMessage(msg) {
@@ -201,7 +213,7 @@ function handleTextMessage(msg) {
   if (msg.cmd === 'systemNotice') { const el = document.getElementById('conn-status'); if (el) { el.dataset.status = 'reconnecting'; el.textContent = msg.text; } return; }
   if (msg.cmd === 'authRequired') { answerAuth(false); return; }
   if (msg.cmd === 'authFailed') { rememberPin(''); answerAuth(true); return; }
-  if (msg.cmd === 'authOk') return;
+  if (msg.cmd === 'authOk') { wsReady = true; flushPending(); return; }
   if (msg.cmd === 'role') {
     document.body.classList.toggle('guest', msg.role === 'guest');
     // A device that already knows the PIN goes straight to full control.
@@ -216,6 +228,7 @@ function handleTextMessage(msg) {
     return;
   }
   if (msg.cmd === 'state' && ws && !ws._pvSent) { ws._pvSent = true; if (cxPreviewOff()) cxApplyPreviewOff(true); }
+  if (msg.cmd === 'state' && !wsReady) { wsReady = true; flushPending(); }
   if (msg.cmd === 'state') {
     // Every command triggers a state broadcast, and each one re-runs ~40
     // panel sync functions (several rebuild whole lists). An identical

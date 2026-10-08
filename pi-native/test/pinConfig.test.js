@@ -38,6 +38,10 @@ test('an unauthenticated socket cannot run commands; the right PIN admits it', (
   const handle = (m) => WsServer.prototype._handleMessage.call(server, ws, Buffer.from(JSON.stringify(m)), false);
   handle({ cmd: 'setBrightness', value: 0.2 });
   assert.strictEqual(server.state.brightness, 1, 'command must be ignored before auth');
+  // A real report: the page had to enter the PIN several times - every
+  // early command was answered with another authRequired, and each one
+  // opened another PIN box. The Pi now asks once, on connect.
+  assert.ok(!sent.some((m) => m.cmd === 'authRequired'), 'no second PIN request for an early command');
   handle({ cmd: 'auth', pin: '4821' });
   assert.ok(server._clients.has(ws));
   assert.ok(sent.some((m) => m.cmd === 'state'));

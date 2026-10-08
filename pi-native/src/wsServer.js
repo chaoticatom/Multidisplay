@@ -841,7 +841,10 @@ class WsServer {
   // accepted. Five wrong tries close the connection, and each failure is
   // answered after a short delay, to make guessing slow.
   _handleAuth(ws, msg) {
-    if (!msg || msg.cmd !== 'auth') { ws.send(JSON.stringify({ cmd: 'authRequired' })); return; }
+    // Anything else before the PIN is ignored: the page asks once on connect.
+    // Answering every early message with authRequired made the page ask for
+    // the PIN several times in a row (a real report).
+    if (!msg || msg.cmd !== 'auth') return;
     if (pinConfig.verifyPin(this.pinCfg, msg.pin)) {
       ws.role = 'admin';
       this._clients.add(ws);
