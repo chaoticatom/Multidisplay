@@ -2007,37 +2007,13 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
           <button class="au-ver-btn" data-auver="1">v1 classic</button>
         </div>
         <div id="au-v2-row">
-          <div class="ov-row-label">Scene (v2, flat panel / wall)</div>
-          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-            <button class="au-scene-btn active" data-auscene="auto">🔁 Auto</button>
-            <button class="au-scene-btn" data-auscene="city">🌃 City</button>
-            <button class="au-scene-btn" data-auscene="blocks">🧊 Blocks</button>
-            <button class="au-scene-btn" data-auscene="tubes">🧪 Tubes</button>
-            <button class="au-scene-btn" data-auscene="planet">🪐 Planet</button>
-            <button class="au-scene-btn" data-auscene="ocean">🌊 Ocean</button>
-            <button class="au-scene-btn" data-auscene="fireworks">🎆 Fireworks</button>
-            <button class="au-scene-btn" data-auscene="monitor">💓 Monitor</button>
-          </div>
+          <div class="ov-row-label">Scene</div>
+          <select id="au-scene-sel" class="tm-select" aria-label="Spectrum scene" style="width:100%;margin-bottom:8px;"><option value="auto">🔁 Auto - all scenes in turn</option><option value="city">🌃 City</option><option value="blocks">🧊 Blocks</option><option value="tubes">🧪 Tubes</option><option value="planet">🪐 Planet</option><option value="ocean">🌊 Ocean</option><option value="fireworks">🎆 Fireworks</option><option value="monitor">💓 Monitor</option><option value="sand">⏳ Sand</option><option value="trampoline">🤸 Trampoline</option><option value="garden">🌷 Garden</option></select>
         </div>
-        <div class="ov-row-label">Style (v1)</div>
-        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-          <button class="au-style-btn active" data-austyle="glow">✨ Glow</button>
-          <button class="au-style-btn" data-austyle="bars">Classic bars</button>
-          <button class="au-style-btn" data-austyle="mirror">Mirror</button>
-          <button class="au-style-btn" data-austyle="dots">Dots</button>
-          <button class="au-style-btn" data-austyle="blocks">Blocks</button>
-          <button class="au-style-btn" data-austyle="outline">Outline</button>
-          <button class="au-style-btn" data-austyle="radial">Radial</button>
-          <button class="au-style-btn" data-austyle="vu">VU</button>
-          <button class="au-style-btn" data-austyle="waterfall">Waterfall</button>
-          <button class="au-style-btn" data-austyle="waveform">Waveform</button>
-          <button class="au-style-btn" data-austyle="tunnel">Tunnel</button>
-          <button class="au-style-btn" data-austyle="storm">Storm</button>
-          <button class="au-style-btn" data-austyle="plasma">Plasma</button>
-          <button class="au-style-btn" data-austyle="rings">Rings</button>
-          <button class="au-style-btn" data-austyle="fire">Fire</button>
-        </div>
-        <div class="ov-row-label">Colour Theme (v1)</div>
+        <div id="au-v1-row">
+        <div class="ov-row-label">Style</div>
+        <select id="au-style-sel" class="tm-select" aria-label="Spectrum style" style="width:100%;margin-bottom:8px;"><option value="glow">✨ Glow</option><option value="bars">Classic bars</option><option value="mirror">Mirror</option><option value="dots">Dots</option><option value="blocks">Blocks</option><option value="outline">Outline</option><option value="radial">Radial</option><option value="vu">VU</option><option value="waterfall">Waterfall</option><option value="waveform">Waveform</option><option value="tunnel">Tunnel</option><option value="storm">Storm</option><option value="plasma">Plasma</option><option value="rings">Rings</option><option value="fire">Fire</option></select>
+        <div class="ov-row-label">Colour Theme</div>
         <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
           <button class="au-theme-btn" data-autheme="0">Rainbow</button>
           <button class="au-theme-btn" data-autheme="1">Fire</button>
@@ -2046,6 +2022,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
           <button class="au-theme-btn" data-autheme="4">Matrix</button>
           <button class="au-theme-btn active" data-autheme="5">Pastel</button>
           <button class="au-theme-btn" data-autheme="6">VU Meter</button>
+        </div>
         </div>
         <div class="ov-row-label">Bar Mode</div>
         <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
@@ -2602,6 +2579,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.274"></script>
+<script src="app.js?v=0.6.275"></script>
 </body>
 </html>

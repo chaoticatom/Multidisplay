@@ -14,6 +14,12 @@
 //   fireworks - rockets launch on the beats and burst in each band's colour
 //   monitor - a heart monitor: a glowing trace that spikes on every beat,
 //             with the beats per minute
+//   sand    - each band pours coloured sand; the music draws dunes that
+//             slowly drain away
+//   trampoline - balls bounce on the spectrum line; a band that jumps
+//             flings the balls above it
+//   garden  - a flower per band: stems grow with it, heads bloom on the
+//             loud parts and drop petals on the peaks
 //   auto    - moves through them, about 25 s each
 // Crisp shapes on black, shaded faces, no trails. The bottom 9 rows are
 // kept clear for the now-playing ticker. Reads the shared display levels
@@ -24,7 +30,7 @@
 
 const { hsl } = require('../../core');
 
-const SCENES = ['city', 'blocks', 'tubes', 'planet', 'ocean', 'fireworks', 'monitor'];
+const SCENES = ['city', 'blocks', 'tubes', 'planet', 'ocean', 'fireworks', 'monitor', 'sand', 'trampoline', 'garden'];
 const { FONT_3x5, drawString } = require('../text');
 const AUTO_SECS = 25;
 const TICKER_ROWS = 9;
@@ -261,61 +267,181 @@ function sceneFireworks(core, ctx, st, W, H, t, dt) {
 }
 
 // ── Monitor ─────────────────────────────────────────────────────────────
-// The shape of one heartbeat on the trace (P wave, QRS spike, T wave).
+// A patient monitor with three traces, like the real thing:
+//   green  - heart: a spike on every beat, the music's own wave in between
+//   cyan   - pulse: a smooth wave that swells with the bass
+//   yellow - breathing: a slower wave following the treble and loudness
+// Each sweeps left to right, bright at the cursor and fading behind it.
 const BEAT_SHAPE = [0, -1, -1.5, -1, 0, 0, 1, -9, 5, 0, 0, -1, -2, -2, -1, 0];
 function sceneMonitor(core, ctx, st, W, H, t, dt) {
-  const area = H - TICKER_ROWS, au = core.audio || {}, base = Math.round(area * 0.62), lv = levels(ctx, st, 8, dt);
-  if (!st.ecg || st.ecg.trace.length !== W) st.ecg = { trace: new Float32Array(W), age: new Float32Array(W).fill(99), x: 0, acc: 0, beat: -1, beats: [], latch: false, lastBeat: 0 };
-  const e = st.ecg, level = lv.reduce((a, b) => a + b, 0) / 8;
-  // Grid.
-  for (let y = 0; y < area; y++) for (let x = 0; x < W; x++) if (x % 8 === 0 || y % 8 === 0) put(core, x, y, [0, 0.35, 0.18], 0.4);
-  // A beat starts a spike; with no beats detected, a steady pulse while music plays.
-  const now = t;
-  if (((au.beat || 0) > 0.8 && !e.latch) || (now - e.lastBeat > 1.2 && level > 0.15 && !(au.beat > 0))) {
-    e.latch = true; e.beat = 0; e.lastBeat = now; e.beats.push(now);
+  const area = H - TICKER_ROWS, au = core.audio || {}, lv = levels(ctx, st, 8, dt);
+  const level = lv.reduce((a, b) => a + b, 0) / 8, bass = (lv[0] + lv[1]) / 2, treble = (lv[5] + lv[6] + lv[7]) / 3;
+  const lane = area / 3, labelW = W >= 96 ? 30 : 0, plotW = W - labelW;
+  if (!st.ecg || st.ecg.w !== plotW) {
+    st.ecg = { w: plotW, ch: [0, 1, 2].map(() => ({ v: new Float32Array(plotW), age: new Float32Array(plotW).fill(99) })), x: 0, acc: 0, beat: -1, beats: [], latch: false, lastBeat: -9, ph1: 0, ph2: 0, wi: 0 };
+  }
+  const e = st.ecg;
+  for (let y = 0; y < area; y++) for (let x = 0; x < plotW; x++) if (x % 8 === 0 || y % 8 === 0) put(core, x, y, [0, 0.35, 0.18], 0.35);
+  // Beats: a detected kick, or a steady pulse when nothing is detected.
+  if (((au.beat || 0) > 0.8 && !e.latch) || (t - e.lastBeat > 0.9 && level > 0.12 && !((au.beat || 0) > 0.05))) {
+    e.latch = true; e.beat = 0; e.lastBeat = t; e.beats.push(t);
   }
   if ((au.beat || 0) < 0.5) e.latch = false;
-  e.beats = e.beats.filter((b) => now - b < 10);
-  // Sweep: write the trace at the cursor, about four seconds per screen width (min 64 px/s).
-  e.acc += dt * Math.max(64, W / 4);
+  e.beats = e.beats.filter((b) => t - b < 10);
+  const wave = ctx.wave && ctx.wave.length ? ctx.wave : null;
+  e.acc += dt * Math.max(48, plotW / 3);
   while (e.acc >= 1) {
     e.acc -= 1;
-    let v = (hash(e.x, Math.floor(now * 20)) - 0.5) * level * 1.2;
-    if (e.beat >= 0) { v += BEAT_SHAPE[e.beat] * (0.6 + level * 0.8) * (area / 55); e.beat++; if (e.beat >= BEAT_SHAPE.length) e.beat = -1; }
-    e.trace[e.x] = v; e.age[e.x] = 0;
-    e.x = (e.x + 1) % W;
+    // Heart: the sound wave (or a little noise) plus the beat shape.
+    let h = wave ? wave[(e.wi = (e.wi + 7) % wave.length)] * lane * 0.25 * (0.4 + level) : (hash(e.x, Math.floor(t * 30)) - 0.5) * lane * 0.1 * level;
+    if (e.beat >= 0) { h += BEAT_SHAPE[e.beat] * lane * 0.05 * (0.7 + level); e.beat++; if (e.beat >= BEAT_SHAPE.length) e.beat = -1; }
+    e.ph1 += 0.11 + bass * 0.12; e.ph2 += 0.035 + treble * 0.05;
+    const pulse = -(Math.max(0, Math.sin(e.ph1)) ** 2) * lane * (0.15 + bass * 0.55);
+    const breath = -Math.sin(e.ph2) * lane * (0.1 + (treble * 0.5 + level * 0.3) * 0.6);
+    [h, pulse, breath].forEach((v, i) => { e.ch[i].v[e.x] = v; e.ch[i].age[e.x] = 0; });
+    e.x = (e.x + 1) % plotW;
   }
-  for (let x = 0; x < W; x++) e.age[x] += dt;
-  // Trace: bright at the cursor, fading behind it; a gap just ahead.
-  let prev = null;
-  for (let k = W - 1; k >= 0; k--) {
-    const x = (e.x - 1 - k + W * 2) % W, age = e.age[x];
-    if (age > 3.8) { prev = null; continue; }
-    const y = base + e.trace[x], b = Math.max(0, 1 - age / 4);
-    if (prev !== null && Math.abs(prev - y) > 1) { const lo = Math.min(prev, y), hi = Math.max(prev, y); for (let yy = Math.round(lo); yy <= Math.round(hi); yy++) put(core, x, yy, [0.3, 1, 0.5], b); }
-    put(core, x, y, [0.45, 1, 0.6], b);
-    prev = y;
-  }
-  put(core, e.x, base + e.trace[(e.x - 1 + W) % W], [1, 1, 1], 1); // the bright head
-  // Beats per minute, top right.
+  const colours = [[0.45, 1, 0.6], [0.35, 0.85, 1], [1, 0.85, 0.3]];
+  const bases = [lane * 0.62, lane * 1.75, lane * 2.55];
+  e.ch.forEach((c, i) => {
+    let prev = null;
+    for (let k = plotW - 1; k >= 0; k--) {
+      const x = (e.x - 1 - k + plotW * 2) % plotW;
+      const age = c.age[x];
+      if (age > 2.8) { prev = null; continue; }
+      const y = bases[i] + c.v[x], b = Math.max(0.45, 1 - age / 5);
+      if (prev !== null && Math.abs(prev - y) > 1) { const lo = Math.min(prev, y), hi = Math.max(prev, y); for (let yy = Math.round(lo); yy <= Math.round(hi); yy++) put(core, x, yy, colours[i], b); }
+      put(core, x, y, colours[i], b);
+      prev = y;
+    }
+    for (let x = 0; x < plotW; x++) c.age[x] += dt;
+    put(core, e.x, bases[i] + c.v[(e.x - 1 + plotW) % plotW], [1, 1, 1], 1);
+  });
+  // Readouts: on a wide wall in a column on the right, on one panel tucked in the corners.
   const bpm = e.beats.length > 1 ? Math.round((e.beats.length - 1) / (e.beats[e.beats.length - 1] - e.beats[0]) * 60) : 0;
-  const label = (bpm ? bpm : '--') + ' BPM';
-  drawString(FONT_3x5, label, W - label.length * 4 - 2, 2, (x, y) => put(core, x, y, [0.45, 1, 0.6], 0.9));
-  if (e.beat >= 0 && e.beat < 6) put(core, W - label.length * 4 - 6, 4, [1, 0.2, 0.2], 1); // heart blink
+  const vals = [(bpm || '--') + '', Math.round(bass * 99) + '', Math.round(treble * 99) + ''], names = ['HR', 'BASS', 'TREB'];
+  vals.forEach((v, i) => {
+    const y = Math.round(bases[i] - lane * 0.45);
+    const plot = (x, yy) => put(core, x, yy, colours[i], 0.95);
+    if (labelW) { drawString(FONT_3x5, names[i], plotW + 3, y, (x, yy) => put(core, x, yy, colours[i], 0.55)); drawString(FONT_3x5, v, plotW + 3, y + 7, plot); }
+    else drawString(FONT_3x5, v, W - v.length * 4 - 1, Math.max(0, y), plot);
+  });
+  if (e.beat >= 0 && e.beat < 6) put(core, labelW ? W - 3 : 1, Math.round(bases[0] - lane * 0.45) + 1, [1, 0.2, 0.2], 1); // heart blink
+}
+
+// ── Sand ────────────────────────────────────────────────────────────────
+function sceneSand(core, ctx, st, W, H, t, dt) {
+  const area = H - TICKER_ROWS, n = Math.max(8, Math.round(W / 8)), lv = levels(ctx, st, n, dt);
+  if (!st.sand || st.sand.w !== W) st.sand = { w: W, g: new Float32Array(W * area), seed: 3 };
+  const sd = st.sand, g = sd.g, rnd = () => { sd.seed = (sd.seed * 16807) % 2147483647; return sd.seed / 2147483647; };
+  // Pour: each band drops grains over its stretch of the wall, more when loud.
+  for (let i = 0; i < n; i++) {
+    const count = lv[i] * lv[i] * 3 * dt * 30;
+    for (let k = 0; k < count; k++) if (rnd() < count - k) {
+      const x = Math.floor((i + rnd()) / n * W);
+      if (!g[x]) g[x] = 1 + ((0.62 - (i / (n - 1)) * 0.62 + (rnd() - 0.5) * 0.04 + 1) % 1);
+    }
+  }
+  // Fall: straight down, else slide diagonally (bottom-up so each grain moves once).
+  for (let y = area - 2; y >= 0; y--) {
+    const dir = (Math.floor(t * 60) + y) & 1 ? 1 : -1;
+    for (let xi = 0; xi < W; xi++) {
+      const x = dir > 0 ? xi : W - 1 - xi, i = y * W + x, v = g[i]; if (!v) continue;
+      const below = i + W;
+      if (!g[below]) { g[below] = v; g[i] = 0; continue; }
+      const a = x + dir, b = x - dir;
+      if (a >= 0 && a < W && !g[below + dir]) { g[below + dir] = v; g[i] = 0; }
+      else if (b >= 0 && b < W && !g[below - dir]) { g[below - dir] = v; g[i] = 0; }
+    }
+  }
+  // Drain: the bottom row slowly empties, faster as the pile grows.
+  let filled = 0; for (let i = 0; i < g.length; i++) if (g[i]) filled++;
+  const drain = 0.02 + (filled / g.length) * 0.7;
+  for (let x = 0; x < W; x++) if (rnd() < drain) g[(area - 1) * W + x] = 0;
+  for (let y = 0; y < area; y++) for (let x = 0; x < W; x++) {
+    const v = g[y * W + x]; if (!v) continue;
+    put(core, x, y, hsl(v - 1, 0.75, 0.42 + 0.12 * hash(x, y)));
+  }
+}
+
+// ── Trampoline ──────────────────────────────────────────────────────────
+function sceneTrampoline(core, ctx, st, W, H, t, dt) {
+  const area = H - TICKER_ROWS, floor = area - 2, maxH = area * 0.6, lv = levels(ctx, st, Math.max(16, Math.round(W / 4)), dt), n = lv.length;
+  const curve = (x) => floor - ampAt(lv, n, x / (W - 1)) * maxH;
+  if (!st.tramp || st.tramp.w !== W) {
+    const balls = [];
+    for (let k = 0; k < Math.max(5, Math.round(W / 14)); k++) balls.push({ x: (k + 0.5) / Math.max(5, Math.round(W / 14)) * W, y: area * 0.3, vx: (hash(k, 1) - 0.5) * 20, vy: 0, hue: hash(k, 2) });
+    st.tramp = { w: W, balls, prev: new Float32Array(W) };
+    for (let x = 0; x < W; x++) st.tramp.prev[x] = curve(x);
+  }
+  const tr = st.tramp;
+  // The line: a soft gradient under it, a bright edge on top.
+  for (let x = 0; x < W; x++) {
+    const y = curve(x), c = hsl(0.62 - (x / (W - 1)) * 0.62, 0.9, 0.55);
+    for (let yy = Math.ceil(y) + 1; yy <= floor; yy++) put(core, x, yy, c, 0.12 * (1 - (yy - y) / (floor - y + 1)));
+    put(core, x, y, c, 1);
+  }
+  for (const b of tr.balls) {
+    b.vy += area * 2.2 * dt; b.x += b.vx * dt; b.y += b.vy * dt;
+    if (b.x < 1) { b.x = 1; b.vx = Math.abs(b.vx); } if (b.x > W - 2) { b.x = W - 2; b.vx = -Math.abs(b.vx); }
+    const xi = Math.max(0, Math.min(W - 1, Math.round(b.x))), cy = curve(xi);
+    if (b.y >= cy - 1.5) {
+      const rise = Math.max(0, (tr.prev[xi] - cy) / Math.max(dt, 1e-3)); // the line moving up kicks the ball
+      b.y = cy - 1.5;
+      b.vy = -Math.max(Math.abs(b.vy) * 0.72, area * 0.6) - rise * 0.9;
+      const slope = curve(Math.min(W - 1, xi + 2)) - curve(Math.max(0, xi - 2));
+      b.vx = Math.max(-60, Math.min(60, b.vx - slope * 3));
+    }
+    if (b.y < 1) { b.y = 1; b.vy = Math.abs(b.vy) * 0.5; }
+    const c = hsl(b.hue, 0.8, 0.6);
+    for (let yy = -1; yy <= 1; yy++) for (let xx = -1; xx <= 1; xx++) put(core, b.x + xx, b.y + yy, c, xx && yy ? 0.45 : 1);
+    put(core, b.x - 0.5, b.y - 0.7, [1, 1, 1], 0.8); // highlight
+  }
+  for (let x = 0; x < W; x++) tr.prev[x] = curve(x);
+}
+
+// ── Garden ──────────────────────────────────────────────────────────────
+function sceneGarden(core, ctx, st, W, H, t, dt) {
+  const area = H - TICKER_ROWS, ground = area - 3, n = Math.max(6, Math.round(W / 9)), lv = levels(ctx, st, n, dt);
+  if (!st.garden || st.garden.n !== n) st.garden = { n, petals: [], seed: 11 };
+  const gd = st.garden, rnd = () => { gd.seed = (gd.seed * 16807) % 2147483647; return gd.seed / 2147483647; };
+  for (let y = 0; y < ground; y++) { const c = mix([0.01, 0.02, 0.07], [0.05, 0.03, 0.12], y / ground); for (let x = 0; x < W; x++) put(core, x, y, c); }
+  for (let y = ground; y < area; y++) for (let x = 0; x < W; x++) put(core, x, y, [0.05, 0.22 - (y - ground) * 0.04, 0.06]);
+  for (let i = 0; i < n; i++) {
+    const a = lv[i], x = Math.round((i + 0.5) / n * W) + Math.round(Math.sin(t * 0.8 + i) * 0.6);
+    const h = Math.round(4 + a * (ground - 10)), top = ground - h, hue = (0.95 + hash(i, 4) * 0.35) % 1;
+    for (let y = ground - 1; y > top; y--) put(core, x + Math.round(Math.sin((ground - y) * 0.25 + t + i) * 0.4), y, [0.15, 0.6, 0.18], 0.9);
+    if (h > 8) { put(core, x - 1, ground - Math.round(h * 0.4), [0.2, 0.7, 0.2], 0.9); put(core, x + 1, ground - Math.round(h * 0.6), [0.2, 0.7, 0.2], 0.9); }
+    // Head: petals open wider when the band is loud.
+    const r = 1.5 + a * 2.8, pc = hsl(hue, 0.85, 0.55 + 0.15 * a);
+    for (let k = 0; k < 8; k++) { const an = (k / 8) * Math.PI * 2 + t * 0.3; put(core, x + Math.cos(an) * r, top + Math.sin(an) * r, pc); }
+    put(core, x, top, [1, 0.85, 0.2]);
+    if (a > 0.7 && rnd() < dt * 4) gd.petals.push({ x, y: top, vx: (rnd() - 0.3) * 8, hue, life: 3 });
+  }
+  if (gd.petals.length > 200) gd.petals.splice(0, gd.petals.length - 200);
+  for (let i = gd.petals.length - 1; i >= 0; i--) {
+    const p = gd.petals[i];
+    p.life -= dt; p.y += 6 * dt; p.x += (p.vx + Math.sin(t * 2 + i) * 4) * dt;
+    if (p.life <= 0 || p.y >= ground) { gd.petals.splice(i, 1); continue; }
+    put(core, p.x, p.y, hsl(p.hue, 0.8, 0.6), Math.min(1, p.life));
+  }
 }
 
 function renderSpectrumV2Wall(core, ctx, scene, st) {
   const W = core.wallW, H = core.wallH, dt = ctx.dt || 1 / 30, t = ctx.t;
   let name = SCENES.includes(scene) ? scene : 'auto';
   if (name === 'auto') { st.sceneT += dt; name = SCENES[Math.floor(st.sceneT / AUTO_SECS) % SCENES.length]; }
-  if (st.last !== name) { st.last = name; st.hist = []; st.smooth = null; st.fw = null; st.ecg = null; }
+  if (st.last !== name) { st.last = name; st.hist = []; st.smooth = null; st.fw = null; st.ecg = null; st.sand = null; st.tramp = null; st.garden = null; }
   if (name === 'city') sceneCity(core, ctx, st, W, H, t, dt);
   else if (name === 'blocks') sceneBlocks(core, ctx, st, W, H, t, dt);
   else if (name === 'tubes') sceneTubes(core, ctx, st, W, H, t, dt);
   else if (name === 'planet') scenePlanet(core, ctx, st, W, H, t, dt);
   else if (name === 'ocean') sceneOcean(core, ctx, st, W, H, t, dt);
   else if (name === 'fireworks') sceneFireworks(core, ctx, st, W, H, t, dt);
-  else sceneMonitor(core, ctx, st, W, H, t, dt);
+  else if (name === 'monitor') sceneMonitor(core, ctx, st, W, H, t, dt);
+  else if (name === 'sand') sceneSand(core, ctx, st, W, H, t, dt);
+  else if (name === 'trampoline') sceneTrampoline(core, ctx, st, W, H, t, dt);
+  else sceneGarden(core, ctx, st, W, H, t, dt);
 }
 
 module.exports = { renderSpectrumV2Wall, createV2State, SCENES };
