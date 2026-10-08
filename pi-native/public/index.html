@@ -2070,6 +2070,9 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div style="font-size:11px;color:#9ab;margin-bottom:4px;">Paired devices</div>
       <div class="bt-paired-status-el" style="font-size:11px;color:#9aa3b8;margin-bottom:4px;">Not checked yet</div>
       <div class="bt-paired-list-el" style="max-height:120px;overflow-y:auto;margin-bottom:10px;"></div>
+      <div class="ov-row-label" title="Long range sends less data, so the speaker drops out less at a distance (slightly lower sound quality)">Range</div>
+      <div class="tm-chips" id="bt-range" style="margin-bottom:4px;"><button type="button" data-range="normal" class="on">🎵 Normal - best sound</button><button type="button" data-range="long">📶 Long range - fewer dropouts</button></div>
+      <div class="ui-note" id="bt-range-note" style="margin:0 0 10px;"></div>
       <div style="display:flex;gap:6px;margin-bottom:6px;">
         <button class="bt-scan-btn-el" style="flex:1;padding:6px 10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Scan for Speakers</button>
         <button class="bt-refresh-btn-el" style="flex:0 0 auto;padding:6px 10px;background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.4);color:#ccc;border-radius:4px;cursor:pointer;font-size:11px;">↻</button>
@@ -2570,6 +2573,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.280"></script>
+<script src="app.js?v=0.6.281"></script>
 </body>
 </html>

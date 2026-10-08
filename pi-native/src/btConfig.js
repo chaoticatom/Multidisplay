@@ -21,16 +21,17 @@ function load() {
   try {
     const raw = readSectionJson('bluetooth', CONFIG_PATH);
     const parsed = JSON.parse(raw);
-    return { lastSpeakerMac: isValidMac(parsed.lastSpeakerMac) ? parsed.lastSpeakerMac : null };
+    return { lastSpeakerMac: isValidMac(parsed.lastSpeakerMac) ? parsed.lastSpeakerMac : null, range: parsed.range === 'long' ? 'long' : 'normal' };
   } catch (err) {
     // Missing file (first run) or corrupt content - fall back to defaults
     // rather than crashing the app over a config file.
-    return { lastSpeakerMac: null };
+    return { lastSpeakerMac: null, range: 'normal' };
   }
 }
 
+// Merges, so saving the speaker doesn't drop the range setting and vice versa.
 function save(config) {
-  writeSection('bluetooth', config);
+  writeSection('bluetooth', { ...load(), ...config });
 }
 
 module.exports = { load, save, isValidMac, CONFIG_PATH };

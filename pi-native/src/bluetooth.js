@@ -227,6 +227,7 @@ async function setAsAudioOutput(mac, waitMs = 0) {
   // selection came from pairDevice(), the manual "Set as Output" button,
   // or a future auto-reconnect.
   btConfig.save({ lastSpeakerMac: mac });
+  if (btConfig.load().range === 'long') setRange('long', { save: false }).catch((e) => console.warn('[bluetooth] range:', e.message)); // keep Long range after a reconnect
   for (const cb of outputChangedListeners) { try { cb(mac); } catch (e) { console.warn('[bluetooth] output-changed listener failed:', e.message); } }
   return { set: true, log: sinksOut + '\n' + setOut };
 }
@@ -502,8 +503,56 @@ async function useOutput(target) {
   return setAsAudioOutput(target, 800);
 }
 
+// Range (Setup > Bluetooth): the codec the speaker is driven with. The
+// sound server offers one card profile per codec (a2dp-sink-sbc,
+// a2dp-sink-aac, ...). Long range picks plain SBC - the least data per
+// second, so the link survives a weak signal better (fewer dropouts at a
+// distance, a little less sound quality); normal picks the best codec the
+// speaker has. Older PulseAudio has a single a2dp profile, so there's
+// nothing to choose there.
+const NORMAL_ORDER = ['a2dp-sink-ldac', 'a2dp-sink-aptx_hd', 'a2dp-sink-aptx', 'a2dp-sink-aac', 'a2dp-sink-sbc_xq', 'a2dp-sink', 'a2dp-sink-sbc'];
+const LONG_ORDER = ['a2dp-sink-sbc', 'a2dp-sink', 'a2dp_sink'];
+function parseBtCards(text) {
+  const cards = [];
+  let card = null, inProfiles = false;
+  for (const line of String(text || '').split('\n')) {
+    let m;
+    if (/^Card #/.test(line)) { card = null; inProfiles = false; continue; }
+    if ((m = /^\s+Name: (bluez_card\.\S+)/.exec(line))) { card = { name: m[1], profiles: [], active: '' }; cards.push(card); continue; }
+    if (!card) continue;
+    if (/^\s+Profiles:/.test(line)) { inProfiles = true; continue; }
+    if ((m = /^\s+Active Profile: (\S+)/.exec(line))) { card.active = m[1]; inProfiles = false; continue; }
+    if (inProfiles && (m = /^\s+([\w.-]+): .*available: (\w+)/.exec(line))) card.profiles.push({ name: m[1], available: m[2] !== 'no' });
+    else if (inProfiles && /^\s\S/.test(line)) inProfiles = false;
+  }
+  return cards;
+}
+function pickProfile(profiles, mode) {
+  const have = new Set(profiles.filter((p) => p.available).map((p) => p.name));
+  return (mode === 'long' ? LONG_ORDER : NORMAL_ORDER).find((n) => have.has(n)) || null;
+}
+async function setRange(mode, { save = true } = {}) {
+  mode = mode === 'long' ? 'long' : 'normal';
+  if (save) btConfig.save({ range: mode });
+  const out = await run('pactl', ['list', 'cards']);
+  const cards = parseBtCards(out);
+  if (!cards.length) return { set: false, range: mode, log: 'No Bluetooth speaker connected - the setting is saved and used when it connects.' };
+  const log = [];
+  let changed = false;
+  for (const card of cards) {
+    const want = pickProfile(card.profiles, mode);
+    if (!want) { log.push(card.name + ': no choice of codec on this system'); continue; }
+    if (want === card.active) { log.push(card.name + ': already ' + want); continue; }
+    log.push(await run('pactl', ['set-card-profile', card.name, want]));
+    changed = true;
+  }
+  // The speaker's output was rebuilt: move the radio's playback onto it.
+  if (changed) for (const cb of outputChangedListeners) { try { cb(null); } catch (e) { console.warn('[bluetooth] output-changed listener failed:', e.message); } }
+  return { set: true, range: mode, log: log.join('\n') };
+}
+
 module.exports = {
-  onAudioOutputChanged, useOutput,
+  onAudioOutputChanged, useOutput, setRange, parseBtCards, pickProfile,
   MAC_RE, parseDeviceLines, scanDevices, pairDevice, listPaired, makeDiscoverable, routePhoneAudio,
   setAsAudioOutput, autoReconnectLastSpeaker, forgetDevice, resetPairability,
 };

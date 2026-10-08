@@ -507,7 +507,12 @@ const COMMANDS = {
   btStatus(ws, msg) {
     // lastSpeakerMac: the speaker the music should be on, so the Music tab
     // can warn when it has dropped (see app.js renderSpeakerWarning).
-    this._replyBt(ws, 'btStatusResult', async () => ({ devices: await bluetooth.listPaired(), lastSpeakerMac: btConfig.load().lastSpeakerMac }));
+    this._replyBt(ws, 'btStatusResult', async () => ({ devices: await bluetooth.listPaired(), lastSpeakerMac: btConfig.load().lastSpeakerMac, range: btConfig.load().range }));
+  },
+
+  // Setup > Bluetooth > Range: normal (best sound) or long (steadier at a distance).
+  btSetRange(ws, msg) {
+    this._replyBt(ws, 'btRangeResult', () => bluetooth.setRange(msg.range));
   },
 
   // Music tab -> Reconnect: connect the usual speaker again and make it the output.

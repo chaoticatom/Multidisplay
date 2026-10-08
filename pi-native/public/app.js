@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.280';
+const APP_VERSION = '0.6.281';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -3238,6 +3238,14 @@ function renderDrawGallery(list) {
 }
 
 // 💌 Message: a note that drops onto the display (see src/effects/notice.js).
+// Setup > Bluetooth > Range (see src/bluetooth.js setRange).
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('#bt-range button'); if (!b) return;
+  document.querySelectorAll('#bt-range button').forEach((x) => x.classList.toggle('on', x === b));
+  const note = document.getElementById('bt-range-note'); if (note) note.textContent = 'Switching…';
+  send({ cmd: 'btSetRange', range: b.dataset.range });
+});
+
 function wireNote() {
   const modal = document.getElementById('note-modal'); if (!modal) return;
   const text = document.getElementById('note-text');
@@ -4028,7 +4036,12 @@ function handleBtResult(msg) {
     const b = document.getElementById('spk-reconnect-btn'); if (b) { b.disabled = false; b.textContent = 'Reconnect'; }
     cxToast(msg.set ? '🔊 Speaker connected' : '⚠ Could not connect the speaker - is it switched on?');
     send({ cmd: 'btStatus' });
+  } else if (msg.cmd === 'btRangeResult') {
+    const note = document.getElementById('bt-range-note');
+    if (note) note.textContent = msg.ok === false ? '⚠ ' + (msg.error || 'Could not change it') : msg.set ? (msg.range === 'long' ? '📶 Long range on.' : '🎵 Normal - best sound.') : (msg.log || '');
+    if (/no choice of codec/.test(msg.log || '') && note) note.textContent = 'Saved - but this speaker or Pi offers only one codec, so there is nothing to switch.';
   } else if (msg.cmd === 'btStatusResult') {
+    document.querySelectorAll('#bt-range button').forEach((b) => b.classList.toggle('on', b.dataset.range === (msg.range || 'normal')));
     renderSpeakerWarning(msg.devices, msg.lastSpeakerMac);
     btPairedCache = msg.devices || []; // also the timer editor's sound-output list
     renderBtPairedList(msg.devices, pairedStatusEl, pairedListEl);
