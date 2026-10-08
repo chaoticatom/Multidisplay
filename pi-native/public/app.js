@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.278';
+const APP_VERSION = '0.6.279';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2755,14 +2755,14 @@ function wireRadioPanel() {
       setEffectOption('radio', 'bands', Number(btn.dataset.bands));
     });
   });
-  panel.querySelector('#au-style-sel')?.addEventListener('change', (e) => setEffectOption('radio', 'style', e.target.value));
-  panel.querySelectorAll('.au-ver-btn[data-auver]').forEach((btn) => btn.addEventListener('click', () => {
-    panel.querySelectorAll('.au-ver-btn').forEach((b) => b.classList.toggle('active', b === btn));
-    document.getElementById('au-v2-row').hidden = btn.dataset.auver !== '2';
-    document.getElementById('au-v1-row').hidden = btn.dataset.auver === '2';
-    setEffectOption('radio', 'version', Number(btn.dataset.auver));
-  }));
-  panel.querySelector('#au-scene-sel')?.addEventListener('change', (e) => setEffectOption('radio', 'scene', e.target.value));
+  // One Style list: the animated scenes (v2) and the classic styles (v1).
+  panel.querySelector('#au-look-sel')?.addEventListener('change', (e) => {
+    const [ver, key] = e.target.value.split(':');
+    if (ver === 'v1') { setEffectOption('radio', 'version', 1); setEffectOption('radio', 'style', key); }
+    else { setEffectOption('radio', 'version', 2); setEffectOption('radio', 'scene', key); }
+    const v1Row = document.getElementById('au-v1-row'); if (v1Row) v1Row.hidden = ver !== 'v1';
+  });
+
 
   panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -2880,12 +2880,10 @@ function syncRadioPanel() {
   if (spectrumChk) spectrumChk.checked = spectrumOn && currentState.effect === 'radio';
   if (spectrumOptions) spectrumOptions.style.display = spectrumOn ? '' : 'none';
   panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.bands) === (opts.bands ?? 64)));
-  const styleSel = panel.querySelector('#au-style-sel'); if (styleSel && document.activeElement !== styleSel) styleSel.value = opts.style || 'glow';
-  const auVer = opts.version === 1 ? '1' : '2';
-  panel.querySelectorAll('.au-ver-btn').forEach((b) => b.classList.toggle('active', b.dataset.auver === auVer));
-  const v2Row = document.getElementById('au-v2-row'); if (v2Row) v2Row.hidden = auVer !== '2';
-  const sceneSel = panel.querySelector('#au-scene-sel'); if (sceneSel && document.activeElement !== sceneSel) sceneSel.value = opts.scene || 'auto';
-  const v1Row = document.getElementById('au-v1-row'); if (v1Row) v1Row.hidden = auVer === '2';
+  const isV1 = opts.version === 1;
+  const lookSel = panel.querySelector('#au-look-sel');
+  if (lookSel && document.activeElement !== lookSel) lookSel.value = isV1 ? 'v1:' + (opts.style || 'glow') : 'v2:' + (opts.scene || 'auto');
+  const v1Row = document.getElementById('au-v1-row'); if (v1Row) v1Row.hidden = !isV1;
   panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 5)));
   panel.querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => btn.classList.toggle('active', btn.dataset.barmode === (opts.barMode || 'solid')));
 
@@ -5967,8 +5965,8 @@ function cxToggleSpectrum() {
 }
 function cxWireSpectrumShortcut() {
   document.getElementById('cx-show-spectrum')?.addEventListener('click', cxToggleSpectrum);
-  document.querySelectorAll('#panel-radio .spectrum-bands-btn, #panel-radio .au-theme-btn, #panel-radio .au-ver-btn').forEach((b) => b.addEventListener('click', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
-  document.querySelectorAll('#au-scene-sel, #au-style-sel').forEach((el) => el.addEventListener('change', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
+  document.querySelectorAll('#panel-radio .spectrum-bands-btn, #panel-radio .au-theme-btn').forEach((b) => b.addEventListener('click', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
+  document.querySelectorAll('#au-look-sel').forEach((el) => el.addEventListener('change', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
 }
 
 function cxSyncMusic() {

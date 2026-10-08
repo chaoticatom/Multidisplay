@@ -2001,18 +2001,9 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
           <button class="spectrum-bands-btn" data-bands="256">256</button>
           <button class="spectrum-bands-btn" data-bands="384" title="One bar per column on a 6-panel-wide wall">384</button>
         </div>
-        <div class="ov-row-label">Version</div>
-        <div class="opt-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:8px;">
-          <button class="au-ver-btn active" data-auver="2">🌌 v2 scenes</button>
-          <button class="au-ver-btn" data-auver="1">v1 classic</button>
-        </div>
-        <div id="au-v2-row">
-          <div class="ov-row-label">Scene</div>
-          <select id="au-scene-sel" class="tm-select" aria-label="Spectrum scene" style="width:100%;margin-bottom:8px;"><option value="auto">🔁 Auto - all scenes in turn</option><option value="city">🌃 City</option><option value="blocks">🧊 Blocks</option><option value="tubes">🧪 Tubes</option><option value="planet">🪐 Planet</option><option value="ocean">🌊 Ocean</option><option value="fireworks">🎆 Fireworks</option><option value="monitor">💓 Monitor</option><option value="sand">⏳ Sand</option><option value="trampoline">🤸 Trampoline</option><option value="garden">🌷 Garden</option><option value="tetris">🧱 Tetris</option><option value="rain">🌧 Rain</option><option value="stars">✨ Constellations</option></select>
-        </div>
-        <div id="au-v1-row">
         <div class="ov-row-label">Style</div>
-        <select id="au-style-sel" class="tm-select" aria-label="Spectrum style" style="width:100%;margin-bottom:8px;"><option value="glow">✨ Glow</option><option value="bars">Classic bars</option><option value="mirror">Mirror</option><option value="dots">Dots</option><option value="blocks">Blocks</option><option value="outline">Outline</option><option value="radial">Radial</option><option value="vu">VU</option><option value="waterfall">Waterfall</option><option value="waveform">Waveform</option><option value="tunnel">Tunnel</option><option value="storm">Storm</option><option value="plasma">Plasma</option><option value="rings">Rings</option><option value="fire">Fire</option></select>
+        <select id="au-look-sel" class="tm-select" aria-label="Spectrum style" style="width:100%;margin-bottom:8px;"><optgroup label="Scenes"><option value="v2:auto">🔁 Auto - all scenes in turn</option><option value="v2:city">🌃 City</option><option value="v2:blocks">🧊 Blocks</option><option value="v2:tubes">🧪 Tubes</option><option value="v2:planet">🪐 Planet</option><option value="v2:ocean">🌊 Ocean</option><option value="v2:fireworks">🎆 Fireworks</option><option value="v2:monitor">💓 Monitor</option><option value="v2:sand">⏳ Sand</option><option value="v2:trampoline">🤸 Trampoline</option><option value="v2:garden">🌷 Garden</option><option value="v2:tetris">🧱 Tetris</option><option value="v2:rain">🌧 Rain</option><option value="v2:stars">✨ Constellations</option></optgroup><optgroup label="Classic"><option value="v1:glow">✨ Glow</option><option value="v1:bars">Classic bars</option><option value="v1:mirror">Mirror</option><option value="v1:dots">Dots</option><option value="v1:blocks">Blocks</option><option value="v1:outline">Outline</option><option value="v1:radial">Radial</option><option value="v1:vu">VU</option><option value="v1:waterfall">Waterfall</option><option value="v1:waveform">Waveform</option><option value="v1:tunnel">Tunnel</option><option value="v1:storm">Storm</option><option value="v1:plasma">Plasma</option><option value="v1:rings">Rings</option><option value="v1:fire">Fire</option></optgroup></select>
+        <div id="au-v1-row">
         <div class="ov-row-label">Colour Theme</div>
         <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
           <button class="au-theme-btn" data-autheme="0">Rainbow</button>
@@ -2579,6 +2570,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.278"></script>
+<script src="app.js?v=0.6.279"></script>
 </body>
 </html>
