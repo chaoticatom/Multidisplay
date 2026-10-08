@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.281';
+const APP_VERSION = '0.6.282';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -438,6 +438,15 @@ function renderDiag(d) {
     ['Temperature', d.tempC == null ? 'n/a' : `${d.tempC.toFixed(1)} °C`, d.tempC > 75], ['Uptime', fmtUp(d.uptimeS)],
     ['Radio', d.radio], ['Radio output', d.radioPlayback],
   ];
+  // Health checks every 5 minutes (see src/health.js): a steady climb in
+  // app memory or child processes over the hours points at a leak.
+  const hl = d.health || [];
+  if (hl.length) {
+    const last = hl[hl.length - 1], first = hl[0];
+    rows.push(['Pi free memory', `${last.freeMB} of ${last.totalMB} MB`, last.freeMB < last.totalMB * 0.1]);
+    rows.push(['Child processes', last.children == null ? 'n/a' : String(last.children), last.children > 25]);
+    rows.push(['Memory trend', `${first.rssMB} → ${last.rssMB} MB since ${first.t}`, last.rssMB > first.rssMB * 1.5 && last.rssMB - first.rssMB > 50]);
+  }
   tb.replaceChildren(...rows.map(([k, v, warn]) => {
     const tr = document.createElement('tr');
     const a = document.createElement('td'); a.textContent = k;

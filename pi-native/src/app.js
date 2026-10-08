@@ -308,6 +308,11 @@ async function main() {
   // shortly after boot is routine on a Pi with no RTC).
   // Diagnostics section of the control page - see ./diagnostics.js.
   const pkgVersion = require('../package.json').version;
+  // Health watch every 5 minutes (see health.js): logs memory / processes and
+  // restarts the app if the Pi is about to run out of memory.
+  const health = require('./health').createHealth();
+  setTimeout(() => health.check(), 60000).unref();
+  setInterval(() => health.check(), 5 * 60000).unref();
   setInterval(() => {
     if (!ws.hasClients) { diag.snapshot(); return; }
     ws.sendAll({ cmd: 'diag', ...diag.snapshot({
@@ -316,6 +321,7 @@ async function main() {
       mode: `${config.mode} ${config.size}px`,
       radio: radio.audio.getStatus(),
       radioPlayback: radio.audio.getPlaybackStatus(),
+      health: health.history.slice(-12), // the last hour of health checks
     }) });
   }, 1000).unref();
 
@@ -477,7 +483,9 @@ async function main() {
       // additive updates instead of rewriting every LED every frame (all
       // effects ported so far happen to do a full rewrite, so it wouldn't
       // have shown up yet - not worth relying on that staying true).
-      driver.renderFrame(core, state.panelsOff ? 0 : state.brightness * prefs.nightFactor(state.prefs));
+      // Display off: a dim red power LED in the corner instead of darkness (see powerLed.js).
+      if (state.panelsOff || state.blank) require('./powerLed').renderPowerLed(driver, core);
+      else driver.renderFrame(core, state.brightness * prefs.nightFactor(state.prefs));
       diag.recordFrame(performance.now() - frameStart);
       ws.maybeStreamFrame(core, state.brightness);
     }, 1000 / SINGLE_THREAD_TICK_HZ);

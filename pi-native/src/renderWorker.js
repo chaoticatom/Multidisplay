@@ -183,7 +183,9 @@ parentPort.on('message', (msg) => {
     // a dead copy under RENDER_WORKER=1 (see this worker's module comment).
     if (!state.effectStatus) state.effectStatus = {};
     state.effectStatus.radio = radio.getStatus();
-    driver.renderFrame(core, state.panelsOff ? 0 : state.brightness * prefs.nightFactor(state.prefs));
+    // Display off: a dim red power LED in the corner instead of darkness (see powerLed.js).
+    if (state.panelsOff || state.blank) require('./powerLed').renderPowerLed(driver, core);
+    else driver.renderFrame(core, state.brightness * prefs.nightFactor(state.prefs));
     const renderMs = performance.now() - frameStart; // tick + panel push, for Diagnostics
     // Frames go back through SharedArrayBuffers instead of a fresh
     // .slice() copy per frame (which also had to be structured-cloned):
