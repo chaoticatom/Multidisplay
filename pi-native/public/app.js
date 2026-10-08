@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.277';
+const APP_VERSION = '0.6.278';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2501,7 +2501,9 @@ function handleSyncAudio(buf) {
   }
   a.late = 0;
   // Back to back with the previous piece when it's close, so there are no clicks.
-  const start = a.next && Math.abs(when - a.next) < 0.04 ? a.next : when;
+  // Pieces arrive stamped back to back; small timing jitter (network, clock
+  // estimate) is ignored so playback stays seamless, and only a real jump re-times it.
+  const start = a.next && Math.abs(when - a.next) < 0.15 && a.next > a.ctx.currentTime + 0.005 ? a.next : when;
   const src = a.ctx.createBufferSource();
   src.buffer = ab; src.connect(a.gain); src.start(start);
   a.next = start + ab.duration;

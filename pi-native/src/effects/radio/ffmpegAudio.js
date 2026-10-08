@@ -177,6 +177,7 @@ class RadioAudio {
 
   _launch(url) {
     this.lastAttemptMs = Date.now();
+    this._pcmT = null; // a new stream starts a new timeline for phones playing along
     this._ring.fill(0); this._ringL.fill(0); this._ringR.fill(0); this.vu.fill(0);
     this._writePos = 0;
     this._playPos = 0;
@@ -433,7 +434,17 @@ class RadioAudio {
     // A copy for phones playing along (see wsServer.js sendAudio), stamped
     // with when the speaker will play it: now plus the speaker delay the bars
     // already use (Auto sync's measurement, or the slider).
-    if (this.onPcm) { try { this.onPcm(chunk, Date.now() + this._syncS * 1000); } catch (e) { /* never block playback */ } }
+    // Stamped by the audio's own timeline (how many samples have gone out),
+    // not by when the chunk arrived: a stream arrives in bursts, and arrival
+    // stamps left gaps and overlaps that made the phone stutter (a real
+    // report). Re-anchored to the clock if it ever falls behind or runs
+    // implausibly far ahead.
+    if (this.onPcm) {
+      const now = Date.now(), lead = this._syncS * 1000;
+      if (this._pcmT === null || this._pcmT === undefined || this._pcmT < now + lead - 250 || this._pcmT > now + lead + 6000) this._pcmT = now + lead;
+      try { this.onPcm(chunk, this._pcmT); } catch (e) { /* never block playback */ }
+      this._pcmT += (chunk.length / (2 * CHANNELS)) / SAMPLE_RATE * 1000;
+    }
     if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && this._playDrained) {
       const out = this._gain < 0.999 ? scalePcm(chunk, this._gain) : chunk;
       try { this._playDrained = this.playProc.stdin.write(out); } catch (e) { /* handled via the stdin 'error' listener */ }

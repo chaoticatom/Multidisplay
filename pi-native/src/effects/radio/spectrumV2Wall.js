@@ -20,6 +20,11 @@
 //             flings the balls above it
 //   garden  - a flower per band: stems grow with it, heads bloom on the
 //             loud parts and drop petals on the peaks
+//   tetris  - each band drops blocks into its columns; full rows clear
+//   rain    - rain falls harder where a band is loud, splashes on a
+//             puddle, lightning on big beats
+//   stars   - a constellation per band: its stars brighten and their lines
+//             light up as it plays; shooting stars on the beats
 //   auto    - moves through them, about 25 s each
 // Crisp shapes on black, shaded faces, no trails. The bottom 9 rows are
 // kept clear for the now-playing ticker. Reads the shared display levels
@@ -30,7 +35,7 @@
 
 const { hsl } = require('../../core');
 
-const SCENES = ['city', 'blocks', 'tubes', 'planet', 'ocean', 'fireworks', 'monitor', 'sand', 'trampoline', 'garden'];
+const SCENES = ['city', 'blocks', 'tubes', 'planet', 'ocean', 'fireworks', 'monitor', 'sand', 'trampoline', 'garden', 'tetris', 'rain', 'stars'];
 const { FONT_3x5, drawString } = require('../text');
 const AUTO_SECS = 25;
 const TICKER_ROWS = 9;
@@ -427,11 +432,116 @@ function sceneGarden(core, ctx, st, W, H, t, dt) {
   }
 }
 
+// ── Tetris ──────────────────────────────────────────────────────────────
+function sceneTetris(core, ctx, st, W, H, t, dt) {
+  const area = H - TICKER_ROWS, C = 4, cols = Math.floor(W / C), rows = Math.floor(area / C), ox = Math.floor((W - cols * C) / 2), oy = area - rows * C;
+  const n = Math.max(4, Math.min(cols, Math.round(cols / 3))), lv = levels(ctx, st, n, dt);
+  if (!st.tet || st.tet.cols !== cols) st.tet = { cols, rows, grid: new Float32Array(cols * rows), falling: [], step: 0, flash: [], seed: 5 };
+  const tg = st.tet, g = tg.grid, rnd = () => { tg.seed = (tg.seed * 16807) % 2147483647; return tg.seed / 2147483647; };
+  const at = (c, r) => (r < 0 ? 0 : g[r * cols + c]);
+  // Spawn: each band drops pieces (1-3 cells wide) over its columns.
+  for (let i = 0; i < n; i++) if (rnd() < lv[i] * lv[i] * dt * 6) {
+    const w = 1 + Math.floor(rnd() * Math.min(3, Math.ceil(cols / n))), c0 = Math.min(cols - w, Math.floor((i + rnd()) / n * cols));
+    if (!tg.falling.some((p) => p.r < 2 && p.c < c0 + w && c0 < p.c + p.w)) tg.falling.push({ c: c0, w, r: -1, hue: 0.62 - (i / (n - 1)) * 0.62 });
+  }
+  // Fall one row at a time, faster when the music is loud.
+  tg.step += dt * (6 + lv.reduce((a, b) => a + b, 0) / n * 14);
+  while (tg.step >= 1) {
+    tg.step -= 1;
+    for (let k = tg.falling.length - 1; k >= 0; k--) {
+      const p = tg.falling[k];
+      let blocked = p.r + 1 >= rows;
+      for (let c = p.c; c < p.c + p.w && !blocked; c++) if (at(c, p.r + 1)) blocked = true;
+      if (!blocked) { p.r++; continue; }
+      if (p.r < 0) { g.fill(0); tg.falling = []; break; } // reached the top: sweep it all away
+      for (let c = p.c; c < p.c + p.w; c++) g[p.r * cols + c] = 1 + p.hue;
+      tg.falling.splice(k, 1);
+    }
+    // Full rows flash, then clear and the stack drops.
+    for (let r = rows - 1; r >= 0; r--) {
+      let full = true; for (let c = 0; c < cols; c++) if (!g[r * cols + c]) { full = false; break; }
+      if (full) { tg.flash.push({ r, life: 0.25 }); g.copyWithin(cols, 0, r * cols); g.fill(0, 0, cols); r++; }
+    }
+  }
+  const cell = (c, r, col, k) => { for (let y = 0; y < C; y++) for (let x = 0; x < C; x++) put(core, ox + c * C + x, oy + r * C + y, col, k * (x === C - 1 || y === C - 1 ? 0.45 : x === 0 || y === 0 ? 1.15 : 0.9)); };
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const v = g[r * cols + c]; if (v) cell(c, r, hsl(v - 1, 0.85, 0.5), 1); }
+  for (const p of tg.falling) for (let c = p.c; c < p.c + p.w; c++) if (p.r >= 0) cell(c, p.r, hsl(p.hue, 0.9, 0.6), 1);
+  for (let k = tg.flash.length - 1; k >= 0; k--) {
+    const f = tg.flash[k]; f.life -= dt; if (f.life <= 0) { tg.flash.splice(k, 1); continue; }
+    for (let x = 0; x < cols * C; x++) for (let y = 0; y < C; y++) put(core, ox + x, oy + f.r * C + y, [1, 1, 1], f.life * 4);
+  }
+}
+
+// ── Rain ────────────────────────────────────────────────────────────────
+function sceneRain(core, ctx, st, W, H, t, dt) {
+  const area = H - TICKER_ROWS, puddle = area - 3, au = core.audio || {}, n = Math.max(8, Math.round(W / 8)), lv = levels(ctx, st, n, dt);
+  if (!st.rain) st.rain = { drops: [], splash: [], bolt: null, flash: 0, seed: 9, latch: false };
+  const rn = st.rain, rnd = () => { rn.seed = (rn.seed * 16807) % 2147483647; return rn.seed / 2147483647; };
+  const level = lv.reduce((a, b) => a + b, 0) / n;
+  // Lightning on a big beat.
+  if ((au.beat || 0) > 0.85 && !rn.latch && level > 0.35) {
+    rn.latch = true; rn.flash = 1;
+    const pts = []; let x = rnd() * W; for (let y = 0; y < puddle; y += 2) { x += (rnd() - 0.5) * 5; pts.push([x, y]); }
+    rn.bolt = { pts, life: 0.25 };
+  }
+  if ((au.beat || 0) < 0.5) rn.latch = false;
+  rn.flash = Math.max(0, rn.flash - dt * 4);
+  for (let y = 0; y < puddle; y++) { const c = mix([0.01, 0.02, 0.06], [0.03, 0.05, 0.1], y / puddle); for (let x = 0; x < W; x++) put(core, x, y, mix(c, [0.5, 0.55, 0.7], rn.flash * 0.5)); }
+  for (let y = puddle; y < area; y++) for (let x = 0; x < W; x++) put(core, x, y, [0.04, 0.07, 0.14], 1);
+  if (rn.bolt) { rn.bolt.life -= dt; if (rn.bolt.life <= 0) rn.bolt = null; else for (let k = 1; k < rn.bolt.pts.length; k++) line(core, rn.bolt.pts[k - 1], rn.bolt.pts[k], [0.85, 0.9, 1], 1); }
+  for (let i = 0; i < n; i++) {
+    const count = (0.15 + lv[i] * 2.5) * dt * 20;
+    for (let k = 0; k < count; k++) if (rnd() < count - k) rn.drops.push({ x: (i + rnd()) / n * W, y: -rnd() * 6, v: area * (1.6 + lv[i] * 1.2), b: 0.4 + lv[i] * 0.6 });
+  }
+  if (rn.drops.length > 1500) rn.drops.splice(0, rn.drops.length - 1500);
+  for (let k = rn.drops.length - 1; k >= 0; k--) {
+    const d = rn.drops[k]; d.y += d.v * dt; d.x -= 3 * dt;
+    if (d.y >= puddle) { rn.drops.splice(k, 1); rn.splash.push({ x: d.x, r: 0, life: 0.4, b: d.b }); continue; }
+    put(core, d.x, d.y, [0.55, 0.7, 1], d.b * 0.8); put(core, d.x, d.y - 1, [0.4, 0.5, 0.8], d.b * 0.4);
+  }
+  if (rn.splash.length > 400) rn.splash.splice(0, rn.splash.length - 400);
+  for (let k = rn.splash.length - 1; k >= 0; k--) {
+    const s2 = rn.splash[k]; s2.life -= dt; s2.r += dt * 8; if (s2.life <= 0) { rn.splash.splice(k, 1); continue; }
+    const kk = s2.life / 0.4 * s2.b;
+    put(core, s2.x - s2.r, puddle + 1, [0.6, 0.75, 1], kk); put(core, s2.x + s2.r, puddle + 1, [0.6, 0.75, 1], kk);
+    if (s2.r < 1.5) put(core, s2.x, puddle - 1, [0.7, 0.85, 1], kk);
+  }
+}
+function line(core, a, b, col, k) {
+  const steps = Math.max(1, Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))));
+  for (let i = 0; i <= steps; i++) put(core, a[0] + (b[0] - a[0]) * i / steps, a[1] + (b[1] - a[1]) * i / steps, col, k);
+}
+
+// ── Constellations ──────────────────────────────────────────────────────
+function sceneStars(core, ctx, st, W, H, t, dt) {
+  const area = H - TICKER_ROWS, au = core.audio || {}, n = Math.max(5, Math.min(24, Math.round(W / 16))), lv = levels(ctx, st, n, dt);
+  if (!st.sky) st.sky = { shoot: [], latch: false };
+  const sk = st.sky;
+  for (let s2 = 0; s2 < Math.max(40, Math.round(W / 1.5)); s2++) put(core, hash(s2, 31) * W, hash(s2, 32) * area, [0.6, 0.65, 0.9], 0.12 + 0.12 * Math.sin(t * (0.5 + hash(s2, 33)) + s2));
+  for (let i = 0; i < n; i++) {
+    // Each band's constellation: 4-6 stars in its own patch of sky.
+    const cx = (i + 0.5) / n * W, cw = W / n, a = lv[i], hue = 0.62 - (i / (n - 1)) * 0.62, cnt = 4 + Math.floor(hash(i, 40) * 3), pts = [];
+    for (let k = 0; k < cnt; k++) pts.push([cx + (hash(i, 41 + k) - 0.5) * cw * 0.8, area * (0.12 + hash(i, 51 + k) * 0.76)]);
+    if (a > 0.25) for (let k = 1; k < cnt; k++) line(core, pts[k - 1], pts[k], hsl(hue, 0.6, 0.55), (a - 0.25) * 0.9);
+    pts.forEach((p, k) => {
+      const b = 0.25 + a * 0.75 * (k === 0 ? 1.2 : 1), c = hsl(hue, 0.4, 0.75);
+      put(core, p[0], p[1], c, b);
+      if (a > 0.55) { put(core, p[0] + 1, p[1], c, b * 0.35); put(core, p[0] - 1, p[1], c, b * 0.35); put(core, p[0], p[1] + 1, c, b * 0.35); put(core, p[0], p[1] - 1, c, b * 0.35); }
+    });
+  }
+  if ((au.beat || 0) > 0.85 && !sk.latch) { sk.latch = true; sk.shoot.push({ x: hash(Math.floor(t * 7), 60) * W, y: hash(Math.floor(t * 7), 61) * area * 0.4, life: 0.6 }); }
+  if ((au.beat || 0) < 0.5) sk.latch = false;
+  for (let k = sk.shoot.length - 1; k >= 0; k--) {
+    const s2 = sk.shoot[k]; s2.life -= dt; s2.x += 60 * dt; s2.y += 20 * dt; if (s2.life <= 0) { sk.shoot.splice(k, 1); continue; }
+    for (let j = 0; j < 8; j++) put(core, s2.x - j * 1.5, s2.y - j * 0.5, [1, 1, 0.9], s2.life / 0.6 * (1 - j / 8));
+  }
+}
+
 function renderSpectrumV2Wall(core, ctx, scene, st) {
   const W = core.wallW, H = core.wallH, dt = ctx.dt || 1 / 30, t = ctx.t;
   let name = SCENES.includes(scene) ? scene : 'auto';
   if (name === 'auto') { st.sceneT += dt; name = SCENES[Math.floor(st.sceneT / AUTO_SECS) % SCENES.length]; }
-  if (st.last !== name) { st.last = name; st.hist = []; st.smooth = null; st.fw = null; st.ecg = null; st.sand = null; st.tramp = null; st.garden = null; }
+  if (st.last !== name) { st.last = name; st.hist = []; st.smooth = null; st.fw = null; st.ecg = null; st.sand = null; st.tramp = null; st.garden = null; st.tet = null; st.rain = null; st.sky = null; }
   if (name === 'city') sceneCity(core, ctx, st, W, H, t, dt);
   else if (name === 'blocks') sceneBlocks(core, ctx, st, W, H, t, dt);
   else if (name === 'tubes') sceneTubes(core, ctx, st, W, H, t, dt);
@@ -441,7 +551,10 @@ function renderSpectrumV2Wall(core, ctx, scene, st) {
   else if (name === 'monitor') sceneMonitor(core, ctx, st, W, H, t, dt);
   else if (name === 'sand') sceneSand(core, ctx, st, W, H, t, dt);
   else if (name === 'trampoline') sceneTrampoline(core, ctx, st, W, H, t, dt);
-  else sceneGarden(core, ctx, st, W, H, t, dt);
+  else if (name === 'garden') sceneGarden(core, ctx, st, W, H, t, dt);
+  else if (name === 'tetris') sceneTetris(core, ctx, st, W, H, t, dt);
+  else if (name === 'rain') sceneRain(core, ctx, st, W, H, t, dt);
+  else sceneStars(core, ctx, st, W, H, t, dt);
 }
 
 module.exports = { renderSpectrumV2Wall, createV2State, SCENES };
