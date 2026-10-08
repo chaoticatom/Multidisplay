@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.279';
+const APP_VERSION = '0.6.280';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2882,7 +2882,10 @@ function syncRadioPanel() {
   panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.bands) === (opts.bands ?? 64)));
   const isV1 = opts.version === 1;
   const lookSel = panel.querySelector('#au-look-sel');
-  if (lookSel && document.activeElement !== lookSel) lookSel.value = isV1 ? 'v1:' + (opts.style || 'glow') : 'v2:' + (opts.scene || 'auto');
+  if (lookSel && document.activeElement !== lookSel) {
+    lookSel.value = isV1 ? 'v1:' + (opts.style || 'glow') : 'v2:' + (opts.scene || 'auto');
+    if (lookSel.selectedIndex < 0) lookSel.value = 'v2:auto'; // a choice from an older version
+  }
   const v1Row = document.getElementById('au-v1-row'); if (v1Row) v1Row.hidden = !isV1;
   panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 5)));
   panel.querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => btn.classList.toggle('active', btn.dataset.barmode === (opts.barMode || 'solid')));
