@@ -282,6 +282,14 @@ function sanitizeUploadName(raw) {
   return crypto.randomBytes(4).toString('hex') + '_' + base.slice(-120);
 }
 
+// Preview frames are skipped for a page that already has about two frames
+// still waiting to go out. Without this a slow phone's queue grew without
+// limit: the preview fell further and further behind (looked frozen) and
+// the synced audio sharing the connection was cut off (a real report).
+function previewHasRoom(client, frameBytes) {
+  return (client.bufferedAmount || 0) < Math.max(64 * 1024, frameBytes * 2);
+}
+
 class WsServer {
   // state: shared mutable {effect, brightness, speed}.
   // config: shared mutable {size, mode} (panelConfig.js shape) - already
@@ -994,7 +1002,7 @@ class WsServer {
         }
       }
       for (const client of this._clients) {
-        if (client.readyState === WebSocket.OPEN && !client.previewOff && (client.role !== 'guest' || this._guestFrame)) client.send(buf);
+        if (client.readyState === WebSocket.OPEN && !client.previewOff && (client.role !== 'guest' || this._guestFrame) && previewHasRoom(client, buf.length)) client.send(buf);
       }
     }
   }
@@ -1031,7 +1039,7 @@ class WsServer {
         }
       }
       for (const client of this._clients) {
-        if (client.readyState === WebSocket.OPEN && !client.previewOff && (client.role !== 'guest' || this._guestFrame)) client.send(buf);
+        if (client.readyState === WebSocket.OPEN && !client.previewOff && (client.role !== 'guest' || this._guestFrame) && previewHasRoom(client, buf.length)) client.send(buf);
       }
     });
   }
@@ -1044,4 +1052,5 @@ class WsServer {
 }
 
 module.exports = WsServer;
+module.exports.previewHasRoom = previewHasRoom;
 module.exports.isSameOrigin = isSameOrigin;

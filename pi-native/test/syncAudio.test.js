@@ -29,4 +29,13 @@ try {
   COMMANDS.clockPing.call(server, { readyState: 1, send: (m) => replies.push(JSON.parse(m)) }, { c: 42 });
   assert.strictEqual(replies[0].cmd, 'clockPong'); assert.strictEqual(replies[0].c, 42); assert.ok(Math.abs(replies[0].s - Date.now()) < 1000);
   console.log('  ok - clock pings are answered with the Pi time');
+  // A slow page: preview frames are skipped once ~two are queued, so the
+  // queue can't grow without limit (the preview froze and the audio cut out).
+  const { previewHasRoom } = WsServer;
+  const frame = 384 * 64 * 3;
+  assert.ok(previewHasRoom({ bufferedAmount: 0 }, frame));
+  assert.ok(previewHasRoom({ bufferedAmount: frame }, frame));
+  assert.ok(!previewHasRoom({ bufferedAmount: frame * 3 }, frame));
+  assert.ok(previewHasRoom({ bufferedAmount: 30000 }, 12288), 'small frames still get a 64 KB allowance');
+  console.log('  ok - preview frames are skipped for a page that is falling behind');
 } catch (e) { console.error('  FAIL -', e.message); process.exitCode = 1; }

@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.276';
+const APP_VERSION = '0.6.277';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2457,6 +2457,14 @@ function syncAudioStart() {
   clearInterval(syncAudio.timer);
   syncAudio.timer = setInterval(() => { if (++n > 6 && n % 6) return; send({ cmd: 'clockPing', c: Date.now() }); }, 500);
 }
+// Phones pause web audio when the screen locks or the app is in the
+// background; pick it up again on return and re-lock to the Pi's timing.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !syncAudio.on || !syncAudio.ctx) return;
+  if (syncAudio.ctx.state !== 'running') syncAudio.ctx.resume().catch(() => {});
+  syncAudio.next = 0; syncAudio.extra = 0;
+  send({ cmd: 'clockPing', c: Date.now() });
+});
 function syncAudioStop() {
   if (!syncAudio.on) return;
   syncAudio.on = false;
