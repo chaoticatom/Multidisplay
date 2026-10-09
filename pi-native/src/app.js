@@ -135,7 +135,9 @@ async function main() {
   // during this wait, however long it takes. Opt out entirely (e.g. local
   // dev on a machine you don't want this touching) with SKIP_WIFI_SETUP=1.
   if (process.env.SKIP_WIFI_SETUP !== '1') {
-    await wifiSetup.ensureWifiConnected();
+    // In the background: effects start straight away even if Wi-Fi is slow
+    // to come up (it used to block here on the amber screen - see wifiSetup.js).
+    wifiSetup.ensureWifiConnected().catch((err) => console.warn('[wifi] setup failed:', err.message));
   } else {
     console.log('[app] SKIP_WIFI_SETUP=1 - skipping WiFi provisioning check');
   }

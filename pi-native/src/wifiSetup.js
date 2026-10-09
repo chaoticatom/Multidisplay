@@ -178,7 +178,7 @@ document.getElementById('f').addEventListener('submit', async (e) => {
 // throwing) - caller is responsible for stopping the server and tearing
 // down the AP afterward. A failed attempt keeps the server running so the
 // user can retry from the same page.
-function startPortalServer(port = PORTAL_PORT, connectFn = connectToNetwork) {
+function startPortalServer(port = PORTAL_PORT, connectFn = connectToNetwork, { onServer } = {}) {
   return new Promise((resolveConnected, rejectServer) => {
     const server = http.createServer((req, res) => {
       if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
@@ -213,6 +213,7 @@ function startPortalServer(port = PORTAL_PORT, connectFn = connectToNetwork) {
     });
     server.on('error', rejectServer);
     server.listen(port);
+    if (onServer) onServer(server);
   });
 }
 
@@ -223,42 +224,57 @@ function startPortalServer(port = PORTAL_PORT, connectFn = connectToNetwork) {
 // pattern (see wifi_setup.cpp), so app.js can just `await` this once at
 // startup before doing anything that needs the network.
 // ---------------------------------------------------------------------------
-async function ensureWifiConnected({ runFn = run, log = console.log } = {}) {
-  let connected;
+// A real report: the Pi came up on the amber boot screen, unreachable over
+// SSH. At boot Wi-Fi is often still connecting; one check that found it not
+// yet connected switched the Pi into setup-hotspot mode - which takes the
+// Wi-Fi radio off the home network - and waited there for ever. Now:
+//   - wait up to 90 s for the saved network first;
+//   - only then open the setup hotspot, and only for 10 minutes; with no
+//     one using it, close it and wait for the saved network again, and so
+//     on, so a slow router or a power cut can't strand the Pi;
+//   - app.js runs this in the background, so effects start regardless.
+const status = { apActive: false };
+function sleepMs(ms) { return new Promise((r) => setTimeout(r, ms)); }
+async function waitForConnection(runFn, ms, stepMs, sleep) {
+  for (let waited = 0; ; waited += stepMs) {
+    if (await isConnected(runFn)) return true;
+    if (waited >= ms) return false;
+    await sleep(stepMs);
+  }
+}
+async function ensureWifiConnected({ runFn = run, log = console.log, sleep = sleepMs, waitMs = 90000, apMs = 10 * 60000, stepMs = 5000, portalPort = PORTAL_PORT } = {}) {
   try {
-    connected = await isConnected(runFn);
+    if (await isConnected(runFn)) { log('[wifi] already connected, skipping AP setup'); return; }
   } catch (err) {
-    // Most likely nmcli itself isn't installed - true on any non-Pi dev
-    // machine (this sandbox included) and on Raspberry Pi OS images still
-    // using the older dhcpcd network stack instead of NetworkManager. Log
-    // and assume connected rather than crash the app or block forever on a
-    // portal nobody can reach the AP for - this is a real limitation
-    // (dhcpcd-based setups get no provisioning flow at all), not a
-    // silently-ignored error.
+    // Most likely nmcli itself isn't installed (a non-Pi machine, or an
+    // image on the older dhcpcd network stack): assume connected rather
+    // than block on a portal nobody can reach.
     log(`[wifi] could not check connectivity (${err.message}) - assuming already connected. If this is a real Pi expecting WiFi setup, confirm NetworkManager/nmcli is installed (Raspberry Pi OS Bullseye+ ships it by default).`);
     return;
   }
-  if (connected) {
-    log('[wifi] already connected, skipping AP setup');
-    return;
+  log('[wifi] not connected yet - waiting for the saved network');
+  if (await waitForConnection(runFn, waitMs, stepMs, sleep)) { log('[wifi] connected'); return; }
+  for (;;) {
+    log(`[wifi] still not connected - starting setup AP "${AP_SSID}" (password: ${AP_PASSWORD}) for ${Math.round(apMs / 60000)} minutes`);
+    await startAccessPoint(runFn);
+    status.apActive = true;
+    log(`[wifi] AP up - connect a phone/PC to it, then browse to http://${AP_GATEWAY_IP}/`);
+    let server = null;
+    const connected = await Promise.race([
+      startPortalServer(portalPort, async (ssid, password) => { log(`[wifi] attempting to connect to "${ssid}"...`); await connectToNetwork(ssid, password, runFn); }, { onServer: (s) => { server = s; } }).then(() => true),
+      sleep(apMs).then(() => false),
+    ]);
+    if (server) server.close();
+    await stopAccessPoint(runFn);
+    status.apActive = false;
+    if (connected) { log('[wifi] connected - setup AP closed'); return; }
+    log('[wifi] nobody used the setup AP - closing it and trying the saved network again');
+    if (await waitForConnection(runFn, 2 * waitMs, stepMs, sleep)) { log('[wifi] connected'); return; }
   }
-  log(`[wifi] not connected - starting setup AP "${AP_SSID}" (password: ${AP_PASSWORD})`);
-  await startAccessPoint(runFn);
-  log(`[wifi] AP up - connect a phone/PC to it, then browse to http://${AP_GATEWAY_IP}/`);
-
-  const connectWithLogging = async (ssid, password) => {
-    log(`[wifi] attempting to connect to "${ssid}"...`);
-    await connectToNetwork(ssid, password, runFn);
-  };
-
-  await startPortalServer(PORTAL_PORT, connectWithLogging).then(({ ssid, server }) => {
-    log(`[wifi] connected to "${ssid}" - tearing down setup AP`);
-    server.close();
-    return stopAccessPoint(runFn);
-  });
 }
 
 module.exports = {
+  status,
   keyfileEscape,
   validateWifiInput,
   AP_SSID, AP_PASSWORD, AP_CON_NAME, AP_GATEWAY_IP, PORTAL_PORT,

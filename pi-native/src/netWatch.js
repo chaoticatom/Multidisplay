@@ -54,6 +54,8 @@ function createNetWatch({ run = defaultRun, probe = defaultProbe, now = Date.now
   }
 
   async function check() {
+    // Leave the radio alone while the Wi-Fi setup hotspot is open (wifiSetup.js).
+    if (require('./wifiSetup').status.apActive) return status;
     const ok = await probe();
     if (ok) {
       if (!status.online) { log.log('[net] back online'); if (status.failures >= 3) await run('systemctl', ['restart', 'cloudflared']); }
