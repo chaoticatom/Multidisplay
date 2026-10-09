@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.282';
+const APP_VERSION = '0.6.283';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -440,6 +440,11 @@ function renderDiag(d) {
   ];
   // Health checks every 5 minutes (see src/health.js): a steady climb in
   // app memory or child processes over the hours points at a leak.
+  if (d.net) {
+    rows.push(['Internet', d.net.online ? 'connected' : 'OFFLINE (' + d.net.failures + ' checks)', !d.net.online]);
+    rows.push(['Cloudflare tunnel', d.net.tunnel || '-', d.net.tunnel && !['active', 'activating', 'not installed', 'unknown'].includes(d.net.tunnel)]);
+    if (d.net.lastFix) rows.push(['Last network fix', d.net.lastFix]);
+  }
   const hl = d.health || [];
   if (hl.length) {
     const last = hl[hl.length - 1], first = hl[0];

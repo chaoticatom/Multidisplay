@@ -2,6 +2,7 @@ node_modules/
 panel-config.json
 alarms.json
 drawings.json
+.net-reboot
 custom-cube-config.json
 unsplash-config.json
 nasa-config.json

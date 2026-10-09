@@ -311,6 +311,10 @@ async function main() {
   // Health watch every 5 minutes (see health.js): logs memory / processes and
   // restarts the app if the Pi is about to run out of memory.
   const health = require('./health').createHealth();
+  // Network watchdog (see netWatch.js): keeps Wi-Fi and the Cloudflare tunnel
+  // up. Only on the real Pi - never in mock mode on a development machine.
+  const netWatch = require('./netWatch').createNetWatch({ rebootStampFile: require('path').join(__dirname, '..', '.net-reboot') });
+  if (process.platform === 'linux' && process.env.DRIVER !== 'mock') netWatch.start();
   setTimeout(() => health.check(), 60000).unref();
   setInterval(() => health.check(), 5 * 60000).unref();
   setInterval(() => {
@@ -322,6 +326,7 @@ async function main() {
       radio: radio.audio.getStatus(),
       radioPlayback: radio.audio.getPlaybackStatus(),
       health: health.history.slice(-12), // the last hour of health checks
+      net: netWatch.status,
     }) });
   }, 1000).unref();
 
