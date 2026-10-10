@@ -6495,9 +6495,9 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/hand3d.js
-  var require_hand3d = __commonJS({
-    "src/effects/hand3d.js"(exports, module) {
+  // src/effects/rocket3d.js
+  var require_rocket3d = __commonJS({
+    "src/effects/rocket3d.js"(exports, module) {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
@@ -6511,228 +6511,173 @@ var PiEngine = (() => {
         const h = clamp(0.5 + 0.5 * (b - a) / k);
         return mix(b, a, h) - k * h * (1 - h);
       }
-      function capsule(px, py, pz, ax, ay, az, bx, by, bz, ra, rb) {
-        const bax = bx - ax, bay = by - ay, baz = bz - az;
-        const pax = px - ax, pay = py - ay, paz = pz - az;
-        const h = clamp((pax * bax + pay * bay + paz * baz) / (bax * bax + bay * bay + baz * baz));
-        const dx = pax - bax * h, dy = pay - bay * h, dz = paz - baz * h;
-        return Math.sqrt(dx * dx + dy * dy + dz * dz) - (ra + (rb - ra) * h);
-      }
-      var FINGERS = [[-0.205, 0.34, 0.6, 0.2, 0.088], [-0.07, 0.4, 0.68, 0.06, 0.092], [0.07, 0.38, 0.64, -0.06, 0.088], [0.2, 0.31, 0.5, -0.22, 0.078]];
-      var SEG = [0.45, 0.31, 0.24];
-      var pose = { segs: [], palm: null, arm: null, bound: null, push: 0, portal: [0, -0.55] };
-      function buildPose(t) {
-        const cyc = t % 9 / 9;
-        const push = sm(0, 0.35, cyc) * (1 - sm(0.75, 1, cyc));
-        const curl = 0.35 + 0.3 * Math.sin(t * 1.3) * Math.sin(t * 0.37), spread = 0.6 + 0.4 * Math.sin(t * 0.9 + 1);
-        const rotY = 0.35 * Math.sin(t * 0.5), rotZ = 0.12 * Math.sin(t * 0.7 + 2);
-        const cz = 0.15 + 1.05 * push;
-        const cy = Math.cos(rotY), sy = Math.sin(rotY), cr = Math.cos(rotZ), sr = Math.sin(rotZ);
-        const W = (x, y, z) => {
-          const x1 = x * cr - y * sr, y1 = x * sr + y * cr;
-          return [x1 * cy + z * sy, y1 - 0.3, -x1 * sy + z * cy + cz];
-        };
-        const segs = [];
-        FINGERS.forEach(([bx, by, len, ang, r], fi) => {
-          const a = ang * (0.4 + spread);
-          let x = bx, y = by, z = 0, dirA = a, bend = 0;
-          for (let k = 0; k < 3; k++) {
-            bend += curl * (k === 0 ? 0.55 : 0.9) * (1 + 0.15 * fi);
-            const l = len * SEG[k];
-            const nx = x + Math.sin(dirA) * Math.cos(bend) * l, ny = y + Math.cos(dirA) * Math.cos(bend) * l, nz = z + Math.sin(bend) * l;
-            const ra = r * (1 - 0.13 * k), rb = r * (1 - 0.13 * (k + 1)) * (k === 2 ? 0.92 : 1);
-            segs.push({ a: W(x, y, z), b: W(nx, ny, nz), ra, rb, tip: k === 2, joint: k });
-            x = nx;
-            y = ny;
-            z = nz;
-          }
-        });
-        {
-          const tb = curl * 0.7;
-          let x = -0.18, y = -0.1, z = 0.03;
-          const dirs = [[-0.55, 0.45, 0.35], [-0.25, 0.75, 0.3 + tb * 0.5], [0.05, 0.8, 0.35 + tb]];
-          const lens = [0.32, 0.26, 0.22];
-          for (let k = 0; k < 3; k++) {
-            const d = dirs[k], n = Math.hypot(d[0], d[1], d[2]), l = lens[k];
-            const nx = x + d[0] / n * l, ny = y + d[1] / n * l, nz = z + d[2] / n * l;
-            segs.push({ a: W(x, y, z), b: W(nx, ny, nz), ra: [0.13, 0.1, 0.09][k], rb: [0.105, 0.092, 0.082][k], tip: k === 2, joint: k });
-            x = nx;
-            y = ny;
-            z = nz;
-          }
-        }
-        pose.segs = segs;
-        pose.palm = { c: W(0, 0.12, 0), cy, sy, cr, sr, cz };
-        pose.arm = { a: W(0, -0.3, -0.05), b: [0, -0.55, -1.2] };
-        pose.push = push;
-        const A = pose.arm.a, B = pose.arm.b, f = A[2] / (A[2] - B[2]);
-        pose.portal = [A[0] + (B[0] - A[0]) * f, A[1] + (B[1] - A[1]) * f];
-        pose.W = W;
-      }
-      function palmDist(px, py, pz) {
-        const P = pose.palm;
-        let x = px - P.c[0], y = py - P.c[1], z = pz - P.c[2];
-        const x1 = x * P.cy - z * P.sy, z1 = x * P.sy + z * P.cy;
-        const x2 = x1 * P.cr + y * P.sr, y2 = -x1 * P.sr + y * P.cr;
-        const qx = Math.abs(x2) - 0.2 + 0.04 * y2, qy = Math.abs(y2 + 0.02) - 0.26, qz = Math.abs(z1 + 0.01 * x2 * x2) - 0.035;
-        const ox = Math.max(qx, 0), oy = Math.max(qy, 0), oz = Math.max(qz, 0);
-        let d = Math.sqrt(ox * ox + oy * oy + oz * oz) + Math.min(Math.max(qx, qy, qz), 0) - 0.07;
-        d += 0.025 * Math.exp(-(x2 * x2 + (y2 - 0.05) * (y2 - 0.05)) / 0.02) * (z1 > 0 ? 1 : 0);
-        d -= 0.035 * Math.exp(-((x2 + 0.12) ** 2 + (y2 + 0.12) ** 2) / 0.012) * (z1 > 0 ? 1 : 0);
-        return d;
-      }
-      var hit = { seg: -1, h: 0 };
-      function sdf(px, py, pz, want) {
-        let d = palmDist(px, py, pz);
-        const A = pose.arm;
-        d = smin(d, capsule(px, py, pz, A.a[0], A.a[1], A.a[2], A.b[0], A.b[1], A.b[2], 0.16, 0.2), 0.12);
-        let best = 1e9, bi = -1;
-        for (let i = 0; i < pose.segs.length; i++) {
-          const s = pose.segs[i];
-          const c = capsule(px, py, pz, s.a[0], s.a[1], s.a[2], s.b[0], s.b[1], s.b[2], s.ra, s.rb);
-          if (c < best) {
-            best = c;
-            bi = i;
-          }
-          d = smin(d, c, s.joint === 0 ? 0.1 : 0.03);
-        }
-        if (want) {
-          hit.seg = best < d + 0.03 ? bi : -1;
-          if (bi >= 0) {
-            const s = pose.segs[bi], bax = s.b[0] - s.a[0], bay = s.b[1] - s.a[1], baz = s.b[2] - s.a[2];
-            hit.h = clamp(((px - s.a[0]) * bax + (py - s.a[1]) * bay + (pz - s.a[2]) * baz) / (bax * bax + bay * bay + baz * baz));
-          }
-        }
-        return d;
-      }
-      var CAM_Z = 3.4;
-      var FOV = 2.85;
-      var SKIN = [0.93, 0.68, 0.55];
-      var KEY = norm3(-0.75, 0.55, 0.38);
-      var KEY_COL = [1, 0.92, 0.82];
       function norm3(x, y, z) {
         const n = Math.hypot(x, y, z);
         return [x / n, y / n, z / n];
       }
+      function capY(x, y, z, y0, y1, r0, r1) {
+        const h = clamp((y - y0) / (y1 - y0));
+        return Math.hypot(x, y - (y0 + (y1 - y0) * h), z) - (r0 + (r1 - r0) * h);
+      }
+      var CYCLE = 6;
+      var R = { pos: [0, 0, 0], f: [0, 0, 1], u: [0, 1, 0], s: [1, 0, 0], portal: [0, -0.1], bound: null, flame: 1, t: 0 };
+      function buildPose(t) {
+        const n = Math.floor(t / CYCLE), c = t % CYCLE / CYCLE;
+        const side = n % 2 ? 1 : -1, lift = 0.25 + 0.15 * Math.sin(n * 2.1);
+        const z = -1.2 + 4.3 * Math.pow(c, 1.25);
+        const x = side * (0.05 + 0.35 * c * c) + 0.08 * Math.sin(t * 3.1);
+        const y = -0.15 + lift * c * c + 0.06 * Math.sin(t * 2.3 + 1);
+        R.pos = [x, y, z];
+        const f = norm3(side * (0.5 + 0.6 * c) + 0.12 * Math.cos(t * 3.1), 0.35 + lift * c + 0.1 * Math.cos(t * 2.3 + 1), 1.6);
+        let up = Math.abs(f[1]) > 0.95 ? [1, 0, 0] : [0, 1, 0];
+        let s = norm3(up[1] * f[2] - up[2] * f[1], up[2] * f[0] - up[0] * f[2], up[0] * f[1] - up[1] * f[0]);
+        let u = [f[1] * s[2] - f[2] * s[1], f[2] * s[0] - f[0] * s[2], f[0] * s[1] - f[1] * s[0]];
+        const roll = t * 2.2, cr = Math.cos(roll), sr = Math.sin(roll);
+        const s2 = [s[0] * cr + u[0] * sr, s[1] * cr + u[1] * sr, s[2] * cr + u[2] * sr];
+        const u2 = [u[0] * cr - s[0] * sr, u[1] * cr - s[1] * sr, u[2] * cr - s[2] * sr];
+        R.f = f;
+        R.s = s2;
+        R.u = u2;
+        R.flame = 0.85 + 0.15 * Math.sin(t * 37) * Math.sin(t * 23);
+        const c0 = Math.pow(1.2 / 4.3, 1 / 1.25);
+        R.portal = [side * (0.05 + 0.35 * c0 * c0), -0.15 + lift * c0 * c0];
+        R.glow = sm(0.05, 0.15, c) * (1 - sm(0.75, 1, c)) + 0.25;
+        R.bound = [x, y, z, 1.25];
+        R.t = t;
+      }
+      function toLocal(px, py, pz) {
+        const x = px - R.pos[0], y = py - R.pos[1], z = pz - R.pos[2];
+        return [x * R.s[0] + y * R.s[1] + z * R.s[2], x * R.f[0] + y * R.f[1] + z * R.f[2], x * R.u[0] + y * R.u[1] + z * R.u[2]];
+      }
+      var M = { id: 0 };
+      function sdfLocal(x, y, z, want) {
+        const body = capY(x, y, z, -0.42, 0.42, 0.155, 0.17);
+        const nose = capY(x, y, z, 0.42, 0.88, 0.17, 0.025);
+        let d = smin(body, nose, 0.04);
+        const nozzle = Math.max(capY(x, y, z, -0.56, -0.42, 0.115, 0.1), -(Math.hypot(x, z) - 0.075));
+        d = Math.min(d, nozzle);
+        let fin = 1e9;
+        const a = Math.atan2(z, x), r = Math.hypot(x, z);
+        const k = Math.round(a / (2 * Math.PI / 3)) * (2 * Math.PI / 3), ang = a - k;
+        const fx = r * Math.cos(ang), fz = r * Math.sin(ang);
+        {
+          const lx = fx - 0.28, ly = y + 0.32 - (fx - 0.17) * 0.8;
+          const qx = Math.abs(lx) - 0.115, qy = Math.abs(ly) - 0.15 + 0.3 * (lx + 0.115), qz = Math.abs(fz) - 0.026;
+          fin = (Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - 0.012) * 0.8;
+        }
+        d = smin(d, fin, 0.02);
+        if (want) {
+          const wd = Math.hypot(x, y - 0.18);
+          if (d === nozzle || nozzle < 4e-3) M.id = 2;
+          else if (fin < body - 5e-3 && fin < nose) M.id = 1;
+          else if (z > 0.05 && wd < 0.06) M.id = 3;
+          else if (z > 0.05 && wd < 0.078) M.id = 4;
+          else if (y > 0.5 || y > -0.08 && y < 0.02 || y < -0.33) M.id = 1;
+          else M.id = 0;
+        }
+        return d;
+      }
+      function sdf(px, py, pz, want) {
+        const l = toLocal(px, py, pz);
+        return sdfLocal(l[0], l[1], l[2], want);
+      }
+      function flameDist(px, py, pz) {
+        const l = toLocal(px, py, pz), len = 0.85 * R.flame;
+        return capY(l[0], l[1], l[2], -0.56 - len, -0.5, 0.02, 0.1) + 0.02 * Math.sin(l[1] * 40 + R.t * 50);
+      }
+      var CAM_Z = 3.4;
+      var FOV = 2.85;
+      var KEY = norm3(-0.6, 0.65, 0.45);
+      var KEY_COL = [1, 0.95, 0.88];
       function screenColour(x, y, t, shadow) {
-        const r = Math.hypot(x - pose.portal[0], (y - pose.portal[1]) * 1.6);
-        const ring = Math.exp(-((r - 0.5 - 0.06 * pose.push) ** 2) / 6e-3) * (0.55 + 0.45 * pose.push);
-        const ripple = 0.5 + 0.5 * Math.sin(r * 18 - t * 4);
-        const fall = Math.exp(-r * 1.6);
+        const r = Math.hypot(x - R.portal[0], (y - R.portal[1]) * 1.6);
+        const ring = Math.exp(-((r - 0.45) ** 2) / 6e-3) * R.glow;
+        const ripple = 0.5 + 0.5 * Math.sin(r * 18 - t * 5);
+        const fall = Math.exp(-r * 1.5);
         const grid = Math.abs((x * 12 % 1 + 1) % 1 - 0.5) > 0.46 || Math.abs((y * 12 % 1 + 1) % 1 - 0.5) > 0.46 ? 0.012 : 0;
-        let cr = 0.02 + grid + fall * ripple * 0.05 + ring * 0.15, cg = 0.025 + grid + fall * ripple * 0.11 + ring * 0.55, cb = 0.04 + grid + fall * ripple * 0.18 + ring * 0.85;
-        const sh = 1 - 0.65 * shadow;
+        const cr = 0.02 + grid + fall * ripple * 0.05 + ring * 0.15, cg = 0.025 + grid + fall * ripple * 0.11 + ring * 0.55, cb = 0.04 + grid + fall * ripple * 0.18 + ring * 0.85;
+        const sh = 1 - 0.4 * shadow;
         return [cr * sh, cg * sh, cb * sh];
       }
+      function envColour(dy) {
+        const b = sm(0.2, -0.8, dy);
+        return [0.04 + 0.1 * b, 0.05 + 0.35 * b, 0.07 + 0.55 * b];
+      }
+      var PAINT = [[0.92, 0.92, 0.9], [0.85, 0.08, 0.06], [0.16, 0.15, 0.15], [0.08, 0.14, 0.25], [0.75, 0.76, 0.8]];
+      var GLOSS = [60, 60, 25, 120, 90];
+      var REFL = [0.12, 0.12, 0.25, 0.5, 0.65];
       function shadePixel(sx, sy, t) {
-        const ox = 0, oy = 0, oz = CAM_Z;
+        const oz = CAM_Z;
         let dx = sx * FOV, dy = sy * FOV, dz = -CAM_Z;
         const n = Math.hypot(dx, dy, dz);
         dx /= n;
         dy /= n;
         dz /= n;
-        const B = pose.bound, bx = B[0] - ox, by = B[1] - oy, bz = B[2] - oz, tb = bx * dx + by * dy + bz * dz;
+        const B = R.bound, bx = B[0], by = B[1], bz = B[2] - oz, tb = bx * dx + by * dy + bz * dz;
         const miss = bx * bx + by * by + bz * bz - tb * tb > B[3] * B[3];
         const tPlane = -oz / dz;
-        let tt = miss ? tPlane : Math.max(0, tb - B[3]), hitHand = false;
+        let tt = miss ? tPlane : Math.max(0, tb - B[3]), hitIt = false, glowMin = 1e9;
         if (!miss) {
-          for (let i = 0; i < 40 && tt < tPlane; i++) {
-            const px2 = ox + dx * tt, py2 = oy + dy * tt, pz2 = oz + dz * tt;
-            if (pz2 < 0) break;
-            const d = sdf(px2, py2, pz2, false);
+          for (let i = 0; i < 64 && tt < tPlane; i++) {
+            const px = dx * tt, py = dy * tt, pz = oz + dz * tt;
+            const fd = flameDist(px, py, pz);
+            if (fd < glowMin) glowMin = fd;
+            const d = sdf(px, py, pz, false);
             if (d < 2e-3) {
-              hitHand = true;
+              hitIt = true;
               break;
             }
-            tt += d * 0.9;
+            tt += Math.max(3e-3, Math.min(d, Math.max(fd, 0.02)) * 0.6);
           }
         }
-        if (!hitHand) {
-          const px2 = ox + dx * tPlane, py2 = oy + dy * tPlane;
+        const g = glowMin < 1e8 ? Math.exp(-Math.max(0, glowMin) * 16) * R.flame : 0;
+        const flame = [g * 1.6, g * g * 1.1 + g * 0.25, g * g * g * 0.9];
+        let col;
+        if (!hitIt) {
+          const px = dx * tPlane, py = dy * tPlane;
           let shadow = 0;
-          if (!miss || Math.hypot(px2 - B[0], py2 - B[1]) < B[3] * 2) {
+          if (!miss && R.pos[2] > -0.3) {
             let k = 1, s = 0.05;
-            for (let i = 0; i < 12 && s < 2.2; i++) {
-              const d = sdf(px2 + KEY[0] * s, py2 + KEY[1] * s, KEY[2] * s, false);
+            for (let i = 0; i < 12 && s < 3; i++) {
+              const d = sdf(px + KEY[0] * s, py + KEY[1] * s, KEY[2] * s, false);
               k = Math.min(k, 8 * d / s);
-              s += clamp(d, 0.04, 0.3);
+              s += clamp(d, 0.05, 0.4);
               if (k < 0.01) break;
             }
             shadow = 1 - clamp(k);
           }
-          return screenColour(px2, py2, t, shadow);
-        }
-        const px = ox + dx * tt, py = oy + dy * tt, pz = oz + dz * tt;
-        sdf(px, py, pz, true);
-        const seg = hit.seg >= 0 ? pose.segs[hit.seg] : null, along = hit.h;
-        const e = 3e-3;
-        const a1 = sdf(px + e, py - e, pz - e), a2 = sdf(px - e, py - e, pz + e), a3 = sdf(px - e, py + e, pz - e), a4 = sdf(px + e, py + e, pz + e);
-        let nx = a1 - a2 - a3 + a4, ny = -a1 - a2 + a3 + a4, nz = -a1 + a2 - a3 + a4;
-        const nn = Math.hypot(nx, ny, nz) || 1;
-        nx /= nn;
-        ny /= nn;
-        nz /= nn;
-        let ao = 0;
-        for (let i = 1; i <= 3; i++) {
-          const h = 0.03 * i;
-          ao += (h - sdf(px + nx * h, py + ny * h, pz + nz * h)) / h / i;
-        }
-        ao = clamp(1 - ao * 0.6);
-        const ndl = nx * KEY[0] + ny * KEY[1] + nz * KEY[2];
-        const wrap = clamp((ndl + 0.35) / 1.35);
-        const vx = -dx, vy = -dy, vz = -dz;
-        const hx = KEY[0] + vx, hy = KEY[1] + vy, hz = KEY[2] + vz, hn = Math.hypot(hx, hy, hz);
-        const spec = Math.pow(clamp((nx * hx + ny * hy + nz * hz) / hn), 28) * 0.18;
-        const fres = Math.pow(1 - clamp(nx * vx + ny * vy + nz * vz), 3);
-        const portal = clamp(-ny * 0.6 + 0.4) * Math.exp(-pz * 1.2);
-        let r = SKIN[0], g = SKIN[1], b = SKIN[2];
-        const shadowTint = 1 - wrap;
-        g *= 1 - 0.28 * shadowTint;
-        b *= 1 - 0.38 * shadowTint;
-        if (seg) {
-          const crease = seg.joint > 0 ? Math.exp(-((along - 0.04) ** 2) / 3e-3) : 0;
-          const k = 1 - 0.25 * crease;
-          r *= k;
-          g *= k * 0.95;
-          b *= k * 0.93;
-          if (seg.tip && along > 0.62 && nz < 0.2) {
-            r = mix(r, 0.97, 0.5);
-            g = mix(g, 0.8, 0.5);
-            b = mix(b, 0.76, 0.5);
-          }
-          if (seg.tip && along > 0.7) {
-            r *= 1.04;
-            g *= 0.94;
-            b *= 0.94;
+          col = screenColour(px, py, t, shadow);
+        } else {
+          const px = dx * tt, py = dy * tt, pz = oz + dz * tt;
+          sdf(px, py, pz, true);
+          const id = M.id;
+          const e = 2e-3;
+          const a1 = sdf(px + e, py - e, pz - e), a2 = sdf(px - e, py - e, pz + e), a3 = sdf(px - e, py + e, pz - e), a4 = sdf(px + e, py + e, pz + e);
+          let nx = a1 - a2 - a3 + a4, ny = -a1 - a2 + a3 + a4, nz = -a1 + a2 - a3 + a4;
+          const nn = Math.hypot(nx, ny, nz) || 1;
+          nx /= nn;
+          ny /= nn;
+          nz /= nn;
+          const ndl = clamp(nx * KEY[0] + ny * KEY[1] + nz * KEY[2]);
+          const vx = -dx, vy = -dy, vz = -dz, ndv = clamp(nx * vx + ny * vy + nz * vz);
+          const hx = KEY[0] + vx, hy = KEY[1] + vy, hz = KEY[2] + vz, hn = Math.hypot(hx, hy, hz);
+          const spec = Math.pow(clamp((nx * hx + ny * hy + nz * hz) / hn), GLOSS[id]) * (id === 2 ? 0.3 : 1.1);
+          const rdy = dy - 2 * (dx * nx + dy * ny + dz * nz) * ny;
+          const env = envColour(rdy), fres = REFL[id] + (1 - REFL[id]) * Math.pow(1 - ndv, 5) * 0.6;
+          const l = toLocal(px, py, pz), tail = Math.exp(-Math.max(0, l[1] + 0.5) * 6) * R.flame;
+          const base = PAINT[id];
+          col = [0, 1, 2].map((k) => {
+            const diff = base[k] * (0.1 + 0.9 * ndl * KEY_COL[k]);
+            return mix(diff, env[k], fres) + spec * KEY_COL[k] + tail * [0.5, 0.25, 0.05][k] * base[k];
+          });
+          if (pz < 0) {
+            const pr = Math.hypot(px - R.portal[0], (py - R.portal[1]) * 1.6);
+            const through = sm(0.45, 0.38, pr);
+            const sc = screenColour(px, py, t, 0);
+            col = [mix(sc[0], col[0] * 0.8 + 0.05, through), mix(sc[1], col[1] * 0.8 + 0.2, through), mix(sc[2], col[2] * 0.8 + 0.3, through)];
           }
         }
-        const lit = 0.12 + 0.95 * wrap * ao;
-        let cr = r * (lit * KEY_COL[0]) + portal * 0.05 * ao, cg = g * (lit * KEY_COL[1]) + portal * 0.22 * ao, cb = b * (lit * KEY_COL[2]) + portal * 0.32 * ao;
-        cr += fres * 0.22 * ao + spec;
-        cg += fres * 0.1 * ao + spec * 0.95;
-        cb += fres * 0.08 * ao + spec * 0.9;
-        const sink = sm(0.25, 0, pz);
-        return [mix(cr, 0.15, sink), mix(cg, 0.6, sink), mix(cb, 0.9, sink)];
-      }
-      function updateBound() {
-        let mnx = 1e9, mny = 1e9, mnz = 1e9, mxx = -1e9, mxy = -1e9, mxz = -1e9;
-        const add = (p, r) => {
-          mnx = Math.min(mnx, p[0] - r);
-          mny = Math.min(mny, p[1] - r);
-          mnz = Math.min(mnz, p[2] - r);
-          mxx = Math.max(mxx, p[0] + r);
-          mxy = Math.max(mxy, p[1] + r);
-          mxz = Math.max(mxz, p[2] + r);
-        };
-        for (const s of pose.segs) {
-          add(s.a, s.ra);
-          add(s.b, s.rb);
-        }
-        add(pose.palm.c, 0.4);
-        add(pose.arm.a, 0.2);
-        add(pose.arm.b, 0.2);
-        const c = [(mnx + mxx) / 2, (mny + mxy) / 2, (mnz + mxz) / 2];
-        pose.bound = [c[0], c[1], c[2], Math.hypot(mxx - mnx, mxy - mny, mxz - mnz) / 2];
+        return [col[0] + flame[0], col[1] + flame[1], col[2] + flame[2]];
       }
       var st = { t: 0, frame: 0, img: null, size: 0 };
       var PASSES = 4;
@@ -6748,7 +6693,6 @@ var PiEngine = (() => {
       }
       function renderRows(S, pass) {
         buildPose(st.t);
-        updateBound();
         for (let y = pass; y < S; y += PASSES) for (let x = 0; x < S; x++) {
           const c = shadePixel((x + 0.5) / S - 0.5, 0.5 - (y + 0.5) / S, st.t), o = (y * S + x) * 3;
           st.img[o] = c[0];
@@ -6756,7 +6700,7 @@ var PiEngine = (() => {
           st.img[o + 2] = c[2];
         }
       }
-      function hand3dWall(core, dt) {
+      function rocket3dWall(core, dt) {
         if (!core.wallW) return;
         st.t += dt;
         const W = core.wallW, H = core.wallH, S = H, x0 = Math.floor((W - S) / 2);
@@ -6771,7 +6715,7 @@ var PiEngine = (() => {
           core.setWallPixel(x, y, c[0], c[1], c[2]);
         }
       }
-      function hand3d(core, dt) {
+      function rocket3d(core, dt) {
         st.t += dt;
         const S = core.SIZE;
         render(S);
@@ -6781,9 +6725,9 @@ var PiEngine = (() => {
           core.setFaceLED(0, u, v, st.img[o], st.img[o + 1], st.img[o + 2]);
         }
       }
-      hand3d.wall = hand3dWall;
-      hand3d._test = { st, buildPose, updateBound, shadePixel, pose, sdf };
-      module.exports = hand3d;
+      rocket3d.wall = rocket3dWall;
+      rocket3d._test = { st, buildPose, shadePixel, R };
+      module.exports = rocket3d;
     }
   });
 
@@ -26670,7 +26614,7 @@ var PiEngine = (() => {
       var gradientWash = require_gradientWash();
       var weather = require_weather2();
       var radar = require_radar();
-      var hand3d = require_hand3d();
+      var rocket3d = require_rocket3d();
       var talkingFace = require_talkingFace();
       var easterEgg = require_easterEgg();
       var rain = require_neonRain();
@@ -26806,7 +26750,7 @@ var PiEngine = (() => {
         weather: weatherWall,
         radar: radar.wall,
         talking_face: talkingFace.wall,
-        hand3d: hand3d.wall,
+        rocket3d: rocket3d.wall,
         datetime: datetimeWall,
         moon: celestialWall,
         ghost: ghostWall,
@@ -26841,7 +26785,7 @@ var PiEngine = (() => {
         weather,
         radar,
         talking_face: talkingFace,
-        hand3d,
+        rocket3d,
         easter_egg: easterEgg,
         rain,
         plasma,
@@ -26910,7 +26854,7 @@ var PiEngine = (() => {
         weather: "Weather",
         radar: "Weather Radar",
         talking_face: "Talking Face",
-        hand3d: "3D Hand",
+        rocket3d: "3D Rocket",
         easter_egg: "Easter Egg",
         rain: "Colour Rain",
         plasma: "Plasma Storm",
