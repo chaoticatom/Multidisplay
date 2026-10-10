@@ -352,6 +352,10 @@ class RadioAudio {
     // _launchPlayback()). The copy for phones playing along (wsServer.js sendAudio)
     // is stamped with when the speaker will play it, counted from samples sent
     // rather than arrival time (streams arrive in bursts), re-anchored if it drifts.
+    // While the speaker's pipe is backed up (a burst when a station starts),
+    // the speaker skips this chunk - so the phones and the bars skip it too,
+    // or they'd fall out of step with what the speaker actually plays.
+    if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && !this._playDrained) return;
     if (this.onPcm) {
       const now = Date.now(), lead = this._syncS * 1000;
       if (this._pcmT === null || this._pcmT === undefined || this._pcmT < now + lead - 250 || this._pcmT > now + lead + 6000) this._pcmT = now + lead;

@@ -1048,6 +1048,11 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 #fx-body .ov-row-label, #fx-body .ui-subhead, #fx-body .ui-subhead-lg { font-size: 12px !important; margin: 16px 0 8px !important; }
 #fx-body .opt-grid { gap: 8px !important; }
 #fx-body .opt-grid button, #fx-body .strobe-mode-btn, #fx-body .ui-btn-small { min-height: 42px; font-size: 14px !important; border-radius: 12px !important; }
+/* Range sliders: a thin track drawn in the middle of the (tall, easy to
+   touch) slider box, instead of the whole box filled in as a dark bar. */
+.slider-row input[type="range"], #sidebar input[type="range"], .effect-panel input[type="range"] {
+  background: linear-gradient(rgba(122,173,255,.35), rgba(122,173,255,.35)) center / 100% 4px no-repeat !important; border-radius: 2px;
+}
 #fx-body input[type="range"] { height: 32px; }
 #fx-body .slider-val, #fx-body .slider-label { font-size: 14px !important; }
 #fx-body .fx-none { color: rgba(238,242,255,.6); font-size: 14px; padding: 20px 0; text-align: center; }
@@ -2107,6 +2112,13 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
           <span class="slider-val au-sync-val-el" style="width:52px;">150ms</span>
         </div>
         <label class="check-row" style="margin-top:4px;"><input type="checkbox" class="au-sync-auto-el"> Auto - measure the speaker's delay and keep the bars in step</label>
+        <div class="ui-note">The bars and this browser's sound both follow the speaker using this delay. Too high (bars and phone after the speaker)? Turn Auto on, or lower it until the bars hit with the beat.</div>
+        <div class="ov-row-label" style="margin-top:8px;" title="Moves this device's sound earlier or later, to line it up with the speaker by ear">This browser's sound</div>
+        <div class="slider-row">
+          <input type="range" class="au-bsync-el" min="-2000" max="2000" step="25" value="0" style="flex:1;" aria-label="This browser's sound: earlier or later">
+          <span class="slider-val au-bsync-val-el" style="width:60px;">0ms</span>
+        </div>
+        <div class="ui-note">Fine-tune only if this device is still out of step with the speaker: − earlier, + later. Saved on this device.</div>
         <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
         <div class="slider-row">
           <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">

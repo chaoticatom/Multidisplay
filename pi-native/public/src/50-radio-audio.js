@@ -107,7 +107,7 @@ function handleSyncAudio(buf) {
   const muted = Number(currentState.effectOptions?.radio?.volume ?? 0.8) <= 0;
   a.gain.gain.value = muted ? 0 : Math.max(0, Math.min(1, Number(currentState.prefs?.volume ?? 1)));
   const outDelay = (a.ctx.outputLatency || 0) + (a.ctx.baseLatency || 0);
-  const when = a.ctx.currentTime + (playAt - a.offset - Date.now()) / 1000 - outDelay + a.extra;
+  const when = a.ctx.currentTime + (playAt - a.offset - Date.now()) / 1000 - outDelay + a.extra + radioBrowserSyncMs() / 1000;
   if (when < a.ctx.currentTime + 0.01) {
     // Arrived too late: skip it and re-lock on the next. If that keeps
     // happening (a slow connection), add a little delay rather than go silent.
@@ -124,6 +124,12 @@ function handleSyncAudio(buf) {
   src.buffer = ab; src.connect(a.gain); src.start(start);
   a.next = start + ab.duration;
 }
+
+// "This browser" sync: a per-device nudge (ms, + = later) on top of the
+// Pi's timing, for lining this device's sound up with the speaker by ear.
+const RADIO_BROWSER_SYNC_KEY = 'multidisplay-radio-browser-sync';
+function radioBrowserSyncMs() { try { const v = Number(localStorage.getItem(RADIO_BROWSER_SYNC_KEY)); return Number.isFinite(v) ? Math.max(-2000, Math.min(2000, v)) : 0; } catch (e) { return 0; } }
+function setRadioBrowserSyncMs(v) { try { localStorage.setItem(RADIO_BROWSER_SYNC_KEY, String(v)); } catch (e) { /* storage unavailable */ } syncAudio.next = 0; }
 
 const RADIO_BROWSER_PLAY_KEY = 'multidisplay-radio-browser-play';
 function radioBrowserPlaybackWanted() {
@@ -369,6 +375,12 @@ function wireRadioPanel() {
     if (syncVal) syncVal.textContent = syncSlider.value + 'ms';
     setEffectOption('radio', 'syncMs', Number(syncSlider.value));
   });
+  const bSync = panel.querySelector('.au-bsync-el'), bSyncVal = panel.querySelector('.au-bsync-val-el');
+  if (bSync) {
+    const show = () => { if (bSyncVal) bSyncVal.textContent = (bSync.value > 0 ? '+' : '') + bSync.value + 'ms'; };
+    bSync.value = radioBrowserSyncMs(); show();
+    bSync.addEventListener('input', () => { show(); setRadioBrowserSyncMs(Number(bSync.value)); });
+  }
   const syncAuto = panel.querySelector('.au-sync-auto-el');
   if (syncAuto) syncAuto.addEventListener('change', () => {
     if (syncSlider) syncSlider.disabled = syncAuto.checked;

@@ -2753,6 +2753,7 @@ var PiEngine = (() => {
           }
         }
         _onData(chunk) {
+          if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && !this._playDrained) return;
           if (this.onPcm) {
             const now = Date.now(), lead = this._syncS * 1e3;
             if (this._pcmT === null || this._pcmT === void 0 || this._pcmT < now + lead - 250 || this._pcmT > now + lead + 6e3) this._pcmT = now + lead;
