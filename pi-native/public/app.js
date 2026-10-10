@@ -29,7 +29,7 @@
 // already sends Cache-Control: no-store on everything - see that file's
 // module comment), so clicking it is just a plain hard reload rather than
 // the original's cache-clearing dance.
-const APP_VERSION = '0.6.284';
+const APP_VERSION = '0.6.285';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -189,8 +189,19 @@ function setConnStatus(status) {
   document.body.classList.toggle('offline', status !== 'connected' && status !== 'simulator');
   if (!el) return;
   el.dataset.status = status;
-  el.textContent = { connected: 'Connected', connecting: 'Connecting…', reconnecting: 'Reconnecting…', simulator: 'Simulator' }[status] || status;
+  el.textContent = status === 'reconnecting' ? offlineText() : { connected: 'Connected', connecting: 'Connecting…', simulator: 'Simulator' }[status] || status;
 }
+// While the Pi can't be reached: how long since we last heard from it.
+function offlineText() {
+  if (!lastMessageMs) return 'Reconnecting…';
+  const s = Math.round((Date.now() - lastMessageMs) / 1000);
+  const ago = s < 60 ? s + ' s' : s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h';
+  return 'Pi offline - last seen ' + ago + ' ago · retrying';
+}
+setInterval(() => {
+  const el = document.getElementById('conn-status');
+  if (el && el.dataset.status === 'reconnecting' && /^Pi offline|^Reconnecting/.test(el.textContent)) el.textContent = offlineText();
+}, 1000);
 
 let _lastStateJson = '';
 // Control PIN (see src/pinConfig.js). Remembered per browser; asked for
@@ -198,15 +209,43 @@ let _lastStateJson = '';
 function storedPin() { try { return localStorage.getItem('controlPin') || ''; } catch (e) { return ''; } }
 function rememberPin(p) { try { if (p) localStorage.setItem('controlPin', p); else localStorage.removeItem('controlPin'); } catch (e) { /* storage unavailable */ } }
 let authAsking = false;
-function answerAuth(failed) {
+async function answerAuth(failed) {
   if (authAsking) return; // one PIN box at a time
   authAsking = true;
   try {
-    let pin = failed ? '' : storedPin();
-    if (!pin) pin = window.prompt(failed ? 'Wrong PIN - enter the control PIN:' : 'This display is PIN-protected. Enter the control PIN:') || '';
-    rememberPin(pin);
+    let pin = failed ? '' : storedPin(), remember = true;
+    if (!pin) ({ pin, remember } = await pinPad(failed ? 'Wrong PIN - try again' : 'Enter the control PIN'));
+    rememberPin(remember ? pin : '');
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ cmd: 'auth', pin }));
   } finally { authAsking = false; }
+}
+// The PIN keypad (it was the browser's plain prompt box). Resolves with
+// { pin, remember }. Digits by tap, or typed - a PIN may contain letters.
+function pinPad(title) {
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'tm-modal'; wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-modal', 'true');
+    wrap.innerHTML = '<div class="tm-sheet" style="max-width:340px;margin:auto;text-align:center">'
+      + '<div style="font-size:30px">🔒</div><b class="pp-title" style="display:block;margin:4px 0 12px"></b>'
+      + '<input class="pp-in" type="password" inputmode="numeric" autocomplete="current-password" aria-label="PIN" style="width:100%;box-sizing:border-box;text-align:center;font-size:26px;letter-spacing:8px;padding:10px;border-radius:14px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:inherit">'
+      + '<div class="pp-keys" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0"></div>'
+      + '<label class="check-row" style="justify-content:center"><input type="checkbox" class="pp-rem" checked> Remember on this device</label>'
+      + '<button type="button" class="ui-btn-primary pp-ok" style="width:100%;margin-top:10px">Unlock</button></div>';
+    wrap.querySelector('.pp-title').textContent = title;
+    const inp = wrap.querySelector('.pp-in'), keys = wrap.querySelector('.pp-keys');
+    for (const k of ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', '✓']) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = k;
+      b.style.cssText = 'font-size:22px;padding:14px 0;border-radius:16px';
+      b.setAttribute('aria-label', k === '⌫' ? 'Delete' : k === '✓' ? 'Unlock' : k);
+      b.addEventListener('click', () => { if (k === '⌫') inp.value = inp.value.slice(0, -1); else if (k === '✓') done(); else inp.value += k; inp.focus(); });
+      keys.append(b);
+    }
+    const done = () => { if (!inp.value) { inp.focus(); return; } wrap.remove(); resolve({ pin: inp.value, remember: wrap.querySelector('.pp-rem').checked }); };
+    wrap.querySelector('.pp-ok').addEventListener('click', done);
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(); });
+    document.body.append(wrap);
+    setTimeout(() => inp.focus(), 50);
+  });
 }
 
 function handleTextMessage(msg) {
@@ -244,6 +283,7 @@ function handleTextMessage(msg) {
     currentState = msg;
     cxOnState();
     syncUpdateStatus();
+    syncRecents();
     syncEffectButtons();
     syncPanelButtons();
     syncPinStatus();
@@ -593,6 +633,54 @@ function wireTabs() {
   let tab = 'play';
   try { tab = localStorage.getItem('tab') || 'play'; } catch (e) { /* storage unavailable */ }
   setTab(tab);
+}
+// Recent effects as one-tap chips on the Play tab: recorded from the Pi's own
+// state, so a pick from a tile, a scene, a timer or the playlist all count.
+let recentShown = null;
+function syncRecents() {
+  const fx = currentState.effect; if (!fx || !effectNames[fx]) return;
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem('recentFx') || '[]'); } catch (e) { /* storage unavailable */ }
+  if (list[0] !== fx) { list = [fx, ...list.filter((k) => k !== fx)].slice(0, 7); try { localStorage.setItem('recentFx', JSON.stringify(list)); } catch (e) { /* storage unavailable */ } }
+  const key = list.join(',');
+  if (key === recentShown) return;
+  recentShown = key;
+  const row = document.getElementById('recent-row'); if (!row) return;
+  const others = list.slice(1).filter((k) => effectNames[k]);
+  row.hidden = !others.length;
+  row.replaceChildren(...others.map((k) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = '↺ ' + effectNames[k]; b.title = 'Show ' + effectNames[k] + ' again'; b.addEventListener('click', () => send({ cmd: 'setEffect', effect: k })); return b; }));
+}
+
+// Buttons that show only an emoji get a name for screen readers and
+// long-press hints, from their title (or a nearby label) if they lack one.
+function labelIconButtons(root = document) {
+  root.querySelectorAll('button:not([aria-label])').forEach((b) => {
+    const text = (b.textContent || '').trim();
+    if (/[A-Za-z0-9]/.test(text)) return;
+    const name = b.title || b.dataset.label || '';
+    if (name) b.setAttribute('aria-label', name);
+  });
+}
+new MutationObserver((muts) => { for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) labelIconButtons(n.tagName === 'BUTTON' ? n.parentNode || n : n); }).observe(document.documentElement, { childList: true, subtree: true });
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => labelIconButtons()); else labelIconButtons();
+
+// Setup search: hides the Setup sections that don't mention the words typed
+// and opens the ones that do.
+function wireSetupSearch() {
+  const inp = document.getElementById('setup-search-in'); if (!inp) return;
+  const run = () => {
+    const words = inp.value.toLowerCase().split(/\s+/).filter(Boolean);
+    let shown = 0;
+    document.querySelectorAll('#sidebar-scroll > .sidebar-section[data-tab="setup"]').forEach((sec) => {
+      const hit = !words.length || words.every((w) => sec.textContent.toLowerCase().includes(w));
+      sec.classList.toggle('search-miss', !hit);
+      if (hit) shown++;
+      if (hit && words.length) sec.classList.remove('collapsed');
+    });
+    let none = document.getElementById('setup-search-none');
+    if (!shown) { if (!none) { none = document.createElement('div'); none.id = 'setup-search-none'; inp.parentElement.append(none); } none.textContent = 'No setting matches "' + inp.value + '"'; } else if (none) none.remove();
+  };
+  inp.addEventListener('input', run);
 }
 function setTab(tab) {
   tab = OLD_TABS[tab] || tab;
@@ -5082,6 +5170,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireClearAllButton();
   wireStopSoundButton();
   wireUpdate();
+  wireSetupSearch();
   wireDraw();
   wireNote();
   wireIdentifyPanelsButton();

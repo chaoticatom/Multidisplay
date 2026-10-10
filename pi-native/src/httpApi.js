@@ -22,8 +22,17 @@ function notifyToken() {
 }
 function newNotifyToken() { const token = crypto.randomBytes(9).toString('base64url'); settingsStore.writeSection('notify', { token }); return token; }
 
+// Sent with every state update, so cached: the folder is only re-read when
+// its modification time changes (a photo added or removed, by the app or not).
+let photoCache = null, photoMtime = -1;
 function listPhotos() {
-  try { return fs.readdirSync(PHOTO_DIR).filter((f) => /\.(jpe?g|png|gif|bmp|webp)$/i.test(f)).sort(); } catch (e) { return []; }
+  try {
+    const m = fs.statSync(PHOTO_DIR).mtimeMs;
+    if (photoCache && m === photoMtime) return photoCache.slice();
+    photoCache = fs.readdirSync(PHOTO_DIR).filter((f) => /\.(jpe?g|png|gif|bmp|webp)$/i.test(f)).sort();
+    photoMtime = m;
+    return photoCache.slice();
+  } catch (e) { photoCache = null; photoMtime = -1; return []; }
 }
 function deletePhoto(name) {
   if (!listPhotos().includes(name)) return false;

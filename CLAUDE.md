@@ -17,7 +17,7 @@ Don't test beyond `node --check` on touched files and the `npm test` suite in `p
 ## Commands (run from `pi-native/`)
 
 ```bash
-npm test                 # the full suite (a chain of node test/*.test.js files - add new ones to package.json)
+npm test                 # the full suite: every test/*.test.js, run by scripts/runTests.js (new files run automatically)
 npm run start:mock       # run without hardware (mock driver, no WiFi setup)
 npm run release          # bump patch version everywhere + rebuild the root simulator (see below)
 npm run release -- 0.7.0 # ...or set an exact version
@@ -72,4 +72,4 @@ app.js (main thread)                         renderWorker.js (RENDER_WORKER=1)
 
 ## Tests
 
-`pi-native/test/*.test.js` are plain Node scripts that use `assert` and set `process.exitCode` on failure. Spawned processes are faked through injectable `spawn` functions (see `radio.test.js`, `ffmpegSourceStaleData.test.js`). For a regression fix, make sure the new test fails on the old code.
+`pi-native/test/*.test.js` are plain Node scripts that use `assert` and set `process.exitCode` on failure; `scripts/runTests.js` runs them all (`node scripts/runTests.js radio` runs only matching files). Spawned processes are faked through injectable `spawn` functions (see `radio.test.js`, `ffmpegSourceStaleData.test.js`). For a regression fix, make sure the new test fails on the old code.

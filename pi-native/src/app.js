@@ -363,7 +363,12 @@ async function main() {
     // authoritative-from-the-worker) is applied to `state` BEFORE the next
     // outgoing snapshot is built, so nothing the worker mutated ever gets
     // silently overwritten by a stale main-thread copy.
-    const STATE_RESEND_MS = 1000;
+    // Every command and every broadcast already bumps ws.stateVersion, so a
+    // change goes across at once; this is only the backstop for a change that
+    // doesn't broadcast. It used to be 1 s, and those constant full copies
+    // overwriting the worker's own progress caused real bugs (timers that
+    // never fired, a message note that kept dropping in again).
+    const STATE_RESEND_MS = 15000;
     let sentStateVersion = -1, lastStateSendMs = -Infinity;
     const sendTick = () => {
       const now = performance.now();

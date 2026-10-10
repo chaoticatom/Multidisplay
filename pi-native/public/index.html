@@ -997,6 +997,11 @@ body.guest .party-box { display: none; }
 #tab-bar .tab-badge { display:inline-block; width:8px; height:8px; margin-left:5px; border-radius:50%; background:#ff4d6a; vertical-align:top; }
 #tab-bar .tab-badge[hidden] { display:none; }
 #spk-warn[hidden] { display:none !important; }
+#setup-search { display: none; padding: 8px 12px 4px; }
+body[data-tab="setup"] #setup-search { display: block; }
+#setup-search input { width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); color: inherit; font-size: 15px; }
+#sidebar-scroll > .sidebar-section.search-miss { display: none !important; }
+#setup-search-none { padding: 6px 4px; opacity: .7; font-size: 13px; }
 @keyframes off-pulse { 50% { box-shadow: 0 0 0 2px #fff, 0 0 6px 1px rgba(255,51,85,.5); } }
 @media (prefers-reduced-motion: reduce) { #panels-off-btn.is-off, #preview-off-btn.is-off, #clear-all-btn.is-off { animation: none; } }
 #sidebar-brightness-bar { padding-bottom: 16px !important; position: relative; z-index: 2; } /* room for the ON/OFF labels */
@@ -1193,12 +1198,14 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   </nav>
   <div id="guest-bar">Guest view: pick an effect or scene.<button type="button" id="guest-pin-btn">Enter PIN</button></div>
   <div id="sidebar-scroll">
+  <div id="setup-search"><input type="search" id="setup-search-in" placeholder="🔍 Search settings: bluetooth, PIN, update…" aria-label="Search settings" autocomplete="off"></div>
   <div class="sidebar-section" id="now-section" data-tab="play">
     <div class="section-body">
       <div style="display:flex;gap:8px;margin:0 0 10px;">
         <button type="button" id="draw-open" class="ui-btn-primary" style="flex:1;margin:0;">🎨 Draw</button>
         <button type="button" id="note-open" class="ui-btn-primary" style="flex:1;margin:0;">💌 Message</button>
       </div>
+      <div id="recent-row" class="cx-chips" hidden style="margin:0 0 10px;" aria-label="Recent effects"></div>
       <div class="cx-ask"><span class="cx-spark"></span><button type="button" id="cx-mic" class="cx-mic" aria-label="Speak">🎤</button><input id="cx-ask" type="text" placeholder="Ask: “calm”, “party”, “night sky”…" aria-label="Ask for an effect" autocomplete="off"></div>
       <div id="cx-ask-chips" class="cx-chips"><button type="button">calm</button><button type="button">party</button><button type="button">night sky</button><button type="button">surprise me</button></div>
       <div id="party-box" class="party-box">
@@ -2573,6 +2580,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.284"></script>
+<script src="app.js?v=0.6.285"></script>
 </body>
 </html>

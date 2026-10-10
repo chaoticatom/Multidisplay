@@ -16,6 +16,7 @@ const weatherConfig = require('./weatherConfig');
 const wallLayoutConfig = require('./wallLayoutConfig');
 const bluetooth = require('./bluetooth');
 const btConfig = require('./btConfig');
+const BAD_OPTION_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const { atomicWriteJson } = require('./atomicWrite');
 function readDrawings() { try { const j = JSON.parse(require('fs').readFileSync(EFFECTS.draw.FILE, 'utf8')); return Array.isArray(j) ? j : []; } catch (e) { return []; } }
 const alarmsEngine = require('./effects/alarms');
@@ -176,6 +177,10 @@ const COMMANDS = {
     // vars never validated slider/button values either.
     if (typeof msg.effect !== 'string' || typeof msg.key !== 'string') return;
     if (!EFFECTS[msg.effect] && !WALL_EFFECTS[msg.effect]) return;
+    // Options are kept in the state the Pi re-sends constantly: short names,
+    // no prototype keys, and small values only.
+    if (!/^[A-Za-z0-9_]{1,40}$/.test(msg.key) || BAD_OPTION_KEYS.has(msg.key)) return;
+    try { if (JSON.stringify(msg.value === undefined ? null : msg.value).length > 16384) return; } catch (e) { return; }
     if (!this.state.effectOptions) this.state.effectOptions = {};
     if (!this.state.effectOptions[msg.effect]) this.state.effectOptions[msg.effect] = {};
     this.state.effectOptions[msg.effect][msg.key] = msg.value;
@@ -527,7 +532,7 @@ const COMMANDS = {
   // Synced phone playback on/off for this page (see wsServer.js sendAudio).
   audioSub(ws, msg) { ws._audio = !!msg.on; },
   // Clock sync for it: the page measures the round trip and the Pi's clock.
-  clockPing(ws, msg) { if (ws.readyState === 1) ws.send(JSON.stringify({ cmd: 'clockPong', c: msg.c, s: Date.now() })); },
+  clockPing(ws, msg) { if (ws.readyState === 1 && Number.isFinite(msg.c)) ws.send(JSON.stringify({ cmd: 'clockPong', c: Number(msg.c), s: Date.now() })); },
 
   // Setup -> Check for updates / Update now (see selfUpdate.js).
   checkUpdate(ws, msg) {

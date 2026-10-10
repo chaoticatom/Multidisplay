@@ -286,6 +286,13 @@ function sanitizeUploadName(raw) {
 // still waiting to go out. Without this a slow phone's queue grew without
 // limit: the preview fell further and further behind (looked frozen) and
 // the synced audio sharing the connection was cut off (a real report).
+const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+function isWellFormed(msg) {
+  if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return false;
+  if (typeof msg.cmd !== 'string' || !/^[A-Za-z]{1,40}$/.test(msg.cmd)) return false;
+  return !Object.keys(msg).some((k) => BAD_KEYS.has(k));
+}
+
 function previewHasRoom(client, frameBytes) {
   return (client.bufferedAmount || 0) < Math.max(64 * 1024, frameBytes * 2);
 }
@@ -892,6 +899,10 @@ class WsServer {
     if (isBinary) { if (this._clients.has(ws)) this._handleBinaryFrame(data); return; }
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
+    // Same shape rules for every command: a plain object with a short command
+    // name and no prototype-poisoning keys. Each handler still checks its own
+    // values (see wsCommands.js).
+    if (!isWellFormed(msg)) return;
     if (!this._clients.has(ws)) { this._handleAuth(ws, msg); return; }
     // Guests: the PIN upgrades them; otherwise only a few commands work.
     if (ws && ws.role === 'guest') {
@@ -1053,4 +1064,5 @@ class WsServer {
 
 module.exports = WsServer;
 module.exports.previewHasRoom = previewHasRoom;
+module.exports.isWellFormed = isWellFormed;
 module.exports.isSameOrigin = isSameOrigin;
