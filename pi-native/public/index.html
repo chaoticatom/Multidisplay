@@ -902,7 +902,7 @@ body.cx-preview-off #c, body.cx-preview-off #panel2d-canvas, body.cx-preview-off
 #sidebar-brightness-bar .slider-row { gap: 10px; align-items: center; }
 #bright-label { width: auto !important; font-size: 16px !important; }
 /* Overall volume: lined up under the brightness slider (same icon column). */
-#master-vol-row { margin: 8px 0 0 !important; }
+#master-vol-row { margin: 18px 0 0 !important; } /* below the ON/OFF labels under the buttons */
 #master-vol-label { width: auto !important; font-size: 14px !important; min-width: 16px; text-align: center; }
 #master-vol-slider { flex: 1; min-width: 0; margin: 0; }
 #master-vol-val { flex: 0 0 auto; width: 36px; text-align: right; font-size: 11px; font-weight: 700; color: #9aa3b8; }
@@ -1009,7 +1009,7 @@ body[data-tab="setup"] #setup-search { display: block; }
 #setup-search-none { padding: 6px 4px; opacity: .7; font-size: 13px; }
 @keyframes off-pulse { 50% { box-shadow: 0 0 0 2px #fff, 0 0 6px 1px rgba(255,51,85,.5); } }
 @media (prefers-reduced-motion: reduce) { #panels-off-btn.is-off, #preview-off-btn.is-off, #clear-all-btn.is-off { animation: none; } }
-#sidebar-brightness-bar { padding-bottom: 16px !important; position: relative; z-index: 2; } /* room for the ON/OFF labels */
+#sidebar-brightness-bar { padding-bottom: 8px !important; position: relative; z-index: 2; } /* the volume row leaves room for the ON/OFF labels */
 /* ── Favourites strip and scene tiles ── */
 #fav-strip { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 10px; margin-bottom: 6px; scrollbar-width: thin; flex-wrap: nowrap; align-items: stretch; }
 #fav-strip[hidden] { display: none; }
@@ -2640,6 +2640,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.300"></script>
+<script src="app.js?v=0.6.301"></script>
 </body>
 </html>
