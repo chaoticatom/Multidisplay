@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.307';
+const APP_VERSION = '0.6.308';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -5838,7 +5838,7 @@ function cxSyncAlexa() {
   const seen = a.lastSeen ? Math.round((Date.now() - a.lastSeen) / 60000) : null;
   document.getElementById('alexa-status').textContent = !on ? '' : a.error ? '⚠ ' + a.error : !a.on ? 'Starting…'
     : (seen === null ? 'Ready - waiting for an Echo to find it.' : '✓ An Echo talked to it ' + (seen < 1 ? 'just now' : seen + ' min ago') + '.') + (a.lastCommand ? ' Last: ' + a.lastCommand : '');
-  document.getElementById('alexa-devices').textContent = on && a.devices ? 'Devices: ' + a.devices.join(', ') : '';
+  document.getElementById('alexa-devices').textContent = (on && a.devices ? 'Devices: ' + a.devices.join(', ') : '') + (on && a.requests && a.requests.length ? '\nEcho asked for: ' + a.requests.join(' · ') : '');
   const cfg = currentState.prefs?.alexa || {}, inv = document.getElementById('alexa-inv'), sid = document.getElementById('alexa-skill-id');
   if (inv && document.activeElement !== inv && !inv.value) inv.value = cfg.invocation || 'led wall';
   if (sid && document.activeElement !== sid && !sid.value) sid.value = cfg.skillId || '';

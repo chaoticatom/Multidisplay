@@ -60,7 +60,9 @@ function hueLight(d, serial) {
   return {
     state: { on: !!d.on, bri: toBri(d.level), alert: 'none', reachable: true, mode: 'homeautomation' },
     type: 'Dimmable light', name: d.name, modelid: 'LWB010', manufacturername: 'Philips', productname: 'Hue white lamp',
-    uniqueid: `00:17:88:01:${serial.slice(-6).replace(/(..)(..)(..)/, '$1:$2:$3')}:${lightId(d.key).padStart(4, '0').replace(/(..)(..)/, '$1:$2')}-0b`, swversion: '1.46.13_r26312',
+    // Exactly a real bulb's shape: 00:17:88:01:00:xx:xx:xx-0b (8 bytes) - Echos
+    // ignore lights whose id doesn't match it.
+    uniqueid: '00:17:88:01:00:' + Number(lightId(d.key)).toString(16).padStart(6, '0').replace(/(..)(..)(..)/, '$1:$2:$3') + '-0b', swversion: '1.46.13_r26312',
   };
 }
 
@@ -91,7 +93,7 @@ function createAlexa({ state, names, run, port = 80, ip = lanIp, createSocket = 
   const serial = macish();
   const bridgeId = (serial.slice(0, 6) + 'fffe' + serial.slice(6)).toUpperCase();
   const uuid = `2f402f80-da50-11e1-9b23-${serial}`;
-  const status = { on: false, error: '', lastSeen: 0, lastCommand: '' };
+  const status = { on: false, error: '', lastSeen: 0, lastCommand: '', requests: [] }; // requests: the last few, for Setup (diagnosis)
   const lastVolume = { v: 0.6 };
   let server = null, sock = null;
 
@@ -122,7 +124,8 @@ function createAlexa({ state, names, run, port = 80, ip = lanIp, createSocket = 
   function handle(req, res) {
     const send = (code, body, type = 'application/json') => { res.writeHead(code, { 'Content-Type': type }); res.end(typeof body === 'string' ? body : JSON.stringify(body)); };
     const parts = req.url.split('?')[0].split('/').filter(Boolean);
-    if (req.method === 'GET' && (parts[0] === 'description.xml' || parts[0] === 'upnp')) return send(200, description(), 'text/xml');
+    if (req.method === 'GET' && (parts[0] === 'description.xml' || parts[0] === 'upnp')) { status.requests.push('GET ' + req.url.slice(0, 60)); if (status.requests.length > 8) status.requests.shift(); return send(200, description(), 'text/xml'); }
+    status.requests.push(req.method + ' ' + req.url.slice(0, 60)); if (status.requests.length > 8) status.requests.shift();
     if (parts[0] !== 'api') return send(404, 'not found', 'text/plain');
     status.lastSeen = Date.now();
     let body = '';

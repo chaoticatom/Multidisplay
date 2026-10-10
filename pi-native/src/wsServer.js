@@ -530,7 +530,7 @@ class WsServer {
       backup: this.state.backup || null,
       update: this.updater ? { ...this.updater.status } : null,
       faceTalk: this.state.faceTalk ? { say: this.state.faceTalk.say, thinking: this.state.faceTalk.thinking, log: this.state.faceTalk.log, voiceStatus: this.faceTalk.status.voice } : null,
-      alexa: this.alexa ? { on: this.alexa.status.on, error: this.alexa.status.error, lastSeen: this.alexa.status.lastSeen, lastCommand: this.alexa.status.lastCommand, devices: this.alexa.devices().map((d) => d.name), skill: { seen: this.alexaSkillStatus.lastSeen, error: this.alexaSkillStatus.error } } : null,
+      alexa: this.alexa ? { on: this.alexa.status.on, error: this.alexa.status.error, lastSeen: this.alexa.status.lastSeen, lastCommand: this.alexa.status.lastCommand, requests: this.alexa.status.requests, devices: this.alexa.devices().map((d) => d.name), skill: { seen: this.alexaSkillStatus.lastSeen, error: this.alexaSkillStatus.error } } : null,
       mic: this.mic ? { status: this.mic.status.mic, listening: this.mic.status.listening, hearing: this.mic.status.hearing, source: this.mic.status.source } : null,
       party: this.state.party ? { endsAt: this.state.party.endsAt, text: this.state.party.text } : null,
       musicReact: this.state.musicReact || { on: false, amount: 0.6 },

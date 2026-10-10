@@ -28,6 +28,7 @@ function call(alexa, method, url, body) {
     const names = Object.values(lights).map((l) => l.name);
     assert.deepStrictEqual(names.sort(), ['Display', 'Fireworks', 'Party', 'Volume']);
     assert.strictEqual(lights[lightId('display')].state.bri, 127, 'brightness 0.75 of 1.5 = half');
+    for (const l of Object.values(lights)) assert.ok(/^00:17:88:01:00(:[0-9a-f]{2}){3}-0b$/.test(l.uniqueid), 'a real Hue bulb id: ' + l.uniqueid);
 
     await call(alexa, 'PUT', `/api/x/lights/${lightId('display')}/state`, { on: false });
     assert.deepStrictEqual(ran.pop(), { cmd: 'clearAll' });
