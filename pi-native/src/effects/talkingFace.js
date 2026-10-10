@@ -6,7 +6,7 @@
 // It moves like a person: blinks (sometimes twice), small eye darts, a slow
 // sway and tilt, breathing, now and then a twitch (an eyebrow, a squint, a
 // half-smile), and it looks up while "thinking" about a reply.
-// Options (core.effectOptions.talking_face): skin, hair, eyes.
+// Options (core.effectOptions.talking_face): style (man/woman), skin, hair, eyes.
 'use strict';
 
 const { renderFace, LOOKS } = require('./faceRender');
@@ -83,10 +83,11 @@ function animate(dt, talk, now) {
 
 function lookFrom(opts) {
   return {
+    style: opts.style === 'woman' ? 'woman' : 'man',
     skin: LOOKS.skin[opts.skin] || LOOKS.skin.light,
-    hair: LOOKS.hair[opts.hair] || LOOKS.hair.brown,
+    hair: LOOKS.hair[opts.hair] || (opts.style === 'woman' ? LOOKS.hair.blonde : LOOKS.hair.brown),
     iris: LOOKS.iris[opts.eyes] || LOOKS.iris.blue,
-    shirt: [0.16, 0.24, 0.42], bg: [0.11, 0.09, 0.08],
+    shirt: opts.style === 'woman' ? [0.5, 0.2, 0.32] : [0.16, 0.24, 0.42], bg: [0.11, 0.09, 0.08],
   };
 }
 

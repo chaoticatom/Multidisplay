@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.290';
+const APP_VERSION = '0.6.291';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1394,6 +1394,11 @@ function wireTalkingFacePanel() {
   }));
   chips('.tf-voice-btn', 'voice', 'voice'); chips('.tf-chatty-btn', 'chatty', 'chatty', true);
   for (const k of ['skin', 'hair', 'eyes']) document.getElementById('tf-' + k).addEventListener('change', (e) => setEffectOption('talking_face', k, e.target.value));
+  // A woman's face starts with long blonde hair (hair can still be changed).
+  document.getElementById('tf-style').addEventListener('change', (e) => {
+    setEffectOption('talking_face', 'style', e.target.value);
+    setEffectOption('talking_face', 'hair', e.target.value === 'woman' ? 'blonde' : 'brown');
+  });
 }
 // The phone's own voice for each new line (when voice is phone or both).
 let tfSpokenId = null;
@@ -1401,7 +1406,8 @@ function syncTalkingFacePanel() {
   const o = currentState.effectOptions?.talking_face || {}, ft = currentState.faceTalk;
   document.querySelectorAll('.tf-voice-btn').forEach((x) => x.classList.toggle('active', x.dataset.voice === (o.voice || 'phone')));
   document.querySelectorAll('.tf-chatty-btn').forEach((x) => x.classList.toggle('active', Number(x.dataset.chatty) === (o.chatty ?? 45)));
-  for (const k of ['skin', 'hair', 'eyes']) { const el = document.getElementById('tf-' + k); if (el && document.activeElement !== el && o[k]) el.value = o[k]; }
+  for (const k of ['style', 'skin', 'hair', 'eyes']) { const el = document.getElementById('tf-' + k); if (el && document.activeElement !== el && o[k]) el.value = o[k]; }
+  const hairSel = document.getElementById('tf-hair'); if (hairSel && !o.hair && document.activeElement !== hairSel) hairSel.value = o.style === 'woman' ? 'blonde' : 'brown';
   const note = document.getElementById('tf-voice-note'); if (note && ft && ft.voiceStatus) note.textContent = '⚠ ' + ft.voiceStatus;
   const log = document.getElementById('tf-log');
   if (log && ft) {

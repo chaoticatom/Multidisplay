@@ -74,5 +74,12 @@ console.log('talkingFace');
     assert.ok(lit > 800, 'a face and captions are drawn: ' + lit);
     assert.ok(tf._test.st.open > 0.4, 'mouth open on "a": ' + tf._test.st.open);
     console.log('  ok - the face is drawn and talks');
+
+    // The woman's face: long hair reaches down beside the neck (where a man's has none).
+    const { renderFace, LOOKS } = require('../src/effects/faceRender');
+    const pose = { yaw: 0, tilt: 0, bob: 0, blink: 0, gazeX: 0, gazeY: 0, brow: 0, mouthOpen: 0, mouthWide: 0, smile: 0.3, squint: 0 };
+    const at = (style) => { const b = new Float32Array(64 * 64 * 3); renderFace(b, 64, 64, pose, { style, skin: LOOKS.skin.light, hair: LOOKS.hair.blonde, iris: LOOKS.iris.blue, shirt: [0.2, 0.2, 0.4], bg: [0.1, 0.1, 0.1] }); const o = (52 * 64 + 14) * 3; return b[o] + b[o + 1]; };
+    assert.ok(at('woman') > at('man') + 0.3, 'blonde hair at shoulder height on the woman only');
+    console.log('  ok - the woman\'s face has long hair');
   } catch (e) { console.error('  FAIL -', e.message); process.exitCode = 1; }
 })();

@@ -21,6 +21,7 @@ function ell(x, y, cx, cy, rx, ry) { const dx = (x - cx) / rx, dy = (y - cy) / r
 
 // One sample of the scene at face-space (u, v).
 function shade(u, v, p, L) {
+  const woman = L.style === 'woman';
   // Background: a soft warm room tone with a vignette.
   let col = scale(L.bg, 1 - 0.35 * clamp(Math.hypot(u * 0.7, v * 0.6)));
 
@@ -28,6 +29,17 @@ function shade(u, v, p, L) {
   const shoulder = v - (0.95 + 0.25 * u * u);
   if (shoulder > 0) col = mix(col, scale(L.shirt, 0.75 + 0.25 * clamp(1 - Math.abs(u))), sm(0, 0.04, shoulder));
 
+  // Long hair (woman): falls behind the neck, over the shoulders.
+  if (woman) {
+    // Starts below the crown (the round hair behind the head covers the top), soft wavy
+    // sides, rounded ends.
+    const long = Math.max(Math.abs(u) - (0.76 + 0.04 * Math.sin(v * 5 + u * 2) - 0.1 * Math.max(0, v - 0.4)), v - (1.12 - 0.18 * (u / 0.8) * (u / 0.8)), -0.25 - v);
+    if (long < 0) {
+      const strands = 0.82 + 0.13 * Math.sin(u * 45 + v * 6) + 0.05 * Math.sin(u * 140);
+      const sheen = 0.25 * sm(0.18, 0, Math.abs(v - 0.05 - u * 0.15)); // a soft band of shine
+      col = mix(col, scale(L.hair, (0.55 + 0.4 * clamp(0.6 - v * 0.4 - u * 0.3) + sheen) * strands), sm(0, -0.03, long));
+    }
+  }
   // Neck (shaded darker under the jaw).
   const neck = Math.max(Math.abs(u) - 0.27, 0.55 - v);
   if (neck < 0) col = mix(col, scale(L.skin, 0.62 + 0.18 * clamp((v - 0.6) * 2)), sm(0, -0.03, neck));
@@ -37,13 +49,13 @@ function shade(u, v, p, L) {
   if (hairBack < 0) col = mix(col, scale(L.hair, 0.55 + 0.25 * clamp(-v)), sm(0, -0.03, hairBack));
 
   // Ears.
-  for (const s of [-1, 1]) {
+  for (const s of woman ? [] : [-1, 1]) { // hidden by long hair on a woman
     const e = ell(u, v, s * 0.63, 0.02, 0.1, 0.17);
     if (e < 0) col = mix(col, scale(L.skin, 0.72 - 0.1 * clamp((Math.abs(u) - 0.6) * 5)), sm(0, -0.02, e));
   }
 
   // Face: an egg shape, narrower at the jaw.
-  const jaw = v > 0 ? 0.6 - v * 0.17 : 0.6;
+  const jaw = woman ? (v > 0 ? 0.57 - v * 0.22 : 0.57) : (v > 0 ? 0.6 - v * 0.17 : 0.6); // softer, slimmer jaw on a woman
   const face = ell(u, v, 0, 0.02, jaw, 0.8);
   if (face > 0.03) return col;
   // Surface normal of a soft dome, lit from the upper left.
@@ -52,7 +64,7 @@ function shade(u, v, p, L) {
   let skin = scale(L.skin, 0.5 + 0.6 * lam);
   // Warm cheeks and a little colour on the nose and chin.
   const cheek = Math.max(sm(0.22, 0, Math.hypot(Math.abs(u) - 0.32, v - 0.18)), 0.5 * sm(0.12, 0, Math.hypot(u, v - 0.12)), 0.4 * sm(0.14, 0, Math.hypot(u, v - 0.66)));
-  skin = mix(skin, [skin[0] * 1.08, skin[1] * 0.82, skin[2] * 0.8], cheek * 0.55);
+  skin = mix(skin, [skin[0] * 1.08, skin[1] * 0.82, skin[2] * 0.8], cheek * (woman ? 0.8 : 0.55));
   // Soft shadow round the edge of the face.
   skin = scale(skin, 1 - 0.35 * sm(-0.12, 0.02, face));
 
@@ -77,17 +89,18 @@ function shade(u, v, p, L) {
     const strands = 0.85 + 0.15 * Math.sin(u * 60 + v * 8);
     col = mix(col, scale(L.hair, (0.6 + 0.5 * clamp(-u * 0.6 - v * 0.6 + 0.4)) * strands), sm(0.02, -0.02, hairFront));
   }
-  // Sideburn hair along the temples.
+  // Sideburn hair along the temples - or, on a woman, strands framing the face.
   for (const s of [-1, 1]) {
-    const sb = ell(u, v, s * 0.57, -0.2, 0.08, 0.3);
+    const sb = woman ? ell(u, v, s * 0.6, 0.12, 0.09, 0.62) : ell(u, v, s * 0.57, -0.2, 0.08, 0.3);
     if (sb < 0) col = mix(col, scale(L.hair, 0.5), sm(0, -0.03, sb));
   }
 
   // Eyebrows (raised by pose.brow).
   for (const s of [-1, 1]) {
     const bx = u - s * 0.24, by = v - (-0.24 - p.brow * 0.05 + 0.06 * bx * bx / 0.04 * 0.25 - s * 0.01);
-    const d = Math.max(Math.abs(bx) - 0.13, Math.abs(by + 0.015 * Math.cos(bx * 12)) - 0.022);
-    if (d < 0.01) col = mix(col, scale(L.hair, 0.7), sm(0.01, -0.008, d));
+    const arch = woman ? 0.035 * Math.cos(bx * 11) : 0.015 * Math.cos(bx * 12), thick = woman ? 0.013 : 0.022;
+    const d = Math.max(Math.abs(bx) - 0.13, Math.abs(by + arch) - thick);
+    if (d < 0.01) col = mix(col, scale(woman ? mix(L.hair, [0.3, 0.2, 0.12], 0.5) : L.hair, 0.7), sm(0.01, -0.008, d)); // finer, arched brows on a woman
   }
 
   // Eyes.
@@ -111,8 +124,10 @@ function shade(u, v, p, L) {
       col = e;
     }
     // Upper eyelid line / lashes, and the closed lid.
-    const lidLine = Math.abs(ey - top) < 0.012 && Math.abs(ex) < hw * 1.05;
-    if (lidLine) col = mix(col, [0.12, 0.08, 0.07], 0.85);
+    const lidLine = Math.abs(ey - top) < (woman ? 0.018 : 0.012) && Math.abs(ex) < hw * 1.05;
+    if (lidLine) col = mix(col, [0.12, 0.08, 0.07], woman ? 0.95 : 0.85);
+    // Lashes flick up at the outer corner.
+    if (woman && s * ex > hw * 0.85 && s * ex < hw * 1.15 && Math.abs(ey - (top - (s * ex - hw * 0.85) * 0.5)) < 0.008) col = mix(col, [0.12, 0.07, 0.07], 0.6);
     if (!inside && Math.abs(ex) < hw && ey > top - 0.05 && ey < top && open < 0.25) col = mix(col, scale(L.skin, 0.75), 0.6);
   }
 
@@ -122,9 +137,10 @@ function shade(u, v, p, L) {
     const mx = u, my = v - 0.43, t = clamp(1 - (mx / wide) * (mx / wide));
     const curve = -p.smile * 0.03 * (mx / wide) * (mx / wide);
     const gapTop = -0.006 - open * 0.05 * t + curve, gapBot = 0.006 + open * 0.07 * t + curve;
-    const upTop = gapTop - 0.035 * Math.sqrt(t) * (1 + 0.4 * Math.cos(mx * 22) * 0), lowBot = gapBot + 0.045 * Math.sqrt(t);
+    const full = woman ? 1.3 : 1;
+    const upTop = gapTop - 0.035 * full * Math.sqrt(t), lowBot = gapBot + 0.045 * full * Math.sqrt(t);
     if (Math.abs(mx) < wide && my > upTop && my < lowBot) {
-      const lip = [0.72, 0.36, 0.36];
+      const lip = woman ? [0.86, 0.38, 0.46] : [0.72, 0.36, 0.36]; // fuller, pinker lips on a woman
       if (my > gapTop && my < gapBot && open > 0.05) {
         let inner = [0.22, 0.05, 0.06];
         if (my < gapTop + 0.025 * open + 0.008) inner = [0.86, 0.84, 0.78]; // top teeth
@@ -159,7 +175,7 @@ function renderFace(out, w, h, pose, look) {
 
 const LOOKS = {
   skin: { light: [0.93, 0.72, 0.6], medium: [0.8, 0.56, 0.4], tan: [0.68, 0.45, 0.3], dark: [0.42, 0.27, 0.18] },
-  hair: { brown: [0.3, 0.19, 0.11], black: [0.08, 0.07, 0.07], blonde: [0.78, 0.62, 0.35], red: [0.55, 0.22, 0.1], grey: [0.6, 0.6, 0.6] },
+  hair: { brown: [0.3, 0.19, 0.11], black: [0.08, 0.07, 0.07], blonde: [0.92, 0.76, 0.46], red: [0.55, 0.22, 0.1], grey: [0.6, 0.6, 0.6] },
   iris: { brown: [0.42, 0.25, 0.12], blue: [0.3, 0.52, 0.8], green: [0.33, 0.55, 0.32], hazel: [0.5, 0.42, 0.2] },
 };
 
