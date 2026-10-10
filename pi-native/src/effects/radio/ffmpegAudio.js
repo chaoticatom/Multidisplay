@@ -30,8 +30,14 @@ const RING_SAMPLES = 1 << 18; // ~5.9s of audio - room for up to 3s of speaker s
 // ears later than ffmpeg decodes it (pipe + PulseAudio + Bluetooth, which
 // varies a lot by speaker), so this is adjustable from the radio panel's
 // "Speaker sync" slider (setSyncMs()) to line the bars up with the sound.
-const DEFAULT_SYNC_MS = 150;
+const DEFAULT_SYNC_MS = 200; // the speaker's own delay when it can't be measured (typical Bluetooth)
 const MAX_SYNC_MS = 3000; // some Bluetooth speakers lag well over a second
+// Paced playback (see _onData): paplay's own buffer, our queue's prefill, and
+// how far a burst may run ahead before the oldest audio is dropped.
+const PLAY_BUF_MS = 150;
+const QUEUE_MS = 400;
+const QUEUE_SLACK_MS = 1200;
+const BYTES_PER_MS = (SAMPLE_RATE * CHANNELS * 2) / 1000;
 const AUTO_SYNC_EVERY_MS = 9000; // Auto speaker sync: how often the delay is measured
 
 // Auto speaker sync: how late our stream is heard, from `pactl list
@@ -41,8 +47,10 @@ const AUTO_SYNC_EVERY_MS = 9000; // Auto speaker sync: how often the delay is me
 function parseStreamLatencyMs(text) {
   for (const block of String(text || '').split(/\n(?=Sink Input #)/)) {
     if (!/application\.(name|process\.binary) = "paplay"/.test(block)) continue;
-    const buf = /Buffer Latency:\s*(\d+)\s*usec/.exec(block), sink = /Sink Latency:\s*(\d+)\s*usec/.exec(block);
-    const us = (buf ? Number(buf[1]) : 0) + (sink ? Number(sink[1]) : 0);
+    // Only the output's own delay: the buffer before it is ours and known
+    // (PLAY_BUF_MS, paced - see _onData).
+    const sink = /Sink Latency:\s*(\d+)\s*usec/.exec(block);
+    const us = sink ? Number(sink[1]) : 0;
     return us > 0 ? Math.round(us / 1000) : null;
   }
   return null;
@@ -82,7 +90,9 @@ class RadioAudio {
     this._analyser = createAnalyser(SAMPLE_RATE);
     this._zeros = new Float32Array(BAND_COUNT);
     this._analysisTimer = null;
-    this._syncS = DEFAULT_SYNC_MS / 1000;
+    this._sinkMs = DEFAULT_SYNC_MS; // the speaker's own delay (Speaker sync / Auto)
+    this._syncS = (PLAY_BUF_MS + DEFAULT_SYNC_MS) / 1000; // bars: written -> heard
+    this._pq = { list: [], bytes: 0 }; this._epoch = null; this._paceTimer = null;
     this.status = 'Stopped';
     this.playbackStatus = 'No playback attempted';
     this.lastAttemptMs = 0;
@@ -289,7 +299,7 @@ class RadioAudio {
       // this second PulseAudio-client process).
       const pulseResult = findPulseEnv();
       const env = pulseResult.env ? { ...process.env, ...pulseResult.env } : process.env;
-      const args = ['--raw', '--format=s16le', '--rate=' + SAMPLE_RATE, '--channels=' + CHANNELS];
+      const args = ['--raw', '--format=s16le', '--rate=' + SAMPLE_RATE, '--channels=' + CHANNELS, '--latency-msec=' + PLAY_BUF_MS]; // a small, known buffer (see _onData)
       if (pulseResult.env) args.unshift('--server=' + pulseResult.env.PULSE_SERVER);
       proc = this._spawn('paplay', args, { stdio: ['pipe', 'ignore', 'pipe'], env });
     } catch (err) {
@@ -297,6 +307,7 @@ class RadioAudio {
       return;
     }
     this.playProc = proc;
+    this._startPacer();
     this.playbackStatus = 'Starting playback…';
     let stderrTail = '';
     proc.on('error', (err) => this._onPlaybackFail(err, proc));
@@ -317,6 +328,7 @@ class RadioAudio {
     proc.on('exit', (code) => {
       if (this.playProc !== proc) return; // replaced/torn down - see decode exit handler
       this.playProc = null;
+      this._dropToBars();
       if (code !== 0 && code !== null) {
         const lastLine = stderrTail.trim().split('\n').filter(Boolean).pop();
         this.playbackStatus = 'Playback stopped — ' + (lastLine || `paplay exited (code ${code})`);
@@ -328,6 +340,7 @@ class RadioAudio {
   _onPlaybackFail(err, proc) {
     if (proc && proc !== this.playProc) return;
     this.playProc = null;
+    this._dropToBars();
     if (err && err.code === 'ENOENT') {
       this.playbackStatus = 'paplay not found — install with: sudo apt install pulseaudio-utils';
     } else {
@@ -346,31 +359,82 @@ class RadioAudio {
     }
   }
 
+  // Decoded audio arrives in network bursts. It goes into a short queue and
+  // a steady clock (_paceTick) hands it to the speaker in real time through
+  // a small paplay buffer, so the Pi knows when each piece will be heard:
+  //   heard = time written + PLAY_BUF_MS + the speaker's own delay (sinkMs:
+  //   measured with Auto, or the Speaker sync slider - Bluetooth adds ~0.2 s).
+  // Phones playing along get each piece stamped with that time, and the bars
+  // analyse what was written that long ago - all three line up. (Before, the
+  // burst went straight into a large, unmeasured sound-server buffer, so the
+  // speaker's real delay was unknown and phones ended up ~1 s behind it.)
+  // Without a speaker process (no paplay), audio goes straight to the bars.
   _onData(chunk) {
-    // Forward to playback first; a failure here must never throw or block the FFT
-    // path. Skipped while the pipe is backed up (see the 'drain' listener in
-    // _launchPlayback()). The copy for phones playing along (wsServer.js sendAudio)
-    // is stamped with when the speaker will play it, counted from samples sent
-    // rather than arrival time (streams arrive in bursts), re-anchored if it drifts.
-    // While the speaker's pipe is backed up (a burst when a station starts),
-    // the speaker skips this chunk - so the phones and the bars skip it too,
-    // or they'd fall out of step with what the speaker actually plays.
-    if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && !this._playDrained) return;
-    if (this.onPcm) {
-      const now = Date.now(), lead = this._syncS * 1000;
-      if (this._pcmT === null || this._pcmT === undefined || this._pcmT < now + lead - 250 || this._pcmT > now + lead + 6000) this._pcmT = now + lead;
-      try { this.onPcm(chunk, this._pcmT); } catch (e) { /* never block playback */ }
-      this._pcmT += (chunk.length / (2 * CHANNELS)) / SAMPLE_RATE * 1000;
-    }
-    if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && this._playDrained) {
-      const g = this._gain * require('../../masterVolume').get();
-      const out = g < 0.999 ? scalePcm(chunk, g) : chunk;
-      try { this._playDrained = this.playProc.stdin.write(out); } catch (e) { /* handled via the stdin 'error' listener */ }
-    }
+    if (chunk.length && this.status === 'Connecting…') this.status = 'Playing';
+    if (!this.playProc) { this._ringWrite(chunk); if (this.onPcm) this._stampForPhones(chunk, Date.now() + this._syncS * 1000); return; }
+    // The schedule is fixed when audio starts: piece n is written at
+    // epoch + (bytes before it) / rate, the epoch being QUEUE_MS after the
+    // first piece arrived - so each piece's time is known the moment it arrives.
+    const now = Date.now();
+    if (this._epoch === null) { this._epoch = now + QUEUE_MS; this._enq = 0; this._paceWritten = 0; }
+    const writeAt = this._epoch + this._enq / BYTES_PER_MS;
+    // A long burst (some stations send several seconds at once): what's too
+    // far ahead is skipped - by the speaker, the phones and the bars alike -
+    // so everything stays near live.
+    if (writeAt - now > QUEUE_MS + QUEUE_SLACK_MS) return;
+    if (this.onPcm) this._stampForPhones(chunk, writeAt + PLAY_BUF_MS + this._sinkMs);
+    this._pq.list.push(chunk); this._pq.bytes += chunk.length; this._enq += chunk.length;
+  }
 
-    // Mono-sum into the analysis ring (the Bluetooth playback above stays
-    // true stereo - this only feeds the visualizer). An odd trailing byte
-    // or half-frame is carried over to the next chunk.
+  // Phones: pieces stamped back to back, re-anchored when the prediction
+  // moves (a drop, an underrun).
+  _stampForPhones(chunk, predicted) {
+    if (this._pcmT === null || this._pcmT === undefined || Math.abs(this._pcmT - predicted) > 120) this._pcmT = predicted;
+    try { this.onPcm(chunk, this._pcmT); } catch (e) { /* never block playback */ }
+    this._pcmT += (chunk.length / (2 * CHANNELS)) / SAMPLE_RATE * 1000;
+  }
+
+  // Every 10 ms: write what's due to paplay (real time, after QUEUE_MS of
+  // prefill), and only then into the bars' ring.
+  _paceTick() {
+    const proc = this.playProc;
+    if (!proc || !proc.stdin || !proc.stdin.writable || this._epoch === null) return;
+    const now = Date.now();
+    if (now < this._epoch) return; // prefilling
+    const due = (now - this._epoch) * BYTES_PER_MS + 10 * BYTES_PER_MS;
+    while (this._paceWritten < due && this._pq.list.length) {
+      const chunk = this._pq.list.shift(); this._pq.bytes -= chunk.length;
+      const g = this._gain * require('../../masterVolume').get();
+      try { proc.stdin.write(g < 0.999 ? scalePcm(chunk, g) : chunk); } catch (e) { /* handled via the stdin 'error' listener */ }
+      this._paceWritten += chunk.length;
+      this._ringWrite(chunk);
+    }
+    // Ran dry (the stream stalled): the next audio starts a fresh schedule.
+    if (!this._pq.list.length && due - this._paceWritten > 250 * BYTES_PER_MS) this._epoch = null;
+  }
+
+  _startPacer() {
+    if (this._paceTimer) return;
+    this._epoch = null;
+    this._paceTimer = setInterval(() => this._paceTick(), 10);
+    if (this._paceTimer.unref) this._paceTimer.unref();
+  }
+  _stopPacer() {
+    if (this._paceTimer) clearInterval(this._paceTimer);
+    this._paceTimer = null; this._epoch = null; this._pq = { list: [], bytes: 0 };
+  }
+
+  // No speaker any more: what was queued for it goes to the bars instead.
+  _dropToBars() {
+    const list = this._pq.list;
+    this._stopPacer();
+    for (const c of list) this._ringWrite(c);
+  }
+
+
+  // Into the analysis ring, mono-summed (plus left/right for the VU); an odd
+  // trailing byte or half-frame is carried over to the next chunk.
+  _ringWrite(chunk) {
     let buf = chunk;
     if (this._carry && this._carry.length) { buf = Buffer.concat([this._carry, chunk]); this._carry = null; }
     const frames = (buf.length / 4) | 0;
@@ -527,11 +591,12 @@ class RadioAudio {
   setSyncMs(ms) {
     // 'auto': follow the delay measured from the sound server (see
     // _measureLatency); until the first reading, the usual default.
-    if (ms === 'auto') { this._syncAuto = true; this._syncS = (this.autoSyncMs !== null ? this.autoSyncMs : DEFAULT_SYNC_MS) / 1000; return; }
+    // The value is the speaker's own delay; the bars add paplay's buffer.
+    if (ms === 'auto') { this._syncAuto = true; this._setSink(this.autoSyncMs !== null ? this.autoSyncMs : DEFAULT_SYNC_MS); return; }
     this._syncAuto = false;
-    const v = Number.isFinite(ms) ? Math.max(0, Math.min(MAX_SYNC_MS, ms)) : DEFAULT_SYNC_MS;
-    this._syncS = v / 1000;
+    this._setSink(Number.isFinite(ms) ? Math.max(0, Math.min(MAX_SYNC_MS, ms)) : DEFAULT_SYNC_MS);
   }
+  _setSink(ms) { this._sinkMs = ms; this._syncS = (PLAY_BUF_MS + ms) / 1000; }
 
   // Clears the "one-shot debug tone already finished" latch - called on
   // every genuine new play request (see radio.js's playStation()).
@@ -558,7 +623,7 @@ class RadioAudio {
         if (ms === null) return;
         const clamped = Math.min(MAX_SYNC_MS, ms);
         this.autoSyncMs = this.autoSyncMs === null ? clamped : Math.round(this.autoSyncMs * 0.6 + clamped * 0.4);
-        if (this._syncAuto) this._syncS = this.autoSyncMs / 1000;
+        if (this._syncAuto) this._setSink(this.autoSyncMs);
       });
     } catch (e) { this._measuring = false; }
   }
@@ -596,6 +661,7 @@ class RadioAudio {
   }
 
   _teardownPlayback() {
+    this._stopPacer();
     if (this.playProc) {
       try { this.playProc.stdin && this.playProc.stdin.end(); } catch (e) { /* already closed */ }
       try { this.playProc.kill('SIGKILL'); } catch (e) { /* already dead */ }

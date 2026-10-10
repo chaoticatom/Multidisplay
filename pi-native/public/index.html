@@ -2108,11 +2108,11 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
         </div>
         <div class="ov-row-label" style="margin-top:8px;" title="Delays the bars to line up with what you hear - Bluetooth speakers play audio late">Speaker sync</div>
         <div class="slider-row">
-          <input type="range" class="au-sync-el" min="0" max="3000" step="25" value="150" style="flex:1;" aria-label="Speaker sync delay">
-          <span class="slider-val au-sync-val-el" style="width:52px;">150ms</span>
+          <input type="range" class="au-sync-el" min="0" max="1500" step="25" value="200" style="flex:1;" aria-label="Speaker sync delay">
+          <span class="slider-val au-sync-val-el" style="width:60px;">200ms</span>
         </div>
         <label class="check-row" style="margin-top:4px;"><input type="checkbox" class="au-sync-auto-el"> Auto - measure the speaker's delay and keep the bars in step</label>
-        <div class="ui-note">The bars and this browser's sound both follow the speaker using this delay. Too high (bars and phone after the speaker)? Turn Auto on, or lower it until the bars hit with the beat.</div>
+        <div class="ui-note">The speaker's own delay (Bluetooth adds about 0.2 s). The Pi feeds the speaker at a steady pace, so the bars and this browser's sound are timed to it. If the bars hit after the beat, lower it; before, raise it.</div>
         <div class="ov-row-label" style="margin-top:8px;" title="Moves this device's sound earlier or later, to line it up with the speaker by ear">This browser's sound</div>
         <div class="slider-row">
           <input type="range" class="au-bsync-el" min="-2000" max="2000" step="25" value="0" style="flex:1;" aria-label="This browser's sound: earlier or later">
@@ -2695,6 +2695,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.310"></script>
+<script src="app.js?v=0.6.311"></script>
 </body>
 </html>

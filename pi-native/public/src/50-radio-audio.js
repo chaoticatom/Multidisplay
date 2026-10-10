@@ -517,9 +517,9 @@ function syncRadioPanel() {
   if (autoOn) {
     // Auto speaker sync: show what the Pi measured (see ffmpegAudio.js _measureLatency).
     const m = currentState.effectStatus?.radio?.autoSyncMs;
-    if (syncVal) syncVal.textContent = Number.isFinite(m) ? m + 'ms' : 'auto';
+    if (syncVal) syncVal.textContent = Number.isFinite(m) ? m + 'ms' : '~200ms';
     if (syncSlider && Number.isFinite(m)) syncSlider.value = m;
-  } else if (syncSlider && document.activeElement !== syncSlider) { syncSlider.value = opts.syncMs ?? 150; if (syncVal) syncVal.textContent = syncSlider.value + 'ms'; }
+  } else if (syncSlider && document.activeElement !== syncSlider) { syncSlider.value = opts.syncMs ?? 200; if (syncVal) syncVal.textContent = syncSlider.value + 'ms'; }
   const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
   if (scrollSlider && document.activeElement !== scrollSlider) { scrollSlider.value = opts.scrollSpeed ?? 0; if (scrollVal) scrollVal.textContent = scrollSlider.value; }
 }

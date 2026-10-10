@@ -1,5 +1,6 @@
-// Auto speaker sync: the bars' delay follows the latency the sound server
-// reports for our paplay stream (src/effects/radio/ffmpegAudio.js).
+// Auto speaker sync: the speaker's own delay is the output (sink) latency the
+// sound server reports for our paplay stream; the bars add paplay's fixed
+// buffer (150 ms, paced) (src/effects/radio/ffmpegAudio.js).
 'use strict';
 const assert = require('assert');
 const { EventEmitter } = require('events');
@@ -23,7 +24,7 @@ Sink Input #57
 `;
 
 try {
-  assert.strictEqual(parseStreamLatencyMs(PACTL), 230);
+  assert.strictEqual(parseStreamLatencyMs(PACTL), 185, 'the output\'s delay only - our own buffer is known');
   assert.strictEqual(parseStreamLatencyMs('Sink Input #1\n\tapplication.name = "mpv"\n'), null);
   assert.strictEqual(parseStreamLatencyMs(''), null);
   console.log('  ok - reads our stream\'s delay from pactl');
@@ -34,15 +35,15 @@ try {
   const audio = new RadioAudio(spawnFn, execFn);
   audio.ensure('http://radio.example/stream');
   audio.setSyncMs('auto');
-  assert.strictEqual(Math.round(audio._syncS * 1000), 150, 'the default until the first reading');
+  assert.strictEqual(Math.round(audio._syncS * 1000), 150 + 200, 'the default until the first reading');
   audio.lastEnsureMs = Date.now(); audio.lastAttemptMs = Date.now();
   audio._checkIdle();
-  assert.strictEqual(audio.autoSyncMs, 230);
-  assert.strictEqual(Math.round(audio._syncS * 1000), 230);
-  audio._measuredAt = 0; audio._checkIdle(); // the speaker gets slower: eased towards 430
-  assert.ok(audio.autoSyncMs > 230 && audio.autoSyncMs < 430, 'eased: ' + audio.autoSyncMs);
+  assert.strictEqual(audio.autoSyncMs, 185);
+  assert.strictEqual(Math.round(audio._syncS * 1000), 150 + 185);
+  audio._measuredAt = 0; audio._checkIdle(); // the speaker gets slower: eased towards 385
+  assert.ok(audio.autoSyncMs > 185 && audio.autoSyncMs < 385, 'eased: ' + audio.autoSyncMs);
   audio.setSyncMs(500); // back to manual
-  assert.strictEqual(Math.round(audio._syncS * 1000), 500);
+  assert.strictEqual(Math.round(audio._syncS * 1000), 150 + 500);
   console.log('  ok - Auto follows the measured delay; manual still works');
   audio.close();
 } catch (e) { console.error('  FAIL -', e.message); process.exitCode = 1; }

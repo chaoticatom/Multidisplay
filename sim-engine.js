@@ -2505,14 +2505,18 @@ var PiEngine = (() => {
       var WINDOW_VU = 2048;
       var VU_DB_FLOOR = -42;
       var RING_SAMPLES = 1 << 18;
-      var DEFAULT_SYNC_MS = 150;
+      var DEFAULT_SYNC_MS = 200;
       var MAX_SYNC_MS = 3e3;
+      var PLAY_BUF_MS = 150;
+      var QUEUE_MS = 400;
+      var QUEUE_SLACK_MS = 1200;
+      var BYTES_PER_MS = SAMPLE_RATE * CHANNELS * 2 / 1e3;
       var AUTO_SYNC_EVERY_MS = 9e3;
       function parseStreamLatencyMs(text) {
         for (const block of String(text || "").split(/\n(?=Sink Input #)/)) {
           if (!/application\.(name|process\.binary) = "paplay"/.test(block)) continue;
-          const buf = /Buffer Latency:\s*(\d+)\s*usec/.exec(block), sink = /Sink Latency:\s*(\d+)\s*usec/.exec(block);
-          const us = (buf ? Number(buf[1]) : 0) + (sink ? Number(sink[1]) : 0);
+          const sink = /Sink Latency:\s*(\d+)\s*usec/.exec(block);
+          const us = sink ? Number(sink[1]) : 0;
           return us > 0 ? Math.round(us / 1e3) : null;
         }
         return null;
@@ -2549,7 +2553,11 @@ var PiEngine = (() => {
           this._analyser = createAnalyser(SAMPLE_RATE);
           this._zeros = new Float32Array(BAND_COUNT);
           this._analysisTimer = null;
-          this._syncS = DEFAULT_SYNC_MS / 1e3;
+          this._sinkMs = DEFAULT_SYNC_MS;
+          this._syncS = (PLAY_BUF_MS + DEFAULT_SYNC_MS) / 1e3;
+          this._pq = { list: [], bytes: 0 };
+          this._epoch = null;
+          this._paceTimer = null;
           this.status = "Stopped";
           this.playbackStatus = "No playback attempted";
           this.lastAttemptMs = 0;
@@ -2701,7 +2709,7 @@ var PiEngine = (() => {
           try {
             const pulseResult = findPulseEnv();
             const env = pulseResult.env ? { ...define_process_env_default, ...pulseResult.env } : define_process_env_default;
-            const args = ["--raw", "--format=s16le", "--rate=" + SAMPLE_RATE, "--channels=" + CHANNELS];
+            const args = ["--raw", "--format=s16le", "--rate=" + SAMPLE_RATE, "--channels=" + CHANNELS, "--latency-msec=" + PLAY_BUF_MS];
             if (pulseResult.env) args.unshift("--server=" + pulseResult.env.PULSE_SERVER);
             proc = this._spawn("paplay", args, { stdio: ["pipe", "ignore", "pipe"], env });
           } catch (err) {
@@ -2709,6 +2717,7 @@ var PiEngine = (() => {
             return;
           }
           this.playProc = proc;
+          this._startPacer();
           this.playbackStatus = "Starting playback\u2026";
           let stderrTail = "";
           proc.on("error", (err) => this._onPlaybackFail(err, proc));
@@ -2726,6 +2735,7 @@ var PiEngine = (() => {
           proc.on("exit", (code) => {
             if (this.playProc !== proc) return;
             this.playProc = null;
+            this._dropToBars();
             if (code !== 0 && code !== null) {
               const lastLine = stderrTail.trim().split("\n").filter(Boolean).pop();
               this.playbackStatus = "Playback stopped \u2014 " + (lastLine || `paplay exited (code ${code})`);
@@ -2736,6 +2746,7 @@ var PiEngine = (() => {
         _onPlaybackFail(err, proc) {
           if (proc && proc !== this.playProc) return;
           this.playProc = null;
+          this._dropToBars();
           if (err && err.code === "ENOENT") {
             this.playbackStatus = "paplay not found \u2014 install with: sudo apt install pulseaudio-utils";
           } else {
@@ -2752,25 +2763,88 @@ var PiEngine = (() => {
             this.status = "Error \u2014 " + (err && err.message || "failed to start ffmpeg");
           }
         }
+        // Decoded audio arrives in network bursts. It goes into a short queue and
+        // a steady clock (_paceTick) hands it to the speaker in real time through
+        // a small paplay buffer, so the Pi knows when each piece will be heard:
+        //   heard = time written + PLAY_BUF_MS + the speaker's own delay (sinkMs:
+        //   measured with Auto, or the Speaker sync slider - Bluetooth adds ~0.2 s).
+        // Phones playing along get each piece stamped with that time, and the bars
+        // analyse what was written that long ago - all three line up. (Before, the
+        // burst went straight into a large, unmeasured sound-server buffer, so the
+        // speaker's real delay was unknown and phones ended up ~1 s behind it.)
+        // Without a speaker process (no paplay), audio goes straight to the bars.
         _onData(chunk) {
-          if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && !this._playDrained) return;
-          if (this.onPcm) {
-            const now = Date.now(), lead = this._syncS * 1e3;
-            if (this._pcmT === null || this._pcmT === void 0 || this._pcmT < now + lead - 250 || this._pcmT > now + lead + 6e3) this._pcmT = now + lead;
-            try {
-              this.onPcm(chunk, this._pcmT);
-            } catch (e) {
-            }
-            this._pcmT += chunk.length / (2 * CHANNELS) / SAMPLE_RATE * 1e3;
+          if (chunk.length && this.status === "Connecting\u2026") this.status = "Playing";
+          if (!this.playProc) {
+            this._ringWrite(chunk);
+            if (this.onPcm) this._stampForPhones(chunk, Date.now() + this._syncS * 1e3);
+            return;
           }
-          if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && this._playDrained) {
+          const now = Date.now();
+          if (this._epoch === null) {
+            this._epoch = now + QUEUE_MS;
+            this._enq = 0;
+            this._paceWritten = 0;
+          }
+          const writeAt = this._epoch + this._enq / BYTES_PER_MS;
+          if (writeAt - now > QUEUE_MS + QUEUE_SLACK_MS) return;
+          if (this.onPcm) this._stampForPhones(chunk, writeAt + PLAY_BUF_MS + this._sinkMs);
+          this._pq.list.push(chunk);
+          this._pq.bytes += chunk.length;
+          this._enq += chunk.length;
+        }
+        // Phones: pieces stamped back to back, re-anchored when the prediction
+        // moves (a drop, an underrun).
+        _stampForPhones(chunk, predicted) {
+          if (this._pcmT === null || this._pcmT === void 0 || Math.abs(this._pcmT - predicted) > 120) this._pcmT = predicted;
+          try {
+            this.onPcm(chunk, this._pcmT);
+          } catch (e) {
+          }
+          this._pcmT += chunk.length / (2 * CHANNELS) / SAMPLE_RATE * 1e3;
+        }
+        // Every 10 ms: write what's due to paplay (real time, after QUEUE_MS of
+        // prefill), and only then into the bars' ring.
+        _paceTick() {
+          const proc = this.playProc;
+          if (!proc || !proc.stdin || !proc.stdin.writable || this._epoch === null) return;
+          const now = Date.now();
+          if (now < this._epoch) return;
+          const due = (now - this._epoch) * BYTES_PER_MS + 10 * BYTES_PER_MS;
+          while (this._paceWritten < due && this._pq.list.length) {
+            const chunk = this._pq.list.shift();
+            this._pq.bytes -= chunk.length;
             const g = this._gain * require_masterVolume().get();
-            const out = g < 0.999 ? scalePcm(chunk, g) : chunk;
             try {
-              this._playDrained = this.playProc.stdin.write(out);
+              proc.stdin.write(g < 0.999 ? scalePcm(chunk, g) : chunk);
             } catch (e) {
             }
+            this._paceWritten += chunk.length;
+            this._ringWrite(chunk);
           }
+          if (!this._pq.list.length && due - this._paceWritten > 250 * BYTES_PER_MS) this._epoch = null;
+        }
+        _startPacer() {
+          if (this._paceTimer) return;
+          this._epoch = null;
+          this._paceTimer = setInterval(() => this._paceTick(), 10);
+          if (this._paceTimer.unref) this._paceTimer.unref();
+        }
+        _stopPacer() {
+          if (this._paceTimer) clearInterval(this._paceTimer);
+          this._paceTimer = null;
+          this._epoch = null;
+          this._pq = { list: [], bytes: 0 };
+        }
+        // No speaker any more: what was queued for it goes to the bars instead.
+        _dropToBars() {
+          const list = this._pq.list;
+          this._stopPacer();
+          for (const c of list) this._ringWrite(c);
+        }
+        // Into the analysis ring, mono-summed (plus left/right for the VU); an odd
+        // trailing byte or half-frame is carried over to the next chunk.
+        _ringWrite(chunk) {
           let buf = chunk;
           if (this._carry && this._carry.length) {
             buf = Buffer2.concat([this._carry, chunk]);
@@ -2947,12 +3021,15 @@ var PiEngine = (() => {
         setSyncMs(ms) {
           if (ms === "auto") {
             this._syncAuto = true;
-            this._syncS = (this.autoSyncMs !== null ? this.autoSyncMs : DEFAULT_SYNC_MS) / 1e3;
+            this._setSink(this.autoSyncMs !== null ? this.autoSyncMs : DEFAULT_SYNC_MS);
             return;
           }
           this._syncAuto = false;
-          const v = Number.isFinite(ms) ? Math.max(0, Math.min(MAX_SYNC_MS, ms)) : DEFAULT_SYNC_MS;
-          this._syncS = v / 1e3;
+          this._setSink(Number.isFinite(ms) ? Math.max(0, Math.min(MAX_SYNC_MS, ms)) : DEFAULT_SYNC_MS);
+        }
+        _setSink(ms) {
+          this._sinkMs = ms;
+          this._syncS = (PLAY_BUF_MS + ms) / 1e3;
         }
         // Clears the "one-shot debug tone already finished" latch - called on
         // every genuine new play request (see radio.js's playStation()).
@@ -2979,7 +3056,7 @@ var PiEngine = (() => {
               if (ms === null) return;
               const clamped = Math.min(MAX_SYNC_MS, ms);
               this.autoSyncMs = this.autoSyncMs === null ? clamped : Math.round(this.autoSyncMs * 0.6 + clamped * 0.4);
-              if (this._syncAuto) this._syncS = this.autoSyncMs / 1e3;
+              if (this._syncAuto) this._setSink(this.autoSyncMs);
             });
           } catch (e) {
             this._measuring = false;
@@ -3013,6 +3090,7 @@ var PiEngine = (() => {
           }
         }
         _teardownPlayback() {
+          this._stopPacer();
           if (this.playProc) {
             try {
               this.playProc.stdin && this.playProc.stdin.end();

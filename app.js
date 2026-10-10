@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.310';
+const APP_VERSION = '0.6.311';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2964,9 +2964,9 @@ function syncRadioPanel() {
   if (autoOn) {
     // Auto speaker sync: show what the Pi measured (see ffmpegAudio.js _measureLatency).
     const m = currentState.effectStatus?.radio?.autoSyncMs;
-    if (syncVal) syncVal.textContent = Number.isFinite(m) ? m + 'ms' : 'auto';
+    if (syncVal) syncVal.textContent = Number.isFinite(m) ? m + 'ms' : '~200ms';
     if (syncSlider && Number.isFinite(m)) syncSlider.value = m;
-  } else if (syncSlider && document.activeElement !== syncSlider) { syncSlider.value = opts.syncMs ?? 150; if (syncVal) syncVal.textContent = syncSlider.value + 'ms'; }
+  } else if (syncSlider && document.activeElement !== syncSlider) { syncSlider.value = opts.syncMs ?? 200; if (syncVal) syncVal.textContent = syncSlider.value + 'ms'; }
   const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
   if (scrollSlider && document.activeElement !== scrollSlider) { scrollSlider.value = opts.scrollSpeed ?? 0; if (scrollVal) scrollVal.textContent = scrollSlider.value; }
 }
