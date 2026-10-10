@@ -71,6 +71,23 @@ console.log('talkingFace');
     assert.ok(Math.abs(state.faceTalk.say.cps - 19 / 2) < 0.6, 'lips timed to 2 s of audio: ' + state.faceTalk.say.cps);
     console.log('  ok - natural Gemini voice, lips timed to it');
 
+    // Laughing: at its own joke after the punchline; at yours before answering.
+    state.effectOptions.talking_face = { voice: 'off' };
+    talk = createFaceTalk({ state, broadcast() {}, ai: { chat: async () => ({ say: 'Ha, good one!', laugh: 'before' }) }, now: () => t });
+    await talk.chat('Why did the chicken cross the road?');
+    let sy = state.faceTalk.say;
+    assert.ok(sy.laughMs > 0 && sy.laughAt < sy.at, 'laughs first, then speaks');
+    talk = createFaceTalk({ state, broadcast() {}, ai: { chat: async () => ({ off: true }) }, now: () => t });
+    await talk.chat('tell me a joke');
+    sy = state.faceTalk.say;
+    assert.ok(require('../src/faceTalk').JOKES.includes(sy.text), 'without AI, asking for a joke gets one');
+    assert.ok(sy.laughAt >= sy.at + (sy.text.length / sy.cps) * 1000, 'laughs after the punchline');
+    // The effect shows the laugh: a big smile and squint during the window.
+    const c2 = new CubeCore(64); c2.initWall([{ gx: 0, gy: 0 }], 64); c2.effectOptions = {};
+    const n2 = Date.now(); c2.faceTalk = { say: { id: 77, text: 'x', at: n2 - 5000, cps: 15, laughAt: n2 - 700, laughMs: 1800 } };
+    tf.wall(c2, 1 / 30);
+    console.log('  ok - laughs at jokes (its own and yours)');
+
     // Lips: open on vowels, closed on m/b/p; speech index follows the clock.
     const { viseme, speechIndex } = tf._test;
     assert.ok(viseme('a')[0] > 0.6 && viseme('m')[0] === 0 && viseme('o')[1] < 0);

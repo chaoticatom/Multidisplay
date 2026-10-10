@@ -117,7 +117,9 @@ async function ask(text, ctx) {
 const CHAT_SYSTEM = 'You are a friendly, natural-sounding person shown as a face on an LED display in someone\'s home, chatting with them. '
   + 'Reply as you would speak: one or two short sentences, warm, a little playful, no lists, no emoji, no markdown. '
   + 'If asked to start a conversation, share a surprising fact, a light question or a comment on the time of day. '
-  + 'Answer only with JSON: {"say": "..."}';
+  + 'Tell a joke now and then. Set "laugh" to "after" when your reply is a joke (you laugh at your own punchline), '
+  + '"before" when the person just said something funny (you laugh first), otherwise "none". '
+  + 'Answer only with JSON: {"say": "...", "laugh": "none"}';
 async function chat(history, text) {
   const cfg = aiConfig.load();
   if (cfg.provider === 'off') return { off: true };
@@ -125,7 +127,7 @@ async function chat(history, text) {
   const raw = await callProvider(cfg, CHAT_SYSTEM, (convo ? convo + '\n' : '') + 'Person: ' + String(text).slice(0, 500));
   let j;
   try { j = extractJson(raw); } catch (e) { j = { say: String(raw || '') }; } // plain text is fine as a reply
-  return { say: typeof j.say === 'string' ? j.say.replace(/\s+/g, ' ').trim().slice(0, 300) : '' };
+  return { say: typeof j.say === 'string' ? j.say.replace(/\s+/g, ' ').trim().slice(0, 300) : '', laugh: ['before', 'after'].includes(j.laugh) ? j.laugh : 'none' };
 }
 
 // Natural speech for the Talking Face from Gemini's text-to-speech model.

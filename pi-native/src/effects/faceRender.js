@@ -106,7 +106,7 @@ function shade(u, v, p, L) {
   // Eyes.
   for (const s of [-1, 1]) {
     const ex = u - s * 0.24, ey = v + 0.08;
-    const open = clamp(1 - p.blink) * (1 - 0.35 * p.squint);
+    const open = clamp(1 - p.blink) * (1 - 0.6 * p.squint);
     const hw = 0.115, hh = 0.055 * open + 0.002;
     // Almond: top and bottom arcs.
     const top = -hh * (1 - (ex / hw) * (ex / hw)), bot = hh * 0.8 * (1 - (ex / hw) * (ex / hw));
@@ -133,10 +133,10 @@ function shade(u, v, p, L) {
 
   // Mouth: lips, and inside when open (teeth along the top).
   {
-    const wide = 0.15 * (1 + 0.25 * p.mouthWide) + 0.02 * p.smile, open = p.mouthOpen;
+    const wide = 0.15 * (1 + 0.25 * p.mouthWide) + 0.04 * p.smile, open = p.mouthOpen;
     const mx = u, my = v - 0.43, t = clamp(1 - (mx / wide) * (mx / wide));
-    const curve = -p.smile * 0.03 * (mx / wide) * (mx / wide);
-    const gapTop = -0.006 - open * 0.05 * t + curve, gapBot = 0.006 + open * 0.07 * t + curve;
+    const curve = -p.smile * 0.065 * (mx / wide) * (mx / wide); // corners lift with the smile (strong enough to read at 64 px)
+    const gapTop = -0.006 - open * 0.055 * t + curve, gapBot = 0.006 + open * 0.1 * t + curve;
     const full = woman ? 1.3 : 1;
     const upTop = gapTop - 0.035 * full * Math.sqrt(t), lowBot = gapBot + 0.045 * full * Math.sqrt(t);
     if (Math.abs(mx) < wide && my > upTop && my < lowBot) {

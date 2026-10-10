@@ -5,7 +5,8 @@
 // a wide wall, scrolling along the bottom on a single panel.
 // It moves like a person: blinks (sometimes twice), small eye darts, a slow
 // sway and tilt, breathing, now and then a twitch (an eyebrow, a squint, a
-// half-smile), and it looks up while "thinking" about a reply.
+// half-smile), it looks up while "thinking" about a reply, and it laughs at
+// jokes (its own after the punchline, yours before answering).
 // Options (core.effectOptions.talking_face): style (man/woman), skin, hair, eyes.
 'use strict';
 
@@ -71,7 +72,25 @@ function animate(dt, talk, now) {
   const q = speaking && /\?/.test(say.text.slice(idx, idx + 12)) ? 0.5 : 0;
   st.brow += ((thinking ? 0.45 : q) - st.brow) * (1 - Math.exp(-dt * 6));
   st.smile += ((speaking ? 0.15 : 0.3) - st.smile) * (1 - Math.exp(-dt * 2));
+  // Laughing (faceTalk sets laughAt/laughMs): a broad smile, the mouth going
+  // "ha-ha" about 4.5 times a second, squinting, brows up, the head tipping
+  // back and shaking a little. Eases in and out.
+  let lk = 0, ha = 0;
+  if (say && say.laughMs && now >= say.laughAt && now < say.laughAt + say.laughMs) {
+    const f = (now - say.laughAt) / say.laughMs;
+    lk = Math.sin(Math.min(1, f * 1.4) * Math.PI / 2) * (f > 0.75 ? (1 - f) / 0.25 : 1);
+    ha = Math.max(0, Math.sin((now - say.laughAt) / 1000 * Math.PI * 2 * 4.5));
+  }
   const t = st.t;
+  if (lk > 0) {
+    return {
+      yaw: 0.02 * Math.sin(t * 0.37) + 0.02 * lk * Math.sin(t * 7),
+      tilt: -0.07 * lk + 0.02 * Math.sin(t * 0.29 + 2),
+      bob: -0.03 * lk + 0.012 * lk * ha,
+      blink: 0, gazeX: st.gaze[0] * (1 - lk), gazeY: st.gaze[1] * (1 - lk) - 0.3 * lk,
+      brow: 0.4 * lk, mouthOpen: lk * (0.45 + 0.55 * ha), mouthWide: lk, smile: 0.3 + 0.7 * lk, squint: 0.75 * lk,
+    };
+  }
   return {
     yaw: 0.03 * Math.sin(t * 0.37) + 0.015 * Math.sin(t * 1.13 + 1) + (speaking ? 0.012 * Math.sin(t * 2.7) : 0),
     tilt: 0.025 * Math.sin(t * 0.29 + 2) + (speaking ? 0.01 * Math.sin(t * 2.1) : 0),

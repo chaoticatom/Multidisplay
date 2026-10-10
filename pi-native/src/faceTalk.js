@@ -14,6 +14,22 @@ const { spawn } = require('child_process');
 const CPS = 15; // speaking rate, characters per second (~170 words a minute)
 let id = 0; // line numbers, unique for the whole process (the page speaks each new one once)
 
+// Built-in jokes (it laughs at the punchline).
+const JOKES = [
+  'Why don\'t skeletons fight each other? They don\'t have the guts.',
+  'I told my wife she was drawing her eyebrows too high. She looked surprised.',
+  'Why did the scarecrow win an award? Because he was outstanding in his field.',
+  'I\'m reading a book about anti-gravity. It\'s impossible to put down.',
+  'What do you call a fish with no eyes? A fsh.',
+  'Why can\'t you trust an atom? They make up everything.',
+  'I used to be a banker, but I lost interest.',
+  'What do you call a sleeping dinosaur? A dino-snore.',
+  'Why did the LED go to school? To get a little brighter.',
+  'Parallel lines have so much in common. It\'s a shame they\'ll never meet.',
+];
+const LAUGH_MS = 1800;
+const FUNNY = /\b(joke|haha+|ha ha|lol|lmao|funny|hilarious)\b|😂|🤣/i;
+
 const TOPICS = [
   'Did you know octopuses have three hearts and blue blood?',
   'Honey never goes off. Archaeologists have found pots of it in Egyptian tombs that were still good to eat.',
@@ -29,7 +45,6 @@ const TOPICS = [
   'A group of flamingos is called a flamboyance. Perfect name.',
   'Lightning is about five times hotter than the surface of the sun.',
   'Cows have best friends, and they get stressed when they\'re apart.',
-  'Here\'s one: why don\'t skeletons fight each other? They don\'t have the guts.',
   'The shortest war in history lasted about thirty-eight minutes.',
   'Your brain uses about twenty percent of your energy, even though it\'s only about two percent of your weight.',
   'What would you cook if you had the evening off and anything in the fridge?',
@@ -90,16 +105,22 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
   }
 
   // Shows the line on the display; the lips follow it at `cps`.
-  function startLine(t, cps = CPS) {
+  // laugh: 'after' (its own joke - laughs at the punchline), 'before' (your
+  // joke - laughs first, then speaks) or 'none'. The effect animates the
+  // laugh between laughAt and laughAt + laughMs.
+  function startLine(t, cps = CPS, laugh = 'none') {
     ft.thinking = false;
-    const at = now() + 300;
-    ft.say = { id: ++id, text: t, at, cps };
-    speakEnds = at + (t.length / cps) * 1000;
+    let at = now() + 300, laughAt = 0;
+    if (laugh === 'before') { laughAt = at; at += LAUGH_MS; }
+    const dur = (t.length / cps) * 1000;
+    if (laugh === 'after') laughAt = at + dur + 150;
+    ft.say = { id: ++id, text: t, at, cps, laughAt, laughMs: laughAt ? LAUGH_MS : 0 };
+    speakEnds = Math.max(at + dur, laughAt + (laughAt ? LAUGH_MS : 0));
     ft.log.push({ who: 'face', text: t }); if (ft.log.length > 20) ft.log.shift();
     broadcast();
   }
 
-  async function say(text) {
+  async function say(text, laugh = 'none') {
     const t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 300);
     if (!t) return;
     const v = voice();
@@ -112,17 +133,17 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
         ft.thinking = false;
         if (pcm && pcm.length > 4800) {
           const secs = pcm.length / 48000;
-          startLine(t, Math.max(5, Math.min(30, t.length / secs)));
-          playPcm(pcm);
+          startLine(t, Math.max(5, Math.min(30, t.length / secs)), laugh);
+          if (laugh === 'before') setTimeout(() => playPcm(pcm), LAUGH_MS).unref(); else playPcm(pcm);
           status.voice = '';
           return;
         }
       } catch (e) { ft.thinking = false; status.voice = e.message.slice(0, 160) + ' - using the basic voice'; }
-      startLine(t);
-      piSpeak(t);
+      startLine(t, CPS, laugh);
+      if (laugh === 'before') setTimeout(() => piSpeak(t), LAUGH_MS).unref(); else piSpeak(t);
       return;
     }
-    startLine(t);
+    startLine(t, CPS, laugh);
   }
 
   async function chat(text) {
@@ -130,12 +151,22 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
     if (!t) return;
     ft.log.push({ who: 'you', text: t }); if (ft.log.length > 20) ft.log.shift();
     ft.thinking = true; broadcast();
-    let reply = '';
+    let reply = '', laugh = FUNNY.test(t) ? 'before' : 'none';
     try {
       const r = await ai.chat(ft.log.slice(0, -1), t);
-      reply = r.off ? 'I\'d love to chat properly. Turn on the AI assistant in Setup, and I can answer you. Meanwhile, here\'s something: ' + pickTopic() : r.say;
+      if (r.off) {
+        // No AI: asked for a joke, tell one; otherwise a friendly pointer.
+        if (/\bjoke\b/i.test(t)) { reply = pickJoke(); laugh = 'after'; }
+        else reply = 'I\'d love to chat properly. Turn on the AI assistant in Setup, and I can answer you. Meanwhile, here\'s something: ' + pickTopic();
+      } else { reply = r.say; if (r.laugh && r.laugh !== 'none') laugh = r.laugh; }
     } catch (e) { reply = 'Sorry, I lost my train of thought there. ' + e.message.slice(0, 80); }
-    say(reply || 'Hmm, I\'m not sure what to say to that.'); // keeps the thinking look while natural speech is fetched
+    say(reply || 'Hmm, I\'m not sure what to say to that.', laugh); // keeps the thinking look while natural speech is fetched
+  }
+
+  let lastJoke = -1;
+  function pickJoke() {
+    let i; do { i = Math.floor(Math.random() * JOKES.length); } while (i === lastJoke && JOKES.length > 1);
+    lastJoke = i; return JOKES[i];
   }
 
   function pickTopic() {
@@ -146,10 +177,13 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
   // A topic of its own: from the AI if set up, otherwise the built-in list.
   async function topic() {
     if (ft.thinking) return;
-    let line = '';
-    try { const r = await ai.chat(ft.log, '(Start a conversation: say something interesting.)'); if (!r.off) line = r.say; } catch (e) { /* fall back */ }
-    if (!line) line = Math.random() < 0.2 ? timeGreeting(state.prefs && state.prefs.tz) : pickTopic();
-    say(line);
+    let line = '', laugh = 'none';
+    try { const r = await ai.chat(ft.log, '(Start a conversation: say something interesting, or tell a joke.)'); if (!r.off) { line = r.say; laugh = r.laugh || 'none'; } } catch (e) { /* fall back */ }
+    if (!line) {
+      const roll = Math.random();
+      if (roll < 0.25) { line = pickJoke(); laugh = 'after'; } else line = roll < 0.4 ? timeGreeting(state.prefs && state.prefs.tz) : pickTopic();
+    }
+    say(line, laugh);
   }
 
   // Every 5 s: chat by itself while on screen and quiet for `chatty` seconds.
@@ -163,4 +197,4 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
   return { say, chat, topic, tick, status };
 }
 
-module.exports = { createFaceTalk, TOPICS };
+module.exports = { createFaceTalk, TOPICS, JOKES, LAUGH_MS };

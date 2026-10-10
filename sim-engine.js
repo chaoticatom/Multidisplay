@@ -6469,7 +6469,7 @@ var PiEngine = (() => {
         }
         for (const s of [-1, 1]) {
           const ex = u - s * 0.24, ey = v + 0.08;
-          const open = clamp(1 - p.blink) * (1 - 0.35 * p.squint);
+          const open = clamp(1 - p.blink) * (1 - 0.6 * p.squint);
           const hw = 0.115, hh = 0.055 * open + 2e-3;
           const top = -hh * (1 - ex / hw * (ex / hw)), bot = hh * 0.8 * (1 - ex / hw * (ex / hw));
           const inside = Math.abs(ex) < hw && ey > top && ey < bot;
@@ -6491,10 +6491,10 @@ var PiEngine = (() => {
           if (!inside && Math.abs(ex) < hw && ey > top - 0.05 && ey < top && open < 0.25) col = mix(col, scale(L.skin, 0.75), 0.6);
         }
         {
-          const wide = 0.15 * (1 + 0.25 * p.mouthWide) + 0.02 * p.smile, open = p.mouthOpen;
+          const wide = 0.15 * (1 + 0.25 * p.mouthWide) + 0.04 * p.smile, open = p.mouthOpen;
           const mx = u, my = v - 0.43, t = clamp(1 - mx / wide * (mx / wide));
-          const curve = -p.smile * 0.03 * (mx / wide) * (mx / wide);
-          const gapTop = -6e-3 - open * 0.05 * t + curve, gapBot = 6e-3 + open * 0.07 * t + curve;
+          const curve = -p.smile * 0.065 * (mx / wide) * (mx / wide);
+          const gapTop = -6e-3 - open * 0.055 * t + curve, gapBot = 6e-3 + open * 0.1 * t + curve;
           const full = woman ? 1.3 : 1;
           const upTop = gapTop - 0.035 * full * Math.sqrt(t), lowBot = gapBot + 0.045 * full * Math.sqrt(t);
           if (Math.abs(mx) < wide && my > upTop && my < lowBot) {
@@ -6631,7 +6631,28 @@ var PiEngine = (() => {
         const q = speaking && /\?/.test(say.text.slice(idx, idx + 12)) ? 0.5 : 0;
         st.brow += ((thinking ? 0.45 : q) - st.brow) * (1 - Math.exp(-dt * 6));
         st.smile += ((speaking ? 0.15 : 0.3) - st.smile) * (1 - Math.exp(-dt * 2));
+        let lk = 0, ha = 0;
+        if (say && say.laughMs && now >= say.laughAt && now < say.laughAt + say.laughMs) {
+          const f = (now - say.laughAt) / say.laughMs;
+          lk = Math.sin(Math.min(1, f * 1.4) * Math.PI / 2) * (f > 0.75 ? (1 - f) / 0.25 : 1);
+          ha = Math.max(0, Math.sin((now - say.laughAt) / 1e3 * Math.PI * 2 * 4.5));
+        }
         const t = st.t;
+        if (lk > 0) {
+          return {
+            yaw: 0.02 * Math.sin(t * 0.37) + 0.02 * lk * Math.sin(t * 7),
+            tilt: -0.07 * lk + 0.02 * Math.sin(t * 0.29 + 2),
+            bob: -0.03 * lk + 0.012 * lk * ha,
+            blink: 0,
+            gazeX: st.gaze[0] * (1 - lk),
+            gazeY: st.gaze[1] * (1 - lk) - 0.3 * lk,
+            brow: 0.4 * lk,
+            mouthOpen: lk * (0.45 + 0.55 * ha),
+            mouthWide: lk,
+            smile: 0.3 + 0.7 * lk,
+            squint: 0.75 * lk
+          };
+        }
         return {
           yaw: 0.03 * Math.sin(t * 0.37) + 0.015 * Math.sin(t * 1.13 + 1) + (speaking ? 0.012 * Math.sin(t * 2.7) : 0),
           tilt: 0.025 * Math.sin(t * 0.29 + 2) + (speaking ? 0.01 * Math.sin(t * 2.1) : 0),
