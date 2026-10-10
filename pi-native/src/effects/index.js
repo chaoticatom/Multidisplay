@@ -61,6 +61,7 @@ const prism = require('./prism');
 const tide = require('./tide');
 const datetime = require('./clock'); // Time & Date - all styles, incl. Words
 const ghost = require('./ghostFace'); // Ghost Face
+const ghost3d = require('./ghost3d'); // Ghost Face 2 (true 3D)
 const moon = require('./celestial/celestial');
 const iss = require('./iss');
 const apod = require('./apod');
@@ -169,6 +170,7 @@ const WALL_EFFECTS = {
   datetime: datetimeWall,
   moon: celestialWall,
   ghost: ghostWall,
+  ghost2: ghost3d.wall,
   apod: apodWall,
   epic: epicWall,
   iss: issWall,
@@ -232,6 +234,7 @@ const EFFECTS = {
   prism,
   tide,
   ghost,
+  ghost2: ghost3d,
   datetime,
   moon,
   epic,
@@ -302,6 +305,7 @@ const EFFECT_NAMES = {
   prism: 'Prism Sweep',
   tide: 'Color Tide',
   ghost: 'Ghost Face',
+  ghost2: 'Ghost Face 2 (3D)',
   datetime: 'Time & Date',
   moon: 'Celestial',
   epic: 'Earth Live View',
