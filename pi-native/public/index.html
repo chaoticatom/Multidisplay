@@ -2330,6 +2330,9 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
     <button id="setup-layout-btn" class="ui-btn-primary flat-only" style="margin:8px 0 0;width:100%;">▦ Edit panel layout (add / move / remove panels)</button>
     <button id="identify-panels-btn" title="Label every physical panel with its own identity (face/index + which HAT output and chain position it's wired to) - use this while wiring up multiple panels, in any shape, to see which physical board is which." style="width:100%;margin-top:6px;padding:8px;font-size:11px;letter-spacing:0.5px;background:rgba(80,120,255,0.08);border:1px solid rgba(80,120,255,0.25);color:#9ab;border-radius:6px;cursor:pointer;">🔢 Show panel numbers</button>
   </div>
+      <div class="ui-label-accent" style="margin-top:10px;">🎞 Transition between effects</div>
+      <div class="tm-chips" id="tr-style" style="flex-wrap:wrap;"><button type="button" data-tr="fade" class="on">Fade</button><button type="button" data-tr="slide">Slide</button><button type="button" data-tr="dissolve">Dissolve</button><button type="button" data-tr="wipe">Wipe</button><button type="button" data-tr="zoom">Zoom</button><button type="button" data-tr="none">None</button></div>
+      <div class="tm-chips" id="tr-secs" style="margin-top:6px;"><button type="button" data-secs="0.4" class="on">Quick</button><button type="button" data-secs="1">Medium</button><button type="button" data-secs="2">Slow</button></div>
       <div class="ui-label-accent" style="margin-top:10px;">✨ Next-gen look</div>
       <div class="cx-row"><span>Glow, richer colour and smoothing on every effect</span><button class="cx-switch" id="look-sw" aria-label="Next-gen look on/off"></button></div>
       <div class="slider-row"><span class="slider-label">Glow</span><input type="range" id="look-bloom" min="0" max="1" step="0.05" value="0.65"><span class="slider-val" id="look-bloom-val">65%</span></div>
@@ -2610,6 +2613,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.287"></script>
+<script src="app.js?v=0.6.288"></script>
 </body>
 </html>

@@ -507,6 +507,9 @@ function cxSyncFavs() {
     if (document.activeElement !== sel) sel.value = String(p.minutes);
     note.textContent = p.on && favs.size < 2 ? 'Star at least two effects (★ on the tiles) for the playlist to cycle.' : '';
   }
+  const tr = currentState.prefs?.transition || { style: 'fade', secs: 0.4 };
+  document.querySelectorAll('#tr-style button').forEach((b) => b.classList.toggle('on', b.dataset.tr === tr.style));
+  document.querySelectorAll('#tr-secs button').forEach((b) => b.classList.toggle('on', Math.abs(Number(b.dataset.secs) - tr.secs) < 0.05));
   const look = currentState.prefs?.look, lsw = document.getElementById('look-sw');
   if (look && lsw) {
     lsw.classList.toggle('on', look.on !== false);
@@ -531,6 +534,9 @@ function cxWirePrefs() {
   const hours = [...Array(24).keys()].map((h) => new Option(String(h).padStart(2, '0') + ':00', String(h)));
   document.getElementById('night-from')?.replaceChildren(...hours.map((o) => o.cloneNode(true)));
   document.getElementById('night-to')?.replaceChildren(...hours.map((o) => o.cloneNode(true)));
+  // Transition between effects (src/effects/transition.js).
+  document.querySelectorAll('#tr-style button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setTransition', style: b.dataset.tr })));
+  document.querySelectorAll('#tr-secs button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setTransition', secs: Number(b.dataset.secs) })));
   document.getElementById('look-sw')?.addEventListener('click', () => send({ cmd: 'setLook', on: currentState.prefs?.look?.on === false }));
   for (const k of ['bloom', 'vibrance', 'smooth', 'depth']) {
     const el = document.getElementById('look-' + k);

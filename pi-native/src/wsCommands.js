@@ -780,6 +780,12 @@ const COMMANDS = {
     this.state.prefs = prefs.save({ ...p, look: { ...p.look, ...msg, cmd: undefined } });
     this._broadcast(this._stateMsg());
   },
+  // How effects change over (effects/transition.js): {style, secs}.
+  setTransition(ws, msg) {
+    const p = this.state.prefs || prefs.load();
+    this.state.prefs = prefs.save({ ...p, transition: { ...p.transition, ...(msg.style !== undefined ? { style: msg.style } : {}), ...(msg.secs !== undefined ? { secs: Number(msg.secs) } : {}) } });
+    this._broadcast(this._stateMsg());
+  },
   setNightDim(ws, msg) {
     const p = this.state.prefs || prefs.load();
     this.state.prefs = prefs.save({ ...p, nightDim: { ...p.nightDim, ...msg, cmd: undefined } });

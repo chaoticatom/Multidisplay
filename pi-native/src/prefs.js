@@ -10,6 +10,7 @@ const DEFAULT = {
   playlist: { on: false, minutes: 5 },
   nightDim: { on: false, from: 22, to: 7, level: 0.3 },
   look: { on: true, bloom: 0.65, vibrance: 0.35, smooth: 0, depth: 0.5, palette: 'auto' },
+  transition: { style: 'fade', secs: 0.4 }, // between effects - see effects/transition.js
   // Automatic show (see src/autoShow.js).
   dayPlan: { on: false, starts: { morning: 6, day: 10, evening: 18, night: 23 }, effects: { morning: [], day: [], evening: [], night: [] }, brightness: { morning: null, day: null, evening: null, night: null } }, // brightness null = leave as it is
   weatherMode: { on: false },
@@ -40,6 +41,10 @@ function clean(p) {
     for (const k of ['from', 'to']) { const h = Number(p.nightDim[k]); if (Number.isInteger(h) && h >= 0 && h < 24) out.nightDim[k] = h; }
     const l = Number(p.nightDim.level);
     if (Number.isFinite(l)) out.nightDim.level = Math.max(0.05, Math.min(1, l));
+  }
+  if (p && p.transition) {
+    if (require('./effects/transition').STYLES.includes(p.transition.style)) out.transition.style = p.transition.style;
+    const secs = Number(p.transition.secs); if (Number.isFinite(secs)) out.transition.secs = Math.max(0.2, Math.min(3, secs));
   }
   if (p && p.look) {
     out.look.on = p.look.on !== false;

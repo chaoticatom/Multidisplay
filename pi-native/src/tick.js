@@ -31,14 +31,16 @@ function beginCrossfade(core, effect, buf) {
   core._xfT = 0;
 }
 
-function applyCrossfade(core, buf, dt) {
-  if (!buf || core._xfT === undefined || core._xfT >= CROSSFADE_SECS) return;
+// Style and length come from Setup > Display > Transition (prefs.transition);
+// the default is a 0.4 s fade. See effects/transition.js for the styles.
+const { applyTransition } = require('./effects/transition');
+function applyCrossfade(core, buf, dt, tr) {
+  const style = (tr && tr.style) || 'fade', secs = tr && Number.isFinite(tr.secs) ? tr.secs : CROSSFADE_SECS;
+  if (!buf || core._xfT === undefined || core._xfT >= secs) return;
   const from = core._xfFrom;
-  if (from.length !== buf.length) { core._xfT = CROSSFADE_SECS; return; }
+  if (style === 'none' || from.length !== buf.length) { core._xfT = Infinity; return; }
   core._xfT += Math.max(0, dt);
-  const a = Math.min(1, core._xfT / CROSSFADE_SECS); // weight of the NEW effect
-  const k = a * a * (3 - 2 * a); // smoothstep - eases in and out
-  for (let i = 0; i < buf.length; i++) buf[i] = from[i] + (buf[i] - from[i]) * k;
+  applyTransition(style, core, buf, from, Math.min(1, core._xfT / secs)); // k = progress of the NEW effect
 }
 
 function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt) {
@@ -93,7 +95,7 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
     beginCrossfade(core, state.effect, buf);
     if (fn && !alarmBlocking) fn(core, reactDt(core.audio, dt, react)); // step 2
     pulseBuffer(core.audio, buf, react);
-    applyCrossfade(core, buf, dt);
+    applyCrossfade(core, buf, dt, state.prefs && state.prefs.transition);
   } else {
     core.colBuf.fill(0);
     if (core.wallBuf) core.wallBuf.fill(0);
