@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.286';
+const APP_VERSION = '0.6.287';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -292,6 +292,7 @@ function handleTextMessage(msg) {
     syncStrobePanel();
     syncBallsPanel();
     syncRadioPanel();
+    syncRadarPanel();
     syncCelestialPanel();
     syncOverlaysPanel();
     syncPanelEditor();
@@ -1359,6 +1360,20 @@ function syncBallsPanel() {
   if (count && document.activeElement !== count) { count.value = opts.count ?? 8; if (countVal) countVal.textContent = count.value; }
 }
 
+
+// Weather Radar's option panel (panel-radar): zoom, and a status line.
+function wireRadarPanel() {
+  document.querySelectorAll('.radar-zoom-btn').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.radar-zoom-btn').forEach((x) => x.classList.toggle('active', x === b));
+    setEffectOption('radar', 'zoom', Number(b.dataset.radarzoom));
+  }));
+}
+function syncRadarPanel() {
+  const z = Number(currentState.effectOptions?.radar?.zoom) || 7;
+  document.querySelectorAll('.radar-zoom-btn').forEach((x) => x.classList.toggle('active', Number(x.dataset.radarzoom) === z));
+  const s = currentState.effectStatus?.radar, el = document.getElementById('radar-status');
+  if (el) el.textContent = !s ? '' : s.error ? '⚠ ' + s.error : s.frames ? '✓ ' + (s.place || '') + ' - ' + s.frames + ' frames, updated ' + new Date(s.updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Loading…';
+}
 // ---------------------------------------------------------------------
 // Overlays panel - global compositing layers (not an effect), backed by
 // src/effects/overlays.js and the setOverlay* commands. All overlays share one
@@ -2746,6 +2761,29 @@ function renderSearchResults(el, results, current) {
   results.forEach((s) => el.appendChild(radioStationRow(s, current)));
 }
 
+// Recently played stations (this device), one tap to play again.
+let recentStationsKey = null;
+function syncRecentStations(playing) {
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem('recentStations') || '[]'); } catch (e) { /* storage unavailable */ }
+  if (playing && playing.url && !String(playing.url).startsWith('debug') && (!list[0] || list[0].url !== playing.url)) {
+    list = [{ name: playing.name, genre: playing.genre || '', url: playing.url }, ...list.filter((x) => x.url !== playing.url)].slice(0, 6);
+    try { localStorage.setItem('recentStations', JSON.stringify(list)); } catch (e) { /* storage unavailable */ }
+  }
+  const shown = list.filter((x) => !playing || x.url !== playing.url);
+  const key = shown.map((x) => x.url).join('|');
+  if (key === recentStationsKey) return;
+  recentStationsKey = key;
+  const wrap = document.getElementById('radio-recent-wrap'), row = document.getElementById('radio-recent');
+  if (!wrap || !row) return;
+  wrap.hidden = !shown.length;
+  row.replaceChildren(...shown.map((st) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = '📻 ' + st.name; b.title = 'Play ' + st.name + (st.genre ? ' (' + st.genre + ')' : '');
+    b.addEventListener('click', () => { send({ cmd: 'radioPlay', station: st }); radioBrowserPlay(st); });
+    return b;
+  }));
+}
+
 function syncRadioPanel() {
   updateActiveEffectLabel();
   const panel = document.getElementById('panel-radio');
@@ -2753,6 +2791,7 @@ function syncRadioPanel() {
   const status = currentState.effectStatus?.radio;
   const opts = currentState.effectOptions?.radio || {};
   const current = status?.station || null;
+  syncRecentStations(status && status.playing ? current : null);
 
   panel.querySelectorAll('.radio-status-el').forEach((el) => {
     if (!status) { el.textContent = 'Pick a station'; return; }
@@ -3352,12 +3391,16 @@ function renderAlarmList() {
     const next = al.enabled ? tmUntil(tmNextRun(al)) : 'off';
     const div = document.createElement('div');
     div.className = 'cx-timer' + (al.enabled ? ' on' : '');
-    div.innerHTML = `<div class="cx-timer-main"><b></b><span></span><small></small></div><button type="button" class="cx-switch${al.enabled ? ' on' : ''}" aria-label="Timer on or off"></button>`;
+    div.innerHTML = `<div class="cx-timer-main"><b></b><span></span><small></small><em class="tm-last"></em></div><button type="button" class="tm-test" aria-label="Test this timer now" title="Run it now, shortened to about 20 seconds">▶ Test</button><button type="button" class="cx-switch${al.enabled ? ' on' : ''}" aria-label="Timer on or off"></button>`;
     div.querySelector('b').textContent = tmHHMM(al);
     div.querySelector('span').textContent = (al.name || TM_KIND_LABEL[kind]) + (what ? ' · ' + what : '');
     const radioTxt = al.radio?.action === 'start' ? ' · 📻 ' + (al.radio.station?.name || 'radio') : al.radio?.action === 'stop' ? ' · 📻 off' : '';
     div.querySelector('small').textContent = tmRepeatLabel(al) + (next ? ' · ' + next : '') + radioTxt;
     div.querySelector('.cx-switch').addEventListener('click', (e) => { e.stopPropagation(); send({ cmd: 'setAlarmEnabled', id: al.id, enabled: !al.enabled }); });
+    // Timer history: when it last ran and what happened (set by the Pi, see effects/alarms.js).
+    const last = div.querySelector('.tm-last');
+    if (al.lastRun && al.lastRun.text) last.textContent = 'Last: ' + al.lastRun.text; else last.remove();
+    div.querySelector('.tm-test').addEventListener('click', (e) => { e.stopPropagation(); send({ cmd: 'testAlarm', id: al.id }); cxToast('▶ Testing - watch the display'); });
     div.addEventListener('click', () => openAlarmEditor(al.id));
     return div;
   }));
@@ -4838,6 +4881,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireNote();
   wireIdentifyPanelsButton();
   wireRainPanel();
+  wireRadarPanel();
   wireLightspeedPanel();
   wireCamPanel();
   wireApodPanel();

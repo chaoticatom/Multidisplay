@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.286';
+const APP_VERSION = '0.6.287';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -292,6 +292,7 @@ function handleTextMessage(msg) {
     syncStrobePanel();
     syncBallsPanel();
     syncRadioPanel();
+    syncRadarPanel();
     syncCelestialPanel();
     syncOverlaysPanel();
     syncPanelEditor();

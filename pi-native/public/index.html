@@ -1118,6 +1118,10 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .yt-fav.on { color: #ffd34d; }
 .yt-play { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; background: #ff2d3d; color: #fff; font-size: 11px; }
 
+/* Timer list: last-run line and the Test button. */
+.cx-timer .tm-last { display: block; font-style: normal; font-size: 11px; opacity: .7; margin-top: 2px; }
+.cx-timer .tm-test { margin: 0 8px 0 auto; padding: 6px 10px; border-radius: 12px; font-size: 12px; white-space: nowrap; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15); color: inherit; }
+
 /* ── One look for every effect's options ───────────────────────────────────
    Each effect's panel was laid out by hand with its own inline sizes and
    colours. These rules give them all the same labels, chips, sliders and
@@ -1452,6 +1456,13 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
     <button class="sub-head">Live Data <span class="chev">▾</span></button>
     <div class="sub-body">
     <button class="effect-btn" data-effect="ambient_weather">◈ Ambient Weather</button>
+    <button class="effect-btn has-panel" data-effect="radar">◈ Weather Radar <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-radar">
+      <div class="ov-row-label">Zoom</div>
+      <div class="opt-grid"><button class="radar-zoom-btn" data-radarzoom="6">Country</button><button class="radar-zoom-btn active" data-radarzoom="7">Region</button><button class="radar-zoom-btn" data-radarzoom="8">Town</button></div>
+      <div class="ui-note">Live rain over your area for the last hour, from RainViewer. Uses the town set in the Weather effect. Updates every 10 minutes.</div>
+      <div class="ui-note" id="radar-status"></div>
+    </div>
     <button class="effect-btn has-panel" data-effect="weather">◈ Weather <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-weather">
       <div style="display:flex;gap:5px;margin-bottom:8px;">
@@ -2006,6 +2017,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="radio-search-status-el ui-note"></div>
       <div class="radio-search-results-el" style="max-height:260px;overflow-y:auto;margin-bottom:10px;"></div>
 
+      <div id="radio-recent-wrap" hidden><div class="ui-label-accent">↺ Recently played</div><div id="radio-recent" class="cx-chips" style="margin-bottom:12px;"></div></div>
       <div class="ui-label-accent" id="radio-fav-head" style="color:#ffd23d !important;">★ My stations</div>
       <div class="radio-fav-list-el" style="margin-bottom:12px;"></div>
       <div style="font-size:11px;font-weight:700;color:#e8c250;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Featured</div>
@@ -2598,6 +2610,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.286"></script>
+<script src="app.js?v=0.6.287"></script>
 </body>
 </html>

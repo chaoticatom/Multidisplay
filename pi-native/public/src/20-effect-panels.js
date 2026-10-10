@@ -585,3 +585,17 @@ function syncBallsPanel() {
   if (count && document.activeElement !== count) { count.value = opts.count ?? 8; if (countVal) countVal.textContent = count.value; }
 }
 
+
+// Weather Radar's option panel (panel-radar): zoom, and a status line.
+function wireRadarPanel() {
+  document.querySelectorAll('.radar-zoom-btn').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.radar-zoom-btn').forEach((x) => x.classList.toggle('active', x === b));
+    setEffectOption('radar', 'zoom', Number(b.dataset.radarzoom));
+  }));
+}
+function syncRadarPanel() {
+  const z = Number(currentState.effectOptions?.radar?.zoom) || 7;
+  document.querySelectorAll('.radar-zoom-btn').forEach((x) => x.classList.toggle('active', Number(x.dataset.radarzoom) === z));
+  const s = currentState.effectStatus?.radar, el = document.getElementById('radar-status');
+  if (el) el.textContent = !s ? '' : s.error ? '⚠ ' + s.error : s.frames ? '✓ ' + (s.place || '') + ' - ' + s.frames + ' frames, updated ' + new Date(s.updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Loading…';
+}

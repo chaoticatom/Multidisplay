@@ -440,10 +440,27 @@ function wakeDisplay(state) {
   if (state.onAlarmsChanged) state.onAlarmsChanged();
 }
 
+// Timer history: the last run's time and what happened, on the saved timer
+// (looked up by id - the running copy may be a clone of it), shown under the
+// timer in the list.
+function noteRun(state, al, what) {
+  const target = (state.alarms || []).find((a) => a.id === al.id);
+  if (!target) return;
+  const now = require('../localTime').wallClock(state.prefs && state.prefs.tz);
+  const hhmm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  target.lastRun = { t: Date.now(), text: hhmm + ' ' + what };
+}
+function radioNote(al) {
+  const r = al.radio || {};
+  return r.action === 'start' ? ' · radio ' + ((r.station && r.station.name) || 'started') : r.action === 'stop' ? ' · radio stopped' : '';
+}
+
 function alarmFire(state, al, now, active) {
   const fireMs = now ? now.getTime() : Date.now();
-  const durationMs = 1 * 60 * 1000; // the message shows for a minute (the giant sun used to hold the screen for 10)
-  state.activeAlarm = { al, phase: 'main', startMs: fireMs, endMs: fireMs + durationMs, dismissed: false };
+  // The message shows for a minute; a test run (Test button) for 15 s.
+  const durationMs = (active && active.test ? 15 : 60) * 1000;
+  state.activeAlarm = { al, phase: 'main', startMs: fireMs, endMs: fireMs + durationMs, dismissed: false, test: !!(active && active.test) };
+  noteRun(state, al, (active && active.test ? 'tested' : al.triggerType === 'off' ? 'turned the display off' : 'went off') + radioNote(al));
 
   console.log('[timer] fired ' + (al.name || al.hour + ':' + al.minute) + ', radio: ' + ((al.radio && al.radio.action) || 'none'));
   applyRadio(al, active);
@@ -574,8 +591,9 @@ function renderPrePhase(core, dt, state, EFFECTS, wall = false) {
       if (a.al.radio && (a.al.radio.action === 'stop' || a.al.radio.action === 'start')) { const radio = require('./radio'); radio.stopStation(); if (radio.setFade) radio.setFade(1); }
       state.brightness = Number.isFinite(a.prevBright) && a.prevBright > 0 ? a.prevBright : 1;
       state.activeAlarm = null;
+      noteRun(state, a.al, a.test ? 'wind-down tested' : 'wind-down finished, display off');
       state.appliedChanges = scenes.changedFields(state);
-      if (a.al.repeat === 'once') a.al.enabled = false;
+      if (a.al.repeat === 'once' && !a.test) a.al.enabled = false;
       if (state.onAlarmsChanged) state.onAlarmsChanged();
     } else {
       a.phase = 'main'; a.justTriggered = true;

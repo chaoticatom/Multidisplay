@@ -128,12 +128,16 @@ function renderAlarmList() {
     const next = al.enabled ? tmUntil(tmNextRun(al)) : 'off';
     const div = document.createElement('div');
     div.className = 'cx-timer' + (al.enabled ? ' on' : '');
-    div.innerHTML = `<div class="cx-timer-main"><b></b><span></span><small></small></div><button type="button" class="cx-switch${al.enabled ? ' on' : ''}" aria-label="Timer on or off"></button>`;
+    div.innerHTML = `<div class="cx-timer-main"><b></b><span></span><small></small><em class="tm-last"></em></div><button type="button" class="tm-test" aria-label="Test this timer now" title="Run it now, shortened to about 20 seconds">▶ Test</button><button type="button" class="cx-switch${al.enabled ? ' on' : ''}" aria-label="Timer on or off"></button>`;
     div.querySelector('b').textContent = tmHHMM(al);
     div.querySelector('span').textContent = (al.name || TM_KIND_LABEL[kind]) + (what ? ' · ' + what : '');
     const radioTxt = al.radio?.action === 'start' ? ' · 📻 ' + (al.radio.station?.name || 'radio') : al.radio?.action === 'stop' ? ' · 📻 off' : '';
     div.querySelector('small').textContent = tmRepeatLabel(al) + (next ? ' · ' + next : '') + radioTxt;
     div.querySelector('.cx-switch').addEventListener('click', (e) => { e.stopPropagation(); send({ cmd: 'setAlarmEnabled', id: al.id, enabled: !al.enabled }); });
+    // Timer history: when it last ran and what happened (set by the Pi, see effects/alarms.js).
+    const last = div.querySelector('.tm-last');
+    if (al.lastRun && al.lastRun.text) last.textContent = 'Last: ' + al.lastRun.text; else last.remove();
+    div.querySelector('.tm-test').addEventListener('click', (e) => { e.stopPropagation(); send({ cmd: 'testAlarm', id: al.id }); cxToast('▶ Testing - watch the display'); });
     div.addEventListener('click', () => openAlarmEditor(al.id));
     return div;
   }));

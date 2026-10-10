@@ -515,6 +515,21 @@ const COMMANDS = {
     this._replyBt(ws, 'btStatusResult', async () => ({ devices: await bluetooth.listPaired(), lastSpeakerMac: btConfig.load().lastSpeakerMac, range: btConfig.load().range }));
   },
 
+  // Timer list > Test: runs a copy of the timer now, shortened - a 15 s
+  // sunrise or wind-down (3 s lead-in otherwise), then the timer itself with
+  // a 15 s message. The saved timer is untouched.
+  testAlarm(ws, msg) {
+    const al = (this.state.alarms || []).find((a) => a.id === msg.id);
+    if (!al) return;
+    const copy = JSON.parse(JSON.stringify(al));
+    copy.enabled = true;
+    const longLead = !!(copy.prealarm && (copy.prealarm.enabled || copy.prealarm.windDown));
+    this.state.blank = false; this.state.panelsOff = false;
+    this.state.activeAlarm = { al: copy, phase: 'pre', startMs: Date.now(), preMs: longLead ? 15000 : 3000, dismissed: false, test: true, prevBright: this.state.brightness };
+    this.state.alarmCancel = Date.now(); // replaces anything the render worker is running
+    this._broadcast(this._stateMsg());
+  },
+
   // Setup > Bluetooth > Range: normal (best sound) or long (steadier at a distance).
   btSetRange(ws, msg) {
     this._replyBt(ws, 'btRangeResult', () => bluetooth.setRange(msg.range));

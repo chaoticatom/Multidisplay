@@ -413,6 +413,29 @@ function renderSearchResults(el, results, current) {
   results.forEach((s) => el.appendChild(radioStationRow(s, current)));
 }
 
+// Recently played stations (this device), one tap to play again.
+let recentStationsKey = null;
+function syncRecentStations(playing) {
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem('recentStations') || '[]'); } catch (e) { /* storage unavailable */ }
+  if (playing && playing.url && !String(playing.url).startsWith('debug') && (!list[0] || list[0].url !== playing.url)) {
+    list = [{ name: playing.name, genre: playing.genre || '', url: playing.url }, ...list.filter((x) => x.url !== playing.url)].slice(0, 6);
+    try { localStorage.setItem('recentStations', JSON.stringify(list)); } catch (e) { /* storage unavailable */ }
+  }
+  const shown = list.filter((x) => !playing || x.url !== playing.url);
+  const key = shown.map((x) => x.url).join('|');
+  if (key === recentStationsKey) return;
+  recentStationsKey = key;
+  const wrap = document.getElementById('radio-recent-wrap'), row = document.getElementById('radio-recent');
+  if (!wrap || !row) return;
+  wrap.hidden = !shown.length;
+  row.replaceChildren(...shown.map((st) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = '📻 ' + st.name; b.title = 'Play ' + st.name + (st.genre ? ' (' + st.genre + ')' : '');
+    b.addEventListener('click', () => { send({ cmd: 'radioPlay', station: st }); radioBrowserPlay(st); });
+    return b;
+  }));
+}
+
 function syncRadioPanel() {
   updateActiveEffectLabel();
   const panel = document.getElementById('panel-radio');
@@ -420,6 +443,7 @@ function syncRadioPanel() {
   const status = currentState.effectStatus?.radio;
   const opts = currentState.effectOptions?.radio || {};
   const current = status?.station || null;
+  syncRecentStations(status && status.playing ? current : null);
 
   panel.querySelectorAll('.radio-status-el').forEach((el) => {
     if (!status) { el.textContent = 'Pick a station'; return; }

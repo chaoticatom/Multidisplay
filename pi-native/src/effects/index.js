@@ -22,6 +22,7 @@ const lavaLamp = require('./lavaLamp');
 const countdown = require('./countdown');
 const gradientWash = require('./gradientWash');
 const weather = require('./weather');
+const radar = require('./radar');
 const easterEgg = require('./easterEgg');
 const rain = require('./neonRain');
 const plasma = require('./plasma');
@@ -160,6 +161,7 @@ const WALL_EFFECTS = {
   tron: tronWall,
   cam: camWall,
   weather: weatherWall,
+  radar: radar.wall,
   datetime: datetimeWall,
   moon: celestialWall,
   ghost: ghostWall,
@@ -193,6 +195,7 @@ const EFFECTS = {
   wave,
   gradient_wash: gradientWash,
   weather,
+  radar,
   easter_egg: easterEgg,
   rain,
   plasma,
@@ -260,6 +263,7 @@ const EFFECT_NAMES = {
   wave: 'Wave Cascade',
   gradient_wash: 'Rainbow Wash',
   weather: 'Weather',
+  radar: 'Weather Radar',
   easter_egg: 'Easter Egg',
   rain: 'Colour Rain',
   plasma: 'Plasma Storm',
