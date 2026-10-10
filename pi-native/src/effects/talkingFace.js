@@ -6,7 +6,9 @@
 // It moves like a person: blinks (sometimes twice), small eye darts, a slow
 // sway and tilt, breathing, now and then a twitch (an eyebrow, a squint, a
 // half-smile), it looks up while "thinking" about a reply, and it laughs at
-// jokes (its own after the punchline, yours before answering).
+// jokes (its own after the punchline, yours before answering). While quiet
+// it does little human things now and then: looks away, glances aside,
+// nods, yawns, or sips a cup of tea.
 // Options (core.effectOptions.talking_face): style (man/woman), skin, hair, eyes.
 'use strict';
 
@@ -19,7 +21,18 @@ const st = {
   gaze: [0, 0], gazeTo: [0, 0], nextGaze: 1,
   twitch: null, nextTwitch: 6, brow: 0, open: 0, wide: 0, smile: 0.25,
   sayId: null, face: null, faceKey: '',
+  action: null, nextAction: 10, // idle touches: look away, sip tea, yawn, nod
 };
+
+// Idle touches while it isn't talking: { kind, t, len, side }. The envelope
+// eases each in and out.
+const ACTIONS = [['look', 4, 3.5], ['tea', 2, 6], ['yawn', 1, 3], ['nod', 2, 1.4], ['glance', 3, 2]];
+function pickAction() {
+  let r = Math.random() * ACTIONS.reduce((a, x) => a + x[1], 0);
+  for (const [kind, w, len] of ACTIONS) { if ((r -= w) < 0) return { kind, t: 0, len, side: Math.random() < 0.5 ? -1 : 1 }; }
+  return null;
+}
+const ease = (f, a = 0.2) => (f < a ? Math.sin((f / a) * Math.PI / 2) : f > 1 - a ? Math.sin(((1 - f) / a) * Math.PI / 2) : 1);
 
 // How the mouth shapes a letter: open 0..1 and wide (-1 round .. 1 wide).
 function viseme(ch) {
@@ -81,6 +94,26 @@ function animate(dt, talk, now) {
     lk = Math.sin(Math.min(1, f * 1.4) * Math.PI / 2) * (f > 0.75 ? (1 - f) / 0.25 : 1);
     ha = Math.max(0, Math.sin((now - say.laughAt) / 1000 * Math.PI * 2 * 4.5));
   }
+  // Idle touches: only while quiet; talking, thinking or laughing ends one.
+  if (speaking || thinking || lk > 0) { if (st.action && st.action.kind === 'tea' && st.action.t < st.action.len * 0.85) st.action.t = st.action.len * 0.85; if (st.action && st.action.kind !== 'tea') st.action = null; st.nextAction = Math.max(st.nextAction, 4); }
+  else if (!st.action) { st.nextAction -= dt; if (st.nextAction <= 0) { st.action = pickAction(); st.nextAction = rand(9, 22); } }
+  const act = { yaw: 0, tilt: 0, bob: 0, gazeX: null, gazeY: null, open: 0, wide: 0, squint: 0, brow: 0, smile: 0, mug: 0, blink: 0 };
+  if (st.action) {
+    const a = st.action; a.t += dt;
+    const f = Math.min(1, a.t / a.len);
+    if (a.kind === 'look') { const e = ease(f, 0.22); act.yaw = 0.32 * a.side * e; act.gazeX = 0.9 * a.side * e; act.tilt = 0.03 * a.side * e; }
+    else if (a.kind === 'glance') { const e = ease(f, 0.15); act.gazeX = 0.85 * a.side * e; act.gazeY = 0.25 * e; act.brow = 0.15 * e; }
+    else if (a.kind === 'nod') act.bob = 0.035 * Math.sin(f * Math.PI * 3) * (1 - f);
+    else if (a.kind === 'yawn') { const e = Math.sin(f * Math.PI); act.open = e; act.wide = -0.4 * e; act.squint = 0.9 * e; act.brow = 0.35 * e; act.tilt = -0.06 * e; act.bob = -0.02 * e; }
+    else if (a.kind === 'tea') {
+      // Raise (0-0.3), sip with eyes half closed (0.3-0.7), lower (0.7-1).
+      act.mug = f < 0.3 ? f / 0.3 : f < 0.7 ? 1 : (1 - f) / 0.3;
+      const sip = f > 0.33 && f < 0.68 ? Math.sin(((f - 0.33) / 0.35) * Math.PI) : 0;
+      act.tilt = -0.07 * sip; act.bob = -0.02 * sip; act.blink = 0.55 * sip; act.gazeY = 0.3 * act.mug;
+      if (f > 0.72) act.smile = 0.25 * Math.sin(((f - 0.72) / 0.28) * Math.PI); // "ahh"
+    }
+    if (a.t >= a.len) st.action = null;
+  }
   const t = st.t;
   if (lk > 0) {
     return {
@@ -89,14 +122,16 @@ function animate(dt, talk, now) {
       bob: -0.03 * lk + 0.012 * lk * ha,
       blink: 0, gazeX: st.gaze[0] * (1 - lk), gazeY: st.gaze[1] * (1 - lk) - 0.3 * lk,
       brow: 0.4 * lk, mouthOpen: lk * (0.45 + 0.55 * ha), mouthWide: lk, smile: 0.3 + 0.7 * lk, squint: 0.75 * lk,
+      mug: act.mug, t,
     };
   }
   return {
-    yaw: 0.03 * Math.sin(t * 0.37) + 0.015 * Math.sin(t * 1.13 + 1) + (speaking ? 0.012 * Math.sin(t * 2.7) : 0),
-    tilt: 0.025 * Math.sin(t * 0.29 + 2) + (speaking ? 0.01 * Math.sin(t * 2.1) : 0),
-    bob: 0.012 * Math.sin(t * 1.5) + (speaking ? 0.006 * Math.sin(t * 5.3) : 0), // breathing, and a nod while talking
-    blink: st.blink, gazeX: st.gaze[0], gazeY: st.gaze[1],
-    brow: st.brow + tw.brow, mouthOpen: st.open, mouthWide: st.wide, smile: st.smile + tw.smile, squint: tw.squint,
+    yaw: 0.03 * Math.sin(t * 0.37) + 0.015 * Math.sin(t * 1.13 + 1) + (speaking ? 0.012 * Math.sin(t * 2.7) : 0) + act.yaw,
+    tilt: 0.025 * Math.sin(t * 0.29 + 2) + (speaking ? 0.01 * Math.sin(t * 2.1) : 0) + act.tilt,
+    bob: 0.012 * Math.sin(t * 1.5) + (speaking ? 0.006 * Math.sin(t * 5.3) : 0) + act.bob, // breathing, and a nod while talking
+    blink: Math.max(st.blink, act.blink), gazeX: act.gazeX !== null ? act.gazeX : st.gaze[0], gazeY: act.gazeY !== null ? act.gazeY : st.gaze[1],
+    brow: st.brow + tw.brow + act.brow, mouthOpen: Math.max(st.open, act.open), mouthWide: st.wide + act.wide, smile: st.smile + tw.smile + act.smile, squint: Math.max(tw.squint, act.squint),
+    mug: act.mug, t,
   };
 }
 
@@ -106,7 +141,7 @@ function lookFrom(opts) {
     skin: LOOKS.skin[opts.skin] || LOOKS.skin.light,
     hair: LOOKS.hair[opts.hair] || (opts.style === 'woman' ? LOOKS.hair.blonde : LOOKS.hair.brown),
     iris: LOOKS.iris[opts.eyes] || LOOKS.iris.blue,
-    shirt: opts.style === 'woman' ? [0.5, 0.2, 0.32] : [0.16, 0.24, 0.42], bg: [0.11, 0.09, 0.08],
+    shirt: opts.style === 'woman' ? [0.42, 0.04, 0.08] : [0.16, 0.24, 0.42], bg: [0.11, 0.09, 0.08],
   };
 }
 

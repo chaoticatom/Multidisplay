@@ -134,5 +134,21 @@ console.log('talkingFace');
     const at = (style) => { const b = new Float32Array(64 * 64 * 3); renderFace(b, 64, 64, pose, { style, skin: LOOKS.skin.light, hair: LOOKS.hair.blonde, iris: LOOKS.iris.blue, shirt: [0.2, 0.2, 0.4], bg: [0.1, 0.1, 0.1] }); const o = (52 * 64 + 14) * 3; return b[o] + b[o + 1]; };
     assert.ok(at('woman') > at('man') + 0.3, 'blonde hair at shoulder height on the woman only');
     console.log('  ok - the woman\'s face has long hair');
+
+    // Idle touches: sipping tea brings the mug up to the lips (it's drawn),
+    // and speaking puts it down.
+    const at2 = (style, mug) => { const b = new Float32Array(64 * 64 * 3); renderFace(b, 64, 64, { ...pose, mug, t: 1 }, { style, skin: LOOKS.skin.light, hair: LOOKS.hair.blonde, iris: LOOKS.iris.blue, shirt: [0.2, 0.2, 0.4], bg: [0.1, 0.1, 0.1] }); return b; };
+    const noMug = at2('woman', 0), mug = at2('woman', 1);
+    const mo = (50 * 64 + 35) * 3; // where the mug is held
+    assert.ok(Math.abs(mug[mo] - noMug[mo]) + Math.abs(mug[mo + 2] - noMug[mo + 2]) > 0.3, 'the mug is drawn at the lips');
+    tf._test.st.action = { kind: 'tea', t: 0, len: 6, side: 1 };
+    core.faceTalk = {};
+    let maxMug = 0;
+    for (let i = 0; i < 100; i++) { tf.wall(core, 1 / 30); maxMug = Math.max(maxMug, tf._test.st.action ? 1 : 0); }
+    assert.ok(tf._test.st.action && tf._test.st.action.kind === 'tea', 'still sipping while quiet');
+    core.faceTalk = { say: { id: 10, text: 'hello there, how are you', at: Date.now(), cps: 15 } };
+    tf.wall(core, 1 / 30);
+    assert.ok(tf._test.st.action.t >= 6 * 0.85, 'speaking puts the cup down');
+    console.log('  ok - little human touches: tea, looking away');
   } catch (e) { console.error('  FAIL -', e.message); process.exitCode = 1; }
 })();

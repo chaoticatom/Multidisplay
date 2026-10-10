@@ -6473,7 +6473,14 @@ var PiEngine = (() => {
           const folds = 0.92 + 0.08 * n1(u * 9 + v * 3);
           let shirt = scale(L.shirt, (0.55 + 0.35 * clamp(0.6 - u * 0.5)) * folds);
           shirt = scale(shirt, 1 - 0.35 * sm(0.35, 0, Math.abs(u)) * sm(0.2, 0, shoulder));
-          col = mix(col, shirt, sm(0, 0.04, shoulder));
+          if (woman) {
+            const neckline = v - (1.13 + 0.04 * u * u);
+            let bare = scale(L.skin, 0.68 + 0.26 * clamp(0.6 - u * 0.6));
+            bare = mul(bare, [1, 0.9, 0.86]);
+            for (const s of [-1, 1]) bare = scale(bare, 1 - 0.18 * sm(0.025, 0, Math.abs(v - (1 + 0.06 * Math.abs(u)))) * sm(0.45, 0.12, Math.abs(u - s * 0.3)));
+            shirt = scale(shirt, 1 + 0.35 * sm(0.12, 0, Math.abs(u + 0.35 - (v - 1.1) * 0.4)));
+            col = mix(col, neckline > 0 ? shirt : bare, sm(0, 0.04, shoulder));
+          } else col = mix(col, shirt, sm(0, 0.04, shoulder));
         }
         if (woman) {
           const half = 0.78 + 0.05 * Math.sin(v * 4.5 + 0.5) - 0.12 * Math.max(0, v - 0.45);
@@ -6491,6 +6498,13 @@ var PiEngine = (() => {
           nk = mul(nk, [1, 0.9, 0.86]);
           nk = scale(nk, 1 - 0.45 * sm(0.14, 0, v - 0.6));
           col = mix(col, nk, sm(0.01, -0.02, neck));
+        }
+        if (woman && v > 0.86 && v < 1.05 && Math.abs(u) < 0.26) {
+          const gold = [1, 0.8, 0.42];
+          const chain = Math.abs(v - (0.9 + 2.2 * u * u));
+          if (chain < 0.014 && Math.abs(u) < 0.2) col = mix(col, scale(gold, 0.65 + 0.45 * clamp(0.5 - u * 2)), 0.8 * sm(0.014, 4e-3, chain));
+          const pd = Math.hypot(u, (v - 1) * 0.8);
+          if (pd < 0.032) col = mix(col, scale(gold, 0.75 + 0.6 * sm(0.03, 0, Math.hypot(u + 0.01, v - 0.985))), sm(0.032, 0.022, pd));
         }
         const crown = woman ? ell(u, v, 0, -0.2, 0.8, 0.86) : ell(u, v, 0, -0.3, 0.68, 0.68) + 0.015 * (n1(Math.atan2(v + 0.3, u) * 9) - 0.5);
         if (crown < 0.02) {
@@ -6522,6 +6536,11 @@ var PiEngine = (() => {
           skin = scale(skin, 1 - 0.12 * sm(0.18, 0, Math.hypot(u - s * 0.5, v + 0.25)));
         }
         for (const s of [-1, 1]) skin = scale(skin, 1 + 0.06 * p.smile * sm(0.15, 0, Math.hypot(u - s * 0.3, v - 0.1)));
+        if (woman) for (const s of [-1, 1]) {
+          skin = scale(skin, 1 - 0.14 * sm(0.13, 0, Math.hypot((u - s * 0.42) * 0.8, v - 0.3 + (Math.abs(u) - 0.42) * 0.5)));
+          skin = scale(skin, 1 + 0.1 * sm(0.08, 0, Math.hypot(u - s * 0.36, v - 0.08)));
+        }
+        if (woman && Math.hypot(u + 0.19, v - 0.33) < 0.022) skin = mix(skin, [0.25, 0.14, 0.1], 0.7);
         if (v > -0.15 && v < 0.32) {
           skin = scale(skin, 1 + 0.12 * sm(0.045, 0, Math.abs(u + 0.015)) * sm(-0.15, -0.05, v) * sm(0.24, 0.16, v));
           skin = mul(skin, mix([1, 1, 1], [0.78, 0.68, 0.66], sm(0.07, 0.02, Math.abs(u - 0.07)) * sm(-0.1, 0.05, v) * sm(0.3, 0.22, v)));
@@ -6600,9 +6619,13 @@ var PiEngine = (() => {
             if (Math.hypot(ix + 0.016, iy + 0.016) < 0.011) e = mix(e, [1, 1, 1], 0.92);
             col = e;
           }
-          const lash = woman ? 0.017 : 0.011;
-          if (Math.abs(ey - top) < lash && Math.abs(ex) < hw * 1.04) col = mix(col, [0.1, 0.07, 0.06], woman ? 0.92 : 0.8);
-          if (woman && s * ex > hw * 0.85 && s * ex < hw * 1.15 && Math.abs(ey - (top - (s * ex - hw * 0.85) * 0.5)) < 8e-3) col = mix(col, [0.12, 0.07, 0.07], 0.6);
+          if (woman && Math.abs(ex) < hw * 1.25 && ey < top && ey > top - 0.07) {
+            const k = sm(top - 0.07, top - 5e-3, ey) * (0.55 + 0.45 * sm(-hw, hw * 1.1, s * ex));
+            col = mix(col, mul(col, [0.62, 0.45, 0.55]), 0.75 * k);
+          }
+          const lash = woman ? 0.022 : 0.011;
+          if (Math.abs(ey - top) < lash && Math.abs(ex) < hw * 1.04) col = mix(col, [0.07, 0.05, 0.05], woman ? 0.96 : 0.8);
+          if (woman && s * ex > hw * 0.8 && s * ex < hw * 1.35 && Math.abs(ey - (top - (s * ex - hw * 0.8) * 0.55)) < 0.011) col = mix(col, [0.06, 0.04, 0.04], 0.85);
           if (Math.abs(ex) < hw && ey < top && ey > top - 0.05 && open < 0.25) col = mix(col, scale(L.skin, 0.72), 0.55);
         }
         if (v > 0.3 && v < 0.62 && Math.abs(u) < 0.3) {
@@ -6614,7 +6637,7 @@ var PiEngine = (() => {
           const bow = 0.012 * sm(0.05, 0, Math.abs(Math.abs(mx) - 0.035));
           const upTop = gapTop - 0.035 * full * Math.sqrt(t) - bow, lowBot = gapBot + 0.046 * full * Math.sqrt(t);
           if (Math.abs(mx) < wide && my > upTop - 0.01 && my < lowBot + 0.01) {
-            const lipBase = woman ? [0.84, 0.36, 0.44] : mix([0.72, 0.38, 0.36], L.skin, 0.3);
+            const lipBase = woman ? [0.8, 0.13, 0.2] : mix([0.72, 0.38, 0.36], L.skin, 0.3);
             if (my > gapTop && my < gapBot && open > 0.05) {
               let inner = [0.2, 0.05, 0.06];
               if (my > gapBot - 0.025 * open) inner = [0.55, 0.22, 0.26];
@@ -6623,7 +6646,14 @@ var PiEngine = (() => {
             } else if (my > upTop && my < lowBot) {
               const upper = my < gapTop;
               let lc = scale(lipBase, upper ? 0.72 : 1);
-              if (!upper) lc = [lc[0] + 0.12 * sm(0.02, 0, Math.hypot(mx + 0.03, my - (gapBot + 0.018))), lc[1] + 0.08 * sm(0.02, 0, Math.hypot(mx + 0.03, my - (gapBot + 0.018))), lc[2] + 0.08 * sm(0.02, 0, Math.hypot(mx + 0.03, my - (gapBot + 0.018)))];
+              const gl = woman ? 0.3 : 0.1;
+              if (!upper) {
+                const g = sm(0.025, 0, Math.hypot(mx + 0.03, my - (gapBot + 0.018)));
+                lc = [lc[0] + gl * 1.1 * g, lc[1] + gl * 0.8 * g, lc[2] + gl * 0.8 * g];
+              } else if (woman) {
+                const g = sm(0.015, 0, Math.hypot(mx + 0.04, my - (upTop + 0.012)));
+                lc = [lc[0] + 0.15 * g, lc[1] + 0.1 * g, lc[2] + 0.1 * g];
+              }
               lc = mix(lc, col, sm(8e-3, -4e-3, Math.min(my - upTop, lowBot - my)) * 0.5 + 0.5 * sm(wide * 0.75, wide, Math.abs(mx)));
               if (Math.abs(my - (gapTop + gapBot) / 2) < 5e-3 && open <= 0.05) lc = scale(lc, 0.55);
               col = lc;
@@ -6633,6 +6663,38 @@ var PiEngine = (() => {
         }
         return col;
       }
+      var MUG = [0.92, 0.88, 0.8];
+      function mugShade(u, v, p, under, L) {
+        const m = p.mug, lift = sm(0, 1, m);
+        const cx = 0.16 - 0.06 * lift, top = 1.55 - 1.18 * lift, w2 = 0.2, hgt = 0.46;
+        const tip = 0.35 * sm(0.7, 1, m);
+        const x = u - cx - (v - top) * tip, y = v - top;
+        if (y < 0 && y > -0.5 && Math.abs(x) < w2 && m < 0.6) {
+          const s = sm(0.6, 0.3, m) * sm(-0.5, -0.05, y) * sm(w2, 0, Math.abs(x + 0.05 * Math.sin(y * 9 + p.t * 2)));
+          const wisp = 0.5 + 0.5 * Math.sin(x * 28 + y * 10 - p.t * 3);
+          return s > 0.01 ? mix(under, [0.85, 0.85, 0.88], 0.22 * s * wisp) : null;
+        }
+        const hr = Math.hypot(x - w2 - 0.04, (y - hgt * 0.45) * 0.8);
+        if (hr > 0.07 && hr < 0.11 && x > w2 - 0.01) return scale(MUG, 0.55 + 0.25 * clamp((y - hgt * 0.2) / hgt));
+        if (y > hgt - 0.02) {
+          const ax = x + 0.06 + (y - hgt) * 0.25, aw = 0.13 + (y - hgt) * 0.12;
+          if (Math.abs(ax) < aw) {
+            const sleeve = y - hgt > 0.35;
+            const base = sleeve ? L.shirt : mul(L.skin, [1, 0.9, 0.86]);
+            return scale(base, 0.5 + 0.4 * clamp(0.6 - ax / aw * 0.6) * (sleeve ? 1 : 1.1));
+          }
+        }
+        if (Math.abs(x) > w2 || y < 0 || y > hgt) return null;
+        const r = x / w2, round = Math.sqrt(clamp(1 - r * r));
+        let c = scale(MUG, 0.45 + 0.5 * clamp(0.75 - r * 0.6) * (0.4 + 0.6 * round) + 0.18 * sm(0.25, 0, Math.abs(r + 0.45)));
+        if (y < 0.03) c = mix(c, y < 0.015 && lift < 0.9 ? [0.42, 0.24, 0.12] : scale(MUG, 1.05), 0.8);
+        c = mix(c, scale(c, 0.7), sm(0.75, 1, Math.abs(r)));
+        for (let k = 0; k < 3; k++) {
+          const fy = hgt * (0.35 + k * 0.17);
+          if (x < -w2 * 0.25 && Math.abs(y - fy) < 0.035) c = scale(mul(L.skin, [1, 0.9, 0.85]), 0.6 + 0.35 * clamp(1 - Math.abs(y - fy) / 0.035) * clamp(0.9 + r));
+        }
+        return c;
+      }
       function renderFace(out, w, h, pose, look) {
         const size = Math.min(w, h), ox = (w - size) / 2, oy = (h - size) / 2;
         const ca = Math.cos(pose.tilt), sa = Math.sin(pose.tilt);
@@ -6641,7 +6703,12 @@ var PiEngine = (() => {
           const ru = u * ca + v * sa, rv = -u * sa + v * ca;
           u = ru - pose.yaw * (1 - rv * rv * 0.3);
           v = rv;
-          const c = shade(u, v, pose, look), o = (y * w + x) * 3;
+          let c = shade(u, v, pose, look);
+          if (pose.mug > 0) {
+            const mc = mugShade(((x + 0.5 - ox) / size - 0.5) * 2.5, ((y + 0.5 - oy) / size - 0.5) * 2.5, pose, c, look);
+            if (mc) c = mc;
+          }
+          const o = (y * w + x) * 3;
           out[o] = c[0];
           out[o + 1] = c[1];
           out[o + 2] = c[2];
@@ -6682,8 +6749,20 @@ var PiEngine = (() => {
         smile: 0.25,
         sayId: null,
         face: null,
-        faceKey: ""
+        faceKey: "",
+        action: null,
+        nextAction: 10
+        // idle touches: look away, sip tea, yawn, nod
       };
+      var ACTIONS = [["look", 4, 3.5], ["tea", 2, 6], ["yawn", 1, 3], ["nod", 2, 1.4], ["glance", 3, 2]];
+      function pickAction() {
+        let r = Math.random() * ACTIONS.reduce((a, x) => a + x[1], 0);
+        for (const [kind, w, len] of ACTIONS) {
+          if ((r -= w) < 0) return { kind, t: 0, len, side: Math.random() < 0.5 ? -1 : 1 };
+        }
+        return null;
+      }
+      var ease = (f, a = 0.2) => f < a ? Math.sin(f / a * Math.PI / 2) : f > 1 - a ? Math.sin((1 - f) / a * Math.PI / 2) : 1;
       function viseme(ch) {
         const c = (ch || " ").toLowerCase();
         if ("ai".includes(c)) return [0.8, 0.4];
@@ -6753,6 +6832,52 @@ var PiEngine = (() => {
           lk = Math.sin(Math.min(1, f * 1.4) * Math.PI / 2) * (f > 0.75 ? (1 - f) / 0.25 : 1);
           ha = Math.max(0, Math.sin((now - say.laughAt) / 1e3 * Math.PI * 2 * 4.5));
         }
+        if (speaking || thinking || lk > 0) {
+          if (st.action && st.action.kind === "tea" && st.action.t < st.action.len * 0.85) st.action.t = st.action.len * 0.85;
+          if (st.action && st.action.kind !== "tea") st.action = null;
+          st.nextAction = Math.max(st.nextAction, 4);
+        } else if (!st.action) {
+          st.nextAction -= dt;
+          if (st.nextAction <= 0) {
+            st.action = pickAction();
+            st.nextAction = rand(9, 22);
+          }
+        }
+        const act = { yaw: 0, tilt: 0, bob: 0, gazeX: null, gazeY: null, open: 0, wide: 0, squint: 0, brow: 0, smile: 0, mug: 0, blink: 0 };
+        if (st.action) {
+          const a = st.action;
+          a.t += dt;
+          const f = Math.min(1, a.t / a.len);
+          if (a.kind === "look") {
+            const e = ease(f, 0.22);
+            act.yaw = 0.32 * a.side * e;
+            act.gazeX = 0.9 * a.side * e;
+            act.tilt = 0.03 * a.side * e;
+          } else if (a.kind === "glance") {
+            const e = ease(f, 0.15);
+            act.gazeX = 0.85 * a.side * e;
+            act.gazeY = 0.25 * e;
+            act.brow = 0.15 * e;
+          } else if (a.kind === "nod") act.bob = 0.035 * Math.sin(f * Math.PI * 3) * (1 - f);
+          else if (a.kind === "yawn") {
+            const e = Math.sin(f * Math.PI);
+            act.open = e;
+            act.wide = -0.4 * e;
+            act.squint = 0.9 * e;
+            act.brow = 0.35 * e;
+            act.tilt = -0.06 * e;
+            act.bob = -0.02 * e;
+          } else if (a.kind === "tea") {
+            act.mug = f < 0.3 ? f / 0.3 : f < 0.7 ? 1 : (1 - f) / 0.3;
+            const sip = f > 0.33 && f < 0.68 ? Math.sin((f - 0.33) / 0.35 * Math.PI) : 0;
+            act.tilt = -0.07 * sip;
+            act.bob = -0.02 * sip;
+            act.blink = 0.55 * sip;
+            act.gazeY = 0.3 * act.mug;
+            if (f > 0.72) act.smile = 0.25 * Math.sin((f - 0.72) / 0.28 * Math.PI);
+          }
+          if (a.t >= a.len) st.action = null;
+        }
         const t = st.t;
         if (lk > 0) {
           return {
@@ -6766,22 +6891,26 @@ var PiEngine = (() => {
             mouthOpen: lk * (0.45 + 0.55 * ha),
             mouthWide: lk,
             smile: 0.3 + 0.7 * lk,
-            squint: 0.75 * lk
+            squint: 0.75 * lk,
+            mug: act.mug,
+            t
           };
         }
         return {
-          yaw: 0.03 * Math.sin(t * 0.37) + 0.015 * Math.sin(t * 1.13 + 1) + (speaking ? 0.012 * Math.sin(t * 2.7) : 0),
-          tilt: 0.025 * Math.sin(t * 0.29 + 2) + (speaking ? 0.01 * Math.sin(t * 2.1) : 0),
-          bob: 0.012 * Math.sin(t * 1.5) + (speaking ? 6e-3 * Math.sin(t * 5.3) : 0),
+          yaw: 0.03 * Math.sin(t * 0.37) + 0.015 * Math.sin(t * 1.13 + 1) + (speaking ? 0.012 * Math.sin(t * 2.7) : 0) + act.yaw,
+          tilt: 0.025 * Math.sin(t * 0.29 + 2) + (speaking ? 0.01 * Math.sin(t * 2.1) : 0) + act.tilt,
+          bob: 0.012 * Math.sin(t * 1.5) + (speaking ? 6e-3 * Math.sin(t * 5.3) : 0) + act.bob,
           // breathing, and a nod while talking
-          blink: st.blink,
-          gazeX: st.gaze[0],
-          gazeY: st.gaze[1],
-          brow: st.brow + tw.brow,
-          mouthOpen: st.open,
-          mouthWide: st.wide,
-          smile: st.smile + tw.smile,
-          squint: tw.squint
+          blink: Math.max(st.blink, act.blink),
+          gazeX: act.gazeX !== null ? act.gazeX : st.gaze[0],
+          gazeY: act.gazeY !== null ? act.gazeY : st.gaze[1],
+          brow: st.brow + tw.brow + act.brow,
+          mouthOpen: Math.max(st.open, act.open),
+          mouthWide: st.wide + act.wide,
+          smile: st.smile + tw.smile + act.smile,
+          squint: Math.max(tw.squint, act.squint),
+          mug: act.mug,
+          t
         };
       }
       function lookFrom(opts) {
@@ -6790,7 +6919,7 @@ var PiEngine = (() => {
           skin: LOOKS.skin[opts.skin] || LOOKS.skin.light,
           hair: LOOKS.hair[opts.hair] || (opts.style === "woman" ? LOOKS.hair.blonde : LOOKS.hair.brown),
           iris: LOOKS.iris[opts.eyes] || LOOKS.iris.blue,
-          shirt: opts.style === "woman" ? [0.5, 0.2, 0.32] : [0.16, 0.24, 0.42],
+          shirt: opts.style === "woman" ? [0.42, 0.04, 0.08] : [0.16, 0.24, 0.42],
           bg: [0.11, 0.09, 0.08]
         };
       }
