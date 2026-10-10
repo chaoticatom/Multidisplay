@@ -901,6 +901,11 @@ body.cx-preview-off #c, body.cx-preview-off #panel2d-canvas, body.cx-preview-off
 #sidebar-brightness-bar { background: none !important; border: none !important; padding: 2px 12px 4px !important; }
 #sidebar-brightness-bar .slider-row { gap: 10px; align-items: center; }
 #bright-label { width: auto !important; font-size: 16px !important; }
+/* Overall volume: lined up under the brightness slider (same icon column). */
+#master-vol-row { margin: 8px 0 0 !important; }
+#master-vol-label { width: auto !important; font-size: 14px !important; min-width: 16px; text-align: center; }
+#master-vol-slider { flex: 1; min-width: 0; margin: 0; }
+#master-vol-val { flex: 0 0 auto; width: 36px; text-align: right; font-size: 11px; font-weight: 700; color: #9aa3b8; }
 .cx-round { width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; border: none; cursor: pointer; font-size: 16px; color: #fff; background: rgba(255,255,255,.08); box-shadow: 0 0 0 1px rgba(255,255,255,.12); transition: transform .2s cubic-bezier(.2,1.6,.4,1); }
 .cx-round:active { transform: scale(.9); }
 .cx-round-off { background: rgba(255,90,90,.15); box-shadow: 0 0 0 1px rgba(255,90,90,.35); }
@@ -1207,10 +1212,10 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <button class="cx-round cx-round-off" id="clear-all-btn" title="Off (display and music)" aria-label="Off, display and music"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
     </div>
     <!-- Overall volume: everything the Pi plays (radio, voice, sound effects) - src/masterVolume.js. -->
-    <div class="slider-row" style="margin:6px 0 0;">
-      <span class="slider-label" aria-hidden="true">🔊</span>
-      <input type="range" id="master-vol-slider" min="0" max="1" step="0.05" value="1" aria-label="Overall volume" style="flex:1;">
-      <span class="slider-val" id="master-vol-val" style="min-width:38px;text-align:right;">100%</span>
+    <div class="slider-row" id="master-vol-row">
+      <span class="slider-label" id="master-vol-label" aria-hidden="true">🔊</span>
+      <input type="range" id="master-vol-slider" min="0" max="1" step="0.05" value="1" aria-label="Overall volume">
+      <span id="master-vol-val">100%</span>
     </div>
   </div>
 

@@ -520,6 +520,7 @@ const COMMANDS = {
   faceSay(ws, msg) { this.faceTalk.say(msg.text); },
   faceChat(ws, msg) { this.faceTalk.chat(msg.text); },
   faceTopic() { this.faceTalk.topic(); },
+  faceProgress(ws, msg) { this.faceTalk.progress(msg.id, msg.char); }, // the phone's voice, word by word
 
   // Timer list > Test: runs a copy of the timer now, shortened - a 15 s
   // sunrise or wind-down (3 s lead-in otherwise), then the timer itself with

@@ -6,8 +6,9 @@
 // say(text) speaks a line; chat(text) answers it (AI assistant if set up, a
 // friendly fallback if not); tick() (every 5 s) starts a topic by itself
 // when the face is on screen and has been quiet for a while.
-// Voice (effect option `voice`): 'phone' (the page speaks it), 'pi' (espeak-ng
-// to the Pi's speaker), 'both' or 'off'.
+// Voice (effect option `voice`): 'phone' (the page speaks it), 'pi' (Gemini
+// speech or espeak-ng to the Pi's speaker), 'both' or 'off'. The caption
+// on the display is timed to the actual audio, and the laugh is heard too.
 'use strict';
 
 const { spawn } = require('child_process');
@@ -28,6 +29,7 @@ const JOKES = [
   'Parallel lines have so much in common. It\'s a shame they\'ll never meet.',
 ];
 const LAUGH_MS = 1800;
+const GAP_MS = 150; // between a laugh and the words
 const FUNNY = /\b(joke|haha+|ha ha|lol|lmao|funny|hilarious)\b|😂|🤣/i;
 
 const TOPICS = [
@@ -57,7 +59,7 @@ function timeGreeting(tz) {
   return h < 5 ? 'It\'s getting late. Don\'t stay up too long!' : h < 12 ? 'Good morning! I hope you slept well.' : h < 18 ? 'Good afternoon! How\'s your day going?' : 'Good evening! Time to relax a little.';
 }
 
-function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spawn, now = Date.now } = {}) {
+function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spawn, now = Date.now, speakerLagMs = () => 0 } = {}) {
   const ft = state.faceTalk || (state.faceTalk = { say: null, thinking: false, log: [] });
   let speakEnds = 0, lastTopic = -1, voiceProc = null;
   const status = { voice: '' };
@@ -65,37 +67,33 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
   const opts = () => (state.effectOptions && state.effectOptions.talking_face) || {};
   const voice = () => opts().voice || 'phone';
 
-  // The Pi's own voice: espeak-ng piped into paplay (the Pi speaker / Bluetooth).
-  function piSpeak(text) {
-    if (voiceProc) { try { voiceProc.kill(); } catch (e) { /* gone */ } voiceProc = null; }
-    let proc;
-    try {
-      const { findPulseEnv } = require('./pulseEnv');
-      const pulse = findPulseEnv(), env = pulse.env ? { ...process.env, ...pulse.env } : process.env;
-      const play = pulse.env ? `paplay --server=${pulse.env.PULSE_SERVER}` : 'paplay';
-      const vol = require('./masterVolume').paplayArg();
-      proc = spawnFn('sh', ['-c', `espeak-ng -v en-gb -s 165 --stdout "$1" | ${play} ${vol}`, 'speak', text], { stdio: ['ignore', 'ignore', 'pipe'], env });
-    } catch (e) { status.voice = 'Pi voice failed: ' + e.message; return; }
-    voiceProc = proc;
-    let err = '';
-    if (proc.stderr) proc.stderr.on('data', (d) => { err += d; });
-    proc.on('exit', (code) => {
-      if (proc !== voiceProc) return; // replaced by a newer line
-      voiceProc = null;
-      status.voice = code === 0 ? '' : /not found|No such file/i.test(err) ? 'Install the Pi voice with: sudo apt install espeak-ng' : 'Pi voice: ' + (err.trim().split('\n').pop() || 'exit ' + code);
+  // The basic Pi voice: espeak-ng rendered to a WAV first (the text goes as
+  // an argument, never through a shell), so the caption can be timed to the
+  // real length of the audio. Resolves { pcm, rate } or null.
+  function espeakPcm(text) {
+    return new Promise((resolve) => {
+      let proc;
+      try { proc = spawnFn('espeak-ng', ['-v', 'en-gb', '-s', '165', '--stdout', text], { stdio: ['ignore', 'pipe', 'pipe'] }); } catch (e) { status.voice = 'Pi voice failed: ' + e.message; resolve(null); return; }
+      const out = []; let err = '';
+      if (proc.stdout) proc.stdout.on('data', (d) => out.push(d));
+      if (proc.stderr) proc.stderr.on('data', (d) => { err += d; });
+      proc.on('error', (e) => { status.voice = /ENOENT/.test(e.message) ? 'Install the Pi voice with: sudo apt install espeak-ng' : 'Pi voice failed: ' + e.message; resolve(null); });
+      proc.on('close', (code) => {
+        const w = Buffer.concat(out), d = w.indexOf('data');
+        if (code !== 0 || d < 0 || w.length < 44) { if (!status.voice) status.voice = 'Pi voice: ' + (err.trim().split('\n').pop() || 'exit ' + code); resolve(null); return; }
+        resolve({ pcm: w.subarray(d + 8), rate: w.readUInt32LE(24) || 22050 });
+      });
     });
-    proc.on('error', (e) => { if (proc === voiceProc) { voiceProc = null; status.voice = 'Pi voice failed: ' + e.message; } });
   }
 
-  // Natural speech (Gemini text-to-speech, when Gemini is the AI provider):
-  // raw 24 kHz mono PCM straight into paplay.
-  function playPcm(pcm) {
+  // Plays raw 16-bit mono PCM through paplay (the Pi speaker / Bluetooth).
+  function playPcm(pcm, rate) {
     if (voiceProc) { try { voiceProc.kill(); } catch (e) { /* gone */ } voiceProc = null; }
     let proc;
     try {
       const { findPulseEnv } = require('./pulseEnv');
       const pulse = findPulseEnv(), env = pulse.env ? { ...process.env, ...pulse.env } : process.env;
-      const args = ['--raw', '--rate=24000', '--channels=1', '--format=s16le', require('./masterVolume').paplayArg()];
+      const args = ['--raw', '--rate=' + rate, '--channels=1', '--format=s16le', require('./masterVolume').paplayArg()];
       if (pulse.env) args.unshift('--server=' + pulse.env.PULSE_SERVER);
       proc = spawnFn('paplay', args, { stdio: ['pipe', 'ignore', 'pipe'], env });
     } catch (e) { status.voice = 'Pi voice failed: ' + e.message; return; }
@@ -105,18 +103,34 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
     if (proc.stdin) { proc.stdin.on('error', () => {}); proc.stdin.end(pcm); }
   }
 
-  // Shows the line on the display; the lips follow it at `cps`.
+  // A real laugh to hear, in the same voice (cached - it's the same every time).
+  const laughCache = new Map();
+  async function laughPcm(vname, gemini) {
+    const key = (gemini ? 'g:' : 'e:') + vname;
+    if (laughCache.has(key)) return laughCache.get(key);
+    let r = null;
+    if (gemini) { try { const pcm = await ai.speech('Hahaha! Ha ha ha!', vname, 'Laugh out loud, warmly and naturally:'); if (pcm && pcm.length > 4800) r = { pcm, rate: 24000 }; } catch (e) { /* no laugh audio */ } }
+    else r = await espeakPcm('Ha ha ha ha!');
+    if (r) laughCache.set(key, r);
+    return r;
+  }
+
+  // How long the speaker takes to start sounding (Bluetooth buffers a lot):
+  // the caption starts that much after the audio is sent.
+  const lagMs = () => Math.max(250, Math.min(2000, Number(speakerLagMs()) || 0) + 100);
+
+  // Shows the line on the display; the caption and lips follow it at `cps`.
   // laugh: 'after' (its own joke - laughs at the punchline), 'before' (your
   // joke - laughs first, then speaks) or 'none'. The effect animates the
   // laugh between laughAt and laughAt + laughMs.
-  function startLine(t, cps = CPS, laugh = 'none') {
+  function startLine(t, cps = CPS, laugh = 'none', laughMs = LAUGH_MS, lead = 300) {
     ft.thinking = false;
-    let at = now() + 300, laughAt = 0;
-    if (laugh === 'before') { laughAt = at; at += LAUGH_MS; }
+    let at = now() + lead, laughAt = 0;
+    if (laugh === 'before') { laughAt = at; at += laughMs + GAP_MS; }
     const dur = (t.length / cps) * 1000;
-    if (laugh === 'after') laughAt = at + dur + 150;
-    ft.say = { id: ++id, text: t, at, cps, laughAt, laughMs: laughAt ? LAUGH_MS : 0 };
-    speakEnds = Math.max(at + dur, laughAt + (laughAt ? LAUGH_MS : 0));
+    if (laugh === 'after') laughAt = at + dur + GAP_MS;
+    ft.say = { id: ++id, text: t, at, cps, laughAt, laughMs: laughAt ? laughMs : 0 };
+    speakEnds = Math.max(at + dur, laughAt + (laughAt ? laughMs : 0));
     ft.log.push({ who: 'face', text: t }); if (ft.log.length > 20) ft.log.shift();
     broadcast();
   }
@@ -125,26 +139,41 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
     const t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 300);
     if (!t) return;
     const v = voice();
-    if (v === 'pi' || v === 'both') {
-      // A natural Gemini voice when available: fetched first, then the lips
-      // are timed to the real length of the audio.
-      try {
-        if (!ft.thinking) { ft.thinking = true; broadcast(); }
-        const pcm = ai.speech ? await ai.speech(t, opts().style === 'woman' ? 'Kore' : 'Puck') : null;
-        ft.thinking = false;
-        if (pcm && pcm.length > 4800) {
-          const secs = pcm.length / 48000;
-          startLine(t, Math.max(5, Math.min(30, t.length / secs)), laugh);
-          if (laugh === 'before') setTimeout(() => playPcm(pcm), LAUGH_MS).unref(); else playPcm(pcm);
-          status.voice = '';
-          return;
-        }
-      } catch (e) { ft.thinking = false; status.voice = e.message.slice(0, 160) + ' - using the basic voice'; }
-      startLine(t, CPS, laugh);
-      if (laugh === 'before') setTimeout(() => piSpeak(t), LAUGH_MS).unref(); else piSpeak(t);
-      return;
-    }
-    startLine(t, CPS, laugh);
+    if (v !== 'pi' && v !== 'both') { startLine(t, CPS, laugh); return; }
+    // The Pi speaks: a natural Gemini voice when available, else espeak-ng.
+    // The audio is made first, then the caption and lips are timed to it.
+    if (!ft.thinking) { ft.thinking = true; broadcast(); }
+    const vname = opts().style === 'woman' ? 'Kore' : 'Puck';
+    let speech = null, gemini = false;
+    try {
+      const pcm = ai.speech ? await ai.speech(t, vname) : null;
+      if (pcm && pcm.length > 4800) { speech = { pcm, rate: 24000 }; gemini = true; status.voice = ''; }
+    } catch (e) { status.voice = e.message.slice(0, 160) + ' - using the basic voice'; }
+    if (!speech) speech = await espeakPcm(t);
+    const lg = laugh !== 'none' && speech ? await laughPcm(vname, gemini) : null;
+    if (!speech) { startLine(t, CPS, laugh); return; }
+    const rate = speech.rate, secs = speech.pcm.length / (rate * 2);
+    const lgPcm = lg && lg.rate === rate ? lg.pcm : null;
+    const laughMs = lgPcm ? (lgPcm.length / (rate * 2)) * 1000 : LAUGH_MS;
+    const gap = Buffer.alloc(Math.round(rate * GAP_MS / 1000) * 2);
+    const silence = (ms) => Buffer.alloc(Math.round(rate * ms / 1000) * 2);
+    const parts = laugh === 'before' ? [lgPcm || silence(laughMs), gap, speech.pcm] : laugh === 'after' ? [speech.pcm, gap, lgPcm || silence(0)] : [speech.pcm];
+    startLine(t, Math.max(4, Math.min(30, t.length / secs)), laugh, laughMs, lagMs());
+    playPcm(Buffer.concat(parts), rate);
+  }
+
+  // The phone speaking the line reports how far it has got (word by word),
+  // and the caption follows it - phone voices all talk at different speeds.
+  function progress(lineId, charIndex) {
+    const sy = ft.say;
+    if (!sy || sy.id !== lineId || voice() !== 'phone') return;
+    const c = Math.max(0, Math.min(sy.text.length, Number(charIndex) || 0));
+    if (now() < sy.at) return; // still laughing first
+    const want = now() - (c / sy.cps) * 1000;
+    if (Math.abs(want - sy.at) < 120) return;
+    sy.at = want;
+    speakEnds = Math.max(speakEnds, sy.at + (sy.text.length / sy.cps) * 1000);
+    broadcast();
   }
 
   async function chat(text) {
@@ -218,7 +247,7 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
     if (now() > speakEnds + gap) { speakEnds = now(); topic(); }
   }
 
-  return { say, chat, hear, busy, topic, tick, status };
+  return { say, chat, hear, busy, progress, topic, tick, status };
 }
 
 module.exports = { createFaceTalk, TOPICS, JOKES, LAUGH_MS };

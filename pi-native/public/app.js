@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.299';
+const APP_VERSION = '0.6.300';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -1456,10 +1456,19 @@ function syncTalkingFacePanel() {
     if (!first && (v === 'phone' || v === 'both') && currentState.effect === 'talking_face' && document.visibilityState === 'visible' && window.speechSynthesis) {
       try {
         speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(say.text);
-        u.voice = tfBestVoice(o.style === 'woman');
-        u.rate = 1.0;
-        setTimeout(() => speechSynthesis.speak(u), Math.max(0, say.at - Date.now()));
+        const voice = tfBestVoice(o.style === 'woman');
+        const utter = (text) => { const u = new SpeechSynthesisUtterance(text); u.voice = voice; u.rate = 1.0; return u; };
+        const u = utter(say.text);
+        // Word by word, tell the Pi how far it has got, so the caption on the
+        // display keeps pace with this phone's voice (only one phone does it).
+        if (v === 'phone') {
+          u.onstart = () => send({ cmd: 'faceProgress', id: say.id, char: 0 });
+          u.onboundary = (e) => { if (e.name !== 'sentence') send({ cmd: 'faceProgress', id: say.id, char: e.charIndex }); };
+        }
+        const laughU = () => { const l = utter('Ha ha ha ha!'); l.pitch = 1.2; l.rate = 1.15; return l; };
+        const go = (at, x) => setTimeout(() => speechSynthesis.speak(x), Math.max(0, at - Date.now()));
+        if (say.laughMs && say.laughAt < say.at) { go(say.laughAt, laughU()); go(say.at, u); }
+        else { go(say.at, u); if (say.laughMs) go(say.laughAt, laughU()); }
       } catch (e) { /* no speech on this device */ }
     }
   }

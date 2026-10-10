@@ -198,12 +198,12 @@ async function hear(history, audio) {
 // Natural speech for the Talking Face from Gemini's text-to-speech model.
 // Returns 24 kHz 16-bit mono PCM, or null when Gemini isn't the AI provider
 // (the face then falls back to espeak-ng).
-async function speech(text, voice = 'Kore') {
+async function speech(text, voice = 'Kore', style = '') {
   const cfg = aiConfig.load();
   if (cfg.provider !== 'gemini' || !cfg.key) return null;
   const send = (m) => fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
-    body: JSON.stringify({ contents: [{ parts: [{ text: String(text).slice(0, 400) }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } } }),
+    body: JSON.stringify({ contents: [{ parts: [{ text: (style ? style + ' ' : '') + String(text).slice(0, 400) }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } } }),
   }, 45000);
   const tried = geminiWorking.speech || 'gemini-2.5-flash-preview-tts';
   let res = await send(tried);

@@ -116,7 +116,7 @@ class WsServer {
   constructor(port, state, config, onConfigChange, effectCommandRelay = null) {
     this.state = state;
     this.updater = createUpdater(); // Setup -> Update (see selfUpdate.js)
-    this.faceTalk = require('./faceTalk').createFaceTalk({ state, broadcast: () => this._broadcast(this._stateMsg()) }); // Talking Face
+    this.faceTalk = require('./faceTalk').createFaceTalk({ state, broadcast: () => this._broadcast(this._stateMsg()), speakerLagMs: () => { const a = require('./effects/radio/radio').audio; return a && a.autoSyncMs; } }); // Talking Face
     // The Pi's microphone (src/mic.js): talking to the face, and effects reacting to the room.
     this.mic = require('./mic').createMic({ onUtterance: (w) => this.faceTalk.hear(w), isBusy: () => this.faceTalk.busy() });
     require('./masterVolume').set(state.prefs ? state.prefs.volume : 1);

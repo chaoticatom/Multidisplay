@@ -48,16 +48,40 @@ console.log('talkingFace');
     state.effect = 'talking_face';
     console.log('  ok - chats by itself when quiet, only while on screen');
 
-    // Pi voice: espeak-ng piped to paplay, the text passed as an argument (not in the shell line).
+    // Pi voice: espeak-ng rendered first (text as an argument, no shell), then
+    // paplay; the caption is timed to the audio's real length (here 2 s).
     const calls = [];
-    const spawnFn = (cmd, args) => { calls.push({ cmd, args }); const p = new EventEmitter(); p.stderr = new EventEmitter(); p.kill = () => {}; return p; };
+    const wavOf = (bytes, rate) => { const h = Buffer.alloc(44); h.write('RIFF', 0); h.write('WAVE', 8); h.writeUInt32LE(rate, 24); h.write('data', 36); h.writeUInt32LE(bytes, 40); return Buffer.concat([h, Buffer.alloc(bytes)]); };
+    const spawnFn = (cmd, args) => {
+      calls.push({ cmd, args });
+      const p = new EventEmitter(); p.stderr = new EventEmitter(); p.stdout = new EventEmitter(); p.kill = () => {};
+      p.stdin = Object.assign(new EventEmitter(), { end() {} });
+      if (cmd === 'espeak-ng') setImmediate(() => { p.stdout.emit('data', wavOf(88200, 22050)); p.emit('close', 0); });
+      return p;
+    };
     state.effectOptions.talking_face.voice = 'pi';
     talk = createFaceTalk({ state, broadcast() {}, ai: offAi, spawnFn, now: () => t });
-    talk.say('Hi "there"; rm -rf /');
-    assert.strictEqual(calls[0].cmd, 'sh');
-    assert.ok(/espeak-ng .*"\$1" \| paplay/.test(calls[0].args[1]));
-    assert.strictEqual(calls[0].args[3], 'Hi "there"; rm -rf /', 'text goes as $1, never into the command');
-    console.log('  ok - the Pi voice runs espeak-ng safely');
+    await talk.say('Hi "there"; rm -rf /');
+    assert.strictEqual(calls[0].cmd, 'espeak-ng');
+    assert.strictEqual(calls[0].args[calls[0].args.length - 1], 'Hi "there"; rm -rf /', 'text goes as an argument, never into a command');
+    assert.ok(calls.some((c) => c.cmd === 'paplay' && c.args.includes('--rate=22050')));
+    assert.ok(Math.abs(state.faceTalk.say.cps - 20 / 2) < 0.6, 'caption timed to 2 s of espeak audio: ' + state.faceTalk.say.cps);
+    // Its laugh is heard: the joke's audio gets a laugh after it.
+    calls.length = 0;
+    await talk.say('A joke.', 'after');
+    assert.ok(calls.filter((c) => c.cmd === 'espeak-ng').some((c) => /ha ha/i.test(c.args[c.args.length - 1])), 'a spoken laugh');
+    const sy0 = state.faceTalk.say;
+    assert.ok(Math.abs(sy0.laughMs - 2000) < 1, 'laugh animation as long as the laugh audio');
+    console.log('  ok - the Pi voice: espeak-ng safely, caption timed to it, laugh heard');
+
+    // The phone's voice reports progress; the caption follows it.
+    state.effectOptions.talking_face = { voice: 'phone' };
+    talk = createFaceTalk({ state, broadcast() {}, ai: offAi, now: () => t });
+    await talk.say('Twenty characters!!!');
+    const sp = state.faceTalk.say; t = sp.at + 3000; // the phone is slower than expected
+    talk.progress(sp.id, 10);
+    assert.ok(Math.abs(t - sp.at - (10 / sp.cps) * 1000) < 1, 'caption re-timed to the phone');
+    console.log('  ok - the caption keeps pace with the phone voice');
 
     // With Gemini: natural speech is fetched first, played raw through paplay,
     // and the lips are timed to the audio's real length (here 2 s).
