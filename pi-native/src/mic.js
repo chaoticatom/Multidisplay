@@ -19,7 +19,7 @@ const RATE = 16000;
 const FRAME = 480; // 30 ms
 const MAX_UTTER_S = 12;
 const END_SILENCE_FRAMES = 30; // ~0.9 s
-const MIN_VOICE_FRAMES = 10; // ~0.3 s of voice before it counts as speech
+const MIN_VOICE_FRAMES = 15; // ~0.45 s of voice before it counts as speech (fewer AI calls on noise)
 const PRE_ROLL_FRAMES = 10; // keep the start of the first word
 
 function wav(pcm) {
@@ -127,7 +127,7 @@ function createMic({ onUtterance = () => {}, isBusy = () => false, spawnFn = rea
       voiceFrames = 0; preRoll = [];
       return;
     }
-    const loud = rms > Math.max(0.012, noise * 3.2);
+    const loud = rms > Math.max(0.015, noise * 3.5);
     if (!inSpeech) {
       if (!loud) noise += (rms - noise) * 0.02; // follow the room's background level
       preRoll.push(Buffer.from(f)); if (preRoll.length > PRE_ROLL_FRAMES) preRoll.shift();

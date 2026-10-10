@@ -35,6 +35,27 @@ function extractJson(text) {
   return JSON.parse(text.slice(a, b + 1));
 }
 
+// Gemini's free tier has per-minute and per-day limits (429). After one,
+// that kind of request (text or speech - separate quotas) rests for as long
+// as Google says (RetryInfo), at least a minute, an hour for a daily limit,
+// instead of hammering it; callers fall back meanwhile (see faceTalk.js).
+const cooldown = { text: 0, speech: 0 };
+function noteQuota(kind, body) {
+  const msg = String(body?.error?.message || '');
+  const retry = (body?.error?.details || []).find((d) => d && d.retryDelay);
+  let secs = retry ? parseFloat(retry.retryDelay) || 0 : 0;
+  secs = /per ?day|PerDay|daily/i.test(msg + JSON.stringify(body?.error?.details || [])) ? Math.max(secs, 3600) : Math.max(secs, 60);
+  cooldown[kind] = Date.now() + secs * 1000;
+}
+function quotaError(kind) {
+  const d = new Date(cooldown[kind]);
+  const e = new Error(`Gemini's free limit is used up for now - trying again after ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+  e.quota = true;
+  return e;
+}
+// ms left before Gemini text/speech may be asked again (0 = fine).
+function resting(kind = 'text') { const c = aiConfig.load(); return c.provider === 'gemini' ? Math.max(0, cooldown[kind] - Date.now()) : 0; }
+
 // Gemini model names that worked, found by pickGeminiModel() after a 404.
 const geminiWorking = { text: null, speech: null };
 // Ask Google which models this key can use and pick the best match: for
@@ -62,6 +83,7 @@ async function callProvider(cfg, system, user, opts = {}) {
     // than a short reply is worth (a real report: the face sat on
     // "thinking" until it timed out) - so thinking is switched off, and the
     // request retried without that setting if a model doesn't accept it.
+    if (Date.now() < cooldown.text) throw quotaError('text');
     let noThinking = true;
     const send = (m) => fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
@@ -77,6 +99,7 @@ async function callProvider(cfg, system, user, opts = {}) {
       if (alt) { geminiWorking.text = alt; res = await send(alt); body = await res.json().catch(() => ({})); }
     }
     if (res.status === 400 && /thinking/i.test(body.error?.message || '')) { noThinking = false; res = await send(geminiWorking.text || useModel); body = await res.json().catch(() => ({})); }
+    if (res.status === 429) { noteQuota('text', body); throw quotaError('text'); }
     if (!res.ok) throw new Error(`Gemini ${res.status}: ${body.error?.message || 'request failed'}`);
     return body.candidates?.[0]?.content?.parts?.map((x) => x.text).join('') || '';
   }
@@ -201,6 +224,7 @@ async function hear(history, audio) {
 async function speech(text, voice = 'Kore', style = '') {
   const cfg = aiConfig.load();
   if (cfg.provider !== 'gemini' || !cfg.key) return null;
+  if (Date.now() < cooldown.speech) return null; // resting after a 429: the basic voice meanwhile
   const send = (m) => fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
     body: JSON.stringify({ contents: [{ parts: [{ text: (style ? style + ' ' : '') + String(text).slice(0, 400) }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } } }),
@@ -212,6 +236,7 @@ async function speech(text, voice = 'Kore', style = '') {
     const alt = await pickGeminiModel(cfg.key, 'speech', tried);
     if (alt) { geminiWorking.speech = alt; res = await send(alt); body = await res.json().catch(() => ({})); }
   }
+  if (res.status === 429) { noteQuota('speech', body); return null; } // quietly use the basic voice
   if (!res.ok) throw new Error(`Gemini speech ${res.status}: ${body.error?.message || 'request failed'}`);
   const part = (body.candidates?.[0]?.content?.parts || []).find((x) => x.inlineData && x.inlineData.data);
   if (!part) throw new Error('Gemini speech: no audio came back');
@@ -251,4 +276,4 @@ async function listModels(cfg) {
   return { models: names.slice(0, 80), default: p.model || '' };
 }
 
-module.exports = { ask, chat, hear, speech, listModels, cleanReply, cleanArt, extractJson, systemPrompt, pickGeminiModel, _geminiWorking: geminiWorking };
+module.exports = { ask, chat, hear, speech, resting, _cooldown: cooldown, listModels, cleanReply, cleanArt, extractJson, systemPrompt, pickGeminiModel, _geminiWorking: geminiWorking };

@@ -189,9 +189,14 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
         if (/\bjoke\b/i.test(t)) { reply = pickJoke(); laugh = 'after'; }
         else reply = 'I\'d love to chat properly. Turn on the AI assistant in Setup, and I can answer you. Meanwhile, here\'s something: ' + pickTopic();
       } else { reply = r.say; if (r.laugh && r.laugh !== 'none') laugh = r.laugh; }
-    } catch (e) { reply = 'Sorry, I lost my train of thought there. ' + e.message.slice(0, 80); }
+    } catch (e) {
+      if (e.quota) { reply = 'I\'ve chatted so much my AI has run out of free answers for now. I\'ll be back soon! Meanwhile: ' + pickTopic(); status.voice = e.message; }
+      else reply = 'Sorry, I lost my train of thought there. ' + e.message.slice(0, 80);
+    }
     say(reply || 'Hmm, I\'m not sure what to say to that.', laugh); // keeps the thinking look while natural speech is fetched
   }
+
+  const quotaMsg = () => 'Gemini\'s free limit is used up - back in about ' + Math.ceil(ai.resting('text') / 60000) + ' min';
 
   // Busy talking or thinking: the microphone ignores the room meanwhile.
   function busy() { return ft.thinking || now() < speakEnds + 800; }
@@ -200,9 +205,11 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
   let offHintAt = -Infinity;
   async function hear(audio) {
     if (busy()) return;
+    // Out of AI quota: don't send the room's every sound while it rests.
+    if (ai.resting && ai.resting('text') > 0) { status.voice = 'Listening paused: ' + quotaMsg(); return; }
     ft.thinking = true; broadcast();
     let r;
-    try { r = await ai.hear(ft.log, audio); } catch (e) { ft.thinking = false; status.voice = 'Listening: ' + e.message.slice(0, 160); broadcast(); return; }
+    try { r = await ai.hear(ft.log, audio); } catch (e) { ft.thinking = false; status.voice = (e.quota ? 'Listening paused: ' : 'Listening: ') + e.message.slice(0, 160); broadcast(); return; }
     if (r.off) {
       ft.thinking = false;
       if (now() - offHintAt > 5 * 60000) { offHintAt = now(); say('I can hear you, but I need the AI assistant to understand. Turn it on in Setup.'); } else broadcast();
@@ -231,7 +238,7 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
   async function topic() {
     if (ft.thinking) return;
     let line = '', laugh = 'none';
-    try { const r = await ai.chat(ft.log, '(Start a conversation: say something interesting, or tell a joke.)'); if (!r.off) { line = r.say; laugh = r.laugh || 'none'; } } catch (e) { /* fall back */ }
+    if (!(ai.resting && ai.resting('text') > 0)) try { const r = await ai.chat(ft.log, '(Start a conversation: say something interesting, or tell a joke.)'); if (!r.off) { line = r.say; laugh = r.laugh || 'none'; } } catch (e) { /* fall back */ }
     if (!line) {
       const roll = Math.random();
       if (roll < 0.25) { line = pickJoke(); laugh = 'after'; } else line = roll < 0.4 ? timeGreeting(state.prefs && state.prefs.tz) : pickTopic();
