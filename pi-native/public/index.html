@@ -1960,6 +1960,23 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="ui-note" id="aiart-note"></div>
     </div>
     <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
+    <button class="effect-btn has-panel" data-effect="talking_face">◈ Talking Face <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-talking_face">
+      <div class="ov-row-label">Talk to it</div>
+      <textarea id="tf-text" rows="2" maxlength="300" placeholder="Type something for it to say, or a question to chat about" style="width:100%;box-sizing:border-box;border-radius:12px;padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:inherit;font-size:14px;"></textarea>
+      <div class="opt-grid" style="margin-top:6px;"><button type="button" id="tf-say">🗣 Say this</button><button type="button" id="tf-chat">💬 Chat</button><button type="button" id="tf-topic">🎲 New topic</button></div>
+      <div id="tf-log" style="max-height:160px;overflow-y:auto;margin-top:8px;font-size:13px;line-height:1.35;"></div>
+      <div class="ov-row-label">Voice</div>
+      <div class="opt-grid"><button class="tf-voice-btn active" data-voice="phone">📱 This phone</button><button class="tf-voice-btn" data-voice="pi">🔊 Pi speaker</button><button class="tf-voice-btn" data-voice="both">Both</button><button class="tf-voice-btn" data-voice="off">Off</button></div>
+      <div class="ui-note" id="tf-voice-note">The Pi speaker voice needs espeak-ng on the Pi (sudo apt install espeak-ng). The phone voice uses your phone's own speech.</div>
+      <div class="ov-row-label">Chats by itself</div>
+      <div class="opt-grid"><button class="tf-chatty-btn" data-chatty="20">Often</button><button class="tf-chatty-btn active" data-chatty="45">Sometimes</button><button class="tf-chatty-btn" data-chatty="120">Rarely</button><button class="tf-chatty-btn" data-chatty="0">Only when asked</button></div>
+      <div class="ui-note">With the AI assistant set up (Setup &gt; AI) it answers your questions and picks its own topics; without it, it reads what you type and shares fun facts.</div>
+      <div class="ov-row-label">Looks</div>
+      <select id="tf-skin" aria-label="Skin"><option value="light">Skin: light</option><option value="medium">Skin: medium</option><option value="tan">Skin: tan</option><option value="dark">Skin: dark</option></select>
+      <select id="tf-hair" aria-label="Hair" style="margin-top:6px;"><option value="brown">Hair: brown</option><option value="black">Hair: black</option><option value="blonde">Hair: blonde</option><option value="red">Hair: red</option><option value="grey">Hair: grey</option></select>
+      <select id="tf-eyes" aria-label="Eyes" style="margin-top:6px;"><option value="blue">Eyes: blue</option><option value="brown">Eyes: brown</option><option value="green">Eyes: green</option><option value="hazel">Eyes: hazel</option></select>
+    </div>
     <button class="effect-btn" data-effect="easter_egg">◈ Easter Egg</button>
     <button class="effect-btn has-panel cube-only" data-effect="custom_cube">◈ Custom Cube <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-custom_cube">
@@ -2613,6 +2630,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.289"></script>
+<script src="app.js?v=0.6.290"></script>
 </body>
 </html>

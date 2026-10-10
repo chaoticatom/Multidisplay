@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireIdentifyPanelsButton();
   wireRainPanel();
   wireRadarPanel();
+  wireTalkingFacePanel();
   wireLightspeedPanel();
   wireCamPanel();
   wireApodPanel();

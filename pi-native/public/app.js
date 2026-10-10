@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.289';
+const APP_VERSION = '0.6.290';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -293,6 +293,7 @@ function handleTextMessage(msg) {
     syncBallsPanel();
     syncRadioPanel();
     syncRadarPanel();
+    syncTalkingFacePanel();
     syncCelestialPanel();
     syncOverlaysPanel();
     syncPanelEditor();
@@ -1373,6 +1374,59 @@ function syncRadarPanel() {
   document.querySelectorAll('.radar-zoom-btn').forEach((x) => x.classList.toggle('active', Number(x.dataset.radarzoom) === z));
   const s = currentState.effectStatus?.radar, el = document.getElementById('radar-status');
   if (el) el.textContent = !s ? '' : s.error ? '⚠ ' + s.error : s.frames ? '✓ ' + (s.place || '') + ' - ' + s.frames + ' frames, updated ' + new Date(s.updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Loading…';
+}
+
+// Talking Face's option panel (panel-talking_face): talk to it, voice, how
+// chatty, looks, and the conversation so far (see src/faceTalk.js).
+function wireTalkingFacePanel() {
+  const text = document.getElementById('tf-text'); if (!text) return;
+  // Phones only let a page speak after a tap: an empty line spoken now
+  // unlocks the replies that come later.
+  const unlock = () => { try { if (window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) { /* no speech here */ } };
+  const go = (cmd) => { const t = text.value.trim(); if (!t) { text.focus(); return; } unlock(); send({ cmd, text: t }); text.value = ''; };
+  document.getElementById('tf-say').addEventListener('click', () => go('faceSay'));
+  document.getElementById('tf-chat').addEventListener('click', () => go('faceChat'));
+  document.getElementById('tf-topic').addEventListener('click', () => { unlock(); send({ cmd: 'faceTopic' }); });
+  text.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go('faceChat'); } });
+  const chips = (cls, key, attr, num) => document.querySelectorAll(cls).forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll(cls).forEach((x) => x.classList.toggle('active', x === b));
+    setEffectOption('talking_face', key, num ? Number(b.dataset[attr]) : b.dataset[attr]);
+  }));
+  chips('.tf-voice-btn', 'voice', 'voice'); chips('.tf-chatty-btn', 'chatty', 'chatty', true);
+  for (const k of ['skin', 'hair', 'eyes']) document.getElementById('tf-' + k).addEventListener('change', (e) => setEffectOption('talking_face', k, e.target.value));
+}
+// The phone's own voice for each new line (when voice is phone or both).
+let tfSpokenId = null;
+function syncTalkingFacePanel() {
+  const o = currentState.effectOptions?.talking_face || {}, ft = currentState.faceTalk;
+  document.querySelectorAll('.tf-voice-btn').forEach((x) => x.classList.toggle('active', x.dataset.voice === (o.voice || 'phone')));
+  document.querySelectorAll('.tf-chatty-btn').forEach((x) => x.classList.toggle('active', Number(x.dataset.chatty) === (o.chatty ?? 45)));
+  for (const k of ['skin', 'hair', 'eyes']) { const el = document.getElementById('tf-' + k); if (el && document.activeElement !== el && o[k]) el.value = o[k]; }
+  const note = document.getElementById('tf-voice-note'); if (note && ft && ft.voiceStatus) note.textContent = '⚠ ' + ft.voiceStatus;
+  const log = document.getElementById('tf-log');
+  if (log && ft) {
+    const key = JSON.stringify(ft.log) + ft.thinking;
+    if (log.dataset.key !== key) {
+      log.dataset.key = key;
+      log.replaceChildren(...(ft.log || []).map((m) => { const d = document.createElement('div'); d.textContent = (m.who === 'you' ? '🧑 ' : '🙂 ') + m.text; d.style.opacity = m.who === 'you' ? '0.75' : '1'; return d; }));
+      if (ft.thinking) { const d = document.createElement('div'); d.textContent = '🙂 …'; log.append(d); }
+      log.scrollTop = log.scrollHeight;
+    }
+  }
+  const say = ft && ft.say, v = o.voice || 'phone';
+  if (say && say.id !== tfSpokenId) {
+    const first = tfSpokenId === null; tfSpokenId = say.id;
+    // Not for a line that was already being said when the page opened.
+    if (!first && (v === 'phone' || v === 'both') && currentState.effect === 'talking_face' && document.visibilityState === 'visible' && window.speechSynthesis) {
+      try {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(say.text);
+        const voices = speechSynthesis.getVoices(); u.voice = voices.find((x) => /en-GB/i.test(x.lang)) || voices.find((x) => /^en/i.test(x.lang)) || null;
+        u.rate = 1.0;
+        setTimeout(() => speechSynthesis.speak(u), Math.max(0, say.at - Date.now()));
+      } catch (e) { /* no speech on this device */ }
+    }
+  }
 }
 // ---------------------------------------------------------------------
 // Overlays panel - global compositing layers (not an effect), backed by
@@ -4882,6 +4936,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireIdentifyPanelsButton();
   wireRainPanel();
   wireRadarPanel();
+  wireTalkingFacePanel();
   wireLightspeedPanel();
   wireCamPanel();
   wireApodPanel();

@@ -47,6 +47,7 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
   restorePostFx(); // undo last frame's display-only finishing pass before drawing on it
   core.panelMode = config.mode;
   core.effectOptions = state.effectOptions;
+  core.faceTalk = state.faceTalk; // what the Talking Face is saying (src/faceTalk.js)
   core.tz = state.prefs && state.prefs.tz; // the user's time zone, for effects that show a time (see localTime.js)
   core.customCubeFaces = state.customCube && state.customCube.faces;
   core.overlaysState = state.overlays;

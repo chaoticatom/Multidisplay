@@ -112,4 +112,20 @@ async function ask(text, ctx) {
   return cleanReply(extractJson(raw));
 }
 
-module.exports = { ask, cleanReply, cleanArt, extractJson, systemPrompt };
+// Talking Face conversation (src/faceTalk.js): a short spoken reply, with the
+// last few turns for context. Returns { say } or { off: true }.
+const CHAT_SYSTEM = 'You are a friendly, natural-sounding person shown as a face on an LED display in someone\'s home, chatting with them. '
+  + 'Reply as you would speak: one or two short sentences, warm, a little playful, no lists, no emoji, no markdown. '
+  + 'If asked to start a conversation, share a surprising fact, a light question or a comment on the time of day. '
+  + 'Answer only with JSON: {"say": "..."}';
+async function chat(history, text) {
+  const cfg = aiConfig.load();
+  if (cfg.provider === 'off') return { off: true };
+  const convo = (history || []).slice(-8).map((h) => (h.who === 'you' ? 'Person: ' : 'You: ') + h.text).join('\n');
+  const raw = await callProvider(cfg, CHAT_SYSTEM, (convo ? convo + '\n' : '') + 'Person: ' + String(text).slice(0, 500));
+  let j;
+  try { j = extractJson(raw); } catch (e) { j = { say: String(raw || '') }; } // plain text is fine as a reply
+  return { say: typeof j.say === 'string' ? j.say.replace(/\s+/g, ' ').trim().slice(0, 300) : '' };
+}
+
+module.exports = { ask, chat, cleanReply, cleanArt, extractJson, systemPrompt };

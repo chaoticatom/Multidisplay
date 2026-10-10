@@ -116,6 +116,7 @@ class WsServer {
   constructor(port, state, config, onConfigChange, effectCommandRelay = null) {
     this.state = state;
     this.updater = createUpdater(); // Setup -> Update (see selfUpdate.js)
+    this.faceTalk = require('./faceTalk').createFaceTalk({ state, broadcast: () => this._broadcast(this._stateMsg()) }); // Talking Face
     this.config = config;
     this.onConfigChange = onConfigChange;
     this.effectCommandRelay = effectCommandRelay;
@@ -520,6 +521,7 @@ class WsServer {
       autoStatus: this.state.autoStatus || {},
       backup: this.state.backup || null,
       update: this.updater ? { ...this.updater.status } : null,
+      faceTalk: this.state.faceTalk ? { say: this.state.faceTalk.say, thinking: this.state.faceTalk.thinking, log: this.state.faceTalk.log, voiceStatus: this.faceTalk.status.voice } : null,
       party: this.state.party ? { endsAt: this.state.party.endsAt, text: this.state.party.text } : null,
       musicReact: this.state.musicReact || { on: false, amount: 0.6 },
       scenes: (this.state.scenes || []).map((sc) => ({ name: sc.name, effect: sc.effect })),

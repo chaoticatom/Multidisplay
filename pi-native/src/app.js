@@ -292,6 +292,7 @@ async function main() {
   // Health watch every 5 minutes (see health.js): logs memory / processes and
   // restarts the app if the Pi is about to run out of memory.
   const health = require('./health').createHealth();
+  setInterval(() => ws.faceTalk.tick(), 5000).unref(); // the Talking Face chats by itself when quiet
   // Network watchdog (see netWatch.js): keeps Wi-Fi and the Cloudflare tunnel
   // up. Only on the real Pi - never in mock mode on a development machine.
   const netWatch = require('./netWatch').createNetWatch({ rebootStampFile: require('path').join(__dirname, '..', '.net-reboot') });

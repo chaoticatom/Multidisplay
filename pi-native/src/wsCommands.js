@@ -515,6 +515,12 @@ const COMMANDS = {
     this._replyBt(ws, 'btStatusResult', async () => ({ devices: await bluetooth.listPaired(), lastSpeakerMac: btConfig.load().lastSpeakerMac, range: btConfig.load().range }));
   },
 
+  // Talking Face (src/faceTalk.js): say a line as typed, chat (the AI
+  // assistant answers, if set up), or start a new topic.
+  faceSay(ws, msg) { this.faceTalk.say(msg.text); },
+  faceChat(ws, msg) { this.faceTalk.chat(msg.text); },
+  faceTopic() { this.faceTalk.topic(); },
+
   // Timer list > Test: runs a copy of the timer now, shortened - a 15 s
   // sunrise or wind-down (3 s lead-in otherwise), then the timer itself with
   // a 15 s message. The saved timer is untouched.
