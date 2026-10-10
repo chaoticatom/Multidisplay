@@ -302,6 +302,7 @@ async function main() {
     if (wasHearing !== ws.mic.status.hearing) ws._broadcast(ws._stateMsg());
   };
   if (process.env.DRIVER !== 'mock') setInterval(syncMic, 1000).unref();
+  if (process.platform === 'linux' && process.env.DRIVER !== 'mock') ws.alexa.sync(); // Alexa, if switched on (Setup)
   // Network watchdog (see netWatch.js): keeps Wi-Fi and the Cloudflare tunnel
   // up. Only on the real Pi - never in mock mode on a development machine.
   const netWatch = require('./netWatch').createNetWatch({ rebootStampFile: require('path').join(__dirname, '..', '.net-reboot') });

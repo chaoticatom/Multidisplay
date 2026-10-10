@@ -120,6 +120,8 @@ class WsServer {
     // The Pi's microphone (src/mic.js): talking to the face, and effects reacting to the room.
     this.mic = require('./mic').createMic({ onUtterance: (w) => this.faceTalk.hear(w), isBusy: () => this.faceTalk.busy() });
     require('./masterVolume').set(state.prefs ? state.prefs.volume : 1);
+    // Alexa (src/alexa.js): an Echo controls the display as Hue "lights".
+    this.alexa = require('./alexa').createAlexa({ state, names: () => require('./effects').EFFECT_NAMES, run: (m) => this.runCommand(m) });
     this.config = config;
     this.onConfigChange = onConfigChange;
     this.effectCommandRelay = effectCommandRelay;
@@ -525,6 +527,7 @@ class WsServer {
       backup: this.state.backup || null,
       update: this.updater ? { ...this.updater.status } : null,
       faceTalk: this.state.faceTalk ? { say: this.state.faceTalk.say, thinking: this.state.faceTalk.thinking, log: this.state.faceTalk.log, voiceStatus: this.faceTalk.status.voice } : null,
+      alexa: this.alexa ? { on: this.alexa.status.on, error: this.alexa.status.error, lastSeen: this.alexa.status.lastSeen, lastCommand: this.alexa.status.lastCommand, devices: this.alexa.devices().map((d) => d.name) } : null,
       mic: this.mic ? { status: this.mic.status.mic, listening: this.mic.status.listening, hearing: this.mic.status.hearing, source: this.mic.status.source } : null,
       party: this.state.party ? { endsAt: this.state.party.endsAt, text: this.state.party.text } : null,
       musicReact: this.state.musicReact || { on: false, amount: 0.6 },
@@ -668,6 +671,16 @@ class WsServer {
     // ignored, as the old if/else chain did.
     const handler = Object.prototype.hasOwnProperty.call(COMMANDS, msg.cmd) ? COMMANDS[msg.cmd] : null;
     if (handler) handler.call(this, ws, msg);
+  }
+
+  // Runs a control-page command from inside the app (Alexa), as if a
+  // signed-in page had sent it, then tells every page.
+  runCommand(msg) {
+    const handler = Object.prototype.hasOwnProperty.call(COMMANDS, msg.cmd) ? COMMANDS[msg.cmd] : null;
+    if (!handler) return;
+    this.stateVersion = (this.stateVersion || 0) + 1;
+    handler.call(this, { readyState: 3, send() {}, role: 'admin' }, msg);
+    this._broadcast(this._stateMsg());
   }
 
   // Writes effectStatus.radio directly - a real report ("radio search does

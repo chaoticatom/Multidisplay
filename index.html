@@ -2407,6 +2407,24 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <button id="ai-save-btn" class="ui-btn-primary" style="width:100%;margin-top:6px;">Save</button>
     </div>
   </div>
+  <!-- Alexa (src/alexa.js): the Pi shows up to an Echo as Hue lights. -->
+  <div class="sidebar-section collapsed">
+    <button class="section-head">◈ Alexa <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div class="ui-note">Control the display with an Echo on your home network - no skill or Amazon set-up. The display shows up as smart lights.</div>
+      <label class="check-row"><input type="checkbox" id="alexa-chk">USE WITH ALEXA</label>
+      <div class="ui-note" id="alexa-status"></div>
+      <div class="ui-note" id="alexa-help" hidden>
+        <b>Then say “Alexa, discover devices”</b> (or Alexa app → Devices → + → Add device → Philips Hue → “Discover devices”). Then try:<br>
+        • “Alexa, turn off Display” / “turn on Display”<br>
+        • “Alexa, set Display to 40 percent” (brightness)<br>
+        • “Alexa, set Volume to 30 percent”<br>
+        • “Alexa, turn on Fireworks” - each favourite effect (★) and saved scene is a device; re-discover after changing them<br>
+        Tip: in the Alexa app, put them in a Routine (“Alexa, party time”).
+      </div>
+      <div class="ui-note" id="alexa-devices"></div>
+    </div>
+  </div>
   <div class="sidebar-section collapsed">
     <button class="section-head">◈ System <span class="chev">▾</span></button>
     <div class="section-body">

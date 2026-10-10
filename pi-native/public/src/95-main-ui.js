@@ -855,6 +855,20 @@ function cxWireAsk() {
 }
 
 // ── Setup > AI assistant
+// Setup > Alexa (src/alexa.js).
+function cxWireAlexa() {
+  document.getElementById('alexa-chk')?.addEventListener('change', (e) => send({ cmd: 'setAlexa', on: e.target.checked }));
+}
+function cxSyncAlexa() {
+  const chk = document.getElementById('alexa-chk'); if (!chk) return;
+  const on = !!currentState.prefs?.alexa?.on, a = currentState.alexa || {};
+  if (document.activeElement !== chk) chk.checked = on;
+  document.getElementById('alexa-help').hidden = !on;
+  const seen = a.lastSeen ? Math.round((Date.now() - a.lastSeen) / 60000) : null;
+  document.getElementById('alexa-status').textContent = !on ? '' : a.error ? '⚠ ' + a.error : !a.on ? 'Starting…'
+    : (seen === null ? 'Ready - waiting for an Echo to find it.' : '✓ An Echo talked to it ' + (seen < 1 ? 'just now' : seen + ' min ago') + '.') + (a.lastCommand ? ' Last: ' + a.lastCommand : '');
+  document.getElementById('alexa-devices').textContent = on && a.devices ? 'Devices: ' + a.devices.join(', ') : '';
+}
 function cxWireAiSetup() {
   const prov = document.getElementById('ai-provider');
   if (!prov) return;
@@ -1002,12 +1016,12 @@ function cxSyncHeroLabel() {
   const st = currentState.effectStatus?.radio;
   sub.textContent = st && st.playing && st.station ? '♫ ' + st.station.name.replace(/^[\s-]+/, '') : '';
 }
-function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncFavs(); cxSyncPalettes(); cxSyncOptionPanels(); cxSyncYouTube(); cxSyncExtras(); requestAnimationFrame(cxMoveBlob); }
+function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncAlexa(); cxSyncFavs(); cxSyncPalettes(); cxSyncOptionPanels(); cxSyncYouTube(); cxSyncExtras(); requestAnimationFrame(cxMoveBlob); }
 
 function cxInit() {
   cxWireHero();
   cxWireAsk();
-  cxWireAiSetup();
+  cxWireAiSetup(); cxWireAlexa();
   cxWirePrefs();
   cxWirePalettes();
   cxWireDice();

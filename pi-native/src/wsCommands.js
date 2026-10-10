@@ -738,6 +738,14 @@ const COMMANDS = {
     this._broadcast(this._stateMsg());
   },
 
+  // Setup > Alexa: {on} - the Hue bridge emulation (src/alexa.js).
+  setAlexa(ws, msg) {
+    const p = this.state.prefs || prefs.load();
+    this.state.prefs = prefs.save({ ...p, alexa: { on: !!msg.on } });
+    if (this.alexa) { this.alexa.status.error = ''; this.alexa.sync(); }
+    this._broadcast(this._stateMsg());
+  },
+
   // Pi microphone settings: {music} - effects react to the room (src/mic.js).
   setMic(ws, msg) {
     const p = this.state.prefs || prefs.load();
