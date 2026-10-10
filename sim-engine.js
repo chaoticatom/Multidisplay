@@ -4267,7 +4267,7 @@ var PiEngine = (() => {
       function setVolume(v) {
         const n = Number(v);
         if (Number.isFinite(n)) volume = Math.max(0, Math.min(1, n));
-        if (audio.setVolume) audio.setVolume(volume * fade);
+        if (audio.setVolume) audio.setVolume((volume > 0 ? 0.8 : 0) * fade);
       }
       async function search(query) {
         lastQuery = query || "";

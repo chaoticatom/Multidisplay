@@ -1749,11 +1749,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
           <span id="yt-seek-time"></span>
           <button type="button" class="yt-skip" data-ytskip="10" aria-label="Forward 10 seconds">10 s ⏩</button>
         </div>
-        <div class="yt-vol-row">
-          <span aria-hidden="true">🔊</span>
-          <input id="yt-volume" type="range" min="0" max="1" step="0.05" value="0.8" aria-label="Volume">
-          <b id="yt-volume-val">80%</b>
-        </div>
         <div id="yt-sound" class="yt-sound"></div>
       </div>
       <div id="yt-results" class="yt-results"></div>
@@ -2030,8 +2025,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="radio-browser-play-el" checked>Play in this browser</label>
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
         <button class="radio-stop-btn-el" style="flex:0 0 auto;padding:6px 12px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.25);color:#f88;border-radius:4px;cursor:pointer;font-size:11px;">■ Stop</button>
-        <span class="ov-label" style="flex:0 0 auto;">Vol</span>
-        <input class="radio-vol-el" type="range" min="0" max="1" step="0.05" value="0.8" style="flex:1;">
       </div>
       <div class="radio-status-el" style="font-size:11px;color:#9aa3b8;text-align:center;margin-bottom:10px;">Pick a station</div>
 
@@ -2642,6 +2635,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.298"></script>
+<script src="app.js?v=0.6.299"></script>
 </body>
 </html>

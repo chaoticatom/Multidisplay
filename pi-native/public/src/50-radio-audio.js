@@ -103,9 +103,9 @@ function handleSyncAudio(buf) {
   if (frames < 1) return;
   const ab = a.ctx.createBuffer(2, frames, 22050), L = ab.getChannelData(0), R = ab.getChannelData(1);
   for (let i = 0, o = 16; i < frames; i++, o += 4) { L[i] = dv.getInt16(o, true) / 32768; R[i] = dv.getInt16(o + 2, true) / 32768; }
-  // Volume follows the radio's volume (0.8 = full, as on the Pi) and the mute button.
-  const vol = Number(currentState.effectOptions?.radio?.volume ?? 0.8);
-  a.gain.gain.value = Math.max(0, Math.min(1.25, vol / 0.8));
+  // Volume follows the overall slider at the top and the mute button, as on the Pi.
+  const muted = Number(currentState.effectOptions?.radio?.volume ?? 0.8) <= 0;
+  a.gain.gain.value = muted ? 0 : Math.max(0, Math.min(1, Number(currentState.prefs?.volume ?? 1)));
   const outDelay = (a.ctx.outputLatency || 0) + (a.ctx.baseLatency || 0);
   const when = a.ctx.currentTime + (playAt - a.offset - Date.now()) / 1000 - outDelay + a.extra;
   if (when < a.ctx.currentTime + 0.01) {
@@ -284,11 +284,6 @@ function wireRadioPanel() {
       debugFreqDebounce = setTimeout(() => playDebugTone('tone', Number(sl.value)), 80);
     });
   });
-  panel.querySelectorAll('.radio-vol-el').forEach((sl) => sl.addEventListener('input', () => {
-    setEffectOption('radio', 'volume', Number(sl.value));
-    const el = document.getElementById('radio-browser-audio');
-    if (el) el.volume = Number(sl.value);
-  }));
   const browserPlayChk = panel.querySelector('.radio-browser-play-el');
   if (browserPlayChk) {
     browserPlayChk.checked = radioBrowserPlaybackWanted();
@@ -452,7 +447,6 @@ function syncRadioPanel() {
     if (status.playbackStatus && !/^Starting playback/.test(status.playbackStatus)) parts.push(status.playbackStatus);
     el.textContent = (current ? '▶ ' + current.name + (current.genre ? ' — ' + current.genre : '') + ' — ' : '') + parts.join(' — ');
   });
-  panel.querySelectorAll('.radio-vol-el').forEach((sl) => { if (document.activeElement !== sl) sl.value = opts.volume ?? status?.volume ?? 0.8; });
 
   const searchStatusEls = panel.querySelectorAll('.radio-search-status-el');
   const search = status?.search;

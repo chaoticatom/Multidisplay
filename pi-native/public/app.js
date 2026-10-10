@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.298';
+const APP_VERSION = '0.6.299';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2541,9 +2541,9 @@ function handleSyncAudio(buf) {
   if (frames < 1) return;
   const ab = a.ctx.createBuffer(2, frames, 22050), L = ab.getChannelData(0), R = ab.getChannelData(1);
   for (let i = 0, o = 16; i < frames; i++, o += 4) { L[i] = dv.getInt16(o, true) / 32768; R[i] = dv.getInt16(o + 2, true) / 32768; }
-  // Volume follows the radio's volume (0.8 = full, as on the Pi) and the mute button.
-  const vol = Number(currentState.effectOptions?.radio?.volume ?? 0.8);
-  a.gain.gain.value = Math.max(0, Math.min(1.25, vol / 0.8));
+  // Volume follows the overall slider at the top and the mute button, as on the Pi.
+  const muted = Number(currentState.effectOptions?.radio?.volume ?? 0.8) <= 0;
+  a.gain.gain.value = muted ? 0 : Math.max(0, Math.min(1, Number(currentState.prefs?.volume ?? 1)));
   const outDelay = (a.ctx.outputLatency || 0) + (a.ctx.baseLatency || 0);
   const when = a.ctx.currentTime + (playAt - a.offset - Date.now()) / 1000 - outDelay + a.extra;
   if (when < a.ctx.currentTime + 0.01) {
@@ -2722,11 +2722,6 @@ function wireRadioPanel() {
       debugFreqDebounce = setTimeout(() => playDebugTone('tone', Number(sl.value)), 80);
     });
   });
-  panel.querySelectorAll('.radio-vol-el').forEach((sl) => sl.addEventListener('input', () => {
-    setEffectOption('radio', 'volume', Number(sl.value));
-    const el = document.getElementById('radio-browser-audio');
-    if (el) el.volume = Number(sl.value);
-  }));
   const browserPlayChk = panel.querySelector('.radio-browser-play-el');
   if (browserPlayChk) {
     browserPlayChk.checked = radioBrowserPlaybackWanted();
@@ -2890,7 +2885,6 @@ function syncRadioPanel() {
     if (status.playbackStatus && !/^Starting playback/.test(status.playbackStatus)) parts.push(status.playbackStatus);
     el.textContent = (current ? '▶ ' + current.name + (current.genre ? ' — ' + current.genre : '') + ' — ' : '') + parts.join(' — ');
   });
-  panel.querySelectorAll('.radio-vol-el').forEach((sl) => { if (document.activeElement !== sl) sl.value = opts.volume ?? status?.volume ?? 0.8; });
 
   const searchStatusEls = panel.querySelectorAll('.radio-search-status-el');
   const search = status?.search;
@@ -5593,14 +5587,12 @@ function cxSyncYtSeek() {
   bar.max = String(p.duration || Math.max(600, Math.ceil(t) + 60));
   if (!_ytSeekDragging) bar.value = String(t);
   document.getElementById('yt-seek-time').textContent = cxYtClock(_ytSeekDragging ? Number(bar.value) : t) + (p.duration ? ' / ' + cxYtClock(p.duration) : '');
-  const vol = Number(currentState.effectOptions?.radio?.volume ?? 0.8), vs = document.getElementById('yt-volume');
-  if (vs && document.activeElement !== vs) vs.value = String(vol);
-  const vv = document.getElementById('yt-volume-val'); if (vv) vv.textContent = Math.round(vol * 100) + '%';
+  const vol = Number(currentState.effectOptions?.radio?.volume ?? 0.8);
   // Where the sound goes, and why it might be silent.
   const rs = currentState.effectStatus?.radio || {}, snd = document.getElementById('yt-sound');
   if (snd) {
     const bits = [];
-    if (vol === 0) bits.push('🔇 Muted - turn the volume up');
+    if (vol === 0) bits.push('🔇 Muted - tap 🔊 at the top');
     else bits.push('Speaker: ' + (rs.playbackStatus || rs.status || 'starting…'));
     if (document.getElementById('radio-browser-audio') && !radioBrowserPlaybackWanted()) bits.push('To hear it on this device too: Music tab → Play in this browser');
     snd.textContent = bits.join(' · ');
@@ -5610,12 +5602,6 @@ function cxWireYtSeek() {
   const bar = document.getElementById('yt-seek-bar');
   if (!bar) return;
   bar.addEventListener('input', () => { _ytSeekDragging = true; cxSyncYtSeek(); });
-  const vs = document.getElementById('yt-volume');
-  vs?.addEventListener('input', () => {
-    setEffectOption('radio', 'volume', Number(vs.value));
-    const el = document.getElementById('radio-browser-audio'); if (el) el.volume = Number(vs.value);
-    document.getElementById('yt-volume-val').textContent = Math.round(Number(vs.value) * 100) + '%';
-  });
   bar.addEventListener('change', () => { _ytSeekDragging = false; send({ cmd: 'ytSeek', seconds: Number(bar.value) }); });
   document.querySelectorAll('[data-ytskip]').forEach((b) => b.addEventListener('click', () => send({ cmd: 'ytSeek', seconds: cxYtPos() + Number(b.dataset.ytskip) })));
   setInterval(cxSyncYtSeek, 500);

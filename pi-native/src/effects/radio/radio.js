@@ -139,7 +139,9 @@ function setFade(f) { const n = Number(f); fade = Number.isFinite(n) ? Math.max(
 function setVolume(v) {
   const n = Number(v);
   if (Number.isFinite(n)) volume = Math.max(0, Math.min(1, n));
-  if (audio.setVolume) audio.setVolume(volume * fade); // reaches the speaker (see ffmpegAudio.js)
+  // The radio's own volume is only mute now (0 = muted, anything else = full);
+  // the level is the overall slider (masterVolume.js). `fade` is the wind-down timer.
+  if (audio.setVolume) audio.setVolume((volume > 0 ? 0.8 : 0) * fade); // reaches the speaker (see ffmpegAudio.js)
 }
 
 // Fire-and-forget, mirrors weather.js's maybeFetch() shape - the caller

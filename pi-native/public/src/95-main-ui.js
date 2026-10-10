@@ -629,14 +629,12 @@ function cxSyncYtSeek() {
   bar.max = String(p.duration || Math.max(600, Math.ceil(t) + 60));
   if (!_ytSeekDragging) bar.value = String(t);
   document.getElementById('yt-seek-time').textContent = cxYtClock(_ytSeekDragging ? Number(bar.value) : t) + (p.duration ? ' / ' + cxYtClock(p.duration) : '');
-  const vol = Number(currentState.effectOptions?.radio?.volume ?? 0.8), vs = document.getElementById('yt-volume');
-  if (vs && document.activeElement !== vs) vs.value = String(vol);
-  const vv = document.getElementById('yt-volume-val'); if (vv) vv.textContent = Math.round(vol * 100) + '%';
+  const vol = Number(currentState.effectOptions?.radio?.volume ?? 0.8);
   // Where the sound goes, and why it might be silent.
   const rs = currentState.effectStatus?.radio || {}, snd = document.getElementById('yt-sound');
   if (snd) {
     const bits = [];
-    if (vol === 0) bits.push('🔇 Muted - turn the volume up');
+    if (vol === 0) bits.push('🔇 Muted - tap 🔊 at the top');
     else bits.push('Speaker: ' + (rs.playbackStatus || rs.status || 'starting…'));
     if (document.getElementById('radio-browser-audio') && !radioBrowserPlaybackWanted()) bits.push('To hear it on this device too: Music tab → Play in this browser');
     snd.textContent = bits.join(' · ');
@@ -646,12 +644,6 @@ function cxWireYtSeek() {
   const bar = document.getElementById('yt-seek-bar');
   if (!bar) return;
   bar.addEventListener('input', () => { _ytSeekDragging = true; cxSyncYtSeek(); });
-  const vs = document.getElementById('yt-volume');
-  vs?.addEventListener('input', () => {
-    setEffectOption('radio', 'volume', Number(vs.value));
-    const el = document.getElementById('radio-browser-audio'); if (el) el.volume = Number(vs.value);
-    document.getElementById('yt-volume-val').textContent = Math.round(Number(vs.value) * 100) + '%';
-  });
   bar.addEventListener('change', () => { _ytSeekDragging = false; send({ cmd: 'ytSeek', seconds: Number(bar.value) }); });
   document.querySelectorAll('[data-ytskip]').forEach((b) => b.addEventListener('click', () => send({ cmd: 'ytSeek', seconds: cxYtPos() + Number(b.dataset.ytskip) })));
   setInterval(cxSyncYtSeek, 500);
