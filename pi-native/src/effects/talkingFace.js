@@ -159,10 +159,10 @@ function wall(core, dt) {
   const opts = (core.effectOptions && core.effectOptions.talking_face) || {};
   const pose = animate(dt, talk, now), look = lookFrom(opts);
   const wide = W >= H * 2.2, F = wide ? H : Math.min(W, H), fx = wide ? Math.round(W * 0.04) : Math.floor((W - F) / 2);
-  // The face is redrawn every other frame (~30 a second - it moves slowly);
-  // the frame in between reuses it.
+  // The face is redrawn every third frame (~20 a second - it moves slowly,
+  // and the detailed shading is the heaviest part); frames between reuse it.
   if (!st.face || st.face.length !== F * F * 3) { st.face = new Float32Array(F * F * 3); st.frame = 0; }
-  if ((st.frame = (st.frame || 0) + 1) % 2 === 1) renderFace(st.face, F, F, pose, look);
+  if ((st.frame = (st.frame || 0) + 1) % 3 === 1) renderFace(st.face, F, F, pose, look);
   for (let i = 0; i < core.wallBuf.length; i += 3) { core.wallBuf[i] = look.bg[0] * 0.6; core.wallBuf[i + 1] = look.bg[1] * 0.6; core.wallBuf[i + 2] = look.bg[2] * 0.6; }
   for (let y = 0; y < F; y++) for (let x = 0; x < F; x++) { const o = (y * F + x) * 3; core.setWallPixel(fx + x, y, st.face[o], st.face[o + 1], st.face[o + 2]); }
   const idx = speechIndex(talk.say, now);

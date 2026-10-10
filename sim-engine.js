@@ -6406,106 +6406,207 @@ var PiEngine = (() => {
       };
       var mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
       var scale = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+      var mul = (a, b) => [a[0] * b[0], a[1] * b[1], a[2] * b[2]];
       function ell(x, y, cx, cy, rx, ry) {
         const dx = (x - cx) / rx, dy = (y - cy) / ry;
         return (Math.sqrt(dx * dx + dy * dy) - 1) * Math.min(rx, ry);
       }
+      function h1(i) {
+        let h = Math.imul(i | 0, 374761393);
+        h = Math.imul(h ^ h >>> 13, 1274126177);
+        return ((h ^ h >>> 16) >>> 0) / 4294967296;
+      }
+      function n1(x) {
+        const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f);
+        return h1(i) + (h1(i + 1) - h1(i)) * u;
+      }
+      function n2(x, y) {
+        const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), w = yf * yf * (3 - 2 * yf);
+        const a = h1(xi * 57 + yi * 131), b = h1((xi + 1) * 57 + yi * 131), c = h1(xi * 57 + (yi + 1) * 131), d = h1((xi + 1) * 57 + (yi + 1) * 131);
+        return a + (b - a) * u + (c - a) * w + (a - b - c + d) * u * w;
+      }
+      var KEY = [1, 0.95, 0.87];
+      var FILL = [0.62, 0.7, 0.9];
+      var RIM = [0.55, 0.6, 0.75];
+      function hairShade(base, u, v, flow, t, edge, seed) {
+        const px = -Math.sin(flow), py = Math.cos(flow);
+        const across = u * px + v * py, along = u * Math.cos(flow) + v * Math.sin(flow);
+        const clump = n1(across * 24 + seed + 1.5 * n1(along * 4 + seed));
+        const fine = n1(across * 70 + seed * 2);
+        const strand = 0.55 + 0.45 * clump + 0.15 * (fine - 0.5);
+        const depth = 0.45 + 0.55 * t;
+        const lit = 0.58 + 0.7 * clamp(-u * 0.7 - v * 0.45 + 0.25);
+        const sheen = 0.3 * clump * sm(0.16, 0, Math.abs(v + 0.36 - u * 0.15 + 0.08 * Math.sin(u * 4))) * clamp(-u * 0.6 + 0.6);
+        const k = depth * strand * lit, warm = clamp(1 - k);
+        const c = [base[0] * k * (1 + 0.12 * warm), base[1] * k * (1 - 0.04 * warm), base[2] * k * (1 - 0.22 * warm)];
+        return [c[0] + sheen * 0.6 + edge * RIM[0] * 0.12, c[1] + sheen * 0.52 + edge * RIM[1] * 0.12, c[2] + sheen * 0.4 + edge * RIM[2] * 0.12];
+      }
       function shade(u, v, p, L) {
         const woman = L.style === "woman";
-        let col = scale(L.bg, 1 - 0.35 * clamp(Math.hypot(u * 0.7, v * 0.6)));
-        const shoulder = v - (0.95 + 0.25 * u * u);
-        if (shoulder > 0) col = mix(col, scale(L.shirt, 0.75 + 0.25 * clamp(1 - Math.abs(u))), sm(0, 0.04, shoulder));
+        let col = scale(L.bg, 1.1 - 0.5 * clamp(Math.hypot(u * 0.7, v * 0.55)));
+        col = [col[0] + 0.05 * RIM[0] * sm(1.3, 0.5, Math.hypot(u * 0.8, v * 0.7 + 0.15)), col[1] + 0.05 * RIM[1] * sm(1.3, 0.5, Math.hypot(u * 0.8, v * 0.7 + 0.15)), col[2] + 0.05 * RIM[2] * sm(1.3, 0.5, Math.hypot(u * 0.8, v * 0.7 + 0.15))];
+        const shoulder = v - (0.93 + 0.22 * u * u);
+        if (shoulder > 0) {
+          const folds = 0.92 + 0.08 * n1(u * 9 + v * 3);
+          let shirt = scale(L.shirt, (0.55 + 0.35 * clamp(0.6 - u * 0.5)) * folds);
+          shirt = scale(shirt, 1 - 0.35 * sm(0.35, 0, Math.abs(u)) * sm(0.2, 0, shoulder));
+          col = mix(col, shirt, sm(0, 0.04, shoulder));
+        }
         if (woman) {
-          const long = Math.max(Math.abs(u) - (0.76 + 0.04 * Math.sin(v * 5 + u * 2) - 0.1 * Math.max(0, v - 0.4)), v - (1.12 - 0.18 * (u / 0.8) * (u / 0.8)), -0.25 - v);
-          if (long < 0) {
-            const strands = 0.82 + 0.13 * Math.sin(u * 45 + v * 6) + 0.05 * Math.sin(u * 140);
-            const sheen = 0.25 * sm(0.18, 0, Math.abs(v - 0.05 - u * 0.15));
-            col = mix(col, scale(L.hair, (0.55 + 0.4 * clamp(0.6 - v * 0.4 - u * 0.3) + sheen) * strands), sm(0, -0.03, long));
+          const half = 0.78 + 0.05 * Math.sin(v * 4.5 + 0.5) - 0.12 * Math.max(0, v - 0.45);
+          const long = Math.max(Math.abs(u) - half, v - (1.18 - 0.2 * (u / 0.8) * (u / 0.8) + 0.05 * Math.sin(u * 14)), -0.3 - v);
+          if (long < 0.02) {
+            const t = clamp((v + 0.3) / 1.4), flow = Math.PI / 2 + 0.25 * Math.sin(v * 4 + u * 3) * Math.sign(u);
+            let hc = hairShade(L.hair, u, v, flow, 0.45 + 0.55 * t, sm(-0.06, 0, long), 11);
+            hc = scale(hc, 0.6 + 0.4 * sm(0.5, 0.78, Math.abs(u)));
+            col = mix(col, hc, sm(0.02, -0.02, long));
           }
         }
-        const neck = Math.max(Math.abs(u) - 0.27, 0.55 - v);
-        if (neck < 0) col = mix(col, scale(L.skin, 0.62 + 0.18 * clamp((v - 0.6) * 2)), sm(0, -0.03, neck));
-        const hairBack = ell(u, v, 0, -0.18, 0.78, 0.88);
-        if (hairBack < 0) col = mix(col, scale(L.hair, 0.55 + 0.25 * clamp(-v)), sm(0, -0.03, hairBack));
-        for (const s of woman ? [] : [-1, 1]) {
-          const e = ell(u, v, s * 0.63, 0.02, 0.1, 0.17);
-          if (e < 0) col = mix(col, scale(L.skin, 0.72 - 0.1 * clamp((Math.abs(u) - 0.6) * 5)), sm(0, -0.02, e));
+        const neck = Math.max(Math.abs(u) - 0.26, 0.52 - v);
+        if (neck < 0.01) {
+          let nk = scale(L.skin, 0.62 + 0.22 * clamp(0.5 - u));
+          nk = mul(nk, [1, 0.9, 0.86]);
+          nk = scale(nk, 1 - 0.45 * sm(0.14, 0, v - 0.6));
+          col = mix(col, nk, sm(0.01, -0.02, neck));
         }
-        const jaw = woman ? v > 0 ? 0.57 - v * 0.22 : 0.57 : v > 0 ? 0.6 - v * 0.17 : 0.6;
+        const crown = woman ? ell(u, v, 0, -0.2, 0.8, 0.86) : ell(u, v, 0, -0.3, 0.68, 0.68) + 0.015 * (n1(Math.atan2(v + 0.3, u) * 9) - 0.5);
+        if (crown < 0.02) {
+          const ang = Math.atan2(v + 0.25, u);
+          col = mix(col, hairShade(L.hair, u, v, ang + Math.PI / 2, 0.5, sm(-0.08, 0, crown), 3), sm(0.02, -0.02, crown));
+        }
+        if (!woman) for (const s of [-1, 1]) {
+          const e = ell(u, v, s * 0.62, 0.03, 0.095, 0.16);
+          if (e < 0.01) {
+            let ec = scale(mul(L.skin, [1, 0.86, 0.8]), 0.66 - 0.12 * clamp(s * 0.5 + 0.5));
+            ec = scale(ec, 1 - 0.3 * sm(0.06, 0, Math.hypot(u - s * 0.63, v - 0.04)));
+            col = mix(col, ec, sm(0.01, -0.015, e));
+          }
+        }
+        const jaw = woman ? v > 0 ? 0.57 - v * 0.22 : 0.57 : v > 0 ? 0.6 - v * 0.15 : 0.6;
         const face = ell(u, v, 0, 0.02, jaw, 0.8);
-        if (face > 0.03) return col;
-        const nx = u / 0.66, ny = (v - 0.02) / 0.85, nz = Math.sqrt(clamp(1 - nx * nx * 0.85 - ny * ny * 0.75, 0.05));
-        const lam = clamp(-nx * 0.35 - ny * 0.35 + nz * 0.86);
-        let skin = scale(L.skin, 0.5 + 0.6 * lam);
-        const cheek = Math.max(sm(0.22, 0, Math.hypot(Math.abs(u) - 0.32, v - 0.18)), 0.5 * sm(0.12, 0, Math.hypot(u, v - 0.12)), 0.4 * sm(0.14, 0, Math.hypot(u, v - 0.66)));
-        skin = mix(skin, [skin[0] * 1.08, skin[1] * 0.82, skin[2] * 0.8], cheek * (woman ? 0.8 : 0.55));
-        skin = scale(skin, 1 - 0.35 * sm(-0.12, 0.02, face));
+        if (face > 0.02) return col;
+        const nx = u / 0.64, ny = (v - 0.02) / 0.86, nz = Math.sqrt(clamp(1 - nx * nx * 0.8 - ny * ny * 0.7, 0.04));
+        const key = clamp(-nx * 0.45 - ny * 0.32 + nz * 0.83), fill = clamp(nx * 0.55 - ny * 0.1 + nz * 0.7);
+        const sss = [1, 0.78, 0.7];
+        let skin = mul(L.skin, mix(sss, [1, 1, 1], key));
+        skin = [skin[0] * (key * KEY[0] * 0.95 + fill * FILL[0] * 0.3 + 0.12), skin[1] * (key * KEY[1] * 0.95 + fill * FILL[1] * 0.3 + 0.11), skin[2] * (key * KEY[2] * 0.95 + fill * FILL[2] * 0.3 + 0.12)];
+        skin = scale(skin, 0.97 + 0.06 * (n2(u * 22, v * 22) - 0.5));
+        const blush = Math.max(sm(0.24, 0, Math.hypot(Math.abs(u) - 0.3, v - 0.17)), 0.5 * sm(0.1, 0, Math.hypot(u, v - 0.17)), 0.35 * sm(0.13, 0, Math.hypot(u, v - 0.66)));
+        skin = mix(skin, mul(skin, [1.1, 0.8, 0.8]), blush * ((woman ? 0.7 : 0.45) + 0.25 * p.smile));
+        skin = scale(skin, 1 - 0.38 * sm(-0.14, 0.02, face));
         for (const s of [-1, 1]) {
-          const sock = Math.hypot((u - s * 0.24) / 0.2, (v + 0.1) / 0.12);
-          skin = scale(skin, 1 - 0.18 * sm(1.2, 0.4, sock));
+          skin = scale(skin, 1 - 0.22 * sm(1.25, 0.35, Math.hypot((u - s * 0.24) / 0.2, (v + 0.08) / 0.13)));
+          skin = scale(skin, 1 - 0.12 * sm(0.18, 0, Math.hypot(u - s * 0.5, v + 0.25)));
         }
-        const nb = Math.abs(u) < 0.07 && v > -0.1 && v < 0.2;
-        if (nb) skin = scale(skin, 1 + 0.1 * sm(0.07, 0, Math.abs(u + 0.01)));
-        skin = scale(skin, 1 - 0.28 * sm(0.06, 0, Math.hypot(u - 0.075, (v - 0.12) * 0.45)) * (v > -0.08 && v < 0.24 ? 1 : 0));
-        skin = scale(skin, 1 - 0.22 * sm(0.13, 0, Math.hypot(u, (v - 0.28) * 1.6)));
-        for (const s of [-1, 1]) skin = mix(skin, scale(L.skin, 0.25), sm(0.035, 0.01, Math.hypot(u - s * 0.05, (v - 0.235) * 1.6)) * 0.8);
-        skin = scale(skin, 1 + 0.12 * sm(0.06, 0, Math.hypot(u + 0.01, v - 0.19)));
-        col = mix(col, skin, sm(0.03, -0.01, face));
-        const fringe = v - (-0.44 + 0.1 * Math.sin((u + 0.3) * 2.2) + 0.1 * u);
-        const hairFront = Math.max(fringe, ell(u, v, 0, -0.22, 0.7, 0.75));
-        if (hairFront < 0.02) {
-          const strands = 0.85 + 0.15 * Math.sin(u * 60 + v * 8);
-          col = mix(col, scale(L.hair, (0.6 + 0.5 * clamp(-u * 0.6 - v * 0.6 + 0.4)) * strands), sm(0.02, -0.02, hairFront));
+        for (const s of [-1, 1]) skin = scale(skin, 1 + 0.06 * p.smile * sm(0.15, 0, Math.hypot(u - s * 0.3, v - 0.1)));
+        if (v > -0.15 && v < 0.32) {
+          skin = scale(skin, 1 + 0.12 * sm(0.045, 0, Math.abs(u + 0.015)) * sm(-0.15, -0.05, v) * sm(0.24, 0.16, v));
+          skin = mul(skin, mix([1, 1, 1], [0.78, 0.68, 0.66], sm(0.07, 0.02, Math.abs(u - 0.07)) * sm(-0.1, 0.05, v) * sm(0.3, 0.22, v)));
+          for (const s of [-1, 1]) skin = scale(skin, 1 - 0.18 * sm(0.05, 0.015, Math.hypot(u - s * 0.075, (v - 0.21) * 1.2)));
+          for (const s of [-1, 1]) skin = mix(skin, mul(L.skin, [0.32, 0.2, 0.18]), 0.85 * sm(0.03, 8e-3, Math.hypot(u - s * 0.045, (v - 0.245) * 1.8)));
+          skin = scale(skin, 1 + 0.16 * sm(0.05, 0, Math.hypot(u + 0.012, v - 0.19)));
         }
-        for (const s of [-1, 1]) {
-          const sb = woman ? ell(u, v, s * 0.6, 0.12, 0.09, 0.62) : ell(u, v, s * 0.57, -0.2, 0.08, 0.3);
-          if (sb < 0) col = mix(col, scale(L.hair, 0.5), sm(0, -0.03, sb));
+        skin = scale(skin, 1 - 0.2 * sm(0.12, 0, Math.hypot(u, (v - 0.29) * 1.7)));
+        skin = scale(skin, 1 - 0.18 * sm(0.1, 0, Math.hypot(u, (v - 0.56) * 2.2)));
+        const gloss = 0.1 * sm(0.18, 0, Math.hypot(u + 0.12, v + 0.42)) + 0.12 * sm(0.04, 0, Math.hypot(u + 0.015, v - 0.18)) + 0.07 * sm(0.1, 0, Math.hypot(u + 0.3, v - 0.07));
+        skin = [skin[0] + gloss * KEY[0] * key, skin[1] + gloss * KEY[1] * key, skin[2] + gloss * KEY[2] * key];
+        col = mix(col, skin, sm(0.02, -0.015, face));
+        if (woman) {
+          const fringe = v - (-0.42 + 0.1 * Math.sin((u + 0.3) * 2.3) + 0.12 * u + 0.025 * n1(u * 25));
+          const top = Math.max(fringe, ell(u, v, 0, -0.22, 0.7, 0.74));
+          const curtains = [-1, 1].map((s) => ell(u, v, s * 0.6, 0.15, 0.1 + 0.02 * Math.sin(v * 6), 0.66));
+          const front = Math.min(top, curtains[0], curtains[1]);
+          if (front < 0.02) {
+            const flow = front === top ? -0.35 + 0.6 * clamp(u + 0.2) : Math.PI / 2 + 0.2 * Math.sin(v * 5);
+            const t = front === top ? clamp((u + 0.6) / 1.2) : clamp((v + 0.3) / 1.2);
+            let hc = hairShade(L.hair, u, v, flow, 0.4 + 0.6 * t, sm(-0.05, 0, front) * 0.6, 21);
+            if (front !== top) hc = scale(hc, 0.75 + 0.25 * sm(0.48, 0.66, Math.abs(u)));
+            col = mix(col, hc, sm(0.02, -0.02, front));
+          }
+          if (front >= 0.02 && face < 0) col = scale(col, 1 - 0.25 * sm(0.07, 0.02, front));
+        } else {
+          const line = -0.47 + 0.1 * u * u + 0.08 * sm(0.3, 0.55, Math.abs(u)) - 0.04 * sm(0.25, 0, Math.abs(u - 0.12)) + 0.03 * (n1(u * 26) - 0.5);
+          const top = Math.max(v - line, ell(u, v, 0, -0.3, 0.66, 0.6));
+          if (top < 0.02) {
+            const part = -0.22, flow = u < part ? Math.PI * 0.85 : -0.25 + 0.3 * clamp((u - part) * 2);
+            col = mix(col, hairShade(L.hair, u, v, flow, clamp(0.35 + Math.abs(u - part)), sm(-0.06, 0, top) * 0.5, 31), sm(0.02, -0.025, top));
+          }
+          if (top >= 0.02 && face < 0) col = scale(col, 1 - 0.2 * sm(0.06, 0.015, top));
+          for (const s of [-1, 1]) {
+            const sb = ell(u, v, s * 0.565, -0.16, 0.06, 0.2);
+            if (sb < 0.01) col = mix(col, hairShade(L.hair, u, v, Math.PI / 2, 0.5, 0, 41), sm(0.01, -0.02, sb) * 0.9);
+          }
         }
-        for (const s of [-1, 1]) {
-          const bx = u - s * 0.24, by = v - (-0.24 - p.brow * 0.05 + 0.06 * bx * bx / 0.04 * 0.25 - s * 0.01);
-          const arch = woman ? 0.035 * Math.cos(bx * 11) : 0.015 * Math.cos(bx * 12), thick = woman ? 0.013 : 0.022;
-          const d = Math.max(Math.abs(bx) - 0.13, Math.abs(by + arch) - thick);
-          if (d < 0.01) col = mix(col, scale(woman ? mix(L.hair, [0.3, 0.2, 0.12], 0.5) : L.hair, 0.7), sm(0.01, -8e-3, d));
+        if (v > -0.8 && v < -0.4) for (let k = 0; k < 3; k++) {
+          const wx = -0.5 + k * 0.45 + 0.05 * Math.sin(v * 9 + k), wy = (woman ? -0.62 : -0.55) + 0.12 * k % 0.2;
+          const d = Math.abs(u - wx - 0.08 * Math.sin(v * 12 + k * 2)) - 6e-3;
+          if (d < 4e-3 && Math.abs(v - wy) < 0.12) col = mix(col, scale(L.hair, 1.1), 0.35);
         }
-        for (const s of [-1, 1]) {
+        if (v > -0.38 && v < -0.12 && Math.abs(u) < 0.42) for (const s of [-1, 1]) {
+          const bx = u - s * 0.24, rel = clamp((s * bx + 0.13) / 0.26);
+          const arch = woman ? 0.04 * Math.sin(rel * Math.PI) : 0.02 * Math.sin(rel * Math.PI);
+          const by = v - (-0.24 - p.brow * 0.05 - arch + 0.01 * rel);
+          const thick = (woman ? 0.015 : 0.024) * (1 - 0.55 * rel);
+          const d = Math.max(Math.abs(bx) - 0.13, Math.abs(by) - thick);
+          if (d < 0.01) {
+            const strokes = 0.75 + 0.25 * n1(bx * 140 + s * 3);
+            const bc = scale(woman ? mix(L.hair, [0.32, 0.22, 0.14], 0.55) : mix(L.hair, [0.12, 0.09, 0.07], 0.35), 0.75 * strokes);
+            col = mix(col, bc, sm(0.01, -6e-3, d) * 0.92);
+          }
+        }
+        if (v > -0.2 && v < 0.04 && Math.abs(u) < 0.4) for (const s of [-1, 1]) {
           const ex = u - s * 0.24, ey = v + 0.08;
           const open = clamp(1 - p.blink) * (1 - 0.6 * p.squint);
-          const hw = 0.115, hh = 0.055 * open + 2e-3;
-          const top = -hh * (1 - ex / hw * (ex / hw)), bot = hh * 0.8 * (1 - ex / hw * (ex / hw));
-          const inside = Math.abs(ex) < hw && ey > top && ey < bot;
-          if (inside) {
-            let e = [0.92, 0.9, 0.86];
-            e = scale(e, 0.75 + 0.25 * sm(-hh, hh * 0.3, ey));
+          const hw = 0.115, hh = 0.056 * open + 2e-3, q = 1 - ex / hw * (ex / hw);
+          const top = -hh * q, bot = hh * 0.78 * q;
+          if (Math.abs(ex) < hw * 1.05) {
+            col = scale(col, 1 - 0.18 * sm(0.014, 0, Math.abs(ey - (-0.075 * Math.sqrt(clamp(q)) - 0.012))));
+            col = scale(col, 1 - 0.1 * sm(0.01, 0, Math.abs(ey - (bot + 0.012))));
+          }
+          if (Math.abs(ex) < hw && ey > top && ey < bot) {
+            let e = mix([0.95, 0.9, 0.86], [0.85, 0.62, 0.6], sm(0.6, 1, Math.abs(ex) / hw) * 0.6);
+            e = scale(e, 0.66 + 0.34 * sm(top, top + hh * 1.2, ey));
             const ix = ex - p.gazeX * 0.04, iy = ey - p.gazeY * 0.02, ir = Math.hypot(ix, iy * 1.1);
-            if (ir < 0.05) {
-              let iris = mix(L.iris, scale(L.iris, 0.45), sm(0.03, 0.05, ir));
-              iris = mix(iris, [0.03, 0.02, 0.02], sm(0.024, 0.016, ir));
-              e = mix(e, iris, sm(0.05, 0.044, ir));
+            if (ir < 0.052) {
+              const rays = 0.85 + 0.3 * (n1(Math.atan2(iy, ix) * 9 + s * 5) - 0.5);
+              let iris = scale(L.iris, rays * (0.75 + 0.35 * sm(0.05, 0.02, ir)));
+              iris = mix(iris, scale(L.iris, 0.35), sm(0.038, 0.05, ir));
+              iris = mix(iris, [0.02, 0.015, 0.015], sm(0.022, 0.014, ir));
+              e = mix(e, iris, sm(0.052, 0.045, ir));
             }
-            if (Math.hypot(ix + 0.018, iy + 0.018) < 0.012) e = mix(e, [1, 1, 1], 0.9);
+            if (Math.hypot(ix + 0.016, iy + 0.016) < 0.011) e = mix(e, [1, 1, 1], 0.92);
             col = e;
           }
-          const lidLine = Math.abs(ey - top) < (woman ? 0.018 : 0.012) && Math.abs(ex) < hw * 1.05;
-          if (lidLine) col = mix(col, [0.12, 0.08, 0.07], woman ? 0.95 : 0.85);
+          const lash = woman ? 0.017 : 0.011;
+          if (Math.abs(ey - top) < lash && Math.abs(ex) < hw * 1.04) col = mix(col, [0.1, 0.07, 0.06], woman ? 0.92 : 0.8);
           if (woman && s * ex > hw * 0.85 && s * ex < hw * 1.15 && Math.abs(ey - (top - (s * ex - hw * 0.85) * 0.5)) < 8e-3) col = mix(col, [0.12, 0.07, 0.07], 0.6);
-          if (!inside && Math.abs(ex) < hw && ey > top - 0.05 && ey < top && open < 0.25) col = mix(col, scale(L.skin, 0.75), 0.6);
+          if (Math.abs(ex) < hw && ey < top && ey > top - 0.05 && open < 0.25) col = mix(col, scale(L.skin, 0.72), 0.55);
         }
-        {
+        if (v > 0.3 && v < 0.62 && Math.abs(u) < 0.3) {
           const wide = 0.15 * (1 + 0.25 * p.mouthWide) + 0.04 * p.smile, open = p.mouthOpen;
           const mx = u, my = v - 0.43, t = clamp(1 - mx / wide * (mx / wide));
           const curve = -p.smile * 0.065 * (mx / wide) * (mx / wide);
           const gapTop = -6e-3 - open * 0.055 * t + curve, gapBot = 6e-3 + open * 0.1 * t + curve;
           const full = woman ? 1.3 : 1;
-          const upTop = gapTop - 0.035 * full * Math.sqrt(t), lowBot = gapBot + 0.045 * full * Math.sqrt(t);
-          if (Math.abs(mx) < wide && my > upTop && my < lowBot) {
-            const lip = woman ? [0.86, 0.38, 0.46] : [0.72, 0.36, 0.36];
+          const bow = 0.012 * sm(0.05, 0, Math.abs(Math.abs(mx) - 0.035));
+          const upTop = gapTop - 0.035 * full * Math.sqrt(t) - bow, lowBot = gapBot + 0.046 * full * Math.sqrt(t);
+          if (Math.abs(mx) < wide && my > upTop - 0.01 && my < lowBot + 0.01) {
+            const lipBase = woman ? [0.84, 0.36, 0.44] : mix([0.72, 0.38, 0.36], L.skin, 0.3);
             if (my > gapTop && my < gapBot && open > 0.05) {
-              let inner = [0.22, 0.05, 0.06];
-              if (my < gapTop + 0.025 * open + 8e-3) inner = [0.86, 0.84, 0.78];
+              let inner = [0.2, 0.05, 0.06];
+              if (my > gapBot - 0.025 * open) inner = [0.55, 0.22, 0.26];
+              if (my < gapTop + 0.022 * open + 8e-3) inner = scale([0.88, 0.85, 0.78], 0.85 + 0.15 * (1 - Math.abs(mx) / wide));
               col = inner;
-            } else col = scale(mix(lip, L.skin, 0.25), my < gapTop ? 0.82 : 1.05);
+            } else if (my > upTop && my < lowBot) {
+              const upper = my < gapTop;
+              let lc = scale(lipBase, upper ? 0.72 : 1);
+              if (!upper) lc = [lc[0] + 0.12 * sm(0.02, 0, Math.hypot(mx + 0.03, my - (gapBot + 0.018))), lc[1] + 0.08 * sm(0.02, 0, Math.hypot(mx + 0.03, my - (gapBot + 0.018))), lc[2] + 0.08 * sm(0.02, 0, Math.hypot(mx + 0.03, my - (gapBot + 0.018)))];
+              lc = mix(lc, col, sm(8e-3, -4e-3, Math.min(my - upTop, lowBot - my)) * 0.5 + 0.5 * sm(wide * 0.75, wide, Math.abs(mx)));
+              if (Math.abs(my - (gapTop + gapBot) / 2) < 5e-3 && open <= 0.05) lc = scale(lc, 0.55);
+              col = lc;
+            }
           }
-          for (const s of [-1, 1]) col = scale(col, 1 - 0.25 * sm(0.03, 0, Math.hypot(mx - s * wide, my - curve)));
+          for (const s of [-1, 1]) col = scale(col, 1 - 0.28 * sm(0.03, 0, Math.hypot(mx - s * wide, my - curve)));
         }
         return col;
       }
@@ -6513,28 +6614,20 @@ var PiEngine = (() => {
         const size = Math.min(w, h), ox = (w - size) / 2, oy = (h - size) / 2;
         const ca = Math.cos(pose.tilt), sa = Math.sin(pose.tilt);
         for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-          let r = 0, g = 0, b = 0;
-          for (let s = 0; s < 2; s++) {
-            const sx = s ? 0.75 : 0.25, sy = s ? 0.75 : 0.25;
-            let u = ((x + sx - ox) / size - 0.5) * 2.5, v = ((y + sy - oy) / size - 0.5) * 2.5 - pose.bob;
-            const ru = u * ca + v * sa, rv = -u * sa + v * ca;
-            u = ru - pose.yaw * (1 - rv * rv * 0.3);
-            v = rv;
-            const c = shade(u, v, pose, look);
-            r += c[0];
-            g += c[1];
-            b += c[2];
-          }
-          const o = (y * w + x) * 3;
-          out[o] = r / 2;
-          out[o + 1] = g / 2;
-          out[o + 2] = b / 2;
+          let u = ((x + 0.5 - ox) / size - 0.5) * 2.5, v = ((y + 0.5 - oy) / size - 0.5) * 2.5 - pose.bob;
+          const ru = u * ca + v * sa, rv = -u * sa + v * ca;
+          u = ru - pose.yaw * (1 - rv * rv * 0.3);
+          v = rv;
+          const c = shade(u, v, pose, look), o = (y * w + x) * 3;
+          out[o] = c[0];
+          out[o + 1] = c[1];
+          out[o + 2] = c[2];
         }
       }
       var LOOKS = {
-        skin: { light: [0.93, 0.72, 0.6], medium: [0.8, 0.56, 0.4], tan: [0.68, 0.45, 0.3], dark: [0.42, 0.27, 0.18] },
-        hair: { brown: [0.3, 0.19, 0.11], black: [0.08, 0.07, 0.07], blonde: [0.92, 0.76, 0.46], red: [0.55, 0.22, 0.1], grey: [0.6, 0.6, 0.6] },
-        iris: { brown: [0.42, 0.25, 0.12], blue: [0.3, 0.52, 0.8], green: [0.33, 0.55, 0.32], hazel: [0.5, 0.42, 0.2] }
+        skin: { light: [0.96, 0.76, 0.64], medium: [0.84, 0.6, 0.45], tan: [0.72, 0.49, 0.34], dark: [0.46, 0.3, 0.21] },
+        hair: { brown: [0.36, 0.23, 0.14], black: [0.17, 0.14, 0.13], blonde: [1, 0.8, 0.46], red: [0.62, 0.26, 0.12], grey: [0.66, 0.66, 0.66] },
+        iris: { brown: [0.45, 0.28, 0.14], blue: [0.32, 0.55, 0.85], green: [0.36, 0.6, 0.36], hazel: [0.55, 0.45, 0.22] }
       };
       module.exports = { renderFace, LOOKS };
     }
@@ -6739,7 +6832,7 @@ var PiEngine = (() => {
           st.face = new Float32Array(F * F * 3);
           st.frame = 0;
         }
-        if ((st.frame = (st.frame || 0) + 1) % 2 === 1) renderFace(st.face, F, F, pose, look);
+        if ((st.frame = (st.frame || 0) + 1) % 3 === 1) renderFace(st.face, F, F, pose, look);
         for (let i = 0; i < core.wallBuf.length; i += 3) {
           core.wallBuf[i] = look.bg[0] * 0.6;
           core.wallBuf[i + 1] = look.bg[1] * 0.6;
