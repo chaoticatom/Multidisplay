@@ -901,10 +901,12 @@ body.cx-preview-off #c, body.cx-preview-off #panel2d-canvas, body.cx-preview-off
 #sidebar-brightness-bar { background: none !important; border: none !important; padding: 2px 12px 4px !important; }
 #sidebar-brightness-bar .slider-row { gap: 10px; align-items: center; }
 #bright-label { width: auto !important; font-size: 16px !important; }
-/* Overall volume: lined up under the brightness slider (same icon column). */
-#master-vol-row { margin: 18px 0 0 !important; } /* below the ON/OFF labels under the buttons */
-#master-vol-label { width: auto !important; font-size: 14px !important; min-width: 16px; text-align: center; }
-#master-vol-slider { flex: 1; min-width: 0; margin: 0; }
+/* Brightness + volume stacked (equal widths), buttons beside them. */
+#sidebar-controls { display: flex; align-items: center; gap: 10px; }
+#sidebar-sliders { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+#sidebar-sliders .slider-row { margin: 0 !important; gap: 10px; }
+#sidebar-buttons { display: flex; gap: 10px; flex-shrink: 0; padding-bottom: 12px; } /* room for the ON/OFF labels */
+#sidebar-sliders #bright-label, #sidebar-sliders #master-vol-label { width: 18px !important; margin: 0 !important; font-size: 15px !important; text-align: center; }
 #master-vol-val { flex: 0 0 auto; width: 36px; text-align: right; font-size: 11px; font-weight: 700; color: #9aa3b8; }
 .cx-round { width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; border: none; cursor: pointer; font-size: 16px; color: #fff; background: rgba(255,255,255,.08); box-shadow: 0 0 0 1px rgba(255,255,255,.12); transition: transform .2s cubic-bezier(.2,1.6,.4,1); }
 .cx-round:active { transform: scale(.9); }
@@ -1009,7 +1011,7 @@ body[data-tab="setup"] #setup-search { display: block; }
 #setup-search-none { padding: 6px 4px; opacity: .7; font-size: 13px; }
 @keyframes off-pulse { 50% { box-shadow: 0 0 0 2px #fff, 0 0 6px 1px rgba(255,51,85,.5); } }
 @media (prefers-reduced-motion: reduce) { #panels-off-btn.is-off, #preview-off-btn.is-off, #clear-all-btn.is-off { animation: none; } }
-#sidebar-brightness-bar { padding-bottom: 8px !important; position: relative; z-index: 2; } /* the volume row leaves room for the ON/OFF labels */
+#sidebar-brightness-bar { padding-bottom: 8px !important; position: relative; z-index: 2; }
 /* ── Favourites strip and scene tiles ── */
 #fav-strip { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 10px; margin-bottom: 6px; scrollbar-width: thin; flex-wrap: nowrap; align-items: stretch; }
 #fav-strip[hidden] { display: none; }
@@ -1201,21 +1203,27 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
        the old #bright-slider row in the Display section was removed
        (this is now its only copy, not a duplicate). -->
   <div id="sidebar-brightness-bar" style="padding:8px 10px 16px;border-bottom:1px solid rgba(80,120,255,0.2);flex-shrink:0;background:rgba(80,120,255,0.07);">
-    <div class="slider-row" style="margin-bottom:0;">
-      <!-- #bright-label sizes to its text (see its CSS rule) - a fixed
-           82px still overlapped the slider at the larger mobile font. -->
-      <span class="slider-label" id="bright-label" aria-hidden="true">☀</span>
-      <input type="range" id="bright-slider" min="0.1" max="1.5" step="0.05" value="1.15" aria-label="Brightness">
-      <button class="cx-round" id="panels-off-btn" title="LED panels off (preview and music keep going)" aria-label="LED panels off">💡</button>
-      <button class="cx-round" id="preview-off-btn" title="Hide the preview on this device" aria-label="Hide the preview">👁</button>
-      <button class="cx-round" id="stop-sound-btn" title="Mute" aria-label="Mute">🔊</button>
-      <button class="cx-round cx-round-off" id="clear-all-btn" title="Off (display and music)" aria-label="Off, display and music"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
-    </div>
-    <!-- Overall volume: everything the Pi plays (radio, voice, sound effects) - src/masterVolume.js. -->
-    <div class="slider-row" id="master-vol-row">
-      <span class="slider-label" id="master-vol-label" aria-hidden="true">🔊</span>
-      <input type="range" id="master-vol-slider" min="0" max="1" step="0.05" value="1" aria-label="Overall volume">
-      <span id="master-vol-val">100%</span>
+    <!-- Two columns: brightness and overall volume (src/masterVolume.js)
+         stacked on the left, so both sliders are the same width; the
+         round buttons on the right. -->
+    <div id="sidebar-controls">
+      <div id="sidebar-sliders">
+        <div class="slider-row">
+          <span class="slider-label" id="bright-label" aria-hidden="true">☀</span>
+          <input type="range" id="bright-slider" min="0.1" max="1.5" step="0.05" value="1.15" aria-label="Brightness">
+        </div>
+        <div class="slider-row" id="master-vol-row">
+          <span class="slider-label" id="master-vol-label" aria-hidden="true">🔊</span>
+          <input type="range" id="master-vol-slider" min="0" max="1" step="0.05" value="1" aria-label="Overall volume">
+          <span id="master-vol-val" hidden>100%</span>
+        </div>
+      </div>
+      <div id="sidebar-buttons">
+        <button class="cx-round" id="panels-off-btn" title="LED panels off (preview and music keep going)" aria-label="LED panels off">💡</button>
+        <button class="cx-round" id="preview-off-btn" title="Hide the preview on this device" aria-label="Hide the preview">👁</button>
+        <button class="cx-round" id="stop-sound-btn" title="Mute" aria-label="Mute">🔊</button>
+        <button class="cx-round cx-round-off" id="clear-all-btn" title="Off (display and music)" aria-label="Off, display and music"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
+      </div>
     </div>
   </div>
 
