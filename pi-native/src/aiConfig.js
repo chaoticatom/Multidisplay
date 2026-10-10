@@ -6,7 +6,7 @@ const { readSectionJson, writeSection } = require('./settingsStore');
 
 const PROVIDERS = {
   off: { label: 'Off (built-in keywords)' },
-  gemini: { label: 'Google Gemini (free tier)', model: 'gemini-2.5-flash', needsKey: true },
+  gemini: { label: 'Google Gemini (free tier)', model: 'gemini-flash-latest', needsKey: true },
   groq: { label: 'Groq (free tier)', model: 'llama-3.3-70b-versatile', needsKey: true },
   ollama: { label: 'Ollama on your network', model: 'llama3.2', url: 'http://192.168.1.10:11434' },
 };

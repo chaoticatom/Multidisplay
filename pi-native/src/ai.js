@@ -35,17 +35,48 @@ function extractJson(text) {
   return JSON.parse(text.slice(a, b + 1));
 }
 
-async function callProvider(cfg, system, user) {
+// Gemini model names that worked, found by pickGeminiModel() after a 404.
+const geminiWorking = { text: null, speech: null };
+// Ask Google which models this key can use and pick the best match: for
+// text a fast "flash" model (newest first, not image/audio/lite variants if
+// avoidable); for speech a "tts" model.
+async function pickGeminiModel(key, kind, failed) {
+  try {
+    const r = await fetchWithTimeout('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key } }, 20000);
+    if (!r.ok) return null;
+    const list = ((await r.json()).models || []).filter((m) => (m.supportedGenerationMethods || []).includes('generateContent')).map((m) => String(m.name).replace(/^models\//, ''));
+    const ok = list.filter((n) => n !== failed && (kind === 'speech' ? /tts/i.test(n) : /flash/i.test(n) && !/tts|image|audio|live|embed/i.test(n)));
+    const score = (n) => (/latest/.test(n) ? 100 : 0) + (/lite/.test(n) ? -20 : 0) + (/preview|exp/.test(n) ? -5 : 0) + parseFloat((n.match(/(\d+(\.\d+)?)/) || [0, 0])[1]) * 10;
+    ok.sort((a, b) => score(b) - score(a));
+    return ok[0] || null;
+  } catch (e) { return null; }
+}
+
+async function callProvider(cfg, system, user, opts = {}) {
   const p = aiConfig.PROVIDERS[cfg.provider];
   const model = cfg.model || p.model;
   if (p.needsKey && !cfg.key) throw new Error(`no API key set for ${p.label}`);
   let res, body;
   if (cfg.provider === 'gemini') {
-    res = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    // Newer Gemini models "think" before answering, which can take longer
+    // than a short reply is worth (a real report: the face sat on
+    // "thinking" until it timed out) - so thinking is switched off, and the
+    // request retried without that setting if a model doesn't accept it.
+    let noThinking = true;
+    const send = (m) => fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.8 } }),
-    }, 45000);
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.8, maxOutputTokens: opts.maxTokens || 1024, ...(noThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}) } }),
+    }, opts.timeoutMs || 45000);
+    const useModel = geminiWorking.text || cfg.model || model; // a replacement found after a 404 wins
+    res = await send(useModel);
     body = await res.json().catch(() => ({}));
+    // Google retires model names now and then ("no longer available"): find
+    // one this key can use and remember it.
+    if (res.status === 404) {
+      const alt = await pickGeminiModel(cfg.key, 'text', useModel);
+      if (alt) { geminiWorking.text = alt; res = await send(alt); body = await res.json().catch(() => ({})); }
+    }
+    if (res.status === 400 && /thinking/i.test(body.error?.message || '')) { noThinking = false; res = await send(geminiWorking.text || useModel); body = await res.json().catch(() => ({})); }
     if (!res.ok) throw new Error(`Gemini ${res.status}: ${body.error?.message || 'request failed'}`);
     return body.candidates?.[0]?.content?.parts?.map((x) => x.text).join('') || '';
   }
@@ -124,7 +155,7 @@ async function chat(history, text) {
   const cfg = aiConfig.load();
   if (cfg.provider === 'off') return { off: true };
   const convo = (history || []).slice(-8).map((h) => (h.who === 'you' ? 'Person: ' : 'You: ') + h.text).join('\n');
-  const raw = await callProvider(cfg, CHAT_SYSTEM, (convo ? convo + '\n' : '') + 'Person: ' + String(text).slice(0, 500));
+  const raw = await callProvider(cfg, CHAT_SYSTEM, (convo ? convo + '\n' : '') + 'Person: ' + String(text).slice(0, 500), { maxTokens: 300, timeoutMs: 25000 }); // short, quick replies
   let j;
   try { j = extractJson(raw); } catch (e) { j = { say: String(raw || '') }; } // plain text is fine as a reply
   return { say: typeof j.say === 'string' ? j.say.replace(/\s+/g, ' ').trim().slice(0, 300) : '', laugh: ['before', 'after'].includes(j.laugh) ? j.laugh : 'none' };
@@ -136,15 +167,21 @@ async function chat(history, text) {
 async function speech(text, voice = 'Kore') {
   const cfg = aiConfig.load();
   if (cfg.provider !== 'gemini' || !cfg.key) return null;
-  const res = await fetchWithTimeout('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent', {
+  const send = (m) => fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
     body: JSON.stringify({ contents: [{ parts: [{ text: String(text).slice(0, 400) }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } } }),
   }, 45000);
-  const body = await res.json().catch(() => ({}));
+  const tried = geminiWorking.speech || 'gemini-2.5-flash-preview-tts';
+  let res = await send(tried);
+  let body = await res.json().catch(() => ({}));
+  if (res.status === 404) { // the speech model was retired: find the current one
+    const alt = await pickGeminiModel(cfg.key, 'speech', tried);
+    if (alt) { geminiWorking.speech = alt; res = await send(alt); body = await res.json().catch(() => ({})); }
+  }
   if (!res.ok) throw new Error(`Gemini speech ${res.status}: ${body.error?.message || 'request failed'}`);
   const part = (body.candidates?.[0]?.content?.parts || []).find((x) => x.inlineData && x.inlineData.data);
   if (!part) throw new Error('Gemini speech: no audio came back');
   return Buffer.from(part.inlineData.data, 'base64');
 }
 
-module.exports = { ask, chat, speech, cleanReply, cleanArt, extractJson, systemPrompt };
+module.exports = { ask, chat, speech, cleanReply, cleanArt, extractJson, systemPrompt, pickGeminiModel, _geminiWorking: geminiWorking };
