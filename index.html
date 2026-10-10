@@ -2423,6 +2423,23 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
         Tip: in the Alexa app, put them in a Routine (“Alexa, party time”).
       </div>
       <div class="ui-note" id="alexa-devices"></div>
+      <div class="ui-label-accent" style="margin-top:14px;">Your own Alexa skill</div>
+      <div class="ui-note">For more than on/off: “Alexa, ask <b id="alexa-inv-say">led wall</b> to show fireworks / make it a calm sunset / tell the face hello / tell me a joke / brightness 50 percent”. Free, private to your Amazon account; uses your Cloudflare address.</div>
+      <input id="alexa-inv" class="ui-input" type="text" maxlength="50" placeholder="Invocation name, e.g. led wall" aria-label="Invocation name" style="width:100%;margin:6px 0;">
+      <input id="alexa-skill-id" class="ui-input" type="text" maxlength="120" placeholder="Skill ID: amzn1.ask.skill.…" aria-label="Skill ID" style="width:100%;margin:6px 0;">
+      <button id="alexa-skill-save" class="ui-btn-primary" style="width:100%;margin:4px 0 6px;">Save</button>
+      <div class="ui-note" id="alexa-skill-status"></div>
+      <details class="ui-note"><summary><b>Set-up steps (about 15 minutes, once)</b></summary>
+        <ol style="padding-left:18px;margin:6px 0;line-height:1.45;">
+          <li>On a computer, sign in at <b>developer.amazon.com/alexa/console/ask</b> with the same Amazon account as your Echo.</li>
+          <li><b>Create Skill</b> → name “LED wall” → your language (English UK if your Echo is UK) → type <b>Other</b> → <b>Custom</b> → hosting <b>Provision your own</b> → template <b>Start from scratch</b> → Create.</li>
+          <li>Left menu <b>Interaction Model → JSON Editor</b>: delete what's there, paste the model from <a id="alexa-model-link" href="/alexa/model.json" target="_blank" rel="noopener">this link</a> (it has your effects), <b>Save</b>, then <b>Build skill</b>.</li>
+          <li>Left menu <b>Endpoint</b> → <b>HTTPS</b> → Default Region: <b id="alexa-endpoint">your Cloudflare address + /alexa</b> → certificate: <b>“My development endpoint is a sub-domain of a domain that has a wildcard certificate…”</b> → Save.</li>
+          <li>Copy the <b>Skill ID</b> (top of the Endpoint page, amzn1.ask.skill.…), paste it above, and Save here.</li>
+          <li><b>Test</b> tab → set “Skill testing is enabled in” to <b>Development</b>. Your Echo can now use it: “Alexa, open led wall”.</li>
+        </ol>
+        After adding or renaming favourites/scenes, paste the model again and Build so Alexa knows the names. If the invocation name is changed here, change it in the JSON too (or re-paste).
+      </details>
     </div>
   </div>
   <div class="sidebar-section collapsed">

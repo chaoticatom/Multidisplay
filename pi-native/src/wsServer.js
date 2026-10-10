@@ -31,6 +31,7 @@ const { spawn } = require('child_process');
 const { browserFrameSource } = require('./effects/video/browserFrameSource');
 const crypto = require('crypto');
 const { COMMANDS } = require('./wsCommands');
+const alexaSkill = require('./alexaSkill');
 const aiConfig = require('./aiConfig');
 const httpApi = require('./httpApi');
 const pinConfig = require('./pinConfig');
@@ -121,6 +122,7 @@ class WsServer {
     this.mic = require('./mic').createMic({ onUtterance: (w) => this.faceTalk.hear(w), isBusy: () => this.faceTalk.busy() });
     require('./masterVolume').set(state.prefs ? state.prefs.volume : 1);
     // Alexa (src/alexa.js): an Echo controls the display as Hue "lights".
+    this.alexaSkillStatus = { lastSeen: 0, error: '' }; // your own Alexa skill (src/alexaSkill.js)
     this.alexa = require('./alexa').createAlexa({ state, names: () => require('./effects').EFFECT_NAMES, run: (m) => this.runCommand(m) });
     this.config = config;
     this.onConfigChange = onConfigChange;
@@ -220,6 +222,7 @@ class WsServer {
     const authCode = (r) => (!isSameOrigin(r) ? 403
       : access.decide({ pinSet: pinConfig.isPinSet(this.pinCfg), remote: access.isRemote(r), access: (this.state.prefs || {}).access }) === 'admin' ? 0
       : !pinConfig.verifyPin(this.pinCfg, r.headers['x-control-pin']) ? 401 : 0);
+    if (alexaSkill.handle(this, req, res)) return; // Amazon's requests: checked by signature, not PIN
     if (httpApi.handle(this, req, res, authCode)) return;
     if (req.method === 'POST' && req.url.startsWith('/api/uploadVideo')) {
       if (!isSameOrigin(req)) { res.writeHead(403, { 'Content-Type': 'text/plain' }).end('Cross-origin upload refused'); return; }
@@ -527,7 +530,7 @@ class WsServer {
       backup: this.state.backup || null,
       update: this.updater ? { ...this.updater.status } : null,
       faceTalk: this.state.faceTalk ? { say: this.state.faceTalk.say, thinking: this.state.faceTalk.thinking, log: this.state.faceTalk.log, voiceStatus: this.faceTalk.status.voice } : null,
-      alexa: this.alexa ? { on: this.alexa.status.on, error: this.alexa.status.error, lastSeen: this.alexa.status.lastSeen, lastCommand: this.alexa.status.lastCommand, devices: this.alexa.devices().map((d) => d.name) } : null,
+      alexa: this.alexa ? { on: this.alexa.status.on, error: this.alexa.status.error, lastSeen: this.alexa.status.lastSeen, lastCommand: this.alexa.status.lastCommand, devices: this.alexa.devices().map((d) => d.name), skill: { seen: this.alexaSkillStatus.lastSeen, error: this.alexaSkillStatus.error } } : null,
       mic: this.mic ? { status: this.mic.status.mic, listening: this.mic.status.listening, hearing: this.mic.status.hearing, source: this.mic.status.source } : null,
       party: this.state.party ? { endsAt: this.state.party.endsAt, text: this.state.party.text } : null,
       musicReact: this.state.musicReact || { on: false, amount: 0.6 },
@@ -675,11 +678,11 @@ class WsServer {
 
   // Runs a control-page command from inside the app (Alexa), as if a
   // signed-in page had sent it, then tells every page.
-  runCommand(msg) {
+  runCommand(msg, ws = { readyState: 3, send() {}, role: 'admin' }) {
     const handler = Object.prototype.hasOwnProperty.call(COMMANDS, msg.cmd) ? COMMANDS[msg.cmd] : null;
     if (!handler) return;
     this.stateVersion = (this.stateVersion || 0) + 1;
-    handler.call(this, { readyState: 3, send() {}, role: 'admin' }, msg);
+    handler.call(this, ws, msg);
     this._broadcast(this._stateMsg());
   }
 

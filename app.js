@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.304';
+const APP_VERSION = '0.6.305';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -5825,6 +5825,10 @@ function cxWireAsk() {
 // Setup > Alexa (src/alexa.js).
 function cxWireAlexa() {
   document.getElementById('alexa-chk')?.addEventListener('change', (e) => send({ cmd: 'setAlexa', on: e.target.checked }));
+  document.getElementById('alexa-skill-save')?.addEventListener('click', () => {
+    send({ cmd: 'setAlexa', skillId: document.getElementById('alexa-skill-id').value.trim(), invocation: document.getElementById('alexa-inv').value.trim().toLowerCase() });
+    cxToast('Alexa skill saved');
+  });
 }
 function cxSyncAlexa() {
   const chk = document.getElementById('alexa-chk'); if (!chk) return;
@@ -5835,6 +5839,15 @@ function cxSyncAlexa() {
   document.getElementById('alexa-status').textContent = !on ? '' : a.error ? '⚠ ' + a.error : !a.on ? 'Starting…'
     : (seen === null ? 'Ready - waiting for an Echo to find it.' : '✓ An Echo talked to it ' + (seen < 1 ? 'just now' : seen + ' min ago') + '.') + (a.lastCommand ? ' Last: ' + a.lastCommand : '');
   document.getElementById('alexa-devices').textContent = on && a.devices ? 'Devices: ' + a.devices.join(', ') : '';
+  const cfg = currentState.prefs?.alexa || {}, inv = document.getElementById('alexa-inv'), sid = document.getElementById('alexa-skill-id');
+  if (inv && document.activeElement !== inv && !inv.value) inv.value = cfg.invocation || 'led wall';
+  if (sid && document.activeElement !== sid && !sid.value) sid.value = cfg.skillId || '';
+  document.getElementById('alexa-inv-say').textContent = cfg.invocation || 'led wall';
+  // The public address Amazon needs: this page's, when opened through the tunnel.
+  const pub = location.protocol === 'https:' && !/^(\d+\.){3}\d+$|\.local$|^localhost$/.test(location.hostname);
+  document.getElementById('alexa-endpoint').textContent = pub ? location.origin + '/alexa' : 'https://<your Cloudflare address>/alexa (open this page through that address to see it here)';
+  const sk = a.skill || {}, ss = document.getElementById('alexa-skill-status');
+  ss.textContent = sk.error ? '⚠ ' + sk.error : sk.seen ? '✓ Alexa skill last used ' + new Date(sk.seen).toLocaleTimeString() : cfg.skillId ? 'Skill ID saved - waiting for the first request.' : '';
 }
 function cxWireAiSetup() {
   const prov = document.getElementById('ai-provider');

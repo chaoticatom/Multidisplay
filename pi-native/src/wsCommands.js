@@ -738,10 +738,14 @@ const COMMANDS = {
     this._broadcast(this._stateMsg());
   },
 
-  // Setup > Alexa: {on} - the Hue bridge emulation (src/alexa.js).
+  // Setup > Alexa: {on} - the Hue bridge emulation (src/alexa.js); {skillId, invocation} - your own skill (src/alexaSkill.js).
   setAlexa(ws, msg) {
     const p = this.state.prefs || prefs.load();
-    this.state.prefs = prefs.save({ ...p, alexa: { on: !!msg.on } });
+    const a = { ...p.alexa };
+    if (msg.on !== undefined) a.on = !!msg.on;
+    if (typeof msg.skillId === 'string') a.skillId = msg.skillId;
+    if (typeof msg.invocation === 'string') a.invocation = msg.invocation;
+    this.state.prefs = prefs.save({ ...p, alexa: a });
     if (this.alexa) { this.alexa.status.error = ''; this.alexa.sync(); }
     this._broadcast(this._stateMsg());
   },
