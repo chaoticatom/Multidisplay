@@ -6701,7 +6701,8 @@ var PiEngine = (() => {
         for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
           let u = ((x + 0.5 - ox) / size - 0.5) * 2.5, v = ((y + 0.5 - oy) / size - 0.5) * 2.5 - pose.bob;
           const ru = u * ca + v * sa, rv = -u * sa + v * ca;
-          u = ru - pose.yaw * (1 - rv * rv * 0.3);
+          const head = sm(1.15, 0.85, rv), q = ru / 0.9;
+          u = ru - pose.yaw * (0.25 + 0.6 * Math.max(0, 1 - q * q) * head);
           v = rv;
           let c = shade(u, v, pose, look);
           if (pose.mug > 0) {
@@ -6754,7 +6755,7 @@ var PiEngine = (() => {
         nextAction: 10
         // idle touches: look away, sip tea, yawn, nod
       };
-      var ACTIONS = [["look", 4, 3.5], ["tea", 2, 6], ["yawn", 1, 3], ["nod", 2, 1.4], ["glance", 3, 2]];
+      var ACTIONS = [["look", 3, 3.5], ["aside", 4, 5.5], ["tea", 2, 6], ["yawn", 1, 3], ["nod", 2, 1.4], ["glance", 3, 2]];
       function pickAction() {
         let r = Math.random() * ACTIONS.reduce((a, x) => a + x[1], 0);
         for (const [kind, w, len] of ACTIONS) {
@@ -6858,6 +6859,24 @@ var PiEngine = (() => {
             act.gazeX = 0.85 * a.side * e;
             act.gazeY = 0.25 * e;
             act.brow = 0.15 * e;
+          } else if (a.kind === "aside") {
+            const e = ease(f, 0.18), talkOn = f > 0.2 && f < 0.8;
+            act.yaw = 0.45 * a.side * e;
+            act.gazeX = 0.95 * a.side * e;
+            act.tilt = 0.035 * a.side * e;
+            if (talkOn) {
+              const burst = Math.sin(a.t * 2.3) > -0.3;
+              if (burst && (a.nextMouth = (a.nextMouth || 0) - dt) <= 0) {
+                a.mouth = [rand(0.05, 0.6), rand(-0.8, 0.7)];
+                a.nextMouth = rand(0.07, 0.14);
+              }
+              if (!burst) a.mouth = [0, 0];
+              act.open = (a.mouth || [0])[0] * e;
+              act.wide = (a.mouth || [0, 0])[1] * e;
+              act.bob = 0.012 * Math.sin(a.t * 5.5) * e;
+              act.brow = 0.15 * Math.max(0, Math.sin(a.t * 1.7)) * e;
+            }
+            act.smile = 0.2 * e;
           } else if (a.kind === "nod") act.bob = 0.035 * Math.sin(f * Math.PI * 3) * (1 - f);
           else if (a.kind === "yawn") {
             const e = Math.sin(f * Math.PI);

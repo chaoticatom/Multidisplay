@@ -348,7 +348,11 @@ function renderFace(out, w, h, pose, look) {
     // head turn/tilt/bob.
     let u = ((x + 0.5 - ox) / size - 0.5) * 2.5, v = ((y + 0.5 - oy) / size - 0.5) * 2.5 - pose.bob;
     const ru = u * ca + v * sa, rv = -u * sa + v * ca;
-    u = ru - pose.yaw * (1 - rv * rv * 0.3); v = rv;
+    // Head turn: the middle of the face moves most and the far side
+    // squeezes (like a ball turning - a three-quarter view), smoothly, so
+    // nothing folds over; the shoulders below barely turn.
+    const head = sm(1.15, 0.85, rv), q = ru / 0.9;
+    u = ru - pose.yaw * (0.25 + 0.6 * Math.max(0, 1 - q * q) * head); v = rv;
     let c = shade(u, v, pose, look);
     if (pose.mug > 0) { const mc = mugShade(((x + 0.5 - ox) / size - 0.5) * 2.5, ((y + 0.5 - oy) / size - 0.5) * 2.5, pose, c, look); if (mc) c = mc; }
     const o = (y * w + x) * 3;
