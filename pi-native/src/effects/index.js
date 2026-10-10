@@ -23,6 +23,7 @@ const countdown = require('./countdown');
 const gradientWash = require('./gradientWash');
 const weather = require('./weather');
 const radar = require('./radar');
+const hand3d = require('./hand3d');
 const talkingFace = require('./talkingFace');
 const easterEgg = require('./easterEgg');
 const rain = require('./neonRain');
@@ -164,6 +165,7 @@ const WALL_EFFECTS = {
   weather: weatherWall,
   radar: radar.wall,
   talking_face: talkingFace.wall,
+  hand3d: hand3d.wall,
   datetime: datetimeWall,
   moon: celestialWall,
   ghost: ghostWall,
@@ -199,6 +201,7 @@ const EFFECTS = {
   weather,
   radar,
   talking_face: talkingFace,
+  hand3d,
   easter_egg: easterEgg,
   rain,
   plasma,
@@ -268,6 +271,7 @@ const EFFECT_NAMES = {
   weather: 'Weather',
   radar: 'Weather Radar',
   talking_face: 'Talking Face',
+  hand3d: '3D Hand',
   easter_egg: 'Easter Egg',
   rain: 'Colour Rain',
   plasma: 'Plasma Storm',
