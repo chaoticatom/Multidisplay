@@ -28,7 +28,7 @@ if (!/^\d+\.\d+\.\d+$/.test(to)) {
 // [file, text before, text after] - each must match exactly once.
 const EDITS = [
   ['package.json', `"version": "${from}"`, `"version": "${to}"`],
-  ['public/app.js', `const APP_VERSION = '${from}';`, `const APP_VERSION = '${to}';`],
+  ['public/src/00-core.js', `const APP_VERSION = '${from}';`, `const APP_VERSION = '${to}';`], // public/app.js is rebuilt from public/src/ below
   ['public/index.html', `app.js?v=${from}"`, `app.js?v=${to}"`],
 ];
 const updated = EDITS.map(([rel, before, after]) => {
@@ -43,5 +43,7 @@ const updated = EDITS.map(([rel, before, after]) => {
 });
 for (const [file, text] of updated) fs.writeFileSync(file, text);
 console.log(`[release] ${from} -> ${to}`);
+
+execFileSync(process.execPath, [path.join(PI_NATIVE, 'scripts', 'buildApp.js')], { stdio: 'inherit' });
 
 execFileSync(process.execPath, [path.join(PI_NATIVE, 'sim', 'deploy.js')], { stdio: 'inherit' });

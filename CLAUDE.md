@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Multidisplay is an RGB LED display made of 64×64 HUB75 panels, either a 6-face cube or a flat "wall" of panels. Everything that matters lives in **`pi-native/`**, a Node.js app that runs directly on a Raspberry Pi. It computes every effect server-side and drives the panels through `rpi-led-matrix`. A thin browser UI (`pi-native/public/`) controls it and shows a live preview over WebSocket. See `pi-native/README.md` for setup, panel layout, WiFi and Bluetooth.
+Multidisplay is an RGB LED display made of 64×64 HUB75 panels, either a 6-face cube or a flat "wall" of panels. Everything that matters lives in **`pi-native/`**, a Node.js app that runs directly on a Raspberry Pi. It computes every effect server-side and drives the panels through `rpi-led-matrix`. A thin browser UI (`pi-native/public/`) controls it and shows a live preview over WebSocket. The page's script is **built**: edit the section files in `pi-native/public/src/`, then `node scripts/buildApp.js` joins them into `public/app.js` (`npm run release` does this too, and a test fails if `app.js` is out of step). Never hand-edit `public/app.js`. See `pi-native/README.md` for setup, panel layout, WiFi and Bluetooth.
 
 **Live demo**: https://chaoticatom.github.io/Multidisplay/ is a browser build of the same pi-native effect engine, bundled via `pi-native/sim/` and running standalone with no Pi behind it. The files at the repo root (`app.js`, `index.html`, `sim-engine.js`, `effects.json`, ...) are **build output** from `sim/deploy.js`. Never hand-edit them.
 
@@ -28,7 +28,7 @@ On the Pi, it runs as the `multidisplay-pi` systemd service from `/opt/multidisp
 ## Shipping a change
 
 1. Make the change, then run `node --check` on touched files and `npm test`.
-2. Run `npm run release`. It bumps `package.json`'s `version`, `public/app.js`'s `APP_VERSION` and the `app.js?v=` query in `public/index.html` together, then runs `sim/deploy.js` to regenerate the root simulator files. It fails if the three versions are out of step.
+2. Run `npm run release`. It bumps `package.json`'s `version`, `APP_VERSION` in `public/src/00-core.js` and the `app.js?v=` query in `public/index.html` together, rebuilds `public/app.js`, then runs `sim/deploy.js` to regenerate the root simulator files. It fails if the three versions are out of step.
 3. Commit the source changes **and** the regenerated root files (`app.js`, `index.html`, `sim-engine.js`, `effects.json`).
 4. GitHub Pages deploys from `main`. The deploy step fails transiently ~30-40% of the time for infrastructure reasons, so rerun a failed "pages build and deployment" job rather than assuming the commit is broken.
 

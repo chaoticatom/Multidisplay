@@ -1,0 +1,561 @@
+// ---------------------------------------------------------------------
+// Internet Radio's option panel (panel-radio) - the real new backend this
+// port added: Stop/volume (dedicated radioStop/setEffectOption('radio',
+// 'volume',...) commands), the directory search box (radioSearch command,
+// results rendered from currentState.effectStatus.radio.search - see
+// wsServer.js's module comment for why search results are broadcast state
+// rather than a per-request reply, unlike Bluetooth's btScan), the
+// featured RADIO_STATIONS list (station selection -> radioPlay command),
+// and the Spectrum Analyser style/band-count/colour-theme/bar-mode/gain/
+// scroll-speed/fit-to-screen/auto-gain controls, all via
+// core.effectOptions.radio.{spectrumOn,bands,style,theme,barMode,gain,
+// scrollSpeed,fitToScreen,autoGain} through the generic setEffectOption
+// path - see radio.js's module comment for why this is a LOCAL per-effect
+// toggle here rather than the browser's global OV.spectrum overlay, and
+// for where gain/auto-gain/fit-to-screen amplitude shaping is applied.
+// RADIO_STATIONS is duplicated here (not fetched from the
+// server) - same "small static list, client already has it" precedent as
+// the browser original itself hard-coding it, and pi-native's Retro/Tron
+// panels hard-coding their own per-game/option button markup.
+// ---------------------------------------------------------------------
+const RADIO_STATIONS = [
+  { name: 'SomaFM Groove Salad', genre: 'Ambient/Downtempo', url: 'https://ice1.somafm.com/groovesalad-128-mp3' },
+  { name: 'SomaFM Drone Zone', genre: 'Ambient', url: 'https://ice1.somafm.com/dronezone-128-mp3' },
+  { name: 'SomaFM Space Station', genre: 'Space Music', url: 'https://ice1.somafm.com/spacestation-128-mp3' },
+  { name: 'SomaFM Beat Blender', genre: 'Electronica', url: 'https://ice1.somafm.com/beatblender-128-mp3' },
+  { name: 'SomaFM Indie Pop Rocks', genre: 'Indie Pop', url: 'https://ice1.somafm.com/indiepop-128-mp3' },
+  { name: 'SomaFM Lush', genre: 'Mellow Vocals', url: 'https://ice1.somafm.com/lush-128-mp3' },
+  { name: 'SomaFM Secret Agent', genre: 'Spy Lounge', url: 'https://ice1.somafm.com/secretagent-128-mp3' },
+  { name: 'SomaFM Boot Liquor', genre: 'Americana', url: 'https://ice1.somafm.com/bootliquor-128-mp3' },
+];
+
+// Escapes text for interpolation into an innerHTML template - station
+// names/genres come from an external directory (radio-browser.info) and
+// timer names from any client on the LAN, so neither can be trusted as
+// markup.
+function escHtml(v) {
+  return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
+function radioStationRow(station, current) {
+  const div = document.createElement('div');
+  const isCurrent = current && current.url === station.url;
+  div.className = 'cx-station' + (isCurrent ? ' on' : '');
+  const fav = (currentState.prefs?.stations || []).some((x) => x.url === station.url);
+  div.innerHTML = `<span class="cx-station-play">${isCurrent ? '❚❚' : '▶'}</span><span class="cx-station-txt"><b>${escHtml(station.name)}</b>${station.genre ? `<small>${escHtml(station.genre)}</small>` : ''}</span>${isCurrent ? '<span class="cx-eq"><i></i><i></i><i></i></span>' : ''}<span class="cx-station-fav${fav ? ' on' : ''}" role="button" title="${fav ? 'Remove from My stations' : 'Add to My stations'}">★</span>`;
+  div.querySelector('.cx-station-fav').addEventListener('click', (e) => {
+    e.stopPropagation();
+    send({ cmd: 'toggleStationFav', station: { name: station.name, genre: station.genre || '', url: station.url } });
+  });
+  div.addEventListener('click', () => {
+    send({ cmd: 'radioPlay', station });
+    // Fired directly inside this click's own handler (a genuine user
+    // gesture), NOT from the later "state" broadcast that comes back over
+    // the WebSocket - browsers require audio.play() to happen synchronously
+    // within a user gesture or it's silently rejected (NotAllowedError),
+    // and a WS round-trip breaks that chain. See radioBrowserPlay()'s own
+    // comment for the full "why a separate <audio> element at all" story.
+    radioBrowserPlay(station);
+  });
+  return div;
+}
+
+// ---------------------------------------------------------------------
+// Browser-side Internet Radio playback (#radio-browser-audio, toggled by
+// #panel-radio's .radio-browser-play-el checkbox) - a real report:
+// "internet radio does not play on phone speaker." radioPlay always plays
+// server-side via paplay, routed to whatever PulseAudio sink is currently
+// default on the PI (a paired Bluetooth speaker, or the Pi's own local
+// output) - never to the connecting browser/phone at all, which is
+// surprising if you're used to "press play, hear it on the device you're
+// holding". This plays the SAME station URL directly in this browser tab
+// via a plain <audio> element, entirely independent of whatever the Pi
+// itself is doing - most radio-browser.info/SomaFM-style stream URLs are
+// plain HTTP(S) audio streams a <audio src> can play cross-origin without
+// needing CORS headers (unlike fetch()/Web Audio API, which do) since
+// that's just "the browser renders it", the same way an <img src> from
+// another domain works with no CORS setup on that domain's part.
+// ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
+// Synced phone playback. Playing the station's own stream here started at
+// a different moment from the Pi's and buffered differently, so the phone
+// ran behind the Bluetooth speaker (a real report). Instead the Pi sends
+// the PCM it gives its speaker, each piece stamped with the Pi time the
+// speaker plays it (see src/wsServer.js sendAudio). We keep an estimate of
+// the Pi's clock and schedule each piece for that moment, less this
+// device's own output delay - so phone, speaker and visuals line up.
+// ---------------------------------------------------------------------
+const syncAudio = { on: false, ctx: null, gain: null, next: 0, offset: 0, samples: [], timer: null, late: 0, extra: 0 };
+function isAudioPacket(buf) {
+  if (!(buf instanceof ArrayBuffer) || buf.byteLength < 20) return false;
+  const b = new Uint8Array(buf, 0, 8);
+  return b[0] === 77 && b[1] === 68 && b[2] === 65 && b[3] === 85 && b[4] === 68 && b[5] === 73 && b[6] === 79 && b[7] === 49; // 'MDAUDIO1'
+}
+function syncAudioStart() {
+  try {
+    syncAudio.ctx = syncAudio.ctx || new (window.AudioContext || window.webkitAudioContext)();
+    if (syncAudio.ctx.state === 'suspended') syncAudio.ctx.resume();
+    if (!syncAudio.gain) { syncAudio.gain = syncAudio.ctx.createGain(); syncAudio.gain.connect(syncAudio.ctx.destination); }
+  } catch (e) { return; }
+  syncAudio.on = true; syncAudio.next = 0; syncAudio.samples = []; syncAudio.extra = 0; syncAudio.late = 0;
+  send({ cmd: 'audioSub', on: true });
+  // Clock pings: quickly at first, then every few seconds.
+  let n = 0;
+  clearInterval(syncAudio.timer);
+  syncAudio.timer = setInterval(() => { if (++n > 6 && n % 6) return; send({ cmd: 'clockPing', c: Date.now() }); }, 500);
+}
+// Phones pause web audio when the screen locks or the app is in the
+// background; pick it up again on return and re-lock to the Pi's timing.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !syncAudio.on || !syncAudio.ctx) return;
+  if (syncAudio.ctx.state !== 'running') syncAudio.ctx.resume().catch(() => {});
+  syncAudio.next = 0; syncAudio.extra = 0;
+  send({ cmd: 'clockPing', c: Date.now() });
+});
+function syncAudioStop() {
+  if (!syncAudio.on) return;
+  syncAudio.on = false;
+  clearInterval(syncAudio.timer);
+  send({ cmd: 'audioSub', on: false });
+}
+// The Pi's clock: from the replies with the shortest round trip (the most
+// accurate), over the last dozen.
+function syncClockPong(msg) {
+  const now = Date.now(), rtt = now - msg.c;
+  if (!(rtt >= 0 && rtt < 5000)) return;
+  syncAudio.samples.push({ rtt, offset: msg.s - (msg.c + rtt / 2) });
+  if (syncAudio.samples.length > 12) syncAudio.samples.shift();
+  syncAudio.offset = syncAudio.samples.reduce((a, b) => (b.rtt < a.rtt ? b : a)).offset;
+}
+function handleSyncAudio(buf) {
+  const a = syncAudio;
+  if (!a.on || !a.ctx || !a.samples.length) return;
+  const dv = new DataView(buf), playAt = dv.getFloat64(8, true), frames = (buf.byteLength - 16) >> 2;
+  if (frames < 1) return;
+  const ab = a.ctx.createBuffer(2, frames, 22050), L = ab.getChannelData(0), R = ab.getChannelData(1);
+  for (let i = 0, o = 16; i < frames; i++, o += 4) { L[i] = dv.getInt16(o, true) / 32768; R[i] = dv.getInt16(o + 2, true) / 32768; }
+  // Volume follows the radio's volume (0.8 = full, as on the Pi) and the mute button.
+  const vol = Number(currentState.effectOptions?.radio?.volume ?? 0.8);
+  a.gain.gain.value = Math.max(0, Math.min(1.25, vol / 0.8));
+  const outDelay = (a.ctx.outputLatency || 0) + (a.ctx.baseLatency || 0);
+  const when = a.ctx.currentTime + (playAt - a.offset - Date.now()) / 1000 - outDelay + a.extra;
+  if (when < a.ctx.currentTime + 0.01) {
+    // Arrived too late: skip it and re-lock on the next. If that keeps
+    // happening (a slow connection), add a little delay rather than go silent.
+    a.next = 0;
+    if (++a.late > 4) { a.late = 0; a.extra = Math.min(1, a.extra + 0.05); }
+    return;
+  }
+  a.late = 0;
+  // Back to back with the previous piece when it's close, so there are no clicks.
+  // Pieces arrive stamped back to back; small timing jitter (network, clock
+  // estimate) is ignored so playback stays seamless, and only a real jump re-times it.
+  const start = a.next && Math.abs(when - a.next) < 0.15 && a.next > a.ctx.currentTime + 0.005 ? a.next : when;
+  const src = a.ctx.createBufferSource();
+  src.buffer = ab; src.connect(a.gain); src.start(start);
+  a.next = start + ab.duration;
+}
+
+const RADIO_BROWSER_PLAY_KEY = 'multidisplay-radio-browser-play';
+function radioBrowserPlaybackWanted() {
+  try { return localStorage.getItem(RADIO_BROWSER_PLAY_KEY) !== '0'; } catch (err) { return true; } // default ON
+}
+function setRadioBrowserPlaybackWanted(on) {
+  try { localStorage.setItem(RADIO_BROWSER_PLAY_KEY, on ? '1' : '0'); } catch (err) { /* ignore */ }
+}
+// Web Audio graph for #radio-browser-audio - ported to match the ORIGINAL
+// retired browser app's radioEnsureGraph()/radioPlay() EXACTLY (see git
+// history's effects-core.js), after an earlier attempt here got the
+// underlying Web Audio behavior wrong: MediaElementAudioSourceNode does
+// NOT silence audible OUTPUT for a cross-origin/non-CORS source - it only
+// blocks READING the node's data (getByteFrequencyData() etc returns
+// zeros). Audio keeps playing fine either way; only the visualizer needs a
+// fallback for stations that don't support analysis. Always created (not
+// gated behind the Spectrum Analyser checkbox) and BEFORE play(), inside
+// the same synchronous click handler, matching the original exactly - a
+// real report ("radio sounds works until I click the spectrum analyser")
+// was this file's own bug (missing crossOrigin='anonymous', graph created
+// too late/async), not a platform limitation as first assumed.
+let _raCtx = null, _raAnalyser = null, _raSource = null, _raBuf = null, _raRunning = false;
+let _raSilent = false, _raSilentTimer = 0, _raLastLevel = 0;
+function radioEnsureGraph() {
+  const el = document.getElementById('radio-browser-audio');
+  if (!el) return false;
+  try {
+    _raCtx = _raCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (_raCtx.state === 'suspended') _raCtx.resume();
+    if (!_raSource) {
+      _raSource = _raCtx.createMediaElementSource(el);
+      _raAnalyser = _raCtx.createAnalyser();
+      _raAnalyser.fftSize = 2048;
+      _raAnalyser.smoothingTimeConstant = 0.45;
+      _raBuf = new Uint8Array(_raAnalyser.frequencyBinCount);
+      // Route through the analyser AND back out to speakers - creating a
+      // MediaElementSource replaces the <audio> tag's default output path,
+      // so without this explicit connect() the stream would play silently.
+      _raSource.connect(_raAnalyser);
+      _raAnalyser.connect(_raCtx.destination);
+    }
+    return true;
+  } catch (err) { return false; } // e.g. no Web Audio API support - falls back to the element's own native playback below
+}
+function radioBrowserPlay(station) {
+  if (!radioBrowserPlaybackWanted() || !station || !station.url) return;
+  if (!window.MULTIDISPLAY_SIM) { syncAudioStart(); return; } // on the Pi: play the Pi's own audio, in step with the speaker
+  const el = document.getElementById('radio-browser-audio');
+  if (!el) return;
+  radioEnsureGraph();
+  _raSilent = false; _raSilentTimer = 0; _raLastLevel = 0;
+  // A real report: "the sweep gets to 10khz then starts again at 40hz,
+  // however the sound does not restart" - confirmed as a browser-only
+  // issue (BT untested, ps confirmed the Pi-side ffmpeg/paplay pipeline
+  // genuinely does relaunch each loop). Root cause: /api/debugTone
+  // renders and streams ONE finite WAV clip - the Pi-side pipeline loops
+  // by relaunching a whole new ffmpeg process each time (see
+  // ffmpegAudio.js's `debugloop:` handling), but this <audio> element had
+  // no equivalent - it just played the one clip and stopped, while the
+  // bars kept going since those are driven by the (correctly looping)
+  // Pi-side pipeline instead. The native `loop` property replays the
+  // SAME already-downloaded clip seamlessly with no extra network
+  // request, so it doesn't matter that the WAV itself has a Cache-
+  // Control: no-store response.
+  el.loop = !!station.loop;
+  // A YouTube start offset ('#mdss=N', see src/youtube.js) becomes a media fragment.
+  const src = station.url.replace(/#mdss=(\d+(?:\.\d+)?)$/, '#t=$1');
+  if (el.src !== src) el.src = src;
+  el.play().catch(() => { /* autoplay blocked or stream unreachable - #radio-status-el already shows the Pi-side status regardless */ });
+  if (!_raRunning) { _raRunning = true; _raLastMs = 0; requestAnimationFrame(radioAnalyserTick); }
+}
+function radioBrowserStop() {
+  if (!window.MULTIDISPLAY_SIM) syncAudioStop();
+  const el = document.getElementById('radio-browser-audio');
+  if (!el) return;
+  el.pause();
+  el.removeAttribute('src');
+  el.load();
+}
+
+// Reads the analyser every frame (only actually useful in the simulator,
+// where window.PiEngine.EFFECTS.radio.audio is the same live spec/peak
+// object the bundled tick loop's renderSpectrumStyle() already reads every
+// tick - on a real Pi this object doesn't exist client-side and the loop
+// below just no-ops). Bucketing (log-spaced bins, treble-compensation
+// curve) and smoothing (attack/release + peak-hold) ported verbatim from
+// the original app's readMicSpectrum()/auSmooth(). radioAnalyserSilent
+// detection matches the original's auRefreshCurrentSource(): if the
+// average level stays near zero for 4+ seconds despite playing, the
+// station's stream doesn't support analysis (no CORS headers) - stop
+// feeding fake-looking near-zero data and let bars ease to idle instead,
+// same as the original did, WITHOUT affecting audible playback at all.
+let _raLastMs = 0;
+function radioAnalyserTick(nowMs) {
+  requestAnimationFrame(radioAnalyserTick);
+  const el = document.getElementById('radio-browser-audio');
+  const audio = window.PiEngine?.EFFECTS?.radio?.audio;
+  const dt = Math.max(0.005, Math.min(0.5, (nowMs - (_raLastMs || nowMs)) / 1000));
+  _raLastMs = nowMs;
+  if (!_raAnalyser || !audio || !el || el.paused) return;
+  if (!_raSilent) {
+    _raAnalyser.getByteFrequencyData(_raBuf);
+    const AB = audio.spec.length, nb = _raBuf.length, minBin = 1;
+    // maxBin capped to ~80% of the true Nyquist-adjacent bin, not nb-1 - a
+    // real report ("even with gain high, the right 3 bars don't move").
+    // Gain can't amplify signal that isn't there: the bins right next to
+    // Nyquist carry essentially zero energy for ANY real-world audio (every
+    // encode/playback pipeline anti-alias-filters well below Nyquist, and
+    // lossy internet radio streams roll off earlier still, often ~16kHz).
+    // Mapping the last few display bars all the way out to that
+    // acoustically-dead edge meant they could never show real movement
+    // regardless of gain - capping the usable range to a realistic top
+    // frequency keeps every displayed bar inside the range that actually
+    // carries content.
+    const maxBin = Math.max(minBin + 1, Math.round((nb - 1) * 0.8));
+    let lo = minBin, level = 0;
+    for (let b = 0; b < AB; b++) {
+      const frac = (b + 1) / AB;
+      let hi = Math.round(minBin * Math.pow(maxBin / minBin, frac));
+      if (hi <= lo) hi = lo + 1;
+      hi = Math.min(hi, maxBin);
+      let sum = 0, count = 0;
+      for (let k = lo; k <= hi; k++) { sum += _raBuf[k]; count++; }
+      const raw = count > 0 ? (sum / count) / 255 : 0;
+      if (raw > level) level = raw;
+      const trebleBoost = 1 + frac * 1.8;
+      const target = Math.min(1, raw * trebleBoost);
+      if (target > audio.spec[b]) audio.spec[b] += (target - audio.spec[b]) * Math.min(1, dt * 20);
+      else audio.spec[b] += (target - audio.spec[b]) * Math.min(1, dt * 7);
+      if (audio.spec[b] > audio.peak[b]) { audio.peak[b] = audio.spec[b]; audio._peakVel[b] = 0; }
+      else { audio._peakVel[b] += dt * 1.2; audio.peak[b] = Math.max(0, audio.peak[b] - audio._peakVel[b] * dt); }
+      lo = hi + 1;
+      if (lo > maxBin) lo = maxBin;
+    }
+    _raLastLevel += (level - _raLastLevel) * Math.min(1, dt * 3);
+    if (_raLastLevel <= 0.04) _raSilentTimer += dt; else _raSilentTimer = 0;
+    if (_raSilentTimer > 4) {
+      _raSilent = true;
+      const statusEl = document.querySelector('.radio-status-el');
+      if (statusEl) statusEl.textContent += ' (visualizer unavailable — station blocks audio analysis)';
+    }
+  } else {
+    for (let b = 0; b < audio.spec.length; b++) {
+      audio.spec[b] += (0 - audio.spec[b]) * Math.min(1, dt * 7);
+      if (audio.spec[b] > audio.peak[b]) audio.peak[b] = audio.spec[b];
+      else { audio._peakVel[b] += dt * 1.2; audio.peak[b] = Math.max(0, audio.peak[b] - audio._peakVel[b] * dt); }
+    }
+  }
+}
+
+function wireRadioPanel() {
+  const panel = document.getElementById('panel-radio');
+  if (!panel) return;
+
+  panel.querySelectorAll('.radio-stop-btn-el').forEach((btn) => btn.addEventListener('click', () => { send({ cmd: 'radioStop' }); radioBrowserStop(); }));
+  // Debug mode - two synthetic test tones (server-generated via ffmpeg, no
+  // real station needed) for visually verifying the spectrum analyser -
+  // see wsServer.js's 'radioDebugTone' handler / radio.js's DEBUG_TONES.
+  // The Pi-side WS command drives the actual spectrum/ticker pipeline
+  // (paplay -> Bluetooth/local output) same as any other station. A real
+  // follow-up ("can the browser play the sound") - the debug tone's
+  // internal `debug:<lavfi spec>` URL isn't a real HTTP URL a browser
+  // <audio> element can fetch, unlike a real station's URL, so this ALSO
+  // points the browser's own audio element at wsServer.js's new
+  // /api/debugTone HTTP route (a separate, independent ffmpeg render just
+  // for this) when "Play in this browser" is on - two completely separate
+  // audio paths, matching how a real station already works.
+  const playDebugTone = (kind, freq) => {
+    send({ cmd: 'radioDebugTone', kind, freq });
+    if (radioBrowserPlaybackWanted()) {
+      // 'sweep' loops (see radioBrowserPlay()'s own comment) - matches the
+      // Pi-side pipeline, which relaunches the sweep indefinitely but
+      // plays drum/tone once.
+      radioBrowserPlay({ url: '/api/debugTone?kind=' + kind + (freq != null ? '&freq=' + freq : ''), loop: kind === 'sweep' });
+    }
+  };
+  document.querySelectorAll('.radio-debug-sweep-btn-el').forEach((btn) => btn.addEventListener('click', () => playDebugTone('sweep')));
+  document.querySelectorAll('.radio-debug-drum-btn-el').forEach((btn) => btn.addEventListener('click', () => playDebugTone('drum')));
+  // Frequency slider - a real follow-up ("add a scroll bar to the sweep
+  // test so I can select the freq"), then ("the freq needs to change as I
+  // scroll" - shortened from an initial 300ms debounce to 80ms so it
+  // tracks the drag live rather than only updating once you stop moving.
+  // Still debounced, not fired on every 'input' tick, since each change
+  // restarts the debug ffmpeg process and firing on literally every
+  // pixel of drag would thrash it badly.
+  let debugFreqDebounce = null;
+  document.querySelectorAll('.radio-debug-freq-el').forEach((sl) => {
+    const valEl = panel.querySelector('.radio-debug-freq-val-el');
+    sl.addEventListener('input', () => {
+      if (valEl) valEl.textContent = sl.value + ' Hz';
+      clearTimeout(debugFreqDebounce);
+      debugFreqDebounce = setTimeout(() => playDebugTone('tone', Number(sl.value)), 80);
+    });
+  });
+  panel.querySelectorAll('.radio-vol-el').forEach((sl) => sl.addEventListener('input', () => {
+    setEffectOption('radio', 'volume', Number(sl.value));
+    const el = document.getElementById('radio-browser-audio');
+    if (el) el.volume = Number(sl.value);
+  }));
+  const browserPlayChk = panel.querySelector('.radio-browser-play-el');
+  if (browserPlayChk) {
+    browserPlayChk.checked = radioBrowserPlaybackWanted();
+    browserPlayChk.addEventListener('change', () => {
+      setRadioBrowserPlaybackWanted(browserPlayChk.checked);
+      if (browserPlayChk.checked) {
+        // Turning the checkbox ON is itself a user gesture, so a currently-
+        // playing station can start in this browser right now too, not
+        // just the next time one is picked.
+        const current = currentState.effectStatus?.radio?.station;
+        if (current && currentState.effectStatus?.radio?.playing) radioBrowserPlay(current);
+      } else {
+        radioBrowserStop();
+      }
+    });
+  }
+
+  const searchInput = panel.querySelector('.radio-search-input-el');
+  const doSearch = () => send({ cmd: 'radioSearch', query: (searchInput?.value || '').trim() });
+  panel.querySelector('.radio-search-btn-el')?.addEventListener('click', doSearch);
+  searchInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+  panel.querySelector('.radio-browse-top-btn-el')?.addEventListener('click', () => { if (searchInput) searchInput.value = ''; send({ cmd: 'radioSearch', query: '' }); });
+
+  // Featured list is static - render once, click handlers close over the
+  // fixed station objects (syncRadioPanel only re-renders it for the
+  // "which one is currently playing" highlight, via a full re-render below).
+  const featuredEl = panel.querySelector('.radio-station-list-el');
+  if (featuredEl) renderFeaturedList(featuredEl, null);
+
+  // Spectrum Analyser sub-panel - the .ov-chk[data-ov="spectrum"] checkbox
+  // here is ALSO caught by wireOverlaysPanel's generic loop (sends a
+  // harmless setOverlay for a key wsServer.js doesn't recognise, see that
+  // function's comment) - this listener does the real work.
+  const spectrumChk = panel.querySelector('.ov-chk[data-ov="spectrum"]');
+  // The switch shows whether the spectrum is ON SCREEN: turning it on
+  // brings the spectrum up, turning it off goes back to the previous effect.
+  if (spectrumChk) spectrumChk.addEventListener('change', () => {
+    const showing = currentState.effect === 'radio' && !!currentState.effectOptions?.radio?.spectrumOn;
+    if (spectrumChk.checked !== showing) cxToggleSpectrum();
+  });
+
+  panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('.spectrum-bands-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('radio', 'bands', Number(btn.dataset.bands));
+    });
+  });
+  // One Style list: the animated scenes (v2) and the classic styles (v1).
+  panel.querySelector('#au-look-sel')?.addEventListener('change', (e) => {
+    const [ver, key] = e.target.value.split(':');
+    if (ver === 'v1') { setEffectOption('radio', 'version', 1); setEffectOption('radio', 'style', key); }
+    else { setEffectOption('radio', 'version', 2); setEffectOption('radio', 'scene', key); }
+    const v1Row = document.getElementById('au-v1-row'); if (v1Row) v1Row.hidden = ver !== 'v1';
+  });
+
+
+  panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('.au-theme-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('radio', 'theme', Number(btn.dataset.autheme));
+    });
+  });
+  panel.querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('.au-barmode-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      setEffectOption('radio', 'barMode', btn.dataset.barmode);
+    });
+  });
+  const fitScreenChk = panel.querySelector('.sp-fit-screen-el');
+  if (fitScreenChk) fitScreenChk.addEventListener('change', () => setEffectOption('radio', 'fitToScreen', fitScreenChk.checked));
+  const autoGainChk = panel.querySelector('.au-autogain-el');
+  if (autoGainChk) autoGainChk.addEventListener('change', () => setEffectOption('radio', 'autoGain', autoGainChk.checked));
+  const gainSlider = panel.querySelector('.au-gain-el'), gainVal = panel.querySelector('.au-gain-val-el');
+  if (gainSlider) gainSlider.addEventListener('input', () => {
+    if (gainVal) gainVal.textContent = Number(gainSlider.value).toFixed(1) + '×';
+    setEffectOption('radio', 'gain', Number(gainSlider.value));
+  });
+  const syncSlider = panel.querySelector('.au-sync-el'), syncVal = panel.querySelector('.au-sync-val-el');
+  if (syncSlider) syncSlider.addEventListener('input', () => {
+    if (syncVal) syncVal.textContent = syncSlider.value + 'ms';
+    setEffectOption('radio', 'syncMs', Number(syncSlider.value));
+  });
+  const syncAuto = panel.querySelector('.au-sync-auto-el');
+  if (syncAuto) syncAuto.addEventListener('change', () => {
+    if (syncSlider) syncSlider.disabled = syncAuto.checked;
+    setEffectOption('radio', 'syncAuto', syncAuto.checked);
+  });
+  const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
+  if (scrollSlider) scrollSlider.addEventListener('input', () => {
+    if (scrollVal) scrollVal.textContent = scrollSlider.value;
+    setEffectOption('radio', 'scrollSpeed', Number(scrollSlider.value));
+  });
+}
+
+// Featured stations as a dropdown (a long list of rows was too much); picking
+// one plays it straight away, like tapping a row.
+function renderFeaturedList(el, current) {
+  let sel = el.querySelector('select');
+  if (!sel) {
+    sel = document.createElement('select');
+    sel.className = 'tm-select'; sel.style.width = '100%'; sel.setAttribute('aria-label', 'Featured stations');
+    sel.addEventListener('change', () => {
+      const station = RADIO_STATIONS[Number(sel.value)];
+      if (!station) return;
+      send({ cmd: 'radioPlay', station });
+      radioBrowserPlay(station); // in this same tap, so phone audio may start
+    });
+    el.replaceChildren(sel);
+  }
+  const idx = current ? RADIO_STATIONS.findIndex((x) => x.url === current.url) : -1;
+  const pick = document.createElement('option'); pick.value = ''; pick.textContent = '▶ Pick a featured station…';
+  sel.replaceChildren(pick, ...RADIO_STATIONS.map((st, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = (i === idx ? '♪ ' : '') + st.name + (st.genre ? ' - ' + st.genre : ''); return o; }));
+  if (document.activeElement !== sel) sel.value = idx >= 0 ? String(idx) : '';
+}
+
+function renderSearchResults(el, results, current) {
+  el.innerHTML = '';
+  if (!results || !results.length) return;
+  results.forEach((s) => el.appendChild(radioStationRow(s, current)));
+}
+
+function syncRadioPanel() {
+  updateActiveEffectLabel();
+  const panel = document.getElementById('panel-radio');
+  if (!panel) return;
+  const status = currentState.effectStatus?.radio;
+  const opts = currentState.effectOptions?.radio || {};
+  const current = status?.station || null;
+
+  panel.querySelectorAll('.radio-status-el').forEach((el) => {
+    if (!status) { el.textContent = 'Pick a station'; return; }
+    if (!status.playing) { el.textContent = 'Stopped'; return; }
+    const parts = [status.status];
+    if (status.playbackStatus && !/^Starting playback/.test(status.playbackStatus)) parts.push(status.playbackStatus);
+    el.textContent = (current ? '▶ ' + current.name + (current.genre ? ' — ' + current.genre : '') + ' — ' : '') + parts.join(' — ');
+  });
+  panel.querySelectorAll('.radio-vol-el').forEach((sl) => { if (document.activeElement !== sl) sl.value = opts.volume ?? status?.volume ?? 0.8; });
+
+  const searchStatusEls = panel.querySelectorAll('.radio-search-status-el');
+  const search = status?.search;
+  searchStatusEls.forEach((el) => {
+    if (!search) { el.textContent = ''; return; }
+    if (search.searching) { el.textContent = 'Searching…'; return; }
+    if (search.error) { el.textContent = '✕ ' + search.error; return; }
+    el.textContent = search.results.length ? search.results.length + ' stations found' : '';
+  });
+  const resultsEl = panel.querySelector('.radio-search-results-el');
+  if (resultsEl && search) renderSearchResults(resultsEl, search.results, current);
+
+  // Re-render when the playing station or the favourites change (stars).
+  const favs = currentState.prefs?.stations || [];
+  const listKey = (current?.url || '') + '|' + favs.map((x) => x.url).join(',');
+  const featuredEl = panel.querySelector('.radio-station-list-el');
+  if (featuredEl && featuredEl.dataset.lastCurrent !== listKey) {
+    featuredEl.dataset.lastCurrent = listKey;
+    renderFeaturedList(featuredEl, current);
+    const favEl = panel.querySelector('.radio-fav-list-el');
+    if (favEl) {
+      favEl.replaceChildren(...favs.map((st) => radioStationRow(st, current)));
+      if (!favs.length) favEl.innerHTML = '<div class="ui-note">Tap ★ on any station to keep it here.</div>';
+    }
+    if (resultsEl && search) renderSearchResults(resultsEl, search.results, current);
+  }
+
+  const spectrumChk = panel.querySelector('.ov-chk[data-ov="spectrum"]');
+  const spectrumOptions = panel.querySelector('.ov-options-el[data-ov="spectrum"]');
+  const spectrumOn = !!opts.spectrumOn;
+  if (spectrumChk) spectrumChk.checked = spectrumOn && currentState.effect === 'radio';
+  if (spectrumOptions) spectrumOptions.style.display = spectrumOn ? '' : 'none';
+  panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.bands) === (opts.bands ?? 64)));
+  const isV1 = opts.version === 1;
+  const lookSel = panel.querySelector('#au-look-sel');
+  if (lookSel && document.activeElement !== lookSel) {
+    lookSel.value = isV1 ? 'v1:' + (opts.style || 'glow') : 'v2:' + (opts.scene || 'auto');
+    if (lookSel.selectedIndex < 0) lookSel.value = 'v2:auto'; // a choice from an older version
+  }
+  const v1Row = document.getElementById('au-v1-row'); if (v1Row) v1Row.hidden = !isV1;
+  panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 5)));
+  panel.querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => btn.classList.toggle('active', btn.dataset.barmode === (opts.barMode || 'solid')));
+
+  const fitScreenChk = panel.querySelector('.sp-fit-screen-el');
+  if (fitScreenChk && document.activeElement !== fitScreenChk) fitScreenChk.checked = !!opts.fitToScreen;
+  const autoGainChk = panel.querySelector('.au-autogain-el');
+  // Defaults to ON (opts.autoGain !== false), not off - see radio.js's
+  // effectRadio() for the matching server-side default change.
+  if (autoGainChk && document.activeElement !== autoGainChk) autoGainChk.checked = opts.autoGain !== false;
+  const gainSlider = panel.querySelector('.au-gain-el'), gainVal = panel.querySelector('.au-gain-val-el');
+  if (gainSlider && document.activeElement !== gainSlider) { gainSlider.value = opts.gain ?? 2; if (gainVal) gainVal.textContent = Number(gainSlider.value).toFixed(1) + '×'; }
+  const syncSlider = panel.querySelector('.au-sync-el'), syncVal = panel.querySelector('.au-sync-val-el');
+  const syncAutoEl = panel.querySelector('.au-sync-auto-el'), autoOn = opts.syncAuto !== false; // Auto sync is the default
+  if (syncAutoEl) syncAutoEl.checked = autoOn;
+  if (syncSlider) syncSlider.disabled = autoOn;
+  if (autoOn) {
+    // Auto speaker sync: show what the Pi measured (see ffmpegAudio.js _measureLatency).
+    const m = currentState.effectStatus?.radio?.autoSyncMs;
+    if (syncVal) syncVal.textContent = Number.isFinite(m) ? m + 'ms' : 'auto';
+    if (syncSlider && Number.isFinite(m)) syncSlider.value = m;
+  } else if (syncSlider && document.activeElement !== syncSlider) { syncSlider.value = opts.syncMs ?? 150; if (syncVal) syncVal.textContent = syncSlider.value + 'ms'; }
+  const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
+  if (scrollSlider && document.activeElement !== scrollSlider) { scrollSlider.value = opts.scrollSpeed ?? 0; if (scrollVal) scrollVal.textContent = scrollSlider.value; }
+}
+

@@ -17,7 +17,8 @@ const bugRules = {
 };
 
 module.exports = [
-  { ignores: ['node_modules/**', 'public/three.min.js', 'public/sim-engine.js', 'public/effects.json', 'sim/shims/**'] },
+  // public/src/ is linted as the joined public/app.js (its files share one page scope).
+  { ignores: ['node_modules/**', 'public/src/**', 'public/three.min.js', 'public/sim-engine.js', 'public/effects.json', 'sim/shims/**'] },
   {
     files: ['src/**/*.js', 'test/**/*.js', 'scripts/**/*.js', 'sim/**/*.js', '*.js'],
     languageOptions: { ecmaVersion: 2023, sourceType: 'commonjs', globals: { ...globals.node } },

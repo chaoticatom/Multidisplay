@@ -1117,6 +1117,24 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .yt-fav { flex-shrink: 0; background: none; border: 0; color: rgba(238,242,255,.45); font-size: 20px; cursor: pointer; padding: 2px 4px; }
 .yt-fav.on { color: #ffd34d; }
 .yt-play { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; background: #ff2d3d; color: #fff; font-size: 11px; }
+
+/* ── One look for every effect's options ───────────────────────────────────
+   Each effect's panel was laid out by hand with its own inline sizes and
+   colours. These rules give them all the same labels, chips, sliders and
+   inputs (they win over the per-panel inline styles), without touching
+   what any control does. */
+.effect-panel .ov-row-label { display: block; margin: 14px 0 6px !important; font-size: 11px !important; font-weight: 700 !important; letter-spacing: .6px; text-transform: uppercase; color: #9fb0d8 !important; }
+.effect-panel > .ov-row-label:first-child, .effect-panel > div:first-child > .ov-row-label:first-child { margin-top: 2px !important; }
+.effect-panel .opt-grid { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(86px, 1fr)) !important; gap: 8px !important; margin: 0 0 4px !important; }
+.effect-panel .opt-grid > button { min-height: 40px; padding: 8px 10px !important; border-radius: 12px !important; font-size: 13px !important; line-height: 1.15; background: rgba(255,255,255,.06) !important; border: 1px solid rgba(255,255,255,.12) !important; color: #e6ecff !important; box-shadow: none !important; }
+.effect-panel .opt-grid > button.active, .effect-panel .opt-grid > button.on { background: linear-gradient(135deg, var(--cx1), var(--cx2)) !important; border-color: transparent !important; color: #fff !important; }
+.effect-panel div:has(> input[type="range"]) { display: flex !important; align-items: center !important; gap: 10px !important; margin: 0 0 4px !important; }
+.effect-panel input[type="range"] { flex: 1 !important; accent-color: var(--cx1); min-height: 28px; }
+.effect-panel div:has(> input[type="range"]) > span { min-width: 46px !important; width: auto !important; text-align: right; font-size: 13px !important; font-variant-numeric: tabular-nums; color: #cfe0ff !important; }
+.effect-panel select, .effect-panel input[type="text"], .effect-panel input[type="search"], .effect-panel input[type="url"], .effect-panel input[type="number"] { width: 100% !important; box-sizing: border-box; min-height: 40px; padding: 8px 12px !important; border-radius: 12px !important; border: 1px solid rgba(255,255,255,.15) !important; background: rgba(255,255,255,.06) !important; color: inherit !important; font-size: 14px !important; }
+.effect-panel label:has(> input[type="checkbox"]) { display: flex !important; align-items: center; gap: 10px; min-height: 36px; font-size: 14px !important; }
+.effect-panel input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--cx1); }
+.effect-panel .ui-note, .effect-panel .ui-note-spaced { font-size: 12px !important; line-height: 1.4; color: #93a0bf !important; }
 </style>
 </head>
 <body>
