@@ -184,4 +184,37 @@ async function speech(text, voice = 'Kore') {
   return Buffer.from(part.inlineData.data, 'base64');
 }
 
-module.exports = { ask, chat, speech, cleanReply, cleanArt, extractJson, systemPrompt, pickGeminiModel, _geminiWorking: geminiWorking };
+// The models a provider offers this key, for Setup > AI's dropdown.
+// cfg: { provider, key, url }. Returns { models: [...], default }.
+async function listModels(cfg) {
+  const p = aiConfig.PROVIDERS[cfg.provider];
+  if (!p || cfg.provider === 'off') return { models: [], default: '' };
+  let names = [];
+  if (cfg.provider === 'gemini') {
+    if (!cfg.key) throw new Error('enter and save your Gemini key first');
+    const r = await fetchWithTimeout('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': cfg.key } }, 20000);
+    const b = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`Gemini ${r.status}: ${b.error?.message || 'could not list models'}`);
+    names = (b.models || []).filter((m) => (m.supportedGenerationMethods || []).includes('generateContent')).map((m) => String(m.name).replace(/^models\//, ''))
+      .filter((n) => /gemini/i.test(n) && !/tts|image|embed|aqa|live|audio/i.test(n));
+    if (!names.includes(p.model)) names.unshift(p.model); // the "latest" alias isn't listed but works
+  } else if (cfg.provider === 'groq') {
+    if (!cfg.key) throw new Error('enter and save your Groq key first');
+    const r = await fetchWithTimeout('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${cfg.key}` } }, 20000);
+    const b = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`Groq ${r.status}: ${b.error?.message || 'could not list models'}`);
+    names = (b.data || []).map((m) => m.id).filter((n) => !/whisper|tts|guard|playai/i.test(n));
+  } else if (cfg.provider === 'ollama') {
+    const base = (cfg.url || p.url).replace(/\/+$/, '');
+    const r = await fetchWithTimeout(`${base}/api/tags`, {}, 10000);
+    const b = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`Ollama ${r.status}: could not list models`);
+    names = (b.models || []).map((m) => m.name);
+  }
+  // Newest-looking first, the default at the top.
+  const ver = (n) => parseFloat((n.match(/(\d+(\.\d+)?)/) || [0, 0])[1]) || 0;
+  names = [...new Set(names)].sort((a, b) => (b === p.model) - (a === p.model) || ver(b) - ver(a) || a.localeCompare(b));
+  return { models: names.slice(0, 80), default: p.model || '' };
+}
+
+module.exports = { ask, chat, speech, listModels, cleanReply, cleanArt, extractJson, systemPrompt, pickGeminiModel, _geminiWorking: geminiWorking };

@@ -874,6 +874,33 @@ function cxWireAiSetup() {
   });
   document.getElementById('ai-clear-btn')?.addEventListener('click', () => { if (confirm('Remove the saved AI key?')) send({ cmd: 'setAiConfig', clearKey: true }); });
   prov.addEventListener('change', () => cxSyncAiSetup(prov.value));
+  const sel = document.getElementById('ai-model-sel'), model = document.getElementById('ai-model');
+  sel.addEventListener('change', () => {
+    model.hidden = sel.value !== '__custom';
+    if (sel.value !== '__custom') model.value = sel.value; else model.focus();
+  });
+  document.getElementById('ai-model-refresh').addEventListener('click', () => cxRequestAiModels(prov.value));
+}
+// Ask the Pi for the provider's model list (aiModelsResult -> cxRenderAiModels).
+let cxAiModelsFor = null;
+function cxRequestAiModels(p) {
+  cxAiModelsFor = p;
+  if (p === 'off') return;
+  document.getElementById('ai-model-note').textContent = 'Loading models…';
+  send({ cmd: 'aiModels', provider: p, url: document.getElementById('ai-url').value });
+}
+function cxRenderAiModels(msg) {
+  const prov = document.getElementById('ai-provider'), sel = document.getElementById('ai-model-sel'), model = document.getElementById('ai-model');
+  if (!sel || msg.provider !== prov.value) return;
+  const names = (msg.models || []).slice();
+  if (msg.default && !names.includes(msg.default)) names.unshift(msg.default);
+  const cur = model.value || msg.default || '';
+  if (cur && !names.includes(cur)) names.push(cur);
+  sel.replaceChildren(...names.map((n) => new Option(n === msg.default ? '★ ' + n + ' (recommended)' : n, n)), new Option('Custom…', '__custom'));
+  sel.value = cur || msg.default || '__custom';
+  model.value = sel.value === '__custom' ? model.value : sel.value;
+  model.hidden = sel.value !== '__custom';
+  document.getElementById('ai-model-note').textContent = msg.error ? 'Could not list models: ' + msg.error : names.length + ' models available';
 }
 const AI_HELP = {
   off: 'The Ask bar uses built-in words only (calm, party, night sky…). No internet needed.',
@@ -893,6 +920,8 @@ function cxSyncAiSetup(pick) {
   const model = document.getElementById('ai-model'), url = document.getElementById('ai-url');
   if (document.activeElement !== model && !pick) model.value = a.model || '';
   if (document.activeElement !== url && !pick) url.value = a.url || '';
+  if (pick) model.value = (a.defaults && a.defaults[p]) || '';
+  if (cxAiModelsFor !== p) cxRequestAiModels(p);
   document.getElementById('ai-help').textContent = AI_HELP[p] || '';
   document.getElementById('ai-key').placeholder = a.keySet && p === a.provider ? 'Key saved ✓ (type to replace)' : 'Paste your API key';
   document.getElementById('ai-clear-btn').hidden = !a.keySet;

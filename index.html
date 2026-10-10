@@ -2386,7 +2386,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="ui-note" id="ai-help"></div>
       <div id="ai-key-row" style="display:flex;gap:6px;margin:6px 0;"><input id="ai-key" class="ui-input" type="password" autocomplete="off" placeholder="Paste your API key" aria-label="API key" style="flex:1;min-width:0;"><button id="ai-clear-btn" class="ui-btn-small" style="flex:0 0 auto;" hidden>Remove</button></div>
       <div id="ai-url-row" style="margin:6px 0;"><input id="ai-url" class="ui-input" type="url" placeholder="http://192.168.1.10:11434" aria-label="Ollama address" style="width:100%;"></div>
-      <div id="ai-model-row" style="margin:6px 0;"><input id="ai-model" class="ui-input" type="text" placeholder="Model (leave as suggested)" aria-label="Model" style="width:100%;"></div>
+      <div id="ai-model-row" style="margin:6px 0;"><div style="display:flex;gap:6px;"><select id="ai-model-sel" class="ui-input" aria-label="Model" style="flex:1;min-width:0;"></select><button id="ai-model-refresh" class="ui-btn" type="button" title="Refresh the model list">↻</button></div><input id="ai-model" class="ui-input" type="text" placeholder="Model name" aria-label="Custom model" style="width:100%;margin-top:6px;" hidden><div id="ai-model-note" class="dim" style="font-size:12px;margin-top:4px;"></div></div>
       <button id="ai-save-btn" class="ui-btn-primary" style="width:100%;margin-top:6px;">Save</button>
     </div>
   </div>

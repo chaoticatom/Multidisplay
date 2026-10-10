@@ -39,7 +39,7 @@ function save(update) {
 
 function publicView(c = load()) {
   const p = PROVIDERS[c.provider] || PROVIDERS.off;
-  return { provider: c.provider, model: c.model || p.model || '', url: c.url || p.url || '', keySet: !!c.key, providers: Object.fromEntries(Object.entries(PROVIDERS).map(([k, v]) => [k, v.label])) };
+  return { provider: c.provider, model: c.model || p.model || '', url: c.url || p.url || '', keySet: !!c.key, providers: Object.fromEntries(Object.entries(PROVIDERS).map(([k, v]) => [k, v.label])), defaults: Object.fromEntries(Object.entries(PROVIDERS).map(([k, v]) => [k, v.model || ''])) };
 }
 
 module.exports = { load, save, publicView, PROVIDERS };

@@ -907,6 +907,16 @@ const COMMANDS = {
     aiConfig.save(msg || {});
     this._broadcast(this._stateMsg());
   },
+  // Setup > AI model dropdown: the models the chosen provider offers (with
+  // the saved key; or the URL/provider being edited, before saving).
+  aiModels(ws, msg) {
+    const saved = aiConfig.load();
+    const provider = typeof msg.provider === 'string' ? msg.provider : saved.provider;
+    const cfg = { provider, key: provider === saved.provider ? saved.key : '', url: typeof msg.url === 'string' && msg.url ? msg.url : saved.url };
+    ai.listModels(cfg)
+      .then((r) => { if (ws.readyState === 1) ws.send(JSON.stringify({ cmd: 'aiModelsResult', provider, ...r })); })
+      .catch((e) => { if (ws.readyState === 1) ws.send(JSON.stringify({ cmd: 'aiModelsResult', provider, models: [], error: e.message })); });
+  },
 
   // The Ask bar: {text}. Asks the configured AI service (see src/ai.js) and
   // applies the validated actions; replies to the asking client only with
