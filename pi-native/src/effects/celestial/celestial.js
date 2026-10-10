@@ -1,32 +1,8 @@
-// Ported (math unchanged) from effects-livedata.js's effectMoon() (line
-// ~2642) - the "Celestial" effect. Renders one of 13 selectable bodies:
-// Moon (with real phase/terminator calculation), the 8 planets + Pluto,
-// the Sun, a Black Hole, or a multi-body Solar System orbital view - see
-// bodies.js (planets/sun/blackhole/saturn) and solarsystem.js (orbit view).
-//
-// Body selection: the browser reads
-// document.querySelector('input[name="celestial-body"]:checked'); here it
-// comes from core.effectOptions.moon.body (defaults to 'moon'), wired via
-// the generic setEffectOption mechanism in pi-native/public/app.js's
-// wireCelestialPanel(). The Solar System view's Orbit Speed slider is
-// core.effectOptions.moon.solarSpeed (see solarsystem.js).
-//
-// Moon-phase astronomy: getMoonIllumination() is REUSED from
-// weather/state.js (already ported there verbatim from effects-livedata.js's
-// SunCalc-derived math - same _moonCoords/_sunCoords/getMoonIllumination
-// this file's browser counterpart calls) rather than re-derived here -
-// per CLAUDE.md's reuse-first instruction. moonLat (used only to tilt the
-// terminator ellipse, not for rise/set times) is core.effectOptions.moon.lat,
-// wired via the Celestial panel's own city search
-// (wireCelestialCityDropdown() in app.js), falling back to
-// MOON_LAT_DEFAULT (52.04, the browser original's own default) when
-// nothing's been picked. A real report ("celestial needs [this]... it was
-// working on the esp32 version") - and it genuinely was: the browser's
-// moon effect DOES have its own real city search (moonFetchData(),
-// separate from Weather's own moonLat/moonLon), confirmed against its
-// actual source. An earlier port of this file (and an earlier audit here)
-// both incorrectly assumed there was no city-picker at all and left it
-// hardcoded / deleted the panel markup as dead leftovers - it wasn't.
+// "Celestial" effect: the Moon (real phase and terminator), planets, Pluto,
+// the Sun, a Black Hole, or a Solar System orbit view (bodies.js,
+// solarsystem.js). Options come from core.effectOptions.moon (body, solarSpeed,
+// lat). Moon phase reuses weather/state.js's getMoonIllumination(); lat only
+// tilts the terminator and defaults to MOON_LAT_DEFAULT.
 const { getMoonIllumination } = require('../weather/state');
 const { drawString, FONT_MOON, faceMaxPlot } = require('../text');
 const { drawSaturn, drawPlanet } = require('./bodies');

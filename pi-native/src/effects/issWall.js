@@ -1,35 +1,9 @@
-// Wall-mode counterpart to iss.js ("ISS Tracker").
-//
-// Shape check (per the batch brief): iss.js's cube version is a genuine
-// world-map display - one whole SIZE x SIZE panel is a 180°-longitude
-// window of the digitized landmass mask, centered on the ISS's current
-// position, with the other cube faces used for a starfield+station icon,
-// an info card, a ticker, and the overflown country's flag (six
-// independent single-purpose faces - nothing to "spread across" on one
-// stitched canvas the way, say, a panorama would). For the wall, that
-// single map face becomes the natural whole-canvas centerpiece: the
-// longitude window widens with the wall's aspect ratio
-// (`lonWindowDeg = 180 * (wallW/wallH)`, so a 2-panel-wide 128x64 wall
-// shows a full 360° world map instead of the cube's fixed 180°),
-// generalizing the SAME map-window math iss.js's issBuildMapBuf already
-// does rather than tiling/repeating the map per panel - this is the
-// "generalize an existing full-canvas composition to wallW x wallH"
-// shape, same family as weatherWall.js's sky/horizon or neoWall.js's
-// Earth+radar, not a single small centered scene.
-//
-// The ground-track trail, live blinking marker, starfield, and scrolling
-// info ticker are all kept and plotted across the same full-wall map. The
-// per-face flag/info-card/station-icon faces are dropped (there's no
-// second panel to put them on, and tiling a duplicate flag over the map
-// would just occlude it) - the flag/country name are folded into the
-// ticker text instead, so the information isn't lost, just reformatted
-// for a single continuous display (same tradeoff apod.js's wall port made
-// for its "letterbox vs many faces" difference).
-//
-// Fetch scheduling (live position poll, reverse-geocode, flag decode) and
-// the landmass-mask decode (issIsLand) are reused as-is via iss.js's
-// exports - this file only reimplements the map-window pixel loop and
-// text layout against core.setWallPixel/wallW/wallH.
+// Wall-mode counterpart to iss.js ("ISS Tracker"). The map fills the whole
+// wall, with the longitude window widened to the aspect ratio
+// (lonWindowDeg = 180 * wallW/wallH, so a 128x64 wall shows all 360°).
+// Trail, marker, starfield and ticker are kept; the cube's flag/info faces
+// are dropped and the flag/country go into the ticker. Fetching and the
+// landmass mask are reused from iss.js.
 'use strict';
 
 const iss = require('./iss');

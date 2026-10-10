@@ -1,32 +1,8 @@
-// Shared bitmap-text primitives - the ONE place glyph bitmaps get walked.
-//
-// Before this module, ~23 effects each hand-rolled their own copy of the
-// same "for each row, for each col, test a bit, scale it, write a pixel"
-// loop, differing only in which font, which pixel target, and which
-// coordinate convention. That duplication had a real cost: a text-
-// orientation bug took a dozen rounds to fix because each fix landed in
-// one copy while a different, independent copy was the one actually
-// rendering. Every caller now goes through blitGlyph() and differs only in
-// the parts that genuinely differ per effect:
-//
-//   - the FONT (glyph table, cell size, advance) - see the *_FONT
-//     descriptors below, or pass any {w, h, adv, get} object;
-//   - the PLOT callback - where a lit pixel goes and how it blends
-//     (setFaceLED, setWallPixel, max-blend into colBuf/wallBuf, a raw
-//     intensity buffer, a shadow-darken pass...). Bounds checking lives in
-//     the plot callback, not here, since targets differ in what "in bounds"
-//     means (e.g. setWallPixel also skips unoccupied grid cells, while some
-//     wall effects deliberately write wallBuf directly);
-//   - the ORIGIN and FLIPS. Every existing convention reduces to "the
-//     glyph's cells form a top-down block at (x0, y0), optionally with rows
-//     and/or columns reversed": e.g. `v = sv + (4 - row)` is origin (su,
-//     sv) with flipY, `y = sv - (6 - ry)` is origin (su, sv - 6), and
-//     `v = S - 1 - (sv + (4 - row))` is origin (su, S - 5 - sv). Each glyph
-//     is drawn in a single colour, so only the SET of pixels written
-//     matters, not the order they're visited in.
-//
-// Glyph bitmaps are arrays of per-row bitmasks, most-significant bit =
-// leftmost column (bit w-1 is column 0).
+// Shared bitmap-text primitives - the ONE place glyph bitmaps get walked, so a fix
+// lands everywhere. Callers differ only in the FONT ({w, h, adv, get}), the PLOT
+// callback (which does bounds checking and blending for its target) and the ORIGIN
+// and FLIPS (every convention is a top-down block at (x0, y0), rows/cols optionally reversed).
+// Glyph bitmaps are per-row bitmasks, most-significant bit = leftmost column.
 'use strict';
 
 // Walks one glyph bitmap, calling plot(x, y) once per lit output pixel.

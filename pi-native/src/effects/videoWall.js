@@ -1,29 +1,8 @@
-// Wall-mode counterpart to video.js - same idea as gradientWashWall.js vs
-// gradientWash.js: decode/render onto the WHOLE stitched wall canvas
-// (core.wallW/core.wallH, built from however many panels are currently
-// placed/dragged in the "+"-button grid - see panelConfig.js/core.js's
-// initWall()) as one continuous image, instead of repeating the same
-// frame identically on every panel.
-//
-// Much simpler than video.js's cube variant: a flat wall has no faces to
-// wrap a panorama around, so there's nothing here corresponding to
-// video.js's layout picker (panorama/mirror/tile/perspective) or its
-// top/bottom face handling - ffmpeg is just asked to scale the source
-// straight to wallW x wallH and that's the whole picture. Reuses
-// video.js's own effectOptions.video.{url,bright,sat,scroll} (same
-// option-panel fields, no separate wall-specific controls needed) and
-// render.js's applyBrightSat() so brightness/saturation match the cube
-// variant exactly. `scroll` here means "pan the source horizontally
-// across the canvas, wrapping" - useful when the wall's aspect ratio
-// doesn't match the video's and you'd rather see all of it pass by than
-// have it letterboxed/stretched.
-//
-// Separate FfmpegSource instance from video.js's - the two never run in
-// the same tick (app.js dispatches EFFECTS xor WALL_EFFECTS depending on
-// config.mode), so there's no benefit to sharing one, and keeping them
-// independent means switching between cube/2d and wall mode just starts/
-// idles-out the other's process on its own schedule (see
-// ffmpegSource.js's IDLE_TIMEOUT_MS) rather than needing any hand-off.
+// Wall-mode counterpart to video.js: ffmpeg scales the source straight to
+// wallW x wallH as one continuous image (no cube layouts). Reuses effectOptions.video
+// and render.js's applyBrightSat(); `scroll` pans the source horizontally, wrapping.
+// Has its own FfmpegSource - cube and wall never run in the same tick, and each idles
+// out on its own (IDLE_TIMEOUT_MS).
 const { FfmpegSource } = require('./video/ffmpegSource');
 const { browserFrameSource } = require('./video/browserFrameSource');
 const { applyBrightSat } = require('./video/render');

@@ -1,20 +1,8 @@
-// Persisted "last selected city" for the Weather effect, mirroring
-// unsplashConfig.js's exact load()/save()/validate-on-load-with-fallback
-// pattern (survive a restart, JSON file on disk next to this one,
-// gitignored).
-//
-// Real report: the weather effect always reverted to London on every
-// restart instead of remembering whatever city was last picked.
-// effects/weather.js's `core.effectOptions.weather.city` lives only in
-// wsServer.js's in-memory `state` (never persisted, unlike alarms/
-// customCube/panelConfig/unsplashConfig), so a restart always fell back to
-// DEFAULT_CITY='London'. This gives the last-picked city somewhere to
-// survive a restart - loaded into state.effectOptions.weather.city at
-// startup (see app.js) and saved every time setEffectOption sets
-// effect:'weather', key:'city' (see wsServer.js).
-//
-// Data shape: { city: string } - empty string means "nothing picked yet,
-// use weather.js's own DEFAULT_CITY fallback".
+// Persists the Weather effect's last selected city across restarts, using the
+// same load()/save()/validate pattern as unsplashConfig.js. Loaded into
+// state.effectOptions.weather.city at startup (app.js) and saved whenever
+// setEffectOption sets the weather city (wsServer.js).
+// Data shape: { city: string }; '' means use weather.js's DEFAULT_CITY.
 const fs = require('fs');
 const { readSectionJson, writeSection } = require('./settingsStore'); // CONFIG_PATH is now only the pre-settings.json legacy file, imported once
 const path = require('path');

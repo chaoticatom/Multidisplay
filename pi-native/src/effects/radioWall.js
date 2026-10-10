@@ -1,31 +1,8 @@
-// Wall-mode counterpart to radio.js ("Internet Radio").
-//
-// This is primarily an audio-playback effect (ffmpeg decode + paplay) -
-// per radio.js's module comment, only the spectrum-visualizer branch
-// (core.effectOptions.radio.spectrumOn) and the now-playing ticker have
-// any pixel output at all. Both are generalized here from radio.js's
-// `core.panelMode==='2d'` single-flat-panel shape to the full wallW x
-// wallH stitched canvas:
-//   - Spectrum: ./radio/spectrumWall.js is spectrum.js's renderSpectrumStyle
-//     family re-pointed at core.wallW/wallH (see its module comment for why
-//     that's mostly a straight parameter swap, cols=S -> cols=wallW,
-//     S(height)=wallH, with a few faces-native styles - radial/tunnel/vu/
-//     fire - getting new wall-native math instead of a literal per-face
-//     port).
-//   - Ticker: radio/ticker.js draws through core.setFaceLED/core.SIZE, so
-//     rather than bend that helper to a second addressing scheme, this
-//     reimplements the same scroll/wrap math directly against
-//     core.setWallPixel using radio/font.js's glyph table (font DATA
-//     reused, not re-invented - same split ticker.js itself already makes
-//     between "its own scroll logic" and "font.js's glyph table").
-//
-// Playback itself (audio decode, station selection, volume, search) is
-// NOT duplicated here - radio.js owns the single RadioAudio instance and
-// exports it (module.exports.audio) plus getPlaybackState()/sample() so
-// this wall entry point reads the exact same spectrum data the cube-mode
-// effect does, rather than decoding the stream a second time. Matches
-// weatherWall.js/neoWall.js's "own render state, shared underlying
-// resource" split.
+// Wall-mode counterpart to radio.js ("Internet Radio"). Draws the spectrum
+// (./radio/spectrumWall.js) and the now-playing ticker across the whole wall
+// canvas, the ticker using radio/font.js's glyphs with core.setWallPixel.
+// Playback is not duplicated: radio.js owns the single RadioAudio instance,
+// and this reads the same spectrum data through its exports.
 'use strict';
 
 const radio = require('./radio/radio');

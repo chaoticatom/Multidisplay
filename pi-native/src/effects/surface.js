@@ -1,31 +1,11 @@
-// One definition, every display mode: "field" effects (a colour computed
-// from a position and the time - plasma, waves, nebula...) used to be
-// written twice, x.js looping over the cube's surface LEDs and xWall.js
-// looping over the wall's pixel grid, with the maths copied between them.
-// defineFieldEffect() owns the generic part (advancing time, the loop for
-// whichever mode is running, writing pixels, per-pixel state sizing) and
-// the effect supplies only its colour function.
-//
-// pixel(p, ctx) returns [r, g, b] (0..1) for one LED/pixel:
-//   p.x, p.y, p.z - position, each 0..1. On the cube: the LED's 3D surface
-//                   coordinates (core.surfX/Y/Z). On a flat wall: x/y
-//                   across the whole wall, and z = y by default.
-//   p.flat        - true on a wall. Effects whose maths needs a different
-//                   stand-in for the missing third axis branch on this
-//                   (each wall variant's choice is kept exactly as it was).
-//   p.i           - index 0..ctx.count-1, for per-pixel state arrays.
-// ctx: { t, dt, count, flat, core } - frame(ctx), if given, runs once per
-// frame before the pixels (e.g. to (re)size per-pixel state to ctx.count).
-//
-// smooth: true - for slowly varying fields: pixel() runs only on every
-// other row and column (a quarter of the pixels) and the rest are blended
-// from those samples, which looks the same on a smooth pattern at a
-// quarter of the cost. detail(p, ctx, rgb), if given, then runs for EVERY
-// pixel with the blended colour (cheap per-pixel extras such as twinkling
-// stars) and returns the final [r, g, b].
-//
-// Returns the cube-mode effect function, with the wall-mode one attached
-// as .wall - index.js registers both.
+// defineFieldEffect(): one definition of a "field" effect (colour from position
+// and time) for both the cube and the wall. It owns time, the pixel loop and
+// writes; the effect supplies pixel(p, ctx) -> [r, g, b] (0..1).
+//   p: x, y, z (0..1; on a wall z = y), flat (true on a wall), i (pixel index).
+//   ctx: { t, dt, count, flat, core }. Optional frame(ctx) runs once per frame.
+// smooth: true samples a quarter of the pixels and blends the rest; optional
+// detail(p, ctx, rgb) then runs for every pixel. Returns the cube effect with
+// the wall effect attached as .wall.
 'use strict';
 
 // Colour fields drift a little faster with the bass while music plays.

@@ -15,26 +15,9 @@ function resetTicker() { scrollX = 0; }
 // label: plain text, e.g. "SomaFM Groove Salad  •  Ambient/Downtempo    ".
 // Draws onto `face`'s bottom row, advancing scrollX by dt*14px each call -
 // call once per face per tick while a station is playing.
-//
-// Baseline sv = 7 (glyph rows 1..7) - two real reports in sequence pinned
-// this down. First: "the radio text is mostly off screen" - sv=1 clipped
-// 5 of each glyph's 7 rows (the glyph spans sv-6..sv, which went negative
-// for small sv, silently out of bounds). That was fixed by moving sv up
-// to SIZE-2 - which made the text fully visible, but at the WRONG end: the
-// follow-up report ("text still at top, move to bottom") confirms
-// empirically that a LARGE sv (near SIZE-1) renders near the TOP of the
-// panel here, not the bottom - the opposite of what core.js's grid-Y-based
-// faceMap construction would suggest in isolation, but this is the actual
-// observed behaviour and takes priority over that reasoning. sv=7 is the
-// smallest value that keeps the glyph's y range fully non-negative - full
-// glyph, no clipping - while sitting at the LOW end, which the same
-// empirical evidence says is the bottom.
-//
-// Characters are drawn in plain forward order. They used to be reversed
-// to counteract an old full-180-rotation-per-letter glyph drawer; with
-// correctly-shaped letters, reversing the order just produces backwards
-// READING order, which a blocky pixel font makes look exactly like
-// mirror-writing (verified directly with "HELLO").
+// Baseline sv = 7: on the panels a small sv is the BOTTOM, and 7 is the
+// smallest value that keeps all 7 glyph rows (sv-6..sv) on screen.
+// Characters are drawn in plain forward order (reversing gives mirror text).
 function drawTicker(core, face, label, dt) {
   if (!label) return;
   const textW = label.length * CHAR_W;

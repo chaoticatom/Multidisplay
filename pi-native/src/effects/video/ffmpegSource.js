@@ -1,42 +1,10 @@
-// Background ffmpeg-based video decode pipeline - the new capability this
-// port needed (see ../video.js's module comment for why: no Node
-// equivalent to the browser's <video> element). Spawns a system `ffmpeg`
-// (NOT an npm wrapper - see ../video.js) to decode a URL to raw RGB24
-// frames at a low resolution/fps, piped to stdout, and keeps only the
-// latest complete frame (older ones are dropped, never buffered/queued -
-// this is what makes it safe to call every tick without unbounded memory
-// growth, and mirrors the "always show the current frame" behavior a live
-// <video> element gives you for free).
-//
-// Fully non-blocking from a caller's perspective: `ensure()` only ever
-// starts/stops a background child process and returns immediately;
-// `getFrame()` just reads whatever's already been buffered. Same
-// fire-and-forget shape as weather.js's maybeFetch()/cam.js's maybeFetch().
-//
-// Failure handling:
-//  - ffmpeg not installed: `spawn()` throws/emits an ENOENT 'error' event
-//    (depending on platform) - both are caught and surfaced as a clear
-//    "install with: sudo apt install ffmpeg" status, never thrown.
-//  - bad/unreachable URL: ffmpeg exits non-zero - surfaced with the last
-//    line of its stderr. Retried, but only after RETRY_COOLDOWN_MS, so a
-//    permanently-bad URL doesn't spin up a fresh doomed process every
-//    tick (30/sec) - same "don't hammer a failing endpoint" reasoning as
-//    f1-providers.js's f1Fetch() cooldown, see CLAUDE.md.
-//  - clean end-of-stream (exit code 0): treated as "loop" - the next
-//    ensure() call (same url/dims) respawns immediately, no cooldown,
-//    matching the browser's vidEl.loop=true.
-//
-// Idle shutdown: app.js's tick loop only ever calls the CURRENTLY
-// SELECTED effect's function (see app.js's module comment), so
-// ensure() simply stops being called at all the moment the user switches
-// away from the Video Display effect - but the spawned ffmpeg process
-// itself has no way to know that (it just keeps decoding into a pipe
-// nobody's reading `getFrame()` from, silently burning CPU). Rather than
-// touch app.js's generic tick loop (which has no per-effect
-// activate/deactivate hook today) just for this one effect, this module
-// watches its OWN `ensure()` call timestamps on an internal timer and
-// tears the process down after IDLE_TIMEOUT_MS of nobody calling
-// ensure() - equivalent in effect, self-contained here.
+// Background ffmpeg video decode: spawns the system `ffmpeg` to decode a URL to
+// raw RGB24 frames at low resolution/fps and keeps only the latest complete
+// frame (never queued, so memory stays bounded). ensure() and getFrame() never
+// block. Failures (ffmpeg missing, bad URL) become a status message; a failing
+// URL is retried only after RETRY_COOLDOWN_MS, while a clean EOF respawns at
+// once (looping). Since ensure() just stops being called when the effect is
+// deselected, an internal timer tears ffmpeg down after IDLE_TIMEOUT_MS.
 'use strict';
 const youtube = require('../../youtube');
 
@@ -106,40 +74,16 @@ class FfmpegSource {
     this.lastAttemptMs = Date.now();
     this.pending = Buffer.alloc(0);
     this.latestFrame = null;
-    // Real report: loading a new image/video (or just changing the Fit
-    // option) kept flickering between the OLD content and the new one.
-    // Root cause: _teardown() SIGKILLs the old process and nulls
-    // this.proc, but the OLD process's stdout 'data' listener (attached
-    // below) stays registered on ITS OWN stream object regardless -
-    // SIGKILL doesn't retroactively un-emit data already sitting in the
-    // OS pipe buffer, so a few more 'data' events for the dying process
-    // can still fire and call _onData() AFTER teardown, mutating
-    // this.pending/this.latestFrame with stale bytes that then race
-    // against (and can interleave with) the NEW process's own output.
-    // _generation is bumped on every _launch()/_teardown(); the data
-    // handler captures the generation it was created for and silently
-    // ignores any callback that fires after a newer one has started,
-    // so a straggling old-process event can never corrupt current state.
+    // A killed process's stdout can still deliver buffered 'data' events after
+    // teardown. Each launch/teardown bumps _generation, and handlers ignore any
+    // event from a process that is no longer current, so stale bytes from an old
+    // process can't mix with the new one's frames.
     const myGen = ++this._generation;
 
-    // A static image (the "🖼 Image" upload button feeds the exact same
-    // pipeline as "📁 Video" - both just set effectOptions.video.url)
-    // decodes to exactly ONE frame with no -loop flag, so ffmpeg hits a
-    // clean EOF and exits immediately after it. ensure()'s "clean EOF ->
-    // respawn on the next tick" handling (see its module comment) keeps
-    // this technically working, but it means spawning a brand new ffmpeg
-    // process (real OS overhead, tens of ms) on every single decode
-    // cycle instead of once - a real report traced choppy/inconsistent
-    // display of an uploaded image to exactly this. `-loop 1` (an INPUT
-    // option, must come before -i) tells ffmpeg's image demuxer to treat
-    // a still image as an infinitely-repeating single-frame "video"
-    // instead, so it decodes once and then just keeps re-emitting that
-    // same frame at -r fps from the SAME long-lived process, matching
-    // real video's steady-state behavior. Detected by extension on the
-    // upload's original filename (preserved as-is in the saved path by
-    // wsServer.js's sanitizeUploadName) rather than probing file
-    // contents - simple and sufficient, since this only needs to
-    // distinguish "still image" from "real video", not validate the file.
+    // A still image decodes to one frame and exits, which would respawn ffmpeg
+    // every cycle. `-loop 1` (an input option, so it must come before -i) makes
+    // ffmpeg repeat the image at -r fps from one long-lived process. Detected by
+    // file extension, which is enough to tell an image from a video.
     const isStillImage = /\.(jpe?g|png|gif|bmp|webp|tiff?)(\.part)?$/i.test(url);
     // Not a still: -re reads at real-time speed (a downloaded file such as a
     // YouTube stream otherwise decodes far faster than it plays, and only the
@@ -271,18 +215,9 @@ class FfmpegSource {
     this._generation++;
   }
 
-  // Public immediate-stop, equivalent to ensure('', ...) but callable
-  // without needing to know the current w/h/fps/fit - see wsServer.js's
-  // "stopVideoSource" command, which this backs. Needed because the tick
-  // loop only ever calls the CURRENTLY SELECTED effect's function (see
-  // app.js's module comment), so once the user switches away from Video
-  // Display, ensure() simply stops being called at all - _checkIdle()'s
-  // own timer would eventually catch this on its own (IDLE_TIMEOUT_MS),
-  // but that left a real, reported gap: a live browser camera/screen
-  // capture kept sending frames and a stale decoded frame sat in memory
-  // for up to that whole timeout, flashing back if Video Display was
-  // reselected in the meantime. This lets the moment of switching away
-  // itself trigger an immediate, clean stop instead of waiting.
+  // Immediate stop without knowing the current w/h/fps/fit; backs wsServer's
+  // "stopVideoSource" command. Called when the user switches away, so a live
+  // capture stops and a stale frame can't flash back before the idle timeout.
   stop() {
     this._teardown();
     this.key = null;

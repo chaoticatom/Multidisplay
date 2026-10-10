@@ -1,17 +1,8 @@
 // ---------------------------------------------------------------------
-// Overlays panel (data-section="overlays") - global compositing layers
-// (stars/snow/fire/lightning/...), NOT a selectable effect, backed by
-// src/effects/overlays.js + wsServer.js's setOverlay/setOverlayOption/
-// setOverlayGlobalBright commands (see that file's module comment for the
-// wire protocol). Unlike every other panel here, the 13 ported overlays
-// share a uniform markup convention (.ov-chk[data-ov] toggle, .ov-sl
-// [data-ov][data-prop] param sliders, .ov-col[data-ov][data-val] colour
-// swatch buttons) - so this wires all of them generically in one loop
-// instead of 13 near-identical hand-written blocks. Radio/Spectrum use the
-// same .ov-chk markup but have no backend (see greyOutUnsupported) and are
-// left alone here - sending setOverlay for a key wsServer.js doesn't
-// recognise is just silently dropped, but they're disabled anyway so their
-// checkboxes can't be clicked in the first place.
+// Overlays panel - global compositing layers (not an effect), backed by
+// src/effects/overlays.js and the setOverlay* commands. All overlays share one
+// markup convention (.ov-chk / .ov-sl / .ov-col with data-ov), so they are wired
+// generically in one loop. Radio/Spectrum have no backend and stay disabled.
 function wireOverlaysPanel() {
   document.querySelectorAll('.ov-chk[data-ov]').forEach((chk) => {
     const key = chk.dataset.ov;
@@ -36,20 +27,10 @@ function wireOverlaysPanel() {
   });
   const gb = document.getElementById('ov-global-bright');
   if (gb) {
-    // Every drag tick sends setOverlayGlobalBright, which the server
-    // echoes straight back as a "state" broadcast to every connected
-    // client - including this one, mid-drag. syncOverlaysPanel() used to
-    // guard against that echo clobbering the slider with
-    // `document.activeElement !== gb`, but that's unreliable on touch:
-    // some mobile browsers don't actually focus a range input on a touch-
-    // drag the way a mouse-drag focuses it, so the guard silently failed
-    // and every echo snapped the thumb back to the server's (slightly
-    // stale, since network round-trip has real latency) value while the
-    // finger kept moving - a real report ("keeps moving to 100%, hard to
-    // move it"). _gbEditingUntil is a time-based guard instead, set well
-    // past "now" on every input tick regardless of focus state, so
-    // syncOverlaysPanel() ignores echoes for a bit after the last local
-    // edit no matter how touch/focus behaves on a given device.
+    // Each drag tick's send is echoed back as a "state" broadcast mid-drag. A focus-based
+    // guard is unreliable on touch (some mobile browsers don't focus a range input), so
+    // _gbEditingUntil is a time-based guard: syncOverlaysPanel() ignores echoes for a
+    // short while after the last local edit, so the thumb doesn't snap back.
     let gbSendQueued = false;
     gb.addEventListener('input', () => {
       _gbEditingUntil = Date.now() + 1200;
@@ -102,20 +83,10 @@ function syncOverlaysPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Custom Cube - Face Editor (#panel-editor-section, pe-* ids) assigns an
-// effect + sub-options + a per-face overlay subset to each of the 6 cube
-// faces, and the Custom Cube effect's own panel (#panel-custom_cube,
-// cc-select/cc-load-btn) activates a saved configuration from the library.
-// Ported from ui.js's buildPanelEditor()/buildSubOptions() (lines 7-270)
-// and effects-scenes.js's ccRefreshSelect() - see customCubeConfig.js's
-// module comment for how pi-native unifies the browser's separate
-// perFaceEffect(draft)/_customCubeData(active) state into one live `faces`
-// array server-side (currentState.customCube.faces), which is why there's
-// no "— Use global effect —" option here (that indirection existed only to
-// let the draft diverge from what was actually running - not a concept
-// this design needs) and no local pe-* draft state at all: every control
-// below sends straight to the server and re-renders from the next "state"
-// broadcast, same as every other panel in this file.
+// Custom Cube - the Face Editor (pe-*) assigns an effect, sub-options and an overlay
+// subset to each of the 6 faces; the Custom Cube panel (cc-*) loads a saved
+// configuration. There is one live `faces` array server-side (customCubeConfig.js) and
+// no local draft: every control sends straight to the server and re-renders from state.
 // ---------------------------------------------------------------------
 const CC_FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const CC_FACE_OVERLAY_KEYS = ['stars', 'fire', 'sparkle', 'glitch', 'mist', 'snow'];

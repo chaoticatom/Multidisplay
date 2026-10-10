@@ -1,26 +1,7 @@
-// Wall-mode counterpart to life.js ("Crystal Life").
-//
-// life.js runs a generalised Life ruleset over the cube's closed surface:
-// each cell looks at 18 candidate 3D offsets (LIFE_NB) via surfIdx(), which
-// resolves seamlessly across face boundaries because the cube surface has
-// no edges to fall off - a cell in the corner of one face still gets a
-// full 18-neighbour count, some of them living on the adjacent face(s). A
-// flat wall rectangle, unlike the cube surface, *does* have edges - so to
-// keep the same "every cell always has a full, uniform neighbour count"
-// character (rather than cells at the border behaving differently purely
-// because they're near an edge, which would visibly skew activity toward
-// the middle of the canvas), this port wraps neighbour lookups toroidally
-// at the 4 canvas edges instead of clamping them.
-//
-// Ruleset: life.js's 18-neighbour thresholds (survive on 4-6, born on 5-6)
-// don't transfer numerically to a flat grid's standard 8-neighbour Moore
-// neighbourhood - they were tuned for a denser neighbourhood. Scaling each
-// threshold by 8/18 lands almost exactly on classic Conway's Game of Life
-// (B3/S23: survive on 2-3, born on 3) - 4/18*8=1.8, 6/18*8=2.7 -> survive
-// 2-3; 5/18*8=2.2, 6/18*8=2.7 -> born ~2-3, i.e. 3. So rather than force an
-// odd non-standard threshold onto 8 neighbours, this port uses the
-// well-known B3/S23 rule directly, which preserves the same "similar
-// fraction of neighbours alive" character the original was tuned around.
+// Wall-mode counterpart to life.js ("Crystal Life"). Neighbour lookups wrap
+// toroidally at the canvas edges so every cell has a full neighbour count, like on
+// the edgeless cube surface. life.js's 18-neighbour thresholds scaled to 8 neighbours
+// land on classic Conway B3/S23, so that rule is used directly.
 const { hsl, lerp } = require('../core');
 
 let wLifeGrid = null, wLifeNext = null, wLifeAge = null, wLifeGenT = 0;

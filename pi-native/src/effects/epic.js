@@ -1,30 +1,9 @@
-// Ported from effects-livedata.js's effectEPIC() (~line 4679) and its
-// supporting epicFetch()/epicFetchEq()/epicProjectGlobe() helpers
-// (~line 4435-4677). NASA's EPIC instrument on the DSCOVR satellite (L1,
-// ~1.5M km from Earth) photographs the full sunlit disc a few times a day;
-// the browser version does a genuine two-step fetch (metadata listing ->
-// image URL built from date+filename) PLUS a second, independent image
-// source (NASA GIBS MODIS true-colour equirectangular map, ~24h-old real
-// clouds) that it re-projects onto an orthographic globe using the current
-// sub-solar point, so the globe you see keeps rotating/terminator-tracking
-// between the hourly-ish EPIC refreshes even though the underlying cloud
-// photo itself is a day old. Both sources feed the SAME projection
-// (epicProjectGlobe): GIBS equirect is preferred when available, the raw
-// EPIC disc photo is a fallback simple radial mapping. Ported faithfully:
-// - epicFetch(): metadata endpoint (api.nasa.gov/EPIC/api/natural[/date/D])
-//   -> pick latest item -> build image URL from its date+image fields
-//   -> download PNG (api.nasa.gov/EPIC/archive/natural/Y/M/D/png/NAME.png)
-// - epicFetchEq(): GIBS WMS GetMap, walking back up to 4 days for a date
-//   that actually has imagery
-// - epicProjectGlobe(): orthographic sphere projection w/ sub-solar camera
-//   frame + bilinear sampling of the equirect map + limb darkening
-//
-// No DOM/Canvas here - Jimp decodes both PNG/JPEG sources (see cam.js for
-// the established Jimp decode pattern this follows). No word-cascade/canvas
-// text engine either - the browser's scrolling ticker is reproduced with
-// radio/ticker.js's existing 5x7-font ticker helper (already used by
-// radio.js; reused rather than building a new font table per CLAUDE.md's
-// "check for reusable font tables" guidance).
+// NASA EPIC Earth view. Fetches the latest EPIC full-disc photo (metadata
+// listing, then the image) and a GIBS MODIS true-colour equirectangular map
+// (walking back up to 4 days for one with imagery). The map, preferred when
+// available, is projected onto an orthographic globe lit from the current
+// sub-solar point, so the globe keeps turning between EPIC refreshes.
+// Images are decoded with Jimp; the ticker uses radio/ticker.js.
 'use strict';
 
 const { Jimp } = require('jimp');

@@ -1,27 +1,7 @@
-// Ported from effects-livedata.js's effectISS() (line ~5026) plus its
-// supporting helpers (issFetch/issUpdateCountryFlag/issApplyFlagToFace/
-// issIsLand/issBuildMapBuf/issApplyMapToFace/issDrawStation), lines
-// ~4715-5024. Live ISS position tracker: polls wheretheiss.at every 5s
-// (matches the browser's `(Date.now()/1000-issLastFetch)>5` gate - the ISS
-// moves ~7.66km/s, fast enough that a 5s cadence is deliberate, unlike
-// weather's 15-minute one), reverse-geocodes the fix to a country (throttled
-// to every 8s, same as the browser) via BigDataCloud, and loads that
-// country's flag via flagcdn.com.
-//
-// No shared Earth-bitmap helper exists to reuse: this effect's world map is
-// its own digitized 200x100 1-bit landmass mask (ISS_WORLD_MASK_B64 below,
-// copied verbatim from the browser source), unrelated to
-// celestial/celestial.js's moon-phase renderer (procedural craters/maria on
-// a disc, not a lat/lon world map) or any EPIC imagery - there is nothing to
-// share here.
-//
-// No DOM canvas is available server-side, so the browser's two
-// canvas-rendered text elements (the "ISS TRACKER / lat / lon" info card via
-// issBuildTitleBuf(), and the scrolling ticker via issBuildTicker()) are
-// replaced with the same PIXEL_FONT bitmap-glyph approach weather.js and
-// celestial.js already use for on-face text - same visual language as every
-// other ported effect, not a new one. The flag image (a real photo, not
-// stylized) is decoded with jimp, same as cam.js/video.js's image pipeline.
+// Live ISS position tracker: polls wheretheiss.at every 5s, reverse-geocodes to a
+// country via BigDataCloud (at most every 8s) and loads its flag from flagcdn.com
+// (decoded with jimp). The world map is its own 200x100 1-bit landmass mask
+// (ISS_WORLD_MASK_B64). Text uses the shared bitmap fonts.
 const { drawString, FONT_3x5, facePlot } = require('./text');
 const { Jimp, ResizeStrategy } = require('jimp');
 const { fetchWithTimeout } = require('./net');

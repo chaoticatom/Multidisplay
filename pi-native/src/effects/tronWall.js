@@ -1,34 +1,9 @@
-// Wall-mode counterpart to tron.js ("Tron Bikes").
-//
-// tron.js already has an `is2d` branch (border-wall mode: real red edge
-// walls + a reduced center-seeking AI bias) which is exactly the shape
-// this port generalises, per the batch brief - except for a flat wall
-// canvas the border walls are NOT optional the way they are on the cube
-// (where `borderWalls` picks between "wrap past the edge onto another
-// face" and "die at the edge"): a wall has no other face to wrap onto, so
-// this port always plays with edges-are-walls, unconditionally. The
-// `core.effectOptions.tron.borderWalls` option key is read for
-// compatibility (a stray truthy/falsy value from the shared options
-// object won't throw) but has NO EFFECT here - the wall is always
-// bordered - and the sidebar's border-walls toggle is simply moot in wall
-// mode, same as it's already moot/hardcoded-false on the full 6-face cube.
-//
-// bikes/speed/newGame option keys are preserved unchanged (same meaning
-// as tron.js).
-//
-// SIMPLIFIED WALL-NATIVE MOVEMENT (the brief specifically calls this out):
-// tron.js's tronMoveFast()/tronMove() exist ONLY because the cube has 6
-// faces that a bike can cross between mid-move, which needs a per-face
-// axis-remapping switch statement. A flat wall has no faces at all, so
-// "move and wrap-or-not" collapses to plain bounds-checked (x,y) arithmetic
-// - no switch, no face argument, nothing to remap. tronMoveFastWall() below
-// is the wall-native equivalent of tronMoveFast(): same non-allocating
-// reused-scratch-object contract (for the identical reason documented in
-// tron.js - the flood-fill/runway/escape/future-options probes in
-// tronDecide() call this thousands of times per bike per frame), just
-// returning null instead of wrapping when a move would leave the canvas -
-// null means "wall/edge, illegal move", handled by callers exactly like an
-// occupied-trail cell.
+// Wall-mode counterpart to tron.js ("Tron Bikes"). Edges are always walls
+// (nothing to wrap onto), so the borderWalls option is read but ignored;
+// bikes/speed/newGame mean the same as in tron.js.
+// tronMoveFastWall() is plain bounds-checked (x,y) movement that reuses a
+// scratch object (it runs thousands of times per frame) and returns null
+// for an illegal move, which callers treat like an occupied trail cell.
 const { hsl } = require('../core');
 const { tempo } = require('./audioFeatures');
 
@@ -255,19 +230,9 @@ function initTronWall(core) {
   // Canvas edges are always walls in wall mode (no wrap alternative exists)
   for (let x = 0; x < wallW; x++) { tronTrail[x] = 255; tronTrail[(wallH - 1) * wallW + x] = 255; }
   for (let y = 0; y < wallH; y++) { tronTrail[y * wallW] = 255; tronTrail[y * wallW + (wallW - 1)] = 255; }
-  // Real report (same root cause as mazeWall.js's identical fix): on a
-  // non-rectangular layout (e.g. an L-shape), wallW x wallH is only the
-  // BOUNDING box - "gap" cells with no physical panel there were still
-  // fully playable/passable as far as bike movement/collision/AI flood-
-  // fill were concerned (all of it only ever bounds-checked against
-  // wallW/wallH, never against which panel cells are actually occupied),
-  // so a bike could ride straight into a gap and off the visible display
-  // entirely. Marking every unoccupied cell as a wall up front means the
-  // game's EXISTING trail-collision check (tronTrail[i] > 0, used
-  // everywhere - tronMoveFastWall's callers, tronDecide's flood-fill/
-  // runway/escape-route probes) automatically treats the shape's real
-  // boundary as solid, with no changes needed to the movement/AI code
-  // itself.
+  // On non-rectangular layouts, wallW x wallH is only the bounding box. Mark
+  // every unoccupied cell as wall so the existing trail-collision check
+  // (tronTrail[i] > 0) keeps bikes and the AI probes off the missing panels.
   for (let y = 0; y < wallH; y++) {
     for (let x = 0; x < wallW; x++) {
       const gx = (x / core.wallPanelSize) | 0, gy = (y / core.wallPanelSize) | 0;

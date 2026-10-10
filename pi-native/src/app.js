@@ -142,32 +142,11 @@ async function main() {
     console.log('[app] SKIP_WIFI_SETUP=1 - skipping WiFi provisioning check');
   }
 
-  // state.overlays: GLOBAL overlay config (composite on top of whatever
-  // effect is selected, not tied to it like state.effectOptions) - see
-  // effects/overlays.js's module comment. Deep-cloned off OV_DEFAULTS so
-  // mutating one overlay's params (via the setOverlayOption WS command)
-  // never mutates the shared defaults object itself.
-  // state.alarms / state.activeAlarm: Timer system, same "GLOBAL, runs
-  // every tick regardless of selected effect" category as state.overlays -
-  // see effects/alarms.js's module comment for the persisted-state file
-  // (alarmConfig.js) and the exact tick-order this composes with overlays
-  // in below. onAlarmsChanged persists to disk + broadcasts state on any
-  // mutation alarmFire() itself makes (e.g. a 'once' alarm disabling
-  // itself, or an alarm's overlayKeys turning overlays on) - wsServer.js's
-  // add/update/delete/toggle/dismiss handlers persist+broadcast too, but
-  // alarmFire() runs from THIS tick loop, not from a WS handler, so it
-  // needs its own hook to do the same.
-  // state.customCube: Custom Cube's persisted per-face effect assignment +
-  // saved-configuration library - same "GLOBAL-ish but only rendered when
-  // selected as the effect" category as effectOptions, not overlays/alarms
-  // (those two run every tick regardless of state.effect; Custom Cube only
-  // renders when state.effect==='custom_cube', same as any other effect) -
-  // see effects/customCube.js's module comment and customCubeConfig.js for
-  // the persisted shape. Unlike alarms/overlays there's no autonomous
-  // engine-side mutation of this state (nothing here fires on its own the
-  // way an alarm does), so unlike alarmConfig there's no onXChanged hook -
-  // every mutation comes from a WS command, and wsServer.js persists+
-  // broadcasts directly after each one (see its _persistCustomCube()).
+  // state.overlays: global overlays drawn over any effect (effects/overlays.js),
+  // deep-cloned from OV_DEFAULTS so edits never touch the shared defaults.
+  // state.alarms/activeAlarm: global timers. alarmFire() runs from the tick loop,
+  // not a WS handler, so onAlarmsChanged persists and broadcasts its changes.
+  // state.customCube: only changed by WS commands, which persist it themselves.
   const state = {
     effect: 'wave', brightness: 1.0, speed: 1.0, overlays: JSON.parse(JSON.stringify(OV_DEFAULTS)),
     musicReact: { on: false, amount: 0.6 }, // see effects/audioFeatures.js
@@ -353,21 +332,12 @@ async function main() {
   let lastMs = performance.now();
 
   if (useRenderWorker) {
-    // Ping-pong instead of a free-running setInterval: the next 'tick' is
-    // only sent once the worker's 'frame' reply for the current one has
-    // been applied. This (a) naturally paces to whatever rate the worker
-    // can actually keep up with rather than flooding it with messages
-    // faster than it can process them, and (b) guarantees the
-    // alarms/activeAlarm/blank/effectStatus round-trip (see
-    // renderWorker.js's module comment for why this needs to be
-    // authoritative-from-the-worker) is applied to `state` BEFORE the next
-    // outgoing snapshot is built, so nothing the worker mutated ever gets
-    // silently overwritten by a stale main-thread copy.
-    // Every command and every broadcast already bumps ws.stateVersion, so a
-    // change goes across at once; this is only the backstop for a change that
-    // doesn't broadcast. It used to be 1 s, and those constant full copies
-    // overwriting the worker's own progress caused real bugs (timers that
-    // never fired, a message note that kept dropping in again).
+    // Ping-pong instead of setInterval: the next 'tick' is sent only after the
+    // worker's 'frame' reply is applied. This paces to what the worker can keep up
+    // with, and applies worker-owned state (alarms, effectStatus, ...) before the
+    // next snapshot so it is never overwritten by a stale main-thread copy.
+    // Commands bump ws.stateVersion; this resend is only a slow backstop, since
+    // frequent full copies overwrite the worker's own progress.
     const STATE_RESEND_MS = 15000;
     let sentStateVersion = -1, lastStateSendMs = -Infinity;
     const sendTick = () => {
@@ -466,22 +436,9 @@ async function main() {
       // weather.js's module comment for why (it double-applies speedMult for
       // one specific timer, faithfully matching the browser source).
       core.speedMult = state.speed;
-      // core.panelMode: the browser's `panel2dMode` global, read by effects
-      // that render differently on a single flat panel vs. a cube face (e.g.
-      // weather.js's horizon/sun/moon/text placement) - see that file's
-      // module comment. Only 'wall'/'2d'/'cube' as set by panelConfig; 'wall'
-      // isn't a real single flat panel in the same sense (it's N panels), so
-      // effects keying off "is this the old single-2D-panel case" check
-      // `core.panelMode === '2d'` specifically, not `!== 'cube'`.
-      // core.panelMode/effectOptions/customCubeFaces/overlaysState are set
-      // inside tick() (src/tick.js) now, shared verbatim with the browser
-      // simulator bundle - see that file's module comment.
-      // Some effects (weather, and potentially others with their own
-      // background fetch - see effects/weather.js's getStatus()) expose a
-      // status snapshot (fetch in progress / last error / live values) for
-      // the control page's option panel to display, since it has no other
-      // way to see what a Pi-side-only fetch actually did - also computed
-      // inside tick().
+      // core.panelMode, effectOptions, etc. and effect status snapshots are all set
+      // inside tick() (src/tick.js), shared with the simulator. Effects that want
+      // the old single flat panel case check `core.panelMode === '2d'`, not `!== 'cube'`.
       const frameStart = performance.now();
       tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt);
       if (core.sfx && core.sfx.length) playSfx(state, core.sfx.splice(0));
@@ -520,23 +477,9 @@ async function main() {
     process.exit(0);
   });
 
-  // Without this, ANY uncaught exception anywhere (a bad frame from
-  // ffmpeg, a malformed WS payload, a bug in one specific effect) crashes
-  // the whole process. systemd's Restart=on-failure (see systemd/
-  // multidisplay-pi.service) brings it back up a few seconds later, but
-  // with fresh in-memory `state` - state.effect isn't persisted anywhere
-  // (unlike alarms/customCube/panelConfig, which ARE saved to disk), so a
-  // crash-restart silently reverts whatever was selected back to the
-  // 'wave' default. A real instance of this was traced to a request-
-  // handler double-response bug in wsServer.js's video-upload endpoint
-  // (fixed separately) - but that class of bug (a stray exception in one
-  // corner of a much larger effect library) is exactly the kind future
-  // code here could reintroduce elsewhere, so log-and-keep-running is a
-  // more appropriate default for a physical display appliance than crash-
-  // and-lose-state. Deliberately NOT re-throwing/exiting: on a Pi driving
-  // real LED panels, staying up in a possibly-degraded state (worst case:
-  // the current effect keeps misbehaving) is better than a naked panel and
-  // a state reset every time something somewhere throws once.
+  // Log uncaught exceptions and keep running. A crash-restart loses in-memory
+  // state (state.effect isn't saved), and for an LED appliance a degraded but
+  // running display beats a blank panel and a reset. Deliberately not re-throwing.
   process.on('uncaughtException', (err) => {
     console.error('[app] uncaught exception (continuing):', err);
   });

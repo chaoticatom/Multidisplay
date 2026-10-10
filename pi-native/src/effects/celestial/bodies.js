@@ -1,16 +1,6 @@
-// Ported verbatim (math unchanged) from effects-livedata.js's drawSaturn()
-// (line ~2029) and drawPlanet() (line ~2215) - the per-body renderers used
-// by celestial.js's effectMoon() port for every "Celestial" body other than
-// the Moon itself and the multi-body Solar System view (see solarsystem.js
-// for that one). Same plumbing swap as every other ported effect: SIZE/
-// faceMap/colBuf come from `core`, and the one bit of real UI state each
-// function used to read directly off the DOM (document.getElementById) now
-// comes through core.effectOptions.moon instead - see celestial.js's
-// dispatch for how that's threaded in.
-//
-// Earth's real-time cloud cover fetch (_earthFetchClouds) uses the global
-// `fetch`/`atob` Node 18+ already provides - no DOM needed, unlike the
-// browser's Image/canvas-based tickers elsewhere in this codebase.
+// Renderers for Saturn and the other planets/bodies used by celestial.js
+// (not the Moon or the Solar System view). UI state comes from
+// core.effectOptions.moon. Earth's cloud cover fetch needs only Node's fetch/atob.
 const EARTH_MAP_B64 = require('./earthMap');
 const { fetchWithTimeout } = require('../net');
 

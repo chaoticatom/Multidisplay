@@ -23,18 +23,9 @@ function wireCamPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Astronomy Pic of the Day's option panel (panel-apod) - a status readout
-// plus a manual "Refresh" button, backed by src/effects/apod.js's daily
-// auto-fetch + getStatus(). The browser's history-browsing Prev/Next and
-// the shared .art-shared-panel Slideshow/Letterbox controls are not wired
-// here - they belong to Unsplash/Art Gallery too, neither of which is
-// ported to pi-native yet (see apod.js's module comment). The NASA API
-// key input is also left unwired: this port reads NASA_API_KEY from the
-// server's environment rather than per-browser localStorage, so there's
-// no setEffectOption equivalent for it - grey just that sub-block.
-// There's no dedicated one-shot "refresh now" command, so this reuses the
-// same monotonically-increasing-token trick as maze.js's "NEW MAZE"/
-// dice.js's "roll" buttons.
+// APOD option panel - status readout plus a "Refresh" button (an increasing token,
+// since there's no one-shot refresh command). The NASA key input is greyed out:
+// the server reads NASA_API_KEY from its environment.
 // ---------------------------------------------------------------------
 let _apodRefreshToken = 0;
 // NASA API key input - backed by the dedicated setNasaConfig command
@@ -310,21 +301,10 @@ function syncCamPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Video Display's option panel (panel-video) - a URL (decoded via ffmpeg
-// on the Pi, see src/effects/video.js) instead of the browser's file/
-// webcam/screen-capture pickers, which have no server-side equivalent -
-// those 4 buttons + the Stop button are disabled here rather than wired,
-// same "grey what has no backend" treatment as everywhere else, just done
-// per-control instead of markUnsupported()'s whole-panel sweep since this
-// panel mixes wired and unwired controls.
+// Video Display's option panel (panel-video): URL, file upload and browser capture.
 // ---------------------------------------------------------------------
-// Uploads a File chosen via the browser's native file picker (works from a
-// phone too - <input type=file accept="video/*"> opens the camera roll/
-// Files app there) to the server's /api/uploadVideo endpoint as the raw
-// POST body, then points the video effect at whatever local path the
-// server saved it to - see wsServer.js's _handleUpload()/UPLOAD_DIR
-// comments for why this is a raw-body upload rather than multipart, and
-// for why only one upload is ever kept on disk.
+// Uploads a chosen File to /api/uploadVideo as the raw POST body (not multipart, see
+// wsServer.js), then points the video effect at the path the server saved it to.
 function uploadVideoFile(file, statusEl) {
   if (!file) return;
   stopBrowserCapture(); // an upload supersedes any live camera/screen capture in progress
@@ -351,17 +331,9 @@ function uploadVideoFile(file, statusEl) {
 }
 
 // ---------------------------------------------------------------------
-// Live webcam / screen-share capture for Video Display - a headless Pi
-// has no camera/display of its own, but THIS browser tab does
-// (getUserMedia/getDisplayMedia are browser APIs, independent of what's
-// actually driving the LED panels), so frames are captured+downsampled
-// right here and streamed to the Pi over the existing WS connection as
-// binary messages (see wsServer.js's module comment for the wire format
-// and effects/video/browserFrameSource.js for how the server consumes
-// them). Only runs while this tab stays open/connected and the capture
-// hasn't been stopped - unlike a typed URL or an uploaded file (which
-// play back entirely server-side via ffmpeg and keep going with no
-// browser needed), this is fundamentally tab-dependent.
+// Live webcam / screen-share capture: the Pi has no camera, but this tab does, so
+// frames are captured, downsampled and streamed to the Pi as binary WS messages (see
+// wsServer.js for the format). Unlike URL/file playback this stops when the tab closes.
 let browserCaptureState = null; // {stream, video, canvas, ctx, interval, kind} | null
 
 function stopBrowserCapture() {

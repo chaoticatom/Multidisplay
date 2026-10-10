@@ -1,40 +1,8 @@
-// Ported verbatim (math unchanged) from effects-games.js's tron section:
-// TRON_HUES/TRON_GRIDS/tronFloodFill()/tronDecide()/tronCrash()/
-// initTron()/effectTron()/tronScoreZone()/tronRenderScoreOnLEDs()/
-// tronRenderWinsText() - "Tron Light Bikes". Uses tronMove() from
-// ./_shared.js (core-first-arg convention, see that file's module comment)
-// and TOTAL_SPAN/hsl from ../core.js for the explosion-particle physics
-// (same SPACING/HALF world-unit math cube.js uses for its 3D positions -
-// kept unchanged, rather than switched to raw grid units, so particle
-// spread/speed matches the browser exactly at any core.SIZE).
-//
-// browser globals -> core.effectOptions.tron.* (generic setEffectOption
-// mechanism, same pattern as maze.js/rain.js/lightspeed.js):
-//   tronBikeCount    -> core.effectOptions.tron.bikes      (default 4, 2-8)
-//   tronSpeedMult    -> core.effectOptions.tron.speed      (default 1)
-//   tronStraightness -> core.effectOptions.tron.straight   (checkbox,
-//     default checked/true) - originally ported faithfully as a dead
-//     value (the browser's own #tron-straight-check has no change
-//     listener either), but a real audit specifically asked for every
-//     control to actually work, so tronDecide() now reads it: checked
-//     keeps the original strong straight-ahead bias (straightWeight 0.8),
-//     unchecked cuts it to 0.15 so bikes turn far more freely. This is a
-//     deliberate departure from the browser original's own bug.
-//   tronBorderWalls  -> core.effectOptions.tron.borderWalls (default false)
-//   "⟳ NEW GAME" button -> core.effectOptions.tron.newGame (monotonically
-//     increasing token, same one-shot-via-token trick as maze.js's newMaze)
-//
-// is2d threading: `core.panelMode === '2d'` replaces the browser's
-// `typeof panel2dMode!=='undefined' && panel2dMode` guards, same as
-// maze.js/weather.js - pi-native's own flat single-panel hardware mode,
-// not hardcoded false. Border-wall mode (the red edge walls + reduced
-// center-seeking AI bias) is real gameplay behaviour gated on
-// `is2d && borderWalls`, exactly as in the browser.
-//
-// tronUpdateScoreboard() is dropped - it only ever wrote to a DOM element
-// (#tron-scoreboard) that has no equivalent in pi-native's headless
-// engine. tronRenderScoreOnLEDs() (the actual on-cube score boxes drawn
-// into colBuf) is ported in full, since that part is real pixel output.
+// "Tron Light Bikes", ported from the browser version with the math unchanged.
+// Explosion particles use TOTAL_SPAN world units so spread matches at any core.SIZE.
+// Options (core.effectOptions.tron): bikes (2-8, default 4), speed, straight (default
+// true; unchecked makes bikes turn far more often), borderWalls (2D panel only),
+// newGame (increasing token, one-shot). Score boxes are drawn on the LEDs.
 const { hsl, TOTAL_SPAN } = require('../core');
 const { tempo } = require('./audioFeatures');
 const { tronMove } = require('./_shared');
@@ -42,21 +10,10 @@ const { tronMove } = require('./_shared');
 const TRON_HUES = [0.57, 0.08, 0.92, 0.33, 0.70, 0.15, 0.50, 0.02];
 const TRON_GRIDS = [[0.01, 0.06, 0.12], [0.01, 0.06, 0.01], [0.06, 0.01, 0.06], [0.04, 0.04, 0.04]];
 
-// Non-allocating counterpart of _shared.js's tronMove(), used only inside
-// this file's hot AI-decision loops (floodfill BFS + the runway/escape/
-// future-options probes in tronDecide()). Those loops call this thousands
-// of times per bike per frame; tronMove()'s [face,u,v,du,dv] array return
-// was measured allocating enough garbage to make tronDecide() take ~150ms/
-// tick on ordinary desktop hardware (worse on a Pi) - by far the slowest
-// thing in the whole tick loop. None of these callers read the
-// post-wrap du/dv tronMove() also returns (verified against the original
-// effects-games.js source: floodfill and the runway/escape/future-options
-// probes only ever destructure [nf,nu,nv], never [,,,ndu,ndv]), so writing
-// face/u/v into a single reused scratch object is behaviourally identical,
-// just without the per-call array allocation. The real per-substep bike
-// move in effectTron() still uses the original tronMove() (needs the
-// rotated direction, and only runs once or twice per bike per frame, so
-// its allocation cost is negligible).
+// Non-allocating version of _shared.js's tronMove() for the hot AI loops (flood fill
+// and probes in tronDecide()), which call it thousands of times per frame; the array
+// return made tronDecide() very slow. These callers only need face/u/v, so results go
+// into one reused object. The real bike move still uses tronMove() (needs du/dv).
 const _mv = { face: 0, u: 0, v: 0 };
 function tronMoveFast(core, face, u, v, du, dv) {
   const SIZE = core.SIZE, M = SIZE - 1, nu = u + du, nv = v + dv;
@@ -154,22 +111,10 @@ function tronFloodFill(core, face, u, v, du, dv) {
 
 function tronDecide(core, bk, is2d, borderWalls) {
   const SIZE = core.SIZE, faceMap = core.faceMap;
-  // "STRAIGHT LINES" checkbox - a real audit finding: this option
-  // round-tripped through effectOptions.tron.straight but tronDecide()
-  // never read it, exactly replicating an upstream browser-app bug (see
-  // this file's own module comment above). First fix just weakened the
-  // straight-ahead bonus, but a follow-up report ("if unchecked, the
-  // bikes can curve as they race" - i.e. it wasn't visibly happening)
-  // confirmed that alone isn't enough: the dominant scoring term below
-  // (s.space, flood-fill territory) already favours going straight in
-  // open space on its own, independent of straightBonus's weight, so
-  // shrinking that one term barely changed anything observable. Bikes
-  // move on a fixed grid (no true diagonal movement is possible), so
-  // "curving" here means turning noticeably more often - straightOn=false
-  // now ALSO adds an explicit turnBias favouring the two turning
-  // candidates over going straight (applied per-candidate below), strong
-  // enough to compete with the space-preservation instinct instead of
-  // just slightly discounting one input to it.
+  // "Straight lines" option. Flood-fill space scoring already favours going straight,
+  // so weakening straightBonus alone changed little. When unchecked, an explicit
+  // turnBias also favours the two turning candidates, strong enough to compete with
+  // space preservation, so bikes visibly turn more often (movement is grid-only).
   const straightOn = !!(core.effectOptions?.tron?.straight ?? 1);
   const straightWeight = straightOn ? 0.8 : 0.15;
   const { face: f, u, v, du, dv } = bk;

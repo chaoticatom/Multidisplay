@@ -1,29 +1,7 @@
-// Wall-mode counterpart to ./spectrum.js's renderSpectrumStyle() family.
-//
-// Shape check (per the batch brief): every style in spectrum.js already
-// draws onto a flat `cols x S` rectangle - `cols` is either S (single
-// panel, core.panelMode==='2d') or 4*S (four cube side faces stitched
-// side-by-side via sideCol()), and each column is placed via
-// core.setFaceLED(face,u,y,...). That's already "generalize the is2D
-// branch" shape: for the wall canvas, cols becomes core.wallW, the row
-// axis becomes core.wallH (not necessarily square, unlike the cube's S),
-// and every pixel write goes straight through core.setWallPixel(x,y,...)
-// (or a max-blend write against core.wallBuf for the bloom/glow helpers,
-// same convention neoWall.js/weatherWall.js already use) - no face/
-// sideCol indirection needed since the wall is already one flat canvas.
-//
-// auColor() (the 7-theme colour engine) is imported and reused VERBATIM
-// from ./spectrum.js - it's pure colour math with no face/coordinate
-// dependency, nothing to port.
-//
-// The three faces-native styles (radial/tunnel/fire/vu used the 6 cube
-// faces or the polar top/bottom faces for parts of their look) don't have
-// a literal per-face equivalent on a flat canvas, so those get NEW math
-// here that reproduces the same visual idea (radial rings expanding from
-// wall centre, a single centred tunnel, VU bar spanning the full wall
-// width, fire columns spanning the full wall) against wallW/wallH instead
-// of reusing face-indexed loops - same "new per-style math where a literal
-// port doesn't make sense" allowance the batch brief calls out.
+// Wall-mode counterpart to ./spectrum.js's renderSpectrumStyle() family. Columns span
+// core.wallW and rows core.wallH, written via core.setWallPixel (or max-blended into
+// wallBuf for glow). auColor() is reused from spectrum.js. Styles that depended on cube
+// faces (radial/tunnel/fire/vu) get new math reproducing the same look on a flat canvas.
 'use strict';
 
 const { hsl } = require('../../core');

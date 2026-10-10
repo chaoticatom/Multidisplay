@@ -1,45 +1,13 @@
-// Timer ("alarm") engine - ported from ui.js's "ALARM SYSTEM" section
-// (alarmCheck/alarmFire ~line 913-1000, renderGiantSun ~line 1002,
-// renderAlarmSunrise ~line 1118, the countdown/message text renderers used
-// from animate() ~line 2974-3320).
-//
-// Architecturally the same category as effects/overlays.js: this is NOT a
-// selectable effect, it's global state that runs every tick regardless of
-// which effect is selected, checked on its own 2-second interval (matches
-// the browser's `if(alarmT>2){alarmT=0;alarmCheck();}`), with its own
-// persisted state file (alarmConfig.js) and WS commands (wsServer.js).
-// See app.js's tick loop for exactly where each exported function below is
-// called and why - the call ORDER matters and mirrors animate()'s order
-// precisely (see that function's comments for the fidelity reasoning):
+// Timer ("alarm") engine: global state checked every tick (alarm check
+// every 2 s), not a selectable effect, with its own config (alarmConfig.js)
+// and WS commands. Call ORDER in the tick loop matters:
 //   1. renderMainMessage()   - writes colBuf directly if phase 'main'
-//   2. (app.js) skip-or-run the normal EFFECTS[state.effect], gated by isBlockingNormalEffect()
-//   3. (app.js) runOverlays() - global overlays, always
+//   2. (tick) skip-or-run the normal effect, gated by isBlockingNormalEffect()
+//   3. (tick) runOverlays() - global overlays, always
 //   4. applyDonePhase()      - blanks colBuf + brightness if phase 'done'
-//   5. renderPrePhase()      - ramp + sunrise/giant-sun/wind-down rendering, phase 'pre' only; overwrites colBuf
-//
-// Scope boundaries (documented, not faked - same pattern as cam.js/
-// fireworks.js/video.js's own out-of-scope pieces):
-//   - triggerType==='playlist': pi-native has no playlist engine at all
-//     (checked effects/index.js and app.js - neither has one). A
-//     playlist-type alarm is treated exactly like alarmFire()'s own
-//     else-branch for "no effect selected": message-on-black, current
-//     colBuf otherwise left alone (matches the original's actual
-//     behaviour for that branch, not a made-up substitute).
-//   - prealarm.effectRise (browser: alarm wakes into a chosen live effect,
-//     e.g. weather with a specific city, or internet radio) and
-//     prealarm.wxRise (weather-specific sunrise) are NOT ported. Both
-//     depend on browser-only integration points the effectRise code path
-//     reaches into (radioPlay()/wxFetch()/a dozen per-effect option
-//     globals saved-and-restored around a single EFFECTS[efKey] call) that
-//     have no pi-native equivalent to hang the same logic off. Rather than
-//     half-port a fragile save/restore-13-globals shim, an alarm with
-//     effectRise or wxRise set falls back to the plain
-//     renderAlarmSunrise() dawn-sky renderer - same "sensible default, not
-//     a fake" spirit as the playlist boundary above. giantSun and the
-//     plain sunrise are fully ported and are the two pre-alarm visuals
-//     pi-native's timer editor actually offers (see index.html's
-//     al-effect-rise-* markup, which was intentionally NOT copied into
-//     pi-native's alarm-modal for this reason).
+//   5. renderPrePhase()      - phase 'pre' ramp/sunrise rendering; overwrites colBuf
+// Not supported: playlist alarms show message-on-black; effectRise/wxRise
+// fall back to the plain renderAlarmSunrise() dawn sky.
 const scenes = require('../scenes');
 const { runOverlays } = require('./overlays');
 const { blitGlyph } = require('./text');

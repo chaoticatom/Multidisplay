@@ -1,28 +1,9 @@
-// Ported from effects-games.js's initRetro()/effectRetro(dt) (~line 889-922,
-// 4481-4544) - the "Retro" effect's entry point, tying together the 14
-// mini-game simulations (./retro/games.js), the shared title-card splash
-// (./retro/title.js) and the rotating "RETRO"/"GAMES" top-face logo
-// (./retro/topface.js). See those three files' module comments for what
-// changed vs. the original (title.js in particular drops embedded raster
-// image data the original used for 11 of the 14 games' splash screens and
-// 3 more games' logos - none of that is reproduced here, only the
-// fully-procedural fallback title card every game already had).
-//
-// Option-panel plumbing: the browser drives game selection/rotation/pool
-// straight off module-level globals (retroSelectedGame/retroRotateInterval/
-// retroAutoGames) set by sidebar click handlers. Here those same three
-// knobs come from core.effectOptions.retro (generic setEffectOption
-// mechanism, same pattern as maze.js's runners/newMaze or tron.js's
-// bikes/speed/newGame):
-//   - core.effectOptions.retro.selectedGame: -1 (or undefined) = auto
-//     rotate, 0-13 = pin to one game (mirrors the "Auto"/named
-//     .retro-game-btn buttons in panel-retro).
-//   - core.effectOptions.retro.rotate: seconds between auto-rotation game
-//     changes (mirrors #retro-rotate-slider), default 8.
-//   - core.effectOptions.retro.autoGames: array of enabled game indices for
-//     the auto-rotation pool (mirrors the .retro-auto-chk checkboxes),
-//     or undefined/null to mean "all 14" - same convention as the
-//     browser's retroAutoGames (null = no filtering).
+// Retro effect entry point: ties together the 14 mini-games (./retro/games.js),
+// the title card (./retro/title.js) and the top-face logo (./retro/topface.js).
+// Options come from core.effectOptions.retro:
+//   - selectedGame: -1/undefined = auto-rotate, 0-13 = pin one game.
+//   - rotate: seconds between auto-rotation changes (default 8).
+//   - autoGames: enabled game indices for rotation, or null/undefined = all.
 const { drawRetroGame } = require('./retro/games');
 const { retroDrawTitle } = require('./retro/title');
 const { retroDrawTopFace } = require('./retro/topface');

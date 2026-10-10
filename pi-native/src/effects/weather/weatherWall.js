@@ -1,50 +1,9 @@
-// Wall-mode counterpart to weather.js's effectWeather().
-//
-// weather.js has ~10 is2d (core.panelMode==='2d') branch points because a
-// single flat panel needs fundamentally different placement math than the
-// 6-face cube (no face wraparound, sun/moon arc across ONE width instead
-// of orbiting a cube, text drawn once instead of duplicated per face,
-// etc). That is2d shape - "one flat panorama, width w / height h, no face
-// concept at all" - is exactly what a wall canvas already is, just with w
-// and h no longer forced equal (a cube's is2d mode is always one square
-// SIZExSIZE panel). So this port takes is2d's code paths as the base and
-// generalizes S (used for both axes since the cube's panel is square) to
-// wallW horizontally / wallH vertically wherever the two diverge, while
-// dropping every cube-only construct entirely rather than branching on
-// is2d at runtime:
-//   - SIDE/faceMap/creaturePx/setCreature (4-face wraparound addressing)
-//     -> gone; every pixel is addressed directly via wp(x,y).
-//   - panXOfFaceU/uOfFacePanX/uOfFacePanIdx (per-face panorama-column math)
-//     -> gone; a wall position IS already a panorama column, no face to
-//     convert through.
-//   - drawBody's face-based zenith special-case (sun/moon straight
-//     overhead crossing between the top face and a side face) -> gone,
-//     not applicable without a top face; the is2d sun/moon block (weather.js
-//     lines ~549-591, a simple horizontal arc) is what's ported instead.
-//   - Face 4 (top/"sky dome") and Face 5 (bottom/"ground") separate fill
-//     passes -> gone, already covered by the single sky+ground gradient
-///    loop below (every column has both a ground row range and a sky row
-//     range, same as is2d's face 0 did).
-//
-// What's genuinely spatial (not fixed UI chrome) and DOES need to track
-// wallW/wallH: horizon line, sky/ground gradient, sun/moon arc position
-// and radius-relative-to-canvas glow falloff, cloud/particle/creature
-// placement, skyline silhouette baseline, city-name ticker scroll bounds.
-//
-// What stays FIXED pixel size (deliberately NOT scaled by wallW/wallH),
-// matching the batch brief's "fixed UI chrome" guidance:
-//   - PIXEL_FONT glyph size (3x5px) - scaling text with wall size would
-//     make it either illegibly tiny (many panels) or absurdly blocky (one
-//     panel); a 3x5 glyph reads fine at any wall size the same way it does
-//     on a single 64px panel, so text height/temp/ticker rows are placed
-//     at fixed pixel offsets from the top, not fractions of wallH.
-//   - Sun/moon disc radius (3.8px / 2.5px cube values below) and cloud
-//     puff pixel radii - these come from wxState.clouds[].sz (already a
-//     canvas-fraction from wxInitSceneWall) so they DO scale with wallW/
-//     wallH already via the existing sz*wallW/sz*wallH math; the sun/moon
-//     radius constants are the one genuinely-fixed exception, matching
-//     weather.js's own cube values exactly (a sun that grew with wall
-//     width would look wrong long before the ticker text would).
+// Wall-mode counterpart to weather.js's effectWeather(), based on its flat-panel
+// (is2d) code paths with every cube-only part removed (face wraparound, top
+// and bottom face passes) and the square panel size generalised to
+// wallW x wallH. Scene elements (horizon, sky, sun/moon arc, clouds, skyline,
+// ticker bounds) scale with the wall; text (3x5 font) and the sun/moon disc
+// radius stay a fixed pixel size so they read the same at any wall size.
 const { wxSkyRGB, wxMoonPhase } = require('./state');
 const { drawString, FONT_3x5 } = require('../text');
 
@@ -69,28 +28,10 @@ function effectWeatherWall(core, dt, wxState, speedMult) {
   wxState.t2 += dt;
   const W = wallW, W1 = W - 1, H = wallH, H1 = H - 1;
 
-  // This whole file's internal math treats v=0 as the BOTTOM of the wall
-  // (ground/horizon at small v, sky/zenith at v approaching H1) - a
-  // deliberate, internally-consistent "y-up" convention inherited from
-  // weather.js's cube version (surfY: 0=bottom, 1=top), not an accident.
-  // core.wallBuf/setWallPixel, however, use plain row-major addressing
-  // where row 0 is the TOP (matches every other wall effect, the frame
-  // slicer, and the real hardware driver - none of which flip). wp()/wb()
-  // are the ONLY place that mismatch gets corrected: every write in this
-  // file goes through them instead of core.setWallPixel/direct wallBuf
-  // access, flipping v HERE at write time so ground ends up at the bottom
-  // of the actual buffer and sky at the top - while leaving the internal
-  // v-up math (horizV, bldBase, sun/moon arc, ...) completely untouched.
-  // A real report ("weather effect still is upside down and reversed")
-  // traced to exactly this - a previous attempt fixed it with a
-  // whole-canvas flip at the FRAME-SLICING stage instead, which seemed to
-  // work but was actually wrong: it silently changed which OCCUPIED CELL
-  // each panel's frame reads from for any layout that isn't symmetric
-  // about the vertical midline (confirmed broken on an L-shaped wall) and
-  // was reverted. Fixing the flip HERE, at the one effect that actually
-  // needs it, doesn't have that problem - it changes WHERE this effect
-  // paints, not how already-painted data gets sliced into panels, so
-  // occupancy/positioning stays correct for any layout shape.
+  // This file's math uses v=0 at the BOTTOM (ground) and v=H1 at the top (sky),
+  // but wallBuf row 0 is the TOP. All writes go through wp()/wb(), which flip v
+  // here. Don't flip the whole frame at slicing time instead: that changes which
+  // cell each panel reads on asymmetric layouts (e.g. an L-shaped wall).
   function wp(u, v, r, g, b) { core.setWallPixel(u, H1 - v, r, g, b); }
   function wb(u, v, r, g, b) {
     if (u < 0 || u >= W || v < 0 || v >= H) return;

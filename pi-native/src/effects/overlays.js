@@ -1,42 +1,10 @@
-// Ported from effects-core.js's "GLOBAL OVERLAYS ENGINE" section (OV config,
-// ovGetEdges/bitCount, all ov* functions, applyFaceOverlays, runOverlays -
-// lines ~1230-1894).
-//
-// Architecturally different from every other file in this directory:
-// overlays are NOT a selectable effect. They're independently-toggleable
-// visual layers (stars, snow, fire, lightning, ...) that composite ON TOP
-// of whatever main effect is currently running, every tick - see
-// index.js's module comment for the registry these are deliberately kept
-// OUT of, and app.js's tick loop for where runOverlays() is actually
-// called (after the main effect writes core.colBuf, before the frame is
-// pushed to the driver/streamed).
-//
-// Ported 13 of the browser's 15 overlays - stars, snow, meteors, edgeglow,
-// fire, sparkle, colorwave, pulse, scanline, vignette, glitch, mist,
-// lightning. Two were deliberately skipped:
-//
-//  - 'radio': the browser's ovRadio(dt) is a documented no-op stub (its
-//    entire job was letting a radio station's audio element keep playing
-//    while another overlay/effect is on screen - it draws nothing). Skipped
-//    entirely rather than port an empty function with no effect.
-//
-//  - 'spectrum': draws a live audio-reactive spectrum analyser sourced from
-//    the browser's Web Audio API (mic/tab/phone audio). pi-native has no
-//    audio-input pipeline of any kind - this is the same permanent scope
-//    boundary as fireworks.js's 'mic' mode (see that file's module comment)
-//    and cam.js's snapshot-only Camera effect. Documented here, not fudged
-//    with fake data; if real audio input is ever added to pi-native, this
-//    is the overlay to wire up.
-//
-// State shape: OV_DEFAULTS mirrors the browser's OV config object (each
-// overlay's {on, ...params}) plus a top-level globalBright (mirrors
-// ovGlobalBright). The caller (app.js) owns a live copy of this shape at
-// state.overlays and passes it into runOverlays() every tick - this is
-// GLOBAL state (applies regardless of which effect is selected), unlike
-// core.effectOptions which is keyed per-effect. Per-overlay *dynamic*
-// state (particle lists, buffers, timers - ovStarData, ovSnowParts, etc.)
-// stays module-level here, same pattern every other effect file in this
-// directory already uses for its own state.
+// Global overlays: independently toggled layers (stars, snow, fire,
+// lightning, ...) drawn on top of whatever effect is running, every tick.
+// Not a selectable effect, so kept out of index.js; runOverlays() is called
+// after the main effect writes colBuf and before the frame is pushed.
+// State: app.js owns state.overlays (OV_DEFAULTS shape, global rather than
+// per-effect) and passes it in each tick; per-overlay particle/timer state
+// lives at module level here.
 const { hsl, lerp } = require('../core');
 
 const OV_DEFAULTS = {
@@ -161,18 +129,9 @@ function ovMeteors(core, dt, cfg) {
 }
 
 // ── Edge Glow ──
-// A real report: "I see the effect that would show on the top panel if I
-// had it connected" - core.faceMembership (and so ovEdgeIdx) is always
-// built from the FULL 6-face cube geometry regardless of panelMode, since
-// core.js doesn't know or care how many physical panels are actually
-// wired up. In 'cube' mode that's correct - a real seam exists between
-// face 0 and the face above it. In '2d' mode there is exactly ONE
-// physical panel: face 0's own top/left/right/bottom rows/columns are
-// still flagged as "edges" (they're shared with faces 1-5 in the cube
-// geometry that's ALWAYS built), so edge-glow kept lighting up the
-// single panel's own border as if it were an internal cube seam glowing
-// against a neighboring panel that doesn't exist. No-op in '2d' mode -
-// there's no second panel for an edge glow to represent a seam with.
+// Edge cells come from the full 6-face cube geometry regardless of
+// panelMode, so in '2d' mode they would light the single panel's border.
+// No-op in '2d': there is no seam to glow.
 function ovEdgeGlow(core, dt, cfg) {
   if (core.panelMode === '2d') return;
   const { surfX, surfY, surfZ, colBuf } = core;

@@ -179,21 +179,12 @@ function syncLightspeedPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Weather's option panel (panel-weather) - city search box + live status/
-// temp/description readouts, backed by core.effectOptions.weather.city and
-// the effectStatus.weather snapshot effects/weather.js's getStatus()
-// exposes (see wsServer.js's _stateMsg()/app.js's per-tick poll).
+// Weather's option panel (panel-weather): city search plus live status
+// readouts from effectStatus.weather.
 // ---------------------------------------------------------------------
-// City autocomplete-as-you-type - ported from the browser original's
-// wxUpdateCityDropdown() (effects-livedata.js). Queries Open-Meteo's free
-// geocoding API directly from the browser (debounced 250ms, matching the
-// original) and lets you pick an exact match instead of typing a bare
-// name and hoping the server's own geocode (fetch.js's fetchWeather(),
-// which re-geocodes by name server-side with count=1) picks the right
-// one - e.g. "Paris" alone is ambiguous (France vs Texas), the dropdown
-// shows country/region to disambiguate. Picking an entry sends the
-// disambiguated "City, Country" string immediately (same as pressing GO),
-// rather than just filling the input and waiting for a separate submit.
+// City autocomplete: queries Open-Meteo geocoding from the browser (250 ms
+// debounce) and shows country/region so ambiguous names can be picked
+// exactly. Picking an entry sends "City, Country" immediately, like GO.
 let _wxCityTimer = null;
 function wireWeatherCityDropdown(cityInput, dropdown) {
   if (!cityInput || !dropdown) return;
@@ -258,21 +249,10 @@ function syncWeatherPanel() {
   const tempEl = panel.querySelector('#wx-temp-line');
   const descEl = panel.querySelector('#wx-desc-line');
   const sunEl = panel.querySelector('#wx-sun-line');
-  // Reflects the server's actual current city (persisted across a restart
-  // via weatherConfig.js - see effects/weather.js's DEFAULT_CITY fallback)
-  // into the input box, so a freshly-loaded/reconnected page shows what's
-  // really selected instead of a stale/placeholder value - guarded against
-  // clobbering while the user is actively typing/picking from the
-  // dropdown, same pattern every other synced input in this file uses. A
-  // real report: the display showed "London" (weather.js's DEFAULT_CITY
-  // fallback, used whenever effectOptions.weather.city is still '' -
-  // nothing picked yet) while the sidebar showed a hardcoded HTML
-  // value="Milton Keynes" that never got corrected, since optCity was
-  // falsy and this never ran. status.city is the server's OWN resolved
-  // name for whatever it's actually displaying (falls back to the same
-  // DEFAULT_CITY), so use that once effectOptions.weather.city is empty -
-  // it's always in sync with what's on the panel, unlike a second
-  // hardcoded default living in this file.
+  // Show the server's current city in the input, unless the user is typing.
+  // When effectOptions.weather.city is empty, use status.city (the server's
+  // resolved name, including its DEFAULT_CITY fallback), so the box always
+  // matches what the panels show.
   const cityInput = panel.querySelector('#wx-city');
   const optCity = currentState.effectOptions?.weather?.city || status?.city;
   if (cityInput && document.activeElement !== cityInput && optCity && cityInput.value !== optCity) {
@@ -529,22 +509,12 @@ function syncCoinflipPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Fireworks' option panel (panel-fireworks) - Mode buttons (random/sync/
-// mic, backed by core.effectOptions.fireworks.mode - see fireworks.js's
-// module comment for what each mode actually does, including the mic-mode
-// fallback), "Show text on cube" checkbox + text input, backed by
-// core.effectOptions.fireworks.textOn/text. The text input is committed on
-// 'change' (blur/Enter) rather than every keystroke's 'input' event - same
-// "don't spam a WS message per keystroke" reasoning as cam.js's URL field -
-// since scrolling-text rebuilds are more expensive than a simple option
-// swap and there's no live preview benefit to rebuilding mid-keystroke here.
+// Fireworks' option panel (panel-fireworks): Mode buttons and the "Show
+// text on cube" checkbox + text, committed on 'change' rather than every
+// keystroke to avoid a WS message per key.
 // ---------------------------------------------------------------------
-// ---------------------------------------------------------------------
-// Strobe Flash's option panel (panel-strobe) - Pattern buttons (data-strobe,
-// backed by core.effectOptions.strobe.pattern), Speed slider
-// (core.effectOptions.strobe.speed), and Colour buttons (data-scol, backed
-// by core.effectOptions.strobe.color) - see strobe.js's module comment for
-// why this always reads straight from effectOptions (no Panel Editor here).
+// Strobe Flash's option panel (panel-strobe): Pattern, Speed and Colour,
+// read straight from core.effectOptions.strobe.
 // ---------------------------------------------------------------------
 function wireStrobePanel() {
   const panel = document.getElementById('panel-strobe');

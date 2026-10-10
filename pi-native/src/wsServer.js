@@ -1,190 +1,10 @@
-// Local control + preview server - both plain HTTP (the control page) and
-// WebSocket (commands + frame streaming) on the SAME port, via one
-// http.Server the `ws` library attaches to. Before this, the port was
-// WebSocket-only, so browsing to http://<pi>:8081/ directly (the obvious
-// first thing to try) showed a bare "Upgrade Required" error - confirmed
-// live by a real user hitting exactly that. Idles (no frame encoding/
-// sending) until a WS client connects, then streams frames - same pattern
-// as g_browserConnected/WS_EVT_CONNECT in the ESP32 firmware's
-// web_server.h, deliberately kept (per this project's design discussion)
-// so nobody watching means zero wasted CPU/bandwidth on preview encoding.
-//
-// HTTP routes:
-//   GET /             -> public/index.html, the control page (effect
-//                         buttons, brightness/speed, panel layout, live
-//                         per-face preview canvases, Bluetooth pairing UI)
-//   GET /effects.json -> {"wave":"Wave Cascade", ...} (EFFECT_NAMES) - the
-//                         page fetches this once instead of hand-
-//                         maintaining its own copy of the effect list
-//
-// Served on TWO ports: the primary one (plain HTTP, e.g. :8081) and a
-// second HTTPS listener on port+1 (e.g. :8082) with a self-signed cert
-// (see tls.js) - identical content/protocol on both, the ONLY reason the
-// second one exists is that
-// getUserMedia()/getDisplayMedia() (Video Display's webcam/screen-capture
-// buttons) are unavailable to JS entirely outside a "secure context"
-// (HTTPS, or literal localhost/127.0.0.1) - browser policy, not something
-// this app can work around. A real report traced those two buttons
-// staying permanently greyed out to exactly this. Every other feature
-// works identically on either port; this is purely an additional entry
-// point, not a replacement - existing http://<pi>:8081/ bookmarks keep
-// working unchanged. Absent (not fatal) if openssl isn't installed.
-//
-// WebSocket wire protocol:
-//   Text frames (JSON), client -> server, control commands:
-//     {"cmd":"setEffect",    "effect":"wave"}
-//       Also clears state.blank (see "clearAll" below) - selecting any
-//       effect always un-blanks the display.
-//     {"cmd":"clearAll"}
-//       Sidebar's "✕ Clear All" button - turns every overlay off and sets
-//       state.blank=true, which app.js's tick loop checks to skip the main
-//       effect entirely (colBuf/wallBuf go and stay solid black) - matches
-//       the browser original's clear-all-btn handler. Cleared by selecting
-//       any effect again.
-//     {"cmd":"setBrightness","value":0.0-1.5}
-//     {"cmd":"setSpeed",     "value":0.0-8.0}
-//     {"cmd":"setPanelConfig","size":8|16|64,"mode":"cube"|"2d"|"wall"}
-//       Mirrors the browser's cube-size picker (8x8/16x16/64x64/2D) -
-//       reused as the panel-layout config here instead of inventing a new
-//       setting, since HUB75 itself can't be auto-probed for panel count
-//       (write-only protocol, no return path - see project discussion).
-//       All 3 sizes mean the same 6-face physical layout; "2d" means 1
-//       flat panel instead. Persisted to disk (panelConfig.js) so it
-//       survives a restart, and always included in the "state" message so
-//       a freshly-connected remote browser's UI reflects whatever was last
-//       chosen on the Pi rather than defaulting to something stale.
-//     {"cmd":"addPanel"}
-//       Pi-native-only addition, not in the original ESP32 app: appends a
-//       panel at the first free cell of the wall grid (switching to "wall"
-//       mode if not already in it) - the sidebar's "+ Add Display" button.
-//     {"cmd":"removePanel","gx":0,"gy":0}
-//     {"cmd":"setPanelPositions","panels":[{"gx":0,"gy":0}, ...]}
-//       Drag-to-rearrange result: a full replacement layout for wall mode.
-//       See panelConfig.isValidPanels()/WALL_MAX_COLS/WALL_MAX_ROWS for the
-//       grid bounds (currently 2x3, matching the physical topology already
-//       wired for cube mode's 3-chain x 2-panel Active-3 layout).
-//     {"cmd":"setOverlay","key":"stars","enabled":true}
-//       Toggles one of the 13 ported overlays on/off (see
-//       effects/overlays.js's OVERLAY_KEYS/module comment - overlays are
-//       GLOBAL layers, not a selectable effect, so this is a separate
-//       command from setEffect/setEffectOption). `key` must be one of
-//       OVERLAY_KEYS or the message is dropped, same defensive spirit as
-//       setEffectOption's effect/key checks above.
-//     {"cmd":"setOverlayOption","key":"stars","option":"density","value":10}
-//       Sets one param on one overlay (e.g. stars' density/speed/color).
-//     {"cmd":"setOverlayGlobalBright","value":0.8}
-//       Sets state.overlays.globalBright (mirrors the browser's
-//       ovGlobalBright slider) - a separate command rather than overloading
-//       setOverlay/setOverlayOption with a magic "__global__" key, since
-//       global brightness isn't a per-overlay on/off or param and doesn't
-//       need `key` validated against OVERLAY_KEYS at all.
-//     {"cmd":"addAlarm","alarm":{...}}                    -> broadcasts state with the new alarm appended (id assigned server-side)
-//     {"cmd":"updateAlarm","id":"...","alarm":{...}}       -> replaces the stored alarm with that id (id itself is not editable)
-//     {"cmd":"deleteAlarm","id":"..."}
-//     {"cmd":"setAlarmEnabled","id":"...","enabled":bool}
-//     {"cmd":"dismissAlarm"}                               -> clears state.activeAlarm early (Timers panel's toggle-off-while-firing behaviour)
-//       Timer system - see effects/alarms.js's module comment for the full
-//       data model / tick-order this composes with overlays. `alarm`
-//       payloads are validated defensively (alarmConfig.isValidAlarm, plus
-//       the same-spirit checks below for the nested prealarm/overlayKeys
-//       fields it doesn't cover) before ever reaching alarmConfig.save() or
-//       state.alarms - same defensive posture as panelConfig.isValidPanels.
-//       Every one of these persists to disk (alarmConfig.save) and
-//       broadcasts the new "state" message so all connected clients (and a
-//       freshly-connected one) see the current list.
-//     {"cmd":"setFaceEffect","face":0,"effect":"fireworks"}  -> assigns an effect to one cube face (face 0-5); effect:null or "none" clears it
-//     {"cmd":"setFaceOpts","face":0,"opts":{...}}            -> replaces that face's saved sub-options (fireworks' text, rain's style, ...); face must already have an effect assigned
-//     {"cmd":"setFaceOverlays","face":0,"overlayKeys":["stars","fire"]} -> per-face overlay picks (a subset of OVERLAY_KEYS), applied only to that face's LEDs when Custom Cube renders it
-//     {"cmd":"saveCube","name":"My Cube"}                    -> snapshots the current per-face assignment (state.customCube.faces) into the named-configuration library; overwrites an existing entry with the same name
-//     {"cmd":"loadCube","index":0}                           -> copies a library entry's faces into the live assignment
-//     {"cmd":"deleteCube","index":0}
-//     {"cmd":"clearFaces"}                                   -> blanks all 6 faces (does not touch the library)
-//       Custom Cube - lets each of the 6 cube faces run a different effect
-//       simultaneously, with a saved-configuration library. See
-//       effects/customCube.js's module comment for the per-face composition
-//       mechanism and customCubeConfig.js for the persisted shape (unifying
-//       the browser's separate draft-editor/active-effect state into one
-//       `faces` array - see that file's module comment for why). Every
-//       command here is validated defensively (face 0-5, effect must be a
-//       real EFFECTS key or null/'none', overlayKeys must be a subset of
-//       OVERLAY_KEYS) before ever reaching customCubeConfig.save() or
-//       state.customCube - same defensive posture as alarmConfig/panelConfig.
-//     {"cmd":"btScan"}                                    -> {"cmd":"btScanResult","devices":[{"mac":"..","name":".."}]}
-//     {"cmd":"btPair","mac":"AA:BB:CC:DD:EE:FF"}           -> {"cmd":"btPairResult","ok":bool,"log":".."}
-//     {"cmd":"btStatus"}                                   -> {"cmd":"btStatusResult","devices":[..]}
-//     {"cmd":"btDiscoverable"}                             -> {"cmd":"btDiscoverableResult","ok":bool,"log":".."}
-//     {"cmd":"btRoutePhoneAudio"}                          -> {"cmd":"btRoutePhoneAudioResult","ok":bool,"log":[..]}
-//       Ported from pi/bluetooth_server.py (a separate Python HTTP service
-//       for the browser-based deployment) - see src/bluetooth.js. Wired
-//       into this same control channel instead of a second service/port,
-//       since this project already has one. Bluetooth operations reply
-//       ONLY to the requesting client (request/response, not broadcast
-//       state) since a scan/status result is specific to that request, not
-//       shared app state every client should see.
-//     {"cmd":"setUnsplashConfig","apiKey":"...","query":"nature"}
-//       Persists the Unsplash Access Key + default search query to disk
-//       (unsplashConfig.js) and broadcasts state.unsplashConfig to every
-//       connected client - see effects/unsplash.js's module comment.
-//     {"cmd":"radioPlay","station":{"name":"..","genre":"..","url":".."}}
-//       Selects/plays an Internet Radio station - either one of the
-//       featured RADIO_STATIONS or a directory search result, same shape
-//       either way (see effects/radio/radio.js's playStation()). Unlike
-//       setEffectOption (a plain value store), this is a dedicated command
-//       because it triggers a real side effect (spawns ffmpeg) - same
-//       "dedicated command for a one-shot action with a result" reasoning
-//       as the Bluetooth commands above, not the generic option-store
-//       pattern. Broadcasts state (station/playing show up in
-//       effectStatus.radio for every connected client, not just the
-//       requester - unlike Bluetooth, "what's playing" is shared state).
-//     {"cmd":"radioStop"}
-//       Stops playback (tears down the ffmpeg/paplay pipeline on the next
-//       tick's ensure() call). Broadcasts state.
-//     {"cmd":"stopVideoSource"}
-//       Immediately tears down Video Display's ffmpeg decode (both cube
-//       and wall instances) and any live browser camera/screen capture,
-//       regardless of which effect is currently selected - see video.js's/
-//       videoWall.js's exported stop() and browserFrameSource.js's clear().
-//       Needed because the tick loop only ever runs the CURRENTLY
-//       SELECTED effect's function, so switching away from Video Display
-//       to something else means effectVideo()/effectVideoWall() simply
-//       stop being called - a plain setEffectOption('video','url','')
-//       wouldn't reach ffmpegSource.js's teardown at all in that case
-//       (only ensure()'s own idle timeout would, eventually). public/
-//       app.js sends this the moment the user clicks away from Video
-//       Display to any other effect (a real report traced a persistent
-//       flicker between video content and the new effect to this gap) and
-//       from the panel's own Stop button. No state broadcast - purely a
-//       server-side cleanup action.
-//     {"cmd":"radioSearch","query":"jazz"}
-//       Searches the radio-browser.info directory (empty/omitted query =
-//       "top clicked" browse list). Async + fire-and-forget from this
-//       handler's perspective - results land in effectStatus.radio.search
-//       on the next tick's state broadcast, not a direct reply, since
-//       "what did the last search return" is meaningful shared UI state
-//       (unlike Bluetooth's per-request scan results) that a second
-//       connected client should also see.
-//   Text frames, server -> client, on connect and on every change:
-//     {"cmd":"state","effect":"wave","brightness":1,"speed":1,"panelSize":64,"panelMode":"cube"}
-//   Binary frames, server -> client, one per face per tick, only while
-//   >=1 client is connected (only face 0 when panelMode is "2d" - 1 panel,
-//   nothing else to stream):
-//     [faceId(1 byte)][R,G,B * SIZE*SIZE bytes, row-major, faceMap order]
-//   This is a new, simpler protocol - not required to bit-match the
-//   ESP32's PKT_VIDEO framing, since direction/purpose differ (Pi -> any
-//   preview client, vs. today's browser -> ESP32) and no existing consumer
-//   code depends on the ESP32's exact framing.
-//   Binary frames, CLIENT -> server - live webcam/screen-share capture for
-//   Video Display's browser source (see effects/video/browserFrameSource.js's
-//   module comment for why this exists: a headless Pi has no camera of its
-//   own, but a connected browser tab does). public/app.js's
-//   startBrowserCapture() sends one of these per captured frame, at
-//   whatever fps its capture interval runs (see that function):
-//     [type(1 byte, always 1)][width(uint16 LE)][height(uint16 LE)]
-//     [kind(1 byte: 0='cam', 1='screen')][R,G,B * width*height bytes, row-major]
-//   Routed by _handleBinaryFrame() straight into browserFrameSource's
-//   shared singleton - effects/video.js and videoWall.js read from it via
-//   the same getFrame(w,h)-exact-dims-match contract FfmpegSource uses, so
-//   they don't need to know or care which source produced a frame.
+// Local control + preview server: plain HTTP (control page, /effects.json) and
+// WebSocket (JSON commands, see wsCommands.js) share one port. A second HTTPS
+// listener on port+1 (self-signed, see tls.js) exists only because browsers allow
+// webcam/screen capture solely in a secure context; it is skipped if openssl is missing.
+// Binary frames: server -> client [faceId][RGB * SIZE*SIZE], sent only while a client
+// is connected; client -> server [1][w u16 LE][h u16 LE][kind 0=cam,1=screen][RGB...]
+// for browser capture, routed into browserFrameSource.
 const WebSocket = require('ws');
 const http = require('http');
 const https = require('https');
@@ -225,20 +45,10 @@ const APP_JS = fs.readFileSync(path.join(PUBLIC_DIR, 'app.js'));
 let THUMBS_JSON = null;
 try { THUMBS_JSON = fs.readFileSync(path.join(PUBLIC_DIR, 'thumbs.json')); } catch (e) { /* tiles fall back to plain buttons */ }           // wires the copied sidebar markup to pi-native's WS protocol
 
-// Local-file upload for Video Display, restoring the browser original's
-// "pick a file from your computer/phone" flow that a headless Pi has no
-// direct equivalent for (see video.js's module comment - this port had
-// scoped that down to URL-only, ffmpeg-decoded playback). ffmpeg reads a
-// local filesystem path exactly the same way it reads a URL (video.js's
-// FfmpegSource just passes whatever string effectOptions.video.url holds
-// straight to `ffmpeg -i`), so the fix is entirely upload-plumbing: the
-// browser POSTs the raw file bytes here, we save it to disk, and the
-// client then does the exact same setEffectOption('video','url',<path>)
-// it already does for a typed URL.
-// No multipart/form-data parsing (would need a new npm dependency) - the
-// client sends the raw File object as the POST body via fetch(), which
-// streams the exact bytes with no multipart boilerplate; the filename
-// travels via a query param instead of a form field.
+// Local-file upload for Video Display. The browser POSTs the raw file bytes (no
+// multipart, so no extra dependency; the filename travels in a query param), we
+// save it to disk, and the client sets the video url to the saved path - ffmpeg
+// reads a local path the same way it reads a URL.
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 // Largest legitimate WebSocket message is a browser-captured video frame
 // (at most WALL_MAX_PANELS 64x64 RGB panels, well under 1MB); the ws
@@ -298,26 +108,11 @@ function previewHasRoom(client, frameBytes) {
 }
 
 class WsServer {
-  // state: shared mutable {effect, brightness, speed}.
-  // config: shared mutable {size, mode} (panelConfig.js shape) - already
-  // loaded from disk by app.js before this is constructed.
-  // onConfigChange(config): called after a validated setPanelConfig command
-  // is applied and persisted, so app.js can rebuild the CubeCore/driver
-  // (which this module has no reference to and shouldn't own).
-  // effectCommandRelay(cmd, payload): optional (RENDER_WORKER=1 only - see
-  // renderWorker.js's module comment). A real report: enabling the render-
-  // loop worker thread silently broke radio (and would have broken video
-  // stop too) - Node gives each worker_threads Worker its own completely
-  // separate module require() cache, so the copy of effects/radio/radio.js
-  // this file calls playStation()/stopStation()/search() on directly
-  // (below) is a DIFFERENT object instance from the one the worker's own
-  // tick() loop actually renders from - a station picked here never
-  // reached the instance that mattered. When set, radioPlay/radioStop/
-  // radioSearch/the video-stop handler relay through this instead of
-  // calling the effect module directly, so the mutation lands on the
-  // SAME instance tick() uses. Left null for the normal (no worker)
-  // single-threaded path, where calling the module directly is correct
-  // and unchanged.
+  // state/config: shared mutable objects owned by app.js. onConfigChange(config) runs
+  // after a validated, persisted setPanelConfig so app.js can rebuild core/driver.
+  // effectCommandRelay(cmd, payload): set only with RENDER_WORKER=1. The worker has its
+  // own require() cache, so radio/video commands must be relayed to the copy tick()
+  // renders from; calling the modules directly here would change the wrong instance.
   constructor(port, state, config, onConfigChange, effectCommandRelay = null) {
     this.state = state;
     this.updater = createUpdater(); // Setup -> Update (see selfUpdate.js)
@@ -350,22 +145,10 @@ class WsServer {
 
     this.http.listen(port);
 
-    // Second listener, on port+1, serving the exact same content/protocol
-    // over TLS with a self-signed cert (see tls.js's module comment) -
-    // ONLY reason this exists is that getUserMedia()/getDisplayMedia()
-    // (Video Display's webcam/screen-capture buttons) are unavailable to
-    // JS entirely on a plain-HTTP, non-localhost origin ("secure context"
-    // browser policy, not something this app can work around) - a real
-    // report traced those buttons staying permanently greyed out to
-    // exactly this. Regular usage (every other feature) is entirely
-    // unaffected and keeps working over the existing plain-HTTP port with
-    // no changes - this is purely an ADDITIONAL entry point for whoever
-    // wants to use the camera/screen-capture feature specifically, not a
-    // replacement. Self-signed means a one-time "not secure" browser
-    // warning to click through per device/browser; unavoidable without a
-    // real CA-issued cert, impractical for a device with no public DNS
-    // name. Gracefully absent (not fatal) if openssl isn't installed or
-    // cert generation fails for any reason - see tls.js.
+    // Second listener on port+1 serving the same content over TLS (self-signed, see
+    // tls.js). It exists only because getUserMedia()/getDisplayMedia() need a secure
+    // context; everything else works on the plain HTTP port. Expect a one-time browser
+    // warning per device. Not fatal if cert generation fails.
     const tlsFiles = ensureSelfSignedCert();
     if (tlsFiles) {
       // HTTPS_PORT (environment) picks the secure port(s), e.g. "443" for a
@@ -438,18 +221,8 @@ class WsServer {
       return;
     }
     if (req.method !== 'GET') { res.writeHead(404).end(); return; }
-    // No-cache on every response this route serves - a real report ("click
-    // a button, nothing happens until I refresh the page") pointed at
-    // exactly this gap: none of these responses ever sent a Cache-Control
-    // header at all, so it was entirely up to browser heuristics whether a
-    // stale cached app.js (missing whatever click-handler fix had just
-    // shipped) got reused instead of fetching the current one - and
-    // heuristic caching can persist across an ordinary refresh, not just
-    // repeat visits. `no-store` is the strongest guarantee available (never
-    // cache, always refetch) - appropriate here since this whole app is
-    // versioned by "pull the latest code and restart the service", not by
-    // any cache-busting query param scheme, so there's no mechanism for a
-    // stale cached copy to ever self-correct without this.
+    // no-store on every response: the app is updated by pull + restart with no
+    // cache-busting scheme, so a heuristically cached stale app.js would never correct itself.
     const noCacheHeaders = { 'Cache-Control': 'no-store, must-revalidate' };
     // Strip the query string before route-matching - index.html's
     // <script src="app.js?v=..."> cache-buster (see that file's own
@@ -482,18 +255,10 @@ class WsServer {
     }
   }
 
-  // GET /api/debugTone?kind=sweep|drum|tone[&freq=N] - lets the BROWSER hear the same
-  // debug test tones the Pi-side spectrum pipeline plays (see radio.js's
-  // DEBUG_TONES/playDebugTone()). A real report: "can the browser play the
-  // sound" - the "Play in this browser" checkbox only works for real
-  // stations (it points a client-side <audio> element at the station's own
-  // HTTP URL); debug tones use an internal `debug:<lavfi spec>` scheme with
-  // no real URL for a browser to fetch. This route bridges that gap:
-  // spawn a SEPARATE, short-lived ffmpeg (independent of the Pi-side
-  // RadioAudio decode/playback pipeline - this is purely for the browser's
-  // own <audio> element, doesn't touch paplay/Bluetooth at all) that
-  // renders the exact same lavfi expression to a WAV stream and pipes it
-  // straight through as the HTTP response body.
+  // GET /api/debugTone?kind=sweep|drum|tone[&freq=N] - streams the radio debug tones
+  // to the browser's own <audio> element. Debug tones have no real URL, so this spawns a
+  // separate short-lived ffmpeg rendering the same lavfi expression to WAV. It does not
+  // touch the Pi-side RadioAudio/paplay pipeline.
   _handleDebugTone(req, res) {
     let kind, freqParam;
     try {
@@ -544,18 +309,9 @@ class WsServer {
     let name = 'video';
     try { name = new URL(req.url, 'http://x').searchParams.get('name') || 'video'; } catch (e) { /* keep default */ }
 
-    // mkdirSync/clearUploadDir are synchronous fs calls that can throw for
-    // reasons entirely outside this code's control (e.g. the service
-    // user lacking write permission on UPLOAD_DIR's parent - a real
-    // deployment hit exactly this: EACCES on mkdir). Before the
-    // process-wide uncaughtException handler in app.js was added, an
-    // uncaught throw here crashed the whole server; even with that safety
-    // net in place, an uncaught throw HERE specifically happens before any
-    // response is ever sent, so the request just hangs until the browser's
-    // fetch() itself times out ("Failed to fetch") - a real, confusing
-    // symptom to debug blind on a headless Pi with no stack trace visible
-    // client-side. Catching it here turns that into an immediate, clear
-    // {ok:false,error:...} response instead.
+    // These sync fs calls can throw (e.g. EACCES on mkdir). Throwing here happens before
+    // any response is sent, leaving the request hanging until fetch() times out, so
+    // catch and reply {ok:false,error} straight away.
     try {
       fs.mkdirSync(UPLOAD_DIR, { recursive: true });
       clearUploadDir(); // drop any previous upload (and stale .part leftovers) before starting the new one
@@ -566,22 +322,10 @@ class WsServer {
     }
 
     let total = 0;
-    // Guards every response path below, not just the size-limit one this
-    // used to be scoped to - a real crash was traced to this gap: mobile
-    // browsers commonly tear down the underlying TCP connection slightly
-    // AFTER fetch() has already resolved (backgrounding the tab, a network
-    // handoff, etc.), which fires a late req 'error'/'aborted' event after
-    // out.on('finish') had already sent the success response. Calling
-    // res.end() a second time throws "write after end", and since nothing
-    // in app.js installs a process-wide uncaughtException handler, that
-    // crashed the whole Node process - systemd's Restart=on-failure then
-    // restarted it a few seconds later with fresh in-memory state (state.
-    // effect isn't persisted to disk the way alarms/customCube/panelConfig
-    // are), which is exactly the "pauses, then reverts to the default
-    // effect" symptom that was reported. `responded` makes every one of
-    // fail()/the finish handler a no-op once any one of them has already
-    // sent a response, and res.end() itself is wrapped in try/catch as a
-    // second line of defense in case the socket is already gone by then.
+    // Mobile browsers can drop the connection after the success response was sent,
+    // firing a late 'error'/'aborted'; a second res.end() throws "write after end" and can
+    // crash the process. `responded` makes every response path a no-op after the first,
+    // and res.end() is also wrapped in try/catch in case the socket is already gone.
     let responded = false;
     const destName = sanitizeUploadName(name);
     const destPath = path.join(UPLOAD_DIR, destName);

@@ -1,29 +1,7 @@
-// Wall-mode counterpart to maze.js ("Maze Runner").
-//
-// maze.js already has an `is2D` branch (core.panelMode === '2d') that
-// builds ONE perfect maze on a single S x S flat face instead of stitching
-// a maze across all 6 cube faces via edge doorways - exactly the shape
-// this port generalises, per the batch brief. Everything face/cube-only
-// (openFaceLocal/openFaceCell, the 12-edge doorway pass, NB6's z axis,
-// surfIdx()) is dropped; the maze lives directly in flat (x,y) wallW x
-// wallH pixel space, addressed via a plain Uint8Array(wallW*wallH) and
-// core.setWallPixel, with a 4-neighbour NB2 replacing NB6.
-//
-// GRID-SIZING DECISION (the brief specifically calls this out):
-// The is2D cube branch always builds its maze at a fixed cell density of
-// exactly 2 pixels/cell (C = (SIZE>>1)-1 cells across an SxS face - one
-// wall pixel + one corridor pixel per cell). This port keeps that SAME
-// 2px/cell density rather than fixing the cell COUNT and stretching cells
-// to fill wallW x wallH: Cw = (wallW>>1)-1, Ch = (wallH>>1)-1, i.e. the
-// maze simply gets more cells (not bigger cells) as more panels are added,
-// which is what "one maze stitched across N panels" should look like -
-// same corridor width per panel as the single-panel case, just longer/
-// taller. This is safe perf-wise: the recursive-backtracker generator is
-// O(cells) with a handful of array ops per cell (no per-cell BFS/flood-
-// fill the way tron's AI decision loop needs), so even a 4x4 grid of
-// 64px panels (Cw*Ch ~= 16256 cells) generates in low single-digit
-// milliseconds - nothing like the O(board) flood-fill cost that forced
-// tron's non-allocating rewrite. No cap is needed or applied.
+// Wall-mode Maze Runner: one maze in flat wallW x wallH pixel space with
+// 4-neighbour steps. Keeps maze.js's 2 pixels per cell, so more panels give
+// more cells rather than bigger ones: Cw = (wallW>>1)-1, Ch = (wallH>>1)-1.
+// Generation is O(cells) and fast even on large walls, so no cap is applied.
 const { hsl } = require('../core');
 const { tempo } = require('./audioFeatures');
 

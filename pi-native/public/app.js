@@ -1,35 +1,10 @@
-// Wires the (verbatim-copied) browser-app sidebar markup to pi-native's own
-// WS control protocol. This is NOT the original ui.js - that file assumes
-// an ESP32 streaming target and computes every effect in-browser, neither
-// of which applies here (the Pi computes effects itself and only streams
-// back small per-face preview frames). This script instead:
-//   - drives the small set of controls pi-native actually has a backend
-//     for (effect selection, cube-size/2D panel mode, master brightness/
-//     speed, the Pi-only Bluetooth pairing panel in the Setup section, and
-//     the Overlays panel - global compositing layers, see wireOverlaysPanel)
-//   - greys out everything else the markup contains but pi-native doesn't
-//     support yet (Custom Faces freehand drawing, ESP32 Firmware Update,
-//     Standalone Mode, Clear All) so the page still looks like the
-//     familiar app instead of silently doing nothing on click
-//   - wires the Timers section (#alarm-section / #alarm-modal) to the
-//     server's addAlarm/updateAlarm/deleteAlarm/setAlarmEnabled/
-//     dismissAlarm commands - see wireAlarmSection()/wireAlarmModal()
-//   - wires the Face Editor (#panel-editor-section) and the Custom Cube
-//     effect's own panel (#panel-custom_cube) to setFaceEffect/setFaceOpts/
-//     setFaceOverlays/saveCube/loadCube/deleteCube/clearFaces - see
-//     wirePanelEditor()/wireCustomCubeEffectPanel()
-//   - renders a live 3D preview on the #c canvas from the binary per-face
-//     frames the WS server already streams for this purpose
-// Shown in the sidebar footer (#app-version, markup already present but
-// never populated - unlike the browser original's version.js/inline
-// APP_VERSION script). Kept in sync with pi-native/package.json's
-// "version" field by hand (no bundler here to read it from JSON at build
-// time). pi-native has no equivalent of the original's cache-busting
-// per-file query-string scheme to force-update against (wsServer.js
-// already sends Cache-Control: no-store on everything - see that file's
-// module comment), so clicking it is just a plain hard reload rather than
-// the original's cache-clearing dance.
-const APP_VERSION = '0.6.285';
+// Wires the sidebar markup to pi-native's WS control protocol. The Pi computes
+// effects; this page sends commands, greys out controls with no backend, wires
+// the Timers, Face Editor, Overlays and Bluetooth panels, and renders a 3D
+// preview from the per-face frames the server streams.
+// APP_VERSION is shown in the footer and must match package.json; it is
+// bumped by `npm run release`. Clicking it does a plain hard reload.
+const APP_VERSION = '0.6.286';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -360,20 +335,10 @@ async function loadEffectNames() {
     const panel = document.getElementById('panel-' + key);
     if (Object.prototype.hasOwnProperty.call(effectNames, key)) {
       btn.addEventListener('click', () => {
-        // Switching away from Video Display to any other effect - a real
-        // report traced a persistent flicker between video content and
-        // whatever effect was just selected to this: nothing ever told
-        // the video source to actually stop. The tick loop only ever
-        // calls the CURRENTLY SELECTED effect's function (see app.js's
-        // module comment on the Pi), so once a different effect is
-        // selected, just clearing effectOptions.video.url wouldn't
-        // actually reach ffmpegSource.js's teardown (that only runs
-        // inside effectVideo() itself, which stops being called) - hence
-        // the dedicated stopVideoSource command for an immediate,
-        // selection-independent stop (see wsServer.js's module comment),
-        // on top of stopping any live browser camera/screen capture here
-        // and resetting the stored url so Video Display starts fresh
-        // rather than trying to resume the old source if reselected.
+        // Leaving Video Display: only the selected effect is ticked, so the
+        // video source would never tear itself down (causing flicker). Send
+        // stopVideoSource, stop any browser camera/screen capture, and reset the
+        // stored url so Video Display starts fresh if reselected.
         const wasRunning = currentState.effect === key && !currentState.blank;
         if (currentState.effect === 'video' && key !== 'video') {
           stopBrowserCapture();
@@ -988,21 +953,12 @@ function syncLightspeedPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Weather's option panel (panel-weather) - city search box + live status/
-// temp/description readouts, backed by core.effectOptions.weather.city and
-// the effectStatus.weather snapshot effects/weather.js's getStatus()
-// exposes (see wsServer.js's _stateMsg()/app.js's per-tick poll).
+// Weather's option panel (panel-weather): city search plus live status
+// readouts from effectStatus.weather.
 // ---------------------------------------------------------------------
-// City autocomplete-as-you-type - ported from the browser original's
-// wxUpdateCityDropdown() (effects-livedata.js). Queries Open-Meteo's free
-// geocoding API directly from the browser (debounced 250ms, matching the
-// original) and lets you pick an exact match instead of typing a bare
-// name and hoping the server's own geocode (fetch.js's fetchWeather(),
-// which re-geocodes by name server-side with count=1) picks the right
-// one - e.g. "Paris" alone is ambiguous (France vs Texas), the dropdown
-// shows country/region to disambiguate. Picking an entry sends the
-// disambiguated "City, Country" string immediately (same as pressing GO),
-// rather than just filling the input and waiting for a separate submit.
+// City autocomplete: queries Open-Meteo geocoding from the browser (250 ms
+// debounce) and shows country/region so ambiguous names can be picked
+// exactly. Picking an entry sends "City, Country" immediately, like GO.
 let _wxCityTimer = null;
 function wireWeatherCityDropdown(cityInput, dropdown) {
   if (!cityInput || !dropdown) return;
@@ -1067,21 +1023,10 @@ function syncWeatherPanel() {
   const tempEl = panel.querySelector('#wx-temp-line');
   const descEl = panel.querySelector('#wx-desc-line');
   const sunEl = panel.querySelector('#wx-sun-line');
-  // Reflects the server's actual current city (persisted across a restart
-  // via weatherConfig.js - see effects/weather.js's DEFAULT_CITY fallback)
-  // into the input box, so a freshly-loaded/reconnected page shows what's
-  // really selected instead of a stale/placeholder value - guarded against
-  // clobbering while the user is actively typing/picking from the
-  // dropdown, same pattern every other synced input in this file uses. A
-  // real report: the display showed "London" (weather.js's DEFAULT_CITY
-  // fallback, used whenever effectOptions.weather.city is still '' -
-  // nothing picked yet) while the sidebar showed a hardcoded HTML
-  // value="Milton Keynes" that never got corrected, since optCity was
-  // falsy and this never ran. status.city is the server's OWN resolved
-  // name for whatever it's actually displaying (falls back to the same
-  // DEFAULT_CITY), so use that once effectOptions.weather.city is empty -
-  // it's always in sync with what's on the panel, unlike a second
-  // hardcoded default living in this file.
+  // Show the server's current city in the input, unless the user is typing.
+  // When effectOptions.weather.city is empty, use status.city (the server's
+  // resolved name, including its DEFAULT_CITY fallback), so the box always
+  // matches what the panels show.
   const cityInput = panel.querySelector('#wx-city');
   const optCity = currentState.effectOptions?.weather?.city || status?.city;
   if (cityInput && document.activeElement !== cityInput && optCity && cityInput.value !== optCity) {
@@ -1338,22 +1283,12 @@ function syncCoinflipPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Fireworks' option panel (panel-fireworks) - Mode buttons (random/sync/
-// mic, backed by core.effectOptions.fireworks.mode - see fireworks.js's
-// module comment for what each mode actually does, including the mic-mode
-// fallback), "Show text on cube" checkbox + text input, backed by
-// core.effectOptions.fireworks.textOn/text. The text input is committed on
-// 'change' (blur/Enter) rather than every keystroke's 'input' event - same
-// "don't spam a WS message per keystroke" reasoning as cam.js's URL field -
-// since scrolling-text rebuilds are more expensive than a simple option
-// swap and there's no live preview benefit to rebuilding mid-keystroke here.
+// Fireworks' option panel (panel-fireworks): Mode buttons and the "Show
+// text on cube" checkbox + text, committed on 'change' rather than every
+// keystroke to avoid a WS message per key.
 // ---------------------------------------------------------------------
-// ---------------------------------------------------------------------
-// Strobe Flash's option panel (panel-strobe) - Pattern buttons (data-strobe,
-// backed by core.effectOptions.strobe.pattern), Speed slider
-// (core.effectOptions.strobe.speed), and Colour buttons (data-scol, backed
-// by core.effectOptions.strobe.color) - see strobe.js's module comment for
-// why this always reads straight from effectOptions (no Panel Editor here).
+// Strobe Flash's option panel (panel-strobe): Pattern, Speed and Colour,
+// read straight from core.effectOptions.strobe.
 // ---------------------------------------------------------------------
 function wireStrobePanel() {
   const panel = document.getElementById('panel-strobe');
@@ -1425,19 +1360,10 @@ function syncBallsPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Overlays panel (data-section="overlays") - global compositing layers
-// (stars/snow/fire/lightning/...), NOT a selectable effect, backed by
-// src/effects/overlays.js + wsServer.js's setOverlay/setOverlayOption/
-// setOverlayGlobalBright commands (see that file's module comment for the
-// wire protocol). Unlike every other panel here, the 13 ported overlays
-// share a uniform markup convention (.ov-chk[data-ov] toggle, .ov-sl
-// [data-ov][data-prop] param sliders, .ov-col[data-ov][data-val] colour
-// swatch buttons) - so this wires all of them generically in one loop
-// instead of 13 near-identical hand-written blocks. Radio/Spectrum use the
-// same .ov-chk markup but have no backend (see greyOutUnsupported) and are
-// left alone here - sending setOverlay for a key wsServer.js doesn't
-// recognise is just silently dropped, but they're disabled anyway so their
-// checkboxes can't be clicked in the first place.
+// Overlays panel - global compositing layers (not an effect), backed by
+// src/effects/overlays.js and the setOverlay* commands. All overlays share one
+// markup convention (.ov-chk / .ov-sl / .ov-col with data-ov), so they are wired
+// generically in one loop. Radio/Spectrum have no backend and stay disabled.
 function wireOverlaysPanel() {
   document.querySelectorAll('.ov-chk[data-ov]').forEach((chk) => {
     const key = chk.dataset.ov;
@@ -1462,20 +1388,10 @@ function wireOverlaysPanel() {
   });
   const gb = document.getElementById('ov-global-bright');
   if (gb) {
-    // Every drag tick sends setOverlayGlobalBright, which the server
-    // echoes straight back as a "state" broadcast to every connected
-    // client - including this one, mid-drag. syncOverlaysPanel() used to
-    // guard against that echo clobbering the slider with
-    // `document.activeElement !== gb`, but that's unreliable on touch:
-    // some mobile browsers don't actually focus a range input on a touch-
-    // drag the way a mouse-drag focuses it, so the guard silently failed
-    // and every echo snapped the thumb back to the server's (slightly
-    // stale, since network round-trip has real latency) value while the
-    // finger kept moving - a real report ("keeps moving to 100%, hard to
-    // move it"). _gbEditingUntil is a time-based guard instead, set well
-    // past "now" on every input tick regardless of focus state, so
-    // syncOverlaysPanel() ignores echoes for a bit after the last local
-    // edit no matter how touch/focus behaves on a given device.
+    // Each drag tick's send is echoed back as a "state" broadcast mid-drag. A focus-based
+    // guard is unreliable on touch (some mobile browsers don't focus a range input), so
+    // _gbEditingUntil is a time-based guard: syncOverlaysPanel() ignores echoes for a
+    // short while after the last local edit, so the thumb doesn't snap back.
     let gbSendQueued = false;
     gb.addEventListener('input', () => {
       _gbEditingUntil = Date.now() + 1200;
@@ -1528,20 +1444,10 @@ function syncOverlaysPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Custom Cube - Face Editor (#panel-editor-section, pe-* ids) assigns an
-// effect + sub-options + a per-face overlay subset to each of the 6 cube
-// faces, and the Custom Cube effect's own panel (#panel-custom_cube,
-// cc-select/cc-load-btn) activates a saved configuration from the library.
-// Ported from ui.js's buildPanelEditor()/buildSubOptions() (lines 7-270)
-// and effects-scenes.js's ccRefreshSelect() - see customCubeConfig.js's
-// module comment for how pi-native unifies the browser's separate
-// perFaceEffect(draft)/_customCubeData(active) state into one live `faces`
-// array server-side (currentState.customCube.faces), which is why there's
-// no "— Use global effect —" option here (that indirection existed only to
-// let the draft diverge from what was actually running - not a concept
-// this design needs) and no local pe-* draft state at all: every control
-// below sends straight to the server and re-renders from the next "state"
-// broadcast, same as every other panel in this file.
+// Custom Cube - the Face Editor (pe-*) assigns an effect, sub-options and an overlay
+// subset to each of the 6 faces; the Custom Cube panel (cc-*) loads a saved
+// configuration. There is one live `faces` array server-side (customCubeConfig.js) and
+// no local draft: every control sends straight to the server and re-renders from state.
 // ---------------------------------------------------------------------
 const CC_FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const CC_FACE_OVERLAY_KEYS = ['stars', 'fire', 'sparkle', 'glitch', 'mist', 'snow'];
@@ -1887,18 +1793,9 @@ function wireCamPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Astronomy Pic of the Day's option panel (panel-apod) - a status readout
-// plus a manual "Refresh" button, backed by src/effects/apod.js's daily
-// auto-fetch + getStatus(). The browser's history-browsing Prev/Next and
-// the shared .art-shared-panel Slideshow/Letterbox controls are not wired
-// here - they belong to Unsplash/Art Gallery too, neither of which is
-// ported to pi-native yet (see apod.js's module comment). The NASA API
-// key input is also left unwired: this port reads NASA_API_KEY from the
-// server's environment rather than per-browser localStorage, so there's
-// no setEffectOption equivalent for it - grey just that sub-block.
-// There's no dedicated one-shot "refresh now" command, so this reuses the
-// same monotonically-increasing-token trick as maze.js's "NEW MAZE"/
-// dice.js's "roll" buttons.
+// APOD option panel - status readout plus a "Refresh" button (an increasing token,
+// since there's no one-shot refresh command). The NASA key input is greyed out:
+// the server reads NASA_API_KEY from its environment.
 // ---------------------------------------------------------------------
 let _apodRefreshToken = 0;
 // NASA API key input - backed by the dedicated setNasaConfig command
@@ -2174,21 +2071,10 @@ function syncCamPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Video Display's option panel (panel-video) - a URL (decoded via ffmpeg
-// on the Pi, see src/effects/video.js) instead of the browser's file/
-// webcam/screen-capture pickers, which have no server-side equivalent -
-// those 4 buttons + the Stop button are disabled here rather than wired,
-// same "grey what has no backend" treatment as everywhere else, just done
-// per-control instead of markUnsupported()'s whole-panel sweep since this
-// panel mixes wired and unwired controls.
+// Video Display's option panel (panel-video): URL, file upload and browser capture.
 // ---------------------------------------------------------------------
-// Uploads a File chosen via the browser's native file picker (works from a
-// phone too - <input type=file accept="video/*"> opens the camera roll/
-// Files app there) to the server's /api/uploadVideo endpoint as the raw
-// POST body, then points the video effect at whatever local path the
-// server saved it to - see wsServer.js's _handleUpload()/UPLOAD_DIR
-// comments for why this is a raw-body upload rather than multipart, and
-// for why only one upload is ever kept on disk.
+// Uploads a chosen File to /api/uploadVideo as the raw POST body (not multipart, see
+// wsServer.js), then points the video effect at the path the server saved it to.
 function uploadVideoFile(file, statusEl) {
   if (!file) return;
   stopBrowserCapture(); // an upload supersedes any live camera/screen capture in progress
@@ -2215,17 +2101,9 @@ function uploadVideoFile(file, statusEl) {
 }
 
 // ---------------------------------------------------------------------
-// Live webcam / screen-share capture for Video Display - a headless Pi
-// has no camera/display of its own, but THIS browser tab does
-// (getUserMedia/getDisplayMedia are browser APIs, independent of what's
-// actually driving the LED panels), so frames are captured+downsampled
-// right here and streamed to the Pi over the existing WS connection as
-// binary messages (see wsServer.js's module comment for the wire format
-// and effects/video/browserFrameSource.js for how the server consumes
-// them). Only runs while this tab stays open/connected and the capture
-// hasn't been stopped - unlike a typed URL or an uploaded file (which
-// play back entirely server-side via ffmpeg and keep going with no
-// browser needed), this is fundamentally tab-dependent.
+// Live webcam / screen-share capture: the Pi has no camera, but this tab does, so
+// frames are captured, downsampled and streamed to the Pi as binary WS messages (see
+// wsServer.js for the format). Unlike URL/file playback this stops when the tab closes.
 let browserCaptureState = null; // {stream, video, canvas, ctx, interval, kind} | null
 
 function stopBrowserCapture() {
@@ -2454,24 +2332,11 @@ function syncVideoPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Internet Radio's option panel (panel-radio) - the real new backend this
-// port added: Stop/volume (dedicated radioStop/setEffectOption('radio',
-// 'volume',...) commands), the directory search box (radioSearch command,
-// results rendered from currentState.effectStatus.radio.search - see
-// wsServer.js's module comment for why search results are broadcast state
-// rather than a per-request reply, unlike Bluetooth's btScan), the
-// featured RADIO_STATIONS list (station selection -> radioPlay command),
-// and the Spectrum Analyser style/band-count/colour-theme/bar-mode/gain/
-// scroll-speed/fit-to-screen/auto-gain controls, all via
-// core.effectOptions.radio.{spectrumOn,bands,style,theme,barMode,gain,
-// scrollSpeed,fitToScreen,autoGain} through the generic setEffectOption
-// path - see radio.js's module comment for why this is a LOCAL per-effect
-// toggle here rather than the browser's global OV.spectrum overlay, and
-// for where gain/auto-gain/fit-to-screen amplitude shaping is applied.
-// RADIO_STATIONS is duplicated here (not fetched from the
-// server) - same "small static list, client already has it" precedent as
-// the browser original itself hard-coding it, and pi-native's Retro/Tron
-// panels hard-coding their own per-game/option button markup.
+// Internet Radio's option panel (panel-radio): stop/volume, directory search
+// (results arrive as broadcast state in effectStatus.radio.search), the
+// featured RADIO_STATIONS list, and the Spectrum Analyser controls, all sent
+// through setEffectOption('radio', ...). RADIO_STATIONS is a small static list
+// duplicated here rather than fetched from the server.
 // ---------------------------------------------------------------------
 const RADIO_STATIONS = [
   { name: 'SomaFM Groove Salad', genre: 'Ambient/Downtempo', url: 'https://ice1.somafm.com/groovesalad-128-mp3' },
@@ -2516,29 +2381,11 @@ function radioStationRow(station, current) {
 }
 
 // ---------------------------------------------------------------------
-// Browser-side Internet Radio playback (#radio-browser-audio, toggled by
-// #panel-radio's .radio-browser-play-el checkbox) - a real report:
-// "internet radio does not play on phone speaker." radioPlay always plays
-// server-side via paplay, routed to whatever PulseAudio sink is currently
-// default on the PI (a paired Bluetooth speaker, or the Pi's own local
-// output) - never to the connecting browser/phone at all, which is
-// surprising if you're used to "press play, hear it on the device you're
-// holding". This plays the SAME station URL directly in this browser tab
-// via a plain <audio> element, entirely independent of whatever the Pi
-// itself is doing - most radio-browser.info/SomaFM-style stream URLs are
-// plain HTTP(S) audio streams a <audio src> can play cross-origin without
-// needing CORS headers (unlike fetch()/Web Audio API, which do) since
-// that's just "the browser renders it", the same way an <img src> from
-// another domain works with no CORS setup on that domain's part.
-// ---------------------------------------------------------------------
-// ---------------------------------------------------------------------
-// Synced phone playback. Playing the station's own stream here started at
-// a different moment from the Pi's and buffered differently, so the phone
-// ran behind the Bluetooth speaker (a real report). Instead the Pi sends
-// the PCM it gives its speaker, each piece stamped with the Pi time the
-// speaker plays it (see src/wsServer.js sendAudio). We keep an estimate of
-// the Pi's clock and schedule each piece for that moment, less this
-// device's own output delay - so phone, speaker and visuals line up.
+// Playback on this phone/browser. The Pi's radio plays only on the Pi's own
+// sink, so this plays it here too. Synced mode: the Pi sends the PCM it gives
+// its speaker, each piece stamped with the Pi time the speaker plays it (see
+// src/wsServer.js sendAudio). We estimate the Pi's clock and schedule each
+// piece for that moment, less this device's own output delay.
 // ---------------------------------------------------------------------
 const syncAudio = { on: false, ctx: null, gain: null, next: 0, offset: 0, samples: [], timer: null, late: 0, extra: 0 };
 function isAudioPacket(buf) {
@@ -2618,19 +2465,10 @@ function radioBrowserPlaybackWanted() {
 function setRadioBrowserPlaybackWanted(on) {
   try { localStorage.setItem(RADIO_BROWSER_PLAY_KEY, on ? '1' : '0'); } catch (err) { /* ignore */ }
 }
-// Web Audio graph for #radio-browser-audio - ported to match the ORIGINAL
-// retired browser app's radioEnsureGraph()/radioPlay() EXACTLY (see git
-// history's effects-core.js), after an earlier attempt here got the
-// underlying Web Audio behavior wrong: MediaElementAudioSourceNode does
-// NOT silence audible OUTPUT for a cross-origin/non-CORS source - it only
-// blocks READING the node's data (getByteFrequencyData() etc returns
-// zeros). Audio keeps playing fine either way; only the visualizer needs a
-// fallback for stations that don't support analysis. Always created (not
-// gated behind the Spectrum Analyser checkbox) and BEFORE play(), inside
-// the same synchronous click handler, matching the original exactly - a
-// real report ("radio sounds works until I click the spectrum analyser")
-// was this file's own bug (missing crossOrigin='anonymous', graph created
-// too late/async), not a platform limitation as first assumed.
+// Web Audio graph for #radio-browser-audio. A MediaElementAudioSourceNode on a
+// non-CORS source still plays audibly; only analysis reads zeros. The graph is
+// always created, with crossOrigin='anonymous', BEFORE play() inside the same
+// synchronous click handler; creating it later or async broke playback.
 let _raCtx = null, _raAnalyser = null, _raSource = null, _raBuf = null, _raRunning = false;
 let _raSilent = false, _raSilentTimer = 0, _raLastLevel = 0;
 function radioEnsureGraph() {
@@ -2661,19 +2499,9 @@ function radioBrowserPlay(station) {
   if (!el) return;
   radioEnsureGraph();
   _raSilent = false; _raSilentTimer = 0; _raLastLevel = 0;
-  // A real report: "the sweep gets to 10khz then starts again at 40hz,
-  // however the sound does not restart" - confirmed as a browser-only
-  // issue (BT untested, ps confirmed the Pi-side ffmpeg/paplay pipeline
-  // genuinely does relaunch each loop). Root cause: /api/debugTone
-  // renders and streams ONE finite WAV clip - the Pi-side pipeline loops
-  // by relaunching a whole new ffmpeg process each time (see
-  // ffmpegAudio.js's `debugloop:` handling), but this <audio> element had
-  // no equivalent - it just played the one clip and stopped, while the
-  // bars kept going since those are driven by the (correctly looping)
-  // Pi-side pipeline instead. The native `loop` property replays the
-  // SAME already-downloaded clip seamlessly with no extra network
-  // request, so it doesn't matter that the WAV itself has a Cache-
-  // Control: no-store response.
+  // /api/debugTone streams one finite WAV clip, while the Pi loops the sweep by
+  // relaunching ffmpeg. `loop` replays the already-downloaded clip with no extra
+  // request, so the sound keeps up with the looping bars.
   el.loop = !!station.loop;
   // A YouTube start offset ('#mdss=N', see src/youtube.js) becomes a media fragment.
   const src = station.url.replace(/#mdss=(\d+(?:\.\d+)?)$/, '#t=$1');
@@ -2690,18 +2518,11 @@ function radioBrowserStop() {
   el.load();
 }
 
-// Reads the analyser every frame (only actually useful in the simulator,
-// where window.PiEngine.EFFECTS.radio.audio is the same live spec/peak
-// object the bundled tick loop's renderSpectrumStyle() already reads every
-// tick - on a real Pi this object doesn't exist client-side and the loop
-// below just no-ops). Bucketing (log-spaced bins, treble-compensation
-// curve) and smoothing (attack/release + peak-hold) ported verbatim from
-// the original app's readMicSpectrum()/auSmooth(). radioAnalyserSilent
-// detection matches the original's auRefreshCurrentSource(): if the
-// average level stays near zero for 4+ seconds despite playing, the
-// station's stream doesn't support analysis (no CORS headers) - stop
-// feeding fake-looking near-zero data and let bars ease to idle instead,
-// same as the original did, WITHOUT affecting audible playback at all.
+// Reads the analyser every frame. Only useful in the simulator, where
+// window.PiEngine.EFFECTS.radio.audio exists; on a real Pi this loop no-ops.
+// Bucketing and smoothing are ported from the original app. If the level stays
+// near zero for 4+ seconds while playing, the stream doesn't allow analysis
+// (no CORS), so bars ease to idle; audible playback is unaffected.
 let _raLastMs = 0;
 function radioAnalyserTick(nowMs) {
   requestAnimationFrame(radioAnalyserTick);
@@ -2765,18 +2586,10 @@ function wireRadioPanel() {
   if (!panel) return;
 
   panel.querySelectorAll('.radio-stop-btn-el').forEach((btn) => btn.addEventListener('click', () => { send({ cmd: 'radioStop' }); radioBrowserStop(); }));
-  // Debug mode - two synthetic test tones (server-generated via ffmpeg, no
-  // real station needed) for visually verifying the spectrum analyser -
-  // see wsServer.js's 'radioDebugTone' handler / radio.js's DEBUG_TONES.
-  // The Pi-side WS command drives the actual spectrum/ticker pipeline
-  // (paplay -> Bluetooth/local output) same as any other station. A real
-  // follow-up ("can the browser play the sound") - the debug tone's
-  // internal `debug:<lavfi spec>` URL isn't a real HTTP URL a browser
-  // <audio> element can fetch, unlike a real station's URL, so this ALSO
-  // points the browser's own audio element at wsServer.js's new
-  // /api/debugTone HTTP route (a separate, independent ffmpeg render just
-  // for this) when "Play in this browser" is on - two completely separate
-  // audio paths, matching how a real station already works.
+  // Debug mode: two server-generated test tones for checking the spectrum
+  // analyser (see radio.js's DEBUG_TONES). The WS command drives the Pi-side
+  // pipeline. Its `debug:` URL isn't fetchable by a browser, so when "Play in
+  // this browser" is on the <audio> element uses the separate /api/debugTone route.
   const playDebugTone = (kind, freq) => {
     send({ cmd: 'radioDebugTone', kind, freq });
     if (radioBrowserPlaybackWanted()) {
@@ -3015,21 +2828,13 @@ function syncRadioPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Celestial's option panel (panel-moon) - the 13-way "celestial-body" radio
-// group (moon/mercury/venus/earth/mars/jupiter/saturn/uranus/neptune/pluto/
-// sun/blackhole/solarsystem), backed by core.effectOptions.moon.body, plus
-// the Solar System view's Orbit Speed slider, backed by
-// core.effectOptions.moon.solarSpeed - same 0-7 logarithmic-multiplier
-// slider as the original (see effects/celestial/solarsystem.js). The
-// #solar-speed-row show/hide-on-selection behaviour is verbatim from
-// index.html's own inline <script> for this panel (harmless leftover -
-// still just toggling a style, no bearing on the WS wiring below).
+// Celestial's option panel (panel-moon): the body radio group
+// (core.effectOptions.moon.body) and the Solar System Orbit Speed slider
+// (moon.solarSpeed, 0-7 logarithmic multiplier).
 // ---------------------------------------------------------------------
-// City search for the Moon's terminator tilt - mirrors
-// wireWeatherCityDropdown()'s open-meteo geocoding search, but commits
-// lat/lon directly from the picked result (setEffectOption('moon','lat'/
-// 'lon', ...)) rather than a city name string - celestial.js only ever
-// needed the coordinates, no server-side re-geocode-by-name step needed.
+// City search for the Moon's terminator tilt: like
+// wireWeatherCityDropdown(), but it saves lat/lon directly
+// (setEffectOption('moon','lat'/'lon', ...)) rather than a city name.
 let _moonCityTimer = null;
 function wireCelestialCityDropdown(cityInput, dropdown, statusEl) {
   if (!cityInput || !dropdown) return;
@@ -3214,17 +3019,10 @@ function syncClearAllButton() {
   document.getElementById('panels-off-btn')?.classList.toggle('is-off', panels);
 }
 
-// "🔇 Stop Sound" - next to Clear All. Radio plays in the background
-// regardless of which effect is selected/displayed, so Clear All blanking
-// the screen doesn't stop audio - this is a one-click way to kill it
-// without navigating to the Radio panel. A real report: this button
-// stopped the Pi-side ticker/status but not the audible sound - because
-// "Play in this browser" (see radioBrowserPlay()) plays the stream
-// directly in the CLIENT via its own <audio> element, entirely separate
-// from the Pi's ffmpeg/paplay pipeline the WS 'stopAllSound' command
-// tears down. The existing Radio panel Stop button already calls
-// radioBrowserStop() alongside its WS send for exactly this reason (see
-// its own click handler) - this button needs the same pairing.
+// "🔇 Stop Sound" next to Clear All stops background radio without opening
+// the Radio panel. It must also call radioBrowserStop(), because "Play in
+// this browser" plays through a client <audio> element that the WS
+// 'stopAllSound' command can't reach (the Radio Stop button does the same).
 // The speaker button mutes/unmutes (the station keeps playing; Stop on the
 // Music tab still stops it). Muting sets the volume to 0 and remembers the
 // level to come back to.
@@ -3845,18 +3643,9 @@ function wireCollapsibles() {
   });
 }
 
-// Sidebar-wide menu system - the ◀ collapse button + floating "show
-// sidebar" button on desktop (#sidebar.hidden), and the ☰ #menu-toggle +
-// #sidebar-overlay slide-in/out on narrow/mobile viewports (#sidebar.open)
-// - present in the markup/CSS (all copied verbatim from the browser
-// original) but NONE of it was ever wired here, unlike ui.js's own
-// cube.js-based version of this. Ported from cube.js's "MENU TOGGLE"
-// section/ui.js's "SIDEBAR COLLAPSE" section (toggleMenu() there is the
-// same unified function both delegate to), with one deliberate behavior
-// change: the original started with the sidebar CLOSED on a narrow
-// viewport (`menuOpen = window.innerWidth > 768`) - this always starts
-// OPEN regardless of viewport width, per a real report that the sidebar
-// wasn't there to begin with on first load.
+// Sidebar menu: the collapse button and floating "show sidebar" button on
+// desktop (#sidebar.hidden), and the ☰ toggle with overlay on narrow screens
+// (#sidebar.open). Always starts open, whatever the viewport width.
 let menuOpen = true;
 function updateSidebarOverlay() {
   const overlay = document.getElementById('sidebar-overlay');
@@ -4177,54 +3966,20 @@ function handleBtResult(msg) {
 }
 
 // ---------------------------------------------------------------------
-// Video Wall layout editor - Pi-native-only, no original-app equivalent.
-// Lives directly in the main preview area (#wall-preview, right of the
-// sidebar), not a separate abstract grid tucked away in the sidebar - you
-// see the actual live per-panel feeds while placing new ones, and drag/
-// click straight onto the real layout to put a new display above, below,
-// left, or right of an existing one. A fixed WALL_COLS x WALL_ROWS grid
-// (matches panelConfig.js's WALL_MAX_COLS/WALL_MAX_ROWS - the same 2x3
-// physical topology already wired for cube mode, so up to 6 displays
-// total) of cells: filled ones are live-updating canvases (draggable,
-// with a × to remove), empty ones are dashed drop-targets/click-to-add-
-// here placeholders. Every change sends a full layout to the server,
-// which is the single source of truth - the grid always re-renders from
-// the next "state" message rather than assuming its own optimistic
-// result, so a rejected/invalid drag just snaps back on the next state
-// echo. The #wall-toolbar "+" button is the entry point for switching
-// INTO wall mode from cube/2D in the first place (always visible, not
-// gated on already being in wall mode); rebuildWallPreview() itself only
-// renders the full editable grid once wall mode is actually active.
+// Video Wall layout editor, drawn in #wall-preview with live per-panel feeds.
+// Filled cells are draggable canvases; empty cells are drop/click targets.
+// Every change sends the full layout to the server, which is the source of
+// truth: the grid re-renders from the next "state" message, so an invalid drag
+// snaps back. The toolbar "+" button also switches into wall mode.
 // ---------------------------------------------------------------------
-// Mirrors panelConfig.js's WALL_MAX_COLS/WALL_MAX_ROWS/WALL_MAX_PANELS -
-// this file has no access to that module (it also runs standalone against
-// a real Pi's wsServer.js over plain WebSocket, not just the bundled
-// simulator), so it keeps its own copy, same as before this was 2x3. A
-// real request: "I need the ability to choose all horizontal displays...
-// e.g. 1 row by 6 wide" - WALL_COLS/WALL_ROWS are now a generous per-axis
-// bound (any 1-wide or 1-tall row/column up to 6 long is valid, not just
-// a fixed 2x3 block); WALL_MAX_PANELS is the real hardware panel-count cap.
+// Copy of panelConfig.js's limits (this file can't require it). Any row or
+// column up to 6 long is allowed; WALL_MAX_PANELS is the hardware panel cap.
 const WALL_COLS = 6, WALL_ROWS = 6, WALL_MAX_PANELS = 6;
 let _wallDragFrom = null;
-// Whether placement-candidate outlines should currently be rendered at
-// all - a real report: candidates used to be shown PERMANENTLY around
-// every placed panel, which (once 2+ panels exist) fills out to look
-// like the original disliked "static 6-box grid" all over again. Now
-// candidates only appear while actively choosing where to put a new
-// display (toggled by the "+" button - see wireWallToolbar()) or while
-// dragging an existing one to reposition it (_wallDragFrom above) - at
-// rest, only the actually-placed displays are shown.
-// Single source of truth for "am I currently editing the wall layout" -
-// gates candidate outlines, the per-panel remove "×", and whether a placed
-// panel can be dragged at all. A real report: "don't go to edit mode when
-// tapping on the display. the button must be pressed to go into edit mode
-// and pressed again to exit edit mode" - tapping/dragging a placed panel
-// used to flip this on by itself (the old canvas mousedown handler set
-// _wallDragFrom unconditionally), so merely touching a display while just
-// looking at the wall started an edit session. Now ONLY the toolbar button
-// (or Escape/click-outside while already editing) can turn this on or off;
-// dragging is still how you reposition a panel, but only once edit mode is
-// already active via the button.
+// Single source of truth for wall edit mode: gates candidate outlines, the
+// remove "×", and dragging. Only the toolbar button (or Escape/click-outside
+// while editing) toggles it; tapping a display must not start editing.
+// Candidates show only while editing or dragging, not around every panel.
 let _wallEditMode = false;
 
 // Reflects _wallEditMode on the single "Layout" toggle button - a real
@@ -4398,20 +4153,10 @@ const PANEL2D_OUT = 512; // fixed backing resolution, same as ui.js's renderPane
 
 let wallPreviewEl;
 const wallPanelCanvases = {}; // panel index -> {canvas, ctx}
-// Preview px per panel, including its border/gap - dynamic, not a fixed
-// 130px, so the grid actually uses the available preview area (a real
-// report: "resize so 2 displays are shown in the available space" - two
-// small fixed-size tiles in a corner didn't grow to fill the screen the
-// way the single-panel 2D/cube previews already do via
-// fitPanel2dCanvas()/resizeRenderer()). Computed from whatever room is
-// left after the sidebar (accounting for the sidebar being hidden/mobile-
-// overlay, same margin logic as fitPanel2dCanvas's `buf`), clamped so a
-// lone display isn't comically huge and a full 2x3 grid doesn't overflow
-// the window.
-// cols/rows: the actual bounding box of cells being rendered this call
-// (see rebuildWallPreview()) - NOT always the fixed WALL_COLS x WALL_ROWS
-// hardware maximum, so a lone display (or two) gets to be genuinely large
-// rather than sized as if a full 6-panel layout were always present.
+// Preview px per panel (including border/gap), sized to fill the room left
+// after the sidebar, clamped so a lone display isn't huge and a full grid
+// still fits. cols/rows are the bounding box of the cells actually rendered
+// (see rebuildWallPreview()), not the WALL_COLS x WALL_ROWS hardware maximum.
 function wallCellSize(cols, rows) {
   const buf = 40;
   const availW = window.innerWidth - sidebarOverlapPx() - buf * 2;
@@ -4455,18 +4200,9 @@ function initScene() {
     }
   }
   if (webglOK) {
-    // Clamped, not raw window.devicePixelRatio - a real report ("cube view
-    // does not work on my android phone, blank/black screen - works on
-    // Windows desktop"). Many Android phones report a DPR of 3-4; combined
-    // with a full-viewport canvas (resizeRenderer() below sizes it to
-    // window.innerWidth/innerHeight), an uncapped DPR asks for a framebuffer
-    // several times larger than the actual screen resolution (e.g.
-    // 1080x2000 physical px * DPR 4 = huge) - a well-known Three.js mobile
-    // pitfall where weaker/budget GPUs silently fail to allocate that and
-    // render nothing, with no thrown error to catch (desktop's DPR=1 never
-    // hits this). 2 is the standard safe ceiling - visually indistinguishable
-    // from higher DPR at this canvas's actual on-screen size, but a much
-    // smaller framebuffer.
+    // Clamp devicePixelRatio to 2: with a full-viewport canvas, the DPR of 3-4
+    // many Android phones report asks for a framebuffer weak GPUs silently fail
+    // to allocate, leaving a blank canvas with no error.
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     // Second line of defense for the same report: a context that WAS
     // successfully created can still be lost/fail to render on some mobile
@@ -4500,16 +4236,9 @@ function initScene() {
 }
 
 // ---------------------------------------------------------------------
-// Face labels (#face-labels-chk, "Display" section) - a real report
-// ("enable the face labels option": the checkbox existed in the HTML but
-// had no wiring at all behind it). The custom stripped three.min.js build
-// (see build-tools/three-entry.js) exports no Sprite/CanvasTexture/font-
-// rendering classes, so real 3D floating text isn't available here - this
-// instead projects each face's center through the camera every frame (the
-// standard "HTML overlay label for a 3D scene" technique) and positions a
-// plain DOM span over it, which needs nothing beyond Vector3.project()
-// (already included - it's a method on the Vector3 class we already
-// import whole, not a separate tree-shaken export) and CSS.
+// Face labels (#face-labels-chk). The stripped three.min.js build has no
+// Sprite/CanvasTexture, so each face's center is projected through the
+// camera every frame and a plain DOM span is positioned over it.
 // ---------------------------------------------------------------------
 let faceLabelEls = [];
 function buildFaceLabels() {
@@ -4576,18 +4305,10 @@ function resizeRenderer() {
   fitCubeCamera(); // no-ops outside cube mode
 }
 
-// Pulls the camera back (or in) along its original viewing direction just
-// far enough that the whole cube stays inside the frustum at the CURRENT
-// aspect ratio, instead of the fixed camera.position.set(2.6, 2.0, 2.6)
-// this used to always use regardless of viewport shape - a real report
-// ("resize the cube so it fits the available screen space") traced to
-// exactly that: on a narrow/tall viewport the cube's horizontal FOV
-// shrinks (aspect = w/h < 1) but the camera never moved back to
-// compensate, so the cube overflowed top and bottom of the screen.
-// Bounding radius is the cube's corner-to-center distance: faces span
-// -1..1 build in rebuildScene()'s `spacing`/`dummy.position` loop, so the
-// cube is a 2x2x2 box centered on the origin -> corner distance
-// sqrt(1²+1²+1²).
+// Moves the camera along its original viewing direction just far enough
+// that the whole cube fits the frustum at the current aspect ratio (narrow
+// viewports shrink the horizontal FOV). Bounding radius is the corner
+// distance of the 2x2x2 cube centered on the origin: sqrt(3).
 const CUBE_BOUND_RADIUS = Math.sqrt(3);
 const CUBE_CAMERA_DIR = new THREE.Vector3(2.6, 2.0, 2.6).normalize();
 function fitCubeCamera() {
@@ -4680,21 +4401,10 @@ function rebuildScene() {
 
   for (let face = 0; face < 6; face++) {
     const mesh = new THREE.InstancedMesh(geom, new THREE.MeshBasicMaterial(), size * size);
-    // Top (face 4) needs its LOCAL row order flipped here, not fixed via
-    // FACE_XFORM's rotation - a real report ("top panel is reversed, flow
-    // from side panels doesn't flow to top correctly", confirmed via the
-    // GitHub Pages browser simulator specifically, which renders this
-    // Three.js preview - NOT the real-hardware rgbMatrixDriver.js path,
-    // which was a dead end for this report). Front/Back/Left/Right/Bottom
-    // all happen to have a single X or Y axis rotation that satisfies BOTH
-    // "v increases toward the correct adjacent face" (matching core.js's
-    // faceMap[4][z*SIZE+x] - v=z, 0=Back edge, SIZE-1=Front edge) AND "the
-    // backing panel's plane normal points outward" at once. Top's rotation
-    // (rot:[-π/2,0,0], chosen for the correct outward normal) inverts the
-    // v/z direction instead - the two requirements are in conflict for any
-    // single X-axis rotation, unlike Bottom's mirror-image case where they
-    // align. Flipping v only in the position lookup (not the rotation)
-    // fixes the v-direction without touching the normal at all.
+    // Top (face 4) flips its local row order here rather than in FACE_XFORM:
+    // no single X rotation gives Top both the outward normal and v increasing
+    // toward the Front edge (core.js faceMap[4][z*SIZE+x], v=z). Flipping v only
+    // in the position lookup fixes the direction without touching the normal.
     const vFlip = face === 4;
     for (let v = 0; v < size; v++) {
       const lv = vFlip ? size - 1 - v : v;
@@ -4885,42 +4595,14 @@ function drawLedGrid(ctx, bytes, size, out, flipY) {
   ctx.drawImage(ledMask(out, size), 0, 0);
 }
 
-// Same round-dot-on-black technique as drawPanel2dFrame(), one small
-// canvas per EXISTING panel (drawWallPanelFrame() below keeps them live-
-// updating), plus a dashed drop-target placeholder ONLY at cells directly
-// above/below/left/right of an already-placed panel - NOT every cell in
-// the fixed WALL_COLS x WALL_ROWS grid (that was the previous behavior: a
-// real report - "when I click + display, it gives me 6 grid boxes, I
-// don't want exactly this... I want to see an outline of where I can
-// click and drag the additional display to [above/below/left/right of
-// existing ones]" - specifically asked for contextual placement targets
-// instead of the whole grid always being visible). The rendered area's
-// size also now tracks just the panels+candidates bounding box, not the
-// full 2x3 hardware maximum, so a lone display (or two) stays genuinely
-// large instead of being sized as if 6 were always present. Panel at
-// index 0 is the original/primary display (see wireWallToolbar()'s "+" -
-// the FIRST panel switching INTO wall mode) - its remove (×) button is
-// never shown, it can't be deleted regardless of how many others exist
-// (still draggable to a new position like any other panel, just not
-// removable). wallPanelCanvases stays keyed by each panel's INDEX INTO
-// currentState.panels (not gx/gy), matching the wire protocol's per-panel
-// frame index (see handleFrame()).
-// The server's isValidPanels() (panelConfig.js) requires every gx/gy to
-// stay within [0, WALL_COLS) x [0, WALL_ROWS) - the real 2-column x
-// 3-row physical chain limit. The primary display always starts at
-// (0,0) (the fixed top-left corner), which only ever has room to its
-// RIGHT and BELOW within that box - "left of" or "above" the primary
-// would need a negative coordinate, permanently out of reach no matter
-// how candidates are computed. A real report specifically asked for all
-// 4 directions to be real options around the primary ("top bottom left
-// right"), so instead of only offering neighbors that already fit,
-// this computes the SHIFT (translation) that would need to apply to
-// EVERY currently-placed panel to make an out-of-bounds neighbor (and
-// everything else) fit - e.g. dropping a display to the left of a
-// primary sitting at gx=0 shifts the whole layout one column right
-// (primary -> gx=1) and places the new one at gx=0. Returns null if no
-// shift exists that keeps every panel in bounds (e.g. both columns are
-// already occupied, so there is nowhere left to shift into).
+// One small canvas per placed panel (dots on black, like drawPanel2dFrame()),
+// plus dashed drop targets only next to existing panels; the area tracks the
+// panels+candidates bounding box. Panel 0 is the primary display and can be
+// moved but never removed. wallPanelCanvases is keyed by index into
+// currentState.panels, matching the per-panel frame index (handleFrame()).
+// The server requires gx/gy within [0,WALL_COLS) x [0,WALL_ROWS), so a drop
+// left of/above the primary at (0,0) needs every panel shifted. This returns
+// that shift for a candidate, or null if no shift keeps all panels in bounds.
 function shiftForCandidate(panels, gx, gy) {
   let shiftX = 0, shiftY = 0;
   if (gx < 0) shiftX = -gx;
@@ -4962,21 +4644,11 @@ function rebuildWallPreview() {
   const panels = currentState.panels || [];
   const occupied = new Set(panels.map((p) => p.gx + ',' + p.gy));
 
-  // A "must be adjacent to an existing display" candidate, at every one of
-  // the 4 sides of every currently-placed panel - a real report: "when
-  // dragging a display, it must be adjacent to another display." gx/gy
-  // here are the RAW (possibly out-of-hardware-bounds, e.g. -1) grid
-  // coordinates relative to the CURRENT unshifted layout - kept unshifted
-  // so the bounding-box math below renders them in the correct relative
-  // position (e.g. one column to the left of the primary), even though
-  // placing one actually requires shifting every panel (see
-  // shiftForCandidate()/placeAtCandidate() above).
-  // Only computed/shown while layout editing is active (_wallEditMode, on
-  // via the toolbar button) - NOT permanently at rest. Showing them
-  // unconditionally (the previous behavior) meant that once 2+ panels
-  // existed, their combined neighbor cells routinely filled out the
-  // entire remaining hardware grid, recreating the exact "static 6-box
-  // grid" look a real report specifically objected to in the first place.
+  // Candidate cells on all 4 sides of every placed panel. gx/gy are raw
+  // (possibly negative) coordinates in the current unshifted layout so they
+  // render in the right relative position; placing one may shift every panel
+  // (see shiftForCandidate()/placeAtCandidate()). Only shown in layout edit
+  // mode, otherwise they fill the whole grid once 2+ panels exist.
   const candidates = [];
   if (_wallEditMode) {
     const seenCandidate = new Set();
@@ -5087,20 +4759,11 @@ function rebuildWallPreview() {
   }
 }
 
-// Unlike drawPanel2dFrame() (single 2D panel, reuses cube face 0's own
-// v-flip convention baked into faceMap - see that function), wall-mode
-// per-panel bytes come straight from core.wallBuf via plain row-major
-// slicing (encodeWallFrames() in sim-loopback.js / wsServer.js's
-// _streamWallFrames(), and rgbMatrixDriver.js's _buildWallPanelBuffer()
-// for the real hardware output - none of them flip v) - so this must NOT
-// flip v either, or a vertically-stacked wall's panel-to-panel seam joins
-// rows that were never actually adjacent in the source buffer. A real
-// report ("horizontal... flies between them, that's good, but it does
-// not glow vertically") traced to exactly this: horizontal stacking never
-// exposed the bug (a per-panel vertical flip doesn't affect column
-// order), but the real hardware driver's un-flipped convention proves
-// this preview-only flip was simply wrong, not a deliberate orientation
-// choice to preserve.
+// Wall per-panel bytes are plain row-major slices of core.wallBuf
+// (encodeWallFrames(), wsServer.js _streamWallFrames(), and the hardware
+// driver's _buildWallPanelBuffer() never flip v), so this must NOT flip v
+// either, unlike drawPanel2dFrame(). A flip here would join the wrong rows
+// at the seams of vertically stacked panels.
 function drawWallPanelFrame(ctx, bytes) {
   drawLedGrid(ctx, bytes, currentState.panelSize, PANEL2D_OUT, false);
 }

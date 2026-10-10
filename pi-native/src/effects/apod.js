@@ -1,37 +1,7 @@
-// Ported from effects-livedata.js's effectAPOD() (~line 3653) and its
-// surrounding APOD state/helpers (~line 3425-3651). NASA's "Astronomy
-// Picture of the Day" API: one JSON call returns today's title/explanation/
-// image URL; the browser then decodes that image into pixels with
-// loadImageForPixels() and paints it on 5 faces (face 1 is reserved for a
-// scrolling title+explanation ticker) plus a canvas-rendered marquee.
-//
-// Two things are deliberately NOT ported, both because they exist only to
-// serve the shared ".art-shared-panel" Slideshow/Prev/Next controls that
-// also drive Unsplash and Art Gallery - neither of which is ported to
-// pi-native yet, so there is nothing for that shared panel to attach to
-// here (see the task note: "don't invent wiring for shared controls tied
-// to unported sibling effects"):
-//   - apodFetchHistory()'s 30-day history browsing/slideshow mode
-//     (apodBrowsingHistory/apodHistory/apodGoPrev/apodGoNext)
-//   - the apodLetterbox toggle (there's no backend option for it here;
-//     see below for the fixed choice this port makes instead)
-// Everything else - single "today's picture" fetch, daily refresh cadence,
-// retry-with-backoff on error, image-on-5-faces + ticker-on-face-1 layout -
-// is a faithful port.
-//
-// Image decode/resize: no DOM/Canvas here, so this uses `jimp` the same way
-// cam.js does. The browser's loadImageForPixels(..., {letterbox}) defaults
-// to letterbox:true ("full image, preserve ratio") - reproduced here with
-// Jimp's contain() (fit within SIZE x SIZE preserving aspect) composited
-// onto a black SIZE x SIZE background, rather than cam.js's plain resize()
-// (which stretches/crops), since letterboxed is APOD's actual default.
-//
-// Ticker text: the browser built a whole off-screen <canvas> glyph strip
-// with the system font. No Canvas here, so this reuses radio/font.js's
-// self-contained 5x7 bitmap font + the same "scroll left, wrap at text
-// width" approach as radio/ticker.js, just driving it directly instead of
-// importing that module (its label/placement conventions - bottom row -
-// don't fit APOD's full-height marquee).
+// NASA Astronomy Picture of the Day: fetches today's picture once a day (with
+// retry backoff), shows it letterboxed on 5 faces (jimp contain() on black)
+// and scrolls the title and explanation on face 1 using radio/font.js's 5x7
+// font. History browsing and a letterbox toggle are not implemented.
 'use strict';
 
 const { Jimp } = require('jimp');

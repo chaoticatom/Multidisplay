@@ -1,18 +1,8 @@
-// WiFi provisioning via a captive-portal-style AP, mirroring the ESP32
-// firmware's WiFiManager flow (firmware/src/wifi_setup.cpp): if there's no
-// working network connection at boot, the Pi opens its own AP so you can
-// connect from a phone/PC and submit real WiFi credentials, instead of
-// needing SSH/a keyboard-and-monitor to configure it. Same AP credentials
-// as the firmware for consistency: SSID "Multidisplay-Setup", password
-// "cube1234" (firmware/src/config.h's AP_SSID/AP_PASSWORD).
-//
-// Uses NetworkManager (`nmcli`) - the default network stack on Raspberry
-// Pi OS (Bullseye and later; older dhcpcd-based images would need this
-// rewritten against a different tool). Not testable end-to-end in this
-// sandbox (no NetworkManager, no wlan0, no real network hardware) - the
-// command-runner is injectable (see `exec` param) so the orchestration
-// logic and the portal's HTTP handling - the hardware-independent parts -
-// are still unit-tested against a fake nmcli. See test/wifiSetup.test.js.
+// WiFi provisioning: with no working network, the Pi opens its own AP
+// (SSID "Multidisplay-Setup", password "cube1234") with a portal for entering
+// WiFi credentials. Uses NetworkManager (`nmcli`). The command runner is
+// injectable (`exec`) so the logic is tested against a fake nmcli - see
+// test/wifiSetup.test.js.
 const { execFile } = require('child_process');
 const http = require('http');
 
@@ -218,21 +208,10 @@ function startPortalServer(port = PORTAL_PORT, connectFn = connectToNetwork, { o
 }
 
 // ---------------------------------------------------------------------------
-// Orchestration: check connectivity, and if there isn't any, open the AP +
-// portal and block until a real connection is made. Matches the ESP32
-// firmware's connectWifi() blocking-until-connected-or-portal-closed
-// pattern (see wifi_setup.cpp), so app.js can just `await` this once at
-// startup before doing anything that needs the network.
-// ---------------------------------------------------------------------------
-// A real report: the Pi came up on the amber boot screen, unreachable over
-// SSH. At boot Wi-Fi is often still connecting; one check that found it not
-// yet connected switched the Pi into setup-hotspot mode - which takes the
-// Wi-Fi radio off the home network - and waited there for ever. Now:
-//   - wait up to 90 s for the saved network first;
-//   - only then open the setup hotspot, and only for 10 minutes; with no
-//     one using it, close it and wait for the saved network again, and so
-//     on, so a slow router or a power cut can't strand the Pi;
-//   - app.js runs this in the background, so effects start regardless.
+// Orchestration. Wi-Fi is often still connecting at boot, and the setup
+// hotspot takes the radio off the home network, so: wait up to 90 s for the
+// saved network, then open the hotspot for 10 minutes at most, and repeat,
+// so the Pi can't get stranded. app.js runs this in the background.
 const status = { apActive: false };
 function sleepMs(ms) { return new Promise((r) => setTimeout(r, ms)); }
 async function waitForConnection(runFn, ms, stepMs, sleep) {

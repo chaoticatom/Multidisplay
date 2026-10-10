@@ -1,22 +1,9 @@
 // ---------------------------------------------------------------------
-// Internet Radio's option panel (panel-radio) - the real new backend this
-// port added: Stop/volume (dedicated radioStop/setEffectOption('radio',
-// 'volume',...) commands), the directory search box (radioSearch command,
-// results rendered from currentState.effectStatus.radio.search - see
-// wsServer.js's module comment for why search results are broadcast state
-// rather than a per-request reply, unlike Bluetooth's btScan), the
-// featured RADIO_STATIONS list (station selection -> radioPlay command),
-// and the Spectrum Analyser style/band-count/colour-theme/bar-mode/gain/
-// scroll-speed/fit-to-screen/auto-gain controls, all via
-// core.effectOptions.radio.{spectrumOn,bands,style,theme,barMode,gain,
-// scrollSpeed,fitToScreen,autoGain} through the generic setEffectOption
-// path - see radio.js's module comment for why this is a LOCAL per-effect
-// toggle here rather than the browser's global OV.spectrum overlay, and
-// for where gain/auto-gain/fit-to-screen amplitude shaping is applied.
-// RADIO_STATIONS is duplicated here (not fetched from the
-// server) - same "small static list, client already has it" precedent as
-// the browser original itself hard-coding it, and pi-native's Retro/Tron
-// panels hard-coding their own per-game/option button markup.
+// Internet Radio's option panel (panel-radio): stop/volume, directory search
+// (results arrive as broadcast state in effectStatus.radio.search), the
+// featured RADIO_STATIONS list, and the Spectrum Analyser controls, all sent
+// through setEffectOption('radio', ...). RADIO_STATIONS is a small static list
+// duplicated here rather than fetched from the server.
 // ---------------------------------------------------------------------
 const RADIO_STATIONS = [
   { name: 'SomaFM Groove Salad', genre: 'Ambient/Downtempo', url: 'https://ice1.somafm.com/groovesalad-128-mp3' },
@@ -61,29 +48,11 @@ function radioStationRow(station, current) {
 }
 
 // ---------------------------------------------------------------------
-// Browser-side Internet Radio playback (#radio-browser-audio, toggled by
-// #panel-radio's .radio-browser-play-el checkbox) - a real report:
-// "internet radio does not play on phone speaker." radioPlay always plays
-// server-side via paplay, routed to whatever PulseAudio sink is currently
-// default on the PI (a paired Bluetooth speaker, or the Pi's own local
-// output) - never to the connecting browser/phone at all, which is
-// surprising if you're used to "press play, hear it on the device you're
-// holding". This plays the SAME station URL directly in this browser tab
-// via a plain <audio> element, entirely independent of whatever the Pi
-// itself is doing - most radio-browser.info/SomaFM-style stream URLs are
-// plain HTTP(S) audio streams a <audio src> can play cross-origin without
-// needing CORS headers (unlike fetch()/Web Audio API, which do) since
-// that's just "the browser renders it", the same way an <img src> from
-// another domain works with no CORS setup on that domain's part.
-// ---------------------------------------------------------------------
-// ---------------------------------------------------------------------
-// Synced phone playback. Playing the station's own stream here started at
-// a different moment from the Pi's and buffered differently, so the phone
-// ran behind the Bluetooth speaker (a real report). Instead the Pi sends
-// the PCM it gives its speaker, each piece stamped with the Pi time the
-// speaker plays it (see src/wsServer.js sendAudio). We keep an estimate of
-// the Pi's clock and schedule each piece for that moment, less this
-// device's own output delay - so phone, speaker and visuals line up.
+// Playback on this phone/browser. The Pi's radio plays only on the Pi's own
+// sink, so this plays it here too. Synced mode: the Pi sends the PCM it gives
+// its speaker, each piece stamped with the Pi time the speaker plays it (see
+// src/wsServer.js sendAudio). We estimate the Pi's clock and schedule each
+// piece for that moment, less this device's own output delay.
 // ---------------------------------------------------------------------
 const syncAudio = { on: false, ctx: null, gain: null, next: 0, offset: 0, samples: [], timer: null, late: 0, extra: 0 };
 function isAudioPacket(buf) {
@@ -163,19 +132,10 @@ function radioBrowserPlaybackWanted() {
 function setRadioBrowserPlaybackWanted(on) {
   try { localStorage.setItem(RADIO_BROWSER_PLAY_KEY, on ? '1' : '0'); } catch (err) { /* ignore */ }
 }
-// Web Audio graph for #radio-browser-audio - ported to match the ORIGINAL
-// retired browser app's radioEnsureGraph()/radioPlay() EXACTLY (see git
-// history's effects-core.js), after an earlier attempt here got the
-// underlying Web Audio behavior wrong: MediaElementAudioSourceNode does
-// NOT silence audible OUTPUT for a cross-origin/non-CORS source - it only
-// blocks READING the node's data (getByteFrequencyData() etc returns
-// zeros). Audio keeps playing fine either way; only the visualizer needs a
-// fallback for stations that don't support analysis. Always created (not
-// gated behind the Spectrum Analyser checkbox) and BEFORE play(), inside
-// the same synchronous click handler, matching the original exactly - a
-// real report ("radio sounds works until I click the spectrum analyser")
-// was this file's own bug (missing crossOrigin='anonymous', graph created
-// too late/async), not a platform limitation as first assumed.
+// Web Audio graph for #radio-browser-audio. A MediaElementAudioSourceNode on a
+// non-CORS source still plays audibly; only analysis reads zeros. The graph is
+// always created, with crossOrigin='anonymous', BEFORE play() inside the same
+// synchronous click handler; creating it later or async broke playback.
 let _raCtx = null, _raAnalyser = null, _raSource = null, _raBuf = null, _raRunning = false;
 let _raSilent = false, _raSilentTimer = 0, _raLastLevel = 0;
 function radioEnsureGraph() {
@@ -206,19 +166,9 @@ function radioBrowserPlay(station) {
   if (!el) return;
   radioEnsureGraph();
   _raSilent = false; _raSilentTimer = 0; _raLastLevel = 0;
-  // A real report: "the sweep gets to 10khz then starts again at 40hz,
-  // however the sound does not restart" - confirmed as a browser-only
-  // issue (BT untested, ps confirmed the Pi-side ffmpeg/paplay pipeline
-  // genuinely does relaunch each loop). Root cause: /api/debugTone
-  // renders and streams ONE finite WAV clip - the Pi-side pipeline loops
-  // by relaunching a whole new ffmpeg process each time (see
-  // ffmpegAudio.js's `debugloop:` handling), but this <audio> element had
-  // no equivalent - it just played the one clip and stopped, while the
-  // bars kept going since those are driven by the (correctly looping)
-  // Pi-side pipeline instead. The native `loop` property replays the
-  // SAME already-downloaded clip seamlessly with no extra network
-  // request, so it doesn't matter that the WAV itself has a Cache-
-  // Control: no-store response.
+  // /api/debugTone streams one finite WAV clip, while the Pi loops the sweep by
+  // relaunching ffmpeg. `loop` replays the already-downloaded clip with no extra
+  // request, so the sound keeps up with the looping bars.
   el.loop = !!station.loop;
   // A YouTube start offset ('#mdss=N', see src/youtube.js) becomes a media fragment.
   const src = station.url.replace(/#mdss=(\d+(?:\.\d+)?)$/, '#t=$1');
@@ -235,18 +185,11 @@ function radioBrowserStop() {
   el.load();
 }
 
-// Reads the analyser every frame (only actually useful in the simulator,
-// where window.PiEngine.EFFECTS.radio.audio is the same live spec/peak
-// object the bundled tick loop's renderSpectrumStyle() already reads every
-// tick - on a real Pi this object doesn't exist client-side and the loop
-// below just no-ops). Bucketing (log-spaced bins, treble-compensation
-// curve) and smoothing (attack/release + peak-hold) ported verbatim from
-// the original app's readMicSpectrum()/auSmooth(). radioAnalyserSilent
-// detection matches the original's auRefreshCurrentSource(): if the
-// average level stays near zero for 4+ seconds despite playing, the
-// station's stream doesn't support analysis (no CORS headers) - stop
-// feeding fake-looking near-zero data and let bars ease to idle instead,
-// same as the original did, WITHOUT affecting audible playback at all.
+// Reads the analyser every frame. Only useful in the simulator, where
+// window.PiEngine.EFFECTS.radio.audio exists; on a real Pi this loop no-ops.
+// Bucketing and smoothing are ported from the original app. If the level stays
+// near zero for 4+ seconds while playing, the stream doesn't allow analysis
+// (no CORS), so bars ease to idle; audible playback is unaffected.
 let _raLastMs = 0;
 function radioAnalyserTick(nowMs) {
   requestAnimationFrame(radioAnalyserTick);
@@ -310,18 +253,10 @@ function wireRadioPanel() {
   if (!panel) return;
 
   panel.querySelectorAll('.radio-stop-btn-el').forEach((btn) => btn.addEventListener('click', () => { send({ cmd: 'radioStop' }); radioBrowserStop(); }));
-  // Debug mode - two synthetic test tones (server-generated via ffmpeg, no
-  // real station needed) for visually verifying the spectrum analyser -
-  // see wsServer.js's 'radioDebugTone' handler / radio.js's DEBUG_TONES.
-  // The Pi-side WS command drives the actual spectrum/ticker pipeline
-  // (paplay -> Bluetooth/local output) same as any other station. A real
-  // follow-up ("can the browser play the sound") - the debug tone's
-  // internal `debug:<lavfi spec>` URL isn't a real HTTP URL a browser
-  // <audio> element can fetch, unlike a real station's URL, so this ALSO
-  // points the browser's own audio element at wsServer.js's new
-  // /api/debugTone HTTP route (a separate, independent ffmpeg render just
-  // for this) when "Play in this browser" is on - two completely separate
-  // audio paths, matching how a real station already works.
+  // Debug mode: two server-generated test tones for checking the spectrum
+  // analyser (see radio.js's DEBUG_TONES). The WS command drives the Pi-side
+  // pipeline. Its `debug:` URL isn't fetchable by a browser, so when "Play in
+  // this browser" is on the <audio> element uses the separate /api/debugTone route.
   const playDebugTone = (kind, freq) => {
     send({ cmd: 'radioDebugTone', kind, freq });
     if (radioBrowserPlaybackWanted()) {

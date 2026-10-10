@@ -1,32 +1,9 @@
-// Spectrum visualizer render styles - ported from effects-core.js's
-// renderSpectrumStyle() family (drawBandBars/drawDotsStyle/drawBlocksStyle/
-// drawOutlineStyle/drawRadialStyle/drawVUStyle/drawWaterfallStyle/
-// drawWaveformStyle/drawTunnelStyle/drawStormStyle/drawPlasmaStyle/
-// drawRingsStyle/drawFireStyle, effects-core.js lines ~480-975). All 13
-// styles + the 7-theme colour engine (auColor) + the bloom/glow-halo
-// helpers (auBloom/auGlowAround/auDrawPeakCap) are ported.
-//
-// Only the plumbing changed: every style reads amp/peak/bands/theme/
-// barMode/scrollX/t/dt off the passed `ctx` reader object instead of
-// reaching into module-level globals (unlike the browser original) -
-// core.setLED/setFaceLED already forces every effect in this project
-// through an explicit `core` argument (see core.js's module comment for
-// why), so the audio data source follows the same convention rather than
-// being a second exception to it. auBloom/auGlowAround take `core` as
-// their first argument and write directly into core.colBuf via
-// core.faceMap (max-blend, same as the browser original) since
-// core.setLED/setFaceLED overwrite rather than additively blend - the
-// browser's helpers rely on colBuf's max-blend semantics for the "glow
-// never darkens what's already there" behaviour, so this reaches past
-// setLED the same way the browser reaches past a hypothetical wrapper,
-// straight at colBuf/faceMap, matching the original 1:1.
-//
-// VU meter stays mono (see auReadStereoLevels in effects-core.js): no
-// independent stereo channel data is available from the mono-summed FFT
-// pipeline (ffmpegAudio.js mono-sums L+R before computing bands - see its
-// module comment) - both left/right meters read the same overall
-// bass-weighted level. That's a decode-pipeline limitation, explicitly
-// out of scope for this pass (audio pipeline architecture untouched).
+// Spectrum visualizer render styles (13 styles, 7 colour themes, bloom and
+// glow helpers). Styles read amp/peak/bands/theme/etc. from the passed `ctx`
+// rather than globals. auBloom/auGlowAround write straight into core.colBuf
+// via core.faceMap with max-blend, because setLED overwrites and the glow
+// must never darken what's already there. VU meter is mono: the decoder
+// sums L+R before analysis.
 'use strict';
 
 const { hsl } = require('../../core');

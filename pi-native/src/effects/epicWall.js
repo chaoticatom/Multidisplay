@@ -1,22 +1,7 @@
-// Wall-mode counterpart to epic.js ("Earth Live View").
-//
-// Shape check (per the batch brief): epic.js renders a genuine orthographic
-// sphere projection of Earth from the current sub-solar point - a single
-// circular scene, same shape family as celestialWall.js's moon/planet
-// bodies and ghostWall.js's ghost face. So this follows their "single
-// centered scene" pattern: center = (wallW/2, wallH/2), radius pinned to
-// Math.min(wallW, wallH) so the globe stays a circle instead of stretching
-// into an ellipse on a wide or tall wall.
-//
-// Fetch/decode logic (both the EPIC natural-image metadata+PNG pipeline and
-// the GIBS equirectangular cloud map) is reused as-is via epic.js's
-// exports - ensureFetches(core) drives the exact same polling/backoff, and
-// getPixelState()/getSubSolar()/getCaption() read the exact same decoded
-// pixels/caption epic.js's cube renderer uses. Only the projection's pixel
-// loop is reimplemented here, against core.setWallPixel/wallW/wallH instead
-// of core.setFaceLED/core.SIZE, and pinned to the full wall's center/radius
-// per the module comment above (celestialWall.js/ghostWall.js's precedent)
-// rather than one face's SIZE/2.
+// Wall-mode counterpart to epic.js ("Earth Live View"). Fetching/decoding is reused
+// from epic.js (ensureFetches, getPixelState, getSubSolar, getCaption); only the
+// orthographic globe projection is redone here as a centred scene: centre =
+// (wallW/2, wallH/2), radius from Math.min(wallW, wallH) so the globe stays a circle.
 'use strict';
 
 const epic = require('./epic');

@@ -1,47 +1,8 @@
-// Custom Cube - per-face effect composition. Ported from effects-scenes.js's
-// effectCustomCube() (lines 6-69), which itself reads perFaceEffect-shaped
-// data via _customCubeData (see customCubeConfig.js's module comment for how
-// pi-native unifies the browser's draft/active split into one `faces` array).
-//
-// Per-face composition mechanism - simpler than the original's per-effect
-// global-swapping:
-//
-//   The browser had no generic "effect options" store, so to render one
-//   face's assigned effect with its saved sub-options it had to save/
-//   restore a handful of specific global variables by hand (fwTextOn/
-//   fwTextPixels/..., rainStyle - see effects-scenes.js lines 37-46,59-60),
-//   one `if` per effect that happened to have swappable state, silently
-//   missing anything not on that hardcoded list.
-//
-//   pi-native's ported effects already read their options uniformly via
-//   core.effectOptions[effectKey] (see wsServer.js's setEffectOption /
-//   rain.js, lightspeed.js, etc.) - so instead of per-effect swap logic,
-//   this just temporarily overrides the WHOLE core.effectOptions object for
-//   the duration of one face's render: `core.effectOptions = {
-//   ...savedOptions, [faceConfig.effect]: faceConfig.opts }`. Works
-//   uniformly for every ported effect's options, not just a hardcoded
-//   subset, and needs no per-effect knowledge here at all.
-//
-//   Face-restricted colBuf accumulation is unchanged from the original:
-//   each face's assigned effect still writes the WHOLE colBuf (it has no
-//   idea it's being composited), so after each face's render only that
-//   face's own LEDs (via core.faceMap[f]) are copied into an accumulator;
-//   once all 6 faces are done, colBuf = accumulator. Faces with no
-//   assignment (null, or effect:'none') are simply skipped, leaving them
-//   black in the accumulator.
-//
-// core.customCubeFaces is set once per tick by app.js (mirrors
-// core.effectOptions/core.overlaysState - see that file's comment) to
-// state.customCube.faces, the persisted "current assignment" from
-// customCubeConfig.js.
-//
-// 2D/wall-mode fallback: Custom Cube is inherently a 6-face concept. In
-// core.panelMode==='2d' there's only face 0 (see core.js/app.js - a single
-// flat panel has no faceMap[1..5]), so this just renders face 0's assigned
-// effect (if any) directly across the whole panel - a sensible degradation,
-// not a crash, matching the "no WALL_EFFECTS entry, canvas left untouched"
-// pattern already established for every other effect (see effects/index.js's
-// module comment) for wall mode specifically.
+// Custom Cube: a different effect on each face. Each face's effect renders the
+// whole colBuf with core.effectOptions temporarily set to that face's opts,
+// then only that face's LEDs (core.faceMap[f]) are copied into an accumulator.
+// Unassigned faces stay black. In 2D mode only face 0 exists, so its effect
+// fills the panel. core.customCubeFaces is set each tick from state.customCube.
 const { applyFaceOverlays } = require('./overlays');
 const { OV_DEFAULTS } = require('./overlays');
 

@@ -1,52 +1,8 @@
-// Ported from effects-media.js's effectVideo() (~line 168) - "Video
-// Display". Architecturally different from every other effect ported so
-// far: the browser gets frames from an HTML5 <video> element (local file
-// drag-drop, webcam, or screen capture via getDisplayMedia/getUserMedia) -
-// none of which exist in a headless Node server. Scoped down to a single
-// new capability instead: decoding a real video from a URL via a spawned
-// system `ffmpeg` process (see ./video/ffmpegSource.js) into raw RGB24
-// frames, which is then projected onto the cube the same way the browser
-// projected <video>/<img> canvas pixels (see ./video/render.js, shared
-// between this and the static-image fallback since the browser
-// duplicates that same compositing math across both its own code paths).
-//
-// Local file upload IS supported, just not via drag-drop/<input> reading
-// the file directly the way a browser tab could: #vid-file-btn/
-// #img-file-btn open the browser's native file picker (works from a
-// phone's camera roll too), the chosen File's raw bytes are POSTed to
-// wsServer.js's /api/uploadVideo, saved to disk on the Pi, and the
-// resulting local path is fed to effectOptions.video.url exactly like a
-// typed URL - ffmpeg reads a filesystem path the same way it reads a URL,
-// so no extra code path was needed here once the upload plumbing existed.
-// See wsServer.js's UPLOAD_DIR block and public/app.js's
-// uploadVideoFile()/wireVideoPanel() for the rest of that flow.
-//
-// Live webcam / screen capture (#vid-cam-btn/#vid-screen-btn) IS also
-// supported, just via a different mechanism than the browser original's
-// direct getUserMedia()/getDisplayMedia() -> <video> -> <canvas> pipeline:
-// a headless Pi has no camera/display of its own, but the CONNECTED
-// BROWSER TAB does, so it captures+downsamples frames itself and streams
-// them to the Pi over the WS connection as binary messages (see
-// wsServer.js's module comment for the wire format and public/app.js's
-// startBrowserCapture()). Server-side this just means reading from
-// browserFrameSource.js's shared singleton instead of FfmpegSource when
-// effectOptions.video.source==='browser' - buildComposite()/
-// projectToFaces() below don't know or care which source a frame came
-// from. See that file's module comment for the full story.
-//
-// Still explicitly out of scope (no server-side equivalent):
-//   - vidTB==='spectrum' (mic-driven spectrum analyser on the top/bottom
-//     faces) - no audio pipeline here, falls back to 'dark' behaviour,
-//     same documented fallback fireworks.js's mic mode already uses.
-//
-// Requires `ffmpeg` installed on the Pi (`sudo apt install ffmpeg`) - see
-// ffmpegSource.js for the full failure-handling story when it's missing
-// or a URL is bad. This is a new *system* package dependency (not an npm
-// one - see ffmpegSource.js's module comment for why shelling out to a
-// system binary is the right call here, same pattern as bluetooth.js's
-// bluetoothctl/pactl shell-outs), so a fresh pi-native install won't have
-// this effect working until that's installed - status is surfaced via
-// getStatus() same as every other network/process-backed effect.
+// "Video Display". Decodes a video URL or uploaded file (saved by wsServer.js's
+// /api/uploadVideo) with a spawned system ffmpeg (./video/ffmpegSource.js) into RGB24
+// frames, projected onto the cube by ./video/render.js. With source==='browser', frames
+// come instead from browserFrameSource.js (webcam/screen streamed by the connected tab).
+// Requires `sudo apt install ffmpeg`; failures surface via getStatus().
 const { FfmpegSource } = require('./video/ffmpegSource');
 const { browserFrameSource } = require('./video/browserFrameSource');
 const { buildComposite, projectToFaces } = require('./video/render');

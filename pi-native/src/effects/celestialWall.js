@@ -1,38 +1,8 @@
-// Wall-mode counterpart to celestial/celestial.js ("Celestial" - Moon +
-// 8 planets/Pluto + Sun + Black Hole + Solar System view).
-//
-// Shape check (per the batch brief): every one of these 13 bodies is a
-// single circular/orbital scene drawn CENTERED on the panel - there's no
-// per-face or per-pixel-of-the-whole-canvas math that needs generalizing
-// beyond "where is the center and how big is the radius", unlike weather
-// (whole-sky gradient) or datetime's clock hands (also just a centered
-// scene, see datetimeWall.js). So this is the "single centered scene"
-// case the brief calls out, generalized the same way datetimeWall.js's
-// analogue clock was: center = (wallW/2, wallH/2), radius derived from
-// Math.min(wallW, wallH) so the body stays a circle (not stretched into
-// an ellipse) sized to fit the SHORTER wall axis, rather than growing
-// absurdly wide on a many-panels-wide wall or clipping top/bottom on a
-// many-panels-tall one.
-//
-// For the Moon (this effect's default/most common body) that math is
-// simple enough to port directly against core.setWallPixel. For the other
-// 12 bodies (bodies.js's drawSaturn/drawPlanet, solarsystem.js's
-// drawSolarSystem - genuinely large functions, ~500 lines combined, doing
-// nothing wall-specific once centering is right) this reuses those
-// functions VERBATIM rather than re-deriving/duplicating them: bodies.js/
-// solarsystem.js were generalized in this same batch to take separate
-// width/height params instead of one square `S` (see their module
-// comments / celestial.js's call sites, now passing (S, S) for the
-// unchanged cube path) specifically so a wall call site could pass
-// (wallW, wallH) instead. They still address pixels through
-// core.faceMap[face][v*W+u]/core.colBuf (cube plumbing) rather than
-// core.setWallPixel, so this file hands them a throwaway "fake face" -
-// an Int32Array(wallW*wallH) faceMap entry mapping every (v*W+u) cell
-// directly to the matching index into a same-shaped scratch colBuf - then
-// blits that scratch buffer onto the real wallBuf afterward. Cheaper and
-// far less error-prone than transcribing 500 lines of shading math a
-// second time; the scratch buffer is reused across ticks (only
-// reallocated if wallW/wallH change).
+// Wall-mode counterpart to celestial/celestial.js (Moon, planets, Sun, Black Hole,
+// Solar System). Each body is a centred scene: centre = (wallW/2, wallH/2), radius from
+// Math.min(wallW, wallH) so it stays a circle. The Moon is drawn directly; the other
+// bodies reuse bodies.js/solarsystem.js unchanged by handing them a fake face (an
+// identity faceMap over a scratch colBuf, reused across ticks) and blitting it to wallBuf.
 const { getMoonIllumination } = require('./weather/state');
 const { drawString, FONT_MOON, wallMaxPlot } = require('./text');
 const { drawSaturn, drawPlanet } = require('./celestial/bodies');

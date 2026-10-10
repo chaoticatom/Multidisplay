@@ -1,46 +1,10 @@
-// Persisted Timer ("alarm") list, mirroring panelConfig.js's exact
-// load()/save()/validate-on-load-with-fallback-to-default pattern - see
-// that file's module comment for why (survive a restart, JSON file on disk
-// next to this one, gitignored). Ported from the browser's alarmLoad()/
-// alarmSave() (ui.js ~line 291-293), which used localStorage - there's no
-// browser/localStorage on the Pi side, so this is the on-disk equivalent.
-//
-// Data model (one entry in the `alarms` array) - the editor modal
-// (#alarm-modal in index.html) is the ground truth for every field, per
-// the porting task's own instruction to read it over the terser inline
-// default object in ui.js's alarmOpenEditor():
-//   {
-//     id,                          // string, assigned on create, stable identity for updateAlarm/deleteAlarm/setAlarmEnabled/dismiss-matching
-//     name, enabled,                // bool
-//     hour (0-23), minute (0-59),
-//     repeat: 'once'|'daily'|'weekdays'|'weekends'|'weekly'|'hourly',
-//     days: [0-6],                  // only meaningful for repeat:'weekly' (0=Sun)
-//     triggerType: 'effect'|'playlist',
-//     effect,                       // effect key, only used when triggerType==='effect'
-//     overlayKeys: [],              // overlay keys forced on when this alarm fires
-//     playlistName,                 // kept for shape-fidelity with the browser; playlists
-//                                    // are NOT implemented in pi-native (see alarmEngine.js's
-//                                    // module comment) - a playlist-type alarm falls back to
-//                                    // the same "no effect" handling alarmFire()'s own
-//                                    // else-branch already has, same as cam.js/fireworks.js/
-//                                    // video.js's own out-of-scope pieces.
-//     message,                      // text shown on the cube during the main alarm phase
-//     prealarm: {
-//       enabled,                    // pre-alarm dim->bright ramp
-//       preMinutes, startBright,    // ramp window length (mins) / starting brightness (%)
-//       giantSun,                   // use renderGiantSun instead of renderAlarmSunrise
-//       windDown,                   // this alarm is a Wind Down (dims forward from full,
-//                                    // starting AT alarm time) instead of a wake alarm
-//       wdMinutes,                  // wind-down duration (mins)
-//       wdUseEffect, wdEffectKey, wdOverlayKeys,  // run an effect (dimming) instead of the plain wind-down sky
-//     },
-//     _lastFireMin,                 // transient de-dupe guard (see alarmEngine.js's alarmCheck) - persisted
-//                                    // verbatim like the browser does (alarmSave() saves the whole object).
-//   }
-//
-// effectRise (an alarm-time "wake into a live effect like weather/radio"
-// mode from the browser source) is a documented, permanent scope boundary,
-// NOT ported - see alarmEngine.js's module comment for why.
+// Persisted Timer ("alarm") list, with the same load/save/validate-with-
+// fallback pattern as panelConfig.js. Entry fields: id, name, enabled, hour,
+// minute, repeat ('once'|'daily'|'weekdays'|'weekends'|'weekly'|'hourly'), days
+// (weekly, 0=Sun), triggerType ('effect'|'playlist'; playlists not implemented),
+// effect, overlayKeys, message, prealarm {enabled, preMinutes, startBright,
+// giantSun, windDown, wdMinutes, wdUseEffect, wdEffectKey, wdOverlayKeys}, and
+// _lastFireMin (de-dupe guard used by alarmEngine.js's alarmCheck).
 const fs = require('fs');
 const { readSectionJson, writeSection } = require('./settingsStore'); // CONFIG_PATH is now only the pre-settings.json legacy file, imported once
 const path = require('path');

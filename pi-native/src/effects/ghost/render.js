@@ -1,44 +1,8 @@
-// Canvas-2D -> raw-pixel-math translation of effects-scenes.js's
-// ghostRenderCanvas() (lines ~81-265). The browser draws the ghost face
-// into an offscreen 256x256 <canvas> using gradients/ellipse fills/
-// quadratic-curve strokes/clip paths/destination-out compositing, then
-// reads it back with getImageData(). None of that API exists under
-// Node, so this file reimplements each drawing primitive as a per-pixel
-// loop over a flat Uint8ClampedArray RGBA buffer (256*256*4), built once
-// per eye-open/mouth-open state change and cached by the caller (see
-// ghost.js), exactly like the browser caches ghostPixelsOpen/Closed.
-//
-// Translation notes (documented judgment calls):
-//  - Radial/linear gradients: implemented as `sampleStops(stops, t)`,
-//    piecewise-linear interpolation between the same addColorStop
-//    positions/colours the browser used, given a 0..1 distance/position
-//    fraction - this is exactly what CanvasGradient does internally.
-//  - Ellipse/circle fills: point-in-ellipse test
-//    ((x-cx)/rx)^2+((y-cy)/ry)^2<=1, then straight alpha-over blend
-//    (same visual result as ctx.fill() on an opaque/semi-opaque path).
-//  - Strokes with lineWidth/lineCap='round' (brow quadratic curves, the
-//    closed-eyelid crease): sampled at N points along the curve
-//    (quadraticBezier(t)) and each point stamped with a filled circle of
-//    radius lineWidth/2 - round line caps/joins are exactly circle-stamps,
-//    so this is faithful, not an approximation.
-//  - The oval clip path (ctx.clip() before the skin/brow/eye/nose/mouth/
-//    cheek/texture layers): rather than a real clip stack, every fill in
-//    that block is intersected with the same ellipse test the clip would
-//    have applied (fw*1.3, fh*1.2 ellipse). Equivalent result, no clip
-//    machinery needed since nothing in that block draws outside a shape
-//    the ellipse test can express (the render only ever fills circles/
-//    ellipses/rects, no complex outside-the-clip strokes).
-//  - destination-out vignette: for an opaque base image, "reduce dest
-//    alpha by the gradient's alpha at this pixel" is mathematically
-//    `finalAlpha = baseAlpha * (1 - gradAlpha)`, applied as the very last
-//    pass over the whole 256x256 buffer, matching the browser's ordering
-//    (vignette is composited after everything else, outside the face
-//    clip's ctx.restore()).
-//  - Pore/texture noise (60 random dots at globalAlpha=0.06): drawn as
-//    60 random small alpha-blended circles, same as the source. Judgment
-//    call: Math.random() here uses the ambient RNG same as the browser
-//    (no fixed seed) - the browser doesn't seed it either, texture is
-//    meant to differ per render, so this preserves that.
+// Renders the ghost face into a 256x256 RGBA buffer with per-pixel maths in
+// place of the browser's canvas API (no canvas under Node). Built once per
+// eye/mouth state and cached by ghost.js. Gradients interpolate colour stops,
+// round strokes are stamped circles, the oval clip is an ellipse test on each
+// fill, and the vignette (last pass) scales alpha by (1 - gradient alpha).
 'use strict';
 
 const R = 256; // canvas resolution, matches the browser's ghostRenderCanvas

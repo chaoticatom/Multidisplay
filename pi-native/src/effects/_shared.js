@@ -1,16 +1,6 @@
-// Cross-effect helpers ported verbatim (math unchanged) from
-// effects-core.js's cubePx()/fwPx()/tronMove() - shared by more than one
-// Motion & Particles effect (sphere/"Laser Grid" and lightning use cubePx;
-// lightning and (later) tron use tronMove). Kept out of core.js itself
-// since CubeCore is the browser's cube.js port, while these three are
-// effects-core.js's cross-category helpers, per CLAUDE.md's file layout.
-//
-// Only the plumbing changed: reads SIZE/faceMap off the passed `core`
-// instead of bare globals, and panel2dMode/tronBorderWalls (browser globals
-// read via `typeof x!=='undefined'` guards, since they come from sidebar
-// checkboxes that don't exist here) are hardcoded false - pi-native has no
-// equivalent UI toggle yet, so tronMove always takes the real cube-wrap
-// branch, never the flat/bordered-2D-net branch.
+// Cross-effect helpers cubePx()/fwPx()/tronMove(), ported with the math unchanged.
+// They read SIZE/faceMap off the passed `core`; the browser's 2D-mode and border-wall
+// flags are hardcoded false here, so tronMove always takes the cube-wrap branch.
 const FW_FACES = [0, 2, 1, 3];
 
 // FW_FONT - 7x6 bitmap font (6 rows, glyph strokes in columns 0-5, column 6
@@ -392,17 +382,9 @@ function wcTagQA(text) {
 }
 
 // ── Wall-mode siblings of wcInit/wcStep/wcDrawToFace ──────────────────────
-// joke.js/trivia.js/otd.js's cascade math is genuinely SIZE-relative:
-// wcInit() hardcodes `maxLines = floor(64/WC_LINE_H)` and wcStep()
-// hardcodes `maxW = 64` for its word-wrap width - both assume the fixed
-// 64x64 cube-face panel the engine was written for, not a parameter core
-// already carries. So per the batch brief, these are separate
-// wallW/wallH-aware siblings (not a call-the-existing-helper-with-different-
-// args reuse) - same wrap/reveal/line-eviction algorithm, just against
-// wallW (word-wrap width) and wallH (line-count cap + vertical layout)
-// instead of the hardcoded 64. wcDrawGlyphWall/wcDrawToFaceWall similarly
-// mirror wcDrawGlyph/wcDrawToFace but write through core.setWallPixel
-// across the full wallW x wallH canvas instead of one face's faceMap/SIZE.
+// The cube versions hardcode a 64-pixel face (maxLines, wrap width), so these use
+// wallW for word-wrap width and wallH for the line cap/layout, with the same
+// algorithm, drawing through core.setWallPixel.
 function wcInitWall(taggedWords, wallH) {
   const maxLines = Math.max(1, Math.floor(wallH / WC_LINE_H));
   return {

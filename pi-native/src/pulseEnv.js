@@ -1,19 +1,8 @@
-// Shared by src/bluetooth.js (pactl calls) and src/effects/radio/
-// ffmpegAudio.js (the `paplay` playback process) - extracted out of
-// bluetooth.js rather than duplicated, after a real report ("I don't hear
-// anything on the BT speaker") turned out to be exactly the same
-// PulseAudio-env problem bluetooth.js already had, just in a second place
-// that spawns a PulseAudio client process independently.
-//
-// multidisplay-pi.service runs as root (needed for rpi-led-matrix's GPIO/
-// DMA access), but PulseAudio/PipeWire-pulse runs as a per-user SESSION
-// daemon under the Pi's regular login user, not root - any child process
-// this app spawns that talks to PulseAudio (pactl, paplay, ...) needs to
-// be pointed at that user's actual socket + home directory (for PulseAudio
-// client auth's cookie file), or it silently tries to reach root's own
-// nonexistent session instead and fails with "Connection refused"/
-// "Permission denied" - see bluetooth.js's original diagnosis of this for
-// the full story.
+// Environment for child processes that talk to PulseAudio/PipeWire-pulse
+// (pactl, paplay). The service runs as root (for GPIO/DMA), but the audio
+// daemon runs as a per-user session under the Pi's login user, so clients
+// must be pointed at that user's socket and home directory (for the auth
+// cookie), or they fail with "Connection refused"/"Permission denied".
 const fs = require('fs');
 
 let _pulseEnvCache = null;

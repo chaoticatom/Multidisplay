@@ -1,22 +1,7 @@
-// Ported verbatim (math unchanged) from effects-games.js's buildMaze()/
-// genRunnerSeq()/respawnRunners()/mazeMark()/effectMaze() - "Maze Runner".
-// Uses surfIdx() from ./_shared.js (effects-core.js's shared (x,y,z)->LED
-// helper). Same is2d threading as weather.js: panel2dMode is TRUE for
-// pi-native's own single-2D-panel hardware mode (core.panelMode==='2d'),
-// not hardcoded false - a single flat panel builds one face's perfect
-// maze instead of stitching a maze across all 6 cube faces via edge
-// doorways, same as the browser's flat-panel preview.
-//
-// mazeRunnerCount is read from core.effectOptions.maze.runners (the
-// sidebar's "Runners" slider, via the generic setEffectOption mechanism -
-// see rain.js/lightspeed.js for the pattern) with the browser's default of
-// 3. A runner-count change only takes effect on the next buildMaze() call
-// (button/reselect), matching how the browser's own #mz-runners listener
-// just mutates the module var without forcing a rebuild. The "⟳ NEW MAZE"
-// button forces an immediate rebuild via core.effectOptions.maze.newMaze
-// (a monotonically-increasing counter/token - see app.js's public/app.js
-// wiring - so the tick loop can detect "the user clicked New Maze" without
-// a dedicated one-shot WS command).
+// "Maze Runner": builds a maze across all 6 faces joined by edge doorways, or
+// one face's maze in 2D mode (core.panelMode==='2d'). effectOptions.maze.runners
+// (default 3) applies on the next rebuild. effectOptions.maze.newMaze is an
+// increasing counter; a change forces an immediate rebuild.
 const { hsl } = require('../core');
 const { tempo } = require('./audioFeatures');
 const { surfIdx } = require('./_shared');

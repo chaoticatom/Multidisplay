@@ -1,32 +1,8 @@
-// Spectrum analysis for the radio visualizer: a radix-2 FFT plus a
-// log-spaced band mapping, returning BAND_COUNT levels in 0..1.
-//
-// Redone for quality and speed (a request to "redo the spectrum analyser,
-// correct any issues and make it look amazing and fast"). What changed and
-// why:
-//   - Levels are on a DECIBEL scale (DB_FLOOR..DB_CEIL mapped to 0..1).
-//     Linear magnitude against a fixed reference made quiet detail vanish
-//     and loud passages flatten against the top, leaving auto-gain to do
-//     all the work. dB is what real analysers show: every band moves.
-//   - A treble tilt (TILT_DB_PER_OCTAVE, pivoting at 1kHz) replaces the old
-//     hand-tuned bass-cut/treble-boost curve. Music's energy falls roughly
-//     3-4.5dB per octave, so this flattens typical music the same way.
-//   - Range 30Hz-7kHz. It used to start at FFT bin 1 (~10Hz, sub-audible
-//     rumble), wasting the leftmost bars. 7kHz is the ceiling asked for
-//     earlier ("move back to max 7khz"), kept.
-//   - Narrow bass bands (less than one FFT bin wide) interpolate the
-//     spectrum at their centre frequency instead of several bands
-//     collapsing onto the same bin (a blocky staircase at the left).
-//     Wider bands take their LOUDEST bin, not the mean, so treble
-//     transients aren't averaged away.
-//   - Everything is precomputed once per (window, sampleRate): the Hann
-//     window, twiddle factors, bit-reversal table and each band's bin
-//     range. analyse() allocates nothing, so it can run 60 times a second.
-//
-// The main window is WINDOW real samples (46ms at 44.1kHz; bass bands use
-// twice that, see BASS_SPLIT_HZ), zero-padded 2x -
-// the padding interpolates extra frequency bins so the densely packed top
-// bands each still get distinct bins (see git history for that report).
+// Spectrum analysis for the radio visualizer: radix-2 FFT plus log-spaced bands,
+// returning BAND_COUNT levels in 0..1 on a dB scale (DB_FLOOR..DB_CEIL), with a treble
+// tilt pivoting at 1kHz, range 30Hz-7kHz. Narrow bass bands interpolate at their centre
+// frequency; wide bands take their loudest bin. Window WINDOW samples (bass bands use 2x,
+// see BASS_SPLIT_HZ), zero-padded 2x; everything is precomputed so analyse() never allocates.
 'use strict';
 
 const BAND_COUNT = 256; // canonical resolution; radio.js re-samples to the displayed band count

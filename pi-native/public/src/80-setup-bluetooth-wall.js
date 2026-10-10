@@ -11,18 +11,9 @@ function wireCollapsibles() {
   });
 }
 
-// Sidebar-wide menu system - the ◀ collapse button + floating "show
-// sidebar" button on desktop (#sidebar.hidden), and the ☰ #menu-toggle +
-// #sidebar-overlay slide-in/out on narrow/mobile viewports (#sidebar.open)
-// - present in the markup/CSS (all copied verbatim from the browser
-// original) but NONE of it was ever wired here, unlike ui.js's own
-// cube.js-based version of this. Ported from cube.js's "MENU TOGGLE"
-// section/ui.js's "SIDEBAR COLLAPSE" section (toggleMenu() there is the
-// same unified function both delegate to), with one deliberate behavior
-// change: the original started with the sidebar CLOSED on a narrow
-// viewport (`menuOpen = window.innerWidth > 768`) - this always starts
-// OPEN regardless of viewport width, per a real report that the sidebar
-// wasn't there to begin with on first load.
+// Sidebar menu: the collapse button and floating "show sidebar" button on
+// desktop (#sidebar.hidden), and the ☰ toggle with overlay on narrow screens
+// (#sidebar.open). Always starts open, whatever the viewport width.
 let menuOpen = true;
 function updateSidebarOverlay() {
   const overlay = document.getElementById('sidebar-overlay');
@@ -343,54 +334,20 @@ function handleBtResult(msg) {
 }
 
 // ---------------------------------------------------------------------
-// Video Wall layout editor - Pi-native-only, no original-app equivalent.
-// Lives directly in the main preview area (#wall-preview, right of the
-// sidebar), not a separate abstract grid tucked away in the sidebar - you
-// see the actual live per-panel feeds while placing new ones, and drag/
-// click straight onto the real layout to put a new display above, below,
-// left, or right of an existing one. A fixed WALL_COLS x WALL_ROWS grid
-// (matches panelConfig.js's WALL_MAX_COLS/WALL_MAX_ROWS - the same 2x3
-// physical topology already wired for cube mode, so up to 6 displays
-// total) of cells: filled ones are live-updating canvases (draggable,
-// with a × to remove), empty ones are dashed drop-targets/click-to-add-
-// here placeholders. Every change sends a full layout to the server,
-// which is the single source of truth - the grid always re-renders from
-// the next "state" message rather than assuming its own optimistic
-// result, so a rejected/invalid drag just snaps back on the next state
-// echo. The #wall-toolbar "+" button is the entry point for switching
-// INTO wall mode from cube/2D in the first place (always visible, not
-// gated on already being in wall mode); rebuildWallPreview() itself only
-// renders the full editable grid once wall mode is actually active.
+// Video Wall layout editor, drawn in #wall-preview with live per-panel feeds.
+// Filled cells are draggable canvases; empty cells are drop/click targets.
+// Every change sends the full layout to the server, which is the source of
+// truth: the grid re-renders from the next "state" message, so an invalid drag
+// snaps back. The toolbar "+" button also switches into wall mode.
 // ---------------------------------------------------------------------
-// Mirrors panelConfig.js's WALL_MAX_COLS/WALL_MAX_ROWS/WALL_MAX_PANELS -
-// this file has no access to that module (it also runs standalone against
-// a real Pi's wsServer.js over plain WebSocket, not just the bundled
-// simulator), so it keeps its own copy, same as before this was 2x3. A
-// real request: "I need the ability to choose all horizontal displays...
-// e.g. 1 row by 6 wide" - WALL_COLS/WALL_ROWS are now a generous per-axis
-// bound (any 1-wide or 1-tall row/column up to 6 long is valid, not just
-// a fixed 2x3 block); WALL_MAX_PANELS is the real hardware panel-count cap.
+// Copy of panelConfig.js's limits (this file can't require it). Any row or
+// column up to 6 long is allowed; WALL_MAX_PANELS is the hardware panel cap.
 const WALL_COLS = 6, WALL_ROWS = 6, WALL_MAX_PANELS = 6;
 let _wallDragFrom = null;
-// Whether placement-candidate outlines should currently be rendered at
-// all - a real report: candidates used to be shown PERMANENTLY around
-// every placed panel, which (once 2+ panels exist) fills out to look
-// like the original disliked "static 6-box grid" all over again. Now
-// candidates only appear while actively choosing where to put a new
-// display (toggled by the "+" button - see wireWallToolbar()) or while
-// dragging an existing one to reposition it (_wallDragFrom above) - at
-// rest, only the actually-placed displays are shown.
-// Single source of truth for "am I currently editing the wall layout" -
-// gates candidate outlines, the per-panel remove "×", and whether a placed
-// panel can be dragged at all. A real report: "don't go to edit mode when
-// tapping on the display. the button must be pressed to go into edit mode
-// and pressed again to exit edit mode" - tapping/dragging a placed panel
-// used to flip this on by itself (the old canvas mousedown handler set
-// _wallDragFrom unconditionally), so merely touching a display while just
-// looking at the wall started an edit session. Now ONLY the toolbar button
-// (or Escape/click-outside while already editing) can turn this on or off;
-// dragging is still how you reposition a panel, but only once edit mode is
-// already active via the button.
+// Single source of truth for wall edit mode: gates candidate outlines, the
+// remove "×", and dragging. Only the toolbar button (or Escape/click-outside
+// while editing) toggles it; tapping a display must not start editing.
+// Candidates show only while editing or dragging, not around every panel.
 let _wallEditMode = false;
 
 // Reflects _wallEditMode on the single "Layout" toggle button - a real

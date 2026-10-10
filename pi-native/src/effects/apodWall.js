@@ -1,24 +1,7 @@
-// Wall-mode counterpart to apod.js ("Astronomy Pic of the Day").
-//
-// Shape check (per the batch brief): apod.js paints the SAME letterboxed
-// image on all 5 non-ticker faces (`for f=0..6, f!==1) applyImageToFace`) -
-// no per-face variation, no centered-scene math, just "one image, shown
-// everywhere". That's the coinflipWall.js/camWall.js "single continuous
-// image stretched across the whole wallW x wallH canvas" shape, not a
-// centered scene - so this follows camWall.js's pattern directly: decode
-// the fetched image straight at (wallW, wallH) rather than re-stretching a
-// SIZE x SIZE decode, and keep its own siloed fetch/decode state separate
-// from apod.js's (same "own state, don't collide across registries"
-// reasoning as camWall.js's module comment - NASA APOD only changes once a
-// day, so a second independent poller here costs nothing worth sharing a
-// module for, unlike epic.js/iss.js's 5s-60s cadence 3rd-party APIs which
-// this batch DID wire up to share fetch state via ensureFetches()).
-//
-// Ticker: same 5x7 bitmap-font scrolling technique apod.js's drawTicker
-// uses (radio/font.js's drawGlyph/CHAR_W), just addressed through
-// core.setWallPixel across the full wall width/height band instead of one
-// SIZE x SIZE face - title+explanation scroll along a band near vertical
-// center of the whole wall, one continuous ticker, not duplicated per panel.
+// Wall-mode counterpart to apod.js ("Astronomy Pic of the Day"). Decodes the image
+// straight at (wallW, wallH) as one continuous picture, with its own fetch state (APOD
+// changes daily, so a second poller costs nothing). The title+explanation scroll as one
+// 5x7 ticker band near the wall's vertical centre.
 'use strict';
 
 const { Jimp } = require('jimp');

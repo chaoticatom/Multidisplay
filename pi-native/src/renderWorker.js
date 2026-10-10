@@ -1,55 +1,21 @@
-// Opt-in (RENDER_WORKER=1) render-loop worker thread - a real request:
-// "can you use multiple cores for this?" (the CPU contention behind
-// choppy radio spectrum bars, per the FFT-throttle fix's own comment -
-// this app's own render loop was already using ~85% of one CPU core as a
-// baseline before radio audio was even involved).
+// Render-loop worker thread (RENDER_WORKER=1). Runs tick() and
+// driver.renderFrame() off the main thread so they don't compete with the
+// WS/HTTP server. Only this thread owns the hardware driver; app.js must not
+// create a second one (they would fight over GPIO/DMA).
 //
-// Moves the CPU-heavy part - tick() (effect/overlay/alarm computation into
-// colBuf/wallBuf) and driver.renderFrame() (the actual native
-// rpi-led-matrix GPIO/DMA push) - onto a separate OS thread from
-// src/app.js's own WS/HTTP server and all its command handling, so they
-// stop competing for the same thread's time slices. Only this file ever
-// touches the real hardware driver when RENDER_WORKER=1 - app.js does NOT
-// also construct one, since two driver instances would fight over the
-// same GPIO/DMA resources.
-//
-// Message protocol (see app.js's worker wiring for the other side):
-//   main -> worker: {type:'config', config}  - panel size/mode/panels changed
-//                    {type:'tick', state, dt} - one frame's worth of state
-//                    (state is a plain serializable snapshot - NOT the same
-//                    object identity as app.js's own `state`, since
-//                    structured-clone across the thread boundary always
-//                    copies; app.js's onAlarmsChanged function reference is
-//                    stripped before sending, since functions can't clone)
+// Message protocol (see app.js for the other side):
+//   main -> worker: {type:'config', config} - panel size/mode/panels changed
+//                   {type:'tick', state, dt} - a cloned state snapshot
+//                   (functions such as onAlarmsChanged are stripped)
 //   worker -> main: {type:'frame', colBuf, wallBuf, activeAlarm, alarms,
-//                    blank, effectStatus} - alarms/activeAlarm/blank/
-//                    effectStatus are round-tripped back because tick()
-//                    itself can mutate them (alarms.tickCheck() firing an
-//                    alarm, e.g.) - this worker, not app.js, is the thread
-//                    actually running tick(), so it's the source of truth
-//                    for anything tick() mutates; app.js remains the
-//                    source of truth for anything a WS command mutates
-//                    (effect/brightness/overlays/customCube/...), relayed
-//                    to this worker via the next 'tick' message's `state`.
-//
-//   main -> worker: {type:'effectCommand', cmd, payload} - a real report:
-//                    enabling this worker silently broke radio (and would
-//                    have broken video stop / the browser-pushed webcam/
-//                    screen-share source too) - wsServer.js calls several
-//                    effect modules DIRECTLY rather than only through
-//                    state/config (radio.js's playStation/stopStation/
-//                    search, video.js's/videoWall.js's stop(),
-//                    browserFrameSource's setFrame()/clear()), and each of
-//                    those modules is its OWN singleton with its OWN
-//                    require() cache entry PER THREAD - the copy
-//                    wsServer.js (main thread) would call directly is a
-//                    different object instance from the one this worker's
-//                    tick() actually renders from, so the mutation would
-//                    never reach where it mattered. See wsServer.js's
-//                    effectCommandRelay constructor comment for the other
-//                    side of this. Commands: radioPlay {station},
-//                    radioStop {}, radioDebugTone {kind, freq}, radioSearch
-//                    {query}, videoStop {}, videoFrame {payload, w, h, kind}.
+//                   blank, effectStatus} - this thread owns whatever tick()
+//                   mutates; app.js owns whatever WS commands mutate.
+//   main -> worker: {type:'effectCommand', cmd, payload} - effect modules
+//                   are per-thread singletons, so direct calls must be
+//                   relayed here (see wsServer.js effectCommandRelay).
+//                   Commands: radioPlay {station}, radioStop {},
+//                   radioDebugTone {kind, freq}, radioSearch {query},
+//                   videoStop {}, videoFrame {payload, w, h, kind}.
 'use strict';
 
 const { parentPort, workerData } = require('worker_threads');
@@ -113,22 +79,10 @@ parentPort.on('message', (msg) => {
   }
   if (msg.type === 'effectCommand') {
     const { cmd, payload } = msg;
-    // Mirrors wsServer.js's own direct-call handlers exactly (see its
-    // effectCommandRelay constructor comment) - the only difference is
-    // WHICH thread's copy of these singletons gets mutated: this one, the
-    // same instance tick() below actually renders from.
-    //
-    // A real report ("station name never updates in the UI after
-    // picking one"): nothing here told the main thread WHEN a command
-    // actually finished being applied - the periodic 'frame' reply (see
-    // below) keeps state.effectStatus fresh on the main thread, but
-    // nothing ever BROADCASTS a "state" message to connected clients from
-    // that alone (same as the non-worker path: every _broadcast() call in
-    // wsServer.js happens at the end of a command handler, never on a
-    // periodic timer - see e.g. its radioSearch handler's own `.then(() =>
-    // {...; this._broadcast(...)})`). Posting 'stateChanged' back lets
-    // app.js do the same thing at the same moment, just relayed through
-    // the worker boundary instead of being the same synchronous call.
+    // Mirrors wsServer.js's direct-call handlers, but on this thread's copy of
+    // the singletons. Posting 'stateChanged' when a command finishes lets
+    // app.js broadcast state then, as the non-worker path does at the end of
+    // each command handler (frame replies alone never trigger a broadcast).
     if (cmd === 'radioPlay') { radio.playStation(payload.station); parentPort.postMessage({ type: 'stateChanged' }); }
     else if (cmd === 'radioStop') { radio.stopStation(); parentPort.postMessage({ type: 'stateChanged' }); }
     else if (cmd === 'radioDebugTone') { radio.playDebugTone(payload.kind, payload.freq); parentPort.postMessage({ type: 'stateChanged' }); }

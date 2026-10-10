@@ -1,20 +1,9 @@
-// Internet Radio - entry point (core, dt) => void, matching the effect
-// registry convention (see ../index.js / weather.js's module comment for
-// the pattern this follows). Owns the module-scope player state (current
-// station, playing/volume, search results) - same "singleton state owned
-// by the effect module, mutated via exported functions the WS layer
-// calls" shape as effects/weather.js's wxState / effects/maze.js's token
-// trick, not effectOptions (station selection/search are one-shot actions
-// with a result, not a slider-style value - see ../../wsServer.js's
-// radioPlay/radioStop/radioSearch command handlers).
-//
-// Visual behaviour matches effects-core.js's effectRadio(): clears
-// colBuf, draws the spectrum visualizer ONLY if the "Spectrum Analyser"
-// toggle is on (core.effectOptions.radio.spectrumOn - the local per-effect
-// equivalent of the browser's global OV.spectrum.on, see CLAUDE.md task
-// note: full OV.spectrum overlay integration is out of scope here), then
-// draws the scrolling now-playing ticker on face 0 (and face 2 unless
-// core.panelMode==='2d', matching the original's is2D check).
+// Internet Radio effect. This module owns the player state (station,
+// playing/volume, search results), changed through exported functions the WS
+// commands call (radioPlay/radioStop/radioSearch) rather than effectOptions.
+// Each frame it clears colBuf, draws the spectrum if
+// effectOptions.radio.spectrumOn, then the now-playing ticker on face 0 (and
+// face 2 unless in 2D panel mode).
 'use strict';
 
 const { RadioAudio, RemoteAudio, BAND_COUNT } = require('./ffmpegAudio');
@@ -38,29 +27,12 @@ const RADIO_STATIONS = [
   { name: 'SomaFM Boot Liquor', genre: 'Americana', url: 'https://ice1.somafm.com/bootliquor-128-mp3' },
 ];
 
-// Debug-mode test tones for verifying the spectrum analyser without a real
-// stream - see ffmpegAudio.js's _launch() for how `debug:<lavfi spec>` URLs
-// get decoded through the SAME pipeline as a real station (FFT/ticker/
-// playback all unchanged). Both are plain math expressions (aevalsrc), no
-// external files needed.
-//   Sweep: a linear chirp from 40Hz to 7000Hz over 45s (narrowed further
-//   per a real, explicit request: "do max of 7khz. this is for the debug
-//   and also the live spectrum analyser for all sounds" - fft.js's own
-//   analysis ceiling was lowered to match). Originally narrowed from
-//   20Hz-15000Hz - a real follow-up: "only needs to cover low to high of
-//   what a typical song would be" - deep sub-bass below 40Hz and the
-//   near-ultrasonic tail above 10kHz aren't where real music content
-//   actually sits) - instantaneous phase = 2*PI*(f0*t + (f1-f0)*t^2/(2*T))
-//   so frequency rises linearly the whole way, letting you watch every
-//   band light up in turn.
-//   Drum: a synthesized kick drum (a real follow-up: "make it sound like
-//   a deep drum loud sound" - the original was just a broadband noise
-//   burst, no low-end character at all). sin(2*PI*(50+70*exp(-25*t))*t) is
-//   a classic drum-synthesis trick: the sine's OWN frequency starts around
-//   120Hz and drops to 50Hz within about 100ms (the "pitch envelope" that
-//   gives a kick its characteristic thump, not just a plain bass tone),
-//   multiplied by exp(-4*t) for a ~250ms decay (long enough to read as
-//   "loud"/full-bodied, not a clipped click).
+// Debug test tones, decoded through the same pipeline as a real station via
+// `debug:<lavfi spec>` URLs (see ffmpegAudio.js's _launch()).
+//   Sweep: linear chirp 40 Hz to 7 kHz over 45 s (matching fft.js's range),
+//   phase = 2*PI*(f0*t + (f1-f0)*t^2/(2*T)), so each band lights in turn.
+//   Drum: kick drum whose pitch falls ~120 Hz -> 50 Hz in ~100 ms, with a
+//   ~250 ms exp(-4*t) decay.
 const DEBUG_TONES = {
   // debugloop: (not debug:) - a real follow-up ("the sweep should go
   // from 40 to 10khz and back to 40hz again and so forth") - the sweep
@@ -205,17 +177,9 @@ function effectRadio(core, dt) {
   for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] = 0;
 
   if (spectrumOn) {
-    // Auto Gain - slow-adapting overall multiplier toward a target overall
-    // loudness (deliberately slow, per-second not per-band, so it can't
-    // "pin to the top"), separate from the manual Gain slider.
-    // A real report: "the first bar is always so high, it makes auto gain
-    // not function well" - bass/sub-bass content is legitimately loud in an
-    // FFT (more raw energy concentrated at low frequencies for most music),
-    // so band 0 sits near its ceiling far more often than other bands. Using
-    // the MAX across bands here meant that one persistently-loud band alone
-    // drove the auto-gain multiplier down, crushing every OTHER band even
-    // though they weren't actually loud - average is what "overall
-    // loudness" should mean for this purpose.
+    // Auto Gain adapts slowly toward a target loudness, separate from the manual
+    // Gain slider. It uses the AVERAGE across bands, not the max: bass is usually
+    // the loudest band and would otherwise push every other band down.
     // Gain -> auto-gain -> fit-to-screen -> soft ceiling -> bloom, once per
     // frame into arrays (see ./levels.js).
     const lv = computeLevels(levelState, audio, { bands, gain, autoGain: autoGainOn, fitToScreen }, dt);

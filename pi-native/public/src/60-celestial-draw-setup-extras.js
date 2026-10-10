@@ -1,19 +1,11 @@
 // ---------------------------------------------------------------------
-// Celestial's option panel (panel-moon) - the 13-way "celestial-body" radio
-// group (moon/mercury/venus/earth/mars/jupiter/saturn/uranus/neptune/pluto/
-// sun/blackhole/solarsystem), backed by core.effectOptions.moon.body, plus
-// the Solar System view's Orbit Speed slider, backed by
-// core.effectOptions.moon.solarSpeed - same 0-7 logarithmic-multiplier
-// slider as the original (see effects/celestial/solarsystem.js). The
-// #solar-speed-row show/hide-on-selection behaviour is verbatim from
-// index.html's own inline <script> for this panel (harmless leftover -
-// still just toggling a style, no bearing on the WS wiring below).
+// Celestial's option panel (panel-moon): the body radio group
+// (core.effectOptions.moon.body) and the Solar System Orbit Speed slider
+// (moon.solarSpeed, 0-7 logarithmic multiplier).
 // ---------------------------------------------------------------------
-// City search for the Moon's terminator tilt - mirrors
-// wireWeatherCityDropdown()'s open-meteo geocoding search, but commits
-// lat/lon directly from the picked result (setEffectOption('moon','lat'/
-// 'lon', ...)) rather than a city name string - celestial.js only ever
-// needed the coordinates, no server-side re-geocode-by-name step needed.
+// City search for the Moon's terminator tilt: like
+// wireWeatherCityDropdown(), but it saves lat/lon directly
+// (setEffectOption('moon','lat'/'lon', ...)) rather than a city name.
 let _moonCityTimer = null;
 function wireCelestialCityDropdown(cityInput, dropdown, statusEl) {
   if (!cityInput || !dropdown) return;
@@ -198,17 +190,10 @@ function syncClearAllButton() {
   document.getElementById('panels-off-btn')?.classList.toggle('is-off', panels);
 }
 
-// "🔇 Stop Sound" - next to Clear All. Radio plays in the background
-// regardless of which effect is selected/displayed, so Clear All blanking
-// the screen doesn't stop audio - this is a one-click way to kill it
-// without navigating to the Radio panel. A real report: this button
-// stopped the Pi-side ticker/status but not the audible sound - because
-// "Play in this browser" (see radioBrowserPlay()) plays the stream
-// directly in the CLIENT via its own <audio> element, entirely separate
-// from the Pi's ffmpeg/paplay pipeline the WS 'stopAllSound' command
-// tears down. The existing Radio panel Stop button already calls
-// radioBrowserStop() alongside its WS send for exactly this reason (see
-// its own click handler) - this button needs the same pairing.
+// "🔇 Stop Sound" next to Clear All stops background radio without opening
+// the Radio panel. It must also call radioBrowserStop(), because "Play in
+// this browser" plays through a client <audio> element that the WS
+// 'stopAllSound' command can't reach (the Radio Stop button does the same).
 // The speaker button mutes/unmutes (the station keeps playing; Stop on the
 // Music tab still stops it). Muting sets the volume to 0 and remembers the
 // level to come back to.

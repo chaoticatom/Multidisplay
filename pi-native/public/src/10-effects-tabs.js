@@ -17,20 +17,10 @@ async function loadEffectNames() {
     const panel = document.getElementById('panel-' + key);
     if (Object.prototype.hasOwnProperty.call(effectNames, key)) {
       btn.addEventListener('click', () => {
-        // Switching away from Video Display to any other effect - a real
-        // report traced a persistent flicker between video content and
-        // whatever effect was just selected to this: nothing ever told
-        // the video source to actually stop. The tick loop only ever
-        // calls the CURRENTLY SELECTED effect's function (see app.js's
-        // module comment on the Pi), so once a different effect is
-        // selected, just clearing effectOptions.video.url wouldn't
-        // actually reach ffmpegSource.js's teardown (that only runs
-        // inside effectVideo() itself, which stops being called) - hence
-        // the dedicated stopVideoSource command for an immediate,
-        // selection-independent stop (see wsServer.js's module comment),
-        // on top of stopping any live browser camera/screen capture here
-        // and resetting the stored url so Video Display starts fresh
-        // rather than trying to resume the old source if reselected.
+        // Leaving Video Display: only the selected effect is ticked, so the
+        // video source would never tear itself down (causing flicker). Send
+        // stopVideoSource, stop any browser camera/screen capture, and reset the
+        // stored url so Video Display starts fresh if reselected.
         const wasRunning = currentState.effect === key && !currentState.blank;
         if (currentState.effect === 'video' && key !== 'video') {
           stopBrowserCapture();

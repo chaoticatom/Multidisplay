@@ -27,18 +27,9 @@ const SEG = {
   '5': 'afgcd', '6': 'afgecd', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg',
 };
 
-// Anti-aliased rectangle fill - a real report ("use a much nicer font. I
-// see massive pixels"): the old version rounded x0/y0/x1/y1 to the nearest
-// whole pixel and hard-filled it, so every segment edge landed on a
-// visible stair-step boundary (0 or full intensity, nothing between) - the
-// "massive pixel" blocky look. This instead computes each touched pixel's
-// FRACTIONAL coverage by the true (sub-pixel) rectangle and writes
-// intensity proportional to that coverage, so edges fall off smoothly
-// across 1-2 pixels instead of snapping - the standard fix for
-// blocky-looking vector shapes on a low-res grid, and the biggest lever
-// available here (a real LED matrix can't get "smoother" than its
-// physical pixel pitch, but the EDGES of each shape can still read as
-// smooth curves/diagonals instead of jagged blocks).
+// Anti-aliased rectangle fill: each touched pixel gets intensity
+// proportional to its fractional coverage by the sub-pixel rectangle, so
+// segment edges fall off smoothly instead of stair-stepping.
 function fillRect(buf, W, H, x0, y0, x1, y1, v) {
   const xs = Math.floor(x0), xe = Math.ceil(x1), ys = Math.floor(y0), ye = Math.ceil(y1);
   for (let y = ys; y < ye; y++) {
@@ -154,21 +145,9 @@ function dtDrawAnalogue(buf, W, H, now) {
   setPx(buf, W, H, cx, cy, 255);
 }
 
-// Picks the largest integer scale that still fits `text` within S*widthFrac
-// pixels (fontDrawText's cell is 6*scale wide per glyph, including the 1px
-// gap), capped at maxScale so a short string (e.g. ":SS") doesn't blow up
-// to a size that no longer reads as "the smaller line" relative to the
-// main time. A real report: "time & date is rubbish... make... fit on
-// screen" - the previous scale (Math.round(S/22), same fixed number
-// regardless of what string it was applied to) was never actually checked
-// against any string's real width - "HH:MM" at that scale came out to
-// 90px on a 64px panel, running off the edge entirely (screenshot-
-// confirmed). The original browser version didn't have this problem
-// because it used real canvas font metrics tuned per string (e.g. "bold
-// 160px" for the main time, comment: "reduced from 200px to fit with
-// padding") - this is the bitmap-font equivalent of that same "make sure
-// it actually fits" step, just computed instead of eyeballed since there's
-// no canvas here to try font sizes against (see module comment).
+// Picks the largest integer scale at which `text` fits in S*widthFrac
+// pixels (each glyph cell is 6*scale wide, including the gap), capped at
+// maxScale so short strings like ":SS" stay smaller than the main time.
 function fitScale(availW, text, maxScale, widthFrac = 0.94) {
   const fit = Math.floor((availW * widthFrac) / (text.length * 6));
   return Math.max(1, Math.min(maxScale, fit));
@@ -201,18 +180,9 @@ function dtGlow(buf, W, H) {
   }
 }
 
-// Stacks `lines` (each {type:'seg', str, idealHFrac} for the seg-digit
-// clock or {type:'text', str, scale} for small bitmap-font text)
-// vertically, block-centered as a WHOLE on the panel - both axes, real
-// measured heights. Real report: "when on full it overlaps each other.
-// centralise vertically and horizontally" - the previous version placed
-// every line at a fixed fractional Y (S*0.04, S*0.38, S*0.6, S*0.78 for
-// "full") with no relationship to how TALL each line actually rendered,
-// so a bigger font size (or this file's own earlier overflow bug) could
-// easily push one line into the next. This computes total stack height
-// first, then centers the whole block, then places each line immediately
-// below the previous one - overlap becomes structurally impossible, and
-// centering doesn't need per-mode tuning ever again.
+// Stacks `lines` ({type:'seg', str, idealHFrac} for the segment clock or
+// {type:'text', str, scale} for bitmap text) using their measured heights,
+// centering the whole block on both axes, so lines can never overlap.
 function dtLayoutStack(buf, W, H, lines) {
   const gap = Math.max(1, H * 0.04);
   const resolved = lines.map((ln) => {

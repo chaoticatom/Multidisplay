@@ -1,26 +1,8 @@
-// Ported from effects-livedata.js's Unsplash Photo Slideshow section
-// (~line 3722-3902: unsplashPhotos/unsplashFetch/unsplashLoad/
-// unsplashApplyToFace/unsplashApplyBlendToFace/effectUnsplash). Fetches
-// `api.unsplash.com/photos/random?query=...&count=30&client_id=KEY` and
-// slideshows the results - full cube mode shows a different photo per face,
-// staggered and crossfading via the shared gallery engine (_shared.js,
-// ported from effects-core.js's galleryInitFaceState/gallerySlideshowStep/
-// galleryApplyToFace/galleryApplyBlendToFace); 2D panel mode shows one.
-//
-// The browser reads the Unsplash Access Key from per-browser localStorage
-// (unsplashApiKey()) - there's no browser-side persistence on the Pi, so
-// this reads/writes a small server-side JSON file instead (unsplashConfig.js),
-// via a dedicated `setUnsplashConfig` WS command (see wsServer.js), same
-// "persist server-side, broadcast to every connected client" shape as
-// alarms/customCube. Without a key saved, this shows a plain "ENTER YOUR
-// UNSPLASH KEY" placeholder card instead of ever calling fetch() - matches
-// the browser's early-return-with-message behaviour.
-//
-// Image decode/resize: no DOM/Canvas here, so this uses the shared
-// loadImageForPixels() helper in _shared.js (Jimp-based), the same tool
-// cam.js/apod.js/epic.js already use, instead of the browser's
-// loadImageForPixels() 4-tier CORS-workaround chain (server-side fetch has
-// no CORS restriction to work around - see _shared.js's comment on that).
+// Unsplash photo slideshow: fetches photos/random (count=30) and shows them via the
+// shared gallery engine in _shared.js - a different staggered, crossfading photo per
+// face in cube mode, one in 2D mode. The Access Key is stored server-side
+// (unsplashConfig.js, set via setUnsplashConfig); without one a placeholder card is
+// shown and nothing is fetched. Images decode via _shared.js's loadImageForPixels().
 'use strict';
 
 const unsplashConfig = require('../unsplashConfig');

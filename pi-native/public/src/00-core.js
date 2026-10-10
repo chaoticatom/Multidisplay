@@ -1,35 +1,10 @@
-// Wires the (verbatim-copied) browser-app sidebar markup to pi-native's own
-// WS control protocol. This is NOT the original ui.js - that file assumes
-// an ESP32 streaming target and computes every effect in-browser, neither
-// of which applies here (the Pi computes effects itself and only streams
-// back small per-face preview frames). This script instead:
-//   - drives the small set of controls pi-native actually has a backend
-//     for (effect selection, cube-size/2D panel mode, master brightness/
-//     speed, the Pi-only Bluetooth pairing panel in the Setup section, and
-//     the Overlays panel - global compositing layers, see wireOverlaysPanel)
-//   - greys out everything else the markup contains but pi-native doesn't
-//     support yet (Custom Faces freehand drawing, ESP32 Firmware Update,
-//     Standalone Mode, Clear All) so the page still looks like the
-//     familiar app instead of silently doing nothing on click
-//   - wires the Timers section (#alarm-section / #alarm-modal) to the
-//     server's addAlarm/updateAlarm/deleteAlarm/setAlarmEnabled/
-//     dismissAlarm commands - see wireAlarmSection()/wireAlarmModal()
-//   - wires the Face Editor (#panel-editor-section) and the Custom Cube
-//     effect's own panel (#panel-custom_cube) to setFaceEffect/setFaceOpts/
-//     setFaceOverlays/saveCube/loadCube/deleteCube/clearFaces - see
-//     wirePanelEditor()/wireCustomCubeEffectPanel()
-//   - renders a live 3D preview on the #c canvas from the binary per-face
-//     frames the WS server already streams for this purpose
-// Shown in the sidebar footer (#app-version, markup already present but
-// never populated - unlike the browser original's version.js/inline
-// APP_VERSION script). Kept in sync with pi-native/package.json's
-// "version" field by hand (no bundler here to read it from JSON at build
-// time). pi-native has no equivalent of the original's cache-busting
-// per-file query-string scheme to force-update against (wsServer.js
-// already sends Cache-Control: no-store on everything - see that file's
-// module comment), so clicking it is just a plain hard reload rather than
-// the original's cache-clearing dance.
-const APP_VERSION = '0.6.285';
+// Wires the sidebar markup to pi-native's WS control protocol. The Pi computes
+// effects; this page sends commands, greys out controls with no backend, wires
+// the Timers, Face Editor, Overlays and Bluetooth panels, and renders a 3D
+// preview from the per-face frames the server streams.
+// APP_VERSION is shown in the footer and must match package.json; it is
+// bumped by `npm run release`. Clicking it does a plain hard reload.
+const APP_VERSION = '0.6.286';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [

@@ -1,18 +1,8 @@
-// One settings file (settings.json) with a section per feature, replacing
-// eight separate JSON files (panel-config.json, alarms.json, ...). Each
-// feature's config module keeps its own validation and defaults; this
-// only changes where the data lives.
-//
-// Migration: the first time a section is read and isn't in settings.json
-// yet, its old file (if any) is imported. The old file is left in place as
-// a backup. Writes are atomic (temp file + fsync + rename), so a power cut
-// can't corrupt it; if settings.json is ever unreadable anyway, it's moved
-// aside to settings.json.corrupt-<time> and sections re-import from the
-// old files or fall back to their defaults.
-//
-// The file is re-read on every access rather than cached: the main thread
-// and the render worker are separate module instances, and settings are
-// read rarely (startup, UI actions), so there's no cache to keep in sync.
+// One settings.json with a section per feature; each config module keeps its
+// own validation and defaults. A missing section is imported once from its old
+// file (left as a backup). Writes are atomic; an unreadable file is moved to
+// settings.json.corrupt-<time>. Re-read on every access, never cached, because
+// the main thread and render worker have separate module instances.
 'use strict';
 const fs = require('fs');
 const path = require('path');

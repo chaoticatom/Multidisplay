@@ -10,20 +10,10 @@ const PANEL2D_OUT = 512; // fixed backing resolution, same as ui.js's renderPane
 
 let wallPreviewEl;
 const wallPanelCanvases = {}; // panel index -> {canvas, ctx}
-// Preview px per panel, including its border/gap - dynamic, not a fixed
-// 130px, so the grid actually uses the available preview area (a real
-// report: "resize so 2 displays are shown in the available space" - two
-// small fixed-size tiles in a corner didn't grow to fill the screen the
-// way the single-panel 2D/cube previews already do via
-// fitPanel2dCanvas()/resizeRenderer()). Computed from whatever room is
-// left after the sidebar (accounting for the sidebar being hidden/mobile-
-// overlay, same margin logic as fitPanel2dCanvas's `buf`), clamped so a
-// lone display isn't comically huge and a full 2x3 grid doesn't overflow
-// the window.
-// cols/rows: the actual bounding box of cells being rendered this call
-// (see rebuildWallPreview()) - NOT always the fixed WALL_COLS x WALL_ROWS
-// hardware maximum, so a lone display (or two) gets to be genuinely large
-// rather than sized as if a full 6-panel layout were always present.
+// Preview px per panel (including border/gap), sized to fill the room left
+// after the sidebar, clamped so a lone display isn't huge and a full grid
+// still fits. cols/rows are the bounding box of the cells actually rendered
+// (see rebuildWallPreview()), not the WALL_COLS x WALL_ROWS hardware maximum.
 function wallCellSize(cols, rows) {
   const buf = 40;
   const availW = window.innerWidth - sidebarOverlapPx() - buf * 2;
@@ -67,18 +57,9 @@ function initScene() {
     }
   }
   if (webglOK) {
-    // Clamped, not raw window.devicePixelRatio - a real report ("cube view
-    // does not work on my android phone, blank/black screen - works on
-    // Windows desktop"). Many Android phones report a DPR of 3-4; combined
-    // with a full-viewport canvas (resizeRenderer() below sizes it to
-    // window.innerWidth/innerHeight), an uncapped DPR asks for a framebuffer
-    // several times larger than the actual screen resolution (e.g.
-    // 1080x2000 physical px * DPR 4 = huge) - a well-known Three.js mobile
-    // pitfall where weaker/budget GPUs silently fail to allocate that and
-    // render nothing, with no thrown error to catch (desktop's DPR=1 never
-    // hits this). 2 is the standard safe ceiling - visually indistinguishable
-    // from higher DPR at this canvas's actual on-screen size, but a much
-    // smaller framebuffer.
+    // Clamp devicePixelRatio to 2: with a full-viewport canvas, the DPR of 3-4
+    // many Android phones report asks for a framebuffer weak GPUs silently fail
+    // to allocate, leaving a blank canvas with no error.
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     // Second line of defense for the same report: a context that WAS
     // successfully created can still be lost/fail to render on some mobile
@@ -112,16 +93,9 @@ function initScene() {
 }
 
 // ---------------------------------------------------------------------
-// Face labels (#face-labels-chk, "Display" section) - a real report
-// ("enable the face labels option": the checkbox existed in the HTML but
-// had no wiring at all behind it). The custom stripped three.min.js build
-// (see build-tools/three-entry.js) exports no Sprite/CanvasTexture/font-
-// rendering classes, so real 3D floating text isn't available here - this
-// instead projects each face's center through the camera every frame (the
-// standard "HTML overlay label for a 3D scene" technique) and positions a
-// plain DOM span over it, which needs nothing beyond Vector3.project()
-// (already included - it's a method on the Vector3 class we already
-// import whole, not a separate tree-shaken export) and CSS.
+// Face labels (#face-labels-chk). The stripped three.min.js build has no
+// Sprite/CanvasTexture, so each face's center is projected through the
+// camera every frame and a plain DOM span is positioned over it.
 // ---------------------------------------------------------------------
 let faceLabelEls = [];
 function buildFaceLabels() {
@@ -188,18 +162,10 @@ function resizeRenderer() {
   fitCubeCamera(); // no-ops outside cube mode
 }
 
-// Pulls the camera back (or in) along its original viewing direction just
-// far enough that the whole cube stays inside the frustum at the CURRENT
-// aspect ratio, instead of the fixed camera.position.set(2.6, 2.0, 2.6)
-// this used to always use regardless of viewport shape - a real report
-// ("resize the cube so it fits the available screen space") traced to
-// exactly that: on a narrow/tall viewport the cube's horizontal FOV
-// shrinks (aspect = w/h < 1) but the camera never moved back to
-// compensate, so the cube overflowed top and bottom of the screen.
-// Bounding radius is the cube's corner-to-center distance: faces span
-// -1..1 build in rebuildScene()'s `spacing`/`dummy.position` loop, so the
-// cube is a 2x2x2 box centered on the origin -> corner distance
-// sqrt(1²+1²+1²).
+// Moves the camera along its original viewing direction just far enough
+// that the whole cube fits the frustum at the current aspect ratio (narrow
+// viewports shrink the horizontal FOV). Bounding radius is the corner
+// distance of the 2x2x2 cube centered on the origin: sqrt(3).
 const CUBE_BOUND_RADIUS = Math.sqrt(3);
 const CUBE_CAMERA_DIR = new THREE.Vector3(2.6, 2.0, 2.6).normalize();
 function fitCubeCamera() {
@@ -292,21 +258,10 @@ function rebuildScene() {
 
   for (let face = 0; face < 6; face++) {
     const mesh = new THREE.InstancedMesh(geom, new THREE.MeshBasicMaterial(), size * size);
-    // Top (face 4) needs its LOCAL row order flipped here, not fixed via
-    // FACE_XFORM's rotation - a real report ("top panel is reversed, flow
-    // from side panels doesn't flow to top correctly", confirmed via the
-    // GitHub Pages browser simulator specifically, which renders this
-    // Three.js preview - NOT the real-hardware rgbMatrixDriver.js path,
-    // which was a dead end for this report). Front/Back/Left/Right/Bottom
-    // all happen to have a single X or Y axis rotation that satisfies BOTH
-    // "v increases toward the correct adjacent face" (matching core.js's
-    // faceMap[4][z*SIZE+x] - v=z, 0=Back edge, SIZE-1=Front edge) AND "the
-    // backing panel's plane normal points outward" at once. Top's rotation
-    // (rot:[-π/2,0,0], chosen for the correct outward normal) inverts the
-    // v/z direction instead - the two requirements are in conflict for any
-    // single X-axis rotation, unlike Bottom's mirror-image case where they
-    // align. Flipping v only in the position lookup (not the rotation)
-    // fixes the v-direction without touching the normal at all.
+    // Top (face 4) flips its local row order here rather than in FACE_XFORM:
+    // no single X rotation gives Top both the outward normal and v increasing
+    // toward the Front edge (core.js faceMap[4][z*SIZE+x], v=z). Flipping v only
+    // in the position lookup fixes the direction without touching the normal.
     const vFlip = face === 4;
     for (let v = 0; v < size; v++) {
       const lv = vFlip ? size - 1 - v : v;
@@ -497,42 +452,14 @@ function drawLedGrid(ctx, bytes, size, out, flipY) {
   ctx.drawImage(ledMask(out, size), 0, 0);
 }
 
-// Same round-dot-on-black technique as drawPanel2dFrame(), one small
-// canvas per EXISTING panel (drawWallPanelFrame() below keeps them live-
-// updating), plus a dashed drop-target placeholder ONLY at cells directly
-// above/below/left/right of an already-placed panel - NOT every cell in
-// the fixed WALL_COLS x WALL_ROWS grid (that was the previous behavior: a
-// real report - "when I click + display, it gives me 6 grid boxes, I
-// don't want exactly this... I want to see an outline of where I can
-// click and drag the additional display to [above/below/left/right of
-// existing ones]" - specifically asked for contextual placement targets
-// instead of the whole grid always being visible). The rendered area's
-// size also now tracks just the panels+candidates bounding box, not the
-// full 2x3 hardware maximum, so a lone display (or two) stays genuinely
-// large instead of being sized as if 6 were always present. Panel at
-// index 0 is the original/primary display (see wireWallToolbar()'s "+" -
-// the FIRST panel switching INTO wall mode) - its remove (×) button is
-// never shown, it can't be deleted regardless of how many others exist
-// (still draggable to a new position like any other panel, just not
-// removable). wallPanelCanvases stays keyed by each panel's INDEX INTO
-// currentState.panels (not gx/gy), matching the wire protocol's per-panel
-// frame index (see handleFrame()).
-// The server's isValidPanels() (panelConfig.js) requires every gx/gy to
-// stay within [0, WALL_COLS) x [0, WALL_ROWS) - the real 2-column x
-// 3-row physical chain limit. The primary display always starts at
-// (0,0) (the fixed top-left corner), which only ever has room to its
-// RIGHT and BELOW within that box - "left of" or "above" the primary
-// would need a negative coordinate, permanently out of reach no matter
-// how candidates are computed. A real report specifically asked for all
-// 4 directions to be real options around the primary ("top bottom left
-// right"), so instead of only offering neighbors that already fit,
-// this computes the SHIFT (translation) that would need to apply to
-// EVERY currently-placed panel to make an out-of-bounds neighbor (and
-// everything else) fit - e.g. dropping a display to the left of a
-// primary sitting at gx=0 shifts the whole layout one column right
-// (primary -> gx=1) and places the new one at gx=0. Returns null if no
-// shift exists that keeps every panel in bounds (e.g. both columns are
-// already occupied, so there is nowhere left to shift into).
+// One small canvas per placed panel (dots on black, like drawPanel2dFrame()),
+// plus dashed drop targets only next to existing panels; the area tracks the
+// panels+candidates bounding box. Panel 0 is the primary display and can be
+// moved but never removed. wallPanelCanvases is keyed by index into
+// currentState.panels, matching the per-panel frame index (handleFrame()).
+// The server requires gx/gy within [0,WALL_COLS) x [0,WALL_ROWS), so a drop
+// left of/above the primary at (0,0) needs every panel shifted. This returns
+// that shift for a candidate, or null if no shift keeps all panels in bounds.
 function shiftForCandidate(panels, gx, gy) {
   let shiftX = 0, shiftY = 0;
   if (gx < 0) shiftX = -gx;
@@ -574,21 +501,11 @@ function rebuildWallPreview() {
   const panels = currentState.panels || [];
   const occupied = new Set(panels.map((p) => p.gx + ',' + p.gy));
 
-  // A "must be adjacent to an existing display" candidate, at every one of
-  // the 4 sides of every currently-placed panel - a real report: "when
-  // dragging a display, it must be adjacent to another display." gx/gy
-  // here are the RAW (possibly out-of-hardware-bounds, e.g. -1) grid
-  // coordinates relative to the CURRENT unshifted layout - kept unshifted
-  // so the bounding-box math below renders them in the correct relative
-  // position (e.g. one column to the left of the primary), even though
-  // placing one actually requires shifting every panel (see
-  // shiftForCandidate()/placeAtCandidate() above).
-  // Only computed/shown while layout editing is active (_wallEditMode, on
-  // via the toolbar button) - NOT permanently at rest. Showing them
-  // unconditionally (the previous behavior) meant that once 2+ panels
-  // existed, their combined neighbor cells routinely filled out the
-  // entire remaining hardware grid, recreating the exact "static 6-box
-  // grid" look a real report specifically objected to in the first place.
+  // Candidate cells on all 4 sides of every placed panel. gx/gy are raw
+  // (possibly negative) coordinates in the current unshifted layout so they
+  // render in the right relative position; placing one may shift every panel
+  // (see shiftForCandidate()/placeAtCandidate()). Only shown in layout edit
+  // mode, otherwise they fill the whole grid once 2+ panels exist.
   const candidates = [];
   if (_wallEditMode) {
     const seenCandidate = new Set();
@@ -699,20 +616,11 @@ function rebuildWallPreview() {
   }
 }
 
-// Unlike drawPanel2dFrame() (single 2D panel, reuses cube face 0's own
-// v-flip convention baked into faceMap - see that function), wall-mode
-// per-panel bytes come straight from core.wallBuf via plain row-major
-// slicing (encodeWallFrames() in sim-loopback.js / wsServer.js's
-// _streamWallFrames(), and rgbMatrixDriver.js's _buildWallPanelBuffer()
-// for the real hardware output - none of them flip v) - so this must NOT
-// flip v either, or a vertically-stacked wall's panel-to-panel seam joins
-// rows that were never actually adjacent in the source buffer. A real
-// report ("horizontal... flies between them, that's good, but it does
-// not glow vertically") traced to exactly this: horizontal stacking never
-// exposed the bug (a per-panel vertical flip doesn't affect column
-// order), but the real hardware driver's un-flipped convention proves
-// this preview-only flip was simply wrong, not a deliberate orientation
-// choice to preserve.
+// Wall per-panel bytes are plain row-major slices of core.wallBuf
+// (encodeWallFrames(), wsServer.js _streamWallFrames(), and the hardware
+// driver's _buildWallPanelBuffer() never flip v), so this must NOT flip v
+// either, unlike drawPanel2dFrame(). A flip here would join the wrong rows
+// at the seams of vertically stacked panels.
 function drawWallPanelFrame(ctx, bytes) {
   drawLedGrid(ctx, bytes, currentState.panelSize, PANEL2D_OUT, false);
 }

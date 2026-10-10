@@ -1,28 +1,7 @@
-// Persisted "Custom Cube" state, mirroring panelConfig.js's/alarmConfig.js's
-// exact load()/save()/validate-on-load-with-fallback pattern (see
-// panelConfig.js's module comment for why: survive a restart, JSON file on
-// disk next to this one, gitignored).
-//
-// Ported from the browser's Panel Editor (ui.js's perFaceEffect[0..5] +
-// buildPanelEditor()) and the Custom Cube effect's saved-cube library
-// (effects-scenes.js's _customCubeData, ui.js's peGetLibrary()/
-// peSaveLibrary() - localStorage key 'ledcube_cubes'). The browser split
-// this into TWO pieces of state: perFaceEffect (the live editor "draft")
-// and _customCubeData (a snapshot loaded into the running Custom Cube
-// effect via its own #cc-select dropdown) - editing the draft never
-// affected what was actually rendering until you explicitly picked it again
-// from the Custom Cube effect's own panel.
-//
-// pi-native unifies these into ONE `faces` array: whatever you set via
-// setFaceEffect/setFaceOpts/setFaceOverlays takes effect immediately, same
-// as every other option in this project's setEffectOption pattern - there's
-// no separate "draft vs running" UI concept here to justify the original's
-// extra indirection. `library` is unchanged in spirit: named snapshots of
-// `faces` you can save/load/delete, now stored server-side instead of
-// browser localStorage (there's no browser-side persistence on the Pi).
-//
-// Data shape:
-//   { faces: [FaceConfig|null, ...6], library: [{name, faces:[FaceConfig|null, ...6]}, ...] }
+// Persisted Custom Cube state, same load/save/validate-with-fallback pattern
+// as panelConfig.js. Face changes apply immediately (no draft/active split);
+// `library` holds named snapshots of `faces`.
+// Shape: { faces: [FaceConfig|null, ...6], library: [{name, faces}, ...] }
 //   FaceConfig = { effect: string, overlayKeys: string[], opts: object }
 const fs = require('fs');
 const { readSectionJson, writeSection } = require('./settingsStore'); // CONFIG_PATH is now only the pre-settings.json legacy file, imported once

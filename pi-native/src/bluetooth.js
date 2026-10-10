@@ -1,20 +1,7 @@
-// Ported from pi/bluetooth_server.py - same bluetoothctl/PulseAudio
-// approach (feed commands into an interactive bluetoothctl session via
-// stdin, same regex-based device-line parsing, same PulseAudio module-
-// remap-source + module-loopback plumbing for routing a paired phone's
-// audio to both the speaker and a capturable "phone_capture" source).
-//
-// Unlike pi/bluetooth_server.py (a standalone Python HTTP server on its
-// own port for a Pi running the *browser-based* app), this is wired
-// directly into pi-native's existing WS control channel (see wsServer.js)
-// instead of adding a second separate service/port - this project already
-// has one control channel, no reason to add another for this.
-//
-// Not testable end-to-end in this sandbox (no bluetoothctl/pactl, no
-// Bluetooth hardware) - the command-runner is injectable (see `exec`
-// param below) so the parsing logic can still be unit-tested against
-// canned bluetoothctl/pactl-style output without the real binaries. See
-// test/bluetooth.test.js.
+// Bluetooth pairing and audio routing, driven through bluetoothctl (commands fed
+// on stdin) and pactl, and exposed over the existing WS control channel.
+// The command runner is injectable (`exec`) so the output parsing can be unit
+// tested without real binaries - see test/bluetooth.test.js.
 const { spawn, execFile } = require('child_process');
 const { findPulseEnv } = require('./pulseEnv');
 
@@ -64,70 +51,23 @@ function parseDeviceLines(text) {
     if (!m) continue;
     const [, mac, rest] = m;
     const trimmed = rest.trim();
-    // A real report: the Pi only ever showed raw MAC addresses for a
-    // device Windows resolved to its full make/model. "First sighting
-    // wins" (see below) locked in whatever the device's very first "[NEW]
-    // Device MAC ..." line carried - which for many devices is just the
-    // MAC again (no name known yet), with the real name only arriving
-    // moments later via a separate "[CHG] Device MAC Name: <real name>"
-    // line once BlueZ completes an extended inquiry/name request. That
-    // later line matched this same generic regex but was being discarded
-    // outright by the has()-check below, so the placeholder MAC "name"
-    // never got upgraded. An explicit "Name: " line is NEVER scan noise
-    // (unlike an "RSSI: -60"-style line) - it's always a real resolved
-    // name - so it always wins, overwriting even an existing entry;
-    // anything else still only fills in a first-seen placeholder, same
-    // "don't let an RSSI update stomp a real name" protection as before.
+    // Many devices first appear with only their MAC; the real name arrives later
+    // in a "Name: <name>" line. An explicit Name line always wins, even over an
+    // existing entry. Any other line only fills in a first-seen placeholder, so
+    // scan noise like an RSSI update can't overwrite a real name.
     const nameMatch = /^Name: (.+)$/.exec(trimmed);
     if (nameMatch) { get(mac).name = nameMatch[1].trim(); continue; }
-    // A real report: with several devices still MAC-only even after the
-    // active info-lookup fix (below), there was no way to tell which one
-    // was actually the user's OWN speaker vs. a neighbor's device sitting
-    // further away - RSSI (signal strength) is the practical way to tell:
-    // your own speaker should be sitting right next to the Pi and read
-    // noticeably stronger (closer to 0, e.g. -40) than someone else's
-    // device on the other side of a wall (e.g. -80). Keep the LATEST RSSI
-    // value seen (unlike name, a moving/rotating device's signal strength
-    // genuinely changes during a scan, so the newest reading is the most
-    // accurate one) and surface it alongside the name/MAC either way.
-    // A real report: RSSI showing as "0 dBm" for almost every device. This
-    // BlueZ/bluetoothctl version formats RSSI as "RSSI: 0xffffffbd (-67)"
-    // (hex encoding of the signed byte, then the real signed decimal in
-    // parens) rather than a plain "RSSI: -67" - the old regex matched
-    // greedily from "RSSI: " and captured just the leading "0" of
-    // "0xffffffbd" before the non-digit "x" stopped it, silently reading
-    // 0 dBm off every single device instead of the real value. Prefer the
-    // parenthesized decimal when present; fall back to a plain "RSSI: N"
-    // for any bluetoothctl version/line that reports it that way instead.
+    // Keep the latest RSSI so the user can tell their own nearby speaker (strong,
+    // e.g. -40) from a neighbour's device (e.g. -80). Some bluetoothctl versions
+    // print "RSSI: 0xffffffbd (-67)": prefer the decimal in brackets, else fall
+    // back to a plain "RSSI: -67".
     const rssiMatch = /^RSSI: (?:0x[0-9a-fA-F]+\s*\((-?\d+)\)|(-?\d+)\b)/.exec(trimmed);
     if (rssiMatch) { get(mac).rssi = Number(rssiMatch[1] ?? rssiMatch[2]); continue; }
-    // Any other "PropertyKey: value"-shaped line (Connected/Trusted/
-    // Paired/TxPower/ManufacturerData/ServiceData/...) is a property
-    // update, never a name - a real report: some devices' FIRST-ever line
-    // in a given scan's captured output was already a property update
-    // (e.g. "[CHG] Device MAC RSSI: -67", not a "[NEW] Device MAC <name>"
-    // line - happens when the device was already known/mid-discovery
-    // before this scan's stdout capture started), so the old fallback (any
-    // first-seen line, no shape check) adopted that literal property text
-    // as the device's "name". get(mac) above already defaults name to the
-    // MAC itself - same "MAC-only" outcome bluetoothctl already shows for
-    // a device that genuinely never advertises a friendly name, not
-    // garbage property text - while still leaving room for a later
-    // "Name: " line (handled above) to upgrade it if one does arrive.
-    // A real report: rows literally reading "RSSI is nil" / "TxPower is
-    // nil" as the device name - this BlueZ/bluetoothctl version phrases
-    // an unset property as "<Key> is nil", not "<Key>: value", so the
-    // colon-based check above let it straight through as a name candidate.
-    // A real report: "ManufacturerData.Key: 0x3144 (12612)" ALSO got
-    // adopted as a name - a nested/namespaced property key with a period
-    // in it ("ManufacturerData.Key") isn't just letters+spaces, so even
-    // the broadened colon check above still missed it. Rather than keep
-    // enumerating every property-key shape a given BlueZ version might
-    // use, invert the heuristic: a real device name essentially never
-    // contains a bare ": " sequence, so treat ANY line with one (or
-    // ending "is nil") as a property update, not a name candidate -
-    // explicit "Name: " lines are still handled separately above and
-    // always win regardless.
+    // Property updates must never be taken as a device name. Their shapes vary by
+    // BlueZ version ("RSSI: -67", "TxPower is nil", "ManufacturerData.Key: ..."),
+    // so treat any line containing ": " or ending "is nil" as a property line.
+    // Real names essentially never contain ": ", and "Name: " lines are handled
+    // above. Unnamed devices keep their MAC as the name.
     const isPropertyLine = /: /.test(trimmed) || / is nil$/.test(trimmed);
     const d = get(mac); // ensures a sighting is recorded either way, defaulting name to the MAC
     if (!isPropertyLine && d.name === mac) d.name = trimmed;
@@ -135,21 +75,11 @@ function parseDeviceLines(text) {
   return [...devices.entries()].map(([mac, d]) => ({ mac, name: d.name, rssi: d.rssi }));
 }
 
-// After the passive scan, explicitly ask `bluetoothctl` for each
-// still-unresolved device's info - a real report ("I need the full name of
-// the device", most rows still MAC-only after the RSSI/property-line
-// parsing fix above). `scan on` only shows a name if the device happened to
-// include it in whatever advertisement/inquiry-response was captured
-// during the scan window; `info <mac>` makes BlueZ do (or return
-// already-cached results from) an explicit remote-name resolution for that
-// one device, which often succeeds even when the passive scan output never
-// carried a name line for it. Sequential, not parallel (see bluetoothctl()
-// itself - each call spawns its own bluetoothctl process) - fine for a
-// user-initiated one-off scan, not a hot path. Still not guaranteed: a
-// BLE device that puts no name in its advertising and isn't already
-// paired/cached genuinely requires connecting and reading its GATT Device
-// Name characteristic to learn a name at all - `info` alone can't force
-// that, so some devices will legitimately remain MAC-only no matter what.
+// After the passive scan, run `info <mac>` for each device still without a
+// name: it makes BlueZ resolve (or return a cached) remote name, which often
+// works when the scan never showed one. Run one at a time, since each call
+// spawns its own bluetoothctl. Some BLE devices only expose a name over GATT,
+// so they may stay MAC-only.
 async function resolveUnnamedDevices(devices) {
   for (const d of devices) {
     if (d.name !== d.mac) continue; // already has a real name
@@ -186,25 +116,11 @@ function onAudioOutputChanged(cb) { outputChangedListeners.push(cb); }
 async function setAsAudioOutput(mac, waitMs = 0) {
   if (waitMs > 0) await new Promise((r) => setTimeout(r, waitMs));
   const macUnderscored = mac.replace(/:/g, '_');
-  // A real report, confirmed via raw `pactl list short sinks` output on
-  // real hardware: this system runs PipeWire's PulseAudio-compat layer,
-  // which names a Bluetooth sink "bluez_output.<mac>.1" - completely
-  // different from classic PulseAudio's "bluez_sink.<mac>.a2dp_sink" this
-  // code assumed. The exact-name guess would NEVER match on a PipeWire
-  // system even with a perfectly working pactl connection. Fixed to
-  // search for ANY sink line containing the device's MAC (works for
-  // either naming convention, and for the a2dp_sink/a2dp-sink/av-sink
-  // naming that itself varies just among classic PulseAudio versions) and
-  // read the REAL sink name out of that line, rather than constructing a
-  // guessed name and hoping it matches.
-  //
-  // Retries a few times, not just once after the initial `waitMs` delay -
-  // a real report showed the sink genuinely not registered yet at the
-  // first check on some attempts (transient - a manual `pactl` call
-  // moments later, independent of this code, succeeded against the exact
-  // same live connection), consistent with on-demand PulseAudio/PipeWire
-  // session activation needing a moment under real conditions no fixed
-  // delay reliably covers.
+  // Find the sink by searching `pactl list short sinks` for the device's MAC
+  // and reading the real name from that line. Names differ between PipeWire
+  // ("bluez_output.<mac>.1") and PulseAudio versions ("bluez_sink.<mac>.a2dp_sink"
+  // etc.), so never guess an exact name. Retry a few times: the sink can take a
+  // moment to register after connecting.
   const SINK_RETRY_ATTEMPTS = 4, SINK_RETRY_DELAY_MS = 1500;
   let sinksOut = '', sinkLine = null;
   for (let attempt = 1; attempt <= SINK_RETRY_ATTEMPTS; attempt++) {
@@ -234,24 +150,11 @@ async function setAsAudioOutput(mac, waitMs = 0) {
 
 async function pairDevice(mac) {
   if (!MAC_RE.test(mac)) throw new Error('invalid mac address');
-  // A real report: a speaker beeped to confirm it connected, the control
-  // page even said "Paired.", but it never showed up in the paired-devices
-  // list afterward. Root cause: this never registered a pairing agent
-  // before calling `pair` (makeDiscoverable() already does, for INCOMING
-  // connections) - on a headless Pi with no display/keyboard to confirm a
-  // "Just Works"/PIN prompt, `pair` itself can silently fail or time out
-  // with no agent registered, even though `connect` succeeds right after
-  // anyway (often via a stale/cached link key from a previous pairing) -
-  // so `Connected: yes` shows up and looks like success, but BlueZ never
-  // actually recorded this device as Paired, and bluetoothctl
-  // paired-devices correctly omits it. Agent registration must happen in
-  // the SAME bluetoothctl session as `pair` (it's tied to that process's
-  // D-Bus connection, not persisted globally) - NoInputNoOutput
-  // auto-accepts Just Works pairing, same choice makeDiscoverable() made.
-  // Per-command waits, not a flat 6000ms x5 (30+s) - a real report ("it's
-  // very slow at pairing"): 'agent'/'default-agent' complete near-
-  // instantly (no Bluetooth handshake involved at all), only 'pair'/
-  // 'connect' (the real over-the-air negotiation) need several seconds.
+  // Register a NoInputNoOutput agent in the SAME bluetoothctl session as `pair`
+  // (the agent is tied to that process's D-Bus connection). Without one, on a
+  // headless Pi `pair` can silently fail while `connect` still succeeds, so the
+  // device never gets recorded as Paired. Waits are per command: only
+  // pair/connect need several seconds.
   const out = await bluetoothctl(
     ['agent NoInputNoOutput', 'default-agent', `pair ${mac}`, `trust ${mac}`, `connect ${mac}`],
     [300, 300, 6000, 1000, 6000],
@@ -343,19 +246,9 @@ async function listPaired() {
   const out = await bluetoothctl(['devices Paired'], 1000);
   const devices = parseDeviceLines(out);
   const defaultSinkOut = await run('pactl', ['get-default-sink']);
-  // A real report: this stayed yellow ("connected, not the output") even
-  // right after a confirmed-successful `pactl set-default-sink`. Two
-  // compounding bugs: (1) the `[pulseEnv: ...]` diagnostic line run() now
-  // prepends broke this "first line not starting with $" parsing - that
-  // JSON debug line doesn't start with '$' either, so it was read as the
-  // sink name instead of the real one below it; (2) even past that, this
-  // reconstructed "bluez_sink.<mac>.a2dp_sink" and compared for an EXACT
-  // match - the same PipeWire-naming bug already fixed in
-  // setAsAudioOutput() (real sinks here are named "bluez_output.<mac>.1"),
-  // never applied here. get-default-sink's actual answer is always the
-  // LAST non-empty line of its output, and matching by MAC substring
-  // (like setAsAudioOutput() already does) works under either naming
-  // convention instead of guessing an exact name.
+  // The answer from get-default-sink is the LAST non-empty line (run() may
+  // prepend a diagnostic line). Match by MAC substring rather than an exact
+  // sink name, so it works under both PipeWire and PulseAudio naming.
   const defaultSinkLines = defaultSinkOut.split('\n').filter((l) => l.trim());
   const defaultSink = (defaultSinkLines[defaultSinkLines.length - 1] || '').trim();
   for (const d of devices) {
@@ -381,21 +274,10 @@ async function makeDiscoverable() {
     'discoverable on',
     'pairable on',
   ], 1000);
-  // A real report: "it keeps adding devices to my paired device list but
-  // I have never paired with them." Root cause: `pairable on` (unlike
-  // `discoverable`, which has BlueZ's own DiscoverableTimeout) has NO
-  // automatic expiry at all - it's a persistent Adapter1 property that
-  // stays on indefinitely, independent of which client process set it or
-  // whether that process has since exited, until something explicitly
-  // turns it back off. Combined with the NoInputNoOutput agent (which
-  // auto-accepts ANY incoming pairing request with no confirmation
-  // prompt), a single click of "Make Cube Discoverable" left the Pi
-  // silently accepting a pairing from literally any nearby device,
-  // forever - explaining random unrecognized devices ("43\" Crystal
-  // UHD", "PowerHubnrGaDGo7") accumulating in the paired list over time.
-  // Explicitly close the window after the same ~120s already advertised
-  // to the user, rather than relying on `discoverable`'s own timeout
-  // (which doesn't touch `pairable` at all).
+  // `pairable on` never expires by itself (unlike `discoverable`), and the
+  // NoInputNoOutput agent accepts any pairing request. Turn pairable off again
+  // after the ~120 s window shown to the user, or the Pi keeps accepting
+  // pairings from any nearby device.
   setTimeout(() => {
     bluetoothctl(['discoverable off', 'pairable off'], 1000).catch(() => {});
   }, DISCOVERABLE_WINDOW_MS);

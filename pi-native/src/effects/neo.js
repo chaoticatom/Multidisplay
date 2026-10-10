@@ -1,26 +1,7 @@
-// Ported from effects-livedata.js's neoObjects/neoFetch/neoRisk/
-// neoBuildTicker/neoApplyTickerToFace/neoBuildTitleBuf/neoApplyBufToFace/
-// effectNEO (lines ~2899-3422). NASA NeoWs "feed" API: one JSON call
-// returns up to a 6-day window of near-Earth objects; this keeps the
-// closest 12 (by lunar-distance miss), computes a per-object and overall
-// risk level (green/yellow/red) from the hazardous flag + miss distance,
-// and re-fetches once an hour (matches the browser's
-// `(Date.now()/1000-neoLastFetch)>3600` gate).
-//
-// Shares the same NASA_API_KEY env-var convention apod.js established
-// (process.env.NASA_API_KEY || 'DEMO_KEY') instead of duplicating the
-// browser's apodApiKey()/localStorage lookup.
-//
-// No DOM canvas server-side, so both text surfaces the browser built with
-// <canvas> (the face-4 "NEO WATCH" title/summary card, and the face-1
-// scrolling ticker of tracked objects) are replaced with the same 3x5
-// PIXEL_FONT bitmap-glyph approach weather.js/iss.js already use for
-// on-face text - same local-glyph-helper convention as iss.js's
-// issGlyph/issText, not a new pattern. The 2D-panel bottom ticker
-// explicitly reuses that same 3x5 font + scrolling-glyph technique
-// weather.js's wxGlyph/wxText use for its city-name ticker, per the
-// browser source's own comment ("same 3×5 bitmap font as weather city
-// name").
+// NASA NeoWs near-Earth objects: one feed call covers a 6-day window; keeps the 12
+// closest (by lunar distance), computes per-object and overall risk (green/yellow/red)
+// from the hazardous flag and miss distance, and refetches hourly. Uses
+// process.env.NASA_API_KEY || 'DEMO_KEY' like apod.js. Text uses the 3x5 bitmap font.
 'use strict';
 
 const { drawGlyph, drawString, FONT_3x5, faceMaxPlot } = require('./text');

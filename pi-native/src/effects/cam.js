@@ -1,22 +1,7 @@
-// Ported from effects-livedata.js's effectCam() (~line 5083). NOT a live
-// webcam - it's a periodic snapshot-URL fetcher: every 1/rate seconds it
-// fetches `#cam-url`'s value (cache-busted with a timestamp query param),
-// decodes the image, scales it to SIZE×SIZE nearest-neighbor, and paints
-// the SAME image onto all 6 cube faces (vertically flipped - the browser's
-// `faceMap[f][(SIZE-1-v)*SIZE+u]` indexing, preserved here as
-// `core.setFaceLED(face, u, SIZE-1-v, ...)`). Shows black until the first
-// successful fetch, matching the browser's early-return.
-//
-// The browser used a <canvas> 2D context (drawImage + getImageData) for
-// decode+resize; there's no DOM/Canvas here, so this uses `jimp` (pure JS,
-// no native build step - see pi-native/package.json) for both decode and
-// nearest-neighbor resize, then reads back raw RGBA bytes the same way
-// _camPx was consumed in the original.
-//
-// Fetching must never block the per-tick render call (this file's effect
-// function runs synchronously on every animation-loop tick) - follows the
-// same "fire-and-forget maybeFetch, adapted for a configurable rate instead
-// of a fixed interval" pattern as weather.js's maybeFetch/lastAttemptMs.
+// Snapshot-URL camera (not a live webcam): every 1/rate seconds fetches the URL
+// (cache-busted), decodes and nearest-neighbour scales it with jimp, and paints the
+// same image, vertically flipped, onto all 6 faces. Black until the first success.
+// Fetching is fire-and-forget and must never block the per-tick render call.
 const { Jimp, ResizeStrategy } = require('jimp');
 const { fetchWithTimeout } = require('./net');
 

@@ -1,43 +1,9 @@
-// Background ffmpeg-based audio decode + FFT + Bluetooth playback pipeline
-// for Internet Radio. This is the audio equivalent of ../video/ffmpegSource.js
-// - read that file first, this mirrors its shape closely (injectable spawn,
-// non-blocking ensure()/getStatus(), ENOENT/retry-cooldown/idle-shutdown
-// handling). The genuinely new part is what happens to the decoded bytes:
-// there are TWO consumers of the same PCM stream, not one.
-//
-// Pipeline:
-//   ffmpeg -i <url> -> raw PCM (s16le, 44100Hz, stereo) on stdout
-//     -> (a) FFT / band-energy pass here in JS, feeding the spectrum
-//            visualizer (see ./spectrum.js)
-//     -> (b) piped to a second spawned process (`paplay`) for actual
-//            audible playback, routed to whatever sink PulseAudio currently
-//            has as default - which is exactly what bluetooth.js's
-//            routePhoneAudio()/pactl set-default-sink (via the Setup UI)
-//            already establishes for a paired speaker. No new pairing/
-//            routing code here - reusing that existing infrastructure was
-//            an explicit requirement.
-//
-// Why one ffmpeg + a second process fed via stdout listeners, instead of a
-// single ffmpeg invocation with two outputs (`-f s16le pipe:1 -f s16le
-// pipe:2"`-style tee)? Node's child_process only wires up stdio pipes 0/1/2
-// by default; a third pipe is possible but fiddlier to plumb portably, and
-// keeping ffmpeg to a single well-understood stdout consumer matches
-// ffmpegSource.js's established pattern most closely. Piping the SAME
-// stdout Buffer chunks to both the FFT pass and paplay's stdin keeps the
-// two consumers perfectly in sync (no drift between what you hear and what
-// the visualizer shows) - simpler and more robust than two independent
-// ffmpeg processes decoding the same URL twice.
-//
-// Decode format choice: s16le/44100Hz/stereo - CD-quality PCM, the format
-// `paplay --raw` expects by default and a totally standard choice for
-// analysis; no reason to downsample for the FFT side since the decode cost
-// is dominated by ffmpeg itself either way.
-//
-// Playback routing is independent from FFT/decode success: if paplay is
-// missing or the Bluetooth sink isn't there, decode + FFT + visualizer
-// keep working (see `playbackStatus` vs `status`) - required so this is
-// testable/usable in environments with no real speaker, same spirit as
-// this project already holds video.js to for a missing ffmpeg.
+// Internet Radio audio pipeline: ffmpeg decodes the stream to raw PCM
+// (s16le, 44100 Hz, stereo) and each stdout chunk feeds both the FFT pass
+// (spectrum visualizer) and a spawned `paplay`, which plays to PulseAudio's
+// default sink (the paired Bluetooth speaker set up by bluetooth.js). One decode
+// feeding both keeps sound and bars in sync. Mirrors ../video/ffmpegSource.js.
+// Playback failures (no paplay, no sink) never stop decode/FFT.
 'use strict';
 const youtube = require('../../youtube');
 
@@ -194,29 +160,10 @@ class RadioAudio {
     this.peak.fill(0);
     this._peakVel.fill(0);
 
-    // A real request: two "debug mode" buttons (a full-spectrum sweep and a
-    // drum-like broadband thump) to visually verify the spectrum analyser
-    // without needing an actual internet stream. Rather than a second
-    // playback path, `debug:<lavfi spec>` / `debugloop:<lavfi spec>` URLs
-    // (built by radio.js's playDebugTone()) are decoded through this SAME
-    // pipeline - swap `-i url` for `-f lavfi -i <spec>` and everything
-    // downstream (FFT, ticker, playback) is unchanged. These sources have
-    // a fixed duration (`d=` in the lavfi spec) and end on their own - not
-    // a real error, so it's tracked here to keep proc.on('exit') from
-    // reporting it as one.
-    //
-    // `debugloop:` (the sweep specifically) vs plain `debug:` (drum/tone)
-    // distinguishes "should keep repeating" from "should play once and
-    // stop" - a real report caught BOTH directions of this wrong at
-    // different points: first, ALL debug tones silently kept
-    // auto-restarting forever once finished (nothing told ensure()'s
-    // normal "the process died, relaunch it" tick-driven fallback that a
-    // clean debug completion isn't a failure to recover from) - "it
-    // restart[s] from the left, even if the sound has gone". Then, once
-    // that was fixed generically, a follow-up ("the sweep should go from
-    // 40 to 10khz and back to 40hz again and so forth") clarified the
-    // sweep SHOULD keep looping - just the drum/tone shouldn't. See
-    // ensure()'s _debugFinished check for the other half of this.
+    // `debug:` / `debugloop:` URLs (from radio.js's playDebugTone()) decode a lavfi
+    // test source through this same pipeline. They have a fixed duration and end on
+    // their own, which is not an error. `debugloop:` (the sweep) restarts when it
+    // ends; `debug:` plays once and stops. See ensure()'s _debugFinished check.
     const isDebug = url.startsWith('debug:') || url.startsWith('debugloop:');
     const isLoop = url.startsWith('debugloop:');
     this._isDebugSource = isDebug;
@@ -227,21 +174,9 @@ class RadioAudio {
     try {
       proc = this._spawn('ffmpeg', isDebug ? [
         '-loglevel', 'error',
-        // A real report: "the BT speaker goes quickly from mid-low to
-        // mid-high in 1 second [...] the bars seem to follow the BT
-        // speaker more" - a synthetic lavfi source (unlike a real network
-        // stream, which is naturally paced by how fast bytes arrive over
-        // the network) gets generated as fast as the CPU allows, not in
-        // real time - ffmpeg would render the whole 60s sweep in a
-        // fraction of a second. That flooded _onData() far faster than
-        // paplay could drain its stdin, and the backpressure fix earlier
-        // in this session (which DROPS data rather than buffering it
-        // without bound) discarded most of the sweep, leaving only a
-        // fast, jumbled fragment for both playback AND the FFT/bars (fed
-        // from the same decode stream) to follow. `-re` makes ffmpeg
-        // read/generate the input at its own native frame rate, pacing
-        // the whole pipeline to real time - the same way a real stream's
-        // network delivery already does.
+        // A lavfi source is generated as fast as the CPU allows, which floods
+        // _onData() and the playback backpressure drop discards most of it. `-re`
+        // paces generation to real time, like a network stream.
         '-re',
         '-f', 'lavfi',
         '-i', lavfiSpec,
@@ -370,24 +305,11 @@ class RadioAudio {
     // already guards with proc.stdin.writable before writing, this is just
     // a backstop for the race between that check and the pipe actually closing.
     if (proc.stdin) proc.stdin.on('error', () => {});
-    // A real report: "the spectrum analyser is very laggy when using the
-    // BT speaker." A2DP playback has real, sometimes bursty buffering
-    // (visible in a real bluetoothctl transport log: "Delay: 0x0064
-    // (100)" - ~100ms baseline, worse under congestion) - paplay's stdin
-    // can't always drain writes as fast as ffmpeg produces them. _onData()
-    // below wrote to it unconditionally with no backpressure handling, so
-    // Node's internal write buffer for that stream had no upper bound:
-    // every write that couldn't be flushed immediately just piled up,
-    // making the audio (and therefore anything perceptually synced to it)
-    // increasingly delayed the longer playback ran, never catching back
-    // up on its own. `_playDrained` tracks whether the pipe can currently
-    // accept more data without buffering further - _onData() skips
-    // forwarding audio to playback while backed up (briefly dropping live
-    // samples, the correct behavior for a live stream that's fallen
-    // behind - it should catch up to "now", not play out a growing
-    // backlog) rather than letting the buffer grow without bound. The FFT/
-    // visualization path is untouched either way, since it already reads
-    // ffmpeg's own stdout directly, not through this write.
+    // Backpressure for paplay's stdin: Bluetooth (A2DP) playback can drain slower
+    // than ffmpeg produces. While the pipe is backed up, _onData() drops audio for
+    // playback instead of letting Node's write buffer grow without bound, so a live
+    // stream stays at "now" rather than drifting ever later. The FFT path is
+    // unaffected.
     this._playDrained = true;
     if (proc.stdin) {
       proc.stdin.on('drain', () => { this._playDrained = true; });
@@ -425,20 +347,11 @@ class RadioAudio {
   }
 
   _onData(chunk) {
-    // Forward to playback first (order doesn't matter, but this keeps the
-    // two consumers as close to in-sync as possible) - failure here must
-    // never throw or block the FFT path below. Skipped entirely while the
-    // pipe is still backed up from a previous write (see the 'drain'
-    // listener in _launchPlayback()) instead of writing regardless and
-    // letting Node's internal buffer grow without bound.
-    // A copy for phones playing along (see wsServer.js sendAudio), stamped
-    // with when the speaker will play it: now plus the speaker delay the bars
-    // already use (Auto sync's measurement, or the slider).
-    // Stamped by the audio's own timeline (how many samples have gone out),
-    // not by when the chunk arrived: a stream arrives in bursts, and arrival
-    // stamps left gaps and overlaps that made the phone stutter (a real
-    // report). Re-anchored to the clock if it ever falls behind or runs
-    // implausibly far ahead.
+    // Forward to playback first; a failure here must never throw or block the FFT
+    // path. Skipped while the pipe is backed up (see the 'drain' listener in
+    // _launchPlayback()). The copy for phones playing along (wsServer.js sendAudio)
+    // is stamped with when the speaker will play it, counted from samples sent
+    // rather than arrival time (streams arrive in bursts), re-anchored if it drifts.
     if (this.onPcm) {
       const now = Date.now(), lead = this._syncS * 1000;
       if (this._pcmT === null || this._pcmT === undefined || this._pcmT < now + lead - 250 || this._pcmT > now + lead + 6000) this._pcmT = now + lead;
@@ -647,18 +560,9 @@ class RadioAudio {
 
   _checkIdle() {
     if (this._syncAuto && this.playProc && Date.now() - (this._measuredAt || 0) > AUTO_SYNC_EVERY_MS) { this._measuredAt = Date.now(); this._measureLatency(); }
-    // A real report: "when on a single freq, the bars sometimes go off
-    // and come back again". Root cause: ensure() only actually runs from
-    // effectRadio()'s own tick, which only fires while radio is the
-    // currently-selected/displayed effect - any gap longer than
-    // IDLE_TIMEOUT_MS (10s) without a tick (briefly viewing a different
-    // effect, a slow frame, etc.) tripped this safety net, tearing down
-    // the process AND clearing this.url - so the very next tick's
-    // ensure() saw url!==this.url and relaunched from scratch, reading
-    // as "went off, came back". This idle safety net exists for REAL
-    // stations (an indefinite stream nobody's watching shouldn't run
-    // forever) - debug tones already self-terminate via their own fixed
-    // `d=` duration and don't need it.
+    // Idle safety net so a real station nobody is watching doesn't run forever.
+    // ensure() only runs while radio is ticking. Debug tones are excluded: they end
+    // on their own after their fixed `d=` duration.
     if (this.decodeProc && !this._isDebugSource && Date.now() - this.lastEnsureMs > IDLE_TIMEOUT_MS) {
       this._teardown();
       this.url = null;
@@ -712,20 +616,11 @@ class RadioAudio {
   }
 }
 
-// Stand-in for RadioAudio inside the RENDER_WORKER=1 render thread. A real
-// report: raising TICK_HZ from 30 to 60 made the spectrum bars move
-// visibly SLOWER on real hardware. The decode/FFT/playback pipeline used
-// to live on the render thread itself, and at 60Hz that thread is busy
-// back-to-back with tick() + the blocking panel push - ffmpeg's stdout
-// only got read in the brief gaps between frames, in large late batches,
-// so bar levels advanced in coarse steps. The real RadioAudio now runs on
-// the (mostly idle) main thread instead; this proxy just records what the
-// radio effect ASKS for (ensure()/clearDebugFinished(), sent back with
-// each frame reply via request()) and serves the spectrum/status the main
-// thread sends with each tick (applySnapshot()). ensureCount only
-// advances while the radio effect is actually ticking, so the main
-// thread's RadioAudio idle-timeout still fires exactly as before when
-// nothing is asking for audio any more.
+// RemoteAudio (below): stand-in for RadioAudio on the RENDER_WORKER=1 thread.
+// Decoding on the busy render thread starved ffmpeg's stdout at 60 Hz, so the real
+// RadioAudio runs on the main thread. This proxy records ensure()/clearDebugFinished()
+// requests (sent back with each frame) and serves the spectrum/status snapshot sent
+// with each tick. ensureCount only advances while radio ticks, so idle-timeout works.
 // A volume-scaled copy of an s16le PCM chunk.
 function scalePcm(chunk, gain) {
   const out = Buffer.allocUnsafe(chunk.length - (chunk.length & 1));

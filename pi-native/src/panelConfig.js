@@ -1,15 +1,7 @@
-// Persistent panel-layout config, mirroring the browser's cube-size picker
-// (8x8 / 16x16 / 64x64 / 2D) - a settings UI users already know from the
-// browser, reused here instead of inventing a new one. All 3 cube sizes
-// mean the same physical layout (6 faces); "2D" means something different
-// (1 flat panel); "wall" is a pi-native-only addition on top of that - an
-// arbitrary grid of N flat panels stitched into one big canvas (see
-// core.js's initWall()/setWallPixel(), rgbMatrixDriver.js's wall topology).
-//
-// Persisted to disk (panel-config.json next to this file) so it survives a
-// restart, and sent to every WS client on connect (see wsServer.js) so a
-// freshly-connected remote browser's UI reflects whatever was last chosen
-// on the Pi, rather than defaulting to something stale.
+// Persistent panel-layout config: cube sizes (all 6 faces), "2D" (one flat
+// panel) or "wall" (a grid of flat panels stitched into one canvas). Saved to
+// panel-config.json so it survives a restart, and sent to every WS client on
+// connect so the UI shows what was last chosen on the Pi.
 const fs = require('fs');
 const { readSectionJson, writeSection } = require('./settingsStore'); // CONFIG_PATH is now only the pre-settings.json legacy file, imported once
 const path = require('path');
@@ -17,22 +9,11 @@ const path = require('path');
 const CONFIG_PATH = path.join(__dirname, '..', 'panel-config.json');
 const VALID_SIZES = [8, 16, 64];
 const VALID_MODES = ['cube', '2d', 'wall'];
-// Wall grid: up to WALL_MAX_PANELS physical panels total (matches this
-// project's 6-panel hardware budget - same count cube mode's 6 faces
-// use), arranged in ANY rectangular shape up to WALL_MAX_COLS x
-// WALL_MAX_ROWS - a straight 1-wide x 6-tall or 6-wide x 1-tall row is
-// just as valid as a 2x3 block. Unlike cube mode (a FIXED 2x3 physical
-// topology via rgbMatrixDriver's FACE_LAYOUT, which this does NOT
-// change), wall mode's rgbMatrixDriver.js now computes chainLength/
-// parallel dynamically from the actual panels layout at driver
-// construction time - real hardware wiring must actually match whatever
-// shape gets chosen (same "takes effect after a restart" caveat as any
-// other panel mode/topology change - see rgbMatrixDriver.js's module
-// comment). WALL_MAX_COLS/WALL_MAX_ROWS are the per-axis bound (generous
-// enough to allow any single-row/single-column arrangement of up to
-// WALL_MAX_PANELS); WALL_MAX_PANELS is the actual hardware panel count
-// cap, checked separately since a WALL_MAX_COLS x WALL_MAX_ROWS bounding
-// box on its own would permit far more than WALL_MAX_PANELS cells.
+// Wall grid: any rectangular arrangement of up to WALL_MAX_PANELS panels
+// (the hardware budget), e.g. 1x6, 6x1 or 2x3. COLS/ROWS bound each axis;
+// the panel count is checked separately. The driver derives chainLength/
+// parallel from the layout, so the real wiring must match, and changes take
+// effect after a restart.
 const WALL_MAX_COLS = 6, WALL_MAX_ROWS = 6, WALL_MAX_PANELS = 6;
 // Defaults to "2d" (1 panel) rather than the full 6-face cube - a fresh
 // install shouldn't assume you've already got all 6 panels wired up and
@@ -42,17 +23,10 @@ const WALL_MAX_COLS = 6, WALL_MAX_ROWS = 6, WALL_MAX_PANELS = 6;
 const DEFAULT_CONFIG = { size: 64, mode: '2d', panels: [{ gx: 0, gy: 0 }] };
 
 // ---------------------------------------------------------------------------
-// FACE_LAYOUT - cube mode's fixed 2x3 physical wiring (chain/pos - see
-// rgbMatrixDriver.js's module comment for the full explanation and the
-// real-hardware reports that calibrated these values). Lives here rather
-// than in rgbMatrixDriver.js (a hardware/Node-only file requiring the
-// native `rpi-led-matrix` addon, which can't be pulled into the browser
-// sim bundle) so it's ONE source of truth both the real driver and the
-// browser-side "Identify Panels" helper (src/effects/identify.js) can read
-// - duplicating this table risked exactly the kind of silent-drift bug
-// this project has hit before when the same data lived in two places.
-// FACE_NAMES mirrors app.js's own copy (cube.js's face index convention:
-// 0=Front 1=Back 2=Right 3=Left 4=Top 5=Bottom).
+// FACE_LAYOUT: cube mode's fixed 2x3 physical wiring (see rgbMatrixDriver.js
+// for how it was calibrated). Kept here, not in the driver (which needs the
+// native addon), so the driver and the browser "Identify Panels" helper share
+// one copy. Faces: 0=Front 1=Back 2=Right 3=Left 4=Top 5=Bottom.
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_LAYOUT = [
   // Front/Back swapped from the original chain:0 pos:0/pos:1 guess - a real

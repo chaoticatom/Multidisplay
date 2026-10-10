@@ -1,46 +1,9 @@
-// Faithful port of effects-livedata.js's effectWeather() (lines 999-1904 in
-// the browser source). Structurally line-for-line the same logic; only the
-// plumbing changed:
-//   - SIZE/N/faceMap/colBuf -> core.SIZE/core.N/core.faceMap/core.colBuf
-//   - wxCode/wxTemp/wxSkyline/etc (bare module-scope globals in the
-//     browser) -> fields on a `wxState` object (see state.js's
-//     createWxState()) - Node has no equivalent of the browser's implicit
-//     shared <script> scope, so this has to be explicit here.
-//   - `this._wxNextStrike` -> `wxState.nextStrike`. The original relies on
-//     `this` resolving to `window` inside a bare, non-strict function call
-//     (effects are invoked as `efn(dt*speedMult)`, no explicit receiver) -
-//     that specific behavior does NOT happen in Node (bare calls get
-//     `this === undefined` in a CommonJS module, which is strict-mode-like),
-//     so this was a real (not cosmetic) porting hazard, not just a rename.
-//   - `speedMult` is passed explicitly rather than read off a module-scope
-//     UI-slider global. NOTE: the original does `dt*speedMult` for the
-//     lightning-strike timer even though the effect's own `dt` parameter
-//     ALREADY has speedMult multiplied in at the call site (ui.js's
-//     `efn(dt*speedMult)`) - i.e. the original double-applies speedMult
-//     for this one specific timer. That looks like it could be an
-//     unintentional quirk, but this is a faithful port, not a rewrite, so
-//     it's preserved exactly - app.js passes both the pre-scaled `dt` and
-//     the raw `speedMult` for this reason.
-//   - panel2dMode is TRUE for pi-native's own single-2D-panel hardware mode
-//     (core.panelMode==='2d', one physical 64x64 panel, as opposed to
-//     core.panelMode==='cube' which is 6 faces) - this was incorrectly
-//     assumed to have no hardware equivalent and hardcoded false in an
-//     earlier version of this port; that was wrong and caused the weather
-//     effect to render incorrectly (wrong horizon/text/sun/moon/cloud
-//     placement) on a real single-panel setup. It's now derived each tick
-//     as `const is2d = core.panelMode === '2d';` and threaded through the
-//     same 10 branch points the browser source has (plus wxInitScene's
-//     nFaces line in state.js).
-//   - Reads that depended on a live DOM city-search input
-//     (`document.getElementById('wx-city')?.value`) now just use
-//     `wxState.cityDisplay`, set once by fetch.js's fetchWeather().
-//
-// This has NOT been visually verified (no hardware/renderer available in
-// this sandbox) - see pi-native/README.md's status section. It's a
-// structurally faithful transcription, checked function-by-function
-// against the source, exercised for "never throws, stays in valid numeric
-// range across many times of day and weather codes" (test/weather.test.js)
-// but not eyeballed against real output.
+// Weather effect, ported from the browser app's effectWeather(); the logic is
+// kept line-for-line. Former globals live on `wxState` (see state.js).
+// Gotchas: the original's `this._wxNextStrike` is now wxState.nextStrike (bare
+// calls get `this === undefined` in Node); the lightning timer deliberately
+// applies speedMult twice, as the original did; `is2d` (core.panelMode ===
+// '2d', one flat panel) changes horizon/text/sun/moon/cloud placement.
 const { wxSkyRGB, wxInitScene } = require('./state');
 const { drawString, FONT_3x5, faceMaxPlot } = require('../text');
 

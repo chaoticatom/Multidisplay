@@ -1,15 +1,7 @@
-// Ported from cube.js's initCube()/setLED()/setFaceLED()/hsl()/lerp()/sm().
-// This is the DOM-free subset: SIZE/N/gridX,Y,Z/surfX,Y,Z/faceMap/colBuf and
-// the pixel-write helpers effects call. Deliberately excludes everything
-// that exists only for the browser's interactive 3D preview (WebGLRenderer,
-// InstancedMesh, edge lines, panel meshes, orbit/drag controls, face-culling
-// visibility) - none of that has an equivalent on real hardware; a connected
-// browser gets its own preview by receiving frames over WebSocket and
-// running the *original* cube.js/Three.js code unchanged, not this module.
-//
-// Keep this in sync with cube.js's initCube() if the face-mapping/mirroring
-// logic there ever changes - the two must produce identical faceMap/surfX,Y,Z
-// data for effects to look the same on real panels as in the browser preview.
+// DOM-free cube geometry and pixel helpers: SIZE/N/grid/surf coords,
+// faceMap, colBuf, and the write helpers effects call. Its faceMap/surf
+// data (including the per-face mirroring) must match the browser preview's
+// so effects look the same on real panels as in the preview.
 
 const TOTAL_SPAN = 63; // matches cube.js - unused geometrically here (no 3D layout needed) but kept for parity/reference
 
@@ -104,19 +96,10 @@ class CubeCore {
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  // "Wall" mode: an arbitrary grid of same-size flat panels forming one
-  // big stitched 2D canvas, as opposed to the fixed 6-face cube geometry
-  // above. Unrelated to (and independent of) the cube fields - a CubeCore
-  // can have both initialized at once; which one an effect/driver/preview
-  // actually reads depends on panelConfig.js's mode ('cube'/'2d' use the
-  // cube fields via faceMap[0]; 'wall' uses these).
-  //
-  // panels: array of {gx, gy} - integer grid coordinates, one entry per
-  // physical panel, gx/gy both 0-based from the top-left. Each panel is
-  // panelSize x panelSize pixels; the overall canvas is
-  // (max(gx)+1)*panelSize wide by (max(gy)+1)*panelSize tall - panels
-  // don't have to fill every cell of that bounding box (setWallPixel
-  // silently no-ops writes that land in an empty cell).
+  // "Wall" mode: a grid of same-size flat panels stitched into one 2D canvas,
+  // independent of the cube fields ('cube'/'2d' use faceMap, 'wall' uses these).
+  // panels: [{gx, gy}] 0-based grid cells; canvas is (max(gx)+1) x (max(gy)+1)
+  // panels. Cells need not all be filled; setWallPixel ignores empty cells.
   initWall(panels, panelSize) {
     this.wallPanels = panels;
     this.wallPanelSize = panelSize;

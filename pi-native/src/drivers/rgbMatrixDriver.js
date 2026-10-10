@@ -1,16 +1,8 @@
-// Real-hardware driver, using the `rpi-led-matrix` package (Node/N-API
-// bindings for hzeller/rpi-rgb-led-matrix - the standard library this whole
-// migration is built around). This file only loads/runs on the Pi itself:
-// `rpi-led-matrix` ships a native addon that must be compiled against the
-// actual hardware/OS, so it cannot be required in a plain dev sandbox - see
-// mockDriver.js for the no-hardware stand-in used everywhere else.
-//
-// drawBuffer()'s exact contract (verified against the addon's own C++
-// source, src/led-matrix.addon.cc's draw_buffer(): NOT just guessed from
-// the README, which was stale on this point) is
-//   drawBuffer(buffer, w, h, xOffset, yOffset)
-// where buffer.length MUST equal w*h*3 - flat RGB, 3 bytes/pixel, row-major,
-// (R,G,B) order per pixel. That's what buildFaceBuffer() below produces.
+// Real-hardware driver using `rpi-led-matrix` (Node bindings for
+// hzeller/rpi-rgb-led-matrix). Its native addon only builds on the Pi; see
+// mockDriver.js for the no-hardware stand-in.
+// drawBuffer(buffer, w, h, xOffset, yOffset) requires buffer.length ===
+// w*h*3: flat row-major RGB, 3 bytes per pixel (checked against the C++ source).
 const { LedMatrix, GpioMapping, RuntimeFlag } = require('rpi-led-matrix');
 const { FACE_LAYOUT } = require('../panelConfig');
 const { writePixel } = require('./pixel');
@@ -19,56 +11,17 @@ const PANEL = 64; // physical panel width/height in pixels
 // ---------------------------------------------------------------------------
 // PHYSICAL LAYOUT - MUST BE CALIBRATED FOR YOUR ACTUAL WIRING.
 // ---------------------------------------------------------------------------
-// Assumes the Active-3 board's 3 independent parallel HUB75 outputs, 2
-// panels chained on each (matches the hardware recommended earlier in this
-// project's planning): total canvas = 64*chainLength x 64*parallel = 128x192.
-// cube.js's face indices: 0=Front 1=Back 2=Right 3=Left 4=Top 5=Bottom.
-//
-// FACE_LAYOUT maps each face to {chain: 0-2, pos: 0-1} - which of the 3
-// parallel chains it's on, and which of the 2 chained positions within that
-// chain. Lives in panelConfig.js now (not defined here) so the browser-side
-// "Identify Panels" helper (src/effects/identify.js) can read the exact
-// same table without duplicating it - see that file's own comment. Wire up
-// the panels, run one distinctive test pattern per face (e.g. solid red/
-// green/blue/yellow/cyan/magenta) or use Identify Panels, and correct
-// panelConfig.js's copy to match reality before trusting any effect's
-// visual output.
-// rotate180 - a real report: "on cube mode, the top panel is reversed,
-// the flow from side panels does not flow to top correctly" (fireworks,
-// rainbow/gradient effects, etc. - anything whose content should read
-// continuously across a face edge). The 4 side faces apparently read
-// correctly, singling out Top - the classic real-world cause is the
-// physical Top panel being MOUNTED upside-down relative to the other 5
-// (a "lid" panel's natural mounting orientation often differs from the 4
-// vertical side panels', independent of which HUB75 chain/position its
-// data cable is wired to), which reads as content flowing in/rotated
-// the wrong way at every edge it shares with a side face. See
-// _buildFaceBuffer() for where this is applied. Not verified against real
-// hardware (none available to this session) - if 180° doesn't fully fix
-// it, the same mechanism supports flipH/flipV instead (see
-// _buildFaceBuffer()) for whichever single-axis mirror actually matches
-// this panel's mount.
+// Cube mode assumes 3 parallel HUB75 chains of 2 panels (128x192 canvas).
+// FACE_LAYOUT (in panelConfig.js, shared with Identify Panels) maps each face
+// to {chain, pos}; verify it against the real wiring. rotate180 on Top
+// compensates for that panel being mounted upside-down relative to the sides
+// (unverified on hardware; flipH/flipV also work, see _buildFaceBuffer()).
 class RgbMatrixDriver {
-  // opts.mode: 'cube' (6 panels via FACE_LAYOUT, FIXED 2x3 physical wiring
-  // - unlike 'wall' below, this topology never changes since FACE_LAYOUT's
-  // chain/pos values are hardcoded assuming exactly this shape) | '2d'
-  // (default, 1 panel - matches panelConfig.js's DEFAULT_CONFIG, so a
-  // fresh install doesn't assume all 6 panels are already wired and
-  // FACE_LAYOUT calibrated) | 'wall' (N panels in an ARBITRARY flat grid,
-  // via opts.panels - chainLength/parallel are computed from the actual
-  // layout below, e.g. a 1-wide x 6-tall or 6-wide x 1-tall row needs
-  // completely different physical wiring than a 2x3 block, not just a
-  // different way of reading the same fixed topology cube mode uses). A
-  // real request: "I need the ability to choose all horizontal displays
-  // if I wish (or vertical). e.g. 1 row by 6 wide" - your actual cabling
-  // needs to match whatever shape you configure. This is read ONCE at
-  // construction - rpi-led-matrix has no API to reconfigure or tear down/
-  // recreate an LedMatrix instance at runtime (see close() below), so
-  // changing mode OR wall shape via the WS setPanelConfig/
-  // setPanelPositions commands (see wsServer.js/app.js) only takes effect
-  // on the physical panels after a process restart, even though it
-  // updates core/the WS preview immediately - app.js logs a warning about
-  // this when it happens.
+  // opts.mode: 'cube' (6 panels, fixed 2x3 wiring via FACE_LAYOUT) | '2d'
+  // (default, 1 panel) | 'wall' (N panels in any flat grid via opts.panels;
+  // chainLength/parallel come from the layout, and the cabling must match).
+  // Read once: rpi-led-matrix cannot be reconfigured at runtime, so mode or
+  // wall shape changes reach the panels only after a process restart.
   constructor(opts = {}) {
     this.mode = opts.mode || '2d';
     let topology;
@@ -96,25 +49,10 @@ class RgbMatrixDriver {
       // - start at 2 and raise if the image looks unstable once on real
       // hardware; there's no way to determine the right value without it.
       gpioSlowdown: 2,
-      // A real, extensively-diagnosed report ("how do I get audio to play
-      // through my speaker" / pactl always "Connection refused", even
-      // after fixing PULSE_SERVER/sink-naming/retries): this library
-      // (hzeller/rpi-rgb-led-matrix's Node binding) DROPS ROOT PRIVILEGES
-      // BY DEFAULT once GPIO/DMA is initialized, down to a low-privilege
-      // user (confirmed on real hardware: the running process's own
-      // /proc/<pid>/status showed Uid: 1 "daemon", CapEff all zero, despite
-      // the systemd unit's own `User=root` and no override files existing
-      // anywhere) - a sensible security default for a program that only
-      // ever needs root for the initial memory-mapped GPIO access, but
-      // catastrophic here: EVERY bluetoothctl/pactl call this file's
-      // src/bluetooth.js makes happens AFTER this constructor runs, so the
-      // entire rest of the process (Bluetooth pairing/audio routing, not
-      // just LED rendering) was unexpectedly unprivileged the whole time,
-      // unable to reach another user's PulseAudio session or write to
-      // /root - explaining "Connection refused"/"Permission denied" that
-      // no amount of PULSE_SERVER/env fixing could ever have solved on its
-      // own. Disabled explicitly - this app needs root for its full
-      // lifetime, not just at hardware-init time.
+      // The library drops root privileges by default after GPIO init. This app
+      // needs root for its whole lifetime (bluetoothctl/pactl in bluetooth.js run
+      // after this constructor, and fail with "Connection refused" otherwise), so
+      // it is disabled explicitly.
       dropPrivileges: RuntimeFlag.Off,
       ...opts.runtimeOptions,
     };
@@ -177,28 +115,11 @@ class RgbMatrixDriver {
     this.matrix.sync();
   }
 
-  // Same real-hardware-reported left-right mirror as _buildFaceBuffer's
-  // '2d' branch above, for wall mode. Mirrors the WHOLE assembled
-  // wallW x wallH canvas, not each panel in isolation - for a multi-panel
-  // wall, content that was on the far right of the stitched image needs to
-  // end up on the far left panel (not just flipped in place within
-  // whichever physical panel already had it), which is what makes the
-  // whole picture actually flip rather than each panel just showing its
-  // own content backwards. The physical panel positions/wiring
-  // (panel.gx/gy -> drawBuffer offset, in _renderWallFrame) are untouched -
-  // only which CONTENT lands at each physical offset changes.
-  // NOTE (irregular layouts): this horizontal mirror reads column
-  // wallW-1-(ox+u) instead of ox+u - for a layout that ISN'T symmetric
-  // about the vertical centerline (e.g. an L-shape, or any row that
-  // doesn't span the full wallW), that mirrored column can land on an
-  // UNOCCUPIED cell (always black) instead of real content, the same class
-  // of bug a whole-canvas VERTICAL flip was found to cause here (tried and
-  // reverted - see wsServer.js's _streamWallFrames() module comment) for
-  // non-rectangular shapes. Left as-is since it's confirmed against a real
-  // device report and out of scope for the L-shape-layout fix that
-  // reverted the vertical version, but worth knowing about if an
-  // irregular/asymmetric horizontal shape ever looks wrong on real
-  // hardware.
+  // Wall mode gets the same left-right mirror as '2d' (real panels show it
+  // mirrored otherwise). It mirrors the whole wallW x wallH canvas, not each
+  // panel, so content moves between panels; panel offsets are unchanged.
+  // Gotcha: on a layout not symmetric about its vertical centerline (e.g. an
+  // L-shape), the mirrored column can land on an empty cell and show black.
   _buildWallPanelBuffer(core, panel, brightness) {
     const S = core.wallPanelSize, wallW = core.wallW, wallBuf = core.wallBuf;
     const buf = this._faceBufCache;
@@ -217,18 +138,10 @@ class RgbMatrixDriver {
     return buf;
   }
 
-  // '2d' mode (a single flat panel, face 0) came back from a real-hardware
-  // test mirrored left-right - a real user report, not a guess (the
-  // browser preview, which goes through a completely separate path -
-  // wsServer.js's maybeStreamFrame() streams colBuf/faceMap straight
-  // through with no flip - was confirmed correct, so this is specific to
-  // physical panel orientation, not the effect math itself). Cube mode
-  // (6 faces) is left untouched here: its faceMap already bakes a
-  // deliberate, separately-verified mirror for faces 1/2 (see core.js's
-  // module comment and CLAUDE.md's "Face Mirroring" section) that predates
-  // this driver and was carried over from the original ESP32 architecture -
-  // flipping this function unconditionally would double up on/undo that
-  // existing calibration with no report that cube mode is actually wrong.
+  // '2d' mode (single panel, face 0) is mirrored left-right here because the
+  // physical panel shows it mirrored otherwise; the browser preview needs no
+  // flip. Cube mode is left alone: its faceMap already bakes in a separate,
+  // verified mirror for faces 1/2 (see core.js) that this must not undo.
   _buildFaceBuffer(core, face, brightness) {
     const SIZE = core.SIZE;
     const buf = this._faceBufCache;
