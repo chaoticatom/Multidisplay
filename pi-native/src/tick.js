@@ -13,6 +13,15 @@ const { applyPostFx, restorePostFx } = require('./effects/postfx');
 const radio = require('./effects/radio');
 const { createFeatureState, updateFeatures, reactDt, pulseBuffer } = require('./effects/audioFeatures');
 const musicFeatures = createFeatureState();
+// The radio's spectrum and the room's (Pi microphone, when on), louder of the two per band.
+let merged = null;
+function mergeSpec(a, b) {
+  if (!b) return a;
+  if (!a) return b;
+  if (!merged || merged.length !== a.length) merged = new Float32Array(a.length);
+  for (let i = 0; i < a.length; i++) merged[i] = a[i] > b[i] ? a[i] : b[i];
+  return merged;
+}
 // Crossfade between effects: switching used to hard-cut, often to a blank
 // first frame while the new effect warmed up. When state.effect changes,
 // the last displayed frame is kept and blended out over CROSSFADE_SECS on
@@ -89,7 +98,7 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
     // showing: its WALL version only draws and never started the stream, so
     // in wall mode the Pi played nothing (a real report: radio + spectrum
     // worked on one 2D panel, then went flat once in wall mode).
-    core.audio = updateFeatures(musicFeatures, radio.audio && radio.audio.spec, dt);
+    core.audio = updateFeatures(musicFeatures, mergeSpec(radio.audio && radio.audio.spec, core.micSpec), dt);
     // An effect's own setting (perEffect, from its options sheet) wins over the global one; 0 turns it off.
     const mr = state.musicReact, own = mr && mr.perEffect ? mr.perEffect[state.effect] : undefined;
     const react = state.effect === 'radio' || !mr ? 0 : own !== undefined && own !== null ? Math.max(0, Math.min(1, Number(own) || 0)) : mr.on ? Math.max(0, Math.min(1, Number(mr.amount) || 0.6)) : 0;

@@ -65,7 +65,7 @@ async function callProvider(cfg, system, user, opts = {}) {
     let noThinking = true;
     const send = (m) => fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.8, maxOutputTokens: opts.maxTokens || 1024, ...(noThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}) } }),
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [...(opts.audio ? [{ inlineData: { mimeType: 'audio/wav', data: opts.audio.toString('base64') } }] : []), { text: user }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.8, maxOutputTokens: opts.maxTokens || 1024, ...(noThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}) } }),
     }, opts.timeoutMs || 45000);
     const useModel = geminiWorking.text || cfg.model || model; // a replacement found after a 404 wins
     res = await send(useModel);
@@ -161,6 +161,40 @@ async function chat(history, text) {
   return { say: typeof j.say === 'string' ? j.say.replace(/\s+/g, ' ').trim().slice(0, 300) : '', laugh: ['before', 'after'].includes(j.laugh) ? j.laugh : 'none' };
 }
 
+// Something said to the face through the Pi's microphone (src/mic.js): a
+// 16 kHz WAV. Gemini hears the audio directly; Groq transcribes it with
+// Whisper first. Returns { heard, say, laugh }, { heard: '' } for nothing
+// recognisable, or { off: true }.
+async function hear(history, audio) {
+  const cfg = aiConfig.load();
+  if (cfg.provider === 'off') return { off: true };
+  const convo = (history || []).slice(-8).map((h) => (h.who === 'you' ? 'Person: ' : 'You: ') + h.text).join('\n');
+  if (cfg.provider === 'gemini') {
+    const sys = CHAT_SYSTEM.replace('Answer only with JSON: {"say": "...", "laugh": "none"}', '')
+      + 'The person\'s words are in the attached audio. Put exactly what they said in "heard". If the audio has no clear speech meant for you (noise, music, TV, silence), reply {"heard": "", "say": ""}. '
+      + 'Answer only with JSON: {"heard": "...", "say": "...", "laugh": "none"}';
+    const raw = await callProvider(cfg, sys, (convo ? convo + '\n' : '') + 'Person: (speaking - see the audio)', { maxTokens: 400, timeoutMs: 30000, audio });
+    let j; try { j = extractJson(raw); } catch (e) { return { heard: '' }; }
+    const heard = typeof j.heard === 'string' ? j.heard.replace(/\s+/g, ' ').trim().slice(0, 300) : '';
+    if (!heard) return { heard: '' };
+    return { heard, say: typeof j.say === 'string' ? j.say.replace(/\s+/g, ' ').trim().slice(0, 300) : '', laugh: ['before', 'after'].includes(j.laugh) ? j.laugh : 'none' };
+  }
+  if (cfg.provider === 'groq') {
+    if (!cfg.key) throw new Error('no API key set for Groq');
+    const form = new FormData();
+    form.append('file', new Blob([audio], { type: 'audio/wav' }), 'speech.wav');
+    form.append('model', 'whisper-large-v3-turbo');
+    form.append('response_format', 'json');
+    const res = await fetchWithTimeout('https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: `Bearer ${cfg.key}` }, body: form }, 30000);
+    const b = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`Groq speech ${res.status}: ${b.error?.message || 'request failed'}`);
+    const heard = String(b.text || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+    if (heard.replace(/[^a-z]/gi, '').length < 2) return { heard: '' };
+    return { heard, ...(await chat(history, heard)) };
+  }
+  throw new Error('talking to the face needs Gemini or Groq (Setup > AI assistant)');
+}
+
 // Natural speech for the Talking Face from Gemini's text-to-speech model.
 // Returns 24 kHz 16-bit mono PCM, or null when Gemini isn't the AI provider
 // (the face then falls back to espeak-ng).
@@ -217,4 +251,4 @@ async function listModels(cfg) {
   return { models: names.slice(0, 80), default: p.model || '' };
 }
 
-module.exports = { ask, chat, speech, listModels, cleanReply, cleanArt, extractJson, systemPrompt, pickGeminiModel, _geminiWorking: geminiWorking };
+module.exports = { ask, chat, hear, speech, listModels, cleanReply, cleanArt, extractJson, systemPrompt, pickGeminiModel, _geminiWorking: geminiWorking };

@@ -617,6 +617,7 @@ function wireTalkingFacePanel() {
     setEffectOption('talking_face', key, num ? Number(b.dataset[attr]) : b.dataset[attr]);
   }));
   chips('.tf-voice-btn', 'voice', 'voice'); chips('.tf-chatty-btn', 'chatty', 'chatty', true);
+  document.querySelectorAll('.tf-listen-btn').forEach((b) => b.addEventListener('click', () => setEffectOption('talking_face', 'listen', b.dataset.listen === 'on')));
   for (const k of ['skin', 'hair', 'eyes']) document.getElementById('tf-' + k).addEventListener('change', (e) => setEffectOption('talking_face', k, e.target.value));
   // A woman's face starts with long blonde hair (hair can still be changed).
   document.getElementById('tf-style').addEventListener('change', (e) => {
@@ -653,6 +654,9 @@ function syncTalkingFacePanel() {
   for (const k of ['style', 'skin', 'hair', 'eyes']) { const el = document.getElementById('tf-' + k); if (el && document.activeElement !== el && o[k]) el.value = o[k]; }
   const hairSel = document.getElementById('tf-hair'); if (hairSel && !o.hair && document.activeElement !== hairSel) hairSel.value = o.style === 'woman' ? 'blonde' : 'brown';
   const note = document.getElementById('tf-voice-note'); if (note && ft && ft.voiceStatus) note.textContent = '⚠ ' + ft.voiceStatus;
+  document.querySelectorAll('.tf-listen-btn').forEach((x) => x.classList.toggle('active', (x.dataset.listen === 'on') === (o.listen !== false)));
+  const mic = currentState.mic, mn = document.getElementById('tf-mic-note');
+  if (mn && mic && o.listen !== false && currentState.effect === 'talking_face') mn.textContent = mic.status ? '⚠ ' + mic.status : mic.hearing ? '🎤 Hearing you…' : mic.listening ? '🎤 Listening - just talk (' + mic.source + ')' : 'Looking for a microphone…';
   const log = document.getElementById('tf-log');
   if (log && ft) {
     const key = JSON.stringify(ft.log) + ft.thinking;

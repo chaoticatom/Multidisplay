@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.297';
+const APP_VERSION = '0.6.298';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -486,6 +486,7 @@ function wireMusicReact() {
   const chk = document.getElementById('music-react-chk'), amt = document.getElementById('music-react-amt'), val = document.getElementById('music-react-val');
   chk?.addEventListener('change', () => send({ cmd: 'setMusicReact', on: chk.checked }));
   amt?.addEventListener('input', () => { if (val) val.textContent = Math.round(amt.value * 100) + '%'; send({ cmd: 'setMusicReact', amount: Number(amt.value) }); });
+  document.getElementById('mic-music-chk')?.addEventListener('change', (e) => send({ cmd: 'setMic', music: e.target.checked }));
 }
 function syncMusicReact() {
   const m = currentState.musicReact || { on: false, amount: 0.6 };
@@ -493,6 +494,10 @@ function syncMusicReact() {
   if (chk && document.activeElement !== chk) chk.checked = !!m.on;
   if (amt && document.activeElement !== amt) { amt.value = m.amount; if (val) val.textContent = Math.round(m.amount * 100) + '%'; }
   const row = document.getElementById('music-react-row'); if (row) row.style.opacity = m.on ? '1' : '0.45';
+  const mic = document.getElementById('mic-music-chk'), on = !!currentState.prefs?.mic?.music;
+  if (mic && document.activeElement !== mic) mic.checked = on;
+  const mn = document.getElementById('mic-music-note'), ms = currentState.mic;
+  if (mn) mn.textContent = !on ? '' : ms?.status ? '⚠ ' + ms.status : ms?.listening ? 'Listening on ' + ms.source : 'Looking for a microphone…';
 }
 
 function wireRestartButtons() {
@@ -1394,6 +1399,7 @@ function wireTalkingFacePanel() {
     setEffectOption('talking_face', key, num ? Number(b.dataset[attr]) : b.dataset[attr]);
   }));
   chips('.tf-voice-btn', 'voice', 'voice'); chips('.tf-chatty-btn', 'chatty', 'chatty', true);
+  document.querySelectorAll('.tf-listen-btn').forEach((b) => b.addEventListener('click', () => setEffectOption('talking_face', 'listen', b.dataset.listen === 'on')));
   for (const k of ['skin', 'hair', 'eyes']) document.getElementById('tf-' + k).addEventListener('change', (e) => setEffectOption('talking_face', k, e.target.value));
   // A woman's face starts with long blonde hair (hair can still be changed).
   document.getElementById('tf-style').addEventListener('change', (e) => {
@@ -1430,6 +1436,9 @@ function syncTalkingFacePanel() {
   for (const k of ['style', 'skin', 'hair', 'eyes']) { const el = document.getElementById('tf-' + k); if (el && document.activeElement !== el && o[k]) el.value = o[k]; }
   const hairSel = document.getElementById('tf-hair'); if (hairSel && !o.hair && document.activeElement !== hairSel) hairSel.value = o.style === 'woman' ? 'blonde' : 'brown';
   const note = document.getElementById('tf-voice-note'); if (note && ft && ft.voiceStatus) note.textContent = '⚠ ' + ft.voiceStatus;
+  document.querySelectorAll('.tf-listen-btn').forEach((x) => x.classList.toggle('active', (x.dataset.listen === 'on') === (o.listen !== false)));
+  const mic = currentState.mic, mn = document.getElementById('tf-mic-note');
+  if (mn && mic && o.listen !== false && currentState.effect === 'talking_face') mn.textContent = mic.status ? '⚠ ' + mic.status : mic.hearing ? '🎤 Hearing you…' : mic.listening ? '🎤 Listening - just talk (' + mic.source + ')' : 'Looking for a microphone…';
   const log = document.getElementById('tf-log');
   if (log && ft) {
     const key = JSON.stringify(ft.log) + ft.thinking;
@@ -3345,7 +3354,7 @@ function wireStopSoundButton() {
 // ---------------------------------------------------------------------
 // Master brightness / speed sliders (Display section)
 // ---------------------------------------------------------------------
-let _brightEditingUntil = 0;
+let _brightEditingUntil = 0, _volEditingUntil = 0;
 function wireSliders() {
   const bright = document.getElementById('bright-slider');
   const brightVal = document.getElementById('bright-val');
@@ -3370,6 +3379,18 @@ function wireSliders() {
       });
     });
   }
+  // Overall volume, sent at most once a frame while dragging.
+  const vol = document.getElementById('master-vol-slider'), volVal = document.getElementById('master-vol-val');
+  if (vol) {
+    let queued = false;
+    vol.addEventListener('input', () => {
+      _volEditingUntil = Date.now() + 1200;
+      if (volVal) volVal.textContent = Math.round(vol.value * 100) + '%';
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => { queued = false; send({ cmd: 'setMasterVolume', value: Number(vol.value) }); });
+    });
+  }
   const speed = document.getElementById('speed-slider');
   const speedVal = document.getElementById('speed-val');
   if (speed) {
@@ -3387,6 +3408,11 @@ function syncSliders() {
   if (bright && document.activeElement !== bright && Date.now() >= _brightEditingUntil) {
     bright.value = currentState.brightness;
     if (brightVal) brightVal.textContent = Math.round(currentState.brightness * 100) + '%';
+  }
+  const vol = document.getElementById('master-vol-slider'), volVal = document.getElementById('master-vol-val');
+  if (vol && document.activeElement !== vol && Date.now() >= _volEditingUntil) {
+    const v = currentState.prefs?.volume ?? 1;
+    vol.value = v; if (volVal) volVal.textContent = Math.round(v * 100) + '%';
   }
   const speed = document.getElementById('speed-slider');
   const speedVal = document.getElementById('speed-val');

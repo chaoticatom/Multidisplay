@@ -359,7 +359,8 @@ class RadioAudio {
       this._pcmT += (chunk.length / (2 * CHANNELS)) / SAMPLE_RATE * 1000;
     }
     if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && this._playDrained) {
-      const out = this._gain < 0.999 ? scalePcm(chunk, this._gain) : chunk;
+      const g = this._gain * require('../../masterVolume').get();
+      const out = g < 0.999 ? scalePcm(chunk, g) : chunk;
       try { this._playDrained = this.playProc.stdin.write(out); } catch (e) { /* handled via the stdin 'error' listener */ }
     }
 

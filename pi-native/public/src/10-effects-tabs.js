@@ -165,6 +165,7 @@ function wireMusicReact() {
   const chk = document.getElementById('music-react-chk'), amt = document.getElementById('music-react-amt'), val = document.getElementById('music-react-val');
   chk?.addEventListener('change', () => send({ cmd: 'setMusicReact', on: chk.checked }));
   amt?.addEventListener('input', () => { if (val) val.textContent = Math.round(amt.value * 100) + '%'; send({ cmd: 'setMusicReact', amount: Number(amt.value) }); });
+  document.getElementById('mic-music-chk')?.addEventListener('change', (e) => send({ cmd: 'setMic', music: e.target.checked }));
 }
 function syncMusicReact() {
   const m = currentState.musicReact || { on: false, amount: 0.6 };
@@ -172,6 +173,10 @@ function syncMusicReact() {
   if (chk && document.activeElement !== chk) chk.checked = !!m.on;
   if (amt && document.activeElement !== amt) { amt.value = m.amount; if (val) val.textContent = Math.round(m.amount * 100) + '%'; }
   const row = document.getElementById('music-react-row'); if (row) row.style.opacity = m.on ? '1' : '0.45';
+  const mic = document.getElementById('mic-music-chk'), on = !!currentState.prefs?.mic?.music;
+  if (mic && document.activeElement !== mic) mic.checked = on;
+  const mn = document.getElementById('mic-music-note'), ms = currentState.mic;
+  if (mn) mn.textContent = !on ? '' : ms?.status ? '⚠ ' + ms.status : ms?.listening ? 'Listening on ' + ms.source : 'Looking for a microphone…';
 }
 
 function wireRestartButtons() {

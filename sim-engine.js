@@ -2462,6 +2462,28 @@ var PiEngine = (() => {
     }
   });
 
+  // src/masterVolume.js
+  var require_masterVolume = __commonJS({
+    "src/masterVolume.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var level = 1;
+      function get() {
+        return level;
+      }
+      function set(v) {
+        const n = Number(v);
+        if (Number.isFinite(n)) level = Math.max(0, Math.min(1, n));
+        return level;
+      }
+      function paplayArg(scale = 1) {
+        return "--volume=" + Math.round(65536 * Math.max(0, Math.min(1, level * scale)));
+      }
+      module.exports = { get, set, paplayArg };
+    }
+  });
+
   // src/effects/radio/ffmpegAudio.js
   var require_ffmpegAudio = __commonJS({
     "src/effects/radio/ffmpegAudio.js"(exports, module) {
@@ -2741,7 +2763,8 @@ var PiEngine = (() => {
             this._pcmT += chunk.length / (2 * CHANNELS) / SAMPLE_RATE * 1e3;
           }
           if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && this._playDrained) {
-            const out = this._gain < 0.999 ? scalePcm(chunk, this._gain) : chunk;
+            const g = this._gain * require_masterVolume().get();
+            const out = g < 0.999 ? scalePcm(chunk, g) : chunk;
             try {
               this._playDrained = this.playProc.stdin.write(out);
             } catch (e) {
@@ -27785,6 +27808,14 @@ var PiEngine = (() => {
       var radio = require_radio2();
       var { createFeatureState, updateFeatures, reactDt, pulseBuffer } = require_audioFeatures();
       var musicFeatures = createFeatureState();
+      var merged = null;
+      function mergeSpec(a, b) {
+        if (!b) return a;
+        if (!a) return b;
+        if (!merged || merged.length !== a.length) merged = new Float32Array(a.length);
+        for (let i = 0; i < a.length; i++) merged[i] = a[i] > b[i] ? a[i] : b[i];
+        return merged;
+      }
       var CROSSFADE_SECS = 0.4;
       function beginCrossfade(core, effect, buf) {
         if (!buf) return;
@@ -27835,7 +27866,7 @@ var PiEngine = (() => {
           const alarmBlocking = cubeMode ? alarms.isBlockingNormalEffect(state) : !!(state.activeAlarm && !state.activeAlarm.dismissed && state.activeAlarm.phase === "pre");
           const fn = config.mode === "wall" ? WALL_EFFECTS[state.effect] : EFFECTS[state.effect];
           const buf = cubeMode ? core.colBuf : core.wallBuf;
-          core.audio = updateFeatures(musicFeatures, radio.audio && radio.audio.spec, dt);
+          core.audio = updateFeatures(musicFeatures, mergeSpec(radio.audio && radio.audio.spec, core.micSpec), dt);
           const mr = state.musicReact, own = mr && mr.perEffect ? mr.perEffect[state.effect] : void 0;
           const react = state.effect === "radio" || !mr ? 0 : own !== void 0 && own !== null ? Math.max(0, Math.min(1, Number(own) || 0)) : mr.on ? Math.max(0, Math.min(1, Number(mr.amount) || 0.6)) : 0;
           beginCrossfade(core, state.effect, buf);

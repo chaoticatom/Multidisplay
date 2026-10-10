@@ -293,6 +293,15 @@ async function main() {
   // restarts the app if the Pi is about to run out of memory.
   const health = require('./health').createHealth();
   setInterval(() => ws.faceTalk.tick(), 5000).unref(); // the Talking Face chats by itself when quiet
+  // The microphone runs only while something wants it: the Talking Face on
+  // screen with "Listen" on, or effects reacting to the room (Setup).
+  const syncMic = () => {
+    const fo = (state.effectOptions && state.effectOptions.talking_face) || {};
+    const wasHearing = ws.mic.status.hearing;
+    ws.mic.setWanted({ speech: state.effect === 'talking_face' && !state.blank && fo.listen !== false, music: !!(state.prefs && state.prefs.mic && state.prefs.mic.music) });
+    if (wasHearing !== ws.mic.status.hearing) ws._broadcast(ws._stateMsg());
+  };
+  if (process.env.DRIVER !== 'mock') setInterval(syncMic, 1000).unref();
   // Network watchdog (see netWatch.js): keeps Wi-Fi and the Cloudflare tunnel
   // up. Only on the real Pi - never in mock mode on a development machine.
   const netWatch = require('./netWatch').createNetWatch({ rebootStampFile: require('path').join(__dirname, '..', '.net-reboot') });
@@ -364,7 +373,7 @@ async function main() {
       }
       // The real radio decode/FFT runs HERE, not in the worker (see
       // ffmpegAudio.js's RemoteAudio) - ship its latest spectrum along.
-      renderWorker.postMessage({ type: 'tick', state: stateForWorker, version: sentStateVersion, dt, radioAudio: radio.audio.snapshot() });
+      renderWorker.postMessage({ type: 'tick', state: stateForWorker, version: sentStateVersion, dt, radioAudio: radio.audio.snapshot(), micSpec: ws.mic.spec() });
     };
     // A real report ("station name never updates in the UI after picking
     // one") - set by the worker's 'stateChanged' message (see
@@ -441,6 +450,7 @@ async function main() {
       // inside tick() (src/tick.js), shared with the simulator. Effects that want
       // the old single flat panel case check `core.panelMode === '2d'`, not `!== 'cube'`.
       const frameStart = performance.now();
+      core.micSpec = ws.mic.spec();
       tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt);
       if (core.sfx && core.sfx.length) playSfx(state, core.sfx.splice(0));
       if (state.appliedChanges) { delete state.appliedChanges; ws._broadcast(ws._stateMsg()); } // a timer changed the display

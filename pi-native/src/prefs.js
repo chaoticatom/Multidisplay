@@ -15,6 +15,8 @@ const DEFAULT = {
   dayPlan: { on: false, starts: { morning: 6, day: 10, evening: 18, night: 23 }, effects: { morning: [], day: [], evening: [], night: [] }, brightness: { morning: null, day: null, evening: null, night: null } }, // brightness null = leave as it is
   weatherMode: { on: false },
   access: { localNoPin: true, guests: false }, // see src/access.js
+  volume: 1, // overall volume for everything the Pi plays (src/masterVolume.js)
+  mic: { music: false }, // the Pi's microphone (src/mic.js): music: effects react to the room when no station plays
   sfx: { on: true, volume: 0.6 }, // sound effects through the speaker (src/sfx.js)
   tz: '', // the user's time zone, from their browser (see src/localTime.js)
   celebrations: { newYear: true, dates: [] }, // dates: [{ month, day, hour, minute, text }]
@@ -65,6 +67,8 @@ function clean(p) {
   if (p && p.weatherMode) out.weatherMode.on = !!p.weatherMode.on;
   if (p && typeof p.tz === 'string' && require('./localTime').isZone(p.tz)) out.tz = p.tz;
   if (p && p.sfx) { out.sfx.on = p.sfx.on !== false; const v = Number(p.sfx.volume); if (Number.isFinite(v)) out.sfx.volume = Math.max(0, Math.min(1, v)); }
+  if (p && Number.isFinite(Number(p.volume)) && p.volume !== null && p.volume !== '') out.volume = Math.max(0, Math.min(1, Number(p.volume)));
+  if (p && p.mic) out.mic.music = !!p.mic.music;
   if (p && p.access) { out.access.localNoPin = p.access.localNoPin !== false; out.access.guests = !!p.access.guests; }
   if (p && p.celebrations) {
     out.celebrations.newYear = p.celebrations.newYear !== false;

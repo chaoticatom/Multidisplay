@@ -73,7 +73,8 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
       const { findPulseEnv } = require('./pulseEnv');
       const pulse = findPulseEnv(), env = pulse.env ? { ...process.env, ...pulse.env } : process.env;
       const play = pulse.env ? `paplay --server=${pulse.env.PULSE_SERVER}` : 'paplay';
-      proc = spawnFn('sh', ['-c', `espeak-ng -v en-gb -s 165 --stdout "$1" | ${play}`, 'speak', text], { stdio: ['ignore', 'ignore', 'pipe'], env });
+      const vol = require('./masterVolume').paplayArg();
+      proc = spawnFn('sh', ['-c', `espeak-ng -v en-gb -s 165 --stdout "$1" | ${play} ${vol}`, 'speak', text], { stdio: ['ignore', 'ignore', 'pipe'], env });
     } catch (e) { status.voice = 'Pi voice failed: ' + e.message; return; }
     voiceProc = proc;
     let err = '';
@@ -94,7 +95,7 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
     try {
       const { findPulseEnv } = require('./pulseEnv');
       const pulse = findPulseEnv(), env = pulse.env ? { ...process.env, ...pulse.env } : process.env;
-      const args = ['--raw', '--rate=24000', '--channels=1', '--format=s16le'];
+      const args = ['--raw', '--rate=24000', '--channels=1', '--format=s16le', require('./masterVolume').paplayArg()];
       if (pulse.env) args.unshift('--server=' + pulse.env.PULSE_SERVER);
       proc = spawnFn('paplay', args, { stdio: ['pipe', 'ignore', 'pipe'], env });
     } catch (e) { status.voice = 'Pi voice failed: ' + e.message; return; }
@@ -163,6 +164,29 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
     say(reply || 'Hmm, I\'m not sure what to say to that.', laugh); // keeps the thinking look while natural speech is fetched
   }
 
+  // Busy talking or thinking: the microphone ignores the room meanwhile.
+  function busy() { return ft.thinking || now() < speakEnds + 800; }
+
+  // Something said through the Pi's microphone (src/mic.js), as a WAV.
+  let offHintAt = -Infinity;
+  async function hear(audio) {
+    if (busy()) return;
+    ft.thinking = true; broadcast();
+    let r;
+    try { r = await ai.hear(ft.log, audio); } catch (e) { ft.thinking = false; status.voice = 'Listening: ' + e.message.slice(0, 160); broadcast(); return; }
+    if (r.off) {
+      ft.thinking = false;
+      if (now() - offHintAt > 5 * 60000) { offHintAt = now(); say('I can hear you, but I need the AI assistant to understand. Turn it on in Setup.'); } else broadcast();
+      return;
+    }
+    if (!r.heard) { ft.thinking = false; broadcast(); return; } // noise, not speech
+    ft.log.push({ who: 'you', text: r.heard }); if (ft.log.length > 20) ft.log.shift();
+    let laugh = r.laugh && r.laugh !== 'none' ? r.laugh : FUNNY.test(r.heard) ? 'before' : 'none';
+    let reply = r.say;
+    if (!reply && /\bjoke\b/i.test(r.heard)) { reply = pickJoke(); laugh = 'after'; }
+    say(reply || 'Sorry, could you say that again?', laugh);
+  }
+
   let lastJoke = -1;
   function pickJoke() {
     let i; do { i = Math.floor(Math.random() * JOKES.length); } while (i === lastJoke && JOKES.length > 1);
@@ -194,7 +218,7 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
     if (now() > speakEnds + gap) { speakEnds = now(); topic(); }
   }
 
-  return { say, chat, topic, tick, status };
+  return { say, chat, hear, busy, topic, tick, status };
 }
 
 module.exports = { createFaceTalk, TOPICS, JOKES, LAUGH_MS };

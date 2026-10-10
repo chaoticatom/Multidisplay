@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------
 // Master brightness / speed sliders (Display section)
 // ---------------------------------------------------------------------
-let _brightEditingUntil = 0;
+let _brightEditingUntil = 0, _volEditingUntil = 0;
 function wireSliders() {
   const bright = document.getElementById('bright-slider');
   const brightVal = document.getElementById('bright-val');
@@ -26,6 +26,18 @@ function wireSliders() {
       });
     });
   }
+  // Overall volume, sent at most once a frame while dragging.
+  const vol = document.getElementById('master-vol-slider'), volVal = document.getElementById('master-vol-val');
+  if (vol) {
+    let queued = false;
+    vol.addEventListener('input', () => {
+      _volEditingUntil = Date.now() + 1200;
+      if (volVal) volVal.textContent = Math.round(vol.value * 100) + '%';
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => { queued = false; send({ cmd: 'setMasterVolume', value: Number(vol.value) }); });
+    });
+  }
   const speed = document.getElementById('speed-slider');
   const speedVal = document.getElementById('speed-val');
   if (speed) {
@@ -43,6 +55,11 @@ function syncSliders() {
   if (bright && document.activeElement !== bright && Date.now() >= _brightEditingUntil) {
     bright.value = currentState.brightness;
     if (brightVal) brightVal.textContent = Math.round(currentState.brightness * 100) + '%';
+  }
+  const vol = document.getElementById('master-vol-slider'), volVal = document.getElementById('master-vol-val');
+  if (vol && document.activeElement !== vol && Date.now() >= _volEditingUntil) {
+    const v = currentState.prefs?.volume ?? 1;
+    vol.value = v; if (volVal) volVal.textContent = Math.round(v * 100) + '%';
   }
   const speed = document.getElementById('speed-slider');
   const speedVal = document.getElementById('speed-val');

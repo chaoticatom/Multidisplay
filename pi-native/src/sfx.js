@@ -42,7 +42,7 @@ let running = 0;
 function play(name, volume = 0.6, spawn = realSpawn) {
   const now = Date.now();
   if (running >= 4 || now - (lastAt[name] || 0) < 80) return false;
-  const pcm = synth(name, volume);
+  const pcm = synth(name, volume * require('./masterVolume').get());
   if (!pcm) return false;
   lastAt[name] = now;
   let proc;

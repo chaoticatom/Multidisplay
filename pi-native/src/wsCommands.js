@@ -727,6 +727,23 @@ const COMMANDS = {
     this._broadcast(this._stateMsg());
   },
 
+  // Overall volume (the slider next to brightness): {value: 0..1}.
+  setMasterVolume(ws, msg) {
+    const v = Number(msg.value);
+    if (!Number.isFinite(v)) return;
+    const p = this.state.prefs || prefs.load();
+    this.state.prefs = prefs.save({ ...p, volume: v });
+    require('./masterVolume').set(this.state.prefs.volume);
+    this._broadcast(this._stateMsg());
+  },
+
+  // Pi microphone settings: {music} - effects react to the room (src/mic.js).
+  setMic(ws, msg) {
+    const p = this.state.prefs || prefs.load();
+    this.state.prefs = prefs.save({ ...p, mic: { ...p.mic, music: !!msg.music } });
+    this._broadcast(this._stateMsg());
+  },
+
   // Sound effects: {on?, volume?}; {test: true} plays a sample.
   setSfx(ws, msg) {
     const p = this.state.prefs || prefs.load();

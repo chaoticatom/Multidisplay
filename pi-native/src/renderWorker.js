@@ -123,6 +123,7 @@ parentPort.on('message', (msg) => {
     if (!state) return;
     const { dt, radioAudio } = msg;
     remoteAudio.applySnapshot(radioAudio);
+    core.micSpec = msg.micSpec || null; // the room, through the Pi's microphone (src/mic.js)
     core.speedMult = state.speed;
     const frameStart = performance.now();
     tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt);
