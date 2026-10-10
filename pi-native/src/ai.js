@@ -128,4 +128,21 @@ async function chat(history, text) {
   return { say: typeof j.say === 'string' ? j.say.replace(/\s+/g, ' ').trim().slice(0, 300) : '' };
 }
 
-module.exports = { ask, chat, cleanReply, cleanArt, extractJson, systemPrompt };
+// Natural speech for the Talking Face from Gemini's text-to-speech model.
+// Returns 24 kHz 16-bit mono PCM, or null when Gemini isn't the AI provider
+// (the face then falls back to espeak-ng).
+async function speech(text, voice = 'Kore') {
+  const cfg = aiConfig.load();
+  if (cfg.provider !== 'gemini' || !cfg.key) return null;
+  const res = await fetchWithTimeout('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.key },
+    body: JSON.stringify({ contents: [{ parts: [{ text: String(text).slice(0, 400) }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } } }),
+  }, 45000);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Gemini speech ${res.status}: ${body.error?.message || 'request failed'}`);
+  const part = (body.candidates?.[0]?.content?.parts || []).find((x) => x.inlineData && x.inlineData.data);
+  if (!part) throw new Error('Gemini speech: no audio came back');
+  return Buffer.from(part.inlineData.data, 'base64');
+}
+
+module.exports = { ask, chat, speech, cleanReply, cleanArt, extractJson, systemPrompt };

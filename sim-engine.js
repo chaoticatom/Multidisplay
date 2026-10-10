@@ -155,19 +155,10 @@ var PiEngine = (() => {
           if (i >= 0) this.setLED(i, r, g, b);
         }
         // ─────────────────────────────────────────────────────────────────────
-        // "Wall" mode: an arbitrary grid of same-size flat panels forming one
-        // big stitched 2D canvas, as opposed to the fixed 6-face cube geometry
-        // above. Unrelated to (and independent of) the cube fields - a CubeCore
-        // can have both initialized at once; which one an effect/driver/preview
-        // actually reads depends on panelConfig.js's mode ('cube'/'2d' use the
-        // cube fields via faceMap[0]; 'wall' uses these).
-        //
-        // panels: array of {gx, gy} - integer grid coordinates, one entry per
-        // physical panel, gx/gy both 0-based from the top-left. Each panel is
-        // panelSize x panelSize pixels; the overall canvas is
-        // (max(gx)+1)*panelSize wide by (max(gy)+1)*panelSize tall - panels
-        // don't have to fill every cell of that bounding box (setWallPixel
-        // silently no-ops writes that land in an empty cell).
+        // "Wall" mode: a grid of same-size flat panels stitched into one 2D canvas,
+        // independent of the cube fields ('cube'/'2d' use faceMap, 'wall' uses these).
+        // panels: [{gx, gy}] 0-based grid cells; canvas is (max(gx)+1) x (max(gy)+1)
+        // panels. Cells need not all be filled; setWallPixel ignores empty cells.
         initWall(panels, panelSize) {
           this.wallPanels = panels;
           this.wallPanelSize = panelSize;
@@ -178,11 +169,15 @@ var PiEngine = (() => {
           this.wallBuf = new Float32Array(this.wallW * this.wallH * 3);
           this._wallOccupied = new Uint8Array(this.wallCols * this.wallRows);
           for (const p of panels) this._wallOccupied[p.gy * this.wallCols + p.gx] = 1;
+          this._wallColCell = new Int32Array(this.wallW);
+          for (let x = 0; x < this.wallW; x++) this._wallColCell[x] = x / panelSize | 0;
+          this._wallRowCell = new Int32Array(this.wallH);
+          for (let y = 0; y < this.wallH; y++) this._wallRowCell[y] = (y / panelSize | 0) * this.wallCols;
+          this.wallAllOccupied = panels.length === this.wallCols * this.wallRows;
         }
         setWallPixel(x, y, r, g, b) {
           if (x < 0 || x >= this.wallW || y < 0 || y >= this.wallH) return;
-          const gx = x / this.wallPanelSize | 0, gy = y / this.wallPanelSize | 0;
-          if (!this._wallOccupied[gy * this.wallCols + gx]) return;
+          if (!this._wallOccupied[this._wallRowCell[y] + this._wallColCell[x]]) return;
           const o = (y * this.wallW + x) * 3;
           this.wallBuf[o] = r;
           this.wallBuf[o + 1] = g;
@@ -222,11 +217,12 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var tempoField = (core) => core.audio && core.audio.active ? 1 + core.audio.bass * 0.5 : 1;
       var axisCache = /* @__PURE__ */ new Map();
-      function axis(n) {
-        let a = axisCache.get(n);
+      function axis(n, step = 2) {
+        const key = n * 8 + step;
+        let a = axisCache.get(key);
         if (a) return a;
         const pos = [];
-        for (let k = 0; k < n; k += 2) pos.push(k);
+        for (let k = 0; k < n; k += step) pos.push(k);
         if (pos[pos.length - 1] !== n - 1) pos.push(n - 1);
         const s0 = new Int32Array(n), s1 = new Int32Array(n), w = new Float32Array(n);
         for (let x = 0, k = 0; x < n; x++) {
@@ -237,10 +233,10 @@ var PiEngine = (() => {
           w[x] = a1 === a0 ? 0 : (x - a0) / (a1 - a0);
         }
         a = { pos, s0, s1, w };
-        axisCache.set(n, a);
+        axisCache.set(key, a);
         return a;
       }
-      function defineFieldEffect({ speed = 1, frame, pixel, smooth = false, detail = null }) {
+      function defineFieldEffect({ speed = 1, frame, pixel, smooth = false, detail = null, fine = false }) {
         const p = { x: 0, y: 0, z: 0, i: 0, flat: false };
         let samples = new Float32Array(64 * 64 * 3);
         const out = [0, 0, 0];
@@ -329,7 +325,8 @@ var PiEngine = (() => {
             }
             return;
           }
-          const axX = axis(wallW), axY = axis(wallH), KX = axX.pos.length, KY = axY.pos.length;
+          const step = !fine && wallW * wallH >= 3 * 64 * 64 ? 3 : 2;
+          const axX = axis(wallW, step), axY = axis(wallH, step), KX = axX.pos.length, KY = axY.pos.length;
           if (samples.length < KX * KY * 3) samples = new Float32Array(KX * KY * 3);
           for (let b = 0; b < KY; b++) {
             const yy = axY.pos[b];
@@ -345,8 +342,25 @@ var PiEngine = (() => {
               samples[o + 2] = c[2];
             }
           }
+          const direct = !detail && core.wallAllOccupied, buf = core.wallBuf;
           for (let yy = 0; yy < wallH; yy++) {
             const b0 = axY.s0[yy], b1 = axY.s1[yy], wv = axY.w[yy];
+            if (direct) {
+              const r0 = b0 * KX, r1 = b1 * KX;
+              for (let xx = 0; xx < wallW; xx++) {
+                const a0 = axX.s0[xx], a1 = axX.s1[xx], wu = axX.w[xx];
+                const o00 = (r0 + a0) * 3, o10 = (r0 + a1) * 3, o01 = (r1 + a0) * 3, o11 = (r1 + a1) * 3, o = (yy * wallW + xx) * 3;
+                let top = samples[o00] + (samples[o10] - samples[o00]) * wu, bot = samples[o01] + (samples[o11] - samples[o01]) * wu;
+                buf[o] = top + (bot - top) * wv;
+                top = samples[o00 + 1] + (samples[o10 + 1] - samples[o00 + 1]) * wu;
+                bot = samples[o01 + 1] + (samples[o11 + 1] - samples[o01 + 1]) * wu;
+                buf[o + 1] = top + (bot - top) * wv;
+                top = samples[o00 + 2] + (samples[o10 + 2] - samples[o00 + 2]) * wu;
+                bot = samples[o01 + 2] + (samples[o11 + 2] - samples[o01 + 2]) * wu;
+                buf[o + 2] = top + (bot - top) * wv;
+              }
+              continue;
+            }
             for (let xx = 0; xx < wallW; xx++) {
               let c = blend(KX, axX.s0[xx], axX.s1[xx], axX.w[xx], b0, b1, wv);
               if (detail) {
@@ -377,11 +391,16 @@ var PiEngine = (() => {
         const v = [-0.45, -0.55, 0.7], n = Math.hypot(...v);
         return v.map((a) => a / n);
       })();
-      function lit(col, dhx, dhy, { bump = 1, gloss = 30, shine = 0.6, ambient = 0.35 } = {}) {
-        const nx = -dhx * bump, ny = -dhy * bump, nl = Math.hypot(nx, ny, 1);
+      var HX = L[0];
+      var HY = L[1];
+      var HZ = L[2] + 1;
+      var HL = Math.sqrt(HX * HX + HY * HY + HZ * HZ);
+      var NO_OPTS = {};
+      function lit(col, dhx, dhy, opts = NO_OPTS) {
+        const bump = opts.bump ?? 1, gloss = opts.gloss ?? 30, shine = opts.shine ?? 0.6, ambient = opts.ambient ?? 0.35;
+        const nx = -dhx * bump, ny = -dhy * bump, nl = Math.sqrt(nx * nx + ny * ny + 1);
         const lam = Math.max(0, (nx * L[0] + ny * L[1] + L[2]) / nl);
-        const hx = L[0], hy = L[1], hz = L[2] + 1, hl = Math.hypot(hx, hy, hz);
-        const spec = Math.pow(Math.max(0, (nx * hx + ny * hy + hz) / (nl * hl)), gloss) * shine;
+        const spec = Math.pow(Math.max(0, (nx * HX + ny * HY + HZ) / (nl * HL)), gloss) * shine;
         const k = ambient + (1 - ambient) * lam;
         return [Math.min(1, col[0] * k + spec), Math.min(1, col[1] * k + spec), Math.min(1, col[2] * k + spec)];
       }
@@ -2450,7 +2469,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var youtube = require_youtube();
-      var { spawn } = require_child_process();
+      var { spawn, execFile } = require_child_process();
       var { createAnalyser, BAND_COUNT } = require_fft();
       var { findPulseEnv } = require_pulseEnv();
       var RETRY_COOLDOWN_MS = 8e3;
@@ -2466,13 +2485,28 @@ var PiEngine = (() => {
       var RING_SAMPLES = 1 << 18;
       var DEFAULT_SYNC_MS = 150;
       var MAX_SYNC_MS = 3e3;
+      var AUTO_SYNC_EVERY_MS = 9e3;
+      function parseStreamLatencyMs(text) {
+        for (const block of String(text || "").split(/\n(?=Sink Input #)/)) {
+          if (!/application\.(name|process\.binary) = "paplay"/.test(block)) continue;
+          const buf = /Buffer Latency:\s*(\d+)\s*usec/.exec(block), sink = /Sink Latency:\s*(\d+)\s*usec/.exec(block);
+          const us = (buf ? Number(buf[1]) : 0) + (sink ? Number(sink[1]) : 0);
+          return us > 0 ? Math.round(us / 1e3) : null;
+        }
+        return null;
+      }
       var STALL_MS = 400;
+      var STALL_RESTART_MS = 15e3;
+      var PLAY_RETRY_MS = 1e4;
       var ATTACK_RATE = 60;
       var RELEASE_RATE = 7;
       var PEAK_HOLD_S = 0.35;
       var PEAK_GRAVITY = 3.2;
       var RadioAudio = class {
-        constructor(spawnFn = spawn) {
+        constructor(spawnFn = spawn, execFn = execFile) {
+          this._execFn = execFn;
+          this._syncAuto = false;
+          this.autoSyncMs = null;
           this._gain = 1;
           this.wave = new Float32Array(WAVE_N);
           this._wavePeak = 0.1;
@@ -2533,6 +2567,7 @@ var PiEngine = (() => {
         }
         _launch(url) {
           this.lastAttemptMs = Date.now();
+          this._pcmT = null;
           this._ring.fill(0);
           this._ringL.fill(0);
           this._ringR.fill(0);
@@ -2554,21 +2589,9 @@ var PiEngine = (() => {
             proc = this._spawn("ffmpeg", isDebug ? [
               "-loglevel",
               "error",
-              // A real report: "the BT speaker goes quickly from mid-low to
-              // mid-high in 1 second [...] the bars seem to follow the BT
-              // speaker more" - a synthetic lavfi source (unlike a real network
-              // stream, which is naturally paced by how fast bytes arrive over
-              // the network) gets generated as fast as the CPU allows, not in
-              // real time - ffmpeg would render the whole 60s sweep in a
-              // fraction of a second. That flooded _onData() far faster than
-              // paplay could drain its stdin, and the backpressure fix earlier
-              // in this session (which DROPS data rather than buffering it
-              // without bound) discarded most of the sweep, leaving only a
-              // fast, jumbled fragment for both playback AND the FFT/bars (fed
-              // from the same decode stream) to follow. `-re` makes ffmpeg
-              // read/generate the input at its own native frame rate, pacing
-              // the whole pipeline to real time - the same way a real stream's
-              // network delivery already does.
+              // A lavfi source is generated as fast as the CPU allows, which floods
+              // _onData() and the playback backpressure drop discards most of it. `-re`
+              // paces generation to real time, like a network stream.
               "-re",
               "-f",
               "lavfi",
@@ -2708,6 +2731,15 @@ var PiEngine = (() => {
           }
         }
         _onData(chunk) {
+          if (this.onPcm) {
+            const now = Date.now(), lead = this._syncS * 1e3;
+            if (this._pcmT === null || this._pcmT === void 0 || this._pcmT < now + lead - 250 || this._pcmT > now + lead + 6e3) this._pcmT = now + lead;
+            try {
+              this.onPcm(chunk, this._pcmT);
+            } catch (e) {
+            }
+            this._pcmT += chunk.length / (2 * CHANNELS) / SAMPLE_RATE * 1e3;
+          }
           if (this.playProc && this.playProc.stdin && this.playProc.stdin.writable && this._playDrained) {
             const out = this._gain < 0.999 ? scalePcm(chunk, this._gain) : chunk;
             try {
@@ -2889,6 +2921,12 @@ var PiEngine = (() => {
         // Speaker sync delay (see DEFAULT_SYNC_MS). Clamped so the analysis
         // window always stays inside the ring buffer.
         setSyncMs(ms) {
+          if (ms === "auto") {
+            this._syncAuto = true;
+            this._syncS = (this.autoSyncMs !== null ? this.autoSyncMs : DEFAULT_SYNC_MS) / 1e3;
+            return;
+          }
+          this._syncAuto = false;
           const v = Number.isFinite(ms) ? Math.max(0, Math.min(MAX_SYNC_MS, ms)) : DEFAULT_SYNC_MS;
           this._syncS = v / 1e3;
         }
@@ -2900,14 +2938,54 @@ var PiEngine = (() => {
         // Plain, structured-clone-friendly copy of what the render side reads -
         // see RemoteAudio below.
         snapshot() {
-          return { spec: this.spec, peak: this.peak, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs };
+          return { spec: this.spec, peak: this.peak, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
+        }
+        // Auto speaker sync: ask the sound server how late our stream plays, and
+        // ease the bars' delay towards it (readings jitter a little).
+        _measureLatency() {
+          if (!this.playProc || this._measuring) return;
+          this._measuring = true;
+          const pulse = findPulseEnv();
+          const env = pulse.env ? { ...define_process_env_default, ...pulse.env } : define_process_env_default;
+          const args = pulse.env ? ["--server=" + pulse.env.PULSE_SERVER, "list", "sink-inputs"] : ["list", "sink-inputs"];
+          try {
+            this._execFn("pactl", args, { env, timeout: 4e3 }, (err, out) => {
+              this._measuring = false;
+              const ms = err ? null : parseStreamLatencyMs(out);
+              if (ms === null) return;
+              const clamped = Math.min(MAX_SYNC_MS, ms);
+              this.autoSyncMs = this.autoSyncMs === null ? clamped : Math.round(this.autoSyncMs * 0.6 + clamped * 0.4);
+              if (this._syncAuto) this._syncS = this.autoSyncMs / 1e3;
+            });
+          } catch (e) {
+            this._measuring = false;
+          }
         }
         _checkIdle() {
+          if (this._syncAuto && this.playProc && Date.now() - (this._measuredAt || 0) > AUTO_SYNC_EVERY_MS) {
+            this._measuredAt = Date.now();
+            this._measureLatency();
+          }
           if (this.decodeProc && !this._isDebugSource && Date.now() - this.lastEnsureMs > IDLE_TIMEOUT_MS) {
             this._teardown();
             this.url = null;
             this.status = "Stopped";
             this.playbackStatus = "No playback attempted";
+            return;
+          }
+          if (!this.decodeProc || this._isDebugSource) return;
+          if (Date.now() - this.lastAttemptMs > STALL_RESTART_MS && performance.now() - this._lastDataMs > STALL_RESTART_MS) {
+            console.warn("[radio] stream stalled - reconnecting");
+            const url = this.url;
+            this._teardown();
+            this.errored = false;
+            this._launch(url);
+            return;
+          }
+          if (!this.playProc && !/not found/.test(this.playbackStatus) && Date.now() - (this._playRetryMs || 0) > PLAY_RETRY_MS) {
+            this._playRetryMs = Date.now();
+            console.warn("[radio] playback stopped - starting it again");
+            this._launchPlayback();
           }
         }
         _teardownPlayback() {
@@ -2988,6 +3066,7 @@ var PiEngine = (() => {
           this.status = snap.status;
           this.playbackStatus = snap.playbackStatus;
           this.lastAttemptMs = snap.lastAttemptMs;
+          this.autoSyncMs = snap.autoSyncMs === void 0 ? null : snap.autoSyncMs;
         }
         request() {
           return { url: this.url, ensureCount: this.ensureCount, clearCount: this.clearCount, syncMs: this.syncMs, volume: this.volume };
@@ -3003,7 +3082,7 @@ var PiEngine = (() => {
         if (req.ensureCount !== seen.ensureCount) audio.ensure(req.url);
         return { ensureCount: req.ensureCount, clearCount: req.clearCount };
       }
-      module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, BAND_COUNT: require_fft().BAND_COUNT, __scale: scalePcm };
+      module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, parseStreamLatencyMs, BAND_COUNT: require_fft().BAND_COUNT, __scale: scalePcm };
     }
   });
 
@@ -3946,6 +4025,125 @@ var PiEngine = (() => {
     }
   });
 
+  // sim/shims/http.js
+  var require_http = __commonJS({
+    "sim/shims/http.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      function get() {
+        const req = {
+          on(ev, fn) {
+            if (ev === "error") setTimeout(() => fn(new Error("not available in the browser")), 0);
+            return req;
+          },
+          setTimeout() {
+            return req;
+          },
+          destroy() {
+          }
+        };
+        return req;
+      }
+      module.exports = { get, request: get };
+    }
+  });
+
+  // src/effects/radio/icyTitle.js
+  var require_icyTitle = __commonJS({
+    "src/effects/radio/icyTitle.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var http = require_http();
+      var https = require_http();
+      var MAX_METAINT = 256 * 1024;
+      function parseStreamTitle(block) {
+        const m = /StreamTitle='((?:[^']|'(?!;))*)';/.exec(block);
+        if (!m) return "";
+        return m[1].replace(/\s+/g, " ").trim().slice(0, 120);
+      }
+      function fetchTitle(url, { timeoutMs = 8e3, redirects = 3, get = null } = {}) {
+        return new Promise((resolve) => {
+          let done = false;
+          const finish = (v, req2) => {
+            if (done) return;
+            done = true;
+            try {
+              req2 && req2.destroy();
+            } catch (e) {
+            }
+            resolve(v);
+          };
+          let u;
+          try {
+            u = new URL(url);
+          } catch (e) {
+            resolve("");
+            return;
+          }
+          if (u.protocol !== "http:" && u.protocol !== "https:") {
+            resolve("");
+            return;
+          }
+          const doGet = get || (u.protocol === "https:" ? https.get : http.get);
+          const req = doGet(u, { headers: { "Icy-MetaData": "1", "User-Agent": "Multidisplay" } }, (res) => {
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirects > 0) {
+              done = true;
+              try {
+                req.destroy();
+              } catch (e) {
+              }
+              fetchTitle(new URL(res.headers.location, u).href, { timeoutMs, redirects: redirects - 1, get }).then(resolve);
+              return;
+            }
+            const metaint = parseInt(res.headers["icy-metaint"], 10);
+            if (res.statusCode !== 200 || !(metaint > 0 && metaint <= MAX_METAINT)) {
+              finish("", req);
+              return;
+            }
+            let skip = metaint, need = -1, meta = Buffer2.alloc(0);
+            res.on("data", (chunk) => {
+              let off = 0;
+              while (off < chunk.length && !done) {
+                if (skip > 0) {
+                  const n2 = Math.min(skip, chunk.length - off);
+                  skip -= n2;
+                  off += n2;
+                  continue;
+                }
+                if (need < 0) {
+                  need = chunk[off] * 16;
+                  off++;
+                  if (need === 0) {
+                    finish("", req);
+                    return;
+                  }
+                  continue;
+                }
+                const n = Math.min(need - meta.length, chunk.length - off);
+                meta = Buffer2.concat([meta, chunk.subarray(off, off + n)]);
+                off += n;
+                if (meta.length >= need) {
+                  finish(parseStreamTitle(meta.toString("utf8")), req);
+                  return;
+                }
+              }
+            });
+            res.on("end", () => finish("", req));
+            res.on("error", () => finish("", req));
+          });
+          req.on("error", () => finish("", req));
+          req.on("socket", (sock) => {
+            if (sock.unref) sock.unref();
+          });
+          req.setTimeout(timeoutMs, () => finish("", req));
+        });
+      }
+      module.exports = { fetchTitle, parseStreamTitle };
+    }
+  });
+
   // src/effects/radio/radio.js
   var require_radio = __commonJS({
     "src/effects/radio/radio.js"(exports, module) {
@@ -4007,12 +4205,35 @@ var PiEngine = (() => {
         playing = false;
         audio.ensure(null);
       }
+      var { fetchTitle } = require_icyTitle();
+      var songTitle = "";
+      var titleUrl = null;
+      var titleAt = 0;
+      var titleBusy = false;
+      function pollTitle() {
+        const url = playing && currentStation && /^https?:\/\//.test(currentStation.url) ? currentStation.url : null;
+        if (url !== titleUrl) {
+          titleUrl = url;
+          songTitle = "";
+          titleAt = 0;
+        }
+        if (!url || titleBusy || Date.now() - titleAt < 2e4) return;
+        titleBusy = true;
+        titleAt = Date.now();
+        fetchTitle(url).then((t) => {
+          if (url === titleUrl) songTitle = t || "";
+        }).catch(() => {
+        }).finally(() => {
+          titleBusy = false;
+        });
+      }
       function keepAlive(opts) {
         if (opts) {
-          audio.setSyncMs(opts.syncMs);
+          audio.setSyncMs(opts.syncAuto !== false ? "auto" : opts.syncMs);
           if (Number.isFinite(Number(opts.volume))) setVolume(opts.volume);
         }
         audio.ensure(playing && currentStation ? currentStation.url : null);
+        pollTitle();
       }
       var fade = 1;
       function setFade(f) {
@@ -4046,7 +4267,7 @@ var PiEngine = (() => {
         const fitToScreen = !!opts.fitToScreen;
         const scrollSpeed = Number.isFinite(opts.scrollSpeed) ? opts.scrollSpeed : 0;
         if (Number.isFinite(opts.volume)) setVolume(opts.volume);
-        audio.setSyncMs(opts.syncMs);
+        audio.setSyncMs(opts.syncAuto !== false ? "auto" : opts.syncMs);
         audio.ensure(playing && currentStation ? currentStation.url : null);
         for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] = 0;
         if (spectrumOn) {
@@ -4098,7 +4319,7 @@ var PiEngine = (() => {
             drawStaticLabel(core, 0, genre, 7);
             if (core.panelMode !== "2d") drawStaticLabel(core, 2, genre, 7);
           } else {
-            const label = currentStation.name + (genre ? "  \u2022  " + genre : "") + "    ";
+            const label = currentStation.name + (songTitle ? "  -  " + songTitle : genre ? "  \u2022  " + genre : "") + "    ";
             drawTicker(core, 0, label, dt);
             if (core.panelMode !== "2d") drawTicker(core, 2, label, dt);
           }
@@ -4117,12 +4338,16 @@ var PiEngine = (() => {
           playbackStatus: audio.getPlaybackStatus(),
           playing,
           station: currentStation,
+          title: songTitle,
+          // the song now playing, when the station sends it
+          autoSyncMs: audio.autoSyncMs === void 0 ? null : audio.autoSyncMs,
+          // measured speaker delay (Auto sync)
           volume,
           search: { query: lastQuery, results: searchResults, error: searchError, searching }
         };
       }
       function getPlaybackState() {
-        return { playing, currentStation };
+        return { playing, currentStation, title: songTitle };
       }
       module.exports = effectRadio;
       module.exports.getStatus = getStatus;
@@ -4278,6 +4503,121 @@ var PiEngine = (() => {
           }
         }
       });
+    }
+  });
+
+  // src/effects/drawPad.js
+  var require_drawPad = __commonJS({
+    "src/effects/drawPad.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var fs = require_fs();
+      var path = require_path();
+      var FILE = path.join(".", "..", "..", "drawings.json");
+      var MAX = 256;
+      var W = 64;
+      var H = 64;
+      var pix = new Uint8Array(W * H * 3);
+      function resize(w, h) {
+        w = Math.max(1, Math.min(MAX * 6, w | 0));
+        h = Math.max(1, Math.min(MAX * 6, h | 0));
+        if (w === W && h === H) return;
+        W = w;
+        H = h;
+        pix = new Uint8Array(W * H * 3);
+      }
+      function decodeImage(b64, w, h) {
+        const buf = Buffer2.from(String(b64 || ""), "base64");
+        return buf.length === w * h * 3 ? buf : null;
+      }
+      function applyOps(msg) {
+        if (!msg || typeof msg !== "object") return;
+        if (Number.isFinite(msg.w) && Number.isFinite(msg.h)) resize(msg.w, msg.h);
+        if (msg.clear) pix.fill(0);
+        if (msg.image) {
+          const b = decodeImage(msg.image, W, H);
+          if (b) pix.set(b);
+        }
+        if (Array.isArray(msg.ops)) {
+          for (const op of msg.ops.slice(0, 4e3)) {
+            if (!Array.isArray(op)) continue;
+            const [x, y, col, size] = op, s = Math.max(1, Math.min(6, size | 0) || 1);
+            const r = col >> 16 & 255, g = col >> 8 & 255, b = col & 255;
+            const x0 = Math.round(x - (s - 1) / 2), y0 = Math.round(y - (s - 1) / 2);
+            for (let yy = y0; yy < y0 + s; yy++) for (let xx = x0; xx < x0 + s; xx++) {
+              if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+              const i = (yy * W + xx) * 3;
+              pix[i] = r;
+              pix[i + 1] = g;
+              pix[i + 2] = b;
+            }
+          }
+        }
+      }
+      var saved = [];
+      var savedMtime = 0;
+      function loadSaved() {
+        try {
+          const m = fs.statSync(FILE).mtimeMs;
+          if (m !== savedMtime) {
+            savedMtime = m;
+            const j = JSON.parse(fs.readFileSync(FILE, "utf8"));
+            saved = Array.isArray(j) ? j : [];
+          }
+        } catch (e) {
+          saved = [];
+          savedMtime = 0;
+        }
+        return saved;
+      }
+      var showT = 0;
+      var showIdx = 0;
+      var showBuf = null;
+      var showFor = null;
+      function currentPicture(opts, dt) {
+        if (!opts || !opts.slideshow) return { buf: pix, w: W, h: H };
+        const list = loadSaved();
+        if (!list.length) return { buf: pix, w: W, h: H };
+        showT += dt;
+        const secs = Math.max(3, Math.min(600, Number(opts.secs) || 10));
+        if (showT > secs || !showBuf) {
+          if (showBuf) showIdx++;
+          showT = 0;
+          showFor = null;
+        }
+        const d = list[showIdx % list.length];
+        if (showFor !== d) {
+          showFor = d;
+          showBuf = decodeImage(d.image, d.w, d.h);
+        }
+        return showBuf ? { buf: showBuf, w: d.w, h: d.h } : { buf: pix, w: W, h: H };
+      }
+      function sample(p, X, Y, OW, OH) {
+        const sx = Math.min(p.w - 1, Math.floor(X * p.w / OW)), sy = Math.min(p.h - 1, Math.floor(Y * p.h / OH));
+        const i = (sy * p.w + sx) * 3;
+        return [p.buf[i] / 255, p.buf[i + 1] / 255, p.buf[i + 2] / 255];
+      }
+      function drawCube(core, dt) {
+        const p = currentPicture(core.effectOptions && core.effectOptions.draw, dt), S = core.SIZE;
+        for (let face = 0; face < 4; face++) for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) {
+          const c = sample(p, u, S - 1 - v, S, S);
+          core.setFaceLED(face, u, v, c[0], c[1], c[2]);
+        }
+      }
+      function drawWall(core, dt) {
+        if (!core.wallW) return;
+        const p = currentPicture(core.effectOptions && core.effectOptions.draw, dt);
+        for (let y = 0; y < core.wallH; y++) for (let x = 0; x < core.wallW; x++) {
+          const c = sample(p, x, y, core.wallW, core.wallH);
+          core.setWallPixel(x, y, c[0], c[1], c[2]);
+        }
+      }
+      drawCube.wall = drawWall;
+      drawCube.applyOps = applyOps;
+      drawCube.getStatus = () => ({ w: W, h: H, saved: loadSaved().length });
+      drawCube.FILE = FILE;
+      module.exports = drawCube;
     }
   });
 
@@ -5744,6 +6084,671 @@ var PiEngine = (() => {
     }
   });
 
+  // src/atomicWrite.js
+  var require_atomicWrite = __commonJS({
+    "src/atomicWrite.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var fs = require_fs();
+      var path = require_path();
+      function atomicWriteJson(filePath, value) {
+        const tmp = path.join(path.dirname(filePath), "." + path.basename(filePath) + ".tmp");
+        const text = JSON.stringify(value, null, 2);
+        const fd = fs.openSync(tmp, "w");
+        try {
+          fs.writeSync(fd, text);
+          fs.fsyncSync(fd);
+        } finally {
+          fs.closeSync(fd);
+        }
+        fs.renameSync(tmp, filePath);
+      }
+      module.exports = { atomicWriteJson };
+    }
+  });
+
+  // src/settingsStore.js
+  var require_settingsStore = __commonJS({
+    "src/settingsStore.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var fs = require_fs();
+      var path = require_path();
+      var { atomicWriteJson } = require_atomicWrite();
+      var STORE_VERSION = 1;
+      var storePath_ = path.join(".", "..", "settings.json");
+      function readStore() {
+        let raw;
+        try {
+          raw = fs.readFileSync(storePath_, "utf8");
+        } catch (e) {
+          return { version: STORE_VERSION, sections: {} };
+        }
+        try {
+          const s = JSON.parse(raw);
+          if (s && typeof s === "object" && s.sections && typeof s.sections === "object") return s;
+          throw new Error("not a settings store");
+        } catch (e) {
+          const aside = `${storePath_}.corrupt-${Date.now()}`;
+          try {
+            fs.renameSync(storePath_, aside);
+          } catch (e2) {
+          }
+          console.warn(`[settings] ${storePath_} was unreadable (${e.message}) - moved to ${aside}, starting fresh`);
+          return { version: STORE_VERSION, sections: {} };
+        }
+      }
+      function readSectionJson(name, legacyPath) {
+        const store = readStore();
+        if (Object.prototype.hasOwnProperty.call(store.sections, name)) return JSON.stringify(store.sections[name]);
+        const legacy = legacyPath && fs.existsSync(legacyPath) ? fs.readFileSync(legacyPath, "utf8") : null;
+        if (legacy === null) throw new Error(`no ${name} settings yet`);
+        const value = JSON.parse(legacy);
+        store.sections[name] = value;
+        store.version = STORE_VERSION;
+        atomicWriteJson(storePath_, store);
+        return legacy;
+      }
+      function writeSection(name, value) {
+        const store = readStore();
+        store.sections[name] = value;
+        store.version = STORE_VERSION;
+        atomicWriteJson(storePath_, store);
+      }
+      function storePath() {
+        return storePath_;
+      }
+      function replaceStore(data) {
+        atomicWriteJson(storePath_, { version: STORE_VERSION, ...data });
+      }
+      function _setStorePath(p) {
+        storePath_ = p;
+      }
+      module.exports = { readSectionJson, writeSection, storePath, replaceStore, _setStorePath };
+    }
+  });
+
+  // src/weatherConfig.js
+  var require_weatherConfig = __commonJS({
+    "src/weatherConfig.js"(exports, module) {
+      init_define_process_env();
+      init_bufferGlobal();
+      var fs = require_fs();
+      var { readSectionJson, writeSection } = require_settingsStore();
+      var path = require_path();
+      var CONFIG_PATH = path.join(".", "..", "weather-config.json");
+      var DEFAULT_CONFIG = { city: "" };
+      function isValidConfig(c) {
+        return !!c && typeof c === "object" && typeof c.city === "string";
+      }
+      function load() {
+        try {
+          const raw = readSectionJson("weather", CONFIG_PATH);
+          const parsed = JSON.parse(raw);
+          if (!isValidConfig(parsed)) throw new Error("invalid stored weather config");
+          return parsed;
+        } catch (err) {
+          return { ...DEFAULT_CONFIG };
+        }
+      }
+      function save(config) {
+        writeSection("weather", config);
+      }
+      module.exports = { load, save, isValidConfig, DEFAULT_CONFIG, CONFIG_PATH };
+    }
+  });
+
+  // src/localTime.js
+  var require_localTime = __commonJS({
+    "src/localTime.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      function isZone(tz) {
+        if (typeof tz !== "string" || !tz || tz.length > 64) return false;
+        try {
+          new Intl.DateTimeFormat("en-GB", { timeZone: tz });
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }
+      var fmtCache = /* @__PURE__ */ new Map();
+      function wallClock(tz, real = /* @__PURE__ */ new Date()) {
+        if (!isZone(tz)) return real;
+        let fmt = fmtCache.get(tz);
+        if (!fmt) {
+          fmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", hourCycle: "h23" });
+          fmtCache.set(tz, fmt);
+        }
+        const p = {};
+        for (const part of fmt.formatToParts(real)) p[part.type] = Number(part.value);
+        const wall = new Date(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second, real.getMilliseconds());
+        const t = real.getTime();
+        wall.getTime = () => t;
+        wall.valueOf = () => t;
+        return wall;
+      }
+      module.exports = { wallClock, isZone };
+    }
+  });
+
+  // src/effects/radar.js
+  var require_radar = __commonJS({
+    "src/effects/radar.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { fetchWithTimeout } = require_net();
+      var { FONT_3x5, drawString } = require_text();
+      var REFRESH_MS = 10 * 6e4;
+      var FRAMES = 4;
+      var TILE = 256;
+      var st = { loc: null, city: null, zoom: 0, frames: [], mapKey: "", lastFetch: 0, busy: false, error: "", place: "", composed: /* @__PURE__ */ new Map() };
+      function tileXY(lat, lon, z) {
+        const n = 2 ** z, x = (lon + 180) / 360 * n;
+        const r = lat * Math.PI / 180, y = (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n;
+        return { x, y };
+      }
+      async function getPng(url) {
+        const res = await fetchWithTimeout(url, { headers: { "User-Agent": "Multidisplay LED display" } });
+        if (!res.ok) throw new Error(new URL(url).host + ": " + res.status);
+        const { Jimp } = (init_browser(), __toCommonJS(browser_exports));
+        const img = await Jimp.read(Buffer2.from(await res.arrayBuffer()));
+        return img.bitmap;
+      }
+      async function geocode(city) {
+        const r = await fetchWithTimeout(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&format=json`);
+        if (!r.ok) throw new Error("geocoding-api.open-meteo.com: " + r.status);
+        const d = await r.json();
+        if (!d.results || !d.results.length) throw new Error("town not found: " + city);
+        return { lat: d.results[0].latitude, lon: d.results[0].longitude, place: d.results[0].name };
+      }
+      async function refresh(city, zoom) {
+        st.busy = true;
+        st.lastFetch = Date.now();
+        try {
+          if (!st.loc || st.city !== city) {
+            st.loc = await geocode(city);
+            st.city = city;
+            st.place = st.loc.place;
+          }
+          const c = tileXY(st.loc.lat, st.loc.lon, zoom);
+          const x0 = Math.floor(c.x - 1), y0 = Math.floor(c.y - 0.5), nx = 3, ny = 2;
+          const mosaic = () => ({ w: nx * TILE, h: ny * TILE, data: new Uint8Array(nx * TILE * ny * TILE * 4) });
+          const paste = (m, bmp, tx, ty) => {
+            for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+              const si = (y * bmp.width + x) * 4, di = ((ty * TILE + y) * m.w + tx * TILE + x) * 4;
+              m.data[di] = bmp.data[si];
+              m.data[di + 1] = bmp.data[si + 1];
+              m.data[di + 2] = bmp.data[si + 2];
+              m.data[di + 3] = bmp.data[si + 3];
+            }
+          };
+          const mapKey = zoom + "/" + x0 + "/" + y0;
+          if (st.mapKey !== mapKey) {
+            const map = mosaic();
+            for (let ty = 0; ty < ny; ty++) for (let tx = 0; tx < nx; tx++) paste(map, await getPng(`https://a.basemaps.cartocdn.com/dark_nolabels/${zoom}/${x0 + tx}/${y0 + ty}.png`), tx, ty);
+            st.map = map;
+            st.mapKey = mapKey;
+          }
+          const meta = await (await fetchWithTimeout("https://api.rainviewer.com/public/weather-maps.json")).json();
+          const past = (meta.radar && meta.radar.past || []).slice(-FRAMES);
+          const frames = [];
+          for (const f of past) {
+            const m = mosaic();
+            for (let ty = 0; ty < ny; ty++) for (let tx = 0; tx < nx; tx++) paste(m, await getPng(`${meta.host}${f.path}/256/${zoom}/${x0 + tx}/${y0 + ty}/2/1_1.png`), tx, ty);
+            frames.push({ time: f.time, radar: m });
+          }
+          st.frames = frames;
+          st.home = { x: (c.x - x0) * TILE, y: (c.y - y0) * TILE };
+          st.composed.clear();
+          st.error = "";
+        } catch (e) {
+          st.error = e.message;
+        } finally {
+          st.busy = false;
+        }
+      }
+      function maybeRefresh(opts) {
+        const city = (require_weatherConfig().load() || {}).city;
+        const zoom = [6, 7, 8].includes(Number(opts.zoom)) ? Number(opts.zoom) : 7;
+        if (!city) {
+          st.error = "Set your town in the Weather effect first";
+          return;
+        }
+        const due = Date.now() - st.lastFetch > REFRESH_MS || city !== st.city || zoom !== st.zoom;
+        if (due && !st.busy && Date.now() - st.lastFetch > 2e4) {
+          st.zoom = zoom;
+          refresh(city, zoom);
+        }
+      }
+      function compose(i, w, h) {
+        const key = i + ":" + w + "x" + h;
+        if (st.composed.has(key)) return st.composed.get(key);
+        const map = st.map, rad = st.frames[i].radar, home = st.home;
+        const cropW = Math.min(map.w, 512), cropH = cropW * h / w;
+        const out = new Float32Array(w * h * 3);
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+          const sx = Math.max(0, Math.min(map.w - 1, Math.round(home.x - cropW / 2 + (x + 0.5) * cropW / w)));
+          const sy = Math.max(0, Math.min(map.h - 1, Math.round(home.y - cropH / 2 + (y + 0.5) * cropH / h)));
+          const si = (sy * map.w + sx) * 4, a = rad.data[si + 3] / 255, o = (y * w + x) * 3;
+          for (let k = 0; k < 3; k++) out[o + k] = map.data[si + k] / 255 * 1.6 * (1 - a) + rad.data[si + k] / 255 * a;
+        }
+        st.composed.set(key, out);
+        return out;
+      }
+      var clock = 0;
+      function frameNow(dt) {
+        clock += dt;
+        const n = st.frames.length, cycle = n * 0.7 + 1.5;
+        const t = clock % cycle;
+        return Math.min(n - 1, Math.floor(t / 0.7));
+      }
+      function label(plot, w, i, tz) {
+        const d = require_localTime().wallClock(tz, new Date(st.frames[i].time * 1e3));
+        const hhmm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+        drawString(FONT_3x5, hhmm, 1, 1, plot);
+        if (w >= 96 && st.place) drawString(FONT_3x5, st.place.toUpperCase().slice(0, Math.floor((w - 30) / 4)), 26, 1, plot);
+      }
+      function waiting(plot, w, h) {
+        const text = st.error ? "RADAR: " + st.error.toUpperCase() : "LOADING RADAR";
+        drawString(FONT_3x5, text.slice(0, Math.floor(w / 4)), 1, Math.floor(h / 2) - 3, plot);
+      }
+      function radarWall(core, dt) {
+        if (!core.wallW) return;
+        maybeRefresh(core.effectOptions && core.effectOptions.radar || {});
+        const W = core.wallW, H = core.wallH;
+        for (let i2 = 0; i2 < core.wallBuf.length; i2++) core.wallBuf[i2] = 0;
+        const plotText = (x, y) => core.setWallPixel(x, y, 0.9, 0.95, 1);
+        if (!st.frames.length || !st.map) {
+          waiting(plotText, W, H);
+          return;
+        }
+        const i = frameNow(dt), img = compose(i, W, H);
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const o = (y * W + x) * 3;
+          core.setWallPixel(x, y, img[o], img[o + 1], img[o + 2]);
+        }
+        if (Math.floor(clock * 2) % 2 === 0) core.setWallPixel(Math.round(W / 2), Math.round(H / 2), 1, 1, 1);
+        label(plotText, W, i, core.tz);
+      }
+      function radarCube(core, dt) {
+        maybeRefresh(core.effectOptions && core.effectOptions.radar || {});
+        const S = core.SIZE;
+        for (let i2 = 0; i2 < core.colBuf.length; i2++) core.colBuf[i2] = 0;
+        if (!st.frames.length || !st.map) return;
+        const i = frameNow(dt), img = compose(i, S, S);
+        for (let face = 0; face < 4; face++) for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) {
+          const o = ((S - 1 - v) * S + u) * 3;
+          core.setFaceLED(face, u, v, img[o], img[o + 1], img[o + 2]);
+        }
+      }
+      radarCube.wall = radarWall;
+      radarCube._test = { st, tileXY };
+      radarCube.getStatus = () => ({ place: st.place, frames: st.frames.length, updated: st.lastFetch, error: st.error, busy: st.busy });
+      module.exports = radarCube;
+    }
+  });
+
+  // src/effects/faceRender.js
+  var require_faceRender = __commonJS({
+    "src/effects/faceRender.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var clamp = (v, a = 0, b = 1) => v < a ? a : v > b ? b : v;
+      var sm = (e0, e1, x) => {
+        const t = clamp((x - e0) / (e1 - e0));
+        return t * t * (3 - 2 * t);
+      };
+      var mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+      var scale = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+      function ell(x, y, cx, cy, rx, ry) {
+        const dx = (x - cx) / rx, dy = (y - cy) / ry;
+        return (Math.sqrt(dx * dx + dy * dy) - 1) * Math.min(rx, ry);
+      }
+      function shade(u, v, p, L) {
+        const woman = L.style === "woman";
+        let col = scale(L.bg, 1 - 0.35 * clamp(Math.hypot(u * 0.7, v * 0.6)));
+        const shoulder = v - (0.95 + 0.25 * u * u);
+        if (shoulder > 0) col = mix(col, scale(L.shirt, 0.75 + 0.25 * clamp(1 - Math.abs(u))), sm(0, 0.04, shoulder));
+        if (woman) {
+          const long = Math.max(Math.abs(u) - (0.76 + 0.04 * Math.sin(v * 5 + u * 2) - 0.1 * Math.max(0, v - 0.4)), v - (1.12 - 0.18 * (u / 0.8) * (u / 0.8)), -0.25 - v);
+          if (long < 0) {
+            const strands = 0.82 + 0.13 * Math.sin(u * 45 + v * 6) + 0.05 * Math.sin(u * 140);
+            const sheen = 0.25 * sm(0.18, 0, Math.abs(v - 0.05 - u * 0.15));
+            col = mix(col, scale(L.hair, (0.55 + 0.4 * clamp(0.6 - v * 0.4 - u * 0.3) + sheen) * strands), sm(0, -0.03, long));
+          }
+        }
+        const neck = Math.max(Math.abs(u) - 0.27, 0.55 - v);
+        if (neck < 0) col = mix(col, scale(L.skin, 0.62 + 0.18 * clamp((v - 0.6) * 2)), sm(0, -0.03, neck));
+        const hairBack = ell(u, v, 0, -0.18, 0.78, 0.88);
+        if (hairBack < 0) col = mix(col, scale(L.hair, 0.55 + 0.25 * clamp(-v)), sm(0, -0.03, hairBack));
+        for (const s of woman ? [] : [-1, 1]) {
+          const e = ell(u, v, s * 0.63, 0.02, 0.1, 0.17);
+          if (e < 0) col = mix(col, scale(L.skin, 0.72 - 0.1 * clamp((Math.abs(u) - 0.6) * 5)), sm(0, -0.02, e));
+        }
+        const jaw = woman ? v > 0 ? 0.57 - v * 0.22 : 0.57 : v > 0 ? 0.6 - v * 0.17 : 0.6;
+        const face = ell(u, v, 0, 0.02, jaw, 0.8);
+        if (face > 0.03) return col;
+        const nx = u / 0.66, ny = (v - 0.02) / 0.85, nz = Math.sqrt(clamp(1 - nx * nx * 0.85 - ny * ny * 0.75, 0.05));
+        const lam = clamp(-nx * 0.35 - ny * 0.35 + nz * 0.86);
+        let skin = scale(L.skin, 0.5 + 0.6 * lam);
+        const cheek = Math.max(sm(0.22, 0, Math.hypot(Math.abs(u) - 0.32, v - 0.18)), 0.5 * sm(0.12, 0, Math.hypot(u, v - 0.12)), 0.4 * sm(0.14, 0, Math.hypot(u, v - 0.66)));
+        skin = mix(skin, [skin[0] * 1.08, skin[1] * 0.82, skin[2] * 0.8], cheek * (woman ? 0.8 : 0.55));
+        skin = scale(skin, 1 - 0.35 * sm(-0.12, 0.02, face));
+        for (const s of [-1, 1]) {
+          const sock = Math.hypot((u - s * 0.24) / 0.2, (v + 0.1) / 0.12);
+          skin = scale(skin, 1 - 0.18 * sm(1.2, 0.4, sock));
+        }
+        const nb = Math.abs(u) < 0.07 && v > -0.1 && v < 0.2;
+        if (nb) skin = scale(skin, 1 + 0.1 * sm(0.07, 0, Math.abs(u + 0.01)));
+        skin = scale(skin, 1 - 0.28 * sm(0.06, 0, Math.hypot(u - 0.075, (v - 0.12) * 0.45)) * (v > -0.08 && v < 0.24 ? 1 : 0));
+        skin = scale(skin, 1 - 0.22 * sm(0.13, 0, Math.hypot(u, (v - 0.28) * 1.6)));
+        for (const s of [-1, 1]) skin = mix(skin, scale(L.skin, 0.25), sm(0.035, 0.01, Math.hypot(u - s * 0.05, (v - 0.235) * 1.6)) * 0.8);
+        skin = scale(skin, 1 + 0.12 * sm(0.06, 0, Math.hypot(u + 0.01, v - 0.19)));
+        col = mix(col, skin, sm(0.03, -0.01, face));
+        const fringe = v - (-0.44 + 0.1 * Math.sin((u + 0.3) * 2.2) + 0.1 * u);
+        const hairFront = Math.max(fringe, ell(u, v, 0, -0.22, 0.7, 0.75));
+        if (hairFront < 0.02) {
+          const strands = 0.85 + 0.15 * Math.sin(u * 60 + v * 8);
+          col = mix(col, scale(L.hair, (0.6 + 0.5 * clamp(-u * 0.6 - v * 0.6 + 0.4)) * strands), sm(0.02, -0.02, hairFront));
+        }
+        for (const s of [-1, 1]) {
+          const sb = woman ? ell(u, v, s * 0.6, 0.12, 0.09, 0.62) : ell(u, v, s * 0.57, -0.2, 0.08, 0.3);
+          if (sb < 0) col = mix(col, scale(L.hair, 0.5), sm(0, -0.03, sb));
+        }
+        for (const s of [-1, 1]) {
+          const bx = u - s * 0.24, by = v - (-0.24 - p.brow * 0.05 + 0.06 * bx * bx / 0.04 * 0.25 - s * 0.01);
+          const arch = woman ? 0.035 * Math.cos(bx * 11) : 0.015 * Math.cos(bx * 12), thick = woman ? 0.013 : 0.022;
+          const d = Math.max(Math.abs(bx) - 0.13, Math.abs(by + arch) - thick);
+          if (d < 0.01) col = mix(col, scale(woman ? mix(L.hair, [0.3, 0.2, 0.12], 0.5) : L.hair, 0.7), sm(0.01, -8e-3, d));
+        }
+        for (const s of [-1, 1]) {
+          const ex = u - s * 0.24, ey = v + 0.08;
+          const open = clamp(1 - p.blink) * (1 - 0.35 * p.squint);
+          const hw = 0.115, hh = 0.055 * open + 2e-3;
+          const top = -hh * (1 - ex / hw * (ex / hw)), bot = hh * 0.8 * (1 - ex / hw * (ex / hw));
+          const inside = Math.abs(ex) < hw && ey > top && ey < bot;
+          if (inside) {
+            let e = [0.92, 0.9, 0.86];
+            e = scale(e, 0.75 + 0.25 * sm(-hh, hh * 0.3, ey));
+            const ix = ex - p.gazeX * 0.04, iy = ey - p.gazeY * 0.02, ir = Math.hypot(ix, iy * 1.1);
+            if (ir < 0.05) {
+              let iris = mix(L.iris, scale(L.iris, 0.45), sm(0.03, 0.05, ir));
+              iris = mix(iris, [0.03, 0.02, 0.02], sm(0.024, 0.016, ir));
+              e = mix(e, iris, sm(0.05, 0.044, ir));
+            }
+            if (Math.hypot(ix + 0.018, iy + 0.018) < 0.012) e = mix(e, [1, 1, 1], 0.9);
+            col = e;
+          }
+          const lidLine = Math.abs(ey - top) < (woman ? 0.018 : 0.012) && Math.abs(ex) < hw * 1.05;
+          if (lidLine) col = mix(col, [0.12, 0.08, 0.07], woman ? 0.95 : 0.85);
+          if (woman && s * ex > hw * 0.85 && s * ex < hw * 1.15 && Math.abs(ey - (top - (s * ex - hw * 0.85) * 0.5)) < 8e-3) col = mix(col, [0.12, 0.07, 0.07], 0.6);
+          if (!inside && Math.abs(ex) < hw && ey > top - 0.05 && ey < top && open < 0.25) col = mix(col, scale(L.skin, 0.75), 0.6);
+        }
+        {
+          const wide = 0.15 * (1 + 0.25 * p.mouthWide) + 0.02 * p.smile, open = p.mouthOpen;
+          const mx = u, my = v - 0.43, t = clamp(1 - mx / wide * (mx / wide));
+          const curve = -p.smile * 0.03 * (mx / wide) * (mx / wide);
+          const gapTop = -6e-3 - open * 0.05 * t + curve, gapBot = 6e-3 + open * 0.07 * t + curve;
+          const full = woman ? 1.3 : 1;
+          const upTop = gapTop - 0.035 * full * Math.sqrt(t), lowBot = gapBot + 0.045 * full * Math.sqrt(t);
+          if (Math.abs(mx) < wide && my > upTop && my < lowBot) {
+            const lip = woman ? [0.86, 0.38, 0.46] : [0.72, 0.36, 0.36];
+            if (my > gapTop && my < gapBot && open > 0.05) {
+              let inner = [0.22, 0.05, 0.06];
+              if (my < gapTop + 0.025 * open + 8e-3) inner = [0.86, 0.84, 0.78];
+              col = inner;
+            } else col = scale(mix(lip, L.skin, 0.25), my < gapTop ? 0.82 : 1.05);
+          }
+          for (const s of [-1, 1]) col = scale(col, 1 - 0.25 * sm(0.03, 0, Math.hypot(mx - s * wide, my - curve)));
+        }
+        return col;
+      }
+      function renderFace(out, w, h, pose, look) {
+        const size = Math.min(w, h), ox = (w - size) / 2, oy = (h - size) / 2;
+        const ca = Math.cos(pose.tilt), sa = Math.sin(pose.tilt);
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+          let r = 0, g = 0, b = 0;
+          for (let s = 0; s < 2; s++) {
+            const sx = s ? 0.75 : 0.25, sy = s ? 0.75 : 0.25;
+            let u = ((x + sx - ox) / size - 0.5) * 2.5, v = ((y + sy - oy) / size - 0.5) * 2.5 - pose.bob;
+            const ru = u * ca + v * sa, rv = -u * sa + v * ca;
+            u = ru - pose.yaw * (1 - rv * rv * 0.3);
+            v = rv;
+            const c = shade(u, v, pose, look);
+            r += c[0];
+            g += c[1];
+            b += c[2];
+          }
+          const o = (y * w + x) * 3;
+          out[o] = r / 2;
+          out[o + 1] = g / 2;
+          out[o + 2] = b / 2;
+        }
+      }
+      var LOOKS = {
+        skin: { light: [0.93, 0.72, 0.6], medium: [0.8, 0.56, 0.4], tan: [0.68, 0.45, 0.3], dark: [0.42, 0.27, 0.18] },
+        hair: { brown: [0.3, 0.19, 0.11], black: [0.08, 0.07, 0.07], blonde: [0.92, 0.76, 0.46], red: [0.55, 0.22, 0.1], grey: [0.6, 0.6, 0.6] },
+        iris: { brown: [0.42, 0.25, 0.12], blue: [0.3, 0.52, 0.8], green: [0.33, 0.55, 0.32], hazel: [0.5, 0.42, 0.2] }
+      };
+      module.exports = { renderFace, LOOKS };
+    }
+  });
+
+  // src/effects/talkingFace.js
+  var require_talkingFace = __commonJS({
+    "src/effects/talkingFace.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { renderFace, LOOKS } = require_faceRender();
+      var { FONT_5x7, FONT_3x5, drawString } = require_text();
+      var rand = (a, b) => a + Math.random() * (b - a);
+      var st = {
+        t: 0,
+        blink: 0,
+        blinkT: null,
+        nextBlink: 2,
+        doubleBlink: false,
+        gaze: [0, 0],
+        gazeTo: [0, 0],
+        nextGaze: 1,
+        twitch: null,
+        nextTwitch: 6,
+        brow: 0,
+        open: 0,
+        wide: 0,
+        smile: 0.25,
+        sayId: null,
+        face: null,
+        faceKey: ""
+      };
+      function viseme(ch) {
+        const c = (ch || " ").toLowerCase();
+        if ("ai".includes(c)) return [0.8, 0.4];
+        if ("ou".includes(c) || c === "w" || c === "q") return [0.55, -1];
+        if (c === "e" || c === "y") return [0.5, 0.7];
+        if ("mbp".includes(c)) return [0, 0];
+        if ("fv".includes(c)) return [0.12, 0.3];
+        if (/[a-z0-9]/.test(c)) return [0.32, 0.1];
+        return [0.04, 0];
+      }
+      function speechIndex(say, now) {
+        if (!say || !say.text) return -1;
+        const i = Math.floor((now - say.at) / 1e3 * (say.cps || 15));
+        return i >= 0 && i < say.text.length ? i : -1;
+      }
+      function animate(dt, talk, now) {
+        st.t += dt;
+        const say = talk && talk.say, idx = speechIndex(say, now), speaking = idx >= 0;
+        const thinking = !!(talk && talk.thinking);
+        st.nextBlink -= dt;
+        if (st.nextBlink <= 0 && st.blinkT === null) {
+          st.blinkT = 0;
+          st.doubleBlink = Math.random() < 0.15;
+          st.nextBlink = rand(2, 6);
+        }
+        st.blink = 0;
+        if (st.blinkT !== null) {
+          st.blinkT += dt;
+          if (st.blinkT >= 0 && st.blinkT < 0.15) st.blink = Math.sin(st.blinkT / 0.15 * Math.PI);
+          else if (st.blinkT >= 0.15) {
+            if (st.doubleBlink) {
+              st.doubleBlink = false;
+              st.blinkT = -0.12;
+            } else st.blinkT = null;
+          }
+        }
+        st.nextGaze -= dt;
+        if (st.nextGaze <= 0) {
+          st.gazeTo = thinking ? [rand(-0.9, -0.4), -0.9] : [rand(-0.6, 0.6), rand(-0.4, 0.4)];
+          st.nextGaze = thinking ? rand(1, 2) : rand(0.6, 2.5);
+        }
+        const gk = 1 - Math.exp(-dt * 25);
+        st.gaze[0] += (st.gazeTo[0] - st.gaze[0]) * gk;
+        st.gaze[1] += (st.gazeTo[1] - st.gaze[1]) * gk;
+        st.nextTwitch -= dt;
+        if (st.nextTwitch <= 0) {
+          st.twitch = { kind: ["brow", "squint", "smile"][Math.floor(Math.random() * 3)], t: 0 };
+          st.nextTwitch = rand(6, 15);
+        }
+        let tw = { brow: 0, squint: 0, smile: 0 };
+        if (st.twitch) {
+          st.twitch.t += dt;
+          const k = Math.sin(Math.min(1, st.twitch.t / 0.45) * Math.PI);
+          tw[st.twitch.kind] = 0.5 * k;
+          if (st.twitch.t > 0.45) st.twitch = null;
+        }
+        const [vo, vw] = speaking ? viseme(say.text[idx]) : [0, 0];
+        const mk = 1 - Math.exp(-dt * 28);
+        st.open += (vo - st.open) * mk;
+        st.wide += (vw - st.wide) * mk;
+        const q = speaking && /\?/.test(say.text.slice(idx, idx + 12)) ? 0.5 : 0;
+        st.brow += ((thinking ? 0.45 : q) - st.brow) * (1 - Math.exp(-dt * 6));
+        st.smile += ((speaking ? 0.15 : 0.3) - st.smile) * (1 - Math.exp(-dt * 2));
+        const t = st.t;
+        return {
+          yaw: 0.03 * Math.sin(t * 0.37) + 0.015 * Math.sin(t * 1.13 + 1) + (speaking ? 0.012 * Math.sin(t * 2.7) : 0),
+          tilt: 0.025 * Math.sin(t * 0.29 + 2) + (speaking ? 0.01 * Math.sin(t * 2.1) : 0),
+          bob: 0.012 * Math.sin(t * 1.5) + (speaking ? 6e-3 * Math.sin(t * 5.3) : 0),
+          // breathing, and a nod while talking
+          blink: st.blink,
+          gazeX: st.gaze[0],
+          gazeY: st.gaze[1],
+          brow: st.brow + tw.brow,
+          mouthOpen: st.open,
+          mouthWide: st.wide,
+          smile: st.smile + tw.smile,
+          squint: tw.squint
+        };
+      }
+      function lookFrom(opts) {
+        return {
+          style: opts.style === "woman" ? "woman" : "man",
+          skin: LOOKS.skin[opts.skin] || LOOKS.skin.light,
+          hair: LOOKS.hair[opts.hair] || (opts.style === "woman" ? LOOKS.hair.blonde : LOOKS.hair.brown),
+          iris: LOOKS.iris[opts.eyes] || LOOKS.iris.blue,
+          shirt: opts.style === "woman" ? [0.5, 0.2, 0.32] : [0.16, 0.24, 0.42],
+          bg: [0.11, 0.09, 0.08]
+        };
+      }
+      function wrap(text, max) {
+        const lines = [];
+        let line = "", start = 0, lineStart = 0;
+        for (const word of text.split(" ")) {
+          if (line && line.length + 1 + word.length > max) {
+            lines.push({ text: line, start: lineStart });
+            line = word;
+            lineStart = start;
+          } else {
+            if (!line) lineStart = start;
+            line = line ? line + " " + word : word;
+          }
+          start += word.length + 1;
+        }
+        if (line) lines.push({ text: line, start: lineStart });
+        return lines;
+      }
+      function captionsBeside(core, x0, W, H, say, idx, thinking) {
+        const plot = (k) => (x, y) => core.setWallPixel(x, y, k, k, k * 0.95);
+        if (thinking) {
+          const dots = ".".repeat(1 + Math.floor(st.t * 3) % 3);
+          drawString(FONT_5x7, dots, x0, Math.floor(H / 2) - 4, plot(0.8));
+          return;
+        }
+        if (!say || !say.text) return;
+        const cols = Math.max(4, Math.floor((W - x0 - 2) / FONT_5x7.adv)), lines = wrap(say.text.toUpperCase(), cols);
+        const per = Math.max(1, Math.floor((H - 2) / 9)), spokenTo = idx < 0 ? say.text.length : idx;
+        let cur = lines.findIndex((l, i) => i === lines.length - 1 || lines[i + 1].start > spokenTo);
+        if (cur < 0) cur = lines.length - 1;
+        const first = Math.max(0, Math.min(cur - per + 2, lines.length - per));
+        const top = Math.max(1, Math.floor((H - Math.min(per, lines.length) * 9) / 2));
+        lines.slice(first, first + per).forEach((l, i) => {
+          const y = top + i * 9;
+          let x = x0;
+          for (let c = 0; c < l.text.length; c++) {
+            const spoken = l.start + c <= spokenTo;
+            x += drawString(FONT_5x7, l.text[c], x, y, plot(spoken ? 0.95 : 0.3)) - x;
+          }
+        });
+      }
+      function captionBelow(core, W, H, say, idx, thinking) {
+        for (let y = H - 9; y < H; y++) for (let x = 0; x < W; x++) core.setWallPixel(x, y, 0.02, 0.02, 0.03);
+        const plot = (x, y) => core.setWallPixel(x, y, 0.95, 0.95, 0.9);
+        if (thinking) {
+          drawString(FONT_3x5, "THINKING" + ".".repeat(1 + Math.floor(st.t * 3) % 3), 2, H - 7, plot);
+          return;
+        }
+        if (!say || !say.text || idx < 0) return;
+        const text = say.text.toUpperCase(), shown = Math.max(0, idx * FONT_5x7.adv - Math.floor(W * 0.6));
+        drawString(FONT_5x7, text, -shown + 2, H - 8, plot);
+      }
+      function wall(core, dt) {
+        if (!core.wallW) return;
+        const W = core.wallW, H = core.wallH, now = Date.now(), talk = core.faceTalk || {};
+        const opts = core.effectOptions && core.effectOptions.talking_face || {};
+        const pose = animate(dt, talk, now), look = lookFrom(opts);
+        const wide = W >= H * 2.2, F = wide ? H : Math.min(W, H), fx = wide ? Math.round(W * 0.04) : Math.floor((W - F) / 2);
+        if (!st.face || st.face.length !== F * F * 3) {
+          st.face = new Float32Array(F * F * 3);
+          st.frame = 0;
+        }
+        if ((st.frame = (st.frame || 0) + 1) % 2 === 1) renderFace(st.face, F, F, pose, look);
+        for (let i = 0; i < core.wallBuf.length; i += 3) {
+          core.wallBuf[i] = look.bg[0] * 0.6;
+          core.wallBuf[i + 1] = look.bg[1] * 0.6;
+          core.wallBuf[i + 2] = look.bg[2] * 0.6;
+        }
+        for (let y = 0; y < F; y++) for (let x = 0; x < F; x++) {
+          const o = (y * F + x) * 3;
+          core.setWallPixel(fx + x, y, st.face[o], st.face[o + 1], st.face[o + 2]);
+        }
+        const idx = speechIndex(talk.say, now);
+        if (wide) captionsBeside(core, fx + F + 6, W, H, talk.say, idx, talk.thinking);
+        else captionBelow(core, W, H, talk.say, idx, talk.thinking);
+      }
+      function cube(core, dt) {
+        const S = core.SIZE, now = Date.now(), talk = core.faceTalk || {};
+        const pose = animate(dt, talk, now), look = lookFrom(core.effectOptions && core.effectOptions.talking_face || {});
+        if (!st.face || st.face.length !== S * S * 3) st.face = new Float32Array(S * S * 3);
+        renderFace(st.face, S, S, pose, look);
+        for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] = 0;
+        for (let f = 0; f < 4; f++) for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) {
+          const o = ((S - 1 - v) * S + u) * 3;
+          core.setFaceLED(f, u, v, st.face[o], st.face[o + 1], st.face[o + 2]);
+        }
+      }
+      cube.wall = wall;
+      cube._test = { viseme, speechIndex, wrap, st };
+      module.exports = cube;
+    }
+  });
+
   // src/effects/easterEgg.js
   var require_easterEgg = __commonJS({
     "src/effects/easterEgg.js"(exports, module) {
@@ -6198,6 +7203,7 @@ var PiEngine = (() => {
       var { defineCanvasEffect } = require_canvas();
       var { hsl } = require_core();
       var st = { z: 0 };
+      var TAU = Math.PI * 2;
       var LUT = Array.from({ length: 256 }, (_, i) => hsl(i / 256, 0.9, 0.5));
       module.exports = defineCanvasEffect({
         render(c, { t, dt, core }) {
@@ -6208,16 +7214,18 @@ var PiEngine = (() => {
           const twist = t * 0.3;
           for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
             const dx = (x + 0.5 - cx) / S, dy = (y + 0.5 - cy) / S;
-            const r = Math.hypot(dx, dy) + 1e-4;
+            const r = Math.sqrt(dx * dx + dy * dy) + 1e-4;
             const depth = 0.32 / r;
             const ang = Math.atan2(dy, dx) / Math.PI;
             const u = (depth + st.z) * 3, v = ang * 6 + twist + depth * 0.5;
-            const ring = Math.pow(Math.max(0, Math.cos(u * Math.PI * 2)), 6);
-            const rib = Math.pow(Math.max(0, Math.cos(v * Math.PI * 2)), 10) * 0.45;
+            const cu = Math.cos(u * TAU), cv = Math.cos(v * TAU);
+            const cu2 = cu > 0 ? cu * cu : 0, cv2 = cv > 0 ? cv * cv : 0;
+            const ring = cu2 * cu2 * cu2;
+            const rib = cv2 * cv2 * cv2 * cv2 * cv2 * 0.45;
             const fog = Math.min(1, r * 3.2);
             const hue = (u * 0.02 + t * 0.03) % 1;
-            const [cr, cg, cb] = LUT[Math.floor((hue % 1 + 1) % 1 * 256) & 255];
-            const panel = 0.08 + 0.05 * Math.cos(v * Math.PI * 2) * Math.cos(u * Math.PI);
+            const col = LUT[Math.floor((hue % 1 + 1) % 1 * 256) & 255], cr = col[0], cg = col[1], cb = col[2];
+            const panel = 0.08 + 0.05 * cv * Math.cos(u * Math.PI);
             let k = (panel + ring * 0.9 + rib) * fog;
             const core0 = Math.exp(-r * r * 140) * 0.9;
             c.set(x, y, Math.min(1, cr * k + core0), Math.min(1, cg * k + core0 * 0.95), Math.min(1, cb * k + core0));
@@ -15338,18 +16346,9 @@ var PiEngine = (() => {
           this.pending = Buffer2.alloc(0);
           this._generation++;
         }
-        // Public immediate-stop, equivalent to ensure('', ...) but callable
-        // without needing to know the current w/h/fps/fit - see wsServer.js's
-        // "stopVideoSource" command, which this backs. Needed because the tick
-        // loop only ever calls the CURRENTLY SELECTED effect's function (see
-        // app.js's module comment), so once the user switches away from Video
-        // Display, ensure() simply stops being called at all - _checkIdle()'s
-        // own timer would eventually catch this on its own (IDLE_TIMEOUT_MS),
-        // but that left a real, reported gap: a live browser camera/screen
-        // capture kept sending frames and a stale decoded frame sat in memory
-        // for up to that whole timeout, flashing back if Video Display was
-        // reselected in the meantime. This lets the moment of switching away
-        // itself trigger an immediate, clean stop instead of waiting.
+        // Immediate stop without knowing the current w/h/fps/fit; backs wsServer's
+        // "stopVideoSource" command. Called when the user switches away, so a live
+        // capture stops and a stale frame can't flash back before the idle timeout.
         stop() {
           this._teardown();
           this.key = null;
@@ -16335,6 +17334,8 @@ var PiEngine = (() => {
       module.exports = defineFieldEffect({
         smooth: true,
         // slowly varying field: see surface.js
+        fine: true,
+        // thin beams: sparser sampling on big walls beads them
         speed: 0.55,
         pixel(p, { t }) {
           if (p.flat) return flatPrism(p.x, p.y, t);
@@ -16644,8 +17645,9 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { defineCanvasEffect } = require_canvas();
       var hash = (x, y) => {
-        const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
-        return s - Math.floor(s);
+        let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263);
+        h = Math.imul(h ^ h >>> 13, 1274126177);
+        return ((h ^ h >>> 16) >>> 0) / 4294967296;
       };
       function noise(x, y) {
         const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
@@ -18132,92 +19134,6 @@ var PiEngine = (() => {
         issAscending,
         issError
       });
-    }
-  });
-
-  // src/atomicWrite.js
-  var require_atomicWrite = __commonJS({
-    "src/atomicWrite.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var fs = require_fs();
-      var path = require_path();
-      function atomicWriteJson(filePath, value) {
-        const tmp = path.join(path.dirname(filePath), "." + path.basename(filePath) + ".tmp");
-        const text = JSON.stringify(value, null, 2);
-        const fd = fs.openSync(tmp, "w");
-        try {
-          fs.writeSync(fd, text);
-          fs.fsyncSync(fd);
-        } finally {
-          fs.closeSync(fd);
-        }
-        fs.renameSync(tmp, filePath);
-      }
-      module.exports = { atomicWriteJson };
-    }
-  });
-
-  // src/settingsStore.js
-  var require_settingsStore = __commonJS({
-    "src/settingsStore.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var fs = require_fs();
-      var path = require_path();
-      var { atomicWriteJson } = require_atomicWrite();
-      var STORE_VERSION = 1;
-      var storePath_ = path.join(".", "..", "settings.json");
-      function readStore() {
-        let raw;
-        try {
-          raw = fs.readFileSync(storePath_, "utf8");
-        } catch (e) {
-          return { version: STORE_VERSION, sections: {} };
-        }
-        try {
-          const s = JSON.parse(raw);
-          if (s && typeof s === "object" && s.sections && typeof s.sections === "object") return s;
-          throw new Error("not a settings store");
-        } catch (e) {
-          const aside = `${storePath_}.corrupt-${Date.now()}`;
-          try {
-            fs.renameSync(storePath_, aside);
-          } catch (e2) {
-          }
-          console.warn(`[settings] ${storePath_} was unreadable (${e.message}) - moved to ${aside}, starting fresh`);
-          return { version: STORE_VERSION, sections: {} };
-        }
-      }
-      function readSectionJson(name, legacyPath) {
-        const store = readStore();
-        if (Object.prototype.hasOwnProperty.call(store.sections, name)) return JSON.stringify(store.sections[name]);
-        const legacy = legacyPath && fs.existsSync(legacyPath) ? fs.readFileSync(legacyPath, "utf8") : null;
-        if (legacy === null) throw new Error(`no ${name} settings yet`);
-        const value = JSON.parse(legacy);
-        store.sections[name] = value;
-        store.version = STORE_VERSION;
-        atomicWriteJson(storePath_, store);
-        return legacy;
-      }
-      function writeSection(name, value) {
-        const store = readStore();
-        store.sections[name] = value;
-        store.version = STORE_VERSION;
-        atomicWriteJson(storePath_, store);
-      }
-      function storePath() {
-        return storePath_;
-      }
-      function replaceStore(data) {
-        atomicWriteJson(storePath_, { version: STORE_VERSION, ...data });
-      }
-      function _setStorePath(p) {
-        storePath_ = p;
-      }
-      module.exports = { readSectionJson, writeSection, storePath, replaceStore, _setStorePath };
     }
   });
 
@@ -24724,168 +25640,243 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { hsl } = require_core();
-      var SCENES = ["city", "blocks", "tubes", "planet"];
+      var { FONT_3x5, drawString } = require_text();
+      var SCENES = ["hifi", "studio", "spectrogram", "waterfall3d", "mirror", "radial", "particle", "neon", "bounce", "bars3d"];
       var AUTO_SECS = 25;
       var TICKER_ROWS = 9;
       function createV2State() {
-        return { sceneT: 0, last: null, hist: [], histT: 0, smooth: null, peaks: null, hold: null };
+        return { sceneT: 0, last: null };
       }
       function ampAt(arr, bands, f) {
         const x = Math.max(0, Math.min(1, f)) * (bands - 1), i = Math.floor(x), t = x - i;
         const a = arr[i] || 0, b = arr[Math.min(bands - 1, i + 1)] || 0;
         return a + (b - a) * (t * t * (3 - 2 * t));
       }
-      function levels(ctx, st, n, dt) {
-        if (!st.smooth || st.smooth.length !== n) st.smooth = new Float32Array(n);
-        const k = 1 - Math.exp(-dt * 14);
-        for (let i = 0; i < n; i++) st.smooth[i] += (ampAt(ctx.ampArr, ctx.bands, i / (n - 1)) - st.smooth[i]) * k;
-        return st.smooth;
-      }
-      function hash(a, b) {
-        let h = a * 374761393 + b * 668265263 | 0;
-        h = (h ^ h >>> 13) * 1274126177;
-        return ((h ^ h >>> 16) >>> 0) / 4294967296;
-      }
       function put(core, x, y, c, k = 1) {
         if (k > 4e-3) core.setWallPixel(Math.round(x), Math.round(y), c[0] * k, c[1] * k, c[2] * k);
       }
-      function mix(a, b, t) {
-        return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+      function lineTo(core, x0, y0, x1, y1, c, k) {
+        const n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
+        for (let i = 0; i <= n; i++) put(core, x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, c, k);
       }
-      function sceneCity(core, ctx, st, W, H, t, dt) {
-        const ground = H - TICKER_ROWS - 1, au = core.audio || {};
-        for (let y = 0; y < ground; y++) {
-          const c = mix([0, 0.01, 0.05], [0.09, 0.02, 0.12], y / ground);
-          for (let x2 = 0; x2 < W; x2++) put(core, x2, y, c);
-        }
-        for (let s = 0; s < 22; s++) {
-          const x2 = Math.floor(hash(s, 1) * W), y = Math.floor(hash(s, 2) * ground * 0.6), tw = 0.35 + 0.35 * Math.sin(t * (1 + hash(s, 3) * 2) + s);
-          put(core, x2, y, [0.8, 0.85, 1], tw);
-        }
-        const mr = 4 + (au.bass || 0) * 2.5, mx = W - 11, my = 9;
-        for (let y = -7; y <= 7; y++) for (let x2 = -7; x2 <= 7; x2++) {
-          const d = Math.hypot(x2, y);
-          if (d <= mr) {
-            const crater = hash(x2 + 40, y + 40) < 0.12 ? 0.82 : 1;
-            put(core, mx + x2, my + y, [1, 0.95, 0.75], (0.75 + 0.25 * (1 - d / mr)) * crater);
-          } else if (d <= mr + 2.5) put(core, mx + x2, my + y, [0.5, 0.45, 0.3], 0.25 * (1 - (d - mr) / 2.5));
-        }
-        const n = 12, lv = levels(ctx, st, n, dt), maxH = ground - 6;
-        let x = 0;
-        for (let i = 0; i < n && x < W; i++) {
-          const w = 4 + Math.floor(hash(i, 7) * 3), h = Math.round(maxH * (0.45 + hash(i, 8) * 0.5));
-          const top = ground - h, lit = lv[i];
-          const wall = hsl(0.66 + hash(i, 9) * 0.1, 0.35, 0.09 + hash(i, 10) * 0.05);
-          for (let yy = top; yy < ground; yy++) for (let xx = x; xx < x + w && xx < W; xx++) put(core, xx, yy, wall);
-          const floors = Math.floor((h - 2) / 2), on = Math.round(lit * floors * 1.15);
-          for (let f = 0; f < floors; f++) for (let c = 0; c < Math.floor((w - 1) / 2); c++) {
-            const wx = x + 1 + c * 2, wy = ground - 2 - f * 2;
-            if (wx >= W) continue;
-            const warm = hash(i * 31 + c, f) < 0.5 ? [1, 0.78, 0.35] : [0.55, 0.85, 1];
-            if (f < on) put(core, wx, wy, warm, 0.6 + 0.4 * (f / Math.max(1, on)));
-            else put(core, wx, wy, [0.15, 0.17, 0.25], 0.5);
-          }
-          const ax = x + Math.floor(w / 2);
-          put(core, ax, top - 1, [0.4, 0.4, 0.45]);
-          put(core, ax, top - 2, [0.4, 0.4, 0.45]);
-          put(core, ax, top - 3, [1, 0.15, 0.1], lit > 0.6 ? 1 : 0.18 + 0.2 * Math.max(0, Math.sin(t * 2 + i)));
-          x += w + 1;
-        }
-        for (let xx = 0; xx < W; xx++) put(core, xx, ground, [0.12, 0.1, 0.25]);
+      var bandHue = (f) => 0.62 - f * 0.62;
+      function bars(ctx, n) {
+        const lv = new Float32Array(n);
+        for (let i = 0; i < n; i++) lv[i] = ampAt(ctx.ampArr, ctx.bands, n > 1 ? i / (n - 1) : 0);
+        return { lv };
       }
-      function prism(core, cx, baseY, h, colTop, colL, colR, W) {
-        const cy = baseY - h;
-        for (let dx = -3; dx <= 2; dx++) {
-          const x = cx + dx;
-          if (x < 0 || x >= W) continue;
-          const a = Math.abs(dx + 0.5), tTop = Math.round(cy - 1.5 + a * 0.5), tBot = Math.round(cy + 1.5 - a * 0.5);
-          const sBot = Math.round(baseY + 1.5 - a * 0.5);
-          for (let y = tTop; y <= tBot; y++) put(core, x, y, colTop);
-          const side = dx < 0 ? colL : colR;
-          for (let y = tBot + 1; y <= sBot; y++) put(core, x, y, side, 1 - 0.35 * (y - tBot) / Math.max(1, sBot - tBot));
-        }
-      }
-      function sceneBlocks(core, ctx, st, W, H, t, dt) {
-        const N = 9, ROWS = 9, area = H - TICKER_ROWS;
-        const lv = levels(ctx, st, N, dt);
-        st.histT += dt;
-        if (st.histT > 0.12 || !st.hist.length) {
-          st.histT = 0;
-          st.hist.unshift(Float32Array.from(lv));
-          if (st.hist.length > ROWS) st.hist.pop();
-        }
-        st.hist[0] = Float32Array.from(lv);
-        const ox = Math.floor(W / 2), oy = Math.round(area * 0.3), maxH = area * 0.28;
-        for (let s = 0; s <= N + ROWS - 2; s++) {
-          for (let c = 0; c < N; c++) {
-            const r = s - c;
-            if (r < 0 || r >= ROWS) continue;
-            const age = ROWS - 1 - r, row = st.hist[age];
-            if (!row) continue;
-            const h = 1 + row[c] * maxH * (1 - age * 0.06);
-            const hue = 0.62 - c / (N - 1) * 0.62, fade = 1 - age * 0.08;
-            const top = hsl(hue, 0.85, 0.55 + 0.15 * row[c]);
-            prism(core, ox + (c - r) * 3, oy + (c + r) * 1.5 + 6, h, top.map((v) => v * fade), hsl(hue, 0.85, 0.32).map((v) => v * fade), hsl(hue, 0.85, 0.18).map((v) => v * fade), W);
+      function heldPeaks(st, key, lv, dt) {
+        let p = st[key];
+        if (!p || p.v.length !== lv.length) p = st[key] = { v: new Float32Array(lv.length), hold: new Float32Array(lv.length), vel: new Float32Array(lv.length) };
+        for (let i = 0; i < lv.length; i++) {
+          if (lv[i] >= p.v[i]) {
+            p.v[i] = lv[i];
+            p.hold[i] = 0.5;
+            p.vel[i] = 0;
+          } else if (p.hold[i] > 0) p.hold[i] -= dt;
+          else {
+            p.vel[i] += 1.6 * dt;
+            p.v[i] = Math.max(lv[i], p.v[i] - p.vel[i] * dt);
           }
         }
+        return p.v;
       }
-      function sceneTubes(core, ctx, st, W, H, t, dt) {
-        const n = 8, lv = levels(ctx, st, n, dt), bottom = H - TICKER_ROWS - 2, topY = 3, inner = bottom - topY - 1;
-        const slot = W / n, tw = Math.max(4, Math.floor(slot) - 2);
+      function sceneHifi(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS, n = Math.max(8, Math.floor(W / 4)), seg = 3, segs = Math.floor((area - 2) / seg);
+        const { lv } = bars(ctx, n), pk = heldPeaks(st, "hifiPk", lv, dt), slot = W / n;
         for (let i = 0; i < n; i++) {
-          const x0 = Math.round(i * slot + (slot - tw) / 2), x1 = x0 + tw - 1;
-          const hue = 0.62 - i / (n - 1) * 0.62, liquid = hsl(hue, 0.95, 0.5), glow = hsl(hue, 0.6, 0.8);
-          for (let y = topY; y <= bottom; y++) {
-            put(core, x0 - 1, y, [0.35, 0.4, 0.5], 0.5);
-            put(core, x1 + 1, y, [0.35, 0.4, 0.5], 0.35);
+          const x0 = Math.round(i * slot), x1 = Math.max(x0, Math.round((i + 1) * slot) - 2), lit = Math.round(lv[i] * segs), peak = Math.min(segs - 1, Math.round(pk[i] * segs));
+          for (let s = 0; s < segs; s++) {
+            const f = s / (segs - 1), c = f < 0.6 ? [0.15, 1, 0.3] : f < 0.85 ? [1, 0.75, 0.1] : [1, 0.15, 0.1];
+            const on = s < lit, isPeak = s === peak && peak > 0;
+            const y0 = area - 1 - s * seg;
+            for (let y = y0; y > y0 - (seg - 1); y--) for (let x = x0; x <= x1; x++) put(core, x, y, c, on ? 1 : isPeak ? 0.9 : 0.07);
           }
-          for (let x = x0; x <= x1; x++) put(core, x, bottom + 1, [0.35, 0.4, 0.5], 0.5);
-          put(core, x0 - 1, topY - 1, [0.6, 0.65, 0.75], 0.5);
-          put(core, x1 + 1, topY - 1, [0.6, 0.65, 0.75], 0.5);
-          const level = lv[i] * inner;
-          for (let x = x0; x <= x1; x++) {
-            const slosh = Math.sin(t * 5 + i * 1.3 + (x - x0) * 0.9) * 0.6 * lv[i];
-            const surf = bottom - level - slosh;
-            for (let y = bottom; y > surf; y--) put(core, x, y, liquid, 0.55 + 0.35 * ((bottom - y) / Math.max(1, level)));
-            put(core, x, Math.floor(surf), glow, 0.9);
-          }
-          for (let b = 0; b < 3; b++) {
-            const speed = 6 + lv[i] * 14, ph = (t * speed + hash(i, b) * 40) % Math.max(1, level);
-            const by = bottom - ph, bx = x0 + 1 + Math.floor(hash(i, b + 9) * (tw - 2));
-            if (level > 3 && by > bottom - level + 1) put(core, bx, by, [1, 1, 1], 0.55);
-          }
-          put(core, x0, topY + 2, [1, 1, 1], 0.25);
         }
       }
-      function scenePlanet(core, ctx, st, W, H, t, dt) {
-        const area = H - TICKER_ROWS, cx = (W - 1) / 2, cy = (area - 1) / 2, au = core.audio || {};
-        const R = Math.min(W, area) * 0.25, n = 64, lv = levels(ctx, st, n, dt);
-        for (let s = 0; s < 30; s++) put(core, hash(s, 11) * W, hash(s, 12) * area, [0.7, 0.8, 1], 0.2 + 0.25 * Math.sin(t + s));
-        const tilt = 0.3, ringA = R * 1.75, ringB = ringA * tilt;
-        const ringPx = (front) => {
-          for (let k = 0; k < 160; k++) {
-            const a = k / 160 * Math.PI * 2, sy = Math.sin(a);
-            if (sy > 0 !== front) continue;
-            const lvl = ampAt(lv, n, Math.abs(Math.cos(a))), lift = lvl * R * 0.55;
-            const x = cx + Math.cos(a) * ringA, y = cy + sy * ringB - lift;
-            const c = hsl(0.62 - lvl * 0.55, 0.9, 0.55);
-            put(core, x, y, c, 0.55 + 0.45 * lvl);
-            if (lift > 1.5) put(core, x, cy + sy * ringB, c, 0.18);
+      var LABELS = [[100, "100"], [1e3, "1K"], [5e3, "5K"]];
+      function sceneStudio(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS, top = 7, bot = area - 1, h = bot - top;
+        const fx = (hz) => Math.log(hz / 30) / Math.log(7e3 / 30) * (W - 1);
+        for (let k = 1; k < 6; k++) {
+          const y = Math.round(top + h * k / 6);
+          for (let x = 0; x < W; x += 2) put(core, x, y, [0.2, 0.3, 0.45], 0.35);
+        }
+        for (const [hz, label] of LABELS) {
+          const x = Math.round(fx(hz));
+          if (x < 0 || x >= W) continue;
+          for (let y = top; y <= bot; y += 2) put(core, x, y, [0.2, 0.3, 0.45], 0.35);
+          drawString(FONT_3x5, label, Math.min(W - label.length * 4, Math.max(0, x - label.length * 2)), 0, (px, py) => put(core, px, py, [0.55, 0.65, 0.8], 0.8));
+        }
+        const cur = Float32Array.from({ length: W }, (_, x) => ampAt(ctx.ampArr, ctx.bands, x / (W - 1)));
+        const pk = heldPeaks(st, "studioPk", cur, dt * 0.5);
+        let prevY = null, prevP = null;
+        for (let x = 0; x < W; x++) {
+          const a = cur[x], y = bot - a * h, c = hsl(bandHue(x / (W - 1)), 0.9, 0.55);
+          for (let yy = Math.ceil(y); yy <= bot; yy++) put(core, x, yy, c, 0.12 + 0.35 * (1 - (yy - y) / (bot - y + 1)));
+          if (prevY !== null) lineTo(core, x - 1, prevY, x, y, [0.9, 0.95, 1], 1);
+          else put(core, x, y, [0.9, 0.95, 1]);
+          const py = bot - pk[x] * h;
+          if (prevP !== null && x % 2 === 0) lineTo(core, x - 1, prevP, x, py, [1, 0.8, 0.3], 0.5);
+          prevY = y;
+          prevP = py;
+        }
+      }
+      var HEAT = [[0, 0, 0], [0.35, 0.05, 0.5], [0.9, 0.1, 0.2], [1, 0.75, 0.1], [1, 1, 1]];
+      function heat(v) {
+        const x = Math.max(0, Math.min(1, v)) * (HEAT.length - 1), i = Math.min(HEAT.length - 2, Math.floor(x)), t = x - i;
+        return [0, 1, 2].map((c) => HEAT[i][c] + (HEAT[i + 1][c] - HEAT[i][c]) * t);
+      }
+      function sceneSpectrogram(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS;
+        if (!st.sg || st.sg.w !== W) st.sg = { w: W, cols: Array.from({ length: W }, () => new Float32Array(area)), acc: 0, head: 0 };
+        const sg = st.sg;
+        sg.acc += dt * Math.max(30, W / 6);
+        while (sg.acc >= 1) {
+          sg.acc -= 1;
+          const col = sg.cols[sg.head];
+          for (let y = 0; y < area; y++) col[y] = ampAt(ctx.ampArr, ctx.bands, 1 - y / (area - 1));
+          sg.head = (sg.head + 1) % W;
+        }
+        for (let x = 0; x < W; x++) {
+          const col = sg.cols[(sg.head + x) % W];
+          for (let y = 0; y < area; y++) put(core, x, y, heat(col[y]));
+        }
+      }
+      function sceneWaterfall3d(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS, ROWS = 14, pts = Math.max(24, Math.floor(W / 3));
+        if (!st.wf || st.wf.pts !== pts) st.wf = { pts, hist: [], acc: 0 };
+        const wf = st.wf;
+        wf.acc += dt;
+        const row = Float32Array.from({ length: pts }, (_, i) => ampAt(ctx.ampArr, ctx.bands, i / (pts - 1)));
+        if (wf.acc > 0.08 || !wf.hist.length) {
+          wf.acc = 0;
+          wf.hist.unshift(row);
+          if (wf.hist.length > ROWS) wf.hist.pop();
+        } else wf.hist[0] = row;
+        for (let j = wf.hist.length - 1; j >= 0; j--) {
+          const d = j / (ROWS - 1), base = area - 2 - d * area * 0.45, inset = d * W * 0.12, scale = 1 - d * 0.5, r = wf.hist[j], k = 1 - d * 0.8;
+          let px = null, py = null;
+          for (let i = 0; i < pts; i++) {
+            const x = inset + i / (pts - 1) * (W - 1 - 2 * inset), y = base - r[i] * area * 0.5 * scale;
+            if (j === 0) for (let yy = Math.ceil(y) + 1; yy <= base; yy++) put(core, x, yy, hsl(bandHue(i / (pts - 1)), 0.9, 0.4), 0.25);
+            if (px !== null) lineTo(core, px, py, x, y, hsl(bandHue(i / (pts - 1)), 0.9, 0.55 + 0.2 * r[i]), k);
+            px = x;
+            py = y;
           }
+        }
+      }
+      function sceneMirror(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS, n = Math.max(8, Math.floor(W / 4)), mid = Math.floor(area / 2), half = mid - 1, slot = W / n;
+        const { lv } = bars(ctx, n);
+        for (let i = 0; i < n; i++) {
+          const x0 = Math.round(i * slot), x1 = Math.max(x0, Math.round((i + 1) * slot) - 2), h = lv[i] * half, hue = bandHue(i / (n - 1));
+          for (let j = 0; j <= h; j++) {
+            const c = hsl(hue + j / half * 0.08, 0.9, 0.38 + 0.3 * (j / half)), k = j + 1 > h ? h - j : 1;
+            for (let x = x0; x <= x1; x++) {
+              const sheen = x === x0 ? 1.35 : 1;
+              put(core, x, mid - 1 - j, c, k * sheen);
+              put(core, x, mid + j, c, k * 0.75 * sheen);
+            }
+          }
+        }
+        for (let x = 0; x < W; x++) put(core, x, mid, [0.6, 0.7, 0.9], 0.15);
+      }
+      function sceneRadial(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS, cx = (W - 1) / 2, cy = (area - 1) / 2;
+        const ry0 = area * 0.18, spanY = area * 0.3, rx0 = W > area * 1.5 ? W * 0.3 : ry0, spanX = W > area * 1.5 ? W * 0.17 : spanY;
+        const n = Math.max(64, Math.round(W / 1.5)), rot = t * 0.1;
+        for (let i = 0; i < n; i++) {
+          const f = Math.abs(i / n * 2 - 1), a = ampAt(ctx.ampArr, ctx.bands, 1 - f), ang = rot + i / n * Math.PI * 2 - Math.PI / 2;
+          const ca = Math.cos(ang), sa = Math.sin(ang), c = hsl(bandHue(1 - f), 0.9, 0.55);
+          for (let r = 0; r <= a; r += 0.04) put(core, cx + ca * (rx0 + r * spanX), cy + sa * (ry0 + r * spanY), c, 0.5 + 0.5 * r);
+          put(core, cx + ca * rx0, cy + sa * ry0, [0.4, 0.5, 0.7], 0.5);
+        }
+      }
+      function sceneParticle(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS, n = Math.max(8, Math.floor(W / 4)), slot = W / n, maxH = area - 4;
+        if (!st.pt) st.pt = { sparks: [], seed: 13 };
+        const pt = st.pt, rnd = () => {
+          pt.seed = pt.seed * 16807 % 2147483647;
+          return pt.seed / 2147483647;
         };
-        ringPx(false);
-        const lx = -0.55, ly = -0.45, lz = 0.7;
-        for (let y = Math.floor(cy - R); y <= cy + R; y++) for (let x = Math.floor(cx - R); x <= cx + R; x++) {
-          const u = (x - cx) / R, v = (y - cy) / R, d2 = u * u + v * v;
-          if (d2 > 1) continue;
-          const z = Math.sqrt(1 - d2), lam = Math.max(0, u * lx + v * ly + z * lz);
-          const lat = v + Math.sin(u * 3 + t * 0.4) * 0.06, bandsK = 0.5 + 0.5 * Math.sin(lat * 9 + t * 0.2);
-          const c = mix(hsl(0.58, 0.6, 0.35), hsl(0.07, 0.7, 0.5), bandsK);
-          const k = 0.08 + lam * (0.9 + 0.25 * (au.beat || 0)) + Math.pow(1 - z, 4) * 0.25;
-          put(core, x, y, c, Math.min(1.2, k));
+        const { lv } = bars(ctx, n);
+        for (let i = 0; i < n; i++) {
+          const x0 = Math.round(i * slot), x1 = Math.max(x0, Math.round((i + 1) * slot) - 2), h = lv[i] * maxH, c = hsl(bandHue(i / (n - 1)), 0.9, 0.5);
+          for (let j = 0; j <= h; j++) for (let x = x0; x <= x1; x++) put(core, x, area - 1 - j, c, 0.35 + 0.5 * (j / maxH));
+          if (rnd() < lv[i] * lv[i] * dt * 25) pt.sparks.push({ x: x0 + rnd() * (x1 - x0 + 1), y: area - 1 - h, vy: -(10 + lv[i] * 30), vx: (rnd() - 0.5) * 6, hue: bandHue(i / (n - 1)), life: 0.8 });
         }
-        ringPx(true);
+        if (pt.sparks.length > 800) pt.sparks.splice(0, pt.sparks.length - 800);
+        for (let k = pt.sparks.length - 1; k >= 0; k--) {
+          const p = pt.sparks[k];
+          p.life -= dt;
+          p.y += p.vy * dt;
+          p.x += p.vx * dt;
+          p.vy += 8 * dt;
+          if (p.life <= 0) {
+            pt.sparks.splice(k, 1);
+            continue;
+          }
+          put(core, p.x, p.y, hsl(p.hue, 0.6, 0.75), p.life / 0.8);
+        }
       }
+      function sceneNeon(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS, mid = (area - 1) / 2, amp = mid - 2;
+        let pu = null, pd = null;
+        for (let x = 0; x < W; x++) {
+          const f = x / (W - 1), a = ampAt(ctx.ampArr, ctx.bands, f), c = hsl(bandHue(f) + Math.sin(t * 0.2) * 0.05, 1, 0.55);
+          const yu = mid - a * amp, yd = mid + a * amp;
+          for (const [y, prev] of [[yu, pu], [yd, pd]]) {
+            for (let g = 1; g <= 2; g++) {
+              put(core, x, y - g, c, 0.25 / g);
+              put(core, x, y + g, c, 0.25 / g);
+            }
+            if (prev !== null) lineTo(core, x - 1, prev, x, y, c, 1);
+            else put(core, x, y, c);
+          }
+          put(core, x, mid, c, 0.08 + a * 0.15);
+          pu = yu;
+          pd = yd;
+        }
+      }
+      function sceneBounce(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS, n = Math.max(8, Math.floor(W / 5)), slot = W / n, maxH = area - 4;
+        const { lv } = bars(ctx, n);
+        if (!st.bn || st.bn.y.length !== n) st.bn = { y: new Float32Array(n), v: new Float32Array(n), prev: new Float32Array(n) };
+        const bn = st.bn;
+        for (let i = 0; i < n; i++) {
+          const x0 = Math.round(i * slot), x1 = Math.max(x0, Math.round((i + 1) * slot) - 2), h = lv[i] * maxH, c = hsl(bandHue(i / (n - 1)), 0.9, 0.5);
+          for (let j = 0; j <= h; j++) for (let x = x0; x <= x1; x++) put(core, x, area - 1 - j, c, 0.4 + 0.5 * (j / maxH));
+          bn.v[i] -= area * 2.5 * dt;
+          bn.y[i] += bn.v[i] * dt;
+          if (bn.y[i] <= h + 1) {
+            const kick = Math.min(area * 1.4, Math.max(0, (h - bn.prev[i]) / Math.max(dt, 1e-3)) * 1.2);
+            bn.y[i] = h + 1;
+            bn.v[i] = Math.max(-bn.v[i] * 0.35, kick);
+          }
+          if (bn.y[i] > maxH + 2) {
+            bn.y[i] = maxH + 2;
+            bn.v[i] = Math.min(0, bn.v[i]);
+          }
+          bn.prev[i] = h;
+          const cxB = (x0 + x1) / 2, cyB = area - 1 - bn.y[i] - 1, bc = hsl(bandHue(i / (n - 1)), 0.5, 0.8);
+          for (let yy = -1; yy <= 1; yy++) for (let xx = -1; xx <= 1; xx++) put(core, cxB + xx, cyB + yy, bc, xx && yy ? 0.4 : 1);
+        }
+      }
+      function sceneBars3d(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS, n = Math.max(8, Math.floor(W / 6)), slot = W / n, depth = 3, maxH = area - depth - 3;
+        const { lv } = bars(ctx, n);
+        for (let i = n - 1; i >= 0; i--) {
+          const x0 = Math.round(i * slot), w = Math.max(2, Math.round(slot) - depth - 1), h = Math.round(lv[i] * maxH), base = area - 1, hue = bandHue(i / (n - 1));
+          const front = hsl(hue, 0.85, 0.48), side = hsl(hue, 0.85, 0.28), top = hsl(hue, 0.7, 0.72);
+          for (let j = 0; j <= h; j++) for (let x = x0; x < x0 + w; x++) put(core, x, base - j, front, 0.7 + 0.3 * (j / maxH));
+          for (let d = 1; d <= depth; d++) {
+            for (let j = 0; j <= h; j++) put(core, x0 + w - 1 + d, base - j - d, side);
+            for (let x = x0; x < x0 + w; x++) put(core, x + d, base - h - d, top);
+          }
+        }
+      }
+      var RENDER = { hifi: sceneHifi, studio: sceneStudio, spectrogram: sceneSpectrogram, waterfall3d: sceneWaterfall3d, mirror: sceneMirror, radial: sceneRadial, particle: sceneParticle, neon: sceneNeon, bounce: sceneBounce, bars3d: sceneBars3d };
       function renderSpectrumV2Wall(core, ctx, scene, st) {
         const W = core.wallW, H = core.wallH, dt = ctx.dt || 1 / 30, t = ctx.t;
         let name = SCENES.includes(scene) ? scene : "auto";
@@ -24894,14 +25885,10 @@ var PiEngine = (() => {
           name = SCENES[Math.floor(st.sceneT / AUTO_SECS) % SCENES.length];
         }
         if (st.last !== name) {
+          for (const k of Object.keys(st)) if (k !== "sceneT") delete st[k];
           st.last = name;
-          st.hist = [];
-          st.smooth = null;
         }
-        if (name === "city") sceneCity(core, ctx, st, W, H, t, dt);
-        else if (name === "blocks") sceneBlocks(core, ctx, st, W, H, t, dt);
-        else if (name === "tubes") sceneTubes(core, ctx, st, W, H, t, dt);
-        else scenePlanet(core, ctx, st, W, H, t, dt);
+        RENDER[name](core, ctx, st, W, H, t, dt);
       }
       module.exports = { renderSpectrumV2Wall, createV2State, SCENES };
     }
@@ -24979,7 +25966,7 @@ var PiEngine = (() => {
           if (opts.version === 1) renderSpectrumStyleWall(core, ctx, style, spectrumWallState);
           else renderSpectrumV2Wall(core, ctx, opts.scene || "auto", v2State);
         }
-        const { playing, currentStation } = radio.getPlaybackState();
+        const { playing, currentStation, title } = radio.getPlaybackState();
         if (!playing || !currentStation) {
           const scale = Math.max(1, Math.min(4, Math.floor(Math.min(core.wallW / 40, core.wallH / 24))));
           drawLinesCentered(FONT_3x5, ["PICK A STATION"], core.wallW, core.wallH, wallPlot(core, 0.35, 0.5, 0.7), { scale });
@@ -24995,7 +25982,7 @@ var PiEngine = (() => {
           if (currentStation.url.startsWith("debugloop:")) {
             drawStaticLabelWall(core, genre);
           } else {
-            const label = currentStation.name + (genre ? "  \u2022  " + genre : "") + "    ";
+            const label = currentStation.name + (title ? "  -  " + title : genre ? "  \u2022  " + genre : "") + "    ";
             drawTickerWall(core, label, dt);
           }
         }
@@ -25018,6 +26005,7 @@ var PiEngine = (() => {
       var snake = require_snake();
       var nowPlaying = require_nowPlaying();
       var messageBoard = require_messageBoard();
+      var drawPad = require_drawPad();
       var wordClock = require_wordClock();
       var starfield = require_starfield();
       var fluidInk = require_fluidInk();
@@ -25025,6 +26013,8 @@ var PiEngine = (() => {
       var countdown = require_countdown();
       var gradientWash = require_gradientWash();
       var weather = require_weather2();
+      var radar = require_radar();
+      var talkingFace = require_talkingFace();
       var easterEgg = require_easterEgg();
       var rain = require_neonRain();
       var plasma = require_plasma();
@@ -25120,6 +26110,7 @@ var PiEngine = (() => {
         snake: snake.wall,
         now_playing: nowPlaying.wall,
         message: messageBoard.wall,
+        draw: drawPad.wall,
         word_clock: wordClock.wall,
         countdown: countdown.wall,
         starfield: starfield.wall,
@@ -25156,6 +26147,8 @@ var PiEngine = (() => {
         tron: tronWall,
         cam: camWall,
         weather: weatherWall,
+        radar: radar.wall,
+        talking_face: talkingFace.wall,
         datetime: datetimeWall,
         moon: celestialWall,
         ghost: ghostWall,
@@ -25178,6 +26171,7 @@ var PiEngine = (() => {
         snake,
         now_playing: nowPlaying,
         message: messageBoard,
+        draw: drawPad,
         word_clock: wordClock,
         countdown,
         starfield,
@@ -25187,6 +26181,8 @@ var PiEngine = (() => {
         wave,
         gradient_wash: gradientWash,
         weather,
+        radar,
+        talking_face: talkingFace,
         easter_egg: easterEgg,
         rain,
         plasma,
@@ -25243,6 +26239,7 @@ var PiEngine = (() => {
         snake: "Snake",
         now_playing: "Now Playing",
         message: "Message Board",
+        draw: "Draw",
         word_clock: "Word Clock",
         countdown: "Countdown",
         starfield: "Starfield",
@@ -25252,6 +26249,8 @@ var PiEngine = (() => {
         wave: "Wave Cascade",
         gradient_wash: "Rainbow Wash",
         weather: "Weather",
+        radar: "Weather Radar",
+        talking_face: "Talking Face",
         easter_egg: "Easter Egg",
         rain: "Colour Rain",
         plasma: "Plasma Storm",
@@ -25461,41 +26460,6 @@ var PiEngine = (() => {
         }
       }
       module.exports = { sunrise, countdown, message, clear, wrap };
-    }
-  });
-
-  // src/localTime.js
-  var require_localTime = __commonJS({
-    "src/localTime.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      function isZone(tz) {
-        if (typeof tz !== "string" || !tz || tz.length > 64) return false;
-        try {
-          new Intl.DateTimeFormat("en-GB", { timeZone: tz });
-          return true;
-        } catch (e) {
-          return false;
-        }
-      }
-      var fmtCache = /* @__PURE__ */ new Map();
-      function wallClock(tz, real = /* @__PURE__ */ new Date()) {
-        if (!isZone(tz)) return real;
-        let fmt = fmtCache.get(tz);
-        if (!fmt) {
-          fmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", hourCycle: "h23" });
-          fmtCache.set(tz, fmt);
-        }
-        const p = {};
-        for (const part of fmt.formatToParts(real)) p[part.type] = Number(part.value);
-        const wall = new Date(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second, real.getMilliseconds());
-        const t = real.getTime();
-        wall.getTime = () => t;
-        wall.valueOf = () => t;
-        return wall;
-      }
-      module.exports = { wallClock, isZone };
     }
   });
 
@@ -25945,10 +26909,22 @@ var PiEngine = (() => {
         state.appliedChanges = scenes.changedFields(state);
         if (state.onAlarmsChanged) state.onAlarmsChanged();
       }
+      function noteRun(state, al, what) {
+        const target = (state.alarms || []).find((a) => a.id === al.id);
+        if (!target) return;
+        const now = require_localTime().wallClock(state.prefs && state.prefs.tz);
+        const hhmm = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+        target.lastRun = { t: Date.now(), text: hhmm + " " + what };
+      }
+      function radioNote(al) {
+        const r = al.radio || {};
+        return r.action === "start" ? " \xB7 radio " + (r.station && r.station.name || "started") : r.action === "stop" ? " \xB7 radio stopped" : "";
+      }
       function alarmFire(state, al, now, active) {
         const fireMs = now ? now.getTime() : Date.now();
-        const durationMs = 1 * 60 * 1e3;
-        state.activeAlarm = { al, phase: "main", startMs: fireMs, endMs: fireMs + durationMs, dismissed: false };
+        const durationMs = (active && active.test ? 15 : 60) * 1e3;
+        state.activeAlarm = { al, phase: "main", startMs: fireMs, endMs: fireMs + durationMs, dismissed: false, test: !!(active && active.test) };
+        noteRun(state, al, (active && active.test ? "tested" : al.triggerType === "off" ? "turned the display off" : "went off") + radioNote(al));
         console.log("[timer] fired " + (al.name || al.hour + ":" + al.minute) + ", radio: " + (al.radio && al.radio.action || "none"));
         applyRadio(al, active);
         if (al.triggerType === "off") {
@@ -26039,8 +27015,9 @@ var PiEngine = (() => {
             }
             state.brightness = Number.isFinite(a.prevBright) && a.prevBright > 0 ? a.prevBright : 1;
             state.activeAlarm = null;
+            noteRun(state, a.al, a.test ? "wind-down tested" : "wind-down finished, display off");
             state.appliedChanges = scenes.changedFields(state);
-            if (a.al.repeat === "once") a.al.enabled = false;
+            if (a.al.repeat === "once" && !a.test) a.al.enabled = false;
             if (state.onAlarmsChanged) state.onAlarmsChanged();
           } else {
             a.phase = "main";
@@ -26238,7 +27215,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { FONT_5x7, drawGlyph } = require_text();
+      var { FONT_5x7, FONT_3x5, drawGlyph, drawString, textWidth } = require_text();
       var { defineCanvasEffect } = require_canvas();
       var scroll = 0;
       var shown = null;
@@ -26251,8 +27228,9 @@ var PiEngine = (() => {
         speed: 0,
         render(c, { dt, core }) {
           const n = core._notice;
-          if (shown !== n) {
-            shown = n;
+          const k = n.text + "|" + n.until;
+          if (shown !== k) {
+            shown = k;
             scroll = -c.W;
           }
           const scale = Math.max(1, Math.floor(c.H / 24));
@@ -26275,12 +27253,73 @@ var PiEngine = (() => {
           }
         }
       });
+      function wrap(text, max) {
+        const lines = [];
+        let line = "";
+        for (const word of text.split(" ")) {
+          const w = word.length > max ? word.slice(0, max) : word;
+          if (!line) line = w;
+          else if (line.length + 1 + w.length <= max) line += " " + w;
+          else {
+            lines.push(line);
+            line = w;
+          }
+        }
+        if (line) lines.push(line);
+        return lines;
+      }
+      var noteT = 0;
+      var noteFor = null;
+      var note = defineCanvasEffect({
+        speed: 0,
+        render(c, { dt, core }) {
+          const n = core._notice;
+          const k = n.text + "|" + n.until;
+          if (noteFor !== k) {
+            noteFor = k;
+            noteT = 0;
+          }
+          noteT += dt;
+          const left = (n.until - Date.now()) / 1e3;
+          const margin = 4, inner = Math.min(c.W, 64) - margin * 2 - 4;
+          let font = FONT_5x7, lines = wrap(String(n.text).toUpperCase(), Math.floor(inner / FONT_5x7.adv));
+          if (lines.length > 4) {
+            font = FONT_3x5;
+            lines = wrap(String(n.text).toUpperCase(), Math.floor(inner / FONT_3x5.adv)).slice(0, 7);
+          }
+          const lineH = font.h + 2, w = Math.min(c.W - 2, inner + 6), h = lines.length * lineH + 7;
+          const ease = (t) => 1 - Math.pow(1 - Math.min(1, t), 3);
+          const inT = ease(noteT / 0.6), bounce = Math.sin(Math.min(1, noteT / 0.6) * Math.PI) * 3;
+          const outT = left < 0.5 ? (0.5 - Math.max(0, left)) / 0.5 : 0;
+          const restY = Math.round((c.H - h) / 2);
+          const y0 = Math.round(-h + (restY + h) * inT - bounce * (1 - inT) - outT * (restY + h + 4));
+          const sway = Math.round(Math.sin(noteT * 1.3) * 1.2);
+          const x0 = Math.round((c.W - w) / 2) + sway;
+          const [r, g, b] = colour(n.color);
+          for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) c.set(x0 + x + 1, y0 + y + 1, 0, 0, 0);
+          for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+            const fold = x + (h - 1 - y) < 4;
+            const shade = 0.55 + 0.12 * (y / h);
+            if (x + (h - 1 - y) < 2) continue;
+            c.set(x0 + x, y0 + y, r * (fold ? 0.35 : shade), g * (fold ? 0.35 : shade), b * (fold ? 0.35 : shade));
+          }
+          c.set(x0 + Math.floor(w / 2), y0, 1, 0.2, 0.2);
+          c.set(x0 + Math.floor(w / 2), y0 + 1, 0.7, 0.1, 0.1);
+          let ty = y0 + 4;
+          for (const line of lines) {
+            const tx = x0 + Math.round((w - textWidth(font, line)) / 2);
+            drawString(font, line, tx, ty, (px, py) => c.set(px, py, 0.08, 0.06, 0.12));
+            ty += lineH;
+          }
+        }
+      });
       function renderNotice(core, state, mode, dt) {
         const n = state.notice;
         if (!n || !n.text || Date.now() > n.until) return;
         core._notice = n;
-        if (mode === "wall") banner.wall(core, dt);
-        else banner(core, dt);
+        const fx = n.style === "note" ? note : banner;
+        if (mode === "wall") fx.wall(core, dt);
+        else fx(core, dt);
       }
       module.exports = { renderNotice };
     }
@@ -26362,75 +27401,118 @@ var PiEngine = (() => {
       var prevWall = null;
       var prevCube = null;
       var grow = (a, n) => a.length >= n ? a : new Float32Array(n);
+      var K0 = 0.375;
+      var K1 = 0.25;
+      var K2 = 0.0625;
       function blur(src2, dst, w, h, dx, dy) {
-        const K0 = 0.375, K1 = 0.25, K2 = 0.0625;
-        for (let y = 0; y < h; y++) {
-          for (let x = 0; x < w; x++) {
-            const o = (y * w + x) * 3;
-            for (let c = 0; c < 3; c++) {
-              let s = src2[o + c] * K0;
-              for (let k = 1; k <= 2; k++) {
-                const wk = k === 1 ? K1 : K2;
-                const xa = Math.min(w - 1, x + dx * k), ya = Math.min(h - 1, y + dy * k);
-                const xb = Math.max(0, x - dx * k), yb = Math.max(0, y - dy * k);
-                s += (src2[(ya * w + xa) * 3 + c] + src2[(yb * w + xb) * 3 + c]) * wk;
-              }
-              dst[o + c] = s;
+        if (dx) {
+          for (let y = 0; y < h; y++) {
+            const row = y * w;
+            for (let x = 0; x < w; x++) {
+              const o = (row + x) * 3;
+              const a1 = (row + (x + 1 < w ? x + 1 : w - 1)) * 3, b1 = (row + (x - 1 > 0 ? x - 1 : 0)) * 3;
+              const a2 = (row + (x + 2 < w ? x + 2 : w - 1)) * 3, b2 = (row + (x - 2 > 0 ? x - 2 : 0)) * 3;
+              dst[o] = src2[o] * K0 + (src2[a1] + src2[b1]) * K1 + (src2[a2] + src2[b2]) * K2;
+              dst[o + 1] = src2[o + 1] * K0 + (src2[a1 + 1] + src2[b1 + 1]) * K1 + (src2[a2 + 1] + src2[b2 + 1]) * K2;
+              dst[o + 2] = src2[o + 2] * K0 + (src2[a1 + 2] + src2[b1 + 2]) * K1 + (src2[a2 + 2] + src2[b2 + 2]) * K2;
             }
           }
+          return;
         }
+        for (let y = 0; y < h; y++) {
+          const ra1 = (y + 1 < h ? y + 1 : h - 1) * w, rb1 = (y - 1 > 0 ? y - 1 : 0) * w;
+          const ra2 = (y + 2 < h ? y + 2 : h - 1) * w, rb2 = (y - 2 > 0 ? y - 2 : 0) * w;
+          for (let x = 0; x < w; x++) {
+            const o = (y * w + x) * 3, a1 = (ra1 + x) * 3, b1 = (rb1 + x) * 3, a2 = (ra2 + x) * 3, b2 = (rb2 + x) * 3;
+            dst[o] = src2[o] * K0 + (src2[a1] + src2[b1]) * K1 + (src2[a2] + src2[b2]) * K2;
+            dst[o + 1] = src2[o + 1] * K0 + (src2[a1 + 1] + src2[b1 + 1]) * K1 + (src2[a2 + 1] + src2[b2 + 1]) * K2;
+            dst[o + 2] = src2[o + 2] * K0 + (src2[a1 + 2] + src2[b1 + 2]) * K1 + (src2[a2 + 2] + src2[b2 + 2]) * K2;
+          }
+        }
+      }
+      var upCache = /* @__PURE__ */ new Map();
+      function upAxis(n, hn) {
+        const key = n + ":" + hn;
+        let t = upCache.get(key);
+        if (!t) {
+          t = { i0: new Int32Array(n), i1: new Int32Array(n), w: new Float32Array(n) };
+          for (let x = 0; x < n; x++) {
+            const f = Math.min(hn - 1, (x - 0.5) / 2), x0 = Math.max(0, Math.floor(f));
+            t.i0[x] = x0;
+            t.i1[x] = Math.min(hn - 1, x0 + 1);
+            t.w[x] = Math.max(0, f - x0);
+          }
+          upCache.set(key, t);
+        }
+        return t;
       }
       function processImage(buf, w, h, bloom, vibrance) {
         if (bloom > 1e-3) {
           const hw = Math.ceil(w / 2), hh = Math.ceil(h / 2);
           half = grow(half, hw * hh * 3);
           tmp = grow(tmp, hw * hh * 3);
+          let any = false;
           for (let y = 0; y < hh; y++) for (let x = 0; x < hw; x++) {
             let r = 0, g = 0, b = 0, n = 0;
-            for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
-              const sx = x * 2 + i, sy = y * 2 + j;
-              if (sx >= w || sy >= h) continue;
-              const o2 = (sy * w + sx) * 3, m = Math.max(buf[o2], buf[o2 + 1], buf[o2 + 2]);
-              if (m > THRESH) {
-                const k2 = (m - THRESH) / m;
-                r += buf[o2] * k2;
-                g += buf[o2 + 1] * k2;
-                b += buf[o2 + 2] * k2;
+            const sx0 = x * 2, sy0 = y * 2;
+            for (let j = 0; j < 2; j++) {
+              const sy = sy0 + j;
+              if (sy >= h) continue;
+              for (let i = 0; i < 2; i++) {
+                const sx = sx0 + i;
+                if (sx >= w) continue;
+                const o2 = (sy * w + sx) * 3, pr = buf[o2], pg = buf[o2 + 1], pb = buf[o2 + 2];
+                const m = pr > pg ? pr > pb ? pr : pb : pg > pb ? pg : pb;
+                if (m > THRESH) {
+                  const k = (m - THRESH) / m;
+                  r += pr * k;
+                  g += pg * k;
+                  b += pb * k;
+                }
+                n++;
               }
-              n++;
             }
             const o = (y * hw + x) * 3;
             half[o] = r / n;
             half[o + 1] = g / n;
             half[o + 2] = b / n;
+            if (r + g + b > 0) any = true;
           }
-          blur(half, tmp, hw, hh, 1, 0);
-          blur(tmp, half, hw, hh, 0, 1);
-          blur(half, tmp, hw, hh, 1, 0);
-          blur(tmp, half, hw, hh, 0, 1);
-          const k = bloom * 1.6;
-          for (let y = 0; y < h; y++) {
-            const fy = Math.min(hh - 1, (y - 0.5) / 2), y0 = Math.max(0, Math.floor(fy)), y1 = Math.min(hh - 1, y0 + 1), wy = Math.max(0, fy - y0);
-            for (let x = 0; x < w; x++) {
-              const fx = Math.min(hw - 1, (x - 0.5) / 2), x0 = Math.max(0, Math.floor(fx)), x1 = Math.min(hw - 1, x0 + 1), wx = Math.max(0, fx - x0);
-              const o = (y * w + x) * 3, a = (y0 * hw + x0) * 3, bq = (y0 * hw + x1) * 3, c = (y1 * hw + x0) * 3, d = (y1 * hw + x1) * 3;
-              for (let ch = 0; ch < 3; ch++) {
-                const top = half[a + ch] + (half[bq + ch] - half[a + ch]) * wx, bot = half[c + ch] + (half[d + ch] - half[c + ch]) * wx;
-                buf[o + ch] += (top + (bot - top) * wy) * k;
+          if (any) {
+            blur(half, tmp, hw, hh, 1, 0);
+            blur(tmp, half, hw, hh, 0, 1);
+            blur(half, tmp, hw, hh, 1, 0);
+            blur(tmp, half, hw, hh, 0, 1);
+            const k = bloom * 1.6, ux = upAxis(w, hw), uy = upAxis(h, hh);
+            for (let y = 0; y < h; y++) {
+              const r0 = uy.i0[y] * hw, r1 = uy.i1[y] * hw, wy = uy.w[y];
+              for (let x = 0; x < w; x++) {
+                const x0 = ux.i0[x], x1 = ux.i1[x], wx = ux.w[x];
+                const o = (y * w + x) * 3, a = (r0 + x0) * 3, bq = (r0 + x1) * 3, c = (r1 + x0) * 3, d = (r1 + x1) * 3;
+                let top = half[a] + (half[bq] - half[a]) * wx, bot = half[c] + (half[d] - half[c]) * wx;
+                buf[o] += (top + (bot - top) * wy) * k;
+                top = half[a + 1] + (half[bq + 1] - half[a + 1]) * wx;
+                bot = half[c + 1] + (half[d + 1] - half[c + 1]) * wx;
+                buf[o + 1] += (top + (bot - top) * wy) * k;
+                top = half[a + 2] + (half[bq + 2] - half[a + 2]) * wx;
+                bot = half[c + 2] + (half[d + 2] - half[c + 2]) * wx;
+                buf[o + 2] += (top + (bot - top) * wy) * k;
               }
             }
           }
         }
         if (vibrance > 1e-3) {
-          for (let o = 0; o < w * h * 3; o += 3) {
+          const end = w * h * 3, vk = vibrance * 1.2;
+          for (let o = 0; o < end; o += 3) {
             const r = buf[o], g = buf[o + 1], b = buf[o + 2];
-            const mx = Math.max(r, g, b);
+            const mx = r > g ? r > b ? r : b : g > b ? g : b;
             if (mx < 0.02) continue;
-            const mn = Math.min(r, g, b), sat = (mx - mn) / mx, l = (r + g + b) / 3;
-            const boost = 1 + vibrance * (1 - sat) * 1.2;
-            buf[o] = Math.max(0, l + (r - l) * boost);
-            buf[o + 1] = Math.max(0, l + (g - l) * boost);
-            buf[o + 2] = Math.max(0, l + (b - l) * boost);
+            const mn = r < g ? r < b ? r : b : g < b ? g : b, sat = (mx - mn) / mx, l = (r + g + b) / 3;
+            const boost = 1 + vk * (1 - sat);
+            const nr = l + (r - l) * boost, ng = l + (g - l) * boost, nb = l + (b - l) * boost;
+            buf[o] = nr > 0 ? nr : 0;
+            buf[o + 1] = ng > 0 ? ng : 0;
+            buf[o + 2] = nb > 0 ? nb : 0;
           }
         }
       }
@@ -26521,6 +27603,63 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/transition.js
+  var require_transition = __commonJS({
+    "src/effects/transition.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var STYLES = ["fade", "slide", "dissolve", "wipe", "zoom", "none"];
+      function rnd(i) {
+        let h = i * 2654435761 >>> 0;
+        h ^= h >>> 15;
+        h = Math.imul(h, 2246822519) >>> 0;
+        h ^= h >>> 13;
+        return (h >>> 0) / 4294967296;
+      }
+      var clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
+      var tmp = null;
+      function applyTransition(style, core, buf, from, k) {
+        const wall = buf === core.wallBuf && core.wallW;
+        const W = wall ? core.wallW : 0, H = wall ? core.wallH : 0, n = buf.length / 3;
+        if (style === "slide" && wall) {
+          if (!tmp || tmp.length !== buf.length) tmp = new Float32Array(buf.length);
+          tmp.set(buf);
+          const s = Math.round(W * k);
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const o = (y * W + x) * 3, src = x < W - s ? (y * W + x + s) * 3 : (y * W + x - (W - s)) * 3, img = x < W - s ? from : tmp;
+            buf[o] = img[src];
+            buf[o + 1] = img[src + 1];
+            buf[o + 2] = img[src + 2];
+          }
+          return;
+        }
+        for (let p = 0; p < n; p++) {
+          let m;
+          if (style === "dissolve") m = clamp01((k * 1.1 - rnd(p)) * 10);
+          else if (style === "wipe" || style === "slide" || style === "zoom") {
+            let u, r;
+            if (wall) {
+              const x = p % W, y = p / W | 0;
+              u = x / Math.max(1, W - 1);
+              r = Math.hypot((x - W / 2) / (W / 2), (y - H / 2) / (W / 2));
+            } else {
+              u = ((core.surfX ? core.surfX[p] : 0) + 1) / 2;
+              r = Math.hypot(core.surfX ? core.surfX[p] : 0, core.surfY ? core.surfY[p] : 0) / Math.SQRT2;
+            }
+            if (style === "zoom") m = clamp01((k * 1.25 - r) / 0.2);
+            else m = clamp01((k * 1.15 - u) / 0.15);
+          } else m = k * k * (3 - 2 * k);
+          const i = p * 3;
+          buf[i] = from[i] + (buf[i] - from[i]) * m;
+          buf[i + 1] = from[i + 1] + (buf[i + 1] - from[i + 1]) * m;
+          buf[i + 2] = from[i + 2] + (buf[i + 2] - from[i + 2]) * m;
+        }
+      }
+      module.exports = { applyTransition, STYLES };
+    }
+  });
+
   // src/tick.js
   var require_tick = __commonJS({
     "src/tick.js"(exports, module) {
@@ -26545,22 +27684,24 @@ var PiEngine = (() => {
         core._xfFrom.set(buf);
         core._xfT = 0;
       }
-      function applyCrossfade(core, buf, dt) {
-        if (!buf || core._xfT === void 0 || core._xfT >= CROSSFADE_SECS) return;
+      var { applyTransition } = require_transition();
+      function applyCrossfade(core, buf, dt, tr) {
+        const style = tr && tr.style || "fade", secs = tr && Number.isFinite(tr.secs) ? tr.secs : CROSSFADE_SECS;
+        if (!buf || core._xfT === void 0 || core._xfT >= secs) return;
         const from = core._xfFrom;
-        if (from.length !== buf.length) {
-          core._xfT = CROSSFADE_SECS;
+        if (style === "none" || from.length !== buf.length) {
+          core._xfT = Infinity;
           return;
         }
         core._xfT += Math.max(0, dt);
-        const a = Math.min(1, core._xfT / CROSSFADE_SECS);
-        const k = a * a * (3 - 2 * a);
-        for (let i = 0; i < buf.length; i++) buf[i] = from[i] + (buf[i] - from[i]) * k;
+        applyTransition(style, core, buf, from, Math.min(1, core._xfT / secs));
       }
       function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, dt) {
         restorePostFx();
         core.panelMode = config.mode;
         core.effectOptions = state.effectOptions;
+        core.faceTalk = state.faceTalk;
+        core.tz = state.prefs && state.prefs.tz;
         core.customCubeFaces = state.customCube && state.customCube.faces;
         core.overlaysState = state.overlays;
         if (state.identifyPanels) {
@@ -26586,7 +27727,7 @@ var PiEngine = (() => {
           beginCrossfade(core, state.effect, buf);
           if (fn && !alarmBlocking) fn(core, reactDt(core.audio, dt, react));
           pulseBuffer(core.audio, buf, react);
-          applyCrossfade(core, buf, dt);
+          applyCrossfade(core, buf, dt, state.prefs && state.prefs.transition);
         } else {
           core.colBuf.fill(0);
           if (core.wallBuf) core.wallBuf.fill(0);

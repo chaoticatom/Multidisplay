@@ -997,6 +997,11 @@ body.guest .party-box { display: none; }
 #tab-bar .tab-badge { display:inline-block; width:8px; height:8px; margin-left:5px; border-radius:50%; background:#ff4d6a; vertical-align:top; }
 #tab-bar .tab-badge[hidden] { display:none; }
 #spk-warn[hidden] { display:none !important; }
+#setup-search { display: none; padding: 8px 12px 4px; }
+body[data-tab="setup"] #setup-search { display: block; }
+#setup-search input { width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); color: inherit; font-size: 15px; }
+#sidebar-scroll > .sidebar-section.search-miss { display: none !important; }
+#setup-search-none { padding: 6px 4px; opacity: .7; font-size: 13px; }
 @keyframes off-pulse { 50% { box-shadow: 0 0 0 2px #fff, 0 0 6px 1px rgba(255,51,85,.5); } }
 @media (prefers-reduced-motion: reduce) { #panels-off-btn.is-off, #preview-off-btn.is-off, #clear-all-btn.is-off { animation: none; } }
 #sidebar-brightness-bar { padding-bottom: 16px !important; position: relative; z-index: 2; } /* room for the ON/OFF labels */
@@ -1112,6 +1117,28 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .yt-fav { flex-shrink: 0; background: none; border: 0; color: rgba(238,242,255,.45); font-size: 20px; cursor: pointer; padding: 2px 4px; }
 .yt-fav.on { color: #ffd34d; }
 .yt-play { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; background: #ff2d3d; color: #fff; font-size: 11px; }
+
+/* Timer list: last-run line and the Test button. */
+.cx-timer .tm-last { display: block; font-style: normal; font-size: 11px; opacity: .7; margin-top: 2px; }
+.cx-timer .tm-test { margin: 0 8px 0 auto; padding: 6px 10px; border-radius: 12px; font-size: 12px; white-space: nowrap; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15); color: inherit; }
+
+/* ── One look for every effect's options ───────────────────────────────────
+   Each effect's panel was laid out by hand with its own inline sizes and
+   colours. These rules give them all the same labels, chips, sliders and
+   inputs (they win over the per-panel inline styles), without touching
+   what any control does. */
+.effect-panel .ov-row-label { display: block; margin: 14px 0 6px !important; font-size: 11px !important; font-weight: 700 !important; letter-spacing: .6px; text-transform: uppercase; color: #9fb0d8 !important; }
+.effect-panel > .ov-row-label:first-child, .effect-panel > div:first-child > .ov-row-label:first-child { margin-top: 2px !important; }
+.effect-panel .opt-grid { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(86px, 1fr)) !important; gap: 8px !important; margin: 0 0 4px !important; }
+.effect-panel .opt-grid > button { min-height: 40px; padding: 8px 10px !important; border-radius: 12px !important; font-size: 13px !important; line-height: 1.15; background: rgba(255,255,255,.06) !important; border: 1px solid rgba(255,255,255,.12) !important; color: #e6ecff !important; box-shadow: none !important; }
+.effect-panel .opt-grid > button.active, .effect-panel .opt-grid > button.on { background: linear-gradient(135deg, var(--cx1), var(--cx2)) !important; border-color: transparent !important; color: #fff !important; }
+.effect-panel div:has(> input[type="range"]) { display: flex !important; align-items: center !important; gap: 10px !important; margin: 0 0 4px !important; }
+.effect-panel input[type="range"] { flex: 1 !important; accent-color: var(--cx1); min-height: 28px; }
+.effect-panel div:has(> input[type="range"]) > span { min-width: 46px !important; width: auto !important; text-align: right; font-size: 13px !important; font-variant-numeric: tabular-nums; color: #cfe0ff !important; }
+.effect-panel select, .effect-panel input[type="text"], .effect-panel input[type="search"], .effect-panel input[type="url"], .effect-panel input[type="number"] { width: 100% !important; box-sizing: border-box; min-height: 40px; padding: 8px 12px !important; border-radius: 12px !important; border: 1px solid rgba(255,255,255,.15) !important; background: rgba(255,255,255,.06) !important; color: inherit !important; font-size: 14px !important; }
+.effect-panel label:has(> input[type="checkbox"]) { display: flex !important; align-items: center; gap: 10px; min-height: 36px; font-size: 14px !important; }
+.effect-panel input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--cx1); }
+.effect-panel .ui-note, .effect-panel .ui-note-spaced { font-size: 12px !important; line-height: 1.4; color: #93a0bf !important; }
 </style>
 </head>
 <body>
@@ -1193,8 +1220,14 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   </nav>
   <div id="guest-bar">Guest view: pick an effect or scene.<button type="button" id="guest-pin-btn">Enter PIN</button></div>
   <div id="sidebar-scroll">
+  <div id="setup-search"><input type="search" id="setup-search-in" placeholder="🔍 Search settings: bluetooth, PIN, update…" aria-label="Search settings" autocomplete="off"></div>
   <div class="sidebar-section" id="now-section" data-tab="play">
     <div class="section-body">
+      <div style="display:flex;gap:8px;margin:0 0 10px;">
+        <button type="button" id="draw-open" class="ui-btn-primary" style="flex:1;margin:0;">🎨 Draw</button>
+        <button type="button" id="note-open" class="ui-btn-primary" style="flex:1;margin:0;">💌 Message</button>
+      </div>
+      <div id="recent-row" class="cx-chips" hidden style="margin:0 0 10px;" aria-label="Recent effects"></div>
       <div class="cx-ask"><span class="cx-spark"></span><button type="button" id="cx-mic" class="cx-mic" aria-label="Speak">🎤</button><input id="cx-ask" type="text" placeholder="Ask: “calm”, “party”, “night sky”…" aria-label="Ask for an effect" autocomplete="off"></div>
       <div id="cx-ask-chips" class="cx-chips"><button type="button">calm</button><button type="button">party</button><button type="button">night sky</button><button type="button">surprise me</button></div>
       <div id="party-box" class="party-box">
@@ -1423,6 +1456,13 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
     <button class="sub-head">Live Data <span class="chev">▾</span></button>
     <div class="sub-body">
     <button class="effect-btn" data-effect="ambient_weather">◈ Ambient Weather</button>
+    <button class="effect-btn has-panel" data-effect="radar">◈ Weather Radar <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-radar">
+      <div class="ov-row-label">Zoom</div>
+      <div class="opt-grid"><button class="radar-zoom-btn" data-radarzoom="6">Country</button><button class="radar-zoom-btn active" data-radarzoom="7">Region</button><button class="radar-zoom-btn" data-radarzoom="8">Town</button></div>
+      <div class="ui-note">Live rain over your area for the last hour, from RainViewer. Uses the town set in the Weather effect. Updates every 10 minutes.</div>
+      <div class="ui-note" id="radar-status"></div>
+    </div>
     <button class="effect-btn has-panel" data-effect="weather">◈ Weather <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-weather">
       <div style="display:flex;gap:5px;margin-bottom:8px;">
@@ -1920,6 +1960,24 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="ui-note" id="aiart-note"></div>
     </div>
     <button class="effect-btn" data-effect="ghost">◈ Ghost Face</button>
+    <button class="effect-btn has-panel" data-effect="talking_face">◈ Talking Face <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-talking_face">
+      <div class="ov-row-label">Talk to it</div>
+      <textarea id="tf-text" rows="2" maxlength="300" placeholder="Type something for it to say, or a question to chat about" style="width:100%;box-sizing:border-box;border-radius:12px;padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:inherit;font-size:14px;"></textarea>
+      <div class="opt-grid" style="margin-top:6px;"><button type="button" id="tf-say">🗣 Say this</button><button type="button" id="tf-chat">💬 Chat</button><button type="button" id="tf-topic">🎲 New topic</button></div>
+      <div id="tf-log" style="max-height:160px;overflow-y:auto;margin-top:8px;font-size:13px;line-height:1.35;"></div>
+      <div class="ov-row-label">Voice</div>
+      <div class="opt-grid"><button class="tf-voice-btn active" data-voice="phone">📱 This phone</button><button class="tf-voice-btn" data-voice="pi">🔊 Pi speaker</button><button class="tf-voice-btn" data-voice="both">Both</button><button class="tf-voice-btn" data-voice="off">Off</button></div>
+      <div class="ui-note" id="tf-voice-note">Pi speaker: a natural Google voice when the AI assistant uses Gemini (Setup &gt; AI); otherwise the basic espeak-ng voice (sudo apt install espeak-ng). This phone: your phone's best built-in voice.</div>
+      <div class="ov-row-label">Chats by itself</div>
+      <div class="opt-grid"><button class="tf-chatty-btn" data-chatty="20">Often</button><button class="tf-chatty-btn active" data-chatty="45">Sometimes</button><button class="tf-chatty-btn" data-chatty="120">Rarely</button><button class="tf-chatty-btn" data-chatty="0">Only when asked</button></div>
+      <div class="ui-note">With the AI assistant set up (Setup &gt; AI) it answers your questions and picks its own topics; without it, it reads what you type and shares fun facts.</div>
+      <div class="ov-row-label">Looks</div>
+      <select id="tf-style" aria-label="Face" style="margin-bottom:6px;"><option value="man">Face: man</option><option value="woman">Face: woman (long hair)</option></select>
+      <select id="tf-skin" aria-label="Skin"><option value="light">Skin: light</option><option value="medium">Skin: medium</option><option value="tan">Skin: tan</option><option value="dark">Skin: dark</option></select>
+      <select id="tf-hair" aria-label="Hair" style="margin-top:6px;"><option value="brown">Hair: brown</option><option value="black">Hair: black</option><option value="blonde">Hair: blonde</option><option value="red">Hair: red</option><option value="grey">Hair: grey</option></select>
+      <select id="tf-eyes" aria-label="Eyes" style="margin-top:6px;"><option value="blue">Eyes: blue</option><option value="brown">Eyes: brown</option><option value="green">Eyes: green</option><option value="hazel">Eyes: hazel</option></select>
+    </div>
     <button class="effect-btn" data-effect="easter_egg">◈ Easter Egg</button>
     <button class="effect-btn has-panel cube-only" data-effect="custom_cube">◈ Custom Cube <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-custom_cube">
@@ -1977,6 +2035,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="radio-search-status-el ui-note"></div>
       <div class="radio-search-results-el" style="max-height:260px;overflow-y:auto;margin-bottom:10px;"></div>
 
+      <div id="radio-recent-wrap" hidden><div class="ui-label-accent">↺ Recently played</div><div id="radio-recent" class="cx-chips" style="margin-bottom:12px;"></div></div>
       <div class="ui-label-accent" id="radio-fav-head" style="color:#ffd23d !important;">★ My stations</div>
       <div class="radio-fav-list-el" style="margin-bottom:12px;"></div>
       <div style="font-size:11px;font-weight:700;color:#e8c250;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Featured</div>
@@ -1997,40 +2056,10 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
           <button class="spectrum-bands-btn" data-bands="256">256</button>
           <button class="spectrum-bands-btn" data-bands="384" title="One bar per column on a 6-panel-wide wall">384</button>
         </div>
-        <div class="ov-row-label">Version</div>
-        <div class="opt-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:8px;">
-          <button class="au-ver-btn active" data-auver="2">🌌 v2 scenes</button>
-          <button class="au-ver-btn" data-auver="1">v1 classic</button>
-        </div>
-        <div id="au-v2-row">
-          <div class="ov-row-label">Scene (v2, flat panel / wall)</div>
-          <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-            <button class="au-scene-btn active" data-auscene="auto">🔁 Auto</button>
-            <button class="au-scene-btn" data-auscene="city">🌃 City</button>
-            <button class="au-scene-btn" data-auscene="blocks">🧊 Blocks</button>
-            <button class="au-scene-btn" data-auscene="tubes">🧪 Tubes</button>
-            <button class="au-scene-btn" data-auscene="planet">🪐 Planet</button>
-          </div>
-        </div>
-        <div class="ov-row-label">Style (v1)</div>
-        <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
-          <button class="au-style-btn active" data-austyle="glow">✨ Glow</button>
-          <button class="au-style-btn" data-austyle="bars">Classic bars</button>
-          <button class="au-style-btn" data-austyle="mirror">Mirror</button>
-          <button class="au-style-btn" data-austyle="dots">Dots</button>
-          <button class="au-style-btn" data-austyle="blocks">Blocks</button>
-          <button class="au-style-btn" data-austyle="outline">Outline</button>
-          <button class="au-style-btn" data-austyle="radial">Radial</button>
-          <button class="au-style-btn" data-austyle="vu">VU</button>
-          <button class="au-style-btn" data-austyle="waterfall">Waterfall</button>
-          <button class="au-style-btn" data-austyle="waveform">Waveform</button>
-          <button class="au-style-btn" data-austyle="tunnel">Tunnel</button>
-          <button class="au-style-btn" data-austyle="storm">Storm</button>
-          <button class="au-style-btn" data-austyle="plasma">Plasma</button>
-          <button class="au-style-btn" data-austyle="rings">Rings</button>
-          <button class="au-style-btn" data-austyle="fire">Fire</button>
-        </div>
-        <div class="ov-row-label">Colour Theme (v1)</div>
+        <div class="ov-row-label">Style</div>
+        <select id="au-look-sel" class="tm-select" aria-label="Spectrum style" style="width:100%;margin-bottom:8px;"><optgroup label="Analysers"><option value="v2:auto">🔁 Auto - all analysers in turn</option><option value="v2:hifi">📊 Hi-Fi LED</option><option value="v2:studio">📈 Studio</option><option value="v2:spectrogram">🔥 Spectrogram</option><option value="v2:waterfall3d">🏔 3D Waterfall</option><option value="v2:mirror">🪞 Mirror</option><option value="v2:radial">🌀 Radial</option><option value="v2:particle">✨ Particle</option><option value="v2:neon">💡 Neon</option><option value="v2:bounce">⚽ Bounce</option><option value="v2:bars3d">🧊 3D Bars</option></optgroup><optgroup label="Classic"><option value="v1:glow">✨ Glow</option><option value="v1:bars">Classic bars</option><option value="v1:mirror">Mirror</option><option value="v1:dots">Dots</option><option value="v1:blocks">Blocks</option><option value="v1:outline">Outline</option><option value="v1:radial">Radial</option><option value="v1:vu">VU</option><option value="v1:waterfall">Waterfall</option><option value="v1:waveform">Waveform</option><option value="v1:tunnel">Tunnel</option><option value="v1:storm">Storm</option><option value="v1:plasma">Plasma</option><option value="v1:rings">Rings</option><option value="v1:fire">Fire</option></optgroup></select>
+        <div id="au-v1-row">
+        <div class="ov-row-label">Colour Theme</div>
         <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
           <button class="au-theme-btn" data-autheme="0">Rainbow</button>
           <button class="au-theme-btn" data-autheme="1">Fire</button>
@@ -2039,6 +2068,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
           <button class="au-theme-btn" data-autheme="4">Matrix</button>
           <button class="au-theme-btn active" data-autheme="5">Pastel</button>
           <button class="au-theme-btn" data-autheme="6">VU Meter</button>
+        </div>
         </div>
         <div class="ov-row-label">Bar Mode</div>
         <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px;">
@@ -2061,6 +2091,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
           <input type="range" class="au-sync-el" min="0" max="3000" step="25" value="150" style="flex:1;" aria-label="Speaker sync delay">
           <span class="slider-val au-sync-val-el" style="width:52px;">150ms</span>
         </div>
+        <label class="check-row" style="margin-top:4px;"><input type="checkbox" class="au-sync-auto-el"> Auto - measure the speaker's delay and keep the bars in step</label>
         <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
         <div class="slider-row">
           <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
@@ -2094,6 +2125,9 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div style="font-size:11px;color:#9ab;margin-bottom:4px;">Paired devices</div>
       <div class="bt-paired-status-el" style="font-size:11px;color:#9aa3b8;margin-bottom:4px;">Not checked yet</div>
       <div class="bt-paired-list-el" style="max-height:120px;overflow-y:auto;margin-bottom:10px;"></div>
+      <div class="ov-row-label" title="Long range sends less data, so the speaker drops out less at a distance (slightly lower sound quality)">Range</div>
+      <div class="tm-chips" id="bt-range" style="margin-bottom:4px;"><button type="button" data-range="normal" class="on">🎵 Normal - best sound</button><button type="button" data-range="long">📶 Long range - fewer dropouts</button></div>
+      <div class="ui-note" id="bt-range-note" style="margin:0 0 10px;"></div>
       <div style="display:flex;gap:6px;margin-bottom:6px;">
         <button class="bt-scan-btn-el" style="flex:1;padding:6px 10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Scan for Speakers</button>
         <button class="bt-refresh-btn-el" style="flex:0 0 auto;padding:6px 10px;background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.4);color:#ccc;border-radius:4px;cursor:pointer;font-size:11px;">↻</button>
@@ -2314,6 +2348,9 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
     <button id="setup-layout-btn" class="ui-btn-primary flat-only" style="margin:8px 0 0;width:100%;">▦ Edit panel layout (add / move / remove panels)</button>
     <button id="identify-panels-btn" title="Label every physical panel with its own identity (face/index + which HAT output and chain position it's wired to) - use this while wiring up multiple panels, in any shape, to see which physical board is which." style="width:100%;margin-top:6px;padding:8px;font-size:11px;letter-spacing:0.5px;background:rgba(80,120,255,0.08);border:1px solid rgba(80,120,255,0.25);color:#9ab;border-radius:6px;cursor:pointer;">🔢 Show panel numbers</button>
   </div>
+      <div class="ui-label-accent" style="margin-top:10px;">🎞 Transition between effects</div>
+      <div class="tm-chips" id="tr-style" style="flex-wrap:wrap;"><button type="button" data-tr="fade" class="on">Fade</button><button type="button" data-tr="slide">Slide</button><button type="button" data-tr="dissolve">Dissolve</button><button type="button" data-tr="wipe">Wipe</button><button type="button" data-tr="zoom">Zoom</button><button type="button" data-tr="none">None</button></div>
+      <div class="tm-chips" id="tr-secs" style="margin-top:6px;"><button type="button" data-secs="0.4" class="on">Quick</button><button type="button" data-secs="1">Medium</button><button type="button" data-secs="2">Slow</button></div>
       <div class="ui-label-accent" style="margin-top:10px;">✨ Next-gen look</div>
       <div class="cx-row"><span>Glow, richer colour and smoothing on every effect</span><button class="cx-switch" id="look-sw" aria-label="Next-gen look on/off"></button></div>
       <div class="slider-row"><span class="slider-label">Glow</span><input type="range" id="look-bloom" min="0" max="1" step="0.05" value="0.65"><span class="slider-val" id="look-bloom-val">65%</span></div>
@@ -2437,6 +2474,42 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 <!-- Timer editor (see public/app.js's "Timers" section). One sheet: pick a
      time, what happens, and which days; the summary line says when it runs
      next. -->
+<div id="draw-modal" class="tm-modal" hidden role="dialog" aria-modal="true" aria-labelledby="draw-title">
+  <div class="tm-sheet">
+    <div class="tm-top"><b id="draw-title">🎨 Draw on the display</b><button type="button" class="tm-x" id="draw-close" aria-label="Close">✕</button></div>
+    <canvas id="draw-canvas" width="64" height="64" style="display:block;width:100%;max-width:420px;margin:0 auto;image-rendering:pixelated;background:#000;border-radius:10px;touch-action:none;border:1px solid rgba(255,255,255,.15);"></canvas>
+    <div id="draw-colours" class="tm-chips" style="margin-top:10px;flex-wrap:wrap;"></div>
+    <div class="tm-chips" id="draw-sizes" style="margin-top:8px;">
+      <button type="button" data-size="1" class="on">• Fine</button><button type="button" data-size="2">● Medium</button><button type="button" data-size="4">⬤ Thick</button><button type="button" data-size="0">🧽 Eraser</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button type="button" id="draw-undo" class="ui-btn" style="flex:1;">↶ Undo</button>
+      <button type="button" id="draw-clear" class="ui-btn" style="flex:1;">🗑 Clear</button>
+      <button type="button" id="draw-save" class="ui-btn-primary" style="flex:1;">💾 Save</button>
+    </div>
+    <label class="check-row" style="margin-top:10px;"><input type="checkbox" id="draw-slideshow"> Slideshow of saved drawings when not drawing</label>
+    <div id="draw-gallery" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px;"></div>
+  </div>
+</div>
+<div id="note-modal" class="tm-modal" hidden role="dialog" aria-modal="true" aria-labelledby="note-title">
+  <div class="tm-sheet">
+    <div class="tm-top"><b id="note-title">💌 Send a message</b><button type="button" class="tm-x" id="note-close" aria-label="Close">✕</button></div>
+    <textarea id="note-text" rows="3" maxlength="120" placeholder="Dinner is ready!" style="width:100%;box-sizing:border-box;"></textarea>
+    <div class="ui-note" id="note-count" style="text-align:right;margin:2px 0 0;">0 / 120</div>
+    <div class="ov-row-label">Note colour</div>
+    <div class="tm-chips" id="note-colours">
+      <button type="button" data-c="#ffd23d" class="on">🟨 Yellow</button><button type="button" data-c="#ff7eb6">🩷 Pink</button><button type="button" data-c="#7ee0ff">🩵 Blue</button><button type="button" data-c="#8dff8a">🟩 Green</button>
+    </div>
+    <div class="ov-row-label">Show for</div>
+    <div class="tm-chips" id="note-secs">
+      <button type="button" data-s="30" class="on">30 s</button><button type="button" data-s="120">2 min</button><button type="button" data-s="600">10 min</button><button type="button" data-s="3600">1 hour</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button type="button" id="note-clear" class="ui-btn" style="flex:1;">Take it down</button>
+      <button type="button" id="note-send" class="ui-btn-primary" style="flex:2;">Send 💌</button>
+    </div>
+  </div>
+</div>
 <div id="alarm-modal" class="tm-modal" hidden role="dialog" aria-modal="true" aria-labelledby="tm-title">
   <div class="tm-sheet">
     <div class="tm-top"><b id="tm-title">New timer</b><button type="button" class="tm-x" id="tm-close" aria-label="Close">✕</button></div>

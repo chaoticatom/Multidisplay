@@ -1,35 +1,10 @@
-// Wires the (verbatim-copied) browser-app sidebar markup to pi-native's own
-// WS control protocol. This is NOT the original ui.js - that file assumes
-// an ESP32 streaming target and computes every effect in-browser, neither
-// of which applies here (the Pi computes effects itself and only streams
-// back small per-face preview frames). This script instead:
-//   - drives the small set of controls pi-native actually has a backend
-//     for (effect selection, cube-size/2D panel mode, master brightness/
-//     speed, the Pi-only Bluetooth pairing panel in the Setup section, and
-//     the Overlays panel - global compositing layers, see wireOverlaysPanel)
-//   - greys out everything else the markup contains but pi-native doesn't
-//     support yet (Custom Faces freehand drawing, ESP32 Firmware Update,
-//     Standalone Mode, Clear All) so the page still looks like the
-//     familiar app instead of silently doing nothing on click
-//   - wires the Timers section (#alarm-section / #alarm-modal) to the
-//     server's addAlarm/updateAlarm/deleteAlarm/setAlarmEnabled/
-//     dismissAlarm commands - see wireAlarmSection()/wireAlarmModal()
-//   - wires the Face Editor (#panel-editor-section) and the Custom Cube
-//     effect's own panel (#panel-custom_cube) to setFaceEffect/setFaceOpts/
-//     setFaceOverlays/saveCube/loadCube/deleteCube/clearFaces - see
-//     wirePanelEditor()/wireCustomCubeEffectPanel()
-//   - renders a live 3D preview on the #c canvas from the binary per-face
-//     frames the WS server already streams for this purpose
-// Shown in the sidebar footer (#app-version, markup already present but
-// never populated - unlike the browser original's version.js/inline
-// APP_VERSION script). Kept in sync with pi-native/package.json's
-// "version" field by hand (no bundler here to read it from JSON at build
-// time). pi-native has no equivalent of the original's cache-busting
-// per-file query-string scheme to force-update against (wsServer.js
-// already sends Cache-Control: no-store on everything - see that file's
-// module comment), so clicking it is just a plain hard reload rather than
-// the original's cache-clearing dance.
-const APP_VERSION = '0.6.267';
+// Wires the sidebar markup to pi-native's WS control protocol. The Pi computes
+// effects; this page sends commands, greys out controls with no backend, wires
+// the Timers, Face Editor, Overlays and Bluetooth panels, and renders a 3D
+// preview from the per-face frames the server streams.
+// APP_VERSION is shown in the footer and must match package.json; it is
+// bumped by `npm run release`. Clicking it does a plain hard reload.
+const APP_VERSION = '0.6.293';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -50,7 +25,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['countdown', 'ai_art', 'my_photos', 'message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube']);
+const WIRED_OPTION_PANELS = new Set(['countdown', 'ai_art', 'my_photos', 'message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube', 'radar', 'talking_face']);
 // Shared "Art" submenu prev/next/slideshow/letterbox/speed controls
 // (#art-slideshow-chk/#art-letterbox-chk/#art-speed/#art-prev-btn/
 // #art-next-btn) drive whichever of Unsplash/Art Gallery is the currently
@@ -104,7 +79,7 @@ function connect() {
   ws.binaryType = 'arraybuffer';
   ws.onmessage = (ev) => {
     lastMessageMs = Date.now();
-    if (typeof ev.data !== 'string') { handleFrame(ev.data); return; }
+    if (typeof ev.data !== 'string') { if (isAudioPacket(ev.data)) handleSyncAudio(ev.data); else handleFrame(ev.data); return; }
     // One malformed message must not take down the handler for the rest
     // of the session.
     let msg;
@@ -126,8 +101,8 @@ function connect() {
     // Anything clicked while disconnected is sent now, in order, rather
     // than silently lost (the btStatus drop described above was exactly
     // that failure).
-    const queued = pendingSends.splice(0);
-    for (const m of queued) sock.send(m);
+    wsReady = false; // flushed once the Pi lets us in - see flushPending()
+    if (syncAudio.on) { send({ cmd: 'audioSub', on: true }); syncAudio.next = 0; } // a new connection: ask for the audio again
     send({ cmd: 'btStatus' });
   };
   // onclose fires after onerror too - a single guarded scheduler means an
@@ -154,7 +129,7 @@ function scheduleReconnect() {
 // reconnect instead of sitting on a dead socket indefinitely.
 const STALE_MS = 10000;
 setInterval(() => {
-  if (window.MULTIDISPLAY_SIM || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (window.MULTIDISPLAY_SIM || !ws || ws.readyState !== WebSocket.OPEN || !wsReady) return; // nothing streams before the PIN
   if (document.visibilityState === 'visible' && Date.now() - lastMessageMs > STALE_MS) ws.close();
 }, 3000);
 document.addEventListener('visibilitychange', () => {
@@ -165,10 +140,18 @@ document.addEventListener('visibilitychange', () => {
 // reconnect - see ws.onopen.
 const pendingSends = [];
 const MAX_PENDING_SENDS = 50;
+// wsReady: the Pi has let this page in (sent its state, or accepted the
+// PIN). Until then commands wait in the queue - sent earlier, the Pi took
+// each as an un-PINned request and asked for the PIN again.
+let wsReady = false;
+function flushPending() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  for (const m of pendingSends.splice(0)) ws.send(m);
+}
 function send(obj) {
   if (window.MULTIDISPLAY_SIM) { window.__simLoopback.send(obj); return; }
   const data = JSON.stringify(obj);
-  if (ws && ws.readyState === WebSocket.OPEN) { ws.send(data); return; }
+  if (ws && ws.readyState === WebSocket.OPEN && wsReady) { ws.send(data); return; }
   if (pendingSends.length >= MAX_PENDING_SENDS) pendingSends.shift();
   pendingSends.push(data);
 }
@@ -181,19 +164,63 @@ function setConnStatus(status) {
   document.body.classList.toggle('offline', status !== 'connected' && status !== 'simulator');
   if (!el) return;
   el.dataset.status = status;
-  el.textContent = { connected: 'Connected', connecting: 'Connecting…', reconnecting: 'Reconnecting…', simulator: 'Simulator' }[status] || status;
+  el.textContent = status === 'reconnecting' ? offlineText() : { connected: 'Connected', connecting: 'Connecting…', simulator: 'Simulator' }[status] || status;
 }
+// While the Pi can't be reached: how long since we last heard from it.
+function offlineText() {
+  if (!lastMessageMs) return 'Reconnecting…';
+  const s = Math.round((Date.now() - lastMessageMs) / 1000);
+  const ago = s < 60 ? s + ' s' : s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h';
+  return 'Pi offline - last seen ' + ago + ' ago · retrying';
+}
+setInterval(() => {
+  const el = document.getElementById('conn-status');
+  if (el && el.dataset.status === 'reconnecting' && /^Pi offline|^Reconnecting/.test(el.textContent)) el.textContent = offlineText();
+}, 1000);
 
 let _lastStateJson = '';
 // Control PIN (see src/pinConfig.js). Remembered per browser; asked for
 // when the Pi says one is needed or the stored one is wrong.
 function storedPin() { try { return localStorage.getItem('controlPin') || ''; } catch (e) { return ''; } }
 function rememberPin(p) { try { if (p) localStorage.setItem('controlPin', p); else localStorage.removeItem('controlPin'); } catch (e) { /* storage unavailable */ } }
-function answerAuth(failed) {
-  let pin = failed ? '' : storedPin();
-  if (!pin) pin = window.prompt(failed ? 'Wrong PIN - enter the control PIN:' : 'This display is PIN-protected. Enter the control PIN:') || '';
-  rememberPin(pin);
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ cmd: 'auth', pin }));
+let authAsking = false;
+async function answerAuth(failed) {
+  if (authAsking) return; // one PIN box at a time
+  authAsking = true;
+  try {
+    let pin = failed ? '' : storedPin(), remember = true;
+    if (!pin) ({ pin, remember } = await pinPad(failed ? 'Wrong PIN - try again' : 'Enter the control PIN'));
+    rememberPin(remember ? pin : '');
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ cmd: 'auth', pin }));
+  } finally { authAsking = false; }
+}
+// The PIN keypad (it was the browser's plain prompt box). Resolves with
+// { pin, remember }. Digits by tap, or typed - a PIN may contain letters.
+function pinPad(title) {
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'tm-modal'; wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-modal', 'true');
+    wrap.innerHTML = '<div class="tm-sheet" style="max-width:340px;margin:auto;text-align:center">'
+      + '<div style="font-size:30px">🔒</div><b class="pp-title" style="display:block;margin:4px 0 12px"></b>'
+      + '<input class="pp-in" type="password" inputmode="numeric" autocomplete="current-password" aria-label="PIN" style="width:100%;box-sizing:border-box;text-align:center;font-size:26px;letter-spacing:8px;padding:10px;border-radius:14px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:inherit">'
+      + '<div class="pp-keys" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0"></div>'
+      + '<label class="check-row" style="justify-content:center"><input type="checkbox" class="pp-rem" checked> Remember on this device</label>'
+      + '<button type="button" class="ui-btn-primary pp-ok" style="width:100%;margin-top:10px">Unlock</button></div>';
+    wrap.querySelector('.pp-title').textContent = title;
+    const inp = wrap.querySelector('.pp-in'), keys = wrap.querySelector('.pp-keys');
+    for (const k of ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', '✓']) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = k;
+      b.style.cssText = 'font-size:22px;padding:14px 0;border-radius:16px';
+      b.setAttribute('aria-label', k === '⌫' ? 'Delete' : k === '✓' ? 'Unlock' : k);
+      b.addEventListener('click', () => { if (k === '⌫') inp.value = inp.value.slice(0, -1); else if (k === '✓') done(); else inp.value += k; inp.focus(); });
+      keys.append(b);
+    }
+    const done = () => { if (!inp.value) { inp.focus(); return; } wrap.remove(); resolve({ pin: inp.value, remember: wrap.querySelector('.pp-rem').checked }); };
+    wrap.querySelector('.pp-ok').addEventListener('click', done);
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(); });
+    document.body.append(wrap);
+    setTimeout(() => inp.focus(), 50);
+  });
 }
 
 function handleTextMessage(msg) {
@@ -201,7 +228,8 @@ function handleTextMessage(msg) {
   if (msg.cmd === 'systemNotice') { const el = document.getElementById('conn-status'); if (el) { el.dataset.status = 'reconnecting'; el.textContent = msg.text; } return; }
   if (msg.cmd === 'authRequired') { answerAuth(false); return; }
   if (msg.cmd === 'authFailed') { rememberPin(''); answerAuth(true); return; }
-  if (msg.cmd === 'authOk') return;
+  if (msg.cmd === 'clockPong') { syncClockPong(msg); return; }
+  if (msg.cmd === 'authOk') { wsReady = true; flushPending(); return; }
   if (msg.cmd === 'role') {
     document.body.classList.toggle('guest', msg.role === 'guest');
     // A device that already knows the PIN goes straight to full control.
@@ -216,6 +244,7 @@ function handleTextMessage(msg) {
     return;
   }
   if (msg.cmd === 'state' && ws && !ws._pvSent) { ws._pvSent = true; if (cxPreviewOff()) cxApplyPreviewOff(true); }
+  if (msg.cmd === 'state' && !wsReady) { wsReady = true; flushPending(); }
   if (msg.cmd === 'state') {
     // Every command triggers a state broadcast, and each one re-runs ~40
     // panel sync functions (several rebuild whole lists). An identical
@@ -229,6 +258,7 @@ function handleTextMessage(msg) {
     currentState = msg;
     cxOnState();
     syncUpdateStatus();
+    syncRecents();
     syncEffectButtons();
     syncPanelButtons();
     syncPinStatus();
@@ -262,6 +292,8 @@ function handleTextMessage(msg) {
     syncStrobePanel();
     syncBallsPanel();
     syncRadioPanel();
+    syncRadarPanel();
+    syncTalkingFacePanel();
     syncCelestialPanel();
     syncOverlaysPanel();
     syncPanelEditor();
@@ -281,7 +313,7 @@ function handleTextMessage(msg) {
     // canvas visibility, WebGL scene teardown, etc) below.
     if (!modeChanged) rebuildWallPreview();
     if (modeChanged) rebuildScene();
-  } else if (msg.cmd && msg.cmd.startsWith('bt') && msg.cmd.endsWith('Result')) {
+  } else if (msg.cmd && (msg.cmd.startsWith('bt') || msg.cmd === 'updateResult' || msg.cmd === 'drawListResult') && msg.cmd.endsWith('Result')) {
     handleBtResult(msg);
   }
 }
@@ -305,20 +337,10 @@ async function loadEffectNames() {
     const panel = document.getElementById('panel-' + key);
     if (Object.prototype.hasOwnProperty.call(effectNames, key)) {
       btn.addEventListener('click', () => {
-        // Switching away from Video Display to any other effect - a real
-        // report traced a persistent flicker between video content and
-        // whatever effect was just selected to this: nothing ever told
-        // the video source to actually stop. The tick loop only ever
-        // calls the CURRENTLY SELECTED effect's function (see app.js's
-        // module comment on the Pi), so once a different effect is
-        // selected, just clearing effectOptions.video.url wouldn't
-        // actually reach ffmpegSource.js's teardown (that only runs
-        // inside effectVideo() itself, which stops being called) - hence
-        // the dedicated stopVideoSource command for an immediate,
-        // selection-independent stop (see wsServer.js's module comment),
-        // on top of stopping any live browser camera/screen capture here
-        // and resetting the stored url so Video Display starts fresh
-        // rather than trying to resume the old source if reselected.
+        // Leaving Video Display: only the selected effect is ticked, so the
+        // video source would never tear itself down (causing flicker). Send
+        // stopVideoSource, stop any browser camera/screen capture, and reset the
+        // stored url so Video Display starts fresh if reselected.
         const wasRunning = currentState.effect === key && !currentState.blank;
         if (currentState.effect === 'video' && key !== 'video') {
           stopBrowserCapture();
@@ -423,6 +445,20 @@ function renderDiag(d) {
     ['Temperature', d.tempC == null ? 'n/a' : `${d.tempC.toFixed(1)} °C`, d.tempC > 75], ['Uptime', fmtUp(d.uptimeS)],
     ['Radio', d.radio], ['Radio output', d.radioPlayback],
   ];
+  // Health checks every 5 minutes (see src/health.js): a steady climb in
+  // app memory or child processes over the hours points at a leak.
+  if (d.net) {
+    rows.push(['Internet', d.net.online ? 'connected' : 'OFFLINE (' + d.net.failures + ' checks)', !d.net.online]);
+    rows.push(['Cloudflare tunnel', d.net.tunnel || '-', d.net.tunnel && !['active', 'activating', 'not installed', 'unknown'].includes(d.net.tunnel)]);
+    if (d.net.lastFix) rows.push(['Last network fix', d.net.lastFix]);
+  }
+  const hl = d.health || [];
+  if (hl.length) {
+    const last = hl[hl.length - 1], first = hl[0];
+    rows.push(['Pi free memory', `${last.freeMB} of ${last.totalMB} MB`, last.freeMB < last.totalMB * 0.1]);
+    rows.push(['Child processes', last.children == null ? 'n/a' : String(last.children), last.children > 25]);
+    rows.push(['Memory trend', `${first.rssMB} → ${last.rssMB} MB since ${first.t}`, last.rssMB > first.rssMB * 1.5 && last.rssMB - first.rssMB > 50]);
+  }
   tb.replaceChildren(...rows.map(([k, v, warn]) => {
     const tr = document.createElement('tr');
     const a = document.createElement('td'); a.textContent = k;
@@ -564,6 +600,54 @@ function wireTabs() {
   let tab = 'play';
   try { tab = localStorage.getItem('tab') || 'play'; } catch (e) { /* storage unavailable */ }
   setTab(tab);
+}
+// Recent effects as one-tap chips on the Play tab: recorded from the Pi's own
+// state, so a pick from a tile, a scene, a timer or the playlist all count.
+let recentShown = null;
+function syncRecents() {
+  const fx = currentState.effect; if (!fx || !effectNames[fx]) return;
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem('recentFx') || '[]'); } catch (e) { /* storage unavailable */ }
+  if (list[0] !== fx) { list = [fx, ...list.filter((k) => k !== fx)].slice(0, 7); try { localStorage.setItem('recentFx', JSON.stringify(list)); } catch (e) { /* storage unavailable */ } }
+  const key = list.join(',');
+  if (key === recentShown) return;
+  recentShown = key;
+  const row = document.getElementById('recent-row'); if (!row) return;
+  const others = list.slice(1).filter((k) => effectNames[k]);
+  row.hidden = !others.length;
+  row.replaceChildren(...others.map((k) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = '↺ ' + effectNames[k]; b.title = 'Show ' + effectNames[k] + ' again'; b.addEventListener('click', () => send({ cmd: 'setEffect', effect: k })); return b; }));
+}
+
+// Buttons that show only an emoji get a name for screen readers and
+// long-press hints, from their title (or a nearby label) if they lack one.
+function labelIconButtons(root = document) {
+  root.querySelectorAll('button:not([aria-label])').forEach((b) => {
+    const text = (b.textContent || '').trim();
+    if (/[A-Za-z0-9]/.test(text)) return;
+    const name = b.title || b.dataset.label || '';
+    if (name) b.setAttribute('aria-label', name);
+  });
+}
+new MutationObserver((muts) => { for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) labelIconButtons(n.tagName === 'BUTTON' ? n.parentNode || n : n); }).observe(document.documentElement, { childList: true, subtree: true });
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => labelIconButtons()); else labelIconButtons();
+
+// Setup search: hides the Setup sections that don't mention the words typed
+// and opens the ones that do.
+function wireSetupSearch() {
+  const inp = document.getElementById('setup-search-in'); if (!inp) return;
+  const run = () => {
+    const words = inp.value.toLowerCase().split(/\s+/).filter(Boolean);
+    let shown = 0;
+    document.querySelectorAll('#sidebar-scroll > .sidebar-section[data-tab="setup"]').forEach((sec) => {
+      const hit = !words.length || words.every((w) => sec.textContent.toLowerCase().includes(w));
+      sec.classList.toggle('search-miss', !hit);
+      if (hit) shown++;
+      if (hit && words.length) sec.classList.remove('collapsed');
+    });
+    let none = document.getElementById('setup-search-none');
+    if (!shown) { if (!none) { none = document.createElement('div'); none.id = 'setup-search-none'; inp.parentElement.append(none); } none.textContent = 'No setting matches "' + inp.value + '"'; } else if (none) none.remove();
+  };
+  inp.addEventListener('input', run);
 }
 function setTab(tab) {
   tab = OLD_TABS[tab] || tab;
@@ -871,21 +955,12 @@ function syncLightspeedPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Weather's option panel (panel-weather) - city search box + live status/
-// temp/description readouts, backed by core.effectOptions.weather.city and
-// the effectStatus.weather snapshot effects/weather.js's getStatus()
-// exposes (see wsServer.js's _stateMsg()/app.js's per-tick poll).
+// Weather's option panel (panel-weather): city search plus live status
+// readouts from effectStatus.weather.
 // ---------------------------------------------------------------------
-// City autocomplete-as-you-type - ported from the browser original's
-// wxUpdateCityDropdown() (effects-livedata.js). Queries Open-Meteo's free
-// geocoding API directly from the browser (debounced 250ms, matching the
-// original) and lets you pick an exact match instead of typing a bare
-// name and hoping the server's own geocode (fetch.js's fetchWeather(),
-// which re-geocodes by name server-side with count=1) picks the right
-// one - e.g. "Paris" alone is ambiguous (France vs Texas), the dropdown
-// shows country/region to disambiguate. Picking an entry sends the
-// disambiguated "City, Country" string immediately (same as pressing GO),
-// rather than just filling the input and waiting for a separate submit.
+// City autocomplete: queries Open-Meteo geocoding from the browser (250 ms
+// debounce) and shows country/region so ambiguous names can be picked
+// exactly. Picking an entry sends "City, Country" immediately, like GO.
 let _wxCityTimer = null;
 function wireWeatherCityDropdown(cityInput, dropdown) {
   if (!cityInput || !dropdown) return;
@@ -950,21 +1025,10 @@ function syncWeatherPanel() {
   const tempEl = panel.querySelector('#wx-temp-line');
   const descEl = panel.querySelector('#wx-desc-line');
   const sunEl = panel.querySelector('#wx-sun-line');
-  // Reflects the server's actual current city (persisted across a restart
-  // via weatherConfig.js - see effects/weather.js's DEFAULT_CITY fallback)
-  // into the input box, so a freshly-loaded/reconnected page shows what's
-  // really selected instead of a stale/placeholder value - guarded against
-  // clobbering while the user is actively typing/picking from the
-  // dropdown, same pattern every other synced input in this file uses. A
-  // real report: the display showed "London" (weather.js's DEFAULT_CITY
-  // fallback, used whenever effectOptions.weather.city is still '' -
-  // nothing picked yet) while the sidebar showed a hardcoded HTML
-  // value="Milton Keynes" that never got corrected, since optCity was
-  // falsy and this never ran. status.city is the server's OWN resolved
-  // name for whatever it's actually displaying (falls back to the same
-  // DEFAULT_CITY), so use that once effectOptions.weather.city is empty -
-  // it's always in sync with what's on the panel, unlike a second
-  // hardcoded default living in this file.
+  // Show the server's current city in the input, unless the user is typing.
+  // When effectOptions.weather.city is empty, use status.city (the server's
+  // resolved name, including its DEFAULT_CITY fallback), so the box always
+  // matches what the panels show.
   const cityInput = panel.querySelector('#wx-city');
   const optCity = currentState.effectOptions?.weather?.city || status?.city;
   if (cityInput && document.activeElement !== cityInput && optCity && cityInput.value !== optCity) {
@@ -1221,22 +1285,12 @@ function syncCoinflipPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Fireworks' option panel (panel-fireworks) - Mode buttons (random/sync/
-// mic, backed by core.effectOptions.fireworks.mode - see fireworks.js's
-// module comment for what each mode actually does, including the mic-mode
-// fallback), "Show text on cube" checkbox + text input, backed by
-// core.effectOptions.fireworks.textOn/text. The text input is committed on
-// 'change' (blur/Enter) rather than every keystroke's 'input' event - same
-// "don't spam a WS message per keystroke" reasoning as cam.js's URL field -
-// since scrolling-text rebuilds are more expensive than a simple option
-// swap and there's no live preview benefit to rebuilding mid-keystroke here.
+// Fireworks' option panel (panel-fireworks): Mode buttons and the "Show
+// text on cube" checkbox + text, committed on 'change' rather than every
+// keystroke to avoid a WS message per key.
 // ---------------------------------------------------------------------
-// ---------------------------------------------------------------------
-// Strobe Flash's option panel (panel-strobe) - Pattern buttons (data-strobe,
-// backed by core.effectOptions.strobe.pattern), Speed slider
-// (core.effectOptions.strobe.speed), and Colour buttons (data-scol, backed
-// by core.effectOptions.strobe.color) - see strobe.js's module comment for
-// why this always reads straight from effectOptions (no Panel Editor here).
+// Strobe Flash's option panel (panel-strobe): Pattern, Speed and Colour,
+// read straight from core.effectOptions.strobe.
 // ---------------------------------------------------------------------
 function wireStrobePanel() {
   const panel = document.getElementById('panel-strobe');
@@ -1307,20 +1361,104 @@ function syncBallsPanel() {
   if (count && document.activeElement !== count) { count.value = opts.count ?? 8; if (countVal) countVal.textContent = count.value; }
 }
 
+
+// Weather Radar's option panel (panel-radar): zoom, and a status line.
+function wireRadarPanel() {
+  document.querySelectorAll('.radar-zoom-btn').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.radar-zoom-btn').forEach((x) => x.classList.toggle('active', x === b));
+    setEffectOption('radar', 'zoom', Number(b.dataset.radarzoom));
+  }));
+}
+function syncRadarPanel() {
+  const z = Number(currentState.effectOptions?.radar?.zoom) || 7;
+  document.querySelectorAll('.radar-zoom-btn').forEach((x) => x.classList.toggle('active', Number(x.dataset.radarzoom) === z));
+  const s = currentState.effectStatus?.radar, el = document.getElementById('radar-status');
+  if (el) el.textContent = !s ? '' : s.error ? '⚠ ' + s.error : s.frames ? '✓ ' + (s.place || '') + ' - ' + s.frames + ' frames, updated ' + new Date(s.updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Loading…';
+}
+
+// Talking Face's option panel (panel-talking_face): talk to it, voice, how
+// chatty, looks, and the conversation so far (see src/faceTalk.js).
+function wireTalkingFacePanel() {
+  const text = document.getElementById('tf-text'); if (!text) return;
+  // Phones only let a page speak after a tap: an empty line spoken now
+  // unlocks the replies that come later.
+  const unlock = () => { try { if (window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) { /* no speech here */ } };
+  const go = (cmd) => { const t = text.value.trim(); if (!t) { text.focus(); return; } unlock(); send({ cmd, text: t }); text.value = ''; };
+  document.getElementById('tf-say').addEventListener('click', () => go('faceSay'));
+  document.getElementById('tf-chat').addEventListener('click', () => go('faceChat'));
+  document.getElementById('tf-topic').addEventListener('click', () => { unlock(); send({ cmd: 'faceTopic' }); });
+  text.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go('faceChat'); } });
+  const chips = (cls, key, attr, num) => document.querySelectorAll(cls).forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll(cls).forEach((x) => x.classList.toggle('active', x === b));
+    setEffectOption('talking_face', key, num ? Number(b.dataset[attr]) : b.dataset[attr]);
+  }));
+  chips('.tf-voice-btn', 'voice', 'voice'); chips('.tf-chatty-btn', 'chatty', 'chatty', true);
+  for (const k of ['skin', 'hair', 'eyes']) document.getElementById('tf-' + k).addEventListener('change', (e) => setEffectOption('talking_face', k, e.target.value));
+  // A woman's face starts with long blonde hair (hair can still be changed).
+  document.getElementById('tf-style').addEventListener('change', (e) => {
+    setEffectOption('talking_face', 'style', e.target.value);
+    setEffectOption('talking_face', 'hair', e.target.value === 'woman' ? 'blonde' : 'brown');
+  });
+}
+// The most natural English voice this device has: online/neural ones first
+// (Microsoft "Natural", Google, Apple enhanced), British first, and female
+// for the woman's face / male for the man's where the name says so.
+const TF_FEMALE = /female|woman|sonia|libby|maisie|hazel|kate|serena|samantha|karen|moira|tessa|zira|aria|jenny|emma|amy|olivia|fiona|victoria|susan/i;
+const TF_MALE = /\bmale|ryan|thomas|daniel|arthur|george|oliver|guy|david|mark|james|alex|fred|rishi|aaron/i;
+function tfBestVoice(female) {
+  const voices = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+  let best = null, bestScore = -1;
+  for (const v of voices) {
+    if (!/^en/i.test(v.lang)) continue;
+    let sc = 0;
+    if (/natural|neural|online/i.test(v.name)) sc += 6;
+    if (/google/i.test(v.name)) sc += 4;
+    if (/premium|enhanced|siri/i.test(v.name)) sc += 4;
+    if (/en-GB/i.test(v.lang)) sc += 2;
+    if (female ? TF_FEMALE.test(v.name) && !/\bmale/i.test(v.name.replace(/female/ig, '')) : TF_MALE.test(v.name) && !/female/i.test(v.name)) sc += 3;
+    if (sc > bestScore) { best = v; bestScore = sc; }
+  }
+  return best;
+}
+// The phone's own voice for each new line (when voice is phone or both).
+let tfSpokenId = null;
+function syncTalkingFacePanel() {
+  const o = currentState.effectOptions?.talking_face || {}, ft = currentState.faceTalk;
+  document.querySelectorAll('.tf-voice-btn').forEach((x) => x.classList.toggle('active', x.dataset.voice === (o.voice || 'phone')));
+  document.querySelectorAll('.tf-chatty-btn').forEach((x) => x.classList.toggle('active', Number(x.dataset.chatty) === (o.chatty ?? 45)));
+  for (const k of ['style', 'skin', 'hair', 'eyes']) { const el = document.getElementById('tf-' + k); if (el && document.activeElement !== el && o[k]) el.value = o[k]; }
+  const hairSel = document.getElementById('tf-hair'); if (hairSel && !o.hair && document.activeElement !== hairSel) hairSel.value = o.style === 'woman' ? 'blonde' : 'brown';
+  const note = document.getElementById('tf-voice-note'); if (note && ft && ft.voiceStatus) note.textContent = '⚠ ' + ft.voiceStatus;
+  const log = document.getElementById('tf-log');
+  if (log && ft) {
+    const key = JSON.stringify(ft.log) + ft.thinking;
+    if (log.dataset.key !== key) {
+      log.dataset.key = key;
+      log.replaceChildren(...(ft.log || []).map((m) => { const d = document.createElement('div'); d.textContent = (m.who === 'you' ? '🧑 ' : '🙂 ') + m.text; d.style.opacity = m.who === 'you' ? '0.75' : '1'; return d; }));
+      if (ft.thinking) { const d = document.createElement('div'); d.textContent = '🙂 …'; log.append(d); }
+      log.scrollTop = log.scrollHeight;
+    }
+  }
+  const say = ft && ft.say, v = o.voice || 'phone';
+  if (say && say.id !== tfSpokenId) {
+    const first = tfSpokenId === null; tfSpokenId = say.id;
+    // Not for a line that was already being said when the page opened.
+    if (!first && (v === 'phone' || v === 'both') && currentState.effect === 'talking_face' && document.visibilityState === 'visible' && window.speechSynthesis) {
+      try {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(say.text);
+        u.voice = tfBestVoice(o.style === 'woman');
+        u.rate = 1.0;
+        setTimeout(() => speechSynthesis.speak(u), Math.max(0, say.at - Date.now()));
+      } catch (e) { /* no speech on this device */ }
+    }
+  }
+}
 // ---------------------------------------------------------------------
-// Overlays panel (data-section="overlays") - global compositing layers
-// (stars/snow/fire/lightning/...), NOT a selectable effect, backed by
-// src/effects/overlays.js + wsServer.js's setOverlay/setOverlayOption/
-// setOverlayGlobalBright commands (see that file's module comment for the
-// wire protocol). Unlike every other panel here, the 13 ported overlays
-// share a uniform markup convention (.ov-chk[data-ov] toggle, .ov-sl
-// [data-ov][data-prop] param sliders, .ov-col[data-ov][data-val] colour
-// swatch buttons) - so this wires all of them generically in one loop
-// instead of 13 near-identical hand-written blocks. Radio/Spectrum use the
-// same .ov-chk markup but have no backend (see greyOutUnsupported) and are
-// left alone here - sending setOverlay for a key wsServer.js doesn't
-// recognise is just silently dropped, but they're disabled anyway so their
-// checkboxes can't be clicked in the first place.
+// Overlays panel - global compositing layers (not an effect), backed by
+// src/effects/overlays.js and the setOverlay* commands. All overlays share one
+// markup convention (.ov-chk / .ov-sl / .ov-col with data-ov), so they are wired
+// generically in one loop. Radio/Spectrum have no backend and stay disabled.
 function wireOverlaysPanel() {
   document.querySelectorAll('.ov-chk[data-ov]').forEach((chk) => {
     const key = chk.dataset.ov;
@@ -1345,20 +1483,10 @@ function wireOverlaysPanel() {
   });
   const gb = document.getElementById('ov-global-bright');
   if (gb) {
-    // Every drag tick sends setOverlayGlobalBright, which the server
-    // echoes straight back as a "state" broadcast to every connected
-    // client - including this one, mid-drag. syncOverlaysPanel() used to
-    // guard against that echo clobbering the slider with
-    // `document.activeElement !== gb`, but that's unreliable on touch:
-    // some mobile browsers don't actually focus a range input on a touch-
-    // drag the way a mouse-drag focuses it, so the guard silently failed
-    // and every echo snapped the thumb back to the server's (slightly
-    // stale, since network round-trip has real latency) value while the
-    // finger kept moving - a real report ("keeps moving to 100%, hard to
-    // move it"). _gbEditingUntil is a time-based guard instead, set well
-    // past "now" on every input tick regardless of focus state, so
-    // syncOverlaysPanel() ignores echoes for a bit after the last local
-    // edit no matter how touch/focus behaves on a given device.
+    // Each drag tick's send is echoed back as a "state" broadcast mid-drag. A focus-based
+    // guard is unreliable on touch (some mobile browsers don't focus a range input), so
+    // _gbEditingUntil is a time-based guard: syncOverlaysPanel() ignores echoes for a
+    // short while after the last local edit, so the thumb doesn't snap back.
     let gbSendQueued = false;
     gb.addEventListener('input', () => {
       _gbEditingUntil = Date.now() + 1200;
@@ -1411,20 +1539,10 @@ function syncOverlaysPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Custom Cube - Face Editor (#panel-editor-section, pe-* ids) assigns an
-// effect + sub-options + a per-face overlay subset to each of the 6 cube
-// faces, and the Custom Cube effect's own panel (#panel-custom_cube,
-// cc-select/cc-load-btn) activates a saved configuration from the library.
-// Ported from ui.js's buildPanelEditor()/buildSubOptions() (lines 7-270)
-// and effects-scenes.js's ccRefreshSelect() - see customCubeConfig.js's
-// module comment for how pi-native unifies the browser's separate
-// perFaceEffect(draft)/_customCubeData(active) state into one live `faces`
-// array server-side (currentState.customCube.faces), which is why there's
-// no "— Use global effect —" option here (that indirection existed only to
-// let the draft diverge from what was actually running - not a concept
-// this design needs) and no local pe-* draft state at all: every control
-// below sends straight to the server and re-renders from the next "state"
-// broadcast, same as every other panel in this file.
+// Custom Cube - the Face Editor (pe-*) assigns an effect, sub-options and an overlay
+// subset to each of the 6 faces; the Custom Cube panel (cc-*) loads a saved
+// configuration. There is one live `faces` array server-side (customCubeConfig.js) and
+// no local draft: every control sends straight to the server and re-renders from state.
 // ---------------------------------------------------------------------
 const CC_FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const CC_FACE_OVERLAY_KEYS = ['stars', 'fire', 'sparkle', 'glitch', 'mist', 'snow'];
@@ -1770,18 +1888,9 @@ function wireCamPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Astronomy Pic of the Day's option panel (panel-apod) - a status readout
-// plus a manual "Refresh" button, backed by src/effects/apod.js's daily
-// auto-fetch + getStatus(). The browser's history-browsing Prev/Next and
-// the shared .art-shared-panel Slideshow/Letterbox controls are not wired
-// here - they belong to Unsplash/Art Gallery too, neither of which is
-// ported to pi-native yet (see apod.js's module comment). The NASA API
-// key input is also left unwired: this port reads NASA_API_KEY from the
-// server's environment rather than per-browser localStorage, so there's
-// no setEffectOption equivalent for it - grey just that sub-block.
-// There's no dedicated one-shot "refresh now" command, so this reuses the
-// same monotonically-increasing-token trick as maze.js's "NEW MAZE"/
-// dice.js's "roll" buttons.
+// APOD option panel - status readout plus a "Refresh" button (an increasing token,
+// since there's no one-shot refresh command). The NASA key input is greyed out:
+// the server reads NASA_API_KEY from its environment.
 // ---------------------------------------------------------------------
 let _apodRefreshToken = 0;
 // NASA API key input - backed by the dedicated setNasaConfig command
@@ -2057,21 +2166,10 @@ function syncCamPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Video Display's option panel (panel-video) - a URL (decoded via ffmpeg
-// on the Pi, see src/effects/video.js) instead of the browser's file/
-// webcam/screen-capture pickers, which have no server-side equivalent -
-// those 4 buttons + the Stop button are disabled here rather than wired,
-// same "grey what has no backend" treatment as everywhere else, just done
-// per-control instead of markUnsupported()'s whole-panel sweep since this
-// panel mixes wired and unwired controls.
+// Video Display's option panel (panel-video): URL, file upload and browser capture.
 // ---------------------------------------------------------------------
-// Uploads a File chosen via the browser's native file picker (works from a
-// phone too - <input type=file accept="video/*"> opens the camera roll/
-// Files app there) to the server's /api/uploadVideo endpoint as the raw
-// POST body, then points the video effect at whatever local path the
-// server saved it to - see wsServer.js's _handleUpload()/UPLOAD_DIR
-// comments for why this is a raw-body upload rather than multipart, and
-// for why only one upload is ever kept on disk.
+// Uploads a chosen File to /api/uploadVideo as the raw POST body (not multipart, see
+// wsServer.js), then points the video effect at the path the server saved it to.
 function uploadVideoFile(file, statusEl) {
   if (!file) return;
   stopBrowserCapture(); // an upload supersedes any live camera/screen capture in progress
@@ -2098,17 +2196,9 @@ function uploadVideoFile(file, statusEl) {
 }
 
 // ---------------------------------------------------------------------
-// Live webcam / screen-share capture for Video Display - a headless Pi
-// has no camera/display of its own, but THIS browser tab does
-// (getUserMedia/getDisplayMedia are browser APIs, independent of what's
-// actually driving the LED panels), so frames are captured+downsampled
-// right here and streamed to the Pi over the existing WS connection as
-// binary messages (see wsServer.js's module comment for the wire format
-// and effects/video/browserFrameSource.js for how the server consumes
-// them). Only runs while this tab stays open/connected and the capture
-// hasn't been stopped - unlike a typed URL or an uploaded file (which
-// play back entirely server-side via ffmpeg and keep going with no
-// browser needed), this is fundamentally tab-dependent.
+// Live webcam / screen-share capture: the Pi has no camera, but this tab does, so
+// frames are captured, downsampled and streamed to the Pi as binary WS messages (see
+// wsServer.js for the format). Unlike URL/file playback this stops when the tab closes.
 let browserCaptureState = null; // {stream, video, canvas, ctx, interval, kind} | null
 
 function stopBrowserCapture() {
@@ -2337,24 +2427,11 @@ function syncVideoPanel() {
 }
 
 // ---------------------------------------------------------------------
-// Internet Radio's option panel (panel-radio) - the real new backend this
-// port added: Stop/volume (dedicated radioStop/setEffectOption('radio',
-// 'volume',...) commands), the directory search box (radioSearch command,
-// results rendered from currentState.effectStatus.radio.search - see
-// wsServer.js's module comment for why search results are broadcast state
-// rather than a per-request reply, unlike Bluetooth's btScan), the
-// featured RADIO_STATIONS list (station selection -> radioPlay command),
-// and the Spectrum Analyser style/band-count/colour-theme/bar-mode/gain/
-// scroll-speed/fit-to-screen/auto-gain controls, all via
-// core.effectOptions.radio.{spectrumOn,bands,style,theme,barMode,gain,
-// scrollSpeed,fitToScreen,autoGain} through the generic setEffectOption
-// path - see radio.js's module comment for why this is a LOCAL per-effect
-// toggle here rather than the browser's global OV.spectrum overlay, and
-// for where gain/auto-gain/fit-to-screen amplitude shaping is applied.
-// RADIO_STATIONS is duplicated here (not fetched from the
-// server) - same "small static list, client already has it" precedent as
-// the browser original itself hard-coding it, and pi-native's Retro/Tron
-// panels hard-coding their own per-game/option button markup.
+// Internet Radio's option panel (panel-radio): stop/volume, directory search
+// (results arrive as broadcast state in effectStatus.radio.search), the
+// featured RADIO_STATIONS list, and the Spectrum Analyser controls, all sent
+// through setEffectOption('radio', ...). RADIO_STATIONS is a small static list
+// duplicated here rather than fetched from the server.
 // ---------------------------------------------------------------------
 const RADIO_STATIONS = [
   { name: 'SomaFM Groove Salad', genre: 'Ambient/Downtempo', url: 'https://ice1.somafm.com/groovesalad-128-mp3' },
@@ -2399,21 +2476,83 @@ function radioStationRow(station, current) {
 }
 
 // ---------------------------------------------------------------------
-// Browser-side Internet Radio playback (#radio-browser-audio, toggled by
-// #panel-radio's .radio-browser-play-el checkbox) - a real report:
-// "internet radio does not play on phone speaker." radioPlay always plays
-// server-side via paplay, routed to whatever PulseAudio sink is currently
-// default on the PI (a paired Bluetooth speaker, or the Pi's own local
-// output) - never to the connecting browser/phone at all, which is
-// surprising if you're used to "press play, hear it on the device you're
-// holding". This plays the SAME station URL directly in this browser tab
-// via a plain <audio> element, entirely independent of whatever the Pi
-// itself is doing - most radio-browser.info/SomaFM-style stream URLs are
-// plain HTTP(S) audio streams a <audio src> can play cross-origin without
-// needing CORS headers (unlike fetch()/Web Audio API, which do) since
-// that's just "the browser renders it", the same way an <img src> from
-// another domain works with no CORS setup on that domain's part.
+// Playback on this phone/browser. The Pi's radio plays only on the Pi's own
+// sink, so this plays it here too. Synced mode: the Pi sends the PCM it gives
+// its speaker, each piece stamped with the Pi time the speaker plays it (see
+// src/wsServer.js sendAudio). We estimate the Pi's clock and schedule each
+// piece for that moment, less this device's own output delay.
 // ---------------------------------------------------------------------
+const syncAudio = { on: false, ctx: null, gain: null, next: 0, offset: 0, samples: [], timer: null, late: 0, extra: 0 };
+function isAudioPacket(buf) {
+  if (!(buf instanceof ArrayBuffer) || buf.byteLength < 20) return false;
+  const b = new Uint8Array(buf, 0, 8);
+  return b[0] === 77 && b[1] === 68 && b[2] === 65 && b[3] === 85 && b[4] === 68 && b[5] === 73 && b[6] === 79 && b[7] === 49; // 'MDAUDIO1'
+}
+function syncAudioStart() {
+  try {
+    syncAudio.ctx = syncAudio.ctx || new (window.AudioContext || window.webkitAudioContext)();
+    if (syncAudio.ctx.state === 'suspended') syncAudio.ctx.resume();
+    if (!syncAudio.gain) { syncAudio.gain = syncAudio.ctx.createGain(); syncAudio.gain.connect(syncAudio.ctx.destination); }
+  } catch (e) { return; }
+  syncAudio.on = true; syncAudio.next = 0; syncAudio.samples = []; syncAudio.extra = 0; syncAudio.late = 0;
+  send({ cmd: 'audioSub', on: true });
+  // Clock pings: quickly at first, then every few seconds.
+  let n = 0;
+  clearInterval(syncAudio.timer);
+  syncAudio.timer = setInterval(() => { if (++n > 6 && n % 6) return; send({ cmd: 'clockPing', c: Date.now() }); }, 500);
+}
+// Phones pause web audio when the screen locks or the app is in the
+// background; pick it up again on return and re-lock to the Pi's timing.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !syncAudio.on || !syncAudio.ctx) return;
+  if (syncAudio.ctx.state !== 'running') syncAudio.ctx.resume().catch(() => {});
+  syncAudio.next = 0; syncAudio.extra = 0;
+  send({ cmd: 'clockPing', c: Date.now() });
+});
+function syncAudioStop() {
+  if (!syncAudio.on) return;
+  syncAudio.on = false;
+  clearInterval(syncAudio.timer);
+  send({ cmd: 'audioSub', on: false });
+}
+// The Pi's clock: from the replies with the shortest round trip (the most
+// accurate), over the last dozen.
+function syncClockPong(msg) {
+  const now = Date.now(), rtt = now - msg.c;
+  if (!(rtt >= 0 && rtt < 5000)) return;
+  syncAudio.samples.push({ rtt, offset: msg.s - (msg.c + rtt / 2) });
+  if (syncAudio.samples.length > 12) syncAudio.samples.shift();
+  syncAudio.offset = syncAudio.samples.reduce((a, b) => (b.rtt < a.rtt ? b : a)).offset;
+}
+function handleSyncAudio(buf) {
+  const a = syncAudio;
+  if (!a.on || !a.ctx || !a.samples.length) return;
+  const dv = new DataView(buf), playAt = dv.getFloat64(8, true), frames = (buf.byteLength - 16) >> 2;
+  if (frames < 1) return;
+  const ab = a.ctx.createBuffer(2, frames, 22050), L = ab.getChannelData(0), R = ab.getChannelData(1);
+  for (let i = 0, o = 16; i < frames; i++, o += 4) { L[i] = dv.getInt16(o, true) / 32768; R[i] = dv.getInt16(o + 2, true) / 32768; }
+  // Volume follows the radio's volume (0.8 = full, as on the Pi) and the mute button.
+  const vol = Number(currentState.effectOptions?.radio?.volume ?? 0.8);
+  a.gain.gain.value = Math.max(0, Math.min(1.25, vol / 0.8));
+  const outDelay = (a.ctx.outputLatency || 0) + (a.ctx.baseLatency || 0);
+  const when = a.ctx.currentTime + (playAt - a.offset - Date.now()) / 1000 - outDelay + a.extra;
+  if (when < a.ctx.currentTime + 0.01) {
+    // Arrived too late: skip it and re-lock on the next. If that keeps
+    // happening (a slow connection), add a little delay rather than go silent.
+    a.next = 0;
+    if (++a.late > 4) { a.late = 0; a.extra = Math.min(1, a.extra + 0.05); }
+    return;
+  }
+  a.late = 0;
+  // Back to back with the previous piece when it's close, so there are no clicks.
+  // Pieces arrive stamped back to back; small timing jitter (network, clock
+  // estimate) is ignored so playback stays seamless, and only a real jump re-times it.
+  const start = a.next && Math.abs(when - a.next) < 0.15 && a.next > a.ctx.currentTime + 0.005 ? a.next : when;
+  const src = a.ctx.createBufferSource();
+  src.buffer = ab; src.connect(a.gain); src.start(start);
+  a.next = start + ab.duration;
+}
+
 const RADIO_BROWSER_PLAY_KEY = 'multidisplay-radio-browser-play';
 function radioBrowserPlaybackWanted() {
   try { return localStorage.getItem(RADIO_BROWSER_PLAY_KEY) !== '0'; } catch (err) { return true; } // default ON
@@ -2421,19 +2560,10 @@ function radioBrowserPlaybackWanted() {
 function setRadioBrowserPlaybackWanted(on) {
   try { localStorage.setItem(RADIO_BROWSER_PLAY_KEY, on ? '1' : '0'); } catch (err) { /* ignore */ }
 }
-// Web Audio graph for #radio-browser-audio - ported to match the ORIGINAL
-// retired browser app's radioEnsureGraph()/radioPlay() EXACTLY (see git
-// history's effects-core.js), after an earlier attempt here got the
-// underlying Web Audio behavior wrong: MediaElementAudioSourceNode does
-// NOT silence audible OUTPUT for a cross-origin/non-CORS source - it only
-// blocks READING the node's data (getByteFrequencyData() etc returns
-// zeros). Audio keeps playing fine either way; only the visualizer needs a
-// fallback for stations that don't support analysis. Always created (not
-// gated behind the Spectrum Analyser checkbox) and BEFORE play(), inside
-// the same synchronous click handler, matching the original exactly - a
-// real report ("radio sounds works until I click the spectrum analyser")
-// was this file's own bug (missing crossOrigin='anonymous', graph created
-// too late/async), not a platform limitation as first assumed.
+// Web Audio graph for #radio-browser-audio. A MediaElementAudioSourceNode on a
+// non-CORS source still plays audibly; only analysis reads zeros. The graph is
+// always created, with crossOrigin='anonymous', BEFORE play() inside the same
+// synchronous click handler; creating it later or async broke playback.
 let _raCtx = null, _raAnalyser = null, _raSource = null, _raBuf = null, _raRunning = false;
 let _raSilent = false, _raSilentTimer = 0, _raLastLevel = 0;
 function radioEnsureGraph() {
@@ -2459,23 +2589,14 @@ function radioEnsureGraph() {
 }
 function radioBrowserPlay(station) {
   if (!radioBrowserPlaybackWanted() || !station || !station.url) return;
+  if (!window.MULTIDISPLAY_SIM) { syncAudioStart(); return; } // on the Pi: play the Pi's own audio, in step with the speaker
   const el = document.getElementById('radio-browser-audio');
   if (!el) return;
   radioEnsureGraph();
   _raSilent = false; _raSilentTimer = 0; _raLastLevel = 0;
-  // A real report: "the sweep gets to 10khz then starts again at 40hz,
-  // however the sound does not restart" - confirmed as a browser-only
-  // issue (BT untested, ps confirmed the Pi-side ffmpeg/paplay pipeline
-  // genuinely does relaunch each loop). Root cause: /api/debugTone
-  // renders and streams ONE finite WAV clip - the Pi-side pipeline loops
-  // by relaunching a whole new ffmpeg process each time (see
-  // ffmpegAudio.js's `debugloop:` handling), but this <audio> element had
-  // no equivalent - it just played the one clip and stopped, while the
-  // bars kept going since those are driven by the (correctly looping)
-  // Pi-side pipeline instead. The native `loop` property replays the
-  // SAME already-downloaded clip seamlessly with no extra network
-  // request, so it doesn't matter that the WAV itself has a Cache-
-  // Control: no-store response.
+  // /api/debugTone streams one finite WAV clip, while the Pi loops the sweep by
+  // relaunching ffmpeg. `loop` replays the already-downloaded clip with no extra
+  // request, so the sound keeps up with the looping bars.
   el.loop = !!station.loop;
   // A YouTube start offset ('#mdss=N', see src/youtube.js) becomes a media fragment.
   const src = station.url.replace(/#mdss=(\d+(?:\.\d+)?)$/, '#t=$1');
@@ -2484,6 +2605,7 @@ function radioBrowserPlay(station) {
   if (!_raRunning) { _raRunning = true; _raLastMs = 0; requestAnimationFrame(radioAnalyserTick); }
 }
 function radioBrowserStop() {
+  if (!window.MULTIDISPLAY_SIM) syncAudioStop();
   const el = document.getElementById('radio-browser-audio');
   if (!el) return;
   el.pause();
@@ -2491,18 +2613,11 @@ function radioBrowserStop() {
   el.load();
 }
 
-// Reads the analyser every frame (only actually useful in the simulator,
-// where window.PiEngine.EFFECTS.radio.audio is the same live spec/peak
-// object the bundled tick loop's renderSpectrumStyle() already reads every
-// tick - on a real Pi this object doesn't exist client-side and the loop
-// below just no-ops). Bucketing (log-spaced bins, treble-compensation
-// curve) and smoothing (attack/release + peak-hold) ported verbatim from
-// the original app's readMicSpectrum()/auSmooth(). radioAnalyserSilent
-// detection matches the original's auRefreshCurrentSource(): if the
-// average level stays near zero for 4+ seconds despite playing, the
-// station's stream doesn't support analysis (no CORS headers) - stop
-// feeding fake-looking near-zero data and let bars ease to idle instead,
-// same as the original did, WITHOUT affecting audible playback at all.
+// Reads the analyser every frame. Only useful in the simulator, where
+// window.PiEngine.EFFECTS.radio.audio exists; on a real Pi this loop no-ops.
+// Bucketing and smoothing are ported from the original app. If the level stays
+// near zero for 4+ seconds while playing, the stream doesn't allow analysis
+// (no CORS), so bars ease to idle; audible playback is unaffected.
 let _raLastMs = 0;
 function radioAnalyserTick(nowMs) {
   requestAnimationFrame(radioAnalyserTick);
@@ -2566,18 +2681,10 @@ function wireRadioPanel() {
   if (!panel) return;
 
   panel.querySelectorAll('.radio-stop-btn-el').forEach((btn) => btn.addEventListener('click', () => { send({ cmd: 'radioStop' }); radioBrowserStop(); }));
-  // Debug mode - two synthetic test tones (server-generated via ffmpeg, no
-  // real station needed) for visually verifying the spectrum analyser -
-  // see wsServer.js's 'radioDebugTone' handler / radio.js's DEBUG_TONES.
-  // The Pi-side WS command drives the actual spectrum/ticker pipeline
-  // (paplay -> Bluetooth/local output) same as any other station. A real
-  // follow-up ("can the browser play the sound") - the debug tone's
-  // internal `debug:<lavfi spec>` URL isn't a real HTTP URL a browser
-  // <audio> element can fetch, unlike a real station's URL, so this ALSO
-  // points the browser's own audio element at wsServer.js's new
-  // /api/debugTone HTTP route (a separate, independent ffmpeg render just
-  // for this) when "Play in this browser" is on - two completely separate
-  // audio paths, matching how a real station already works.
+  // Debug mode: two server-generated test tones for checking the spectrum
+  // analyser (see radio.js's DEBUG_TONES). The WS command drives the Pi-side
+  // pipeline. Its `debug:` URL isn't fetchable by a browser, so when "Play in
+  // this browser" is on the <audio> element uses the separate /api/debugTone route.
   const playDebugTone = (kind, freq) => {
     send({ cmd: 'radioDebugTone', kind, freq });
     if (radioBrowserPlaybackWanted()) {
@@ -2658,22 +2765,15 @@ function wireRadioPanel() {
       setEffectOption('radio', 'bands', Number(btn.dataset.bands));
     });
   });
-  panel.querySelectorAll('.au-style-btn[data-austyle]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      panel.querySelectorAll('.au-style-btn').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      setEffectOption('radio', 'style', btn.dataset.austyle);
-    });
+  // One Style list: the animated scenes (v2) and the classic styles (v1).
+  panel.querySelector('#au-look-sel')?.addEventListener('change', (e) => {
+    const [ver, key] = e.target.value.split(':');
+    if (ver === 'v1') { setEffectOption('radio', 'version', 1); setEffectOption('radio', 'style', key); }
+    else { setEffectOption('radio', 'version', 2); setEffectOption('radio', 'scene', key); }
+    const v1Row = document.getElementById('au-v1-row'); if (v1Row) v1Row.hidden = ver !== 'v1';
   });
-  panel.querySelectorAll('.au-ver-btn[data-auver]').forEach((btn) => btn.addEventListener('click', () => {
-    panel.querySelectorAll('.au-ver-btn').forEach((b) => b.classList.toggle('active', b === btn));
-    document.getElementById('au-v2-row').hidden = btn.dataset.auver !== '2';
-    setEffectOption('radio', 'version', Number(btn.dataset.auver));
-  }));
-  panel.querySelectorAll('.au-scene-btn[data-auscene]').forEach((btn) => btn.addEventListener('click', () => {
-    panel.querySelectorAll('.au-scene-btn').forEach((b) => b.classList.toggle('active', b === btn));
-    setEffectOption('radio', 'scene', btn.dataset.auscene);
-  }));
+
+
   panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => {
     btn.addEventListener('click', () => {
       panel.querySelectorAll('.au-theme-btn').forEach((b) => b.classList.remove('active'));
@@ -2702,6 +2802,11 @@ function wireRadioPanel() {
     if (syncVal) syncVal.textContent = syncSlider.value + 'ms';
     setEffectOption('radio', 'syncMs', Number(syncSlider.value));
   });
+  const syncAuto = panel.querySelector('.au-sync-auto-el');
+  if (syncAuto) syncAuto.addEventListener('change', () => {
+    if (syncSlider) syncSlider.disabled = syncAuto.checked;
+    setEffectOption('radio', 'syncAuto', syncAuto.checked);
+  });
   const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
   if (scrollSlider) scrollSlider.addEventListener('input', () => {
     if (scrollVal) scrollVal.textContent = scrollSlider.value;
@@ -2709,15 +2814,54 @@ function wireRadioPanel() {
   });
 }
 
+// Featured stations as a dropdown (a long list of rows was too much); picking
+// one plays it straight away, like tapping a row.
 function renderFeaturedList(el, current) {
-  el.innerHTML = '';
-  RADIO_STATIONS.forEach((s) => el.appendChild(radioStationRow(s, current)));
+  let sel = el.querySelector('select');
+  if (!sel) {
+    sel = document.createElement('select');
+    sel.className = 'tm-select'; sel.style.width = '100%'; sel.setAttribute('aria-label', 'Featured stations');
+    sel.addEventListener('change', () => {
+      const station = RADIO_STATIONS[Number(sel.value)];
+      if (!station) return;
+      send({ cmd: 'radioPlay', station });
+      radioBrowserPlay(station); // in this same tap, so phone audio may start
+    });
+    el.replaceChildren(sel);
+  }
+  const idx = current ? RADIO_STATIONS.findIndex((x) => x.url === current.url) : -1;
+  const pick = document.createElement('option'); pick.value = ''; pick.textContent = '▶ Pick a featured station…';
+  sel.replaceChildren(pick, ...RADIO_STATIONS.map((st, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = (i === idx ? '♪ ' : '') + st.name + (st.genre ? ' - ' + st.genre : ''); return o; }));
+  if (document.activeElement !== sel) sel.value = idx >= 0 ? String(idx) : '';
 }
 
 function renderSearchResults(el, results, current) {
   el.innerHTML = '';
   if (!results || !results.length) return;
   results.forEach((s) => el.appendChild(radioStationRow(s, current)));
+}
+
+// Recently played stations (this device), one tap to play again.
+let recentStationsKey = null;
+function syncRecentStations(playing) {
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem('recentStations') || '[]'); } catch (e) { /* storage unavailable */ }
+  if (playing && playing.url && !String(playing.url).startsWith('debug') && (!list[0] || list[0].url !== playing.url)) {
+    list = [{ name: playing.name, genre: playing.genre || '', url: playing.url }, ...list.filter((x) => x.url !== playing.url)].slice(0, 6);
+    try { localStorage.setItem('recentStations', JSON.stringify(list)); } catch (e) { /* storage unavailable */ }
+  }
+  const shown = list.filter((x) => !playing || x.url !== playing.url);
+  const key = shown.map((x) => x.url).join('|');
+  if (key === recentStationsKey) return;
+  recentStationsKey = key;
+  const wrap = document.getElementById('radio-recent-wrap'), row = document.getElementById('radio-recent');
+  if (!wrap || !row) return;
+  wrap.hidden = !shown.length;
+  row.replaceChildren(...shown.map((st) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = '📻 ' + st.name; b.title = 'Play ' + st.name + (st.genre ? ' (' + st.genre + ')' : '');
+    b.addEventListener('click', () => { send({ cmd: 'radioPlay', station: st }); radioBrowserPlay(st); });
+    return b;
+  }));
 }
 
 function syncRadioPanel() {
@@ -2727,6 +2871,7 @@ function syncRadioPanel() {
   const status = currentState.effectStatus?.radio;
   const opts = currentState.effectOptions?.radio || {};
   const current = status?.station || null;
+  syncRecentStations(status && status.playing ? current : null);
 
   panel.querySelectorAll('.radio-status-el').forEach((el) => {
     if (!status) { el.textContent = 'Pick a station'; return; }
@@ -2769,11 +2914,13 @@ function syncRadioPanel() {
   if (spectrumChk) spectrumChk.checked = spectrumOn && currentState.effect === 'radio';
   if (spectrumOptions) spectrumOptions.style.display = spectrumOn ? '' : 'none';
   panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.bands) === (opts.bands ?? 64)));
-  panel.querySelectorAll('.au-style-btn[data-austyle]').forEach((btn) => btn.classList.toggle('active', btn.dataset.austyle === (opts.style || 'glow')));
-  const auVer = opts.version === 1 ? '1' : '2';
-  panel.querySelectorAll('.au-ver-btn').forEach((b) => b.classList.toggle('active', b.dataset.auver === auVer));
-  const v2Row = document.getElementById('au-v2-row'); if (v2Row) v2Row.hidden = auVer !== '2';
-  panel.querySelectorAll('.au-scene-btn').forEach((b) => b.classList.toggle('active', b.dataset.auscene === (opts.scene || 'auto')));
+  const isV1 = opts.version === 1;
+  const lookSel = panel.querySelector('#au-look-sel');
+  if (lookSel && document.activeElement !== lookSel) {
+    lookSel.value = isV1 ? 'v1:' + (opts.style || 'glow') : 'v2:' + (opts.scene || 'auto');
+    if (lookSel.selectedIndex < 0) lookSel.value = 'v2:auto'; // a choice from an older version
+  }
+  const v1Row = document.getElementById('au-v1-row'); if (v1Row) v1Row.hidden = !isV1;
   panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 5)));
   panel.querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => btn.classList.toggle('active', btn.dataset.barmode === (opts.barMode || 'solid')));
 
@@ -2786,27 +2933,27 @@ function syncRadioPanel() {
   const gainSlider = panel.querySelector('.au-gain-el'), gainVal = panel.querySelector('.au-gain-val-el');
   if (gainSlider && document.activeElement !== gainSlider) { gainSlider.value = opts.gain ?? 2; if (gainVal) gainVal.textContent = Number(gainSlider.value).toFixed(1) + '×'; }
   const syncSlider = panel.querySelector('.au-sync-el'), syncVal = panel.querySelector('.au-sync-val-el');
-  if (syncSlider && document.activeElement !== syncSlider) { syncSlider.value = opts.syncMs ?? 150; if (syncVal) syncVal.textContent = syncSlider.value + 'ms'; }
+  const syncAutoEl = panel.querySelector('.au-sync-auto-el'), autoOn = opts.syncAuto !== false; // Auto sync is the default
+  if (syncAutoEl) syncAutoEl.checked = autoOn;
+  if (syncSlider) syncSlider.disabled = autoOn;
+  if (autoOn) {
+    // Auto speaker sync: show what the Pi measured (see ffmpegAudio.js _measureLatency).
+    const m = currentState.effectStatus?.radio?.autoSyncMs;
+    if (syncVal) syncVal.textContent = Number.isFinite(m) ? m + 'ms' : 'auto';
+    if (syncSlider && Number.isFinite(m)) syncSlider.value = m;
+  } else if (syncSlider && document.activeElement !== syncSlider) { syncSlider.value = opts.syncMs ?? 150; if (syncVal) syncVal.textContent = syncSlider.value + 'ms'; }
   const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
   if (scrollSlider && document.activeElement !== scrollSlider) { scrollSlider.value = opts.scrollSpeed ?? 0; if (scrollVal) scrollVal.textContent = scrollSlider.value; }
 }
 
 // ---------------------------------------------------------------------
-// Celestial's option panel (panel-moon) - the 13-way "celestial-body" radio
-// group (moon/mercury/venus/earth/mars/jupiter/saturn/uranus/neptune/pluto/
-// sun/blackhole/solarsystem), backed by core.effectOptions.moon.body, plus
-// the Solar System view's Orbit Speed slider, backed by
-// core.effectOptions.moon.solarSpeed - same 0-7 logarithmic-multiplier
-// slider as the original (see effects/celestial/solarsystem.js). The
-// #solar-speed-row show/hide-on-selection behaviour is verbatim from
-// index.html's own inline <script> for this panel (harmless leftover -
-// still just toggling a style, no bearing on the WS wiring below).
+// Celestial's option panel (panel-moon): the body radio group
+// (core.effectOptions.moon.body) and the Solar System Orbit Speed slider
+// (moon.solarSpeed, 0-7 logarithmic multiplier).
 // ---------------------------------------------------------------------
-// City search for the Moon's terminator tilt - mirrors
-// wireWeatherCityDropdown()'s open-meteo geocoding search, but commits
-// lat/lon directly from the picked result (setEffectOption('moon','lat'/
-// 'lon', ...)) rather than a city name string - celestial.js only ever
-// needed the coordinates, no server-side re-geocode-by-name step needed.
+// City search for the Moon's terminator tilt: like
+// wireWeatherCityDropdown(), but it saves lat/lon directly
+// (setEffectOption('moon','lat'/'lon', ...)) rather than a city name.
 let _moonCityTimer = null;
 function wireCelestialCityDropdown(cityInput, dropdown, statusEl) {
   if (!cityInput || !dropdown) return;
@@ -2991,21 +3138,152 @@ function syncClearAllButton() {
   document.getElementById('panels-off-btn')?.classList.toggle('is-off', panels);
 }
 
-// "🔇 Stop Sound" - next to Clear All. Radio plays in the background
-// regardless of which effect is selected/displayed, so Clear All blanking
-// the screen doesn't stop audio - this is a one-click way to kill it
-// without navigating to the Radio panel. A real report: this button
-// stopped the Pi-side ticker/status but not the audible sound - because
-// "Play in this browser" (see radioBrowserPlay()) plays the stream
-// directly in the CLIENT via its own <audio> element, entirely separate
-// from the Pi's ffmpeg/paplay pipeline the WS 'stopAllSound' command
-// tears down. The existing Radio panel Stop button already calls
-// radioBrowserStop() alongside its WS send for exactly this reason (see
-// its own click handler) - this button needs the same pairing.
+// "🔇 Stop Sound" next to Clear All stops background radio without opening
+// the Radio panel. It must also call radioBrowserStop(), because "Play in
+// this browser" plays through a client <audio> element that the WS
+// 'stopAllSound' command can't reach (the Radio Stop button does the same).
 // The speaker button mutes/unmutes (the station keeps playing; Stop on the
 // Music tab still stops it). Muting sets the volume to 0 and remembers the
 // level to come back to.
 function radioMuted() { return Number(currentState.effectOptions?.radio?.volume ?? 0.8) === 0; }
+// ---------------------------------------------------------------------
+// 🎨 Draw: finger-paint on a canvas the size of the display; strokes go
+// to the Pi as they're drawn (see src/effects/drawPad.js). The picture is
+// kept on this phone too, so reopening carries on where you left off.
+// ---------------------------------------------------------------------
+const DRAW_COLOURS = ['#ffffff', '#ff3b3b', '#ff9f1c', '#ffe14d', '#4dff6a', '#2ee6d6', '#3b8bff', '#a64dff', '#ff5ec4', '#8b5a2b'];
+let drawState = null;
+function drawDims() {
+  const S = currentState.panelSize || 64;
+  if (currentState.panelMode !== 'wall' || !Array.isArray(currentState.panels) || !currentState.panels.length) return [S, S];
+  const gx = Math.max(...currentState.panels.map((p) => p.gx)) + 1, gy = Math.max(...currentState.panels.map((p) => p.gy)) + 1;
+  return [gx * S, gy * S];
+}
+function b64Bytes(bytes) { let s = ''; for (let i = 0; i < bytes.length; i += 8192) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192)); return btoa(s); }
+function bytesB64(b64) { const s = atob(b64), out = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; }
+function wireDraw() {
+  const modal = document.getElementById('draw-modal'), cv = document.getElementById('draw-canvas');
+  if (!modal || !cv) return;
+  const ctx2 = cv.getContext('2d');
+  const st = drawState = { w: 64, h: 64, pix: null, colour: 0xffffff, size: 1, undo: [], ops: [], last: null, timer: null };
+  const key = () => 'drawPad_' + st.w + 'x' + st.h;
+  const paint = () => {
+    const img = ctx2.createImageData(st.w, st.h);
+    for (let i = 0, j = 0; i < st.pix.length; i += 3, j += 4) { img.data[j] = st.pix[i]; img.data[j + 1] = st.pix[i + 1]; img.data[j + 2] = st.pix[i + 2]; img.data[j + 3] = 255; }
+    ctx2.putImageData(img, 0, 0);
+  };
+  const store = () => { try { localStorage.setItem(key(), b64Bytes(st.pix)); } catch (e) { /* storage full or blocked */ } };
+  const sendImage = () => send({ cmd: 'drawOps', w: st.w, h: st.h, image: b64Bytes(st.pix) });
+  const flush = () => { st.timer = null; if (!st.ops.length) return; send({ cmd: 'drawOps', w: st.w, h: st.h, ops: st.ops.splice(0) }); store(); };
+  const dab = (x, y) => {
+    const s = st.size || 1, col = st.size ? st.colour : 0, x0 = Math.round(x - (s - 1) / 2), y0 = Math.round(y - (s - 1) / 2);
+    for (let yy = y0; yy < y0 + s; yy++) for (let xx = x0; xx < x0 + s; xx++) {
+      if (xx < 0 || yy < 0 || xx >= st.w || yy >= st.h) continue;
+      const i = (yy * st.w + xx) * 3; st.pix[i] = col >> 16; st.pix[i + 1] = (col >> 8) & 255; st.pix[i + 2] = col & 255;
+    }
+    st.ops.push([Math.round(x), Math.round(y), col, s]);
+    if (!st.timer) st.timer = setTimeout(flush, 40);
+  };
+  const at = (e) => { const r = cv.getBoundingClientRect(); return [Math.floor((e.clientX - r.left) / r.width * st.w), Math.floor((e.clientY - r.top) / r.height * st.h)]; };
+  cv.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); cv.setPointerCapture(e.pointerId);
+    st.undo.push(st.pix.slice()); if (st.undo.length > 20) st.undo.shift();
+    st.last = at(e); dab(...st.last); paint();
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (!st.last) return;
+    const [x, y] = at(e), [lx, ly] = st.last, n = Math.max(Math.abs(x - lx), Math.abs(y - ly));
+    for (let k = 1; k <= n; k++) dab(lx + (x - lx) * k / n, ly + (y - ly) * k / n);
+    st.last = [x, y]; paint();
+  });
+  const up = () => { st.last = null; };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  const colours = document.getElementById('draw-colours');
+  colours.replaceChildren(...DRAW_COLOURS.map((c, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = i === 0 ? 'on' : '';
+    b.style.cssText = 'width:30px;height:30px;padding:0;border-radius:50%;background:' + c + ';';
+    b.setAttribute('aria-label', 'Colour ' + c);
+    b.addEventListener('click', () => { st.colour = parseInt(c.slice(1), 16); if (!st.size) st.size = 1; colours.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); syncSizes(); });
+    return b;
+  }));
+  const syncSizes = () => document.querySelectorAll('#draw-sizes button').forEach((x) => x.classList.toggle('on', Number(x.dataset.size) === st.size));
+  document.querySelectorAll('#draw-sizes button').forEach((b) => b.addEventListener('click', () => { st.size = Number(b.dataset.size); syncSizes(); }));
+  document.getElementById('draw-undo').addEventListener('click', () => { const prev = st.undo.pop(); if (!prev) return; st.pix = prev; paint(); store(); sendImage(); });
+  document.getElementById('draw-clear').addEventListener('click', () => { st.undo.push(st.pix.slice()); st.pix.fill(0); paint(); store(); send({ cmd: 'drawOps', w: st.w, h: st.h, clear: true }); });
+  document.getElementById('draw-save').addEventListener('click', () => { send({ cmd: 'saveDrawing', w: st.w, h: st.h, image: b64Bytes(st.pix) }); cxToast('💾 Saved to the display'); });
+  const slide = document.getElementById('draw-slideshow');
+  slide.addEventListener('change', () => { try { localStorage.setItem('drawSlideshow', slide.checked ? '1' : ''); } catch (e) { /* blocked */ } });
+  const close = () => {
+    modal.hidden = true; flush();
+    setEffectOption('draw', 'slideshow', slide.checked); // slideshow only while you're not drawing
+  };
+  document.getElementById('draw-close').addEventListener('click', close);
+  document.getElementById('draw-open').addEventListener('click', () => {
+    [st.w, st.h] = drawDims();
+    cv.width = st.w; cv.height = st.h;
+    st.pix = new Uint8Array(st.w * st.h * 3);
+    try { const saved = localStorage.getItem(key()); if (saved) { const b = bytesB64(saved); if (b.length === st.pix.length) st.pix.set(b); } } catch (e) { /* blocked */ }
+    try { slide.checked = !!localStorage.getItem('drawSlideshow'); } catch (e) { /* blocked */ }
+    st.undo = []; paint();
+    modal.hidden = false;
+    setEffectOption('draw', 'slideshow', false);
+    send({ cmd: 'setEffect', effect: 'draw' });
+    sendImage();
+    send({ cmd: 'drawList' });
+  });
+}
+function renderDrawGallery(list) {
+  const g = document.getElementById('draw-gallery'); if (!g || !drawState) return;
+  g.replaceChildren(...(list || []).map((d, i) => {
+    const wrapEl = document.createElement('div'); wrapEl.style.cssText = 'position:relative;';
+    const c = document.createElement('canvas'); c.width = d.w; c.height = d.h;
+    c.style.cssText = 'width:100%;image-rendering:pixelated;border-radius:6px;background:#000;cursor:pointer;';
+    const px = bytesB64(d.image), cx = c.getContext('2d'), img = cx.createImageData(d.w, d.h);
+    for (let k = 0, j = 0; k < px.length; k += 3, j += 4) { img.data[j] = px[k]; img.data[j + 1] = px[k + 1]; img.data[j + 2] = px[k + 2]; img.data[j + 3] = 255; }
+    cx.putImageData(img, 0, 0);
+    c.title = 'Load ' + d.name;
+    c.addEventListener('click', () => {
+      if (d.w !== drawState.w || d.h !== drawState.h) { cxToast('That drawing is a different size'); return; }
+      drawState.undo.push(drawState.pix.slice()); drawState.pix = px;
+      document.getElementById('draw-canvas').getContext('2d').putImageData(img, 0, 0);
+      send({ cmd: 'drawOps', w: d.w, h: d.h, image: d.image });
+    });
+    const x = document.createElement('button'); x.type = 'button'; x.textContent = '✕'; x.setAttribute('aria-label', 'Delete drawing');
+    x.style.cssText = 'position:absolute;top:-4px;right:-4px;width:20px;height:20px;padding:0;border-radius:50%;font-size:10px;';
+    x.addEventListener('click', () => send({ cmd: 'deleteDrawing', index: i }));
+    wrapEl.append(c, x);
+    return wrapEl;
+  }));
+}
+
+// 💌 Message: a note that drops onto the display (see src/effects/notice.js).
+// Setup > Bluetooth > Range (see src/bluetooth.js setRange).
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('#bt-range button'); if (!b) return;
+  document.querySelectorAll('#bt-range button').forEach((x) => x.classList.toggle('on', x === b));
+  const note = document.getElementById('bt-range-note'); if (note) note.textContent = 'Switching…';
+  send({ cmd: 'btSetRange', range: b.dataset.range });
+});
+
+function wireNote() {
+  const modal = document.getElementById('note-modal'); if (!modal) return;
+  const text = document.getElementById('note-text');
+  let colour = '#ffd23d', secs = 30;
+  const chips = (id, fn) => document.querySelectorAll('#' + id + ' button').forEach((b) => b.addEventListener('click', () => { document.querySelectorAll('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); fn(b); }));
+  chips('note-colours', (b) => { colour = b.dataset.c; });
+  chips('note-secs', (b) => { secs = Number(b.dataset.s); });
+  text.addEventListener('input', () => { document.getElementById('note-count').textContent = text.value.length + ' / 120'; });
+  document.getElementById('note-open').addEventListener('click', () => { modal.hidden = false; setTimeout(() => text.focus(), 50); });
+  document.getElementById('note-close').addEventListener('click', () => { modal.hidden = true; });
+  document.getElementById('note-send').addEventListener('click', () => {
+    if (!text.value.trim()) { text.focus(); return; }
+    send({ cmd: 'sendNote', text: text.value, color: colour, secs });
+    cxToast('💌 Sent to the display'); modal.hidden = true; text.value = '';
+    document.getElementById('note-count').textContent = '0 / 120';
+  });
+  document.getElementById('note-clear').addEventListener('click', () => { send({ cmd: 'clearNotice' }); cxToast('Message taken down'); });
+}
+
 // Setup -> Software update: shows whether the Pi is behind GitHub, and
 // updates + restarts it (see src/selfUpdate.js). The Setup tab gets a dot
 // while an update is waiting.
@@ -3193,12 +3471,16 @@ function renderAlarmList() {
     const next = al.enabled ? tmUntil(tmNextRun(al)) : 'off';
     const div = document.createElement('div');
     div.className = 'cx-timer' + (al.enabled ? ' on' : '');
-    div.innerHTML = `<div class="cx-timer-main"><b></b><span></span><small></small></div><button type="button" class="cx-switch${al.enabled ? ' on' : ''}" aria-label="Timer on or off"></button>`;
+    div.innerHTML = `<div class="cx-timer-main"><b></b><span></span><small></small><em class="tm-last"></em></div><button type="button" class="tm-test" aria-label="Test this timer now" title="Run it now, shortened to about 20 seconds">▶ Test</button><button type="button" class="cx-switch${al.enabled ? ' on' : ''}" aria-label="Timer on or off"></button>`;
     div.querySelector('b').textContent = tmHHMM(al);
     div.querySelector('span').textContent = (al.name || TM_KIND_LABEL[kind]) + (what ? ' · ' + what : '');
     const radioTxt = al.radio?.action === 'start' ? ' · 📻 ' + (al.radio.station?.name || 'radio') : al.radio?.action === 'stop' ? ' · 📻 off' : '';
     div.querySelector('small').textContent = tmRepeatLabel(al) + (next ? ' · ' + next : '') + radioTxt;
     div.querySelector('.cx-switch').addEventListener('click', (e) => { e.stopPropagation(); send({ cmd: 'setAlarmEnabled', id: al.id, enabled: !al.enabled }); });
+    // Timer history: when it last ran and what happened (set by the Pi, see effects/alarms.js).
+    const last = div.querySelector('.tm-last');
+    if (al.lastRun && al.lastRun.text) last.textContent = 'Last: ' + al.lastRun.text; else last.remove();
+    div.querySelector('.tm-test').addEventListener('click', (e) => { e.stopPropagation(); send({ cmd: 'testAlarm', id: al.id }); cxToast('▶ Testing - watch the display'); });
     div.addEventListener('click', () => openAlarmEditor(al.id));
     return div;
   }));
@@ -3484,18 +3766,9 @@ function wireCollapsibles() {
   });
 }
 
-// Sidebar-wide menu system - the ◀ collapse button + floating "show
-// sidebar" button on desktop (#sidebar.hidden), and the ☰ #menu-toggle +
-// #sidebar-overlay slide-in/out on narrow/mobile viewports (#sidebar.open)
-// - present in the markup/CSS (all copied verbatim from the browser
-// original) but NONE of it was ever wired here, unlike ui.js's own
-// cube.js-based version of this. Ported from cube.js's "MENU TOGGLE"
-// section/ui.js's "SIDEBAR COLLAPSE" section (toggleMenu() there is the
-// same unified function both delegate to), with one deliberate behavior
-// change: the original started with the sidebar CLOSED on a narrow
-// viewport (`menuOpen = window.innerWidth > 768`) - this always starts
-// OPEN regardless of viewport width, per a real report that the sidebar
-// wasn't there to begin with on first load.
+// Sidebar menu: the collapse button and floating "show sidebar" button on
+// desktop (#sidebar.hidden), and the ☰ toggle with overlay on narrow screens
+// (#sidebar.open). Always starts open, whatever the viewport width.
 let menuOpen = true;
 function updateSidebarOverlay() {
   const overlay = document.getElementById('sidebar-overlay');
@@ -3767,6 +4040,8 @@ function handleBtResult(msg) {
   }
   if (msg.cmd === 'btScanResult') {
     renderBtScanResults(msg.devices, statusEl, listEl);
+  } else if (msg.cmd === 'drawListResult') {
+    renderDrawGallery(msg.list);
   } else if (msg.cmd === 'updateResult') {
     const log = document.getElementById('update-log'); if (log) { log.hidden = false; log.textContent = msg.log || msg.error || ''; }
     if (msg.updated) { document.getElementById('update-status').textContent = '✅ Updated - restarting. This page reloads in 20 s.'; setTimeout(() => location.reload(), 20000); }
@@ -3775,7 +4050,12 @@ function handleBtResult(msg) {
     const b = document.getElementById('spk-reconnect-btn'); if (b) { b.disabled = false; b.textContent = 'Reconnect'; }
     cxToast(msg.set ? '🔊 Speaker connected' : '⚠ Could not connect the speaker - is it switched on?');
     send({ cmd: 'btStatus' });
+  } else if (msg.cmd === 'btRangeResult') {
+    const note = document.getElementById('bt-range-note');
+    if (note) note.textContent = msg.ok === false ? '⚠ ' + (msg.error || 'Could not change it') : msg.set ? (msg.range === 'long' ? '📶 Long range on.' : '🎵 Normal - best sound.') : (msg.log || '');
+    if (/no choice of codec/.test(msg.log || '') && note) note.textContent = 'Saved - but this speaker or Pi offers only one codec, so there is nothing to switch.';
   } else if (msg.cmd === 'btStatusResult') {
+    document.querySelectorAll('#bt-range button').forEach((b) => b.classList.toggle('on', b.dataset.range === (msg.range || 'normal')));
     renderSpeakerWarning(msg.devices, msg.lastSpeakerMac);
     btPairedCache = msg.devices || []; // also the timer editor's sound-output list
     renderBtPairedList(msg.devices, pairedStatusEl, pairedListEl);
@@ -3809,54 +4089,20 @@ function handleBtResult(msg) {
 }
 
 // ---------------------------------------------------------------------
-// Video Wall layout editor - Pi-native-only, no original-app equivalent.
-// Lives directly in the main preview area (#wall-preview, right of the
-// sidebar), not a separate abstract grid tucked away in the sidebar - you
-// see the actual live per-panel feeds while placing new ones, and drag/
-// click straight onto the real layout to put a new display above, below,
-// left, or right of an existing one. A fixed WALL_COLS x WALL_ROWS grid
-// (matches panelConfig.js's WALL_MAX_COLS/WALL_MAX_ROWS - the same 2x3
-// physical topology already wired for cube mode, so up to 6 displays
-// total) of cells: filled ones are live-updating canvases (draggable,
-// with a × to remove), empty ones are dashed drop-targets/click-to-add-
-// here placeholders. Every change sends a full layout to the server,
-// which is the single source of truth - the grid always re-renders from
-// the next "state" message rather than assuming its own optimistic
-// result, so a rejected/invalid drag just snaps back on the next state
-// echo. The #wall-toolbar "+" button is the entry point for switching
-// INTO wall mode from cube/2D in the first place (always visible, not
-// gated on already being in wall mode); rebuildWallPreview() itself only
-// renders the full editable grid once wall mode is actually active.
+// Video Wall layout editor, drawn in #wall-preview with live per-panel feeds.
+// Filled cells are draggable canvases; empty cells are drop/click targets.
+// Every change sends the full layout to the server, which is the source of
+// truth: the grid re-renders from the next "state" message, so an invalid drag
+// snaps back. The toolbar "+" button also switches into wall mode.
 // ---------------------------------------------------------------------
-// Mirrors panelConfig.js's WALL_MAX_COLS/WALL_MAX_ROWS/WALL_MAX_PANELS -
-// this file has no access to that module (it also runs standalone against
-// a real Pi's wsServer.js over plain WebSocket, not just the bundled
-// simulator), so it keeps its own copy, same as before this was 2x3. A
-// real request: "I need the ability to choose all horizontal displays...
-// e.g. 1 row by 6 wide" - WALL_COLS/WALL_ROWS are now a generous per-axis
-// bound (any 1-wide or 1-tall row/column up to 6 long is valid, not just
-// a fixed 2x3 block); WALL_MAX_PANELS is the real hardware panel-count cap.
+// Copy of panelConfig.js's limits (this file can't require it). Any row or
+// column up to 6 long is allowed; WALL_MAX_PANELS is the hardware panel cap.
 const WALL_COLS = 6, WALL_ROWS = 6, WALL_MAX_PANELS = 6;
 let _wallDragFrom = null;
-// Whether placement-candidate outlines should currently be rendered at
-// all - a real report: candidates used to be shown PERMANENTLY around
-// every placed panel, which (once 2+ panels exist) fills out to look
-// like the original disliked "static 6-box grid" all over again. Now
-// candidates only appear while actively choosing where to put a new
-// display (toggled by the "+" button - see wireWallToolbar()) or while
-// dragging an existing one to reposition it (_wallDragFrom above) - at
-// rest, only the actually-placed displays are shown.
-// Single source of truth for "am I currently editing the wall layout" -
-// gates candidate outlines, the per-panel remove "×", and whether a placed
-// panel can be dragged at all. A real report: "don't go to edit mode when
-// tapping on the display. the button must be pressed to go into edit mode
-// and pressed again to exit edit mode" - tapping/dragging a placed panel
-// used to flip this on by itself (the old canvas mousedown handler set
-// _wallDragFrom unconditionally), so merely touching a display while just
-// looking at the wall started an edit session. Now ONLY the toolbar button
-// (or Escape/click-outside while already editing) can turn this on or off;
-// dragging is still how you reposition a panel, but only once edit mode is
-// already active via the button.
+// Single source of truth for wall edit mode: gates candidate outlines, the
+// remove "×", and dragging. Only the toolbar button (or Escape/click-outside
+// while editing) toggles it; tapping a display must not start editing.
+// Candidates show only while editing or dragging, not around every panel.
 let _wallEditMode = false;
 
 // Reflects _wallEditMode on the single "Layout" toggle button - a real
@@ -4030,20 +4276,10 @@ const PANEL2D_OUT = 512; // fixed backing resolution, same as ui.js's renderPane
 
 let wallPreviewEl;
 const wallPanelCanvases = {}; // panel index -> {canvas, ctx}
-// Preview px per panel, including its border/gap - dynamic, not a fixed
-// 130px, so the grid actually uses the available preview area (a real
-// report: "resize so 2 displays are shown in the available space" - two
-// small fixed-size tiles in a corner didn't grow to fill the screen the
-// way the single-panel 2D/cube previews already do via
-// fitPanel2dCanvas()/resizeRenderer()). Computed from whatever room is
-// left after the sidebar (accounting for the sidebar being hidden/mobile-
-// overlay, same margin logic as fitPanel2dCanvas's `buf`), clamped so a
-// lone display isn't comically huge and a full 2x3 grid doesn't overflow
-// the window.
-// cols/rows: the actual bounding box of cells being rendered this call
-// (see rebuildWallPreview()) - NOT always the fixed WALL_COLS x WALL_ROWS
-// hardware maximum, so a lone display (or two) gets to be genuinely large
-// rather than sized as if a full 6-panel layout were always present.
+// Preview px per panel (including border/gap), sized to fill the room left
+// after the sidebar, clamped so a lone display isn't huge and a full grid
+// still fits. cols/rows are the bounding box of the cells actually rendered
+// (see rebuildWallPreview()), not the WALL_COLS x WALL_ROWS hardware maximum.
 function wallCellSize(cols, rows) {
   const buf = 40;
   const availW = window.innerWidth - sidebarOverlapPx() - buf * 2;
@@ -4087,18 +4323,9 @@ function initScene() {
     }
   }
   if (webglOK) {
-    // Clamped, not raw window.devicePixelRatio - a real report ("cube view
-    // does not work on my android phone, blank/black screen - works on
-    // Windows desktop"). Many Android phones report a DPR of 3-4; combined
-    // with a full-viewport canvas (resizeRenderer() below sizes it to
-    // window.innerWidth/innerHeight), an uncapped DPR asks for a framebuffer
-    // several times larger than the actual screen resolution (e.g.
-    // 1080x2000 physical px * DPR 4 = huge) - a well-known Three.js mobile
-    // pitfall where weaker/budget GPUs silently fail to allocate that and
-    // render nothing, with no thrown error to catch (desktop's DPR=1 never
-    // hits this). 2 is the standard safe ceiling - visually indistinguishable
-    // from higher DPR at this canvas's actual on-screen size, but a much
-    // smaller framebuffer.
+    // Clamp devicePixelRatio to 2: with a full-viewport canvas, the DPR of 3-4
+    // many Android phones report asks for a framebuffer weak GPUs silently fail
+    // to allocate, leaving a blank canvas with no error.
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     // Second line of defense for the same report: a context that WAS
     // successfully created can still be lost/fail to render on some mobile
@@ -4132,16 +4359,9 @@ function initScene() {
 }
 
 // ---------------------------------------------------------------------
-// Face labels (#face-labels-chk, "Display" section) - a real report
-// ("enable the face labels option": the checkbox existed in the HTML but
-// had no wiring at all behind it). The custom stripped three.min.js build
-// (see build-tools/three-entry.js) exports no Sprite/CanvasTexture/font-
-// rendering classes, so real 3D floating text isn't available here - this
-// instead projects each face's center through the camera every frame (the
-// standard "HTML overlay label for a 3D scene" technique) and positions a
-// plain DOM span over it, which needs nothing beyond Vector3.project()
-// (already included - it's a method on the Vector3 class we already
-// import whole, not a separate tree-shaken export) and CSS.
+// Face labels (#face-labels-chk). The stripped three.min.js build has no
+// Sprite/CanvasTexture, so each face's center is projected through the
+// camera every frame and a plain DOM span is positioned over it.
 // ---------------------------------------------------------------------
 let faceLabelEls = [];
 function buildFaceLabels() {
@@ -4208,18 +4428,10 @@ function resizeRenderer() {
   fitCubeCamera(); // no-ops outside cube mode
 }
 
-// Pulls the camera back (or in) along its original viewing direction just
-// far enough that the whole cube stays inside the frustum at the CURRENT
-// aspect ratio, instead of the fixed camera.position.set(2.6, 2.0, 2.6)
-// this used to always use regardless of viewport shape - a real report
-// ("resize the cube so it fits the available screen space") traced to
-// exactly that: on a narrow/tall viewport the cube's horizontal FOV
-// shrinks (aspect = w/h < 1) but the camera never moved back to
-// compensate, so the cube overflowed top and bottom of the screen.
-// Bounding radius is the cube's corner-to-center distance: faces span
-// -1..1 build in rebuildScene()'s `spacing`/`dummy.position` loop, so the
-// cube is a 2x2x2 box centered on the origin -> corner distance
-// sqrt(1²+1²+1²).
+// Moves the camera along its original viewing direction just far enough
+// that the whole cube fits the frustum at the current aspect ratio (narrow
+// viewports shrink the horizontal FOV). Bounding radius is the corner
+// distance of the 2x2x2 cube centered on the origin: sqrt(3).
 const CUBE_BOUND_RADIUS = Math.sqrt(3);
 const CUBE_CAMERA_DIR = new THREE.Vector3(2.6, 2.0, 2.6).normalize();
 function fitCubeCamera() {
@@ -4312,21 +4524,10 @@ function rebuildScene() {
 
   for (let face = 0; face < 6; face++) {
     const mesh = new THREE.InstancedMesh(geom, new THREE.MeshBasicMaterial(), size * size);
-    // Top (face 4) needs its LOCAL row order flipped here, not fixed via
-    // FACE_XFORM's rotation - a real report ("top panel is reversed, flow
-    // from side panels doesn't flow to top correctly", confirmed via the
-    // GitHub Pages browser simulator specifically, which renders this
-    // Three.js preview - NOT the real-hardware rgbMatrixDriver.js path,
-    // which was a dead end for this report). Front/Back/Left/Right/Bottom
-    // all happen to have a single X or Y axis rotation that satisfies BOTH
-    // "v increases toward the correct adjacent face" (matching core.js's
-    // faceMap[4][z*SIZE+x] - v=z, 0=Back edge, SIZE-1=Front edge) AND "the
-    // backing panel's plane normal points outward" at once. Top's rotation
-    // (rot:[-π/2,0,0], chosen for the correct outward normal) inverts the
-    // v/z direction instead - the two requirements are in conflict for any
-    // single X-axis rotation, unlike Bottom's mirror-image case where they
-    // align. Flipping v only in the position lookup (not the rotation)
-    // fixes the v-direction without touching the normal at all.
+    // Top (face 4) flips its local row order here rather than in FACE_XFORM:
+    // no single X rotation gives Top both the outward normal and v increasing
+    // toward the Front edge (core.js faceMap[4][z*SIZE+x], v=z). Flipping v only
+    // in the position lookup fixes the direction without touching the normal.
     const vFlip = face === 4;
     for (let v = 0; v < size; v++) {
       const lv = vFlip ? size - 1 - v : v;
@@ -4517,42 +4718,14 @@ function drawLedGrid(ctx, bytes, size, out, flipY) {
   ctx.drawImage(ledMask(out, size), 0, 0);
 }
 
-// Same round-dot-on-black technique as drawPanel2dFrame(), one small
-// canvas per EXISTING panel (drawWallPanelFrame() below keeps them live-
-// updating), plus a dashed drop-target placeholder ONLY at cells directly
-// above/below/left/right of an already-placed panel - NOT every cell in
-// the fixed WALL_COLS x WALL_ROWS grid (that was the previous behavior: a
-// real report - "when I click + display, it gives me 6 grid boxes, I
-// don't want exactly this... I want to see an outline of where I can
-// click and drag the additional display to [above/below/left/right of
-// existing ones]" - specifically asked for contextual placement targets
-// instead of the whole grid always being visible). The rendered area's
-// size also now tracks just the panels+candidates bounding box, not the
-// full 2x3 hardware maximum, so a lone display (or two) stays genuinely
-// large instead of being sized as if 6 were always present. Panel at
-// index 0 is the original/primary display (see wireWallToolbar()'s "+" -
-// the FIRST panel switching INTO wall mode) - its remove (×) button is
-// never shown, it can't be deleted regardless of how many others exist
-// (still draggable to a new position like any other panel, just not
-// removable). wallPanelCanvases stays keyed by each panel's INDEX INTO
-// currentState.panels (not gx/gy), matching the wire protocol's per-panel
-// frame index (see handleFrame()).
-// The server's isValidPanels() (panelConfig.js) requires every gx/gy to
-// stay within [0, WALL_COLS) x [0, WALL_ROWS) - the real 2-column x
-// 3-row physical chain limit. The primary display always starts at
-// (0,0) (the fixed top-left corner), which only ever has room to its
-// RIGHT and BELOW within that box - "left of" or "above" the primary
-// would need a negative coordinate, permanently out of reach no matter
-// how candidates are computed. A real report specifically asked for all
-// 4 directions to be real options around the primary ("top bottom left
-// right"), so instead of only offering neighbors that already fit,
-// this computes the SHIFT (translation) that would need to apply to
-// EVERY currently-placed panel to make an out-of-bounds neighbor (and
-// everything else) fit - e.g. dropping a display to the left of a
-// primary sitting at gx=0 shifts the whole layout one column right
-// (primary -> gx=1) and places the new one at gx=0. Returns null if no
-// shift exists that keeps every panel in bounds (e.g. both columns are
-// already occupied, so there is nowhere left to shift into).
+// One small canvas per placed panel (dots on black, like drawPanel2dFrame()),
+// plus dashed drop targets only next to existing panels; the area tracks the
+// panels+candidates bounding box. Panel 0 is the primary display and can be
+// moved but never removed. wallPanelCanvases is keyed by index into
+// currentState.panels, matching the per-panel frame index (handleFrame()).
+// The server requires gx/gy within [0,WALL_COLS) x [0,WALL_ROWS), so a drop
+// left of/above the primary at (0,0) needs every panel shifted. This returns
+// that shift for a candidate, or null if no shift keeps all panels in bounds.
 function shiftForCandidate(panels, gx, gy) {
   let shiftX = 0, shiftY = 0;
   if (gx < 0) shiftX = -gx;
@@ -4594,21 +4767,11 @@ function rebuildWallPreview() {
   const panels = currentState.panels || [];
   const occupied = new Set(panels.map((p) => p.gx + ',' + p.gy));
 
-  // A "must be adjacent to an existing display" candidate, at every one of
-  // the 4 sides of every currently-placed panel - a real report: "when
-  // dragging a display, it must be adjacent to another display." gx/gy
-  // here are the RAW (possibly out-of-hardware-bounds, e.g. -1) grid
-  // coordinates relative to the CURRENT unshifted layout - kept unshifted
-  // so the bounding-box math below renders them in the correct relative
-  // position (e.g. one column to the left of the primary), even though
-  // placing one actually requires shifting every panel (see
-  // shiftForCandidate()/placeAtCandidate() above).
-  // Only computed/shown while layout editing is active (_wallEditMode, on
-  // via the toolbar button) - NOT permanently at rest. Showing them
-  // unconditionally (the previous behavior) meant that once 2+ panels
-  // existed, their combined neighbor cells routinely filled out the
-  // entire remaining hardware grid, recreating the exact "static 6-box
-  // grid" look a real report specifically objected to in the first place.
+  // Candidate cells on all 4 sides of every placed panel. gx/gy are raw
+  // (possibly negative) coordinates in the current unshifted layout so they
+  // render in the right relative position; placing one may shift every panel
+  // (see shiftForCandidate()/placeAtCandidate()). Only shown in layout edit
+  // mode, otherwise they fill the whole grid once 2+ panels exist.
   const candidates = [];
   if (_wallEditMode) {
     const seenCandidate = new Set();
@@ -4719,20 +4882,11 @@ function rebuildWallPreview() {
   }
 }
 
-// Unlike drawPanel2dFrame() (single 2D panel, reuses cube face 0's own
-// v-flip convention baked into faceMap - see that function), wall-mode
-// per-panel bytes come straight from core.wallBuf via plain row-major
-// slicing (encodeWallFrames() in sim-loopback.js / wsServer.js's
-// _streamWallFrames(), and rgbMatrixDriver.js's _buildWallPanelBuffer()
-// for the real hardware output - none of them flip v) - so this must NOT
-// flip v either, or a vertically-stacked wall's panel-to-panel seam joins
-// rows that were never actually adjacent in the source buffer. A real
-// report ("horizontal... flies between them, that's good, but it does
-// not glow vertically") traced to exactly this: horizontal stacking never
-// exposed the bug (a per-panel vertical flip doesn't affect column
-// order), but the real hardware driver's un-flipped convention proves
-// this preview-only flip was simply wrong, not a deliberate orientation
-// choice to preserve.
+// Wall per-panel bytes are plain row-major slices of core.wallBuf
+// (encodeWallFrames(), wsServer.js _streamWallFrames(), and the hardware
+// driver's _buildWallPanelBuffer() never flip v), so this must NOT flip v
+// either, unlike drawPanel2dFrame(). A flip here would join the wrong rows
+// at the seams of vertically stacked panels.
 function drawWallPanelFrame(ctx, bytes) {
   drawLedGrid(ctx, bytes, currentState.panelSize, PANEL2D_OUT, false);
 }
@@ -4802,8 +4956,13 @@ document.addEventListener('DOMContentLoaded', () => {
   wireClearAllButton();
   wireStopSoundButton();
   wireUpdate();
+  wireSetupSearch();
+  wireDraw();
+  wireNote();
   wireIdentifyPanelsButton();
   wireRainPanel();
+  wireRadarPanel();
+  wireTalkingFacePanel();
   wireLightspeedPanel();
   wireCamPanel();
   wireApodPanel();
@@ -5286,6 +5445,9 @@ function cxSyncFavs() {
     if (document.activeElement !== sel) sel.value = String(p.minutes);
     note.textContent = p.on && favs.size < 2 ? 'Star at least two effects (★ on the tiles) for the playlist to cycle.' : '';
   }
+  const tr = currentState.prefs?.transition || { style: 'fade', secs: 0.4 };
+  document.querySelectorAll('#tr-style button').forEach((b) => b.classList.toggle('on', b.dataset.tr === tr.style));
+  document.querySelectorAll('#tr-secs button').forEach((b) => b.classList.toggle('on', Math.abs(Number(b.dataset.secs) - tr.secs) < 0.05));
   const look = currentState.prefs?.look, lsw = document.getElementById('look-sw');
   if (look && lsw) {
     lsw.classList.toggle('on', look.on !== false);
@@ -5310,6 +5472,9 @@ function cxWirePrefs() {
   const hours = [...Array(24).keys()].map((h) => new Option(String(h).padStart(2, '0') + ':00', String(h)));
   document.getElementById('night-from')?.replaceChildren(...hours.map((o) => o.cloneNode(true)));
   document.getElementById('night-to')?.replaceChildren(...hours.map((o) => o.cloneNode(true)));
+  // Transition between effects (src/effects/transition.js).
+  document.querySelectorAll('#tr-style button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setTransition', style: b.dataset.tr })));
+  document.querySelectorAll('#tr-secs button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setTransition', secs: Number(b.dataset.secs) })));
   document.getElementById('look-sw')?.addEventListener('click', () => send({ cmd: 'setLook', on: currentState.prefs?.look?.on === false }));
   for (const k of ['bloom', 'vibrance', 'smooth', 'depth']) {
     const el = document.getElementById('look-' + k);
@@ -5713,7 +5878,8 @@ function cxToggleSpectrum() {
 }
 function cxWireSpectrumShortcut() {
   document.getElementById('cx-show-spectrum')?.addEventListener('click', cxToggleSpectrum);
-  document.querySelectorAll('#panel-radio .spectrum-bands-btn, #panel-radio .au-style-btn, #panel-radio .au-theme-btn, #panel-radio .au-scene-btn, #panel-radio .au-ver-btn').forEach((b) => b.addEventListener('click', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
+  document.querySelectorAll('#panel-radio .spectrum-bands-btn, #panel-radio .au-theme-btn').forEach((b) => b.addEventListener('click', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
+  document.querySelectorAll('#au-look-sel').forEach((el) => el.addEventListener('change', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
 }
 
 function cxSyncMusic() {
@@ -5728,7 +5894,7 @@ function cxSyncMusic() {
     sb.classList.toggle('active', on);
   }
   document.getElementById('cx-np-name').textContent = playing ? st.station.name.replace(/^[\s-]+/, '') : 'Nothing playing';
-  document.getElementById('cx-np-sub').textContent = playing ? (st.station.genre || 'Radio') : 'Pick a station below';
+  document.getElementById('cx-np-sub').textContent = playing ? (st.title ? '♪ ' + st.title : st.station.genre || 'Radio') : 'Pick a station below';
   const mb = document.getElementById('stop-sound-btn');
   if (mb) {
     const muted = radioMuted();

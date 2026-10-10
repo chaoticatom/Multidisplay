@@ -12,6 +12,7 @@
 
 const { spawn } = require('child_process');
 const CPS = 15; // speaking rate, characters per second (~170 words a minute)
+let id = 0; // line numbers, unique for the whole process (the page speaks each new one once)
 
 const TOPICS = [
   'Did you know octopuses have three hearts and blue blood?',
@@ -43,7 +44,7 @@ function timeGreeting(tz) {
 
 function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spawn, now = Date.now } = {}) {
   const ft = state.faceTalk || (state.faceTalk = { say: null, thinking: false, log: [] });
-  let id = 0, speakEnds = 0, lastTopic = -1, voiceProc = null;
+  let speakEnds = 0, lastTopic = -1, voiceProc = null;
   const status = { voice: '' };
 
   const opts = () => (state.effectOptions && state.effectOptions.talking_face) || {};
@@ -70,15 +71,58 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
     proc.on('error', (e) => { if (proc === voiceProc) { voiceProc = null; status.voice = 'Pi voice failed: ' + e.message; } });
   }
 
-  function say(text) {
+  // Natural speech (Gemini text-to-speech, when Gemini is the AI provider):
+  // raw 24 kHz mono PCM straight into paplay.
+  function playPcm(pcm) {
+    if (voiceProc) { try { voiceProc.kill(); } catch (e) { /* gone */ } voiceProc = null; }
+    let proc;
+    try {
+      const { findPulseEnv } = require('./pulseEnv');
+      const pulse = findPulseEnv(), env = pulse.env ? { ...process.env, ...pulse.env } : process.env;
+      const args = ['--raw', '--rate=24000', '--channels=1', '--format=s16le'];
+      if (pulse.env) args.unshift('--server=' + pulse.env.PULSE_SERVER);
+      proc = spawnFn('paplay', args, { stdio: ['pipe', 'ignore', 'pipe'], env });
+    } catch (e) { status.voice = 'Pi voice failed: ' + e.message; return; }
+    voiceProc = proc;
+    proc.on('error', (e) => { if (proc === voiceProc) { voiceProc = null; status.voice = 'Pi voice failed: ' + e.message; } });
+    proc.on('exit', () => { if (proc === voiceProc) voiceProc = null; });
+    if (proc.stdin) { proc.stdin.on('error', () => {}); proc.stdin.end(pcm); }
+  }
+
+  // Shows the line on the display; the lips follow it at `cps`.
+  function startLine(t, cps = CPS) {
+    ft.thinking = false;
+    const at = now() + 300;
+    ft.say = { id: ++id, text: t, at, cps };
+    speakEnds = at + (t.length / cps) * 1000;
+    ft.log.push({ who: 'face', text: t }); if (ft.log.length > 20) ft.log.shift();
+    broadcast();
+  }
+
+  async function say(text) {
     const t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 300);
     if (!t) return;
-    const at = now() + 400;
-    ft.say = { id: ++id, text: t, at, cps: CPS };
-    speakEnds = at + (t.length / CPS) * 1000;
-    ft.log.push({ who: 'face', text: t }); if (ft.log.length > 20) ft.log.shift();
-    if (voice() === 'pi' || voice() === 'both') piSpeak(t);
-    broadcast();
+    const v = voice();
+    if (v === 'pi' || v === 'both') {
+      // A natural Gemini voice when available: fetched first, then the lips
+      // are timed to the real length of the audio.
+      try {
+        if (!ft.thinking) { ft.thinking = true; broadcast(); }
+        const pcm = ai.speech ? await ai.speech(t, opts().style === 'woman' ? 'Kore' : 'Puck') : null;
+        ft.thinking = false;
+        if (pcm && pcm.length > 4800) {
+          const secs = pcm.length / 48000;
+          startLine(t, Math.max(5, Math.min(30, t.length / secs)));
+          playPcm(pcm);
+          status.voice = '';
+          return;
+        }
+      } catch (e) { ft.thinking = false; status.voice = e.message.slice(0, 160) + ' - using the basic voice'; }
+      startLine(t);
+      piSpeak(t);
+      return;
+    }
+    startLine(t);
   }
 
   async function chat(text) {
@@ -91,8 +135,7 @@ function createFaceTalk({ state, broadcast, ai = require('./ai'), spawnFn = spaw
       const r = await ai.chat(ft.log.slice(0, -1), t);
       reply = r.off ? 'I\'d love to chat properly. Turn on the AI assistant in Setup, and I can answer you. Meanwhile, here\'s something: ' + pickTopic() : r.say;
     } catch (e) { reply = 'Sorry, I lost my train of thought there. ' + e.message.slice(0, 80); }
-    ft.thinking = false;
-    say(reply || 'Hmm, I\'m not sure what to say to that.');
+    say(reply || 'Hmm, I\'m not sure what to say to that.'); // keeps the thinking look while natural speech is fetched
   }
 
   function pickTopic() {

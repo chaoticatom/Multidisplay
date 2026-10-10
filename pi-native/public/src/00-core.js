@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.291';
+const APP_VERSION = '0.6.293';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -25,7 +25,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['countdown', 'ai_art', 'my_photos', 'message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube']);
+const WIRED_OPTION_PANELS = new Set(['countdown', 'ai_art', 'my_photos', 'message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube', 'radar', 'talking_face']);
 // Shared "Art" submenu prev/next/slideshow/letterbox/speed controls
 // (#art-slideshow-chk/#art-letterbox-chk/#art-speed/#art-prev-btn/
 // #art-next-btn) drive whichever of Unsplash/Art Gallery is the currently

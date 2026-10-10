@@ -59,6 +59,18 @@ console.log('talkingFace');
     assert.strictEqual(calls[0].args[3], 'Hi "there"; rm -rf /', 'text goes as $1, never into the command');
     console.log('  ok - the Pi voice runs espeak-ng safely');
 
+    // With Gemini: natural speech is fetched first, played raw through paplay,
+    // and the lips are timed to the audio's real length (here 2 s).
+    calls.length = 0; let asked = null;
+    state.effectOptions.talking_face = { voice: 'pi', style: 'woman' };
+    const gem = { chat: async () => ({ off: true }), speech: async (text, v) => { asked = v; return Buffer.alloc(96000); } };
+    talk = createFaceTalk({ state, broadcast() {}, ai: gem, spawnFn: (cmd, args) => { calls.push({ cmd, args }); const p = new EventEmitter(); p.stderr = new EventEmitter(); p.stdin = Object.assign(new EventEmitter(), { end() {} }); p.kill = () => {}; return p; }, now: () => t });
+    await talk.say('Twenty characters!!');
+    assert.strictEqual(asked, 'Kore', 'a female voice for the woman');
+    assert.ok(calls.some((c) => c.cmd === 'paplay' && c.args.includes('--rate=24000')));
+    assert.ok(Math.abs(state.faceTalk.say.cps - 19 / 2) < 0.6, 'lips timed to 2 s of audio: ' + state.faceTalk.say.cps);
+    console.log('  ok - natural Gemini voice, lips timed to it');
+
     // Lips: open on vowels, closed on m/b/p; speech index follows the clock.
     const { viseme, speechIndex } = tf._test;
     assert.ok(viseme('a')[0] > 0.6 && viseme('m')[0] === 0 && viseme('o')[1] < 0);

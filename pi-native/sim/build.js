@@ -34,6 +34,8 @@ esbuild.build({
     fs: path.join(__dirname, 'shims', 'fs.js'),
     path: path.join(__dirname, 'shims', 'path.js'),
     child_process: path.join(__dirname, 'shims', 'child_process.js'),
+    http: path.join(__dirname, 'shims', 'http.js'),
+    https: path.join(__dirname, 'shims', 'http.js'),
   },
   logLevel: 'info',
 }).catch(() => process.exit(1));

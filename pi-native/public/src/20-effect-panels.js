@@ -624,6 +624,26 @@ function wireTalkingFacePanel() {
     setEffectOption('talking_face', 'hair', e.target.value === 'woman' ? 'blonde' : 'brown');
   });
 }
+// The most natural English voice this device has: online/neural ones first
+// (Microsoft "Natural", Google, Apple enhanced), British first, and female
+// for the woman's face / male for the man's where the name says so.
+const TF_FEMALE = /female|woman|sonia|libby|maisie|hazel|kate|serena|samantha|karen|moira|tessa|zira|aria|jenny|emma|amy|olivia|fiona|victoria|susan/i;
+const TF_MALE = /\bmale|ryan|thomas|daniel|arthur|george|oliver|guy|david|mark|james|alex|fred|rishi|aaron/i;
+function tfBestVoice(female) {
+  const voices = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+  let best = null, bestScore = -1;
+  for (const v of voices) {
+    if (!/^en/i.test(v.lang)) continue;
+    let sc = 0;
+    if (/natural|neural|online/i.test(v.name)) sc += 6;
+    if (/google/i.test(v.name)) sc += 4;
+    if (/premium|enhanced|siri/i.test(v.name)) sc += 4;
+    if (/en-GB/i.test(v.lang)) sc += 2;
+    if (female ? TF_FEMALE.test(v.name) && !/\bmale/i.test(v.name.replace(/female/ig, '')) : TF_MALE.test(v.name) && !/female/i.test(v.name)) sc += 3;
+    if (sc > bestScore) { best = v; bestScore = sc; }
+  }
+  return best;
+}
 // The phone's own voice for each new line (when voice is phone or both).
 let tfSpokenId = null;
 function syncTalkingFacePanel() {
@@ -651,7 +671,7 @@ function syncTalkingFacePanel() {
       try {
         speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(say.text);
-        const voices = speechSynthesis.getVoices(); u.voice = voices.find((x) => /en-GB/i.test(x.lang)) || voices.find((x) => /^en/i.test(x.lang)) || null;
+        u.voice = tfBestVoice(o.style === 'woman');
         u.rate = 1.0;
         setTimeout(() => speechSynthesis.speak(u), Math.max(0, say.at - Date.now()));
       } catch (e) { /* no speech on this device */ }
