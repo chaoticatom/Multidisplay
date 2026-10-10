@@ -81,24 +81,53 @@ function depthFactors(core) {
 let src = new Float32Array(0), img = new Float32Array(0), half = new Float32Array(0), tmp = new Float32Array(0), prevWall = null, prevCube = null;
 const grow = (a, n) => (a.length >= n ? a : new Float32Array(n));
 
-// 5-tap gaussian along one axis of a w x h RGB image (in -> out).
+// 5-tap gaussian along one axis of a w x h RGB image (in -> out). Written
+// for speed (it runs on every frame): neighbour indices are worked out once
+// per row/column instead of clamping per tap and per channel. Same sums in
+// the same order as a plain loop, so the result is unchanged.
+const K0 = 0.375, K1 = 0.25, K2 = 0.0625;
 function blur(src, dst, w, h, dx, dy) {
-  const K0 = 0.375, K1 = 0.25, K2 = 0.0625;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const o = (y * w + x) * 3;
-      for (let c = 0; c < 3; c++) {
-        let s = src[o + c] * K0;
-        for (let k = 1; k <= 2; k++) {
-          const wk = k === 1 ? K1 : K2;
-          const xa = Math.min(w - 1, x + dx * k), ya = Math.min(h - 1, y + dy * k);
-          const xb = Math.max(0, x - dx * k), yb = Math.max(0, y - dy * k);
-          s += (src[(ya * w + xa) * 3 + c] + src[(yb * w + xb) * 3 + c]) * wk;
-        }
-        dst[o + c] = s;
+  if (dx) {
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      for (let x = 0; x < w; x++) {
+        const o = (row + x) * 3;
+        const a1 = (row + (x + 1 < w ? x + 1 : w - 1)) * 3, b1 = (row + (x - 1 > 0 ? x - 1 : 0)) * 3;
+        const a2 = (row + (x + 2 < w ? x + 2 : w - 1)) * 3, b2 = (row + (x - 2 > 0 ? x - 2 : 0)) * 3;
+        dst[o] = src[o] * K0 + (src[a1] + src[b1]) * K1 + (src[a2] + src[b2]) * K2;
+        dst[o + 1] = src[o + 1] * K0 + (src[a1 + 1] + src[b1 + 1]) * K1 + (src[a2 + 1] + src[b2 + 1]) * K2;
+        dst[o + 2] = src[o + 2] * K0 + (src[a1 + 2] + src[b1 + 2]) * K1 + (src[a2 + 2] + src[b2 + 2]) * K2;
       }
     }
+    return;
   }
+  for (let y = 0; y < h; y++) {
+    const ra1 = (y + 1 < h ? y + 1 : h - 1) * w, rb1 = (y - 1 > 0 ? y - 1 : 0) * w;
+    const ra2 = (y + 2 < h ? y + 2 : h - 1) * w, rb2 = (y - 2 > 0 ? y - 2 : 0) * w;
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 3, a1 = (ra1 + x) * 3, b1 = (rb1 + x) * 3, a2 = (ra2 + x) * 3, b2 = (rb2 + x) * 3;
+      dst[o] = src[o] * K0 + (src[a1] + src[b1]) * K1 + (src[a2] + src[b2]) * K2;
+      dst[o + 1] = src[o + 1] * K0 + (src[a1 + 1] + src[b1 + 1]) * K1 + (src[a2 + 1] + src[b2 + 1]) * K2;
+      dst[o + 2] = src[o + 2] * K0 + (src[a1 + 2] + src[b1 + 2]) * K1 + (src[a2 + 2] + src[b2 + 2]) * K2;
+    }
+  }
+}
+
+// Bilinear upscale positions for one axis (full-res index -> two half-res
+// indices and a weight), cached per size.
+const upCache = new Map();
+function upAxis(n, hn) {
+  const key = n + ':' + hn;
+  let t = upCache.get(key);
+  if (!t) {
+    t = { i0: new Int32Array(n), i1: new Int32Array(n), w: new Float32Array(n) };
+    for (let x = 0; x < n; x++) {
+      const f = Math.min(hn - 1, (x - 0.5) / 2), x0 = Math.max(0, Math.floor(f));
+      t.i0[x] = x0; t.i1[x] = Math.min(hn - 1, x0 + 1); t.w[x] = Math.max(0, f - x0);
+    }
+    upCache.set(key, t);
+  }
+  return t;
 }
 
 // Bloom + vibrance on one RGB image in place (buf: w*h*3).
@@ -107,41 +136,55 @@ function processImage(buf, w, h, bloom, vibrance) {
     const hw = Math.ceil(w / 2), hh = Math.ceil(h / 2);
     half = grow(half, hw * hh * 3); tmp = grow(tmp, hw * hh * 3);
     // Highlights, box-downsampled to half resolution.
+    let any = false;
     for (let y = 0; y < hh; y++) for (let x = 0; x < hw; x++) {
       let r = 0, g = 0, b = 0, n = 0;
-      for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
-        const sx = x * 2 + i, sy = y * 2 + j;
-        if (sx >= w || sy >= h) continue;
-        const o = (sy * w + sx) * 3, m = Math.max(buf[o], buf[o + 1], buf[o + 2]);
-        if (m > THRESH) { const k = (m - THRESH) / m; r += buf[o] * k; g += buf[o + 1] * k; b += buf[o + 2] * k; }
-        n++;
+      const sx0 = x * 2, sy0 = y * 2;
+      for (let j = 0; j < 2; j++) {
+        const sy = sy0 + j; if (sy >= h) continue;
+        for (let i = 0; i < 2; i++) {
+          const sx = sx0 + i; if (sx >= w) continue;
+          const o = (sy * w + sx) * 3, pr = buf[o], pg = buf[o + 1], pb = buf[o + 2];
+          const m = pr > pg ? (pr > pb ? pr : pb) : (pg > pb ? pg : pb);
+          if (m > THRESH) { const k = (m - THRESH) / m; r += pr * k; g += pg * k; b += pb * k; }
+          n++;
+        }
       }
       const o = (y * hw + x) * 3; half[o] = r / n; half[o + 1] = g / n; half[o + 2] = b / n;
+      if (r + g + b > 0) any = true;
     }
-    // Two blur passes each way: a wide, soft glow.
-    blur(half, tmp, hw, hh, 1, 0); blur(tmp, half, hw, hh, 0, 1);
-    blur(half, tmp, hw, hh, 1, 0); blur(tmp, half, hw, hh, 0, 1);
-    const k = bloom * 1.6;
-    for (let y = 0; y < h; y++) {
-      const fy = Math.min(hh - 1, (y - 0.5) / 2), y0 = Math.max(0, Math.floor(fy)), y1 = Math.min(hh - 1, y0 + 1), wy = Math.max(0, fy - y0);
-      for (let x = 0; x < w; x++) {
-        const fx = Math.min(hw - 1, (x - 0.5) / 2), x0 = Math.max(0, Math.floor(fx)), x1 = Math.min(hw - 1, x0 + 1), wx = Math.max(0, fx - x0);
-        const o = (y * w + x) * 3, a = (y0 * hw + x0) * 3, bq = (y0 * hw + x1) * 3, c = (y1 * hw + x0) * 3, d = (y1 * hw + x1) * 3;
-        for (let ch = 0; ch < 3; ch++) {
-          const top = half[a + ch] + (half[bq + ch] - half[a + ch]) * wx, bot = half[c + ch] + (half[d + ch] - half[c + ch]) * wx;
-          buf[o + ch] += (top + (bot - top) * wy) * k;
+    // Nothing bright enough to glow (common in dark effects): skip the rest.
+    if (any) {
+      // Two blur passes each way: a wide, soft glow.
+      blur(half, tmp, hw, hh, 1, 0); blur(tmp, half, hw, hh, 0, 1);
+      blur(half, tmp, hw, hh, 1, 0); blur(tmp, half, hw, hh, 0, 1);
+      const k = bloom * 1.6, ux = upAxis(w, hw), uy = upAxis(h, hh);
+      for (let y = 0; y < h; y++) {
+        const r0 = uy.i0[y] * hw, r1 = uy.i1[y] * hw, wy = uy.w[y];
+        for (let x = 0; x < w; x++) {
+          const x0 = ux.i0[x], x1 = ux.i1[x], wx = ux.w[x];
+          const o = (y * w + x) * 3, a = (r0 + x0) * 3, bq = (r0 + x1) * 3, c = (r1 + x0) * 3, d = (r1 + x1) * 3;
+          // Channels written out (same arithmetic as a per-channel loop).
+          let top = half[a] + (half[bq] - half[a]) * wx, bot = half[c] + (half[d] - half[c]) * wx;
+          buf[o] += (top + (bot - top) * wy) * k;
+          top = half[a + 1] + (half[bq + 1] - half[a + 1]) * wx; bot = half[c + 1] + (half[d + 1] - half[c + 1]) * wx;
+          buf[o + 1] += (top + (bot - top) * wy) * k;
+          top = half[a + 2] + (half[bq + 2] - half[a + 2]) * wx; bot = half[c + 2] + (half[d + 2] - half[c + 2]) * wx;
+          buf[o + 2] += (top + (bot - top) * wy) * k;
         }
       }
     }
   }
   if (vibrance > 0.001) {
-    for (let o = 0; o < w * h * 3; o += 3) {
+    const end = w * h * 3, vk = vibrance * 1.2;
+    for (let o = 0; o < end; o += 3) {
       const r = buf[o], g = buf[o + 1], b = buf[o + 2];
-      const mx = Math.max(r, g, b);
+      const mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
       if (mx < 0.02) continue;
-      const mn = Math.min(r, g, b), sat = (mx - mn) / mx, l = (r + g + b) / 3;
-      const boost = 1 + vibrance * (1 - sat) * 1.2;
-      buf[o] = Math.max(0, l + (r - l) * boost); buf[o + 1] = Math.max(0, l + (g - l) * boost); buf[o + 2] = Math.max(0, l + (b - l) * boost);
+      const mn = r < g ? (r < b ? r : b) : (g < b ? g : b), sat = (mx - mn) / mx, l = (r + g + b) / 3;
+      const boost = 1 + vk * (1 - sat);
+      const nr = l + (r - l) * boost, ng = l + (g - l) * boost, nb = l + (b - l) * boost;
+      buf[o] = nr > 0 ? nr : 0; buf[o + 1] = ng > 0 ? ng : 0; buf[o + 2] = nb > 0 ? nb : 0;
     }
   }
 }

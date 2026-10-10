@@ -49,6 +49,7 @@ function flatPrism(x, y, t) {
 
 module.exports = defineFieldEffect({
   smooth: true, // slowly varying field: see surface.js
+  fine: true, // thin beams: sparser sampling on big walls beads them
   speed: 0.55,
   pixel(p, { t }) {
     if (p.flat) return flatPrism(p.x, p.y, t);

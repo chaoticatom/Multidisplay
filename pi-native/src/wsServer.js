@@ -175,6 +175,7 @@ class WsServer {
       // receives state/preview and may send commands) after sending it -
       // see _handleAuth() - unless src/access.js lets it in as a home-network
       // admin or an internet guest.
+      ws._remote = access.isRemote(req); // over the internet: a lighter preview (see wantsFrame)
       const role = access.decide({ pinSet: pinConfig.isPinSet(this.pinCfg), remote: access.isRemote(req), access: (this.state.prefs || {}).access });
       if (role === 'auth') {
         ws.send(JSON.stringify({ cmd: 'authRequired' }));
@@ -735,6 +736,8 @@ class WsServer {
     this._lastFrameMs = now;
     this._frameN = (this._frameN || 0) + 1;
     this._guestFrame = this._frameN % 4 === 0; // guests get a lighter 5 fps preview
+    // Pages connected over the internet get every other frame (10 fps): half
+    // the data through the tunnel; home-network pages keep the full rate.
 
     if (this.config.mode === 'wall') { this._streamWallFrames(core, brightness); return; }
 
@@ -757,7 +760,7 @@ class WsServer {
         }
       }
       for (const client of this._clients) {
-        if (client.readyState === WebSocket.OPEN && !client.previewOff && (client.role !== 'guest' || this._guestFrame) && previewHasRoom(client, buf.length)) client.send(buf);
+        if (client.readyState === WebSocket.OPEN && !client.previewOff && (client.role !== 'guest' || this._guestFrame) && (!client._remote || this._frameN % 2 === 0) && previewHasRoom(client, buf.length)) client.send(buf);
       }
     }
   }
@@ -794,7 +797,7 @@ class WsServer {
         }
       }
       for (const client of this._clients) {
-        if (client.readyState === WebSocket.OPEN && !client.previewOff && (client.role !== 'guest' || this._guestFrame) && previewHasRoom(client, buf.length)) client.send(buf);
+        if (client.readyState === WebSocket.OPEN && !client.previewOff && (client.role !== 'guest' || this._guestFrame) && (!client._remote || this._frameN % 2 === 0) && previewHasRoom(client, buf.length)) client.send(buf);
       }
     });
   }

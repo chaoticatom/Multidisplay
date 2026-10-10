@@ -4,21 +4,23 @@
 //   p: x, y, z (0..1; on a wall z = y), flat (true on a wall), i (pixel index).
 //   ctx: { t, dt, count, flat, core }. Optional frame(ctx) runs once per frame.
 // smooth: true samples a quarter of the pixels and blends the rest; optional
-// detail(p, ctx, rgb) then runs for every pixel. Returns the cube effect with
+// detail(p, ctx, rgb) then runs for every pixel. On big walls smooth fields
+// sample every 3rd pixel; fine: true keeps every 2nd (for thin lines). Returns the cube effect with
 // the wall effect attached as .wall.
 'use strict';
 
 // Colour fields drift a little faster with the bass while music plays.
 const tempoField = (core) => (core.audio && core.audio.active ? 1 + core.audio.bass * 0.5 : 1);
 
-// Sample positions (every 2nd index, always including the last) for one
+// Sample positions (every `step`th index, always including the last) for one
 // axis of length n, and per index the two samples to blend and the weight.
 const axisCache = new Map();
-function axis(n) {
-  let a = axisCache.get(n);
+function axis(n, step = 2) {
+  const key = n * 8 + step;
+  let a = axisCache.get(key);
   if (a) return a;
   const pos = [];
-  for (let k = 0; k < n; k += 2) pos.push(k);
+  for (let k = 0; k < n; k += step) pos.push(k);
   if (pos[pos.length - 1] !== n - 1) pos.push(n - 1);
   const s0 = new Int32Array(n), s1 = new Int32Array(n), w = new Float32Array(n);
   for (let x = 0, k = 0; x < n; x++) {
@@ -27,11 +29,11 @@ function axis(n) {
     s0[x] = k; s1[x] = Math.min(k + 1, pos.length - 1); w[x] = a1 === a0 ? 0 : (x - a0) / (a1 - a0);
   }
   a = { pos, s0, s1, w };
-  axisCache.set(n, a);
+  axisCache.set(key, a);
   return a;
 }
 
-function defineFieldEffect({ speed = 1, frame, pixel, smooth = false, detail = null }) {
+function defineFieldEffect({ speed = 1, frame, pixel, smooth = false, detail = null, fine = false }) {
   const p = { x: 0, y: 0, z: 0, i: 0, flat: false };
   let samples = new Float32Array(64 * 64 * 3);
   const out = [0, 0, 0];
@@ -104,7 +106,10 @@ function defineFieldEffect({ speed = 1, frame, pixel, smooth = false, detail = n
       return;
     }
     // Smooth: sample a half-resolution grid, blend the rest.
-    const axX = axis(wallW), axY = axis(wallH), KX = axX.pos.length, KY = axY.pos.length;
+    // Big walls (3+ panels' worth) sample every 3rd pixel: these fields vary
+    // slowly, and it cuts the colour maths by more than half where it matters.
+    const step = !fine && wallW * wallH >= 3 * 64 * 64 ? 3 : 2;
+    const axX = axis(wallW, step), axY = axis(wallH, step), KX = axX.pos.length, KY = axY.pos.length;
     if (samples.length < KX * KY * 3) samples = new Float32Array(KX * KY * 3);
     for (let b = 0; b < KY; b++) {
       const yy = axY.pos[b];
@@ -115,8 +120,25 @@ function defineFieldEffect({ speed = 1, frame, pixel, smooth = false, detail = n
         samples[o] = c[0]; samples[o + 1] = c[1]; samples[o + 2] = c[2];
       }
     }
+    // Without detail() on a fully occupied wall, the blend is written straight
+    // into the frame (same arithmetic as blend(); this loop runs for every pixel).
+    const direct = !detail && core.wallAllOccupied, buf = core.wallBuf;
     for (let yy = 0; yy < wallH; yy++) {
       const b0 = axY.s0[yy], b1 = axY.s1[yy], wv = axY.w[yy];
+      if (direct) {
+        const r0 = b0 * KX, r1 = b1 * KX;
+        for (let xx = 0; xx < wallW; xx++) {
+          const a0 = axX.s0[xx], a1 = axX.s1[xx], wu = axX.w[xx];
+          const o00 = (r0 + a0) * 3, o10 = (r0 + a1) * 3, o01 = (r1 + a0) * 3, o11 = (r1 + a1) * 3, o = (yy * wallW + xx) * 3;
+          let top = samples[o00] + (samples[o10] - samples[o00]) * wu, bot = samples[o01] + (samples[o11] - samples[o01]) * wu;
+          buf[o] = top + (bot - top) * wv;
+          top = samples[o00 + 1] + (samples[o10 + 1] - samples[o00 + 1]) * wu; bot = samples[o01 + 1] + (samples[o11 + 1] - samples[o01 + 1]) * wu;
+          buf[o + 1] = top + (bot - top) * wv;
+          top = samples[o00 + 2] + (samples[o10 + 2] - samples[o00 + 2]) * wu; bot = samples[o01 + 2] + (samples[o11 + 2] - samples[o01 + 2]) * wu;
+          buf[o + 2] = top + (bot - top) * wv;
+        }
+        continue;
+      }
       for (let xx = 0; xx < wallW; xx++) {
         let c = blend(KX, axX.s0[xx], axX.s1[xx], axX.w[xx], b0, b1, wv);
         if (detail) { p.x = xx / wallW; p.y = yy / wallH; p.z = p.y; p.i = yy * wallW + xx; c = detail(p, ctx, c); }

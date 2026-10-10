@@ -113,12 +113,18 @@ class CubeCore {
     // as faceMap's -1 "no LED here" sentinel.
     this._wallOccupied = new Uint8Array(this.wallCols * this.wallRows);
     for (const p of panels) this._wallOccupied[p.gy * this.wallCols + p.gx] = 1;
+    // Per-column and per-row panel lookups, so setWallPixel (called for every
+    // pixel by every wall effect) needs no division.
+    this._wallColCell = new Int32Array(this.wallW);
+    for (let x = 0; x < this.wallW; x++) this._wallColCell[x] = (x / panelSize) | 0;
+    this._wallRowCell = new Int32Array(this.wallH);
+    for (let y = 0; y < this.wallH; y++) this._wallRowCell[y] = ((y / panelSize) | 0) * this.wallCols;
+    this.wallAllOccupied = panels.length === this.wallCols * this.wallRows;
   }
 
   setWallPixel(x, y, r, g, b) {
     if (x < 0 || x >= this.wallW || y < 0 || y >= this.wallH) return;
-    const gx = (x / this.wallPanelSize) | 0, gy = (y / this.wallPanelSize) | 0;
-    if (!this._wallOccupied[gy * this.wallCols + gx]) return;
+    if (!this._wallOccupied[this._wallRowCell[y] + this._wallColCell[x]]) return; // a fractional x/y finds no cell and writes nothing, as before
     const o = (y * this.wallW + x) * 3;
     this.wallBuf[o] = r; this.wallBuf[o + 1] = g; this.wallBuf[o + 2] = b;
   }

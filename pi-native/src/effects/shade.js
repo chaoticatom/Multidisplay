@@ -5,12 +5,15 @@
 'use strict';
 const L = (() => { const v = [-0.45, -0.55, 0.7], n = Math.hypot(...v); return v.map((a) => a / n); })();
 
-function lit(col, dhx, dhy, { bump = 1, gloss = 30, shine = 0.6, ambient = 0.35 } = {}) {
-  const nx = -dhx * bump, ny = -dhy * bump, nl = Math.hypot(nx, ny, 1);
+// Blinn-Phong with the viewer straight on: the half vector between the light
+// and +z is fixed, so it's worked out once (this runs for every pixel).
+const HX = L[0], HY = L[1], HZ = L[2] + 1, HL = Math.sqrt(HX * HX + HY * HY + HZ * HZ);
+const NO_OPTS = {};
+function lit(col, dhx, dhy, opts = NO_OPTS) {
+  const bump = opts.bump ?? 1, gloss = opts.gloss ?? 30, shine = opts.shine ?? 0.6, ambient = opts.ambient ?? 0.35;
+  const nx = -dhx * bump, ny = -dhy * bump, nl = Math.sqrt(nx * nx + ny * ny + 1);
   const lam = Math.max(0, (nx * L[0] + ny * L[1] + L[2]) / nl);
-  // Blinn-Phong with the viewer straight on: half vector between light and +z.
-  const hx = L[0], hy = L[1], hz = L[2] + 1, hl = Math.hypot(hx, hy, hz);
-  const spec = Math.pow(Math.max(0, (nx * hx + ny * hy + hz) / (nl * hl)), gloss) * shine;
+  const spec = Math.pow(Math.max(0, (nx * HX + ny * HY + HZ) / (nl * HL)), gloss) * shine;
   const k = ambient + (1 - ambient) * lam;
   return [Math.min(1, col[0] * k + spec), Math.min(1, col[1] * k + spec), Math.min(1, col[2] * k + spec)];
 }
