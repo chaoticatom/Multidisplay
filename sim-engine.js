@@ -18482,7 +18482,7 @@ var PiEngine = (() => {
         return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
       }
       var LOOP = 22;
-      var SKINS = [[0.8, 0.9, 0.88], [0.88, 0.88, 0.8], [0.72, 0.86, 0.95], [0.85, 0.8, 0.9], [0.78, 0.92, 0.8]];
+      var SKINS = [[0.8, 0.9, 0.88], [0.88, 0.88, 0.8], [0.72, 0.86, 0.95], [0.85, 0.8, 0.9], [0.78, 0.92, 0.8], [0.68, 0.72, 0.7], [0.9, 0.85, 0.85], [0.6, 0.75, 0.68]];
       var EYES = [[1.2, 0.12, 0.05], [0.2, 1.1, 0.25], [0.35, 0.6, 1.2], [1.1, 0.65, 0.05], [0.95, 1, 1.1]];
       var G = { pos: [0, 0, 0], peek: 0, yaw: 0, pitch: 0, roll: 0, mouth: 0.6, glow: 1, eye: EYES[0], look: [0, 0], glitch: 0, t: 0 };
       var st = { t: 0, frame: 0, img: null, w: 0, h: 0, aspect: 1, blink: 0, nextBlink: 2, look: [0, 0], lookTo: [0, 0], nextLook: 1, lastCycle: -1 };
@@ -18492,7 +18492,23 @@ var PiEngine = (() => {
           st.lastCycle = n;
           G.eye = EYES[n % EYES.length];
           const r = (k, a, b) => a + (b - a) * hash(n * 7 + 3, k);
-          G.F = { w: r(1, 0.3, 0.38), l: r(2, 0.4, 0.48), gap: r(3, 0.115, 0.15), eye: r(4, 0.85, 1.2), mw: r(5, 0.085, 0.135), mh: r(6, 0.8, 1.25), cheek: r(7, 0.06, 0.1), skin: SKINS[Math.floor(r(8, 0, SKINS.length - 1e-3))] };
+          const style = Math.floor(r(16, 0, 2.999));
+          G.F = {
+            w: r(1, 0.28, 0.4),
+            l: r(2, 0.38, 0.52),
+            gap: r(3, 0.11, 0.16),
+            eye: r(4, 0.8, 1.35),
+            cheek: r(7, 0.05, 0.11),
+            skin: SKINS[Math.floor(r(8, 0, SKINS.length - 1e-3))],
+            style,
+            mw: style === 1 ? r(5, 0.16, 0.2) : style === 2 ? r(5, 0.06, 0.08) : r(5, 0.09, 0.13),
+            mh: style === 1 ? r(6, 0.35, 0.5) : style === 2 ? r(6, 0.55, 0.75) : r(6, 0.9, 1.3),
+            asym: r(17, -1, 1) * 0.25,
+            // one eye socket lower and bigger than the other
+            brow: r(18, 0.04, 0.09),
+            chin: r(19, -0.04, 0.08),
+            veins: r(20, 0, 1) < 0.5 ? r(21, 0.4, 1) : 0
+          };
           const halfW2 = Math.max(0, (st.aspect || 1) / 2 * FOV * (CAM_Z - 1.1) / CAM_Z - 0.85);
           G.V = { x: r(9, -1, 1) * Math.max(0.3, halfW2), drift: r(15, -0.3, 0.3) * halfW2, y: r(10, -0.04, 0.1), yaw: r(11, -0.45, 0.45), roll: r(12, -0.15, 0.15), pitch: r(13, -0.14, 0.06), sway: r(14, 0.6, 1.4) };
         }
@@ -18529,7 +18545,8 @@ var PiEngine = (() => {
         G.t = t;
         G.bound = [G.pos[0], G.pos[1] - 0.1, G.pos[2] - 0.2, 1.05];
         buildScare(n, c, t);
-        G.hidden = SC.kind === "skull" && SC.skull > 0;
+        buildBgEyes(t);
+        G.hidden = false;
       }
       var HP = [0, 0, 0];
       function toHead(px, py, pz) {
@@ -18549,24 +18566,26 @@ var PiEngine = (() => {
         }
         const F = G.F;
         let d = ell(x, y - 0.05, z, F.w, F.l, 0.38);
-        d = smin(d, ell(x, y + 0.28, z + 0.02, 0.24, 0.3 + 0.08 * G.mouth, 0.3), 0.12);
+        d = smin(d, ell(x, y + 0.28 + F.chin, z + 0.02, 0.24, 0.3 + F.chin + 0.08 * G.mouth, 0.3), 0.12);
         let holes = 1e9, teeth = 1e9;
         if (z > 0 && d < 0.1 && Math.abs(x) < 0.42) {
           d = smax(d, -ell(x - (F.w - 0.1) * Math.sign(x), y + 0.15, z - 0.2, F.cheek, 0.16, 0.12), 0.06);
-          d = smin(d, ell(x, y - 0.13, z - 0.27, 0.27, 0.06, 0.08), 0.06);
+          d = smin(d, ell(x, y - 0.13, z - 0.27, 0.27, F.brow, 0.08), 0.06);
           const ex = Math.abs(x) - F.gap;
-          const socket = ell(ex, y - 0.04, z - 0.33, 0.095 * F.eye, 0.085 * F.eye, 0.13);
+          const lop = 1 + F.asym * Math.sign(x);
+          const socket = ell(ex, y - 0.04 + 0.04 * F.asym * Math.sign(x), z - 0.33, 0.095 * F.eye * lop, 0.085 * F.eye * lop, 0.13);
           const nose = ell(x, y + 0.1 + 0.6 * Math.abs(x), z - 0.36, 0.035, 0.06, 0.08);
           const mw = F.mw + 0.02 * Math.sin(G.t * 0.7), mh = (0.06 + 0.13 * G.mouth) * F.mh;
           const my = -(0.36 + mh * 0.3);
-          const pinch = 1 - 0.3 * clamp((y - my) / mh);
-          const mouth = Math.min(ell(x / pinch, y - my, z - 0.3, mw, mh, 0.16), ell(x, y - my, z - 0.05, mw * 0.8, mh * 0.85, 0.3));
+          const pinch = F.style === 0 ? 1 - 0.3 * clamp((y - my) / mh) : 1;
+          const grin = F.style === 1 ? 0.06 * (x / mw) * (x / mw) : 0;
+          const mouth = Math.min(ell(x / pinch, y - my - grin, z - 0.3, mw, mh, 0.16), ell(x, y - my - grin, z - 0.05, mw * 0.8, mh * 0.85, 0.3));
           holes = Math.min(socket, nose, mouth);
           d = smax(d, -holes, 0.025);
           if (Math.abs(x) < mw * 0.9 && Math.abs(y - my) < mh * 1.1) {
             const tw = 0.034, tx = (x % tw + tw * 1.5) % tw - tw / 2, ti = Math.round(x / tw);
             const len = 0.03 + 0.018 * hash(ti, 5) + 0.012 * G.mouth, edge = Math.sqrt(clamp(1 - (x / mw) ** 2));
-            const top = my + mh * 0.92 * edge * pinch, bot = my - mh * 0.92 * edge;
+            const top = my + grin + mh * 0.92 * edge * pinch, bot = my + grin - mh * 0.92 * edge;
             const zt = 0.3 + 0.13 * edge - 0.02;
             const up = ell(tx, y - (top - len * 0.5), z - zt, 0.013 * (1 - clamp((top - y) / len) * 0.7), len * 0.6, 0.016);
             const dn = ell(tx, y - (bot + len * 0.45), z - zt, 0.012 * (1 - clamp((y - bot) / len) * 0.7), len * 0.55, 0.015);
@@ -18593,10 +18612,11 @@ var PiEngine = (() => {
         const h = toHead(px, py, pz);
         const lx = G.look[0] * 0.025, ly = G.look[1] * 0.02;
         const gp = G.F.gap;
-        return Math.min(len3(h[0] - gp - lx, h[1] - 0.04 - ly, h[2] - 0.27), len3(h[0] + gp - lx, h[1] - 0.04 - ly, h[2] - 0.27)) - 0.028 * G.F.eye;
+        const as = G.F.asym * 0.04;
+        return Math.min(len3(h[0] - gp - lx, h[1] - 0.04 + as - ly, h[2] - 0.27), len3(h[0] + gp - lx, h[1] - 0.04 - as - ly, h[2] - 0.27)) - 0.028 * G.F.eye;
       }
-      var KINDS = ["eyes", "hands", "shatter", "skull"];
-      var SC = { kind: null, eyes: [], hands: [], shards: [], crack: 0, impact: [0, 0], skull: 0, skullPos: [0, 0, 0], static: 0, boxes: [] };
+      var KINDS = ["eyes", "hands", "shatter", "spider"];
+      var SC = { kind: null, eyes: [], hands: [], shards: [], crack: 0, impact: [0, 0], spider: 0, sp: [0, 0, 0], twitch: 0, boxes: [] };
       var halfW = (z) => (st.aspect || 1) / 2 * FOV * (CAM_Z - z) / CAM_Z;
       var halfH = (z) => FOV / 2 * (CAM_Z - z) / CAM_Z;
       function buildScare(n, c, t) {
@@ -18605,8 +18625,7 @@ var PiEngine = (() => {
         SC.hands = [];
         SC.shards = [];
         SC.crack = 0;
-        SC.skull = 0;
-        SC.static = 0;
+        SC.spider = 0;
         if (SC.kind === "eyes") {
           const count = Math.max(4, Math.min(18, Math.round(3 + 2.5 * asp)));
           for (let i = 0; i < count; i++) {
@@ -18651,11 +18670,36 @@ var PiEngine = (() => {
               }
             }
           }
-        } else if (SC.kind === "skull") {
-          SC.skull = sm(0.5, 0.515, c) * (1 - sm(0.595, 0.61, c));
-          SC.static = sm(0.49, 0.5, c) * (1 - sm(0.6, 0.63, c));
-          const sz = 0.4 + 1.1 * sm(0.5, 0.56, c), lim = Math.max(0, halfW(sz) - 0.4);
-          SC.skullPos = [clamp(G.pos[0], -lim, lim), G.pos[1] + 0.05, sz];
+        } else if (SC.kind === "spider") {
+          const down = sm(0.4, 0.45, c), up = sm(0.6, 0.64, c);
+          SC.spider = down * (1 - up);
+          if (SC.spider > 0) {
+            const z = 1.45, top = halfH(z) + 0.5, bob = 0.04 * Math.sin(t * 7) * Math.exp(-(c - 0.45) * 30 * (c > 0.45 ? 1 : 0)) + 0.015 * Math.sin(t * 1.3);
+            const w = halfW(z) - 0.35;
+            let x = asp > 2 ? clamp(G.pos[0] + (r(3) < 0.5 ? -1 : 1) * (0.9 + 0.4 * r(4)), -w, w) : clamp(G.pos[0] * 0.3 + (r(3) - 0.5) * 0.4, -w, w);
+            const hang = 0.05 + 0.15 * r(5);
+            SC.sp = [x, mix(top, hang, down) + (top - hang) * up * 1.4 + bob, z];
+            SC.twitch = t;
+          }
+        }
+      }
+      var BGE = [];
+      var BGE_COLS = [[1.1, 0.1, 0.04], [1, 0.75, 0.1], [0.3, 1, 0.3], [0.9, 0.95, 1], [0.3, 0.5, 1.1]];
+      function buildBgEyes(t) {
+        BGE.length = 0;
+        if (SC.kind === "eyes" && SC.eyes.length) return;
+        const asp = st.aspect || 1, slots = Math.max(1, Math.min(5, Math.round(asp * 0.7)));
+        for (let k = 0; k < slots; k++) {
+          const per = 7 + 3 * k, cyc = Math.floor(t / per), f = t / per - cyc, rr = (j) => hash(cyc * 31 + k * 7, j);
+          if (rr(1) < 0.45) continue;
+          const a = sm(0.1, 0.25, f) * (1 - sm(0.55, 0.7, f));
+          if (a <= 0) continue;
+          const z = 0, w = halfW(z) - 0.2, hgt = halfH(z) - 0.15;
+          let x = (rr(2) * 2 - 1) * w;
+          const y = (rr(3) * 2 - 1) * hgt;
+          if (Math.abs(x - G.pos[0]) < 0.7 && !G.hidden && G.pos[2] > -0.5) x += x < G.pos[0] ? -0.8 : 0.8;
+          const blink = Math.abs(f - (0.3 + 0.2 * rr(4))) < 0.012 ? 0 : 1;
+          BGE.push({ x, y, gap: 0.035 + 0.035 * rr(5), r2: 4e-4 + 5e-4 * rr(6), a: a * blink * (0.6 + 0.4 * rr(7)), c: BGE_COLS[Math.floor(rr(8) * BGE_COLS.length)] });
         }
       }
       function scareSpheres() {
@@ -18677,7 +18721,7 @@ var PiEngine = (() => {
           for (const s of SC.shards) rr = Math.max(rr, len3(s.x - mx, s.y - my, s.z - mz) + s.s * 1.5);
           out.push([mx, my, mz, rr]);
         }
-        if (SC.skull > 0) out.push([SC.skullPos[0], SC.skullPos[1], SC.skullPos[2], 0.55 * SKS]);
+        if (SC.spider > 0) out.push([SC.sp[0], SC.sp[1], SC.sp[2], 0.42 * SPS]);
         return out;
       }
       function boxD(x, y, z, bx, by, bz) {
@@ -18706,20 +18750,40 @@ var PiEngine = (() => {
         }
         return h;
       }
-      var SKS = 0.72;
-      function skullD(x, y, z) {
-        x = (x - SC.skullPos[0]) / SKS;
-        y = (y - SC.skullPos[1]) / SKS;
-        z = (z - SC.skullPos[2]) / SKS;
-        return skullLocal(x, y, z) * SKS;
+      var SPS = 0.85;
+      function spiderD(x, y, z, want) {
+        x = (x - SC.sp[0]) / SPS;
+        y = (y - SC.sp[1]) / SPS;
+        z = (z - SC.sp[2]) / SPS;
+        let d = ell(x, y - 0.1, z, 0.15, 0.19, 0.14);
+        const ceph = ell(x, y + 0.14, z - 0.02, 0.1, 0.1, 0.085);
+        d = smin(d, ceph, 0.03);
+        if (want) SPM.part = 0;
+        const ax = Math.abs(x), sgn = x < 0 ? -1 : 1, tw = SC.twitch;
+        let legs = 1e9;
+        if (ax < 0.5 && y > -0.55 && y < 0.3) for (let i = 0; i < 4; i++) {
+          const tj = 0.04 * Math.sin(tw * (9 + i * 3) + i * 1.7 + sgn) * (Math.sin(tw * 1.1 + i) > 0.6 ? 1 : 0.2);
+          const hy = -0.17 + i * 0.03, ky = 0.02 + 0.06 * i - 0.12 + tj, fy = -0.42 + 0.17 * i + tj * 1.5;
+          const kx = 0.22 + 0.025 * i, fx = 0.34 + 0.03 * i - 0.06 * (i === 0 ? 1 : 0);
+          legs = Math.min(legs, capR(ax, y, z, 0.06, hy, 0.02, kx, ky, 0.07, 0.02), capR(ax, y, z, kx, ky, 0.07, fx, fy, 0.1, 0.013));
+        }
+        d = Math.min(d, legs);
+        const fang = Math.min(capR(ax, y, z, 0.03, -0.22, 0.06, 0.035, -0.29, 0.08, 0.014));
+        d = Math.min(d, fang);
+        if (want) {
+          const ey = Math.min(len3(ax - 0.035, y + 0.17, z - 0.085), len3(ax - 0.015, y + 0.2, z - 0.09)) - 0.017;
+          SPM.part = ey < 8e-3 ? 2 : legs < d + 3e-3 || fang < d + 3e-3 ? 1 : 0;
+          SPM.lx = x;
+          SPM.ly = y;
+          SPM.lz = z;
+        }
+        return d * SPS;
       }
-      function skullLocal(x, y, z) {
-        let d = ell(x, y - 0.12, z, 0.42, 0.38, 0.4);
-        d = smin(d, boxD(x, y + 0.3, z - 0.05, 0.2, 0.12, 0.2) - 0.06, 0.1);
-        for (const s of [-1, 1]) d = Math.max(d, -ell(x - s * 0.15, y - 0.02, z - 0.36, 0.11, 0.1, 0.14));
-        d = Math.max(d, -ell(x, y + 0.14, z - 0.4, 0.04, 0.07, 0.1));
-        if (Math.abs(x) < 0.17) d = Math.max(d, -boxD((x % 0.06 + 0.09) % 0.06 - 0.03, y + 0.31, z - 0.25, 6e-3, 0.05, 0.05));
-        return Math.max(d, -boxD(x, y + 0.31, z - 0.26, 0.2, 6e-3, 0.05));
+      var SPM = { part: 0, lx: 0, ly: 0, lz: 0 };
+      function capR(px, py, pz, ax, ay, az, bx, by, bz, r) {
+        const bax = bx - ax, bay = by - ay, baz = bz - az, pax = px - ax, pay = py - ay, paz = pz - az;
+        const h = clamp((pax * bax + pay * bay + paz * baz) / (bax * bax + bay * bay + baz * baz));
+        return len3(pax - bax * h, pay - bay * h, paz - baz * h) - r;
       }
       function shardD(x, y, z, s) {
         const qx = x - s.x, qy = y - s.y, qz = z - s.z;
@@ -18748,8 +18812,8 @@ var PiEngine = (() => {
             if (want) SM.id = 2;
           }
         }
-        if (SC.skull > 0) {
-          const dk = skullD(x, y, z);
+        if (SC.spider > 0) {
+          const dk = spiderD(x, y, z, false);
           if (dk < d) {
             d = dk;
             if (want) SM.id = 3;
@@ -18856,22 +18920,28 @@ var PiEngine = (() => {
           g = base[1] * 0.5 + 0.12 + rim * 0.7 + sp;
           b = base[2] * 0.5 + 0.16 + rim * 0.85 + sp;
         } else {
-          const x = (px - SC.skullPos[0]) / SKS, y = (py - SC.skullPos[1]) / SKS, z = (pz - SC.skullPos[2]) / SKS;
-          const hole = Math.min(ell(Math.abs(x) - 0.15, y - 0.02, z - 0.36, 0.11, 0.1, 0.14), ell(x, y + 0.14, z - 0.4, 0.04, 0.07, 0.1)) - 4e-3;
-          const lit = 0.08 + 0.85 * ndl, sp = Math.pow(hdot, 30) * 0.35;
-          if (hole < 0.01) {
-            r = 0.9;
-            g = 0.05;
-            b = 0;
-          } else {
-            r = 0.95 * lit + sp + rim * 0.3;
-            g = 0.92 * lit + sp + rim * 0.25;
-            b = 0.8 * lit + sp + rim * 0.45;
+          spiderD(px, py, pz, true);
+          const lit = 0.04 + 0.4 * ndl, sp = Math.pow(hdot, 60) * 0.9;
+          r = 0.04 * lit + sp + rim * 0.15;
+          g = 0.035 * lit + sp + rim * 0.16;
+          b = 0.045 * lit + sp + rim * 0.22;
+          if (SPM.part === 2) {
+            r = 1;
+            g = 0.08;
+            b = 0.04;
+          } else if (SPM.part === 0 && SPM.lz > 0.05) {
+            const hx2 = Math.abs(SPM.lx), hy2 = SPM.ly - 0.1, hour = hx2 < 0.055 - Math.abs(hy2) * 0.45 + 0.012 && Math.abs(hy2) < 0.11;
+            if (hour) {
+              r = 0.75 * (0.3 + 0.7 * ndl) + sp;
+              g = 0.03;
+              b = 0.02;
+            }
+          } else if (SPM.part === 1) {
+            const hair = 0.5 + 0.5 * Math.sin(SPM.ly * 160);
+            r += 0.03 * hair;
+            g += 0.03 * hair;
+            b += 0.03 * hair;
           }
-          const k = SC.skull;
-          r = mix(base[0], r, k);
-          g = mix(base[1], g, k);
-          b = mix(base[2], b, k);
         }
         base[0] = r;
         base[1] = g;
@@ -18883,6 +18953,7 @@ var PiEngine = (() => {
       var FOG = [0, 0, 0];
       var OUT = [0, 0, 0];
       var RIM = [0.35, 0.5, 0.55];
+      var FOG_EYE = [0, 0, 0];
       function fogColour(x, y, t) {
         const f = noise(x * 2.2 + t * 0.15, y * 2.2 - t * 0.05) * 0.6 + noise(x * 5 - t * 0.3, y * 5 + t * 0.1) * 0.4;
         const v = 4e-3 + 0.028 * f * f;
@@ -18892,14 +18963,24 @@ var PiEngine = (() => {
           const s = 0.75, ex = Math.abs(x - G.pos[0]) - G.F.gap * s, ey = y - G.pos[1] - 0.06 * s;
           pe = Math.exp(-(ex * ex + ey * ey * 1.6) / 16e-4) * G.peek * G.glow * 1.3 + Math.exp(-(ex * ex + ey * ey) / 0.02) * G.peek * G.glow * 0.12;
         }
+        for (const be of BGE) {
+          const ex = Math.abs(x - be.x) - be.gap, ey = y - be.y, d2 = ex * ex + ey * ey * 3;
+          if (d2 < 0.02) {
+            const k = be.a * (Math.exp(-d2 / be.r2) * 1.1 + Math.exp(-d2 / (be.r2 * 8)) * 0.15);
+            FOG_EYE[0] += k * be.c[0];
+            FOG_EYE[1] += k * be.c[1];
+            FOG_EYE[2] += k * be.c[2];
+          }
+        }
         let ck = 0;
         if (SC.crack > 0) {
           const cx = x - SC.impact[0], cy = y - SC.impact[1], rr = len2(cx, cy), a = Math.atan2(cy, cx);
           ck = SC.crack * (Math.max(0, 1 - Math.abs(Math.sin(a * 7 + noise(rr * 5, a * 2) * 2.5)) * 14) * sm(1.1, 0.05, rr) + Math.max(0, 1 - Math.abs(Math.sin(rr * 22)) * 10) * sm(0.35, 0.05, rr) * 0.5);
         }
-        FOG[0] = v * 0.75 + glow * G.eye[0] * 0.5 + pe * G.eye[0] + ck * 0.55;
-        FOG[1] = v * 0.9 + glow * G.eye[1] * 0.5 + pe * G.eye[1] + ck * 0.65;
-        FOG[2] = v * 1 + glow * G.eye[2] * 0.5 + pe * G.eye[2] + ck * 0.75;
+        FOG[0] = v * 0.75 + glow * G.eye[0] * 0.5 + pe * G.eye[0] + ck * 0.55 + FOG_EYE[0];
+        FOG[1] = v * 0.9 + glow * G.eye[1] * 0.5 + pe * G.eye[1] + ck * 0.65 + FOG_EYE[1];
+        FOG[2] = v * 1 + glow * G.eye[2] * 0.5 + pe * G.eye[2] + ck * 0.75 + FOG_EYE[2];
+        FOG_EYE[0] = FOG_EYE[1] = FOG_EYE[2] = 0;
         return FOG;
       }
       var SHROUD = [0.55, 0.62, 0.66];
@@ -18957,7 +19038,11 @@ var PiEngine = (() => {
           const ndv = clamp(-(nx * dx + ny * dy + nz * dz));
           const rim = Math.pow(1 - ndv, 2.5);
           const ao = 0.55 + 0.45 * clamp(nz * 1.2 + 0.2);
-          const base = mat === 2 ? SHROUD : mat === 3 ? TEETH : mat === 1 ? THROAT : G.F.skin;
+          let base = mat === 2 ? SHROUD : mat === 3 ? TEETH : mat === 1 ? THROAT : G.F.skin;
+          if (mat === 0 && G.F.veins > 0) {
+            const hh = toHead(px, py, pz), v = Math.max(0, 1 - Math.abs(noise(hh[0] * 9 + 3, hh[1] * 9) - 0.5) * 14) * G.F.veins;
+            if (v > 0) base = [base[0] * (1 - 0.55 * v), base[1] * (1 - 0.7 * v), base[2] * (1 - 0.6 * v)];
+          }
           const lit = (0.06 + 0.65 * below + top) * ao * (mat === 1 ? 0.5 * sm(0.05, 0.3, H.depth) + 0.04 : 1);
           const h = toHead(px, py, pz).slice(), spill = Math.exp(-(len2(Math.abs(h[0]) - G.F.gap, h[1] - 0.04) ** 2) / 0.02) * 0.5 * G.glow;
           const gleam = mat === 3 ? 0.1 * Math.pow(clamp(nz), 6) : 0;
@@ -18993,7 +19078,11 @@ var PiEngine = (() => {
           const B = G.bound, k = CAM_Z / ((CAM_Z - B[2]) * FOV), cx = B[0] * k * Hr + Wr / 2, r = (B[3] * k + 0.05) * Hr;
           st.bx0 = Math.max(0, Math.floor(cx - r));
           st.bx1 = Math.min(Wr, Math.ceil(cx + r));
-          if (G.pos[2] < -0.45 || G.hidden) st.bx1 = st.bx0;
+          if (G.pos[2] < -0.45) st.bx1 = st.bx0;
+          if (SC.spider > 0) {
+            const k3 = CAM_Z / ((CAM_Z - SC.sp[2]) * FOV);
+            st.thread = [Math.max(0, Math.min(Wr - 1, Math.round(SC.sp[0] * k3 * Hr + Wr / 2))), Math.round((0.5 - (SC.sp[1] + 0.24 * SPS) * k3) * Hr)];
+          } else st.thread = null;
           st.sph = scareSpheres();
           st.sboxes = [];
           for (const S of st.sph) {
@@ -19072,12 +19161,11 @@ var PiEngine = (() => {
               }
             }
           }
-          if (SC.static > 0) for (let x = 0; x < Wr; x++) {
-            const o = (row + x) * 3, lum = B[o] + B[o + 1] + B[o + 2], k = SC.static * (lum > 0.9 ? 0.25 : 1);
-            const nv = hash(x * 3 + y * 977, Math.floor(st.rt * 30)) * 0.28 * k, band = Math.sin(y * 0.9 + st.rt * 40) > 0.85 ? 0.08 * k : 0;
-            B[o] += nv + band * 0.6;
-            B[o + 1] += nv * 0.9;
-            B[o + 2] += nv + band;
+          if (SC.spider > 0 && st.thread && y < st.thread[1]) {
+            const o = (row + st.thread[0]) * 3;
+            B[o] += 0.12;
+            B[o + 1] += 0.13;
+            B[o + 2] += 0.15;
           }
         }
       }

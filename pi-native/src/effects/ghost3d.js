@@ -3,15 +3,17 @@
 // cavity and a long gaping mouth, its ragged shroud trailing back into the
 // screen, drifts out of the fog towards you, sways and stares (the eyes
 // wander and blink; often only its glowing eyes peer out of the fog first),
-// now and then lunges at you with a static glitch, then
+// now and then lunges at you with a glitch, then
 // sinks back into the screen. ~22 s loop, most of it out of the screen.
 // Each visit the face is slightly different (head shape, eyes, mouth,
 // cheeks, skin tint, eye colour) and seen differently (where it comes out,
 // which way it's turned, its tilt and sway).
+// Now and then pairs of eyes glow in the far fog, away from the ghost.
 // Each visit also brings one scare (in turn, all in 3D): glossy eyeballs
 // floating out of the dark before it appears, hands pushing out through the
 // screen as if it were rubber, the screen shattering into glass shards when
-// it lunges, or a skull bursting out of TV static in its place. They're
+// it lunges, or a big spider dropping down on its thread right in front of
+// you. They're
 // placed and sized from the screen's shape, so they work on one panel or a
 // wall of several.
 // Shading: lit from below by its own eye glow and the fog, a cold rim of
@@ -46,7 +48,7 @@ function noise(x, y) {
 
 // ---- Pose: where the head is, which way it looks, the face's state ----
 const LOOP = 22;
-const SKINS = [[0.8, 0.9, 0.88], [0.88, 0.88, 0.8], [0.72, 0.86, 0.95], [0.85, 0.8, 0.9], [0.78, 0.92, 0.8]];
+const SKINS = [[0.8, 0.9, 0.88], [0.88, 0.88, 0.8], [0.72, 0.86, 0.95], [0.85, 0.8, 0.9], [0.78, 0.92, 0.8], [0.68, 0.72, 0.7], [0.9, 0.85, 0.85], [0.6, 0.75, 0.68]];
 const EYES = [[1.2, 0.12, 0.05], [0.2, 1.1, 0.25], [0.35, 0.6, 1.2], [1.1, 0.65, 0.05], [0.95, 1.0, 1.1]];
 const G = { pos: [0, 0, 0], peek: 0, yaw: 0, pitch: 0, roll: 0, mouth: 0.6, glow: 1, eye: EYES[0], look: [0, 0], glitch: 0, t: 0 };
 const st = { t: 0, frame: 0, img: null, w: 0, h: 0, aspect: 1, blink: 0, nextBlink: 2, look: [0, 0], lookTo: [0, 0], nextLook: 1, lastCycle: -1 };
@@ -58,7 +60,12 @@ function buildPose(t, dt) {
     // (picked from the loop number, so it's repeatable).
     st.lastCycle = n; G.eye = EYES[n % EYES.length];
     const r = (k, a, b) => a + (b - a) * hash(n * 7 + 3, k);
-    G.F = { w: r(1, 0.3, 0.38), l: r(2, 0.4, 0.48), gap: r(3, 0.115, 0.15), eye: r(4, 0.85, 1.2), mw: r(5, 0.085, 0.135), mh: r(6, 0.8, 1.25), cheek: r(7, 0.06, 0.1), skin: SKINS[Math.floor(r(8, 0, SKINS.length - 0.001))] };
+    // Mouth style: 0 a tall scream, 1 a wide grin, 2 a small round "O".
+    const style = Math.floor(r(16, 0, 2.999));
+    G.F = { w: r(1, 0.28, 0.4), l: r(2, 0.38, 0.52), gap: r(3, 0.11, 0.16), eye: r(4, 0.8, 1.35), cheek: r(7, 0.05, 0.11), skin: SKINS[Math.floor(r(8, 0, SKINS.length - 0.001))],
+      style, mw: style === 1 ? r(5, 0.16, 0.2) : style === 2 ? r(5, 0.06, 0.08) : r(5, 0.09, 0.13), mh: style === 1 ? r(6, 0.35, 0.5) : style === 2 ? r(6, 0.55, 0.75) : r(6, 0.9, 1.3),
+      asym: r(17, -1, 1) * 0.25, // one eye socket lower and bigger than the other
+      brow: r(18, 0.04, 0.09), chin: r(19, -0.04, 0.08), veins: r(20, 0, 1) < 0.5 ? r(21, 0.4, 1) : 0 };
     // How far it may roam each side (a wide wall: far), measured where it
     // hovers (z ~ 1, nearer you, so perspective spreads it out).
     const halfW = Math.max(0, (st.aspect || 1) / 2 * FOV * (CAM_Z - 1.1) / CAM_Z - 0.85);
@@ -91,7 +98,8 @@ function buildPose(t, dt) {
   G.t = t;
   G.bound = [G.pos[0], G.pos[1] - 0.1, G.pos[2] - 0.2, 1.05];
   buildScare(n, c, t); // after the ghost's placed: some scares start from where it is
-  G.hidden = SC.kind === 'skull' && SC.skull > 0; // the skull takes its place
+  buildBgEyes(t);
+  G.hidden = false;
 }
 
 const HP = [0, 0, 0]; // reused (this runs millions of times a second)
@@ -115,29 +123,31 @@ function sdfHead(x, y, z, want) {
   // Skull: a tall egg and a long jaw.
   const F = G.F;
   let d = ell(x, y - 0.05, z, F.w, F.l, 0.38);
-  d = smin(d, ell(x, y + 0.28, z + 0.02, 0.24, 0.3 + 0.08 * G.mouth, 0.3), 0.12); // jaw, stretched by the gaping mouth
+  d = smin(d, ell(x, y + 0.28 + F.chin, z + 0.02, 0.24, 0.3 + F.chin + 0.08 * G.mouth, 0.3), 0.12); // jaw, stretched by the gaping mouth (and the face's chin)
   // The face's details only matter near the front of the face - skipped
   // elsewhere (they were most of the cost).
   let holes = 1e9, teeth = 1e9;
   if (z > 0 && d < 0.1 && Math.abs(x) < 0.42) {
     d = smax(d, -ell(x - (F.w - 0.1) * Math.sign(x), y + 0.15, z - 0.2, F.cheek, 0.16, 0.12), 0.06); // hollow cheeks
-    d = smin(d, ell(x, y - 0.13, z - 0.27, 0.27, 0.06, 0.08), 0.06); // brow ridge
+    d = smin(d, ell(x, y - 0.13, z - 0.27, 0.27, F.brow, 0.08), 0.06); // brow ridge (heavier on some faces)
     // Eye sockets, nose cavity, mouth - carved out.
     const ex = Math.abs(x) - F.gap;
-    const socket = ell(ex, y - 0.04, z - 0.33, 0.095 * F.eye, 0.085 * F.eye, 0.13);
+    const lop = 1 + F.asym * Math.sign(x); // lopsided: one socket bigger and lower
+    const socket = ell(ex, y - 0.04 + 0.04 * F.asym * Math.sign(x), z - 0.33, 0.095 * F.eye * lop, 0.085 * F.eye * lop, 0.13);
     const nose = ell(x, y + 0.1 + 0.6 * Math.abs(x), z - 0.36, 0.035, 0.06, 0.08);
     // The mouth: a long scream, narrower at the top, a deep throat behind it.
     const mw = F.mw + 0.02 * Math.sin(G.t * 0.7), mh = (0.06 + 0.13 * G.mouth) * F.mh;
     const my = -(0.36 + mh * 0.3); // its centre
-    const pinch = 1 - 0.3 * clamp((y - my) / mh); // narrower towards the top
-    const mouth = Math.min(ell(x / pinch, y - my, z - 0.3, mw, mh, 0.16), ell(x, y - my, z - 0.05, mw * 0.8, mh * 0.85, 0.3));
+    const pinch = F.style === 0 ? 1 - 0.3 * clamp((y - my) / mh) : 1; // a scream narrows towards the top
+    const grin = F.style === 1 ? 0.06 * (x / mw) * (x / mw) : 0; // a grin's corners curl up
+    const mouth = Math.min(ell(x / pinch, y - my - grin, z - 0.3, mw, mh, 0.16), ell(x, y - my - grin, z - 0.05, mw * 0.8, mh * 0.85, 0.3));
     holes = Math.min(socket, nose, mouth);
     d = smax(d, -holes, 0.025);
     // Jagged teeth along the top and bottom of the mouth: pointed, uneven.
     if (Math.abs(x) < mw * 0.9 && Math.abs(y - my) < mh * 1.1) {
       const tw = 0.034, tx = ((x % tw) + tw * 1.5) % tw - tw / 2, ti = Math.round(x / tw);
       const len = 0.03 + 0.018 * hash(ti, 5) + 0.012 * G.mouth, edge = Math.sqrt(clamp(1 - (x / mw) ** 2));
-      const top = my + mh * 0.92 * edge * pinch, bot = my - mh * 0.92 * edge;
+      const top = my + grin + mh * 0.92 * edge * pinch, bot = my + grin - mh * 0.92 * edge;
       const zt = 0.3 + 0.13 * edge - 0.02;
       const up = ell(tx, y - (top - len * 0.5), z - zt, 0.013 * (1 - clamp((top - y) / len) * 0.7), len * 0.6, 0.016);
       const dn = ell(tx, y - (bot + len * 0.45), z - zt, 0.012 * (1 - clamp((y - bot) / len) * 0.7), len * 0.55, 0.015);
@@ -161,17 +171,18 @@ function eyeDist(px, py, pz) {
   const h = toHead(px, py, pz);
   const lx = G.look[0] * 0.025, ly = G.look[1] * 0.02;
   const gp = G.F.gap;
-  return Math.min(len3(h[0] - gp - lx, h[1] - 0.04 - ly, h[2] - 0.27), len3(h[0] + gp - lx, h[1] - 0.04 - ly, h[2] - 0.27)) - 0.028 * G.F.eye;
+  const as = G.F.asym * 0.04;
+  return Math.min(len3(h[0] - gp - lx, h[1] - 0.04 + as - ly, h[2] - 0.27), len3(h[0] + gp - lx, h[1] - 0.04 - as - ly, h[2] - 0.27)) - 0.028 * G.F.eye;
 }
 
 // ---- Scares: one per visit, in turn ----
-const KINDS = ['eyes', 'hands', 'shatter', 'skull'];
-const SC = { kind: null, eyes: [], hands: [], shards: [], crack: 0, impact: [0, 0], skull: 0, skullPos: [0, 0, 0], static: 0, boxes: [] };
+const KINDS = ['eyes', 'hands', 'shatter', 'spider'];
+const SC = { kind: null, eyes: [], hands: [], shards: [], crack: 0, impact: [0, 0], spider: 0, sp: [0, 0, 0], twitch: 0, boxes: [] };
 // Visible half-width/height of the scene at depth z.
 const halfW = (z) => (st.aspect || 1) / 2 * FOV * (CAM_Z - z) / CAM_Z, halfH = (z) => FOV / 2 * (CAM_Z - z) / CAM_Z;
 function buildScare(n, c, t) {
   const asp = st.aspect || 1, r = (k) => hash(n * 13 + 5, k);
-  SC.eyes = []; SC.hands = []; SC.shards = []; SC.crack = 0; SC.skull = 0; SC.static = 0;
+  SC.eyes = []; SC.hands = []; SC.shards = []; SC.crack = 0; SC.spider = 0;
   if (SC.kind === 'eyes') {
     // Eyeballs float out of the dark (0-17% of the visit), turn to look at you, sink back.
     const count = Math.max(4, Math.min(18, Math.round(3 + 2.5 * asp)));
@@ -211,12 +222,41 @@ function buildScare(n, c, t) {
         }
       }
     }
-  } else if (SC.kind === 'skull') {
-    // In place of the lunge: TV static and a skull bursting out (50-61%).
-    SC.skull = sm(0.5, 0.515, c) * (1 - sm(0.595, 0.61, c));
-    SC.static = sm(0.49, 0.5, c) * (1 - sm(0.6, 0.63, c));
-    const sz = 0.4 + 1.1 * sm(0.5, 0.56, c), lim = Math.max(0, halfW(sz) - 0.4);
-    SC.skullPos = [clamp(G.pos[0], -lim, lim), G.pos[1] + 0.05, sz]; // kept on screen
+  } else if (SC.kind === 'spider') {
+    // A spider drops down on its thread close in front of you (40-64%),
+    // bounces, twitches, hangs there - then shoots back up.
+    const down = sm(0.4, 0.45, c), up = sm(0.6, 0.64, c);
+    SC.spider = down * (1 - up);
+    if (SC.spider > 0) {
+      const z = 1.45, top = halfH(z) + 0.5, bob = 0.04 * Math.sin(t * 7) * Math.exp(-(c - 0.45) * 30 * (c > 0.45 ? 1 : 0)) + 0.015 * Math.sin(t * 1.3);
+      const w = halfW(z) - 0.35;
+      let x = asp > 2 ? clamp(G.pos[0] + (r(3) < 0.5 ? -1 : 1) * (0.9 + 0.4 * r(4)), -w, w) : clamp(G.pos[0] * 0.3 + (r(3) - 0.5) * 0.4, -w, w);
+      const hang = 0.05 + 0.15 * r(5);
+      SC.sp = [x, mix(top, hang, down) + (top - hang) * up * 1.4 + bob, z];
+      SC.twitch = t;
+    }
+  }
+}
+
+// Now and then a pair of eyes opens in the far fog, away from the ghost,
+// blinks, and fades (not while the eyeballs are out). A few at a time on a
+// wall, one on a panel.
+const BGE = [];
+const BGE_COLS = [[1.1, 0.1, 0.04], [1.0, 0.75, 0.1], [0.3, 1.0, 0.3], [0.9, 0.95, 1.0], [0.3, 0.5, 1.1]];
+function buildBgEyes(t) {
+  BGE.length = 0;
+  if (SC.kind === 'eyes' && SC.eyes.length) return;
+  const asp = st.aspect || 1, slots = Math.max(1, Math.min(5, Math.round(asp * 0.7)));
+  for (let k = 0; k < slots; k++) {
+    const per = 7 + 3 * k, cyc = Math.floor(t / per), f = (t / per) - cyc, rr = (j) => hash(cyc * 31 + k * 7, j);
+    if (rr(1) < 0.45) continue; // not every time
+    const a = sm(0.1, 0.25, f) * (1 - sm(0.55, 0.7, f));
+    if (a <= 0) continue;
+    const z = 0, w = halfW(z) - 0.2, hgt = halfH(z) - 0.15;
+    let x = (rr(2) * 2 - 1) * w; const y = (rr(3) * 2 - 1) * hgt;
+    if (Math.abs(x - G.pos[0]) < 0.7 && !G.hidden && G.pos[2] > -0.5) x += (x < G.pos[0] ? -0.8 : 0.8); // not behind the ghost
+    const blink = Math.abs(f - (0.3 + 0.2 * rr(4))) < 0.012 ? 0 : 1;
+    BGE.push({ x, y, gap: 0.035 + 0.035 * rr(5), r2: 0.0004 + 0.0005 * rr(6), a: a * blink * (0.6 + 0.4 * rr(7)), c: BGE_COLS[Math.floor(rr(8) * BGE_COLS.length)] });
   }
 }
 
@@ -226,7 +266,7 @@ function scareSpheres() {
   for (const e of SC.eyes) out.push([e.x, e.y, e.z, e.rad + 0.02]);
   for (const h of SC.hands) out.push([h.x, h.y + 0.05, 0.15, 0.55]);
   if (SC.shards.length) { let mx = 0, my = 0, mz = 0; for (const s of SC.shards) { mx += s.x; my += s.y; mz += s.z; } const k = SC.shards.length; mx /= k; my /= k; mz /= k; let rr = 0; for (const s of SC.shards) rr = Math.max(rr, len3(s.x - mx, s.y - my, s.z - mz) + s.s * 1.5); out.push([mx, my, mz, rr]); }
-  if (SC.skull > 0) out.push([SC.skullPos[0], SC.skullPos[1], SC.skullPos[2], 0.55 * SKS]);
+  if (SC.spider > 0) out.push([SC.sp[0], SC.sp[1], SC.sp[2], 0.42 * SPS]);
   return out;
 }
 
@@ -245,19 +285,36 @@ function bulge(x, y) {
   for (const H2 of SC.hands) { const d = hand2d(x, y, H2); h = Math.max(h, H2.amt * (0.28 * sm(0.12, -0.02, d) + 0.2 * Math.sqrt(clamp(-d * 4)) + 0.05 * Math.exp(-Math.max(0, d) * 6))); }
   return h;
 }
-const SKS = 0.72; // the skull's size
-function skullD(x, y, z) {
-  x = (x - SC.skullPos[0]) / SKS; y = (y - SC.skullPos[1]) / SKS; z = (z - SC.skullPos[2]) / SKS;
-  return skullLocal(x, y, z) * SKS;
+// The spider, hanging head down, facing you. SPS: its size.
+const SPS = 0.85;
+function spiderD(x, y, z, want) {
+  x = (x - SC.sp[0]) / SPS; y = (y - SC.sp[1]) / SPS; z = (z - SC.sp[2]) / SPS;
+  let d = ell(x, y - 0.1, z, 0.15, 0.19, 0.14); // abdomen (up)
+  const ceph = ell(x, y + 0.14, z - 0.02, 0.1, 0.1, 0.085); // head-and-body (down)
+  d = smin(d, ceph, 0.03);
+  if (want) SPM.part = 0;
+  // Eight legs: two segments each, knees up and out, feet reaching down; they twitch.
+  const ax = Math.abs(x), sgn = x < 0 ? -1 : 1, tw = SC.twitch;
+  let legs = 1e9;
+  if (ax < 0.5 && y > -0.55 && y < 0.3) for (let i = 0; i < 4; i++) {
+    const tj = 0.04 * Math.sin(tw * (9 + i * 3) + i * 1.7 + sgn) * (Math.sin(tw * 1.1 + i) > 0.6 ? 1 : 0.2);
+    const hy = -0.17 + i * 0.03, ky = 0.02 + 0.06 * i - 0.12 + tj, fy = -0.42 + 0.17 * i + tj * 1.5;
+    const kx = 0.22 + 0.025 * i, fx = 0.34 + 0.03 * i - 0.06 * (i === 0 ? 1 : 0);
+    legs = Math.min(legs, capR(ax, y, z, 0.06, hy, 0.02, kx, ky, 0.07, 0.02), capR(ax, y, z, kx, ky, 0.07, fx, fy, 0.1, 0.013));
+  }
+  d = Math.min(d, legs);
+  // Fangs and a cluster of eyes.
+  const fang = Math.min(capR(ax, y, z, 0.03, -0.22, 0.06, 0.035, -0.29, 0.08, 0.014));
+  d = Math.min(d, fang);
+  if (want) {
+    const ey = Math.min(len3(ax - 0.035, y + 0.17, z - 0.085), len3(ax - 0.015, y + 0.2, z - 0.09)) - 0.017;
+    SPM.part = ey < 0.008 ? 2 : (legs < d + 0.003 || fang < d + 0.003) ? 1 : 0;
+    SPM.lx = x; SPM.ly = y; SPM.lz = z;
+  }
+  return d * SPS;
 }
-function skullLocal(x, y, z) {
-  let d = ell(x, y - 0.12, z, 0.42, 0.38, 0.4);
-  d = smin(d, boxD(x, y + 0.3, z - 0.05, 0.2, 0.12, 0.2) - 0.06, 0.1);
-  for (const s of [-1, 1]) d = Math.max(d, -ell(x - s * 0.15, y - 0.02, z - 0.36, 0.11, 0.1, 0.14));
-  d = Math.max(d, -ell(x, y + 0.14, z - 0.4, 0.04, 0.07, 0.1));
-  if (Math.abs(x) < 0.17) d = Math.max(d, -boxD(((x % 0.06) + 0.09) % 0.06 - 0.03, y + 0.31, z - 0.25, 0.006, 0.05, 0.05));
-  return Math.max(d, -boxD(x, y + 0.31, z - 0.26, 0.2, 0.006, 0.05));
-}
+const SPM = { part: 0, lx: 0, ly: 0, lz: 0 };
+function capR(px, py, pz, ax, ay, az, bx, by, bz, r) { const bax = bx - ax, bay = by - ay, baz = bz - az, pax = px - ax, pay = py - ay, paz = pz - az; const h = clamp((pax * bax + pay * bay + paz * baz) / (bax * bax + bay * bay + baz * baz)); return len3(pax - bax * h, pay - bay * h, paz - baz * h) - r; }
 function shardD(x, y, z, s) {
   const qx = x - s.x, qy = y - s.y, qz = z - s.z;
   const c1 = Math.cos(s.ay), s1 = Math.sin(s.ay), c2 = Math.cos(s.ax), s2 = Math.sin(s.ax);
@@ -270,7 +327,7 @@ function scareD(x, y, z, want) {
   let d = 1e9;
   for (const e of SC.eyes) { const de = len3(x - e.x, y - e.y, z - e.z) - e.rad; if (de < d) { d = de; if (want) { SM.id = 1; SM.ref = e; } } }
   for (const s of SC.shards) { if (s.s <= 0) continue; const ds = shardD(x, y, z, s); if (ds < d) { d = ds; if (want) SM.id = 2; } }
-  if (SC.skull > 0) { const dk = skullD(x, y, z); if (dk < d) { d = dk; if (want) SM.id = 3; } }
+  if (SC.spider > 0) { const dk = spiderD(x, y, z, false); if (dk < d) { d = dk; if (want) SM.id = 3; } }
   return d;
 }
 
@@ -327,13 +384,15 @@ function shadeScare(sx, sy, base, tBase, sph) {
     const sp = Math.pow(hdot, 100) * 1.6;
     r = base[0] * 0.5 + 0.08 + rim * 0.5 + sp; g = base[1] * 0.5 + 0.12 + rim * 0.7 + sp; b = base[2] * 0.5 + 0.16 + rim * 0.85 + sp;
   } else {
-    // The skull: bone, glowing red sockets.
-    const x = (px - SC.skullPos[0]) / SKS, y = (py - SC.skullPos[1]) / SKS, z = (pz - SC.skullPos[2]) / SKS;
-    // Inside the eye sockets or nose (the carved-out shapes): glowing red.
-    const hole = Math.min(ell(Math.abs(x) - 0.15, y - 0.02, z - 0.36, 0.11, 0.1, 0.14), ell(x, y + 0.14, z - 0.4, 0.04, 0.07, 0.1)) - 0.004;
-    const lit = 0.08 + 0.85 * ndl, sp = Math.pow(hdot, 30) * 0.35;
-    if (hole < 0.01) { r = 0.9; g = 0.05; b = 0.0; } else { r = 0.95 * lit + sp + rim * 0.3; g = 0.92 * lit + sp + rim * 0.25; b = 0.8 * lit + sp + rim * 0.45; }
-    const k = SC.skull; r = mix(base[0], r, k); g = mix(base[1], g, k); b = mix(base[2], b, k);
+    // The spider: glossy black, a red hourglass on its belly, glinting red eyes.
+    spiderD(px, py, pz, true);
+    const lit = 0.04 + 0.4 * ndl, sp = Math.pow(hdot, 60) * 0.9;
+    r = 0.04 * lit + sp + rim * 0.15; g = 0.035 * lit + sp + rim * 0.16; b = 0.045 * lit + sp + rim * 0.22;
+    if (SPM.part === 2) { r = 1.0; g = 0.08; b = 0.04; }
+    else if (SPM.part === 0 && SPM.lz > 0.05) {
+      const hx = Math.abs(SPM.lx), hy = SPM.ly - 0.1, hour = hx < 0.055 - Math.abs(hy) * 0.45 + 0.012 && Math.abs(hy) < 0.11;
+      if (hour) { r = 0.75 * (0.3 + 0.7 * ndl) + sp; g = 0.03; b = 0.02; }
+    } else if (SPM.part === 1) { const hair = 0.5 + 0.5 * Math.sin(SPM.ly * 160); r += 0.03 * hair; g += 0.03 * hair; b += 0.03 * hair; } // bristly legs
   }
   base[0] = r; base[1] = g; base[2] = b;
   return true;
@@ -341,7 +400,7 @@ function shadeScare(sx, sy, base, tBase, sph) {
 
 // ---- The screen: drifting fog ----
 const CAM_Z = 3.4, FOV = 1.9; // close in: the ghost fills most of the height
-const FOG = [0, 0, 0], OUT = [0, 0, 0], RIM = [0.35, 0.5, 0.55];
+const FOG = [0, 0, 0], OUT = [0, 0, 0], RIM = [0.35, 0.5, 0.55], FOG_EYE = [0, 0, 0];
 function fogColour(x, y, t) {
   const f = noise(x * 2.2 + t * 0.15, y * 2.2 - t * 0.05) * 0.6 + noise(x * 5 - t * 0.3, y * 5 + t * 0.1) * 0.4;
   const v = 0.004 + 0.028 * f * f; // dark, so the ghost stands out
@@ -351,12 +410,18 @@ function fogColour(x, y, t) {
     const s = 0.75, ex = Math.abs(x - G.pos[0]) - G.F.gap * s, ey = y - G.pos[1] - 0.06 * s;
     pe = Math.exp(-(ex * ex + ey * ey * 1.6) / 0.0016) * G.peek * G.glow * 1.3 + Math.exp(-(ex * ex + ey * ey) / 0.02) * G.peek * G.glow * 0.12;
   }
+  // Pairs of eyes glowing in the far fog now and then (see buildBgEyes).
+  for (const be of BGE) {
+    const ex = Math.abs(x - be.x) - be.gap, ey = y - be.y, d2 = ex * ex + ey * ey * 3;
+    if (d2 < 0.02) { const k = be.a * (Math.exp(-d2 / be.r2) * 1.1 + Math.exp(-d2 / (be.r2 * 8)) * 0.15); FOG_EYE[0] += k * be.c[0]; FOG_EYE[1] += k * be.c[1]; FOG_EYE[2] += k * be.c[2]; }
+  }
   let ck = 0;
   if (SC.crack > 0) { // the cracked screen round where it hit
     const cx = x - SC.impact[0], cy = y - SC.impact[1], rr = len2(cx, cy), a = Math.atan2(cy, cx);
     ck = SC.crack * (Math.max(0, 1 - Math.abs(Math.sin(a * 7 + noise(rr * 5, a * 2) * 2.5)) * 14) * sm(1.1, 0.05, rr) + Math.max(0, 1 - Math.abs(Math.sin(rr * 22)) * 10) * sm(0.35, 0.05, rr) * 0.5);
   }
-  FOG[0] = v * 0.75 + glow * G.eye[0] * 0.5 + pe * G.eye[0] + ck * 0.55; FOG[1] = v * 0.9 + glow * G.eye[1] * 0.5 + pe * G.eye[1] + ck * 0.65; FOG[2] = v * 1.0 + glow * G.eye[2] * 0.5 + pe * G.eye[2] + ck * 0.75;
+  FOG[0] = v * 0.75 + glow * G.eye[0] * 0.5 + pe * G.eye[0] + ck * 0.55 + FOG_EYE[0]; FOG[1] = v * 0.9 + glow * G.eye[1] * 0.5 + pe * G.eye[1] + ck * 0.65 + FOG_EYE[1]; FOG[2] = v * 1.0 + glow * G.eye[2] * 0.5 + pe * G.eye[2] + ck * 0.75 + FOG_EYE[2];
+  FOG_EYE[0] = FOG_EYE[1] = FOG_EYE[2] = 0;
   return FOG; // reused - copy it if you need to keep it
 }
 
@@ -404,7 +469,11 @@ function shadePixel(sx, sy, t) {
     // sockets, the jaw's underside) darken. (A proper occlusion test cost
     // three more distance evaluations per pixel - too slow on the Pi.)
     const ao = 0.55 + 0.45 * clamp(nz * 1.2 + 0.2);
-    const base = mat === 2 ? SHROUD : mat === 3 ? TEETH : mat === 1 ? THROAT : G.F.skin;
+    let base = mat === 2 ? SHROUD : mat === 3 ? TEETH : mat === 1 ? THROAT : G.F.skin;
+    if (mat === 0 && G.F.veins > 0) { // dark veins creeping over the skin
+      const hh = toHead(px, py, pz), v = Math.max(0, 1 - Math.abs(noise(hh[0] * 9 + 3, hh[1] * 9) - 0.5) * 14) * G.F.veins;
+      if (v > 0) base = [base[0] * (1 - 0.55 * v), base[1] * (1 - 0.7 * v), base[2] * (1 - 0.6 * v)];
+    }
     // Inside (throat, sockets) gets darker the deeper it goes.
     const lit = (0.06 + 0.65 * below + top) * ao * (mat === 1 ? 0.5 * sm(0.05, 0.3, H.depth) + 0.04 : 1);
     // Eye light spills onto the face round the sockets.
@@ -437,7 +506,9 @@ function render(Wr, Hr, dt) {
     // The ghost's box on screen (its bounding sphere, projected, plus room for the eye glow).
     const B = G.bound, k = CAM_Z / ((CAM_Z - B[2]) * FOV), cx = B[0] * k * Hr + Wr / 2, r = (B[3] * k + 0.05) * Hr;
     st.bx0 = Math.max(0, Math.floor(cx - r)); st.bx1 = Math.min(Wr, Math.ceil(cx + r));
-    if (G.pos[2] < -0.45 || G.hidden) st.bx1 = st.bx0; // still behind the screen (the fog hides it; peeking eyes are drawn with the fog), or the skull's turn: nothing to ray-march
+    if (G.pos[2] < -0.45) st.bx1 = st.bx0; // still behind the screen (the fog hides it; peeking eyes are drawn with the fog): nothing to ray-march
+    // Where the spider's thread runs on screen (column, and the row it ends at).
+    if (SC.spider > 0) { const k3 = CAM_Z / ((CAM_Z - SC.sp[2]) * FOV); st.thread = [Math.max(0, Math.min(Wr - 1, Math.round(SC.sp[0] * k3 * Hr + Wr / 2))), Math.round((0.5 - (SC.sp[1] + 0.24 * SPS) * k3) * Hr)]; } else st.thread = null;
     // The scares' boxes on screen.
     st.sph = scareSpheres(); st.sboxes = [];
     for (const S of st.sph) { const k2 = CAM_Z / ((CAM_Z - S[2]) * FOV); if (k2 <= 0) continue; const c2 = S[0] * k2 * Hr + Wr / 2, r2 = S[3] * k2 * Hr + 1; st.sboxes.push([Math.max(0, Math.floor(c2 - r2)), Math.min(Wr, Math.ceil(c2 + r2))]); }
@@ -479,12 +550,8 @@ function renderRows(Wr, Hr, pass) {
         if (shadeScare(sx, sy, PX, tBase, st.sph)) { B[o] = PX[0]; B[o + 1] = PX[1]; B[o + 2] = PX[2]; }
       }
     }
-    // TV static (the skull's turn).
-    if (SC.static > 0) for (let x = 0; x < Wr; x++) {
-      const o = (row + x) * 3, lum = B[o] + B[o + 1] + B[o + 2], k = SC.static * (lum > 0.9 ? 0.25 : 1); // lighter over the skull
-      const nv = hash(x * 3 + y * 977, Math.floor(st.rt * 30)) * 0.28 * k, band = Math.sin(y * 0.9 + st.rt * 40) > 0.85 ? 0.08 * k : 0;
-      B[o] += nv + band * 0.6; B[o + 1] += nv * 0.9; B[o + 2] += nv + band;
-    }
+    // The spider's silk thread, from the top down to it.
+    if (SC.spider > 0 && st.thread && y < st.thread[1]) { const o = (row + st.thread[0]) * 3; B[o] += 0.12; B[o + 1] += 0.13; B[o + 2] += 0.15; }
   }
 }
 const PX = [0, 0, 0];

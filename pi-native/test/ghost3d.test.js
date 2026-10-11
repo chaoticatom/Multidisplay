@@ -21,9 +21,11 @@ try {
   assert.strictEqual(SC.kind, 'eyes'); assert.ok(SC.eyes.length >= 4, 'eyeballs float out: ' + SC.eyes.length);
   ghost._test.buildPose(22 + 0.4 * 22, 0); assert.strictEqual(SC.kind, 'hands'); assert.ok(SC.hands.length >= 2, 'hands push out');
   ghost._test.buildPose(44 + 0.56 * 22, 0); assert.strictEqual(SC.kind, 'shatter'); assert.ok(SC.shards.length > 10 && SC.crack > 0, 'the screen shatters');
-  ghost._test.buildPose(66 + 0.55 * 22, 0); assert.strictEqual(SC.kind, 'skull'); assert.ok(SC.skull > 0.5 && ghost._test.G.hidden, 'a skull in the ghost\'s place');
-  // Drawn: the skull's turn shows bone-white pixels on a single panel.
-  const sk = at(66 + 0.555 * 22); let bone = 0; for (let i = 0; i < sk.length; i += 3) if (sk[i] > 0.6 && sk[i + 1] > 0.6 && sk[i + 2] > 0.5) bone++;
-  assert.ok(bone > 80, 'the skull is drawn: ' + bone);
+  ghost._test.buildPose(66 + 0.52 * 22, 0); assert.strictEqual(SC.kind, 'spider'); assert.ok(SC.spider > 0.9, 'a spider hangs in front');
+  // Drawn: glossy black body and its red hourglass/eyes, on a single panel.
+  const sp = at(66 + 0.52 * 22); let red = 0; for (let i = 0; i < sp.length; i += 3) if (sp[i] > 0.5 && sp[i + 1] < 0.15) red++;
+  assert.ok(red > 8, 'the spider is drawn: ' + red);
+  // The face differs from visit to visit.
+  ghost._test.buildPose(1, 0); const f1 = JSON.stringify(ghost._test.G.F); ghost._test.buildPose(23, 0); assert.notStrictEqual(JSON.stringify(ghost._test.G.F), f1);
   console.log('ghost3d ok');
 } catch (e) { console.error(e); process.exitCode = 1; }
