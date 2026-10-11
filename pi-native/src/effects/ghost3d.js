@@ -3,7 +3,10 @@
 // cavity and a long gaping mouth, its ragged shroud trailing back into the
 // screen, drifts out of the fog towards you, sways and stares (the eyes
 // wander and blink), now and then lunges at you with a static glitch, then
-// sinks back into the screen. ~14 s loop; a new eye colour each time.
+// sinks back into the screen. ~22 s loop, most of it out of the screen.
+// Each visit the face is slightly different (head shape, eyes, mouth,
+// cheeks, skin tint, eye colour) and seen differently (where it comes out,
+// which way it's turned, its tilt and sway).
 // Shading: lit from below by its own eye glow and the fog, a cold rim of
 // light round its edges (ghostly translucency), deep shadow in the sockets
 // and mouth, the eyes' glow halo, and depth fog that swallows it near the
@@ -29,20 +32,30 @@ function noise(x, y) {
 }
 
 // ---- Pose: where the head is, which way it looks, the face's state ----
-const LOOP = 14;
+const LOOP = 22;
+const SKINS = [[0.8, 0.9, 0.88], [0.88, 0.88, 0.8], [0.72, 0.86, 0.95], [0.85, 0.8, 0.9], [0.78, 0.92, 0.8]];
 const EYES = [[1.2, 0.12, 0.05], [0.2, 1.1, 0.25], [0.35, 0.6, 1.2], [1.1, 0.65, 0.05], [0.95, 1.0, 1.1]];
 const G = { pos: [0, 0, 0], yaw: 0, pitch: 0, roll: 0, mouth: 0.6, glow: 1, eye: EYES[0], look: [0, 0], glitch: 0, t: 0 };
 const st = { t: 0, frame: 0, img: null, size: 0, blink: 0, nextBlink: 2, look: [0, 0], lookTo: [0, 0], nextLook: 1, lastCycle: -1 };
 
 function buildPose(t, dt) {
   const n = Math.floor(t / LOOP), c = (t % LOOP) / LOOP;
-  if (n !== st.lastCycle) { st.lastCycle = n; G.eye = EYES[n % EYES.length]; }
-  // Out of the screen (0-25%), hover and stare (25-80%) with a lunge in the
-  // middle, back in (80-100%).
-  const out = sm(0, 0.25, c) * (1 - sm(0.8, 1, c));
-  const lungeT = (c - 0.52) / 0.07, lunge = lungeT > 0 && lungeT < 1 ? Math.sin(lungeT * Math.PI) ** 0.6 : 0;
-  G.pos = [0.12 * Math.sin(t * 0.6) + 0.05 * Math.sin(t * 1.7), -0.05 + 0.06 * Math.sin(t * 0.9), -1.0 + 2.0 * out + 0.9 * lunge];
-  G.yaw = 0.35 * Math.sin(t * 0.45) + 0.1 * Math.sin(t * 1.3); G.pitch = -0.08 + 0.08 * Math.sin(t * 0.7); G.roll = 0.12 * Math.sin(t * 0.5 + 1);
+  if (n !== st.lastCycle) {
+    // A slightly different face, and a different view of it, every visit
+    // (picked from the loop number, so it's repeatable).
+    st.lastCycle = n; G.eye = EYES[n % EYES.length];
+    const r = (k, a, b) => a + (b - a) * hash(n * 7 + 3, k);
+    G.F = { w: r(1, 0.3, 0.38), l: r(2, 0.4, 0.48), gap: r(3, 0.115, 0.15), eye: r(4, 0.85, 1.2), mw: r(5, 0.085, 0.135), mh: r(6, 0.8, 1.25), cheek: r(7, 0.06, 0.1), skin: SKINS[Math.floor(r(8, 0, SKINS.length - 0.001))] };
+    G.V = { x: r(9, -0.35, 0.35), y: r(10, -0.15, 0.1), yaw: r(11, -0.45, 0.45), roll: r(12, -0.15, 0.15), pitch: r(13, -0.14, 0.06), sway: r(14, 0.6, 1.4) };
+  }
+  const F = G.F, V = G.V;
+  // Out of the screen (0-16%), hover and stare (16-88%) with a lunge in the
+  // middle, back in (88-100%).
+  const out = sm(0, 0.16, c) * (1 - sm(0.88, 1, c));
+  const lungeT = (c - 0.52) / 0.045, lunge = lungeT > 0 && lungeT < 1 ? Math.sin(lungeT * Math.PI) ** 0.6 : 0;
+  const home = 1 - 0.6 * out; // starts off to the side, drifts towards the middle as it comes out
+  G.pos = [V.x * home + V.sway * (0.12 * Math.sin(t * 0.6) + 0.05 * Math.sin(t * 1.7)), V.y * home - 0.05 + 0.06 * Math.sin(t * 0.9), -1.0 + 2.0 * out + 0.9 * lunge];
+  G.yaw = V.yaw * (1 - 0.5 * lunge) + V.sway * (0.25 * Math.sin(t * 0.45) + 0.1 * Math.sin(t * 1.3)); G.pitch = V.pitch + 0.08 * Math.sin(t * 0.7); G.roll = V.roll + 0.12 * Math.sin(t * 0.5 + 1);
   G.mouth = 0.55 + 0.25 * Math.sin(t * 0.8) + 0.35 * lunge; // gapes wider as it lunges
   G.glitch = lunge > 0.3 ? lunge : 0;
   // Blinks (the eye glow snaps off) and wandering eyes.
@@ -68,16 +81,17 @@ function toHead(px, py, pz) {
 const H = { mat: 0 };
 function sdfHead(x, y, z, want) {
   // Skull: a tall egg, gaunt cheeks, a long jaw.
-  let d = ell(x, y - 0.05, z, 0.34, 0.44, 0.38);
+  const F = G.F;
+  let d = ell(x, y - 0.05, z, F.w, F.l, 0.38);
   d = smin(d, ell(x, y + 0.28, z + 0.02, 0.24, 0.3 + 0.08 * G.mouth, 0.3), 0.12); // jaw, stretched by the gaping mouth
-  d = smax(d, -ell(x - 0.24 * Math.sign(x), y + 0.15, z - 0.2, 0.08, 0.16, 0.12), 0.06); // hollow cheeks
+  d = smax(d, -ell(x - (F.w - 0.1) * Math.sign(x), y + 0.15, z - 0.2, F.cheek, 0.16, 0.12), 0.06); // hollow cheeks
   // Brow ridge.
   d = smin(d, ell(x, y - 0.13, z - 0.27, 0.27, 0.06, 0.08), 0.06);
   // Eye sockets, nose cavity, mouth - carved out.
-  const ex = Math.abs(x) - 0.13;
-  const socket = ell(ex, y - 0.04, z - 0.33, 0.095, 0.085, 0.13);
+  const ex = Math.abs(x) - F.gap;
+  const socket = ell(ex, y - 0.04, z - 0.33, 0.095 * F.eye, 0.085 * F.eye, 0.13);
   const nose = ell(x, y + 0.1 + 0.6 * Math.abs(x), z - 0.36, 0.035, 0.06, 0.08);
-  const mw = 0.11 + 0.02 * Math.sin(G.t * 0.7), mh = 0.06 + 0.13 * G.mouth;
+  const mw = F.mw + 0.02 * Math.sin(G.t * 0.7), mh = (0.06 + 0.13 * G.mouth) * F.mh;
   const jag = 0.012 * Math.sin(x * 70); // jagged teeth round the mouth's edge
   const mouth = ell(x, y + 0.36 + mh * 0.3, z - 0.3, mw, mh, 0.16) + jag;
   const holes = Math.min(socket, nose, mouth);
@@ -97,11 +111,12 @@ function sdf(px, py, pz, want) { const h = toHead(px, py, pz); return sdfHead(h[
 function eyeDist(px, py, pz) {
   const h = toHead(px, py, pz);
   const lx = G.look[0] * 0.025, ly = G.look[1] * 0.02;
-  return Math.min(Math.hypot(h[0] - 0.13 - lx, h[1] - 0.04 - ly, h[2] - 0.27), Math.hypot(h[0] + 0.13 - lx, h[1] - 0.04 - ly, h[2] - 0.27)) - 0.028;
+  const gp = G.F.gap;
+  return Math.min(Math.hypot(h[0] - gp - lx, h[1] - 0.04 - ly, h[2] - 0.27), Math.hypot(h[0] + gp - lx, h[1] - 0.04 - ly, h[2] - 0.27)) - 0.028 * G.F.eye;
 }
 
 // ---- The screen: drifting fog ----
-const CAM_Z = 3.4, FOV = 2.6;
+const CAM_Z = 3.4, FOV = 2.25; // a little closer in: a bigger ghost
 function fogColour(x, y, t) {
   const f = noise(x * 2.2 + t * 0.15, y * 2.2 - t * 0.05) * 0.6 + noise(x * 5 - t * 0.3, y * 5 + t * 0.1) * 0.4;
   const v = 0.03 + 0.11 * f * f;
@@ -109,7 +124,7 @@ function fogColour(x, y, t) {
   return [v * 0.75 + glow * G.eye[0] * 0.5, v * 0.9 + glow * G.eye[1] * 0.5, v * 1.0 + glow * G.eye[2] * 0.5];
 }
 
-const SKIN = [0.8, 0.9, 0.88], SHROUD = [0.55, 0.62, 0.66];
+const SHROUD = [0.55, 0.62, 0.66];
 function shadePixel(sx, sy, t) {
   const oz = CAM_Z;
   let dx = sx * FOV, dy = sy * FOV, dz = -CAM_Z;
@@ -148,10 +163,10 @@ function shadePixel(sx, sy, t) {
     let ao = 0;
     for (let i = 1; i <= 3; i++) { const h = 0.035 * i; ao += (h - sdf(px + nx * h, py + ny * h, pz + nz * h)) / h / i; }
     ao = clamp(1 - ao * 0.7);
-    const base = mat === 2 ? SHROUD : SKIN;
+    const base = mat === 2 ? SHROUD : G.F.skin;
     const lit = (0.06 + 0.65 * below + top) * ao * (mat === 1 ? 0.15 : 1);
     // Eye light spills onto the face round the sockets.
-    const h = toHead(px, py, pz), spill = Math.exp(-(Math.hypot(Math.abs(h[0]) - 0.13, h[1] - 0.04) ** 2) / 0.02) * 0.5 * G.glow;
+    const h = toHead(px, py, pz), spill = Math.exp(-(Math.hypot(Math.abs(h[0]) - G.F.gap, h[1] - 0.04) ** 2) / 0.02) * 0.5 * G.glow;
     col = [0, 1, 2].map((k) => base[k] * lit + rim * [0.35, 0.5, 0.55][k] * (mat === 1 ? 0.1 : 1) + spill * E[k] * 0.35);
     // The cloth fades out towards the screen; and near the screen the fog swallows it all.
     const fade = sm(-0.05, 0.6, pz) * (mat === 2 ? sm(-1.2, -0.3, h[2]) * 0.8 + 0.2 : 1);
