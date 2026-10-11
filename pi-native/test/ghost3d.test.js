@@ -15,5 +15,15 @@ try {
   const W = 192, H = 64, buf = new Float32Array(W * H * 3);
   ghost.wall({ wallW: W, wallH: H, wallBuf: buf, setWallPixel(x, y, r, g, b) { const o = (y * W + x) * 3; buf[o] = r; buf[o + 1] = g; buf[o + 2] = b; } }, 0.016);
   assert.ok(buf[(10 * W + 2) * 3 + 2] > 0, 'fog across the whole wall');
+  // One scare per visit, in turn: eyeballs, hands, shatter, skull.
+  const { SC } = ghost._test;
+  ghost._test.st.lastCycle = -1; ghost._test.buildPose(2.2, 0);
+  assert.strictEqual(SC.kind, 'eyes'); assert.ok(SC.eyes.length >= 4, 'eyeballs float out: ' + SC.eyes.length);
+  ghost._test.buildPose(22 + 0.4 * 22, 0); assert.strictEqual(SC.kind, 'hands'); assert.ok(SC.hands.length >= 2, 'hands push out');
+  ghost._test.buildPose(44 + 0.56 * 22, 0); assert.strictEqual(SC.kind, 'shatter'); assert.ok(SC.shards.length > 10 && SC.crack > 0, 'the screen shatters');
+  ghost._test.buildPose(66 + 0.55 * 22, 0); assert.strictEqual(SC.kind, 'skull'); assert.ok(SC.skull > 0.5 && ghost._test.G.hidden, 'a skull in the ghost\'s place');
+  // Drawn: the skull's turn shows bone-white pixels on a single panel.
+  const sk = at(66 + 0.555 * 22); let bone = 0; for (let i = 0; i < sk.length; i += 3) if (sk[i] > 0.6 && sk[i + 1] > 0.6 && sk[i + 2] > 0.5) bone++;
+  assert.ok(bone > 80, 'the skull is drawn: ' + bone);
   console.log('ghost3d ok');
 } catch (e) { console.error(e); process.exitCode = 1; }

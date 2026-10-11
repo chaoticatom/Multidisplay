@@ -18460,6 +18460,10 @@ var PiEngine = (() => {
       function smax(a, b, k) {
         return -smin(-a, -b, k);
       }
+      function norm3(x, y, z) {
+        const n = Math.hypot(x, y, z);
+        return [x / n, y / n, z / n];
+      }
       function ell(x, y, z, rx, ry, rz) {
         const ax = x / rx, ay = y / ry, az = z / rz, bx = ax / rx, by = ay / ry, bz = az / rz;
         const k0 = Math.sqrt(ax * ax + ay * ay + az * az), k1 = Math.sqrt(bx * bx + by * by + bz * bz);
@@ -18489,13 +18493,14 @@ var PiEngine = (() => {
           G.eye = EYES[n % EYES.length];
           const r = (k, a, b) => a + (b - a) * hash(n * 7 + 3, k);
           G.F = { w: r(1, 0.3, 0.38), l: r(2, 0.4, 0.48), gap: r(3, 0.115, 0.15), eye: r(4, 0.85, 1.2), mw: r(5, 0.085, 0.135), mh: r(6, 0.8, 1.25), cheek: r(7, 0.06, 0.1), skin: SKINS[Math.floor(r(8, 0, SKINS.length - 1e-3))] };
-          const halfW = Math.max(0, (st.aspect || 1) / 2 * FOV * (CAM_Z - 1.1) / CAM_Z - 0.85);
-          G.V = { x: r(9, -1, 1) * Math.max(0.3, halfW), drift: r(15, -0.3, 0.3) * halfW, y: r(10, -0.04, 0.1), yaw: r(11, -0.45, 0.45), roll: r(12, -0.15, 0.15), pitch: r(13, -0.14, 0.06), sway: r(14, 0.6, 1.4) };
+          const halfW2 = Math.max(0, (st.aspect || 1) / 2 * FOV * (CAM_Z - 1.1) / CAM_Z - 0.85);
+          G.V = { x: r(9, -1, 1) * Math.max(0.3, halfW2), drift: r(15, -0.3, 0.3) * halfW2, y: r(10, -0.04, 0.1), yaw: r(11, -0.45, 0.45), roll: r(12, -0.15, 0.15), pitch: r(13, -0.14, 0.06), sway: r(14, 0.6, 1.4) };
         }
         const F = G.F, V = G.V;
-        const peeks = hash(n, 21) < 0.7;
+        SC.kind = KINDS[n % KINDS.length];
+        const peeks = SC.kind !== "eyes" && hash(n, 21) < 0.7, late = peeks || SC.kind === "eyes";
         G.peek = peeks ? sm(0.01, 0.05, c) * (1 - sm(0.12, 0.17, c)) : 0;
-        const out = sm(peeks ? 0.14 : 0, peeks ? 0.28 : 0.16, c) * (1 - sm(0.88, 1, c));
+        const out = sm(late ? 0.14 : 0, late ? 0.28 : 0.16, c) * (1 - sm(0.88, 1, c));
         const lungeT = (c - 0.52) / 0.045, lunge = lungeT > 0 && lungeT < 1 ? Math.sin(lungeT * Math.PI) ** 0.6 : 0;
         const home = (st.aspect || 1) > 1.5 ? 1 : 1 - 0.6 * out;
         G.pos = [V.x * home + V.drift * (c - 0.5) + V.sway * (0.12 * Math.sin(t * 0.6) + 0.05 * Math.sin(t * 1.7)), V.y * home - 0.05 + 0.06 * Math.sin(t * 0.9), -1 + 2 * out + 0.9 * lunge];
@@ -18523,6 +18528,8 @@ var PiEngine = (() => {
         G.m = [cy * cr + sy * sp * sr, cp * sr, -sy * cr + cy * sp * sr, -cy * sr + sy * sp * cr, cp * cr, sr * sy + cy * sp * cr, sy * cp, -sp, cy * cp];
         G.t = t;
         G.bound = [G.pos[0], G.pos[1] - 0.1, G.pos[2] - 0.2, 1.05];
+        buildScare(n, c, t);
+        G.hidden = SC.kind === "skull" && SC.skull > 0;
       }
       var HP = [0, 0, 0];
       function toHead(px, py, pz) {
@@ -18588,6 +18595,289 @@ var PiEngine = (() => {
         const gp = G.F.gap;
         return Math.min(len3(h[0] - gp - lx, h[1] - 0.04 - ly, h[2] - 0.27), len3(h[0] + gp - lx, h[1] - 0.04 - ly, h[2] - 0.27)) - 0.028 * G.F.eye;
       }
+      var KINDS = ["eyes", "hands", "shatter", "skull"];
+      var SC = { kind: null, eyes: [], hands: [], shards: [], crack: 0, impact: [0, 0], skull: 0, skullPos: [0, 0, 0], static: 0, boxes: [] };
+      var halfW = (z) => (st.aspect || 1) / 2 * FOV * (CAM_Z - z) / CAM_Z;
+      var halfH = (z) => FOV / 2 * (CAM_Z - z) / CAM_Z;
+      function buildScare(n, c, t) {
+        const asp = st.aspect || 1, r = (k) => hash(n * 13 + 5, k);
+        SC.eyes = [];
+        SC.hands = [];
+        SC.shards = [];
+        SC.crack = 0;
+        SC.skull = 0;
+        SC.static = 0;
+        if (SC.kind === "eyes") {
+          const count = Math.max(4, Math.min(18, Math.round(3 + 2.5 * asp)));
+          for (let i = 0; i < count; i++) {
+            const a0 = 5e-3 + 0.05 * r(i * 7 + 1), life = sm(a0, a0 + 0.04, c) * (1 - sm(0.12 + 0.03 * r(i * 7 + 2), 0.17, c));
+            if (life <= 0) continue;
+            const zt = 0.15 + 0.9 * r(i * 7 + 3), z = -0.25 + (zt + 0.25) * life;
+            const look = sm(a0 + 0.03, a0 + 0.07, c);
+            SC.eyes.push({ x: (r(i * 7 + 4) * 2 - 1) * (halfW(z) - 0.15) * (asp > 2 ? 0.85 : 1), y: (r(i * 7 + 5) * 2 - 1) * (halfH(z) - 0.15), z, rad: (0.06 + 0.07 * r(i * 7 + 6)) * life, lx: (1 - look) * (r(i * 7 + 8) - 0.5) * 1.6, ly: (1 - look) * (r(i * 7 + 9) - 0.5) * 1.2 });
+          }
+        } else if (SC.kind === "hands") {
+          const amt = sm(0.3, 0.36, c) * (1 - sm(0.47, 0.52, c));
+          if (amt > 0) {
+            const count = asp > 2.5 ? 3 + (r(1) < 0.5 ? 1 : 0) : 2, w = halfW(0);
+            for (let i = 0; i < count; i++) {
+              const side = i % 2 ? 1 : -1;
+              let x = asp > 2.5 ? -w + 0.4 + (2 * w - 0.8) * (i + 0.5) / count : side * (0.45 + 0.1 * r(i + 3));
+              if (asp > 2.5 && Math.abs(x - G.pos[0]) < 0.6) x += 0.7 * Math.sign(x - G.pos[0] || 1);
+              SC.hands.push({ x, y: -0.05 + 0.25 * (r(i + 5) - 0.5) - 0.12 * sm(0.36, 0.5, c), a: side * (0.15 + 0.2 * r(i + 7)), amt: amt * (0.8 + 0.2 * r(i + 9)) });
+            }
+          }
+        } else if (SC.kind === "shatter") {
+          const since = (c - 0.545) * LOOP;
+          if (since > 0) {
+            SC.crack = 1 - sm(0.82, 0.9, c);
+            if (!SC.impactFor || SC.impactFor !== n) {
+              SC.impactFor = n;
+              SC.impact = [G.pos[0], G.pos[1]];
+            }
+            if (since < 2.2) {
+              const count = Math.min(30, Math.round(14 + 4 * asp));
+              for (let i = 0; i < count; i++) {
+                const a = i / count * 6.283 + r(i * 5 + 1), sp = 0.4 + 0.9 * r(i * 5 + 2);
+                const tt = since;
+                SC.shards.push({
+                  x: SC.impact[0] + Math.cos(a) * sp * tt * 0.7,
+                  y: SC.impact[1] + Math.sin(a) * sp * tt * 0.6 - 0.25 * tt * tt,
+                  z: 0.05 + (0.8 + 1.4 * r(i * 5 + 3)) * tt,
+                  s: (0.05 + 0.08 * r(i * 5 + 4)) * (1 - sm(1.6, 2.2, tt)),
+                  ax: tt * (3 + 5 * r(i * 5 + 5)),
+                  ay: tt * (2 + 6 * r(i * 5 + 6))
+                });
+              }
+            }
+          }
+        } else if (SC.kind === "skull") {
+          SC.skull = sm(0.5, 0.515, c) * (1 - sm(0.595, 0.61, c));
+          SC.static = sm(0.49, 0.5, c) * (1 - sm(0.6, 0.63, c));
+          const sz = 0.4 + 1.1 * sm(0.5, 0.56, c), lim = Math.max(0, halfW(sz) - 0.4);
+          SC.skullPos = [clamp(G.pos[0], -lim, lim), G.pos[1] + 0.05, sz];
+        }
+      }
+      function scareSpheres() {
+        const out = [];
+        for (const e of SC.eyes) out.push([e.x, e.y, e.z, e.rad + 0.02]);
+        for (const h of SC.hands) out.push([h.x, h.y + 0.05, 0.15, 0.55]);
+        if (SC.shards.length) {
+          let mx = 0, my = 0, mz = 0;
+          for (const s of SC.shards) {
+            mx += s.x;
+            my += s.y;
+            mz += s.z;
+          }
+          const k = SC.shards.length;
+          mx /= k;
+          my /= k;
+          mz /= k;
+          let rr = 0;
+          for (const s of SC.shards) rr = Math.max(rr, len3(s.x - mx, s.y - my, s.z - mz) + s.s * 1.5);
+          out.push([mx, my, mz, rr]);
+        }
+        if (SC.skull > 0) out.push([SC.skullPos[0], SC.skullPos[1], SC.skullPos[2], 0.55 * SKS]);
+        return out;
+      }
+      function boxD(x, y, z, bx, by, bz) {
+        const qx = Math.abs(x) - bx, qy = Math.abs(y) - by, qz = Math.abs(z) - bz;
+        return len3(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0);
+      }
+      function capD(px, py, ax, ay, bx, by, r) {
+        const bax = bx - ax, bay = by - ay, pax = px - ax, pay = py - ay;
+        const h = clamp((pax * bax + pay * bay) / (bax * bax + bay * bay));
+        return len2(pax - bax * h, pay - bay * h) - r;
+      }
+      function hand2d(x, y, H2) {
+        const c = Math.cos(H2.a), s = Math.sin(H2.a), u = (x - H2.x) * c - (y - H2.y) * s, v = (x - H2.x) * s + (y - H2.y) * c;
+        let d = ell(u, v + 0.07, 0, 0.17, 0.2, 1);
+        for (let f = 0; f < 4; f++) {
+          const fx = -0.12 + f * 0.08, top = 0.42 - Math.abs(f - 1.5) * 0.05;
+          d = Math.min(d, capD(u, v, fx, 0.08, fx, top, 0.034));
+        }
+        return Math.min(d, capD(u, v, -0.16, -0.03, -0.33, 0.15, 0.04));
+      }
+      function bulge(x, y) {
+        let h = 0;
+        for (const H2 of SC.hands) {
+          const d = hand2d(x, y, H2);
+          h = Math.max(h, H2.amt * (0.28 * sm(0.12, -0.02, d) + 0.2 * Math.sqrt(clamp(-d * 4)) + 0.05 * Math.exp(-Math.max(0, d) * 6)));
+        }
+        return h;
+      }
+      var SKS = 0.72;
+      function skullD(x, y, z) {
+        x = (x - SC.skullPos[0]) / SKS;
+        y = (y - SC.skullPos[1]) / SKS;
+        z = (z - SC.skullPos[2]) / SKS;
+        return skullLocal(x, y, z) * SKS;
+      }
+      function skullLocal(x, y, z) {
+        let d = ell(x, y - 0.12, z, 0.42, 0.38, 0.4);
+        d = smin(d, boxD(x, y + 0.3, z - 0.05, 0.2, 0.12, 0.2) - 0.06, 0.1);
+        for (const s of [-1, 1]) d = Math.max(d, -ell(x - s * 0.15, y - 0.02, z - 0.36, 0.11, 0.1, 0.14));
+        d = Math.max(d, -ell(x, y + 0.14, z - 0.4, 0.04, 0.07, 0.1));
+        if (Math.abs(x) < 0.17) d = Math.max(d, -boxD((x % 0.06 + 0.09) % 0.06 - 0.03, y + 0.31, z - 0.25, 6e-3, 0.05, 0.05));
+        return Math.max(d, -boxD(x, y + 0.31, z - 0.26, 0.2, 6e-3, 0.05));
+      }
+      function shardD(x, y, z, s) {
+        const qx = x - s.x, qy = y - s.y, qz = z - s.z;
+        const c1 = Math.cos(s.ay), s1 = Math.sin(s.ay), c2 = Math.cos(s.ax), s2 = Math.sin(s.ax);
+        const u = qx * c1 - qz * s1, w = qx * s1 + qz * c1, v = qy * c2 - w * s2, w2 = qy * s2 + w * c2;
+        return Math.max(boxD(u, v, w2, s.s, s.s * 0.8, 8e-3), u + v * 0.6 - s.s * 0.7);
+      }
+      var SM = { id: 0, ref: null };
+      function scareD(x, y, z, want) {
+        let d = 1e9;
+        for (const e of SC.eyes) {
+          const de = len3(x - e.x, y - e.y, z - e.z) - e.rad;
+          if (de < d) {
+            d = de;
+            if (want) {
+              SM.id = 1;
+              SM.ref = e;
+            }
+          }
+        }
+        for (const s of SC.shards) {
+          if (s.s <= 0) continue;
+          const ds = shardD(x, y, z, s);
+          if (ds < d) {
+            d = ds;
+            if (want) SM.id = 2;
+          }
+        }
+        if (SC.skull > 0) {
+          const dk = skullD(x, y, z);
+          if (dk < d) {
+            d = dk;
+            if (want) SM.id = 3;
+          }
+        }
+        return d;
+      }
+      var KEY = norm3(-0.4, 0.6, 0.7);
+      function shadeScare(sx, sy, base, tBase, sph) {
+        const oz = CAM_Z;
+        let dx = sx * FOV, dy = sy * FOV, dz = -CAM_Z;
+        const n = len3(dx, dy, dz);
+        dx /= n;
+        dy /= n;
+        dz /= n;
+        let t0 = Infinity, t1 = 0;
+        for (const S of sph) {
+          const bx = S[0], by = S[1], bz = S[2] - oz, tb = bx * dx + by * dy + bz * dz, q = bx * bx + by * by + bz * bz - tb * tb;
+          if (q < S[3] * S[3]) {
+            const h = Math.sqrt(S[3] * S[3] - q);
+            t0 = Math.min(t0, tb - h);
+            t1 = Math.max(t1, tb + h);
+          }
+        }
+        if (t0 === Infinity || t0 > tBase) return false;
+        let tt = Math.max(0, t0), hit = false, rubber = false;
+        const tEnd = Math.min(tBase, t1, -oz / dz + 0.01), hands = SC.hands.length > 0;
+        for (let i = 0; i < 48 && tt < tEnd; i++) {
+          const px2 = dx * tt, py2 = dy * tt, pz2 = oz + dz * tt;
+          let d = scareD(px2, py2, pz2, false);
+          if (hands && pz2 < 0.7) {
+            const h = bulge(px2, py2);
+            if (h > 4e-3) {
+              const dh = (pz2 - h) * 0.5;
+              if (dh < d) {
+                d = dh;
+                if (d < 2e-3) {
+                  rubber = true;
+                }
+              }
+            }
+          }
+          if (d < 2e-3) {
+            hit = true;
+            break;
+          }
+          tt += Math.max(4e-3, d * 0.85);
+        }
+        if (!hit) return false;
+        const px = dx * tt, py = dy * tt, pz = oz + dz * tt;
+        let nx, ny, nz, e = 3e-3;
+        if (rubber) {
+          nx = -(bulge(px + e, py) - bulge(px - e, py)) / (2 * e);
+          ny = -(bulge(px, py + e) - bulge(px, py - e)) / (2 * e);
+          nz = 1;
+        } else {
+          scareD(px, py, pz, true);
+          const a1 = scareD(px + e, py - e, pz - e), a2 = scareD(px - e, py - e, pz + e), a3 = scareD(px - e, py + e, pz - e), a4 = scareD(px + e, py + e, pz + e);
+          nx = a1 - a2 - a3 + a4;
+          ny = -a1 - a2 + a3 + a4;
+          nz = -a1 + a2 - a3 + a4;
+        }
+        const nn = len3(nx, ny, nz) || 1;
+        nx /= nn;
+        ny /= nn;
+        nz /= nn;
+        const ndl = clamp(nx * KEY[0] + ny * KEY[1] + nz * KEY[2]), ndv = clamp(-(nx * dx + ny * dy + nz * dz));
+        const hx = KEY[0] - dx, hy = KEY[1] - dy, hz = KEY[2] - dz, hn = len3(hx, hy, hz), hdot = clamp((nx * hx + ny * hy + nz * hz) / hn);
+        const rim = Math.pow(1 - ndv, 3);
+        let r, g, b;
+        if (rubber) {
+          const sp = Math.pow(hdot, 30) * 0.7, lit = 0.03 + 0.25 * ndl;
+          r = 0.14 * lit + sp + rim * 0.12;
+          g = 0.13 * lit + sp + rim * 0.14;
+          b = 0.16 * lit + sp + rim * 0.18;
+          const k = sm(0, 0.06, bulge(px, py));
+          r = mix(base[0], r, k);
+          g = mix(base[1], g, k);
+          b = mix(base[2], b, k);
+        } else if (SM.id === 1) {
+          const E2 = SM.ref, ex = (px - E2.x) / E2.rad, ey = (py - E2.y) / E2.rad, ez = (pz - E2.z) / E2.rad;
+          const lz = Math.sqrt(clamp(1 - E2.lx * E2.lx * 0.3 - E2.ly * E2.ly * 0.3)), dot = ex * E2.lx * 0.55 + ey * E2.ly * 0.55 + ez * lz;
+          const vein = Math.max(0, 1 - Math.abs(noise(ex * 6 + 9, ey * 6) - 0.5) * 16) * sm(0.55, 0.2, dot);
+          let cr = 0.85 - vein * 0.25, cg = 0.8 - vein * 0.6, cb = 0.72 - vein * 0.6, em = 0;
+          if (dot > 0.8) {
+            cr = 0.7;
+            cg = 0.1;
+            cb = 0.04;
+            em = 0.35;
+          }
+          if (dot > 0.93) {
+            cr = 0.01;
+            cg = 0.01;
+            cb = 0.01;
+            em = 0;
+          }
+          const lit = 0.06 + 0.8 * ndl, sp = Math.pow(hdot, 120) * 1.4;
+          r = cr * lit + sp + em * 0.9;
+          g = cg * lit + sp + em * 0.06;
+          b = cb * lit + sp + em * 0.03;
+        } else if (SM.id === 2) {
+          const sp = Math.pow(hdot, 100) * 1.6;
+          r = base[0] * 0.5 + 0.08 + rim * 0.5 + sp;
+          g = base[1] * 0.5 + 0.12 + rim * 0.7 + sp;
+          b = base[2] * 0.5 + 0.16 + rim * 0.85 + sp;
+        } else {
+          const x = (px - SC.skullPos[0]) / SKS, y = (py - SC.skullPos[1]) / SKS, z = (pz - SC.skullPos[2]) / SKS;
+          const hole = Math.min(ell(Math.abs(x) - 0.15, y - 0.02, z - 0.36, 0.11, 0.1, 0.14), ell(x, y + 0.14, z - 0.4, 0.04, 0.07, 0.1)) - 4e-3;
+          const lit = 0.08 + 0.85 * ndl, sp = Math.pow(hdot, 30) * 0.35;
+          if (hole < 0.01) {
+            r = 0.9;
+            g = 0.05;
+            b = 0;
+          } else {
+            r = 0.95 * lit + sp + rim * 0.3;
+            g = 0.92 * lit + sp + rim * 0.25;
+            b = 0.8 * lit + sp + rim * 0.45;
+          }
+          const k = SC.skull;
+          r = mix(base[0], r, k);
+          g = mix(base[1], g, k);
+          b = mix(base[2], b, k);
+        }
+        base[0] = r;
+        base[1] = g;
+        base[2] = b;
+        return true;
+      }
       var CAM_Z = 3.4;
       var FOV = 1.9;
       var FOG = [0, 0, 0];
@@ -18596,15 +18886,20 @@ var PiEngine = (() => {
       function fogColour(x, y, t) {
         const f = noise(x * 2.2 + t * 0.15, y * 2.2 - t * 0.05) * 0.6 + noise(x * 5 - t * 0.3, y * 5 + t * 0.1) * 0.4;
         const v = 4e-3 + 0.028 * f * f;
-        const glow = Math.exp(-len2(x - G.pos[0], y - G.pos[1]) * 1.4) * 0.04 * (0.5 + 0.5 * G.glow);
+        const glow = G.hidden ? 0 : Math.exp(-len2(x - G.pos[0], y - G.pos[1]) * 1.4) * 0.04 * (0.5 + 0.5 * G.glow);
         let pe = 0;
         if (G.peek > 0) {
           const s = 0.75, ex = Math.abs(x - G.pos[0]) - G.F.gap * s, ey = y - G.pos[1] - 0.06 * s;
           pe = Math.exp(-(ex * ex + ey * ey * 1.6) / 16e-4) * G.peek * G.glow * 1.3 + Math.exp(-(ex * ex + ey * ey) / 0.02) * G.peek * G.glow * 0.12;
         }
-        FOG[0] = v * 0.75 + glow * G.eye[0] * 0.5 + pe * G.eye[0];
-        FOG[1] = v * 0.9 + glow * G.eye[1] * 0.5 + pe * G.eye[1];
-        FOG[2] = v * 1 + glow * G.eye[2] * 0.5 + pe * G.eye[2];
+        let ck = 0;
+        if (SC.crack > 0) {
+          const cx = x - SC.impact[0], cy = y - SC.impact[1], rr = len2(cx, cy), a = Math.atan2(cy, cx);
+          ck = SC.crack * (Math.max(0, 1 - Math.abs(Math.sin(a * 7 + noise(rr * 5, a * 2) * 2.5)) * 14) * sm(1.1, 0.05, rr) + Math.max(0, 1 - Math.abs(Math.sin(rr * 22)) * 10) * sm(0.35, 0.05, rr) * 0.5);
+        }
+        FOG[0] = v * 0.75 + glow * G.eye[0] * 0.5 + pe * G.eye[0] + ck * 0.55;
+        FOG[1] = v * 0.9 + glow * G.eye[1] * 0.5 + pe * G.eye[1] + ck * 0.65;
+        FOG[2] = v * 1 + glow * G.eye[2] * 0.5 + pe * G.eye[2] + ck * 0.75;
         return FOG;
       }
       var SHROUD = [0.55, 0.62, 0.66];
@@ -18640,6 +18935,7 @@ var PiEngine = (() => {
         const eg = eyeMin < 1e8 ? Math.exp(-Math.max(0, eyeMin) * 40) * G.glow : 0;
         const E = G.eye;
         let col;
+        st.lastT = hitIt ? tt : tPlane;
         if (!hitIt) {
           const f = fogColour(dx * tPlane, dy * tPlane, t);
           OUT[0] = f[0] + eg * E[0];
@@ -18697,7 +18993,15 @@ var PiEngine = (() => {
           const B = G.bound, k = CAM_Z / ((CAM_Z - B[2]) * FOV), cx = B[0] * k * Hr + Wr / 2, r = (B[3] * k + 0.05) * Hr;
           st.bx0 = Math.max(0, Math.floor(cx - r));
           st.bx1 = Math.min(Wr, Math.ceil(cx + r));
-          if (G.pos[2] < -0.45) st.bx1 = st.bx0;
+          if (G.pos[2] < -0.45 || G.hidden) st.bx1 = st.bx0;
+          st.sph = scareSpheres();
+          st.sboxes = [];
+          for (const S of st.sph) {
+            const k2 = CAM_Z / ((CAM_Z - S[2]) * FOV);
+            if (k2 <= 0) continue;
+            const c2 = S[0] * k2 * Hr + Wr / 2, r2 = S[3] * k2 * Hr + 1;
+            st.sboxes.push([Math.max(0, Math.floor(c2 - r2)), Math.min(Wr, Math.ceil(c2 + r2))]);
+          }
         }
         if (first) {
           for (let q = 0; q < PASSES; q++) renderRows(Wr, Hr, q);
@@ -18744,8 +19048,40 @@ var PiEngine = (() => {
               B[o + 2] = c[2];
             }
           }
+          if (st.sboxes && st.sboxes.length) {
+            for (let x = 0; x < Wr; x++) {
+              let inS = false;
+              for (const bx of st.sboxes) if (x >= bx[0] && x < bx[1]) {
+                inS = true;
+                break;
+              }
+              if (!inS) continue;
+              const sx = (x + 0.5 - Wr / 2) / Hr, o = (row + x) * 3;
+              let tBase = Infinity;
+              if (x >= st.bx0 && x < st.bx1) {
+                shadePixel(sx, sy, st.rt);
+                tBase = st.lastT;
+              }
+              PX[0] = B[o];
+              PX[1] = B[o + 1];
+              PX[2] = B[o + 2];
+              if (shadeScare(sx, sy, PX, tBase, st.sph)) {
+                B[o] = PX[0];
+                B[o + 1] = PX[1];
+                B[o + 2] = PX[2];
+              }
+            }
+          }
+          if (SC.static > 0) for (let x = 0; x < Wr; x++) {
+            const o = (row + x) * 3, lum = B[o] + B[o + 1] + B[o + 2], k = SC.static * (lum > 0.9 ? 0.25 : 1);
+            const nv = hash(x * 3 + y * 977, Math.floor(st.rt * 30)) * 0.28 * k, band = Math.sin(y * 0.9 + st.rt * 40) > 0.85 ? 0.08 * k : 0;
+            B[o] += nv + band * 0.6;
+            B[o + 1] += nv * 0.9;
+            B[o + 2] += nv + band;
+          }
         }
       }
+      var PX = [0, 0, 0];
       function glitchShift(y) {
         return G.glitch > 0 && hash(y, Math.floor(st.t * 20)) < 0.25 * G.glitch ? Math.round((hash(y + 99, Math.floor(st.t * 20)) - 0.5) * 10 * G.glitch) : 0;
       }
@@ -18776,7 +19112,7 @@ var PiEngine = (() => {
         }
       }
       ghost3d.wall = ghost3dWall;
-      ghost3d._test = { st, buildPose, G };
+      ghost3d._test = { st, buildPose, G, SC };
       module.exports = ghost3d;
     }
   });
