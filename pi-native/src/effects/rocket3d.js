@@ -192,17 +192,22 @@ function shadePixel(sx, sy, t) {
 }
 
 const st = { t: 0, frame: 0, img: null, size: 0 };
-// A quarter of the rows each frame (interleaved), to spread the work.
+// A quarter of the rows each frame into a back buffer, all at one moment,
+// shown when complete (so a fast-moving rocket never tears).
 const PASSES = 4;
 function render(S) {
-  if (!st.img || st.size !== S) { st.img = new Float32Array(S * S * 3); st.size = S; st.frame = 0; for (let k = 0; k < PASSES; k++) renderRows(S, k); return; }
-  renderRows(S, st.frame++ % PASSES);
+  const first = !st.img || st.size !== S;
+  if (first) { st.img = new Float32Array(S * S * 3); st.back = new Float32Array(S * S * 3); st.size = S; st.frame = 0; }
+  const pass = first ? 0 : st.frame++ % PASSES;
+  if (pass === 0) { buildPose(st.t); st.rt = st.t; }
+  if (first) { for (let k = 0; k < PASSES; k++) renderRows(S, k); st.img.set(st.back); return; }
+  renderRows(S, pass);
+  if (pass === PASSES - 1) { const tmp = st.img; st.img = st.back; st.back = tmp; }
 }
 function renderRows(S, pass) {
-  buildPose(st.t);
   for (let y = pass; y < S; y += PASSES) for (let x = 0; x < S; x++) {
-    const c = shadePixel((x + 0.5) / S - 0.5, 0.5 - (y + 0.5) / S, st.t), o = (y * S + x) * 3;
-    st.img[o] = c[0]; st.img[o + 1] = c[1]; st.img[o + 2] = c[2];
+    const c = shadePixel((x + 0.5) / S - 0.5, 0.5 - (y + 0.5) / S, st.rt), o = (y * S + x) * 3;
+    st.back[o] = c[0]; st.back[o + 1] = c[1]; st.back[o + 2] = c[2];
   }
 }
 
