@@ -23,7 +23,13 @@ function smin(a, b, k) { const h = clamp(0.5 + 0.5 * (b - a) / k); return mix(b,
 function smax(a, b, k) { return -smin(-a, -b, k); }
 function norm3(x, y, z) { const n = Math.hypot(x, y, z); return [x / n, y / n, z / n]; }
 // Ellipsoid (approximate distance).
-function ell(x, y, z, rx, ry, rz) { const k0 = Math.hypot(x / rx, y / ry, z / rz), k1 = Math.hypot(x / (rx * rx), y / (ry * ry), z / (rz * rz)); return k1 > 0 ? k0 * (k0 - 1) / k1 : -Math.min(rx, ry, rz); }
+function ell(x, y, z, rx, ry, rz) {
+  const ax = x / rx, ay = y / ry, az = z / rz, bx = ax / rx, by = ay / ry, bz = az / rz;
+  const k0 = Math.sqrt(ax * ax + ay * ay + az * az), k1 = Math.sqrt(bx * bx + by * by + bz * bz);
+  return k1 > 0 ? k0 * (k0 - 1) / k1 : -Math.min(rx, ry, rz);
+}
+// Math.hypot is slow in V8; these run millions of times a second.
+const len2 = (a, b) => Math.sqrt(a * a + b * b), len3 = (a, b, c) => Math.sqrt(a * a + b * b + c * c);
 
 const hash = (x, y) => { let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 function noise(x, y) {
@@ -92,8 +98,8 @@ function sdfHead(x, y, z, want) {
   // Far away: a cheap enclosing shape is close enough to step by (a ball
   // round the head, a cone round the shroud) - most ray steps are far out.
   if (!want) {
-    const bh = Math.hypot(x, y + 0.08, z) - 0.66;
-    const zc = clamp(z, -1.85, 0.1), bs = Math.hypot(x, y + 0.2 * clamp(-zc / 1.6), z - zc) - (0.5 + 0.38 * clamp(-zc / 1.6));
+    const bh = len3(x, y + 0.08, z) - 0.66;
+    const zc = clamp(z, -1.85, 0.1), bs = len3(x, y + 0.2 * clamp(-zc / 1.6), z - zc) - (0.5 + 0.38 * clamp(-zc / 1.6));
     const b = Math.min(bh, bs);
     if (b > 0.12) return b;
   }
@@ -132,8 +138,8 @@ function sdfHead(x, y, z, want) {
   }
   // The shroud: ragged cloth from behind the head back into the screen.
   const back = clamp(-(z + 0.1) / 1.6);
-  const wave = 0.05 * Math.sin(y * 9 + G.t * 2) * back + 0.04 * Math.sin(x * 11 - G.t * 1.6) * back;
-  const shroud = Math.hypot(x * (1 - 0.25 * back), (y - 0.05 + 0.25 * back) * 0.9) - (0.36 + 0.3 * back + wave);
+  const wave = back > 0 ? (0.05 * Math.sin(y * 9 + G.t * 2) + 0.04 * Math.sin(x * 11 - G.t * 1.6)) * back : 0;
+  const shroud = len2(x * (1 - 0.25 * back), (y - 0.05 + 0.25 * back) * 0.9) - (0.36 + 0.3 * back + wave);
   const shroudD = Math.max(shroud, z - 0.05 + 0.5 * Math.max(0, y - 0.2), -z - 1.8);
   d = smin(d, shroudD, 0.08);
   if (want) { H.mat = teeth < 0.006 ? 3 : holes < 0.02 ? 1 : shroudD < d + 0.01 && z < -0.05 ? 2 : 0; H.depth = z; }
@@ -146,40 +152,42 @@ function eyeDist(px, py, pz) {
   const h = toHead(px, py, pz);
   const lx = G.look[0] * 0.025, ly = G.look[1] * 0.02;
   const gp = G.F.gap;
-  return Math.min(Math.hypot(h[0] - gp - lx, h[1] - 0.04 - ly, h[2] - 0.27), Math.hypot(h[0] + gp - lx, h[1] - 0.04 - ly, h[2] - 0.27)) - 0.028 * G.F.eye;
+  return Math.min(len3(h[0] - gp - lx, h[1] - 0.04 - ly, h[2] - 0.27), len3(h[0] + gp - lx, h[1] - 0.04 - ly, h[2] - 0.27)) - 0.028 * G.F.eye;
 }
 
 // ---- The screen: drifting fog ----
 const CAM_Z = 3.4, FOV = 1.9; // close in: the ghost fills most of the height
+const FOG = [0, 0, 0], OUT = [0, 0, 0], RIM = [0.35, 0.5, 0.55];
 function fogColour(x, y, t) {
   const f = noise(x * 2.2 + t * 0.15, y * 2.2 - t * 0.05) * 0.6 + noise(x * 5 - t * 0.3, y * 5 + t * 0.1) * 0.4;
-  const v = 0.012 + 0.055 * f * f; // dim, so the ghost stands out
-  const glow = Math.exp(-Math.hypot(x - G.pos[0], y - G.pos[1]) * 1.4) * 0.04 * (0.5 + 0.5 * G.glow); // the eyes' light on the fog
+  const v = 0.004 + 0.028 * f * f; // dark, so the ghost stands out
+  const glow = Math.exp(-len2(x - G.pos[0], y - G.pos[1]) * 1.4) * 0.04 * (0.5 + 0.5 * G.glow); // the eyes' light on the fog
   let pe = 0;
   if (G.peek > 0) { // just the eyes, glowing in the fog before it comes out
     const s = 0.75, ex = Math.abs(x - G.pos[0]) - G.F.gap * s, ey = y - G.pos[1] - 0.06 * s;
     pe = Math.exp(-(ex * ex + ey * ey * 1.6) / 0.0016) * G.peek * G.glow * 1.3 + Math.exp(-(ex * ex + ey * ey) / 0.02) * G.peek * G.glow * 0.12;
   }
-  return [v * 0.75 + glow * G.eye[0] * 0.5 + pe * G.eye[0], v * 0.9 + glow * G.eye[1] * 0.5 + pe * G.eye[1], v * 1.0 + glow * G.eye[2] * 0.5 + pe * G.eye[2]];
+  FOG[0] = v * 0.75 + glow * G.eye[0] * 0.5 + pe * G.eye[0]; FOG[1] = v * 0.9 + glow * G.eye[1] * 0.5 + pe * G.eye[1]; FOG[2] = v * 1.0 + glow * G.eye[2] * 0.5 + pe * G.eye[2];
+  return FOG; // reused - copy it if you need to keep it
 }
 
 const SHROUD = [0.55, 0.62, 0.66], TEETH = [0.68, 0.64, 0.5], THROAT = [0.45, 0.08, 0.1];
 function shadePixel(sx, sy, t) {
   const oz = CAM_Z;
   let dx = sx * FOV, dy = sy * FOV, dz = -CAM_Z;
-  const n = Math.hypot(dx, dy, dz); dx /= n; dy /= n; dz /= n;
+  const n = len3(dx, dy, dz); dx /= n; dy /= n; dz /= n;
   const B = G.bound, bx = B[0], by = B[1], bz = B[2] - oz, tb = bx * dx + by * dy + bz * dz;
   const miss = bx * bx + by * by + bz * bz - tb * tb > B[3] * B[3];
   const tPlane = -oz / dz;
   let tt = miss ? tPlane : Math.max(0, tb - B[3]), hitIt = false, eyeMin = 1e9;
   if (!miss) {
-    for (let i = 0; i < 36 && tt < tPlane; i++) {
+    for (let i = 0; i < 30 && tt < tPlane; i++) {
       const px = dx * tt, py = dy * tt, pz = oz + dz * tt;
       const d = sdf(px, py, pz, false);
       let ed = 1e9;
       if (d < 0.25) { ed = eyeDist(px, py, pz); if (ed < eyeMin) eyeMin = ed; } // the eyes' glow only matters near the head
       if (d < 0.002) { hitIt = true; break; }
-      tt += Math.max(0.004, Math.min(d, Math.max(ed, 0.02)) * 0.85);
+      tt += Math.max(0.005, Math.min(d, Math.max(ed, 0.02)) * 0.9);
     }
   }
   // Eye glow (a halo round each pupil, seen even outside the sockets).
@@ -187,7 +195,9 @@ function shadePixel(sx, sy, t) {
   const E = G.eye;
   let col;
   if (!hitIt) {
-    col = fogColour(dx * tPlane, dy * tPlane, t);
+    const f = fogColour(dx * tPlane, dy * tPlane, t);
+    OUT[0] = f[0] + eg * E[0]; OUT[1] = f[1] + eg * E[1]; OUT[2] = f[2] + eg * E[2];
+    return OUT;
   } else {
     const px = dx * tt, py = dy * tt, pz = oz + dz * tt;
     sdf(px, py, pz, true);
@@ -195,27 +205,30 @@ function shadePixel(sx, sy, t) {
     const e = 0.003;
     const a1 = sdf(px + e, py - e, pz - e), a2 = sdf(px - e, py - e, pz + e), a3 = sdf(px - e, py + e, pz - e), a4 = sdf(px + e, py + e, pz + e);
     let nx = a1 - a2 - a3 + a4, ny = -a1 - a2 + a3 + a4, nz = -a1 + a2 - a3 + a4;
-    const nn = Math.hypot(nx, ny, nz) || 1; nx /= nn; ny /= nn; nz /= nn;
+    const nn = len3(nx, ny, nz) || 1; nx /= nn; ny /= nn; nz /= nn;
     // Horror lighting: from below (the eyes and fog), cold, plus a weak top light.
     const below = clamp(-ny * 0.7 + nz * 0.5), top = clamp(ny * 0.6 + nz * 0.3) * 0.25;
     const ndv = clamp(-(nx * dx + ny * dy + nz * dz));
     const rim = Math.pow(1 - ndv, 2.5); // ghostly glow round the edges
-    let ao = 0;
-    for (let i = 1; i <= 3; i++) { const h = 0.035 * i; ao += (h - sdf(px + nx * h, py + ny * h, pz + nz * h)) / h / i; }
-    ao = clamp(1 - ao * 0.7);
+    // Cheap occlusion: surfaces facing away from you (the sides of the
+    // sockets, the jaw's underside) darken. (A proper occlusion test cost
+    // three more distance evaluations per pixel - too slow on the Pi.)
+    const ao = 0.55 + 0.45 * clamp(nz * 1.2 + 0.2);
     const base = mat === 2 ? SHROUD : mat === 3 ? TEETH : mat === 1 ? THROAT : G.F.skin;
     // Inside (throat, sockets) gets darker the deeper it goes.
     const lit = (0.06 + 0.65 * below + top) * ao * (mat === 1 ? 0.5 * sm(0.05, 0.3, H.depth) + 0.04 : 1);
     // Eye light spills onto the face round the sockets.
-    const h = toHead(px, py, pz).slice(), spill = Math.exp(-(Math.hypot(Math.abs(h[0]) - G.F.gap, h[1] - 0.04) ** 2) / 0.02) * 0.5 * G.glow;
+    const h = toHead(px, py, pz).slice(), spill = Math.exp(-(len2(Math.abs(h[0]) - G.F.gap, h[1] - 0.04) ** 2) / 0.02) * 0.5 * G.glow;
     const gleam = mat === 3 ? 0.1 * Math.pow(clamp(nz), 6) : 0; // a glint on the teeth
-    col = [0, 1, 2].map((k) => base[k] * lit + rim * [0.35, 0.5, 0.55][k] * (mat === 1 ? 0.1 : 1) + spill * E[k] * 0.35 + gleam);
+    const rk = rim * (mat === 1 ? 0.1 : 1);
+    col = [base[0] * lit + rk * RIM[0] + spill * E[0] * 0.35 + gleam, base[1] * lit + rk * RIM[1] + spill * E[1] * 0.35 + gleam, base[2] * lit + rk * RIM[2] + spill * E[2] * 0.35 + gleam];
     // The cloth fades out towards the screen; and near the screen the fog swallows it all.
     const fade = sm(-0.05, 0.6, pz) * (mat === 2 ? sm(-1.2, -0.3, h[2]) * 0.8 + 0.2 : 1);
     const fog = fogColour(px, py, t);
     col = [mix(fog[0], col[0], fade), mix(fog[1], col[1], fade), mix(fog[2], col[2], fade)];
   }
-  return [col[0] + eg * E[0], col[1] + eg * E[1], col[2] + eg * E[2]];
+  OUT[0] = col[0] + eg * E[0]; OUT[1] = col[1] + eg * E[1]; OUT[2] = col[2] + eg * E[2];
+  return OUT; // reused
 }
 
 // The picture (the whole screen: a wall's full width) is built a quarter of
@@ -234,16 +247,33 @@ function render(Wr, Hr, dt) {
     // The ghost's box on screen (its bounding sphere, projected, plus room for the eye glow).
     const B = G.bound, k = CAM_Z / ((CAM_Z - B[2]) * FOV), cx = B[0] * k * Hr + Wr / 2, r = (B[3] * k + 0.05) * Hr;
     st.bx0 = Math.max(0, Math.floor(cx - r)); st.bx1 = Math.min(Wr, Math.ceil(cx + r));
+    if (G.pos[2] < -0.45) st.bx1 = st.bx0; // still behind the screen (the fog hides it; peeking eyes are drawn with the fog): nothing to ray-march
   }
   if (first) { for (let q = 0; q < PASSES; q++) renderRows(Wr, Hr, q); st.img.set(st.back); return; }
   renderRows(Wr, Hr, pass);
   if (pass === PASSES - 1) { const tmp = st.img; st.img = st.back; st.back = tmp; }
 }
+// Near the ghost, only every other pixel is ray-marched; those between are
+// the average of their neighbours unless the two differ (an edge, an eye),
+// where they're ray-marched too - about half the rays for the same look.
 function renderRows(Wr, Hr, pass) {
-  for (let y = pass; y < Hr; y += PASSES) for (let x = 0; x < Wr; x++) {
-    const sx = (x + 0.5 - Wr / 2) / Hr, sy = 0.5 - (y + 0.5) / Hr;
-    const c = x >= st.bx0 && x < st.bx1 ? shadePixel(sx, sy, st.rt) : fogColour(sx * FOV, sy * FOV, st.rt), o = (y * Wr + x) * 3;
-    st.back[o] = c[0]; st.back[o + 1] = c[1]; st.back[o + 2] = c[2];
+  const B = st.back;
+  for (let y = pass; y < Hr; y += PASSES) {
+    const sy = 0.5 - (y + 0.5) / Hr, row = y * Wr;
+    for (let x = 0; x < Wr; x++) {
+      const sx = (x + 0.5 - Wr / 2) / Hr, o = (row + x) * 3;
+      const inBox = x >= st.bx0 && x < st.bx1;
+      if (inBox && ((x - st.bx0) & 1)) continue; // filled in below
+      if (!inBox && (x & 1) && x > 0 && !(x - 1 >= st.bx0 && x - 1 < st.bx1)) { B[o] = B[o - 3]; B[o + 1] = B[o - 2]; B[o + 2] = B[o - 1]; continue; } // fog is soft: half resolution is plenty
+      const c = inBox ? shadePixel(sx, sy, st.rt) : fogColour(sx * FOV, sy * FOV, st.rt);
+      B[o] = c[0]; B[o + 1] = c[1]; B[o + 2] = c[2];
+    }
+    for (let x = st.bx0 + 1; x < st.bx1; x += 2) {
+      const o = (row + x) * 3, l = o - 3, r = x + 1 < Wr ? o + 3 : o - 3;
+      const diff = Math.abs(B[l] - B[r]) + Math.abs(B[l + 1] - B[r + 1]) + Math.abs(B[l + 2] - B[r + 2]);
+      if (diff < 0.12) { B[o] = (B[l] + B[r]) / 2; B[o + 1] = (B[l + 1] + B[r + 1]) / 2; B[o + 2] = (B[l + 2] + B[r + 2]) / 2; }
+      else { const c = shadePixel((x + 0.5 - Wr / 2) / Hr, 0.5 - (y + 0.5) / Hr, st.rt); B[o] = c[0]; B[o + 1] = c[1]; B[o + 2] = c[2]; }
+    }
   }
 }
 // The static glitch during a lunge: whole rows jump sideways.

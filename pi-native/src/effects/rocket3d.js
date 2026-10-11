@@ -17,12 +17,14 @@ const clamp = (v, a = 0, b = 1) => (v < a ? a : v > b ? b : v);
 const sm = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0)); return t * t * (3 - 2 * t); };
 const mix = (a, b, t) => a + (b - a) * t;
 function smin(a, b, k) { const h = clamp(0.5 + 0.5 * (b - a) / k); return mix(b, a, h) - k * h * (1 - h); }
-function norm3(x, y, z) { const n = Math.hypot(x, y, z); return [x / n, y / n, z / n]; }
+// Math.hypot is slow in V8; these run millions of times a second.
+const len2 = (a, b) => Math.sqrt(a * a + b * b), len3 = (a, b, c) => Math.sqrt(a * a + b * b + c * c);
+function norm3(x, y, z) { const n = len3(x, y, z); return [x / n, y / n, z / n]; }
 
 // A tapered capsule along the local y axis from y0 (radius r0) to y1 (r1).
 function capY(x, y, z, y0, y1, r0, r1) {
   const h = clamp((y - y0) / (y1 - y0));
-  return Math.hypot(x, y - (y0 + (y1 - y0) * h), z) - (r0 + (r1 - r0) * h);
+  return len3(x, y - (y0 + (y1 - y0) * h), z) - (r0 + (r1 - r0) * h);
 }
 
 // ---- The rocket's flight: position and orientation for a moment ----
@@ -69,22 +71,22 @@ function sdfLocal(x, y, z, want) {
   const body = capY(x, y, z, -0.42, 0.42, 0.155, 0.17);
   const nose = capY(x, y, z, 0.42, 0.88, 0.17, 0.025);
   let d = smin(body, nose, 0.04);
-  const nozzle = Math.max(capY(x, y, z, -0.56, -0.42, 0.115, 0.1), -(Math.hypot(x, z) - 0.075)); // hollow bell
+  const nozzle = Math.max(capY(x, y, z, -0.56, -0.42, 0.115, 0.1), -(len2(x, z) - 0.075)); // hollow bell
   d = Math.min(d, nozzle);
   // Three swept fins round the tail.
   let fin = 1e9;
-  const a = Math.atan2(z, x), r = Math.hypot(x, z);
+  const a = Math.atan2(z, x), r = len2(x, z);
   const k = Math.round(a / (2 * Math.PI / 3)) * (2 * Math.PI / 3), ang = a - k; // into the nearest fin's frame
   const fx = r * Math.cos(ang), fz = r * Math.sin(ang);
   {
     const lx = fx - 0.28, ly = y + 0.32 - (fx - 0.17) * 0.8; // swept back
     const qx = Math.abs(lx) - 0.115, qy = Math.abs(ly) - 0.15 + 0.3 * (lx + 0.115), qz = Math.abs(fz) - 0.026;
-    fin = (Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - 0.012) * 0.8;
+    fin = (len3(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - 0.012) * 0.8;
   }
   d = smin(d, fin, 0.02);
   if (want) {
     // Porthole on the local +z side.
-    const wd = Math.hypot(x, y - 0.18);
+    const wd = len2(x, y - 0.18);
     if (d === nozzle || nozzle < 0.004) M.id = 2;
     else if (fin < body - 0.005 && fin < nose) M.id = 1;
     else if (z > 0.05 && wd < 0.06) M.id = 3;
@@ -107,7 +109,7 @@ const CAM_Z = 3.4, FOV = 2.85;
 const KEY = norm3(-0.6, 0.65, 0.45), KEY_COL = [1.0, 0.95, 0.88];
 
 function screenColour(x, y, t, shadow) {
-  const r = Math.hypot(x - R.portal[0], (y - R.portal[1]) * 1.6);
+  const r = len2(x - R.portal[0], (y - R.portal[1]) * 1.6);
   const ring = Math.exp(-((r - 0.45) ** 2) / 0.006) * R.glow;
   const ripple = 0.5 + 0.5 * Math.sin(r * 18 - t * 5);
   const fall = Math.exp(-r * 1.5);
@@ -126,7 +128,7 @@ const GLOSS = [60, 60, 25, 120, 90], REFL = [0.12, 0.12, 0.25, 0.5, 0.65];
 function shadePixel(sx, sy, t) {
   const oz = CAM_Z;
   let dx = sx * FOV, dy = sy * FOV, dz = -CAM_Z;
-  const n = Math.hypot(dx, dy, dz); dx /= n; dy /= n; dz /= n;
+  const n = len3(dx, dy, dz); dx /= n; dy /= n; dz /= n;
   const B = R.bound, bx = B[0], by = B[1], bz = B[2] - oz, tb = bx * dx + by * dy + bz * dz;
   const miss = bx * bx + by * by + bz * bz - tb * tb > B[3] * B[3];
   const tPlane = -oz / dz;
@@ -165,10 +167,10 @@ function shadePixel(sx, sy, t) {
     const e = 0.002;
     const a1 = sdf(px + e, py - e, pz - e), a2 = sdf(px - e, py - e, pz + e), a3 = sdf(px - e, py + e, pz - e), a4 = sdf(px + e, py + e, pz + e);
     let nx = a1 - a2 - a3 + a4, ny = -a1 - a2 + a3 + a4, nz = -a1 + a2 - a3 + a4;
-    const nn = Math.hypot(nx, ny, nz) || 1; nx /= nn; ny /= nn; nz /= nn;
+    const nn = len3(nx, ny, nz) || 1; nx /= nn; ny /= nn; nz /= nn;
     const ndl = clamp(nx * KEY[0] + ny * KEY[1] + nz * KEY[2]);
     const vx = -dx, vy = -dy, vz = -dz, ndv = clamp(nx * vx + ny * vy + nz * vz);
-    const hx = KEY[0] + vx, hy = KEY[1] + vy, hz = KEY[2] + vz, hn = Math.hypot(hx, hy, hz);
+    const hx = KEY[0] + vx, hy = KEY[1] + vy, hz = KEY[2] + vz, hn = len3(hx, hy, hz);
     const spec = Math.pow(clamp((nx * hx + ny * hy + nz * hz) / hn), GLOSS[id]) * (id === 2 ? 0.3 : 1.1);
     // Reflection direction, for the environment.
     const rdy = dy - 2 * (dx * nx + dy * ny + dz * nz) * ny;
@@ -182,7 +184,7 @@ function shadePixel(sx, sy, t) {
     });
     // Behind the screen, the rocket is hidden by the screen except through the portal.
     if (pz < 0) {
-      const pr = Math.hypot(px - R.portal[0], (py - R.portal[1]) * 1.6);
+      const pr = len2(px - R.portal[0], (py - R.portal[1]) * 1.6);
       const through = sm(0.45, 0.38, pr);
       const sc = screenColour(px, py, t, 0);
       col = [mix(sc[0], col[0] * 0.8 + 0.05, through), mix(sc[1], col[1] * 0.8 + 0.2, through), mix(sc[2], col[2] * 0.8 + 0.3, through)];

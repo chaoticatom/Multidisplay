@@ -6511,13 +6511,15 @@ var PiEngine = (() => {
         const h = clamp(0.5 + 0.5 * (b - a) / k);
         return mix(b, a, h) - k * h * (1 - h);
       }
+      var len2 = (a, b) => Math.sqrt(a * a + b * b);
+      var len3 = (a, b, c) => Math.sqrt(a * a + b * b + c * c);
       function norm3(x, y, z) {
-        const n = Math.hypot(x, y, z);
+        const n = len3(x, y, z);
         return [x / n, y / n, z / n];
       }
       function capY(x, y, z, y0, y1, r0, r1) {
         const h = clamp((y - y0) / (y1 - y0));
-        return Math.hypot(x, y - (y0 + (y1 - y0) * h), z) - (r0 + (r1 - r0) * h);
+        return len3(x, y - (y0 + (y1 - y0) * h), z) - (r0 + (r1 - r0) * h);
       }
       var CYCLE = 6;
       var R = { pos: [0, 0, 0], f: [0, 0, 1], u: [0, 1, 0], s: [1, 0, 0], portal: [0, -0.1], bound: null, flame: 1, t: 0 };
@@ -6554,20 +6556,20 @@ var PiEngine = (() => {
         const body = capY(x, y, z, -0.42, 0.42, 0.155, 0.17);
         const nose = capY(x, y, z, 0.42, 0.88, 0.17, 0.025);
         let d = smin(body, nose, 0.04);
-        const nozzle = Math.max(capY(x, y, z, -0.56, -0.42, 0.115, 0.1), -(Math.hypot(x, z) - 0.075));
+        const nozzle = Math.max(capY(x, y, z, -0.56, -0.42, 0.115, 0.1), -(len2(x, z) - 0.075));
         d = Math.min(d, nozzle);
         let fin = 1e9;
-        const a = Math.atan2(z, x), r = Math.hypot(x, z);
+        const a = Math.atan2(z, x), r = len2(x, z);
         const k = Math.round(a / (2 * Math.PI / 3)) * (2 * Math.PI / 3), ang = a - k;
         const fx = r * Math.cos(ang), fz = r * Math.sin(ang);
         {
           const lx = fx - 0.28, ly = y + 0.32 - (fx - 0.17) * 0.8;
           const qx = Math.abs(lx) - 0.115, qy = Math.abs(ly) - 0.15 + 0.3 * (lx + 0.115), qz = Math.abs(fz) - 0.026;
-          fin = (Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - 0.012) * 0.8;
+          fin = (len3(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - 0.012) * 0.8;
         }
         d = smin(d, fin, 0.02);
         if (want) {
-          const wd = Math.hypot(x, y - 0.18);
+          const wd = len2(x, y - 0.18);
           if (d === nozzle || nozzle < 4e-3) M.id = 2;
           else if (fin < body - 5e-3 && fin < nose) M.id = 1;
           else if (z > 0.05 && wd < 0.06) M.id = 3;
@@ -6590,7 +6592,7 @@ var PiEngine = (() => {
       var KEY = norm3(-0.6, 0.65, 0.45);
       var KEY_COL = [1, 0.95, 0.88];
       function screenColour(x, y, t, shadow) {
-        const r = Math.hypot(x - R.portal[0], (y - R.portal[1]) * 1.6);
+        const r = len2(x - R.portal[0], (y - R.portal[1]) * 1.6);
         const ring = Math.exp(-((r - 0.45) ** 2) / 6e-3) * R.glow;
         const ripple = 0.5 + 0.5 * Math.sin(r * 18 - t * 5);
         const fall = Math.exp(-r * 1.5);
@@ -6609,7 +6611,7 @@ var PiEngine = (() => {
       function shadePixel(sx, sy, t) {
         const oz = CAM_Z;
         let dx = sx * FOV, dy = sy * FOV, dz = -CAM_Z;
-        const n = Math.hypot(dx, dy, dz);
+        const n = len3(dx, dy, dz);
         dx /= n;
         dy /= n;
         dz /= n;
@@ -6654,13 +6656,13 @@ var PiEngine = (() => {
           const e = 2e-3;
           const a1 = sdf(px + e, py - e, pz - e), a2 = sdf(px - e, py - e, pz + e), a3 = sdf(px - e, py + e, pz - e), a4 = sdf(px + e, py + e, pz + e);
           let nx = a1 - a2 - a3 + a4, ny = -a1 - a2 + a3 + a4, nz = -a1 + a2 - a3 + a4;
-          const nn = Math.hypot(nx, ny, nz) || 1;
+          const nn = len3(nx, ny, nz) || 1;
           nx /= nn;
           ny /= nn;
           nz /= nn;
           const ndl = clamp(nx * KEY[0] + ny * KEY[1] + nz * KEY[2]);
           const vx = -dx, vy = -dy, vz = -dz, ndv = clamp(nx * vx + ny * vy + nz * vz);
-          const hx = KEY[0] + vx, hy = KEY[1] + vy, hz = KEY[2] + vz, hn = Math.hypot(hx, hy, hz);
+          const hx = KEY[0] + vx, hy = KEY[1] + vy, hz = KEY[2] + vz, hn = len3(hx, hy, hz);
           const spec = Math.pow(clamp((nx * hx + ny * hy + nz * hz) / hn), GLOSS[id]) * (id === 2 ? 0.3 : 1.1);
           const rdy = dy - 2 * (dx * nx + dy * ny + dz * nz) * ny;
           const env = envColour(rdy), fres = REFL[id] + (1 - REFL[id]) * Math.pow(1 - ndv, 5) * 0.6;
@@ -6671,7 +6673,7 @@ var PiEngine = (() => {
             return mix(diff, env[k], fres) + spec * KEY_COL[k] + tail * [0.5, 0.25, 0.05][k] * base[k];
           });
           if (pz < 0) {
-            const pr = Math.hypot(px - R.portal[0], (py - R.portal[1]) * 1.6);
+            const pr = len2(px - R.portal[0], (py - R.portal[1]) * 1.6);
             const through = sm(0.45, 0.38, pr);
             const sc = screenColour(px, py, t, 0);
             col = [mix(sc[0], col[0] * 0.8 + 0.05, through), mix(sc[1], col[1] * 0.8 + 0.2, through), mix(sc[2], col[2] * 0.8 + 0.3, through)];
@@ -18459,9 +18461,12 @@ var PiEngine = (() => {
         return -smin(-a, -b, k);
       }
       function ell(x, y, z, rx, ry, rz) {
-        const k0 = Math.hypot(x / rx, y / ry, z / rz), k1 = Math.hypot(x / (rx * rx), y / (ry * ry), z / (rz * rz));
+        const ax = x / rx, ay = y / ry, az = z / rz, bx = ax / rx, by = ay / ry, bz = az / rz;
+        const k0 = Math.sqrt(ax * ax + ay * ay + az * az), k1 = Math.sqrt(bx * bx + by * by + bz * bz);
         return k1 > 0 ? k0 * (k0 - 1) / k1 : -Math.min(rx, ry, rz);
       }
+      var len2 = (a, b) => Math.sqrt(a * a + b * b);
+      var len3 = (a, b, c) => Math.sqrt(a * a + b * b + c * c);
       var hash = (x, y) => {
         let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263);
         h = Math.imul(h ^ h >>> 13, 1274126177);
@@ -18530,8 +18535,8 @@ var PiEngine = (() => {
       var H = { mat: 0, depth: 0 };
       function sdfHead(x, y, z, want) {
         if (!want) {
-          const bh = Math.hypot(x, y + 0.08, z) - 0.66;
-          const zc = clamp(z, -1.85, 0.1), bs = Math.hypot(x, y + 0.2 * clamp(-zc / 1.6), z - zc) - (0.5 + 0.38 * clamp(-zc / 1.6));
+          const bh = len3(x, y + 0.08, z) - 0.66;
+          const zc = clamp(z, -1.85, 0.1), bs = len3(x, y + 0.2 * clamp(-zc / 1.6), z - zc) - (0.5 + 0.38 * clamp(-zc / 1.6));
           const b = Math.min(bh, bs);
           if (b > 0.12) return b;
         }
@@ -18563,8 +18568,8 @@ var PiEngine = (() => {
           }
         }
         const back = clamp(-(z + 0.1) / 1.6);
-        const wave = 0.05 * Math.sin(y * 9 + G.t * 2) * back + 0.04 * Math.sin(x * 11 - G.t * 1.6) * back;
-        const shroud = Math.hypot(x * (1 - 0.25 * back), (y - 0.05 + 0.25 * back) * 0.9) - (0.36 + 0.3 * back + wave);
+        const wave = back > 0 ? (0.05 * Math.sin(y * 9 + G.t * 2) + 0.04 * Math.sin(x * 11 - G.t * 1.6)) * back : 0;
+        const shroud = len2(x * (1 - 0.25 * back), (y - 0.05 + 0.25 * back) * 0.9) - (0.36 + 0.3 * back + wave);
         const shroudD = Math.max(shroud, z - 0.05 + 0.5 * Math.max(0, y - 0.2), -z - 1.8);
         d = smin(d, shroudD, 0.08);
         if (want) {
@@ -18581,20 +18586,26 @@ var PiEngine = (() => {
         const h = toHead(px, py, pz);
         const lx = G.look[0] * 0.025, ly = G.look[1] * 0.02;
         const gp = G.F.gap;
-        return Math.min(Math.hypot(h[0] - gp - lx, h[1] - 0.04 - ly, h[2] - 0.27), Math.hypot(h[0] + gp - lx, h[1] - 0.04 - ly, h[2] - 0.27)) - 0.028 * G.F.eye;
+        return Math.min(len3(h[0] - gp - lx, h[1] - 0.04 - ly, h[2] - 0.27), len3(h[0] + gp - lx, h[1] - 0.04 - ly, h[2] - 0.27)) - 0.028 * G.F.eye;
       }
       var CAM_Z = 3.4;
       var FOV = 1.9;
+      var FOG = [0, 0, 0];
+      var OUT = [0, 0, 0];
+      var RIM = [0.35, 0.5, 0.55];
       function fogColour(x, y, t) {
         const f = noise(x * 2.2 + t * 0.15, y * 2.2 - t * 0.05) * 0.6 + noise(x * 5 - t * 0.3, y * 5 + t * 0.1) * 0.4;
-        const v = 0.012 + 0.055 * f * f;
-        const glow = Math.exp(-Math.hypot(x - G.pos[0], y - G.pos[1]) * 1.4) * 0.04 * (0.5 + 0.5 * G.glow);
+        const v = 4e-3 + 0.028 * f * f;
+        const glow = Math.exp(-len2(x - G.pos[0], y - G.pos[1]) * 1.4) * 0.04 * (0.5 + 0.5 * G.glow);
         let pe = 0;
         if (G.peek > 0) {
           const s = 0.75, ex = Math.abs(x - G.pos[0]) - G.F.gap * s, ey = y - G.pos[1] - 0.06 * s;
           pe = Math.exp(-(ex * ex + ey * ey * 1.6) / 16e-4) * G.peek * G.glow * 1.3 + Math.exp(-(ex * ex + ey * ey) / 0.02) * G.peek * G.glow * 0.12;
         }
-        return [v * 0.75 + glow * G.eye[0] * 0.5 + pe * G.eye[0], v * 0.9 + glow * G.eye[1] * 0.5 + pe * G.eye[1], v * 1 + glow * G.eye[2] * 0.5 + pe * G.eye[2]];
+        FOG[0] = v * 0.75 + glow * G.eye[0] * 0.5 + pe * G.eye[0];
+        FOG[1] = v * 0.9 + glow * G.eye[1] * 0.5 + pe * G.eye[1];
+        FOG[2] = v * 1 + glow * G.eye[2] * 0.5 + pe * G.eye[2];
+        return FOG;
       }
       var SHROUD = [0.55, 0.62, 0.66];
       var TEETH = [0.68, 0.64, 0.5];
@@ -18602,7 +18613,7 @@ var PiEngine = (() => {
       function shadePixel(sx, sy, t) {
         const oz = CAM_Z;
         let dx = sx * FOV, dy = sy * FOV, dz = -CAM_Z;
-        const n = Math.hypot(dx, dy, dz);
+        const n = len3(dx, dy, dz);
         dx /= n;
         dy /= n;
         dz /= n;
@@ -18611,7 +18622,7 @@ var PiEngine = (() => {
         const tPlane = -oz / dz;
         let tt = miss ? tPlane : Math.max(0, tb - B[3]), hitIt = false, eyeMin = 1e9;
         if (!miss) {
-          for (let i = 0; i < 36 && tt < tPlane; i++) {
+          for (let i = 0; i < 30 && tt < tPlane; i++) {
             const px = dx * tt, py = dy * tt, pz = oz + dz * tt;
             const d = sdf(px, py, pz, false);
             let ed = 1e9;
@@ -18623,14 +18634,18 @@ var PiEngine = (() => {
               hitIt = true;
               break;
             }
-            tt += Math.max(4e-3, Math.min(d, Math.max(ed, 0.02)) * 0.85);
+            tt += Math.max(5e-3, Math.min(d, Math.max(ed, 0.02)) * 0.9);
           }
         }
         const eg = eyeMin < 1e8 ? Math.exp(-Math.max(0, eyeMin) * 40) * G.glow : 0;
         const E = G.eye;
         let col;
         if (!hitIt) {
-          col = fogColour(dx * tPlane, dy * tPlane, t);
+          const f = fogColour(dx * tPlane, dy * tPlane, t);
+          OUT[0] = f[0] + eg * E[0];
+          OUT[1] = f[1] + eg * E[1];
+          OUT[2] = f[2] + eg * E[2];
+          return OUT;
         } else {
           const px = dx * tt, py = dy * tt, pz = oz + dz * tt;
           sdf(px, py, pz, true);
@@ -18638,29 +18653,28 @@ var PiEngine = (() => {
           const e = 3e-3;
           const a1 = sdf(px + e, py - e, pz - e), a2 = sdf(px - e, py - e, pz + e), a3 = sdf(px - e, py + e, pz - e), a4 = sdf(px + e, py + e, pz + e);
           let nx = a1 - a2 - a3 + a4, ny = -a1 - a2 + a3 + a4, nz = -a1 + a2 - a3 + a4;
-          const nn = Math.hypot(nx, ny, nz) || 1;
+          const nn = len3(nx, ny, nz) || 1;
           nx /= nn;
           ny /= nn;
           nz /= nn;
           const below = clamp(-ny * 0.7 + nz * 0.5), top = clamp(ny * 0.6 + nz * 0.3) * 0.25;
           const ndv = clamp(-(nx * dx + ny * dy + nz * dz));
           const rim = Math.pow(1 - ndv, 2.5);
-          let ao = 0;
-          for (let i = 1; i <= 3; i++) {
-            const h2 = 0.035 * i;
-            ao += (h2 - sdf(px + nx * h2, py + ny * h2, pz + nz * h2)) / h2 / i;
-          }
-          ao = clamp(1 - ao * 0.7);
+          const ao = 0.55 + 0.45 * clamp(nz * 1.2 + 0.2);
           const base = mat === 2 ? SHROUD : mat === 3 ? TEETH : mat === 1 ? THROAT : G.F.skin;
           const lit = (0.06 + 0.65 * below + top) * ao * (mat === 1 ? 0.5 * sm(0.05, 0.3, H.depth) + 0.04 : 1);
-          const h = toHead(px, py, pz).slice(), spill = Math.exp(-(Math.hypot(Math.abs(h[0]) - G.F.gap, h[1] - 0.04) ** 2) / 0.02) * 0.5 * G.glow;
+          const h = toHead(px, py, pz).slice(), spill = Math.exp(-(len2(Math.abs(h[0]) - G.F.gap, h[1] - 0.04) ** 2) / 0.02) * 0.5 * G.glow;
           const gleam = mat === 3 ? 0.1 * Math.pow(clamp(nz), 6) : 0;
-          col = [0, 1, 2].map((k) => base[k] * lit + rim * [0.35, 0.5, 0.55][k] * (mat === 1 ? 0.1 : 1) + spill * E[k] * 0.35 + gleam);
+          const rk = rim * (mat === 1 ? 0.1 : 1);
+          col = [base[0] * lit + rk * RIM[0] + spill * E[0] * 0.35 + gleam, base[1] * lit + rk * RIM[1] + spill * E[1] * 0.35 + gleam, base[2] * lit + rk * RIM[2] + spill * E[2] * 0.35 + gleam];
           const fade = sm(-0.05, 0.6, pz) * (mat === 2 ? sm(-1.2, -0.3, h[2]) * 0.8 + 0.2 : 1);
           const fog = fogColour(px, py, t);
           col = [mix(fog[0], col[0], fade), mix(fog[1], col[1], fade), mix(fog[2], col[2], fade)];
         }
-        return [col[0] + eg * E[0], col[1] + eg * E[1], col[2] + eg * E[2]];
+        OUT[0] = col[0] + eg * E[0];
+        OUT[1] = col[1] + eg * E[1];
+        OUT[2] = col[2] + eg * E[2];
+        return OUT;
       }
       var PASSES = 4;
       function render(Wr, Hr, dt) {
@@ -18683,6 +18697,7 @@ var PiEngine = (() => {
           const B = G.bound, k = CAM_Z / ((CAM_Z - B[2]) * FOV), cx = B[0] * k * Hr + Wr / 2, r = (B[3] * k + 0.05) * Hr;
           st.bx0 = Math.max(0, Math.floor(cx - r));
           st.bx1 = Math.min(Wr, Math.ceil(cx + r));
+          if (G.pos[2] < -0.45) st.bx1 = st.bx0;
         }
         if (first) {
           for (let q = 0; q < PASSES; q++) renderRows(Wr, Hr, q);
@@ -18697,12 +18712,38 @@ var PiEngine = (() => {
         }
       }
       function renderRows(Wr, Hr, pass) {
-        for (let y = pass; y < Hr; y += PASSES) for (let x = 0; x < Wr; x++) {
-          const sx = (x + 0.5 - Wr / 2) / Hr, sy = 0.5 - (y + 0.5) / Hr;
-          const c = x >= st.bx0 && x < st.bx1 ? shadePixel(sx, sy, st.rt) : fogColour(sx * FOV, sy * FOV, st.rt), o = (y * Wr + x) * 3;
-          st.back[o] = c[0];
-          st.back[o + 1] = c[1];
-          st.back[o + 2] = c[2];
+        const B = st.back;
+        for (let y = pass; y < Hr; y += PASSES) {
+          const sy = 0.5 - (y + 0.5) / Hr, row = y * Wr;
+          for (let x = 0; x < Wr; x++) {
+            const sx = (x + 0.5 - Wr / 2) / Hr, o = (row + x) * 3;
+            const inBox = x >= st.bx0 && x < st.bx1;
+            if (inBox && x - st.bx0 & 1) continue;
+            if (!inBox && x & 1 && x > 0 && !(x - 1 >= st.bx0 && x - 1 < st.bx1)) {
+              B[o] = B[o - 3];
+              B[o + 1] = B[o - 2];
+              B[o + 2] = B[o - 1];
+              continue;
+            }
+            const c = inBox ? shadePixel(sx, sy, st.rt) : fogColour(sx * FOV, sy * FOV, st.rt);
+            B[o] = c[0];
+            B[o + 1] = c[1];
+            B[o + 2] = c[2];
+          }
+          for (let x = st.bx0 + 1; x < st.bx1; x += 2) {
+            const o = (row + x) * 3, l = o - 3, r = x + 1 < Wr ? o + 3 : o - 3;
+            const diff = Math.abs(B[l] - B[r]) + Math.abs(B[l + 1] - B[r + 1]) + Math.abs(B[l + 2] - B[r + 2]);
+            if (diff < 0.12) {
+              B[o] = (B[l] + B[r]) / 2;
+              B[o + 1] = (B[l + 1] + B[r + 1]) / 2;
+              B[o + 2] = (B[l + 2] + B[r + 2]) / 2;
+            } else {
+              const c = shadePixel((x + 0.5 - Wr / 2) / Hr, 0.5 - (y + 0.5) / Hr, st.rt);
+              B[o] = c[0];
+              B[o + 1] = c[1];
+              B[o + 2] = c[2];
+            }
+          }
         }
       }
       function glitchShift(y) {
