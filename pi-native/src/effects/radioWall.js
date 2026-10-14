@@ -89,7 +89,7 @@ function effectRadioWall(core, dt) {
     };
     // Version 2 (the default) is the animated scenes; version 1 keeps the classic styles.
     if (opts.version === 1) renderSpectrumStyleWall(core, ctx, style, spectrumWallState);
-    else renderSpectrumV2Wall(core, ctx, opts.scene || 'auto', v2State);
+    else renderSpectrumV2Wall(core, ctx, opts.scene || 'auto', v2State, opts.autoSecs);
   }
 
   const { playing, currentStation, title } = radio.getPlaybackState();

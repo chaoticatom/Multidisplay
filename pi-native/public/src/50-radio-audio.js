@@ -344,7 +344,9 @@ function wireRadioPanel() {
     if (ver === 'v1') { setEffectOption('radio', 'version', 1); setEffectOption('radio', 'style', key); }
     else { setEffectOption('radio', 'version', 2); setEffectOption('radio', 'scene', key); }
     const v1Row = document.getElementById('au-v1-row'); if (v1Row) v1Row.hidden = ver !== 'v1';
+    const autoRow = document.getElementById('au-auto-row'); if (autoRow) autoRow.hidden = e.target.value !== 'v2:auto';
   });
+  panel.querySelector('#au-auto-secs')?.addEventListener('change', (e) => setEffectOption('radio', 'autoSecs', Number(e.target.value)));
 
 
   panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => {
@@ -499,6 +501,8 @@ function syncRadioPanel() {
     if (lookSel.selectedIndex < 0) lookSel.value = 'v2:auto'; // a choice from an older version
   }
   const v1Row = document.getElementById('au-v1-row'); if (v1Row) v1Row.hidden = !isV1;
+  const autoRow = document.getElementById('au-auto-row'); if (autoRow) autoRow.hidden = isV1 || (opts.scene && opts.scene !== 'auto');
+  const autoSecs = document.getElementById('au-auto-secs'); if (autoSecs && document.activeElement !== autoSecs) autoSecs.value = String([10, 25, 60, 120].includes(Number(opts.autoSecs)) ? Number(opts.autoSecs) : 25);
   panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 5)));
   panel.querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => btn.classList.toggle('active', btn.dataset.barmode === (opts.barMode || 'solid')));
 

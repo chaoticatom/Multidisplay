@@ -27025,7 +27025,7 @@ var PiEngine = (() => {
       var AUTO_SECS = 25;
       var TICKER_ROWS = 9;
       function createV2State() {
-        return { sceneT: 0, last: null };
+        return { sceneT: 0, last: null, subs: {}, tmp: null };
       }
       function ampAt(arr, bands, f) {
         const x = Math.max(0, Math.min(1, f)) * (bands - 1), i = Math.floor(x), t = x - i;
@@ -27257,18 +27257,52 @@ var PiEngine = (() => {
         }
       }
       var RENDER = { hifi: sceneHifi, studio: sceneStudio, spectrogram: sceneSpectrogram, waterfall3d: sceneWaterfall3d, mirror: sceneMirror, radial: sceneRadial, particle: sceneParticle, neon: sceneNeon, bounce: sceneBounce, bars3d: sceneBars3d };
-      function renderSpectrumV2Wall(core, ctx, scene, st) {
+      function sub(st, name) {
+        return st.subs[name] || (st.subs[name] = {});
+      }
+      function renderSpectrumV2Wall(core, ctx, scene, st, autoSecs) {
         const W = core.wallW, H = core.wallH, dt = ctx.dt || 1 / 30, t = ctx.t;
-        let name = SCENES.includes(scene) ? scene : "auto";
-        if (name === "auto") {
-          st.sceneT += dt;
-          name = SCENES[Math.floor(st.sceneT / AUTO_SECS) % SCENES.length];
+        if (!st.subs) st.subs = {};
+        if (SCENES.includes(scene)) {
+          if (st.last !== scene) {
+            st.subs[scene] = {};
+            st.last = scene;
+          }
+          RENDER[scene](core, ctx, sub(st, scene), W, H, t, dt);
+          return;
         }
-        if (st.last !== name) {
-          for (const k of Object.keys(st)) if (k !== "sceneT") delete st[k];
-          st.last = name;
+        const hold = [10, 25, 60, 120].includes(Number(autoSecs)) ? Number(autoSecs) : AUTO_SECS;
+        const morph = Math.min(3, hold * 0.3);
+        st.sceneT += dt;
+        const i = Math.floor(st.sceneT / hold), local = st.sceneT - i * hold;
+        const a = SCENES[i % SCENES.length], b = SCENES[(i + 1) % SCENES.length];
+        if (st.last !== a) {
+          if (st.last !== null && st.last !== a && st.morphTo !== a) st.subs[a] = {};
+          st.last = a;
+          st.morphTo = null;
         }
-        RENDER[name](core, ctx, st, W, H, t, dt);
+        if (local < hold - morph) {
+          RENDER[a](core, ctx, sub(st, a), W, H, t, dt);
+          return;
+        }
+        if (st.morphTo !== b) {
+          st.subs[b] = {};
+          st.morphTo = b;
+        }
+        const k = (local - (hold - morph)) / morph, buf = core.wallBuf;
+        RENDER[a](core, ctx, sub(st, a), W, H, t, dt);
+        if (!st.tmp || st.tmp.length !== buf.length) st.tmp = new Float32Array(buf.length);
+        st.tmp.set(buf);
+        buf.fill(0);
+        RENDER[b](core, ctx, sub(st, b), W, H, t, dt);
+        const old = st.tmp, p = k * 1.6 - 0.3;
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const edge = x / W * 0.6 + 0.08 * Math.sin(y * 0.35 + t * 3), m0 = Math.max(0, Math.min(1, (p - edge) / 0.3 + 0.5)), m = m0 * m0 * (3 - 2 * m0);
+          const o = (y * W + x) * 3;
+          buf[o] = old[o] + (buf[o] - old[o]) * m;
+          buf[o + 1] = old[o + 1] + (buf[o + 1] - old[o + 1]) * m;
+          buf[o + 2] = old[o + 2] + (buf[o + 2] - old[o + 2]) * m;
+        }
       }
       module.exports = { renderSpectrumV2Wall, createV2State, SCENES };
     }
@@ -27344,7 +27378,7 @@ var PiEngine = (() => {
             dt
           };
           if (opts.version === 1) renderSpectrumStyleWall(core, ctx, style, spectrumWallState);
-          else renderSpectrumV2Wall(core, ctx, opts.scene || "auto", v2State);
+          else renderSpectrumV2Wall(core, ctx, opts.scene || "auto", v2State, opts.autoSecs);
         }
         const { playing, currentStation, title } = radio.getPlaybackState();
         if (!playing || !currentStation) {
