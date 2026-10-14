@@ -188,9 +188,10 @@ async function main() {
   // switching between them (clicking Layout) no longer restarts; moving
   // panels within the same grid doesn't either.
   const driverLayoutKey = (c) => {
-    if (c.mode === 'cube') return 'cube';
+    const sig = require('./panelConfig').cleanSignal(c.signal), sk = `|${sig.slowdown}|${sig.panelType}|${sig.lsbNs}`; // signal settings need a restart too
+    if (c.mode === 'cube') return 'cube' + sk;
     const ps = c.mode === 'wall' && Array.isArray(c.panels) && c.panels.length ? c.panels : [{ gx: 0, gy: 0 }];
-    return `flat:${Math.max(...ps.map((p) => p.gx)) + 1}x${Math.max(...ps.map((p) => p.gy)) + 1}`;
+    return `flat:${Math.max(...ps.map((p) => p.gx)) + 1}x${Math.max(...ps.map((p) => p.gy)) + 1}` + sk;
   };
   const startLayoutKey = driverLayoutKey(config);
   const RESTART_DELAY_MS = 2000, RESTART_EXIT_CODE = 75; // 2s: long enough to batch a couple of quick layout edits, short enough to feel like one blip

@@ -149,11 +149,23 @@ function syncPanelButtons() {
 function wireIdentifyPanelsButton() {
   const btn = document.getElementById('identify-panels-btn');
   if (btn) btn.addEventListener('click', () => send({ cmd: 'setIdentifyPanels', enabled: !currentState.identifyPanels }));
+  // Panel signal: slowdown, chip type, PWM timing (applied with a restart).
+  const lsb = document.getElementById('sig-lsb'), lsbVal = document.getElementById('sig-lsb-val');
+  lsb?.addEventListener('input', () => { if (lsbVal) lsbVal.textContent = lsb.value + 'ns'; });
+  document.getElementById('sig-apply')?.addEventListener('click', () => {
+    send({ cmd: 'setPanelSignal', slowdown: Number(document.getElementById('sig-slowdown').value), panelType: document.getElementById('sig-type').value, lsbNs: Number(lsb.value) });
+    cxToast('Applying panel signal - back in a few seconds');
+  });
 }
 
 function syncIdentifyPanelsButton() {
   const btn = document.getElementById('identify-panels-btn');
   if (btn) btn.classList.toggle('active', !!currentState.identifyPanels);
+  const sg = currentState.panelSignal; if (!sg) return;
+  const sd = document.getElementById('sig-slowdown'), ty = document.getElementById('sig-type'), lsb = document.getElementById('sig-lsb'), lv = document.getElementById('sig-lsb-val');
+  if (sd && document.activeElement !== sd) sd.value = String(sg.slowdown);
+  if (ty && document.activeElement !== ty) ty.value = sg.panelType;
+  if (lsb && document.activeElement !== lsb) { lsb.value = sg.lsbNs; if (lv) lv.textContent = sg.lsbNs + 'ns'; }
 }
 
 // "✕ Clear All" - see wsServer.js's "clearAll" command comment.

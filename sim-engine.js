@@ -28540,6 +28540,16 @@ var PiEngine = (() => {
         }
         return config;
       }
+      var PANEL_TYPES = ["", "FM6126A", "FM6127"];
+      function cleanSignal(s) {
+        const o = s && typeof s === "object" ? s : {};
+        const sd = Number(o.slowdown), ns = Number(o.lsbNs);
+        return {
+          slowdown: Number.isInteger(sd) && sd >= 0 && sd <= 5 ? sd : 2,
+          panelType: PANEL_TYPES.includes(o.panelType) ? o.panelType : "",
+          lsbNs: Number.isFinite(ns) ? Math.max(50, Math.min(300, Math.round(ns))) : 130
+        };
+      }
       function load() {
         try {
           const raw = readSectionJson("panel", CONFIG_PATH);
@@ -28548,15 +28558,16 @@ var PiEngine = (() => {
             throw new Error("invalid stored config");
           }
           if (!isValidPanels(parsed.panels)) parsed.panels = [...DEFAULT_CONFIG.panels];
+          parsed.signal = cleanSignal(parsed.signal);
           return normalizeFlat(parsed);
         } catch (err) {
-          return normalizeFlat({ ...DEFAULT_CONFIG, panels: [...DEFAULT_CONFIG.panels] });
+          return normalizeFlat({ ...DEFAULT_CONFIG, panels: [...DEFAULT_CONFIG.panels], signal: cleanSignal(null) });
         }
       }
       function save(config) {
         writeSection("panel", config);
       }
-      module.exports = { normalizeFlat, load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };
+      module.exports = { cleanSignal, PANEL_TYPES, normalizeFlat, load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };
     }
   });
 

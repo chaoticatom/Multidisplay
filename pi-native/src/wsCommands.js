@@ -238,6 +238,15 @@ const COMMANDS = {
     this._broadcast(this._stateMsg());
   },
 
+  // Setup > Display > Panel signal: {slowdown, panelType, lsbNs} - saved,
+  // then the app restarts so the panel driver starts with them.
+  setPanelSignal(ws, msg) {
+    this.config.signal = panelConfig.cleanSignal({ ...panelConfig.cleanSignal(this.config.signal), ...msg });
+    panelConfig.save(this.config);
+    if (this.onConfigChange) this.onConfigChange(this.config);
+    this._broadcast(this._stateMsg());
+  },
+
   addPanel(ws, msg) {
     // Adds a panel at the first free cell (row-major) in the wall grid,
     // switching to wall mode if not already in it - this is the "+"

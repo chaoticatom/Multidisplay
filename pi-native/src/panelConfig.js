@@ -79,6 +79,23 @@ function normalizeFlat(config) {
   return config;
 }
 
+// Panel signal settings (Setup > Display > Panel signal), for panels that
+// look blurry, ghosted or speckled:
+//   slowdown  - GPIO slowdown 0-5: higher = slower, cleaner signal (default 2)
+//   panelType - '' (most panels), 'FM6126A' or 'FM6127': panels with these
+//               driver chips need a start-up sequence or they look washed out
+//   lsbNs     - PWM timing (50-300 ns): higher can remove ghosting (default 130)
+const PANEL_TYPES = ['', 'FM6126A', 'FM6127'];
+function cleanSignal(s) {
+  const o = s && typeof s === 'object' ? s : {};
+  const sd = Number(o.slowdown), ns = Number(o.lsbNs);
+  return {
+    slowdown: Number.isInteger(sd) && sd >= 0 && sd <= 5 ? sd : 2,
+    panelType: PANEL_TYPES.includes(o.panelType) ? o.panelType : '',
+    lsbNs: Number.isFinite(ns) ? Math.max(50, Math.min(300, Math.round(ns))) : 130,
+  };
+}
+
 function load() {
   try {
     const raw = readSectionJson('panel', CONFIG_PATH);
@@ -87,11 +104,12 @@ function load() {
       throw new Error('invalid stored config');
     }
     if (!isValidPanels(parsed.panels)) parsed.panels = [...DEFAULT_CONFIG.panels];
+    parsed.signal = cleanSignal(parsed.signal);
     return normalizeFlat(parsed);
   } catch (err) {
     // Missing file (first run) or corrupt content - fall back to defaults
     // rather than crashing the app over a config file.
-    return normalizeFlat({ ...DEFAULT_CONFIG, panels: [...DEFAULT_CONFIG.panels] });
+    return normalizeFlat({ ...DEFAULT_CONFIG, panels: [...DEFAULT_CONFIG.panels], signal: cleanSignal(null) });
   }
 }
 
@@ -99,4 +117,4 @@ function save(config) {
   writeSection('panel', config);
 }
 
-module.exports = { normalizeFlat, load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };
+module.exports = { cleanSignal, PANEL_TYPES, normalizeFlat, load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };

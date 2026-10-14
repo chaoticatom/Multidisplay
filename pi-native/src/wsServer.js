@@ -535,7 +535,7 @@ class WsServer {
       party: this.state.party ? { endsAt: this.state.party.endsAt, text: this.state.party.text } : null,
       musicReact: this.state.musicReact || { on: false, amount: 0.6 },
       scenes: (this.state.scenes || []).map((sc) => ({ name: sc.name, effect: sc.effect })),
-      panelSize: this.config.size, panelMode: this.config.mode, panels: this.config.panels,
+      panelSize: this.config.size, panelMode: this.config.mode, panels: this.config.panels, panelSignal: require('./panelConfig').cleanSignal(this.config.signal),
       effectOptions: this.state.effectOptions, effectStatus: this.state.effectStatus,
       overlays: this.state.overlays,
       alarms: this.state.alarms, activeAlarm: this.state.activeAlarm,

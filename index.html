@@ -2378,6 +2378,13 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
     </div>
     <button id="setup-layout-btn" class="ui-btn-primary flat-only" style="margin:8px 0 0;width:100%;">▦ Edit panel layout (add / move / remove panels)</button>
     <button id="identify-panels-btn" title="Label every physical panel with its own identity (face/index + which HAT output and chain position it's wired to) - use this while wiring up multiple panels, in any shape, to see which physical board is which." style="width:100%;margin-top:6px;padding:8px;font-size:11px;letter-spacing:0.5px;background:rgba(80,120,255,0.08);border:1px solid rgba(80,120,255,0.25);color:#9ab;border-radius:6px;cursor:pointer;">🔢 Show panel numbers</button>
+    <!-- Panel signal (src/panelConfig.js cleanSignal): for blurry, ghosted or speckled panels. -->
+    <div class="ov-row-label" style="margin-top:12px;">Panel signal</div>
+    <div class="ui-note">If a panel looks blurry, ghosted or speckled: try a slower signal first; if it looks washed out or wrong from the start, try the chip type printed on its chips. Applying restarts the display for a few seconds.</div>
+    <div class="slider-row"><span class="slider-label">Speed</span><select id="sig-slowdown" class="ui-input" aria-label="Signal slowdown" style="flex:1;"><option value="0">0 - fastest</option><option value="1">1</option><option value="2">2 - normal</option><option value="3">3 - slower</option><option value="4">4 - slower still</option><option value="5">5 - slowest</option></select></div>
+    <div class="slider-row"><span class="slider-label">Chip</span><select id="sig-type" class="ui-input" aria-label="Panel chip type" style="flex:1;"><option value="">Standard (most panels)</option><option value="FM6126A">FM6126A</option><option value="FM6127">FM6127</option></select></div>
+    <div class="slider-row"><span class="slider-label">PWM</span><input type="range" id="sig-lsb" min="50" max="300" step="10" value="130" aria-label="PWM timing"><span class="slider-val" id="sig-lsb-val">130ns</span></div>
+    <button id="sig-apply" class="ui-btn-primary" style="width:100%;margin-top:4px;">Apply panel signal</button>
   </div>
       <div class="ui-label-accent" style="margin-top:10px;">🎞 Transition between effects</div>
       <div class="tm-chips" id="tr-style" style="flex-wrap:wrap;"><button type="button" data-tr="fade" class="on">Fade</button><button type="button" data-tr="slide">Slide</button><button type="button" data-tr="dissolve">Dissolve</button><button type="button" data-tr="wipe">Wipe</button><button type="button" data-tr="zoom">Zoom</button><button type="button" data-tr="none">None</button></div>

@@ -8,7 +8,9 @@ function loadDriver(config) {
     // eslint-disable-next-line global-require
     const RgbMatrixDriver = require('./drivers/rgbMatrixDriver');
     console.log('[app] using rgbMatrixDriver (real hardware), mode=' + config.mode);
-    return new RgbMatrixDriver({ mode: config.mode, panels: config.panels });
+    const sig = require('./panelConfig').cleanSignal(config.signal);
+    console.log(`[app] panel signal: slowdown ${sig.slowdown}, type ${sig.panelType || 'standard'}, PWM LSB ${sig.lsbNs} ns`);
+    return new RgbMatrixDriver({ mode: config.mode, panels: config.panels, matrixOptions: { panelType: sig.panelType, pwmLsbNanoseconds: sig.lsbNs }, runtimeOptions: { gpioSlowdown: sig.slowdown } });
   }
   // eslint-disable-next-line global-require
   const MockDriver = require('./drivers/mockDriver');
