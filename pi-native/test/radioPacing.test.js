@@ -33,3 +33,26 @@ const { RadioAudio } = require('../src/effects/radio/ffmpegAudio');
     console.log('radioPacing ok');
   } catch (e) { console.error(e); process.exitCode = 1; }
 })();
+
+// Bursty stations (the BBC's send several seconds at once): nothing is
+// skipped, and running dry grows the cushion so it soon plays without gaps.
+(async () => {
+  try {
+    const { RadioAudio } = require('../src/effects/radio/ffmpegAudio');
+    const { EventEmitter } = require('events');
+    const audio = new RadioAudio(() => { throw new Error('no spawn'); });
+    const stdin = Object.assign(new EventEmitter(), { writable: true, write() { return true; } });
+    audio.playProc = Object.assign(new EventEmitter(), { stdin });
+    audio.onPcm = () => {};
+    const piece = Buffer.alloc(17640); // 100 ms
+    for (let i = 0; i < 60; i++) audio._onData(piece); // a 6-second burst
+    assert.strictEqual(audio._enq, 60 * 17640, 'the whole burst is kept');
+    const before = audio._prefill;
+    audio._pq = { list: [], bytes: 0 }; audio._epoch = Date.now() - 2000; audio._paceWritten = 0; // ran dry
+    audio._paceTick();
+    assert.ok(audio._prefill > before, 'a bigger cushion after running dry: ' + audio._prefill);
+    for (let k = 0; k < 10; k++) { audio._epoch = Date.now() - 2000; audio._paceWritten = 0; audio._paceTick(); }
+    assert.ok(audio._prefill <= 8000, 'capped at 8 s');
+    console.log('radioPacing bursty ok');
+  } catch (e) { console.error(e); process.exitCode = 1; }
+})();

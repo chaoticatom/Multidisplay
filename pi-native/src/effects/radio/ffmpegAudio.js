@@ -36,7 +36,8 @@ const MAX_SYNC_MS = 3000; // some Bluetooth speakers lag well over a second
 // how far a burst may run ahead before the oldest audio is dropped.
 const PLAY_BUF_MS = 150;
 const QUEUE_MS = 400;
-const QUEUE_SLACK_MS = 1200;
+const QUEUE_MAX_PREFILL_MS = 8000; // the most a bursty station's cushion grows to
+const QUEUE_CAP_MS = 25000; // beyond this much queued, a burst is skipped (safety net only)
 const BYTES_PER_MS = (SAMPLE_RATE * CHANNELS * 2) / 1000;
 const AUTO_SYNC_EVERY_MS = 9000; // Auto speaker sync: how often the delay is measured
 
@@ -98,7 +99,7 @@ class RadioAudio {
     this._analysisTimer = null;
     this._sinkMs = DEFAULT_SYNC_MS; // the speaker's own delay (Speaker sync / Auto)
     this._syncS = (PLAY_BUF_MS + DEFAULT_SYNC_MS) / 1000; // bars: written -> heard
-    this._pq = { list: [], bytes: 0 }; this._epoch = null; this._paceTimer = null;
+    this._pq = { list: [], bytes: 0 }; this._epoch = null; this._paceTimer = null; this._prefill = QUEUE_MS;
     this.status = 'Stopped';
     this.playbackStatus = 'No playback attempted';
     this.lastAttemptMs = 0;
@@ -140,6 +141,7 @@ class RadioAudio {
       this._teardown();
       this.url = url;
       this.errored = false;
+      this._prefill = QUEUE_MS; // a new station starts with the short cushion again
       this._launch(url);
       return;
     }
@@ -383,15 +385,16 @@ class RadioAudio {
     if (chunk.length && this.status === 'Connecting…') this.status = 'Playing';
     if (!this.playProc) { this._ringWrite(chunk); if (this.onPcm) this._stampForPhones(chunk, Date.now() + this._syncS * 1000); return; }
     // The schedule is fixed when audio starts: piece n is written at
-    // epoch + (bytes before it) / rate, the epoch being QUEUE_MS after the
-    // first piece arrived - so each piece's time is known the moment it arrives.
+    // epoch + (bytes before it) / rate, the epoch being a cushion (_prefill)
+    // after the first piece arrived - so each piece's time is known the
+    // moment it arrives.
     const now = Date.now();
-    if (this._epoch === null) { this._epoch = now + QUEUE_MS; this._enq = 0; this._paceWritten = 0; }
+    if (this._epoch === null) { this._epoch = now + this._prefill; this._enq = 0; this._paceWritten = 0; }
     const writeAt = this._epoch + this._enq / BYTES_PER_MS;
-    // A long burst (some stations send several seconds at once): what's too
-    // far ahead is skipped - by the speaker, the phones and the bars alike -
-    // so everything stays near live.
-    if (writeAt - now > QUEUE_MS + QUEUE_SLACK_MS) return;
+    // Some stations (the BBC's, for example) send several seconds at once,
+    // then nothing for a while. That audio is kept, not skipped (skipping it
+    // made them play, pause, play...); only an absurd backlog is dropped.
+    if (writeAt - now > this._prefill + QUEUE_CAP_MS) return;
     if (this.onPcm) this._stampForPhones(chunk, writeAt + PLAY_BUF_MS + this._sinkMs);
     this._pq.list.push(chunk); this._pq.bytes += chunk.length; this._enq += chunk.length;
   }
@@ -419,8 +422,13 @@ class RadioAudio {
       this._paceWritten += chunk.length;
       this._ringWrite(chunk);
     }
-    // Ran dry (the stream stalled): the next audio starts a fresh schedule.
-    if (!this._pq.list.length && due - this._paceWritten > 250 * BYTES_PER_MS) this._epoch = null;
+    // Ran dry (the station's next burst is late): the next audio starts a
+    // fresh schedule - with a bigger cushion, so a bursty station soon plays
+    // without gaps (up to 8 s behind live; steady stations stay at 0.4 s).
+    if (!this._pq.list.length && due - this._paceWritten > 250 * BYTES_PER_MS) {
+      this._epoch = null;
+      if (this._prefill < QUEUE_MAX_PREFILL_MS) { this._prefill = Math.min(QUEUE_MAX_PREFILL_MS, this._prefill * 2 + 600); console.log('[radio] gaps in the stream - buffering ' + (this._prefill / 1000).toFixed(1) + ' s from now on'); }
+    }
   }
 
   _startPacer() {

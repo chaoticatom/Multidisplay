@@ -2509,7 +2509,8 @@ var PiEngine = (() => {
       var MAX_SYNC_MS = 3e3;
       var PLAY_BUF_MS = 150;
       var QUEUE_MS = 400;
-      var QUEUE_SLACK_MS = 1200;
+      var QUEUE_MAX_PREFILL_MS = 8e3;
+      var QUEUE_CAP_MS = 25e3;
       var BYTES_PER_MS = SAMPLE_RATE * CHANNELS * 2 / 1e3;
       var AUTO_SYNC_EVERY_MS = 9e3;
       function parseStreamLatencyMs(text) {
@@ -2565,6 +2566,7 @@ var PiEngine = (() => {
           this._pq = { list: [], bytes: 0 };
           this._epoch = null;
           this._paceTimer = null;
+          this._prefill = QUEUE_MS;
           this.status = "Stopped";
           this.playbackStatus = "No playback attempted";
           this.lastAttemptMs = 0;
@@ -2600,6 +2602,7 @@ var PiEngine = (() => {
             this._teardown();
             this.url = url;
             this.errored = false;
+            this._prefill = QUEUE_MS;
             this._launch(url);
             return;
           }
@@ -2802,12 +2805,12 @@ var PiEngine = (() => {
           }
           const now = Date.now();
           if (this._epoch === null) {
-            this._epoch = now + QUEUE_MS;
+            this._epoch = now + this._prefill;
             this._enq = 0;
             this._paceWritten = 0;
           }
           const writeAt = this._epoch + this._enq / BYTES_PER_MS;
-          if (writeAt - now > QUEUE_MS + QUEUE_SLACK_MS) return;
+          if (writeAt - now > this._prefill + QUEUE_CAP_MS) return;
           if (this.onPcm) this._stampForPhones(chunk, writeAt + PLAY_BUF_MS + this._sinkMs);
           this._pq.list.push(chunk);
           this._pq.bytes += chunk.length;
@@ -2842,7 +2845,13 @@ var PiEngine = (() => {
             this._paceWritten += chunk.length;
             this._ringWrite(chunk);
           }
-          if (!this._pq.list.length && due - this._paceWritten > 250 * BYTES_PER_MS) this._epoch = null;
+          if (!this._pq.list.length && due - this._paceWritten > 250 * BYTES_PER_MS) {
+            this._epoch = null;
+            if (this._prefill < QUEUE_MAX_PREFILL_MS) {
+              this._prefill = Math.min(QUEUE_MAX_PREFILL_MS, this._prefill * 2 + 600);
+              console.log("[radio] gaps in the stream - buffering " + (this._prefill / 1e3).toFixed(1) + " s from now on");
+            }
+          }
         }
         _startPacer() {
           if (this._paceTimer) return;
