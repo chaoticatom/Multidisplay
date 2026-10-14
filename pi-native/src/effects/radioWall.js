@@ -15,6 +15,7 @@ const { drawString, drawMarquee, drawLinesCentered, FONT_3x5, FONT_5x7, wallPlot
 
 const spectrumWallState = createSpectrumWallState();
 const levelStateW = createLevelState(); // see ./radio/levels.js
+const levelStateL = createLevelState(), levelStateR = createLevelState(); // left/right channels (stereo styles)
 let tickerScrollX = 0;
 
 // The 5x7 font on the wall canvas: UNflipped, glyph cell spanning rows
@@ -81,10 +82,18 @@ function effectRadioWall(core, dt) {
 
     }
     const ampArr = lv.amp, peakArr = lv.peak;
+    // Left and right on their own (stereo Mirror and Neon), at the main
+    // level's gain so a panned sound shows on its own side only.
+    let ampL = null, ampR = null;
+    if (audio.specL && audio.specR) {
+      const o2 = { bands, gain: gain * levelStateW.autoGainMult * (fitToScreen ? levelStateW.fitScale : 1), autoGain: false, fitToScreen: false };
+      ampL = computeLevels(levelStateL, { spec: audio.specL, peak: audio.specL }, o2, dt).amp;
+      ampR = computeLevels(levelStateR, { spec: audio.specR, peak: audio.specR }, o2, dt).amp;
+    }
     const ctx = {
       amp: (b) => ampArr[b],
       peak: (b) => peakArr[b],
-      ampArr, peakArr, vu: audio.vu, wave: audio.wave, // vu: stereo [left, right, leftPeak, rightPeak]; wave: the sound wave
+      ampArr, peakArr, ampL, ampR, vu: audio.vu, wave: audio.wave, // vu: stereo [left, right, leftPeak, rightPeak]; wave: the sound wave
       bands, theme, barMode, scrollX: spectrumWallState.scrollX || 0, t: core.t, dt,
     };
     // Version 2 (the default) is the animated scenes; version 1 keeps the classic styles.

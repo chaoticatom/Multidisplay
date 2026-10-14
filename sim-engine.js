@@ -2528,6 +2528,13 @@ var PiEngine = (() => {
       var RELEASE_RATE = 7;
       var PEAK_HOLD_S = 0.35;
       var PEAK_GRAVITY = 3.2;
+      function smoothInto(spec, target, dt) {
+        const attack = Math.min(1, dt * ATTACK_RATE), release = Math.min(1, dt * RELEASE_RATE);
+        for (let b = 0; b < spec.length; b++) {
+          const t = target[b], s = spec[b];
+          spec[b] = s + (t - s) * (t > s ? attack : release);
+        }
+      }
       var RadioAudio = class {
         constructor(spawnFn = spawn, execFn = execFile) {
           this._execFn = execFn;
@@ -2566,6 +2573,11 @@ var PiEngine = (() => {
           this._debugFinished = false;
           this.spec = new Float32Array(BAND_COUNT);
           this.peak = new Float32Array(BAND_COUNT);
+          this.specL = new Float32Array(BAND_COUNT);
+          this.specR = new Float32Array(BAND_COUNT);
+          this._anL = createAnalyser(SAMPLE_RATE);
+          this._anR = createAnalyser(SAMPLE_RATE);
+          this._stereoFlip = false;
           this._peakVel = new Float32Array(BAND_COUNT);
           this._peakHold = new Float32Array(BAND_COUNT);
           this._idleTimer = setInterval(() => this._checkIdle(), IDLE_CHECK_MS);
@@ -2607,6 +2619,10 @@ var PiEngine = (() => {
           this._carry = null;
           this._startAnalysisClock();
           this.spec.fill(0);
+          if (this.specL) {
+            this.specL.fill(0);
+            this.specR.fill(0);
+          }
           this.peak.fill(0);
           this._peakVel.fill(0);
           const isDebug = url.startsWith("debug:") || url.startsWith("debugloop:");
@@ -2680,6 +2696,10 @@ var PiEngine = (() => {
                 this._debugFinished = true;
                 this._stopAnalysisClock();
                 this.spec.fill(0);
+                if (this.specL) {
+                  this.specL.fill(0);
+                  this.specR.fill(0);
+                }
                 this.peak.fill(0);
                 this._peakVel.fill(0);
               }
@@ -2910,6 +2930,14 @@ var PiEngine = (() => {
           }
           this._lastTarget = target;
           this._applySpectrumTarget(target, dt);
+          this._stereoFlip = !this._stereoFlip;
+          if (this._stereoFlip) {
+            const quiet = target === this._zeros, end = Math.floor(this._playPos);
+            const tl = quiet ? this._zeros : this._anL.analyse(this._ringL, end);
+            smoothInto(this.specL, tl, dt * 2);
+            const tr = quiet ? this._zeros : this._anR.analyse(this._ringR, end);
+            smoothInto(this.specR, tr, dt * 2);
+          }
           this._updateVu(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
           this._updateWave(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
         }
@@ -3039,7 +3067,7 @@ var PiEngine = (() => {
         // Plain, structured-clone-friendly copy of what the render side reads -
         // see RemoteAudio below.
         snapshot() {
-          return { spec: this.spec, peak: this.peak, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
+          return { spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
         }
         // Auto speaker sync: ask the sound server how late our stream plays, and
         // ease the bars' delay towards it (readings jitter a little).
@@ -3114,6 +3142,10 @@ var PiEngine = (() => {
           this._teardownPlayback();
           this._stopAnalysisClock();
           this.spec.fill(0);
+          if (this.specL) {
+            this.specL.fill(0);
+            this.specR.fill(0);
+          }
           this.peak.fill(0);
           this.vu.fill(0);
         }
@@ -3131,6 +3163,8 @@ var PiEngine = (() => {
         constructor() {
           this.spec = new Float32Array(BAND_COUNT);
           this.peak = new Float32Array(BAND_COUNT);
+          this.specL = new Float32Array(BAND_COUNT);
+          this.specR = new Float32Array(BAND_COUNT);
           this.vu = new Float32Array(4);
           this.wave = new Float32Array(WAVE_N);
           this.status = "Stopped";
@@ -3163,6 +3197,8 @@ var PiEngine = (() => {
           if (!snap) return;
           if (snap.spec && snap.spec.length === BAND_COUNT) this.spec.set(snap.spec);
           if (snap.peak && snap.peak.length === BAND_COUNT) this.peak.set(snap.peak);
+          if (snap.specL && snap.specL.length === BAND_COUNT) this.specL.set(snap.specL);
+          if (snap.specR && snap.specR.length === BAND_COUNT) this.specR.set(snap.specR);
           if (snap.vu && snap.vu.length === 4) this.vu.set(snap.vu);
           if (snap.wave && snap.wave.length === WAVE_N) this.wave.set(snap.wave);
           this.status = snap.status;
@@ -27021,7 +27057,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl } = require_core();
       var { FONT_3x5, drawString } = require_text();
-      var SCENES = ["hifi", "studio", "spectrogram", "waterfall3d", "mirror", "radial", "particle", "neon", "bounce", "bars3d"];
+      var SCENES = ["chrome", "hifi", "studio", "spectrogram", "waterfall3d", "mirror", "radial", "particle", "neon", "bounce", "bars3d"];
       var AUTO_SECS = 25;
       var TICKER_ROWS = 9;
       function createV2State() {
@@ -27148,19 +27184,28 @@ var PiEngine = (() => {
       }
       function sceneMirror(core, ctx, st, W, H, t, dt) {
         const area = H - TICKER_ROWS, n = Math.max(8, Math.floor(W / 4)), mid = Math.floor(area / 2), half = mid - 1, slot = W / n;
-        const { lv } = bars(ctx, n);
+        const L = chan(ctx, "ampL", n), R = chan(ctx, "ampR", n);
         for (let i = 0; i < n; i++) {
-          const x0 = Math.round(i * slot), x1 = Math.max(x0, Math.round((i + 1) * slot) - 2), h = lv[i] * half, hue = bandHue(i / (n - 1));
-          for (let j = 0; j <= h; j++) {
-            const c = hsl(hue + j / half * 0.08, 0.9, 0.38 + 0.3 * (j / half)), k = j + 1 > h ? h - j : 1;
-            for (let x = x0; x <= x1; x++) {
-              const sheen = x === x0 ? 1.35 : 1;
-              put(core, x, mid - 1 - j, c, k * sheen);
-              put(core, x, mid + j, c, k * 0.75 * sheen);
+          const x0 = Math.round(i * slot), x1 = Math.max(x0, Math.round((i + 1) * slot) - 2), hue = bandHue(i / (n - 1));
+          for (const [lvl, dir, dim] of [[L[i] * half, -1, 1], [R[i] * half, 1, 0.85]]) {
+            for (let j = 0; j <= lvl; j++) {
+              const c = hsl(hue + j / half * 0.08, 0.9, 0.38 + 0.3 * (j / half)), k = (j + 1 > lvl ? lvl - j : 1) * dim;
+              for (let x = x0; x <= x1; x++) put(core, x, dir < 0 ? mid - 1 - j : mid + j, c, k * (x === x0 ? 1.35 : 1));
             }
           }
         }
         for (let x = 0; x < W; x++) put(core, x, mid, [0.6, 0.7, 0.9], 0.15);
+        channelLabels(core, mid, area);
+      }
+      function channelLabels(core, mid, area) {
+        if (area < 30) return;
+        drawString(FONT_3x5, "L", 1, Math.max(0, mid - 7), (x, y) => put(core, x, y, [0.5, 0.6, 0.8], 0.45));
+        drawString(FONT_3x5, "R", 1, mid + 2, (x, y) => put(core, x, y, [0.5, 0.6, 0.8], 0.45));
+      }
+      function chan(ctx, key, n) {
+        const arr = ctx[key] || ctx.ampArr, lv = new Float32Array(n);
+        for (let i = 0; i < n; i++) lv[i] = ampAt(arr, ctx.bands, n > 1 ? i / (n - 1) : 0);
+        return lv;
       }
       function sceneRadial(core, ctx, st, W, H, t, dt) {
         const area = H - TICKER_ROWS, cx = (W - 1) / 2, cy = (area - 1) / 2;
@@ -27204,8 +27249,8 @@ var PiEngine = (() => {
         const area = H - TICKER_ROWS, mid = (area - 1) / 2, amp = mid - 2;
         let pu = null, pd = null;
         for (let x = 0; x < W; x++) {
-          const f = x / (W - 1), a = ampAt(ctx.ampArr, ctx.bands, f), c = hsl(bandHue(f) + Math.sin(t * 0.2) * 0.05, 1, 0.55);
-          const yu = mid - a * amp, yd = mid + a * amp;
+          const f = x / (W - 1), aL = ampAt(ctx.ampL || ctx.ampArr, ctx.bands, f), aR = ampAt(ctx.ampR || ctx.ampArr, ctx.bands, f), a = (aL + aR) / 2, c = hsl(bandHue(f) + Math.sin(t * 0.2) * 0.05, 1, 0.55);
+          const yu = mid - aL * amp, yd = mid + aR * amp;
           for (const [y, prev] of [[yu, pu], [yd, pd]]) {
             for (let g = 1; g <= 2; g++) {
               put(core, x, y - g, c, 0.25 / g);
@@ -27218,29 +27263,56 @@ var PiEngine = (() => {
           pu = yu;
           pd = yd;
         }
+        channelLabels(core, Math.round(mid), area);
       }
       function sceneBounce(core, ctx, st, W, H, t, dt) {
         const area = H - TICKER_ROWS, n = Math.max(8, Math.floor(W / 5)), slot = W / n, maxH = area - 4;
         const { lv } = bars(ctx, n);
-        if (!st.bn || st.bn.y.length !== n) st.bn = { y: new Float32Array(n), v: new Float32Array(n), prev: new Float32Array(n) };
-        const bn = st.bn;
+        if (!st.bb || st.bb.n !== n) {
+          const count = Math.max(5, Math.min(24, Math.round(W / 12)));
+          st.bb = { n, prev: new Float32Array(n), seed: 7, balls: [] };
+          for (let k = 0; k < count; k++) st.bb.balls.push({ x: (k + 0.5) * W / count, y: area * 0.5, vx: (k % 2 ? 1 : -1) * (6 + k % 5 * 3), vy: 0, hue: k / count });
+        }
+        const bb = st.bb, rnd = () => {
+          bb.seed = bb.seed * 16807 % 2147483647;
+          return bb.seed / 2147483647;
+        };
+        const top = new Float32Array(n), rise = new Float32Array(n);
         for (let i = 0; i < n; i++) {
           const x0 = Math.round(i * slot), x1 = Math.max(x0, Math.round((i + 1) * slot) - 2), h = lv[i] * maxH, c = hsl(bandHue(i / (n - 1)), 0.9, 0.5);
-          for (let j = 0; j <= h; j++) for (let x = x0; x <= x1; x++) put(core, x, area - 1 - j, c, 0.4 + 0.5 * (j / maxH));
-          bn.v[i] -= area * 2.5 * dt;
-          bn.y[i] += bn.v[i] * dt;
-          if (bn.y[i] <= h + 1) {
-            const kick = Math.min(area * 1.4, Math.max(0, (h - bn.prev[i]) / Math.max(dt, 1e-3)) * 1.2);
-            bn.y[i] = h + 1;
-            bn.v[i] = Math.max(-bn.v[i] * 0.35, kick);
+          for (let j = 0; j <= h; j++) for (let x = x0; x <= x1; x++) put(core, x, area - 1 - j, c, 0.35 + 0.45 * (j / maxH));
+          top[i] = h;
+          rise[i] = Math.max(0, (h - bb.prev[i]) / Math.max(dt, 1e-3));
+          bb.prev[i] = h;
+        }
+        const g = area * 2.2, r = 1.2;
+        for (const b of bb.balls) {
+          b.vy -= g * dt;
+          b.x += b.vx * dt;
+          b.y += b.vy * dt;
+          b.vx *= Math.exp(-dt * 0.15);
+          if (b.x < r) {
+            b.x = r;
+            b.vx = Math.abs(b.vx) * 0.95;
           }
-          if (bn.y[i] > maxH + 2) {
-            bn.y[i] = maxH + 2;
-            bn.v[i] = Math.min(0, bn.v[i]);
+          if (b.x > W - 1 - r) {
+            b.x = W - 1 - r;
+            b.vx = -Math.abs(b.vx) * 0.95;
           }
-          bn.prev[i] = h;
-          const cxB = (x0 + x1) / 2, cyB = area - 1 - bn.y[i] - 1, bc = hsl(bandHue(i / (n - 1)), 0.5, 0.8);
-          for (let yy = -1; yy <= 1; yy++) for (let xx = -1; xx <= 1; xx++) put(core, cxB + xx, cyB + yy, bc, xx && yy ? 0.4 : 1);
+          if (b.y > area - 2 - r) {
+            b.y = area - 2 - r;
+            b.vy = -Math.abs(b.vy) * 0.8;
+          }
+          const i = Math.max(0, Math.min(n - 1, Math.floor(b.x / slot)));
+          if (b.y <= top[i] + r) {
+            b.y = top[i] + r;
+            const kick = Math.min(area * 1.6, rise[i] * 1.3);
+            b.vy = Math.max(Math.abs(b.vy) * 0.55, kick, lv[i] > 0.25 ? area * 0.6 * lv[i] : 0);
+            if (kick > area * 0.3) b.vx += (rnd() - 0.5) * W * 0.25 + (b.vx >= 0 ? 4 : -4);
+            b.vx = Math.max(-W * 0.6, Math.min(W * 0.6, b.vx));
+          }
+          const cx = b.x, cy = area - 1 - b.y, bc = hsl(b.hue, 0.55, 0.8);
+          for (let yy = -1; yy <= 1; yy++) for (let xx = -1; xx <= 1; xx++) put(core, cx + xx, cy + yy, bc, xx && yy ? 0.4 : 1);
         }
       }
       function sceneBars3d(core, ctx, st, W, H, t, dt) {
@@ -27256,7 +27328,153 @@ var PiEngine = (() => {
           }
         }
       }
-      var RENDER = { hifi: sceneHifi, studio: sceneStudio, spectrogram: sceneSpectrogram, waterfall3d: sceneWaterfall3d, mirror: sceneMirror, radial: sceneRadial, particle: sceneParticle, neon: sceneNeon, bounce: sceneBounce, bars3d: sceneBars3d };
+      var CH_N = 48;
+      var CH_M = 40;
+      function sceneChrome(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS;
+        if (!st.ch) st.ch = { h: new Float32Array(CH_N * CH_M), acc: 0, bass: 0, img: null, w: 0 };
+        const ch = st.ch, hist = ch.h;
+        ch.acc += dt;
+        let bass = 0;
+        for (let i = 0; i < 6; i++) bass += ctx.ampArr[i] || 0;
+        ch.bass += (bass / 6 - ch.bass) * Math.min(1, dt * 8);
+        while (ch.acc > 1 / 24) {
+          ch.acc -= 1 / 24;
+          hist.copyWithin(CH_N, 0, CH_N * (CH_M - 1));
+          for (let i = 0; i < CH_N; i++) hist[i] = ampAt(ctx.ampArr, ctx.bands, i / (CH_N - 1));
+        }
+        const frac = ch.acc * 24;
+        const asp = W / area;
+        const hAt = (u, v) => {
+          const x = Math.max(0, Math.min(CH_N - 1.001, u * (CH_N - 1))), zz = Math.max(0, Math.min(CH_M - 1.001, v * (CH_M - 1) + frac));
+          const xi = x | 0, zi = zz | 0, fx = x - xi, fz = zz - zi, o = zi * CH_N + xi;
+          const a = hist[o] + (hist[o + 1] - hist[o]) * fx, b = hist[o + CH_N] + (hist[o + CH_N + 1] - hist[o + CH_N]) * fx;
+          return (a + (b - a) * fz) * 0.32 * (1 - 0.35 * v);
+        };
+        const SEA = 3;
+        const camY = 0.42, camZ = -0.2, pitch = -0.24, fov = 1.15, cp = Math.cos(pitch), sp = Math.sin(pitch);
+        const sunR = 0.1 + 0.06 * ch.bass;
+        const SKY_TOP = [0.03, 0.01, 0.09], SKY_MID = [0.28, 0.04, 0.35], SKY_LOW = [0.95, 0.28, 0.32];
+        const sky = (dx, dy) => {
+          const k = Math.max(0, Math.min(1, dy * 3.2));
+          let r = k < 0.35 ? SKY_LOW[0] + (SKY_MID[0] - SKY_LOW[0]) * (k / 0.35) : SKY_MID[0] + (SKY_TOP[0] - SKY_MID[0]) * ((k - 0.35) / 0.65);
+          let g = k < 0.35 ? SKY_LOW[1] + (SKY_MID[1] - SKY_LOW[1]) * (k / 0.35) : SKY_MID[1] + (SKY_TOP[1] - SKY_MID[1]) * ((k - 0.35) / 0.65);
+          let b = k < 0.35 ? SKY_LOW[2] + (SKY_MID[2] - SKY_LOW[2]) * (k / 0.35) : SKY_MID[2] + (SKY_TOP[2] - SKY_MID[2]) * ((k - 0.35) / 0.65);
+          const sx = dx, sy = dy - 0.05, d = Math.sqrt(sx * sx + sy * sy);
+          if (d < sunR) {
+            const stripe = sy < 0 ? Math.sin(sy * 110 + t * 2) > -0.2 + sy * 9 ? 1 : 0 : 1;
+            const yy = (sy + sunR) / (2 * sunR);
+            if (stripe) {
+              r = 1;
+              g = 0.85 - 0.55 * (1 - yy);
+              b = 0.25 - 0.15 * (1 - yy);
+            }
+          }
+          const glow = Math.exp(-Math.max(0, d - sunR) * 14) * (0.3 + 0.4 * ch.bass);
+          r += glow * 1;
+          g += glow * 0.35;
+          b += glow * 0.25;
+          if (dy > 0.18) {
+            const si = Math.floor((dx + 3) * 90) * 131 + Math.floor(dy * 90);
+            const h2 = Math.sin(si * 12.9898) * 43758.5453 % 1;
+            if (h2 > 0.985) {
+              const tw = 0.5 + 0.5 * Math.sin(t * 3 + si);
+              r += 0.5 * tw;
+              g += 0.5 * tw;
+              b += 0.6 * tw;
+            }
+          }
+          return [r, g, b];
+        };
+        if (!ch.img || ch.w !== W * area) {
+          ch.img = new Float32Array(W * area * 3);
+          ch.w = W * area;
+        }
+        const img = ch.img;
+        const trace = (px, py) => {
+          const sx = (px + 0.5 - W / 2) / area * fov, sy = (area / 2 - py - 0.5) / area * fov;
+          const dyc = sy * cp + sp, dzc = cp - sy * sp;
+          const dxw = sx / asp;
+          let tt = 0.02, hit = false, x = 0, y = 0, z = 0;
+          for (let i = 0; i < 38; i++) {
+            x = 0.5 + dxw * tt;
+            y = camY + dyc * tt;
+            z = camZ + dzc * tt;
+            if (z > SEA || x < -0.05 || x > 1.05 || y < -0.05) break;
+            const h = hAt(x, Math.max(0, z) / SEA);
+            if (y <= h) {
+              let lo = tt - 0.04, hi = tt;
+              for (let k = 0; k < 4; k++) {
+                const mid = (lo + hi) / 2, ym = camY + dyc * mid, hm = hAt(0.5 + dxw * mid, Math.max(0, camZ + dzc * mid) / SEA);
+                if (ym <= hm) hi = mid;
+                else lo = mid;
+              }
+              tt = hi;
+              x = 0.5 + dxw * tt;
+              y = camY + dyc * tt;
+              z = camZ + dzc * tt;
+              hit = true;
+              break;
+            }
+            tt += 0.012 + tt * 0.045;
+          }
+          if (!hit) return sky(sx, dyc);
+          const v = z / SEA, e = 0.012, hx = (hAt(x + e, v) - hAt(x - e, v)) / (2 * e), hzz = (hAt(x, v + e) - hAt(x, v - e)) / (2 * e * SEA);
+          let nx = -hx * 2.5, ny = 1, nz = -hzz * 2.5;
+          const nn = Math.sqrt(nx * nx + ny * ny + nz * nz);
+          nx /= nn;
+          ny /= nn;
+          nz /= nn;
+          let rx = dxw, ry = dyc, rz = dzc;
+          const rn = Math.sqrt(rx * rx + ry * ry + rz * rz);
+          rx /= rn;
+          ry /= rn;
+          rz /= rn;
+          const dd = rx * nx + ry * ny + rz * nz, ox = rx - 2 * dd * nx, oy = ry - 2 * dd * ny;
+          const refl = sky(ox * asp, Math.max(0, oy));
+          const fres = 0.35 + 0.65 * Math.pow(1 - Math.max(0, -dd), 4);
+          const hgt = hAt(x, v) / 0.32, c = hsl(bandHue(Math.max(0, Math.min(1, x))), 1, 0.5);
+          const crest = Math.pow(Math.min(1, hgt * 1.3), 3) * 1.3;
+          const fog = Math.min(1, Math.max(0, (v - 0.35) / 0.65)) ** 1.5, hzc = sky(sx, 0.01);
+          const tint = 0.25 + 0.75 * Math.min(1, hgt * 1.8);
+          let r = refl[0] * fres * (0.25 + 0.75 * c[0] * tint) + c[0] * crest * 0.7;
+          let g = refl[1] * fres * (0.25 + 0.75 * c[1] * tint) + c[1] * crest * 0.7;
+          let b = refl[2] * fres * (0.25 + 0.75 * c[2] * tint) + c[2] * crest * 0.7;
+          const gl = Math.max(0, 1 - Math.abs(((v * CH_M - frac) % 4 + 4) % 4 - 2) * 2.5) * 0.12 * (1 - fog);
+          r += gl * 0.4;
+          g += gl * 0.15;
+          b += gl * 0.6;
+          return [r + (hzc[0] - r) * fog, g + (hzc[1] - g) * fog, b + (hzc[2] - b) * fog];
+        };
+        ch.odd = !ch.odd;
+        for (let py = ch.odd ? 1 : 0; py < area; py += 2) {
+          const row = py * W;
+          for (let px = 0; px < W; px += 2) {
+            const c = trace(px, py), o = (row + px) * 3;
+            img[o] = c[0];
+            img[o + 1] = c[1];
+            img[o + 2] = c[2];
+          }
+          for (let px = 1; px < W; px += 2) {
+            const o = (row + px) * 3, l = o - 3, r2 = px + 1 < W ? o + 3 : o - 3;
+            if (Math.abs(img[l] - img[r2]) + Math.abs(img[l + 1] - img[r2 + 1]) + Math.abs(img[l + 2] - img[r2 + 2]) < 0.15) {
+              img[o] = (img[l] + img[r2]) / 2;
+              img[o + 1] = (img[l + 1] + img[r2 + 1]) / 2;
+              img[o + 2] = (img[l + 2] + img[r2 + 2]) / 2;
+            } else {
+              const c = trace(px, py);
+              img[o] = c[0];
+              img[o + 1] = c[1];
+              img[o + 2] = c[2];
+            }
+          }
+        }
+        for (let py = 0; py < area; py++) for (let px = 0; px < W; px++) {
+          const o = (py * W + px) * 3;
+          core.setWallPixel(px, py, img[o], img[o + 1], img[o + 2]);
+        }
+      }
+      var RENDER = { chrome: sceneChrome, hifi: sceneHifi, studio: sceneStudio, spectrogram: sceneSpectrogram, waterfall3d: sceneWaterfall3d, mirror: sceneMirror, radial: sceneRadial, particle: sceneParticle, neon: sceneNeon, bounce: sceneBounce, bars3d: sceneBars3d };
       function sub(st, name) {
         return st.subs[name] || (st.subs[name] = {});
       }
@@ -27323,6 +27541,8 @@ var PiEngine = (() => {
       var { drawString, drawMarquee, drawLinesCentered, FONT_3x5, FONT_5x7, wallPlot } = require_text();
       var spectrumWallState = createSpectrumWallState();
       var levelStateW = createLevelState();
+      var levelStateL = createLevelState();
+      var levelStateR = createLevelState();
       var tickerScrollX = 0;
       var TEXT_RGB = [0.6, 0.85, 1];
       function drawStaticLabelWall(core, text) {
@@ -27362,11 +27582,19 @@ var PiEngine = (() => {
             spectrumWallState.scrollX = 0;
           }
           const ampArr = lv.amp, peakArr = lv.peak;
+          let ampL = null, ampR = null;
+          if (audio.specL && audio.specR) {
+            const o2 = { bands, gain: gain * levelStateW.autoGainMult * (fitToScreen ? levelStateW.fitScale : 1), autoGain: false, fitToScreen: false };
+            ampL = computeLevels(levelStateL, { spec: audio.specL, peak: audio.specL }, o2, dt).amp;
+            ampR = computeLevels(levelStateR, { spec: audio.specR, peak: audio.specR }, o2, dt).amp;
+          }
           const ctx = {
             amp: (b) => ampArr[b],
             peak: (b) => peakArr[b],
             ampArr,
             peakArr,
+            ampL,
+            ampR,
             vu: audio.vu,
             wave: audio.wave,
             // vu: stereo [left, right, leftPeak, rightPeak]; wave: the sound wave

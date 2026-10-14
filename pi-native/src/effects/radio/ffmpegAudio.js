@@ -63,6 +63,12 @@ const RELEASE_RATE = 7; // per second; ~140ms decay
 const PEAK_HOLD_S = 0.35;
 const PEAK_GRAVITY = 3.2; // peak marker fall acceleration (units/s^2)
 
+// Eases a spectrum towards a new reading (quick rise, slower fall).
+function smoothInto(spec, target, dt) {
+  const attack = Math.min(1, dt * ATTACK_RATE), release = Math.min(1, dt * RELEASE_RATE);
+  for (let b = 0; b < spec.length; b++) { const t = target[b], s = spec[b]; spec[b] = s + (t - s) * (t > s ? attack : release); }
+}
+
 class RadioAudio {
   constructor(spawnFn = spawn, execFn = execFile) {
     this._execFn = execFn; // pactl, for Auto speaker sync
@@ -105,6 +111,10 @@ class RadioAudio {
     // how a caller re-samples this down to a smaller displayed band count.
     this.spec = new Float32Array(BAND_COUNT);
     this.peak = new Float32Array(BAND_COUNT);
+    // Left and right channels' own spectra (the stereo Mirror and Neon styles),
+    // worked out 30 times a second from the left/right rings.
+    this.specL = new Float32Array(BAND_COUNT); this.specR = new Float32Array(BAND_COUNT);
+    this._anL = createAnalyser(SAMPLE_RATE); this._anR = createAnalyser(SAMPLE_RATE); this._stereoFlip = false;
     this._peakVel = new Float32Array(BAND_COUNT);
     this._peakHold = new Float32Array(BAND_COUNT);
 
@@ -166,7 +176,7 @@ class RadioAudio {
     // hold markers stayed on screen decaying alongside the new one's
     // freshly building peaks - looking like two simultaneous peaks
     // instead of one clean restart from zero.
-    this.spec.fill(0);
+    this.spec.fill(0); if (this.specL) { this.specL.fill(0); this.specR.fill(0); }
     this.peak.fill(0);
     this._peakVel.fill(0);
 
@@ -257,7 +267,7 @@ class RadioAudio {
           // forever instead of falling back to dark.
           this._debugFinished = true;
           this._stopAnalysisClock();
-          this.spec.fill(0);
+          this.spec.fill(0); if (this.specL) { this.specL.fill(0); this.specR.fill(0); }
           this.peak.fill(0);
           this._peakVel.fill(0);
         }
@@ -499,6 +509,15 @@ class RadioAudio {
     }
     this._lastTarget = target;
     this._applySpectrumTarget(target, dt);
+    // Stereo: every other tick, each channel on its own.
+    this._stereoFlip = !this._stereoFlip;
+    if (this._stereoFlip) {
+      const quiet = target === this._zeros, end = Math.floor(this._playPos);
+      const tl = quiet ? this._zeros : this._anL.analyse(this._ringL, end);
+      smoothInto(this.specL, tl, dt * 2);
+      const tr = quiet ? this._zeros : this._anR.analyse(this._ringR, end);
+      smoothInto(this.specR, tr, dt * 2);
+    }
     this._updateVu(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
     this._updateWave(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
   }
@@ -605,7 +624,7 @@ class RadioAudio {
   // Plain, structured-clone-friendly copy of what the render side reads -
   // see RemoteAudio below.
   snapshot() {
-    return { spec: this.spec, peak: this.peak, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
+    return { spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
   }
 
   // Auto speaker sync: ask the sound server how late our stream plays, and
@@ -676,7 +695,7 @@ class RadioAudio {
     }
     this._teardownPlayback();
     this._stopAnalysisClock();
-    this.spec.fill(0);
+    this.spec.fill(0); if (this.specL) { this.specL.fill(0); this.specR.fill(0); }
     this.peak.fill(0);
     this.vu.fill(0);
   }
@@ -703,6 +722,7 @@ class RemoteAudio {
   constructor() {
     this.spec = new Float32Array(BAND_COUNT);
     this.peak = new Float32Array(BAND_COUNT);
+    this.specL = new Float32Array(BAND_COUNT); this.specR = new Float32Array(BAND_COUNT);
     this.vu = new Float32Array(4);
     this.wave = new Float32Array(WAVE_N);
     this.status = 'Stopped';
@@ -722,6 +742,8 @@ class RemoteAudio {
     if (!snap) return;
     if (snap.spec && snap.spec.length === BAND_COUNT) this.spec.set(snap.spec);
     if (snap.peak && snap.peak.length === BAND_COUNT) this.peak.set(snap.peak);
+    if (snap.specL && snap.specL.length === BAND_COUNT) this.specL.set(snap.specL);
+    if (snap.specR && snap.specR.length === BAND_COUNT) this.specR.set(snap.specR);
     if (snap.vu && snap.vu.length === 4) this.vu.set(snap.vu);
     if (snap.wave && snap.wave.length === WAVE_N) this.wave.set(snap.wave);
     this.status = snap.status;
