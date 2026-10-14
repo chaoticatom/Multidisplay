@@ -27330,15 +27330,20 @@ var PiEngine = (() => {
       }
       var CH_N = 48;
       var CH_M = 40;
+      var SKY_OUT = [0, 0, 0];
+      var TR = [0, 0, 0];
       var BAND_COL = Array.from({ length: 64 }, (_, i) => hsl(bandHue(i / 63), 1, 0.5));
       function sceneChrome(core, ctx, st, W, H, t, dt) {
         const area = H - TICKER_ROWS;
         if (!st.ch) st.ch = { h: new Float32Array(CH_N * CH_M), acc: 0, bass: 0, img: null, w: 0 };
         const ch = st.ch, hist = ch.h;
         if (!ch.live) ch.live = new Float32Array(CH_N);
+        if (!ch.tgt) ch.tgt = new Float32Array(CH_N);
+        for (let i = 0; i < CH_N; i++) ch.tgt[i] = ampAt(ctx.ampArr, ctx.bands, i / (CH_N - 1));
+        const ease = Math.min(1, dt * 7);
         for (let i = 0; i < CH_N; i++) {
-          const tv = ampAt(ctx.ampArr, ctx.bands, i / (CH_N - 1));
-          ch.live[i] += (tv - ch.live[i]) * Math.min(1, dt * 14);
+          const tv = (ch.tgt[Math.max(0, i - 1)] + 2 * ch.tgt[i] + ch.tgt[Math.min(CH_N - 1, i + 1)]) / 4;
+          ch.live[i] += (tv - ch.live[i]) * ease;
         }
         ch.acc += dt;
         let bass = 0;
@@ -27390,7 +27395,10 @@ var PiEngine = (() => {
               b += 0.6 * tw;
             }
           }
-          return [r, g, b];
+          SKY_OUT[0] = r;
+          SKY_OUT[1] = g;
+          SKY_OUT[2] = b;
+          return SKY_OUT;
         };
         if (!ch.img || ch.w !== W * area) {
           ch.img = new Float32Array(W * area * 3);
@@ -27437,7 +27445,13 @@ var PiEngine = (() => {
             }
             tt += 0.014 + tt * 0.055;
           }
-          if (!hit) return sky(sx, dyc);
+          if (!hit) {
+            const s2 = sky(sx, dyc);
+            TR[0] = s2[0];
+            TR[1] = s2[1];
+            TR[2] = s2[2];
+            return TR;
+          }
           const v = z / SEA, e = 0.012, hx = (hAt(x + e, v) - hAt(x - e, v)) / (2 * e), hzz = (hAt(x, v + e) - hAt(x, v - e)) / (2 * e * SEA);
           let nx = -hx * 2.5, ny = 1, nz = -hzz * 2.5;
           const nn = Math.sqrt(nx * nx + ny * ny + nz * nz);
@@ -27450,20 +27464,23 @@ var PiEngine = (() => {
           ry /= rn;
           rz /= rn;
           const dd = rx * nx + ry * ny + rz * nz, ox = rx - 2 * dd * nx, oy = ry - 2 * dd * ny;
-          const refl = sky(ox * asp, Math.max(0, oy));
+          const rf = sky(ox * asp, Math.max(0, oy)), rf0 = rf[0], rf1 = rf[1], rf2 = rf[2];
           const fres = 0.35 + 0.65 * Math.pow(1 - Math.max(0, -dd), 4);
           const hgt = hAt(x, v) / 0.32, c = BAND_COL[Math.max(0, Math.min(63, Math.round(x * 63)))];
           const crest = Math.pow(Math.min(1, hgt * 1.3), 3) * 1.3;
           const fog = Math.min(1, Math.max(0, (v - 0.35) / 0.65)) ** 1.5, hzc = hzCol(px);
           const tint = 0.25 + 0.75 * Math.min(1, hgt * 1.8);
-          let r = refl[0] * fres * (0.25 + 0.75 * c[0] * tint) + c[0] * crest * 0.7;
-          let g = refl[1] * fres * (0.25 + 0.75 * c[1] * tint) + c[1] * crest * 0.7;
-          let b = refl[2] * fres * (0.25 + 0.75 * c[2] * tint) + c[2] * crest * 0.7;
+          let r = rf0 * fres * (0.25 + 0.75 * c[0] * tint) + c[0] * crest * 0.7;
+          let g = rf1 * fres * (0.25 + 0.75 * c[1] * tint) + c[1] * crest * 0.7;
+          let b = rf2 * fres * (0.25 + 0.75 * c[2] * tint) + c[2] * crest * 0.7;
           const gl = Math.max(0, 1 - Math.abs(((v * CH_M - frac) % 4 + 4) % 4 - 2) * 2.5) * 0.12 * (1 - fog);
           r += gl * 0.4;
           g += gl * 0.15;
           b += gl * 0.6;
-          return [r + (hzc[0] - r) * fog, g + (hzc[1] - g) * fog, b + (hzc[2] - b) * fog];
+          TR[0] = r + (hzc[0] - r) * fog;
+          TR[1] = g + (hzc[1] - g) * fog;
+          TR[2] = b + (hzc[2] - b) * fog;
+          return TR;
         };
         const put3 = (o, c) => {
           img[o] = c[0];

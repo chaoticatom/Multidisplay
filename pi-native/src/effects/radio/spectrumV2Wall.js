@@ -302,6 +302,7 @@ function sceneBars3d(core, ctx, st, W, H, t, dt) {
 // and haze towards the horizon. Every other column is traced and the gaps
 // filled from their neighbours (unless they differ), to stay light on the Pi.
 const CH_N = 48, CH_M = 40; // bands across x rows into the distance
+const SKY_OUT = [0, 0, 0], TR = [0, 0, 0];
 const BAND_COL = Array.from({ length: 64 }, (_, i) => hsl(bandHue(i / 63), 1, 0.5));
 function sceneChrome(core, ctx, st, W, H, t, dt) {
   const area = H - TICKER_ROWS;
@@ -310,7 +311,15 @@ function sceneChrome(core, ctx, st, W, H, t, dt) {
   // The front row eases towards the live spectrum (no popping); 30 times a
   // second it's pushed back and a new front row starts.
   if (!ch.live) ch.live = new Float32Array(CH_N);
-  for (let i = 0; i < CH_N; i++) { const tv = ampAt(ctx.ampArr, ctx.bands, i / (CH_N - 1)); ch.live[i] += (tv - ch.live[i]) * Math.min(1, dt * 14); }
+  // Smoothed in time (eased) and across bands (each blended with its
+  // neighbours), so the sea swells rather than twitches.
+  if (!ch.tgt) ch.tgt = new Float32Array(CH_N);
+  for (let i = 0; i < CH_N; i++) ch.tgt[i] = ampAt(ctx.ampArr, ctx.bands, i / (CH_N - 1));
+  const ease = Math.min(1, dt * 7);
+  for (let i = 0; i < CH_N; i++) {
+    const tv = (ch.tgt[Math.max(0, i - 1)] + 2 * ch.tgt[i] + ch.tgt[Math.min(CH_N - 1, i + 1)]) / 4;
+    ch.live[i] += (tv - ch.live[i]) * ease;
+  }
   ch.acc += dt;
   let bass = 0;
   for (let i = 0; i < 6; i++) bass += ctx.ampArr[i] || 0;
@@ -351,7 +360,8 @@ function sceneChrome(core, ctx, st, W, H, t, dt) {
     r += glow * 1.0; g += glow * 0.35; b += glow * 0.25;
     // Stars, twinkling, high up.
     if (dy > 0.18) { const si = Math.floor((dx + 3) * 90) * 131 + Math.floor(dy * 90); const h2 = Math.sin(si * 12.9898) * 43758.5453 % 1; if (h2 > 0.985) { const tw = 0.5 + 0.5 * Math.sin(t * 3 + si); r += 0.5 * tw; g += 0.5 * tw; b += 0.6 * tw; } }
-    return [r, g, b];
+    SKY_OUT[0] = r; SKY_OUT[1] = g; SKY_OUT[2] = b;
+    return SKY_OUT; // reused - no garbage (collector pauses showed as stutter on the Pi)
   };
   if (!ch.img || ch.w !== W * area) { ch.img = new Float32Array(W * area * 3); ch.w = W * area; }
   const img = ch.img;
@@ -376,26 +386,27 @@ function sceneChrome(core, ctx, st, W, H, t, dt) {
       }
       tt += 0.014 + tt * 0.055;
     }
-    if (!hit) return sky(sx, dyc);
+    if (!hit) { const s2 = sky(sx, dyc); TR[0] = s2[0]; TR[1] = s2[1]; TR[2] = s2[2]; return TR; }
     // Normal from the height field; reflect the ray into the sky.
     const v = z / SEA, e = 0.012, hx = (hAt(x + e, v) - hAt(x - e, v)) / (2 * e), hzz = (hAt(x, v + e) - hAt(x, v - e)) / (2 * e * SEA);
     let nx = -hx * 2.5, ny = 1, nz = -hzz * 2.5; const nn = Math.sqrt(nx * nx + ny * ny + nz * nz); nx /= nn; ny /= nn; nz /= nn;
     let rx = dxw, ry = dyc, rz = dzc; const rn = Math.sqrt(rx * rx + ry * ry + rz * rz); rx /= rn; ry /= rn; rz /= rn;
     const dd = rx * nx + ry * ny + rz * nz, ox = rx - 2 * dd * nx, oy = ry - 2 * dd * ny;
-    const refl = sky(ox * asp, Math.max(0.0, oy));
+    const rf = sky(ox * asp, Math.max(0.0, oy)), rf0 = rf[0], rf1 = rf[1], rf2 = rf[2];
     const fres = 0.35 + 0.65 * Math.pow(1 - Math.max(0, -dd), 4);
     const hgt = hAt(x, v) / 0.32, c = BAND_COL[Math.max(0, Math.min(63, Math.round(x * 63)))];
     const crest = Math.pow(Math.min(1, hgt * 1.3), 3) * 1.3; // loud crests glow in their colour
     const fog = Math.min(1, Math.max(0, (v - 0.35) / 0.65)) ** 1.5, hzc = hzCol(px);
     const tint = 0.25 + 0.75 * Math.min(1, hgt * 1.8);
     // Chrome tinted by the band's colour - deep in the troughs, bright on the crests.
-    let r = refl[0] * fres * (0.25 + 0.75 * c[0] * tint) + c[0] * crest * 0.7;
-    let g = refl[1] * fres * (0.25 + 0.75 * c[1] * tint) + c[1] * crest * 0.7;
-    let b = refl[2] * fres * (0.25 + 0.75 * c[2] * tint) + c[2] * crest * 0.7;
+    let r = rf0 * fres * (0.25 + 0.75 * c[0] * tint) + c[0] * crest * 0.7;
+    let g = rf1 * fres * (0.25 + 0.75 * c[1] * tint) + c[1] * crest * 0.7;
+    let b = rf2 * fres * (0.25 + 0.75 * c[2] * tint) + c[2] * crest * 0.7;
     // Faint neon grid lines across the sea, floating with it.
     const gl = Math.max(0, 1 - Math.abs(((v * CH_M - frac) % 4 + 4) % 4 - 2) * 2.5) * 0.12 * (1 - fog);
     r += gl * 0.4; g += gl * 0.15; b += gl * 0.6;
-    return [r + (hzc[0] - r) * fog, g + (hzc[1] - g) * fog, b + (hzc[2] - b) * fog];
+    TR[0] = r + (hzc[0] - r) * fog; TR[1] = g + (hzc[1] - g) * fog; TR[2] = b + (hzc[2] - b) * fog;
+    return TR;
   };
   // The whole picture every frame (half the rows per frame made it judder).
   // To keep it light: trace every other pixel on every other row, then fill
