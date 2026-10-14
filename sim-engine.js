@@ -27330,20 +27330,26 @@ var PiEngine = (() => {
       }
       var CH_N = 48;
       var CH_M = 40;
+      var BAND_COL = Array.from({ length: 64 }, (_, i) => hsl(bandHue(i / 63), 1, 0.5));
       function sceneChrome(core, ctx, st, W, H, t, dt) {
         const area = H - TICKER_ROWS;
         if (!st.ch) st.ch = { h: new Float32Array(CH_N * CH_M), acc: 0, bass: 0, img: null, w: 0 };
         const ch = st.ch, hist = ch.h;
+        if (!ch.live) ch.live = new Float32Array(CH_N);
+        for (let i = 0; i < CH_N; i++) {
+          const tv = ampAt(ctx.ampArr, ctx.bands, i / (CH_N - 1));
+          ch.live[i] += (tv - ch.live[i]) * Math.min(1, dt * 14);
+        }
         ch.acc += dt;
         let bass = 0;
         for (let i = 0; i < 6; i++) bass += ctx.ampArr[i] || 0;
         ch.bass += (bass / 6 - ch.bass) * Math.min(1, dt * 8);
-        while (ch.acc > 1 / 24) {
-          ch.acc -= 1 / 24;
+        while (ch.acc > 1 / 30) {
+          ch.acc -= 1 / 30;
           hist.copyWithin(CH_N, 0, CH_N * (CH_M - 1));
-          for (let i = 0; i < CH_N; i++) hist[i] = ampAt(ctx.ampArr, ctx.bands, i / (CH_N - 1));
         }
-        const frac = ch.acc * 24;
+        hist.set(ch.live);
+        const frac = ch.acc * 30;
         const asp = W / area;
         const hAt = (u, v) => {
           const x = Math.max(0, Math.min(CH_N - 1.001, u * (CH_N - 1))), zz = Math.max(0, Math.min(CH_M - 1.001, v * (CH_M - 1) + frac));
@@ -27391,12 +27397,25 @@ var PiEngine = (() => {
           ch.w = W * area;
         }
         const img = ch.img;
+        if (!ch.hz || ch.hz.length !== W * 3) ch.hz = new Float32Array(W * 3);
+        for (let px = 0; px < W; px++) {
+          const c = sky((px + 0.5 - W / 2) / area * fov, 0.01);
+          ch.hz[px * 3] = c[0];
+          ch.hz[px * 3 + 1] = c[1];
+          ch.hz[px * 3 + 2] = c[2];
+        }
+        const HZ = [0, 0, 0], hzCol = (px) => {
+          HZ[0] = ch.hz[px * 3];
+          HZ[1] = ch.hz[px * 3 + 1];
+          HZ[2] = ch.hz[px * 3 + 2];
+          return HZ;
+        };
         const trace = (px, py) => {
           const sx = (px + 0.5 - W / 2) / area * fov, sy = (area / 2 - py - 0.5) / area * fov;
           const dyc = sy * cp + sp, dzc = cp - sy * sp;
           const dxw = sx / asp;
           let tt = 0.02, hit = false, x = 0, y = 0, z = 0;
-          for (let i = 0; i < 38; i++) {
+          for (let i = 0; i < 32; i++) {
             x = 0.5 + dxw * tt;
             y = camY + dyc * tt;
             z = camZ + dzc * tt;
@@ -27416,7 +27435,7 @@ var PiEngine = (() => {
               hit = true;
               break;
             }
-            tt += 0.012 + tt * 0.045;
+            tt += 0.014 + tt * 0.055;
           }
           if (!hit) return sky(sx, dyc);
           const v = z / SEA, e = 0.012, hx = (hAt(x + e, v) - hAt(x - e, v)) / (2 * e), hzz = (hAt(x, v + e) - hAt(x, v - e)) / (2 * e * SEA);
@@ -27433,9 +27452,9 @@ var PiEngine = (() => {
           const dd = rx * nx + ry * ny + rz * nz, ox = rx - 2 * dd * nx, oy = ry - 2 * dd * ny;
           const refl = sky(ox * asp, Math.max(0, oy));
           const fres = 0.35 + 0.65 * Math.pow(1 - Math.max(0, -dd), 4);
-          const hgt = hAt(x, v) / 0.32, c = hsl(bandHue(Math.max(0, Math.min(1, x))), 1, 0.5);
+          const hgt = hAt(x, v) / 0.32, c = BAND_COL[Math.max(0, Math.min(63, Math.round(x * 63)))];
           const crest = Math.pow(Math.min(1, hgt * 1.3), 3) * 1.3;
-          const fog = Math.min(1, Math.max(0, (v - 0.35) / 0.65)) ** 1.5, hzc = sky(sx, 0.01);
+          const fog = Math.min(1, Math.max(0, (v - 0.35) / 0.65)) ** 1.5, hzc = hzCol(px);
           const tint = 0.25 + 0.75 * Math.min(1, hgt * 1.8);
           let r = refl[0] * fres * (0.25 + 0.75 * c[0] * tint) + c[0] * crest * 0.7;
           let g = refl[1] * fres * (0.25 + 0.75 * c[1] * tint) + c[1] * crest * 0.7;
@@ -27446,27 +27465,33 @@ var PiEngine = (() => {
           b += gl * 0.6;
           return [r + (hzc[0] - r) * fog, g + (hzc[1] - g) * fog, b + (hzc[2] - b) * fog];
         };
-        ch.odd = !ch.odd;
-        for (let py = ch.odd ? 1 : 0; py < area; py += 2) {
+        const put3 = (o, c) => {
+          img[o] = c[0];
+          img[o + 1] = c[1];
+          img[o + 2] = c[2];
+        };
+        const near = (a2, b2) => Math.abs(img[a2] - img[b2]) + Math.abs(img[a2 + 1] - img[b2 + 1]) + Math.abs(img[a2 + 2] - img[b2 + 2]) < 0.2;
+        for (let py = 0; py < area; py += 2) {
           const row = py * W;
-          for (let px = 0; px < W; px += 2) {
-            const c = trace(px, py), o = (row + px) * 3;
-            img[o] = c[0];
-            img[o + 1] = c[1];
-            img[o + 2] = c[2];
-          }
+          for (let px = 0; px < W; px += 2) put3((row + px) * 3, trace(px, py));
           for (let px = 1; px < W; px += 2) {
             const o = (row + px) * 3, l = o - 3, r2 = px + 1 < W ? o + 3 : o - 3;
-            if (Math.abs(img[l] - img[r2]) + Math.abs(img[l + 1] - img[r2 + 1]) + Math.abs(img[l + 2] - img[r2 + 2]) < 0.15) {
+            if (near(l, r2)) {
               img[o] = (img[l] + img[r2]) / 2;
               img[o + 1] = (img[l + 1] + img[r2 + 1]) / 2;
               img[o + 2] = (img[l + 2] + img[r2 + 2]) / 2;
-            } else {
-              const c = trace(px, py);
-              img[o] = c[0];
-              img[o + 1] = c[1];
-              img[o + 2] = c[2];
-            }
+            } else put3(o, trace(px, py));
+          }
+        }
+        for (let py = 1; py < area; py += 2) {
+          const row = py * W, up = (py - 1) * W, dn = (py + 1 < area ? py + 1 : py - 1) * W;
+          for (let px = 0; px < W; px++) {
+            const o = (row + px) * 3, a2 = (up + px) * 3, b2 = (dn + px) * 3;
+            if (near(a2, b2)) {
+              img[o] = (img[a2] + img[b2]) / 2;
+              img[o + 1] = (img[a2 + 1] + img[b2 + 1]) / 2;
+              img[o + 2] = (img[a2 + 2] + img[b2 + 2]) / 2;
+            } else put3(o, trace(px, py));
           }
         }
         for (let py = 0; py < area; py++) for (let px = 0; px < W; px++) {
