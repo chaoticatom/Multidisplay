@@ -27340,10 +27340,15 @@ var PiEngine = (() => {
         if (!ch.live) ch.live = new Float32Array(CH_N);
         if (!ch.tgt) ch.tgt = new Float32Array(CH_N);
         for (let i = 0; i < CH_N; i++) ch.tgt[i] = ampAt(ctx.ampArr, ctx.bands, i / (CH_N - 1));
-        const ease = Math.min(1, dt * 7);
+        const up = Math.min(1, dt * 30), down = Math.min(1, dt * 5);
+        let lowNow = 0;
+        for (let i = 0; i < 6; i++) lowNow += ch.tgt[i];
+        lowNow /= 6;
+        ch.lowAvg = (ch.lowAvg || lowNow) + (lowNow - (ch.lowAvg || lowNow)) * Math.min(1, dt * 2);
+        const kick = Math.max(0, lowNow - ch.lowAvg * 1.15) * 1.6;
         for (let i = 0; i < CH_N; i++) {
-          const tv = (ch.tgt[Math.max(0, i - 1)] + 2 * ch.tgt[i] + ch.tgt[Math.min(CH_N - 1, i + 1)]) / 4;
-          ch.live[i] += (tv - ch.live[i]) * ease;
+          const raw = ch.tgt[i], tv = Math.min(1.2, Math.pow(raw, 1.35) * 1.25 + kick * (1 - i / CH_N * 0.5));
+          ch.live[i] += (tv - ch.live[i]) * (tv > ch.live[i] ? up : down);
         }
         ch.acc += dt;
         let bass = 0;
@@ -27360,7 +27365,7 @@ var PiEngine = (() => {
           const x = Math.max(0, Math.min(CH_N - 1.001, u * (CH_N - 1))), zz = Math.max(0, Math.min(CH_M - 1.001, v * (CH_M - 1) + frac));
           const xi = x | 0, zi = zz | 0, fx = x - xi, fz = zz - zi, o = zi * CH_N + xi;
           const a = hist[o] + (hist[o + 1] - hist[o]) * fx, b = hist[o + CH_N] + (hist[o + CH_N + 1] - hist[o + CH_N]) * fx;
-          return (a + (b - a) * fz) * 0.32 * (1 - 0.35 * v);
+          return (a + (b - a) * fz) * 0.36 * (1 - 0.3 * v);
         };
         const SEA = 3;
         const camY = 0.42, camZ = -0.2, pitch = -0.24, fov = 1.15, cp = Math.cos(pitch), sp = Math.sin(pitch);
@@ -27466,7 +27471,7 @@ var PiEngine = (() => {
           const dd = rx * nx + ry * ny + rz * nz, ox = rx - 2 * dd * nx, oy = ry - 2 * dd * ny;
           const rf = sky(ox * asp, Math.max(0, oy)), rf0 = rf[0], rf1 = rf[1], rf2 = rf[2];
           const fres = 0.35 + 0.65 * Math.pow(1 - Math.max(0, -dd), 4);
-          const hgt = hAt(x, v) / 0.32, c = BAND_COL[Math.max(0, Math.min(63, Math.round(x * 63)))];
+          const hgt = hAt(x, v) / 0.36, c = BAND_COL[Math.max(0, Math.min(63, Math.round(x * 63)))];
           const crest = Math.pow(Math.min(1, hgt * 1.3), 3) * 1.3;
           const fog = Math.min(1, Math.max(0, (v - 0.35) / 0.65)) ** 1.5, hzc = hzCol(px);
           const tint = 0.25 + 0.75 * Math.min(1, hgt * 1.8);
@@ -27501,9 +27506,9 @@ var PiEngine = (() => {
           }
         }
         for (let py = 1; py < area; py += 2) {
-          const row = py * W, up = (py - 1) * W, dn = (py + 1 < area ? py + 1 : py - 1) * W;
+          const row = py * W, up2 = (py - 1) * W, dn = (py + 1 < area ? py + 1 : py - 1) * W;
           for (let px = 0; px < W; px++) {
-            const o = (row + px) * 3, a2 = (up + px) * 3, b2 = (dn + px) * 3;
+            const o = (row + px) * 3, a2 = (up2 + px) * 3, b2 = (dn + px) * 3;
             if (near(a2, b2)) {
               img[o] = (img[a2] + img[b2]) / 2;
               img[o + 1] = (img[a2 + 1] + img[b2 + 1]) / 2;
