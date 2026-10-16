@@ -599,6 +599,7 @@ input[type=range]:focus-visible { outline: 2px solid #7aadff; outline-offset: 3p
 .now-options .effect-panel { display: block !important; margin: 0; border: 1px solid rgba(80,120,255,0.18); border-radius: 8px; }
 .scene-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 /* Auto-DJ track list: tap a track to play it next. */
+.dj-add{display:inline-flex;align-items:center;width:auto;margin:8px 8px 8px 0;padding:6px 12px;cursor:pointer;font-size:13px}.dj-upload-status{font-size:12px;opacity:.75}.dj-music-list{max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}.dj-file{display:flex;align-items:center;gap:8px;padding:6px 6px 6px 10px;background:rgba(255,255,255,.04);border-radius:8px;min-width:0}.dj-file-ic{opacity:.6;flex:0 0 auto}.dj-file-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.dj-del{flex:0 0 32px;width:32px;height:32px;padding:0;margin:0;border:0;border-radius:50%;background:rgba(255,255,255,.08);color:inherit;font-size:14px;cursor:pointer}.dj-del:active{background:rgba(255,80,80,.35)}
 .dj-now{background:rgba(255,255,255,.05);border-radius:10px;padding:10px;margin:6px 0}.dj-now-title{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dj-now-meta{opacity:.7;font-size:12px;margin:2px 0 6px}#dj-seek{width:100%}.dj-now-times{display:flex;justify-content:space-between;font-size:11px;opacity:.7}
 .dj-queue { max-height: 240px; overflow-y: auto; margin: 6px 0 10px; border: 1px solid rgba(80,120,255,0.25); border-radius: 10px; }
 .dj-queue button { display: flex; width: 100%; gap: 8px; align-items: center; text-align: left; background: none; border: none; border-bottom: 1px solid rgba(255,255,255,0.06); color: #dfe7ff; padding: 7px 10px; font-size: 13px; cursor: pointer; }
@@ -2075,9 +2076,9 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="ui-note" id="dj-status"></div>
       <div id="dj-queue" class="dj-queue" hidden></div>
       <details class="ui-note" style="margin:6px 0 12px;"><summary id="dj-music-sum">My music</summary>
-        <label class="ui-btn-small" style="display:inline-block;margin:6px 0;cursor:pointer;">＋ Add MP3s<input type="file" id="dj-upload" accept="audio/*,.mp3,.m4a,.flac,.ogg,.wav" multiple hidden></label>
-        <span id="dj-upload-status"></span>
-        <div id="dj-music-list" style="max-height:180px;overflow-y:auto;"></div>
+        <label class="ui-btn-small dj-add">＋ Add MP3s<input type="file" id="dj-upload" accept="audio/*,.mp3,.m4a,.flac,.ogg,.wav" multiple hidden></label>
+        <span id="dj-upload-status" class="dj-upload-status"></span>
+        <div id="dj-music-list" class="dj-music-list"></div>
       </details>
 
       <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Find a station</div>
@@ -2737,6 +2738,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.334"></script>
+<script src="app.js?v=0.6.335"></script>
 </body>
 </html>

@@ -1159,7 +1159,7 @@ function cxSyncDj() {
   const key = d.music.join('|'), list = document.getElementById('dj-music-list');
   if (list.dataset.key !== key) {
     list.dataset.key = key;
-    list.replaceChildren(...d.music.map((n) => { const r = document.createElement('div'); r.style.cssText = 'display:flex;gap:6px;align-items:center;padding:2px 0;'; const t = document.createElement('span'); t.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'; t.textContent = n; const x = document.createElement('button'); x.type = 'button'; x.className = 'ui-btn-small'; x.dataset.djdel = n; x.textContent = '✕'; r.append(t, x); return r; }));
+    list.replaceChildren(...d.music.map((n) => { const r = document.createElement('div'); r.className = 'dj-file'; const ic = document.createElement('span'); ic.textContent = '♪'; ic.className = 'dj-file-ic'; const t = document.createElement('span'); t.className = 'dj-file-name'; t.textContent = n.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' '); t.title = n; const x = document.createElement('button'); x.type = 'button'; x.className = 'dj-del'; x.setAttribute('aria-label', 'Remove ' + n); x.dataset.djdel = n; x.textContent = '✕'; r.append(ic, t, x); return r; }));
     document.getElementById('dj-music-sum').textContent = `My music (${d.music.length})`;
   }
 }
