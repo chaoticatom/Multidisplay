@@ -2048,6 +2048,20 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       </div>
       <div class="radio-status-el" style="font-size:11px;color:#9aa3b8;text-align:center;margin-bottom:10px;">Pick a station</div>
 
+      <!-- Auto-DJ (src/dj): mixes your MP3s and/or YouTube like a DJ. -->
+      <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">🎧 Auto-DJ</div>
+      <div class="ui-note">Mixes song into song like a DJ: matches the tempo, lines up the beats and swaps the bass over a phrase. Songs without a clear beat get a smooth crossfade.</div>
+      <div class="tm-chips" id="dj-source" style="margin:6px 0;"><button type="button" data-djsrc="mp3">My music</button><button type="button" data-djsrc="youtube">YouTube</button><button type="button" data-djsrc="both" class="on">Both</button></div>
+      <input id="dj-youtube" class="ui-input" type="text" maxlength="300" placeholder="YouTube playlist link, or a search like “90s house”" aria-label="YouTube playlist or search" style="width:100%;margin-bottom:6px;">
+      <div class="slider-row"><span class="slider-label">Mix over</span><select id="dj-beats" class="ui-input" aria-label="Mix length" style="flex:1;"><option value="16">16 beats (quick)</option><option value="32" selected>32 beats</option><option value="64">64 beats (long)</option></select></div>
+      <div style="display:flex;gap:6px;margin:6px 0;"><button type="button" id="dj-start" class="ui-btn-primary" style="flex:1;margin:0;">▶ Start Auto-DJ</button><button type="button" id="dj-skip" class="ui-btn-small" style="flex:0 0 auto;">⏭ Mix next now</button></div>
+      <div class="ui-note" id="dj-status"></div>
+      <details class="ui-note" style="margin:6px 0 12px;"><summary id="dj-music-sum">My music</summary>
+        <label class="ui-btn-small" style="display:inline-block;margin:6px 0;cursor:pointer;">＋ Add MP3s<input type="file" id="dj-upload" accept="audio/*,.mp3,.m4a,.flac,.ogg,.wav" multiple hidden></label>
+        <span id="dj-upload-status"></span>
+        <div id="dj-music-list" style="max-height:180px;overflow-y:auto;"></div>
+      </details>
+
       <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Find a station</div>
       <div style="display:flex;gap:6px;margin-bottom:6px;">
         <input class="radio-search-input-el" type="text" placeholder="Name, genre or city…" style="flex:1;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:6px 8px;font-size:11px;box-sizing:border-box;">

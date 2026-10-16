@@ -2462,6 +2462,899 @@ var PiEngine = (() => {
     }
   });
 
+  // src/dj/sources.js
+  var require_sources = __commonJS({
+    "src/dj/sources.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var fs = require_fs();
+      var path = require_path();
+      var { spawn: realSpawn } = require_child_process();
+      var MUSIC_DIR = path.join(".", "..", "..", "music");
+      var AUDIO_RE = /\.(mp3|m4a|aac|ogg|opus|flac|wav)$/i;
+      function listMusic() {
+        try {
+          return fs.readdirSync(MUSIC_DIR).filter((f) => AUDIO_RE.test(f)).sort();
+        } catch (e) {
+          return [];
+        }
+      }
+      var titleOf = (file) => file.replace(AUDIO_RE, "").replace(/^\d{10,}-/, "").replace(/[_]+/g, " ").slice(0, 100);
+      function deleteMusic(name) {
+        if (!listMusic().includes(name)) return false;
+        fs.unlinkSync(path.join(MUSIC_DIR, name));
+        return true;
+      }
+      function ytRun(args, spawn, timeoutMs) {
+        const yt = require_youtube();
+        const cookies = yt.signedIn() ? ["--cookies", yt.COOKIE_FILE] : [];
+        return new Promise((resolve, reject) => {
+          let out = "", err = "", done = false, p;
+          try {
+            p = spawn("yt-dlp", [...cookies, ...args], { stdio: ["ignore", "pipe", "pipe"] });
+          } catch (e) {
+            reject(e);
+            return;
+          }
+          const timer = setTimeout(() => {
+            if (!done) {
+              done = true;
+              try {
+                p.kill();
+              } catch (e) {
+              }
+              reject(new Error("YouTube took too long to answer"));
+            }
+          }, timeoutMs);
+          p.stdout.on("data", (d) => {
+            out += d;
+          });
+          p.stderr.on("data", (d) => {
+            err += d;
+          });
+          p.on("error", (e) => {
+            if (!done) {
+              done = true;
+              clearTimeout(timer);
+              reject(e.code === "ENOENT" ? new Error("yt-dlp is not installed on the Pi") : e);
+            }
+          });
+          p.on("close", (code) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            if (code === 0) resolve(out);
+            else reject(new Error((err.trim().split("\n").pop() || "yt-dlp failed").replace(/^ERROR:\s*/, "").slice(0, 160)));
+          });
+        });
+      }
+      async function youtubeTracks(query, spawn = realSpawn) {
+        const q = String(query || "").trim().slice(0, 300);
+        if (!q) return [];
+        const target = /^https?:\/\//.test(q) ? q : `ytsearch25:${q}`;
+        const out = await ytRun(["--flat-playlist", "-J", "--no-warnings", "--playlist-end", "40", target], spawn, 45e3);
+        const data = JSON.parse(out), entries = data.entries || [data];
+        return entries.filter((e) => e && /^[\w-]{6,20}$/.test(e.id || "") && !(e.duration && e.duration > 10 * 60)).map((e) => ({ kind: "yt", id: e.id, title: String(e.title || "YouTube").slice(0, 100) }));
+      }
+      async function youtubeAudio(id, spawn = realSpawn) {
+        const attempts = [[], ["--extractor-args", "youtube:player_client=tv,ios"], ["--extractor-args", "youtube:player_client=android,web_safari"]];
+        let last = null;
+        for (const extra of attempts) {
+          try {
+            const out = await ytRun(["-f", "bestaudio/best", "-g", "--no-warnings", ...extra, `https://www.youtube.com/watch?v=${id}`], spawn, 4e4);
+            const url = out.trim().split("\n").find((l) => /^https?:\/\//.test(l));
+            if (url) return url;
+          } catch (e) {
+            last = e;
+            if (/not installed/.test(e.message)) throw e;
+          }
+        }
+        throw last || new Error("no audio stream");
+      }
+      async function inputFor(track, spawn = realSpawn) {
+        if (track.kind === "mp3") return { url: path.join(MUSIC_DIR, track.id), opts: [] };
+        return { url: await youtubeAudio(track.id, spawn), opts: ["-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"] };
+      }
+      async function allTracks(cfg, spawn = realSpawn) {
+        const out = [];
+        if (cfg.source !== "youtube") for (const f of listMusic()) out.push({ kind: "mp3", id: f, title: titleOf(f) });
+        if (cfg.source !== "mp3" && cfg.youtube) {
+          try {
+            out.push(...await youtubeTracks(cfg.youtube, spawn));
+          } catch (e) {
+            if (!out.length) throw e;
+          }
+        }
+        for (let i = out.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [out[i], out[j]] = [out[j], out[i]];
+        }
+        return out;
+      }
+      module.exports = { MUSIC_DIR, AUDIO_RE, listMusic, deleteMusic, titleOf, youtubeTracks, youtubeAudio, inputFor, allTracks };
+    }
+  });
+
+  // src/dj/decode.js
+  var require_decode = __commonJS({
+    "src/dj/decode.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { spawn: realSpawn } = require_child_process();
+      var MAX_SECS = 10 * 60;
+      function run(input, outArgs, spawn, maxBytes) {
+        return new Promise((resolve, reject) => {
+          const args = ["-hide_banner", "-loglevel", "error", ...input.opts || [], "-i", input.url, "-t", String(MAX_SECS), ...outArgs, "pipe:1"];
+          let p;
+          try {
+            p = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+          } catch (e) {
+            reject(e);
+            return;
+          }
+          const chunks = [];
+          let size = 0, err = "";
+          p.stdout.on("data", (d) => {
+            size += d.length;
+            if (size <= maxBytes) chunks.push(d);
+          });
+          p.stderr.on("data", (d) => {
+            err = (err + d).slice(-1e3);
+          });
+          p.on("error", (e) => reject(e.code === "ENOENT" ? new Error("ffmpeg is not installed - sudo apt install ffmpeg") : e));
+          p.on("close", (code) => {
+            const buf = Buffer2.concat(chunks);
+            if (code !== 0 && buf.length < 44100) reject(new Error((err.trim().split("\n").pop() || `ffmpeg exited (${code})`).slice(0, 160)));
+            else resolve(buf);
+          });
+        });
+      }
+      async function decodeAnalysis(input, spawn = realSpawn) {
+        const buf = await run(input, ["-vn", "-ac", "1", "-ar", "11025", "-f", "f32le"], spawn, MAX_SECS * 11025 * 4);
+        return new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.length / 4)).slice();
+      }
+      async function decodePlay(input, tempo = 1, spawn = realSpawn) {
+        const t = Math.max(0.5, Math.min(2, tempo || 1));
+        const filt = Math.abs(t - 1) > 5e-4 ? ["-af", `atempo=${t.toFixed(5)}`] : [];
+        const buf = await run(input, ["-vn", ...filt, "-ac", "2", "-ar", "44100", "-f", "s16le"], spawn, MAX_SECS * 44100 * 4 * 1.1);
+        return new Int16Array(buf.buffer, buf.byteOffset, Math.floor(buf.length / 2)).slice();
+      }
+      module.exports = { decodeAnalysis, decodePlay, MAX_SECS };
+    }
+  });
+
+  // src/dj/analyse.js
+  var require_analyse = __commonJS({
+    "src/dj/analyse.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var RATE = 11025;
+      var HOP = 256;
+      var FPS = RATE / HOP;
+      function onsetCurve(x) {
+        const n = Math.floor(x.length / HOP), on = new Float32Array(n), lvl = new Float32Array(n);
+        let lp = 0, prev = 0;
+        for (let f = 0; f < n; f++) {
+          let e = 0, a = 0;
+          for (let i = f * HOP, end = i + HOP; i < end; i++) {
+            lp += (x[i] - lp) * 0.12;
+            e += lp * lp;
+            a += x[i] * x[i];
+          }
+          const le = Math.log(1e-6 + e);
+          on[f] = Math.max(0, le - prev);
+          prev = le;
+          lvl[f] = Math.sqrt(a / HOP);
+        }
+        const out = new Float32Array(n), W = 8;
+        let s = 0;
+        for (let f = 0; f < n; f++) {
+          s += on[f];
+          if (f >= W) s -= on[f - W];
+          out[f] = Math.max(0, on[f] - s / Math.min(W, f + 1));
+        }
+        return { on: out, lvl };
+      }
+      function analyse(x) {
+        const duration = x.length / RATE;
+        const { on, lvl } = onsetCurve(x), n = on.length;
+        const sorted = Float32Array.from(lvl).sort(), ref = sorted[Math.floor(sorted.length * 0.6)] || 0;
+        let s0 = 0, s1 = n - 1;
+        while (s0 < n - 1 && lvl[s0] < ref * 0.25) s0++;
+        while (s1 > s0 && lvl[s1] < ref * 0.25) s1--;
+        const musicStart = s0 / FPS, musicEnd = (s1 + 1) / FPS;
+        const a = s0, b = Math.min(n, Math.max(s0 + 1, s1));
+        let best = 0, bestLag = 0, mean = 0;
+        for (let f = a; f < b; f++) mean += on[f];
+        mean /= Math.max(1, b - a);
+        const minLag = Math.floor(FPS * 60 / 180), maxLag = Math.ceil(FPS * 60 / 80), score = new Float32Array(maxLag + 2);
+        for (let lag2 = minLag; lag2 <= maxLag; lag2++) {
+          let sum = 0;
+          for (let f = a + lag2; f < b; f++) sum += (on[f] - mean) * (on[f - lag2] - mean);
+          score[lag2] = sum / Math.max(1, b - a - lag2);
+        }
+        for (let lag2 = minLag; lag2 <= maxLag; lag2++) {
+          const bpm3 = 60 * FPS / lag2, pref = Math.exp(-(((bpm3 - 124) / 40) ** 2)) * 0.35 + 0.65;
+          const v = score[lag2] * pref;
+          if (v > best) {
+            best = v;
+            bestLag = lag2;
+          }
+        }
+        if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration };
+        const y0 = score[bestLag - 1] || 0, y1 = score[bestLag], y2 = score[bestLag + 1] || 0, den = y0 - 2 * y1 + y2;
+        const lag = bestLag + (den !== 0 ? Math.max(-0.5, Math.min(0.5, 0.5 * (y0 - y2) / den)) : 0);
+        const period = lag / FPS, bpm = 60 / period;
+        let avg = 0, cnt = 0;
+        for (let l = minLag; l <= maxLag; l++) {
+          avg += Math.abs(score[l]);
+          cnt++;
+        }
+        avg /= cnt;
+        const confidence = Math.max(0, Math.min(1, (best / Math.max(1e-9, avg) - 1.2) / 2.5));
+        const at = (f) => {
+          const i = Math.floor(f), u = f - i;
+          return i < a || i + 1 >= b ? 0 : on[i] * (1 - u) + on[i + 1] * u;
+        };
+        let bestLagF = lag, bestPh = 0, bestS = -1;
+        const fit = (lagF, ph) => {
+          let sm = 0;
+          for (let f = a + ph; f < b; f += lagF) sm += at(f) + 0.6 * (at(f - 1) + at(f + 1));
+          return sm;
+        };
+        for (let l = lag - 0.8; l <= lag + 0.8; l += 0.05) for (let ph = 0; ph < l; ph += 0.5) {
+          const v = fit(l, ph);
+          if (v > bestS) {
+            bestS = v;
+            bestLagF = l;
+            bestPh = ph;
+          }
+        }
+        for (let l = bestLagF - 0.05; l <= bestLagF + 0.05; l += 5e-3) for (let ph = bestPh - 0.5; ph <= bestPh + 0.5; ph += 0.1) {
+          if (ph < 0) continue;
+          const v = fit(l, ph);
+          if (v > bestS) {
+            bestS = v;
+            bestLagF = l;
+            bestPh = ph;
+          }
+        }
+        const period2 = bestLagF / FPS, bpm2 = 60 / period2;
+        const firstBeat = Math.max(0, (a + bestPh - 0.5) / FPS);
+        return { bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration };
+      }
+      module.exports = { analyse, RATE };
+    }
+  });
+
+  // src/dj/engine.js
+  var require_engine = __commonJS({
+    "src/dj/engine.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var RATE = 44100;
+      var MAX_STRETCH = 0.08;
+      var smooth = (x) => {
+        x = x < 0 ? 0 : x > 1 ? 1 : x;
+        return x * x * (3 - 2 * x);
+      };
+      function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require_sources(), decode = require_decode(), analyse = require_analyse().analyse, log = console.log, setTimer = setInterval, clearTimer = clearInterval }) {
+        const st = { state: "stopped", error: "", now: null, next: null, mixing: false, played: 0 };
+        let cfg = { source: "both", youtube: "", mixBeats: 32 };
+        let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
+        function deckFrom(track, info, pcm, tempo, matched) {
+          const k = RATE / tempo;
+          const d = { track, info, pcm, frames: pcm.length / 2, tempo, matched, pos: 0, lp: new Float32Array(4) };
+          d.period = info.period * k;
+          d.firstBeat = info.firstBeat * k;
+          d.start = info.musicStart * k;
+          d.end = Math.min(d.frames, info.musicEnd * k);
+          d.bpm = info.bpm * tempo;
+          d.inFrame = matched ? d.firstBeat + Math.max(0, Math.ceil((d.start - d.firstBeat) / d.period)) * d.period : d.start;
+          return d;
+        }
+        function outStart(d, beats) {
+          if (d.matched && d.period > 0) {
+            let k = Math.floor((d.end - d.inFrame) / d.period) - beats;
+            k = Math.max(16, Math.floor(k / 16) * 16);
+            return Math.min(d.end - beats * d.period, d.inFrame + k * d.period);
+          }
+          return d.end - 12 * RATE;
+        }
+        async function prepare(track, targetBpm) {
+          const input = await sources.inputFor(track);
+          const info = analyse(await decode.decodeAnalysis(input));
+          let tempo = 1, matched = false;
+          if (info.bpm > 0 && info.confidence > 0.25 && targetBpm > 0) {
+            const opts = [targetBpm / info.bpm, targetBpm / (info.bpm * 2), targetBpm / (info.bpm / 2)];
+            const r = opts.reduce((a, b) => Math.abs(b - 1) < Math.abs(a - 1) ? b : a);
+            if (Math.abs(r - 1) <= MAX_STRETCH) {
+              tempo = r;
+              matched = true;
+            }
+          } else if (info.bpm > 0 && info.confidence > 0.25 && !targetBpm) matched = true;
+          if (matched && Math.abs(info.bpm * tempo - targetBpm) > 1 && targetBpm) {
+            const ratio = info.bpm * tempo / targetBpm;
+            info.period *= ratio > 1.5 ? 2 : ratio < 0.67 ? 0.5 : 1;
+          }
+          const pcm = await decode.decodePlay(input, tempo);
+          return deckFrom(track, info, pcm, tempo, matched);
+        }
+        async function prepareNext() {
+          if (preparing || B) return;
+          const g = gen;
+          preparing = (async () => {
+            for (let tries = 0; tries < Math.min(5, list.length); tries++) {
+              const track = list[idx % list.length];
+              idx++;
+              if (A && list.length > 1 && track.id === A.track.id) continue;
+              try {
+                st.next = { title: track.title, status: "loading" };
+                const d = await prepare(track, A && A.matched ? A.bpm : 0);
+                if (g !== gen) return;
+                if (A && !A.matched) d.matched = false;
+                B = d;
+                st.next = { title: track.title, bpm: Math.round(d.bpm), mode: d.matched && A && A.matched ? "beat-matched" : "crossfade" };
+                log(`[dj] next: ${track.title} (${Math.round(d.info.bpm)} BPM${d.tempo !== 1 ? ` -> ${Math.round(d.bpm)}` : ""}, ${st.next.mode})`);
+                return;
+              } catch (e) {
+                log("[dj] skipped " + track.title + ": " + e.message);
+                st.error = e.message;
+              }
+            }
+            st.next = null;
+          })().finally(() => {
+            preparing = null;
+          });
+        }
+        function startMix(beats) {
+          const both = A.matched && B.matched;
+          mix = { from: A.pos, len: both ? beats * A.period : 12 * RATE, beat: both };
+          B.pos = Math.round(B.inFrame);
+          st.mixing = true;
+          log(`[dj] mixing into ${B.track.title} over ${both ? beats + " beats" : "12 s"}`);
+        }
+        function promote() {
+          A = B;
+          B = null;
+          mix = null;
+          st.mixing = false;
+          if (A.pos === 0) A.pos = Math.round(A.inFrame);
+          A.out = Math.round(outStart(A, cfg.mixBeats));
+          A.mixBeats = cfg.mixBeats;
+          st.now = { title: A.track.title, bpm: Math.round(A.bpm) };
+          st.state = "playing";
+          prepareNext();
+        }
+        const nextBeat = (d, f) => d.matched && d.period > 0 ? Math.round(d.firstBeat + Math.ceil((f - d.firstBeat) / d.period) * d.period) : f;
+        const LPA = 1 - Math.exp(-2 * Math.PI * 170 / RATE);
+        function sampleDeck(d, gain, lowGain, out) {
+          const f = d.pos;
+          let l = 0, r = 0;
+          if (f >= 0 && f < d.frames) {
+            l = d.pcm[f * 2] / 32768;
+            r = d.pcm[f * 2 + 1] / 32768;
+          }
+          const s = d.lp;
+          s[0] += (l - s[0]) * LPA;
+          s[1] += (s[0] - s[1]) * LPA;
+          s[2] += (r - s[2]) * LPA;
+          s[3] += (s[2] - s[3]) * LPA;
+          out[0] += (l - s[1] + s[1] * lowGain) * gain;
+          out[1] += (r - s[3] + s[3] * lowGain) * gain;
+        }
+        const OUT = [0, 0];
+        function render(frames) {
+          const buf = Buffer2.alloc(frames * 4);
+          for (let i = 0; i < frames; i++) {
+            OUT[0] = 0;
+            OUT[1] = 0;
+            if (!A && B) promote();
+            if (A) {
+              if (B && !mix && (A.pos >= A.out || A.pos >= A.frames)) startMix(A.pos >= A.frames ? 4 : A.mixBeats);
+              if (mix) {
+                const u = (A.pos - mix.from) / mix.len;
+                let ag, al, bg, bl;
+                if (mix.beat) {
+                  bg = smooth(u / 0.5);
+                  bl = smooth((u - 0.5) / 0.08);
+                  al = 1 - bl;
+                  ag = 1 - smooth((u - 0.5) / 0.5);
+                } else {
+                  const c = Math.max(0, Math.min(1, u));
+                  ag = Math.cos(c * Math.PI / 2);
+                  bg = Math.sin(c * Math.PI / 2);
+                  al = bl = 1;
+                }
+                sampleDeck(A, ag, al, OUT);
+                sampleDeck(B, bg, bl, OUT);
+                A.pos++;
+                B.pos++;
+                if (u >= 1) {
+                  st.played++;
+                  promote();
+                }
+              } else {
+                sampleDeck(A, 1, 1, OUT);
+                A.pos++;
+              }
+            }
+            for (let c = 0; c < 2; c++) {
+              let v = OUT[c];
+              if (v > 0.9 || v < -0.9) v = Math.tanh(v);
+              buf.writeInt16LE(Math.max(-32767, Math.min(32767, Math.round(v * 32767))), i * 4 + c * 2);
+            }
+          }
+          if (A && !mix && !B && A.pos >= A.frames) st.state = preparing ? "loading" : list.length ? "loading" : "empty";
+          return buf;
+        }
+        function pump() {
+          if (st.state === "stopped") return;
+          let n = 0;
+          while (getQueueMs() < 1500 && n++ < 20) {
+            if (!A && !B) break;
+            onPcm(render(4410));
+          }
+          if (!A && !B && !preparing && st.state === "playing") prepareNext();
+        }
+        async function start(newCfg) {
+          stop();
+          cfg = { ...cfg, ...newCfg || {} };
+          cfg.mixBeats = [16, 32, 64].includes(Number(cfg.mixBeats)) ? Number(cfg.mixBeats) : 32;
+          const g = ++gen;
+          st.state = "loading";
+          st.error = "";
+          st.now = null;
+          st.next = null;
+          st.played = 0;
+          try {
+            list = await sources.allTracks(cfg);
+          } catch (e) {
+            if (g === gen) {
+              st.state = "error";
+              st.error = e.message;
+            }
+            return;
+          }
+          if (g !== gen) return;
+          if (!list.length) {
+            st.state = "empty";
+            st.error = cfg.source === "youtube" ? "No YouTube tracks found" : "No music yet - add MP3s, or a YouTube playlist or search";
+            return;
+          }
+          idx = 0;
+          timer = setTimer(pump, 50);
+          prepareNext();
+        }
+        function stop() {
+          gen++;
+          if (timer) clearTimer(timer);
+          timer = null;
+          A = B = null;
+          mix = null;
+          st.state = "stopped";
+          st.mixing = false;
+          st.now = st.next = null;
+        }
+        function skip() {
+          if (A && !mix) {
+            A.out = nextBeat(A, A.pos + 1);
+            A.mixBeats = 8;
+            if (!B) prepareNext();
+          }
+        }
+        return { start, stop, skip, render, status: st, _test: { deckFrom, outStart, get A() {
+          return A;
+        }, get B() {
+          return B;
+        } } };
+      }
+      module.exports = { createDjEngine, RATE };
+    }
+  });
+
+  // src/atomicWrite.js
+  var require_atomicWrite = __commonJS({
+    "src/atomicWrite.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var fs = require_fs();
+      var path = require_path();
+      function atomicWriteJson(filePath, value) {
+        const tmp = path.join(path.dirname(filePath), "." + path.basename(filePath) + ".tmp");
+        const text = JSON.stringify(value, null, 2);
+        const fd = fs.openSync(tmp, "w");
+        try {
+          fs.writeSync(fd, text);
+          fs.fsyncSync(fd);
+        } finally {
+          fs.closeSync(fd);
+        }
+        fs.renameSync(tmp, filePath);
+      }
+      module.exports = { atomicWriteJson };
+    }
+  });
+
+  // src/settingsStore.js
+  var require_settingsStore = __commonJS({
+    "src/settingsStore.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var fs = require_fs();
+      var path = require_path();
+      var { atomicWriteJson } = require_atomicWrite();
+      var STORE_VERSION = 1;
+      var storePath_ = path.join(".", "..", "settings.json");
+      function readStore() {
+        let raw;
+        try {
+          raw = fs.readFileSync(storePath_, "utf8");
+        } catch (e) {
+          return { version: STORE_VERSION, sections: {} };
+        }
+        try {
+          const s = JSON.parse(raw);
+          if (s && typeof s === "object" && s.sections && typeof s.sections === "object") return s;
+          throw new Error("not a settings store");
+        } catch (e) {
+          const aside = `${storePath_}.corrupt-${Date.now()}`;
+          try {
+            fs.renameSync(storePath_, aside);
+          } catch (e2) {
+          }
+          console.warn(`[settings] ${storePath_} was unreadable (${e.message}) - moved to ${aside}, starting fresh`);
+          return { version: STORE_VERSION, sections: {} };
+        }
+      }
+      function readSectionJson(name, legacyPath) {
+        const store = readStore();
+        if (Object.prototype.hasOwnProperty.call(store.sections, name)) return JSON.stringify(store.sections[name]);
+        const legacy = legacyPath && fs.existsSync(legacyPath) ? fs.readFileSync(legacyPath, "utf8") : null;
+        if (legacy === null) throw new Error(`no ${name} settings yet`);
+        const value = JSON.parse(legacy);
+        store.sections[name] = value;
+        store.version = STORE_VERSION;
+        atomicWriteJson(storePath_, store);
+        return legacy;
+      }
+      function writeSection(name, value) {
+        const store = readStore();
+        store.sections[name] = value;
+        store.version = STORE_VERSION;
+        atomicWriteJson(storePath_, store);
+      }
+      function storePath() {
+        return storePath_;
+      }
+      function replaceStore(data) {
+        atomicWriteJson(storePath_, { version: STORE_VERSION, ...data });
+      }
+      function _setStorePath(p) {
+        storePath_ = p;
+      }
+      module.exports = { readSectionJson, writeSection, storePath, replaceStore, _setStorePath };
+    }
+  });
+
+  // src/effects/transition.js
+  var require_transition = __commonJS({
+    "src/effects/transition.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var STYLES = ["morph", "fade", "slide", "dissolve", "wipe", "zoom", "none"];
+      var flowCache = /* @__PURE__ */ new Map();
+      function flowField(W, H) {
+        const key = W + "x" + H;
+        let f = flowCache.get(key);
+        if (f) return f;
+        f = { x: new Float32Array(W * H), y: new Float32Array(W * H) };
+        const s = 1 / 22;
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const px = x * s, py = y * s;
+          const dpdx = Math.cos(px * 1.3 + 0.7) * Math.sin(py * 0.9) * 1.3 + Math.cos(px * 0.6 - py * 1.1 + 2) * 0.6;
+          const dpdy = Math.sin(px * 1.3 + 0.7) * Math.cos(py * 0.9) * 0.9 - Math.cos(px * 0.6 - py * 1.1 + 2) * 1.1;
+          f.x[y * W + x] = dpdy;
+          f.y[y * W + x] = -dpdx;
+        }
+        flowCache.set(key, f);
+        return f;
+      }
+      function sampleRGB(src, W, H, x, y, out) {
+        x = x < 0 ? 0 : x > W - 1 ? W - 1 : x;
+        y = y < 0 ? 0 : y > H - 1 ? H - 1 : y;
+        const x0 = x | 0, y0 = y | 0, x1 = x0 + 1 < W ? x0 + 1 : x0, y1 = y0 + 1 < H ? y0 + 1 : y0, fx = x - x0, fy = y - y0;
+        const a = (y0 * W + x0) * 3, b = (y0 * W + x1) * 3, c = (y1 * W + x0) * 3, d = (y1 * W + x1) * 3;
+        for (let k = 0; k < 3; k++) {
+          const top = src[a + k] + (src[b + k] - src[a + k]) * fx, bot = src[c + k] + (src[d + k] - src[c + k]) * fx;
+          out[k] = top + (bot - top) * fy;
+        }
+      }
+      var mTmp = null;
+      var SA = [0, 0, 0];
+      var SB = [0, 0, 0];
+      function flowMorph(buf, from, W, H, k) {
+        if (!mTmp || mTmp.length !== buf.length) mTmp = new Float32Array(buf.length);
+        mTmp.set(buf);
+        const e = k * k * k * (k * (k * 6 - 15) + 10);
+        const bend = Math.sin(Math.PI * e), amp = Math.min(W, H) * 0.09 * bend;
+        const fl = flowField(W, H);
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const i = y * W + x, fx = fl.x[i] * amp, fy = fl.y[i] * amp;
+          sampleRGB(from, W, H, x - fx * e, y - fy * e, SA);
+          sampleRGB(mTmp, W, H, x + fx * (1 - e), y + fy * (1 - e), SB);
+          const la = SA[0] + SA[1] + SA[2], lb = SB[0] + SB[1] + SB[2];
+          let w = (e - 0.5) * 2.2 + 0.5 + 0.35 * Math.tanh((lb - la) * 2) * bend;
+          w = w < 0 ? 0 : w > 1 ? 1 : w;
+          w = w * w * (3 - 2 * w);
+          const o = i * 3;
+          buf[o] = SA[0] + (SB[0] - SA[0]) * w;
+          buf[o + 1] = SA[1] + (SB[1] - SA[1]) * w;
+          buf[o + 2] = SA[2] + (SB[2] - SA[2]) * w;
+        }
+        const soft = 0.45 * bend * bend;
+        if (soft > 0.02) {
+          mTmp.set(buf);
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const o = (y * W + x) * 3, l = (y * W + (x > 0 ? x - 1 : x)) * 3, r = (y * W + (x < W - 1 ? x + 1 : x)) * 3, u = ((y > 0 ? y - 1 : y) * W + x) * 3, d = ((y < H - 1 ? y + 1 : y) * W + x) * 3;
+            for (let c = 0; c < 3; c++) buf[o + c] = mTmp[o + c] * (1 - soft) + (mTmp[l + c] + mTmp[r + c] + mTmp[u + c] + mTmp[d + c]) * 0.25 * soft;
+          }
+        }
+      }
+      function rnd(i) {
+        let h = i * 2654435761 >>> 0;
+        h ^= h >>> 15;
+        h = Math.imul(h, 2246822519) >>> 0;
+        h ^= h >>> 13;
+        return (h >>> 0) / 4294967296;
+      }
+      var clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
+      var tmp = null;
+      function applyTransition(style, core, buf, from, k) {
+        const wall = buf === core.wallBuf && core.wallW;
+        const W = wall ? core.wallW : 0, H = wall ? core.wallH : 0, n = buf.length / 3;
+        if (style === "morph" && wall) {
+          flowMorph(buf, from, W, H, k);
+          return;
+        }
+        if (style === "morph") style = "fade";
+        if (style === "slide" && wall) {
+          if (!tmp || tmp.length !== buf.length) tmp = new Float32Array(buf.length);
+          tmp.set(buf);
+          const s = Math.round(W * k);
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const o = (y * W + x) * 3, src = x < W - s ? (y * W + x + s) * 3 : (y * W + x - (W - s)) * 3, img = x < W - s ? from : tmp;
+            buf[o] = img[src];
+            buf[o + 1] = img[src + 1];
+            buf[o + 2] = img[src + 2];
+          }
+          return;
+        }
+        for (let p = 0; p < n; p++) {
+          let m;
+          if (style === "dissolve") m = clamp01((k * 1.1 - rnd(p)) * 10);
+          else if (style === "wipe" || style === "slide" || style === "zoom") {
+            let u, r;
+            if (wall) {
+              const x = p % W, y = p / W | 0;
+              u = x / Math.max(1, W - 1);
+              r = Math.hypot((x - W / 2) / (W / 2), (y - H / 2) / (W / 2));
+            } else {
+              u = ((core.surfX ? core.surfX[p] : 0) + 1) / 2;
+              r = Math.hypot(core.surfX ? core.surfX[p] : 0, core.surfY ? core.surfY[p] : 0) / Math.SQRT2;
+            }
+            if (style === "zoom") m = clamp01((k * 1.25 - r) / 0.2);
+            else m = clamp01((k * 1.15 - u) / 0.15);
+          } else m = k * k * (3 - 2 * k);
+          const i = p * 3;
+          buf[i] = from[i] + (buf[i] - from[i]) * m;
+          buf[i + 1] = from[i + 1] + (buf[i + 1] - from[i + 1]) * m;
+          buf[i + 2] = from[i + 2] + (buf[i + 2] - from[i + 2]) * m;
+        }
+      }
+      module.exports = { applyTransition, flowMorph, STYLES };
+    }
+  });
+
+  // src/localTime.js
+  var require_localTime = __commonJS({
+    "src/localTime.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      function isZone(tz) {
+        if (typeof tz !== "string" || !tz || tz.length > 64) return false;
+        try {
+          new Intl.DateTimeFormat("en-GB", { timeZone: tz });
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }
+      var fmtCache = /* @__PURE__ */ new Map();
+      function wallClock(tz, real = /* @__PURE__ */ new Date()) {
+        if (!isZone(tz)) return real;
+        let fmt = fmtCache.get(tz);
+        if (!fmt) {
+          fmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", hourCycle: "h23" });
+          fmtCache.set(tz, fmt);
+        }
+        const p = {};
+        for (const part of fmt.formatToParts(real)) p[part.type] = Number(part.value);
+        const wall = new Date(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second, real.getMilliseconds());
+        const t = real.getTime();
+        wall.getTime = () => t;
+        wall.valueOf = () => t;
+        return wall;
+      }
+      module.exports = { wallClock, isZone };
+    }
+  });
+
+  // src/prefs.js
+  var require_prefs = __commonJS({
+    "src/prefs.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { readSectionJson, writeSection } = require_settingsStore();
+      var DEFAULT = {
+        favourites: [],
+        stations: [],
+        // favourite radio stations: [{ name, genre, url }]
+        videos: [],
+        // favourite YouTube videos: [{ id, title, channel, duration }]
+        playlist: { on: false, minutes: 5 },
+        nightDim: { on: false, from: 22, to: 7, level: 0.3 },
+        look: { on: true, bloom: 0.65, vibrance: 0.35, smooth: 0, depth: 0.5, palette: "auto" },
+        transition: { style: "morph", secs: 1.5, v2: true },
+        // between effects - see effects/transition.js
+        // Automatic show (see src/autoShow.js).
+        dayPlan: { on: false, starts: { morning: 6, day: 10, evening: 18, night: 23 }, effects: { morning: [], day: [], evening: [], night: [] }, brightness: { morning: null, day: null, evening: null, night: null } },
+        // brightness null = leave as it is
+        weatherMode: { on: false },
+        access: { localNoPin: true, guests: false },
+        // see src/access.js
+        volume: 1,
+        // overall volume for everything the Pi plays (src/masterVolume.js)
+        mic: { music: false },
+        dj: { source: "both", youtube: "", mixBeats: 32 },
+        // the Auto-DJ (src/dj): mp3 | youtube | both; playlist link or search
+        alexa: { on: false, skillId: "", invocation: "led wall" },
+        // skillId/invocation: your own Alexa skill (src/alexaSkill.js) // pretend to be a Hue bridge so an Echo can control the display (src/alexa.js) // the Pi's microphone (src/mic.js): music: effects react to the room when no station plays
+        sfx: { on: true, volume: 0.6 },
+        // sound effects through the speaker (src/sfx.js)
+        tz: "",
+        // the user's time zone, from their browser (see src/localTime.js)
+        celebrations: { newYear: true, dates: [] }
+        // dates: [{ month, day, hour, minute, text }]
+      };
+      function clean(p) {
+        const out = JSON.parse(JSON.stringify(DEFAULT));
+        if (p && Array.isArray(p.favourites)) out.favourites = p.favourites.filter((k) => typeof k === "string").slice(0, 60);
+        if (p && Array.isArray(p.stations)) {
+          out.stations = p.stations.filter((x) => x && typeof x.url === "string" && /^https?:\/\//.test(x.url)).slice(0, 50).map((x) => ({ name: String(x.name || "Station").slice(0, 80), genre: String(x.genre || "").slice(0, 60), url: x.url.slice(0, 500) }));
+        }
+        if (p && Array.isArray(p.videos)) {
+          out.videos = p.videos.filter((x) => x && typeof x.id === "string" && /^[\w-]{6,20}$/.test(x.id)).slice(0, 100).map((x) => ({ id: x.id, title: String(x.title || "").slice(0, 120), channel: String(x.channel || "").slice(0, 80), duration: Number(x.duration) > 0 ? Number(x.duration) : 0 }));
+        }
+        if (p && p.playlist) {
+          out.playlist.on = !!p.playlist.on;
+          const m = Number(p.playlist.minutes);
+          if (Number.isFinite(m)) out.playlist.minutes = Math.max(0.5, Math.min(120, m));
+        }
+        if (p && p.nightDim) {
+          out.nightDim.on = !!p.nightDim.on;
+          for (const k of ["from", "to"]) {
+            const h = Number(p.nightDim[k]);
+            if (Number.isInteger(h) && h >= 0 && h < 24) out.nightDim[k] = h;
+          }
+          const l = Number(p.nightDim.level);
+          if (Number.isFinite(l)) out.nightDim.level = Math.max(0.05, Math.min(1, l));
+        }
+        if (p && p.transition) {
+          if (require_transition().STYLES.includes(p.transition.style)) out.transition.style = p.transition.style;
+          const secs = Number(p.transition.secs);
+          if (Number.isFinite(secs)) out.transition.secs = Math.max(0.2, Math.min(3, secs));
+          if (!p.transition.v2) {
+            if (p.transition.style === "fade" && (p.transition.secs === void 0 || p.transition.secs === 0.4)) {
+              out.transition.style = "morph";
+              out.transition.secs = 1.5;
+            }
+          }
+          out.transition.v2 = true;
+        }
+        if (p && p.look) {
+          out.look.on = p.look.on !== false;
+          if (typeof p.look.palette === "string" && /^[a-z]{1,20}$/.test(p.look.palette)) out.look.palette = p.look.palette;
+          for (const k of ["bloom", "vibrance", "smooth", "depth"]) {
+            const v = Number(p.look[k]);
+            if (Number.isFinite(v)) out.look[k] = Math.max(0, Math.min(1, v));
+          }
+        }
+        if (p && p.dayPlan) {
+          out.dayPlan.on = !!p.dayPlan.on;
+          for (const part of ["morning", "day", "evening", "night"]) {
+            const h = Number(p.dayPlan.starts && p.dayPlan.starts[part]);
+            if (Number.isInteger(h) && h >= 0 && h < 24) out.dayPlan.starts[part] = h;
+            const list = p.dayPlan.effects && p.dayPlan.effects[part];
+            if (Array.isArray(list)) out.dayPlan.effects[part] = list.filter((k) => typeof k === "string" && /^[a-z0-9_]{1,30}$/.test(k)).slice(0, 20);
+            const b = p.dayPlan.brightness && p.dayPlan.brightness[part];
+            out.dayPlan.brightness[part] = b === null || b === void 0 || b === "" || !Number.isFinite(Number(b)) ? null : Math.max(0.02, Math.min(1, Number(b)));
+          }
+        }
+        if (p && p.weatherMode) out.weatherMode.on = !!p.weatherMode.on;
+        if (p && typeof p.tz === "string" && require_localTime().isZone(p.tz)) out.tz = p.tz;
+        if (p && p.sfx) {
+          out.sfx.on = p.sfx.on !== false;
+          const v = Number(p.sfx.volume);
+          if (Number.isFinite(v)) out.sfx.volume = Math.max(0, Math.min(1, v));
+        }
+        if (p && Number.isFinite(Number(p.volume)) && p.volume !== null && p.volume !== "") out.volume = Math.max(0, Math.min(1, Number(p.volume)));
+        if (p && p.mic) out.mic.music = !!p.mic.music;
+        if (p && p.dj) {
+          if (["mp3", "youtube", "both"].includes(p.dj.source)) out.dj.source = p.dj.source;
+          if (typeof p.dj.youtube === "string") out.dj.youtube = p.dj.youtube.trim().slice(0, 300);
+          if ([16, 32, 64].includes(Number(p.dj.mixBeats))) out.dj.mixBeats = Number(p.dj.mixBeats);
+        }
+        if (p && p.alexa) {
+          out.alexa.on = !!p.alexa.on;
+          if (typeof p.alexa.skillId === "string" && /^(amzn1\.ask\.skill\.[\w-]{1,80})?$/.test(p.alexa.skillId.trim())) out.alexa.skillId = p.alexa.skillId.trim();
+          if (typeof p.alexa.invocation === "string" && /^[a-z][a-z ]{1,48}[a-z]$/.test(p.alexa.invocation.trim().toLowerCase())) out.alexa.invocation = p.alexa.invocation.trim().toLowerCase().replace(/\s+/g, " ");
+        }
+        if (p && p.access) {
+          out.access.localNoPin = p.access.localNoPin !== false;
+          out.access.guests = !!p.access.guests;
+        }
+        if (p && p.celebrations) {
+          out.celebrations.newYear = p.celebrations.newYear !== false;
+          if (Array.isArray(p.celebrations.dates)) {
+            out.celebrations.dates = p.celebrations.dates.map((d) => ({
+              month: Number(d && d.month),
+              day: Number(d && d.day),
+              hour: Number(d && d.hour) || 0,
+              minute: Number(d && d.minute) || 0,
+              text: String(d && d.text || "").slice(0, 24)
+            })).filter((d) => d.month >= 1 && d.month <= 12 && d.day >= 1 && d.day <= 31 && d.hour >= 0 && d.hour < 24 && d.minute >= 0 && d.minute < 60).slice(0, 30);
+          }
+        }
+        return out;
+      }
+      function load() {
+        try {
+          return clean(JSON.parse(readSectionJson("prefs")));
+        } catch (e) {
+          return clean(null);
+        }
+      }
+      function save(p) {
+        const c = clean(p);
+        writeSection("prefs", c);
+        return c;
+      }
+      function nightFactor(prefs, date = require_localTime().wallClock(prefs && prefs.tz)) {
+        const n = prefs && prefs.nightDim;
+        if (!n || !n.on || n.from === n.to) return 1;
+        const h = date.getHours() + date.getMinutes() / 60;
+        const inside = (x) => n.from < n.to ? x >= n.from && x < n.to : x >= n.from || x < n.to;
+        if (!inside(h)) {
+          const until = (n.from - h + 24) % 24;
+          return until < 0.5 ? 1 - (1 - n.level) * (1 - until / 0.5) : 1;
+        }
+        const left = (n.to - h + 24) % 24;
+        return left < 0.5 ? n.level + (1 - n.level) * (1 - left / 0.5) : n.level;
+      }
+      module.exports = { load, save, clean, nightFactor, DEFAULT };
+    }
+  });
+
   // src/masterVolume.js
   var require_masterVolume = __commonJS({
     "src/masterVolume.js"(exports, module) {
@@ -2628,6 +3521,12 @@ var PiEngine = (() => {
           }
           this.peak.fill(0);
           this._peakVel.fill(0);
+          if (url.startsWith("dj:")) {
+            this._launchDj();
+            return;
+          }
+          this._isDj = false;
+          this.dj = null;
           const isDebug = url.startsWith("debug:") || url.startsWith("debugloop:");
           const isLoop = url.startsWith("debugloop:");
           this._isDebugSource = isDebug;
@@ -2727,6 +3626,47 @@ var PiEngine = (() => {
         // default-sink concept is exactly what "already paired via Setup" means
         // in this project, so respecting it (rather than second-guessing it) is
         // the simplest correct choice.
+        // The Auto-DJ (src/dj/engine.js) in place of a station: it mixes tracks
+        // itself and hands its PCM to _onData just ahead of real time, so the
+        // speaker feed, phones playing along and the spectrum all work as for a
+        // station. A stand-in decodeProc lets the rest of this class treat it as
+        // one (kill() stops the DJ).
+        _launchDj() {
+          this._isDebugSource = false;
+          this._isDebugLoop = false;
+          this._isDj = true;
+          let fake = null;
+          this._djMs = 0;
+          this._djT0 = Date.now();
+          const eng = require_engine().createDjEngine({
+            onPcm: (b) => {
+              if (this.decodeProc !== fake) return;
+              this._djMs += b.length / BYTES_PER_MS;
+              this._onData(b);
+            },
+            // How far ahead of real time it has produced (it keeps ~1.5 s ahead).
+            getQueueMs: () => {
+              const el = Date.now() - this._djT0;
+              if (this._djMs < el) {
+                this._djT0 = Date.now() - this._djMs;
+                return 0;
+              }
+              return this._djMs - el;
+            }
+          });
+          fake = { kill: () => eng.stop(), on() {
+          }, isDj: true };
+          this.decodeProc = fake;
+          this.dj = eng;
+          this.status = "Playing";
+          this._launchPlayback();
+          let cfg = {};
+          try {
+            cfg = require_prefs().load().dj || {};
+          } catch (e) {
+          }
+          eng.start(cfg);
+        }
         _launchPlayback() {
           let proc;
           try {
@@ -3076,7 +4016,7 @@ var PiEngine = (() => {
         // Plain, structured-clone-friendly copy of what the render side reads -
         // see RemoteAudio below.
         snapshot() {
-          return { spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
+          return { djNow: this.dj && this.dj.status.now ? this.dj.status.now.title : "", spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
         }
         // Auto speaker sync: ask the sound server how late our stream plays, and
         // ease the bars' delay towards it (readings jitter a little).
@@ -3112,7 +4052,7 @@ var PiEngine = (() => {
             return;
           }
           if (!this.decodeProc || this._isDebugSource) return;
-          if (Date.now() - this.lastAttemptMs > STALL_RESTART_MS && performance.now() - this._lastDataMs > STALL_RESTART_MS) {
+          if (!this._isDj && Date.now() - this.lastAttemptMs > STALL_RESTART_MS && performance.now() - this._lastDataMs > STALL_RESTART_MS) {
             console.warn("[radio] stream stalled - reconnecting");
             const url = this.url;
             this._teardown();
@@ -3207,6 +4147,7 @@ var PiEngine = (() => {
           if (snap.spec && snap.spec.length === BAND_COUNT) this.spec.set(snap.spec);
           if (snap.peak && snap.peak.length === BAND_COUNT) this.peak.set(snap.peak);
           if (snap.specL && snap.specL.length === BAND_COUNT) this.specL.set(snap.specL);
+          this.djNow = snap.djNow || "";
           if (snap.specR && snap.specR.length === BAND_COUNT) this.specR.set(snap.specR);
           if (snap.vu && snap.vu.length === 4) this.vu.set(snap.vu);
           if (snap.wave && snap.wave.length === WAVE_N) this.wave.set(snap.wave);
@@ -4358,6 +5299,10 @@ var PiEngine = (() => {
       var titleAt = 0;
       var titleBusy = false;
       function pollTitle() {
+        if (playing && currentStation && currentStation.url === "dj:") {
+          songTitle = audio.djNow || (audio.dj && audio.dj.status.now ? audio.dj.status.now.title : "") || "";
+          return;
+        }
         const url = playing && currentStation && /^https?:\/\//.test(currentStation.url) ? currentStation.url : null;
         if (url !== titleUrl) {
           titleUrl = url;
@@ -6231,92 +7176,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/atomicWrite.js
-  var require_atomicWrite = __commonJS({
-    "src/atomicWrite.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var fs = require_fs();
-      var path = require_path();
-      function atomicWriteJson(filePath, value) {
-        const tmp = path.join(path.dirname(filePath), "." + path.basename(filePath) + ".tmp");
-        const text = JSON.stringify(value, null, 2);
-        const fd = fs.openSync(tmp, "w");
-        try {
-          fs.writeSync(fd, text);
-          fs.fsyncSync(fd);
-        } finally {
-          fs.closeSync(fd);
-        }
-        fs.renameSync(tmp, filePath);
-      }
-      module.exports = { atomicWriteJson };
-    }
-  });
-
-  // src/settingsStore.js
-  var require_settingsStore = __commonJS({
-    "src/settingsStore.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var fs = require_fs();
-      var path = require_path();
-      var { atomicWriteJson } = require_atomicWrite();
-      var STORE_VERSION = 1;
-      var storePath_ = path.join(".", "..", "settings.json");
-      function readStore() {
-        let raw;
-        try {
-          raw = fs.readFileSync(storePath_, "utf8");
-        } catch (e) {
-          return { version: STORE_VERSION, sections: {} };
-        }
-        try {
-          const s = JSON.parse(raw);
-          if (s && typeof s === "object" && s.sections && typeof s.sections === "object") return s;
-          throw new Error("not a settings store");
-        } catch (e) {
-          const aside = `${storePath_}.corrupt-${Date.now()}`;
-          try {
-            fs.renameSync(storePath_, aside);
-          } catch (e2) {
-          }
-          console.warn(`[settings] ${storePath_} was unreadable (${e.message}) - moved to ${aside}, starting fresh`);
-          return { version: STORE_VERSION, sections: {} };
-        }
-      }
-      function readSectionJson(name, legacyPath) {
-        const store = readStore();
-        if (Object.prototype.hasOwnProperty.call(store.sections, name)) return JSON.stringify(store.sections[name]);
-        const legacy = legacyPath && fs.existsSync(legacyPath) ? fs.readFileSync(legacyPath, "utf8") : null;
-        if (legacy === null) throw new Error(`no ${name} settings yet`);
-        const value = JSON.parse(legacy);
-        store.sections[name] = value;
-        store.version = STORE_VERSION;
-        atomicWriteJson(storePath_, store);
-        return legacy;
-      }
-      function writeSection(name, value) {
-        const store = readStore();
-        store.sections[name] = value;
-        store.version = STORE_VERSION;
-        atomicWriteJson(storePath_, store);
-      }
-      function storePath() {
-        return storePath_;
-      }
-      function replaceStore(data) {
-        atomicWriteJson(storePath_, { version: STORE_VERSION, ...data });
-      }
-      function _setStorePath(p) {
-        storePath_ = p;
-      }
-      module.exports = { readSectionJson, writeSection, storePath, replaceStore, _setStorePath };
-    }
-  });
-
   // src/weatherConfig.js
   var require_weatherConfig = __commonJS({
     "src/weatherConfig.js"(exports, module) {
@@ -6344,41 +7203,6 @@ var PiEngine = (() => {
         writeSection("weather", config);
       }
       module.exports = { load, save, isValidConfig, DEFAULT_CONFIG, CONFIG_PATH };
-    }
-  });
-
-  // src/localTime.js
-  var require_localTime = __commonJS({
-    "src/localTime.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      function isZone(tz) {
-        if (typeof tz !== "string" || !tz || tz.length > 64) return false;
-        try {
-          new Intl.DateTimeFormat("en-GB", { timeZone: tz });
-          return true;
-        } catch (e) {
-          return false;
-        }
-      }
-      var fmtCache = /* @__PURE__ */ new Map();
-      function wallClock(tz, real = /* @__PURE__ */ new Date()) {
-        if (!isZone(tz)) return real;
-        let fmt = fmtCache.get(tz);
-        if (!fmt) {
-          fmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", hourCycle: "h23" });
-          fmtCache.set(tz, fmt);
-        }
-        const p = {};
-        for (const part of fmt.formatToParts(real)) p[part.type] = Number(part.value);
-        const wall = new Date(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second, real.getMilliseconds());
-        const t = real.getTime();
-        wall.getTime = () => t;
-        wall.valueOf = () => t;
-        return wall;
-      }
-      module.exports = { wallClock, isZone };
     }
   });
 
@@ -27055,126 +27879,6 @@ var PiEngine = (() => {
         }
       }
       module.exports = { renderSpectrumStyleWall, createSpectrumWallState };
-    }
-  });
-
-  // src/effects/transition.js
-  var require_transition = __commonJS({
-    "src/effects/transition.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var STYLES = ["morph", "fade", "slide", "dissolve", "wipe", "zoom", "none"];
-      var flowCache = /* @__PURE__ */ new Map();
-      function flowField(W, H) {
-        const key = W + "x" + H;
-        let f = flowCache.get(key);
-        if (f) return f;
-        f = { x: new Float32Array(W * H), y: new Float32Array(W * H) };
-        const s = 1 / 22;
-        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-          const px = x * s, py = y * s;
-          const dpdx = Math.cos(px * 1.3 + 0.7) * Math.sin(py * 0.9) * 1.3 + Math.cos(px * 0.6 - py * 1.1 + 2) * 0.6;
-          const dpdy = Math.sin(px * 1.3 + 0.7) * Math.cos(py * 0.9) * 0.9 - Math.cos(px * 0.6 - py * 1.1 + 2) * 1.1;
-          f.x[y * W + x] = dpdy;
-          f.y[y * W + x] = -dpdx;
-        }
-        flowCache.set(key, f);
-        return f;
-      }
-      function sampleRGB(src, W, H, x, y, out) {
-        x = x < 0 ? 0 : x > W - 1 ? W - 1 : x;
-        y = y < 0 ? 0 : y > H - 1 ? H - 1 : y;
-        const x0 = x | 0, y0 = y | 0, x1 = x0 + 1 < W ? x0 + 1 : x0, y1 = y0 + 1 < H ? y0 + 1 : y0, fx = x - x0, fy = y - y0;
-        const a = (y0 * W + x0) * 3, b = (y0 * W + x1) * 3, c = (y1 * W + x0) * 3, d = (y1 * W + x1) * 3;
-        for (let k = 0; k < 3; k++) {
-          const top = src[a + k] + (src[b + k] - src[a + k]) * fx, bot = src[c + k] + (src[d + k] - src[c + k]) * fx;
-          out[k] = top + (bot - top) * fy;
-        }
-      }
-      var mTmp = null;
-      var SA = [0, 0, 0];
-      var SB = [0, 0, 0];
-      function flowMorph(buf, from, W, H, k) {
-        if (!mTmp || mTmp.length !== buf.length) mTmp = new Float32Array(buf.length);
-        mTmp.set(buf);
-        const e = k * k * k * (k * (k * 6 - 15) + 10);
-        const bend = Math.sin(Math.PI * e), amp = Math.min(W, H) * 0.09 * bend;
-        const fl = flowField(W, H);
-        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-          const i = y * W + x, fx = fl.x[i] * amp, fy = fl.y[i] * amp;
-          sampleRGB(from, W, H, x - fx * e, y - fy * e, SA);
-          sampleRGB(mTmp, W, H, x + fx * (1 - e), y + fy * (1 - e), SB);
-          const la = SA[0] + SA[1] + SA[2], lb = SB[0] + SB[1] + SB[2];
-          let w = (e - 0.5) * 2.2 + 0.5 + 0.35 * Math.tanh((lb - la) * 2) * bend;
-          w = w < 0 ? 0 : w > 1 ? 1 : w;
-          w = w * w * (3 - 2 * w);
-          const o = i * 3;
-          buf[o] = SA[0] + (SB[0] - SA[0]) * w;
-          buf[o + 1] = SA[1] + (SB[1] - SA[1]) * w;
-          buf[o + 2] = SA[2] + (SB[2] - SA[2]) * w;
-        }
-        const soft = 0.45 * bend * bend;
-        if (soft > 0.02) {
-          mTmp.set(buf);
-          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-            const o = (y * W + x) * 3, l = (y * W + (x > 0 ? x - 1 : x)) * 3, r = (y * W + (x < W - 1 ? x + 1 : x)) * 3, u = ((y > 0 ? y - 1 : y) * W + x) * 3, d = ((y < H - 1 ? y + 1 : y) * W + x) * 3;
-            for (let c = 0; c < 3; c++) buf[o + c] = mTmp[o + c] * (1 - soft) + (mTmp[l + c] + mTmp[r + c] + mTmp[u + c] + mTmp[d + c]) * 0.25 * soft;
-          }
-        }
-      }
-      function rnd(i) {
-        let h = i * 2654435761 >>> 0;
-        h ^= h >>> 15;
-        h = Math.imul(h, 2246822519) >>> 0;
-        h ^= h >>> 13;
-        return (h >>> 0) / 4294967296;
-      }
-      var clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
-      var tmp = null;
-      function applyTransition(style, core, buf, from, k) {
-        const wall = buf === core.wallBuf && core.wallW;
-        const W = wall ? core.wallW : 0, H = wall ? core.wallH : 0, n = buf.length / 3;
-        if (style === "morph" && wall) {
-          flowMorph(buf, from, W, H, k);
-          return;
-        }
-        if (style === "morph") style = "fade";
-        if (style === "slide" && wall) {
-          if (!tmp || tmp.length !== buf.length) tmp = new Float32Array(buf.length);
-          tmp.set(buf);
-          const s = Math.round(W * k);
-          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-            const o = (y * W + x) * 3, src = x < W - s ? (y * W + x + s) * 3 : (y * W + x - (W - s)) * 3, img = x < W - s ? from : tmp;
-            buf[o] = img[src];
-            buf[o + 1] = img[src + 1];
-            buf[o + 2] = img[src + 2];
-          }
-          return;
-        }
-        for (let p = 0; p < n; p++) {
-          let m;
-          if (style === "dissolve") m = clamp01((k * 1.1 - rnd(p)) * 10);
-          else if (style === "wipe" || style === "slide" || style === "zoom") {
-            let u, r;
-            if (wall) {
-              const x = p % W, y = p / W | 0;
-              u = x / Math.max(1, W - 1);
-              r = Math.hypot((x - W / 2) / (W / 2), (y - H / 2) / (W / 2));
-            } else {
-              u = ((core.surfX ? core.surfX[p] : 0) + 1) / 2;
-              r = Math.hypot(core.surfX ? core.surfX[p] : 0, core.surfY ? core.surfY[p] : 0) / Math.SQRT2;
-            }
-            if (style === "zoom") m = clamp01((k * 1.25 - r) / 0.2);
-            else m = clamp01((k * 1.15 - u) / 0.15);
-          } else m = k * k * (3 - 2 * k);
-          const i = p * 3;
-          buf[i] = from[i] + (buf[i] - from[i]) * m;
-          buf[i + 1] = from[i + 1] + (buf[i + 1] - from[i + 1]) * m;
-          buf[i + 2] = from[i + 2] + (buf[i + 2] - from[i + 2]) * m;
-        }
-      }
-      module.exports = { applyTransition, flowMorph, STYLES };
     }
   });
 

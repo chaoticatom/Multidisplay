@@ -118,6 +118,7 @@ function stopStation() {
 const { fetchTitle } = require('./icyTitle');
 let songTitle = '', titleUrl = null, titleAt = 0, titleBusy = false;
 function pollTitle() {
+  if (playing && currentStation && currentStation.url === 'dj:') { songTitle = audio.djNow || (audio.dj && audio.dj.status.now ? audio.dj.status.now.title : '') || ''; return; } // the Auto-DJ's track
   const url = playing && currentStation && /^https?:\/\//.test(currentStation.url) ? currentStation.url : null;
   if (url !== titleUrl) { titleUrl = url; songTitle = ''; titleAt = 0; }
   if (!url || titleBusy || Date.now() - titleAt < 20000) return;

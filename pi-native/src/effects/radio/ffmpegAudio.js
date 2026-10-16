@@ -186,6 +186,8 @@ class RadioAudio {
     // test source through this same pipeline. They have a fixed duration and end on
     // their own, which is not an error. `debugloop:` (the sweep) restarts when it
     // ends; `debug:` plays once and stops. See ensure()'s _debugFinished check.
+    if (url.startsWith('dj:')) { this._launchDj(); return; }
+    this._isDj = false; this.dj = null;
     const isDebug = url.startsWith('debug:') || url.startsWith('debugloop:');
     const isLoop = url.startsWith('debugloop:');
     this._isDebugSource = isDebug;
@@ -296,6 +298,28 @@ class RadioAudio {
   // default-sink concept is exactly what "already paired via Setup" means
   // in this project, so respecting it (rather than second-guessing it) is
   // the simplest correct choice.
+  // The Auto-DJ (src/dj/engine.js) in place of a station: it mixes tracks
+  // itself and hands its PCM to _onData just ahead of real time, so the
+  // speaker feed, phones playing along and the spectrum all work as for a
+  // station. A stand-in decodeProc lets the rest of this class treat it as
+  // one (kill() stops the DJ).
+  _launchDj() {
+    this._isDebugSource = false; this._isDebugLoop = false; this._isDj = true;
+    let fake = null;
+    this._djMs = 0; this._djT0 = Date.now();
+    const eng = require('../../dj/engine').createDjEngine({
+      onPcm: (b) => { if (this.decodeProc !== fake) return; this._djMs += b.length / BYTES_PER_MS; this._onData(b); },
+      // How far ahead of real time it has produced (it keeps ~1.5 s ahead).
+      getQueueMs: () => { const el = Date.now() - this._djT0; if (this._djMs < el) { this._djT0 = Date.now() - this._djMs; return 0; } return this._djMs - el; },
+    });
+    fake = { kill: () => eng.stop(), on() {}, isDj: true };
+    this.decodeProc = fake; this.dj = eng;
+    this.status = 'Playing';
+    this._launchPlayback();
+    let cfg = {}; try { cfg = require('../../prefs').load().dj || {}; } catch (e) { /* defaults */ }
+    eng.start(cfg);
+  }
+
   _launchPlayback() {
     let proc;
     try {
@@ -632,7 +656,7 @@ class RadioAudio {
   // Plain, structured-clone-friendly copy of what the render side reads -
   // see RemoteAudio below.
   snapshot() {
-    return { spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
+    return { djNow: this.dj && this.dj.status.now ? this.dj.status.now.title : '', spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
   }
 
   // Auto speaker sync: ask the sound server how late our stream plays, and
@@ -672,7 +696,7 @@ class RadioAudio {
     // 15 s is reconnected; playback that died (the speaker dropped, the
     // sound server restarted) is started again.
     if (!this.decodeProc || this._isDebugSource) return;
-    if (Date.now() - this.lastAttemptMs > STALL_RESTART_MS && performance.now() - this._lastDataMs > STALL_RESTART_MS) {
+    if (!this._isDj && Date.now() - this.lastAttemptMs > STALL_RESTART_MS && performance.now() - this._lastDataMs > STALL_RESTART_MS) {
       console.warn('[radio] stream stalled - reconnecting');
       const url = this.url;
       this._teardown();
@@ -751,6 +775,7 @@ class RemoteAudio {
     if (snap.spec && snap.spec.length === BAND_COUNT) this.spec.set(snap.spec);
     if (snap.peak && snap.peak.length === BAND_COUNT) this.peak.set(snap.peak);
     if (snap.specL && snap.specL.length === BAND_COUNT) this.specL.set(snap.specL);
+    this.djNow = snap.djNow || '';
     if (snap.specR && snap.specR.length === BAND_COUNT) this.specR.set(snap.specR);
     if (snap.vu && snap.vu.length === 4) this.vu.set(snap.vu);
     if (snap.wave && snap.wave.length === WAVE_N) this.wave.set(snap.wave);

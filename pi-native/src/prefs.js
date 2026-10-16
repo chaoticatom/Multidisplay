@@ -17,6 +17,7 @@ const DEFAULT = {
   access: { localNoPin: true, guests: false }, // see src/access.js
   volume: 1, // overall volume for everything the Pi plays (src/masterVolume.js)
   mic: { music: false },
+  dj: { source: 'both', youtube: '', mixBeats: 32 }, // the Auto-DJ (src/dj): mp3 | youtube | both; playlist link or search
   alexa: { on: false, skillId: '', invocation: 'led wall' }, // skillId/invocation: your own Alexa skill (src/alexaSkill.js) // pretend to be a Hue bridge so an Echo can control the display (src/alexa.js) // the Pi's microphone (src/mic.js): music: effects react to the room when no station plays
   sfx: { on: true, volume: 0.6 }, // sound effects through the speaker (src/sfx.js)
   tz: '', // the user's time zone, from their browser (see src/localTime.js)
@@ -73,6 +74,11 @@ function clean(p) {
   if (p && p.sfx) { out.sfx.on = p.sfx.on !== false; const v = Number(p.sfx.volume); if (Number.isFinite(v)) out.sfx.volume = Math.max(0, Math.min(1, v)); }
   if (p && Number.isFinite(Number(p.volume)) && p.volume !== null && p.volume !== '') out.volume = Math.max(0, Math.min(1, Number(p.volume)));
   if (p && p.mic) out.mic.music = !!p.mic.music;
+  if (p && p.dj) {
+    if (['mp3', 'youtube', 'both'].includes(p.dj.source)) out.dj.source = p.dj.source;
+    if (typeof p.dj.youtube === 'string') out.dj.youtube = p.dj.youtube.trim().slice(0, 300);
+    if ([16, 32, 64].includes(Number(p.dj.mixBeats))) out.dj.mixBeats = Number(p.dj.mixBeats);
+  }
   if (p && p.alexa) {
     out.alexa.on = !!p.alexa.on;
     if (typeof p.alexa.skillId === 'string' && /^(amzn1\.ask\.skill\.[\w-]{1,80})?$/.test(p.alexa.skillId.trim())) out.alexa.skillId = p.alexa.skillId.trim();

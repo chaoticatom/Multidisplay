@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.330';
+const APP_VERSION = '0.6.331';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -5767,6 +5767,7 @@ function cxWireExtras() {
   document.getElementById('notify-copy')?.addEventListener('click', () => { navigator.clipboard?.writeText(url()).then(() => cxToast('Link copied'), () => { document.getElementById('notify-url').select(); }); });
   document.getElementById('notify-test')?.addEventListener('click', () => fetch(url().replace('Hello', 'Hello from the phone')).then(() => cxToast('Sent')));
   document.getElementById('notify-new')?.addEventListener('click', () => { if (confirm('Make a new link? The old one stops working.')) send({ cmd: 'newNotifyToken' }); });
+  cxWireDj();
   document.getElementById('photo-input')?.addEventListener('change', async (e) => {
     const files = [...e.target.files]; e.target.value = '';
     const st = document.getElementById('photo-status');
@@ -6036,7 +6037,7 @@ function cxSyncHeroLabel() {
   const st = currentState.effectStatus?.radio;
   sub.textContent = st && st.playing && st.station ? '♫ ' + st.station.name.replace(/^[\s-]+/, '') : '';
 }
-function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncAlexa(); cxSyncFavs(); cxSyncPalettes(); cxSyncOptionPanels(); cxSyncYouTube(); cxSyncExtras(); requestAnimationFrame(cxMoveBlob); }
+function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncAlexa(); cxSyncDj(); cxSyncFavs(); cxSyncPalettes(); cxSyncOptionPanels(); cxSyncYouTube(); cxSyncExtras(); requestAnimationFrame(cxMoveBlob); }
 
 function cxInit() {
   cxWireHero();
@@ -6065,4 +6066,63 @@ function cxInit() {
   });
   cxOnState();
   setTimeout(cxMoveBlob, 300);
+}
+
+
+// ── Auto-DJ (Music tab; src/dj).
+function cxWireDj() {
+  if (!document.getElementById('dj-start')) return;
+  const cfg = () => ({ source: document.querySelector('#dj-source .on')?.dataset.djsrc || 'both', youtube: document.getElementById('dj-youtube').value.trim(), mixBeats: Number(document.getElementById('dj-beats').value) });
+  document.querySelectorAll('#dj-source button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('#dj-source button').forEach((x) => x.classList.toggle('on', x === b));
+    send({ cmd: 'setDj', ...cfg() });
+  }));
+  document.getElementById('dj-youtube').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
+  document.getElementById('dj-beats').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
+  document.getElementById('dj-start').addEventListener('click', () => {
+    const c = cfg();
+    if (c.source === 'youtube' && !c.youtube) { cxToast('Add a YouTube playlist link or a search first'); return; }
+    send({ cmd: 'djStart', ...c });
+    if (typeof radioBrowserPlay === 'function') radioBrowserPlay({ name: 'Auto-DJ', url: 'dj:' }); // phone audio too, in this tap
+  });
+  document.getElementById('dj-skip').addEventListener('click', () => send({ cmd: 'djSkip' }));
+  document.getElementById('dj-upload').addEventListener('change', async (e) => {
+    const files = [...e.target.files]; e.target.value = '';
+    const st = document.getElementById('dj-upload-status');
+    let done = 0;
+    for (const f of files) {
+      st.textContent = `Uploading ${done + 1} of ${files.length}…`;
+      try {
+        const r = await fetch('/api/uploadMusic?name=' + encodeURIComponent(f.name), { method: 'POST', body: f, headers: { 'X-Control-Pin': storedPin() } });
+        const j = await r.json(); if (!j.ok) throw new Error(j.error);
+        done++;
+      } catch (err) { st.textContent = `${f.name}: ${err.message}`; return; }
+    }
+    st.textContent = `Added ${done} track${done === 1 ? '' : 's'}.`;
+  });
+  document.getElementById('dj-music-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-djdel]'); if (!b) return;
+    if (confirm('Remove ' + b.dataset.djdel + '?')) send({ cmd: 'deleteMusic', name: b.dataset.djdel });
+  });
+}
+function cxSyncDj() {
+  const d = currentState.dj, c = currentState.prefs?.dj; if (!d || !document.getElementById('dj-status')) return;
+  if (c) {
+    document.querySelectorAll('#dj-source button').forEach((x) => x.classList.toggle('on', x.dataset.djsrc === c.source));
+    const yt = document.getElementById('dj-youtube'); if (document.activeElement !== yt && !yt.value) yt.value = c.youtube || '';
+    const bt = document.getElementById('dj-beats'); if (document.activeElement !== bt) bt.value = String(c.mixBeats || 32);
+  }
+  const s = document.getElementById('dj-status');
+  s.textContent = !d.on ? (d.music.length ? `${d.music.length} tracks in My music.` : 'Add MP3s below, or a YouTube playlist or search above.')
+    : d.state === 'error' || d.state === 'empty' ? '⚠ ' + (d.error || 'Nothing to play')
+    : d.state === 'loading' && !d.now ? 'Getting the first track ready…'
+    : `▶ ${d.now ? d.now.title + (d.now.bpm ? ` · ${d.now.bpm} BPM` : '') : '…'}${d.mixing ? ' · mixing…' : ''}${d.next ? `\nNext: ${d.next.title}${d.next.bpm ? ` · ${d.next.bpm} BPM` : ''}${d.next.mode ? ` · ${d.next.mode}` : d.next.status ? ' · getting it ready' : ''}` : ''}`;
+  s.style.whiteSpace = 'pre-line';
+  document.getElementById('dj-skip').disabled = !d.on;
+  const key = d.music.join('|'), list = document.getElementById('dj-music-list');
+  if (list.dataset.key !== key) {
+    list.dataset.key = key;
+    list.replaceChildren(...d.music.map((n) => { const r = document.createElement('div'); r.style.cssText = 'display:flex;gap:6px;align-items:center;padding:2px 0;'; const t = document.createElement('span'); t.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'; t.textContent = n; const x = document.createElement('button'); x.type = 'button'; x.className = 'ui-btn-small'; x.dataset.djdel = n; x.textContent = '✕'; r.append(t, x); return r; }));
+    document.getElementById('dj-music-sum').textContent = `My music (${d.music.length})`;
+  }
 }

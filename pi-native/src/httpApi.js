@@ -4,6 +4,7 @@
 //   GET  /api/backup                                    download settings.json (PIN)
 //   POST /api/restore                                   replace settings.json, then restart (PIN)
 //   POST /api/uploadPhoto?name=                         add a photo for My Photos (PIN)
+//   POST /api/uploadMusic?name=                         add a track for the Auto-DJ (PIN)
 //   GET|POST /api/notify?token=&text=&secs=&color=      show a banner (notify token)
 'use strict';
 const fs = require('fs');
@@ -13,6 +14,7 @@ const settingsStore = require('./settingsStore');
 const { PHOTO_DIR } = require('./effects/myPhotos');
 
 const PHOTO_MAX_BYTES = 15 * 1024 * 1024, PHOTO_MAX_FILES = 40, RESTORE_MAX_BYTES = 2 * 1024 * 1024;
+const MUSIC_MAX_BYTES = 40 * 1024 * 1024, MUSIC_MAX_FILES = 500;
 
 function notifyToken() {
   let c = {};
@@ -137,7 +139,7 @@ function handle(server, req, res, auth) {
     }).catch(() => json(res, 400, { ok: false }));
     return true;
   }
-  if (!p.startsWith('/api/backup') && !p.startsWith('/api/restore') && !p.startsWith('/api/uploadPhoto')) return false;
+  if (!p.startsWith('/api/backup') && !p.startsWith('/api/restore') && !p.startsWith('/api/uploadPhoto') && !p.startsWith('/api/uploadMusic')) return false;
   const denied = auth(req);
   if (denied) { json(res, denied, { ok: false, error: denied === 401 ? 'Control PIN required' : 'Cross-origin request refused' }); return true; }
   if (req.method === 'GET' && p === '/api/backup') {
@@ -169,6 +171,23 @@ function handle(server, req, res, auth) {
       server._broadcast(server._stateMsg());
       json(res, 200, { ok: true, count: listPhotos().length });
     }).catch((e) => json(res, 400, { ok: false, error: e.message === 'too large' ? 'Photo is over 15 MB' : e.message }));
+    return true;
+  }
+  if (req.method === 'POST' && p === '/api/uploadMusic') {
+    // An MP3 (or similar) for the Auto-DJ, kept under its own name.
+    const { MUSIC_DIR, AUDIO_RE, listMusic } = require('./dj/sources');
+    const raw = String(url.searchParams.get('name') || 'track.mp3'), ext = (AUDIO_RE.exec(raw) || ['.mp3'])[0].toLowerCase();
+    const base = raw.replace(AUDIO_RE, '').replace(/[^\w .()&'-]+/g, '_').trim().slice(0, 90) || 'track';
+    readBody(req, MUSIC_MAX_BYTES).then((b) => {
+      if (b.length < 1024) throw new Error('empty file');
+      if (listMusic().length >= MUSIC_MAX_FILES) throw new Error('the music folder is full (' + MUSIC_MAX_FILES + ' tracks)');
+      fs.mkdirSync(MUSIC_DIR, { recursive: true });
+      let name = base + ext, n = 2;
+      while (fs.existsSync(path.join(MUSIC_DIR, name))) name = `${base} (${n++})${ext}`;
+      fs.writeFileSync(path.join(MUSIC_DIR, name), b);
+      server._broadcast(server._stateMsg());
+      json(res, 200, { ok: true, name, count: listMusic().length });
+    }).catch((e) => json(res, 400, { ok: false, error: e.message === 'too large' ? 'Track is over 40 MB' : e.message }));
     return true;
   }
   json(res, 404, { ok: false });

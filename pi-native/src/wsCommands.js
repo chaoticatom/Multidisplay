@@ -623,6 +623,32 @@ const COMMANDS = {
     this._broadcast(this._stateMsg());
   },
 
+  // Auto-DJ (src/dj): {source?, youtube?, mixBeats?} saves the settings and
+  // starts it like a station (url 'dj:'); already playing, it restarts with
+  // them. djSkip mixes into the next track now; deleteMusic removes an MP3.
+  djStart(ws, msg) {
+    const p = this.state.prefs || prefs.load();
+    const dj = { ...p.dj };
+    if (msg.source !== undefined) dj.source = msg.source;
+    if (msg.youtube !== undefined) dj.youtube = String(msg.youtube);
+    if (msg.mixBeats !== undefined) dj.mixBeats = Number(msg.mixBeats);
+    this.state.prefs = prefs.save({ ...p, dj });
+    const audio = radio.audio;
+    if (audio && audio.dj && audio.url === 'dj:') audio.dj.start(this.state.prefs.dj);
+    else COMMANDS.radioPlay.call(this, ws, { station: { name: 'Auto-DJ', genre: { mp3: 'My music', youtube: 'YouTube', both: 'My music + YouTube' }[this.state.prefs.dj.source], url: 'dj:' } });
+    this._broadcast(this._stateMsg());
+  },
+  djSkip() { if (radio.audio && radio.audio.dj) radio.audio.dj.skip(); },
+  setDj(ws, msg) {
+    const p = this.state.prefs || prefs.load(), dj = { ...p.dj };
+    if (msg.source !== undefined) dj.source = msg.source;
+    if (msg.youtube !== undefined) dj.youtube = String(msg.youtube);
+    if (msg.mixBeats !== undefined) dj.mixBeats = Number(msg.mixBeats);
+    this.state.prefs = prefs.save({ ...p, dj });
+    this._broadcast(this._stateMsg());
+  },
+  deleteMusic(ws, msg) { if (typeof msg.name === 'string' && require('./dj/sources').deleteMusic(msg.name)) this._broadcast(this._stateMsg()); },
+
   radioStop(ws, msg) {
     if (this.effectCommandRelay) this.effectCommandRelay('radioStop', {});
     else radio.stopStation();
