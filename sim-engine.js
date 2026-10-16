@@ -2908,7 +2908,7 @@ var PiEngine = (() => {
       function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require_sources(), decode = require_decode(), analyser = require_analyse(), log = console.log, setTimer = setInterval, clearTimer = clearInterval }) {
         const st = { state: "stopped", error: "", now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
         let wantNext = null, prepToken = 0;
-        let cfg = { source: "both", youtube: "", mixBeats: "auto" };
+        let cfg = { source: "both", youtube: "", mixBeats: "auto", quick: false };
         let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
         let known = {};
         const recent = [];
@@ -2938,8 +2938,10 @@ var PiEngine = (() => {
         const nextBar = (d, f) => d.matched && d.period > 0 ? Math.round(d.firstDown + Math.ceil((f - d.firstDown) / d.bar) * d.bar) : f;
         function planMix(a, b, want, now = false) {
           if (!(a.matched && b.matched)) {
-            const len = Math.min(12 * RATE, Math.max(2 * RATE, (a.end - a.pos) * 0.5));
-            return { start: Math.max(a.pos, now ? a.pos : a.end - len), len, beat: false, beats: 0 };
+            const len = Math.min(cfg.quick ? 8 * RATE : 12 * RATE, Math.max(2 * RATE, (a.end - a.pos) * 0.5));
+            let s = now ? a.pos : a.end - len;
+            if (cfg.quick && !now) s = Math.min(s, a.start + 60 * RATE);
+            return { start: Math.max(a.pos, s), len, beat: false, beats: 0 };
           }
           const p = a.period, room = (s) => a.end - s;
           let maxB = want === "auto" ? Math.min(Math.max(a.outroBeats, 32), Math.max(b.introBeats, 16)) : Number(want) || 32;
@@ -2951,6 +2953,14 @@ var PiEngine = (() => {
             while (L > 16 && L * p > room(Math.max(a.pos, a.inFrame + 16 * p))) L = LENGTHS[LENGTHS.indexOf(L) + 1] || 16;
             start2 = a.inFrame + Math.floor((a.end - L * p - a.inFrame) / (16 * p)) * 16 * p;
             if (start2 < a.pos) start2 = nextBar(a, a.pos + 1);
+            if (cfg.quick) {
+              const from = Math.max(a.inFrame + 55 * RATE, a.inFrame + Math.max(16, a.introBeats || 0) * p, a.pos);
+              const qs = a.inFrame + Math.ceil((from - a.inFrame) / (16 * p)) * 16 * p;
+              if (qs < start2) {
+                start2 = qs;
+                L = Math.min(L, 32);
+              }
+            }
           }
           while (L > 8 && start2 + L * p > a.end + p) L = L > 16 ? LENGTHS[LENGTHS.indexOf(L) + 1] || 16 : L / 2;
           const half = Math.max(1, Math.round(L / 8)) * 4;
@@ -3177,6 +3187,7 @@ var PiEngine = (() => {
           stop();
           cfg = { ...cfg, ...newCfg || {} };
           cfg.mixBeats = [16, 32, 64].includes(Number(cfg.mixBeats)) ? Number(cfg.mixBeats) : "auto";
+          cfg.quick = !!cfg.quick;
           const g = ++gen;
           st.state = "loading";
           st.error = "";
@@ -3242,6 +3253,11 @@ var PiEngine = (() => {
           nowStatus();
           return true;
         }
+        function configure(c) {
+          if (c.mixBeats !== void 0) cfg.mixBeats = [16, 32, 64].includes(Number(c.mixBeats)) ? Number(c.mixBeats) : "auto";
+          if (c.quick !== void 0) cfg.quick = !!c.quick;
+          if (A && !mix) A.plan = null;
+        }
         function skip() {
           if (A && !mix) {
             A.force = 8;
@@ -3249,7 +3265,7 @@ var PiEngine = (() => {
             if (!B) prepareNext();
           }
         }
-        return { start, stop, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, known: () => known, get A() {
+        return { start, stop, configure, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, known: () => known, get A() {
           return A;
         }, get B() {
           return B;
@@ -3503,8 +3519,8 @@ var PiEngine = (() => {
         volume: 1,
         // overall volume for everything the Pi plays (src/masterVolume.js)
         mic: { music: false },
-        dj: { source: "both", youtube: "", mixBeats: "auto" },
-        // the Auto-DJ (src/dj): mp3 | youtube | both; playlist link or search
+        dj: { source: "both", youtube: "", mixBeats: "auto", quick: false },
+        // the Auto-DJ (quick: mix about a minute into each song) (src/dj): mp3 | youtube | both; playlist link or search
         alexa: { on: false, skillId: "", invocation: "led wall" },
         // skillId/invocation: your own Alexa skill (src/alexaSkill.js) // pretend to be a Hue bridge so an Echo can control the display (src/alexa.js) // the Pi's microphone (src/mic.js): music: effects react to the room when no station plays
         sfx: { on: true, volume: 0.6 },
@@ -3582,6 +3598,7 @@ var PiEngine = (() => {
           if (typeof p.dj.youtube === "string") out.dj.youtube = p.dj.youtube.trim().slice(0, 300);
           if ([16, 32, 64].includes(Number(p.dj.mixBeats))) out.dj.mixBeats = Number(p.dj.mixBeats);
           else if (p.dj.mixBeats === "auto") out.dj.mixBeats = "auto";
+          if (typeof p.dj.quick === "boolean") out.dj.quick = p.dj.quick;
         }
         if (p && p.alexa) {
           out.alexa.on = !!p.alexa.on;

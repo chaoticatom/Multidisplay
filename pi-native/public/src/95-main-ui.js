@@ -1065,13 +1065,14 @@ function cxInit() {
 // ── Auto-DJ (Music tab; src/dj).
 function cxWireDj() {
   if (!document.getElementById('dj-start')) return;
-  const cfg = () => ({ source: document.querySelector('#dj-source .on')?.dataset.djsrc || 'both', youtube: document.getElementById('dj-youtube').value.trim(), mixBeats: document.getElementById('dj-beats').value === 'auto' ? 'auto' : Number(document.getElementById('dj-beats').value) });
+  const cfg = () => ({ source: document.querySelector('#dj-source .on')?.dataset.djsrc || 'both', youtube: document.getElementById('dj-youtube').value.trim(), mixBeats: document.getElementById('dj-beats').value === 'auto' ? 'auto' : Number(document.getElementById('dj-beats').value), quick: document.getElementById('dj-quick').checked });
   document.querySelectorAll('#dj-source button').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('#dj-source button').forEach((x) => x.classList.toggle('on', x === b));
     send({ cmd: 'setDj', ...cfg() });
   }));
   document.getElementById('dj-youtube').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   document.getElementById('dj-beats').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
+  document.getElementById('dj-quick').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   document.getElementById('dj-start').addEventListener('click', () => {
     const c = cfg();
     if (c.source === 'youtube' && !c.youtube) { cxToast('Add a YouTube playlist link or a search first'); return; }
@@ -1122,6 +1123,7 @@ function cxSyncDj() {
     document.querySelectorAll('#dj-source button').forEach((x) => x.classList.toggle('on', x.dataset.djsrc === c.source));
     const yt = document.getElementById('dj-youtube'); if (document.activeElement !== yt && !yt.value) yt.value = c.youtube || '';
     const bt = document.getElementById('dj-beats'); if (document.activeElement !== bt) bt.value = String(c.mixBeats || 'auto');
+    document.getElementById('dj-quick').checked = !!c.quick;
   }
   const card = document.getElementById('dj-now'), n = d.on ? d.now : null;
   card.hidden = !n;

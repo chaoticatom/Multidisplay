@@ -75,6 +75,14 @@ function clickTrack(bpm, secs, rate, off = 1.5, stereo = false) {
     assert.ok(fake(8, 8).beats === 16 && fake(40, 40).beats === 32, 'auto length from intro/outro');
     const pl = fake(16, 16), bp = ((pl.start - A.firstDown) / A.bar) % 1;
     assert.ok(Math.min(bp, 1 - bp) < 0.01 && pl.start + pl.len <= A.end + A.period, 'starts on a bar, ends with the music');
+    // Quick mix: about a minute in on a long track, on a phrase, at most 32 beats.
+    const long = { ...A, pos: 0, end: 300 * 44100, frames: 300 * 44100, outroBeats: 64 };
+    const full = dj._test.planMix(long, { ...A, introBeats: 64 }, 'auto');
+    dj.configure({ quick: true });
+    const q = dj._test.planMix(long, { ...A, introBeats: 64 }, 'auto');
+    dj.configure({ quick: false });
+    const qp = ((q.start - long.inFrame) / (16 * A.period)) % 1;
+    assert.ok(q.start / 44100 > 50 && q.start / 44100 < 75 && q.beats <= 32 && Math.min(qp, 1 - qp) < 0.01 && full.start / 44100 > 200, `quick mix at ${q.start / 44100}s vs ${full.start / 44100}s`);
     dj.stop(); assert.strictEqual(dj.status.state, 'stopped');
     console.log('  ok - beat-matched mixing from one track to the next');
   } catch (e) { console.error(e); process.exitCode = 1; }

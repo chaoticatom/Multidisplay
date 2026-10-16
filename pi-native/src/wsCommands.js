@@ -632,6 +632,7 @@ const COMMANDS = {
     if (msg.source !== undefined) dj.source = msg.source;
     if (msg.youtube !== undefined) dj.youtube = String(msg.youtube);
     if (msg.mixBeats !== undefined) dj.mixBeats = msg.mixBeats === 'auto' ? 'auto' : Number(msg.mixBeats);
+    if (msg.quick !== undefined) dj.quick = !!msg.quick;
     this.state.prefs = prefs.save({ ...p, dj });
     const audio = radio.audio;
     if (audio && audio.dj && audio.url === 'dj:') audio.dj.start(this.state.prefs.dj);
@@ -646,7 +647,9 @@ const COMMANDS = {
     if (msg.source !== undefined) dj.source = msg.source;
     if (msg.youtube !== undefined) dj.youtube = String(msg.youtube);
     if (msg.mixBeats !== undefined) dj.mixBeats = msg.mixBeats === 'auto' ? 'auto' : Number(msg.mixBeats);
+    if (msg.quick !== undefined) dj.quick = !!msg.quick;
     this.state.prefs = prefs.save({ ...p, dj });
+    if (radio.audio && radio.audio.dj && radio.audio.dj.configure) radio.audio.dj.configure(this.state.prefs.dj); // takes effect on the coming mix
     this._broadcast(this._stateMsg());
   },
   deleteMusic(ws, msg) { if (typeof msg.name === 'string' && require('./dj/sources').deleteMusic(msg.name)) this._broadcast(this._stateMsg()); },

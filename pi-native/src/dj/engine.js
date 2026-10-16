@@ -24,7 +24,7 @@ const smooth = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
 function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sources'), decode = require('./decode'), analyser = require('./analyse'), log = console.log, setTimer = setInterval, clearTimer = clearInterval }) {
   const st = { state: 'stopped', error: '', now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
   let wantNext = null, prepToken = 0;
-  let cfg = { source: 'both', youtube: '', mixBeats: 'auto' };
+  let cfg = { source: 'both', youtube: '', mixBeats: 'auto', quick: false };
   let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
   let known = {}; const recent = [];
 
@@ -48,8 +48,10 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   // When and how A mixes into B. want: 'auto' or a number of beats.
   function planMix(a, b, want, now = false) {
     if (!(a.matched && b.matched)) {
-      const len = Math.min(12 * RATE, Math.max(2 * RATE, (a.end - a.pos) * 0.5));
-      return { start: Math.max(a.pos, now ? a.pos : a.end - len), len, beat: false, beats: 0 };
+      const len = Math.min(cfg.quick ? 8 * RATE : 12 * RATE, Math.max(2 * RATE, (a.end - a.pos) * 0.5));
+      let s = now ? a.pos : a.end - len;
+      if (cfg.quick && !now) s = Math.min(s, a.start + 60 * RATE);
+      return { start: Math.max(a.pos, s), len, beat: false, beats: 0 };
     }
     const p = a.period, room = (s) => a.end - s;
     let maxB = want === 'auto' ? Math.min(Math.max(a.outroBeats, 32), Math.max(b.introBeats, 16)) : Number(want) || 32;
@@ -62,6 +64,12 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
       while (L > 16 && L * p > room(Math.max(a.pos, a.inFrame + 16 * p))) L = LENGTHS[LENGTHS.indexOf(L) + 1] || 16;
       start = a.inFrame + Math.floor((a.end - L * p - a.inFrame) / (16 * p)) * 16 * p;
       if (start < a.pos) start = nextBar(a, a.pos + 1);
+      // Quick mix: about a minute in, at the first phrase after the intro.
+      if (cfg.quick) {
+        const from = Math.max(a.inFrame + 55 * RATE, a.inFrame + Math.max(16, a.introBeats || 0) * p, a.pos);
+        const qs = a.inFrame + Math.ceil((from - a.inFrame) / (16 * p)) * 16 * p;
+        if (qs < start) { start = qs; L = Math.min(L, 32); }
+      }
     }
     while (L > 8 && start + L * p > a.end + p) L = L > 16 ? (LENGTHS[LENGTHS.indexOf(L) + 1] || 16) : L / 2;
     const half = Math.max(1, Math.round(L / 8)) * 4; // the bass swaps on a bar near half-way
@@ -234,6 +242,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     stop();
     cfg = { ...cfg, ...(newCfg || {}) };
     cfg.mixBeats = [16, 32, 64].includes(Number(cfg.mixBeats)) ? Number(cfg.mixBeats) : 'auto';
+    cfg.quick = !!cfg.quick;
     const g = ++gen;
     st.state = 'loading'; st.error = ''; st.now = null; st.next = null; st.played = 0;
     try { if (sources.loadAnalyses) known = sources.loadAnalyses() || {}; } catch (e) { known = {}; }
@@ -262,10 +271,16 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     A.lp.fill(0); A.plan = null; nowStatus();
     return true;
   }
+  // Mix settings changed while playing: re-plan the coming mix.
+  function configure(c) {
+    if (c.mixBeats !== undefined) cfg.mixBeats = [16, 32, 64].includes(Number(c.mixBeats)) ? Number(c.mixBeats) : 'auto';
+    if (c.quick !== undefined) cfg.quick = !!c.quick;
+    if (A && !mix) A.plan = null;
+  }
   // Skip: mix into the next track from A's next bar, over 8 beats.
   function skip() { if (A && !mix) { A.force = 8; A.plan = null; if (!B) prepareNext(); } }
 
-  return { start, stop, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, known: () => known, get A() { return A; }, get B() { return B; } } };
+  return { start, stop, configure, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, known: () => known, get A() { return A; }, get B() { return B; } } };
 }
 
 module.exports = { createDjEngine, RATE };

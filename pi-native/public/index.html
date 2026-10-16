@@ -2064,6 +2064,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="tm-chips" id="dj-source" style="margin:6px 0;"><button type="button" data-djsrc="mp3">My music</button><button type="button" data-djsrc="youtube">YouTube</button><button type="button" data-djsrc="both" class="on">Both</button></div>
       <input id="dj-youtube" class="ui-input" type="text" maxlength="300" placeholder="YouTube playlist link, or a search like “90s house”" aria-label="YouTube playlist or search" style="width:100%;margin-bottom:6px;">
       <div class="slider-row"><span class="slider-label">Mix over</span><select id="dj-beats" class="ui-input" aria-label="Mix length" style="flex:1;"><option value="auto" selected>Auto (best fit, up to 128 beats)</option><option value="16">16 beats (quick)</option><option value="32">32 beats</option><option value="64">64 beats (long)</option></select></div>
+      <label class="slider-row" style="cursor:pointer;"><input type="checkbox" id="dj-quick"> <span>Quick mix: move on about a minute into each song</span></label>
       <div style="display:flex;gap:6px;margin:6px 0;"><button type="button" id="dj-start" class="ui-btn-primary" style="flex:1;margin:0;">▶ Start Auto-DJ</button><button type="button" id="dj-skip" class="ui-btn-small" style="flex:0 0 auto;">⏭ Mix next now</button></div>
       <div id="dj-now" class="dj-now" hidden>
         <div class="dj-now-title" id="dj-now-title"></div>
@@ -2736,6 +2737,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.333"></script>
+<script src="app.js?v=0.6.334"></script>
 </body>
 </html>
