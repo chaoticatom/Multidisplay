@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.332';
+const APP_VERSION = '0.6.333';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -6072,7 +6072,7 @@ function cxInit() {
 // ── Auto-DJ (Music tab; src/dj).
 function cxWireDj() {
   if (!document.getElementById('dj-start')) return;
-  const cfg = () => ({ source: document.querySelector('#dj-source .on')?.dataset.djsrc || 'both', youtube: document.getElementById('dj-youtube').value.trim(), mixBeats: Number(document.getElementById('dj-beats').value) });
+  const cfg = () => ({ source: document.querySelector('#dj-source .on')?.dataset.djsrc || 'both', youtube: document.getElementById('dj-youtube').value.trim(), mixBeats: document.getElementById('dj-beats').value === 'auto' ? 'auto' : Number(document.getElementById('dj-beats').value) });
   document.querySelectorAll('#dj-source button').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('#dj-source button').forEach((x) => x.classList.toggle('on', x === b));
     send({ cmd: 'setDj', ...cfg() });
@@ -6086,6 +6086,11 @@ function cxWireDj() {
     if (typeof radioBrowserPlay === 'function') radioBrowserPlay({ name: 'Auto-DJ', url: 'dj:' }); // phone audio too, in this tap
   });
   document.getElementById('dj-skip').addEventListener('click', () => send({ cmd: 'djSkip' }));
+  // The progress bar: moves on its own between state updates; drag it to jump.
+  const seek = document.getElementById('dj-seek');
+  seek.addEventListener('input', () => { seek.dataset.drag = '1'; document.getElementById('dj-pos').textContent = cxDjTime(Number(seek.value)); });
+  seek.addEventListener('change', () => { delete seek.dataset.drag; send({ cmd: 'djSeek', sec: Number(seek.value) }); });
+  setInterval(cxDjTickBar, 500);
   document.getElementById('dj-queue').addEventListener('click', (e) => {
     const b = e.target.closest('[data-djq]'); if (!b || b.classList.contains('now')) return;
     send({ cmd: 'djNext', index: Number(b.dataset.djq) });
@@ -6110,18 +6115,34 @@ function cxWireDj() {
     if (confirm('Remove ' + b.dataset.djdel + '?')) send({ cmd: 'deleteMusic', name: b.dataset.djdel });
   });
 }
+function cxDjTime(s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+let cxDjNow = null, cxDjNowAt = 0;
+function cxDjTickBar() {
+  const n = cxDjNow, seek = document.getElementById('dj-seek'); if (!n || !seek || seek.dataset.drag) return;
+  const pos = Math.min(n.dur, n.pos + (Date.now() - cxDjNowAt) / 1000);
+  seek.max = String(n.dur || 1); seek.value = String(pos);
+  document.getElementById('dj-pos').textContent = cxDjTime(pos); document.getElementById('dj-dur').textContent = cxDjTime(n.dur);
+}
 function cxSyncDj() {
   const d = currentState.dj, c = currentState.prefs?.dj; if (!d || !document.getElementById('dj-status')) return;
   if (c) {
     document.querySelectorAll('#dj-source button').forEach((x) => x.classList.toggle('on', x.dataset.djsrc === c.source));
     const yt = document.getElementById('dj-youtube'); if (document.activeElement !== yt && !yt.value) yt.value = c.youtube || '';
-    const bt = document.getElementById('dj-beats'); if (document.activeElement !== bt) bt.value = String(c.mixBeats || 32);
+    const bt = document.getElementById('dj-beats'); if (document.activeElement !== bt) bt.value = String(c.mixBeats || 'auto');
   }
+  const card = document.getElementById('dj-now'), n = d.on ? d.now : null;
+  card.hidden = !n;
+  if (n) {
+    if (!cxDjNow || cxDjNow.title !== n.title || cxDjNow.pos !== n.pos) { cxDjNow = n; cxDjNowAt = Date.now(); }
+    document.getElementById('dj-now-title').textContent = '▶ ' + n.title;
+    document.getElementById('dj-now-meta').textContent = [n.bpm ? n.bpm + ' BPM' : '', n.key ? 'key ' + n.key + (n.shift ? ` (${n.shift > 0 ? '+' : ''}${n.shift} st)` : '') : '', d.mixing ? 'mixing…' : ''].filter(Boolean).join(' · ');
+    cxDjTickBar();
+  } else cxDjNow = null;
   const s = document.getElementById('dj-status');
   s.textContent = !d.on ? (d.music.length ? `${d.music.length} tracks in My music.` : 'Add MP3s below, or a YouTube playlist or search above.')
     : d.state === 'error' || d.state === 'empty' ? '⚠ ' + (d.error || 'Nothing to play')
     : d.state === 'loading' && !d.now ? 'Getting the first track ready…'
-    : `▶ ${d.now ? d.now.title + (d.now.bpm ? ` · ${d.now.bpm} BPM` : '') : '…'}${d.mixing ? ' · mixing…' : ''}${d.next ? `\nNext: ${d.next.title}${d.next.bpm ? ` · ${d.next.bpm} BPM` : ''}${d.next.mode ? ` · ${d.next.mode}` : d.next.status ? ' · getting it ready' : ''}` : ''}`;
+    : d.next ? `Next: ${d.next.title}${d.next.bpm ? ` · ${d.next.bpm} BPM` : ''}${d.next.key ? ` · ${d.next.key}${d.next.shift ? ` (${d.next.shift > 0 ? '+' : ''}${d.next.shift} st)` : ''}` : ''}${d.next.mode ? ` · ${d.next.mode}` : d.next.status ? ' · getting it ready' : ''}${d.next.beats ? ` · ${d.next.beats} beats` : ''}` : '';
   s.style.whiteSpace = 'pre-line';
   document.getElementById('dj-skip').disabled = !d.on;
   // The track list (tap one to play it next).

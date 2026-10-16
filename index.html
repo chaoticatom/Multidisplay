@@ -599,6 +599,7 @@ input[type=range]:focus-visible { outline: 2px solid #7aadff; outline-offset: 3p
 .now-options .effect-panel { display: block !important; margin: 0; border: 1px solid rgba(80,120,255,0.18); border-radius: 8px; }
 .scene-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 /* Auto-DJ track list: tap a track to play it next. */
+.dj-now{background:rgba(255,255,255,.05);border-radius:10px;padding:10px;margin:6px 0}.dj-now-title{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dj-now-meta{opacity:.7;font-size:12px;margin:2px 0 6px}#dj-seek{width:100%}.dj-now-times{display:flex;justify-content:space-between;font-size:11px;opacity:.7}
 .dj-queue { max-height: 240px; overflow-y: auto; margin: 6px 0 10px; border: 1px solid rgba(80,120,255,0.25); border-radius: 10px; }
 .dj-queue button { display: flex; width: 100%; gap: 8px; align-items: center; text-align: left; background: none; border: none; border-bottom: 1px solid rgba(255,255,255,0.06); color: #dfe7ff; padding: 7px 10px; font-size: 13px; cursor: pointer; }
 .dj-queue button:last-child { border-bottom: none; }
@@ -2062,8 +2063,14 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="ui-note">Mixes song into song like a DJ: matches the tempo, lines up the beats and swaps the bass over a phrase. Songs without a clear beat get a smooth crossfade.</div>
       <div class="tm-chips" id="dj-source" style="margin:6px 0;"><button type="button" data-djsrc="mp3">My music</button><button type="button" data-djsrc="youtube">YouTube</button><button type="button" data-djsrc="both" class="on">Both</button></div>
       <input id="dj-youtube" class="ui-input" type="text" maxlength="300" placeholder="YouTube playlist link, or a search like “90s house”" aria-label="YouTube playlist or search" style="width:100%;margin-bottom:6px;">
-      <div class="slider-row"><span class="slider-label">Mix over</span><select id="dj-beats" class="ui-input" aria-label="Mix length" style="flex:1;"><option value="16">16 beats (quick)</option><option value="32" selected>32 beats</option><option value="64">64 beats (long)</option></select></div>
+      <div class="slider-row"><span class="slider-label">Mix over</span><select id="dj-beats" class="ui-input" aria-label="Mix length" style="flex:1;"><option value="auto" selected>Auto (best fit, up to 128 beats)</option><option value="16">16 beats (quick)</option><option value="32">32 beats</option><option value="64">64 beats (long)</option></select></div>
       <div style="display:flex;gap:6px;margin:6px 0;"><button type="button" id="dj-start" class="ui-btn-primary" style="flex:1;margin:0;">▶ Start Auto-DJ</button><button type="button" id="dj-skip" class="ui-btn-small" style="flex:0 0 auto;">⏭ Mix next now</button></div>
+      <div id="dj-now" class="dj-now" hidden>
+        <div class="dj-now-title" id="dj-now-title"></div>
+        <div class="dj-now-meta" id="dj-now-meta"></div>
+        <input type="range" id="dj-seek" min="0" max="100" step="0.1" value="0" aria-label="Track position">
+        <div class="dj-now-times"><span id="dj-pos">0:00</span><span id="dj-dur">0:00</span></div>
+      </div>
       <div class="ui-note" id="dj-status"></div>
       <div id="dj-queue" class="dj-queue" hidden></div>
       <details class="ui-note" style="margin:6px 0 12px;"><summary id="dj-music-sum">My music</summary>

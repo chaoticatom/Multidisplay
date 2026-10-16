@@ -1,8 +1,9 @@
 // Auto-DJ decoding through ffmpeg (the same tool the radio uses).
 //   decodeAnalysis(input)       -> Float32Array, mono 11025 Hz (for dj/analyse.js)
-//   decodePlay(input, tempo)    -> Int16Array, stereo 44100 Hz, sped up or
-//                                  slowed by `tempo` (1 = as is) with the
-//                                  pitch kept (ffmpeg's atempo)
+//   decodePlay(input, tempo, spawn, semis) -> Int16Array, stereo 44100 Hz,
+//                                  sped up or slowed by `tempo` (1 = as is)
+//                                  with the pitch kept (ffmpeg's atempo),
+//                                  optionally shifted by `semis` semitones
 // `input` is { url, opts } - a file path, or a stream URL plus ffmpeg input
 // options (YouTube). Tracks are capped at 10 minutes. spawn is injectable.
 'use strict';
@@ -33,9 +34,15 @@ async function decodeAnalysis(input, spawn = realSpawn) {
 }
 
 // atempo takes 0.5..2 per stage; the Auto-DJ stays within about +-8%.
-async function decodePlay(input, tempo = 1, spawn = realSpawn) {
-  const t = Math.max(0.5, Math.min(2, tempo || 1));
-  const filt = Math.abs(t - 1) > 0.0005 ? ['-af', `atempo=${t.toFixed(5)}`] : [];
+// semis: a pitch shift in semitones (to bring keys together), done by
+// resampling (pitch and speed) then atempo to put the speed back.
+async function decodePlay(input, tempo = 1, spawn = realSpawn, semis = 0) {
+  const t = Math.max(0.5, Math.min(2, tempo || 1)), p = Math.pow(2, (semis || 0) / 12);
+  const chain = [];
+  if (semis) chain.push(`asetrate=${Math.round(44100 * p)}`, 'aresample=44100');
+  const at = t / p;
+  if (Math.abs(at - 1) > 0.0005) chain.push(`atempo=${at.toFixed(5)}`);
+  const filt = chain.length ? ['-af', chain.join(',')] : [];
   const buf = await run(input, ['-vn', ...filt, '-ac', '2', '-ar', '44100', '-f', 's16le'], spawn, MAX_SECS * 44100 * 4 * 1.1);
   return new Int16Array(buf.buffer, buf.byteOffset, Math.floor(buf.length / 2)).slice();
 }

@@ -12,7 +12,7 @@ const fakeSpawn = (json) => () => { const p = new EventEmitter(); p.stdout = new
   try {
     const list = await youtubeTracks('90s house', fakeSpawn({ entries: [{ id: 'abcdefghijk', title: 'Song One', duration: 240 }, { id: 'bad id!', title: 'x' }, { id: 'zzzzzzzzzzz', title: 'Too long mix', duration: 3600 }] }));
     assert.deepStrictEqual(list, [{ kind: 'yt', id: 'abcdefghijk', title: 'Song One' }], 'valid ids, songs under 10 minutes');
-    assert.deepStrictEqual(prefs.clean(null).dj, { source: 'both', youtube: '', mixBeats: 32 });
+    assert.deepStrictEqual(prefs.clean(null).dj, { source: 'both', youtube: '', mixBeats: 'auto' });
     assert.deepStrictEqual(prefs.clean({ dj: { source: 'youtube', youtube: ' https://youtube.com/playlist?list=X ', mixBeats: 64 } }).dj, { source: 'youtube', youtube: 'https://youtube.com/playlist?list=X', mixBeats: 64 });
     assert.strictEqual(prefs.clean({ dj: { source: 'spotify', mixBeats: 7 } }).dj.source, 'both');
     // The radio launches the Auto-DJ for 'dj:' (no spawned ffmpeg), and stops it.

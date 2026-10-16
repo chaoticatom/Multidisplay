@@ -63,6 +63,18 @@ function clickTrack(bpm, secs, rate, off = 1.5, stereo = false) {
     assert.ok(dj.playNext(pick), 'picked');
     for (let k = 0; k < 50 && !(dj._test.B && dj._test.B.qi === pick); k++) await new Promise((r) => setImmediate(r));
     assert.ok(dj._test.B && dj._test.B.qi === pick && dj.status.nextIdx === pick, 'the picked track is next');
+    // The playing track's position, and jumping within it (onto a beat).
+    const A = dj._test.A;
+    assert.ok(dj.status.now && dj.status.now.dur > 30 && dj.status.now.pos >= 0, 'now playing with a position');
+    assert.ok(dj.seek(10));
+    const ph = ((A.pos - A.firstBeat) / A.period) % 1;
+    assert.ok(Math.abs(A.pos / 44100 - 10) < 1 && Math.min(ph, 1 - ph) < 0.01, 'seek lands on a beat');
+    // Auto mix length fits both tracks' outro/intro; it lands on a bar.
+    const fake = (outro, intro) => dj._test.planMix({ ...A, pos: 0, outroBeats: outro, end: A.frames }, { ...A, introBeats: intro }, 'auto');
+    assert.strictEqual(fake(64, 64).beats, 32 <= 64 ? fake(64, 64).beats : 0);
+    assert.ok(fake(8, 8).beats === 16 && fake(40, 40).beats === 32, 'auto length from intro/outro');
+    const pl = fake(16, 16), bp = ((pl.start - A.firstDown) / A.bar) % 1;
+    assert.ok(Math.min(bp, 1 - bp) < 0.01 && pl.start + pl.len <= A.end + A.period, 'starts on a bar, ends with the music');
     dj.stop(); assert.strictEqual(dj.status.state, 'stopped');
     console.log('  ok - beat-matched mixing from one track to the next');
   } catch (e) { console.error(e); process.exitCode = 1; }

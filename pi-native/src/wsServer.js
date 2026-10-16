@@ -130,6 +130,12 @@ class WsServer {
     this._lastFrameMs = 0;
     this._playlistSince = Date.now();
     setInterval(() => this._playlistTick(), 5000).unref();
+    // Auto-DJ: re-send state when the track, the next one or the mix changes (the page moves the progress bar itself).
+    setInterval(() => {
+      const a = require('./effects/radio/radio').audio, d = a && a.dj && a.url === 'dj:' ? a.dj.status : null;
+      const sig = d ? JSON.stringify([d.state, d.now && d.now.title, d.now && d.now.dur, d.next, d.mixing, d.nowIdx, d.nextIdx, d.error]) : '';
+      if (sig !== this._djSig) { this._djSig = sig; this._broadcast(this._stateMsg()); }
+    }, 1000).unref();
     // Weekly settings backup (see src/autoBackup.js): at start-up, then hourly.
     this.state.backup = autoBackup.maybeBackup();
     setInterval(() => { const before = JSON.stringify(this.state.backup); this.state.backup = autoBackup.maybeBackup(); if (JSON.stringify(this.state.backup) !== before) this._broadcast(this._stateMsg()); }, 3600000).unref();

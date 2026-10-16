@@ -64,6 +64,18 @@ async function inputFor(track, spawn = realSpawn) {
   return { url: await youtubeAudio(track.id, spawn), opts: ['-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5'] };
 }
 
+// Analyses of your MP3s (tempo, key, ...), kept so a track is only analysed once.
+const CACHE = path.join(MUSIC_DIR, '.dj-analysis.json');
+function loadAnalyses() {
+  try { const all = JSON.parse(fs.readFileSync(CACHE, 'utf8')), files = new Set(listMusic()), out = {}; for (const k of Object.keys(all)) if (files.has(k)) out[k] = all[k]; return out; } catch (e) { return {}; }
+}
+function saveAnalysis(track, info) {
+  if (track.kind !== 'mp3') return;
+  const all = loadAnalyses(); all[track.id] = info;
+  fs.mkdirSync(MUSIC_DIR, { recursive: true });
+  require('../atomicWrite').atomicWriteJson(CACHE, all);
+}
+
 // All tracks for the Auto-DJ settings, shuffled.
 async function allTracks(cfg, spawn = realSpawn) {
   const out = [];
@@ -73,4 +85,4 @@ async function allTracks(cfg, spawn = realSpawn) {
   return out;
 }
 
-module.exports = { MUSIC_DIR, AUDIO_RE, listMusic, deleteMusic, titleOf, youtubeTracks, youtubeAudio, inputFor, allTracks };
+module.exports = { MUSIC_DIR, AUDIO_RE, listMusic, deleteMusic, titleOf, youtubeTracks, youtubeAudio, inputFor, allTracks, loadAnalyses, saveAnalysis };
