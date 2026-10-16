@@ -11,9 +11,9 @@ try {
   const ctx = { amp: (b) => amp[b], peak: (b) => amp[b], ampArr: amp, peakArr: amp, vu: [0.5, 0.5, 0.6, 0.6], wave: new Float32Array(256), bands: 64, theme: 5, barMode: 'solid', scrollX: 0, t: 1, dt: 0.1 };
   const frame = (st) => { buf.fill(0); renderSpectrumV2Wall(core, ctx, 'auto', st, 10); return Float32Array.from(buf); };
   // Pure style A, pure style B, and the morph between them (10 s each, 3 s morph).
-  const sA = createV2State(); sA.sceneT = 2; const A = frame(sA);
-  const sB = createV2State(); sB.sceneT = 12; const B = frame(sB);
-  const sM = createV2State(); sM.sceneT = 8.4; const M = frame(sM); // half way through the morph
+  const sA = createV2State(); sA.sceneT = 42; const A = frame(sA); // styles 4 and 5 (Hi-Fi, Studio): both fill the edges
+  const sB = createV2State(); sB.sceneT = 52; const B = frame(sB);
+  const sM = createV2State(); sM.sceneT = 48.4; const M = frame(sM); // half way through the morph
   let left = 0, right = 0;
   for (let y = 0; y < H; y++) { const l = (y * W + 5) * 3, r = (y * W + W - 5) * 3; left += Math.abs(M[l] - B[l]) < Math.abs(M[l] - A[l]) ? 1 : 0; right += Math.abs(M[r] - A[r]) <= Math.abs(M[r] - B[r]) ? 1 : 0; }
   assert.ok(left > H / 2 && right > H / 2, `mid-morph: the new style on the left (${left}), the old one still on the right (${right})`);

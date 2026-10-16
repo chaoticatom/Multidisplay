@@ -27066,7 +27066,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl } = require_core();
       var { FONT_3x5, drawString } = require_text();
-      var SCENES = ["chrome", "hifi", "studio", "spectrogram", "waterfall3d", "mirror", "radial", "particle", "neon", "bounce", "bars3d"];
+      var SCENES = ["horizon", "loom", "helix", "tunnel", "hifi", "studio", "spectrogram", "waterfall3d", "mirror", "radial", "particle", "neon", "bounce", "bars3d"];
       var AUTO_SECS = 25;
       var TICKER_ROWS = 9;
       function createV2State() {
@@ -27337,200 +27337,294 @@ var PiEngine = (() => {
           }
         }
       }
-      var CH_N = 48;
-      var CH_M = 40;
-      var SKY_OUT = [0, 0, 0];
-      var TR = [0, 0, 0];
-      var BAND_COL = Array.from({ length: 64 }, (_, i) => hsl(bandHue(i / 63), 1, 0.5));
-      function sceneChrome(core, ctx, st, W, H, t, dt) {
-        const area = H - TICKER_ROWS;
-        if (!st.ch) st.ch = { h: new Float32Array(CH_N * CH_M), acc: 0, bass: 0, img: null, w: 0 };
-        const ch = st.ch, hist = ch.h;
-        if (!ch.live) ch.live = new Float32Array(CH_N);
-        if (!ch.tgt) ch.tgt = new Float32Array(CH_N);
-        for (let i = 0; i < CH_N; i++) ch.tgt[i] = ampAt(ctx.ampArr, ctx.bands, i / (CH_N - 1));
-        const up = Math.min(1, dt * 30), down = Math.min(1, dt * 5);
-        let lowNow = 0;
-        for (let i = 0; i < 6; i++) lowNow += ch.tgt[i];
-        lowNow /= 6;
-        ch.lowAvg = (ch.lowAvg || lowNow) + (lowNow - (ch.lowAvg || lowNow)) * Math.min(1, dt * 2);
-        const kick = Math.max(0, lowNow - ch.lowAvg * 1.15) * 1.6;
-        for (let i = 0; i < CH_N; i++) {
-          const raw = ch.tgt[i], tv = Math.min(1.2, Math.pow(raw, 1.35) * 1.25 + kick * (1 - i / CH_N * 0.5));
-          ch.live[i] += (tv - ch.live[i]) * (tv > ch.live[i] ? up : down);
-        }
-        ch.acc += dt;
-        let bass = 0;
-        for (let i = 0; i < 6; i++) bass += ctx.ampArr[i] || 0;
-        ch.bass += (bass / 6 - ch.bass) * Math.min(1, dt * 8);
-        while (ch.acc > 1 / 30) {
-          ch.acc -= 1 / 30;
-          hist.copyWithin(CH_N, 0, CH_N * (CH_M - 1));
-        }
-        hist.set(ch.live);
-        const frac = ch.acc * 30;
-        const asp = W / area;
-        const hAt = (u, v) => {
-          const x = Math.max(0, Math.min(CH_N - 1.001, u * (CH_N - 1))), zz = Math.max(0, Math.min(CH_M - 1.001, v * (CH_M - 1) + frac));
-          const xi = x | 0, zi = zz | 0, fx = x - xi, fz = zz - zi, o = zi * CH_N + xi;
-          const a = hist[o] + (hist[o + 1] - hist[o]) * fx, b = hist[o + CH_N] + (hist[o + CH_N + 1] - hist[o + CH_N]) * fx;
-          return (a + (b - a) * fz) * 0.36 * (1 - 0.3 * v);
-        };
-        const SEA = 3;
-        const camY = 0.42, camZ = -0.2, pitch = -0.24, fov = 1.15, cp = Math.cos(pitch), sp = Math.sin(pitch);
-        const sunR = 0.1 + 0.06 * ch.bass;
-        const SKY_TOP = [0.03, 0.01, 0.09], SKY_MID = [0.28, 0.04, 0.35], SKY_LOW = [0.95, 0.28, 0.32];
-        const sky = (dx, dy) => {
-          const k = Math.max(0, Math.min(1, dy * 3.2));
-          let r = k < 0.35 ? SKY_LOW[0] + (SKY_MID[0] - SKY_LOW[0]) * (k / 0.35) : SKY_MID[0] + (SKY_TOP[0] - SKY_MID[0]) * ((k - 0.35) / 0.65);
-          let g = k < 0.35 ? SKY_LOW[1] + (SKY_MID[1] - SKY_LOW[1]) * (k / 0.35) : SKY_MID[1] + (SKY_TOP[1] - SKY_MID[1]) * ((k - 0.35) / 0.65);
-          let b = k < 0.35 ? SKY_LOW[2] + (SKY_MID[2] - SKY_LOW[2]) * (k / 0.35) : SKY_MID[2] + (SKY_TOP[2] - SKY_MID[2]) * ((k - 0.35) / 0.65);
-          const sx = dx, sy = dy - 0.05, d = Math.sqrt(sx * sx + sy * sy);
-          if (d < sunR) {
-            const stripe = sy < 0 ? Math.sin(sy * 110 + t * 2) > -0.2 + sy * 9 ? 1 : 0 : 1;
-            const yy = (sy + sunR) / (2 * sunR);
-            if (stripe) {
-              r = 1;
-              g = 0.85 - 0.55 * (1 - yy);
-              b = 0.25 - 0.15 * (1 - yy);
+      var BH_STEP = 0.14;
+      var BH_STEPS = 230;
+      var BH_R_IN = 2.6;
+      var bhHash = (x, y) => {
+        let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263);
+        h = Math.imul(h ^ h >>> 13, 1274126177);
+        return ((h ^ h >>> 16) >>> 0) / 4294967296;
+      };
+      function bhNoise(x, y) {
+        const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+        const a = bhHash(xi, yi), b = bhHash(xi + 1, yi), c = bhHash(xi, yi + 1), d = bhHash(xi + 1, yi + 1);
+        return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+      }
+      function bhTrace(m, i, sx, sy) {
+        const camDist = 13, elev = 0.13, ce = Math.cos(elev), se = Math.sin(elev);
+        let x = 0, y = camDist * se, z = -camDist * ce;
+        let dx = sx, dy = sy * ce - se, dz = sy * se + ce;
+        const n = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        dx /= n;
+        dy /= n;
+        dz /= n;
+        const hx = y * dz - z * dy, hy = z * dx - x * dz, hz = x * dy - y * dx, h2 = hx * hx + hy * hy + hz * hz;
+        let hits = 0;
+        m.cap[i] = 0;
+        for (let k = 0; k < BH_STEPS; k++) {
+          const py = y;
+          x += dx * BH_STEP;
+          y += dy * BH_STEP;
+          z += dz * BH_STEP;
+          const r2 = x * x + y * y + z * z, r = Math.sqrt(r2);
+          if (r < 1) {
+            m.cap[i] = 1;
+            break;
+          }
+          const acc = -1.5 * h2 / (r2 * r2 * r) * BH_STEP;
+          dx += acc * x;
+          dy += acc * y;
+          dz += acc * z;
+          if (py * y < 0 && hits < 2) {
+            const f = py / (py - y), cx = x - dx * BH_STEP * (1 - f), cz = z - dz * BH_STEP * (1 - f), rr = Math.sqrt(cx * cx + cz * cz);
+            if (rr > BH_R_IN && rr < m.rOut) {
+              m.r[i * 2 + hits] = rr;
+              m.a[i * 2 + hits] = Math.atan2(cz, cx);
+              hits++;
             }
           }
-          const glow = Math.exp(-Math.max(0, d - sunR) * 14) * (0.3 + 0.4 * ch.bass);
-          r += glow * 1;
-          g += glow * 0.35;
-          b += glow * 0.25;
-          if (dy > 0.18) {
-            const si = Math.floor((dx + 3) * 90) * 131 + Math.floor(dy * 90);
-            const h2 = Math.sin(si * 12.9898) * 43758.5453 % 1;
-            if (h2 > 0.985) {
-              const tw = 0.5 + 0.5 * Math.sin(t * 3 + si);
-              r += 0.5 * tw;
-              g += 0.5 * tw;
-              b += 0.6 * tw;
-            }
-          }
-          SKY_OUT[0] = r;
-          SKY_OUT[1] = g;
-          SKY_OUT[2] = b;
-          return SKY_OUT;
-        };
-        if (!ch.img || ch.w !== W * area) {
-          ch.img = new Float32Array(W * area * 3);
-          ch.w = W * area;
+          if (r > 40) break;
         }
-        const img = ch.img;
-        if (!ch.hz || ch.hz.length !== W * 3) ch.hz = new Float32Array(W * 3);
-        for (let px = 0; px < W; px++) {
-          const c = sky((px + 0.5 - W / 2) / area * fov, 0.01);
-          ch.hz[px * 3] = c[0];
-          ch.hz[px * 3 + 1] = c[1];
-          ch.hz[px * 3 + 2] = c[2];
-        }
-        const HZ = [0, 0, 0], hzCol = (px) => {
-          HZ[0] = ch.hz[px * 3];
-          HZ[1] = ch.hz[px * 3 + 1];
-          HZ[2] = ch.hz[px * 3 + 2];
-          return HZ;
-        };
-        const trace = (px, py) => {
-          const sx = (px + 0.5 - W / 2) / area * fov, sy = (area / 2 - py - 0.5) / area * fov;
-          const dyc = sy * cp + sp, dzc = cp - sy * sp;
-          const dxw = sx / asp;
-          let tt = 0.02, hit = false, x = 0, y = 0, z = 0;
-          for (let i = 0; i < 32; i++) {
-            x = 0.5 + dxw * tt;
-            y = camY + dyc * tt;
-            z = camZ + dzc * tt;
-            if (z > SEA || x < -0.05 || x > 1.05 || y < -0.05) break;
-            const h = hAt(x, Math.max(0, z) / SEA);
-            if (y <= h) {
-              let lo = tt - 0.04, hi = tt;
-              for (let k = 0; k < 4; k++) {
-                const mid = (lo + hi) / 2, ym = camY + dyc * mid, hm = hAt(0.5 + dxw * mid, Math.max(0, camZ + dzc * mid) / SEA);
-                if (ym <= hm) hi = mid;
-                else lo = mid;
-              }
-              tt = hi;
-              x = 0.5 + dxw * tt;
-              y = camY + dyc * tt;
-              z = camZ + dzc * tt;
-              hit = true;
-              break;
-            }
-            tt += 0.014 + tt * 0.055;
-          }
-          if (!hit) {
-            const s2 = sky(sx, dyc);
-            TR[0] = s2[0];
-            TR[1] = s2[1];
-            TR[2] = s2[2];
-            return TR;
-          }
-          const v = z / SEA, e = 0.012, hx = (hAt(x + e, v) - hAt(x - e, v)) / (2 * e), hzz = (hAt(x, v + e) - hAt(x, v - e)) / (2 * e * SEA);
-          let nx = -hx * 2.5, ny = 1, nz = -hzz * 2.5;
-          const nn = Math.sqrt(nx * nx + ny * ny + nz * nz);
-          nx /= nn;
-          ny /= nn;
-          nz /= nn;
-          let rx = dxw, ry = dyc, rz = dzc;
-          const rn = Math.sqrt(rx * rx + ry * ry + rz * rz);
-          rx /= rn;
-          ry /= rn;
-          rz /= rn;
-          const dd = rx * nx + ry * ny + rz * nz, ox = rx - 2 * dd * nx, oy = ry - 2 * dd * ny;
-          const rf = sky(ox * asp, Math.max(0, oy)), rf0 = rf[0], rf1 = rf[1], rf2 = rf[2];
-          const fres = 0.35 + 0.65 * Math.pow(1 - Math.max(0, -dd), 4);
-          const hgt = hAt(x, v) / 0.36, c = BAND_COL[Math.max(0, Math.min(63, Math.round(x * 63)))];
-          const crest = Math.pow(Math.min(1, hgt * 1.3), 3) * 1.3;
-          const fog = Math.min(1, Math.max(0, (v - 0.35) / 0.65)) ** 1.5, hzc = hzCol(px);
-          const tint = 0.25 + 0.75 * Math.min(1, hgt * 1.8);
-          let r = rf0 * fres * (0.25 + 0.75 * c[0] * tint) + c[0] * crest * 0.7;
-          let g = rf1 * fres * (0.25 + 0.75 * c[1] * tint) + c[1] * crest * 0.7;
-          let b = rf2 * fres * (0.25 + 0.75 * c[2] * tint) + c[2] * crest * 0.7;
-          const gl = Math.max(0, 1 - Math.abs(((v * CH_M - frac) % 4 + 4) % 4 - 2) * 2.5) * 0.12 * (1 - fog);
-          r += gl * 0.4;
-          g += gl * 0.15;
-          b += gl * 0.6;
-          TR[0] = r + (hzc[0] - r) * fog;
-          TR[1] = g + (hzc[1] - g) * fog;
-          TR[2] = b + (hzc[2] - b) * fog;
-          return TR;
-        };
-        const put3 = (o, c) => {
-          img[o] = c[0];
-          img[o + 1] = c[1];
-          img[o + 2] = c[2];
-        };
-        const near = (a2, b2) => Math.abs(img[a2] - img[b2]) + Math.abs(img[a2 + 1] - img[b2 + 1]) + Math.abs(img[a2 + 2] - img[b2 + 2]) < 0.2;
-        for (let py = 0; py < area; py += 2) {
-          const row = py * W;
-          for (let px = 0; px < W; px += 2) put3((row + px) * 3, trace(px, py));
-          for (let px = 1; px < W; px += 2) {
-            const o = (row + px) * 3, l = o - 3, r2 = px + 1 < W ? o + 3 : o - 3;
-            if (near(l, r2)) {
-              img[o] = (img[l] + img[r2]) / 2;
-              img[o + 1] = (img[l + 1] + img[r2 + 1]) / 2;
-              img[o + 2] = (img[l + 2] + img[r2 + 2]) / 2;
-            } else put3(o, trace(px, py));
-          }
-        }
-        for (let py = 1; py < area; py += 2) {
-          const row = py * W, up2 = (py - 1) * W, dn = (py + 1 < area ? py + 1 : py - 1) * W;
-          for (let px = 0; px < W; px++) {
-            const o = (row + px) * 3, a2 = (up2 + px) * 3, b2 = (dn + px) * 3;
-            if (near(a2, b2)) {
-              img[o] = (img[a2] + img[b2]) / 2;
-              img[o + 1] = (img[a2 + 1] + img[b2 + 1]) / 2;
-              img[o + 2] = (img[a2 + 2] + img[b2 + 2]) / 2;
-            } else put3(o, trace(px, py));
-          }
-        }
-        for (let py = 0; py < area; py++) for (let px = 0; px < W; px++) {
-          const o = (py * W + px) * 3;
-          core.setWallPixel(px, py, img[o], img[o + 1], img[o + 2]);
+        m.hits[i] = hits;
+        if (!m.cap[i]) {
+          const th = Math.atan2(dz, dx), ph = Math.asin(Math.max(-1, Math.min(1, dy))), s = bhHash(Math.floor(th * 120), Math.floor(ph * 120));
+          m.star[i] = s > 0.996 ? (s - 0.996) * 200 : 0;
         }
       }
-      var RENDER = { chrome: sceneChrome, hifi: sceneHifi, studio: sceneStudio, spectrogram: sceneSpectrogram, waterfall3d: sceneWaterfall3d, mirror: sceneMirror, radial: sceneRadial, particle: sceneParticle, neon: sceneNeon, bounce: sceneBounce, bars3d: sceneBars3d };
+      var BH_HEAT = new Float32Array(3);
+      function bhHeat(k) {
+        k = Math.max(0, Math.min(1.6, k));
+        BH_HEAT[0] = Math.min(1, k * 1.6);
+        BH_HEAT[1] = Math.min(1, k * k * 1.2);
+        BH_HEAT[2] = Math.max(0, Math.min(1, (k - 0.55) * 1.4 + k * k * k * 0.25));
+        return BH_HEAT;
+      }
+      function sceneHorizon(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS, N = W * area, asp = W / area, fov = 0.42;
+        let m = st.bh;
+        if (!m || m.N !== N) m = st.bh = { N, done: 0, rOut: 9 + 1.6 * Math.max(0, asp - 2), r: new Float32Array(N * 2), a: new Float32Array(N * 2), hits: new Uint8Array(N), cap: new Uint8Array(N), star: new Float32Array(N), img: new Float32Array(N * 3), blur: new Float32Array(N * 3), rot: 0, beat: 0, bassAvg: 0 };
+        if (m.done < area) {
+          const end = Math.min(area, m.done + Math.max(2, Math.round(1400 / W)));
+          for (let y = m.done; y < end; y++) for (let x = 0; x < W; x++) bhTrace(m, y * W + x, (x + 0.5 - W / 2) / area * fov * 2, (area / 2 - y - 0.5) / area * fov * 2);
+          m.done = end;
+        }
+        let bass = 0;
+        for (let i = 0; i < 6; i++) bass += ctx.ampArr[i] || 0;
+        bass /= 6;
+        let loud = 0;
+        for (let i = 0; i < ctx.bands; i++) loud += ctx.ampArr[i] || 0;
+        loud /= ctx.bands;
+        m.bassAvg += (bass - m.bassAvg) * Math.min(1, dt * 2);
+        if (bass > m.bassAvg * 1.18 + 0.05 && m.beat < 0.4) m.beat = 1;
+        else m.beat *= Math.exp(-dt * 5);
+        m.rot += dt * (0.7 + 1.6 * loud + 0.8 * m.beat);
+        const beat = m.beat, rot = m.rot, img = m.img;
+        for (let i = 0; i < N; i++) {
+          const o = i * 3;
+          if (Math.floor(i / W) >= m.done) {
+            img[o] = img[o + 1] = img[o + 2] = 0;
+            continue;
+          }
+          let cr = 0, cg = 0, cb = 0, alpha = 1;
+          for (let h = 0; h < m.hits[i]; h++) {
+            const rr = m.r[i * 2 + h], ang = m.a[i * 2 + h], u = (rr - BH_R_IN) / (m.rOut - BH_R_IN);
+            const mu = ampAt(ctx.ampArr, ctx.bands, 1 - u);
+            const swirl = bhNoise(ang * 6 + rot * 4 / Math.sqrt(rr), rr * 2.2) * 0.6 + bhNoise(ang * 18 - rot * 6, rr * 5) * 0.4;
+            const ring = 0.5 + 0.5 * Math.sin(rr * 7 - t * 6 * (1 + beat));
+            let I = 1.5 * (0.25 + 1.1 * mu) * (0.45 + 0.75 * swirl) * Math.pow(1 - u, 1.4) * 1.6 * (1 + 0.6 * beat * ring);
+            const dop = 1 + 0.75 * Math.cos(ang) * (1.2 / Math.sqrt(rr));
+            I *= dop * dop;
+            const c = bhHeat(I * (0.8 + 0.4 * (1 - u))), a2 = Math.min(1, I * 1.2) * 0.9;
+            cr += c[0] * alpha * a2;
+            cg += c[1] * alpha * a2;
+            cb += c[2] * alpha * a2 * (0.4 + 0.4 * dop);
+            alpha *= 1 - a2;
+          }
+          if (!m.cap[i] && m.star[i] > 0) {
+            const tw = 0.7 + 0.3 * Math.sin(t * 3 + i);
+            cr += m.star[i] * alpha * tw;
+            cg += m.star[i] * alpha * tw;
+            cb += m.star[i] * alpha * tw * 1.2;
+          }
+          img[o] = cr;
+          img[o + 1] = cg;
+          img[o + 2] = cb;
+        }
+        const bl = m.blur, K = [0.06, 0.12, 0.18, 0.28, 0.18, 0.12, 0.06];
+        for (let y = 0; y < area; y++) for (let x = 0; x < W; x++) {
+          let r = 0, g = 0, b = 0;
+          for (let k = -3; k <= 3; k++) {
+            const xx = Math.max(0, Math.min(W - 1, x + k)), o2 = (y * W + xx) * 3, w = K[k + 3];
+            r += img[o2] * w;
+            g += img[o2 + 1] * w;
+            b += img[o2 + 2] * w;
+          }
+          const o = (y * W + x) * 3;
+          bl[o] = r;
+          bl[o + 1] = g;
+          bl[o + 2] = b;
+        }
+        for (let y = 0; y < area; y++) for (let x = 0; x < W; x++) {
+          let r = 0, g = 0, b = 0;
+          for (let k = -3; k <= 3; k++) {
+            const yy = Math.max(0, Math.min(area - 1, y + k)), o2 = (yy * W + x) * 3, w = K[k + 3];
+            r += bl[o2] * w;
+            g += bl[o2 + 1] * w;
+            b += bl[o2 + 2] * w;
+          }
+          const o = (y * W + x) * 3, tm = (v) => 1 - Math.exp(-v * 1.3);
+          core.setWallPixel(x, y, tm(img[o] + r * 0.6), tm(img[o + 1] + g * 0.6), tm(img[o + 2] + b * 0.6));
+        }
+      }
+      function lightBuf(st, W, area) {
+        if (!st.fb || st.fb.length !== W * area * 3) {
+          st.fb = new Float32Array(W * area * 3);
+          st.fb2 = new Float32Array(W * area * 3);
+        }
+        st.fb.fill(0);
+        return st.fb;
+      }
+      function glowDot(fb, W, area, x, y, c, k, rad) {
+        const r = rad > 1.1 ? 3 : 2, x0 = Math.round(x), y0 = Math.round(y), inv = 1 / (rad * rad);
+        for (let dy = -r; dy <= r; dy++) {
+          const py = y0 + dy;
+          if (py < 0 || py >= area) continue;
+          for (let dx = -r; dx <= r; dx++) {
+            const px = x0 + dx;
+            if (px < 0 || px >= W) continue;
+            const d2 = (px - x) * (px - x) + (py - y) * (py - y), w = k * Math.exp(-d2 * inv);
+            if (w < 4e-3) continue;
+            const o = (py * W + px) * 3;
+            fb[o] += c[0] * w;
+            fb[o + 1] += c[1] * w;
+            fb[o + 2] += c[2] * w;
+          }
+        }
+      }
+      var LK = [0.06, 0.12, 0.18, 0.28, 0.18, 0.12, 0.06];
+      function lightOut(core, st, W, area, bloom) {
+        const fb = st.fb, bl = st.fb2;
+        for (let y = 0; y < area; y++) for (let x = 0; x < W; x++) {
+          let r = 0, g = 0, b = 0;
+          for (let k = -3; k <= 3; k++) {
+            const o2 = (y * W + Math.max(0, Math.min(W - 1, x + k))) * 3, w = LK[k + 3];
+            r += fb[o2] * w;
+            g += fb[o2 + 1] * w;
+            b += fb[o2 + 2] * w;
+          }
+          const o = (y * W + x) * 3;
+          bl[o] = r;
+          bl[o + 1] = g;
+          bl[o + 2] = b;
+        }
+        for (let y = 0; y < area; y++) for (let x = 0; x < W; x++) {
+          let r = 0, g = 0, b = 0;
+          for (let k = -3; k <= 3; k++) {
+            const o2 = (Math.max(0, Math.min(area - 1, y + k)) * W + x) * 3, w = LK[k + 3];
+            r += bl[o2] * w;
+            g += bl[o2 + 1] * w;
+            b += bl[o2 + 2] * w;
+          }
+          const o = (y * W + x) * 3;
+          core.setWallPixel(x, y, 1 - Math.exp(-(fb[o] + r * bloom) * 1.4), 1 - Math.exp(-(fb[o + 1] + g * bloom) * 1.4), 1 - Math.exp(-(fb[o + 2] + b * bloom) * 1.4));
+        }
+      }
+      function history(st, ctx, dt) {
+        if (!st.hs) st.hs = { rows: [], acc: 0, beat: 0, avg: 0 };
+        const hs = st.hs;
+        hs.acc += dt;
+        if (hs.acc >= 1 / 30 || !hs.rows.length) {
+          hs.acc = 0;
+          const row = hs.rows.length >= 48 ? hs.rows.pop() : new Float32Array(64);
+          for (let i = 0; i < 64; i++) row[i] = ampAt(ctx.ampArr, ctx.bands, i / 63);
+          hs.rows.unshift(row);
+        }
+        let bass = 0;
+        for (let i = 0; i < 6; i++) bass += ctx.ampArr[i] || 0;
+        bass /= 6;
+        hs.avg += (bass - hs.avg) * Math.min(1, dt * 2);
+        if (bass > hs.avg * 1.18 + 0.05 && hs.beat < 0.4) hs.beat = 1;
+        else hs.beat *= Math.exp(-dt * 6);
+        return hs;
+      }
+      var histAt = (hs, age, f) => {
+        const r = hs.rows[Math.min(hs.rows.length - 1, Math.max(0, Math.round(age * 30)))];
+        return ampAt(r, 64, f);
+      };
+      var HUE = (h, s, l) => hsl((h % 1 + 1) % 1, s, l);
+      function sceneLoom(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS, fb = lightBuf(st, W, area), hs = history(st, ctx, dt);
+        const N = 16, horizon = area * 0.3, floor = area * 0.9;
+        if (!st.mask || st.mask.length !== W) st.mask = new Float32Array(W);
+        const mask = st.mask;
+        mask.fill(area);
+        for (let k = 0; k < N; k++) {
+          const age = k * 0.07, z = 1 + k * 0.55, base = horizon + (floor - horizon) / z, sc = area * 0.55 / z;
+          const hue = 0.78 - k * 0.025 + 0.08 * Math.sin(t * 0.4), fade = Math.exp(-k * 0.16) * (1 + 0.5 * hs.beat * (k < 3 ? 1 : 0));
+          let prev = null;
+          for (let x = 0; x < W; x++) {
+            const f = 0.5 + (x - W / 2) / W * (z * 0.55), inside = f >= 0 && f <= 1;
+            const a = inside ? histAt(hs, age, f) : 0.02, y = base - a * sc * (0.6 + 0.4 * Math.exp(-((f - 0.5) ** 2) * 6));
+            if (y < mask[x]) {
+              const col = HUE(hue + (inside ? f * 0.25 : 0), 1, 0.55), kk = fade * (0.35 + 1.1 * a) * (inside ? 1 : 0.25);
+              glowDot(fb, W, area, x, y, col, 0.9 * kk, 0.8);
+              if (prev !== null && Math.abs(prev - y) > 1) for (let q = 1; q < Math.abs(prev - y); q++) glowDot(fb, W, area, x - 0.5, prev + Math.sign(y - prev) * q, col, 0.6 * kk, 0.7);
+              const ry = floor + (floor - y) * 0.35;
+              if (ry < area) glowDot(fb, W, area, x, ry, col, 0.12 * kk, 1.2);
+              mask[x] = y;
+            }
+            prev = y;
+          }
+        }
+        for (let i = 0; i < W * 0.15; i++) {
+          const x = i * 97 % W, y = i * 53 % Math.max(1, Math.floor(horizon * 0.9)), o = (y * W + x) * 3, b = 0.15 + 0.12 * Math.sin(t * 3 + i);
+          fb[o] += 0.6 * b;
+          fb[o + 1] += 0.6 * b;
+          fb[o + 2] += 0.9 * b;
+        }
+        lightOut(core, st, W, area, 0.7);
+      }
+      function scenePlasmaHelix(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS, fb = lightBuf(st, W, area), hs = history(st, ctx, dt), mid = area * 0.5;
+        const L = ctx.ampL || ctx.ampArr, R = ctx.ampR || ctx.ampArr, bands = ctx.bands;
+        st.ph = (st.ph || 0) + dt * (2 + 3 * hs.beat);
+        for (let x = 0; x < W; x += 0.5) {
+          const f = x / (W - 1), ph = f * Math.PI * (W / area) * 1.6 - st.ph;
+          for (let s2 = 0; s2 < 2; s2++) {
+            const A = s2 ? R : L, off = s2 ? Math.PI : 0, a = ampAt(A, bands, f), r = area * (0.12 + 0.3 * a), y = mid + Math.sin(ph + off) * r, depth = Math.cos(ph + off);
+            glowDot(fb, W, area, x, y, HUE((s2 ? 0.92 : 0.55) + f * 0.15, 1, 0.55), (0.55 + 0.45 * depth) * (0.6 + a) * 0.7, 0.8 + 0.3 * (depth + 1));
+            if (!s2 && Math.abs(Math.sin(ph)) < 0.06) for (let yy = mid - r; yy <= mid + r; yy += 1) glowDot(fb, W, area, x, yy, HUE(0.75 + f * 0.2, 0.8, 0.6), 0.07 * a, 0.5);
+          }
+        }
+        if (!st.sp) st.sp = [];
+        if (hs.beat > 0.95) for (let i = 0; i < Math.round(W / 6); i++) st.sp.push({ x: Math.random() * W, y: mid + (Math.random() - 0.5) * area * 0.6, vx: (Math.random() - 0.5) * 40, vy: (Math.random() - 0.5) * 40, life: 0.7, hue: Math.random() });
+        for (let i = st.sp.length - 1; i >= 0; i--) {
+          const p = st.sp[i];
+          p.life -= dt;
+          if (p.life <= 0) {
+            st.sp.splice(i, 1);
+            continue;
+          }
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          glowDot(fb, W, area, p.x, p.y, HUE(p.hue, 1, 0.7), 0.8 * p.life, 0.7);
+        }
+        lightOut(core, st, W, area, 0.8);
+      }
+      function sceneTunnel(core, ctx, st, W, H, t, dt) {
+        const area = H - TICKER_ROWS, fb = lightBuf(st, W, area), hs = history(st, ctx, dt);
+        const cx = W / 2, cy = area / 2, R0 = Math.min(W, area) * 0.08, wide = Math.min(2.2, W / area * 0.9);
+        st.zp = (st.zp || 0) + dt * (0.35 + 0.4 * hs.beat);
+        for (let k = 0; k < 14; k++) {
+          const zf = (k / 14 + st.zp) % 1, s = 1 / (1.2 - zf * 1.05) * (1 + 0.25 * hs.beat * zf), hue = (k * 0.09 + t * 0.1) % 1, age = (1 - zf) * 1.2;
+          for (let a = 0; a < 6.283; a += 0.025) {
+            const f = Math.abs(a / 6.283 * 2 % 2 - 1), m = histAt(hs, age, f), rr = R0 * s * (1 + 0.45 * m);
+            glowDot(fb, W, area, cx + Math.cos(a) * rr * wide, cy + Math.sin(a) * rr, HUE(hue + f * 0.3, 1, 0.55), (0.03 + zf * zf * 0.8) * (0.4 + m), 0.6 + zf * 0.9);
+          }
+        }
+        lightOut(core, st, W, area, 0.8);
+      }
+      var RENDER = { horizon: sceneHorizon, loom: sceneLoom, helix: scenePlasmaHelix, tunnel: sceneTunnel, hifi: sceneHifi, studio: sceneStudio, spectrogram: sceneSpectrogram, waterfall3d: sceneWaterfall3d, mirror: sceneMirror, radial: sceneRadial, particle: sceneParticle, neon: sceneNeon, bounce: sceneBounce, bars3d: sceneBars3d };
       function sub(st, name) {
         return st.subs[name] || (st.subs[name] = {});
       }
