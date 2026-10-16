@@ -16,6 +16,8 @@ function clickTrack(bpm, secs, rate, off = 1.5, stereo = false) {
   return x;
 }
 
+const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat) / d.period) * d.period);
+
 (async () => {
   try {
     // Analysis.
@@ -26,6 +28,11 @@ function clickTrack(bpm, secs, rate, off = 1.5, stereo = false) {
       assert.ok(Math.min(Math.abs(ph), 1 - Math.abs(ph)) < 0.1, 'beat phase');
       assert.ok(Math.abs(r.musicStart - 1.5) < 0.1 && r.confidence > 0.5);
     }
+    // A voice-band melody over bars ~10-17 is marked, the rest isn't.
+    { const n = 60 * RATE, x = new Float32Array(n);
+      for (let i = 0; i < n; i++) { const t = i / RATE, ph = (t - 1) % 0.5; let v = t > 1 ? Math.sin(2 * Math.PI * 55 * ph) * Math.exp(-ph * 25) * 0.7 : 0; if (t > 20 && t < 36) v += 0.3 * Math.sin(2 * Math.PI * (440 + 60 * Math.sin(t * 3)) * t); x[i] = v; }
+      const vb = analyse(x).vocalBars;
+      assert.ok(/^0{8,}1{6,}0{8,}$/.test(vb), 'singing found: ' + vb); }
     console.log('  ok - tempo, beats and where the music is');
 
     // Engine with fake tracks (no ffmpeg/YouTube): 120 and 124 BPM, 40 s each.
@@ -83,6 +90,25 @@ function clickTrack(bpm, secs, rate, off = 1.5, stereo = false) {
     dj.configure({ quick: false });
     const qp = ((q.start - long.inFrame) / (16 * A.period)) % 1;
     assert.ok(q.start / 44100 > 50 && q.start / 44100 < 75 && q.beats <= 32 && Math.min(qp, 1 - qp) < 0.01 && full.start / 44100 > 200, `quick mix at ${q.start / 44100}s vs ${full.start / 44100}s`);
+    // Beats lined up from the audio: a grid 600 frames (14 ms) out is corrected.
+    const b0 = nextBeatOf(A, A.pos + 44100);
+    const lag = dj._test.lagBetween(b0, b0 + 600, 8 * A.period, A.period / 4, A, A);
+    assert.ok(Math.abs(lag + 600) <= 64, 'audio alignment finds the offset: ' + lag);
+    // Singing over the whole of A: auto cuts on the beat at a phrase end instead of blending.
+    const sung = { ...long, info: { ...A.info, vocalBars: '1'.repeat(200) } };
+    const cut = dj._test.planMix(sung, { ...A, introBeats: 64 }, 'auto');
+    assert.strictEqual(cut.style, 'cut');
+    const cp = ((cut.at - long.inFrame) / (16 * A.period)) % 1;
+    assert.ok(Math.min(cp, 1 - cp) < 0.01, 'the cut lands on a phrase');
+    // Singing only in A's last part: the blend moves to an earlier quiet phrase.
+    const tail = { ...long, info: { ...A.info, vocalBars: '0'.repeat(48) + '1'.repeat(200) } };
+    const early = dj._test.planMix(tail, { ...A, introBeats: 64 }, 'auto');
+    assert.ok(early.style === 'blend' || early.style === 'short' || early.style === 'cut', early.style);
+    dj.configure({ style: 'cut' });
+    assert.strictEqual(dj._test.planMix(long, { ...A, introBeats: 64 }, 'auto').style, 'cut');
+    dj.configure({ style: 'short' });
+    assert.strictEqual(dj._test.planMix(long, { ...A, introBeats: 64 }, 'auto').beats, 8);
+    dj.configure({ style: 'auto' });
     dj.stop(); assert.strictEqual(dj.status.state, 'stopped');
     console.log('  ok - beat-matched mixing from one track to the next');
   } catch (e) { console.error(e); process.exitCode = 1; }

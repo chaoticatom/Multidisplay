@@ -4,7 +4,10 @@
 //   { bpm, period, firstBeat, confidence 0..1, musicStart, musicEnd, duration,
 //     downbeat 0..3 (which beat of the grid starts a bar), introBeats,
 //     outroBeats (how long the quieter mixable intro/outro run), loudness
-//     (dB, for levelling), key { pc 0-11, minor, camelot e.g. '8A', conf } }
+//     (dB, for levelling), key { pc 0-11, minor, camelot e.g. '8A', conf },
+//     vocalBars: '0'/'1' per bar from the first downbeat - '1' where the
+//     voice band (300 Hz - 3 kHz) stands out: singing or a busy lead, a
+//     place a DJ doesn't talk over with another track }
 // How: an onset curve (rises in low-to-mid energy, 23 ms steps), its
 // autocorrelation for the tempo (80-180 BPM, preferring the 110-135 range
 // dance music sits in, octave errors folded), then the beat phase that lines
@@ -16,28 +19,29 @@ const RATE = 11025, HOP = 256, FPS = RATE / HOP; // ~43 onset frames a second
 const { fft } = require('../effects/radio/fft');
 
 function onsetCurve(x) {
-  const n = Math.floor(x.length / HOP), on = new Float32Array(n), lvl = new Float32Array(n), low = new Float32Array(n);
-  let lp = 0, prev = 0, s1 = 0, s2 = 0;
+  const n = Math.floor(x.length / HOP), on = new Float32Array(n), lvl = new Float32Array(n), low = new Float32Array(n), mid = new Float32Array(n);
+  let lp = 0, prev = 0, s1 = 0, s2 = 0, m1 = 0, m2 = 0;
   for (let f = 0; f < n; f++) {
-    let e = 0, a = 0, eb = 0;
+    let e = 0, a = 0, eb = 0, em = 0;
     for (let i = f * HOP, end = i + HOP; i < end; i++) {
       lp += (x[i] - lp) * 0.12; e += lp * lp; a += x[i] * x[i]; // ~200 Hz low-pass: kicks and bass, for onsets
-      s1 += (x[i] - s1) * 0.05; s2 += (s1 - s2) * 0.05; eb += s2 * s2; // ~90 Hz, two poles: the kick and sub-bass alone, for how 'full' a section is
+      s1 += (x[i] - s1) * 0.05; s2 += (s1 - s2) * 0.05; m1 += (x[i] - m1) * 0.82; m2 += (x[i] - m2) * 0.157; em += (m1 - m2) * (m1 - m2); // 300 Hz - 3 kHz, where a voice sits
+      eb += s2 * s2; // ~90 Hz, two poles: the kick and sub-bass alone, for how 'full' a section is
     }
     const le = Math.log(1e-6 + e);
     on[f] = Math.max(0, le - prev); prev = le;
-    lvl[f] = Math.sqrt(a / HOP); low[f] = Math.sqrt(eb / HOP);
+    lvl[f] = Math.sqrt(a / HOP); low[f] = Math.sqrt(eb / HOP); mid[f] = Math.sqrt(em / HOP);
   }
   // Subtract a local mean so steady loudness doesn't count as onsets.
   const out = new Float32Array(n), W = 8;
   let s = 0;
   for (let f = 0; f < n; f++) { s += on[f]; if (f >= W) s -= on[f - W]; out[f] = Math.max(0, on[f] - s / Math.min(W, f + 1)); }
-  return { on: out, lvl, low };
+  return { on: out, lvl, low, mid };
 }
 
 function analyse(x) {
   const duration = x.length / RATE;
-  const { on, lvl, low } = onsetCurve(x), n = on.length;
+  const { on, lvl, low, mid } = onsetCurve(x), n = on.length;
   // Where the music is: level above 25% of the track's median "loud" level.
   const sorted = Float32Array.from(lvl).sort(), ref = sorted[Math.floor(sorted.length * 0.6)] || 0;
   let s0 = 0, s1 = n - 1;
@@ -60,7 +64,7 @@ function analyse(x) {
     const v = score[lag] * pref;
     if (v > best) { best = v; bestLag = lag; }
   }
-  if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null };
+  if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null, vocalBars: '' };
   // Refine to a fractional lag (parabola through the peak).
   const y0 = score[bestLag - 1] || 0, y1 = score[bestLag], y2 = score[bestLag + 1] || 0, den = y0 - 2 * y1 + y2;
   const lag = bestLag + (den !== 0 ? Math.max(-0.5, Math.min(0.5, 0.5 * (y0 - y2) / den)) : 0);
@@ -102,7 +106,17 @@ function analyse(x) {
   let sq = 0, cnt2 = 0;
   for (let f = s0; f <= s1 && f < n; f++) { sq += lvl[f] * lvl[f]; cnt2++; }
   const loudness = 20 * Math.log10(Math.sqrt(sq / Math.max(1, cnt2)) + 1e-9);
-  return { bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
+  // Voice/lead per bar: the 300 Hz - 3 kHz band against the bass (so a
+  // louder section alone doesn't count), above the track's quieter bars.
+  const vb = [];
+  for (let k0 = downbeat; k0 + 4 <= nb; k0 += 4) {
+    const f0 = Math.round((firstBeat + k0 * period2) * FPS), f1 = Math.min(n, Math.round((firstBeat + (k0 + 4) * period2) * FPS));
+    let m = 0, l = 0; for (let f = f0; f < f1; f++) { m += mid[f]; l += low[f]; }
+    vb.push(m / Math.max(1e-6, l * 0.5 + m * 0.5));
+  }
+  const sv = Float32Array.from(vb).sort(), base = sv[Math.floor(sv.length * 0.25)] || 0;
+  const vocalBars = vb.map((v) => (v > base * 1.3 ? '1' : '0')).join('');
+  return { vocalBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
 }
 
 // ---- Key: a chroma profile (energy per pitch class, 55 Hz - 2 kHz) matched

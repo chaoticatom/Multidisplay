@@ -2681,16 +2681,19 @@ var PiEngine = (() => {
       var FPS = RATE / HOP;
       var { fft } = require_fft();
       function onsetCurve(x) {
-        const n = Math.floor(x.length / HOP), on = new Float32Array(n), lvl = new Float32Array(n), low = new Float32Array(n);
-        let lp = 0, prev = 0, s1 = 0, s2 = 0;
+        const n = Math.floor(x.length / HOP), on = new Float32Array(n), lvl = new Float32Array(n), low = new Float32Array(n), mid = new Float32Array(n);
+        let lp = 0, prev = 0, s1 = 0, s2 = 0, m1 = 0, m2 = 0;
         for (let f = 0; f < n; f++) {
-          let e = 0, a = 0, eb = 0;
+          let e = 0, a = 0, eb = 0, em = 0;
           for (let i = f * HOP, end = i + HOP; i < end; i++) {
             lp += (x[i] - lp) * 0.12;
             e += lp * lp;
             a += x[i] * x[i];
             s1 += (x[i] - s1) * 0.05;
             s2 += (s1 - s2) * 0.05;
+            m1 += (x[i] - m1) * 0.82;
+            m2 += (x[i] - m2) * 0.157;
+            em += (m1 - m2) * (m1 - m2);
             eb += s2 * s2;
           }
           const le = Math.log(1e-6 + e);
@@ -2698,6 +2701,7 @@ var PiEngine = (() => {
           prev = le;
           lvl[f] = Math.sqrt(a / HOP);
           low[f] = Math.sqrt(eb / HOP);
+          mid[f] = Math.sqrt(em / HOP);
         }
         const out = new Float32Array(n), W = 8;
         let s = 0;
@@ -2706,11 +2710,11 @@ var PiEngine = (() => {
           if (f >= W) s -= on[f - W];
           out[f] = Math.max(0, on[f] - s / Math.min(W, f + 1));
         }
-        return { on: out, lvl, low };
+        return { on: out, lvl, low, mid };
       }
       function analyse(x) {
         const duration = x.length / RATE;
-        const { on, lvl, low } = onsetCurve(x), n = on.length;
+        const { on, lvl, low, mid } = onsetCurve(x), n = on.length;
         const sorted = Float32Array.from(lvl).sort(), ref = sorted[Math.floor(sorted.length * 0.6)] || 0;
         let s0 = 0, s1 = n - 1;
         while (s0 < n - 1 && lvl[s0] < ref * 0.25) s0++;
@@ -2734,7 +2738,7 @@ var PiEngine = (() => {
             bestLag = lag2;
           }
         }
-        if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null };
+        if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null, vocalBars: "" };
         const y0 = score[bestLag - 1] || 0, y1 = score[bestLag], y2 = score[bestLag + 1] || 0, den = y0 - 2 * y1 + y2;
         const lag = bestLag + (den !== 0 ? Math.max(-0.5, Math.min(0.5, 0.5 * (y0 - y2) / den)) : 0);
         const period = lag / FPS, bpm = 60 / period;
@@ -2814,7 +2818,19 @@ var PiEngine = (() => {
           cnt2++;
         }
         const loudness = 20 * Math.log10(Math.sqrt(sq / Math.max(1, cnt2)) + 1e-9);
-        return { bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
+        const vb = [];
+        for (let k0 = downbeat; k0 + 4 <= nb; k0 += 4) {
+          const f0 = Math.round((firstBeat + k0 * period2) * FPS), f1 = Math.min(n, Math.round((firstBeat + (k0 + 4) * period2) * FPS));
+          let m = 0, l = 0;
+          for (let f = f0; f < f1; f++) {
+            m += mid[f];
+            l += low[f];
+          }
+          vb.push(m / Math.max(1e-6, l * 0.5 + m * 0.5));
+        }
+        const sv = Float32Array.from(vb).sort(), base = sv[Math.floor(sv.length * 0.25)] || 0;
+        const vocalBars = vb.map((v) => v > base * 1.3 ? "1" : "0").join("");
+        return { vocalBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
       }
       var MAJ = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
       var MIN = [6.33, 2.68, 3.52, 5.38, 2.6, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
@@ -2900,6 +2916,8 @@ var PiEngine = (() => {
       var MAX_STRETCH = 0.08;
       var LENGTHS = [128, 96, 64, 48, 32, 16];
       var TARGET_DB = -17;
+      var STYLES = ["auto", "blend", "short", "cut"];
+      var CUT = 882;
       var clamp01 = (x) => x < 0 ? 0 : x > 1 ? 1 : x;
       var smooth = (x) => {
         x = clamp01(x);
@@ -2908,7 +2926,7 @@ var PiEngine = (() => {
       function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require_sources(), decode = require_decode(), analyser = require_analyse(), log = console.log, setTimer = setInterval, clearTimer = clearInterval }) {
         const st = { state: "stopped", error: "", now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
         let wantNext = null, prepToken = 0;
-        let cfg = { source: "both", youtube: "", mixBeats: "auto", quick: false };
+        let cfg = { source: "both", youtube: "", mixBeats: "auto", quick: false, style: "auto" };
         let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
         let known = {};
         const recent = [];
@@ -2925,7 +2943,9 @@ var PiEngine = (() => {
           d.outroBeats = info.outroBeats || 0;
           d.gain = info.loudness ? Math.max(0.5, Math.min(2.5, Math.pow(10, (TARGET_DB - info.loudness) / 20))) : 1;
           if (matched && d.period > 0) {
-            d.firstDown = d.firstBeat + (info.downbeat || 0) % 4 * d.period;
+            const gp = (info.gridPeriod || info.period) * k;
+            d.firstDown = d.firstBeat + (info.downbeat || 0) % 4 * gp;
+            d.vbBar = 4 * gp;
             d.inFrame = d.firstDown + Math.ceil((d.start - d.firstDown - d.period * 0.5) / d.bar) * d.bar;
             if (d.inFrame < 0) d.inFrame += d.bar;
           } else {
@@ -2936,39 +2956,103 @@ var PiEngine = (() => {
         }
         const nextBeat = (d, f) => d.matched && d.period > 0 ? Math.round(d.firstBeat + Math.ceil((f - d.firstBeat) / d.period) * d.period) : f;
         const nextBar = (d, f) => d.matched && d.period > 0 ? Math.round(d.firstDown + Math.ceil((f - d.firstDown) / d.bar) * d.bar) : f;
+        function vocalFree(d, f0, f1) {
+          const vb = d.info.vocalBars;
+          if (!vb || !d.vbBar) return true;
+          const j0 = Math.max(0, Math.floor((f0 - d.firstDown) / d.vbBar)), j1 = Math.floor((f1 - d.firstDown - 1) / d.vbBar);
+          for (let j = j0; j <= j1 && j < vb.length; j++) if (vb[j] === "1") return false;
+          return true;
+        }
         function planMix(a, b, want, now = false) {
           if (!(a.matched && b.matched)) {
             const len = Math.min(cfg.quick ? 8 * RATE : 12 * RATE, Math.max(2 * RATE, (a.end - a.pos) * 0.5));
             let s = now ? a.pos : a.end - len;
             if (cfg.quick && !now) s = Math.min(s, a.start + 60 * RATE);
-            return { start: Math.max(a.pos, s), len, beat: false, beats: 0 };
+            return { start: Math.max(a.pos, s), len, beat: false, beats: 0, style: "fade" };
           }
-          const p = a.period, room = (s) => a.end - s;
-          let maxB = want === "auto" ? Math.min(Math.max(a.outroBeats, 32), Math.max(b.introBeats, 16)) : Number(want) || 32;
-          let L = LENGTHS.find((x) => x <= maxB) || 16;
-          if (want !== "auto" && maxB < 16) L = maxB;
-          let start2;
-          if (now) start2 = nextBar(a, a.pos + 1);
-          else {
-            while (L > 16 && L * p > room(Math.max(a.pos, a.inFrame + 16 * p))) L = LENGTHS[LENGTHS.indexOf(L) + 1] || 16;
-            start2 = a.inFrame + Math.floor((a.end - L * p - a.inFrame) / (16 * p)) * 16 * p;
-            if (start2 < a.pos) start2 = nextBar(a, a.pos + 1);
-            if (cfg.quick) {
-              const from = Math.max(a.inFrame + 55 * RATE, a.inFrame + Math.max(16, a.introBeats || 0) * p, a.pos);
-              const qs = a.inFrame + Math.ceil((from - a.inFrame) / (16 * p)) * 16 * p;
-              if (qs < start2) {
-                start2 = qs;
-                L = Math.min(L, 32);
-              }
+          const p = a.period, style = cfg.style || "auto";
+          const blendPlan = (start2, L) => {
+            const half = Math.max(1, Math.round(L / 8)) * 4;
+            return { start: Math.round(start2), len: L * p, beat: true, beats: L, swapU: Math.min(0.85, half / L), style: L <= 8 ? "short" : "blend" };
+          };
+          const cutPlan = (at) => ({ start: Math.round(at) - CUT / 2, len: CUT, beat: true, beats: 0, style: "cut", at: Math.round(at) });
+          if (now) {
+            const at = nextBar(a, a.pos + CUT);
+            return style === "cut" ? cutPlan(at) : blendPlan(at, Number(want) > 0 && Number(want) < 16 ? Number(want) : 8);
+          }
+          const first = Math.max(a.pos + CUT, a.inFrame + 16 * p), phrases = [];
+          for (let f = a.inFrame + Math.ceil((first - a.inFrame) / (16 * p)) * 16 * p; f < a.end - 2 * p; f += 16 * p) phrases.push(f);
+          if (!phrases.length) phrases.push(nextBar(a, a.pos + CUT));
+          let prefs;
+          if (cfg.quick) {
+            const from = Math.max(a.inFrame + 55 * RATE, a.inFrame + Math.max(16, a.introBeats || 0) * p);
+            prefs = phrases.filter((f) => f >= from && f < from + 60 * RATE);
+            if (!prefs.length) prefs = phrases.slice(-1);
+          } else {
+            const late = a.inFrame + 0.55 * (a.end - a.inFrame);
+            prefs = phrases.filter((f) => f >= late).reverse().concat(phrases.filter((f) => f < late && f >= a.inFrame + 0.35 * (a.end - a.inFrame)).reverse());
+            if (!prefs.length) prefs = phrases.slice(-1);
+          }
+          const fits = (f, L) => f + L * p <= a.end + p;
+          const autoMax = Math.min(Math.max(a.outroBeats, 32), Math.max(b.introBeats, 16));
+          const lengths = want === "auto" ? LENGTHS.filter((L) => L <= Math.max(16, autoMax)) : [Number(want) || 32];
+          if (cfg.quick) for (let i = 0; i < lengths.length; i++) lengths[i] = Math.min(lengths[i], 32);
+          const bIn = b.inFrame;
+          if (style === "blend" || style === "auto") {
+            for (const L of lengths) for (const f of prefs) {
+              if (!fits(f, L)) continue;
+              if (style === "blend" || vocalFree(a, f, f + L * p) && vocalFree(b, bIn, bIn + L * b.period)) return blendPlan(f, L);
+            }
+            if (style === "blend") {
+              const L = lengths[lengths.length - 1], f = prefs.find((x) => fits(x, L)) || phrases[phrases.length - 1];
+              return blendPlan(f, Math.min(L, Math.max(8, Math.floor((a.end - f) / p))));
             }
           }
-          while (L > 8 && start2 + L * p > a.end + p) L = L > 16 ? LENGTHS[LENGTHS.indexOf(L) + 1] || 16 : L / 2;
-          const half = Math.max(1, Math.round(L / 8)) * 4;
-          return { start: Math.round(start2), len: L * p, beat: true, beats: L, swapU: Math.min(0.85, half / L) };
+          if (style === "short" || style === "auto") {
+            for (const f of prefs) if (fits(f, 8) && (style === "short" || vocalFree(a, f, f + 8 * p))) return blendPlan(f, 8);
+            if (style === "short") return blendPlan(prefs[0], 8);
+          }
+          const after = prefs.find((f) => !vocalFree(a, f - a.bar, f) && vocalFree(a, f, f + a.bar));
+          return cutPlan(after || prefs[0]);
+        }
+        const HOP = 64;
+        function onsets(d, f, n) {
+          const out = new Float32Array(n);
+          let lp = 0, prev = 0;
+          const a = 1 - Math.exp(-2 * Math.PI * 150 / RATE);
+          for (let i = -16; i < n; i++) {
+            let e = 0;
+            for (let j = 0; j < HOP; j++) {
+              const x = f + i * HOP + j, v = x >= 0 && x < d.frames ? (d.pcm[x * 2] + d.pcm[x * 2 + 1]) / 65536 : 0;
+              lp += (v - lp) * a;
+              e += lp * lp;
+            }
+            e = Math.sqrt(e / HOP);
+            if (i >= 0) out[i] = Math.max(0, e - prev);
+            prev = e;
+          }
+          return out;
+        }
+        function lagBetween(aF, bF, win, maxLag, da = A, db = B) {
+          const n = Math.ceil(win / HOP), m = Math.ceil(maxLag / HOP);
+          const ea = onsets(da, aF, n), eb = onsets(db, bF - m * HOP, n + 2 * m);
+          let best = -1, bestL = 0, sum = 0, cnt = 0;
+          for (let l = -m; l <= m; l++) {
+            let s = 0;
+            for (let i = 0; i < n; i++) s += ea[i] * eb[i + l + m];
+            sum += s;
+            cnt++;
+            if (s > best) {
+              best = s;
+              bestL = l;
+            }
+          }
+          return best > sum / cnt * 1.5 && best > 1e-6 ? bestL * HOP : 0;
         }
         async function prepare(track, ref) {
           const input = await sources.inputFor(track);
           let info = known[track.id];
+          if (info && info.vocalBars === void 0) info = null;
           if (!info) {
             info = analyser.analyse(await decode.decodeAnalysis(input));
             if (track.kind === "mp3") {
@@ -2979,7 +3063,7 @@ var PiEngine = (() => {
               }
             }
           }
-          info = { ...info };
+          info = { ...info, gridPeriod: info.period };
           const target = ref && ref.matched ? ref.bpm : 0;
           let tempo = 1, matched = false;
           if (info.bpm > 0 && info.confidence > 0.25 && target > 0) {
@@ -3073,11 +3157,19 @@ var PiEngine = (() => {
         }
         function startMix() {
           const p = A.plan;
-          mix = { from: A.pos, len: Math.max(1, p.len), beat: p.beat, swapU: p.swapU || 0.5, beats: p.beats };
+          mix = { from: A.pos, len: Math.max(1, p.len), beat: p.beat, swapU: p.swapU || 0.5, beats: p.beats, style: p.style, adj: 0, check: 0 };
           B.pos = Math.round(B.inFrame);
+          if (p.beat) {
+            const aF = p.style === "cut" ? p.at : A.pos, lag = lagBetween(aF, B.inFrame, 8 * A.period, A.period / 4);
+            B.pos = Math.round(B.inFrame + lag - (aF - A.pos));
+            mix.check = A.pos + Math.round(A.bar);
+          }
           st.mixing = true;
-          if (st.next) st.next.beats = p.beats;
-          log(`[dj] mixing into ${B.track.title} over ${p.beat ? p.beats + " beats" : Math.round(p.len / RATE) + " s"}`);
+          if (st.next) {
+            st.next.beats = p.beats;
+            st.next.style = p.style;
+          }
+          log(`[dj] ${p.style === "cut" ? "cutting" : "mixing"} into ${B.track.title}${p.beats ? ` over ${p.beats} beats` : p.style === "fade" ? ` over ${Math.round(p.len / RATE)} s` : " on the beat"}`);
         }
         function promote() {
           if (A) {
@@ -3091,6 +3183,9 @@ var PiEngine = (() => {
           if (A.pos === 0) A.pos = Math.round(A.inFrame);
           A.plan = null;
           A.force = 0;
+          A.loops = 0;
+          A.loopAt = A.matched && A.bar > 0 ? Math.round(A.firstDown + Math.floor((A.end - A.firstDown) / A.bar) * A.bar) : 0;
+          if (A.loopAt - 4 * A.bar < A.pos) A.loopAt = 0;
           st.state = "playing";
           st.nowIdx = A.qi === void 0 ? -1 : A.qi;
           st.nextIdx = -1;
@@ -3138,7 +3233,21 @@ var PiEngine = (() => {
               }
               if (mix) {
                 const u = (A.pos - mix.from) / mix.len;
-                if (mix.beat) {
+                if (mix.beat && mix.style !== "cut" && A.pos >= mix.check) {
+                  mix.check = A.pos + Math.round(A.bar);
+                  const lag = lagBetween(A.pos, B.pos, A.bar, 1500);
+                  if (Math.abs(lag) >= HOP) mix.adj = Math.max(-1500, Math.min(1500, lag));
+                }
+                if (mix.adj && (A.pos & 31) === 0) {
+                  const s1 = Math.sign(mix.adj);
+                  B.pos += s1;
+                  mix.adj -= s1;
+                }
+                if (mix.style === "cut") {
+                  const c = clamp01(u);
+                  sampleDeck(A, Math.cos(c * Math.PI / 2), 1, 1, 1, OUT);
+                  sampleDeck(B, Math.sin(c * Math.PI / 2), 1, 1, 1, OUT);
+                } else if (mix.beat) {
                   const s = mix.swapU;
                   const bHi = smooth(u / (s * 0.7)), bMi = smooth((u - s * 0.25) / (s * 0.7)), bLo = smooth((u - s) / 0.03);
                   const aLo = 1 - bLo, aMi = 1 - smooth((u - s) / ((1 - s) * 0.8)), aHi = 1 - smooth((u - s - (1 - s) * 0.2) / ((1 - s) * 0.8));
@@ -3157,6 +3266,10 @@ var PiEngine = (() => {
                   promote();
                 }
               } else {
+                if (!B && A.matched && preparing && A.loopAt && A.pos >= A.loopAt && A.loops < 12) {
+                  A.pos -= Math.round(4 * A.bar);
+                  A.loops++;
+                }
                 sampleDeck(A, 1, 1, 1, 1, OUT);
                 A.pos++;
               }
@@ -3188,6 +3301,7 @@ var PiEngine = (() => {
           cfg = { ...cfg, ...newCfg || {} };
           cfg.mixBeats = [16, 32, 64].includes(Number(cfg.mixBeats)) ? Number(cfg.mixBeats) : "auto";
           cfg.quick = !!cfg.quick;
+          cfg.style = STYLES.includes(cfg.style) ? cfg.style : "auto";
           const g = ++gen;
           st.state = "loading";
           st.error = "";
@@ -3256,6 +3370,7 @@ var PiEngine = (() => {
         function configure(c) {
           if (c.mixBeats !== void 0) cfg.mixBeats = [16, 32, 64].includes(Number(c.mixBeats)) ? Number(c.mixBeats) : "auto";
           if (c.quick !== void 0) cfg.quick = !!c.quick;
+          if (STYLES.includes(c.style)) cfg.style = c.style;
           if (A && !mix) A.plan = null;
         }
         function skip() {
@@ -3265,7 +3380,7 @@ var PiEngine = (() => {
             if (!B) prepareNext();
           }
         }
-        return { start, stop, configure, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, known: () => known, get A() {
+        return { start, stop, configure, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, lagBetween, cfg: () => cfg, known: () => known, get A() {
           return A;
         }, get B() {
           return B;
@@ -3519,7 +3634,7 @@ var PiEngine = (() => {
         volume: 1,
         // overall volume for everything the Pi plays (src/masterVolume.js)
         mic: { music: false },
-        dj: { source: "both", youtube: "", mixBeats: "auto", quick: false },
+        dj: { source: "both", youtube: "", mixBeats: "auto", quick: false, style: "auto" },
         // the Auto-DJ (quick: mix about a minute into each song) (src/dj): mp3 | youtube | both; playlist link or search
         alexa: { on: false, skillId: "", invocation: "led wall" },
         // skillId/invocation: your own Alexa skill (src/alexaSkill.js) // pretend to be a Hue bridge so an Echo can control the display (src/alexa.js) // the Pi's microphone (src/mic.js): music: effects react to the room when no station plays
@@ -3599,6 +3714,7 @@ var PiEngine = (() => {
           if ([16, 32, 64].includes(Number(p.dj.mixBeats))) out.dj.mixBeats = Number(p.dj.mixBeats);
           else if (p.dj.mixBeats === "auto") out.dj.mixBeats = "auto";
           if (typeof p.dj.quick === "boolean") out.dj.quick = p.dj.quick;
+          if (["auto", "blend", "short", "cut"].includes(p.dj.style)) out.dj.style = p.dj.style;
         }
         if (p && p.alexa) {
           out.alexa.on = !!p.alexa.on;

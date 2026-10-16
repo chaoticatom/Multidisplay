@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.335';
+const APP_VERSION = '0.6.336';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -6072,13 +6072,14 @@ function cxInit() {
 // ── Auto-DJ (Music tab; src/dj).
 function cxWireDj() {
   if (!document.getElementById('dj-start')) return;
-  const cfg = () => ({ source: document.querySelector('#dj-source .on')?.dataset.djsrc || 'both', youtube: document.getElementById('dj-youtube').value.trim(), mixBeats: document.getElementById('dj-beats').value === 'auto' ? 'auto' : Number(document.getElementById('dj-beats').value), quick: document.getElementById('dj-quick').checked });
+  const cfg = () => ({ source: document.querySelector('#dj-source .on')?.dataset.djsrc || 'both', youtube: document.getElementById('dj-youtube').value.trim(), mixBeats: document.getElementById('dj-beats').value === 'auto' ? 'auto' : Number(document.getElementById('dj-beats').value), quick: document.getElementById('dj-quick').checked, style: document.getElementById('dj-style').value });
   document.querySelectorAll('#dj-source button').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('#dj-source button').forEach((x) => x.classList.toggle('on', x === b));
     send({ cmd: 'setDj', ...cfg() });
   }));
   document.getElementById('dj-youtube').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   document.getElementById('dj-beats').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
+  document.getElementById('dj-style').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   document.getElementById('dj-quick').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   document.getElementById('dj-start').addEventListener('click', () => {
     const c = cfg();
@@ -6131,6 +6132,7 @@ function cxSyncDj() {
     const yt = document.getElementById('dj-youtube'); if (document.activeElement !== yt && !yt.value) yt.value = c.youtube || '';
     const bt = document.getElementById('dj-beats'); if (document.activeElement !== bt) bt.value = String(c.mixBeats || 'auto');
     document.getElementById('dj-quick').checked = !!c.quick;
+    const sy = document.getElementById('dj-style'); if (document.activeElement !== sy) sy.value = c.style || 'auto';
   }
   const card = document.getElementById('dj-now'), n = d.on ? d.now : null;
   card.hidden = !n;
@@ -6144,7 +6146,7 @@ function cxSyncDj() {
   s.textContent = !d.on ? (d.music.length ? `${d.music.length} tracks in My music.` : 'Add MP3s below, or a YouTube playlist or search above.')
     : d.state === 'error' || d.state === 'empty' ? '⚠ ' + (d.error || 'Nothing to play')
     : d.state === 'loading' && !d.now ? 'Getting the first track ready…'
-    : d.next ? `Next: ${d.next.title}${d.next.bpm ? ` · ${d.next.bpm} BPM` : ''}${d.next.key ? ` · ${d.next.key}${d.next.shift ? ` (${d.next.shift > 0 ? '+' : ''}${d.next.shift} st)` : ''}` : ''}${d.next.mode ? ` · ${d.next.mode}` : d.next.status ? ' · getting it ready' : ''}${d.next.beats ? ` · ${d.next.beats} beats` : ''}` : '';
+    : d.next ? `Next: ${d.next.title}${d.next.bpm ? ` · ${d.next.bpm} BPM` : ''}${d.next.key ? ` · ${d.next.key}${d.next.shift ? ` (${d.next.shift > 0 ? '+' : ''}${d.next.shift} st)` : ''}` : ''}${d.next.mode ? ` · ${d.next.mode}` : d.next.status ? ' · getting it ready' : ''}${d.next.style === 'cut' ? ' · cut on the beat' : d.next.beats ? ` · ${d.next.beats}-beat ${d.next.style || 'blend'}` : ''}` : '';
   s.style.whiteSpace = 'pre-line';
   document.getElementById('dj-skip').disabled = !d.on;
   // The track list (tap one to play it next).

@@ -17,6 +17,8 @@ const RATE = 44100;
 const MAX_STRETCH = 0.08;
 const LENGTHS = [128, 96, 64, 48, 32, 16];
 const TARGET_DB = -17;
+const STYLES = ['auto', 'blend', 'short', 'cut'];
+const CUT = 882; // a cut's crossfade: 20 ms, just enough to avoid a click
 
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const smooth = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
@@ -24,7 +26,7 @@ const smooth = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
 function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sources'), decode = require('./decode'), analyser = require('./analyse'), log = console.log, setTimer = setInterval, clearTimer = clearInterval }) {
   const st = { state: 'stopped', error: '', now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
   let wantNext = null, prepToken = 0;
-  let cfg = { source: 'both', youtube: '', mixBeats: 'auto', quick: false };
+  let cfg = { source: 'both', youtube: '', mixBeats: 'auto', quick: false, style: 'auto' };
   let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
   let known = {}; const recent = [];
 
@@ -36,7 +38,8 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     d.introBeats = info.introBeats || 0; d.outroBeats = info.outroBeats || 0;
     d.gain = info.loudness ? Math.max(0.5, Math.min(2.5, Math.pow(10, (TARGET_DB - info.loudness) / 20))) : 1;
     if (matched && d.period > 0) {
-      d.firstDown = d.firstBeat + ((info.downbeat || 0) % 4) * d.period;
+      const gp = (info.gridPeriod || info.period) * k; // the analysed beat (the grid may be at half/double time)
+      d.firstDown = d.firstBeat + ((info.downbeat || 0) % 4) * gp; d.vbBar = 4 * gp;
       d.inFrame = d.firstDown + Math.ceil((d.start - d.firstDown - d.period * 0.5) / d.bar) * d.bar; // the first bar of the music
       if (d.inFrame < 0) d.inFrame += d.bar;
     } else { d.firstDown = d.firstBeat; d.inFrame = d.start; }
@@ -45,45 +48,114 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   const nextBeat = (d, f) => (d.matched && d.period > 0 ? Math.round(d.firstBeat + Math.ceil((f - d.firstBeat) / d.period) * d.period) : f);
   const nextBar = (d, f) => (d.matched && d.period > 0 ? Math.round(d.firstDown + Math.ceil((f - d.firstDown) / d.bar) * d.bar) : f);
 
-  // When and how A mixes into B. want: 'auto' or a number of beats.
+  // Is the voice band quiet over frames f0..f1 of deck d (no singing to talk over)?
+  function vocalFree(d, f0, f1) {
+    const vb = d.info.vocalBars; if (!vb || !d.vbBar) return true;
+    const j0 = Math.max(0, Math.floor((f0 - d.firstDown) / d.vbBar)), j1 = Math.floor((f1 - d.firstDown - 1) / d.vbBar);
+    for (let j = j0; j <= j1 && j < vb.length; j++) if (vb[j] === '1') return false;
+    return true;
+  }
+
+  // When and how A mixes into B. want: 'auto' or a number of beats (the
+  // blend length); now: from A's next bar (skip). Styles (cfg.style):
+  //   blend - a long EQ blend over the intro/outro (up to 128 beats)
+  //   short - both play for 8 beats (a few seconds), beat-matched
+  //   cut   - A stops on a phrase end and B's downbeat lands where A's next
+  //           would have: the beat flows straight across
+  //   auto  - a blend where neither track is singing; else a short mix where
+  //           A isn't; else a cut at a phrase end
   function planMix(a, b, want, now = false) {
     if (!(a.matched && b.matched)) {
       const len = Math.min(cfg.quick ? 8 * RATE : 12 * RATE, Math.max(2 * RATE, (a.end - a.pos) * 0.5));
       let s = now ? a.pos : a.end - len;
       if (cfg.quick && !now) s = Math.min(s, a.start + 60 * RATE);
-      return { start: Math.max(a.pos, s), len, beat: false, beats: 0 };
+      return { start: Math.max(a.pos, s), len, beat: false, beats: 0, style: 'fade' };
     }
-    const p = a.period, room = (s) => a.end - s;
-    let maxB = want === 'auto' ? Math.min(Math.max(a.outroBeats, 32), Math.max(b.introBeats, 16)) : Number(want) || 32;
-    let L = LENGTHS.find((x) => x <= maxB) || 16;
-    if (want !== 'auto' && maxB < 16) L = maxB;
-    let start;
-    if (now) start = nextBar(a, a.pos + 1);
-    else {
-      // The latest phrase (16 beats from A's first bar) that still lets the mix finish by A's end.
-      while (L > 16 && L * p > room(Math.max(a.pos, a.inFrame + 16 * p))) L = LENGTHS[LENGTHS.indexOf(L) + 1] || 16;
-      start = a.inFrame + Math.floor((a.end - L * p - a.inFrame) / (16 * p)) * 16 * p;
-      if (start < a.pos) start = nextBar(a, a.pos + 1);
-      // Quick mix: about a minute in, at the first phrase after the intro.
-      if (cfg.quick) {
-        const from = Math.max(a.inFrame + 55 * RATE, a.inFrame + Math.max(16, a.introBeats || 0) * p, a.pos);
-        const qs = a.inFrame + Math.ceil((from - a.inFrame) / (16 * p)) * 16 * p;
-        if (qs < start) { start = qs; L = Math.min(L, 32); }
+    const p = a.period, style = cfg.style || 'auto';
+    const blendPlan = (start, L) => { const half = Math.max(1, Math.round(L / 8)) * 4; return { start: Math.round(start), len: L * p, beat: true, beats: L, swapU: Math.min(0.85, half / L), style: L <= 8 ? 'short' : 'blend' }; };
+    const cutPlan = (at) => ({ start: Math.round(at) - CUT / 2, len: CUT, beat: true, beats: 0, style: 'cut', at: Math.round(at) });
+    if (now) {
+      const at = nextBar(a, a.pos + CUT);
+      return style === 'cut' ? cutPlan(at) : blendPlan(at, Number(want) > 0 && Number(want) < 16 ? Number(want) : 8);
+    }
+    // Phrase starts (every 16 beats from A's first bar), in order of preference:
+    // late in the track, or about a minute in for a quick mix.
+    const first = Math.max(a.pos + CUT, a.inFrame + 16 * p), phrases = [];
+    for (let f = a.inFrame + Math.ceil((first - a.inFrame) / (16 * p)) * 16 * p; f < a.end - 2 * p; f += 16 * p) phrases.push(f);
+    if (!phrases.length) phrases.push(nextBar(a, a.pos + CUT));
+    let prefs;
+    if (cfg.quick) {
+      const from = Math.max(a.inFrame + 55 * RATE, a.inFrame + Math.max(16, a.introBeats || 0) * p);
+      prefs = phrases.filter((f) => f >= from && f < from + 60 * RATE);
+      if (!prefs.length) prefs = phrases.slice(-1);
+    } else {
+      const late = a.inFrame + 0.55 * (a.end - a.inFrame);
+      // Late first; a little earlier is allowed when a longer blend needs the room.
+      prefs = phrases.filter((f) => f >= late).reverse().concat(phrases.filter((f) => f < late && f >= a.inFrame + 0.35 * (a.end - a.inFrame)).reverse());
+      if (!prefs.length) prefs = phrases.slice(-1);
+    }
+    const fits = (f, L) => f + L * p <= a.end + p;
+    const autoMax = Math.min(Math.max(a.outroBeats, 32), Math.max(b.introBeats, 16));
+    const lengths = want === 'auto' ? LENGTHS.filter((L) => L <= Math.max(16, autoMax)) : [Number(want) || 32];
+    if (cfg.quick) for (let i = 0; i < lengths.length; i++) lengths[i] = Math.min(lengths[i], 32);
+    const bIn = b.inFrame;
+    if (style === 'blend' || style === 'auto') {
+      for (const L of lengths) for (const f of prefs) {
+        if (!fits(f, L)) continue;
+        if (style === 'blend' || (vocalFree(a, f, f + L * p) && vocalFree(b, bIn, bIn + L * b.period))) return blendPlan(f, L);
       }
+      if (style === 'blend') { const L = lengths[lengths.length - 1], f = prefs.find((x) => fits(x, L)) || phrases[phrases.length - 1]; return blendPlan(f, Math.min(L, Math.max(8, Math.floor((a.end - f) / p)))); }
     }
-    while (L > 8 && start + L * p > a.end + p) L = L > 16 ? (LENGTHS[LENGTHS.indexOf(L) + 1] || 16) : L / 2;
-    const half = Math.max(1, Math.round(L / 8)) * 4; // the bass swaps on a bar near half-way
-    return { start: Math.round(start), len: L * p, beat: true, beats: L, swapU: Math.min(0.85, half / L) };
+    if (style === 'short' || style === 'auto') {
+      for (const f of prefs) if (fits(f, 8) && (style === 'short' || vocalFree(a, f, f + 8 * p))) return blendPlan(f, 8);
+      if (style === 'short') return blendPlan(prefs[0], 8);
+    }
+    // A cut: at the end of a phrase, preferably where A's singing has just finished.
+    const after = prefs.find((f) => !vocalFree(a, f - a.bar, f) && vocalFree(a, f, f + a.bar));
+    return cutPlan(after || prefs[0]);
+  }
+
+  // Beat alignment from the audio itself: the onset curve (rises in the bass,
+  // 64-frame steps) of deck d from frame f, n steps long.
+  const HOP = 64;
+  function onsets(d, f, n) {
+    const out = new Float32Array(n);
+    let lp = 0, prev = 0;
+    const a = 1 - Math.exp(-2 * Math.PI * 150 / RATE);
+    for (let i = -16; i < n; i++) {
+      let e = 0;
+      for (let j = 0; j < HOP; j++) {
+        const x = f + i * HOP + j, v = x >= 0 && x < d.frames ? (d.pcm[x * 2] + d.pcm[x * 2 + 1]) / 65536 : 0;
+        lp += (v - lp) * a; e += lp * lp;
+      }
+      e = Math.sqrt(e / HOP);
+      if (i >= 0) out[i] = Math.max(0, e - prev);
+      prev = e;
+    }
+    return out;
+  }
+  // How many frames B is behind A (positive: move B on), by lining up their
+  // onsets over a window from aF/bF; up to maxLag frames either way. 0 if unsure.
+  function lagBetween(aF, bF, win, maxLag, da = A, db = B) {
+    const n = Math.ceil(win / HOP), m = Math.ceil(maxLag / HOP);
+    const ea = onsets(da, aF, n), eb = onsets(db, bF - m * HOP, n + 2 * m);
+    let best = -1, bestL = 0, sum = 0, cnt = 0;
+    for (let l = -m; l <= m; l++) {
+      let s = 0; for (let i = 0; i < n; i++) s += ea[i] * eb[i + l + m];
+      sum += s; cnt++; if (s > best) { best = s; bestL = l; }
+    }
+    return best > (sum / cnt) * 1.5 && best > 1e-6 ? bestL * HOP : 0;
   }
 
   async function prepare(track, ref) {
     const input = await sources.inputFor(track);
     let info = known[track.id];
+    if (info && info.vocalBars === undefined) info = null; // analysed by an older version: no singing map
     if (!info) {
       info = analyser.analyse(await decode.decodeAnalysis(input));
       if (track.kind === 'mp3') { known[track.id] = info; try { if (sources.saveAnalysis) sources.saveAnalysis(track, info); } catch (e) { /* cache only */ } }
     }
-    info = { ...info };
+    info = { ...info, gridPeriod: info.period };
     const target = ref && ref.matched ? ref.bpm : 0;
     let tempo = 1, matched = false;
     if (info.bpm > 0 && info.confidence > 0.25 && target > 0) {
@@ -158,16 +230,25 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
 
   function startMix() {
     const p = A.plan;
-    mix = { from: A.pos, len: Math.max(1, p.len), beat: p.beat, swapU: p.swapU || 0.5, beats: p.beats };
-    B.pos = Math.round(B.inFrame); st.mixing = true;
-    if (st.next) st.next.beats = p.beats;
-    log(`[dj] mixing into ${B.track.title} over ${p.beat ? p.beats + ' beats' : Math.round(p.len / RATE) + ' s'}`);
+    mix = { from: A.pos, len: Math.max(1, p.len), beat: p.beat, swapU: p.swapU || 0.5, beats: p.beats, style: p.style, adj: 0, check: 0 };
+    B.pos = Math.round(B.inFrame);
+    if (p.beat) {
+      // Line B's beats up with A's from the audio itself (the grids can be a few ms out).
+      const aF = p.style === 'cut' ? p.at : A.pos, lag = lagBetween(aF, B.inFrame, 8 * A.period, A.period / 4);
+      B.pos = Math.round(B.inFrame + lag - (aF - A.pos));
+      mix.check = A.pos + Math.round(A.bar);
+    }
+    st.mixing = true;
+    if (st.next) { st.next.beats = p.beats; st.next.style = p.style; }
+    log(`[dj] ${p.style === 'cut' ? 'cutting' : 'mixing'} into ${B.track.title}${p.beats ? ` over ${p.beats} beats` : p.style === 'fade' ? ` over ${Math.round(p.len / RATE)} s` : ' on the beat'}`);
   }
   function promote() {
     if (A) { recent.push(A.track.id); while (recent.length > Math.max(1, Math.floor(list.length / 2))) recent.shift(); }
     A = B; B = null; mix = null; st.mixing = false;
     if (A.pos === 0) A.pos = Math.round(A.inFrame);
-    A.plan = null; A.force = 0;
+    A.plan = null; A.force = 0; A.loops = 0;
+    A.loopAt = A.matched && A.bar > 0 ? Math.round(A.firstDown + Math.floor((A.end - A.firstDown) / A.bar) * A.bar) : 0;
+    if (A.loopAt - 4 * A.bar < A.pos) A.loopAt = 0;
     st.state = 'playing'; st.nowIdx = A.qi === undefined ? -1 : A.qi; st.nextIdx = -1;
     nowStatus();
     prepareNext();
@@ -204,7 +285,17 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
         }
         if (mix) {
           const u = (A.pos - mix.from) / mix.len;
-          if (mix.beat) {
+          // Keep the beats locked: re-check each bar and nudge B a frame at a time.
+          if (mix.beat && mix.style !== 'cut' && A.pos >= mix.check) {
+            mix.check = A.pos + Math.round(A.bar);
+            const lag = lagBetween(A.pos, B.pos, A.bar, 1500);
+            if (Math.abs(lag) >= HOP) mix.adj = Math.max(-1500, Math.min(1500, lag));
+          }
+          if (mix.adj && (A.pos & 31) === 0) { const s1 = Math.sign(mix.adj); B.pos += s1; mix.adj -= s1; }
+          if (mix.style === 'cut') { // A stops, B's downbeat takes over
+            const c = clamp01(u);
+            sampleDeck(A, Math.cos(c * Math.PI / 2), 1, 1, 1, OUT); sampleDeck(B, Math.sin(c * Math.PI / 2), 1, 1, 1, OUT);
+          } else if (mix.beat) {
             const s = mix.swapU;
             const bHi = smooth(u / (s * 0.7)), bMi = smooth((u - s * 0.25) / (s * 0.7)), bLo = smooth((u - s) / 0.03);
             const aLo = 1 - bLo, aMi = 1 - smooth((u - s) / ((1 - s) * 0.8)), aHi = 1 - smooth((u - s - (1 - s) * 0.2) / ((1 - s) * 0.8));
@@ -217,7 +308,11 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
           }
           A.pos++; B.pos++;
           if (u >= 1) { st.played++; promote(); }
-        } else { sampleDeck(A, 1, 1, 1, 1, OUT); A.pos++; }
+        } else {
+          // The next track isn't ready yet: loop A's last four bars on the beat rather than fall silent.
+          if (!B && A.matched && preparing && A.loopAt && A.pos >= A.loopAt && A.loops < 12) { A.pos -= Math.round(4 * A.bar); A.loops++; }
+          sampleDeck(A, 1, 1, 1, 1, OUT); A.pos++;
+        }
       }
       // A soft limiter: transparent below 0.8, never clipping.
       for (let c = 0; c < 2; c++) {
@@ -242,7 +337,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     stop();
     cfg = { ...cfg, ...(newCfg || {}) };
     cfg.mixBeats = [16, 32, 64].includes(Number(cfg.mixBeats)) ? Number(cfg.mixBeats) : 'auto';
-    cfg.quick = !!cfg.quick;
+    cfg.quick = !!cfg.quick; cfg.style = STYLES.includes(cfg.style) ? cfg.style : 'auto';
     const g = ++gen;
     st.state = 'loading'; st.error = ''; st.now = null; st.next = null; st.played = 0;
     try { if (sources.loadAnalyses) known = sources.loadAnalyses() || {}; } catch (e) { known = {}; }
@@ -275,12 +370,13 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   function configure(c) {
     if (c.mixBeats !== undefined) cfg.mixBeats = [16, 32, 64].includes(Number(c.mixBeats)) ? Number(c.mixBeats) : 'auto';
     if (c.quick !== undefined) cfg.quick = !!c.quick;
+    if (STYLES.includes(c.style)) cfg.style = c.style;
     if (A && !mix) A.plan = null;
   }
   // Skip: mix into the next track from A's next bar, over 8 beats.
   function skip() { if (A && !mix) { A.force = 8; A.plan = null; if (!B) prepareNext(); } }
 
-  return { start, stop, configure, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, known: () => known, get A() { return A; }, get B() { return B; } } };
+  return { start, stop, configure, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, lagBetween, cfg: () => cfg, known: () => known, get A() { return A; }, get B() { return B; } } };
 }
 
 module.exports = { createDjEngine, RATE };
