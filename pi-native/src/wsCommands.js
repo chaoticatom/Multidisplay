@@ -639,6 +639,7 @@ const COMMANDS = {
     this._broadcast(this._stateMsg());
   },
   djSkip() { if (radio.audio && radio.audio.dj) radio.audio.dj.skip(); },
+  djNext(ws, msg) { if (radio.audio && radio.audio.dj && Number.isInteger(msg.index)) { radio.audio.dj.playNext(msg.index); this._broadcast(this._stateMsg()); } }, // play this track from the list next
   setDj(ws, msg) {
     const p = this.state.prefs || prefs.load(), dj = { ...p.dj };
     if (msg.source !== undefined) dj.source = msg.source;

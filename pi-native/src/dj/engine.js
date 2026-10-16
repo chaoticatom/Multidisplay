@@ -16,7 +16,9 @@ const MAX_STRETCH = 0.08;
 const smooth = (x) => { x = x < 0 ? 0 : x > 1 ? 1 : x; return x * x * (3 - 2 * x); };
 
 function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sources'), decode = require('./decode'), analyse = require('./analyse').analyse, log = console.log, setTimer = setInterval, clearTimer = clearInterval }) {
-  const st = { state: 'stopped', error: '', now: null, next: null, mixing: false, played: 0 };
+  // queue: every track's title in play order; nowIdx/nextIdx point into it.
+  const st = { state: 'stopped', error: '', now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
+  let wantNext = null, prepToken = 0;
   let cfg = { source: 'both', youtube: '', mixBeats: 32 };
   let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
 
@@ -57,15 +59,18 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
 
   async function prepareNext() {
     if (preparing || B) return;
-    const g = gen;
+    const g = gen, tok = ++prepToken;
     preparing = (async () => {
       for (let tries = 0; tries < Math.min(5, list.length); tries++) {
-        const track = list[idx % list.length]; idx++;
+        // A track picked from the list goes next; the order carries on after it.
+        if (wantNext !== null) { idx = wantNext; wantNext = null; }
+        const ti = idx % list.length, track = list[ti]; idx++;
         if (A && list.length > 1 && track.id === A.track.id) continue;
         try {
-          st.next = { title: track.title, status: 'loading' };
+          st.next = { title: track.title, status: 'loading' }; st.nextIdx = ti;
           const d = await prepare(track, A && A.matched ? A.bpm : 0);
-          if (g !== gen) return;
+          if (g !== gen || tok !== prepToken) return; // stopped, or another track was picked meanwhile
+          d.qi = ti;
           // Both tracks must have a clear beat for a beat-matched mix.
           if (A && !A.matched) d.matched = false;
           B = d; st.next = { title: track.title, bpm: Math.round(d.bpm), mode: d.matched && A && A.matched ? 'beat-matched' : 'crossfade' };
@@ -73,8 +78,8 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
           return;
         } catch (e) { log('[dj] skipped ' + track.title + ': ' + e.message); st.error = e.message; }
       }
-      st.next = null;
-    })().finally(() => { preparing = null; });
+      st.next = null; st.nextIdx = -1;
+    })().finally(() => { if (tok === prepToken) preparing = null; });
   }
 
   // Starts the mix now (frame-exact: called on A's beat), B on its first beat.
@@ -88,7 +93,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     A = B; B = null; mix = null; st.mixing = false;
     if (A.pos === 0) A.pos = Math.round(A.inFrame);
     A.out = Math.round(outStart(A, cfg.mixBeats)); A.mixBeats = cfg.mixBeats;
-    st.now = { title: A.track.title, bpm: Math.round(A.bpm) }; st.state = 'playing';
+    st.now = { title: A.track.title, bpm: Math.round(A.bpm) }; st.state = 'playing'; st.nowIdx = A.qi === undefined ? -1 : A.qi; st.nextIdx = -1;
     prepareNext();
   }
   // A's next beat at or after frame f.
@@ -151,15 +156,25 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     try { list = await sources.allTracks(cfg); } catch (e) { if (g === gen) { st.state = 'error'; st.error = e.message; } return; }
     if (g !== gen) return;
     if (!list.length) { st.state = 'empty'; st.error = cfg.source === 'youtube' ? 'No YouTube tracks found' : 'No music yet - add MP3s, or a YouTube playlist or search'; return; }
-    idx = 0;
+    idx = 0; wantNext = null;
+    st.queue = list.slice(0, 300).map((t) => ({ title: t.title, kind: t.kind })); st.nowIdx = st.nextIdx = -1;
     timer = setTimer(pump, 50);
     prepareNext();
   }
   function stop() { gen++; if (timer) clearTimer(timer); timer = null; A = B = null; mix = null; st.state = 'stopped'; st.mixing = false; st.now = st.next = null; }
+  // Play the queue's track i next: whatever was lined up is dropped and i is
+  // fetched and beat-matched instead (not while a mix is under way).
+  function playNext(i) {
+    if (!(i >= 0 && i < list.length) || mix) return false;
+    wantNext = i; B = null; st.next = { title: list[i].title, status: 'loading' }; st.nextIdx = i;
+    preparing = null; prepToken++; // a fetch already under way is ignored when it lands
+    prepareNext();
+    return true;
+  }
   // Skip: mix into the next track now - from A's next beat, over 8 beats.
   function skip() { if (A && !mix) { A.out = nextBeat(A, A.pos + 1); A.mixBeats = 8; if (!B) prepareNext(); } }
 
-  return { start, stop, skip, render, status: st, _test: { deckFrom, outStart, get A() { return A; }, get B() { return B; } } };
+  return { start, stop, skip, playNext, render, status: st, _test: { deckFrom, outStart, get A() { return A; }, get B() { return B; } } };
 }
 
 module.exports = { createDjEngine, RATE };

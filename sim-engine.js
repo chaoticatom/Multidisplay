@@ -2743,7 +2743,8 @@ var PiEngine = (() => {
         return x * x * (3 - 2 * x);
       };
       function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require_sources(), decode = require_decode(), analyse = require_analyse().analyse, log = console.log, setTimer = setInterval, clearTimer = clearInterval }) {
-        const st = { state: "stopped", error: "", now: null, next: null, mixing: false, played: 0 };
+        const st = { state: "stopped", error: "", now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
+        let wantNext = null, prepToken = 0;
         let cfg = { source: "both", youtube: "", mixBeats: 32 };
         let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
         function deckFrom(track, info, pcm, tempo, matched) {
@@ -2786,16 +2787,22 @@ var PiEngine = (() => {
         }
         async function prepareNext() {
           if (preparing || B) return;
-          const g = gen;
+          const g = gen, tok = ++prepToken;
           preparing = (async () => {
             for (let tries = 0; tries < Math.min(5, list.length); tries++) {
-              const track = list[idx % list.length];
+              if (wantNext !== null) {
+                idx = wantNext;
+                wantNext = null;
+              }
+              const ti = idx % list.length, track = list[ti];
               idx++;
               if (A && list.length > 1 && track.id === A.track.id) continue;
               try {
                 st.next = { title: track.title, status: "loading" };
+                st.nextIdx = ti;
                 const d = await prepare(track, A && A.matched ? A.bpm : 0);
-                if (g !== gen) return;
+                if (g !== gen || tok !== prepToken) return;
+                d.qi = ti;
                 if (A && !A.matched) d.matched = false;
                 B = d;
                 st.next = { title: track.title, bpm: Math.round(d.bpm), mode: d.matched && A && A.matched ? "beat-matched" : "crossfade" };
@@ -2807,8 +2814,9 @@ var PiEngine = (() => {
               }
             }
             st.next = null;
+            st.nextIdx = -1;
           })().finally(() => {
-            preparing = null;
+            if (tok === prepToken) preparing = null;
           });
         }
         function startMix(beats) {
@@ -2828,6 +2836,8 @@ var PiEngine = (() => {
           A.mixBeats = cfg.mixBeats;
           st.now = { title: A.track.title, bpm: Math.round(A.bpm) };
           st.state = "playing";
+          st.nowIdx = A.qi === void 0 ? -1 : A.qi;
+          st.nextIdx = -1;
           prepareNext();
         }
         const nextBeat = (d, f) => d.matched && d.period > 0 ? Math.round(d.firstBeat + Math.ceil((f - d.firstBeat) / d.period) * d.period) : f;
@@ -2927,6 +2937,9 @@ var PiEngine = (() => {
             return;
           }
           idx = 0;
+          wantNext = null;
+          st.queue = list.slice(0, 300).map((t) => ({ title: t.title, kind: t.kind }));
+          st.nowIdx = st.nextIdx = -1;
           timer = setTimer(pump, 50);
           prepareNext();
         }
@@ -2940,6 +2953,17 @@ var PiEngine = (() => {
           st.mixing = false;
           st.now = st.next = null;
         }
+        function playNext(i) {
+          if (!(i >= 0 && i < list.length) || mix) return false;
+          wantNext = i;
+          B = null;
+          st.next = { title: list[i].title, status: "loading" };
+          st.nextIdx = i;
+          preparing = null;
+          prepToken++;
+          prepareNext();
+          return true;
+        }
         function skip() {
           if (A && !mix) {
             A.out = nextBeat(A, A.pos + 1);
@@ -2947,7 +2971,7 @@ var PiEngine = (() => {
             if (!B) prepareNext();
           }
         }
-        return { start, stop, skip, render, status: st, _test: { deckFrom, outStart, get A() {
+        return { start, stop, skip, playNext, render, status: st, _test: { deckFrom, outStart, get A() {
           return A;
         }, get B() {
           return B;

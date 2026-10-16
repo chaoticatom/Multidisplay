@@ -56,6 +56,13 @@ function clickTrack(bpm, secs, rate, off = 1.5, stereo = false) {
     assert.ok(mixedAligned !== null && mixedAligned < 0.03, 'beats line up during the mix: ' + mixedAligned);
     assert.ok(tempos.some((t) => Math.abs(t - 120 / 124) < 0.01), 'the 124 BPM track was slowed to 120: ' + tempos);
     void queued;
+    // Picking a track from the list lines it up next.
+    assert.strictEqual(dj.status.queue.length, 3);
+    const pick = dj.status.queue.findIndex((q, i) => i !== dj.status.nowIdx);
+    for (let k = 0; k < 20 && dj.status.mixing; k++) { dj.render(4410); await new Promise((r) => setImmediate(r)); }
+    assert.ok(dj.playNext(pick), 'picked');
+    for (let k = 0; k < 50 && !(dj._test.B && dj._test.B.qi === pick); k++) await new Promise((r) => setImmediate(r));
+    assert.ok(dj._test.B && dj._test.B.qi === pick && dj.status.nextIdx === pick, 'the picked track is next');
     dj.stop(); assert.strictEqual(dj.status.state, 'stopped');
     console.log('  ok - beat-matched mixing from one track to the next');
   } catch (e) { console.error(e); process.exitCode = 1; }

@@ -598,6 +598,15 @@ input[type=range]:focus-visible { outline: 2px solid #7aadff; outline-offset: 3p
 .now-effect { font-size: 20px; font-weight: 700; color: #e6eeff; margin: 2px 0 10px; }
 .now-options .effect-panel { display: block !important; margin: 0; border: 1px solid rgba(80,120,255,0.18); border-radius: 8px; }
 .scene-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Auto-DJ track list: tap a track to play it next. */
+.dj-queue { max-height: 240px; overflow-y: auto; margin: 6px 0 10px; border: 1px solid rgba(80,120,255,0.25); border-radius: 10px; }
+.dj-queue button { display: flex; width: 100%; gap: 8px; align-items: center; text-align: left; background: none; border: none; border-bottom: 1px solid rgba(255,255,255,0.06); color: #dfe7ff; padding: 7px 10px; font-size: 13px; cursor: pointer; }
+.dj-queue button:last-child { border-bottom: none; }
+.dj-queue button span:first-child { flex: 0 0 18px; color: #7aadff; }
+.dj-queue button span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dj-queue button small { color: #9aa3b8; }
+.dj-queue button.now { background: rgba(80,220,140,0.12); }
+.dj-queue button.next { background: rgba(80,120,255,0.16); }
 .scene-chip { display: inline-flex; align-items: center; border: 1px solid rgba(80,120,255,0.4); border-radius: 999px; background: rgba(80,120,255,0.12); overflow: hidden; }
 .scene-chip button { background: none; border: none; color: #cfe0ff; font-size: 13px; padding: 6px 10px; cursor: pointer; }
 .scene-chip button.scene-del { color: #9aa3b8; padding: 6px 8px 6px 2px; }
@@ -2056,6 +2065,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="slider-row"><span class="slider-label">Mix over</span><select id="dj-beats" class="ui-input" aria-label="Mix length" style="flex:1;"><option value="16">16 beats (quick)</option><option value="32" selected>32 beats</option><option value="64">64 beats (long)</option></select></div>
       <div style="display:flex;gap:6px;margin:6px 0;"><button type="button" id="dj-start" class="ui-btn-primary" style="flex:1;margin:0;">▶ Start Auto-DJ</button><button type="button" id="dj-skip" class="ui-btn-small" style="flex:0 0 auto;">⏭ Mix next now</button></div>
       <div class="ui-note" id="dj-status"></div>
+      <div id="dj-queue" class="dj-queue" hidden></div>
       <details class="ui-note" style="margin:6px 0 12px;"><summary id="dj-music-sum">My music</summary>
         <label class="ui-btn-small" style="display:inline-block;margin:6px 0;cursor:pointer;">＋ Add MP3s<input type="file" id="dj-upload" accept="audio/*,.mp3,.m4a,.flac,.ogg,.wav" multiple hidden></label>
         <span id="dj-upload-status"></span>

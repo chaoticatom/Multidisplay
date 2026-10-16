@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.331';
+const APP_VERSION = '0.6.332';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -6086,6 +6086,11 @@ function cxWireDj() {
     if (typeof radioBrowserPlay === 'function') radioBrowserPlay({ name: 'Auto-DJ', url: 'dj:' }); // phone audio too, in this tap
   });
   document.getElementById('dj-skip').addEventListener('click', () => send({ cmd: 'djSkip' }));
+  document.getElementById('dj-queue').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-djq]'); if (!b || b.classList.contains('now')) return;
+    send({ cmd: 'djNext', index: Number(b.dataset.djq) });
+    cxToast('Next: ' + b.querySelector('span:nth-child(2)').textContent);
+  });
   document.getElementById('dj-upload').addEventListener('change', async (e) => {
     const files = [...e.target.files]; e.target.value = '';
     const st = document.getElementById('dj-upload-status');
@@ -6119,6 +6124,22 @@ function cxSyncDj() {
     : `▶ ${d.now ? d.now.title + (d.now.bpm ? ` · ${d.now.bpm} BPM` : '') : '…'}${d.mixing ? ' · mixing…' : ''}${d.next ? `\nNext: ${d.next.title}${d.next.bpm ? ` · ${d.next.bpm} BPM` : ''}${d.next.mode ? ` · ${d.next.mode}` : d.next.status ? ' · getting it ready' : ''}` : ''}`;
   s.style.whiteSpace = 'pre-line';
   document.getElementById('dj-skip').disabled = !d.on;
+  // The track list (tap one to play it next).
+  const q = document.getElementById('dj-queue');
+  q.hidden = !d.on || !d.queue || !d.queue.length;
+  const qkey = d.on ? d.queue.length + ':' + d.nowIdx + ':' + d.nextIdx + ':' + (d.queue[0] && d.queue[0].title) : '';
+  if (!q.hidden && q.dataset.key !== qkey) {
+    q.dataset.key = qkey;
+    q.replaceChildren(...d.queue.map((t, i) => {
+      const b = document.createElement('button'); b.type = 'button'; b.dataset.djq = i;
+      b.className = i === d.nowIdx ? 'now' : i === d.nextIdx ? 'next' : '';
+      const ic = document.createElement('span'); ic.textContent = i === d.nowIdx ? '▶' : i === d.nextIdx ? '⏭' : (t.kind === 'yt' ? '▷' : '♪');
+      const nm = document.createElement('span'); nm.textContent = t.title;
+      const tag = document.createElement('small'); tag.textContent = i === d.nowIdx ? 'playing' : i === d.nextIdx ? 'next' : (t.kind === 'yt' ? 'YouTube' : '');
+      b.append(ic, nm, tag); return b;
+    }));
+    const nowEl = q.querySelector('.now'); if (nowEl) q.scrollTop = Math.max(0, nowEl.offsetTop - q.offsetTop - 40); // within the list only, not the page
+  }
   const key = d.music.join('|'), list = document.getElementById('dj-music-list');
   if (list.dataset.key !== key) {
     list.dataset.key = key;
