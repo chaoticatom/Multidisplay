@@ -54,7 +54,14 @@ function radioStationRow(station, current) {
 // src/wsServer.js sendAudio). We estimate the Pi's clock and schedule each
 // piece for that moment, less this device's own output delay.
 // ---------------------------------------------------------------------
-const syncAudio = { on: false, ctx: null, gain: null, next: 0, offset: 0, samples: [], timer: null, late: 0, extra: 0 };
+const syncAudio = { on: false, ctx: null, gain: null, next: 0, offset: 0, samples: [], timer: null, late: 0, extra: 0, srcs: [], url: null };
+// Silences everything already lined up to play here - a new station
+// starts at once instead of the old one playing out its few seconds of
+// buffer (a bursty station can have up to 8 s queued).
+function syncAudioFlush() {
+  for (const s of syncAudio.srcs) { try { s.stop(); } catch (e) { /* already ended */ } }
+  syncAudio.srcs = []; syncAudio.next = 0;
+}
 function isAudioPacket(buf) {
   if (!(buf instanceof ArrayBuffer) || buf.byteLength < 20) return false;
   const b = new Uint8Array(buf, 0, 8);
@@ -82,6 +89,7 @@ document.addEventListener('visibilitychange', () => {
   send({ cmd: 'clockPing', c: Date.now() });
 });
 function syncAudioStop() {
+  syncAudioFlush();
   if (!syncAudio.on) return;
   syncAudio.on = false;
   clearInterval(syncAudio.timer);
@@ -122,6 +130,7 @@ function handleSyncAudio(buf) {
   const start = a.next && Math.abs(when - a.next) < 0.15 && a.next > a.ctx.currentTime + 0.005 ? a.next : when;
   const src = a.ctx.createBufferSource();
   src.buffer = ab; src.connect(a.gain); src.start(start);
+  a.srcs.push(src); src.onended = () => { const i = a.srcs.indexOf(src); if (i >= 0) a.srcs.splice(i, 1); };
   a.next = start + ab.duration;
 }
 
@@ -167,7 +176,7 @@ function radioEnsureGraph() {
 }
 function radioBrowserPlay(station) {
   if (!radioBrowserPlaybackWanted() || !station || !station.url) return;
-  if (!window.MULTIDISPLAY_SIM) { syncAudioStart(); return; } // on the Pi: play the Pi's own audio, in step with the speaker
+  if (!window.MULTIDISPLAY_SIM) { syncAudioFlush(); syncAudio.url = station.url; syncAudioStart(); return; } // on the Pi: play the Pi's own audio, in step with the speaker
   const el = document.getElementById('radio-browser-audio');
   if (!el) return;
   radioEnsureGraph();
@@ -452,6 +461,9 @@ function syncRadioPanel() {
   const status = currentState.effectStatus?.radio;
   const opts = currentState.effectOptions?.radio || {};
   const current = status?.station || null;
+  // Someone (any phone) picked another station: drop what this one had lined up.
+  if (syncAudio.on && current && syncAudio.url && current.url !== syncAudio.url) syncAudioFlush();
+  if (current) syncAudio.url = current.url;
   syncRecentStations(status && status.playing ? current : null);
 
   panel.querySelectorAll('.radio-status-el').forEach((el) => {
