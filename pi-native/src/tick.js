@@ -41,10 +41,12 @@ function beginCrossfade(core, effect, buf) {
 }
 
 // Style and length come from Setup > Display > Transition (prefs.transition);
-// the default is a 0.4 s fade. See effects/transition.js for the styles.
+// the default is the flow morph (at least 1.4 s). See effects/transition.js.
 const { applyTransition } = require('./effects/transition');
 function applyCrossfade(core, buf, dt, tr) {
-  const style = (tr && tr.style) || 'fade', secs = tr && Number.isFinite(tr.secs) ? tr.secs : CROSSFADE_SECS;
+  const style = (tr && tr.style) || 'morph';
+  let secs = tr && Number.isFinite(tr.secs) ? tr.secs : CROSSFADE_SECS;
+  if (style === 'morph') secs = Math.max(secs, 1.4); // melting needs a moment to flow
   if (!buf || core._xfT === undefined || core._xfT >= secs) return;
   const from = core._xfFrom;
   if (style === 'none' || from.length !== buf.length) { core._xfT = Infinity; return; }

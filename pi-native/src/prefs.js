@@ -10,7 +10,7 @@ const DEFAULT = {
   playlist: { on: false, minutes: 5 },
   nightDim: { on: false, from: 22, to: 7, level: 0.3 },
   look: { on: true, bloom: 0.65, vibrance: 0.35, smooth: 0, depth: 0.5, palette: 'auto' },
-  transition: { style: 'fade', secs: 0.4 }, // between effects - see effects/transition.js
+  transition: { style: 'morph', secs: 1.5, v2: true }, // between effects - see effects/transition.js
   // Automatic show (see src/autoShow.js).
   dayPlan: { on: false, starts: { morning: 6, day: 10, evening: 18, night: 23 }, effects: { morning: [], day: [], evening: [], night: [] }, brightness: { morning: null, day: null, evening: null, night: null } }, // brightness null = leave as it is
   weatherMode: { on: false },
@@ -48,6 +48,9 @@ function clean(p) {
   if (p && p.transition) {
     if (require('./effects/transition').STYLES.includes(p.transition.style)) out.transition.style = p.transition.style;
     const secs = Number(p.transition.secs); if (Number.isFinite(secs)) out.transition.secs = Math.max(0.2, Math.min(3, secs));
+    // The old default (a 0.4 s fade, never changed) becomes the new flow morph once.
+    if (!p.transition.v2) { if (p.transition.style === 'fade' && (p.transition.secs === undefined || p.transition.secs === 0.4)) { out.transition.style = 'morph'; out.transition.secs = 1.5; } }
+    out.transition.v2 = true;
   }
   if (p && p.look) {
     out.look.on = p.look.on !== false;

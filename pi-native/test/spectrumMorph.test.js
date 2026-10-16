@@ -1,6 +1,6 @@
 'use strict';
-// Spectrum "auto": styles change every autoSecs, morphing into the next
-// over the last few seconds (both drawn, blended) instead of cutting.
+// Spectrum "auto": styles change every autoSecs, flowing into the next
+// over the last few seconds (both drawn, flow-morphed) instead of cutting.
 const assert = require('assert');
 const { renderSpectrumV2Wall, createV2State, SCENES } = require('../src/effects/radio/spectrumV2Wall');
 
@@ -14,9 +14,10 @@ try {
   const sA = createV2State(); sA.sceneT = 42; const A = frame(sA); // styles 4 and 5 (Hi-Fi, Studio): both fill the edges
   const sB = createV2State(); sB.sceneT = 52; const B = frame(sB);
   const sM = createV2State(); sM.sceneT = 48.4; const M = frame(sM); // half way through the morph
-  let left = 0, right = 0;
-  for (let y = 0; y < H; y++) { const l = (y * W + 5) * 3, r = (y * W + W - 5) * 3; left += Math.abs(M[l] - B[l]) < Math.abs(M[l] - A[l]) ? 1 : 0; right += Math.abs(M[r] - A[r]) <= Math.abs(M[r] - B[r]) ? 1 : 0; }
-  assert.ok(left > H / 2 && right > H / 2, `mid-morph: the new style on the left (${left}), the old one still on the right (${right})`);
+  // Mid-way it's a blend of the two, not either one.
+  let dA = 0, dB = 0, lit = 0;
+  for (let i = 0; i < M.length; i++) { dA += Math.abs(M[i] - A[i]); dB += Math.abs(M[i] - B[i]); lit += M[i]; }
+  assert.ok(dA > 1 && dB > 1 && lit > 1, `mid-morph differs from both (${dA.toFixed(1)}, ${dB.toFixed(1)})`);
   assert.notStrictEqual(SCENES[0], SCENES[1]);
   console.log('spectrumMorph ok');
 } catch (e) { console.error(e); process.exitCode = 1; }

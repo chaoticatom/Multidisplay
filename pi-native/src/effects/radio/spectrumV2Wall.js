@@ -26,7 +26,7 @@
 //   helix       - Plasma Helix: left and right as two twisting light strands
 //   tunnel      - Hyper Tunnel: spectrum-shaped neon rings rushing at you
 //   auto        - moves through them (25 s each, or the `autoSecs` option),
-//                 morphing from one to the next over a few seconds
+//                 flowing from one into the next over a few seconds
 // The bottom 9 rows are kept clear for the now-playing ticker. Reads the
 // shared display levels (ctx.ampArr / ctx.peakArr, see levels.js). y = 0 is
 // the top, as for every wall effect. The classic styles are in
@@ -511,8 +511,7 @@ function renderSpectrumV2Wall(core, ctx, scene, st, autoSecs) {
     return;
   }
   // Auto: each style for `hold` seconds; over the last `morph` seconds the
-  // next one sweeps in across the wall with a soft edge while the old one
-  // fades out behind it.
+  // next one melts in (flow morph) while both keep moving to the music.
   const hold = [10, 25, 60, 120].includes(Number(autoSecs)) ? Number(autoSecs) : AUTO_SECS;
   const morph = Math.min(3, hold * 0.3);
   st.sceneT += dt;
@@ -526,13 +525,9 @@ function renderSpectrumV2Wall(core, ctx, scene, st, autoSecs) {
   if (!st.tmp || st.tmp.length !== buf.length) st.tmp = new Float32Array(buf.length);
   st.tmp.set(buf); buf.fill(0);
   RENDER[b](core, ctx, sub(st, b), W, H, t, dt);
-  const old = st.tmp, p = k * 1.6 - 0.3;
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    // A soft, slightly wavy edge sweeping from left to right.
-    const edge = (x / W) * 0.6 + 0.08 * Math.sin(y * 0.35 + t * 3), m0 = Math.max(0, Math.min(1, (p - edge) / 0.3 + 0.5)), m = m0 * m0 * (3 - 2 * m0);
-    const o = (y * W + x) * 3;
-    buf[o] = old[o] + (buf[o] - old[o]) * m; buf[o + 1] = old[o + 1] + (buf[o + 1] - old[o + 1]) * m; buf[o + 2] = old[o + 2] + (buf[o + 2] - old[o + 2]) * m;
-  }
+  // The two flow into each other (see transition.js flowMorph): shapes melt
+  // along one swirl while the new style shows through where both are bright.
+  require('../transition').flowMorph(buf, st.tmp, W, H, k);
 }
 
 module.exports = { renderSpectrumV2Wall, createV2State, SCENES };

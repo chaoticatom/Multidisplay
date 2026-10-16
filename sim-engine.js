@@ -27058,6 +27058,126 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/transition.js
+  var require_transition = __commonJS({
+    "src/effects/transition.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var STYLES = ["morph", "fade", "slide", "dissolve", "wipe", "zoom", "none"];
+      var flowCache = /* @__PURE__ */ new Map();
+      function flowField(W, H) {
+        const key = W + "x" + H;
+        let f = flowCache.get(key);
+        if (f) return f;
+        f = { x: new Float32Array(W * H), y: new Float32Array(W * H) };
+        const s = 1 / 22;
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const px = x * s, py = y * s;
+          const dpdx = Math.cos(px * 1.3 + 0.7) * Math.sin(py * 0.9) * 1.3 + Math.cos(px * 0.6 - py * 1.1 + 2) * 0.6;
+          const dpdy = Math.sin(px * 1.3 + 0.7) * Math.cos(py * 0.9) * 0.9 - Math.cos(px * 0.6 - py * 1.1 + 2) * 1.1;
+          f.x[y * W + x] = dpdy;
+          f.y[y * W + x] = -dpdx;
+        }
+        flowCache.set(key, f);
+        return f;
+      }
+      function sampleRGB(src, W, H, x, y, out) {
+        x = x < 0 ? 0 : x > W - 1 ? W - 1 : x;
+        y = y < 0 ? 0 : y > H - 1 ? H - 1 : y;
+        const x0 = x | 0, y0 = y | 0, x1 = x0 + 1 < W ? x0 + 1 : x0, y1 = y0 + 1 < H ? y0 + 1 : y0, fx = x - x0, fy = y - y0;
+        const a = (y0 * W + x0) * 3, b = (y0 * W + x1) * 3, c = (y1 * W + x0) * 3, d = (y1 * W + x1) * 3;
+        for (let k = 0; k < 3; k++) {
+          const top = src[a + k] + (src[b + k] - src[a + k]) * fx, bot = src[c + k] + (src[d + k] - src[c + k]) * fx;
+          out[k] = top + (bot - top) * fy;
+        }
+      }
+      var mTmp = null;
+      var SA = [0, 0, 0];
+      var SB = [0, 0, 0];
+      function flowMorph(buf, from, W, H, k) {
+        if (!mTmp || mTmp.length !== buf.length) mTmp = new Float32Array(buf.length);
+        mTmp.set(buf);
+        const e = k * k * k * (k * (k * 6 - 15) + 10);
+        const bend = Math.sin(Math.PI * e), amp = Math.min(W, H) * 0.09 * bend;
+        const fl = flowField(W, H);
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const i = y * W + x, fx = fl.x[i] * amp, fy = fl.y[i] * amp;
+          sampleRGB(from, W, H, x - fx * e, y - fy * e, SA);
+          sampleRGB(mTmp, W, H, x + fx * (1 - e), y + fy * (1 - e), SB);
+          const la = SA[0] + SA[1] + SA[2], lb = SB[0] + SB[1] + SB[2];
+          let w = (e - 0.5) * 2.2 + 0.5 + 0.35 * Math.tanh((lb - la) * 2) * bend;
+          w = w < 0 ? 0 : w > 1 ? 1 : w;
+          w = w * w * (3 - 2 * w);
+          const o = i * 3;
+          buf[o] = SA[0] + (SB[0] - SA[0]) * w;
+          buf[o + 1] = SA[1] + (SB[1] - SA[1]) * w;
+          buf[o + 2] = SA[2] + (SB[2] - SA[2]) * w;
+        }
+        const soft = 0.45 * bend * bend;
+        if (soft > 0.02) {
+          mTmp.set(buf);
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const o = (y * W + x) * 3, l = (y * W + (x > 0 ? x - 1 : x)) * 3, r = (y * W + (x < W - 1 ? x + 1 : x)) * 3, u = ((y > 0 ? y - 1 : y) * W + x) * 3, d = ((y < H - 1 ? y + 1 : y) * W + x) * 3;
+            for (let c = 0; c < 3; c++) buf[o + c] = mTmp[o + c] * (1 - soft) + (mTmp[l + c] + mTmp[r + c] + mTmp[u + c] + mTmp[d + c]) * 0.25 * soft;
+          }
+        }
+      }
+      function rnd(i) {
+        let h = i * 2654435761 >>> 0;
+        h ^= h >>> 15;
+        h = Math.imul(h, 2246822519) >>> 0;
+        h ^= h >>> 13;
+        return (h >>> 0) / 4294967296;
+      }
+      var clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
+      var tmp = null;
+      function applyTransition(style, core, buf, from, k) {
+        const wall = buf === core.wallBuf && core.wallW;
+        const W = wall ? core.wallW : 0, H = wall ? core.wallH : 0, n = buf.length / 3;
+        if (style === "morph" && wall) {
+          flowMorph(buf, from, W, H, k);
+          return;
+        }
+        if (style === "morph") style = "fade";
+        if (style === "slide" && wall) {
+          if (!tmp || tmp.length !== buf.length) tmp = new Float32Array(buf.length);
+          tmp.set(buf);
+          const s = Math.round(W * k);
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const o = (y * W + x) * 3, src = x < W - s ? (y * W + x + s) * 3 : (y * W + x - (W - s)) * 3, img = x < W - s ? from : tmp;
+            buf[o] = img[src];
+            buf[o + 1] = img[src + 1];
+            buf[o + 2] = img[src + 2];
+          }
+          return;
+        }
+        for (let p = 0; p < n; p++) {
+          let m;
+          if (style === "dissolve") m = clamp01((k * 1.1 - rnd(p)) * 10);
+          else if (style === "wipe" || style === "slide" || style === "zoom") {
+            let u, r;
+            if (wall) {
+              const x = p % W, y = p / W | 0;
+              u = x / Math.max(1, W - 1);
+              r = Math.hypot((x - W / 2) / (W / 2), (y - H / 2) / (W / 2));
+            } else {
+              u = ((core.surfX ? core.surfX[p] : 0) + 1) / 2;
+              r = Math.hypot(core.surfX ? core.surfX[p] : 0, core.surfY ? core.surfY[p] : 0) / Math.SQRT2;
+            }
+            if (style === "zoom") m = clamp01((k * 1.25 - r) / 0.2);
+            else m = clamp01((k * 1.15 - u) / 0.15);
+          } else m = k * k * (3 - 2 * k);
+          const i = p * 3;
+          buf[i] = from[i] + (buf[i] - from[i]) * m;
+          buf[i + 1] = from[i + 1] + (buf[i + 1] - from[i + 1]) * m;
+          buf[i + 2] = from[i + 2] + (buf[i + 2] - from[i + 2]) * m;
+        }
+      }
+      module.exports = { applyTransition, flowMorph, STYLES };
+    }
+  });
+
   // src/effects/radio/spectrumV2Wall.js
   var require_spectrumV2Wall = __commonJS({
     "src/effects/radio/spectrumV2Wall.js"(exports, module) {
@@ -27663,14 +27783,7 @@ var PiEngine = (() => {
         st.tmp.set(buf);
         buf.fill(0);
         RENDER[b](core, ctx, sub(st, b), W, H, t, dt);
-        const old = st.tmp, p = k * 1.6 - 0.3;
-        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-          const edge = x / W * 0.6 + 0.08 * Math.sin(y * 0.35 + t * 3), m0 = Math.max(0, Math.min(1, (p - edge) / 0.3 + 0.5)), m = m0 * m0 * (3 - 2 * m0);
-          const o = (y * W + x) * 3;
-          buf[o] = old[o] + (buf[o] - old[o]) * m;
-          buf[o + 1] = old[o + 1] + (buf[o + 1] - old[o + 1]) * m;
-          buf[o + 2] = old[o + 2] + (buf[o + 2] - old[o + 2]) * m;
-        }
+        require_transition().flowMorph(buf, st.tmp, W, H, k);
       }
       module.exports = { renderSpectrumV2Wall, createV2State, SCENES };
     }
@@ -29414,63 +29527,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/transition.js
-  var require_transition = __commonJS({
-    "src/effects/transition.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var STYLES = ["fade", "slide", "dissolve", "wipe", "zoom", "none"];
-      function rnd(i) {
-        let h = i * 2654435761 >>> 0;
-        h ^= h >>> 15;
-        h = Math.imul(h, 2246822519) >>> 0;
-        h ^= h >>> 13;
-        return (h >>> 0) / 4294967296;
-      }
-      var clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
-      var tmp = null;
-      function applyTransition(style, core, buf, from, k) {
-        const wall = buf === core.wallBuf && core.wallW;
-        const W = wall ? core.wallW : 0, H = wall ? core.wallH : 0, n = buf.length / 3;
-        if (style === "slide" && wall) {
-          if (!tmp || tmp.length !== buf.length) tmp = new Float32Array(buf.length);
-          tmp.set(buf);
-          const s = Math.round(W * k);
-          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-            const o = (y * W + x) * 3, src = x < W - s ? (y * W + x + s) * 3 : (y * W + x - (W - s)) * 3, img = x < W - s ? from : tmp;
-            buf[o] = img[src];
-            buf[o + 1] = img[src + 1];
-            buf[o + 2] = img[src + 2];
-          }
-          return;
-        }
-        for (let p = 0; p < n; p++) {
-          let m;
-          if (style === "dissolve") m = clamp01((k * 1.1 - rnd(p)) * 10);
-          else if (style === "wipe" || style === "slide" || style === "zoom") {
-            let u, r;
-            if (wall) {
-              const x = p % W, y = p / W | 0;
-              u = x / Math.max(1, W - 1);
-              r = Math.hypot((x - W / 2) / (W / 2), (y - H / 2) / (W / 2));
-            } else {
-              u = ((core.surfX ? core.surfX[p] : 0) + 1) / 2;
-              r = Math.hypot(core.surfX ? core.surfX[p] : 0, core.surfY ? core.surfY[p] : 0) / Math.SQRT2;
-            }
-            if (style === "zoom") m = clamp01((k * 1.25 - r) / 0.2);
-            else m = clamp01((k * 1.15 - u) / 0.15);
-          } else m = k * k * (3 - 2 * k);
-          const i = p * 3;
-          buf[i] = from[i] + (buf[i] - from[i]) * m;
-          buf[i + 1] = from[i + 1] + (buf[i + 1] - from[i + 1]) * m;
-          buf[i + 2] = from[i + 2] + (buf[i + 2] - from[i + 2]) * m;
-        }
-      }
-      module.exports = { applyTransition, STYLES };
-    }
-  });
-
   // src/tick.js
   var require_tick = __commonJS({
     "src/tick.js"(exports, module) {
@@ -29505,7 +29561,9 @@ var PiEngine = (() => {
       }
       var { applyTransition } = require_transition();
       function applyCrossfade(core, buf, dt, tr) {
-        const style = tr && tr.style || "fade", secs = tr && Number.isFinite(tr.secs) ? tr.secs : CROSSFADE_SECS;
+        const style = tr && tr.style || "morph";
+        let secs = tr && Number.isFinite(tr.secs) ? tr.secs : CROSSFADE_SECS;
+        if (style === "morph") secs = Math.max(secs, 1.4);
         if (!buf || core._xfT === void 0 || core._xfT >= secs) return;
         const from = core._xfFrom;
         if (style === "none" || from.length !== buf.length) {

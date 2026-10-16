@@ -508,7 +508,7 @@ function cxSyncFavs() {
     if (document.activeElement !== sel) sel.value = String(p.minutes);
     note.textContent = p.on && favs.size < 2 ? 'Star at least two effects (★ on the tiles) for the playlist to cycle.' : '';
   }
-  const tr = currentState.prefs?.transition || { style: 'fade', secs: 0.4 };
+  const tr = currentState.prefs?.transition || { style: 'morph', secs: 1.5 };
   document.querySelectorAll('#tr-style button').forEach((b) => b.classList.toggle('on', b.dataset.tr === tr.style));
   document.querySelectorAll('#tr-secs button').forEach((b) => b.classList.toggle('on', Math.abs(Number(b.dataset.secs) - tr.secs) < 0.05));
   const look = currentState.prefs?.look, lsw = document.getElementById('look-sw');

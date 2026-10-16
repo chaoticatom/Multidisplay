@@ -21,11 +21,11 @@ test('the very first effect shows immediately (no fade from nothing)', () => {
 test('switching effects blends from the old frame to the new one', () => {
   const core = new CubeCore(8);
   run(core, 'white', 1 / 60);
-  run(core, 'black', CROSSFADE_SECS / 2);
+  run(core, 'black', 0.7); // the default (morph) takes at least 1.4 s
   const mid = core.colBuf[0];
   assert.ok(mid > 0.1 && mid < 0.9, `mid-fade value ${mid}`);
-  run(core, 'black', CROSSFADE_SECS);
-  assert.strictEqual(core.colBuf[0], 0, 'fully on the new effect once the fade has elapsed');
+  run(core, 'black', 1);
+  assert.strictEqual(core.colBuf[0], 0, 'fully on the new effect once the transition has elapsed');
 });
 test('staying on the same effect never fades', () => {
   const core = new CubeCore(8);
