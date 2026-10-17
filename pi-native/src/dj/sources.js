@@ -111,12 +111,19 @@ const CACHE_DIR = path.join(process.env.TMPDIR || '/tmp', 'multidisplay-dj');
 const CACHE_KEEP = 5;
 const FETCH_WAIT_MS = 20000;
 const fetching = new Map();
+// Only a finished audio file counts: while yt-dlp works it leaves pieces
+// (.part, .part-Frag3, .ytdl, .temp...) that aren't playable.
+const DONE_RE = /^[\w-]+\.(m4a|webm|opus|ogg|mp3|aac|mp4)$/;
 function cachedFile(id) {
-  try { const f = fs.readdirSync(CACHE_DIR).find((x) => x.startsWith(id + '.') && !x.endsWith('.part')); return f ? path.join(CACHE_DIR, f) : null; } catch (e) { return null; }
+  try { const f = fs.readdirSync(CACHE_DIR).find((x) => x.startsWith(id + '.') && DONE_RE.test(x)); return f ? path.join(CACHE_DIR, f) : null; } catch (e) { return null; }
+}
+// A cached file that turned out unplayable: remove it (and any pieces).
+function dropCached(id) {
+  try { for (const f of fs.readdirSync(CACHE_DIR)) if (f.startsWith(id + '.')) fs.unlinkSync(path.join(CACHE_DIR, f)); } catch (e) { /* nothing cached */ }
 }
 function trimCache() {
   try {
-    const files = fs.readdirSync(CACHE_DIR).filter((f) => !f.endsWith('.part')).map((f) => ({ f, t: fs.statSync(path.join(CACHE_DIR, f)).mtimeMs })).sort((a, b) => b.t - a.t);
+    const files = fs.readdirSync(CACHE_DIR).filter((f) => DONE_RE.test(f)).map((f) => ({ f, t: fs.statSync(path.join(CACHE_DIR, f)).mtimeMs })).sort((a, b) => b.t - a.t);
     for (const { f } of files.slice(CACHE_KEEP)) fs.unlinkSync(path.join(CACHE_DIR, f));
   } catch (e) { /* nothing cached */ }
 }
@@ -172,9 +179,11 @@ function saveAnalysis(track, info) {
 async function allTracks(cfg, spawn = realSpawn) {
   const out = [];
   if (cfg.source !== 'youtube') for (const f of listMusic()) out.push({ kind: 'mp3', id: f, title: titleOf(f) });
-  if (cfg.source !== 'mp3' && cfg.youtube) { try { out.push(...await youtubeTracks(cfg.youtube, spawn)); } catch (e) { if (!out.length) throw e; } }
+  // YouTube: the link or search given; with none, your Liked music (signed in).
+  const ytQuery = cfg.youtube || (require('../youtube').signedIn() ? 'https://music.youtube.com/playlist?list=LM' : '');
+  if (cfg.source !== 'mp3' && ytQuery) { try { out.push(...await youtubeTracks(ytQuery, spawn)); } catch (e) { if (!out.length) throw e; } }
   for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; }
   return out;
 }
 
-module.exports = { MUSIC_DIR, AUDIO_RE, listMusic, deleteMusic, titleOf, youtubeTracks, youtubeAudio, youtubeLibrary, youtubeRadio, prettyTitle, prefetch, fetchYoutube, CACHE_DIR, inputFor, allTracks, loadAnalyses, saveAnalysis };
+module.exports = { MUSIC_DIR, AUDIO_RE, listMusic, deleteMusic, titleOf, youtubeTracks, youtubeAudio, dropCached, youtubeLibrary, youtubeRadio, prettyTitle, prefetch, fetchYoutube, CACHE_DIR, inputFor, allTracks, loadAnalyses, saveAnalysis };

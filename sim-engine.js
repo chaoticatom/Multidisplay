@@ -2619,17 +2619,24 @@ var PiEngine = (() => {
       var CACHE_KEEP = 5;
       var FETCH_WAIT_MS = 2e4;
       var fetching = /* @__PURE__ */ new Map();
+      var DONE_RE = /^[\w-]+\.(m4a|webm|opus|ogg|mp3|aac|mp4)$/;
       function cachedFile(id) {
         try {
-          const f = fs.readdirSync(CACHE_DIR).find((x) => x.startsWith(id + ".") && !x.endsWith(".part"));
+          const f = fs.readdirSync(CACHE_DIR).find((x) => x.startsWith(id + ".") && DONE_RE.test(x));
           return f ? path.join(CACHE_DIR, f) : null;
         } catch (e) {
           return null;
         }
       }
+      function dropCached(id) {
+        try {
+          for (const f of fs.readdirSync(CACHE_DIR)) if (f.startsWith(id + ".")) fs.unlinkSync(path.join(CACHE_DIR, f));
+        } catch (e) {
+        }
+      }
       function trimCache() {
         try {
-          const files = fs.readdirSync(CACHE_DIR).filter((f) => !f.endsWith(".part")).map((f) => ({ f, t: fs.statSync(path.join(CACHE_DIR, f)).mtimeMs })).sort((a, b) => b.t - a.t);
+          const files = fs.readdirSync(CACHE_DIR).filter((f) => DONE_RE.test(f)).map((f) => ({ f, t: fs.statSync(path.join(CACHE_DIR, f)).mtimeMs })).sort((a, b) => b.t - a.t);
           for (const { f } of files.slice(CACHE_KEEP)) fs.unlinkSync(path.join(CACHE_DIR, f));
         } catch (e) {
         }
@@ -2701,9 +2708,10 @@ var PiEngine = (() => {
       async function allTracks(cfg, spawn = realSpawn) {
         const out = [];
         if (cfg.source !== "youtube") for (const f of listMusic()) out.push({ kind: "mp3", id: f, title: titleOf(f) });
-        if (cfg.source !== "mp3" && cfg.youtube) {
+        const ytQuery = cfg.youtube || (require_youtube().signedIn() ? "https://music.youtube.com/playlist?list=LM" : "");
+        if (cfg.source !== "mp3" && ytQuery) {
           try {
-            out.push(...await youtubeTracks(cfg.youtube, spawn));
+            out.push(...await youtubeTracks(ytQuery, spawn));
           } catch (e) {
             if (!out.length) throw e;
           }
@@ -2714,7 +2722,7 @@ var PiEngine = (() => {
         }
         return out;
       }
-      module.exports = { MUSIC_DIR, AUDIO_RE, listMusic, deleteMusic, titleOf, youtubeTracks, youtubeAudio, youtubeLibrary, youtubeRadio, prettyTitle, prefetch, fetchYoutube, CACHE_DIR, inputFor, allTracks, loadAnalyses, saveAnalysis };
+      module.exports = { MUSIC_DIR, AUDIO_RE, listMusic, deleteMusic, titleOf, youtubeTracks, youtubeAudio, dropCached, youtubeLibrary, youtubeRadio, prettyTitle, prefetch, fetchYoutube, CACHE_DIR, inputFor, allTracks, loadAnalyses, saveAnalysis };
     }
   });
 
@@ -3202,12 +3210,22 @@ var PiEngine = (() => {
             if (st.next && st.next.title === track.title) st.next.step = t;
           };
           step(track.kind === "yt" ? "getting it from YouTube" : "opening");
-          const input = await sources.inputFor(track);
+          let input = await sources.inputFor(track);
           step("analysing the beat, key and vocals");
           let info = known[track.id];
           if (info && info.vocalLevel === void 0) info = null;
           if (!info) {
-            info = analyser.analyse(await decode.decodeAnalysis(input));
+            let x;
+            try {
+              x = await decode.decodeAnalysis(input);
+            } catch (err) {
+              if (track.kind !== "yt" || !sources.dropCached || !/Invalid data|moov atom|End of file/i.test(err.message)) throw err;
+              log("[dj] bad download of " + track.title + " - streaming it instead");
+              sources.dropCached(track.id);
+              input = { url: await sources.youtubeAudio(track.id), opts: ["-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"] };
+              x = await decode.decodeAnalysis(input);
+            }
+            info = analyser.analyse(x);
             if (track.kind === "mp3") {
               known[track.id] = info;
               try {
@@ -3526,7 +3544,7 @@ var PiEngine = (() => {
           if (g !== gen) return;
           if (!list.length) {
             st.state = "empty";
-            st.error = cfg.source === "youtube" ? "No YouTube tracks found" : "No music yet - add MP3s, or a YouTube playlist or search";
+            st.error = cfg.source !== "youtube" ? "No music yet - add MP3s, or a YouTube playlist or search" : cfg.youtube ? `Nothing found on YouTube for "${String(cfg.youtube).slice(0, 40)}"` : "Pick one of your playlists or type a search above";
             return;
           }
           idx = 0;

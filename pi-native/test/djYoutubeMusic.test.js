@@ -46,6 +46,12 @@ function fakeYt(answers, calls) {
     assert.ok(calls[0].args.includes('141/bestaudio[ext=m4a]/bestaudio/best'), 'Premium 256k audio first');
     const inp = await src.inputFor({ kind: 'yt', id: 'cachetest01' }, spawn);
     assert.strictEqual(inp.url, f1, 'playback reads the cached file');
+    // Half-finished pieces never count as the song.
+    fs.writeFileSync(require('path').join(src.CACHE_DIR, 'partialtest.m4a.part-Frag2'), 'x');
+    fs.writeFileSync(require('path').join(src.CACHE_DIR, 'partialtest.m4a.ytdl'), 'x');
+    calls = []; const f3 = await src.fetchYoutube('partialtest', fakeYt({}, calls));
+    assert.ok(/partialtest\.m4a$/.test(f3) && calls.length === 1, 'pieces ignored, the song downloaded: ' + f3);
+    src.dropCached('partialtest'); assert.ok(!fs.readdirSync(src.CACHE_DIR).some((f) => f.startsWith('partialtest')), 'dropped with its pieces');
     // Only the last few are kept.
     for (let i = 0; i < 7; i++) await src.fetchYoutube('cachetrim0' + i, spawn);
     assert.ok(fs.readdirSync(src.CACHE_DIR).length <= 5, 'old ones deleted');

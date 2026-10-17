@@ -173,12 +173,21 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   async function prepare(track, ref) {
     const step = (t) => { if (st.next && st.next.title === track.title) st.next.step = t; };
     step(track.kind === 'yt' ? 'getting it from YouTube' : 'opening');
-    const input = await sources.inputFor(track);
+    let input = await sources.inputFor(track);
     step('analysing the beat, key and vocals');
     let info = known[track.id];
     if (info && info.vocalLevel === undefined) info = null; // analysed by an older version: no singing map
     if (!info) {
-      info = analyser.analyse(await decode.decodeAnalysis(input));
+      let x;
+      try { x = await decode.decodeAnalysis(input); } catch (err) {
+        // A downloaded file ffmpeg can't read: drop it and stream the song instead.
+        if (track.kind !== 'yt' || !sources.dropCached || !/Invalid data|moov atom|End of file/i.test(err.message)) throw err;
+        log('[dj] bad download of ' + track.title + ' - streaming it instead');
+        sources.dropCached(track.id);
+        input = { url: await sources.youtubeAudio(track.id), opts: ['-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5'] };
+        x = await decode.decodeAnalysis(input);
+      }
+      info = analyser.analyse(x);
       if (track.kind === 'mp3') { known[track.id] = info; try { if (sources.saveAnalysis) sources.saveAnalysis(track, info); } catch (e) { /* cache only */ } }
     }
     info = { ...info, gridPeriod: info.period };
@@ -411,7 +420,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     try { if (sources.loadAnalyses) known = sources.loadAnalyses() || {}; } catch (e) { known = {}; }
     try { list = await sources.allTracks(cfg); } catch (e) { if (g === gen) { st.state = 'error'; st.error = e.message; } return; }
     if (g !== gen) return;
-    if (!list.length) { st.state = 'empty'; st.error = cfg.source === 'youtube' ? 'No YouTube tracks found' : 'No music yet - add MP3s, or a YouTube playlist or search'; return; }
+    if (!list.length) { st.state = 'empty'; st.error = cfg.source !== 'youtube' ? 'No music yet - add MP3s, or a YouTube playlist or search' : cfg.youtube ? `Nothing found on YouTube for "${String(cfg.youtube).slice(0, 40)}"` : 'Pick one of your playlists or type a search above'; return; }
     idx = 0; wantNext = null; recent.length = 0; played.clear();
     st.queue = list.slice(0, 300).map((t) => ({ title: t.title, kind: t.kind })); st.nowIdx = st.nextIdx = -1;
     timer = setTimer(pump, 50);
