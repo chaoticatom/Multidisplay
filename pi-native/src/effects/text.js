@@ -97,9 +97,12 @@ function drawLinesCentered(font, lines, W, H, plot, { scale = 1, ox = 0, oy = 0 
 // the pixels a letter moves into fade up as the ones it leaves fade down
 // (like a clock's sweeping second hand) - instead of jumping a pixel at a time.
 function drawStringSmooth(font, str, x, y, plot, opts = {}) {
-  const xi = Math.floor(x), f = x - xi;
-  if (!plot.alpha || f < 0.04) return drawString(font, str, xi, y, plot, opts);
-  if (f > 0.96) return drawString(font, str, xi + 1, y, plot, opts);
+  const xi = Math.floor(x), f0 = x - xi;
+  // Sharp most of the time: whole pixels for the first and last part of each
+  // step, a blend only through the middle (an even 50/50 split looks blurred).
+  let f = (f0 - 0.3) / 0.4; f = f < 0 ? 0 : f > 1 ? 1 : f * f * (3 - 2 * f);
+  if (!plot.alpha || f < 0.02) return drawString(font, str, xi, y, plot, opts);
+  if (f > 0.98) return drawString(font, str, xi + 1, y, plot, opts);
   const acc = new Map();
   const add = (px, py, a) => { const k = (py + 64) * 100000 + px + 50000; acc.set(k, (acc.get(k) || 0) + a); };
   drawString(font, str, xi, y, (px, py) => { add(px, py, 1 - f); add(px + 1, py, f); }, opts);

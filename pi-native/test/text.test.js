@@ -128,9 +128,13 @@ test('outline draws neighbours first, then the text on top', () => {
 test('smooth text: between pixels, the strength splits across the two', () => {
   const { drawStringSmooth } = require('../src/effects/text');
   const got = new Map(); const plot = (x, y, a = 1) => got.set(x + ',' + y, (got.get(x + ',' + y) || 0) + a); plot.alpha = true;
-  drawStringSmooth(FONT_3x5, 'I', 0.25, 0, plot);
+  drawStringSmooth(FONT_3x5, 'I', 0.45, 0, plot);
   const vals = [...got.values()];
-  assert.ok(vals.some((v) => v > 0.7 && v < 0.8) && vals.some((v) => v > 0.2 && v < 0.3), 'partial strengths: ' + vals.join(','));
+  assert.ok(vals.some((v) => v > 0.55 && v < 0.9) && vals.some((v) => v > 0.1 && v < 0.45), 'partial strengths mid-step: ' + vals.join(','));
+  // Near a whole pixel it stays sharp (no blend).
+  const g2 = new Map(); const p2 = (x, y, a = 1) => g2.set(x + ',' + y, a); p2.alpha = true;
+  drawStringSmooth(FONT_3x5, 'I', 0.15, 0, p2);
+  assert.ok([...g2.values()].every((v) => v === 1), 'crisp near whole pixels');
 });
 
 console.log(process.exitCode ? 'Some text tests FAILED' : 'All text tests passed');

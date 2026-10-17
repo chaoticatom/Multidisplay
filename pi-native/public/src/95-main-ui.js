@@ -1089,7 +1089,7 @@ function cxSyncHeroLabel() {
   const st = currentState.effectStatus?.radio;
   sub.textContent = st && st.playing && st.station ? '♫ ' + st.station.name.replace(/^[\s-]+/, '') : '';
 }
-function cxOnState() { cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncAlexa(); cxSyncDj(); cxSyncFavs(); cxSyncPalettes(); cxSyncOptionPanels(); cxSyncYouTube(); cxSyncExtras(); requestAnimationFrame(cxMoveBlob); }
+function cxOnState() { if (typeof radioAutoResume === 'function') radioAutoResume(); cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncAlexa(); cxSyncDj(); cxSyncFavs(); cxSyncPalettes(); cxSyncOptionPanels(); cxSyncYouTube(); cxSyncExtras(); requestAnimationFrame(cxMoveBlob); }
 
 function cxInit() {
   cxWireHero();

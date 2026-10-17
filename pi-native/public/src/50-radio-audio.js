@@ -195,6 +195,25 @@ function radioBrowserPlay(station) {
   el.play().catch(() => { /* autoplay blocked or stream unreachable - #radio-status-el already shows the Pi-side status regardless */ });
   if (!_raRunning) { _raRunning = true; _raLastMs = 0; requestAnimationFrame(radioAnalyserTick); }
 }
+// After the page reloads (an update, a refresh) with music playing and
+// 'This device' on: browsers only allow sound after a tap, so the first tap
+// anywhere on the page picks the music up again (a hint says so).
+let _raResumeArmed = false;
+function radioAutoResume() {
+  if (_raResumeArmed || !radioBrowserPlaybackWanted()) return;
+  const st = currentState.effectStatus?.radio;
+  if (!st || !st.playing || !st.station || !st.station.url) return;
+  if (!window.MULTIDISPLAY_SIM ? syncAudio.on && syncAudio.ctx && syncAudio.ctx.state === 'running' : !document.getElementById('radio-browser-audio')?.paused) return;
+  _raResumeArmed = true;
+  const go = () => {
+    ['pointerdown', 'keydown', 'touchend'].forEach((t) => document.removeEventListener(t, go, true));
+    _raResumeArmed = false;
+    const now = currentState.effectStatus?.radio;
+    if (radioBrowserPlaybackWanted() && now && now.playing && now.station) radioBrowserPlay(now.station);
+  };
+  ['pointerdown', 'keydown', 'touchend'].forEach((t) => document.addEventListener(t, go, true));
+  if (typeof cxToast === 'function') cxToast('🔊 Tap anywhere to hear the music on this device');
+}
 function radioBrowserStop() {
   if (!window.MULTIDISPLAY_SIM) syncAudioStop();
   const el = document.getElementById('radio-browser-audio');

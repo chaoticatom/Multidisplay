@@ -890,9 +890,11 @@ var PiEngine = (() => {
         }
       }
       function drawStringSmooth(font, str, x, y, plot, opts = {}) {
-        const xi = Math.floor(x), f = x - xi;
-        if (!plot.alpha || f < 0.04) return drawString(font, str, xi, y, plot, opts);
-        if (f > 0.96) return drawString(font, str, xi + 1, y, plot, opts);
+        const xi = Math.floor(x), f0 = x - xi;
+        let f = (f0 - 0.3) / 0.4;
+        f = f < 0 ? 0 : f > 1 ? 1 : f * f * (3 - 2 * f);
+        if (!plot.alpha || f < 0.02) return drawString(font, str, xi, y, plot, opts);
+        if (f > 0.98) return drawString(font, str, xi + 1, y, plot, opts);
         const acc = /* @__PURE__ */ new Map();
         const add = (px, py, a) => {
           const k = (py + 64) * 1e5 + px + 5e4;
