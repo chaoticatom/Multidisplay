@@ -33,6 +33,11 @@ function fakeYt(answers, calls) {
     const t = await src.youtubeTracks('house', fakeYt({ 'music.youtube.com/search': songs }, calls));
     assert.strictEqual(t.length, 6); assert.strictEqual(t[0].title, 'Artist – Song 1');
     assert.ok(calls[0].url.startsWith('https://music.youtube.com/search?q=house'));
+    // Artist search: only that artist's songs; song name and artist kept apart for the list.
+    const mixed = { entries: [1, 2, 3, 4].map((i) => ({ id: 'abba00000' + i + 'x', title: 'Song ' + i, channel: 'ABBA - Topic' })).concat([{ id: 'other00000x', title: 'Cover', channel: 'Someone' }]) };
+    const ab = await src.youtubeTracks('abba', fakeYt({ 'music.youtube.com/search': mixed }, []), { artist: true });
+    assert.ok(ab.length === 4 && ab.every((x) => x.artist === 'ABBA' && x.name.startsWith('Song')), 'only ABBA: ' + JSON.stringify(ab.map((x) => x.artist)));
+    assert.strictEqual(src.youtubeTracks.length >= 1, true);
     // Radio: YouTube's mix for a song, without the song itself.
     calls = [];
     const r = await src.youtubeRadio('abcdefghijk', fakeYt({ 'list=RDAMVMabcdefghijk': { entries: [{ id: 'abcdefghijk', title: 'Seed' }, { id: 'zzzzzzzzzz1', title: 'Like it' }] } }, calls));

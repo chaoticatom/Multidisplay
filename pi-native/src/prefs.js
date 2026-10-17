@@ -17,7 +17,7 @@ const DEFAULT = {
   access: { localNoPin: true, guests: false }, // see src/access.js
   volume: 1, // overall volume for everything the Pi plays (src/masterVolume.js)
   mic: { music: false },
-  dj: { source: 'both', youtube: '', mixBeats: 'auto', quick: false, style: 'auto', endless: true }, // the Auto-DJ (quick: mix about a minute into each song) (src/dj): mp3 | youtube | both; playlist link or search
+  dj: { source: 'both', youtube: '', mixBeats: 'auto', quick: false, style: 'auto', endless: true, ytArtist: false }, // the Auto-DJ (quick: mix about a minute into each song) (src/dj): mp3 | youtube | both; playlist link or search
   alexa: { on: false, skillId: '', invocation: 'led wall' }, // skillId/invocation: your own Alexa skill (src/alexaSkill.js) // pretend to be a Hue bridge so an Echo can control the display (src/alexa.js) // the Pi's microphone (src/mic.js): music: effects react to the room when no station plays
   sfx: { on: true, volume: 0.6 }, // sound effects through the speaker (src/sfx.js)
   tz: '', // the user's time zone, from their browser (see src/localTime.js)
@@ -81,6 +81,7 @@ function clean(p) {
     if ([16, 32, 64].includes(Number(p.dj.mixBeats))) out.dj.mixBeats = Number(p.dj.mixBeats); else if (p.dj.mixBeats === 'auto') out.dj.mixBeats = 'auto';
     if (typeof p.dj.quick === 'boolean') out.dj.quick = p.dj.quick;
     if (typeof p.dj.endless === 'boolean') out.dj.endless = p.dj.endless;
+    if (typeof p.dj.ytArtist === 'boolean') out.dj.ytArtist = p.dj.ytArtist;
     if (['auto', 'blend', 'short', 'cut'].includes(p.dj.style)) out.dj.style = p.dj.style;
   }
   if (p && p.alexa) {

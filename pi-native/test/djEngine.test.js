@@ -124,6 +124,11 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     // brake, roll) or a crossfade - never a beat-matched blend.
     const fx = dj._test.planMix({ ...long, matched: true }, { ...A, matched: false, bpm: 160 }, 'auto');
     assert.ok(['echo', 'filter', 'brake', 'roll', 'fade'].includes(fx.style) && fx.why, 'effect transition: ' + fx.style);
+    // Removing a song from the list: not the one playing; the rest shift down.
+    const before = dj.status.queue.length, nowI = dj.status.nowIdx;
+    assert.strictEqual(dj.remove(nowI), false, 'the playing song stays');
+    const other = dj.status.queue.findIndex((q, i) => i !== nowI && i !== dj.status.nextIdx);
+    if (other >= 0) { assert.ok(dj.remove(other)); assert.strictEqual(dj.status.queue.length, before - 1); assert.ok(dj.status.nowIdx === (other < nowI ? nowI - 1 : nowI), 'the playing index follows'); }
     dj.stop(); assert.strictEqual(dj.status.state, 'stopped');
     console.log('  ok - beat-matched mixing from one track to the next');
     // Very different tempos (100 and 150 BPM): it still gets from one to the

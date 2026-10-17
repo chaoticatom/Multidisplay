@@ -277,7 +277,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
       const have = new Set(list.map((t) => t.id)), add = more.filter((t) => !have.has(t.id));
       if (!add.length) return;
       list.push(...add);
-      st.queue = list.slice(0, 300).map((t) => ({ title: t.title, kind: t.kind }));
+      syncQueue();
       log(`[dj] endless: added ${add.length} songs like ${seed.title}`);
     }).catch((err) => log('[dj] endless: ' + err.message)).finally(() => { extending = null; });
   }
@@ -509,7 +509,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     if (g !== gen) return;
     if (!list.length) { st.state = 'empty'; st.error = cfg.source !== 'youtube' ? 'No music yet - add MP3s, or a YouTube playlist or search' : cfg.youtube ? `Nothing found on YouTube for "${String(cfg.youtube).slice(0, 40)}"` : 'Pick one of your playlists or type a search above'; return; }
     idx = 0; wantNext = null; recent.length = 0; played.clear();
-    st.queue = list.slice(0, 300).map((t) => ({ title: t.title, kind: t.kind })); st.nowIdx = st.nextIdx = -1;
+    syncQueue(); st.nowIdx = st.nextIdx = -1;
     timer = setTimer(pump, 50);
     prepareNext();
   }
@@ -530,6 +530,23 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     A.lp.fill(0); A.plan = null; nowStatus();
     return true;
   }
+  const syncQueue = () => { st.queue = list.slice(0, 300).map((t) => ({ title: t.name || t.title, artist: t.artist || '', kind: t.kind })); };
+  // Take song i out of the list (not the one playing, nor the next one mid-mix).
+  function remove(i) {
+    if (!(i >= 0 && i < list.length) || i === st.nowIdx || (mix && i === st.nextIdx)) return false;
+    const wasNext = i === st.nextIdx, fix = (k) => (k > i ? k - 1 : k);
+    list.splice(i, 1);
+    if (st.nowIdx >= 0) st.nowIdx = fix(st.nowIdx);
+    if (A && A.qi !== undefined) A.qi = fix(A.qi);
+    if (wasNext) { B = null; st.next = null; st.nextIdx = -1; preparing = null; prepToken++; if (A) A.plan = null; }
+    else { if (st.nextIdx >= 0) st.nextIdx = fix(st.nextIdx); if (B && B.qi !== undefined) B.qi = fix(B.qi); }
+    if (wantNext !== null) wantNext = wantNext === i ? null : fix(wantNext);
+    if (idx > i) idx--;
+    if (list.length) idx %= list.length;
+    syncQueue();
+    if (wasNext && A) prepareNext();
+    return true;
+  }
   // The decks' audio, for the split spectrum (the next track's is previewed
   // silently before the mix): RadioAudio analyses it on the main thread.
   function deckFeed() {
@@ -547,7 +564,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   // Skip: mix into the next track from A's next bar, over 8 beats.
   function skip() { if (A && !mix) { A.force = 8; A.plan = null; if (!B) prepareNext(); } }
 
-  return { start, stop, configure, deckFeed, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() { return A; }, get B() { return B; } } };
+  return { start, stop, configure, deckFeed, remove, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() { return A; }, get B() { return B; } } };
 }
 
 module.exports = { createDjEngine, RATE };

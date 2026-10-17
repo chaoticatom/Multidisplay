@@ -634,6 +634,7 @@ const COMMANDS = {
     if (msg.mixBeats !== undefined) dj.mixBeats = msg.mixBeats === 'auto' ? 'auto' : Number(msg.mixBeats);
     if (msg.quick !== undefined) dj.quick = !!msg.quick;
     if (msg.endless !== undefined) dj.endless = !!msg.endless;
+    if (msg.ytArtist !== undefined) dj.ytArtist = !!msg.ytArtist;
     if (msg.style !== undefined) dj.style = String(msg.style);
     this.state.prefs = prefs.save({ ...p, dj });
     const audio = radio.audio;
@@ -658,6 +659,7 @@ const COMMANDS = {
     if (!/^[\w-]{6,20}$/.test(id)) return;
     COMMANDS.djStart.call(this, ws, { source: 'youtube', youtube: `https://www.youtube.com/watch?v=${id}&list=RDAMVM${id}` });
   },
+  djRemove(ws, msg) { if (radio.audio && radio.audio.dj && Number.isInteger(msg.index) && radio.audio.dj.remove(msg.index)) this._broadcast(this._stateMsg()); }, // take a song out of the list
   djSkip() { if (radio.audio && radio.audio.dj) radio.audio.dj.skip(); },
   djNext(ws, msg) { if (radio.audio && radio.audio.dj && Number.isInteger(msg.index)) { radio.audio.dj.playNext(msg.index); this._broadcast(this._stateMsg()); } }, // play this track from the list next
   setDj(ws, msg) {
@@ -667,6 +669,7 @@ const COMMANDS = {
     if (msg.mixBeats !== undefined) dj.mixBeats = msg.mixBeats === 'auto' ? 'auto' : Number(msg.mixBeats);
     if (msg.quick !== undefined) dj.quick = !!msg.quick;
     if (msg.endless !== undefined) dj.endless = !!msg.endless;
+    if (msg.ytArtist !== undefined) dj.ytArtist = !!msg.ytArtist;
     if (msg.style !== undefined) dj.style = String(msg.style);
     this.state.prefs = prefs.save({ ...p, dj });
     if (radio.audio && radio.audio.dj && radio.audio.dj.configure) radio.audio.dj.configure(this.state.prefs.dj); // takes effect on the coming mix

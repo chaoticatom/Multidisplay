@@ -2612,23 +2612,41 @@ var PiEngine = (() => {
           });
         });
       }
+      var artistOf = (e) => String(Array.isArray(e.artists) && e.artists[0] || e.artist || e.channel || e.uploader || "").replace(/\s*-\s*Topic$/i, "").replace(/VEVO$/i, "").trim().slice(0, 60);
+      var cleanTitle = (e) => String(e.track || e.title || "YouTube").trim().replace(/\s*[([](official( music)?( video| audio)?|lyrics?( video)?|audio|hd|4k|visuali[sz]er)[)\]]/gi, "").trim();
       function prettyTitle(e) {
-        const title = String(e.track || e.title || "YouTube").trim();
-        const artist = String(Array.isArray(e.artists) && e.artists[0] || e.artist || e.channel || e.uploader || "").replace(/\s*-\s*Topic$/i, "").replace(/VEVO$/i, "").trim();
-        const clean = title.replace(/\s*[([](official( music)?( video| audio)?|lyrics?( video)?|audio|hd|4k|visuali[sz]er)[)\]]/gi, "").trim();
+        const artist = artistOf(e), clean = cleanTitle(e);
         if (!artist || clean.toLowerCase().includes(artist.toLowerCase())) return clean.slice(0, 100);
         return (artist + " \u2013 " + clean).slice(0, 100);
       }
-      var toTracks = (entries) => entries.filter((e) => e && /^[\w-]{6,20}$/.test(e.id || "") && !(e.duration && e.duration > 10 * 60)).map((e) => ({ kind: "yt", id: e.id, title: prettyTitle(e) }));
+      function toTrack(e) {
+        const artist = artistOf(e);
+        let name = cleanTitle(e);
+        if (artist && name.toLowerCase().startsWith(artist.toLowerCase())) name = name.slice(artist.length).replace(/^\s*[-–:|]\s*/, "") || name;
+        return { kind: "yt", id: e.id, title: prettyTitle(e), name: name.slice(0, 100), artist };
+      }
+      var toTracks = (entries) => entries.filter((e) => e && /^[\w-]{6,20}$/.test(e.id || "") && !(e.duration && e.duration > 10 * 60)).map(toTrack);
       async function flat(target, spawn, max = 40) {
         const out = await ytRun(["--flat-playlist", "-J", "--no-warnings", "--playlist-end", String(max), target], spawn, 45e3);
         const data = JSON.parse(out);
         return data.entries || [data];
       }
-      async function youtubeTracks(query, spawn = realSpawn) {
+      async function youtubeTracks(query, spawn = realSpawn, { artist = false } = {}) {
         const q = String(query || "").trim().slice(0, 300);
         if (!q) return [];
         if (/^https?:\/\//.test(q)) return toTracks(await flat(q, spawn));
+        if (artist) {
+          const want = q.toLowerCase();
+          let all = [];
+          try {
+            all = toTracks(await flat(`https://music.youtube.com/search?q=${encodeURIComponent(q)}#songs`, spawn, 60));
+          } catch (e) {
+            if (/not installed/.test(e.message)) throw e;
+          }
+          if (all.length < 5) all = all.concat(toTracks(await flat(`ytsearch40:${q}`, spawn)));
+          const by = all.filter((t) => t.artist.toLowerCase().includes(want) || t.title.toLowerCase().startsWith(want));
+          return by.length >= 3 ? by : all;
+        }
         try {
           const t = toTracks(await flat(`https://music.youtube.com/search?q=${encodeURIComponent(q)}#songs`, spawn, 30));
           if (t.length >= 5) return t;
@@ -2819,11 +2837,14 @@ var PiEngine = (() => {
       }
       async function allTracks(cfg, spawn = realSpawn) {
         const out = [];
-        if (cfg.source !== "youtube") for (const f of listMusic()) out.push({ kind: "mp3", id: f, title: titleOf(f) });
+        if (cfg.source !== "youtube") for (const f of listMusic()) {
+          const t = titleOf(f), m = t.match(/^(.+?)\s+-\s+(.+)$/);
+          out.push({ kind: "mp3", id: f, title: t, name: m ? m[2] : t, artist: m ? m[1] : "" });
+        }
         const ytQuery = cfg.youtube || (require_youtube().signedIn() ? "https://music.youtube.com/playlist?list=LM" : "");
         if (cfg.source !== "mp3" && ytQuery) {
           try {
-            out.push(...await youtubeTracks(ytQuery, spawn));
+            out.push(...await youtubeTracks(ytQuery, spawn, { artist: !!cfg.ytArtist && !!cfg.youtube }));
           } catch (e) {
             if (!out.length) throw e;
           }
@@ -3432,7 +3453,7 @@ var PiEngine = (() => {
             const have = new Set(list.map((t) => t.id)), add = more.filter((t) => !have.has(t.id));
             if (!add.length) return;
             list.push(...add);
-            st.queue = list.slice(0, 300).map((t) => ({ title: t.title, kind: t.kind }));
+            syncQueue();
             log(`[dj] endless: added ${add.length} songs like ${seed.title}`);
           }).catch((err) => log("[dj] endless: " + err.message)).finally(() => {
             extending = null;
@@ -3810,7 +3831,7 @@ var PiEngine = (() => {
           wantNext = null;
           recent.length = 0;
           played.clear();
-          st.queue = list.slice(0, 300).map((t) => ({ title: t.title, kind: t.kind }));
+          syncQueue();
           st.nowIdx = st.nextIdx = -1;
           timer = setTimer(pump, 50);
           prepareNext();
@@ -3846,6 +3867,33 @@ var PiEngine = (() => {
           nowStatus();
           return true;
         }
+        const syncQueue = () => {
+          st.queue = list.slice(0, 300).map((t) => ({ title: t.name || t.title, artist: t.artist || "", kind: t.kind }));
+        };
+        function remove(i) {
+          if (!(i >= 0 && i < list.length) || i === st.nowIdx || mix && i === st.nextIdx) return false;
+          const wasNext = i === st.nextIdx, fix = (k) => k > i ? k - 1 : k;
+          list.splice(i, 1);
+          if (st.nowIdx >= 0) st.nowIdx = fix(st.nowIdx);
+          if (A && A.qi !== void 0) A.qi = fix(A.qi);
+          if (wasNext) {
+            B = null;
+            st.next = null;
+            st.nextIdx = -1;
+            preparing = null;
+            prepToken++;
+            if (A) A.plan = null;
+          } else {
+            if (st.nextIdx >= 0) st.nextIdx = fix(st.nextIdx);
+            if (B && B.qi !== void 0) B.qi = fix(B.qi);
+          }
+          if (wantNext !== null) wantNext = wantNext === i ? null : fix(wantNext);
+          if (idx > i) idx--;
+          if (list.length) idx %= list.length;
+          syncQueue();
+          if (wasNext && A) prepareNext();
+          return true;
+        }
         function deckFeed() {
           if (!A) return null;
           return { a: { pcm: A.pcm, frames: A.frames, pos: A.pos }, b: B ? { pcm: B.pcm, frames: B.frames, pos: B.pos, inFrame: B.inFrame, bar: B.bar || RATE * 2, readyAt: B.readyAt || 0 } : null, mixing: !!mix };
@@ -3864,7 +3912,7 @@ var PiEngine = (() => {
             if (!B) prepareNext();
           }
         }
-        return { start, stop, configure, deckFeed, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() {
+        return { start, stop, configure, deckFeed, remove, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() {
           return A;
         }, get B() {
           return B;
@@ -4155,7 +4203,7 @@ var PiEngine = (() => {
         volume: 1,
         // overall volume for everything the Pi plays (src/masterVolume.js)
         mic: { music: false },
-        dj: { source: "both", youtube: "", mixBeats: "auto", quick: false, style: "auto", endless: true },
+        dj: { source: "both", youtube: "", mixBeats: "auto", quick: false, style: "auto", endless: true, ytArtist: false },
         // the Auto-DJ (quick: mix about a minute into each song) (src/dj): mp3 | youtube | both; playlist link or search
         alexa: { on: false, skillId: "", invocation: "led wall" },
         // skillId/invocation: your own Alexa skill (src/alexaSkill.js) // pretend to be a Hue bridge so an Echo can control the display (src/alexa.js) // the Pi's microphone (src/mic.js): music: effects react to the room when no station plays
@@ -4241,6 +4289,7 @@ var PiEngine = (() => {
           else if (p.dj.mixBeats === "auto") out.dj.mixBeats = "auto";
           if (typeof p.dj.quick === "boolean") out.dj.quick = p.dj.quick;
           if (typeof p.dj.endless === "boolean") out.dj.endless = p.dj.endless;
+          if (typeof p.dj.ytArtist === "boolean") out.dj.ytArtist = p.dj.ytArtist;
           if (["auto", "blend", "short", "cut"].includes(p.dj.style)) out.dj.style = p.dj.style;
         }
         if (p && p.alexa) {

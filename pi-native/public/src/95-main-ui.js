@@ -1124,7 +1124,7 @@ function cxInit() {
 // ── Auto-DJ (Music tab; src/dj).
 function cxWireDj() {
   if (!document.getElementById('dj-start')) return;
-  const cfg = () => ({ source: document.querySelector('#dj-source .on')?.dataset.djsrc || 'both', youtube: document.getElementById('dj-youtube').value.trim(), mixBeats: document.getElementById('dj-beats').value === 'auto' ? 'auto' : Number(document.getElementById('dj-beats').value), quick: document.getElementById('dj-quick').checked, style: document.getElementById('dj-style').value, endless: document.getElementById('dj-endless').checked });
+  const cfg = () => ({ source: document.querySelector('#dj-source .on')?.dataset.djsrc || 'both', youtube: document.getElementById('dj-youtube').value.trim(), mixBeats: document.getElementById('dj-beats').value === 'auto' ? 'auto' : Number(document.getElementById('dj-beats').value), quick: document.getElementById('dj-quick').checked, style: document.getElementById('dj-style').value, endless: document.getElementById('dj-endless').checked, ytArtist: document.getElementById('dj-artist').checked });
   document.querySelectorAll('#dj-source button').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('#dj-source button').forEach((x) => x.classList.toggle('on', x === b));
     send({ cmd: 'setDj', ...cfg() });
@@ -1133,6 +1133,7 @@ function cxWireDj() {
   document.getElementById('dj-beats').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   document.getElementById('dj-style').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   document.getElementById('dj-endless').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
+  document.getElementById('dj-artist').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   // Your YouTube Music: load the playlists, tap one to play it.
   document.getElementById('dj-lib-load').addEventListener('click', () => send({ cmd: 'djLibrary' }));
   document.getElementById('dj-lib-list').addEventListener('click', (e) => {
@@ -1162,9 +1163,11 @@ function cxWireDj() {
   seek.addEventListener('change', () => { delete seek.dataset.drag; send({ cmd: 'djSeek', sec: Number(seek.value) }); });
   setInterval(cxDjTickBar, 500);
   document.getElementById('dj-queue').addEventListener('click', (e) => {
+    const del = e.target.closest('[data-djdelq]');
+    if (del) { e.stopPropagation(); send({ cmd: 'djRemove', index: Number(del.dataset.djdelq) }); return; }
     const b = e.target.closest('[data-djq]'); if (!b || b.classList.contains('now')) return;
     send({ cmd: 'djNext', index: Number(b.dataset.djq) });
-    cxToast('Next: ' + b.querySelector('span:nth-child(2)').textContent);
+    cxToast('Next: ' + (b.querySelector('.q-txt b')?.textContent || ''));
   });
   document.getElementById('dj-upload').addEventListener('change', async (e) => {
     const files = [...e.target.files]; e.target.value = '';
@@ -1201,6 +1204,7 @@ function cxSyncDj() {
     const bt = document.getElementById('dj-beats'); if (document.activeElement !== bt) bt.value = String(c.mixBeats || 'auto');
     document.getElementById('dj-quick').checked = !!c.quick;
     document.getElementById('dj-endless').checked = c.endless !== false;
+    document.getElementById('dj-artist').checked = !!c.ytArtist;
     const sy = document.getElementById('dj-style'); if (document.activeElement !== sy) sy.value = c.style || 'auto';
   }
   const card = document.getElementById('dj-now'), n = d.on ? d.now : null;
@@ -1254,16 +1258,20 @@ function cxSyncDj() {
   const q = document.getElementById('dj-queue');
   q.hidden = !d.on || !d.queue || !d.queue.length;
   const qc = document.getElementById('dj-queue-card'); if (qc) qc.hidden = q.hidden;
-  const qkey = d.on ? d.queue.length + ':' + d.nowIdx + ':' + d.nextIdx + ':' + (d.queue[0] && d.queue[0].title) : '';
+  const qkey = d.on ? d.queue.length + ':' + d.nowIdx + ':' + d.nextIdx + ':' + d.queue.map((q) => q.title).join('|').length + ':' + (d.queue[0] && d.queue[0].title) : '';
   if (!q.hidden && q.dataset.key !== qkey) {
     q.dataset.key = qkey;
     q.replaceChildren(...d.queue.map((t, i) => {
       const b = document.createElement('button'); b.type = 'button'; b.dataset.djq = i;
       b.className = i === d.nowIdx ? 'now' : i === d.nextIdx ? 'next' : '';
       const ic = document.createElement('span'); ic.textContent = i === d.nowIdx ? '▶' : i === d.nextIdx ? '⏭' : (t.kind === 'yt' ? '▷' : '♪');
-      const nm = document.createElement('span'); nm.textContent = t.title;
+      const nm = document.createElement('span'); nm.className = 'q-txt';
+      const tt = document.createElement('b'); tt.textContent = t.title; nm.append(tt);
+      if (t.artist) { const ar = document.createElement('i'); ar.textContent = t.artist; nm.append(ar); }
       const tag = document.createElement('small'); tag.textContent = i === d.nowIdx ? 'playing' : i === d.nextIdx ? 'next' : ''; // the icon already says YouTube (▷) or MP3 (♪)
-      b.append(ic, nm, tag); return b;
+      b.append(ic, nm, tag);
+      if (i !== d.nowIdx) { const x = document.createElement('span'); x.className = 'q-del'; x.dataset.djdelq = i; x.setAttribute('role', 'button'); x.setAttribute('aria-label', 'Remove ' + t.title); x.textContent = '✕'; b.append(x); }
+      return b;
     }));
     const nowEl = q.querySelector('.now'); if (nowEl) q.scrollTop = Math.max(0, nowEl.offsetTop - q.offsetTop - 40); // within the list only, not the page
   }

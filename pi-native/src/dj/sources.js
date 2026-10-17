@@ -36,15 +36,21 @@ function ytRun(args, spawn, timeoutMs, { anon = false } = {}) {
 
 // "Artist - Title" from a YouTube Music entry (its channel is often
 // "Artist - Topic"); a video title that already names the artist is kept.
+const artistOf = (e) => String((Array.isArray(e.artists) && e.artists[0]) || e.artist || e.channel || e.uploader || '').replace(/\s*-\s*Topic$/i, '').replace(/VEVO$/i, '').trim().slice(0, 60);
+const cleanTitle = (e) => String(e.track || e.title || 'YouTube').trim().replace(/\s*[([](official( music)?( video| audio)?|lyrics?( video)?|audio|hd|4k|visuali[sz]er)[)\]]/gi, '').trim();
 function prettyTitle(e) {
-  const title = String(e.track || e.title || 'YouTube').trim();
-  const artist = String((Array.isArray(e.artists) && e.artists[0]) || e.artist || e.channel || e.uploader || '').replace(/\s*-\s*Topic$/i, '').replace(/VEVO$/i, '').trim();
-  const clean = title.replace(/\s*[([](official( music)?( video| audio)?|lyrics?( video)?|audio|hd|4k|visuali[sz]er)[)\]]/gi, '').trim();
+  const artist = artistOf(e), clean = cleanTitle(e);
   if (!artist || clean.toLowerCase().includes(artist.toLowerCase())) return clean.slice(0, 100);
   return (artist + ' – ' + clean).slice(0, 100);
 }
-const toTracks = (entries) => entries.filter((e) => e && /^[\w-]{6,20}$/.test(e.id || '') && !(e.duration && e.duration > 10 * 60))
-  .map((e) => ({ kind: 'yt', id: e.id, title: prettyTitle(e) }));
+// A track: its full display title, plus the song name and artist on their own (for the list).
+function toTrack(e) {
+  const artist = artistOf(e); let name = cleanTitle(e);
+  // A video titled "Artist - Song": the song part on its own.
+  if (artist && name.toLowerCase().startsWith(artist.toLowerCase())) name = name.slice(artist.length).replace(/^\s*[-–:|]\s*/, '') || name;
+  return { kind: 'yt', id: e.id, title: prettyTitle(e), name: name.slice(0, 100), artist };
+}
+const toTracks = (entries) => entries.filter((e) => e && /^[\w-]{6,20}$/.test(e.id || '') && !(e.duration && e.duration > 10 * 60)).map(toTrack);
 async function flat(target, spawn, max = 40) {
   const out = await ytRun(['--flat-playlist', '-J', '--no-warnings', '--playlist-end', String(max), target], spawn, 45000);
   const data = JSON.parse(out);
@@ -54,10 +60,19 @@ async function flat(target, spawn, max = 40) {
 // YouTube tracks for a playlist/video link or a search (up to 40). A search
 // asks YouTube Music for songs first (the official audio versions, without
 // a video's intro and outro), then ordinary YouTube.
-async function youtubeTracks(query, spawn = realSpawn) {
+// artist: only songs by that artist (as far as YouTube says).
+async function youtubeTracks(query, spawn = realSpawn, { artist = false } = {}) {
   const q = String(query || '').trim().slice(0, 300);
   if (!q) return [];
   if (/^https?:\/\//.test(q)) return toTracks(await flat(q, spawn));
+  if (artist) {
+    const want = q.toLowerCase();
+    let all = [];
+    try { all = toTracks(await flat(`https://music.youtube.com/search?q=${encodeURIComponent(q)}#songs`, spawn, 60)); } catch (e) { if (/not installed/.test(e.message)) throw e; }
+    if (all.length < 5) all = all.concat(toTracks(await flat(`ytsearch40:${q}`, spawn)));
+    const by = all.filter((t) => t.artist.toLowerCase().includes(want) || t.title.toLowerCase().startsWith(want));
+    return by.length >= 3 ? by : all;
+  }
   try {
     const t = toTracks(await flat(`https://music.youtube.com/search?q=${encodeURIComponent(q)}#songs`, spawn, 30));
     if (t.length >= 5) return t;
@@ -205,10 +220,10 @@ function saveAnalysis(track, info) {
 // All tracks for the Auto-DJ settings, shuffled.
 async function allTracks(cfg, spawn = realSpawn) {
   const out = [];
-  if (cfg.source !== 'youtube') for (const f of listMusic()) out.push({ kind: 'mp3', id: f, title: titleOf(f) });
+  if (cfg.source !== 'youtube') for (const f of listMusic()) { const t = titleOf(f), m = t.match(/^(.+?)\s+-\s+(.+)$/); out.push({ kind: 'mp3', id: f, title: t, name: m ? m[2] : t, artist: m ? m[1] : '' }); }
   // YouTube: the link or search given; with none, your Liked music (signed in).
   const ytQuery = cfg.youtube || (require('../youtube').signedIn() ? 'https://music.youtube.com/playlist?list=LM' : '');
-  if (cfg.source !== 'mp3' && ytQuery) { try { out.push(...await youtubeTracks(ytQuery, spawn)); } catch (e) { if (!out.length) throw e; } }
+  if (cfg.source !== 'mp3' && ytQuery) { try { out.push(...await youtubeTracks(ytQuery, spawn, { artist: !!cfg.ytArtist && !!cfg.youtube })); } catch (e) { if (!out.length) throw e; } }
   for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; }
   return out;
 }
