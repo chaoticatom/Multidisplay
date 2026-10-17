@@ -2617,6 +2617,7 @@ var PiEngine = (() => {
       }
       var CACHE_DIR = path.join(define_process_env_default.TMPDIR || "/tmp", "multidisplay-dj");
       var CACHE_KEEP = 5;
+      var FETCH_WAIT_MS = 2e4;
       var fetching = /* @__PURE__ */ new Map();
       function cachedFile(id) {
         try {
@@ -2644,7 +2645,7 @@ var PiEngine = (() => {
           let last = null;
           for (const extra of attempts) {
             try {
-              await ytRun(["-f", AUDIO_FORMAT, "--no-warnings", "--no-playlist", "--match-filter", "duration <= 600", "-o", path.join(CACHE_DIR, "%(id)s.%(ext)s"), ...extra, `https://music.youtube.com/watch?v=${id}`], spawn, 18e4);
+              await ytRun(["-f", AUDIO_FORMAT, "--no-warnings", "--no-playlist", "--match-filter", "duration <= 600", "-o", path.join(CACHE_DIR, "%(id)s.%(ext)s"), ...extra, `https://music.youtube.com/watch?v=${id}`], spawn, 12e4);
               const f = cachedFile(id);
               if (f) {
                 trimCache();
@@ -2667,12 +2668,18 @@ var PiEngine = (() => {
       }
       async function inputFor(track, spawn = realSpawn) {
         if (track.kind === "mp3") return { url: path.join(MUSIC_DIR, track.id), opts: [] };
-        try {
-          return { url: await fetchYoutube(track.id, spawn), opts: [] };
-        } catch (e) {
-          if (/not installed/.test(e.message)) throw e;
-          return { url: await youtubeAudio(track.id, spawn), opts: ["-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"] };
-        }
+        let timer = null;
+        const file = await Promise.race([
+          fetchYoutube(track.id, spawn).catch((e) => {
+            if (/not installed/.test(e.message)) throw e;
+            return null;
+          }),
+          new Promise((r) => {
+            timer = setTimeout(() => r(null), FETCH_WAIT_MS);
+          })
+        ]).finally(() => clearTimeout(timer));
+        if (file) return { url: file, opts: [] };
+        return { url: await youtubeAudio(track.id, spawn), opts: ["-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"] };
       }
       var CACHE = path.join(MUSIC_DIR, ".dj-analysis.json");
       function loadAnalyses() {

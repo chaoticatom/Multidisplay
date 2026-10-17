@@ -109,6 +109,7 @@ async function youtubeAudio(id, spawn = realSpawn) {
 // the file, and the next track can be fetched ahead while one plays.
 const CACHE_DIR = path.join(process.env.TMPDIR || '/tmp', 'multidisplay-dj');
 const CACHE_KEEP = 5;
+const FETCH_WAIT_MS = 20000;
 const fetching = new Map();
 function cachedFile(id) {
   try { const f = fs.readdirSync(CACHE_DIR).find((x) => x.startsWith(id + '.') && !x.endsWith('.part')); return f ? path.join(CACHE_DIR, f) : null; } catch (e) { return null; }
@@ -129,7 +130,7 @@ function fetchYoutube(id, spawn = realSpawn) {
     let last = null;
     for (const extra of attempts) {
       try {
-        await ytRun(['-f', AUDIO_FORMAT, '--no-warnings', '--no-playlist', '--match-filter', 'duration <= 600', '-o', path.join(CACHE_DIR, '%(id)s.%(ext)s'), ...extra, `https://music.youtube.com/watch?v=${id}`], spawn, 180000);
+        await ytRun(['-f', AUDIO_FORMAT, '--no-warnings', '--no-playlist', '--match-filter', 'duration <= 600', '-o', path.join(CACHE_DIR, '%(id)s.%(ext)s'), ...extra, `https://music.youtube.com/watch?v=${id}`], spawn, 120000);
         const f = cachedFile(id); if (f) { trimCache(); return f; }
         last = new Error('no audio (longer than 10 minutes?)');
       } catch (e) { last = e; if (/not installed/.test(e.message)) throw e; }
@@ -144,11 +145,15 @@ function prefetch(track, spawn = realSpawn) { if (track && track.kind === 'yt') 
 
 async function inputFor(track, spawn = realSpawn) {
   if (track.kind === 'mp3') return { url: path.join(MUSIC_DIR, track.id), opts: [] };
-  try { return { url: await fetchYoutube(track.id, spawn), opts: [] }; } catch (e) {
-    if (/not installed/.test(e.message)) throw e;
-    // Fetching failed: stream it instead.
-    return { url: await youtubeAudio(track.id, spawn), opts: ['-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5'] };
-  }
+  // The cached file if it's there within FETCH_WAIT_MS; otherwise stream
+  // this one (the download carries on, for the next time it plays).
+  let timer = null;
+  const file = await Promise.race([
+    fetchYoutube(track.id, spawn).catch((e) => { if (/not installed/.test(e.message)) throw e; return null; }),
+    new Promise((r) => { timer = setTimeout(() => r(null), FETCH_WAIT_MS); }),
+  ]).finally(() => clearTimeout(timer));
+  if (file) return { url: file, opts: [] };
+  return { url: await youtubeAudio(track.id, spawn), opts: ['-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5'] };
 }
 
 // Analyses of your MP3s (tempo, key, ...), kept so a track is only analysed once.
