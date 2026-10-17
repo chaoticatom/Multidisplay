@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.358';
+const APP_VERSION = '0.6.359';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -6235,12 +6235,12 @@ function cxWireDj() {
 }
 let cxDjFindOpen = false;
 function cxDjTime(s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
-let cxDjNow = null, cxDjNowAt = 0;
+let cxDjNow = null, cxDjNowAt = 0, cxDjMixAt = -1;
 function cxDjTickBar() {
   const n = cxDjNow, seek = document.getElementById('dj-seek'); if (!n || !seek || seek.dataset.drag) return;
   const pos = Math.min(n.dur, n.pos + (Date.now() - cxDjNowAt) / 1000);
   seek.max = String(n.dur || 1); seek.value = String(pos);
-  document.getElementById('dj-pos').textContent = cxDjTime(pos); document.getElementById('dj-dur').textContent = cxDjTime(n.dur);
+  document.getElementById('dj-pos').textContent = cxDjTime(pos); document.getElementById('dj-dur').textContent = cxDjMixAt >= 0 && cxDjMixAt > pos ? 'next mix in ' + cxDjTime(cxDjMixAt - pos) + ' · ' + cxDjTime(n.dur) : cxDjTime(n.dur);
 }
 function cxSyncDj() {
   const d = currentState.dj, c = currentState.prefs?.dj; if (!d || !document.getElementById('dj-status')) return;
@@ -6259,6 +6259,7 @@ function cxSyncDj() {
     if (!cxDjNow || cxDjNow.title !== n.title || cxDjNow.pos !== n.pos) { cxDjNow = n; cxDjNowAt = Date.now(); }
     document.getElementById('dj-now-title').textContent = '▶ ' + n.title;
     document.getElementById('dj-now-meta').textContent = [n.bpm ? n.bpm + ' BPM' : '', n.key ? 'key ' + n.key + (n.shift ? ` (${n.shift > 0 ? '+' : ''}${n.shift} st)` : '') : '', d.mixing ? 'mixing…' : ''].filter(Boolean).join(' · ');
+    cxDjMixAt = d.mixing ? -1 : n.mixAt >= 0 ? n.mixAt : -1;
     cxDjTickBar();
   } else cxDjNow = null;
   const s = document.getElementById('dj-status');

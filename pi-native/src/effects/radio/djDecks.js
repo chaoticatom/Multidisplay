@@ -169,8 +169,10 @@ function drawMixer(tg, x0, w, y0, m, ms, dt, beat, adv) {
     if (w >= 120) { const lw = textWidth(FONT_3x5, STAGES[i]); drawString(FONT_3x5, STAGES[i], Math.max(x0, Math.min(x0 + w - lw, x - Math.floor(lw / 2))), sy + 2, (px, py) => set(px, py, done || cur ? AMBER : DIM, cur ? 0.95 : 0.5)); }
   });
   if (adv) ms.t = (ms.t || 0) + dt;
-  // The line in plain words.
-  scrollText(tg, FONT_3x5, (m.line || '').toUpperCase(), x0 + 2, w - 4, y0 + 31, m.lineC || [0.9, 0.93, 1], 0.9, ms, 'l', dt, adv);
+  // The line in plain words, with the countdown fixed at its right end.
+  const cnt = (m.count || '').toUpperCase(), cw = cnt ? textWidth(FONT_3x5, cnt) : 0;
+  if (cnt) drawString(FONT_3x5, cnt, x0 + w - 2 - cw, y0 + 31, (px, py) => set(px, py, AMBER, 1));
+  scrollText(tg, FONT_3x5, (m.line || '').toUpperCase(), x0 + 2, w - 4 - (cw ? cw + 6 : 0), y0 + 31, m.lineC || [0.9, 0.93, 1], 0.9, ms, 'l', dt, adv);
 }
 const FX_NAMES = { echo: 'echo out', filter: 'filter sweep', brake: 'brake stop', roll: 'loop roll' };
 const styleText = (n) => !n ? '' : FX_NAMES[n.style] || (n.style === 'cut' ? 'cut on the beat' : n.style === 'fade' ? 'crossfade' : n.style === 'short' ? '8 beat mix' : n.beats ? n.beats + ' beat blend' : 'blend');
@@ -232,10 +234,12 @@ function drawDjDecks(core, info, st, dt, beat = 0, where = 'wall') {
     lineC = AMBER;
   } else if (justDone) { stagePos = 4; line = 'now playing ' + (now.title || ''); }
   else if (info.tease) { stagePos = 0; line = 'a hint of the next song...'; lineC = AMBER; }
-  else if (ready && info.mixIn >= 0 && info.mixIn <= 30) { stagePos = 0; line = 'cued - matching tempo and beat - ' + styleText(next) + ' in ' + mmss(info.mixIn); lineC = AMBER; }
-  else if (ready) { stagePos = 0; stageOn = false; line = 'next: ' + [styleText(next), info.mixIn >= 0 ? 'in ' + mmss(info.mixIn) : '', next.shift ? 'key ' + (next.shift > 0 ? '+' : '') + next.shift : '', next.why || ''].filter(Boolean).join(' - '); }
+  else if (ready && info.mixIn >= 0 && info.mixIn <= 30) { stagePos = 0; line = 'cued - matching tempo and beat - ' + styleText(next); lineC = AMBER; }
+  else if (ready) { stagePos = 0; stageOn = false; line = 'next: ' + [styleText(next), next.shift ? 'key ' + (next.shift > 0 ? '+' : '') + next.shift : '', next.why || ''].filter(Boolean).join(' - '); }
   else if (next) { line = 'next: getting ' + (next.title || '') + (next.step ? ' - ' + next.step : ''); stageOn = false; }
   else line = 'playing ' + ((now && now.title) || '');
+  // Always a countdown: to the mix, through it, or to the song's end.
+  const count = !now ? '' : mixing ? mmss((1 - u) * mixSecs) : next && next.status === 'loading' ? 'loading' : info.mixIn >= 0 ? 'mix ' + mmss(info.mixIn) : now.dur ? 'ends ' + mmss(now.dur - now.pos) : '';
   const fader = mixing ? (next && next.style === 'cut' ? 1 : u) : 0;
   let tl = null;
   if (now && now.dur && now.mixAt >= 0) {
@@ -243,7 +247,7 @@ function drawDjDecks(core, info, st, dt, beat = 0, where = 'wall') {
     tl = { start, end, pos: now.pos, aEnd: Math.min(now.dur, mixEnd), bStart: now.mixAt, marks: [now.mixAt, now.mixAt + (now.mixLen || 0) * (info.mixSwap >= 0 ? info.mixSwap : 0.5), mixEnd] };
   }
   const mixerData = { nowTitle: now ? now.title : 'loading', nextTitle: next ? next.title : '', kA: mixing ? 1 - 0.4 * sm(u) : 1, kB: ready ? (mixing ? 0.75 + 0.25 * u : 0.8) : 0.45,
-    eqA: lvA.map((v, i) => v * eq[i]), eqB: lvB.map((v, i) => v * (mixing ? eq[3 + i] : info.tease ? [0, 0.6, 0.8][i] : 0.35)), fader, stagePos, stageOn, line, lineC, tl };
+    eqA: lvA.map((v, i) => v * eq[i]), eqB: lvB.map((v, i) => v * (mixing ? eq[3 + i] : info.tease ? [0, 0.6, 0.8][i] : 0.35)), fader, stagePos, stageOn, line, lineC, tl, count };
   if (!st.mixer) st.mixer = {};
   let mixerDrawn = false;
   const mixer = (tg, x0, w, y0) => { drawMixer(tg, x0, w, y0, mixerData, st.mixer, dt, beat, !mixerDrawn); mixerDrawn = true; };

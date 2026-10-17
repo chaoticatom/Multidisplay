@@ -3254,13 +3254,16 @@ var PiEngine = (() => {
         }
         function planFx(a, b, now) {
           const pb = a.period > 0 ? a.period : RATE / 2, step = a.matched ? a.bar : 4 * pb;
-          const lo = now ? a.pos + CUT : Math.max(a.pos + CUT, a.inFrame + 0.55 * (a.end - a.inFrame));
+          const quickFrom = Math.max(a.pos + CUT, a.inFrame + Math.max(55 * RATE, Math.max(16, a.introBeats || 0) * pb));
+          const quick = cfg.quick && !now && quickFrom < a.end - 8 * RATE;
+          const lo = now ? a.pos + CUT : quick ? quickFrom : Math.max(a.pos + CUT, a.inFrame + 0.55 * (a.end - a.inFrame));
           const ratio = a.bpm > 0 && b.bpm > 0 ? Math.max(a.bpm / b.bpm, b.bpm / a.bpm) : 1;
           const calm = a.outroBeats >= 16 && b.introBeats >= 16;
           const opts = [["echo", 0.2], ["filter", a.matched ? 0.3 : 0.55], ["brake", ratio > 1.12 ? 0.35 : 0.7], ["roll", a.matched ? 0.4 : 9], ["fade", calm ? 0.15 : 0.6]];
           let best = null, bestCost = Infinity;
           const first = a.matched ? nextBar(a, lo) : lo;
-          for (let f = first; f < a.end - 2 * RATE; f += step) {
+          const last = quick ? Math.min(a.end - 2 * RATE, lo + 60 * RATE) : a.end - 2 * RATE;
+          for (let f = first; f < last; f += step) {
             for (const [style, base] of opts) {
               let pl;
               if (style === "fade") {
@@ -3269,7 +3272,7 @@ var PiEngine = (() => {
               } else pl = fxPlan(style, f, a);
               if (pl.start + pl.len > a.end + RATE) continue;
               const out = pl.start + pl.len * (pl.bStart || 0.5);
-              const where = now ? (f - first) / RATE * 0.05 : 0.15 * (1 - (f - first) / Math.max(1, a.end - first));
+              const where = now ? (f - first) / RATE * 0.05 : quick ? 0.15 * (f - first) / Math.max(1, last - first) : 0.15 * (1 - (f - first) / Math.max(1, a.end - first));
               const c = base + 1.5 * vocalAt(a, out, out + 2 * pb * 4) + 0.4 * vocalAt(b, b.inFrame, b.inFrame + 4 * pb) + where + (style === lastStyle ? 0.15 : 0);
               if (c < bestCost) {
                 bestCost = c;
@@ -6323,7 +6326,9 @@ var PiEngine = (() => {
           }
         });
         if (adv) ms.t = (ms.t || 0) + dt;
-        scrollText(tg, FONT_3x5, (m.line || "").toUpperCase(), x0 + 2, w - 4, y0 + 31, m.lineC || [0.9, 0.93, 1], 0.9, ms, "l", dt, adv);
+        const cnt = (m.count || "").toUpperCase(), cw = cnt ? textWidth(FONT_3x5, cnt) : 0;
+        if (cnt) drawString(FONT_3x5, cnt, x0 + w - 2 - cw, y0 + 31, (px, py) => set(px, py, AMBER, 1));
+        scrollText(tg, FONT_3x5, (m.line || "").toUpperCase(), x0 + 2, w - 4 - (cw ? cw + 6 : 0), y0 + 31, m.lineC || [0.9, 0.93, 1], 0.9, ms, "l", dt, adv);
       }
       var FX_NAMES = { echo: "echo out", filter: "filter sweep", brake: "brake stop", roll: "loop roll" };
       var styleText = (n) => !n ? "" : FX_NAMES[n.style] || (n.style === "cut" ? "cut on the beat" : n.style === "fade" ? "crossfade" : n.style === "short" ? "8 beat mix" : n.beats ? n.beats + " beat blend" : "blend");
@@ -6413,16 +6418,17 @@ var PiEngine = (() => {
           lineC = AMBER;
         } else if (ready && info.mixIn >= 0 && info.mixIn <= 30) {
           stagePos = 0;
-          line = "cued - matching tempo and beat - " + styleText(next) + " in " + mmss(info.mixIn);
+          line = "cued - matching tempo and beat - " + styleText(next);
           lineC = AMBER;
         } else if (ready) {
           stagePos = 0;
           stageOn = false;
-          line = "next: " + [styleText(next), info.mixIn >= 0 ? "in " + mmss(info.mixIn) : "", next.shift ? "key " + (next.shift > 0 ? "+" : "") + next.shift : "", next.why || ""].filter(Boolean).join(" - ");
+          line = "next: " + [styleText(next), next.shift ? "key " + (next.shift > 0 ? "+" : "") + next.shift : "", next.why || ""].filter(Boolean).join(" - ");
         } else if (next) {
           line = "next: getting " + (next.title || "") + (next.step ? " - " + next.step : "");
           stageOn = false;
         } else line = "playing " + (now && now.title || "");
+        const count = !now ? "" : mixing ? mmss((1 - u) * mixSecs) : next && next.status === "loading" ? "loading" : info.mixIn >= 0 ? "mix " + mmss(info.mixIn) : now.dur ? "ends " + mmss(now.dur - now.pos) : "";
         const fader = mixing ? next && next.style === "cut" ? 1 : u : 0;
         let tl = null;
         if (now && now.dur && now.mixAt >= 0) {
@@ -6441,7 +6447,8 @@ var PiEngine = (() => {
           stageOn,
           line,
           lineC,
-          tl
+          tl,
+          count
         };
         if (!st.mixer) st.mixer = {};
         let mixerDrawn = false;

@@ -144,6 +144,11 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     const tph = ((tz.at - long.inFrame) / (16 * A.period)) % 1;
     assert.ok(tz.len === Math.round(2 * A.bar) && Math.min(tph, 1 - tph) < 0.01, 'two bars, on a phrase');
     assert.strictEqual(dj._test.planTease({ ...quietA, info: { ...A.info, vocalLevel: '9'.repeat(200) } }, hookB), null, 'never over singing');
+    // Quick mix applies to effect transitions too: about a minute in.
+    dj.configure({ quick: true });
+    const qfx = dj._test.planMix({ ...long, matched: true }, { ...A, matched: false, bpm: 160 }, 'auto');
+    dj.configure({ quick: false });
+    assert.ok(qfx.start / 44100 > 50 && qfx.start / 44100 < 125, 'quick effect transition at ' + qfx.start / 44100 + ' s');
     dj.stop(); assert.strictEqual(dj.status.state, 'stopped');
     console.log('  ok - beat-matched mixing from one track to the next');
     // Very different tempos (100 and 150 BPM): it still gets from one to the

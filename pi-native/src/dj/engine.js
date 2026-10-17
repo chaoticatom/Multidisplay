@@ -93,20 +93,24 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   // point where the old song isn't singing.
   function planFx(a, b, now) {
     const pb = a.period > 0 ? a.period : RATE / 2, step = a.matched ? a.bar : 4 * pb;
-    const lo = now ? a.pos + CUT : Math.max(a.pos + CUT, a.inFrame + 0.55 * (a.end - a.inFrame));
+    // Quick mix: about a minute in (after the intro), like the beat-matched mixes.
+    const quickFrom = Math.max(a.pos + CUT, a.inFrame + Math.max(55 * RATE, Math.max(16, a.introBeats || 0) * pb));
+    const quick = cfg.quick && !now && quickFrom < a.end - 8 * RATE;
+    const lo = now ? a.pos + CUT : quick ? quickFrom : Math.max(a.pos + CUT, a.inFrame + 0.55 * (a.end - a.inFrame));
     const ratio = a.bpm > 0 && b.bpm > 0 ? Math.max(a.bpm / b.bpm, b.bpm / a.bpm) : 1;
     const calm = a.outroBeats >= 16 && b.introBeats >= 16; // both ends quiet: a long crossfade suits
     const opts = [['echo', 0.2], ['filter', a.matched ? 0.3 : 0.55], ['brake', ratio > 1.12 ? 0.35 : 0.7], ['roll', a.matched ? 0.4 : 9], ['fade', calm ? 0.15 : 0.6]];
     let best = null, bestCost = Infinity;
     const first = a.matched ? nextBar(a, lo) : lo;
-    for (let f = first; f < a.end - 2 * RATE; f += step) {
+    const last = quick ? Math.min(a.end - 2 * RATE, lo + 60 * RATE) : a.end - 2 * RATE;
+    for (let f = first; f < last; f += step) {
       for (const [style, base] of opts) {
         let pl;
         if (style === 'fade') { const len = Math.min(cfg.quick ? 8 * RATE : 12 * RATE, Math.max(3 * RATE, (a.end - f) * 0.8)); pl = { start: Math.round(f), len, beat: false, beats: 0, style: 'fade', bStart: 0 }; }
         else pl = fxPlan(style, f, a);
         if (pl.start + pl.len > a.end + RATE) continue;
         const out = pl.start + pl.len * (pl.bStart || 0.5);
-        const where = now ? (f - first) / RATE * 0.05 : 0.15 * (1 - (f - first) / Math.max(1, a.end - first));
+        const where = now ? (f - first) / RATE * 0.05 : quick ? 0.15 * (f - first) / Math.max(1, last - first) : 0.15 * (1 - (f - first) / Math.max(1, a.end - first));
         const c = base + 1.5 * vocalAt(a, out, out + 2 * pb * 4) + 0.4 * vocalAt(b, b.inFrame, b.inFrame + 4 * pb) + where + (style === lastStyle ? 0.15 : 0);
         if (c < bestCost) { bestCost = c; best = pl; }
       }
