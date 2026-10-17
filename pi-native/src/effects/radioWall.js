@@ -164,7 +164,7 @@ function effectRadioWall(core, dt) {
     if (currentStation.url.startsWith('debugloop:')) {
       drawStaticLabelWall(core, genre);
     } else if (djInfo) {
-      drawDjDecks(core, djInfo, deckState, dt, core.audio ? core.audio.beat : 0);
+      drawDjDecks(core, { ...djInfo, specA: audio.specA, specB: audio.specB }, deckState, dt, core.audio ? core.audio.beat : 0);
     } else {
       const label = currentStation.name + (title ? '  -  ' + title : genre ? '  •  ' + genre : '') + '    '; // the song when the station sends it
       drawTickerWall(core, label, dt);

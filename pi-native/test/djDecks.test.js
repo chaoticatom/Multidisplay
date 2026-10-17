@@ -15,16 +15,18 @@ try {
   const info = { now: { title: 'Song One', bpm: 124, key: '8A', dur: 200, pos: 50 }, next: { title: 'Song Two', bpm: 124, key: '9A' }, mixing: false, mixU: 0, mixIn: 30 };
   const c = wall(128, 64), st = createDeckState();
   for (let i = 0; i < 40; i++) drawDjDecks(c, info, st, 1 / 30);
-  assert.strictEqual(ROWS, 30);
-  assert.strictEqual(sum(c, 0, 128, 0, 64 - ROWS), 0, 'nothing drawn above the decks');
-  assert.ok(sum(c, 0, 64, 64 - 10, 64 - 2) > 5 && sum(c, 64, 128, 64 - 10, 64 - 2) > 5, 'a title on each deck');
-  assert.ok(blue(c, 0, 64, 64 - ROWS, 64) > blue(c, 64, 128, 64 - ROWS, 64), 'NOW is the cyan deck, NEXT the amber one');
-  // Progress: a quarter through, so the bar is lit on the left of the NOW deck only.
-  assert.ok(sum(c, 2, 14, 63, 64) > sum(c, 30, 60, 63, 64) * 2, 'progress bar');
-  // Mixing: the NEXT deck brightens and NOW dims.
+  assert.strictEqual(ROWS, 36);
+  assert.strictEqual(sum(c, 0, 128, 0, 64 - ROWS), 0, 'nothing drawn above the strip');
+  const y0 = 64 - ROWS;
+  // Two panels wide: the mixer - titles (playing cyan on the left, next amber on the right).
+  assert.ok(sum(c, 0, 64, y0 + 2, y0 + 9) > 5 && sum(c, 64, 128, y0 + 2, y0 + 9) > 5, 'both titles');
+  assert.ok(blue(c, 0, 60, y0 + 2, y0 + 9) > blue(c, 68, 128, y0 + 2, y0 + 9), 'playing title cyan, next amber');
+  assert.ok(sum(c, 0, 128, y0 + 31, 64) > 5, 'the plain-words line');
+  // The crossfader knob (white) moves from A towards B over the mix.
+  const knobX = (cv) => { let best = -1, bx = 0; for (let x = 30; x < 98; x++) { let w = 0; for (let y = y0 + 11; y < y0 + 22; y++) { const o = (y * 128 + x) * 3; if (cv.wallBuf[o] > 0.8 && cv.wallBuf[o + 1] > 0.8 && cv.wallBuf[o + 2] > 0.8) w++; } if (w > best) { best = w; bx = x; } } return bx; };
   const c2 = wall(128, 64), st2 = createDeckState();
-  for (let i = 0; i < 40; i++) drawDjDecks(c2, { ...info, mixing: true, mixU: 0.9 }, st2, 1 / 30);
-  assert.ok(sum(c2, 0, 64, 64 - ROWS, 63) < sum(c, 0, 64, 64 - ROWS, 63), 'NOW dims during the mix');
+  for (let i = 0; i < 60; i++) drawDjDecks(c2, { ...info, mixing: true, mixU: 0.9, mixSwap: 0.5, mixLen: 30, eq: [0.2, 0.2, 0.1, 1, 1, 1] }, st2, 1 / 30);
+  assert.ok(knobX(c2) > knobX(c) + 30, `knob slides to B: ${knobX(c)} -> ${knobX(c2)}`);
   // One panel: the decks take turns.
   const c3 = wall(64, 64), st3 = createDeckState();
   for (let i = 0; i < 30; i++) drawDjDecks(c3, info, st3, 1 / 30);

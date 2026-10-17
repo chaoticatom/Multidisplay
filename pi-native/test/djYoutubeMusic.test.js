@@ -11,10 +11,10 @@ const src = require('../src/dj/sources');
 function fakeYt(answers, calls) {
   return (cmd, args) => {
     const p = new EventEmitter(); p.stdout = new EventEmitter(); p.stderr = new EventEmitter(); p.kill = () => {};
-    const url = args[args.length - 1]; calls.push({ args, url });
+    const url = args[args.length - 1]; calls.push({ cmd, args, url });
     setImmediate(() => {
-      const o = args.indexOf('-o');
-      if (o >= 0) { const id = url.match(/v=([\w-]+)/)[1]; fs.writeFileSync(args[o + 1].replace('%(id)s', id).replace('%(ext)s', 'm4a'), 'x'); p.emit('close', 0); return; }
+      if (cmd === 'ffmpeg') { fs.writeFileSync(url, Buffer.alloc(60000)); p.emit('close', 0); return; } // the download: writes its output file
+      if (args.includes('-g')) { p.stdout.emit('data', 'https://media.example/audio?id=' + url.match(/v=([\w-]+)/)[1] + '\n'); p.emit('close', 0); return; }
       const key = Object.keys(answers).find((k) => url.includes(k));
       if (!key) { p.stderr.emit('data', 'ERROR: nope'); p.emit('close', 1); return; }
       p.stdout.emit('data', JSON.stringify(answers[key])); p.emit('close', 0);
@@ -42,15 +42,16 @@ function fakeYt(answers, calls) {
     fs.rmSync(src.CACHE_DIR, { recursive: true, force: true });
     const spawn = fakeYt({}, calls);
     const f1 = await src.fetchYoutube('cachetest01', spawn), f2 = await src.fetchYoutube('cachetest01', spawn);
-    assert.strictEqual(f1, f2); assert.strictEqual(calls.length, 1, 'downloaded once');
+    assert.strictEqual(f1, f2); assert.strictEqual(calls.filter((c) => c.cmd === 'ffmpeg').length, 1, 'downloaded once');
     assert.ok(calls[0].args.includes('bestaudio[ext=m4a]/bestaudio/best'), 'best audio-only stream');
+    assert.ok(/\.mka$/.test(f1), 'saved as Matroska: ' + f1);
     const inp = await src.inputFor({ kind: 'yt', id: 'cachetest01' }, spawn);
     assert.strictEqual(inp.url, f1, 'playback reads the cached file');
     // Half-finished pieces never count as the song.
     fs.writeFileSync(require('path').join(src.CACHE_DIR, 'partialtest.m4a.part-Frag2'), 'x');
     fs.writeFileSync(require('path').join(src.CACHE_DIR, 'partialtest.m4a.ytdl'), 'x');
     calls = []; const f3 = await src.fetchYoutube('partialtest', fakeYt({}, calls));
-    assert.ok(/partialtest\.m4a$/.test(f3) && calls.length === 1, 'pieces ignored, the song downloaded: ' + f3);
+    assert.ok(/partialtest\.mka$/.test(f3) && calls.some((c) => c.cmd === 'ffmpeg'), 'pieces ignored, the song downloaded: ' + f3);
     src.dropCached('partialtest'); assert.ok(!fs.readdirSync(src.CACHE_DIR).some((f) => f.startsWith('partialtest')), 'dropped with its pieces');
     // Only the last few are kept.
     for (let i = 0; i < 7; i++) await src.fetchYoutube('cachetrim0' + i, spawn);

@@ -24,7 +24,7 @@ const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const smooth = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
 
 function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sources'), decode = require('./decode'), analyser = require('./analyse'), log = console.log, setTimer = setInterval, clearTimer = clearInterval }) {
-  const st = { state: 'stopped', error: '', now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
+  const st = { eq: [1, 1, 1, 0, 0, 0], mixLen: 0, mixSwap: -1, doneAt: 0, state: 'stopped', error: '', now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
   let wantNext = null, prepToken = 0;
   let cfg = { source: 'both', youtube: '', mixBeats: 'auto', quick: false, style: 'auto' };
   let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
@@ -365,13 +365,14 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
             const aLo = 1 - bLo, aMi = 1 - smooth((u - s) / ((1 - s) * 0.8)), aHi = 1 - smooth((u - s - (1 - s) * 0.2) / ((1 - s) * 0.8));
             const aVol = 1 - smooth((u - 0.85) / 0.15);
             sampleDeck(A, aVol, aLo, aMi, aHi, OUT); sampleDeck(B, 1, bLo, bMi, bHi, OUT);
+            if ((A.pos & 1023) === 0) { const q = st.eq; q[0] = aLo * aVol; q[1] = aMi * aVol; q[2] = aHi * aVol; q[3] = bLo; q[4] = bMi; q[5] = bHi; }
           } else { // an equal-power crossfade, the outgoing track's bass going first
             const c = clamp01(u);
             sampleDeck(A, Math.cos(c * Math.PI / 2), 1 - smooth(c / 0.6), 1, 1, OUT);
             sampleDeck(B, Math.sin(c * Math.PI / 2), smooth((c - 0.4) / 0.6), 1, 1, OUT);
           }
           A.pos++; B.pos++;
-          if (u >= 1) { st.played++; promote(); }
+          if (u >= 1) { st.played++; st.doneAt = Date.now(); promote(); }
         } else {
           // The next track isn't ready yet: loop A's last four bars on the beat rather than fall silent.
           if (!B && A.matched && preparing && A.loopAt && A.pos >= A.loopAt && A.loops < 12) { A.pos -= Math.round(4 * A.bar); A.loops++; }
@@ -390,6 +391,8 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
         buf.writeInt16LE(Math.max(-32767, Math.min(32767, Math.round(v * 32767))), i * 4 + c * 2);
       }
     }
+    if (!mix) { const q = st.eq; q[0] = q[1] = q[2] = 1; q[3] = q[4] = q[5] = 0; }
+    st.mixLen = mix ? Math.round(mix.len / RATE * 10) / 10 : 0; st.mixSwap = mix && mix.beat && mix.style !== 'cut' ? mix.swapU : -1;
     st.mixU = mix ? Math.max(0, Math.min(1, (A.pos - mix.from) / mix.len)) : 0;
     st.mixIn = A && B && !mix && A.plan ? Math.max(0, Math.round((A.plan.start - A.pos) / RATE)) : -1;
     if (A) {

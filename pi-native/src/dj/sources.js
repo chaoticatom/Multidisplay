@@ -114,7 +114,7 @@ const FETCH_WAIT_MS = 20000;
 const fetching = new Map();
 // Only a finished audio file counts: while yt-dlp works it leaves pieces
 // (.part, .part-Frag3, .ytdl, .temp...) that aren't playable.
-const DONE_RE = /^[\w-]+\.(m4a|webm|opus|ogg|mp3|aac|mp4)$/;
+const DONE_RE = /^[\w-]+\.(mka|m4a|webm|opus|ogg|mp3|aac|mp4)$/;
 function cachedFile(id) {
   try { const f = fs.readdirSync(CACHE_DIR).find((x) => x.startsWith(id + '.') && DONE_RE.test(x)); return f ? path.join(CACHE_DIR, f) : null; } catch (e) { return null; }
 }
@@ -133,17 +133,24 @@ function fetchYoutube(id, spawn = realSpawn) {
   const have = cachedFile(id); if (have) return Promise.resolve(have);
   if (fetching.has(id)) return fetching.get(id);
   fs.mkdirSync(CACHE_DIR, { recursive: true });
-  const attempts = [['www'], ['www', '--extractor-args', 'youtube:player_client=tv,ios'], ['music']];
+  // The same stream address that plays, saved as it comes by ffmpeg (no
+  // re-encoding) into Matroska, which holds any audio codec.
   const job = (async () => {
-    let last = null;
-    for (const [host, ...extra] of attempts) {
-      try {
-        await ytRun(['-f', AUDIO_FORMAT, '--no-warnings', '--no-playlist', '--match-filter', 'duration <= 600', '-o', path.join(CACHE_DIR, '%(id)s.%(ext)s'), ...extra, `https://${host}.youtube.com/watch?v=${id}`], spawn, 120000);
-        const f = cachedFile(id); if (f) { trimCache(); return f; }
-        last = new Error('no audio (longer than 10 minutes?)');
-      } catch (e) { last = e; if (/not installed/.test(e.message)) throw e; }
-    }
-    throw last || new Error('no audio');
+    const url = await youtubeAudio(id, spawn);
+    const tmp = path.join(CACHE_DIR, id + '.mka.part'), out = path.join(CACHE_DIR, id + '.mka');
+    await new Promise((resolve, reject) => {
+      let p, err = '';
+      try { p = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5', '-i', url, '-vn', '-c:a', 'copy', '-t', '600', '-f', 'matroska', tmp], { stdio: ['ignore', 'ignore', 'pipe'] }); } catch (e) { reject(e); return; }
+      const timer = setTimeout(() => { try { p.kill(); } catch (e) { /* gone */ } reject(new Error('download took too long')); }, 150000);
+      if (p.stderr) p.stderr.on('data', (d) => { err = (err + d).slice(-400); });
+      p.on('error', (e) => { clearTimeout(timer); reject(e); });
+      p.on('close', (code) => { clearTimeout(timer); if (code === 0) resolve(); else reject(new Error((err.trim().split('\n').pop() || 'ffmpeg exited ' + code).slice(0, 160))); });
+    });
+    let size = 0; try { size = fs.statSync(tmp).size; } catch (e) { /* missing */ }
+    if (size < 50000) { try { fs.unlinkSync(tmp); } catch (e) { /* gone */ } throw new Error('download came back empty'); }
+    fs.renameSync(tmp, out);
+    trimCache();
+    return out;
   })().finally(() => fetching.delete(id));
   fetching.set(id, job);
   return job;

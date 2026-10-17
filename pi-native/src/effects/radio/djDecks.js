@@ -18,7 +18,7 @@
 
 const { FONT_3x5, FONT_5x7, drawString, textWidth } = require('../text');
 
-const ROWS = 30;
+const ROWS = 36; // up to 60% of a 64-row panel
 const NOW = { c: [0.15, 0.8, 1], text: [0.88, 0.96, 1], label: 'NOW PLAYING', short: 'NOW' };
 const NEXT = { c: [1, 0.55, 0.12], text: [1, 0.9, 0.72], label: 'UP NEXT', short: 'NEXT' };
 
@@ -97,6 +97,77 @@ function drawDeck(tg, x0, w, y0, kind, d, ds, dt, beat, adv) {
 }
 
 const AMBER = [1, 0.55, 0.12];
+
+// ── The mixer strip (a strip two or more panels wide) ────────────────────
+// Both titles on top (playing in cyan, next in amber); each song's LO / MID
+// / HI bars - its level in each band times the mix's EQ on it - with a
+// crossfader between whose knob travels from A to B over the mix; five
+// stage dots (cued, blending in, bass swap, fading out, done); and one line
+// in plain words of what's happening and what's next. Four panels or wider
+// also get a timeline: the playing song, the next one under it, the mix
+// where they overlap, and a playhead.
+const STAGES = ['CUED', 'IN', 'SWAP', 'OUT', 'DONE'];
+function bandLevel(spec, f0, f1) {
+  if (!spec || !spec.length) return 0;
+  const a = Math.floor(f0 * spec.length), b = Math.max(a + 1, Math.floor(f1 * spec.length));
+  let s = 0; for (let i = a; i < b; i++) s += spec[i]; return Math.min(1, (s / (b - a)) * 1.25);
+}
+function scrollText(tg, font, str, x0, w, y, c, a, ds, key, dt, adv) {
+  const tw = str ? textWidth(font, str) : 0;
+  if (ds[key + 'S'] !== str) { ds[key + 'S'] = str; ds[key + 'X'] = 0; ds[key + 'T'] = 0; }
+  let x = x0 + (font === FONT_5x7 ? 0 : 0);
+  if (tw > w) { if (adv) { ds[key + 'T'] += dt; if (ds[key + 'T'] > 2) ds[key + 'X'] += dt * 12; } const loop = tw + 20; if (ds[key + 'X'] > loop) ds[key + 'X'] -= loop; x -= Math.floor(ds[key + 'X']); }
+  const plot = (px, py) => { if (px < x0 || px >= x0 + w) return; const edge = tw > w ? sm(Math.min(px - x0, x0 + w - 1 - px) / 3) : 1; tg.set(px, py, c[0] * a * edge, c[1] * a * edge, c[2] * a * edge); };
+  drawString(font, str, x, y, plot); if (tw > w) drawString(font, str, x + tw + 20, y, plot);
+}
+function drawMixer(tg, x0, w, y0, m, ms, dt, beat, adv) {
+  const set = (x, y, c, a) => { if (x >= x0 && x < x0 + w && a > 0.003) tg.set(x, y, c[0] * a, c[1] * a, c[2] * a); };
+  const H = y0 + ROWS;
+  for (let y = y0 + 1; y < H; y++) for (let x = x0; x < x0 + w; x++) { const g = (x - x0) / w; set(x, y, [NOW.c[0] * (1 - g) + AMBER[0] * g, NOW.c[1] * (1 - g) + AMBER[1] * g, NOW.c[2] * (1 - g) + AMBER[2] * g], 0.022); }
+  for (let x = x0; x < x0 + w; x++) { const g = (x - x0) / w, e = sm(Math.min(x - x0, x0 + w - 1 - x) / (w * 0.15)); set(x, y0, [NOW.c[0] * (1 - g) + AMBER[0] * g, NOW.c[1] * (1 - g) + AMBER[1] * g, NOW.c[2] * (1 - g) + AMBER[2] * g], 0.55 * e); }
+  // Titles.
+  const half = Math.floor(w / 2);
+  scrollText(tg, FONT_5x7, (m.nowTitle || '').toUpperCase(), x0 + 1, half - 4, y0 + 2, [0.45, 0.88, 1], m.kA, ms, 'a', dt, adv);
+  scrollText(tg, FONT_5x7, (m.nextTitle || '').toUpperCase(), x0 + half + 3, w - half - 4, y0 + 2, [1, 0.7, 0.3], m.kB, ms, 'b', dt, adv);
+  // EQ bars: 3 a side, 6 wide, 10 tall.
+  const barTop = y0 + 11, barH = 11, eqW = 22;
+  const bars = (bx, col, lv, k) => lv.forEach((v, i) => { const x = bx + i * 8, h = Math.round(Math.max(0, Math.min(1, v)) * barH); for (let yy = 0; yy < barH; yy++) for (let dx = 0; dx < 6; dx++) set(x + dx, barTop + barH - 1 - yy, col, yy < h ? 0.95 * k : 0.07); });
+  bars(x0 + 2, NOW.c, m.eqA, 1); bars(x0 + w - 2 - eqW, AMBER, m.eqB, 1);
+  // Middle: crossfader (and the timeline on a wide strip).
+  const mx0 = x0 + 2 + eqW + 6, mx1 = x0 + w - 2 - eqW - 7, mw = mx1 - mx0;
+  const wide = w >= 256, fy = wide ? barTop + 2 : barTop + 4;
+  drawString(FONT_3x5, 'A', mx0 - 5, fy - 2, (px, py) => set(px, py, NOW.c, 0.9));
+  drawString(FONT_3x5, 'B', mx1 + 2, fy - 2, (px, py) => set(px, py, AMBER, 0.9));
+  for (let x = mx0; x <= mx1; x++) set(x, fy, DIM, 0.35);
+  if (adv) ms.knob = (ms.knob === undefined ? m.fader : ms.knob) + (m.fader - (ms.knob === undefined ? m.fader : ms.knob)) * Math.min(1, dt * (m.fader < (ms.knob || 0) ? 3 : 8));
+  const kx = mx0 + Math.round((ms.knob || 0) * mw);
+  for (let y = fy - 3; y <= fy + 3; y++) for (let dx = -2; dx <= 2; dx++) set(kx + dx, y, [1, 1, 1], dx === 0 ? 1 : 0.6 + 0.2 * beat);
+  if (wide && m.tl) {
+    // Timeline: A's remaining song, B under it, the overlap is the mix.
+    const ty = fy + 5, t = m.tl, span = Math.max(1, t.end - t.start), X = (s) => mx0 + Math.round(((s - t.start) / span) * mw);
+    const aEnd = X(t.aEnd), bStart = X(t.bStart), ph = X(t.pos);
+    for (let x = mx0; x <= mx1; x++) {
+      if (x <= aEnd) { set(x, ty, NOW.c, x <= ph ? 0.85 : 0.35); set(x, ty + 1, NOW.c, x <= ph ? 0.6 : 0.25); }
+      if (x >= bStart) { set(x, ty + 3, AMBER, x <= ph ? 0.85 : 0.35); set(x, ty + 4, AMBER, x <= ph ? 0.6 : 0.25); }
+      if (x >= bStart && x <= aEnd) set(x, ty + 2, [1, 1, 1], 0.18);
+    }
+    for (const s of t.marks) { const x = X(s); for (let y = ty - 1; y <= ty + 5; y += 2) set(x, y, AMBER, 0.75); }
+    for (let y = ty - 2; y <= ty + 6; y++) set(ph, y, [1, 1, 1], 1);
+  }
+  // Stage dots.
+  const sy = y0 + 24, sx0 = x0 + 4, sx1 = x0 + w - 5, sxs = STAGES.map((_, i) => sx0 + Math.round((i / 4) * (sx1 - sx0)));
+  const fillTo = sx0 + Math.round(Math.min(1, m.stagePos / 4) * (sx1 - sx0));
+  for (let x = sx0; x <= sx1; x++) set(x, sy, x <= fillTo ? AMBER : DIM, x <= fillTo ? 0.85 : 0.22);
+  sxs.forEach((x, i) => {
+    const done = i < Math.floor(m.stagePos), cur = i === Math.floor(m.stagePos) && m.stageOn, r = cur ? 1 : 1;
+    const a = cur ? 0.7 + 0.3 * Math.sin(ms.t * 6) : done ? 0.85 : 0.3;
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) set(x + dx, sy + dy, done || cur ? AMBER : DIM, a);
+    if (w >= 120) { const lw = textWidth(FONT_3x5, STAGES[i]); drawString(FONT_3x5, STAGES[i], Math.max(x0, Math.min(x0 + w - lw, x - Math.floor(lw / 2))), sy + 2, (px, py) => set(px, py, done || cur ? AMBER : DIM, cur ? 0.95 : 0.5)); }
+  });
+  if (adv) ms.t = (ms.t || 0) + dt;
+  // The line in plain words.
+  scrollText(tg, FONT_3x5, (m.line || '').toUpperCase(), x0 + 2, w - 4, y0 + 31, m.lineC || [0.9, 0.93, 1], 0.9, ms, 'l', dt, adv);
+}
 const styleText = (n) => !n ? '' : n.style === 'cut' ? 'cut on the beat' : n.style === 'fade' ? 'crossfade' : n.style === 'short' ? '8 beat mix' : n.beats ? n.beats + ' beat blend' : 'blend';
 
 // Draws both decks; returns the rows used (so the spectrum keeps clear of them).
@@ -134,6 +205,35 @@ function drawDjDecks(core, info, st, dt, beat = 0, where = 'wall') {
       bar: mixing ? u : soon ? 1 - info.mixIn / 60 : 0, barA: mixing ? 1 : 0.45,
     };
   }
+  // The mixer strip's data.
+  const eq = info.eq || [1, 1, 1, 0, 0, 0], sA = info.specA, sB = info.specB;
+  const lvA = [bandLevel(sA, 0, 0.22), bandLevel(sA, 0.22, 0.62), bandLevel(sA, 0.62, 1)], lvB = [bandLevel(sB, 0, 0.22), bandLevel(sB, 0.22, 0.62), bandLevel(sB, 0.62, 1)];
+  const ready = next && next.status !== 'loading';
+  const sw = info.mixSwap >= 0 ? info.mixSwap : 0.5, mixSecs = info.mixLen || 0;
+  let stagePos = 0, stageOn = !!ready, line = '', lineC;
+  const justDone = info.doneAt && Date.now() - info.doneAt < 4000;
+  if (!now) { line = info.error ? info.error : next && next.step ? 'getting ready - ' + next.step : 'finding songs'; lineC = info.error ? [1, 0.4, 0.4] : undefined; stageOn = false; }
+  else if (mixing && next && next.style === 'cut') { stagePos = 2; line = 'cut on the beat'; lineC = AMBER; }
+  else if (mixing) {
+    if (u < sw - 0.04) { stagePos = 1 + u / sw * 0.99; line = 'blending in - bass swap in ' + mmss((sw - u) * mixSecs); }
+    else if (u < sw + 0.06) { stagePos = 2; line = 'bass swap now'; }
+    else { stagePos = 3 + (u - sw) / (1 - sw) * 0.99; line = 'fading out the old song - ' + mmss((1 - u) * mixSecs) + ' left'; }
+    lineC = AMBER;
+  } else if (justDone) { stagePos = 4; line = 'now playing ' + (now.title || ''); }
+  else if (ready) { stagePos = 0; line = 'next: ' + [styleText(next), info.mixIn >= 0 ? 'in ' + mmss(info.mixIn) : '', next.shift ? 'key ' + (next.shift > 0 ? '+' : '') + next.shift : '', next.why || ''].filter(Boolean).join(' - '); }
+  else if (next) { line = 'next: getting ' + (next.title || '') + (next.step ? ' - ' + next.step : ''); stageOn = false; }
+  else line = 'playing ' + ((now && now.title) || '');
+  const fader = mixing ? (next && next.style === 'cut' ? 1 : u) : 0;
+  let tl = null;
+  if (now && now.dur && now.mixAt >= 0) {
+    const mixEnd = now.mixAt + (now.mixLen || 0), start = Math.max(0, Math.min(now.pos, now.mixAt) - 30), end = mixEnd + 20;
+    tl = { start, end, pos: now.pos, aEnd: Math.min(now.dur, mixEnd), bStart: now.mixAt, marks: [now.mixAt, now.mixAt + (now.mixLen || 0) * (info.mixSwap >= 0 ? info.mixSwap : 0.5), mixEnd] };
+  }
+  const mixerData = { nowTitle: now ? now.title : 'loading', nextTitle: next ? next.title : '', kA: mixing ? 1 - 0.4 * sm(u) : 1, kB: ready ? (mixing ? 0.75 + 0.25 * u : 0.8) : 0.45,
+    eqA: lvA.map((v, i) => v * eq[i]), eqB: lvB.map((v, i) => v * (mixing ? eq[3 + i] : 0.35)), fader, stagePos, stageOn, line, lineC, tl };
+  if (!st.mixer) st.mixer = {};
+  let mixerDrawn = false;
+  const mixer = (tg, x0, w, y0) => { drawMixer(tg, x0, w, y0, mixerData, st.mixer, dt, beat, !mixerDrawn); mixerDrawn = true; };
   const drawn = [false, false];
   const deck = (tg, x0, w, y0, which) => {
     drawDeck(tg, x0, w, y0, which ? NEXT : NOW, which ? dNext : dNow, st.decks[which], dt, beat, !drawn[which]);
@@ -161,9 +261,8 @@ function drawDjDecks(core, info, st, dt, beat = 0, where = 'wall') {
     }
     const r0 = runs[0] && span(runs[0]);
     if (!r0) return 0;
-    if (r0.w >= 96) { // a strip two panels or more wide: NOW on the left half, NEXT on the right
-      const half = Math.floor(r0.w / 2 / 8) * 8 || Math.floor(r0.w / 2);
-      deck(tg, r0.x0, half, r0.y0, 0); deck(tg, r0.x0 + half, r0.w - half, r0.y0, 1);
+    if (r0.w >= 96) { // a strip two panels or more wide: the mixer
+      mixer(tg, r0.x0, r0.w, r0.y0);
     } else if (runs.length > 1) { // single panels apart (a stack, an L, ...): NOW on the lowest, NEXT on the next
       const r1 = span(runs[1]);
       deck(tg, r0.x0, r0.w, r0.y0, 0); deck(tg, r1.x0, r1.w, r1.y0, 1);
@@ -172,12 +271,12 @@ function drawDjDecks(core, info, st, dt, beat = 0, where = 'wall') {
     for (let i = 1; i < runs.length; i++) {
       if (i === 1 && r0.w < 96) continue;
       const r = span(runs[i]);
-      if (r.w >= 96) { const half = Math.floor(r.w / 2); deck(tg, r.x0, half, r.y0, 0); deck(tg, r.x0 + half, r.w - half, r.y0, 1); }
+      if (r.w >= 96) mixer(tg, r.x0, r.w, r.y0);
       else deck(tg, r.x0, r.w, r.y0, i % 2);
     }
   } else if (where === 'wall' && core.wallW) {
     const W = core.wallW, H = core.wallH, tg = { set: (x, y, r, g, b) => core.setWallPixel(x, y, r, g, b) };
-    if (W >= 96) { const half = Math.floor(W / 2); deck(tg, 0, half, H - ROWS, 0); deck(tg, half, W - half, H - ROWS, 1); }
+    if (W >= 96) mixer(tg, 0, W, H - ROWS);
     else deck(tg, 0, W, H - ROWS, turn);
   } else if (where === 'cube') {
     // The cube: NOW along the bottom of the front and back, NEXT on the right
