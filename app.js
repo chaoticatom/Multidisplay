@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.356';
+const APP_VERSION = '0.6.357';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -6196,6 +6196,17 @@ function cxWireDj() {
   seek.addEventListener('input', () => { seek.dataset.drag = '1'; document.getElementById('dj-pos').textContent = cxDjTime(Number(seek.value)); });
   seek.addEventListener('change', () => { delete seek.dataset.drag; send({ cmd: 'djSeek', sec: Number(seek.value) }); });
   setInterval(cxDjTickBar, 500);
+  // Add a song: search, then Next (plays after this one) or Add (to the end).
+  const find = () => { const q = document.getElementById('dj-find').value.trim(); if (q) { send({ cmd: 'djFind', query: q }); cxDjFindOpen = true; } };
+  document.getElementById('dj-find-go').addEventListener('click', find);
+  document.getElementById('dj-find').addEventListener('keydown', (e) => { if (e.key === 'Enter') find(); });
+  document.getElementById('dj-find-res').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-fi]'); if (!b) return;
+    const it = (currentState.dj?.find?.items || [])[Number(b.dataset.fi)]; if (!it) return;
+    send({ cmd: 'djAdd', track: it, next: b.classList.contains('f-next') });
+    cxToast((b.classList.contains('f-next') ? 'Next: ' : 'Added: ') + (it.name || it.title));
+    cxDjFindOpen = false; document.getElementById('dj-find').value = ''; document.getElementById('dj-find-res').hidden = true;
+  });
   document.getElementById('dj-queue').addEventListener('click', (e) => {
     const del = e.target.closest('[data-djdelq]');
     if (del) { e.stopPropagation(); send({ cmd: 'djRemove', index: Number(del.dataset.djdelq) }); return; }
@@ -6222,6 +6233,7 @@ function cxWireDj() {
     if (confirm('Remove ' + b.dataset.djdel + '?')) send({ cmd: 'deleteMusic', name: b.dataset.djdel });
   });
 }
+let cxDjFindOpen = false;
 function cxDjTime(s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
 let cxDjNow = null, cxDjNowAt = 0;
 function cxDjTickBar() {
@@ -6283,6 +6295,24 @@ function cxSyncDj() {
     if (libList.dataset.key !== key) {
       libList.dataset.key = key;
       libList.replaceChildren(...items.map((x) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.liburl = x.url; b.textContent = x.title; b.classList.toggle('on', !!c && c.youtube === x.url); return b; }));
+    }
+  }
+  const fr = document.getElementById('dj-find-res'), fd = d.find;
+  if (fr) {
+    fr.hidden = !cxDjFindOpen || !fd;
+    const fkey = fd ? (fd.loading ? 'L' : '') + fd.query + ':' + (fd.items || []).map((x) => x.id).join(',') + (fd.error || '') : '';
+    if (!fr.hidden && fr.dataset.key !== fkey) {
+      fr.dataset.key = fkey;
+      if (fd.loading || fd.error) { const n = document.createElement('div'); n.className = 'f-note'; n.textContent = fd.loading ? 'Searching…' : '⚠ ' + fd.error; fr.replaceChildren(n); }
+      else fr.replaceChildren(...fd.items.map((it, i) => {
+        const r = document.createElement('div'); r.className = 'f-row';
+        const tx = document.createElement('span'); tx.className = 'f-txt';
+        const b = document.createElement('b'); b.textContent = it.name || it.title; tx.append(b);
+        if (it.artist) { const a = document.createElement('i'); a.textContent = it.artist; tx.append(a); }
+        const nx = document.createElement('button'); nx.type = 'button'; nx.className = 'f-next'; nx.dataset.fi = i; nx.textContent = 'Next';
+        const ad = document.createElement('button'); ad.type = 'button'; ad.dataset.fi = i; ad.textContent = 'Add';
+        r.append(tx, nx, ad); return r;
+      }));
     }
   }
   const rb = document.getElementById('dj-radio'); if (rb) { rb.hidden = !(d.on && d.now && d.now.id); rb.dataset.id = (d.now && d.now.id) || ''; }

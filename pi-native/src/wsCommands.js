@@ -660,6 +660,24 @@ const COMMANDS = {
     COMMANDS.djStart.call(this, ws, { source: 'youtube', youtube: `https://www.youtube.com/watch?v=${id}&list=RDAMVM${id}` });
   },
   djRemove(ws, msg) { if (radio.audio && radio.audio.dj && Number.isInteger(msg.index) && radio.audio.dj.remove(msg.index)) this._broadcast(this._stateMsg()); }, // take a song out of the list
+  // Find songs to add to the Auto-DJ's list (results in state.djFind).
+  djFind(ws, msg) {
+    const q = String(msg.query || '').trim().slice(0, 200); if (!q) return;
+    this.state.djFind = { loading: true, query: q, items: [], error: '' };
+    this._broadcast(this._stateMsg());
+    require('./dj/sources').youtubeTracks(q)
+      .then((items) => { this.state.djFind = { loading: false, query: q, items: items.slice(0, 8), error: items.length ? '' : 'Nothing found' }; })
+      .catch((e) => { this.state.djFind = { loading: false, query: q, items: [], error: e.message }; })
+      .finally(() => this._broadcast(this._stateMsg()));
+  },
+  // Add a found song: {track, next} - next plays it after the current one.
+  djAdd(ws, msg) {
+    const t = msg.track || {};
+    if (!radio.audio || !radio.audio.dj || !/^[\w-]{6,20}$/.test(String(t.id || ''))) return;
+    const track = { kind: 'yt', id: String(t.id), title: String(t.title || 'YouTube').slice(0, 100), name: String(t.name || t.title || '').slice(0, 100), artist: String(t.artist || '').slice(0, 60) };
+    radio.audio.dj.add(track, !!msg.next);
+    this._broadcast(this._stateMsg());
+  },
   djSkip() { if (radio.audio && radio.audio.dj) radio.audio.dj.skip(); },
   djNext(ws, msg) { if (radio.audio && radio.audio.dj && Number.isInteger(msg.index)) { radio.audio.dj.playNext(msg.index); this._broadcast(this._stateMsg()); } }, // play this track from the list next
   setDj(ws, msg) {

@@ -1196,6 +1196,15 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 #dj-queue-card .dj-queue button .q-txt i{font-style:normal;font-size:12px;color:rgba(238,242,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #dj-queue-card .dj-queue button .q-del{flex:0 0 28px;height:28px;border-radius:50%;display:grid;place-items:center;color:rgba(238,242,255,.45);font-size:13px;margin:-2px -4px 0 0}
 #dj-queue-card .dj-queue button .q-del:hover,#dj-queue-card .dj-queue button .q-del:active{background:rgba(255,80,80,.25);color:#fff}
+.mx-found{margin:0 0 10px;border-radius:10px;background:rgba(110,168,255,.07);box-shadow:0 0 0 1px rgba(110,168,255,.25);overflow:hidden}
+.mx-found .f-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
+.mx-found .f-row:last-child{border-bottom:0}
+.mx-found .f-txt{flex:1;min-width:0;display:flex;flex-direction:column}
+.mx-found .f-txt b{font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mx-found .f-txt i{font-style:normal;font-size:12px;color:rgba(238,242,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mx-found .f-row button{flex:0 0 auto;border:0;border-radius:99px;padding:5px 10px;font-size:12px;cursor:pointer;margin:0;width:auto;background:rgba(255,255,255,.08);color:#eef2ff}
+.mx-found .f-row button.f-next{background:#ffb347;color:#2a1700;font-weight:600}
+.mx-found .f-note{padding:8px 10px;font-size:12.5px;color:rgba(238,242,255,.65)}
 /* ── Music tab: player + Radio / Auto-DJ / Sound ─────────────────────── */
 .mx-root{padding:0!important;border:0!important;background:none!important;box-shadow:none!important;margin:0!important}
 .mx-player{position:relative;background:linear-gradient(135deg,rgba(80,110,255,.16),rgba(150,80,255,.10));border-radius:18px;padding:12px;margin:0 0 12px;box-shadow:0 0 0 1px rgba(255,255,255,.1)}
@@ -2206,7 +2215,9 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
         </div>
         <div class="mx-card" id="dj-queue-card" hidden>
           <div class="mx-h mx-hrow"><span>Up next</span><button type="button" id="dj-radio" class="mx-chip" hidden>📻 Radio from this song</button></div>
-          <div class="mx-sub">Tap a song to play it next.</div>
+          <div class="mx-ytrow"><input id="dj-find" class="ui-input" type="search" maxlength="200" placeholder="＋ Add a song – search YouTube" aria-label="Find a song to add"><button type="button" id="dj-find-go" class="mx-chip">Search</button></div>
+          <div id="dj-find-res" class="mx-found" hidden></div>
+          <div class="mx-sub">Tap a song to play it next · ✕ removes it.</div>
           <div id="dj-queue" class="dj-queue" hidden></div>
         </div>
         <details class="mx-fold">

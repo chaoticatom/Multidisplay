@@ -119,7 +119,8 @@ function scrollText(tg, font, str, x0, w, y, c, a, ds, key, dt, adv) {
   if (ds[key + 'S'] !== str) { ds[key + 'S'] = str; ds[key + 'X'] = 0; ds[key + 'T'] = 0; }
   let x = x0 + (font === FONT_5x7 ? 0 : 0);
   if (tw > w) { if (adv) { ds[key + 'T'] += dt; if (ds[key + 'T'] > 2) ds[key + 'X'] += dt * 12; } const loop = tw + 20; if (ds[key + 'X'] > loop) ds[key + 'X'] -= loop; x -= ds[key + 'X']; }
-  const plot = (px, py, s = 1) => { if (px < x0 || px >= x0 + w) return; const edge = (tw > w ? sm(Math.min(px - x0, x0 + w - 1 - px) / 3) : 1) * s; tg.set(px, py, c[0] * a * edge, c[1] * a * edge, c[2] * a * edge); };
+  const moving = tw > w && ds[key + 'X'] > 0.5; // soft ends only while it's actually scrolling
+  const plot = (px, py, s = 1) => { if (px < x0 || px >= x0 + w) return; const edge = (moving ? sm((Math.min(px - x0, x0 + w - 1 - px) + 1) / 2) : 1) * s; tg.set(px, py, c[0] * a * edge, c[1] * a * edge, c[2] * a * edge); };
   plot.alpha = true;
   drawStringSmooth(font, str, x, y, plot); if (tw > w) drawStringSmooth(font, str, x + tw + 20, y, plot);
 }
@@ -133,7 +134,7 @@ function drawMixer(tg, x0, w, y0, m, ms, dt, beat, adv) {
   scrollText(tg, FONT_5x7, (m.nowTitle || '').toUpperCase(), x0 + 1, half - 4, y0 + 2, [0.45, 0.88, 1], m.kA, ms, 'a', dt, adv);
   scrollText(tg, FONT_5x7, (m.nextTitle || '').toUpperCase(), x0 + half + 3, w - half - 4, y0 + 2, [1, 0.7, 0.3], m.kB, ms, 'b', dt, adv);
   // EQ bars: 3 a side, 6 wide, 10 tall.
-  const barTop = y0 + 11, barH = 11, eqW = 22;
+  const barTop = y0 + 10, barH = 11, eqW = 22;
   const bars = (bx, col, lv, k) => lv.forEach((v, i) => { const x = bx + i * 8, h = Math.round(Math.max(0, Math.min(1, v)) * barH); for (let yy = 0; yy < barH; yy++) for (let dx = 0; dx < 6; dx++) set(x + dx, barTop + barH - 1 - yy, col, yy < h ? 0.95 * k : 0.07); });
   bars(x0 + 2, NOW.c, m.eqA, 1); bars(x0 + w - 2 - eqW, AMBER, m.eqB, 1);
   // Middle: crossfader (and the timeline on a wide strip).

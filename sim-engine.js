@@ -891,7 +891,7 @@ var PiEngine = (() => {
       }
       function drawStringSmooth(font, str, x, y, plot, opts = {}) {
         const xi = Math.floor(x), f0 = x - xi;
-        let f = (f0 - 0.15) / 0.7;
+        let f = (f0 - 0.08) / 0.84;
         f = f < 0 ? 0 : f > 1 ? 1 : f * f * (3 - 2 * f);
         if (!plot.alpha || f < 0.02) return drawString(font, str, xi, y, plot, opts);
         if (f > 0.98) return drawString(font, str, xi + 1, y, plot, opts);
@@ -3450,11 +3450,11 @@ var PiEngine = (() => {
           const g = gen;
           extending = sources.youtubeRadio(seed.id).then((more) => {
             if (g !== gen) return;
-            const have = new Set(list.map((t) => t.id)), add = more.filter((t) => !have.has(t.id));
-            if (!add.length) return;
-            list.push(...add);
+            const have = new Set(list.map((t) => t.id)), add2 = more.filter((t) => !have.has(t.id));
+            if (!add2.length) return;
+            list.push(...add2);
             syncQueue();
-            log(`[dj] endless: added ${add.length} songs like ${seed.title}`);
+            log(`[dj] endless: added ${add2.length} songs like ${seed.title}`);
           }).catch((err) => log("[dj] endless: " + err.message)).finally(() => {
             extending = null;
           });
@@ -3894,6 +3894,18 @@ var PiEngine = (() => {
           if (wasNext && A) prepareNext();
           return true;
         }
+        function add(track, next) {
+          if (!track || !track.id || !list.length) return -1;
+          const at = next && st.nowIdx >= 0 ? st.nowIdx + 1 : list.length, fix = (k) => k >= at ? k + 1 : k;
+          list.splice(at, 0, track);
+          if (st.nextIdx >= 0) st.nextIdx = fix(st.nextIdx);
+          if (B && B.qi !== void 0) B.qi = fix(B.qi);
+          if (wantNext !== null) wantNext = fix(wantNext);
+          if (idx > at || idx === at && !next) idx++;
+          syncQueue();
+          if (next && !mix) playNext(at);
+          return at;
+        }
         function deckFeed() {
           if (!A) return null;
           return { a: { pcm: A.pcm, frames: A.frames, pos: A.pos }, b: B ? { pcm: B.pcm, frames: B.frames, pos: B.pos, inFrame: B.inFrame, bar: B.bar || RATE * 2, readyAt: B.readyAt || 0 } : null, mixing: !!mix };
@@ -3912,7 +3924,7 @@ var PiEngine = (() => {
             if (!B) prepareNext();
           }
         }
-        return { start, stop, configure, deckFeed, remove, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() {
+        return { start, stop, configure, deckFeed, remove, add, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() {
           return A;
         }, get B() {
           return B;
@@ -6172,9 +6184,10 @@ var PiEngine = (() => {
           if (ds[key + "X"] > loop) ds[key + "X"] -= loop;
           x -= ds[key + "X"];
         }
+        const moving = tw > w && ds[key + "X"] > 0.5;
         const plot = (px, py, s = 1) => {
           if (px < x0 || px >= x0 + w) return;
-          const edge = (tw > w ? sm(Math.min(px - x0, x0 + w - 1 - px) / 3) : 1) * s;
+          const edge = (moving ? sm((Math.min(px - x0, x0 + w - 1 - px) + 1) / 2) : 1) * s;
           tg.set(px, py, c[0] * a * edge, c[1] * a * edge, c[2] * a * edge);
         };
         plot.alpha = true;
@@ -6197,7 +6210,7 @@ var PiEngine = (() => {
         const half = Math.floor(w / 2);
         scrollText(tg, FONT_5x7, (m.nowTitle || "").toUpperCase(), x0 + 1, half - 4, y0 + 2, [0.45, 0.88, 1], m.kA, ms, "a", dt, adv);
         scrollText(tg, FONT_5x7, (m.nextTitle || "").toUpperCase(), x0 + half + 3, w - half - 4, y0 + 2, [1, 0.7, 0.3], m.kB, ms, "b", dt, adv);
-        const barTop = y0 + 11, barH = 11, eqW = 22;
+        const barTop = y0 + 10, barH = 11, eqW = 22;
         const bars = (bx, col, lv, k) => lv.forEach((v, i) => {
           const x = bx + i * 8, h = Math.round(Math.max(0, Math.min(1, v)) * barH);
           for (let yy = 0; yy < barH; yy++) for (let dx = 0; dx < 6; dx++) set(x + dx, barTop + barH - 1 - yy, col, yy < h ? 0.95 * k : 0.07);

@@ -547,6 +547,19 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     if (wasNext && A) prepareNext();
     return true;
   }
+  // Add a song: next (straight after the one playing) or at the end.
+  function add(track, next) {
+    if (!track || !track.id || !list.length) return -1;
+    const at = next && st.nowIdx >= 0 ? st.nowIdx + 1 : list.length, fix = (k) => (k >= at ? k + 1 : k);
+    list.splice(at, 0, track);
+    if (st.nextIdx >= 0) st.nextIdx = fix(st.nextIdx);
+    if (B && B.qi !== undefined) B.qi = fix(B.qi);
+    if (wantNext !== null) wantNext = fix(wantNext);
+    if (idx > at || (idx === at && !next)) idx++;
+    syncQueue();
+    if (next && !mix) playNext(at);
+    return at;
+  }
   // The decks' audio, for the split spectrum (the next track's is previewed
   // silently before the mix): RadioAudio analyses it on the main thread.
   function deckFeed() {
@@ -564,7 +577,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   // Skip: mix into the next track from A's next bar, over 8 beats.
   function skip() { if (A && !mix) { A.force = 8; A.plan = null; if (!B) prepareNext(); } }
 
-  return { start, stop, configure, deckFeed, remove, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() { return A; }, get B() { return B; } } };
+  return { start, stop, configure, deckFeed, remove, add, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() { return A; }, get B() { return B; } } };
 }
 
 module.exports = { createDjEngine, RATE };

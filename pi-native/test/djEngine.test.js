@@ -129,6 +129,9 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     assert.strictEqual(dj.remove(nowI), false, 'the playing song stays');
     const other = dj.status.queue.findIndex((q, i) => i !== nowI && i !== dj.status.nextIdx);
     if (other >= 0) { assert.ok(dj.remove(other)); assert.strictEqual(dj.status.queue.length, before - 1); assert.ok(dj.status.nowIdx === (other < nowI ? nowI - 1 : nowI), 'the playing index follows'); }
+    // Adding a song: 'next' goes straight after the one playing.
+    const n0 = dj.status.queue.length, at = dj.add({ kind: 'yt', id: 'addedsong01', title: 'Added', name: 'Added', artist: 'Band' }, true);
+    assert.ok(at === dj.status.nowIdx + 1 && dj.status.queue.length === n0 + 1 && dj.status.queue[at].artist === 'Band', 'added next');
     dj.stop(); assert.strictEqual(dj.status.state, 'stopped');
     console.log('  ok - beat-matched mixing from one track to the next');
     // Very different tempos (100 and 150 BPM): it still gets from one to the

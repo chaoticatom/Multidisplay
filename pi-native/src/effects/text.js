@@ -100,7 +100,7 @@ function drawStringSmooth(font, str, x, y, plot, opts = {}) {
   const xi = Math.floor(x), f0 = x - xi;
   // Sharp most of the time: whole pixels for the first and last part of each
   // step, a blend only through the middle (an even 50/50 split looks blurred).
-  let f = (f0 - 0.15) / 0.7; f = f < 0 ? 0 : f > 1 ? 1 : f * f * (3 - 2 * f);
+  let f = (f0 - 0.08) / 0.84; f = f < 0 ? 0 : f > 1 ? 1 : f * f * (3 - 2 * f);
   if (!plot.alpha || f < 0.02) return drawString(font, str, xi, y, plot, opts);
   if (f > 0.98) return drawString(font, str, xi + 1, y, plot, opts);
   const acc = new Map();
