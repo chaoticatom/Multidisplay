@@ -2738,7 +2738,7 @@ var PiEngine = (() => {
             bestLag = lag2;
           }
         }
-        if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null, vocalBars: "" };
+        if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null, vocalBars: "", vocalLevel: "" };
         const y0 = score[bestLag - 1] || 0, y1 = score[bestLag], y2 = score[bestLag + 1] || 0, den = y0 - 2 * y1 + y2;
         const lag = bestLag + (den !== 0 ? Math.max(-0.5, Math.min(0.5, 0.5 * (y0 - y2) / den)) : 0);
         const period = lag / FPS, bpm = 60 / period;
@@ -2828,9 +2828,25 @@ var PiEngine = (() => {
           }
           vb.push(m / Math.max(1e-6, l * 0.5 + m * 0.5));
         }
+        const fl = [];
+        for (let k0 = downbeat; k0 + 4 <= nb; k0 += 4) {
+          const f0 = Math.max(1, Math.round((firstBeat + k0 * period2) * FPS)), f1 = Math.min(n, Math.round((firstBeat + (k0 + 4) * period2) * FPS));
+          let fm = 0, fb = 0;
+          for (let f = f0; f < f1; f++) {
+            fm += Math.abs(Math.log(mid[f] + 1e-4) - Math.log(mid[f - 1] + 1e-4));
+            fb += Math.abs(Math.log(low[f] + 1e-4) - Math.log(low[f - 1] + 1e-4));
+          }
+          fl.push((fm - 0.5 * fb) / Math.max(1, f1 - f0));
+        }
+        const norm = (arr) => {
+          const s = Float32Array.from(arr).sort(), lo = s[Math.floor(s.length * 0.2)] || 0, hi = s[Math.floor(s.length * 0.92)] || 1;
+          return arr.map((v) => Math.max(0, Math.min(1, (v - lo) / Math.max(1e-6, hi - lo))));
+        };
+        const rN = norm(vb), fN = norm(fl);
         const sv = Float32Array.from(vb).sort(), base = sv[Math.floor(sv.length * 0.25)] || 0;
+        const vocalLevel = vb.map((v, j) => Math.round(9 * Math.max(0, Math.min(1, (0.6 * rN[j] + 0.4 * fN[j]) * (v > base * 1.12 ? 1 : 0.4))))).join("");
         const vocalBars = vb.map((v) => v > base * 1.3 ? "1" : "0").join("");
-        return { vocalBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
+        return { vocalBars, vocalLevel, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
       }
       var MAJ = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
       var MIN = [6.33, 2.68, 3.52, 5.38, 2.6, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
@@ -2956,13 +2972,18 @@ var PiEngine = (() => {
         }
         const nextBeat = (d, f) => d.matched && d.period > 0 ? Math.round(d.firstBeat + Math.ceil((f - d.firstBeat) / d.period) * d.period) : f;
         const nextBar = (d, f) => d.matched && d.period > 0 ? Math.round(d.firstDown + Math.ceil((f - d.firstDown) / d.bar) * d.bar) : f;
-        function vocalFree(d, f0, f1) {
-          const vb = d.info.vocalBars;
-          if (!vb || !d.vbBar) return true;
-          const j0 = Math.max(0, Math.floor((f0 - d.firstDown) / d.vbBar)), j1 = Math.floor((f1 - d.firstDown - 1) / d.vbBar);
-          for (let j = j0; j <= j1 && j < vb.length; j++) if (vb[j] === "1") return false;
-          return true;
+        function vocalAt(d, f0, f1) {
+          const lv = d.info.vocalLevel, vb = d.info.vocalBars, src = lv || vb;
+          if (!src || !d.vbBar) return 0;
+          const j0 = Math.max(0, Math.floor((f0 - d.firstDown) / d.vbBar + 0.02)), j1 = Math.max(j0, Math.floor((f1 - d.firstDown) / d.vbBar - 0.02));
+          let s = 0, c = 0;
+          for (let j = j0; j <= j1 && j < src.length; j++) {
+            s += lv ? Number(src[j]) / 9 : src[j] === "1" ? 1 : 0;
+            c++;
+          }
+          return c ? s / c : 0;
         }
+        const vocalFree = (d, f0, f1) => vocalAt(d, f0, f1) < 0.3;
         function planMix(a, b, want, now = false) {
           if (!(a.matched && b.matched)) {
             const len = Math.min(cfg.quick ? 8 * RATE : 12 * RATE, Math.max(2 * RATE, (a.end - a.pos) * 0.5));
@@ -2970,50 +2991,75 @@ var PiEngine = (() => {
             if (cfg.quick && !now) s = Math.min(s, a.start + 60 * RATE);
             return { start: Math.max(a.pos, s), len, beat: false, beats: 0, style: "fade" };
           }
-          const p = a.period, style = cfg.style || "auto";
+          const p = a.period, style = cfg.style || "auto", bIn = b.inFrame;
           const blendPlan = (start2, L) => {
             const half = Math.max(1, Math.round(L / 8)) * 4;
             return { start: Math.round(start2), len: L * p, beat: true, beats: L, swapU: Math.min(0.85, half / L), style: L <= 8 ? "short" : "blend" };
           };
           const cutPlan = (at) => ({ start: Math.round(at) - CUT / 2, len: CUT, beat: true, beats: 0, style: "cut", at: Math.round(at) });
+          const first = nextBar(a, Math.max(a.pos + CUT, a.inFrame + 16 * p));
+          let lo, hi, early = false;
           if (now) {
-            const at = nextBar(a, a.pos + CUT);
-            return style === "cut" ? cutPlan(at) : blendPlan(at, Number(want) > 0 && Number(want) < 16 ? Number(want) : 8);
-          }
-          const first = Math.max(a.pos + CUT, a.inFrame + 16 * p), phrases = [];
-          for (let f = a.inFrame + Math.ceil((first - a.inFrame) / (16 * p)) * 16 * p; f < a.end - 2 * p; f += 16 * p) phrases.push(f);
-          if (!phrases.length) phrases.push(nextBar(a, a.pos + CUT));
-          let prefs;
-          if (cfg.quick) {
-            const from = Math.max(a.inFrame + 55 * RATE, a.inFrame + Math.max(16, a.introBeats || 0) * p);
-            prefs = phrases.filter((f) => f >= from && f < from + 60 * RATE);
-            if (!prefs.length) prefs = phrases.slice(-1);
+            lo = nextBar(a, a.pos + CUT);
+            hi = lo + 8 * a.bar;
+          } else if (cfg.quick) {
+            lo = Math.max(first, a.inFrame + Math.max(55 * RATE, Math.max(16, a.introBeats || 0) * p));
+            hi = lo + 60 * RATE;
+            early = true;
           } else {
-            const late = a.inFrame + 0.55 * (a.end - a.inFrame);
-            prefs = phrases.filter((f) => f >= late).reverse().concat(phrases.filter((f) => f < late && f >= a.inFrame + 0.35 * (a.end - a.inFrame)).reverse());
-            if (!prefs.length) prefs = phrases.slice(-1);
+            lo = Math.max(first, a.inFrame + 0.5 * (a.end - a.inFrame));
+            hi = a.end;
           }
+          if (lo >= a.end - 2 * p) {
+            lo = first;
+            hi = a.end;
+          }
+          const bars = [];
+          for (let f = nextBar(a, lo - 1); f < Math.min(hi, a.end - 2 * p); f += a.bar) bars.push(f);
+          if (!bars.length) bars.push(nextBar(a, a.pos + CUT));
+          const span = Math.max(1, bars[bars.length - 1] - bars[0]);
+          const place = (f) => {
+            const beatsIn = Math.round((f - a.inFrame) / p);
+            const phrase = beatsIn % 16 === 0 ? 0 : beatsIn % 8 === 0 ? 0.08 : 0.18;
+            const where = now ? (f - bars[0]) / span * 0.3 : 0.12 * (early ? (f - bars[0]) / span : 1 - (f - bars[0]) / span);
+            return phrase + where;
+          };
           const fits = (f, L) => f + L * p <= a.end + p;
           const autoMax = Math.min(Math.max(a.outroBeats, 32), Math.max(b.introBeats, 16));
-          const lengths = want === "auto" ? LENGTHS.filter((L) => L <= Math.max(16, autoMax)) : [Number(want) || 32];
-          if (cfg.quick) for (let i = 0; i < lengths.length; i++) lengths[i] = Math.min(lengths[i], 32);
-          const bIn = b.inFrame;
-          if (style === "blend" || style === "auto") {
-            for (const L of lengths) for (const f of prefs) {
-              if (!fits(f, L)) continue;
-              if (style === "blend" || vocalFree(a, f, f + L * p) && vocalFree(b, bIn, bIn + L * b.period)) return blendPlan(f, L);
+          let lengths = want === "auto" ? LENGTHS.filter((L) => L <= Math.max(16, autoMax)) : [Number(want) || 32];
+          if (cfg.quick || now) lengths = lengths.map((L) => Math.min(L, now ? 8 : 32));
+          const kd = analyser.keyDistance && a.keyNow && b.keyNow ? analyser.keyDistance(a.keyNow, b.keyNow) : 0;
+          const blendExtra = 0.22 * Math.max(0, kd - 1) + (b.introBeats < 8 ? 0.3 : 0) + (a.outroBeats < 8 ? 0.12 : 0);
+          let best = null, bestCost = Infinity;
+          const offer = (cost, plan) => {
+            if (cost < bestCost) {
+              bestCost = cost;
+              best = plan;
             }
-            if (style === "blend") {
-              const L = lengths[lengths.length - 1], f = prefs.find((x) => fits(x, L)) || phrases[phrases.length - 1];
-              return blendPlan(f, Math.min(L, Math.max(8, Math.floor((a.end - f) / p))));
+          };
+          for (const f of bars) {
+            const pl = place(f);
+            if ((style === "auto" || style === "blend") && !now) {
+              for (const L of lengths) {
+                if (L < 16 || !fits(f, L)) continue;
+                const sw = Math.max(1, Math.round(L / 8)) * 4 * p;
+                const c = 2.2 * vocalAt(a, f + sw, f + L * p) + 0.25 * vocalAt(a, f, f + sw) + 0.9 * vocalAt(b, bIn, bIn + sw * b.period / p) + 0.3 * vocalAt(b, bIn + sw * b.period / p, bIn + L * b.period) + pl - 0.1 * Math.log2(L / 16) + blendExtra;
+                offer(style === "blend" ? pl - 0.1 * Math.log2(L / 16) + 0.3 * vocalAt(a, f, f + L * p) : c, blendPlan(f, L));
+              }
+            }
+            if ((style === "auto" || style === "short" || now && style !== "cut") && fits(f, 8)) {
+              offer(2.5 * vocalAt(a, f, f + 8 * p) + 0.5 * vocalAt(b, bIn, bIn + 8 * b.period) + 0.5 * blendExtra + pl + (style === "auto" ? 0.25 : 0), blendPlan(f, 8));
+            }
+            if (style === "auto" || style === "cut") {
+              const after = vocalAt(a, f, f + 2 * a.bar), before = vocalAt(a, f - a.bar, f);
+              const lineEnds = before > 0.4 && after < 0.15 ? 0.15 : 0;
+              offer(1.6 * after + 0.3 * before * after + 0.4 * vocalAt(b, bIn, bIn + a.bar) - lineEnds + pl + (style === "auto" ? 0.6 : 0), cutPlan(f));
             }
           }
-          if (style === "short" || style === "auto") {
-            for (const f of prefs) if (fits(f, 8) && (style === "short" || vocalFree(a, f, f + 8 * p))) return blendPlan(f, 8);
-            if (style === "short") return blendPlan(prefs[0], 8);
-          }
-          const after = prefs.find((f) => !vocalFree(a, f - a.bar, f) && vocalFree(a, f, f + a.bar));
-          return cutPlan(after || prefs[0]);
+          if (!best) best = style === "cut" ? cutPlan(bars[0]) : blendPlan(bars[0], 8);
+          best.cost = Math.round(bestCost * 100) / 100;
+          best.why = best.style === "cut" ? kd >= 3 ? "keys clash" : b.introBeats < 8 ? "no intro to blend over" : "cut where the singing stops" : best.style === "short" ? "quick blend between vocals" : "long blend under the vocals";
+          return best;
         }
         const HOP = 64;
         function onsets(d, f, n) {
@@ -3052,7 +3098,7 @@ var PiEngine = (() => {
         async function prepare(track, ref) {
           const input = await sources.inputFor(track);
           let info = known[track.id];
-          if (info && info.vocalBars === void 0) info = null;
+          if (info && info.vocalLevel === void 0) info = null;
           if (!info) {
             info = analyser.analyse(await decode.decodeAnalysis(input));
             if (track.kind === "mp3") {
@@ -3139,6 +3185,7 @@ var PiEngine = (() => {
                 d.qi = ti;
                 if (A && !A.matched) d.matched = false;
                 B = d;
+                d.readyAt = Date.now();
                 if (A) A.plan = null;
                 const beat = d.matched && A && A.matched;
                 st.next = { title: track.title, bpm: Math.round(d.bpm), key: d.keyNow ? d.keyNow.camelot : "", shift: d.semis, mode: beat ? "beat-matched" : "crossfade" };
@@ -3157,7 +3204,7 @@ var PiEngine = (() => {
         }
         function startMix() {
           const p = A.plan;
-          mix = { from: A.pos, len: Math.max(1, p.len), beat: p.beat, swapU: p.swapU || 0.5, beats: p.beats, style: p.style, adj: 0, check: 0 };
+          mix = { from: A.pos, len: Math.max(1, p.len), beat: p.beat, swapU: p.swapU || 0.5, beats: p.beats, style: p.style, adj: 0, check: 0, ref: rmsSlow };
           B.pos = Math.round(B.inFrame);
           if (p.beat) {
             const aF = p.style === "cut" ? p.at : A.pos, lag = lagBetween(aF, B.inFrame, 8 * A.period, A.period / 4);
@@ -3168,8 +3215,9 @@ var PiEngine = (() => {
           if (st.next) {
             st.next.beats = p.beats;
             st.next.style = p.style;
+            st.next.why = p.why || "";
           }
-          log(`[dj] ${p.style === "cut" ? "cutting" : "mixing"} into ${B.track.title}${p.beats ? ` over ${p.beats} beats` : p.style === "fade" ? ` over ${Math.round(p.len / RATE)} s` : " on the beat"}`);
+          log(`[dj] ${p.style === "cut" ? "cutting" : "mixing"} into ${B.track.title}${p.why ? " (" + p.why + ")" : ""}${p.beats ? ` over ${p.beats} beats` : p.style === "fade" ? ` over ${Math.round(p.len / RATE)} s` : " on the beat"}`);
         }
         function promote() {
           if (A) {
@@ -3214,6 +3262,8 @@ var PiEngine = (() => {
           out[0] += (s[1] * lo + (s[4] - s[1]) * mi + (l - s[4]) * hi) * g;
           out[1] += (s[3] * lo + (s[5] - s[3]) * mi + (r - s[5]) * hi) * g;
         }
+        let rmsSlow = 0, rmsFast = 0, mixGain = 1;
+        const A_SLOW = 1 / (3 * RATE), A_FAST = 1 / (0.5 * RATE), A_GAIN = 1 / (1.2 * RATE);
         const OUT = [0, 0];
         function render(frames) {
           const buf = Buffer2.alloc(frames * 4);
@@ -3223,7 +3273,14 @@ var PiEngine = (() => {
             if (!A && B) promote();
             if (A) {
               if (B && !mix) {
-                if (!A.plan || A.plan.start < A.pos - 1) A.plan = planMix(A, B, A.force || cfg.mixBeats, !!A.force);
+                if (!A.plan || A.plan.start < A.pos - 1) {
+                  A.plan = planMix(A, B, A.force || cfg.mixBeats, !!A.force);
+                  if (st.next) {
+                    st.next.style = A.plan.style;
+                    st.next.beats = A.plan.beats;
+                    st.next.why = A.plan.why || "";
+                  }
+                }
                 if (A.pos >= A.plan.start) startMix();
                 else if (A.pos >= A.frames) {
                   A.plan = planMix({ ...A, matched: false }, B, 4, true);
@@ -3274,8 +3331,13 @@ var PiEngine = (() => {
                 A.pos++;
               }
             }
+            const pw = (OUT[0] * OUT[0] + OUT[1] * OUT[1]) * 0.5;
+            rmsFast += (pw - rmsFast) * A_FAST;
+            if (!mix) rmsSlow += (pw - rmsSlow) * A_SLOW;
+            const want = mix && mix.ref > 1e-6 && rmsFast > 1e-7 ? Math.max(0.75, Math.min(1.6, Math.sqrt(mix.ref / rmsFast))) : 1;
+            mixGain += (want - mixGain) * A_GAIN;
             for (let c = 0; c < 2; c++) {
-              let v = OUT[c];
+              let v = OUT[c] * mixGain;
               const a = Math.abs(v);
               if (a > 0.8) v = Math.sign(v) * (0.8 + 0.2 * Math.tanh((a - 0.8) / 0.2));
               buf.writeInt16LE(Math.max(-32767, Math.min(32767, Math.round(v * 32767))), i * 4 + c * 2);
@@ -3369,6 +3431,10 @@ var PiEngine = (() => {
           nowStatus();
           return true;
         }
+        function deckFeed() {
+          if (!A) return null;
+          return { a: { pcm: A.pcm, frames: A.frames, pos: A.pos }, b: B ? { pcm: B.pcm, frames: B.frames, pos: B.pos, inFrame: B.inFrame, bar: B.bar || RATE * 2, readyAt: B.readyAt || 0 } : null, mixing: !!mix };
+        }
         function configure(c) {
           if (c.mixBeats !== void 0) cfg.mixBeats = [16, 32, 64].includes(Number(c.mixBeats)) ? Number(c.mixBeats) : "auto";
           if (c.quick !== void 0) cfg.quick = !!c.quick;
@@ -3382,7 +3448,7 @@ var PiEngine = (() => {
             if (!B) prepareNext();
           }
         }
-        return { start, stop, configure, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, lagBetween, cfg: () => cfg, known: () => known, get A() {
+        return { start, stop, configure, deckFeed, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() {
           return A;
         }, get B() {
           return B;
@@ -4101,7 +4167,7 @@ var PiEngine = (() => {
               this._onData(b);
             },
             // How far ahead of real time it has produced (it keeps ~1.5 s ahead).
-            getQueueMs: () => {
+            getQueueMs: this._djQueue = () => {
               const el = Date.now() - this._djT0;
               if (this._djMs < el) {
                 this._djT0 = Date.now() - this._djMs;
@@ -4334,6 +4400,7 @@ var PiEngine = (() => {
             } else target = this._analyser.analyse(this._ring, Math.floor(this._playPos));
           }
           this._lastTarget = target;
+          if (this._isDj && this.dj && this.dj.deckFeed) this._djDeckSpectra(dt);
           this._applySpectrumTarget(target, dt);
           this._stereoFlip = !this._stereoFlip;
           if (this._stereoFlip) {
@@ -4345,6 +4412,40 @@ var PiEngine = (() => {
           }
           this._updateVu(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
           this._updateWave(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
+        }
+        // Auto-DJ: a spectrum per deck, for the split view - the song playing
+        // (as heard, so behind what's been mixed by the queue and the speaker's
+        // delay) and the next one: its real audio during the mix, before that a
+        // silent preview of its opening bars, looping to its own beat.
+        _djDeckSpectra(dt) {
+          if (!this._djAn) {
+            this._djAn = createAnalyser(SAMPLE_RATE);
+            this._djRing = new Float32Array(require_fft().nextPow2(this._djAn.win));
+            this.specA = new Float32Array(BAND_COUNT);
+            this.specB = new Float32Array(BAND_COUNT);
+          }
+          this._djFlip = !this._djFlip;
+          if (!this._djFlip) return;
+          const feed = this.dj.deckFeed();
+          const lag = Math.round(((this._djQueue ? this._djQueue() : 0) / 1e3 + this._syncS) * SAMPLE_RATE);
+          const one = (d, pos, spec) => {
+            if (!d || !(pos > 0)) {
+              smoothInto(spec, this._zeros, dt * 2);
+              return;
+            }
+            const ring = this._djRing, mask = ring.length - 1, win = this._djAn.win, pcm = d.pcm;
+            for (let j = pos - win; j < pos; j++) ring[j & mask] = j >= 0 && j < d.frames ? (pcm[j * 2] + pcm[j * 2 + 1]) / 65536 : 0;
+            smoothInto(spec, this._djAn.analyse(ring, pos), dt * 2);
+          };
+          one(feed && feed.a, feed && feed.a ? feed.a.pos - lag : 0, this.specA);
+          const b = feed && feed.b;
+          let bp = 0;
+          if (b && feed.mixing) bp = b.pos - lag;
+          else if (b) {
+            const loop = Math.max(SAMPLE_RATE, Math.round(8 * b.bar));
+            bp = Math.round(b.inFrame + (Date.now() - b.readyAt) / 1e3 * SAMPLE_RATE % loop) + this._djAn.win;
+          }
+          one(b, bp, this.specB);
         }
         _updateWave(end, dt) {
           const wave = this.wave;
@@ -4472,8 +4573,8 @@ var PiEngine = (() => {
         // Plain, structured-clone-friendly copy of what the render side reads -
         // see RemoteAudio below.
         snapshot() {
-          const ds = this.dj && this.url === "dj:" ? this.dj.status : null;
-          return { djNow: ds && ds.now ? ds.now.title : "", djInfo: ds && ds.state !== "stopped" ? { now: ds.now, next: ds.next, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === void 0 ? -1 : ds.mixIn } : null, spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
+          const ds = this.dj && this.url === "dj:" ? this.dj.status : null, djSpec = ds && this.specA ? { specA: this.specA, specB: this.specB } : {};
+          return { djNow: ds && ds.now ? ds.now.title : "", ...djSpec, djInfo: ds && ds.state !== "stopped" ? { now: ds.now, next: ds.next, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === void 0 ? -1 : ds.mixIn } : null, spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
         }
         // Auto speaker sync: ask the sound server how late our stream plays, and
         // ease the bars' delay towards it (readings jitter a little).
@@ -4606,6 +4707,14 @@ var PiEngine = (() => {
           if (snap.specL && snap.specL.length === BAND_COUNT) this.specL.set(snap.specL);
           this.djNow = snap.djNow || "";
           this.djInfo = snap.djInfo || null;
+          if (snap.specA && snap.specA.length === BAND_COUNT) {
+            if (!this.specA) {
+              this.specA = new Float32Array(BAND_COUNT);
+              this.specB = new Float32Array(BAND_COUNT);
+            }
+            this.specA.set(snap.specA);
+            this.specB.set(snap.specB);
+          } else this.specA = this.specB = null;
           if (snap.specR && snap.specR.length === BAND_COUNT) this.specR.set(snap.specR);
           if (snap.vu && snap.vu.length === 4) this.vu.set(snap.vu);
           if (snap.wave && snap.wave.length === WAVE_N) this.wave.set(snap.wave);
@@ -29152,6 +29261,20 @@ var PiEngine = (() => {
       var v2State = createV2State();
       var { drawDjDecks, createDeckState, ROWS: DJ_ROWS } = require_djDecks();
       var deckState = createDeckState();
+      var split = null;
+      var splitSide = () => ({ v2: createV2State(), v1: createSpectrumWallState(), lv: createLevelState(), sub: null });
+      function subCanvas(side, W, H) {
+        if (side.sub && side.sub.wallW === W && side.sub.wallH === H) return side.sub;
+        const buf = new Float32Array(W * H * 3);
+        side.sub = { wallW: W, wallH: H, wallBuf: buf, t: 0, setWallPixel(x, y, r, g, b) {
+          if (x < 0 || y < 0 || x >= W || y >= H || x !== (x | 0) || y !== (y | 0)) return;
+          const o = (y * W + x) * 3;
+          buf[o] = r;
+          buf[o + 1] = g;
+          buf[o + 2] = b;
+        } };
+        return side.sub;
+      }
       var { CHAR_W } = require_font2();
       var { createLevelState, computeLevels } = require_levels();
       var { drawString, drawMarquee, drawLinesCentered, FONT_3x5, FONT_5x7, wallPlot } = require_text();
@@ -29223,7 +29346,28 @@ var PiEngine = (() => {
             dt,
             tickerRows: djInfo ? DJ_ROWS : 9
           };
-          if (opts.version === 1) renderSpectrumStyleWall(core, ctx, style, spectrumWallState);
+          if (djInfo && audio.specA && core.wallW >= 96) {
+            const half = Math.floor(core.wallW / 2), H = core.wallH;
+            const kB = djInfo.mixing ? 0.65 + 0.35 * (djInfo.mixU || 0) : djInfo.next && djInfo.next.status !== "loading" ? 0.6 : 0;
+            const kA = djInfo.mixing ? 1 - 0.35 * (djInfo.mixU || 0) : 1;
+            for (const [key, x0, w, spec, k] of [["a", 0, half, audio.specA, kA], ["b", half, core.wallW - half, audio.specB, kB]]) {
+              if (!split) split = { a: splitSide(), b: splitSide() };
+              const side = split[key], sub = subCanvas(side, w, H);
+              sub.wallBuf.fill(0);
+              sub.t = core.t;
+              if (k > 0) {
+                const lvS = computeLevels(side.lv, { spec, peak: spec }, { bands, gain, autoGain: autoGainOn, fitToScreen }, dt);
+                const c2 = { ...ctx, amp: (b2) => lvS.amp[b2], peak: (b2) => lvS.peak[b2], ampArr: lvS.amp, peakArr: lvS.peak, ampL: null, ampR: null };
+                if (opts.version === 1) renderSpectrumStyleWall(sub, c2, style, side.v1);
+                else renderSpectrumV2Wall(sub, c2, opts.scene || "auto", side.v2, opts.autoSecs);
+              }
+              const b = sub.wallBuf;
+              for (let y = 0; y < H; y++) for (let x = 0; x < w; x++) {
+                const o = (y * w + x) * 3;
+                if (b[o] + b[o + 1] + b[o + 2] > 0) core.setWallPixel(x0 + x, y, b[o] * k, b[o + 1] * k, b[o + 2] * k);
+              }
+            }
+          } else if (opts.version === 1) renderSpectrumStyleWall(core, ctx, style, spectrumWallState);
           else renderSpectrumV2Wall(core, ctx, opts.scene || "auto", v2State, opts.autoSecs);
         }
         const { playing, currentStation, title } = radio.getPlaybackState();

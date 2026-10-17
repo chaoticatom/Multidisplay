@@ -45,7 +45,7 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     };
     let queued = 0; const logs = [];
     const dj = createDjEngine({ onPcm: (b) => { queued += b.length; }, getQueueMs: () => 0, sources, decode, log: (m) => logs.push(m), setTimer: () => 1, clearTimer: () => {} });
-    await dj.start({ source: 'mp3', mixBeats: 16 });
+    await dj.start({ source: 'mp3', mixBeats: 16, style: 'blend' });
     for (let k = 0; k < 50 && !dj._test.B && !dj._test.A; k++) await new Promise((r) => setImmediate(r));
     // Play ~70 s, letting the background preparation run between blocks.
     let mixedAligned = null;
@@ -78,8 +78,8 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     assert.ok(Math.abs(A.pos / 44100 - 10) < 1 && Math.min(ph, 1 - ph) < 0.01, 'seek lands on a beat');
     // Auto mix length fits both tracks' outro/intro; it lands on a bar.
     const fake = (outro, intro) => dj._test.planMix({ ...A, pos: 0, outroBeats: outro, end: A.frames }, { ...A, introBeats: intro }, 'auto');
-    assert.strictEqual(fake(64, 64).beats, 32 <= 64 ? fake(64, 64).beats : 0);
-    assert.ok(fake(8, 8).beats === 16 && fake(40, 40).beats === 32, 'auto length from intro/outro');
+    const fakeL = (outro, intro) => dj._test.planMix({ ...A, pos: 0, outroBeats: outro, end: 300 * 44100, frames: 300 * 44100 }, { ...A, introBeats: intro }, 'auto');
+    assert.ok(fakeL(8, 8).beats === 16 && fakeL(40, 40).beats === 32 && fakeL(64, 64).beats === 64, `auto length from intro/outro: ${fakeL(8, 8).beats} ${fakeL(40, 40).beats} ${fakeL(64, 64).beats}`);
     const pl = fake(16, 16), bp = ((pl.start - A.firstDown) / A.bar) % 1;
     assert.ok(Math.min(bp, 1 - bp) < 0.01 && pl.start + pl.len <= A.end + A.period, 'starts on a bar, ends with the music');
     // Quick mix: about a minute in on a long track, on a phrase, at most 32 beats.
@@ -94,16 +94,27 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     const b0 = nextBeatOf(A, A.pos + 44100);
     const lag = dj._test.lagBetween(b0, b0 + 600, 8 * A.period, A.period / 4, A, A);
     assert.ok(Math.abs(lag + 600) <= 64, 'audio alignment finds the offset: ' + lag);
-    // Singing over the whole of A: auto cuts on the beat at a phrase end instead of blending.
-    const sung = { ...long, info: { ...A.info, vocalBars: '1'.repeat(200) } };
-    const cut = dj._test.planMix(sung, { ...A, introBeats: 64 }, 'auto');
-    assert.strictEqual(cut.style, 'cut');
-    const cp = ((cut.at - long.inFrame) / (16 * A.period)) % 1;
-    assert.ok(Math.min(cp, 1 - cp) < 0.01, 'the cut lands on a phrase');
-    // Singing only in A's last part: the blend moves to an earlier quiet phrase.
-    const tail = { ...long, info: { ...A.info, vocalBars: '0'.repeat(48) + '1'.repeat(200) } };
-    const early = dj._test.planMix(tail, { ...A, introBeats: 64 }, 'auto');
-    assert.ok(early.style === 'blend' || early.style === 'short' || early.style === 'cut', early.style);
+    // Singing in lines (4 bars sung, 4 quiet, over and over): whatever auto
+    // picks, A isn't singing once B takes over, or where a cut drops it.
+    dj.configure({ style: 'auto' });
+    const lines = '99990000'.repeat(40);
+    const sungAt = (f0, f1) => { let m = 0; for (let j = Math.floor((f0 - A.firstDown) / A.vbBar + 0.02); j <= Math.floor((f1 - A.firstDown) / A.vbBar - 0.02); j++) m = Math.max(m, Number(lines[j] || 0)); return m; };
+    const lined = { ...long, info: { ...A.info, vocalLevel: lines } };
+    const pk = dj._test.planMix(lined, { ...A, introBeats: 64, info: { ...A.info, vocalLevel: '0'.repeat(200) } }, 'auto');
+    const over = pk.style === 'cut' ? [pk.at, pk.at + 2 * A.bar] : pk.style === 'short' ? [pk.start, pk.start + pk.len] : [pk.start + Math.max(1, Math.round(pk.beats / 8)) * 4 * A.period, pk.start + pk.len]; // a blend may start under A's last line, but A must be done singing by the swap
+    assert.strictEqual(sungAt(over[0], over[1]), 0, `${pk.style} ${pk.beats} at bar ${(pk.start - A.firstDown) / A.bar} lands on singing`);
+    // Singing all the way through: a long merge (B creeps in underneath), not a cut.
+    const sung = { ...long, info: { ...A.info, vocalLevel: '9'.repeat(200) } };
+    const s2 = dj._test.planMix(sung, { ...A, introBeats: 64 }, 'auto');
+    assert.ok(s2.style === 'blend' && s2.beats >= 16, 'a long merge rather than a cut: ' + s2.style);
+    // Every pair decides afresh: a track that starts straight in (no intro)
+    // with a clashing key gets an instant cut; a smooth pair gets a blend.
+    const clashA = { ...long, keyNow: { pc: 0, minor: false, camelot: '8B' } }, clashB = { ...A, introBeats: 0, keyNow: { pc: 6, minor: false, camelot: '2B' } };
+    assert.strictEqual(dj._test.planMix(clashA, clashB, 'auto').style, 'cut', 'clashing keys, no intro: cut');
+    assert.strictEqual(dj._test.planMix({ ...long, keyNow: clashA.keyNow }, { ...A, introBeats: 64, keyNow: clashA.keyNow }, 'auto').style, 'blend', 'matching keys with an intro: blend');
+    // Skip ('now'): the quietest of the next 8 bars.
+    const sk = dj._test.planMix({ ...lined, pos: long.inFrame + 32 * A.bar - 100 }, { ...A, introBeats: 16 }, 8, true);
+    assert.strictEqual(sungAt(sk.start, sk.start + sk.len), 0, 'skip waits for a quiet bar');
     dj.configure({ style: 'cut' });
     assert.strictEqual(dj._test.planMix(long, { ...A, introBeats: 64 }, 'auto').style, 'cut');
     dj.configure({ style: 'short' });

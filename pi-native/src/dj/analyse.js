@@ -64,7 +64,7 @@ function analyse(x) {
     const v = score[lag] * pref;
     if (v > best) { best = v; bestLag = lag; }
   }
-  if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null, vocalBars: '' };
+  if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null, vocalBars: '', vocalLevel: '' };
   // Refine to a fractional lag (parabola through the peak).
   const y0 = score[bestLag - 1] || 0, y1 = score[bestLag], y2 = score[bestLag + 1] || 0, den = y0 - 2 * y1 + y2;
   const lag = bestLag + (den !== 0 ? Math.max(-0.5, Math.min(0.5, 0.5 * (y0 - y2) / den)) : 0);
@@ -114,9 +114,22 @@ function analyse(x) {
     let m = 0, l = 0; for (let f = f0; f < f1; f++) { m += mid[f]; l += low[f]; }
     vb.push(m / Math.max(1e-6, l * 0.5 + m * 0.5));
   }
+  // Syllables: a voice rises and falls several times a second in its band,
+  // more than the drums move the bass - the bar's average change in the
+  // (log) voice-band level, less some of the bass's.
+  const fl = [];
+  for (let k0 = downbeat; k0 + 4 <= nb; k0 += 4) {
+    const f0 = Math.max(1, Math.round((firstBeat + k0 * period2) * FPS)), f1 = Math.min(n, Math.round((firstBeat + (k0 + 4) * period2) * FPS));
+    let fm = 0, fb = 0; for (let f = f0; f < f1; f++) { fm += Math.abs(Math.log(mid[f] + 1e-4) - Math.log(mid[f - 1] + 1e-4)); fb += Math.abs(Math.log(low[f] + 1e-4) - Math.log(low[f - 1] + 1e-4)); }
+    fl.push((fm - 0.5 * fb) / Math.max(1, f1 - f0));
+  }
+  const norm = (arr) => { const s = Float32Array.from(arr).sort(), lo = s[Math.floor(s.length * 0.2)] || 0, hi = s[Math.floor(s.length * 0.92)] || 1; return arr.map((v) => Math.max(0, Math.min(1, (v - lo) / Math.max(1e-6, hi - lo)))); };
+  const rN = norm(vb), fN = norm(fl);
   const sv = Float32Array.from(vb).sort(), base = sv[Math.floor(sv.length * 0.25)] || 0;
+  // How much singing each bar has, 0-9 (a string: one digit a bar).
+  const vocalLevel = vb.map((v, j) => Math.round(9 * Math.max(0, Math.min(1, (0.6 * rN[j] + 0.4 * fN[j]) * (v > base * 1.12 ? 1 : 0.4))))).join('');
   const vocalBars = vb.map((v) => (v > base * 1.3 ? '1' : '0')).join('');
-  return { vocalBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
+  return { vocalBars, vocalLevel, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
 }
 
 // ---- Key: a chroma profile (energy per pitch class, 55 Hz - 2 kHz) matched

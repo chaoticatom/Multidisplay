@@ -11,6 +11,16 @@ const { renderSpectrumV2Wall, createV2State } = require('./radio/spectrumV2Wall'
 const v2State = createV2State();
 const { drawDjDecks, createDeckState, ROWS: DJ_ROWS } = require('./radio/djDecks');
 const deckState = createDeckState();
+// Auto-DJ split spectrum: each half drawn on its own small canvas (so every
+// style works unchanged), then copied onto the wall.
+let split = null; // made on first use (the level helpers are required further down)
+const splitSide = () => ({ v2: createV2State(), v1: createSpectrumWallState(), lv: createLevelState(), sub: null });
+function subCanvas(side, W, H) {
+  if (side.sub && side.sub.wallW === W && side.sub.wallH === H) return side.sub;
+  const buf = new Float32Array(W * H * 3);
+  side.sub = { wallW: W, wallH: H, wallBuf: buf, t: 0, setWallPixel(x, y, r, g, b) { if (x < 0 || y < 0 || x >= W || y >= H || x !== (x | 0) || y !== (y | 0)) return; const o = (y * W + x) * 3; buf[o] = r; buf[o + 1] = g; buf[o + 2] = b; } };
+  return side.sub;
+}
 const { CHAR_W } = require('./radio/font');
 const { createLevelState, computeLevels } = require('./radio/levels');
 const { drawString, drawMarquee, drawLinesCentered, FONT_3x5, FONT_5x7, wallPlot } = require('./text');
@@ -100,7 +110,27 @@ function effectRadioWall(core, dt) {
       bands, theme, barMode, scrollX: spectrumWallState.scrollX || 0, t: core.t, dt, tickerRows: djInfo ? DJ_ROWS : 9,
     };
     // Version 2 (the default) is the animated scenes; version 1 keeps the classic styles.
-    if (opts.version === 1) renderSpectrumStyleWall(core, ctx, style, spectrumWallState);
+    if (djInfo && audio.specA && core.wallW >= 96) {
+      // Auto-DJ: the left half is the song playing, the right half the next
+      // one (its real sound during the mix; before that a silent preview of
+      // its opening bars). The next one is dimmer until the mix brings it up.
+      const half = Math.floor(core.wallW / 2), H = core.wallH;
+      const kB = djInfo.mixing ? 0.65 + 0.35 * (djInfo.mixU || 0) : djInfo.next && djInfo.next.status !== 'loading' ? 0.6 : 0;
+      const kA = djInfo.mixing ? 1 - 0.35 * (djInfo.mixU || 0) : 1;
+      for (const [key, x0, w, spec, k] of [['a', 0, half, audio.specA, kA], ['b', half, core.wallW - half, audio.specB, kB]]) {
+        if (!split) split = { a: splitSide(), b: splitSide() };
+        const side = split[key], sub = subCanvas(side, w, H);
+        sub.wallBuf.fill(0); sub.t = core.t;
+        if (k > 0) {
+          const lvS = computeLevels(side.lv, { spec, peak: spec }, { bands, gain, autoGain: autoGainOn, fitToScreen }, dt);
+          const c2 = { ...ctx, amp: (b) => lvS.amp[b], peak: (b) => lvS.peak[b], ampArr: lvS.amp, peakArr: lvS.peak, ampL: null, ampR: null };
+          if (opts.version === 1) renderSpectrumStyleWall(sub, c2, style, side.v1);
+          else renderSpectrumV2Wall(sub, c2, opts.scene || 'auto', side.v2, opts.autoSecs);
+        }
+        const b = sub.wallBuf;
+        for (let y = 0; y < H; y++) for (let x = 0; x < w; x++) { const o = (y * w + x) * 3; if (b[o] + b[o + 1] + b[o + 2] > 0) core.setWallPixel(x0 + x, y, b[o] * k, b[o + 1] * k, b[o + 2] * k); }
+      }
+    } else if (opts.version === 1) renderSpectrumStyleWall(core, ctx, style, spectrumWallState);
     else renderSpectrumV2Wall(core, ctx, opts.scene || 'auto', v2State, opts.autoSecs);
   }
 

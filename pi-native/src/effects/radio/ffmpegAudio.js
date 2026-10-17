@@ -310,7 +310,7 @@ class RadioAudio {
     const eng = require('../../dj/engine').createDjEngine({
       onPcm: (b) => { if (this.decodeProc !== fake) return; this._djMs += b.length / BYTES_PER_MS; this._onData(b); },
       // How far ahead of real time it has produced (it keeps ~1.5 s ahead).
-      getQueueMs: () => { const el = Date.now() - this._djT0; if (this._djMs < el) { this._djT0 = Date.now() - this._djMs; return 0; } return this._djMs - el; },
+      getQueueMs: this._djQueue = () => { const el = Date.now() - this._djT0; if (this._djMs < el) { this._djT0 = Date.now() - this._djMs; return 0; } return this._djMs - el; },
     });
     fake = { kill: () => eng.stop(), on() {}, isDj: true };
     this.decodeProc = fake; this.dj = eng;
@@ -540,6 +540,7 @@ class RadioAudio {
       if (this._playPos < win) { target = this._zeros; } else target = this._analyser.analyse(this._ring, Math.floor(this._playPos));
     }
     this._lastTarget = target;
+    if (this._isDj && this.dj && this.dj.deckFeed) this._djDeckSpectra(dt);
     this._applySpectrumTarget(target, dt);
     // Stereo: every other tick, each channel on its own.
     this._stereoFlip = !this._stereoFlip;
@@ -552,6 +553,34 @@ class RadioAudio {
     }
     this._updateVu(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
     this._updateWave(target === this._zeros ? -1 : Math.floor(this._playPos), dt);
+  }
+
+  // Auto-DJ: a spectrum per deck, for the split view - the song playing
+  // (as heard, so behind what's been mixed by the queue and the speaker's
+  // delay) and the next one: its real audio during the mix, before that a
+  // silent preview of its opening bars, looping to its own beat.
+  _djDeckSpectra(dt) {
+    if (!this._djAn) {
+      this._djAn = createAnalyser(SAMPLE_RATE);
+      this._djRing = new Float32Array(require('./fft').nextPow2(this._djAn.win));
+      this.specA = new Float32Array(BAND_COUNT); this.specB = new Float32Array(BAND_COUNT);
+    }
+    this._djFlip = !this._djFlip;
+    if (!this._djFlip) return; // 30 times a second is plenty
+    const feed = this.dj.deckFeed();
+    const lag = Math.round(((this._djQueue ? this._djQueue() : 0) / 1000 + this._syncS) * SAMPLE_RATE);
+    const one = (d, pos, spec) => {
+      if (!d || !(pos > 0)) { smoothInto(spec, this._zeros, dt * 2); return; }
+      const ring = this._djRing, mask = ring.length - 1, win = this._djAn.win, pcm = d.pcm;
+      for (let j = pos - win; j < pos; j++) ring[j & mask] = j >= 0 && j < d.frames ? (pcm[j * 2] + pcm[j * 2 + 1]) / 65536 : 0;
+      smoothInto(spec, this._djAn.analyse(ring, pos), dt * 2);
+    };
+    one(feed && feed.a, feed && feed.a ? feed.a.pos - lag : 0, this.specA);
+    const b = feed && feed.b;
+    let bp = 0;
+    if (b && feed.mixing) bp = b.pos - lag;
+    else if (b) { const loop = Math.max(SAMPLE_RATE, Math.round(8 * b.bar)); bp = Math.round(b.inFrame + ((Date.now() - b.readyAt) / 1000 * SAMPLE_RATE) % loop) + this._djAn.win; }
+    one(b, bp, this.specB);
   }
 
   _updateWave(end, dt) {
@@ -656,8 +685,8 @@ class RadioAudio {
   // Plain, structured-clone-friendly copy of what the render side reads -
   // see RemoteAudio below.
   snapshot() {
-    const ds = this.dj && this.url === 'dj:' ? this.dj.status : null;
-    return { djNow: ds && ds.now ? ds.now.title : '', djInfo: ds && ds.state !== 'stopped' ? { now: ds.now, next: ds.next, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === undefined ? -1 : ds.mixIn } : null, spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
+    const ds = this.dj && this.url === 'dj:' ? this.dj.status : null, djSpec = ds && this.specA ? { specA: this.specA, specB: this.specB } : {};
+    return { djNow: ds && ds.now ? ds.now.title : '', ...djSpec, djInfo: ds && ds.state !== 'stopped' ? { now: ds.now, next: ds.next, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === undefined ? -1 : ds.mixIn } : null, spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
   }
 
   // Auto speaker sync: ask the sound server how late our stream plays, and
@@ -778,6 +807,7 @@ class RemoteAudio {
     if (snap.specL && snap.specL.length === BAND_COUNT) this.specL.set(snap.specL);
     this.djNow = snap.djNow || '';
     this.djInfo = snap.djInfo || null;
+    if (snap.specA && snap.specA.length === BAND_COUNT) { if (!this.specA) { this.specA = new Float32Array(BAND_COUNT); this.specB = new Float32Array(BAND_COUNT); } this.specA.set(snap.specA); this.specB.set(snap.specB); } else this.specA = this.specB = null;
     if (snap.specR && snap.specR.length === BAND_COUNT) this.specR.set(snap.specR);
     if (snap.vu && snap.vu.length === 4) this.vu.set(snap.vu);
     if (snap.wave && snap.wave.length === WAVE_N) this.wave.set(snap.wave);
