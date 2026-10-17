@@ -37,16 +37,25 @@ function beginCrossfade(core, effect, buf) {
   core._xfEffect = effect;
   if (!core._xfFrom || core._xfFrom.length !== buf.length) core._xfFrom = new Float32Array(buf.length);
   core._xfFrom.set(buf);
+  if (!core._xfNew || core._xfNew.length !== buf.length) core._xfNew = new Float32Array(buf.length);
+  core._xfNew.set(buf);
+  core._xfOldFn = core._xfCurFn; // the old effect keeps running underneath while it fades out
   core._xfT = 0;
 }
 
 // Style and length come from Setup > Display > Transition (prefs.transition);
 // the default is the flow morph (at least 1.4 s). See effects/transition.js.
 const { applyTransition } = require('./effects/transition');
-function applyCrossfade(core, buf, dt, tr) {
-  const style = (tr && tr.style) || 'morph';
+function transitionSecs(tr) {
+  const style = (tr && tr.style) || 'seamless';
   let secs = tr && Number.isFinite(tr.secs) ? tr.secs : CROSSFADE_SECS;
   if (style === 'morph') secs = Math.max(secs, 1.4); // melting needs a moment to flow
+  if (style === 'seamless') secs = Math.max(secs, 1); // too quick and the pixels would flicker
+  return secs;
+}
+function applyCrossfade(core, buf, dt, tr) {
+  const style = (tr && tr.style) || 'seamless';
+  const secs = transitionSecs(tr);
   if (!buf || core._xfT === undefined || core._xfT >= secs) return;
   const from = core._xfFrom;
   if (style === 'none' || from.length !== buf.length) { core._xfT = Infinity; return; }
@@ -105,7 +114,14 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
     const mr = state.musicReact, own = mr && mr.perEffect ? mr.perEffect[state.effect] : undefined;
     const react = state.effect === 'radio' || !mr ? 0 : own !== undefined && own !== null ? Math.max(0, Math.min(1, Number(own) || 0)) : mr.on ? Math.max(0, Math.min(1, Number(mr.amount) || 0.6)) : 0;
     beginCrossfade(core, state.effect, buf);
+    // During a transition both effects run, each on its own copy of the
+    // frame (effects with trails read their last frame back), so the old
+    // one keeps moving as it fades instead of freezing.
+    const tr = state.prefs && state.prefs.transition, xfLive = core._xfT !== undefined && core._xfT < transitionSecs(tr) && core._xfOldFn && core._xfOldFn !== fn && core._xfFrom && core._xfFrom.length === buf.length && !alarmBlocking;
+    if (xfLive) { const t0 = core.t; buf.set(core._xfFrom); try { core._xfOldFn(core, dt); } catch (e) { /* the old effect is on its way out */ } core.t = t0; core._xfFrom.set(buf); buf.set(core._xfNew); } // core.t: the clock moves once a frame, not once per effect
+    core._xfCurFn = fn;
     if (fn && !alarmBlocking) fn(core, reactDt(core.audio, dt, react)); // step 2
+    if (xfLive) core._xfNew.set(buf);
     pulseBuffer(core.audio, buf, react);
     applyCrossfade(core, buf, dt, state.prefs && state.prefs.transition);
   } else {

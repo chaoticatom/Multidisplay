@@ -15,9 +15,10 @@ try {
   // Mid-way, red has moved off its column (carried by the flow) - not a plain fade.
   let moved = 0; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const o = (y * W + x) * 3; if (mid[o] > 0.05 && Math.abs(x - 16) >= 5) moved++; }
   assert.ok(moved > 10, 'shapes flow mid-way: ' + moved);
-  assert.strictEqual(STYLES[0], 'morph');
-  assert.strictEqual(prefs.clean(null).transition.style, 'morph');
-  assert.strictEqual(prefs.clean({ transition: { style: 'fade', secs: 0.4 } }).transition.style, 'morph', 'the old default moves to morph once');
+  assert.strictEqual(STYLES[0], 'seamless'); assert.ok(STYLES.includes('morph'));
+  assert.strictEqual(prefs.clean(null).transition.style, 'seamless');
+  assert.strictEqual(prefs.clean({ transition: { style: 'fade', secs: 0.4 } }).transition.style, 'seamless', 'the old default moves to seamless once');
+  assert.strictEqual(prefs.clean({ transition: { style: 'wipe', secs: 1, v3: true } }).transition.style, 'wipe', 'a chosen style stays');
   assert.strictEqual(prefs.clean({ transition: { style: 'slide', secs: 0.8 } }).transition.style, 'slide', 'a chosen style is kept');
   console.log('flowMorph ok');
 } catch (e) { console.error(e); process.exitCode = 1; }

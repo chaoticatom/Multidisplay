@@ -514,7 +514,7 @@ function renderSpectrumV2Wall(core, ctx, scene, st, autoSecs) {
   // Auto: each style for `hold` seconds; over the last `morph` seconds the
   // next one melts in (flow morph) while both keep moving to the music.
   const hold = [10, 25, 60, 120].includes(Number(autoSecs)) ? Number(autoSecs) : AUTO_SECS;
-  const morph = Math.min(3, hold * 0.3);
+  const morph = Math.min(4, hold * 0.3);
   st.sceneT += dt;
   const i = Math.floor(st.sceneT / hold), local = st.sceneT - i * hold;
   const a = SCENES[i % SCENES.length], b = SCENES[(i + 1) % SCENES.length];
@@ -528,7 +528,7 @@ function renderSpectrumV2Wall(core, ctx, scene, st, autoSecs) {
   RENDER[b](core, ctx, sub(st, b), W, H, t, dt);
   // The two flow into each other (see transition.js flowMorph): shapes melt
   // along one swirl while the new style shows through where both are bright.
-  require('../transition').flowMorph(buf, st.tmp, W, H, k);
+  require('../transition').seamless(buf, st.tmp, W, H, k);
 }
 
 module.exports = { renderSpectrumV2Wall, createV2State, SCENES };

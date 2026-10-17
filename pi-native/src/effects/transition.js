@@ -1,6 +1,10 @@
 // How one effect gives way to the next (Setup > Display > Transition).
 // `from` is the last frame of the old effect, `buf` the new effect's frame
 // (written in place); k runs 0 -> 1 over the transition. Styles:
+//   seamless - every pixel changes on its own, at a random moment, with a
+//              soft fade of its own: the whole display turns into the new
+//              effect at once, with no sweep or shape to notice (the default,
+//              also used by the spectrum analyser's Auto)
 //   morph    - the two melt into each other: both are pushed along one slow
 //              swirling flow, the new one shows through first where both are
 //              bright, softened at the midpoint (flowMorph, also used by the
@@ -15,7 +19,7 @@
 // LEDs' surface positions (core.surfX/Y) instead.
 'use strict';
 
-const STYLES = ['morph', 'fade', 'slide', 'dissolve', 'wipe', 'zoom', 'none'];
+const STYLES = ['seamless', 'morph', 'fade', 'slide', 'dissolve', 'wipe', 'zoom', 'none'];
 
 // A smooth swirling flow field (unit-ish vectors), cached per size.
 const flowCache = new Map();
@@ -79,10 +83,48 @@ function flowMorph(buf, from, W, H, k) {
 function rnd(i) { let h = (i * 2654435761) >>> 0; h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13; return (h >>> 0) / 4294967296; }
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
+// Seamless: pixel p starts changing at its own moment (mostly random, a
+// little clustered so it never reads as sparkle) and fades over 40% of the
+// time; a gentle overall blend underneath hides the pattern further.
+const orderCache = new Map();
+function pixelOrder(n, W, H) {
+  const key = n + ':' + W + 'x' + H;
+  let o = orderCache.get(key);
+  if (o) return o;
+  o = new Float32Array(n);
+  const C = 6; // cluster size, px
+  for (let p = 0; p < n; p++) {
+    let lo = 0.5;
+    if (W) {
+      const x = (p % W) / C, y = ((p / W) | 0) / C, x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0;
+      const gw = Math.ceil(W / C) + 2, v = (a, b) => rnd(b * gw + a + 7919);
+      const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+      lo = (v(x0, y0) * (1 - sx) + v(x0 + 1, y0) * sx) * (1 - sy) + (v(x0, y0 + 1) * (1 - sx) + v(x0 + 1, y0 + 1) * sx) * sy;
+    }
+    o[p] = 0.72 * rnd(p) + 0.28 * lo;
+  }
+  orderCache.set(key, o);
+  return o;
+}
+function seamless(buf, from, W, H, k) {
+  const n = buf.length / 3, ord = pixelOrder(n, W, H), FADE = 0.4;
+  const g = k * k * (3 - 2 * k);
+  for (let p = 0; p < n; p++) {
+    let m = (k - ord[p] * (1 - FADE)) / FADE;
+    m = m < 0 ? 0 : m > 1 ? 1 : m * m * (3 - 2 * m);
+    m = 0.3 * g + 0.7 * m;
+    const i = p * 3;
+    buf[i] = from[i] + (buf[i] - from[i]) * m;
+    buf[i + 1] = from[i + 1] + (buf[i + 1] - from[i + 1]) * m;
+    buf[i + 2] = from[i + 2] + (buf[i + 2] - from[i + 2]) * m;
+  }
+}
+
 let tmp = null;
 function applyTransition(style, core, buf, from, k) {
   const wall = buf === core.wallBuf && core.wallW;
   const W = wall ? core.wallW : 0, H = wall ? core.wallH : 0, n = buf.length / 3;
+  if (style === 'seamless') { seamless(buf, from, W, H, k); return; }
   if (style === 'morph' && wall) { flowMorph(buf, from, W, H, k); return; }
   if (style === 'morph') style = 'fade'; // a cube's faces aren't one picture: a smooth fade instead
   if (style === 'slide' && wall) {
@@ -113,4 +155,4 @@ function applyTransition(style, core, buf, from, k) {
   }
 }
 
-module.exports = { applyTransition, flowMorph, STYLES };
+module.exports = { applyTransition, flowMorph, seamless, STYLES };

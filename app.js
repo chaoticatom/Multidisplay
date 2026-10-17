@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.339';
+const APP_VERSION = '0.6.340';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -5520,7 +5520,7 @@ function cxSyncFavs() {
     if (document.activeElement !== sel) sel.value = String(p.minutes);
     note.textContent = p.on && favs.size < 2 ? 'Star at least two effects (★ on the tiles) for the playlist to cycle.' : '';
   }
-  const tr = currentState.prefs?.transition || { style: 'morph', secs: 1.5 };
+  const tr = currentState.prefs?.transition || { style: 'seamless', secs: 2.5 };
   document.querySelectorAll('#tr-style button').forEach((b) => b.classList.toggle('on', b.dataset.tr === tr.style));
   document.querySelectorAll('#tr-secs button').forEach((b) => b.classList.toggle('on', Math.abs(Number(b.dataset.secs) - tr.secs) < 0.05));
   const look = currentState.prefs?.look, lsw = document.getElementById('look-sw');

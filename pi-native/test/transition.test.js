@@ -48,4 +48,17 @@ t('on a cube, wipe and zoom still run (surface positions)', () => {
   const lit = core.colBuf.filter((v) => v === 1).length;
   assert.ok(lit > n * 0.2 && lit < n * 0.8, 'partly wiped: ' + lit / n);
 });
+t('seamless: the whole display changes at once, pixel by pixel, no sweep', () => {
+  const W = 128, H = 64, n = W * H * 3, from = new Float32Array(n).fill(1), buf = new Float32Array(n).fill(0);
+  require('../src/effects/transition').seamless(buf, from, W, H, 0.5);
+  const avg = (x0, x1) => { let s = 0, c = 0; for (let y = 0; y < H; y++) for (let x = x0; x < x1; x++) { s += buf[(y * W + x) * 3]; c++; } return s / c; };
+  const l = avg(0, 32), m = avg(48, 80), r = avg(96, 128);
+  assert.ok(Math.abs(l - r) < 0.06 && Math.abs(l - m) < 0.06 && l > 0.3 && l < 0.7, `even everywhere: ${l} ${m} ${r}`);
+  let partial = 0; for (let i = 0; i < n; i += 3) if (buf[i] > 0.02 && buf[i] < 0.98) partial++;
+  assert.ok(partial > W * H * 0.2, 'pixels fade softly, not snap: ' + partial);
+  const end = new Float32Array(n).fill(0); require('../src/effects/transition').seamless(end, from, W, H, 1);
+  assert.ok(end.every((v) => v === 0), 'ends fully on the new effect');
+  const start = new Float32Array(n).fill(0); require('../src/effects/transition').seamless(start, from, W, H, 0);
+  assert.ok(start.every((v) => v === 1), 'starts on the old effect');
+});
 if (failed) process.exitCode = 1;

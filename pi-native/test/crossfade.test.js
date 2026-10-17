@@ -21,16 +21,26 @@ test('the very first effect shows immediately (no fade from nothing)', () => {
 test('switching effects blends from the old frame to the new one', () => {
   const core = new CubeCore(8);
   run(core, 'white', 1 / 60);
-  run(core, 'black', 0.7); // the default (morph) takes at least 1.4 s
-  const mid = core.colBuf[0];
+  run(core, 'black', 0.5); // the default (seamless) takes at least 1 s
+  const mid = core.colBuf.reduce((a, v) => a + v, 0) / core.colBuf.length;
   assert.ok(mid > 0.1 && mid < 0.9, `mid-fade value ${mid}`);
   run(core, 'black', 1);
-  assert.strictEqual(core.colBuf[0], 0, 'fully on the new effect once the transition has elapsed');
+  assert.ok(core.colBuf.every((v) => v === 0), 'fully on the new effect once the transition has elapsed');
 });
 test('staying on the same effect never fades', () => {
   const core = new CubeCore(8);
   run(core, 'white', 1 / 60);
   run(core, 'white', 1 / 60);
   assert.strictEqual(core.colBuf[0], 1);
+});
+test('the old effect keeps running underneath while it fades out', () => {
+  const core = new CubeCore(8);
+  let oldCalls = 0, t = 0;
+  const E = { a: (c, dt) => { oldCalls++; t += dt; c.colBuf.fill(Math.min(1, t)); }, b: fill(0) };
+  const go = (effect, dt) => tick(core, { effect, overlays: {}, effectOptions: {} }, config, E, {}, noAlarms, () => {}, dt);
+  go('a', 0.1); go('b', 0.1); const n0 = oldCalls; go('b', 0.1); go('b', 0.1);
+  assert.ok(oldCalls > n0, 'the old effect still drew during the transition');
+  go('b', 5); const n1 = oldCalls; go('b', 0.1);
+  assert.strictEqual(oldCalls, n1, 'and stops once it is over');
 });
 console.log(process.exitCode ? 'Some crossfade tests FAILED' : 'All crossfade tests passed');

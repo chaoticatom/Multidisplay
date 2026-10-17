@@ -3460,7 +3460,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var STYLES = ["morph", "fade", "slide", "dissolve", "wipe", "zoom", "none"];
+      var STYLES = ["seamless", "morph", "fade", "slide", "dissolve", "wipe", "zoom", "none"];
       var flowCache = /* @__PURE__ */ new Map();
       function flowField(W, H) {
         const key = W + "x" + H;
@@ -3527,10 +3527,47 @@ var PiEngine = (() => {
         return (h >>> 0) / 4294967296;
       }
       var clamp01 = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
+      var orderCache = /* @__PURE__ */ new Map();
+      function pixelOrder(n, W, H) {
+        const key = n + ":" + W + "x" + H;
+        let o = orderCache.get(key);
+        if (o) return o;
+        o = new Float32Array(n);
+        const C = 6;
+        for (let p = 0; p < n; p++) {
+          let lo = 0.5;
+          if (W) {
+            const x = p % W / C, y = (p / W | 0) / C, x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0;
+            const gw = Math.ceil(W / C) + 2, v = (a, b) => rnd(b * gw + a + 7919);
+            const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+            lo = (v(x0, y0) * (1 - sx) + v(x0 + 1, y0) * sx) * (1 - sy) + (v(x0, y0 + 1) * (1 - sx) + v(x0 + 1, y0 + 1) * sx) * sy;
+          }
+          o[p] = 0.72 * rnd(p) + 0.28 * lo;
+        }
+        orderCache.set(key, o);
+        return o;
+      }
+      function seamless(buf, from, W, H, k) {
+        const n = buf.length / 3, ord = pixelOrder(n, W, H), FADE = 0.4;
+        const g = k * k * (3 - 2 * k);
+        for (let p = 0; p < n; p++) {
+          let m = (k - ord[p] * (1 - FADE)) / FADE;
+          m = m < 0 ? 0 : m > 1 ? 1 : m * m * (3 - 2 * m);
+          m = 0.3 * g + 0.7 * m;
+          const i = p * 3;
+          buf[i] = from[i] + (buf[i] - from[i]) * m;
+          buf[i + 1] = from[i + 1] + (buf[i + 1] - from[i + 1]) * m;
+          buf[i + 2] = from[i + 2] + (buf[i + 2] - from[i + 2]) * m;
+        }
+      }
       var tmp = null;
       function applyTransition(style, core, buf, from, k) {
         const wall = buf === core.wallBuf && core.wallW;
         const W = wall ? core.wallW : 0, H = wall ? core.wallH : 0, n = buf.length / 3;
+        if (style === "seamless") {
+          seamless(buf, from, W, H, k);
+          return;
+        }
         if (style === "morph" && wall) {
           flowMorph(buf, from, W, H, k);
           return;
@@ -3570,7 +3607,7 @@ var PiEngine = (() => {
           buf[i + 2] = from[i + 2] + (buf[i + 2] - from[i + 2]) * m;
         }
       }
-      module.exports = { applyTransition, flowMorph, STYLES };
+      module.exports = { applyTransition, flowMorph, seamless, STYLES };
     }
   });
 
@@ -3625,7 +3662,7 @@ var PiEngine = (() => {
         playlist: { on: false, minutes: 5 },
         nightDim: { on: false, from: 22, to: 7, level: 0.3 },
         look: { on: true, bloom: 0.65, vibrance: 0.35, smooth: 0, depth: 0.5, palette: "auto" },
-        transition: { style: "morph", secs: 1.5, v2: true },
+        transition: { style: "seamless", secs: 2.5, v3: true },
         // between effects - see effects/transition.js
         // Automatic show (see src/autoShow.js).
         dayPlan: { on: false, starts: { morning: 6, day: 10, evening: 18, night: 23 }, effects: { morning: [], day: [], evening: [], night: [] }, brightness: { morning: null, day: null, evening: null, night: null } },
@@ -3673,14 +3710,19 @@ var PiEngine = (() => {
         if (p && p.transition) {
           if (require_transition().STYLES.includes(p.transition.style)) out.transition.style = p.transition.style;
           const secs = Number(p.transition.secs);
-          if (Number.isFinite(secs)) out.transition.secs = Math.max(0.2, Math.min(3, secs));
+          if (Number.isFinite(secs)) out.transition.secs = Math.max(0.2, Math.min(5, secs));
           if (!p.transition.v2) {
             if (p.transition.style === "fade" && (p.transition.secs === void 0 || p.transition.secs === 0.4)) {
               out.transition.style = "morph";
               out.transition.secs = 1.5;
             }
           }
-          out.transition.v2 = true;
+          if (!p.transition.v3 && (out.transition.style === "morph" || out.transition.style === "fade")) {
+            out.transition.style = "seamless";
+            out.transition.secs = Math.max(2.5, out.transition.secs);
+          }
+          out.transition.v3 = true;
+          delete out.transition.v2;
         }
         if (p && p.look) {
           out.look.on = p.look.on !== false;
@@ -29069,7 +29111,7 @@ var PiEngine = (() => {
           return;
         }
         const hold = [10, 25, 60, 120].includes(Number(autoSecs)) ? Number(autoSecs) : AUTO_SECS;
-        const morph = Math.min(3, hold * 0.3);
+        const morph = Math.min(4, hold * 0.3);
         st.sceneT += dt;
         const i = Math.floor(st.sceneT / hold), local = st.sceneT - i * hold;
         const a = SCENES[i % SCENES.length], b = SCENES[(i + 1) % SCENES.length];
@@ -29092,7 +29134,7 @@ var PiEngine = (() => {
         st.tmp.set(buf);
         buf.fill(0);
         RENDER[b](core, ctx, sub(st, b), W, H, t, dt);
-        require_transition().flowMorph(buf, st.tmp, W, H, k);
+        require_transition().seamless(buf, st.tmp, W, H, k);
       }
       module.exports = { renderSpectrumV2Wall, createV2State, SCENES };
     }
@@ -30872,13 +30914,22 @@ var PiEngine = (() => {
         core._xfEffect = effect;
         if (!core._xfFrom || core._xfFrom.length !== buf.length) core._xfFrom = new Float32Array(buf.length);
         core._xfFrom.set(buf);
+        if (!core._xfNew || core._xfNew.length !== buf.length) core._xfNew = new Float32Array(buf.length);
+        core._xfNew.set(buf);
+        core._xfOldFn = core._xfCurFn;
         core._xfT = 0;
       }
       var { applyTransition } = require_transition();
-      function applyCrossfade(core, buf, dt, tr) {
-        const style = tr && tr.style || "morph";
+      function transitionSecs(tr) {
+        const style = tr && tr.style || "seamless";
         let secs = tr && Number.isFinite(tr.secs) ? tr.secs : CROSSFADE_SECS;
         if (style === "morph") secs = Math.max(secs, 1.4);
+        if (style === "seamless") secs = Math.max(secs, 1);
+        return secs;
+      }
+      function applyCrossfade(core, buf, dt, tr) {
+        const style = tr && tr.style || "seamless";
+        const secs = transitionSecs(tr);
         if (!buf || core._xfT === void 0 || core._xfT >= secs) return;
         const from = core._xfFrom;
         if (style === "none" || from.length !== buf.length) {
@@ -30917,7 +30968,21 @@ var PiEngine = (() => {
           const mr = state.musicReact, own = mr && mr.perEffect ? mr.perEffect[state.effect] : void 0;
           const react = state.effect === "radio" || !mr ? 0 : own !== void 0 && own !== null ? Math.max(0, Math.min(1, Number(own) || 0)) : mr.on ? Math.max(0, Math.min(1, Number(mr.amount) || 0.6)) : 0;
           beginCrossfade(core, state.effect, buf);
+          const tr = state.prefs && state.prefs.transition, xfLive = core._xfT !== void 0 && core._xfT < transitionSecs(tr) && core._xfOldFn && core._xfOldFn !== fn && core._xfFrom && core._xfFrom.length === buf.length && !alarmBlocking;
+          if (xfLive) {
+            const t0 = core.t;
+            buf.set(core._xfFrom);
+            try {
+              core._xfOldFn(core, dt);
+            } catch (e) {
+            }
+            core.t = t0;
+            core._xfFrom.set(buf);
+            buf.set(core._xfNew);
+          }
+          core._xfCurFn = fn;
           if (fn && !alarmBlocking) fn(core, reactDt(core.audio, dt, react));
+          if (xfLive) core._xfNew.set(buf);
           pulseBuffer(core.audio, buf, react);
           applyCrossfade(core, buf, dt, state.prefs && state.prefs.transition);
         } else {
