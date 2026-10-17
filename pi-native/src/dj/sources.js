@@ -45,7 +45,11 @@ function prettyTitle(e) {
 }
 // A track: its full display title, plus the song name and artist on their own (for the list).
 function toTrack(e) {
-  const artist = artistOf(e); let name = cleanTitle(e);
+  let artist = artistOf(e), name = cleanTitle(e);
+  // Playlists often come without the artist: take it from a title like
+  // 'Bon Jovi - It's My Life'.
+  const m = name.match(/^(.{2,60}?)\s+[-–—|]\s+(.+)$/);
+  if (m && (!artist || / - topic$|^various|vevo$/i.test(artist))) { artist = m[1].trim(); name = m[2].trim(); }
   // A video titled "Artist - Song": the song part on its own.
   if (artist && name.toLowerCase().startsWith(artist.toLowerCase())) name = name.slice(artist.length).replace(/^\s*[-–:|]\s*/, '') || name;
   return { kind: 'yt', id: e.id, title: prettyTitle(e), name: name.slice(0, 100), artist };

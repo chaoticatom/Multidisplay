@@ -2620,8 +2620,12 @@ var PiEngine = (() => {
         return (artist + " \u2013 " + clean).slice(0, 100);
       }
       function toTrack(e) {
-        const artist = artistOf(e);
-        let name = cleanTitle(e);
+        let artist = artistOf(e), name = cleanTitle(e);
+        const m = name.match(/^(.{2,60}?)\s+[-–—|]\s+(.+)$/);
+        if (m && (!artist || / - topic$|^various|vevo$/i.test(artist))) {
+          artist = m[1].trim();
+          name = m[2].trim();
+        }
         if (artist && name.toLowerCase().startsWith(artist.toLowerCase())) name = name.slice(artist.length).replace(/^\s*[-–:|]\s*/, "") || name;
         return { kind: "yt", id: e.id, title: prettyTitle(e), name: name.slice(0, 100), artist };
       }

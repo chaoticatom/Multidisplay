@@ -38,6 +38,9 @@ function fakeYt(answers, calls) {
     const ab = await src.youtubeTracks('abba', fakeYt({ 'music.youtube.com/search': mixed }, []), { artist: true });
     assert.ok(ab.length === 4 && ab.every((x) => x.artist === 'ABBA' && x.name.startsWith('Song')), 'only ABBA: ' + JSON.stringify(ab.map((x) => x.artist)));
     assert.strictEqual(src.youtubeTracks.length >= 1, true);
+    // A playlist entry with no artist: taken from a title like 'Bon Jovi - It's My Life'.
+    const pl = await src.youtubeTracks('https://www.youtube.com/playlist?list=PLx', fakeYt({ 'list=PLx': { entries: [{ id: 'bonjovi0001', title: "Bon Jovi - It's My Life (Official Music Video)" }] } }, []));
+    assert.ok(pl[0].artist === 'Bon Jovi' && pl[0].name === "It's My Life", JSON.stringify(pl[0]));
     // Radio: YouTube's mix for a song, without the song itself.
     calls = [];
     const r = await src.youtubeRadio('abcdefghijk', fakeYt({ 'list=RDAMVMabcdefghijk': { entries: [{ id: 'abcdefghijk', title: 'Seed' }, { id: 'zzzzzzzzzz1', title: 'Like it' }] } }, calls));
