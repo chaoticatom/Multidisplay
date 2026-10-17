@@ -9,6 +9,8 @@
 const { RadioAudio, RemoteAudio, BAND_COUNT } = require('./ffmpegAudio');
 const { renderSpectrumStyle, createSpectrumState } = require('./spectrum');
 const { drawTicker } = require('./ticker');
+const { drawDjDecks, createDeckState } = require('./djDecks');
+const djDeckState = createDeckState();
 const { CHAR_W } = require('./font');
 const { drawGlyph5x7Face, drawLinesCentered, FONT_3x5, facePlot } = require('../text');
 const { searchStations } = require('./search');
@@ -244,6 +246,10 @@ function effectRadio(core, dt) {
     if (currentStation.url.startsWith('debugloop:')) {
       drawStaticLabel(core, 0, genre, 7);
       if (core.panelMode !== '2d') drawStaticLabel(core, 2, genre, 7);
+    } else if (currentStation.url === 'dj:' && (audio.djInfo || audio.dj)) {
+      // The Auto-DJ: NOW on the front and back, NEXT on the right and left (see djDecks.js).
+      const ds = audio.dj && audio.dj.status;
+      drawDjDecks(core, audio.djInfo || { now: ds.now, next: ds.next, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn ?? -1 }, djDeckState, dt, core.audio ? core.audio.beat : 0, 'cube');
     } else {
       const label = currentStation.name + (songTitle ? '  -  ' + songTitle : genre ? '  •  ' + genre : '') + '    ';
       drawTicker(core, 0, label, dt);

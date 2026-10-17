@@ -5396,6 +5396,186 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/radio/djDecks.js
+  var require_djDecks = __commonJS({
+    "src/effects/radio/djDecks.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { FONT_3x5, FONT_5x7, drawString, textWidth } = require_text();
+      var ROWS = 17;
+      var NOW = { c: [0.15, 0.8, 1], text: [0.88, 0.96, 1], label: "NOW PLAYING", short: "NOW" };
+      var NEXT = { c: [1, 0.55, 0.12], text: [1, 0.9, 0.72], label: "UP NEXT", short: "NEXT" };
+      function createDeckState() {
+        return { decks: [{ title: "", t: 9, s: 0 }, { title: "", t: 9, s: 0 }], t: 0 };
+      }
+      var sm = (x) => {
+        x = x < 0 ? 0 : x > 1 ? 1 : x;
+        return x * x * (3 - 2 * x);
+      };
+      var mmss = (s) => {
+        s = Math.max(0, Math.round(s || 0));
+        return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+      };
+      function drawDeck(tg, x0, w, y0, kind, d, ds, dt, beat, adv) {
+        const H = y0 + ROWS, isNow = kind === NOW, k = d.k;
+        const set = (x, y, c, a) => {
+          if (x >= x0 && x < x0 + w && a > 3e-3) tg.set(x, y, c[0] * a, c[1] * a, c[2] * a);
+        };
+        for (let y = y0 + 1; y < H; y++) for (let x = x0; x < x0 + w; x++) set(x, y, kind.c, 0.025 * k);
+        for (let x = x0; x < x0 + w; x++) {
+          const e = Math.min(x - x0, x0 + w - 1 - x) / Math.max(1, w * 0.25);
+          set(x, y0, kind.c, 0.5 * sm(e) * k);
+        }
+        const hy = y0 + 2, ic = 0.7 + 0.3 * beat;
+        if (isNow) {
+          for (let r = 0; r < 5; r++) for (let c = 0; c <= Math.min(r, 4 - r); c++) set(x0 + 2 + c, hy + r, kind.c, ic * k);
+        } else {
+          for (let r = 0; r < 5; r++) {
+            const c = Math.min(r, 4 - r);
+            set(x0 + 2 + c, hy + r, kind.c, ic * k);
+            set(x0 + 4 + c, hy + r, kind.c, ic * k);
+          }
+        }
+        const right = d.right || "";
+        const rw = right ? textWidth(FONT_3x5, right) : 0;
+        const label = w >= 40 + rw + textWidth(FONT_3x5, kind.label) ? kind.label : kind.short;
+        drawString(FONT_3x5, label, x0 + 9, hy, (x, y) => set(x, y, kind.c, 0.95 * k));
+        if (right) drawString(FONT_3x5, right, x0 + w - 2 - rw, hy, (x, y) => set(x, y, d.rightC || [0.75, 0.8, 0.9], (d.rightA || 0.75) * k));
+        const title = (d.title || "").toUpperCase();
+        if (title !== ds.title) {
+          ds.title = title;
+          ds.t = 0;
+          ds.s = 0;
+        }
+        if (adv) ds.t += dt;
+        const ty = y0 + 8, area = w - 4, tw = title ? textWidth(FONT_5x7, title) : 0;
+        const slide = Math.round((1 - sm(ds.t / 0.45)) * 9), clipTop = ty, clipBot = ty + 6;
+        let tx = x0 + 2 + Math.max(0, Math.floor((area - tw) / 2));
+        if (tw > area) {
+          if (ds.t > 2 && adv) ds.s += dt * 13;
+          const loop = tw + 24;
+          if (ds.s > loop) {
+            ds.s -= loop;
+          }
+          tx = x0 + 2 - Math.floor(ds.s);
+        }
+        const plotT = (x, y) => {
+          const yy = y + slide;
+          if (yy < clipTop || yy > clipBot || x < x0 + 2 || x >= x0 + 2 + area) return;
+          const edge = tw > area ? sm(Math.min(x - (x0 + 2), x0 + 1 + area - x) / 4) : 1;
+          set(x, yy, d.textC || kind.text, (d.textA || 1) * edge * k);
+        };
+        if (title) {
+          drawString(FONT_5x7, title, tx, ty, plotT);
+          if (tw > area) drawString(FONT_5x7, title, tx + tw + 24, ty, plotT);
+        }
+        const by = H - 1, f = Math.max(0, Math.min(1, d.bar || 0)), fill = Math.round(f * (w - 2));
+        for (let x = 1; x < w - 1; x++) {
+          const on = x - 1 < fill, g = (x - 1) / Math.max(1, w - 3);
+          const c = on ? [kind.c[0] * (0.55 + 0.45 * g), kind.c[1] * (0.55 + 0.45 * g), kind.c[2] * (0.55 + 0.45 * g)] : kind.c;
+          set(x0 + x, by, c, on ? (d.barA || 0.8) * k : 0.07 * k);
+        }
+        if (d.scan !== void 0) {
+          const sx = x0 + 1 + Math.round(d.scan * (w - 3));
+          for (let j = -2; j <= 2; j++) set(sx + j, by, kind.c, (1 - Math.abs(j) / 3) * k);
+        } else if (fill > 0 && fill < w - 2) set(x0 + fill, by, [1, 1, 1], 0.9 * k);
+      }
+      function drawDjDecks(core, info, st, dt, beat = 0, where = "wall") {
+        if (!info) return 0;
+        st.t += dt;
+        const W = core.wallW || 0, t = st.t, mixing = !!info.mixing, u = info.mixU || 0;
+        const now = info.now, next = info.next;
+        const alt = Math.floor(t / 4) % 2 === 1;
+        const keyBpm = (x) => [x.bpm ? x.bpm + (W >= 192 ? " BPM" : "") : "", x.key || ""].filter(Boolean).join(" ");
+        const dNow = now ? {
+          title: now.title,
+          k: mixing ? 1 - 0.55 * sm(u) : 1,
+          right: alt && now.dur ? "-" + mmss(now.dur - now.pos) : keyBpm(now),
+          bar: now.dur ? now.pos / now.dur : 0
+        } : { title: "LOADING", k: 0.6, right: "", scan: (Math.sin(t * 3) + 1) / 2 };
+        let dNext;
+        if (!next) dNext = { title: "", k: 0.5, right: "", bar: 0 };
+        else if (next.status === "loading") dNext = { title: next.title, k: 0.75, textA: 0.6, right: "LOADING" + "...".slice(0, 1 + Math.floor(t * 2) % 3), rightA: 0.55, scan: (Math.sin(t * 2.4) + 1) / 2 };
+        else {
+          const soon = info.mixIn >= 0 && info.mixIn < 60;
+          dNext = {
+            title: next.title,
+            k: mixing ? 0.75 + 0.25 * sm(u) : 0.8,
+            textA: mixing ? 0.75 + 0.25 * u : 0.8,
+            right: mixing ? next.style === "cut" ? "CUT" : "MIXING" : soon && alt ? "IN " + mmss(info.mixIn) : keyBpm(next),
+            rightC: mixing ? NEXT.c : void 0,
+            rightA: mixing ? 0.6 + 0.4 * (0.5 + 0.5 * Math.sin(t * 8)) : 0.75,
+            bar: mixing ? u : soon ? 1 - info.mixIn / 60 : 0,
+            barA: mixing ? 1 : 0.45
+          };
+        }
+        const drawn = [false, false];
+        const deck = (tg, x0, w, y0, which) => {
+          drawDeck(tg, x0, w, y0, which ? NEXT : NOW, which ? dNext : dNow, st.decks[which], dt, beat, !drawn[which]);
+          drawn[which] = true;
+        };
+        const turn = next && (mixing || t % 11 > 7) ? 1 : 0;
+        if (where === "wall" && core.wallW && core.wallPanels) {
+          const S = core.wallPanelSize, tg = { set: (x, y, r, g, b) => core.setWallPixel(x, y, r, g, b) };
+          const bottom = new Array(core.wallCols).fill(-1);
+          for (const p of core.wallPanels) bottom[p.gx] = Math.max(bottom[p.gx], p.gy);
+          const runs = [];
+          for (let gx = 0; gx < core.wallCols; gx++) {
+            if (bottom[gx] < 0) continue;
+            const last = runs[runs.length - 1];
+            if (last && last.gy === bottom[gx] && last.gx1 === gx - 1) last.gx1 = gx;
+            else runs.push({ gy: bottom[gx], gx0: gx, gx1: gx });
+          }
+          runs.sort((a, b) => b.gy - a.gy || b.gx1 - b.gx0 - (a.gx1 - a.gx0) || a.gx0 - b.gx0);
+          const span = (r) => ({ x0: r.gx0 * S, w: (r.gx1 - r.gx0 + 1) * S, y0: (r.gy + 1) * S - ROWS });
+          if (runs.length === 1 && runs[0].gx0 === runs[0].gx1 && core.wallPanels.length > 1) {
+            const up = core.wallPanels.filter((p) => p.gx === runs[0].gx0 && p.gy < runs[0].gy).sort((a, b) => b.gy - a.gy)[0];
+            if (up) runs.push({ gy: up.gy, gx0: up.gx, gx1: up.gx });
+          }
+          const r0 = runs[0] && span(runs[0]);
+          if (!r0) return 0;
+          if (r0.w >= 96) {
+            const half = Math.floor(r0.w / 2 / 8) * 8 || Math.floor(r0.w / 2);
+            deck(tg, r0.x0, half, r0.y0, 0);
+            deck(tg, r0.x0 + half, r0.w - half, r0.y0, 1);
+          } else if (runs.length > 1) {
+            const r1 = span(runs[1]);
+            deck(tg, r0.x0, r0.w, r0.y0, 0);
+            deck(tg, r1.x0, r1.w, r1.y0, 1);
+          } else deck(tg, r0.x0, r0.w, r0.y0, turn);
+          for (let i = 1; i < runs.length; i++) {
+            if (i === 1 && r0.w < 96) continue;
+            const r = span(runs[i]);
+            if (r.w >= 96) {
+              const half = Math.floor(r.w / 2);
+              deck(tg, r.x0, half, r.y0, 0);
+              deck(tg, r.x0 + half, r.w - half, r.y0, 1);
+            } else deck(tg, r.x0, r.w, r.y0, i % 2);
+          }
+        } else if (where === "wall" && core.wallW) {
+          const W2 = core.wallW, H = core.wallH, tg = { set: (x, y, r, g, b) => core.setWallPixel(x, y, r, g, b) };
+          if (W2 >= 96) {
+            const half = Math.floor(W2 / 2);
+            deck(tg, 0, half, H - ROWS, 0);
+            deck(tg, half, W2 - half, H - ROWS, 1);
+          } else deck(tg, 0, W2, H - ROWS, turn);
+        } else if (where === "cube") {
+          const SZ = core.SIZE || 64, face = (f) => ({ set: (x, y, r, g, b) => core.setFaceLED(f, x, SZ - 1 - y, r, g, b) });
+          if (core.panelMode === "2d") deck(face(0), 0, SZ, SZ - ROWS, turn);
+          else {
+            deck(face(0), 0, SZ, SZ - ROWS, 0);
+            deck(face(2), 0, SZ, SZ - ROWS, 1);
+            deck(face(1), 0, SZ, SZ - ROWS, 0);
+            deck(face(3), 0, SZ, SZ - ROWS, 1);
+          }
+        }
+        return ROWS;
+      }
+      module.exports = { drawDjDecks, createDeckState, ROWS };
+    }
+  });
+
   // src/effects/radio/search.js
   var require_search = __commonJS({
     "src/effects/radio/search.js"(exports, module) {
@@ -5657,6 +5837,8 @@ var PiEngine = (() => {
       var { RadioAudio, RemoteAudio, BAND_COUNT } = require_ffmpegAudio();
       var { renderSpectrumStyle, createSpectrumState } = require_spectrum();
       var { drawTicker } = require_ticker();
+      var { drawDjDecks, createDeckState } = require_djDecks();
+      var djDeckState = createDeckState();
       var { CHAR_W } = require_font2();
       var { drawGlyph5x7Face, drawLinesCentered, FONT_3x5, facePlot } = require_text();
       var { searchStations } = require_search();
@@ -5826,6 +6008,9 @@ var PiEngine = (() => {
           if (currentStation.url.startsWith("debugloop:")) {
             drawStaticLabel(core, 0, genre, 7);
             if (core.panelMode !== "2d") drawStaticLabel(core, 2, genre, 7);
+          } else if (currentStation.url === "dj:" && (audio.djInfo || audio.dj)) {
+            const ds = audio.dj && audio.dj.status;
+            drawDjDecks(core, audio.djInfo || { now: ds.now, next: ds.next, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn ?? -1 }, djDeckState, dt, core.audio ? core.audio.beat : 0, "cube");
           } else {
             const label = currentStation.name + (songTitle ? "  -  " + songTitle : genre ? "  \u2022  " + genre : "") + "    ";
             drawTicker(core, 0, label, dt);
@@ -28910,135 +29095,6 @@ var PiEngine = (() => {
         require_transition().flowMorph(buf, st.tmp, W, H, k);
       }
       module.exports = { renderSpectrumV2Wall, createV2State, SCENES };
-    }
-  });
-
-  // src/effects/radio/djDecks.js
-  var require_djDecks = __commonJS({
-    "src/effects/radio/djDecks.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var { FONT_3x5, FONT_5x7, drawString, textWidth } = require_text();
-      var ROWS = 17;
-      var NOW = { c: [0.15, 0.8, 1], text: [0.88, 0.96, 1], label: "NOW PLAYING", short: "NOW" };
-      var NEXT = { c: [1, 0.55, 0.12], text: [1, 0.9, 0.72], label: "UP NEXT", short: "NEXT" };
-      function createDeckState() {
-        return { decks: [{ title: "", t: 9, s: 0 }, { title: "", t: 9, s: 0 }], t: 0 };
-      }
-      var sm = (x) => {
-        x = x < 0 ? 0 : x > 1 ? 1 : x;
-        return x * x * (3 - 2 * x);
-      };
-      var mmss = (s) => {
-        s = Math.max(0, Math.round(s || 0));
-        return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
-      };
-      function drawDeck(core, x0, w, y0, kind, d, ds, st, dt, beat) {
-        const H = core.wallH, isNow = kind === NOW, k = d.k;
-        const set = (x, y, c, a) => {
-          if (x >= x0 && x < x0 + w && a > 3e-3) core.setWallPixel(x, y, c[0] * a, c[1] * a, c[2] * a);
-        };
-        for (let y = y0 + 1; y < H; y++) for (let x = x0; x < x0 + w; x++) set(x, y, kind.c, 0.025 * k);
-        for (let x = x0; x < x0 + w; x++) {
-          const e = Math.min(x - x0, x0 + w - 1 - x) / Math.max(1, w * 0.25);
-          set(x, y0, kind.c, 0.5 * sm(e) * k);
-        }
-        const hy = y0 + 2, ic = 0.7 + 0.3 * beat;
-        if (isNow) {
-          for (let r = 0; r < 5; r++) for (let c = 0; c <= Math.min(r, 4 - r); c++) set(x0 + 2 + c, hy + r, kind.c, ic * k);
-        } else {
-          for (let r = 0; r < 5; r++) {
-            const c = Math.min(r, 4 - r);
-            set(x0 + 2 + c, hy + r, kind.c, ic * k);
-            set(x0 + 4 + c, hy + r, kind.c, ic * k);
-          }
-        }
-        const right = d.right || "";
-        const rw = right ? textWidth(FONT_3x5, right) : 0;
-        const label = w >= 40 + rw + textWidth(FONT_3x5, kind.label) ? kind.label : kind.short;
-        drawString(FONT_3x5, label, x0 + 9, hy, (x, y) => set(x, y, kind.c, 0.95 * k));
-        if (right) drawString(FONT_3x5, right, x0 + w - 2 - rw, hy, (x, y) => set(x, y, d.rightC || [0.75, 0.8, 0.9], (d.rightA || 0.75) * k));
-        const title = (d.title || "").toUpperCase();
-        if (title !== ds.title) {
-          ds.title = title;
-          ds.t = 0;
-          ds.s = 0;
-        }
-        ds.t += dt;
-        const ty = y0 + 8, area = w - 4, tw = title ? textWidth(FONT_5x7, title) : 0;
-        const slide = Math.round((1 - sm(ds.t / 0.45)) * 9), clipTop = ty, clipBot = ty + 6;
-        let tx = x0 + 2 + Math.max(0, Math.floor((area - tw) / 2));
-        if (tw > area) {
-          if (ds.t > 2) ds.s += dt * 13;
-          const loop = tw + 24;
-          if (ds.s > loop) {
-            ds.s -= loop;
-          }
-          tx = x0 + 2 - Math.floor(ds.s);
-        }
-        const plotT = (x, y) => {
-          const yy = y + slide;
-          if (yy < clipTop || yy > clipBot || x < x0 + 2 || x >= x0 + 2 + area) return;
-          const edge = tw > area ? sm(Math.min(x - (x0 + 2), x0 + 1 + area - x) / 4) : 1;
-          set(x, yy, d.textC || kind.text, (d.textA || 1) * edge * k);
-        };
-        if (title) {
-          drawString(FONT_5x7, title, tx, ty, plotT);
-          if (tw > area) drawString(FONT_5x7, title, tx + tw + 24, ty, plotT);
-        }
-        const by = H - 1, f = Math.max(0, Math.min(1, d.bar || 0)), fill = Math.round(f * (w - 2));
-        for (let x = 1; x < w - 1; x++) {
-          const on = x - 1 < fill, g = (x - 1) / Math.max(1, w - 3);
-          const c = on ? [kind.c[0] * (0.55 + 0.45 * g), kind.c[1] * (0.55 + 0.45 * g), kind.c[2] * (0.55 + 0.45 * g)] : kind.c;
-          set(x0 + x, by, c, on ? (d.barA || 0.8) * k : 0.07 * k);
-        }
-        if (d.scan !== void 0) {
-          const sx = x0 + 1 + Math.round(d.scan * (w - 3));
-          for (let j = -2; j <= 2; j++) set(sx + j, by, kind.c, (1 - Math.abs(j) / 3) * k);
-        } else if (fill > 0 && fill < w - 2) set(x0 + fill, by, [1, 1, 1], 0.9 * k);
-      }
-      function drawDjDecks(core, info, st, dt, beat = 0) {
-        if (!info || !core.wallW) return 0;
-        st.t += dt;
-        const W = core.wallW, H = core.wallH, y0 = H - ROWS, t = st.t, mixing = !!info.mixing, u = info.mixU || 0;
-        const now = info.now, next = info.next;
-        const alt = Math.floor(t / 4) % 2 === 1;
-        const keyBpm = (x) => [x.bpm ? x.bpm + (W >= 192 ? " BPM" : "") : "", x.key || ""].filter(Boolean).join(" ");
-        const dNow = now ? {
-          title: now.title,
-          k: mixing ? 1 - 0.55 * sm(u) : 1,
-          right: alt && now.dur ? "-" + mmss(now.dur - now.pos) : keyBpm(now),
-          bar: now.dur ? now.pos / now.dur : 0
-        } : { title: "LOADING", k: 0.6, right: "", scan: (Math.sin(t * 3) + 1) / 2 };
-        let dNext;
-        if (!next) dNext = { title: "", k: 0.5, right: "", bar: 0 };
-        else if (next.status === "loading") dNext = { title: next.title, k: 0.75, textA: 0.6, right: "LOADING" + "...".slice(0, 1 + Math.floor(t * 2) % 3), rightA: 0.55, scan: (Math.sin(t * 2.4) + 1) / 2 };
-        else {
-          const soon = info.mixIn >= 0 && info.mixIn < 60;
-          dNext = {
-            title: next.title,
-            k: mixing ? 0.75 + 0.25 * sm(u) : 0.8,
-            textA: mixing ? 0.75 + 0.25 * u : 0.8,
-            right: mixing ? next.style === "cut" ? "CUT" : "MIXING" : soon && alt ? "IN " + mmss(info.mixIn) : keyBpm(next),
-            rightC: mixing ? NEXT.c : void 0,
-            rightA: mixing ? 0.6 + 0.4 * (0.5 + 0.5 * Math.sin(t * 8)) : 0.75,
-            bar: mixing ? u : soon ? 1 - info.mixIn / 60 : 0,
-            barA: mixing ? 1 : 0.45
-          };
-        }
-        if (W >= 96) {
-          const half = Math.floor(W / 2);
-          drawDeck(core, 0, half, y0, NOW, dNow, st.decks[0], st, dt, beat);
-          drawDeck(core, half, W - half, y0, NEXT, dNext, st.decks[1], st, dt, beat);
-        } else {
-          const showNext = next && (mixing || t % 11 > 7);
-          if (showNext) drawDeck(core, 0, W, y0, NEXT, dNext, st.decks[1], st, dt, beat);
-          else drawDeck(core, 0, W, y0, NOW, dNow, st.decks[0], st, dt, beat);
-        }
-        return ROWS;
-      }
-      module.exports = { drawDjDecks, createDeckState, ROWS };
     }
   });
 

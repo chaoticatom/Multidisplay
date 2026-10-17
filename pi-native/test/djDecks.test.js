@@ -31,5 +31,33 @@ try {
   assert.ok(sum(c3, 0, 64, 47, 64) > 0);
   // Loading and empty states draw without errors.
   drawDjDecks(wall(384, 64), { now: null, next: { title: 'X', status: 'loading' }, mixing: false, mixU: 0, mixIn: -1 }, createDeckState(), 1 / 30);
+  // Every wall layout up to six panels: both decks drawn, on panels only,
+  // each in the bottom 17 rows of a panel.
+  const { CubeCore } = require('../src/core');
+  const layouts = {
+    'two side by side': [[0, 0], [1, 0]], 'three in a row': [[0, 0], [1, 0], [2, 0]], 'six in a row': [0, 1, 2, 3, 4, 5].map((x) => [x, 0]),
+    '3x2': [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]], 'stack of two': [[0, 0], [0, 1]], 'L': [[0, 0], [0, 1], [1, 1]],
+    'steps': [[0, 1], [1, 0], [2, 1]], 'one': [[0, 0]], '2x2': [[0, 0], [1, 0], [0, 1], [1, 1]],
+  };
+  for (const [name, cells] of Object.entries(layouts)) {
+    const core = new CubeCore(64); core.initWall(cells.map(([gx, gy]) => ({ gx, gy })), 64);
+    const s4 = createDeckState();
+    for (let i = 0; i < 20; i++) drawDjDecks(core, info, s4, 1 / 30);
+    let cyan = 0, amber = 0, stray = 0;
+    for (let y = 0; y < core.wallH; y++) for (let x = 0; x < core.wallW; x++) {
+      const o = (y * core.wallW + x) * 3, r = core.wallBuf[o], b = core.wallBuf[o + 2];
+      if (r + b === 0) continue;
+      if (y % 64 < 64 - 17) stray++;
+      if (b > r) cyan++; else amber++;
+    }
+    assert.strictEqual(stray, 0, name + ': only in the deck rows');
+    assert.ok(cyan > 50 && (cells.length === 1 || amber > 50), `${name}: both decks (${cyan}/${amber})`);
+  }
+  // The cube: NOW on the front and back, NEXT on the right and left.
+  const cube = new CubeCore(64), s5 = createDeckState();
+  for (let i = 0; i < 20; i++) drawDjDecks(cube, info, s5, 1 / 30, 0, 'cube');
+  const faceTint = (f) => { let r = 0, b = 0; for (let v = 0; v < 64; v++) for (let u = 0; u < 64; u++) { const i = cube.faceMap[f][v * 64 + u]; if (i < 0) continue; r += cube.colBuf[i * 3]; b += cube.colBuf[i * 3 + 2]; } return [r, b]; };
+  for (const f of [0, 1]) { const [r, b] = faceTint(f); assert.ok(b > r && b > 5, 'cube face ' + f + ' is NOW'); }
+  for (const f of [2, 3]) { const [r, b] = faceTint(f); assert.ok(r > b && r > 5, 'cube face ' + f + ' is NEXT'); }
   console.log('  ok - now playing and up next decks');
 } catch (e) { console.error(e); process.exitCode = 1; }
