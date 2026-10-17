@@ -2553,20 +2553,59 @@ var PiEngine = (() => {
           });
         });
       }
+      function prettyTitle(e) {
+        const title = String(e.track || e.title || "YouTube").trim();
+        const artist = String(Array.isArray(e.artists) && e.artists[0] || e.artist || e.channel || e.uploader || "").replace(/\s*-\s*Topic$/i, "").replace(/VEVO$/i, "").trim();
+        const clean = title.replace(/\s*[([](official( music)?( video| audio)?|lyrics?( video)?|audio|hd|4k|visuali[sz]er)[)\]]/gi, "").trim();
+        if (!artist || clean.toLowerCase().includes(artist.toLowerCase())) return clean.slice(0, 100);
+        return (artist + " \u2013 " + clean).slice(0, 100);
+      }
+      var toTracks = (entries) => entries.filter((e) => e && /^[\w-]{6,20}$/.test(e.id || "") && !(e.duration && e.duration > 10 * 60)).map((e) => ({ kind: "yt", id: e.id, title: prettyTitle(e) }));
+      async function flat(target, spawn, max = 40) {
+        const out = await ytRun(["--flat-playlist", "-J", "--no-warnings", "--playlist-end", String(max), target], spawn, 45e3);
+        const data = JSON.parse(out);
+        return data.entries || [data];
+      }
       async function youtubeTracks(query, spawn = realSpawn) {
         const q = String(query || "").trim().slice(0, 300);
         if (!q) return [];
-        const target = /^https?:\/\//.test(q) ? q : `ytsearch25:${q}`;
-        const out = await ytRun(["--flat-playlist", "-J", "--no-warnings", "--playlist-end", "40", target], spawn, 45e3);
-        const data = JSON.parse(out), entries = data.entries || [data];
-        return entries.filter((e) => e && /^[\w-]{6,20}$/.test(e.id || "") && !(e.duration && e.duration > 10 * 60)).map((e) => ({ kind: "yt", id: e.id, title: String(e.title || "YouTube").slice(0, 100) }));
+        if (/^https?:\/\//.test(q)) return toTracks(await flat(q, spawn));
+        try {
+          const t = toTracks(await flat(`https://music.youtube.com/search?q=${encodeURIComponent(q)}#songs`, spawn, 30));
+          if (t.length >= 5) return t;
+        } catch (e) {
+          if (/not installed/.test(e.message)) throw e;
+        }
+        return toTracks(await flat(`ytsearch25:${q}`, spawn));
       }
+      async function youtubeLibrary(spawn = realSpawn) {
+        const yt = require_youtube();
+        if (!yt.signedIn()) throw new Error("Sign in to YouTube first (Setup > YouTube)");
+        const items = [{ id: "LM", title: "\u2764 Liked music", url: "https://music.youtube.com/playlist?list=LM" }];
+        for (const src of ["https://www.youtube.com/feed/playlists", "https://music.youtube.com/library/playlists"]) {
+          try {
+            for (const e of await flat(src, spawn, 100)) {
+              const id = e.id || (String(e.url || "").match(/list=([\w-]+)/) || [])[1];
+              if (!id || !/^[\w-]{2,64}$/.test(id) || items.some((x) => x.id === id)) continue;
+              items.push({ id, title: String(e.title || "Playlist").slice(0, 80), url: `https://music.youtube.com/playlist?list=${id}` });
+            }
+          } catch (e) {
+            if (/not installed/.test(e.message)) throw e;
+          }
+        }
+        return items;
+      }
+      async function youtubeRadio(id, spawn = realSpawn) {
+        if (!/^[\w-]{6,20}$/.test(id)) return [];
+        return toTracks(await flat(`https://www.youtube.com/watch?v=${id}&list=RDAMVM${id}`, spawn, 40)).filter((t) => t.id !== id);
+      }
+      var AUDIO_FORMAT = "141/bestaudio[ext=m4a]/bestaudio/best";
       async function youtubeAudio(id, spawn = realSpawn) {
         const attempts = [[], ["--extractor-args", "youtube:player_client=tv,ios"], ["--extractor-args", "youtube:player_client=android,web_safari"]];
         let last = null;
         for (const extra of attempts) {
           try {
-            const out = await ytRun(["-f", "bestaudio/best", "-g", "--no-warnings", ...extra, `https://www.youtube.com/watch?v=${id}`], spawn, 4e4);
+            const out = await ytRun(["-f", AUDIO_FORMAT, "-g", "--no-warnings", ...extra, `https://music.youtube.com/watch?v=${id}`], spawn, 4e4);
             const url = out.trim().split("\n").find((l) => /^https?:\/\//.test(l));
             if (url) return url;
           } catch (e) {
@@ -2576,9 +2615,64 @@ var PiEngine = (() => {
         }
         throw last || new Error("no audio stream");
       }
+      var CACHE_DIR = path.join(define_process_env_default.TMPDIR || "/tmp", "multidisplay-dj");
+      var CACHE_KEEP = 5;
+      var fetching = /* @__PURE__ */ new Map();
+      function cachedFile(id) {
+        try {
+          const f = fs.readdirSync(CACHE_DIR).find((x) => x.startsWith(id + ".") && !x.endsWith(".part"));
+          return f ? path.join(CACHE_DIR, f) : null;
+        } catch (e) {
+          return null;
+        }
+      }
+      function trimCache() {
+        try {
+          const files = fs.readdirSync(CACHE_DIR).filter((f) => !f.endsWith(".part")).map((f) => ({ f, t: fs.statSync(path.join(CACHE_DIR, f)).mtimeMs })).sort((a, b) => b.t - a.t);
+          for (const { f } of files.slice(CACHE_KEEP)) fs.unlinkSync(path.join(CACHE_DIR, f));
+        } catch (e) {
+        }
+      }
+      function fetchYoutube(id, spawn = realSpawn) {
+        if (!/^[\w-]{6,20}$/.test(id)) return Promise.reject(new Error("bad id"));
+        const have = cachedFile(id);
+        if (have) return Promise.resolve(have);
+        if (fetching.has(id)) return fetching.get(id);
+        fs.mkdirSync(CACHE_DIR, { recursive: true });
+        const attempts = [[], ["--extractor-args", "youtube:player_client=tv,ios"], ["--extractor-args", "youtube:player_client=android,web_safari"]];
+        const job = (async () => {
+          let last = null;
+          for (const extra of attempts) {
+            try {
+              await ytRun(["-f", AUDIO_FORMAT, "--no-warnings", "--no-playlist", "--match-filter", "duration <= 600", "-o", path.join(CACHE_DIR, "%(id)s.%(ext)s"), ...extra, `https://music.youtube.com/watch?v=${id}`], spawn, 18e4);
+              const f = cachedFile(id);
+              if (f) {
+                trimCache();
+                return f;
+              }
+              last = new Error("no audio (longer than 10 minutes?)");
+            } catch (e) {
+              last = e;
+              if (/not installed/.test(e.message)) throw e;
+            }
+          }
+          throw last || new Error("no audio");
+        })().finally(() => fetching.delete(id));
+        fetching.set(id, job);
+        return job;
+      }
+      function prefetch(track, spawn = realSpawn) {
+        if (track && track.kind === "yt") fetchYoutube(track.id, spawn).catch(() => {
+        });
+      }
       async function inputFor(track, spawn = realSpawn) {
         if (track.kind === "mp3") return { url: path.join(MUSIC_DIR, track.id), opts: [] };
-        return { url: await youtubeAudio(track.id, spawn), opts: ["-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"] };
+        try {
+          return { url: await fetchYoutube(track.id, spawn), opts: [] };
+        } catch (e) {
+          if (/not installed/.test(e.message)) throw e;
+          return { url: await youtubeAudio(track.id, spawn), opts: ["-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"] };
+        }
       }
       var CACHE = path.join(MUSIC_DIR, ".dj-analysis.json");
       function loadAnalyses() {
@@ -2613,7 +2707,7 @@ var PiEngine = (() => {
         }
         return out;
       }
-      module.exports = { MUSIC_DIR, AUDIO_RE, listMusic, deleteMusic, titleOf, youtubeTracks, youtubeAudio, inputFor, allTracks, loadAnalyses, saveAnalysis };
+      module.exports = { MUSIC_DIR, AUDIO_RE, listMusic, deleteMusic, titleOf, youtubeTracks, youtubeAudio, youtubeLibrary, youtubeRadio, prettyTitle, prefetch, fetchYoutube, CACHE_DIR, inputFor, allTracks, loadAnalyses, saveAnalysis };
     }
   });
 
@@ -2945,7 +3039,8 @@ var PiEngine = (() => {
         let cfg = { source: "both", youtube: "", mixBeats: "auto", quick: false, style: "auto" };
         let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
         let known = {};
-        const recent = [];
+        const recent = [], played = /* @__PURE__ */ new Set();
+        let extending = null;
         function deckFrom(track, info, pcm, tempo, matched, semis = 0) {
           const k = RATE / tempo;
           const d = { track, info, pcm, frames: pcm.length / 2, tempo, matched, semis, pos: 0, lp: new Float32Array(8), plan: null };
@@ -3136,7 +3231,26 @@ var PiEngine = (() => {
           const pc = (key.pc + s + 12) % 12;
           return { ...key, pc, camelot: (key.minor ? analyser.CAMELOT_MIN : analyser.CAMELOT_MAJ)[pc] };
         }
+        function extendIfLow() {
+          if (cfg.endless === false || extending || !list.length) return;
+          const left = list.filter((t) => !played.has(t.id)).length;
+          if (left > 3) return;
+          const seed = A && A.track.kind === "yt" ? A.track : [...list].reverse().find((t) => t.kind === "yt");
+          if (!seed || !sources.youtubeRadio) return;
+          const g = gen;
+          extending = sources.youtubeRadio(seed.id).then((more) => {
+            if (g !== gen) return;
+            const have = new Set(list.map((t) => t.id)), add = more.filter((t) => !have.has(t.id));
+            if (!add.length) return;
+            list.push(...add);
+            st.queue = list.slice(0, 300).map((t) => ({ title: t.title, kind: t.kind }));
+            log(`[dj] endless: added ${add.length} songs like ${seed.title}`);
+          }).catch((err) => log("[dj] endless: " + err.message)).finally(() => {
+            extending = null;
+          });
+        }
         function chooseNext() {
+          extendIfLow();
           if (wantNext !== null) {
             const i = wantNext;
             wantNext = null;
@@ -3189,6 +3303,10 @@ var PiEngine = (() => {
                 if (A) A.plan = null;
                 const beat = d.matched && A && A.matched;
                 st.next = { title: track.title, bpm: Math.round(d.bpm), key: d.keyNow ? d.keyNow.camelot : "", shift: d.semis, mode: beat ? "beat-matched" : "crossfade" };
+                if (sources.prefetch && list.length > 1) {
+                  const after = list[idx % list.length];
+                  if (after && after.id !== track.id) sources.prefetch(after);
+                }
                 log(`[dj] next: ${track.title} (${Math.round(d.info.bpm)} BPM${d.tempo !== 1 ? ` -> ${Math.round(d.bpm)}` : ""}${d.semis ? `, ${d.semis > 0 ? "+" : ""}${d.semis} st` : ""}, ${st.next.mode})`);
                 return;
               } catch (e) {
@@ -3220,6 +3338,7 @@ var PiEngine = (() => {
           log(`[dj] ${p.style === "cut" ? "cutting" : "mixing"} into ${B.track.title}${p.why ? " (" + p.why + ")" : ""}${p.beats ? ` over ${p.beats} beats` : p.style === "fade" ? ` over ${Math.round(p.len / RATE)} s` : " on the beat"}`);
         }
         function promote() {
+          if (B) played.add(B.track.id);
           if (A) {
             recent.push(A.track.id);
             while (recent.length > Math.max(1, Math.floor(list.length / 2))) recent.shift();
@@ -3242,7 +3361,7 @@ var PiEngine = (() => {
         }
         function nowStatus() {
           if (!A) return;
-          st.now = { title: A.track.title, bpm: Math.round(A.bpm), key: A.keyNow ? A.keyNow.camelot : "", shift: A.semis || 0, dur: Math.round(A.frames / RATE * 10) / 10, pos: Math.round(A.pos / RATE * 10) / 10, at: Date.now() };
+          st.now = { id: A.track.kind === "yt" ? A.track.id : "", title: A.track.title, bpm: Math.round(A.bpm), key: A.keyNow ? A.keyNow.camelot : "", shift: A.semis || 0, dur: Math.round(A.frames / RATE * 10) / 10, pos: Math.round(A.pos / RATE * 10) / 10, at: Date.now() };
         }
         const LPL = 1 - Math.exp(-2 * Math.PI * 180 / RATE), LPH = 1 - Math.exp(-2 * Math.PI * 2500 / RATE);
         function sampleDeck(d, gain, lo, mi, hi, out) {
@@ -3395,6 +3514,7 @@ var PiEngine = (() => {
           idx = 0;
           wantNext = null;
           recent.length = 0;
+          played.clear();
           st.queue = list.slice(0, 300).map((t) => ({ title: t.title, kind: t.kind }));
           st.nowIdx = st.nextIdx = -1;
           timer = setTimer(pump, 50);
@@ -3438,6 +3558,7 @@ var PiEngine = (() => {
         function configure(c) {
           if (c.mixBeats !== void 0) cfg.mixBeats = [16, 32, 64].includes(Number(c.mixBeats)) ? Number(c.mixBeats) : "auto";
           if (c.quick !== void 0) cfg.quick = !!c.quick;
+          if (c.endless !== void 0) cfg.endless = !!c.endless;
           if (STYLES.includes(c.style)) cfg.style = c.style;
           if (A && !mix) A.plan = null;
         }
@@ -3739,7 +3860,7 @@ var PiEngine = (() => {
         volume: 1,
         // overall volume for everything the Pi plays (src/masterVolume.js)
         mic: { music: false },
-        dj: { source: "both", youtube: "", mixBeats: "auto", quick: false, style: "auto" },
+        dj: { source: "both", youtube: "", mixBeats: "auto", quick: false, style: "auto", endless: true },
         // the Auto-DJ (quick: mix about a minute into each song) (src/dj): mp3 | youtube | both; playlist link or search
         alexa: { on: false, skillId: "", invocation: "led wall" },
         // skillId/invocation: your own Alexa skill (src/alexaSkill.js) // pretend to be a Hue bridge so an Echo can control the display (src/alexa.js) // the Pi's microphone (src/mic.js): music: effects react to the room when no station plays
@@ -3824,6 +3945,7 @@ var PiEngine = (() => {
           if ([16, 32, 64].includes(Number(p.dj.mixBeats))) out.dj.mixBeats = Number(p.dj.mixBeats);
           else if (p.dj.mixBeats === "auto") out.dj.mixBeats = "auto";
           if (typeof p.dj.quick === "boolean") out.dj.quick = p.dj.quick;
+          if (typeof p.dj.endless === "boolean") out.dj.endless = p.dj.endless;
           if (["auto", "blend", "short", "cut"].includes(p.dj.style)) out.dj.style = p.dj.style;
         }
         if (p && p.alexa) {
@@ -29347,24 +29469,51 @@ var PiEngine = (() => {
             tickerRows: djInfo ? DJ_ROWS : 9
           };
           if (djInfo && audio.specA && core.wallW >= 96) {
-            const half = Math.floor(core.wallW / 2), H = core.wallH;
-            const kB = djInfo.mixing ? 0.65 + 0.35 * (djInfo.mixU || 0) : djInfo.next && djInfo.next.status !== "loading" ? 0.6 : 0;
-            const kA = djInfo.mixing ? 1 - 0.35 * (djInfo.mixU || 0) : 1;
-            for (const [key, x0, w, spec, k] of [["a", 0, half, audio.specA, kA], ["b", half, core.wallW - half, audio.specB, kB]]) {
-              if (!split) split = { a: splitSide(), b: splitSide() };
-              const side = split[key], sub = subCanvas(side, w, H);
+            if (!split) split = { a: splitSide(), b: splitSide(), kB: 0, merged: null };
+            const half = Math.floor(core.wallW / 2), wR = core.wallW - half, H = core.wallH;
+            const u = djInfo.mixing ? Math.max(0, Math.min(1, djInfo.mixU || 0)) : 0, e = u * u * (3 - 2 * u);
+            const kBWant = djInfo.next && djInfo.next.status !== "loading" ? 0.62 : 0;
+            split.kB += (kBWant - split.kB) * Math.min(1, dt * (kBWant > split.kB ? 1.2 : 4));
+            const o = { bands, gain, autoGain: autoGainOn, fitToScreen };
+            const lA = computeLevels(split.a.lv, { spec: audio.specA, peak: audio.specA }, o, dt);
+            const lB = computeLevels(split.b.lv, { spec: audio.specB, peak: audio.specB }, o, dt);
+            if (!split.merged || split.merged.amp.length !== lA.amp.length) split.merged = { amp: new Float32Array(lA.amp.length), peak: new Float32Array(lA.amp.length) };
+            const m = split.merged;
+            for (let i = 0; i < m.amp.length; i++) {
+              m.amp[i] = lA.amp[i] + (lB.amp[i] - lA.amp[i]) * e;
+              m.peak[i] = lA.peak[i] + (lB.peak[i] - lA.peak[i]) * e;
+            }
+            const draw = (side, w, lv2) => {
+              const sub = subCanvas(side, w, H);
               sub.wallBuf.fill(0);
               sub.t = core.t;
-              if (k > 0) {
-                const lvS = computeLevels(side.lv, { spec, peak: spec }, { bands, gain, autoGain: autoGainOn, fitToScreen }, dt);
-                const c2 = { ...ctx, amp: (b2) => lvS.amp[b2], peak: (b2) => lvS.peak[b2], ampArr: lvS.amp, peakArr: lvS.peak, ampL: null, ampR: null };
-                if (opts.version === 1) renderSpectrumStyleWall(sub, c2, style, side.v1);
-                else renderSpectrumV2Wall(sub, c2, opts.scene || "auto", side.v2, opts.autoSecs);
+              const c2 = { ...ctx, amp: (i) => lv2.amp[i], peak: (i) => lv2.peak[i], ampArr: lv2.amp, peakArr: lv2.peak, ampL: null, ampR: null };
+              if (opts.version === 1) renderSpectrumStyleWall(sub, c2, style, side.v1);
+              else renderSpectrumV2Wall(sub, c2, opts.scene || "auto", side.v2, opts.autoSecs);
+              return sub.wallBuf;
+            };
+            const put = (x, y, r, g, b2, add) => {
+              if (x < 0 || x >= core.wallW) return;
+              const q = (y * core.wallW + x) * 3, wb = core.wallBuf;
+              if (add) core.setWallPixel(x, y, Math.min(1.6, wb[q] + r), Math.min(1.6, wb[q + 1] + g), Math.min(1.6, wb[q + 2] + b2));
+              else core.setWallPixel(x, y, r, g, b2);
+            };
+            const bufA = draw(split.a, half, m);
+            for (let y = 0; y < H; y++) for (let x = 0; x < half; x++) {
+              const q = (y * half + x) * 3;
+              if (bufA[q] + bufA[q + 1] + bufA[q + 2] > 0) put(x, y, bufA[q], bufA[q + 1], bufA[q + 2], false);
+            }
+            const kB = djInfo.mixing ? Math.max(split.kB, 0.62 + 0.38 * Math.sin(Math.PI * Math.min(1, u * 1.4))) * (1 - e * e) : split.kB;
+            if (kB > 0.01) {
+              const bufB = draw(split.b, wR, lB), shift = Math.round(e * half);
+              for (let y = 0; y < H; y++) for (let x = 0; x < wR; x++) {
+                const q = (y * wR + x) * 3;
+                if (bufB[q] + bufB[q + 1] + bufB[q + 2] > 0) put(half - shift + x, y, bufB[q] * kB, bufB[q + 1] * kB, bufB[q + 2] * kB, shift > 0);
               }
-              const b = sub.wallBuf;
-              for (let y = 0; y < H; y++) for (let x = 0; x < w; x++) {
-                const o = (y * w + x) * 3;
-                if (b[o] + b[o + 1] + b[o + 2] > 0) core.setWallPixel(x0 + x, y, b[o] * k, b[o + 1] * k, b[o + 2] * k);
+              const glow = Math.sin(Math.PI * u), sx = half - shift, area = H - DJ_ROWS;
+              if (glow > 0.02) for (let y = 0; y < area; y++) for (let d = -3; d <= 3; d++) {
+                const k = glow * (1 - Math.abs(d) / 4) * (0.55 + 0.45 * Math.sin(y * 0.35 + core.t * 9)) * 0.5;
+                put(sx + d, y, 1 * k * (d >= 0 ? 1 : 0.35), 0.62 * k, (d < 0 ? 1 : 0.25) * k, true);
               }
             }
           } else if (opts.version === 1) renderSpectrumStyleWall(core, ctx, style, spectrumWallState);

@@ -28,7 +28,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   let wantNext = null, prepToken = 0;
   let cfg = { source: 'both', youtube: '', mixBeats: 'auto', quick: false, style: 'auto' };
   let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
-  let known = {}; const recent = [];
+  let known = {}; const recent = [], played = new Set(); let extending = null;
 
   function deckFrom(track, info, pcm, tempo, matched, semis = 0) {
     const k = RATE / tempo; // original seconds -> played frames
@@ -204,7 +204,27 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   }
 
   // The next track: the one picked, else the best fit by tempo and key among the next few.
+  // Endless (YouTube): as the list runs out, add YouTube Music's radio of
+  // the song playing - similar songs - to the end of it.
+  function extendIfLow() {
+    if (cfg.endless === false || extending || !list.length) return;
+    const left = list.filter((t) => !played.has(t.id)).length;
+    if (left > 3) return;
+    const seed = A && A.track.kind === 'yt' ? A.track : [...list].reverse().find((t) => t.kind === 'yt');
+    if (!seed || !sources.youtubeRadio) return;
+    const g = gen;
+    extending = sources.youtubeRadio(seed.id).then((more) => {
+      if (g !== gen) return;
+      const have = new Set(list.map((t) => t.id)), add = more.filter((t) => !have.has(t.id));
+      if (!add.length) return;
+      list.push(...add);
+      st.queue = list.slice(0, 300).map((t) => ({ title: t.title, kind: t.kind }));
+      log(`[dj] endless: added ${add.length} songs like ${seed.title}`);
+    }).catch((err) => log('[dj] endless: ' + err.message)).finally(() => { extending = null; });
+  }
+
   function chooseNext() {
+    extendIfLow();
     if (wantNext !== null) { const i = wantNext; wantNext = null; idx = i + 1; return i; }
     const cands = [];
     for (let j = 0; j < list.length && cands.length < 8; j++) {
@@ -243,6 +263,8 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
           B = d; d.readyAt = Date.now(); if (A) A.plan = null;
           const beat = d.matched && A && A.matched;
           st.next = { title: track.title, bpm: Math.round(d.bpm), key: d.keyNow ? d.keyNow.camelot : '', shift: d.semis, mode: beat ? 'beat-matched' : 'crossfade' };
+          // Fetch the one after next meanwhile, so it's ready in time.
+          if (sources.prefetch && list.length > 1) { const after = list[idx % list.length]; if (after && after.id !== track.id) sources.prefetch(after); }
           log(`[dj] next: ${track.title} (${Math.round(d.info.bpm)} BPM${d.tempo !== 1 ? ` -> ${Math.round(d.bpm)}` : ''}${d.semis ? `, ${d.semis > 0 ? '+' : ''}${d.semis} st` : ''}, ${st.next.mode})`);
           return;
         } catch (e) { log('[dj] skipped ' + track.title + ': ' + e.message); st.error = e.message; }
@@ -266,6 +288,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     log(`[dj] ${p.style === 'cut' ? 'cutting' : 'mixing'} into ${B.track.title}${p.why ? ' (' + p.why + ')' : ''}${p.beats ? ` over ${p.beats} beats` : p.style === 'fade' ? ` over ${Math.round(p.len / RATE)} s` : ' on the beat'}`);
   }
   function promote() {
+    if (B) played.add(B.track.id);
     if (A) { recent.push(A.track.id); while (recent.length > Math.max(1, Math.floor(list.length / 2))) recent.shift(); }
     A = B; B = null; mix = null; st.mixing = false;
     if (A.pos === 0) A.pos = Math.round(A.inFrame);
@@ -278,7 +301,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   }
   function nowStatus() {
     if (!A) return;
-    st.now = { title: A.track.title, bpm: Math.round(A.bpm), key: A.keyNow ? A.keyNow.camelot : '', shift: A.semis || 0, dur: Math.round(A.frames / RATE * 10) / 10, pos: Math.round(A.pos / RATE * 10) / 10, at: Date.now() };
+    st.now = { id: A.track.kind === 'yt' ? A.track.id : '', title: A.track.title, bpm: Math.round(A.bpm), key: A.keyNow ? A.keyNow.camelot : '', shift: A.semis || 0, dur: Math.round(A.frames / RATE * 10) / 10, pos: Math.round(A.pos / RATE * 10) / 10, at: Date.now() };
   }
 
   // Three bands per deck and channel: bass (< ~180 Hz, 2-pole), highs (> ~2.5 kHz), mids between.
@@ -379,7 +402,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     try { list = await sources.allTracks(cfg); } catch (e) { if (g === gen) { st.state = 'error'; st.error = e.message; } return; }
     if (g !== gen) return;
     if (!list.length) { st.state = 'empty'; st.error = cfg.source === 'youtube' ? 'No YouTube tracks found' : 'No music yet - add MP3s, or a YouTube playlist or search'; return; }
-    idx = 0; wantNext = null; recent.length = 0;
+    idx = 0; wantNext = null; recent.length = 0; played.clear();
     st.queue = list.slice(0, 300).map((t) => ({ title: t.title, kind: t.kind })); st.nowIdx = st.nextIdx = -1;
     timer = setTimer(pump, 50);
     prepareNext();
@@ -411,6 +434,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   function configure(c) {
     if (c.mixBeats !== undefined) cfg.mixBeats = [16, 32, 64].includes(Number(c.mixBeats)) ? Number(c.mixBeats) : 'auto';
     if (c.quick !== undefined) cfg.quick = !!c.quick;
+    if (c.endless !== undefined) cfg.endless = !!c.endless;
     if (STYLES.includes(c.style)) cfg.style = c.style;
     if (A && !mix) A.plan = null;
   }

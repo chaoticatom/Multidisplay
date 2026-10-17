@@ -112,23 +112,49 @@ function effectRadioWall(core, dt) {
     // Version 2 (the default) is the animated scenes; version 1 keeps the classic styles.
     if (djInfo && audio.specA && core.wallW >= 96) {
       // Auto-DJ: the left half is the song playing, the right half the next
-      // one (its real sound during the mix; before that a silent preview of
-      // its opening bars). The next one is dimmer until the mix brings it up.
-      const half = Math.floor(core.wallW / 2), H = core.wallH;
-      const kB = djInfo.mixing ? 0.65 + 0.35 * (djInfo.mixU || 0) : djInfo.next && djInfo.next.status !== 'loading' ? 0.6 : 0;
-      const kA = djInfo.mixing ? 1 - 0.35 * (djInfo.mixU || 0) : 1;
-      for (const [key, x0, w, spec, k] of [['a', 0, half, audio.specA, kA], ['b', half, core.wallW - half, audio.specB, kB]]) {
-        if (!split) split = { a: splitSide(), b: splitSide() };
-        const side = split[key], sub = subCanvas(side, w, H);
-        sub.wallBuf.fill(0); sub.t = core.t;
-        if (k > 0) {
-          const lvS = computeLevels(side.lv, { spec, peak: spec }, { bands, gain, autoGain: autoGainOn, fitToScreen }, dt);
-          const c2 = { ...ctx, amp: (b) => lvS.amp[b], peak: (b) => lvS.peak[b], ampArr: lvS.amp, peakArr: lvS.peak, ampL: null, ampR: null };
-          if (opts.version === 1) renderSpectrumStyleWall(sub, c2, style, side.v1);
-          else renderSpectrumV2Wall(sub, c2, opts.scene || 'auto', side.v2, opts.autoSecs);
+      // one (a silent preview of its opening bars, dimmer). As the mix runs,
+      // the right analyser slides left into the left one while the left's
+      // peaks and troughs morph into the new song's; a glowing seam marks
+      // where they meet. When the mix ends the left is the new song, and the
+      // song after it fades in on the right.
+      if (!split) split = { a: splitSide(), b: splitSide(), kB: 0, merged: null };
+      const half = Math.floor(core.wallW / 2), wR = core.wallW - half, H = core.wallH;
+      const u = djInfo.mixing ? Math.max(0, Math.min(1, djInfo.mixU || 0)) : 0, e = u * u * (3 - 2 * u);
+      const kBWant = djInfo.next && djInfo.next.status !== 'loading' ? 0.62 : 0;
+      split.kB += (kBWant - split.kB) * Math.min(1, dt * (kBWant > split.kB ? 1.2 : 4));
+      const o = { bands, gain, autoGain: autoGainOn, fitToScreen };
+      const lA = computeLevels(split.a.lv, { spec: audio.specA, peak: audio.specA }, o, dt);
+      const lB = computeLevels(split.b.lv, { spec: audio.specB, peak: audio.specB }, o, dt);
+      if (!split.merged || split.merged.amp.length !== lA.amp.length) split.merged = { amp: new Float32Array(lA.amp.length), peak: new Float32Array(lA.amp.length) };
+      const m = split.merged;
+      for (let i = 0; i < m.amp.length; i++) { m.amp[i] = lA.amp[i] + (lB.amp[i] - lA.amp[i]) * e; m.peak[i] = lA.peak[i] + (lB.peak[i] - lA.peak[i]) * e; }
+      const draw = (side, w, lv) => {
+        const sub = subCanvas(side, w, H); sub.wallBuf.fill(0); sub.t = core.t;
+        const c2 = { ...ctx, amp: (i) => lv.amp[i], peak: (i) => lv.peak[i], ampArr: lv.amp, peakArr: lv.peak, ampL: null, ampR: null };
+        if (opts.version === 1) renderSpectrumStyleWall(sub, c2, style, side.v1);
+        else renderSpectrumV2Wall(sub, c2, opts.scene || 'auto', side.v2, opts.autoSecs);
+        return sub.wallBuf;
+      };
+      const put = (x, y, r, g, b2, add) => {
+        if (x < 0 || x >= core.wallW) return;
+        const q = (y * core.wallW + x) * 3, wb = core.wallBuf;
+        if (add) core.setWallPixel(x, y, Math.min(1.6, wb[q] + r), Math.min(1.6, wb[q + 1] + g), Math.min(1.6, wb[q + 2] + b2));
+        else core.setWallPixel(x, y, r, g, b2);
+      };
+      // Left: the playing song, morphing into the next as the mix runs.
+      const bufA = draw(split.a, half, m);
+      for (let y = 0; y < H; y++) for (let x = 0; x < half; x++) { const q = (y * half + x) * 3; if (bufA[q] + bufA[q + 1] + bufA[q + 2] > 0) put(x, y, bufA[q], bufA[q + 1], bufA[q + 2], false); }
+      // Right: the next song, sliding left into the left half over the mix.
+      const kB = djInfo.mixing ? Math.max(split.kB, 0.62 + 0.38 * Math.sin(Math.PI * Math.min(1, u * 1.4))) * (1 - e * e) : split.kB;
+      if (kB > 0.01) {
+        const bufB = draw(split.b, wR, lB), shift = Math.round(e * half);
+        for (let y = 0; y < H; y++) for (let x = 0; x < wR; x++) { const q = (y * wR + x) * 3; if (bufB[q] + bufB[q + 1] + bufB[q + 2] > 0) put(half - shift + x, y, bufB[q] * kB, bufB[q + 1] * kB, bufB[q + 2] * kB, shift > 0); }
+        // The seam: a soft glow on the leading edge while they merge.
+        const glow = Math.sin(Math.PI * u), sx = half - shift, area = H - DJ_ROWS;
+        if (glow > 0.02) for (let y = 0; y < area; y++) for (let d = -3; d <= 3; d++) {
+          const k = glow * (1 - Math.abs(d) / 4) * (0.55 + 0.45 * Math.sin(y * 0.35 + core.t * 9)) * 0.5;
+          put(sx + d, y, 1 * k * (d >= 0 ? 1 : 0.35), 0.62 * k, (d < 0 ? 1 : 0.25) * k, true);
         }
-        const b = sub.wallBuf;
-        for (let y = 0; y < H; y++) for (let x = 0; x < w; x++) { const o = (y * w + x) * 3; if (b[o] + b[o + 1] + b[o + 2] > 0) core.setWallPixel(x0 + x, y, b[o] * k, b[o + 1] * k, b[o + 2] * k); }
       }
     } else if (opts.version === 1) renderSpectrumStyleWall(core, ctx, style, spectrumWallState);
     else renderSpectrumV2Wall(core, ctx, opts.scene || 'auto', v2State, opts.autoSecs);

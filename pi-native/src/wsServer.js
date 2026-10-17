@@ -133,7 +133,7 @@ class WsServer {
     // Auto-DJ: re-send state when the track, the next one or the mix changes (the page moves the progress bar itself).
     setInterval(() => {
       const a = require('./effects/radio/radio').audio, d = a && a.dj && a.url === 'dj:' ? a.dj.status : null;
-      const sig = d ? JSON.stringify([d.state, d.now && d.now.title, d.now && d.now.dur, d.next, d.mixing, d.nowIdx, d.nextIdx, d.error]) : '';
+      const sig = d ? JSON.stringify([d.queue && d.queue.length, d.state, d.now && d.now.title, d.now && d.now.dur, d.next, d.mixing, d.nowIdx, d.nextIdx, d.error]) : '';
       if (sig !== this._djSig) { this._djSig = sig; this._broadcast(this._stateMsg()); }
     }, 1000).unref();
     // Weekly settings backup (see src/autoBackup.js): at start-up, then hourly.
@@ -537,7 +537,7 @@ class WsServer {
       update: this.updater ? { ...this.updater.status } : null,
       faceTalk: this.state.faceTalk ? { say: this.state.faceTalk.say, thinking: this.state.faceTalk.thinking, log: this.state.faceTalk.log, voiceStatus: this.faceTalk.status.voice } : null,
       alexa: this.alexa ? { on: this.alexa.status.on, error: this.alexa.status.error, lastSeen: this.alexa.status.lastSeen, lastCommand: this.alexa.status.lastCommand, requests: this.alexa.status.requests, devices: this.alexa.devices().map((d) => d.name), skill: { seen: this.alexaSkillStatus.lastSeen, error: this.alexaSkillStatus.error } } : null,
-      dj: (() => { const a = require('./effects/radio/radio').audio, d = a && a.dj && a.url === 'dj:' ? a.dj.status : null; return { music: require('./dj/sources').listMusic(), on: !!d, state: d ? d.state : 'stopped', now: d && d.now, next: d && d.next, mixing: !!(d && d.mixing), error: d ? d.error : '', queue: d ? d.queue : [], nowIdx: d ? d.nowIdx : -1, nextIdx: d ? d.nextIdx : -1 }; })(),
+      dj: (() => { const a = require('./effects/radio/radio').audio, d = a && a.dj && a.url === 'dj:' ? a.dj.status : null; return { music: require('./dj/sources').listMusic(), on: !!d, state: d ? d.state : 'stopped', now: d && d.now, next: d && d.next, mixing: !!(d && d.mixing), error: d ? d.error : '', queue: d ? d.queue : [], nowIdx: d ? d.nowIdx : -1, nextIdx: d ? d.nextIdx : -1, library: this.state.djLibrary || null, signedIn: require('./youtube').signedIn() }; })(),
       mic: this.mic ? { status: this.mic.status.mic, listening: this.mic.status.listening, hearing: this.mic.status.hearing, source: this.mic.status.source } : null,
       party: this.state.party ? { endsAt: this.state.party.endsAt, text: this.state.party.text } : null,
       musicReact: this.state.musicReact || { on: false, amount: 0.6 },

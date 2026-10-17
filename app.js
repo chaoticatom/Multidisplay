@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.341';
+const APP_VERSION = '0.6.342';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -6129,7 +6129,7 @@ function cxInit() {
 // ── Auto-DJ (Music tab; src/dj).
 function cxWireDj() {
   if (!document.getElementById('dj-start')) return;
-  const cfg = () => ({ source: document.querySelector('#dj-source .on')?.dataset.djsrc || 'both', youtube: document.getElementById('dj-youtube').value.trim(), mixBeats: document.getElementById('dj-beats').value === 'auto' ? 'auto' : Number(document.getElementById('dj-beats').value), quick: document.getElementById('dj-quick').checked, style: document.getElementById('dj-style').value });
+  const cfg = () => ({ source: document.querySelector('#dj-source .on')?.dataset.djsrc || 'both', youtube: document.getElementById('dj-youtube').value.trim(), mixBeats: document.getElementById('dj-beats').value === 'auto' ? 'auto' : Number(document.getElementById('dj-beats').value), quick: document.getElementById('dj-quick').checked, style: document.getElementById('dj-style').value, endless: document.getElementById('dj-endless').checked });
   document.querySelectorAll('#dj-source button').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('#dj-source button').forEach((x) => x.classList.toggle('on', x === b));
     send({ cmd: 'setDj', ...cfg() });
@@ -6137,6 +6137,22 @@ function cxWireDj() {
   document.getElementById('dj-youtube').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   document.getElementById('dj-beats').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   document.getElementById('dj-style').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
+  document.getElementById('dj-endless').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
+  // Your YouTube Music: load the playlists, tap one to play it.
+  document.getElementById('dj-lib-load').addEventListener('click', () => send({ cmd: 'djLibrary' }));
+  document.getElementById('dj-lib-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-liburl]'); if (!b) return;
+    document.getElementById('dj-youtube').value = b.dataset.liburl;
+    const src = document.querySelector('#dj-source .on')?.dataset.djsrc;
+    if (src === 'mp3') document.querySelectorAll('#dj-source button').forEach((x) => x.classList.toggle('on', x.dataset.djsrc === 'youtube'));
+    const c = cfg(); send({ cmd: 'djStart', ...c });
+    if (typeof radioBrowserPlay === 'function') radioBrowserPlay({ name: 'Auto-DJ', url: 'dj:' });
+    cxToast('▶ ' + b.textContent);
+  });
+  document.getElementById('dj-radio').addEventListener('click', (e) => {
+    const id = e.currentTarget.dataset.id; if (!id) return;
+    send({ cmd: 'djRadio', id }); cxToast('📻 Radio: songs like this one');
+  });
   document.getElementById('dj-quick').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   document.getElementById('dj-start').addEventListener('click', () => {
     const c = cfg();
@@ -6189,6 +6205,7 @@ function cxSyncDj() {
     const yt = document.getElementById('dj-youtube'); if (document.activeElement !== yt && !yt.value) yt.value = c.youtube || '';
     const bt = document.getElementById('dj-beats'); if (document.activeElement !== bt) bt.value = String(c.mixBeats || 'auto');
     document.getElementById('dj-quick').checked = !!c.quick;
+    document.getElementById('dj-endless').checked = c.endless !== false;
     const sy = document.getElementById('dj-style'); if (document.activeElement !== sy) sy.value = c.style || 'auto';
   }
   const card = document.getElementById('dj-now'), n = d.on ? d.now : null;
@@ -6216,6 +6233,18 @@ function cxSyncDj() {
     const ss = document.getElementById('dj-src-sum'); if (ss) ss.textContent = src + ' ›';
   }
   const ytBox = document.getElementById('dj-youtube'); if (ytBox && c) ytBox.hidden = c.source === 'mp3';
+  const libWrap = document.getElementById('dj-yt-lib'); if (libWrap && c) libWrap.hidden = c.source === 'mp3';
+  const lib = d.library, libList = document.getElementById('dj-lib-list'), libNote = document.getElementById('dj-lib-note');
+  if (libList && libNote) {
+    libNote.textContent = lib && lib.loading ? 'Loading your playlists…' : lib && lib.error ? '⚠ ' + lib.error : !d.signedIn ? 'Sign in to YouTube (Setup › YouTube) for your playlists and Premium sound.' : '';
+    const items = (lib && lib.items) || [], key = items.map((x) => x.id).join(',') + '|' + (c ? c.youtube : '');
+    libList.hidden = !items.length;
+    if (libList.dataset.key !== key) {
+      libList.dataset.key = key;
+      libList.replaceChildren(...items.map((x) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.liburl = x.url; b.textContent = x.title; b.classList.toggle('on', !!c && c.youtube === x.url); return b; }));
+    }
+  }
+  const rb = document.getElementById('dj-radio'); if (rb) { rb.hidden = !(d.on && d.now && d.now.id); rb.dataset.id = (d.now && d.now.id) || ''; }
   const ms = document.getElementById('mx-mix-sum');
   if (ms && c) ms.textContent = ({ auto: 'Auto', blend: 'Long blend', short: 'Short', cut: 'Cut' }[c.style || 'auto']) + (c.quick ? ' · Quick mix' : '') + ' ›';
   // The track list (tap one to play it next).

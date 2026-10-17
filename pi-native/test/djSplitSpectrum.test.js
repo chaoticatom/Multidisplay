@@ -24,5 +24,12 @@ try {
   fake.specB = loud; fake.specA = quiet;
   for (let i = 0; i < 60; i++) effect(core, 1 / 30);
   assert.ok(sum(64, 128) > sum(0, 64), 'the right half follows the next song');
+  // The mix: the right analyser slides into the left one; by the end the
+  // right half is clear and the left shows the new song.
+  fake.specA = quiet; fake.specB = loud;
+  fake.djInfo = { ...fake.djInfo, mixing: true, mixU: 0.98 };
+  for (let i = 0; i < 30; i++) effect(core, 1 / 30);
+  assert.ok(sum(64, 128) < sum(0, 64) * 0.15, `merged into the left by the end of the mix: ${sum(0, 64)} / ${sum(64, 128)}`);
+  console.log('  ok - mixing merges the next song\'s analyser into the playing one');
   console.log('  ok - split spectrum: playing on the left, next on the right');
 } catch (e) { console.error(e); process.exitCode = 1; }

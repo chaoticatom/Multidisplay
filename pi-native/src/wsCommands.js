@@ -633,6 +633,7 @@ const COMMANDS = {
     if (msg.youtube !== undefined) dj.youtube = String(msg.youtube);
     if (msg.mixBeats !== undefined) dj.mixBeats = msg.mixBeats === 'auto' ? 'auto' : Number(msg.mixBeats);
     if (msg.quick !== undefined) dj.quick = !!msg.quick;
+    if (msg.endless !== undefined) dj.endless = !!msg.endless;
     if (msg.style !== undefined) dj.style = String(msg.style);
     this.state.prefs = prefs.save({ ...p, dj });
     const audio = radio.audio;
@@ -641,6 +642,22 @@ const COMMANDS = {
     this._broadcast(this._stateMsg());
   },
   djSeek(ws, msg) { if (radio.audio && radio.audio.dj && Number.isFinite(msg.sec)) { radio.audio.dj.seek(msg.sec); this._broadcast(this._stateMsg()); } }, // jump within the playing track
+  // Your YouTube Music library (Liked music + playlists), for the Auto-DJ's
+  // picker: lands in state.djLibrary.
+  djLibrary() {
+    this.state.djLibrary = { loading: true, items: (this.state.djLibrary && this.state.djLibrary.items) || [], error: '' };
+    this._broadcast(this._stateMsg());
+    require('./dj/sources').youtubeLibrary()
+      .then((items) => { this.state.djLibrary = { loading: false, items, error: '' }; })
+      .catch((e) => { this.state.djLibrary = { loading: false, items: [], error: e.message }; })
+      .finally(() => this._broadcast(this._stateMsg()));
+  },
+  // Radio from a song: the Auto-DJ plays YouTube Music's mix of songs like it.
+  djRadio(ws, msg) {
+    const id = String(msg.id || '');
+    if (!/^[\w-]{6,20}$/.test(id)) return;
+    COMMANDS.djStart.call(this, ws, { source: 'youtube', youtube: `https://www.youtube.com/watch?v=${id}&list=RDAMVM${id}` });
+  },
   djSkip() { if (radio.audio && radio.audio.dj) radio.audio.dj.skip(); },
   djNext(ws, msg) { if (radio.audio && radio.audio.dj && Number.isInteger(msg.index)) { radio.audio.dj.playNext(msg.index); this._broadcast(this._stateMsg()); } }, // play this track from the list next
   setDj(ws, msg) {
@@ -649,6 +666,7 @@ const COMMANDS = {
     if (msg.youtube !== undefined) dj.youtube = String(msg.youtube);
     if (msg.mixBeats !== undefined) dj.mixBeats = msg.mixBeats === 'auto' ? 'auto' : Number(msg.mixBeats);
     if (msg.quick !== undefined) dj.quick = !!msg.quick;
+    if (msg.endless !== undefined) dj.endless = !!msg.endless;
     if (msg.style !== undefined) dj.style = String(msg.style);
     this.state.prefs = prefs.save({ ...p, dj });
     if (radio.audio && radio.audio.dj && radio.audio.dj.configure) radio.audio.dj.configure(this.state.prefs.dj); // takes effect on the coming mix
