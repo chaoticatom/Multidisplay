@@ -1257,7 +1257,7 @@ function cxSyncDj() {
       b.className = i === d.nowIdx ? 'now' : i === d.nextIdx ? 'next' : '';
       const ic = document.createElement('span'); ic.textContent = i === d.nowIdx ? '▶' : i === d.nextIdx ? '⏭' : (t.kind === 'yt' ? '▷' : '♪');
       const nm = document.createElement('span'); nm.textContent = t.title;
-      const tag = document.createElement('small'); tag.textContent = i === d.nowIdx ? 'playing' : i === d.nextIdx ? 'next' : (t.kind === 'yt' ? 'YouTube' : '');
+      const tag = document.createElement('small'); tag.textContent = i === d.nowIdx ? 'playing' : i === d.nextIdx ? 'next' : ''; // the icon already says YouTube (▷) or MP3 (♪)
       b.append(ic, nm, tag); return b;
     }));
     const nowEl = q.querySelector('.now'); if (nowEl) q.scrollTop = Math.max(0, nowEl.offsetTop - q.offsetTop - 40); // within the list only, not the page

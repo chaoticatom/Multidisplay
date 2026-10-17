@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.345';
+const APP_VERSION = '0.6.346';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -6269,7 +6269,7 @@ function cxSyncDj() {
       b.className = i === d.nowIdx ? 'now' : i === d.nextIdx ? 'next' : '';
       const ic = document.createElement('span'); ic.textContent = i === d.nowIdx ? '▶' : i === d.nextIdx ? '⏭' : (t.kind === 'yt' ? '▷' : '♪');
       const nm = document.createElement('span'); nm.textContent = t.title;
-      const tag = document.createElement('small'); tag.textContent = i === d.nowIdx ? 'playing' : i === d.nextIdx ? 'next' : (t.kind === 'yt' ? 'YouTube' : '');
+      const tag = document.createElement('small'); tag.textContent = i === d.nowIdx ? 'playing' : i === d.nextIdx ? 'next' : ''; // the icon already says YouTube (▷) or MP3 (♪)
       b.append(ic, nm, tag); return b;
     }));
     const nowEl = q.querySelector('.now'); if (nowEl) q.scrollTop = Math.max(0, nowEl.offsetTop - q.offsetTop - 40); // within the list only, not the page
