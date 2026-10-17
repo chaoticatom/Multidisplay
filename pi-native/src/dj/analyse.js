@@ -64,7 +64,7 @@ function analyse(x) {
     const v = score[lag] * pref;
     if (v > best) { best = v; bestLag = lag; }
   }
-  if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null, vocalBars: '', vocalLevel: '' };
+  if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null, vocalBars: '', vocalLevel: '', energyBars: '' };
   // Refine to a fractional lag (parabola through the peak).
   const y0 = score[bestLag - 1] || 0, y1 = score[bestLag], y2 = score[bestLag + 1] || 0, den = y0 - 2 * y1 + y2;
   const lag = bestLag + (den !== 0 ? Math.max(-0.5, Math.min(0.5, 0.5 * (y0 - y2) / den)) : 0);
@@ -129,7 +129,19 @@ function analyse(x) {
   // How much singing each bar has, 0-9 (a string: one digit a bar).
   const vocalLevel = vb.map((v, j) => Math.round(9 * Math.max(0, Math.min(1, (0.6 * rN[j] + 0.4 * fN[j]) * (v > base * 1.12 ? 1 : 0.4))))).join('');
   const vocalBars = vb.map((v) => (v > base * 1.3 ? '1' : '0')).join('');
-  return { vocalBars, vocalLevel, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
+  // Energy per bar, 0-9 (same bars as the singing): the overall level and
+  // the bass, against the track's loudest bars - quiet intros and
+  // breakdowns low, full sections and drops high.
+  const eb = [], bb = [];
+  for (let k0 = downbeat; k0 + 4 <= nb; k0 += 4) {
+    const f0 = Math.round((firstBeat + k0 * period2) * FPS), f1 = Math.min(n, Math.round((firstBeat + (k0 + 4) * period2) * FPS));
+    let l = 0, b2 = 0; for (let f = f0; f < f1; f++) { l += lvl[f]; b2 += low[f]; }
+    eb.push(l / Math.max(1, f1 - f0)); bb.push(b2 / Math.max(1, f1 - f0));
+  }
+  const top = (arr) => { const s = Float32Array.from(arr).sort(); return s[Math.floor(s.length * 0.95)] || 1e-6; };
+  const tl = top(eb), tb = top(bb);
+  const energyBars = eb.map((v, j) => Math.round(9 * Math.max(0, Math.min(1, 0.6 * (v / tl) + 0.4 * (bb[j] / tb)) ** 1.5))).join('');
+  return { vocalBars, vocalLevel, energyBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
 }
 
 // ---- Key: a chroma profile (energy per pitch class, 55 Hz - 2 kHz) matched

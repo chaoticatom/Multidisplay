@@ -104,9 +104,18 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     const over = pk.style === 'cut' ? [pk.at, pk.at + 2 * A.bar] : pk.style === 'short' ? [pk.start, pk.start + pk.len] : [pk.start + Math.max(1, Math.round(pk.beats / 8)) * 4 * A.period, pk.start + pk.len]; // a blend may start under A's last line, but A must be done singing by the swap
     assert.strictEqual(sungAt(over[0], over[1]), 0, `${pk.style} ${pk.beats} at bar ${(pk.start - A.firstDown) / A.bar} lands on singing`);
     // Singing all the way through: a long merge (B creeps in underneath), not a cut.
-    const sung = { ...long, info: { ...A.info, vocalLevel: '9'.repeat(200) } };
-    const s2 = dj._test.planMix(sung, { ...A, introBeats: 64, info: { ...A.info, vocalLevel: '0'.repeat(200) } }, 'auto');
+    const sung = { ...long, info: { ...A.info, vocalLevel: '9'.repeat(200), energyBars: '6'.repeat(200) } };
+    const s2 = dj._test.planMix(sung, { ...A, introBeats: 64, info: { ...A.info, vocalLevel: '0'.repeat(200), energyBars: '6'.repeat(200) } }, 'auto');
     assert.ok(s2.style === 'blend' && s2.beats >= 16, 'a long merge rather than a cut: ' + s2.style);
+    // Entry points in the next song: after a long quiet intro, or into its
+    // drop - a cut goes straight in there rather than through the intro.
+    const dropB = { ...A, end: 300 * 44100, frames: 300 * 44100, introBeats: 64, info: { ...A.info, vocalLevel: '0'.repeat(200), energyBars: '1'.repeat(16) + '9'.repeat(184) } };
+    const ents = dj._test.entries(dropB);
+    assert.ok(ents.some((x) => x.kind === 'drop' || x.kind === 'full'), 'finds the drop: ' + JSON.stringify(ents.map((x) => x.kind)));
+    dj.configure({ style: 'cut' });
+    const intoDrop = dj._test.planMix({ ...long, info: { ...A.info, vocalLevel: '0'.repeat(200), energyBars: '8'.repeat(200) } }, dropB, 'auto');
+    dj.configure({ style: 'auto' });
+    assert.ok(intoDrop.entry !== 'intro' && intoDrop.bIn > dropB.inFrame, 'a cut lands in the next song\'s drop: ' + intoDrop.entry);
     // Every pair decides afresh: a track that starts straight in (no intro)
     // with a clashing key gets an instant cut; a smooth pair gets a blend.
     const clashA = { ...long, keyNow: { pc: 0, minor: false, camelot: '8B' } }, clashB = { ...A, introBeats: 0, keyNow: { pc: 6, minor: false, camelot: '2B' } };

@@ -2984,7 +2984,7 @@ var PiEngine = (() => {
             bestLag = lag2;
           }
         }
-        if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null, vocalBars: "", vocalLevel: "" };
+        if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null, vocalBars: "", vocalLevel: "", energyBars: "" };
         const y0 = score[bestLag - 1] || 0, y1 = score[bestLag], y2 = score[bestLag + 1] || 0, den = y0 - 2 * y1 + y2;
         const lag = bestLag + (den !== 0 ? Math.max(-0.5, Math.min(0.5, 0.5 * (y0 - y2) / den)) : 0);
         const period = lag / FPS, bpm = 60 / period;
@@ -3092,7 +3092,24 @@ var PiEngine = (() => {
         const sv = Float32Array.from(vb).sort(), base = sv[Math.floor(sv.length * 0.25)] || 0;
         const vocalLevel = vb.map((v, j) => Math.round(9 * Math.max(0, Math.min(1, (0.6 * rN[j] + 0.4 * fN[j]) * (v > base * 1.12 ? 1 : 0.4))))).join("");
         const vocalBars = vb.map((v) => v > base * 1.3 ? "1" : "0").join("");
-        return { vocalBars, vocalLevel, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
+        const eb = [], bb = [];
+        for (let k0 = downbeat; k0 + 4 <= nb; k0 += 4) {
+          const f0 = Math.round((firstBeat + k0 * period2) * FPS), f1 = Math.min(n, Math.round((firstBeat + (k0 + 4) * period2) * FPS));
+          let l = 0, b2 = 0;
+          for (let f = f0; f < f1; f++) {
+            l += lvl[f];
+            b2 += low[f];
+          }
+          eb.push(l / Math.max(1, f1 - f0));
+          bb.push(b2 / Math.max(1, f1 - f0));
+        }
+        const top = (arr) => {
+          const s = Float32Array.from(arr).sort();
+          return s[Math.floor(s.length * 0.95)] || 1e-6;
+        };
+        const tl = top(eb), tb = top(bb);
+        const energyBars = eb.map((v, j) => Math.round(9 * Math.max(0, Math.min(1, 0.6 * (v / tl) + 0.4 * (bb[j] / tb)) ** 1.5))).join("");
+        return { vocalBars, vocalLevel, energyBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
       }
       var MAJ = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
       var MIN = [6.33, 2.68, 3.52, 5.38, 2.6, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
@@ -3232,6 +3249,33 @@ var PiEngine = (() => {
           return c ? s / c : 0;
         }
         const vocalFree = (d, f0, f1) => vocalAt(d, f0, f1) < 0.3;
+        function energyAt(d, f0, f1) {
+          const en = d.info.energyBars;
+          if (!en || !d.vbBar) return 0.5;
+          const j0 = Math.max(0, Math.floor((f0 - d.firstDown) / d.vbBar + 0.02)), j1 = Math.max(j0, Math.floor((f1 - d.firstDown) / d.vbBar - 0.02));
+          let s = 0, c = 0;
+          for (let j = j0; j <= j1 && j < en.length; j++) {
+            s += Number(en[j]) / 9;
+            c++;
+          }
+          return c ? s / c : 0.5;
+        }
+        function entries(b) {
+          const out = [{ f: Math.round(b.inFrame), kind: "intro", cost: 0 }];
+          const en = b.info.energyBars;
+          if (!en || !b.vbBar || !b.matched) return out;
+          const at = (f) => Number(en[Math.floor((f - b.firstDown) / b.vbBar + 0.02)] || 0), phrase = 16 * b.period, lim = b.inFrame + 0.35 * (b.end - b.inFrame);
+          let full = 0, drop = 0;
+          for (let f = b.inFrame + phrase; f < lim; f += phrase) {
+            if (!full && at(f) >= 6 && at(b.inFrame) <= 4) full = f;
+            if (!drop && at(f) >= 7 && at(f - b.bar) <= 4) drop = f;
+          }
+          const skip2 = (f) => Math.min(0.4, 0.1 * ((f - b.inFrame) / RATE) / 30);
+          if (full) out.push({ f: Math.round(full), kind: "full", cost: skip2(full) });
+          if (drop && drop !== full) out.push({ f: Math.round(drop), kind: "drop", cost: skip2(drop) });
+          return out;
+        }
+        const ENTRY_WHY = { intro: "", full: " - skipping its quiet intro", drop: " - straight into its drop" };
         function planTease(a, b) {
           if (!(a.matched && b.matched) || !b.info.vocalLevel || !a.vbBar || !b.vbBar || Math.random() < 0.35) return null;
           const lv = b.info.vocalLevel, j0 = Math.ceil((b.inFrame - b.firstDown) / b.vbBar) + 4, j1 = Math.floor(0.75 * (b.end - b.firstDown) / b.vbBar);
@@ -3292,7 +3336,7 @@ var PiEngine = (() => {
         }
         function planMix(a, b, want, now = false) {
           if (!(a.matched && b.matched)) return planFx(a, b, now);
-          const p = a.period, style = cfg.style || "auto", bIn = b.inFrame;
+          const p = a.period, style = cfg.style || "auto", ents = entries(b);
           const blendPlan = (start2, L) => {
             const half = Math.max(1, Math.round(L / 8)) * 4;
             return { start: Math.round(start2), len: L * p, beat: true, beats: L, swapU: Math.min(0.85, half / L), style: L <= 8 ? "short" : "blend" };
@@ -3332,47 +3376,60 @@ var PiEngine = (() => {
           const kd = analyser.keyDistance && a.keyNow && b.keyNow ? analyser.keyDistance(a.keyNow, b.keyNow) : 0;
           const blendExtra = 0.22 * Math.max(0, kd - 1) + (b.introBeats < 8 ? 0.3 : 0) + (a.outroBeats < 8 ? 0.12 : 0);
           let best = null, bestCost = Infinity;
-          const offer = (cost, plan) => {
+          const offerAll = (cost, plan) => {
             if (plan.style === lastStyle) cost += 0.08;
             if (cost < bestCost) {
               bestCost = cost;
               best = plan;
             }
           };
-          for (const f of bars) {
-            const pl = place(f);
-            if ((style === "auto" || style === "blend") && !now) {
-              for (const L of lengths) {
-                if (L < 16 || !fits(f, L)) continue;
-                const sw = Math.max(1, Math.round(L / 8)) * 4 * p;
-                const c = 2.2 * vocalAt(a, f + sw, f + L * p) + 0.25 * vocalAt(a, f, f + sw) + 0.9 * vocalAt(b, bIn, bIn + sw * b.period / p) + 0.3 * vocalAt(b, bIn + sw * b.period / p, bIn + L * b.period) + pl - 0.1 * Math.log2(L / 16) + blendExtra;
-                offer(style === "blend" ? pl - 0.1 * Math.log2(L / 16) + 0.3 * vocalAt(a, f, f + L * p) : c, blendPlan(f, L));
+          for (const E of ents) {
+            const bIn = E.f;
+            const offer = (cost, plan) => {
+              plan.bIn = bIn;
+              plan.entry = E.kind;
+              offerAll(cost + E.cost, plan);
+            };
+            for (const f of bars) {
+              const pl = place(f);
+              const eA = (f0, f1) => energyAt(a, f0, f1), eB = (f0, f1) => energyAt(b, f0, f1);
+              if ((style === "auto" || style === "blend") && !now) {
+                for (const L of lengths) {
+                  if (L < 16 || !fits(f, L)) continue;
+                  const sw = Math.max(1, Math.round(L / 8)) * 4 * p;
+                  const c = 2.2 * vocalAt(a, f + sw, f + L * p) + 0.25 * vocalAt(a, f, f + sw) + 0.9 * vocalAt(b, bIn, bIn + sw * b.period / p) + 0.3 * vocalAt(b, bIn + sw * b.period / p, bIn + L * b.period) + pl - 0.1 * Math.log2(L / 16) + blendExtra + 0.5 * Math.abs(eA(f, f + L * p) - eB(bIn, bIn + L * b.period)) + (E.kind === "intro" ? 0 : 0.15);
+                  offer(style === "blend" ? pl - 0.1 * Math.log2(L / 16) + 0.3 * vocalAt(a, f, f + L * p) : c, blendPlan(f, L));
+                }
               }
-            }
-            if ((style === "auto" || style === "short" || now && style !== "cut") && fits(f, 8)) {
-              offer(2.5 * vocalAt(a, f, f + 8 * p) + 0.5 * vocalAt(b, bIn, bIn + 8 * b.period) + 0.5 * blendExtra + pl + (style === "auto" ? 0.25 : 0), blendPlan(f, 8));
-            }
-            if (style === "auto" && !now) {
-              for (const fx of ["echo", "filter", "roll"]) {
-                const pl2 = fxPlan(fx, f, a);
-                if (pl2.start + pl2.len > a.end + p) continue;
-                const out = pl2.start + pl2.len * pl2.bStart;
-                offer(1.9 * vocalAt(a, out, out + a.bar) + 0.4 * vocalAt(b, bIn, bIn + a.bar) + pl + 0.85 + (fx === "roll" ? 0.05 : 0), pl2);
+              if ((style === "auto" || style === "short" || now && style !== "cut") && fits(f, 8)) {
+                offer(2.5 * vocalAt(a, f, f + 8 * p) + 0.5 * vocalAt(b, bIn, bIn + 8 * b.period) + 0.5 * blendExtra + pl + (style === "auto" ? 0.25 : 0) + 0.4 * Math.abs(eA(f, f + 8 * p) - eB(bIn, bIn + 8 * b.period)), blendPlan(f, 8));
               }
-            }
-            if (style === "auto" || style === "cut") {
-              const after = vocalAt(a, f, f + 2 * a.bar), before = vocalAt(a, f - a.bar, f);
-              const lineEnds = before > 0.4 && after < 0.15 ? 0.15 : 0;
-              offer(1.6 * after + 0.3 * before * after + 0.4 * vocalAt(b, bIn, bIn + a.bar) - lineEnds + pl + (style === "auto" ? 0.6 : 0), cutPlan(f));
+              if (style === "auto" && !now) {
+                for (const fx of ["echo", "filter", "roll"]) {
+                  const pl2 = fxPlan(fx, f, a);
+                  if (pl2.start + pl2.len > a.end + p) continue;
+                  const out = pl2.start + pl2.len * pl2.bStart;
+                  offer(1.9 * vocalAt(a, out, out + a.bar) + 0.4 * vocalAt(b, bIn, bIn + a.bar) + pl + 0.85 + (fx === "roll" ? 0.05 : 0) - (E.kind === "drop" ? 0.15 : 0), pl2);
+                }
+              }
+              if (style === "auto" || style === "cut") {
+                const after = vocalAt(a, f, f + 2 * a.bar), before = vocalAt(a, f - a.bar, f);
+                const lineEnds = before > 0.4 && after < 0.15 ? 0.15 : 0;
+                offer(1.6 * after + 0.3 * before * after + 0.4 * vocalAt(b, bIn, bIn + a.bar) - lineEnds + pl + (style === "auto" ? 0.6 : 0) - (E.kind === "drop" || E.kind === "full" ? 0.12 : 0) + 0.3 * Math.max(0, eA(f - a.bar, f) - eB(bIn, bIn + a.bar)), cutPlan(f));
+              }
             }
           }
-          if (!best) best = style === "cut" ? cutPlan(bars[0]) : blendPlan(bars[0], 8);
+          if (!best) {
+            best = style === "cut" ? cutPlan(bars[0]) : blendPlan(bars[0], 8);
+            best.bIn = Math.round(b.inFrame);
+            best.entry = "intro";
+          }
           best.cost = Math.round(bestCost * 100) / 100;
           if (FX.has(best.style)) {
-            best.why = { echo: "echo out into the drop", filter: "filter sweep into the drop", roll: "loop roll into the drop", brake: "brake stop" }[best.style];
+            best.why = { echo: "echo out", filter: "filter sweep", roll: "loop roll", brake: "brake stop" }[best.style] + (ENTRY_WHY[best.entry] || "");
             return best;
           }
-          best.why = best.style === "cut" ? kd >= 3 ? "keys clash" : b.introBeats < 8 ? "no intro to blend over" : "cut where the singing stops" : best.style === "short" ? "quick blend between vocals" : "long blend under the vocals";
+          best.why = (best.style === "cut" ? kd >= 3 ? "keys clash" : b.introBeats < 8 ? "no intro to blend over" : "cut where the singing stops" : best.style === "short" ? "quick blend between vocals" : "long blend under the vocals") + (ENTRY_WHY[best.entry] || "");
           return best;
         }
         const HOP = 64;
@@ -3417,7 +3474,7 @@ var PiEngine = (() => {
           let input = await sources.inputFor(track);
           step("analysing the beat, key and vocals");
           let info = known[track.id];
-          if (info && info.vocalLevel === void 0) info = null;
+          if (info && (info.vocalLevel === void 0 || info.energyBars === void 0)) info = null;
           if (!info) {
             let x;
             try {
@@ -3567,10 +3624,12 @@ var PiEngine = (() => {
             echo.fb = 0.55;
             echo.until = A.pos + mix.len + 5 * RATE;
           }
-          B.pos = Math.round(B.inFrame);
+          const bIn = p.bIn !== void 0 ? p.bIn : Math.round(B.inFrame);
+          mix.bIn = bIn;
+          B.pos = bIn;
           if (p.beat) {
-            const aF = p.style === "cut" ? p.at : A.pos, lag = lagBetween(aF, B.inFrame, 8 * A.period, A.period / 4);
-            B.pos = Math.round(B.inFrame + lag - (aF - A.pos));
+            const aF = p.style === "cut" ? p.at : A.pos, lag = lagBetween(aF, bIn, 8 * A.period, A.period / 4);
+            B.pos = Math.round(bIn + lag - (aF - A.pos));
             mix.check = A.pos + Math.round(A.bar);
           }
           st.mixing = true;
@@ -3706,7 +3765,7 @@ var PiEngine = (() => {
                   if (u >= bS) {
                     if (!mix.bOn) {
                       mix.bOn = true;
-                      B.pos = Math.round(B.inFrame);
+                      B.pos = mix.bIn;
                     }
                     sampleDeck(B, mix.style === "echo" ? smooth((u - bS) / 0.12) : smooth((u - bS) / 0.02), 1, 1, 1, OUT);
                     B.pos++;
@@ -3723,7 +3782,7 @@ var PiEngine = (() => {
                   if (u >= 1) {
                     st.played++;
                     st.doneAt = Date.now();
-                    if (!mix.bOn) B.pos = Math.round(B.inFrame);
+                    if (!mix.bOn) B.pos = mix.bIn;
                     promote();
                   }
                 } else {
@@ -3971,7 +4030,7 @@ var PiEngine = (() => {
             if (!B) prepareNext();
           }
         }
-        return { start, stop, configure, deckFeed, remove, add, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, planTease, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() {
+        return { start, stop, configure, deckFeed, remove, add, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, planTease, entries, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() {
           return A;
         }, get B() {
           return B;
