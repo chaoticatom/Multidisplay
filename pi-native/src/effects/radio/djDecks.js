@@ -158,7 +158,7 @@ function drawMixer(tg, x0, w, y0, m, ms, dt, beat, adv) {
     for (let y = ty - 2; y <= ty + 6; y++) set(ph, y, [1, 1, 1], 1);
   }
   // Stage dots.
-  const sy = y0 + 24, sx0 = x0 + 4, sx1 = x0 + w - 5, sxs = STAGES.map((_, i) => sx0 + Math.round((i / 4) * (sx1 - sx0)));
+  const sy = y0 + 23, sx0 = x0 + 4, sx1 = x0 + w - 5, sxs = STAGES.map((_, i) => sx0 + Math.round((i / 4) * (sx1 - sx0)));
   const fillTo = sx0 + Math.round(Math.min(1, m.stagePos / 4) * (sx1 - sx0));
   for (let x = sx0; x <= sx1; x++) set(x, sy, x <= fillTo ? AMBER : DIM, x <= fillTo ? 0.85 : 0.22);
   sxs.forEach((x, i) => {
@@ -171,7 +171,8 @@ function drawMixer(tg, x0, w, y0, m, ms, dt, beat, adv) {
   // The line in plain words.
   scrollText(tg, FONT_3x5, (m.line || '').toUpperCase(), x0 + 2, w - 4, y0 + 31, m.lineC || [0.9, 0.93, 1], 0.9, ms, 'l', dt, adv);
 }
-const styleText = (n) => !n ? '' : n.style === 'cut' ? 'cut on the beat' : n.style === 'fade' ? 'crossfade' : n.style === 'short' ? '8 beat mix' : n.beats ? n.beats + ' beat blend' : 'blend';
+const FX_NAMES = { echo: 'echo out', filter: 'filter sweep', brake: 'brake stop', roll: 'loop roll' };
+const styleText = (n) => !n ? '' : FX_NAMES[n.style] || (n.style === 'cut' ? 'cut on the beat' : n.style === 'fade' ? 'crossfade' : n.style === 'short' ? '8 beat mix' : n.beats ? n.beats + ' beat blend' : 'blend');
 
 // Draws both decks; returns the rows used (so the spectrum keeps clear of them).
 function drawDjDecks(core, info, st, dt, beat = 0, where = 'wall') {
@@ -217,6 +218,12 @@ function drawDjDecks(core, info, st, dt, beat = 0, where = 'wall') {
   const justDone = info.doneAt && Date.now() - info.doneAt < 4000;
   if (!now) { line = info.error ? info.error : next && next.step ? 'getting ready - ' + next.step : 'finding songs'; lineC = info.error ? [1, 0.4, 0.4] : undefined; stageOn = false; }
   else if (mixing && next && next.style === 'cut') { stagePos = 2; line = 'cut on the beat'; lineC = AMBER; }
+  else if (mixing && next && FX_NAMES[next.style]) {
+    // Effect transitions: the old song goes out on the effect, then the drop.
+    if (u < sw) { stagePos = 1 + u / sw * 0.99; line = FX_NAMES[next.style] + ' - drop in ' + mmss((sw - u) * mixSecs); }
+    else { stagePos = 3 + Math.min(0.99, (u - sw) / Math.max(0.01, 1 - sw)); line = 'drop - ' + (next.title || ''); }
+    lineC = AMBER;
+  }
   else if (mixing) {
     if (u < sw - 0.04) { stagePos = 1 + u / sw * 0.99; line = 'blending in - bass swap in ' + mmss((sw - u) * mixSecs); }
     else if (u < sw + 0.06) { stagePos = 2; line = 'bass swap now'; }

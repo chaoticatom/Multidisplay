@@ -133,7 +133,7 @@ test('smooth text: between pixels, the strength splits across the two', () => {
   assert.ok(vals.some((v) => v > 0.55 && v < 0.9) && vals.some((v) => v > 0.1 && v < 0.45), 'partial strengths mid-step: ' + vals.join(','));
   // Near a whole pixel it stays sharp (no blend).
   const g2 = new Map(); const p2 = (x, y, a = 1) => g2.set(x + ',' + y, a); p2.alpha = true;
-  drawStringSmooth(FONT_3x5, 'I', 0.15, 0, p2);
+  drawStringSmooth(FONT_3x5, 'I', 0.05, 0, p2);
   assert.ok([...g2.values()].every((v) => v === 1), 'crisp near whole pixels');
 });
 

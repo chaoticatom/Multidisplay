@@ -891,7 +891,7 @@ var PiEngine = (() => {
       }
       function drawStringSmooth(font, str, x, y, plot, opts = {}) {
         const xi = Math.floor(x), f0 = x - xi;
-        let f = (f0 - 0.3) / 0.4;
+        let f = (f0 - 0.15) / 0.7;
         f = f < 0 ? 0 : f > 1 ? 1 : f * f * (3 - 2 * f);
         if (!plot.alpha || f < 0.02) return drawString(font, str, xi, y, plot, opts);
         if (f > 0.98) return drawString(font, str, xi + 1, y, plot, opts);
@@ -3150,7 +3150,8 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var RATE = 44100;
-      var MAX_STRETCH = 0.08;
+      var MAX_STRETCH = 0.12;
+      var FX = /* @__PURE__ */ new Set(["echo", "filter", "brake", "roll"]);
       var LENGTHS = [128, 96, 64, 48, 32, 16];
       var TARGET_DB = -17;
       var STYLES = ["auto", "blend", "short", "cut"];
@@ -3167,7 +3168,7 @@ var PiEngine = (() => {
         let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
         let known = {};
         const recent = [], played = /* @__PURE__ */ new Set();
-        let extending = null;
+        let extending = null, lastStyle = "";
         function deckFrom(track, info, pcm, tempo, matched, semis = 0) {
           const k = RATE / tempo;
           const d = { track, info, pcm, frames: pcm.length / 2, tempo, matched, semis, pos: 0, lp: new Float32Array(8), plan: null };
@@ -3206,13 +3207,45 @@ var PiEngine = (() => {
           return c ? s / c : 0;
         }
         const vocalFree = (d, f0, f1) => vocalAt(d, f0, f1) < 0.3;
-        function planMix(a, b, want, now = false) {
-          if (!(a.matched && b.matched)) {
-            const len = Math.min(cfg.quick ? 8 * RATE : 12 * RATE, Math.max(2 * RATE, (a.end - a.pos) * 0.5));
-            let s = now ? a.pos : a.end - len;
-            if (cfg.quick && !now) s = Math.min(s, a.start + 60 * RATE);
-            return { start: Math.max(a.pos, s), len, beat: false, beats: 0, style: "fade" };
+        function fxPlan(style, f, a) {
+          const pb = a.period > 0 ? a.period : RATE / 2;
+          const spec = { echo: [4, 0.42], filter: [8, 0.75], roll: [4, 0.999], brake: [0, 0.82] }[style];
+          const len = style === "brake" ? Math.round(1.5 * RATE) : Math.round(spec[0] * pb);
+          return { start: Math.round(f), len, beat: false, beats: 0, style, bStart: spec[1], period: pb };
+        }
+        function planFx(a, b, now) {
+          const pb = a.period > 0 ? a.period : RATE / 2, step = a.matched ? a.bar : 4 * pb;
+          const lo = now ? a.pos + CUT : Math.max(a.pos + CUT, a.inFrame + 0.55 * (a.end - a.inFrame));
+          const ratio = a.bpm > 0 && b.bpm > 0 ? Math.max(a.bpm / b.bpm, b.bpm / a.bpm) : 1;
+          const calm = a.outroBeats >= 16 && b.introBeats >= 16;
+          const opts = [["echo", 0.2], ["filter", a.matched ? 0.3 : 0.55], ["brake", ratio > 1.12 ? 0.35 : 0.7], ["roll", a.matched ? 0.4 : 9], ["fade", calm ? 0.15 : 0.6]];
+          let best = null, bestCost = Infinity;
+          const first = a.matched ? nextBar(a, lo) : lo;
+          for (let f = first; f < a.end - 2 * RATE; f += step) {
+            for (const [style, base] of opts) {
+              let pl;
+              if (style === "fade") {
+                const len = Math.min(cfg.quick ? 8 * RATE : 12 * RATE, Math.max(3 * RATE, (a.end - f) * 0.8));
+                pl = { start: Math.round(f), len, beat: false, beats: 0, style: "fade", bStart: 0 };
+              } else pl = fxPlan(style, f, a);
+              if (pl.start + pl.len > a.end + RATE) continue;
+              const out = pl.start + pl.len * (pl.bStart || 0.5);
+              const where = now ? (f - first) / RATE * 0.05 : 0.15 * (1 - (f - first) / Math.max(1, a.end - first));
+              const c = base + 1.5 * vocalAt(a, out, out + 2 * pb * 4) + 0.4 * vocalAt(b, b.inFrame, b.inFrame + 4 * pb) + where + (style === lastStyle ? 0.15 : 0);
+              if (c < bestCost) {
+                bestCost = c;
+                best = pl;
+              }
+            }
+            if (now && f > first + 8 * step) break;
           }
+          if (!best) best = { start: Math.max(a.pos, a.end - 4 * RATE), len: 3 * RATE, beat: false, beats: 0, style: "fade", bStart: 0 };
+          best.why = { echo: "echo out - tempos too far apart to blend", filter: "filter sweep - tempos too far apart", brake: "brake stop - very different tempos", roll: "loop roll into the next", fade: "smooth crossfade" }[best.style];
+          best.cost = Math.round(bestCost * 100) / 100;
+          return best;
+        }
+        function planMix(a, b, want, now = false) {
+          if (!(a.matched && b.matched)) return planFx(a, b, now);
           const p = a.period, style = cfg.style || "auto", bIn = b.inFrame;
           const blendPlan = (start2, L) => {
             const half = Math.max(1, Math.round(L / 8)) * 4;
@@ -3254,6 +3287,7 @@ var PiEngine = (() => {
           const blendExtra = 0.22 * Math.max(0, kd - 1) + (b.introBeats < 8 ? 0.3 : 0) + (a.outroBeats < 8 ? 0.12 : 0);
           let best = null, bestCost = Infinity;
           const offer = (cost, plan) => {
+            if (plan.style === lastStyle) cost += 0.08;
             if (cost < bestCost) {
               bestCost = cost;
               best = plan;
@@ -3272,6 +3306,14 @@ var PiEngine = (() => {
             if ((style === "auto" || style === "short" || now && style !== "cut") && fits(f, 8)) {
               offer(2.5 * vocalAt(a, f, f + 8 * p) + 0.5 * vocalAt(b, bIn, bIn + 8 * b.period) + 0.5 * blendExtra + pl + (style === "auto" ? 0.25 : 0), blendPlan(f, 8));
             }
+            if (style === "auto" && !now) {
+              for (const fx of ["echo", "filter", "roll"]) {
+                const pl2 = fxPlan(fx, f, a);
+                if (pl2.start + pl2.len > a.end + p) continue;
+                const out = pl2.start + pl2.len * pl2.bStart;
+                offer(1.9 * vocalAt(a, out, out + a.bar) + 0.4 * vocalAt(b, bIn, bIn + a.bar) + pl + 0.85 + (fx === "roll" ? 0.05 : 0), pl2);
+              }
+            }
             if (style === "auto" || style === "cut") {
               const after = vocalAt(a, f, f + 2 * a.bar), before = vocalAt(a, f - a.bar, f);
               const lineEnds = before > 0.4 && after < 0.15 ? 0.15 : 0;
@@ -3280,6 +3322,10 @@ var PiEngine = (() => {
           }
           if (!best) best = style === "cut" ? cutPlan(bars[0]) : blendPlan(bars[0], 8);
           best.cost = Math.round(bestCost * 100) / 100;
+          if (FX.has(best.style)) {
+            best.why = { echo: "echo out into the drop", filter: "filter sweep into the drop", roll: "loop roll into the drop", brake: "brake stop" }[best.style];
+            return best;
+          }
           best.why = best.style === "cut" ? kd >= 3 ? "keys clash" : b.introBeats < 8 ? "no intro to blend over" : "cut where the singing stops" : best.style === "short" ? "quick blend between vocals" : "long blend under the vocals";
           return best;
         }
@@ -3465,7 +3511,13 @@ var PiEngine = (() => {
         }
         function startMix() {
           const p = A.plan;
-          mix = { from: A.pos, len: Math.max(1, p.len), beat: p.beat, swapU: p.swapU || 0.5, beats: p.beats, style: p.style, adj: 0, check: 0, ref: rmsSlow };
+          mix = { from: A.pos, len: Math.max(1, p.len), beat: p.beat, swapU: p.swapU || 0.5, beats: p.beats, style: p.style, adj: 0, check: 0, ref: rmsSlow, bStart: p.bStart || 0, period: p.period || RATE / 2, vpos: A.pos, bOn: !FX.has(p.style) };
+          lastStyle = p.style;
+          if (p.style === "echo") {
+            echo.d = Math.round(mix.period * 0.75);
+            echo.fb = 0.55;
+            echo.until = A.pos + mix.len + 5 * RATE;
+          }
           B.pos = Math.round(B.inFrame);
           if (p.beat) {
             const aF = p.style === "cut" ? p.at : A.pos, lag = lagBetween(aF, B.inFrame, 8 * A.period, A.period / 4);
@@ -3508,9 +3560,15 @@ var PiEngine = (() => {
         }
         const LPL = 1 - Math.exp(-2 * Math.PI * 180 / RATE), LPH = 1 - Math.exp(-2 * Math.PI * 2500 / RATE);
         function sampleDeck(d, gain, lo, mi, hi, out) {
-          const f = d.pos, s = d.lp;
+          sampleAt(d, d.pos, gain, lo, mi, hi, out);
+        }
+        function sampleAt(d, fp, gain, lo, mi, hi, out) {
+          const f = Math.floor(fp), t = fp - f, s = d.lp;
           let l = 0, r = 0;
-          if (f >= 0 && f < d.frames) {
+          if (f >= 0 && f + 1 < d.frames) {
+            l = (d.pcm[f * 2] * (1 - t) + d.pcm[f * 2 + 2] * t) / 32768;
+            r = (d.pcm[f * 2 + 1] * (1 - t) + d.pcm[f * 2 + 3] * t) / 32768;
+          } else if (f >= 0 && f < d.frames) {
             l = d.pcm[f * 2] / 32768;
             r = d.pcm[f * 2 + 1] / 32768;
           }
@@ -3524,6 +3582,8 @@ var PiEngine = (() => {
           out[0] += (s[1] * lo + (s[4] - s[1]) * mi + (l - s[4]) * hi) * g;
           out[1] += (s[3] * lo + (s[5] - s[3]) * mi + (r - s[5]) * hi) * g;
         }
+        const ECHO_N = RATE * 2, echo = { L: new Float32Array(ECHO_N), R: new Float32Array(ECHO_N), i: 0, d: 0, fb: 0.55, until: 0, send: 0 };
+        const TMP = [0, 0];
         let rmsSlow = 0, rmsFast = 0, mixGain = 1;
         const A_SLOW = 1 / (3 * RATE), A_FAST = 1 / (0.5 * RATE), A_GAIN = 1 / (1.2 * RATE);
         const OUT = [0, 0];
@@ -3562,37 +3622,92 @@ var PiEngine = (() => {
                   B.pos += s1;
                   mix.adj -= s1;
                 }
-                if (mix.style === "cut") {
-                  const c = clamp01(u);
-                  sampleDeck(A, Math.cos(c * Math.PI / 2), 1, 1, 1, OUT);
-                  sampleDeck(B, Math.sin(c * Math.PI / 2), 1, 1, 1, OUT);
-                } else if (mix.beat) {
-                  const s = mix.swapU;
-                  const bHi = smooth(u / (s * 0.7)), bMi = smooth((u - s * 0.25) / (s * 0.7)), bLo = smooth((u - s) / 0.03);
-                  const aLo = 1 - bLo, aMi = 1 - smooth((u - s) / ((1 - s) * 0.8)), aHi = 1 - smooth((u - s - (1 - s) * 0.2) / ((1 - s) * 0.8));
-                  const aVol = 1 - smooth((u - 0.85) / 0.15);
-                  sampleDeck(A, aVol, aLo, aMi, aHi, OUT);
-                  sampleDeck(B, 1, bLo, bMi, bHi, OUT);
+                if (FX.has(mix.style)) {
+                  const bS = mix.bStart, q = clamp01(u / bS), el = A.pos - mix.from;
+                  let gA = 1, lo = 1, mi = 1, hi = 1, at = A.pos;
+                  if (mix.style === "echo") {
+                    gA = 1 - smooth(q / 0.9);
+                    echo.send = u < bS ? 1 : 0;
+                  } else if (mix.style === "filter") {
+                    lo = 1 - smooth(q / 0.6);
+                    mi = 1 - smooth((q - 0.25) / 0.75);
+                    hi = 1 + 0.5 * q;
+                    gA = u < bS ? 1 + 0.2 * q : 1 - smooth((u - bS) / 0.05);
+                  } else if (mix.style === "brake") {
+                    const rate = Math.pow(Math.max(0, 1 - q), 1.6);
+                    mix.vpos += rate;
+                    at = mix.vpos;
+                    gA = 1 - smooth((q - 0.75) / 0.25);
+                  } else if (mix.style === "roll") {
+                    const seg = el < mix.len * 0.4 ? mix.period : el < mix.len * 0.7 ? mix.period / 2 : el < mix.len * 0.88 ? mix.period / 4 : mix.period / 8;
+                    at = mix.from + el % Math.max(64, Math.round(seg));
+                    hi = 1 + 0.3 * q;
+                  }
+                  TMP[0] = 0;
+                  TMP[1] = 0;
+                  if (gA > 1e-3) sampleAt(A, at, gA, lo, mi, hi, TMP);
+                  OUT[0] += TMP[0];
+                  OUT[1] += TMP[1];
+                  if (mix.style === "echo" && echo.send) {
+                    echo.inL = TMP[0];
+                    echo.inR = TMP[1];
+                  }
+                  if (u >= bS) {
+                    if (!mix.bOn) {
+                      mix.bOn = true;
+                      B.pos = Math.round(B.inFrame);
+                    }
+                    sampleDeck(B, mix.style === "echo" ? smooth((u - bS) / 0.12) : smooth((u - bS) / 0.02), 1, 1, 1, OUT);
+                    B.pos++;
+                  }
                   if ((A.pos & 1023) === 0) {
-                    const q = st.eq;
-                    q[0] = aLo * aVol;
-                    q[1] = aMi * aVol;
-                    q[2] = aHi * aVol;
-                    q[3] = bLo;
-                    q[4] = bMi;
-                    q[5] = bHi;
+                    const qq = st.eq;
+                    qq[0] = lo * gA;
+                    qq[1] = mi * gA;
+                    qq[2] = Math.min(1, hi) * gA;
+                    const bv = mix.bOn ? 1 : 0;
+                    qq[3] = qq[4] = qq[5] = bv;
+                  }
+                  A.pos++;
+                  if (u >= 1) {
+                    st.played++;
+                    st.doneAt = Date.now();
+                    if (!mix.bOn) B.pos = Math.round(B.inFrame);
+                    promote();
                   }
                 } else {
-                  const c = clamp01(u);
-                  sampleDeck(A, Math.cos(c * Math.PI / 2), 1 - smooth(c / 0.6), 1, 1, OUT);
-                  sampleDeck(B, Math.sin(c * Math.PI / 2), smooth((c - 0.4) / 0.6), 1, 1, OUT);
-                }
-                A.pos++;
-                B.pos++;
-                if (u >= 1) {
-                  st.played++;
-                  st.doneAt = Date.now();
-                  promote();
+                  if (mix.style === "cut") {
+                    const c = clamp01(u);
+                    sampleDeck(A, Math.cos(c * Math.PI / 2), 1, 1, 1, OUT);
+                    sampleDeck(B, Math.sin(c * Math.PI / 2), 1, 1, 1, OUT);
+                  } else if (mix.beat) {
+                    const s = mix.swapU;
+                    const bHi = smooth(u / (s * 0.7)), bMi = smooth((u - s * 0.25) / (s * 0.7)), bLo = smooth((u - s) / 0.03);
+                    const aLo = 1 - bLo, aMi = 1 - smooth((u - s) / ((1 - s) * 0.8)), aHi = 1 - smooth((u - s - (1 - s) * 0.2) / ((1 - s) * 0.8));
+                    const aVol = 1 - smooth((u - 0.85) / 0.15);
+                    sampleDeck(A, aVol, aLo, aMi, aHi, OUT);
+                    sampleDeck(B, 1, bLo, bMi, bHi, OUT);
+                    if ((A.pos & 1023) === 0) {
+                      const q = st.eq;
+                      q[0] = aLo * aVol;
+                      q[1] = aMi * aVol;
+                      q[2] = aHi * aVol;
+                      q[3] = bLo;
+                      q[4] = bMi;
+                      q[5] = bHi;
+                    }
+                  } else {
+                    const c = clamp01(u);
+                    sampleDeck(A, Math.cos(c * Math.PI / 2), 1 - smooth(c / 0.6), 1, 1, OUT);
+                    sampleDeck(B, Math.sin(c * Math.PI / 2), smooth((c - 0.4) / 0.6), 1, 1, OUT);
+                  }
+                  A.pos++;
+                  B.pos++;
+                  if (u >= 1) {
+                    st.played++;
+                    st.doneAt = Date.now();
+                    promote();
+                  }
                 }
               } else {
                 if (!B && A.matched && preparing && A.loopAt && A.pos >= A.loopAt && A.loops < 12) {
@@ -3601,6 +3716,21 @@ var PiEngine = (() => {
                 }
                 sampleDeck(A, 1, 1, 1, 1, OUT);
                 A.pos++;
+              }
+            }
+            if (echo.d > 0) {
+              const j = (echo.i - echo.d + ECHO_N) % ECHO_N, wl = echo.L[j], wr = echo.R[j];
+              OUT[0] += wl * 0.8;
+              OUT[1] += wr * 0.8;
+              const send = mix && mix.style === "echo" && echo.send ? 1 : 0;
+              echo.L[echo.i] = (send ? echo.inL || 0 : 0) + wl * echo.fb;
+              echo.R[echo.i] = (send ? echo.inR || 0 : 0) + wr * echo.fb;
+              echo.i = (echo.i + 1) % ECHO_N;
+              echo.send = 0;
+              if (A && A.pos > echo.until) {
+                echo.d = 0;
+                echo.L.fill(0);
+                echo.R.fill(0);
               }
             }
             const pw = (OUT[0] * OUT[0] + OUT[1] * OUT[1]) * 0.5;
@@ -3621,7 +3751,7 @@ var PiEngine = (() => {
             q[3] = q[4] = q[5] = 0;
           }
           st.mixLen = mix ? Math.round(mix.len / RATE * 10) / 10 : 0;
-          st.mixSwap = mix && mix.beat && mix.style !== "cut" ? mix.swapU : -1;
+          st.mixSwap = mix && mix.beat && mix.style !== "cut" ? mix.swapU : mix && FX.has(mix.style) ? mix.bStart : -1;
           st.mixU = mix ? Math.max(0, Math.min(1, (A.pos - mix.from) / mix.len)) : 0;
           st.mixIn = A && B && !mix && A.plan ? Math.max(0, Math.round((A.plan.start - A.pos) / RATE)) : -1;
           if (A) {
@@ -6053,7 +6183,7 @@ var PiEngine = (() => {
           }
           for (let y = ty - 2; y <= ty + 6; y++) set(ph, y, [1, 1, 1], 1);
         }
-        const sy = y0 + 24, sx0 = x0 + 4, sx1 = x0 + w - 5, sxs = STAGES.map((_, i) => sx0 + Math.round(i / 4 * (sx1 - sx0)));
+        const sy = y0 + 23, sx0 = x0 + 4, sx1 = x0 + w - 5, sxs = STAGES.map((_, i) => sx0 + Math.round(i / 4 * (sx1 - sx0)));
         const fillTo = sx0 + Math.round(Math.min(1, m.stagePos / 4) * (sx1 - sx0));
         for (let x = sx0; x <= sx1; x++) set(x, sy, x <= fillTo ? AMBER : DIM, x <= fillTo ? 0.85 : 0.22);
         sxs.forEach((x, i) => {
@@ -6068,7 +6198,8 @@ var PiEngine = (() => {
         if (adv) ms.t = (ms.t || 0) + dt;
         scrollText(tg, FONT_3x5, (m.line || "").toUpperCase(), x0 + 2, w - 4, y0 + 31, m.lineC || [0.9, 0.93, 1], 0.9, ms, "l", dt, adv);
       }
-      var styleText = (n) => !n ? "" : n.style === "cut" ? "cut on the beat" : n.style === "fade" ? "crossfade" : n.style === "short" ? "8 beat mix" : n.beats ? n.beats + " beat blend" : "blend";
+      var FX_NAMES = { echo: "echo out", filter: "filter sweep", brake: "brake stop", roll: "loop roll" };
+      var styleText = (n) => !n ? "" : FX_NAMES[n.style] || (n.style === "cut" ? "cut on the beat" : n.style === "fade" ? "crossfade" : n.style === "short" ? "8 beat mix" : n.beats ? n.beats + " beat blend" : "blend");
       function drawDjDecks(core, info, st, dt, beat = 0, where = "wall") {
         if (!info) return 0;
         st.t += dt;
@@ -6124,6 +6255,15 @@ var PiEngine = (() => {
         } else if (mixing && next && next.style === "cut") {
           stagePos = 2;
           line = "cut on the beat";
+          lineC = AMBER;
+        } else if (mixing && next && FX_NAMES[next.style]) {
+          if (u < sw) {
+            stagePos = 1 + u / sw * 0.99;
+            line = FX_NAMES[next.style] + " - drop in " + mmss((sw - u) * mixSecs);
+          } else {
+            stagePos = 3 + Math.min(0.99, (u - sw) / Math.max(0.01, 1 - sw));
+            line = "drop - " + (next.title || "");
+          }
           lineC = AMBER;
         } else if (mixing) {
           if (u < sw - 0.04) {

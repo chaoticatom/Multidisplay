@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.354';
+const APP_VERSION = '0.6.355';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -102,7 +102,10 @@ function connect() {
     // than silently lost (the btStatus drop described above was exactly
     // that failure).
     wsReady = false; // flushed once the Pi lets us in - see flushPending()
-    if (syncAudio.on) { send({ cmd: 'audioSub', on: true }); syncAudio.next = 0; } // a new connection: ask for the audio again
+    // A new connection (often a restarted Pi, with a new clock): start this
+    // device's sound afresh - subscription, timing and clock sync - exactly as
+    // switching 'This device' off and on did.
+    if (syncAudio.on) { syncAudioFlush(); syncAudio.offset = 0; syncAudioStart(); }
     send({ cmd: 'btStatus' });
   };
   // onclose fires after onerror too - a single guarded scheduler means an

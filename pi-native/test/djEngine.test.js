@@ -105,7 +105,7 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     assert.strictEqual(sungAt(over[0], over[1]), 0, `${pk.style} ${pk.beats} at bar ${(pk.start - A.firstDown) / A.bar} lands on singing`);
     // Singing all the way through: a long merge (B creeps in underneath), not a cut.
     const sung = { ...long, info: { ...A.info, vocalLevel: '9'.repeat(200) } };
-    const s2 = dj._test.planMix(sung, { ...A, introBeats: 64 }, 'auto');
+    const s2 = dj._test.planMix(sung, { ...A, introBeats: 64, info: { ...A.info, vocalLevel: '0'.repeat(200) } }, 'auto');
     assert.ok(s2.style === 'blend' && s2.beats >= 16, 'a long merge rather than a cut: ' + s2.style);
     // Every pair decides afresh: a track that starts straight in (no intro)
     // with a clashing key gets an instant cut; a smooth pair gets a blend.
@@ -120,7 +120,22 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     dj.configure({ style: 'short' });
     assert.strictEqual(dj._test.planMix(long, { ...A, introBeats: 64 }, 'auto').beats, 8);
     dj.configure({ style: 'auto' });
+    // Tempos too far apart to beat-match: an effect transition (echo, filter,
+    // brake, roll) or a crossfade - never a beat-matched blend.
+    const fx = dj._test.planMix({ ...long, matched: true }, { ...A, matched: false, bpm: 160 }, 'auto');
+    assert.ok(['echo', 'filter', 'brake', 'roll', 'fade'].includes(fx.style) && fx.why, 'effect transition: ' + fx.style);
     dj.stop(); assert.strictEqual(dj.status.state, 'stopped');
     console.log('  ok - beat-matched mixing from one track to the next');
+    // Very different tempos (100 and 150 BPM): it still gets from one to the
+    // next, through an effect, with clean audio (no NaN, no silence gap).
+    const far = [{ kind: 'mp3', id: 'x', title: 'X', bpm: 100 }, { kind: 'mp3', id: 'y', title: 'Y', bpm: 150 }];
+    let bad = 0, styles = [];
+    const dj2 = createDjEngine({ onPcm: () => {}, getQueueMs: () => 0, sources: { allTracks: async () => far.slice(), inputFor: async (t) => ({ url: t.id, bpm: t.bpm }) }, decode, log: (m) => { const mm = m.match(/\((echo out|filter sweep|brake stop|loop roll|smooth crossfade)[^)]*\)/); if (mm) styles.push(mm[1]); }, setTimer: () => 1, clearTimer: () => {} });
+    await dj2.start({ source: 'mp3', style: 'auto' });
+    for (let k = 0; k < 50 && !dj2._test.A; k++) await new Promise((r) => setImmediate(r));
+    for (let s = 0; s < 700 && dj2.status.played < 1; s++) { const b = dj2.render(4410); for (let i = 0; i < b.length; i += 2) { const v = b.readInt16LE(i); if (!Number.isFinite(v)) bad++; } await new Promise((r) => setImmediate(r)); }
+    assert.ok(dj2.status.played >= 1 && bad === 0, 'got through an effect transition: ' + styles.join(','));
+    dj2.stop();
+    console.log('  ok - effect transitions for tempos too far apart (' + styles.join(', ') + ')');
   } catch (e) { console.error(e); process.exitCode = 1; }
 })();
