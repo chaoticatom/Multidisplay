@@ -22929,6 +22929,505 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/planes/data.js
+  var require_data = __commonJS({
+    "src/effects/planes/data.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { fetchWithTimeout } = require_net();
+      var POLL_MS = 8e3;
+      var ROUTE_GAP_MS = 1500;
+      var KT_TO_KMS = 1.852 / 3600;
+      var AIRLINES = {
+        BAW: ["British Airways", [0.15, 0.3, 1]],
+        SHT: ["British Airways", [0.15, 0.3, 1]],
+        CFE: ["BA CityFlyer", [0.15, 0.3, 1]],
+        VIR: ["Virgin Atlantic", [1, 0.1, 0.15]],
+        EZY: ["easyJet", [1, 0.45, 0]],
+        EJU: ["easyJet", [1, 0.45, 0]],
+        EZS: ["easyJet", [1, 0.45, 0]],
+        RYR: ["Ryanair", [0.1, 0.3, 0.9]],
+        RUK: ["Ryanair", [0.1, 0.3, 0.9]],
+        DLH: ["Lufthansa", [1, 0.75, 0.05]],
+        AFR: ["Air France", [0.1, 0.3, 1]],
+        KLM: ["KLM", [0.2, 0.65, 1]],
+        UAE: ["Emirates", [1, 0.15, 0.1]],
+        QTR: ["Qatar Airways", [0.6, 0.1, 0.3]],
+        ETD: ["Etihad", [0.85, 0.65, 0.3]],
+        AAL: ["American", [0.7, 0.75, 0.8]],
+        DAL: ["Delta", [0.2, 0.3, 0.9]],
+        UAL: ["United", [0.2, 0.4, 1]],
+        SIA: ["Singapore Airlines", [1, 0.7, 0.1]],
+        TOM: ["TUI", [0.2, 0.6, 1]],
+        EXS: ["Jet2", [1, 0.15, 0.1]],
+        WZZ: ["Wizz Air", [0.85, 0.2, 0.6]],
+        WUK: ["Wizz Air", [0.85, 0.2, 0.6]],
+        EIN: ["Aer Lingus", [0.1, 0.75, 0.4]],
+        IBE: ["Iberia", [1, 0.2, 0.1]],
+        VLG: ["Vueling", [1, 0.85, 0.1]],
+        THY: ["Turkish Airlines", [1, 0.1, 0.1]],
+        SWR: ["Swiss", [1, 0.1, 0.1]],
+        AUA: ["Austrian", [1, 0.1, 0.1]],
+        TAP: ["TAP Air Portugal", [0.2, 0.8, 0.3]],
+        ACA: ["Air Canada", [1, 0.1, 0.1]],
+        LOG: ["Loganair", [0.2, 0.4, 1]],
+        NOZ: ["Norwegian", [1, 0.1, 0.15]],
+        NSZ: ["Norwegian", [1, 0.1, 0.15]],
+        SAS: ["SAS", [0.2, 0.3, 0.9]],
+        FIN: ["Finnair", [0.2, 0.4, 1]],
+        ICE: ["Icelandair", [0.2, 0.4, 0.9]],
+        CPA: ["Cathay Pacific", [0.1, 0.6, 0.5]],
+        JAL: ["Japan Airlines", [1, 0.1, 0.1]],
+        ANA: ["ANA", [0.2, 0.4, 1]],
+        QFA: ["Qantas", [1, 0.1, 0.1]],
+        FDX: ["FedEx", [0.5, 0.2, 0.8]],
+        UPS: ["UPS", [0.6, 0.4, 0.15]],
+        DHK: ["DHL", [1, 0.8, 0.1]],
+        BCS: ["DHL", [1, 0.8, 0.1]],
+        AEA: ["Air Europa", [0.2, 0.4, 1]],
+        ELY: ["El Al", [0.2, 0.4, 1]],
+        KAL: ["Korean Air", [0.4, 0.7, 1]],
+        CCA: ["Air China", [1, 0.1, 0.1]],
+        CSN: ["China Southern", [0.2, 0.5, 1]],
+        ETH: ["Ethiopian", [0.2, 0.8, 0.3]],
+        SVA: ["Saudia", [0.2, 0.6, 0.4]],
+        PIA: ["PIA", [0.2, 0.7, 0.4]],
+        AIC: ["Air India", [1, 0.3, 0.1]],
+        LOT: ["LOT", [0.2, 0.4, 1]]
+      };
+      function airlineOf(cs) {
+        const k = String(cs || "").slice(0, 3).toUpperCase();
+        if (AIRLINES[k]) return { name: AIRLINES[k][0], color: AIRLINES[k][1], icao: k };
+        let h = 0;
+        for (const c of k) h = h * 31 + c.charCodeAt(0) >>> 0;
+        const hue = h % 360 / 360, f = (n) => {
+          const x = (n + hue * 12) % 12;
+          return 0.55 - 0.45 * Math.max(-1, Math.min(x - 3, 9 - x, 1));
+        };
+        return { name: "", color: [f(0), f(8), f(4)], icao: k };
+      }
+      function createPlaneData(fetchFn = fetchWithTimeout) {
+        const st = { planes: [], status: "Waiting for location", home: null, homeKey: "", geo: "", fetching: false, lastPoll: 0, backoffUntil: 0, routes: /* @__PURE__ */ new Map(), queue: [], routeAt: 0, routeBusy: false };
+        async function getJson(url) {
+          const r = await fetchFn(url, { headers: { Accept: "application/json" } });
+          if (r.status === 429 || r.status === 403) {
+            const e = new Error(`${new URL(url).hostname} ${r.status} (busy)`);
+            e.busy = true;
+            throw e;
+          }
+          if (!r.ok) throw new Error(`${new URL(url).hostname} ${r.status}`);
+          return r.json();
+        }
+        async function geocode(city) {
+          st.geo = city;
+          try {
+            const d = await getJson(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&format=json`);
+            const g = d.results && d.results[0];
+            if (!g) {
+              st.status = `Place "${city}" not found`;
+              return;
+            }
+            st.home = { lat: g.latitude, lon: g.longitude, name: g.name };
+            st.lastPoll = 0;
+          } catch (e) {
+            st.status = "Finding " + city + ": " + e.message;
+            st.geo = "";
+          }
+        }
+        function relate(lat, lon) {
+          const R = 6371, toR = Math.PI / 180, h = st.home;
+          const dLat = (lat - h.lat) * toR, dLon = (lon - h.lon) * toR, la1 = h.lat * toR, la2 = lat * toR;
+          const a = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+          const dist = 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+          const y = Math.sin(dLon) * Math.cos(la2), x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dLon);
+          return { dist, brg: (Math.atan2(y, x) / toR + 360) % 360 };
+        }
+        async function poll(opts) {
+          st.fetching = true;
+          const radiusKm = [5, 10, 20, 40, 80].includes(Number(opts.radiusKm)) ? Number(opts.radiusKm) : 20;
+          const nm = Math.max(1, Math.round(radiusKm / 1.852)), maxAlt = Number(opts.maxAltFt) > 0 ? Number(opts.maxAltFt) : 6e4;
+          const { lat, lon } = st.home;
+          let d = null, err = null;
+          for (const host of ["https://api.airplanes.live/v2/point", "https://api.adsb.lol/v2/point"]) {
+            try {
+              d = await getJson(`${host}/${lat.toFixed(4)}/${lon.toFixed(4)}/${nm}`);
+              break;
+            } catch (e) {
+              err = e;
+            }
+          }
+          st.fetching = false;
+          st.lastPoll = Date.now();
+          if (!d) {
+            st.status = err ? err.message : "no data";
+            if (err && err.busy) st.backoffUntil = Date.now() + 6e4;
+            return;
+          }
+          const now = Date.now(), prev = new Map(st.planes.map((p) => [p.hex, p]));
+          const list = [];
+          for (const a of d.ac || d.aircraft || []) {
+            if (typeof a.lat !== "number" || typeof a.lon !== "number") continue;
+            const alt = a.alt_baro === "ground" ? 0 : Number(a.alt_baro || a.alt_geom || 0);
+            if (!(alt > 0) || alt > maxAlt) continue;
+            const cs = String(a.flight || "").trim().toUpperCase();
+            const p = { hex: a.hex, cs, type: String(a.t || "").toUpperCase(), reg: String(a.r || ""), alt, gs: Number(a.gs) || 0, track: Number(a.track) || 0, lat: a.lat, lon: a.lon, fix: now - (Number(a.seen_pos) || 0) * 1e3, vr: Number(a.baro_rate) || 0 };
+            p.firstSeen = prev.has(p.hex) ? prev.get(p.hex).firstSeen : now;
+            const r = relate(p.lat, p.lon);
+            if (r.dist > radiusKm * 1.15) continue;
+            list.push(p);
+            if (cs && !st.routes.has(cs) && !st.queue.includes(cs)) st.queue.push(cs);
+          }
+          st.planes = list;
+          st.status = list.length ? `${list.length} plane${list.length === 1 ? "" : "s"} within ${radiusKm} km` : `No planes within ${radiusKm} km`;
+        }
+        async function lookupRoute(cs) {
+          st.routeBusy = true;
+          try {
+            const d = await getJson(`https://api.adsbdb.com/v0/callsign/${encodeURIComponent(cs)}`);
+            const fr = d && d.response && d.response.flightroute;
+            if (!fr) st.routes.set(cs, null);
+            else {
+              const ap = (x) => x ? { iata: x.iata_code || x.icao_code || "", city: x.municipality || x.name || "" } : null;
+              st.routes.set(cs, { airline: fr.airline ? fr.airline.name : "", from: ap(fr.origin), to: ap(fr.destination) });
+            }
+          } catch (e) {
+            if (/ 404/.test(e.message) || /unknown/i.test(e.message)) st.routes.set(cs, null);
+            else st.queue.push(cs);
+          }
+          st.routeBusy = false;
+          st.routeAt = Date.now();
+        }
+        function update(opts = {}) {
+          const now = Date.now();
+          const lat = Number(opts.lat), lon = Number(opts.lon);
+          if (Number.isFinite(lat) && Number.isFinite(lon) && (lat || lon)) {
+            const key = lat.toFixed(4) + "," + lon.toFixed(4);
+            if (key !== st.homeKey) {
+              st.homeKey = key;
+              st.home = { lat, lon, name: "" };
+              st.lastPoll = 0;
+            }
+          } else if (opts.city && st.geo !== opts.city) {
+            st.homeKey = "";
+            geocode(String(opts.city));
+          }
+          if (!st.home) {
+            if (!opts.city) st.status = "Set your location in the options";
+            return;
+          }
+          if (!st.fetching && now >= st.backoffUntil && now - st.lastPoll >= POLL_MS) poll(opts).catch((e) => {
+            st.fetching = false;
+            st.status = e.message;
+          });
+          if (!st.routeBusy && st.queue.length && now - st.routeAt >= ROUTE_GAP_MS) lookupRoute(st.queue.shift());
+        }
+        function planes() {
+          if (!st.home) return [];
+          const now = Date.now();
+          return st.planes.map((p) => {
+            const dt = Math.min(25, Math.max(0, (now - p.fix) / 1e3)), km = p.gs * KT_TO_KMS * dt, tr = p.track * Math.PI / 180;
+            const lat = p.lat + km * Math.cos(tr) / 111.2, lon = p.lon + km * Math.sin(tr) / (111.2 * Math.cos(p.lat * Math.PI / 180) || 1);
+            const rel = relate(lat, lon), route = st.routes.get(p.cs), al = airlineOf(p.cs);
+            return { ...p, lat, lon, dist: rel.dist, brg: rel.brg, route: route || null, airline: route && route.airline || al.name, color: al.color };
+          }).sort((a, b) => a.dist - b.dist);
+        }
+        return { update, planes, status: () => st.status, state: st };
+      }
+      var COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+      var compass = (deg) => COMPASS[Math.round(deg / 45) % 8];
+      module.exports = { createPlaneData, airlineOf, compass, AIRLINES };
+    }
+  });
+
+  // src/effects/planes/draw.js
+  var require_draw = __commonJS({
+    "src/effects/planes/draw.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { FONT_3x5, FONT_5x7, drawString, textWidth } = require_text();
+      var { compass } = require_data();
+      var WH = [0.92, 0.95, 1];
+      var DM = [0.55, 0.6, 0.7];
+      var AM = [1, 0.6, 0.15];
+      var CY = [0.3, 0.8, 1];
+      var GR = [0.2, 1, 0.4];
+      var fmtAlt = (ft) => (ft >= 1e4 ? Math.round(ft / 100) * 100 : Math.round(ft / 50) * 50) + "FT";
+      var fmtKm = (km) => (km < 10 ? km.toFixed(1) : Math.round(km)) + " KM";
+      function txt(tg, font, s, x, y, c, a = 1, scale = 1, maxX = Infinity) {
+        drawString(font, String(s).toUpperCase(), x, y, (px, py) => {
+          if (px < maxX) tg.set(px, py, c[0] * a, c[1] * a, c[2] * a);
+        }, { scale });
+      }
+      var w3 = (s) => textWidth(FONT_3x5, String(s).toUpperCase());
+      var w5 = (s, sc = 1) => textWidth(FONT_5x7, String(s).toUpperCase(), sc);
+      function fit(s, maxW, wf) {
+        s = String(s || "").toUpperCase();
+        while (s.length > 1 && wf(s) > maxW) s = s.slice(0, -1);
+        return s.trim();
+      }
+      function tail(tg, x0, y0, col, h = 9) {
+        for (let y = 0; y < h; y++) for (let x = 0; x < h + 2; x++) {
+          const inside = x >= y * 0.9 && x <= y * 0.9 + 6 + (y > h * 0.6 ? 3 : 0);
+          if (inside) tg.set(x0 + x, y0 + h - 1 - y, col[0] * (y < 3 ? 0.7 : 1), col[1] * (y < 3 ? 0.7 : 1), col[2] * (y < 3 ? 0.7 : 1));
+        }
+      }
+      function arrow(tg, x, y, w, c) {
+        for (let i = 0; i < w; i++) tg.set(x + i, y, c[0], c[1], c[2]);
+        for (let d = 1; d <= 2; d++) {
+          tg.set(x + w - 1 - d, y - d, c[0], c[1], c[2]);
+          tg.set(x + w - 1 - d, y + d, c[0], c[1], c[2]);
+        }
+      }
+      function liveDot(tg, x, y, t) {
+        const a = 0.6 + 0.4 * Math.sin(t * 4);
+        for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) tg.set(x + i, y + j, GR[0] * a, GR[1] * a, GR[2] * a);
+      }
+      function drawBoard(tg, p, t, info = "") {
+        const W = tg.w, r = p.route;
+        tail(tg, 1, 1, p.color);
+        const cs = p.cs || p.hex.toUpperCase(), csW = w5(cs);
+        txt(tg, FONT_5x7, fit(p.airline || p.type || "AIRCRAFT", W - 20 - csW, (s) => w5(s)), 15, 2, WH);
+        txt(tg, FONT_5x7, cs, W - 2 - csW, 2, WH);
+        const from = r && r.from ? r.from.iata : "", to = r && r.to ? r.to.iata : "";
+        if (from && to) {
+          txt(tg, FONT_5x7, from, 2, 14, WH, 1, 2);
+          const aw = Math.max(9, Math.min(20, W - 4 - w5(from, 2) - w5(to, 2) - 16)), ax = Math.round(W / 2 - aw / 2);
+          arrow(tg, ax, 20, aw, DM);
+          txt(tg, FONT_5x7, to, W - 2 - w5(to, 2), 14, WH, 1, 2);
+          const half = Math.floor(W / 2) - 4;
+          txt(tg, FONT_3x5, fit(r.from.city, half, w3), 2, 32, DM);
+          const tc = fit(r.to.city, half, w3);
+          txt(tg, FONT_3x5, tc, W - 2 - w3(tc), 32, DM);
+        } else {
+          txt(tg, FONT_5x7, fit(p.type || "AIRCRAFT", W - 4, (s) => w5(s, 2)), 2, 14, WH, 1, 2);
+          txt(tg, FONT_3x5, fit(p.reg ? "REG " + p.reg : "ROUTE UNKNOWN", W - 4, w3), 2, 32, DM);
+        }
+        for (let x = 0; x < W; x += 2) tg.set(x, 40, DM[0] * 0.4, DM[1] * 0.4, DM[2] * 0.4);
+        const alt = fmtAlt(p.alt), spd = Math.round(p.gs) + "KT";
+        txt(tg, FONT_5x7, p.type || "", 2, 44, WH);
+        txt(tg, FONT_5x7, alt, Math.round(W / 2 - w5(alt) / 2), 44, AM);
+        txt(tg, FONT_5x7, spd, W - 2 - w5(spd), 44, CY);
+        txt(tg, FONT_3x5, fmtKm(p.dist) + " " + compass(p.brg) + (p.vr > 300 ? " CLIMB" : p.vr < -300 ? " DESCEND" : ""), 2, 56, DM);
+        const live = info || "LIVE", lw = w3(live);
+        if (!info) liveDot(tg, W - 7 - lw, 57, t);
+        txt(tg, FONT_3x5, live, W - 2 - lw, 56, info ? DM : GR);
+      }
+      function drawCompact(tg, p, t, info = "") {
+        const r = p.route;
+        tail(tg, 1, 1, p.color);
+        txt(tg, FONT_3x5, fit(p.airline || p.type || "AIRCRAFT", 48, w3), 14, 1, WH);
+        txt(tg, FONT_3x5, p.cs || p.hex.toUpperCase(), 14, 8, WH);
+        const from = r && r.from ? r.from.iata : "", to = r && r.to ? r.to.iata : "";
+        if (from && to) {
+          txt(tg, FONT_5x7, from, 2, 18, WH);
+          txt(tg, FONT_3x5, "TO", 26, 19, DM);
+          txt(tg, FONT_5x7, to, 62 - w5(to), 18, WH);
+          txt(tg, FONT_3x5, fit(r.from.city, 30, w3), 2, 28, DM);
+          const tc = fit(r.to.city, 28, w3);
+          txt(tg, FONT_3x5, tc, 62 - w3(tc), 28, DM);
+        } else {
+          txt(tg, FONT_5x7, fit(p.type || "AIRCRAFT", 60, (s) => w5(s)), 2, 18, WH);
+          txt(tg, FONT_3x5, fit(p.reg || "ROUTE UNKNOWN", 60, w3), 2, 28, DM);
+        }
+        for (let x = 0; x < 64; x += 2) tg.set(x, 35, DM[0] * 0.4, DM[1] * 0.4, DM[2] * 0.4);
+        txt(tg, FONT_3x5, p.type || "", 2, 39, WH);
+        const alt = fmtAlt(p.alt);
+        txt(tg, FONT_3x5, alt, 62 - w3(alt), 39, AM);
+        txt(tg, FONT_3x5, Math.round(p.gs) + "KT", 2, 47, CY);
+        const d = fmtKm(p.dist).replace(" ", "") + " " + compass(p.brg);
+        txt(tg, FONT_3x5, d, 62 - w3(d), 47, DM);
+        if (info) txt(tg, FONT_3x5, info, 62 - w3(info), 56, DM, 0.8);
+        else {
+          liveDot(tg, 2, 57, t);
+          txt(tg, FONT_3x5, "LIVE", 7, 56, GR);
+        }
+      }
+      function drawRadar(tg, planes, focus, t, radiusKm, details = true) {
+        const S = Math.min(tg.h, tg.w), cx = Math.floor(S / 2), cy = Math.floor(tg.h / 2), R = S / 2 - 2;
+        const g = (x, y, a) => tg.set(Math.round(x), Math.round(y), GR[0] * a, GR[1] * a, GR[2] * a);
+        for (const f of [1 / 3, 2 / 3, 1]) for (let a = 0; a < 360; a += 3) {
+          const r2 = a * Math.PI / 180;
+          g(cx + R * f * Math.cos(r2), cy + R * f * Math.sin(r2), 0.22);
+        }
+        for (let d = -R; d <= R; d += 2) {
+          g(cx + d, cy, 0.12);
+          g(cx, cy + d, 0.12);
+        }
+        const sweep = t * 1.6 % (Math.PI * 2);
+        for (let k = 0; k < 8; k++) {
+          const a = sweep - k * 0.06;
+          for (let r2 = 2; r2 < R; r2++) g(cx + r2 * Math.sin(a), cy - r2 * Math.cos(a), 0.5 - k * 0.055);
+        }
+        for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) tg.set(cx + i, cy + j, 1, 1, 1);
+        const pos = (p2) => {
+          const d = Math.min(1, p2.dist / radiusKm) * R, b = p2.brg * Math.PI / 180;
+          return [cx + d * Math.sin(b), cy - d * Math.cos(b)];
+        };
+        planes.forEach((p2, i) => {
+          const [x, y] = pos(p2), c = i === focus ? AM : WH, sel = i === focus;
+          const tr = p2.track * Math.PI / 180;
+          for (let k = 1; k <= 4; k++) g(x - Math.sin(tr) * k, y + Math.cos(tr) * k, 0.35 - k * 0.07);
+          for (let d = -1; d <= 1; d++) {
+            tg.set(Math.round(x + d), Math.round(y), c[0], c[1], c[2]);
+            tg.set(Math.round(x), Math.round(y + d), c[0], c[1], c[2]);
+          }
+          if (sel || S >= 64) txt(tg, FONT_3x5, p2.cs || "", Math.round(x) + 3, Math.round(y) - 2, c, sel ? 1 : 0.7, 1, S);
+        });
+        if (!details || tg.w < S + 44) return;
+        const p = planes[focus];
+        if (!p) return;
+        const x0 = S + 4, mw = tg.w - x0 - 1, r = p.route;
+        txt(tg, FONT_5x7, p.cs || p.hex.toUpperCase(), x0, 2, AM);
+        txt(tg, FONT_3x5, fit(p.airline || p.type, mw, w3), x0, 11, WH);
+        if (r && r.from && r.to) {
+          txt(tg, FONT_5x7, r.from.iata, x0, 20, WH);
+          txt(tg, FONT_3x5, "TO", x0 + w5(r.from.iata) + 3, 21, DM);
+          txt(tg, FONT_5x7, r.to.iata, x0 + w5(r.from.iata) + 14, 20, WH);
+        }
+        txt(tg, FONT_3x5, p.type || "", x0, 32, WH);
+        txt(tg, FONT_3x5, fmtAlt(p.alt), x0, 39, AM);
+        txt(tg, FONT_3x5, Math.round(p.gs) + " KT", x0, 46, CY);
+        txt(tg, FONT_3x5, fmtKm(p.dist) + " " + compass(p.brg), x0, 53, DM);
+      }
+      function drawEmpty(tg, t, msg) {
+        drawRadar(tg, [], -1, t * 0.5, 1, false);
+        const lines = String(msg || "SKIES CLEAR").toUpperCase().split("\n");
+        lines.forEach((l, i) => {
+          const s = fit(l, tg.w - 4, w3);
+          txt(tg, FONT_3x5, s, Math.round(tg.w / 2 - w3(s) / 2), Math.round(tg.h / 2) - 4 + i * 7, i ? DM : WH, 0.9);
+        });
+      }
+      module.exports = { drawBoard, drawCompact, drawRadar, drawEmpty };
+    }
+  });
+
+  // src/effects/planes.js
+  var require_planes = __commonJS({
+    "src/effects/planes.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { createPlaneData } = require_data();
+      var { drawBoard, drawCompact, drawRadar, drawEmpty } = require_draw();
+      var data = createPlaneData();
+      var view = { t: 0, focus: 0, focusT: 0, radarT: 0, fade: 1, lastHex: "" };
+      var CYCLE_S = 8;
+      function step(opts, dt, core) {
+        const w = core && core.effectOptions && core.effectOptions.weather;
+        data.update(!opts.city && !(opts.lat || opts.lon) && w && w.city ? { ...opts, city: w.city } : opts);
+        view.t += dt;
+        view.focusT += dt;
+        view.radarT += dt;
+        const planes = data.planes();
+        if (view.focusT >= CYCLE_S && planes.length > 1) {
+          view.focusT = 0;
+          view.focus = (view.focus + 1) % Math.min(planes.length, 6);
+          view.fade = 0;
+        }
+        if (view.focus >= planes.length) view.focus = 0;
+        view.fade = Math.min(1, view.fade + dt * 2.5);
+        return planes;
+      }
+      var radius = (o) => [5, 10, 20, 40, 80].includes(Number(o.radiusKm)) ? Number(o.radiusKm) : 20;
+      var emptyMsg = () => {
+        const s = data.status();
+        return /^No planes|^\d/.test(s) ? "SKIES CLEAR\n" + s.replace(/^No planes /, "") : "PLANES\n" + s;
+      };
+      function region(tg, look, planes, k, opts) {
+        const p = planes[k];
+        const fadeTg = { ...tg, set: (x, y, r, g, b) => tg.set(x, y, r * view.fade, g * view.fade, b * view.fade) };
+        if (!planes.length) {
+          drawEmpty(tg, view.t, emptyMsg());
+          return;
+        }
+        if (look === "radar") drawRadar(tg, planes, view.focus, view.t, radius(opts), true);
+        else if (!p) drawRadar(tg, planes, view.focus, view.t, radius(opts), false);
+        else if (tg.w >= 96) drawBoard(fadeTg, p, view.t, planes.length > 1 ? k + 1 + "/" + planes.length : "");
+        else drawCompact(fadeTg, p, view.t, planes.length > 1 ? k + 1 + "/" + planes.length : "");
+      }
+      function sub(tg0, x0, w) {
+        return { w, h: tg0.h, set: (x, y, r, g, b) => {
+          if (x >= 0 && x < w && y >= 0 && y < tg0.h) tg0.set(x0 + x, y, r, g, b);
+        } };
+      }
+      function effectPlanesWall(core, dt) {
+        if (!core.wallW) return;
+        core.wallBuf.fill(0);
+        const opts = core.effectOptions && core.effectOptions.planes || {};
+        const planes = step(opts, dt, core), style = opts.style || "auto", S = core.wallPanelSize || 64;
+        const regs = [];
+        if (core.wallPanels && core.wallPanels.length) {
+          const rows = /* @__PURE__ */ new Map();
+          for (const p of core.wallPanels) {
+            if (!rows.has(p.gy)) rows.set(p.gy, []);
+            rows.get(p.gy).push(p.gx);
+          }
+          [...rows.keys()].sort((a, b) => a - b).forEach((gy) => {
+            const xs = rows.get(gy).sort((a, b) => a - b);
+            let s = xs[0], prev = xs[0];
+            for (let i = 1; i <= xs.length; i++) {
+              if (i === xs.length || xs[i] !== prev + 1) {
+                regs.push({ x: s * S, y: gy * S, w: (prev - s + 1) * S, h: S });
+                s = xs[i];
+              }
+              prev = xs[i];
+            }
+          });
+        } else regs.push({ x: 0, y: 0, w: core.wallW, h: Math.min(core.wallH, 64) });
+        const tgFor = (r) => ({ w: r.w, h: r.h, set: (x, y, rr, g, b) => {
+          if (x >= 0 && y >= 0 && x < r.w && y < r.h) core.setWallPixel(r.x + x, r.y + y, rr, g, b);
+        } });
+        const radarTurn = style === "radar" || style === "auto" && planes.length > 1 && Math.floor(view.t / 12) % 3 === 2;
+        let radarShown = false, next = 0;
+        regs.forEach((r, i) => {
+          const tg = tgFor(r);
+          if (i === 0) {
+            if (r.w >= 3 * S && planes.length) {
+              const rw = Math.min(r.w - 2 * S, 2 * S);
+              region(sub(tg, 0, r.w - rw), "board", planes, view.focus, opts);
+              drawRadar(sub(tg, r.w - rw, rw), planes, view.focus, view.t, radius(opts), rw >= 108);
+              radarShown = true;
+            } else if (radarTurn && r.w >= 2 * S) {
+              region(tg, "radar", planes, 0, opts);
+              radarShown = true;
+            } else region(tg, "board", planes, view.focus, opts);
+            next = view.focus + 1;
+          } else if (!radarShown && planes.length > 1) {
+            region(tg, "radar", planes, 0, opts);
+            radarShown = true;
+          } else {
+            region(tg, "board", planes, planes.length ? next % Math.max(1, planes.length) : 0, opts);
+            next++;
+          }
+        });
+      }
+      function effectPlanes(core, dt) {
+        const opts = core.effectOptions && core.effectOptions.planes || {};
+        const planes = step(opts, dt, core), SZ = core.SIZE || 64;
+        core.colBuf.fill(0);
+        const face = (f) => ({ w: SZ, h: SZ, set: (x, y, r, g, b2) => {
+          if (x >= 0 && y >= 0 && x < SZ && y < SZ) core.setFaceLED(f, x, SZ - 1 - y, r, g, b2);
+        } });
+        if (core.panelMode === "2d") {
+          region(face(0), "board", planes, view.focus, opts);
+          return;
+        }
+        const n = Math.max(1, planes.length);
+        drawRadar(face(4), planes, view.focus, view.t, radius(opts), false);
+        [0, 2, 1, 3].forEach((f, i) => region(face(f), "board", planes, planes.length ? (view.focus + i) % n : 0, opts));
+        const b = face(5), msg = planes.length ? planes.length + " PLANES\nNEAREST " + (planes[0].dist < 10 ? planes[0].dist.toFixed(1) : Math.round(planes[0].dist)) + " KM" : emptyMsg();
+        drawEmpty(b, view.t, msg);
+      }
+      effectPlanes.wall = effectPlanesWall;
+      effectPlanes.getStatus = () => data.status();
+      effectPlanesWall.getStatus = effectPlanes.getStatus;
+      effectPlanes._data = data;
+      module.exports = effectPlanes;
+    }
+  });
+
   // src/nasaConfig.js
   var require_nasaConfig = __commonJS({
     "src/nasaConfig.js"(exports, module) {
@@ -30251,6 +30750,7 @@ var PiEngine = (() => {
       var ghost3d = require_ghost3d();
       var moon = require_celestial();
       var iss = require_iss();
+      var planes = require_planes();
       var apod = require_apod();
       var epic = require_epic();
       var neoRadar = require_neoRadar();
@@ -30356,6 +30856,7 @@ var PiEngine = (() => {
         apod: apodWall,
         epic: epicWall,
         iss: issWall,
+        planes: planes.wall,
         neo: neoRadar.wall,
         unsplash: unsplashWall,
         artic: articWall,
@@ -30421,6 +30922,7 @@ var PiEngine = (() => {
         epic,
         apod,
         iss,
+        planes,
         neo: neoRadar,
         unsplash,
         artic,
@@ -30491,6 +30993,7 @@ var PiEngine = (() => {
         epic: "Earth Live View",
         apod: "Astronomy Pic of the Day",
         iss: "ISS Tracker",
+        planes: "Planes Overhead",
         neo: "Near-Earth Objects",
         unsplash: "Unsplash Photos",
         artic: "Art Gallery",

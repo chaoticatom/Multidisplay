@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.361';
+const APP_VERSION = '0.6.362';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -25,7 +25,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['countdown', 'ai_art', 'my_photos', 'message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube', 'radar', 'talking_face']);
+const WIRED_OPTION_PANELS = new Set(['countdown', 'ai_art', 'my_photos', 'message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube', 'radar', 'talking_face', 'planes']);
 // Shared "Art" submenu prev/next/slideshow/letterbox/speed controls
 // (#art-slideshow-chk/#art-letterbox-chk/#art-speed/#art-prev-btn/
 // #art-next-btn) drive whichever of Unsplash/Art Gallery is the currently
@@ -5801,6 +5801,7 @@ function cxWireExtras() {
   document.getElementById('notify-test')?.addEventListener('click', () => fetch(url().replace('Hello', 'Hello from the phone')).then(() => cxToast('Sent')));
   document.getElementById('notify-new')?.addEventListener('click', () => { if (confirm('Make a new link? The old one stops working.')) send({ cmd: 'newNotifyToken' }); });
   cxWireDj();
+  cxWirePlanes();
   cxWireMusicTabs();
   document.getElementById('photo-input')?.addEventListener('change', async (e) => {
     const files = [...e.target.files]; e.target.value = '';
@@ -6123,7 +6124,7 @@ function cxSyncHeroLabel() {
   const st = currentState.effectStatus?.radio;
   sub.textContent = st && st.playing && st.station ? '♫ ' + st.station.name.replace(/^[\s-]+/, '') : '';
 }
-function cxOnState() { if (typeof radioAutoResume === 'function') radioAutoResume(); cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncAlexa(); cxSyncDj(); cxSyncFavs(); cxSyncPalettes(); cxSyncOptionPanels(); cxSyncYouTube(); cxSyncExtras(); requestAnimationFrame(cxMoveBlob); }
+function cxOnState() { if (typeof radioAutoResume === 'function') radioAutoResume(); cxSyncPlanes(); cxSyncMusic(); cxRenderRing(); cxSyncHeroLabel(); cxSyncAiSetup(); cxSyncAlexa(); cxSyncDj(); cxSyncFavs(); cxSyncPalettes(); cxSyncOptionPanels(); cxSyncYouTube(); cxSyncExtras(); requestAnimationFrame(cxMoveBlob); }
 
 function cxInit() {
   cxWireHero();
@@ -6234,6 +6235,29 @@ function cxWireDj() {
   });
 }
 let cxDjFindOpen = false;
+// ── Planes Overhead options.
+function cxWirePlanes() {
+  if (!document.getElementById('panel-planes')) return;
+  const set = (k, v) => setEffectOption('planes', k, v);
+  document.getElementById('planes-city-go').addEventListener('click', () => { const c = document.getElementById('planes-city').value.trim(); if (!c) return; set('lat', null); set('lon', null); set('city', c); });
+  document.getElementById('planes-city').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('planes-city-go').click(); });
+  document.getElementById('planes-here').addEventListener('click', () => {
+    if (!navigator.geolocation) { cxToast('This browser can\u2019t share its location'); return; }
+    if (!window.isSecureContext) { cxToast('Location needs the https:// address (port 8082)'); return; }
+    navigator.geolocation.getCurrentPosition((pos) => { set('lat', Math.round(pos.coords.latitude * 1e4) / 1e4); set('lon', Math.round(pos.coords.longitude * 1e4) / 1e4); set('city', ''); cxToast('📍 Location set'); }, (err) => cxToast('Location: ' + err.message), { timeout: 15000 });
+  });
+  document.getElementById('planes-style').addEventListener('change', (e) => set('style', e.target.value));
+  document.getElementById('planes-radius').addEventListener('change', (e) => set('radiusKm', Number(e.target.value)));
+  document.getElementById('planes-alt').addEventListener('change', (e) => set('maxAltFt', Number(e.target.value)));
+}
+function cxSyncPlanes() {
+  const st = document.getElementById('planes-status'); if (!st) return;
+  const o = currentState.effectOptions?.planes || {};
+  st.textContent = currentState.effectStatus?.planes || (o.city || o.lat ? 'Looking for planes…' : 'Set your location to see the planes above you.');
+  const ci = document.getElementById('planes-city'); if (ci && document.activeElement !== ci && !ci.value) ci.value = o.city || (o.lat ? o.lat + ', ' + o.lon : '');
+  const sv = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el && v !== undefined) el.value = String(v); };
+  sv('planes-style', o.style || 'auto'); sv('planes-radius', o.radiusKm || 20); sv('planes-alt', o.maxAltFt || 0);
+}
 function cxDjTime(s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
 let cxDjNow = null, cxDjNowAt = 0, cxDjMixAt = -1;
 function cxDjTickBar() {

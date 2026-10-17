@@ -175,7 +175,7 @@ async function main() {
     // through to effects/weather.js's own DEFAULT_CITY fallback via its
     // `core.effectOptions?.weather?.city || DEFAULT_CITY` check - nothing
     // special needed for "never picked one yet".
-    effectOptions: { weather: { city: weatherConfig.load().city } },
+    effectOptions: { weather: { city: weatherConfig.load().city }, planes: (() => { try { const v = JSON.parse(require('./settingsStore').readSectionJson('planes', '/nonexistent')); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } })() },
   };
   // Pick up where the display left off before the last restart (see
   // ./sessionState.js); the radio station resumes once the render side is up.

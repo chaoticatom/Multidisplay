@@ -192,6 +192,8 @@ const COMMANDS = {
     if (msg.effect === 'weather' && msg.key === 'city' && typeof msg.value === 'string') {
       weatherConfig.save({ city: msg.value });
     }
+    // Planes Overhead's location and settings survive a restart too.
+    if (msg.effect === 'planes') { try { require('./settingsStore').writeSection('planes', this.state.effectOptions.planes); } catch (e) { /* not saved */ } }
     this._broadcast(this._stateMsg());
   },
 

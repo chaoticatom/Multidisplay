@@ -64,6 +64,7 @@ const ghost = require('./ghostFace'); // Ghost Face
 const ghost3d = require('./ghost3d'); // Ghost Face 2 (true 3D)
 const moon = require('./celestial/celestial');
 const iss = require('./iss');
+const planes = require('./planes'); // Planes Overhead (board, radar, compact)
 const apod = require('./apod');
 const epic = require('./epic');
 const neoRadar = require('./neoRadar'); // Near-Earth Objects (neo.js fetches the data)
@@ -174,6 +175,7 @@ const WALL_EFFECTS = {
   apod: apodWall,
   epic: epicWall,
   iss: issWall,
+  planes: planes.wall,
   neo: neoRadar.wall,
   unsplash: unsplashWall,
   artic: articWall,
@@ -240,6 +242,7 @@ const EFFECTS = {
   epic,
   apod,
   iss,
+  planes,
   neo: neoRadar,
   unsplash,
   artic,
@@ -311,6 +314,7 @@ const EFFECT_NAMES = {
   epic: 'Earth Live View',
   apod: 'Astronomy Pic of the Day',
   iss: 'ISS Tracker',
+  planes: 'Planes Overhead',
   neo: 'Near-Earth Objects',
   unsplash: 'Unsplash Photos',
   artic: 'Art Gallery',
