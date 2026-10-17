@@ -592,7 +592,7 @@ class RadioAudio {
     if (!ds || ds.state === 'stopped') { this._djHist = []; return null; }
     const now = Date.now(), hist = this._djHist || (this._djHist = []);
     if (!hist.length || now - hist[hist.length - 1].t >= 30) {
-      hist.push({ t: now, info: { now: ds.now ? { ...ds.now } : null, next: ds.next ? { ...ds.next } : null, error: ds.error || '', tease: !!(ds.tease && ds.tease.active), eq: (ds.eq || []).slice(), mixLen: ds.mixLen, mixSwap: ds.mixSwap, doneAt: ds.doneAt, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === undefined ? -1 : ds.mixIn } });
+      hist.push({ t: now, info: { now: ds.now ? { ...ds.now } : null, next: ds.next ? { ...ds.next } : null, error: ds.error || '', tease: !!(ds.tease && ds.tease.active), eq: (ds.eq || []).slice(), mixLen: ds.mixLen, mixSwap: ds.mixSwap, doneAt: ds.doneAt, dropAt: ds.dropAt, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === undefined ? -1 : ds.mixIn } });
       while (hist.length > 2 && now - hist[0].t > 15000) hist.shift();
     }
     const lag = (this._djQueue ? this._djQueue() : 0) + this._syncS * 1000;
@@ -600,6 +600,7 @@ class RadioAudio {
     for (let i = hist.length - 1; i >= 0; i--) if (hist[i].t <= now - lag) { pick = hist[i]; break; }
     const out = { ...pick.info };
     if (out.doneAt) out.doneAt += now - pick.t; // 'just finished' counts from when it was heard
+    if (out.dropAt) out.dropAt += now - pick.t;
     return out;
   }
 

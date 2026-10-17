@@ -135,6 +135,20 @@ class WsServer {
       const a = require('./effects/radio/radio').audio, d = a && a.dj && a.url === 'dj:' ? a.dj.status : null;
       const sig = d ? JSON.stringify([d.queue && d.queue.length, d.state, d.now && d.now.title, d.now && d.now.dur, d.next, d.mixing, d.nowIdx, d.nextIdx, d.error]) : '';
       if (sig !== this._djSig) { this._djSig = sig; this._broadcast(this._stateMsg()); }
+      // Light show: each new song (as heard) brings a new spectrum style, or a new effect.
+      const hi = a && a.dj && a.url === 'dj:' ? a.djInfo : null, mode = (this.state.prefs && this.state.prefs.dj && this.state.prefs.dj.lightShow) || 'scenes';
+      if (hi && hi.doneAt && hi.doneAt !== this._djDone) {
+        const first = this._djDone === undefined; this._djDone = hi.doneAt;
+        if (!first && mode === 'scenes' && this.state.effect === 'radio') {
+          const SC = require('./effects/radio/spectrumV2Wall').SCENES, o = (this.state.effectOptions.radio = this.state.effectOptions.radio || {});
+          const at = SC.indexOf(o.scene); o.scene = SC[(at + 1 + Math.floor(Math.random() * (SC.length - 1))) % SC.length];
+          this._broadcast(this._stateMsg());
+        } else if (!first && mode === 'effects') {
+          const LIST = ['radio', 'plasma', 'aurora', 'nebula', 'lava_lamp', 'starfield', 'warp', 'fluid_ink', 'prism', 'neon_rain'].filter((k) => require('./effects').EFFECT_NAMES[k]);
+          const nextFx = LIST[(LIST.indexOf(this.state.effect) + 1 + Math.floor(Math.random() * (LIST.length - 1))) % LIST.length];
+          if (nextFx) { this.state.effect = nextFx; this.state.blank = false; this._broadcast(this._stateMsg()); }
+        }
+      }
     }, 1000).unref();
     // Weekly settings backup (see src/autoBackup.js): at start-up, then hourly.
     this.state.backup = autoBackup.maybeBackup();

@@ -3245,7 +3245,7 @@ var PiEngine = (() => {
         return x * x * (3 - 2 * x);
       };
       function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require_sources(), decode = require_decode(), analyser = require_analyse(), log = console.log, setTimer = setInterval, clearTimer = clearInterval }) {
-        const st = { tease: null, eq: [1, 1, 1, 0, 0, 0], mixLen: 0, mixSwap: -1, doneAt: 0, state: "stopped", error: "", now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
+        const st = { dropAt: 0, tease: null, eq: [1, 1, 1, 0, 0, 0], mixLen: 0, mixSwap: -1, doneAt: 0, state: "stopped", error: "", now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
         let wantNext = null, prepToken = 0;
         let cfg = { source: "both", youtube: "", mixBeats: "auto", quick: false, style: "auto" };
         let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
@@ -3983,6 +3983,7 @@ var PiEngine = (() => {
                   if (u >= 1) {
                     st.played++;
                     st.doneAt = Date.now();
+                    if (mix.style === "cut" || mix.style === "mashup") st.dropAt = Date.now();
                     promote();
                   }
                 }
@@ -4014,6 +4015,14 @@ var PiEngine = (() => {
                   }
                   A.pos++;
                 } else {
+                  if (A.vbBar && A.info.energyBars && (A.pos & 255) === 0) {
+                    const j = Math.floor((A.pos - A.firstDown) / A.vbBar);
+                    if (j !== A.lastBar) {
+                      A.lastBar = j;
+                      const en = A.info.energyBars;
+                      if (j > 0 && Number(en[j]) >= 7 && Number(en[j - 1]) <= 4) st.dropAt = Date.now();
+                    }
+                  }
                   sampleDeck(A, 1, 1, 1, 1, OUT);
                   const tz = A.tease;
                   if (tz && B && A.pos >= tz.at && A.pos < tz.at + tz.len) {
@@ -4612,6 +4621,7 @@ var PiEngine = (() => {
           if (typeof p.dj.quick === "boolean") out.dj.quick = p.dj.quick;
           if (typeof p.dj.endless === "boolean") out.dj.endless = p.dj.endless;
           if (typeof p.dj.ytArtist === "boolean") out.dj.ytArtist = p.dj.ytArtist;
+          if (["off", "flash", "scenes", "effects"].includes(p.dj.lightShow)) out.dj.lightShow = p.dj.lightShow;
           if (p.dj.taste && typeof p.dj.taste === "object") {
             out.dj.taste = {};
             for (const [k, v] of Object.entries(p.dj.taste)) if (/^[a-z]{2,12}$/.test(k) && Number.isFinite(Number(v))) out.dj.taste[k] = Math.max(-1, Math.min(1, Number(v)));
@@ -5251,7 +5261,7 @@ var PiEngine = (() => {
           }
           const now = Date.now(), hist = this._djHist || (this._djHist = []);
           if (!hist.length || now - hist[hist.length - 1].t >= 30) {
-            hist.push({ t: now, info: { now: ds.now ? { ...ds.now } : null, next: ds.next ? { ...ds.next } : null, error: ds.error || "", tease: !!(ds.tease && ds.tease.active), eq: (ds.eq || []).slice(), mixLen: ds.mixLen, mixSwap: ds.mixSwap, doneAt: ds.doneAt, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === void 0 ? -1 : ds.mixIn } });
+            hist.push({ t: now, info: { now: ds.now ? { ...ds.now } : null, next: ds.next ? { ...ds.next } : null, error: ds.error || "", tease: !!(ds.tease && ds.tease.active), eq: (ds.eq || []).slice(), mixLen: ds.mixLen, mixSwap: ds.mixSwap, doneAt: ds.doneAt, dropAt: ds.dropAt, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === void 0 ? -1 : ds.mixIn } });
             while (hist.length > 2 && now - hist[0].t > 15e3) hist.shift();
           }
           const lag = (this._djQueue ? this._djQueue() : 0) + this._syncS * 1e3;
@@ -5262,6 +5272,7 @@ var PiEngine = (() => {
           }
           const out = { ...pick.info };
           if (out.doneAt) out.doneAt += now - pick.t;
+          if (out.dropAt) out.dropAt += now - pick.t;
           return out;
         }
         _updateWave(end, dt) {
@@ -23275,18 +23286,30 @@ var PiEngine = (() => {
         };
         return { name: "", color: [f(0), f(8), f(4)], icao: k };
       }
+      var INTERESTING_TYPES = /* @__PURE__ */ new Set(["A388", "B748", "B744", "B742", "B741", "A124", "A225", "AN22", "A3ST", "A337", "BLCF", "C17", "C130", "C30J", "A400", "E3TF", "E3CF", "K35R", "KC2", "A332K", "A33K", "B52", "B1", "B2", "F35", "EUFI", "F15", "F16", "F18", "TOR", "HAWK", "U2", "P8", "RC135", "R135", "E6", "VC25", "CONC", "DC3", "DC6", "SPIT", "HURI", "LANC", "B17", "C5", "C5M", "IL76", "TU95", "A346", "B77L", "MD11", "DC10", "L101"]);
+      var MIL_CS = /^(RRR|ASCOT|RCH|REACH|CFC|NATO|TARTN|KITTY|COMET|DUKE|HKY|BAF|GAF|IAM|FAF|SHF|NAVY|ARMY|CNV|SAM|PAT|RFR|QID|MMF|NOH|IFC)/;
+      var isInteresting = (p) => p.mil || INTERESTING_TYPES.has(p.type);
       function createPlaneData(fetchFn = fetchWithTimeout) {
-        const st = { planes: [], status: "Waiting for location", home: null, homeKey: "", geo: "", fetching: false, lastPoll: 0, backoffUntil: 0, routes: /* @__PURE__ */ new Map(), queue: [], routeAt: 0, routeBusy: false };
+        const st = { day: null, planes: [], status: "Waiting for location", home: null, homeKey: "", geo: "", fetching: false, lastPoll: 0, backoffUntil: 0, routes: /* @__PURE__ */ new Map(), queue: [], routeAt: 0, routeBusy: false };
+        const HEADERS = { Accept: "application/json", "User-Agent": "Multidisplay-LED/1.0 (home LED display; github.com/chaoticatom/Multidisplay)" };
         async function getJson(url) {
-          const r = await fetchFn(url, { headers: { Accept: "application/json" } });
-          if (r.status === 429 || r.status === 403) {
-            const e = new Error(`${new URL(url).hostname} ${r.status} (busy)`);
+          const host = new URL(url).hostname;
+          let r;
+          try {
+            r = await fetchFn(url, { headers: HEADERS });
+          } catch (e) {
+            const c = e.cause && (e.cause.code || e.cause.message);
+            throw new Error(`${host}: ${c || e.message}`);
+          }
+          if (r.status === 429) {
+            const e = new Error(`${host} 429 (busy)`);
             e.busy = true;
             throw e;
           }
-          if (!r.ok) throw new Error(`${new URL(url).hostname} ${r.status}`);
+          if (!r.ok) throw new Error(`${host} ${r.status}${r.status === 403 ? " (refused)" : ""}`);
           return r.json();
         }
+        const fromOpenSky = (d) => ({ ac: (d.states || []).map((s) => ({ hex: s[0], flight: s[1], lon: s[5], lat: s[6], alt_baro: s[8] ? "ground" : (s[7] || 0) * 3.281, gs: (s[9] || 0) * 1.944, track: s[10] || 0, baro_rate: (s[11] || 0) * 196.9 })) });
         async function geocode(city) {
           st.geo = city;
           try {
@@ -23317,14 +23340,27 @@ var PiEngine = (() => {
           const nm = Math.max(1, Math.round(radiusKm / 1.852)), maxAlt = Number(opts.maxAltFt) > 0 ? Number(opts.maxAltFt) : 6e4;
           const { lat, lon } = st.home;
           let d = null, err = null;
-          for (const host of ["https://api.airplanes.live/v2/point", "https://api.adsb.lol/v2/point"]) {
+          const errs = [];
+          const dLat = radiusKm / 111, dLon = radiusKm / (111 * Math.cos(lat * Math.PI / 180) || 1);
+          const SOURCES = [
+            [`https://api.airplanes.live/v2/point/${lat.toFixed(4)}/${lon.toFixed(4)}/${nm}`, (x) => x],
+            [`https://api.adsb.lol/v2/point/${lat.toFixed(4)}/${lon.toFixed(4)}/${nm}`, (x) => x],
+            [`https://api.adsb.one/v2/point/${lat.toFixed(4)}/${lon.toFixed(4)}/${nm}`, (x) => x],
+            [`https://opensky-network.org/api/states/all?lamin=${(lat - dLat).toFixed(3)}&lomin=${(lon - dLon).toFixed(3)}&lamax=${(lat + dLat).toFixed(3)}&lomax=${(lon + dLon).toFixed(3)}`, fromOpenSky]
+          ];
+          const order = SOURCES.map((_, i) => (i + (st.srcOk || 0)) % SOURCES.length);
+          for (const i of order) {
             try {
-              d = await getJson(`${host}/${lat.toFixed(4)}/${lon.toFixed(4)}/${nm}`);
+              d = SOURCES[i][1](await getJson(SOURCES[i][0]));
+              st.srcOk = i;
+              st.source = new URL(SOURCES[i][0]).hostname;
               break;
             } catch (e) {
               err = e;
+              errs.push(e.message);
             }
           }
+          if (!d && errs.length) err = new Error("No plane data - " + errs.join("; "));
           st.fetching = false;
           st.lastPoll = Date.now();
           if (!d) {
@@ -23339,15 +23375,37 @@ var PiEngine = (() => {
             const alt = a.alt_baro === "ground" ? 0 : Number(a.alt_baro || a.alt_geom || 0);
             if (!(alt > 0) || alt > maxAlt) continue;
             const cs = String(a.flight || "").trim().toUpperCase();
-            const p = { hex: a.hex, cs, type: String(a.t || "").toUpperCase(), reg: String(a.r || ""), alt, gs: Number(a.gs) || 0, track: Number(a.track) || 0, lat: a.lat, lon: a.lon, fix: now - (Number(a.seen_pos) || 0) * 1e3, vr: Number(a.baro_rate) || 0 };
+            const p = { mil: (Number(a.dbFlags) & 1) === 1 || MIL_CS.test(cs), hex: a.hex, cs, type: String(a.t || "").toUpperCase(), reg: String(a.r || ""), alt, gs: Number(a.gs) || 0, track: Number(a.track) || 0, lat: a.lat, lon: a.lon, fix: now - (Number(a.seen_pos) || 0) * 1e3, vr: Number(a.baro_rate) || 0 };
             p.firstSeen = prev.has(p.hex) ? prev.get(p.hex).firstSeen : now;
             const r = relate(p.lat, p.lon);
             if (r.dist > radiusKm * 1.15) continue;
+            if (opts.only === "interesting" && !isInteresting(p)) continue;
             list.push(p);
+            tally(p);
             if (cs && !st.routes.has(cs) && !st.queue.includes(cs)) st.queue.push(cs);
           }
           st.planes = list;
           st.status = list.length ? `${list.length} plane${list.length === 1 ? "" : "s"} within ${radiusKm} km` : `No planes within ${radiusKm} km`;
+        }
+        function tally(p) {
+          const date = (/* @__PURE__ */ new Date()).toDateString();
+          if (!st.day || st.day.date !== date) st.day = { date, seen: /* @__PURE__ */ new Set(), airlines: /* @__PURE__ */ new Map(), highest: null, fastest: null, interesting: [] };
+          const d = st.day;
+          if (!d.seen.has(p.hex)) {
+            d.seen.add(p.hex);
+            const al = airlineOf(p.cs).name;
+            if (al) d.airlines.set(al, (d.airlines.get(al) || 0) + 1);
+            if (isInteresting(p) && d.interesting.length < 20) d.interesting.push((p.type || "") + (p.cs ? " " + p.cs : ""));
+          }
+          if (!d.highest || p.alt > d.highest.alt) d.highest = { cs: p.cs || p.hex, alt: p.alt };
+          if (!d.fastest || p.gs > d.fastest.gs) d.fastest = { cs: p.cs || p.hex, gs: p.gs };
+        }
+        function summary() {
+          const d = st.day;
+          if (!d) return null;
+          let busy = null;
+          for (const [k, v] of d.airlines) if (!busy || v > busy.n) busy = { name: k, n: v };
+          return { count: d.seen.size, busiest: busy, highest: d.highest, fastest: d.fastest, interesting: d.interesting.slice(-5) };
         }
         async function lookupRoute(cs) {
           st.routeBusy = true;
@@ -23397,14 +23455,18 @@ var PiEngine = (() => {
             const dt = Math.min(25, Math.max(0, (now - p.fix) / 1e3)), km = p.gs * KT_TO_KMS * dt, tr = p.track * Math.PI / 180;
             const lat = p.lat + km * Math.cos(tr) / 111.2, lon = p.lon + km * Math.sin(tr) / (111.2 * Math.cos(p.lat * Math.PI / 180) || 1);
             const rel = relate(lat, lon), route = st.routes.get(p.cs), al = airlineOf(p.cs);
-            return { ...p, lat, lon, dist: rel.dist, brg: rel.brg, route: route || null, airline: route && route.airline || al.name, color: al.color };
+            const b = rel.brg * Math.PI / 180, e = rel.dist * Math.sin(b), nn = rel.dist * Math.cos(b), v = p.gs * KT_TO_KMS;
+            const ve = v * Math.sin(tr), vn = v * Math.cos(tr), vv = ve * ve + vn * vn;
+            const tc = vv > 1e-9 ? -(e * ve + nn * vn) / vv : 0, miss = Math.hypot(e + ve * tc, nn + vn * tc);
+            const dueIn = tc > 0 && tc < 900 && miss < 2.5 ? tc : -1;
+            return { ...p, lat, lon, dist: rel.dist, brg: rel.brg, dueIn, miss, overhead: rel.dist < 1.5, route: route || null, airline: route && route.airline || al.name, color: al.color, interesting: isInteresting(p) };
           }).sort((a, b) => a.dist - b.dist);
         }
-        return { update, planes, status: () => st.status, state: st };
+        return { update, planes, summary, status: () => st.status, state: st };
       }
       var COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
       var compass = (deg) => COMPASS[Math.round(deg / 45) % 8];
-      module.exports = { createPlaneData, airlineOf, compass, AIRLINES };
+      module.exports = { createPlaneData, airlineOf, compass, isInteresting, AIRLINES };
     }
   });
 
@@ -23422,6 +23484,11 @@ var PiEngine = (() => {
       var CY = [0.3, 0.8, 1];
       var GR = [0.2, 1, 0.4];
       var fmtAlt = (ft) => (ft >= 1e4 ? Math.round(ft / 100) * 100 : Math.round(ft / 50) * 50) + "FT";
+      var mmss = (s) => {
+        s = Math.max(0, Math.round(s));
+        return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+      };
+      var dueText = (p, short) => p.overhead ? short ? "OVERHEAD" : "OVERHEAD NOW" : p.dueIn >= 0 ? (short ? "OVER " : "OVERHEAD IN ") + mmss(p.dueIn) : "";
       var fmtKm = (km) => (km < 10 ? km.toFixed(1) : Math.round(km)) + " KM";
       function txt(tg, font, s, x, y, c, a = 1, scale = 1, maxX = Infinity) {
         drawString(font, String(s).toUpperCase(), x, y, (px, py) => {
@@ -23477,7 +23544,9 @@ var PiEngine = (() => {
         txt(tg, FONT_5x7, p.type || "", 2, 44, WH);
         txt(tg, FONT_5x7, alt, Math.round(W / 2 - w5(alt) / 2), 44, AM);
         txt(tg, FONT_5x7, spd, W - 2 - w5(spd), 44, CY);
-        txt(tg, FONT_3x5, fmtKm(p.dist) + " " + compass(p.brg) + (p.vr > 300 ? " CLIMB" : p.vr < -300 ? " DESCEND" : ""), 2, 56, DM);
+        const due = dueText(p);
+        if (due) txt(tg, FONT_3x5, due, 2, 56, AM, p.overhead ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
+        else txt(tg, FONT_3x5, fmtKm(p.dist) + " " + compass(p.brg) + (p.vr > 300 ? " CLIMB" : p.vr < -300 ? " DESCEND" : ""), 2, 56, DM);
         const live = info || "LIVE", lw = w3(live);
         if (!info) liveDot(tg, W - 7 - lw, 57, t);
         txt(tg, FONT_3x5, live, W - 2 - lw, 56, info ? DM : GR);
@@ -23504,8 +23573,8 @@ var PiEngine = (() => {
         const alt = fmtAlt(p.alt);
         txt(tg, FONT_3x5, alt, 62 - w3(alt), 39, AM);
         txt(tg, FONT_3x5, Math.round(p.gs) + "KT", 2, 47, CY);
-        const d = fmtKm(p.dist).replace(" ", "") + " " + compass(p.brg);
-        txt(tg, FONT_3x5, d, 62 - w3(d), 47, DM);
+        const dt2 = dueText(p, true), d = dt2 || fmtKm(p.dist).replace(" ", "") + " " + compass(p.brg);
+        txt(tg, FONT_3x5, d, 62 - w3(d), 47, dt2 ? AM : DM);
         if (info) txt(tg, FONT_3x5, info, 62 - w3(info), 56, DM, 0.8);
         else {
           liveDot(tg, 2, 57, t);
@@ -23537,6 +23606,10 @@ var PiEngine = (() => {
           const [x, y] = pos(p2), c = i === focus ? AM : WH, sel = i === focus;
           const tr = p2.track * Math.PI / 180;
           for (let k = 1; k <= 4; k++) g(x - Math.sin(tr) * k, y + Math.cos(tr) * k, 0.35 - k * 0.07);
+          if (p2.dueIn >= 0) {
+            const steps = Math.min(R * 2, p2.dueIn * p2.gs * 1.852 / 3600 / radiusKm * R + 3);
+            for (let k = 3; k < steps; k += 2) tg.set(Math.round(x + Math.sin(tr) * k), Math.round(y - Math.cos(tr) * k), AM[0] * 0.5, AM[1] * 0.5, AM[2] * 0.5);
+          }
           for (let d = -1; d <= 1; d++) {
             tg.set(Math.round(x + d), Math.round(y), c[0], c[1], c[2]);
             tg.set(Math.round(x), Math.round(y + d), c[0], c[1], c[2]);
@@ -23567,7 +23640,48 @@ var PiEngine = (() => {
           txt(tg, FONT_3x5, s, Math.round(tg.w / 2 - w3(s) / 2), Math.round(tg.h / 2) - 4 + i * 7, i ? DM : WH, 0.9);
         });
       }
-      module.exports = { drawBoard, drawCompact, drawRadar, drawEmpty };
+      function drawDue(tg, planes, t) {
+        const due = planes.filter((p) => p.overhead || p.dueIn >= 0).sort((a, b) => (a.overhead ? -1 : a.dueIn) - (b.overhead ? -1 : b.dueIn));
+        txt(tg, FONT_5x7, tg.w >= 96 ? "DUE OVERHEAD" : "OVERHEAD", 2, 1, AM);
+        for (let x = 0; x < tg.w; x += 2) tg.set(x, 10, DM[0] * 0.4, DM[1] * 0.4, DM[2] * 0.4);
+        if (!due.length) {
+          txt(tg, FONT_3x5, fit("NONE IN THE NEXT 15 MIN", tg.w - 4, w3), 2, 16, DM);
+          return;
+        }
+        due.slice(0, Math.floor((tg.h - 13) / 8)).forEach((p, i) => {
+          const y = 14 + i * 8, eta = p.overhead ? "NOW" : mmss(p.dueIn), r = p.route;
+          const route = r && r.from && r.to ? r.from.iata + "-" + r.to.iata : p.type || "";
+          txt(tg, FONT_3x5, eta, tg.w - 2 - w3(eta), y, p.overhead ? AM : WH, p.overhead ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
+          const left = (p.cs || p.hex.toUpperCase()) + (tg.w >= 96 ? "  " + route + (tg.w >= 160 ? "  " + fmtAlt(p.alt) : "") : "");
+          txt(tg, FONT_3x5, fit(left, tg.w - 8 - w3(eta), w3), 2, y, p.color, 1);
+        });
+      }
+      function drawSummary(tg, s, t) {
+        txt(tg, FONT_5x7, "TODAY", 2, 1, AM);
+        if (!s) {
+          txt(tg, FONT_3x5, "NO PLANES YET", 2, 14, DM);
+          return;
+        }
+        const n = s.count + " PLANE" + (s.count === 1 ? "" : "S");
+        txt(tg, FONT_5x7, n, tg.w - 2 - w5(n), 1, WH);
+        for (let x = 0; x < tg.w; x += 2) tg.set(x, 10, DM[0] * 0.4, DM[1] * 0.4, DM[2] * 0.4);
+        const rows = [];
+        if (s.busiest) rows.push(["BUSIEST", s.busiest.name + " " + s.busiest.n, WH]);
+        if (s.highest) rows.push(["HIGHEST", s.highest.cs + " " + fmtAlt(s.highest.alt), AM]);
+        if (s.fastest) rows.push(["FASTEST", s.fastest.cs + " " + Math.round(s.fastest.gs) + "KT", CY]);
+        if (s.interesting.length) rows.push(["SPOTTED", s.interesting.join(", "), GR]);
+        rows.slice(0, 6).forEach(([k, v, c], i) => {
+          const y = 14 + i * 8, kw = tg.w >= 96 ? 34 : 0;
+          if (kw) txt(tg, FONT_3x5, k, 2, y, DM);
+          txt(tg, FONT_3x5, fit(v, tg.w - 4 - kw, w3), 2 + kw, y, c);
+        });
+      }
+      function drawGlow(tg, t) {
+        const a = 0.5 + 0.5 * Math.sin(t * 6);
+        for (let x = 0; x < tg.w; x++) for (const y of [0, 1, tg.h - 2, tg.h - 1]) tg.set(x, y, AM[0] * a, AM[1] * a, AM[2] * a);
+        for (let y = 0; y < tg.h; y++) for (const x of [0, 1, tg.w - 2, tg.w - 1]) tg.set(x, y, AM[0] * a, AM[1] * a, AM[2] * a);
+      }
+      module.exports = { drawBoard, drawCompact, drawRadar, drawEmpty, drawDue, drawSummary, drawGlow };
     }
   });
 
@@ -23578,7 +23692,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { createPlaneData } = require_data();
-      var { drawBoard, drawCompact, drawRadar, drawEmpty } = require_draw();
+      var { drawBoard, drawCompact, drawRadar, drawEmpty, drawDue, drawSummary, drawGlow } = require_draw();
       var data = createPlaneData();
       var view = { t: 0, focus: 0, focusT: 0, radarT: 0, fade: 1, lastHex: "" };
       var CYCLE_S = 8;
@@ -23595,6 +23709,12 @@ var PiEngine = (() => {
           view.fade = 0;
         }
         if (view.focus >= planes.length) view.focus = 0;
+        const over = planes.findIndex((p) => p.overhead);
+        if (over >= 0 && over !== view.focus) {
+          view.focus = over;
+          view.focusT = 0;
+          view.fade = 0;
+        }
         view.fade = Math.min(1, view.fade + dt * 2.5);
         return planes;
       }
@@ -23608,6 +23728,14 @@ var PiEngine = (() => {
         const fadeTg = { ...tg, set: (x, y, r, g, b) => tg.set(x, y, r * view.fade, g * view.fade, b * view.fade) };
         if (!planes.length) {
           drawEmpty(tg, view.t, emptyMsg());
+          return;
+        }
+        if (look === "due") {
+          drawDue(tg, planes, view.t);
+          return;
+        }
+        if (look === "summary") {
+          drawSummary(tg, data.summary(), view.t);
           return;
         }
         if (look === "radar") drawRadar(tg, planes, view.focus, view.t, radius(opts), true);
@@ -23647,28 +23775,45 @@ var PiEngine = (() => {
         const tgFor = (r) => ({ w: r.w, h: r.h, set: (x, y, rr, g, b) => {
           if (x >= 0 && y >= 0 && x < r.w && y < r.h) core.setWallPixel(r.x + x, r.y + y, rr, g, b);
         } });
-        const radarTurn = style === "radar" || style === "auto" && planes.length > 1 && Math.floor(view.t / 12) % 3 === 2;
-        let radarShown = false, next = 0;
+        const due = planes.some((p) => p.overhead || p.dueIn >= 0), summaryTime = Date.now() / 1e3 % 600 < 10;
+        let mainLook = "board";
+        if (style === "radar") mainLook = "radar";
+        else if (style === "auto") {
+          const looks = ["board"];
+          if (planes.length > 1) looks.push("radar");
+          if (due) looks.push("due");
+          mainLook = summaryTime ? "summary" : looks[Math.floor(view.t / 10) % looks.length];
+        }
+        const shown = /* @__PURE__ */ new Set();
+        let next = 0;
         regs.forEach((r, i) => {
           const tg = tgFor(r);
           if (i === 0) {
             if (r.w >= 3 * S && planes.length) {
               const rw = Math.min(r.w - 2 * S, 2 * S);
-              region(sub(tg, 0, r.w - rw), "board", planes, view.focus, opts);
+              region(sub(tg, 0, r.w - rw), mainLook === "radar" ? "board" : mainLook, planes, view.focus, opts);
               drawRadar(sub(tg, r.w - rw, rw), planes, view.focus, view.t, radius(opts), rw >= 108);
-              radarShown = true;
-            } else if (radarTurn && r.w >= 2 * S) {
-              region(tg, "radar", planes, 0, opts);
-              radarShown = true;
-            } else region(tg, "board", planes, view.focus, opts);
+              shown.add("radar");
+              shown.add(mainLook);
+            } else {
+              region(tg, r.w < 2 * S && mainLook === "radar" ? "board" : mainLook, planes, view.focus, opts);
+              shown.add(mainLook);
+            }
             next = view.focus + 1;
-          } else if (!radarShown && planes.length > 1) {
+          } else if (!shown.has("radar") && planes.length > 1) {
             region(tg, "radar", planes, 0, opts);
-            radarShown = true;
+            shown.add("radar");
+          } else if (!shown.has("due") && due) {
+            region(tg, "due", planes, 0, opts);
+            shown.add("due");
+          } else if (!shown.has("summary") && i === regs.length - 1 && regs.length >= 3) {
+            region(tg, "summary", planes, 0, opts);
+            shown.add("summary");
           } else {
             region(tg, "board", planes, planes.length ? next % Math.max(1, planes.length) : 0, opts);
             next++;
           }
+          if (planes.some((p) => p.overhead)) drawGlow(tg, view.t);
         });
       }
       function effectPlanes(core, dt) {
@@ -23685,8 +23830,11 @@ var PiEngine = (() => {
         const n = Math.max(1, planes.length);
         drawRadar(face(4), planes, view.focus, view.t, radius(opts), false);
         [0, 2, 1, 3].forEach((f, i) => region(face(f), "board", planes, planes.length ? (view.focus + i) % n : 0, opts));
-        const b = face(5), msg = planes.length ? planes.length + " PLANES\nNEAREST " + (planes[0].dist < 10 ? planes[0].dist.toFixed(1) : Math.round(planes[0].dist)) + " KM" : emptyMsg();
-        drawEmpty(b, view.t, msg);
+        const b = face(5);
+        if (planes.some((p) => p.overhead || p.dueIn >= 0)) drawDue(b, planes, view.t);
+        else if (planes.length) drawSummary(b, data.summary(), view.t);
+        else drawEmpty(b, view.t, emptyMsg());
+        if (planes.some((p) => p.overhead)) for (const f of [0, 1, 2, 3, 4, 5]) drawGlow(face(f), view.t);
       }
       effectPlanes.wall = effectPlanesWall;
       effectPlanes.getStatus = () => data.status();
@@ -32691,6 +32839,14 @@ var PiEngine = (() => {
           if (xfLive) core._xfNew.set(buf);
           pulseBuffer(core.audio, buf, react);
           applyCrossfade(core, buf, dt, state.prefs && state.prefs.transition);
+          const djp = state.prefs && state.prefs.dj, di = radio.audio && radio.audio.djInfo;
+          if (di && di.dropAt && (!djp || djp.lightShow !== "off")) {
+            const f = 1 - (Date.now() - di.dropAt) / 450;
+            if (f > 0 && f <= 1) {
+              const k2 = f * f * 0.6;
+              for (let i = 0; i < buf.length; i++) buf[i] += (1 - buf[i]) * k2;
+            }
+          }
         } else {
           core.colBuf.fill(0);
           if (core.wallBuf) core.wallBuf.fill(0);

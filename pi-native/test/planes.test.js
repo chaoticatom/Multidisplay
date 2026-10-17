@@ -31,6 +31,20 @@ const fakeFetch = (url) => Promise.resolve({ ok: true, status: 200, json: async 
     const vir = ps.find((p) => p.cs === 'VIR15');
     assert.ok(vir.route && vir.route.from.iata === 'LHR' && vir.route.to.city === 'Orlando' && vir.airline === 'Virgin Atlantic', 'route looked up');
     assert.ok(airlineOf('BAW283').name === 'British Airways' && airlineOf('BAW283').color[2] > 0.8, 'airline colour table');
+    // Due overhead: 10 km west, heading east at 300 kt -> over home in about 65 s.
+    const westward = { ac: [{ hex: 'due001', flight: 'EZY99', t: 'A320', alt_baro: 9000, gs: 300, track: 90, lat: 51.47, lon: -0.45 - 10 / (111.2 * Math.cos(51.47 * Math.PI / 180)) }, { hex: 'big001', flight: 'BAW1', t: 'A388', alt_baro: 30000, gs: 450, track: 0, lat: 51.40, lon: -0.45 }] };
+    const d2 = createPlaneData((url) => Promise.resolve({ ok: true, status: 200, json: async () => (/adsbdb/.test(url) ? { response: 'unknown callsign' } : westward) }));
+    d2.update({ lat: 51.47, lon: -0.45 }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    const due = d2.planes().find((p) => p.cs === 'EZY99');
+    assert.ok(due.dueIn > 55 && due.dueIn < 75 && due.miss < 0.5, 'due overhead in about a minute: ' + due.dueIn + ' s, miss ' + due.miss);
+    const d3 = createPlaneData((url) => Promise.resolve({ ok: true, status: 200, json: async () => (/adsbdb/.test(url) ? { response: 'unknown callsign' } : westward) }));
+    d3.update({ lat: 51.47, lon: -0.45, only: 'interesting' }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    assert.deepStrictEqual(d3.planes().map((p) => p.type), ['A388'], 'interesting only: the A380');
+    assert.ok(d2.summary().count === 2 && d2.summary().highest.cs === 'BAW1', 'today\'s tally');
+    // Every source failing: the reason is shown, not just 'fetch failed'.
+    const d4 = createPlaneData(() => Promise.reject(Object.assign(new Error('fetch failed'), { cause: { code: 'ENOTFOUND' } })));
+    d4.update({ lat: 1, lon: 1 }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    assert.ok(/ENOTFOUND/.test(d4.status()), d4.status());
     console.log('  ok - planes data: nearby aircraft, nearest first, routes');
 
     // Drawing: feed the effect's data directly.

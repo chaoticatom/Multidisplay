@@ -14,6 +14,8 @@ const { compass } = require('./data');
 
 const WH = [0.92, 0.95, 1], DM = [0.55, 0.6, 0.7], AM = [1, 0.6, 0.15], CY = [0.3, 0.8, 1], GR = [0.2, 1, 0.4];
 const fmtAlt = (ft) => (ft >= 10000 ? Math.round(ft / 100) * 100 : Math.round(ft / 50) * 50) + 'FT';
+const mmss = (s) => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const dueText = (p, short) => (p.overhead ? (short ? 'OVERHEAD' : 'OVERHEAD NOW') : p.dueIn >= 0 ? (short ? 'OVER ' : 'OVERHEAD IN ') + mmss(p.dueIn) : '');
 const fmtKm = (km) => (km < 10 ? km.toFixed(1) : Math.round(km)) + ' KM';
 
 function txt(tg, font, s, x, y, c, a = 1, scale = 1, maxX = Infinity) {
@@ -56,7 +58,9 @@ function drawBoard(tg, p, t, info = '') {
   txt(tg, FONT_5x7, p.type || '', 2, 44, WH);
   txt(tg, FONT_5x7, alt, Math.round(W / 2 - w5(alt) / 2), 44, AM);
   txt(tg, FONT_5x7, spd, W - 2 - w5(spd), 44, CY);
-  txt(tg, FONT_3x5, fmtKm(p.dist) + ' ' + compass(p.brg) + (p.vr > 300 ? ' CLIMB' : p.vr < -300 ? ' DESCEND' : ''), 2, 56, DM);
+  const due = dueText(p);
+  if (due) txt(tg, FONT_3x5, due, 2, 56, AM, p.overhead ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
+  else txt(tg, FONT_3x5, fmtKm(p.dist) + ' ' + compass(p.brg) + (p.vr > 300 ? ' CLIMB' : p.vr < -300 ? ' DESCEND' : ''), 2, 56, DM);
   const live = info || 'LIVE', lw = w3(live);
   if (!info) liveDot(tg, W - 7 - lw, 57, t);
   txt(tg, FONT_3x5, live, W - 2 - lw, 56, info ? DM : GR);
@@ -76,7 +80,7 @@ function drawCompact(tg, p, t, info = '') {
   } else { txt(tg, FONT_5x7, fit(p.type || 'AIRCRAFT', 60, (s) => w5(s)), 2, 18, WH); txt(tg, FONT_3x5, fit(p.reg || 'ROUTE UNKNOWN', 60, w3), 2, 28, DM); }
   for (let x = 0; x < 64; x += 2) tg.set(x, 35, DM[0] * 0.4, DM[1] * 0.4, DM[2] * 0.4);
   txt(tg, FONT_3x5, p.type || '', 2, 39, WH); const alt = fmtAlt(p.alt); txt(tg, FONT_3x5, alt, 62 - w3(alt), 39, AM);
-  txt(tg, FONT_3x5, Math.round(p.gs) + 'KT', 2, 47, CY); const d = fmtKm(p.dist).replace(' ', '') + ' ' + compass(p.brg); txt(tg, FONT_3x5, d, 62 - w3(d), 47, DM);
+  txt(tg, FONT_3x5, Math.round(p.gs) + 'KT', 2, 47, CY); const dt2 = dueText(p, true), d = dt2 || fmtKm(p.dist).replace(' ', '') + ' ' + compass(p.brg); txt(tg, FONT_3x5, d, 62 - w3(d), 47, dt2 ? AM : DM);
   if (info) txt(tg, FONT_3x5, info, 62 - w3(info), 56, DM, 0.8); else { liveDot(tg, 2, 57, t); txt(tg, FONT_3x5, 'LIVE', 7, 56, GR); }
 }
 
@@ -95,6 +99,7 @@ function drawRadar(tg, planes, focus, t, radiusKm, details = true) {
     // A short trail behind it, back along its track.
     const tr = p.track * Math.PI / 180;
     for (let k = 1; k <= 4; k++) g(x - Math.sin(tr) * k, y + Math.cos(tr) * k, 0.35 - k * 0.07);
+    if (p.dueIn >= 0) { const steps = Math.min(R * 2, (p.dueIn * p.gs * 1.852 / 3600) / radiusKm * R + 3); for (let k = 3; k < steps; k += 2) tg.set(Math.round(x + Math.sin(tr) * k), Math.round(y - Math.cos(tr) * k), AM[0] * 0.5, AM[1] * 0.5, AM[2] * 0.5); } // its path over home
     for (let d = -1; d <= 1; d++) { tg.set(Math.round(x + d), Math.round(y), c[0], c[1], c[2]); tg.set(Math.round(x), Math.round(y + d), c[0], c[1], c[2]); }
     if (sel || S >= 64) txt(tg, FONT_3x5, p.cs || '', Math.round(x) + 3, Math.round(y) - 2, c, sel ? 1 : 0.7, 1, S);
   });
@@ -115,4 +120,38 @@ function drawEmpty(tg, t, msg) {
   lines.forEach((l, i) => { const s = fit(l, tg.w - 4, w3); txt(tg, FONT_3x5, s, Math.round(tg.w / 2 - w3(s) / 2), Math.round(tg.h / 2) - 4 + i * 7, i ? DM : WH, 0.9); });
 }
 
-module.exports = { drawBoard, drawCompact, drawRadar, drawEmpty };
+// Planes due to pass over home soonest first (or passing now).
+function drawDue(tg, planes, t) {
+  const due = planes.filter((p) => p.overhead || p.dueIn >= 0).sort((a, b) => (a.overhead ? -1 : a.dueIn) - (b.overhead ? -1 : b.dueIn));
+  txt(tg, FONT_5x7, tg.w >= 96 ? 'DUE OVERHEAD' : 'OVERHEAD', 2, 1, AM);
+  for (let x = 0; x < tg.w; x += 2) tg.set(x, 10, DM[0] * 0.4, DM[1] * 0.4, DM[2] * 0.4);
+  if (!due.length) { txt(tg, FONT_3x5, fit('NONE IN THE NEXT 15 MIN', tg.w - 4, w3), 2, 16, DM); return; }
+  due.slice(0, Math.floor((tg.h - 13) / 8)).forEach((p, i) => {
+    const y = 14 + i * 8, eta = p.overhead ? 'NOW' : mmss(p.dueIn), r = p.route;
+    const route = r && r.from && r.to ? r.from.iata + '-' + r.to.iata : (p.type || '');
+    txt(tg, FONT_3x5, eta, tg.w - 2 - w3(eta), y, p.overhead ? AM : WH, p.overhead ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
+    const left = (p.cs || p.hex.toUpperCase()) + (tg.w >= 96 ? '  ' + route + (tg.w >= 160 ? '  ' + fmtAlt(p.alt) : '') : '');
+    txt(tg, FONT_3x5, fit(left, tg.w - 8 - w3(eta), w3), 2, y, p.color, 1);
+  });
+}
+// Today's tally.
+function drawSummary(tg, s, t) {
+  txt(tg, FONT_5x7, 'TODAY', 2, 1, AM);
+  if (!s) { txt(tg, FONT_3x5, 'NO PLANES YET', 2, 14, DM); return; }
+  const n = s.count + ' PLANE' + (s.count === 1 ? '' : 'S'); txt(tg, FONT_5x7, n, tg.w - 2 - w5(n), 1, WH);
+  for (let x = 0; x < tg.w; x += 2) tg.set(x, 10, DM[0] * 0.4, DM[1] * 0.4, DM[2] * 0.4);
+  const rows = [];
+  if (s.busiest) rows.push(['BUSIEST', s.busiest.name + ' ' + s.busiest.n, WH]);
+  if (s.highest) rows.push(['HIGHEST', s.highest.cs + ' ' + fmtAlt(s.highest.alt), AM]);
+  if (s.fastest) rows.push(['FASTEST', s.fastest.cs + ' ' + Math.round(s.fastest.gs) + 'KT', CY]);
+  if (s.interesting.length) rows.push(['SPOTTED', s.interesting.join(', '), GR]);
+  rows.slice(0, 6).forEach(([k, v, c], i) => { const y = 14 + i * 8, kw = tg.w >= 96 ? 34 : 0; if (kw) txt(tg, FONT_3x5, k, 2, y, DM); txt(tg, FONT_3x5, fit(v, tg.w - 4 - kw, w3), 2 + kw, y, c); });
+}
+// A plane right overhead: the region's edge glows, pulsing amber.
+function drawGlow(tg, t) {
+  const a = 0.5 + 0.5 * Math.sin(t * 6);
+  for (let x = 0; x < tg.w; x++) for (const y of [0, 1, tg.h - 2, tg.h - 1]) tg.set(x, y, AM[0] * a, AM[1] * a, AM[2] * a);
+  for (let y = 0; y < tg.h; y++) for (const x of [0, 1, tg.w - 2, tg.w - 1]) tg.set(x, y, AM[0] * a, AM[1] * a, AM[2] * a);
+}
+
+module.exports = { drawBoard, drawCompact, drawRadar, drawEmpty, drawDue, drawSummary, drawGlow };

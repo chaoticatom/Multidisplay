@@ -13,7 +13,7 @@
 'use strict';
 
 const { createPlaneData } = require('./planes/data');
-const { drawBoard, drawCompact, drawRadar, drawEmpty } = require('./planes/draw');
+const { drawBoard, drawCompact, drawRadar, drawEmpty, drawDue, drawSummary, drawGlow } = require('./planes/draw');
 
 const data = createPlaneData();
 const view = { t: 0, focus: 0, focusT: 0, radarT: 0, fade: 1, lastHex: '' };
@@ -27,6 +27,8 @@ function step(opts, dt, core) {
   const planes = data.planes();
   if (view.focusT >= CYCLE_S && planes.length > 1) { view.focusT = 0; view.focus = (view.focus + 1) % Math.min(planes.length, 6); view.fade = 0; }
   if (view.focus >= planes.length) view.focus = 0;
+  const over = planes.findIndex((p) => p.overhead);
+  if (over >= 0 && over !== view.focus) { view.focus = over; view.focusT = 0; view.fade = 0; } // right overhead: that one, now
   view.fade = Math.min(1, view.fade + dt * 2.5);
   return planes;
 }
@@ -38,6 +40,8 @@ function region(tg, look, planes, k, opts) {
   const p = planes[k];
   const fadeTg = { ...tg, set: (x, y, r, g, b) => tg.set(x, y, r * view.fade, g * view.fade, b * view.fade) };
   if (!planes.length) { drawEmpty(tg, view.t, emptyMsg()); return; }
+  if (look === 'due') { drawDue(tg, planes, view.t); return; }
+  if (look === 'summary') { drawSummary(tg, data.summary(), view.t); return; }
   if (look === 'radar') drawRadar(tg, planes, view.focus, view.t, radius(opts), true);
   else if (!p) drawRadar(tg, planes, view.focus, view.t, radius(opts), false);
   else if (tg.w >= 96) drawBoard(fadeTg, p, view.t, planes.length > 1 ? (k + 1) + '/' + planes.length : '');
@@ -61,21 +65,31 @@ function effectPlanesWall(core, dt) {
     });
   } else regs.push({ x: 0, y: 0, w: core.wallW, h: Math.min(core.wallH, 64) });
   const tgFor = (r) => ({ w: r.w, h: r.h, set: (x, y, rr, g, b) => { if (x >= 0 && y >= 0 && x < r.w && y < r.h) core.setWallPixel(r.x + x, r.y + y, rr, g, b); } });
-  // The main region: auto shows the board, and the radar in turn when several planes are about.
-  const radarTurn = style === 'radar' || (style === 'auto' && planes.length > 1 && Math.floor(view.t / 12) % 3 === 2);
-  let radarShown = false, next = 0;
+  // The main region: Auto moves between the board, the radar (several
+  // planes), the planes due overhead (when there are) and, every ten
+  // minutes, today's tally.
+  const due = planes.some((p) => p.overhead || p.dueIn >= 0), summaryTime = (Date.now() / 1000) % 600 < 10;
+  let mainLook = 'board';
+  if (style === 'radar') mainLook = 'radar';
+  else if (style === 'auto') {
+    const looks = ['board']; if (planes.length > 1) looks.push('radar'); if (due) looks.push('due');
+    mainLook = summaryTime ? 'summary' : looks[Math.floor(view.t / 10) % looks.length];
+  }
+  const shown = new Set(); let next = 0;
   regs.forEach((r, i) => {
     const tg = tgFor(r);
     if (i === 0) {
       if (r.w >= 3 * S && planes.length) { // board with the radar beside it
         const rw = Math.min(r.w - 2 * S, 2 * S);
-        region(sub(tg, 0, r.w - rw), 'board', planes, view.focus, opts); drawRadar(sub(tg, r.w - rw, rw), planes, view.focus, view.t, radius(opts), rw >= 108);
-        radarShown = true;
-      } else if (radarTurn && r.w >= 2 * S) { region(tg, 'radar', planes, 0, opts); radarShown = true; }
-      else region(tg, 'board', planes, view.focus, opts);
+        region(sub(tg, 0, r.w - rw), mainLook === 'radar' ? 'board' : mainLook, planes, view.focus, opts); drawRadar(sub(tg, r.w - rw, rw), planes, view.focus, view.t, radius(opts), rw >= 108);
+        shown.add('radar'); shown.add(mainLook);
+      } else { region(tg, r.w < 2 * S && mainLook === 'radar' ? 'board' : mainLook, planes, view.focus, opts); shown.add(mainLook); }
       next = view.focus + 1;
-    } else if (!radarShown && planes.length > 1) { region(tg, 'radar', planes, 0, opts); radarShown = true; }
+    } else if (!shown.has('radar') && planes.length > 1) { region(tg, 'radar', planes, 0, opts); shown.add('radar'); }
+    else if (!shown.has('due') && due) { region(tg, 'due', planes, 0, opts); shown.add('due'); }
+    else if (!shown.has('summary') && i === regs.length - 1 && regs.length >= 3) { region(tg, 'summary', planes, 0, opts); shown.add('summary'); }
     else { region(tg, 'board', planes, planes.length ? next % Math.max(1, planes.length) : 0, opts); next++; }
+    if (planes.some((p) => p.overhead)) drawGlow(tg, view.t); // one right overhead: every panel glows
   });
 }
 
@@ -89,8 +103,12 @@ function effectPlanes(core, dt) {
   const n = Math.max(1, planes.length);
   drawRadar(face(4), planes, view.focus, view.t, radius(opts), false);
   [0, 2, 1, 3].forEach((f, i) => region(face(f), 'board', planes, planes.length ? (view.focus + i) % n : 0, opts));
-  const b = face(5), msg = planes.length ? planes.length + ' PLANES\nNEAREST ' + (planes[0].dist < 10 ? planes[0].dist.toFixed(1) : Math.round(planes[0].dist)) + ' KM' : emptyMsg();
-  drawEmpty(b, view.t, msg);
+  // Underneath: the planes due overhead, or today's tally.
+  const b = face(5);
+  if (planes.some((p) => p.overhead || p.dueIn >= 0)) drawDue(b, planes, view.t);
+  else if (planes.length) drawSummary(b, data.summary(), view.t);
+  else drawEmpty(b, view.t, emptyMsg());
+  if (planes.some((p) => p.overhead)) for (const f of [0, 1, 2, 3, 4, 5]) drawGlow(face(f), view.t);
 }
 effectPlanes.wall = effectPlanesWall;
 effectPlanes.getStatus = () => data.status();

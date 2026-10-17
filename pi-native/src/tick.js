@@ -124,6 +124,12 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
     if (xfLive) core._xfNew.set(buf);
     pulseBuffer(core.audio, buf, react);
     applyCrossfade(core, buf, dt, state.prefs && state.prefs.transition);
+    // Auto-DJ light show: a white flash on each drop, as it's heard.
+    const djp = state.prefs && state.prefs.dj, di = radio.audio && radio.audio.djInfo;
+    if (di && di.dropAt && (!djp || djp.lightShow !== 'off')) {
+      const f = 1 - (Date.now() - di.dropAt) / 450;
+      if (f > 0 && f <= 1) { const k2 = f * f * 0.6; for (let i = 0; i < buf.length; i++) buf[i] += (1 - buf[i]) * k2; }
+    }
   } else {
     core.colBuf.fill(0);
     if (core.wallBuf) core.wallBuf.fill(0);

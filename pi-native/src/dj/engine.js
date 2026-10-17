@@ -28,7 +28,7 @@ const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const smooth = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
 
 function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sources'), decode = require('./decode'), analyser = require('./analyse'), log = console.log, setTimer = setInterval, clearTimer = clearInterval }) {
-  const st = { tease: null, eq: [1, 1, 1, 0, 0, 0], mixLen: 0, mixSwap: -1, doneAt: 0, state: 'stopped', error: '', now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
+  const st = { dropAt: 0, tease: null, eq: [1, 1, 1, 0, 0, 0], mixLen: 0, mixSwap: -1, doneAt: 0, state: 'stopped', error: '', now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
   let wantNext = null, prepToken = 0;
   let cfg = { source: 'both', youtube: '', mixBeats: 'auto', quick: false, style: 'auto' };
   let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
@@ -603,7 +603,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
             sampleDeck(B, Math.sin(c * Math.PI / 2), smooth((c - 0.4) / 0.6), 1, 1, OUT);
           }
           A.pos++; B.pos++;
-          if (u >= 1) { st.played++; st.doneAt = Date.now(); promote(); }
+          if (u >= 1) { st.played++; st.doneAt = Date.now(); if (mix.style === 'cut' || mix.style === 'mashup') st.dropAt = Date.now(); promote(); }
           }
         } else {
           // The next track isn't ready yet: loop A's last four bars on the beat rather than fall silent.
@@ -617,6 +617,8 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
             if (sw.i >= sw.len) { A.swap = null; nd.plan = null; nd.loops = 0; nd.loopAt = 0; A = nd; nowStatus(); log(`[dj] tempo eased to ${Math.round(A.bpm)} BPM`); }
             A.pos++;
           } else {
+          // A drop (a quiet bar into a loud one) in the song playing: for the light show.
+          if (A.vbBar && A.info.energyBars && (A.pos & 255) === 0) { const j = Math.floor((A.pos - A.firstDown) / A.vbBar); if (j !== A.lastBar) { A.lastBar = j; const en = A.info.energyBars; if (j > 0 && Number(en[j]) >= 7 && Number(en[j - 1]) <= 4) st.dropAt = Date.now(); } }
           sampleDeck(A, 1, 1, 1, 1, OUT);
           // A hint of the next song: its hook laid over this one for a moment.
           const tz = A.tease;

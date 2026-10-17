@@ -1125,7 +1125,7 @@ function cxInit() {
 // ── Auto-DJ (Music tab; src/dj).
 function cxWireDj() {
   if (!document.getElementById('dj-start')) return;
-  const cfg = () => ({ source: document.querySelector('#dj-source .on')?.dataset.djsrc || 'both', youtube: document.getElementById('dj-youtube').value.trim(), mixBeats: document.getElementById('dj-beats').value === 'auto' ? 'auto' : Number(document.getElementById('dj-beats').value), quick: document.getElementById('dj-quick').checked, style: document.getElementById('dj-style').value, endless: document.getElementById('dj-endless').checked, ytArtist: document.getElementById('dj-artist').checked });
+  const cfg = () => ({ source: document.querySelector('#dj-source .on')?.dataset.djsrc || 'both', youtube: document.getElementById('dj-youtube').value.trim(), mixBeats: document.getElementById('dj-beats').value === 'auto' ? 'auto' : Number(document.getElementById('dj-beats').value), quick: document.getElementById('dj-quick').checked, style: document.getElementById('dj-style').value, endless: document.getElementById('dj-endless').checked, ytArtist: document.getElementById('dj-artist').checked, lightShow: document.getElementById('dj-lights').value });
   document.querySelectorAll('#dj-source button').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('#dj-source button').forEach((x) => x.classList.toggle('on', x === b));
     send({ cmd: 'setDj', ...cfg() });
@@ -1135,6 +1135,7 @@ function cxWireDj() {
   document.getElementById('dj-style').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   document.getElementById('dj-endless').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   document.getElementById('dj-artist').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
+  document.getElementById('dj-lights').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   // Your YouTube Music: load the playlists, tap one to play it.
   document.getElementById('dj-lib-load').addEventListener('click', () => send({ cmd: 'djLibrary' }));
   document.getElementById('dj-lib-list').addEventListener('click', (e) => {
@@ -1220,6 +1221,7 @@ function cxWirePlanes() {
   document.getElementById('planes-style').addEventListener('change', (e) => set('style', e.target.value));
   document.getElementById('planes-radius').addEventListener('change', (e) => set('radiusKm', Number(e.target.value)));
   document.getElementById('planes-alt').addEventListener('change', (e) => set('maxAltFt', Number(e.target.value)));
+  document.getElementById('planes-only').addEventListener('change', (e) => set('only', e.target.value));
 }
 function cxSyncPlanes() {
   const st = document.getElementById('planes-status'); if (!st) return;
@@ -1227,7 +1229,7 @@ function cxSyncPlanes() {
   st.textContent = currentState.effectStatus?.planes || (o.city || o.lat ? 'Looking for planes…' : 'Set your location to see the planes above you.');
   const ci = document.getElementById('planes-city'); if (ci && document.activeElement !== ci && !ci.value) ci.value = o.city || (o.lat ? o.lat + ', ' + o.lon : '');
   const sv = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el && v !== undefined) el.value = String(v); };
-  sv('planes-style', o.style || 'auto'); sv('planes-radius', o.radiusKm || 20); sv('planes-alt', o.maxAltFt || 0);
+  sv('planes-style', o.style || 'auto'); sv('planes-radius', o.radiusKm || 20); sv('planes-alt', o.maxAltFt || 0); sv('planes-only', o.only || '');
 }
 function cxDjTime(s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
 let cxDjNow = null, cxDjNowAt = 0, cxDjMixAt = -1;
@@ -1246,6 +1248,7 @@ function cxSyncDj() {
     document.getElementById('dj-quick').checked = !!c.quick;
     document.getElementById('dj-endless').checked = c.endless !== false;
     document.getElementById('dj-artist').checked = !!c.ytArtist;
+    const lsel = document.getElementById('dj-lights'); if (document.activeElement !== lsel) lsel.value = c.lightShow || 'scenes';
     const sy = document.getElementById('dj-style'); if (document.activeElement !== sy) sy.value = c.style || 'auto';
   }
   const card = document.getElementById('dj-now'), n = d.on ? d.now : null;

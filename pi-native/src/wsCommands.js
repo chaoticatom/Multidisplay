@@ -637,6 +637,7 @@ const COMMANDS = {
     if (msg.quick !== undefined) dj.quick = !!msg.quick;
     if (msg.endless !== undefined) dj.endless = !!msg.endless;
     if (msg.ytArtist !== undefined) dj.ytArtist = !!msg.ytArtist;
+    if (msg.lightShow !== undefined) dj.lightShow = String(msg.lightShow);
     if (msg.style !== undefined) dj.style = String(msg.style);
     this.state.prefs = prefs.save({ ...p, dj });
     const audio = radio.audio;
@@ -697,6 +698,7 @@ const COMMANDS = {
     if (msg.quick !== undefined) dj.quick = !!msg.quick;
     if (msg.endless !== undefined) dj.endless = !!msg.endless;
     if (msg.ytArtist !== undefined) dj.ytArtist = !!msg.ytArtist;
+    if (msg.lightShow !== undefined) dj.lightShow = String(msg.lightShow);
     if (msg.style !== undefined) dj.style = String(msg.style);
     this.state.prefs = prefs.save({ ...p, dj });
     if (radio.audio && radio.audio.dj && radio.audio.dj.configure) radio.audio.dj.configure(this.state.prefs.dj); // takes effect on the coming mix
