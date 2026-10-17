@@ -239,7 +239,7 @@ function drawDjDecks(core, info, st, dt, beat = 0, where = 'wall') {
   else if (next) { line = 'next: getting ' + (next.title || '') + (next.step ? ' - ' + next.step : ''); stageOn = false; }
   else line = 'playing ' + ((now && now.title) || '');
   // Always a countdown: to the mix, through it, or to the song's end.
-  const count = !now ? '' : mixing ? mmss((1 - u) * mixSecs) : next && next.status === 'loading' ? 'loading' : info.mixIn >= 0 ? 'mix ' + mmss(info.mixIn) : now.dur ? 'ends ' + mmss(now.dur - now.pos) : '';
+  const count = !now ? '' : mixing ? mmss((1 - u) * mixSecs) : next && next.status === 'loading' ? 'loading' : info.mixIn >= 0 ? mmss(info.mixIn) : now.dur ? 'ends ' + mmss(now.dur - now.pos) : '';
   const fader = mixing ? (next && next.style === 'cut' ? 1 : u) : 0;
   let tl = null;
   if (now && now.dur && now.mixAt >= 0) {

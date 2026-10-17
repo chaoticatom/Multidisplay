@@ -891,7 +891,7 @@ var PiEngine = (() => {
       }
       function drawStringSmooth(font, str, x, y, plot, opts = {}) {
         const xi = Math.floor(x), f0 = x - xi;
-        let f = (f0 - 0.08) / 0.84;
+        let f = (f0 - 0.12) / 0.76;
         f = f < 0 ? 0 : f > 1 ? 1 : f * f * (3 - 2 * f);
         if (!plot.alpha || f < 0.02) return drawString(font, str, xi, y, plot, opts);
         if (f > 0.98) return drawString(font, str, xi + 1, y, plot, opts);
@@ -6432,7 +6432,7 @@ var PiEngine = (() => {
           line = "next: getting " + (next.title || "") + (next.step ? " - " + next.step : "");
           stageOn = false;
         } else line = "playing " + (now && now.title || "");
-        const count = !now ? "" : mixing ? mmss((1 - u) * mixSecs) : next && next.status === "loading" ? "loading" : info.mixIn >= 0 ? "mix " + mmss(info.mixIn) : now.dur ? "ends " + mmss(now.dur - now.pos) : "";
+        const count = !now ? "" : mixing ? mmss((1 - u) * mixSecs) : next && next.status === "loading" ? "loading" : info.mixIn >= 0 ? mmss(info.mixIn) : now.dur ? "ends " + mmss(now.dur - now.pos) : "";
         const fader = mixing ? next && next.style === "cut" ? 1 : u : 0;
         let tl = null;
         if (now && now.dur && now.mixAt >= 0) {
