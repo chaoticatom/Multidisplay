@@ -1162,6 +1162,61 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .effect-panel label:has(> input[type="checkbox"]) { display: flex !important; align-items: center; gap: 10px; min-height: 36px; font-size: 14px !important; }
 .effect-panel input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--cx1); }
 .effect-panel .ui-note, .effect-panel .ui-note-spaced { font-size: 12px !important; line-height: 1.4; color: #93a0bf !important; }
+
+/* ── Music tab: player + Radio / Auto-DJ / Sound ─────────────────────── */
+.mx-root{padding:0!important;border:0!important;background:none!important;box-shadow:none!important;margin:0!important}
+.mx-player{position:relative;background:linear-gradient(135deg,rgba(80,110,255,.16),rgba(150,80,255,.10));border-radius:18px;padding:12px;margin:0 0 12px;box-shadow:0 0 0 1px rgba(255,255,255,.1)}
+.mx-player #cx-np{background:none;box-shadow:none;padding:0;margin:0 0 4px;padding-right:62px}
+.mx-badge{position:absolute;top:14px;right:12px;font-size:10px;font-weight:700;letter-spacing:.05em;padding:3px 8px;border-radius:99px;background:rgba(110,168,255,.18);color:#9cc2ff}
+.mx-badge.dj{background:rgba(255,179,71,.18);color:#ffc77a}
+.mx-player .dj-now{background:none;padding:2px 0 0;margin:4px 0 0}
+.mx-player #spk-warn{margin:8px 0 0!important}
+.mx-ctl{display:flex;gap:8px;margin-top:10px}
+.mx-btn{flex:1;height:40px;min-width:44px;border-radius:12px;border:0;background:rgba(255,255,255,.07);box-shadow:0 0 0 1px rgba(255,255,255,.1);color:#eef2ff;font-size:16px;cursor:pointer;margin:0;padding:0}
+.mx-btn:disabled{opacity:.35}
+.mx-btn.mx-main{flex:2;background:#ffb347;color:#2a1700;font-weight:700;font-size:14px;box-shadow:none}
+.mx-btn.active,#mx-fav.on{background:rgba(110,168,255,.25);box-shadow:0 0 0 1px rgba(110,168,255,.6)}
+#mx-fav.on{color:#ffd23d;background:rgba(255,210,61,.15);box-shadow:0 0 0 1px rgba(255,210,61,.5)}
+.mx-out{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.mx-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:6px 11px;border-radius:99px;border:0;background:rgba(255,255,255,.06);box-shadow:0 0 0 1px rgba(255,255,255,.1);color:rgba(238,242,255,.6);cursor:pointer;margin:0;width:auto}
+.mx-chip.on,.mx-chip:has(input:checked){color:#dce8ff;background:rgba(110,168,255,.18);box-shadow:0 0 0 1px rgba(110,168,255,.5)}
+.mx-chip input{margin:0;width:14px;height:14px;accent-color:#6ea8ff}
+.mx-status{font-size:11px;color:#9aa3b8;margin-top:8px}
+.mx-status:empty{display:none}
+.mx-seg{display:flex;background:rgba(255,255,255,.05);border-radius:13px;padding:3px;margin:0 0 12px;position:sticky;top:0;z-index:2;backdrop-filter:blur(8px)}
+.mx-seg button{flex:1;border:0;background:none;color:rgba(238,242,255,.55);padding:9px 0;border-radius:10px;font-size:13px;cursor:pointer;margin:0;width:auto}
+.mx-seg button.on{background:rgba(255,255,255,.1);color:#eef2ff;font-weight:600}
+.mx-search{display:flex;gap:6px;margin-bottom:8px}
+.mx-search input{flex:1;min-width:0;background:rgba(255,255,255,.06);color:#eef2ff;border:0;box-shadow:0 0 0 1px rgba(255,255,255,.12);border-radius:12px;padding:10px 12px;font-size:14px}
+.mx-search button{flex:0 0 auto;border:0;border-radius:12px;padding:0 14px;background:rgba(110,168,255,.2);color:#cfe0ff;font-size:13px;cursor:pointer;margin:0;width:auto}
+.mx-filters{display:flex;gap:6px;margin:0 0 10px;overflow-x:auto;scrollbar-width:none}
+.mx-filters button{flex:0 0 auto;border:0;border-radius:99px;padding:6px 12px;font-size:12.5px;background:rgba(255,255,255,.06);box-shadow:0 0 0 1px rgba(255,255,255,.1);color:rgba(238,242,255,.7);cursor:pointer;margin:0;width:auto}
+.mx-filters button.on{background:rgba(110,168,255,.2);box-shadow:0 0 0 1px rgba(110,168,255,.55);color:#e6efff}
+.mx-list{max-height:360px;overflow-y:auto;margin-bottom:6px}
+.mx-foot{font-size:11px;color:#8d96ad;margin-top:8px}.mx-foot a{color:#7ad}
+.mx-card{background:rgba(255,255,255,.04);box-shadow:0 0 0 1px rgba(255,255,255,.08);border-radius:14px;padding:12px;margin:0 0 10px}
+.mx-h{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:rgba(238,242,255,.6);margin:0 0 8px;font-weight:600}
+.mx-h small{text-transform:none;letter-spacing:0;font-weight:400;opacity:.7;margin-left:6px}
+.mx-src3{display:grid!important;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 8px}
+.mx-src3 button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 4px!important;border-radius:12px!important;font-size:12px}
+.mx-src3 button span{font-size:18px}
+.mx-src3 button.on{background:rgba(255,179,71,.14)!important;box-shadow:0 0 0 1px #ffb347!important;color:#ffe3bd!important}
+#dj-youtube{width:100%;margin:0 0 8px}
+.mx-big{width:100%;height:46px;border:0;border-radius:12px;background:#ffb347;color:#2a1700;font-weight:700;font-size:15px;cursor:pointer;margin:2px 0 0}
+#dj-setup.mx-collapsed:not(.mx-open){display:none}
+.mx-fold{background:rgba(255,255,255,.04);box-shadow:0 0 0 1px rgba(255,255,255,.08);border-radius:14px;margin:0 0 10px;padding:0 12px}
+.mx-fold>summary{list-style:none;cursor:pointer;padding:12px 0;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.mx-fold>summary::-webkit-details-marker{display:none}
+.mx-fold>summary span{color:rgba(238,242,255,.5);font-size:12.5px;text-align:right}
+.mx-fold[open]>summary{border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:10px}
+.mx-fold[open]{padding-bottom:12px}
+.mx-fold.mx-inner{background:none;box-shadow:none;padding:0;margin:8px 0 0}
+.mx-fold.mx-inner>summary{padding:8px 0;font-size:13px;color:#9cc2ff}
+.mx-switch{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;cursor:pointer}
+.mx-switch small{display:block;color:rgba(238,242,255,.5);font-size:11.5px}
+.mx-switch input{width:20px;height:20px;accent-color:#4ade80;flex:0 0 auto}
+.mx-row-btn{display:flex;justify-content:space-between;align-items:center;width:100%;border:0;background:rgba(255,255,255,.04);box-shadow:0 0 0 1px rgba(255,255,255,.08);border-radius:14px;padding:12px;color:#eef2ff;font-size:14px;cursor:pointer;margin:0 0 10px;text-align:left}
+.mx-row-btn span{color:rgba(238,242,255,.5);font-size:12.5px}
 </style>
 </head>
 <body>
@@ -2032,74 +2087,156 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   <div class="sidebar-section" id="music-section" data-tab="music">
     <button class="section-head">◈ Music <span class="chev">▾</span></button>
     <div class="section-body">
+      <!-- Music tab: one player on top (radio or Auto-DJ), then three tabs -
+           Radio, Auto-DJ, Sound. Everything sits inside #panel-radio, which
+           50-radio-audio.js looks its controls up in. The spectrum's display
+           settings are in #radio-display-panel, shown with the Internet Radio
+           effect's options under Play. -->
+      <div class="effect-panel open mx-root" id="panel-radio">
+      <div class="mx-player" id="mx-player">
       <div id="cx-np"><div class="cx-vinyl"></div><div><b id="cx-np-name">Nothing playing</b><small id="cx-np-sub">Pick a station below</small></div></div>
+        <span class="mx-badge" id="mx-badge" hidden>RADIO</span>
+        <div id="dj-now" class="dj-now" hidden>
+          <div class="dj-now-title" id="dj-now-title" hidden></div>
+          <div class="dj-now-meta" id="dj-now-meta"></div>
+          <input type="range" id="dj-seek" min="0" max="100" step="0.1" value="0" aria-label="Track position">
+          <div class="dj-now-times"><span id="dj-pos">0:00</span><span id="dj-dur">0:00</span></div>
+        </div>
       <div id="spk-warn" hidden style="display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:8px 10px;border-radius:12px;background:rgba(255,70,90,.15);border:1px solid rgba(255,90,110,.5);font-size:12px;">
         <span style="flex:1;" id="spk-warn-text">🔇 The speaker is not connected</span>
         <button type="button" id="spk-reconnect-btn" class="ui-btn-primary" style="margin:0;padding:6px 12px;">Reconnect</button>
       </div>
-      <button type="button" id="cx-show-spectrum" class="ui-btn-primary" style="width:100%;margin:0 0 12px;">📊 Show the spectrum on the display</button>
-      <div class="ui-label-accent">📻 Radio</div>
-      <div class="ui-note">Keeps playing under any effect. Show its spectrum with <b>Internet Radio</b> under Play.</div>
-      <div class="effect-panel open" id="panel-radio">
-      <!-- radioPlay always plays server-side (paplay -> whatever PulseAudio
-           sink is currently default - a paired Bluetooth speaker, or the
-           Pi's own local output). A real report: "internet radio does not
-           play on phone speaker" - the Pi's audio output was never routed
-           to the connecting browser/phone at all. This checkbox ALSO plays
-           the same station directly in this browser tab via a plain
-           <audio> element pointed at the station URL (see
-           radioBrowserAudio()/wireRadioPanel() in app.js) - independent of
-           whatever the Pi itself is doing with paplay/Bluetooth, so both
-           can be silenced/enabled separately. Defaults on: a phone/browser
-           essentially always has its own speaker "connected", Bluetooth is
-           the exception, not the rule. -->
-      <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="radio-browser-play-el" checked>Play in this browser</label>
-      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
-        <button class="radio-stop-btn-el" style="flex:0 0 auto;padding:6px 12px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.25);color:#f88;border-radius:4px;cursor:pointer;font-size:11px;">■ Stop</button>
+        <div class="mx-ctl">
+          <button type="button" class="radio-stop-btn-el mx-btn" title="Stop" aria-label="Stop">■</button>
+          <button type="button" id="dj-skip" class="mx-btn mx-main" hidden>⏭ Mix next</button>
+          <button type="button" id="mx-fav" class="mx-btn" title="Add to My stations" aria-label="Add to My stations">★</button>
+          <button type="button" id="cx-show-spectrum" class="mx-btn" title="Show the spectrum on the display" aria-label="Show the spectrum on the display">▦</button>
+        </div>
+        <div class="mx-out">
+          <button type="button" class="mx-chip" id="mx-out-pi" title="The Pi's speaker - set it up under Sound">🔊 Pi speaker</button>
+          <label class="mx-chip"><input type="checkbox" class="radio-browser-play-el" checked> 📱 This phone</label>
+        </div>
+        <div class="radio-status-el mx-status">Pick a station</div>
       </div>
-      <div class="radio-status-el" style="font-size:11px;color:#9aa3b8;text-align:center;margin-bottom:10px;">Pick a station</div>
 
-      <!-- Auto-DJ (src/dj): mixes your MP3s and/or YouTube like a DJ. -->
-      <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">🎧 Auto-DJ</div>
-      <div class="ui-note">Mixes song into song like a DJ: matches the tempo, lines up the beats and swaps the bass over a phrase. Songs without a clear beat get a smooth crossfade.</div>
-      <div class="tm-chips" id="dj-source" style="margin:6px 0;"><button type="button" data-djsrc="mp3">My music</button><button type="button" data-djsrc="youtube">YouTube</button><button type="button" data-djsrc="both" class="on">Both</button></div>
-      <input id="dj-youtube" class="ui-input" type="text" maxlength="300" placeholder="YouTube playlist link, or a search like “90s house”" aria-label="YouTube playlist or search" style="width:100%;margin-bottom:6px;">
-      <div class="slider-row"><span class="slider-label">Mix over</span><select id="dj-beats" class="ui-input" aria-label="Mix length" style="flex:1;"><option value="auto" selected>Auto (best fit, up to 128 beats)</option><option value="16">16 beats (quick)</option><option value="32">32 beats</option><option value="64">64 beats (long)</option></select></div>
-      <div class="slider-row"><span class="slider-label">Mix style</span><select id="dj-style" class="ui-input" aria-label="Mix style" style="flex:1;"><option value="auto" selected>Auto (tasteful: avoids singing)</option><option value="blend">Long blend</option><option value="short">Short: both play a few seconds</option><option value="cut">Cut on the beat</option></select></div>
-      <label class="slider-row" style="cursor:pointer;"><input type="checkbox" id="dj-quick"> <span>Quick mix: move on about a minute into each song</span></label>
-      <div style="display:flex;gap:6px;margin:6px 0;"><button type="button" id="dj-start" class="ui-btn-primary" style="flex:1;margin:0;">▶ Start Auto-DJ</button><button type="button" id="dj-skip" class="ui-btn-small" style="flex:0 0 auto;">⏭ Mix next now</button></div>
-      <div id="dj-now" class="dj-now" hidden>
-        <div class="dj-now-title" id="dj-now-title"></div>
-        <div class="dj-now-meta" id="dj-now-meta"></div>
-        <input type="range" id="dj-seek" min="0" max="100" step="0.1" value="0" aria-label="Track position">
-        <div class="dj-now-times"><span id="dj-pos">0:00</span><span id="dj-dur">0:00</span></div>
+      <div class="mx-seg" role="tablist" aria-label="Music">
+        <button type="button" role="tab" data-mx="radio" class="on">📻 Radio</button>
+        <button type="button" role="tab" data-mx="dj">🎧 Auto-DJ</button>
+        <button type="button" role="tab" data-mx="sound">⚙ Sound</button>
       </div>
-      <div class="ui-note" id="dj-status"></div>
-      <div id="dj-queue" class="dj-queue" hidden></div>
-      <details class="ui-note" style="margin:6px 0 12px;"><summary id="dj-music-sum">My music</summary>
-        <label class="ui-btn-small dj-add">＋ Add MP3s<input type="file" id="dj-upload" accept="audio/*,.mp3,.m4a,.flac,.ogg,.wav" multiple hidden></label>
-        <span id="dj-upload-status" class="dj-upload-status"></span>
-        <div id="dj-music-list" class="dj-music-list"></div>
-      </details>
 
-      <div style="font-size:11px;font-weight:700;color:#7aadff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Find a station</div>
+      <div class="mx-pane" data-mx="radio">
+        <div class="mx-search">
+          <input class="radio-search-input-el" type="search" placeholder="🔍 Search name, genre or city…" aria-label="Search stations">
+          <button type="button" class="radio-search-btn-el">Search</button>
+        </div>
+        <div class="mx-filters" id="mx-filters">
+          <button type="button" data-mxf="mine" class="on">★ Mine</button>
+          <button type="button" data-mxf="recent">↺ Recent</button>
+          <button type="button" data-mxf="featured">Featured</button>
+          <button type="button" data-mxf="top" class="radio-browse-top-btn-el">Top 60</button>
+        </div>
+        <div class="mx-list" data-mxl="search">
+          <div class="radio-search-status-el ui-note"></div>
+          <div class="radio-search-results-el"></div>
+        </div>
+        <div class="mx-list" data-mxl="recent"><div id="radio-recent-wrap" hidden><div id="radio-recent" class="cx-chips"></div></div><div class="ui-note mx-empty" id="mx-recent-empty">Stations you play show up here.</div></div>
+        <div class="mx-list" data-mxl="mine"><span id="radio-fav-head" hidden></span><div class="radio-fav-list-el"></div></div>
+        <div class="mx-list" data-mxl="featured"><div class="radio-station-list-el"></div></div>
+        <div class="mx-foot">Stations from <a href="https://www.radio-browser.info" target="_blank" rel="noopener">radio-browser.info</a>. Radio keeps playing under any effect.</div>
+      </div>
+
+      <div class="mx-pane" data-mx="dj" hidden>
+        <button type="button" class="mx-row-btn" id="dj-change" hidden>💿 Music source <span id="dj-src-sum"></span></button>
+        <div class="mx-card" id="dj-setup">
+          <div class="mx-h">Play from</div>
+          <div class="tm-chips mx-src3" id="dj-source"><button type="button" data-djsrc="mp3"><span>💿</span>My music</button><button type="button" data-djsrc="youtube"><span>▶</span>YouTube</button><button type="button" data-djsrc="both" class="on"><span>✦</span>Both</button></div>
+          <input id="dj-youtube" class="ui-input" type="text" maxlength="300" placeholder="YouTube playlist link, or a search like “90s house”" aria-label="YouTube playlist or search">
+          <button type="button" id="dj-start" class="mx-big">▶ Start Auto-DJ</button>
+          <div class="ui-note" id="dj-status"></div>
+        </div>
+        <div class="mx-card" id="dj-queue-card" hidden>
+          <div class="mx-h">Up next <small>tap a song to play it next</small></div>
+          <div id="dj-queue" class="dj-queue" hidden></div>
+        </div>
+        <details class="mx-fold">
+          <summary>🎛 Mix settings <span id="mx-mix-sum"></span></summary>
+          <div class="slider-row"><span class="slider-label">Style</span><select id="dj-style" class="ui-input" aria-label="Mix style" style="flex:1;"><option value="auto" selected>Auto (tasteful: avoids singing)</option><option value="blend">Long blend</option><option value="short">Short: both play a few seconds</option><option value="cut">Cut on the beat</option></select></div>
+          <div class="slider-row"><span class="slider-label">Length</span><select id="dj-beats" class="ui-input" aria-label="Mix length" style="flex:1;"><option value="auto" selected>Auto (best fit, up to 128 beats)</option><option value="16">16 beats (quick)</option><option value="32">32 beats</option><option value="64">64 beats (long)</option></select></div>
+          <label class="mx-switch"><span>Quick mix<small>Move on about a minute into each song</small></span><input type="checkbox" id="dj-quick"></label>
+          <div class="ui-note">The DJ matches the tempo, lines up the beats, moves the key a semitone when it helps and keeps clear of singing. Songs without a clear beat get a smooth crossfade.</div>
+        </details>
+        <details class="mx-fold">
+          <summary id="dj-music-sum">🎵 My music</summary>
+          <label class="ui-btn-small dj-add">＋ Add MP3s<input type="file" id="dj-upload" accept="audio/*,.mp3,.m4a,.flac,.ogg,.wav" multiple hidden></label>
+          <span id="dj-upload-status" class="dj-upload-status"></span>
+          <div id="dj-music-list" class="dj-music-list"></div>
+        </details>
+      </div>
+
+      <div class="mx-pane" data-mx="sound" hidden>
+        <div class="mx-card">
+          <div class="mx-h">🔊 Pi speaker (Bluetooth)</div>
+      <div class="bt-paired-status-el" style="font-size:11px;color:#9aa3b8;margin-bottom:4px;">Not checked yet</div>
+      <div class="bt-paired-list-el" style="max-height:120px;overflow-y:auto;margin-bottom:10px;"></div>
+          <details class="mx-fold mx-inner">
+            <summary>Find or change a speaker</summary>
       <div style="display:flex;gap:6px;margin-bottom:6px;">
-        <input class="radio-search-input-el" type="text" placeholder="Name, genre or city…" style="flex:1;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:6px 8px;font-size:11px;box-sizing:border-box;">
-        <button class="radio-search-btn-el" style="flex:0 0 auto;padding:6px 12px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Search</button>
+        <button class="bt-scan-btn-el" style="flex:1;padding:6px 10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Scan for Speakers</button>
+        <button class="bt-refresh-btn-el" style="flex:0 0 auto;padding:6px 10px;background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.4);color:#ccc;border-radius:4px;cursor:pointer;font-size:11px;">↻</button>
       </div>
-      <button class="radio-browse-top-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.1);border:1px solid rgba(80,120,255,0.3);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Browse Top 60 Worldwide</button>
-      <div class="radio-search-status-el ui-note"></div>
-      <div class="radio-search-results-el" style="max-height:260px;overflow-y:auto;margin-bottom:10px;"></div>
+      <div class="bt-status-el ui-note">Not checked yet</div>
+      <div class="bt-device-list-el" style="max-height:180px;overflow-y:auto;margin-bottom:14px;"></div>
+      <div class="ov-row-label" title="Long range sends less data, so the speaker drops out less at a distance (slightly lower sound quality)">Range</div>
+      <div class="tm-chips" id="bt-range" style="margin-bottom:4px;"><button type="button" data-range="normal" class="on">🎵 Normal - best sound</button><button type="button" data-range="long">📶 Long range - fewer dropouts</button></div>
+      <div class="ui-note" id="bt-range-note" style="margin:0 0 10px;"></div>
+          </details>
+        </div>
+        <div class="mx-card">
+          <div class="mx-h">⏱ Timing</div>
+        <label class="check-row" style="margin-top:4px;"><input type="checkbox" class="au-sync-auto-el"> Auto - measure the speaker's delay and keep the bars in step</label>
+        <div class="ov-row-label" style="margin-top:8px;" title="Delays the bars to line up with what you hear - Bluetooth speakers play audio late">Speaker sync</div>
+        <div class="slider-row">
+          <input type="range" class="au-sync-el" min="0" max="1500" step="25" value="200" style="flex:1;" aria-label="Speaker sync delay">
+          <span class="slider-val au-sync-val-el" style="width:60px;">200ms</span>
+        </div>
+        <div class="ui-note">The speaker's own delay (Bluetooth adds about 0.2 s). The Pi feeds the speaker at a steady pace, so the bars and this browser's sound are timed to it. If the bars hit after the beat, lower it; before, raise it.</div>
+        <div class="ov-row-label" style="margin-top:8px;" title="Moves this device's sound earlier or later, to line it up with the speaker by ear">This browser's sound</div>
+        <div class="slider-row">
+          <input type="range" class="au-bsync-el" min="-2000" max="2000" step="25" value="0" style="flex:1;" aria-label="This browser's sound: earlier or later">
+          <span class="slider-val au-bsync-val-el" style="width:60px;">0ms</span>
+        </div>
+        <div class="ui-note">Fine-tune only if this device is still out of step with the speaker: − earlier, + later. Saved on this device.</div>
+        </div>
+        <div class="mx-card">
+          <div class="mx-h">✨ Effects react to music</div>
+      <div id="now-music" style="margin-top:14px;">
+          <label class="check-row" title="Every effect speeds up with the bass and pulses with the music while a radio station is playing"><input type="checkbox" id="music-react-chk">REACT TO MUSIC</label>
+          <div class="slider-row" id="music-react-row">
+            <span class="slider-label">Amount</span>
+            <input type="range" id="music-react-amt" min="0" max="1" step="0.05" value="0.6" aria-label="React to music amount">
+            <span class="slider-val" id="music-react-val">60%</span>
+          </div>
+      </div>
+          <label class="check-row" title="With a USB microphone on the Pi, effects react to music playing in the room when no station is on"><input type="checkbox" id="mic-music-chk">🎤 ALSO REACT TO THE ROOM (PI MICROPHONE)</label>
+          <div class="ui-note" id="mic-music-note" style="margin-top:2px;"></div>
+        </div>
+        <details class="mx-fold">
+          <summary>📱 Play from a phone</summary>
+      <div class="ui-note-spaced">Play a phone's music through the cube's Spectrum Analyser <i>and</i> the Bluetooth speaker above, at the same time. Pair the speaker first, then: make the Pi discoverable → connect from the phone's Bluetooth settings → start playing music → route the audio. See <code>pi/README.md</code> for the full walkthrough.</div>
+      <button class="bt-discoverable-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Make Cube Discoverable (pair phone)</button>
+      <button class="bt-route-phone-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Route Phone Audio to Speaker</button>
+      <div class="bt-phone-status-el" style="font-size:11px;color:#9aa3b8;">Not set up yet</div>
+        </details>
+        <button type="button" class="mx-row-btn" id="mx-display-link">📊 Spectrum display options <span>Play › Internet Radio ›</span></button>
+      </div>
+      </div>
 
-      <div id="radio-recent-wrap" hidden><div class="ui-label-accent">↺ Recently played</div><div id="radio-recent" class="cx-chips" style="margin-bottom:12px;"></div></div>
-      <div class="ui-label-accent" id="radio-fav-head" style="color:#ffd23d !important;">★ My stations</div>
-      <div class="radio-fav-list-el" style="margin-bottom:12px;"></div>
-      <div style="font-size:11px;font-weight:700;color:#e8c250;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Featured</div>
-      <div class="radio-station-list-el" style="margin-bottom:8px;"></div>
-
-      <div style="font-size:11px;color:#9aa3b8;margin-top:4px;">Directory: <a href="https://www.radio-browser.info" target="_blank" rel="noopener" style="color:#7ad">radio-browser.info</a> — free, community-run, no API key needed. Visual style/colour theme reuse the Spectrum Analyser controls above. Bluetooth speaker output is configured under the "Setup" section near the bottom of the sidebar.</div>
-
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+      <!-- The spectrum's look (bands, style, colours, gain...): shown with
+           the Internet Radio effect's options on the Play tab (see
+           placeActivePanels); kept here, hidden, the rest of the time. -->
+      <div id="radio-display-home" hidden>
+      <div class="effect-panel open" id="radio-display-panel">
         <label class="check-row" style="margin-bottom:8px;"><input type="checkbox" class="ov-chk" data-ov="spectrum">Spectrum Analyser</label>
         <div class="ov-options-el" data-ov="spectrum" style="display:none;">
         <div class="ov-row-label">Bands</div>
@@ -2143,19 +2280,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
           <input type="range" class="au-gain-el" min="0.2" max="8" step="0.1" value="2" style="flex:1;">
           <span class="slider-val au-gain-val-el">2.0×</span>
         </div>
-        <div class="ov-row-label" style="margin-top:8px;" title="Delays the bars to line up with what you hear - Bluetooth speakers play audio late">Speaker sync</div>
-        <div class="slider-row">
-          <input type="range" class="au-sync-el" min="0" max="1500" step="25" value="200" style="flex:1;" aria-label="Speaker sync delay">
-          <span class="slider-val au-sync-val-el" style="width:60px;">200ms</span>
-        </div>
-        <label class="check-row" style="margin-top:4px;"><input type="checkbox" class="au-sync-auto-el"> Auto - measure the speaker's delay and keep the bars in step</label>
-        <div class="ui-note">The speaker's own delay (Bluetooth adds about 0.2 s). The Pi feeds the speaker at a steady pace, so the bars and this browser's sound are timed to it. If the bars hit after the beat, lower it; before, raise it.</div>
-        <div class="ov-row-label" style="margin-top:8px;" title="Moves this device's sound earlier or later, to line it up with the speaker by ear">This browser's sound</div>
-        <div class="slider-row">
-          <input type="range" class="au-bsync-el" min="-2000" max="2000" step="25" value="0" style="flex:1;" aria-label="This browser's sound: earlier or later">
-          <span class="slider-val au-bsync-val-el" style="width:60px;">0ms</span>
-        </div>
-        <div class="ui-note">Fine-tune only if this device is still out of step with the speaker: − earlier, + later. Saved on this device.</div>
         <div class="ov-row-label" style="margin-top:8px;">Scroll Speed</div>
         <div class="slider-row">
           <input type="range" class="au-scroll-speed-el" min="0" max="3" step="0.1" value="0" style="flex:1;">
@@ -2163,50 +2287,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
         </div>
         </div>
       </div>
-    </div>
-      <div class="ui-label-accent" style="margin-top:14px;">✨ Effects react to music</div>
-      <div id="now-music" style="margin-top:14px;">
-          <label class="check-row" title="Every effect speeds up with the bass and pulses with the music while a radio station is playing"><input type="checkbox" id="music-react-chk">REACT TO MUSIC</label>
-          <div class="slider-row" id="music-react-row">
-            <span class="slider-label">Amount</span>
-            <input type="range" id="music-react-amt" min="0" max="1" step="0.05" value="0.6" aria-label="React to music amount">
-            <span class="slider-val" id="music-react-val">60%</span>
-          </div>
       </div>
-          <label class="check-row" title="With a USB microphone on the Pi, effects react to music playing in the room when no station is on"><input type="checkbox" id="mic-music-chk">🎤 ALSO REACT TO THE ROOM (PI MICROPHONE)</label>
-          <div class="ui-note" id="mic-music-note" style="margin-top:2px;"></div>
-      <div style="margin-top:14px;"></div>
-      <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">🔊 Pi speaker (Bluetooth)</div>
-      <!-- Paired devices - its own section/list, separate from scan
-           results below. A real report: the device list "seems unreliable
-           now, sometimes finds devices then refreshes to 0 then tries
-           again" - the auto-refresh status poll (added for the "is my
-           speaker still connected" indicator) and a live scan both used
-           to render into the SAME list element, so the background poll
-           (paired devices only, often 0-1 of them) kept stomping whatever
-           scan results were currently showing and vice versa. Fully
-           separate elements now: this one only ever shows
-           btStatusResult, the scan list below only ever shows
-           btScanResult - neither can clobber the other. -->
-      <div style="font-size:11px;color:#9ab;margin-bottom:4px;">Paired devices</div>
-      <div class="bt-paired-status-el" style="font-size:11px;color:#9aa3b8;margin-bottom:4px;">Not checked yet</div>
-      <div class="bt-paired-list-el" style="max-height:120px;overflow-y:auto;margin-bottom:10px;"></div>
-      <div class="ov-row-label" title="Long range sends less data, so the speaker drops out less at a distance (slightly lower sound quality)">Range</div>
-      <div class="tm-chips" id="bt-range" style="margin-bottom:4px;"><button type="button" data-range="normal" class="on">🎵 Normal - best sound</button><button type="button" data-range="long">📶 Long range - fewer dropouts</button></div>
-      <div class="ui-note" id="bt-range-note" style="margin:0 0 10px;"></div>
-      <div style="display:flex;gap:6px;margin-bottom:6px;">
-        <button class="bt-scan-btn-el" style="flex:1;padding:6px 10px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Scan for Speakers</button>
-        <button class="bt-refresh-btn-el" style="flex:0 0 auto;padding:6px 10px;background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.4);color:#ccc;border-radius:4px;cursor:pointer;font-size:11px;">↻</button>
-      </div>
-      <div class="bt-status-el ui-note">Not checked yet</div>
-      <div class="bt-device-list-el" style="max-height:180px;overflow-y:auto;margin-bottom:14px;"></div>
-
-      <div style="font-size:11px;font-weight:700;color:#7ad0ff;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">📱 Play from a phone</div>
-      <div class="ui-note-spaced">Play a phone's music through the cube's Spectrum Analyser <i>and</i> the Bluetooth speaker above, at the same time. Pair the speaker first, then: make the Pi discoverable → connect from the phone's Bluetooth settings → start playing music → route the audio. See <code>pi/README.md</code> for the full walkthrough.</div>
-      <button class="bt-discoverable-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Make Cube Discoverable (pair phone)</button>
-      <button class="bt-route-phone-btn-el" style="width:100%;padding:6px 10px;margin-bottom:6px;background:rgba(80,120,255,0.15);border:1px solid rgba(80,120,255,0.4);color:#7aadff;border-radius:4px;cursor:pointer;font-size:11px;">Route Phone Audio to Speaker</button>
-      <div class="bt-phone-status-el" style="font-size:11px;color:#9aa3b8;">Not set up yet</div>
-    
     </div>
   </div>
   <div class="sidebar-section collapsed" id="alarm-section">
@@ -2739,6 +2820,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.338"></script>
+<script src="app.js?v=0.6.339"></script>
 </body>
 </html>

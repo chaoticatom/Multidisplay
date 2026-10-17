@@ -1,3 +1,7 @@
+// The spectrum's display settings live in their own panel (shown with the
+// Internet Radio effect's options on the Play tab), not in #panel-radio.
+function radioDisplayPanel() { return document.getElementById('radio-display-panel') || document.getElementById('panel-radio'); }
+
 // ---------------------------------------------------------------------
 // Internet Radio's option panel (panel-radio): stop/volume, directory search
 // (results arrive as broadcast state in effectStatus.radio.search), the
@@ -332,7 +336,7 @@ function wireRadioPanel() {
   // here is ALSO caught by wireOverlaysPanel's generic loop (sends a
   // harmless setOverlay for a key wsServer.js doesn't recognise, see that
   // function's comment) - this listener does the real work.
-  const spectrumChk = panel.querySelector('.ov-chk[data-ov="spectrum"]');
+  const spectrumChk = radioDisplayPanel().querySelector('.ov-chk[data-ov="spectrum"]');
   // The switch shows whether the spectrum is ON SCREEN: turning it on
   // brings the spectrum up, turning it off goes back to the previous effect.
   if (spectrumChk) spectrumChk.addEventListener('change', () => {
@@ -340,43 +344,43 @@ function wireRadioPanel() {
     if (spectrumChk.checked !== showing) cxToggleSpectrum();
   });
 
-  panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => {
+  radioDisplayPanel().querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      panel.querySelectorAll('.spectrum-bands-btn').forEach((b) => b.classList.remove('active'));
+      radioDisplayPanel().querySelectorAll('.spectrum-bands-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       setEffectOption('radio', 'bands', Number(btn.dataset.bands));
     });
   });
   // One Style list: the animated scenes (v2) and the classic styles (v1).
-  panel.querySelector('#au-look-sel')?.addEventListener('change', (e) => {
+  radioDisplayPanel().querySelector('#au-look-sel')?.addEventListener('change', (e) => {
     const [ver, key] = e.target.value.split(':');
     if (ver === 'v1') { setEffectOption('radio', 'version', 1); setEffectOption('radio', 'style', key); }
     else { setEffectOption('radio', 'version', 2); setEffectOption('radio', 'scene', key); }
     const v1Row = document.getElementById('au-v1-row'); if (v1Row) v1Row.hidden = ver !== 'v1';
     const autoRow = document.getElementById('au-auto-row'); if (autoRow) autoRow.hidden = e.target.value !== 'v2:auto';
   });
-  panel.querySelector('#au-auto-secs')?.addEventListener('change', (e) => setEffectOption('radio', 'autoSecs', Number(e.target.value)));
+  radioDisplayPanel().querySelector('#au-auto-secs')?.addEventListener('change', (e) => setEffectOption('radio', 'autoSecs', Number(e.target.value)));
 
 
-  panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => {
+  radioDisplayPanel().querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      panel.querySelectorAll('.au-theme-btn').forEach((b) => b.classList.remove('active'));
+      radioDisplayPanel().querySelectorAll('.au-theme-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       setEffectOption('radio', 'theme', Number(btn.dataset.autheme));
     });
   });
-  panel.querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => {
+  radioDisplayPanel().querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      panel.querySelectorAll('.au-barmode-btn').forEach((b) => b.classList.remove('active'));
+      radioDisplayPanel().querySelectorAll('.au-barmode-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       setEffectOption('radio', 'barMode', btn.dataset.barmode);
     });
   });
-  const fitScreenChk = panel.querySelector('.sp-fit-screen-el');
+  const fitScreenChk = radioDisplayPanel().querySelector('.sp-fit-screen-el');
   if (fitScreenChk) fitScreenChk.addEventListener('change', () => setEffectOption('radio', 'fitToScreen', fitScreenChk.checked));
-  const autoGainChk = panel.querySelector('.au-autogain-el');
+  const autoGainChk = radioDisplayPanel().querySelector('.au-autogain-el');
   if (autoGainChk) autoGainChk.addEventListener('change', () => setEffectOption('radio', 'autoGain', autoGainChk.checked));
-  const gainSlider = panel.querySelector('.au-gain-el'), gainVal = panel.querySelector('.au-gain-val-el');
+  const gainSlider = radioDisplayPanel().querySelector('.au-gain-el'), gainVal = radioDisplayPanel().querySelector('.au-gain-val-el');
   if (gainSlider) gainSlider.addEventListener('input', () => {
     if (gainVal) gainVal.textContent = Number(gainSlider.value).toFixed(1) + '×';
     setEffectOption('radio', 'gain', Number(gainSlider.value));
@@ -397,7 +401,7 @@ function wireRadioPanel() {
     if (syncSlider) syncSlider.disabled = syncAuto.checked;
     setEffectOption('radio', 'syncAuto', syncAuto.checked);
   });
-  const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
+  const scrollSlider = radioDisplayPanel().querySelector('.au-scroll-speed-el'), scrollVal = radioDisplayPanel().querySelector('.au-scroll-speed-val-el');
   if (scrollSlider) scrollSlider.addEventListener('input', () => {
     if (scrollVal) scrollVal.textContent = scrollSlider.value;
     setEffectOption('radio', 'scrollSpeed', Number(scrollSlider.value));
@@ -500,14 +504,14 @@ function syncRadioPanel() {
     if (resultsEl && search) renderSearchResults(resultsEl, search.results, current);
   }
 
-  const spectrumChk = panel.querySelector('.ov-chk[data-ov="spectrum"]');
-  const spectrumOptions = panel.querySelector('.ov-options-el[data-ov="spectrum"]');
+  const spectrumChk = radioDisplayPanel().querySelector('.ov-chk[data-ov="spectrum"]');
+  const spectrumOptions = radioDisplayPanel().querySelector('.ov-options-el[data-ov="spectrum"]');
   const spectrumOn = !!opts.spectrumOn;
   if (spectrumChk) spectrumChk.checked = spectrumOn && currentState.effect === 'radio';
   if (spectrumOptions) spectrumOptions.style.display = spectrumOn ? '' : 'none';
-  panel.querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.bands) === (opts.bands ?? 64)));
+  radioDisplayPanel().querySelectorAll('.spectrum-bands-btn[data-bands]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.bands) === (opts.bands ?? 64)));
   const isV1 = opts.version === 1;
-  const lookSel = panel.querySelector('#au-look-sel');
+  const lookSel = radioDisplayPanel().querySelector('#au-look-sel');
   if (lookSel && document.activeElement !== lookSel) {
     lookSel.value = isV1 ? 'v1:' + (opts.style || 'glow') : 'v2:' + (opts.scene || 'auto');
     if (lookSel.selectedIndex < 0) lookSel.value = 'v2:auto'; // a choice from an older version
@@ -515,16 +519,16 @@ function syncRadioPanel() {
   const v1Row = document.getElementById('au-v1-row'); if (v1Row) v1Row.hidden = !isV1;
   const autoRow = document.getElementById('au-auto-row'); if (autoRow) autoRow.hidden = isV1 || (opts.scene && opts.scene !== 'auto');
   const autoSecs = document.getElementById('au-auto-secs'); if (autoSecs && document.activeElement !== autoSecs) autoSecs.value = String([10, 25, 60, 120].includes(Number(opts.autoSecs)) ? Number(opts.autoSecs) : 25);
-  panel.querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 5)));
-  panel.querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => btn.classList.toggle('active', btn.dataset.barmode === (opts.barMode || 'solid')));
+  radioDisplayPanel().querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 5)));
+  radioDisplayPanel().querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => btn.classList.toggle('active', btn.dataset.barmode === (opts.barMode || 'solid')));
 
-  const fitScreenChk = panel.querySelector('.sp-fit-screen-el');
+  const fitScreenChk = radioDisplayPanel().querySelector('.sp-fit-screen-el');
   if (fitScreenChk && document.activeElement !== fitScreenChk) fitScreenChk.checked = !!opts.fitToScreen;
-  const autoGainChk = panel.querySelector('.au-autogain-el');
+  const autoGainChk = radioDisplayPanel().querySelector('.au-autogain-el');
   // Defaults to ON (opts.autoGain !== false), not off - see radio.js's
   // effectRadio() for the matching server-side default change.
   if (autoGainChk && document.activeElement !== autoGainChk) autoGainChk.checked = opts.autoGain !== false;
-  const gainSlider = panel.querySelector('.au-gain-el'), gainVal = panel.querySelector('.au-gain-val-el');
+  const gainSlider = radioDisplayPanel().querySelector('.au-gain-el'), gainVal = radioDisplayPanel().querySelector('.au-gain-val-el');
   if (gainSlider && document.activeElement !== gainSlider) { gainSlider.value = opts.gain ?? 2; if (gainVal) gainVal.textContent = Number(gainSlider.value).toFixed(1) + '×'; }
   const syncSlider = panel.querySelector('.au-sync-el'), syncVal = panel.querySelector('.au-sync-val-el');
   const syncAutoEl = panel.querySelector('.au-sync-auto-el'), autoOn = opts.syncAuto !== false; // Auto sync is the default
@@ -536,7 +540,7 @@ function syncRadioPanel() {
     if (syncVal) syncVal.textContent = Number.isFinite(m) ? m + 'ms' : '~200ms';
     if (syncSlider && Number.isFinite(m)) syncSlider.value = m;
   } else if (syncSlider && document.activeElement !== syncSlider) { syncSlider.value = opts.syncMs ?? 200; if (syncVal) syncVal.textContent = syncSlider.value + 'ms'; }
-  const scrollSlider = panel.querySelector('.au-scroll-speed-el'), scrollVal = panel.querySelector('.au-scroll-speed-val-el');
+  const scrollSlider = radioDisplayPanel().querySelector('.au-scroll-speed-el'), scrollVal = radioDisplayPanel().querySelector('.au-scroll-speed-val-el');
   if (scrollSlider && document.activeElement !== scrollSlider) { scrollSlider.value = opts.scrollSpeed ?? 0; if (scrollVal) scrollVal.textContent = scrollSlider.value; }
 }
 

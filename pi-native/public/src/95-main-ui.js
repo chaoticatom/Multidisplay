@@ -761,6 +761,7 @@ function cxWireExtras() {
   document.getElementById('notify-test')?.addEventListener('click', () => fetch(url().replace('Hello', 'Hello from the phone')).then(() => cxToast('Sent')));
   document.getElementById('notify-new')?.addEventListener('click', () => { if (confirm('Make a new link? The old one stops working.')) send({ cmd: 'newNotifyToken' }); });
   cxWireDj();
+  cxWireMusicTabs();
   document.getElementById('photo-input')?.addEventListener('change', async (e) => {
     const files = [...e.target.files]; e.target.value = '';
     const st = document.getElementById('photo-status');
@@ -990,8 +991,58 @@ function cxToggleSpectrum() {
 }
 function cxWireSpectrumShortcut() {
   document.getElementById('cx-show-spectrum')?.addEventListener('click', cxToggleSpectrum);
-  document.querySelectorAll('#panel-radio .spectrum-bands-btn, #panel-radio .au-theme-btn').forEach((b) => b.addEventListener('click', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
+  document.querySelectorAll('#radio-display-panel .spectrum-bands-btn, #radio-display-panel .au-theme-btn').forEach((b) => b.addEventListener('click', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
   document.querySelectorAll('#au-look-sel').forEach((el) => el.addEventListener('change', () => { if (currentState.effect !== 'radio') cxShowSpectrum(); }));
+}
+
+// ── The Music tab's player and tabs (Radio / Auto-DJ / Sound).
+function cxMusicTab(name) {
+  document.querySelectorAll('.mx-seg [data-mx]').forEach((b) => { const on = b.dataset.mx === name; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  document.querySelectorAll('.mx-pane').forEach((p) => { p.hidden = p.dataset.mx !== name; });
+  try { localStorage.setItem('mxTab', name); } catch (e) { /* private mode */ }
+}
+// Which station list shows: mine | recent | featured | search (also Top 60).
+function cxStationList(name) {
+  document.querySelectorAll('#mx-filters [data-mxf]').forEach((b) => b.classList.toggle('on', b.dataset.mxf === name || (name === 'search' && b.dataset.mxf === 'top' && !(document.querySelector('.radio-search-input-el')?.value))));
+  document.querySelectorAll('.mx-list').forEach((l) => { l.hidden = l.dataset.mxl !== name; });
+}
+function cxWireMusicTabs() {
+  if (!document.getElementById('mx-player')) return;
+  document.querySelectorAll('.mx-seg [data-mx]').forEach((b) => b.addEventListener('click', () => cxMusicTab(b.dataset.mx)));
+  let first = 'radio'; try { first = localStorage.getItem('mxTab') || 'radio'; } catch (e) { /* private mode */ }
+  cxMusicTab(['radio', 'dj', 'sound'].includes(first) ? first : 'radio');
+  document.querySelectorAll('#mx-filters [data-mxf]').forEach((b) => b.addEventListener('click', () => cxStationList(b.dataset.mxf === 'top' ? 'search' : b.dataset.mxf)));
+  const si = document.querySelector('.mx-search .radio-search-input-el');
+  document.querySelector('.mx-search .radio-search-btn-el')?.addEventListener('click', () => cxStationList('search'));
+  si?.addEventListener('keydown', (e) => { if (e.key === 'Enter') cxStationList('search'); });
+  cxStationList((currentState.prefs?.stations || []).length ? 'mine' : 'featured');
+  document.getElementById('mx-fav')?.addEventListener('click', () => {
+    const s = currentState.effectStatus?.radio?.station; if (!s || s.url === 'dj:') return;
+    send({ cmd: 'toggleStationFav', station: { name: s.name, genre: s.genre || '', url: s.url } });
+  });
+  document.getElementById('mx-out-pi')?.addEventListener('click', () => cxMusicTab('sound'));
+  document.getElementById('mx-display-link')?.addEventListener('click', () => {
+    if (currentState.effect !== 'radio') cxShowSpectrum();
+    document.querySelector('[role="tab"][data-tab="play"]')?.click();
+  });
+  document.getElementById('dj-change')?.addEventListener('click', () => document.getElementById('dj-setup')?.classList.toggle('mx-open'));
+}
+function cxSyncPlayer(st, playing) {
+  const isDj = playing && st.station.url === 'dj:';
+  const badge = document.getElementById('mx-badge');
+  if (badge) { badge.hidden = !playing; badge.textContent = isDj ? 'AUTO-DJ' : 'RADIO'; badge.classList.toggle('dj', isDj); }
+  const skip = document.getElementById('dj-skip'); if (skip) skip.hidden = !isDj;
+  const fav = document.getElementById('mx-fav');
+  if (fav) {
+    const on = playing && !isDj && (currentState.prefs?.stations || []).some((x) => x.url === st.station.url);
+    fav.hidden = !playing || isDj; fav.classList.toggle('on', on);
+    fav.title = on ? 'Remove from My stations' : 'Add to My stations'; fav.setAttribute('aria-label', fav.title);
+  }
+  const stop = document.querySelector('#mx-player .radio-stop-btn-el'); if (stop) stop.disabled = !playing;
+  const pi = document.getElementById('mx-out-pi'), warn = document.getElementById('spk-warn');
+  if (pi) pi.classList.toggle('on', !!warn && warn.hidden);
+  const recentEmpty = document.getElementById('mx-recent-empty'), rw = document.getElementById('radio-recent-wrap');
+  if (recentEmpty && rw) recentEmpty.hidden = !rw.hidden;
 }
 
 function cxSyncMusic() {
@@ -1002,11 +1053,12 @@ function cxSyncMusic() {
   const sb = document.getElementById('cx-show-spectrum');
   if (sb) {
     const on = currentState.effect === 'radio' && !!currentState.effectOptions?.radio?.spectrumOn;
-    sb.textContent = on ? '📊 Hide the spectrum' : '📊 Show the spectrum on the display';
+    sb.title = on ? 'Hide the spectrum' : 'Show the spectrum on the display'; sb.setAttribute('aria-label', sb.title);
     sb.classList.toggle('active', on);
   }
   document.getElementById('cx-np-name').textContent = playing ? st.station.name.replace(/^[\s-]+/, '') : 'Nothing playing';
-  document.getElementById('cx-np-sub').textContent = playing ? (st.title ? '♪ ' + st.title : st.station.genre || 'Radio') : 'Pick a station below';
+  document.getElementById('cx-np-sub').textContent = playing ? (st.title ? '♪ ' + st.title : st.station.genre || 'Radio') : 'Pick a station or start the DJ';
+  cxSyncPlayer(st, playing);
   const mb = document.getElementById('stop-sound-btn');
   if (mb) {
     const muted = radioMuted();
@@ -1142,9 +1194,22 @@ function cxSyncDj() {
     : d.next ? `Next: ${d.next.title}${d.next.bpm ? ` · ${d.next.bpm} BPM` : ''}${d.next.key ? ` · ${d.next.key}${d.next.shift ? ` (${d.next.shift > 0 ? '+' : ''}${d.next.shift} st)` : ''}` : ''}${d.next.mode ? ` · ${d.next.mode}` : d.next.status ? ' · getting it ready' : ''}${d.next.style === 'cut' ? ' · cut on the beat' : d.next.beats ? ` · ${d.next.beats}-beat ${d.next.style || 'blend'}` : ''}` : '';
   s.style.whiteSpace = 'pre-line';
   document.getElementById('dj-skip').disabled = !d.on;
+  // While the DJ plays, the source card folds away behind a one-line row.
+  const setup = document.getElementById('dj-setup'), change = document.getElementById('dj-change');
+  if (setup && change) {
+    const live = d.on && d.state !== 'error' && d.state !== 'empty';
+    setup.classList.toggle('mx-collapsed', live); change.hidden = !live;
+    if (!live) setup.classList.remove('mx-open');
+    const src = c ? { mp3: 'My music', youtube: 'YouTube', both: 'My music + YouTube' }[c.source] || '' : '';
+    const ss = document.getElementById('dj-src-sum'); if (ss) ss.textContent = src + ' ›';
+  }
+  const ytBox = document.getElementById('dj-youtube'); if (ytBox && c) ytBox.hidden = c.source === 'mp3';
+  const ms = document.getElementById('mx-mix-sum');
+  if (ms && c) ms.textContent = ({ auto: 'Auto', blend: 'Long blend', short: 'Short', cut: 'Cut' }[c.style || 'auto']) + (c.quick ? ' · Quick mix' : '') + ' ›';
   // The track list (tap one to play it next).
   const q = document.getElementById('dj-queue');
   q.hidden = !d.on || !d.queue || !d.queue.length;
+  const qc = document.getElementById('dj-queue-card'); if (qc) qc.hidden = q.hidden;
   const qkey = d.on ? d.queue.length + ':' + d.nowIdx + ':' + d.nextIdx + ':' + (d.queue[0] && d.queue[0].title) : '';
   if (!q.hidden && q.dataset.key !== qkey) {
     q.dataset.key = qkey;
@@ -1162,6 +1227,6 @@ function cxSyncDj() {
   if (list.dataset.key !== key) {
     list.dataset.key = key;
     list.replaceChildren(...d.music.map((n) => { const r = document.createElement('div'); r.className = 'dj-file'; const ic = document.createElement('span'); ic.textContent = '♪'; ic.className = 'dj-file-ic'; const t = document.createElement('span'); t.className = 'dj-file-name'; t.textContent = n.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' '); t.title = n; const x = document.createElement('button'); x.type = 'button'; x.className = 'dj-del'; x.setAttribute('aria-label', 'Remove ' + n); x.dataset.djdel = n; x.textContent = '✕'; r.append(ic, t, x); return r; }));
-    document.getElementById('dj-music-sum').textContent = `My music (${d.music.length})`;
+    document.getElementById('dj-music-sum').textContent = `🎵 My music · ${d.music.length}`;
   }
 }

@@ -363,6 +363,7 @@ function placeActivePanels() {
   const want = [];
   const panel = key && document.getElementById('panel-' + key);
   if (panel && !panel.closest('#music-section')) want.push(panel); // the radio lives on the Music tab
+  if (key === 'radio') { const dp = document.getElementById('radio-display-panel'); if (dp) want.push(dp); } // ...its display settings show here
   // Slideshow/letterbox controls only belong to the picture galleries.
   const shared = btn && ['apod', 'unsplash', 'artic'].includes(key) && btn.closest('.sub-section')?.querySelector('.art-shared-panel');
   if (shared) want.push(shared);
