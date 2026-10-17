@@ -20,9 +20,9 @@ function deleteMusic(name) {
   return true;
 }
 
-function ytRun(args, spawn, timeoutMs) {
+function ytRun(args, spawn, timeoutMs, { anon = false } = {}) {
   const yt = require('../youtube');
-  const cookies = yt.signedIn() ? ['--cookies', yt.COOKIE_FILE] : [];
+  const cookies = !anon && yt.signedIn() ? ['--cookies', yt.COOKIE_FILE] : [];
   return new Promise((resolve, reject) => {
     let out = '', err = '', done = false, p;
     try { p = spawn('yt-dlp', [...cookies, ...args], { stdio: ['ignore', 'pipe', 'pipe'] }); } catch (e) { reject(e); return; }
@@ -92,14 +92,21 @@ async function youtubeRadio(id, spawn = realSpawn) {
 // with current YouTube it often arrives unplayable - 'Invalid data'.)
 const AUDIO_FORMAT = 'bestaudio[ext=m4a]/bestaudio/best';
 // The audio-only stream for a YouTube track.
-async function youtubeAudio(id, spawn = realSpawn) {
-  const attempts = [['www'], ['www', '--extractor-args', 'youtube:player_client=tv,ios'], ['www', '--extractor-args', 'youtube:player_client=android,web_safari'], ['music']];
+let lastAttempt = 0;
+const URL_ATTEMPTS = [[true], [true, '--extractor-args', 'youtube:player_client=android,ios'], [false], [false, '--extractor-args', 'youtube:player_client=tv,ios']];
+// from: the attempt to start at (a download that failed moves on to the next).
+async function youtubeAudio(id, spawn = realSpawn, from = 0) {
+  // Without the sign-in first: signed-in requests now often get a stream
+  // address that needs a security token yt-dlp doesn't have, which ffmpeg
+  // then can't read ('Invalid data'). The account is the fallback (for
+  // songs that need it).
   let last = null;
-  for (const [host, ...extra] of attempts) {
+  for (let i = from; i < URL_ATTEMPTS.length; i++) {
+    const [anon, ...extra] = URL_ATTEMPTS[i];
     try {
-      const out = await ytRun(['-f', AUDIO_FORMAT, '-g', '--no-warnings', ...extra, `https://${host}.youtube.com/watch?v=${id}`], spawn, 40000);
+      const out = await ytRun(['-f', AUDIO_FORMAT, '-g', '--no-warnings', ...extra, `https://www.youtube.com/watch?v=${id}`], spawn, 40000, { anon });
       const url = out.trim().split('\n').find((l) => /^https?:\/\//.test(l));
-      if (url) return url;
+      if (url) { lastAttempt = i; return url; }
     } catch (e) { last = e; if (/not installed/.test(e.message)) throw e; }
   }
   throw last || new Error('no audio stream');
@@ -136,7 +143,21 @@ function fetchYoutube(id, spawn = realSpawn) {
   // The same stream address that plays, saved as it comes by ffmpeg (no
   // re-encoding) into Matroska, which holds any audio codec.
   const job = (async () => {
-    const url = await youtubeAudio(id, spawn);
+    let from = 0, lastErr = null;
+    while (from < URL_ATTEMPTS.length) {
+      let url;
+      try { url = await youtubeAudio(id, spawn, from); } catch (e) { throw lastErr || e; }
+      const tried = lastAttempt;
+      try { return await saveStream(id, url, spawn); } catch (e) { lastErr = e; from = tried + 1; }
+    }
+    throw lastErr || new Error('no audio');
+  })().finally(() => fetching.delete(id));
+  fetching.set(id, job);
+  return job;
+}
+// ffmpeg saves a stream address's audio as it comes into the cache.
+async function saveStream(id, url, spawn) {
+  {
     const tmp = path.join(CACHE_DIR, id + '.mka.part'), out = path.join(CACHE_DIR, id + '.mka');
     await new Promise((resolve, reject) => {
       let p, err = '';
@@ -151,9 +172,7 @@ function fetchYoutube(id, spawn = realSpawn) {
     fs.renameSync(tmp, out);
     trimCache();
     return out;
-  })().finally(() => fetching.delete(id));
-  fetching.set(id, job);
-  return job;
+  }
 }
 // Start fetching a track in the background (the one after next).
 function prefetch(track, spawn = realSpawn) { if (track && track.kind === 'yt') fetchYoutube(track.id, spawn).catch(() => {}); }
