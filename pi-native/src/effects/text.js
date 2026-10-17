@@ -33,8 +33,13 @@ function blitGlyph(rows, w, h, x0, y0, scale, plot, flipX = false, flipY = false
 const { PIXEL_FONT } = require('./weather/font');
 const { FONT: RADIO_GLYPHS, CHAR_W: RADIO_CHAR_W } = require('./radio/font');
 
-const FONT_3x5 = { w: 3, h: 5, adv: 4, get: (ch) => PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()] };
-const FONT_5x7 = { w: 5, h: 7, adv: RADIO_CHAR_W, get: (ch) => RADIO_GLYPHS[ch.toUpperCase()] || RADIO_GLYPHS['?'] };
+const FONT_3x5 = { w: 3, h: 5, adv: 4, get: (ch) => PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()] || PIXEL_FONT[plainChar(ch).toUpperCase()] };
+// Characters the pixel fonts lack, as the nearest plain one (dashes, curly
+// quotes, accents: 'é' -> 'e'); anything still missing draws as a space
+// rather than a '?'.
+const PLAIN = { '–': '-', '—': '-', '‐': '-', '‑': '-', '’': "'", '‘': "'", '´': "'", '`': "'", '“': '"', '”': '"', '…': '.', '·': '.', '•': '.', '×': 'X', 'ß': 'SS', 'Æ': 'AE', 'æ': 'AE', 'Ø': 'O', 'ø': 'O', 'Œ': 'OE', 'œ': 'OE', 'Ł': 'L', 'ł': 'L' };
+function plainChar(ch) { return PLAIN[ch] || ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 1) || ch; }
+const FONT_5x7 = { w: 5, h: 7, adv: RADIO_CHAR_W, get: (ch) => RADIO_GLYPHS[ch.toUpperCase()] || RADIO_GLYPHS[plainChar(ch).toUpperCase()] || (ch === '?' ? RADIO_GLYPHS['?'] : undefined) };
 // Same 5x7 glyphs, but a missing glyph draws a blank cell instead of '?' -
 // the date/time text renderer's long-standing behavior.
 const FONT_5x7_BLANK = { ...FONT_5x7, get: (ch) => RADIO_GLYPHS[ch.toUpperCase()] };
@@ -87,8 +92,27 @@ function drawLinesCentered(font, lines, W, H, plot, { scale = 1, ox = 0, oy = 0 
 // Endless horizontal marquee: repeats `label` across width W, shifted left
 // by scrollX pixels. The caller owns scrollX (advance it and wrap it at
 // label.length * font.adv). y is the glyph cell's top edge.
+// Smooth: with a plot that takes a strength (plot.alpha, as facePlot and
+// wallPlot do), text between whole pixels is drawn split across the two -
+// the pixels a letter moves into fade up as the ones it leaves fade down
+// (like a clock's sweeping second hand) - instead of jumping a pixel at a time.
+function drawStringSmooth(font, str, x, y, plot, opts = {}) {
+  const xi = Math.floor(x), f = x - xi;
+  if (!plot.alpha || f < 0.04) return drawString(font, str, xi, y, plot, opts);
+  if (f > 0.96) return drawString(font, str, xi + 1, y, plot, opts);
+  const acc = new Map();
+  const add = (px, py, a) => { const k = (py + 64) * 100000 + px + 50000; acc.set(k, (acc.get(k) || 0) + a); };
+  drawString(font, str, xi, y, (px, py) => { add(px, py, 1 - f); add(px + 1, py, f); }, opts);
+  for (const [k, a] of acc) plot((k % 100000) - 50000, Math.floor(k / 100000) - 64, a > 1 ? 1 : a);
+}
 function drawMarquee(font, label, scrollX, y, W, plot, { flipY = false, outline = null } = {}) {
   if (!label) return; // an empty label would never advance the pen
+  if (plot.alpha && scrollX !== Math.floor(scrollX)) {
+    const lw = label.length * font.adv;
+    if (outline) { const o = outlineOf(outline); for (let u = -scrollX; u < W; u += lw) drawString(font, label, Math.round(u), y, o, { flipY }); }
+    for (let u = -scrollX; u < W; u += lw) drawStringSmooth(font, label, u, y, plot, { flipY });
+    return;
+  }
   if (outline) drawMarquee(font, label, scrollX, y, W, outlineOf(outline), { flipY });
   let u = -Math.floor(scrollX);
   while (u < W) {
@@ -126,9 +150,29 @@ function outlineOf(plot) {
 
 // ── Common plot targets ──────────────────────────────────────────────────
 // Overwrite a cube face pixel (setFaceLED does its own bounds/faceMap check).
-const facePlot = (core, face, r, g, b) => (x, y) => core.setFaceLED(face, x, y, r, g, b);
+// An optional strength a (0-1, smooth text) blends over what's there.
+const facePlot = (core, face, r, g, b) => {
+  const f = (x, y, a = 1) => {
+    if (a >= 1) { core.setFaceLED(face, x, y, r, g, b); return; }
+    const S = core.SIZE; if (x < 0 || y < 0 || x >= S || y >= S) return;
+    const idx = core.faceMap[face][y * S + x]; if (idx < 0) return;
+    const o = idx * 3, c = core.colBuf;
+    core.setFaceLED(face, x, y, c[o] + (r - c[o]) * a, c[o + 1] + (g - c[o + 1]) * a, c[o + 2] + (b - c[o + 2]) * a);
+  };
+  f.alpha = true;
+  return f;
+};
 // Overwrite a wall pixel (setWallPixel does its own bounds + occupancy check).
-const wallPlot = (core, r, g, b) => (x, y) => core.setWallPixel(x, y, r, g, b);
+const wallPlot = (core, r, g, b) => {
+  const f = (x, y, a = 1) => {
+    if (a >= 1) { core.setWallPixel(x, y, r, g, b); return; }
+    if (x < 0 || y < 0 || x >= core.wallW || y >= core.wallH) return;
+    const o = (y * core.wallW + x) * 3, w = core.wallBuf;
+    core.setWallPixel(x, y, w[o] + (r - w[o]) * a, w[o + 1] + (g - w[o + 1]) * a, w[o + 2] + (b - w[o + 2]) * a);
+  };
+  f.alpha = true;
+  return f;
+};
 // Brighten-only (per-channel max) into a cube face - text laid over
 // imagery without darkening anything already brighter.
 const faceMaxPlot = (core, face, r, g, b) => {
@@ -157,7 +201,7 @@ const wallMaxPlot = (core, r, g, b) => {
 };
 
 module.exports = {
-  blitGlyph, drawGlyph, drawString, textWidth, drawLinesCentered, drawMarquee,
+  blitGlyph, drawGlyph, drawString, drawStringSmooth, textWidth, drawLinesCentered, drawMarquee, plainChar,
   drawGlyph5x7Face, outlineOf,
   FONT_3x5, FONT_5x7, FONT_5x7_BLANK, FONT_MOON,
   facePlot, wallPlot, faceMaxPlot, wallMaxPlot,

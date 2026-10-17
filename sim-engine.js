@@ -854,8 +854,12 @@ var PiEngine = (() => {
       }
       var { PIXEL_FONT } = require_font();
       var { FONT: RADIO_GLYPHS, CHAR_W: RADIO_CHAR_W } = require_font2();
-      var FONT_3x5 = { w: 3, h: 5, adv: 4, get: (ch) => PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()] };
-      var FONT_5x7 = { w: 5, h: 7, adv: RADIO_CHAR_W, get: (ch) => RADIO_GLYPHS[ch.toUpperCase()] || RADIO_GLYPHS["?"] };
+      var FONT_3x5 = { w: 3, h: 5, adv: 4, get: (ch) => PIXEL_FONT[ch] || PIXEL_FONT[ch.toUpperCase()] || PIXEL_FONT[plainChar(ch).toUpperCase()] };
+      var PLAIN = { "\u2013": "-", "\u2014": "-", "\u2010": "-", "\u2011": "-", "\u2019": "'", "\u2018": "'", "\xB4": "'", "`": "'", "\u201C": '"', "\u201D": '"', "\u2026": ".", "\xB7": ".", "\u2022": ".", "\xD7": "X", "\xDF": "SS", "\xC6": "AE", "\xE6": "AE", "\xD8": "O", "\xF8": "O", "\u0152": "OE", "\u0153": "OE", "\u0141": "L", "\u0142": "L" };
+      function plainChar(ch) {
+        return PLAIN[ch] || ch.normalize("NFD").replace(/[\u0300-\u036f]/g, "").slice(0, 1) || ch;
+      }
+      var FONT_5x7 = { w: 5, h: 7, adv: RADIO_CHAR_W, get: (ch) => RADIO_GLYPHS[ch.toUpperCase()] || RADIO_GLYPHS[plainChar(ch).toUpperCase()] || (ch === "?" ? RADIO_GLYPHS["?"] : void 0) };
       var FONT_5x7_BLANK = { ...FONT_5x7, get: (ch) => RADIO_GLYPHS[ch.toUpperCase()] };
       var MOON_GLYPHS = { ...PIXEL_FONT, "%": [5, 1, 2, 4, 5] };
       var FONT_MOON = { w: 3, h: 5, adv: 4, get: (ch) => MOON_GLYPHS[ch.toUpperCase()] };
@@ -885,8 +889,32 @@ var PiEngine = (() => {
           y += lineH;
         }
       }
+      function drawStringSmooth(font, str, x, y, plot, opts = {}) {
+        const xi = Math.floor(x), f = x - xi;
+        if (!plot.alpha || f < 0.04) return drawString(font, str, xi, y, plot, opts);
+        if (f > 0.96) return drawString(font, str, xi + 1, y, plot, opts);
+        const acc = /* @__PURE__ */ new Map();
+        const add = (px, py, a) => {
+          const k = (py + 64) * 1e5 + px + 5e4;
+          acc.set(k, (acc.get(k) || 0) + a);
+        };
+        drawString(font, str, xi, y, (px, py) => {
+          add(px, py, 1 - f);
+          add(px + 1, py, f);
+        }, opts);
+        for (const [k, a] of acc) plot(k % 1e5 - 5e4, Math.floor(k / 1e5) - 64, a > 1 ? 1 : a);
+      }
       function drawMarquee(font, label, scrollX, y, W, plot, { flipY = false, outline = null } = {}) {
         if (!label) return;
+        if (plot.alpha && scrollX !== Math.floor(scrollX)) {
+          const lw = label.length * font.adv;
+          if (outline) {
+            const o = outlineOf(outline);
+            for (let u2 = -scrollX; u2 < W; u2 += lw) drawString(font, label, Math.round(u2), y, o, { flipY });
+          }
+          for (let u2 = -scrollX; u2 < W; u2 += lw) drawStringSmooth(font, label, u2, y, plot, { flipY });
+          return;
+        }
         if (outline) drawMarquee(font, label, scrollX, y, W, outlineOf(outline), { flipY });
         let u = -Math.floor(scrollX);
         while (u < W) {
@@ -907,8 +935,35 @@ var PiEngine = (() => {
           plot(x, y + 1);
         };
       }
-      var facePlot = (core, face, r, g, b) => (x, y) => core.setFaceLED(face, x, y, r, g, b);
-      var wallPlot = (core, r, g, b) => (x, y) => core.setWallPixel(x, y, r, g, b);
+      var facePlot = (core, face, r, g, b) => {
+        const f = (x, y, a = 1) => {
+          if (a >= 1) {
+            core.setFaceLED(face, x, y, r, g, b);
+            return;
+          }
+          const S = core.SIZE;
+          if (x < 0 || y < 0 || x >= S || y >= S) return;
+          const idx = core.faceMap[face][y * S + x];
+          if (idx < 0) return;
+          const o = idx * 3, c = core.colBuf;
+          core.setFaceLED(face, x, y, c[o] + (r - c[o]) * a, c[o + 1] + (g - c[o + 1]) * a, c[o + 2] + (b - c[o + 2]) * a);
+        };
+        f.alpha = true;
+        return f;
+      };
+      var wallPlot = (core, r, g, b) => {
+        const f = (x, y, a = 1) => {
+          if (a >= 1) {
+            core.setWallPixel(x, y, r, g, b);
+            return;
+          }
+          if (x < 0 || y < 0 || x >= core.wallW || y >= core.wallH) return;
+          const o = (y * core.wallW + x) * 3, w = core.wallBuf;
+          core.setWallPixel(x, y, w[o] + (r - w[o]) * a, w[o + 1] + (g - w[o + 1]) * a, w[o + 2] + (b - w[o + 2]) * a);
+        };
+        f.alpha = true;
+        return f;
+      };
       var faceMaxPlot = (core, face, r, g, b) => {
         const { SIZE: S, faceMap, colBuf } = core;
         return (x, y) => {
@@ -935,9 +990,11 @@ var PiEngine = (() => {
         blitGlyph,
         drawGlyph,
         drawString,
+        drawStringSmooth,
         textWidth,
         drawLinesCentered,
         drawMarquee,
+        plainChar,
         drawGlyph5x7Face,
         outlineOf,
         FONT_3x5,
@@ -5781,7 +5838,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { FONT_3x5, FONT_5x7, drawString, textWidth } = require_text();
+      var { FONT_3x5, FONT_5x7, drawString, drawStringSmooth, textWidth } = require_text();
       var ROWS = 36;
       var NOW = { c: [0.15, 0.8, 1], text: [0.88, 0.96, 1], label: "NOW PLAYING", short: "NOW" };
       var NEXT = { c: [1, 0.55, 0.12], text: [1, 0.9, 0.72], label: "UP NEXT", short: "NEXT" };
@@ -5839,17 +5896,18 @@ var PiEngine = (() => {
           if (ds.s > loop) {
             ds.s -= loop;
           }
-          tx = x0 + 2 - Math.floor(ds.s);
+          tx = x0 + 2 - ds.s;
         }
-        const plotT = (x, y) => {
+        const plotT = (x, y, a = 1) => {
           const yy = y + slide;
           if (yy < clipTop || yy > clipBot || x < x0 + 2 || x >= x0 + 2 + area) return;
           const edge = tw > area ? sm(Math.min(x - (x0 + 2), x0 + 1 + area - x) / 4) : 1;
-          set(x, yy, d.textC || kind.text, (d.textA || 1) * edge * k);
+          set(x, yy, d.textC || kind.text, (d.textA || 1) * edge * k * a);
         };
+        plotT.alpha = true;
         if (title) {
-          drawString(FONT_5x7, title, tx, ty, plotT);
-          if (tw > area) drawString(FONT_5x7, title, tx + tw + 24, ty, plotT);
+          drawStringSmooth(FONT_5x7, title, tx, ty, plotT);
+          if (tw > area) drawStringSmooth(FONT_5x7, title, tx + tw + 24, ty, plotT);
         }
         const l1 = y0 + 17;
         if (d.line1) text3(d.line1, x0 + 2, l1, [0.85, 0.9, 1], 0.85);
@@ -5869,14 +5927,15 @@ var PiEngine = (() => {
             }
             const loop = l2w + 16;
             if (ds.s2 > loop) ds.s2 -= loop;
-            lx -= Math.floor(ds.s2);
+            lx -= ds.s2;
           }
-          const plot2 = (px, py) => {
+          const plot2 = (px, py, a = 1) => {
             if (px < x0 + 2 || px >= x0 + w - 2) return;
-            set(px, py, d.line2C || kind.c, (d.line2A || 0.85) * k);
+            set(px, py, d.line2C || kind.c, (d.line2A || 0.85) * k * a);
           };
-          drawString(FONT_3x5, line2, lx, l2, plot2);
-          if (l2w > w - 4) drawString(FONT_3x5, line2, lx + l2w + 16, l2, plot2);
+          plot2.alpha = true;
+          drawStringSmooth(FONT_3x5, line2, lx, l2, plot2);
+          if (l2w > w - 4) drawStringSmooth(FONT_3x5, line2, lx + l2w + 16, l2, plot2);
         }
         const by = H - 2, f = Math.max(0, Math.min(1, d.bar || 0)), span = w - 3, fill = Math.round(f * span);
         for (let x = 0; x <= span; x++) {
@@ -5930,15 +5989,16 @@ var PiEngine = (() => {
           }
           const loop = tw + 20;
           if (ds[key + "X"] > loop) ds[key + "X"] -= loop;
-          x -= Math.floor(ds[key + "X"]);
+          x -= ds[key + "X"];
         }
-        const plot = (px, py) => {
+        const plot = (px, py, s = 1) => {
           if (px < x0 || px >= x0 + w) return;
-          const edge = tw > w ? sm(Math.min(px - x0, x0 + w - 1 - px) / 3) : 1;
+          const edge = (tw > w ? sm(Math.min(px - x0, x0 + w - 1 - px) / 3) : 1) * s;
           tg.set(px, py, c[0] * a * edge, c[1] * a * edge, c[2] * a * edge);
         };
-        drawString(font, str, x, y, plot);
-        if (tw > w) drawString(font, str, x + tw + 20, y, plot);
+        plot.alpha = true;
+        drawStringSmooth(font, str, x, y, plot);
+        if (tw > w) drawStringSmooth(font, str, x + tw + 20, y, plot);
       }
       function drawMixer(tg, x0, w, y0, m, ms, dt, beat, adv) {
         const set = (x, y, c, a) => {

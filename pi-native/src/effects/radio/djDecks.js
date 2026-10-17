@@ -16,7 +16,7 @@
 // key, status, style, beats}, mixing, mixU 0..1, mixIn seconds or -1 }.
 'use strict';
 
-const { FONT_3x5, FONT_5x7, drawString, textWidth } = require('../text');
+const { FONT_3x5, FONT_5x7, drawString, drawStringSmooth, textWidth } = require('../text');
 
 const ROWS = 36; // up to 60% of a 64-row panel
 const NOW = { c: [0.15, 0.8, 1], text: [0.88, 0.96, 1], label: 'NOW PLAYING', short: 'NOW' };
@@ -57,16 +57,17 @@ function drawDeck(tg, x0, w, y0, kind, d, ds, dt, beat, adv) {
   if (tw > area) {
     if (ds.t > 2 && adv) ds.s += dt * 13;
     const loop = tw + 24; if (ds.s > loop) { ds.s -= loop; }
-    tx = x0 + 2 - Math.floor(ds.s);
+    tx = x0 + 2 - ds.s; // fractional: drawn smooth
   }
-  const plotT = (x, y) => {
+  const plotT = (x, y, a = 1) => {
     const yy = y + slide; if (yy < clipTop || yy > clipBot || x < x0 + 2 || x >= x0 + 2 + area) return;
     const edge = tw > area ? sm(Math.min(x - (x0 + 2), x0 + 1 + area - x) / 4) : 1; // soft ends while scrolling
-    set(x, yy, d.textC || kind.text, (d.textA || 1) * edge * k);
+    set(x, yy, d.textC || kind.text, (d.textA || 1) * edge * k * a);
   };
+  plotT.alpha = true;
   if (title) {
-    drawString(FONT_5x7, title, tx, ty, plotT);
-    if (tw > area) drawString(FONT_5x7, title, tx + tw + 24, ty, plotT);
+    drawStringSmooth(FONT_5x7, title, tx, ty, plotT);
+    if (tw > area) drawStringSmooth(FONT_5x7, title, tx + tw + 24, ty, plotT);
   }
   // Detail line 1: left text, right text.
   const l1 = y0 + 17;
@@ -77,10 +78,11 @@ function drawDeck(tg, x0, w, y0, kind, d, ds, dt, beat, adv) {
   if (line2 !== ds.l2) { ds.l2 = line2; ds.s2 = 0; ds.t2 = 0; }
   if (line2) {
     let lx = x0 + 2;
-    if (l2w > w - 4) { if (adv) { ds.t2 = (ds.t2 || 0) + dt; if (ds.t2 > 2) ds.s2 += dt * 11; } const loop = l2w + 16; if (ds.s2 > loop) ds.s2 -= loop; lx -= Math.floor(ds.s2); }
-    const plot2 = (px, py) => { if (px < x0 + 2 || px >= x0 + w - 2) return; set(px, py, d.line2C || kind.c, (d.line2A || 0.85) * k); };
-    drawString(FONT_3x5, line2, lx, l2, plot2);
-    if (l2w > w - 4) drawString(FONT_3x5, line2, lx + l2w + 16, l2, plot2);
+    if (l2w > w - 4) { if (adv) { ds.t2 = (ds.t2 || 0) + dt; if (ds.t2 > 2) ds.s2 += dt * 11; } const loop = l2w + 16; if (ds.s2 > loop) ds.s2 -= loop; lx -= ds.s2; }
+    const plot2 = (px, py, a = 1) => { if (px < x0 + 2 || px >= x0 + w - 2) return; set(px, py, d.line2C || kind.c, (d.line2A || 0.85) * k * a); };
+    plot2.alpha = true;
+    drawStringSmooth(FONT_3x5, line2, lx, l2, plot2);
+    if (l2w > w - 4) drawStringSmooth(FONT_3x5, line2, lx + l2w + 16, l2, plot2);
   }
   // The timeline: two rows; marked windows (the coming mix) under the fill.
   const by = H - 2, f = Math.max(0, Math.min(1, d.bar || 0)), span = w - 3, fill = Math.round(f * span);
@@ -116,9 +118,10 @@ function scrollText(tg, font, str, x0, w, y, c, a, ds, key, dt, adv) {
   const tw = str ? textWidth(font, str) : 0;
   if (ds[key + 'S'] !== str) { ds[key + 'S'] = str; ds[key + 'X'] = 0; ds[key + 'T'] = 0; }
   let x = x0 + (font === FONT_5x7 ? 0 : 0);
-  if (tw > w) { if (adv) { ds[key + 'T'] += dt; if (ds[key + 'T'] > 2) ds[key + 'X'] += dt * 12; } const loop = tw + 20; if (ds[key + 'X'] > loop) ds[key + 'X'] -= loop; x -= Math.floor(ds[key + 'X']); }
-  const plot = (px, py) => { if (px < x0 || px >= x0 + w) return; const edge = tw > w ? sm(Math.min(px - x0, x0 + w - 1 - px) / 3) : 1; tg.set(px, py, c[0] * a * edge, c[1] * a * edge, c[2] * a * edge); };
-  drawString(font, str, x, y, plot); if (tw > w) drawString(font, str, x + tw + 20, y, plot);
+  if (tw > w) { if (adv) { ds[key + 'T'] += dt; if (ds[key + 'T'] > 2) ds[key + 'X'] += dt * 12; } const loop = tw + 20; if (ds[key + 'X'] > loop) ds[key + 'X'] -= loop; x -= ds[key + 'X']; }
+  const plot = (px, py, s = 1) => { if (px < x0 || px >= x0 + w) return; const edge = (tw > w ? sm(Math.min(px - x0, x0 + w - 1 - px) / 3) : 1) * s; tg.set(px, py, c[0] * a * edge, c[1] * a * edge, c[2] * a * edge); };
+  plot.alpha = true;
+  drawStringSmooth(font, str, x, y, plot); if (tw > w) drawStringSmooth(font, str, x + tw + 20, y, plot);
 }
 function drawMixer(tg, x0, w, y0, m, ms, dt, beat, adv) {
   const set = (x, y, c, a) => { if (x >= x0 && x < x0 + w && a > 0.003) tg.set(x, y, c[0] * a, c[1] * a, c[2] * a); };

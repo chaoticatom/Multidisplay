@@ -70,10 +70,14 @@ test('drawGlyph returns the scaled advance, even for a missing glyph', () => {
 });
 
 test('font lookup rules are preserved per font', () => {
-  // 5x7 falls back to '?', the BLANK variant draws nothing.
+  // 5x7: a character it lacks draws as its plain version ('é' as 'E', '–' as
+  // '-') or, failing that, nothing (never a stray '?').
   const q = collector(); drawGlyph(FONT_5x7, '☃', 0, 0, q.plot);
-  const qq = collector(); drawGlyph(FONT_5x7, '?', 0, 0, qq.plot);
-  assert.deepStrictEqual(q.set(), qq.set());
+  assert.strictEqual(q.px.length, 0);
+  const e1 = collector(); drawGlyph(FONT_5x7, 'é', 0, 0, e1.plot); const e2 = collector(); drawGlyph(FONT_5x7, 'E', 0, 0, e2.plot);
+  assert.deepStrictEqual(e1.set(), e2.set());
+  const d1 = collector(); drawGlyph(FONT_5x7, '–', 0, 0, d1.plot); const d2 = collector(); drawGlyph(FONT_5x7, '-', 0, 0, d2.plot);
+  assert.deepStrictEqual(d1.set(), d2.set());
   const blank = collector(); drawGlyph(FONT_5x7_BLANK, '☃', 0, 0, blank.plot);
   assert.strictEqual(blank.px.length, 0);
   // The moon font adds '%' on top of PIXEL_FONT.
@@ -119,6 +123,14 @@ test('outline draws neighbours first, then the text on top', () => {
   const text = new Set(order.filter((p) => p[0] === 't').map((p) => p[1] + ',' + p[2]));
   const out = new Set(order.filter((p) => p[0] === 'o').map((p) => p[1] + ',' + p[2]));
   for (const k of text) { const [x, y] = k.split(',').map(Number); assert.ok(out.has(`${x - 1},${y}`) && out.has(`${x + 1},${y}`)); }
+});
+
+test('smooth text: between pixels, the strength splits across the two', () => {
+  const { drawStringSmooth } = require('../src/effects/text');
+  const got = new Map(); const plot = (x, y, a = 1) => got.set(x + ',' + y, (got.get(x + ',' + y) || 0) + a); plot.alpha = true;
+  drawStringSmooth(FONT_3x5, 'I', 0.25, 0, plot);
+  const vals = [...got.values()];
+  assert.ok(vals.some((v) => v > 0.7 && v < 0.8) && vals.some((v) => v > 0.2 && v < 0.3), 'partial strengths: ' + vals.join(','));
 });
 
 console.log(process.exitCode ? 'Some text tests FAILED' : 'All text tests passed');
