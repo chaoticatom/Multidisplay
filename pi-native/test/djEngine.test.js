@@ -132,6 +132,18 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     // Adding a song: 'next' goes straight after the one playing.
     const n0 = dj.status.queue.length, at = dj.add({ kind: 'yt', id: 'addedsong01', title: 'Added', name: 'Added', artist: 'Band' }, true);
     assert.ok(at === dj.status.nowIdx + 1 && dj.status.queue.length === n0 + 1 && dj.status.queue[at].artist === 'Band', 'added next');
+    // A hint of the next song: B's most sung bars, over a quiet phrase of A,
+    // well before the mix (or none - it's only sometimes).
+    let tz = null;
+    const hookB = { ...A, end: 300 * 44100, frames: 300 * 44100, info: { ...A.info, vocalLevel: '0'.repeat(20) + '99' + '0'.repeat(100) } };
+    const quietA = { ...long, pos: 0, info: { ...A.info, vocalLevel: '0'.repeat(200) } };
+    for (let k = 0; k < 20 && !tz; k++) tz = dj._test.planTease(quietA, hookB);
+    assert.ok(tz, 'a hint gets planned (some of the time)');
+    const hb = Math.round((tz.bFrom - hookB.firstDown) / hookB.vbBar);
+    assert.strictEqual(hb, 20, 'from the next song\'s hook');
+    const tph = ((tz.at - long.inFrame) / (16 * A.period)) % 1;
+    assert.ok(tz.len === Math.round(2 * A.bar) && Math.min(tph, 1 - tph) < 0.01, 'two bars, on a phrase');
+    assert.strictEqual(dj._test.planTease({ ...quietA, info: { ...A.info, vocalLevel: '9'.repeat(200) } }, hookB), null, 'never over singing');
     dj.stop(); assert.strictEqual(dj.status.state, 'stopped');
     console.log('  ok - beat-matched mixing from one track to the next');
     // Very different tempos (100 and 150 BPM): it still gets from one to the

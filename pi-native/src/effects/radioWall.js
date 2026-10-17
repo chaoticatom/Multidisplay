@@ -113,7 +113,9 @@ function effectRadioWall(core, dt) {
       const c2 = { ...ctx, amp: (i) => lA.amp[i], peak: (i) => lA.peak[i], ampArr: lA.amp, peakArr: lA.peak };
       if (opts.version === 1) renderSpectrumStyleWall(core, c2, style, spectrumWallState);
       else renderSpectrumV2Wall(core, c2, opts.scene || 'auto', v2State, opts.autoSecs);
-      const ready = djInfo.next && djInfo.next.status !== 'loading';
+      // From when the next song is being lined up with this one (the last
+      // 30 s before the mix), through the mix - and during a hint of it.
+      const ready = djInfo.next && djInfo.next.status !== 'loading' && (djInfo.mixing || djInfo.tease || (djInfo.mixIn >= 0 && djInfo.mixIn <= 30));
       djNext.k += ((ready ? 1 : 0) - djNext.k) * Math.min(1, dt * (ready ? 2 : 5));
       if (djNext.k > 0.02 && audio.specB) {
         const lB = computeLevels(djNext.b, { spec: audio.specB, peak: audio.specB }, o, dt);

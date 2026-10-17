@@ -231,7 +231,9 @@ function drawDjDecks(core, info, st, dt, beat = 0, where = 'wall') {
     else { stagePos = 3 + (u - sw) / (1 - sw) * 0.99; line = 'fading out the old song - ' + mmss((1 - u) * mixSecs) + ' left'; }
     lineC = AMBER;
   } else if (justDone) { stagePos = 4; line = 'now playing ' + (now.title || ''); }
-  else if (ready) { stagePos = 0; line = 'next: ' + [styleText(next), info.mixIn >= 0 ? 'in ' + mmss(info.mixIn) : '', next.shift ? 'key ' + (next.shift > 0 ? '+' : '') + next.shift : '', next.why || ''].filter(Boolean).join(' - '); }
+  else if (info.tease) { stagePos = 0; line = 'a hint of the next song...'; lineC = AMBER; }
+  else if (ready && info.mixIn >= 0 && info.mixIn <= 30) { stagePos = 0; line = 'cued - matching tempo and beat - ' + styleText(next) + ' in ' + mmss(info.mixIn); lineC = AMBER; }
+  else if (ready) { stagePos = 0; stageOn = false; line = 'next: ' + [styleText(next), info.mixIn >= 0 ? 'in ' + mmss(info.mixIn) : '', next.shift ? 'key ' + (next.shift > 0 ? '+' : '') + next.shift : '', next.why || ''].filter(Boolean).join(' - '); }
   else if (next) { line = 'next: getting ' + (next.title || '') + (next.step ? ' - ' + next.step : ''); stageOn = false; }
   else line = 'playing ' + ((now && now.title) || '');
   const fader = mixing ? (next && next.style === 'cut' ? 1 : u) : 0;
@@ -241,7 +243,7 @@ function drawDjDecks(core, info, st, dt, beat = 0, where = 'wall') {
     tl = { start, end, pos: now.pos, aEnd: Math.min(now.dur, mixEnd), bStart: now.mixAt, marks: [now.mixAt, now.mixAt + (now.mixLen || 0) * (info.mixSwap >= 0 ? info.mixSwap : 0.5), mixEnd] };
   }
   const mixerData = { nowTitle: now ? now.title : 'loading', nextTitle: next ? next.title : '', kA: mixing ? 1 - 0.4 * sm(u) : 1, kB: ready ? (mixing ? 0.75 + 0.25 * u : 0.8) : 0.45,
-    eqA: lvA.map((v, i) => v * eq[i]), eqB: lvB.map((v, i) => v * (mixing ? eq[3 + i] : 0.35)), fader, stagePos, stageOn, line, lineC, tl };
+    eqA: lvA.map((v, i) => v * eq[i]), eqB: lvB.map((v, i) => v * (mixing ? eq[3 + i] : info.tease ? [0, 0.6, 0.8][i] : 0.35)), fader, stagePos, stageOn, line, lineC, tl };
   if (!st.mixer) st.mixer = {};
   let mixerDrawn = false;
   const mixer = (tg, x0, w, y0) => { drawMixer(tg, x0, w, y0, mixerData, st.mixer, dt, beat, !mixerDrawn); mixerDrawn = true; };

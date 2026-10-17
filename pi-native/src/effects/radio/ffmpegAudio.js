@@ -583,6 +583,26 @@ class RadioAudio {
     one(b, bp, this.specB);
   }
 
+  // The Auto-DJ's status as it is HEARD: the engine mixes a couple of
+  // seconds ahead of the speaker (the queue, plus the speaker's own delay),
+  // so the decks, mixer and fades on the display are shown that much later
+  // - in step with the sound, not ahead of it.
+  get djInfo() {
+    const ds = this.dj && this.url === 'dj:' ? this.dj.status : null;
+    if (!ds || ds.state === 'stopped') { this._djHist = []; return null; }
+    const now = Date.now(), hist = this._djHist || (this._djHist = []);
+    if (!hist.length || now - hist[hist.length - 1].t >= 30) {
+      hist.push({ t: now, info: { now: ds.now ? { ...ds.now } : null, next: ds.next ? { ...ds.next } : null, error: ds.error || '', tease: !!(ds.tease && ds.tease.active), eq: (ds.eq || []).slice(), mixLen: ds.mixLen, mixSwap: ds.mixSwap, doneAt: ds.doneAt, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === undefined ? -1 : ds.mixIn } });
+      while (hist.length > 2 && now - hist[0].t > 15000) hist.shift();
+    }
+    const lag = (this._djQueue ? this._djQueue() : 0) + this._syncS * 1000;
+    let pick = hist[0];
+    for (let i = hist.length - 1; i >= 0; i--) if (hist[i].t <= now - lag) { pick = hist[i]; break; }
+    const out = { ...pick.info };
+    if (out.doneAt) out.doneAt += now - pick.t; // 'just finished' counts from when it was heard
+    return out;
+  }
+
   _updateWave(end, dt) {
     const wave = this.wave;
     if (end < WAVE_SPAN * 3) { for (let i = 0; i < WAVE_N; i++) wave[i] *= Math.max(0, 1 - dt * 6); return; }
@@ -686,7 +706,7 @@ class RadioAudio {
   // see RemoteAudio below.
   snapshot() {
     const ds = this.dj && this.url === 'dj:' ? this.dj.status : null, djSpec = ds && this.specA ? { specA: this.specA, specB: this.specB } : {};
-    return { djNow: ds && ds.now ? ds.now.title : '', ...djSpec, djInfo: ds && ds.state !== 'stopped' ? { now: ds.now, next: ds.next, error: ds.error || '', eq: ds.eq, mixLen: ds.mixLen, mixSwap: ds.mixSwap, doneAt: ds.doneAt, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === undefined ? -1 : ds.mixIn } : null, spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
+    return { djNow: ds && ds.now ? ds.now.title : '', ...djSpec, djInfo: this.djInfo, spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
   }
 
   // Auto speaker sync: ask the sound server how late our stream plays, and

@@ -28,7 +28,7 @@ const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const smooth = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
 
 function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sources'), decode = require('./decode'), analyser = require('./analyse'), log = console.log, setTimer = setInterval, clearTimer = clearInterval }) {
-  const st = { eq: [1, 1, 1, 0, 0, 0], mixLen: 0, mixSwap: -1, doneAt: 0, state: 'stopped', error: '', now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
+  const st = { tease: null, eq: [1, 1, 1, 0, 0, 0], mixLen: 0, mixSwap: -1, doneAt: 0, state: 'stopped', error: '', now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
   let wantNext = null, prepToken = 0;
   let cfg = { source: 'both', youtube: '', mixBeats: 'auto', quick: false, style: 'auto' };
   let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
@@ -63,6 +63,22 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     return c ? s / c : 0;
   }
   const vocalFree = (d, f0, f1) => vocalAt(d, f0, f1) < 0.3;
+
+  // A hint of the next song, now and then: B's catchiest bars (its most
+  // sung, past its intro) laid over A for two bars where A isn't singing,
+  // on a phrase, well before the mix - beat-matched, bass out, half volume.
+  function planTease(a, b) {
+    if (!(a.matched && b.matched) || !b.info.vocalLevel || !a.vbBar || !b.vbBar || Math.random() < 0.35) return null;
+    const lv = b.info.vocalLevel, j0 = Math.ceil((b.inFrame - b.firstDown) / b.vbBar) + 4, j1 = Math.floor(0.75 * (b.end - b.firstDown) / b.vbBar);
+    let bj = -1, bs = 11; // at least an average of 6 of 9 over the two bars
+    for (let j = j0; j + 1 < Math.min(j1, lv.length); j++) { const v = Number(lv[j]) + Number(lv[j + 1]); if (v > bs) { bs = v; bj = j; } }
+    if (bj < 0) return null;
+    const len = 2 * a.bar, from = Math.max(a.pos + 10 * RATE, a.inFrame + 0.3 * (a.end - a.inFrame)), to = a.inFrame + 0.75 * (a.end - a.inFrame);
+    const spots = [];
+    for (let f = a.inFrame + Math.ceil((from - a.inFrame) / (16 * a.period)) * 16 * a.period; f + len < to; f += 16 * a.period) if (vocalAt(a, f - a.bar, f + len + a.bar) < 0.12) spots.push(Math.round(f));
+    if (!spots.length) return null;
+    return { at: spots[Math.floor(Math.random() * spots.length)], len: Math.round(len), bFrom: Math.round(b.firstDown + bj * b.vbBar) };
+  }
 
   // An effect transition starting at frame f: how long it runs and when (as
   // a fraction of it) the new song drops in.
@@ -319,7 +335,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
           if (g !== gen || tok !== prepToken) return; // stopped, or another track was picked meanwhile
           d.qi = ti;
           if (A && !A.matched) d.matched = false;
-          B = d; d.readyAt = Date.now(); if (A) A.plan = null;
+          B = d; d.readyAt = Date.now(); if (A) { A.plan = null; A.tease = planTease(A, d); }
           const beat = d.matched && A && A.matched;
           st.next = { title: track.title, bpm: Math.round(d.bpm), bpmFrom: Math.round(d.info.bpm), tempoPct: Math.round((d.tempo - 1) * 1000) / 10, key: d.keyNow ? d.keyNow.camelot : '', shift: d.semis, mode: beat ? 'beat-matched' : 'crossfade' };
           // Fetch the one after next meanwhile, so it's ready in time.
@@ -353,7 +369,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     if (A) { recent.push(A.track.id); while (recent.length > Math.max(1, Math.floor(list.length / 2))) recent.shift(); }
     A = B; B = null; mix = null; st.mixing = false;
     if (A.pos === 0) A.pos = Math.round(A.inFrame);
-    A.plan = null; A.force = 0; A.loops = 0;
+    A.plan = null; A.force = 0; A.loops = 0; A.tease = null; st.tease = null;
     A.loopAt = A.matched && A.bar > 0 ? Math.round(A.firstDown + Math.floor((A.end - A.firstDown) / A.bar) * A.bar) : 0;
     if (A.loopAt - 4 * A.bar < A.pos) A.loopAt = 0;
     st.state = 'playing'; st.nowIdx = A.qi === undefined ? -1 : A.qi; st.nextIdx = -1;
@@ -452,7 +468,18 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
         } else {
           // The next track isn't ready yet: loop A's last four bars on the beat rather than fall silent.
           if (!B && A.matched && preparing && A.loopAt && A.pos >= A.loopAt && A.loops < 12) { A.pos -= Math.round(4 * A.bar); A.loops++; }
-          sampleDeck(A, 1, 1, 1, 1, OUT); A.pos++;
+          sampleDeck(A, 1, 1, 1, 1, OUT);
+          // A hint of the next song: its hook laid over this one for a moment.
+          const tz = A.tease;
+          if (tz && B && A.pos >= tz.at && A.pos < tz.at + tz.len) {
+            if (A.plan && tz.at > A.plan.start - 20 * RATE) A.tease = null; // too near the mix after all
+            else {
+              if (!tz.deck) { tz.deck = { pcm: B.pcm, frames: B.frames, lp: new Float32Array(8), gain: B.gain }; tz.off = lagBetween(A.pos, tz.bFrom, 4 * A.period, A.period / 4, A, B); st.tease = { active: true }; log(`[dj] a hint of ${B.track.title}`); }
+              const q = (A.pos - tz.at) / tz.len, env = smooth(q / 0.25) * (1 - smooth((q - 0.75) / 0.25));
+              sampleAt(tz.deck, tz.bFrom + tz.off + (A.pos - tz.at), 0.55 * env, 0, 0.8, 1, OUT); // no bass: the two kicks never clash
+            }
+          } else if (tz && tz.deck && A.pos >= tz.at + tz.len) { A.tease = null; st.tease = null; }
+          A.pos++;
         }
       }
       if (echo.d > 0) {
@@ -577,7 +604,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   // Skip: mix into the next track from A's next bar, over 8 beats.
   function skip() { if (A && !mix) { A.force = 8; A.plan = null; if (!B) prepareNext(); } }
 
-  return { start, stop, configure, deckFeed, remove, add, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() { return A; }, get B() { return B; } } };
+  return { start, stop, configure, deckFeed, remove, add, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, planTease, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() { return A; }, get B() { return B; } } };
 }
 
 module.exports = { createDjEngine, RATE };

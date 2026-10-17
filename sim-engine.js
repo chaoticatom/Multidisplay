@@ -3183,7 +3183,7 @@ var PiEngine = (() => {
         return x * x * (3 - 2 * x);
       };
       function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require_sources(), decode = require_decode(), analyser = require_analyse(), log = console.log, setTimer = setInterval, clearTimer = clearInterval }) {
-        const st = { eq: [1, 1, 1, 0, 0, 0], mixLen: 0, mixSwap: -1, doneAt: 0, state: "stopped", error: "", now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
+        const st = { tease: null, eq: [1, 1, 1, 0, 0, 0], mixLen: 0, mixSwap: -1, doneAt: 0, state: "stopped", error: "", now: null, next: null, mixing: false, played: 0, queue: [], nowIdx: -1, nextIdx: -1 };
         let wantNext = null, prepToken = 0;
         let cfg = { source: "both", youtube: "", mixBeats: "auto", quick: false, style: "auto" };
         let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
@@ -3228,6 +3228,24 @@ var PiEngine = (() => {
           return c ? s / c : 0;
         }
         const vocalFree = (d, f0, f1) => vocalAt(d, f0, f1) < 0.3;
+        function planTease(a, b) {
+          if (!(a.matched && b.matched) || !b.info.vocalLevel || !a.vbBar || !b.vbBar || Math.random() < 0.35) return null;
+          const lv = b.info.vocalLevel, j0 = Math.ceil((b.inFrame - b.firstDown) / b.vbBar) + 4, j1 = Math.floor(0.75 * (b.end - b.firstDown) / b.vbBar);
+          let bj = -1, bs = 11;
+          for (let j = j0; j + 1 < Math.min(j1, lv.length); j++) {
+            const v = Number(lv[j]) + Number(lv[j + 1]);
+            if (v > bs) {
+              bs = v;
+              bj = j;
+            }
+          }
+          if (bj < 0) return null;
+          const len = 2 * a.bar, from = Math.max(a.pos + 10 * RATE, a.inFrame + 0.3 * (a.end - a.inFrame)), to = a.inFrame + 0.75 * (a.end - a.inFrame);
+          const spots = [];
+          for (let f = a.inFrame + Math.ceil((from - a.inFrame) / (16 * a.period)) * 16 * a.period; f + len < to; f += 16 * a.period) if (vocalAt(a, f - a.bar, f + len + a.bar) < 0.12) spots.push(Math.round(f));
+          if (!spots.length) return null;
+          return { at: spots[Math.floor(Math.random() * spots.length)], len: Math.round(len), bFrom: Math.round(b.firstDown + bj * b.vbBar) };
+        }
         function fxPlan(style, f, a) {
           const pb = a.period > 0 ? a.period : RATE / 2;
           const spec = { echo: [4, 0.42], filter: [8, 0.75], roll: [4, 0.999], brake: [0, 0.82] }[style];
@@ -3510,7 +3528,10 @@ var PiEngine = (() => {
                 if (A && !A.matched) d.matched = false;
                 B = d;
                 d.readyAt = Date.now();
-                if (A) A.plan = null;
+                if (A) {
+                  A.plan = null;
+                  A.tease = planTease(A, d);
+                }
                 const beat = d.matched && A && A.matched;
                 st.next = { title: track.title, bpm: Math.round(d.bpm), bpmFrom: Math.round(d.info.bpm), tempoPct: Math.round((d.tempo - 1) * 1e3) / 10, key: d.keyNow ? d.keyNow.camelot : "", shift: d.semis, mode: beat ? "beat-matched" : "crossfade" };
                 if (sources.prefetch && list.length > 1) {
@@ -3567,6 +3588,8 @@ var PiEngine = (() => {
           A.plan = null;
           A.force = 0;
           A.loops = 0;
+          A.tease = null;
+          st.tease = null;
           A.loopAt = A.matched && A.bar > 0 ? Math.round(A.firstDown + Math.floor((A.end - A.firstDown) / A.bar) * A.bar) : 0;
           if (A.loopAt - 4 * A.bar < A.pos) A.loopAt = 0;
           st.state = "playing";
@@ -3736,6 +3759,23 @@ var PiEngine = (() => {
                   A.loops++;
                 }
                 sampleDeck(A, 1, 1, 1, 1, OUT);
+                const tz = A.tease;
+                if (tz && B && A.pos >= tz.at && A.pos < tz.at + tz.len) {
+                  if (A.plan && tz.at > A.plan.start - 20 * RATE) A.tease = null;
+                  else {
+                    if (!tz.deck) {
+                      tz.deck = { pcm: B.pcm, frames: B.frames, lp: new Float32Array(8), gain: B.gain };
+                      tz.off = lagBetween(A.pos, tz.bFrom, 4 * A.period, A.period / 4, A, B);
+                      st.tease = { active: true };
+                      log(`[dj] a hint of ${B.track.title}`);
+                    }
+                    const q = (A.pos - tz.at) / tz.len, env = smooth(q / 0.25) * (1 - smooth((q - 0.75) / 0.25));
+                    sampleAt(tz.deck, tz.bFrom + tz.off + (A.pos - tz.at), 0.55 * env, 0, 0.8, 1, OUT);
+                  }
+                } else if (tz && tz.deck && A.pos >= tz.at + tz.len) {
+                  A.tease = null;
+                  st.tease = null;
+                }
                 A.pos++;
               }
             }
@@ -3924,7 +3964,7 @@ var PiEngine = (() => {
             if (!B) prepareNext();
           }
         }
-        return { start, stop, configure, deckFeed, remove, add, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() {
+        return { start, stop, configure, deckFeed, remove, add, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, planTease, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() {
           return A;
         }, get B() {
           return B;
@@ -4925,6 +4965,31 @@ var PiEngine = (() => {
           }
           one(b, bp, this.specB);
         }
+        // The Auto-DJ's status as it is HEARD: the engine mixes a couple of
+        // seconds ahead of the speaker (the queue, plus the speaker's own delay),
+        // so the decks, mixer and fades on the display are shown that much later
+        // - in step with the sound, not ahead of it.
+        get djInfo() {
+          const ds = this.dj && this.url === "dj:" ? this.dj.status : null;
+          if (!ds || ds.state === "stopped") {
+            this._djHist = [];
+            return null;
+          }
+          const now = Date.now(), hist = this._djHist || (this._djHist = []);
+          if (!hist.length || now - hist[hist.length - 1].t >= 30) {
+            hist.push({ t: now, info: { now: ds.now ? { ...ds.now } : null, next: ds.next ? { ...ds.next } : null, error: ds.error || "", tease: !!(ds.tease && ds.tease.active), eq: (ds.eq || []).slice(), mixLen: ds.mixLen, mixSwap: ds.mixSwap, doneAt: ds.doneAt, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === void 0 ? -1 : ds.mixIn } });
+            while (hist.length > 2 && now - hist[0].t > 15e3) hist.shift();
+          }
+          const lag = (this._djQueue ? this._djQueue() : 0) + this._syncS * 1e3;
+          let pick = hist[0];
+          for (let i = hist.length - 1; i >= 0; i--) if (hist[i].t <= now - lag) {
+            pick = hist[i];
+            break;
+          }
+          const out = { ...pick.info };
+          if (out.doneAt) out.doneAt += now - pick.t;
+          return out;
+        }
         _updateWave(end, dt) {
           const wave = this.wave;
           if (end < WAVE_SPAN * 3) {
@@ -5052,7 +5117,7 @@ var PiEngine = (() => {
         // see RemoteAudio below.
         snapshot() {
           const ds = this.dj && this.url === "dj:" ? this.dj.status : null, djSpec = ds && this.specA ? { specA: this.specA, specB: this.specB } : {};
-          return { djNow: ds && ds.now ? ds.now.title : "", ...djSpec, djInfo: ds && ds.state !== "stopped" ? { now: ds.now, next: ds.next, error: ds.error || "", eq: ds.eq, mixLen: ds.mixLen, mixSwap: ds.mixSwap, doneAt: ds.doneAt, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === void 0 ? -1 : ds.mixIn } : null, spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
+          return { djNow: ds && ds.now ? ds.now.title : "", ...djSpec, djInfo: this.djInfo, spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
         }
         // Auto speaker sync: ask the sound server how late our stream plays, and
         // ease the bars' delay towards it (readings jitter a little).
@@ -6342,8 +6407,17 @@ var PiEngine = (() => {
         } else if (justDone) {
           stagePos = 4;
           line = "now playing " + (now.title || "");
+        } else if (info.tease) {
+          stagePos = 0;
+          line = "a hint of the next song...";
+          lineC = AMBER;
+        } else if (ready && info.mixIn >= 0 && info.mixIn <= 30) {
+          stagePos = 0;
+          line = "cued - matching tempo and beat - " + styleText(next) + " in " + mmss(info.mixIn);
+          lineC = AMBER;
         } else if (ready) {
           stagePos = 0;
+          stageOn = false;
           line = "next: " + [styleText(next), info.mixIn >= 0 ? "in " + mmss(info.mixIn) : "", next.shift ? "key " + (next.shift > 0 ? "+" : "") + next.shift : "", next.why || ""].filter(Boolean).join(" - ");
         } else if (next) {
           line = "next: getting " + (next.title || "") + (next.step ? " - " + next.step : "");
@@ -6361,7 +6435,7 @@ var PiEngine = (() => {
           kA: mixing ? 1 - 0.4 * sm(u) : 1,
           kB: ready ? mixing ? 0.75 + 0.25 * u : 0.8 : 0.45,
           eqA: lvA.map((v, i) => v * eq[i]),
-          eqB: lvB.map((v, i) => v * (mixing ? eq[3 + i] : 0.35)),
+          eqB: lvB.map((v, i) => v * (mixing ? eq[3 + i] : info.tease ? [0, 0.6, 0.8][i] : 0.35)),
           fader,
           stagePos,
           stageOn,
@@ -30047,7 +30121,7 @@ var PiEngine = (() => {
             const c2 = { ...ctx, amp: (i) => lA.amp[i], peak: (i) => lA.peak[i], ampArr: lA.amp, peakArr: lA.peak };
             if (opts.version === 1) renderSpectrumStyleWall(core, c2, style, spectrumWallState);
             else renderSpectrumV2Wall(core, c2, opts.scene || "auto", v2State, opts.autoSecs);
-            const ready = djInfo.next && djInfo.next.status !== "loading";
+            const ready = djInfo.next && djInfo.next.status !== "loading" && (djInfo.mixing || djInfo.tease || djInfo.mixIn >= 0 && djInfo.mixIn <= 30);
             djNext.k += ((ready ? 1 : 0) - djNext.k) * Math.min(1, dt * (ready ? 2 : 5));
             if (djNext.k > 0.02 && audio.specB) {
               const lB = computeLevels(djNext.b, { spec: audio.specB, peak: audio.specB }, o, dt);
