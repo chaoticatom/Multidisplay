@@ -68,7 +68,7 @@ async function youtubeTracks(query, spawn = realSpawn) {
 // Your YouTube Music library (signed in): Liked music, then your playlists.
 async function youtubeLibrary(spawn = realSpawn) {
   const yt = require('../youtube');
-  if (!yt.signedIn()) throw new Error('Sign in to YouTube first (Setup > YouTube)');
+  if (!yt.signedIn()) throw new Error('Sign in to YouTube first (just below)');
   const items = [{ id: 'LM', title: '❤ Liked music', url: 'https://music.youtube.com/playlist?list=LM' }];
   for (const src of ['https://www.youtube.com/feed/playlists', 'https://music.youtube.com/library/playlists']) {
     try {

@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.342';
+const APP_VERSION = '0.6.343';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -5666,6 +5666,12 @@ document.getElementById('yt-cookie-file')?.addEventListener('change', (e) => {
   f.text().then((text) => send({ cmd: 'ytCookies', text })); e.target.value = '';
 });
 document.getElementById('yt-signout')?.addEventListener('click', () => send({ cmd: 'ytCookies', text: '' }));
+// The same sign-in, from the Auto-DJ's YouTube Music section.
+document.getElementById('dj-yt-cookie-file')?.addEventListener('change', (e) => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  f.text().then((text) => { send({ cmd: 'ytCookies', text }); cxToast('Signing in…'); setTimeout(() => send({ cmd: 'djLibrary' }), 1500); }); e.target.value = '';
+});
+document.getElementById('dj-yt-signout')?.addEventListener('click', () => send({ cmd: 'ytCookies', text: '' }));
 document.getElementById('yt-favs-btn')?.addEventListener('click', (e) => { e.currentTarget.classList.toggle('active'); cxSyncYouTube(); });
 
 // AI Art's own prompt box: asks the AI to draw (same path as the Ask bar).
@@ -6236,7 +6242,10 @@ function cxSyncDj() {
   const libWrap = document.getElementById('dj-yt-lib'); if (libWrap && c) libWrap.hidden = c.source === 'mp3';
   const lib = d.library, libList = document.getElementById('dj-lib-list'), libNote = document.getElementById('dj-lib-note');
   if (libList && libNote) {
-    libNote.textContent = lib && lib.loading ? 'Loading your playlists…' : lib && lib.error ? '⚠ ' + lib.error : !d.signedIn ? 'Sign in to YouTube (Setup › YouTube) for your playlists and Premium sound.' : '';
+    libNote.textContent = lib && lib.loading ? 'Loading your playlists…' : lib && lib.error && d.signedIn ? '⚠ ' + lib.error : !d.signedIn ? 'Sign in below for your playlists and Premium sound.' : '';
+    const ss = document.getElementById('dj-signin-state'); if (ss) ss.textContent = d.signedIn ? '✓ Signed in' : 'Not signed in';
+    const so = document.getElementById('dj-yt-signout'); if (so) so.hidden = !d.signedIn;
+    const si = document.getElementById('dj-signin'); if (si && !d.signedIn && lib && lib.error && !si.dataset.opened) { si.open = true; si.dataset.opened = '1'; }
     const items = (lib && lib.items) || [], key = items.map((x) => x.id).join(',') + '|' + (c ? c.youtube : '');
     libList.hidden = !items.length;
     if (libList.dataset.key !== key) {

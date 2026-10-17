@@ -2580,7 +2580,7 @@ var PiEngine = (() => {
       }
       async function youtubeLibrary(spawn = realSpawn) {
         const yt = require_youtube();
-        if (!yt.signedIn()) throw new Error("Sign in to YouTube first (Setup > YouTube)");
+        if (!yt.signedIn()) throw new Error("Sign in to YouTube first (just below)");
         const items = [{ id: "LM", title: "\u2764 Liked music", url: "https://music.youtube.com/playlist?list=LM" }];
         for (const src of ["https://www.youtube.com/feed/playlists", "https://music.youtube.com/library/playlists"]) {
           try {
@@ -29471,7 +29471,12 @@ var PiEngine = (() => {
           if (djInfo && audio.specA && core.wallW >= 96) {
             if (!split) split = { a: splitSide(), b: splitSide(), kB: 0, merged: null };
             const half = Math.floor(core.wallW / 2), wR = core.wallW - half, H = core.wallH;
-            const u = djInfo.mixing ? Math.max(0, Math.min(1, djInfo.mixU || 0)) : 0, e = u * u * (3 - 2 * u);
+            const u = djInfo.mixing ? Math.max(0, Math.min(1, djInfo.mixU || 0)) : 0;
+            const sm3 = (x) => {
+              x = x < 0 ? 0 : x > 1 ? 1 : x;
+              return x * x * (3 - 2 * x);
+            };
+            const slide = sm3(u / 0.35), fadeA = sm3((u - 0.8) / 0.2), together = djInfo.mixing ? slide * (1 - fadeA) : 0, e = fadeA;
             const kBWant = djInfo.next && djInfo.next.status !== "loading" ? 0.62 : 0;
             split.kB += (kBWant - split.kB) * Math.min(1, dt * (kBWant > split.kB ? 1.2 : 4));
             const o = { bands, gain, autoGain: autoGainOn, fitToScreen };
@@ -29498,23 +29503,43 @@ var PiEngine = (() => {
               if (add) core.setWallPixel(x, y, Math.min(1.6, wb[q] + r), Math.min(1.6, wb[q + 1] + g), Math.min(1.6, wb[q + 2] + b2));
               else core.setWallPixel(x, y, r, g, b2);
             };
-            const bufA = draw(split.a, half, m);
-            for (let y = 0; y < H; y++) for (let x = 0; x < half; x++) {
-              const q = (y * half + x) * 3;
-              if (bufA[q] + bufA[q + 1] + bufA[q + 2] > 0) put(x, y, bufA[q], bufA[q + 1], bufA[q + 2], false);
+            const bufA = draw(split.a, half, m), kA = 1 - fadeA;
+            const kB = djInfo.mixing ? Math.max(split.kB, 0.62) + (1 - Math.max(split.kB, 0.62)) * fadeA : split.kB;
+            const bufB = kB > 0.01 ? draw(split.b, wR, lB) : null;
+            const x0B = djInfo.mixing ? Math.round(half * (1 - slide)) : half, tint = 0.75 * together;
+            const W2 = core.wallW, AMB = [1, 0.55, 0.12];
+            for (let y = 0; y < H; y++) for (let x = 0; x < W2; x++) {
+              let r = 0, g = 0, bl = 0, la = 0, lb = 0;
+              if (x < half) {
+                const q = (y * half + x) * 3;
+                r = bufA[q] * kA;
+                g = bufA[q + 1] * kA;
+                bl = bufA[q + 2] * kA;
+                la = r + g + bl;
+              }
+              const xb = x - x0B;
+              if (bufB && xb >= 0 && xb < wR) {
+                const q = (y * wR + xb) * 3, br = bufB[q], bg = bufB[q + 1], bb = bufB[q + 2];
+                lb = (br + bg + bb) * kB;
+                if (lb > 0) {
+                  const lum = (br + bg + bb) / 3;
+                  r += (br + (AMB[0] * lum * 1.6 - br) * tint) * kB;
+                  g += (bg + (AMB[1] * lum * 1.6 - bg) * tint) * kB;
+                  bl += (bb + (AMB[2] * lum * 1.6 - bb) * tint) * kB;
+                }
+              }
+              if (together > 0.02 && la > 0.25 && lb > 0.25) {
+                const w = Math.min(la, lb) * 0.28 * together;
+                r += w;
+                g += w;
+                bl += w;
+              }
+              if (r + g + bl > 0) core.setWallPixel(x, y, Math.min(1.6, r), Math.min(1.6, g), Math.min(1.6, bl));
             }
-            const kB = djInfo.mixing ? Math.max(split.kB, 0.62 + 0.38 * Math.sin(Math.PI * Math.min(1, u * 1.4))) * (1 - e * e) : split.kB;
-            if (kB > 0.01) {
-              const bufB = draw(split.b, wR, lB), shift = Math.round(e * half);
-              for (let y = 0; y < H; y++) for (let x = 0; x < wR; x++) {
-                const q = (y * wR + x) * 3;
-                if (bufB[q] + bufB[q + 1] + bufB[q + 2] > 0) put(half - shift + x, y, bufB[q] * kB, bufB[q + 1] * kB, bufB[q + 2] * kB, shift > 0);
-              }
-              const glow = Math.sin(Math.PI * u), sx = half - shift, area = H - DJ_ROWS;
-              if (glow > 0.02) for (let y = 0; y < area; y++) for (let d = -3; d <= 3; d++) {
-                const k = glow * (1 - Math.abs(d) / 4) * (0.55 + 0.45 * Math.sin(y * 0.35 + core.t * 9)) * 0.5;
-                put(sx + d, y, 1 * k * (d >= 0 ? 1 : 0.35), 0.62 * k, (d < 0 ? 1 : 0.25) * k, true);
-              }
+            const glow = djInfo.mixing ? Math.sin(Math.PI * slide) : 0, area = H - DJ_ROWS;
+            if (glow > 0.02) for (let y = 0; y < area; y++) for (let d = -3; d <= 3; d++) {
+              const k = glow * (1 - Math.abs(d) / 4) * (0.55 + 0.45 * Math.sin(y * 0.35 + core.t * 9)) * 0.5;
+              put(x0B + d, y, 1 * k * (d >= 0 ? 1 : 0.35), 0.62 * k, (d < 0 ? 1 : 0.25) * k, true);
             }
           } else if (opts.version === 1) renderSpectrumStyleWall(core, ctx, style, spectrumWallState);
           else renderSpectrumV2Wall(core, ctx, opts.scene || "auto", v2State, opts.autoSecs);
