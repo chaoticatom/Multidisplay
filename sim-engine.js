@@ -3000,9 +3000,9 @@ var PiEngine = (() => {
           return i < a || i + 1 >= b ? 0 : on[i] * (1 - u) + on[i + 1] * u;
         };
         let bestLagF = lag, bestPh = 0, bestS = -1;
-        const fit = (lagF, ph) => {
+        const fit = (lagF2, ph) => {
           let sm = 0;
-          for (let f = a + ph; f < b; f += lagF) sm += at(f) + 0.6 * (at(f - 1) + at(f + 1));
+          for (let f = a + ph; f < b; f += lagF2) sm += at(f) + 0.6 * (at(f - 1) + at(f + 1));
           return sm;
         };
         for (let l = lag - 0.8; l <= lag + 0.8; l += 0.05) for (let ph = 0; ph < l; ph += 0.5) {
@@ -3109,7 +3109,48 @@ var PiEngine = (() => {
         };
         const tl = top(eb), tb = top(bb);
         const energyBars = eb.map((v, j) => Math.round(9 * Math.max(0, Math.min(1, 0.6 * (v / tl) + 0.4 * (bb[j] / tb)) ** 1.5))).join("");
-        return { vocalBars, vocalLevel, energyBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
+        const offs = [], lagF = bestLagF;
+        for (let w0 = a + bestPh; w0 + 16 * lagF < b; w0 += 16 * lagF) {
+          let bs = -1, bo2 = 0;
+          for (let o = -0.3 * lagF; o <= 0.3 * lagF; o += 0.1) {
+            let sm = 0;
+            for (let k = 0; k < 16; k++) sm += at(w0 + o + k * lagF);
+            if (sm > bs) {
+              bs = sm;
+              bo2 = o;
+            }
+          }
+          offs.push(bo2 / FPS * 1e3);
+        }
+        const mOff = offs.reduce((x2, y) => x2 + y, 0) / Math.max(1, offs.length);
+        const drift = Math.sqrt(offs.reduce((x2, y) => x2 + (y - mOff) ** 2, 0) / Math.max(1, offs.length));
+        const steady = confidence > 0.35 && drift < 20;
+        let endKind = "cold", fadeStart = musicEnd;
+        {
+          const sec = Math.round(FPS), dbAt = (s) => {
+            let q = 0, c = 0;
+            for (let f = Math.max(0, s - sec); f < Math.min(n, s); f++) {
+              q += lvl[f] * lvl[f];
+              c++;
+            }
+            return 10 * Math.log10(q / Math.max(1, c) + 1e-12);
+          };
+          const endF = s1, from = Math.max(s0, endF - 14 * sec);
+          let peak = -999, peakAt = from;
+          for (let f = from; f <= endF; f += Math.round(sec / 4)) {
+            const v = dbAt(f);
+            if (v >= peak) {
+              peak = v;
+              peakAt = f;
+            }
+          }
+          const last = dbAt(endF);
+          if (peak - last >= 9 && endF - peakAt >= 3 * sec) {
+            endKind = "fade";
+            fadeStart = peakAt / FPS;
+          }
+        }
+        return { steady, drift: Math.round(drift), endKind, fadeStart, vocalBars, vocalLevel, energyBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
       }
       var MAJ = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
       var MIN = [6.33, 2.68, 3.52, 5.38, 2.6, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
@@ -3210,7 +3251,7 @@ var PiEngine = (() => {
         let list = [], idx = 0, A = null, B = null, preparing = null, timer = null, mix = null, gen = 0;
         let known = {};
         const recent = [], played = /* @__PURE__ */ new Set();
-        let extending = null, lastStyle = "";
+        let extending = null, lastStyle = "", lastTease = 0, lastMixAt = 0, startedAt = Date.now(), poolBusy = false;
         function deckFrom(track, info, pcm, tempo, matched, semis = 0) {
           const k = RATE / tempo;
           const d = { track, info, pcm, frames: pcm.length / 2, tempo, matched, semis, pos: 0, lp: new Float32Array(8), plan: null };
@@ -3222,6 +3263,9 @@ var PiEngine = (() => {
           d.bar = 4 * d.period;
           d.introBeats = info.introBeats || 0;
           d.outroBeats = info.outroBeats || 0;
+          d.steady = info.steady !== false;
+          d.endKind = info.endKind || "cold";
+          d.fadeStart = (info.fadeStart || info.musicEnd) * k;
           d.gain = info.loudness ? Math.max(0.5, Math.min(2.5, Math.pow(10, (TARGET_DB - info.loudness) / 20))) : 1;
           if (matched && d.period > 0) {
             const gp = (info.gridPeriod || info.period) * k;
@@ -3232,6 +3276,21 @@ var PiEngine = (() => {
           } else {
             d.firstDown = d.firstBeat;
             d.inFrame = d.start;
+          }
+          const en = info.energyBars, vb = d.vbBar || 4 * (info.period || 0.5) * k;
+          if (!d.steady && en && vb > 0) {
+            const fd = d.firstDown, at = (j2) => Number(en[j2] || 0);
+            let j = Math.max(0, Math.floor((d.start - fd) / vb));
+            const jMax = Math.floor((d.start + 45 * RATE - fd) / vb);
+            while (j < jMax && at(j) <= 1) j++;
+            if (j > 0 && j < jMax) {
+              d.start = Math.max(d.start, fd + j * vb);
+              d.inFrame = Math.max(d.inFrame, d.start);
+            }
+            let je = Math.min(en.length - 1, Math.floor((d.end - fd) / vb));
+            const jMin = Math.floor((d.end - 45 * RATE - fd) / vb);
+            while (je > jMin && at(je) <= 1) je--;
+            if (je < en.length - 1 && je > jMin) d.end = Math.min(d.end, fd + (je + 1) * vb);
           }
           return d;
         }
@@ -3277,7 +3336,7 @@ var PiEngine = (() => {
         }
         const ENTRY_WHY = { intro: "", full: " - skipping its quiet intro", drop: " - straight into its drop" };
         function planTease(a, b) {
-          if (!(a.matched && b.matched) || !b.info.vocalLevel || !a.vbBar || !b.vbBar || Math.random() < 0.35) return null;
+          if (!(a.matched && b.matched) || !b.info.vocalLevel || !a.vbBar || !b.vbBar || Math.random() < 0.35 - 0.25 * taste("tease")) return null;
           const lv = b.info.vocalLevel, j0 = Math.ceil((b.inFrame - b.firstDown) / b.vbBar) + 4, j1 = Math.floor(0.75 * (b.end - b.firstDown) / b.vbBar);
           let bj = -1, bs = 11;
           for (let j = j0; j + 1 < Math.min(j1, lv.length); j++) {
@@ -3293,6 +3352,23 @@ var PiEngine = (() => {
           for (let f = a.inFrame + Math.ceil((from - a.inFrame) / (16 * a.period)) * 16 * a.period; f + len < to; f += 16 * a.period) if (vocalAt(a, f - a.bar, f + len + a.bar) < 0.12) spots.push(Math.round(f));
           if (!spots.length) return null;
           return { at: spots[Math.floor(Math.random() * spots.length)], len: Math.round(len), bFrom: Math.round(b.firstDown + bj * b.vbBar) };
+        }
+        const taste = (k) => {
+          const t = cfg.taste && Number(cfg.taste[k]);
+          return Number.isFinite(t) ? Math.max(-1, Math.min(1, t)) : 0;
+        };
+        const withTaste = (p) => p;
+        function planRadio(a, b, now) {
+          if (now) return { start: a.pos + CUT, len: 2 * RATE, beat: false, beats: 0, style: "fade", bStart: 0, bIn: Math.round(b.inFrame), why: "crossfade" };
+          if (cfg.quick) {
+            const s = Math.max(a.pos + CUT, a.inFrame + 60 * RATE);
+            if (s < a.end - 10 * RATE) return { start: Math.round(s), len: 4 * RATE, beat: false, beats: 0, style: "fade", bStart: 0, bIn: Math.round(b.inFrame), why: "quick crossfade (live drums: no beat-matching)" };
+          }
+          if (a.endKind === "fade" && a.end - a.fadeStart > 2 * RATE) {
+            const start2 = Math.max(a.pos + CUT, a.fadeStart + 0.35 * (a.end - a.fadeStart));
+            return { start: Math.round(start2), len: Math.max(2 * RATE, a.end - start2), beat: false, beats: 0, style: "underfade", bStart: 0, bIn: Math.round(b.inFrame), why: "starts under its fade-out, radio style" };
+          }
+          return { start: Math.max(a.pos + CUT, Math.round(a.end - 0.25 * RATE)), len: Math.round(0.8 * RATE), beat: false, beats: 0, style: "segue", bStart: 0, bIn: Math.round(b.inFrame), why: "straight on from its last hit" };
         }
         function fxPlan(style, f, a) {
           const pb = a.period > 0 ? a.period : RATE / 2;
@@ -3335,6 +3411,7 @@ var PiEngine = (() => {
           return best;
         }
         function planMix(a, b, want, now = false) {
+          if (!a.steady || !b.steady) return withTaste(planRadio(a, b, now));
           if (!(a.matched && b.matched)) return planFx(a, b, now);
           const p = a.period, style = cfg.style || "auto", ents = entries(b);
           const blendPlan = (start2, L) => {
@@ -3377,6 +3454,7 @@ var PiEngine = (() => {
           const blendExtra = 0.22 * Math.max(0, kd - 1) + (b.introBeats < 8 ? 0.3 : 0) + (a.outroBeats < 8 ? 0.12 : 0);
           let best = null, bestCost = Infinity;
           const offerAll = (cost, plan) => {
+            cost -= 0.2 * taste(plan.style);
             if (plan.style === lastStyle) cost += 0.08;
             if (cost < bestCost) {
               bestCost = cost;
@@ -3404,6 +3482,10 @@ var PiEngine = (() => {
               if ((style === "auto" || style === "short" || now && style !== "cut") && fits(f, 8)) {
                 offer(2.5 * vocalAt(a, f, f + 8 * p) + 0.5 * vocalAt(b, bIn, bIn + 8 * b.period) + 0.5 * blendExtra + pl + (style === "auto" ? 0.25 : 0) + 0.4 * Math.abs(eA(f, f + 8 * p) - eB(bIn, bIn + 8 * b.period)), blendPlan(f, 8));
               }
+              if (style === "auto" && !now && kd <= 1 && fits(f, 16)) {
+                const vA = vocalAt(a, f, f + 8 * p), vB = vocalAt(b, bIn, bIn + 16 * b.period);
+                if (vA > 0.5 && vB < 0.2) offer(0.75 + 1.2 * (1 - vA) + 1.5 * vB + pl + 0.4 * Math.abs(eA(f, f + 16 * p) - eB(bIn, bIn + 16 * b.period)) + (Math.random() < 0.5 ? 0.3 : 0), { start: Math.round(f), len: 16 * p, beat: true, beats: 16, swapU: 0.1, style: "mashup" });
+              }
               if (style === "auto" && !now) {
                 for (const fx of ["echo", "filter", "roll"]) {
                   const pl2 = fxPlan(fx, f, a);
@@ -3415,7 +3497,7 @@ var PiEngine = (() => {
               if (style === "auto" || style === "cut") {
                 const after = vocalAt(a, f, f + 2 * a.bar), before = vocalAt(a, f - a.bar, f);
                 const lineEnds = before > 0.4 && after < 0.15 ? 0.15 : 0;
-                offer(1.6 * after + 0.3 * before * after + 0.4 * vocalAt(b, bIn, bIn + a.bar) - lineEnds + pl + (style === "auto" ? 0.6 : 0) - (E.kind === "drop" || E.kind === "full" ? 0.12 : 0) + 0.3 * Math.max(0, eA(f - a.bar, f) - eB(bIn, bIn + a.bar)), cutPlan(f));
+                offer(1.6 * after + 0.3 * before * after + 0.4 * vocalAt(b, bIn, bIn + a.bar) - lineEnds + pl + (style === "auto" ? 0.6 : 0) - (E.kind === "drop" || E.kind === "full" ? 0.12 : 0) + 0.3 * Math.max(0, eA(f - a.bar, f) - eB(bIn, bIn + a.bar)) - (E.kind === "drop" && eA(f, f + a.bar) >= 0.75 && eA(f - a.bar, f) <= 0.45 ? 0.35 : 0), Object.assign(cutPlan(f), E.kind === "drop" && eA(f, f + a.bar) >= 0.75 && eA(f - a.bar, f) <= 0.45 ? { dropOnDrop: true } : {}));
               }
             }
           }
@@ -3429,7 +3511,7 @@ var PiEngine = (() => {
             best.why = { echo: "echo out", filter: "filter sweep", roll: "loop roll", brake: "brake stop" }[best.style] + (ENTRY_WHY[best.entry] || "");
             return best;
           }
-          best.why = (best.style === "cut" ? kd >= 3 ? "keys clash" : b.introBeats < 8 ? "no intro to blend over" : "cut where the singing stops" : best.style === "short" ? "quick blend between vocals" : "long blend under the vocals") + (ENTRY_WHY[best.entry] || "");
+          best.why = (best.style === "mashup" ? "its vocal over the next beat" : best.dropOnDrop ? "drop on drop" : best.style === "cut" ? kd >= 3 ? "keys clash" : b.introBeats < 8 ? "no intro to blend over" : "cut where the singing stops" : best.style === "short" ? "quick blend between vocals" : "long blend under the vocals") + (ENTRY_WHY[best.entry] || "");
           return best;
         }
         const HOP = 64;
@@ -3474,7 +3556,7 @@ var PiEngine = (() => {
           let input = await sources.inputFor(track);
           step("analysing the beat, key and vocals");
           let info = known[track.id];
-          if (info && (info.vocalLevel === void 0 || info.energyBars === void 0)) info = null;
+          if (info && (info.vocalLevel === void 0 || info.energyBars === void 0 || info.steady === void 0)) info = null;
           if (!info) {
             let x;
             try {
@@ -3498,7 +3580,9 @@ var PiEngine = (() => {
           info = { ...info, gridPeriod: info.period };
           const target = ref && ref.matched ? ref.bpm : 0;
           let tempo = 1, matched = false;
-          if (info.bpm > 0 && info.confidence > 0.25 && target > 0) {
+          const steadyPair = info.steady !== false && (!ref || ref.steady !== false);
+          if (!steadyPair) {
+          } else if (info.bpm > 0 && info.confidence > 0.25 && target > 0) {
             const opts = [target / info.bpm, target / (info.bpm * 2), target / (info.bpm / 2)];
             const r = opts.reduce((a, b) => Math.abs(b - 1) < Math.abs(a - 1) ? b : a);
             if (Math.abs(r - 1) <= MAX_STRETCH) {
@@ -3541,6 +3625,13 @@ var PiEngine = (() => {
             extending = null;
           });
         }
+        const avgEnergy = (inf) => {
+          const en = inf && inf.energyBars;
+          if (!en) return 0.5;
+          let s = 0;
+          for (const c of en) s += Number(c);
+          return s / (9 * en.length);
+        };
         function chooseNext() {
           extendIfLow();
           if (wantNext !== null) {
@@ -3569,6 +3660,11 @@ var PiEngine = (() => {
               const r = Math.min(...[1, 2, 0.5].map((m) => Math.abs(A.bpm / (inf.bpm * m) - 1)));
               s = n * 0.15 + (r <= MAX_STRETCH ? r * 10 : 3) + (analyser.keyDistance ? analyser.keyDistance(A.keyNow, inf.key) * 0.4 : 0);
             }
+            if (inf && A) {
+              const mins = (Date.now() - startedAt) / 6e4, delta = mins < 20 ? 0.08 : mins < 60 ? 0 : Math.floor(mins / 15) % 2 ? -0.06 : 0.06;
+              s += 0.6 * Math.abs(avgEnergy(inf) - Math.min(1, Math.max(0, avgEnergy(A.info) + delta)));
+              if (inf.steady !== false !== A.steady) s += 0.25;
+            }
             if (s < bs) {
               bs = s;
               best = ti;
@@ -3576,6 +3672,57 @@ var PiEngine = (() => {
           });
           if (best === cands[0]) idx = best + 1;
           return best;
+        }
+        async function analysePool() {
+          if (poolBusy || !list.length) return;
+          poolBusy = true;
+          const g = gen;
+          try {
+            let done = 0;
+            for (let j = 0; j < Math.min(list.length, 8) && done < 2; j++) {
+              const t = list[(idx + j) % list.length];
+              if (!t || known[t.id] || A && t.id === A.track.id || B && t.id === B.track.id) continue;
+              try {
+                const info = analyser.analyse(await decode.decodeAnalysis(await sources.inputFor(t)));
+                if (g !== gen) return;
+                known[t.id] = info;
+                done++;
+                if (t.kind === "mp3" && sources.saveAnalysis) {
+                  try {
+                    sources.saveAnalysis(t, info);
+                  } catch (e) {
+                  }
+                }
+              } catch (e) {
+              }
+            }
+          } finally {
+            poolBusy = false;
+          }
+        }
+        async function easeTempo(d) {
+          const g = gen;
+          try {
+            let tempo = d.tempo;
+            while (Math.abs(tempo - 1) > 0.015 && A === d && g === gen) {
+              const nextT = Math.abs(tempo - 1) <= 0.03 ? 1 : tempo + Math.sign(1 - tempo) * 0.03;
+              const pcm = await decode.decodePlay(await sources.inputFor(d.track), nextT, void 0, d.semis);
+              if (A !== d || g !== gen || mix) break;
+              const nd = deckFrom(d.track, d.info, pcm, nextT, d.matched, d.semis);
+              nd.keyNow = d.keyNow;
+              nd.qi = d.qi;
+              nd.readyAt = d.readyAt;
+              nd.gain = d.gain;
+              d.swap = { to: nd, at: nextBar(d, d.pos + 8 * d.bar) };
+              while (d.swap && A === d && g === gen) await new Promise((r) => setTimer === setInterval ? setTimeout(r, 200) : setImmediate(r));
+              if (A === d) break;
+              d = A;
+              tempo = d.tempo;
+            }
+          } catch (e) {
+            log("[dj] tempo ease: " + e.message);
+          }
+          if (g === gen) prepareNext();
         }
         async function prepareNext() {
           if (preparing || B) return;
@@ -3596,6 +3743,7 @@ var PiEngine = (() => {
                   A.plan = null;
                   A.tease = planTease(A, d);
                 }
+                analysePool();
                 const beat = d.matched && A && A.matched;
                 st.next = { title: track.title, bpm: Math.round(d.bpm), bpmFrom: Math.round(d.info.bpm), tempoPct: Math.round((d.tempo - 1) * 1e3) / 10, key: d.keyNow ? d.keyNow.camelot : "", shift: d.semis, mode: beat ? "beat-matched" : "crossfade" };
                 if (sources.prefetch && list.length > 1) {
@@ -3619,6 +3767,7 @@ var PiEngine = (() => {
           const p = A.plan;
           mix = { from: A.pos, len: Math.max(1, p.len), beat: p.beat, swapU: p.swapU || 0.5, beats: p.beats, style: p.style, adj: 0, check: 0, ref: rmsSlow, bStart: p.bStart || 0, period: p.period || RATE / 2, vpos: A.pos, bOn: !FX.has(p.style) };
           lastStyle = p.style;
+          lastMixAt = Date.now();
           if (p.style === "echo") {
             echo.d = Math.round(mix.period * 0.75);
             echo.fb = 0.55;
@@ -3662,7 +3811,8 @@ var PiEngine = (() => {
           st.nowIdx = A.qi === void 0 ? -1 : A.qi;
           st.nextIdx = -1;
           nowStatus();
-          prepareNext();
+          if (A.matched && Math.abs(A.tempo - 1) > 0.015 && A.frames / RATE > 120) easeTempo(A);
+          else prepareNext();
         }
         function nowStatus() {
           if (!A) return;
@@ -3694,8 +3844,8 @@ var PiEngine = (() => {
         }
         const ECHO_N = RATE * 2, echo = { L: new Float32Array(ECHO_N), R: new Float32Array(ECHO_N), i: 0, d: 0, fb: 0.55, until: 0, send: 0 };
         const TMP = [0, 0];
-        let rmsSlow = 0, rmsFast = 0, mixGain = 1;
-        const A_SLOW = 1 / (3 * RATE), A_FAST = 1 / (0.5 * RATE), A_GAIN = 1 / (1.2 * RATE);
+        let rmsSlow = 0, rmsFast = 0, rmsLong = 0, mixGain = 1;
+        const A_SLOW = 1 / (3 * RATE), A_FAST = 1 / (0.5 * RATE), A_GAIN = 1 / (1.2 * RATE), A_LONG = 1 / (30 * RATE), A_GAIN_SLOW = 1 / (4 * RATE);
         const OUT = [0, 0];
         function render(frames) {
           const buf = Buffer2.alloc(frames * 4);
@@ -3744,8 +3894,8 @@ var PiEngine = (() => {
                     hi = 1 + 0.5 * q;
                     gA = u < bS ? 1 + 0.2 * q : 1 - smooth((u - bS) / 0.05);
                   } else if (mix.style === "brake") {
-                    const rate = Math.pow(Math.max(0, 1 - q), 1.6);
-                    mix.vpos += rate;
+                    const rate2 = Math.pow(Math.max(0, 1 - q), 1.6);
+                    mix.vpos += rate2;
                     at = mix.vpos;
                     gA = 1 - smooth((q - 0.75) / 0.25);
                   } else if (mix.style === "roll") {
@@ -3790,6 +3940,17 @@ var PiEngine = (() => {
                     const c = clamp01(u);
                     sampleDeck(A, Math.cos(c * Math.PI / 2), 1, 1, 1, OUT);
                     sampleDeck(B, Math.sin(c * Math.PI / 2), 1, 1, 1, OUT);
+                  } else if (mix.style === "mashup") {
+                    const bIn2 = smooth(u / 0.08), aMi = 1 - smooth((u - 0.7) / 0.3);
+                    sampleDeck(A, 1, 0, aMi, 0.25 * aMi, OUT);
+                    sampleDeck(B, 1, bIn2, bIn2, bIn2, OUT);
+                    if ((A.pos & 1023) === 0) {
+                      const q = st.eq;
+                      q[0] = 0;
+                      q[1] = aMi;
+                      q[2] = 0.25 * aMi;
+                      q[3] = q[4] = q[5] = bIn2;
+                    }
                   } else if (mix.beat) {
                     const s = mix.swapU;
                     const bHi = smooth(u / (s * 0.7)), bMi = smooth((u - s * 0.25) / (s * 0.7)), bLo = smooth((u - s) / 0.03);
@@ -3806,6 +3967,12 @@ var PiEngine = (() => {
                       q[4] = bMi;
                       q[5] = bHi;
                     }
+                  } else if (mix.style === "underfade") {
+                    sampleDeck(A, 1 - smooth((u - 0.6) / 0.4), 1, 1, 1, OUT);
+                    sampleDeck(B, smooth(u / 0.3), 1, 1, 1, OUT);
+                  } else if (mix.style === "segue") {
+                    sampleDeck(A, 1 - smooth(u), 1, 1, 1, OUT);
+                    sampleDeck(B, smooth(u / 0.15), 1, 1, 1, OUT);
                   } else {
                     const c = clamp01(u);
                     sampleDeck(A, Math.cos(c * Math.PI / 2), 1 - smooth(c / 0.6), 1, 1, OUT);
@@ -3824,25 +3991,50 @@ var PiEngine = (() => {
                   A.pos -= Math.round(4 * A.bar);
                   A.loops++;
                 }
-                sampleDeck(A, 1, 1, 1, 1, OUT);
-                const tz = A.tease;
-                if (tz && B && A.pos >= tz.at && A.pos < tz.at + tz.len) {
-                  if (A.plan && tz.at > A.plan.start - 20 * RATE) A.tease = null;
-                  else {
-                    if (!tz.deck) {
-                      tz.deck = { pcm: B.pcm, frames: B.frames, lp: new Float32Array(8), gain: B.gain };
-                      tz.off = lagBetween(A.pos, tz.bFrom, 4 * A.period, A.period / 4, A, B);
-                      st.tease = { active: true };
-                      log(`[dj] a hint of ${B.track.title}`);
-                    }
-                    const q = (A.pos - tz.at) / tz.len, env = smooth(q / 0.25) * (1 - smooth((q - 0.75) / 0.25));
-                    sampleAt(tz.deck, tz.bFrom + tz.off + (A.pos - tz.at), 0.55 * env, 0, 0.8, 1, OUT);
+                if (A.swap && A.pos >= A.swap.at) {
+                  const sw = A.swap, nd = sw.to;
+                  if (!sw.len) {
+                    sw.len = Math.max(256, Math.round(A.period / 4));
+                    sw.i = 0;
+                    nd.pos = Math.round(A.pos * A.tempo / nd.tempo);
                   }
-                } else if (tz && tz.deck && A.pos >= tz.at + tz.len) {
-                  A.tease = null;
-                  st.tease = null;
+                  const q = sw.i / sw.len;
+                  sampleDeck(A, 1 - q, 1, 1, 1, OUT);
+                  sampleDeck(nd, q, 1, 1, 1, OUT);
+                  nd.pos++;
+                  sw.i++;
+                  if (sw.i >= sw.len) {
+                    A.swap = null;
+                    nd.plan = null;
+                    nd.loops = 0;
+                    nd.loopAt = 0;
+                    A = nd;
+                    nowStatus();
+                    log(`[dj] tempo eased to ${Math.round(A.bpm)} BPM`);
+                  }
+                  A.pos++;
+                } else {
+                  sampleDeck(A, 1, 1, 1, 1, OUT);
+                  const tz = A.tease;
+                  if (tz && B && A.pos >= tz.at && A.pos < tz.at + tz.len) {
+                    if (A.plan && tz.at > A.plan.start - 20 * RATE) A.tease = null;
+                    else {
+                      if (!tz.deck) {
+                        lastTease = Date.now();
+                        tz.deck = { pcm: B.pcm, frames: B.frames, lp: new Float32Array(8), gain: B.gain };
+                        tz.off = lagBetween(A.pos, tz.bFrom, 4 * A.period, A.period / 4, A, B);
+                        st.tease = { active: true };
+                        log(`[dj] a hint of ${B.track.title}`);
+                      }
+                      const q = (A.pos - tz.at) / tz.len, env = smooth(q / 0.25) * (1 - smooth((q - 0.75) / 0.25));
+                      sampleAt(tz.deck, tz.bFrom + tz.off + (A.pos - tz.at), 0.55 * env, 0, 0.8, 1, OUT);
+                    }
+                  } else if (tz && tz.deck && A.pos >= tz.at + tz.len) {
+                    A.tease = null;
+                    st.tease = null;
+                  }
+                  A.pos++;
                 }
-                A.pos++;
               }
             }
             if (echo.d > 0) {
@@ -3862,9 +4054,12 @@ var PiEngine = (() => {
             }
             const pw = (OUT[0] * OUT[0] + OUT[1] * OUT[1]) * 0.5;
             rmsFast += (pw - rmsFast) * A_FAST;
-            if (!mix) rmsSlow += (pw - rmsSlow) * A_SLOW;
-            const want = mix && mix.ref > 1e-6 && rmsFast > 1e-7 ? Math.max(0.75, Math.min(1.6, Math.sqrt(mix.ref / rmsFast))) : 1;
-            mixGain += (want - mixGain) * A_GAIN;
+            if (!mix) {
+              rmsSlow += (pw - rmsSlow) * A_SLOW;
+              rmsLong += (pw - rmsLong) * A_LONG;
+            }
+            const want = mix && mix.ref > 1e-6 && rmsFast > 1e-7 ? Math.max(0.75, Math.min(1.6, Math.sqrt(mix.ref / rmsFast))) : !mix && rmsLong > 1e-6 && rmsFast > 1e-7 ? Math.max(0.8, Math.min(1.25, Math.pow(rmsLong / rmsFast, 0.25))) : 1;
+            mixGain += (want - mixGain) * (mix ? A_GAIN : A_GAIN_SLOW);
             for (let c = 0; c < 2; c++) {
               let v = OUT[c] * mixGain;
               const a = Math.abs(v);
@@ -3937,6 +4132,7 @@ var PiEngine = (() => {
           wantNext = null;
           recent.length = 0;
           played.clear();
+          startedAt = Date.now();
           syncQueue();
           st.nowIdx = st.nextIdx = -1;
           timer = setTimer(pump, 50);
@@ -4000,6 +4196,13 @@ var PiEngine = (() => {
           if (wasNext && A) prepareNext();
           return true;
         }
+        function rate(good) {
+          const t = { ...cfg.taste || {} }, step = good ? 0.15 : -0.2;
+          if (lastStyle) t[lastStyle] = Math.max(-1, Math.min(1, (Number(t[lastStyle]) || 0) + step));
+          if (lastTease && Date.now() - lastTease < 10 * 6e4) t.tease = Math.max(-1, Math.min(1, (Number(t.tease) || 0) + step));
+          cfg.taste = t;
+          return t;
+        }
         function add(track, next) {
           if (!track || !track.id || !list.length) return -1;
           const at = next && st.nowIdx >= 0 ? st.nowIdx + 1 : list.length, fix = (k) => k >= at ? k + 1 : k;
@@ -4020,6 +4223,7 @@ var PiEngine = (() => {
           if (c.mixBeats !== void 0) cfg.mixBeats = [16, 32, 64].includes(Number(c.mixBeats)) ? Number(c.mixBeats) : "auto";
           if (c.quick !== void 0) cfg.quick = !!c.quick;
           if (c.endless !== void 0) cfg.endless = !!c.endless;
+          if (c.taste && typeof c.taste === "object") cfg.taste = c.taste;
           if (STYLES.includes(c.style)) cfg.style = c.style;
           if (A && !mix) A.plan = null;
         }
@@ -4030,7 +4234,7 @@ var PiEngine = (() => {
             if (!B) prepareNext();
           }
         }
-        return { start, stop, configure, deckFeed, remove, add, skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, planTease, entries, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() {
+        return { start, stop, configure, deckFeed, remove, add, rate, lastChange: () => ({ style: lastStyle, at: lastMixAt }), skip, seek, playNext, render, status: st, _test: { deckFrom, planMix, planTease, entries, lagBetween, vocalAt, cfg: () => cfg, known: () => known, get A() {
           return A;
         }, get B() {
           return B;
@@ -4408,6 +4612,10 @@ var PiEngine = (() => {
           if (typeof p.dj.quick === "boolean") out.dj.quick = p.dj.quick;
           if (typeof p.dj.endless === "boolean") out.dj.endless = p.dj.endless;
           if (typeof p.dj.ytArtist === "boolean") out.dj.ytArtist = p.dj.ytArtist;
+          if (p.dj.taste && typeof p.dj.taste === "object") {
+            out.dj.taste = {};
+            for (const [k, v] of Object.entries(p.dj.taste)) if (/^[a-z]{2,12}$/.test(k) && Number.isFinite(Number(v))) out.dj.taste[k] = Math.max(-1, Math.min(1, Number(v)));
+          }
           if (["auto", "blend", "short", "cut"].includes(p.dj.style)) out.dj.style = p.dj.style;
         }
         if (p && p.alexa) {
@@ -6394,7 +6602,8 @@ var PiEngine = (() => {
         scrollText(tg, FONT_3x5, (m.line || "").toUpperCase(), x0 + 2, w - 4 - (cw ? cw + 6 : 0), y0 + 31, m.lineC || [0.9, 0.93, 1], 0.9, ms, "l", dt, adv);
       }
       var FX_NAMES = { echo: "echo out", filter: "filter sweep", brake: "brake stop", roll: "loop roll" };
-      var styleText = (n) => !n ? "" : FX_NAMES[n.style] || (n.style === "cut" ? "cut on the beat" : n.style === "fade" ? "crossfade" : n.style === "short" ? "8 beat mix" : n.beats ? n.beats + " beat blend" : "blend");
+      var OTHER_NAMES = { underfade: "fade-out change", segue: "segue", mashup: "mashup" };
+      var styleText = (n) => !n ? "" : FX_NAMES[n.style] || OTHER_NAMES[n.style] || (n.style === "cut" ? "cut on the beat" : n.style === "fade" ? "crossfade" : n.style === "short" ? "8 beat mix" : n.beats ? n.beats + " beat blend" : "blend");
       function drawDjDecks(core, info, st, dt, beat = 0, where = "wall") {
         if (!info) return 0;
         st.t += dt;

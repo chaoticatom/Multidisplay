@@ -680,6 +680,13 @@ const COMMANDS = {
     radio.audio.dj.add(track, !!msg.next);
     this._broadcast(this._stateMsg());
   },
+  // 👍 / 👎 on the last change: the DJ leans that way next time (saved).
+  djRate(ws, msg) {
+    const dj = radio.audio && radio.audio.dj; if (!dj || !dj.rate) return;
+    const taste = dj.rate(!!msg.good), p = this.state.prefs || prefs.load();
+    this.state.prefs = prefs.save({ ...p, dj: { ...p.dj, taste } });
+    this._broadcast(this._stateMsg());
+  },
   djSkip() { if (radio.audio && radio.audio.dj) radio.audio.dj.skip(); },
   djNext(ws, msg) { if (radio.audio && radio.audio.dj && Number.isInteger(msg.index)) { radio.audio.dj.playNext(msg.index); this._broadcast(this._stateMsg()); } }, // play this track from the list next
   setDj(ws, msg) {

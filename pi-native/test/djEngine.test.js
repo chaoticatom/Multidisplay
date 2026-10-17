@@ -61,7 +61,7 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     }
     assert.ok(dj.status.played >= 1, 'mixed into the next track: ' + logs.join(' | '));
     assert.ok(mixedAligned !== null && mixedAligned < 0.03, 'beats line up during the mix: ' + mixedAligned);
-    assert.ok(tempos.some((t) => Math.abs(t - 120 / 124) < 0.01), 'the 124 BPM track was slowed to 120: ' + tempos);
+    assert.ok(tempos.some((t) => Math.abs(t - 120 / 124) < 0.01 || Math.abs(t - 120 / 122) < 0.01), 'the next track was tempo-matched to 120 (the closest one picked first): ' + tempos);
     void queued;
     // Picking a track from the list lines it up next.
     assert.strictEqual(dj.status.queue.length, 3);
@@ -106,7 +106,7 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     // Singing all the way through: a long merge (B creeps in underneath), not a cut.
     const sung = { ...long, info: { ...A.info, vocalLevel: '9'.repeat(200), energyBars: '6'.repeat(200) } };
     const s2 = dj._test.planMix(sung, { ...A, introBeats: 64, info: { ...A.info, vocalLevel: '0'.repeat(200), energyBars: '6'.repeat(200) } }, 'auto');
-    assert.ok(s2.style === 'blend' && s2.beats >= 16, 'a long merge rather than a cut: ' + s2.style);
+    assert.ok((s2.style === 'blend' || s2.style === 'mashup') && s2.beats >= 16, 'a long merge (or its vocal over the next beat) rather than a cut: ' + s2.style);
     // Entry points in the next song: after a long quiet intro, or into its
     // drop - a cut goes straight in there rather than through the intro.
     const dropB = { ...A, end: 300 * 44100, frames: 300 * 44100, introBeats: 64, info: { ...A.info, vocalLevel: '0'.repeat(200), energyBars: '1'.repeat(16) + '9'.repeat(184) } };
@@ -116,6 +116,17 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     const intoDrop = dj._test.planMix({ ...long, info: { ...A.info, vocalLevel: '0'.repeat(200), energyBars: '8'.repeat(200) } }, dropB, 'auto');
     dj.configure({ style: 'auto' });
     assert.ok(intoDrop.entry !== 'intro' && intoDrop.bIn > dropB.inFrame, 'a cut lands in the next song\'s drop: ' + intoDrop.entry);
+    // Rock and pop (a live drummer's drifting beat): radio-style changes - the
+    // next song under the fade-out, or straight on from a dead stop.
+    const live = { ...long, steady: false, endKind: 'fade', fadeStart: long.end - 10 * 44100 };
+    const uf = dj._test.planMix(live, { ...A, steady: false }, 'auto');
+    assert.ok(uf.style === 'underfade' && uf.start > live.fadeStart && uf.start < live.end, 'under the fade: ' + uf.style);
+    const cold = dj._test.planMix({ ...live, endKind: 'cold' }, { ...A, steady: false }, 'auto');
+    assert.ok(cold.style === 'segue' && Math.abs(cold.start - (live.end - 0.25 * 44100)) < 44100, 'straight on from the last hit: ' + cold.style);
+    // 👍/👎 nudges the style's weight (saved by the server).
+    const tasteNow = dj.rate(false);
+    assert.ok(Object.values(tasteNow).some((v) => v < 0), 'a 👎 lowers the last style: ' + JSON.stringify(tasteNow));
+    dj.configure({ taste: {} });
     // Every pair decides afresh: a track that starts straight in (no intro)
     // with a clashing key gets an instant cut; a smooth pair gets a blend.
     const clashA = { ...long, keyNow: { pc: 0, minor: false, camelot: '8B' } }, clashB = { ...A, introBeats: 0, keyNow: { pc: 6, minor: false, camelot: '2B' } };
@@ -170,6 +181,19 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     for (let s = 0; s < 700 && dj2.status.played < 1; s++) { const b = dj2.render(4410); for (let i = 0; i < b.length; i += 2) { const v = b.readInt16LE(i); if (!Number.isFinite(v)) bad++; } await new Promise((r) => setImmediate(r)); }
     assert.ok(dj2.status.played >= 1 && bad === 0, 'got through an effect transition: ' + styles.join(','));
     dj2.stop();
+    // After a beat-matched mix the new song eases back to its own tempo (in
+    // steps on phrases) before the next one is lined up.
+    {
+      const songs = [{ kind: 'mp3', id: 'p', title: 'P', bpm: 120 }, { kind: 'mp3', id: 'q', title: 'Q', bpm: 125 }];
+      const L = 130, logs3 = [];
+      const dec = { decodeAnalysis: async (inp) => clickTrack(inp.bpm, L, RATE), decodePlay: async (inp, tempo) => clickTrack(inp.bpm * tempo, L / tempo, 44100, 1.5 / tempo, true) };
+      const dj3 = createDjEngine({ onPcm: () => {}, getQueueMs: () => 0, sources: { allTracks: async () => songs.slice(), inputFor: async (t) => ({ url: t.id, bpm: t.bpm }) }, decode: dec, log: (m) => logs3.push(m), setTimer: () => 1, clearTimer: () => {} });
+      await dj3.start({ source: 'mp3', style: 'blend', mixBeats: 16 });
+      for (let k = 0; k < 50 && !dj3._test.A; k++) await new Promise((r) => setImmediate(r));
+      for (let s2 = 0; s2 < 4000 && !logs3.some((m) => /tempo eased to/.test(m)); s2++) { dj3.render(4410); await new Promise((r) => setImmediate(r)); }
+      assert.ok(logs3.some((m) => /tempo eased to/.test(m)) && Math.abs(dj3._test.A.tempo - 1) < 0.02, 'eased back to its own tempo: ' + logs3.filter((m) => /eased|mixing/.test(m)).join(' | '));
+      dj3.stop();
+    }
     console.log('  ok - effect transitions for tempos too far apart (' + styles.join(', ') + ')');
   } catch (e) { console.error(e); process.exitCode = 1; }
 })();

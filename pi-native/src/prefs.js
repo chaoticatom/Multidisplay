@@ -82,6 +82,7 @@ function clean(p) {
     if (typeof p.dj.quick === 'boolean') out.dj.quick = p.dj.quick;
     if (typeof p.dj.endless === 'boolean') out.dj.endless = p.dj.endless;
     if (typeof p.dj.ytArtist === 'boolean') out.dj.ytArtist = p.dj.ytArtist;
+    if (p.dj.taste && typeof p.dj.taste === 'object') { out.dj.taste = {}; for (const [k, v] of Object.entries(p.dj.taste)) if (/^[a-z]{2,12}$/.test(k) && Number.isFinite(Number(v))) out.dj.taste[k] = Math.max(-1, Math.min(1, Number(v))); }
     if (['auto', 'blend', 'short', 'cut'].includes(p.dj.style)) out.dj.style = p.dj.style;
   }
   if (p && p.alexa) {

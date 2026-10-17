@@ -1150,6 +1150,11 @@ function cxWireDj() {
     const id = e.currentTarget.dataset.id; if (!id) return;
     send({ cmd: 'djRadio', id }); cxToast('📻 Radio: songs like this one');
   });
+  document.getElementById('dj-rate').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-rate]'); if (!b) return;
+    send({ cmd: 'djRate', good: b.dataset.rate === '1' }); cxDjRated = currentState.dj?.lastChange?.at || 1;
+    document.getElementById('dj-rate').hidden = true; cxToast(b.dataset.rate === '1' ? '👍 More like that' : '👎 Less of that');
+  });
   document.getElementById('dj-quick').addEventListener('change', () => send({ cmd: 'setDj', ...cfg() }));
   document.getElementById('dj-start').addEventListener('click', () => {
     const c = cfg();
@@ -1200,7 +1205,7 @@ function cxWireDj() {
     if (confirm('Remove ' + b.dataset.djdel + '?')) send({ cmd: 'deleteMusic', name: b.dataset.djdel });
   });
 }
-let cxDjFindOpen = false;
+let cxDjFindOpen = false, cxDjRated = 0;
 // ── Planes Overhead options.
 function cxWirePlanes() {
   if (!document.getElementById('panel-planes')) return;
@@ -1305,6 +1310,13 @@ function cxSyncDj() {
         r.append(tx, nx, ad); return r;
       }));
     }
+  }
+  // Rate the last mix: shown for 3 minutes after one.
+  const rateEl = document.getElementById('dj-rate'), lc = d.lastChange;
+  if (rateEl) {
+    const show = d.on && lc && lc.at && Date.now() - lc.at < 180000 && cxDjRated !== lc.at;
+    rateEl.hidden = !show;
+    if (show) document.getElementById('dj-rate-txt').textContent = 'How was that ' + ({ blend: 'blend', short: 'quick mix', cut: 'cut', echo: 'echo out', filter: 'filter sweep', brake: 'brake stop', roll: 'loop roll', fade: 'crossfade', underfade: 'fade-out change', segue: 'segue', mashup: 'mashup' }[lc.style] || 'mix') + '?';
   }
   const rb = document.getElementById('dj-radio'); if (rb) { rb.hidden = !(d.on && d.now && d.now.id); rb.dataset.id = (d.now && d.now.id) || ''; }
   const ms = document.getElementById('mx-mix-sum');

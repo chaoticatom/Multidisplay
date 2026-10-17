@@ -1205,6 +1205,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .mx-found .f-row button{flex:0 0 auto;border:0;border-radius:99px;padding:5px 10px;font-size:12px;cursor:pointer;margin:0;width:auto;background:rgba(255,255,255,.08);color:#eef2ff}
 .mx-found .f-row button.f-next{background:#ffb347;color:#2a1700;font-weight:600}
 .mx-found .f-note{padding:8px 10px;font-size:12.5px;color:rgba(238,242,255,.65)}
+.mx-rate{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12.5px;color:rgba(238,242,255,.7)}.mx-rate span{flex:1}.mx-rate button{border:0;border-radius:99px;width:44px;height:34px;font-size:17px;background:rgba(255,255,255,.08);cursor:pointer;margin:0}.mx-rate button:active{transform:scale(.92)}
 /* ── Music tab: player + Radio / Auto-DJ / Sound ─────────────────────── */
 .mx-root{padding:0!important;border:0!important;background:none!important;box-shadow:none!important;margin:0!important}
 .mx-player{position:relative;background:linear-gradient(135deg,rgba(80,110,255,.16),rgba(150,80,255,.10));border-radius:18px;padding:12px;margin:0 0 12px;box-shadow:0 0 0 1px rgba(255,255,255,.1)}
@@ -2169,6 +2170,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
           <button type="button" class="mx-chip" id="mx-out-pi" title="The Pi's speaker - set it up under Sound">🔊 Pi speaker</button>
           <label class="mx-chip"><input type="checkbox" class="radio-browser-play-el" checked> 📱 This device</label>
         </div>
+        <div class="mx-rate" id="dj-rate" hidden><span id="dj-rate-txt">How was that mix?</span><button type="button" data-rate="1" aria-label="Good mix">👍</button><button type="button" data-rate="0" aria-label="Bad mix">👎</button></div>
         <div class="radio-status-el mx-status">Pick a station</div>
       </div>
 

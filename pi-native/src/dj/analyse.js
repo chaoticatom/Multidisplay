@@ -141,7 +141,29 @@ function analyse(x) {
   const top = (arr) => { const s = Float32Array.from(arr).sort(); return s[Math.floor(s.length * 0.95)] || 1e-6; };
   const tl = top(eb), tb = top(bb);
   const energyBars = eb.map((v, j) => Math.round(9 * Math.max(0, Math.min(1, 0.6 * (v / tl) + 0.4 * (bb[j] / tb)) ** 1.5))).join('');
-  return { vocalBars, vocalLevel, energyBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
+  // Steady or live: how far the beat wanders from one even grid, section by
+  // section (a drum machine stays put; a live drummer drifts).
+  const offs = [], lagF = bestLagF;
+  for (let w0 = a + bestPh; w0 + 16 * lagF < b; w0 += 16 * lagF) {
+    let bs = -1, bo = 0;
+    for (let o = -0.3 * lagF; o <= 0.3 * lagF; o += 0.1) { let sm = 0; for (let k = 0; k < 16; k++) sm += at(w0 + o + k * lagF); if (sm > bs) { bs = sm; bo = o; } }
+    offs.push(bo / FPS * 1000);
+  }
+  const mOff = offs.reduce((x, y) => x + y, 0) / Math.max(1, offs.length);
+  const drift = Math.sqrt(offs.reduce((x, y) => x + (y - mOff) ** 2, 0) / Math.max(1, offs.length));
+  const steady = confidence > 0.35 && drift < 20;
+  // How it ends: fading out (the level sliding down over seconds) or a cold
+  // stop. fadeStart: where the fade begins (seconds).
+  let endKind = 'cold', fadeStart = musicEnd;
+  {
+    const sec = Math.round(FPS), dbAt = (s) => { let q = 0, c = 0; for (let f = Math.max(0, s - sec); f < Math.min(n, s); f++) { q += lvl[f] * lvl[f]; c++; } return 10 * Math.log10(q / Math.max(1, c) + 1e-12); };
+    const endF = s1, from = Math.max(s0, endF - 14 * sec);
+    let peak = -999, peakAt = from;
+    for (let f = from; f <= endF; f += Math.round(sec / 4)) { const v = dbAt(f); if (v >= peak) { peak = v; peakAt = f; } }
+    const last = dbAt(endF);
+    if (peak - last >= 9 && (endF - peakAt) >= 3 * sec) { endKind = 'fade'; fadeStart = peakAt / FPS; }
+  }
+  return { steady, drift: Math.round(drift), endKind, fadeStart, vocalBars, vocalLevel, energyBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
 }
 
 // ---- Key: a chroma profile (energy per pitch class, 55 Hz - 2 kHz) matched
