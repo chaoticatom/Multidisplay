@@ -1045,7 +1045,7 @@ function cxSyncPlayer(st, playing) {
     fav.hidden = !playing || isDj; fav.classList.toggle('on', on);
     fav.title = on ? 'Remove from My stations' : 'Add to My stations'; fav.setAttribute('aria-label', fav.title);
   }
-  const stop = document.querySelector('#mx-player .radio-stop-btn-el'); if (stop) stop.disabled = !playing;
+  const stop = document.querySelector('#mx-player .radio-stop-btn-el'); if (stop) stop.hidden = !playing; // nothing to stop: no empty button
   const pi = document.getElementById('mx-out-pi'), warn = document.getElementById('spk-warn');
   if (pi) pi.classList.toggle('on', !!warn && warn.hidden);
   const recentEmpty = document.getElementById('mx-recent-empty'), rw = document.getElementById('radio-recent-wrap');
@@ -1066,6 +1066,7 @@ function cxSyncMusic() {
   }
   document.getElementById('cx-np-name').textContent = playing ? st.station.name.replace(/^[\s-]+/, '') : 'Nothing playing';
   document.getElementById('cx-np-sub').textContent = playing ? (st.title ? '♪ ' + st.title : st.station.genre || 'Radio') : 'Pick a station or start the DJ';
+  const wt = document.getElementById('spk-warn-text'); if (wt && /is not connected/.test(wt.textContent)) wt.textContent = wt.textContent.replace(' is not connected', ' isn\u2019t connected');
   cxSyncPlayer(st, playing);
   const mb = document.getElementById('stop-sound-btn');
   if (mb) {
