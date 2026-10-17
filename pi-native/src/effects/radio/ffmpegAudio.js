@@ -656,7 +656,8 @@ class RadioAudio {
   // Plain, structured-clone-friendly copy of what the render side reads -
   // see RemoteAudio below.
   snapshot() {
-    return { djNow: this.dj && this.dj.status.now ? this.dj.status.now.title : '', spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
+    const ds = this.dj && this.url === 'dj:' ? this.dj.status : null;
+    return { djNow: ds && ds.now ? ds.now.title : '', djInfo: ds && ds.state !== 'stopped' ? { now: ds.now, next: ds.next, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === undefined ? -1 : ds.mixIn } : null, spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
   }
 
   // Auto speaker sync: ask the sound server how late our stream plays, and
@@ -776,6 +777,7 @@ class RemoteAudio {
     if (snap.peak && snap.peak.length === BAND_COUNT) this.peak.set(snap.peak);
     if (snap.specL && snap.specL.length === BAND_COUNT) this.specL.set(snap.specL);
     this.djNow = snap.djNow || '';
+    this.djInfo = snap.djInfo || null;
     if (snap.specR && snap.specR.length === BAND_COUNT) this.specR.set(snap.specR);
     if (snap.vu && snap.vu.length === 4) this.vu.set(snap.vu);
     if (snap.wave && snap.wave.length === WAVE_N) this.wave.set(snap.wave);

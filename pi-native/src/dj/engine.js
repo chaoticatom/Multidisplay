@@ -321,6 +321,8 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
         buf.writeInt16LE(Math.max(-32767, Math.min(32767, Math.round(v * 32767))), i * 4 + c * 2);
       }
     }
+    st.mixU = mix ? Math.max(0, Math.min(1, (A.pos - mix.from) / mix.len)) : 0;
+    st.mixIn = A && B && !mix && A.plan ? Math.max(0, Math.round((A.plan.start - A.pos) / RATE)) : -1;
     if (A) { st.now ? (st.now.pos = Math.round(A.pos / RATE * 10) / 10, st.now.at = Date.now()) : nowStatus(); }
     if (A && !mix && !B && A.pos >= A.frames) st.state = list.length ? 'loading' : 'empty';
     return buf;

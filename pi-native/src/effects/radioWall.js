@@ -9,6 +9,8 @@ const radio = require('./radio/radio');
 const { renderSpectrumStyleWall, createSpectrumWallState } = require('./radio/spectrumWall');
 const { renderSpectrumV2Wall, createV2State } = require('./radio/spectrumV2Wall');
 const v2State = createV2State();
+const { drawDjDecks, createDeckState, ROWS: DJ_ROWS } = require('./radio/djDecks');
+const deckState = createDeckState();
 const { CHAR_W } = require('./radio/font');
 const { createLevelState, computeLevels } = require('./radio/levels');
 const { drawString, drawMarquee, drawLinesCentered, FONT_3x5, FONT_5x7, wallPlot } = require('./text');
@@ -65,6 +67,7 @@ function effectRadioWall(core, dt) {
   const scrollSpeed = Number.isFinite(opts.scrollSpeed) ? opts.scrollSpeed : 0;
 
   const audio = radio.audio;
+  const djInfo = radio.getPlaybackState().currentStation?.url === 'dj:' ? audio.djInfo || (audio.dj ? { now: audio.dj.status.now, next: audio.dj.status.next, mixing: audio.dj.status.mixing, mixU: audio.dj.status.mixU || 0, mixIn: audio.dj.status.mixIn ?? -1 } : null) : null; // Auto-DJ: the two decks replace the ticker
 
   for (let i = 0; i < core.wallBuf.length; i++) core.wallBuf[i] = 0;
 
@@ -94,7 +97,7 @@ function effectRadioWall(core, dt) {
       amp: (b) => ampArr[b],
       peak: (b) => peakArr[b],
       ampArr, peakArr, ampL, ampR, vu: audio.vu, wave: audio.wave, // vu: stereo [left, right, leftPeak, rightPeak]; wave: the sound wave
-      bands, theme, barMode, scrollX: spectrumWallState.scrollX || 0, t: core.t, dt,
+      bands, theme, barMode, scrollX: spectrumWallState.scrollX || 0, t: core.t, dt, tickerRows: djInfo ? DJ_ROWS : 9,
     };
     // Version 2 (the default) is the animated scenes; version 1 keeps the classic styles.
     if (opts.version === 1) renderSpectrumStyleWall(core, ctx, style, spectrumWallState);
@@ -122,6 +125,8 @@ function effectRadioWall(core, dt) {
     // non-scrolling label instead.
     if (currentStation.url.startsWith('debugloop:')) {
       drawStaticLabelWall(core, genre);
+    } else if (djInfo) {
+      drawDjDecks(core, djInfo, deckState, dt, core.audio ? core.audio.beat : 0);
     } else {
       const label = currentStation.name + (title ? '  -  ' + title : genre ? '  •  ' + genre : '') + '    '; // the song when the station sends it
       drawTickerWall(core, label, dt);

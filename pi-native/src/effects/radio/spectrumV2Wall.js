@@ -38,7 +38,7 @@ const { FONT_3x5, drawString } = require('../text');
 
 const SCENES = ['horizon', 'loom', 'helix', 'tunnel', 'hifi', 'studio', 'spectrogram', 'waterfall3d', 'mirror', 'radial', 'particle', 'neon', 'bounce', 'bars3d'];
 const AUTO_SECS = 25;
-const TICKER_ROWS = 9;
+let TICKER_ROWS = 9; // per frame: ctx.tickerRows (the Auto-DJ's decks are taller)
 
 function createV2State() { return { sceneT: 0, last: null, subs: {}, tmp: null }; }
 
@@ -504,7 +504,8 @@ function sub(st, name) { return st.subs[name] || (st.subs[name] = {}); }
 
 function renderSpectrumV2Wall(core, ctx, scene, st, autoSecs) {
   const W = core.wallW, H = core.wallH, dt = ctx.dt || 1 / 30, t = ctx.t;
-  if (!st.subs) st.subs = {};
+  TICKER_ROWS = ctx.tickerRows || 9;
+  if (!st.subs || st.rows !== TICKER_ROWS) { st.subs = {}; st.rows = TICKER_ROWS; } // the styles size their state to the area above the ticker
   if (SCENES.includes(scene)) {
     if (st.last !== scene) { st.subs[scene] = {}; st.last = scene; }
     RENDER[scene](core, ctx, sub(st, scene), W, H, t, dt);
