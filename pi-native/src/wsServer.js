@@ -137,8 +137,8 @@ class WsServer {
       if (sig !== this._djSig) { this._djSig = sig; this._broadcast(this._stateMsg()); }
       // Light show: each new song (as heard) brings a new spectrum style, or a new effect.
       const hi = a && a.dj && a.url === 'dj:' ? a.djInfo : null, mode = (this.state.prefs && this.state.prefs.dj && this.state.prefs.dj.lightShow) || 'scenes';
-      if (hi && hi.doneAt && hi.doneAt !== this._djDone) {
-        const first = this._djDone === undefined; this._djDone = hi.doneAt;
+      if (hi && hi.doneId && hi.doneId !== this._djDone) {
+        const first = this._djDone === undefined; this._djDone = hi.doneId;
         if (!first && mode === 'scenes' && this.state.effect === 'radio') {
           const SC = require('./effects/radio/spectrumV2Wall').SCENES, o = (this.state.effectOptions.radio = this.state.effectOptions.radio || {});
           const at = SC.indexOf(o.scene); o.scene = SC[(at + 1 + Math.floor(Math.random() * (SC.length - 1))) % SC.length];

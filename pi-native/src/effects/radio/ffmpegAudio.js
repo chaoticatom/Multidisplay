@@ -599,6 +599,7 @@ class RadioAudio {
     let pick = hist[0];
     for (let i = hist.length - 1; i >= 0; i--) if (hist[i].t <= now - lag) { pick = hist[i]; break; }
     const out = { ...pick.info };
+    out.doneId = pick.info.doneAt || 0; // which change it is (doesn't move)
     if (out.doneAt) out.doneAt += now - pick.t; // 'just finished' counts from when it was heard
     if (out.dropAt) out.dropAt += now - pick.t;
     return out;

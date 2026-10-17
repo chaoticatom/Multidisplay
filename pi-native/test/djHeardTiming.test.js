@@ -16,5 +16,10 @@ try {
   Date.now = realNow;
   assert.ok(heard.mixing && heard.mixU > 0.15 && heard.mixU < 0.3, 'shows the mix as heard, not as mixed: ' + heard.mixU);
   assert.ok(Math.abs(heard.now.pos - 2.95) < 0.15, 'song position as heard: ' + heard.now.pos);
+  // Which change it is stays the same however often it's read (the light show
+  // keys off it: it changed style every second when it moved).
+  Date.now = () => t; st.doneAt = t; for (let i = 0; i < 60; i++) { t += 50; ra.djInfo; }
+  const id1 = ra.djInfo.doneId; t += 1000; const id2 = ra.djInfo.doneId; Date.now = realNow;
+  assert.ok(id1 && id1 === id2, 'the change id holds still: ' + id1 + ' / ' + id2);
   console.log('  ok - Auto-DJ display in step with the sound');
 } catch (e) { console.error(e); process.exitCode = 1; }

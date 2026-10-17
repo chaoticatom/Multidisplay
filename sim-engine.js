@@ -5271,6 +5271,7 @@ var PiEngine = (() => {
             break;
           }
           const out = { ...pick.info };
+          out.doneId = pick.info.doneAt || 0;
           if (out.doneAt) out.doneAt += now - pick.t;
           if (out.dropAt) out.dropAt += now - pick.t;
           return out;
