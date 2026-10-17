@@ -1189,6 +1189,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 #dj-queue-card .dj-queue button.next{background:rgba(255,179,71,.08)}
 @media (min-width:700px){#dj-queue-card .dj-queue button span:nth-child(2){-webkit-line-clamp:1;white-space:nowrap;display:block;text-overflow:ellipsis}}
 .mx-switch,.mx-switch span,.mx-switch small{text-transform:none!important;letter-spacing:0!important;font-size:14px;color:#eef2ff}.mx-switch small{font-size:12px;color:rgba(238,242,255,.55)}
+#dj-signin.on>summary b{color:#7ee2a8;font-weight:600}#dj-signin>summary b{font-weight:500}#dj-signin.on>summary span{color:#7ee2a8}
 /* ── Music tab: player + Radio / Auto-DJ / Sound ─────────────────────── */
 .mx-root{padding:0!important;border:0!important;background:none!important;box-shadow:none!important;margin:0!important}
 .mx-player{position:relative;background:linear-gradient(135deg,rgba(80,110,255,.16),rgba(150,80,255,.10));border-radius:18px;padding:12px;margin:0 0 12px;box-shadow:0 0 0 1px rgba(255,255,255,.1)}
@@ -2183,13 +2184,14 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
             <div id="dj-lib-list" class="mx-liblist" hidden></div>
             <div class="ui-note" id="dj-lib-note"></div>
             <details class="mx-fold mx-inner" id="dj-signin">
-              <summary>🔑 Sign in to YouTube <span id="dj-signin-state">Not signed in</span></summary>
-              <ol class="mx-steps">
+              <summary><b id="dj-signin-label">🔑 Sign in to YouTube</b> <span id="dj-signin-state">Not signed in</span></summary>
+              <div class="ui-note" id="dj-signin-ok" hidden>Your playlists and Premium sound are available. If YouTube stops working after a few weeks, the sign-in has expired: upload a fresh cookies.txt.</div>
+              <ol class="mx-steps" id="dj-signin-steps">
                 <li>On your PC, sign in to <b>music.youtube.com</b> in Chrome or Firefox.</li>
                 <li>Add the free extension <b>“Get cookies.txt LOCALLY”</b>, open it on that page and click <b>Export</b>.</li>
                 <li>Upload the file here. It stays on the Pi only.</li>
               </ol>
-              <div style="display:flex;gap:6px;"><label class="ui-btn-small" style="flex:1;text-align:center;cursor:pointer;">Upload cookies.txt<input id="dj-yt-cookie-file" type="file" accept=".txt,text/plain" hidden></label><button type="button" id="dj-yt-signout" class="ui-btn-small" hidden>Sign out</button></div>
+              <div style="display:flex;gap:6px;"><label class="ui-btn-small" style="flex:1;text-align:center;cursor:pointer;"><span id="dj-upload-label">Upload cookies.txt</span><input id="dj-yt-cookie-file" type="file" accept=".txt,text/plain" hidden></label><button type="button" id="dj-yt-signout" class="ui-btn-small" hidden>Sign out</button></div>
             </details>
           </div>
           <label class="mx-switch"><span>Endless<small>Keep adding similar songs from YouTube Music</small></span><input type="checkbox" id="dj-endless" checked></label>
@@ -2862,6 +2864,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.347"></script>
+<script src="app.js?v=0.6.348"></script>
 </body>
 </html>

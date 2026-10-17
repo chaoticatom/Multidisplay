@@ -686,7 +686,7 @@ class RadioAudio {
   // see RemoteAudio below.
   snapshot() {
     const ds = this.dj && this.url === 'dj:' ? this.dj.status : null, djSpec = ds && this.specA ? { specA: this.specA, specB: this.specB } : {};
-    return { djNow: ds && ds.now ? ds.now.title : '', ...djSpec, djInfo: ds && ds.state !== 'stopped' ? { now: ds.now, next: ds.next, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === undefined ? -1 : ds.mixIn } : null, spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
+    return { djNow: ds && ds.now ? ds.now.title : '', ...djSpec, djInfo: ds && ds.state !== 'stopped' ? { now: ds.now, next: ds.next, error: ds.error || '', mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === undefined ? -1 : ds.mixIn } : null, spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
   }
 
   // Auto speaker sync: ask the sound server how late our stream plays, and

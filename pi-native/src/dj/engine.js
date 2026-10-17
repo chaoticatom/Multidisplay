@@ -171,7 +171,10 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   }
 
   async function prepare(track, ref) {
+    const step = (t) => { if (st.next && st.next.title === track.title) st.next.step = t; };
+    step(track.kind === 'yt' ? 'getting it from YouTube' : 'opening');
     const input = await sources.inputFor(track);
+    step('analysing the beat, key and vocals');
     let info = known[track.id];
     if (info && info.vocalLevel === undefined) info = null; // analysed by an older version: no singing map
     if (!info) {
@@ -192,6 +195,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
       info.period *= f; info.bpm /= f;
     }
     const semis = matched && ref && analyser.bestShift ? analyser.bestShift(ref.keyNow, info.key) : 0;
+    step('matching tempo' + (semis ? ' and key' : ''));
     const pcm = await decode.decodePlay(input, tempo, undefined, semis);
     const d = deckFrom(track, info, pcm, tempo, matched, semis);
     d.keyNow = shiftKey(info.key, semis);
@@ -255,7 +259,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
       for (let tries = 0; tries < Math.min(5, list.length); tries++) {
         const ti = chooseNext(), track = list[ti];
         try {
-          st.next = { title: track.title, status: 'loading' }; st.nextIdx = ti;
+          st.next = { title: track.title, status: 'loading', step: 'starting' }; st.nextIdx = ti;
           const d = await prepare(track, A);
           if (g !== gen || tok !== prepToken) return; // stopped, or another track was picked meanwhile
           d.qi = ti;
@@ -267,7 +271,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
           if (sources.prefetch && list.length > 1) { const after = list[idx % list.length]; if (after && after.id !== track.id) sources.prefetch(after); }
           log(`[dj] next: ${track.title} (${Math.round(d.info.bpm)} BPM${d.tempo !== 1 ? ` -> ${Math.round(d.bpm)}` : ''}${d.semis ? `, ${d.semis > 0 ? '+' : ''}${d.semis} st` : ''}, ${st.next.mode})`);
           return;
-        } catch (e) { log('[dj] skipped ' + track.title + ': ' + e.message); st.error = e.message; }
+        } catch (e) { log('[dj] skipped ' + track.title + ': ' + e.message); st.error = `Couldn't play ${track.title}: ${e.message}`; }
       }
       st.next = null; st.nextIdx = -1;
     })().finally(() => { if (tok === prepToken) preparing = null; });

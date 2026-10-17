@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.347';
+const APP_VERSION = '0.6.348';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -6226,8 +6226,8 @@ function cxSyncDj() {
   const s = document.getElementById('dj-status');
   s.textContent = !d.on ? (d.music.length ? `${d.music.length} tracks in My music.` : 'Add MP3s below, or a YouTube playlist or search above.')
     : d.state === 'error' || d.state === 'empty' ? '⚠ ' + (d.error || 'Nothing to play')
-    : d.state === 'loading' && !d.now ? 'Getting the first track ready…'
-    : d.next ? `Next: ${d.next.title}${d.next.bpm ? ` · ${d.next.bpm} BPM` : ''}${d.next.key ? ` · ${d.next.key}${d.next.shift ? ` (${d.next.shift > 0 ? '+' : ''}${d.next.shift} st)` : ''}` : ''}${d.next.mode ? ` · ${d.next.mode}` : d.next.status ? ' · getting it ready' : ''}${d.next.style === 'cut' ? ' · cut on the beat' : d.next.beats ? ` · ${d.next.beats}-beat ${d.next.style || 'blend'}` : ''}` : '';
+    : d.state === 'loading' && !d.now ? (d.next ? `Getting ready: ${d.next.title}${d.next.step ? ' — ' + d.next.step + '…' : ''}` : 'Finding songs…') + (d.error ? `\n⚠ ${d.error} — trying the next` : '')
+    : d.next ? `Next: ${d.next.title}${d.next.bpm ? ` · ${d.next.bpm} BPM` : ''}${d.next.key ? ` · ${d.next.key}${d.next.shift ? ` (${d.next.shift > 0 ? '+' : ''}${d.next.shift} st)` : ''}` : ''}${d.next.mode ? ` · ${d.next.mode}` : d.next.status ? ` · ${d.next.step || 'getting it ready'}…` : ''}${d.next.style === 'cut' ? ' · cut on the beat' : d.next.beats ? ` · ${d.next.beats}-beat ${d.next.style || 'blend'}` : ''}` : '';
   s.style.whiteSpace = 'pre-line';
   document.getElementById('dj-skip').disabled = !d.on;
   // While the DJ plays, the source card folds away behind a one-line row.
@@ -6244,7 +6244,12 @@ function cxSyncDj() {
   const lib = d.library, libList = document.getElementById('dj-lib-list'), libNote = document.getElementById('dj-lib-note');
   if (libList && libNote) {
     libNote.textContent = lib && lib.loading ? 'Loading your playlists…' : lib && lib.error && d.signedIn ? '⚠ ' + lib.error : !d.signedIn ? 'Sign in below for your playlists and Premium sound.' : '';
-    const ss = document.getElementById('dj-signin-state'); if (ss) ss.textContent = d.signedIn ? '✓ Signed in' : 'Not signed in';
+    const ss = document.getElementById('dj-signin-state'); if (ss) ss.textContent = d.signedIn ? 'Manage ›' : 'Not signed in';
+    const sl = document.getElementById('dj-signin-label'); if (sl) sl.textContent = d.signedIn ? '✓ YouTube connected' : '🔑 Sign in to YouTube';
+    document.getElementById('dj-signin')?.classList.toggle('on', !!d.signedIn);
+    const stp = document.getElementById('dj-signin-steps'); if (stp) stp.hidden = !!d.signedIn;
+    const okn = document.getElementById('dj-signin-ok'); if (okn) okn.hidden = !d.signedIn;
+    const upl = document.getElementById('dj-upload-label'); if (upl) upl.textContent = d.signedIn ? 'Refresh sign-in' : 'Upload cookies.txt';
     const so = document.getElementById('dj-yt-signout'); if (so) so.hidden = !d.signedIn;
     const si = document.getElementById('dj-signin'); if (si && !d.signedIn && lib && lib.error && !si.dataset.opened) { si.open = true; si.dataset.opened = '1'; }
     const items = (lib && lib.items) || [], key = items.map((x) => x.id).join(',') + '|' + (c ? c.youtube : '');

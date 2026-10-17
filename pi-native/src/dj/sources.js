@@ -92,11 +92,11 @@ async function youtubeRadio(id, spawn = realSpawn) {
 const AUDIO_FORMAT = '141/bestaudio[ext=m4a]/bestaudio/best';
 // The audio-only stream for a YouTube track.
 async function youtubeAudio(id, spawn = realSpawn) {
-  const attempts = [[], ['--extractor-args', 'youtube:player_client=tv,ios'], ['--extractor-args', 'youtube:player_client=android,web_safari']];
+  const attempts = [['music'], ['www'], ['www', '--extractor-args', 'youtube:player_client=tv,ios'], ['www', '--extractor-args', 'youtube:player_client=android,web_safari']];
   let last = null;
-  for (const extra of attempts) {
+  for (const [host, ...extra] of attempts) {
     try {
-      const out = await ytRun(['-f', AUDIO_FORMAT, '-g', '--no-warnings', ...extra, `https://music.youtube.com/watch?v=${id}`], spawn, 40000);
+      const out = await ytRun(['-f', AUDIO_FORMAT, '-g', '--no-warnings', ...extra, `https://${host}.youtube.com/watch?v=${id}`], spawn, 40000);
       const url = out.trim().split('\n').find((l) => /^https?:\/\//.test(l));
       if (url) return url;
     } catch (e) { last = e; if (/not installed/.test(e.message)) throw e; }
@@ -125,12 +125,12 @@ function fetchYoutube(id, spawn = realSpawn) {
   const have = cachedFile(id); if (have) return Promise.resolve(have);
   if (fetching.has(id)) return fetching.get(id);
   fs.mkdirSync(CACHE_DIR, { recursive: true });
-  const attempts = [[], ['--extractor-args', 'youtube:player_client=tv,ios'], ['--extractor-args', 'youtube:player_client=android,web_safari']];
+  const attempts = [['music'], ['www'], ['www', '--extractor-args', 'youtube:player_client=tv,ios']];
   const job = (async () => {
     let last = null;
-    for (const extra of attempts) {
+    for (const [host, ...extra] of attempts) {
       try {
-        await ytRun(['-f', AUDIO_FORMAT, '--no-warnings', '--no-playlist', '--match-filter', 'duration <= 600', '-o', path.join(CACHE_DIR, '%(id)s.%(ext)s'), ...extra, `https://music.youtube.com/watch?v=${id}`], spawn, 120000);
+        await ytRun(['-f', AUDIO_FORMAT, '--no-warnings', '--no-playlist', '--match-filter', 'duration <= 600', '-o', path.join(CACHE_DIR, '%(id)s.%(ext)s'), ...extra, `https://${host}.youtube.com/watch?v=${id}`], spawn, 120000);
         const f = cachedFile(id); if (f) { trimCache(); return f; }
         last = new Error('no audio (longer than 10 minutes?)');
       } catch (e) { last = e; if (/not installed/.test(e.message)) throw e; }

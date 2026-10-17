@@ -2601,11 +2601,11 @@ var PiEngine = (() => {
       }
       var AUDIO_FORMAT = "141/bestaudio[ext=m4a]/bestaudio/best";
       async function youtubeAudio(id, spawn = realSpawn) {
-        const attempts = [[], ["--extractor-args", "youtube:player_client=tv,ios"], ["--extractor-args", "youtube:player_client=android,web_safari"]];
+        const attempts = [["music"], ["www"], ["www", "--extractor-args", "youtube:player_client=tv,ios"], ["www", "--extractor-args", "youtube:player_client=android,web_safari"]];
         let last = null;
-        for (const extra of attempts) {
+        for (const [host, ...extra] of attempts) {
           try {
-            const out = await ytRun(["-f", AUDIO_FORMAT, "-g", "--no-warnings", ...extra, `https://music.youtube.com/watch?v=${id}`], spawn, 4e4);
+            const out = await ytRun(["-f", AUDIO_FORMAT, "-g", "--no-warnings", ...extra, `https://${host}.youtube.com/watch?v=${id}`], spawn, 4e4);
             const url = out.trim().split("\n").find((l) => /^https?:\/\//.test(l));
             if (url) return url;
           } catch (e) {
@@ -2640,12 +2640,12 @@ var PiEngine = (() => {
         if (have) return Promise.resolve(have);
         if (fetching.has(id)) return fetching.get(id);
         fs.mkdirSync(CACHE_DIR, { recursive: true });
-        const attempts = [[], ["--extractor-args", "youtube:player_client=tv,ios"], ["--extractor-args", "youtube:player_client=android,web_safari"]];
+        const attempts = [["music"], ["www"], ["www", "--extractor-args", "youtube:player_client=tv,ios"]];
         const job = (async () => {
           let last = null;
-          for (const extra of attempts) {
+          for (const [host, ...extra] of attempts) {
             try {
-              await ytRun(["-f", AUDIO_FORMAT, "--no-warnings", "--no-playlist", "--match-filter", "duration <= 600", "-o", path.join(CACHE_DIR, "%(id)s.%(ext)s"), ...extra, `https://music.youtube.com/watch?v=${id}`], spawn, 12e4);
+              await ytRun(["-f", AUDIO_FORMAT, "--no-warnings", "--no-playlist", "--match-filter", "duration <= 600", "-o", path.join(CACHE_DIR, "%(id)s.%(ext)s"), ...extra, `https://${host}.youtube.com/watch?v=${id}`], spawn, 12e4);
               const f = cachedFile(id);
               if (f) {
                 trimCache();
@@ -3198,7 +3198,12 @@ var PiEngine = (() => {
           return best > sum / cnt * 1.5 && best > 1e-6 ? bestL * HOP : 0;
         }
         async function prepare(track, ref) {
+          const step = (t) => {
+            if (st.next && st.next.title === track.title) st.next.step = t;
+          };
+          step(track.kind === "yt" ? "getting it from YouTube" : "opening");
           const input = await sources.inputFor(track);
+          step("analysing the beat, key and vocals");
           let info = known[track.id];
           if (info && info.vocalLevel === void 0) info = null;
           if (!info) {
@@ -3228,6 +3233,7 @@ var PiEngine = (() => {
             info.bpm /= f;
           }
           const semis = matched && ref && analyser.bestShift ? analyser.bestShift(ref.keyNow, info.key) : 0;
+          step("matching tempo" + (semis ? " and key" : ""));
           const pcm = await decode.decodePlay(input, tempo, void 0, semis);
           const d = deckFrom(track, info, pcm, tempo, matched, semis);
           d.keyNow = shiftKey(info.key, semis);
@@ -3299,7 +3305,7 @@ var PiEngine = (() => {
             for (let tries = 0; tries < Math.min(5, list.length); tries++) {
               const ti = chooseNext(), track = list[ti];
               try {
-                st.next = { title: track.title, status: "loading" };
+                st.next = { title: track.title, status: "loading", step: "starting" };
                 st.nextIdx = ti;
                 const d = await prepare(track, A);
                 if (g !== gen || tok !== prepToken) return;
@@ -3318,7 +3324,7 @@ var PiEngine = (() => {
                 return;
               } catch (e) {
                 log("[dj] skipped " + track.title + ": " + e.message);
-                st.error = e.message;
+                st.error = `Couldn't play ${track.title}: ${e.message}`;
               }
             }
             st.next = null;
@@ -4708,7 +4714,7 @@ var PiEngine = (() => {
         // see RemoteAudio below.
         snapshot() {
           const ds = this.dj && this.url === "dj:" ? this.dj.status : null, djSpec = ds && this.specA ? { specA: this.specA, specB: this.specB } : {};
-          return { djNow: ds && ds.now ? ds.now.title : "", ...djSpec, djInfo: ds && ds.state !== "stopped" ? { now: ds.now, next: ds.next, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === void 0 ? -1 : ds.mixIn } : null, spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
+          return { djNow: ds && ds.now ? ds.now.title : "", ...djSpec, djInfo: ds && ds.state !== "stopped" ? { now: ds.now, next: ds.next, error: ds.error || "", mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn === void 0 ? -1 : ds.mixIn } : null, spec: this.spec, peak: this.peak, specL: this.specL, specR: this.specR, vu: this.vu, wave: this.wave, status: this.status, playbackStatus: this.playbackStatus, lastAttemptMs: this.lastAttemptMs, autoSyncMs: this.autoSyncMs };
         }
         // Auto speaker sync: ask the sound server how late our stream plays, and
         // ease the bars' delay towards it (readings jitter a little).
@@ -5835,10 +5841,10 @@ var PiEngine = (() => {
             bar: dur ? pos / dur : 0,
             marks: hasMix ? [{ from: now.mixAt / dur, to: Math.min(1, (now.mixAt + Math.max(0.5, now.mixLen || 0)) / dur), c: AMBER }] : []
           };
-        } else dNow = { title: "LOADING", k: 0.6, right: "", scan: (Math.sin(t * 3) + 1) / 2 };
+        } else dNow = { title: "LOADING", k: 0.7, right: "", line1: "first song", line2: info.error ? info.error : next && next.step ? next.step : "finding songs", line2C: info.error ? [1, 0.35, 0.35] : void 0, scan: (Math.sin(t * 3) + 1) / 2 };
         let dNext;
         if (!next) dNext = { title: "", k: 0.5, right: "", bar: 0 };
-        else if (next.status === "loading") dNext = { title: next.title, k: 0.75, textA: 0.6, right: "LOADING" + "...".slice(0, 1 + Math.floor(t * 2) % 3), rightA: 0.55, line2: "fetching and analysing", scan: (Math.sin(t * 2.4) + 1) / 2 };
+        else if (next.status === "loading") dNext = { title: next.title, k: 0.75, textA: 0.6, right: "LOADING" + "...".slice(0, 1 + Math.floor(t * 2) % 3), rightA: 0.55, line2: next.step || "fetching and analysing", scan: (Math.sin(t * 2.4) + 1) / 2 };
         else {
           const soon = info.mixIn >= 0 && info.mixIn < 60;
           const change = next.shift ? "key " + (next.shift > 0 ? "+" : "") + next.shift : next.tempoPct ? "speed " + (next.tempoPct > 0 ? "+" : "") + next.tempoPct : "";

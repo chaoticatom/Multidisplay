@@ -118,10 +118,10 @@ function drawDjDecks(core, info, st, dt, beat = 0, where = 'wall') {
       bar: dur ? pos / dur : 0,
       marks: hasMix ? [{ from: now.mixAt / dur, to: Math.min(1, (now.mixAt + Math.max(0.5, now.mixLen || 0)) / dur), c: AMBER }] : [],
     };
-  } else dNow = { title: 'LOADING', k: 0.6, right: '', scan: (Math.sin(t * 3) + 1) / 2 };
+  } else dNow = { title: 'LOADING', k: 0.7, right: '', line1: 'first song', line2: info.error ? info.error : next && next.step ? next.step : 'finding songs', line2C: info.error ? [1, 0.35, 0.35] : undefined, scan: (Math.sin(t * 3) + 1) / 2 };
   let dNext;
   if (!next) dNext = { title: '', k: 0.5, right: '', bar: 0 };
-  else if (next.status === 'loading') dNext = { title: next.title, k: 0.75, textA: 0.6, right: 'LOADING' + '...'.slice(0, 1 + Math.floor(t * 2) % 3), rightA: 0.55, line2: 'fetching and analysing', scan: (Math.sin(t * 2.4) + 1) / 2 };
+  else if (next.status === 'loading') dNext = { title: next.title, k: 0.75, textA: 0.6, right: 'LOADING' + '...'.slice(0, 1 + Math.floor(t * 2) % 3), rightA: 0.55, line2: next.step || 'fetching and analysing', scan: (Math.sin(t * 2.4) + 1) / 2 };
   else {
     const soon = info.mixIn >= 0 && info.mixIn < 60;
     const change = next.shift ? 'key ' + (next.shift > 0 ? '+' : '') + next.shift : next.tempoPct ? 'speed ' + (next.tempoPct > 0 ? '+' : '') + next.tempoPct : '';
