@@ -11,16 +11,8 @@ const { renderSpectrumV2Wall, createV2State } = require('./radio/spectrumV2Wall'
 const v2State = createV2State();
 const { drawDjDecks, createDeckState, ROWS: DJ_ROWS } = require('./radio/djDecks');
 const deckState = createDeckState();
-// Auto-DJ split spectrum: each half drawn on its own small canvas (so every
-// style works unchanged), then copied onto the wall.
-let split = null; // made on first use (the level helpers are required further down)
-const splitSide = () => ({ v2: createV2State(), v1: createSpectrumWallState(), lv: createLevelState(), sub: null });
-function subCanvas(side, W, H) {
-  if (side.sub && side.sub.wallW === W && side.sub.wallH === H) return side.sub;
-  const buf = new Float32Array(W * H * 3);
-  side.sub = { wallW: W, wallH: H, wallBuf: buf, t: 0, setWallPixel(x, y, r, g, b) { if (x < 0 || y < 0 || x >= W || y >= H || x !== (x | 0) || y !== (y | 0)) return; const o = (y * W + x) * 3; buf[o] = r; buf[o + 1] = g; buf[o + 2] = b; } };
-  return side.sub;
-}
+// Auto-DJ: the next track's peak line over the playing track's spectrum.
+let djNext = null; // { lv, smooth, k } made on first use (the level helpers are required further down)
 const { CHAR_W } = require('./radio/font');
 const { createLevelState, computeLevels } = require('./radio/levels');
 const { drawString, drawMarquee, drawLinesCentered, FONT_3x5, FONT_5x7, wallPlot } = require('./text');
@@ -110,71 +102,41 @@ function effectRadioWall(core, dt) {
       bands, theme, barMode, scrollX: spectrumWallState.scrollX || 0, t: core.t, dt, tickerRows: djInfo ? DJ_ROWS : 9, noLabels: !!djInfo,
     };
     // Version 2 (the default) is the animated scenes; version 1 keeps the classic styles.
-    if (djInfo && audio.specA && core.wallW >= 96) {
-      // Auto-DJ: the left half is the song playing, the right half the next
-      // one (a silent preview of its opening bars, dimmer). As the mix runs,
-      // the right analyser slides left into the left one while the left's
-      // peaks and troughs morph into the new song's; a glowing seam marks
-      // where they meet. When the mix ends the left is the new song, and the
-      // song after it fades in on the right.
-      if (!split) split = { a: splitSide(), b: splitSide(), kB: 0, merged: null };
-      const half = Math.floor(core.wallW / 2), wR = core.wallW - half, H = core.wallH;
-      // The mix in three slow stages: the next song's analyser glides in
-      // over the first third; then the two sit on top of each other on the
-      // same frequency axis - its peaks tinted amber, white where the two
-      // songs' peaks meet, so the bass beats can be seen landing together;
-      // over the last fifth the old song fades and the new takes its colours.
-      const u = djInfo.mixing ? Math.max(0, Math.min(1, djInfo.mixU || 0)) : 0;
-      const sm3 = (x) => { x = x < 0 ? 0 : x > 1 ? 1 : x; return x * x * (3 - 2 * x); };
-      const slide = sm3(u / 0.35), fadeA = sm3((u - 0.8) / 0.2), together = djInfo.mixing ? slide * (1 - fadeA) : 0, e = fadeA;
-      const kBWant = djInfo.next && djInfo.next.status !== 'loading' ? 0.62 : 0;
-      split.kB += (kBWant - split.kB) * Math.min(1, dt * (kBWant > split.kB ? 1.2 : 4));
+    if (djInfo && audio.specA) {
+      // Auto-DJ: the playing track fills the width in the chosen style; the
+      // next track rides on top as a single magenta peak line - from the
+      // moment it's lined up (a silent preview of its opening bars), through
+      // the mix, so you can watch its peaks against the playing track's.
+      if (!djNext) djNext = { a: createLevelState(), b: createLevelState(), line: null, k: 0 };
       const o = { bands, gain, autoGain: autoGainOn, fitToScreen };
-      const lA = computeLevels(split.a.lv, { spec: audio.specA, peak: audio.specA }, o, dt);
-      const lB = computeLevels(split.b.lv, { spec: audio.specB, peak: audio.specB }, o, dt);
-      if (!split.merged || split.merged.amp.length !== lA.amp.length) split.merged = { amp: new Float32Array(lA.amp.length), peak: new Float32Array(lA.amp.length) };
-      const m = split.merged;
-      for (let i = 0; i < m.amp.length; i++) { m.amp[i] = lA.amp[i] + (lB.amp[i] - lA.amp[i]) * e; m.peak[i] = lA.peak[i] + (lB.peak[i] - lA.peak[i]) * e; }
-      const draw = (side, w, lv) => {
-        const sub = subCanvas(side, w, H); sub.wallBuf.fill(0); sub.t = core.t;
-        const c2 = { ...ctx, amp: (i) => lv.amp[i], peak: (i) => lv.peak[i], ampArr: lv.amp, peakArr: lv.peak, ampL: null, ampR: null };
-        if (opts.version === 1) renderSpectrumStyleWall(sub, c2, style, side.v1);
-        else renderSpectrumV2Wall(sub, c2, opts.scene || 'auto', side.v2, opts.autoSecs);
-        return sub.wallBuf;
-      };
-      const put = (x, y, r, g, b2, add) => {
-        if (x < 0 || x >= core.wallW) return;
-        const q = (y * core.wallW + x) * 3, wb = core.wallBuf;
-        if (add) core.setWallPixel(x, y, Math.min(1.6, wb[q] + r), Math.min(1.6, wb[q + 1] + g), Math.min(1.6, wb[q + 2] + b2));
-        else core.setWallPixel(x, y, r, g, b2);
-      };
-      // Left: the playing song (its levels only become the new song's in the final fade).
-      const bufA = draw(split.a, half, m), kA = 1 - fadeA;
-      const kB = djInfo.mixing ? Math.max(split.kB, 0.62) + (1 - Math.max(split.kB, 0.62)) * fadeA : split.kB;
-      const bufB = kB > 0.01 ? draw(split.b, wR, lB) : null;
-      const x0B = djInfo.mixing ? Math.round(half * (1 - slide)) : half, tint = 0.75 * together;
-      const W2 = core.wallW, AMB = [1, 0.55, 0.12];
-      for (let y = 0; y < H; y++) for (let x = 0; x < W2; x++) {
-        let r = 0, g = 0, bl = 0, la = 0, lb = 0;
-        if (x < half) { const q = (y * half + x) * 3; r = bufA[q] * kA; g = bufA[q + 1] * kA; bl = bufA[q + 2] * kA; la = r + g + bl; }
-        const xb = x - x0B;
-        if (bufB && xb >= 0 && xb < wR) {
-          const q = (y * wR + xb) * 3, br = bufB[q], bg = bufB[q + 1], bb = bufB[q + 2];
-          lb = (br + bg + bb) * kB;
-          if (lb > 0) {
-            const lum = (br + bg + bb) / 3;
-            r += (br + (AMB[0] * lum * 1.6 - br) * tint) * kB; g += (bg + (AMB[1] * lum * 1.6 - bg) * tint) * kB; bl += (bb + (AMB[2] * lum * 1.6 - bb) * tint) * kB;
-          }
+      const lA = computeLevels(djNext.a, { spec: audio.specA, peak: audio.specA }, o, dt);
+      const c2 = { ...ctx, amp: (i) => lA.amp[i], peak: (i) => lA.peak[i], ampArr: lA.amp, peakArr: lA.peak };
+      if (opts.version === 1) renderSpectrumStyleWall(core, c2, style, spectrumWallState);
+      else renderSpectrumV2Wall(core, c2, opts.scene || 'auto', v2State, opts.autoSecs);
+      const ready = djInfo.next && djInfo.next.status !== 'loading';
+      djNext.k += ((ready ? 1 : 0) - djNext.k) * Math.min(1, dt * (ready ? 2 : 5));
+      if (djNext.k > 0.02 && audio.specB) {
+        const lB = computeLevels(djNext.b, { spec: audio.specB, peak: audio.specB }, o, dt);
+        const W = core.wallW, top = 1, bot = core.wallH - DJ_ROWS - 1, h = bot - top;
+        if (!djNext.line || djNext.line.length !== W) djNext.line = new Float32Array(W);
+        const ln = djNext.line, nb = lB.amp.length;
+        for (let x = 0; x < W; x++) {
+          const f = (x / Math.max(1, W - 1)) * (nb - 1), i = Math.floor(f), t = f - i;
+          const v = (lB.amp[i] || 0) * (1 - t) + (lB.amp[Math.min(nb - 1, i + 1)] || 0) * t;
+          ln[x] = bot - Math.max(0, Math.min(1, v)) * h;
         }
-        // Where both songs' peaks are at the same place, light it white.
-        if (together > 0.02 && la > 0.25 && lb > 0.25) { const w = Math.min(la, lb) * 0.28 * together; r += w; g += w; bl += w; }
-        if (r + g + bl > 0) core.setWallPixel(x, y, Math.min(1.6, r), Math.min(1.6, g), Math.min(1.6, bl));
-      }
-      // The leading edge glows while the next song glides in.
-      const glow = djInfo.mixing ? Math.sin(Math.PI * slide) : 0, area = H - DJ_ROWS;
-      if (glow > 0.02) for (let y = 0; y < area; y++) for (let d = -3; d <= 3; d++) {
-        const k = glow * (1 - Math.abs(d) / 4) * (0.55 + 0.45 * Math.sin(y * 0.35 + core.t * 9)) * 0.5;
-        put(x0B + d, y, 1 * k * (d >= 0 ? 1 : 0.35), 0.62 * k, (d < 0 ? 1 : 0.25) * k, true);
+        const mixing = !!djInfo.mixing, kk = djNext.k * (mixing ? 1 : 0.85), C = [1, 0.2, 0.85]; // magenta: nothing else uses it
+        const px = (x, y, a) => {
+          y = Math.round(y); if (x < 0 || x >= W || y < 0 || y > bot) return;
+          const q = (y * W + x) * 3, wb = core.wallBuf;
+          core.setWallPixel(x, y, Math.min(1.6, wb[q] * (1 - a * 0.6) + C[0] * a), Math.min(1.6, wb[q + 1] * (1 - a * 0.6) + C[1] * a), Math.min(1.6, wb[q + 2] * (1 - a * 0.6) + C[2] * a));
+        };
+        for (let x = 0; x < W; x++) {
+          const y0 = ln[x], y1 = x + 1 < W ? ln[x + 1] : y0;
+          // The line itself (joined to its neighbour), a soft glow just under it.
+          for (let y = Math.min(y0, y1); y <= Math.max(y0, y1) + 0.01; y += 1) px(x, y, kk);
+          px(x, y0 + 1, kk * 0.35); px(x, y0 + 2, kk * 0.12);
+        }
       }
     } else if (opts.version === 1) renderSpectrumStyleWall(core, ctx, style, spectrumWallState);
     else renderSpectrumV2Wall(core, ctx, opts.scene || 'auto', v2State, opts.autoSecs);
