@@ -43,7 +43,7 @@ function fakeYt(answers, calls) {
     const spawn = fakeYt({}, calls);
     const f1 = await src.fetchYoutube('cachetest01', spawn), f2 = await src.fetchYoutube('cachetest01', spawn);
     assert.strictEqual(f1, f2); assert.strictEqual(calls.length, 1, 'downloaded once');
-    assert.ok(calls[0].args.includes('141/bestaudio[ext=m4a]/bestaudio/best'), 'Premium 256k audio first');
+    assert.ok(calls[0].args.includes('bestaudio[ext=m4a]/bestaudio/best'), 'best audio-only stream');
     const inp = await src.inputFor({ kind: 'yt', id: 'cachetest01' }, spawn);
     assert.strictEqual(inp.url, f1, 'playback reads the cached file');
     // Half-finished pieces never count as the song.

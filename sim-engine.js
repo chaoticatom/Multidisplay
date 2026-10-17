@@ -2599,9 +2599,9 @@ var PiEngine = (() => {
         if (!/^[\w-]{6,20}$/.test(id)) return [];
         return toTracks(await flat(`https://www.youtube.com/watch?v=${id}&list=RDAMVM${id}`, spawn, 40)).filter((t) => t.id !== id);
       }
-      var AUDIO_FORMAT = "141/bestaudio[ext=m4a]/bestaudio/best";
+      var AUDIO_FORMAT = "bestaudio[ext=m4a]/bestaudio/best";
       async function youtubeAudio(id, spawn = realSpawn) {
-        const attempts = [["music"], ["www"], ["www", "--extractor-args", "youtube:player_client=tv,ios"], ["www", "--extractor-args", "youtube:player_client=android,web_safari"]];
+        const attempts = [["www"], ["www", "--extractor-args", "youtube:player_client=tv,ios"], ["www", "--extractor-args", "youtube:player_client=android,web_safari"], ["music"]];
         let last = null;
         for (const [host, ...extra] of attempts) {
           try {
@@ -2647,7 +2647,7 @@ var PiEngine = (() => {
         if (have) return Promise.resolve(have);
         if (fetching.has(id)) return fetching.get(id);
         fs.mkdirSync(CACHE_DIR, { recursive: true });
-        const attempts = [["music"], ["www"], ["www", "--extractor-args", "youtube:player_client=tv,ios"]];
+        const attempts = [["www"], ["www", "--extractor-args", "youtube:player_client=tv,ios"], ["music"]];
         const job = (async () => {
           let last = null;
           for (const [host, ...extra] of attempts) {

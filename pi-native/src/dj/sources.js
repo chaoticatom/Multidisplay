@@ -88,11 +88,12 @@ async function youtubeRadio(id, spawn = realSpawn) {
   return toTracks(await flat(`https://www.youtube.com/watch?v=${id}&list=RDAMVM${id}`, spawn, 40)).filter((t) => t.id !== id);
 }
 
-// Premium accounts get 256 kbps audio (format 141) on YouTube Music.
-const AUDIO_FORMAT = '141/bestaudio[ext=m4a]/bestaudio/best';
+// The best audio-only stream. (Premium's 256 kbps format 141 is left out:
+// with current YouTube it often arrives unplayable - 'Invalid data'.)
+const AUDIO_FORMAT = 'bestaudio[ext=m4a]/bestaudio/best';
 // The audio-only stream for a YouTube track.
 async function youtubeAudio(id, spawn = realSpawn) {
-  const attempts = [['music'], ['www'], ['www', '--extractor-args', 'youtube:player_client=tv,ios'], ['www', '--extractor-args', 'youtube:player_client=android,web_safari']];
+  const attempts = [['www'], ['www', '--extractor-args', 'youtube:player_client=tv,ios'], ['www', '--extractor-args', 'youtube:player_client=android,web_safari'], ['music']];
   let last = null;
   for (const [host, ...extra] of attempts) {
     try {
@@ -132,7 +133,7 @@ function fetchYoutube(id, spawn = realSpawn) {
   const have = cachedFile(id); if (have) return Promise.resolve(have);
   if (fetching.has(id)) return fetching.get(id);
   fs.mkdirSync(CACHE_DIR, { recursive: true });
-  const attempts = [['music'], ['www'], ['www', '--extractor-args', 'youtube:player_client=tv,ios']];
+  const attempts = [['www'], ['www', '--extractor-args', 'youtube:player_client=tv,ios'], ['music']];
   const job = (async () => {
     let last = null;
     for (const [host, ...extra] of attempts) {
