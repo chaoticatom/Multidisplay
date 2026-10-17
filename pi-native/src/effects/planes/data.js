@@ -145,7 +145,10 @@ function createPlaneData(fetchFn = fetchWithTimeout) {
       if (!fr) st.routes.set(cs, null);
       else {
         const ap = (x) => (x ? { iata: x.iata_code || x.icao_code || '', city: x.municipality || x.name || '' } : null);
-        st.routes.set(cs, { airline: fr.airline ? fr.airline.name : '', from: ap(fr.origin), to: ap(fr.destination) });
+        const from = ap(fr.origin), to = ap(fr.destination);
+        // A route that starts and ends at the same airport is a bad record: only the airline is kept.
+        const ok = from && to && from.iata && to.iata && from.iata !== to.iata;
+        st.routes.set(cs, { airline: fr.airline ? fr.airline.name : '', from: ok ? from : null, to: ok ? to : null });
       }
     } catch (e) {
       if (/ 404/.test(e.message) || /unknown/i.test(e.message)) st.routes.set(cs, null);

@@ -1588,6 +1588,17 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
     <div class="sub-section collapsed">
     <button class="sub-head">Live Data <span class="chev">▾</span></button>
     <div class="sub-body">
+    <button class="effect-btn has-panel" data-effect="planes">◈ Planes Overhead <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-planes">
+      <div class="ui-hint" id="planes-status">Set your location to see the planes above you.</div>
+      <div class="mx-ytrow"><input id="planes-city" class="ui-input" type="text" maxlength="80" placeholder="Town or city, e.g. Reading" aria-label="Town or city"><button type="button" id="planes-city-go" class="mx-chip">Set</button></div>
+      <button type="button" id="planes-here" class="ui-btn-small" style="width:100%;margin:0 0 8px;">📍 Use this device's location</button>
+      <div class="slider-row"><span class="slider-label">Look</span><select id="planes-style" class="ui-input" style="flex:1;" aria-label="Look"><option value="auto">Auto (board, radar when busy)</option><option value="board">Flight board</option><option value="radar">Radar</option></select></div>
+      <div class="slider-row"><span class="slider-label">Within</span><select id="planes-radius" class="ui-input" style="flex:1;" aria-label="Radius"><option value="5">5 km</option><option value="10">10 km</option><option value="20" selected>20 km</option><option value="40">40 km</option><option value="80">80 km</option></select></div>
+      <div class="slider-row"><span class="slider-label">Below</span><select id="planes-alt" class="ui-input" style="flex:1;" aria-label="Highest altitude"><option value="0">Any height</option><option value="10000">10,000 ft (low, near airports)</option><option value="25000">25,000 ft</option><option value="45000">45,000 ft</option></select></div>
+      <div class="slider-row"><span class="slider-label">Show</span><select id="planes-only" class="ui-input" style="flex:1;" aria-label="Which planes"><option value="">All planes</option><option value="interesting">Interesting only (giants, classics, military)</option></select></div>
+      <div class="ui-note">Live from airplanes.live; routes from adsbdb.com. Private and military flights show their type only.</div>
+    </div>
     <button class="effect-btn" data-effect="ambient_weather">◈ Ambient Weather</button>
     <button class="effect-btn has-panel" data-effect="radar">◈ Weather Radar <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-radar">
@@ -1829,18 +1840,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
         <div id="iss-time-line">Last fix: —</div>
         <div id="iss-country-line">Currently over: —</div>
       </div>
-    </div>
-
-    <button class="effect-btn has-panel" data-effect="planes">◈ Planes Overhead <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-planes">
-      <div class="ui-hint" id="planes-status">Set your location to see the planes above you.</div>
-      <div class="mx-ytrow"><input id="planes-city" class="ui-input" type="text" maxlength="80" placeholder="Town or city, e.g. Reading" aria-label="Town or city"><button type="button" id="planes-city-go" class="mx-chip">Set</button></div>
-      <button type="button" id="planes-here" class="ui-btn-small" style="width:100%;margin:0 0 8px;">📍 Use this device's location</button>
-      <div class="slider-row"><span class="slider-label">Look</span><select id="planes-style" class="ui-input" style="flex:1;" aria-label="Look"><option value="auto">Auto (board, radar when busy)</option><option value="board">Flight board</option><option value="radar">Radar</option></select></div>
-      <div class="slider-row"><span class="slider-label">Within</span><select id="planes-radius" class="ui-input" style="flex:1;" aria-label="Radius"><option value="5">5 km</option><option value="10">10 km</option><option value="20" selected>20 km</option><option value="40">40 km</option><option value="80">80 km</option></select></div>
-      <div class="slider-row"><span class="slider-label">Below</span><select id="planes-alt" class="ui-input" style="flex:1;" aria-label="Highest altitude"><option value="0">Any height</option><option value="10000">10,000 ft (low, near airports)</option><option value="25000">25,000 ft</option><option value="45000">45,000 ft</option></select></div>
-      <div class="slider-row"><span class="slider-label">Show</span><select id="planes-only" class="ui-input" style="flex:1;" aria-label="Which planes"><option value="">All planes</option><option value="interesting">Interesting only (giants, classics, military)</option></select></div>
-      <div class="ui-note">Live from airplanes.live; routes from adsbdb.com. Private and military flights show their type only.</div>
     </div>
 
     <button class="effect-btn has-panel" data-effect="cam">◈ Camera <span class="panel-arrow">▸</span></button>
@@ -2896,6 +2895,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.365"></script>
+<script src="app.js?v=0.6.366"></script>
 </body>
 </html>

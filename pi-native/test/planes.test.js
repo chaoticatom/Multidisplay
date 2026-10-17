@@ -45,6 +45,13 @@ const fakeFetch = (url) => Promise.resolve({ ok: true, status: 200, json: async 
     const d4 = createPlaneData(() => Promise.reject(Object.assign(new Error('fetch failed'), { cause: { code: 'ENOTFOUND' } })));
     d4.update({ lat: 1, lon: 1 }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
     assert.ok(/ENOTFOUND/.test(d4.status()), d4.status());
+    // A route with the same airport at both ends is ignored (bad record).
+    const same = { response: { flightroute: { airline: { name: 'TUI Airways' }, origin: { iata_code: 'FUE', municipality: 'Fuerteventura' }, destination: { iata_code: 'FUE', municipality: 'Fuerteventura' } } } };
+    const d5 = createPlaneData((url) => Promise.resolve({ ok: true, status: 200, json: async () => (/adsbdb/.test(url) ? same : { ac: [{ hex: 'tom001', flight: 'TOM5MH', alt_baro: 16000, gs: 333, track: 0, lat: 51.5, lon: -0.45 }] }) }));
+    d5.update({ lat: 51.47, lon: -0.45 }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    d5.state.routeAt = 0; d5.update({ lat: 51.47, lon: -0.45 }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    const tom = d5.planes()[0];
+    assert.ok(tom.route && !tom.route.from && tom.airline === 'TUI Airways', 'same-airport route dropped, airline kept: ' + JSON.stringify(tom.route));
     console.log('  ok - planes data: nearby aircraft, nearest first, routes');
 
     // Drawing: feed the effect's data directly.
