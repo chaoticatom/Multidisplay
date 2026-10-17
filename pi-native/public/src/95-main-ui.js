@@ -1059,7 +1059,8 @@ function cxSyncMusic() {
   const sb = document.getElementById('cx-show-spectrum');
   if (sb) {
     const on = currentState.effect === 'radio' && !!currentState.effectOptions?.radio?.spectrumOn;
-    sb.title = on ? 'Hide the spectrum' : 'Show the spectrum on the display'; sb.setAttribute('aria-label', sb.title);
+    sb.title = on ? 'Hide the spectrum' : 'Show the spectrum on the display';
+    sb.textContent = on ? '📊 Spectrum on' : '📊 Spectrum';
     sb.classList.toggle('active', on);
   }
   document.getElementById('cx-np-name').textContent = playing ? st.station.name.replace(/^[\s-]+/, '') : 'Nothing playing';

@@ -262,7 +262,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
           if (A && !A.matched) d.matched = false;
           B = d; d.readyAt = Date.now(); if (A) A.plan = null;
           const beat = d.matched && A && A.matched;
-          st.next = { title: track.title, bpm: Math.round(d.bpm), key: d.keyNow ? d.keyNow.camelot : '', shift: d.semis, mode: beat ? 'beat-matched' : 'crossfade' };
+          st.next = { title: track.title, bpm: Math.round(d.bpm), bpmFrom: Math.round(d.info.bpm), tempoPct: Math.round((d.tempo - 1) * 1000) / 10, key: d.keyNow ? d.keyNow.camelot : '', shift: d.semis, mode: beat ? 'beat-matched' : 'crossfade' };
           // Fetch the one after next meanwhile, so it's ready in time.
           if (sources.prefetch && list.length > 1) { const after = list[idx % list.length]; if (after && after.id !== track.id) sources.prefetch(after); }
           log(`[dj] next: ${track.title} (${Math.round(d.info.bpm)} BPM${d.tempo !== 1 ? ` -> ${Math.round(d.bpm)}` : ''}${d.semis ? `, ${d.semis > 0 ? '+' : ''}${d.semis} st` : ''}, ${st.next.mode})`);
@@ -379,7 +379,13 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     }
     st.mixU = mix ? Math.max(0, Math.min(1, (A.pos - mix.from) / mix.len)) : 0;
     st.mixIn = A && B && !mix && A.plan ? Math.max(0, Math.round((A.plan.start - A.pos) / RATE)) : -1;
-    if (A) { st.now ? (st.now.pos = Math.round(A.pos / RATE * 10) / 10, st.now.at = Date.now()) : nowStatus(); }
+    if (A) {
+      if (!st.now) nowStatus();
+      st.now.pos = Math.round(A.pos / RATE * 10) / 10; st.now.at = Date.now();
+      // Where the coming mix sits in this song (for the deck's timeline).
+      const pl = mix ? { start: mix.from, len: mix.len } : B && A.plan ? A.plan : null;
+      st.now.mixAt = pl ? Math.round(pl.start / RATE * 10) / 10 : -1; st.now.mixLen = pl ? Math.round(pl.len / RATE * 10) / 10 : 0;
+    }
     if (A && !mix && !B && A.pos >= A.frames) st.state = list.length ? 'loading' : 'empty';
     return buf;
   }

@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.343';
+const APP_VERSION = '0.6.344';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -6071,7 +6071,8 @@ function cxSyncMusic() {
   const sb = document.getElementById('cx-show-spectrum');
   if (sb) {
     const on = currentState.effect === 'radio' && !!currentState.effectOptions?.radio?.spectrumOn;
-    sb.title = on ? 'Hide the spectrum' : 'Show the spectrum on the display'; sb.setAttribute('aria-label', sb.title);
+    sb.title = on ? 'Hide the spectrum' : 'Show the spectrum on the display';
+    sb.textContent = on ? '📊 Spectrum on' : '📊 Spectrum';
     sb.classList.toggle('active', on);
   }
   document.getElementById('cx-np-name').textContent = playing ? st.station.name.replace(/^[\s-]+/, '') : 'Nothing playing';

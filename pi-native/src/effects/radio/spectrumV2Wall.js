@@ -90,11 +90,11 @@ function sceneHifi(core, ctx, st, W, H, t, dt) {
 // ── Studio analyser ─────────────────────────────────────────────────────
 const LABELS = [[100, '100'], [1000, '1K'], [5000, '5K']];
 function sceneStudio(core, ctx, st, W, H, t, dt) {
-  const area = H - TICKER_ROWS, top = 7, bot = area - 1, h = bot - top;
+  const area = H - TICKER_ROWS, top = ctx.noLabels ? 1 : 7, bot = area - 1, h = bot - top; // noLabels: the Auto-DJ needs the room
   // Frequency axis: the analysis covers about 30 Hz - 7 kHz on a log scale (see fft.js).
   const fx = (hz) => Math.log(hz / 30) / Math.log(7000 / 30) * (W - 1);
   for (let k = 1; k < 6; k++) { const y = Math.round(top + h * k / 6); for (let x = 0; x < W; x += 2) put(core, x, y, [0.2, 0.3, 0.45], 0.35); }
-  for (const [hz, label] of LABELS) {
+  for (const [hz, label] of ctx.noLabels ? [] : LABELS) {
     const x = Math.round(fx(hz)); if (x < 0 || x >= W) continue;
     for (let y = top; y <= bot; y += 2) put(core, x, y, [0.2, 0.3, 0.45], 0.35);
     drawString(FONT_3x5, label, Math.min(W - label.length * 4, Math.max(0, x - label.length * 2)), 0, (px, py) => put(core, px, py, [0.55, 0.65, 0.8], 0.8));

@@ -15,20 +15,20 @@ try {
   const info = { now: { title: 'Song One', bpm: 124, key: '8A', dur: 200, pos: 50 }, next: { title: 'Song Two', bpm: 124, key: '9A' }, mixing: false, mixU: 0, mixIn: 30 };
   const c = wall(128, 64), st = createDeckState();
   for (let i = 0; i < 40; i++) drawDjDecks(c, info, st, 1 / 30);
-  assert.strictEqual(ROWS, 17);
+  assert.strictEqual(ROWS, 30);
   assert.strictEqual(sum(c, 0, 128, 0, 64 - ROWS), 0, 'nothing drawn above the decks');
   assert.ok(sum(c, 0, 64, 64 - 10, 64 - 2) > 5 && sum(c, 64, 128, 64 - 10, 64 - 2) > 5, 'a title on each deck');
-  assert.ok(blue(c, 0, 64, 47, 64) > blue(c, 64, 128, 47, 64), 'NOW is the cyan deck, NEXT the amber one');
+  assert.ok(blue(c, 0, 64, 64 - ROWS, 64) > blue(c, 64, 128, 64 - ROWS, 64), 'NOW is the cyan deck, NEXT the amber one');
   // Progress: a quarter through, so the bar is lit on the left of the NOW deck only.
   assert.ok(sum(c, 2, 14, 63, 64) > sum(c, 30, 60, 63, 64) * 2, 'progress bar');
   // Mixing: the NEXT deck brightens and NOW dims.
   const c2 = wall(128, 64), st2 = createDeckState();
   for (let i = 0; i < 40; i++) drawDjDecks(c2, { ...info, mixing: true, mixU: 0.9 }, st2, 1 / 30);
-  assert.ok(sum(c2, 0, 64, 47, 63) < sum(c, 0, 64, 47, 63), 'NOW dims during the mix');
+  assert.ok(sum(c2, 0, 64, 64 - ROWS, 63) < sum(c, 0, 64, 64 - ROWS, 63), 'NOW dims during the mix');
   // One panel: the decks take turns.
   const c3 = wall(64, 64), st3 = createDeckState();
   for (let i = 0; i < 30; i++) drawDjDecks(c3, info, st3, 1 / 30);
-  assert.ok(sum(c3, 0, 64, 47, 64) > 0);
+  assert.ok(sum(c3, 0, 64, 64 - ROWS, 64) > 0);
   // Loading and empty states draw without errors.
   drawDjDecks(wall(384, 64), { now: null, next: { title: 'X', status: 'loading' }, mixing: false, mixU: 0, mixIn: -1 }, createDeckState(), 1 / 30);
   // Every wall layout up to six panels: both decks drawn, on panels only,
@@ -47,7 +47,7 @@ try {
     for (let y = 0; y < core.wallH; y++) for (let x = 0; x < core.wallW; x++) {
       const o = (y * core.wallW + x) * 3, r = core.wallBuf[o], b = core.wallBuf[o + 2];
       if (r + b === 0) continue;
-      if (y % 64 < 64 - 17) stray++;
+      if (y % 64 < 64 - ROWS) stray++;
       if (b > r) cyan++; else amber++;
     }
     assert.strictEqual(stray, 0, name + ': only in the deck rows');

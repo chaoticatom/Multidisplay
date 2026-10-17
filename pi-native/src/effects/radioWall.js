@@ -107,7 +107,7 @@ function effectRadioWall(core, dt) {
       amp: (b) => ampArr[b],
       peak: (b) => peakArr[b],
       ampArr, peakArr, ampL, ampR, vu: audio.vu, wave: audio.wave, // vu: stereo [left, right, leftPeak, rightPeak]; wave: the sound wave
-      bands, theme, barMode, scrollX: spectrumWallState.scrollX || 0, t: core.t, dt, tickerRows: djInfo ? DJ_ROWS : 9,
+      bands, theme, barMode, scrollX: spectrumWallState.scrollX || 0, t: core.t, dt, tickerRows: djInfo ? DJ_ROWS : 9, noLabels: !!djInfo,
     };
     // Version 2 (the default) is the animated scenes; version 1 keeps the classic styles.
     if (djInfo && audio.specA && core.wallW >= 96) {
