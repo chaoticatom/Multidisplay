@@ -19,14 +19,14 @@ const fakeFetch = (url) => Promise.resolve({ ok: true, status: 200, json: async 
     // Data: planes near home, nearest first, on-ground left out, routes looked up.
     const d = createPlaneData(fakeFetch);
     d.update({ lat: 51.47, lon: -0.45, radiusKm: 20 });
-    for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    for (let i = 0; i < 80; i++) await new Promise((r) => setImmediate(r));
     let ps = d.planes();
     assert.strictEqual(ps.length, 2, 'two airborne planes');
     assert.ok(ps[0].dist <= ps[1].dist, 'nearest first');
     d.state.routeAt = 0; d.update({ lat: 51.47, lon: -0.45, radiusKm: 20 });
-    for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    for (let i = 0; i < 80; i++) await new Promise((r) => setImmediate(r));
     d.state.routeAt = 0; d.update({ lat: 51.47, lon: -0.45, radiusKm: 20 });
-    for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    for (let i = 0; i < 80; i++) await new Promise((r) => setImmediate(r));
     ps = d.planes();
     const vir = ps.find((p) => p.cs === 'VIR15');
     assert.ok(vir.route && vir.route.from.iata === 'LHR' && vir.route.to.city === 'Orlando' && vir.airline === 'Virgin Atlantic', 'route looked up');
@@ -34,29 +34,29 @@ const fakeFetch = (url) => Promise.resolve({ ok: true, status: 200, json: async 
     // Due overhead: 10 km west, heading east at 300 kt -> over home in about 65 s.
     const westward = { ac: [{ hex: 'due001', flight: 'EZY99', t: 'A320', alt_baro: 9000, gs: 300, track: 90, lat: 51.47, lon: -0.45 - 10 / (111.2 * Math.cos(51.47 * Math.PI / 180)) }, { hex: 'big001', flight: 'BAW1', t: 'A388', alt_baro: 30000, gs: 450, track: 0, lat: 51.40, lon: -0.45 }] };
     const d2 = createPlaneData((url) => Promise.resolve({ ok: true, status: 200, json: async () => (/adsbdb/.test(url) ? { response: 'unknown callsign' } : westward) }));
-    d2.update({ lat: 51.47, lon: -0.45 }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    d2.update({ lat: 51.47, lon: -0.45 }); for (let i = 0; i < 80; i++) await new Promise((r) => setImmediate(r));
     const due = d2.planes().find((p) => p.cs === 'EZY99');
     assert.ok(due.dueIn > 55 && due.dueIn < 75 && due.miss < 0.5, 'due overhead in about a minute: ' + due.dueIn + ' s, miss ' + due.miss);
     const d3 = createPlaneData((url) => Promise.resolve({ ok: true, status: 200, json: async () => (/adsbdb/.test(url) ? { response: 'unknown callsign' } : westward) }));
-    d3.update({ lat: 51.47, lon: -0.45, only: 'interesting' }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    d3.update({ lat: 51.47, lon: -0.45, only: 'interesting' }); for (let i = 0; i < 80; i++) await new Promise((r) => setImmediate(r));
     assert.deepStrictEqual(d3.planes().map((p) => p.type), ['A388'], 'interesting only: the A380');
     assert.ok(d2.summary().count === 2 && d2.summary().highest.cs === 'BAW1', 'today\'s tally');
     // Every source failing: the reason is shown, not just 'fetch failed'.
     const d4 = createPlaneData(() => Promise.reject(Object.assign(new Error('fetch failed'), { cause: { code: 'ENOTFOUND' } })));
-    d4.update({ lat: 1, lon: 1 }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    d4.update({ lat: 1, lon: 1 }); for (let i = 0; i < 80; i++) await new Promise((r) => setImmediate(r));
     assert.ok(/ENOTFOUND/.test(d4.status()), d4.status());
     // A route with the same airport at both ends is ignored (bad record).
     const same = { response: { flightroute: { airline: { name: 'TUI Airways' }, origin: { iata_code: 'FUE', municipality: 'Fuerteventura' }, destination: { iata_code: 'FUE', municipality: 'Fuerteventura' } } } };
     const d5 = createPlaneData((url) => Promise.resolve({ ok: true, status: 200, json: async () => (/adsbdb/.test(url) ? same : { ac: [{ hex: 'tom001', flight: 'TOM5MH', alt_baro: 16000, gs: 333, track: 0, lat: 51.5, lon: -0.45 }] }) }));
-    d5.update({ lat: 51.47, lon: -0.45 }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
-    d5.state.routeAt = 0; d5.update({ lat: 51.47, lon: -0.45 }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    d5.update({ lat: 51.47, lon: -0.45 }); for (let i = 0; i < 80; i++) await new Promise((r) => setImmediate(r));
+    d5.state.routeAt = 0; d5.update({ lat: 51.47, lon: -0.45 }); for (let i = 0; i < 80; i++) await new Promise((r) => setImmediate(r));
     const tom = d5.planes()[0];
     assert.ok(tom.route && !tom.route.from && tom.airline === 'TUI Airways', 'same-airport route dropped, airline kept: ' + JSON.stringify(tom.route));
     // A route on the other side of the world (a reused flight number) is ignored.
     const far = { response: { flightroute: { airline: { name: 'VistaJet' }, origin: { iata_code: 'EWR', municipality: 'New York', latitude: 40.69, longitude: -74.17 }, destination: { iata_code: 'TPA', municipality: 'Tampa', latitude: 27.98, longitude: -82.53 } } } };
     const d6 = createPlaneData((url) => Promise.resolve({ ok: true, status: 200, json: async () => (/adsbdb/.test(url) ? far : { ac: [{ hex: 'vjt001', flight: 'VJT779', t: 'GL7T', alt_baro: 11800, gs: 338, track: 90, lat: 52.04, lon: -0.95 }] }) }));
-    d6.update({ lat: 52.04, lon: -0.76 }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
-    d6.state.routeAt = 0; d6.update({ lat: 52.04, lon: -0.76 }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    d6.update({ lat: 52.04, lon: -0.76 }); for (let i = 0; i < 80; i++) await new Promise((r) => setImmediate(r));
+    d6.state.routeAt = 0; d6.update({ lat: 52.04, lon: -0.76 }); for (let i = 0; i < 80; i++) await new Promise((r) => setImmediate(r));
     const vjt = d6.planes()[0];
     assert.ok(vjt.route && !vjt.route.from && vjt.airline === 'VistaJet', 'far-away route dropped: ' + JSON.stringify(vjt.route));
     console.log('  ok - planes data: nearby aircraft, nearest first, routes');

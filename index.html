@@ -1250,6 +1250,10 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 #sidebar-scroll > .sidebar-section.sub-shown > .section-head{display:none}
 #sidebar-scroll > .sidebar-section.sub-shown{border:none;background:none}
 #sidebar-scroll > .sidebar-section.sub-shown > .section-body{display:block!important}
+.dgroups{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;margin:0 0 12px}.dgroups::-webkit-scrollbar{display:none}
+.dgroups button{flex:0 0 auto;border:0;border-radius:99px;padding:6px 12px;font-size:12.5px;background:rgba(255,255,255,.07);color:rgba(238,242,255,.65);cursor:pointer;margin:0;min-height:0!important;width:auto}
+.dgroups button.on{background:rgba(110,168,255,.24);color:#e6efff}
+#sidebar-scroll.setup-searching .dgroup{display:block!important}#sidebar-scroll.setup-searching .dgroups{display:none}
 /* ── Music tab: player + Radio / Auto-DJ / Sound ─────────────────────── */
 .mx-root{padding:0!important;border:0!important;background:none!important;box-shadow:none!important;margin:0!important}
 .mx-player{position:relative;background:linear-gradient(135deg,rgba(80,110,255,.16),rgba(150,80,255,.10));border-radius:18px;padding:12px;margin:0 0 12px;box-shadow:0 0 0 1px rgba(255,255,255,.1)}
@@ -2613,6 +2617,8 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   <div class="sidebar-section collapsed">
     <button class="section-head">◈ Display <span class="chev">▾</span></button>
     <div class="section-body">
+      <div class="seg2 dgroups" id="dgroups" role="tablist" aria-label="Display settings"><button type="button" data-dg="panels" class="on">Panels</button><button type="button" data-dg="look">Look</button><button type="button" data-dg="changes">Changes</button><button type="button" data-dg="night">Night</button><button type="button" data-dg="preview">Preview</button></div>
+      <div class="dgroup" data-dgroup="panels">
 <div id="sidebar-size-bar" style="margin-bottom:12px;">
     <div style="font-size:11px;color:#7af;margin-bottom:5px;text-transform:uppercase;letter-spacing:1px;">Display type</div>
     
@@ -2632,18 +2638,22 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
     <div class="slider-row"><span class="slider-label">PWM</span><input type="range" id="sig-lsb" min="50" max="300" step="10" value="130" aria-label="PWM timing"><span class="slider-val" id="sig-lsb-val">130ns</span></div>
     <button id="sig-apply" class="ui-btn-primary" style="width:100%;margin-top:4px;">Apply panel signal</button>
   </div>
+      </div><div class="dgroup" data-dgroup="changes" hidden>
       <div class="ui-label-accent" style="margin-top:10px;">🎞 Transition between effects</div>
       <div class="tm-chips" id="tr-style" style="flex-wrap:wrap;"><button type="button" data-tr="seamless" class="on">Seamless</button><button type="button" data-tr="morph">Morph</button><button type="button" data-tr="fade">Fade</button><button type="button" data-tr="slide">Slide</button><button type="button" data-tr="dissolve">Dissolve</button><button type="button" data-tr="wipe">Wipe</button><button type="button" data-tr="zoom">Zoom</button><button type="button" data-tr="none">None</button></div>
       <div class="tm-chips" id="tr-secs" style="margin-top:6px;"><button type="button" data-secs="1">Quick</button><button type="button" data-secs="2.5" class="on">Medium</button><button type="button" data-secs="4">Slow</button></div>
+      </div><div class="dgroup" data-dgroup="look" hidden>
       <div class="ui-label-accent" style="margin-top:10px;">✨ Next-gen look</div>
       <div class="cx-row"><span>Glow, richer colour and smoothing on every effect</span><button class="cx-switch" id="look-sw" aria-label="Next-gen look on/off"></button></div>
       <div class="slider-row"><span class="slider-label">Glow</span><input type="range" id="look-bloom" min="0" max="1" step="0.05" value="0.65"><span class="slider-val" id="look-bloom-val">65%</span></div>
       <div class="slider-row"><span class="slider-label">Colour</span><input type="range" id="look-vibrance" min="0" max="1" step="0.05" value="0.35"><span class="slider-val" id="look-vibrance-val">35%</span></div>
       <div class="slider-row cube-only"><span class="slider-label">Depth</span><input type="range" id="look-depth" min="0" max="1" step="0.05" value="0.5"><span class="slider-val" id="look-depth-val">50%</span></div>
       <div class="slider-row"><span class="slider-label">Smooth motion</span><input type="range" id="look-smooth" min="0" max="1" step="0.05" value="0"><span class="slider-val" id="look-smooth-val">0%</span></div>
+      </div><div class="dgroup" data-dgroup="night" hidden>
       <div class="ui-label-accent" style="margin-top:10px;">🌙 Night dimming</div>
       <div class="cx-row"><span>Dim from</span><select id="night-from" class="ui-input" aria-label="Dim from"></select><span>to</span><select id="night-to" class="ui-input" aria-label="Dim until"></select><button class="cx-switch" id="night-sw" aria-label="Night dimming on/off"></button></div>
       <div class="slider-row"><span class="slider-label">Night level</span><input type="range" id="night-level" min="0.05" max="1" step="0.05" value="0.3"><span class="slider-val" id="night-level-val">30%</span></div>
+      </div><div class="dgroup" data-dgroup="preview" hidden>
       <div class="ui-label-accent" style="margin-top:4px;">Preview & motion</div>
           <!-- Preview-only cube controls: hidden outside cube mode (body[data-mode], set in syncPanelButtons()). -->
           <label class="check-row cube-only"><input type="checkbox" id="auto-rotate-chk" checked>AUTO-ROTATE</label>
@@ -2659,6 +2669,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
           
           <button id="reset-view-btn" class="util-btn cube-only">⟲ Reset View</button>
           <button id="fullscreen-btn" class="util-btn">⛶ Fullscreen</button>
+      </div>
     </div>
   </div>
   

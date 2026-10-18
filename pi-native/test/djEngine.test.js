@@ -128,10 +128,13 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     assert.ok(intoDrop.entry !== 'intro' && intoDrop.bIn > dropB.inFrame, 'a cut lands in the next song\'s drop: ' + intoDrop.entry);
     // Rock and pop (a live drummer's drifting beat): radio-style changes - the
     // next song under the fade-out, or straight on from a dead stop.
-    const live = { ...long, steady: false, endKind: 'fade', fadeStart: long.end - 10 * 44100 };
-    const uf = dj._test.planMix(live, { ...A, steady: false }, 'auto');
+    const live = { ...long, steady: false, beatF: null, endKind: 'fade', fadeStart: long.end - 10 * 44100 }; // no beat map: radio style
+    const uf = dj._test.planMix(live, { ...A, steady: false, beatF: null }, 'auto');
     assert.ok(uf.style === 'underfade' && uf.start >= live.fadeStart - 3 * 44100 && uf.start < live.fadeStart && uf.len >= 6 * 44100, 'rises through the fade: ' + uf.style);
-    const cold = dj._test.planMix({ ...live, endKind: 'cold' }, { ...A, steady: false }, 'auto');
+    const cold = dj._test.planMix({ ...live, endKind: 'cold' }, { ...A, steady: false, beatF: null }, 'auto');
+    // With every beat known, live songs are blended beat by beat instead.
+    const tb = dj._test.planMix({ ...long, steady: false }, { ...A, steady: false }, 'auto');
+    assert.ok(tb.tracked && tb.beats <= 64, 'live drums, beats known: a beat-by-beat blend: ' + tb.style + ' ' + tb.beats);
     assert.ok(cold.style === 'outro' && live.end - cold.start >= 8 * 44100 - 1 && live.end - cold.start <= 15 * 44100 + 1, 'its intro under the ending (8-15 s): ' + cold.style + ' ' + (live.end - cold.start) / 44100);
     // 👍/👎 nudges the style's weight (saved by the server).
     const tasteNow = dj.rate(false);
@@ -203,6 +206,26 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
       for (let s2 = 0; s2 < 4000 && !(logs3.some((m) => /tempo eased to/.test(m)) && dj3._test.A && Math.abs(dj3._test.A.tempo - 1) < 0.02); s2++) { dj3.render(4410); await new Promise((r) => setImmediate(r)); }
       assert.ok(logs3.some((m) => /tempo eased to/.test(m)) && Math.abs(dj3._test.A.tempo - 1) < 0.02, 'eased back to its own tempo: ' + logs3.filter((m) => /eased|mixing/.test(m)).join(' | '));
       dj3.stop();
+    }
+    // Live drummers (tempo drifting): every beat is tracked and the two are
+    // blended beat by beat instead of a radio-style overlap.
+    {
+      const liveTrack = (bpm, secs, rate, seed, stereo) => {
+        let r = seed; const rnd = () => { r = (r * 1103515245 + 12345) % 2147483648; return r / 2147483648; };
+        const n = Math.floor(secs * rate), x = stereo ? new Int16Array(n * 2) : new Float32Array(n), p = 60 / bpm; let tb = 1.5, drift = 0;
+        while (tb < secs - 1) { const i0 = Math.floor(tb * rate); for (let i = 0; i < rate * 0.2 && i0 + i < n; i++) { const ph = i / rate, v = Math.sin(2 * Math.PI * 55 * ph) * Math.exp(-ph * 25) * 0.7; if (stereo) { x[(i0 + i) * 2] = x[(i0 + i) * 2 + 1] = Math.round(v * 30000); } else x[i0 + i] = v; } drift += (rnd() - 0.5) * 0.02; drift = Math.max(-0.04, Math.min(0.04, drift)); tb += p * (1 + drift); }
+        return x;
+      };
+      const songs = [{ kind: 'mp3', id: 'l1', title: 'L1', bpm: 120, seed: 7 }, { kind: 'mp3', id: 'l2', title: 'L2', bpm: 122, seed: 11 }], logs4 = [];
+      const dec = { decodeAnalysis: async (inp) => liveTrack(inp.bpm, 90, RATE, inp.seed, false), decodePlay: async (inp, tempo) => liveTrack(inp.bpm * tempo, 90 / tempo, 44100, inp.seed, true) };
+      const dj4 = createDjEngine({ onPcm: () => {}, getQueueMs: () => 0, sources: { allTracks: async () => songs.slice(), inputFor: async (t) => ({ url: t.id, bpm: t.bpm, seed: t.seed }) }, decode: dec, log: (m) => logs4.push(m), setTimer: () => 1, clearTimer: () => {} });
+      await dj4.start({ source: 'mp3', style: 'auto' });
+      for (let k = 0; k < 50 && !dj4._test.A; k++) await new Promise((r) => setImmediate(r));
+      for (let s2 = 0; s2 < 2500 && dj4.status.played < 1; s2++) { dj4.render(4410); await new Promise((r) => setImmediate(r)); }
+      const steadyFlag = dj4._test.A && dj4._test.A.steady;
+      assert.ok(dj4.status.played >= 1, 'got through: ' + logs4.join(' | '));
+      if (steadyFlag === false) assert.ok(logs4.some((m) => /(mixing|cutting) into/.test(m)) && !logs4.some((m) => /radio style|last hit/.test(m)), 'live drums handled on the beat, not radio-style: ' + logs4.filter((m) => /mixing|cutting/.test(m)).join(' | '));
+      dj4.stop();
     }
     console.log('  ok - effect transitions for tempos too far apart (' + styles.join(', ') + ')');
   } catch (e) { console.error(e); process.exitCode = 1; }

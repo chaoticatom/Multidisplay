@@ -3178,7 +3178,27 @@ var PiEngine = (() => {
         }
         const sectionBars = sections(x, firstBeat, period2, downbeat, nb, energyBars, vocalLevel);
         const lufs = loudnessLufs(x, s0 * HOP, (s1 + 1) * HOP);
-        return { sectionBars, lufs, steady, drift: Math.round(drift), endKind, fadeStart, vocalBars, vocalLevel, energyBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
+        const beatTimes = [];
+        for (let exp = firstBeat, guard = 0; exp < musicEnd && guard < 4e3; guard++) {
+          const fc = exp * FPS + 0.5, rad = 0.2 * period2 * FPS;
+          let best2 = 0, bf = -1;
+          for (let f = Math.max(1, Math.floor(fc - rad)); f <= Math.min(n - 2, Math.ceil(fc + rad)); f++) {
+            const v = on[f] * Math.exp(-(((f - fc) / (rad * 0.7)) ** 2));
+            if (v > best2) {
+              best2 = v;
+              bf = f;
+            }
+          }
+          let sub = 0;
+          if (bf > 0 && bf < n - 1) {
+            const y02 = on[bf - 1], y12 = on[bf], y22 = on[bf + 1], den2 = y02 - 2 * y12 + y22;
+            if (den2 < 0) sub = Math.max(-0.5, Math.min(0.5, 0.5 * (y02 - y22) / den2));
+          }
+          const found = bf >= 0 && best2 > 1e-4 ? (bf + sub - 0.5) / FPS : exp, tb2 = exp + (found - exp) * 0.85;
+          beatTimes.push(Math.round(tb2 * 1e3) / 1e3);
+          exp = tb2 + period2;
+        }
+        return { beatTimes, sectionBars, lufs, steady, drift: Math.round(drift), endKind, fadeStart, vocalBars, vocalLevel, energyBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
       }
       function sections(x, firstBeat, period, downbeat, nb, energyBars, vocalLevel) {
         const N = 2048, re = new Float64Array(N), im = new Float64Array(N), win = new Float64Array(N);
@@ -3360,8 +3380,7 @@ var PiEngine = (() => {
           d.introBeats = info.introBeats || 0;
           d.outroBeats = info.outroBeats || 0;
           d.steady = info.steady !== false;
-          d.endKind = info.endKind || "cold";
-          d.fadeStart = (info.fadeStart || info.musicEnd) * k;
+          d.beatF = Array.isArray(info.beatTimes) && info.beatTimes.length > 8 ? info.beatTimes.map((s) => s * k) : null;
           d.gain = Number.isFinite(info.lufs) && info.lufs > -60 ? Math.max(0.5, Math.min(2.5, Math.pow(10, (-16 - info.lufs) / 20))) : info.loudness ? Math.max(0.5, Math.min(2.5, Math.pow(10, (TARGET_DB - info.loudness) / 20))) : 1;
           if (matched && d.period > 0) {
             const gp = (info.gridPeriod || info.period) * k;
@@ -3538,7 +3557,8 @@ var PiEngine = (() => {
           return best;
         }
         function planMix(a, b, want, now = false) {
-          if (!a.steady || !b.steady) return withTaste(planRadio(a, b, now));
+          const tracked = (!a.steady || !b.steady) && a.beatF && b.beatF && a.matched && b.matched;
+          if ((!a.steady || !b.steady) && !tracked) return withTaste(planRadio(a, b, now));
           if (!(a.matched && b.matched)) return planFx(a, b, now);
           const p = a.period, style = cfg.style || "auto", ents = entries(b);
           const blendPlan = (start2, L) => {
@@ -3575,6 +3595,7 @@ var PiEngine = (() => {
           };
           const fits = (f, L) => f + L * p <= a.end + p;
           let lengths = want === "auto" ? LENGTHS.slice() : [Number(want) || 32];
+          if (tracked) lengths = lengths.filter((L) => L <= 64).concat(lengths.some((L) => L <= 64) ? [] : [32]);
           if (cfg.quick || now) lengths = lengths.map((L) => Math.min(L, now ? 8 : 32));
           const kd = analyser.keyDistance && a.keyNow && b.keyNow ? analyser.keyDistance(a.keyNow, b.keyNow) : 0;
           const blendExtra = 0.22 * Math.max(0, kd - 1) + (b.introBeats < 8 ? 0.3 : 0) + (a.outroBeats < 8 ? 0.12 : 0);
@@ -3646,9 +3667,14 @@ var PiEngine = (() => {
             best.bIn = Math.round(b.inFrame);
             best.entry = "intro";
           }
+          if (tracked && best.beat) best.tracked = true;
           best.cost = Math.round(bestCost * 100) / 100;
           if (FX.has(best.style)) {
             best.why = { echo: "echo out", filter: "filter sweep", roll: "loop roll", brake: "brake stop" }[best.style] + (ENTRY_WHY[best.entry] || "");
+            return best;
+          }
+          if (tracked && best.style === "blend") {
+            best.why = "beat by beat with the drummer";
             return best;
           }
           best.why = (best.style === "mashup" ? "its vocal over the next beat" : best.dropOnDrop ? "drop on drop" : best.style === "cut" ? kd >= 3 ? "keys clash" : b.introBeats < 8 ? "no intro to blend over" : "cut where the singing stops" : best.style === "short" ? "quick blend between vocals" : "long blend under the vocals") + (ENTRY_WHY[best.entry] || "");
@@ -3696,7 +3722,7 @@ var PiEngine = (() => {
           let input = await sources.inputFor(track);
           step("analysing the beat, key and vocals");
           let info = known[track.id];
-          if (info && (info.vocalLevel === void 0 || info.energyBars === void 0 || info.steady === void 0 || info.sectionBars === void 0)) info = null;
+          if (info && (info.vocalLevel === void 0 || info.energyBars === void 0 || info.steady === void 0 || info.sectionBars === void 0 || info.beatTimes === void 0)) info = null;
           if (!info) {
             let x;
             try {
@@ -3720,7 +3746,8 @@ var PiEngine = (() => {
           info = { ...info, gridPeriod: info.period };
           const target = ref && ref.matched ? ref.bpm : 0;
           let tempo = 1, matched = false;
-          const steadyPair = info.steady !== false && (!ref || ref.steady !== false);
+          const tracked = (info.steady === false || ref && ref.steady === false) && Array.isArray(info.beatTimes) && (!ref || ref.beatF);
+          const steadyPair = info.steady !== false && (!ref || ref.steady !== false) || tracked;
           if (!steadyPair) {
           } else if (info.bpm > 0 && info.confidence > 0.25 && target > 0) {
             const opts = [target / info.bpm, target / (info.bpm * 2), target / (info.bpm / 2)];
@@ -3941,6 +3968,15 @@ var PiEngine = (() => {
             B.pos = Math.round(bIn + lag - (aF - A.pos));
             mix.check = A.pos + Math.round(A.bar);
           }
+          if (p.tracked && A.beatF && B.beatF) {
+            const near = (arr, f) => {
+              let i = 0;
+              while (i + 1 < arr.length && arr[i + 1] <= f) i++;
+              return f - arr[i] > (arr[Math.min(arr.length - 1, i + 1)] - arr[i]) / 2 ? Math.min(arr.length - 1, i + 1) : i;
+            };
+            mix.tracked = { ia0: near(A.beatF, A.pos), ib0: near(B.beatF, bIn), ia: 0 };
+            mix.tracked.ia = mix.tracked.ia0;
+          }
           st.mixing = true;
           if (st.next) {
             st.next.beats = p.beats;
@@ -4052,7 +4088,7 @@ var PiEngine = (() => {
               }
               if (mix) {
                 const u = (A.pos - mix.from) / mix.len;
-                if (mix.beat && mix.style !== "cut" && A.pos >= mix.check) {
+                if (mix.beat && mix.style !== "cut" && !mix.tracked && A.pos >= mix.check) {
                   mix.check = A.pos + Math.round(A.bar);
                   const lag = lagBetween(A.pos, B.pos, A.bar, 1500);
                   if (Math.abs(lag) >= HOP) mix.adj = Math.max(-1500, Math.min(1500, lag));
@@ -4138,7 +4174,20 @@ var PiEngine = (() => {
                     const aVol = 1 - smooth((u - 0.85) / 0.15);
                     const cl = mix.clash ? 1 - 0.35 * Math.min(aMi, bMi) : 1;
                     sampleDeck(A, aVol, aLo, aMi * cl, aHi, OUT);
-                    sampleDeck(B, 1, bLo, bMi * cl, bHi, OUT);
+                    const tk = mix.tracked;
+                    if (tk) {
+                      const af = A.beatF, bf = B.beatF;
+                      while (tk.ia + 1 < af.length && af[tk.ia + 1] <= A.pos) tk.ia++;
+                      const ib = tk.ib0 + (tk.ia - tk.ia0);
+                      if (tk.ia + 1 < af.length && ib >= 0 && ib + 1 < bf.length) {
+                        const fr = (A.pos - af[tk.ia]) / Math.max(1, af[tk.ia + 1] - af[tk.ia]), at = bf[ib] + fr * (bf[ib + 1] - bf[ib]);
+                        sampleAt(B, at, 1, bLo, bMi * cl, bHi, OUT);
+                        B.pos = Math.round(at) - 1;
+                      } else {
+                        mix.tracked = null;
+                        sampleDeck(B, 1, bLo, bMi * cl, bHi, OUT);
+                      }
+                    } else sampleDeck(B, 1, bLo, bMi * cl, bHi, OUT);
                     if ((A.pos & 1023) === 0) {
                       const q = st.eq;
                       q[0] = aLo * aVol;

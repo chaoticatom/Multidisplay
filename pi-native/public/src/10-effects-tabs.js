@@ -318,10 +318,24 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 
 // Setup search: hides the Setup sections that don't mention the words typed
 // and opens the ones that do.
+// Setup > Display has its own row of buttons: Panels, Look, Changes, Night, Preview.
+function wireDisplayGroups() {
+  const row = document.getElementById('dgroups'); if (!row) return;
+  const show = (g) => {
+    row.querySelectorAll('[data-dg]').forEach((b) => b.classList.toggle('on', b.dataset.dg === g));
+    document.querySelectorAll('.dgroup').forEach((d) => { d.hidden = d.dataset.dgroup !== g; });
+    try { localStorage.setItem('dgroup', g); } catch (e) { /* storage unavailable */ }
+  };
+  row.addEventListener('click', (e) => { const b = e.target.closest('[data-dg]'); if (b) show(b.dataset.dg); });
+  let g = 'panels'; try { g = localStorage.getItem('dgroup') || 'panels'; } catch (e) { /* storage unavailable */ }
+  show(row.querySelector(`[data-dg="${g}"]`) ? g : 'panels');
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireDisplayGroups); else wireDisplayGroups();
 function wireSetupSearch() {
   const inp = document.getElementById('setup-search-in'); if (!inp) return;
   const run = () => {
     const words = inp.value.toLowerCase().split(/\s+/).filter(Boolean);
+    document.getElementById('sidebar-scroll')?.classList.toggle('setup-searching', words.length > 0);
     if (!words.length) buildSubtabs('setup'); else { document.getElementById('subtab-bar').hidden = true; document.querySelectorAll('#sidebar-scroll > .sidebar-section').forEach((x) => x.classList.remove('sub-hidden', 'sub-shown')); }
     let shown = 0;
     document.querySelectorAll('#sidebar-scroll > .sidebar-section[data-tab="setup"]').forEach((sec) => {

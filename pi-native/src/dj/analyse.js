@@ -170,7 +170,20 @@ function analyse(x) {
   // Loudness as heard (an approximation of broadcast LUFS: K-weighting -
   // low cut plus a treble lift - over 400 ms blocks, quiet ones gated out).
   const lufs = loudnessLufs(x, s0 * HOP, (s1 + 1) * HOP);
-  return { sectionBars, lufs, steady, drift: Math.round(drift), endKind, fadeStart, vocalBars, vocalLevel, energyBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
+  // Every beat, following the drummer: from each beat, the next is looked for
+  // about one beat on (within a fifth of a beat), at the strongest onset -
+  // so a live drummer's speeding up and slowing down is tracked, not averaged.
+  const beatTimes = [];
+  for (let exp = firstBeat, guard = 0; exp < musicEnd && guard < 4000; guard++) {
+    const fc = exp * FPS + 0.5, rad = 0.2 * period2 * FPS;
+    let best = 0, bf = -1;
+    for (let f = Math.max(1, Math.floor(fc - rad)); f <= Math.min(n - 2, Math.ceil(fc + rad)); f++) { const v = on[f] * Math.exp(-(((f - fc) / (rad * 0.7)) ** 2)); if (v > best) { best = v; bf = f; } }
+    let sub = 0; if (bf > 0 && bf < n - 1) { const y0 = on[bf - 1], y1 = on[bf], y2 = on[bf + 1], den = y0 - 2 * y1 + y2; if (den < 0) sub = Math.max(-0.5, Math.min(0.5, 0.5 * (y0 - y2) / den)); } // between steps
+    const found = bf >= 0 && best > 1e-4 ? (bf + sub - 0.5) / FPS : exp, tb = exp + (found - exp) * 0.85; // lean on what's heard, lightly damped
+    beatTimes.push(Math.round(tb * 1000) / 1000);
+    exp = tb + period2;
+  }
+  return { beatTimes, sectionBars, lufs, steady, drift: Math.round(drift), endKind, fadeStart, vocalBars, vocalLevel, energyBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
 }
 
 function sections(x, firstBeat, period, downbeat, nb, energyBars, vocalLevel) {

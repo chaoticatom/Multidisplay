@@ -40,7 +40,8 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     d.period = info.period * k; d.firstBeat = info.firstBeat * k; d.start = info.musicStart * k; d.end = Math.min(d.frames, info.musicEnd * k);
     d.bpm = info.bpm * tempo; d.bar = 4 * d.period;
     d.introBeats = info.introBeats || 0; d.outroBeats = info.outroBeats || 0;
-    d.steady = info.steady !== false; d.endKind = info.endKind || 'cold'; d.fadeStart = (info.fadeStart || info.musicEnd) * k;
+    d.steady = info.steady !== false;
+    d.beatF = Array.isArray(info.beatTimes) && info.beatTimes.length > 8 ? info.beatTimes.map((s) => s * k) : null; // every beat, in played frames d.endKind = info.endKind || 'cold'; d.fadeStart = (info.fadeStart || info.musicEnd) * k;
     // Level songs by loudness as heard (LUFS) when the analysis has it.
     d.gain = Number.isFinite(info.lufs) && info.lufs > -60 ? Math.max(0.5, Math.min(2.5, Math.pow(10, (-16 - info.lufs) / 20))) : info.loudness ? Math.max(0.5, Math.min(2.5, Math.pow(10, (TARGET_DB - info.loudness) / 20))) : 1;
     if (matched && d.period > 0) {
@@ -214,7 +215,8 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   // change would talk over or cut off (most of all), how close it is to a
   // musical phrase (16 beats), and where in the song it falls.
   function planMix(a, b, want, now = false) {
-    if (!a.steady || !b.steady) return withTaste(planRadio(a, b, now));
+    const tracked = (!a.steady || !b.steady) && a.beatF && b.beatF && a.matched && b.matched;
+    if ((!a.steady || !b.steady) && !tracked) return withTaste(planRadio(a, b, now));
     if (!(a.matched && b.matched)) return planFx(a, b, now);
     const p = a.period, style = cfg.style || 'auto', ents = entries(b);
     const blendPlan = (start, L) => { const half = Math.max(1, Math.round(L / 8)) * 4; return { start: Math.round(start), len: L * p, beat: true, beats: L, swapU: Math.min(0.85, half / L), style: L <= 8 ? 'short' : 'blend' }; };
@@ -240,6 +242,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     // Auto: any length - how long a blend can run is decided by how well the
     // two songs sit together over it (below), not just by quiet intros/outros.
     let lengths = want === 'auto' ? LENGTHS.slice() : [Number(want) || 32];
+    if (tracked) lengths = lengths.filter((L) => L <= 64).concat(lengths.some((L) => L <= 64) ? [] : [32]); // live drums: 15-30 s blends, beat by beat
     if (cfg.quick || now) lengths = lengths.map((L) => Math.min(L, now ? 8 : 32));
     // Per track pair: what makes blending worse and an instant cut better.
     // Keys that clash sound sour layered (a cut avoids it); a track with no
@@ -306,8 +309,10 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     }
     }
     if (!best) { best = style === 'cut' ? cutPlan(bars[0]) : blendPlan(bars[0], 8); best.bIn = Math.round(b.inFrame); best.entry = 'intro'; }
+    if (tracked && best.beat) best.tracked = true;
     best.cost = Math.round(bestCost * 100) / 100;
     if (FX.has(best.style)) { best.why = { echo: 'echo out', filter: 'filter sweep', roll: 'loop roll', brake: 'brake stop' }[best.style] + (ENTRY_WHY[best.entry] || ''); return best; }
+    if (tracked && best.style === 'blend') { best.why = 'beat by beat with the drummer'; return best; }
     best.why = (best.style === 'mashup' ? 'its vocal over the next beat' : best.dropOnDrop ? 'drop on drop' : best.style === 'cut' ? (kd >= 3 ? 'keys clash' : b.introBeats < 8 ? 'no intro to blend over' : 'cut where the singing stops') : best.style === 'short' ? 'quick blend between vocals' : 'long blend under the vocals') + (ENTRY_WHY[best.entry] || '');
     return best;
   }
@@ -350,7 +355,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     let input = await sources.inputFor(track);
     step('analysing the beat, key and vocals');
     let info = known[track.id];
-    if (info && (info.vocalLevel === undefined || info.energyBars === undefined || info.steady === undefined || info.sectionBars === undefined)) info = null; // analysed by an older version: no singing map
+    if (info && (info.vocalLevel === undefined || info.energyBars === undefined || info.steady === undefined || info.sectionBars === undefined || info.beatTimes === undefined)) info = null; // analysed by an older version: no singing map
     if (!info) {
       let x;
       try { x = await decode.decodeAnalysis(input); } catch (err) {
@@ -369,7 +374,9 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     let tempo = 1, matched = false;
     // A live drummer's song (its beat drifts) isn't stretched or beat-matched:
     // rock and pop get radio-style changes instead.
-    const steadyPair = info.steady !== false && (!ref || ref.steady !== false);
+    // Live songs can still be beat-matched when every beat of both is known.
+    const tracked = (info.steady === false || (ref && ref.steady === false)) && Array.isArray(info.beatTimes) && (!ref || ref.beatF);
+    const steadyPair = (info.steady !== false && (!ref || ref.steady !== false)) || tracked;
     if (!steadyPair) { /* leave tempo alone */ } else if (info.bpm > 0 && info.confidence > 0.25 && target > 0) {
       const opts = [target / info.bpm, target / (info.bpm * 2), target / (info.bpm / 2)];
       const r = opts.reduce((a, b) => (Math.abs(b - 1) < Math.abs(a - 1) ? b : a));
@@ -548,6 +555,11 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
       B.pos = Math.round(bIn + lag - (aF - A.pos));
       mix.check = A.pos + Math.round(A.bar);
     }
+    // Live drums: B is read beat by beat against A's beats for the whole blend.
+    if (p.tracked && A.beatF && B.beatF) {
+      const near = (arr, f) => { let i = 0; while (i + 1 < arr.length && arr[i + 1] <= f) i++; return (f - arr[i] > (arr[Math.min(arr.length - 1, i + 1)] - arr[i]) / 2) ? Math.min(arr.length - 1, i + 1) : i; };
+      mix.tracked = { ia0: near(A.beatF, A.pos), ib0: near(B.beatF, bIn), ia: 0 }; mix.tracked.ia = mix.tracked.ia0;
+    }
     st.mixing = true;
     if (st.next) { st.next.beats = p.beats; st.next.style = p.style; st.next.why = p.why || ''; }
     log(`[dj] ${p.style === 'cut' ? 'cutting' : 'mixing'} into ${B.track.title}${p.why ? ' (' + p.why + ')' : ''}${p.beats ? ` over ${p.beats} beats` : p.style === 'fade' ? ` over ${Math.round(p.len / RATE)} s` : ' on the beat'}`);
@@ -619,7 +631,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
         if (mix) {
           const u = (A.pos - mix.from) / mix.len;
           // Keep the beats locked: re-check each bar and nudge B a frame at a time.
-          if (mix.beat && mix.style !== 'cut' && A.pos >= mix.check) {
+          if (mix.beat && mix.style !== 'cut' && !mix.tracked && A.pos >= mix.check) {
             mix.check = A.pos + Math.round(A.bar);
             const lag = lagBetween(A.pos, B.pos, A.bar, 1500);
             if (Math.abs(lag) >= HOP) mix.adj = Math.max(-1500, Math.min(1500, lag));
@@ -659,7 +671,18 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
             const aLo = 1 - bLo, aMi = 1 - smooth((u - s) / ((1 - s) * 0.8)), aHi = 1 - smooth((u - s - (1 - s) * 0.2) / ((1 - s) * 0.8));
             const aVol = 1 - smooth((u - 0.85) / 0.15);
             const cl = mix.clash ? 1 - 0.35 * Math.min(aMi, bMi) : 1; // clashing keys: less of both where they overlap
-            sampleDeck(A, aVol, aLo, aMi * cl, aHi, OUT); sampleDeck(B, 1, bLo, bMi * cl, bHi, OUT);
+            sampleDeck(A, aVol, aLo, aMi * cl, aHi, OUT);
+            const tk = mix.tracked;
+            if (tk) {
+              // Where B should be: the same fraction through the matching beat as A is.
+              const af = A.beatF, bf = B.beatF;
+              while (tk.ia + 1 < af.length && af[tk.ia + 1] <= A.pos) tk.ia++;
+              const ib = tk.ib0 + (tk.ia - tk.ia0);
+              if (tk.ia + 1 < af.length && ib >= 0 && ib + 1 < bf.length) {
+                const fr = (A.pos - af[tk.ia]) / Math.max(1, af[tk.ia + 1] - af[tk.ia]), at = bf[ib] + fr * (bf[ib + 1] - bf[ib]);
+                sampleAt(B, at, 1, bLo, bMi * cl, bHi, OUT); B.pos = Math.round(at) - 1;
+              } else { mix.tracked = null; sampleDeck(B, 1, bLo, bMi * cl, bHi, OUT); }
+            } else sampleDeck(B, 1, bLo, bMi * cl, bHi, OUT);
             if ((A.pos & 1023) === 0) { const q = st.eq; q[0] = aLo * aVol; q[1] = aMi * aVol; q[2] = aHi * aVol; q[3] = bLo; q[4] = bMi; q[5] = bHi; }
           } else if (mix.style === 'underfade') { // A fades out on its own; B rises in under it
             sampleDeck(A, 1 - smooth((u - 0.6) / 0.4), 1, 1, 1, OUT); sampleDeck(B, smooth(u / 0.3), 1, 1, 1, OUT);
