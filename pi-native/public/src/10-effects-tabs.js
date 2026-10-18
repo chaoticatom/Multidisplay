@@ -209,7 +209,7 @@ function syncPinStatus() {
 // Each sidebar section belongs to one tab (by its heading); only the active
 // tab's sections show, open. The chosen tab is remembered per browser.
 const TAB_OF_SECTION = [
-  ['Effects', 'play'], ['Draw on a Face', 'play'], ['Music', 'music'], ['Overlays', 'schedule'], ['Timers', 'schedule'], ['Auto show', 'schedule'],
+  ['Effects', 'play'], ['Scenes', 'play'], ['Draw on a Face', 'play'], ['Music', 'music'], ['Overlays', 'schedule'], ['Timers', 'schedule'], ['Auto show', 'schedule'],
   ['Display', 'setup'], ['AI assistant', 'setup'], ['System', 'setup'],
 ];
 // Tab names before the Play/Music/Schedule/Setup redesign, so a browser
@@ -322,6 +322,7 @@ function wireSetupSearch() {
   const inp = document.getElementById('setup-search-in'); if (!inp) return;
   const run = () => {
     const words = inp.value.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) buildSubtabs('setup'); else { document.getElementById('subtab-bar').hidden = true; document.querySelectorAll('#sidebar-scroll > .sidebar-section').forEach((x) => x.classList.remove('sub-hidden', 'sub-shown')); }
     let shown = 0;
     document.querySelectorAll('#sidebar-scroll > .sidebar-section[data-tab="setup"]').forEach((sec) => {
       const hit = !words.length || words.every((w) => sec.textContent.toLowerCase().includes(w));
@@ -334,6 +335,29 @@ function wireSetupSearch() {
   };
   inp.addEventListener('input', run);
 }
+// Section buttons: when a tab has several sections, a row of buttons at the
+// top picks one and only that one shows, fully open (instead of a long
+// column of accordions to scroll through). Remembered per tab.
+const SUB_LABEL = { Now: '▶ Now', Effects: '✨ Effects', Scenes: '🎬 Scenes', 'Draw on a Face': '🎨 Draw', Timers: '⏰ Timers', 'Auto show': '🤖 Auto show', Overlays: '❄ Overlays', Display: '🖥 Display', 'AI assistant': '💬 AI', Alexa: '🔊 Alexa', System: '⚙ System' };
+function subName(sec) { return sec.dataset.label || (sec.querySelector(':scope > .section-head')?.textContent || '').replace(/[◈▾]/g, '').trim(); }
+function buildSubtabs(tab) {
+  const bar = document.getElementById('subtab-bar'); if (!bar) return;
+  const mode = document.body.dataset.mode || 'cube';
+  const secs = [...document.querySelectorAll(`#sidebar-scroll > .sidebar-section[data-tab="${tab}"]`)].filter((x) => !(x.classList.contains('cube-only') && mode !== 'cube'));
+  document.querySelectorAll('#sidebar-scroll > .sidebar-section').forEach((x) => x.classList.remove('sub-hidden', 'sub-shown'));
+  if (secs.length < 2) { bar.hidden = true; return; }
+  let pick = ''; try { pick = JSON.parse(localStorage.getItem('subtab') || '{}')[tab] || ''; } catch (e) { /* storage unavailable */ }
+  if (!secs.some((x) => subName(x) === pick)) pick = subName(secs[0]);
+  bar.hidden = false;
+  bar.replaceChildren(...secs.map((x) => {
+    const n = subName(x), b = document.createElement('button');
+    b.type = 'button'; b.role = 'tab'; b.textContent = SUB_LABEL[n] || n; b.classList.toggle('on', n === pick); b.setAttribute('aria-selected', String(n === pick));
+    b.addEventListener('click', () => { try { const m = JSON.parse(localStorage.getItem('subtab') || '{}'); m[tab] = n; localStorage.setItem('subtab', JSON.stringify(m)); } catch (e) { /* storage unavailable */ } buildSubtabs(tab); document.getElementById('sidebar-scroll')?.scrollTo(0, 0); });
+    return b;
+  }));
+  for (const x of secs) { const on = subName(x) === pick; x.classList.toggle('sub-hidden', !on); x.classList.toggle('sub-shown', on); if (on) x.classList.remove('collapsed'); }
+}
+new MutationObserver(() => buildSubtabs(document.body.dataset.tab || 'play')).observe(document.body, { attributes: true, attributeFilter: ['data-mode'] });
 function setTab(tab) {
   tab = OLD_TABS[tab] || tab;
   if (!document.querySelector(`#tab-bar [data-tab="${tab}"]`)) tab = 'play';
@@ -346,6 +370,7 @@ function setTab(tab) {
   const secs = [...document.querySelectorAll('#sidebar-scroll > .sidebar-section.tab-active')];
   if (secs.length && secs.every((x) => x.classList.contains('collapsed'))) secs[0].classList.remove('collapsed');
   if (tab === 'play') document.getElementById('effects-body')?.closest('.sidebar-section')?.classList.remove('collapsed');
+  buildSubtabs(tab);
   try { localStorage.setItem('tab', tab); } catch (e) { /* storage unavailable */ }
 }
 

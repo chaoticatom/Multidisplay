@@ -1241,6 +1241,15 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .mx-search input{padding:8px 10px!important;font-size:13px!important}
 .mx-search button{padding:0 12px!important;font-size:12.5px!important}
 .mx-note{font-size:11.5px;color:rgba(238,242,255,.55);margin:-2px 0 8px;line-height:1.35}.mx-note:empty{display:none}
+/* ── Section buttons at the top of a tab: one section at a time. ── */
+.subtab-bar{display:flex;gap:4px;padding:3px;margin:0 0 10px;background:rgba(255,255,255,.05);border-radius:12px;position:sticky;top:0;z-index:3;backdrop-filter:blur(8px);overflow-x:auto;scrollbar-width:none}
+.subtab-bar::-webkit-scrollbar{display:none}
+.subtab-bar button{flex:1 0 auto;border:0;background:none;color:rgba(238,242,255,.6);padding:7px 10px;border-radius:9px;font-size:12.5px;cursor:pointer;margin:0;min-height:0!important;white-space:nowrap;width:auto}
+.subtab-bar button.on{background:rgba(255,255,255,.12);color:#eef2ff;font-weight:600}
+#sidebar-scroll > .sidebar-section.sub-hidden{display:none!important}
+#sidebar-scroll > .sidebar-section.sub-shown > .section-head{display:none}
+#sidebar-scroll > .sidebar-section.sub-shown{border:none;background:none}
+#sidebar-scroll > .sidebar-section.sub-shown > .section-body{display:block!important}
 /* ── Music tab: player + Radio / Auto-DJ / Sound ─────────────────────── */
 .mx-root{padding:0!important;border:0!important;background:none!important;box-shadow:none!important;margin:0!important}
 .mx-player{position:relative;background:linear-gradient(135deg,rgba(80,110,255,.16),rgba(150,80,255,.10));border-radius:18px;padding:12px;margin:0 0 12px;box-shadow:0 0 0 1px rgba(255,255,255,.1)}
@@ -1388,8 +1397,9 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   </nav>
   <div id="guest-bar">Guest view: pick an effect or scene.<button type="button" id="guest-pin-btn">Enter PIN</button></div>
   <div id="sidebar-scroll">
+  <div id="subtab-bar" class="subtab-bar" role="tablist" aria-label="Section" hidden></div>
   <div id="setup-search"><input type="search" id="setup-search-in" placeholder="🔍 Search settings: bluetooth, PIN, update…" aria-label="Search settings" autocomplete="off"></div>
-  <div class="sidebar-section" id="now-section" data-tab="play">
+  <div class="sidebar-section" id="now-section" data-tab="play" data-label="Now">
     <div class="section-body">
       <div style="display:flex;gap:8px;margin:0 0 10px;">
         <button type="button" id="draw-open" class="ui-btn-primary" style="flex:1;margin:0;">🎨 Draw</button>
@@ -1398,12 +1408,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div id="recent-row" class="cx-chips" hidden style="margin:0 0 10px;" aria-label="Recent effects"></div>
       <div class="cx-ask"><span class="cx-spark"></span><button type="button" id="cx-mic" class="cx-mic" aria-label="Speak">🎤</button><input id="cx-ask" type="text" placeholder="Ask: “calm”, “party”, “night sky”…" aria-label="Ask for an effect" autocomplete="off"></div>
       <div id="cx-ask-chips" class="cx-chips"><button type="button">calm</button><button type="button">party</button><button type="button">night sky</button><button type="button">surprise me</button></div>
-      <div id="party-box" class="party-box">
-        <div class="party-idle"><button type="button" id="party-open" class="party-btn">🎉 Party mode</button></div>
-        <div class="party-form" hidden><input type="text" id="party-text" class="ui-input" maxlength="24" placeholder="Message (optional)" aria-label="Party message">
-          <div class="as-row"><select id="party-min" class="ui-input" aria-label="How long"><option value="15">15 min</option><option value="30" selected>30 min</option><option value="60">1 hour</option><option value="120">2 hours</option></select><button type="button" id="party-go" class="ui-btn-small">Start</button></div></div>
-        <div class="party-on" hidden><span id="party-status"></span><button type="button" id="party-stop" class="ui-btn-small">Stop</button></div>
-      </div>
       <div id="now-effect-name" hidden></div>
       <div id="now-options" class="now-options"></div>
       <div id="now-no-options" class="ui-note">This effect has no options.</div>
@@ -1413,7 +1417,14 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
             <span class="slider-val" id="speed-val">1.0x</span>
           </div>
       <div class="cx-pal-row"><span class="cx-pal-label">🎨 Colours</span><div id="cx-pal" class="cx-pal"></div></div>
-      <div class="ui-label-accent" style="margin-top:14px;">Scenes</div>
+      
+    </div>
+  </div>
+
+  <div class="sidebar-section" id="scenes-section" data-tab="play">
+    <button class="section-head">◈ Scenes <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div class="ui-note">A scene is an effect with its colours and options. Save what\u2019s showing, or let your ★ favourites take turns.</div>
       <div id="scene-chips" class="scene-chips"></div>
       <div class="cx-row" id="playlist-row"><span>🔁 Cycle ★ every</span><select id="playlist-min" class="ui-input" aria-label="Minutes"><option value="1">1 min</option><option value="2">2 min</option><option value="5" selected>5 min</option><option value="10">10 min</option><option value="30">30 min</option></select><button class="cx-switch" id="playlist-sw" aria-label="Playlist on/off"></button></div>
       <div class="ui-note" id="playlist-note"></div>
@@ -1421,7 +1432,12 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
         <input id="scene-name-input" class="ui-input" type="text" maxlength="40" placeholder="Save what's showing as a scene…" aria-label="Scene name">
         <button id="scene-save-btn" class="ui-btn-small" style="flex:0 0 auto;padding:5px 12px;">Save</button>
       </div>
-      
+      <div id="party-box" class="party-box">
+        <div class="party-idle"><button type="button" id="party-open" class="party-btn">🎉 Party mode</button></div>
+        <div class="party-form" hidden><input type="text" id="party-text" class="ui-input" maxlength="24" placeholder="Message (optional)" aria-label="Party message">
+          <div class="as-row"><select id="party-min" class="ui-input" aria-label="How long"><option value="15">15 min</option><option value="30" selected>30 min</option><option value="60">1 hour</option><option value="120">2 hours</option></select><button type="button" id="party-go" class="ui-btn-small">Start</button></div></div>
+        <div class="party-on" hidden><span id="party-status"></span><button type="button" id="party-stop" class="ui-btn-small">Stop</button></div>
+      </div>
     </div>
   </div>
 
