@@ -9,7 +9,7 @@
 //   compact  (C) the board for one 64x64 panel or cube face
 'use strict';
 
-const { FONT_3x5, FONT_5x7, drawString, textWidth } = require('../text');
+const { FONT_3x5, FONT_5x7, drawString, drawStringSmooth, textWidth } = require('../text');
 const { compass } = require('./data');
 
 const WH = [0.92, 0.95, 1], DM = [0.55, 0.6, 0.7], AM = [1, 0.6, 0.15], CY = [0.3, 0.8, 1], GR = [0.2, 1, 0.4];
@@ -33,11 +33,28 @@ function arrow(tg, x, y, w, c) { for (let i = 0; i < w; i++) tg.set(x + i, y, c[
 function liveDot(tg, x, y, t) { const a = 0.6 + 0.4 * Math.sin(t * 4); for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) tg.set(x + i, y + j, GR[0] * a, GR[1] * a, GR[2] * a); }
 
 // A: the flight board (any width from 96 up; 64-tall).
-function drawBoard(tg, p, t, info = '') {
+// The bottom line: its own overhead countdown; else (taking turns) the next
+// plane due over home; else distance, direction from home and heading.
+function lastLine(p, t, nextDue, short) {
+  const own = dueText(p, short);
+  if (own) return [own, AM, p.overhead];
+  if (nextDue && nextDue !== p && Math.floor(t / 4) % 2) return [(short ? 'NEXT ' : 'NEXT OVER: ') + (nextDue.cs || nextDue.hex.toUpperCase()) + ' ' + (nextDue.overhead ? 'NOW' : mmss(nextDue.dueIn)), AM, false];
+  const vr = p.vr > 300 ? (short ? ' UP' : ' CLIMB') : p.vr < -300 ? (short ? ' DN' : ' DESCEND') : '';
+  return [short ? fmtKm(p.dist).replace(' ', '') + ' ' + compass(p.brg) + ' >' + compass(p.track) : fmtKm(p.dist) + ' ' + compass(p.brg) + ', FLYING ' + compass(p.track) + vr, DM, false];
+}
+function drawBoard(tg, p, t, info = '', nextDue = null) {
   const W = tg.w, r = p.route;
   tail(tg, 1, 1, p.color);
   const cs = p.cs || p.hex.toUpperCase(), csW = w5(cs);
-  txt(tg, FONT_5x7, fit(p.airline || p.type || 'AIRCRAFT', W - 20 - csW, (s) => w5(s)), 15, 2, WH);
+  // The airline: scrolls (smoothly, after a pause) only when it doesn't fit.
+  const name = String(p.airline || p.type || 'AIRCRAFT').toUpperCase(), nx0 = 15, nw = W - nx0 - csW - 6, tw = w5(name);
+  if (tw <= nw) txt(tg, FONT_5x7, name, nx0, 2, WH);
+  else {
+    const loop = tw + 18, off = Math.max(0, (t % (loop / 12 + 2.5)) - 2.5) * 12;
+    const plot = (px, py, a = 1) => { if (px < nx0 || px >= nx0 + nw) return; const e = Math.min(1, (Math.min(px - nx0, nx0 + nw - 1 - px) + 1) / 3); tg.set(px, py, WH[0] * a * e, WH[1] * a * e, WH[2] * a * e); };
+    plot.alpha = true;
+    drawStringSmooth(FONT_5x7, name, nx0 - off, 2, plot); drawStringSmooth(FONT_5x7, name, nx0 - off + loop, 2, plot);
+  }
   txt(tg, FONT_5x7, cs, W - 2 - csW, 2, WH);
   const from = r && r.from ? r.from.iata : '', to = r && r.to ? r.to.iata : '';
   if (from && to) {
@@ -58,16 +75,15 @@ function drawBoard(tg, p, t, info = '') {
   txt(tg, FONT_5x7, p.type || '', 2, 44, WH);
   txt(tg, FONT_5x7, alt, Math.round(W / 2 - w5(alt) / 2), 44, AM);
   txt(tg, FONT_5x7, spd, W - 2 - w5(spd), 44, CY);
-  const due = dueText(p);
-  if (due) txt(tg, FONT_3x5, due, 2, 56, AM, p.overhead ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
-  else txt(tg, FONT_3x5, fmtKm(p.dist) + ' ' + compass(p.brg) + (p.vr > 300 ? ' CLIMB' : p.vr < -300 ? ' DESCEND' : ''), 2, 56, DM);
+  const [ll, lc, flash] = lastLine(p, t, nextDue, false);
+  txt(tg, FONT_3x5, fit(ll, W - 14 - w3(info || 'LIVE'), w3), 2, 56, lc, flash ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
   const live = info || 'LIVE', lw = w3(live);
   if (!info) liveDot(tg, W - 7 - lw, 57, t);
   txt(tg, FONT_3x5, live, W - 2 - lw, 56, info ? DM : GR);
 }
 
 // C: one 64x64 panel.
-function drawCompact(tg, p, t, info = '') {
+function drawCompact(tg, p, t, info = '', nextDue = null) {
   const r = p.route;
   tail(tg, 1, 1, p.color);
   txt(tg, FONT_3x5, fit(p.airline || p.type || 'AIRCRAFT', 48, w3), 14, 1, WH);
@@ -80,8 +96,10 @@ function drawCompact(tg, p, t, info = '') {
   } else { txt(tg, FONT_5x7, fit(p.type || 'AIRCRAFT', 60, (s) => w5(s)), 2, 18, WH); txt(tg, FONT_3x5, fit(p.reg || 'ROUTE UNKNOWN', 60, w3), 2, 28, DM); }
   for (let x = 0; x < 64; x += 2) tg.set(x, 35, DM[0] * 0.4, DM[1] * 0.4, DM[2] * 0.4);
   txt(tg, FONT_3x5, p.type || '', 2, 39, WH); const alt = fmtAlt(p.alt); txt(tg, FONT_3x5, alt, 62 - w3(alt), 39, AM);
-  txt(tg, FONT_3x5, Math.round(p.gs) + 'KT', 2, 47, CY); const dt2 = dueText(p, true), d = dt2 || fmtKm(p.dist).replace(' ', '') + ' ' + compass(p.brg); txt(tg, FONT_3x5, d, 62 - w3(d), 47, dt2 ? AM : DM);
-  if (info) txt(tg, FONT_3x5, info, 62 - w3(info), 56, DM, 0.8); else { liveDot(tg, 2, 57, t); txt(tg, FONT_3x5, 'LIVE', 7, 56, GR); }
+  txt(tg, FONT_3x5, Math.round(p.gs) + 'KT', 2, 47, CY); const hd = 'TO ' + compass(p.track); txt(tg, FONT_3x5, hd, 62 - w3(hd), 47, DM);
+  const [ll, lc, flash] = lastLine(p, t, nextDue, true);
+  txt(tg, FONT_3x5, fit(ll, info ? 44 : 60, w3), 2, 56, lc, flash ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
+  if (info) txt(tg, FONT_3x5, info, 62 - w3(info), 56, DM, 0.8);
 }
 
 // B: radar (a square on the left) with the focus plane's details beside it.
@@ -100,8 +118,12 @@ function drawRadar(tg, planes, focus, t, radiusKm, details = true) {
     const tr = p.track * Math.PI / 180;
     for (let k = 1; k <= 4; k++) g(x - Math.sin(tr) * k, y + Math.cos(tr) * k, 0.35 - k * 0.07);
     if (p.dueIn >= 0) { const steps = Math.min(R * 2, (p.dueIn * p.gs * 1.852 / 3600) / radiusKm * R + 3); for (let k = 3; k < steps; k += 2) tg.set(Math.round(x + Math.sin(tr) * k), Math.round(y - Math.cos(tr) * k), AM[0] * 0.5, AM[1] * 0.5, AM[2] * 0.5); } // its path over home
-    for (let d = -1; d <= 1; d++) { tg.set(Math.round(x + d), Math.round(y), c[0], c[1], c[2]); tg.set(Math.round(x), Math.round(y + d), c[0], c[1], c[2]); }
-    if (sel || S >= 64) txt(tg, FONT_3x5, p.cs || '', Math.round(x) + 3, Math.round(y) - 2, c, sel ? 1 : 0.7, 1, S);
+    // The plane: a dot with a short line pointing the way it's flying.
+    for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) tg.set(Math.round(x) + i, Math.round(y) + j, c[0], c[1], c[2]);
+    for (let k = 2; k <= 4; k++) tg.set(Math.round(x + 0.5 + Math.sin(tr) * k), Math.round(y + 0.5 - Math.cos(tr) * k), c[0] * (1.2 - k * 0.2), c[1] * (1.2 - k * 0.2), c[2] * (1.2 - k * 0.2));
+    const due = p.overhead || p.dueIn >= 0, lab = (p.cs || '') + (due ? ' ' + (p.overhead ? 'OVER' : mmss(p.dueIn)) : '');
+    const lx = Math.round(x) + 4 + w3(lab) > S - 1 ? Math.round(x) - 3 - w3(lab) : Math.round(x) + 4; // near the right edge: the label goes on the left
+    if (sel || S >= 64 || due) txt(tg, FONT_3x5, lab, Math.max(0, lx), Math.round(y) - 2, due ? AM : c, sel || due ? 1 : 0.7, 1, S);
   });
   if (!details || tg.w < S + 44) return;
   const p = planes[focus]; if (!p) return;
@@ -154,4 +176,16 @@ function drawGlow(tg, t) {
   for (let y = 0; y < tg.h; y++) for (const x of [0, 1, tg.w - 2, tg.w - 1]) tg.set(x, y, AM[0] * a, AM[1] * a, AM[2] * a);
 }
 
-module.exports = { drawBoard, drawCompact, drawRadar, drawEmpty, drawDue, drawSummary, drawGlow };
+// The overhead alert drawn over any effect: a banner across the middle.
+function drawAlert(tg, p, t) {
+  const now = p.overhead, y0 = Math.max(0, Math.round(tg.h / 2) - 11), h = 22, a = 0.55 + 0.45 * Math.sin(t * (now ? 9 : 5));
+  for (let y = y0; y < y0 + h; y++) for (let x = 0; x < tg.w; x++) tg.set(x, y, 0.01, 0.01, 0.02);
+  for (let x = 0; x < tg.w; x++) { tg.set(x, y0, AM[0] * a, AM[1] * a, AM[2] * a); tg.set(x, y0 + h - 1, AM[0] * a, AM[1] * a, AM[2] * a); }
+  const l1 = now ? 'OVERHEAD NOW' : 'OVERHEAD IN ' + mmss(p.dueIn), big = tg.w >= 96;
+  const s1 = big ? l1 : (now ? 'OVERHEAD' : 'OVER ' + mmss(p.dueIn));
+  txt(tg, FONT_5x7, s1, Math.round(tg.w / 2 - w5(s1) / 2), y0 + 3, AM, 0.6 + 0.4 * a);
+  const r = p.route, l2 = [p.cs || p.hex.toUpperCase(), r && r.from && r.to ? r.from.iata + '-' + r.to.iata : p.type, fmtAlt(p.alt)].filter(Boolean).join('  ');
+  const s2 = fit(l2, tg.w - 4, w3); txt(tg, FONT_3x5, s2, Math.round(tg.w / 2 - w3(s2) / 2), y0 + 13, WH);
+}
+
+module.exports = { drawAlert, drawBoard, drawCompact, drawRadar, drawEmpty, drawDue, drawSummary, drawGlow };

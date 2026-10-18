@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.372';
+const APP_VERSION = '0.6.373';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -6282,6 +6282,7 @@ function cxWirePlanes() {
   document.getElementById('planes-radius').addEventListener('change', (e) => set('radiusKm', Number(e.target.value)));
   document.getElementById('planes-alt').addEventListener('change', (e) => set('maxAltFt', Number(e.target.value)));
   document.getElementById('planes-only').addEventListener('change', (e) => set('only', e.target.value));
+  document.getElementById('planes-alert').addEventListener('change', (e) => set('alert', e.target.checked));
 }
 function cxSyncPlanes() {
   const st = document.getElementById('planes-status'); if (!st) return;
@@ -6289,7 +6290,7 @@ function cxSyncPlanes() {
   st.textContent = currentState.effectStatus?.planes || (o.city || o.lat ? 'Looking for planes…' : 'Set your location to see the planes above you.');
   const ci = document.getElementById('planes-city'); if (ci && document.activeElement !== ci && !ci.value) ci.value = o.city || (o.lat ? o.lat + ', ' + o.lon : '');
   const sv = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el && v !== undefined) el.value = String(v); };
-  sv('planes-style', o.style || 'auto'); sv('planes-radius', o.radiusKm || 20); sv('planes-alt', o.maxAltFt || 0); sv('planes-only', o.only || '');
+  sv('planes-style', o.style || 'auto'); sv('planes-radius', o.radiusKm || 20); sv('planes-alt', o.maxAltFt || 0); sv('planes-only', o.only || ''); const pa = document.getElementById('planes-alert'); if (pa) pa.checked = !!o.alert;
 }
 function cxDjTime(s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
 let cxDjNow = null, cxDjNowAt = 0, cxDjMixAt = -1;

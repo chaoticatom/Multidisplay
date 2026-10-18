@@ -23594,6 +23594,14 @@ var PiEngine = (() => {
           if (!d.highest || p.alt > d.highest.alt) d.highest = { cs: p.cs || p.hex, alt: p.alt };
           if (!d.fastest || p.gs > d.fastest.gs) d.fastest = { cs: p.cs || p.hex, gs: p.gs };
         }
+        function routeFits(route, lat, lon) {
+          const a = route.from, b = route.to;
+          if (!a || !b || !Number.isFinite(a.lat) || !Number.isFinite(b.lat) || !Number.isFinite(a.lon) || !Number.isFinite(b.lon)) return true;
+          const k = Math.cos(lat * Math.PI / 180) * 111.2, P = (la, lo) => [(lo - lon) * k, (la - lat) * 111.2];
+          const [ax, ay] = P(a.lat, a.lon), [bx, by] = P(b.lat, b.lon), vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy || 1;
+          const tt = (-ax * vx - ay * vy) / l2, cx = ax + vx * Math.max(0, Math.min(1, tt)), cy = ay + vy * Math.max(0, Math.min(1, tt));
+          return Math.hypot(cx, cy) < 300;
+        }
         function summary() {
           const d = st.day;
           if (!d) return null;
@@ -23608,7 +23616,7 @@ var PiEngine = (() => {
             const fr = d && d.response && d.response.flightroute;
             if (!fr) st.routes.set(cs, null);
             else {
-              const ap = (x) => x ? { iata: x.iata_code || x.icao_code || "", city: x.municipality || x.name || "" } : null;
+              const ap = (x) => x ? { iata: x.iata_code || x.icao_code || "", city: x.municipality || x.name || "", lat: Number(x.latitude), lon: Number(x.longitude) } : null;
               const from = ap(fr.origin), to = ap(fr.destination);
               const ok = from && to && from.iata && to.iata && from.iata !== to.iata;
               st.routes.set(cs, { airline: fr.airline ? fr.airline.name : "", from: ok ? from : null, to: ok ? to : null });
@@ -23650,7 +23658,7 @@ var PiEngine = (() => {
           return st.planes.map((p) => {
             const dt = Math.min(25, Math.max(0, (now - p.fix) / 1e3)), km = p.gs * KT_TO_KMS * dt, tr = p.track * Math.PI / 180;
             const lat = p.lat + km * Math.cos(tr) / 111.2, lon = p.lon + km * Math.sin(tr) / (111.2 * Math.cos(p.lat * Math.PI / 180) || 1);
-            const rel = relate(lat, lon), route = st.routes.get(p.cs), al = airlineOf(p.cs);
+            const rel = relate(lat, lon), r0 = st.routes.get(p.cs), route = r0 && r0.from && !routeFits(r0, lat, lon) ? { airline: r0.airline, from: null, to: null } : r0, al = airlineOf(p.cs);
             const b = rel.brg * Math.PI / 180, e = rel.dist * Math.sin(b), nn = rel.dist * Math.cos(b), v = p.gs * KT_TO_KMS;
             const ve = v * Math.sin(tr), vn = v * Math.cos(tr), vv = ve * ve + vn * vn;
             const tc = vv > 1e-9 ? -(e * ve + nn * vn) / vv : 0, miss = Math.hypot(e + ve * tc, nn + vn * tc);
@@ -23672,7 +23680,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { FONT_3x5, FONT_5x7, drawString, textWidth } = require_text();
+      var { FONT_3x5, FONT_5x7, drawString, drawStringSmooth, textWidth } = require_text();
       var { compass } = require_data();
       var WH = [0.92, 0.95, 1];
       var DM = [0.55, 0.6, 0.7];
@@ -23715,11 +23723,30 @@ var PiEngine = (() => {
         const a = 0.6 + 0.4 * Math.sin(t * 4);
         for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) tg.set(x + i, y + j, GR[0] * a, GR[1] * a, GR[2] * a);
       }
-      function drawBoard(tg, p, t, info = "") {
+      function lastLine(p, t, nextDue, short) {
+        const own = dueText(p, short);
+        if (own) return [own, AM, p.overhead];
+        if (nextDue && nextDue !== p && Math.floor(t / 4) % 2) return [(short ? "NEXT " : "NEXT OVER: ") + (nextDue.cs || nextDue.hex.toUpperCase()) + " " + (nextDue.overhead ? "NOW" : mmss(nextDue.dueIn)), AM, false];
+        const vr = p.vr > 300 ? short ? " UP" : " CLIMB" : p.vr < -300 ? short ? " DN" : " DESCEND" : "";
+        return [short ? fmtKm(p.dist).replace(" ", "") + " " + compass(p.brg) + " >" + compass(p.track) : fmtKm(p.dist) + " " + compass(p.brg) + ", FLYING " + compass(p.track) + vr, DM, false];
+      }
+      function drawBoard(tg, p, t, info = "", nextDue = null) {
         const W = tg.w, r = p.route;
         tail(tg, 1, 1, p.color);
         const cs = p.cs || p.hex.toUpperCase(), csW = w5(cs);
-        txt(tg, FONT_5x7, fit(p.airline || p.type || "AIRCRAFT", W - 20 - csW, (s) => w5(s)), 15, 2, WH);
+        const name = String(p.airline || p.type || "AIRCRAFT").toUpperCase(), nx0 = 15, nw = W - nx0 - csW - 6, tw = w5(name);
+        if (tw <= nw) txt(tg, FONT_5x7, name, nx0, 2, WH);
+        else {
+          const loop = tw + 18, off = Math.max(0, t % (loop / 12 + 2.5) - 2.5) * 12;
+          const plot = (px, py, a = 1) => {
+            if (px < nx0 || px >= nx0 + nw) return;
+            const e = Math.min(1, (Math.min(px - nx0, nx0 + nw - 1 - px) + 1) / 3);
+            tg.set(px, py, WH[0] * a * e, WH[1] * a * e, WH[2] * a * e);
+          };
+          plot.alpha = true;
+          drawStringSmooth(FONT_5x7, name, nx0 - off, 2, plot);
+          drawStringSmooth(FONT_5x7, name, nx0 - off + loop, 2, plot);
+        }
         txt(tg, FONT_5x7, cs, W - 2 - csW, 2, WH);
         const from = r && r.from ? r.from.iata : "", to = r && r.to ? r.to.iata : "";
         if (from && to) {
@@ -23740,14 +23767,13 @@ var PiEngine = (() => {
         txt(tg, FONT_5x7, p.type || "", 2, 44, WH);
         txt(tg, FONT_5x7, alt, Math.round(W / 2 - w5(alt) / 2), 44, AM);
         txt(tg, FONT_5x7, spd, W - 2 - w5(spd), 44, CY);
-        const due = dueText(p);
-        if (due) txt(tg, FONT_3x5, due, 2, 56, AM, p.overhead ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
-        else txt(tg, FONT_3x5, fmtKm(p.dist) + " " + compass(p.brg) + (p.vr > 300 ? " CLIMB" : p.vr < -300 ? " DESCEND" : ""), 2, 56, DM);
+        const [ll, lc, flash] = lastLine(p, t, nextDue, false);
+        txt(tg, FONT_3x5, fit(ll, W - 14 - w3(info || "LIVE"), w3), 2, 56, lc, flash ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
         const live = info || "LIVE", lw = w3(live);
         if (!info) liveDot(tg, W - 7 - lw, 57, t);
         txt(tg, FONT_3x5, live, W - 2 - lw, 56, info ? DM : GR);
       }
-      function drawCompact(tg, p, t, info = "") {
+      function drawCompact(tg, p, t, info = "", nextDue = null) {
         const r = p.route;
         tail(tg, 1, 1, p.color);
         txt(tg, FONT_3x5, fit(p.airline || p.type || "AIRCRAFT", 48, w3), 14, 1, WH);
@@ -23769,13 +23795,11 @@ var PiEngine = (() => {
         const alt = fmtAlt(p.alt);
         txt(tg, FONT_3x5, alt, 62 - w3(alt), 39, AM);
         txt(tg, FONT_3x5, Math.round(p.gs) + "KT", 2, 47, CY);
-        const dt2 = dueText(p, true), d = dt2 || fmtKm(p.dist).replace(" ", "") + " " + compass(p.brg);
-        txt(tg, FONT_3x5, d, 62 - w3(d), 47, dt2 ? AM : DM);
+        const hd = "TO " + compass(p.track);
+        txt(tg, FONT_3x5, hd, 62 - w3(hd), 47, DM);
+        const [ll, lc, flash] = lastLine(p, t, nextDue, true);
+        txt(tg, FONT_3x5, fit(ll, info ? 44 : 60, w3), 2, 56, lc, flash ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
         if (info) txt(tg, FONT_3x5, info, 62 - w3(info), 56, DM, 0.8);
-        else {
-          liveDot(tg, 2, 57, t);
-          txt(tg, FONT_3x5, "LIVE", 7, 56, GR);
-        }
       }
       function drawRadar(tg, planes, focus, t, radiusKm, details = true) {
         const S = Math.min(tg.h, tg.w), cx = Math.floor(S / 2), cy = Math.floor(tg.h / 2), R = S / 2 - 2;
@@ -23806,11 +23830,11 @@ var PiEngine = (() => {
             const steps = Math.min(R * 2, p2.dueIn * p2.gs * 1.852 / 3600 / radiusKm * R + 3);
             for (let k = 3; k < steps; k += 2) tg.set(Math.round(x + Math.sin(tr) * k), Math.round(y - Math.cos(tr) * k), AM[0] * 0.5, AM[1] * 0.5, AM[2] * 0.5);
           }
-          for (let d = -1; d <= 1; d++) {
-            tg.set(Math.round(x + d), Math.round(y), c[0], c[1], c[2]);
-            tg.set(Math.round(x), Math.round(y + d), c[0], c[1], c[2]);
-          }
-          if (sel || S >= 64) txt(tg, FONT_3x5, p2.cs || "", Math.round(x) + 3, Math.round(y) - 2, c, sel ? 1 : 0.7, 1, S);
+          for (let j = 0; j < 2; j++) for (let i2 = 0; i2 < 2; i2++) tg.set(Math.round(x) + i2, Math.round(y) + j, c[0], c[1], c[2]);
+          for (let k = 2; k <= 4; k++) tg.set(Math.round(x + 0.5 + Math.sin(tr) * k), Math.round(y + 0.5 - Math.cos(tr) * k), c[0] * (1.2 - k * 0.2), c[1] * (1.2 - k * 0.2), c[2] * (1.2 - k * 0.2));
+          const due = p2.overhead || p2.dueIn >= 0, lab = (p2.cs || "") + (due ? " " + (p2.overhead ? "OVER" : mmss(p2.dueIn)) : "");
+          const lx = Math.round(x) + 4 + w3(lab) > S - 1 ? Math.round(x) - 3 - w3(lab) : Math.round(x) + 4;
+          if (sel || S >= 64 || due) txt(tg, FONT_3x5, lab, Math.max(0, lx), Math.round(y) - 2, due ? AM : c, sel || due ? 1 : 0.7, 1, S);
         });
         if (!details || tg.w < S + 44) return;
         const p = planes[focus];
@@ -23877,7 +23901,21 @@ var PiEngine = (() => {
         for (let x = 0; x < tg.w; x++) for (const y of [0, 1, tg.h - 2, tg.h - 1]) tg.set(x, y, AM[0] * a, AM[1] * a, AM[2] * a);
         for (let y = 0; y < tg.h; y++) for (const x of [0, 1, tg.w - 2, tg.w - 1]) tg.set(x, y, AM[0] * a, AM[1] * a, AM[2] * a);
       }
-      module.exports = { drawBoard, drawCompact, drawRadar, drawEmpty, drawDue, drawSummary, drawGlow };
+      function drawAlert(tg, p, t) {
+        const now = p.overhead, y0 = Math.max(0, Math.round(tg.h / 2) - 11), h = 22, a = 0.55 + 0.45 * Math.sin(t * (now ? 9 : 5));
+        for (let y = y0; y < y0 + h; y++) for (let x = 0; x < tg.w; x++) tg.set(x, y, 0.01, 0.01, 0.02);
+        for (let x = 0; x < tg.w; x++) {
+          tg.set(x, y0, AM[0] * a, AM[1] * a, AM[2] * a);
+          tg.set(x, y0 + h - 1, AM[0] * a, AM[1] * a, AM[2] * a);
+        }
+        const l1 = now ? "OVERHEAD NOW" : "OVERHEAD IN " + mmss(p.dueIn), big = tg.w >= 96;
+        const s1 = big ? l1 : now ? "OVERHEAD" : "OVER " + mmss(p.dueIn);
+        txt(tg, FONT_5x7, s1, Math.round(tg.w / 2 - w5(s1) / 2), y0 + 3, AM, 0.6 + 0.4 * a);
+        const r = p.route, l2 = [p.cs || p.hex.toUpperCase(), r && r.from && r.to ? r.from.iata + "-" + r.to.iata : p.type, fmtAlt(p.alt)].filter(Boolean).join("  ");
+        const s2 = fit(l2, tg.w - 4, w3);
+        txt(tg, FONT_3x5, s2, Math.round(tg.w / 2 - w3(s2) / 2), y0 + 13, WH);
+      }
+      module.exports = { drawAlert, drawBoard, drawCompact, drawRadar, drawEmpty, drawDue, drawSummary, drawGlow };
     }
   });
 
@@ -23888,7 +23926,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { createPlaneData } = require_data();
-      var { drawBoard, drawCompact, drawRadar, drawEmpty, drawDue, drawSummary, drawGlow } = require_draw();
+      var { drawBoard, drawCompact, drawRadar, drawEmpty, drawDue, drawSummary, drawGlow, drawAlert } = require_draw();
       var data = createPlaneData();
       var view = { t: 0, focus: 0, focusT: 0, radarT: 0, fade: 1, lastHex: "" };
       var CYCLE_S = 8;
@@ -23936,8 +23974,11 @@ var PiEngine = (() => {
         }
         if (look === "radar") drawRadar(tg, planes, view.focus, view.t, radius(opts), true);
         else if (!p) drawRadar(tg, planes, view.focus, view.t, radius(opts), false);
-        else if (tg.w >= 96) drawBoard(fadeTg, p, view.t, planes.length > 1 ? k + 1 + "/" + planes.length : "");
-        else drawCompact(fadeTg, p, view.t, planes.length > 1 ? k + 1 + "/" + planes.length : "");
+        else {
+          const nextDue = planes.filter((q) => q.overhead || q.dueIn >= 0).sort((a, b) => (a.overhead ? -1 : a.dueIn) - (b.overhead ? -1 : b.dueIn))[0] || null;
+          if (tg.w >= 96) drawBoard(fadeTg, p, view.t, planes.length > 1 ? k + 1 + "/" + planes.length : "", nextDue);
+          else drawCompact(fadeTg, p, view.t, planes.length > 1 ? k + 1 + "/" + planes.length : "", nextDue);
+        }
       }
       function sub(tg0, x0, w) {
         return { w, h: tg0.h, set: (x, y, r, g, b) => {
@@ -23980,6 +24021,7 @@ var PiEngine = (() => {
           if (due) looks.push("due");
           mainLook = summaryTime ? "summary" : looks[Math.floor(view.t / 10) % looks.length];
         }
+        if (planes.some((p) => p.overhead)) mainLook = "board";
         const shown = /* @__PURE__ */ new Set();
         let next = 0;
         regs.forEach((r, i) => {
@@ -24032,6 +24074,36 @@ var PiEngine = (() => {
         else drawEmpty(b, view.t, emptyMsg());
         if (planes.some((p) => p.overhead)) for (const f of [0, 1, 2, 3, 4, 5]) drawGlow(face(f), view.t);
       }
+      function overheadAlert(core, mode, state, dt) {
+        const opts = state.effectOptions && state.effectOptions.planes || {};
+        if (!opts.alert || state.effect === "planes") return;
+        const w = state.effectOptions && state.effectOptions.weather;
+        data.update(!opts.city && !(opts.lat || opts.lon) && w && w.city ? { ...opts, city: w.city } : opts);
+        view.t += dt;
+        const p = data.planes().filter((q) => q.overhead || q.dueIn >= 0 && q.dueIn <= 15).sort((a, b) => (a.overhead ? -1 : a.dueIn) - (b.overhead ? -1 : b.dueIn))[0];
+        if (!p) return;
+        if (mode === "wall" && core.wallW) {
+          const S = core.wallPanelSize || 64, rows = /* @__PURE__ */ new Map();
+          for (const q of core.wallPanels || [{ gx: 0, gy: 0 }]) {
+            if (!rows.has(q.gy)) rows.set(q.gy, [q.gx, q.gx]);
+            const r = rows.get(q.gy);
+            r[0] = Math.min(r[0], q.gx);
+            r[1] = Math.max(r[1], q.gx);
+          }
+          for (const [gy, [g0, g1]] of rows) {
+            const x0 = g0 * S, w2 = (g1 - g0 + 1) * S, y00 = gy * S;
+            drawAlert({ w: w2, h: S, set: (x, y, r, g, b) => {
+              if (x >= 0 && y >= 0 && x < w2 && y < S) core.setWallPixel(x0 + x, y00 + y, r, g, b);
+            } }, p, view.t);
+          }
+        } else {
+          const SZ = core.SIZE || 64;
+          for (const f of mode === "2d" ? [0] : [0, 1, 2, 3]) drawAlert({ w: SZ, h: SZ, set: (x, y, r, g, b) => {
+            if (x >= 0 && y >= 0 && x < SZ && y < SZ) core.setFaceLED(f, x, SZ - 1 - y, r, g, b);
+          } }, p, view.t);
+        }
+      }
+      effectPlanes.alert = overheadAlert;
       effectPlanes.wall = effectPlanesWall;
       effectPlanes.getStatus = () => data.status();
       effectPlanesWall.getStatus = effectPlanes.getStatus;
@@ -33035,6 +33107,10 @@ var PiEngine = (() => {
           if (xfLive) core._xfNew.set(buf);
           pulseBuffer(core.audio, buf, react);
           applyCrossfade(core, buf, dt, state.prefs && state.prefs.transition);
+          try {
+            require_planes().alert(core, config.mode, state, dt);
+          } catch (e) {
+          }
           const djp = state.prefs && state.prefs.dj, di = radio.audio && radio.audio.djInfo;
           if (di && di.dropAt && (!djp || djp.lightShow !== "off")) {
             const f = 1 - (Date.now() - di.dropAt) / 450;

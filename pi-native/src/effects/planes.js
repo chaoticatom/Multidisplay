@@ -13,7 +13,7 @@
 'use strict';
 
 const { createPlaneData } = require('./planes/data');
-const { drawBoard, drawCompact, drawRadar, drawEmpty, drawDue, drawSummary, drawGlow } = require('./planes/draw');
+const { drawBoard, drawCompact, drawRadar, drawEmpty, drawDue, drawSummary, drawGlow, drawAlert } = require('./planes/draw');
 
 const data = createPlaneData();
 const view = { t: 0, focus: 0, focusT: 0, radarT: 0, fade: 1, lastHex: '' };
@@ -44,8 +44,11 @@ function region(tg, look, planes, k, opts) {
   if (look === 'summary') { drawSummary(tg, data.summary(), view.t); return; }
   if (look === 'radar') drawRadar(tg, planes, view.focus, view.t, radius(opts), true);
   else if (!p) drawRadar(tg, planes, view.focus, view.t, radius(opts), false);
-  else if (tg.w >= 96) drawBoard(fadeTg, p, view.t, planes.length > 1 ? (k + 1) + '/' + planes.length : '');
-  else drawCompact(fadeTg, p, view.t, planes.length > 1 ? (k + 1) + '/' + planes.length : '');
+  else {
+    const nextDue = planes.filter((q) => q.overhead || q.dueIn >= 0).sort((a, b) => (a.overhead ? -1 : a.dueIn) - (b.overhead ? -1 : b.dueIn))[0] || null;
+    if (tg.w >= 96) drawBoard(fadeTg, p, view.t, planes.length > 1 ? (k + 1) + '/' + planes.length : '', nextDue);
+    else drawCompact(fadeTg, p, view.t, planes.length > 1 ? (k + 1) + '/' + planes.length : '', nextDue);
+  }
 }
 function sub(tg0, x0, w) { return { w, h: tg0.h, set: (x, y, r, g, b) => { if (x >= 0 && x < w && y >= 0 && y < tg0.h) tg0.set(x0 + x, y, r, g, b); } }; }
 
@@ -75,6 +78,7 @@ function effectPlanesWall(core, dt) {
     const looks = ['board']; if (planes.length > 1) looks.push('radar'); if (due) looks.push('due');
     mainLook = summaryTime ? 'summary' : looks[Math.floor(view.t / 10) % looks.length];
   }
+  if (planes.some((p) => p.overhead)) mainLook = 'board'; // one right overhead: always on show
   const shown = new Set(); let next = 0;
   regs.forEach((r, i) => {
     const tg = tgFor(r);
@@ -110,6 +114,27 @@ function effectPlanes(core, dt) {
   else drawEmpty(b, view.t, emptyMsg());
   if (planes.some((p) => p.overhead)) for (const f of [0, 1, 2, 3, 4, 5]) drawGlow(face(f), view.t);
 }
+// The overhead alert over whatever's showing (option 'alert'): keeps the
+// planes data going, and when one is due within 15 s - or right overhead -
+// draws a banner across every panel row (or the cube's four sides).
+function overheadAlert(core, mode, state, dt) {
+  const opts = (state.effectOptions && state.effectOptions.planes) || {};
+  if (!opts.alert || state.effect === 'planes') return;
+  const w = state.effectOptions && state.effectOptions.weather;
+  data.update(!opts.city && !(opts.lat || opts.lon) && w && w.city ? { ...opts, city: w.city } : opts);
+  view.t += dt;
+  const p = data.planes().filter((q) => q.overhead || (q.dueIn >= 0 && q.dueIn <= 15)).sort((a, b) => (a.overhead ? -1 : a.dueIn) - (b.overhead ? -1 : b.dueIn))[0];
+  if (!p) return;
+  if (mode === 'wall' && core.wallW) {
+    const S = core.wallPanelSize || 64, rows = new Map();
+    for (const q of core.wallPanels || [{ gx: 0, gy: 0 }]) { if (!rows.has(q.gy)) rows.set(q.gy, [q.gx, q.gx]); const r = rows.get(q.gy); r[0] = Math.min(r[0], q.gx); r[1] = Math.max(r[1], q.gx); }
+    for (const [gy, [g0, g1]] of rows) { const x0 = g0 * S, w = (g1 - g0 + 1) * S, y00 = gy * S; drawAlert({ w, h: S, set: (x, y, r, g, b) => { if (x >= 0 && y >= 0 && x < w && y < S) core.setWallPixel(x0 + x, y00 + y, r, g, b); } }, p, view.t); }
+  } else {
+    const SZ = core.SIZE || 64;
+    for (const f of mode === '2d' ? [0] : [0, 1, 2, 3]) drawAlert({ w: SZ, h: SZ, set: (x, y, r, g, b) => { if (x >= 0 && y >= 0 && x < SZ && y < SZ) core.setFaceLED(f, x, SZ - 1 - y, r, g, b); } }, p, view.t);
+  }
+}
+effectPlanes.alert = overheadAlert;
 effectPlanes.wall = effectPlanesWall;
 effectPlanes.getStatus = () => data.status();
 effectPlanesWall.getStatus = effectPlanes.getStatus;

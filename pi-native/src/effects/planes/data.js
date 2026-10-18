@@ -132,6 +132,18 @@ function createPlaneData(fetchFn = fetchWithTimeout) {
     if (!d.highest || p.alt > d.highest.alt) d.highest = { cs: p.cs || p.hex, alt: p.alt };
     if (!d.fastest || p.gs > d.fastest.gs) d.fastest = { cs: p.cs || p.hex, gs: p.gs };
   }
+  // Does a route make sense for a plane here? Charter and business flights
+  // reuse flight numbers, so a lookup can return an old trip on the other
+  // side of the world: the plane must be near the line between the two
+  // airports (within ~300 km of it, and not far beyond either end).
+  function routeFits(route, lat, lon) {
+    const a = route.from, b = route.to;
+    if (!a || !b || !Number.isFinite(a.lat) || !Number.isFinite(b.lat) || !Number.isFinite(a.lon) || !Number.isFinite(b.lon)) return true; // can't tell: keep it
+    const k = Math.cos(lat * Math.PI / 180) * 111.2, P = (la, lo) => [(lo - lon) * k, (la - lat) * 111.2];
+    const [ax, ay] = P(a.lat, a.lon), [bx, by] = P(b.lat, b.lon), vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy || 1;
+    const tt = (-(ax) * vx - (ay) * vy) / l2, cx = ax + vx * Math.max(0, Math.min(1, tt)), cy = ay + vy * Math.max(0, Math.min(1, tt));
+    return Math.hypot(cx, cy) < 300; // km from the plane to the route line
+  }
   function summary() {
     const d = st.day; if (!d) return null;
     let busy = null; for (const [k, v] of d.airlines) if (!busy || v > busy.n) busy = { name: k, n: v };
@@ -144,7 +156,7 @@ function createPlaneData(fetchFn = fetchWithTimeout) {
       const fr = d && d.response && d.response.flightroute;
       if (!fr) st.routes.set(cs, null);
       else {
-        const ap = (x) => (x ? { iata: x.iata_code || x.icao_code || '', city: x.municipality || x.name || '' } : null);
+        const ap = (x) => (x ? { iata: x.iata_code || x.icao_code || '', city: x.municipality || x.name || '', lat: Number(x.latitude), lon: Number(x.longitude) } : null);
         const from = ap(fr.origin), to = ap(fr.destination);
         // A route that starts and ends at the same airport is a bad record: only the airline is kept.
         const ok = from && to && from.iata && to.iata && from.iata !== to.iata;
@@ -177,7 +189,7 @@ function createPlaneData(fetchFn = fetchWithTimeout) {
     return st.planes.map((p) => {
       const dt = Math.min(25, Math.max(0, (now - p.fix) / 1000)), km = p.gs * KT_TO_KMS * dt, tr = p.track * Math.PI / 180;
       const lat = p.lat + (km * Math.cos(tr)) / 111.2, lon = p.lon + (km * Math.sin(tr)) / (111.2 * Math.cos(p.lat * Math.PI / 180) || 1);
-      const rel = relate(lat, lon), route = st.routes.get(p.cs), al = airlineOf(p.cs);
+      const rel = relate(lat, lon), r0 = st.routes.get(p.cs), route = r0 && r0.from && !routeFits(r0, lat, lon) ? { airline: r0.airline, from: null, to: null } : r0, al = airlineOf(p.cs);
       // Will it pass over home? Its closest approach on its present track.
       const b = rel.brg * Math.PI / 180, e = rel.dist * Math.sin(b), nn = rel.dist * Math.cos(b), v = p.gs * KT_TO_KMS;
       const ve = v * Math.sin(tr), vn = v * Math.cos(tr), vv = ve * ve + vn * vn;

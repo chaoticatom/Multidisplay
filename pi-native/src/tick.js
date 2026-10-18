@@ -124,6 +124,8 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
     if (xfLive) core._xfNew.set(buf);
     pulseBuffer(core.audio, buf, react);
     applyCrossfade(core, buf, dt, state.prefs && state.prefs.transition);
+    // Planes overhead alert, over any effect (Planes option).
+    try { require('./effects/planes').alert(core, config.mode, state, dt); } catch (e) { /* never break the frame */ }
     // Auto-DJ light show: a white flash on each drop, as it's heard.
     const djp = state.prefs && state.prefs.dj, di = radio.audio && radio.audio.djInfo;
     if (di && di.dropAt && (!djp || djp.lightShow !== 'off')) {

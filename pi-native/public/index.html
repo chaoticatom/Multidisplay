@@ -1628,6 +1628,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="slider-row"><span class="slider-label">Within</span><select id="planes-radius" class="ui-input" style="flex:1;" aria-label="Radius"><option value="5">5 km</option><option value="10">10 km</option><option value="20" selected>20 km</option><option value="40">40 km</option><option value="80">80 km</option></select></div>
       <div class="slider-row"><span class="slider-label">Below</span><select id="planes-alt" class="ui-input" style="flex:1;" aria-label="Highest altitude"><option value="0">Any height</option><option value="10000">10,000 ft (low, near airports)</option><option value="25000">25,000 ft</option><option value="45000">45,000 ft</option></select></div>
       <div class="slider-row"><span class="slider-label">Show</span><select id="planes-only" class="ui-input" style="flex:1;" aria-label="Which planes"><option value="">All planes</option><option value="interesting">Interesting only (giants, classics, military)</option></select></div>
+      <label class="mx-switch"><span>Alert over any effect<small>A banner on the display when a plane is about to pass overhead (15 s) and as it does</small></span><input type="checkbox" id="planes-alert"></label>
       <div class="ui-note">Live from airplanes.live; routes from adsbdb.com. Private and military flights show their type only.</div>
     </div>
     <button class="effect-btn" data-effect="ambient_weather">◈ Ambient Weather</button>
@@ -2949,6 +2950,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.372"></script>
+<script src="app.js?v=0.6.373"></script>
 </body>
 </html>

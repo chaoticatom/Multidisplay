@@ -52,6 +52,13 @@ const fakeFetch = (url) => Promise.resolve({ ok: true, status: 200, json: async 
     d5.state.routeAt = 0; d5.update({ lat: 51.47, lon: -0.45 }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
     const tom = d5.planes()[0];
     assert.ok(tom.route && !tom.route.from && tom.airline === 'TUI Airways', 'same-airport route dropped, airline kept: ' + JSON.stringify(tom.route));
+    // A route on the other side of the world (a reused flight number) is ignored.
+    const far = { response: { flightroute: { airline: { name: 'VistaJet' }, origin: { iata_code: 'EWR', municipality: 'New York', latitude: 40.69, longitude: -74.17 }, destination: { iata_code: 'TPA', municipality: 'Tampa', latitude: 27.98, longitude: -82.53 } } } };
+    const d6 = createPlaneData((url) => Promise.resolve({ ok: true, status: 200, json: async () => (/adsbdb/.test(url) ? far : { ac: [{ hex: 'vjt001', flight: 'VJT779', t: 'GL7T', alt_baro: 11800, gs: 338, track: 90, lat: 52.04, lon: -0.95 }] }) }));
+    d6.update({ lat: 52.04, lon: -0.76 }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    d6.state.routeAt = 0; d6.update({ lat: 52.04, lon: -0.76 }); for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    const vjt = d6.planes()[0];
+    assert.ok(vjt.route && !vjt.route.from && vjt.airline === 'VistaJet', 'far-away route dropped: ' + JSON.stringify(vjt.route));
     console.log('  ok - planes data: nearby aircraft, nearest first, routes');
 
     // Drawing: feed the effect's data directly.
@@ -82,6 +89,18 @@ const fakeFetch = (url) => Promise.resolve({ ok: true, status: 200, json: async 
     const cube = new CubeCore(64); cube.effectOptions = { planes: { lat: 1, lon: 1 } };
     for (let i = 0; i < 10; i++) effect(cube, 1 / 30);
     for (let f = 0; f < 6; f++) { let s = 0; for (let i = 0; i < 64 * 64; i++) { const idx = cube.faceMap[f][i]; if (idx >= 0) s += cube.colBuf[idx * 3] + cube.colBuf[idx * 3 + 1]; } assert.ok(s > 5, 'cube face ' + f); }
+    // The overhead alert over another effect: a banner when one is due within 15 s; nothing otherwise.
+    const ca = new CubeCore(64); ca.initWall([{ gx: 0, gy: 0 }, { gx: 1, gy: 0 }], 64);
+    const amber = () => { let n = 0; for (let i = 0; i < ca.wallBuf.length; i += 3) if (ca.wallBuf[i] > 0.4 && ca.wallBuf[i + 1] > 0.2 && ca.wallBuf[i + 2] < 0.15) n++; return n; };
+    effect._data.planes = () => [{ ...more[0], dueIn: 40, overhead: false }];
+    effect.alert(ca, 'wall', { effect: 'plasma', effectOptions: { planes: { alert: true, lat: 1, lon: 1 } } }, 1 / 30);
+    assert.strictEqual(amber(), 0, 'no banner 40 s out');
+    effect._data.planes = () => [{ ...more[0], dueIn: 10, overhead: false }];
+    effect.alert(ca, 'wall', { effect: 'plasma', effectOptions: { planes: { alert: true, lat: 1, lon: 1 } } }, 1 / 30);
+    assert.ok(amber() > 50, 'banner 10 s out: ' + amber());
+    ca.wallBuf.fill(0);
+    effect.alert(ca, 'wall', { effect: 'plasma', effectOptions: { planes: { alert: false, lat: 1, lon: 1 } } }, 1 / 30);
+    assert.strictEqual(amber(), 0, 'off unless chosen');
     console.log('  ok - planes: board, radar and compact on every layout and the cube');
   } catch (e) { console.error(e); process.exitCode = 1; }
 })();
