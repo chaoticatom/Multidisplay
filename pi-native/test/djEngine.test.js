@@ -130,9 +130,9 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     // next song under the fade-out, or straight on from a dead stop.
     const live = { ...long, steady: false, endKind: 'fade', fadeStart: long.end - 10 * 44100 };
     const uf = dj._test.planMix(live, { ...A, steady: false }, 'auto');
-    assert.ok(uf.style === 'underfade' && uf.start > live.fadeStart && uf.start < live.end, 'under the fade: ' + uf.style);
+    assert.ok(uf.style === 'underfade' && uf.start >= live.fadeStart - 3 * 44100 && uf.start < live.fadeStart && uf.len >= 6 * 44100, 'rises through the fade: ' + uf.style);
     const cold = dj._test.planMix({ ...live, endKind: 'cold' }, { ...A, steady: false }, 'auto');
-    assert.ok(cold.style === 'segue' && Math.abs(cold.start - (live.end - 0.25 * 44100)) < 44100, 'straight on from the last hit: ' + cold.style);
+    assert.ok(cold.style === 'outro' && live.end - cold.start >= 8 * 44100 - 1 && live.end - cold.start <= 15 * 44100 + 1, 'its intro under the ending (8-15 s): ' + cold.style + ' ' + (live.end - cold.start) / 44100);
     // 👍/👎 nudges the style's weight (saved by the server).
     const tasteNow = dj.rate(false);
     assert.ok(Object.values(tasteNow).some((v) => v < 0), 'a 👎 lowers the last style: ' + JSON.stringify(tasteNow));

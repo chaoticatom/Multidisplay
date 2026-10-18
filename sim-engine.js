@@ -3459,9 +3459,16 @@ var PiEngine = (() => {
             if (s < a.end - 10 * RATE) return { start: Math.round(s), len: 4 * RATE, beat: false, beats: 0, style: "fade", bStart: 0, bIn: Math.round(b.inFrame), why: "quick crossfade (live drums: no beat-matching)" };
           }
           if (a.endKind === "fade" && a.end - a.fadeStart > 2 * RATE) {
-            const start2 = Math.max(a.pos + CUT, a.fadeStart + 0.35 * (a.end - a.fadeStart));
-            return { start: Math.round(start2), len: Math.max(2 * RATE, a.end - start2), beat: false, beats: 0, style: "underfade", bStart: 0, bIn: Math.round(b.inFrame), why: "starts under its fade-out, radio style" };
+            const start3 = Math.max(a.pos + CUT, a.fadeStart - 2 * RATE);
+            return { start: Math.round(start3), len: Math.max(6 * RATE, a.end - start3), beat: false, beats: 0, style: "underfade", bStart: 0, bIn: Math.round(b.inFrame), why: "rises through its fade-out, radio style" };
           }
+          let lastSung = a.inFrame;
+          for (let f = a.end - RATE; f > a.end - 40 * RATE && f > a.inFrame; f -= RATE) if (vocalAt(a, f, f + RATE) > 0.35) {
+            lastSung = f + RATE;
+            break;
+          }
+          const ov = Math.max(8 * RATE, Math.min(15 * RATE, a.end - lastSung)), start2 = Math.max(a.pos + CUT, Math.round(a.end - ov));
+          if (a.end - start2 >= 6 * RATE) return { start: start2, len: Math.round(a.end - start2 + 0.5 * RATE), beat: false, beats: 0, style: "outro", bStart: 0, bIn: Math.round(b.inFrame), why: "its intro under the ending, radio style" };
           return { start: Math.max(a.pos + CUT, Math.round(a.end - 0.25 * RATE)), len: Math.round(0.8 * RATE), beat: false, beats: 0, style: "segue", bStart: 0, bIn: Math.round(b.inFrame), why: "straight on from its last hit" };
         }
         function fxPlan(style, f, a) {
@@ -4118,6 +4125,9 @@ var PiEngine = (() => {
                   } else if (mix.style === "underfade") {
                     sampleDeck(A, 1 - smooth((u - 0.6) / 0.4), 1, 1, 1, OUT);
                     sampleDeck(B, smooth(u / 0.3), 1, 1, 1, OUT);
+                  } else if (mix.style === "outro") {
+                    sampleDeck(A, 1 - 0.35 * smooth(u / 0.9) - 0.65 * smooth((u - 0.88) / 0.12), 1 - smooth((u - 0.5) / 0.4), 1, 1, OUT);
+                    sampleDeck(B, smooth(u / 0.5), smooth((u - 0.6) / 0.35), smooth(u / 0.4), 1, OUT);
                   } else if (mix.style === "segue") {
                     sampleDeck(A, 1 - smooth(u), 1, 1, 1, OUT);
                     sampleDeck(B, smooth(u / 0.15), 1, 1, 1, OUT);
@@ -4258,7 +4268,7 @@ var PiEngine = (() => {
           st.mixLen = mix ? Math.round(mix.len / RATE * 10) / 10 : 0;
           st.mixSwap = mix && mix.beat && mix.style !== "cut" ? mix.swapU : mix && FX.has(mix.style) ? mix.bStart : -1;
           st.mixU = mix ? Math.max(0, Math.min(1, (A.pos - mix.from) / mix.len)) : 0;
-          st.mixIn = A && B && !mix && A.plan ? Math.max(0, Math.round((A.plan.start - A.pos) / RATE)) : -1;
+          st.mixIn = A && B && !mix && A.plan ? Math.max(0, Math.round((A.plan.start + A.plan.len * (A.plan.swapU || A.plan.bStart || 0.5) - A.pos) / RATE)) : -1;
           if (A) {
             if (!st.now) nowStatus();
             st.now.pos = Math.round(A.pos / RATE * 10) / 10;
@@ -6792,7 +6802,7 @@ var PiEngine = (() => {
         scrollText(tg, FONT_3x5, (m.line || "").toUpperCase(), x0 + 2, w - 4 - (cw ? cw + 6 : 0), y0 + 31, m.lineC || [0.9, 0.93, 1], 0.9, ms, "l", dt, adv);
       }
       var FX_NAMES = { echo: "echo out", filter: "filter sweep", brake: "brake stop", roll: "loop roll" };
-      var OTHER_NAMES = { underfade: "fade-out change", segue: "segue", mashup: "mashup" };
+      var OTHER_NAMES = { underfade: "fade-out change", segue: "segue", mashup: "mashup", outro: "radio overlap" };
       var styleText = (n) => !n ? "" : FX_NAMES[n.style] || OTHER_NAMES[n.style] || (n.style === "cut" ? "cut on the beat" : n.style === "fade" ? "crossfade" : n.style === "short" ? "8 beat mix" : n.beats ? n.beats + " beat blend" : "blend");
       function drawDjDecks(core, info, st, dt, beat = 0, where = "wall") {
         if (!info) return 0;

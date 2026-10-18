@@ -1321,7 +1321,7 @@ function cxSyncDj() {
   if (rateEl) {
     const show = d.on && lc && lc.at && Date.now() - lc.at < 180000 && cxDjRated !== lc.at;
     rateEl.hidden = !show;
-    if (show) document.getElementById('dj-rate-txt').textContent = 'How was that ' + ({ blend: 'blend', short: 'quick mix', cut: 'cut', echo: 'echo out', filter: 'filter sweep', brake: 'brake stop', roll: 'loop roll', fade: 'crossfade', underfade: 'fade-out change', segue: 'segue', mashup: 'mashup' }[lc.style] || 'mix') + '?';
+    if (show) document.getElementById('dj-rate-txt').textContent = 'How was that ' + ({ blend: 'blend', short: 'quick mix', cut: 'cut', echo: 'echo out', filter: 'filter sweep', brake: 'brake stop', roll: 'loop roll', fade: 'crossfade', underfade: 'fade-out change', segue: 'segue', mashup: 'mashup', outro: 'radio overlap' }[lc.style] || 'mix') + '?';
   }
   const rb = document.getElementById('dj-radio'); if (rb) { rb.hidden = !(d.on && d.now && d.now.id); rb.dataset.id = (d.now && d.now.id) || ''; }
   // Plain-words notes under each choice.

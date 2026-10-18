@@ -147,10 +147,17 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
       s = bs2;
       if (s < a.end - 10 * RATE) return { start: Math.round(s), len: 4 * RATE, beat: false, beats: 0, style: 'fade', bStart: 0, bIn: Math.round(b.inFrame), why: 'quick crossfade (live drums: no beat-matching)' };
     }
+    // A fade-out: the next song starts as the fade begins and rises through it.
     if (a.endKind === 'fade' && a.end - a.fadeStart > 2 * RATE) {
-      const start = Math.max(a.pos + CUT, a.fadeStart + 0.35 * (a.end - a.fadeStart));
-      return { start: Math.round(start), len: Math.max(2 * RATE, a.end - start), beat: false, beats: 0, style: 'underfade', bStart: 0, bIn: Math.round(b.inFrame), why: 'starts under its fade-out, radio style' };
+      const start = Math.max(a.pos + CUT, a.fadeStart - 2 * RATE);
+      return { start: Math.round(start), len: Math.max(6 * RATE, a.end - start), beat: false, beats: 0, style: 'underfade', bStart: 0, bIn: Math.round(b.inFrame), why: 'rises through its fade-out, radio style' };
     }
+    // A dead stop: the next song's intro comes in under the ending once the
+    // last sung line is over - 8 to 15 s - and takes over on the final hit.
+    let lastSung = a.inFrame;
+    for (let f = a.end - RATE; f > a.end - 40 * RATE && f > a.inFrame; f -= RATE) if (vocalAt(a, f, f + RATE) > 0.35) { lastSung = f + RATE; break; }
+    const ov = Math.max(8 * RATE, Math.min(15 * RATE, a.end - lastSung)), start = Math.max(a.pos + CUT, Math.round(a.end - ov));
+    if (a.end - start >= 6 * RATE) return { start, len: Math.round(a.end - start + 0.5 * RATE), beat: false, beats: 0, style: 'outro', bStart: 0, bIn: Math.round(b.inFrame), why: 'its intro under the ending, radio style' };
     return { start: Math.max(a.pos + CUT, Math.round(a.end - 0.25 * RATE)), len: Math.round(0.8 * RATE), beat: false, beats: 0, style: 'segue', bStart: 0, bIn: Math.round(b.inFrame), why: 'straight on from its last hit' };
   }
 
@@ -656,6 +663,9 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
             if ((A.pos & 1023) === 0) { const q = st.eq; q[0] = aLo * aVol; q[1] = aMi * aVol; q[2] = aHi * aVol; q[3] = bLo; q[4] = bMi; q[5] = bHi; }
           } else if (mix.style === 'underfade') { // A fades out on its own; B rises in under it
             sampleDeck(A, 1 - smooth((u - 0.6) / 0.4), 1, 1, 1, OUT); sampleDeck(B, smooth(u / 0.3), 1, 1, 1, OUT);
+          } else if (mix.style === 'outro') { // B's intro rises under A's ending; A holds then drops on the last hit
+            sampleDeck(A, 1 - 0.35 * smooth(u / 0.9) - 0.65 * smooth((u - 0.88) / 0.12), 1 - smooth((u - 0.5) / 0.4), 1, 1, OUT);
+            sampleDeck(B, smooth(u / 0.5), smooth((u - 0.6) / 0.35), smooth(u / 0.4), 1, OUT);
           } else if (mix.style === 'segue') { // A's last hit rings out as B starts
             sampleDeck(A, 1 - smooth(u), 1, 1, 1, OUT); sampleDeck(B, smooth(u / 0.15), 1, 1, 1, OUT);
           } else { // an equal-power crossfade, the outgoing track's bass going first
@@ -733,7 +743,9 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     if (!mix) { const q = st.eq; q[0] = q[1] = q[2] = 1; q[3] = q[4] = q[5] = 0; }
     st.mixLen = mix ? Math.round(mix.len / RATE * 10) / 10 : 0; st.mixSwap = mix && mix.beat && mix.style !== 'cut' ? mix.swapU : mix && FX.has(mix.style) ? mix.bStart : -1;
     st.mixU = mix ? Math.max(0, Math.min(1, (A.pos - mix.from) / mix.len)) : 0;
-    st.mixIn = A && B && !mix && A.plan ? Math.max(0, Math.round((A.plan.start - A.pos) / RATE)) : -1;
+    // The countdown runs to the middle of the change (the moment the new song
+    // takes over), so the change starts a little before zero.
+    st.mixIn = A && B && !mix && A.plan ? Math.max(0, Math.round((A.plan.start + A.plan.len * (A.plan.swapU || A.plan.bStart || 0.5) - A.pos) / RATE)) : -1;
     if (A) {
       if (!st.now) nowStatus();
       st.now.pos = Math.round(A.pos / RATE * 10) / 10; st.now.at = Date.now();

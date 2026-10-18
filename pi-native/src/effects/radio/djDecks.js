@@ -175,7 +175,7 @@ function drawMixer(tg, x0, w, y0, m, ms, dt, beat, adv) {
   scrollText(tg, FONT_3x5, (m.line || '').toUpperCase(), x0 + 2, w - 4 - (cw ? cw + 6 : 0), y0 + 31, m.lineC || [0.9, 0.93, 1], 0.9, ms, 'l', dt, adv);
 }
 const FX_NAMES = { echo: 'echo out', filter: 'filter sweep', brake: 'brake stop', roll: 'loop roll' };
-const OTHER_NAMES = { underfade: 'fade-out change', segue: 'segue', mashup: 'mashup' };
+const OTHER_NAMES = { underfade: 'fade-out change', segue: 'segue', mashup: 'mashup', outro: 'radio overlap' };
 const styleText = (n) => !n ? '' : FX_NAMES[n.style] || OTHER_NAMES[n.style] || (n.style === 'cut' ? 'cut on the beat' : n.style === 'fade' ? 'crossfade' : n.style === 'short' ? '8 beat mix' : n.beats ? n.beats + ' beat blend' : 'blend');
 
 // Draws both decks; returns the rows used (so the spectrum keeps clear of them).
