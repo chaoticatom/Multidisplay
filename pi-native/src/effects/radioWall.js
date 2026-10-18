@@ -111,8 +111,8 @@ function effectRadioWall(core, dt) {
       const o = { bands, gain, autoGain: autoGainOn, fitToScreen };
       const lA = computeLevels(djNext.a, { spec: audio.specA, peak: audio.specA }, o, dt);
       const c2 = { ...ctx, amp: (i) => lA.amp[i], peak: (i) => lA.peak[i], ampArr: lA.amp, peakArr: lA.peak };
-      if (opts.version === 1) renderSpectrumStyleWall(core, c2, style, spectrumWallState);
-      else renderSpectrumV2Wall(core, c2, opts.scene || 'auto', v2State, opts.autoSecs);
+      // The Auto-DJ always uses the Hi-Fi LED analyser (green/amber/red segments).
+      renderSpectrumV2Wall(core, c2, 'hifi', v2State, opts.autoSecs);
       // From when the next song is being lined up with this one (the last
       // 30 s before the mix), through the mix - and during a hint of it.
       // Crossfade progress on the spectrum: left of the progress point the bars

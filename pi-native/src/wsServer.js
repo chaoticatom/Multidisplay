@@ -136,10 +136,10 @@ class WsServer {
       const sig = d ? JSON.stringify([d.queue && d.queue.length, d.state, d.now && d.now.title, d.now && d.now.dur, d.next, d.mixing, d.nowIdx, d.nextIdx, d.error]) : '';
       if (sig !== this._djSig) { this._djSig = sig; this._broadcast(this._stateMsg()); }
       // Light show: each new song (as heard) brings a new spectrum style, or a new effect.
-      const hi = a && a.dj && a.url === 'dj:' ? a.djInfo : null, mode = (this.state.prefs && this.state.prefs.dj && this.state.prefs.dj.lightShow) || 'scenes';
+      const hi = a && a.dj && a.url === 'dj:' ? a.djInfo : null, mode = (this.state.prefs && this.state.prefs.dj && this.state.prefs.dj.lightShow) || 'flash';
       if (hi && hi.doneId && hi.doneId !== this._djDone) {
         const first = this._djDone === undefined; this._djDone = hi.doneId;
-        if (!first && mode === 'scenes' && this.state.effect === 'radio') {
+        if (false && !first && mode === 'scenes') { // (retired: the DJ always shows the Hi-Fi LED analyser)
           const SC = require('./effects/radio/spectrumV2Wall').SCENES, o = (this.state.effectOptions.radio = this.state.effectOptions.radio || {});
           const at = SC.indexOf(o.scene); o.scene = SC[(at + 1 + Math.floor(Math.random() * (SC.length - 1))) % SC.length];
           this._broadcast(this._stateMsg());

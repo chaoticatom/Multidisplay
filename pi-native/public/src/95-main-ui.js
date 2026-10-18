@@ -1250,7 +1250,7 @@ function cxSyncDj() {
     document.getElementById('dj-quick').checked = !!c.quick;
     document.getElementById('dj-endless').checked = c.endless !== false;
     document.getElementById('dj-artist').checked = !!c.ytArtist;
-    const lsel = document.getElementById('dj-lights'); if (document.activeElement !== lsel) lsel.value = c.lightShow || 'scenes';
+    const lsel = document.getElementById('dj-lights'); if (document.activeElement !== lsel) lsel.value = c.lightShow === 'scenes' ? 'flash' : c.lightShow || 'flash';
     const sy = document.getElementById('dj-style'); if (document.activeElement !== sy) sy.value = c.style || 'auto';
   }
   const card = document.getElementById('dj-now'), n = d.on ? d.now : null;
@@ -1330,7 +1330,7 @@ function cxSyncDj() {
     note('dj-src-note', { mp3: 'Your music files on the Pi (add them under "My music files" below).', youtube: 'A YouTube or YouTube Music playlist link, a search like "80s rock", or an artist (tick Artist). Empty: your Liked music.', both: 'Your music files and YouTube together, shuffled.' }[c.source] || '');
     note('dj-style-note', { auto: 'Picks the best change for each pair of songs: long blends, quick mixes, cuts, echo-outs, radio-style for rock - avoiding singing.', blend: 'Always a long, smooth beat-matched blend where possible.', short: 'Both songs play together for a few seconds, beat-matched.', cut: 'The old song stops and the new one lands right on the beat.' }[c.style || 'auto']);
     note('dj-beats-note', c.mixBeats === 'auto' || !c.mixBeats ? 'How long a blend lasts: as long as the two songs sit well together - up to about 2 minutes with both heard.' : `Blends last ${c.mixBeats} beats (about ${Math.round(c.mixBeats / 2)} seconds).`);
-    note('dj-lights-note', { scenes: 'The display flashes on each drop, and the spectrum changes style with each song.', effects: 'Flashes on drops, and a new effect (plasma, aurora...) with each song.', flash: 'Just a flash on each drop.', off: '' }[c.lightShow || 'scenes']);
+    note('dj-lights-note', { scenes: 'Just a flash on each drop (the DJ always shows the Hi-Fi LED analyser).', effects: 'Flashes on drops, and a new effect (plasma, aurora...) with each song.', flash: 'Just a flash on each drop (the DJ always shows the Hi-Fi LED analyser).', off: '' }[c.lightShow || 'flash']);
   }
   const ms = document.getElementById('mx-mix-sum');
   if (ms && c) ms.textContent = ({ auto: 'Auto', blend: 'Long blend', short: 'Short', cut: 'Cut' }[c.style || 'auto']) + (c.quick ? ' · Quick mix' : '') + ' ›';

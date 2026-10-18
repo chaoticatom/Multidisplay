@@ -31350,8 +31350,7 @@ var PiEngine = (() => {
             const o = { bands, gain, autoGain: autoGainOn, fitToScreen };
             const lA = computeLevels(djNext.a, { spec: audio.specA, peak: audio.specA }, o, dt);
             const c2 = { ...ctx, amp: (i) => lA.amp[i], peak: (i) => lA.peak[i], ampArr: lA.amp, peakArr: lA.peak };
-            if (opts.version === 1) renderSpectrumStyleWall(core, c2, style, spectrumWallState);
-            else renderSpectrumV2Wall(core, c2, opts.scene || "auto", v2State, opts.autoSecs);
+            renderSpectrumV2Wall(core, c2, "hifi", v2State, opts.autoSecs);
             if (djInfo.mixing) {
               const W = core.wallW, area = core.wallH - DJ_ROWS, u = Math.max(0, Math.min(1, djInfo.mixU || 0)), px = u * W, wb = core.wallBuf;
               for (let y = 3; y < area; y++) for (let x = 0; x < Math.min(W, Math.ceil(px)); x++) {
