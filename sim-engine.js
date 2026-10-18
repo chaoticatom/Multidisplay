@@ -2984,7 +2984,7 @@ var PiEngine = (() => {
             bestLag = lag2;
           }
         }
-        if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null, vocalBars: "", vocalLevel: "", energyBars: "" };
+        if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null, vocalBars: "", vocalLevel: "", energyBars: "", sectionBars: "", lufs: -20 };
         const y0 = score[bestLag - 1] || 0, y1 = score[bestLag], y2 = score[bestLag + 1] || 0, den = y0 - 2 * y1 + y2;
         const lag = bestLag + (den !== 0 ? Math.max(-0.5, Math.min(0.5, 0.5 * (y0 - y2) / den)) : 0);
         const period = lag / FPS, bpm = 60 / period;
@@ -3150,7 +3150,77 @@ var PiEngine = (() => {
             fadeStart = peakAt / FPS;
           }
         }
-        return { steady, drift: Math.round(drift), endKind, fadeStart, vocalBars, vocalLevel, energyBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
+        const sectionBars = sections(x, firstBeat, period2, downbeat, nb, energyBars, vocalLevel);
+        const lufs = loudnessLufs(x, s0 * HOP, (s1 + 1) * HOP);
+        return { sectionBars, lufs, steady, drift: Math.round(drift), endKind, fadeStart, vocalBars, vocalLevel, energyBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
+      }
+      function sections(x, firstBeat, period, downbeat, nb, energyBars, vocalLevel) {
+        const N = 2048, re = new Float64Array(N), im = new Float64Array(N), win = new Float64Array(N);
+        for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
+        const binPc = new Int8Array(N / 2).fill(-1);
+        for (let k = 1; k < N / 2; k++) {
+          const f = k * RATE / N;
+          if (f >= 80 && f <= 2e3) binPc[k] = (Math.round(12 * Math.log2(f / 440)) % 12 + 12 + 9) % 12;
+        }
+        const feats = [];
+        for (let k0 = downbeat, j = 0; k0 + 4 <= nb; k0 += 4, j++) {
+          const v = new Float64Array(14), mid = Math.round((firstBeat + (k0 + 2) * period) * RATE) - N / 2;
+          if (mid >= 0 && mid + N <= x.length) {
+            for (let i = 0; i < N; i++) {
+              re[i] = x[mid + i] * win[i];
+              im[i] = 0;
+            }
+            fft(re, im);
+            for (let k = 1; k < N / 2; k++) if (binPc[k] >= 0) v[binPc[k]] += Math.sqrt(re[k] * re[k] + im[k] * im[k]);
+            let n2 = 0;
+            for (let i = 0; i < 12; i++) n2 += v[i] * v[i];
+            n2 = Math.sqrt(n2) || 1;
+            for (let i = 0; i < 12; i++) v[i] /= n2;
+          }
+          v[12] = Number(energyBars[j] || 0) / 9 * 1.5;
+          v[13] = Number(vocalLevel[j] || 0) / 9 * 1.2;
+          feats.push(v);
+        }
+        const n = feats.length, dist = (a, b) => {
+          let s = 0;
+          for (let i = 0; i < 14; i++) s += (a[i] - b[i]) ** 2;
+          return Math.sqrt(s);
+        };
+        const nov = new Float64Array(n), W = 4;
+        for (let j = W; j < n - W; j++) {
+          let across = 0, within = 0;
+          for (let a = j - W; a < j; a++) for (let b = j; b < j + W; b++) across += dist(feats[a], feats[b]);
+          for (let a = j - W; a < j; a++) for (let b = a + 1; b < j; b++) within += dist(feats[a], feats[b]);
+          for (let a = j; a < j + W; a++) for (let b = a + 1; b < j + W; b++) within += dist(feats[a], feats[b]);
+          nov[j] = across / (W * W) - within / (W * (W - 1));
+        }
+        const sorted = Float64Array.from(nov).sort(), thr = sorted[Math.floor(n * 0.85)] || Infinity;
+        const out = new Array(n).fill("0");
+        for (let j = 1; j < n - 1; j++) if (nov[j] >= thr && nov[j] > 0 && nov[j] >= nov[j - 1] && nov[j] >= nov[j + 1]) out[j] = "1";
+        return out.join("");
+      }
+      function loudnessLufs(x, from, to) {
+        const hpA = Math.exp(-2 * Math.PI * 60 / RATE), shA = Math.exp(-2 * Math.PI * 1500 / RATE), blk = Math.round(0.4 * RATE);
+        let hp = 0, prevX = 0, lpS = 0, sum = 0, c = 0;
+        const blocks = [];
+        for (let i = Math.max(0, from); i < Math.min(x.length, to); i++) {
+          hp = hpA * (hp + x[i] - prevX);
+          prevX = x[i];
+          lpS += (hp - lpS) * (1 - shA);
+          const y = hp + (hp - lpS) * 0.585;
+          sum += y * y;
+          if (++c >= blk) {
+            blocks.push(sum / c);
+            sum = 0;
+            c = 0;
+          }
+        }
+        const L = (ms) => -0.691 + 10 * Math.log10(ms + 1e-12);
+        let g = blocks.filter((m) => L(m) > -70);
+        if (!g.length) return -40;
+        const rel = L(g.reduce((a, b) => a + b, 0) / g.length) - 10;
+        g = g.filter((m) => L(m) > rel);
+        return Math.round(L(g.reduce((a, b) => a + b, 0) / Math.max(1, g.length)) * 10) / 10;
       }
       var MAJ = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
       var MIN = [6.33, 2.68, 3.52, 5.38, 2.6, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
@@ -3266,7 +3336,7 @@ var PiEngine = (() => {
           d.steady = info.steady !== false;
           d.endKind = info.endKind || "cold";
           d.fadeStart = (info.fadeStart || info.musicEnd) * k;
-          d.gain = info.loudness ? Math.max(0.5, Math.min(2.5, Math.pow(10, (TARGET_DB - info.loudness) / 20))) : 1;
+          d.gain = Number.isFinite(info.lufs) && info.lufs > -60 ? Math.max(0.5, Math.min(2.5, Math.pow(10, (-16 - info.lufs) / 20))) : info.loudness ? Math.max(0.5, Math.min(2.5, Math.pow(10, (TARGET_DB - info.loudness) / 20))) : 1;
           if (matched && d.period > 0) {
             const gp = (info.gridPeriod || info.period) * k;
             d.firstDown = d.firstBeat + (info.downbeat || 0) % 4 * gp;
@@ -3332,9 +3402,19 @@ var PiEngine = (() => {
           const skip2 = (f) => Math.min(0.4, 0.1 * ((f - b.inFrame) / RATE) / 30);
           if (full) out.push({ f: Math.round(full), kind: "full", cost: skip2(full) });
           if (drop && drop !== full) out.push({ f: Math.round(drop), kind: "drop", cost: skip2(drop) });
+          for (let f = b.inFrame + b.bar; f < lim; f += b.bar) if (sectionAt(b, f)) {
+            if (!out.some((o) => Math.abs(o.f - f) < b.bar)) out.push({ f: Math.round(f), kind: "section", cost: skip2(f) + 0.05 });
+            break;
+          }
           return out;
         }
-        const ENTRY_WHY = { intro: "", full: " - skipping its quiet intro", drop: " - straight into its drop" };
+        function sectionAt(d, f) {
+          const sb = d.info.sectionBars;
+          if (!sb || !d.vbBar) return false;
+          const j = Math.round((f - d.firstDown) / d.vbBar);
+          return Math.abs((f - d.firstDown) / d.vbBar - j) < 0.05 && sb[j] === "1";
+        }
+        const ENTRY_WHY = { intro: "", full: " - skipping its quiet intro", drop: " - straight into its drop", section: " - at its first new section" };
         function planTease(a, b) {
           if (!(a.matched && b.matched) || !b.info.vocalLevel || !a.vbBar || !b.vbBar || Math.random() < 0.35 - 0.25 * taste("tease")) return null;
           const lv = b.info.vocalLevel, j0 = Math.ceil((b.inFrame - b.firstDown) / b.vbBar) + 4, j1 = Math.floor(0.75 * (b.end - b.firstDown) / b.vbBar);
@@ -3353,15 +3433,29 @@ var PiEngine = (() => {
           if (!spots.length) return null;
           return { at: spots[Math.floor(Math.random() * spots.length)], len: Math.round(len), bFrom: Math.round(b.firstDown + bj * b.vbBar) };
         }
-        const taste = (k) => {
+        const dayPart = () => {
+          const h = (/* @__PURE__ */ new Date()).getHours();
+          return h < 6 ? "night" : h < 12 ? "morning" : h < 18 ? "afternoon" : h < 23 ? "evening" : "night";
+        };
+        const taste1 = (k) => {
           const t = cfg.taste && Number(cfg.taste[k]);
           return Number.isFinite(t) ? Math.max(-1, Math.min(1, t)) : 0;
         };
+        const taste = (k) => 0.6 * taste1(k) + 0.6 * taste1(k + dayPart());
         const withTaste = (p) => p;
         function planRadio(a, b, now) {
           if (now) return { start: a.pos + CUT, len: 2 * RATE, beat: false, beats: 0, style: "fade", bStart: 0, bIn: Math.round(b.inFrame), why: "crossfade" };
           if (cfg.quick) {
-            const s = Math.max(a.pos + CUT, a.inFrame + 60 * RATE);
+            let s = Math.max(a.pos + CUT, a.inFrame + 60 * RATE);
+            let bestV = Infinity, bs2 = s;
+            for (let f = s; f < Math.min(a.end - 10 * RATE, s + 40 * RATE); f += RATE) {
+              const v = vocalAt(a, f, f + 4 * RATE) + (f - s) / RATE * 4e-3;
+              if (v < bestV) {
+                bestV = v;
+                bs2 = f;
+              }
+            }
+            s = bs2;
             if (s < a.end - 10 * RATE) return { start: Math.round(s), len: 4 * RATE, beat: false, beats: 0, style: "fade", bStart: 0, bIn: Math.round(b.inFrame), why: "quick crossfade (live drums: no beat-matching)" };
           }
           if (a.endKind === "fade" && a.end - a.fadeStart > 2 * RATE) {
@@ -3442,7 +3536,7 @@ var PiEngine = (() => {
           const span = Math.max(1, bars[bars.length - 1] - bars[0]);
           const place = (f) => {
             const beatsIn = Math.round((f - a.inFrame) / p);
-            const phrase = beatsIn % 16 === 0 ? 0 : beatsIn % 8 === 0 ? 0.08 : 0.18;
+            const phrase = (beatsIn % 16 === 0 ? 0 : beatsIn % 8 === 0 ? 0.08 : 0.18) - (sectionAt(a, f) ? 0.12 : 0);
             const where = now ? (f - bars[0]) / span * 0.3 : 0.12 * (early ? (f - bars[0]) / span : 1 - (f - bars[0]) / span);
             return phrase + where;
           };
@@ -3556,7 +3650,7 @@ var PiEngine = (() => {
           let input = await sources.inputFor(track);
           step("analysing the beat, key and vocals");
           let info = known[track.id];
-          if (info && (info.vocalLevel === void 0 || info.energyBars === void 0 || info.steady === void 0)) info = null;
+          if (info && (info.vocalLevel === void 0 || info.energyBars === void 0 || info.steady === void 0 || info.sectionBars === void 0)) info = null;
           if (!info) {
             let x;
             try {
@@ -3705,7 +3799,7 @@ var PiEngine = (() => {
           try {
             let tempo = d.tempo;
             while (Math.abs(tempo - 1) > 0.015 && A === d && g === gen) {
-              const nextT = Math.abs(tempo - 1) <= 0.03 ? 1 : tempo + Math.sign(1 - tempo) * 0.03;
+              const nextT = Math.abs(tempo - 1) <= 0.015 ? 1 : tempo + Math.sign(1 - tempo) * 0.015;
               const pcm = await decode.decodePlay(await sources.inputFor(d.track), nextT, void 0, d.semis);
               if (A !== d || g !== gen || mix) break;
               const nd = deckFrom(d.track, d.info, pcm, nextT, d.matched, d.semis);
@@ -3713,7 +3807,7 @@ var PiEngine = (() => {
               nd.qi = d.qi;
               nd.readyAt = d.readyAt;
               nd.gain = d.gain;
-              d.swap = { to: nd, at: nextBar(d, d.pos + 8 * d.bar) };
+              d.swap = { to: nd, at: nextBar(d, d.pos + 4 * d.bar) };
               while (d.swap && A === d && g === gen) await new Promise((r) => setTimer === setInterval ? setTimeout(r, 200) : setImmediate(r));
               if (A === d) break;
               d = A;
@@ -3768,6 +3862,8 @@ var PiEngine = (() => {
           mix = { from: A.pos, len: Math.max(1, p.len), beat: p.beat, swapU: p.swapU || 0.5, beats: p.beats, style: p.style, adj: 0, check: 0, ref: rmsSlow, bStart: p.bStart || 0, period: p.period || RATE / 2, vpos: A.pos, bOn: !FX.has(p.style) };
           lastStyle = p.style;
           lastMixAt = Date.now();
+          mix.clash = !!(analyser.keyDistance && A.keyNow && B.keyNow && analyser.keyDistance(A.keyNow, B.keyNow) >= 2);
+          if (p.style === "cut" || p.style === "brake" || p.style === "segue") tail.plan = { deck: A, from: p.style === "cut" ? p.at : A.pos + Math.round(p.len * (p.style === "brake" ? 0.8 : 0.5)) };
           if (p.style === "echo") {
             echo.d = Math.round(mix.period * 0.75);
             echo.fb = 0.55;
@@ -3844,6 +3940,26 @@ var PiEngine = (() => {
         }
         const ECHO_N = RATE * 2, echo = { L: new Float32Array(ECHO_N), R: new Float32Array(ECHO_N), i: 0, d: 0, fb: 0.55, until: 0, send: 0 };
         const TMP = [0, 0];
+        const COMBS = [1557, 1617, 1491, 1422].map((n) => ({ b: new Float32Array(n), i: 0, lp: 0 })), APS = [225, 556].map((n) => ({ b: new Float32Array(n), i: 0 }));
+        const tail = { plan: null, deck: null, pos: 0, left: 0, ring: 0 };
+        function reverb(x) {
+          let y = 0;
+          for (const c of COMBS) {
+            const o = c.b[c.i];
+            c.lp = o * 0.7 + c.lp * 0.3;
+            c.b[c.i] = x + c.lp * 0.8;
+            c.i = (c.i + 1) % c.b.length;
+            y += o;
+          }
+          y *= 0.25;
+          for (const a2 of APS) {
+            const o = a2.b[a2.i], v = y + o * 0.5;
+            a2.b[a2.i] = v;
+            a2.i = (a2.i + 1) % a2.b.length;
+            y = o - v * 0.5;
+          }
+          return y;
+        }
         let rmsSlow = 0, rmsFast = 0, rmsLong = 0, mixGain = 1;
         const A_SLOW = 1 / (3 * RATE), A_FAST = 1 / (0.5 * RATE), A_GAIN = 1 / (1.2 * RATE), A_LONG = 1 / (30 * RATE), A_GAIN_SLOW = 1 / (4 * RATE);
         const OUT = [0, 0];
@@ -3956,8 +4072,9 @@ var PiEngine = (() => {
                     const bHi = smooth(u / (s * 0.7)), bMi = smooth((u - s * 0.25) / (s * 0.7)), bLo = smooth((u - s) / 0.03);
                     const aLo = 1 - bLo, aMi = 1 - smooth((u - s) / ((1 - s) * 0.8)), aHi = 1 - smooth((u - s - (1 - s) * 0.2) / ((1 - s) * 0.8));
                     const aVol = 1 - smooth((u - 0.85) / 0.15);
-                    sampleDeck(A, aVol, aLo, aMi, aHi, OUT);
-                    sampleDeck(B, 1, bLo, bMi, bHi, OUT);
+                    const cl = mix.clash ? 1 - 0.35 * Math.min(aMi, bMi) : 1;
+                    sampleDeck(A, aVol, aLo, aMi * cl, aHi, OUT);
+                    sampleDeck(B, 1, bLo, bMi * cl, bHi, OUT);
                     if ((A.pos & 1023) === 0) {
                       const q = st.eq;
                       q[0] = aLo * aVol;
@@ -4044,6 +4161,32 @@ var PiEngine = (() => {
                   }
                   A.pos++;
                 }
+              }
+            }
+            if (tail.plan && (!mix || A && A !== tail.plan.deck || tail.plan.deck && tail.plan.deck.pos >= tail.plan.from)) {
+              if (!mix || A !== tail.plan.deck || tail.plan.deck.pos >= tail.plan.from) {
+                tail.deck = tail.plan.deck;
+                tail.pos = tail.plan.from;
+                tail.left = Math.round(0.3 * RATE);
+                tail.ring = 3 * RATE;
+                tail.plan = null;
+              }
+            }
+            if (tail.ring > 0) {
+              let x = 0;
+              if (tail.left > 0 && tail.deck) {
+                const f = tail.pos++;
+                if (f >= 0 && f < tail.deck.frames) x = (tail.deck.pcm[f * 2] + tail.deck.pcm[f * 2 + 1]) / 65536 * tail.deck.gain * (tail.left / (0.3 * RATE));
+                tail.left--;
+              }
+              const w = reverb(x) * 0.5;
+              OUT[0] += w;
+              OUT[1] += w;
+              tail.ring--;
+              if (tail.ring <= 0) {
+                for (const c of COMBS) c.b.fill(0);
+                for (const a2 of APS) a2.b.fill(0);
+                tail.deck = null;
               }
             }
             if (echo.d > 0) {
@@ -4207,7 +4350,11 @@ var PiEngine = (() => {
         }
         function rate(good) {
           const t = { ...cfg.taste || {} }, step = good ? 0.15 : -0.2;
-          if (lastStyle) t[lastStyle] = Math.max(-1, Math.min(1, (Number(t[lastStyle]) || 0) + step));
+          if (lastStyle) {
+            t[lastStyle] = Math.max(-1, Math.min(1, (Number(t[lastStyle]) || 0) + step));
+            const kd2 = lastStyle + dayPart();
+            t[kd2] = Math.max(-1, Math.min(1, (Number(t[kd2]) || 0) + step));
+          }
           if (lastTease && Date.now() - lastTease < 10 * 6e4) t.tease = Math.max(-1, Math.min(1, (Number(t.tease) || 0) + step));
           cfg.taste = t;
           return t;

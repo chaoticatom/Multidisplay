@@ -41,7 +41,8 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     d.bpm = info.bpm * tempo; d.bar = 4 * d.period;
     d.introBeats = info.introBeats || 0; d.outroBeats = info.outroBeats || 0;
     d.steady = info.steady !== false; d.endKind = info.endKind || 'cold'; d.fadeStart = (info.fadeStart || info.musicEnd) * k;
-    d.gain = info.loudness ? Math.max(0.5, Math.min(2.5, Math.pow(10, (TARGET_DB - info.loudness) / 20))) : 1;
+    // Level songs by loudness as heard (LUFS) when the analysis has it.
+    d.gain = Number.isFinite(info.lufs) && info.lufs > -60 ? Math.max(0.5, Math.min(2.5, Math.pow(10, (-16 - info.lufs) / 20))) : info.loudness ? Math.max(0.5, Math.min(2.5, Math.pow(10, (TARGET_DB - info.loudness) / 20))) : 1;
     if (matched && d.period > 0) {
       const gp = (info.gridPeriod || info.period) * k; // the analysed beat (the grid may be at half/double time)
       d.firstDown = d.firstBeat + ((info.downbeat || 0) % 4) * gp; d.vbBar = 4 * gp;
@@ -98,9 +99,17 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     const skip = (f) => Math.min(0.4, 0.1 * ((f - b.inFrame) / RATE) / 30);
     if (full) out.push({ f: Math.round(full), kind: 'full', cost: skip(full) });
     if (drop && drop !== full) out.push({ f: Math.round(drop), kind: 'drop', cost: skip(drop) });
+    // Its first new section after the intro (the song structure map).
+    for (let f = b.inFrame + b.bar; f < lim; f += b.bar) if (sectionAt(b, f)) { if (!out.some((o) => Math.abs(o.f - f) < b.bar)) out.push({ f: Math.round(f), kind: 'section', cost: skip(f) + 0.05 }); break; }
     return out;
   }
-  const ENTRY_WHY = { intro: '', full: ' - skipping its quiet intro', drop: ' - straight into its drop' };
+  // Is frame f the start of a new section (verse, chorus, breakdown) of deck d?
+  function sectionAt(d, f) {
+    const sb = d.info.sectionBars; if (!sb || !d.vbBar) return false;
+    const j = Math.round((f - d.firstDown) / d.vbBar);
+    return Math.abs((f - d.firstDown) / d.vbBar - j) < 0.05 && sb[j] === '1';
+  }
+  const ENTRY_WHY = { intro: '', full: ' - skipping its quiet intro', drop: ' - straight into its drop', section: ' - at its first new section' };
 
   // A hint of the next song, now and then: B's catchiest bars (its most
   // sung, past its intro) laid over A for two bars where A isn't singing,
@@ -119,7 +128,10 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   }
 
   // Your 👍/👎 on past changes nudge the choice (cfg.taste: -1..1 per style).
-  const taste = (k) => { const t = cfg.taste && Number(cfg.taste[k]); return Number.isFinite(t) ? Math.max(-1, Math.min(1, t)) : 0; };
+  // ...and per time of day (what you like in the morning may differ at night).
+  const dayPart = () => { const h = new Date().getHours(); return h < 6 ? 'night' : h < 12 ? 'morning' : h < 18 ? 'afternoon' : h < 23 ? 'evening' : 'night'; };
+  const taste1 = (k) => { const t = cfg.taste && Number(cfg.taste[k]); return Number.isFinite(t) ? Math.max(-1, Math.min(1, t)) : 0; };
+  const taste = (k) => 0.6 * taste1(k) + 0.6 * taste1(k + dayPart());
   const withTaste = (p) => p;
   // Rock and pop (a live drummer, or a song that can't be beat-matched with
   // the next): radio-style. A song that fades out has the next one start
@@ -128,7 +140,11 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   function planRadio(a, b, now) {
     if (now) return { start: a.pos + CUT, len: 2 * RATE, beat: false, beats: 0, style: 'fade', bStart: 0, bIn: Math.round(b.inFrame), why: 'crossfade' };
     if (cfg.quick) {
-      const s = Math.max(a.pos + CUT, a.inFrame + 60 * RATE);
+      let s = Math.max(a.pos + CUT, a.inFrame + 60 * RATE);
+      // Within the next 40 s, the quietest-vocal moment: never mid-line.
+      let bestV = Infinity, bs2 = s;
+      for (let f = s; f < Math.min(a.end - 10 * RATE, s + 40 * RATE); f += RATE) { const v = vocalAt(a, f, f + 4 * RATE) + (f - s) / RATE * 0.004; if (v < bestV) { bestV = v; bs2 = f; } }
+      s = bs2;
       if (s < a.end - 10 * RATE) return { start: Math.round(s), len: 4 * RATE, beat: false, beats: 0, style: 'fade', bStart: 0, bIn: Math.round(b.inFrame), why: 'quick crossfade (live drums: no beat-matching)' };
     }
     if (a.endKind === 'fade' && a.end - a.fadeStart > 2 * RATE) {
@@ -209,7 +225,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     const span = Math.max(1, bars[bars.length - 1] - bars[0]);
     const place = (f) => {
       const beatsIn = Math.round((f - a.inFrame) / p);
-      const phrase = beatsIn % 16 === 0 ? 0 : beatsIn % 8 === 0 ? 0.08 : 0.18;
+      const phrase = (beatsIn % 16 === 0 ? 0 : beatsIn % 8 === 0 ? 0.08 : 0.18) - (sectionAt(a, f) ? 0.12 : 0); // a real section change is the best place of all
       const where = now ? (f - bars[0]) / span * 0.3 : 0.12 * (early ? (f - bars[0]) / span : 1 - (f - bars[0]) / span);
       return phrase + where;
     };
@@ -315,7 +331,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     let input = await sources.inputFor(track);
     step('analysing the beat, key and vocals');
     let info = known[track.id];
-    if (info && (info.vocalLevel === undefined || info.energyBars === undefined || info.steady === undefined)) info = null; // analysed by an older version: no singing map
+    if (info && (info.vocalLevel === undefined || info.energyBars === undefined || info.steady === undefined || info.sectionBars === undefined)) info = null; // analysed by an older version: no singing map
     if (!info) {
       let x;
       try { x = await decode.decodeAnalysis(input); } catch (err) {
@@ -438,12 +454,12 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     try {
       let tempo = d.tempo;
       while (Math.abs(tempo - 1) > 0.015 && A === d && g === gen) {
-        const nextT = Math.abs(tempo - 1) <= 0.03 ? 1 : tempo + Math.sign(1 - tempo) * 0.03;
+        const nextT = Math.abs(tempo - 1) <= 0.015 ? 1 : tempo + Math.sign(1 - tempo) * 0.015; // small steps: barely noticeable
         const pcm = await decode.decodePlay(await sources.inputFor(d.track), nextT, undefined, d.semis);
         if (A !== d || g !== gen || mix) break;
         const nd = deckFrom(d.track, d.info, pcm, nextT, d.matched, d.semis);
         nd.keyNow = d.keyNow; nd.qi = d.qi; nd.readyAt = d.readyAt; nd.gain = d.gain;
-        d.swap = { to: nd, at: nextBar(d, d.pos + 8 * d.bar) };
+        d.swap = { to: nd, at: nextBar(d, d.pos + 4 * d.bar) };
         while (d.swap && A === d && g === gen) await new Promise((r) => setTimer === setInterval ? setTimeout(r, 200) : setImmediate(r));
         if (A === d) break; // swapped: A is now nd; carry on from it
         d = A; tempo = d.tempo;
@@ -482,6 +498,10 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     const p = A.plan;
     mix = { from: A.pos, len: Math.max(1, p.len), beat: p.beat, swapU: p.swapU || 0.5, beats: p.beats, style: p.style, adj: 0, check: 0, ref: rmsSlow, bStart: p.bStart || 0, period: p.period || RATE / 2, vpos: A.pos, bOn: !FX.has(p.style) };
     lastStyle = p.style; lastMixAt = Date.now();
+    // Keys that don't sit well together: both songs' mids are eased back while they overlap.
+    mix.clash = !!(analyser.keyDistance && A.keyNow && B.keyNow && analyser.keyDistance(A.keyNow, B.keyNow) >= 2);
+    // A cut, a brake or a segue: the note it cuts off rings on as a short reverb tail.
+    if (p.style === 'cut' || p.style === 'brake' || p.style === 'segue') tail.plan = { deck: A, from: p.style === 'cut' ? p.at : A.pos + Math.round(p.len * (p.style === 'brake' ? 0.8 : 0.5)) };
     if (p.style === 'echo') { echo.d = Math.round(mix.period * 0.75); echo.fb = 0.55; echo.until = A.pos + mix.len + 5 * RATE; }
     const bIn = p.bIn !== undefined ? p.bIn : Math.round(B.inFrame); mix.bIn = bIn;
     B.pos = bIn;
@@ -535,6 +555,16 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   // The echo-out's delay line (it rings on after the new song has started).
   const ECHO_N = RATE * 2, echo = { L: new Float32Array(ECHO_N), R: new Float32Array(ECHO_N), i: 0, d: 0, fb: 0.55, until: 0, send: 0 };
   const TMP = [0, 0];
+  // A small Schroeder reverb (four combs, two all-passes) for those tails.
+  const COMBS = [1557, 1617, 1491, 1422].map((n) => ({ b: new Float32Array(n), i: 0, lp: 0 })), APS = [225, 556].map((n) => ({ b: new Float32Array(n), i: 0 }));
+  const tail = { plan: null, deck: null, pos: 0, left: 0, ring: 0 };
+  function reverb(x) {
+    let y = 0;
+    for (const c of COMBS) { const o = c.b[c.i]; c.lp = o * 0.7 + c.lp * 0.3; c.b[c.i] = x + c.lp * 0.8; c.i = (c.i + 1) % c.b.length; y += o; }
+    y *= 0.25;
+    for (const a2 of APS) { const o = a2.b[a2.i], v = y + o * 0.5; a2.b[a2.i] = v; a2.i = (a2.i + 1) % a2.b.length; y = o - v * 0.5; }
+    return y;
+  }
   let rmsSlow = 0, rmsFast = 0, rmsLong = 0, mixGain = 1;
   const A_SLOW = 1 / (3 * RATE), A_FAST = 1 / (0.5 * RATE), A_GAIN = 1 / (1.2 * RATE), A_LONG = 1 / (30 * RATE), A_GAIN_SLOW = 1 / (4 * RATE);
   const OUT = [0, 0];
@@ -591,7 +621,8 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
             const bHi = smooth(u / (s * 0.7)), bMi = smooth((u - s * 0.25) / (s * 0.7)), bLo = smooth((u - s) / 0.03);
             const aLo = 1 - bLo, aMi = 1 - smooth((u - s) / ((1 - s) * 0.8)), aHi = 1 - smooth((u - s - (1 - s) * 0.2) / ((1 - s) * 0.8));
             const aVol = 1 - smooth((u - 0.85) / 0.15);
-            sampleDeck(A, aVol, aLo, aMi, aHi, OUT); sampleDeck(B, 1, bLo, bMi, bHi, OUT);
+            const cl = mix.clash ? 1 - 0.35 * Math.min(aMi, bMi) : 1; // clashing keys: less of both where they overlap
+            sampleDeck(A, aVol, aLo, aMi * cl, aHi, OUT); sampleDeck(B, 1, bLo, bMi * cl, bHi, OUT);
             if ((A.pos & 1023) === 0) { const q = st.eq; q[0] = aLo * aVol; q[1] = aMi * aVol; q[2] = aHi * aVol; q[3] = bLo; q[4] = bMi; q[5] = bHi; }
           } else if (mix.style === 'underfade') { // A fades out on its own; B rises in under it
             sampleDeck(A, 1 - smooth((u - 0.6) / 0.4), 1, 1, 1, OUT); sampleDeck(B, smooth(u / 0.3), 1, 1, 1, OUT);
@@ -633,6 +664,17 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
           A.pos++;
           }
         }
+      }
+      // The reverb tail: once the change happens, feed in what the old song
+      // would have played next (0.3 s), and let it ring out for a few seconds.
+      if (tail.plan && (!mix || (A && A !== tail.plan.deck) || (tail.plan.deck && tail.plan.deck.pos >= tail.plan.from))) {
+        if (!mix || A !== tail.plan.deck || tail.plan.deck.pos >= tail.plan.from) { tail.deck = tail.plan.deck; tail.pos = tail.plan.from; tail.left = Math.round(0.3 * RATE); tail.ring = 3 * RATE; tail.plan = null; }
+      }
+      if (tail.ring > 0) {
+        let x = 0;
+        if (tail.left > 0 && tail.deck) { const f = tail.pos++; if (f >= 0 && f < tail.deck.frames) x = (tail.deck.pcm[f * 2] + tail.deck.pcm[f * 2 + 1]) / 65536 * tail.deck.gain * (tail.left / (0.3 * RATE)); tail.left--; }
+        const w = reverb(x) * 0.5; OUT[0] += w; OUT[1] += w; tail.ring--;
+        if (tail.ring <= 0) { for (const c of COMBS) c.b.fill(0); for (const a2 of APS) a2.b.fill(0); tail.deck = null; }
       }
       if (echo.d > 0) {
         const j = (echo.i - echo.d + ECHO_N) % ECHO_N, wl = echo.L[j], wr = echo.R[j];
@@ -734,7 +776,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
   // song, if one played) up or down for next time. Returns the new taste.
   function rate(good) {
     const t = { ...(cfg.taste || {}) }, step = good ? 0.15 : -0.2;
-    if (lastStyle) t[lastStyle] = Math.max(-1, Math.min(1, (Number(t[lastStyle]) || 0) + step));
+    if (lastStyle) { t[lastStyle] = Math.max(-1, Math.min(1, (Number(t[lastStyle]) || 0) + step)); const kd2 = lastStyle + dayPart(); t[kd2] = Math.max(-1, Math.min(1, (Number(t[kd2]) || 0) + step)); }
     if (lastTease && Date.now() - lastTease < 10 * 60000) t.tease = Math.max(-1, Math.min(1, (Number(t.tease) || 0) + step));
     cfg.taste = t;
     return t;

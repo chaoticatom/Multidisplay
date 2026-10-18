@@ -64,7 +64,7 @@ function analyse(x) {
     const v = score[lag] * pref;
     if (v > best) { best = v; bestLag = lag; }
   }
-  if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null, vocalBars: '', vocalLevel: '', energyBars: '' };
+  if (!bestLag) return { bpm: 0, period: 0, firstBeat: musicStart, confidence: 0, musicStart, musicEnd, duration, downbeat: 0, introBeats: 0, outroBeats: 0, loudness: -20, key: null, vocalBars: '', vocalLevel: '', energyBars: '', sectionBars: '', lufs: -20 };
   // Refine to a fractional lag (parabola through the peak).
   const y0 = score[bestLag - 1] || 0, y1 = score[bestLag], y2 = score[bestLag + 1] || 0, den = y0 - 2 * y1 + y2;
   const lag = bestLag + (den !== 0 ? Math.max(-0.5, Math.min(0.5, 0.5 * (y0 - y2) / den)) : 0);
@@ -163,7 +163,62 @@ function analyse(x) {
     const last = dbAt(endF);
     if (peak - last >= 9 && (endF - peakAt) >= 3 * sec) { endKind = 'fade'; fadeStart = peakAt / FPS; }
   }
-  return { steady, drift: Math.round(drift), endKind, fadeStart, vocalBars, vocalLevel, energyBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
+  // Song structure: a chroma + energy + voice profile per bar; where it
+  // changes most (a checkerboard 'novelty' over 4 bars either side) a new
+  // section starts - verse, chorus, breakdown. '1' marks those bars.
+  const sectionBars = sections(x, firstBeat, period2, downbeat, nb, energyBars, vocalLevel);
+  // Loudness as heard (an approximation of broadcast LUFS: K-weighting -
+  // low cut plus a treble lift - over 400 ms blocks, quiet ones gated out).
+  const lufs = loudnessLufs(x, s0 * HOP, (s1 + 1) * HOP);
+  return { sectionBars, lufs, steady, drift: Math.round(drift), endKind, fadeStart, vocalBars, vocalLevel, energyBars, bpm: bpm2, period: period2, firstBeat, confidence, musicStart, musicEnd, duration, downbeat, introBeats, outroBeats, loudness, key: detectKey(x, s0 * HOP, (s1 + 1) * HOP) };
+}
+
+function sections(x, firstBeat, period, downbeat, nb, energyBars, vocalLevel) {
+  const N = 2048, re = new Float64Array(N), im = new Float64Array(N), win = new Float64Array(N);
+  for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
+  const binPc = new Int8Array(N / 2).fill(-1);
+  for (let k = 1; k < N / 2; k++) { const f = k * RATE / N; if (f >= 80 && f <= 2000) binPc[k] = ((Math.round(12 * Math.log2(f / 440)) % 12) + 12 + 9) % 12; }
+  const feats = [];
+  for (let k0 = downbeat, j = 0; k0 + 4 <= nb; k0 += 4, j++) {
+    const v = new Float64Array(14), mid = Math.round((firstBeat + (k0 + 2) * period) * RATE) - N / 2;
+    if (mid >= 0 && mid + N <= x.length) {
+      for (let i = 0; i < N; i++) { re[i] = x[mid + i] * win[i]; im[i] = 0; }
+      fft(re, im);
+      for (let k = 1; k < N / 2; k++) if (binPc[k] >= 0) v[binPc[k]] += Math.sqrt(re[k] * re[k] + im[k] * im[k]);
+      let n2 = 0; for (let i = 0; i < 12; i++) n2 += v[i] * v[i]; n2 = Math.sqrt(n2) || 1; for (let i = 0; i < 12; i++) v[i] /= n2;
+    }
+    v[12] = Number(energyBars[j] || 0) / 9 * 1.5; v[13] = Number(vocalLevel[j] || 0) / 9 * 1.2;
+    feats.push(v);
+  }
+  const n = feats.length, dist = (a, b) => { let s = 0; for (let i = 0; i < 14; i++) s += (a[i] - b[i]) ** 2; return Math.sqrt(s); };
+  const nov = new Float64Array(n), W = 4;
+  for (let j = W; j < n - W; j++) {
+    let across = 0, within = 0;
+    for (let a = j - W; a < j; a++) for (let b = j; b < j + W; b++) across += dist(feats[a], feats[b]);
+    for (let a = j - W; a < j; a++) for (let b = a + 1; b < j; b++) within += dist(feats[a], feats[b]);
+    for (let a = j; a < j + W; a++) for (let b = a + 1; b < j + W; b++) within += dist(feats[a], feats[b]);
+    nov[j] = across / (W * W) - within / (W * (W - 1));
+  }
+  const sorted = Float64Array.from(nov).sort(), thr = sorted[Math.floor(n * 0.85)] || Infinity;
+  const out = new Array(n).fill('0');
+  for (let j = 1; j < n - 1; j++) if (nov[j] >= thr && nov[j] > 0 && nov[j] >= nov[j - 1] && nov[j] >= nov[j + 1]) out[j] = '1';
+  return out.join('');
+}
+function loudnessLufs(x, from, to) {
+  // K-weighting approximated: a one-pole high-pass ~60 Hz and a +4 dB shelf above ~1.5 kHz.
+  const hpA = Math.exp(-2 * Math.PI * 60 / RATE), shA = Math.exp(-2 * Math.PI * 1500 / RATE), blk = Math.round(0.4 * RATE);
+  let hp = 0, prevX = 0, lpS = 0, sum = 0, c = 0; const blocks = [];
+  for (let i = Math.max(0, from); i < Math.min(x.length, to); i++) {
+    hp = hpA * (hp + x[i] - prevX); prevX = x[i];
+    lpS += (hp - lpS) * (1 - shA); const y = hp + (hp - lpS) * 0.585; // + high part * (10^(4/20) - 1)
+    sum += y * y; if (++c >= blk) { blocks.push(sum / c); sum = 0; c = 0; }
+  }
+  const L = (ms) => -0.691 + 10 * Math.log10(ms + 1e-12);
+  let g = blocks.filter((m) => L(m) > -70);
+  if (!g.length) return -40;
+  const rel = L(g.reduce((a, b) => a + b, 0) / g.length) - 10;
+  g = g.filter((m) => L(m) > rel);
+  return Math.round(L(g.reduce((a, b) => a + b, 0) / Math.max(1, g.length)) * 10) / 10;
 }
 
 // ---- Key: a chroma profile (energy per pitch class, 55 Hz - 2 kHz) matched

@@ -33,6 +33,12 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
       for (let i = 0; i < n; i++) { const t = i / RATE, ph = (t - 1) % 0.5; let v = t > 1 ? Math.sin(2 * Math.PI * 55 * ph) * Math.exp(-ph * 25) * 0.7 : 0; if (t > 20 && t < 36) v += 0.3 * Math.sin(2 * Math.PI * (440 + 60 * Math.sin(t * 3)) * t); x[i] = v; }
       const vb = analyse(x).vocalBars;
       assert.ok(/^0{8,}1{6,}0{8,}$/.test(vb), 'singing found: ' + vb); }
+    // Song structure: a change of chords every 30 s shows as new sections there; loudness as heard.
+    { const n = 90 * RATE, x = new Float32Array(n);
+      for (let i = 0; i < n; i++) { const t = i / RATE, ph = (t - 1) % 0.5, f = [220, 330, 262][t < 30 ? 0 : t < 60 ? 1 : 2]; x[i] = t > 1 ? Math.sin(2 * Math.PI * 55 * ph) * Math.exp(-ph * 25) * 0.7 + 0.2 * Math.sin(2 * Math.PI * f * t) : 0; }
+      const r = analyse(x), at = [...r.sectionBars].map((c, j) => (c === '1' ? j * 2 : -1)).filter((v) => v >= 0);
+      assert.ok(at.some((s) => Math.abs(s - 30) <= 4) && at.some((s) => Math.abs(s - 60) <= 4), 'sections at 30 s and 60 s: ' + at.join(','));
+      assert.ok(r.lufs < -5 && r.lufs > -40, 'LUFS ' + r.lufs); }
     console.log('  ok - tempo, beats and where the music is');
 
     // Engine with fake tracks (no ffmpeg/YouTube): 120 and 124 BPM, 40 s each.
@@ -190,7 +196,7 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
       const dj3 = createDjEngine({ onPcm: () => {}, getQueueMs: () => 0, sources: { allTracks: async () => songs.slice(), inputFor: async (t) => ({ url: t.id, bpm: t.bpm }) }, decode: dec, log: (m) => logs3.push(m), setTimer: () => 1, clearTimer: () => {} });
       await dj3.start({ source: 'mp3', style: 'blend', mixBeats: 16 });
       for (let k = 0; k < 50 && !dj3._test.A; k++) await new Promise((r) => setImmediate(r));
-      for (let s2 = 0; s2 < 4000 && !logs3.some((m) => /tempo eased to/.test(m)); s2++) { dj3.render(4410); await new Promise((r) => setImmediate(r)); }
+      for (let s2 = 0; s2 < 4000 && !(logs3.some((m) => /tempo eased to/.test(m)) && dj3._test.A && Math.abs(dj3._test.A.tempo - 1) < 0.02); s2++) { dj3.render(4410); await new Promise((r) => setImmediate(r)); }
       assert.ok(logs3.some((m) => /tempo eased to/.test(m)) && Math.abs(dj3._test.A.tempo - 1) < 0.02, 'eased back to its own tempo: ' + logs3.filter((m) => /eased|mixing/.test(m)).join(' | '));
       dj3.stop();
     }
