@@ -19,7 +19,7 @@ const MAX_STRETCH = 0.12; // tempo matched within 12% (the pitch is kept)
 // drops in after it - for songs that can't be beat-matched, and now and
 // then for variety: an echo-out, a filter sweep, a vinyl brake, a loop roll.
 const FX = new Set(['echo', 'filter', 'brake', 'roll']);
-const LENGTHS = [128, 96, 64, 48, 32, 16];
+const LENGTHS = [256, 192, 128, 96, 64, 48, 32, 16]; // up to ~2 minutes with both songs heard
 const TARGET_DB = -17;
 const STYLES = ['auto', 'blend', 'short', 'cut'];
 const CUT = 882; // a cut's crossfade: 20 ms, just enough to avoid a click
@@ -217,7 +217,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     let lo, hi, early = false;
     if (now) { lo = nextBar(a, a.pos + CUT); hi = lo + 8 * a.bar; }
     else if (cfg.quick) { lo = Math.max(first, a.inFrame + Math.max(55 * RATE, Math.max(16, a.introBeats || 0) * p)); hi = lo + 60 * RATE; early = true; }
-    else { lo = Math.max(first, a.inFrame + 0.5 * (a.end - a.inFrame)); hi = a.end; }
+    else { lo = Math.max(first, a.inFrame + 0.3 * (a.end - a.inFrame)); hi = a.end; } // from 30% in: a long blend needs room
     if (lo >= a.end - 2 * p) { lo = first; hi = a.end; }
     const bars = [];
     for (let f = nextBar(a, lo - 1); f < Math.min(hi, a.end - 2 * p); f += a.bar) bars.push(f);
@@ -230,8 +230,9 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
       return phrase + where;
     };
     const fits = (f, L) => f + L * p <= a.end + p;
-    const autoMax = Math.min(Math.max(a.outroBeats, 32), Math.max(b.introBeats, 16));
-    let lengths = want === 'auto' ? LENGTHS.filter((L) => L <= Math.max(16, autoMax)) : [Number(want) || 32];
+    // Auto: any length - how long a blend can run is decided by how well the
+    // two songs sit together over it (below), not just by quiet intros/outros.
+    let lengths = want === 'auto' ? LENGTHS.slice() : [Number(want) || 32];
     if (cfg.quick || now) lengths = lengths.map((L) => Math.min(L, now ? 8 : 32));
     // Per track pair: what makes blending worse and an instant cut better.
     // Keys that clash sound sour layered (a cut avoids it); a track with no
@@ -255,6 +256,17 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
           // (B's bass and mids held back) - it must not still be singing after
           // the swap, when B takes over; and B's intro must not sing over A.
           const sw = Math.max(1, Math.round(L / 8)) * 4 * p;
+          if (L >= 96) {
+            // A long blend, both songs heard: bar by bar, how much their singing
+            // clashes (both singing at once), their energies apart, and A must be
+            // done singing as it leaves. Longer is better when they sit well.
+            const bars = Math.round(L / 4); let clash = 0, eDiff = 0;
+            for (let k = 0; k < bars; k++) { const fa = f + k * a.bar, fb = bIn + k * b.bar; clash += Math.min(vocalAt(a, fa, fa + a.bar), vocalAt(b, fb, fb + b.bar)); eDiff += Math.abs(eA(fa, fa + a.bar) - eB(fb, fb + b.bar)); }
+            clash /= bars; eDiff /= bars;
+            const cl = 2.4 * clash + 0.5 * eDiff + 1.2 * vocalAt(a, f + L * p - 2 * a.bar, f + L * p) + pl - 0.13 * Math.log2(L / 16) + blendExtra + (E.kind === 'intro' ? 0 : 0.1);
+            offer(style === 'blend' ? pl - 0.13 * Math.log2(L / 16) + 0.6 * clash : cl, blendPlan(f, L));
+            continue;
+          }
           const c = 2.2 * vocalAt(a, f + sw, f + L * p) + 0.25 * vocalAt(a, f, f + sw) + 0.9 * vocalAt(b, bIn, bIn + sw * b.period / p) + 0.3 * vocalAt(b, bIn + sw * b.period / p, bIn + L * b.period) + pl - 0.1 * Math.log2(L / 16) + blendExtra
             + 0.5 * Math.abs(eA(f, f + L * p) - eB(bIn, bIn + L * b.period)) + (E.kind === 'intro' ? 0 : 0.15); // the two at a similar energy; a blend suits an intro
           offer(style === 'blend' ? pl - 0.1 * Math.log2(L / 16) + 0.3 * vocalAt(a, f, f + L * p) : c, blendPlan(f, L));
@@ -394,6 +406,20 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     }).catch((err) => log('[dj] endless: ' + err.message)).finally(() => { extending = null; });
   }
 
+  // The planned change from the song playing into a candidate (from its
+  // analysis alone: tempo-matched as it would be), as a cost; null if unsure.
+  function planCostFor(track, inf) {
+    try {
+      if (!(inf.bpm > 0) || inf.confidence <= 0.25 || inf.steady === false || !A.steady) return null;
+      const r = [A.bpm / inf.bpm, A.bpm / (inf.bpm * 2), A.bpm / (inf.bpm / 2)].reduce((x, y) => (Math.abs(y - 1) < Math.abs(x - 1) ? y : x));
+      if (Math.abs(r - 1) > MAX_STRETCH) return null;
+      const frames = Math.round((inf.duration || 240) * RATE / r);
+      const stub = deckFrom(track, { ...inf, gridPeriod: inf.period }, { length: frames * 2 }, r, true, 0);
+      stub.keyNow = inf.key;
+      const pl = planMix(A, stub, cfg.mixBeats, false);
+      return Number.isFinite(pl.cost) ? pl.cost : null;
+    } catch (e) { return null; }
+  }
   const avgEnergy = (inf) => { const en = inf && inf.energyBars; if (!en) return 0.5; let s = 0; for (const c of en) s += Number(c); return s / (9 * en.length); };
   function chooseNext() {
     extendIfLow();
@@ -413,6 +439,10 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
       if (inf && A && A.matched) {
         const r = Math.min(...[1, 2, 0.5].map((m) => Math.abs(A.bpm / (inf.bpm * m) - 1)));
         s = n * 0.15 + (r <= MAX_STRETCH ? r * 10 : 3) + (analyser.keyDistance ? analyser.keyDistance(A.keyNow, inf.key) * 0.4 : 0);
+      }
+      if (inf && A && A.matched) {
+        // How good would the change into it actually be? Plan it from here.
+        const pc = planCostFor(list[ti], inf); if (pc !== null) s += 0.8 * Math.min(3, pc);
       }
       if (inf && A) {
         // The energy arc: build for the first 20 minutes, hold at the peak to
@@ -434,7 +464,7 @@ function createDjEngine({ onPcm, getQueueMs = () => 0, sources = require('./sour
     poolBusy = true; const g = gen;
     try {
       let done = 0;
-      for (let j = 0; j < Math.min(list.length, 8) && done < 2; j++) {
+      for (let j = 0; j < Math.min(list.length, 8) && done < 3; j++) {
         const t = list[(idx + j) % list.length];
         if (!t || known[t.id] || (A && t.id === A.track.id) || (B && t.id === B.track.id)) continue;
         try {

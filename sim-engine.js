@@ -3305,7 +3305,7 @@ var PiEngine = (() => {
       var RATE = 44100;
       var MAX_STRETCH = 0.12;
       var FX = /* @__PURE__ */ new Set(["echo", "filter", "brake", "roll"]);
-      var LENGTHS = [128, 96, 64, 48, 32, 16];
+      var LENGTHS = [256, 192, 128, 96, 64, 48, 32, 16];
       var TARGET_DB = -17;
       var STYLES = ["auto", "blend", "short", "cut"];
       var CUT = 882;
@@ -3523,7 +3523,7 @@ var PiEngine = (() => {
             hi = lo + 60 * RATE;
             early = true;
           } else {
-            lo = Math.max(first, a.inFrame + 0.5 * (a.end - a.inFrame));
+            lo = Math.max(first, a.inFrame + 0.3 * (a.end - a.inFrame));
             hi = a.end;
           }
           if (lo >= a.end - 2 * p) {
@@ -3541,8 +3541,7 @@ var PiEngine = (() => {
             return phrase + where;
           };
           const fits = (f, L) => f + L * p <= a.end + p;
-          const autoMax = Math.min(Math.max(a.outroBeats, 32), Math.max(b.introBeats, 16));
-          let lengths = want === "auto" ? LENGTHS.filter((L) => L <= Math.max(16, autoMax)) : [Number(want) || 32];
+          let lengths = want === "auto" ? LENGTHS.slice() : [Number(want) || 32];
           if (cfg.quick || now) lengths = lengths.map((L) => Math.min(L, now ? 8 : 32));
           const kd = analyser.keyDistance && a.keyNow && b.keyNow ? analyser.keyDistance(a.keyNow, b.keyNow) : 0;
           const blendExtra = 0.22 * Math.max(0, kd - 1) + (b.introBeats < 8 ? 0.3 : 0) + (a.outroBeats < 8 ? 0.12 : 0);
@@ -3569,6 +3568,20 @@ var PiEngine = (() => {
                 for (const L of lengths) {
                   if (L < 16 || !fits(f, L)) continue;
                   const sw = Math.max(1, Math.round(L / 8)) * 4 * p;
+                  if (L >= 96) {
+                    const bars2 = Math.round(L / 4);
+                    let clash = 0, eDiff = 0;
+                    for (let k = 0; k < bars2; k++) {
+                      const fa = f + k * a.bar, fb = bIn + k * b.bar;
+                      clash += Math.min(vocalAt(a, fa, fa + a.bar), vocalAt(b, fb, fb + b.bar));
+                      eDiff += Math.abs(eA(fa, fa + a.bar) - eB(fb, fb + b.bar));
+                    }
+                    clash /= bars2;
+                    eDiff /= bars2;
+                    const cl = 2.4 * clash + 0.5 * eDiff + 1.2 * vocalAt(a, f + L * p - 2 * a.bar, f + L * p) + pl - 0.13 * Math.log2(L / 16) + blendExtra + (E.kind === "intro" ? 0 : 0.1);
+                    offer(style === "blend" ? pl - 0.13 * Math.log2(L / 16) + 0.6 * clash : cl, blendPlan(f, L));
+                    continue;
+                  }
                   const c = 2.2 * vocalAt(a, f + sw, f + L * p) + 0.25 * vocalAt(a, f, f + sw) + 0.9 * vocalAt(b, bIn, bIn + sw * b.period / p) + 0.3 * vocalAt(b, bIn + sw * b.period / p, bIn + L * b.period) + pl - 0.1 * Math.log2(L / 16) + blendExtra + 0.5 * Math.abs(eA(f, f + L * p) - eB(bIn, bIn + L * b.period)) + (E.kind === "intro" ? 0 : 0.15);
                   offer(style === "blend" ? pl - 0.1 * Math.log2(L / 16) + 0.3 * vocalAt(a, f, f + L * p) : c, blendPlan(f, L));
                 }
@@ -3719,6 +3732,20 @@ var PiEngine = (() => {
             extending = null;
           });
         }
+        function planCostFor(track, inf) {
+          try {
+            if (!(inf.bpm > 0) || inf.confidence <= 0.25 || inf.steady === false || !A.steady) return null;
+            const r = [A.bpm / inf.bpm, A.bpm / (inf.bpm * 2), A.bpm / (inf.bpm / 2)].reduce((x, y) => Math.abs(y - 1) < Math.abs(x - 1) ? y : x);
+            if (Math.abs(r - 1) > MAX_STRETCH) return null;
+            const frames = Math.round((inf.duration || 240) * RATE / r);
+            const stub = deckFrom(track, { ...inf, gridPeriod: inf.period }, { length: frames * 2 }, r, true, 0);
+            stub.keyNow = inf.key;
+            const pl = planMix(A, stub, cfg.mixBeats, false);
+            return Number.isFinite(pl.cost) ? pl.cost : null;
+          } catch (e) {
+            return null;
+          }
+        }
         const avgEnergy = (inf) => {
           const en = inf && inf.energyBars;
           if (!en) return 0.5;
@@ -3754,6 +3781,10 @@ var PiEngine = (() => {
               const r = Math.min(...[1, 2, 0.5].map((m) => Math.abs(A.bpm / (inf.bpm * m) - 1)));
               s = n * 0.15 + (r <= MAX_STRETCH ? r * 10 : 3) + (analyser.keyDistance ? analyser.keyDistance(A.keyNow, inf.key) * 0.4 : 0);
             }
+            if (inf && A && A.matched) {
+              const pc = planCostFor(list[ti], inf);
+              if (pc !== null) s += 0.8 * Math.min(3, pc);
+            }
             if (inf && A) {
               const mins = (Date.now() - startedAt) / 6e4, delta = mins < 20 ? 0.08 : mins < 60 ? 0 : Math.floor(mins / 15) % 2 ? -0.06 : 0.06;
               s += 0.6 * Math.abs(avgEnergy(inf) - Math.min(1, Math.max(0, avgEnergy(A.info) + delta)));
@@ -3773,7 +3804,7 @@ var PiEngine = (() => {
           const g = gen;
           try {
             let done = 0;
-            for (let j = 0; j < Math.min(list.length, 8) && done < 2; j++) {
+            for (let j = 0; j < Math.min(list.length, 8) && done < 3; j++) {
               const t = list[(idx + j) % list.length];
               if (!t || known[t.id] || A && t.id === A.track.id || B && t.id === B.track.id) continue;
               try {

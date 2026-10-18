@@ -72,7 +72,7 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     // Picking a track from the list lines it up next.
     assert.strictEqual(dj.status.queue.length, 3);
     const pick = dj.status.queue.findIndex((q, i) => i !== dj.status.nowIdx);
-    for (let k = 0; k < 20 && dj.status.mixing; k++) { dj.render(4410); await new Promise((r) => setImmediate(r)); }
+    for (let k = 0; k < 400 && dj.status.mixing; k++) { dj.render(4410); await new Promise((r) => setImmediate(r)); }
     assert.ok(dj.playNext(pick), 'picked');
     for (let k = 0; k < 50 && !(dj._test.B && dj._test.B.qi === pick); k++) await new Promise((r) => setImmediate(r));
     assert.ok(dj._test.B && dj._test.B.qi === pick && dj.status.nextIdx === pick, 'the picked track is next');
@@ -85,7 +85,11 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     // Auto mix length fits both tracks' outro/intro; it lands on a bar.
     const fake = (outro, intro) => dj._test.planMix({ ...A, pos: 0, outroBeats: outro, end: A.frames }, { ...A, introBeats: intro }, 'auto');
     const fakeL = (outro, intro) => dj._test.planMix({ ...A, pos: 0, outroBeats: outro, end: 300 * 44100, frames: 300 * 44100 }, { ...A, introBeats: intro }, 'auto');
-    assert.ok(fakeL(8, 8).beats === 16 && fakeL(40, 40).beats === 32 && fakeL(64, 64).beats === 64, `auto length from intro/outro: ${fakeL(8, 8).beats} ${fakeL(40, 40).beats} ${fakeL(64, 64).beats}`);
+    // With nothing clashing, a long blend - both songs heard for a minute or two.
+    assert.ok(fakeL(8, 8).beats >= 128, 'long blend when nothing clashes: ' + fakeL(8, 8).beats);
+    // Both singing all the way: no long overlap of two voices.
+    const bothSing = dj._test.planMix({ ...A, pos: 0, end: 300 * 44100, frames: 300 * 44100, info: { ...A.info, vocalLevel: '9'.repeat(200), energyBars: '6'.repeat(200) } }, { ...A, introBeats: 64, info: { ...A.info, vocalLevel: '9'.repeat(200), energyBars: '6'.repeat(200) } }, 'auto');
+    assert.ok(!(bothSing.style === 'blend' && bothSing.beats >= 96), 'no long overlap of two singers: ' + bothSing.style + ' ' + bothSing.beats);
     const pl = fake(16, 16), bp = ((pl.start - A.firstDown) / A.bar) % 1;
     assert.ok(Math.min(bp, 1 - bp) < 0.01 && pl.start + pl.len <= A.end + A.period, 'starts on a bar, ends with the music');
     // Quick mix: about a minute in on a long track, on a phrase, at most 32 beats.
@@ -95,7 +99,7 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     const q = dj._test.planMix(long, { ...A, introBeats: 64 }, 'auto');
     dj.configure({ quick: false });
     const qp = ((q.start - long.inFrame) / (16 * A.period)) % 1;
-    assert.ok(q.start / 44100 > 50 && q.start / 44100 < 75 && q.beats <= 32 && Math.min(qp, 1 - qp) < 0.01 && full.start / 44100 > 200, `quick mix at ${q.start / 44100}s vs ${full.start / 44100}s`);
+    assert.ok(q.start / 44100 > 50 && q.start / 44100 < 75 && q.beats <= 32 && Math.min(qp, 1 - qp) < 0.01 && full.start / 44100 > q.start / 44100 + 60, `quick mix at ${q.start / 44100}s vs ${full.start / 44100}s`);
     // Beats lined up from the audio: a grid 600 frames (14 ms) out is corrected.
     const b0 = nextBeatOf(A, A.pos + 44100);
     const lag = dj._test.lagBetween(b0, b0 + 600, 8 * A.period, A.period / 4, A, A);
@@ -107,7 +111,7 @@ const nextBeatOf = (d, f) => Math.round(d.firstBeat + Math.ceil((f - d.firstBeat
     const sungAt = (f0, f1) => { let m = 0; for (let j = Math.floor((f0 - A.firstDown) / A.vbBar + 0.02); j <= Math.floor((f1 - A.firstDown) / A.vbBar - 0.02); j++) m = Math.max(m, Number(lines[j] || 0)); return m; };
     const lined = { ...long, info: { ...A.info, vocalLevel: lines } };
     const pk = dj._test.planMix(lined, { ...A, introBeats: 64, info: { ...A.info, vocalLevel: '0'.repeat(200) } }, 'auto');
-    const over = pk.style === 'cut' ? [pk.at, pk.at + 2 * A.bar] : pk.style === 'short' ? [pk.start, pk.start + pk.len] : [pk.start + Math.max(1, Math.round(pk.beats / 8)) * 4 * A.period, pk.start + pk.len]; // a blend may start under A's last line, but A must be done singing by the swap
+    const over = pk.style === 'cut' ? [pk.at, pk.at + 2 * A.bar] : pk.style === 'short' ? [pk.start, pk.start + pk.len] : pk.beats >= 96 ? [pk.start + pk.len - 2 * A.bar, pk.start + pk.len] : [pk.start + Math.max(1, Math.round(pk.beats / 8)) * 4 * A.period, pk.start + pk.len]; // a long blend may carry A's singing over B's music, but A must be done as it leaves // a blend may start under A's last line, but A must be done singing by the swap
     assert.strictEqual(sungAt(over[0], over[1]), 0, `${pk.style} ${pk.beats} at bar ${(pk.start - A.firstDown) / A.bar} lands on singing`);
     // Singing all the way through: a long merge (B creeps in underneath), not a cut.
     const sung = { ...long, info: { ...A.info, vocalLevel: '9'.repeat(200), energyBars: '6'.repeat(200) } };
