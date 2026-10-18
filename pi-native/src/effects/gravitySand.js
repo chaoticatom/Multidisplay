@@ -1,4 +1,6 @@
-// Gravity Sand: coloured sand pours from a spout that sweeps back and forth,
+// Gravity Sand: coloured sand pours from three spouts that wander back and
+// forth (each its own family of colours, shifting in bands), piling up in
+// striped dunes that slide and settle.
 // piling up in striped dunes. Each grain is shaded - grains on the surface
 // catch the light from above, buried ones sit in shadow - so the heap reads
 // as a 3D pile. When the box is nearly full a gap opens in the floor and it
@@ -8,7 +10,7 @@
 const { defineCanvasEffect } = require('./canvas');
 const { hsl } = require('../core');
 
-const st = { W: 0, H: 0, g: null, col: null, phase: 'pour', hue: Math.random(), spout: 0.5, dir: 1, acc: 0, drainT: 0 };
+const st = { W: 0, H: 0, g: null, col: null, phase: 'pour', hue: Math.random(), spouts: [{ x: 0.2, d: 1, s: 0.11 }, { x: 0.5, d: -1, s: 0.16 }, { x: 0.8, d: 1, s: 0.08 }], acc: 0, drainT: 0 };
 
 function reset(W, H) {
   st.W = W; st.H = H; st.g = new Uint8Array(W * H); st.col = new Float32Array(W * H * 3);
@@ -22,14 +24,14 @@ module.exports = defineCanvasEffect({
     const { g, col } = st;
     // Pour: a few grains per frame from the moving spout, colour drifting in bands.
     if (st.phase === 'pour') {
-      st.spout += st.dir * dt * 0.18; if (st.spout > 0.85 || st.spout < 0.15) st.dir *= -1;
-      const sx = Math.round(st.spout * (W - 1));
-      st.acc += dt * W * 2.2; // grains per second scale with the width
+      for (const sp of st.spouts) { sp.x += sp.d * dt * sp.s; if (sp.x > 0.92 || sp.x < 0.08) sp.d *= -1; }
+      st.acc += dt * W * 3; // grains per second scale with the width
       for (; st.acc >= 1; st.acc--) {
+        const si = Math.floor(Math.random() * st.spouts.length), sx = Math.round(st.spouts[si].x * (W - 1));
         const x = Math.max(0, Math.min(W - 1, sx + Math.round((Math.random() - 0.5) * 2)));
         if (!g[x]) {
           g[x] = 1;
-          const band = Math.floor(t / 4) * 0.13 + st.hue;
+          const band = Math.floor(t / 4) * 0.13 + st.hue + si * 0.33;
           const [r, gg, b] = hsl((band + (Math.random() - 0.5) * 0.03) % 1, 0.75, 0.42 + Math.random() * 0.14);
           col[x * 3] = r; col[x * 3 + 1] = gg; col[x * 3 + 2] = b;
         }
@@ -37,7 +39,9 @@ module.exports = defineCanvasEffect({
     }
     // Physics: bottom-up, grains fall straight down, else slide diagonally.
     const steps = Math.max(1, Math.round(dt * 90));
-    const holeL = Math.floor(W * 0.4), holeR = Math.ceil(W * 0.6);
+    // The drain opens wider as it runs, so the box empties in a few seconds.
+    const open = st.phase === 'drain' ? Math.min(0.5, 0.1 + st.drainT * 0.08) : 0.1;
+    const holeL = Math.floor(W * (0.5 - open)), holeR = Math.ceil(W * (0.5 + open));
     for (let s = 0; s < steps; s++) {
       for (let y = H - 1; y >= 0; y--) {
         const ltr = (y + s) & 1;
@@ -76,6 +80,6 @@ module.exports = defineCanvasEffect({
       c.set(x, y, Math.min(1, col[p * 3] * sh * grit), Math.min(1, col[p * 3 + 1] * sh * grit), Math.min(1, col[p * 3 + 2] * sh * grit));
     }
     // The falling stream from the spout.
-    if (st.phase === 'pour') { const sx = Math.round(st.spout * (W - 1)); c.set(sx, 0, 0.9, 0.85, 0.7); c.set(sx, 1, 0.6, 0.55, 0.45); }
+    if (st.phase === 'pour') for (const sp of st.spouts) { const sx = Math.round(sp.x * (W - 1)); c.set(sx, 0, 0.95, 0.9, 0.75); c.set(sx, 1, 0.7, 0.65, 0.5); c.set(sx, 2, 0.4, 0.37, 0.3); }
   },
 });

@@ -1,52 +1,38 @@
-// Ported verbatim (math unchanged) from effects-motion.js's effectWave().
-// Only the plumbing changed: reads N/surfX,Y,Z/setLED/t off the passed
-// `core` (a CubeCore instance) instead of bare globals, since there's no
-// shared global scope here the way cube.js/effects-*.js rely on in the
-// browser (all loaded as classic <script> tags into one window).
-//
-// One definition for cube and wall (see ./surface.js). Wall notes:
-//   Wall-mode counterpart to wave.js - same idea as gradientWashWall.js vs
-//   gradientWash.js. The cube version's x/y/z are surfX/Y/Z (3D cube-surface
-//   coords, 0-1); flattened here to 2D wall coords using the same unshifted
-//   x=x/wallW, y=y/wallH convention as prismWall.js/tideWall.js (matching
-//   wave.js's own unshifted x/y/z).
-//   
-//   wave.js weaves three sine terms across all three axes (w1 reads x+z,
-//   w2 reads x-z, w3 reads the average of all three) specifically to get
-//   crossing interference ripples, not a single travel direction - simply
-//   dropping z (à la depthRingsWall/prismWall's `cross = 0`) would collapse
-//   w1 and w2 into near-duplicates of each other and lose that crossing
-//   character. Instead this follows tideWall.js's precedent of re-deriving
-//   the missing z term from the wall's other spatial axis (y) rather than
-//   discarding it outright, so w1/w2/w3 keep reading two independent-looking
-//   terms each, same shape of interference as the cube version, just y
-//   doing double duty as both "y" and "z". Hue/sparkle math is otherwise
-//   unchanged, just fed the recomputed w1/w2/w3.
+// Colour Falls (was Wave Cascade): a waterfall of colour. Ribbons of light
+// pour over a dark ledge across the width, rippling as they fall, each its
+// own hue drifting along the rainbow; at the foot they burst into glowing
+// mist with spray rising, over a pool of shimmering reflections. With music
+// the falls run brighter. One definition for cube and wall (see ./surface.js).
 'use strict';
 
 const { hsl } = require('../core');
 const { defineFieldEffect } = require('./surface');
+const { sceneUV, vnoise, hash2, clamp, smooth } = require('./sceneKit');
 
-const { lit } = require('./shade');
-
-// The ripple height at a point (the same three interfering waves as before).
-function height(x, y, z, t) {
-  const w1 = Math.sin((x + z) * 6.2 + t) * Math.cos(y * 4.5 - t * 0.8);
-  const w2 = Math.sin((x - z) * 4.8 + t * 1.4) * Math.sin(y * 5.2 + t * 0.6);
-  const w3 = Math.sin((x * 0.7 + y * 0.9 + z * 0.5) * 7 + t * 0.9);
-  return (w1 + w2 + w3) / 3;
-}
-
-// Wave: rainbow liquid. The interfering ripples are lit as a glossy surface
-// - highlights slide over the crests and the troughs sink into shadow.
 module.exports = defineFieldEffect({
-  smooth: true, // slowly varying field: see surface.js
-  speed: 1.1,
-  pixel(p, { t }) {
-    const { x, y, z } = p; // on a wall z = y
-    const e = 0.01, w = height(x, y, z, t);
-    const dhx = (height(x + e, y, z, t) - w) / e, dhy = (height(x, y + e, z, t) - w) / e;
-    const hue = (x * 0.35 + y * 0.25 + z * 0.35 + t * 0.045) % 1;
-    return lit(hsl(hue, 1, 0.3 + w * 0.15), dhx, dhy, { bump: 0.09, gloss: 40, shine: 0.75, ambient: 0.3 });
+  fine: true,
+  speed: 0.7,
+  pixel(p, { t, core }) {
+    const [x, y, w] = sceneUV(p, core), lvl = core && core.audio && core.audio.active ? core.audio.level : 0;
+    const LEDGE = 0.14, POOL = 0.78;
+    const hue = (x / w * 0.85 + t * 0.03) % 1, [hr, hg, hb] = hsl(hue, 0.9, 0.5);
+    if (y < LEDGE) { // the ledge: dark rock with the water's bright lip
+      const lip = smooth(LEDGE - 0.03, LEDGE, y) * 0.8, rock = 0.03 + 0.04 * vnoise(x * 12, y * 30);
+      return [rock + hr * lip, rock + hg * lip, rock * 1.2 + hb * lip];
+    }
+    if (y < POOL) { // the falling water: streaks rushing down, rippling sideways
+      const col = Math.floor(x * 40), sp = 0.7 + hash2(col, 7) * 0.6;
+      const wob = 0.015 * Math.sin(y * 20 + t * 3 + col);
+      const streak = 0.35 + 0.65 * Math.pow(vnoise((x + wob) * 40, y * 6 - t * 4.5 * sp), 1.6);
+      const fall = (y - LEDGE) / (POOL - LEDGE), k = streak * (0.55 + 0.35 * (1 - fall)) * (0.9 + 0.4 * lvl);
+      const mist = smooth(0.7, 1, fall) * 0.35;
+      return [hr * k + mist, hg * k + mist, hb * k + mist];
+    }
+    // The foot: glowing mist and rising spray over a rippling pool.
+    const d = (y - POOL) / (1 - POOL), mist = Math.exp(-d * 4) * (0.5 + 0.3 * vnoise(x * 10 + t * 0.5, y * 10 - t)) ;
+    const spray = hash2(Math.floor(x * 60), Math.floor((y * 60 + t * 20))) > 0.985 ? 0.6 * (1 - d) : 0;
+    const ripple = Math.pow(0.5 + 0.5 * Math.sin(d * 40 - t * 3 + Math.sin(x * 9) * 2), 8) * 0.25 * (1 - d * 0.5);
+    const k = 0.25 * (1 - d) + ripple;
+    return [Math.min(1, hr * k + mist + spray), Math.min(1, hg * k + mist + spray), Math.min(1, hb * k + mist * 1.1 + spray)];
   },
 });

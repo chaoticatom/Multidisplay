@@ -90,7 +90,7 @@ const warpWall = warp.wall;
 const rainWall = rain.wall;
 const dnaWall = dna.wall;
 const lightningWall = lightning.wall;
-const lightspeedWall = require('./lightspeedWall');
+const lightspeedWall = lightspeed.wall; // one definition for both modes (see ./surface.js)
 const sphereWall = sphere.wall;
 const ballsWall = balls.wall;
 const sandWall = sand.wall;
@@ -272,7 +272,7 @@ const EFFECT_NAMES = {
   fluid_ink: 'Fluid Ink',
   lava_lamp: 'Lava Lamp',
   ai_art: 'AI Art',
-  wave: 'Wave Cascade',
+  wave: 'Colour Falls',
   gradient_wash: 'Rainbow Wash',
   weather: 'Weather',
   radar: 'Weather Radar',
@@ -306,7 +306,7 @@ const EFFECT_NAMES = {
   fluid: 'Liquid Crystal',
   depth_rings: 'Depth Rings',
   prism: 'Prism Sweep',
-  tide: 'Color Tide',
+  tide: 'Beach Tide',
   ghost: 'Ghost Face',
   ghost2: 'Ghost Face 2 (3D)',
   datetime: 'Time & Date',

@@ -381,30 +381,48 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/shade.js
-  var require_shade = __commonJS({
-    "src/effects/shade.js"(exports, module) {
+  // src/effects/sceneKit.js
+  var require_sceneKit = __commonJS({
+    "src/effects/sceneKit.js"(exports, module) {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var L = (() => {
-        const v = [-0.45, -0.55, 0.7], n = Math.hypot(...v);
-        return v.map((a) => a / n);
-      })();
-      var HX = L[0];
-      var HY = L[1];
-      var HZ = L[2] + 1;
-      var HL = Math.sqrt(HX * HX + HY * HY + HZ * HZ);
-      var NO_OPTS = {};
-      function lit(col, dhx, dhy, opts = NO_OPTS) {
-        const bump = opts.bump ?? 1, gloss = opts.gloss ?? 30, shine = opts.shine ?? 0.6, ambient = opts.ambient ?? 0.35;
-        const nx = -dhx * bump, ny = -dhy * bump, nl = Math.sqrt(nx * nx + ny * ny + 1);
-        const lam = Math.max(0, (nx * L[0] + ny * L[1] + L[2]) / nl);
-        const spec = Math.pow(Math.max(0, (nx * HX + ny * HY + HZ) / (nl * HL)), gloss) * shine;
-        const k = ambient + (1 - ambient) * lam;
-        return [Math.min(1, col[0] * k + spec), Math.min(1, col[1] * k + spec), Math.min(1, col[2] * k + spec)];
+      function sceneUV(p, core) {
+        if (p.flat) {
+          const w = core && core.wallW && core.wallH ? core.wallW / core.wallH : 2;
+          return [p.x * w, p.y, w];
+        }
+        const ex = Math.min(p.x, 1 - p.x), ey = Math.min(p.y, 1 - p.y), ez = Math.min(p.z, 1 - p.z);
+        if (ez <= ex && ez <= ey) return [p.x, 1 - p.y, 1];
+        if (ex <= ey) return [p.z, 1 - p.y, 1];
+        return [p.x, p.z, 1];
       }
-      module.exports = { lit };
+      function hash2(x, y) {
+        let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) >>> 0;
+        h = Math.imul(h ^ h >>> 13, 1274126177) >>> 0;
+        return ((h ^ h >>> 16) >>> 0) / 4294967296;
+      }
+      function vnoise(x, y) {
+        const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+        const a = hash2(x0, y0), b = hash2(x0 + 1, y0), c = hash2(x0, y0 + 1), d = hash2(x0 + 1, y0 + 1);
+        return (a + (b - a) * sx) * (1 - sy) + (c + (d - c) * sx) * sy;
+      }
+      function fbm(x, y, oct = 3) {
+        let s = 0, a = 0.5, f = 1, n = 0;
+        for (let i = 0; i < oct; i++) {
+          s += a * vnoise(x * f, y * f);
+          n += a;
+          a *= 0.5;
+          f *= 2.03;
+        }
+        return s / n;
+      }
+      var clamp = (v, a = 0, b = 1) => v < a ? a : v > b ? b : v;
+      var smooth = (a, b, v) => {
+        const t = clamp((v - a) / (b - a));
+        return t * t * (3 - 2 * t);
+      };
+      module.exports = { sceneUV, hash2, vnoise, fbm, clamp, smooth };
     }
   });
 
@@ -416,23 +434,31 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl } = require_core();
       var { defineFieldEffect } = require_surface();
-      var { lit } = require_shade();
-      function height(x, y, z, t) {
-        const w1 = Math.sin((x + z) * 6.2 + t) * Math.cos(y * 4.5 - t * 0.8);
-        const w2 = Math.sin((x - z) * 4.8 + t * 1.4) * Math.sin(y * 5.2 + t * 0.6);
-        const w3 = Math.sin((x * 0.7 + y * 0.9 + z * 0.5) * 7 + t * 0.9);
-        return (w1 + w2 + w3) / 3;
-      }
+      var { sceneUV, vnoise, hash2, clamp, smooth } = require_sceneKit();
       module.exports = defineFieldEffect({
-        smooth: true,
-        // slowly varying field: see surface.js
-        speed: 1.1,
-        pixel(p, { t }) {
-          const { x, y, z } = p;
-          const e = 0.01, w = height(x, y, z, t);
-          const dhx = (height(x + e, y, z, t) - w) / e, dhy = (height(x, y + e, z, t) - w) / e;
-          const hue = (x * 0.35 + y * 0.25 + z * 0.35 + t * 0.045) % 1;
-          return lit(hsl(hue, 1, 0.3 + w * 0.15), dhx, dhy, { bump: 0.09, gloss: 40, shine: 0.75, ambient: 0.3 });
+        fine: true,
+        speed: 0.7,
+        pixel(p, { t, core }) {
+          const [x, y, w] = sceneUV(p, core), lvl = core && core.audio && core.audio.active ? core.audio.level : 0;
+          const LEDGE = 0.14, POOL = 0.78;
+          const hue = (x / w * 0.85 + t * 0.03) % 1, [hr, hg, hb] = hsl(hue, 0.9, 0.5);
+          if (y < LEDGE) {
+            const lip = smooth(LEDGE - 0.03, LEDGE, y) * 0.8, rock = 0.03 + 0.04 * vnoise(x * 12, y * 30);
+            return [rock + hr * lip, rock + hg * lip, rock * 1.2 + hb * lip];
+          }
+          if (y < POOL) {
+            const col = Math.floor(x * 40), sp = 0.7 + hash2(col, 7) * 0.6;
+            const wob = 0.015 * Math.sin(y * 20 + t * 3 + col);
+            const streak = 0.35 + 0.65 * Math.pow(vnoise((x + wob) * 40, y * 6 - t * 4.5 * sp), 1.6);
+            const fall = (y - LEDGE) / (POOL - LEDGE), k2 = streak * (0.55 + 0.35 * (1 - fall)) * (0.9 + 0.4 * lvl);
+            const mist2 = smooth(0.7, 1, fall) * 0.35;
+            return [hr * k2 + mist2, hg * k2 + mist2, hb * k2 + mist2];
+          }
+          const d = (y - POOL) / (1 - POOL), mist = Math.exp(-d * 4) * (0.5 + 0.3 * vnoise(x * 10 + t * 0.5, y * 10 - t));
+          const spray = hash2(Math.floor(x * 60), Math.floor(y * 60 + t * 20)) > 0.985 ? 0.6 * (1 - d) : 0;
+          const ripple = Math.pow(0.5 + 0.5 * Math.sin(d * 40 - t * 3 + Math.sin(x * 9) * 2), 8) * 0.25 * (1 - d * 0.5);
+          const k = 0.25 * (1 - d) + ripple;
+          return [Math.min(1, hr * k + mist + spray), Math.min(1, hg * k + mist + spray), Math.min(1, hb * k + mist * 1.1 + spray)];
         }
       });
     }
@@ -8153,6 +8179,33 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/shade.js
+  var require_shade = __commonJS({
+    "src/effects/shade.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var L = (() => {
+        const v = [-0.45, -0.55, 0.7], n = Math.hypot(...v);
+        return v.map((a) => a / n);
+      })();
+      var HX = L[0];
+      var HY = L[1];
+      var HZ = L[2] + 1;
+      var HL = Math.sqrt(HX * HX + HY * HY + HZ * HZ);
+      var NO_OPTS = {};
+      function lit(col, dhx, dhy, opts = NO_OPTS) {
+        const bump = opts.bump ?? 1, gloss = opts.gloss ?? 30, shine = opts.shine ?? 0.6, ambient = opts.ambient ?? 0.35;
+        const nx = -dhx * bump, ny = -dhy * bump, nl = Math.sqrt(nx * nx + ny * ny + 1);
+        const lam = Math.max(0, (nx * L[0] + ny * L[1] + L[2]) / nl);
+        const spec = Math.pow(Math.max(0, (nx * HX + ny * HY + HZ) / (nl * HL)), gloss) * shine;
+        const k = ambient + (1 - ambient) * lam;
+        return [Math.min(1, col[0] * k + spec), Math.min(1, col[1] * k + spec), Math.min(1, col[2] * k + spec)];
+      }
+      module.exports = { lit };
+    }
+  });
+
   // src/effects/gradientWash.js
   var require_gradientWash = __commonJS({
     "src/effects/gradientWash.js"(exports, module) {
@@ -10584,47 +10637,49 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { hsl, lerp, sm } = require_core();
       var { defineFieldEffect } = require_surface();
-      var stars = { cube: null, wall: null };
+      var { sceneUV, hash2, vnoise, clamp, smooth } = require_sceneKit();
+      var RIBBONS = [
+        { base: 0.55, a: 0.1, f: 1.3, s: 0.22, h: 0.45, k: 1 },
+        { base: 0.45, a: 0.08, f: 2.1, s: -0.17, h: 0.35, k: 0.75 },
+        { base: 0.62, a: 0.09, f: 0.8, s: 0.12, h: 0.5, k: 0.55 }
+      ];
       module.exports = defineFieldEffect({
-        smooth: true,
-        // slowly varying curtains; stars are added per pixel in detail()
-        speed: 0.35,
-        frame(ctx) {
-          const key = ctx.flat ? "wall" : "cube";
-          if (!stars[key] || stars[key].length !== ctx.count) {
-            stars[key] = new Float32Array(ctx.count);
-            for (let i = 0; i < ctx.count; i++) stars[key][i] = Math.random() < 0.014 ? Math.random() : 0;
+        fine: true,
+        speed: 0.6,
+        pixel(p, { t, core }) {
+          const [x, y] = sceneUV(p, core), lvl = core && core.audio && core.audio.active ? core.audio.level : 0;
+          let r = 5e-3 + 0.02 * y, g = 0.01 + 0.03 * y, b = 0.03 + 0.05 * y;
+          const cx = Math.floor(x * 46), cy = Math.floor(y * 46), sh = hash2(cx, cy);
+          if (sh > 0.975 && y < 0.7) {
+            const tw = 0.5 + 0.5 * Math.sin(t * (1.5 + sh * 4) + sh * 50);
+            const dx = x * 46 - cx - 0.5, dy = y * 46 - cy - 0.5;
+            const k = Math.max(0, 1 - (dx * dx + dy * dy) * 6) * 0.45 * tw;
+            r += k;
+            g += k;
+            b += k;
           }
-          ctx.stars = stars[key];
-        },
-        pixel(p, ctx) {
-          const { t } = ctx;
-          const x = p.x, y = p.flat ? 1 - p.y : p.y, z = p.flat ? 0 : p.z;
-          const c1 = Math.sin(x * Math.PI * 3.5 + t * 0.65) * Math.sin(z * Math.PI * 2.8 + t * 0.42);
-          const c2 = Math.sin(x * Math.PI * 2.2 - t * 0.38) * Math.cos(z * Math.PI * 1.9 + t * 0.55) * 0.6;
-          const curtain = c1 + c2;
-          const fade = Math.pow(Math.max(0, y), 0.45);
-          const bright = Math.max(0, curtain) * fade * 0.88;
-          if (bright > 0.02) {
-            const hue = lerp(0.3, 0.82, sm(0, 1, x + Math.sin(t * 0.28) * 0.25)) + Math.sin(t * 0.1) * 0.04;
-            const sat = 0.9 + Math.sin(t * 0.8 + x * 2) * 0.1;
-            const [r, g, b] = hsl(hue, sat, bright);
-            const [r2, g2, b2] = hsl(hue + 0.45, sat, bright * 0.4 * Math.max(0, c2));
-            return [Math.min(1, r + r2), Math.min(1, g + g2), Math.min(1, b + b2)];
+          let ar = 0, ag = 0, ab = 0;
+          for (const R of RIBBONS) {
+            const foot = R.base + R.a * Math.sin(x * R.f + t * R.s) + 0.03 * Math.sin(x * R.f * 2.7 - t * R.s * 1.7) + 0.02 * (vnoise(x * 3 + t * 0.2, R.base * 10) - 0.5);
+            const d = foot - y;
+            if (d < -0.02 || d > R.h) continue;
+            const rays = 0.15 + 1.1 * Math.pow(vnoise(x * 30 + Math.sin(t * 0.7 + x * 2) * 1.5, t * 0.4), 2.4);
+            const up = d < 0 ? Math.max(0, 1 + d / 0.02) : Math.exp(-d / (R.h * 0.45)) * (1 - smooth(R.h * 0.7, R.h, d));
+            const k = up * rays * R.k * (0.85 + 0.5 * lvl), hgt = clamp(d / R.h);
+            ar += k * (0.15 + 0.85 * smooth(0.45, 1, hgt));
+            ag += k * (1 - 0.75 * smooth(0.3, 1, hgt));
+            ab += k * (0.35 + 0.55 * smooth(0.2, 0.9, hgt));
           }
-          return [0, 0, 0];
-        },
-        // Stars twinkle in the dark sky between the curtains (per pixel, on top
-        // of the blended curtain colour).
-        detail(p, ctx, c) {
-          const s = ctx.stars[p.i];
-          if (s > 0 && c[0] + c[1] + c[2] < 0.06) {
-            const tw = 0.5 + 0.5 * Math.sin(ctx.t * 2.3 + s * 12.7);
-            return [tw * 0.55, tw * 0.55, tw * 0.65];
+          r += ar * 0.85;
+          g += ag * 0.9;
+          b += ab * 0.85;
+          const hill = 0.8 + 0.06 * Math.sin(x * 2.3 + 1) + 0.04 * Math.sin(x * 5.1) + 0.02 * vnoise(x * 9, 3);
+          if (y > hill) {
+            const rim = Math.exp(-(y - hill) * 90) * 0.18;
+            return [4e-3 + rim * 0.2, 8e-3 + rim, 0.012 + rim * 0.5];
           }
-          return c;
+          return [Math.min(1.2, r), Math.min(1.2, g), Math.min(1.2, b)];
         }
       });
     }
@@ -10737,118 +10792,90 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { defineCanvasEffect } = require_canvas();
-      var hash = (x, y) => {
-        const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
-        return s - Math.floor(s);
-      };
-      function noise(x, y) {
-        const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
-        const a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
-        return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-      }
-      var fbm = (x, y) => noise(x, y) * 0.55 + noise(x * 2.1, y * 2.1) * 0.3 + noise(x * 4.3, y * 4.3) * 0.15;
-      var st = { bolts: [], flash: 0, next: 0.4, drops: [], W: 0, H: 0, strikeX: 0.5, flicker: 0 };
-      function makeBolt(W, H) {
-        const segs = [];
-        const x0 = W * (0.15 + Math.random() * 0.7), base = H * 0.3, ground = H - 1;
-        function grow(x, y, ang, len, width, depth) {
-          while (y < ground && len > 0) {
-            const step = 2 + Math.random() * 2.5;
-            const a = ang + (Math.random() - 0.5) * 1.1;
-            const nx = x + Math.sin(a) * step, ny = y + Math.cos(a) * step;
-            segs.push([x, y, nx, ny, width]);
-            if (depth < 2 && Math.random() < 0.13) grow(nx, ny, a + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.5), len * 0.4, width * 0.55, depth + 1);
-            x = nx;
-            y = ny;
-            len -= step;
-            ang = ang * 0.8;
+      var { defineFieldEffect } = require_surface();
+      var { sceneUV, fbm, hash2, vnoise, clamp, smooth } = require_sceneKit();
+      var st = { bolts: [], flash: 0, next: 1, cool: 0, w: 1 };
+      function makeBolt(w) {
+        const segs = [], x0 = w * (0.15 + Math.random() * 0.7), base = 0.3, ground = 0.86;
+        (function grow(x, y, len, width, depth) {
+          let cx = x, cy = y;
+          const steps = depth ? 5 : 14;
+          for (let i = 0; i < steps && cy < ground; i++) {
+            const nx = cx + (Math.random() - 0.5) * 0.09 * (depth ? 0.8 : 1), ny = Math.min(ground, cy + len / steps * (0.7 + Math.random() * 0.6));
+            segs.push([cx, cy, nx, ny, width]);
+            if (!depth && Math.random() < 0.28) grow(nx, ny, len * 0.35, width * 0.55, 1);
+            cx = nx;
+            cy = ny;
           }
-        }
-        grow(x0, base, (Math.random() - 0.5) * 0.4, H * 2, 1, 0);
-        return { segs, life: 1, x: x0 };
+        })(x0, base, ground - base, 1, 0);
+        return { segs, life: 0.32 + Math.random() * 0.15, age: 0, x0, re: Math.random() < 0.5 };
       }
-      function line(c, x0, y0, x1, y1, w, I) {
-        const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 2) + 1;
-        for (let i = 0; i <= n; i++) {
-          const x = x0 + (x1 - x0) * i / n, y = y0 + (y1 - y0) * i / n;
-          c.add(x, y, 0.85 * I, 0.9 * I, 1 * I);
-          if (w > 0.6) {
-            const g = 0.25 * I * w;
-            c.add(x - 1, y, g * 0.6, g * 0.6, g);
-            c.add(x + 1, y, g * 0.6, g * 0.6, g);
-          }
-        }
+      function segDist(px, py, s) {
+        const vx = s[2] - s[0], vy = s[3] - s[1], l2 = vx * vx + vy * vy || 1e-9, k = clamp(((px - s[0]) * vx + (py - s[1]) * vy) / l2);
+        const dx = px - s[0] - vx * k, dy = py - s[1] - vy * k;
+        return Math.sqrt(dx * dx + dy * dy);
       }
-      module.exports = defineCanvasEffect({
-        render(c, { t, dt, core }) {
-          const W = c.W, H = c.H;
-          if (st.W !== W || st.H !== H) {
-            st.W = W;
-            st.H = H;
-            st.drops = Array.from({ length: Math.round(W * H / 40) }, () => ({ x: Math.random() * W, y: Math.random() * H, s: 0.6 + Math.random() * 0.6 }));
-          }
-          const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
-          if ((st.next -= dt) <= 0 || beat > 0.8 && st.flash < 0.2 && Math.random() < 0.3) {
-            const b = makeBolt(W, H);
-            st.bolts.push(b);
-            st.strikeX = b.x / W;
+      module.exports = defineFieldEffect({
+        fine: true,
+        speed: 1,
+        frame({ dt, core, flat }) {
+          st.w = flat && core && core.wallW && core.wallH ? core.wallW / core.wallH : 1;
+          st.next -= dt;
+          st.cool -= dt;
+          const beat = core && core.audio && core.audio.active && core.audio.beat > 0.85 && st.cool <= 0;
+          if (st.next <= 0 || beat) {
+            st.bolts.push(makeBolt(st.w));
             st.flash = 1;
-            st.flicker = Math.random() < 0.5 ? 0.18 : 0;
             st.next = 2 + Math.random() * 5;
-          }
-          st.flash = Math.max(0, st.flash - dt * 1.4);
-          if (st.flicker > 0) {
-            st.flicker -= dt;
-            if (st.flicker <= 0) st.flash = Math.max(st.flash, 0.7);
-          }
-          const fl = st.flash * st.flash;
-          const cloudBase = H * 0.42;
-          const GW = (W >> 1) + 2, GH = (H >> 1) + 2;
-          if (!st.dens || st.dens.length !== GW * GH) st.dens = new Float32Array(GW * GH);
-          for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
-            const x = gx * 2, y = gy * 2;
-            const n = fbm(x * 0.06 + t * 0.12, y * 0.09 - t * 0.03), n2 = fbm(x * 0.03 - t * 0.05 + 7, y * 0.05 + 3);
-            st.dens[gy * GW + gx] = Math.max(0, Math.min(1, (n * 0.7 + n2 * 0.6 - 0.35) * 2.2 * (1 - Math.max(0, (y - cloudBase) / (H * 0.25)))));
-          }
-          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-            const v = y / H;
-            const gx = x >> 1, gy = y >> 1, fx = (x & 1) * 0.5, fy = (y & 1) * 0.5, D = st.dens, k0 = gy * GW + gx;
-            const dens = (D[k0] * (1 - fx) + D[k0 + 1] * fx) * (1 - fy) + (D[k0 + GW] * (1 - fx) + D[k0 + GW + 1] * fx) * fy;
-            const near = Math.exp(-(((x / W - st.strikeX) / 0.35) ** 2));
-            const lit = fl * (0.25 + 0.75 * near) * (0.4 + dens * 0.9);
-            let r = 0.01 + v * 0.015, g = 0.012 + v * 0.02, b = 0.03 + v * 0.03;
-            r += dens * 0.1;
-            g += dens * 0.11;
-            b += dens * 0.15;
-            r += lit * 0.75;
-            g += lit * 0.8;
-            b += lit * 1;
-            if (y > H - 3) {
-              const k = fl * 0.3;
-              r = 0.01 + k * 0.4;
-              g = 0.015 + k * 0.45;
-              b = 0.02 + k * 0.5;
-            }
-            c.set(x, y, Math.min(1, r), Math.min(1, g), Math.min(1, b));
-          }
-          const rb = 0.12 + fl * 0.4;
-          for (const d of st.drops) {
-            d.y += dt * H * 1.6 * d.s;
-            d.x += dt * W * 0.25 * d.s;
-            if (d.y > H) {
-              d.y -= H;
-              d.x = Math.random() * W;
-            }
-            if (d.x > W) d.x -= W;
-            for (let k = 0; k < 3; k++) c.add(d.x - k * 0.3, d.y - k, rb * 0.6 * (1 - k / 3), rb * 0.7 * (1 - k / 3), rb * (1 - k / 3));
+            st.cool = 0.8;
           }
           for (const b of st.bolts) {
-            const I = Math.min(1, b.life * 1.6);
-            for (const [x0, y0, x1, y1, w] of b.segs) line(c, x0, y0, x1, y1, w, I * (0.45 + 0.55 * w));
-            b.life -= dt * 2.2;
+            b.age += dt;
+            if (b.re && b.age > 0.16 && b.age < 0.2) st.flash = Math.max(st.flash, 0.7);
           }
-          st.bolts = st.bolts.filter((b) => b.life > 0);
+          st.bolts = st.bolts.filter((b) => b.age < b.life);
+          st.flash *= Math.exp(-dt * 7);
+        },
+        pixel(p, { t, core }) {
+          const [x, y] = sceneUV(p, core), f = st.flash;
+          const c = fbm(x * 2.2 + t * 0.05, y * 4 - t * 0.02, 4), c2 = fbm(x * 4 - t * 0.08, y * 6, 3);
+          const dens = smooth(0.35, 0.75, c * 0.7 + c2 * 0.3) * (1 - smooth(0.35, 0.6, y));
+          let lit = 0;
+          for (const b2 of st.bolts) lit = Math.max(lit, Math.exp(-Math.abs(x - b2.x0) * 3) * (1 - b2.age / b2.life));
+          let r = 0.012 + 0.02 * (1 - y), g = 0.015 + 0.024 * (1 - y), b = 0.03 + 0.045 * (1 - y);
+          const cl = dens * (0.07 + f * 0.3 + lit * 0.45);
+          r += cl * 0.85;
+          g += cl * 0.85;
+          b += cl * 1.05;
+          r += f * 0.07;
+          g += f * 0.07;
+          b += f * 0.11;
+          const rx = x * 70 + y * 18, col = Math.floor(rx), ph = (y * 3 + t * 2.2 + hash2(col, 3) * 10) % 1;
+          if (hash2(col, 9) > 0.55 && ph < 0.12 && Math.abs(rx - col - 0.5) < 0.18) {
+            const k = 0.12 + f * 0.4;
+            r += k;
+            g += k;
+            b += k * 1.2;
+          }
+          for (const bo of st.bolts) {
+            const fade = 1 - bo.age / bo.life;
+            for (const s of bo.segs) {
+              const d = segDist(x, y, s);
+              if (d > 0.06) continue;
+              const core2 = Math.exp(-((d / (7e-3 * s[4])) ** 2)) * 1.4, glow = Math.exp(-d / 0.02) * 0.3 * s[4];
+              const k = (core2 + glow) * fade;
+              r += k * 0.85;
+              g += k * 0.8;
+              b += k;
+            }
+          }
+          const bw = Math.floor(x * 14), bh = 0.8 + 0.1 * hash2(bw, 1);
+          if (y > bh) {
+            const win = hash2(Math.floor(x * 90), Math.floor(y * 90)) > 0.9 && hash2(bw, 5) > 0.3 ? 0.25 : 0;
+            const k = 0.01 + f * 0.25;
+            return [k * 0.8 + win, k * 0.85 + win * 0.8, k + win * 0.4];
+          }
+          return [Math.min(1.3, r), Math.min(1.3, g), Math.min(1.3, b)];
         }
       });
     }
@@ -10857,199 +10884,45 @@ var PiEngine = (() => {
   // src/effects/lightspeed.js
   var require_lightspeed = __commonJS({
     "src/effects/lightspeed.js"(exports, module) {
+      "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { hsl } = require_core();
-      var { tempo } = require_audioFeatures();
-      var lsRacers = [];
-      var lsT = 0;
-      function lsTransfer(face, u, v, du, dv, S) {
-        const S1 = S - 1;
-        let r;
-        if (u < 0) {
-          if (face === 0) r = [3, S1, v, du, dv];
-          else if (face === 1) r = [3, 0, v, -du, dv];
-          else if (face === 2) r = [1, S1, v, du, dv];
-          else if (face === 3) r = [1, 0, v, -du, dv];
-          else if (face === 4) r = [3, v, S1, dv, du];
-          else r = [3, v, 0, dv, -du];
-        } else if (u >= S) {
-          if (face === 0) r = [2, S1, v, -du, dv];
-          else if (face === 1) r = [2, 0, v, du, dv];
-          else if (face === 2) r = [0, S1, v, -du, dv];
-          else if (face === 3) r = [0, 0, v, du, dv];
-          else if (face === 4) r = [2, v, S1, dv, -du];
-          else r = [2, v, 0, dv, du];
-        } else if (v < 0) {
-          if (face === 0) r = [5, u, S1, du, dv];
-          else if (face === 1) r = [5, u, 0, du, -dv];
-          else if (face === 2) r = [5, S1, u, dv, du];
-          else if (face === 3) r = [5, 0, u, -dv, du];
-          else if (face === 4) r = [1, u, S1, du, dv];
-          else r = [1, u, 0, du, -dv];
-        } else {
-          if (face === 0) r = [4, u, S1, du, -dv];
-          else if (face === 1) r = [4, u, 0, du, dv];
-          else if (face === 2) r = [4, S1, u, -dv, du];
-          else if (face === 3) r = [4, 0, u, dv, du];
-          else if (face === 4) r = [0, u, S1, du, -dv];
-          else r = [0, u, 0, du, dv];
+      var { defineFieldEffect } = require_surface();
+      var { sceneUV, hash2, clamp, smooth } = require_sceneKit();
+      var CYCLE = 12;
+      module.exports = defineFieldEffect({
+        fine: true,
+        speed: 1,
+        pixel(p, { t, core }) {
+          const [x, y, w] = sceneUV(p, core), opts = core && core.effectOptions && core.effectOptions.lightspeed || {};
+          const sp = clamp((Number(opts.speed) || 8) / 8, 0.25, 2), ph = t * sp % CYCLE / CYCLE;
+          const warp = smooth(0.15, 0.6, ph) * (1 - smooth(0.78, 0.9, ph)), flash = Math.exp(-(((ph - 0.72) / 0.025) ** 2));
+          const dx = x - w / 2, dy = y - 0.5, r = Math.sqrt(dx * dx + dy * dy), ang = Math.atan2(dy, dx);
+          const N = 260, idx = Math.floor((ang / (2 * Math.PI) + 0.5) * N), off = (ang / (2 * Math.PI) + 0.5) * N - idx - 0.5;
+          let R = 4e-3, G = 6e-3, B = 0.02;
+          const tg = warp * Math.exp(-r * 2.5) * 0.35;
+          R += tg * 0.3;
+          G += tg * 0.5;
+          B += tg;
+          for (let k = 0; k < 2; k++) {
+            const id = idx * 2 + k, sd = hash2(id, 17);
+            if (sd < 0.45) continue;
+            const pos = (t * sp * (0.15 + warp * 1.6) * (0.5 + sd) + hash2(id, 3)) % 1 * 0.9 + 0.03;
+            const len = 4e-3 + warp * 0.25 * (0.4 + pos), wid = 0.35 + 0.25 * k;
+            if (r > pos - len && r < pos && Math.abs(off) < wid) {
+              const a = (1 - (pos - r) / len) * (0.4 + pos) * (1 - Math.abs(off) / wid);
+              const hue = hash2(id, 5);
+              R += a * (0.7 + 0.3 * hue);
+              G += a * 0.85;
+              B += a;
+            }
+          }
+          R += flash;
+          G += flash;
+          B += flash;
+          return [Math.min(1.3, R), Math.min(1.3, G), Math.min(1.3, B)];
         }
-        r[1] = Math.max(1, Math.min(S - 2, r[1]));
-        r[2] = Math.max(1, Math.min(S - 2, r[2]));
-        const spd = Math.sqrt(r[3] * r[3] + r[4] * r[4]) || 1;
-        r[3] /= spd;
-        r[4] /= spd;
-        return r;
-      }
-      function resetLightspeed(core, lsCount) {
-        lsRacers = [];
-        const S = core.SIZE;
-        for (let k = 0; k < lsCount; k++) {
-          const face = k % 6;
-          const u = S * 0.25 + Math.random() * S * 0.5;
-          const v = S * 0.25 + Math.random() * S * 0.5;
-          lsRacers.push({
-            face,
-            u,
-            v,
-            du: 1,
-            dv: 0,
-            hue: k / lsCount,
-            trail: [],
-            nudgeCountdown: 3 + Math.random() * 4,
-            nudgeT: 3 + Math.random() * 5
-          });
-        }
-      }
-      function effectLightspeed(core, dt) {
-        dt *= tempo(core);
-        lsT += dt;
-        const { N, SIZE, colBuf, faceMap } = core;
-        const opts = core.effectOptions?.lightspeed || {};
-        const lsSpeed = opts.speed ?? 8, lsTrail = opts.trail ?? 32, lsSize = opts.size ?? 1;
-        const lsColour = opts.colour ?? "multi", lsCount = opts.count ?? 8, lsNudge = opts.nudge ?? 0;
-        if (!lsRacers.length || !faceMap) resetLightspeed(core, lsCount);
-        for (let i = 0; i < N * 3; i++) colBuf[i] = 0;
-        const S = SIZE;
-        const pps = Math.pow(lsSpeed, 1.6) * SIZE * 0.8;
-        const dist = pps * dt;
-        const subSteps = Math.min(Math.max(1, Math.ceil(dist)), 400);
-        const d = dist / subSteps;
-        for (const r of lsRacers) {
-          r.nudgeCountdown -= dt;
-          if (r.nudgeCountdown <= 0) {
-            r.nudgeCountdown = r.nudgeT * (0.8 + Math.random() * 3);
-            if (lsNudge > 0) {
-              const a = (Math.random() - 0.5) * 2 * (lsNudge * Math.PI / 180);
-              const c = Math.cos(a), s_ = Math.sin(a);
-              const od = r.du, ov = r.dv;
-              r.du = od * c - ov * s_;
-              r.dv = od * s_ + ov * c;
-              const l = Math.sqrt(r.du * r.du + r.dv * r.dv) || 1;
-              r.du /= l;
-              r.dv /= l;
-            }
-          }
-          for (let ss = 0; ss < subSteps; ss++) {
-            r.u += r.du * d;
-            r.v += r.dv * d;
-            if (r.u < 0 || r.u >= S || r.v < 0 || r.v >= S) {
-              const res = lsTransfer(r.face, r.u, r.v, r.du, r.dv, S);
-              r.face = res[0];
-              r.u = Math.max(1e-3, Math.min(S - 1e-3, res[1]));
-              r.v = Math.max(1e-3, Math.min(S - 1e-3, res[2]));
-              r.du = res[3];
-              r.dv = res[4];
-              const l = Math.sqrt(r.du * r.du + r.dv * r.dv) || 1;
-              r.du /= l;
-              r.dv /= l;
-            }
-            const pu = Math.round(r.u), pv = Math.round(r.v);
-            if (pu >= 0 && pu < S && pv >= 0 && pv < S && faceMap[r.face][pv * S + pu] >= 0) {
-              r.trail.push({ face: r.face, u: pu, v: pv });
-              if (r.trail.length > lsTrail) r.trail.shift();
-            }
-          }
-          r.hue = (r.hue + dt * 0.04) % 1;
-          const tl = r.trail.length;
-          for (let i = 0; i < tl; i++) {
-            const { face, u, v } = r.trail[i];
-            const frac = (i + 1) / tl;
-            const bright = Math.pow(frac, 1.3);
-            let rr, rg, rb;
-            const lum = 0.55 * bright + (frac > 0.9 ? (frac - 0.9) * 4 : 0);
-            if (lsColour === "multi") [rr, rg, rb] = hsl((r.hue + frac * 0.1 + lsT * 0.04) % 1, 1, lum);
-            else {
-              const hmap = { white: null, cyan: 0.52, red: 0.02, green: 0.33, gold: 0.13 };
-              const h = hmap[lsColour];
-              if (!h) {
-                rr = bright;
-                rg = bright;
-                rb = bright;
-              } else [rr, rg, rb] = hsl(h, 1, lum);
-            }
-            if (i === tl - 1) {
-              rr = 1;
-              rg = 1;
-              rb = 1;
-            }
-            const R = lsSize - 1;
-            for (let dv2 = -R; dv2 <= R; dv2++) for (let du2 = -R; du2 <= R; du2++) {
-              const nu = u + du2, nv = v + dv2;
-              if (nu < 0 || nu >= S || nv < 0 || nv >= S) continue;
-              const idx = faceMap[face][nv * S + nu];
-              if (idx < 0) continue;
-              if (rr > colBuf[idx * 3]) colBuf[idx * 3] = rr;
-              if (rg > colBuf[idx * 3 + 1]) colBuf[idx * 3 + 1] = rg;
-              if (rb > colBuf[idx * 3 + 2]) colBuf[idx * 3 + 2] = rb;
-            }
-          }
-        }
-        finishGlowCube(core);
-      }
-      var gA = null;
-      var gB = null;
-      var gC = null;
-      function finishGlowCube(core) {
-        const { SIZE: S, faceMap, colBuf } = core, n = S * S * 3, R = 2;
-        if (!gA || gA.length !== n) {
-          gA = new Float32Array(n);
-          gB = new Float32Array(n);
-          gC = new Float32Array(n);
-        }
-        for (let f = 0; f < 6; f++) {
-          const map = faceMap[f];
-          for (let i = 0; i < S * S; i++) {
-            const idx = map[i];
-            for (let ch = 0; ch < 3; ch++) gC[i * 3 + ch] = idx < 0 ? 0 : colBuf[idx * 3 + ch];
-          }
-          for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) for (let ch = 0; ch < 3; ch++) {
-            let sum = 0;
-            for (let k = -R; k <= R; k++) {
-              const xx = x + k;
-              if (xx >= 0 && xx < S) sum += gC[(y * S + xx) * 3 + ch];
-            }
-            gA[(y * S + x) * 3 + ch] = sum / (2 * R + 1);
-          }
-          for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) for (let ch = 0; ch < 3; ch++) {
-            let sum = 0;
-            for (let k = -R; k <= R; k++) {
-              const yy = y + k;
-              if (yy >= 0 && yy < S) sum += gA[(yy * S + x) * 3 + ch];
-            }
-            gB[(y * S + x) * 3 + ch] = sum / (2 * R + 1);
-          }
-          for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-            const idx = map[y * S + x];
-            if (idx < 0) continue;
-            const o = (y * S + x) * 3, grid = x % 8 === 0 || y % 8 === 0 ? 0.025 : 0;
-            const bg = [6e-3 + grid * 0.5, 8e-3 + grid * 0.8, 0.02 + grid * 1.6];
-            for (let ch = 0; ch < 3; ch++) colBuf[idx * 3 + ch] = Math.min(1, Math.max(bg[ch], gC[o + ch]) + gB[o + ch] * 1.6);
-          }
-        }
-      }
-      module.exports = effectLightspeed;
+      });
     }
   });
 
@@ -20466,7 +20339,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { defineCanvasEffect } = require_canvas();
       var { hsl } = require_core();
-      var st = { W: 0, H: 0, g: null, col: null, phase: "pour", hue: Math.random(), spout: 0.5, dir: 1, acc: 0, drainT: 0 };
+      var st = { W: 0, H: 0, g: null, col: null, phase: "pour", hue: Math.random(), spouts: [{ x: 0.2, d: 1, s: 0.11 }, { x: 0.5, d: -1, s: 0.16 }, { x: 0.8, d: 1, s: 0.08 }], acc: 0, drainT: 0 };
       function reset(W, H) {
         st.W = W;
         st.H = H;
@@ -20482,15 +20355,17 @@ var PiEngine = (() => {
           if (st.W !== W || st.H !== H || !st.g) reset(W, H);
           const { g, col } = st;
           if (st.phase === "pour") {
-            st.spout += st.dir * dt * 0.18;
-            if (st.spout > 0.85 || st.spout < 0.15) st.dir *= -1;
-            const sx = Math.round(st.spout * (W - 1));
-            st.acc += dt * W * 2.2;
+            for (const sp of st.spouts) {
+              sp.x += sp.d * dt * sp.s;
+              if (sp.x > 0.92 || sp.x < 0.08) sp.d *= -1;
+            }
+            st.acc += dt * W * 3;
             for (; st.acc >= 1; st.acc--) {
+              const si = Math.floor(Math.random() * st.spouts.length), sx = Math.round(st.spouts[si].x * (W - 1));
               const x = Math.max(0, Math.min(W - 1, sx + Math.round((Math.random() - 0.5) * 2)));
               if (!g[x]) {
                 g[x] = 1;
-                const band = Math.floor(t / 4) * 0.13 + st.hue;
+                const band = Math.floor(t / 4) * 0.13 + st.hue + si * 0.33;
                 const [r, gg, b] = hsl((band + (Math.random() - 0.5) * 0.03) % 1, 0.75, 0.42 + Math.random() * 0.14);
                 col[x * 3] = r;
                 col[x * 3 + 1] = gg;
@@ -20499,7 +20374,8 @@ var PiEngine = (() => {
             }
           }
           const steps = Math.max(1, Math.round(dt * 90));
-          const holeL = Math.floor(W * 0.4), holeR = Math.ceil(W * 0.6);
+          const open = st.phase === "drain" ? Math.min(0.5, 0.1 + st.drainT * 0.08) : 0.1;
+          const holeL = Math.floor(W * (0.5 - open)), holeR = Math.ceil(W * (0.5 + open));
           for (let s = 0; s < steps; s++) {
             for (let y = H - 1; y >= 0; y--) {
               const ltr = y + s & 1;
@@ -20563,10 +20439,11 @@ var PiEngine = (() => {
             const grit = 0.92 + 0.16 * ((x * 13 + y * 7) % 5) / 4;
             c.set(x, y, Math.min(1, col[p * 3] * sh * grit), Math.min(1, col[p * 3 + 1] * sh * grit), Math.min(1, col[p * 3 + 2] * sh * grit));
           }
-          if (st.phase === "pour") {
-            const sx = Math.round(st.spout * (W - 1));
-            c.set(sx, 0, 0.9, 0.85, 0.7);
-            c.set(sx, 1, 0.6, 0.55, 0.45);
+          if (st.phase === "pour") for (const sp of st.spouts) {
+            const sx = Math.round(sp.x * (W - 1));
+            c.set(sx, 0, 0.95, 0.9, 0.75);
+            c.set(sx, 1, 0.7, 0.65, 0.5);
+            c.set(sx, 2, 0.4, 0.37, 0.3);
           }
         }
       });
@@ -20896,25 +20773,51 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { hsl, lerp } = require_core();
       var { defineFieldEffect } = require_surface();
-      var { lit } = require_shade();
-      function blendAt(x, y, z, t) {
-        const w1 = Math.sin(x * Math.PI * 2 + t * 0.8) * 0.5 + 0.5;
-        const w2 = Math.sin(z * Math.PI * 2 - t * 0.6) * 0.5 + 0.5;
-        const w3 = Math.sin(y * Math.PI * 1.5 + t * 0.4) * 0.5 + 0.5;
-        return (w1 + w2 + w3) / 3;
-      }
+      var { sceneUV, vnoise, clamp, smooth } = require_sceneKit();
       module.exports = defineFieldEffect({
-        smooth: true,
-        // slowly varying field: see surface.js
-        speed: 0.6,
-        pixel(p, { t }) {
-          const { x, y, z } = p;
-          const e = 0.01, blend = blendAt(x, y, z, t);
-          const dhx = (blendAt(x + e, y, z, t) - blend) / e, dhy = (blendAt(x, y + e, z + (p.flat ? e : 0), t) - blend) / e;
-          const col = hsl((x * 0.3 + z * 0.3 + blend * 0.25 + t * 0.04) % 1, 0.95, lerp(0.25, 0.6, blend));
-          return lit(col, dhx, dhy, { bump: 0.8, gloss: 18, shine: 0.45, ambient: 0.35 });
+        fine: true,
+        speed: 0.5,
+        pixel(p, { t, core }) {
+          const [x, y, w] = sceneUV(p, core), HOR = 0.4, sunX = w * 0.62, sunY = 0.3;
+          const wash = 0.7 + 0.07 * Math.sin(t * 0.55) + 0.025 * Math.sin(x * 4 + t * 0.9) + 0.015 * (vnoise(x * 6, t * 0.3) - 0.5);
+          if (y < HOR) {
+            const k = y / HOR;
+            let r2 = 0.35 + 0.6 * k, g2 = 0.12 + 0.45 * k, b2 = 0.35 - 0.15 * k;
+            const ds = Math.hypot(x - sunX, (y - sunY) * 1.1), sun = smooth(0.075, 0.06, ds), glow = Math.exp(-ds * 7) * 0.5;
+            r2 += sun + glow;
+            g2 += sun * 0.85 + glow * 0.55;
+            b2 += sun * 0.5 + glow * 0.15;
+            const cloud = smooth(0.55, 0.75, vnoise(x * 2.5 + t * 0.03, y * 8)) * (1 - k) * 0.25;
+            r2 += cloud * 0.6;
+            g2 += cloud * 0.35;
+            b2 += cloud * 0.4;
+            return [Math.min(1, r2 * 0.75), Math.min(1, g2 * 0.75), Math.min(1, b2 * 0.75)];
+          }
+          if (y < wash) {
+            const d = (y - HOR) / (wash - HOR), persp = 1 / (0.15 + d);
+            let r2 = 0.02 + 0.08 * d, g2 = 0.12 + 0.2 * d, b2 = 0.25 + 0.2 * d;
+            const swell = Math.pow(0.5 + 0.5 * Math.sin(persp * 2.2 - t * 1.6 + Math.sin(x * 3 + t * 0.4) * 0.6), 6) * (0.15 + 0.35 * d);
+            r2 += swell;
+            g2 += swell;
+            b2 += swell;
+            const gl = Math.exp(-Math.abs(x - sunX) * (6 + 10 * (1 - d))) * Math.pow(vnoise(x * 40, y * 80 + t * 3), 4) * 1.4;
+            r2 += gl;
+            g2 += gl * 0.75;
+            b2 += gl * 0.4;
+            const foam = smooth(0.012, 0, wash - y) * (0.6 + 0.4 * vnoise(x * 30, t * 2));
+            r2 += foam;
+            g2 += foam;
+            b2 += foam;
+            return [Math.min(1, r2), Math.min(1, g2), Math.min(1, b2)];
+          }
+          const wet = Math.exp(-(y - wash) * 28), grain = 0.9 + 0.2 * vnoise(x * 70, y * 70);
+          let r = (0.62 - 0.35 * wet) * grain, g = (0.47 - 0.25 * wet) * grain, b = (0.3 - 0.12 * wet) * grain;
+          const shine = wet * Math.exp(-Math.abs(x - sunX) * 5) * 0.4;
+          r += shine;
+          g += shine * 0.75;
+          b += shine * 0.45;
+          return [r * 0.8, g * 0.8, b * 0.8];
         }
       });
     }
@@ -27316,150 +27219,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/lightspeedWall.js
-  var require_lightspeedWall = __commonJS({
-    "src/effects/lightspeedWall.js"(exports, module) {
-      init_define_process_env();
-      init_bufferGlobal();
-      var { hsl } = require_core();
-      var { tempo } = require_audioFeatures();
-      var lsWallRacers = [];
-      var lsWallT = 0;
-      function resetLightspeedWall(core, lsCount) {
-        lsWallRacers = [];
-        const { wallW, wallH } = core;
-        for (let k = 0; k < lsCount; k++) {
-          const x = wallW * 0.25 + Math.random() * wallW * 0.5;
-          const y = wallH * 0.25 + Math.random() * wallH * 0.5;
-          lsWallRacers.push({
-            x,
-            y,
-            du: 1,
-            dv: 0,
-            hue: k / lsCount,
-            trail: [],
-            nudgeCountdown: 3 + Math.random() * 4,
-            nudgeT: 3 + Math.random() * 5
-          });
-        }
-      }
-      function effectLightspeedWall(core, dt) {
-        dt *= tempo(core);
-        lsWallT += dt;
-        const { wallW, wallH, wallBuf } = core;
-        if (!wallW) return;
-        const opts = core.effectOptions?.lightspeed || {};
-        const lsSpeed = opts.speed ?? 8, lsTrail = opts.trail ?? 32, lsSize = opts.size ?? 1;
-        const lsColour = opts.colour ?? "multi", lsCount = opts.count ?? 8, lsNudge = opts.nudge ?? 0;
-        if (!lsWallRacers.length || lsWallRacers.length !== lsCount) resetLightspeedWall(core, lsCount);
-        for (let i = 0; i < wallBuf.length; i++) wallBuf[i] = 0;
-        const dim = Math.max(wallW, wallH);
-        const pps = Math.pow(lsSpeed, 1.6) * dim * 0.8 / 64;
-        const dist = pps * dt;
-        const subSteps = Math.min(Math.max(1, Math.ceil(dist)), 400);
-        const d = dist / subSteps;
-        for (const r of lsWallRacers) {
-          r.nudgeCountdown -= dt;
-          if (r.nudgeCountdown <= 0) {
-            r.nudgeCountdown = r.nudgeT * (0.8 + Math.random() * 3);
-            if (lsNudge > 0) {
-              const a = (Math.random() - 0.5) * 2 * (lsNudge * Math.PI / 180);
-              const c = Math.cos(a), s_ = Math.sin(a);
-              const od = r.du, ov = r.dv;
-              r.du = od * c - ov * s_;
-              r.dv = od * s_ + ov * c;
-              const l = Math.sqrt(r.du * r.du + r.dv * r.dv) || 1;
-              r.du /= l;
-              r.dv /= l;
-            }
-          }
-          for (let ss = 0; ss < subSteps; ss++) {
-            r.x += r.du * d;
-            r.y += r.dv * d;
-            if (r.x < 0) r.x += wallW;
-            else if (r.x >= wallW) r.x -= wallW;
-            if (r.y < 0) r.y += wallH;
-            else if (r.y >= wallH) r.y -= wallH;
-            const px = Math.round(r.x), py = Math.round(r.y);
-            if (px >= 0 && px < wallW && py >= 0 && py < wallH) {
-              r.trail.push({ x: px, y: py });
-              if (r.trail.length > lsTrail) r.trail.shift();
-            }
-          }
-          r.hue = (r.hue + dt * 0.04) % 1;
-          const tl = r.trail.length;
-          for (let i = 0; i < tl; i++) {
-            const { x, y } = r.trail[i];
-            const frac = (i + 1) / tl;
-            const bright = Math.pow(frac, 1.3);
-            let rr, rg, rb;
-            const lum = 0.55 * bright + (frac > 0.9 ? (frac - 0.9) * 4 : 0);
-            if (lsColour === "multi") [rr, rg, rb] = hsl((r.hue + frac * 0.1 + lsWallT * 0.04) % 1, 1, lum);
-            else {
-              const hmap = { white: null, cyan: 0.52, red: 0.02, green: 0.33, gold: 0.13 };
-              const h = hmap[lsColour];
-              if (!h) {
-                rr = bright;
-                rg = bright;
-                rb = bright;
-              } else [rr, rg, rb] = hsl(h, 1, lum);
-            }
-            if (i === tl - 1) {
-              rr = 1;
-              rg = 1;
-              rb = 1;
-            }
-            const R = lsSize - 1;
-            for (let dv2 = -R; dv2 <= R; dv2++) for (let du2 = -R; du2 <= R; du2++) {
-              const nx = x + du2, ny = y + dv2;
-              if (nx < 0 || nx >= wallW || ny < 0 || ny >= wallH) continue;
-              const gx = nx / core.wallPanelSize | 0, gy = ny / core.wallPanelSize | 0;
-              if (!core._wallOccupied[gy * core.wallCols + gx]) continue;
-              const o = (ny * wallW + nx) * 3;
-              if (rr > wallBuf[o]) wallBuf[o] = rr;
-              if (rg > wallBuf[o + 1]) wallBuf[o + 1] = rg;
-              if (rb > wallBuf[o + 2]) wallBuf[o + 2] = rb;
-            }
-          }
-        }
-        finishGlow(core);
-      }
-      var glowA = null;
-      var glowB = null;
-      function finishGlow(core) {
-        const { wallW: W, wallH: H, wallBuf: buf } = core, n = W * H * 3;
-        if (!glowA || glowA.length !== n) {
-          glowA = new Float32Array(n);
-          glowB = new Float32Array(n);
-        }
-        const R = 2;
-        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) for (let ch = 0; ch < 3; ch++) {
-          let sum = 0;
-          for (let k = -R; k <= R; k++) {
-            const xx = x + k;
-            if (xx >= 0 && xx < W) sum += buf[(y * W + xx) * 3 + ch];
-          }
-          glowA[(y * W + x) * 3 + ch] = sum / (2 * R + 1);
-        }
-        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) for (let ch = 0; ch < 3; ch++) {
-          let sum = 0;
-          for (let k = -R; k <= R; k++) {
-            const yy = y + k;
-            if (yy >= 0 && yy < H) sum += glowA[(yy * W + x) * 3 + ch];
-          }
-          glowB[(y * W + x) * 3 + ch] = sum / (2 * R + 1);
-        }
-        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-          const o = (y * W + x) * 3;
-          const grid = x % 8 === 0 || y % 8 === 0 ? 0.025 : 0;
-          const bg = [6e-3 + grid * 0.5, 8e-3 + grid * 0.8, 0.02 + grid * 1.6];
-          for (let ch = 0; ch < 3; ch++) buf[o + ch] = Math.min(1, Math.max(bg[ch], buf[o + ch]) + glowB[o + ch] * 1.6);
-        }
-      }
-      module.exports = effectLightspeedWall;
-    }
-  });
-
   // src/effects/lifeWall.js
   var require_lifeWall = __commonJS({
     "src/effects/lifeWall.js"(exports, module) {
@@ -31534,7 +31293,7 @@ var PiEngine = (() => {
       var rainWall = rain.wall;
       var dnaWall = dna.wall;
       var lightningWall = lightning.wall;
-      var lightspeedWall = require_lightspeedWall();
+      var lightspeedWall = lightspeed.wall;
       var sphereWall = sphere.wall;
       var ballsWall = balls.wall;
       var sandWall = sand.wall;
@@ -31709,7 +31468,7 @@ var PiEngine = (() => {
         fluid_ink: "Fluid Ink",
         lava_lamp: "Lava Lamp",
         ai_art: "AI Art",
-        wave: "Wave Cascade",
+        wave: "Colour Falls",
         gradient_wash: "Rainbow Wash",
         weather: "Weather",
         radar: "Weather Radar",
@@ -31743,7 +31502,7 @@ var PiEngine = (() => {
         fluid: "Liquid Crystal",
         depth_rings: "Depth Rings",
         prism: "Prism Sweep",
-        tide: "Color Tide",
+        tide: "Beach Tide",
         ghost: "Ghost Face",
         ghost2: "Ghost Face 2 (3D)",
         datetime: "Time & Date",

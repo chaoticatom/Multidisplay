@@ -1,38 +1,46 @@
-// Ported verbatim (math unchanged) from effects-colour.js's effectTide().
-//
-// One definition for cube and wall (see ./surface.js). Wall notes:
-//   Wall-mode counterpart to tide.js - same idea as gradientWashWall.js vs
-//   gradientWash.js. The cube version blends three sine waves driven by
-//   surfX/Y/Z (3D cube-surface coords, 0-1); flattened here to 2D wall coords
-//   using the same x=x/wallW, y=y/wallH convention as prismWall.js (0-1,
-//   unshifted, matching tide.js's own unshifted x/y/z). The z-driven wave
-//   (w2, originally out of phase with the x wave) has no z axis to read on a
-//   flat wall, so it's re-derived from y instead (a second wave off the
-//   perpendicular axis, keeping the same "three waves, three phases" blend
-//   shape) - see the w2 comment below. Hue/brightness math is unchanged.
+// Beach Tide (was Color Tide): waves rolling onto a beach at sunset. A sky
+// fading from gold to violet with the sun low over the sea and its glitter
+// path on the water; swell lines rolling in, closer together towards the
+// horizon; a wash that slides up the sand and drains back, white foam on its
+// edge and a darker, shining band of wet sand behind it. One definition for
+// cube and wall (see ./surface.js).
 'use strict';
 
-const { hsl, lerp } = require('../core');
 const { defineFieldEffect } = require('./surface');
+const { sceneUV, vnoise, clamp, smooth } = require('./sceneKit');
 
-const { lit } = require('./shade');
-
-function blendAt(x, y, z, t) {
-  const w1 = Math.sin(x * Math.PI * 2 + t * 0.8) * 0.5 + 0.5;
-  const w2 = Math.sin(z * Math.PI * 2 - t * 0.6) * 0.5 + 0.5;
-  const w3 = Math.sin(y * Math.PI * 1.5 + t * 0.4) * 0.5 + 0.5;
-  return (w1 + w2 + w3) / 3;
-}
-
-// Tide: slow swells of colour lit like rolling satin.
 module.exports = defineFieldEffect({
-  smooth: true, // slowly varying field: see surface.js
-  speed: 0.6,
-  pixel(p, { t }) {
-    const { x, y, z } = p; // on a wall z = y
-    const e = 0.01, blend = blendAt(x, y, z, t);
-    const dhx = (blendAt(x + e, y, z, t) - blend) / e, dhy = (blendAt(x, y + e, z + (p.flat ? e : 0), t) - blend) / e;
-    const col = hsl((x * 0.3 + z * 0.3 + blend * 0.25 + t * 0.04) % 1, 0.95, lerp(0.25, 0.6, blend));
-    return lit(col, dhx, dhy, { bump: 0.8, gloss: 18, shine: 0.45, ambient: 0.35 });
+  fine: true,
+  speed: 0.5,
+  pixel(p, { t, core }) {
+    const [x, y, w] = sceneUV(p, core), HOR = 0.4, sunX = w * 0.62, sunY = 0.3;
+    // The wash: slides up the beach and back, rippling along its edge.
+    const wash = 0.7 + 0.07 * Math.sin(t * 0.55) + 0.025 * Math.sin(x * 4 + t * 0.9) + 0.015 * (vnoise(x * 6, t * 0.3) - 0.5);
+    if (y < HOR) {
+      // Sky + sun.
+      const k = y / HOR; let r = 0.35 + 0.6 * k, g = 0.12 + 0.45 * k, b = 0.35 - 0.15 * k;
+      const ds = Math.hypot(x - sunX, (y - sunY) * 1.1), sun = smooth(0.075, 0.06, ds), glow = Math.exp(-ds * 7) * 0.5;
+      r += sun + glow; g += sun * 0.85 + glow * 0.55; b += sun * 0.5 + glow * 0.15;
+      const cloud = smooth(0.55, 0.75, vnoise(x * 2.5 + t * 0.03, y * 8)) * (1 - k) * 0.25; r += cloud * 0.6; g += cloud * 0.35; b += cloud * 0.4;
+      return [Math.min(1, r * 0.75), Math.min(1, g * 0.75), Math.min(1, b * 0.75)];
+    }
+    if (y < wash) {
+      // The sea: deeper blue near the horizon, swell lines rolling in.
+      const d = (y - HOR) / (wash - HOR), persp = 1 / (0.15 + d);
+      let r = 0.02 + 0.08 * d, g = 0.12 + 0.2 * d, b = 0.25 + 0.2 * d;
+      const swell = Math.pow(0.5 + 0.5 * Math.sin(persp * 2.2 - t * 1.6 + Math.sin(x * 3 + t * 0.4) * 0.6), 6) * (0.15 + 0.35 * d);
+      r += swell; g += swell; b += swell;
+      // The sun's glitter path.
+      const gl = Math.exp(-Math.abs(x - sunX) * (6 + 10 * (1 - d))) * Math.pow(vnoise(x * 40, y * 80 + t * 3), 4) * 1.4;
+      r += gl; g += gl * 0.75; b += gl * 0.4;
+      // Foam on the wash's edge.
+      const foam = smooth(0.012, 0, wash - y) * (0.6 + 0.4 * vnoise(x * 30, t * 2)); r += foam; g += foam; b += foam;
+      return [Math.min(1, r), Math.min(1, g), Math.min(1, b)];
+    }
+    // The beach: wet and shining just behind the wash, dry and warm higher up.
+    const wet = Math.exp(-(y - wash) * 28), grain = 0.9 + 0.2 * vnoise(x * 70, y * 70);
+    let r = (0.62 - 0.35 * wet) * grain, g = (0.47 - 0.25 * wet) * grain, b = (0.3 - 0.12 * wet) * grain;
+    const shine = wet * Math.exp(-Math.abs(x - sunX) * 5) * 0.4; r += shine; g += shine * 0.75; b += shine * 0.45;
+    return [r * 0.8, g * 0.8, b * 0.8];
   },
 });

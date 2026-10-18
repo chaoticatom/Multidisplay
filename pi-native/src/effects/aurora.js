@@ -1,69 +1,45 @@
-// Ported verbatim (math unchanged) from effects-motion.js's effectAurora().
-//
-// One definition for cube and wall (see ./surface.js). Wall notes:
-//   Wall-mode counterpart to aurora.js - same idea as gradientWashWall.js vs
-//   gradientWash.js. x flattened to unshifted x=x/wallW (matching
-//   prismWall.js/tideWall.js's convention, and aurora.js's own unshifted x).
-//   y flattened to ny = 1 - y/wallH so "up" still means the same thing it
-//   did in the cube version: aurora.js's y=1 is the cube's top face, and
-//   `fade` brightens the curtains toward it, so this remaps wall row 0
-//   (top of the stitched image) to ny=1 to keep that "brighter near the
-//   top" character rather than inverting it.
-//   
-//   aurora.js's curtain shape (c1/c2) reads x for its horizontal drift and
-//   z for a second, independent horizontal axis that gives the curtains
-//   their fold/twist - a flat wall only has one horizontal axis, and unlike
-//   wave.js/plasma.js's z terms (which read genuinely interchangeable
-//   spatial axes), reusing wall-y for aurora's z would tie the curtain fold
-//   to vertical position, which reads as a completely different (and
-//   wrong-looking) effect from cube aurora's horizontal fold. So z is
-//   dropped spatially (not reused) but its *time* component is kept, so the
-//   curtains still shimmer/breathe over time instead of the fold pattern
-//   going fully static - closer in spirit to the original than either
-//   alternative.
+// Aurora Borealis: real flowing curtains over a dark range of hills. Three
+// ribbons wave sideways across a starry sky; each hangs light upwards in fine
+// shimmering rays that run green at the foot, through teal, to pink and violet
+// at the top. The hills catch a faint green rim, and the light breathes with
+// the music. One definition for cube and wall (see ./surface.js).
 'use strict';
 
-const { hsl, lerp, sm } = require('../core');
 const { defineFieldEffect } = require('./surface');
+const { sceneUV, hash2, vnoise, clamp, smooth } = require('./sceneKit');
 
-// Twinkling background stars, one array per mode (cube LEDs / wall pixels).
-const stars = { cube: null, wall: null };
+const RIBBONS = [
+  { base: 0.55, a: 0.1, f: 1.3, s: 0.22, h: 0.45, k: 1 },
+  { base: 0.45, a: 0.08, f: 2.1, s: -0.17, h: 0.35, k: 0.75 },
+  { base: 0.62, a: 0.09, f: 0.8, s: 0.12, h: 0.5, k: 0.55 },
+];
 
 module.exports = defineFieldEffect({
-  smooth: true, // slowly varying curtains; stars are added per pixel in detail()
-  speed: 0.35,
-  frame(ctx) {
-    const key = ctx.flat ? 'wall' : 'cube';
-    if (!stars[key] || stars[key].length !== ctx.count) {
-      stars[key] = new Float32Array(ctx.count);
-      for (let i = 0; i < ctx.count; i++) stars[key][i] = Math.random() < 0.014 ? Math.random() : 0;
+  fine: true,
+  speed: 0.6,
+  pixel(p, { t, core }) {
+    const [x, y] = sceneUV(p, core), lvl = core && core.audio && core.audio.active ? core.audio.level : 0;
+    // Night sky, lighter at the horizon.
+    let r = 0.005 + 0.02 * y, g = 0.01 + 0.03 * y, b = 0.03 + 0.05 * y;
+    // Stars (fainter behind the light).
+    const cx = Math.floor(x * 46), cy = Math.floor(y * 46), sh = hash2(cx, cy);
+    if (sh > 0.975 && y < 0.7) { const tw = 0.5 + 0.5 * Math.sin(t * (1.5 + sh * 4) + sh * 50); const dx = x * 46 - cx - 0.5, dy = y * 46 - cy - 0.5; const k = Math.max(0, 1 - (dx * dx + dy * dy) * 6) * 0.45 * tw; r += k; g += k; b += k; }
+    // The curtains.
+    let ar = 0, ag = 0, ab = 0;
+    for (const R of RIBBONS) {
+      const foot = R.base + R.a * Math.sin(x * R.f + t * R.s) + 0.03 * Math.sin(x * R.f * 2.7 - t * R.s * 1.7) + 0.02 * (vnoise(x * 3 + t * 0.2, R.base * 10) - 0.5);
+      const d = foot - y; // how far above the curtain's foot
+      if (d < -0.02 || d > R.h) continue;
+      const rays = 0.15 + 1.1 * Math.pow(vnoise(x * 30 + Math.sin(t * 0.7 + x * 2) * 1.5, t * 0.4), 2.4); // fine vertical rays, shimmering
+      const up = d < 0 ? Math.max(0, 1 + d / 0.02) : Math.exp(-d / (R.h * 0.45)) * (1 - smooth(R.h * 0.7, R.h, d));
+      const k = up * rays * R.k * (0.85 + 0.5 * lvl), hgt = clamp(d / R.h);
+      // green foot -> teal -> pink/violet top
+      ar += k * (0.15 + 0.85 * smooth(0.45, 1, hgt)); ag += k * (1 - 0.75 * smooth(0.3, 1, hgt)); ab += k * (0.35 + 0.55 * smooth(0.2, 0.9, hgt));
     }
-    ctx.stars = stars[key];
-  },
-  pixel(p, ctx) {
-    const { t } = ctx;
-    // On a wall: height runs bottom-up (y flipped) and there's no depth
-    // axis (z = 0, so the curtain only moves in time along it).
-    const x = p.x, y = p.flat ? 1 - p.y : p.y, z = p.flat ? 0 : p.z;
-    const c1 = Math.sin(x * Math.PI * 3.5 + t * 0.65) * Math.sin(z * Math.PI * 2.8 + t * 0.42);
-    const c2 = Math.sin(x * Math.PI * 2.2 - t * 0.38) * Math.cos(z * Math.PI * 1.9 + t * 0.55) * 0.6;
-    const curtain = c1 + c2;
-    const fade = Math.pow(Math.max(0, y), 0.45);
-    const bright = Math.max(0, curtain) * fade * 0.88;
-    if (bright > 0.02) {
-      const hue = lerp(0.30, 0.82, sm(0, 1, x + Math.sin(t * 0.28) * 0.25)) + Math.sin(t * 0.1) * 0.04;
-      const sat = 0.9 + Math.sin(t * 0.8 + x * 2) * 0.1;
-      const [r, g, b] = hsl(hue, sat, bright);
-      const [r2, g2, b2] = hsl(hue + 0.45, sat, bright * 0.4 * Math.max(0, c2));
-      return [Math.min(1, r + r2), Math.min(1, g + g2), Math.min(1, b + b2)];
-    }
-    return [0, 0, 0];
-  },
-  // Stars twinkle in the dark sky between the curtains (per pixel, on top
-  // of the blended curtain colour).
-  detail(p, ctx, c) {
-    const s = ctx.stars[p.i];
-    if (s > 0 && c[0] + c[1] + c[2] < 0.06) { const tw = 0.5 + 0.5 * Math.sin(ctx.t * 2.3 + s * 12.7); return [tw * 0.55, tw * 0.55, tw * 0.65]; }
-    return c;
+    r += ar * 0.85; g += ag * 0.9; b += ab * 0.85;
+    // Hills: a dark ridge with a faint green rim lit by the aurora.
+    const hill = 0.8 + 0.06 * Math.sin(x * 2.3 + 1) + 0.04 * Math.sin(x * 5.1) + 0.02 * vnoise(x * 9, 3);
+    if (y > hill) { const rim = Math.exp(-(y - hill) * 90) * 0.18; return [0.004 + rim * 0.2, 0.008 + rim, 0.012 + rim * 0.5]; }
+    return [Math.min(1.2, r), Math.min(1.2, g), Math.min(1.2, b)];
   },
 });
