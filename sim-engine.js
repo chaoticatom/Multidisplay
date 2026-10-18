@@ -23515,7 +23515,7 @@ var PiEngine = (() => {
       var MIL_CS = /^(RRR|ASCOT|RCH|REACH|CFC|NATO|TARTN|KITTY|COMET|DUKE|HKY|BAF|GAF|IAM|FAF|SHF|NAVY|ARMY|CNV|SAM|PAT|RFR|QID|MMF|NOH|IFC)/;
       var isInteresting = (p) => p.mil || INTERESTING_TYPES.has(p.type);
       function createPlaneData(fetchFn = fetchWithTimeout) {
-        const st = { day: null, planes: [], status: "Waiting for location", home: null, homeKey: "", geo: "", fetching: false, lastPoll: 0, backoffUntil: 0, routes: /* @__PURE__ */ new Map(), queue: [], routeAt: 0, routeBusy: false };
+        const st = { dueAt: /* @__PURE__ */ new Map(), day: null, planes: [], status: "Waiting for location", home: null, homeKey: "", geo: "", fetching: false, lastPoll: 0, backoffUntil: 0, routes: /* @__PURE__ */ new Map(), queue: [], routeAt: 0, routeBusy: false };
         const HEADERS = { Accept: "application/json", "User-Agent": "Multidisplay-LED/1.0 (home LED display; github.com/chaoticatom/Multidisplay)" };
         async function getJson(url) {
           const host = new URL(url).hostname;
@@ -23693,7 +23693,13 @@ var PiEngine = (() => {
             const b = rel.brg * Math.PI / 180, e = rel.dist * Math.sin(b), nn = rel.dist * Math.cos(b), v = p.gs * KT_TO_KMS;
             const ve = v * Math.sin(tr), vn = v * Math.cos(tr), vv = ve * ve + vn * vn;
             const tc = vv > 1e-9 ? -(e * ve + nn * vn) / vv : 0, miss = Math.hypot(e + ve * tc, nn + vn * tc);
-            const dueIn = tc > 0 && tc < 900 && miss < 2.5 ? tc : -1;
+            let dueIn = tc > 0 && tc < 900 && miss < 2.5 ? tc : -1;
+            if (dueIn >= 0) {
+              const est = now + dueIn * 1e3, had = st.dueAt.get(p.hex);
+              const at = had && Math.abs(had - est) < 15e3 ? had + (est - had) * 0.05 : est;
+              st.dueAt.set(p.hex, at);
+              dueIn = Math.max(0, (at - now) / 1e3);
+            } else st.dueAt.delete(p.hex);
             return { ...p, lat, lon, dist: rel.dist, brg: rel.brg, dueIn, miss, overhead: rel.dist < 1.5, route: route || null, airline: route && route.airline || al.name, color: al.color, interesting: isInteresting(p) };
           }).sort((a, b) => a.dist - b.dist);
         }
@@ -31346,6 +31352,34 @@ var PiEngine = (() => {
             const c2 = { ...ctx, amp: (i) => lA.amp[i], peak: (i) => lA.peak[i], ampArr: lA.amp, peakArr: lA.peak };
             if (opts.version === 1) renderSpectrumStyleWall(core, c2, style, spectrumWallState);
             else renderSpectrumV2Wall(core, c2, opts.scene || "auto", v2State, opts.autoSecs);
+            if (djInfo.mixing) {
+              const W = core.wallW, area = core.wallH - DJ_ROWS, u = Math.max(0, Math.min(1, djInfo.mixU || 0)), px = u * W, wb = core.wallBuf;
+              for (let y = 3; y < area; y++) for (let x = 0; x < Math.min(W, Math.ceil(px)); x++) {
+                const o2 = (y * W + x) * 3, lum = (wb[o2] + wb[o2 + 1] + wb[o2 + 2]) / 3;
+                if (lum < 0.01) continue;
+                const k = Math.min(1, (px - x) / 3) * 0.6;
+                core.setWallPixel(x, y, wb[o2] + (lum * 1.6 - wb[o2]) * k, wb[o2 + 1] + (lum * 0.88 - wb[o2 + 1]) * k, wb[o2 + 2] + (lum * 0.2 - wb[o2 + 2]) * k);
+              }
+              const sx = Math.round(px);
+              for (let y = 3; y < area; y++) {
+                const q = (y * W + sx) * 3;
+                if (sx < W) core.setWallPixel(sx, y, Math.min(1.4, wb[q] + 0.5), Math.min(1.4, wb[q + 1] + 0.45), Math.min(1.4, wb[q + 2] + 0.35));
+              }
+              for (let x = 0; x < W; x++) {
+                const on = x <= px;
+                core.setWallPixel(x, 0, on ? 1 : 0.12, on ? 0.55 : 0.13, on ? 0.12 : 0.16);
+              }
+              const sw = djInfo.mixSwap >= 0 ? djInfo.mixSwap : 0.5;
+              for (const f of [0.02, sw, 0.85]) {
+                const mx = Math.round(f * (W - 1));
+                core.setWallPixel(mx, 0, 1, 1, 1);
+                core.setWallPixel(mx, 1, 0.7, 0.7, 0.7);
+              }
+              if (sx < W) {
+                core.setWallPixel(sx, 0, 1, 1, 1);
+                core.setWallPixel(sx, 1, 1, 1, 1);
+              }
+            }
             const ready = djInfo.next && djInfo.next.status !== "loading" && (djInfo.mixing || djInfo.tease || djInfo.mixIn >= 0 && djInfo.mixIn <= 30);
             djNext.k += ((ready ? 1 : 0) - djNext.k) * Math.min(1, dt * (ready ? 2 : 5));
             if (djNext.k > 0.02 && audio.specB) {

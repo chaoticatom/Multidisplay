@@ -45,7 +45,7 @@ const MIL_CS = /^(RRR|ASCOT|RCH|REACH|CFC|NATO|TARTN|KITTY|COMET|DUKE|HKY|BAF|GA
 const isInteresting = (p) => p.mil || INTERESTING_TYPES.has(p.type);
 
 function createPlaneData(fetchFn = fetchWithTimeout) {
-  const st = { day: null, planes: [], status: 'Waiting for location', home: null, homeKey: '', geo: '', fetching: false, lastPoll: 0, backoffUntil: 0, routes: new Map(), queue: [], routeAt: 0, routeBusy: false };
+  const st = { dueAt: new Map(), day: null, planes: [], status: 'Waiting for location', home: null, homeKey: '', geo: '', fetching: false, lastPoll: 0, backoffUntil: 0, routes: new Map(), queue: [], routeAt: 0, routeBusy: false };
 
   // These services refuse requests that don't say who's asking.
   const HEADERS = { Accept: 'application/json', 'User-Agent': 'Multidisplay-LED/1.0 (home LED display; github.com/chaoticatom/Multidisplay)' };
@@ -194,7 +194,14 @@ function createPlaneData(fetchFn = fetchWithTimeout) {
       const b = rel.brg * Math.PI / 180, e = rel.dist * Math.sin(b), nn = rel.dist * Math.cos(b), v = p.gs * KT_TO_KMS;
       const ve = v * Math.sin(tr), vn = v * Math.cos(tr), vv = ve * ve + vn * vn;
       const tc = vv > 1e-9 ? -(e * ve + nn * vn) / vv : 0, miss = Math.hypot(e + ve * tc, nn + vn * tc);
-      const dueIn = tc > 0 && tc < 900 && miss < 2.5 ? tc : -1;
+      let dueIn = tc > 0 && tc < 900 && miss < 2.5 ? tc : -1;
+      // A steady countdown: held as a clock time, nudged towards each new
+      // estimate (positions arrive every few seconds and jitter).
+      if (dueIn >= 0) {
+        const est = now + dueIn * 1000, had = st.dueAt.get(p.hex);
+        const at = had && Math.abs(had - est) < 15000 ? had + (est - had) * 0.05 : est;
+        st.dueAt.set(p.hex, at); dueIn = Math.max(0, (at - now) / 1000);
+      } else st.dueAt.delete(p.hex);
       return { ...p, lat, lon, dist: rel.dist, brg: rel.brg, dueIn, miss, overhead: rel.dist < 1.5, route: route || null, airline: (route && route.airline) || al.name, color: al.color, interesting: isInteresting(p) };
     }).sort((a, b) => a.dist - b.dist);
   }

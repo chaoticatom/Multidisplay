@@ -115,6 +115,23 @@ function effectRadioWall(core, dt) {
       else renderSpectrumV2Wall(core, c2, opts.scene || 'auto', v2State, opts.autoSecs);
       // From when the next song is being lined up with this one (the last
       // 30 s before the mix), through the mix - and during a hint of it.
+      // Crossfade progress on the spectrum: left of the progress point the bars
+      // take the new song's amber (a wipe with a glowing seam), and a ribbon
+      // along the top fills, with marks where the new song comes in, the bass
+      // swaps and the old one fades out.
+      if (djInfo.mixing) {
+        const W = core.wallW, area = core.wallH - DJ_ROWS, u = Math.max(0, Math.min(1, djInfo.mixU || 0)), px = u * W, wb = core.wallBuf;
+        for (let y = 3; y < area; y++) for (let x = 0; x < Math.min(W, Math.ceil(px)); x++) {
+          const o = (y * W + x) * 3, lum = (wb[o] + wb[o + 1] + wb[o + 2]) / 3; if (lum < 0.01) continue;
+          const k = Math.min(1, (px - x) / 3) * 0.6; core.setWallPixel(x, y, wb[o] + (lum * 1.6 - wb[o]) * k, wb[o + 1] + (lum * 0.88 - wb[o + 1]) * k, wb[o + 2] + (lum * 0.2 - wb[o + 2]) * k);
+        }
+        const sx = Math.round(px);
+        for (let y = 3; y < area; y++) { const q = (y * W + sx) * 3; if (sx < W) core.setWallPixel(sx, y, Math.min(1.4, wb[q] + 0.5), Math.min(1.4, wb[q + 1] + 0.45), Math.min(1.4, wb[q + 2] + 0.35)); }
+        for (let x = 0; x < W; x++) { const on = x <= px; core.setWallPixel(x, 0, on ? 1 : 0.12, on ? 0.55 : 0.13, on ? 0.12 : 0.16); }
+        const sw = djInfo.mixSwap >= 0 ? djInfo.mixSwap : 0.5;
+        for (const f of [0.02, sw, 0.85]) { const mx = Math.round(f * (W - 1)); core.setWallPixel(mx, 0, 1, 1, 1); core.setWallPixel(mx, 1, 0.7, 0.7, 0.7); }
+        if (sx < W) { core.setWallPixel(sx, 0, 1, 1, 1); core.setWallPixel(sx, 1, 1, 1, 1); }
+      }
       const ready = djInfo.next && djInfo.next.status !== 'loading' && (djInfo.mixing || djInfo.tease || (djInfo.mixIn >= 0 && djInfo.mixIn <= 30));
       djNext.k += ((ready ? 1 : 0) - djNext.k) * Math.min(1, dt * (ready ? 2 : 5));
       if (djNext.k > 0.02 && audio.specB) {
