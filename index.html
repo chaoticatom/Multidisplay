@@ -1240,6 +1240,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .mx-filters button{padding:5px 10px!important;font-size:12px!important}
 .mx-search input{padding:8px 10px!important;font-size:13px!important}
 .mx-search button{padding:0 12px!important;font-size:12.5px!important}
+.mx-note{font-size:11.5px;color:rgba(238,242,255,.55);margin:-2px 0 8px;line-height:1.35}.mx-note:empty{display:none}
 /* ── Music tab: player + Radio / Auto-DJ / Sound ─────────────────────── */
 .mx-root{padding:0!important;border:0!important;background:none!important;box-shadow:none!important;margin:0!important}
 .mx-player{position:relative;background:linear-gradient(135deg,rgba(80,110,255,.16),rgba(150,80,255,.10));border-radius:18px;padding:12px;margin:0 0 12px;box-shadow:0 0 0 1px rgba(255,255,255,.1)}
@@ -2201,8 +2202,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
           <button type="button" id="cx-show-spectrum" class="mx-btn mx-spec" title="Show the spectrum on the display">📊 Spectrum</button>
         </div>
         <div class="mx-out">
-          <button type="button" class="mx-chip" id="mx-out-pi" title="The Pi's speaker - set it up under Sound">🔊 Pi speaker</button>
-          <label class="mx-chip"><input type="checkbox" class="radio-browser-play-el" checked> 📱 This device</label>
+          <label class="mx-chip" title="Also play the sound on this phone, tablet or PC"><input type="checkbox" class="radio-browser-play-el" checked> 🎧 Hear it on this device too</label>
         </div>
         <div class="mx-rate" id="dj-rate" hidden><span id="dj-rate-txt">How was that mix?</span><button type="button" data-rate="1" aria-label="Good mix">👍</button><button type="button" data-rate="0" aria-label="Bad mix">👎</button></div>
         <div class="radio-status-el mx-status">Pick a station</div>
@@ -2236,16 +2236,46 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       </div>
 
       <div class="mx-pane" data-mx="dj" hidden>
-        <button type="button" class="mx-row-btn" id="dj-change" hidden>💿 Music source <span id="dj-src-sum"></span></button>
+        <button type="button" class="mx-row-btn" id="dj-change" hidden>🎶 Playing from <span id="dj-src-sum"></span></button>
         <div class="mx-card" id="dj-setup">
-          <div class="mx-h">Play from</div>
+          <div class="mx-h">1 · What to play</div>
           <div class="tm-chips mx-src3" id="dj-source"><button type="button" data-djsrc="mp3"><span>💿</span>My music</button><button type="button" data-djsrc="youtube"><span>▶</span>YouTube</button><button type="button" data-djsrc="both" class="on"><span>✦</span>Both</button></div>
+          <div class="mx-note" id="dj-src-note"></div>
           <div class="mx-ytrow"><input id="dj-youtube" class="ui-input" type="text" maxlength="300" placeholder="Playlist link, a search, or an artist" aria-label="YouTube playlist or search"><label class="mx-chip" title="Only songs by this artist"><input type="checkbox" id="dj-artist"> 🎤 Artist</label></div>
           <div id="dj-yt-lib" class="mx-ytlib">
             <button type="button" id="dj-lib-load" class="mx-chip">♫ My YouTube Music</button>
             <div id="dj-lib-list" class="mx-liblist" hidden></div>
             <div class="ui-note" id="dj-lib-note"></div>
-            <details class="mx-fold mx-inner" id="dj-signin">
+          </div>
+          <button type="button" id="dj-start" class="mx-big">▶ Start Auto-DJ</button>
+          <div class="ui-note" id="dj-status"></div>
+        </div>
+        <div class="mx-card" id="dj-queue-card" hidden>
+          <div class="mx-h mx-hrow"><span>2 · Up next</span><button type="button" id="dj-radio" class="mx-chip" hidden>📻 Radio from this song</button></div>
+          <div class="mx-ytrow"><input id="dj-find" class="ui-input" type="search" maxlength="200" placeholder="＋ Add a song – search YouTube" aria-label="Find a song to add"><button type="button" id="dj-find-go" class="mx-chip">Search</button></div>
+          <div id="dj-find-res" class="mx-found" hidden></div>
+          <div class="mx-sub">Tap a song to play it next · ✕ removes it.</div>
+          <div id="dj-queue" class="dj-queue" hidden></div>
+        </div>
+        <details class="mx-fold">
+          <summary>🎛 How it mixes <span id="mx-mix-sum"></span></summary>
+          <div class="slider-row"><span class="slider-label">Style</span><select id="dj-style" class="ui-input" aria-label="Mix style" style="flex:1;"><option value="auto" selected>Auto (tasteful: avoids singing)</option><option value="blend">Long blend</option><option value="short">Short: both play a few seconds</option><option value="cut">Cut on the beat</option></select></div>
+          <div class="mx-note" id="dj-style-note"></div>
+          <div class="slider-row"><span class="slider-label">Length</span><select id="dj-beats" class="ui-input" aria-label="Mix length" style="flex:1;"><option value="auto" selected>Auto (best fit, up to 128 beats)</option><option value="16">16 beats (quick)</option><option value="32">32 beats</option><option value="64">64 beats (long)</option></select></div>
+          <div class="mx-note" id="dj-beats-note"></div>
+          <label class="mx-switch"><span>Quick mix<small>Move on about a minute into each song</small></span><input type="checkbox" id="dj-quick"></label>
+          <label class="mx-switch"><span>Endless<small>Keep adding similar songs from YouTube Music</small></span><input type="checkbox" id="dj-endless" checked></label>
+          <div class="slider-row"><span class="slider-label">Light show</span><select id="dj-lights" class="ui-input" aria-label="Light show" style="flex:1;"><option value="scenes" selected>Flash on drops + new spectrum style each song</option><option value="effects">Flash on drops + new effect each song</option><option value="flash">Flash on drops only</option><option value="off">Off</option></select></div>
+          <div class="mx-note" id="dj-lights-note"></div>
+        </details>
+        <details class="mx-fold">
+          <summary id="dj-music-sum">🎵 My music files</summary>
+          <div class="mx-note">MP3s (and other audio files) on the Pi, for the DJ when "My music" or "Both" is chosen.</div>
+          <label class="ui-btn-small dj-add">＋ Add MP3s<input type="file" id="dj-upload" accept="audio/*,.mp3,.m4a,.flac,.ogg,.wav" multiple hidden></label>
+          <span id="dj-upload-status" class="dj-upload-status"></span>
+          <div id="dj-music-list" class="dj-music-list"></div>
+        </details>
+            <details class="mx-fold" id="dj-signin">
               <summary><b id="dj-signin-label">🔑 Sign in to YouTube</b> <span id="dj-signin-state">Not signed in</span></summary>
               <div class="ui-note" id="dj-signin-ok" hidden>Your playlists and Premium sound are available. If YouTube stops working after a few weeks, the sign-in has expired: upload a fresh cookies.txt.</div>
               <ol class="mx-steps" id="dj-signin-steps">
@@ -2255,32 +2285,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
               </ol>
               <div style="display:flex;gap:6px;"><label class="ui-btn-small" style="flex:1;text-align:center;cursor:pointer;"><span id="dj-upload-label">Upload cookies.txt</span><input id="dj-yt-cookie-file" type="file" accept=".txt,text/plain" hidden></label><button type="button" id="dj-yt-signout" class="ui-btn-small" hidden>Sign out</button></div>
             </details>
-          </div>
-          <label class="mx-switch"><span>Endless<small>Keep adding similar songs from YouTube Music</small></span><input type="checkbox" id="dj-endless" checked></label>
-          <button type="button" id="dj-start" class="mx-big">▶ Start Auto-DJ</button>
-          <div class="ui-note" id="dj-status"></div>
-        </div>
-        <div class="mx-card" id="dj-queue-card" hidden>
-          <div class="mx-h mx-hrow"><span>Up next</span><button type="button" id="dj-radio" class="mx-chip" hidden>📻 Radio from this song</button></div>
-          <div class="mx-ytrow"><input id="dj-find" class="ui-input" type="search" maxlength="200" placeholder="＋ Add a song – search YouTube" aria-label="Find a song to add"><button type="button" id="dj-find-go" class="mx-chip">Search</button></div>
-          <div id="dj-find-res" class="mx-found" hidden></div>
-          <div class="mx-sub">Tap a song to play it next · ✕ removes it.</div>
-          <div id="dj-queue" class="dj-queue" hidden></div>
-        </div>
-        <details class="mx-fold">
-          <summary>🎛 Mix settings <span id="mx-mix-sum"></span></summary>
-          <div class="slider-row"><span class="slider-label">Style</span><select id="dj-style" class="ui-input" aria-label="Mix style" style="flex:1;"><option value="auto" selected>Auto (tasteful: avoids singing)</option><option value="blend">Long blend</option><option value="short">Short: both play a few seconds</option><option value="cut">Cut on the beat</option></select></div>
-          <div class="slider-row"><span class="slider-label">Length</span><select id="dj-beats" class="ui-input" aria-label="Mix length" style="flex:1;"><option value="auto" selected>Auto (best fit, up to 128 beats)</option><option value="16">16 beats (quick)</option><option value="32">32 beats</option><option value="64">64 beats (long)</option></select></div>
-          <label class="mx-switch"><span>Quick mix<small>Move on about a minute into each song</small></span><input type="checkbox" id="dj-quick"></label>
-          <div class="slider-row"><span class="slider-label">Light show</span><select id="dj-lights" class="ui-input" aria-label="Light show" style="flex:1;"><option value="scenes" selected>Flash on drops + new spectrum style each song</option><option value="effects">Flash on drops + new effect each song</option><option value="flash">Flash on drops only</option><option value="off">Off</option></select></div>
-          <div class="ui-note">The DJ matches the tempo, lines up the beats, moves the key a semitone when it helps and keeps clear of singing. Songs without a clear beat get a smooth crossfade.</div>
-        </details>
-        <details class="mx-fold">
-          <summary id="dj-music-sum">🎵 My music</summary>
-          <label class="ui-btn-small dj-add">＋ Add MP3s<input type="file" id="dj-upload" accept="audio/*,.mp3,.m4a,.flac,.ogg,.wav" multiple hidden></label>
-          <span id="dj-upload-status" class="dj-upload-status"></span>
-          <div id="dj-music-list" class="dj-music-list"></div>
-        </details>
       </div>
 
       <div class="mx-pane" data-mx="sound" hidden>

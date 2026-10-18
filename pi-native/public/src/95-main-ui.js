@@ -1265,7 +1265,7 @@ function cxSyncDj() {
   s.textContent = !d.on ? (d.music.length ? `${d.music.length} tracks in My music.` : 'Add MP3s below, or a YouTube playlist or search above.')
     : d.state === 'error' || d.state === 'empty' ? '⚠ ' + (d.error || 'Nothing to play')
     : d.state === 'loading' && !d.now ? (d.next ? `Getting ready: ${d.next.title}${d.next.step ? ' — ' + d.next.step + '…' : ''}` : 'Finding songs…') + (d.error ? `\n⚠ ${d.error} — trying the next` : '')
-    : d.next ? `Next: ${d.next.title}${d.next.bpm ? ` · ${d.next.bpm} BPM` : ''}${d.next.key ? ` · ${d.next.key}${d.next.shift ? ` (${d.next.shift > 0 ? '+' : ''}${d.next.shift} st)` : ''}` : ''}${d.next.mode ? ` · ${d.next.mode}` : d.next.status ? ` · ${d.next.step || 'getting it ready'}…` : ''}${d.next.style === 'cut' ? ' · cut on the beat' : d.next.beats ? ` · ${d.next.beats}-beat ${d.next.style || 'blend'}` : ''}` : '';
+    : d.error && d.next && d.next.status ? `⚠ ${d.error} — trying the next` : ''; // what's next is in the Up next list
   s.style.whiteSpace = 'pre-line';
   document.getElementById('dj-skip').disabled = !d.on;
   // While the DJ plays, the source card folds away behind a one-line row.
@@ -1275,7 +1275,7 @@ function cxSyncDj() {
     setup.classList.toggle('mx-collapsed', live); change.hidden = !live;
     if (!live) setup.classList.remove('mx-open');
     const src = c ? { mp3: 'My music', youtube: 'YouTube', both: 'My music + YouTube' }[c.source] || '' : '';
-    const ss = document.getElementById('dj-src-sum'); if (ss) ss.textContent = src + ' ›';
+    const ss = document.getElementById('dj-src-sum'); if (ss) ss.textContent = src + (c && c.youtube && c.source !== 'mp3' ? ' · \u201c' + c.youtube.replace(/^https?:\/\/\S+list=([\w-]+).*/, 'playlist') .slice(0, 24) + '\u201d' : '') + ' · Change ›';
   }
   const ytBox = document.getElementById('dj-youtube'); if (ytBox && c) ytBox.hidden = c.source === 'mp3';
   const libWrap = document.getElementById('dj-yt-lib'); if (libWrap && c) libWrap.hidden = c.source === 'mp3';
@@ -1323,6 +1323,14 @@ function cxSyncDj() {
     if (show) document.getElementById('dj-rate-txt').textContent = 'How was that ' + ({ blend: 'blend', short: 'quick mix', cut: 'cut', echo: 'echo out', filter: 'filter sweep', brake: 'brake stop', roll: 'loop roll', fade: 'crossfade', underfade: 'fade-out change', segue: 'segue', mashup: 'mashup' }[lc.style] || 'mix') + '?';
   }
   const rb = document.getElementById('dj-radio'); if (rb) { rb.hidden = !(d.on && d.now && d.now.id); rb.dataset.id = (d.now && d.now.id) || ''; }
+  // Plain-words notes under each choice.
+  const note = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+  if (c) {
+    note('dj-src-note', { mp3: 'Your music files on the Pi (add them under "My music files" below).', youtube: 'A YouTube or YouTube Music playlist link, a search like "80s rock", or an artist (tick Artist). Empty: your Liked music.', both: 'Your music files and YouTube together, shuffled.' }[c.source] || '');
+    note('dj-style-note', { auto: 'Picks the best change for each pair of songs: long blends, quick mixes, cuts, echo-outs, radio-style for rock - avoiding singing.', blend: 'Always a long, smooth beat-matched blend where possible.', short: 'Both songs play together for a few seconds, beat-matched.', cut: 'The old song stops and the new one lands right on the beat.' }[c.style || 'auto']);
+    note('dj-beats-note', c.mixBeats === 'auto' || !c.mixBeats ? 'How long a blend lasts: fitted to each song\u2019s intro and ending.' : `Blends last ${c.mixBeats} beats (about ${Math.round(c.mixBeats / 2)} seconds).`);
+    note('dj-lights-note', { scenes: 'The display flashes on each drop, and the spectrum changes style with each song.', effects: 'Flashes on drops, and a new effect (plasma, aurora...) with each song.', flash: 'Just a flash on each drop.', off: '' }[c.lightShow || 'scenes']);
+  }
   const ms = document.getElementById('mx-mix-sum');
   if (ms && c) ms.textContent = ({ auto: 'Auto', blend: 'Long blend', short: 'Short', cut: 'Cut' }[c.style || 'auto']) + (c.quick ? ' · Quick mix' : '') + ' ›';
   // The track list (tap one to play it next).
